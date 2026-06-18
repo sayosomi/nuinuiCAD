@@ -29,6 +29,12 @@ const noModifier = (event: KeyboardEvent) =>
 
 export const globalShortcutDefinitions: ShortcutDefinition[] = [
   {
+    commandId: "openCommandPalette",
+    label: "コマンドパレットを開く",
+    keys: "/",
+    matches: (event) => event.key === "/" && noModifier(event)
+  },
+  {
     commandId: "undo",
     label: "元に戻す",
     keys: "Mod+Z",
@@ -78,24 +84,6 @@ export const shortcutDefinitions: ShortcutDefinition[] = [
     label: "表示/非表示を切替",
     keys: "v",
     matches: (event) => event.key.toLowerCase() === "v" && noModifier(event)
-  },
-  {
-    commandId: "addFreePoint",
-    label: "free point を追加",
-    keys: "p",
-    matches: (event) => event.key.toLowerCase() === "p" && noModifier(event)
-  },
-  {
-    commandId: "addOffsetPoint",
-    label: "offset point を追加",
-    keys: "o",
-    matches: (event) => event.key.toLowerCase() === "o" && noModifier(event)
-  },
-  {
-    commandId: "addLine",
-    label: "line を追加",
-    keys: "l",
-    matches: (event) => event.key.toLowerCase() === "l" && noModifier(event)
   },
   {
     commandId: "enterParameterEditMode",

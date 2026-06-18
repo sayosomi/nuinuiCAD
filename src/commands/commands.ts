@@ -23,6 +23,8 @@ export type CommandId =
   | "addFreePoint"
   | "addOffsetPoint"
   | "addLine"
+  | "openCommandPalette"
+  | "closeCommandPalette"
   | "focusCanvas"
   | "focusElementList"
   | "toggleShortcutHelp"
@@ -339,6 +341,16 @@ export const commands: Record<CommandId, Command> = {
     label: "line を追加",
     run: () => addElement("line")
   },
+  openCommandPalette: {
+    id: "openCommandPalette",
+    label: "コマンドパレットを開く",
+    run: () => useCadStore.setState({ showCommandPalette: true })
+  },
+  closeCommandPalette: {
+    id: "closeCommandPalette",
+    label: "コマンドパレットを閉じる",
+    run: () => useCadStore.setState({ showCommandPalette: false })
+  },
   focusCanvas: {
     id: "focusCanvas",
     label: "キャンバスへフォーカス",
@@ -442,4 +454,70 @@ export const commands: Record<CommandId, Command> = {
 
 export const dispatchCommand = (commandId: CommandId, context?: CommandContext) => {
   commands[commandId].run(context);
+};
+
+export type CommandPaletteItem = {
+  commandId: CommandId;
+  label: string;
+  keywords: string[];
+};
+
+const paletteCommandIds: CommandId[] = [
+  "addFreePoint",
+  "addOffsetPoint",
+  "addLine",
+  "undo",
+  "redo",
+  "selectNextElement",
+  "selectPreviousElement",
+  "moveSelectedElementUp",
+  "moveSelectedElementDown",
+  "toggleSelectedElementVisibility",
+  "deleteSelectedElement",
+  "focusCanvas",
+  "focusElementList",
+  "toggleShortcutHelp",
+  "enterParameterEditMode",
+  "exitParameterEditMode",
+  "focusSelectedParameterInput"
+];
+
+const paletteKeywords: Partial<Record<CommandId, string[]>> = {
+  addFreePoint: ["point", "free", "free point", "点", "追加"],
+  addOffsetPoint: ["offset", "offset point", "オフセット", "点", "追加"],
+  addLine: ["line", "直線", "線", "追加"],
+  undo: ["undo", "戻す"],
+  redo: ["redo", "やり直す"],
+  selectNextElement: ["select", "next", "次", "要素"],
+  selectPreviousElement: ["select", "previous", "前", "要素"],
+  moveSelectedElementUp: ["move", "up", "上", "並べ替え"],
+  moveSelectedElementDown: ["move", "down", "下", "並べ替え"],
+  toggleSelectedElementVisibility: ["visibility", "visible", "hide", "show", "表示", "非表示"],
+  deleteSelectedElement: ["delete", "remove", "削除"],
+  focusCanvas: ["focus", "canvas", "キャンバス"],
+  focusElementList: ["focus", "element list", "構成リスト", "要素リスト"],
+  toggleShortcutHelp: ["shortcut", "help", "ショートカット", "ヘルプ"],
+  enterParameterEditMode: ["parameter", "edit", "パラメーター", "編集"],
+  exitParameterEditMode: ["parameter", "edit", "escape", "パラメーター", "終了"],
+  focusSelectedParameterInput: ["parameter", "input", "direct", "パラメーター", "入力"]
+};
+
+export const commandPaletteItems: CommandPaletteItem[] = paletteCommandIds.map((commandId) => ({
+  commandId,
+  label: commands[commandId].label,
+  keywords: paletteKeywords[commandId] ?? []
+}));
+
+const normalizePaletteText = (text: string) => text.trim().toLowerCase();
+
+export const filterCommandPaletteItems = (query: string) => {
+  const normalizedQuery = normalizePaletteText(query);
+  if (!normalizedQuery) return commandPaletteItems;
+
+  return commandPaletteItems.filter((item) => {
+    const searchableText = [item.commandId, item.label, ...item.keywords]
+      .map(normalizePaletteText)
+      .join(" ");
+    return searchableText.includes(normalizedQuery);
+  });
 };

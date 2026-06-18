@@ -331,17 +331,6 @@ export const LeftPanel = ({
       <section className="panel-section">
         <div className="section-header">
           <h2>構成リスト</h2>
-          <div className="button-row">
-            <button type="button" onClick={() => dispatchCommand("addFreePoint")}>
-              + Point
-            </button>
-            <button type="button" onClick={() => dispatchCommand("addOffsetPoint")}>
-              + Offset
-            </button>
-            <button type="button" onClick={() => dispatchCommand("addLine")}>
-              + Line
-            </button>
-          </div>
         </div>
 
         <div

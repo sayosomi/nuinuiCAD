@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { dispatchCommand } from "./commands";
+import { dispatchCommand, filterCommandPaletteItems } from "./commands";
 import { sampleElements } from "../sampleData";
 import { useCadStore } from "../state/useCadStore";
 
@@ -11,6 +11,7 @@ describe("commands", () => {
       isParameterEditMode: false,
       selectedParameterKey: "name",
       showShortcutHelp: true,
+      showCommandPalette: false,
       past: [],
       future: []
     });
@@ -53,6 +54,30 @@ describe("commands", () => {
     expect(state.elements).toHaveLength(sampleElements.length + 1);
     expect(state.elements.at(-1)?.type).toBe("freePoint");
     expect(state.selectedElementId).toBe(state.elements.at(-1)?.id);
+  });
+
+  it("opens and closes the command palette", () => {
+    dispatchCommand("openCommandPalette");
+    expect(useCadStore.getState().showCommandPalette).toBe(true);
+
+    dispatchCommand("closeCommandPalette");
+    expect(useCadStore.getState().showCommandPalette).toBe(false);
+  });
+
+  it("finds add commands from command palette queries", () => {
+    expect(filterCommandPaletteItems("").slice(0, 3).map((item) => item.commandId)).toEqual([
+      "addFreePoint",
+      "addOffsetPoint",
+      "addLine"
+    ]);
+    expect(filterCommandPaletteItems("point").map((item) => item.commandId)).toEqual(
+      expect.arrayContaining(["addFreePoint", "addOffsetPoint"])
+    );
+    expect(filterCommandPaletteItems("点").map((item) => item.commandId)).toEqual(
+      expect.arrayContaining(["addFreePoint", "addOffsetPoint"])
+    );
+    expect(filterCommandPaletteItems("line").map((item) => item.commandId)).toContain("addLine");
+    expect(filterCommandPaletteItems("直線").map((item) => item.commandId)).toContain("addLine");
   });
 
   it("uses a unique name when adding an element would reuse an existing name", () => {

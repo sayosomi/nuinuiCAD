@@ -20,6 +20,10 @@ describe("shortcuts", () => {
     );
     expect(commandIdForKeyboardEvent(keyboardEvent("Backspace"))).toBe("deleteSelectedElement");
     expect(commandIdForKeyboardEvent(keyboardEvent("v"))).toBe("toggleSelectedElementVisibility");
+    expect(commandIdForKeyboardEvent(keyboardEvent("/"))).toBe("openCommandPalette");
+    expect(commandIdForKeyboardEvent(keyboardEvent("p"))).toBeNull();
+    expect(commandIdForKeyboardEvent(keyboardEvent("o"))).toBeNull();
+    expect(commandIdForKeyboardEvent(keyboardEvent("l"))).toBeNull();
     expect(commandIdForKeyboardEvent(keyboardEvent("Enter"))).toBe("enterParameterEditMode");
     expect(commandIdForKeyboardEvent(keyboardEvent("?"))).toBe("toggleShortcutHelp");
     expect(commandIdForKeyboardEvent(keyboardEvent("["))).toBeNull();
@@ -29,6 +33,9 @@ describe("shortcuts", () => {
   });
 
   it("maps edit mode keys to parameter commands", () => {
+    expect(commandIdForKeyboardEvent(keyboardEvent("/"), { isParameterEditMode: true })).toBe(
+      "openCommandPalette"
+    );
     expect(commandIdForKeyboardEvent(keyboardEvent("ArrowDown"), { isParameterEditMode: true })).toBe(
       "selectNextParameter"
     );
@@ -73,6 +80,7 @@ describe("shortcuts", () => {
     const input = document.createElement("input");
 
     expect(commandIdForKeyboardEvent(keyboardEventFrom("p", input))).toBeNull();
+    expect(commandIdForKeyboardEvent(keyboardEventFrom("/", input))).toBeNull();
     expect(
       commandIdForKeyboardEvent(keyboardEventFrom("[", input), { isParameterEditMode: true })
     ).toBeNull();
@@ -94,7 +102,8 @@ describe("shortcuts", () => {
   it("allows app shortcuts from focused buttons", () => {
     const button = document.createElement("button");
 
-    expect(commandIdForKeyboardEvent(keyboardEventFrom("p", button))).toBe("addFreePoint");
+    expect(commandIdForKeyboardEvent(keyboardEventFrom("/", button))).toBe("openCommandPalette");
+    expect(commandIdForKeyboardEvent(keyboardEventFrom("p", button))).toBeNull();
     expect(commandIdForKeyboardEvent(keyboardEventFrom("ArrowDown", button))).toBe(
       "selectNextElement"
     );
@@ -113,7 +122,8 @@ describe("shortcuts", () => {
     const ids = shortcuts.map((shortcut) => shortcut.commandId);
 
     expect(ids).toContain("moveSelectedElementUp");
-    expect(ids).toContain("addFreePoint");
+    expect(ids).toContain("openCommandPalette");
+    expect(ids).not.toContain("addFreePoint");
     expect(ids).not.toContain("exitParameterEditMode");
     expect(ids).not.toContain("selectNextParameter");
   });
@@ -128,6 +138,7 @@ describe("shortcuts", () => {
 
     expect(ids).not.toContain("moveSelectedElementUp");
     expect(ids).not.toContain("addFreePoint");
+    expect(ids).toContain("openCommandPalette");
     expect(ids).toContain("exitParameterEditMode");
     expect(ids).toContain("selectNextParameter");
   });

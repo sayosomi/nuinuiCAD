@@ -3,6 +3,7 @@ import { dispatchCommand } from "../commands/commands";
 import { evaluateElements } from "../geometry/evaluate";
 import { keyboardCommandForEvent } from "../keyboard/shortcuts";
 import { useCadStore } from "../state/useCadStore";
+import { CommandPalette } from "./CommandPalette";
 import { DrawingCanvas } from "./DrawingCanvas";
 import { LeftPanel, RightPanel } from "./LeftPanel";
 
@@ -20,6 +21,15 @@ export const AppLayout = () => {
       parameterInputRefs.current.delete(key);
     }
   };
+  const commandContext = useMemo(() => ({
+    focusCanvas: () => canvasFocusRef.current?.focus(),
+    focusElementList: () => elementListFocusRef.current?.focus(),
+    focusSelectedParameterInput: () => {
+      const selectedKey = useCadStore.getState().selectedParameterKey;
+      if (!selectedKey) return;
+      parameterInputRefs.current.get(selectedKey)?.focus();
+    }
+  }), []);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -29,20 +39,14 @@ export const AppLayout = () => {
       if (!keyboardCommand) return;
       event.preventDefault();
       dispatchCommand(keyboardCommand.commandId, {
-        focusCanvas: () => canvasFocusRef.current?.focus(),
-        focusElementList: () => elementListFocusRef.current?.focus(),
-        focusSelectedParameterInput: () => {
-          const selectedKey = useCadStore.getState().selectedParameterKey;
-          if (!selectedKey) return;
-          parameterInputRefs.current.get(selectedKey)?.focus();
-        },
+        ...commandContext,
         ...keyboardCommand.context
       });
     };
 
     window.addEventListener("keydown", onKeyDown, { capture: true });
     return () => window.removeEventListener("keydown", onKeyDown, { capture: true });
-  }, []);
+  }, [commandContext]);
 
   return (
     <main className="app-shell">
@@ -59,6 +63,7 @@ export const AppLayout = () => {
         isParameterEditMode={isParameterEditMode}
         registerParameterControl={registerParameterControl}
       />
+      <CommandPalette commandContext={commandContext} />
     </main>
   );
 };

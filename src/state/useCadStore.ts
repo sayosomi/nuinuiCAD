@@ -18,12 +18,14 @@ export type CadState = {
   isParameterEditMode: boolean;
   selectedParameterKey: ParameterKey | null;
   showShortcutHelp: boolean;
+  showCommandPalette: boolean;
   past: CadHistorySnapshot[];
   future: CadHistorySnapshot[];
   setSelectedElementId: (id: ElementId | null) => void;
   setParameterEditMode: (isParameterEditMode: boolean) => void;
   setSelectedParameterKey: (selectedParameterKey: ParameterKey | null) => void;
   setShowShortcutHelp: (showShortcutHelp: boolean) => void;
+  setShowCommandPalette: (showCommandPalette: boolean) => void;
   commitDocumentChange: (change: Partial<CadHistorySnapshot>) => void;
   setElements: (elements: CadElement[]) => void;
   updateElement: (id: ElementId, patch: Partial<CadElement>) => void;
@@ -68,6 +70,7 @@ export const useCadStore = create<CadState>((set) => ({
   isParameterEditMode: false,
   selectedParameterKey: sampleElements[0] ? normalizeParameterKey(sampleElements[0], null) : null,
   showShortcutHelp: true,
+  showCommandPalette: false,
   past: [],
   future: [],
   setSelectedElementId: (selectedElementId) =>
@@ -101,6 +104,7 @@ export const useCadStore = create<CadState>((set) => ({
       };
     }),
   setShowShortcutHelp: (showShortcutHelp) => set({ showShortcutHelp }),
+  setShowCommandPalette: (showCommandPalette) => set({ showCommandPalette }),
   commitDocumentChange: (change) =>
     set((state) => {
       const before = currentSnapshot(state);
