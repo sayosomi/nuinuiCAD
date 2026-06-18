@@ -189,6 +189,30 @@ describe("LeftPanel element list dragging", () => {
     resetStore();
   });
 
+  it("uses row styling instead of visible state text in the element list", () => {
+    useCadStore.setState({
+      elements: [
+        { ...sampleElements[0], visible: false },
+        { ...sampleElements[1], enabled: false },
+        ...sampleElements.slice(2)
+      ]
+    });
+
+    renderLeftPanel();
+
+    expect(screen.queryByText("非表示")).not.toBeInTheDocument();
+    expect(screen.queryByText("表示")).not.toBeInTheDocument();
+    const hiddenRow = screen.getByText("点A").closest("[data-element-list-row='true']");
+    const disabledRow = screen.getByText("点B").closest("[data-element-list-row='true']");
+    expect(hiddenRow).toHaveClass("is-hidden");
+    expect(disabledRow).toHaveClass("is-disabled");
+    expect(hiddenRow?.querySelector(".element-status-icons")).toHaveAttribute("data-visible-state", "hidden");
+    expect(disabledRow?.querySelector(".element-status-icons")).toHaveAttribute(
+      "data-evaluation-state",
+      "disabled"
+    );
+  });
+
   it("reorders elements by dragging a handle before another row", () => {
     renderLeftPanel();
     const dataTransfer = dragDataTransfer();
