@@ -27,6 +27,21 @@ const isMod = (event: KeyboardEvent) => event.metaKey || event.ctrlKey;
 const noModifier = (event: KeyboardEvent) =>
   !event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey;
 
+export const globalShortcutDefinitions: ShortcutDefinition[] = [
+  {
+    commandId: "undo",
+    label: "元に戻す",
+    keys: "Mod+Z",
+    matches: (event) => event.key.toLowerCase() === "z" && isMod(event) && !event.altKey && !event.shiftKey
+  },
+  {
+    commandId: "redo",
+    label: "やり直す",
+    keys: "Mod+Y",
+    matches: (event) => event.key.toLowerCase() === "y" && isMod(event) && !event.altKey && !event.shiftKey
+  }
+];
+
 export const shortcutDefinitions: ShortcutDefinition[] = [
   {
     commandId: "moveSelectedElementUp",
@@ -204,10 +219,11 @@ export const shortcutHelpItems = ({
   selectedParameterKey?: string | null;
 } = {}): ShortcutHelpItem[] => {
   if (!isParameterEditMode) {
-    return shortcutDefinitions.map(helpItem);
+    return [...globalShortcutDefinitions, ...shortcutDefinitions].map(helpItem);
   }
 
   const items = [
+    ...globalShortcutDefinitions.map(helpItem),
     helpItem(parameterShortcut("exitParameterEditMode")),
     helpItem(parameterShortcut("focusSelectedParameterInput")),
     helpItem(parameterShortcut("selectNextParameter")),
@@ -269,7 +285,10 @@ export const keyboardCommandForEvent = (
     return null;
   }
 
-  const definitions = options.isParameterEditMode ? parameterEditShortcutDefinitions : shortcutDefinitions;
+  const definitions = [
+    ...globalShortcutDefinitions,
+    ...(options.isParameterEditMode ? parameterEditShortcutDefinitions : shortcutDefinitions)
+  ];
   const shortcut = definitions.find((definition) => definition.matches(event));
   if (!shortcut) return null;
   return {

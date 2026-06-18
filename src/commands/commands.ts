@@ -12,6 +12,8 @@ import {
 import type { CadElement, CadElementType, ElementId } from "../types/geometry";
 
 export type CommandId =
+  | "undo"
+  | "redo"
   | "selectNextElement"
   | "selectPreviousElement"
   | "moveSelectedElementUp"
@@ -69,7 +71,7 @@ const updateSelectedElement = (updater: (element: CadElement) => CadElement) => 
   const { elements, selectedElementId } = useCadStore.getState();
   if (!selectedElementId) return;
 
-  useCadStore.setState({
+  useCadStore.getState().commitDocumentChange({
     elements: elements.map((element) => (element.id === selectedElementId ? updater(element) : element))
   });
 };
@@ -143,7 +145,7 @@ const makeElement = (type: CadElementType, elements: CadElement[]): CadElement =
 const addElement = (type: CadElementType) => {
   const { elements } = useCadStore.getState();
   const element = makeElement(type, elements);
-  useCadStore.setState({
+  useCadStore.getState().commitDocumentChange({
     elements: [...elements, element],
     selectedElementId: element.id,
     selectedParameterKey: getFirstParameterKey(element)
@@ -207,6 +209,16 @@ const toggleBooleanParameter = () => {
 };
 
 export const commands: Record<CommandId, Command> = {
+  undo: {
+    id: "undo",
+    label: "元に戻す",
+    run: () => useCadStore.getState().undo()
+  },
+  redo: {
+    id: "redo",
+    label: "やり直す",
+    run: () => useCadStore.getState().redo()
+  },
   selectNextElement: {
     id: "selectNextElement",
     label: "次の要素を選択",
@@ -238,7 +250,7 @@ export const commands: Record<CommandId, Command> = {
       if (index <= 0) return;
       const nextElements = [...elements];
       [nextElements[index - 1], nextElements[index]] = [nextElements[index], nextElements[index - 1]];
-      useCadStore.setState({ elements: nextElements });
+      useCadStore.getState().commitDocumentChange({ elements: nextElements });
     }
   },
   moveSelectedElementDown: {
@@ -250,7 +262,7 @@ export const commands: Record<CommandId, Command> = {
       if (index < 0 || index >= elements.length - 1) return;
       const nextElements = [...elements];
       [nextElements[index], nextElements[index + 1]] = [nextElements[index + 1], nextElements[index]];
-      useCadStore.setState({ elements: nextElements });
+      useCadStore.getState().commitDocumentChange({ elements: nextElements });
     }
   },
   toggleSelectedElementVisibility: {
@@ -259,7 +271,7 @@ export const commands: Record<CommandId, Command> = {
     run: () => {
       const { elements, selectedElementId } = useCadStore.getState();
       if (!selectedElementId) return;
-      useCadStore.setState({
+      useCadStore.getState().commitDocumentChange({
         elements: elements.map((element) =>
           element.id === selectedElementId ? { ...element, visible: !element.visible } : element
         )
@@ -274,7 +286,7 @@ export const commands: Record<CommandId, Command> = {
       const index = getSelectedIndex(elements, selectedElementId);
       if (index < 0) return;
       const nextElements = elements.filter((element) => element.id !== selectedElementId);
-      useCadStore.setState({
+      useCadStore.getState().commitDocumentChange({
         elements: nextElements,
         selectedElementId: nextElements[Math.min(index, nextElements.length - 1)]?.id ?? null
       });

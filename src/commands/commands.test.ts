@@ -10,7 +10,9 @@ describe("commands", () => {
       selectedElementId: sampleElements[0].id,
       isParameterEditMode: false,
       selectedParameterKey: "name",
-      showShortcutHelp: true
+      showShortcutHelp: true,
+      past: [],
+      future: []
     });
   });
 
@@ -142,6 +144,81 @@ describe("commands", () => {
 
     dispatchCommand("toggleSelectedBooleanParameter");
 
+    expect(useCadStore.getState().elements[0].visible).toBe(false);
+  });
+
+  it("undoes and redoes adding an element", () => {
+    dispatchCommand("addFreePoint");
+    const addedElement = useCadStore.getState().elements.at(-1);
+
+    dispatchCommand("undo");
+    expect(useCadStore.getState().elements).toHaveLength(sampleElements.length);
+    expect(useCadStore.getState().selectedElementId).toBe(sampleElements[0].id);
+
+    dispatchCommand("redo");
+    expect(useCadStore.getState().elements.at(-1)).toEqual(addedElement);
+    expect(useCadStore.getState().selectedElementId).toBe(addedElement?.id);
+  });
+
+  it("undoes and redoes deleting an element", () => {
+    dispatchCommand("deleteSelectedElement");
+    expect(useCadStore.getState().selectedElementId).toBe(sampleElements[1].id);
+
+    dispatchCommand("undo");
+    expect(useCadStore.getState().elements[0].id).toBe(sampleElements[0].id);
+    expect(useCadStore.getState().selectedElementId).toBe(sampleElements[0].id);
+
+    dispatchCommand("redo");
+    expect(useCadStore.getState().elements.some((element) => element.id === sampleElements[0].id)).toBe(
+      false
+    );
+    expect(useCadStore.getState().selectedElementId).toBe(sampleElements[1].id);
+  });
+
+  it("undoes and redoes element reordering", () => {
+    dispatchCommand("moveSelectedElementDown");
+    expect(useCadStore.getState().elements[1].id).toBe(sampleElements[0].id);
+
+    dispatchCommand("undo");
+    expect(useCadStore.getState().elements[0].id).toBe(sampleElements[0].id);
+
+    dispatchCommand("redo");
+    expect(useCadStore.getState().elements[1].id).toBe(sampleElements[0].id);
+  });
+
+  it("undoes and redoes parameter value changes", () => {
+    useCadStore.setState({ selectedParameterKey: "x" });
+
+    dispatchCommand("incrementSelectedParameter");
+    expect(useCadStore.getState().elements[0]).toMatchObject({ x: 51 });
+
+    dispatchCommand("undo");
+    expect(useCadStore.getState().elements[0]).toMatchObject({ x: 50 });
+
+    dispatchCommand("redo");
+    expect(useCadStore.getState().elements[0]).toMatchObject({ x: 51 });
+  });
+
+  it("undoes and redoes visibility changes", () => {
+    dispatchCommand("toggleSelectedElementVisibility");
+    expect(useCadStore.getState().elements[0].visible).toBe(false);
+
+    dispatchCommand("undo");
+    expect(useCadStore.getState().elements[0].visible).toBe(true);
+
+    dispatchCommand("redo");
+    expect(useCadStore.getState().elements[0].visible).toBe(false);
+  });
+
+  it("clears redo history after a new document mutation", () => {
+    dispatchCommand("addFreePoint");
+    const addedElementId = useCadStore.getState().elements.at(-1)?.id;
+
+    dispatchCommand("undo");
+    dispatchCommand("toggleSelectedElementVisibility");
+    dispatchCommand("redo");
+
+    expect(useCadStore.getState().elements.some((element) => element.id === addedElementId)).toBe(false);
     expect(useCadStore.getState().elements[0].visible).toBe(false);
   });
 });

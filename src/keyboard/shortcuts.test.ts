@@ -22,6 +22,8 @@ describe("shortcuts", () => {
     expect(commandIdForKeyboardEvent(keyboardEvent("v"))).toBe("toggleSelectedElementVisibility");
     expect(commandIdForKeyboardEvent(keyboardEvent("Enter"))).toBe("enterParameterEditMode");
     expect(commandIdForKeyboardEvent(keyboardEvent("?"))).toBe("toggleShortcutHelp");
+    expect(commandIdForKeyboardEvent(keyboardEvent("z", { metaKey: true }))).toBe("undo");
+    expect(commandIdForKeyboardEvent(keyboardEvent("y", { metaKey: true }))).toBe("redo");
   });
 
   it("maps edit mode keys to parameter commands", () => {
@@ -63,6 +65,8 @@ describe("shortcuts", () => {
     const input = document.createElement("input");
 
     expect(commandIdForKeyboardEvent(keyboardEventFrom("p", input))).toBeNull();
+    expect(commandIdForKeyboardEvent(keyboardEventFrom("z", input, { metaKey: true }))).toBeNull();
+    expect(commandIdForKeyboardEvent(keyboardEventFrom("y", input, { metaKey: true }))).toBeNull();
   });
 
   it("ignores events from editable form targets", () => {
