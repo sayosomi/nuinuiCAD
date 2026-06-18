@@ -1,6 +1,6 @@
 import type { KeyboardEvent, RefObject } from "react";
 import { dispatchCommand } from "../commands/commands";
-import { parameterEditShortcutDefinitions, shortcutDefinitions } from "../keyboard/shortcuts";
+import { shortcutHelpItems } from "../keyboard/shortcuts";
 import {
   defaultNumericParameterStep,
   getNumericParameterStep,
@@ -297,10 +297,16 @@ export const LeftPanel = ({
 }: LeftPanelProps) => {
   const elements = useCadStore((state) => state.elements);
   const selectedElementId = useCadStore((state) => state.selectedElementId);
+  const selectedParameterKey = useCadStore((state) => state.selectedParameterKey);
   const showShortcutHelp = useCadStore((state) => state.showShortcutHelp);
   const setSelectedElementId = useCadStore((state) => state.setSelectedElementId);
   const selectedElement = elements.find((element) => element.id === selectedElementId) ?? null;
   const errorElementIds = new Set(evaluation.errors.map((error) => error.elementId));
+  const shortcuts = shortcutHelpItems({
+    isParameterEditMode,
+    selectedElement,
+    selectedParameterKey
+  });
 
   return (
     <aside className="left-panel">
@@ -403,19 +409,12 @@ export const LeftPanel = ({
         </div>
         {showShortcutHelp ? (
           <>
-            <h3 className="shortcut-group-title">通常</h3>
+            <h3 className="shortcut-group-title">
+              {isParameterEditMode ? "パラメーター編集" : "通常"}
+            </h3>
             <dl className="shortcut-list">
-              {shortcutDefinitions.map((shortcut) => (
-                <div key={shortcut.commandId}>
-                  <dt>{shortcut.keys}</dt>
-                  <dd>{shortcut.label}</dd>
-                </div>
-              ))}
-            </dl>
-            <h3 className="shortcut-group-title">パラメーター編集</h3>
-            <dl className="shortcut-list">
-              {parameterEditShortcutDefinitions.map((shortcut) => (
-                <div key={shortcut.commandId}>
+              {shortcuts.map((shortcut) => (
+                <div key={shortcut.id}>
                   <dt>{shortcut.keys}</dt>
                   <dd>{shortcut.label}</dd>
                 </div>
@@ -423,7 +422,9 @@ export const LeftPanel = ({
             </dl>
           </>
         ) : (
-          <p className="empty-state">? で表示します。</p>
+          <p className="empty-state">
+            {isParameterEditMode ? "ボタンで表示します。" : "? で表示します。"}
+          </p>
         )}
       </section>
 

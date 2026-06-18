@@ -1,4 +1,7 @@
 import type { CommandContext, CommandId } from "../commands/commands";
+import { findParameterDefinition, getParameterDefinitions } from "../parameters/parameterDefinitions";
+import type { ParameterValueKind } from "../parameters/parameterDefinitions";
+import type { CadElement } from "../types/geometry";
 
 export type ShortcutDefinition = {
   commandId: CommandId;
@@ -11,6 +14,13 @@ export type ShortcutDefinition = {
 export type KeyboardCommand = {
   commandId: CommandId;
   context?: CommandContext;
+};
+
+export type ShortcutHelpItem = {
+  id: string;
+  commandId: CommandId;
+  label: string;
+  keys: string;
 };
 
 const isMod = (event: KeyboardEvent) => event.metaKey || event.ctrlKey;
@@ -130,18 +140,6 @@ export const parameterEditShortcutDefinitions: ShortcutDefinition[] = [
     context: arrowStepContext
   },
   {
-    commandId: "cycleSelectedReferenceForward",
-    label: "参照候補を次へ",
-    keys: "ArrowRight",
-    matches: (event) => event.key === "ArrowRight" && !event.metaKey && !event.ctrlKey
-  },
-  {
-    commandId: "cycleSelectedReferenceBackward",
-    label: "参照候補を前へ",
-    keys: "ArrowLeft",
-    matches: (event) => event.key === "ArrowLeft" && !event.metaKey && !event.ctrlKey
-  },
-  {
     commandId: "toggleSelectedBooleanParameter",
     label: "真偽値を切替",
     keys: "Space",
@@ -155,6 +153,88 @@ export const parameterEditShortcutDefinitions: ShortcutDefinition[] = [
     context: (event) => ({ parameterDirectKey: event.key.toLowerCase() })
   }
 ];
+
+const helpItem = (shortcut: ShortcutDefinition): ShortcutHelpItem => ({
+  id: shortcut.commandId,
+  commandId: shortcut.commandId,
+  label: shortcut.label,
+  keys: shortcut.keys
+});
+
+const parameterShortcut = (commandId: CommandId) => {
+  const shortcut = parameterEditShortcutDefinitions.find(
+    (definition) => definition.commandId === commandId
+  );
+  if (!shortcut) {
+    throw new Error(`Missing parameter shortcut definition: ${commandId}`);
+  }
+  return shortcut;
+};
+
+const parameterValueShortcutItems: Record<ParameterValueKind, ShortcutHelpItem[]> = {
+  text: [],
+  number: [
+    helpItem(parameterShortcut("incrementSelectedParameter")),
+    helpItem(parameterShortcut("decrementSelectedParameter"))
+  ],
+  boolean: [helpItem(parameterShortcut("toggleSelectedBooleanParameter"))],
+  reference: [
+    {
+      id: "cycleSelectedReferenceForward",
+      commandId: "incrementSelectedParameter",
+      label: "参照候補を次へ",
+      keys: "ArrowRight"
+    },
+    {
+      id: "cycleSelectedReferenceBackward",
+      commandId: "decrementSelectedParameter",
+      label: "参照候補を前へ",
+      keys: "ArrowLeft"
+    }
+  ]
+};
+
+export const shortcutHelpItems = ({
+  isParameterEditMode = false,
+  selectedElement = null,
+  selectedParameterKey = null
+}: {
+  isParameterEditMode?: boolean;
+  selectedElement?: CadElement | null;
+  selectedParameterKey?: string | null;
+} = {}): ShortcutHelpItem[] => {
+  if (!isParameterEditMode) {
+    return shortcutDefinitions.map(helpItem);
+  }
+
+  const items = [
+    helpItem(parameterShortcut("exitParameterEditMode")),
+    helpItem(parameterShortcut("focusSelectedParameterInput")),
+    helpItem(parameterShortcut("selectNextParameter")),
+    helpItem(parameterShortcut("selectPreviousParameter"))
+  ];
+
+  if (!selectedElement) {
+    return items;
+  }
+
+  const selectedParameter = findParameterDefinition(selectedElement, selectedParameterKey);
+  if (selectedParameter) {
+    items.push(...parameterValueShortcutItems[selectedParameter.kind]);
+  }
+
+  const directKeys = getParameterDefinitions(selectedElement)
+    .map((definition) => definition.directKey)
+    .join(" / ");
+  if (directKeys) {
+    items.push({
+      ...helpItem(parameterShortcut("selectParameterByKey")),
+      keys: directKeys
+    });
+  }
+
+  return items;
+};
 
 export const shouldIgnoreKeyboardEvent = (event: KeyboardEvent) => {
   const target = event.target;

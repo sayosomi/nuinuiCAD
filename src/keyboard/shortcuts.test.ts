@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { commandIdForKeyboardEvent, keyboardCommandForEvent } from "./shortcuts";
+import { sampleElements } from "../sampleData";
+import { commandIdForKeyboardEvent, keyboardCommandForEvent, shortcutHelpItems } from "./shortcuts";
 
 const keyboardEvent = (key: string, init: KeyboardEventInit = {}) =>
   new KeyboardEvent("keydown", { key, ...init });
@@ -57,5 +58,89 @@ describe("shortcuts", () => {
     Object.defineProperty(event, "target", { value: input });
 
     expect(commandIdForKeyboardEvent(event)).toBeNull();
+  });
+
+  it("shows only normal mode shortcuts outside parameter edit mode", () => {
+    const shortcuts = shortcutHelpItems();
+    const ids = shortcuts.map((shortcut) => shortcut.commandId);
+
+    expect(ids).toContain("moveSelectedElementUp");
+    expect(ids).toContain("addFreePoint");
+    expect(ids).not.toContain("exitParameterEditMode");
+    expect(ids).not.toContain("selectNextParameter");
+  });
+
+  it("hides normal mode shortcuts while editing parameters", () => {
+    const shortcuts = shortcutHelpItems({
+      isParameterEditMode: true,
+      selectedElement: sampleElements[0],
+      selectedParameterKey: "x"
+    });
+    const ids = shortcuts.map((shortcut) => shortcut.commandId);
+
+    expect(ids).not.toContain("moveSelectedElementUp");
+    expect(ids).not.toContain("addFreePoint");
+    expect(ids).toContain("exitParameterEditMode");
+    expect(ids).toContain("selectNextParameter");
+  });
+
+  it("shows numeric parameter shortcuts only for numeric parameters", () => {
+    const shortcuts = shortcutHelpItems({
+      isParameterEditMode: true,
+      selectedElement: sampleElements[0],
+      selectedParameterKey: "x"
+    });
+    const ids = shortcuts.map((shortcut) => shortcut.commandId);
+
+    expect(ids).toContain("incrementSelectedParameter");
+    expect(ids).toContain("decrementSelectedParameter");
+    expect(ids).not.toContain("toggleSelectedBooleanParameter");
+  });
+
+  it("shows boolean parameter shortcuts only for boolean parameters", () => {
+    const shortcuts = shortcutHelpItems({
+      isParameterEditMode: true,
+      selectedElement: sampleElements[0],
+      selectedParameterKey: "visible"
+    });
+    const ids = shortcuts.map((shortcut) => shortcut.commandId);
+
+    expect(ids).toContain("toggleSelectedBooleanParameter");
+    expect(ids).not.toContain("incrementSelectedParameter");
+    expect(ids).not.toContain("decrementSelectedParameter");
+  });
+
+  it("shows reference parameter shortcuts only for reference parameters", () => {
+    const shortcuts = shortcutHelpItems({
+      isParameterEditMode: true,
+      selectedElement: sampleElements[3],
+      selectedParameterKey: "startPointId"
+    });
+
+    expect(shortcuts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "cycleSelectedReferenceForward",
+          commandId: "incrementSelectedParameter",
+          keys: "ArrowRight"
+        }),
+        expect.objectContaining({
+          id: "cycleSelectedReferenceBackward",
+          commandId: "decrementSelectedParameter",
+          keys: "ArrowLeft"
+        })
+      ])
+    );
+  });
+
+  it("shows direct parameter keys for the selected element", () => {
+    const shortcuts = shortcutHelpItems({
+      isParameterEditMode: true,
+      selectedElement: sampleElements[3],
+      selectedParameterKey: "startPointId"
+    });
+    const keyShortcut = shortcuts.find((shortcut) => shortcut.commandId === "selectParameterByKey");
+
+    expect(keyShortcut?.keys).toBe("n / v / a / s / t");
   });
 });
