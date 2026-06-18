@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { createRef } from "react";
 import { beforeEach, describe, expect, it } from "vitest";
 import { LeftPanel, RightPanel } from "./LeftPanel";
+import { ShortcutHelpOverlay } from "./ShortcutHelpOverlay";
 import { sampleElements } from "../sampleData";
 import { DEFAULT_CANVAS_VIEWPORT, useCadStore } from "../state/useCadStore";
 import type { EvaluationResult } from "../types/geometry";
@@ -45,6 +46,10 @@ const renderLeftPanel = () =>
       elementListFocusRef={createRef<HTMLDivElement>()}
     />
   );
+
+const renderShortcutHelpOverlay = (
+  props = { isParameterEditMode: false, isDependencyJumpMode: false }
+) => render(<ShortcutHelpOverlay {...props} />);
 
 const dragDataTransfer = () => {
   const data: Record<string, string> = {};
@@ -135,6 +140,45 @@ describe("LeftPanel numeric input dragging", () => {
     dragNumericInput(screen.getByLabelText("x 値"), { toX: 8 });
 
     expect(useCadStore.getState().elements[0]).toMatchObject({ x: 52.5 });
+  });
+});
+
+describe("Shortcut help display", () => {
+  beforeEach(() => {
+    resetStore();
+  });
+
+  it("keeps the right panel shortcut section compact", () => {
+    useCadStore.setState({ showShortcutHelp: true });
+    renderRightPanel();
+
+    expect(screen.getByText("? でショートカット")).toBeInTheDocument();
+    expect(screen.queryByText("選択要素を削除")).not.toBeInTheDocument();
+  });
+
+  it("shows shortcuts in an overlay when enabled", () => {
+    useCadStore.setState({ showShortcutHelp: true });
+    renderShortcutHelpOverlay();
+
+    expect(screen.getByRole("dialog", { name: "ショートカット一覧" })).toBeInTheDocument();
+    expect(screen.getByText("通常")).toBeInTheDocument();
+    expect(screen.getByText("選択要素を削除")).toBeInTheDocument();
+  });
+
+  it("uses the parameter edit mode heading in the overlay", () => {
+    useCadStore.setState({ showShortcutHelp: true });
+    renderShortcutHelpOverlay({ isParameterEditMode: true, isDependencyJumpMode: false });
+
+    expect(screen.getByText("パラメーター編集")).toBeInTheDocument();
+  });
+
+  it("closes the overlay with Escape", () => {
+    useCadStore.setState({ showShortcutHelp: true });
+    renderShortcutHelpOverlay();
+
+    fireEvent.keyDown(window, { key: "Escape" });
+
+    expect(useCadStore.getState().showShortcutHelp).toBe(false);
   });
 });
 

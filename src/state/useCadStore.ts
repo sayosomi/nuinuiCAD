@@ -104,7 +104,7 @@ export const useCadStore = create<CadState>((set) => ({
   showElementInfoPanel: true,
   isDependencyJumpMode: false,
   selectedDependencyJumpIndex: 0,
-  showShortcutHelp: true,
+  showShortcutHelp: false,
   showCommandPalette: false,
   canvasViewport: DEFAULT_CANVAS_VIEWPORT,
   past: [],

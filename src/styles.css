@@ -332,6 +332,54 @@ select {
   font-size: 13px;
 }
 
+.shortcut-overlay-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  background: rgb(37 38 34 / 24%);
+  padding-top: 84px;
+}
+
+.shortcut-overlay {
+  display: grid;
+  width: min(620px, calc(100vw - 48px));
+  max-height: min(680px, calc(100vh - 128px));
+  overflow: hidden;
+  border: 1px solid #aeb4aa;
+  border-radius: 8px;
+  background: #fbfbfa;
+  box-shadow: 0 18px 48px rgb(37 38 34 / 24%);
+}
+
+.shortcut-overlay-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid #d2d4cd;
+  padding: 14px 16px;
+}
+
+.shortcut-overlay-header h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.shortcut-overlay-header p {
+  margin: 3px 0 0;
+  color: #686b62;
+  font-size: 13px;
+}
+
+.shortcut-overlay-list {
+  max-height: 560px;
+  overflow: auto;
+  padding: 12px 16px 16px;
+}
+
 .editor-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;

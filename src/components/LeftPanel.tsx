@@ -1,7 +1,6 @@
 import { useRef, useState } from "react";
 import type { DragEvent, KeyboardEvent, MouseEvent, PointerEvent, RefObject } from "react";
 import { dispatchCommand } from "../commands/commands";
-import { shortcutHelpItems } from "../keyboard/shortcuts";
 import { getDependencyJumpTargets, getDependencySummary } from "../model/dependencies";
 import { formatReferenceOptionLabel } from "../model/elementNames";
 import { numericDragStepsForDelta } from "./numericDrag";
@@ -729,17 +728,12 @@ export const RightPanel = ({
 }: RightPanelProps) => {
   const elements = useCadStore((state) => state.elements);
   const selectedElementId = useCadStore((state) => state.selectedElementId);
-  const selectedParameterKey = useCadStore((state) => state.selectedParameterKey);
   const selectedDependencyJumpIndex = useCadStore((state) => state.selectedDependencyJumpIndex);
-  const showShortcutHelp = useCadStore((state) => state.showShortcutHelp);
   const setSelectedElementId = useCadStore((state) => state.setSelectedElementId);
   const selectedElement = elements.find((element) => element.id === selectedElementId) ?? null;
-  const shortcuts = shortcutHelpItems({
-    isParameterEditMode,
-    isDependencyJumpMode,
-    selectedElement,
-    selectedParameterKey
-  });
+  const shortcutHint = isParameterEditMode || isDependencyJumpMode
+    ? "Esc で終了 / ? でショートカット"
+    : "? でショートカット";
 
   return (
     <aside className="right-panel">
@@ -789,29 +783,15 @@ export const RightPanel = ({
       <section className="panel-section">
         <div className="section-header">
           <h2>ショートカット</h2>
-          <button type="button" onClick={() => dispatchCommand("toggleShortcutHelp")}>
+          <button
+            type="button"
+            aria-label="ショートカット一覧を表示"
+            onClick={() => dispatchCommand("toggleShortcutHelp")}
+          >
             ?
           </button>
         </div>
-        {showShortcutHelp ? (
-          <>
-            <h3 className="shortcut-group-title">
-              {isParameterEditMode ? "パラメーター編集" : "通常"}
-            </h3>
-            <dl className="shortcut-list">
-              {shortcuts.map((shortcut) => (
-                <div key={shortcut.id}>
-                  <dt>{shortcut.keys}</dt>
-                  <dd>{shortcut.label}</dd>
-                </div>
-              ))}
-            </dl>
-          </>
-        ) : (
-          <p className="empty-state">
-            {isParameterEditMode ? "ボタンで表示します。" : "? で表示します。"}
-          </p>
-        )}
+        <p className="empty-state">{shortcutHint}</p>
       </section>
 
     </aside>

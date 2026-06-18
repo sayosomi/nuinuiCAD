@@ -6,6 +6,7 @@ import { useCadStore } from "../state/useCadStore";
 import { CommandPalette } from "./CommandPalette";
 import { DrawingCanvas } from "./DrawingCanvas";
 import { LeftPanel, RightPanel } from "./LeftPanel";
+import { ShortcutHelpOverlay } from "./ShortcutHelpOverlay";
 
 export const AppLayout = () => {
   const elements = useCadStore((state) => state.elements);
@@ -40,6 +41,13 @@ export const AppLayout = () => {
         isDependencyJumpMode: useCadStore.getState().isDependencyJumpMode
       });
       if (!keyboardCommand) return;
+      if (
+        useCadStore.getState().showShortcutHelp &&
+        keyboardCommand.commandId !== "toggleShortcutHelp"
+      ) {
+        event.preventDefault();
+        return;
+      }
       event.preventDefault();
       dispatchCommand(keyboardCommand.commandId, {
         ...commandContext,
@@ -68,6 +76,10 @@ export const AppLayout = () => {
         registerParameterControl={registerParameterControl}
       />
       <CommandPalette commandContext={commandContext} />
+      <ShortcutHelpOverlay
+        isParameterEditMode={isParameterEditMode}
+        isDependencyJumpMode={isDependencyJumpMode}
+      />
     </main>
   );
 };
