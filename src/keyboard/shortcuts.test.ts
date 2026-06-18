@@ -61,6 +61,16 @@ describe("shortcuts", () => {
         isParameterEditMode: true
       })
     ).toBe("selectPreviousParameter");
+    expect(
+      commandIdForKeyboardEvent(keyboardEvent("ArrowDown", { shiftKey: true }), {
+        isParameterEditMode: true
+      })
+    ).toBe("selectNextElement");
+    expect(
+      commandIdForKeyboardEvent(keyboardEvent("ArrowUp", { shiftKey: true }), {
+        isParameterEditMode: true
+      })
+    ).toBe("selectPreviousElement");
     expect(commandIdForKeyboardEvent(keyboardEvent("Tab"), { isParameterEditMode: true })).toBeNull();
     expect(commandIdForKeyboardEvent(keyboardEvent("x"), { isParameterEditMode: true })).toBe(
       "selectParameterByKey"
@@ -92,6 +102,16 @@ describe("shortcuts", () => {
     expect(commandIdForKeyboardEvent(keyboardEvent("ArrowUp"), { isDependencyJumpMode: true })).toBe(
       "selectPreviousDependencyJumpTarget"
     );
+    expect(
+      commandIdForKeyboardEvent(keyboardEvent("ArrowDown", { shiftKey: true }), {
+        isDependencyJumpMode: true
+      })
+    ).toBe("selectNextElement");
+    expect(
+      commandIdForKeyboardEvent(keyboardEvent("ArrowUp", { shiftKey: true }), {
+        isDependencyJumpMode: true
+      })
+    ).toBe("selectPreviousElement");
     expect(commandIdForKeyboardEvent(keyboardEvent("Enter"), { isDependencyJumpMode: true })).toBe(
       "jumpToSelectedDependencyTarget"
     );
@@ -139,6 +159,16 @@ describe("shortcuts", () => {
     expect(commandIdForKeyboardEvent(keyboardEventFrom("+", input))).toBeNull();
     expect(commandIdForKeyboardEvent(keyboardEventFrom("-", input))).toBeNull();
     expect(commandIdForKeyboardEvent(keyboardEventFrom("0", input))).toBeNull();
+    expect(
+      commandIdForKeyboardEvent(keyboardEventFrom("ArrowDown", input, { shiftKey: true }), {
+        isParameterEditMode: true
+      })
+    ).toBeNull();
+    expect(
+      commandIdForKeyboardEvent(keyboardEventFrom("ArrowUp", input, { shiftKey: true }), {
+        isDependencyJumpMode: true
+      })
+    ).toBeNull();
   });
 
   it("ignores events from editable form targets", () => {
@@ -251,6 +281,8 @@ describe("shortcuts", () => {
     expect(ids).toContain("openCommandPalette");
     expect(ids).toContain("exitParameterEditMode");
     expect(ids).toContain("selectNextParameter");
+    expect(ids).toContain("selectNextElement");
+    expect(ids).toContain("selectPreviousElement");
   });
 
   it("shows dependency jump shortcuts while dependency jump mode is active", () => {
@@ -261,7 +293,8 @@ describe("shortcuts", () => {
     expect(ids).toContain("selectPreviousDependencyJumpTarget");
     expect(ids).toContain("jumpToSelectedDependencyTarget");
     expect(ids).toContain("exitDependencyJumpMode");
-    expect(ids).not.toContain("selectNextElement");
+    expect(ids).toContain("selectNextElement");
+    expect(ids).toContain("selectPreviousElement");
   });
 
   it("shows numeric parameter shortcuts only for numeric parameters", () => {

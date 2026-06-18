@@ -29,6 +29,54 @@ describe("commands", () => {
     expect(useCadStore.getState().selectedElementId).toBe(sampleElements[0].id);
   });
 
+  it("keeps parameter edit mode and normalizes the parameter when selecting another element", () => {
+    useCadStore.setState({
+      selectedElementId: sampleElements[2].id,
+      isParameterEditMode: true,
+      selectedParameterKey: "dx"
+    });
+
+    dispatchCommand("selectNextElement");
+
+    expect(useCadStore.getState()).toMatchObject({
+      selectedElementId: sampleElements[3].id,
+      isParameterEditMode: true,
+      selectedParameterKey: "name",
+      past: []
+    });
+  });
+
+  it("updates dependency jump mode when selecting another element", () => {
+    useCadStore.setState({
+      elements: [
+        sampleElements[0],
+        sampleElements[1],
+        {
+          id: "isolated-point",
+          name: "孤立点",
+          type: "freePoint",
+          visible: true,
+          enabled: true,
+          x: 10,
+          y: 20
+        }
+      ],
+      selectedElementId: sampleElements[1].id,
+      isDependencyJumpMode: true,
+      selectedDependencyJumpIndex: 1,
+      past: []
+    });
+
+    dispatchCommand("selectNextElement");
+
+    expect(useCadStore.getState()).toMatchObject({
+      selectedElementId: "isolated-point",
+      isDependencyJumpMode: false,
+      selectedDependencyJumpIndex: 0,
+      past: []
+    });
+  });
+
   it("moves the selected element down and up", () => {
     dispatchCommand("moveSelectedElementDown");
     expect(useCadStore.getState().elements[1].id).toBe(sampleElements[0].id);

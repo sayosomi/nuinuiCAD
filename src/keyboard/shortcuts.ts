@@ -26,6 +26,8 @@ export type ShortcutHelpItem = {
 const isMod = (event: KeyboardEvent) => event.metaKey || event.ctrlKey;
 const noModifier = (event: KeyboardEvent) =>
   !event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey;
+const shiftOnly = (event: KeyboardEvent) =>
+  event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey;
 
 export const globalShortcutDefinitions: ShortcutDefinition[] = [
   {
@@ -171,6 +173,18 @@ export const dependencyJumpShortcutDefinitions: ShortcutDefinition[] = [
     label: "前の親子要素を選択",
     keys: "ArrowUp",
     matches: (event) => event.key === "ArrowUp" && noModifier(event)
+  },
+  {
+    commandId: "selectPreviousElement",
+    label: "前の要素を選択",
+    keys: "Shift+ArrowUp",
+    matches: (event) => event.key === "ArrowUp" && shiftOnly(event)
+  },
+  {
+    commandId: "selectNextElement",
+    label: "次の要素を選択",
+    keys: "Shift+ArrowDown",
+    matches: (event) => event.key === "ArrowDown" && shiftOnly(event)
   }
 ];
 
@@ -202,6 +216,18 @@ export const parameterEditShortcutDefinitions: ShortcutDefinition[] = [
     label: "前のパラメーターを選択",
     keys: "ArrowUp",
     matches: (event) => event.key === "ArrowUp" && noModifier(event)
+  },
+  {
+    commandId: "selectPreviousElement",
+    label: "前の要素を選択",
+    keys: "Shift+ArrowUp",
+    matches: (event) => event.key === "ArrowUp" && shiftOnly(event)
+  },
+  {
+    commandId: "selectNextElement",
+    label: "次の要素を選択",
+    keys: "Shift+ArrowDown",
+    matches: (event) => event.key === "ArrowDown" && shiftOnly(event)
   },
   {
     commandId: "incrementSelectedParameter",
@@ -261,6 +287,11 @@ const parameterShortcut = (commandId: CommandId) => {
   return shortcut;
 };
 
+const parameterModeElementSelectionShortcutItems = [
+  helpItem(parameterShortcut("selectPreviousElement")),
+  helpItem(parameterShortcut("selectNextElement"))
+];
+
 const parameterValueShortcutItems: Record<ParameterValueKind, ShortcutHelpItem[]> = {
   text: [],
   number: [
@@ -310,7 +341,8 @@ export const shortcutHelpItems = ({
     helpItem(parameterShortcut("exitParameterEditMode")),
     helpItem(parameterShortcut("focusSelectedParameterInput")),
     helpItem(parameterShortcut("selectNextParameter")),
-    helpItem(parameterShortcut("selectPreviousParameter"))
+    helpItem(parameterShortcut("selectPreviousParameter")),
+    ...parameterModeElementSelectionShortcutItems
   ];
 
   if (!selectedElement) {

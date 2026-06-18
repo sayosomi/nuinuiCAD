@@ -262,6 +262,29 @@ const selectedDependencyJumpTargets = () => {
   return getDependencyJumpTargets(selectedElement, elements);
 };
 
+const updateDependencyJumpModeAfterSelectionChange = () => {
+  const { isDependencyJumpMode } = useCadStore.getState();
+  if (!isDependencyJumpMode) return;
+
+  const targets = selectedDependencyJumpTargets();
+  useCadStore.setState({
+    isDependencyJumpMode: targets.length > 0,
+    selectedDependencyJumpIndex: 0
+  });
+};
+
+const selectElementByOffset = (offset: number) => {
+  const { elements, selectedElementId } = useCadStore.getState();
+  if (elements.length === 0) return;
+
+  const index = getSelectedIndex(elements, selectedElementId);
+  const currentIndex = index < 0 ? 0 : index;
+  const nextIndex = Math.min(Math.max(currentIndex + offset, 0), elements.length - 1);
+
+  useCadStore.getState().setSelectedElementId(elements[nextIndex].id);
+  updateDependencyJumpModeAfterSelectionChange();
+};
+
 const selectDependencyJumpTargetByOffset = (offset: number) => {
   const targets = selectedDependencyJumpTargets();
   if (targets.length === 0) {
@@ -322,24 +345,12 @@ export const commands: Record<CommandId, Command> = {
   selectNextElement: {
     id: "selectNextElement",
     label: "次の要素を選択",
-    run: () => {
-      const { elements, selectedElementId } = useCadStore.getState();
-      if (elements.length === 0) return;
-      const index = getSelectedIndex(elements, selectedElementId);
-      const nextIndex = index < 0 ? 0 : Math.min(index + 1, elements.length - 1);
-      useCadStore.setState({ selectedElementId: elements[nextIndex].id });
-    }
+    run: () => selectElementByOffset(1)
   },
   selectPreviousElement: {
     id: "selectPreviousElement",
     label: "前の要素を選択",
-    run: () => {
-      const { elements, selectedElementId } = useCadStore.getState();
-      if (elements.length === 0) return;
-      const index = getSelectedIndex(elements, selectedElementId);
-      const previousIndex = index < 0 ? 0 : Math.max(index - 1, 0);
-      useCadStore.setState({ selectedElementId: elements[previousIndex].id });
-    }
+    run: () => selectElementByOffset(-1)
   },
   moveSelectedElementUp: {
     id: "moveSelectedElementUp",
