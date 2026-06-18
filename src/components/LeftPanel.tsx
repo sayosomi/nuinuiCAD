@@ -574,34 +574,45 @@ export const LeftPanel = ({
 }: LeftPanelProps) => {
   const elements = useCadStore((state) => state.elements);
   const selectedElementId = useCadStore((state) => state.selectedElementId);
-  const setSelectedElementId = useCadStore((state) => state.setSelectedElementId);
-  const [draggedElementId, setDraggedElementId] = useState<ElementId | null>(null);
+  const selectedElementIds = useCadStore((state) => state.selectedElementIds);
+  const [draggedElementIds, setDraggedElementIds] = useState<ElementId[]>([]);
   const [dropTarget, setDropTarget] = useState<ElementDropTarget | null>(null);
   const errorElementIds = new Set(evaluation.errors.map((error) => error.elementId));
+  const selectedElementIdSet = new Set(selectedElementIds);
   const clearElementDrag = () => {
-    setDraggedElementId(null);
+    setDraggedElementIds([]);
     setDropTarget(null);
   };
-  const isNoopDrop = (elementId: ElementId, insertionIndex: number) => {
-    const elementIndex = elements.findIndex((element) => element.id === elementId);
-    return elementIndex < 0 || insertionIndex === elementIndex || insertionIndex === elementIndex + 1;
+  const isNoopDrop = (elementIds: ElementId[], insertionIndex: number) => {
+    const indexes = elements
+      .map((element, index) => (elementIds.includes(element.id) ? index : -1))
+      .filter((index) => index >= 0);
+    if (indexes.length === 0) return true;
+    const minIndex = indexes[0];
+    const maxIndex = indexes[indexes.length - 1];
+    return insertionIndex >= minIndex && insertionIndex <= maxIndex + 1;
   };
-  const dragElementId = (event: DragEvent<HTMLElement>) =>
-    draggedElementId || event.dataTransfer.getData("application/x-nuinui-element-id");
+  const dragElementIds = (event: DragEvent<HTMLElement>) => {
+    if (draggedElementIds.length > 0) return draggedElementIds;
+    const ids = event.dataTransfer.getData("application/x-nuinui-element-ids");
+    if (ids) return ids.split(",").filter(Boolean);
+    const id = event.dataTransfer.getData("application/x-nuinui-element-id");
+    return id ? [id] : [];
+  };
   const rowInsertionIndex = (event: DragEvent<HTMLElement>, rowIndex: number) => {
     const rect = event.currentTarget.getBoundingClientRect();
     const isAfter = event.clientY >= rect.top + rect.height / 2;
     return rowIndex + (isAfter ? 1 : 0);
   };
   const updateDropTarget = (event: DragEvent<HTMLElement>, element: CadElement, rowIndex: number) => {
-    const elementId = dragElementId(event);
-    if (!elementId || elementId === element.id) {
+    const elementIds = dragElementIds(event);
+    if (elementIds.length === 0 || elementIds.includes(element.id)) {
       setDropTarget(null);
       return;
     }
 
     const insertionIndex = rowInsertionIndex(event, rowIndex);
-    if (isNoopDrop(elementId, insertionIndex)) {
+    if (isNoopDrop(elementIds, insertionIndex)) {
       setDropTarget(null);
       return;
     }
@@ -614,6 +625,12 @@ export const LeftPanel = ({
     dropTarget?.elementId === elementId && dropTarget.insertionIndex === insertionIndex
       ? ` drop-${position}`
       : "";
+  const selectElement = (elementId: ElementId, event: MouseEvent<HTMLElement>) => {
+    dispatchCommand("selectElement", {
+      elementId,
+      selectionMode: event.shiftKey ? "range" : event.metaKey || event.ctrlKey ? "toggle" : "replace"
+    });
+  };
 
   return (
     <aside className="left-panel">
@@ -641,15 +658,16 @@ export const LeftPanel = ({
               key={element.id}
               tabIndex={0}
               data-element-list-row="true"
-              className={`element-row ${element.id === selectedElementId ? "selected" : ""} ${
+              className={`element-row ${selectedElementIdSet.has(element.id) ? "selected" : ""} ${
+                element.id === selectedElementId ? "primary-selected" : ""
+              } ${
                 errorElementIds.has(element.id) ? "has-error" : ""
-              } ${element.id === draggedElementId ? "dragging" : ""}${dropMarkerClass(
+              } ${draggedElementIds.includes(element.id) ? "dragging" : ""}${dropMarkerClass(
                 element.id,
                 index,
                 "before"
               )}${dropMarkerClass(element.id, index + 1, "after")}`}
-              onClick={() => setSelectedElementId(element.id)}
-              onFocus={() => setSelectedElementId(element.id)}
+              onClick={(event) => selectElement(element.id, event)}
               onDragOver={(event) => updateDropTarget(event, element, index)}
               onDragLeave={(event) => {
                 if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
@@ -657,14 +675,17 @@ export const LeftPanel = ({
                 }
               }}
               onDrop={(event) => {
-                const elementId = dragElementId(event);
+                const elementIds = dragElementIds(event);
                 const insertionIndex =
                   dropTarget?.elementId === element.id
                     ? dropTarget.insertionIndex
                     : rowInsertionIndex(event, index);
                 event.preventDefault();
-                if (elementId && !isNoopDrop(elementId, insertionIndex)) {
-                  dispatchCommand("moveElementToInsertionIndex", { elementId, insertionIndex });
+                if (elementIds.length > 0 && !isNoopDrop(elementIds, insertionIndex)) {
+                  dispatchCommand("moveElementToInsertionIndex", {
+                    elementId: elementIds[0],
+                    insertionIndex
+                  });
                 }
                 clearElementDrag();
               }}
@@ -683,14 +704,17 @@ export const LeftPanel = ({
                 aria-label={`${element.name}を並び替え`}
                 onClick={(event) => {
                   event.stopPropagation();
-                  setSelectedElementId(element.id);
+                  dispatchCommand("selectElement", { elementId: element.id });
                 }}
-                onFocus={() => setSelectedElementId(element.id)}
                 onDragStart={(event) => {
-                  setSelectedElementId(element.id);
-                  setDraggedElementId(element.id);
+                  const movingIds = selectedElementIdSet.has(element.id) ? selectedElementIds : [element.id];
+                  if (!selectedElementIdSet.has(element.id)) {
+                    dispatchCommand("selectElement", { elementId: element.id });
+                  }
+                  setDraggedElementIds(movingIds);
                   event.dataTransfer.effectAllowed = "move";
                   event.dataTransfer.setData("application/x-nuinui-element-id", element.id);
+                  event.dataTransfer.setData("application/x-nuinui-element-ids", movingIds.join(","));
                   event.dataTransfer.setData("text/plain", element.name);
                 }}
                 onDragEnd={clearElementDrag}

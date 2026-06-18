@@ -15,8 +15,11 @@ import type { CadElement, CadElementType, ElementId } from "../types/geometry";
 export type CommandId =
   | "undo"
   | "redo"
+  | "selectElement"
   | "selectNextElement"
   | "selectPreviousElement"
+  | "extendSelectionToNextElement"
+  | "extendSelectionToPreviousElement"
   | "moveSelectedElementUp"
   | "moveSelectedElementDown"
   | "moveElementToInsertionIndex"
@@ -63,6 +66,7 @@ export type CommandContext = {
   stepMultiplier?: number;
   elementId?: ElementId;
   insertionIndex?: number;
+  selectionMode?: "replace" | "toggle" | "range";
 };
 
 export type Command = {
@@ -80,6 +84,22 @@ const createId = (type: CadElementType) => {
 
 const getSelectedIndex = (elements: CadElement[], selectedElementId: ElementId | null) =>
   selectedElementId ? elements.findIndex((element) => element.id === selectedElementId) : -1;
+
+const elementIdsInDocumentOrder = (elements: CadElement[], ids: ElementId[]) => {
+  const selectedIds = new Set(ids);
+  return elements.filter((element) => selectedIds.has(element.id)).map((element) => element.id);
+};
+
+const getSelectedElementIds = () => {
+  const { elements, selectedElementId, selectedElementIds } = useCadStore.getState();
+  if (selectedElementId && !selectedElementIds.includes(selectedElementId)) {
+    return [selectedElementId];
+  }
+  if (selectedElementIds.length > 0) {
+    return elementIdsInDocumentOrder(elements, selectedElementIds);
+  }
+  return selectedElementId ? [selectedElementId] : [];
+};
 
 const getSelectedElement = () => {
   const { elements, selectedElementId } = useCadStore.getState();
@@ -167,6 +187,8 @@ const addElement = (type: CadElementType) => {
   useCadStore.getState().commitDocumentChange({
     elements: [...elements, element],
     selectedElementId: element.id,
+    selectedElementIds: [element.id],
+    selectionAnchorElementId: element.id,
     selectedParameterKey: getFirstParameterKey(element)
   });
 };
@@ -288,8 +310,95 @@ const selectElementByOffset = (offset: number) => {
   updateDependencyJumpModeAfterSelectionChange();
 };
 
+const extendSelectionByOffset = (offset: number) => {
+  const { elements, selectedElementId, selectionAnchorElementId } = useCadStore.getState();
+  if (elements.length === 0) return;
+
+  const index = getSelectedIndex(elements, selectedElementId);
+  const currentIndex = index < 0 ? 0 : index;
+  const nextIndex = Math.min(Math.max(currentIndex + offset, 0), elements.length - 1);
+  const anchorId = selectionAnchorElementId ?? selectedElementId ?? elements[currentIndex].id;
+  useCadStore.getState().setSelectedElementRange(anchorId, elements[nextIndex].id);
+  updateDependencyJumpModeAfterSelectionChange();
+};
+
+const selectElement = (elementId: ElementId, selectionMode: CommandContext["selectionMode"] = "replace") => {
+  const { elements, selectedElementIds, selectionAnchorElementId } = useCadStore.getState();
+  const element = elements.find((item) => item.id === elementId);
+  if (!element) return;
+
+  if (selectionMode === "range") {
+    useCadStore.getState().setSelectedElementRange(selectionAnchorElementId ?? elementId, elementId);
+    updateDependencyJumpModeAfterSelectionChange();
+    return;
+  }
+
+  if (selectionMode === "toggle") {
+    const selectedIds = new Set(selectedElementIds);
+    let primaryId = elementId;
+    if (selectedIds.has(elementId) && selectedIds.size > 1) {
+      selectedIds.delete(elementId);
+      primaryId = [...selectedIds][0];
+    } else {
+      selectedIds.add(elementId);
+    }
+    useCadStore.getState().setSelectedElementIds([...selectedIds], primaryId);
+    updateDependencyJumpModeAfterSelectionChange();
+    return;
+  }
+
+  useCadStore.getState().setSelectedElementId(elementId);
+  updateDependencyJumpModeAfterSelectionChange();
+};
+
+const selectedIndexes = (elements: CadElement[], selectedIds: ElementId[]) => {
+  const idSet = new Set(selectedIds);
+  return elements
+    .map((element, index) => (idSet.has(element.id) ? index : -1))
+    .filter((index) => index >= 0);
+};
+
+const moveElementsToInsertionIndex = (elementIds: ElementId[], insertionIndex: number) => {
+  const { elements, selectedElementId } = useCadStore.getState();
+  const movingIds = elementIdsInDocumentOrder(elements, elementIds);
+  if (movingIds.length === 0) return;
+
+  const movingIdSet = new Set(movingIds);
+  const firstMovingIndex = elements.findIndex((element) => movingIdSet.has(element.id));
+  const clampedInsertionIndex = Math.min(Math.max(insertionIndex, 0), elements.length);
+  const movedBeforeInsertion = elements
+    .slice(0, clampedInsertionIndex)
+    .filter((element) => movingIdSet.has(element.id)).length;
+  const remainingElements = elements.filter((element) => !movingIdSet.has(element.id));
+  const targetIndex = clampedInsertionIndex - movedBeforeInsertion;
+  const movingElements = elements.filter((element) => movingIdSet.has(element.id));
+
+  if (targetIndex === firstMovingIndex && movingElements.every((element, index) => elements[firstMovingIndex + index]?.id === element.id)) {
+    return;
+  }
+
+  const nextElements = [
+    ...remainingElements.slice(0, targetIndex),
+    ...movingElements,
+    ...remainingElements.slice(targetIndex)
+  ];
+
+  useCadStore.getState().commitDocumentChange({
+    elements: nextElements,
+    selectedElementId: selectedElementId && movingIdSet.has(selectedElementId) ? selectedElementId : movingIds[0],
+    selectedElementIds: movingIds,
+    selectionAnchorElementId: useCadStore.getState().selectionAnchorElementId ?? movingIds[0]
+  });
+};
+
 const moveElementToInsertionIndex = (elementId: ElementId, insertionIndex: number) => {
-  const { elements } = useCadStore.getState();
+  const { elements, selectedElementIds } = useCadStore.getState();
+  const elementIds = selectedElementIds.includes(elementId) ? selectedElementIds : [elementId];
+  if (elementIds.length > 1) {
+    moveElementsToInsertionIndex(elementIds, insertionIndex);
+    return;
+  }
+
   const fromIndex = elements.findIndex((element) => element.id === elementId);
   if (fromIndex < 0) return;
 
@@ -304,7 +413,9 @@ const moveElementToInsertionIndex = (elementId: ElementId, insertionIndex: numbe
 
   useCadStore.getState().commitDocumentChange({
     elements: nextElements,
-    selectedElementId: movedElement.id
+    selectedElementId: movedElement.id,
+    selectedElementIds: [movedElement.id],
+    selectionAnchorElementId: movedElement.id
   });
 };
 
@@ -365,6 +476,14 @@ export const commands: Record<CommandId, Command> = {
     label: "やり直す",
     run: () => useCadStore.getState().redo()
   },
+  selectElement: {
+    id: "selectElement",
+    label: "要素を選択",
+    run: (context) => {
+      if (!context?.elementId) return;
+      selectElement(context.elementId, context.selectionMode);
+    }
+  },
   selectNextElement: {
     id: "selectNextElement",
     label: "次の要素を選択",
@@ -375,24 +494,37 @@ export const commands: Record<CommandId, Command> = {
     label: "前の要素を選択",
     run: () => selectElementByOffset(-1)
   },
+  extendSelectionToNextElement: {
+    id: "extendSelectionToNextElement",
+    label: "次の要素まで選択",
+    run: () => extendSelectionByOffset(1)
+  },
+  extendSelectionToPreviousElement: {
+    id: "extendSelectionToPreviousElement",
+    label: "前の要素まで選択",
+    run: () => extendSelectionByOffset(-1)
+  },
   moveSelectedElementUp: {
     id: "moveSelectedElementUp",
     label: "選択要素を上へ",
     run: () => {
-      const { elements, selectedElementId } = useCadStore.getState();
-      const index = getSelectedIndex(elements, selectedElementId);
-      if (index <= 0) return;
-      moveElementToInsertionIndex(elements[index].id, index - 1);
+      const { elements } = useCadStore.getState();
+      const selectedIds = getSelectedElementIds();
+      const indexes = selectedIndexes(elements, selectedIds);
+      if (indexes.length === 0 || indexes[0] <= 0) return;
+      moveElementsToInsertionIndex(selectedIds, indexes[0] - 1);
     }
   },
   moveSelectedElementDown: {
     id: "moveSelectedElementDown",
     label: "選択要素を下へ",
     run: () => {
-      const { elements, selectedElementId } = useCadStore.getState();
-      const index = getSelectedIndex(elements, selectedElementId);
-      if (index < 0 || index >= elements.length - 1) return;
-      moveElementToInsertionIndex(elements[index].id, index + 2);
+      const { elements } = useCadStore.getState();
+      const selectedIds = getSelectedElementIds();
+      const indexes = selectedIndexes(elements, selectedIds);
+      const lastIndex = indexes.at(-1) ?? -1;
+      if (indexes.length === 0 || lastIndex >= elements.length - 1) return;
+      moveElementsToInsertionIndex(selectedIds, lastIndex + 2);
     }
   },
   moveElementToInsertionIndex: {
@@ -407,11 +539,12 @@ export const commands: Record<CommandId, Command> = {
     id: "toggleSelectedElementVisibility",
     label: "表示/非表示を切替",
     run: () => {
-      const { elements, selectedElementId } = useCadStore.getState();
-      if (!selectedElementId) return;
+      const { elements } = useCadStore.getState();
+      const selectedIds = new Set(getSelectedElementIds());
+      if (selectedIds.size === 0) return;
       useCadStore.getState().commitDocumentChange({
         elements: elements.map((element) =>
-          element.id === selectedElementId ? { ...element, visible: !element.visible } : element
+          selectedIds.has(element.id) ? { ...element, visible: !element.visible } : element
         )
       });
     }
@@ -420,13 +553,18 @@ export const commands: Record<CommandId, Command> = {
     id: "deleteSelectedElement",
     label: "選択要素を削除",
     run: () => {
-      const { elements, selectedElementId } = useCadStore.getState();
-      const index = getSelectedIndex(elements, selectedElementId);
-      if (index < 0) return;
-      const nextElements = elements.filter((element) => element.id !== selectedElementId);
+      const { elements } = useCadStore.getState();
+      const selectedIds = new Set(getSelectedElementIds());
+      const indexes = selectedIndexes(elements, [...selectedIds]);
+      if (indexes.length === 0) return;
+      const index = indexes[0];
+      const nextElements = elements.filter((element) => !selectedIds.has(element.id));
+      const nextSelectedElementId = nextElements[Math.min(index, nextElements.length - 1)]?.id ?? null;
       useCadStore.getState().commitDocumentChange({
         elements: nextElements,
-        selectedElementId: nextElements[Math.min(index, nextElements.length - 1)]?.id ?? null
+        selectedElementId: nextSelectedElementId,
+        selectedElementIds: nextSelectedElementId ? [nextSelectedElementId] : [],
+        selectionAnchorElementId: nextSelectedElementId
       });
     }
   },

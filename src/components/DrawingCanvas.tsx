@@ -110,6 +110,7 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
   const [isPanning, setIsPanning] = useState(false);
   const elements = useCadStore((state) => state.elements);
   const selectedElementId = useCadStore((state) => state.selectedElementId);
+  const selectedElementIds = useCadStore((state) => state.selectedElementIds);
   const canvasViewport = useCadStore((state) => state.canvasViewport);
   const panCanvasViewport = useCadStore((state) => state.panCanvasViewport);
   const zoomCanvasViewportAt = useCadStore((state) => state.zoomCanvasViewportAt);
@@ -117,6 +118,7 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
     () => new Set(elements.filter((element) => element.visible).map((element) => element.id)),
     [elements]
   );
+  const selectedElementIdSet = useMemo(() => new Set(selectedElementIds), [selectedElementIds]);
   const geometries = useMemo(
     () => Array.from(evaluation.computedGeometry.values()),
     [evaluation.computedGeometry]
@@ -179,28 +181,32 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
 
     for (const line of lines) {
       if (!visibleElementIds.has(line.elementId)) continue;
+      const isSelected = selectedElementIdSet.has(line.elementId);
+      const isPrimarySelected = line.elementId === selectedElementId;
       const start = worldToScreen(line.start, viewportSize, canvasViewport);
       const end = worldToScreen(line.end, viewportSize, canvasViewport);
       ctx.beginPath();
       ctx.moveTo(start.x, start.y);
       ctx.lineTo(end.x, end.y);
-      ctx.strokeStyle = line.elementId === selectedElementId ? "#0f766e" : "#31322f";
-      ctx.lineWidth = line.elementId === selectedElementId ? 3 : 2;
+      ctx.strokeStyle = isSelected ? "#0f766e" : "#31322f";
+      ctx.lineWidth = isPrimarySelected ? 3.5 : isSelected ? 3 : 2;
       ctx.stroke();
     }
 
     for (const point of points) {
       if (!visibleElementIds.has(point.elementId)) continue;
+      const isSelected = selectedElementIdSet.has(point.elementId);
+      const isPrimarySelected = point.elementId === selectedElementId;
       const screen = worldToScreen(point, viewportSize, canvasViewport);
       ctx.beginPath();
-      ctx.arc(screen.x, screen.y, point.elementId === selectedElementId ? 5 : 4, 0, Math.PI * 2);
-      ctx.fillStyle = point.elementId === selectedElementId ? "#0f766e" : "#ffffff";
+      ctx.arc(screen.x, screen.y, isPrimarySelected ? 5.5 : isSelected ? 5 : 4, 0, Math.PI * 2);
+      ctx.fillStyle = isSelected ? "#0f766e" : "#ffffff";
       ctx.strokeStyle = "#31322f";
       ctx.lineWidth = 2;
       ctx.fill();
       ctx.stroke();
     }
-  }, [canvasViewport, lines, points, selectedElementId, viewportSize, visibleElementIds]);
+  }, [canvasViewport, lines, points, selectedElementId, selectedElementIdSet, viewportSize, visibleElementIds]);
 
   const handleWheel = (event: ReactWheelEvent<HTMLDivElement>) => {
     if (viewportSize.width <= 0 || viewportSize.height <= 0) return;
@@ -280,7 +286,7 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
               y1={start.y}
               x2={end.x}
               y2={end.y}
-              className={line.elementId === selectedElementId ? "overlay-selected-line" : ""}
+              className={selectedElementIdSet.has(line.elementId) ? "overlay-selected-line" : ""}
             />
           ))}
           {overlayPoints.map(({ point, screen }) => (
@@ -288,8 +294,8 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
               <circle
                 cx={screen.x}
                 cy={screen.y}
-                r={point.elementId === selectedElementId ? 8 : 6}
-                className={point.elementId === selectedElementId ? "overlay-selected-point" : ""}
+                r={point.elementId === selectedElementId ? 8 : selectedElementIdSet.has(point.elementId) ? 7 : 6}
+                className={selectedElementIdSet.has(point.elementId) ? "overlay-selected-point" : ""}
               />
               <text x={screen.x + 8} y={screen.y - 8}>
                 {point.name}

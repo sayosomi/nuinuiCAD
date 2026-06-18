@@ -16,6 +16,8 @@ const resetStore = () => {
   useCadStore.setState({
     elements: sampleElements,
     selectedElementId: sampleElements[0].id,
+    selectedElementIds: [sampleElements[0].id],
+    selectionAnchorElementId: sampleElements[0].id,
     isParameterEditMode: false,
     selectedParameterKey: "name",
     showElementInfoPanel: true,
@@ -206,5 +208,45 @@ describe("LeftPanel element list dragging", () => {
     ]);
     expect(useCadStore.getState().selectedElementId).toBe("point-a");
     expect(useCadStore.getState().past).toHaveLength(1);
+  });
+
+  it("selects a range with shift click and toggles with mod click", () => {
+    renderLeftPanel();
+
+    fireEvent.click(screen.getByText("点C").closest("[data-element-list-row='true']")!, {
+      shiftKey: true
+    });
+    expect(useCadStore.getState().selectedElementIds).toEqual(["point-a", "point-b", "point-c"]);
+
+    fireEvent.click(screen.getByText("点B").closest("[data-element-list-row='true']")!, {
+      metaKey: true
+    });
+    expect(useCadStore.getState().selectedElementIds).toEqual(["point-a", "point-c"]);
+  });
+
+  it("reorders selected elements together by dragging one selected handle", () => {
+    useCadStore.setState({
+      selectedElementId: "point-c",
+      selectedElementIds: ["point-b", "point-c"],
+      selectionAnchorElementId: "point-b"
+    });
+    renderLeftPanel();
+    const dataTransfer = dragDataTransfer();
+    const handle = screen.getByLabelText("点Cを並び替え");
+    const targetRow = screen.getByText("直線BC").closest("[data-element-list-row='true']");
+    expect(targetRow).toBeInstanceOf(HTMLElement);
+
+    fireEvent.dragStart(handle, { dataTransfer });
+    fireEvent.dragOver(targetRow!, { dataTransfer });
+    fireEvent.drop(targetRow!, { dataTransfer });
+
+    expect(useCadStore.getState().elements.map((element) => element.id)).toEqual([
+      "point-a",
+      "line-ab",
+      "point-b",
+      "point-c",
+      "line-bc"
+    ]);
+    expect(useCadStore.getState().selectedElementIds).toEqual(["point-b", "point-c"]);
   });
 });

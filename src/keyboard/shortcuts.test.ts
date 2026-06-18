@@ -18,7 +18,9 @@ describe("shortcuts", () => {
     expect(commandIdForKeyboardEvent(keyboardEvent("ArrowUp", { metaKey: true }))).toBe(
       "moveSelectedElementUp"
     );
+    expect(commandIdForKeyboardEvent(keyboardEvent("d"))).toBe("deleteSelectedElement");
     expect(commandIdForKeyboardEvent(keyboardEvent("Backspace"))).toBe("deleteSelectedElement");
+    expect(commandIdForKeyboardEvent(keyboardEvent("Delete"))).toBe("deleteSelectedElement");
     expect(commandIdForKeyboardEvent(keyboardEvent("v"))).toBe("toggleSelectedElementVisibility");
     expect(commandIdForKeyboardEvent(keyboardEvent("i"))).toBe("toggleElementInfoPanel");
     expect(commandIdForKeyboardEvent(keyboardEvent("g"))).toBe("enterElementListMode");
@@ -38,6 +40,12 @@ describe("shortcuts", () => {
     expect(commandIdForKeyboardEvent(keyboardEvent("]"))).toBeNull();
     expect(commandIdForKeyboardEvent(keyboardEvent("z", { metaKey: true }))).toBe("undo");
     expect(commandIdForKeyboardEvent(keyboardEvent("y", { metaKey: true }))).toBe("redo");
+    expect(commandIdForKeyboardEvent(keyboardEvent("ArrowDown", { shiftKey: true }))).toBe(
+      "extendSelectionToNextElement"
+    );
+    expect(commandIdForKeyboardEvent(keyboardEvent("ArrowUp", { shiftKey: true }))).toBe(
+      "extendSelectionToPreviousElement"
+    );
   });
 
   it("maps edit mode keys to parameter commands", () => {
@@ -162,6 +170,7 @@ describe("shortcuts", () => {
     const input = document.createElement("input");
 
     expect(commandIdForKeyboardEvent(keyboardEventFrom("p", input))).toBeNull();
+    expect(commandIdForKeyboardEvent(keyboardEventFrom("d", input))).toBeNull();
     expect(commandIdForKeyboardEvent(keyboardEventFrom("i", input))).toBeNull();
     expect(commandIdForKeyboardEvent(keyboardEventFrom("?", input))).toBeNull();
     expect(commandIdForKeyboardEvent(keyboardEventFrom("/", input))).toBeNull();

@@ -115,10 +115,24 @@ export const shortcutDefinitions: ShortcutDefinition[] = [
     matches: (event) => event.key === "ArrowDown" && noModifier(event)
   },
   {
+    commandId: "extendSelectionToPreviousElement",
+    label: "前の要素まで選択",
+    keys: "Shift+ArrowUp",
+    matches: (event) => event.key === "ArrowUp" && shiftOnly(event)
+  },
+  {
+    commandId: "extendSelectionToNextElement",
+    label: "次の要素まで選択",
+    keys: "Shift+ArrowDown",
+    matches: (event) => event.key === "ArrowDown" && shiftOnly(event)
+  },
+  {
     commandId: "deleteSelectedElement",
     label: "選択要素を削除",
-    keys: "Delete / Backspace",
-    matches: (event) => (event.key === "Delete" || event.key === "Backspace") && noModifier(event)
+    keys: "d / Delete / Backspace",
+    matches: (event) =>
+      (event.key.toLowerCase() === "d" || event.key === "Delete" || event.key === "Backspace") &&
+      noModifier(event)
   },
   {
     commandId: "toggleSelectedElementVisibility",

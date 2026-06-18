@@ -14,6 +14,8 @@ export type CanvasViewport = {
 export type CadHistorySnapshot = {
   elements: CadElement[];
   selectedElementId: ElementId | null;
+  selectedElementIds: ElementId[];
+  selectionAnchorElementId: ElementId | null;
   isParameterEditMode: boolean;
   selectedParameterKey: ParameterKey | null;
 };
@@ -30,6 +32,8 @@ export const MAX_CANVAS_ZOOM = 20;
 export type CadState = {
   elements: CadElement[];
   selectedElementId: ElementId | null;
+  selectedElementIds: ElementId[];
+  selectionAnchorElementId: ElementId | null;
   isParameterEditMode: boolean;
   selectedParameterKey: ParameterKey | null;
   showElementInfoPanel: boolean;
@@ -41,6 +45,8 @@ export type CadState = {
   past: CadHistorySnapshot[];
   future: CadHistorySnapshot[];
   setSelectedElementId: (id: ElementId | null) => void;
+  setSelectedElementIds: (ids: ElementId[], primaryId?: ElementId | null) => void;
+  setSelectedElementRange: (anchorId: ElementId, targetId: ElementId) => void;
   setParameterEditMode: (isParameterEditMode: boolean) => void;
   setSelectedParameterKey: (selectedParameterKey: ParameterKey | null) => void;
   setShowElementInfoPanel: (showElementInfoPanel: boolean) => void;
@@ -66,20 +72,38 @@ export type CadState = {
 const currentSnapshot = (state: CadHistorySnapshot): CadHistorySnapshot => ({
   elements: state.elements,
   selectedElementId: state.selectedElementId,
+  selectedElementIds: state.selectedElementIds,
+  selectionAnchorElementId: state.selectionAnchorElementId,
   isParameterEditMode: state.isParameterEditMode,
   selectedParameterKey: state.selectedParameterKey
 });
 
+const uniqueElementIds = (ids: ElementId[]) => Array.from(new Set(ids));
+
 const normalizeSnapshot = (snapshot: CadHistorySnapshot): CadHistorySnapshot => {
+  const existingIds = new Set(snapshot.elements.map((element) => element.id));
+  const selectedElementIds = uniqueElementIds(snapshot.selectedElementIds).filter((id) =>
+    existingIds.has(id)
+  );
   const selectedElementId =
-    snapshot.selectedElementId && snapshot.elements.some((element) => element.id === snapshot.selectedElementId)
+    snapshot.selectedElementId && existingIds.has(snapshot.selectedElementId)
       ? snapshot.selectedElementId
-      : snapshot.elements[0]?.id ?? null;
+      : selectedElementIds[0] ?? snapshot.elements[0]?.id ?? null;
+  const normalizedSelectedElementIds =
+    selectedElementId && !selectedElementIds.includes(selectedElementId)
+      ? uniqueElementIds([...selectedElementIds, selectedElementId]).filter((id) => existingIds.has(id))
+      : selectedElementIds;
+  const selectionAnchorElementId =
+    snapshot.selectionAnchorElementId && existingIds.has(snapshot.selectionAnchorElementId)
+      ? snapshot.selectionAnchorElementId
+      : selectedElementId;
   const selectedElement = snapshot.elements.find((element) => element.id === selectedElementId);
 
   return {
     elements: snapshot.elements,
     selectedElementId,
+    selectedElementIds: normalizedSelectedElementIds,
+    selectionAnchorElementId,
     selectedParameterKey: selectedElement
       ? normalizeParameterKey(selectedElement, snapshot.selectedParameterKey)
       : null,
@@ -90,6 +114,9 @@ const normalizeSnapshot = (snapshot: CadHistorySnapshot): CadHistorySnapshot => 
 const snapshotEquals = (a: CadHistorySnapshot, b: CadHistorySnapshot) =>
   a.elements === b.elements &&
   a.selectedElementId === b.selectedElementId &&
+  a.selectedElementIds.length === b.selectedElementIds.length &&
+  a.selectedElementIds.every((id, index) => id === b.selectedElementIds[index]) &&
+  a.selectionAnchorElementId === b.selectionAnchorElementId &&
   a.isParameterEditMode === b.isParameterEditMode &&
   a.selectedParameterKey === b.selectedParameterKey;
 
@@ -99,6 +126,8 @@ const clampCanvasZoom = (zoom: number) =>
 export const useCadStore = create<CadState>((set) => ({
   elements: sampleElements,
   selectedElementId: sampleElements[0]?.id ?? null,
+  selectedElementIds: sampleElements[0] ? [sampleElements[0].id] : [],
+  selectionAnchorElementId: sampleElements[0]?.id ?? null,
   isParameterEditMode: false,
   selectedParameterKey: sampleElements[0] ? normalizeParameterKey(sampleElements[0], null) : null,
   showElementInfoPanel: true,
@@ -114,10 +143,55 @@ export const useCadStore = create<CadState>((set) => ({
       const selectedElement = state.elements.find((element) => element.id === selectedElementId);
       return {
         selectedElementId,
+        selectedElementIds: selectedElement ? [selectedElement.id] : [],
+        selectionAnchorElementId: selectedElement?.id ?? null,
         selectedParameterKey: selectedElement
           ? normalizeParameterKey(selectedElement, state.selectedParameterKey)
           : null,
         isParameterEditMode: selectedElement ? state.isParameterEditMode : false,
+        selectedDependencyJumpIndex: 0
+      };
+    }),
+  setSelectedElementIds: (selectedElementIds, primaryId) =>
+    set((state) => {
+      const existingIds = new Set(state.elements.map((element) => element.id));
+      const normalizedIds = uniqueElementIds(selectedElementIds).filter((id) => existingIds.has(id));
+      const selectedElementId =
+        primaryId && existingIds.has(primaryId)
+          ? primaryId
+          : normalizedIds[0] ?? null;
+      const selectedElement = state.elements.find((element) => element.id === selectedElementId);
+      const nextSelectedElementIds =
+        selectedElementId && !normalizedIds.includes(selectedElementId)
+          ? uniqueElementIds([...normalizedIds, selectedElementId])
+          : normalizedIds;
+      return {
+        selectedElementId,
+        selectedElementIds: nextSelectedElementIds,
+        selectionAnchorElementId: selectedElementId,
+        selectedParameterKey: selectedElement
+          ? normalizeParameterKey(selectedElement, state.selectedParameterKey)
+          : null,
+        isParameterEditMode: selectedElement ? state.isParameterEditMode : false,
+        selectedDependencyJumpIndex: 0
+      };
+    }),
+  setSelectedElementRange: (anchorId, targetId) =>
+    set((state) => {
+      const anchorIndex = state.elements.findIndex((element) => element.id === anchorId);
+      const targetIndex = state.elements.findIndex((element) => element.id === targetId);
+      if (anchorIndex < 0 || targetIndex < 0) return {};
+
+      const start = Math.min(anchorIndex, targetIndex);
+      const end = Math.max(anchorIndex, targetIndex);
+      const selectedElementIds = state.elements.slice(start, end + 1).map((element) => element.id);
+      const selectedElement = state.elements[targetIndex];
+      return {
+        selectedElementId: selectedElement.id,
+        selectedElementIds,
+        selectionAnchorElementId: anchorId,
+        selectedParameterKey: normalizeParameterKey(selectedElement, state.selectedParameterKey),
+        isParameterEditMode: state.isParameterEditMode,
         selectedDependencyJumpIndex: 0
       };
     }),

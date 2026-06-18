@@ -8,6 +8,8 @@ describe("commands", () => {
     useCadStore.setState({
       elements: sampleElements,
       selectedElementId: sampleElements[0].id,
+      selectedElementIds: [sampleElements[0].id],
+      selectionAnchorElementId: sampleElements[0].id,
       isParameterEditMode: false,
       selectedParameterKey: "name",
       showElementInfoPanel: true,
@@ -24,9 +26,35 @@ describe("commands", () => {
   it("selects next and previous elements", () => {
     dispatchCommand("selectNextElement");
     expect(useCadStore.getState().selectedElementId).toBe(sampleElements[1].id);
+    expect(useCadStore.getState().selectedElementIds).toEqual([sampleElements[1].id]);
 
     dispatchCommand("selectPreviousElement");
     expect(useCadStore.getState().selectedElementId).toBe(sampleElements[0].id);
+  });
+
+  it("selects ranges and toggles individual elements", () => {
+    dispatchCommand("selectElement", {
+      elementId: sampleElements[2].id,
+      selectionMode: "range"
+    });
+
+    expect(useCadStore.getState().selectedElementId).toBe(sampleElements[2].id);
+    expect(useCadStore.getState().selectedElementIds).toEqual([
+      sampleElements[0].id,
+      sampleElements[1].id,
+      sampleElements[2].id
+    ]);
+
+    dispatchCommand("selectElement", {
+      elementId: sampleElements[1].id,
+      selectionMode: "toggle"
+    });
+
+    expect(useCadStore.getState().selectedElementId).toBe(sampleElements[0].id);
+    expect(useCadStore.getState().selectedElementIds).toEqual([
+      sampleElements[0].id,
+      sampleElements[2].id
+    ]);
   });
 
   it("keeps parameter edit mode and normalizes the parameter when selecting another element", () => {
@@ -85,6 +113,32 @@ describe("commands", () => {
     expect(useCadStore.getState().elements[0].id).toBe(sampleElements[0].id);
   });
 
+  it("moves selected elements together while preserving their relative order", () => {
+    useCadStore.setState({
+      selectedElementId: sampleElements[2].id,
+      selectedElementIds: [sampleElements[1].id, sampleElements[2].id],
+      selectionAnchorElementId: sampleElements[1].id
+    });
+
+    dispatchCommand("moveSelectedElementDown");
+    expect(useCadStore.getState().elements.map((element) => element.id)).toEqual([
+      sampleElements[0].id,
+      sampleElements[3].id,
+      sampleElements[1].id,
+      sampleElements[2].id,
+      sampleElements[4].id
+    ]);
+    expect(useCadStore.getState().selectedElementIds).toEqual([
+      sampleElements[1].id,
+      sampleElements[2].id
+    ]);
+
+    dispatchCommand("moveSelectedElementUp");
+    expect(useCadStore.getState().elements.map((element) => element.id)).toEqual(
+      sampleElements.map((element) => element.id)
+    );
+  });
+
   it("moves an element to a requested insertion index", () => {
     dispatchCommand("moveElementToInsertionIndex", {
       elementId: sampleElements[0].id,
@@ -136,6 +190,24 @@ describe("commands", () => {
       false
     );
     expect(useCadStore.getState().selectedElementId).toBe(sampleElements[1].id);
+  });
+
+  it("deletes all selected elements", () => {
+    useCadStore.setState({
+      selectedElementId: sampleElements[2].id,
+      selectedElementIds: [sampleElements[1].id, sampleElements[2].id],
+      selectionAnchorElementId: sampleElements[1].id
+    });
+
+    dispatchCommand("deleteSelectedElement");
+
+    expect(useCadStore.getState().elements.map((element) => element.id)).toEqual([
+      sampleElements[0].id,
+      sampleElements[3].id,
+      sampleElements[4].id
+    ]);
+    expect(useCadStore.getState().selectedElementId).toBe(sampleElements[3].id);
+    expect(useCadStore.getState().selectedElementIds).toEqual([sampleElements[3].id]);
   });
 
   it("adds elements and selects them", () => {
