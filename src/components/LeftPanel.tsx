@@ -45,6 +45,8 @@ const formatMillimeters = (value: number) => `${formatNumber(value)} mm`;
 
 const formatCoordinate = (point: ComputedPoint) => `(${formatNumber(point.x)}, ${formatNumber(point.y)})`;
 
+const formatDependencyCount = (count: number) => (count > 99 ? "99+" : `${count}`);
+
 const normalizeDegrees = (degrees: number) => (degrees + 360) % 360;
 
 const formatAngle = (radians: number) => `${formatNumber(normalizeDegrees((radians * 180) / Math.PI))}°`;
@@ -390,6 +392,14 @@ const ElementInfoPanel = ({
       isDependencyJumpMode && jumpIndex === selectedDependencyJumpIndex ? "selected-dependency" : ""
     }`;
   };
+  const dependencyNameWithCount = (name: string, count: number) => (
+    <span className="dependency-primary">
+      <span className="dependency-name">{name}</span>
+      <span className="dependency-count-badge" aria-label={`関連要素 ${count} 件`}>
+        {formatDependencyCount(count)}
+      </span>
+    </span>
+  );
 
   return (
     <section className="panel-section">
@@ -438,15 +448,13 @@ const ElementInfoPanel = ({
                       className={dependencyButtonClass(parent.element.id)}
                       onClick={() => selectDependency(parent.element!.id)}
                     >
-                      <span>{parent.element.name}</span>
-                      <small>
-                        {elementTypeLabels[parent.element.type]} / 祖父母 {parent.ancestorCount} 件
-                      </small>
+                      {dependencyNameWithCount(parent.element.name, parent.ancestorCount)}
+                      <small>{elementTypeLabels[parent.element.type]}</small>
                     </button>
                   ) : (
                     <div key={`${parent.id}-${index}`} className="dependency-row unresolved">
-                      <span>{parent.id}</span>
-                      <small>未解決 / 祖父母 {parent.ancestorCount} 件</small>
+                      {dependencyNameWithCount(parent.id, parent.ancestorCount)}
+                      <small>未解決</small>
                     </div>
                   )
                 )}
@@ -467,10 +475,8 @@ const ElementInfoPanel = ({
                     className={dependencyButtonClass(child.element.id)}
                     onClick={() => selectDependency(child.element.id)}
                   >
-                    <span>{child.element.name}</span>
-                    <small>
-                      {elementTypeLabels[child.element.type]} / 孫 {child.descendantCount} 件
-                    </small>
+                    {dependencyNameWithCount(child.element.name, child.descendantCount)}
+                    <small>{elementTypeLabels[child.element.type]}</small>
                   </button>
                 ))}
               </div>
