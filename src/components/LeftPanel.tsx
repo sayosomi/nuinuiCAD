@@ -319,7 +319,7 @@ const ElementEditor = ({
                 aria-label="x 値"
                 type="number"
                 step="1"
-                value={element.x}
+                value={formatNumber(element.x)}
                 onChange={(event) => updateField("x", event.target.value)}
               />
               <span className="parameter-step">
@@ -328,7 +328,7 @@ const ElementEditor = ({
                   type="number"
                   min="0.1"
                   step="0.1"
-                  value={getNumericParameterStep(element, "x")}
+                  value={formatNumber(getNumericParameterStep(element, "x"))}
                   onFocus={() => selectParameter("x")}
                   onKeyDown={(event) => {
                     if (event.key === "Escape") event.currentTarget.blur();
@@ -345,7 +345,7 @@ const ElementEditor = ({
                 aria-label="y 値"
                 type="number"
                 step="1"
-                value={element.y}
+                value={formatNumber(element.y)}
                 onChange={(event) => updateField("y", event.target.value)}
               />
               <span className="parameter-step">
@@ -354,7 +354,7 @@ const ElementEditor = ({
                   type="number"
                   min="0.1"
                   step="0.1"
-                  value={getNumericParameterStep(element, "y")}
+                  value={formatNumber(getNumericParameterStep(element, "y"))}
                   onFocus={() => selectParameter("y")}
                   onKeyDown={(event) => {
                     if (event.key === "Escape") event.currentTarget.blur();
@@ -389,7 +389,7 @@ const ElementEditor = ({
                 aria-label="dx 値"
                 type="number"
                 step="1"
-                value={element.dx}
+                value={formatNumber(element.dx)}
                 onChange={(event) => updateField("dx", event.target.value)}
               />
               <span className="parameter-step">
@@ -398,7 +398,7 @@ const ElementEditor = ({
                   type="number"
                   min="0.1"
                   step="0.1"
-                  value={getNumericParameterStep(element, "dx")}
+                  value={formatNumber(getNumericParameterStep(element, "dx"))}
                   onFocus={() => selectParameter("dx")}
                   onKeyDown={(event) => {
                     if (event.key === "Escape") event.currentTarget.blur();
@@ -415,7 +415,7 @@ const ElementEditor = ({
                 aria-label="dy 値"
                 type="number"
                 step="1"
-                value={element.dy}
+                value={formatNumber(element.dy)}
                 onChange={(event) => updateField("dy", event.target.value)}
               />
               <span className="parameter-step">
@@ -424,7 +424,7 @@ const ElementEditor = ({
                   type="number"
                   min="0.1"
                   step="0.1"
-                  value={getNumericParameterStep(element, "dy")}
+                  value={formatNumber(getNumericParameterStep(element, "dy"))}
                   onFocus={() => selectParameter("dy")}
                   onKeyDown={(event) => {
                     if (event.key === "Escape") event.currentTarget.blur();

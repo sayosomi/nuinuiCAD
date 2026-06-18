@@ -87,6 +87,26 @@ describe("LeftPanel numeric input dragging", () => {
     resetStore();
   });
 
+  it("rounds numeric parameter display to at most two decimal places", () => {
+    useCadStore.setState({
+      elements: [
+        {
+          ...sampleElements[0],
+          x: 12.345,
+          y: 67.8,
+          numericParameterSteps: { x: 0.125 }
+        },
+        ...sampleElements.slice(1)
+      ]
+    });
+
+    renderRightPanel();
+
+    expect(screen.getByLabelText("x 値")).toHaveValue(12.35);
+    expect(screen.getByLabelText("y 値")).toHaveValue(67.8);
+    expect(screen.getByDisplayValue("0.13")).toBeInTheDocument();
+  });
+
   it("increments a numeric parameter after an 8px middle-button drag to the right", () => {
     renderRightPanel();
 
