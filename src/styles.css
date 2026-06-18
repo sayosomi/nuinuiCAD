@@ -177,6 +177,59 @@ select {
   font-size: 12px;
 }
 
+.parameter-field {
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 5px;
+}
+
+.parameter-field.selected-parameter {
+  border-color: #0f766e;
+  background: #e7f4ef;
+}
+
+.parameter-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.parameter-name kbd {
+  min-width: 20px;
+  border: 1px solid #c9ccc2;
+  border-radius: 4px;
+  background: #ffffff;
+  padding: 1px 5px;
+  color: #252622;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11px;
+  text-align: center;
+}
+
+.parameter-step {
+  display: grid;
+  grid-template-columns: auto minmax(72px, 1fr);
+  gap: 6px;
+  align-items: center;
+  color: #686b62;
+  font-size: 11px;
+}
+
+.mode-pill {
+  border: 1px solid #c9ccc2;
+  border-radius: 999px;
+  background: #ffffff;
+  padding: 3px 8px;
+  color: #686b62;
+  font-size: 11px;
+}
+
+.mode-pill.active {
+  border-color: #0f766e;
+  background: #d9f0e8;
+  color: #0f4f49;
+}
+
 .editor-grid label:first-child,
 .editor-grid label:has(select) {
   grid-column: 1 / -1;
@@ -224,6 +277,12 @@ select {
   display: grid;
   gap: 6px;
   margin: 0;
+}
+
+.shortcut-group-title {
+  margin: 10px 0 6px;
+  color: #4a4d45;
+  font-size: 12px;
 }
 
 .shortcut-list div {

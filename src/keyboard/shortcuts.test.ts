@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { commandIdForKeyboardEvent } from "./shortcuts";
+import { commandIdForKeyboardEvent, keyboardCommandForEvent } from "./shortcuts";
 
 const keyboardEvent = (key: string, init: KeyboardEventInit = {}) =>
   new KeyboardEvent("keydown", { key, ...init });
@@ -13,7 +13,42 @@ describe("shortcuts", () => {
     );
     expect(commandIdForKeyboardEvent(keyboardEvent("Backspace"))).toBe("deleteSelectedElement");
     expect(commandIdForKeyboardEvent(keyboardEvent("v"))).toBe("toggleSelectedElementVisibility");
+    expect(commandIdForKeyboardEvent(keyboardEvent("Enter"))).toBe("enterParameterEditMode");
     expect(commandIdForKeyboardEvent(keyboardEvent("?"))).toBe("toggleShortcutHelp");
+  });
+
+  it("maps edit mode keys to parameter commands", () => {
+    expect(commandIdForKeyboardEvent(keyboardEvent("Tab"), { isParameterEditMode: true })).toBe(
+      "selectNextParameter"
+    );
+    expect(
+      commandIdForKeyboardEvent(keyboardEvent("Tab", { shiftKey: true }), {
+        isParameterEditMode: true
+      })
+    ).toBe("selectPreviousParameter");
+    expect(commandIdForKeyboardEvent(keyboardEvent("x"), { isParameterEditMode: true })).toBe(
+      "selectParameterByKey"
+    );
+    expect(commandIdForKeyboardEvent(keyboardEvent("Escape"), { isParameterEditMode: true })).toBe(
+      "exitParameterEditMode"
+    );
+  });
+
+  it("passes edit mode command context", () => {
+    expect(
+      keyboardCommandForEvent(keyboardEvent("ArrowRight", { shiftKey: true }), {
+        isParameterEditMode: true
+      })
+    ).toMatchObject({
+      commandId: "incrementSelectedParameter",
+      context: { stepMultiplier: 10 }
+    });
+    expect(
+      keyboardCommandForEvent(keyboardEvent("y"), { isParameterEditMode: true })
+    ).toMatchObject({
+      commandId: "selectParameterByKey",
+      context: { parameterDirectKey: "y" }
+    });
   });
 
   it("ignores events from inputs", () => {

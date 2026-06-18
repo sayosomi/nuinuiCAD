@@ -120,6 +120,28 @@ Therefore:
 
 When an `input`, `textarea`, `select`, or `contenteditable` element is focused, ordinary typing and editing shortcuts must continue to work normally.
 
+## Parameter edit mode
+
+Selected element parameters must be operable by keyboard, not only by mouse or direct form focus.
+
+Use an explicit parameter edit mode:
+
+* `Enter`: enter parameter edit mode for the selected element
+* `Escape`: leave parameter edit mode
+* `Tab` / `Shift+Tab`: move between editable parameters
+* parameter name keys: jump to parameters only while parameter edit mode is active; define the actual keys in the centralized parameter definition table
+* arrow keys: adjust the selected numeric parameter or cycle reference choices when appropriate
+* `Space`: toggle the selected boolean parameter
+
+When adding a new element type, also add its editable parameters to the centralized parameter definition table. Each parameter should define:
+
+* stable parameter key
+* human-readable label
+* direct key used in parameter edit mode
+* value kind: text, number, boolean, or reference
+
+Numeric parameters should support per-parameter keyboard step sizes, defaulting to 1 mm.
+
 ## Command architecture
 
 Prefer a command-based architecture.

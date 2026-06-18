@@ -5,6 +5,7 @@ export type CadElementBase = {
   name: string;
   visible: boolean;
   enabled: boolean;
+  numericParameterSteps?: Partial<Record<string, number>>;
 };
 
 export type FreePointElement = CadElementBase & {

@@ -1,4 +1,13 @@
 import { useCadStore } from "../state/useCadStore";
+import {
+  findParameterByDirectKey,
+  findParameterDefinition,
+  getFirstParameterKey,
+  getNumericParameterStep,
+  getParameterDefinitions,
+  normalizeParameterKey,
+  pointReferenceOptions
+} from "../parameters/parameterDefinitions";
 import type { CadElement, CadElementType, ElementId } from "../types/geometry";
 
 export type CommandId =
@@ -13,11 +22,25 @@ export type CommandId =
   | "addLine"
   | "focusCanvas"
   | "focusElementList"
-  | "toggleShortcutHelp";
+  | "toggleShortcutHelp"
+  | "enterParameterEditMode"
+  | "exitParameterEditMode"
+  | "selectNextParameter"
+  | "selectPreviousParameter"
+  | "selectParameterByKey"
+  | "incrementSelectedParameter"
+  | "decrementSelectedParameter"
+  | "cycleSelectedReferenceForward"
+  | "cycleSelectedReferenceBackward"
+  | "toggleSelectedBooleanParameter"
+  | "focusSelectedParameterInput";
 
 export type CommandContext = {
   focusCanvas?: () => void;
   focusElementList?: () => void;
+  focusSelectedParameterInput?: () => void;
+  parameterDirectKey?: string;
+  stepMultiplier?: number;
 };
 
 export type Command = {
@@ -35,6 +58,27 @@ const createId = (type: CadElementType) => {
 
 const getSelectedIndex = (elements: CadElement[], selectedElementId: ElementId | null) =>
   selectedElementId ? elements.findIndex((element) => element.id === selectedElementId) : -1;
+
+const getSelectedElement = () => {
+  const { elements, selectedElementId } = useCadStore.getState();
+  return selectedElementId ? elements.find((element) => element.id === selectedElementId) ?? null : null;
+};
+
+const updateSelectedElement = (updater: (element: CadElement) => CadElement) => {
+  const { elements, selectedElementId } = useCadStore.getState();
+  if (!selectedElementId) return;
+
+  useCadStore.setState({
+    elements: elements.map((element) => (element.id === selectedElementId ? updater(element) : element))
+  });
+};
+
+const selectedParameterDefinition = () => {
+  const selectedElement = getSelectedElement();
+  if (!selectedElement) return null;
+  const { selectedParameterKey } = useCadStore.getState();
+  return findParameterDefinition(selectedElement, selectedParameterKey);
+};
 
 const makeElement = (type: CadElementType, elements: CadElement[]): CadElement => {
   const points = elements.filter(
@@ -85,8 +129,65 @@ const addElement = (type: CadElementType) => {
   const element = makeElement(type, elements);
   useCadStore.setState({
     elements: [...elements, element],
-    selectedElementId: element.id
+    selectedElementId: element.id,
+    selectedParameterKey: getFirstParameterKey(element)
   });
+};
+
+const selectParameterByOffset = (offset: number) => {
+  const selectedElement = getSelectedElement();
+  if (!selectedElement) return;
+
+  const definitions = getParameterDefinitions(selectedElement);
+  const { selectedParameterKey } = useCadStore.getState();
+  const index = definitions.findIndex((definition) => definition.key === selectedParameterKey);
+  const currentIndex = index < 0 ? 0 : index;
+  const nextIndex = (currentIndex + offset + definitions.length) % definitions.length;
+  useCadStore.setState({ selectedParameterKey: definitions[nextIndex].key });
+};
+
+const stepForContext = (context?: CommandContext) => context?.stepMultiplier ?? 1;
+
+const updateNumericParameter = (direction: 1 | -1, context?: CommandContext) => {
+  const selectedElement = getSelectedElement();
+  const definition = selectedParameterDefinition();
+  if (!selectedElement || !definition) return;
+  if (definition.kind === "reference") {
+    cycleReferenceParameter(direction);
+    return;
+  }
+  if (definition.kind !== "number") return;
+
+  const delta = getNumericParameterStep(selectedElement, definition.key) * stepForContext(context) * direction;
+  updateSelectedElement((element) => ({
+    ...element,
+    [definition.key]: Number(element[definition.key as keyof CadElement]) + delta
+  } as CadElement));
+};
+
+const cycleReferenceParameter = (direction: 1 | -1) => {
+  const selectedElement = getSelectedElement();
+  const definition = selectedParameterDefinition();
+  if (!selectedElement || definition?.kind !== "reference") return;
+
+  const options = pointReferenceOptions(useCadStore.getState().elements);
+  if (options.length === 0) return;
+
+  const currentValue = selectedElement[definition.key as keyof CadElement] as ElementId;
+  const currentIndex = options.indexOf(currentValue);
+  const nextIndex =
+    currentIndex < 0 ? 0 : (currentIndex + direction + options.length) % options.length;
+  updateSelectedElement((element) => ({ ...element, [definition.key]: options[nextIndex] } as CadElement));
+};
+
+const toggleBooleanParameter = () => {
+  const definition = selectedParameterDefinition();
+  if (definition?.kind !== "boolean") return;
+
+  updateSelectedElement((element) => ({
+    ...element,
+    [definition.key]: !element[definition.key as keyof CadElement]
+  } as CadElement));
 };
 
 export const commands: Record<CommandId, Command> = {
@@ -195,6 +296,77 @@ export const commands: Record<CommandId, Command> = {
       const { showShortcutHelp } = useCadStore.getState();
       useCadStore.setState({ showShortcutHelp: !showShortcutHelp });
     }
+  },
+  enterParameterEditMode: {
+    id: "enterParameterEditMode",
+    label: "パラメーター編集モードに入る",
+    run: () => {
+      const selectedElement = getSelectedElement();
+      if (!selectedElement) return;
+      useCadStore.setState({
+        isParameterEditMode: true,
+        selectedParameterKey: normalizeParameterKey(
+          selectedElement,
+          useCadStore.getState().selectedParameterKey
+        )
+      });
+    }
+  },
+  exitParameterEditMode: {
+    id: "exitParameterEditMode",
+    label: "パラメーター編集モードを終了",
+    run: () => useCadStore.setState({ isParameterEditMode: false })
+  },
+  selectNextParameter: {
+    id: "selectNextParameter",
+    label: "次のパラメーターを選択",
+    run: () => selectParameterByOffset(1)
+  },
+  selectPreviousParameter: {
+    id: "selectPreviousParameter",
+    label: "前のパラメーターを選択",
+    run: () => selectParameterByOffset(-1)
+  },
+  selectParameterByKey: {
+    id: "selectParameterByKey",
+    label: "キーでパラメーターを選択",
+    run: (context) => {
+      const selectedElement = getSelectedElement();
+      if (!selectedElement || !context?.parameterDirectKey) return;
+      const definition = findParameterByDirectKey(selectedElement, context.parameterDirectKey);
+      if (!definition) return;
+      useCadStore.setState({ selectedParameterKey: definition.key });
+    }
+  },
+  incrementSelectedParameter: {
+    id: "incrementSelectedParameter",
+    label: "選択パラメーターを増やす",
+    run: (context) => updateNumericParameter(1, context)
+  },
+  decrementSelectedParameter: {
+    id: "decrementSelectedParameter",
+    label: "選択パラメーターを減らす",
+    run: (context) => updateNumericParameter(-1, context)
+  },
+  cycleSelectedReferenceForward: {
+    id: "cycleSelectedReferenceForward",
+    label: "参照パラメーターを次へ",
+    run: () => cycleReferenceParameter(1)
+  },
+  cycleSelectedReferenceBackward: {
+    id: "cycleSelectedReferenceBackward",
+    label: "参照パラメーターを前へ",
+    run: () => cycleReferenceParameter(-1)
+  },
+  toggleSelectedBooleanParameter: {
+    id: "toggleSelectedBooleanParameter",
+    label: "真偽値パラメーターを切替",
+    run: () => toggleBooleanParameter()
+  },
+  focusSelectedParameterInput: {
+    id: "focusSelectedParameterInput",
+    label: "選択パラメーターの入力欄へフォーカス",
+    run: (context) => context?.focusSelectedParameterInput?.()
   }
 };
 
