@@ -1,6 +1,7 @@
 import type { KeyboardEvent, RefObject } from "react";
 import { dispatchCommand } from "../commands/commands";
 import { shortcutHelpItems } from "../keyboard/shortcuts";
+import { formatReferenceOptionLabel } from "../model/elementNames";
 import {
   defaultNumericParameterStep,
   getNumericParameterStep,
@@ -23,7 +24,7 @@ const pointOptions = (elements: CadElement[]) =>
     .filter((element) => element.type === "freePoint" || element.type === "offsetPoint")
     .map((element) => (
       <option key={element.id} value={element.id}>
-        {element.name}
+        {formatReferenceOptionLabel(element)}
       </option>
     ));
 
@@ -57,10 +58,11 @@ const ElementEditor = ({
   registerParameterControl: (key: string, element: HTMLElement | null) => void;
 }) => {
   const updateElement = useCadStore((state) => state.updateElement);
+  const renameElement = useCadStore((state) => state.renameElement);
   const selectedParameterKey = useCadStore((state) => state.selectedParameterKey);
   const setSelectedParameterKey = useCadStore((state) => state.setSelectedParameterKey);
 
-  const updateName = (name: string) => updateElement(element.id, { name });
+  const commitName = (name: string) => renameElement(element.id, name);
   const updateVisible = (visible: boolean) => updateElement(element.id, { visible });
   const updateEnabled = (enabled: boolean) => updateElement(element.id, { enabled });
   const updateField = (field: ParameterKey, value: string) => {
@@ -105,9 +107,21 @@ const ElementEditor = ({
         <label className={parameterFieldClass("name")} onClick={() => selectParameter("name")}>
           <ParameterName element={element} parameterKey="name" label="名前" />
           <input
-            {...controlProps("name")}
-            value={element.name}
-            onChange={(event) => updateName(event.target.value)}
+            key={`${element.id}-${element.name}`}
+            ref={(node) => registerParameterControl("name", node)}
+            defaultValue={element.name}
+            onFocus={() => setSelectedParameterKey("name")}
+            onBlur={(event) => commitName(event.currentTarget.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                commitName(event.currentTarget.value);
+                event.currentTarget.blur();
+              }
+              if (event.key === "Escape") {
+                event.currentTarget.value = element.name;
+                event.currentTarget.blur();
+              }
+            }}
           />
         </label>
         <label

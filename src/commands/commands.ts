@@ -1,4 +1,5 @@
 import { useCadStore } from "../state/useCadStore";
+import { makeUniqueElementName } from "../model/elementNames";
 import {
   findParameterByDirectKey,
   findParameterDefinition,
@@ -86,22 +87,34 @@ const makeElement = (type: CadElementType, elements: CadElement[]): CadElement =
   );
   const firstPointId = points[0]?.id ?? "";
   const secondPointId = points[1]?.id ?? firstPointId;
+  const uniqueName = (elementId: ElementId, requestedName: string) =>
+    makeUniqueElementName({
+      elements,
+      elementId,
+      requestedName,
+      fallbackBaseName: requestedName
+    });
 
   switch (type) {
-    case "freePoint":
+    case "freePoint": {
+      const id = createId(type);
+      const requestedName = `点${points.length + 1}`;
       return {
-        id: createId(type),
-        name: `点${points.length + 1}`,
+        id,
+        name: uniqueName(id, requestedName),
         type,
         visible: true,
         enabled: true,
         x: 80 + points.length * 20,
         y: 80 + points.length * 20
       };
-    case "offsetPoint":
+    }
+    case "offsetPoint": {
+      const id = createId(type);
+      const requestedName = `オフセット点${points.length + 1}`;
       return {
-        id: createId(type),
-        name: `オフセット点${points.length + 1}`,
+        id,
+        name: uniqueName(id, requestedName),
         type,
         visible: true,
         enabled: true,
@@ -109,11 +122,14 @@ const makeElement = (type: CadElementType, elements: CadElement[]): CadElement =
         dx: 30,
         dy: 0
       };
+    }
     case "line": {
+      const id = createId(type);
       const lineCount = elements.filter((element) => element.type === "line").length;
+      const requestedName = `直線${lineCount + 1}`;
       return {
-        id: createId(type),
-        name: `直線${lineCount + 1}`,
+        id,
+        name: uniqueName(id, requestedName),
         type,
         visible: true,
         enabled: true,

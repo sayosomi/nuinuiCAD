@@ -53,6 +53,35 @@ describe("commands", () => {
     expect(state.selectedElementId).toBe(state.elements.at(-1)?.id);
   });
 
+  it("uses a unique name when adding an element would reuse an existing name", () => {
+    useCadStore.setState({
+      elements: [
+        ...sampleElements,
+        {
+          ...sampleElements[0],
+          id: "manual-point-4",
+          name: "点5"
+        }
+      ]
+    });
+
+    dispatchCommand("addFreePoint");
+
+    expect(useCadStore.getState().elements.at(-1)?.name).toBe("点5 2");
+  });
+
+  it("renames elements with a unique name", () => {
+    useCadStore.getState().renameElement(sampleElements[1].id, "点A");
+
+    expect(useCadStore.getState().elements[1].name).toBe("点A 2");
+  });
+
+  it("falls back to a default name when renaming with blank input", () => {
+    useCadStore.getState().renameElement(sampleElements[0].id, " ");
+
+    expect(useCadStore.getState().elements[0].name).toBe("点");
+  });
+
   it("enters parameter edit mode with an initial parameter", () => {
     useCadStore.setState({ selectedParameterKey: null });
 

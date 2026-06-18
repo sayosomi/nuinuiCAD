@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { sampleElements } from "../sampleData";
+import { fallbackElementName, makeUniqueElementName } from "../model/elementNames";
 import { normalizeParameterKey } from "../parameters/parameterDefinitions";
 import type { ParameterKey } from "../parameters/parameterDefinitions";
 import type { CadElement, ElementId } from "../types/geometry";
@@ -16,6 +17,7 @@ export type CadState = {
   setShowShortcutHelp: (showShortcutHelp: boolean) => void;
   setElements: (elements: CadElement[]) => void;
   updateElement: (id: ElementId, patch: Partial<CadElement>) => void;
+  renameElement: (id: ElementId, requestedName: string) => void;
 };
 
 export const useCadStore = create<CadState>((set) => ({
@@ -82,7 +84,25 @@ export const useCadStore = create<CadState>((set) => ({
         selectedParameterKey:
           id === state.selectedElementId && selectedElement
             ? normalizeParameterKey(selectedElement, state.selectedParameterKey)
-            : state.selectedParameterKey
+          : state.selectedParameterKey
+      };
+    }),
+  renameElement: (id, requestedName) =>
+    set((state) => {
+      const elementToRename = state.elements.find((element) => element.id === id);
+      if (!elementToRename) return {};
+
+      const uniqueName = makeUniqueElementName({
+        elements: state.elements,
+        elementId: id,
+        requestedName,
+        fallbackBaseName: fallbackElementName(elementToRename.type)
+      });
+
+      return {
+        elements: state.elements.map((element) =>
+          element.id === id ? { ...element, name: uniqueName } : element
+        )
       };
     })
 }));
