@@ -15,6 +15,10 @@ import { elementTypeLabels } from "../types/geometry";
 type LeftPanelProps = {
   evaluation: EvaluationResult;
   elementListFocusRef: RefObject<HTMLDivElement | null>;
+};
+
+type RightPanelProps = {
+  evaluation: EvaluationResult;
   isParameterEditMode: boolean;
   registerParameterControl: (key: string, element: HTMLElement | null) => void;
 };
@@ -98,7 +102,12 @@ const ElementEditor = ({
   return (
     <section className="panel-section">
       <div className="section-header">
-        <h2>選択中要素</h2>
+        <div>
+          <h2>要素設定</h2>
+          <p className="section-subtitle">
+            {element.name} ・ {elementTypeLabels[element.type]}
+          </p>
+        </div>
         <span className={`mode-pill ${isParameterEditMode ? "active" : ""}`}>
           {isParameterEditMode ? "パラメーター編集中" : "Enterで編集"}
         </span>
@@ -305,22 +314,12 @@ const ElementEditor = ({
 
 export const LeftPanel = ({
   evaluation,
-  elementListFocusRef,
-  isParameterEditMode,
-  registerParameterControl
+  elementListFocusRef
 }: LeftPanelProps) => {
   const elements = useCadStore((state) => state.elements);
   const selectedElementId = useCadStore((state) => state.selectedElementId);
-  const selectedParameterKey = useCadStore((state) => state.selectedParameterKey);
-  const showShortcutHelp = useCadStore((state) => state.showShortcutHelp);
   const setSelectedElementId = useCadStore((state) => state.setSelectedElementId);
-  const selectedElement = elements.find((element) => element.id === selectedElementId) ?? null;
   const errorElementIds = new Set(evaluation.errors.map((error) => error.elementId));
-  const shortcuts = shortcutHelpItems({
-    isParameterEditMode,
-    selectedElement,
-    selectedParameterKey
-  });
 
   return (
     <aside className="left-panel">
@@ -331,7 +330,7 @@ export const LeftPanel = ({
 
       <section className="panel-section">
         <div className="section-header">
-          <h2>要素</h2>
+          <h2>構成リスト</h2>
           <div className="button-row">
             <button type="button" onClick={() => dispatchCommand("addFreePoint")}>
               + Point
@@ -386,7 +385,28 @@ export const LeftPanel = ({
           </button>
         </div>
       </section>
+    </aside>
+  );
+};
 
+export const RightPanel = ({
+  evaluation,
+  isParameterEditMode,
+  registerParameterControl
+}: RightPanelProps) => {
+  const elements = useCadStore((state) => state.elements);
+  const selectedElementId = useCadStore((state) => state.selectedElementId);
+  const selectedParameterKey = useCadStore((state) => state.selectedParameterKey);
+  const showShortcutHelp = useCadStore((state) => state.showShortcutHelp);
+  const selectedElement = elements.find((element) => element.id === selectedElementId) ?? null;
+  const shortcuts = shortcutHelpItems({
+    isParameterEditMode,
+    selectedElement,
+    selectedParameterKey
+  });
+
+  return (
+    <aside className="right-panel">
       {selectedElement ? (
         <ElementEditor
           element={selectedElement}
@@ -394,7 +414,14 @@ export const LeftPanel = ({
           isParameterEditMode={isParameterEditMode}
           registerParameterControl={registerParameterControl}
         />
-      ) : null}
+      ) : (
+        <section className="panel-section">
+          <div className="section-header">
+            <h2>要素設定</h2>
+          </div>
+          <p className="empty-state">要素を選択してください。</p>
+        </section>
+      )}
 
       <section className="panel-section">
         <div className="section-header">

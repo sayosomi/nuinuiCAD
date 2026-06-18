@@ -4,7 +4,7 @@ import { evaluateElements } from "../geometry/evaluate";
 import { keyboardCommandForEvent } from "../keyboard/shortcuts";
 import { useCadStore } from "../state/useCadStore";
 import { DrawingCanvas } from "./DrawingCanvas";
-import { LeftPanel } from "./LeftPanel";
+import { LeftPanel, RightPanel } from "./LeftPanel";
 
 export const AppLayout = () => {
   const elements = useCadStore((state) => state.elements);
@@ -13,6 +13,13 @@ export const AppLayout = () => {
   const elementListFocusRef = useRef<HTMLDivElement>(null);
   const parameterInputRefs = useRef(new Map<string, HTMLElement>());
   const evaluation = useMemo(() => evaluateElements(elements), [elements]);
+  const registerParameterControl = (key: string, element: HTMLElement | null) => {
+    if (element) {
+      parameterInputRefs.current.set(key, element);
+    } else {
+      parameterInputRefs.current.delete(key);
+    }
+  };
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -42,18 +49,15 @@ export const AppLayout = () => {
       <LeftPanel
         evaluation={evaluation}
         elementListFocusRef={elementListFocusRef}
-        isParameterEditMode={isParameterEditMode}
-        registerParameterControl={(key, element) => {
-          if (element) {
-            parameterInputRefs.current.set(key, element);
-          } else {
-            parameterInputRefs.current.delete(key);
-          }
-        }}
       />
       <DrawingCanvas
         evaluation={evaluation}
         canvasFocusRef={canvasFocusRef}
+      />
+      <RightPanel
+        evaluation={evaluation}
+        isParameterEditMode={isParameterEditMode}
+        registerParameterControl={registerParameterControl}
       />
     </main>
   );
