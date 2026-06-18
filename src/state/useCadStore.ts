@@ -5,12 +5,27 @@ import { normalizeParameterKey } from "../parameters/parameterDefinitions";
 import type { ParameterKey } from "../parameters/parameterDefinitions";
 import type { CadElement, ElementId } from "../types/geometry";
 
+export type CanvasViewport = {
+  panX: number;
+  panY: number;
+  zoom: number;
+};
+
 export type CadHistorySnapshot = {
   elements: CadElement[];
   selectedElementId: ElementId | null;
   isParameterEditMode: boolean;
   selectedParameterKey: ParameterKey | null;
 };
+
+export const DEFAULT_CANVAS_VIEWPORT: CanvasViewport = {
+  panX: 0,
+  panY: 0,
+  zoom: 1
+};
+
+export const MIN_CANVAS_ZOOM = 0.1;
+export const MAX_CANVAS_ZOOM = 20;
 
 export type CadState = {
   elements: CadElement[];
@@ -22,6 +37,7 @@ export type CadState = {
   selectedDependencyJumpIndex: number;
   showShortcutHelp: boolean;
   showCommandPalette: boolean;
+  canvasViewport: CanvasViewport;
   past: CadHistorySnapshot[];
   future: CadHistorySnapshot[];
   setSelectedElementId: (id: ElementId | null) => void;
@@ -32,6 +48,13 @@ export type CadState = {
   setSelectedDependencyJumpIndex: (selectedDependencyJumpIndex: number) => void;
   setShowShortcutHelp: (showShortcutHelp: boolean) => void;
   setShowCommandPalette: (showCommandPalette: boolean) => void;
+  setCanvasViewport: (canvasViewport: CanvasViewport) => void;
+  panCanvasViewport: (dx: number, dy: number) => void;
+  zoomCanvasViewportAt: (
+    zoomFactor: number,
+    anchor?: { x: number; y: number; width: number; height: number }
+  ) => void;
+  resetCanvasViewport: () => void;
   commitDocumentChange: (change: Partial<CadHistorySnapshot>) => void;
   setElements: (elements: CadElement[]) => void;
   updateElement: (id: ElementId, patch: Partial<CadElement>) => void;
@@ -70,6 +93,9 @@ const snapshotEquals = (a: CadHistorySnapshot, b: CadHistorySnapshot) =>
   a.isParameterEditMode === b.isParameterEditMode &&
   a.selectedParameterKey === b.selectedParameterKey;
 
+const clampCanvasZoom = (zoom: number) =>
+  Math.min(Math.max(zoom, MIN_CANVAS_ZOOM), MAX_CANVAS_ZOOM);
+
 export const useCadStore = create<CadState>((set) => ({
   elements: sampleElements,
   selectedElementId: sampleElements[0]?.id ?? null,
@@ -80,6 +106,7 @@ export const useCadStore = create<CadState>((set) => ({
   selectedDependencyJumpIndex: 0,
   showShortcutHelp: true,
   showCommandPalette: false,
+  canvasViewport: DEFAULT_CANVAS_VIEWPORT,
   past: [],
   future: [],
   setSelectedElementId: (selectedElementId) =>
@@ -128,6 +155,48 @@ export const useCadStore = create<CadState>((set) => ({
     set({ selectedDependencyJumpIndex }),
   setShowShortcutHelp: (showShortcutHelp) => set({ showShortcutHelp }),
   setShowCommandPalette: (showCommandPalette) => set({ showCommandPalette }),
+  setCanvasViewport: (canvasViewport) =>
+    set({
+      canvasViewport: {
+        ...canvasViewport,
+        zoom: clampCanvasZoom(canvasViewport.zoom)
+      }
+    }),
+  panCanvasViewport: (dx, dy) =>
+    set((state) => ({
+      canvasViewport: {
+        ...state.canvasViewport,
+        panX: state.canvasViewport.panX + dx,
+        panY: state.canvasViewport.panY + dy
+      }
+    })),
+  zoomCanvasViewportAt: (zoomFactor, anchor) =>
+    set((state) => {
+      const current = state.canvasViewport;
+      const nextZoom = clampCanvasZoom(current.zoom * zoomFactor);
+      if (nextZoom === current.zoom) return {};
+
+      if (!anchor) {
+        return {
+          canvasViewport: {
+            ...current,
+            zoom: nextZoom
+          }
+        };
+      }
+
+      const worldX = (anchor.x - anchor.width / 2 - current.panX) / current.zoom;
+      const worldY = (anchor.y - anchor.height / 2 - current.panY) / current.zoom;
+
+      return {
+        canvasViewport: {
+          zoom: nextZoom,
+          panX: anchor.x - anchor.width / 2 - worldX * nextZoom,
+          panY: anchor.y - anchor.height / 2 - worldY * nextZoom
+        }
+      };
+    }),
+  resetCanvasViewport: () => set({ canvasViewport: DEFAULT_CANVAS_VIEWPORT }),
   commitDocumentChange: (change) =>
     set((state) => {
       const before = currentSnapshot(state);

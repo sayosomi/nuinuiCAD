@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { dispatchCommand, filterCommandPaletteItems } from "./commands";
 import { sampleElements } from "../sampleData";
-import { useCadStore } from "../state/useCadStore";
+import { DEFAULT_CANVAS_VIEWPORT, MAX_CANVAS_ZOOM, MIN_CANVAS_ZOOM, useCadStore } from "../state/useCadStore";
 
 describe("commands", () => {
   beforeEach(() => {
@@ -15,6 +15,7 @@ describe("commands", () => {
       selectedDependencyJumpIndex: 0,
       showShortcutHelp: true,
       showCommandPalette: false,
+      canvasViewport: DEFAULT_CANVAS_VIEWPORT,
       past: [],
       future: []
     });
@@ -65,6 +66,42 @@ describe("commands", () => {
 
     dispatchCommand("closeCommandPalette");
     expect(useCadStore.getState().showCommandPalette).toBe(false);
+  });
+
+  it("zooms and resets the canvas viewport", () => {
+    dispatchCommand("zoomInCanvas");
+    expect(useCadStore.getState().canvasViewport.zoom).toBeCloseTo(1.1);
+
+    dispatchCommand("zoomOutCanvas");
+    expect(useCadStore.getState().canvasViewport.zoom).toBeCloseTo(1);
+
+    useCadStore.getState().panCanvasViewport(12, -8);
+    dispatchCommand("resetCanvasView");
+    expect(useCadStore.getState().canvasViewport).toEqual(DEFAULT_CANVAS_VIEWPORT);
+  });
+
+  it("clamps canvas zoom at the configured bounds", () => {
+    useCadStore.getState().setCanvasViewport({ panX: 0, panY: 0, zoom: MAX_CANVAS_ZOOM });
+    dispatchCommand("zoomInCanvas");
+    expect(useCadStore.getState().canvasViewport.zoom).toBe(MAX_CANVAS_ZOOM);
+
+    useCadStore.getState().setCanvasViewport({ panX: 0, panY: 0, zoom: MIN_CANVAS_ZOOM });
+    dispatchCommand("zoomOutCanvas");
+    expect(useCadStore.getState().canvasViewport.zoom).toBe(MIN_CANVAS_ZOOM);
+  });
+
+  it("keeps canvas viewport changes out of document history", () => {
+    useCadStore.getState().panCanvasViewport(10, 5);
+    dispatchCommand("zoomInCanvas");
+
+    expect(useCadStore.getState().past).toHaveLength(0);
+
+    dispatchCommand("undo");
+    expect(useCadStore.getState().canvasViewport).toMatchObject({
+      panX: 10,
+      panY: 5,
+      zoom: expect.any(Number)
+    });
   });
 
   it("toggles the element info panel and exits dependency jump mode when collapsed", () => {

@@ -27,6 +27,10 @@ describe("shortcuts", () => {
     expect(commandIdForKeyboardEvent(keyboardEvent("o"))).toBeNull();
     expect(commandIdForKeyboardEvent(keyboardEvent("l"))).toBeNull();
     expect(commandIdForKeyboardEvent(keyboardEvent("Enter"))).toBe("enterParameterEditMode");
+    expect(commandIdForKeyboardEvent(keyboardEvent("+"))).toBe("zoomInCanvas");
+    expect(commandIdForKeyboardEvent(keyboardEvent("="))).toBe("zoomInCanvas");
+    expect(commandIdForKeyboardEvent(keyboardEvent("-"))).toBe("zoomOutCanvas");
+    expect(commandIdForKeyboardEvent(keyboardEvent("0"))).toBe("resetCanvasView");
     expect(commandIdForKeyboardEvent(keyboardEvent("?"))).toBe("toggleShortcutHelp");
     expect(commandIdForKeyboardEvent(keyboardEvent("["))).toBeNull();
     expect(commandIdForKeyboardEvent(keyboardEvent("]"))).toBeNull();
@@ -112,6 +116,9 @@ describe("shortcuts", () => {
     ).toBeNull();
     expect(commandIdForKeyboardEvent(keyboardEventFrom("z", input, { metaKey: true }))).toBeNull();
     expect(commandIdForKeyboardEvent(keyboardEventFrom("y", input, { metaKey: true }))).toBeNull();
+    expect(commandIdForKeyboardEvent(keyboardEventFrom("+", input))).toBeNull();
+    expect(commandIdForKeyboardEvent(keyboardEventFrom("-", input))).toBeNull();
+    expect(commandIdForKeyboardEvent(keyboardEventFrom("0", input))).toBeNull();
   });
 
   it("ignores events from editable form targets", () => {
@@ -151,6 +158,9 @@ describe("shortcuts", () => {
     expect(ids).toContain("toggleElementInfoPanel");
     expect(ids).toContain("enterDependencyJumpMode");
     expect(ids).toContain("openCommandPalette");
+    expect(ids).toContain("zoomInCanvas");
+    expect(ids).toContain("zoomOutCanvas");
+    expect(ids).toContain("resetCanvasView");
     expect(ids).not.toContain("addFreePoint");
     expect(ids).not.toContain("exitParameterEditMode");
     expect(ids).not.toContain("selectNextParameter");

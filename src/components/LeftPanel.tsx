@@ -503,7 +503,6 @@ export const LeftPanel = ({
     <aside className="left-panel">
       <header className="app-title">
         <h1>nuinuiCAD</h1>
-        <p>パラメトリック洋裁型紙CAD</p>
       </header>
 
       <section className="panel-section">

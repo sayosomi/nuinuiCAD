@@ -25,6 +25,7 @@ export const AppLayout = () => {
   const commandContext = useMemo(() => ({
     focusCanvas: () => canvasFocusRef.current?.focus(),
     focusElementList: () => elementListFocusRef.current?.focus(),
+    getCanvasViewportRect: () => canvasFocusRef.current?.getBoundingClientRect() ?? null,
     focusSelectedParameterInput: () => {
       const selectedKey = useCadStore.getState().selectedParameterKey;
       if (!selectedKey) return;

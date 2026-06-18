@@ -24,6 +24,9 @@ export type CommandId =
   | "addFreePoint"
   | "addOffsetPoint"
   | "addLine"
+  | "zoomInCanvas"
+  | "zoomOutCanvas"
+  | "resetCanvasView"
   | "openCommandPalette"
   | "closeCommandPalette"
   | "focusCanvas"
@@ -53,6 +56,7 @@ export type CommandContext = {
   focusCanvas?: () => void;
   focusElementList?: () => void;
   focusSelectedParameterInput?: () => void;
+  getCanvasViewportRect?: () => DOMRect | null;
   parameterDirectKey?: string;
   stepMultiplier?: number;
 };
@@ -292,6 +296,17 @@ const jumpToSelectedDependencyTarget = () => {
   });
 };
 
+const canvasZoomAnchor = (context?: CommandContext) => {
+  const rect = context?.getCanvasViewportRect?.();
+  if (!rect) return undefined;
+  return {
+    x: rect.width / 2,
+    y: rect.height / 2,
+    width: rect.width,
+    height: rect.height
+  };
+};
+
 export const commands: Record<CommandId, Command> = {
   undo: {
     id: "undo",
@@ -390,6 +405,21 @@ export const commands: Record<CommandId, Command> = {
     id: "addLine",
     label: "line を追加",
     run: () => addElement("line")
+  },
+  zoomInCanvas: {
+    id: "zoomInCanvas",
+    label: "キャンバスを拡大",
+    run: (context) => useCadStore.getState().zoomCanvasViewportAt(1.1, canvasZoomAnchor(context))
+  },
+  zoomOutCanvas: {
+    id: "zoomOutCanvas",
+    label: "キャンバスを縮小",
+    run: (context) => useCadStore.getState().zoomCanvasViewportAt(1 / 1.1, canvasZoomAnchor(context))
+  },
+  resetCanvasView: {
+    id: "resetCanvasView",
+    label: "キャンバス表示をリセット",
+    run: () => useCadStore.getState().resetCanvasViewport()
   },
   openCommandPalette: {
     id: "openCommandPalette",
@@ -562,6 +592,9 @@ const paletteCommandIds: CommandId[] = [
   "addFreePoint",
   "addOffsetPoint",
   "addLine",
+  "zoomInCanvas",
+  "zoomOutCanvas",
+  "resetCanvasView",
   "undo",
   "redo",
   "selectNextElement",
@@ -584,6 +617,9 @@ const paletteKeywords: Partial<Record<CommandId, string[]>> = {
   addFreePoint: ["point", "free", "free point", "点", "追加"],
   addOffsetPoint: ["offset", "offset point", "オフセット", "点", "追加"],
   addLine: ["line", "直線", "線", "追加"],
+  zoomInCanvas: ["zoom", "in", "拡大", "キャンバス"],
+  zoomOutCanvas: ["zoom", "out", "縮小", "キャンバス"],
+  resetCanvasView: ["zoom", "reset", "pan", "origin", "リセット", "原点", "キャンバス"],
   undo: ["undo", "戻す"],
   redo: ["redo", "やり直す"],
   selectNextElement: ["select", "next", "次", "要素"],

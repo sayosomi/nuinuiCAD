@@ -1,6 +1,11 @@
-import type { RefObject } from "react";
-import { useEffect, useMemo, useRef } from "react";
+import type {
+  PointerEvent as ReactPointerEvent,
+  RefObject,
+  WheelEvent as ReactWheelEvent
+} from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useCadStore } from "../state/useCadStore";
+import type { CanvasViewport } from "../state/useCadStore";
 import type { ComputedLine, ComputedPoint, EvaluationResult } from "../types/geometry";
 
 type DrawingCanvasProps = {
@@ -8,10 +13,21 @@ type DrawingCanvasProps = {
   canvasFocusRef: RefObject<HTMLDivElement | null>;
 };
 
-const CANVAS_WIDTH = 900;
-const CANVAS_HEIGHT = 700;
+type ViewportSize = {
+  width: number;
+  height: number;
+};
+
+type ScreenPoint = {
+  x: number;
+  y: number;
+};
+
 const GRID_STEP = 10;
-const MAJOR_GRID_STEP = 50;
+const MAJOR_GRID_MULTIPLIER = 5;
+const MIN_GRID_SPACING_PX = 8;
+const WHEEL_ZOOM_BASE = 1.1;
+const GRID_ENABLED = true;
 
 const isPoint = (geometry: unknown): geometry is ComputedPoint =>
   typeof geometry === "object" && geometry !== null && "kind" in geometry && geometry.kind === "point";
@@ -19,34 +35,84 @@ const isPoint = (geometry: unknown): geometry is ComputedPoint =>
 const isLine = (geometry: unknown): geometry is ComputedLine =>
   typeof geometry === "object" && geometry !== null && "kind" in geometry && geometry.kind === "line";
 
-const drawGrid = (ctx: CanvasRenderingContext2D) => {
-  ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-  ctx.fillStyle = "#fbfbfa";
-  ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+const worldToScreen = (
+  point: { x: number; y: number },
+  size: ViewportSize,
+  viewport: CanvasViewport
+): ScreenPoint => ({
+  x: size.width / 2 + viewport.panX + point.x * viewport.zoom,
+  y: size.height / 2 + viewport.panY + point.y * viewport.zoom
+});
 
-  for (let x = 0; x <= CANVAS_WIDTH; x += GRID_STEP) {
+const visibleWorldBounds = (size: ViewportSize, viewport: CanvasViewport) => ({
+  minX: (0 - size.width / 2 - viewport.panX) / viewport.zoom,
+  maxX: (size.width - size.width / 2 - viewport.panX) / viewport.zoom,
+  minY: (0 - size.height / 2 - viewport.panY) / viewport.zoom,
+  maxY: (size.height - size.height / 2 - viewport.panY) / viewport.zoom
+});
+
+const visibleGridStep = (zoom: number) => {
+  let step = GRID_STEP;
+  while (step * zoom < MIN_GRID_SPACING_PX) {
+    step *= MAJOR_GRID_MULTIPLIER;
+  }
+  return step;
+};
+
+const drawGrid = (
+  ctx: CanvasRenderingContext2D,
+  size: ViewportSize,
+  viewport: CanvasViewport
+) => {
+  ctx.clearRect(0, 0, size.width, size.height);
+  ctx.fillStyle = "#fbfbfa";
+  ctx.fillRect(0, 0, size.width, size.height);
+
+  if (!GRID_ENABLED) return;
+
+  const step = visibleGridStep(viewport.zoom);
+  const majorStep = step * MAJOR_GRID_MULTIPLIER;
+  const bounds = visibleWorldBounds(size, viewport);
+  const startX = Math.floor(bounds.minX / step) * step;
+  const endX = Math.ceil(bounds.maxX / step) * step;
+  const startY = Math.floor(bounds.minY / step) * step;
+  const endY = Math.ceil(bounds.maxY / step) * step;
+
+  for (let x = startX; x <= endX; x += step) {
+    const screenX = worldToScreen({ x, y: 0 }, size, viewport).x;
+    const isAxis = Math.abs(x) < Number.EPSILON;
+    const isMajor = Math.abs(x % majorStep) < Number.EPSILON;
     ctx.beginPath();
-    ctx.moveTo(x, 0);
-    ctx.lineTo(x, CANVAS_HEIGHT);
-    ctx.strokeStyle = x % MAJOR_GRID_STEP === 0 ? "#d6d8d2" : "#eceee8";
-    ctx.lineWidth = x % MAJOR_GRID_STEP === 0 ? 1 : 0.5;
+    ctx.moveTo(screenX, 0);
+    ctx.lineTo(screenX, size.height);
+    ctx.strokeStyle = isAxis ? "#9ca39a" : isMajor ? "#d6d8d2" : "#eceee8";
+    ctx.lineWidth = isAxis ? 1.5 : isMajor ? 1 : 0.5;
     ctx.stroke();
   }
 
-  for (let y = 0; y <= CANVAS_HEIGHT; y += GRID_STEP) {
+  for (let y = startY; y <= endY; y += step) {
+    const screenY = worldToScreen({ x: 0, y }, size, viewport).y;
+    const isAxis = Math.abs(y) < Number.EPSILON;
+    const isMajor = Math.abs(y % majorStep) < Number.EPSILON;
     ctx.beginPath();
-    ctx.moveTo(0, y);
-    ctx.lineTo(CANVAS_WIDTH, y);
-    ctx.strokeStyle = y % MAJOR_GRID_STEP === 0 ? "#d6d8d2" : "#eceee8";
-    ctx.lineWidth = y % MAJOR_GRID_STEP === 0 ? 1 : 0.5;
+    ctx.moveTo(0, screenY);
+    ctx.lineTo(size.width, screenY);
+    ctx.strokeStyle = isAxis ? "#9ca39a" : isMajor ? "#d6d8d2" : "#eceee8";
+    ctx.lineWidth = isAxis ? 1.5 : isMajor ? 1 : 0.5;
     ctx.stroke();
   }
 };
 
 export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const panDragRef = useRef<{ pointerId: number; lastX: number; lastY: number } | null>(null);
+  const [viewportSize, setViewportSize] = useState<ViewportSize>({ width: 0, height: 0 });
+  const [isPanning, setIsPanning] = useState(false);
   const elements = useCadStore((state) => state.elements);
   const selectedElementId = useCadStore((state) => state.selectedElementId);
+  const canvasViewport = useCadStore((state) => state.canvasViewport);
+  const panCanvasViewport = useCadStore((state) => state.panCanvasViewport);
+  const zoomCanvasViewportAt = useCadStore((state) => state.zoomCanvasViewportAt);
   const visibleElementIds = useMemo(
     () => new Set(elements.filter((element) => element.visible).map((element) => element.id)),
     [elements]
@@ -55,31 +121,69 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
     () => Array.from(evaluation.computedGeometry.values()),
     [evaluation.computedGeometry]
   );
-  const lines = geometries.filter(isLine);
-  const points = geometries.filter(isPoint);
+  const lines = useMemo(() => geometries.filter(isLine), [geometries]);
+  const points = useMemo(() => geometries.filter(isPoint), [geometries]);
+  const overlayLines = useMemo(
+    () =>
+      lines
+        .filter((line) => visibleElementIds.has(line.elementId))
+        .map((line) => ({
+          line,
+          start: worldToScreen(line.start, viewportSize, canvasViewport),
+          end: worldToScreen(line.end, viewportSize, canvasViewport)
+        })),
+    [canvasViewport, lines, viewportSize, visibleElementIds]
+  );
+  const overlayPoints = useMemo(
+    () =>
+      points
+        .filter((point) => visibleElementIds.has(point.elementId))
+        .map((point) => ({
+          point,
+          screen: worldToScreen(point, viewportSize, canvasViewport)
+        })),
+    [canvasViewport, points, viewportSize, visibleElementIds]
+  );
+
+  useEffect(() => {
+    const viewport = canvasFocusRef.current;
+    if (!viewport) return;
+
+    const updateSize = () => {
+      setViewportSize({
+        width: Math.max(viewport.clientWidth, 0),
+        height: Math.max(viewport.clientHeight, 0)
+      });
+    };
+    updateSize();
+
+    const observer = new ResizeObserver(updateSize);
+    observer.observe(viewport);
+    return () => observer.disconnect();
+  }, [canvasFocusRef]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext("2d");
-    if (!canvas || !ctx) return;
+    if (!canvas || !ctx || viewportSize.width <= 0 || viewportSize.height <= 0) return;
 
     const ratio = window.devicePixelRatio || 1;
-    canvas.width = CANVAS_WIDTH * ratio;
-    canvas.height = CANVAS_HEIGHT * ratio;
-    canvas.style.width = `${CANVAS_WIDTH}px`;
-    canvas.style.height = `${CANVAS_HEIGHT}px`;
+    canvas.width = Math.round(viewportSize.width * ratio);
+    canvas.height = Math.round(viewportSize.height * ratio);
     ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
 
-    drawGrid(ctx);
+    drawGrid(ctx, viewportSize, canvasViewport);
 
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
 
     for (const line of lines) {
       if (!visibleElementIds.has(line.elementId)) continue;
+      const start = worldToScreen(line.start, viewportSize, canvasViewport);
+      const end = worldToScreen(line.end, viewportSize, canvasViewport);
       ctx.beginPath();
-      ctx.moveTo(line.start.x, line.start.y);
-      ctx.lineTo(line.end.x, line.end.y);
+      ctx.moveTo(start.x, start.y);
+      ctx.lineTo(end.x, end.y);
       ctx.strokeStyle = line.elementId === selectedElementId ? "#0f766e" : "#31322f";
       ctx.lineWidth = line.elementId === selectedElementId ? 3 : 2;
       ctx.stroke();
@@ -87,59 +191,118 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
 
     for (const point of points) {
       if (!visibleElementIds.has(point.elementId)) continue;
+      const screen = worldToScreen(point, viewportSize, canvasViewport);
       ctx.beginPath();
-      ctx.arc(point.x, point.y, point.elementId === selectedElementId ? 5 : 4, 0, Math.PI * 2);
+      ctx.arc(screen.x, screen.y, point.elementId === selectedElementId ? 5 : 4, 0, Math.PI * 2);
       ctx.fillStyle = point.elementId === selectedElementId ? "#0f766e" : "#ffffff";
       ctx.strokeStyle = "#31322f";
       ctx.lineWidth = 2;
       ctx.fill();
       ctx.stroke();
     }
-  }, [lines, points, selectedElementId, visibleElementIds]);
+  }, [canvasViewport, lines, points, selectedElementId, viewportSize, visibleElementIds]);
+
+  const handleWheel = (event: ReactWheelEvent<HTMLDivElement>) => {
+    if (viewportSize.width <= 0 || viewportSize.height <= 0) return;
+    event.preventDefault();
+
+    const rect = event.currentTarget.getBoundingClientRect();
+    const anchor = {
+      x: event.clientX - rect.left - event.currentTarget.clientLeft,
+      y: event.clientY - rect.top - event.currentTarget.clientTop,
+      width: event.currentTarget.clientWidth,
+      height: event.currentTarget.clientHeight
+    };
+    zoomCanvasViewportAt(Math.pow(WHEEL_ZOOM_BASE, -event.deltaY / 100), anchor);
+  };
+
+  const stopPanning = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (panDragRef.current?.pointerId === event.pointerId) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+      panDragRef.current = null;
+      setIsPanning(false);
+    }
+  };
+
+  const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.button !== 1) return;
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    panDragRef.current = {
+      pointerId: event.pointerId,
+      lastX: event.clientX,
+      lastY: event.clientY
+    };
+    setIsPanning(true);
+  };
+
+  const handlePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const drag = panDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    if ((event.buttons & 4) === 0) {
+      stopPanning(event);
+      return;
+    }
+
+    const dx = event.clientX - drag.lastX;
+    const dy = event.clientY - drag.lastY;
+    panCanvasViewport(dx, dy);
+    panDragRef.current = {
+      ...drag,
+      lastX: event.clientX,
+      lastY: event.clientY
+    };
+  };
 
   return (
     <section className="canvas-panel">
       <div className="canvas-toolbar">
         <div>
           <h2>作図キャンバス</h2>
-          <p>1px = 1mm / Canvas描画 + SVGオーバーレイ</p>
+          <p>原点は初期表示の中央 / Canvas描画 + SVGオーバーレイ</p>
         </div>
-        <span>{CANVAS_WIDTH}mm x {CANVAS_HEIGHT}mm</span>
+        <span>{canvasViewport.zoom.toFixed(2)}px/mm</span>
       </div>
-      <div className="canvas-viewport" ref={canvasFocusRef} tabIndex={-1}>
+      <div
+        className={`canvas-viewport ${isPanning ? "is-panning" : ""}`}
+        ref={canvasFocusRef}
+        tabIndex={-1}
+        onWheel={handleWheel}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={stopPanning}
+        onPointerCancel={stopPanning}
+        onAuxClick={(event) => event.preventDefault()}
+      >
         <canvas ref={canvasRef} aria-label="CAD drawing canvas" />
         <svg
           className="drawing-overlay"
-          viewBox={`0 0 ${CANVAS_WIDTH} ${CANVAS_HEIGHT}`}
+          viewBox={`0 0 ${viewportSize.width} ${viewportSize.height}`}
           aria-hidden="true"
         >
-          {lines
-            .filter((line) => visibleElementIds.has(line.elementId))
-            .map((line) => (
-              <line
-                key={line.elementId}
-                x1={line.start.x}
-                y1={line.start.y}
-                x2={line.end.x}
-                y2={line.end.y}
-                className={line.elementId === selectedElementId ? "overlay-selected-line" : ""}
+          {overlayLines.map(({ line, start, end }) => (
+            <line
+              key={line.elementId}
+              x1={start.x}
+              y1={start.y}
+              x2={end.x}
+              y2={end.y}
+              className={line.elementId === selectedElementId ? "overlay-selected-line" : ""}
+            />
+          ))}
+          {overlayPoints.map(({ point, screen }) => (
+            <g key={point.elementId}>
+              <circle
+                cx={screen.x}
+                cy={screen.y}
+                r={point.elementId === selectedElementId ? 8 : 6}
+                className={point.elementId === selectedElementId ? "overlay-selected-point" : ""}
               />
-            ))}
-          {points
-            .filter((point) => visibleElementIds.has(point.elementId))
-            .map((point) => (
-              <g key={point.elementId}>
-                <circle
-                  cx={point.x}
-                  cy={point.y}
-                  r={point.elementId === selectedElementId ? 8 : 6}
-                  className={point.elementId === selectedElementId ? "overlay-selected-point" : ""}
-                />
-                <text x={point.x + 8} y={point.y - 8}>
-                  {point.name}
-                </text>
-              </g>
-            ))}
+              <text x={screen.x + 8} y={screen.y - 8}>
+                {point.name}
+              </text>
+            </g>
+          ))}
         </svg>
         {evaluation.errors.length > 0 ? (
           <div className="canvas-warning">

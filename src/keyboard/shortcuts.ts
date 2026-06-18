@@ -104,6 +104,24 @@ export const shortcutDefinitions: ShortcutDefinition[] = [
     matches: (event) => event.key === "Enter" && noModifier(event)
   },
   {
+    commandId: "zoomInCanvas",
+    label: "キャンバスを拡大",
+    keys: "+ / =",
+    matches: (event) => (event.key === "+" || event.key === "=") && noModifier(event)
+  },
+  {
+    commandId: "zoomOutCanvas",
+    label: "キャンバスを縮小",
+    keys: "-",
+    matches: (event) => event.key === "-" && noModifier(event)
+  },
+  {
+    commandId: "resetCanvasView",
+    label: "キャンバス表示をリセット",
+    keys: "0",
+    matches: (event) => event.key === "0" && noModifier(event)
+  },
+  {
     commandId: "toggleShortcutHelp",
     label: "ショートカット一覧を表示/非表示",
     keys: "?",
