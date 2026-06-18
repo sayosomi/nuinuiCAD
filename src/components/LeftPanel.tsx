@@ -735,8 +735,28 @@ export const LeftPanel = ({
                 data-visible-state={element.visible ? "visible" : "hidden"}
                 data-evaluation-state={element.enabled ? "enabled" : "disabled"}
               >
-                <ElementStatusIcon kind={element.visible ? "visible" : "hidden"} />
-                <ElementStatusIcon kind={element.enabled ? "enabled" : "disabled"} />
+                <button
+                  type="button"
+                  className="element-status-button"
+                  aria-label={`${element.name}を${element.visible ? "非表示" : "表示"}にする`}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    dispatchCommand("toggleElementVisibility", { elementId: element.id });
+                  }}
+                >
+                  <ElementStatusIcon kind={element.visible ? "visible" : "hidden"} />
+                </button>
+                <button
+                  type="button"
+                  className="element-status-button"
+                  aria-label={`${element.name}を${element.enabled ? "評価しない" : "評価する"}`}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    dispatchCommand("toggleElementEnabled", { elementId: element.id });
+                  }}
+                >
+                  <ElementStatusIcon kind={element.enabled ? "enabled" : "disabled"} />
+                </button>
               </span>
               <span className="element-name">
                 {errorElementIds.has(element.id) ? "⚠ " : ""}

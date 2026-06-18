@@ -151,7 +151,7 @@ select {
 .element-row {
   position: relative;
   display: grid;
-  grid-template-columns: 18px 32px minmax(0, 1fr) auto 24px;
+  grid-template-columns: max-content 40px minmax(0, 1fr) auto 24px;
   align-items: center;
   column-gap: 4px;
   width: 100%;
@@ -283,10 +283,34 @@ select {
 
 .element-status-icons {
   display: grid;
-  grid-template-columns: 14px 14px;
-  gap: 4px;
+  grid-template-columns: 18px 18px;
+  gap: 2px;
   align-items: center;
+  justify-self: start;
+  transform: translateX(-2px);
   color: #7f8378;
+}
+
+.element-status-button {
+  display: inline-grid;
+  width: 18px;
+  height: 18px;
+  padding: 2px;
+  place-items: center;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.element-status-button:hover {
+  background: rgb(81 94 87 / 0.1);
+  color: #42534e;
+}
+
+.element-status-button:active {
+  background: rgb(81 94 87 / 0.16);
 }
 
 .element-status-icon {

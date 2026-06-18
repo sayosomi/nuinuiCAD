@@ -188,6 +188,32 @@ describe("commands", () => {
     expect(useCadStore.getState().elements[0].enabled).toBe(false);
   });
 
+  it("toggles visibility for a specified element only", () => {
+    dispatchCommand("toggleElementVisibility", { elementId: sampleElements[1].id });
+
+    expect(useCadStore.getState().elements[0].visible).toBe(true);
+    expect(useCadStore.getState().elements[1].visible).toBe(false);
+    expect(useCadStore.getState().selectedElementId).toBe(sampleElements[0].id);
+    expect(useCadStore.getState().past).toHaveLength(1);
+  });
+
+  it("toggles enabled state for a specified element only", () => {
+    dispatchCommand("toggleElementEnabled", { elementId: sampleElements[1].id });
+
+    expect(useCadStore.getState().elements[0].enabled).toBe(true);
+    expect(useCadStore.getState().elements[1].enabled).toBe(false);
+    expect(useCadStore.getState().selectedElementId).toBe(sampleElements[0].id);
+    expect(useCadStore.getState().past).toHaveLength(1);
+  });
+
+  it("does not add history when toggling state for a missing element", () => {
+    dispatchCommand("toggleElementVisibility", { elementId: "missing-element" });
+    dispatchCommand("toggleElementEnabled", { elementId: "missing-element" });
+
+    expect(useCadStore.getState().elements).toBe(sampleElements);
+    expect(useCadStore.getState().past).toHaveLength(0);
+  });
+
   it("toggles visibility and enabled state for all selected elements", () => {
     useCadStore.setState({
       selectedElementId: sampleElements[2].id,

@@ -23,6 +23,8 @@ export type CommandId =
   | "moveSelectedElementUp"
   | "moveSelectedElementDown"
   | "moveElementToInsertionIndex"
+  | "toggleElementVisibility"
+  | "toggleElementEnabled"
   | "toggleSelectedElementVisibility"
   | "toggleSelectedElementEnabled"
   | "deleteSelectedElement"
@@ -306,6 +308,21 @@ const toggleSelectedElementsBooleanProperty = (property: "visible" | "enabled") 
   });
 };
 
+const toggleElementBooleanProperty = (
+  elementId: ElementId | undefined,
+  property: "visible" | "enabled"
+) => {
+  if (!elementId) return;
+  const { elements } = useCadStore.getState();
+  if (!elements.some((element) => element.id === elementId)) return;
+
+  useCadStore.getState().commitDocumentChange({
+    elements: elements.map((element) =>
+      element.id === elementId ? { ...element, [property]: !element[property] } : element
+    )
+  });
+};
+
 const selectedDependencyJumpTargets = () => {
   const { elements, selectedElementId } = useCadStore.getState();
   const selectedElement = selectedElementId
@@ -561,6 +578,16 @@ export const commands: Record<CommandId, Command> = {
       if (!context?.elementId || context.insertionIndex === undefined) return;
       moveElementToInsertionIndex(context.elementId, context.insertionIndex);
     }
+  },
+  toggleElementVisibility: {
+    id: "toggleElementVisibility",
+    label: "要素の表示/非表示を切替",
+    run: (context) => toggleElementBooleanProperty(context?.elementId, "visible")
+  },
+  toggleElementEnabled: {
+    id: "toggleElementEnabled",
+    label: "要素の評価する/しないを切替",
+    run: (context) => toggleElementBooleanProperty(context?.elementId, "enabled")
   },
   toggleSelectedElementVisibility: {
     id: "toggleSelectedElementVisibility",

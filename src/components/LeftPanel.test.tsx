@@ -213,6 +213,30 @@ describe("LeftPanel element list dragging", () => {
     );
   });
 
+  it("toggles row visibility from the status icon without changing selection", () => {
+    renderLeftPanel();
+
+    fireEvent.click(screen.getByLabelText("点Bを非表示にする"));
+
+    const state = useCadStore.getState();
+    expect(state.elements[0].visible).toBe(true);
+    expect(state.elements[1].visible).toBe(false);
+    expect(state.selectedElementId).toBe("point-a");
+    expect(state.selectedElementIds).toEqual(["point-a"]);
+  });
+
+  it("toggles row enabled state from the status icon without changing selection", () => {
+    renderLeftPanel();
+
+    fireEvent.click(screen.getByLabelText("点Bを評価しない"));
+
+    const state = useCadStore.getState();
+    expect(state.elements[0].enabled).toBe(true);
+    expect(state.elements[1].enabled).toBe(false);
+    expect(state.selectedElementId).toBe("point-a");
+    expect(state.selectedElementIds).toEqual(["point-a"]);
+  });
+
   it("reorders elements by dragging a handle before another row", () => {
     renderLeftPanel();
     const dataTransfer = dragDataTransfer();
