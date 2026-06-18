@@ -1,5 +1,6 @@
 import { useCadStore } from "../state/useCadStore";
 import { makeUniqueElementName } from "../model/elementNames";
+import { getDependencyJumpTargets } from "../model/dependencies";
 import {
   findParameterByDirectKey,
   findParameterDefinition,
@@ -28,6 +29,12 @@ export type CommandId =
   | "focusCanvas"
   | "focusElementList"
   | "toggleShortcutHelp"
+  | "toggleElementInfoPanel"
+  | "enterDependencyJumpMode"
+  | "exitDependencyJumpMode"
+  | "selectNextDependencyJumpTarget"
+  | "selectPreviousDependencyJumpTarget"
+  | "jumpToSelectedDependencyTarget"
   | "enterParameterEditMode"
   | "exitParameterEditMode"
   | "selectNextParameter"
@@ -242,6 +249,49 @@ const toggleBooleanParameter = () => {
   } as CadElement));
 };
 
+const selectedDependencyJumpTargets = () => {
+  const { elements, selectedElementId } = useCadStore.getState();
+  const selectedElement = selectedElementId
+    ? elements.find((element) => element.id === selectedElementId) ?? null
+    : null;
+  return getDependencyJumpTargets(selectedElement, elements);
+};
+
+const selectDependencyJumpTargetByOffset = (offset: number) => {
+  const targets = selectedDependencyJumpTargets();
+  if (targets.length === 0) {
+    useCadStore.setState({ isDependencyJumpMode: false, selectedDependencyJumpIndex: 0 });
+    return;
+  }
+
+  const { selectedDependencyJumpIndex } = useCadStore.getState();
+  const currentIndex =
+    selectedDependencyJumpIndex >= 0 && selectedDependencyJumpIndex < targets.length
+      ? selectedDependencyJumpIndex
+      : 0;
+  const nextIndex = (currentIndex + offset + targets.length) % targets.length;
+  useCadStore.setState({ selectedDependencyJumpIndex: nextIndex });
+};
+
+const jumpToSelectedDependencyTarget = () => {
+  const targets = selectedDependencyJumpTargets();
+  if (targets.length === 0) {
+    useCadStore.setState({ isDependencyJumpMode: false, selectedDependencyJumpIndex: 0 });
+    return;
+  }
+
+  const { selectedDependencyJumpIndex } = useCadStore.getState();
+  const target = targets[Math.min(Math.max(selectedDependencyJumpIndex, 0), targets.length - 1)];
+  if (!target) return;
+
+  useCadStore.getState().setSelectedElementId(target.id);
+  const nextTargets = selectedDependencyJumpTargets();
+  useCadStore.setState({
+    isDependencyJumpMode: nextTargets.length > 0,
+    selectedDependencyJumpIndex: 0
+  });
+};
+
 export const commands: Record<CommandId, Command> = {
   undo: {
     id: "undo",
@@ -369,6 +419,51 @@ export const commands: Record<CommandId, Command> = {
       useCadStore.setState({ showShortcutHelp: !showShortcutHelp });
     }
   },
+  toggleElementInfoPanel: {
+    id: "toggleElementInfoPanel",
+    label: "選択要素情報を表示/非表示",
+    run: () => {
+      const { showElementInfoPanel } = useCadStore.getState();
+      useCadStore.setState({
+        showElementInfoPanel: !showElementInfoPanel,
+        isDependencyJumpMode: showElementInfoPanel ? false : useCadStore.getState().isDependencyJumpMode
+      });
+    }
+  },
+  enterDependencyJumpMode: {
+    id: "enterDependencyJumpMode",
+    label: "親子要素ジャンプモードに入る",
+    run: () => {
+      const targets = selectedDependencyJumpTargets();
+      if (targets.length === 0) return;
+      useCadStore.setState({
+        showElementInfoPanel: true,
+        isParameterEditMode: false,
+        isDependencyJumpMode: true,
+        selectedDependencyJumpIndex: 0
+      });
+    }
+  },
+  exitDependencyJumpMode: {
+    id: "exitDependencyJumpMode",
+    label: "親子要素ジャンプモードを終了",
+    run: () => useCadStore.setState({ isDependencyJumpMode: false, selectedDependencyJumpIndex: 0 })
+  },
+  selectNextDependencyJumpTarget: {
+    id: "selectNextDependencyJumpTarget",
+    label: "次の親子要素を選択",
+    run: () => selectDependencyJumpTargetByOffset(1)
+  },
+  selectPreviousDependencyJumpTarget: {
+    id: "selectPreviousDependencyJumpTarget",
+    label: "前の親子要素を選択",
+    run: () => selectDependencyJumpTargetByOffset(-1)
+  },
+  jumpToSelectedDependencyTarget: {
+    id: "jumpToSelectedDependencyTarget",
+    label: "選択中の親子要素へジャンプ",
+    run: () => jumpToSelectedDependencyTarget()
+  },
   enterParameterEditMode: {
     id: "enterParameterEditMode",
     label: "パラメーター編集モードに入る",
@@ -377,6 +472,7 @@ export const commands: Record<CommandId, Command> = {
       if (!selectedElement) return;
       useCadStore.setState({
         isParameterEditMode: true,
+        isDependencyJumpMode: false,
         selectedParameterKey: normalizeParameterKey(
           selectedElement,
           useCadStore.getState().selectedParameterKey
@@ -477,6 +573,8 @@ const paletteCommandIds: CommandId[] = [
   "focusCanvas",
   "focusElementList",
   "toggleShortcutHelp",
+  "toggleElementInfoPanel",
+  "enterDependencyJumpMode",
   "enterParameterEditMode",
   "exitParameterEditMode",
   "focusSelectedParameterInput"
@@ -497,6 +595,8 @@ const paletteKeywords: Partial<Record<CommandId, string[]>> = {
   focusCanvas: ["focus", "canvas", "キャンバス"],
   focusElementList: ["focus", "element list", "構成リスト", "要素リスト"],
   toggleShortcutHelp: ["shortcut", "help", "ショートカット", "ヘルプ"],
+  toggleElementInfoPanel: ["information", "info", "選択要素情報", "折り畳み", "表示"],
+  enterDependencyJumpMode: ["dependency", "parent", "child", "親子", "ジャンプ"],
   enterParameterEditMode: ["parameter", "edit", "パラメーター", "編集"],
   exitParameterEditMode: ["parameter", "edit", "escape", "パラメーター", "終了"],
   focusSelectedParameterInput: ["parameter", "input", "direct", "パラメーター", "入力"]

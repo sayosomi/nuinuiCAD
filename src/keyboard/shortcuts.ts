@@ -86,6 +86,18 @@ export const shortcutDefinitions: ShortcutDefinition[] = [
     matches: (event) => event.key.toLowerCase() === "v" && noModifier(event)
   },
   {
+    commandId: "toggleElementInfoPanel",
+    label: "選択要素情報を表示/非表示",
+    keys: "i",
+    matches: (event) => event.key.toLowerCase() === "i" && noModifier(event)
+  },
+  {
+    commandId: "enterDependencyJumpMode",
+    label: "親子要素ジャンプモードに入る",
+    keys: "j",
+    matches: (event) => event.key.toLowerCase() === "j" && noModifier(event)
+  },
+  {
     commandId: "enterParameterEditMode",
     label: "パラメーター編集モードに入る",
     keys: "Enter",
@@ -96,6 +108,33 @@ export const shortcutDefinitions: ShortcutDefinition[] = [
     label: "ショートカット一覧を表示/非表示",
     keys: "?",
     matches: (event) => event.key === "?" && !event.metaKey && !event.ctrlKey && !event.altKey
+  }
+];
+
+export const dependencyJumpShortcutDefinitions: ShortcutDefinition[] = [
+  {
+    commandId: "exitDependencyJumpMode",
+    label: "親子要素ジャンプモードを終了",
+    keys: "Escape",
+    matches: (event) => event.key === "Escape" && noModifier(event)
+  },
+  {
+    commandId: "jumpToSelectedDependencyTarget",
+    label: "選択中の親子要素へジャンプ",
+    keys: "Enter",
+    matches: (event) => event.key === "Enter" && noModifier(event)
+  },
+  {
+    commandId: "selectNextDependencyJumpTarget",
+    label: "次の親子要素を選択",
+    keys: "ArrowDown",
+    matches: (event) => event.key === "ArrowDown" && noModifier(event)
+  },
+  {
+    commandId: "selectPreviousDependencyJumpTarget",
+    label: "前の親子要素を選択",
+    keys: "ArrowUp",
+    matches: (event) => event.key === "ArrowUp" && noModifier(event)
   }
 ];
 
@@ -213,14 +252,20 @@ const parameterValueShortcutItems: Record<ParameterValueKind, ShortcutHelpItem[]
 
 export const shortcutHelpItems = ({
   isParameterEditMode = false,
+  isDependencyJumpMode = false,
   selectedElement = null,
   selectedParameterKey = null
 }: {
   isParameterEditMode?: boolean;
+  isDependencyJumpMode?: boolean;
   selectedElement?: CadElement | null;
   selectedParameterKey?: string | null;
 } = {}): ShortcutHelpItem[] => {
   if (!isParameterEditMode) {
+    if (isDependencyJumpMode) {
+      return [...globalShortcutDefinitions, ...dependencyJumpShortcutDefinitions].map(helpItem);
+    }
+
     return [...globalShortcutDefinitions, ...shortcutDefinitions].map(helpItem);
   }
 
@@ -281,7 +326,7 @@ export const shouldIgnoreKeyboardEvent = (event: KeyboardEvent) => {
 
 export const keyboardCommandForEvent = (
   event: KeyboardEvent,
-  options: { isParameterEditMode?: boolean } = {}
+  options: { isParameterEditMode?: boolean; isDependencyJumpMode?: boolean } = {}
 ): KeyboardCommand | null => {
   if (shouldIgnoreKeyboardEvent(event)) {
     return null;
@@ -289,7 +334,11 @@ export const keyboardCommandForEvent = (
 
   const definitions = [
     ...globalShortcutDefinitions,
-    ...(options.isParameterEditMode ? parameterEditShortcutDefinitions : shortcutDefinitions)
+    ...(options.isParameterEditMode
+      ? parameterEditShortcutDefinitions
+      : options.isDependencyJumpMode
+        ? dependencyJumpShortcutDefinitions
+        : shortcutDefinitions)
   ];
   const shortcut = definitions.find((definition) => definition.matches(event));
   if (!shortcut) return null;
@@ -301,7 +350,7 @@ export const keyboardCommandForEvent = (
 
 export const commandIdForKeyboardEvent = (
   event: KeyboardEvent,
-  options: { isParameterEditMode?: boolean } = {}
+  options: { isParameterEditMode?: boolean; isDependencyJumpMode?: boolean } = {}
 ): CommandId | null => {
   return keyboardCommandForEvent(event, options)?.commandId ?? null;
 };

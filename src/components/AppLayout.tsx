@@ -10,6 +10,7 @@ import { LeftPanel, RightPanel } from "./LeftPanel";
 export const AppLayout = () => {
   const elements = useCadStore((state) => state.elements);
   const isParameterEditMode = useCadStore((state) => state.isParameterEditMode);
+  const isDependencyJumpMode = useCadStore((state) => state.isDependencyJumpMode);
   const canvasFocusRef = useRef<HTMLDivElement>(null);
   const elementListFocusRef = useRef<HTMLDivElement>(null);
   const parameterInputRefs = useRef(new Map<string, HTMLElement>());
@@ -34,7 +35,8 @@ export const AppLayout = () => {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const keyboardCommand = keyboardCommandForEvent(event, {
-        isParameterEditMode: useCadStore.getState().isParameterEditMode
+        isParameterEditMode: useCadStore.getState().isParameterEditMode,
+        isDependencyJumpMode: useCadStore.getState().isDependencyJumpMode
       });
       if (!keyboardCommand) return;
       event.preventDefault();
@@ -61,6 +63,7 @@ export const AppLayout = () => {
       <RightPanel
         evaluation={evaluation}
         isParameterEditMode={isParameterEditMode}
+        isDependencyJumpMode={isDependencyJumpMode}
         registerParameterControl={registerParameterControl}
       />
       <CommandPalette commandContext={commandContext} />

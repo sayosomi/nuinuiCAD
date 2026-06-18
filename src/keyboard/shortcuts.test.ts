@@ -20,6 +20,8 @@ describe("shortcuts", () => {
     );
     expect(commandIdForKeyboardEvent(keyboardEvent("Backspace"))).toBe("deleteSelectedElement");
     expect(commandIdForKeyboardEvent(keyboardEvent("v"))).toBe("toggleSelectedElementVisibility");
+    expect(commandIdForKeyboardEvent(keyboardEvent("i"))).toBe("toggleElementInfoPanel");
+    expect(commandIdForKeyboardEvent(keyboardEvent("j"))).toBe("enterDependencyJumpMode");
     expect(commandIdForKeyboardEvent(keyboardEvent("/"))).toBe("openCommandPalette");
     expect(commandIdForKeyboardEvent(keyboardEvent("p"))).toBeNull();
     expect(commandIdForKeyboardEvent(keyboardEvent("o"))).toBeNull();
@@ -57,6 +59,30 @@ describe("shortcuts", () => {
     expect(commandIdForKeyboardEvent(keyboardEvent("]"), { isParameterEditMode: true })).toBe(
       "increaseSelectedParameterStep"
     );
+  });
+
+  it("maps dependency jump mode keys to dependency jump commands", () => {
+    expect(commandIdForKeyboardEvent(keyboardEvent("ArrowDown"), { isDependencyJumpMode: true })).toBe(
+      "selectNextDependencyJumpTarget"
+    );
+    expect(commandIdForKeyboardEvent(keyboardEvent("ArrowUp"), { isDependencyJumpMode: true })).toBe(
+      "selectPreviousDependencyJumpTarget"
+    );
+    expect(commandIdForKeyboardEvent(keyboardEvent("Enter"), { isDependencyJumpMode: true })).toBe(
+      "jumpToSelectedDependencyTarget"
+    );
+    expect(commandIdForKeyboardEvent(keyboardEvent("Escape"), { isDependencyJumpMode: true })).toBe(
+      "exitDependencyJumpMode"
+    );
+  });
+
+  it("prioritizes parameter edit mode over dependency jump mode", () => {
+    expect(
+      commandIdForKeyboardEvent(keyboardEvent("ArrowDown"), {
+        isParameterEditMode: true,
+        isDependencyJumpMode: true
+      })
+    ).toBe("selectNextParameter");
   });
 
   it("passes edit mode command context", () => {
@@ -122,6 +148,8 @@ describe("shortcuts", () => {
     const ids = shortcuts.map((shortcut) => shortcut.commandId);
 
     expect(ids).toContain("moveSelectedElementUp");
+    expect(ids).toContain("toggleElementInfoPanel");
+    expect(ids).toContain("enterDependencyJumpMode");
     expect(ids).toContain("openCommandPalette");
     expect(ids).not.toContain("addFreePoint");
     expect(ids).not.toContain("exitParameterEditMode");
@@ -137,10 +165,22 @@ describe("shortcuts", () => {
     const ids = shortcuts.map((shortcut) => shortcut.commandId);
 
     expect(ids).not.toContain("moveSelectedElementUp");
+    expect(ids).not.toContain("enterDependencyJumpMode");
     expect(ids).not.toContain("addFreePoint");
     expect(ids).toContain("openCommandPalette");
     expect(ids).toContain("exitParameterEditMode");
     expect(ids).toContain("selectNextParameter");
+  });
+
+  it("shows dependency jump shortcuts while dependency jump mode is active", () => {
+    const shortcuts = shortcutHelpItems({ isDependencyJumpMode: true });
+    const ids = shortcuts.map((shortcut) => shortcut.commandId);
+
+    expect(ids).toContain("selectNextDependencyJumpTarget");
+    expect(ids).toContain("selectPreviousDependencyJumpTarget");
+    expect(ids).toContain("jumpToSelectedDependencyTarget");
+    expect(ids).toContain("exitDependencyJumpMode");
+    expect(ids).not.toContain("selectNextElement");
   });
 
   it("shows numeric parameter shortcuts only for numeric parameters", () => {

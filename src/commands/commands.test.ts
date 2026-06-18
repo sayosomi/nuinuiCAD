@@ -10,6 +10,9 @@ describe("commands", () => {
       selectedElementId: sampleElements[0].id,
       isParameterEditMode: false,
       selectedParameterKey: "name",
+      showElementInfoPanel: true,
+      isDependencyJumpMode: false,
+      selectedDependencyJumpIndex: 0,
       showShortcutHelp: true,
       showCommandPalette: false,
       past: [],
@@ -62,6 +65,90 @@ describe("commands", () => {
 
     dispatchCommand("closeCommandPalette");
     expect(useCadStore.getState().showCommandPalette).toBe(false);
+  });
+
+  it("toggles the element info panel and exits dependency jump mode when collapsed", () => {
+    useCadStore.setState({ isDependencyJumpMode: true, selectedDependencyJumpIndex: 1 });
+
+    dispatchCommand("toggleElementInfoPanel");
+
+    expect(useCadStore.getState()).toMatchObject({
+      showElementInfoPanel: false,
+      isDependencyJumpMode: false
+    });
+
+    dispatchCommand("toggleElementInfoPanel");
+
+    expect(useCadStore.getState().showElementInfoPanel).toBe(true);
+  });
+
+  it("enters dependency jump mode when the selected element has targets", () => {
+    useCadStore.setState({
+      selectedElementId: sampleElements[1].id,
+      isParameterEditMode: true,
+      showElementInfoPanel: false
+    });
+
+    dispatchCommand("enterDependencyJumpMode");
+
+    expect(useCadStore.getState()).toMatchObject({
+      showElementInfoPanel: true,
+      isParameterEditMode: false,
+      isDependencyJumpMode: true,
+      selectedDependencyJumpIndex: 0
+    });
+  });
+
+  it("does not enter dependency jump mode without targets", () => {
+    useCadStore.setState({
+      elements: [sampleElements[0]],
+      selectedElementId: sampleElements[0].id
+    });
+
+    dispatchCommand("enterDependencyJumpMode");
+
+    expect(useCadStore.getState().isDependencyJumpMode).toBe(false);
+  });
+
+  it("cycles dependency jump targets", () => {
+    useCadStore.setState({
+      selectedElementId: sampleElements[1].id,
+      isDependencyJumpMode: true,
+      selectedDependencyJumpIndex: 0
+    });
+
+    dispatchCommand("selectNextDependencyJumpTarget");
+    expect(useCadStore.getState().selectedDependencyJumpIndex).toBe(1);
+
+    dispatchCommand("selectPreviousDependencyJumpTarget");
+    expect(useCadStore.getState().selectedDependencyJumpIndex).toBe(0);
+  });
+
+  it("jumps to the selected dependency target and keeps jump mode when possible", () => {
+    useCadStore.setState({
+      selectedElementId: sampleElements[1].id,
+      isDependencyJumpMode: true,
+      selectedDependencyJumpIndex: 1
+    });
+
+    dispatchCommand("jumpToSelectedDependencyTarget");
+
+    expect(useCadStore.getState()).toMatchObject({
+      selectedElementId: sampleElements[2].id,
+      isDependencyJumpMode: true,
+      selectedDependencyJumpIndex: 0
+    });
+  });
+
+  it("exits dependency jump mode", () => {
+    useCadStore.setState({ isDependencyJumpMode: true, selectedDependencyJumpIndex: 1 });
+
+    dispatchCommand("exitDependencyJumpMode");
+
+    expect(useCadStore.getState()).toMatchObject({
+      isDependencyJumpMode: false,
+      selectedDependencyJumpIndex: 0
+    });
   });
 
   it("finds add commands from command palette queries", () => {

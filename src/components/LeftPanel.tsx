@@ -1,6 +1,7 @@
 import type { KeyboardEvent, RefObject } from "react";
 import { dispatchCommand } from "../commands/commands";
 import { shortcutHelpItems } from "../keyboard/shortcuts";
+import { getDependencyJumpTargets, getDependencySummary } from "../model/dependencies";
 import { formatReferenceOptionLabel } from "../model/elementNames";
 import {
   defaultNumericParameterStep,
@@ -9,7 +10,14 @@ import {
 } from "../parameters/parameterDefinitions";
 import type { ParameterKey } from "../parameters/parameterDefinitions";
 import { useCadStore } from "../state/useCadStore";
-import type { CadElement, ElementId, EvaluationResult } from "../types/geometry";
+import type {
+  CadElement,
+  ComputedGeometry,
+  ComputedLine,
+  ComputedPoint,
+  ElementId,
+  EvaluationResult
+} from "../types/geometry";
 import { elementTypeLabels } from "../types/geometry";
 
 type LeftPanelProps = {
@@ -20,7 +28,45 @@ type LeftPanelProps = {
 type RightPanelProps = {
   evaluation: EvaluationResult;
   isParameterEditMode: boolean;
+  isDependencyJumpMode: boolean;
   registerParameterControl: (key: string, element: HTMLElement | null) => void;
+};
+
+const isComputedPoint = (geometry: ComputedGeometry | undefined): geometry is ComputedPoint =>
+  geometry?.kind === "point";
+
+const isComputedLine = (geometry: ComputedGeometry | undefined): geometry is ComputedLine =>
+  geometry?.kind === "line";
+
+const formatNumber = (value: number) =>
+  Number.isInteger(value) ? `${value}` : value.toFixed(2).replace(/\.?0+$/, "");
+
+const formatMillimeters = (value: number) => `${formatNumber(value)} mm`;
+
+const normalizeDegrees = (degrees: number) => (degrees + 360) % 360;
+
+const formatAngle = (radians: number) => `${formatNumber(normalizeDegrees((radians * 180) / Math.PI))}°`;
+
+const pointCoordinateRows = (point: ComputedPoint) => [
+  { label: "x", value: formatMillimeters(point.x) },
+  { label: "y", value: formatMillimeters(point.y) }
+];
+
+const lineInfoRows = (line: ComputedLine) => {
+  const dx = line.end.x - line.start.x;
+  const dy = line.end.y - line.start.y;
+  const length = Math.hypot(dx, dy);
+  const hasLength = length > 0;
+
+  return [
+    { label: "始点 x", value: formatMillimeters(line.start.x) },
+    { label: "始点 y", value: formatMillimeters(line.start.y) },
+    { label: "終点 x", value: formatMillimeters(line.end.x) },
+    { label: "終点 y", value: formatMillimeters(line.end.y) },
+    { label: "始角度", value: hasLength ? formatAngle(Math.atan2(dy, dx)) : "未定義" },
+    { label: "終角度", value: hasLength ? formatAngle(Math.atan2(-dy, -dx)) : "未定義" },
+    { label: "長さ", value: formatMillimeters(length) }
+  ];
 };
 
 const pointOptions = (elements: CadElement[]) =>
@@ -312,6 +358,134 @@ const ElementEditor = ({
   );
 };
 
+const ElementInfoPanel = ({
+  element,
+  elements,
+  evaluation,
+  isDependencyJumpMode,
+  selectedDependencyJumpIndex,
+  setSelectedElementId
+}: {
+  element: CadElement | null;
+  elements: CadElement[];
+  evaluation: EvaluationResult;
+  isDependencyJumpMode: boolean;
+  selectedDependencyJumpIndex: number;
+  setSelectedElementId: (id: ElementId | null) => void;
+}) => {
+  const showElementInfoPanel = useCadStore((state) => state.showElementInfoPanel);
+  const geometry = element ? evaluation.computedGeometry.get(element.id) : undefined;
+  const dependencySummary = element ? getDependencySummary(element, elements) : null;
+  const jumpTargets = getDependencyJumpTargets(element, elements);
+  const jumpTargetIndexes = new Map(jumpTargets.map((target, index) => [target.id, index]));
+  const infoRows =
+    isComputedPoint(geometry)
+      ? pointCoordinateRows(geometry)
+      : isComputedLine(geometry)
+        ? lineInfoRows(geometry)
+        : [];
+  const selectDependency = (id: ElementId) => setSelectedElementId(id);
+  const dependencyButtonClass = (id: ElementId) => {
+    const jumpIndex = jumpTargetIndexes.get(id);
+    return `dependency-row ${
+      isDependencyJumpMode && jumpIndex === selectedDependencyJumpIndex ? "selected-dependency" : ""
+    }`;
+  };
+
+  return (
+    <section className="panel-section">
+      <div className="section-header">
+        <div>
+          <h2>選択要素情報</h2>
+          {element ? (
+            <p className="section-subtitle">
+              {isDependencyJumpMode ? "親子要素ジャンプ中" : "iで折り畳み / jで親子ジャンプ"}
+            </p>
+          ) : null}
+        </div>
+        <button type="button" onClick={() => dispatchCommand("toggleElementInfoPanel")}>
+          i
+        </button>
+      </div>
+
+      {!showElementInfoPanel ? (
+        <p className="empty-state">折り畳み中です。</p>
+      ) : !element ? (
+        <p className="empty-state">要素を選択してください。</p>
+      ) : (
+        <>
+          {infoRows.length > 0 ? (
+            <dl className="element-info-grid">
+              {infoRows.map((row) => (
+                <div key={row.label}>
+                  <dt>{row.label}</dt>
+                  <dd>{row.value}</dd>
+                </div>
+              ))}
+            </dl>
+          ) : (
+            <p className="empty-state">未評価です。</p>
+          )}
+
+          <div className="dependency-summary">
+            <span>親 {dependencySummary?.ancestorCount ?? 0} 件</span>
+            <span>子 {dependencySummary?.descendantCount ?? 0} 件</span>
+          </div>
+
+          <div className="dependency-group">
+            <h3 className="shortcut-group-title">親要素</h3>
+            {dependencySummary && dependencySummary.parents.length > 0 ? (
+              <div className="dependency-list">
+                {dependencySummary.parents.map((parent, index) =>
+                  parent.element ? (
+                    <button
+                      key={`${parent.id}-${index}`}
+                      type="button"
+                      className={dependencyButtonClass(parent.element.id)}
+                      onClick={() => selectDependency(parent.element!.id)}
+                    >
+                      <span>{parent.element.name}</span>
+                      <small>{elementTypeLabels[parent.element.type]}</small>
+                    </button>
+                  ) : (
+                    <div key={`${parent.id}-${index}`} className="dependency-row unresolved">
+                      <span>{parent.id}</span>
+                      <small>未解決</small>
+                    </div>
+                  )
+                )}
+              </div>
+            ) : (
+              <p className="empty-state">親要素はありません。</p>
+            )}
+          </div>
+
+          <div className="dependency-group">
+            <h3 className="shortcut-group-title">子要素</h3>
+            {dependencySummary && dependencySummary.children.length > 0 ? (
+              <div className="dependency-list">
+                {dependencySummary.children.map((child) => (
+                  <button
+                    key={child.id}
+                    type="button"
+                    className={dependencyButtonClass(child.id)}
+                    onClick={() => selectDependency(child.id)}
+                  >
+                    <span>{child.name}</span>
+                    <small>{elementTypeLabels[child.type]}</small>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <p className="empty-state">子要素はありません。</p>
+            )}
+          </div>
+        </>
+      )}
+    </section>
+  );
+};
+
 export const LeftPanel = ({
   evaluation,
   elementListFocusRef
@@ -381,15 +555,19 @@ export const LeftPanel = ({
 export const RightPanel = ({
   evaluation,
   isParameterEditMode,
+  isDependencyJumpMode,
   registerParameterControl
 }: RightPanelProps) => {
   const elements = useCadStore((state) => state.elements);
   const selectedElementId = useCadStore((state) => state.selectedElementId);
   const selectedParameterKey = useCadStore((state) => state.selectedParameterKey);
+  const selectedDependencyJumpIndex = useCadStore((state) => state.selectedDependencyJumpIndex);
   const showShortcutHelp = useCadStore((state) => state.showShortcutHelp);
+  const setSelectedElementId = useCadStore((state) => state.setSelectedElementId);
   const selectedElement = elements.find((element) => element.id === selectedElementId) ?? null;
   const shortcuts = shortcutHelpItems({
     isParameterEditMode,
+    isDependencyJumpMode,
     selectedElement,
     selectedParameterKey
   });
@@ -411,6 +589,15 @@ export const RightPanel = ({
           <p className="empty-state">要素を選択してください。</p>
         </section>
       )}
+
+      <ElementInfoPanel
+        element={selectedElement}
+        elements={elements}
+        evaluation={evaluation}
+        isDependencyJumpMode={isDependencyJumpMode}
+        selectedDependencyJumpIndex={selectedDependencyJumpIndex}
+        setSelectedElementId={setSelectedElementId}
+      />
 
       <section className="panel-section">
         <div className="section-header">

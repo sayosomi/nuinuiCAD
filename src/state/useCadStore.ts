@@ -17,6 +17,9 @@ export type CadState = {
   selectedElementId: ElementId | null;
   isParameterEditMode: boolean;
   selectedParameterKey: ParameterKey | null;
+  showElementInfoPanel: boolean;
+  isDependencyJumpMode: boolean;
+  selectedDependencyJumpIndex: number;
   showShortcutHelp: boolean;
   showCommandPalette: boolean;
   past: CadHistorySnapshot[];
@@ -24,6 +27,9 @@ export type CadState = {
   setSelectedElementId: (id: ElementId | null) => void;
   setParameterEditMode: (isParameterEditMode: boolean) => void;
   setSelectedParameterKey: (selectedParameterKey: ParameterKey | null) => void;
+  setShowElementInfoPanel: (showElementInfoPanel: boolean) => void;
+  setDependencyJumpMode: (isDependencyJumpMode: boolean) => void;
+  setSelectedDependencyJumpIndex: (selectedDependencyJumpIndex: number) => void;
   setShowShortcutHelp: (showShortcutHelp: boolean) => void;
   setShowCommandPalette: (showCommandPalette: boolean) => void;
   commitDocumentChange: (change: Partial<CadHistorySnapshot>) => void;
@@ -69,6 +75,9 @@ export const useCadStore = create<CadState>((set) => ({
   selectedElementId: sampleElements[0]?.id ?? null,
   isParameterEditMode: false,
   selectedParameterKey: sampleElements[0] ? normalizeParameterKey(sampleElements[0], null) : null,
+  showElementInfoPanel: true,
+  isDependencyJumpMode: false,
+  selectedDependencyJumpIndex: 0,
   showShortcutHelp: true,
   showCommandPalette: false,
   past: [],
@@ -81,7 +90,8 @@ export const useCadStore = create<CadState>((set) => ({
         selectedParameterKey: selectedElement
           ? normalizeParameterKey(selectedElement, state.selectedParameterKey)
           : null,
-        isParameterEditMode: selectedElement ? state.isParameterEditMode : false
+        isParameterEditMode: selectedElement ? state.isParameterEditMode : false,
+        selectedDependencyJumpIndex: 0
       };
     }),
   setParameterEditMode: (isParameterEditMode) =>
@@ -103,6 +113,19 @@ export const useCadStore = create<CadState>((set) => ({
           : null
       };
     }),
+  setShowElementInfoPanel: (showElementInfoPanel) =>
+    set({
+      showElementInfoPanel,
+      isDependencyJumpMode: showElementInfoPanel ? useCadStore.getState().isDependencyJumpMode : false
+    }),
+  setDependencyJumpMode: (isDependencyJumpMode) =>
+    set({
+      isDependencyJumpMode,
+      isParameterEditMode: isDependencyJumpMode ? false : useCadStore.getState().isParameterEditMode,
+      showElementInfoPanel: isDependencyJumpMode ? true : useCadStore.getState().showElementInfoPanel
+    }),
+  setSelectedDependencyJumpIndex: (selectedDependencyJumpIndex) =>
+    set({ selectedDependencyJumpIndex }),
   setShowShortcutHelp: (showShortcutHelp) => set({ showShortcutHelp }),
   setShowCommandPalette: (showCommandPalette) => set({ showCommandPalette }),
   commitDocumentChange: (change) =>
