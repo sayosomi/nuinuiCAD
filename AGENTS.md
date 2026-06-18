@@ -128,7 +128,7 @@ Use an explicit parameter edit mode:
 
 * `Enter`: enter parameter edit mode for the selected element
 * `Escape`: leave parameter edit mode
-* `Tab` / `Shift+Tab`: move between editable parameters
+* `ArrowDown` / `ArrowUp`: move between editable parameters
 * parameter name keys: jump to parameters only while parameter edit mode is active; define the actual keys in the centralized parameter definition table
 * arrow keys: adjust the selected numeric parameter or cycle reference choices when appropriate
 * `Space`: toggle the selected boolean parameter

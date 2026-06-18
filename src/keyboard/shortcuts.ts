@@ -116,14 +116,14 @@ export const parameterEditShortcutDefinitions: ShortcutDefinition[] = [
   {
     commandId: "selectNextParameter",
     label: "次のパラメーターを選択",
-    keys: "Tab",
-    matches: (event) => event.key === "Tab" && !event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey
+    keys: "ArrowDown",
+    matches: (event) => event.key === "ArrowDown" && noModifier(event)
   },
   {
     commandId: "selectPreviousParameter",
     label: "前のパラメーターを選択",
-    keys: "Shift+Tab",
-    matches: (event) => event.key === "Tab" && event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey
+    keys: "ArrowUp",
+    matches: (event) => event.key === "ArrowUp" && noModifier(event)
   },
   {
     commandId: "incrementSelectedParameter",
@@ -236,19 +236,29 @@ export const shortcutHelpItems = ({
   return items;
 };
 
-export const shouldIgnoreKeyboardEvent = (event: KeyboardEvent) => {
+const eventTargetTagName = (event: KeyboardEvent) => {
   const target = event.target;
-  if (!(target instanceof HTMLElement)) {
-    return false;
-  }
+  return target instanceof HTMLElement ? target.tagName.toLowerCase() : null;
+};
 
+const isEditableKeyboardTarget = (event: KeyboardEvent) => {
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) return false;
   const tagName = target.tagName.toLowerCase();
   return (
     tagName === "input" ||
     tagName === "textarea" ||
     tagName === "select" ||
+    target.getAttribute("contenteditable") === "true" ||
     target.isContentEditable
   );
+};
+
+export const shouldIgnoreKeyboardEvent = (event: KeyboardEvent) => {
+  if (isEditableKeyboardTarget(event)) return true;
+
+  const tagName = eventTargetTagName(event);
+  return tagName === "button" && (event.key === "Enter" || event.key === " ");
 };
 
 export const keyboardCommandForEvent = (

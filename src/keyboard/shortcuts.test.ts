@@ -5,6 +5,12 @@ import { commandIdForKeyboardEvent, keyboardCommandForEvent, shortcutHelpItems }
 const keyboardEvent = (key: string, init: KeyboardEventInit = {}) =>
   new KeyboardEvent("keydown", { key, ...init });
 
+const keyboardEventFrom = (key: string, target: EventTarget, init: KeyboardEventInit = {}) => {
+  const event = keyboardEvent(key, init);
+  Object.defineProperty(event, "target", { value: target });
+  return event;
+};
+
 describe("shortcuts", () => {
   it("maps keys to commands", () => {
     expect(commandIdForKeyboardEvent(keyboardEvent("ArrowUp"))).toBe("selectPreviousElement");
@@ -19,14 +25,15 @@ describe("shortcuts", () => {
   });
 
   it("maps edit mode keys to parameter commands", () => {
-    expect(commandIdForKeyboardEvent(keyboardEvent("Tab"), { isParameterEditMode: true })).toBe(
+    expect(commandIdForKeyboardEvent(keyboardEvent("ArrowDown"), { isParameterEditMode: true })).toBe(
       "selectNextParameter"
     );
     expect(
-      commandIdForKeyboardEvent(keyboardEvent("Tab", { shiftKey: true }), {
+      commandIdForKeyboardEvent(keyboardEvent("ArrowUp"), {
         isParameterEditMode: true
       })
     ).toBe("selectPreviousParameter");
+    expect(commandIdForKeyboardEvent(keyboardEvent("Tab"), { isParameterEditMode: true })).toBeNull();
     expect(commandIdForKeyboardEvent(keyboardEvent("x"), { isParameterEditMode: true })).toBe(
       "selectParameterByKey"
     );
@@ -54,10 +61,36 @@ describe("shortcuts", () => {
 
   it("ignores events from inputs", () => {
     const input = document.createElement("input");
-    const event = keyboardEvent("p");
-    Object.defineProperty(event, "target", { value: input });
 
-    expect(commandIdForKeyboardEvent(event)).toBeNull();
+    expect(commandIdForKeyboardEvent(keyboardEventFrom("p", input))).toBeNull();
+  });
+
+  it("ignores events from editable form targets", () => {
+    const textarea = document.createElement("textarea");
+    const select = document.createElement("select");
+    const editable = document.createElement("div");
+    editable.setAttribute("contenteditable", "true");
+
+    expect(commandIdForKeyboardEvent(keyboardEventFrom("p", textarea))).toBeNull();
+    expect(commandIdForKeyboardEvent(keyboardEventFrom("p", select))).toBeNull();
+    expect(commandIdForKeyboardEvent(keyboardEventFrom("p", editable))).toBeNull();
+  });
+
+  it("allows app shortcuts from focused buttons", () => {
+    const button = document.createElement("button");
+
+    expect(commandIdForKeyboardEvent(keyboardEventFrom("p", button))).toBe("addFreePoint");
+    expect(commandIdForKeyboardEvent(keyboardEventFrom("ArrowDown", button))).toBe(
+      "selectNextElement"
+    );
+    expect(commandIdForKeyboardEvent(keyboardEventFrom("?", button))).toBe("toggleShortcutHelp");
+  });
+
+  it("keeps native activation keys for focused buttons", () => {
+    const button = document.createElement("button");
+
+    expect(commandIdForKeyboardEvent(keyboardEventFrom("Enter", button))).toBeNull();
+    expect(commandIdForKeyboardEvent(keyboardEventFrom(" ", button))).toBeNull();
   });
 
   it("shows only normal mode shortcuts outside parameter edit mode", () => {
