@@ -33,6 +33,8 @@ export type CommandId =
   | "selectParameterByKey"
   | "incrementSelectedParameter"
   | "decrementSelectedParameter"
+  | "increaseSelectedParameterStep"
+  | "decreaseSelectedParameterStep"
   | "cycleSelectedReferenceForward"
   | "cycleSelectedReferenceBackward"
   | "toggleSelectedBooleanParameter"
@@ -166,6 +168,20 @@ const selectParameterByOffset = (offset: number) => {
 
 const stepForContext = (context?: CommandContext) => context?.stepMultiplier ?? 1;
 
+const numericParameterStepLevels = [0.1, 1, 10, 100] as const;
+
+const nextNumericParameterStep = (currentStep: number, direction: 1 | -1) => {
+  if (direction > 0) {
+    return numericParameterStepLevels.find((step) => step > currentStep) ?? numericParameterStepLevels.at(-1)!;
+  }
+
+  for (let index = numericParameterStepLevels.length - 1; index >= 0; index -= 1) {
+    const step = numericParameterStepLevels[index];
+    if (step < currentStep) return step;
+  }
+  return numericParameterStepLevels[0];
+};
+
 const updateNumericParameter = (direction: 1 | -1, context?: CommandContext) => {
   const selectedElement = getSelectedElement();
   const definition = selectedParameterDefinition();
@@ -181,6 +197,22 @@ const updateNumericParameter = (direction: 1 | -1, context?: CommandContext) => 
     ...element,
     [definition.key]: Number(element[definition.key as keyof CadElement]) + delta
   } as CadElement));
+};
+
+const updateSelectedNumericParameterStep = (direction: 1 | -1) => {
+  const selectedElement = getSelectedElement();
+  const definition = selectedParameterDefinition();
+  if (!selectedElement || definition?.kind !== "number") return;
+
+  const currentStep = getNumericParameterStep(selectedElement, definition.key);
+  const nextStep = nextNumericParameterStep(currentStep, direction);
+  updateSelectedElement((element) => ({
+    ...element,
+    numericParameterSteps: {
+      ...element.numericParameterSteps,
+      [definition.key]: nextStep
+    }
+  }));
 };
 
 const cycleReferenceParameter = (direction: 1 | -1) => {
@@ -375,6 +407,16 @@ export const commands: Record<CommandId, Command> = {
     id: "decrementSelectedParameter",
     label: "選択パラメーターを減らす",
     run: (context) => updateNumericParameter(-1, context)
+  },
+  increaseSelectedParameterStep: {
+    id: "increaseSelectedParameterStep",
+    label: "増減単位を大きくする",
+    run: () => updateSelectedNumericParameterStep(1)
+  },
+  decreaseSelectedParameterStep: {
+    id: "decreaseSelectedParameterStep",
+    label: "増減単位を小さくする",
+    run: () => updateSelectedNumericParameterStep(-1)
   },
   cycleSelectedReferenceForward: {
     id: "cycleSelectedReferenceForward",

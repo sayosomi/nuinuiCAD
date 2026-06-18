@@ -128,6 +128,77 @@ describe("commands", () => {
     expect(useCadStore.getState().elements[0]).toMatchObject({ x: 75 });
   });
 
+  it("changes numeric parameter steps through fixed levels", () => {
+    useCadStore.setState({ selectedParameterKey: "x" });
+
+    dispatchCommand("increaseSelectedParameterStep");
+    expect(useCadStore.getState().elements[0].numericParameterSteps).toMatchObject({ x: 10 });
+
+    dispatchCommand("decreaseSelectedParameterStep");
+    expect(useCadStore.getState().elements[0].numericParameterSteps).toMatchObject({ x: 1 });
+
+    dispatchCommand("decreaseSelectedParameterStep");
+    expect(useCadStore.getState().elements[0].numericParameterSteps).toMatchObject({ x: 0.1 });
+  });
+
+  it("clamps numeric parameter steps at the fixed level bounds", () => {
+    useCadStore.setState({
+      selectedParameterKey: "x",
+      elements: [
+        {
+          ...sampleElements[0],
+          numericParameterSteps: { x: 0.1, y: 100 }
+        },
+        ...sampleElements.slice(1)
+      ]
+    });
+
+    dispatchCommand("decreaseSelectedParameterStep");
+    expect(useCadStore.getState().elements[0].numericParameterSteps).toMatchObject({ x: 0.1 });
+
+    useCadStore.setState({ selectedParameterKey: "y" });
+    dispatchCommand("increaseSelectedParameterStep");
+    expect(useCadStore.getState().elements[0].numericParameterSteps).toMatchObject({ y: 100 });
+  });
+
+  it("moves custom numeric parameter steps to the nearest fixed level in the chosen direction", () => {
+    useCadStore.setState({
+      selectedParameterKey: "x",
+      elements: [
+        {
+          ...sampleElements[0],
+          numericParameterSteps: { x: 2.5 }
+        },
+        ...sampleElements.slice(1)
+      ]
+    });
+
+    dispatchCommand("increaseSelectedParameterStep");
+    expect(useCadStore.getState().elements[0].numericParameterSteps).toMatchObject({ x: 10 });
+
+    useCadStore.setState({
+      selectedParameterKey: "x",
+      elements: [
+        {
+          ...useCadStore.getState().elements[0],
+          numericParameterSteps: { x: 2.5 }
+        },
+        ...useCadStore.getState().elements.slice(1)
+      ]
+    });
+    dispatchCommand("decreaseSelectedParameterStep");
+    expect(useCadStore.getState().elements[0].numericParameterSteps).toMatchObject({ x: 1 });
+  });
+
+  it("does not change parameter steps for non-numeric parameters", () => {
+    useCadStore.setState({ selectedParameterKey: "visible" });
+
+    dispatchCommand("increaseSelectedParameterStep");
+    dispatchCommand("decreaseSelectedParameterStep");
+
+    expect(useCadStore.getState().elements[0].numericParameterSteps).toBeUndefined();
+  });
+
   it("cycles reference parameters with arrow commands", () => {
     useCadStore.setState({
       selectedElementId: sampleElements[3].id,

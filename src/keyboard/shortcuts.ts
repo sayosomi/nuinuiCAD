@@ -155,6 +155,18 @@ export const parameterEditShortcutDefinitions: ShortcutDefinition[] = [
     context: arrowStepContext
   },
   {
+    commandId: "decreaseSelectedParameterStep",
+    label: "増減単位を小さくする",
+    keys: "[",
+    matches: (event) => event.key === "[" && noModifier(event)
+  },
+  {
+    commandId: "increaseSelectedParameterStep",
+    label: "増減単位を大きくする",
+    keys: "]",
+    matches: (event) => event.key === "]" && noModifier(event)
+  },
+  {
     commandId: "toggleSelectedBooleanParameter",
     label: "真偽値を切替",
     keys: "Space",
@@ -190,7 +202,9 @@ const parameterValueShortcutItems: Record<ParameterValueKind, ShortcutHelpItem[]
   text: [],
   number: [
     helpItem(parameterShortcut("incrementSelectedParameter")),
-    helpItem(parameterShortcut("decrementSelectedParameter"))
+    helpItem(parameterShortcut("decrementSelectedParameter")),
+    helpItem(parameterShortcut("decreaseSelectedParameterStep")),
+    helpItem(parameterShortcut("increaseSelectedParameterStep"))
   ],
   boolean: [helpItem(parameterShortcut("toggleSelectedBooleanParameter"))],
   reference: [

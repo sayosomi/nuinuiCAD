@@ -22,6 +22,8 @@ describe("shortcuts", () => {
     expect(commandIdForKeyboardEvent(keyboardEvent("v"))).toBe("toggleSelectedElementVisibility");
     expect(commandIdForKeyboardEvent(keyboardEvent("Enter"))).toBe("enterParameterEditMode");
     expect(commandIdForKeyboardEvent(keyboardEvent("?"))).toBe("toggleShortcutHelp");
+    expect(commandIdForKeyboardEvent(keyboardEvent("["))).toBeNull();
+    expect(commandIdForKeyboardEvent(keyboardEvent("]"))).toBeNull();
     expect(commandIdForKeyboardEvent(keyboardEvent("z", { metaKey: true }))).toBe("undo");
     expect(commandIdForKeyboardEvent(keyboardEvent("y", { metaKey: true }))).toBe("redo");
   });
@@ -41,6 +43,12 @@ describe("shortcuts", () => {
     );
     expect(commandIdForKeyboardEvent(keyboardEvent("Escape"), { isParameterEditMode: true })).toBe(
       "exitParameterEditMode"
+    );
+    expect(commandIdForKeyboardEvent(keyboardEvent("["), { isParameterEditMode: true })).toBe(
+      "decreaseSelectedParameterStep"
+    );
+    expect(commandIdForKeyboardEvent(keyboardEvent("]"), { isParameterEditMode: true })).toBe(
+      "increaseSelectedParameterStep"
     );
   });
 
@@ -65,6 +73,9 @@ describe("shortcuts", () => {
     const input = document.createElement("input");
 
     expect(commandIdForKeyboardEvent(keyboardEventFrom("p", input))).toBeNull();
+    expect(
+      commandIdForKeyboardEvent(keyboardEventFrom("[", input), { isParameterEditMode: true })
+    ).toBeNull();
     expect(commandIdForKeyboardEvent(keyboardEventFrom("z", input, { metaKey: true }))).toBeNull();
     expect(commandIdForKeyboardEvent(keyboardEventFrom("y", input, { metaKey: true }))).toBeNull();
   });
@@ -131,6 +142,8 @@ describe("shortcuts", () => {
 
     expect(ids).toContain("incrementSelectedParameter");
     expect(ids).toContain("decrementSelectedParameter");
+    expect(ids).toContain("increaseSelectedParameterStep");
+    expect(ids).toContain("decreaseSelectedParameterStep");
     expect(ids).not.toContain("toggleSelectedBooleanParameter");
   });
 
@@ -145,6 +158,8 @@ describe("shortcuts", () => {
     expect(ids).toContain("toggleSelectedBooleanParameter");
     expect(ids).not.toContain("incrementSelectedParameter");
     expect(ids).not.toContain("decrementSelectedParameter");
+    expect(ids).not.toContain("increaseSelectedParameterStep");
+    expect(ids).not.toContain("decreaseSelectedParameterStep");
   });
 
   it("shows reference parameter shortcuts only for reference parameters", () => {
@@ -168,6 +183,21 @@ describe("shortcuts", () => {
         })
       ])
     );
+    expect(shortcuts.map((shortcut) => shortcut.commandId)).not.toEqual(
+      expect.arrayContaining(["increaseSelectedParameterStep", "decreaseSelectedParameterStep"])
+    );
+  });
+
+  it("does not show step shortcuts for text parameters", () => {
+    const shortcuts = shortcutHelpItems({
+      isParameterEditMode: true,
+      selectedElement: sampleElements[0],
+      selectedParameterKey: "name"
+    });
+    const ids = shortcuts.map((shortcut) => shortcut.commandId);
+
+    expect(ids).not.toContain("increaseSelectedParameterStep");
+    expect(ids).not.toContain("decreaseSelectedParameterStep");
   });
 
   it("shows direct parameter keys for the selected element", () => {

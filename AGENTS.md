@@ -130,7 +130,8 @@ Use an explicit parameter edit mode:
 * `Escape`: leave parameter edit mode
 * `ArrowDown` / `ArrowUp`: move between editable parameters
 * parameter name keys: jump to parameters only while parameter edit mode is active; define the actual keys in the centralized parameter definition table
-* arrow keys: adjust the selected numeric parameter or cycle reference choices when appropriate
+* `ArrowRight` / `ArrowLeft`: adjust the selected numeric parameter or cycle reference choices when appropriate
+* `[` / `]`: decrease or increase the selected numeric parameter's keyboard step size
 * `Space`: toggle the selected boolean parameter
 
 When adding a new element type, also add its editable parameters to the centralized parameter definition table. Each parameter should define:
@@ -140,7 +141,7 @@ When adding a new element type, also add its editable parameters to the centrali
 * direct key used in parameter edit mode
 * value kind: text, number, boolean, or reference
 
-Numeric parameters should support per-parameter keyboard step sizes, defaulting to 1 mm.
+Numeric parameters should support per-parameter keyboard step sizes, defaulting to 1 mm. Keyboard step shortcuts should use the fixed levels `0.1`, `1`, `10`, and `100` mm.
 
 ## Command architecture
 
