@@ -4,9 +4,12 @@ import type {
   WheelEvent as ReactWheelEvent
 } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { dispatchCommand } from "../commands/commands";
 import { useCadStore } from "../state/useCadStore";
 import type { CanvasViewport } from "../state/useCadStore";
 import type { ComputedLine, ComputedPoint, EvaluationResult } from "../types/geometry";
+import { hitTestCanvasGeometry } from "./DrawingCanvasHitTest";
+import type { ScreenPoint } from "./DrawingCanvasHitTest";
 
 type DrawingCanvasProps = {
   evaluation: EvaluationResult;
@@ -16,11 +19,6 @@ type DrawingCanvasProps = {
 type ViewportSize = {
   width: number;
   height: number;
-};
-
-type ScreenPoint = {
-  x: number;
-  y: number;
 };
 
 const GRID_STEP = 10;
@@ -231,6 +229,25 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
   };
 
   const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.button === 0) {
+      if (viewportSize.width <= 0 || viewportSize.height <= 0) return;
+      const rect = event.currentTarget.getBoundingClientRect();
+      const elementId = hitTestCanvasGeometry({
+        screen: {
+          x: event.clientX - rect.left - event.currentTarget.clientLeft,
+          y: event.clientY - rect.top - event.currentTarget.clientTop
+        },
+        lines: overlayLines,
+        points: overlayPoints
+      });
+      if (!elementId) return;
+
+      event.preventDefault();
+      event.currentTarget.focus();
+      dispatchCommand("selectElement", { elementId, selectionMode: "replace" });
+      return;
+    }
+
     if (event.button !== 1) return;
     event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
