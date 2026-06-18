@@ -585,6 +585,7 @@ export const commands: Record<CommandId, Command> = {
       const definition = findParameterByDirectKey(selectedElement, context.parameterDirectKey);
       if (!definition) return;
       useCadStore.setState({ selectedParameterKey: definition.key });
+      context.focusSelectedParameterInput?.();
     }
   },
   incrementSelectedParameter: {

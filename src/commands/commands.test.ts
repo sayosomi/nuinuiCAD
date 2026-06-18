@@ -348,21 +348,30 @@ describe("commands", () => {
   });
 
   it("cycles parameters for the selected element", () => {
+    const focusSelectedParameterInput = vi.fn();
+
     dispatchCommand("enterParameterEditMode");
 
-    dispatchCommand("selectNextParameter");
+    dispatchCommand("selectNextParameter", { focusSelectedParameterInput });
     expect(useCadStore.getState().selectedParameterKey).toBe("visible");
 
-    dispatchCommand("selectPreviousParameter");
+    dispatchCommand("selectPreviousParameter", { focusSelectedParameterInput });
     expect(useCadStore.getState().selectedParameterKey).toBe("name");
+    expect(focusSelectedParameterInput).not.toHaveBeenCalled();
   });
 
   it("selects parameters by direct key", () => {
+    const focusSelectedParameterInput = vi.fn();
+
     dispatchCommand("enterParameterEditMode");
 
-    dispatchCommand("selectParameterByKey", { parameterDirectKey: "x" });
+    dispatchCommand("selectParameterByKey", {
+      parameterDirectKey: "x",
+      focusSelectedParameterInput
+    });
 
     expect(useCadStore.getState().selectedParameterKey).toBe("x");
+    expect(focusSelectedParameterInput).toHaveBeenCalledTimes(1);
   });
 
   it("increments numeric parameters using the parameter step", () => {

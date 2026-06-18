@@ -68,6 +68,21 @@ export const globalShortcutDefinitions: ShortcutDefinition[] = [
   }
 ];
 
+export const modeInvariantShortcutDefinitions: ShortcutDefinition[] = [
+  {
+    commandId: "toggleElementInfoPanel",
+    label: "要素詳細を表示/非表示",
+    keys: "i",
+    matches: (event) => event.key.toLowerCase() === "i" && noModifier(event)
+  },
+  {
+    commandId: "toggleShortcutHelp",
+    label: "ショートカット一覧を表示/非表示",
+    keys: "?",
+    matches: (event) => event.key === "?" && !event.metaKey && !event.ctrlKey && !event.altKey
+  }
+];
+
 export const shortcutDefinitions: ShortcutDefinition[] = [
   {
     commandId: "moveSelectedElementUp",
@@ -112,12 +127,6 @@ export const shortcutDefinitions: ShortcutDefinition[] = [
     matches: (event) => event.key.toLowerCase() === "v" && noModifier(event)
   },
   {
-    commandId: "toggleElementInfoPanel",
-    label: "要素詳細を表示/非表示",
-    keys: "i",
-    matches: (event) => event.key.toLowerCase() === "i" && noModifier(event)
-  },
-  {
     commandId: "enterParameterEditMode",
     label: "パラメーター編集モードに入る",
     keys: "Enter",
@@ -140,12 +149,6 @@ export const shortcutDefinitions: ShortcutDefinition[] = [
     label: "キャンバス表示をリセット",
     keys: "0",
     matches: (event) => event.key === "0" && noModifier(event)
-  },
-  {
-    commandId: "toggleShortcutHelp",
-    label: "ショートカット一覧を表示/非表示",
-    keys: "?",
-    matches: (event) => event.key === "?" && !event.metaKey && !event.ctrlKey && !event.altKey
   }
 ];
 
@@ -330,14 +333,23 @@ export const shortcutHelpItems = ({
 } = {}): ShortcutHelpItem[] => {
   if (!isParameterEditMode) {
     if (isDependencyJumpMode) {
-      return [...globalShortcutDefinitions, ...dependencyJumpShortcutDefinitions].map(helpItem);
+      return [
+        ...globalShortcutDefinitions,
+        ...modeInvariantShortcutDefinitions,
+        ...dependencyJumpShortcutDefinitions
+      ].map(helpItem);
     }
 
-    return [...globalShortcutDefinitions, ...shortcutDefinitions].map(helpItem);
+    return [
+      ...globalShortcutDefinitions,
+      ...modeInvariantShortcutDefinitions,
+      ...shortcutDefinitions
+    ].map(helpItem);
   }
 
   const items = [
     ...globalShortcutDefinitions.map(helpItem),
+    ...modeInvariantShortcutDefinitions.map(helpItem),
     helpItem(parameterShortcut("exitParameterEditMode")),
     helpItem(parameterShortcut("focusSelectedParameterInput")),
     helpItem(parameterShortcut("selectNextParameter")),
@@ -393,24 +405,8 @@ const isEditableKeyboardTarget = (event: KeyboardEvent) => {
   );
 };
 
-const isTextEditingKeyboardTarget = (event: KeyboardEvent) => {
-  const target = event.target;
-  if (!(target instanceof HTMLElement)) return false;
-  const tagName = target.tagName.toLowerCase();
-  if (tagName === "textarea") return true;
-  if (target.getAttribute("contenteditable") === "true" || target.isContentEditable) return true;
-  return tagName === "input" && (target.getAttribute("type") ?? "text").toLowerCase() === "text";
-};
-
-const isEditableTargetAllowedCommand = (event: KeyboardEvent, commandId: CommandId) => {
-  if (isTextEditingKeyboardTarget(event)) return false;
-  return commandId === "toggleElementInfoPanel" || commandId === "toggleShortcutHelp";
-};
-
-export const shouldIgnoreKeyboardEvent = (event: KeyboardEvent, commandId?: CommandId) => {
-  if (isEditableKeyboardTarget(event)) {
-    return commandId ? !isEditableTargetAllowedCommand(event, commandId) : true;
-  }
+export const shouldIgnoreKeyboardEvent = (event: KeyboardEvent) => {
+  if (isEditableKeyboardTarget(event)) return true;
 
   const tagName = eventTargetTagName(event);
   return (
@@ -425,6 +421,7 @@ export const keyboardCommandForEvent = (
 ): KeyboardCommand | null => {
   const definitions = [
     ...globalShortcutDefinitions,
+    ...modeInvariantShortcutDefinitions,
     ...(options.isParameterEditMode
       ? parameterEditShortcutDefinitions
       : options.isDependencyJumpMode
@@ -433,7 +430,7 @@ export const keyboardCommandForEvent = (
   ];
   const shortcut = definitions.find((definition) => definition.matches(event));
   if (!shortcut) return null;
-  if (shouldIgnoreKeyboardEvent(event, shortcut.commandId)) return null;
+  if (shouldIgnoreKeyboardEvent(event)) return null;
   return {
     commandId: shortcut.commandId,
     context: shortcut.context?.(event)
