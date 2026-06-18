@@ -74,7 +74,7 @@ export const shortcutDefinitions: ShortcutDefinition[] = [
     matches: (event) =>
       event.key === "ArrowUp" &&
       ((isMod(event) && !event.altKey) ||
-        (event.altKey && !event.metaKey && !event.ctrlKey && isElementListRowTarget(event)))
+        (event.altKey && !event.metaKey && !event.ctrlKey && isElementListTarget(event)))
   },
   {
     commandId: "moveSelectedElementDown",
@@ -83,7 +83,7 @@ export const shortcutDefinitions: ShortcutDefinition[] = [
     matches: (event) =>
       event.key === "ArrowDown" &&
       ((isMod(event) && !event.altKey) ||
-        (event.altKey && !event.metaKey && !event.ctrlKey && isElementListRowTarget(event)))
+        (event.altKey && !event.metaKey && !event.ctrlKey && isElementListTarget(event)))
   },
   {
     commandId: "selectPreviousElement",
@@ -340,9 +340,12 @@ const eventTargetTagName = (event: KeyboardEvent) => {
   return target instanceof HTMLElement ? target.tagName.toLowerCase() : null;
 };
 
-const isElementListRowTarget = (event: KeyboardEvent) => {
+const isElementListTarget = (event: KeyboardEvent) => {
   const target = event.target;
-  return target instanceof HTMLElement && Boolean(target.closest("[data-element-list-row='true']"));
+  return (
+    target instanceof HTMLElement &&
+    Boolean(target.closest("[data-element-list='true'], [data-element-list-row='true']"))
+  );
 };
 
 const isEditableKeyboardTarget = (event: KeyboardEvent) => {
@@ -364,7 +367,7 @@ export const shouldIgnoreKeyboardEvent = (event: KeyboardEvent) => {
   const tagName = eventTargetTagName(event);
   return (
     tagName === "button" &&
-    (event.key === " " || (event.key === "Enter" && !isElementListRowTarget(event)))
+    (event.key === " " || (event.key === "Enter" && !isElementListTarget(event)))
   );
 };
 

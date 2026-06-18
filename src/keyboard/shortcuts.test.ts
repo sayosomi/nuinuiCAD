@@ -180,13 +180,19 @@ describe("shortcuts", () => {
     expect(commandIdForKeyboardEvent(keyboardEventFrom(" ", button))).toBeNull();
   });
 
-  it("moves elements with Alt+Arrow only from focused element list rows", () => {
+  it("moves elements with Alt+Arrow only from focused element list targets", () => {
+    const list = document.createElement("div");
     const row = document.createElement("button");
     const rowLabel = document.createElement("span");
     const button = document.createElement("button");
+    list.dataset.elementList = "true";
     row.dataset.elementListRow = "true";
     row.append(rowLabel);
+    list.append(row);
 
+    expect(commandIdForKeyboardEvent(keyboardEventFrom("ArrowUp", list, { altKey: true }))).toBe(
+      "moveSelectedElementUp"
+    );
     expect(commandIdForKeyboardEvent(keyboardEventFrom("ArrowUp", row, { altKey: true }))).toBe(
       "moveSelectedElementUp"
     );

@@ -591,6 +591,7 @@ export const LeftPanel = ({
           className="element-list"
           ref={elementListFocusRef}
           tabIndex={-1}
+          data-element-list="true"
           aria-label="要素リスト"
         >
           {elements.map((element, index) => (
