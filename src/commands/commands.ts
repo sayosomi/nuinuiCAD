@@ -8,6 +8,7 @@ import {
   findParameterDefinition,
   getFirstParameterKey,
   getNumericParameterStep,
+  getNumericParameterStepLevels,
   getParameterDefinitions,
   normalizeParameterKey,
   pointReferenceOptions
@@ -381,18 +382,20 @@ const selectParameterByOffset = (offset: number) => {
 
 const stepForContext = (context?: CommandContext) => context?.stepMultiplier ?? 1;
 
-const numericParameterStepLevels = [0.1, 1, 10, 100] as const;
-
-const nextNumericParameterStep = (currentStep: number, direction: 1 | -1) => {
+const nextNumericParameterStep = (
+  currentStep: number,
+  direction: 1 | -1,
+  stepLevels: readonly number[]
+) => {
   if (direction > 0) {
-    return numericParameterStepLevels.find((step) => step > currentStep) ?? numericParameterStepLevels.at(-1)!;
+    return stepLevels.find((step) => step > currentStep) ?? stepLevels.at(-1)!;
   }
 
-  for (let index = numericParameterStepLevels.length - 1; index >= 0; index -= 1) {
-    const step = numericParameterStepLevels[index];
+  for (let index = stepLevels.length - 1; index >= 0; index -= 1) {
+    const step = stepLevels[index];
     if (step < currentStep) return step;
   }
-  return numericParameterStepLevels[0];
+  return stepLevels[0];
 };
 
 const updateNumericParameter = (direction: 1 | -1, context?: CommandContext) => {
@@ -418,7 +421,11 @@ const updateSelectedNumericParameterStep = (direction: 1 | -1) => {
   if (!selectedElement || definition?.kind !== "number") return;
 
   const currentStep = getNumericParameterStep(selectedElement, definition.key);
-  const nextStep = nextNumericParameterStep(currentStep, direction);
+  const nextStep = nextNumericParameterStep(
+    currentStep,
+    direction,
+    getNumericParameterStepLevels(definition)
+  );
   updateSelectedElement((element) => ({
     ...element,
     numericParameterSteps: {

@@ -21,9 +21,12 @@ export type ParameterDefinition = {
   directKey: string;
   label: string;
   kind: ParameterValueKind;
+  stepLevels?: readonly number[];
 };
 
 export const defaultNumericParameterStep = 1;
+export const defaultNumericParameterStepLevels = [0.1, 1, 10, 100] as const;
+export const angleNumericParameterStepLevels = [0.1, 1, 15, 60, 90] as const;
 
 const commonParameters: ParameterDefinition[] = [
   { key: "name", directKey: "n", label: "名前", kind: "text" },
@@ -50,7 +53,13 @@ export const getParameterDefinitions = (element: CadElement): ParameterDefinitio
       return [
         ...commonParameters,
         { key: "fromPointId", directKey: "b", label: "基準点", kind: "reference" },
-        { key: "angleDeg", directKey: "r", label: "角度", kind: "number" },
+        {
+          key: "angleDeg",
+          directKey: "r",
+          label: "角度",
+          kind: "number",
+          stepLevels: angleNumericParameterStepLevels
+        },
         { key: "distance", directKey: "f", label: "距離", kind: "number" }
       ];
     case "line":
@@ -85,3 +94,6 @@ export const pointReferenceOptions = (elements: CadElement[]): ElementId[] =>
 
 export const getNumericParameterStep = (element: CadElement, key: ParameterKey) =>
   element.numericParameterSteps?.[key] ?? defaultNumericParameterStep;
+
+export const getNumericParameterStepLevels = (definition: ParameterDefinition) =>
+  definition.stepLevels ?? defaultNumericParameterStepLevels;

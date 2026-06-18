@@ -802,6 +802,68 @@ describe("commands", () => {
     expect(useCadStore.getState().elements[0].numericParameterSteps).toMatchObject({ x: 0.1 });
   });
 
+  it("changes angle parameter steps through angle-specific fixed levels", () => {
+    useCadStore.setState({
+      elements: [
+        ...sampleElements,
+        {
+          id: "polar-point",
+          name: "角度距離点",
+          type: "polarOffsetPoint",
+          visible: true,
+          enabled: true,
+          fromPointId: "point-a",
+          angleDeg: 0,
+          distance: 30,
+          numericParameterSteps: { angleDeg: 0.1 }
+        }
+      ],
+      selectedElementId: "polar-point",
+      selectedElementIds: ["polar-point"],
+      selectedParameterKey: "angleDeg"
+    });
+
+    dispatchCommand("increaseSelectedParameterStep");
+    expect(useCadStore.getState().elements.at(-1)?.numericParameterSteps).toMatchObject({
+      angleDeg: 1
+    });
+
+    dispatchCommand("increaseSelectedParameterStep");
+    expect(useCadStore.getState().elements.at(-1)?.numericParameterSteps).toMatchObject({
+      angleDeg: 15
+    });
+
+    dispatchCommand("increaseSelectedParameterStep");
+    expect(useCadStore.getState().elements.at(-1)?.numericParameterSteps).toMatchObject({
+      angleDeg: 60
+    });
+
+    dispatchCommand("increaseSelectedParameterStep");
+    expect(useCadStore.getState().elements.at(-1)?.numericParameterSteps).toMatchObject({
+      angleDeg: 90
+    });
+
+    dispatchCommand("decreaseSelectedParameterStep");
+    expect(useCadStore.getState().elements.at(-1)?.numericParameterSteps).toMatchObject({
+      angleDeg: 60
+    });
+
+    dispatchCommand("decreaseSelectedParameterStep");
+    expect(useCadStore.getState().elements.at(-1)?.numericParameterSteps).toMatchObject({
+      angleDeg: 15
+    });
+
+    dispatchCommand("decreaseSelectedParameterStep");
+    expect(useCadStore.getState().elements.at(-1)?.numericParameterSteps).toMatchObject({
+      angleDeg: 1
+    });
+
+    dispatchCommand("decreaseSelectedParameterStep");
+    expect(useCadStore.getState().elements.at(-1)?.numericParameterSteps).toMatchObject({
+      angleDeg: 0.1
+    });
+  });
+
   it("clamps numeric parameter steps at the fixed level bounds", () => {
     useCadStore.setState({
       selectedParameterKey: "x",
@@ -820,6 +882,47 @@ describe("commands", () => {
     useCadStore.setState({ selectedParameterKey: "y" });
     dispatchCommand("increaseSelectedParameterStep");
     expect(useCadStore.getState().elements[0].numericParameterSteps).toMatchObject({ y: 100 });
+  });
+
+  it("clamps angle parameter steps at the angle-specific fixed level bounds", () => {
+    useCadStore.setState({
+      elements: [
+        ...sampleElements,
+        {
+          id: "polar-point",
+          name: "角度距離点",
+          type: "polarOffsetPoint",
+          visible: true,
+          enabled: true,
+          fromPointId: "point-a",
+          angleDeg: 0,
+          distance: 30,
+          numericParameterSteps: { angleDeg: 0.1 }
+        }
+      ],
+      selectedElementId: "polar-point",
+      selectedElementIds: ["polar-point"],
+      selectedParameterKey: "angleDeg"
+    });
+
+    dispatchCommand("decreaseSelectedParameterStep");
+    expect(useCadStore.getState().elements.at(-1)?.numericParameterSteps).toMatchObject({
+      angleDeg: 0.1
+    });
+
+    useCadStore.setState({
+      elements: [
+        ...useCadStore.getState().elements.slice(0, -1),
+        {
+          ...useCadStore.getState().elements.at(-1)!,
+          numericParameterSteps: { angleDeg: 90 }
+        }
+      ]
+    });
+    dispatchCommand("increaseSelectedParameterStep");
+    expect(useCadStore.getState().elements.at(-1)?.numericParameterSteps).toMatchObject({
+      angleDeg: 90
+    });
   });
 
   it("moves custom numeric parameter steps to the nearest fixed level in the chosen direction", () => {
@@ -849,6 +952,47 @@ describe("commands", () => {
     });
     dispatchCommand("decreaseSelectedParameterStep");
     expect(useCadStore.getState().elements[0].numericParameterSteps).toMatchObject({ x: 1 });
+  });
+
+  it("moves custom angle parameter steps to the nearest angle-specific fixed level", () => {
+    useCadStore.setState({
+      elements: [
+        ...sampleElements,
+        {
+          id: "polar-point",
+          name: "角度距離点",
+          type: "polarOffsetPoint",
+          visible: true,
+          enabled: true,
+          fromPointId: "point-a",
+          angleDeg: 0,
+          distance: 30,
+          numericParameterSteps: { angleDeg: 30 }
+        }
+      ],
+      selectedElementId: "polar-point",
+      selectedElementIds: ["polar-point"],
+      selectedParameterKey: "angleDeg"
+    });
+
+    dispatchCommand("increaseSelectedParameterStep");
+    expect(useCadStore.getState().elements.at(-1)?.numericParameterSteps).toMatchObject({
+      angleDeg: 60
+    });
+
+    useCadStore.setState({
+      elements: [
+        ...useCadStore.getState().elements.slice(0, -1),
+        {
+          ...useCadStore.getState().elements.at(-1)!,
+          numericParameterSteps: { angleDeg: 30 }
+        }
+      ]
+    });
+    dispatchCommand("decreaseSelectedParameterStep");
+    expect(useCadStore.getState().elements.at(-1)?.numericParameterSteps).toMatchObject({
+      angleDeg: 15
+    });
   });
 
   it("does not change parameter steps for non-numeric parameters", () => {
