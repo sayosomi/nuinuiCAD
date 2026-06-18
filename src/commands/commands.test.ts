@@ -85,6 +85,45 @@ describe("commands", () => {
     expect(useCadStore.getState().elements[0].id).toBe(sampleElements[0].id);
   });
 
+  it("moves an element to a requested insertion index", () => {
+    dispatchCommand("moveElementToInsertionIndex", {
+      elementId: sampleElements[0].id,
+      insertionIndex: 3
+    });
+
+    expect(useCadStore.getState().elements.map((element) => element.id).slice(0, 4)).toEqual([
+      sampleElements[1].id,
+      sampleElements[2].id,
+      sampleElements[0].id,
+      sampleElements[3].id
+    ]);
+    expect(useCadStore.getState().selectedElementId).toBe(sampleElements[0].id);
+  });
+
+  it("moves an element to the start and end insertion indexes", () => {
+    dispatchCommand("moveElementToInsertionIndex", {
+      elementId: sampleElements[0].id,
+      insertionIndex: sampleElements.length
+    });
+    expect(useCadStore.getState().elements.at(-1)?.id).toBe(sampleElements[0].id);
+
+    dispatchCommand("moveElementToInsertionIndex", {
+      elementId: sampleElements[0].id,
+      insertionIndex: 0
+    });
+    expect(useCadStore.getState().elements[0].id).toBe(sampleElements[0].id);
+  });
+
+  it("does not add history for no-op insertion moves", () => {
+    dispatchCommand("moveElementToInsertionIndex", {
+      elementId: sampleElements[0].id,
+      insertionIndex: 1
+    });
+
+    expect(useCadStore.getState().elements[0].id).toBe(sampleElements[0].id);
+    expect(useCadStore.getState().past).toHaveLength(0);
+  });
+
   it("toggles selected element visibility", () => {
     dispatchCommand("toggleSelectedElementVisibility");
     expect(useCadStore.getState().elements[0].visible).toBe(false);
@@ -470,6 +509,20 @@ describe("commands", () => {
 
     dispatchCommand("redo");
     expect(useCadStore.getState().elements[1].id).toBe(sampleElements[0].id);
+  });
+
+  it("undoes and redoes direct insertion reordering", () => {
+    dispatchCommand("moveElementToInsertionIndex", {
+      elementId: sampleElements[0].id,
+      insertionIndex: 3
+    });
+    expect(useCadStore.getState().elements[2].id).toBe(sampleElements[0].id);
+
+    dispatchCommand("undo");
+    expect(useCadStore.getState().elements[0].id).toBe(sampleElements[0].id);
+
+    dispatchCommand("redo");
+    expect(useCadStore.getState().elements[2].id).toBe(sampleElements[0].id);
   });
 
   it("undoes and redoes parameter value changes", () => {

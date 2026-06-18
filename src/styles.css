@@ -43,7 +43,8 @@ button:focus-visible,
 input:focus-visible,
 select:focus-visible,
 .canvas-viewport:focus-visible,
-.element-list:focus-visible {
+.element-list:focus-visible,
+.element-row:focus-visible {
   outline: 2px solid #0f766e;
   outline-offset: 2px;
 }
@@ -148,13 +149,24 @@ select {
 }
 
 .element-row {
+  position: relative;
   display: grid;
-  grid-template-columns: 28px minmax(0, 1fr) auto auto;
+  grid-template-columns: 28px minmax(0, 1fr) auto auto 24px;
   align-items: center;
   gap: 8px;
   width: 100%;
   min-height: 42px;
+  border: 1px solid #b9bdb2;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #252622;
+  cursor: pointer;
+  padding: 7px 10px;
   text-align: left;
+}
+
+.element-row:hover {
+  background: #f3f6ef;
 }
 
 .element-row.selected {
@@ -165,6 +177,55 @@ select {
 .element-row.has-error {
   border-color: #c2410c;
   background: #fff3ed;
+}
+
+.element-row.dragging {
+  opacity: 0.48;
+}
+
+.element-row.drop-before::before,
+.element-row.drop-after::after {
+  content: "";
+  position: absolute;
+  right: 4px;
+  left: 4px;
+  z-index: 1;
+  height: 3px;
+  border-radius: 999px;
+  background: #0f766e;
+}
+
+.element-row.drop-before::before {
+  top: 2px;
+}
+
+.element-row.drop-after::after {
+  bottom: 2px;
+}
+
+.element-drag-handle {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 28px;
+  min-height: 0;
+  border-color: transparent;
+  background: transparent;
+  padding: 0;
+  color: #686b62;
+  cursor: grab;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.element-drag-handle:hover {
+  border-color: #b9bdb2;
+  background: #ffffff;
+}
+
+.element-drag-handle:active {
+  cursor: grabbing;
 }
 
 .element-index,

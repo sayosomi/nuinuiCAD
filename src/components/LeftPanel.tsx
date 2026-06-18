@@ -1,5 +1,5 @@
-import { useRef } from "react";
-import type { KeyboardEvent, MouseEvent, PointerEvent, RefObject } from "react";
+import { useRef, useState } from "react";
+import type { DragEvent, KeyboardEvent, MouseEvent, PointerEvent, RefObject } from "react";
 import { dispatchCommand } from "../commands/commands";
 import { shortcutHelpItems } from "../keyboard/shortcuts";
 import { getDependencyJumpTargets, getDependencySummary } from "../model/dependencies";
@@ -104,6 +104,11 @@ type NumericDragState = {
   pointerId: number;
   previousClientX: number;
   remainderX: number;
+};
+
+type ElementDropTarget = {
+  elementId: ElementId;
+  insertionIndex: number;
 };
 
 const ElementEditor = ({
@@ -571,7 +576,45 @@ export const LeftPanel = ({
   const elements = useCadStore((state) => state.elements);
   const selectedElementId = useCadStore((state) => state.selectedElementId);
   const setSelectedElementId = useCadStore((state) => state.setSelectedElementId);
+  const [draggedElementId, setDraggedElementId] = useState<ElementId | null>(null);
+  const [dropTarget, setDropTarget] = useState<ElementDropTarget | null>(null);
   const errorElementIds = new Set(evaluation.errors.map((error) => error.elementId));
+  const clearElementDrag = () => {
+    setDraggedElementId(null);
+    setDropTarget(null);
+  };
+  const isNoopDrop = (elementId: ElementId, insertionIndex: number) => {
+    const elementIndex = elements.findIndex((element) => element.id === elementId);
+    return elementIndex < 0 || insertionIndex === elementIndex || insertionIndex === elementIndex + 1;
+  };
+  const dragElementId = (event: DragEvent<HTMLElement>) =>
+    draggedElementId || event.dataTransfer.getData("application/x-nuinui-element-id");
+  const rowInsertionIndex = (event: DragEvent<HTMLElement>, rowIndex: number) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const isAfter = event.clientY >= rect.top + rect.height / 2;
+    return rowIndex + (isAfter ? 1 : 0);
+  };
+  const updateDropTarget = (event: DragEvent<HTMLElement>, element: CadElement, rowIndex: number) => {
+    const elementId = dragElementId(event);
+    if (!elementId || elementId === element.id) {
+      setDropTarget(null);
+      return;
+    }
+
+    const insertionIndex = rowInsertionIndex(event, rowIndex);
+    if (isNoopDrop(elementId, insertionIndex)) {
+      setDropTarget(null);
+      return;
+    }
+
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    setDropTarget({ elementId: element.id, insertionIndex });
+  };
+  const dropMarkerClass = (elementId: ElementId, insertionIndex: number, position: "before" | "after") =>
+    dropTarget?.elementId === elementId && dropTarget.insertionIndex === insertionIndex
+      ? ` drop-${position}`
+      : "";
 
   return (
     <aside className="left-panel">
@@ -595,15 +638,37 @@ export const LeftPanel = ({
           aria-label="要素リスト"
         >
           {elements.map((element, index) => (
-            <button
+            <div
               key={element.id}
-              type="button"
+              tabIndex={0}
               data-element-list-row="true"
               className={`element-row ${element.id === selectedElementId ? "selected" : ""} ${
                 errorElementIds.has(element.id) ? "has-error" : ""
-              }`}
+              } ${element.id === draggedElementId ? "dragging" : ""}${dropMarkerClass(
+                element.id,
+                index,
+                "before"
+              )}${dropMarkerClass(element.id, index + 1, "after")}`}
               onClick={() => setSelectedElementId(element.id)}
               onFocus={() => setSelectedElementId(element.id)}
+              onDragOver={(event) => updateDropTarget(event, element, index)}
+              onDragLeave={(event) => {
+                if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+                  setDropTarget(null);
+                }
+              }}
+              onDrop={(event) => {
+                const elementId = dragElementId(event);
+                const insertionIndex =
+                  dropTarget?.elementId === element.id
+                    ? dropTarget.insertionIndex
+                    : rowInsertionIndex(event, index);
+                event.preventDefault();
+                if (elementId && !isNoopDrop(elementId, insertionIndex)) {
+                  dispatchCommand("moveElementToInsertionIndex", { elementId, insertionIndex });
+                }
+                clearElementDrag();
+              }}
             >
               <span className="element-index">{index + 1}</span>
               <span className="element-name">
@@ -612,7 +677,28 @@ export const LeftPanel = ({
               </span>
               <span className="element-type">{elementTypeLabels[element.type]}</span>
               <span className="element-state">{element.visible ? "表示" : "非表示"}</span>
-            </button>
+              <button
+                type="button"
+                className="element-drag-handle"
+                draggable
+                aria-label={`${element.name}を並び替え`}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setSelectedElementId(element.id);
+                }}
+                onFocus={() => setSelectedElementId(element.id)}
+                onDragStart={(event) => {
+                  setSelectedElementId(element.id);
+                  setDraggedElementId(element.id);
+                  event.dataTransfer.effectAllowed = "move";
+                  event.dataTransfer.setData("application/x-nuinui-element-id", element.id);
+                  event.dataTransfer.setData("text/plain", element.name);
+                }}
+                onDragEnd={clearElementDrag}
+              >
+                <span aria-hidden="true">::</span>
+              </button>
+            </div>
           ))}
         </div>
 

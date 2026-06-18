@@ -19,6 +19,7 @@ export type CommandId =
   | "selectPreviousElement"
   | "moveSelectedElementUp"
   | "moveSelectedElementDown"
+  | "moveElementToInsertionIndex"
   | "toggleSelectedElementVisibility"
   | "deleteSelectedElement"
   | "addFreePoint"
@@ -60,6 +61,8 @@ export type CommandContext = {
   getCanvasViewportRect?: () => DOMRect | null;
   parameterDirectKey?: string;
   stepMultiplier?: number;
+  elementId?: ElementId;
+  insertionIndex?: number;
 };
 
 export type Command = {
@@ -285,6 +288,26 @@ const selectElementByOffset = (offset: number) => {
   updateDependencyJumpModeAfterSelectionChange();
 };
 
+const moveElementToInsertionIndex = (elementId: ElementId, insertionIndex: number) => {
+  const { elements } = useCadStore.getState();
+  const fromIndex = elements.findIndex((element) => element.id === elementId);
+  if (fromIndex < 0) return;
+
+  const clampedInsertionIndex = Math.min(Math.max(insertionIndex, 0), elements.length);
+  if (clampedInsertionIndex === fromIndex || clampedInsertionIndex === fromIndex + 1) return;
+
+  const nextElements = [...elements];
+  const [movedElement] = nextElements.splice(fromIndex, 1);
+  const toIndex =
+    clampedInsertionIndex > fromIndex ? clampedInsertionIndex - 1 : clampedInsertionIndex;
+  nextElements.splice(toIndex, 0, movedElement);
+
+  useCadStore.getState().commitDocumentChange({
+    elements: nextElements,
+    selectedElementId: movedElement.id
+  });
+};
+
 const selectDependencyJumpTargetByOffset = (offset: number) => {
   const targets = selectedDependencyJumpTargets();
   if (targets.length === 0) {
@@ -359,9 +382,7 @@ export const commands: Record<CommandId, Command> = {
       const { elements, selectedElementId } = useCadStore.getState();
       const index = getSelectedIndex(elements, selectedElementId);
       if (index <= 0) return;
-      const nextElements = [...elements];
-      [nextElements[index - 1], nextElements[index]] = [nextElements[index], nextElements[index - 1]];
-      useCadStore.getState().commitDocumentChange({ elements: nextElements });
+      moveElementToInsertionIndex(elements[index].id, index - 1);
     }
   },
   moveSelectedElementDown: {
@@ -371,9 +392,15 @@ export const commands: Record<CommandId, Command> = {
       const { elements, selectedElementId } = useCadStore.getState();
       const index = getSelectedIndex(elements, selectedElementId);
       if (index < 0 || index >= elements.length - 1) return;
-      const nextElements = [...elements];
-      [nextElements[index], nextElements[index + 1]] = [nextElements[index + 1], nextElements[index]];
-      useCadStore.getState().commitDocumentChange({ elements: nextElements });
+      moveElementToInsertionIndex(elements[index].id, index + 2);
+    }
+  },
+  moveElementToInsertionIndex: {
+    id: "moveElementToInsertionIndex",
+    label: "要素を指定位置へ移動",
+    run: (context) => {
+      if (!context?.elementId || context.insertionIndex === undefined) return;
+      moveElementToInsertionIndex(context.elementId, context.insertionIndex);
     }
   },
   toggleSelectedElementVisibility: {

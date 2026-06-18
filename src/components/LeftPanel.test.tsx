@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import { createRef } from "react";
 import { beforeEach, describe, expect, it } from "vitest";
-import { RightPanel } from "./LeftPanel";
+import { LeftPanel, RightPanel } from "./LeftPanel";
 import { sampleElements } from "../sampleData";
 import { DEFAULT_CANVAS_VIEWPORT, useCadStore } from "../state/useCadStore";
 import type { EvaluationResult } from "../types/geometry";
@@ -8,6 +9,23 @@ import type { EvaluationResult } from "../types/geometry";
 const emptyEvaluation: EvaluationResult = {
   computedGeometry: new Map(),
   errors: []
+};
+
+const resetStore = () => {
+  useCadStore.setState({
+    elements: sampleElements,
+    selectedElementId: sampleElements[0].id,
+    isParameterEditMode: false,
+    selectedParameterKey: "name",
+    showElementInfoPanel: true,
+    isDependencyJumpMode: false,
+    selectedDependencyJumpIndex: 0,
+    showShortcutHelp: false,
+    showCommandPalette: false,
+    canvasViewport: DEFAULT_CANVAS_VIEWPORT,
+    past: [],
+    future: []
+  });
 };
 
 const renderRightPanel = () =>
@@ -19,6 +37,26 @@ const renderRightPanel = () =>
       registerParameterControl={() => undefined}
     />
   );
+
+const renderLeftPanel = () =>
+  render(
+    <LeftPanel
+      evaluation={emptyEvaluation}
+      elementListFocusRef={createRef<HTMLDivElement>()}
+    />
+  );
+
+const dragDataTransfer = () => {
+  const data: Record<string, string> = {};
+  return {
+    dropEffect: "",
+    effectAllowed: "",
+    getData: (type: string) => data[type] ?? "",
+    setData: (type: string, value: string) => {
+      data[type] = value;
+    }
+  } as unknown as DataTransfer;
+};
 
 const dragNumericInput = (
   input: HTMLElement,
@@ -39,20 +77,7 @@ const dragNumericInput = (
 
 describe("LeftPanel numeric input dragging", () => {
   beforeEach(() => {
-    useCadStore.setState({
-      elements: sampleElements,
-      selectedElementId: sampleElements[0].id,
-      isParameterEditMode: false,
-      selectedParameterKey: "name",
-      showElementInfoPanel: true,
-      isDependencyJumpMode: false,
-      selectedDependencyJumpIndex: 0,
-      showShortcutHelp: false,
-      showCommandPalette: false,
-      canvasViewport: DEFAULT_CANVAS_VIEWPORT,
-      past: [],
-      future: []
-    });
+    resetStore();
   });
 
   it("increments a numeric parameter after an 8px middle-button drag to the right", () => {
@@ -110,5 +135,32 @@ describe("LeftPanel numeric input dragging", () => {
     dragNumericInput(screen.getByLabelText("x 値"), { toX: 8 });
 
     expect(useCadStore.getState().elements[0]).toMatchObject({ x: 52.5 });
+  });
+});
+
+describe("LeftPanel element list dragging", () => {
+  beforeEach(() => {
+    resetStore();
+  });
+
+  it("reorders elements by dragging a handle before another row", () => {
+    renderLeftPanel();
+    const dataTransfer = dragDataTransfer();
+    const handle = screen.getByLabelText("点Aを並び替え");
+    const targetRow = screen.getByText("直線AB").closest("[data-element-list-row='true']");
+    expect(targetRow).toBeInstanceOf(HTMLElement);
+
+    fireEvent.dragStart(handle, { dataTransfer });
+    fireEvent.dragOver(targetRow!, { dataTransfer });
+    fireEvent.drop(targetRow!, { dataTransfer });
+
+    expect(useCadStore.getState().elements.map((element) => element.id).slice(0, 4)).toEqual([
+      "point-b",
+      "point-c",
+      "point-a",
+      "line-ab"
+    ]);
+    expect(useCadStore.getState().selectedElementId).toBe("point-a");
+    expect(useCadStore.getState().past).toHaveLength(1);
   });
 });
