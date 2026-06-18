@@ -393,8 +393,24 @@ const isEditableKeyboardTarget = (event: KeyboardEvent) => {
   );
 };
 
-export const shouldIgnoreKeyboardEvent = (event: KeyboardEvent) => {
-  if (isEditableKeyboardTarget(event)) return true;
+const isTextEditingKeyboardTarget = (event: KeyboardEvent) => {
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) return false;
+  const tagName = target.tagName.toLowerCase();
+  if (tagName === "textarea") return true;
+  if (target.getAttribute("contenteditable") === "true" || target.isContentEditable) return true;
+  return tagName === "input" && (target.getAttribute("type") ?? "text").toLowerCase() === "text";
+};
+
+const isEditableTargetAllowedCommand = (event: KeyboardEvent, commandId: CommandId) => {
+  if (isTextEditingKeyboardTarget(event)) return false;
+  return commandId === "toggleElementInfoPanel" || commandId === "toggleShortcutHelp";
+};
+
+export const shouldIgnoreKeyboardEvent = (event: KeyboardEvent, commandId?: CommandId) => {
+  if (isEditableKeyboardTarget(event)) {
+    return commandId ? !isEditableTargetAllowedCommand(event, commandId) : true;
+  }
 
   const tagName = eventTargetTagName(event);
   return (
@@ -407,10 +423,6 @@ export const keyboardCommandForEvent = (
   event: KeyboardEvent,
   options: { isParameterEditMode?: boolean; isDependencyJumpMode?: boolean } = {}
 ): KeyboardCommand | null => {
-  if (shouldIgnoreKeyboardEvent(event)) {
-    return null;
-  }
-
   const definitions = [
     ...globalShortcutDefinitions,
     ...(options.isParameterEditMode
@@ -421,6 +433,7 @@ export const keyboardCommandForEvent = (
   ];
   const shortcut = definitions.find((definition) => definition.matches(event));
   if (!shortcut) return null;
+  if (shouldIgnoreKeyboardEvent(event, shortcut.commandId)) return null;
   return {
     commandId: shortcut.commandId,
     context: shortcut.context?.(event)

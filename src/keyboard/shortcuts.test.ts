@@ -150,6 +150,8 @@ describe("shortcuts", () => {
     const input = document.createElement("input");
 
     expect(commandIdForKeyboardEvent(keyboardEventFrom("p", input))).toBeNull();
+    expect(commandIdForKeyboardEvent(keyboardEventFrom("i", input))).toBeNull();
+    expect(commandIdForKeyboardEvent(keyboardEventFrom("?", input))).toBeNull();
     expect(commandIdForKeyboardEvent(keyboardEventFrom("/", input))).toBeNull();
     expect(
       commandIdForKeyboardEvent(keyboardEventFrom("[", input), { isParameterEditMode: true })
@@ -178,8 +180,54 @@ describe("shortcuts", () => {
     editable.setAttribute("contenteditable", "true");
 
     expect(commandIdForKeyboardEvent(keyboardEventFrom("p", textarea))).toBeNull();
+    expect(commandIdForKeyboardEvent(keyboardEventFrom("i", textarea))).toBeNull();
+    expect(commandIdForKeyboardEvent(keyboardEventFrom("?", textarea))).toBeNull();
     expect(commandIdForKeyboardEvent(keyboardEventFrom("p", select))).toBeNull();
     expect(commandIdForKeyboardEvent(keyboardEventFrom("p", editable))).toBeNull();
+    expect(commandIdForKeyboardEvent(keyboardEventFrom("i", editable))).toBeNull();
+    expect(commandIdForKeyboardEvent(keyboardEventFrom("?", editable))).toBeNull();
+  });
+
+  it("allows info and help shortcuts from non-text form targets", () => {
+    const numberInput = document.createElement("input");
+    const checkbox = document.createElement("input");
+    const select = document.createElement("select");
+    numberInput.type = "number";
+    checkbox.type = "checkbox";
+
+    expect(commandIdForKeyboardEvent(keyboardEventFrom("i", numberInput))).toBe(
+      "toggleElementInfoPanel"
+    );
+    expect(commandIdForKeyboardEvent(keyboardEventFrom("?", numberInput))).toBe(
+      "toggleShortcutHelp"
+    );
+    expect(commandIdForKeyboardEvent(keyboardEventFrom("i", checkbox))).toBe(
+      "toggleElementInfoPanel"
+    );
+    expect(commandIdForKeyboardEvent(keyboardEventFrom("?", checkbox))).toBe("toggleShortcutHelp");
+    expect(commandIdForKeyboardEvent(keyboardEventFrom("i", select))).toBe(
+      "toggleElementInfoPanel"
+    );
+    expect(commandIdForKeyboardEvent(keyboardEventFrom("?", select))).toBe("toggleShortcutHelp");
+  });
+
+  it("keeps other shortcuts ignored from non-text form targets", () => {
+    const numberInput = document.createElement("input");
+    numberInput.type = "number";
+
+    expect(commandIdForKeyboardEvent(keyboardEventFrom("p", numberInput))).toBeNull();
+    expect(commandIdForKeyboardEvent(keyboardEventFrom("/", numberInput))).toBeNull();
+    expect(
+      commandIdForKeyboardEvent(keyboardEventFrom("z", numberInput, { metaKey: true }))
+    ).toBeNull();
+    expect(
+      commandIdForKeyboardEvent(keyboardEventFrom("ArrowDown", numberInput, { shiftKey: true }), {
+        isParameterEditMode: true
+      })
+    ).toBeNull();
+    expect(
+      commandIdForKeyboardEvent(keyboardEventFrom("i", numberInput), { isParameterEditMode: true })
+    ).toBeNull();
   });
 
   it("allows app shortcuts from focused buttons", () => {
