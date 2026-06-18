@@ -178,6 +178,104 @@ describe("commands", () => {
     expect(useCadStore.getState().past).toHaveLength(0);
   });
 
+  it("moves a free point by a world-space delta", () => {
+    dispatchCommand("movePointElementByDelta", {
+      elementId: sampleElements[0].id,
+      dx: 12,
+      dy: -5
+    });
+
+    expect(useCadStore.getState().elements[0]).toMatchObject({ x: 62, y: 45 });
+    expect(useCadStore.getState().past).toHaveLength(1);
+  });
+
+  it("moves an offset point by updating dx and dy without changing its reference", () => {
+    dispatchCommand("movePointElementByDelta", {
+      elementId: sampleElements[1].id,
+      dx: 12,
+      dy: -5
+    });
+
+    expect(useCadStore.getState().elements[1]).toMatchObject({
+      fromPointId: "point-a",
+      dx: 112,
+      dy: -5
+    });
+    expect(useCadStore.getState().past).toHaveLength(1);
+  });
+
+  it("does not move lines or missing point IDs", () => {
+    dispatchCommand("movePointElementByDelta", {
+      elementId: sampleElements[3].id,
+      dx: 12,
+      dy: -5
+    });
+    dispatchCommand("movePointElementByDelta", {
+      elementId: "missing-point",
+      dx: 12,
+      dy: -5
+    });
+
+    expect(useCadStore.getState().elements).toBe(sampleElements);
+    expect(useCadStore.getState().past).toHaveLength(0);
+  });
+
+  it("does not add history for zero-distance point movement", () => {
+    dispatchCommand("movePointElementByDelta", {
+      elementId: sampleElements[0].id,
+      dx: 0,
+      dy: 0
+    });
+
+    expect(useCadStore.getState().elements).toBe(sampleElements);
+    expect(useCadStore.getState().past).toHaveLength(0);
+  });
+
+  it("previews point movement without history and commits one undo step from the drag start", () => {
+    const state = useCadStore.getState();
+    const snapshot = {
+      elements: state.elements,
+      selectedElementId: state.selectedElementId,
+      selectedElementIds: state.selectedElementIds,
+      selectionAnchorElementId: state.selectionAnchorElementId,
+      isParameterEditMode: state.isParameterEditMode,
+      selectedParameterKey: state.selectedParameterKey
+    };
+
+    dispatchCommand("movePointElementByDelta", {
+      elementId: sampleElements[0].id,
+      dx: 5,
+      dy: 5,
+      commitMode: "preview",
+      baseElements: snapshot.elements
+    });
+    dispatchCommand("movePointElementByDelta", {
+      elementId: sampleElements[0].id,
+      dx: 15,
+      dy: 10,
+      commitMode: "preview",
+      baseElements: snapshot.elements
+    });
+
+    expect(useCadStore.getState().elements[0]).toMatchObject({ x: 65, y: 60 });
+    expect(useCadStore.getState().past).toHaveLength(0);
+
+    dispatchCommand("movePointElementByDelta", {
+      elementId: sampleElements[0].id,
+      dx: 15,
+      dy: 10,
+      commitMode: "commit",
+      baseElements: snapshot.elements,
+      historySnapshot: snapshot
+    });
+
+    expect(useCadStore.getState().elements[0]).toMatchObject({ x: 65, y: 60 });
+    expect(useCadStore.getState().past).toHaveLength(1);
+
+    dispatchCommand("undo");
+    expect(useCadStore.getState().elements[0]).toMatchObject({ x: 50, y: 50 });
+  });
+
   it("toggles selected element visibility", () => {
     dispatchCommand("toggleSelectedElementVisibility");
     expect(useCadStore.getState().elements[0].visible).toBe(false);

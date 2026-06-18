@@ -1,4 +1,5 @@
 import { useCadStore } from "../state/useCadStore";
+import type { CadHistorySnapshot } from "../state/useCadStore";
 import { makeUniqueElementName } from "../model/elementNames";
 import { getDependencyJumpTargets } from "../model/dependencies";
 import {
@@ -23,6 +24,7 @@ export type CommandId =
   | "moveSelectedElementUp"
   | "moveSelectedElementDown"
   | "moveElementToInsertionIndex"
+  | "movePointElementByDelta"
   | "toggleElementVisibility"
   | "toggleElementEnabled"
   | "toggleSelectedElementVisibility"
@@ -71,6 +73,11 @@ export type CommandContext = {
   elementId?: ElementId;
   insertionIndex?: number;
   selectionMode?: "replace" | "toggle" | "range";
+  dx?: number;
+  dy?: number;
+  commitMode?: "preview" | "commit";
+  baseElements?: CadElement[];
+  historySnapshot?: CadHistorySnapshot;
 };
 
 export type Command = {
@@ -117,6 +124,65 @@ const updateSelectedElement = (updater: (element: CadElement) => CadElement) => 
   useCadStore.getState().commitDocumentChange({
     elements: elements.map((element) => (element.id === selectedElementId ? updater(element) : element))
   });
+};
+
+const movePointElementByDelta = ({
+  elementId,
+  dx = 0,
+  dy = 0,
+  commitMode = "commit",
+  baseElements,
+  historySnapshot
+}: CommandContext) => {
+  if (!elementId) return;
+  if (dx === 0 && dy === 0) {
+    if (baseElements) {
+      useCadStore.getState().previewDocumentChange({ elements: baseElements });
+    }
+    return;
+  }
+
+  const sourceElements = baseElements ?? useCadStore.getState().elements;
+  let didMove = false;
+  const nextElements = sourceElements.map((element) => {
+    if (element.id !== elementId) return element;
+
+    if (element.type === "freePoint") {
+      didMove = true;
+      return {
+        ...element,
+        x: element.x + dx,
+        y: element.y + dy
+      };
+    }
+
+    if (element.type === "offsetPoint") {
+      didMove = true;
+      return {
+        ...element,
+        dx: element.dx + dx,
+        dy: element.dy + dy
+      };
+    }
+
+    return element;
+  });
+
+  if (!didMove) return;
+
+  if (commitMode === "preview") {
+    useCadStore.getState().previewDocumentChange({ elements: nextElements });
+    return;
+  }
+
+  if (historySnapshot) {
+    useCadStore.getState().commitDocumentChangeFromSnapshot(historySnapshot, {
+      elements: nextElements
+    });
+    return;
+  }
+
+  useCadStore.getState().commitDocumentChange({ elements: nextElements });
 };
 
 const selectedParameterDefinition = () => {
@@ -577,6 +643,14 @@ export const commands: Record<CommandId, Command> = {
     run: (context) => {
       if (!context?.elementId || context.insertionIndex === undefined) return;
       moveElementToInsertionIndex(context.elementId, context.insertionIndex);
+    }
+  },
+  movePointElementByDelta: {
+    id: "movePointElementByDelta",
+    label: "点を移動",
+    run: (context) => {
+      if (!context) return;
+      movePointElementByDelta(context);
     }
   },
   toggleElementVisibility: {

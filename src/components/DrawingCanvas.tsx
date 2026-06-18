@@ -6,8 +6,8 @@ import type {
 import { useEffect, useMemo, useRef, useState } from "react";
 import { dispatchCommand } from "../commands/commands";
 import { useCadStore } from "../state/useCadStore";
-import type { CanvasViewport } from "../state/useCadStore";
-import type { ComputedLine, ComputedPoint, EvaluationResult } from "../types/geometry";
+import type { CadHistorySnapshot, CanvasViewport } from "../state/useCadStore";
+import type { ComputedLine, ComputedPoint, ElementId, EvaluationResult } from "../types/geometry";
 import { hitTestCanvasGeometry } from "./DrawingCanvasHitTest";
 import type { ScreenPoint } from "./DrawingCanvasHitTest";
 
@@ -19,6 +19,20 @@ type DrawingCanvasProps = {
 type ViewportSize = {
   width: number;
   height: number;
+};
+
+type PointDragState = {
+  pointerId: number;
+  elementId: ElementId;
+  startClientX: number;
+  startClientY: number;
+  zoom: number;
+  snapshot: CadHistorySnapshot;
+};
+
+type AxisLockKeys = {
+  x: boolean;
+  y: boolean;
 };
 
 const GRID_STEP = 10;
@@ -56,6 +70,21 @@ const visibleGridStep = (zoom: number) => {
   }
   return step;
 };
+
+const constrainedWorldDelta = ({
+  screenDx,
+  screenDy,
+  zoom,
+  axisLockKeys
+}: {
+  screenDx: number;
+  screenDy: number;
+  zoom: number;
+  axisLockKeys: AxisLockKeys;
+}) => ({
+  dx: axisLockKeys.y && !axisLockKeys.x ? 0 : screenDx / zoom,
+  dy: axisLockKeys.x ? 0 : screenDy / zoom
+});
 
 const drawGrid = (
   ctx: CanvasRenderingContext2D,
@@ -104,8 +133,11 @@ const drawGrid = (
 export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const panDragRef = useRef<{ pointerId: number; lastX: number; lastY: number } | null>(null);
+  const pointDragRef = useRef<PointDragState | null>(null);
+  const axisLockKeysRef = useRef<AxisLockKeys>({ x: false, y: false });
   const [viewportSize, setViewportSize] = useState<ViewportSize>({ width: 0, height: 0 });
   const [isPanning, setIsPanning] = useState(false);
+  const [isPointDragging, setIsPointDragging] = useState(false);
   const elements = useCadStore((state) => state.elements);
   const selectedElementId = useCadStore((state) => state.selectedElementId);
   const selectedElementIds = useCadStore((state) => state.selectedElementIds);
@@ -206,6 +238,37 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
     }
   }, [canvasViewport, lines, points, selectedElementId, selectedElementIdSet, viewportSize, visibleElementIds]);
 
+  useEffect(() => {
+    const setAxisLockKey = (event: KeyboardEvent, isPressed: boolean) => {
+      const key = event.key.toLowerCase();
+      if (key !== "x" && key !== "y") return;
+      if (pointDragRef.current) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+      }
+      axisLockKeysRef.current = {
+        ...axisLockKeysRef.current,
+        [key]: isPressed
+      };
+    };
+
+    const clearAxisLockKeys = () => {
+      axisLockKeysRef.current = { x: false, y: false };
+    };
+
+    const onKeyDown = (event: KeyboardEvent) => setAxisLockKey(event, true);
+    const onKeyUp = (event: KeyboardEvent) => setAxisLockKey(event, false);
+
+    window.addEventListener("keydown", onKeyDown, { capture: true });
+    window.addEventListener("keyup", onKeyUp, { capture: true });
+    window.addEventListener("blur", clearAxisLockKeys);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown, { capture: true });
+      window.removeEventListener("keyup", onKeyUp, { capture: true });
+      window.removeEventListener("blur", clearAxisLockKeys);
+    };
+  }, []);
+
   const handleWheel = (event: ReactWheelEvent<HTMLDivElement>) => {
     if (viewportSize.width <= 0 || viewportSize.height <= 0) return;
     event.preventDefault();
@@ -228,6 +291,36 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
     }
   };
 
+  const stopPointDragging = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const drag = pointDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+
+    const screenDx = event.clientX - drag.startClientX;
+    const screenDy = event.clientY - drag.startClientY;
+    const worldDelta = constrainedWorldDelta({
+      screenDx,
+      screenDy,
+      zoom: drag.zoom,
+      axisLockKeys: axisLockKeysRef.current
+    });
+
+    dispatchCommand("movePointElementByDelta", {
+      elementId: drag.elementId,
+      dx: worldDelta.dx,
+      dy: worldDelta.dy,
+      commitMode: "commit",
+      baseElements: drag.snapshot.elements,
+      historySnapshot: drag.snapshot
+    });
+
+    pointDragRef.current = null;
+    setIsPointDragging(false);
+  };
+
   const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (event.button === 0) {
       if (viewportSize.width <= 0 || viewportSize.height <= 0) return;
@@ -245,6 +338,26 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
       event.preventDefault();
       event.currentTarget.focus();
       dispatchCommand("selectElement", { elementId, selectionMode: "replace" });
+      if (!overlayPoints.some(({ point }) => point.elementId === elementId)) return;
+
+      event.currentTarget.setPointerCapture(event.pointerId);
+      const state = useCadStore.getState();
+      pointDragRef.current = {
+        pointerId: event.pointerId,
+        elementId,
+        startClientX: event.clientX,
+        startClientY: event.clientY,
+        zoom: canvasViewport.zoom,
+        snapshot: {
+          elements: state.elements,
+          selectedElementId: state.selectedElementId,
+          selectedElementIds: state.selectedElementIds,
+          selectionAnchorElementId: state.selectionAnchorElementId,
+          isParameterEditMode: state.isParameterEditMode,
+          selectedParameterKey: state.selectedParameterKey
+        }
+      };
+      setIsPointDragging(true);
       return;
     }
 
@@ -260,6 +373,33 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
   };
 
   const handlePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const pointDrag = pointDragRef.current;
+    if (pointDrag?.pointerId === event.pointerId) {
+      if ((event.buttons & 1) === 0) {
+        stopPointDragging(event);
+        return;
+      }
+
+      event.preventDefault();
+      const screenDx = event.clientX - pointDrag.startClientX;
+      const screenDy = event.clientY - pointDrag.startClientY;
+      const worldDelta = constrainedWorldDelta({
+        screenDx,
+        screenDy,
+        zoom: pointDrag.zoom,
+        axisLockKeys: axisLockKeysRef.current
+      });
+
+      dispatchCommand("movePointElementByDelta", {
+        elementId: pointDrag.elementId,
+        dx: worldDelta.dx,
+        dy: worldDelta.dy,
+        commitMode: "preview",
+        baseElements: pointDrag.snapshot.elements
+      });
+      return;
+    }
+
     const drag = panDragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
     if ((event.buttons & 4) === 0) {
@@ -280,14 +420,24 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
   return (
     <section className="canvas-panel">
       <div
-        className={`canvas-viewport ${isPanning ? "is-panning" : ""}`}
+        className={[
+          "canvas-viewport",
+          isPanning ? "is-panning" : "",
+          isPointDragging ? "is-point-dragging" : ""
+        ].filter(Boolean).join(" ")}
         ref={canvasFocusRef}
         tabIndex={-1}
         onWheel={handleWheel}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
-        onPointerUp={stopPanning}
-        onPointerCancel={stopPanning}
+        onPointerUp={(event) => {
+          stopPointDragging(event);
+          stopPanning(event);
+        }}
+        onPointerCancel={(event) => {
+          stopPointDragging(event);
+          stopPanning(event);
+        }}
         onAuxClick={(event) => event.preventDefault()}
       >
         <canvas ref={canvasRef} aria-label="CAD drawing canvas" />
@@ -312,7 +462,7 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
                 cx={screen.x}
                 cy={screen.y}
                 r={point.elementId === selectedElementId ? 8 : selectedElementIdSet.has(point.elementId) ? 7 : 6}
-                className={selectedElementIdSet.has(point.elementId) ? "overlay-selected-point" : ""}
+                className={`overlay-draggable-point ${selectedElementIdSet.has(point.elementId) ? "overlay-selected-point" : ""}`}
               />
               <text x={screen.x + 8} y={screen.y - 8}>
                 {point.name}

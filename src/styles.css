@@ -764,6 +764,10 @@ select {
   cursor: grabbing;
 }
 
+.canvas-viewport.is-point-dragging {
+  cursor: grabbing;
+}
+
 .drawing-overlay {
   pointer-events: none;
 }
@@ -776,6 +780,10 @@ select {
 .drawing-overlay circle {
   fill: transparent;
   stroke: transparent;
+}
+
+.drawing-overlay .overlay-draggable-point {
+  cursor: grab;
 }
 
 .drawing-overlay text {

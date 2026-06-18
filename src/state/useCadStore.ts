@@ -61,7 +61,12 @@ export type CadState = {
     anchor?: { x: number; y: number; width: number; height: number }
   ) => void;
   resetCanvasViewport: () => void;
+  previewDocumentChange: (change: Partial<CadHistorySnapshot>) => void;
   commitDocumentChange: (change: Partial<CadHistorySnapshot>) => void;
+  commitDocumentChangeFromSnapshot: (
+    before: CadHistorySnapshot,
+    change: Partial<CadHistorySnapshot>
+  ) => void;
   setElements: (elements: CadElement[]) => void;
   updateElement: (id: ElementId, patch: Partial<CadElement>) => void;
   renameElement: (id: ElementId, requestedName: string) => void;
@@ -271,9 +276,22 @@ export const useCadStore = create<CadState>((set) => ({
       };
     }),
   resetCanvasViewport: () => set({ canvasViewport: DEFAULT_CANVAS_VIEWPORT }),
+  previewDocumentChange: (change) =>
+    set((state) => normalizeSnapshot({ ...currentSnapshot(state), ...change })),
   commitDocumentChange: (change) =>
     set((state) => {
       const before = currentSnapshot(state);
+      const after = normalizeSnapshot({ ...before, ...change });
+      if (snapshotEquals(before, after)) return {};
+
+      return {
+        ...after,
+        past: [...state.past, before],
+        future: []
+      };
+    }),
+  commitDocumentChangeFromSnapshot: (before, change) =>
+    set((state) => {
       const after = normalizeSnapshot({ ...before, ...change });
       if (snapshotEquals(before, after)) return {};
 

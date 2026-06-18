@@ -1,4 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { fireEvent, render } from "@testing-library/react";
+import { createElement, createRef } from "react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { evaluateElements } from "../geometry/evaluate";
+import { sampleElements } from "../sampleData";
+import { DEFAULT_CANVAS_VIEWPORT, useCadStore } from "../state/useCadStore";
+import { DrawingCanvas } from "./DrawingCanvas";
 import { hitTestCanvasGeometry } from "./DrawingCanvasHitTest";
 import type { ComputedLine, ComputedPoint } from "../types/geometry";
 
@@ -22,6 +28,140 @@ const line = (
   endPointId: end.elementId,
   start,
   end
+});
+
+const resetStore = () => {
+  useCadStore.setState({
+    elements: sampleElements,
+    selectedElementId: sampleElements[0].id,
+    selectedElementIds: [sampleElements[0].id],
+    selectionAnchorElementId: sampleElements[0].id,
+    isParameterEditMode: false,
+    selectedParameterKey: "name",
+    showElementInfoPanel: true,
+    isDependencyJumpMode: false,
+    selectedDependencyJumpIndex: 0,
+    showShortcutHelp: false,
+    showCommandPalette: false,
+    canvasViewport: DEFAULT_CANVAS_VIEWPORT,
+    past: [],
+    future: []
+  });
+};
+
+const mockCanvasContext = () => ({
+  arc: vi.fn(),
+  beginPath: vi.fn(),
+  clearRect: vi.fn(),
+  fill: vi.fn(),
+  fillRect: vi.fn(),
+  lineTo: vi.fn(),
+  moveTo: vi.fn(),
+  setTransform: vi.fn(),
+  stroke: vi.fn()
+});
+
+const renderDrawingCanvas = () => {
+  const view = render(
+    createElement(DrawingCanvas, {
+      evaluation: evaluateElements(useCadStore.getState().elements),
+      canvasFocusRef: createRef<HTMLDivElement>()
+    })
+  );
+  const viewport = view.container.querySelector(".canvas-viewport");
+  if (!(viewport instanceof HTMLDivElement)) {
+    throw new Error("Missing canvas viewport");
+  }
+  return { ...view, viewport };
+};
+
+const dragPoint = (
+  viewport: HTMLElement,
+  {
+    fromX,
+    fromY,
+    toX,
+    toY,
+    pointerId = 1
+  }: {
+    fromX: number;
+    fromY: number;
+    toX: number;
+    toY: number;
+    pointerId?: number;
+  }
+) => {
+  fireEvent.pointerDown(viewport, {
+    button: 0,
+    buttons: 1,
+    clientX: fromX,
+    clientY: fromY,
+    pointerId
+  });
+  fireEvent.pointerMove(viewport, {
+    buttons: 1,
+    clientX: toX,
+    clientY: toY,
+    pointerId
+  });
+  fireEvent.pointerUp(viewport, {
+    buttons: 0,
+    clientX: toX,
+    clientY: toY,
+    pointerId
+  });
+};
+
+beforeEach(() => {
+  resetStore();
+
+  Object.defineProperty(HTMLElement.prototype, "clientWidth", {
+    configurable: true,
+    value: 500
+  });
+  Object.defineProperty(HTMLElement.prototype, "clientHeight", {
+    configurable: true,
+    value: 400
+  });
+  HTMLElement.prototype.getBoundingClientRect = vi.fn(() => ({
+    x: 0,
+    y: 0,
+    top: 0,
+    left: 0,
+    right: 500,
+    bottom: 400,
+    width: 500,
+    height: 400,
+    toJSON: () => ({})
+  }));
+  HTMLElement.prototype.setPointerCapture = vi.fn();
+  HTMLElement.prototype.releasePointerCapture = vi.fn();
+  HTMLElement.prototype.hasPointerCapture = vi.fn(() => true);
+  vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(
+    mockCanvasContext() as unknown as CanvasRenderingContext2D
+  );
+
+  class ResizeObserverMock {
+    private callback: ResizeObserverCallback;
+
+    constructor(callback: ResizeObserverCallback) {
+      this.callback = callback;
+    }
+
+    observe(target: Element) {
+      this.callback([{ target } as ResizeObserverEntry], this);
+    }
+
+    disconnect() {
+      return undefined;
+    }
+
+    unobserve() {
+      return undefined;
+    }
+  }
+
+  vi.stubGlobal("ResizeObserver", ResizeObserverMock);
 });
 
 describe("hitTestCanvasGeometry", () => {
@@ -82,5 +222,116 @@ describe("hitTestCanvasGeometry", () => {
         points: []
       })
     ).toBeNull();
+  });
+});
+
+describe("DrawingCanvas point dragging", () => {
+  it("selects and moves a point with a left-button drag", () => {
+    const { viewport } = renderDrawingCanvas();
+
+    dragPoint(viewport, {
+      fromX: 300,
+      fromY: 250,
+      toX: 320,
+      toY: 260
+    });
+
+    expect(useCadStore.getState().selectedElementId).toBe("point-a");
+    expect(useCadStore.getState().elements[0]).toMatchObject({ x: 70, y: 60 });
+    expect(useCadStore.getState().past).toHaveLength(1);
+  });
+
+  it("converts screen drag distance through the current canvas zoom", () => {
+    useCadStore.setState({
+      canvasViewport: { panX: 0, panY: 0, zoom: 2 }
+    });
+    const { viewport } = renderDrawingCanvas();
+
+    dragPoint(viewport, {
+      fromX: 350,
+      fromY: 300,
+      toX: 370,
+      toY: 310
+    });
+
+    expect(useCadStore.getState().elements[0]).toMatchObject({ x: 60, y: 55 });
+  });
+
+  it("locks movement to the x axis while x is pressed", () => {
+    const { viewport } = renderDrawingCanvas();
+
+    fireEvent.pointerDown(viewport, {
+      button: 0,
+      buttons: 1,
+      clientX: 300,
+      clientY: 250,
+      pointerId: 1
+    });
+    fireEvent.keyDown(window, { key: "x" });
+    fireEvent.pointerMove(viewport, {
+      buttons: 1,
+      clientX: 320,
+      clientY: 270,
+      pointerId: 1
+    });
+    fireEvent.pointerUp(viewport, {
+      buttons: 0,
+      clientX: 320,
+      clientY: 270,
+      pointerId: 1
+    });
+    fireEvent.keyUp(window, { key: "x" });
+
+    expect(useCadStore.getState().elements[0]).toMatchObject({ x: 70, y: 50 });
+  });
+
+  it("locks movement to the y axis while y is pressed", () => {
+    const { viewport } = renderDrawingCanvas();
+
+    fireEvent.pointerDown(viewport, {
+      button: 0,
+      buttons: 1,
+      clientX: 300,
+      clientY: 250,
+      pointerId: 1
+    });
+    fireEvent.keyDown(window, { key: "y" });
+    fireEvent.pointerMove(viewport, {
+      buttons: 1,
+      clientX: 320,
+      clientY: 270,
+      pointerId: 1
+    });
+    fireEvent.pointerUp(viewport, {
+      buttons: 0,
+      clientX: 320,
+      clientY: 270,
+      pointerId: 1
+    });
+    fireEvent.keyUp(window, { key: "y" });
+
+    expect(useCadStore.getState().elements[0]).toMatchObject({ x: 50, y: 70 });
+  });
+
+  it("clears the dragging cursor state after pointer cancel", () => {
+    const { viewport } = renderDrawingCanvas();
+
+    fireEvent.pointerDown(viewport, {
+      button: 0,
+      buttons: 1,
+      clientX: 300,
+      clientY: 250,
+      pointerId: 1
+    });
+    expect(viewport).toHaveClass("is-point-dragging");
+
+    fireEvent.pointerCancel(viewport, {
+      buttons: 0,
+      clientX: 310,
+      clientY: 260,
+      pointerId: 1
+    });
+
+    expect(viewport).not.toHaveClass("is-point-dragging");
   });
 });
