@@ -183,6 +183,32 @@ describe("commands", () => {
     expect(useCadStore.getState().elements[0].visible).toBe(false);
   });
 
+  it("toggles selected element enabled state", () => {
+    dispatchCommand("toggleSelectedElementEnabled");
+    expect(useCadStore.getState().elements[0].enabled).toBe(false);
+  });
+
+  it("toggles visibility and enabled state for all selected elements", () => {
+    useCadStore.setState({
+      selectedElementId: sampleElements[2].id,
+      selectedElementIds: [sampleElements[0].id, sampleElements[2].id],
+      selectionAnchorElementId: sampleElements[0].id,
+      elements: [
+        { ...sampleElements[0], visible: true, enabled: true },
+        sampleElements[1],
+        { ...sampleElements[2], visible: false, enabled: false },
+        ...sampleElements.slice(3)
+      ]
+    });
+
+    dispatchCommand("toggleSelectedElementVisibility");
+    dispatchCommand("toggleSelectedElementEnabled");
+
+    expect(useCadStore.getState().elements[0]).toMatchObject({ visible: false, enabled: false });
+    expect(useCadStore.getState().elements[1]).toMatchObject({ visible: true, enabled: true });
+    expect(useCadStore.getState().elements[2]).toMatchObject({ visible: true, enabled: true });
+  });
+
   it("deletes the selected element", () => {
     dispatchCommand("deleteSelectedElement");
 
@@ -551,6 +577,16 @@ describe("commands", () => {
     dispatchCommand("toggleSelectedBooleanParameter");
 
     expect(useCadStore.getState().elements[0].visible).toBe(false);
+  });
+
+  it("toggles boolean parameters by direct key", () => {
+    dispatchCommand("toggleBooleanParameterByDirectKey", { parameterDirectKey: "v" });
+    dispatchCommand("toggleBooleanParameterByDirectKey", { parameterDirectKey: "a" });
+
+    expect(useCadStore.getState().elements[0]).toMatchObject({
+      visible: false,
+      enabled: false
+    });
   });
 
   it("undoes and redoes adding an element", () => {

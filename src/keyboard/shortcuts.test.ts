@@ -22,6 +22,7 @@ describe("shortcuts", () => {
     expect(commandIdForKeyboardEvent(keyboardEvent("Backspace"))).toBe("deleteSelectedElement");
     expect(commandIdForKeyboardEvent(keyboardEvent("Delete"))).toBe("deleteSelectedElement");
     expect(commandIdForKeyboardEvent(keyboardEvent("v"))).toBe("toggleSelectedElementVisibility");
+    expect(commandIdForKeyboardEvent(keyboardEvent("a"))).toBe("toggleSelectedElementEnabled");
     expect(commandIdForKeyboardEvent(keyboardEvent("i"))).toBe("toggleElementInfoPanel");
     expect(commandIdForKeyboardEvent(keyboardEvent("g"))).toBe("enterElementListMode");
     expect(commandIdForKeyboardEvent(keyboardEvent("e"))).toBe("enterParameterEditMode");
@@ -86,6 +87,12 @@ describe("shortcuts", () => {
       })
     ).toBe("selectPreviousElement");
     expect(commandIdForKeyboardEvent(keyboardEvent("Tab"), { isParameterEditMode: true })).toBeNull();
+    expect(commandIdForKeyboardEvent(keyboardEvent("v"), { isParameterEditMode: true })).toBe(
+      "toggleBooleanParameterByDirectKey"
+    );
+    expect(commandIdForKeyboardEvent(keyboardEvent("a"), { isParameterEditMode: true })).toBe(
+      "toggleBooleanParameterByDirectKey"
+    );
     expect(commandIdForKeyboardEvent(keyboardEvent("x"), { isParameterEditMode: true })).toBe(
       "selectParameterByKey"
     );
@@ -164,12 +171,20 @@ describe("shortcuts", () => {
       commandId: "selectParameterByKey",
       context: { parameterDirectKey: "y" }
     });
+    expect(
+      keyboardCommandForEvent(keyboardEvent("a"), { isParameterEditMode: true })
+    ).toMatchObject({
+      commandId: "toggleBooleanParameterByDirectKey",
+      context: { parameterDirectKey: "a" }
+    });
   });
 
   it("ignores events from inputs", () => {
     const input = document.createElement("input");
 
     expect(commandIdForKeyboardEvent(keyboardEventFrom("p", input))).toBeNull();
+    expect(commandIdForKeyboardEvent(keyboardEventFrom("v", input))).toBeNull();
+    expect(commandIdForKeyboardEvent(keyboardEventFrom("a", input))).toBeNull();
     expect(commandIdForKeyboardEvent(keyboardEventFrom("d", input))).toBeNull();
     expect(commandIdForKeyboardEvent(keyboardEventFrom("i", input))).toBeNull();
     expect(commandIdForKeyboardEvent(keyboardEventFrom("?", input))).toBeNull();
@@ -201,9 +216,13 @@ describe("shortcuts", () => {
     editable.setAttribute("contenteditable", "true");
 
     expect(commandIdForKeyboardEvent(keyboardEventFrom("p", textarea))).toBeNull();
+    expect(commandIdForKeyboardEvent(keyboardEventFrom("v", textarea))).toBeNull();
+    expect(commandIdForKeyboardEvent(keyboardEventFrom("a", textarea))).toBeNull();
     expect(commandIdForKeyboardEvent(keyboardEventFrom("i", textarea))).toBeNull();
     expect(commandIdForKeyboardEvent(keyboardEventFrom("?", textarea))).toBeNull();
     expect(commandIdForKeyboardEvent(keyboardEventFrom("p", select))).toBeNull();
+    expect(commandIdForKeyboardEvent(keyboardEventFrom("v", select))).toBeNull();
+    expect(commandIdForKeyboardEvent(keyboardEventFrom("a", select))).toBeNull();
     expect(commandIdForKeyboardEvent(keyboardEventFrom("p", editable))).toBeNull();
     expect(commandIdForKeyboardEvent(keyboardEventFrom("i", editable))).toBeNull();
     expect(commandIdForKeyboardEvent(keyboardEventFrom("?", editable))).toBeNull();
@@ -220,6 +239,8 @@ describe("shortcuts", () => {
     expect(commandIdForKeyboardEvent(keyboardEventFrom("?", numberInput))).toBeNull();
     expect(commandIdForKeyboardEvent(keyboardEventFrom("i", checkbox))).toBeNull();
     expect(commandIdForKeyboardEvent(keyboardEventFrom("?", checkbox))).toBeNull();
+    expect(commandIdForKeyboardEvent(keyboardEventFrom("v", checkbox))).toBeNull();
+    expect(commandIdForKeyboardEvent(keyboardEventFrom("a", checkbox))).toBeNull();
     expect(commandIdForKeyboardEvent(keyboardEventFrom("i", select))).toBeNull();
     expect(commandIdForKeyboardEvent(keyboardEventFrom("?", select))).toBeNull();
   });
@@ -318,6 +339,8 @@ describe("shortcuts", () => {
     const ids = shortcuts.map((shortcut) => shortcut.commandId);
 
     expect(ids).toContain("moveSelectedElementUp");
+    expect(ids).toContain("toggleSelectedElementVisibility");
+    expect(ids).toContain("toggleSelectedElementEnabled");
     expect(ids).toContain("enterElementListMode");
     expect(ids).toContain("toggleElementInfoPanel");
     expect(ids).toContain("enterDependencyJumpMode");
@@ -347,6 +370,7 @@ describe("shortcuts", () => {
     expect(ids).toContain("selectNextParameter");
     expect(ids).toContain("selectNextElement");
     expect(ids).toContain("selectPreviousElement");
+    expect(ids).toContain("toggleBooleanParameterByDirectKey");
   });
 
   it("shows dependency jump shortcuts while dependency jump mode is active", () => {
@@ -437,6 +461,6 @@ describe("shortcuts", () => {
     });
     const keyShortcut = shortcuts.find((shortcut) => shortcut.commandId === "selectParameterByKey");
 
-    expect(keyShortcut?.keys).toBe("n / v / a / s / t");
+    expect(keyShortcut?.keys).toBe("n / s / t");
   });
 });

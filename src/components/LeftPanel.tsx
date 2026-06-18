@@ -735,6 +735,9 @@ export const LeftPanel = ({
           <button type="button" onClick={() => dispatchCommand("toggleSelectedElementVisibility")}>
             表示切替
           </button>
+          <button type="button" onClick={() => dispatchCommand("toggleSelectedElementEnabled")}>
+            評価切替
+          </button>
           <button type="button" onClick={() => dispatchCommand("deleteSelectedElement")}>
             削除
           </button>

@@ -24,6 +24,7 @@ export type CommandId =
   | "moveSelectedElementDown"
   | "moveElementToInsertionIndex"
   | "toggleSelectedElementVisibility"
+  | "toggleSelectedElementEnabled"
   | "deleteSelectedElement"
   | "addFreePoint"
   | "addOffsetPoint"
@@ -55,6 +56,7 @@ export type CommandId =
   | "cycleSelectedReferenceForward"
   | "cycleSelectedReferenceBackward"
   | "toggleSelectedBooleanParameter"
+  | "toggleBooleanParameterByDirectKey"
   | "focusSelectedParameterInput";
 
 export type CommandContext = {
@@ -277,6 +279,31 @@ const toggleBooleanParameter = () => {
     ...element,
     [definition.key]: !element[definition.key as keyof CadElement]
   } as CadElement));
+};
+
+const toggleBooleanParameterByDirectKey = (directKey: string | undefined) => {
+  const selectedElement = getSelectedElement();
+  if (!selectedElement || !directKey) return;
+
+  const definition = findParameterByDirectKey(selectedElement, directKey);
+  if (definition?.kind !== "boolean") return;
+
+  updateSelectedElement((element) => ({
+    ...element,
+    [definition.key]: !element[definition.key as keyof CadElement]
+  } as CadElement));
+};
+
+const toggleSelectedElementsBooleanProperty = (property: "visible" | "enabled") => {
+  const { elements } = useCadStore.getState();
+  const selectedIds = new Set(getSelectedElementIds());
+  if (selectedIds.size === 0) return;
+
+  useCadStore.getState().commitDocumentChange({
+    elements: elements.map((element) =>
+      selectedIds.has(element.id) ? { ...element, [property]: !element[property] } : element
+    )
+  });
 };
 
 const selectedDependencyJumpTargets = () => {
@@ -538,16 +565,12 @@ export const commands: Record<CommandId, Command> = {
   toggleSelectedElementVisibility: {
     id: "toggleSelectedElementVisibility",
     label: "表示/非表示を切替",
-    run: () => {
-      const { elements } = useCadStore.getState();
-      const selectedIds = new Set(getSelectedElementIds());
-      if (selectedIds.size === 0) return;
-      useCadStore.getState().commitDocumentChange({
-        elements: elements.map((element) =>
-          selectedIds.has(element.id) ? { ...element, visible: !element.visible } : element
-        )
-      });
-    }
+    run: () => toggleSelectedElementsBooleanProperty("visible")
+  },
+  toggleSelectedElementEnabled: {
+    id: "toggleSelectedElementEnabled",
+    label: "評価する/しないを切替",
+    run: () => toggleSelectedElementsBooleanProperty("enabled")
   },
   deleteSelectedElement: {
     id: "deleteSelectedElement",
@@ -761,6 +784,11 @@ export const commands: Record<CommandId, Command> = {
     label: "真偽値パラメーターを切替",
     run: () => toggleBooleanParameter()
   },
+  toggleBooleanParameterByDirectKey: {
+    id: "toggleBooleanParameterByDirectKey",
+    label: "キーに対応する真偽値パラメーターを切替",
+    run: (context) => toggleBooleanParameterByDirectKey(context?.parameterDirectKey)
+  },
   focusSelectedParameterInput: {
     id: "focusSelectedParameterInput",
     label: "選択パラメーターの入力欄へフォーカス",
@@ -792,6 +820,7 @@ const paletteCommandIds: CommandId[] = [
   "moveSelectedElementUp",
   "moveSelectedElementDown",
   "toggleSelectedElementVisibility",
+  "toggleSelectedElementEnabled",
   "deleteSelectedElement",
   "focusCanvas",
   "focusElementList",
@@ -818,6 +847,7 @@ const paletteKeywords: Partial<Record<CommandId, string[]>> = {
   moveSelectedElementUp: ["move", "up", "上", "並べ替え"],
   moveSelectedElementDown: ["move", "down", "下", "並べ替え"],
   toggleSelectedElementVisibility: ["visibility", "visible", "hide", "show", "表示", "非表示"],
+  toggleSelectedElementEnabled: ["enabled", "active", "evaluate", "評価", "有効", "無効"],
   deleteSelectedElement: ["delete", "remove", "削除"],
   focusCanvas: ["focus", "canvas", "キャンバス"],
   focusElementList: ["focus", "element list", "構成リスト", "要素リスト"],

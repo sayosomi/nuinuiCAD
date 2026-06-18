@@ -141,6 +141,12 @@ export const shortcutDefinitions: ShortcutDefinition[] = [
     matches: (event) => event.key.toLowerCase() === "v" && noModifier(event)
   },
   {
+    commandId: "toggleSelectedElementEnabled",
+    label: "評価する/しないを切替",
+    keys: "a",
+    matches: (event) => event.key.toLowerCase() === "a" && noModifier(event)
+  },
+  {
     commandId: "enterParameterEditMode",
     label: "パラメーター編集モードに入る",
     keys: "Enter",
@@ -279,9 +285,16 @@ export const parameterEditShortcutDefinitions: ShortcutDefinition[] = [
     matches: (event) => event.key === " " && noModifier(event)
   },
   {
+    commandId: "toggleBooleanParameterByDirectKey",
+    label: "表示/評価を切替",
+    keys: "v / a",
+    matches: (event) => ["v", "a"].includes(event.key.toLowerCase()) && noModifier(event),
+    context: (event) => ({ parameterDirectKey: event.key.toLowerCase() })
+  },
+  {
     commandId: "selectParameterByKey",
     label: "名前キーでパラメーターを選択",
-    keys: "n / v / a / x / y / b / s / t",
+    keys: "n / x / y / b / s / t",
     matches: (event) => /^[a-z]$/i.test(event.key) && noModifier(event),
     context: (event) => ({ parameterDirectKey: event.key.toLowerCase() })
   }
@@ -380,7 +393,10 @@ export const shortcutHelpItems = ({
     items.push(...parameterValueShortcutItems[selectedParameter.kind]);
   }
 
+  items.push(helpItem(parameterShortcut("toggleBooleanParameterByDirectKey")));
+
   const directKeys = getParameterDefinitions(selectedElement)
+    .filter((definition) => !["v", "a"].includes(definition.directKey))
     .map((definition) => definition.directKey)
     .join(" / ");
   if (directKeys) {
