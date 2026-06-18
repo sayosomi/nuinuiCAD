@@ -1,8 +1,10 @@
-import type { KeyboardEvent, RefObject } from "react";
+import { useRef } from "react";
+import type { KeyboardEvent, MouseEvent, PointerEvent, RefObject } from "react";
 import { dispatchCommand } from "../commands/commands";
 import { shortcutHelpItems } from "../keyboard/shortcuts";
 import { getDependencyJumpTargets, getDependencySummary } from "../model/dependencies";
 import { formatReferenceOptionLabel } from "../model/elementNames";
+import { numericDragStepsForDelta } from "./numericDrag";
 import {
   defaultNumericParameterStep,
   getNumericParameterStep,
@@ -97,6 +99,13 @@ const ParameterName = ({
   );
 };
 
+type NumericDragState = {
+  parameterKey: ParameterKey;
+  pointerId: number;
+  previousClientX: number;
+  remainderX: number;
+};
+
 const ElementEditor = ({
   element,
   elements,
@@ -108,6 +117,7 @@ const ElementEditor = ({
   isParameterEditMode: boolean;
   registerParameterControl: (key: string, element: HTMLElement | null) => void;
 }) => {
+  const numericDragRef = useRef<NumericDragState | null>(null);
   const updateElement = useCadStore((state) => state.updateElement);
   const renameElement = useCadStore((state) => state.renameElement);
   const selectedParameterKey = useCadStore((state) => state.selectedParameterKey);
@@ -145,6 +155,60 @@ const ElementEditor = ({
     }
   });
   const selectParameter = (key: ParameterKey) => setSelectedParameterKey(key);
+  const finishNumericDrag = (event: PointerEvent<HTMLInputElement>) => {
+    const drag = numericDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+
+    event.preventDefault();
+    if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    numericDragRef.current = null;
+  };
+  const numericDragProps = (key: ParameterKey) => ({
+    onPointerDown: (event: PointerEvent<HTMLInputElement>) => {
+      if (event.button !== 1) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      selectParameter(key);
+      event.currentTarget.focus();
+      event.currentTarget.setPointerCapture?.(event.pointerId);
+      numericDragRef.current = {
+        parameterKey: key,
+        pointerId: event.pointerId,
+        previousClientX: event.clientX,
+        remainderX: 0
+      };
+    },
+    onPointerMove: (event: PointerEvent<HTMLInputElement>) => {
+      const drag = numericDragRef.current;
+      if (!drag || drag.pointerId !== event.pointerId) return;
+
+      event.preventDefault();
+      const deltaX = drag.remainderX + event.clientX - drag.previousClientX;
+      const { steps, remainderX } = numericDragStepsForDelta(deltaX);
+      drag.previousClientX = event.clientX;
+      drag.remainderX = remainderX;
+
+      if (steps === 0) return;
+
+      setSelectedParameterKey(drag.parameterKey);
+      const commandId = steps > 0 ? "incrementSelectedParameter" : "decrementSelectedParameter";
+      for (let index = 0; index < Math.abs(steps); index += 1) {
+        dispatchCommand(commandId);
+      }
+    },
+    onPointerUp: finishNumericDrag,
+    onPointerCancel: finishNumericDrag,
+    onLostPointerCapture: (event: PointerEvent<HTMLInputElement>) => {
+      if (numericDragRef.current?.pointerId !== event.pointerId) return;
+      numericDragRef.current = null;
+    },
+    onAuxClick: (event: MouseEvent<HTMLInputElement>) => {
+      if (event.button === 1) event.preventDefault();
+    }
+  });
 
   return (
     <section className="panel-section">
@@ -211,6 +275,8 @@ const ElementEditor = ({
               <ParameterName element={element} parameterKey="x" label="x" />
               <input
                 {...controlProps("x")}
+                {...numericDragProps("x")}
+                aria-label="x 値"
                 type="number"
                 step="1"
                 value={element.x}
@@ -235,6 +301,8 @@ const ElementEditor = ({
               <ParameterName element={element} parameterKey="y" label="y" />
               <input
                 {...controlProps("y")}
+                {...numericDragProps("y")}
+                aria-label="y 値"
                 type="number"
                 step="1"
                 value={element.y}
@@ -277,6 +345,8 @@ const ElementEditor = ({
               <ParameterName element={element} parameterKey="dx" label="dx" />
               <input
                 {...controlProps("dx")}
+                {...numericDragProps("dx")}
+                aria-label="dx 値"
                 type="number"
                 step="1"
                 value={element.dx}
@@ -301,6 +371,8 @@ const ElementEditor = ({
               <ParameterName element={element} parameterKey="dy" label="dy" />
               <input
                 {...controlProps("dy")}
+                {...numericDragProps("dy")}
+                aria-label="dy 値"
                 type="number"
                 step="1"
                 value={element.dy}

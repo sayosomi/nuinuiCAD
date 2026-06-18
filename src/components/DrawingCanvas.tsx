@@ -256,13 +256,6 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
 
   return (
     <section className="canvas-panel">
-      <div className="canvas-toolbar">
-        <div>
-          <h2>作図キャンバス</h2>
-          <p>原点は初期表示の中央 / Canvas描画 + SVGオーバーレイ</p>
-        </div>
-        <span>{canvasViewport.zoom.toFixed(2)}px/mm</span>
-      </div>
       <div
         className={`canvas-viewport ${isPanning ? "is-panning" : ""}`}
         ref={canvasFocusRef}
@@ -309,6 +302,7 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
             ⚠ {evaluation.errors.length} 件の依存エラーがあります
           </div>
         ) : null}
+        <div className="canvas-scale-overlay">縮尺 {canvasViewport.zoom.toFixed(2)}px/mm</div>
       </div>
     </section>
   );
