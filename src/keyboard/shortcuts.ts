@@ -87,7 +87,7 @@ export const shortcutDefinitions: ShortcutDefinition[] = [
   },
   {
     commandId: "toggleElementInfoPanel",
-    label: "選択要素情報を表示/非表示",
+    label: "要素詳細を表示/非表示",
     keys: "i",
     matches: (event) => event.key.toLowerCase() === "i" && noModifier(event)
   },

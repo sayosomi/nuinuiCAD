@@ -76,9 +76,18 @@ describe("dependencies", () => {
     const summary = getDependencySummary(elements[4], elements);
 
     expect(summary.parents.map((parent) => parent.element?.id)).toEqual(["b", "c"]);
+    expect(summary.parents.map((parent) => parent.ancestorCount)).toEqual([1, 2]);
     expect(summary.children).toEqual([]);
     expect(summary.ancestorCount).toBe(3);
     expect(summary.descendantCount).toBe(0);
+  });
+
+  it("summarizes child descendant counts per direct child without duplicates", () => {
+    const summary = getDependencySummary(elements[1], elements);
+
+    expect(summary.children.map((child) => child.element.id)).toEqual(["c", "ab", "bc"]);
+    expect(summary.children.map((child) => child.descendantCount)).toEqual([1, 0, 0]);
+    expect(summary.descendantCount).toBe(3);
   });
 
   it("keeps missing direct references visible but out of jump targets", () => {
@@ -94,7 +103,7 @@ describe("dependencies", () => {
     };
     const summary = getDependencySummary(broken, [...elements, broken]);
 
-    expect(summary.parents).toEqual([{ id: "missing", element: null }]);
+    expect(summary.parents).toEqual([{ id: "missing", element: null, ancestorCount: 0 }]);
     expect(getDependencyJumpTargets(broken, [...elements, broken])).toEqual([]);
   });
 

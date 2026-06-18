@@ -3,11 +3,17 @@ import type { CadElement, ElementId } from "../types/geometry";
 export type DependencyReference = {
   id: ElementId;
   element: CadElement | null;
+  ancestorCount: number;
+};
+
+export type DependencyChildReference = {
+  element: CadElement;
+  descendantCount: number;
 };
 
 export type DependencySummary = {
   parents: DependencyReference[];
-  children: CadElement[];
+  children: DependencyChildReference[];
   ancestorCount: number;
   descendantCount: number;
 };
@@ -27,10 +33,20 @@ export const getDirectParents = (
   element: CadElement,
   elementsById: Map<ElementId, CadElement>
 ): DependencyReference[] =>
-  getDirectParentIds(element).map((id) => ({
-    id,
-    element: elementsById.get(id) ?? null
-  }));
+  getDirectParentIds(element).map((id) => {
+    const parent = elementsById.get(id) ?? null;
+    const ancestors = new Set<ElementId>();
+
+    if (parent) {
+      collectAncestors(parent, elementsById, ancestors);
+    }
+
+    return {
+      id,
+      element: parent,
+      ancestorCount: ancestors.size
+    };
+  });
 
 export const getDirectChildren = (elementId: ElementId, elements: CadElement[]): CadElement[] =>
   elements.filter((element) => getDirectParentIds(element).includes(elementId));
@@ -67,13 +83,22 @@ export const getDependencySummary = (
   const elementsById = new Map(elements.map((item) => [item.id, item]));
   const ancestors = new Set<ElementId>();
   const descendants = new Set<ElementId>();
+  const directChildren = getDirectChildren(element.id, elements).map((child) => {
+    const childDescendants = new Set<ElementId>();
+    collectDescendants(child.id, elements, childDescendants);
+
+    return {
+      element: child,
+      descendantCount: childDescendants.size
+    };
+  });
 
   collectAncestors(element, elementsById, ancestors);
   collectDescendants(element.id, elements, descendants);
 
   return {
     parents: getDirectParents(element, elementsById),
-    children: getDirectChildren(element.id, elements),
+    children: directChildren,
     ancestorCount: ancestors.size,
     descendantCount: descendants.size
   };
@@ -92,7 +117,7 @@ export const getDependencyJumpTargets = (
     if (parent.element) targets.set(parent.element.id, parent.element);
   }
   for (const child of summary.children) {
-    targets.set(child.id, child);
+    targets.set(child.element.id, child.element);
   }
 
   return Array.from(targets.values());

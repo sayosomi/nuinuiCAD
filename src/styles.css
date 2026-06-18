@@ -383,21 +383,6 @@ select {
   font-size: 13px;
 }
 
-.dependency-summary {
-  display: flex;
-  gap: 8px;
-  margin-top: 10px;
-}
-
-.dependency-summary span {
-  border: 1px solid #c9ccc2;
-  border-radius: 999px;
-  background: #ffffff;
-  padding: 3px 8px;
-  color: #4a4d45;
-  font-size: 11px;
-}
-
 .dependency-group {
   margin-top: 10px;
 }

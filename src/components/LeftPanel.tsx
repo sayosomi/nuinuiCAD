@@ -43,13 +43,14 @@ const formatNumber = (value: number) =>
 
 const formatMillimeters = (value: number) => `${formatNumber(value)} mm`;
 
+const formatCoordinate = (point: ComputedPoint) => `(${formatNumber(point.x)}, ${formatNumber(point.y)})`;
+
 const normalizeDegrees = (degrees: number) => (degrees + 360) % 360;
 
 const formatAngle = (radians: number) => `${formatNumber(normalizeDegrees((radians * 180) / Math.PI))}°`;
 
 const pointCoordinateRows = (point: ComputedPoint) => [
-  { label: "x", value: formatMillimeters(point.x) },
-  { label: "y", value: formatMillimeters(point.y) }
+  { label: "座標", value: formatCoordinate(point) }
 ];
 
 const lineInfoRows = (line: ComputedLine) => {
@@ -59,10 +60,8 @@ const lineInfoRows = (line: ComputedLine) => {
   const hasLength = length > 0;
 
   return [
-    { label: "始点 x", value: formatMillimeters(line.start.x) },
-    { label: "始点 y", value: formatMillimeters(line.start.y) },
-    { label: "終点 x", value: formatMillimeters(line.end.x) },
-    { label: "終点 y", value: formatMillimeters(line.end.y) },
+    { label: "始点", value: formatCoordinate(line.start) },
+    { label: "終点", value: formatCoordinate(line.end) },
     { label: "始角度", value: hasLength ? formatAngle(Math.atan2(dy, dx)) : "未定義" },
     { label: "終角度", value: hasLength ? formatAngle(Math.atan2(-dy, -dx)) : "未定義" },
     { label: "長さ", value: formatMillimeters(length) }
@@ -396,7 +395,7 @@ const ElementInfoPanel = ({
     <section className="panel-section">
       <div className="section-header">
         <div>
-          <h2>選択要素情報</h2>
+          <h2>要素詳細</h2>
           {element ? (
             <p className="section-subtitle">
               {isDependencyJumpMode ? "親子要素ジャンプ中" : "iで折り畳み / jで親子ジャンプ"}
@@ -427,11 +426,6 @@ const ElementInfoPanel = ({
             <p className="empty-state">未評価です。</p>
           )}
 
-          <div className="dependency-summary">
-            <span>親 {dependencySummary?.ancestorCount ?? 0} 件</span>
-            <span>子 {dependencySummary?.descendantCount ?? 0} 件</span>
-          </div>
-
           <div className="dependency-group">
             <h3 className="shortcut-group-title">親要素</h3>
             {dependencySummary && dependencySummary.parents.length > 0 ? (
@@ -445,12 +439,14 @@ const ElementInfoPanel = ({
                       onClick={() => selectDependency(parent.element!.id)}
                     >
                       <span>{parent.element.name}</span>
-                      <small>{elementTypeLabels[parent.element.type]}</small>
+                      <small>
+                        {elementTypeLabels[parent.element.type]} / 祖父母 {parent.ancestorCount} 件
+                      </small>
                     </button>
                   ) : (
                     <div key={`${parent.id}-${index}`} className="dependency-row unresolved">
                       <span>{parent.id}</span>
-                      <small>未解決</small>
+                      <small>未解決 / 祖父母 {parent.ancestorCount} 件</small>
                     </div>
                   )
                 )}
@@ -466,13 +462,15 @@ const ElementInfoPanel = ({
               <div className="dependency-list">
                 {dependencySummary.children.map((child) => (
                   <button
-                    key={child.id}
+                    key={child.element.id}
                     type="button"
-                    className={dependencyButtonClass(child.id)}
-                    onClick={() => selectDependency(child.id)}
+                    className={dependencyButtonClass(child.element.id)}
+                    onClick={() => selectDependency(child.element.id)}
                   >
-                    <span>{child.name}</span>
-                    <small>{elementTypeLabels[child.type]}</small>
+                    <span>{child.element.name}</span>
+                    <small>
+                      {elementTypeLabels[child.element.type]} / 孫 {child.descendantCount} 件
+                    </small>
                   </button>
                 ))}
               </div>

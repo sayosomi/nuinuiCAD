@@ -421,7 +421,7 @@ export const commands: Record<CommandId, Command> = {
   },
   toggleElementInfoPanel: {
     id: "toggleElementInfoPanel",
-    label: "選択要素情報を表示/非表示",
+    label: "要素詳細を表示/非表示",
     run: () => {
       const { showElementInfoPanel } = useCadStore.getState();
       useCadStore.setState({
@@ -595,7 +595,7 @@ const paletteKeywords: Partial<Record<CommandId, string[]>> = {
   focusCanvas: ["focus", "canvas", "キャンバス"],
   focusElementList: ["focus", "element list", "構成リスト", "要素リスト"],
   toggleShortcutHelp: ["shortcut", "help", "ショートカット", "ヘルプ"],
-  toggleElementInfoPanel: ["information", "info", "選択要素情報", "折り畳み", "表示"],
+  toggleElementInfoPanel: ["information", "info", "要素詳細", "折り畳み", "表示"],
   enterDependencyJumpMode: ["dependency", "parent", "child", "親子", "ジャンプ"],
   enterParameterEditMode: ["parameter", "edit", "パラメーター", "編集"],
   exitParameterEditMode: ["parameter", "edit", "escape", "パラメーター", "終了"],
