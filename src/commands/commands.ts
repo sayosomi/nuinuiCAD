@@ -31,6 +31,7 @@ export type CommandId =
   | "closeCommandPalette"
   | "focusCanvas"
   | "focusElementList"
+  | "enterElementListMode"
   | "toggleShortcutHelp"
   | "toggleElementInfoPanel"
   | "enterDependencyJumpMode"
@@ -441,6 +442,18 @@ export const commands: Record<CommandId, Command> = {
     label: "要素リストへフォーカス",
     run: (context) => context?.focusElementList?.()
   },
+  enterElementListMode: {
+    id: "enterElementListMode",
+    label: "構成リストモードに入る",
+    run: (context) => {
+      useCadStore.setState({
+        isParameterEditMode: false,
+        isDependencyJumpMode: false,
+        selectedDependencyJumpIndex: 0
+      });
+      context?.focusElementList?.();
+    }
+  },
   toggleShortcutHelp: {
     id: "toggleShortcutHelp",
     label: "ショートカット一覧を表示/非表示",
@@ -605,6 +618,7 @@ const paletteCommandIds: CommandId[] = [
   "deleteSelectedElement",
   "focusCanvas",
   "focusElementList",
+  "enterElementListMode",
   "toggleShortcutHelp",
   "toggleElementInfoPanel",
   "enterDependencyJumpMode",
@@ -630,6 +644,7 @@ const paletteKeywords: Partial<Record<CommandId, string[]>> = {
   deleteSelectedElement: ["delete", "remove", "削除"],
   focusCanvas: ["focus", "canvas", "キャンバス"],
   focusElementList: ["focus", "element list", "構成リスト", "要素リスト"],
+  enterElementListMode: ["mode", "element list", "構成リスト", "要素リスト"],
   toggleShortcutHelp: ["shortcut", "help", "ショートカット", "ヘルプ"],
   toggleElementInfoPanel: ["information", "info", "要素詳細", "折り畳み", "表示"],
   enterDependencyJumpMode: ["dependency", "parent", "child", "親子", "ジャンプ"],

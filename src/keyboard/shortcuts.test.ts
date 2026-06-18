@@ -21,6 +21,8 @@ describe("shortcuts", () => {
     expect(commandIdForKeyboardEvent(keyboardEvent("Backspace"))).toBe("deleteSelectedElement");
     expect(commandIdForKeyboardEvent(keyboardEvent("v"))).toBe("toggleSelectedElementVisibility");
     expect(commandIdForKeyboardEvent(keyboardEvent("i"))).toBe("toggleElementInfoPanel");
+    expect(commandIdForKeyboardEvent(keyboardEvent("g"))).toBe("enterElementListMode");
+    expect(commandIdForKeyboardEvent(keyboardEvent("e"))).toBe("enterParameterEditMode");
     expect(commandIdForKeyboardEvent(keyboardEvent("j"))).toBe("enterDependencyJumpMode");
     expect(commandIdForKeyboardEvent(keyboardEvent("/"))).toBe("openCommandPalette");
     expect(commandIdForKeyboardEvent(keyboardEvent("p"))).toBeNull();
@@ -41,6 +43,15 @@ describe("shortcuts", () => {
   it("maps edit mode keys to parameter commands", () => {
     expect(commandIdForKeyboardEvent(keyboardEvent("/"), { isParameterEditMode: true })).toBe(
       "openCommandPalette"
+    );
+    expect(commandIdForKeyboardEvent(keyboardEvent("g"), { isParameterEditMode: true })).toBe(
+      "enterElementListMode"
+    );
+    expect(commandIdForKeyboardEvent(keyboardEvent("e"), { isParameterEditMode: true })).toBe(
+      "enterParameterEditMode"
+    );
+    expect(commandIdForKeyboardEvent(keyboardEvent("j"), { isParameterEditMode: true })).toBe(
+      "enterDependencyJumpMode"
     );
     expect(commandIdForKeyboardEvent(keyboardEvent("ArrowDown"), { isParameterEditMode: true })).toBe(
       "selectNextParameter"
@@ -66,6 +77,15 @@ describe("shortcuts", () => {
   });
 
   it("maps dependency jump mode keys to dependency jump commands", () => {
+    expect(commandIdForKeyboardEvent(keyboardEvent("g"), { isDependencyJumpMode: true })).toBe(
+      "enterElementListMode"
+    );
+    expect(commandIdForKeyboardEvent(keyboardEvent("e"), { isDependencyJumpMode: true })).toBe(
+      "enterParameterEditMode"
+    );
+    expect(commandIdForKeyboardEvent(keyboardEvent("j"), { isDependencyJumpMode: true })).toBe(
+      "enterDependencyJumpMode"
+    );
     expect(commandIdForKeyboardEvent(keyboardEvent("ArrowDown"), { isDependencyJumpMode: true })).toBe(
       "selectNextDependencyJumpTarget"
     );
@@ -150,11 +170,55 @@ describe("shortcuts", () => {
     expect(commandIdForKeyboardEvent(keyboardEventFrom(" ", button))).toBeNull();
   });
 
+  it("uses Enter as edit mode from focused element list rows", () => {
+    const button = document.createElement("button");
+    button.dataset.elementListRow = "true";
+
+    expect(commandIdForKeyboardEvent(keyboardEventFrom("Enter", button))).toBe(
+      "enterParameterEditMode"
+    );
+    expect(commandIdForKeyboardEvent(keyboardEventFrom(" ", button))).toBeNull();
+  });
+
+  it("moves elements with Alt+Arrow only from focused element list rows", () => {
+    const row = document.createElement("button");
+    const rowLabel = document.createElement("span");
+    const button = document.createElement("button");
+    row.dataset.elementListRow = "true";
+    row.append(rowLabel);
+
+    expect(commandIdForKeyboardEvent(keyboardEventFrom("ArrowUp", row, { altKey: true }))).toBe(
+      "moveSelectedElementUp"
+    );
+    expect(commandIdForKeyboardEvent(keyboardEventFrom("ArrowDown", rowLabel, { altKey: true }))).toBe(
+      "moveSelectedElementDown"
+    );
+    expect(commandIdForKeyboardEvent(keyboardEvent("ArrowUp", { altKey: true }))).toBeNull();
+    expect(commandIdForKeyboardEvent(keyboardEventFrom("ArrowDown", button, { altKey: true }))).toBeNull();
+  });
+
+  it("does not use list Alt+Arrow reordering in parameter edit mode", () => {
+    const row = document.createElement("button");
+    row.dataset.elementListRow = "true";
+
+    expect(
+      commandIdForKeyboardEvent(keyboardEventFrom("ArrowUp", row, { altKey: true }), {
+        isParameterEditMode: true
+      })
+    ).toBeNull();
+    expect(
+      commandIdForKeyboardEvent(keyboardEventFrom("ArrowDown", row, { altKey: true }), {
+        isParameterEditMode: true
+      })
+    ).toBeNull();
+  });
+
   it("shows only normal mode shortcuts outside parameter edit mode", () => {
     const shortcuts = shortcutHelpItems();
     const ids = shortcuts.map((shortcut) => shortcut.commandId);
 
     expect(ids).toContain("moveSelectedElementUp");
+    expect(ids).toContain("enterElementListMode");
     expect(ids).toContain("toggleElementInfoPanel");
     expect(ids).toContain("enterDependencyJumpMode");
     expect(ids).toContain("openCommandPalette");
@@ -175,7 +239,8 @@ describe("shortcuts", () => {
     const ids = shortcuts.map((shortcut) => shortcut.commandId);
 
     expect(ids).not.toContain("moveSelectedElementUp");
-    expect(ids).not.toContain("enterDependencyJumpMode");
+    expect(ids).toContain("enterElementListMode");
+    expect(ids).toContain("enterDependencyJumpMode");
     expect(ids).not.toContain("addFreePoint");
     expect(ids).toContain("openCommandPalette");
     expect(ids).toContain("exitParameterEditMode");

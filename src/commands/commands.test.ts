@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { dispatchCommand, filterCommandPaletteItems } from "./commands";
 import { sampleElements } from "../sampleData";
 import { DEFAULT_CANVAS_VIEWPORT, MAX_CANVAS_ZOOM, MIN_CANVAS_ZOOM, useCadStore } from "../state/useCadStore";
@@ -66,6 +66,24 @@ describe("commands", () => {
 
     dispatchCommand("closeCommandPalette");
     expect(useCadStore.getState().showCommandPalette).toBe(false);
+  });
+
+  it("enters element list mode and focuses the element list", () => {
+    const focusElementList = vi.fn();
+    useCadStore.setState({
+      isParameterEditMode: true,
+      isDependencyJumpMode: true,
+      selectedDependencyJumpIndex: 1
+    });
+
+    dispatchCommand("enterElementListMode", { focusElementList });
+
+    expect(useCadStore.getState()).toMatchObject({
+      isParameterEditMode: false,
+      isDependencyJumpMode: false,
+      selectedDependencyJumpIndex: 0
+    });
+    expect(focusElementList).toHaveBeenCalledOnce();
   });
 
   it("zooms and resets the canvas viewport", () => {

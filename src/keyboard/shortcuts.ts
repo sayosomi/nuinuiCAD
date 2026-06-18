@@ -45,6 +45,24 @@ export const globalShortcutDefinitions: ShortcutDefinition[] = [
     label: "やり直す",
     keys: "Mod+Y",
     matches: (event) => event.key.toLowerCase() === "y" && isMod(event) && !event.altKey && !event.shiftKey
+  },
+  {
+    commandId: "enterElementListMode",
+    label: "構成リストモードに入る",
+    keys: "g",
+    matches: (event) => event.key.toLowerCase() === "g" && noModifier(event)
+  },
+  {
+    commandId: "enterParameterEditMode",
+    label: "要素設定モードに入る",
+    keys: "e",
+    matches: (event) => event.key.toLowerCase() === "e" && noModifier(event)
+  },
+  {
+    commandId: "enterDependencyJumpMode",
+    label: "親子ジャンプモードに入る",
+    keys: "j",
+    matches: (event) => event.key.toLowerCase() === "j" && noModifier(event)
   }
 ];
 
@@ -52,14 +70,20 @@ export const shortcutDefinitions: ShortcutDefinition[] = [
   {
     commandId: "moveSelectedElementUp",
     label: "選択要素を上へ移動",
-    keys: "Mod+ArrowUp",
-    matches: (event) => event.key === "ArrowUp" && isMod(event)
+    keys: "Mod+ArrowUp / Alt+ArrowUp",
+    matches: (event) =>
+      event.key === "ArrowUp" &&
+      ((isMod(event) && !event.altKey) ||
+        (event.altKey && !event.metaKey && !event.ctrlKey && isElementListRowTarget(event)))
   },
   {
     commandId: "moveSelectedElementDown",
     label: "選択要素を下へ移動",
-    keys: "Mod+ArrowDown",
-    matches: (event) => event.key === "ArrowDown" && isMod(event)
+    keys: "Mod+ArrowDown / Alt+ArrowDown",
+    matches: (event) =>
+      event.key === "ArrowDown" &&
+      ((isMod(event) && !event.altKey) ||
+        (event.altKey && !event.metaKey && !event.ctrlKey && isElementListRowTarget(event)))
   },
   {
     commandId: "selectPreviousElement",
@@ -90,12 +114,6 @@ export const shortcutDefinitions: ShortcutDefinition[] = [
     label: "要素詳細を表示/非表示",
     keys: "i",
     matches: (event) => event.key.toLowerCase() === "i" && noModifier(event)
-  },
-  {
-    commandId: "enterDependencyJumpMode",
-    label: "親子要素ジャンプモードに入る",
-    keys: "j",
-    matches: (event) => event.key.toLowerCase() === "j" && noModifier(event)
   },
   {
     commandId: "enterParameterEditMode",
@@ -322,6 +340,11 @@ const eventTargetTagName = (event: KeyboardEvent) => {
   return target instanceof HTMLElement ? target.tagName.toLowerCase() : null;
 };
 
+const isElementListRowTarget = (event: KeyboardEvent) => {
+  const target = event.target;
+  return target instanceof HTMLElement && Boolean(target.closest("[data-element-list-row='true']"));
+};
+
 const isEditableKeyboardTarget = (event: KeyboardEvent) => {
   const target = event.target;
   if (!(target instanceof HTMLElement)) return false;
@@ -339,7 +362,10 @@ export const shouldIgnoreKeyboardEvent = (event: KeyboardEvent) => {
   if (isEditableKeyboardTarget(event)) return true;
 
   const tagName = eventTargetTagName(event);
-  return tagName === "button" && (event.key === "Enter" || event.key === " ");
+  return (
+    tagName === "button" &&
+    (event.key === " " || (event.key === "Enter" && !isElementListRowTarget(event)))
+  );
 };
 
 export const keyboardCommandForEvent = (

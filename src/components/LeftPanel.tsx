@@ -155,6 +155,7 @@ const ElementEditor = ({
     }
   });
   const selectParameter = (key: ParameterKey) => setSelectedParameterKey(key);
+  /* eslint-disable react-hooks/refs -- Drag state is read and written only from pointer event handlers. */
   const finishNumericDrag = (event: PointerEvent<HTMLInputElement>) => {
     const drag = numericDragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
@@ -209,6 +210,7 @@ const ElementEditor = ({
       if (event.button === 1) event.preventDefault();
     }
   });
+  /* eslint-enable react-hooks/refs */
 
   return (
     <section className="panel-section">
@@ -220,7 +222,7 @@ const ElementEditor = ({
           </p>
         </div>
         <span className={`mode-pill ${isParameterEditMode ? "active" : ""}`}>
-          {isParameterEditMode ? "パラメーター編集中" : "Enterで編集"}
+          {isParameterEditMode ? "要素設定中" : "eで要素設定"}
         </span>
       </div>
       <div className="editor-grid">
@@ -579,7 +581,10 @@ export const LeftPanel = ({
 
       <section className="panel-section">
         <div className="section-header">
-          <h2>構成リスト</h2>
+          <div>
+            <h2>構成リスト</h2>
+            <p className="section-subtitle">gで戻る / Enterで要素設定</p>
+          </div>
         </div>
 
         <div
@@ -592,10 +597,12 @@ export const LeftPanel = ({
             <button
               key={element.id}
               type="button"
+              data-element-list-row="true"
               className={`element-row ${element.id === selectedElementId ? "selected" : ""} ${
                 errorElementIds.has(element.id) ? "has-error" : ""
               }`}
               onClick={() => setSelectedElementId(element.id)}
+              onFocus={() => setSelectedElementId(element.id)}
             >
               <span className="element-index">{index + 1}</span>
               <span className="element-name">
