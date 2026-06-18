@@ -21,13 +21,20 @@ export type OffsetPointElement = CadElementBase & {
   dy: number;
 };
 
+export type PolarOffsetPointElement = CadElementBase & {
+  type: "polarOffsetPoint";
+  fromPointId: ElementId;
+  angleDeg: number;
+  distance: number;
+};
+
 export type LineElement = CadElementBase & {
   type: "line";
   startPointId: ElementId;
   endPointId: ElementId;
 };
 
-export type CadElement = FreePointElement | OffsetPointElement | LineElement;
+export type CadElement = FreePointElement | OffsetPointElement | PolarOffsetPointElement | LineElement;
 export type CadElementType = CadElement["type"];
 
 export type ComputedPoint = {
@@ -66,5 +73,6 @@ export type EvaluationResult = {
 export const elementTypeLabels: Record<CadElementType, string> = {
   freePoint: "free point",
   offsetPoint: "offset point",
+  polarOffsetPoint: "polar offset point",
   line: "line"
 };

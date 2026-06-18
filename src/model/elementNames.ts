@@ -4,6 +4,7 @@ import type { CadElement, CadElementType, ElementId } from "../types/geometry";
 const defaultNameBases: Record<CadElementType, string> = {
   freePoint: "点",
   offsetPoint: "オフセット点",
+  polarOffsetPoint: "角度距離点",
   line: "直線"
 };
 

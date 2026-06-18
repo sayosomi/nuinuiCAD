@@ -313,6 +313,102 @@ describe("DrawingCanvas point dragging", () => {
     expect(useCadStore.getState().elements[0]).toMatchObject({ x: 50, y: 70 });
   });
 
+  it("locks polar angle while r is pressed during point dragging", () => {
+    useCadStore.setState({
+      elements: [
+        sampleElements[0],
+        {
+          id: "polar-point",
+          name: "角度距離点",
+          type: "polarOffsetPoint",
+          visible: true,
+          enabled: true,
+          fromPointId: "point-a",
+          angleDeg: 0,
+          distance: 30
+        }
+      ],
+      selectedElementId: "polar-point",
+      selectedElementIds: ["polar-point"]
+    });
+    const { viewport } = renderDrawingCanvas();
+
+    fireEvent.pointerDown(viewport, {
+      button: 0,
+      buttons: 1,
+      clientX: 330,
+      clientY: 250,
+      pointerId: 1
+    });
+    fireEvent.keyDown(window, { key: "r" });
+    fireEvent.pointerMove(viewport, {
+      buttons: 1,
+      clientX: 330,
+      clientY: 240,
+      pointerId: 1
+    });
+    fireEvent.pointerUp(viewport, {
+      buttons: 0,
+      clientX: 330,
+      clientY: 240,
+      pointerId: 1
+    });
+    fireEvent.keyUp(window, { key: "r" });
+
+    expect(useCadStore.getState().elements[1]).toMatchObject({
+      angleDeg: 0,
+      distance: 30
+    });
+  });
+
+  it("locks polar distance while f is pressed during point dragging", () => {
+    useCadStore.setState({
+      elements: [
+        sampleElements[0],
+        {
+          id: "polar-point",
+          name: "角度距離点",
+          type: "polarOffsetPoint",
+          visible: true,
+          enabled: true,
+          fromPointId: "point-a",
+          angleDeg: 0,
+          distance: 30
+        }
+      ],
+      selectedElementId: "polar-point",
+      selectedElementIds: ["polar-point"]
+    });
+    const { viewport } = renderDrawingCanvas();
+
+    fireEvent.pointerDown(viewport, {
+      button: 0,
+      buttons: 1,
+      clientX: 330,
+      clientY: 250,
+      pointerId: 1
+    });
+    fireEvent.keyDown(window, { key: "f" });
+    fireEvent.pointerMove(viewport, {
+      buttons: 1,
+      clientX: 330,
+      clientY: 240,
+      pointerId: 1
+    });
+    fireEvent.pointerUp(viewport, {
+      buttons: 0,
+      clientX: 330,
+      clientY: 240,
+      pointerId: 1
+    });
+    fireEvent.keyUp(window, { key: "f" });
+
+    const moved = useCadStore.getState().elements[1];
+    expect(moved).toMatchObject({ type: "polarOffsetPoint", distance: 30 });
+    if (moved.type !== "polarOffsetPoint") throw new Error("Expected a polar offset point");
+    expect(moved.angleDeg).toBeCloseTo(18.43494882292201);
+  });
+
   it("clears the dragging cursor state after pointer cancel", () => {
     const { viewport } = renderDrawingCanvas();
 

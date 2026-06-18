@@ -49,6 +49,8 @@ const getComputedPointOrError = (
   return point;
 };
 
+const degreesToRadians = (degrees: number) => (degrees * Math.PI) / 180;
+
 export const evaluateElements = (elements: CadElement[]): EvaluationResult => {
   const computedGeometry = new Map<ElementId, ComputedGeometry>();
   const errors: DependencyError[] = [];
@@ -87,6 +89,28 @@ export const evaluateElements = (elements: CadElement[]): EvaluationResult => {
           name: element.name,
           x: fromPoint.x + element.dx,
           y: fromPoint.y + element.dy
+        });
+        break;
+      }
+      case "polarOffsetPoint": {
+        const fromPoint = getComputedPointOrError(
+          element,
+          element.fromPointId,
+          computedGeometry,
+          elementsById,
+          errors
+        );
+        if (!fromPoint) {
+          break;
+        }
+
+        const angleRad = degreesToRadians(element.angleDeg);
+        computedGeometry.set(element.id, {
+          kind: "point",
+          elementId: element.id,
+          name: element.name,
+          x: fromPoint.x + Math.cos(angleRad) * element.distance,
+          y: fromPoint.y - Math.sin(angleRad) * element.distance
         });
         break;
       }

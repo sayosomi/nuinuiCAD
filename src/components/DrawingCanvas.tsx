@@ -35,6 +35,11 @@ type AxisLockKeys = {
   y: boolean;
 };
 
+type PolarLockKeys = {
+  angle: boolean;
+  distance: boolean;
+};
+
 const GRID_STEP = 10;
 const MAJOR_GRID_MULTIPLIER = 5;
 const MIN_GRID_SPACING_PX = 8;
@@ -135,6 +140,7 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
   const panDragRef = useRef<{ pointerId: number; lastX: number; lastY: number } | null>(null);
   const pointDragRef = useRef<PointDragState | null>(null);
   const axisLockKeysRef = useRef<AxisLockKeys>({ x: false, y: false });
+  const polarLockKeysRef = useRef<PolarLockKeys>({ angle: false, distance: false });
   const [viewportSize, setViewportSize] = useState<ViewportSize>({ width: 0, height: 0 });
   const [isPanning, setIsPanning] = useState(false);
   const [isPointDragging, setIsPointDragging] = useState(false);
@@ -239,33 +245,48 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
   }, [canvasViewport, lines, points, selectedElementId, selectedElementIdSet, viewportSize, visibleElementIds]);
 
   useEffect(() => {
-    const setAxisLockKey = (event: KeyboardEvent, isPressed: boolean) => {
+    const setDragLockKey = (event: KeyboardEvent, isPressed: boolean) => {
       const key = event.key.toLowerCase();
-      if (key !== "x" && key !== "y") return;
+      if (key !== "x" && key !== "y" && key !== "r" && key !== "f") return;
       if (pointDragRef.current) {
         event.preventDefault();
         event.stopImmediatePropagation();
       }
-      axisLockKeysRef.current = {
-        ...axisLockKeysRef.current,
-        [key]: isPressed
-      };
+      if (key === "x" || key === "y") {
+        axisLockKeysRef.current = {
+          ...axisLockKeysRef.current,
+          [key]: isPressed
+        };
+      }
+      if (key === "r") {
+        polarLockKeysRef.current = {
+          ...polarLockKeysRef.current,
+          angle: isPressed
+        };
+      }
+      if (key === "f") {
+        polarLockKeysRef.current = {
+          ...polarLockKeysRef.current,
+          distance: isPressed
+        };
+      }
     };
 
-    const clearAxisLockKeys = () => {
+    const clearDragLockKeys = () => {
       axisLockKeysRef.current = { x: false, y: false };
+      polarLockKeysRef.current = { angle: false, distance: false };
     };
 
-    const onKeyDown = (event: KeyboardEvent) => setAxisLockKey(event, true);
-    const onKeyUp = (event: KeyboardEvent) => setAxisLockKey(event, false);
+    const onKeyDown = (event: KeyboardEvent) => setDragLockKey(event, true);
+    const onKeyUp = (event: KeyboardEvent) => setDragLockKey(event, false);
 
     window.addEventListener("keydown", onKeyDown, { capture: true });
     window.addEventListener("keyup", onKeyUp, { capture: true });
-    window.addEventListener("blur", clearAxisLockKeys);
+    window.addEventListener("blur", clearDragLockKeys);
     return () => {
       window.removeEventListener("keydown", onKeyDown, { capture: true });
       window.removeEventListener("keyup", onKeyUp, { capture: true });
-      window.removeEventListener("blur", clearAxisLockKeys);
+      window.removeEventListener("blur", clearDragLockKeys);
     };
   }, []);
 
@@ -312,6 +333,8 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
       elementId: drag.elementId,
       dx: worldDelta.dx,
       dy: worldDelta.dy,
+      angleLocked: polarLockKeysRef.current.angle,
+      distanceLocked: polarLockKeysRef.current.distance,
       commitMode: "commit",
       baseElements: drag.snapshot.elements,
       historySnapshot: drag.snapshot
@@ -394,6 +417,8 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
         elementId: pointDrag.elementId,
         dx: worldDelta.dx,
         dy: worldDelta.dy,
+        angleLocked: polarLockKeysRef.current.angle,
+        distanceLocked: polarLockKeysRef.current.distance,
         commitMode: "preview",
         baseElements: pointDrag.snapshot.elements
       });

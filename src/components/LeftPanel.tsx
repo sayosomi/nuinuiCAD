@@ -73,7 +73,12 @@ const lineInfoRows = (line: ComputedLine) => {
 
 const pointOptions = (elements: CadElement[]) =>
   elements
-    .filter((element) => element.type === "freePoint" || element.type === "offsetPoint")
+    .filter(
+      (element) =>
+        element.type === "freePoint" ||
+        element.type === "offsetPoint" ||
+        element.type === "polarOffsetPoint"
+    )
     .map((element) => (
       <option key={element.id} value={element.id}>
         {formatReferenceOptionLabel(element)}
@@ -430,6 +435,76 @@ const ElementEditor = ({
                     if (event.key === "Escape") event.currentTarget.blur();
                   }}
                   onChange={(event) => updateStep("dy", event.target.value)}
+                />
+              </span>
+            </label>
+          </>
+        )}
+
+        {element.type === "polarOffsetPoint" && (
+          <>
+            <label
+              className={parameterFieldClass("fromPointId")}
+              onClick={() => selectParameter("fromPointId")}
+            >
+              <ParameterName element={element} parameterKey="fromPointId" label="基準点" />
+              <select
+                {...controlProps("fromPointId")}
+                value={element.fromPointId}
+                onChange={(event) => updateRef("fromPointId", event.target.value)}
+              >
+                {pointOptions(elements)}
+              </select>
+            </label>
+            <label className={parameterFieldClass("angleDeg")} onClick={() => selectParameter("angleDeg")}>
+              <ParameterName element={element} parameterKey="angleDeg" label="角度" />
+              <input
+                {...controlProps("angleDeg")}
+                {...numericDragProps("angleDeg")}
+                aria-label="角度"
+                type="number"
+                step="1"
+                value={formatNumber(element.angleDeg)}
+                onChange={(event) => updateField("angleDeg", event.target.value)}
+              />
+              <span className="parameter-step">
+                増減単位
+                <input
+                  type="number"
+                  min="0.1"
+                  step="0.1"
+                  value={formatNumber(getNumericParameterStep(element, "angleDeg"))}
+                  onFocus={() => selectParameter("angleDeg")}
+                  onKeyDown={(event) => {
+                    if (event.key === "Escape") event.currentTarget.blur();
+                  }}
+                  onChange={(event) => updateStep("angleDeg", event.target.value)}
+                />
+              </span>
+            </label>
+            <label className={parameterFieldClass("distance")} onClick={() => selectParameter("distance")}>
+              <ParameterName element={element} parameterKey="distance" label="距離" />
+              <input
+                {...controlProps("distance")}
+                {...numericDragProps("distance")}
+                aria-label="距離"
+                type="number"
+                step="1"
+                value={formatNumber(element.distance)}
+                onChange={(event) => updateField("distance", event.target.value)}
+              />
+              <span className="parameter-step">
+                増減単位
+                <input
+                  type="number"
+                  min="0.1"
+                  step="0.1"
+                  value={formatNumber(getNumericParameterStep(element, "distance"))}
+                  onFocus={() => selectParameter("distance")}
+                  onKeyDown={(event) => {
+                    if (event.key === "Escape") event.currentTarget.blur();
+                  }}
+                  onChange={(event) => updateStep("distance", event.target.value)}
                 />
               </span>
             </label>

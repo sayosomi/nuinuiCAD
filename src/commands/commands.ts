@@ -1,5 +1,6 @@
 import { useCadStore } from "../state/useCadStore";
 import type { CadHistorySnapshot } from "../state/useCadStore";
+import { evaluateElements } from "../geometry/evaluate";
 import { makeUniqueElementName } from "../model/elementNames";
 import { getDependencyJumpTargets } from "../model/dependencies";
 import {
@@ -32,6 +33,7 @@ export type CommandId =
   | "deleteSelectedElement"
   | "addFreePoint"
   | "addOffsetPoint"
+  | "addPolarOffsetPoint"
   | "addLine"
   | "zoomInCanvas"
   | "zoomOutCanvas"
@@ -75,6 +77,8 @@ export type CommandContext = {
   selectionMode?: "replace" | "toggle" | "range";
   dx?: number;
   dy?: number;
+  angleLocked?: boolean;
+  distanceLocked?: boolean;
   commitMode?: "preview" | "commit";
   baseElements?: CadElement[];
   historySnapshot?: CadHistorySnapshot;
@@ -126,10 +130,80 @@ const updateSelectedElement = (updater: (element: CadElement) => CadElement) => 
   });
 };
 
+const isComputedPoint = (geometry: unknown): geometry is { kind: "point"; x: number; y: number } =>
+  typeof geometry === "object" && geometry !== null && "kind" in geometry && geometry.kind === "point";
+
+const radiansToDegrees = (radians: number) => (radians * 180) / Math.PI;
+
+const degreesToRadians = (degrees: number) => (degrees * Math.PI) / 180;
+
+const normalizeDegrees = (degrees: number) => ((degrees % 360) + 360) % 360;
+
+const movePolarOffsetPointByDelta = ({
+  element,
+  sourceElements,
+  dx,
+  dy,
+  angleLocked,
+  distanceLocked
+}: {
+  element: Extract<CadElement, { type: "polarOffsetPoint" }>;
+  sourceElements: CadElement[];
+  dx: number;
+  dy: number;
+  angleLocked?: boolean;
+  distanceLocked?: boolean;
+}) => {
+  if (angleLocked && distanceLocked) return element;
+
+  const evaluation = evaluateElements(sourceElements);
+  const point = evaluation.computedGeometry.get(element.id);
+  const fromPoint = evaluation.computedGeometry.get(element.fromPointId);
+  if (!isComputedPoint(point) || !isComputedPoint(fromPoint)) return element;
+
+  const target = {
+    x: point.x + dx,
+    y: point.y + dy
+  };
+  const vector = {
+    x: target.x - fromPoint.x,
+    y: fromPoint.y - target.y
+  };
+
+  if (angleLocked) {
+    const angleRad = degreesToRadians(element.angleDeg);
+    const unit = { x: Math.cos(angleRad), y: Math.sin(angleRad) };
+    const projectedDistance = Math.max(0, vector.x * unit.x + vector.y * unit.y);
+    if (projectedDistance === element.distance) return element;
+    return { ...element, distance: projectedDistance };
+  }
+
+  if (distanceLocked) {
+    if (Math.hypot(vector.x, vector.y) === 0) return element;
+    const angleDeg = normalizeDegrees(radiansToDegrees(Math.atan2(vector.y, vector.x)));
+    if (angleDeg === element.angleDeg) return element;
+    return { ...element, angleDeg };
+  }
+
+  const distance = Math.hypot(vector.x, vector.y);
+  const angleDeg =
+    distance === 0
+      ? element.angleDeg
+      : normalizeDegrees(radiansToDegrees(Math.atan2(vector.y, vector.x)));
+  if (distance === element.distance && angleDeg === element.angleDeg) return element;
+  return {
+    ...element,
+    distance,
+    angleDeg
+  };
+};
+
 const movePointElementByDelta = ({
   elementId,
   dx = 0,
   dy = 0,
+  angleLocked,
+  distanceLocked,
   commitMode = "commit",
   baseElements,
   historySnapshot
@@ -165,6 +239,19 @@ const movePointElementByDelta = ({
       };
     }
 
+    if (element.type === "polarOffsetPoint") {
+      const nextElement = movePolarOffsetPointByDelta({
+        element,
+        sourceElements,
+        dx,
+        dy,
+        angleLocked,
+        distanceLocked
+      });
+      didMove = didMove || nextElement !== element;
+      return nextElement;
+    }
+
     return element;
   });
 
@@ -194,7 +281,10 @@ const selectedParameterDefinition = () => {
 
 const makeElement = (type: CadElementType, elements: CadElement[]): CadElement => {
   const points = elements.filter(
-    (element) => element.type === "freePoint" || element.type === "offsetPoint"
+    (element) =>
+      element.type === "freePoint" ||
+      element.type === "offsetPoint" ||
+      element.type === "polarOffsetPoint"
   );
   const firstPointId = points[0]?.id ?? "";
   const secondPointId = points[1]?.id ?? firstPointId;
@@ -232,6 +322,20 @@ const makeElement = (type: CadElementType, elements: CadElement[]): CadElement =
         fromPointId: firstPointId,
         dx: 30,
         dy: 0
+      };
+    }
+    case "polarOffsetPoint": {
+      const id = createId(type);
+      const requestedName = `角度距離点${points.length + 1}`;
+      return {
+        id,
+        name: uniqueName(id, requestedName),
+        type,
+        visible: true,
+        enabled: true,
+        fromPointId: firstPointId,
+        angleDeg: 0,
+        distance: 30
       };
     }
     case "line": {
@@ -702,6 +806,11 @@ export const commands: Record<CommandId, Command> = {
     label: "offset point を追加",
     run: () => addElement("offsetPoint")
   },
+  addPolarOffsetPoint: {
+    id: "addPolarOffsetPoint",
+    label: "polar offset point を追加",
+    run: () => addElement("polarOffsetPoint")
+  },
   addLine: {
     id: "addLine",
     label: "line を追加",
@@ -910,6 +1019,7 @@ export type CommandPaletteItem = {
 const paletteCommandIds: CommandId[] = [
   "addFreePoint",
   "addOffsetPoint",
+  "addPolarOffsetPoint",
   "addLine",
   "zoomInCanvas",
   "zoomOutCanvas",
@@ -937,6 +1047,7 @@ const paletteCommandIds: CommandId[] = [
 const paletteKeywords: Partial<Record<CommandId, string[]>> = {
   addFreePoint: ["point", "free", "free point", "点", "追加"],
   addOffsetPoint: ["offset", "offset point", "オフセット", "点", "追加"],
+  addPolarOffsetPoint: ["polar", "angle", "distance", "角度", "距離", "点", "追加"],
   addLine: ["line", "直線", "線", "追加"],
   zoomInCanvas: ["zoom", "in", "拡大", "キャンバス"],
   zoomOutCanvas: ["zoom", "out", "縮小", "キャンバス"],

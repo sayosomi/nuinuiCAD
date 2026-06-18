@@ -11,6 +11,8 @@ export type ParameterKey =
   | "fromPointId"
   | "dx"
   | "dy"
+  | "angleDeg"
+  | "distance"
   | "startPointId"
   | "endPointId";
 
@@ -44,6 +46,13 @@ export const getParameterDefinitions = (element: CadElement): ParameterDefinitio
         { key: "dx", directKey: "x", label: "dx", kind: "number" },
         { key: "dy", directKey: "y", label: "dy", kind: "number" }
       ];
+    case "polarOffsetPoint":
+      return [
+        ...commonParameters,
+        { key: "fromPointId", directKey: "b", label: "基準点", kind: "reference" },
+        { key: "angleDeg", directKey: "r", label: "角度", kind: "number" },
+        { key: "distance", directKey: "f", label: "距離", kind: "number" }
+      ];
     case "line":
       return [
         ...commonParameters,
@@ -67,7 +76,9 @@ export const findParameterByDirectKey = (element: CadElement, directKey: string)
   );
 
 export const isPointElement = (element: CadElement) =>
-  element.type === "freePoint" || element.type === "offsetPoint";
+  element.type === "freePoint" ||
+  element.type === "offsetPoint" ||
+  element.type === "polarOffsetPoint";
 
 export const pointReferenceOptions = (elements: CadElement[]): ElementId[] =>
   elements.filter(isPointElement).map((element) => element.id);

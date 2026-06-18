@@ -43,6 +43,36 @@ describe("evaluateElements", () => {
     expect(result.computedGeometry.get("ab")).toMatchObject({ kind: "line" });
   });
 
+  it("evaluates polar offset points using mathematical angles", () => {
+    const result = evaluateElements([
+      validElements[0],
+      {
+        id: "right",
+        name: "右",
+        type: "polarOffsetPoint",
+        visible: true,
+        enabled: true,
+        fromPointId: "a",
+        angleDeg: 0,
+        distance: 10
+      },
+      {
+        id: "up",
+        name: "上",
+        type: "polarOffsetPoint",
+        visible: true,
+        enabled: true,
+        fromPointId: "a",
+        angleDeg: 90,
+        distance: 10
+      }
+    ]);
+
+    expect(result.errors).toHaveLength(0);
+    expect(result.computedGeometry.get("right")).toMatchObject({ kind: "point", x: 20, y: 20 });
+    expect(result.computedGeometry.get("up")).toMatchObject({ kind: "point", x: 10, y: 10 });
+  });
+
   it("reports a missing dependency", () => {
     const result = evaluateElements([
       {
@@ -60,6 +90,27 @@ describe("evaluateElements", () => {
     expect(result.computedGeometry.has("b")).toBe(false);
     expect(result.errors[0]).toMatchObject({
       elementId: "b",
+      missingDependencyId: "missing"
+    });
+  });
+
+  it("reports a missing polar offset point dependency", () => {
+    const result = evaluateElements([
+      {
+        id: "polar",
+        name: "角度距離点",
+        type: "polarOffsetPoint",
+        visible: true,
+        enabled: true,
+        fromPointId: "missing",
+        angleDeg: 0,
+        distance: 30
+      }
+    ]);
+
+    expect(result.computedGeometry.has("polar")).toBe(false);
+    expect(result.errors[0]).toMatchObject({
+      elementId: "polar",
       missingDependencyId: "missing"
     });
   });

@@ -5,7 +5,7 @@ import { LeftPanel, RightPanel } from "./LeftPanel";
 import { ShortcutHelpOverlay } from "./ShortcutHelpOverlay";
 import { sampleElements } from "../sampleData";
 import { DEFAULT_CANVAS_VIEWPORT, useCadStore } from "../state/useCadStore";
-import type { EvaluationResult } from "../types/geometry";
+import type { CadElement, EvaluationResult } from "../types/geometry";
 
 const emptyEvaluation: EvaluationResult = {
   computedGeometry: new Map(),
@@ -88,14 +88,16 @@ describe("LeftPanel numeric input dragging", () => {
   });
 
   it("rounds numeric parameter display to at most two decimal places", () => {
+    const editedPoint: CadElement = {
+      ...(sampleElements[0] as Extract<CadElement, { type: "freePoint" }>),
+      x: 12.345,
+      y: 67.8,
+      numericParameterSteps: { x: 0.125 }
+    };
+
     useCadStore.setState({
       elements: [
-        {
-          ...sampleElements[0],
-          x: 12.345,
-          y: 67.8,
-          numericParameterSteps: { x: 0.125 }
-        },
+        editedPoint,
         ...sampleElements.slice(1)
       ]
     });

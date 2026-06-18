@@ -204,6 +204,130 @@ describe("commands", () => {
     expect(useCadStore.getState().past).toHaveLength(1);
   });
 
+  it("moves a polar offset point by updating angle and distance", () => {
+    useCadStore.setState({
+      elements: [
+        ...sampleElements,
+        {
+          id: "polar-point",
+          name: "角度距離点",
+          type: "polarOffsetPoint",
+          visible: true,
+          enabled: true,
+          fromPointId: "point-a",
+          angleDeg: 0,
+          distance: 30
+        }
+      ]
+    });
+
+    dispatchCommand("movePointElementByDelta", {
+      elementId: "polar-point",
+      dx: 0,
+      dy: -10
+    });
+
+    const moved = useCadStore.getState().elements.at(-1);
+    expect(moved).toMatchObject({ type: "polarOffsetPoint" });
+    if (moved?.type !== "polarOffsetPoint") throw new Error("Expected a polar offset point");
+    expect(moved.angleDeg).toBeCloseTo(18.43494882292201);
+    expect(moved.distance).toBeCloseTo(31.622776601683793);
+    expect(useCadStore.getState().past).toHaveLength(1);
+  });
+
+  it("locks polar offset point angle while dragging", () => {
+    useCadStore.setState({
+      elements: [
+        ...sampleElements,
+        {
+          id: "polar-point",
+          name: "角度距離点",
+          type: "polarOffsetPoint",
+          visible: true,
+          enabled: true,
+          fromPointId: "point-a",
+          angleDeg: 0,
+          distance: 30
+        }
+      ]
+    });
+
+    dispatchCommand("movePointElementByDelta", {
+      elementId: "polar-point",
+      dx: 0,
+      dy: -10,
+      angleLocked: true
+    });
+
+    expect(useCadStore.getState().elements.at(-1)).toMatchObject({
+      angleDeg: 0,
+      distance: 30
+    });
+  });
+
+  it("locks polar offset point distance while dragging", () => {
+    useCadStore.setState({
+      elements: [
+        ...sampleElements,
+        {
+          id: "polar-point",
+          name: "角度距離点",
+          type: "polarOffsetPoint",
+          visible: true,
+          enabled: true,
+          fromPointId: "point-a",
+          angleDeg: 0,
+          distance: 30
+        }
+      ]
+    });
+
+    dispatchCommand("movePointElementByDelta", {
+      elementId: "polar-point",
+      dx: 0,
+      dy: -10,
+      distanceLocked: true
+    });
+
+    const moved = useCadStore.getState().elements.at(-1);
+    expect(moved).toMatchObject({ type: "polarOffsetPoint" });
+    if (moved?.type !== "polarOffsetPoint") throw new Error("Expected a polar offset point");
+    expect(moved.angleDeg).toBeCloseTo(18.43494882292201);
+    expect(moved.distance).toBe(30);
+  });
+
+  it("does not move a polar offset point when angle and distance are both locked", () => {
+    useCadStore.setState({
+      elements: [
+        ...sampleElements,
+        {
+          id: "polar-point",
+          name: "角度距離点",
+          type: "polarOffsetPoint",
+          visible: true,
+          enabled: true,
+          fromPointId: "point-a",
+          angleDeg: 0,
+          distance: 30
+        }
+      ]
+    });
+
+    dispatchCommand("movePointElementByDelta", {
+      elementId: "polar-point",
+      dx: 0,
+      dy: -10,
+      angleLocked: true,
+      distanceLocked: true
+    });
+
+    expect(useCadStore.getState().elements.at(-1)).toMatchObject({
+      angleDeg: 0,
+      distance: 30
+    });
+    expect(useCadStore.getState().past).toHaveLength(0);
+  });
+
   it("does not move lines or missing point IDs", () => {
     dispatchCommand("movePointElementByDelta", {
       elementId: sampleElements[3].id,
@@ -516,19 +640,36 @@ describe("commands", () => {
   });
 
   it("finds add commands from command palette queries", () => {
-    expect(filterCommandPaletteItems("").slice(0, 3).map((item) => item.commandId)).toEqual([
+    expect(filterCommandPaletteItems("").slice(0, 4).map((item) => item.commandId)).toEqual([
       "addFreePoint",
       "addOffsetPoint",
+      "addPolarOffsetPoint",
       "addLine"
     ]);
     expect(filterCommandPaletteItems("point").map((item) => item.commandId)).toEqual(
-      expect.arrayContaining(["addFreePoint", "addOffsetPoint"])
+      expect.arrayContaining(["addFreePoint", "addOffsetPoint", "addPolarOffsetPoint"])
     );
     expect(filterCommandPaletteItems("点").map((item) => item.commandId)).toEqual(
-      expect.arrayContaining(["addFreePoint", "addOffsetPoint"])
+      expect.arrayContaining(["addFreePoint", "addOffsetPoint", "addPolarOffsetPoint"])
+    );
+    expect(filterCommandPaletteItems("角度").map((item) => item.commandId)).toContain(
+      "addPolarOffsetPoint"
     );
     expect(filterCommandPaletteItems("line").map((item) => item.commandId)).toContain("addLine");
     expect(filterCommandPaletteItems("直線").map((item) => item.commandId)).toContain("addLine");
+  });
+
+  it("adds a polar offset point from a command", () => {
+    dispatchCommand("addPolarOffsetPoint");
+
+    const added = useCadStore.getState().elements.at(-1);
+    expect(added).toMatchObject({
+      type: "polarOffsetPoint",
+      fromPointId: "point-a",
+      angleDeg: 0,
+      distance: 30
+    });
+    expect(useCadStore.getState().selectedElementId).toBe(added?.id);
   });
 
   it("uses a unique name when adding an element would reuse an existing name", () => {
@@ -594,6 +735,41 @@ describe("commands", () => {
 
     expect(useCadStore.getState().selectedParameterKey).toBe("x");
     expect(focusSelectedParameterInput).toHaveBeenCalledTimes(1);
+  });
+
+  it("selects polar offset point numeric parameters by direct key", () => {
+    const focusSelectedParameterInput = vi.fn();
+    useCadStore.setState({
+      elements: [
+        ...sampleElements,
+        {
+          id: "polar-point",
+          name: "角度距離点",
+          type: "polarOffsetPoint",
+          visible: true,
+          enabled: true,
+          fromPointId: "point-a",
+          angleDeg: 0,
+          distance: 30
+        }
+      ],
+      selectedElementId: "polar-point",
+      selectedElementIds: ["polar-point"],
+      selectedParameterKey: "name"
+    });
+
+    dispatchCommand("selectParameterByKey", {
+      parameterDirectKey: "r",
+      focusSelectedParameterInput
+    });
+
+    expect(useCadStore.getState().selectedParameterKey).toBe("angleDeg");
+    dispatchCommand("selectParameterByKey", {
+      parameterDirectKey: "f",
+      focusSelectedParameterInput
+    });
+    expect(useCadStore.getState().selectedParameterKey).toBe("distance");
+    expect(focusSelectedParameterInput).toHaveBeenCalledTimes(2);
   });
 
   it("increments numeric parameters using the parameter step", () => {

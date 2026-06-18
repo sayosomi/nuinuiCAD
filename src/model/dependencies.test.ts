@@ -30,12 +30,12 @@ const elements: CadElement[] = [
   {
     id: "c",
     name: "点C",
-    type: "offsetPoint",
+    type: "polarOffsetPoint",
     visible: true,
     enabled: true,
     fromPointId: "b",
-    dx: 10,
-    dy: 0
+    angleDeg: 0,
+    distance: 10
   },
   {
     id: "ab",

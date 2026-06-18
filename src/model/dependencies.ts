@@ -23,6 +23,7 @@ export const getDirectParentIds = (element: CadElement): ElementId[] => {
     case "freePoint":
       return [];
     case "offsetPoint":
+    case "polarOffsetPoint":
       return [element.fromPointId];
     case "line":
       return [element.startPointId, element.endPointId];
