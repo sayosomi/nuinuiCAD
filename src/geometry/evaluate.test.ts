@@ -390,6 +390,207 @@ describe("evaluateElements", () => {
     expect(point).toMatchObject({ kind: "point", x: 10 + Math.PI * 10, y: 40 });
   });
 
+  it("evaluates a three-point arc line by fitting a circle and trimming by angles", () => {
+    const result = evaluateElements([
+      {
+        id: "p1",
+        name: "点1",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 10,
+        y: 0
+      },
+      {
+        id: "p2",
+        name: "点2",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 0,
+        y: -10
+      },
+      {
+        id: "p3",
+        name: "点3",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: -10,
+        y: 0
+      },
+      {
+        id: "arc",
+        name: "三点円弧",
+        type: "threePointArcLine",
+        visible: true,
+        enabled: true,
+        point1: { mode: "reference", pointId: "p1" },
+        point2: { mode: "reference", pointId: "p2" },
+        point3: { mode: "reference", pointId: "p3" },
+        startAngleDeg: 0,
+        endAngleDeg: 90
+      }
+    ]);
+
+    const arc = result.computedGeometry.get("arc");
+    expect(result.errors).toHaveLength(0);
+    expect(arc).toMatchObject({
+      kind: "arcLine",
+      centerPointId: null,
+      radius: 10,
+      startAngleDeg: 0,
+      endAngleDeg: 90,
+      sweepAngleDeg: 90
+    });
+    if (arc?.kind !== "arcLine") throw new Error("Expected an arc line");
+    expect(arc.center.x).toBeCloseTo(0);
+    expect(arc.center.y).toBeCloseTo(0);
+    expect(arc.start.x).toBeCloseTo(10);
+    expect(arc.start.y).toBeCloseTo(0);
+    expect(arc.end.x).toBeCloseTo(0);
+    expect(arc.end.y).toBeCloseTo(-10);
+    expect(arc.length).toBeCloseTo((Math.PI * 10) / 2);
+  });
+
+  it("evaluates three-point arc wraps and numeric measurement references", () => {
+    const result = evaluateElements([
+      {
+        id: "p1",
+        name: "点1",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 20,
+        y: 0
+      },
+      {
+        id: "p2",
+        name: "点2",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 0,
+        y: -20
+      },
+      {
+        id: "p3",
+        name: "点3",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: -20,
+        y: 0
+      },
+      {
+        id: "arc",
+        name: "三点円弧",
+        type: "threePointArcLine",
+        visible: true,
+        enabled: true,
+        point1: { mode: "reference", pointId: "p1" },
+        point2: { mode: "reference", pointId: "p2" },
+        point3: { mode: "reference", pointId: "p3" },
+        startAngleDeg: 300,
+        endAngleDeg: 30
+      },
+      {
+        id: "measure",
+        name: "計測点",
+        type: "offsetPoint",
+        visible: true,
+        enabled: true,
+        fromPointId: "p1",
+        dx: { kind: "expression", expression: "arc.length" },
+        dy: { kind: "expression", expression: "arc.endAngleDeg" }
+      }
+    ]);
+
+    const arc = result.computedGeometry.get("arc");
+    const point = result.computedGeometry.get("measure");
+    expect(result.errors).toHaveLength(0);
+    expect(arc).toMatchObject({ kind: "arcLine", sweepAngleDeg: 90 });
+    if (arc?.kind !== "arcLine") throw new Error("Expected an arc line");
+    expect(point).toMatchObject({ kind: "point", x: 20 + Math.PI * 10, y: 30 });
+  });
+
+  it("reports a three-point arc dependency that appears too late", () => {
+    const result = evaluateElements([
+      validElements[0],
+      {
+        id: "arc",
+        name: "三点円弧",
+        type: "threePointArcLine",
+        visible: true,
+        enabled: true,
+        point1: { mode: "reference", pointId: "a" },
+        point2: { mode: "reference", pointId: "b" },
+        point3: { mode: "reference", pointId: "missing" },
+        startAngleDeg: 0,
+        endAngleDeg: 90
+      },
+      validElements[1]
+    ]);
+
+    expect(result.computedGeometry.has("arc")).toBe(false);
+    expect(result.errors[0]).toMatchObject({
+      elementId: "arc",
+      missingDependencyId: "b",
+      missingDependencyName: "点B"
+    });
+  });
+
+  it("reports a three-point arc geometry error for collinear points", () => {
+    const result = evaluateElements([
+      {
+        id: "p1",
+        name: "点1",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 0,
+        y: 0
+      },
+      {
+        id: "p2",
+        name: "点2",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 10,
+        y: 0
+      },
+      {
+        id: "p3",
+        name: "点3",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 20,
+        y: 0
+      },
+      {
+        id: "arc",
+        name: "三点円弧",
+        type: "threePointArcLine",
+        visible: true,
+        enabled: true,
+        point1: { mode: "reference", pointId: "p1" },
+        point2: { mode: "reference", pointId: "p2" },
+        point3: { mode: "reference", pointId: "p3" },
+        startAngleDeg: 0,
+        endAngleDeg: 90
+      }
+    ]);
+
+    expect(result.computedGeometry.has("arc")).toBe(false);
+    expect(result.errors[0]).toMatchObject({
+      elementId: "arc",
+      missingDependencyId: "arc",
+      message: expect.stringContaining("円を作れません")
+    });
+  });
+
   it("evaluates curve handles from local numeric variables", () => {
     const result = evaluateElements([
       ...validElements,

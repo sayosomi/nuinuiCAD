@@ -21,6 +21,7 @@ export const createCadElement = (
   );
   const firstPointId = points[0]?.id ?? "";
   const secondPointId = points[1]?.id ?? firstPointId;
+  const thirdPointId = points[2]?.id ?? secondPointId;
   const uniqueName = (elementId: ElementId, requestedName: string) =>
     makeUniqueElementName({
       elements,
@@ -101,6 +102,24 @@ export const createCadElement = (
         numericVariables: [],
         centerPoint: referenceAnchor(firstPointId),
         radius: 30,
+        startAngleDeg: 0,
+        endAngleDeg: 90
+      };
+    }
+    case "threePointArcLine": {
+      const id = createId(type);
+      const arcCount = elements.filter((element) => element.type === "threePointArcLine").length;
+      const requestedName = `三点円弧線${arcCount + 1}`;
+      return {
+        id,
+        name: uniqueName(id, requestedName),
+        type,
+        visible: true,
+        enabled: true,
+        numericVariables: [],
+        point1: referenceAnchor(firstPointId),
+        point2: referenceAnchor(secondPointId),
+        point3: referenceAnchor(thirdPointId),
         startAngleDeg: 0,
         endAngleDeg: 90
       };

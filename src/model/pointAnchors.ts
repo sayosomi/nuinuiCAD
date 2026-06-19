@@ -211,7 +211,7 @@ export const pointAnchorOptions = (elements: CadElement[]): PointAnchor[] =>
     if (element.type === "line") {
       return [derivedAnchor(element.id, "start"), derivedAnchor(element.id, "end")];
     }
-    if (element.type === "arcLine") {
+    if (element.type === "arcLine" || element.type === "threePointArcLine") {
       return [
         derivedAnchor(element.id, "center"),
         derivedAnchor(element.id, "start"),

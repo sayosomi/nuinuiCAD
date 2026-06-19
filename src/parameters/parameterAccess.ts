@@ -8,6 +8,7 @@ export const supportsNumericVariables = (element: CadElement) =>
   element.type === "polarOffsetPoint" ||
   element.type === "line" ||
   element.type === "arcLine" ||
+  element.type === "threePointArcLine" ||
   element.type === "bezierCurve";
 
 export const parseIntermediateParameterKey = (key: string) => {
@@ -42,6 +43,12 @@ export const getPointAnchor = (element: CadElement, key: string): PointAnchor | 
   if (key === "centerPoint" && element.type === "arcLine") {
     return element.centerPoint;
   }
+  if (
+    (key === "point1" || key === "point2" || key === "point3") &&
+    element.type === "threePointArcLine"
+  ) {
+    return element[key];
+  }
   if (key === "fromPoint" && (element.type === "offsetPoint" || element.type === "polarOffsetPoint")) {
     return pointAnchorForElement(element);
   }
@@ -70,6 +77,12 @@ export const setPointAnchor = (
   }
   if (key === "centerPoint" && element.type === "arcLine") {
     return { ...element, centerPoint: anchor };
+  }
+  if (
+    (key === "point1" || key === "point2" || key === "point3") &&
+    element.type === "threePointArcLine"
+  ) {
+    return { ...element, [key]: anchor };
   }
   if (key === "fromPoint" && element.type === "offsetPoint") {
     return {

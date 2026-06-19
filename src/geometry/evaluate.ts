@@ -42,6 +42,14 @@ const dependencyError = (
   };
 };
 
+const geometryError = (element: CadElement, message: string): DependencyError => ({
+  elementId: element.id,
+  elementName: element.name,
+  missingDependencyId: element.id,
+  missingDependencyName: element.name,
+  message
+});
+
 const getComputedPointOrError = (
   element: CadElement,
   pointId: ElementId,
@@ -64,6 +72,39 @@ const normalizeDegrees = (degrees: number) => ((degrees % 360) + 360) % 360;
 const positiveSweepDegrees = (startAngleDeg: number, endAngleDeg: number) =>
   normalizeDegrees(endAngleDeg - startAngleDeg);
 const CURVE_LENGTH_STEPS = 32;
+const CIRCLE_EPSILON = 1e-9;
+
+const circleThroughThreePoints = (
+  point1: ComputedPoint,
+  point2: ComputedPoint,
+  point3: ComputedPoint
+) => {
+  const denominator =
+    2 *
+    (point1.x * (point2.y - point3.y) +
+      point2.x * (point3.y - point1.y) +
+      point3.x * (point1.y - point2.y));
+
+  if (Math.abs(denominator) < CIRCLE_EPSILON) return null;
+
+  const point1Squared = point1.x * point1.x + point1.y * point1.y;
+  const point2Squared = point2.x * point2.x + point2.y * point2.y;
+  const point3Squared = point3.x * point3.x + point3.y * point3.y;
+  const x =
+    (point1Squared * (point2.y - point3.y) +
+      point2Squared * (point3.y - point1.y) +
+      point3Squared * (point1.y - point2.y)) /
+    denominator;
+  const y =
+    (point1Squared * (point3.x - point2.x) +
+      point2Squared * (point1.x - point3.x) +
+      point3Squared * (point2.x - point1.x)) /
+    denominator;
+  const radius = Math.hypot(point1.x - x, point1.y - y);
+
+  if (!Number.isFinite(radius) || radius <= CIRCLE_EPSILON) return null;
+  return { x, y, radius };
+};
 
 const handlePoint = (point: ComputedPoint, angleDeg: number, length: number) => {
   const angleRad = degreesToRadians(angleDeg);
@@ -512,6 +553,111 @@ export const evaluateElements = (elements: CadElement[]): EvaluationResult => {
           endAngleDeg,
           sweepAngleDeg,
           length: safeRadius * degreesToRadians(sweepAngleDeg)
+        });
+        break;
+      }
+      case "threePointArcLine": {
+        const point1 = getPointAnchorOrError(
+          element,
+          element.point1,
+          "point1",
+          computedGeometry,
+          elementsById,
+          errors,
+          localVariableValues,
+          localVariableNames
+        );
+        const point2 = getPointAnchorOrError(
+          element,
+          element.point2,
+          "point2",
+          computedGeometry,
+          elementsById,
+          errors,
+          localVariableValues,
+          localVariableNames
+        );
+        const point3 = getPointAnchorOrError(
+          element,
+          element.point3,
+          "point3",
+          computedGeometry,
+          elementsById,
+          errors,
+          localVariableValues,
+          localVariableNames
+        );
+        if (!point1 || !point2 || !point3) {
+          break;
+        }
+
+        const startAngleDeg = numericError(
+          element,
+          element.startAngleDeg,
+          computedGeometry,
+          elementsById,
+          errors,
+          localVariableValues,
+          localVariableNames
+        );
+        const endAngleDeg = numericError(
+          element,
+          element.endAngleDeg,
+          computedGeometry,
+          elementsById,
+          errors,
+          localVariableValues,
+          localVariableNames
+        );
+        if (startAngleDeg === undefined || endAngleDeg === undefined) {
+          break;
+        }
+
+        const circle = circleThroughThreePoints(point1, point2, point3);
+        if (!circle) {
+          errors.push(
+            geometryError(
+              element,
+              `${element.name} は点1・点2・点3から円を作れません。3点が重複しているか、一直線上にあります。別の3点を指定してください。`
+            )
+          );
+          break;
+        }
+
+        const startAngleRad = degreesToRadians(startAngleDeg);
+        const endAngleRad = degreesToRadians(endAngleDeg);
+        const sweepAngleDeg = positiveSweepDegrees(startAngleDeg, endAngleDeg);
+        computedGeometry.set(element.id, {
+          kind: "arcLine",
+          elementId: element.id,
+          name: element.name,
+          centerPointId: null,
+          center: {
+            kind: "point",
+            elementId: `${element.id}:center`,
+            name: `${element.name}.中心点`,
+            x: circle.x,
+            y: circle.y
+          },
+          start: {
+            kind: "point",
+            elementId: `${element.id}:start`,
+            name: `${element.name}.始点`,
+            x: circle.x + Math.cos(startAngleRad) * circle.radius,
+            y: circle.y - Math.sin(startAngleRad) * circle.radius
+          },
+          end: {
+            kind: "point",
+            elementId: `${element.id}:end`,
+            name: `${element.name}.終点`,
+            x: circle.x + Math.cos(endAngleRad) * circle.radius,
+            y: circle.y - Math.sin(endAngleRad) * circle.radius
+          },
+          radius: circle.radius,
+          startAngleDeg,
+          endAngleDeg,
+          sweepAngleDeg,
+          length: circle.radius * degreesToRadians(sweepAngleDeg)
         });
         break;
       }

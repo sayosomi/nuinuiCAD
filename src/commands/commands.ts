@@ -78,6 +78,7 @@ export type CommandId =
   | "addPolarOffsetPoint"
   | "addLine"
   | "addArcLine"
+  | "addThreePointArcLine"
   | "addBezierCurve"
   | "addNumericVariable"
   | "deleteNumericVariable"
@@ -933,6 +934,11 @@ export const commands: Record<CommandId, Command> = {
     label: "円弧線を追加",
     run: () => addElement("arcLine")
   },
+  addThreePointArcLine: {
+    id: "addThreePointArcLine",
+    label: "三点円弧線を追加",
+    run: () => addElement("threePointArcLine")
+  },
   addBezierCurve: {
     id: "addBezierCurve",
     label: "Bezier curve を追加",
@@ -1187,6 +1193,7 @@ const paletteCommandIds: CommandId[] = [
   "addPolarOffsetPoint",
   "addLine",
   "addArcLine",
+  "addThreePointArcLine",
   "addBezierCurve",
   "startPointPick",
   "startNumericReferencePick",
@@ -1223,6 +1230,17 @@ const paletteKeywords: Partial<Record<CommandId, string[]>> = {
   addPolarOffsetPoint: ["polar", "angle", "distance", "角度", "距離", "点", "追加"],
   addLine: ["line", "直線", "線", "追加"],
   addArcLine: ["arc", "arc line", "radius", "円弧", "円弧線", "半径", "線", "追加"],
+  addThreePointArcLine: [
+    "arc",
+    "three point arc",
+    "3 point arc",
+    "circle",
+    "三点円弧",
+    "3点円弧",
+    "円弧",
+    "線",
+    "追加"
+  ],
   addBezierCurve: ["bezier", "curve", "曲線", "ベジェ", "追加"],
   startNumericReferencePick: ["number", "reference", "measurement", "数値", "参照", "選択"],
   addNumericVariable: ["variable", "共有", "共通", "変数", "追加"],

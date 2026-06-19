@@ -68,6 +68,15 @@ export const getDirectParentIds = (element: CadElement): ElementId[] => {
           ...extractNumericExpressionReferences(element.startAngleDeg),
           ...extractNumericExpressionReferences(element.endAngleDeg)
         ].map((reference) => reference.elementId);
+      case "threePointArcLine":
+        return [
+          ...numericVariableReferences(element),
+          ...pointAnchorParentIds(element.point1).map((elementId) => ({ elementId })),
+          ...pointAnchorParentIds(element.point2).map((elementId) => ({ elementId })),
+          ...pointAnchorParentIds(element.point3).map((elementId) => ({ elementId })),
+          ...extractNumericExpressionReferences(element.startAngleDeg),
+          ...extractNumericExpressionReferences(element.endAngleDeg)
+        ].map((reference) => reference.elementId);
       case "bezierCurve":
         return [
           ...numericVariableReferences(element),
@@ -98,6 +107,7 @@ export const getDirectParentIds = (element: CadElement): ElementId[] => {
       ].filter(Boolean);
     case "line":
     case "arcLine":
+    case "threePointArcLine":
       return numericExpressionParentIds();
     case "bezierCurve":
       return numericExpressionParentIds();

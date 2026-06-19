@@ -155,7 +155,13 @@ export const normalizeNumericExpressionInput = (
   let expression = input.trim();
   const variables = [...localVariables].sort((a, b) => b.name.length - a.name.length);
   const measurableElements = elements
-    .filter((element) => element.type === "line" || element.type === "arcLine" || element.type === "bezierCurve")
+    .filter(
+      (element) =>
+        element.type === "line" ||
+        element.type === "arcLine" ||
+        element.type === "threePointArcLine" ||
+        element.type === "bezierCurve"
+    )
     .sort((a, b) => b.name.length - a.name.length);
 
   for (const variable of variables) {
@@ -168,7 +174,9 @@ export const normalizeNumericExpressionInput = (
   for (const element of measurableElements) {
     for (const [property, label] of Object.entries(propertyLabels)) {
       if (
-        (element.type === "line" || element.type === "arcLine") &&
+        (element.type === "line" ||
+          element.type === "arcLine" ||
+          element.type === "threePointArcLine") &&
         property !== "length" &&
         property !== "startAngleDeg" &&
         property !== "endAngleDeg"

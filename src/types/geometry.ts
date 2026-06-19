@@ -76,6 +76,15 @@ export type ArcLineElement = CadElementBase & {
   endAngleDeg: NumericValue;
 };
 
+export type ThreePointArcLineElement = CadElementBase & {
+  type: "threePointArcLine";
+  point1: PointAnchor;
+  point2: PointAnchor;
+  point3: PointAnchor;
+  startAngleDeg: NumericValue;
+  endAngleDeg: NumericValue;
+};
+
 export type BezierIntermediatePoint = {
   id: string;
   point: PointAnchor;
@@ -101,6 +110,7 @@ export type CadElement =
   | PolarOffsetPointElement
   | LineElement
   | ArcLineElement
+  | ThreePointArcLineElement
   | BezierCurveElement;
 export type CadElementType = CadElement["type"];
 
@@ -185,5 +195,6 @@ export const elementTypeLabels: Record<CadElementType, string> = {
   polarOffsetPoint: "polar offset point",
   line: "line",
   arcLine: "arc line",
+  threePointArcLine: "three-point arc line",
   bezierCurve: "Bezier curve"
 };

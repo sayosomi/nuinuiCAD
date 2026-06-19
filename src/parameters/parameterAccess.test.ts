@@ -81,6 +81,26 @@ describe("parameterAccess", () => {
     });
   });
 
+  it("updates three-point arc anchors", () => {
+    const arc: CadElement = {
+      id: "arc",
+      name: "三点円弧",
+      type: "threePointArcLine",
+      visible: true,
+      enabled: true,
+      point1: referenceAnchor("point-a"),
+      point2: referenceAnchor("point-b"),
+      point3: referenceAnchor("point-c"),
+      startAngleDeg: 0,
+      endAngleDeg: 90
+    };
+
+    expect(getPointAnchor(arc, "point2")).toEqual(referenceAnchor("point-b"));
+    expect(setParameterValue(arc, "point2", referenceAnchor("point-d"))).toMatchObject({
+      point2: referenceAnchor("point-d")
+    });
+  });
+
   it("updates Bezier intermediate anchors and handle parameters", () => {
     const curve: CadElement = {
       id: "curve",

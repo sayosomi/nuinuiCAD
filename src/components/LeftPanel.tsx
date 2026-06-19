@@ -675,6 +675,38 @@ const ElementEditor = ({
           </>
         )}
 
+        {element.type === "threePointArcLine" && (
+          <>
+            {pointAnchorEditor({
+              parameterKey: "point1",
+              label: "点1",
+              anchor: element.point1
+            })}
+            {pointAnchorEditor({
+              parameterKey: "point2",
+              label: "点2",
+              anchor: element.point2
+            })}
+            {pointAnchorEditor({
+              parameterKey: "point3",
+              label: "点3",
+              anchor: element.point3
+            })}
+            {numericInput({
+              parameterKey: "startAngleDeg",
+              label: "始角度",
+              value: element.startAngleDeg,
+              ariaLabel: "始角度"
+            })}
+            {numericInput({
+              parameterKey: "endAngleDeg",
+              label: "終角度",
+              value: element.endAngleDeg,
+              ariaLabel: "終角度"
+            })}
+          </>
+        )}
+
         {element.type === "bezierCurve" && (
           <>
             {pointAnchorEditor({

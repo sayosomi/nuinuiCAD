@@ -745,6 +745,23 @@ describe("commands", () => {
     expect(state.past).toHaveLength(1);
   });
 
+  it("adds a three-point arc line and selects it", () => {
+    dispatchCommand("addThreePointArcLine");
+
+    const state = useCadStore.getState();
+    const arc = state.elements.at(-1);
+    expect(arc).toMatchObject({
+      type: "threePointArcLine",
+      point1: { mode: "reference", pointId: "point-a" },
+      point2: { mode: "reference", pointId: "point-b" },
+      point3: { mode: "reference", pointId: "point-c" },
+      startAngleDeg: 0,
+      endAngleDeg: 90
+    });
+    expect(state.selectedElementId).toBe(arc?.id);
+    expect(state.past).toHaveLength(1);
+  });
+
 
   it("adds and deletes a Bezier intermediate point", () => {
     dispatchCommand("addBezierCurve");
@@ -931,6 +948,9 @@ describe("commands", () => {
     expect(filterCommandPaletteItems("line").map((item) => item.commandId)).toContain("addLine");
     expect(filterCommandPaletteItems("直線").map((item) => item.commandId)).toContain("addLine");
     expect(filterCommandPaletteItems("円弧").map((item) => item.commandId)).toContain("addArcLine");
+    expect(filterCommandPaletteItems("三点円弧").map((item) => item.commandId)).toContain(
+      "addThreePointArcLine"
+    );
   });
 
   it("adds a polar offset point from a command", () => {

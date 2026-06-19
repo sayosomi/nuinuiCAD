@@ -125,6 +125,43 @@ export const getParameterDefinitions = (element: CadElement): ParameterDefinitio
           stepLevels: angleNumericParameterStepLevels
         }
       ];
+    case "threePointArcLine":
+      return [
+        ...commonParameters,
+        ...numericVariableParameters(element),
+        ...pointAnchorParameters({
+          anchor: element.point1,
+          key: "point1",
+          directKey: "1",
+          label: "点1"
+        }),
+        ...pointAnchorParameters({
+          anchor: element.point2,
+          key: "point2",
+          directKey: "2",
+          label: "点2"
+        }),
+        ...pointAnchorParameters({
+          anchor: element.point3,
+          key: "point3",
+          directKey: "3",
+          label: "点3"
+        }),
+        {
+          key: "startAngleDeg",
+          directKey: "s",
+          label: "始角度",
+          kind: "number",
+          stepLevels: angleNumericParameterStepLevels
+        },
+        {
+          key: "endAngleDeg",
+          directKey: "t",
+          label: "終角度",
+          kind: "number",
+          stepLevels: angleNumericParameterStepLevels
+        }
+      ];
     case "bezierCurve":
       return [
         ...commonParameters,

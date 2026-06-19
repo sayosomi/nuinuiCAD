@@ -74,6 +74,22 @@ describe("createCadElement", () => {
     });
   });
 
+  it("creates three-point arc lines using the first three points as default circle points", () => {
+    expect(createCadElement("threePointArcLine", sampleElements, { createId: createTestId })).toMatchObject({
+      id: "threePointArcLine-test-id",
+      name: "三点円弧線1",
+      type: "threePointArcLine",
+      visible: true,
+      enabled: true,
+      numericVariables: [],
+      point1: { mode: "reference", pointId: "point-a" },
+      point2: { mode: "reference", pointId: "point-b" },
+      point3: { mode: "reference", pointId: "point-c" },
+      startAngleDeg: 0,
+      endAngleDeg: 90
+    });
+  });
+
   it("creates Bezier curves using the first two points as default endpoints", () => {
     expect(createCadElement("bezierCurve", sampleElements, { createId: createTestId })).toMatchObject({
       id: "bezierCurve-test-id",

@@ -107,6 +107,23 @@ describe("dependencies", () => {
     expect(getDirectParentIds(arc)).toEqual(["a", "bc", "ab"]);
   });
 
+  it("returns three-point arc point and numeric expression references as direct parent ids", () => {
+    const arc: CadElement = {
+      id: "three-point-arc",
+      name: "三点円弧",
+      type: "threePointArcLine",
+      visible: true,
+      enabled: true,
+      point1: { mode: "reference", pointId: "a" },
+      point2: { mode: "reference", pointId: "b" },
+      point3: { mode: "reference", pointId: "c" },
+      startAngleDeg: { kind: "expression", expression: "ab.startAngleDeg" },
+      endAngleDeg: { kind: "expression", expression: "bc.endAngleDeg" }
+    };
+
+    expect(getDirectParentIds(arc)).toEqual(["a", "b", "c", "ab", "bc"]);
+  });
+
   it("returns direct coordinate expression references as parent ids", () => {
     const directLine: CadElement = {
       id: "direct",
