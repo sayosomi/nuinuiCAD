@@ -11,7 +11,6 @@ import {
 } from "../model/pointAnchors";
 import {
   lineMeasurementLabel,
-  type NumericMeasurementKey,
   formatNumericExpressionForDisplay,
   makeNumericExpression,
   normalizeNumericExpressionInput
@@ -38,6 +37,16 @@ import type {
   PointAnchor
 } from "../types/geometry";
 import { elementTypeLabels } from "../types/geometry";
+import {
+  arcLineInfoRows,
+  bezierCurveInfoRows,
+  formatNumber,
+  lineInfoRows,
+  numericReferenceExpression,
+  numericReferenceProperties,
+  numericReferenceValue,
+  pointCoordinateRows
+} from "./geometryDisplay";
 
 type LeftPanelProps = {
   evaluation: EvaluationResult;
@@ -50,6 +59,8 @@ type RightPanelProps = {
   isDependencyJumpMode: boolean;
   registerParameterControl: (key: string, element: HTMLElement | null) => void;
 };
+
+type NumericReferenceGeometry = ComputedLine | ComputedArcLine | ComputedBezierCurve;
 
 const isComputedPoint = (geometry: ComputedGeometry | undefined): geometry is ComputedPoint =>
   geometry?.kind === "point";
@@ -64,70 +75,7 @@ const isComputedBezierCurve = (
   geometry: ComputedGeometry | undefined
 ): geometry is ComputedBezierCurve => geometry?.kind === "bezierCurve";
 
-const formatNumber = (value: number) =>
-  Number.isInteger(value) ? `${value}` : value.toFixed(2).replace(/\.?0+$/, "");
-
-const formatMillimeters = (value: number) => `${formatNumber(value)} mm`;
-
-const formatCoordinate = (point: ComputedPoint) => `(${formatNumber(point.x)}, ${formatNumber(point.y)})`;
-
 const formatDependencyCount = (count: number) => (count > 99 ? "99+" : `${count}`);
-
-const normalizeDegrees = (degrees: number) => (degrees + 360) % 360;
-
-const formatAngleDeg = (degrees: number | null) =>
-  degrees === null ? "未定義" : `${formatNumber(normalizeDegrees(degrees))}°`;
-
-const numericReferenceProperties = (geometry: ComputedLine | ComputedArcLine | ComputedBezierCurve) =>
-  geometry.kind === "line"
-    ? (["length", "startAngleDeg", "endAngleDeg"] as const)
-    : geometry.kind === "arcLine"
-      ? (["length", "startAngleDeg", "endAngleDeg"] as const)
-    : (["length"] as const);
-
-const numericReferenceExpression = (
-  geometry: ComputedLine | ComputedArcLine | ComputedBezierCurve,
-  property: NumericMeasurementKey
-) => `${geometry.elementId}.${property}`;
-
-const numericReferenceValue = (
-  geometry: ComputedLine | ComputedArcLine | ComputedBezierCurve,
-  property: NumericMeasurementKey
-) => {
-  if (property === "length") return formatMillimeters(geometry.length);
-  if ((geometry.kind === "line" || geometry.kind === "arcLine") && property === "startAngleDeg") return formatAngleDeg(geometry.startAngleDeg);
-  if ((geometry.kind === "line" || geometry.kind === "arcLine") && property === "endAngleDeg") return formatAngleDeg(geometry.endAngleDeg);
-  return "";
-};
-
-const pointCoordinateRows = (point: ComputedPoint) => [
-  { label: "座標", value: formatCoordinate(point) }
-];
-
-const lineInfoRows = (line: ComputedLine) => {
-  return [
-    { label: "始点", value: formatCoordinate(line.start) },
-    { label: "終点", value: formatCoordinate(line.end) },
-    { label: "始角度", value: formatAngleDeg(line.startAngleDeg) },
-    { label: "終角度", value: formatAngleDeg(line.endAngleDeg) },
-    { label: "長さ", value: formatMillimeters(line.length) }
-  ];
-};
-
-const arcLineInfoRows = (arc: ComputedArcLine) => [
-  { label: "中心点", value: formatCoordinate(arc.center) },
-  { label: "始点", value: formatCoordinate(arc.start) },
-  { label: "終点", value: formatCoordinate(arc.end) },
-  { label: "半径", value: formatMillimeters(arc.radius) },
-  { label: "始角度", value: formatAngleDeg(arc.startAngleDeg) },
-  { label: "終角度", value: formatAngleDeg(arc.endAngleDeg) },
-  { label: "長さ", value: formatMillimeters(arc.length) }
-];
-
-const bezierCurveInfoRows = (curve: ComputedBezierCurve) => [
-  { label: "区間数", value: `${curve.segments.length}` },
-  { label: "長さ", value: formatMillimeters(curve.length) }
-];
 
 const coordinateAnchor = (x: NumericValue = 0, y: NumericValue = 0): PointAnchor => ({
   mode: "coordinate",
@@ -1043,8 +991,8 @@ export const LeftPanel = ({
     return isComputedLine(geometry) || isComputedArcLine(geometry) || isComputedBezierCurve(geometry) ? geometry : null;
   };
   const applyNumericReference = (
-    geometry: ComputedLine | ComputedArcLine | ComputedBezierCurve,
-    property: NumericMeasurementKey
+    geometry: NumericReferenceGeometry,
+    property: ReturnType<typeof numericReferenceProperties>[number]
   ) => {
     dispatchCommand("applyPickedNumericReference", {
       numericReferenceExpression: numericReferenceExpression(geometry, property)

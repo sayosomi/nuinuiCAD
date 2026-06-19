@@ -28,6 +28,7 @@ import {
 } from "./DrawingCanvasHitTest";
 import type { LineMeasurementCandidate } from "./DrawingCanvasHitTest";
 import type { ScreenPoint } from "./DrawingCanvasHitTest";
+import { numericReferenceValue } from "./geometryDisplay";
 
 type DrawingCanvasProps = {
   evaluation: EvaluationResult;
@@ -118,27 +119,6 @@ const isBezierCurve = (geometry: unknown): geometry is ComputedBezierCurve =>
   geometry !== null &&
   "kind" in geometry &&
   geometry.kind === "bezierCurve";
-
-const formatNumber = (value: number) =>
-  Number.isInteger(value) ? `${value}` : value.toFixed(2).replace(/\.?0+$/, "");
-
-const formatMillimeters = (value: number) => `${formatNumber(value)} mm`;
-
-const normalizeDegrees = (degrees: number) => (degrees + 360) % 360;
-
-const formatAngleDeg = (degrees: number | null) =>
-  degrees === null ? "未定義" : `${formatNumber(normalizeDegrees(degrees))}°`;
-
-const measurementCandidateValue = (candidate: LineMeasurementCandidate) => {
-  if (candidate.property === "length") return formatMillimeters(candidate.line.length);
-  if ((candidate.line.kind === "line" || candidate.line.kind === "arcLine") && candidate.property === "startAngleDeg") {
-    return formatAngleDeg(candidate.line.startAngleDeg);
-  }
-  if ((candidate.line.kind === "line" || candidate.line.kind === "arcLine") && candidate.property === "endAngleDeg") {
-    return formatAngleDeg(candidate.line.endAngleDeg);
-  }
-  return "";
-};
 
 const worldToScreen = (
   point: { x: number; y: number },
@@ -1071,7 +1051,7 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
                   <strong>{candidate.line.name}</strong>
                   <span>{lineMeasurementLabel(candidate.property)}</span>
                 </span>
-                <small>{measurementCandidateValue(candidate)}</small>
+                <small>{numericReferenceValue(candidate.line, candidate.property)}</small>
               </button>
             ))}
           </div>
