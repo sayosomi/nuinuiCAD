@@ -23,6 +23,7 @@ import {
   getParameterDefinitions
 } from "../parameters/parameterDefinitions";
 import type { ParameterKey } from "../parameters/parameterDefinitions";
+import { setParameterValue, supportsNumericVariables } from "../parameters/parameterAccess";
 import { useCadStore } from "../state/useCadStore";
 import type {
   CadElement,
@@ -136,14 +137,6 @@ const coordinateAnchor = (x: NumericValue = 0, y: NumericValue = 0): PointAnchor
 
 const anchorPointId = (anchor: PointAnchor) => (anchor.mode === "reference" ? anchor.pointId : "");
 
-const supportsNumericVariables = (element: CadElement) =>
-  element.type === "freePoint" ||
-  element.type === "offsetPoint" ||
-  element.type === "polarOffsetPoint" ||
-  element.type === "line" ||
-  element.type === "arcLine" ||
-  element.type === "bezierCurve";
-
 type ElementStatusIconKind = "visible" | "hidden" | "enabled" | "disabled";
 
 const ElementStatusIcon = ({ kind }: { kind: ElementStatusIconKind }) => {
@@ -230,102 +223,8 @@ const ElementEditor = ({
   const commitName = (name: string) => renameElement(element.id, name);
   const updateVisible = (visible: boolean) => updateElement(element.id, { visible });
   const updateEnabled = (enabled: boolean) => updateElement(element.id, { enabled });
-  const parseIntermediateParameterKey = (key: string) => {
-    const [, intermediatePointId, field] = key.split(":");
-    if (!key.startsWith("intermediate:") || !intermediatePointId || !field) return null;
-    return { intermediatePointId, field };
-  };
-  const parseVariableParameterKey = (key: string) => {
-    const [, variableId, field] = key.split(":");
-    if (!key.startsWith("variable:") || !variableId || field !== "value") return null;
-    return { variableId };
-  };
-  const parseAnchorCoordinateParameterKey = (key: string) => {
-    const parts = key.split(":");
-    const axis = parts.at(-1);
-    if (axis !== "x" && axis !== "y") return null;
-    const anchorKey = parts.slice(0, -1).join(":");
-    if (!anchorKey) return null;
-    return { anchorKey, axis };
-  };
-  const getPointAnchor = (key: string): PointAnchor | null => {
-    const parsed = parseIntermediateParameterKey(key);
-    if (parsed && element.type === "bezierCurve" && parsed.field === "point") {
-      return element.intermediatePoints.find((point) => point.id === parsed.intermediatePointId)?.point ?? null;
-    }
-    if ((key === "startPoint" || key === "endPoint") && (element.type === "line" || element.type === "bezierCurve")) {
-      return element[key];
-    }
-    if (key === "centerPoint" && element.type === "arcLine") {
-      return element.centerPoint;
-    }
-    if (key === "fromPoint" && (element.type === "offsetPoint" || element.type === "polarOffsetPoint")) {
-      return pointAnchorForElement(element);
-    }
-    return null;
-  };
   const updateParameterValue = (field: ParameterKey, value: unknown) => {
-    const anchorCoordinate = parseAnchorCoordinateParameterKey(field);
-    if (anchorCoordinate) {
-      const anchor = getPointAnchor(anchorCoordinate.anchorKey);
-      if (!anchor || anchor.mode !== "coordinate") return;
-      updateParameterValue(anchorCoordinate.anchorKey, {
-        ...anchor,
-        [anchorCoordinate.axis]: value as NumericValue
-      });
-      return;
-    }
-    const anchor = getPointAnchor(field);
-    if (anchor) {
-      const nextAnchor = typeof value === "string" ? referenceAnchor(value) : value as PointAnchor;
-      const parsed = parseIntermediateParameterKey(field);
-      if (parsed && element.type === "bezierCurve" && parsed.field === "point") {
-        updateElement(element.id, {
-          intermediatePoints: element.intermediatePoints.map((point) =>
-            point.id === parsed.intermediatePointId ? { ...point, point: nextAnchor } : point
-          )
-        } as Partial<CadElement>);
-        return;
-      }
-      if (field === "startPoint" && (element.type === "line" || element.type === "bezierCurve")) {
-        updateElement(element.id, { startPoint: nextAnchor } as Partial<CadElement>);
-        return;
-      }
-      if (field === "endPoint" && (element.type === "line" || element.type === "bezierCurve")) {
-        updateElement(element.id, { endPoint: nextAnchor } as Partial<CadElement>);
-        return;
-      }
-      if (field === "centerPoint" && element.type === "arcLine") {
-        updateElement(element.id, { centerPoint: nextAnchor } as Partial<CadElement>);
-        return;
-      }
-      if (field === "fromPoint" && (element.type === "offsetPoint" || element.type === "polarOffsetPoint")) {
-        updateElement(element.id, {
-          fromPoint: nextAnchor,
-          fromPointId: nextAnchor.mode === "reference" ? nextAnchor.pointId : undefined
-        } as Partial<CadElement>);
-        return;
-      }
-    }
-    const variable = parseVariableParameterKey(field);
-    if (variable) {
-      updateElement(element.id, {
-        numericVariables: (element.numericVariables ?? []).map((item) =>
-          item.id === variable.variableId ? { ...item, value: value as NumericValue } : item
-        )
-      } as Partial<CadElement>);
-      return;
-    }
-    const parsed = parseIntermediateParameterKey(field);
-    if (parsed && element.type === "bezierCurve") {
-      updateElement(element.id, {
-        intermediatePoints: element.intermediatePoints.map((point) =>
-          point.id === parsed.intermediatePointId ? { ...point, [parsed.field]: value } : point
-        )
-      } as Partial<CadElement>);
-      return;
-    }
-    updateElement(element.id, { [field]: value } as Partial<CadElement>);
+    updateElement(element.id, setParameterValue(element, field, value) as Partial<CadElement>);
   };
   const updateField = (field: ParameterKey, value: string) => {
     updateParameterValue(
