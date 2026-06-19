@@ -99,6 +99,32 @@ export const getParameterDefinitions = (element: CadElement): ParameterDefinitio
           label: "終点"
         })
       ];
+    case "arcLine":
+      return [
+        ...commonParameters,
+        ...numericVariableParameters(element),
+        ...pointAnchorParameters({
+          anchor: element.centerPoint,
+          key: "centerPoint",
+          directKey: "c",
+          label: "中心点"
+        }),
+        { key: "radius", directKey: "d", label: "半径", kind: "number" },
+        {
+          key: "startAngleDeg",
+          directKey: "s",
+          label: "始角度",
+          kind: "number",
+          stepLevels: angleNumericParameterStepLevels
+        },
+        {
+          key: "endAngleDeg",
+          directKey: "t",
+          label: "終角度",
+          kind: "number",
+          stepLevels: angleNumericParameterStepLevels
+        }
+      ];
     case "bezierCurve":
       return [
         ...commonParameters,

@@ -56,11 +56,18 @@ export const pointAnchorForElement = (element: CadElement): PointAnchor | null =
 };
 
 const derivedPoint = (
-  source: ComputedLine | ComputedBezierCurve,
+  source: ComputedLine | ComputedBezierCurve | Extract<ComputedGeometry, { kind: "arcLine" }>,
   pointKey: string,
   elementsById: Map<ElementId, CadElement>
 ): ComputedPoint | null => {
   if (source.kind === "line") {
+    if (pointKey === "start") return source.start;
+    if (pointKey === "end") return source.end;
+    return null;
+  }
+
+  if (source.kind === "arcLine") {
+    if (pointKey === "center") return source.center;
     if (pointKey === "start") return source.start;
     if (pointKey === "end") return source.end;
     return null;
@@ -84,7 +91,7 @@ export const resolveDerivedPoint = (
   pointKey: string,
   elementsById: Map<ElementId, CadElement>
 ) => {
-  if (!source || (source.kind !== "line" && source.kind !== "bezierCurve")) return null;
+  if (!source || (source.kind !== "line" && source.kind !== "arcLine" && source.kind !== "bezierCurve")) return null;
   return derivedPoint(source, pointKey, elementsById);
 };
 
@@ -116,6 +123,26 @@ export const selectablePointsForGeometry = (
 
   if (geometry.kind === "line") {
     return [
+      {
+        anchor: derivedAnchor(geometry.elementId, "start"),
+        label: `${geometry.name}.始点`,
+        point: computedPoint(`${geometry.elementId}:start`, `${geometry.name}.始点`, geometry.start)
+      },
+      {
+        anchor: derivedAnchor(geometry.elementId, "end"),
+        label: `${geometry.name}.終点`,
+        point: computedPoint(`${geometry.elementId}:end`, `${geometry.name}.終点`, geometry.end)
+      }
+    ];
+  }
+
+  if (geometry.kind === "arcLine") {
+    return [
+      {
+        anchor: derivedAnchor(geometry.elementId, "center"),
+        label: `${geometry.name}.中心点`,
+        point: computedPoint(`${geometry.elementId}:center`, `${geometry.name}.中心点`, geometry.center)
+      },
       {
         anchor: derivedAnchor(geometry.elementId, "start"),
         label: `${geometry.name}.始点`,
@@ -183,6 +210,13 @@ export const pointAnchorOptions = (elements: CadElement[]): PointAnchor[] =>
     if (isPointElement(element)) return [referenceAnchor(element.id)];
     if (element.type === "line") {
       return [derivedAnchor(element.id, "start"), derivedAnchor(element.id, "end")];
+    }
+    if (element.type === "arcLine") {
+      return [
+        derivedAnchor(element.id, "center"),
+        derivedAnchor(element.id, "start"),
+        derivedAnchor(element.id, "end")
+      ];
     }
     if (element.type === "bezierCurve") {
       return [

@@ -61,6 +61,8 @@ const getComputedPointOrError = (
 const degreesToRadians = (degrees: number) => (degrees * Math.PI) / 180;
 const radiansToDegrees = (radians: number) => (radians * 180) / Math.PI;
 const normalizeDegrees = (degrees: number) => ((degrees % 360) + 360) % 360;
+const positiveSweepDegrees = (startAngleDeg: number, endAngleDeg: number) =>
+  normalizeDegrees(endAngleDeg - startAngleDeg);
 const CURVE_LENGTH_STEPS = 32;
 
 const handlePoint = (point: ComputedPoint, angleDeg: number, length: number) => {
@@ -432,6 +434,84 @@ export const evaluateElements = (elements: CadElement[]): EvaluationResult => {
           length,
           startAngleDeg,
           endAngleDeg
+        });
+        break;
+      }
+      case "arcLine": {
+        const center = getPointAnchorOrError(
+          element,
+          element.centerPoint,
+          "center",
+          computedGeometry,
+          elementsById,
+          errors,
+          localVariableValues,
+          localVariableNames
+        );
+        if (!center) {
+          break;
+        }
+
+        const radius = numericError(
+          element,
+          element.radius,
+          computedGeometry,
+          elementsById,
+          errors,
+          localVariableValues,
+          localVariableNames
+        );
+        const startAngleDeg = numericError(
+          element,
+          element.startAngleDeg,
+          computedGeometry,
+          elementsById,
+          errors,
+          localVariableValues,
+          localVariableNames
+        );
+        const endAngleDeg = numericError(
+          element,
+          element.endAngleDeg,
+          computedGeometry,
+          elementsById,
+          errors,
+          localVariableValues,
+          localVariableNames
+        );
+        if (radius === undefined || startAngleDeg === undefined || endAngleDeg === undefined) {
+          break;
+        }
+
+        const startAngleRad = degreesToRadians(startAngleDeg);
+        const endAngleRad = degreesToRadians(endAngleDeg);
+        const safeRadius = radius > 0 ? radius : 0;
+        const sweepAngleDeg = positiveSweepDegrees(startAngleDeg, endAngleDeg);
+        computedGeometry.set(element.id, {
+          kind: "arcLine",
+          elementId: element.id,
+          name: element.name,
+          centerPointId: anchorReferenceElementId(element.centerPoint),
+          center,
+          start: {
+            kind: "point",
+            elementId: `${element.id}:start`,
+            name: `${element.name}.始点`,
+            x: center.x + Math.cos(startAngleRad) * safeRadius,
+            y: center.y - Math.sin(startAngleRad) * safeRadius
+          },
+          end: {
+            kind: "point",
+            elementId: `${element.id}:end`,
+            name: `${element.name}.終点`,
+            x: center.x + Math.cos(endAngleRad) * safeRadius,
+            y: center.y - Math.sin(endAngleRad) * safeRadius
+          },
+          radius,
+          startAngleDeg,
+          endAngleDeg,
+          sweepAngleDeg,
+          length: safeRadius * degreesToRadians(sweepAngleDeg)
         });
         break;
       }

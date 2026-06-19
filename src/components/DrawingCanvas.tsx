@@ -13,6 +13,7 @@ import type { ParameterKey } from "../parameters/parameterDefinitions";
 import { useCadStore } from "../state/useCadStore";
 import type { CadHistorySnapshot, CanvasViewport } from "../state/useCadStore";
 import type {
+  ComputedArcLine,
   ComputedBezierCurve,
   ComputedLine,
   ComputedPoint,
@@ -23,6 +24,7 @@ import type {
 import {
   hitTestCanvasGeometry,
   hitTestLineMeasurementCandidates,
+  sampleArcLineScreenPoints,
   sampleBezierCurveScreenPoints
 } from "./DrawingCanvasHitTest";
 import type { LineMeasurementCandidate } from "./DrawingCanvasHitTest";
@@ -109,6 +111,9 @@ const isPoint = (geometry: unknown): geometry is ComputedPoint =>
 const isLine = (geometry: unknown): geometry is ComputedLine =>
   typeof geometry === "object" && geometry !== null && "kind" in geometry && geometry.kind === "line";
 
+const isArcLine = (geometry: unknown): geometry is ComputedArcLine =>
+  typeof geometry === "object" && geometry !== null && "kind" in geometry && geometry.kind === "arcLine";
+
 const isBezierCurve = (geometry: unknown): geometry is ComputedBezierCurve =>
   typeof geometry === "object" &&
   geometry !== null &&
@@ -127,10 +132,10 @@ const formatAngleDeg = (degrees: number | null) =>
 
 const measurementCandidateValue = (candidate: LineMeasurementCandidate) => {
   if (candidate.property === "length") return formatMillimeters(candidate.line.length);
-  if (candidate.line.kind === "line" && candidate.property === "startAngleDeg") {
+  if ((candidate.line.kind === "line" || candidate.line.kind === "arcLine") && candidate.property === "startAngleDeg") {
     return formatAngleDeg(candidate.line.startAngleDeg);
   }
-  if (candidate.line.kind === "line" && candidate.property === "endAngleDeg") {
+  if ((candidate.line.kind === "line" || candidate.line.kind === "arcLine") && candidate.property === "endAngleDeg") {
     return formatAngleDeg(candidate.line.endAngleDeg);
   }
   return "";
@@ -286,6 +291,7 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
     [evaluation.computedGeometry]
   );
   const lines = useMemo(() => geometries.filter(isLine), [geometries]);
+  const arcs = useMemo(() => geometries.filter(isArcLine), [geometries]);
   const curves = useMemo(() => geometries.filter(isBezierCurve), [geometries]);
   const points = useMemo(() => geometries.filter(isPoint), [geometries]);
   const overlayLines = useMemo(
@@ -308,6 +314,20 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
           screen: worldToScreen(point, viewportSize, canvasViewport)
         })),
     [canvasViewport, points, viewportSize, visibleElementIds]
+  );
+  const overlayArcs = useMemo(
+    () =>
+      arcs
+        .filter((arc) => visibleElementIds.has(arc.elementId))
+        .map((arc) => ({
+          arc,
+          start: worldToScreen(arc.start, viewportSize, canvasViewport),
+          end: worldToScreen(arc.end, viewportSize, canvasViewport),
+          points: sampleArcLineScreenPoints(arc, (point) =>
+            worldToScreen(point, viewportSize, canvasViewport)
+          )
+        })),
+    [arcs, canvasViewport, viewportSize, visibleElementIds]
   );
   const overlayCurves = useMemo(
     () =>
@@ -336,9 +356,10 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
   const overlayNumericReferenceCandidates = useMemo(
     () => [
       ...overlayLines.map(({ line, start, end }) => ({ line, start, end })),
+      ...overlayArcs.map(({ arc, start, end, points }) => ({ line: arc, start, end, points })),
       ...overlayCurves.map(({ curve, points }) => ({ line: curve, points }))
     ],
-    [overlayCurves, overlayLines]
+    [overlayArcs, overlayCurves, overlayLines]
   );
   const selectedBezierHandles = useMemo(() => {
     const curveElement = elements.find((element) => element.id === selectedElementId);
@@ -459,6 +480,41 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
       ctx.stroke();
     }
 
+    for (const arc of arcs) {
+      if (!visibleElementIds.has(arc.elementId)) continue;
+      const isSelected = selectedElementIdSet.has(arc.elementId);
+      const isPrimarySelected = arc.elementId === selectedElementId;
+      const center = worldToScreen(arc.center, viewportSize, canvasViewport);
+      const radius = Math.max(arc.radius, 0) * canvasViewport.zoom;
+      ctx.beginPath();
+      ctx.arc(
+        center.x,
+        center.y,
+        radius,
+        -((arc.startAngleDeg * Math.PI) / 180),
+        -(((arc.startAngleDeg + arc.sweepAngleDeg) * Math.PI) / 180),
+        true
+      );
+      ctx.strokeStyle =
+        activePointPickTarget
+          ? "#c5cac0"
+          : activeNumericReferencePickTarget
+            ? "#0f766e"
+            : isSelected
+              ? "#0f766e"
+              : "#31322f";
+      ctx.lineWidth = activePointPickTarget
+        ? 1.25
+        : activeNumericReferencePickTarget
+          ? 3
+          : isPrimarySelected
+            ? 3.5
+            : isSelected
+              ? 3
+              : 2;
+      ctx.stroke();
+    }
+
     for (const curve of curves) {
       if (!visibleElementIds.has(curve.elementId)) continue;
       const isSelected = selectedElementIdSet.has(curve.elementId);
@@ -532,6 +588,7 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
   }, [
     activePointPickTarget,
     activeNumericReferencePickTarget,
+    arcs,
     canvasViewport,
     curves,
     lines,
@@ -747,7 +804,8 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
         }).filter(
           (candidate) =>
             candidate.property === "length" ||
-            (candidate.line.kind === "line" && candidate.line[candidate.property] !== null)
+            ((candidate.line.kind === "line" || candidate.line.kind === "arcLine") &&
+              candidate.line[candidate.property] !== null)
         );
         event.preventDefault();
         event.currentTarget.focus();
@@ -799,7 +857,8 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
         }).filter(
           (candidate) =>
             candidate.property === "length" ||
-            (candidate.line.kind === "line" && candidate.line[candidate.property] !== null)
+            ((candidate.line.kind === "line" || candidate.line.kind === "arcLine") &&
+              candidate.line[candidate.property] !== null)
         );
         if (candidates.length > 0) {
           event.preventDefault();
@@ -815,6 +874,7 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
       const elementId = hitTestCanvasGeometry({
         screen,
         lines: overlayLines,
+        arcs: overlayArcs,
         curves: overlayCurves,
         points: overlayPoints
       });
@@ -977,6 +1037,14 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
               key={curve.elementId}
               points={points.map((point) => `${point.x},${point.y}`).join(" ")}
               className={selectedElementIdSet.has(curve.elementId) ? "overlay-selected-line" : ""}
+              data-numeric-reference-candidate={activeNumericReferencePickTarget ? "true" : undefined}
+            />
+          ))}
+          {overlayArcs.map(({ arc, points }) => (
+            <polyline
+              key={arc.elementId}
+              points={points.map((point) => `${point.x},${point.y}`).join(" ")}
+              className={selectedElementIdSet.has(arc.elementId) ? "overlay-selected-line" : ""}
               data-numeric-reference-candidate={activeNumericReferencePickTarget ? "true" : undefined}
             />
           ))}

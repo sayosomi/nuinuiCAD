@@ -307,6 +307,89 @@ describe("evaluateElements", () => {
     expect(point).toMatchObject({ kind: "point", x: 10 + curve.length });
   });
 
+  it("evaluates an arc line with counterclockwise sweep and length", () => {
+    const result = evaluateElements([
+      validElements[0],
+      {
+        id: "arc",
+        name: "円弧",
+        type: "arcLine",
+        visible: true,
+        enabled: true,
+        centerPoint: { mode: "reference", pointId: "a" },
+        radius: 10,
+        startAngleDeg: 0,
+        endAngleDeg: 90
+      }
+    ]);
+
+    const arc = result.computedGeometry.get("arc");
+    expect(result.errors).toHaveLength(0);
+    expect(arc).toMatchObject({
+      kind: "arcLine",
+      centerPointId: "a",
+      start: { x: 20, y: 20 },
+      end: { x: 10, y: 10 },
+      sweepAngleDeg: 90
+    });
+    if (arc?.kind !== "arcLine") throw new Error("Expected an arc line");
+    expect(arc.length).toBeCloseTo((Math.PI * 10) / 2);
+  });
+
+  it("evaluates an arc line that wraps past 360 degrees", () => {
+    const result = evaluateElements([
+      validElements[0],
+      {
+        id: "arc",
+        name: "またぎ円弧",
+        type: "arcLine",
+        visible: true,
+        enabled: true,
+        centerPoint: { mode: "reference", pointId: "a" },
+        radius: 20,
+        startAngleDeg: 300,
+        endAngleDeg: 30
+      }
+    ]);
+
+    const arc = result.computedGeometry.get("arc");
+    expect(result.errors).toHaveLength(0);
+    expect(arc).toMatchObject({ kind: "arcLine", sweepAngleDeg: 90 });
+    if (arc?.kind !== "arcLine") throw new Error("Expected an arc line");
+    expect(arc.length).toBeCloseTo((Math.PI * 20) / 2);
+  });
+
+  it("evaluates numeric expressions that reference earlier arc measurements", () => {
+    const result = evaluateElements([
+      validElements[0],
+      {
+        id: "arc",
+        name: "円弧",
+        type: "arcLine",
+        visible: true,
+        enabled: true,
+        centerPoint: { mode: "reference", pointId: "a" },
+        radius: 10,
+        startAngleDeg: 0,
+        endAngleDeg: 180
+      },
+      {
+        id: "c",
+        name: "点C",
+        type: "offsetPoint",
+        visible: true,
+        enabled: true,
+        fromPointId: "a",
+        dx: { kind: "expression", expression: "arc.length" },
+        dy: { kind: "expression", expression: "arc.endAngleDeg / 9" }
+      }
+    ]);
+
+    const point = result.computedGeometry.get("c");
+    expect(result.errors).toHaveLength(0);
+    expect(point).toMatchObject({ kind: "point", x: 10 + Math.PI * 10, y: 40 });
+  });
+
   it("evaluates curve handles from local numeric variables", () => {
     const result = evaluateElements([
       ...validElements,

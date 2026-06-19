@@ -91,6 +91,22 @@ describe("dependencies", () => {
     expect(getDirectParentIds(curve)).toEqual(["a", "b", "c"]);
   });
 
+  it("returns arc line center and numeric expression references as direct parent ids", () => {
+    const arc: CadElement = {
+      id: "arc",
+      name: "円弧",
+      type: "arcLine",
+      visible: true,
+      enabled: true,
+      centerPoint: { mode: "reference", pointId: "a" },
+      radius: { kind: "expression", expression: "bc.length" },
+      startAngleDeg: 0,
+      endAngleDeg: { kind: "expression", expression: "ab.startAngleDeg + 90" }
+    };
+
+    expect(getDirectParentIds(arc)).toEqual(["a", "bc", "ab"]);
+  });
+
   it("returns direct coordinate expression references as parent ids", () => {
     const directLine: CadElement = {
       id: "direct",

@@ -65,6 +65,7 @@ export type CommandId =
   | "addOffsetPoint"
   | "addPolarOffsetPoint"
   | "addLine"
+  | "addArcLine"
   | "addBezierCurve"
   | "addNumericVariable"
   | "deleteNumericVariable"
@@ -171,6 +172,7 @@ const supportsNumericVariables = (element: CadElement) =>
   element.type === "offsetPoint" ||
   element.type === "polarOffsetPoint" ||
   element.type === "line" ||
+  element.type === "arcLine" ||
   element.type === "bezierCurve";
 
 const updateSelectedElement = (updater: (element: CadElement) => CadElement) => {
@@ -593,6 +595,9 @@ const getPointAnchor = (element: CadElement, key: string): PointAnchor | null =>
   if ((key === "startPoint" || key === "endPoint") && (element.type === "line" || element.type === "bezierCurve")) {
     return element[key];
   }
+  if (key === "centerPoint" && element.type === "arcLine") {
+    return element.centerPoint;
+  }
   if (key === "fromPoint" && (element.type === "offsetPoint" || element.type === "polarOffsetPoint")) {
     return pointAnchorForElement(element);
   }
@@ -614,6 +619,9 @@ const setPointAnchor = (element: CadElement, key: string, anchor: PointAnchor): 
   }
   if (key === "endPoint" && (element.type === "line" || element.type === "bezierCurve")) {
     return { ...element, endPoint: anchor };
+  }
+  if (key === "centerPoint" && element.type === "arcLine") {
+    return { ...element, centerPoint: anchor };
   }
   if (key === "fromPoint" && element.type === "offsetPoint") {
     return { ...element, fromPoint: anchor, fromPointId: anchor.mode === "reference" ? anchor.pointId : undefined };
@@ -771,6 +779,23 @@ const makeElement = (type: CadElementType, elements: CadElement[]): CadElement =
         numericVariables: [],
         startPoint: referenceAnchor(firstPointId),
         endPoint: referenceAnchor(secondPointId)
+      };
+    }
+    case "arcLine": {
+      const id = createId(type);
+      const arcCount = elements.filter((element) => element.type === "arcLine").length;
+      const requestedName = `円弧線${arcCount + 1}`;
+      return {
+        id,
+        name: uniqueName(id, requestedName),
+        type,
+        visible: true,
+        enabled: true,
+        numericVariables: [],
+        centerPoint: referenceAnchor(firstPointId),
+        radius: 30,
+        startAngleDeg: 0,
+        endAngleDeg: 90
       };
     }
     case "bezierCurve": {
@@ -1508,6 +1533,11 @@ export const commands: Record<CommandId, Command> = {
     label: "line を追加",
     run: () => addElement("line")
   },
+  addArcLine: {
+    id: "addArcLine",
+    label: "円弧線を追加",
+    run: () => addElement("arcLine")
+  },
   addBezierCurve: {
     id: "addBezierCurve",
     label: "Bezier curve を追加",
@@ -1761,6 +1791,7 @@ const paletteCommandIds: CommandId[] = [
   "addOffsetPoint",
   "addPolarOffsetPoint",
   "addLine",
+  "addArcLine",
   "addBezierCurve",
   "startPointPick",
   "startNumericReferencePick",
@@ -1796,6 +1827,7 @@ const paletteKeywords: Partial<Record<CommandId, string[]>> = {
   addOffsetPoint: ["offset", "offset point", "オフセット", "点", "追加"],
   addPolarOffsetPoint: ["polar", "angle", "distance", "角度", "距離", "点", "追加"],
   addLine: ["line", "直線", "線", "追加"],
+  addArcLine: ["arc", "arc line", "radius", "円弧", "円弧線", "半径", "線", "追加"],
   addBezierCurve: ["bezier", "curve", "曲線", "ベジェ", "追加"],
   startNumericReferencePick: ["number", "reference", "measurement", "数値", "参照", "選択"],
   addNumericVariable: ["variable", "共有", "共通", "変数", "追加"],

@@ -26,6 +26,7 @@ import type { ParameterKey } from "../parameters/parameterDefinitions";
 import { useCadStore } from "../state/useCadStore";
 import type {
   CadElement,
+  ComputedArcLine,
   ComputedBezierCurve,
   ComputedGeometry,
   ComputedLine,
@@ -55,6 +56,9 @@ const isComputedPoint = (geometry: ComputedGeometry | undefined): geometry is Co
 const isComputedLine = (geometry: ComputedGeometry | undefined): geometry is ComputedLine =>
   geometry?.kind === "line";
 
+const isComputedArcLine = (geometry: ComputedGeometry | undefined): geometry is ComputedArcLine =>
+  geometry?.kind === "arcLine";
+
 const isComputedBezierCurve = (
   geometry: ComputedGeometry | undefined
 ): geometry is ComputedBezierCurve => geometry?.kind === "bezierCurve";
@@ -73,23 +77,25 @@ const normalizeDegrees = (degrees: number) => (degrees + 360) % 360;
 const formatAngleDeg = (degrees: number | null) =>
   degrees === null ? "未定義" : `${formatNumber(normalizeDegrees(degrees))}°`;
 
-const numericReferenceProperties = (geometry: ComputedLine | ComputedBezierCurve) =>
+const numericReferenceProperties = (geometry: ComputedLine | ComputedArcLine | ComputedBezierCurve) =>
   geometry.kind === "line"
     ? (["length", "startAngleDeg", "endAngleDeg"] as const)
+    : geometry.kind === "arcLine"
+      ? (["length", "startAngleDeg", "endAngleDeg"] as const)
     : (["length"] as const);
 
 const numericReferenceExpression = (
-  geometry: ComputedLine | ComputedBezierCurve,
+  geometry: ComputedLine | ComputedArcLine | ComputedBezierCurve,
   property: NumericMeasurementKey
 ) => `${geometry.elementId}.${property}`;
 
 const numericReferenceValue = (
-  geometry: ComputedLine | ComputedBezierCurve,
+  geometry: ComputedLine | ComputedArcLine | ComputedBezierCurve,
   property: NumericMeasurementKey
 ) => {
   if (property === "length") return formatMillimeters(geometry.length);
-  if (geometry.kind === "line" && property === "startAngleDeg") return formatAngleDeg(geometry.startAngleDeg);
-  if (geometry.kind === "line" && property === "endAngleDeg") return formatAngleDeg(geometry.endAngleDeg);
+  if ((geometry.kind === "line" || geometry.kind === "arcLine") && property === "startAngleDeg") return formatAngleDeg(geometry.startAngleDeg);
+  if ((geometry.kind === "line" || geometry.kind === "arcLine") && property === "endAngleDeg") return formatAngleDeg(geometry.endAngleDeg);
   return "";
 };
 
@@ -106,6 +112,16 @@ const lineInfoRows = (line: ComputedLine) => {
     { label: "長さ", value: formatMillimeters(line.length) }
   ];
 };
+
+const arcLineInfoRows = (arc: ComputedArcLine) => [
+  { label: "中心点", value: formatCoordinate(arc.center) },
+  { label: "始点", value: formatCoordinate(arc.start) },
+  { label: "終点", value: formatCoordinate(arc.end) },
+  { label: "半径", value: formatMillimeters(arc.radius) },
+  { label: "始角度", value: formatAngleDeg(arc.startAngleDeg) },
+  { label: "終角度", value: formatAngleDeg(arc.endAngleDeg) },
+  { label: "長さ", value: formatMillimeters(arc.length) }
+];
 
 const bezierCurveInfoRows = (curve: ComputedBezierCurve) => [
   { label: "区間数", value: `${curve.segments.length}` },
@@ -125,6 +141,7 @@ const supportsNumericVariables = (element: CadElement) =>
   element.type === "offsetPoint" ||
   element.type === "polarOffsetPoint" ||
   element.type === "line" ||
+  element.type === "arcLine" ||
   element.type === "bezierCurve";
 
 type ElementStatusIconKind = "visible" | "hidden" | "enabled" | "disabled";
@@ -239,6 +256,9 @@ const ElementEditor = ({
     if ((key === "startPoint" || key === "endPoint") && (element.type === "line" || element.type === "bezierCurve")) {
       return element[key];
     }
+    if (key === "centerPoint" && element.type === "arcLine") {
+      return element.centerPoint;
+    }
     if (key === "fromPoint" && (element.type === "offsetPoint" || element.type === "polarOffsetPoint")) {
       return pointAnchorForElement(element);
     }
@@ -273,6 +293,10 @@ const ElementEditor = ({
       }
       if (field === "endPoint" && (element.type === "line" || element.type === "bezierCurve")) {
         updateElement(element.id, { endPoint: nextAnchor } as Partial<CadElement>);
+        return;
+      }
+      if (field === "centerPoint" && element.type === "arcLine") {
+        updateElement(element.id, { centerPoint: nextAnchor } as Partial<CadElement>);
         return;
       }
       if (field === "fromPoint" && (element.type === "offsetPoint" || element.type === "polarOffsetPoint")) {
@@ -776,6 +800,34 @@ const ElementEditor = ({
           </>
         )}
 
+        {element.type === "arcLine" && (
+          <>
+            {pointAnchorEditor({
+              parameterKey: "centerPoint",
+              label: "中心点",
+              anchor: element.centerPoint
+            })}
+            {numericInput({
+              parameterKey: "radius",
+              label: "半径",
+              value: element.radius,
+              ariaLabel: "半径"
+            })}
+            {numericInput({
+              parameterKey: "startAngleDeg",
+              label: "始角度",
+              value: element.startAngleDeg,
+              ariaLabel: "始角度"
+            })}
+            {numericInput({
+              parameterKey: "endAngleDeg",
+              label: "終角度",
+              value: element.endAngleDeg,
+              ariaLabel: "終角度"
+            })}
+          </>
+        )}
+
         {element.type === "bezierCurve" && (
           <>
             {pointAnchorEditor({
@@ -901,9 +953,11 @@ const ElementInfoPanel = ({
       ? pointCoordinateRows(geometry)
       : isComputedLine(geometry)
         ? lineInfoRows(geometry)
-        : isComputedBezierCurve(geometry)
-          ? bezierCurveInfoRows(geometry)
-          : [];
+        : isComputedArcLine(geometry)
+          ? arcLineInfoRows(geometry)
+          : isComputedBezierCurve(geometry)
+            ? bezierCurveInfoRows(geometry)
+            : [];
   const selectDependency = (id: ElementId) => setSelectedElementId(id);
   const dependencyButtonClass = (id: ElementId) => {
     const jumpIndex = jumpTargetIndexes.get(id);
@@ -1087,10 +1141,10 @@ export const LeftPanel = ({
   };
   const numericReferenceGeometry = (elementId: ElementId) => {
     const geometry = evaluation.computedGeometry.get(elementId);
-    return isComputedLine(geometry) || isComputedBezierCurve(geometry) ? geometry : null;
+    return isComputedLine(geometry) || isComputedArcLine(geometry) || isComputedBezierCurve(geometry) ? geometry : null;
   };
   const applyNumericReference = (
-    geometry: ComputedLine | ComputedBezierCurve,
+    geometry: ComputedLine | ComputedArcLine | ComputedBezierCurve,
     property: NumericMeasurementKey
   ) => {
     dispatchCommand("applyPickedNumericReference", {

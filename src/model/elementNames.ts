@@ -6,6 +6,7 @@ const defaultNameBases: Record<CadElementType, string> = {
   offsetPoint: "オフセット点",
   polarOffsetPoint: "角度距離点",
   line: "直線",
+  arcLine: "円弧線",
   bezierCurve: "曲線"
 };
 

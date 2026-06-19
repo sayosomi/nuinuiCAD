@@ -1,4 +1,5 @@
 import type {
+  ComputedArcLine,
   ComputedBezierCurve,
   ComputedBezierSegment,
   ComputedLine,
@@ -16,6 +17,7 @@ const POINT_HIT_RADIUS_PX = 8;
 const LINE_HIT_DISTANCE_PX = 6;
 const LINE_ENDPOINT_MEASUREMENT_RADIUS_PX = 12;
 const CURVE_HIT_STEPS = 32;
+const ARC_HIT_STEPS = 32;
 
 const squaredDistance = (a: ScreenPoint, b: ScreenPoint) => {
   const dx = a.x - b.x;
@@ -71,6 +73,24 @@ export const sampleBezierCurveScreenPoints = (
     )
   );
 
+const degreesToRadians = (degrees: number) => (degrees * Math.PI) / 180;
+
+export const sampleArcLineScreenPoints = (
+  arc: ComputedArcLine,
+  worldToScreen: (point: ScreenPoint) => ScreenPoint
+) => {
+  const radius = arc.radius > 0 ? arc.radius : 0;
+  const stepCount = Math.max(1, Math.ceil((arc.sweepAngleDeg / 360) * ARC_HIT_STEPS));
+  return Array.from({ length: stepCount + 1 }, (_, index) => {
+    const angleDeg = arc.startAngleDeg + (arc.sweepAngleDeg * index) / stepCount;
+    const angleRad = degreesToRadians(angleDeg);
+    return worldToScreen({
+      x: arc.center.x + Math.cos(angleRad) * radius,
+      y: arc.center.y - Math.sin(angleRad) * radius
+    });
+  });
+};
+
 const distanceToPolyline = (point: ScreenPoint, points: ScreenPoint[]) => {
   let distance = Number.POSITIVE_INFINITY;
   for (let index = 0; index < points.length - 1; index += 1) {
@@ -82,11 +102,13 @@ const distanceToPolyline = (point: ScreenPoint, points: ScreenPoint[]) => {
 export const hitTestCanvasGeometry = ({
   screen,
   lines,
+  arcs,
   curves,
   points
 }: {
   screen: ScreenPoint;
   lines: Array<{ line: ComputedLine; start: ScreenPoint; end: ScreenPoint }>;
+  arcs?: Array<{ arc: ComputedArcLine; points: ScreenPoint[] }>;
   curves?: Array<{ curve: ComputedBezierCurve; points: ScreenPoint[] }>;
   points: Array<{ point: ComputedPoint; screen: ScreenPoint }>;
 }): ElementId | null => {
@@ -104,6 +126,13 @@ export const hitTestCanvasGeometry = ({
     }
   }
 
+  for (let index = (arcs?.length ?? 0) - 1; index >= 0; index -= 1) {
+    const item = arcs![index];
+    if (distanceToPolyline(screen, item.points) <= LINE_HIT_DISTANCE_PX) {
+      return item.arc.elementId;
+    }
+  }
+
   for (let index = (curves?.length ?? 0) - 1; index >= 0; index -= 1) {
     const item = curves![index];
     if (distanceToPolyline(screen, item.points) <= LINE_HIT_DISTANCE_PX) {
@@ -115,7 +144,7 @@ export const hitTestCanvasGeometry = ({
 };
 
 export type LineMeasurementCandidate = {
-  line: ComputedLine | ComputedBezierCurve;
+  line: ComputedLine | ComputedArcLine | ComputedBezierCurve;
   property: LineMeasurementKey;
 };
 
@@ -124,7 +153,7 @@ export const hitTestLineMeasurementCandidates = ({
   lines
 }: {
   screen: ScreenPoint;
-  lines: Array<{ line: ComputedLine | ComputedBezierCurve; start?: ScreenPoint; end?: ScreenPoint; points?: ScreenPoint[] }>;
+  lines: Array<{ line: ComputedLine | ComputedArcLine | ComputedBezierCurve; start?: ScreenPoint; end?: ScreenPoint; points?: ScreenPoint[] }>;
 }): LineMeasurementCandidate[] => {
   const candidates: LineMeasurementCandidate[] = [];
 
@@ -133,6 +162,25 @@ export const hitTestLineMeasurementCandidates = ({
     if (item.line.kind === "bezierCurve") {
       if (item.points && distanceToPolyline(screen, item.points) <= LINE_HIT_DISTANCE_PX) {
         candidates.push({ line: item.line, property: "length" });
+      }
+      continue;
+    }
+    if (item.line.kind === "arcLine") {
+      if (item.points && distanceToPolyline(screen, item.points) <= LINE_HIT_DISTANCE_PX) {
+        candidates.push({ line: item.line, property: "length" });
+      }
+      if (item.start) {
+        const startDistance = Math.sqrt(squaredDistance(screen, item.start));
+        if (startDistance <= LINE_ENDPOINT_MEASUREMENT_RADIUS_PX) {
+          candidates.push({ line: item.line, property: "startAngleDeg" });
+          continue;
+        }
+      }
+      if (item.end) {
+        const endDistance = Math.sqrt(squaredDistance(screen, item.end));
+        if (endDistance <= LINE_ENDPOINT_MEASUREMENT_RADIUS_PX) {
+          candidates.push({ line: item.line, property: "endAngleDeg" });
+        }
       }
       continue;
     }

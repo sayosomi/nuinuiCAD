@@ -155,7 +155,7 @@ export const normalizeNumericExpressionInput = (
   let expression = input.trim();
   const variables = [...localVariables].sort((a, b) => b.name.length - a.name.length);
   const measurableElements = elements
-    .filter((element) => element.type === "line" || element.type === "bezierCurve")
+    .filter((element) => element.type === "line" || element.type === "arcLine" || element.type === "bezierCurve")
     .sort((a, b) => b.name.length - a.name.length);
 
   for (const variable of variables) {
@@ -168,7 +168,7 @@ export const normalizeNumericExpressionInput = (
   for (const element of measurableElements) {
     for (const [property, label] of Object.entries(propertyLabels)) {
       if (
-        element.type === "line" &&
+        (element.type === "line" || element.type === "arcLine") &&
         property !== "length" &&
         property !== "startAngleDeg" &&
         property !== "endAngleDeg"
@@ -367,8 +367,8 @@ export const evaluateNumericValue = ({
       const geometry = computedGeometry.get(reference.elementId);
       if (
         !geometry ||
-        (geometry.kind !== "line" && geometry.kind !== "bezierCurve") ||
-        (geometry.kind === "line" &&
+        (geometry.kind !== "line" && geometry.kind !== "arcLine" && geometry.kind !== "bezierCurve") ||
+        ((geometry.kind === "line" || geometry.kind === "arcLine") &&
           reference.property !== "length" &&
           reference.property !== "startAngleDeg" &&
           reference.property !== "endAngleDeg")

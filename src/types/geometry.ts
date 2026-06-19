@@ -68,6 +68,14 @@ export type LineElement = CadElementBase & {
   endPoint: PointAnchor;
 };
 
+export type ArcLineElement = CadElementBase & {
+  type: "arcLine";
+  centerPoint: PointAnchor;
+  radius: NumericValue;
+  startAngleDeg: NumericValue;
+  endAngleDeg: NumericValue;
+};
+
 export type BezierIntermediatePoint = {
   id: string;
   point: PointAnchor;
@@ -92,6 +100,7 @@ export type CadElement =
   | OffsetPointElement
   | PolarOffsetPointElement
   | LineElement
+  | ArcLineElement
   | BezierCurveElement;
 export type CadElementType = CadElement["type"];
 
@@ -114,6 +123,21 @@ export type ComputedLine = {
   length: number;
   startAngleDeg: number | null;
   endAngleDeg: number | null;
+};
+
+export type ComputedArcLine = {
+  kind: "arcLine";
+  elementId: ElementId;
+  name: string;
+  centerPointId: ElementId | null;
+  center: ComputedPoint;
+  start: ComputedPoint;
+  end: ComputedPoint;
+  radius: number;
+  startAngleDeg: number;
+  endAngleDeg: number;
+  sweepAngleDeg: number;
+  length: number;
 };
 
 export type ComputedBezierSegment = {
@@ -140,7 +164,7 @@ export type ComputedBezierCurve = {
   endHandleLength: number;
 };
 
-export type ComputedGeometry = ComputedPoint | ComputedLine | ComputedBezierCurve;
+export type ComputedGeometry = ComputedPoint | ComputedLine | ComputedArcLine | ComputedBezierCurve;
 
 export type DependencyError = {
   elementId: ElementId;
@@ -160,5 +184,6 @@ export const elementTypeLabels: Record<CadElementType, string> = {
   offsetPoint: "offset point",
   polarOffsetPoint: "polar offset point",
   line: "line",
+  arcLine: "arc line",
   bezierCurve: "Bezier curve"
 };
