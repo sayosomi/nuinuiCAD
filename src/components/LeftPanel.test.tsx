@@ -147,7 +147,9 @@ describe("LeftPanel numeric input dragging", () => {
   it("starts numeric reference picking from a numeric parameter", () => {
     renderRightPanel();
 
-    fireEvent.click(screen.getAllByText("参照数値")[0]);
+    expect(screen.queryByText("参照数値")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getAllByText("数値選択")[0]);
 
     expect(useCadStore.getState().activeNumericReferencePickTarget).toEqual({
       elementId: "point-a",

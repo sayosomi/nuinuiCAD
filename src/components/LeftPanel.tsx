@@ -445,7 +445,7 @@ const ElementEditor = ({
               dispatchCommand("startNumericReferencePick");
             }}
           >
-            {isPickingThisNumericReference ? "数値選択中" : "参照数値"}
+            {isPickingThisNumericReference ? "数値選択中" : "数値選択"}
           </button>
         </div>
         {input}
@@ -1168,7 +1168,7 @@ export const LeftPanel = ({
               {activePointPickTarget
                 ? "点選択中: 点の行だけ選択できます"
                 : activeNumericReferencePickTarget
-                  ? "参照数値選択中: 線と曲線の行だけ選択できます"
+                  ? "数値選択中: 線と曲線の行だけ選択できます"
                 : "gで戻る / Enterで要素設定"}
             </p>
           </div>

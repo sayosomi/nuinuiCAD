@@ -1446,17 +1446,17 @@ export const commands: Record<CommandId, Command> = {
   },
   startNumericReferencePick: {
     id: "startNumericReferencePick",
-    label: "参照数値を選択して設定",
+    label: "数値選択モードに入る",
     run: () => startNumericReferencePick()
   },
   applyPickedNumericReference: {
     id: "applyPickedNumericReference",
-    label: "選択した参照数値を設定",
+    label: "選択した数値を設定",
     run: (context) => applyPickedNumericReference(context)
   },
   cancelNumericReferencePick: {
     id: "cancelNumericReferencePick",
-    label: "参照数値選択をキャンセル",
+    label: "数値選択をキャンセル",
     run: () => cancelNumericReferencePick()
   },
   startPointPick: {

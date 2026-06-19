@@ -8,7 +8,6 @@ import { dispatchCommand } from "../commands/commands";
 import type { BezierHandleRole as CommandBezierHandleRole } from "../commands/commands";
 import { lineMeasurementLabel } from "../geometry/numericExpressions";
 import { selectablePointsForGeometry } from "../model/pointAnchors";
-import { findParameterDefinition } from "../parameters/parameterDefinitions";
 import type { ParameterKey } from "../parameters/parameterDefinitions";
 import { useCadStore } from "../state/useCadStore";
 import type { CadHistorySnapshot, CanvasViewport } from "../state/useCadStore";
@@ -278,7 +277,6 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
   const canvasViewport = useCadStore((state) => state.canvasViewport);
   const panCanvasViewport = useCadStore((state) => state.panCanvasViewport);
   const zoomCanvasViewportAt = useCadStore((state) => state.zoomCanvasViewportAt);
-  const selectedParameterKey = useCadStore((state) => state.selectedParameterKey);
   const activePointPickTarget = useCadStore((state) => state.activePointPickTarget);
   const activeNumericReferencePickTarget = useCadStore((state) => state.activeNumericReferencePickTarget);
   const visibleElementIds = useMemo(
@@ -659,36 +657,6 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
     zoomCanvasViewportAt(Math.pow(WHEEL_ZOOM_BASE, -event.deltaY / 100), anchor);
   };
 
-  const numericExpressionTarget = (): Pick<
-    MeasurementCandidateMenu,
-    "targetElementId" | "targetParameterKey"
-  > | null => {
-    const selectedElement = selectedElementId
-      ? elements.find((element) => element.id === selectedElementId) ?? null
-      : null;
-    if (!selectedElement) return null;
-
-    const activeElement = document.activeElement;
-    const focusedParameterKey =
-      activeElement instanceof HTMLElement
-        ? activeElement.dataset.numericParameterKey ?? null
-        : null;
-    const focusedDefinition = findParameterDefinition(selectedElement, focusedParameterKey);
-    if (focusedDefinition?.kind === "number") {
-      return {
-        targetElementId: selectedElement.id,
-        targetParameterKey: focusedDefinition.key
-      };
-    }
-
-    const selectedDefinition = findParameterDefinition(selectedElement, selectedParameterKey);
-    if (selectedDefinition?.kind !== "number") return null;
-    return {
-      targetElementId: selectedElement.id,
-      targetParameterKey: selectedDefinition.key
-    };
-  };
-
   const applyMeasurementCandidate = (candidate: LineMeasurementCandidate) => {
     if (!measurementCandidateMenu) return;
     const expression = `${candidate.line.elementId}.${candidate.property}`;
@@ -848,27 +816,6 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
         };
         setIsBezierHandleDragging(true);
         return;
-      }
-      const expressionTarget = numericExpressionTarget();
-      if (expressionTarget) {
-        const candidates = hitTestLineMeasurementCandidates({
-          screen,
-          lines: overlayNumericReferenceCandidates
-        }).filter(
-          (candidate) =>
-            candidate.property === "length" ||
-            ((candidate.line.kind === "line" || candidate.line.kind === "arcLine") &&
-              candidate.line[candidate.property] !== null)
-        );
-        if (candidates.length > 0) {
-          event.preventDefault();
-          setMeasurementCandidateMenu({
-            screen,
-            candidates,
-            ...expressionTarget
-          });
-          return;
-        }
       }
       setMeasurementCandidateMenu(null);
       const elementId = hitTestCanvasGeometry({
@@ -1099,7 +1046,7 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
         ) : null}
         {activeNumericReferencePickTarget ? (
           <div className="numeric-reference-canvas-banner">
-            参照数値選択中: 線または曲線を選択
+            数値選択中: 線または曲線を選択
           </div>
         ) : null}
         {measurementCandidateMenu ? (

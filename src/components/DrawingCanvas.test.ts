@@ -412,7 +412,7 @@ describe("DrawingCanvas point dragging", () => {
     expect(curve.startHandleLength).toBe(45);
   });
 
-  it("offers a line length candidate near the clicked line and applies it to the selected numeric parameter", () => {
+  it("does not offer numeric reference candidates unless numeric reference picking is active", () => {
     useCadStore.setState({
       selectedElementId: "point-a",
       selectedElementIds: ["point-a"],
@@ -427,11 +427,9 @@ describe("DrawingCanvas point dragging", () => {
       clientY: 250,
       pointerId: 1
     });
-    fireEvent.click(viewport.querySelector(".numeric-reference-candidate-menu button")!);
 
-    expect(useCadStore.getState().elements[0]).toMatchObject({
-      x: { kind: "expression", expression: "line-ab.length" }
-    });
+    expect(viewport.querySelector(".numeric-reference-candidate-menu")).toBeNull();
+    expect(useCadStore.getState().elements[0]).toMatchObject({ x: 50 });
   });
 
   it("applies a picked numeric reference while numeric reference picking is active", () => {
