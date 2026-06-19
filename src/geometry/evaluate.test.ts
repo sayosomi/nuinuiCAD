@@ -212,6 +212,72 @@ describe("evaluateElements", () => {
     expect(point).toMatchObject({ kind: "point", x: 10 + curve.length });
   });
 
+  it("evaluates curve handles from local numeric variables", () => {
+    const result = evaluateElements([
+      ...validElements,
+      {
+        id: "curve",
+        name: "曲線AB",
+        type: "bezierCurve",
+        visible: true,
+        enabled: true,
+        numericVariables: [{ id: "shared", name: "共通長", value: 40 }],
+        startPointId: "a",
+        startHandleAngleDeg: 0,
+        startHandleLength: { kind: "expression", expression: "@shared" },
+        intermediatePoints: [],
+        endPointId: "b",
+        endHandleAngleDeg: 0,
+        endHandleLength: { kind: "expression", expression: "@shared" }
+      }
+    ]);
+
+    const curve = result.computedGeometry.get("curve");
+    expect(result.errors).toHaveLength(0);
+    expect(curve).toMatchObject({
+      kind: "bezierCurve",
+      startHandleLength: 40,
+      endHandleLength: 40
+    });
+  });
+
+  it("evaluates numeric expressions that reference earlier curve handle measurements", () => {
+    const result = evaluateElements([
+      ...validElements,
+      {
+        id: "curve",
+        name: "曲線AB",
+        type: "bezierCurve",
+        visible: true,
+        enabled: true,
+        startPointId: "a",
+        startHandleAngleDeg: 15,
+        startHandleLength: 20,
+        intermediatePoints: [],
+        endPointId: "b",
+        endHandleAngleDeg: 25,
+        endHandleLength: 30
+      },
+      {
+        id: "c",
+        name: "点C",
+        type: "offsetPoint",
+        visible: true,
+        enabled: true,
+        fromPointId: "a",
+        dx: { kind: "expression", expression: "curve.startHandleLength + curve.endHandleLength" },
+        dy: { kind: "expression", expression: "curve.startHandleAngleDeg + curve.endHandleAngleDeg" }
+      }
+    ]);
+
+    expect(result.errors).toHaveLength(0);
+    expect(result.computedGeometry.get("c")).toMatchObject({
+      kind: "point",
+      x: 60,
+      y: 60
+    });
+  });
+
   it("normalizes displayed Japanese line measurement references before evaluation", () => {
     const expression = normalizeNumericExpressionInput("直線AB.長さ + 10", validElements);
     const result = evaluateElements([

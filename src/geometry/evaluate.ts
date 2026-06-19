@@ -107,9 +107,17 @@ const numericError = (
   value: NumericValue,
   computedGeometry: Map<ElementId, ComputedGeometry>,
   elementsById: Map<ElementId, CadElement>,
-  errors: DependencyError[]
+  errors: DependencyError[],
+  localVariables?: Map<string, number>,
+  localVariableNames?: Map<string, string>
 ) => {
-  const result = evaluateNumericValue({ value, computedGeometry, elementsById });
+  const result = evaluateNumericValue({
+    value,
+    computedGeometry,
+    elementsById,
+    localVariables,
+    localVariableNames
+  });
   if (result.value !== undefined) return result.value;
 
   if (result.error) {
@@ -267,33 +275,62 @@ export const evaluateElements = (elements: CadElement[]): EvaluationResult => {
           break;
         }
 
+        const localVariableValues = new Map<string, number>();
+        const localVariableNames = new Map(
+          (element.numericVariables ?? []).map((variable) => [variable.id, variable.name])
+        );
+        for (const variable of element.numericVariables ?? []) {
+          const value = numericError(
+            element,
+            variable.value,
+            computedGeometry,
+            elementsById,
+            errors,
+            localVariableValues,
+            localVariableNames
+          );
+          if (value === undefined) break;
+          localVariableValues.set(variable.id, value);
+        }
+        if ((element.numericVariables ?? []).some((variable) => !localVariableValues.has(variable.id))) {
+          break;
+        }
+
         const startHandleAngleDeg = numericError(
           element,
           element.startHandleAngleDeg,
           computedGeometry,
           elementsById,
-          errors
+          errors,
+          localVariableValues,
+          localVariableNames
         );
         const startHandleLength = numericError(
           element,
           element.startHandleLength,
           computedGeometry,
           elementsById,
-          errors
+          errors,
+          localVariableValues,
+          localVariableNames
         );
         const endHandleAngleDeg = numericError(
           element,
           element.endHandleAngleDeg,
           computedGeometry,
           elementsById,
-          errors
+          errors,
+          localVariableValues,
+          localVariableNames
         );
         const endHandleLength = numericError(
           element,
           element.endHandleLength,
           computedGeometry,
           elementsById,
-          errors
+          errors,
+          localVariableValues,
+          localVariableNames
         );
         const intermediateHandles = element.intermediatePoints.map((intermediate) => ({
           angleDeg: numericError(
@@ -301,21 +338,27 @@ export const evaluateElements = (elements: CadElement[]): EvaluationResult => {
             intermediate.handleAngleDeg,
             computedGeometry,
             elementsById,
-            errors
+            errors,
+            localVariableValues,
+            localVariableNames
           ),
           incomingLength: numericError(
             element,
             intermediate.incomingHandleLength,
             computedGeometry,
             elementsById,
-            errors
+            errors,
+            localVariableValues,
+            localVariableNames
           ),
           outgoingLength: numericError(
             element,
             intermediate.outgoingHandleLength,
             computedGeometry,
             elementsById,
-            errors
+            errors,
+            localVariableValues,
+            localVariableNames
           )
         }));
         if (
@@ -366,7 +409,11 @@ export const evaluateElements = (elements: CadElement[]): EvaluationResult => {
           length: segments.reduce(
             (sum, segment) => sum + approximateBezierSegmentLength(segment),
             0
-          )
+          ),
+          startHandleAngleDeg,
+          startHandleLength,
+          endHandleAngleDeg,
+          endHandleLength
         });
         break;
       }

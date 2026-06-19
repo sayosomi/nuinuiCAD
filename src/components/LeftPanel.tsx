@@ -186,7 +186,21 @@ const ElementEditor = ({
     if (!key.startsWith("intermediate:") || !intermediatePointId || !field) return null;
     return { intermediatePointId, field };
   };
+  const parseVariableParameterKey = (key: string) => {
+    const [, variableId, field] = key.split(":");
+    if (!key.startsWith("variable:") || !variableId || field !== "value") return null;
+    return { variableId };
+  };
   const updateParameterValue = (field: ParameterKey, value: unknown) => {
+    const variable = parseVariableParameterKey(field);
+    if (variable && element.type === "bezierCurve") {
+      updateElement(element.id, {
+        numericVariables: (element.numericVariables ?? []).map((item) =>
+          item.id === variable.variableId ? { ...item, value: value as NumericValue } : item
+        )
+      } as Partial<CadElement>);
+      return;
+    }
     const parsed = parseIntermediateParameterKey(field);
     if (parsed && element.type === "bezierCurve") {
       updateElement(element.id, {
@@ -199,7 +213,16 @@ const ElementEditor = ({
     updateElement(element.id, { [field]: value } as Partial<CadElement>);
   };
   const updateField = (field: ParameterKey, value: string) => {
-    updateParameterValue(field, makeNumericExpression(normalizeNumericExpressionInput(value, elements)));
+    updateParameterValue(
+      field,
+      makeNumericExpression(
+        normalizeNumericExpressionInput(
+          value,
+          elements,
+          element.type === "bezierCurve" ? element.numericVariables ?? [] : []
+        )
+      )
+    );
   };
   const updateRef = (field: ParameterKey, value: ElementId) => {
     updateParameterValue(field, value);
@@ -248,7 +271,11 @@ const ElementEditor = ({
         inputMode="decimal"
         step="1"
         data-numeric-parameter-key={parameterKey}
-        value={formatNumericExpressionForDisplay(value, elements)}
+        value={formatNumericExpressionForDisplay(
+          value,
+          elements,
+          element.type === "bezierCurve" ? element.numericVariables ?? [] : []
+        )}
         onChange={(event) => updateField(parameterKey, event.target.value)}
       />
       <span className="parameter-step">
@@ -643,6 +670,60 @@ const ElementEditor = ({
 
         {element.type === "bezierCurve" && (
           <>
+            <div className="curve-point-editor">
+              <div className="curve-point-header">
+                <span>共通変数</span>
+                <button
+                  type="button"
+                  onClick={() => dispatchCommand("addBezierNumericVariable")}
+                >
+                  追加
+                </button>
+              </div>
+              {(element.numericVariables ?? []).length === 0 ? (
+                <p className="empty-state">共通変数はありません。</p>
+              ) : (
+                (element.numericVariables ?? []).map((variable, index) => (
+                  <div className="curve-point-group" key={variable.id}>
+                    <div className="curve-point-header">
+                      <span>変数{index + 1}</span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          dispatchCommand("deleteBezierNumericVariable", {
+                            variableId: variable.id
+                          })
+                        }
+                      >
+                        削除
+                      </button>
+                  </div>
+                    <label className="parameter-field">
+                      <span className="parameter-name">名前 (@名前で参照)</span>
+                      <input
+                        type="text"
+                        aria-label="共通変数名"
+                        value={variable.name}
+                        onChange={(event) =>
+                          updateElement(element.id, {
+                            numericVariables: (element.numericVariables ?? []).map((item) =>
+                              item.id === variable.id ? { ...item, name: event.target.value } : item
+                            )
+                          } as Partial<CadElement>)
+                        }
+                      />
+                    </label>
+                    {numericInput({
+                      parameterKey: `variable:${variable.id}:value`,
+                      label: variable.name,
+                      value: variable.value,
+                      ariaLabel: `共通変数 ${variable.name}`
+                    })}
+                  </div>
+                ))
+              )}
+            </div>
+
             {referenceSelect({
               parameterKey: "startPointId",
               label: "始点",

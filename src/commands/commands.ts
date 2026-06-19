@@ -1,7 +1,11 @@
 import { useCadStore } from "../state/useCadStore";
 import type { CadHistorySnapshot } from "../state/useCadStore";
 import { evaluateElements } from "../geometry/evaluate";
-import { addToNumericValue, makeNumericExpression } from "../geometry/numericExpressions";
+import {
+  addToNumericValue,
+  makeNumericExpression,
+  singleLocalVariableReference
+} from "../geometry/numericExpressions";
 import { makeUniqueElementName } from "../model/elementNames";
 import { getDependencyJumpTargets } from "../model/dependencies";
 import {
@@ -48,6 +52,8 @@ export type CommandId =
   | "addPolarOffsetPoint"
   | "addLine"
   | "addBezierCurve"
+  | "addBezierNumericVariable"
+  | "deleteBezierNumericVariable"
   | "addBezierIntermediatePoint"
   | "deleteBezierIntermediatePoint"
   | "zoomInCanvas"
@@ -101,6 +107,7 @@ export type CommandContext = {
   parameterKey?: string;
   numericExpression?: string;
   intermediatePointId?: string;
+  variableId?: string;
 };
 
 export type Command = {
@@ -432,7 +439,7 @@ const moveBezierHandle = ({
     const unit = { x: Math.cos(angleRad), y: Math.sin(angleRad) };
     const projectedLength = Math.max(0, movedVector.x * unit.x + movedVector.y * unit.y);
     if (projectedLength === currentLength) return element;
-    return setParameterValue(element, target.lengthKey, projectedLength);
+    return setNumericParameterOrLocalVariable(element, target.lengthKey, projectedLength);
   }
 
   const movedLength = Math.hypot(movedVector.x, movedVector.y);
@@ -441,7 +448,7 @@ const moveBezierHandle = ({
     const controlAngleDeg = normalizeDegrees(radiansToDegrees(Math.atan2(movedVector.y, movedVector.x)));
     const storedAngleDeg = normalizeDegrees(controlAngleDeg - target.storedAngleOffsetDeg);
     if (storedAngleDeg === currentStoredAngleDeg) return element;
-    return setParameterValue(element, target.angleKey, storedAngleDeg);
+    return setNumericParameterOrLocalVariable(element, target.angleKey, storedAngleDeg);
   }
 
   const controlAngleDeg =
@@ -450,8 +457,8 @@ const moveBezierHandle = ({
       : normalizeDegrees(radiansToDegrees(Math.atan2(movedVector.y, movedVector.x)));
   const storedAngleDeg = normalizeDegrees(controlAngleDeg - target.storedAngleOffsetDeg);
   if (movedLength === currentLength && storedAngleDeg === currentStoredAngleDeg) return element;
-  return setParameterValue(
-    setParameterValue(element, target.angleKey, storedAngleDeg),
+  return setNumericParameterOrLocalVariable(
+    setNumericParameterOrLocalVariable(element, target.angleKey, storedAngleDeg),
     target.lengthKey,
     movedLength
   );
@@ -525,7 +532,17 @@ const parseIntermediateParameterKey = (key: string) => {
   return { intermediatePointId, field };
 };
 
+const parseVariableParameterKey = (key: string) => {
+  const [, variableId, field] = key.split(":");
+  if (!key.startsWith("variable:") || !variableId || field !== "value") return null;
+  return { variableId };
+};
+
 const getParameterValue = (element: CadElement, key: string) => {
+  const variable = parseVariableParameterKey(key);
+  if (variable && element.type === "bezierCurve") {
+    return element.numericVariables?.find((item) => item.id === variable.variableId)?.value;
+  }
   const parsed = parseIntermediateParameterKey(key);
   if (parsed && element.type === "bezierCurve") {
     const intermediate = element.intermediatePoints.find((point) => point.id === parsed.intermediatePointId);
@@ -535,6 +552,15 @@ const getParameterValue = (element: CadElement, key: string) => {
 };
 
 const setParameterValue = (element: CadElement, key: string, value: unknown): CadElement => {
+  const variable = parseVariableParameterKey(key);
+  if (variable && element.type === "bezierCurve") {
+    return {
+      ...element,
+      numericVariables: (element.numericVariables ?? []).map((item) =>
+        item.id === variable.variableId ? { ...item, value: value as NumericValue } : item
+      )
+    };
+  }
   const parsed = parseIntermediateParameterKey(key);
   if (parsed && element.type === "bezierCurve") {
     return {
@@ -545,6 +571,24 @@ const setParameterValue = (element: CadElement, key: string, value: unknown): Ca
     };
   }
   return { ...element, [key]: value } as CadElement;
+};
+
+const setNumericParameterOrLocalVariable = (
+  element: CadElement,
+  key: string,
+  value: NumericValue
+): CadElement => {
+  const currentValue = getParameterValue(element, key);
+  const variableId = singleLocalVariableReference(currentValue as NumericValue);
+  if (variableId && element.type === "bezierCurve") {
+    return {
+      ...element,
+      numericVariables: (element.numericVariables ?? []).map((variable) =>
+        variable.id === variableId ? { ...variable, value } : variable
+      )
+    };
+  }
+  return setParameterValue(element, key, value);
 };
 
 const makeElement = (type: CadElementType, elements: CadElement[]): CadElement => {
@@ -630,6 +674,7 @@ const makeElement = (type: CadElementType, elements: CadElement[]): CadElement =
         type,
         visible: true,
         enabled: true,
+        numericVariables: [],
         startPointId: firstPointId,
         startHandleAngleDeg: 0,
         startHandleLength: 30,
@@ -765,6 +810,42 @@ const cycleReferenceParameter = (direction: 1 | -1) => {
   const nextIndex =
     currentIndex < 0 ? 0 : (currentIndex + direction + options.length) % options.length;
   updateSelectedElement((element) => setParameterValue(element, definition.key, options[nextIndex]));
+};
+
+const addBezierNumericVariable = () => {
+  const selectedElement = getSelectedElement();
+  if (selectedElement?.type !== "bezierCurve") return;
+
+  const variableCount = selectedElement.numericVariables?.length ?? 0;
+  const variable = {
+    id: createId("bezierCurve"),
+    name: `v${variableCount + 1}`,
+    value: 30
+  };
+
+  updateSelectedElement((element) => {
+    if (element.type !== "bezierCurve") return element;
+    return {
+      ...element,
+      numericVariables: [...(element.numericVariables ?? []), variable]
+    };
+  });
+  useCadStore.setState({ selectedParameterKey: `variable:${variable.id}:value` });
+};
+
+const deleteBezierNumericVariable = (variableId: string | undefined) => {
+  const selectedElement = getSelectedElement();
+  if (selectedElement?.type !== "bezierCurve") return;
+  const targetId = variableId ?? selectedElement.numericVariables?.at(-1)?.id;
+  if (!targetId) return;
+
+  updateSelectedElement((element) => {
+    if (element.type !== "bezierCurve") return element;
+    return {
+      ...element,
+      numericVariables: (element.numericVariables ?? []).filter((variable) => variable.id !== targetId)
+    };
+  });
 };
 
 const addBezierIntermediatePoint = () => {
@@ -1199,6 +1280,16 @@ export const commands: Record<CommandId, Command> = {
     label: "Bezier curve を追加",
     run: () => addElement("bezierCurve")
   },
+  addBezierNumericVariable: {
+    id: "addBezierNumericVariable",
+    label: "曲線の共通変数を追加",
+    run: () => addBezierNumericVariable()
+  },
+  deleteBezierNumericVariable: {
+    id: "deleteBezierNumericVariable",
+    label: "曲線の共通変数を削除",
+    run: (context) => deleteBezierNumericVariable(context?.variableId)
+  },
   addBezierIntermediatePoint: {
     id: "addBezierIntermediatePoint",
     label: "曲線の中間点を追加",
@@ -1415,6 +1506,8 @@ const paletteCommandIds: CommandId[] = [
   "addPolarOffsetPoint",
   "addLine",
   "addBezierCurve",
+  "addBezierNumericVariable",
+  "deleteBezierNumericVariable",
   "addBezierIntermediatePoint",
   "deleteBezierIntermediatePoint",
   "zoomInCanvas",
@@ -1446,6 +1539,8 @@ const paletteKeywords: Partial<Record<CommandId, string[]>> = {
   addPolarOffsetPoint: ["polar", "angle", "distance", "角度", "距離", "点", "追加"],
   addLine: ["line", "直線", "線", "追加"],
   addBezierCurve: ["bezier", "curve", "曲線", "ベジェ", "追加"],
+  addBezierNumericVariable: ["bezier", "curve", "variable", "共有", "変数", "追加"],
+  deleteBezierNumericVariable: ["bezier", "curve", "variable", "共有", "変数", "削除"],
   addBezierIntermediatePoint: ["bezier", "curve", "middle", "中間点", "追加"],
   deleteBezierIntermediatePoint: ["bezier", "curve", "middle", "中間点", "削除"],
   zoomInCanvas: ["zoom", "in", "拡大", "キャンバス"],

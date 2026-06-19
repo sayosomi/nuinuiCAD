@@ -1,10 +1,25 @@
-import type { CadElement, ComputedGeometry, ElementId, NumericValue } from "../types/geometry";
+import type {
+  BezierNumericVariable,
+  CadElement,
+  ComputedGeometry,
+  ElementId,
+  NumericValue
+} from "../types/geometry";
+
+export type NumericMeasurementKey =
+  | "length"
+  | "startAngleDeg"
+  | "endAngleDeg"
+  | "startHandleAngleDeg"
+  | "startHandleLength"
+  | "endHandleAngleDeg"
+  | "endHandleLength";
 
 export type LineMeasurementKey = "length" | "startAngleDeg" | "endAngleDeg";
 
 export type NumericExpressionReference = {
   elementId: ElementId;
-  property: LineMeasurementKey;
+  property: NumericMeasurementKey;
 };
 
 export type NumericExpressionError = {
@@ -13,14 +28,18 @@ export type NumericExpressionError = {
   message: string;
 };
 
-const propertyLabels: Record<LineMeasurementKey, string> = {
+const propertyLabels: Record<NumericMeasurementKey, string> = {
   length: "長さ",
   startAngleDeg: "始角度",
-  endAngleDeg: "終角度"
+  endAngleDeg: "終角度",
+  startHandleAngleDeg: "始点角度",
+  startHandleLength: "始点ハンドル長",
+  endHandleAngleDeg: "終点角度",
+  endHandleLength: "終点ハンドル長"
 };
 
-const labelToProperty = new Map<string, LineMeasurementKey>(
-  Object.entries(propertyLabels).map(([key, label]) => [label, key as LineMeasurementKey])
+const labelToProperty = new Map<string, NumericMeasurementKey>(
+  Object.entries(propertyLabels).map(([key, label]) => [label, key as NumericMeasurementKey])
 );
 
 export const isNumericExpression = (value: NumericValue): value is Exclude<NumericValue, number> =>
@@ -66,7 +85,8 @@ const trimRedundantOuterParentheses = (expression: string): string => {
 
 const isSimpleNumericTerm = (expression: string) =>
   /^(\d+(?:\.\d+)?|\.\d+)$/.test(expression) ||
-  /^[^\s()+*/.]+\.(length|startAngleDeg|endAngleDeg)$/.test(expression);
+  /^@[^\s()+*/.]+$/.test(expression) ||
+  /^[^\s()+*/.]+\.(length|startAngleDeg|endAngleDeg|startHandleAngleDeg|startHandleLength|endHandleAngleDeg|endHandleLength)$/.test(expression);
 
 const trimSimpleOuterParentheses = (expression: string): string => {
   const fullyTrimmed = trimRedundantOuterParentheses(expression);
@@ -101,34 +121,60 @@ export const addToNumericValue = (value: NumericValue, delta: number): NumericVa
   };
 };
 
-export const lineMeasurementLabel = (property: LineMeasurementKey) => propertyLabels[property];
+export const lineMeasurementLabel = (property: NumericMeasurementKey) => propertyLabels[property];
 
 export const formatNumericExpressionForDisplay = (
   value: NumericValue,
-  elements: CadElement[]
+  elements: CadElement[],
+  localVariables: BezierNumericVariable[] = []
 ) => {
   if (!isNumericExpression(value)) return Number.isInteger(value) ? `${value}` : value.toFixed(2).replace(/\.?0+$/, "");
   const elementsById = new Map(elements.map((element) => [element.id, element]));
-  return value.expression.replace(
-    /([^\s()+*/]+)\.(length|startAngleDeg|endAngleDeg)\b/g,
-    (match, elementId: ElementId, property: LineMeasurementKey) => {
+  const variablesById = new Map(localVariables.map((variable) => [variable.id, variable]));
+  return value.expression
+    .replace(/@([^\s()+*/.]+)/g, (match, variableId: string) => {
+      const variable = variablesById.get(variableId);
+      return variable ? `@${variable.name}` : match;
+    })
+    .replace(
+      /([^\s()+*/]+)\.(length|startAngleDeg|endAngleDeg|startHandleAngleDeg|startHandleLength|endHandleAngleDeg|endHandleLength)\b/g,
+      (match, elementId: ElementId, property: NumericMeasurementKey) => {
       const element = elementsById.get(elementId);
       return element ? `${element.name}.${propertyLabels[property]}` : match;
-    }
-  );
+      }
+    );
 };
 
 const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-export const normalizeNumericExpressionInput = (input: string, elements: CadElement[]) => {
+export const normalizeNumericExpressionInput = (
+  input: string,
+  elements: CadElement[],
+  localVariables: BezierNumericVariable[] = []
+) => {
   let expression = input.trim();
+  const variables = [...localVariables].sort((a, b) => b.name.length - a.name.length);
   const measurableElements = elements
     .filter((element) => element.type === "line" || element.type === "bezierCurve")
     .sort((a, b) => b.name.length - a.name.length);
 
+  for (const variable of variables) {
+    expression = expression.replace(
+      new RegExp(`@${escapeRegExp(variable.name)}(?=$|[\\s()+*/-])`, "g"),
+      `@${variable.id}`
+    );
+  }
+
   for (const element of measurableElements) {
     for (const [property, label] of Object.entries(propertyLabels)) {
-      if (element.type === "bezierCurve" && property !== "length") continue;
+      if (
+        element.type === "line" &&
+        property !== "length" &&
+        property !== "startAngleDeg" &&
+        property !== "endAngleDeg"
+      ) {
+        continue;
+      }
       expression = expression.replace(
         new RegExp(`${escapeRegExp(element.name)}\\.${escapeRegExp(label)}(?=$|[\\s()+*/-])`, "g"),
         `${element.id}.${property}`
@@ -141,7 +187,8 @@ export const normalizeNumericExpressionInput = (input: string, elements: CadElem
 
 type Token =
   | { type: "number"; value: number }
-  | { type: "reference"; elementId: ElementId; property: LineMeasurementKey }
+  | { type: "reference"; elementId: ElementId; property: NumericMeasurementKey }
+  | { type: "localVariable"; variableId: string }
   | { type: "operator"; value: "+" | "-" | "*" | "/" }
   | { type: "leftParen" }
   | { type: "rightParen" };
@@ -179,18 +226,25 @@ const tokenize = (expression: string): Token[] => {
       continue;
     }
 
+    const localVariableMatch = expression.slice(index).match(/^@([^\s()+*/.]+)/);
+    if (localVariableMatch) {
+      tokens.push({ type: "localVariable", variableId: localVariableMatch[1] });
+      index += localVariableMatch[0].length;
+      continue;
+    }
+
     const referenceMatch = expression
       .slice(index)
       .match(/^([^\s()+*/.]+)\.([^\s()+*/.]+)/);
     if (referenceMatch) {
       const property = labelToProperty.get(referenceMatch[2]) ?? referenceMatch[2];
-      if (property !== "length" && property !== "startAngleDeg" && property !== "endAngleDeg") {
+      if (!(property in propertyLabels)) {
         throw new Error(`未対応の参照プロパティです: ${referenceMatch[2]}`);
       }
       tokens.push({
         type: "reference",
         elementId: referenceMatch[1],
-        property
+        property: property as NumericMeasurementKey
       });
       index += referenceMatch[0].length;
       continue;
@@ -207,7 +261,8 @@ class Parser {
 
   constructor(
     private readonly tokens: Token[],
-    private readonly referenceValue: (reference: NumericExpressionReference) => number
+    private readonly referenceValue: (reference: NumericExpressionReference) => number,
+    private readonly localVariableValue: (variableId: string) => number
   ) {}
 
   parse() {
@@ -242,6 +297,7 @@ class Parser {
     if (!token) throw new Error("式が途中で終わっています。");
     if (token.type === "number") return token.value;
     if (token.type === "reference") return this.referenceValue(token);
+    if (token.type === "localVariable") return this.localVariableValue(token.variableId);
     if (token.type === "operator" && token.value === "+") return this.parseFactor();
     if (token.type === "operator" && token.value === "-") return -this.parseFactor();
     if (token.type === "leftParen") {
@@ -281,14 +337,28 @@ export const extractNumericExpressionReferences = (value: NumericValue): Numeric
   }
 };
 
+export const singleLocalVariableReference = (value: NumericValue): string | null => {
+  if (!isNumericExpression(value)) return null;
+  try {
+    const tokens = tokenize(value.expression);
+    return tokens.length === 1 && tokens[0].type === "localVariable" ? tokens[0].variableId : null;
+  } catch {
+    return null;
+  }
+};
+
 export const evaluateNumericValue = ({
   value,
   computedGeometry,
-  elementsById
+  elementsById,
+  localVariables,
+  localVariableNames
 }: {
   value: NumericValue;
   computedGeometry: Map<ElementId, ComputedGeometry>;
   elementsById: Map<ElementId, CadElement>;
+  localVariables?: Map<string, number>;
+  localVariableNames?: Map<string, string>;
 }): { value?: number; error?: NumericExpressionError } => {
   if (!isNumericExpression(value)) return { value };
 
@@ -298,7 +368,10 @@ export const evaluateNumericValue = ({
       if (
         !geometry ||
         (geometry.kind !== "line" && geometry.kind !== "bezierCurve") ||
-        (geometry.kind === "bezierCurve" && reference.property !== "length")
+        (geometry.kind === "line" &&
+          reference.property !== "length" &&
+          reference.property !== "startAngleDeg" &&
+          reference.property !== "endAngleDeg")
       ) {
         const dependencyName = elementsById.get(reference.elementId)?.name;
         throw Object.assign(
@@ -309,15 +382,29 @@ export const evaluateNumericValue = ({
         );
       }
 
-      const measuredValue =
-        geometry.kind === "bezierCurve" ? geometry.length : geometry[reference.property];
+      const measuredValue = geometry[reference.property as keyof typeof geometry];
       if (measuredValue === null) {
         throw Object.assign(new Error(`${geometry.name}.${propertyLabels[reference.property]} は未定義です。`), {
           dependencyId: reference.elementId,
           dependencyName: geometry.name
         });
       }
+      if (typeof measuredValue !== "number") {
+        throw Object.assign(new Error(`${geometry.name}.${propertyLabels[reference.property]} は数値ではありません。`), {
+          dependencyId: reference.elementId,
+          dependencyName: geometry.name
+        });
+      }
       return measuredValue;
+    }, (variableId) => {
+      const variableValue = localVariables?.get(variableId);
+      if (variableValue === undefined) {
+        throw Object.assign(
+          new Error(`${localVariableNames?.get(variableId) ?? variableId} はこの曲線内に存在しません。`),
+          { dependencyId: variableId, dependencyName: localVariableNames?.get(variableId) }
+        );
+      }
+      return variableValue;
     });
     return { value: parser.parse() };
   } catch (error) {

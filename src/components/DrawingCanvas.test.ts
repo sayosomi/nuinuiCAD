@@ -54,7 +54,11 @@ const bezierCurve = (
       end
     }
   ],
-  length: 100
+  length: 100,
+  startHandleAngleDeg: 0,
+  startHandleLength: 30,
+  endHandleAngleDeg: 0,
+  endHandleLength: 30
 });
 
 const resetStore = () => {

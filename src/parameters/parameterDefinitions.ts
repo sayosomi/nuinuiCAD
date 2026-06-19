@@ -59,6 +59,12 @@ export const getParameterDefinitions = (element: CadElement): ParameterDefinitio
     case "bezierCurve":
       return [
         ...commonParameters,
+        ...(element.numericVariables ?? []).map((variable, index) => ({
+          key: `variable:${variable.id}:value`,
+          directKey: index === 0 ? "q" : "q",
+          label: `変数 ${variable.name}`,
+          kind: "number" as const
+        })),
         { key: "startPointId", directKey: "s", label: "始点", kind: "reference" },
         {
           key: "startHandleAngleDeg",

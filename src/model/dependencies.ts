@@ -41,6 +41,9 @@ export const getDirectParentIds = (element: CadElement): ElementId[] => {
         return [];
       case "bezierCurve":
         return [
+          ...(element.numericVariables ?? []).flatMap((variable) =>
+            extractNumericExpressionReferences(variable.value)
+          ),
           ...extractNumericExpressionReferences(element.startHandleAngleDeg),
           ...extractNumericExpressionReferences(element.startHandleLength),
           ...element.intermediatePoints.flatMap((point) => [

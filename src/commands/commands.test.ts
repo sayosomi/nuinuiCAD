@@ -433,6 +433,50 @@ describe("commands", () => {
     expect(curve.startHandleLength).toBeCloseTo(55);
   });
 
+  it("updates a shared Bezier numeric variable when dragging a referenced handle length", () => {
+    useCadStore.setState({
+      elements: sampleElements.map((element) =>
+        element.id === "curve-ac" && element.type === "bezierCurve"
+          ? {
+              ...element,
+              numericVariables: [{ id: "shared", name: "共通長", value: 45 }],
+              startHandleLength: { kind: "expression", expression: "@shared" },
+              endHandleLength: { kind: "expression", expression: "@shared" }
+            }
+          : element
+      )
+    });
+
+    dispatchCommand("moveBezierHandleByDelta", {
+      elementId: "curve-ac",
+      bezierHandleRole: "start",
+      dx: 10,
+      dy: -45,
+      angleLocked: true
+    });
+
+    const curve = useCadStore.getState().elements.find((element) => element.id === "curve-ac");
+    expect(curve).toMatchObject({ type: "bezierCurve" });
+    if (curve?.type !== "bezierCurve") throw new Error("Expected a Bezier curve");
+    expect(curve.numericVariables?.[0].value).toBeCloseTo(55);
+    expect(curve.startHandleLength).toEqual({ kind: "expression", expression: "@shared" });
+    expect(curve.endHandleLength).toEqual({ kind: "expression", expression: "@shared" });
+  });
+
+  it("adds Bezier numeric variables with a short ASCII default name", () => {
+    useCadStore.setState({
+      selectedElementId: "curve-ac",
+      selectedElementIds: ["curve-ac"]
+    });
+
+    dispatchCommand("addBezierNumericVariable");
+
+    const curve = useCadStore.getState().elements.find((element) => element.id === "curve-ac");
+    expect(curve).toMatchObject({ type: "bezierCurve" });
+    if (curve?.type !== "bezierCurve") throw new Error("Expected a Bezier curve");
+    expect(curve.numericVariables?.[0].name).toBe("v1");
+  });
+
   it("locks Bezier handle distance while dragging", () => {
     dispatchCommand("moveBezierHandleByDelta", {
       elementId: "curve-ac",

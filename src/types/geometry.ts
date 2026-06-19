@@ -49,8 +49,15 @@ export type BezierIntermediatePoint = {
   outgoingHandleLength: NumericValue;
 };
 
+export type BezierNumericVariable = {
+  id: string;
+  name: string;
+  value: NumericValue;
+};
+
 export type BezierCurveElement = CadElementBase & {
   type: "bezierCurve";
+  numericVariables?: BezierNumericVariable[];
   startPointId: ElementId;
   startHandleAngleDeg: NumericValue;
   startHandleLength: NumericValue;
@@ -107,6 +114,10 @@ export type ComputedBezierCurve = {
   intermediatePointIds: ElementId[];
   segments: ComputedBezierSegment[];
   length: number;
+  startHandleAngleDeg: number;
+  startHandleLength: number;
+  endHandleAngleDeg: number;
+  endHandleLength: number;
 };
 
 export type ComputedGeometry = ComputedPoint | ComputedLine | ComputedBezierCurve;

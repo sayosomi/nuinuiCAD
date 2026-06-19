@@ -86,4 +86,32 @@ describe("normalizeNumericExpressionInput", () => {
       "curve-ac.length + 5"
     );
   });
+
+  it("normalizes Japanese curve handle references and local variable references", () => {
+    const elements: CadElement[] = [
+      {
+        id: "curve-ac",
+        name: "曲線AC",
+        type: "bezierCurve",
+        visible: true,
+        enabled: true,
+        numericVariables: [{ id: "shared", name: "共通長", value: 30 }],
+        startPointId: "a",
+        startHandleAngleDeg: 0,
+        startHandleLength: 20,
+        intermediatePoints: [],
+        endPointId: "c",
+        endHandleAngleDeg: 0,
+        endHandleLength: 20
+      }
+    ];
+
+    expect(
+      normalizeNumericExpressionInput(
+        "曲線AC.始点ハンドル長 + @共通長",
+        elements,
+        elements[0].type === "bezierCurve" ? elements[0].numericVariables ?? [] : []
+      )
+    ).toBe("curve-ac.startHandleLength + @shared");
+  });
 });
