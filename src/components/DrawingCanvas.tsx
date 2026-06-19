@@ -368,8 +368,8 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
       ctx.beginPath();
       ctx.moveTo(start.x, start.y);
       ctx.lineTo(end.x, end.y);
-      ctx.strokeStyle = isSelected ? "#0f766e" : "#31322f";
-      ctx.lineWidth = isPrimarySelected ? 3.5 : isSelected ? 3 : 2;
+      ctx.strokeStyle = activePointPickTarget ? "#c5cac0" : isSelected ? "#0f766e" : "#31322f";
+      ctx.lineWidth = activePointPickTarget ? 1.25 : isPrimarySelected ? 3.5 : isSelected ? 3 : 2;
       ctx.stroke();
     }
 
@@ -386,8 +386,8 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
         if (index === 0) ctx.moveTo(start.x, start.y);
         ctx.bezierCurveTo(control1.x, control1.y, control2.x, control2.y, end.x, end.y);
       });
-      ctx.strokeStyle = isSelected ? "#0f766e" : "#31322f";
-      ctx.lineWidth = isPrimarySelected ? 3.5 : isSelected ? 3 : 2;
+      ctx.strokeStyle = activePointPickTarget ? "#c5cac0" : isSelected ? "#0f766e" : "#31322f";
+      ctx.lineWidth = activePointPickTarget ? 1.25 : isPrimarySelected ? 3.5 : isSelected ? 3 : 2;
       ctx.stroke();
     }
 
@@ -397,14 +397,30 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
       const isPrimarySelected = point.elementId === selectedElementId;
       const screen = worldToScreen(point, viewportSize, canvasViewport);
       ctx.beginPath();
-      ctx.arc(screen.x, screen.y, isPrimarySelected ? 5.5 : isSelected ? 5 : 4, 0, Math.PI * 2);
-      ctx.fillStyle = isSelected ? "#0f766e" : "#ffffff";
-      ctx.strokeStyle = "#31322f";
-      ctx.lineWidth = 2;
+      ctx.arc(
+        screen.x,
+        screen.y,
+        activePointPickTarget ? 5.75 : isPrimarySelected ? 5.5 : isSelected ? 5 : 4,
+        0,
+        Math.PI * 2
+      );
+      ctx.fillStyle = activePointPickTarget ? "#e7f4ef" : isSelected ? "#0f766e" : "#ffffff";
+      ctx.strokeStyle = activePointPickTarget ? "#0f766e" : "#31322f";
+      ctx.lineWidth = activePointPickTarget ? 2.5 : 2;
       ctx.fill();
       ctx.stroke();
     }
-  }, [canvasViewport, curves, lines, points, selectedElementId, selectedElementIdSet, viewportSize, visibleElementIds]);
+  }, [
+    activePointPickTarget,
+    canvasViewport,
+    curves,
+    lines,
+    points,
+    selectedElementId,
+    selectedElementIdSet,
+    viewportSize,
+    visibleElementIds
+  ]);
 
   useEffect(() => {
     const setDragLockKey = (event: KeyboardEvent, isPressed: boolean) => {
@@ -834,7 +850,9 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
                 cx={screen.x}
                 cy={screen.y}
                 r={point.elementId === selectedElementId ? 8 : selectedElementIdSet.has(point.elementId) ? 7 : 6}
-                className={`overlay-draggable-point ${selectedElementIdSet.has(point.elementId) ? "overlay-selected-point" : ""}`}
+                className={`overlay-draggable-point ${
+                  selectedElementIdSet.has(point.elementId) ? "overlay-selected-point" : ""
+                } ${activePointPickTarget ? "overlay-point-pick-candidate" : ""}`}
               />
               <text x={screen.x + 8} y={screen.y - 8}>
                 {point.name}
@@ -842,6 +860,11 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
             </g>
           ))}
         </svg>
+        {activePointPickTarget ? (
+          <div className="point-pick-canvas-banner">
+            点選択中: canvas または構成リストの点を選択
+          </div>
+        ) : null}
         {measurementCandidateMenu ? (
           <div
             className="measurement-candidate-menu"

@@ -22,6 +22,7 @@ const resetStore = () => {
     selectedParameterKey: "name",
     showElementInfoPanel: true,
     isDependencyJumpMode: false,
+    activePointPickTarget: null,
     selectedDependencyJumpIndex: 0,
     showShortcutHelp: false,
     showCommandPalette: false,
@@ -373,6 +374,56 @@ describe("LeftPanel element list dragging", () => {
       metaKey: true
     });
     expect(useCadStore.getState().selectedElementIds).toEqual(["point-a", "point-c"]);
+  });
+
+  it("applies a picked point from the element list while point picking", () => {
+    useCadStore.setState({
+      selectedElementId: "line-ab",
+      selectedElementIds: ["line-ab"],
+      selectedParameterKey: "endPoint",
+      activePointPickTarget: {
+        elementId: "line-ab",
+        parameterKey: "endPoint"
+      }
+    });
+    renderLeftPanel();
+
+    fireEvent.click(screen.getByText("点C").closest("[data-element-list-row='true']")!);
+
+    expect(useCadStore.getState().activePointPickTarget).toBeNull();
+    expect(useCadStore.getState().elements[3]).toMatchObject({
+      endPoint: { mode: "reference", pointId: "point-c" }
+    });
+    expect(useCadStore.getState().selectedElementId).toBe("line-ab");
+  });
+
+  it("dims non-point rows and ignores them while point picking", () => {
+    useCadStore.setState({
+      selectedElementId: "line-ab",
+      selectedElementIds: ["line-ab"],
+      selectedParameterKey: "endPoint",
+      activePointPickTarget: {
+        elementId: "line-ab",
+        parameterKey: "endPoint"
+      }
+    });
+    renderLeftPanel();
+
+    const pointRow = screen.getByText("点C").closest("[data-element-list-row='true']");
+    const lineRow = screen.getByText("直線BC").closest("[data-element-list-row='true']");
+    expect(pointRow).toHaveClass("is-point-pick-candidate");
+    expect(lineRow).toHaveClass("is-not-point-pick-candidate");
+
+    fireEvent.click(lineRow!);
+
+    expect(useCadStore.getState().activePointPickTarget).toEqual({
+      elementId: "line-ab",
+      parameterKey: "endPoint"
+    });
+    expect(useCadStore.getState().selectedElementId).toBe("line-ab");
+    expect(useCadStore.getState().elements[3]).toMatchObject({
+      endPoint: { mode: "reference", pointId: "point-b" }
+    });
   });
 
   it("reorders selected elements together by dragging one selected handle", () => {

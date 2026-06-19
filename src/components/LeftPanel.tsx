@@ -188,6 +188,7 @@ const ElementEditor = ({
   const renameElement = useCadStore((state) => state.renameElement);
   const selectedParameterKey = useCadStore((state) => state.selectedParameterKey);
   const setSelectedParameterKey = useCadStore((state) => state.setSelectedParameterKey);
+  const activePointPickTarget = useCadStore((state) => state.activePointPickTarget);
 
   const commitName = (name: string) => renameElement(element.id, name);
   const updateVisible = (visible: boolean) => updateElement(element.id, { visible });
@@ -368,8 +369,13 @@ const ElementEditor = ({
     label: string;
     anchor: PointAnchor;
     allowCoordinate?: boolean;
-  }) => (
-    <div className="point-anchor-editor">
+  }) => {
+    const isPickingThisPoint =
+      activePointPickTarget?.elementId === element.id &&
+      activePointPickTarget.parameterKey === parameterKey;
+
+    return (
+    <div className={`point-anchor-editor ${isPickingThisPoint ? "is-picking-point" : ""}`}>
       <div className="point-anchor-header">
         <ParameterName element={element} parameterKey={parameterKey} label={label} />
         <div className="point-anchor-actions">
@@ -400,16 +406,23 @@ const ElementEditor = ({
           </div>
           <button
             type="button"
-            className="point-pick-button"
+            className={`point-pick-button ${isPickingThisPoint ? "active" : ""}`}
             onClick={() => {
               selectParameter(parameterKey);
+              if (isPickingThisPoint) {
+                dispatchCommand("cancelPointPick");
+                return;
+              }
               dispatchCommand("startPointPick");
             }}
           >
-            点を選択
+            {isPickingThisPoint ? "点選択中" : "点を選択"}
           </button>
         </div>
       </div>
+      {isPickingThisPoint ? (
+        <p className="point-pick-hint">canvas または構成リストから点を選択します。</p>
+      ) : null}
       {anchor.mode === "reference" ? (
         <button
           type="button"
@@ -436,7 +449,8 @@ const ElementEditor = ({
         </div>
       )}
     </div>
-  );
+    );
+  };
   const finishNumericDrag = (event: PointerEvent<HTMLInputElement>) => {
     const drag = numericDragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
@@ -1121,8 +1135,8 @@ export const LeftPanel = ({
       const element = elements.find((item) => item.id === elementId);
       if (element && isPointElement(element)) {
         dispatchCommand("applyPickedPoint", { pickedPointId: element.id });
-        return;
       }
+      return;
     }
     dispatchCommand("selectElement", {
       elementId,
@@ -1140,7 +1154,11 @@ export const LeftPanel = ({
         <div className="section-header">
           <div>
             <h2>構成リスト</h2>
-            <p className="section-subtitle">gで戻る / Enterで要素設定</p>
+            <p className={`section-subtitle ${activePointPickTarget ? "point-pick-list-subtitle" : ""}`}>
+              {activePointPickTarget
+                ? "点選択中: 点の行だけ選択できます"
+                : "gで戻る / Enterで要素設定"}
+            </p>
           </div>
         </div>
 
@@ -1162,7 +1180,11 @@ export const LeftPanel = ({
                 !element.enabled ? "is-disabled" : ""
               } ${
                 errorElementIds.has(element.id) ? "has-error" : ""
-              } ${activePointPickTarget && isPointElement(element) ? "is-point-pick-candidate" : ""} ${
+              } ${activePointPickTarget ? "is-point-pick-mode" : ""} ${
+                activePointPickTarget && isPointElement(element) ? "is-point-pick-candidate" : ""
+              } ${
+                activePointPickTarget && !isPointElement(element) ? "is-not-point-pick-candidate" : ""
+              } ${
                 draggedElementIds.includes(element.id) ? "dragging" : ""}${dropMarkerClass(
                 element.id,
                 index,
