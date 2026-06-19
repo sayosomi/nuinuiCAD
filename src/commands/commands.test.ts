@@ -477,6 +477,33 @@ describe("commands", () => {
     expect(curve.numericVariables?.[0].name).toBe("v1");
   });
 
+  it("adds numeric variables to non-curve numeric elements", () => {
+    useCadStore.setState({
+      selectedElementId: "point-b",
+      selectedElementIds: ["point-b"]
+    });
+
+    dispatchCommand("addNumericVariable");
+
+    const point = useCadStore.getState().elements.find((element) => element.id === "point-b");
+    expect(point).toMatchObject({ type: "offsetPoint" });
+    expect(point?.numericVariables?.[0]).toMatchObject({ name: "v1", value: 30 });
+    expect(useCadStore.getState().selectedParameterKey).toBe(`variable:${point?.numericVariables?.[0].id}:value`);
+  });
+
+  it("does not add numeric variables to line elements", () => {
+    useCadStore.setState({
+      selectedElementId: "line-ab",
+      selectedElementIds: ["line-ab"]
+    });
+
+    dispatchCommand("addNumericVariable");
+
+    const line = useCadStore.getState().elements.find((element) => element.id === "line-ab");
+    expect(line).toMatchObject({ type: "line" });
+    expect(line?.numericVariables).toBeUndefined();
+  });
+
   it("locks Bezier handle distance while dragging", () => {
     dispatchCommand("moveBezierHandleByDelta", {
       elementId: "curve-ac",

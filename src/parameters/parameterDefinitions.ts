@@ -22,17 +22,27 @@ const commonParameters: ParameterDefinition[] = [
   { key: "enabled", directKey: "a", label: "評価", kind: "boolean" }
 ];
 
+const numericVariableParameters = (element: CadElement): ParameterDefinition[] =>
+  (element.numericVariables ?? []).map((variable) => ({
+    key: `variable:${variable.id}:value`,
+    directKey: "q",
+    label: `変数 ${variable.name}`,
+    kind: "number" as const
+  }));
+
 export const getParameterDefinitions = (element: CadElement): ParameterDefinition[] => {
   switch (element.type) {
     case "freePoint":
       return [
         ...commonParameters,
+        ...numericVariableParameters(element),
         { key: "x", directKey: "x", label: "x", kind: "number" },
         { key: "y", directKey: "y", label: "y", kind: "number" }
       ];
     case "offsetPoint":
       return [
         ...commonParameters,
+        ...numericVariableParameters(element),
         { key: "fromPointId", directKey: "b", label: "基準点", kind: "reference" },
         { key: "dx", directKey: "x", label: "dx", kind: "number" },
         { key: "dy", directKey: "y", label: "dy", kind: "number" }
@@ -40,6 +50,7 @@ export const getParameterDefinitions = (element: CadElement): ParameterDefinitio
     case "polarOffsetPoint":
       return [
         ...commonParameters,
+        ...numericVariableParameters(element),
         { key: "fromPointId", directKey: "b", label: "基準点", kind: "reference" },
         {
           key: "angleDeg",
@@ -59,12 +70,7 @@ export const getParameterDefinitions = (element: CadElement): ParameterDefinitio
     case "bezierCurve":
       return [
         ...commonParameters,
-        ...(element.numericVariables ?? []).map((variable, index) => ({
-          key: `variable:${variable.id}:value`,
-          directKey: index === 0 ? "q" : "q",
-          label: `変数 ${variable.name}`,
-          kind: "number" as const
-        })),
+        ...numericVariableParameters(element),
         { key: "startPointId", directKey: "s", label: "始点", kind: "reference" },
         {
           key: "startHandleAngleDeg",

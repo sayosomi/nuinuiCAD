@@ -241,6 +241,92 @@ describe("evaluateElements", () => {
     });
   });
 
+  it("evaluates free point coordinates from local numeric variables", () => {
+    const result = evaluateElements([
+      {
+        id: "a",
+        name: "点A",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        numericVariables: [
+          { id: "base", name: "基準", value: 20 },
+          { id: "half", name: "半分", value: { kind: "expression", expression: "@base / 2" } }
+        ],
+        x: { kind: "expression", expression: "@base" },
+        y: { kind: "expression", expression: "@half" }
+      }
+    ]);
+
+    expect(result.errors).toHaveLength(0);
+    expect(result.computedGeometry.get("a")).toMatchObject({ kind: "point", x: 20, y: 10 });
+  });
+
+  it("evaluates offset point deltas from local numeric variables", () => {
+    const result = evaluateElements([
+      validElements[0],
+      {
+        id: "b",
+        name: "点B",
+        type: "offsetPoint",
+        visible: true,
+        enabled: true,
+        numericVariables: [{ id: "move", name: "移動量", value: 15 }],
+        fromPointId: "a",
+        dx: { kind: "expression", expression: "@move * 2" },
+        dy: { kind: "expression", expression: "@move" }
+      }
+    ]);
+
+    expect(result.errors).toHaveLength(0);
+    expect(result.computedGeometry.get("b")).toMatchObject({ kind: "point", x: 40, y: 35 });
+  });
+
+  it("evaluates polar offset parameters from local numeric variables", () => {
+    const result = evaluateElements([
+      validElements[0],
+      {
+        id: "b",
+        name: "点B",
+        type: "polarOffsetPoint",
+        visible: true,
+        enabled: true,
+        numericVariables: [
+          { id: "angle", name: "角度", value: 90 },
+          { id: "distance", name: "距離", value: 10 }
+        ],
+        fromPointId: "a",
+        angleDeg: { kind: "expression", expression: "@angle" },
+        distance: { kind: "expression", expression: "@distance" }
+      }
+    ]);
+
+    expect(result.errors).toHaveLength(0);
+    expect(result.computedGeometry.get("b")).toMatchObject({ kind: "point", x: 10, y: 10 });
+  });
+
+  it("reports missing local numeric variables on non-curve elements", () => {
+    const result = evaluateElements([
+      {
+        id: "a",
+        name: "点A",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: { kind: "expression", expression: "@missing" },
+        y: 0
+      }
+    ]);
+
+    expect(result.computedGeometry.has("a")).toBe(false);
+    expect(result.errors[0]).toMatchObject({
+      elementId: "a",
+      elementName: "点A",
+      missingDependencyId: "missing",
+      message: expect.stringContaining("この要素内に存在しません")
+    });
+  });
+
   it("evaluates numeric expressions that reference earlier curve handle measurements", () => {
     const result = evaluateElements([
       ...validElements,

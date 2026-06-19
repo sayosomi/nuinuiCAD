@@ -97,6 +97,12 @@ const pointOptions = (elements: CadElement[]) =>
       </option>
     ));
 
+const supportsNumericVariables = (element: CadElement) =>
+  element.type === "freePoint" ||
+  element.type === "offsetPoint" ||
+  element.type === "polarOffsetPoint" ||
+  element.type === "bezierCurve";
+
 type ElementStatusIconKind = "visible" | "hidden" | "enabled" | "disabled";
 
 const ElementStatusIcon = ({ kind }: { kind: ElementStatusIconKind }) => {
@@ -193,7 +199,7 @@ const ElementEditor = ({
   };
   const updateParameterValue = (field: ParameterKey, value: unknown) => {
     const variable = parseVariableParameterKey(field);
-    if (variable && element.type === "bezierCurve") {
+    if (variable) {
       updateElement(element.id, {
         numericVariables: (element.numericVariables ?? []).map((item) =>
           item.id === variable.variableId ? { ...item, value: value as NumericValue } : item
@@ -219,7 +225,7 @@ const ElementEditor = ({
         normalizeNumericExpressionInput(
           value,
           elements,
-          element.type === "bezierCurve" ? element.numericVariables ?? [] : []
+          element.numericVariables ?? []
         )
       )
     );
@@ -274,7 +280,7 @@ const ElementEditor = ({
         value={formatNumericExpressionForDisplay(
           value,
           elements,
-          element.type === "bezierCurve" ? element.numericVariables ?? [] : []
+          element.numericVariables ?? []
         )}
         onChange={(event) => updateField(parameterKey, event.target.value)}
       />
@@ -428,6 +434,62 @@ const ElementEditor = ({
           <ParameterName element={element} parameterKey="enabled" label="評価する" />
         </label>
 
+        {supportsNumericVariables(element) && (
+          <div className="curve-point-editor">
+            <div className="curve-point-header">
+              <span>共通変数</span>
+              <button
+                type="button"
+                onClick={() => dispatchCommand("addNumericVariable")}
+              >
+                追加
+              </button>
+            </div>
+            {(element.numericVariables ?? []).length === 0 ? (
+              <p className="empty-state">共通変数はありません。</p>
+            ) : (
+              (element.numericVariables ?? []).map((variable, index) => (
+                <div className="curve-point-group" key={variable.id}>
+                  <div className="curve-point-header">
+                    <span>変数{index + 1}</span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        dispatchCommand("deleteNumericVariable", {
+                          variableId: variable.id
+                        })
+                      }
+                    >
+                      削除
+                    </button>
+                  </div>
+                  <label className="parameter-field">
+                    <span className="parameter-name">名前 (@名前で参照)</span>
+                    <input
+                      type="text"
+                      aria-label="共通変数名"
+                      value={variable.name}
+                      onChange={(event) =>
+                        updateElement(element.id, {
+                          numericVariables: (element.numericVariables ?? []).map((item) =>
+                            item.id === variable.id ? { ...item, name: event.target.value } : item
+                          )
+                        } as Partial<CadElement>)
+                      }
+                    />
+                  </label>
+                  {numericInput({
+                    parameterKey: `variable:${variable.id}:value`,
+                    label: variable.name,
+                    value: variable.value,
+                    ariaLabel: `共通変数 ${variable.name}`
+                  })}
+                </div>
+              ))
+            )}
+          </div>
+        )}
+
         {element.type === "freePoint" && (
           <>
             <label className={parameterFieldClass("x")} onClick={() => selectParameter("x")}>
@@ -440,7 +502,7 @@ const ElementEditor = ({
                 inputMode="decimal"
                 step="1"
                 data-numeric-parameter-key="x"
-                value={formatNumericExpressionForDisplay(element.x, elements)}
+                value={formatNumericExpressionForDisplay(element.x, elements, element.numericVariables ?? [])}
                 onChange={(event) => updateField("x", event.target.value)}
               />
               <span className="parameter-step">
@@ -468,7 +530,7 @@ const ElementEditor = ({
                 inputMode="decimal"
                 step="1"
                 data-numeric-parameter-key="y"
-                value={formatNumericExpressionForDisplay(element.y, elements)}
+                value={formatNumericExpressionForDisplay(element.y, elements, element.numericVariables ?? [])}
                 onChange={(event) => updateField("y", event.target.value)}
               />
               <span className="parameter-step">
@@ -514,7 +576,7 @@ const ElementEditor = ({
                 inputMode="decimal"
                 step="1"
                 data-numeric-parameter-key="dx"
-                value={formatNumericExpressionForDisplay(element.dx, elements)}
+                value={formatNumericExpressionForDisplay(element.dx, elements, element.numericVariables ?? [])}
                 onChange={(event) => updateField("dx", event.target.value)}
               />
               <span className="parameter-step">
@@ -542,7 +604,7 @@ const ElementEditor = ({
                 inputMode="decimal"
                 step="1"
                 data-numeric-parameter-key="dy"
-                value={formatNumericExpressionForDisplay(element.dy, elements)}
+                value={formatNumericExpressionForDisplay(element.dy, elements, element.numericVariables ?? [])}
                 onChange={(event) => updateField("dy", event.target.value)}
               />
               <span className="parameter-step">
@@ -588,7 +650,11 @@ const ElementEditor = ({
                 inputMode="decimal"
                 step="1"
                 data-numeric-parameter-key="angleDeg"
-                value={formatNumericExpressionForDisplay(element.angleDeg, elements)}
+                value={formatNumericExpressionForDisplay(
+                  element.angleDeg,
+                  elements,
+                  element.numericVariables ?? []
+                )}
                 onChange={(event) => updateField("angleDeg", event.target.value)}
               />
               <span className="parameter-step">
@@ -616,7 +682,11 @@ const ElementEditor = ({
                 inputMode="decimal"
                 step="1"
                 data-numeric-parameter-key="distance"
-                value={formatNumericExpressionForDisplay(element.distance, elements)}
+                value={formatNumericExpressionForDisplay(
+                  element.distance,
+                  elements,
+                  element.numericVariables ?? []
+                )}
                 onChange={(event) => updateField("distance", event.target.value)}
               />
               <span className="parameter-step">
@@ -670,60 +740,6 @@ const ElementEditor = ({
 
         {element.type === "bezierCurve" && (
           <>
-            <div className="curve-point-editor">
-              <div className="curve-point-header">
-                <span>共通変数</span>
-                <button
-                  type="button"
-                  onClick={() => dispatchCommand("addBezierNumericVariable")}
-                >
-                  追加
-                </button>
-              </div>
-              {(element.numericVariables ?? []).length === 0 ? (
-                <p className="empty-state">共通変数はありません。</p>
-              ) : (
-                (element.numericVariables ?? []).map((variable, index) => (
-                  <div className="curve-point-group" key={variable.id}>
-                    <div className="curve-point-header">
-                      <span>変数{index + 1}</span>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          dispatchCommand("deleteBezierNumericVariable", {
-                            variableId: variable.id
-                          })
-                        }
-                      >
-                        削除
-                      </button>
-                  </div>
-                    <label className="parameter-field">
-                      <span className="parameter-name">名前 (@名前で参照)</span>
-                      <input
-                        type="text"
-                        aria-label="共通変数名"
-                        value={variable.name}
-                        onChange={(event) =>
-                          updateElement(element.id, {
-                            numericVariables: (element.numericVariables ?? []).map((item) =>
-                              item.id === variable.id ? { ...item, name: event.target.value } : item
-                            )
-                          } as Partial<CadElement>)
-                        }
-                      />
-                    </label>
-                    {numericInput({
-                      parameterKey: `variable:${variable.id}:value`,
-                      label: variable.name,
-                      value: variable.value,
-                      ariaLabel: `共通変数 ${variable.name}`
-                    })}
-                  </div>
-                ))
-              )}
-            </div>
-
             {referenceSelect({
               parameterKey: "startPointId",
               label: "始点",

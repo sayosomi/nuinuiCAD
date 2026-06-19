@@ -52,6 +52,8 @@ export type CommandId =
   | "addPolarOffsetPoint"
   | "addLine"
   | "addBezierCurve"
+  | "addNumericVariable"
+  | "deleteNumericVariable"
   | "addBezierNumericVariable"
   | "deleteBezierNumericVariable"
   | "addBezierIntermediatePoint"
@@ -146,6 +148,12 @@ const getSelectedElement = () => {
   const { elements, selectedElementId } = useCadStore.getState();
   return selectedElementId ? elements.find((element) => element.id === selectedElementId) ?? null : null;
 };
+
+const supportsNumericVariables = (element: CadElement) =>
+  element.type === "freePoint" ||
+  element.type === "offsetPoint" ||
+  element.type === "polarOffsetPoint" ||
+  element.type === "bezierCurve";
 
 const updateSelectedElement = (updater: (element: CadElement) => CadElement) => {
   const { elements, selectedElementId } = useCadStore.getState();
@@ -540,7 +548,7 @@ const parseVariableParameterKey = (key: string) => {
 
 const getParameterValue = (element: CadElement, key: string) => {
   const variable = parseVariableParameterKey(key);
-  if (variable && element.type === "bezierCurve") {
+  if (variable) {
     return element.numericVariables?.find((item) => item.id === variable.variableId)?.value;
   }
   const parsed = parseIntermediateParameterKey(key);
@@ -553,7 +561,7 @@ const getParameterValue = (element: CadElement, key: string) => {
 
 const setParameterValue = (element: CadElement, key: string, value: unknown): CadElement => {
   const variable = parseVariableParameterKey(key);
-  if (variable && element.type === "bezierCurve") {
+  if (variable) {
     return {
       ...element,
       numericVariables: (element.numericVariables ?? []).map((item) =>
@@ -580,7 +588,7 @@ const setNumericParameterOrLocalVariable = (
 ): CadElement => {
   const currentValue = getParameterValue(element, key);
   const variableId = singleLocalVariableReference(currentValue as NumericValue);
-  if (variableId && element.type === "bezierCurve") {
+  if (variableId) {
     return {
       ...element,
       numericVariables: (element.numericVariables ?? []).map((variable) =>
@@ -812,19 +820,19 @@ const cycleReferenceParameter = (direction: 1 | -1) => {
   updateSelectedElement((element) => setParameterValue(element, definition.key, options[nextIndex]));
 };
 
-const addBezierNumericVariable = () => {
+const addNumericVariable = () => {
   const selectedElement = getSelectedElement();
-  if (selectedElement?.type !== "bezierCurve") return;
+  if (!selectedElement || !supportsNumericVariables(selectedElement)) return;
 
   const variableCount = selectedElement.numericVariables?.length ?? 0;
   const variable = {
-    id: createId("bezierCurve"),
+    id: createId(selectedElement.type),
     name: `v${variableCount + 1}`,
     value: 30
   };
 
   updateSelectedElement((element) => {
-    if (element.type !== "bezierCurve") return element;
+    if (!supportsNumericVariables(element)) return element;
     return {
       ...element,
       numericVariables: [...(element.numericVariables ?? []), variable]
@@ -833,14 +841,14 @@ const addBezierNumericVariable = () => {
   useCadStore.setState({ selectedParameterKey: `variable:${variable.id}:value` });
 };
 
-const deleteBezierNumericVariable = (variableId: string | undefined) => {
+const deleteNumericVariable = (variableId: string | undefined) => {
   const selectedElement = getSelectedElement();
-  if (selectedElement?.type !== "bezierCurve") return;
+  if (!selectedElement || !supportsNumericVariables(selectedElement)) return;
   const targetId = variableId ?? selectedElement.numericVariables?.at(-1)?.id;
   if (!targetId) return;
 
   updateSelectedElement((element) => {
-    if (element.type !== "bezierCurve") return element;
+    if (!supportsNumericVariables(element)) return element;
     return {
       ...element,
       numericVariables: (element.numericVariables ?? []).filter((variable) => variable.id !== targetId)
@@ -1280,15 +1288,25 @@ export const commands: Record<CommandId, Command> = {
     label: "Bezier curve を追加",
     run: () => addElement("bezierCurve")
   },
+  addNumericVariable: {
+    id: "addNumericVariable",
+    label: "共通変数を追加",
+    run: () => addNumericVariable()
+  },
+  deleteNumericVariable: {
+    id: "deleteNumericVariable",
+    label: "共通変数を削除",
+    run: (context) => deleteNumericVariable(context?.variableId)
+  },
   addBezierNumericVariable: {
     id: "addBezierNumericVariable",
     label: "曲線の共通変数を追加",
-    run: () => addBezierNumericVariable()
+    run: () => addNumericVariable()
   },
   deleteBezierNumericVariable: {
     id: "deleteBezierNumericVariable",
     label: "曲線の共通変数を削除",
-    run: (context) => deleteBezierNumericVariable(context?.variableId)
+    run: (context) => deleteNumericVariable(context?.variableId)
   },
   addBezierIntermediatePoint: {
     id: "addBezierIntermediatePoint",
@@ -1506,8 +1524,8 @@ const paletteCommandIds: CommandId[] = [
   "addPolarOffsetPoint",
   "addLine",
   "addBezierCurve",
-  "addBezierNumericVariable",
-  "deleteBezierNumericVariable",
+  "addNumericVariable",
+  "deleteNumericVariable",
   "addBezierIntermediatePoint",
   "deleteBezierIntermediatePoint",
   "zoomInCanvas",
@@ -1539,6 +1557,8 @@ const paletteKeywords: Partial<Record<CommandId, string[]>> = {
   addPolarOffsetPoint: ["polar", "angle", "distance", "角度", "距離", "点", "追加"],
   addLine: ["line", "直線", "線", "追加"],
   addBezierCurve: ["bezier", "curve", "曲線", "ベジェ", "追加"],
+  addNumericVariable: ["variable", "共有", "共通", "変数", "追加"],
+  deleteNumericVariable: ["variable", "共有", "共通", "変数", "削除"],
   addBezierNumericVariable: ["bezier", "curve", "variable", "共有", "変数", "追加"],
   deleteBezierNumericVariable: ["bezier", "curve", "variable", "共有", "変数", "削除"],
   addBezierIntermediatePoint: ["bezier", "curve", "middle", "中間点", "追加"],

@@ -109,6 +109,29 @@ describe("LeftPanel numeric input dragging", () => {
     expect(screen.getByDisplayValue("0.13")).toBeInTheDocument();
   });
 
+  it("shows numeric variables for numeric elements", () => {
+    useCadStore.setState({
+      selectedElementId: "point-b",
+      selectedElementIds: ["point-b"]
+    });
+
+    renderRightPanel();
+
+    expect(screen.getByText("共通変数")).toBeInTheDocument();
+    expect(screen.getByText("共通変数はありません。")).toBeInTheDocument();
+  });
+
+  it("does not show numeric variables for line elements", () => {
+    useCadStore.setState({
+      selectedElementId: "line-ab",
+      selectedElementIds: ["line-ab"]
+    });
+
+    renderRightPanel();
+
+    expect(screen.queryByText("共通変数")).not.toBeInTheDocument();
+  });
+
   it("normalizes a blank numeric parameter input to zero", () => {
     renderRightPanel();
 

@@ -132,6 +132,34 @@ const numericError = (
   return undefined;
 };
 
+const evaluateLocalVariables = (
+  element: CadElement,
+  computedGeometry: Map<ElementId, ComputedGeometry>,
+  elementsById: Map<ElementId, CadElement>,
+  errors: DependencyError[]
+) => {
+  const localVariableValues = new Map<string, number>();
+  const localVariableNames = new Map(
+    (element.numericVariables ?? []).map((variable) => [variable.id, variable.name])
+  );
+
+  for (const variable of element.numericVariables ?? []) {
+    const value = numericError(
+      element,
+      variable.value,
+      computedGeometry,
+      elementsById,
+      errors,
+      localVariableValues,
+      localVariableNames
+    );
+    if (value === undefined) return null;
+    localVariableValues.set(variable.id, value);
+  }
+
+  return { localVariableValues, localVariableNames };
+};
+
 export const evaluateElements = (elements: CadElement[]): EvaluationResult => {
   const computedGeometry = new Map<ElementId, ComputedGeometry>();
   const errors: DependencyError[] = [];
@@ -142,10 +170,35 @@ export const evaluateElements = (elements: CadElement[]): EvaluationResult => {
       continue;
     }
 
+    const localVariables = evaluateLocalVariables(
+      element,
+      computedGeometry,
+      elementsById,
+      errors
+    );
+    if (!localVariables) continue;
+    const { localVariableValues, localVariableNames } = localVariables;
+
     switch (element.type) {
       case "freePoint": {
-        const x = numericError(element, element.x, computedGeometry, elementsById, errors);
-        const y = numericError(element, element.y, computedGeometry, elementsById, errors);
+        const x = numericError(
+          element,
+          element.x,
+          computedGeometry,
+          elementsById,
+          errors,
+          localVariableValues,
+          localVariableNames
+        );
+        const y = numericError(
+          element,
+          element.y,
+          computedGeometry,
+          elementsById,
+          errors,
+          localVariableValues,
+          localVariableNames
+        );
         if (x === undefined || y === undefined) break;
 
         computedGeometry.set(element.id, {
@@ -168,8 +221,24 @@ export const evaluateElements = (elements: CadElement[]): EvaluationResult => {
         if (!fromPoint) {
           break;
         }
-        const dx = numericError(element, element.dx, computedGeometry, elementsById, errors);
-        const dy = numericError(element, element.dy, computedGeometry, elementsById, errors);
+        const dx = numericError(
+          element,
+          element.dx,
+          computedGeometry,
+          elementsById,
+          errors,
+          localVariableValues,
+          localVariableNames
+        );
+        const dy = numericError(
+          element,
+          element.dy,
+          computedGeometry,
+          elementsById,
+          errors,
+          localVariableValues,
+          localVariableNames
+        );
         if (dx === undefined || dy === undefined) break;
 
         computedGeometry.set(element.id, {
@@ -193,8 +262,24 @@ export const evaluateElements = (elements: CadElement[]): EvaluationResult => {
           break;
         }
 
-        const angleDeg = numericError(element, element.angleDeg, computedGeometry, elementsById, errors);
-        const distance = numericError(element, element.distance, computedGeometry, elementsById, errors);
+        const angleDeg = numericError(
+          element,
+          element.angleDeg,
+          computedGeometry,
+          elementsById,
+          errors,
+          localVariableValues,
+          localVariableNames
+        );
+        const distance = numericError(
+          element,
+          element.distance,
+          computedGeometry,
+          elementsById,
+          errors,
+          localVariableValues,
+          localVariableNames
+        );
         if (angleDeg === undefined || distance === undefined) break;
 
         const angleRad = degreesToRadians(angleDeg);
@@ -272,27 +357,6 @@ export const evaluateElements = (elements: CadElement[]): EvaluationResult => {
           )
         );
         if (!start || !end || intermediatePoints.some((point) => !point)) {
-          break;
-        }
-
-        const localVariableValues = new Map<string, number>();
-        const localVariableNames = new Map(
-          (element.numericVariables ?? []).map((variable) => [variable.id, variable.name])
-        );
-        for (const variable of element.numericVariables ?? []) {
-          const value = numericError(
-            element,
-            variable.value,
-            computedGeometry,
-            elementsById,
-            errors,
-            localVariableValues,
-            localVariableNames
-          );
-          if (value === undefined) break;
-          localVariableValues.set(variable.id, value);
-        }
-        if ((element.numericVariables ?? []).some((variable) => !localVariableValues.has(variable.id))) {
           break;
         }
 

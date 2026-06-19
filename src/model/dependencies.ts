@@ -19,31 +19,37 @@ export type DependencySummary = {
   descendantCount: number;
 };
 
+const numericVariableReferences = (element: CadElement) =>
+  (element.numericVariables ?? []).flatMap((variable) =>
+    extractNumericExpressionReferences(variable.value)
+  );
+
 export const getDirectParentIds = (element: CadElement): ElementId[] => {
   const numericExpressionParentIds = () => {
     switch (element.type) {
       case "freePoint":
         return [
+          ...numericVariableReferences(element),
           ...extractNumericExpressionReferences(element.x),
           ...extractNumericExpressionReferences(element.y)
         ].map((reference) => reference.elementId);
       case "offsetPoint":
         return [
+          ...numericVariableReferences(element),
           ...extractNumericExpressionReferences(element.dx),
           ...extractNumericExpressionReferences(element.dy)
         ].map((reference) => reference.elementId);
       case "polarOffsetPoint":
         return [
+          ...numericVariableReferences(element),
           ...extractNumericExpressionReferences(element.angleDeg),
           ...extractNumericExpressionReferences(element.distance)
         ].map((reference) => reference.elementId);
       case "line":
-        return [];
+        return numericVariableReferences(element).map((reference) => reference.elementId);
       case "bezierCurve":
         return [
-          ...(element.numericVariables ?? []).flatMap((variable) =>
-            extractNumericExpressionReferences(variable.value)
-          ),
+          ...numericVariableReferences(element),
           ...extractNumericExpressionReferences(element.startHandleAngleDeg),
           ...extractNumericExpressionReferences(element.startHandleLength),
           ...element.intermediatePoints.flatMap((point) => [

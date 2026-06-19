@@ -5,6 +5,7 @@ export type CadElementBase = {
   name: string;
   visible: boolean;
   enabled: boolean;
+  numericVariables?: NumericVariable[];
   numericParameterSteps?: Partial<Record<string, number>>;
 };
 
@@ -14,6 +15,14 @@ export type NumericExpression = {
 };
 
 export type NumericValue = number | NumericExpression;
+
+export type NumericVariable = {
+  id: string;
+  name: string;
+  value: NumericValue;
+};
+
+export type BezierNumericVariable = NumericVariable;
 
 export type FreePointElement = CadElementBase & {
   type: "freePoint";
@@ -49,15 +58,8 @@ export type BezierIntermediatePoint = {
   outgoingHandleLength: NumericValue;
 };
 
-export type BezierNumericVariable = {
-  id: string;
-  name: string;
-  value: NumericValue;
-};
-
 export type BezierCurveElement = CadElementBase & {
   type: "bezierCurve";
-  numericVariables?: BezierNumericVariable[];
   startPointId: ElementId;
   startHandleAngleDeg: NumericValue;
   startHandleLength: NumericValue;

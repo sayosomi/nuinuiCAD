@@ -1,8 +1,8 @@
 import type {
-  BezierNumericVariable,
   CadElement,
   ComputedGeometry,
   ElementId,
+  NumericVariable,
   NumericValue
 } from "../types/geometry";
 
@@ -126,7 +126,7 @@ export const lineMeasurementLabel = (property: NumericMeasurementKey) => propert
 export const formatNumericExpressionForDisplay = (
   value: NumericValue,
   elements: CadElement[],
-  localVariables: BezierNumericVariable[] = []
+  localVariables: NumericVariable[] = []
 ) => {
   if (!isNumericExpression(value)) return Number.isInteger(value) ? `${value}` : value.toFixed(2).replace(/\.?0+$/, "");
   const elementsById = new Map(elements.map((element) => [element.id, element]));
@@ -150,7 +150,7 @@ const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\
 export const normalizeNumericExpressionInput = (
   input: string,
   elements: CadElement[],
-  localVariables: BezierNumericVariable[] = []
+  localVariables: NumericVariable[] = []
 ) => {
   let expression = input.trim();
   const variables = [...localVariables].sort((a, b) => b.name.length - a.name.length);
@@ -400,7 +400,7 @@ export const evaluateNumericValue = ({
       const variableValue = localVariables?.get(variableId);
       if (variableValue === undefined) {
         throw Object.assign(
-          new Error(`${localVariableNames?.get(variableId) ?? variableId} はこの曲線内に存在しません。`),
+          new Error(`${localVariableNames?.get(variableId) ?? variableId} はこの要素内に存在しません。`),
           { dependencyId: variableId, dependencyName: localVariableNames?.get(variableId) }
         );
       }
