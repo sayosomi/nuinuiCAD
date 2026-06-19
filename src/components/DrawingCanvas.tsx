@@ -28,16 +28,23 @@ import {
 } from "./DrawingCanvasHitTest";
 import type { LineMeasurementCandidate } from "./DrawingCanvasHitTest";
 import type { ScreenPoint } from "./DrawingCanvasHitTest";
+import {
+  hitTestBezierHandle,
+  hitTestPointPickCandidates
+} from "./canvasInteractionHitTest";
+import {
+  type AxisLockKeys,
+  type ViewportSize,
+  constrainedWorldDelta,
+  visibleGridStep,
+  visibleWorldBounds,
+  worldToScreen
+} from "./canvasViewport";
 import { numericReferenceValue } from "./geometryDisplay";
 
 type DrawingCanvasProps = {
   evaluation: EvaluationResult;
   canvasFocusRef: RefObject<HTMLDivElement | null>;
-};
-
-type ViewportSize = {
-  width: number;
-  height: number;
 };
 
 type PointDragState = {
@@ -58,11 +65,6 @@ type BezierHandleDragState = {
   startClientY: number;
   zoom: number;
   snapshot: CadHistorySnapshot;
-};
-
-type AxisLockKeys = {
-  x: boolean;
-  y: boolean;
 };
 
 type PolarLockKeys = {
@@ -120,78 +122,6 @@ const isBezierCurve = (geometry: unknown): geometry is ComputedBezierCurve =>
   "kind" in geometry &&
   geometry.kind === "bezierCurve";
 
-const worldToScreen = (
-  point: { x: number; y: number },
-  size: ViewportSize,
-  viewport: CanvasViewport
-): ScreenPoint => ({
-  x: size.width / 2 + viewport.panX + point.x * viewport.zoom,
-  y: size.height / 2 + viewport.panY + point.y * viewport.zoom
-});
-
-const visibleWorldBounds = (size: ViewportSize, viewport: CanvasViewport) => ({
-  minX: (0 - size.width / 2 - viewport.panX) / viewport.zoom,
-  maxX: (size.width - size.width / 2 - viewport.panX) / viewport.zoom,
-  minY: (0 - size.height / 2 - viewport.panY) / viewport.zoom,
-  maxY: (size.height - size.height / 2 - viewport.panY) / viewport.zoom
-});
-
-const visibleGridStep = (zoom: number) => {
-  let step = GRID_STEP;
-  while (step * zoom < MIN_GRID_SPACING_PX) {
-    step *= MAJOR_GRID_MULTIPLIER;
-  }
-  return step;
-};
-
-const constrainedWorldDelta = ({
-  screenDx,
-  screenDy,
-  zoom,
-  axisLockKeys
-}: {
-  screenDx: number;
-  screenDy: number;
-  zoom: number;
-  axisLockKeys: AxisLockKeys;
-}) => ({
-  dx: axisLockKeys.y && !axisLockKeys.x ? 0 : screenDx / zoom,
-  dy: axisLockKeys.x ? 0 : screenDy / zoom
-});
-
-const squaredScreenDistance = (a: ScreenPoint, b: ScreenPoint) => {
-  const dx = a.x - b.x;
-  const dy = a.y - b.y;
-  return dx * dx + dy * dy;
-};
-
-const hitTestBezierHandle = (
-  screen: ScreenPoint,
-  handles: BezierHandleOverlay[]
-): BezierHandleOverlay | null => {
-  const hitRadiusSquared = BEZIER_HANDLE_HIT_RADIUS_PX * BEZIER_HANDLE_HIT_RADIUS_PX;
-  for (let index = handles.length - 1; index >= 0; index -= 1) {
-    if (squaredScreenDistance(screen, handles[index].control) <= hitRadiusSquared) {
-      return handles[index];
-    }
-  }
-  return null;
-};
-
-const hitTestPointPickCandidates = (
-  screen: ScreenPoint,
-  candidates: PointPickCandidate[]
-) => {
-  const hitRadiusSquared = POINT_PICK_CANDIDATE_RADIUS_PX * POINT_PICK_CANDIDATE_RADIUS_PX;
-  const hits: PointPickCandidate[] = [];
-  for (let index = candidates.length - 1; index >= 0; index -= 1) {
-    if (squaredScreenDistance(screen, candidates[index].screen) <= hitRadiusSquared) {
-      hits.push(candidates[index]);
-    }
-  }
-  return hits;
-};
-
 const drawGrid = (
   ctx: CanvasRenderingContext2D,
   size: ViewportSize,
@@ -203,7 +133,11 @@ const drawGrid = (
 
   if (!GRID_ENABLED) return;
 
-  const step = visibleGridStep(viewport.zoom);
+  const step = visibleGridStep(viewport.zoom, {
+    gridStep: GRID_STEP,
+    majorGridMultiplier: MAJOR_GRID_MULTIPLIER,
+    minGridSpacingPx: MIN_GRID_SPACING_PX
+  });
   const majorStep = step * MAJOR_GRID_MULTIPLIER;
   const bounds = visibleWorldBounds(size, viewport);
   const startX = Math.floor(bounds.minX / step) * step;
@@ -727,9 +661,17 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
         x: event.clientX - rect.left - event.currentTarget.clientLeft,
         y: event.clientY - rect.top - event.currentTarget.clientTop
       };
-      const handle = hitTestBezierHandle(screen, selectedBezierHandles);
+      const handle = hitTestBezierHandle(
+        screen,
+        selectedBezierHandles,
+        BEZIER_HANDLE_HIT_RADIUS_PX
+      );
       if (activePointPickTarget) {
-        const candidates = hitTestPointPickCandidates(screen, overlayPointPickCandidates);
+        const candidates = hitTestPointPickCandidates(
+          screen,
+          overlayPointPickCandidates,
+          POINT_PICK_CANDIDATE_RADIUS_PX
+        );
         event.preventDefault();
         event.currentTarget.focus();
         if (candidates.length === 1) {
