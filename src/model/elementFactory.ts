@@ -1,0 +1,129 @@
+import type { CadElement, CadElementType, ElementId } from "../types/geometry";
+import { createCadElementId } from "./cadIds";
+import { makeUniqueElementName } from "./elementNames";
+import { referenceAnchor } from "./pointAnchors";
+
+type CreateCadElementOptions = {
+  createId?: (type: CadElementType) => ElementId;
+};
+
+export const createCadElement = (
+  type: CadElementType,
+  elements: CadElement[],
+  options: CreateCadElementOptions = {}
+): CadElement => {
+  const createId = options.createId ?? createCadElementId;
+  const points = elements.filter(
+    (element) =>
+      element.type === "freePoint" ||
+      element.type === "offsetPoint" ||
+      element.type === "polarOffsetPoint"
+  );
+  const firstPointId = points[0]?.id ?? "";
+  const secondPointId = points[1]?.id ?? firstPointId;
+  const uniqueName = (elementId: ElementId, requestedName: string) =>
+    makeUniqueElementName({
+      elements,
+      elementId,
+      requestedName,
+      fallbackBaseName: requestedName
+    });
+
+  switch (type) {
+    case "freePoint": {
+      const id = createId(type);
+      const requestedName = `点${points.length + 1}`;
+      return {
+        id,
+        name: uniqueName(id, requestedName),
+        type,
+        visible: true,
+        enabled: true,
+        x: 80 + points.length * 20,
+        y: 80 + points.length * 20
+      };
+    }
+    case "offsetPoint": {
+      const id = createId(type);
+      const requestedName = `オフセット点${points.length + 1}`;
+      return {
+        id,
+        name: uniqueName(id, requestedName),
+        type,
+        visible: true,
+        enabled: true,
+        fromPoint: referenceAnchor(firstPointId),
+        fromPointId: firstPointId,
+        dx: 30,
+        dy: 0
+      };
+    }
+    case "polarOffsetPoint": {
+      const id = createId(type);
+      const requestedName = `角度距離点${points.length + 1}`;
+      return {
+        id,
+        name: uniqueName(id, requestedName),
+        type,
+        visible: true,
+        enabled: true,
+        fromPoint: referenceAnchor(firstPointId),
+        fromPointId: firstPointId,
+        angleDeg: 0,
+        distance: 30
+      };
+    }
+    case "line": {
+      const id = createId(type);
+      const lineCount = elements.filter((element) => element.type === "line").length;
+      const requestedName = `直線${lineCount + 1}`;
+      return {
+        id,
+        name: uniqueName(id, requestedName),
+        type,
+        visible: true,
+        enabled: true,
+        numericVariables: [],
+        startPoint: referenceAnchor(firstPointId),
+        endPoint: referenceAnchor(secondPointId)
+      };
+    }
+    case "arcLine": {
+      const id = createId(type);
+      const arcCount = elements.filter((element) => element.type === "arcLine").length;
+      const requestedName = `円弧線${arcCount + 1}`;
+      return {
+        id,
+        name: uniqueName(id, requestedName),
+        type,
+        visible: true,
+        enabled: true,
+        numericVariables: [],
+        centerPoint: referenceAnchor(firstPointId),
+        radius: 30,
+        startAngleDeg: 0,
+        endAngleDeg: 90
+      };
+    }
+    case "bezierCurve": {
+      const id = createId(type);
+      const curveCount = elements.filter((element) => element.type === "bezierCurve").length;
+      const requestedName = `曲線${curveCount + 1}`;
+      return {
+        id,
+        name: uniqueName(id, requestedName),
+        type,
+        visible: true,
+        enabled: true,
+        numericVariables: [],
+        startPoint: referenceAnchor(firstPointId),
+        startHandleAngleDeg: 0,
+        startHandleLength: 30,
+        intermediatePoints: [],
+        endPoint: referenceAnchor(secondPointId),
+        endHandleAngleDeg: 0,
+        endHandleLength: 30
+      };
+    }
+  }
+};
