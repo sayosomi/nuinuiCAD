@@ -71,6 +71,8 @@ const resetStore = () => {
     selectedParameterKey: "name",
     showElementInfoPanel: true,
     isDependencyJumpMode: false,
+    activePointPickTarget: null,
+    activeNumericReferencePickTarget: null,
     selectedDependencyJumpIndex: 0,
     showShortcutHelp: false,
     showCommandPalette: false,
@@ -425,8 +427,37 @@ describe("DrawingCanvas point dragging", () => {
       clientY: 250,
       pointerId: 1
     });
-    fireEvent.click(viewport.querySelector(".measurement-candidate-menu button")!);
+    fireEvent.click(viewport.querySelector(".numeric-reference-candidate-menu button")!);
 
+    expect(useCadStore.getState().elements[0]).toMatchObject({
+      x: { kind: "expression", expression: "line-ab.length" }
+    });
+  });
+
+  it("applies a picked numeric reference while numeric reference picking is active", () => {
+    useCadStore.setState({
+      selectedElementId: "point-a",
+      selectedElementIds: ["point-a"],
+      selectedParameterKey: "x",
+      activeNumericReferencePickTarget: {
+        elementId: "point-a",
+        parameterKey: "x"
+      }
+    });
+    const { viewport } = renderDrawingCanvas();
+
+    expect(viewport).toHaveClass("is-numeric-reference-picking");
+
+    fireEvent.pointerDown(viewport, {
+      button: 0,
+      buttons: 1,
+      clientX: 350,
+      clientY: 250,
+      pointerId: 1
+    });
+    fireEvent.click(viewport.querySelector(".numeric-reference-candidate-menu button")!);
+
+    expect(useCadStore.getState().activeNumericReferencePickTarget).toBeNull();
     expect(useCadStore.getState().elements[0]).toMatchObject({
       x: { kind: "expression", expression: "line-ab.length" }
     });

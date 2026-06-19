@@ -10,6 +10,8 @@ import {
   selectablePointsForElement
 } from "../model/pointAnchors";
 import {
+  lineMeasurementLabel,
+  type NumericMeasurementKey,
   formatNumericExpressionForDisplay,
   makeNumericExpression,
   normalizeNumericExpressionInput
@@ -70,6 +72,26 @@ const normalizeDegrees = (degrees: number) => (degrees + 360) % 360;
 
 const formatAngleDeg = (degrees: number | null) =>
   degrees === null ? "未定義" : `${formatNumber(normalizeDegrees(degrees))}°`;
+
+const numericReferenceProperties = (geometry: ComputedLine | ComputedBezierCurve) =>
+  geometry.kind === "line"
+    ? (["length", "startAngleDeg", "endAngleDeg"] as const)
+    : (["length"] as const);
+
+const numericReferenceExpression = (
+  geometry: ComputedLine | ComputedBezierCurve,
+  property: NumericMeasurementKey
+) => `${geometry.elementId}.${property}`;
+
+const numericReferenceValue = (
+  geometry: ComputedLine | ComputedBezierCurve,
+  property: NumericMeasurementKey
+) => {
+  if (property === "length") return formatMillimeters(geometry.length);
+  if (geometry.kind === "line" && property === "startAngleDeg") return formatAngleDeg(geometry.startAngleDeg);
+  if (geometry.kind === "line" && property === "endAngleDeg") return formatAngleDeg(geometry.endAngleDeg);
+  return "";
+};
 
 const pointCoordinateRows = (point: ComputedPoint) => [
   { label: "座標", value: formatCoordinate(point) }
@@ -186,6 +208,7 @@ const ElementEditor = ({
   const selectedParameterKey = useCadStore((state) => state.selectedParameterKey);
   const setSelectedParameterKey = useCadStore((state) => state.setSelectedParameterKey);
   const activePointPickTarget = useCadStore((state) => state.activePointPickTarget);
+  const activeNumericReferencePickTarget = useCadStore((state) => state.activeNumericReferencePickTarget);
 
   const commitName = (name: string) => renameElement(element.id, name);
   const updateVisible = (visible: boolean) => updateElement(element.id, { visible });
@@ -319,15 +342,19 @@ const ElementEditor = ({
     parameterKey,
     label,
     value,
-    ariaLabel
+    ariaLabel,
+    compact = false
   }: {
     parameterKey: ParameterKey;
     label: string;
     value: NumericValue;
     ariaLabel: string;
-  }) => (
-    <label className={parameterFieldClass(parameterKey)} onClick={() => selectParameter(parameterKey)}>
-      <ParameterName element={element} parameterKey={parameterKey} label={label} />
+    compact?: boolean;
+  }) => {
+    const isPickingThisNumericReference =
+      activeNumericReferencePickTarget?.elementId === element.id &&
+      activeNumericReferencePickTarget.parameterKey === parameterKey;
+    const input = (
       <input
         {...controlProps(parameterKey)}
         {...numericDragProps(parameterKey)}
@@ -343,6 +370,8 @@ const ElementEditor = ({
         )}
         onChange={(event) => updateField(parameterKey, event.target.value)}
       />
+    );
+    const stepControl = (
       <span className="parameter-step">
         増減単位
         <input
@@ -357,8 +386,54 @@ const ElementEditor = ({
           onChange={(event) => updateStep(parameterKey, event.target.value)}
         />
       </span>
-    </label>
-  );
+    );
+
+    if (compact) {
+      return (
+        <label className={parameterFieldClass(parameterKey)} onClick={() => selectParameter(parameterKey)}>
+          <ParameterName element={element} parameterKey={parameterKey} label={label} />
+          {input}
+          {stepControl}
+        </label>
+      );
+    }
+
+    return (
+      <div
+        className={`${parameterFieldClass(parameterKey)} numeric-parameter-editor ${
+          isPickingThisNumericReference ? "is-picking-numeric-reference" : ""
+        }`}
+        onClick={() => selectParameter(parameterKey)}
+      >
+        <div className="numeric-parameter-header">
+          <ParameterName element={element} parameterKey={parameterKey} label={label} />
+          <button
+            type="button"
+            className={`numeric-reference-pick-button ${isPickingThisNumericReference ? "active" : ""}`}
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              selectParameter(parameterKey);
+              if (isPickingThisNumericReference) {
+                dispatchCommand("cancelNumericReferencePick");
+                return;
+              }
+              dispatchCommand("startNumericReferencePick");
+            }}
+          >
+            {isPickingThisNumericReference ? "数値選択中" : "参照数値"}
+          </button>
+        </div>
+        {input}
+        <div className="numeric-parameter-footer">
+          {stepControl}
+          {isPickingThisNumericReference ? (
+            <p className="numeric-reference-pick-hint">canvas または構成リストから選択</p>
+          ) : null}
+        </div>
+      </div>
+    );
+  };
   const pointAnchorEditor = ({
     parameterKey,
     label,
@@ -438,13 +513,15 @@ const ElementEditor = ({
             parameterKey: `${parameterKey}:x`,
             label: `${label} x`,
             value: anchor.x,
-            ariaLabel: `${label} x`
+            ariaLabel: `${label} x`,
+            compact: true
           })}
           {numericInput({
             parameterKey: `${parameterKey}:y`,
             label: `${label} y`,
             value: anchor.y,
-            ariaLabel: `${label} y`
+            ariaLabel: `${label} y`,
+            compact: true
           })}
         </div>
       )}
@@ -623,62 +700,18 @@ const ElementEditor = ({
 
         {element.type === "freePoint" && (
           <>
-            <label className={parameterFieldClass("x")} onClick={() => selectParameter("x")}>
-              <ParameterName element={element} parameterKey="x" label="x" />
-              <input
-                {...controlProps("x")}
-                {...numericDragProps("x")}
-                aria-label="x 値"
-                type="text"
-                inputMode="decimal"
-                step="1"
-                data-numeric-parameter-key="x"
-                value={formatNumericExpressionForDisplay(element.x, elements, element.numericVariables ?? [])}
-                onChange={(event) => updateField("x", event.target.value)}
-              />
-              <span className="parameter-step">
-                増減単位
-                <input
-                  type="number"
-                  min="0.1"
-                  step="0.1"
-                  value={formatNumber(getNumericParameterStep(element, "x"))}
-                  onFocus={() => selectParameter("x")}
-                  onKeyDown={(event) => {
-                    if (event.key === "Escape") event.currentTarget.blur();
-                  }}
-                  onChange={(event) => updateStep("x", event.target.value)}
-                />
-              </span>
-            </label>
-            <label className={parameterFieldClass("y")} onClick={() => selectParameter("y")}>
-              <ParameterName element={element} parameterKey="y" label="y" />
-              <input
-                {...controlProps("y")}
-                {...numericDragProps("y")}
-                aria-label="y 値"
-                type="text"
-                inputMode="decimal"
-                step="1"
-                data-numeric-parameter-key="y"
-                value={formatNumericExpressionForDisplay(element.y, elements, element.numericVariables ?? [])}
-                onChange={(event) => updateField("y", event.target.value)}
-              />
-              <span className="parameter-step">
-                増減単位
-                <input
-                  type="number"
-                  min="0.1"
-                  step="0.1"
-                  value={formatNumber(getNumericParameterStep(element, "y"))}
-                  onFocus={() => selectParameter("y")}
-                  onKeyDown={(event) => {
-                    if (event.key === "Escape") event.currentTarget.blur();
-                  }}
-                  onChange={(event) => updateStep("y", event.target.value)}
-                />
-              </span>
-            </label>
+            {numericInput({
+              parameterKey: "x",
+              label: "x",
+              value: element.x,
+              ariaLabel: "x 値"
+            })}
+            {numericInput({
+              parameterKey: "y",
+              label: "y",
+              value: element.y,
+              ariaLabel: "y 値"
+            })}
           </>
         )}
 
@@ -690,62 +723,18 @@ const ElementEditor = ({
               anchor: pointAnchorForElement(element) ?? referenceAnchor(""),
               allowCoordinate: false
             })}
-            <label className={parameterFieldClass("dx")} onClick={() => selectParameter("dx")}>
-              <ParameterName element={element} parameterKey="dx" label="dx" />
-              <input
-                {...controlProps("dx")}
-                {...numericDragProps("dx")}
-                aria-label="dx 値"
-                type="text"
-                inputMode="decimal"
-                step="1"
-                data-numeric-parameter-key="dx"
-                value={formatNumericExpressionForDisplay(element.dx, elements, element.numericVariables ?? [])}
-                onChange={(event) => updateField("dx", event.target.value)}
-              />
-              <span className="parameter-step">
-                増減単位
-                <input
-                  type="number"
-                  min="0.1"
-                  step="0.1"
-                  value={formatNumber(getNumericParameterStep(element, "dx"))}
-                  onFocus={() => selectParameter("dx")}
-                  onKeyDown={(event) => {
-                    if (event.key === "Escape") event.currentTarget.blur();
-                  }}
-                  onChange={(event) => updateStep("dx", event.target.value)}
-                />
-              </span>
-            </label>
-            <label className={parameterFieldClass("dy")} onClick={() => selectParameter("dy")}>
-              <ParameterName element={element} parameterKey="dy" label="dy" />
-              <input
-                {...controlProps("dy")}
-                {...numericDragProps("dy")}
-                aria-label="dy 値"
-                type="text"
-                inputMode="decimal"
-                step="1"
-                data-numeric-parameter-key="dy"
-                value={formatNumericExpressionForDisplay(element.dy, elements, element.numericVariables ?? [])}
-                onChange={(event) => updateField("dy", event.target.value)}
-              />
-              <span className="parameter-step">
-                増減単位
-                <input
-                  type="number"
-                  min="0.1"
-                  step="0.1"
-                  value={formatNumber(getNumericParameterStep(element, "dy"))}
-                  onFocus={() => selectParameter("dy")}
-                  onKeyDown={(event) => {
-                    if (event.key === "Escape") event.currentTarget.blur();
-                  }}
-                  onChange={(event) => updateStep("dy", event.target.value)}
-                />
-              </span>
-            </label>
+            {numericInput({
+              parameterKey: "dx",
+              label: "dx",
+              value: element.dx,
+              ariaLabel: "dx 値"
+            })}
+            {numericInput({
+              parameterKey: "dy",
+              label: "dy",
+              value: element.dy,
+              ariaLabel: "dy 値"
+            })}
           </>
         )}
 
@@ -757,70 +746,18 @@ const ElementEditor = ({
               anchor: pointAnchorForElement(element) ?? referenceAnchor(""),
               allowCoordinate: false
             })}
-            <label className={parameterFieldClass("angleDeg")} onClick={() => selectParameter("angleDeg")}>
-              <ParameterName element={element} parameterKey="angleDeg" label="角度" />
-              <input
-                {...controlProps("angleDeg")}
-                {...numericDragProps("angleDeg")}
-                aria-label="角度"
-                type="text"
-                inputMode="decimal"
-                step="1"
-                data-numeric-parameter-key="angleDeg"
-                value={formatNumericExpressionForDisplay(
-                  element.angleDeg,
-                  elements,
-                  element.numericVariables ?? []
-                )}
-                onChange={(event) => updateField("angleDeg", event.target.value)}
-              />
-              <span className="parameter-step">
-                増減単位
-                <input
-                  type="number"
-                  min="0.1"
-                  step="0.1"
-                  value={formatNumber(getNumericParameterStep(element, "angleDeg"))}
-                  onFocus={() => selectParameter("angleDeg")}
-                  onKeyDown={(event) => {
-                    if (event.key === "Escape") event.currentTarget.blur();
-                  }}
-                  onChange={(event) => updateStep("angleDeg", event.target.value)}
-                />
-              </span>
-            </label>
-            <label className={parameterFieldClass("distance")} onClick={() => selectParameter("distance")}>
-              <ParameterName element={element} parameterKey="distance" label="距離" />
-              <input
-                {...controlProps("distance")}
-                {...numericDragProps("distance")}
-                aria-label="距離"
-                type="text"
-                inputMode="decimal"
-                step="1"
-                data-numeric-parameter-key="distance"
-                value={formatNumericExpressionForDisplay(
-                  element.distance,
-                  elements,
-                  element.numericVariables ?? []
-                )}
-                onChange={(event) => updateField("distance", event.target.value)}
-              />
-              <span className="parameter-step">
-                増減単位
-                <input
-                  type="number"
-                  min="0.1"
-                  step="0.1"
-                  value={formatNumber(getNumericParameterStep(element, "distance"))}
-                  onFocus={() => selectParameter("distance")}
-                  onKeyDown={(event) => {
-                    if (event.key === "Escape") event.currentTarget.blur();
-                  }}
-                  onChange={(event) => updateStep("distance", event.target.value)}
-                />
-              </span>
-            </label>
+            {numericInput({
+              parameterKey: "angleDeg",
+              label: "角度",
+              value: element.angleDeg,
+              ariaLabel: "角度"
+            })}
+            {numericInput({
+              parameterKey: "distance",
+              label: "距離",
+              value: element.distance,
+              ariaLabel: "距離"
+            })}
           </>
         )}
 
@@ -1080,6 +1017,7 @@ export const LeftPanel = ({
   const selectedElementId = useCadStore((state) => state.selectedElementId);
   const selectedElementIds = useCadStore((state) => state.selectedElementIds);
   const activePointPickTarget = useCadStore((state) => state.activePointPickTarget);
+  const activeNumericReferencePickTarget = useCadStore((state) => state.activeNumericReferencePickTarget);
   const [draggedElementIds, setDraggedElementIds] = useState<ElementId[]>([]);
   const [dropTarget, setDropTarget] = useState<ElementDropTarget | null>(null);
   const errorElementIds = new Set(evaluation.errors.map((error) => error.elementId));
@@ -1139,9 +1077,24 @@ export const LeftPanel = ({
       }
       return;
     }
+    if (activeNumericReferencePickTarget) {
+      return;
+    }
     dispatchCommand("selectElement", {
       elementId,
       selectionMode: event.shiftKey ? "range" : event.metaKey || event.ctrlKey ? "toggle" : "replace"
+    });
+  };
+  const numericReferenceGeometry = (elementId: ElementId) => {
+    const geometry = evaluation.computedGeometry.get(elementId);
+    return isComputedLine(geometry) || isComputedBezierCurve(geometry) ? geometry : null;
+  };
+  const applyNumericReference = (
+    geometry: ComputedLine | ComputedBezierCurve,
+    property: NumericMeasurementKey
+  ) => {
+    dispatchCommand("applyPickedNumericReference", {
+      numericReferenceExpression: numericReferenceExpression(geometry, property)
     });
   };
 
@@ -1155,9 +1108,13 @@ export const LeftPanel = ({
         <div className="section-header">
           <div>
             <h2>構成リスト</h2>
-            <p className={`section-subtitle ${activePointPickTarget ? "point-pick-list-subtitle" : ""}`}>
+            <p className={`section-subtitle ${
+              activePointPickTarget || activeNumericReferencePickTarget ? "point-pick-list-subtitle" : ""
+            }`}>
               {activePointPickTarget
                 ? "点選択中: 点の行だけ選択できます"
+                : activeNumericReferencePickTarget
+                  ? "参照数値選択中: 線と曲線の行だけ選択できます"
                 : "gで戻る / Enterで要素設定"}
             </p>
           </div>
@@ -1178,6 +1135,9 @@ export const LeftPanel = ({
             );
             const isPointPickCandidate =
               activePointPickTarget && (isPointElement(element) || selectablePoints.length > 0);
+            const referenceGeometry = numericReferenceGeometry(element.id);
+            const isNumericReferenceCandidate =
+              Boolean(activeNumericReferencePickTarget) && referenceGeometry !== null;
             return (
             <div
               key={element.id}
@@ -1193,6 +1153,12 @@ export const LeftPanel = ({
                 isPointPickCandidate ? "is-point-pick-candidate" : ""
               } ${
                 activePointPickTarget && !isPointPickCandidate ? "is-not-point-pick-candidate" : ""
+              } ${activeNumericReferencePickTarget ? "is-numeric-reference-pick-mode" : ""} ${
+                isNumericReferenceCandidate ? "is-numeric-reference-pick-candidate" : ""
+              } ${
+                activeNumericReferencePickTarget && !isNumericReferenceCandidate
+                  ? "is-not-numeric-reference-pick-candidate"
+                  : ""
               } ${
                 draggedElementIds.includes(element.id) ? "dragging" : ""}${dropMarkerClass(
                 element.id,
@@ -1297,6 +1263,23 @@ export const LeftPanel = ({
                       }}
                     >
                       {point.label.includes(".") ? point.label.split(".").at(-1) : "点"}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+              {activeNumericReferencePickTarget && referenceGeometry ? (
+                <div className="element-numeric-reference-actions">
+                  {numericReferenceProperties(referenceGeometry).map((property) => (
+                    <button
+                      key={property}
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        applyNumericReference(referenceGeometry, property);
+                      }}
+                    >
+                      <span>{lineMeasurementLabel(property)}</span>
+                      <small>{numericReferenceValue(referenceGeometry, property)}</small>
                     </button>
                   ))}
                 </div>

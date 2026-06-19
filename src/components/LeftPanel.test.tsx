@@ -3,6 +3,7 @@ import { createRef } from "react";
 import { beforeEach, describe, expect, it } from "vitest";
 import { LeftPanel, RightPanel } from "./LeftPanel";
 import { ShortcutHelpOverlay } from "./ShortcutHelpOverlay";
+import { evaluateElements } from "../geometry/evaluate";
 import { sampleElements } from "../sampleData";
 import { DEFAULT_CANVAS_VIEWPORT, useCadStore } from "../state/useCadStore";
 import type { CadElement, EvaluationResult } from "../types/geometry";
@@ -23,6 +24,7 @@ const resetStore = () => {
     showElementInfoPanel: true,
     isDependencyJumpMode: false,
     activePointPickTarget: null,
+    activeNumericReferencePickTarget: null,
     selectedDependencyJumpIndex: 0,
     showShortcutHelp: false,
     showCommandPalette: false,
@@ -42,10 +44,10 @@ const renderRightPanel = () =>
     />
   );
 
-const renderLeftPanel = () =>
+const renderLeftPanel = (evaluation = emptyEvaluation) =>
   render(
     <LeftPanel
-      evaluation={emptyEvaluation}
+      evaluation={evaluation}
       elementListFocusRef={createRef<HTMLDivElement>()}
     />
   );
@@ -140,6 +142,18 @@ describe("LeftPanel numeric input dragging", () => {
 
     expect(useCadStore.getState().elements[0]).toMatchObject({ x: 0 });
     expect(screen.getByLabelText("x 値")).toHaveValue("0");
+  });
+
+  it("starts numeric reference picking from a numeric parameter", () => {
+    renderRightPanel();
+
+    fireEvent.click(screen.getAllByText("参照数値")[0]);
+
+    expect(useCadStore.getState().activeNumericReferencePickTarget).toEqual({
+      elementId: "point-a",
+      parameterKey: "x"
+    });
+    expect(screen.getByText("数値選択中")).toBeInTheDocument();
   });
 
   it("increments a numeric parameter after an 8px middle-button drag to the right", () => {
@@ -423,6 +437,31 @@ describe("LeftPanel element list dragging", () => {
     expect(useCadStore.getState().selectedElementId).toBe("line-ab");
     expect(useCadStore.getState().elements[3]).toMatchObject({
       endPoint: { mode: "reference", pointId: "point-b" }
+    });
+  });
+
+  it("shows numeric reference candidates in the element list and applies one", () => {
+    useCadStore.setState({
+      selectedElementId: "point-a",
+      selectedElementIds: ["point-a"],
+      selectedParameterKey: "x",
+      activeNumericReferencePickTarget: {
+        elementId: "point-a",
+        parameterKey: "x"
+      }
+    });
+    renderLeftPanel(evaluateElements(sampleElements));
+
+    const pointRow = screen.getByText("点C").closest("[data-element-list-row='true']");
+    const lineRow = screen.getByText("直線AB").closest("[data-element-list-row='true']");
+    expect(pointRow).toHaveClass("is-not-numeric-reference-pick-candidate");
+    expect(lineRow).toHaveClass("is-numeric-reference-pick-candidate");
+
+    fireEvent.click(lineRow!.querySelector(".element-numeric-reference-actions button")!);
+
+    expect(useCadStore.getState().activeNumericReferencePickTarget).toBeNull();
+    expect(useCadStore.getState().elements[0]).toMatchObject({
+      x: { kind: "expression", expression: "line-ab.length" }
     });
   });
 

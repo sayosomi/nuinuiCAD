@@ -45,6 +45,11 @@ export const AppLayout = () => {
         dispatchCommand("cancelPointPick");
         return;
       }
+      if (useCadStore.getState().activeNumericReferencePickTarget && event.key === "Escape") {
+        event.preventDefault();
+        dispatchCommand("cancelNumericReferencePick");
+        return;
+      }
       if (!keyboardCommand) return;
       if (
         useCadStore.getState().showShortcutHelp &&

@@ -115,6 +115,27 @@ const isBezierCurve = (geometry: unknown): geometry is ComputedBezierCurve =>
   "kind" in geometry &&
   geometry.kind === "bezierCurve";
 
+const formatNumber = (value: number) =>
+  Number.isInteger(value) ? `${value}` : value.toFixed(2).replace(/\.?0+$/, "");
+
+const formatMillimeters = (value: number) => `${formatNumber(value)} mm`;
+
+const normalizeDegrees = (degrees: number) => (degrees + 360) % 360;
+
+const formatAngleDeg = (degrees: number | null) =>
+  degrees === null ? "未定義" : `${formatNumber(normalizeDegrees(degrees))}°`;
+
+const measurementCandidateValue = (candidate: LineMeasurementCandidate) => {
+  if (candidate.property === "length") return formatMillimeters(candidate.line.length);
+  if (candidate.line.kind === "line" && candidate.property === "startAngleDeg") {
+    return formatAngleDeg(candidate.line.startAngleDeg);
+  }
+  if (candidate.line.kind === "line" && candidate.property === "endAngleDeg") {
+    return formatAngleDeg(candidate.line.endAngleDeg);
+  }
+  return "";
+};
+
 const worldToScreen = (
   point: { x: number; y: number },
   size: ViewportSize,
@@ -254,6 +275,7 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
   const zoomCanvasViewportAt = useCadStore((state) => state.zoomCanvasViewportAt);
   const selectedParameterKey = useCadStore((state) => state.selectedParameterKey);
   const activePointPickTarget = useCadStore((state) => state.activePointPickTarget);
+  const activeNumericReferencePickTarget = useCadStore((state) => state.activeNumericReferencePickTarget);
   const visibleElementIds = useMemo(
     () => new Set(elements.filter((element) => element.visible).map((element) => element.id)),
     [elements]
@@ -311,6 +333,13 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
         }))
       );
   }, [canvasViewport, elements, geometries, viewportSize, visibleElementIds]);
+  const overlayNumericReferenceCandidates = useMemo(
+    () => [
+      ...overlayLines.map(({ line, start, end }) => ({ line, start, end })),
+      ...overlayCurves.map(({ curve, points }) => ({ line: curve, points }))
+    ],
+    [overlayCurves, overlayLines]
+  );
   const selectedBezierHandles = useMemo(() => {
     const curveElement = elements.find((element) => element.id === selectedElementId);
     if (!curveElement || curveElement.type !== "bezierCurve" || !visibleElementIds.has(curveElement.id)) {
@@ -410,8 +439,23 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
       ctx.beginPath();
       ctx.moveTo(start.x, start.y);
       ctx.lineTo(end.x, end.y);
-      ctx.strokeStyle = activePointPickTarget ? "#c5cac0" : isSelected ? "#0f766e" : "#31322f";
-      ctx.lineWidth = activePointPickTarget ? 1.25 : isPrimarySelected ? 3.5 : isSelected ? 3 : 2;
+      ctx.strokeStyle =
+        activePointPickTarget
+          ? "#c5cac0"
+          : activeNumericReferencePickTarget
+            ? "#0f766e"
+            : isSelected
+              ? "#0f766e"
+              : "#31322f";
+      ctx.lineWidth = activePointPickTarget
+        ? 1.25
+        : activeNumericReferencePickTarget
+          ? 3
+          : isPrimarySelected
+            ? 3.5
+            : isSelected
+              ? 3
+              : 2;
       ctx.stroke();
     }
 
@@ -428,8 +472,23 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
         if (index === 0) ctx.moveTo(start.x, start.y);
         ctx.bezierCurveTo(control1.x, control1.y, control2.x, control2.y, end.x, end.y);
       });
-      ctx.strokeStyle = activePointPickTarget ? "#c5cac0" : isSelected ? "#0f766e" : "#31322f";
-      ctx.lineWidth = activePointPickTarget ? 1.25 : isPrimarySelected ? 3.5 : isSelected ? 3 : 2;
+      ctx.strokeStyle =
+        activePointPickTarget
+          ? "#c5cac0"
+          : activeNumericReferencePickTarget
+            ? "#0f766e"
+            : isSelected
+              ? "#0f766e"
+              : "#31322f";
+      ctx.lineWidth = activePointPickTarget
+        ? 1.25
+        : activeNumericReferencePickTarget
+          ? 3
+          : isPrimarySelected
+            ? 3.5
+            : isSelected
+              ? 3
+              : 2;
       ctx.stroke();
     }
 
@@ -442,18 +501,37 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
       ctx.arc(
         screen.x,
         screen.y,
-        activePointPickTarget ? 5.75 : isPrimarySelected ? 5.5 : isSelected ? 5 : 4,
+        activePointPickTarget
+          ? 5.75
+          : activeNumericReferencePickTarget
+            ? 3.5
+            : isPrimarySelected
+              ? 5.5
+              : isSelected
+                ? 5
+                : 4,
         0,
         Math.PI * 2
       );
-      ctx.fillStyle = activePointPickTarget ? "#e7f4ef" : isSelected ? "#0f766e" : "#ffffff";
-      ctx.strokeStyle = activePointPickTarget ? "#0f766e" : "#31322f";
-      ctx.lineWidth = activePointPickTarget ? 2.5 : 2;
+      ctx.fillStyle = activePointPickTarget
+        ? "#e7f4ef"
+        : activeNumericReferencePickTarget
+          ? "#f6f7f3"
+          : isSelected
+            ? "#0f766e"
+            : "#ffffff";
+      ctx.strokeStyle = activePointPickTarget
+        ? "#0f766e"
+        : activeNumericReferencePickTarget
+          ? "#b7bbb0"
+          : "#31322f";
+      ctx.lineWidth = activePointPickTarget ? 2.5 : activeNumericReferencePickTarget ? 1.25 : 2;
       ctx.fill();
       ctx.stroke();
     }
   }, [
     activePointPickTarget,
+    activeNumericReferencePickTarget,
     canvasViewport,
     curves,
     lines,
@@ -556,11 +634,18 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
 
   const applyMeasurementCandidate = (candidate: LineMeasurementCandidate) => {
     if (!measurementCandidateMenu) return;
-    dispatchCommand("applyNumericExpressionReference", {
-      elementId: measurementCandidateMenu.targetElementId,
-      parameterKey: measurementCandidateMenu.targetParameterKey,
-      numericExpression: `${candidate.line.elementId}.${candidate.property}`
-    });
+    const expression = `${candidate.line.elementId}.${candidate.property}`;
+    if (activeNumericReferencePickTarget) {
+      dispatchCommand("applyPickedNumericReference", {
+        numericReferenceExpression: expression
+      });
+    } else {
+      dispatchCommand("applyNumericExpressionReference", {
+        elementId: measurementCandidateMenu.targetElementId,
+        parameterKey: measurementCandidateMenu.targetParameterKey,
+        numericExpression: expression
+      });
+    }
     setMeasurementCandidateMenu(null);
   };
 
@@ -655,6 +740,29 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
         return;
       }
       setPointPickCandidateMenu(null);
+      if (activeNumericReferencePickTarget) {
+        const candidates = hitTestLineMeasurementCandidates({
+          screen,
+          lines: overlayNumericReferenceCandidates
+        }).filter(
+          (candidate) =>
+            candidate.property === "length" ||
+            (candidate.line.kind === "line" && candidate.line[candidate.property] !== null)
+        );
+        event.preventDefault();
+        event.currentTarget.focus();
+        if (candidates.length > 0) {
+          setMeasurementCandidateMenu({
+            screen,
+            candidates,
+            targetElementId: activeNumericReferencePickTarget.elementId,
+            targetParameterKey: activeNumericReferencePickTarget.parameterKey
+          });
+        } else {
+          setMeasurementCandidateMenu(null);
+        }
+        return;
+      }
       if (handle) {
         event.preventDefault();
         event.currentTarget.focus();
@@ -687,10 +795,7 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
       if (expressionTarget) {
         const candidates = hitTestLineMeasurementCandidates({
           screen,
-          lines: [
-            ...overlayLines,
-            ...overlayCurves.map(({ curve, points }) => ({ line: curve, points }))
-          ]
+          lines: overlayNumericReferenceCandidates
         }).filter(
           (candidate) =>
             candidate.property === "length" ||
@@ -830,7 +935,8 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
           isPanning ? "is-panning" : "",
           isPointDragging ? "is-point-dragging" : "",
           isBezierHandleDragging ? "is-bezier-handle-dragging" : "",
-          activePointPickTarget ? "is-point-picking" : ""
+          activePointPickTarget ? "is-point-picking" : "",
+          activeNumericReferencePickTarget ? "is-numeric-reference-picking" : ""
         ].filter(Boolean).join(" ")}
         ref={canvasFocusRef}
         tabIndex={-1}
@@ -863,6 +969,7 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
               x2={end.x}
               y2={end.y}
               className={selectedElementIdSet.has(line.elementId) ? "overlay-selected-line" : ""}
+              data-numeric-reference-candidate={activeNumericReferencePickTarget ? "true" : undefined}
             />
           ))}
           {overlayCurves.map(({ curve, points }) => (
@@ -870,6 +977,7 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
               key={curve.elementId}
               points={points.map((point) => `${point.x},${point.y}`).join(" ")}
               className={selectedElementIdSet.has(curve.elementId) ? "overlay-selected-line" : ""}
+              data-numeric-reference-candidate={activeNumericReferencePickTarget ? "true" : undefined}
             />
           ))}
           {selectedBezierHandles.map((handle) => (
@@ -921,9 +1029,14 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
             点選択中: canvas または構成リストの点を選択
           </div>
         ) : null}
+        {activeNumericReferencePickTarget ? (
+          <div className="numeric-reference-canvas-banner">
+            参照数値選択中: 線または曲線を選択
+          </div>
+        ) : null}
         {measurementCandidateMenu ? (
           <div
-            className="measurement-candidate-menu"
+            className="numeric-reference-candidate-menu"
             style={{
               left: measurementCandidateMenu.screen.x,
               top: measurementCandidateMenu.screen.y
@@ -939,7 +1052,11 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
                 onPointerDown={(event) => event.stopPropagation()}
                 onClick={() => applyMeasurementCandidate(candidate)}
               >
-                {candidate.line.name}.{lineMeasurementLabel(candidate.property)}
+                <span className="numeric-reference-candidate-main">
+                  <strong>{candidate.line.name}</strong>
+                  <span>{lineMeasurementLabel(candidate.property)}</span>
+                </span>
+                <small>{measurementCandidateValue(candidate)}</small>
               </button>
             ))}
           </div>

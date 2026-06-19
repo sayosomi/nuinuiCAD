@@ -228,30 +228,36 @@ select {
     inset 8px 0 0 #0f766e;
 }
 
-.element-row.is-point-pick-mode {
+.element-row.is-point-pick-mode,
+.element-row.is-numeric-reference-pick-mode {
   transition:
     background-color 120ms ease,
     border-color 120ms ease,
     opacity 120ms ease;
 }
 
-.element-row.is-point-pick-candidate {
+.element-row.is-point-pick-candidate,
+.element-row.is-numeric-reference-pick-candidate {
   border-color: #0f766e;
   background: #f0faf6;
   box-shadow: inset 3px 0 0 #0f766e;
 }
 
 .element-row.is-point-pick-candidate:hover,
-.element-row.is-point-pick-candidate:focus-visible {
+.element-row.is-point-pick-candidate:focus-visible,
+.element-row.is-numeric-reference-pick-candidate:hover,
+.element-row.is-numeric-reference-pick-candidate:focus-visible {
   background: #d9f0e8;
 }
 
-.element-row.is-not-point-pick-candidate {
+.element-row.is-not-point-pick-candidate,
+.element-row.is-not-numeric-reference-pick-candidate {
   opacity: 0.42;
   cursor: default;
 }
 
-.element-row.is-not-point-pick-candidate:hover {
+.element-row.is-not-point-pick-candidate:hover,
+.element-row.is-not-numeric-reference-pick-candidate:hover {
   background: #ffffff;
 }
 
@@ -386,7 +392,8 @@ select {
   white-space: nowrap;
 }
 
-.element-point-pick-actions {
+.element-point-pick-actions,
+.element-numeric-reference-actions {
   display: flex;
   grid-column: 1 / -1;
   flex-wrap: wrap;
@@ -394,13 +401,26 @@ select {
   padding-top: 6px;
 }
 
-.element-point-pick-actions button {
+.element-point-pick-actions button,
+.element-numeric-reference-actions button {
   min-height: 28px;
   padding: 4px 8px;
   border-color: #0f766e;
   background: #ffffff;
   color: #0f4f49;
   font-size: 12px;
+}
+
+.element-numeric-reference-actions button {
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 6px;
+  align-items: baseline;
+}
+
+.element-numeric-reference-actions small {
+  color: #5c6359;
+  font-size: 11px;
 }
 
 .reorder-row {
@@ -547,7 +567,8 @@ select {
   gap: 10px;
 }
 
-.editor-grid label {
+.editor-grid label,
+.editor-grid .numeric-parameter-editor {
   display: grid;
   gap: 4px;
   color: #4a4d45;
@@ -590,6 +611,47 @@ select {
   align-items: center;
   color: #686b62;
   font-size: 11px;
+}
+
+.numeric-parameter-editor {
+  grid-column: 1 / -1;
+  gap: 7px;
+  background: #fbfbfa;
+}
+
+.numeric-parameter-editor.is-picking-numeric-reference {
+  border-color: #0f766e;
+  background: #f0faf6;
+  box-shadow: inset 3px 0 0 #0f766e;
+}
+
+.numeric-parameter-header,
+.numeric-parameter-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.numeric-reference-pick-button {
+  min-height: 30px;
+  padding: 5px 9px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.numeric-reference-pick-button.active {
+  border-color: #0f766e;
+  background: #0f766e;
+  color: #ffffff;
+}
+
+.numeric-reference-pick-hint {
+  margin: 0;
+  color: #0f4f49;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: right;
 }
 
 .point-anchor-editor {
@@ -953,6 +1015,10 @@ select {
   cursor: pointer;
 }
 
+.canvas-viewport.is-numeric-reference-picking {
+  cursor: pointer;
+}
+
 .canvas-viewport.is-point-dragging,
 .canvas-viewport.is-bezier-handle-dragging {
   cursor: grabbing;
@@ -990,6 +1056,11 @@ select {
   stroke: rgb(15 118 110 / 30%);
 }
 
+.drawing-overlay [data-numeric-reference-candidate="true"] {
+  stroke: rgb(15 118 110 / 34%);
+  stroke-width: 13;
+}
+
 .drawing-overlay .overlay-bezier-handle-line {
   stroke: rgb(83 86 79 / 42%);
   stroke-width: 1.25;
@@ -1024,7 +1095,8 @@ select {
   opacity: 0.28;
 }
 
-.point-pick-canvas-banner {
+.point-pick-canvas-banner,
+.numeric-reference-canvas-banner {
   position: absolute;
   top: 12px;
   left: 50%;
@@ -1053,11 +1125,11 @@ select {
   padding: 6px 8px;
 }
 
-.measurement-candidate-menu {
+.measurement-candidate-menu,
+.numeric-reference-candidate-menu {
   position: absolute;
   z-index: 5;
   display: grid;
-  min-width: 150px;
   overflow: hidden;
   border: 1px solid #aeb4aa;
   border-radius: 6px;
@@ -1066,7 +1138,16 @@ select {
   transform: translate(8px, 8px);
 }
 
-.measurement-candidate-menu button {
+.measurement-candidate-menu {
+  min-width: 150px;
+}
+
+.numeric-reference-candidate-menu {
+  min-width: 230px;
+}
+
+.measurement-candidate-menu button,
+.numeric-reference-candidate-menu button {
   width: 100%;
   border: 0;
   border-radius: 0;
@@ -1075,8 +1156,40 @@ select {
   text-align: left;
 }
 
+.numeric-reference-candidate-menu button {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: baseline;
+}
+
+.numeric-reference-candidate-main {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.numeric-reference-candidate-main strong {
+  min-width: 0;
+  overflow: hidden;
+  color: #252622;
+  font-size: 12px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.numeric-reference-candidate-main span,
+.numeric-reference-candidate-menu button small {
+  color: #5c6359;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
 .measurement-candidate-menu button:hover,
-.measurement-candidate-menu button:focus-visible {
+.measurement-candidate-menu button:focus-visible,
+.numeric-reference-candidate-menu button:hover,
+.numeric-reference-candidate-menu button:focus-visible {
   background: #e7f4ef;
 }
 

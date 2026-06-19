@@ -50,6 +50,9 @@ export type CommandId =
   | "movePointElementByDelta"
   | "moveBezierHandleByDelta"
   | "applyNumericExpressionReference"
+  | "startNumericReferencePick"
+  | "applyPickedNumericReference"
+  | "cancelNumericReferencePick"
   | "startPointPick"
   | "applyPickedPoint"
   | "cancelPointPick"
@@ -119,6 +122,7 @@ export type CommandContext = {
   historySnapshot?: CadHistorySnapshot;
   parameterKey?: string;
   numericExpression?: string;
+  numericReferenceExpression?: string;
   intermediatePointId?: string;
   variableId?: string;
   pickedPointId?: ElementId;
@@ -881,6 +885,38 @@ const applyNumericExpressionReference = (context?: CommandContext) => {
   });
 };
 
+const startNumericReferencePick = () => {
+  const selectedElement = getSelectedElement();
+  const definition = selectedParameterDefinition();
+  if (!selectedElement || definition?.kind !== "number") return;
+
+  useCadStore.setState({
+    activePointPickTarget: null,
+    activeNumericReferencePickTarget: {
+      elementId: selectedElement.id,
+      parameterKey: definition.key
+    }
+  });
+};
+
+const applyPickedNumericReference = (context?: Pick<CommandContext, "numericReferenceExpression">) => {
+  const numericExpression = context?.numericReferenceExpression;
+  if (!numericExpression) return;
+  const { activeNumericReferencePickTarget } = useCadStore.getState();
+  if (!activeNumericReferencePickTarget) return;
+
+  applyNumericExpressionReference({
+    elementId: activeNumericReferencePickTarget.elementId,
+    parameterKey: activeNumericReferencePickTarget.parameterKey,
+    numericExpression
+  });
+  useCadStore.getState().setActiveNumericReferencePickTarget(null);
+};
+
+const cancelNumericReferencePick = () => {
+  useCadStore.getState().setActiveNumericReferencePickTarget(null);
+};
+
 const updateSelectedNumericParameterStep = (direction: 1 | -1) => {
   const selectedElement = getSelectedElement();
   const definition = selectedParameterDefinition();
@@ -927,9 +963,12 @@ const startPointPick = () => {
   const definition = selectedParameterDefinition();
   if (!selectedElement || definition?.kind !== "reference") return;
 
-  useCadStore.getState().setActivePointPickTarget({
-    elementId: selectedElement.id,
-    parameterKey: definition.key
+  useCadStore.setState({
+    activeNumericReferencePickTarget: null,
+    activePointPickTarget: {
+      elementId: selectedElement.id,
+      parameterKey: definition.key
+    }
   });
 };
 
@@ -1380,6 +1419,21 @@ export const commands: Record<CommandId, Command> = {
     label: "数値参照式を採用",
     run: (context) => applyNumericExpressionReference(context)
   },
+  startNumericReferencePick: {
+    id: "startNumericReferencePick",
+    label: "参照数値を選択して設定",
+    run: () => startNumericReferencePick()
+  },
+  applyPickedNumericReference: {
+    id: "applyPickedNumericReference",
+    label: "選択した参照数値を設定",
+    run: (context) => applyPickedNumericReference(context)
+  },
+  cancelNumericReferencePick: {
+    id: "cancelNumericReferencePick",
+    label: "参照数値選択をキャンセル",
+    run: () => cancelNumericReferencePick()
+  },
   startPointPick: {
     id: "startPointPick",
     label: "点を選択して参照に設定",
@@ -1560,6 +1614,7 @@ export const commands: Record<CommandId, Command> = {
     label: "親子要素ジャンプモードに入る",
     run: () => {
       cancelPointPick();
+      cancelNumericReferencePick();
       const targets = selectedDependencyJumpTargets();
       if (targets.length === 0) return;
       useCadStore.setState({
@@ -1682,6 +1737,10 @@ export const commands: Record<CommandId, Command> = {
         startPointPick();
         return;
       }
+      if (definition?.kind === "number") {
+        startNumericReferencePick();
+        return;
+      }
       context?.focusSelectedParameterInput?.();
     }
   }
@@ -1704,6 +1763,7 @@ const paletteCommandIds: CommandId[] = [
   "addLine",
   "addBezierCurve",
   "startPointPick",
+  "startNumericReferencePick",
   "addNumericVariable",
   "deleteNumericVariable",
   "addBezierIntermediatePoint",
@@ -1737,6 +1797,7 @@ const paletteKeywords: Partial<Record<CommandId, string[]>> = {
   addPolarOffsetPoint: ["polar", "angle", "distance", "角度", "距離", "点", "追加"],
   addLine: ["line", "直線", "線", "追加"],
   addBezierCurve: ["bezier", "curve", "曲線", "ベジェ", "追加"],
+  startNumericReferencePick: ["number", "reference", "measurement", "数値", "参照", "選択"],
   addNumericVariable: ["variable", "共有", "共通", "変数", "追加"],
   deleteNumericVariable: ["variable", "共有", "共通", "変数", "削除"],
   addBezierNumericVariable: ["bezier", "curve", "variable", "共有", "変数", "追加"],
