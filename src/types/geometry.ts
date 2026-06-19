@@ -41,7 +41,31 @@ export type LineElement = CadElementBase & {
   endPointId: ElementId;
 };
 
-export type CadElement = FreePointElement | OffsetPointElement | PolarOffsetPointElement | LineElement;
+export type BezierIntermediatePoint = {
+  id: string;
+  pointId: ElementId;
+  handleAngleDeg: NumericValue;
+  incomingHandleLength: NumericValue;
+  outgoingHandleLength: NumericValue;
+};
+
+export type BezierCurveElement = CadElementBase & {
+  type: "bezierCurve";
+  startPointId: ElementId;
+  startHandleAngleDeg: NumericValue;
+  startHandleLength: NumericValue;
+  intermediatePoints: BezierIntermediatePoint[];
+  endPointId: ElementId;
+  endHandleAngleDeg: NumericValue;
+  endHandleLength: NumericValue;
+};
+
+export type CadElement =
+  | FreePointElement
+  | OffsetPointElement
+  | PolarOffsetPointElement
+  | LineElement
+  | BezierCurveElement;
 export type CadElementType = CadElement["type"];
 
 export type ComputedPoint = {
@@ -65,7 +89,27 @@ export type ComputedLine = {
   endAngleDeg: number | null;
 };
 
-export type ComputedGeometry = ComputedPoint | ComputedLine;
+export type ComputedBezierSegment = {
+  startPointId: ElementId;
+  endPointId: ElementId;
+  start: ComputedPoint;
+  control1: { x: number; y: number };
+  control2: { x: number; y: number };
+  end: ComputedPoint;
+};
+
+export type ComputedBezierCurve = {
+  kind: "bezierCurve";
+  elementId: ElementId;
+  name: string;
+  startPointId: ElementId;
+  endPointId: ElementId;
+  intermediatePointIds: ElementId[];
+  segments: ComputedBezierSegment[];
+  length: number;
+};
+
+export type ComputedGeometry = ComputedPoint | ComputedLine | ComputedBezierCurve;
 
 export type DependencyError = {
   elementId: ElementId;
@@ -84,5 +128,6 @@ export const elementTypeLabels: Record<CadElementType, string> = {
   freePoint: "free point",
   offsetPoint: "offset point",
   polarOffsetPoint: "polar offset point",
-  line: "line"
+  line: "line",
+  bezierCurve: "Bezier curve"
 };

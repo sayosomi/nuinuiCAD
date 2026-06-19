@@ -64,6 +64,33 @@ describe("dependencies", () => {
     expect(getDirectParentIds(elements[3])).toEqual(["a", "b"]);
   });
 
+  it("returns Bezier curve point references as direct parent ids", () => {
+    const curve: CadElement = {
+      id: "curve",
+      name: "曲線",
+      type: "bezierCurve",
+      visible: true,
+      enabled: true,
+      startPointId: "a",
+      startHandleAngleDeg: 0,
+      startHandleLength: 20,
+      intermediatePoints: [
+        {
+          id: "mid-1",
+          pointId: "b",
+          handleAngleDeg: 0,
+          incomingHandleLength: 10,
+          outgoingHandleLength: 10
+        }
+      ],
+      endPointId: "c",
+      endHandleAngleDeg: 0,
+      endHandleLength: 20
+    };
+
+    expect(getDirectParentIds(curve)).toEqual(["a", "b", "c"]);
+  });
+
   it("returns direct children", () => {
     expect(getDirectChildren("b", elements).map((element) => element.id)).toEqual([
       "c",

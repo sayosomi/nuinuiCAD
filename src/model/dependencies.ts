@@ -39,6 +39,18 @@ export const getDirectParentIds = (element: CadElement): ElementId[] => {
         ].map((reference) => reference.elementId);
       case "line":
         return [];
+      case "bezierCurve":
+        return [
+          ...extractNumericExpressionReferences(element.startHandleAngleDeg),
+          ...extractNumericExpressionReferences(element.startHandleLength),
+          ...element.intermediatePoints.flatMap((point) => [
+            ...extractNumericExpressionReferences(point.handleAngleDeg),
+            ...extractNumericExpressionReferences(point.incomingHandleLength),
+            ...extractNumericExpressionReferences(point.outgoingHandleLength)
+          ]),
+          ...extractNumericExpressionReferences(element.endHandleAngleDeg),
+          ...extractNumericExpressionReferences(element.endHandleLength)
+        ].map((reference) => reference.elementId);
     }
   };
 
@@ -50,6 +62,13 @@ export const getDirectParentIds = (element: CadElement): ElementId[] => {
       return [element.fromPointId, ...numericExpressionParentIds()];
     case "line":
       return [element.startPointId, element.endPointId];
+    case "bezierCurve":
+      return [
+        element.startPointId,
+        ...element.intermediatePoints.map((point) => point.pointId),
+        element.endPointId,
+        ...numericExpressionParentIds()
+      ];
   }
 };
 

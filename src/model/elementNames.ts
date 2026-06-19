@@ -5,7 +5,8 @@ const defaultNameBases: Record<CadElementType, string> = {
   freePoint: "点",
   offsetPoint: "オフセット点",
   polarOffsetPoint: "角度距離点",
-  line: "直線"
+  line: "直線",
+  bezierCurve: "曲線"
 };
 
 const normalizeName = (name: string, fallbackBaseName: string) => {

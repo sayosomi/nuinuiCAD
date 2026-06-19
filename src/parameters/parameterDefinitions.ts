@@ -2,19 +2,7 @@ import type { CadElement, ElementId } from "../types/geometry";
 
 export type ParameterValueKind = "text" | "boolean" | "number" | "reference";
 
-export type ParameterKey =
-  | "name"
-  | "visible"
-  | "enabled"
-  | "x"
-  | "y"
-  | "fromPointId"
-  | "dx"
-  | "dy"
-  | "angleDeg"
-  | "distance"
-  | "startPointId"
-  | "endPointId";
+export type ParameterKey = string;
 
 export type ParameterDefinition = {
   key: ParameterKey;
@@ -67,6 +55,55 @@ export const getParameterDefinitions = (element: CadElement): ParameterDefinitio
         ...commonParameters,
         { key: "startPointId", directKey: "s", label: "始点", kind: "reference" },
         { key: "endPointId", directKey: "t", label: "終点", kind: "reference" }
+      ];
+    case "bezierCurve":
+      return [
+        ...commonParameters,
+        { key: "startPointId", directKey: "s", label: "始点", kind: "reference" },
+        {
+          key: "startHandleAngleDeg",
+          directKey: "r",
+          label: "始点角度",
+          kind: "number",
+          stepLevels: angleNumericParameterStepLevels
+        },
+        { key: "startHandleLength", directKey: "h", label: "始点ハンドル長", kind: "number" },
+        ...element.intermediatePoints.flatMap((point, index) => [
+          {
+            key: `intermediate:${point.id}:pointId`,
+            directKey: "m",
+            label: `中間点${index + 1}`,
+            kind: "reference" as const
+          },
+          {
+            key: `intermediate:${point.id}:handleAngleDeg`,
+            directKey: "u",
+            label: `中間点${index + 1}角度`,
+            kind: "number" as const,
+            stepLevels: angleNumericParameterStepLevels
+          },
+          {
+            key: `intermediate:${point.id}:incomingHandleLength`,
+            directKey: "i",
+            label: `中間点${index + 1}前長さ`,
+            kind: "number" as const
+          },
+          {
+            key: `intermediate:${point.id}:outgoingHandleLength`,
+            directKey: "o",
+            label: `中間点${index + 1}後長さ`,
+            kind: "number" as const
+          }
+        ]),
+        { key: "endPointId", directKey: "t", label: "終点", kind: "reference" },
+        {
+          key: "endHandleAngleDeg",
+          directKey: "e",
+          label: "終点角度",
+          kind: "number",
+          stepLevels: angleNumericParameterStepLevels
+        },
+        { key: "endHandleLength", directKey: "g", label: "終点ハンドル長", kind: "number" }
       ];
   }
 };

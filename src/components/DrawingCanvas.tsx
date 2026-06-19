@@ -10,8 +10,18 @@ import { findParameterDefinition } from "../parameters/parameterDefinitions";
 import type { ParameterKey } from "../parameters/parameterDefinitions";
 import { useCadStore } from "../state/useCadStore";
 import type { CadHistorySnapshot, CanvasViewport } from "../state/useCadStore";
-import type { ComputedLine, ComputedPoint, ElementId, EvaluationResult } from "../types/geometry";
-import { hitTestCanvasGeometry, hitTestLineMeasurementCandidates } from "./DrawingCanvasHitTest";
+import type {
+  ComputedBezierCurve,
+  ComputedLine,
+  ComputedPoint,
+  ElementId,
+  EvaluationResult
+} from "../types/geometry";
+import {
+  hitTestCanvasGeometry,
+  hitTestLineMeasurementCandidates,
+  sampleBezierCurveScreenPoints
+} from "./DrawingCanvasHitTest";
 import type { LineMeasurementCandidate } from "./DrawingCanvasHitTest";
 import type { ScreenPoint } from "./DrawingCanvasHitTest";
 
@@ -62,6 +72,12 @@ const isPoint = (geometry: unknown): geometry is ComputedPoint =>
 
 const isLine = (geometry: unknown): geometry is ComputedLine =>
   typeof geometry === "object" && geometry !== null && "kind" in geometry && geometry.kind === "line";
+
+const isBezierCurve = (geometry: unknown): geometry is ComputedBezierCurve =>
+  typeof geometry === "object" &&
+  geometry !== null &&
+  "kind" in geometry &&
+  geometry.kind === "bezierCurve";
 
 const worldToScreen = (
   point: { x: number; y: number },
@@ -174,6 +190,7 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
     [evaluation.computedGeometry]
   );
   const lines = useMemo(() => geometries.filter(isLine), [geometries]);
+  const curves = useMemo(() => geometries.filter(isBezierCurve), [geometries]);
   const points = useMemo(() => geometries.filter(isPoint), [geometries]);
   const overlayLines = useMemo(
     () =>
@@ -195,6 +212,18 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
           screen: worldToScreen(point, viewportSize, canvasViewport)
         })),
     [canvasViewport, points, viewportSize, visibleElementIds]
+  );
+  const overlayCurves = useMemo(
+    () =>
+      curves
+        .filter((curve) => visibleElementIds.has(curve.elementId))
+        .map((curve) => ({
+          curve,
+          points: sampleBezierCurveScreenPoints(curve, (point) =>
+            worldToScreen(point, viewportSize, canvasViewport)
+          )
+        })),
+    [canvasViewport, curves, viewportSize, visibleElementIds]
   );
 
   useEffect(() => {
@@ -243,6 +272,24 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
       ctx.stroke();
     }
 
+    for (const curve of curves) {
+      if (!visibleElementIds.has(curve.elementId)) continue;
+      const isSelected = selectedElementIdSet.has(curve.elementId);
+      const isPrimarySelected = curve.elementId === selectedElementId;
+      ctx.beginPath();
+      curve.segments.forEach((segment, index) => {
+        const start = worldToScreen(segment.start, viewportSize, canvasViewport);
+        const control1 = worldToScreen(segment.control1, viewportSize, canvasViewport);
+        const control2 = worldToScreen(segment.control2, viewportSize, canvasViewport);
+        const end = worldToScreen(segment.end, viewportSize, canvasViewport);
+        if (index === 0) ctx.moveTo(start.x, start.y);
+        ctx.bezierCurveTo(control1.x, control1.y, control2.x, control2.y, end.x, end.y);
+      });
+      ctx.strokeStyle = isSelected ? "#0f766e" : "#31322f";
+      ctx.lineWidth = isPrimarySelected ? 3.5 : isSelected ? 3 : 2;
+      ctx.stroke();
+    }
+
     for (const point of points) {
       if (!visibleElementIds.has(point.elementId)) continue;
       const isSelected = selectedElementIdSet.has(point.elementId);
@@ -256,7 +303,7 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
       ctx.fill();
       ctx.stroke();
     }
-  }, [canvasViewport, lines, points, selectedElementId, selectedElementIdSet, viewportSize, visibleElementIds]);
+  }, [canvasViewport, curves, lines, points, selectedElementId, selectedElementIdSet, viewportSize, visibleElementIds]);
 
   useEffect(() => {
     const setDragLockKey = (event: KeyboardEvent, isPressed: boolean) => {
@@ -410,11 +457,14 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
       if (expressionTarget) {
         const candidates = hitTestLineMeasurementCandidates({
           screen,
-          lines: overlayLines
+          lines: [
+            ...overlayLines,
+            ...overlayCurves.map(({ curve, points }) => ({ line: curve, points }))
+          ]
         }).filter(
           (candidate) =>
             candidate.property === "length" ||
-            candidate.line[candidate.property] !== null
+            (candidate.line.kind === "line" && candidate.line[candidate.property] !== null)
         );
         if (candidates.length > 0) {
           event.preventDefault();
@@ -430,6 +480,7 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
       const elementId = hitTestCanvasGeometry({
         screen,
         lines: overlayLines,
+        curves: overlayCurves,
         points: overlayPoints
       });
       if (!elementId) return;
@@ -556,6 +607,13 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
               x2={end.x}
               y2={end.y}
               className={selectedElementIdSet.has(line.elementId) ? "overlay-selected-line" : ""}
+            />
+          ))}
+          {overlayCurves.map(({ curve, points }) => (
+            <polyline
+              key={curve.elementId}
+              points={points.map((point) => `${point.x},${point.y}`).join(" ")}
+              className={selectedElementIdSet.has(curve.elementId) ? "overlay-selected-line" : ""}
             />
           ))}
           {overlayPoints.map(({ point, screen }) => (

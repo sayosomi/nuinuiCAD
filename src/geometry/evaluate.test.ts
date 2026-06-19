@@ -100,6 +100,118 @@ describe("evaluateElements", () => {
     });
   });
 
+  it("evaluates a cubic Bezier curve and its approximate length", () => {
+    const result = evaluateElements([
+      ...validElements,
+      {
+        id: "curve",
+        name: "曲線AB",
+        type: "bezierCurve",
+        visible: true,
+        enabled: true,
+        startPointId: "a",
+        startHandleAngleDeg: 0,
+        startHandleLength: 20,
+        intermediatePoints: [],
+        endPointId: "b",
+        endHandleAngleDeg: 0,
+        endHandleLength: 20
+      }
+    ]);
+
+    const curve = result.computedGeometry.get("curve");
+    expect(result.errors).toHaveLength(0);
+    expect(curve).toMatchObject({
+      kind: "bezierCurve",
+      startPointId: "a",
+      endPointId: "b"
+    });
+    if (curve?.kind !== "bezierCurve") throw new Error("Expected a Bezier curve");
+    expect(curve.segments).toHaveLength(1);
+    expect(curve.length).toBeGreaterThan(0);
+  });
+
+  it("evaluates a multi-point cubic Bezier curve as multiple segments", () => {
+    const result = evaluateElements([
+      ...validElements,
+      {
+        id: "c",
+        name: "点C",
+        type: "offsetPoint",
+        visible: true,
+        enabled: true,
+        fromPointId: "b",
+        dx: 0,
+        dy: 40
+      },
+      {
+        id: "curve",
+        name: "曲線ABC",
+        type: "bezierCurve",
+        visible: true,
+        enabled: true,
+        startPointId: "a",
+        startHandleAngleDeg: 0,
+        startHandleLength: 20,
+        intermediatePoints: [
+          {
+            id: "mid-1",
+            pointId: "b",
+            handleAngleDeg: 90,
+            incomingHandleLength: 10,
+            outgoingHandleLength: 15
+          }
+        ],
+        endPointId: "c",
+        endHandleAngleDeg: 90,
+        endHandleLength: 20
+      }
+    ]);
+
+    const curve = result.computedGeometry.get("curve");
+    expect(result.errors).toHaveLength(0);
+    expect(curve).toMatchObject({ kind: "bezierCurve" });
+    if (curve?.kind !== "bezierCurve") throw new Error("Expected a Bezier curve");
+    expect(curve.segments).toHaveLength(2);
+    expect(curve.intermediatePointIds).toEqual(["b"]);
+  });
+
+  it("evaluates numeric expressions that reference earlier curve length", () => {
+    const result = evaluateElements([
+      ...validElements,
+      {
+        id: "curve",
+        name: "曲線AB",
+        type: "bezierCurve",
+        visible: true,
+        enabled: true,
+        startPointId: "a",
+        startHandleAngleDeg: 0,
+        startHandleLength: 20,
+        intermediatePoints: [],
+        endPointId: "b",
+        endHandleAngleDeg: 0,
+        endHandleLength: 20
+      },
+      {
+        id: "c",
+        name: "点C",
+        type: "offsetPoint",
+        visible: true,
+        enabled: true,
+        fromPointId: "a",
+        dx: { kind: "expression", expression: "curve.length" },
+        dy: 0
+      }
+    ]);
+
+    const curve = result.computedGeometry.get("curve");
+    const point = result.computedGeometry.get("c");
+    expect(result.errors).toHaveLength(0);
+    if (curve?.kind !== "bezierCurve") throw new Error("Expected a Bezier curve");
+    expect(point).toMatchObject({ kind: "point", x: 10 + curve.length });
+  });
+
   it("normalizes displayed Japanese line measurement references before evaluation", () => {
     const expression = normalizeNumericExpressionInput("直線AB.長さ + 10", validElements);
     const result = evaluateElements([
@@ -198,6 +310,34 @@ describe("evaluateElements", () => {
     expect(result.errors[0]).toMatchObject({
       elementId: "ab",
       elementName: "直線AB",
+      missingDependencyId: "b",
+      missingDependencyName: "点B"
+    });
+  });
+
+  it("reports a Bezier curve dependency that appears too late", () => {
+    const result = evaluateElements([
+      validElements[0],
+      {
+        id: "curve",
+        name: "曲線AB",
+        type: "bezierCurve",
+        visible: true,
+        enabled: true,
+        startPointId: "a",
+        startHandleAngleDeg: 0,
+        startHandleLength: 20,
+        intermediatePoints: [],
+        endPointId: "b",
+        endHandleAngleDeg: 0,
+        endHandleLength: 20
+      },
+      validElements[1]
+    ]);
+
+    expect(result.computedGeometry.has("curve")).toBe(false);
+    expect(result.errors[0]).toMatchObject({
+      elementId: "curve",
       missingDependencyId: "b",
       missingDependencyName: "点B"
     });

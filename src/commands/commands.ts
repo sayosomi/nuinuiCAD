@@ -38,6 +38,9 @@ export type CommandId =
   | "addOffsetPoint"
   | "addPolarOffsetPoint"
   | "addLine"
+  | "addBezierCurve"
+  | "addBezierIntermediatePoint"
+  | "deleteBezierIntermediatePoint"
   | "zoomInCanvas"
   | "zoomOutCanvas"
   | "resetCanvasView"
@@ -87,6 +90,7 @@ export type CommandContext = {
   historySnapshot?: CadHistorySnapshot;
   parameterKey?: string;
   numericExpression?: string;
+  intermediatePointId?: string;
 };
 
 export type Command = {
@@ -294,6 +298,34 @@ const selectedParameterDefinition = () => {
   return findParameterDefinition(selectedElement, selectedParameterKey);
 };
 
+const parseIntermediateParameterKey = (key: string) => {
+  const [, intermediatePointId, field] = key.split(":");
+  if (!key.startsWith("intermediate:") || !intermediatePointId || !field) return null;
+  return { intermediatePointId, field };
+};
+
+const getParameterValue = (element: CadElement, key: string) => {
+  const parsed = parseIntermediateParameterKey(key);
+  if (parsed && element.type === "bezierCurve") {
+    const intermediate = element.intermediatePoints.find((point) => point.id === parsed.intermediatePointId);
+    return intermediate?.[parsed.field as keyof typeof intermediate];
+  }
+  return element[key as keyof CadElement];
+};
+
+const setParameterValue = (element: CadElement, key: string, value: unknown): CadElement => {
+  const parsed = parseIntermediateParameterKey(key);
+  if (parsed && element.type === "bezierCurve") {
+    return {
+      ...element,
+      intermediatePoints: element.intermediatePoints.map((point) =>
+        point.id === parsed.intermediatePointId ? { ...point, [parsed.field]: value } : point
+      )
+    };
+  }
+  return { ...element, [key]: value } as CadElement;
+};
+
 const makeElement = (type: CadElementType, elements: CadElement[]): CadElement => {
   const points = elements.filter(
     (element) =>
@@ -367,6 +399,25 @@ const makeElement = (type: CadElementType, elements: CadElement[]): CadElement =
         endPointId: secondPointId
       };
     }
+    case "bezierCurve": {
+      const id = createId(type);
+      const curveCount = elements.filter((element) => element.type === "bezierCurve").length;
+      const requestedName = `曲線${curveCount + 1}`;
+      return {
+        id,
+        name: uniqueName(id, requestedName),
+        type,
+        visible: true,
+        enabled: true,
+        startPointId: firstPointId,
+        startHandleAngleDeg: 0,
+        startHandleLength: 30,
+        intermediatePoints: [],
+        endPointId: secondPointId,
+        endHandleAngleDeg: 0,
+        endHandleLength: 30
+      };
+    }
   }
 };
 
@@ -424,12 +475,12 @@ const updateNumericParameter = (direction: 1 | -1, context?: CommandContext) => 
 
   const delta = getNumericParameterStep(selectedElement, definition.key) * stepForContext(context) * direction;
   updateSelectedElement((element) => ({
-    ...element,
-    [definition.key]: addToNumericValue(
-      element[definition.key as keyof CadElement] as unknown as NumericValue,
-      delta
+    ...setParameterValue(
+      element,
+      definition.key,
+      addToNumericValue(getParameterValue(element, definition.key) as NumericValue, delta)
     )
-  } as CadElement));
+  }));
 };
 
 const applyNumericExpressionReference = (context?: CommandContext) => {
@@ -449,10 +500,7 @@ const applyNumericExpressionReference = (context?: CommandContext) => {
   useCadStore.getState().commitDocumentChange({
     elements: elements.map((element) =>
       element.id === targetElement.id
-        ? ({
-            ...element,
-            [definition.key]: makeNumericExpression(numericExpression)
-          } as CadElement)
+        ? setParameterValue(element, definition.key, makeNumericExpression(numericExpression))
         : element
     ),
     selectedElementId: targetElement.id,
@@ -490,11 +538,53 @@ const cycleReferenceParameter = (direction: 1 | -1) => {
   const options = pointReferenceOptions(useCadStore.getState().elements);
   if (options.length === 0) return;
 
-  const currentValue = selectedElement[definition.key as keyof CadElement] as ElementId;
+  const parameterValue = getParameterValue(selectedElement, definition.key);
+  const currentValue = parameterValue as ElementId;
   const currentIndex = options.indexOf(currentValue);
   const nextIndex =
     currentIndex < 0 ? 0 : (currentIndex + direction + options.length) % options.length;
-  updateSelectedElement((element) => ({ ...element, [definition.key]: options[nextIndex] } as CadElement));
+  updateSelectedElement((element) => setParameterValue(element, definition.key, options[nextIndex]));
+};
+
+const addBezierIntermediatePoint = () => {
+  const selectedElement = getSelectedElement();
+  if (selectedElement?.type !== "bezierCurve") return;
+
+  const options = pointReferenceOptions(useCadStore.getState().elements);
+  const pointId = options.find(
+    (id) => id !== selectedElement.startPointId && id !== selectedElement.endPointId
+  ) ?? options[0] ?? "";
+  const intermediatePoint = {
+    id: createId("bezierCurve"),
+    pointId,
+    handleAngleDeg: 0,
+    incomingHandleLength: 30,
+    outgoingHandleLength: 30
+  };
+
+  updateSelectedElement((element) => {
+    if (element.type !== "bezierCurve") return element;
+    return {
+      ...element,
+      intermediatePoints: [...element.intermediatePoints, intermediatePoint]
+    };
+  });
+  useCadStore.setState({ selectedParameterKey: `intermediate:${intermediatePoint.id}:pointId` });
+};
+
+const deleteBezierIntermediatePoint = (intermediatePointId: string | undefined) => {
+  const selectedElement = getSelectedElement();
+  if (selectedElement?.type !== "bezierCurve") return;
+  const targetId = intermediatePointId ?? selectedElement.intermediatePoints.at(-1)?.id;
+  if (!targetId) return;
+
+  updateSelectedElement((element) => {
+    if (element.type !== "bezierCurve") return element;
+    return {
+      ...element,
+      intermediatePoints: element.intermediatePoints.filter((point) => point.id !== targetId)
+    };
+  });
 };
 
 const toggleBooleanParameter = () => {
@@ -875,6 +965,21 @@ export const commands: Record<CommandId, Command> = {
     label: "line を追加",
     run: () => addElement("line")
   },
+  addBezierCurve: {
+    id: "addBezierCurve",
+    label: "Bezier curve を追加",
+    run: () => addElement("bezierCurve")
+  },
+  addBezierIntermediatePoint: {
+    id: "addBezierIntermediatePoint",
+    label: "曲線の中間点を追加",
+    run: () => addBezierIntermediatePoint()
+  },
+  deleteBezierIntermediatePoint: {
+    id: "deleteBezierIntermediatePoint",
+    label: "曲線の中間点を削除",
+    run: (context) => deleteBezierIntermediatePoint(context?.intermediatePointId)
+  },
   zoomInCanvas: {
     id: "zoomInCanvas",
     label: "キャンバスを拡大",
@@ -1080,6 +1185,9 @@ const paletteCommandIds: CommandId[] = [
   "addOffsetPoint",
   "addPolarOffsetPoint",
   "addLine",
+  "addBezierCurve",
+  "addBezierIntermediatePoint",
+  "deleteBezierIntermediatePoint",
   "zoomInCanvas",
   "zoomOutCanvas",
   "resetCanvasView",
@@ -1108,6 +1216,9 @@ const paletteKeywords: Partial<Record<CommandId, string[]>> = {
   addOffsetPoint: ["offset", "offset point", "オフセット", "点", "追加"],
   addPolarOffsetPoint: ["polar", "angle", "distance", "角度", "距離", "点", "追加"],
   addLine: ["line", "直線", "線", "追加"],
+  addBezierCurve: ["bezier", "curve", "曲線", "ベジェ", "追加"],
+  addBezierIntermediatePoint: ["bezier", "curve", "middle", "中間点", "追加"],
+  deleteBezierIntermediatePoint: ["bezier", "curve", "middle", "中間点", "削除"],
   zoomInCanvas: ["zoom", "in", "拡大", "キャンバス"],
   zoomOutCanvas: ["zoom", "out", "縮小", "キャンバス"],
   resetCanvasView: ["zoom", "reset", "pan", "origin", "リセット", "原点", "キャンバス"],

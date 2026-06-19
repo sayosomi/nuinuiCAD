@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { addToNumericValue, makeNumericExpression } from "./numericExpressions";
+import {
+  addToNumericValue,
+  makeNumericExpression,
+  normalizeNumericExpressionInput
+} from "./numericExpressions";
+import type { CadElement } from "../types/geometry";
 
 const expression = (value: string) => ({ kind: "expression" as const, expression: value });
 
@@ -55,5 +60,30 @@ describe("makeNumericExpression", () => {
   it("normalizes blank numeric input to zero", () => {
     expect(makeNumericExpression("")).toBe(0);
     expect(makeNumericExpression("   ")).toBe(0);
+  });
+});
+
+describe("normalizeNumericExpressionInput", () => {
+  it("normalizes Japanese curve length references", () => {
+    const elements: CadElement[] = [
+      {
+        id: "curve-ac",
+        name: "曲線AC",
+        type: "bezierCurve",
+        visible: true,
+        enabled: true,
+        startPointId: "a",
+        startHandleAngleDeg: 0,
+        startHandleLength: 20,
+        intermediatePoints: [],
+        endPointId: "c",
+        endHandleAngleDeg: 0,
+        endHandleLength: 20
+      }
+    ];
+
+    expect(normalizeNumericExpressionInput("曲線AC.長さ + 5", elements)).toBe(
+      "curve-ac.length + 5"
+    );
   });
 });

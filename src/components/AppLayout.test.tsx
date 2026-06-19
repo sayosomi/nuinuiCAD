@@ -25,6 +25,7 @@ const resetStore = () => {
 
 const mockCanvasContext = () => ({
   arc: vi.fn(),
+  bezierCurveTo: vi.fn(),
   beginPath: vi.fn(),
   clearRect: vi.fn(),
   fill: vi.fn(),

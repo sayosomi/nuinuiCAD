@@ -169,6 +169,12 @@ export const shortcutDefinitions: ShortcutDefinition[] = [
     label: "キャンバス表示をリセット",
     keys: "0",
     matches: (event) => event.key === "0" && noModifier(event)
+  },
+  {
+    commandId: "addBezierCurve",
+    label: "曲線を追加",
+    keys: "c",
+    matches: (event) => event.key.toLowerCase() === "c" && noModifier(event)
   }
 ];
 
@@ -294,7 +300,7 @@ export const parameterEditShortcutDefinitions: ShortcutDefinition[] = [
   {
     commandId: "selectParameterByKey",
     label: "名前キーでパラメーターを選択",
-    keys: "n / x / y / b / s / t",
+    keys: "n / x / y / b / s / t / r / h / m / u / i / o / e / g",
     matches: (event) => /^[a-z]$/i.test(event.key) && noModifier(event),
     context: (event) => ({ parameterDirectKey: event.key.toLowerCase() })
   }

@@ -126,7 +126,8 @@ describe("commands", () => {
       sampleElements[3].id,
       sampleElements[1].id,
       sampleElements[2].id,
-      sampleElements[4].id
+      sampleElements[4].id,
+      sampleElements[5].id
     ]);
     expect(useCadStore.getState().selectedElementIds).toEqual([
       sampleElements[1].id,
@@ -478,7 +479,8 @@ describe("commands", () => {
     expect(useCadStore.getState().elements.map((element) => element.id)).toEqual([
       sampleElements[0].id,
       sampleElements[3].id,
-      sampleElements[4].id
+      sampleElements[4].id,
+      sampleElements[5].id
     ]);
     expect(useCadStore.getState().selectedElementId).toBe(sampleElements[3].id);
     expect(useCadStore.getState().selectedElementIds).toEqual([sampleElements[3].id]);
@@ -491,6 +493,40 @@ describe("commands", () => {
     expect(state.elements).toHaveLength(sampleElements.length + 1);
     expect(state.elements.at(-1)?.type).toBe("freePoint");
     expect(state.selectedElementId).toBe(state.elements.at(-1)?.id);
+  });
+
+  it("adds a Bezier curve and selects it", () => {
+    dispatchCommand("addBezierCurve");
+
+    const state = useCadStore.getState();
+    const curve = state.elements.at(-1);
+    expect(curve).toMatchObject({
+      type: "bezierCurve",
+      startPointId: "point-a",
+      endPointId: "point-b"
+    });
+    expect(state.selectedElementId).toBe(curve?.id);
+    expect(state.past).toHaveLength(1);
+  });
+
+  it("adds and deletes a Bezier intermediate point", () => {
+    dispatchCommand("addBezierCurve");
+    const curveId = useCadStore.getState().selectedElementId;
+
+    dispatchCommand("addBezierIntermediatePoint");
+    let curve = useCadStore.getState().elements.find((element) => element.id === curveId);
+    expect(curve).toMatchObject({ type: "bezierCurve" });
+    if (curve?.type !== "bezierCurve") throw new Error("Expected a Bezier curve");
+    expect(curve.intermediatePoints).toHaveLength(1);
+    expect(useCadStore.getState().selectedParameterKey).toBe(
+      `intermediate:${curve.intermediatePoints[0].id}:pointId`
+    );
+
+    dispatchCommand("deleteBezierIntermediatePoint", {
+      intermediatePointId: curve.intermediatePoints[0].id
+    });
+    curve = useCadStore.getState().elements.find((element) => element.id === curveId);
+    expect(curve).toMatchObject({ type: "bezierCurve", intermediatePoints: [] });
   });
 
   it("opens and closes the command palette", () => {

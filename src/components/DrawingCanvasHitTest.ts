@@ -1,4 +1,10 @@
-import type { ComputedLine, ComputedPoint, ElementId } from "../types/geometry";
+import type {
+  ComputedBezierCurve,
+  ComputedBezierSegment,
+  ComputedLine,
+  ComputedPoint,
+  ElementId
+} from "../types/geometry";
 import type { LineMeasurementKey } from "../geometry/numericExpressions";
 
 export type ScreenPoint = {
@@ -9,6 +15,7 @@ export type ScreenPoint = {
 const POINT_HIT_RADIUS_PX = 8;
 const LINE_HIT_DISTANCE_PX = 6;
 const LINE_ENDPOINT_MEASUREMENT_RADIUS_PX = 12;
+const CURVE_HIT_STEPS = 32;
 
 const squaredDistance = (a: ScreenPoint, b: ScreenPoint) => {
   const dx = a.x - b.x;
@@ -33,13 +40,54 @@ const distanceToLineSegment = (point: ScreenPoint, start: ScreenPoint, end: Scre
   return Math.sqrt(squaredDistance(point, projection));
 };
 
+const cubicPointAt = (segment: ComputedBezierSegment, t: number): ScreenPoint => {
+  const inverse = 1 - t;
+  const a = inverse * inverse * inverse;
+  const b = 3 * inverse * inverse * t;
+  const c = 3 * inverse * t * t;
+  const d = t * t * t;
+
+  return {
+    x:
+      a * segment.start.x +
+      b * segment.control1.x +
+      c * segment.control2.x +
+      d * segment.end.x,
+    y:
+      a * segment.start.y +
+      b * segment.control1.y +
+      c * segment.control2.y +
+      d * segment.end.y
+  };
+};
+
+export const sampleBezierCurveScreenPoints = (
+  curve: ComputedBezierCurve,
+  worldToScreen: (point: ScreenPoint) => ScreenPoint
+) =>
+  curve.segments.flatMap((segment) =>
+    Array.from({ length: CURVE_HIT_STEPS + 1 }, (_, index) =>
+      worldToScreen(cubicPointAt(segment, index / CURVE_HIT_STEPS))
+    )
+  );
+
+const distanceToPolyline = (point: ScreenPoint, points: ScreenPoint[]) => {
+  let distance = Number.POSITIVE_INFINITY;
+  for (let index = 0; index < points.length - 1; index += 1) {
+    distance = Math.min(distance, distanceToLineSegment(point, points[index], points[index + 1]));
+  }
+  return distance;
+};
+
 export const hitTestCanvasGeometry = ({
   screen,
   lines,
+  curves,
   points
 }: {
   screen: ScreenPoint;
   lines: Array<{ line: ComputedLine; start: ScreenPoint; end: ScreenPoint }>;
+  curves?: Array<{ curve: ComputedBezierCurve; points: ScreenPoint[] }>;
   points: Array<{ point: ComputedPoint; screen: ScreenPoint }>;
 }): ElementId | null => {
   for (let index = points.length - 1; index >= 0; index -= 1) {
@@ -56,11 +104,18 @@ export const hitTestCanvasGeometry = ({
     }
   }
 
+  for (let index = (curves?.length ?? 0) - 1; index >= 0; index -= 1) {
+    const item = curves![index];
+    if (distanceToPolyline(screen, item.points) <= LINE_HIT_DISTANCE_PX) {
+      return item.curve.elementId;
+    }
+  }
+
   return null;
 };
 
 export type LineMeasurementCandidate = {
-  line: ComputedLine;
+  line: ComputedLine | ComputedBezierCurve;
   property: LineMeasurementKey;
 };
 
@@ -69,12 +124,19 @@ export const hitTestLineMeasurementCandidates = ({
   lines
 }: {
   screen: ScreenPoint;
-  lines: Array<{ line: ComputedLine; start: ScreenPoint; end: ScreenPoint }>;
+  lines: Array<{ line: ComputedLine | ComputedBezierCurve; start?: ScreenPoint; end?: ScreenPoint; points?: ScreenPoint[] }>;
 }): LineMeasurementCandidate[] => {
   const candidates: LineMeasurementCandidate[] = [];
 
   for (let index = lines.length - 1; index >= 0; index -= 1) {
     const item = lines[index];
+    if (item.line.kind === "bezierCurve") {
+      if (item.points && distanceToPolyline(screen, item.points) <= LINE_HIT_DISTANCE_PX) {
+        candidates.push({ line: item.line, property: "length" });
+      }
+      continue;
+    }
+    if (!item.start || !item.end) continue;
     const startDistance = Math.sqrt(squaredDistance(screen, item.start));
     const endDistance = Math.sqrt(squaredDistance(screen, item.end));
 

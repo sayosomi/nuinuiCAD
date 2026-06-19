@@ -1,5 +1,6 @@
 import type {
   CadElement,
+  ComputedBezierSegment,
   ComputedGeometry,
   ComputedPoint,
   DependencyError,
@@ -54,6 +55,52 @@ const getComputedPointOrError = (
 const degreesToRadians = (degrees: number) => (degrees * Math.PI) / 180;
 const radiansToDegrees = (radians: number) => (radians * 180) / Math.PI;
 const normalizeDegrees = (degrees: number) => ((degrees % 360) + 360) % 360;
+const CURVE_LENGTH_STEPS = 32;
+
+const handlePoint = (point: ComputedPoint, angleDeg: number, length: number) => {
+  const angleRad = degreesToRadians(angleDeg);
+  return {
+    x: point.x + Math.cos(angleRad) * length,
+    y: point.y - Math.sin(angleRad) * length
+  };
+};
+
+const cubicPointAt = (
+  segment: ComputedBezierSegment,
+  t: number
+): { x: number; y: number } => {
+  const inverse = 1 - t;
+  const a = inverse * inverse * inverse;
+  const b = 3 * inverse * inverse * t;
+  const c = 3 * inverse * t * t;
+  const d = t * t * t;
+
+  return {
+    x:
+      a * segment.start.x +
+      b * segment.control1.x +
+      c * segment.control2.x +
+      d * segment.end.x,
+    y:
+      a * segment.start.y +
+      b * segment.control1.y +
+      c * segment.control2.y +
+      d * segment.end.y
+  };
+};
+
+const approximateBezierSegmentLength = (segment: ComputedBezierSegment) => {
+  let length = 0;
+  let previous: { x: number; y: number } = segment.start;
+
+  for (let step = 1; step <= CURVE_LENGTH_STEPS; step += 1) {
+    const next = cubicPointAt(segment, step / CURVE_LENGTH_STEPS);
+    length += Math.hypot(next.x - previous.x, next.y - previous.y);
+    previous = next;
+  }
+
+  return length;
+};
 
 const numericError = (
   element: CadElement,
@@ -189,6 +236,137 @@ export const evaluateElements = (elements: CadElement[]): EvaluationResult => {
           length,
           startAngleDeg,
           endAngleDeg
+        });
+        break;
+      }
+      case "bezierCurve": {
+        const start = getComputedPointOrError(
+          element,
+          element.startPointId,
+          computedGeometry,
+          elementsById,
+          errors
+        );
+        const end = getComputedPointOrError(
+          element,
+          element.endPointId,
+          computedGeometry,
+          elementsById,
+          errors
+        );
+        const intermediatePoints = element.intermediatePoints.map((intermediate) =>
+          getComputedPointOrError(
+            element,
+            intermediate.pointId,
+            computedGeometry,
+            elementsById,
+            errors
+          )
+        );
+        if (!start || !end || intermediatePoints.some((point) => !point)) {
+          break;
+        }
+
+        const startHandleAngleDeg = numericError(
+          element,
+          element.startHandleAngleDeg,
+          computedGeometry,
+          elementsById,
+          errors
+        );
+        const startHandleLength = numericError(
+          element,
+          element.startHandleLength,
+          computedGeometry,
+          elementsById,
+          errors
+        );
+        const endHandleAngleDeg = numericError(
+          element,
+          element.endHandleAngleDeg,
+          computedGeometry,
+          elementsById,
+          errors
+        );
+        const endHandleLength = numericError(
+          element,
+          element.endHandleLength,
+          computedGeometry,
+          elementsById,
+          errors
+        );
+        const intermediateHandles = element.intermediatePoints.map((intermediate) => ({
+          angleDeg: numericError(
+            element,
+            intermediate.handleAngleDeg,
+            computedGeometry,
+            elementsById,
+            errors
+          ),
+          incomingLength: numericError(
+            element,
+            intermediate.incomingHandleLength,
+            computedGeometry,
+            elementsById,
+            errors
+          ),
+          outgoingLength: numericError(
+            element,
+            intermediate.outgoingHandleLength,
+            computedGeometry,
+            elementsById,
+            errors
+          )
+        }));
+        if (
+          startHandleAngleDeg === undefined ||
+          startHandleLength === undefined ||
+          endHandleAngleDeg === undefined ||
+          endHandleLength === undefined ||
+          intermediateHandles.some(
+            (handle) =>
+              handle.angleDeg === undefined ||
+              handle.incomingLength === undefined ||
+              handle.outgoingLength === undefined
+          )
+        ) {
+          break;
+        }
+
+        const anchors = [start, ...(intermediatePoints as ComputedPoint[]), end];
+        const outgoingHandles = [
+          handlePoint(start, startHandleAngleDeg, startHandleLength),
+          ...intermediateHandles.map((handle, index) =>
+            handlePoint(anchors[index + 1], handle.angleDeg!, handle.outgoingLength!)
+          )
+        ];
+        const incomingHandles = [
+          ...intermediateHandles.map((handle, index) =>
+            handlePoint(anchors[index + 1], handle.angleDeg! + 180, handle.incomingLength!)
+          ),
+          handlePoint(end, endHandleAngleDeg + 180, endHandleLength)
+        ];
+        const segments = anchors.slice(0, -1).map((anchor, index) => ({
+          startPointId: anchor.elementId,
+          endPointId: anchors[index + 1].elementId,
+          start: anchor,
+          control1: outgoingHandles[index],
+          control2: incomingHandles[index],
+          end: anchors[index + 1]
+        }));
+
+        computedGeometry.set(element.id, {
+          kind: "bezierCurve",
+          elementId: element.id,
+          name: element.name,
+          startPointId: element.startPointId,
+          endPointId: element.endPointId,
+          intermediatePointIds: element.intermediatePoints.map((point) => point.pointId),
+          segments,
+          length: segments.reduce(
+            (sum, segment) => sum + approximateBezierSegmentLength(segment),
+            0
+          )
         });
         break;
       }

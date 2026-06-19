@@ -18,11 +18,13 @@ import type { ParameterKey } from "../parameters/parameterDefinitions";
 import { useCadStore } from "../state/useCadStore";
 import type {
   CadElement,
+  ComputedBezierCurve,
   ComputedGeometry,
   ComputedLine,
   ComputedPoint,
   ElementId,
-  EvaluationResult
+  EvaluationResult,
+  NumericValue
 } from "../types/geometry";
 import { elementTypeLabels } from "../types/geometry";
 
@@ -43,6 +45,10 @@ const isComputedPoint = (geometry: ComputedGeometry | undefined): geometry is Co
 
 const isComputedLine = (geometry: ComputedGeometry | undefined): geometry is ComputedLine =>
   geometry?.kind === "line";
+
+const isComputedBezierCurve = (
+  geometry: ComputedGeometry | undefined
+): geometry is ComputedBezierCurve => geometry?.kind === "bezierCurve";
 
 const formatNumber = (value: number) =>
   Number.isInteger(value) ? `${value}` : value.toFixed(2).replace(/\.?0+$/, "");
@@ -71,6 +77,11 @@ const lineInfoRows = (line: ComputedLine) => {
     { label: "長さ", value: formatMillimeters(line.length) }
   ];
 };
+
+const bezierCurveInfoRows = (curve: ComputedBezierCurve) => [
+  { label: "区間数", value: `${curve.segments.length}` },
+  { label: "長さ", value: formatMillimeters(curve.length) }
+];
 
 const pointOptions = (elements: CadElement[]) =>
   elements
@@ -170,13 +181,28 @@ const ElementEditor = ({
   const commitName = (name: string) => renameElement(element.id, name);
   const updateVisible = (visible: boolean) => updateElement(element.id, { visible });
   const updateEnabled = (enabled: boolean) => updateElement(element.id, { enabled });
+  const parseIntermediateParameterKey = (key: string) => {
+    const [, intermediatePointId, field] = key.split(":");
+    if (!key.startsWith("intermediate:") || !intermediatePointId || !field) return null;
+    return { intermediatePointId, field };
+  };
+  const updateParameterValue = (field: ParameterKey, value: unknown) => {
+    const parsed = parseIntermediateParameterKey(field);
+    if (parsed && element.type === "bezierCurve") {
+      updateElement(element.id, {
+        intermediatePoints: element.intermediatePoints.map((point) =>
+          point.id === parsed.intermediatePointId ? { ...point, [parsed.field]: value } : point
+        )
+      } as Partial<CadElement>);
+      return;
+    }
+    updateElement(element.id, { [field]: value } as Partial<CadElement>);
+  };
   const updateField = (field: ParameterKey, value: string) => {
-    updateElement(element.id, {
-      [field]: makeNumericExpression(normalizeNumericExpressionInput(value, elements))
-    } as Partial<CadElement>);
+    updateParameterValue(field, makeNumericExpression(normalizeNumericExpressionInput(value, elements)));
   };
   const updateRef = (field: ParameterKey, value: ElementId) => {
-    updateElement(element.id, { [field]: value } as Partial<CadElement>);
+    updateParameterValue(field, value);
   };
   const updateStep = (field: ParameterKey, value: string) => {
     const nextStep = Number(value);
@@ -201,7 +227,66 @@ const ElementEditor = ({
     }
   });
   const selectParameter = (key: ParameterKey) => setSelectedParameterKey(key);
-  /* eslint-disable react-hooks/refs -- Drag state is read and written only from pointer event handlers. */
+  const numericInput = ({
+    parameterKey,
+    label,
+    value,
+    ariaLabel
+  }: {
+    parameterKey: ParameterKey;
+    label: string;
+    value: NumericValue;
+    ariaLabel: string;
+  }) => (
+    <label className={parameterFieldClass(parameterKey)} onClick={() => selectParameter(parameterKey)}>
+      <ParameterName element={element} parameterKey={parameterKey} label={label} />
+      <input
+        {...controlProps(parameterKey)}
+        {...numericDragProps(parameterKey)}
+        aria-label={ariaLabel}
+        type="text"
+        inputMode="decimal"
+        step="1"
+        data-numeric-parameter-key={parameterKey}
+        value={formatNumericExpressionForDisplay(value, elements)}
+        onChange={(event) => updateField(parameterKey, event.target.value)}
+      />
+      <span className="parameter-step">
+        増減単位
+        <input
+          type="number"
+          min="0.1"
+          step="0.1"
+          value={formatNumber(getNumericParameterStep(element, parameterKey))}
+          onFocus={() => selectParameter(parameterKey)}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") event.currentTarget.blur();
+          }}
+          onChange={(event) => updateStep(parameterKey, event.target.value)}
+        />
+      </span>
+    </label>
+  );
+  const referenceSelect = ({
+    parameterKey,
+    label,
+    value
+  }: {
+    parameterKey: ParameterKey;
+    label: string;
+    value: ElementId;
+  }) => (
+    <label className={parameterFieldClass(parameterKey)} onClick={() => selectParameter(parameterKey)}>
+      <ParameterName element={element} parameterKey={parameterKey} label={label} />
+      <select
+        {...controlProps(parameterKey)}
+        value={value}
+        onChange={(event) => updateRef(parameterKey, event.target.value)}
+      >
+        {pointOptions(elements)}
+      </select>
+    </label>
+  );
   const finishNumericDrag = (event: PointerEvent<HTMLInputElement>) => {
     const drag = numericDragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
@@ -256,7 +341,6 @@ const ElementEditor = ({
       if (event.button === 1) event.preventDefault();
     }
   });
-  /* eslint-enable react-hooks/refs */
 
   return (
     <section className="panel-section">
@@ -556,6 +640,102 @@ const ElementEditor = ({
             </label>
           </>
         )}
+
+        {element.type === "bezierCurve" && (
+          <>
+            {referenceSelect({
+              parameterKey: "startPointId",
+              label: "始点",
+              value: element.startPointId
+            })}
+            {numericInput({
+              parameterKey: "startHandleAngleDeg",
+              label: "始点角度",
+              value: element.startHandleAngleDeg,
+              ariaLabel: "始点角度"
+            })}
+            {numericInput({
+              parameterKey: "startHandleLength",
+              label: "始点ハンドル長",
+              value: element.startHandleLength,
+              ariaLabel: "始点ハンドル長"
+            })}
+
+            <div className="curve-point-editor">
+              <div className="curve-point-header">
+                <span>中間点</span>
+                <button
+                  type="button"
+                  onClick={() => dispatchCommand("addBezierIntermediatePoint")}
+                >
+                  追加
+                </button>
+              </div>
+              {element.intermediatePoints.length === 0 ? (
+                <p className="empty-state">中間点はありません。</p>
+              ) : (
+                element.intermediatePoints.map((point, index) => (
+                  <div className="curve-point-group" key={point.id}>
+                    <div className="curve-point-header">
+                      <span>中間点{index + 1}</span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          dispatchCommand("deleteBezierIntermediatePoint", {
+                            intermediatePointId: point.id
+                          })
+                        }
+                      >
+                        削除
+                      </button>
+                    </div>
+                    {referenceSelect({
+                      parameterKey: `intermediate:${point.id}:pointId`,
+                      label: "点",
+                      value: point.pointId
+                    })}
+                    {numericInput({
+                      parameterKey: `intermediate:${point.id}:handleAngleDeg`,
+                      label: "角度",
+                      value: point.handleAngleDeg,
+                      ariaLabel: `中間点${index + 1}角度`
+                    })}
+                    {numericInput({
+                      parameterKey: `intermediate:${point.id}:incomingHandleLength`,
+                      label: "前長さ",
+                      value: point.incomingHandleLength,
+                      ariaLabel: `中間点${index + 1}前長さ`
+                    })}
+                    {numericInput({
+                      parameterKey: `intermediate:${point.id}:outgoingHandleLength`,
+                      label: "後長さ",
+                      value: point.outgoingHandleLength,
+                      ariaLabel: `中間点${index + 1}後長さ`
+                    })}
+                  </div>
+                ))
+              )}
+            </div>
+
+            {referenceSelect({
+              parameterKey: "endPointId",
+              label: "終点",
+              value: element.endPointId
+            })}
+            {numericInput({
+              parameterKey: "endHandleAngleDeg",
+              label: "終点角度",
+              value: element.endHandleAngleDeg,
+              ariaLabel: "終点角度"
+            })}
+            {numericInput({
+              parameterKey: "endHandleLength",
+              label: "終点ハンドル長",
+              value: element.endHandleLength,
+              ariaLabel: "終点ハンドル長"
+            })}
+          </>
+        )}
       </div>
     </section>
   );
@@ -586,7 +766,9 @@ const ElementInfoPanel = ({
       ? pointCoordinateRows(geometry)
       : isComputedLine(geometry)
         ? lineInfoRows(geometry)
-        : [];
+        : isComputedBezierCurve(geometry)
+          ? bezierCurveInfoRows(geometry)
+          : [];
   const selectDependency = (id: ElementId) => setSelectedElementId(id);
   const dependencyButtonClass = (id: ElementId) => {
     const jumpIndex = jumpTargetIndexes.get(id);

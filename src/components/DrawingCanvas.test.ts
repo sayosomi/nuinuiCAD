@@ -6,7 +6,7 @@ import { sampleElements } from "../sampleData";
 import { DEFAULT_CANVAS_VIEWPORT, useCadStore } from "../state/useCadStore";
 import { DrawingCanvas } from "./DrawingCanvas";
 import { hitTestCanvasGeometry } from "./DrawingCanvasHitTest";
-import type { ComputedLine, ComputedPoint } from "../types/geometry";
+import type { ComputedBezierCurve, ComputedLine, ComputedPoint } from "../types/geometry";
 
 const point = (elementId: string, x: number, y: number): ComputedPoint => ({
   kind: "point",
@@ -33,6 +33,30 @@ const line = (
   endAngleDeg: 180
 });
 
+const bezierCurve = (
+  elementId: string,
+  start: ComputedPoint,
+  end: ComputedPoint
+): ComputedBezierCurve => ({
+  kind: "bezierCurve",
+  elementId,
+  name: elementId,
+  startPointId: start.elementId,
+  endPointId: end.elementId,
+  intermediatePointIds: [],
+  segments: [
+    {
+      startPointId: start.elementId,
+      endPointId: end.elementId,
+      start,
+      control1: { x: start.x + 30, y: start.y },
+      control2: { x: end.x - 30, y: end.y },
+      end
+    }
+  ],
+  length: 100
+});
+
 const resetStore = () => {
   useCadStore.setState({
     elements: sampleElements,
@@ -54,6 +78,7 @@ const resetStore = () => {
 
 const mockCanvasContext = () => ({
   arc: vi.fn(),
+  bezierCurveTo: vi.fn(),
   beginPath: vi.fn(),
   clearRect: vi.fn(),
   fill: vi.fn(),
@@ -215,6 +240,27 @@ describe("hitTestCanvasGeometry", () => {
         ]
       })
     ).toBe("point-c");
+  });
+
+  it("selects a visible Bezier curve within the curve hit distance", () => {
+    const curve = bezierCurve("curve-ab", start, end);
+
+    expect(
+      hitTestCanvasGeometry({
+        screen: { x: 70, y: 50 },
+        lines: [],
+        curves: [
+          {
+            curve,
+            points: [
+              { x: 20, y: 50 },
+              { x: 120, y: 50 }
+            ]
+          }
+        ],
+        points: []
+      })
+    ).toBe("curve-ab");
   });
 
   it("ignores hidden or unevaluated geometry because it is omitted from hit-test input", () => {

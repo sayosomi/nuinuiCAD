@@ -47,5 +47,19 @@ export const sampleElements: CadElement[] = [
     enabled: true,
     startPointId: "point-b",
     endPointId: "point-c"
+  },
+  {
+    id: "curve-ac",
+    name: "曲線AC",
+    type: "bezierCurve",
+    visible: true,
+    enabled: true,
+    startPointId: "point-a",
+    startHandleAngleDeg: 0,
+    startHandleLength: 45,
+    intermediatePoints: [],
+    endPointId: "point-c",
+    endHandleAngleDeg: 90,
+    endHandleLength: 35
   }
 ];

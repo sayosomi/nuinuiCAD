@@ -563,6 +563,36 @@ select {
   grid-column: 1 / -1;
 }
 
+.curve-point-editor {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: 8px;
+  border-top: 1px solid #d8dbd2;
+  border-bottom: 1px solid #d8dbd2;
+  padding: 8px 0;
+}
+
+.curve-point-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: #4a4d45;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.curve-point-group {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.curve-point-group .curve-point-header,
+.curve-point-group label:has(select) {
+  grid-column: 1 / -1;
+}
+
 .checkbox-line {
   display: flex !important;
   grid-template-columns: auto 1fr;
@@ -772,7 +802,9 @@ select {
   pointer-events: none;
 }
 
-.drawing-overlay line {
+.drawing-overlay line,
+.drawing-overlay polyline {
+  fill: none;
   stroke: transparent;
   stroke-width: 10;
 }

@@ -373,7 +373,8 @@ describe("LeftPanel element list dragging", () => {
       "line-ab",
       "point-b",
       "point-c",
-      "line-bc"
+      "line-bc",
+      "curve-ac"
     ]);
     expect(useCadStore.getState().selectedElementIds).toEqual(["point-b", "point-c"]);
   });

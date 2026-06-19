@@ -122,12 +122,13 @@ const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\
 
 export const normalizeNumericExpressionInput = (input: string, elements: CadElement[]) => {
   let expression = input.trim();
-  const lineElements = elements
-    .filter((element) => element.type === "line")
+  const measurableElements = elements
+    .filter((element) => element.type === "line" || element.type === "bezierCurve")
     .sort((a, b) => b.name.length - a.name.length);
 
-  for (const element of lineElements) {
+  for (const element of measurableElements) {
     for (const [property, label] of Object.entries(propertyLabels)) {
+      if (element.type === "bezierCurve" && property !== "length") continue;
       expression = expression.replace(
         new RegExp(`${escapeRegExp(element.name)}\\.${escapeRegExp(label)}(?=$|[\\s()+*/-])`, "g"),
         `${element.id}.${property}`
@@ -294,7 +295,11 @@ export const evaluateNumericValue = ({
   try {
     const parser = new Parser(tokenize(value.expression), (reference) => {
       const geometry = computedGeometry.get(reference.elementId);
-      if (geometry?.kind !== "line") {
+      if (
+        !geometry ||
+        (geometry.kind !== "line" && geometry.kind !== "bezierCurve") ||
+        (geometry.kind === "bezierCurve" && reference.property !== "length")
+      ) {
         const dependencyName = elementsById.get(reference.elementId)?.name;
         throw Object.assign(
           new Error(
@@ -304,7 +309,8 @@ export const evaluateNumericValue = ({
         );
       }
 
-      const measuredValue = geometry[reference.property];
+      const measuredValue =
+        geometry.kind === "bezierCurve" ? geometry.length : geometry[reference.property];
       if (measuredValue === null) {
         throw Object.assign(new Error(`${geometry.name}.${propertyLabels[reference.property]} は未定義です。`), {
           dependencyId: reference.elementId,
