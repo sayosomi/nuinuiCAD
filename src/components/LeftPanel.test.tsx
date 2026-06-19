@@ -121,7 +121,7 @@ describe("LeftPanel numeric input dragging", () => {
     expect(screen.getByText("共通変数はありません。")).toBeInTheDocument();
   });
 
-  it("does not show numeric variables for line elements", () => {
+  it("shows numeric variables for line elements", () => {
     useCadStore.setState({
       selectedElementId: "line-ab",
       selectedElementIds: ["line-ab"]
@@ -129,7 +129,7 @@ describe("LeftPanel numeric input dragging", () => {
 
     renderRightPanel();
 
-    expect(screen.queryByText("共通変数")).not.toBeInTheDocument();
+    expect(screen.getByText("共通変数")).toBeInTheDocument();
   });
 
   it("normalizes a blank numeric parameter input to zero", () => {

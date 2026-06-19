@@ -419,7 +419,7 @@ describe("shortcuts", () => {
     const shortcuts = shortcutHelpItems({
       isParameterEditMode: true,
       selectedElement: sampleElements[3],
-      selectedParameterKey: "startPointId"
+      selectedParameterKey: "startPoint"
     });
 
     expect(shortcuts).toEqual(
@@ -457,7 +457,7 @@ describe("shortcuts", () => {
     const shortcuts = shortcutHelpItems({
       isParameterEditMode: true,
       selectedElement: sampleElements[3],
-      selectedParameterKey: "startPointId"
+      selectedParameterKey: "startPoint"
     });
     const keyShortcut = shortcuts.find((shortcut) => shortcut.commandId === "selectParameterByKey");
 

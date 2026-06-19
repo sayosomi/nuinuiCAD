@@ -43,8 +43,8 @@ const elements: CadElement[] = [
     type: "line",
     visible: true,
     enabled: true,
-    startPointId: "a",
-    endPointId: "b"
+    startPoint: { mode: "reference", pointId: "a" },
+    endPoint: { mode: "reference", pointId: "b" }
   },
   {
     id: "bc",
@@ -52,8 +52,8 @@ const elements: CadElement[] = [
     type: "line",
     visible: true,
     enabled: true,
-    startPointId: "b",
-    endPointId: "c"
+    startPoint: { mode: "reference", pointId: "b" },
+    endPoint: { mode: "reference", pointId: "c" }
   }
 ];
 
@@ -71,24 +71,38 @@ describe("dependencies", () => {
       type: "bezierCurve",
       visible: true,
       enabled: true,
-      startPointId: "a",
+      startPoint: { mode: "reference", pointId: "a" },
       startHandleAngleDeg: 0,
       startHandleLength: 20,
       intermediatePoints: [
         {
           id: "mid-1",
-          pointId: "b",
+          point: { mode: "reference", pointId: "b" },
           handleAngleDeg: 0,
           incomingHandleLength: 10,
           outgoingHandleLength: 10
         }
       ],
-      endPointId: "c",
+      endPoint: { mode: "reference", pointId: "c" },
       endHandleAngleDeg: 0,
       endHandleLength: 20
     };
 
     expect(getDirectParentIds(curve)).toEqual(["a", "b", "c"]);
+  });
+
+  it("returns direct coordinate expression references as parent ids", () => {
+    const directLine: CadElement = {
+      id: "direct",
+      name: "直接線",
+      type: "line",
+      visible: true,
+      enabled: true,
+      startPoint: { mode: "coordinate", x: { kind: "expression", expression: "bc.length" }, y: 0 },
+      endPoint: { mode: "coordinate", x: 10, y: 0 }
+    };
+
+    expect(getDirectParentIds(directLine)).toEqual(["bc"]);
   });
 
   it("returns direct children", () => {

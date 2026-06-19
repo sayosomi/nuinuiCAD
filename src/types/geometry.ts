@@ -44,15 +44,26 @@ export type PolarOffsetPointElement = CadElementBase & {
   distance: NumericValue;
 };
 
+export type PointAnchor =
+  | {
+      mode: "reference";
+      pointId: ElementId;
+    }
+  | {
+      mode: "coordinate";
+      x: NumericValue;
+      y: NumericValue;
+    };
+
 export type LineElement = CadElementBase & {
   type: "line";
-  startPointId: ElementId;
-  endPointId: ElementId;
+  startPoint: PointAnchor;
+  endPoint: PointAnchor;
 };
 
 export type BezierIntermediatePoint = {
   id: string;
-  pointId: ElementId;
+  point: PointAnchor;
   handleAngleDeg: NumericValue;
   incomingHandleLength: NumericValue;
   outgoingHandleLength: NumericValue;
@@ -60,11 +71,11 @@ export type BezierIntermediatePoint = {
 
 export type BezierCurveElement = CadElementBase & {
   type: "bezierCurve";
-  startPointId: ElementId;
+  startPoint: PointAnchor;
   startHandleAngleDeg: NumericValue;
   startHandleLength: NumericValue;
   intermediatePoints: BezierIntermediatePoint[];
-  endPointId: ElementId;
+  endPoint: PointAnchor;
   endHandleAngleDeg: NumericValue;
   endHandleLength: NumericValue;
 };
@@ -89,8 +100,8 @@ export type ComputedLine = {
   kind: "line";
   elementId: ElementId;
   name: string;
-  startPointId: ElementId;
-  endPointId: ElementId;
+  startPointId: ElementId | null;
+  endPointId: ElementId | null;
   start: ComputedPoint;
   end: ComputedPoint;
   length: number;
@@ -99,8 +110,8 @@ export type ComputedLine = {
 };
 
 export type ComputedBezierSegment = {
-  startPointId: ElementId;
-  endPointId: ElementId;
+  startPointId: ElementId | null;
+  endPointId: ElementId | null;
   start: ComputedPoint;
   control1: { x: number; y: number };
   control2: { x: number; y: number };
@@ -111,8 +122,8 @@ export type ComputedBezierCurve = {
   kind: "bezierCurve";
   elementId: ElementId;
   name: string;
-  startPointId: ElementId;
-  endPointId: ElementId;
+  startPointId: ElementId | null;
+  endPointId: ElementId | null;
   intermediatePointIds: ElementId[];
   segments: ComputedBezierSegment[];
   length: number;

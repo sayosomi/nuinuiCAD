@@ -491,7 +491,7 @@ describe("commands", () => {
     expect(useCadStore.getState().selectedParameterKey).toBe(`variable:${point?.numericVariables?.[0].id}:value`);
   });
 
-  it("does not add numeric variables to line elements", () => {
+  it("adds numeric variables to line elements for coordinate expressions", () => {
     useCadStore.setState({
       selectedElementId: "line-ab",
       selectedElementIds: ["line-ab"]
@@ -501,7 +501,7 @@ describe("commands", () => {
 
     const line = useCadStore.getState().elements.find((element) => element.id === "line-ab");
     expect(line).toMatchObject({ type: "line" });
-    expect(line?.numericVariables).toBeUndefined();
+    expect(line?.numericVariables?.[0]).toMatchObject({ name: "v1", value: 30 });
   });
 
   it("locks Bezier handle distance while dragging", () => {
@@ -544,7 +544,7 @@ describe("commands", () => {
               intermediatePoints: [
                 {
                   id: "mid-b",
-                  pointId: "point-b",
+                  point: { mode: "reference", pointId: "point-b" },
                   handleAngleDeg: 0,
                   incomingHandleLength: 10,
                   outgoingHandleLength: 20
@@ -722,8 +722,8 @@ describe("commands", () => {
     const curve = state.elements.at(-1);
     expect(curve).toMatchObject({
       type: "bezierCurve",
-      startPointId: "point-a",
-      endPointId: "point-b"
+      startPoint: { mode: "reference", pointId: "point-a" },
+      endPoint: { mode: "reference", pointId: "point-b" }
     });
     expect(state.selectedElementId).toBe(curve?.id);
     expect(state.past).toHaveLength(1);
@@ -739,7 +739,7 @@ describe("commands", () => {
     if (curve?.type !== "bezierCurve") throw new Error("Expected a Bezier curve");
     expect(curve.intermediatePoints).toHaveLength(1);
     expect(useCadStore.getState().selectedParameterKey).toBe(
-      `intermediate:${curve.intermediatePoints[0].id}:pointId`
+      `intermediate:${curve.intermediatePoints[0].id}:point`
     );
 
     dispatchCommand("deleteBezierIntermediatePoint", {
@@ -1263,12 +1263,51 @@ describe("commands", () => {
   it("cycles reference parameters with arrow commands", () => {
     useCadStore.setState({
       selectedElementId: sampleElements[3].id,
-      selectedParameterKey: "startPointId"
+      selectedParameterKey: "startPoint"
     });
 
     dispatchCommand("incrementSelectedParameter");
 
-    expect(useCadStore.getState().elements[3]).toMatchObject({ startPointId: "point-b" });
+    expect(useCadStore.getState().elements[3]).toMatchObject({ startPoint: { mode: "reference", pointId: "point-b" } });
+  });
+
+  it("applies a picked point to the selected reference parameter", () => {
+    useCadStore.setState({
+      selectedElementId: "line-ab",
+      selectedElementIds: ["line-ab"],
+      selectedParameterKey: "endPoint"
+    });
+
+    dispatchCommand("startPointPick");
+    expect(useCadStore.getState().activePointPickTarget).toEqual({
+      elementId: "line-ab",
+      parameterKey: "endPoint"
+    });
+
+    dispatchCommand("applyPickedPoint", { pickedPointId: "point-c" });
+
+    expect(useCadStore.getState().activePointPickTarget).toBeNull();
+    expect(useCadStore.getState().elements[3]).toMatchObject({
+      endPoint: { mode: "reference", pointId: "point-c" }
+    });
+    expect(useCadStore.getState().past).toHaveLength(1);
+  });
+
+  it("cancels point picking without changing the document", () => {
+    useCadStore.setState({
+      selectedElementId: "line-ab",
+      selectedElementIds: ["line-ab"],
+      selectedParameterKey: "startPoint"
+    });
+
+    dispatchCommand("startPointPick");
+    dispatchCommand("cancelPointPick");
+
+    expect(useCadStore.getState().activePointPickTarget).toBeNull();
+    expect(useCadStore.getState().elements[3]).toMatchObject({
+      startPoint: { mode: "reference", pointId: "point-a" }
+    });
+    expect(useCadStore.getState().past).toHaveLength(0);
   });
 
   it("toggles boolean parameters", () => {

@@ -31,8 +31,8 @@ const elements: CadElement[] = [
     type: "line",
     visible: true,
     enabled: true,
-    startPointId: "point-a",
-    endPointId: "point-b"
+    startPoint: { mode: "reference", pointId: "point-a" },
+    endPoint: { mode: "reference", pointId: "point-b" }
   }
 ];
 

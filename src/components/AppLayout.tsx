@@ -40,6 +40,11 @@ export const AppLayout = () => {
         isParameterEditMode: useCadStore.getState().isParameterEditMode,
         isDependencyJumpMode: useCadStore.getState().isDependencyJumpMode
       });
+      if (useCadStore.getState().activePointPickTarget && event.key === "Escape") {
+        event.preventDefault();
+        dispatchCommand("cancelPointPick");
+        return;
+      }
       if (!keyboardCommand) return;
       if (
         useCadStore.getState().showShortcutHelp &&

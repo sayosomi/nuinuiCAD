@@ -36,8 +36,8 @@ export const sampleElements: CadElement[] = [
     type: "line",
     visible: true,
     enabled: true,
-    startPointId: "point-a",
-    endPointId: "point-b"
+    startPoint: { mode: "reference", pointId: "point-a" },
+    endPoint: { mode: "reference", pointId: "point-b" }
   },
   {
     id: "line-bc",
@@ -45,8 +45,8 @@ export const sampleElements: CadElement[] = [
     type: "line",
     visible: true,
     enabled: true,
-    startPointId: "point-b",
-    endPointId: "point-c"
+    startPoint: { mode: "reference", pointId: "point-b" },
+    endPoint: { mode: "reference", pointId: "point-c" }
   },
   {
     id: "curve-ac",
@@ -54,11 +54,11 @@ export const sampleElements: CadElement[] = [
     type: "bezierCurve",
     visible: true,
     enabled: true,
-    startPointId: "point-a",
+    startPoint: { mode: "reference", pointId: "point-a" },
     startHandleAngleDeg: 0,
     startHandleLength: 45,
     intermediatePoints: [],
-    endPointId: "point-c",
+    endPoint: { mode: "reference", pointId: "point-c" },
     endHandleAngleDeg: 90,
     endHandleLength: 35
   }

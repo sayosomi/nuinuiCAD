@@ -29,8 +29,8 @@ const validElements: CadElement[] = [
     type: "line",
     visible: true,
     enabled: true,
-    startPointId: "a",
-    endPointId: "b"
+    startPoint: { mode: "reference", pointId: "a" },
+    endPoint: { mode: "reference", pointId: "b" }
   }
 ];
 
@@ -42,6 +42,63 @@ describe("evaluateElements", () => {
     expect(result.computedGeometry.get("a")).toMatchObject({ kind: "point", x: 10, y: 20 });
     expect(result.computedGeometry.get("b")).toMatchObject({ kind: "point", x: 40, y: 25 });
     expect(result.computedGeometry.get("ab")).toMatchObject({ kind: "line" });
+  });
+
+  it("evaluates line anchors from direct coordinate expressions", () => {
+    const result = evaluateElements([
+      validElements[0],
+      {
+        id: "direct-line",
+        name: "直接線",
+        type: "line",
+        visible: true,
+        enabled: true,
+        numericVariables: [{ id: "base", name: "基準", value: 10 }],
+        startPoint: {
+          mode: "coordinate",
+          x: { kind: "expression", expression: "@base" },
+          y: 20
+        },
+        endPoint: {
+          mode: "coordinate",
+          x: { kind: "expression", expression: "@base + 30" },
+          y: { kind: "expression", expression: "@base + 30" }
+        }
+      }
+    ]);
+
+    expect(result.errors).toHaveLength(0);
+    expect(result.computedGeometry.get("direct-line")).toMatchObject({
+      kind: "line",
+      startPointId: null,
+      endPointId: null,
+      start: { x: 10, y: 20 },
+      end: { x: 40, y: 40 }
+    });
+  });
+
+  it("reports a direct coordinate expression dependency that appears too late", () => {
+    const result = evaluateElements([
+      validElements[0],
+      {
+        id: "direct-line",
+        name: "直接線",
+        type: "line",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "coordinate", x: 0, y: 0 },
+        endPoint: { mode: "coordinate", x: { kind: "expression", expression: "ab.length" }, y: 0 }
+      },
+      validElements[1],
+      validElements[2]
+    ]);
+
+    expect(result.computedGeometry.has("direct-line")).toBe(false);
+    expect(result.errors[0]).toMatchObject({
+      elementId: "direct-line",
+      missingDependencyId: "ab",
+      missingDependencyName: "直線AB"
+    });
   });
 
   it("evaluates polar offset points using mathematical angles", () => {
@@ -109,11 +166,11 @@ describe("evaluateElements", () => {
         type: "bezierCurve",
         visible: true,
         enabled: true,
-        startPointId: "a",
+        startPoint: { mode: "reference", pointId: "a" },
         startHandleAngleDeg: 0,
         startHandleLength: 20,
         intermediatePoints: [],
-        endPointId: "b",
+        endPoint: { mode: "reference", pointId: "b" },
         endHandleAngleDeg: 0,
         endHandleLength: 20
       }
@@ -150,19 +207,19 @@ describe("evaluateElements", () => {
         type: "bezierCurve",
         visible: true,
         enabled: true,
-        startPointId: "a",
+        startPoint: { mode: "reference", pointId: "a" },
         startHandleAngleDeg: 0,
         startHandleLength: 20,
         intermediatePoints: [
           {
             id: "mid-1",
-            pointId: "b",
+            point: { mode: "reference", pointId: "b" },
             handleAngleDeg: 90,
             incomingHandleLength: 10,
             outgoingHandleLength: 15
           }
         ],
-        endPointId: "c",
+        endPoint: { mode: "reference", pointId: "c" },
         endHandleAngleDeg: 90,
         endHandleLength: 20
       }
@@ -176,6 +233,44 @@ describe("evaluateElements", () => {
     expect(curve.intermediatePointIds).toEqual(["b"]);
   });
 
+  it("evaluates Bezier curve anchors from direct coordinates", () => {
+    const result = evaluateElements([
+      {
+        id: "curve",
+        name: "直接曲線",
+        type: "bezierCurve",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "coordinate", x: 0, y: 0 },
+        startHandleAngleDeg: 0,
+        startHandleLength: 10,
+        intermediatePoints: [
+          {
+            id: "mid-1",
+            point: { mode: "coordinate", x: 10, y: 10 },
+            handleAngleDeg: 90,
+            incomingHandleLength: 5,
+            outgoingHandleLength: 5
+          }
+        ],
+        endPoint: { mode: "coordinate", x: 20, y: 0 },
+        endHandleAngleDeg: 0,
+        endHandleLength: 10
+      }
+    ]);
+
+    const curve = result.computedGeometry.get("curve");
+    expect(result.errors).toHaveLength(0);
+    expect(curve).toMatchObject({
+      kind: "bezierCurve",
+      startPointId: null,
+      endPointId: null,
+      intermediatePointIds: []
+    });
+    if (curve?.kind !== "bezierCurve") throw new Error("Expected a Bezier curve");
+    expect(curve.segments).toHaveLength(2);
+  });
+
   it("evaluates numeric expressions that reference earlier curve length", () => {
     const result = evaluateElements([
       ...validElements,
@@ -185,11 +280,11 @@ describe("evaluateElements", () => {
         type: "bezierCurve",
         visible: true,
         enabled: true,
-        startPointId: "a",
+        startPoint: { mode: "reference", pointId: "a" },
         startHandleAngleDeg: 0,
         startHandleLength: 20,
         intermediatePoints: [],
-        endPointId: "b",
+        endPoint: { mode: "reference", pointId: "b" },
         endHandleAngleDeg: 0,
         endHandleLength: 20
       },
@@ -222,11 +317,11 @@ describe("evaluateElements", () => {
         visible: true,
         enabled: true,
         numericVariables: [{ id: "shared", name: "共通長", value: 40 }],
-        startPointId: "a",
+        startPoint: { mode: "reference", pointId: "a" },
         startHandleAngleDeg: 0,
         startHandleLength: { kind: "expression", expression: "@shared" },
         intermediatePoints: [],
-        endPointId: "b",
+        endPoint: { mode: "reference", pointId: "b" },
         endHandleAngleDeg: 0,
         endHandleLength: { kind: "expression", expression: "@shared" }
       }
@@ -336,11 +431,11 @@ describe("evaluateElements", () => {
         type: "bezierCurve",
         visible: true,
         enabled: true,
-        startPointId: "a",
+        startPoint: { mode: "reference", pointId: "a" },
         startHandleAngleDeg: 15,
         startHandleLength: 20,
         intermediatePoints: [],
-        endPointId: "b",
+        endPoint: { mode: "reference", pointId: "b" },
         endHandleAngleDeg: 25,
         endHandleLength: 30
       },
@@ -476,11 +571,11 @@ describe("evaluateElements", () => {
         type: "bezierCurve",
         visible: true,
         enabled: true,
-        startPointId: "a",
+        startPoint: { mode: "reference", pointId: "a" },
         startHandleAngleDeg: 0,
         startHandleLength: 20,
         intermediatePoints: [],
-        endPointId: "b",
+        endPoint: { mode: "reference", pointId: "b" },
         endHandleAngleDeg: 0,
         endHandleLength: 20
       },

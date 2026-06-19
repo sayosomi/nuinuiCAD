@@ -6,7 +6,8 @@ import type {
   DependencyError,
   ElementId,
   NumericValue,
-  EvaluationResult
+  EvaluationResult,
+  PointAnchor
 } from "../types/geometry";
 import { evaluateNumericValue } from "./numericExpressions";
 
@@ -51,6 +52,9 @@ const getComputedPointOrError = (
 
   return point;
 };
+
+const pointAnchorReferenceId = (anchor: PointAnchor) =>
+  anchor.mode === "reference" ? anchor.pointId : null;
 
 const degreesToRadians = (degrees: number) => (degrees * Math.PI) / 180;
 const radiansToDegrees = (radians: number) => (radians * 180) / Math.PI;
@@ -130,6 +134,55 @@ const numericError = (
     });
   }
   return undefined;
+};
+
+const getPointAnchorOrError = (
+  element: CadElement,
+  anchor: PointAnchor,
+  anchorKey: string,
+  computedGeometry: Map<ElementId, ComputedGeometry>,
+  elementsById: Map<ElementId, CadElement>,
+  errors: DependencyError[],
+  localVariables?: Map<string, number>,
+  localVariableNames?: Map<string, string>
+) => {
+  if (anchor.mode === "reference") {
+    return getComputedPointOrError(
+      element,
+      anchor.pointId,
+      computedGeometry,
+      elementsById,
+      errors
+    );
+  }
+
+  const x = numericError(
+    element,
+    anchor.x,
+    computedGeometry,
+    elementsById,
+    errors,
+    localVariables,
+    localVariableNames
+  );
+  const y = numericError(
+    element,
+    anchor.y,
+    computedGeometry,
+    elementsById,
+    errors,
+    localVariables,
+    localVariableNames
+  );
+  if (x === undefined || y === undefined) return undefined;
+
+  return {
+    kind: "point" as const,
+    elementId: `${element.id}:${anchorKey}`,
+    name: `${element.name}.${anchorKey}`,
+    x,
+    y
+  };
 };
 
 const evaluateLocalVariables = (
@@ -293,19 +346,25 @@ export const evaluateElements = (elements: CadElement[]): EvaluationResult => {
         break;
       }
       case "line": {
-        const start = getComputedPointOrError(
+        const start = getPointAnchorOrError(
           element,
-          element.startPointId,
+          element.startPoint,
+          "start",
           computedGeometry,
           elementsById,
-          errors
+          errors,
+          localVariableValues,
+          localVariableNames
         );
-        const end = getComputedPointOrError(
+        const end = getPointAnchorOrError(
           element,
-          element.endPointId,
+          element.endPoint,
+          "end",
           computedGeometry,
           elementsById,
-          errors
+          errors,
+          localVariableValues,
+          localVariableNames
         );
         if (!start || !end) {
           break;
@@ -322,8 +381,8 @@ export const evaluateElements = (elements: CadElement[]): EvaluationResult => {
           kind: "line",
           elementId: element.id,
           name: element.name,
-          startPointId: element.startPointId,
-          endPointId: element.endPointId,
+          startPointId: pointAnchorReferenceId(element.startPoint),
+          endPointId: pointAnchorReferenceId(element.endPoint),
           start,
           end,
           length,
@@ -333,27 +392,36 @@ export const evaluateElements = (elements: CadElement[]): EvaluationResult => {
         break;
       }
       case "bezierCurve": {
-        const start = getComputedPointOrError(
+        const start = getPointAnchorOrError(
           element,
-          element.startPointId,
+          element.startPoint,
+          "start",
           computedGeometry,
           elementsById,
-          errors
+          errors,
+          localVariableValues,
+          localVariableNames
         );
-        const end = getComputedPointOrError(
+        const end = getPointAnchorOrError(
           element,
-          element.endPointId,
+          element.endPoint,
+          "end",
           computedGeometry,
           elementsById,
-          errors
+          errors,
+          localVariableValues,
+          localVariableNames
         );
         const intermediatePoints = element.intermediatePoints.map((intermediate) =>
-          getComputedPointOrError(
+          getPointAnchorOrError(
             element,
-            intermediate.pointId,
+            intermediate.point,
+            `intermediate:${intermediate.id}`,
             computedGeometry,
             elementsById,
-            errors
+            errors,
+            localVariableValues,
+            localVariableNames
           )
         );
         if (!start || !end || intermediatePoints.some((point) => !point)) {
@@ -466,9 +534,11 @@ export const evaluateElements = (elements: CadElement[]): EvaluationResult => {
           kind: "bezierCurve",
           elementId: element.id,
           name: element.name,
-          startPointId: element.startPointId,
-          endPointId: element.endPointId,
-          intermediatePointIds: element.intermediatePoints.map((point) => point.pointId),
+          startPointId: pointAnchorReferenceId(element.startPoint),
+          endPointId: pointAnchorReferenceId(element.endPoint),
+          intermediatePointIds: element.intermediatePoints.flatMap((point) =>
+            pointAnchorReferenceId(point.point) ? [pointAnchorReferenceId(point.point)!] : []
+          ),
           segments,
           length: segments.reduce(
             (sum, segment) => sum + approximateBezierSegmentLength(segment),

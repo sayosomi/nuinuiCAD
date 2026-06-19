@@ -2,7 +2,6 @@ import { useRef, useState } from "react";
 import type { DragEvent, KeyboardEvent, MouseEvent, PointerEvent, RefObject } from "react";
 import { dispatchCommand } from "../commands/commands";
 import { getDependencyJumpTargets, getDependencySummary } from "../model/dependencies";
-import { formatReferenceOptionLabel } from "../model/elementNames";
 import {
   formatNumericExpressionForDisplay,
   makeNumericExpression,
@@ -24,7 +23,8 @@ import type {
   ComputedPoint,
   ElementId,
   EvaluationResult,
-  NumericValue
+  NumericValue,
+  PointAnchor
 } from "../types/geometry";
 import { elementTypeLabels } from "../types/geometry";
 
@@ -83,24 +83,29 @@ const bezierCurveInfoRows = (curve: ComputedBezierCurve) => [
   { label: "長さ", value: formatMillimeters(curve.length) }
 ];
 
-const pointOptions = (elements: CadElement[]) =>
-  elements
-    .filter(
-      (element) =>
-        element.type === "freePoint" ||
-        element.type === "offsetPoint" ||
-        element.type === "polarOffsetPoint"
-    )
-    .map((element) => (
-      <option key={element.id} value={element.id}>
-        {formatReferenceOptionLabel(element)}
-      </option>
-    ));
+const isPointElement = (element: CadElement) =>
+  element.type === "freePoint" ||
+  element.type === "offsetPoint" ||
+  element.type === "polarOffsetPoint";
+
+const referenceAnchor = (pointId: ElementId): PointAnchor => ({ mode: "reference", pointId });
+
+const coordinateAnchor = (x: NumericValue = 0, y: NumericValue = 0): PointAnchor => ({
+  mode: "coordinate",
+  x,
+  y
+});
+
+const anchorPointId = (anchor: PointAnchor) => (anchor.mode === "reference" ? anchor.pointId : "");
+
+const pointName = (elements: CadElement[], pointId: ElementId) =>
+  elements.find((element) => element.id === pointId)?.name ?? pointId;
 
 const supportsNumericVariables = (element: CadElement) =>
   element.type === "freePoint" ||
   element.type === "offsetPoint" ||
   element.type === "polarOffsetPoint" ||
+  element.type === "line" ||
   element.type === "bezierCurve";
 
 type ElementStatusIconKind = "visible" | "hidden" | "enabled" | "disabled";
@@ -197,7 +202,63 @@ const ElementEditor = ({
     if (!key.startsWith("variable:") || !variableId || field !== "value") return null;
     return { variableId };
   };
+  const parseAnchorCoordinateParameterKey = (key: string) => {
+    const parts = key.split(":");
+    const axis = parts.at(-1);
+    if (axis !== "x" && axis !== "y") return null;
+    const anchorKey = parts.slice(0, -1).join(":");
+    if (!anchorKey) return null;
+    return { anchorKey, axis };
+  };
+  const getPointAnchor = (key: string): PointAnchor | null => {
+    const parsed = parseIntermediateParameterKey(key);
+    if (parsed && element.type === "bezierCurve" && parsed.field === "point") {
+      return element.intermediatePoints.find((point) => point.id === parsed.intermediatePointId)?.point ?? null;
+    }
+    if ((key === "startPoint" || key === "endPoint") && (element.type === "line" || element.type === "bezierCurve")) {
+      return element[key];
+    }
+    if (key === "fromPointId" && (element.type === "offsetPoint" || element.type === "polarOffsetPoint")) {
+      return referenceAnchor(element.fromPointId);
+    }
+    return null;
+  };
   const updateParameterValue = (field: ParameterKey, value: unknown) => {
+    const anchorCoordinate = parseAnchorCoordinateParameterKey(field);
+    if (anchorCoordinate) {
+      const anchor = getPointAnchor(anchorCoordinate.anchorKey);
+      if (!anchor || anchor.mode !== "coordinate") return;
+      updateParameterValue(anchorCoordinate.anchorKey, {
+        ...anchor,
+        [anchorCoordinate.axis]: value as NumericValue
+      });
+      return;
+    }
+    const anchor = getPointAnchor(field);
+    if (anchor) {
+      const nextAnchor = typeof value === "string" ? referenceAnchor(value) : value as PointAnchor;
+      const parsed = parseIntermediateParameterKey(field);
+      if (parsed && element.type === "bezierCurve" && parsed.field === "point") {
+        updateElement(element.id, {
+          intermediatePoints: element.intermediatePoints.map((point) =>
+            point.id === parsed.intermediatePointId ? { ...point, point: nextAnchor } : point
+          )
+        } as Partial<CadElement>);
+        return;
+      }
+      if (field === "startPoint" && (element.type === "line" || element.type === "bezierCurve")) {
+        updateElement(element.id, { startPoint: nextAnchor } as Partial<CadElement>);
+        return;
+      }
+      if (field === "endPoint" && (element.type === "line" || element.type === "bezierCurve")) {
+        updateElement(element.id, { endPoint: nextAnchor } as Partial<CadElement>);
+        return;
+      }
+      if (field === "fromPointId" && nextAnchor.mode === "reference") {
+        updateElement(element.id, { fromPointId: nextAnchor.pointId } as Partial<CadElement>);
+        return;
+      }
+    }
     const variable = parseVariableParameterKey(field);
     if (variable) {
       updateElement(element.id, {
@@ -229,9 +290,6 @@ const ElementEditor = ({
         )
       )
     );
-  };
-  const updateRef = (field: ParameterKey, value: ElementId) => {
-    updateParameterValue(field, value);
   };
   const updateStep = (field: ParameterKey, value: string) => {
     const nextStep = Number(value);
@@ -300,25 +358,84 @@ const ElementEditor = ({
       </span>
     </label>
   );
-  const referenceSelect = ({
+  const pointAnchorEditor = ({
     parameterKey,
     label,
-    value
+    anchor,
+    allowCoordinate = true
   }: {
     parameterKey: ParameterKey;
     label: string;
-    value: ElementId;
+    anchor: PointAnchor;
+    allowCoordinate?: boolean;
   }) => (
-    <label className={parameterFieldClass(parameterKey)} onClick={() => selectParameter(parameterKey)}>
-      <ParameterName element={element} parameterKey={parameterKey} label={label} />
-      <select
-        {...controlProps(parameterKey)}
-        value={value}
-        onChange={(event) => updateRef(parameterKey, event.target.value)}
-      >
-        {pointOptions(elements)}
-      </select>
-    </label>
+    <div className="point-anchor-editor">
+      <div className="point-anchor-header">
+        <ParameterName element={element} parameterKey={parameterKey} label={label} />
+        <div className="point-anchor-actions">
+          <div className="point-anchor-mode" role="group" aria-label={`${label}の指定方法`}>
+            <button
+              type="button"
+              className={anchor.mode === "reference" ? "active-toggle" : ""}
+              onClick={() => {
+                const fallbackPointId = anchorPointId(anchor) || elements.find(isPointElement)?.id || "";
+                updateParameterValue(parameterKey, referenceAnchor(fallbackPointId));
+                selectParameter(parameterKey);
+              }}
+            >
+              既存点
+            </button>
+            {allowCoordinate ? (
+              <button
+                type="button"
+                className={anchor.mode === "coordinate" ? "active-toggle" : ""}
+                onClick={() => {
+                  updateParameterValue(parameterKey, coordinateAnchor());
+                  selectParameter(`${parameterKey}:x`);
+                }}
+              >
+                座標
+              </button>
+            ) : null}
+          </div>
+          <button
+            type="button"
+            className="point-pick-button"
+            onClick={() => {
+              selectParameter(parameterKey);
+              dispatchCommand("startPointPick");
+            }}
+          >
+            点を選択
+          </button>
+        </div>
+      </div>
+      {anchor.mode === "reference" ? (
+        <button
+          type="button"
+          className={`${parameterFieldClass(parameterKey)} point-anchor-reference`}
+          onClick={() => selectParameter(parameterKey)}
+        >
+          <span className="reference-label">参照点</span>
+          <span className="reference-value">{pointName(elements, anchor.pointId)}</span>
+        </button>
+      ) : (
+        <div className="point-anchor-coordinate-grid">
+          {numericInput({
+            parameterKey: `${parameterKey}:x`,
+            label: `${label} x`,
+            value: anchor.x,
+            ariaLabel: `${label} x`
+          })}
+          {numericInput({
+            parameterKey: `${parameterKey}:y`,
+            label: `${label} y`,
+            value: anchor.y,
+            ariaLabel: `${label} y`
+          })}
+        </div>
+      )}
+    </div>
   );
   const finishNumericDrag = (event: PointerEvent<HTMLInputElement>) => {
     const drag = numericDragRef.current;
@@ -553,19 +670,12 @@ const ElementEditor = ({
 
         {element.type === "offsetPoint" && (
           <>
-            <label
-              className={parameterFieldClass("fromPointId")}
-              onClick={() => selectParameter("fromPointId")}
-            >
-              <ParameterName element={element} parameterKey="fromPointId" label="基準点" />
-              <select
-                {...controlProps("fromPointId")}
-                value={element.fromPointId}
-                onChange={(event) => updateRef("fromPointId", event.target.value)}
-              >
-                {pointOptions(elements)}
-              </select>
-            </label>
+            {pointAnchorEditor({
+              parameterKey: "fromPointId",
+              label: "基準点",
+              anchor: referenceAnchor(element.fromPointId),
+              allowCoordinate: false
+            })}
             <label className={parameterFieldClass("dx")} onClick={() => selectParameter("dx")}>
               <ParameterName element={element} parameterKey="dx" label="dx" />
               <input
@@ -627,19 +737,12 @@ const ElementEditor = ({
 
         {element.type === "polarOffsetPoint" && (
           <>
-            <label
-              className={parameterFieldClass("fromPointId")}
-              onClick={() => selectParameter("fromPointId")}
-            >
-              <ParameterName element={element} parameterKey="fromPointId" label="基準点" />
-              <select
-                {...controlProps("fromPointId")}
-                value={element.fromPointId}
-                onChange={(event) => updateRef("fromPointId", event.target.value)}
-              >
-                {pointOptions(elements)}
-              </select>
-            </label>
+            {pointAnchorEditor({
+              parameterKey: "fromPointId",
+              label: "基準点",
+              anchor: referenceAnchor(element.fromPointId),
+              allowCoordinate: false
+            })}
             <label className={parameterFieldClass("angleDeg")} onClick={() => selectParameter("angleDeg")}>
               <ParameterName element={element} parameterKey="angleDeg" label="角度" />
               <input
@@ -709,41 +812,25 @@ const ElementEditor = ({
 
         {element.type === "line" && (
           <>
-            <label
-              className={parameterFieldClass("startPointId")}
-              onClick={() => selectParameter("startPointId")}
-            >
-              <ParameterName element={element} parameterKey="startPointId" label="始点" />
-              <select
-                {...controlProps("startPointId")}
-                value={element.startPointId}
-                onChange={(event) => updateRef("startPointId", event.target.value)}
-              >
-                {pointOptions(elements)}
-              </select>
-            </label>
-            <label
-              className={parameterFieldClass("endPointId")}
-              onClick={() => selectParameter("endPointId")}
-            >
-              <ParameterName element={element} parameterKey="endPointId" label="終点" />
-              <select
-                {...controlProps("endPointId")}
-                value={element.endPointId}
-                onChange={(event) => updateRef("endPointId", event.target.value)}
-              >
-                {pointOptions(elements)}
-              </select>
-            </label>
+            {pointAnchorEditor({
+              parameterKey: "startPoint",
+              label: "始点",
+              anchor: element.startPoint
+            })}
+            {pointAnchorEditor({
+              parameterKey: "endPoint",
+              label: "終点",
+              anchor: element.endPoint
+            })}
           </>
         )}
 
         {element.type === "bezierCurve" && (
           <>
-            {referenceSelect({
-              parameterKey: "startPointId",
+            {pointAnchorEditor({
+              parameterKey: "startPoint",
               label: "始点",
-              value: element.startPointId
+              anchor: element.startPoint
             })}
             {numericInput({
               parameterKey: "startHandleAngleDeg",
@@ -786,10 +873,10 @@ const ElementEditor = ({
                         削除
                       </button>
                     </div>
-                    {referenceSelect({
-                      parameterKey: `intermediate:${point.id}:pointId`,
+                    {pointAnchorEditor({
+                      parameterKey: `intermediate:${point.id}:point`,
                       label: "点",
-                      value: point.pointId
+                      anchor: point.point
                     })}
                     {numericInput({
                       parameterKey: `intermediate:${point.id}:handleAngleDeg`,
@@ -814,10 +901,10 @@ const ElementEditor = ({
               )}
             </div>
 
-            {referenceSelect({
-              parameterKey: "endPointId",
+            {pointAnchorEditor({
+              parameterKey: "endPoint",
               label: "終点",
-              value: element.endPointId
+              anchor: element.endPoint
             })}
             {numericInput({
               parameterKey: "endHandleAngleDeg",
@@ -978,6 +1065,7 @@ export const LeftPanel = ({
   const elements = useCadStore((state) => state.elements);
   const selectedElementId = useCadStore((state) => state.selectedElementId);
   const selectedElementIds = useCadStore((state) => state.selectedElementIds);
+  const activePointPickTarget = useCadStore((state) => state.activePointPickTarget);
   const [draggedElementIds, setDraggedElementIds] = useState<ElementId[]>([]);
   const [dropTarget, setDropTarget] = useState<ElementDropTarget | null>(null);
   const errorElementIds = new Set(evaluation.errors.map((error) => error.elementId));
@@ -1029,6 +1117,13 @@ export const LeftPanel = ({
       ? ` drop-${position}`
       : "";
   const selectElement = (elementId: ElementId, event: MouseEvent<HTMLElement>) => {
+    if (activePointPickTarget) {
+      const element = elements.find((item) => item.id === elementId);
+      if (element && isPointElement(element)) {
+        dispatchCommand("applyPickedPoint", { pickedPointId: element.id });
+        return;
+      }
+    }
     dispatchCommand("selectElement", {
       elementId,
       selectionMode: event.shiftKey ? "range" : event.metaKey || event.ctrlKey ? "toggle" : "replace"
@@ -1067,7 +1162,8 @@ export const LeftPanel = ({
                 !element.enabled ? "is-disabled" : ""
               } ${
                 errorElementIds.has(element.id) ? "has-error" : ""
-              } ${draggedElementIds.includes(element.id) ? "dragging" : ""}${dropMarkerClass(
+              } ${activePointPickTarget && isPointElement(element) ? "is-point-pick-candidate" : ""} ${
+                draggedElementIds.includes(element.id) ? "dragging" : ""}${dropMarkerClass(
                 element.id,
                 index,
                 "before"

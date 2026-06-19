@@ -1,4 +1,4 @@
-import type { CadElement, ElementId } from "../types/geometry";
+import type { CadElement, ElementId, PointAnchor } from "../types/geometry";
 import { extractNumericExpressionReferences } from "../geometry/numericExpressions";
 
 export type DependencyReference = {
@@ -24,6 +24,14 @@ const numericVariableReferences = (element: CadElement) =>
     extractNumericExpressionReferences(variable.value)
   );
 
+const pointAnchorParentIds = (anchor: PointAnchor) =>
+  anchor.mode === "reference"
+    ? [anchor.pointId]
+    : [
+        ...extractNumericExpressionReferences(anchor.x),
+        ...extractNumericExpressionReferences(anchor.y)
+      ].map((reference) => reference.elementId);
+
 export const getDirectParentIds = (element: CadElement): ElementId[] => {
   const numericExpressionParentIds = () => {
     switch (element.type) {
@@ -46,17 +54,24 @@ export const getDirectParentIds = (element: CadElement): ElementId[] => {
           ...extractNumericExpressionReferences(element.distance)
         ].map((reference) => reference.elementId);
       case "line":
-        return numericVariableReferences(element).map((reference) => reference.elementId);
+        return [
+          ...numericVariableReferences(element),
+          ...pointAnchorParentIds(element.startPoint).map((elementId) => ({ elementId })),
+          ...pointAnchorParentIds(element.endPoint).map((elementId) => ({ elementId }))
+        ].map((reference) => reference.elementId);
       case "bezierCurve":
         return [
           ...numericVariableReferences(element),
+          ...pointAnchorParentIds(element.startPoint).map((elementId) => ({ elementId })),
           ...extractNumericExpressionReferences(element.startHandleAngleDeg),
           ...extractNumericExpressionReferences(element.startHandleLength),
           ...element.intermediatePoints.flatMap((point) => [
+            ...pointAnchorParentIds(point.point).map((elementId) => ({ elementId })),
             ...extractNumericExpressionReferences(point.handleAngleDeg),
             ...extractNumericExpressionReferences(point.incomingHandleLength),
             ...extractNumericExpressionReferences(point.outgoingHandleLength)
           ]),
+          ...pointAnchorParentIds(element.endPoint).map((elementId) => ({ elementId })),
           ...extractNumericExpressionReferences(element.endHandleAngleDeg),
           ...extractNumericExpressionReferences(element.endHandleLength)
         ].map((reference) => reference.elementId);
@@ -70,14 +85,9 @@ export const getDirectParentIds = (element: CadElement): ElementId[] => {
     case "polarOffsetPoint":
       return [element.fromPointId, ...numericExpressionParentIds()];
     case "line":
-      return [element.startPointId, element.endPointId];
+      return numericExpressionParentIds();
     case "bezierCurve":
-      return [
-        element.startPointId,
-        ...element.intermediatePoints.map((point) => point.pointId),
-        element.endPointId,
-        ...numericExpressionParentIds()
-      ];
+      return numericExpressionParentIds();
   }
 };
 

@@ -23,7 +23,8 @@ import type {
   CadElementType,
   ComputedBezierCurve,
   ElementId,
-  NumericValue
+  NumericValue,
+  PointAnchor
 } from "../types/geometry";
 
 export type BezierHandleRole = "start" | "end" | "intermediateIncoming" | "intermediateOutgoing";
@@ -42,6 +43,9 @@ export type CommandId =
   | "movePointElementByDelta"
   | "moveBezierHandleByDelta"
   | "applyNumericExpressionReference"
+  | "startPointPick"
+  | "applyPickedPoint"
+  | "cancelPointPick"
   | "toggleElementVisibility"
   | "toggleElementEnabled"
   | "toggleSelectedElementVisibility"
@@ -110,6 +114,7 @@ export type CommandContext = {
   numericExpression?: string;
   intermediatePointId?: string;
   variableId?: string;
+  pickedPointId?: ElementId;
 };
 
 export type Command = {
@@ -153,6 +158,7 @@ const supportsNumericVariables = (element: CadElement) =>
   element.type === "freePoint" ||
   element.type === "offsetPoint" ||
   element.type === "polarOffsetPoint" ||
+  element.type === "line" ||
   element.type === "bezierCurve";
 
 const updateSelectedElement = (updater: (element: CadElement) => CadElement) => {
@@ -546,7 +552,66 @@ const parseVariableParameterKey = (key: string) => {
   return { variableId };
 };
 
+const referenceAnchor = (pointId: ElementId): PointAnchor => ({ mode: "reference", pointId });
+
+const anchorPointId = (anchor: PointAnchor) => (anchor.mode === "reference" ? anchor.pointId : null);
+
+const parseAnchorCoordinateParameterKey = (key: string) => {
+  const parts = key.split(":");
+  const axis = parts.at(-1);
+  if (axis !== "x" && axis !== "y") return null;
+  const anchorKey = parts.slice(0, -1).join(":");
+  if (!anchorKey) return null;
+  return { anchorKey, axis };
+};
+
+const getPointAnchor = (element: CadElement, key: string): PointAnchor | null => {
+  const parsed = parseIntermediateParameterKey(key);
+  if (parsed && element.type === "bezierCurve" && parsed.field === "point") {
+    return element.intermediatePoints.find((point) => point.id === parsed.intermediatePointId)?.point ?? null;
+  }
+  if ((key === "startPoint" || key === "endPoint") && (element.type === "line" || element.type === "bezierCurve")) {
+    return element[key];
+  }
+  if (key === "fromPointId" && (element.type === "offsetPoint" || element.type === "polarOffsetPoint")) {
+    return referenceAnchor(element.fromPointId);
+  }
+  return null;
+};
+
+const setPointAnchor = (element: CadElement, key: string, anchor: PointAnchor): CadElement => {
+  const parsed = parseIntermediateParameterKey(key);
+  if (parsed && element.type === "bezierCurve" && parsed.field === "point") {
+    return {
+      ...element,
+      intermediatePoints: element.intermediatePoints.map((point) =>
+        point.id === parsed.intermediatePointId ? { ...point, point: anchor } : point
+      )
+    };
+  }
+  if (key === "startPoint" && (element.type === "line" || element.type === "bezierCurve")) {
+    return { ...element, startPoint: anchor };
+  }
+  if (key === "endPoint" && (element.type === "line" || element.type === "bezierCurve")) {
+    return { ...element, endPoint: anchor };
+  }
+  if (key === "fromPointId" && anchor.mode === "reference" && element.type === "offsetPoint") {
+    return { ...element, fromPointId: anchor.pointId };
+  }
+  if (key === "fromPointId" && anchor.mode === "reference" && element.type === "polarOffsetPoint") {
+    return { ...element, fromPointId: anchor.pointId };
+  }
+  return element;
+};
+
 const getParameterValue = (element: CadElement, key: string) => {
+  const anchorCoordinate = parseAnchorCoordinateParameterKey(key);
+  if (anchorCoordinate) {
+    const anchor = getPointAnchor(element, anchorCoordinate.anchorKey);
+    return anchor?.mode === "coordinate" ? anchor[anchorCoordinate.axis as "x" | "y"] : undefined;
+  }
+  const anchor = getPointAnchor(element, key);
+  if (anchor) return anchor;
   const variable = parseVariableParameterKey(key);
   if (variable) {
     return element.numericVariables?.find((item) => item.id === variable.variableId)?.value;
@@ -560,6 +625,19 @@ const getParameterValue = (element: CadElement, key: string) => {
 };
 
 const setParameterValue = (element: CadElement, key: string, value: unknown): CadElement => {
+  const anchorCoordinate = parseAnchorCoordinateParameterKey(key);
+  if (anchorCoordinate) {
+    const anchor = getPointAnchor(element, anchorCoordinate.anchorKey);
+    if (!anchor || anchor.mode !== "coordinate") return element;
+    return setPointAnchor(element, anchorCoordinate.anchorKey, {
+      ...anchor,
+      [anchorCoordinate.axis]: value as NumericValue
+    });
+  }
+  if (getPointAnchor(element, key)) {
+    const anchor = typeof value === "string" ? referenceAnchor(value) : value as PointAnchor;
+    return setPointAnchor(element, key, anchor);
+  }
   const variable = parseVariableParameterKey(key);
   if (variable) {
     return {
@@ -668,8 +746,9 @@ const makeElement = (type: CadElementType, elements: CadElement[]): CadElement =
         type,
         visible: true,
         enabled: true,
-        startPointId: firstPointId,
-        endPointId: secondPointId
+        numericVariables: [],
+        startPoint: referenceAnchor(firstPointId),
+        endPoint: referenceAnchor(secondPointId)
       };
     }
     case "bezierCurve": {
@@ -683,11 +762,11 @@ const makeElement = (type: CadElementType, elements: CadElement[]): CadElement =
         visible: true,
         enabled: true,
         numericVariables: [],
-        startPointId: firstPointId,
+        startPoint: referenceAnchor(firstPointId),
         startHandleAngleDeg: 0,
         startHandleLength: 30,
         intermediatePoints: [],
-        endPointId: secondPointId,
+        endPoint: referenceAnchor(secondPointId),
         endHandleAngleDeg: 0,
         endHandleLength: 30
       };
@@ -813,11 +892,60 @@ const cycleReferenceParameter = (direction: 1 | -1) => {
   if (options.length === 0) return;
 
   const parameterValue = getParameterValue(selectedElement, definition.key);
-  const currentValue = parameterValue as ElementId;
-  const currentIndex = options.indexOf(currentValue);
+  const currentValue =
+    typeof parameterValue === "string"
+      ? parameterValue
+      : parameterValue && typeof parameterValue === "object" && "mode" in parameterValue
+        ? anchorPointId(parameterValue as PointAnchor)
+        : null;
+  const currentIndex = options.indexOf(currentValue ?? "");
   const nextIndex =
     currentIndex < 0 ? 0 : (currentIndex + direction + options.length) % options.length;
   updateSelectedElement((element) => setParameterValue(element, definition.key, options[nextIndex]));
+};
+
+const startPointPick = () => {
+  const selectedElement = getSelectedElement();
+  const definition = selectedParameterDefinition();
+  if (!selectedElement || definition?.kind !== "reference") return;
+
+  useCadStore.getState().setActivePointPickTarget({
+    elementId: selectedElement.id,
+    parameterKey: definition.key
+  });
+};
+
+const applyPickedPoint = (pointId: ElementId | undefined) => {
+  if (!pointId) return;
+  const { activePointPickTarget, elements } = useCadStore.getState();
+  if (!activePointPickTarget) return;
+
+  const pointElement = elements.find((element) => element.id === pointId);
+  if (
+    !pointElement ||
+    (pointElement.type !== "freePoint" &&
+      pointElement.type !== "offsetPoint" &&
+      pointElement.type !== "polarOffsetPoint")
+  ) {
+    return;
+  }
+
+  useCadStore.getState().commitDocumentChange({
+    elements: elements.map((element) =>
+      element.id === activePointPickTarget.elementId
+        ? setParameterValue(element, activePointPickTarget.parameterKey, pointId)
+        : element
+    ),
+    selectedElementId: activePointPickTarget.elementId,
+    selectedElementIds: [activePointPickTarget.elementId],
+    selectionAnchorElementId: activePointPickTarget.elementId,
+    selectedParameterKey: activePointPickTarget.parameterKey
+  });
+  useCadStore.getState().setActivePointPickTarget(null);
+};
+
+const cancelPointPick = () => {
+  useCadStore.getState().setActivePointPickTarget(null);
 };
 
 const addNumericVariable = () => {
@@ -861,12 +989,14 @@ const addBezierIntermediatePoint = () => {
   if (selectedElement?.type !== "bezierCurve") return;
 
   const options = pointReferenceOptions(useCadStore.getState().elements);
+  const startPointId = anchorPointId(selectedElement.startPoint);
+  const endPointId = anchorPointId(selectedElement.endPoint);
   const pointId = options.find(
-    (id) => id !== selectedElement.startPointId && id !== selectedElement.endPointId
+    (id) => id !== startPointId && id !== endPointId
   ) ?? options[0] ?? "";
   const intermediatePoint = {
     id: createId("bezierCurve"),
-    pointId,
+    point: referenceAnchor(pointId),
     handleAngleDeg: 0,
     incomingHandleLength: 30,
     outgoingHandleLength: 30
@@ -879,7 +1009,7 @@ const addBezierIntermediatePoint = () => {
       intermediatePoints: [...element.intermediatePoints, intermediatePoint]
     };
   });
-  useCadStore.setState({ selectedParameterKey: `intermediate:${intermediatePoint.id}:pointId` });
+  useCadStore.setState({ selectedParameterKey: `intermediate:${intermediatePoint.id}:point` });
 };
 
 const deleteBezierIntermediatePoint = (intermediatePointId: string | undefined) => {
@@ -1224,6 +1354,21 @@ export const commands: Record<CommandId, Command> = {
     label: "数値参照式を採用",
     run: (context) => applyNumericExpressionReference(context)
   },
+  startPointPick: {
+    id: "startPointPick",
+    label: "点を選択して参照に設定",
+    run: () => startPointPick()
+  },
+  applyPickedPoint: {
+    id: "applyPickedPoint",
+    label: "選択した点を参照に設定",
+    run: (context) => applyPickedPoint(context?.pickedPointId)
+  },
+  cancelPointPick: {
+    id: "cancelPointPick",
+    label: "点選択をキャンセル",
+    run: () => cancelPointPick()
+  },
   toggleElementVisibility: {
     id: "toggleElementVisibility",
     label: "要素の表示/非表示を切替",
@@ -1388,6 +1533,7 @@ export const commands: Record<CommandId, Command> = {
     id: "enterDependencyJumpMode",
     label: "親子要素ジャンプモードに入る",
     run: () => {
+      cancelPointPick();
       const targets = selectedDependencyJumpTargets();
       if (targets.length === 0) return;
       useCadStore.setState({
@@ -1504,7 +1650,14 @@ export const commands: Record<CommandId, Command> = {
   focusSelectedParameterInput: {
     id: "focusSelectedParameterInput",
     label: "選択パラメーターの入力欄へフォーカス",
-    run: (context) => context?.focusSelectedParameterInput?.()
+    run: (context) => {
+      const definition = selectedParameterDefinition();
+      if (definition?.kind === "reference") {
+        startPointPick();
+        return;
+      }
+      context?.focusSelectedParameterInput?.();
+    }
   }
 };
 
@@ -1524,6 +1677,7 @@ const paletteCommandIds: CommandId[] = [
   "addPolarOffsetPoint",
   "addLine",
   "addBezierCurve",
+  "startPointPick",
   "addNumericVariable",
   "deleteNumericVariable",
   "addBezierIntermediatePoint",

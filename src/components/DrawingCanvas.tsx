@@ -223,6 +223,7 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
   const panCanvasViewport = useCadStore((state) => state.panCanvasViewport);
   const zoomCanvasViewportAt = useCadStore((state) => state.zoomCanvasViewportAt);
   const selectedParameterKey = useCadStore((state) => state.selectedParameterKey);
+  const activePointPickTarget = useCadStore((state) => state.activePointPickTarget);
   const visibleElementIds = useMemo(
     () => new Set(elements.filter((element) => element.visible).map((element) => element.id)),
     [elements]
@@ -579,6 +580,20 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
         y: event.clientY - rect.top - event.currentTarget.clientTop
       };
       const handle = hitTestBezierHandle(screen, selectedBezierHandles);
+      if (activePointPickTarget) {
+        const pointElementId = hitTestCanvasGeometry({
+          screen,
+          lines: [],
+          curves: [],
+          points: overlayPoints
+        });
+        event.preventDefault();
+        event.currentTarget.focus();
+        if (pointElementId) {
+          dispatchCommand("applyPickedPoint", { pickedPointId: pointElementId });
+        }
+        return;
+      }
       if (handle) {
         event.preventDefault();
         event.currentTarget.focus();
@@ -753,7 +768,8 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
           "canvas-viewport",
           isPanning ? "is-panning" : "",
           isPointDragging ? "is-point-dragging" : "",
-          isBezierHandleDragging ? "is-bezier-handle-dragging" : ""
+          isBezierHandleDragging ? "is-bezier-handle-dragging" : "",
+          activePointPickTarget ? "is-point-picking" : ""
         ].filter(Boolean).join(" ")}
         ref={canvasFocusRef}
         tabIndex={-1}

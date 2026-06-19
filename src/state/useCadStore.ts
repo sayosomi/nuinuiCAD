@@ -5,6 +5,11 @@ import { normalizeParameterKey } from "../parameters/parameterDefinitions";
 import type { ParameterKey } from "../parameters/parameterDefinitions";
 import type { CadElement, ElementId } from "../types/geometry";
 
+export type ActivePointPickTarget = {
+  elementId: ElementId;
+  parameterKey: ParameterKey;
+};
+
 export type CanvasViewport = {
   panX: number;
   panY: number;
@@ -38,6 +43,7 @@ export type CadState = {
   selectedParameterKey: ParameterKey | null;
   showElementInfoPanel: boolean;
   isDependencyJumpMode: boolean;
+  activePointPickTarget: ActivePointPickTarget | null;
   selectedDependencyJumpIndex: number;
   showShortcutHelp: boolean;
   showCommandPalette: boolean;
@@ -51,6 +57,7 @@ export type CadState = {
   setSelectedParameterKey: (selectedParameterKey: ParameterKey | null) => void;
   setShowElementInfoPanel: (showElementInfoPanel: boolean) => void;
   setDependencyJumpMode: (isDependencyJumpMode: boolean) => void;
+  setActivePointPickTarget: (activePointPickTarget: ActivePointPickTarget | null) => void;
   setSelectedDependencyJumpIndex: (selectedDependencyJumpIndex: number) => void;
   setShowShortcutHelp: (showShortcutHelp: boolean) => void;
   setShowCommandPalette: (showCommandPalette: boolean) => void;
@@ -137,6 +144,7 @@ export const useCadStore = create<CadState>((set) => ({
   selectedParameterKey: sampleElements[0] ? normalizeParameterKey(sampleElements[0], null) : null,
   showElementInfoPanel: true,
   isDependencyJumpMode: false,
+  activePointPickTarget: null,
   selectedDependencyJumpIndex: 0,
   showShortcutHelp: false,
   showCommandPalette: false,
@@ -154,6 +162,7 @@ export const useCadStore = create<CadState>((set) => ({
           ? normalizeParameterKey(selectedElement, state.selectedParameterKey)
           : null,
         isParameterEditMode: selectedElement ? state.isParameterEditMode : false,
+        activePointPickTarget: null,
         selectedDependencyJumpIndex: 0
       };
     }),
@@ -178,6 +187,7 @@ export const useCadStore = create<CadState>((set) => ({
           ? normalizeParameterKey(selectedElement, state.selectedParameterKey)
           : null,
         isParameterEditMode: selectedElement ? state.isParameterEditMode : false,
+        activePointPickTarget: null,
         selectedDependencyJumpIndex: 0
       };
     }),
@@ -197,6 +207,7 @@ export const useCadStore = create<CadState>((set) => ({
         selectionAnchorElementId: anchorId,
         selectedParameterKey: normalizeParameterKey(selectedElement, state.selectedParameterKey),
         isParameterEditMode: state.isParameterEditMode,
+        activePointPickTarget: null,
         selectedDependencyJumpIndex: 0
       };
     }),
@@ -227,9 +238,11 @@ export const useCadStore = create<CadState>((set) => ({
   setDependencyJumpMode: (isDependencyJumpMode) =>
     set({
       isDependencyJumpMode,
+      activePointPickTarget: null,
       isParameterEditMode: isDependencyJumpMode ? false : useCadStore.getState().isParameterEditMode,
       showElementInfoPanel: isDependencyJumpMode ? true : useCadStore.getState().showElementInfoPanel
     }),
+  setActivePointPickTarget: (activePointPickTarget) => set({ activePointPickTarget }),
   setSelectedDependencyJumpIndex: (selectedDependencyJumpIndex) =>
     set({ selectedDependencyJumpIndex }),
   setShowShortcutHelp: (showShortcutHelp) => set({ showShortcutHelp }),

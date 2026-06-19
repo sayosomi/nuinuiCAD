@@ -1,4 +1,4 @@
-import type { CadElement, ElementId } from "../types/geometry";
+import type { CadElement, ElementId, PointAnchor } from "../types/geometry";
 
 export type ParameterValueKind = "text" | "boolean" | "number" | "reference";
 
@@ -29,6 +29,26 @@ const numericVariableParameters = (element: CadElement): ParameterDefinition[] =
     label: `変数 ${variable.name}`,
     kind: "number" as const
   }));
+
+const pointAnchorParameters = ({
+  anchor,
+  key,
+  directKey,
+  label
+}: {
+  anchor: PointAnchor;
+  key: string;
+  directKey: string;
+  label: string;
+}): ParameterDefinition[] => [
+  { key, directKey, label, kind: "reference" },
+  ...(anchor.mode === "coordinate"
+    ? [
+        { key: `${key}:x`, directKey: "x", label: `${label} x`, kind: "number" as const },
+        { key: `${key}:y`, directKey: "y", label: `${label} y`, kind: "number" as const }
+      ]
+    : [])
+];
 
 export const getParameterDefinitions = (element: CadElement): ParameterDefinition[] => {
   switch (element.type) {
@@ -64,14 +84,30 @@ export const getParameterDefinitions = (element: CadElement): ParameterDefinitio
     case "line":
       return [
         ...commonParameters,
-        { key: "startPointId", directKey: "s", label: "始点", kind: "reference" },
-        { key: "endPointId", directKey: "t", label: "終点", kind: "reference" }
+        ...numericVariableParameters(element),
+        ...pointAnchorParameters({
+          anchor: element.startPoint,
+          key: "startPoint",
+          directKey: "s",
+          label: "始点"
+        }),
+        ...pointAnchorParameters({
+          anchor: element.endPoint,
+          key: "endPoint",
+          directKey: "t",
+          label: "終点"
+        })
       ];
     case "bezierCurve":
       return [
         ...commonParameters,
         ...numericVariableParameters(element),
-        { key: "startPointId", directKey: "s", label: "始点", kind: "reference" },
+        ...pointAnchorParameters({
+          anchor: element.startPoint,
+          key: "startPoint",
+          directKey: "s",
+          label: "始点"
+        }),
         {
           key: "startHandleAngleDeg",
           directKey: "r",
@@ -81,12 +117,12 @@ export const getParameterDefinitions = (element: CadElement): ParameterDefinitio
         },
         { key: "startHandleLength", directKey: "h", label: "始点ハンドル長", kind: "number" },
         ...element.intermediatePoints.flatMap((point, index) => [
-          {
-            key: `intermediate:${point.id}:pointId`,
+          ...pointAnchorParameters({
+            anchor: point.point,
+            key: `intermediate:${point.id}:point`,
             directKey: "m",
-            label: `中間点${index + 1}`,
-            kind: "reference" as const
-          },
+            label: `中間点${index + 1}`
+          }),
           {
             key: `intermediate:${point.id}:handleAngleDeg`,
             directKey: "u",
@@ -107,7 +143,12 @@ export const getParameterDefinitions = (element: CadElement): ParameterDefinitio
             kind: "number" as const
           }
         ]),
-        { key: "endPointId", directKey: "t", label: "終点", kind: "reference" },
+        ...pointAnchorParameters({
+          anchor: element.endPoint,
+          key: "endPoint",
+          directKey: "t",
+          label: "終点"
+        }),
         {
           key: "endHandleAngleDeg",
           directKey: "e",

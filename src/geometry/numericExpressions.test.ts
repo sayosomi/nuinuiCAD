@@ -72,11 +72,11 @@ describe("normalizeNumericExpressionInput", () => {
         type: "bezierCurve",
         visible: true,
         enabled: true,
-        startPointId: "a",
+        startPoint: { mode: "reference", pointId: "a" },
         startHandleAngleDeg: 0,
         startHandleLength: 20,
         intermediatePoints: [],
-        endPointId: "c",
+        endPoint: { mode: "reference", pointId: "c" },
         endHandleAngleDeg: 0,
         endHandleLength: 20
       }
@@ -96,11 +96,11 @@ describe("normalizeNumericExpressionInput", () => {
         visible: true,
         enabled: true,
         numericVariables: [{ id: "shared", name: "共通長", value: 30 }],
-        startPointId: "a",
+        startPoint: { mode: "reference", pointId: "a" },
         startHandleAngleDeg: 0,
         startHandleLength: 20,
         intermediatePoints: [],
-        endPointId: "c",
+        endPoint: { mode: "reference", pointId: "c" },
         endHandleAngleDeg: 0,
         endHandleLength: 20
       }

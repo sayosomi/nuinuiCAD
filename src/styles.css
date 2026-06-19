@@ -543,6 +543,93 @@ select {
   font-size: 11px;
 }
 
+.point-anchor-editor {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: 8px;
+  border: 1px solid #d8dbd2;
+  border-radius: 6px;
+  background: #fbfbfa;
+  padding: 8px;
+}
+
+.point-anchor-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.point-anchor-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.point-anchor-mode {
+  display: inline-flex;
+  overflow: hidden;
+  border: 1px solid #b9bdb2;
+  border-radius: 6px;
+  background: #ffffff;
+}
+
+.point-anchor-mode button {
+  min-height: 30px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 5px 9px;
+  font-size: 12px;
+}
+
+.point-anchor-mode button + button {
+  border-left: 1px solid #d8dbd2;
+}
+
+.point-anchor-mode button.active-toggle,
+.point-anchor-mode button.active-toggle:hover {
+  background: #d9f0e8;
+  color: #0f4f49;
+}
+
+.point-pick-button {
+  min-height: 32px;
+  padding: 5px 9px;
+  font-size: 12px;
+}
+
+.point-anchor-reference {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 34px;
+  text-align: left;
+}
+
+.reference-label {
+  color: #686b62;
+  font-size: 12px;
+}
+
+.reference-value {
+  min-width: 0;
+  overflow: hidden;
+  color: #252622;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.point-anchor-coordinate-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
 .mode-pill {
   border: 1px solid #c9ccc2;
   border-radius: 999px;
