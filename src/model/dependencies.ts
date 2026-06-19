@@ -1,4 +1,5 @@
 import type { CadElement, ElementId } from "../types/geometry";
+import { extractNumericExpressionReferences } from "../geometry/numericExpressions";
 
 export type DependencyReference = {
   id: ElementId;
@@ -19,12 +20,34 @@ export type DependencySummary = {
 };
 
 export const getDirectParentIds = (element: CadElement): ElementId[] => {
+  const numericExpressionParentIds = () => {
+    switch (element.type) {
+      case "freePoint":
+        return [
+          ...extractNumericExpressionReferences(element.x),
+          ...extractNumericExpressionReferences(element.y)
+        ].map((reference) => reference.elementId);
+      case "offsetPoint":
+        return [
+          ...extractNumericExpressionReferences(element.dx),
+          ...extractNumericExpressionReferences(element.dy)
+        ].map((reference) => reference.elementId);
+      case "polarOffsetPoint":
+        return [
+          ...extractNumericExpressionReferences(element.angleDeg),
+          ...extractNumericExpressionReferences(element.distance)
+        ].map((reference) => reference.elementId);
+      case "line":
+        return [];
+    }
+  };
+
   switch (element.type) {
     case "freePoint":
-      return [];
+      return numericExpressionParentIds();
     case "offsetPoint":
     case "polarOffsetPoint":
-      return [element.fromPointId];
+      return [element.fromPointId, ...numericExpressionParentIds()];
     case "line":
       return [element.startPointId, element.endPointId];
   }

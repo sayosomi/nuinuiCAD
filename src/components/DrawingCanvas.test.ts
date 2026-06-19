@@ -27,7 +27,10 @@ const line = (
   startPointId: start.elementId,
   endPointId: end.elementId,
   start,
-  end
+  end,
+  length: Math.hypot(end.x - start.x, end.y - start.y),
+  startAngleDeg: 0,
+  endAngleDeg: 180
 });
 
 const resetStore = () => {
@@ -226,6 +229,28 @@ describe("hitTestCanvasGeometry", () => {
 });
 
 describe("DrawingCanvas point dragging", () => {
+  it("offers a line length candidate near the clicked line and applies it to the selected numeric parameter", () => {
+    useCadStore.setState({
+      selectedElementId: "point-a",
+      selectedElementIds: ["point-a"],
+      selectedParameterKey: "x"
+    });
+    const { viewport } = renderDrawingCanvas();
+
+    fireEvent.pointerDown(viewport, {
+      button: 0,
+      buttons: 1,
+      clientX: 350,
+      clientY: 250,
+      pointerId: 1
+    });
+    fireEvent.click(viewport.querySelector(".measurement-candidate-menu button")!);
+
+    expect(useCadStore.getState().elements[0]).toMatchObject({
+      x: { kind: "expression", expression: "line-ab.length" }
+    });
+  });
+
   it("selects and moves a point with a left-button drag", () => {
     const { viewport } = renderDrawingCanvas();
 

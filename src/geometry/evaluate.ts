@@ -4,8 +4,10 @@ import type {
   ComputedPoint,
   DependencyError,
   ElementId,
+  NumericValue,
   EvaluationResult
 } from "../types/geometry";
+import { evaluateNumericValue } from "./numericExpressions";
 
 const isPoint = (
   geometry: ComputedGeometry | undefined
@@ -50,6 +52,30 @@ const getComputedPointOrError = (
 };
 
 const degreesToRadians = (degrees: number) => (degrees * Math.PI) / 180;
+const radiansToDegrees = (radians: number) => (radians * 180) / Math.PI;
+const normalizeDegrees = (degrees: number) => ((degrees % 360) + 360) % 360;
+
+const numericError = (
+  element: CadElement,
+  value: NumericValue,
+  computedGeometry: Map<ElementId, ComputedGeometry>,
+  elementsById: Map<ElementId, CadElement>,
+  errors: DependencyError[]
+) => {
+  const result = evaluateNumericValue({ value, computedGeometry, elementsById });
+  if (result.value !== undefined) return result.value;
+
+  if (result.error) {
+    errors.push({
+      elementId: element.id,
+      elementName: element.name,
+      missingDependencyId: result.error.dependencyId,
+      missingDependencyName: result.error.dependencyName,
+      message: `${element.name} の数値式を評価できません。${result.error.message}`
+    });
+  }
+  return undefined;
+};
 
 export const evaluateElements = (elements: CadElement[]): EvaluationResult => {
   const computedGeometry = new Map<ElementId, ComputedGeometry>();
@@ -62,15 +88,20 @@ export const evaluateElements = (elements: CadElement[]): EvaluationResult => {
     }
 
     switch (element.type) {
-      case "freePoint":
+      case "freePoint": {
+        const x = numericError(element, element.x, computedGeometry, elementsById, errors);
+        const y = numericError(element, element.y, computedGeometry, elementsById, errors);
+        if (x === undefined || y === undefined) break;
+
         computedGeometry.set(element.id, {
           kind: "point",
           elementId: element.id,
           name: element.name,
-          x: element.x,
-          y: element.y
+          x,
+          y
         });
         break;
+      }
       case "offsetPoint": {
         const fromPoint = getComputedPointOrError(
           element,
@@ -82,13 +113,16 @@ export const evaluateElements = (elements: CadElement[]): EvaluationResult => {
         if (!fromPoint) {
           break;
         }
+        const dx = numericError(element, element.dx, computedGeometry, elementsById, errors);
+        const dy = numericError(element, element.dy, computedGeometry, elementsById, errors);
+        if (dx === undefined || dy === undefined) break;
 
         computedGeometry.set(element.id, {
           kind: "point",
           elementId: element.id,
           name: element.name,
-          x: fromPoint.x + element.dx,
-          y: fromPoint.y + element.dy
+          x: fromPoint.x + dx,
+          y: fromPoint.y + dy
         });
         break;
       }
@@ -104,13 +138,17 @@ export const evaluateElements = (elements: CadElement[]): EvaluationResult => {
           break;
         }
 
-        const angleRad = degreesToRadians(element.angleDeg);
+        const angleDeg = numericError(element, element.angleDeg, computedGeometry, elementsById, errors);
+        const distance = numericError(element, element.distance, computedGeometry, elementsById, errors);
+        if (angleDeg === undefined || distance === undefined) break;
+
+        const angleRad = degreesToRadians(angleDeg);
         computedGeometry.set(element.id, {
           kind: "point",
           elementId: element.id,
           name: element.name,
-          x: fromPoint.x + Math.cos(angleRad) * element.distance,
-          y: fromPoint.y - Math.sin(angleRad) * element.distance
+          x: fromPoint.x + Math.cos(angleRad) * distance,
+          y: fromPoint.y - Math.sin(angleRad) * distance
         });
         break;
       }
@@ -133,6 +171,13 @@ export const evaluateElements = (elements: CadElement[]): EvaluationResult => {
           break;
         }
 
+        const dx = end.x - start.x;
+        const dy = start.y - end.y;
+        const length = Math.hypot(dx, dy);
+        const startAngleDeg =
+          length === 0 ? null : normalizeDegrees(radiansToDegrees(Math.atan2(dy, dx)));
+        const endAngleDeg =
+          length === 0 ? null : normalizeDegrees(radiansToDegrees(Math.atan2(-dy, -dx)));
         computedGeometry.set(element.id, {
           kind: "line",
           elementId: element.id,
@@ -140,7 +185,10 @@ export const evaluateElements = (elements: CadElement[]): EvaluationResult => {
           startPointId: element.startPointId,
           endPointId: element.endPointId,
           start,
-          end
+          end,
+          length,
+          startAngleDeg,
+          endAngleDeg
         });
         break;
       }

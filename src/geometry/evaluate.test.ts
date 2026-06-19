@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { evaluateElements } from "./evaluate";
+import { makeNumericExpression, normalizeNumericExpressionInput } from "./numericExpressions";
 import type { CadElement } from "../types/geometry";
 
 const validElements: CadElement[] = [
@@ -71,6 +72,81 @@ describe("evaluateElements", () => {
     expect(result.errors).toHaveLength(0);
     expect(result.computedGeometry.get("right")).toMatchObject({ kind: "point", x: 20, y: 20 });
     expect(result.computedGeometry.get("up")).toMatchObject({ kind: "point", x: 10, y: 10 });
+  });
+
+  it("evaluates numeric expressions that reference earlier line measurements", () => {
+    const result = evaluateElements([
+      ...validElements,
+      {
+        id: "c",
+        name: "点C",
+        type: "offsetPoint",
+        visible: true,
+        enabled: true,
+        fromPointId: "a",
+        dx: { kind: "expression", expression: "ab.length + 10" },
+        dy: { kind: "expression", expression: "ab.startAngleDeg / 9" }
+      }
+    ]);
+
+    expect(result.errors).toHaveLength(0);
+    expect(result.computedGeometry.get("ab")).toMatchObject({
+      kind: "line",
+      length: Math.hypot(30, 5)
+    });
+    expect(result.computedGeometry.get("c")).toMatchObject({
+      kind: "point",
+      x: 10 + Math.hypot(30, 5) + 10
+    });
+  });
+
+  it("normalizes displayed Japanese line measurement references before evaluation", () => {
+    const expression = normalizeNumericExpressionInput("直線AB.長さ + 10", validElements);
+    const result = evaluateElements([
+      ...validElements,
+      {
+        id: "c",
+        name: "点C",
+        type: "offsetPoint",
+        visible: true,
+        enabled: true,
+        fromPointId: "a",
+        dx: makeNumericExpression(expression),
+        dy: 0
+      }
+    ]);
+
+    expect(expression).toBe("ab.length + 10");
+    expect(result.errors).toHaveLength(0);
+    expect(result.computedGeometry.get("c")).toMatchObject({
+      kind: "point",
+      x: 10 + Math.hypot(30, 5) + 10
+    });
+  });
+
+  it("reports a numeric expression dependency that appears too late", () => {
+    const result = evaluateElements([
+      validElements[0],
+      {
+        id: "c",
+        name: "点C",
+        type: "offsetPoint",
+        visible: true,
+        enabled: true,
+        fromPointId: "a",
+        dx: { kind: "expression", expression: "ab.length" },
+        dy: 0
+      },
+      validElements[1],
+      validElements[2]
+    ]);
+
+    expect(result.computedGeometry.has("c")).toBe(false);
+    expect(result.errors[0]).toMatchObject({
+      elementId: "c",
+      missingDependencyId: "ab",
+      missingDependencyName: "直線AB"
+    });
   });
 
   it("reports a missing dependency", () => {

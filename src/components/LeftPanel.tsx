@@ -3,6 +3,11 @@ import type { DragEvent, KeyboardEvent, MouseEvent, PointerEvent, RefObject } fr
 import { dispatchCommand } from "../commands/commands";
 import { getDependencyJumpTargets, getDependencySummary } from "../model/dependencies";
 import { formatReferenceOptionLabel } from "../model/elementNames";
+import {
+  formatNumericExpressionForDisplay,
+  makeNumericExpression,
+  normalizeNumericExpressionInput
+} from "../geometry/numericExpressions";
 import { numericDragStepsForDelta } from "./numericDrag";
 import {
   defaultNumericParameterStep,
@@ -50,24 +55,20 @@ const formatDependencyCount = (count: number) => (count > 99 ? "99+" : `${count}
 
 const normalizeDegrees = (degrees: number) => (degrees + 360) % 360;
 
-const formatAngle = (radians: number) => `${formatNumber(normalizeDegrees((radians * 180) / Math.PI))}°`;
+const formatAngleDeg = (degrees: number | null) =>
+  degrees === null ? "未定義" : `${formatNumber(normalizeDegrees(degrees))}°`;
 
 const pointCoordinateRows = (point: ComputedPoint) => [
   { label: "座標", value: formatCoordinate(point) }
 ];
 
 const lineInfoRows = (line: ComputedLine) => {
-  const dx = line.end.x - line.start.x;
-  const dy = line.end.y - line.start.y;
-  const length = Math.hypot(dx, dy);
-  const hasLength = length > 0;
-
   return [
     { label: "始点", value: formatCoordinate(line.start) },
     { label: "終点", value: formatCoordinate(line.end) },
-    { label: "始角度", value: hasLength ? formatAngle(Math.atan2(dy, dx)) : "未定義" },
-    { label: "終角度", value: hasLength ? formatAngle(Math.atan2(-dy, -dx)) : "未定義" },
-    { label: "長さ", value: formatMillimeters(length) }
+    { label: "始角度", value: formatAngleDeg(line.startAngleDeg) },
+    { label: "終角度", value: formatAngleDeg(line.endAngleDeg) },
+    { label: "長さ", value: formatMillimeters(line.length) }
   ];
 };
 
@@ -170,7 +171,9 @@ const ElementEditor = ({
   const updateVisible = (visible: boolean) => updateElement(element.id, { visible });
   const updateEnabled = (enabled: boolean) => updateElement(element.id, { enabled });
   const updateField = (field: ParameterKey, value: string) => {
-    updateElement(element.id, { [field]: Number(value) } as Partial<CadElement>);
+    updateElement(element.id, {
+      [field]: makeNumericExpression(normalizeNumericExpressionInput(value, elements))
+    } as Partial<CadElement>);
   };
   const updateRef = (field: ParameterKey, value: ElementId) => {
     updateElement(element.id, { [field]: value } as Partial<CadElement>);
@@ -322,9 +325,11 @@ const ElementEditor = ({
                 {...controlProps("x")}
                 {...numericDragProps("x")}
                 aria-label="x 値"
-                type="number"
+                type="text"
+                inputMode="decimal"
                 step="1"
-                value={formatNumber(element.x)}
+                data-numeric-parameter-key="x"
+                value={formatNumericExpressionForDisplay(element.x, elements)}
                 onChange={(event) => updateField("x", event.target.value)}
               />
               <span className="parameter-step">
@@ -348,9 +353,11 @@ const ElementEditor = ({
                 {...controlProps("y")}
                 {...numericDragProps("y")}
                 aria-label="y 値"
-                type="number"
+                type="text"
+                inputMode="decimal"
                 step="1"
-                value={formatNumber(element.y)}
+                data-numeric-parameter-key="y"
+                value={formatNumericExpressionForDisplay(element.y, elements)}
                 onChange={(event) => updateField("y", event.target.value)}
               />
               <span className="parameter-step">
@@ -392,9 +399,11 @@ const ElementEditor = ({
                 {...controlProps("dx")}
                 {...numericDragProps("dx")}
                 aria-label="dx 値"
-                type="number"
+                type="text"
+                inputMode="decimal"
                 step="1"
-                value={formatNumber(element.dx)}
+                data-numeric-parameter-key="dx"
+                value={formatNumericExpressionForDisplay(element.dx, elements)}
                 onChange={(event) => updateField("dx", event.target.value)}
               />
               <span className="parameter-step">
@@ -418,9 +427,11 @@ const ElementEditor = ({
                 {...controlProps("dy")}
                 {...numericDragProps("dy")}
                 aria-label="dy 値"
-                type="number"
+                type="text"
+                inputMode="decimal"
                 step="1"
-                value={formatNumber(element.dy)}
+                data-numeric-parameter-key="dy"
+                value={formatNumericExpressionForDisplay(element.dy, elements)}
                 onChange={(event) => updateField("dy", event.target.value)}
               />
               <span className="parameter-step">
@@ -462,9 +473,11 @@ const ElementEditor = ({
                 {...controlProps("angleDeg")}
                 {...numericDragProps("angleDeg")}
                 aria-label="角度"
-                type="number"
+                type="text"
+                inputMode="decimal"
                 step="1"
-                value={formatNumber(element.angleDeg)}
+                data-numeric-parameter-key="angleDeg"
+                value={formatNumericExpressionForDisplay(element.angleDeg, elements)}
                 onChange={(event) => updateField("angleDeg", event.target.value)}
               />
               <span className="parameter-step">
@@ -488,9 +501,11 @@ const ElementEditor = ({
                 {...controlProps("distance")}
                 {...numericDragProps("distance")}
                 aria-label="距離"
-                type="number"
+                type="text"
+                inputMode="decimal"
                 step="1"
-                value={formatNumber(element.distance)}
+                data-numeric-parameter-key="distance"
+                value={formatNumericExpressionForDisplay(element.distance, elements)}
                 onChange={(event) => updateField("distance", event.target.value)}
               />
               <span className="parameter-step">

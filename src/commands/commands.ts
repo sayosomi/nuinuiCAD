@@ -1,6 +1,7 @@
 import { useCadStore } from "../state/useCadStore";
 import type { CadHistorySnapshot } from "../state/useCadStore";
 import { evaluateElements } from "../geometry/evaluate";
+import { addToNumericValue, makeNumericExpression } from "../geometry/numericExpressions";
 import { makeUniqueElementName } from "../model/elementNames";
 import { getDependencyJumpTargets } from "../model/dependencies";
 import {
@@ -13,7 +14,7 @@ import {
   normalizeParameterKey,
   pointReferenceOptions
 } from "../parameters/parameterDefinitions";
-import type { CadElement, CadElementType, ElementId } from "../types/geometry";
+import type { CadElement, CadElementType, ElementId, NumericValue } from "../types/geometry";
 
 export type CommandId =
   | "undo"
@@ -27,6 +28,7 @@ export type CommandId =
   | "moveSelectedElementDown"
   | "moveElementToInsertionIndex"
   | "movePointElementByDelta"
+  | "applyNumericExpressionReference"
   | "toggleElementVisibility"
   | "toggleElementEnabled"
   | "toggleSelectedElementVisibility"
@@ -83,6 +85,8 @@ export type CommandContext = {
   commitMode?: "preview" | "commit";
   baseElements?: CadElement[];
   historySnapshot?: CadHistorySnapshot;
+  parameterKey?: string;
+  numericExpression?: string;
 };
 
 export type Command = {
@@ -162,6 +166,16 @@ const movePolarOffsetPointByDelta = ({
   const fromPoint = evaluation.computedGeometry.get(element.fromPointId);
   if (!isComputedPoint(point) || !isComputedPoint(fromPoint)) return element;
 
+  const currentVector = {
+    x: point.x - fromPoint.x,
+    y: fromPoint.y - point.y
+  };
+  const currentDistance = Math.hypot(currentVector.x, currentVector.y);
+  const currentAngleDeg =
+    currentDistance === 0
+      ? 0
+      : normalizeDegrees(radiansToDegrees(Math.atan2(currentVector.y, currentVector.x)));
+
   const target = {
     x: point.x + dx,
     y: point.y + dy
@@ -172,26 +186,26 @@ const movePolarOffsetPointByDelta = ({
   };
 
   if (angleLocked) {
-    const angleRad = degreesToRadians(element.angleDeg);
+    const angleRad = degreesToRadians(currentAngleDeg);
     const unit = { x: Math.cos(angleRad), y: Math.sin(angleRad) };
     const projectedDistance = Math.max(0, vector.x * unit.x + vector.y * unit.y);
-    if (projectedDistance === element.distance) return element;
+    if (projectedDistance === currentDistance) return element;
     return { ...element, distance: projectedDistance };
   }
 
   if (distanceLocked) {
     if (Math.hypot(vector.x, vector.y) === 0) return element;
     const angleDeg = normalizeDegrees(radiansToDegrees(Math.atan2(vector.y, vector.x)));
-    if (angleDeg === element.angleDeg) return element;
+    if (angleDeg === currentAngleDeg) return element;
     return { ...element, angleDeg };
   }
 
   const distance = Math.hypot(vector.x, vector.y);
   const angleDeg =
     distance === 0
-      ? element.angleDeg
+      ? currentAngleDeg
       : normalizeDegrees(radiansToDegrees(Math.atan2(vector.y, vector.x)));
-  if (distance === element.distance && angleDeg === element.angleDeg) return element;
+  if (distance === currentDistance && angleDeg === currentAngleDeg) return element;
   return {
     ...element,
     distance,
@@ -226,8 +240,8 @@ const movePointElementByDelta = ({
       didMove = true;
       return {
         ...element,
-        x: element.x + dx,
-        y: element.y + dy
+        x: addToNumericValue(element.x, dx),
+        y: addToNumericValue(element.y, dy)
       };
     }
 
@@ -235,8 +249,8 @@ const movePointElementByDelta = ({
       didMove = true;
       return {
         ...element,
-        dx: element.dx + dx,
-        dy: element.dy + dy
+        dx: addToNumericValue(element.dx, dx),
+        dy: addToNumericValue(element.dy, dy)
       };
     }
 
@@ -411,8 +425,41 @@ const updateNumericParameter = (direction: 1 | -1, context?: CommandContext) => 
   const delta = getNumericParameterStep(selectedElement, definition.key) * stepForContext(context) * direction;
   updateSelectedElement((element) => ({
     ...element,
-    [definition.key]: Number(element[definition.key as keyof CadElement]) + delta
+    [definition.key]: addToNumericValue(
+      element[definition.key as keyof CadElement] as unknown as NumericValue,
+      delta
+    )
   } as CadElement));
+};
+
+const applyNumericExpressionReference = (context?: CommandContext) => {
+  const numericExpression = context?.numericExpression;
+  if (!numericExpression) return;
+  const { elements, selectedElementId, selectedParameterKey } = useCadStore.getState();
+  const targetElementId = context.elementId ?? selectedElementId;
+  const targetElement = targetElementId
+    ? elements.find((element) => element.id === targetElementId) ?? null
+    : null;
+  if (!targetElement) return;
+
+  const key = context.parameterKey ?? selectedParameterKey;
+  const definition = findParameterDefinition(targetElement, key);
+  if (definition?.kind !== "number") return;
+
+  useCadStore.getState().commitDocumentChange({
+    elements: elements.map((element) =>
+      element.id === targetElement.id
+        ? ({
+            ...element,
+            [definition.key]: makeNumericExpression(numericExpression)
+          } as CadElement)
+        : element
+    ),
+    selectedElementId: targetElement.id,
+    selectedElementIds: [targetElement.id],
+    selectionAnchorElementId: targetElement.id,
+    selectedParameterKey: definition.key
+  });
 };
 
 const updateSelectedNumericParameterStep = (direction: 1 | -1) => {
@@ -763,6 +810,11 @@ export const commands: Record<CommandId, Command> = {
       if (!context) return;
       movePointElementByDelta(context);
     }
+  },
+  applyNumericExpressionReference: {
+    id: "applyNumericExpressionReference",
+    label: "数値参照式を採用",
+    run: (context) => applyNumericExpressionReference(context)
   },
   toggleElementVisibility: {
     id: "toggleElementVisibility",

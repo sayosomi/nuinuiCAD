@@ -1,4 +1,5 @@
 import type { ComputedLine, ComputedPoint, ElementId } from "../types/geometry";
+import type { LineMeasurementKey } from "../geometry/numericExpressions";
 
 export type ScreenPoint = {
   x: number;
@@ -7,6 +8,7 @@ export type ScreenPoint = {
 
 const POINT_HIT_RADIUS_PX = 8;
 const LINE_HIT_DISTANCE_PX = 6;
+const LINE_ENDPOINT_MEASUREMENT_RADIUS_PX = 12;
 
 const squaredDistance = (a: ScreenPoint, b: ScreenPoint) => {
   const dx = a.x - b.x;
@@ -55,4 +57,41 @@ export const hitTestCanvasGeometry = ({
   }
 
   return null;
+};
+
+export type LineMeasurementCandidate = {
+  line: ComputedLine;
+  property: LineMeasurementKey;
+};
+
+export const hitTestLineMeasurementCandidates = ({
+  screen,
+  lines
+}: {
+  screen: ScreenPoint;
+  lines: Array<{ line: ComputedLine; start: ScreenPoint; end: ScreenPoint }>;
+}): LineMeasurementCandidate[] => {
+  const candidates: LineMeasurementCandidate[] = [];
+
+  for (let index = lines.length - 1; index >= 0; index -= 1) {
+    const item = lines[index];
+    const startDistance = Math.sqrt(squaredDistance(screen, item.start));
+    const endDistance = Math.sqrt(squaredDistance(screen, item.end));
+
+    if (startDistance <= LINE_ENDPOINT_MEASUREMENT_RADIUS_PX) {
+      candidates.push({ line: item.line, property: "startAngleDeg" });
+      continue;
+    }
+
+    if (endDistance <= LINE_ENDPOINT_MEASUREMENT_RADIUS_PX) {
+      candidates.push({ line: item.line, property: "endAngleDeg" });
+      continue;
+    }
+
+    if (distanceToLineSegment(screen, item.start, item.end) <= LINE_HIT_DISTANCE_PX) {
+      candidates.push({ line: item.line, property: "length" });
+    }
+  }
+
+  return candidates;
 };

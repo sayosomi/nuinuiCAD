@@ -5,10 +5,14 @@ import type {
 } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { dispatchCommand } from "../commands/commands";
+import { lineMeasurementLabel } from "../geometry/numericExpressions";
+import { findParameterDefinition } from "../parameters/parameterDefinitions";
+import type { ParameterKey } from "../parameters/parameterDefinitions";
 import { useCadStore } from "../state/useCadStore";
 import type { CadHistorySnapshot, CanvasViewport } from "../state/useCadStore";
 import type { ComputedLine, ComputedPoint, ElementId, EvaluationResult } from "../types/geometry";
-import { hitTestCanvasGeometry } from "./DrawingCanvasHitTest";
+import { hitTestCanvasGeometry, hitTestLineMeasurementCandidates } from "./DrawingCanvasHitTest";
+import type { LineMeasurementCandidate } from "./DrawingCanvasHitTest";
 import type { ScreenPoint } from "./DrawingCanvasHitTest";
 
 type DrawingCanvasProps = {
@@ -38,6 +42,13 @@ type AxisLockKeys = {
 type PolarLockKeys = {
   angle: boolean;
   distance: boolean;
+};
+
+type MeasurementCandidateMenu = {
+  screen: ScreenPoint;
+  candidates: LineMeasurementCandidate[];
+  targetElementId: ElementId;
+  targetParameterKey: ParameterKey;
 };
 
 const GRID_STEP = 10;
@@ -144,12 +155,15 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
   const [viewportSize, setViewportSize] = useState<ViewportSize>({ width: 0, height: 0 });
   const [isPanning, setIsPanning] = useState(false);
   const [isPointDragging, setIsPointDragging] = useState(false);
+  const [measurementCandidateMenu, setMeasurementCandidateMenu] =
+    useState<MeasurementCandidateMenu | null>(null);
   const elements = useCadStore((state) => state.elements);
   const selectedElementId = useCadStore((state) => state.selectedElementId);
   const selectedElementIds = useCadStore((state) => state.selectedElementIds);
   const canvasViewport = useCadStore((state) => state.canvasViewport);
   const panCanvasViewport = useCadStore((state) => state.panCanvasViewport);
   const zoomCanvasViewportAt = useCadStore((state) => state.zoomCanvasViewportAt);
+  const selectedParameterKey = useCadStore((state) => state.selectedParameterKey);
   const visibleElementIds = useMemo(
     () => new Set(elements.filter((element) => element.visible).map((element) => element.id)),
     [elements]
@@ -304,6 +318,46 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
     zoomCanvasViewportAt(Math.pow(WHEEL_ZOOM_BASE, -event.deltaY / 100), anchor);
   };
 
+  const numericExpressionTarget = (): Pick<
+    MeasurementCandidateMenu,
+    "targetElementId" | "targetParameterKey"
+  > | null => {
+    const selectedElement = selectedElementId
+      ? elements.find((element) => element.id === selectedElementId) ?? null
+      : null;
+    if (!selectedElement) return null;
+
+    const activeElement = document.activeElement;
+    const focusedParameterKey =
+      activeElement instanceof HTMLElement
+        ? activeElement.dataset.numericParameterKey ?? null
+        : null;
+    const focusedDefinition = findParameterDefinition(selectedElement, focusedParameterKey);
+    if (focusedDefinition?.kind === "number") {
+      return {
+        targetElementId: selectedElement.id,
+        targetParameterKey: focusedDefinition.key
+      };
+    }
+
+    const selectedDefinition = findParameterDefinition(selectedElement, selectedParameterKey);
+    if (selectedDefinition?.kind !== "number") return null;
+    return {
+      targetElementId: selectedElement.id,
+      targetParameterKey: selectedDefinition.key
+    };
+  };
+
+  const applyMeasurementCandidate = (candidate: LineMeasurementCandidate) => {
+    if (!measurementCandidateMenu) return;
+    dispatchCommand("applyNumericExpressionReference", {
+      elementId: measurementCandidateMenu.targetElementId,
+      parameterKey: measurementCandidateMenu.targetParameterKey,
+      numericExpression: `${candidate.line.elementId}.${candidate.property}`
+    });
+    setMeasurementCandidateMenu(null);
+  };
+
   const stopPanning = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (panDragRef.current?.pointerId === event.pointerId) {
       event.currentTarget.releasePointerCapture(event.pointerId);
@@ -348,11 +402,33 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
     if (event.button === 0) {
       if (viewportSize.width <= 0 || viewportSize.height <= 0) return;
       const rect = event.currentTarget.getBoundingClientRect();
+      const screen = {
+        x: event.clientX - rect.left - event.currentTarget.clientLeft,
+        y: event.clientY - rect.top - event.currentTarget.clientTop
+      };
+      const expressionTarget = numericExpressionTarget();
+      if (expressionTarget) {
+        const candidates = hitTestLineMeasurementCandidates({
+          screen,
+          lines: overlayLines
+        }).filter(
+          (candidate) =>
+            candidate.property === "length" ||
+            candidate.line[candidate.property] !== null
+        );
+        if (candidates.length > 0) {
+          event.preventDefault();
+          setMeasurementCandidateMenu({
+            screen,
+            candidates,
+            ...expressionTarget
+          });
+          return;
+        }
+      }
+      setMeasurementCandidateMenu(null);
       const elementId = hitTestCanvasGeometry({
-        screen: {
-          x: event.clientX - rect.left - event.currentTarget.clientLeft,
-          y: event.clientY - rect.top - event.currentTarget.clientTop
-        },
+        screen,
         lines: overlayLines,
         points: overlayPoints
       });
@@ -385,6 +461,7 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
     }
 
     if (event.button !== 1) return;
+    setMeasurementCandidateMenu(null);
     event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
     panDragRef.current = {
@@ -495,6 +572,29 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
             </g>
           ))}
         </svg>
+        {measurementCandidateMenu ? (
+          <div
+            className="measurement-candidate-menu"
+            style={{
+              left: measurementCandidateMenu.screen.x,
+              top: measurementCandidateMenu.screen.y
+            }}
+            role="menu"
+            aria-label="数値参照候補"
+          >
+            {measurementCandidateMenu.candidates.map((candidate) => (
+              <button
+                key={`${candidate.line.elementId}-${candidate.property}`}
+                type="button"
+                role="menuitem"
+                onPointerDown={(event) => event.stopPropagation()}
+                onClick={() => applyMeasurementCandidate(candidate)}
+              >
+                {candidate.line.name}.{lineMeasurementLabel(candidate.property)}
+              </button>
+            ))}
+          </div>
+        ) : null}
         {evaluation.errors.length > 0 ? (
           <div className="canvas-warning">
             ⚠ {evaluation.errors.length} 件の依存エラーがあります

@@ -8,24 +8,31 @@ export type CadElementBase = {
   numericParameterSteps?: Partial<Record<string, number>>;
 };
 
+export type NumericExpression = {
+  kind: "expression";
+  expression: string;
+};
+
+export type NumericValue = number | NumericExpression;
+
 export type FreePointElement = CadElementBase & {
   type: "freePoint";
-  x: number;
-  y: number;
+  x: NumericValue;
+  y: NumericValue;
 };
 
 export type OffsetPointElement = CadElementBase & {
   type: "offsetPoint";
   fromPointId: ElementId;
-  dx: number;
-  dy: number;
+  dx: NumericValue;
+  dy: NumericValue;
 };
 
 export type PolarOffsetPointElement = CadElementBase & {
   type: "polarOffsetPoint";
   fromPointId: ElementId;
-  angleDeg: number;
-  distance: number;
+  angleDeg: NumericValue;
+  distance: NumericValue;
 };
 
 export type LineElement = CadElementBase & {
@@ -53,6 +60,9 @@ export type ComputedLine = {
   endPointId: ElementId;
   start: ComputedPoint;
   end: ComputedPoint;
+  length: number;
+  startAngleDeg: number | null;
+  endAngleDeg: number | null;
 };
 
 export type ComputedGeometry = ComputedPoint | ComputedLine;

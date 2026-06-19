@@ -104,8 +104,8 @@ describe("LeftPanel numeric input dragging", () => {
 
     renderRightPanel();
 
-    expect(screen.getByLabelText("x 値")).toHaveValue(12.35);
-    expect(screen.getByLabelText("y 値")).toHaveValue(67.8);
+    expect(screen.getByLabelText("x 値")).toHaveValue("12.35");
+    expect(screen.getByLabelText("y 値")).toHaveValue("67.8");
     expect(screen.getByDisplayValue("0.13")).toBeInTheDocument();
   });
 
@@ -164,6 +164,55 @@ describe("LeftPanel numeric input dragging", () => {
     dragNumericInput(screen.getByLabelText("x 値"), { toX: 8 });
 
     expect(useCadStore.getState().elements[0]).toMatchObject({ x: 52.5 });
+  });
+
+  it("folds repeated middle-button drags into a stable expression offset", () => {
+    useCadStore.setState({
+      elements: [
+        {
+          ...(sampleElements[0] as Extract<CadElement, { type: "freePoint" }>),
+          x: { kind: "expression", expression: "line-ab.length + 10" }
+        },
+        ...sampleElements.slice(1)
+      ],
+      selectedElementId: sampleElements[0].id,
+      selectedElementIds: [sampleElements[0].id],
+      selectedParameterKey: "x"
+    });
+    renderRightPanel();
+
+    dragNumericInput(screen.getByLabelText("x 値"), { toX: 56 });
+
+    expect(screen.getByLabelText("x 値")).toHaveValue("直線AB.長さ + 17");
+    expect(useCadStore.getState().elements[0]).toMatchObject({
+      x: { kind: "expression", expression: "line-ab.length + 17" }
+    });
+  });
+
+  it("keeps expression display stable when middle-button dragging back and forth", () => {
+    useCadStore.setState({
+      elements: [
+        {
+          ...(sampleElements[0] as Extract<CadElement, { type: "freePoint" }>),
+          x: { kind: "expression", expression: "line-bc.startAngleDeg" }
+        },
+        ...sampleElements.slice(1)
+      ],
+      selectedElementId: sampleElements[0].id,
+      selectedElementIds: [sampleElements[0].id],
+      selectedParameterKey: "x"
+    });
+    renderRightPanel();
+
+    const input = screen.getByLabelText("x 値");
+    dragNumericInput(input, { fromX: 240, toX: 0 });
+    dragNumericInput(input, { fromX: 0, toX: 240 });
+    dragNumericInput(input, { fromX: 240, toX: 0 });
+
+    expect(screen.getByLabelText("x 値")).toHaveValue("直線BC.始角度 - 30");
+    expect(useCadStore.getState().elements[0]).toMatchObject({
+      x: { kind: "expression", expression: "line-bc.startAngleDeg - 30" }
+    });
   });
 });
 
