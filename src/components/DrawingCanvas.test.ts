@@ -275,6 +275,137 @@ describe("hitTestCanvasGeometry", () => {
 });
 
 describe("DrawingCanvas point dragging", () => {
+  it("only shows Bezier handles for the primary selected curve", () => {
+    const { container, unmount } = renderDrawingCanvas();
+    expect(container.querySelectorAll(".overlay-bezier-handle-point")).toHaveLength(0);
+    unmount();
+
+    useCadStore.setState({
+      selectedElementId: "curve-ac",
+      selectedElementIds: ["curve-ac"]
+    });
+    const selected = renderDrawingCanvas();
+
+    expect(selected.container.querySelectorAll(".overlay-bezier-handle-line")).toHaveLength(2);
+    expect(selected.container.querySelectorAll(".overlay-bezier-handle-point")).toHaveLength(2);
+  });
+
+  it("drags a selected Bezier start handle on the canvas", () => {
+    useCadStore.setState({
+      selectedElementId: "curve-ac",
+      selectedElementIds: ["curve-ac"]
+    });
+    const { viewport } = renderDrawingCanvas();
+
+    dragPoint(viewport, {
+      fromX: 345,
+      fromY: 250,
+      toX: 345,
+      toY: 205
+    });
+
+    const curve = useCadStore.getState().elements.find((element) => element.id === "curve-ac");
+    expect(curve).toMatchObject({ type: "bezierCurve" });
+    if (curve?.type !== "bezierCurve") throw new Error("Expected a Bezier curve");
+    expect(curve.startHandleAngleDeg).toBeCloseTo(45);
+    expect(curve.startHandleLength).toBeCloseTo(63.63961030678928);
+    expect(useCadStore.getState().past).toHaveLength(1);
+  });
+
+  it("converts selected Bezier handle drag distance through the current canvas zoom", () => {
+    useCadStore.setState({
+      selectedElementId: "curve-ac",
+      selectedElementIds: ["curve-ac"],
+      canvasViewport: { panX: 0, panY: 0, zoom: 2 }
+    });
+    const { viewport } = renderDrawingCanvas();
+
+    dragPoint(viewport, {
+      fromX: 440,
+      fromY: 300,
+      toX: 440,
+      toY: 280
+    });
+
+    const curve = useCadStore.getState().elements.find((element) => element.id === "curve-ac");
+    expect(curve).toMatchObject({ type: "bezierCurve" });
+    if (curve?.type !== "bezierCurve") throw new Error("Expected a Bezier curve");
+    expect(curve.startHandleAngleDeg).toBeCloseTo(12.528807709151511);
+    expect(curve.startHandleLength).toBeCloseTo(46.09772228646444);
+  });
+
+  it("locks Bezier handle angle with r during canvas dragging", () => {
+    useCadStore.setState({
+      selectedElementId: "curve-ac",
+      selectedElementIds: ["curve-ac"]
+    });
+    const { viewport } = renderDrawingCanvas();
+
+    fireEvent.pointerDown(viewport, {
+      button: 0,
+      buttons: 1,
+      clientX: 345,
+      clientY: 250,
+      pointerId: 1
+    });
+    fireEvent.keyDown(window, { key: "r" });
+    fireEvent.pointerMove(viewport, {
+      buttons: 1,
+      clientX: 355,
+      clientY: 205,
+      pointerId: 1
+    });
+    fireEvent.pointerUp(viewport, {
+      buttons: 0,
+      clientX: 355,
+      clientY: 205,
+      pointerId: 1
+    });
+    fireEvent.keyUp(window, { key: "r" });
+
+    const curve = useCadStore.getState().elements.find((element) => element.id === "curve-ac");
+    expect(curve).toMatchObject({ type: "bezierCurve" });
+    if (curve?.type !== "bezierCurve") throw new Error("Expected a Bezier curve");
+    expect(curve.startHandleAngleDeg).toBe(0);
+    expect(curve.startHandleLength).toBeCloseTo(55);
+  });
+
+  it("locks Bezier handle distance with f during canvas dragging", () => {
+    useCadStore.setState({
+      selectedElementId: "curve-ac",
+      selectedElementIds: ["curve-ac"]
+    });
+    const { viewport } = renderDrawingCanvas();
+
+    fireEvent.pointerDown(viewport, {
+      button: 0,
+      buttons: 1,
+      clientX: 345,
+      clientY: 250,
+      pointerId: 1
+    });
+    fireEvent.keyDown(window, { key: "f" });
+    fireEvent.pointerMove(viewport, {
+      buttons: 1,
+      clientX: 345,
+      clientY: 205,
+      pointerId: 1
+    });
+    fireEvent.pointerUp(viewport, {
+      buttons: 0,
+      clientX: 345,
+      clientY: 205,
+      pointerId: 1
+    });
+    fireEvent.keyUp(window, { key: "f" });
+
+    const curve = useCadStore.getState().elements.find((element) => element.id === "curve-ac");
+    expect(curve).toMatchObject({ type: "bezierCurve" });
+    if (curve?.type !== "bezierCurve") throw new Error("Expected a Bezier curve");
+    expect(curve.startHandleAngleDeg).toBeCloseTo(45);
+    expect(curve.startHandleLength).toBe(45);
+  });
+
   it("offers a line length candidate near the clicked line and applies it to the selected numeric parameter", () => {
     useCadStore.setState({
       selectedElementId: "point-a",

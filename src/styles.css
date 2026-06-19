@@ -794,7 +794,8 @@ select {
   cursor: grabbing;
 }
 
-.canvas-viewport.is-point-dragging {
+.canvas-viewport.is-point-dragging,
+.canvas-viewport.is-bezier-handle-dragging {
   cursor: grabbing;
 }
 
@@ -828,6 +829,18 @@ select {
 
 .drawing-overlay .overlay-selected-line {
   stroke: rgb(15 118 110 / 30%);
+}
+
+.drawing-overlay .overlay-bezier-handle-line {
+  stroke: rgb(83 86 79 / 42%);
+  stroke-width: 1.25;
+  stroke-dasharray: 4 4;
+}
+
+.drawing-overlay .overlay-bezier-handle-point {
+  fill: #fbfbfa;
+  stroke: rgb(15 118 110 / 70%);
+  stroke-width: 1.8;
 }
 
 .drawing-overlay .overlay-selected-point {

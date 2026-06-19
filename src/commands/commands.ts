@@ -14,7 +14,15 @@ import {
   normalizeParameterKey,
   pointReferenceOptions
 } from "../parameters/parameterDefinitions";
-import type { CadElement, CadElementType, ElementId, NumericValue } from "../types/geometry";
+import type {
+  CadElement,
+  CadElementType,
+  ComputedBezierCurve,
+  ElementId,
+  NumericValue
+} from "../types/geometry";
+
+export type BezierHandleRole = "start" | "end" | "intermediateIncoming" | "intermediateOutgoing";
 
 export type CommandId =
   | "undo"
@@ -28,6 +36,7 @@ export type CommandId =
   | "moveSelectedElementDown"
   | "moveElementToInsertionIndex"
   | "movePointElementByDelta"
+  | "moveBezierHandleByDelta"
   | "applyNumericExpressionReference"
   | "toggleElementVisibility"
   | "toggleElementEnabled"
@@ -85,6 +94,7 @@ export type CommandContext = {
   dy?: number;
   angleLocked?: boolean;
   distanceLocked?: boolean;
+  bezierHandleRole?: BezierHandleRole;
   commitMode?: "preview" | "commit";
   baseElements?: CadElement[];
   historySnapshot?: CadHistorySnapshot;
@@ -141,6 +151,12 @@ const updateSelectedElement = (updater: (element: CadElement) => CadElement) => 
 
 const isComputedPoint = (geometry: unknown): geometry is { kind: "point"; x: number; y: number } =>
   typeof geometry === "object" && geometry !== null && "kind" in geometry && geometry.kind === "point";
+
+const isComputedBezierCurve = (geometry: unknown): geometry is ComputedBezierCurve =>
+  typeof geometry === "object" &&
+  geometry !== null &&
+  "kind" in geometry &&
+  geometry.kind === "bezierCurve";
 
 const radiansToDegrees = (radians: number) => (radians * 180) / Math.PI;
 
@@ -272,6 +288,211 @@ const movePointElementByDelta = ({
     }
 
     return element;
+  });
+
+  if (!didMove) return;
+
+  if (commitMode === "preview") {
+    useCadStore.getState().previewDocumentChange({ elements: nextElements });
+    return;
+  }
+
+  if (historySnapshot) {
+    useCadStore.getState().commitDocumentChangeFromSnapshot(historySnapshot, {
+      elements: nextElements
+    });
+    return;
+  }
+
+  useCadStore.getState().commitDocumentChange({ elements: nextElements });
+};
+
+type BezierHandleTarget = {
+  anchor: { x: number; y: number };
+  control: { x: number; y: number };
+  angleKey: string;
+  lengthKey: string;
+  storedAngleOffsetDeg: number;
+};
+
+const bezierHandleTarget = ({
+  element,
+  sourceElements,
+  role,
+  intermediatePointId
+}: {
+  element: Extract<CadElement, { type: "bezierCurve" }>;
+  sourceElements: CadElement[];
+  role: BezierHandleRole;
+  intermediatePointId?: string;
+}): BezierHandleTarget | null => {
+  const curve = evaluateElements(sourceElements).computedGeometry.get(element.id);
+  if (!isComputedBezierCurve(curve) || curve.segments.length === 0) return null;
+
+  if (role === "start") {
+    const segment = curve.segments[0];
+    return {
+      anchor: segment.start,
+      control: segment.control1,
+      angleKey: "startHandleAngleDeg",
+      lengthKey: "startHandleLength",
+      storedAngleOffsetDeg: 0
+    };
+  }
+
+  if (role === "end") {
+    const segment = curve.segments.at(-1);
+    if (!segment) return null;
+    return {
+      anchor: segment.end,
+      control: segment.control2,
+      angleKey: "endHandleAngleDeg",
+      lengthKey: "endHandleLength",
+      storedAngleOffsetDeg: 180
+    };
+  }
+
+  const intermediateIndex = element.intermediatePoints.findIndex(
+    (point) => point.id === intermediatePointId
+  );
+  if (intermediateIndex < 0) return null;
+  const intermediate = element.intermediatePoints[intermediateIndex];
+
+  if (role === "intermediateIncoming") {
+    const segment = curve.segments[intermediateIndex];
+    if (!segment) return null;
+    return {
+      anchor: segment.end,
+      control: segment.control2,
+      angleKey: `intermediate:${intermediate.id}:handleAngleDeg`,
+      lengthKey: `intermediate:${intermediate.id}:incomingHandleLength`,
+      storedAngleOffsetDeg: 180
+    };
+  }
+
+  const segment = curve.segments[intermediateIndex + 1];
+  if (!segment) return null;
+  return {
+    anchor: segment.start,
+    control: segment.control1,
+    angleKey: `intermediate:${intermediate.id}:handleAngleDeg`,
+    lengthKey: `intermediate:${intermediate.id}:outgoingHandleLength`,
+    storedAngleOffsetDeg: 0
+  };
+};
+
+const moveBezierHandle = ({
+  element,
+  sourceElements,
+  dx,
+  dy,
+  role,
+  intermediatePointId,
+  angleLocked,
+  distanceLocked
+}: {
+  element: Extract<CadElement, { type: "bezierCurve" }>;
+  sourceElements: CadElement[];
+  dx: number;
+  dy: number;
+  role: BezierHandleRole;
+  intermediatePointId?: string;
+  angleLocked?: boolean;
+  distanceLocked?: boolean;
+}) => {
+  if (angleLocked && distanceLocked) return element;
+
+  const target = bezierHandleTarget({ element, sourceElements, role, intermediatePointId });
+  if (!target) return element;
+
+  const currentVector = {
+    x: target.control.x - target.anchor.x,
+    y: target.anchor.y - target.control.y
+  };
+  const currentLength = Math.hypot(currentVector.x, currentVector.y);
+  const currentControlAngleDeg =
+    currentLength === 0
+      ? target.storedAngleOffsetDeg
+      : normalizeDegrees(radiansToDegrees(Math.atan2(currentVector.y, currentVector.x)));
+  const currentStoredAngleDeg = normalizeDegrees(
+    currentControlAngleDeg - target.storedAngleOffsetDeg
+  );
+
+  const movedControl = {
+    x: target.control.x + dx,
+    y: target.control.y + dy
+  };
+  const movedVector = {
+    x: movedControl.x - target.anchor.x,
+    y: target.anchor.y - movedControl.y
+  };
+
+  if (angleLocked) {
+    const angleRad = degreesToRadians(currentControlAngleDeg);
+    const unit = { x: Math.cos(angleRad), y: Math.sin(angleRad) };
+    const projectedLength = Math.max(0, movedVector.x * unit.x + movedVector.y * unit.y);
+    if (projectedLength === currentLength) return element;
+    return setParameterValue(element, target.lengthKey, projectedLength);
+  }
+
+  const movedLength = Math.hypot(movedVector.x, movedVector.y);
+  if (distanceLocked) {
+    if (movedLength === 0) return element;
+    const controlAngleDeg = normalizeDegrees(radiansToDegrees(Math.atan2(movedVector.y, movedVector.x)));
+    const storedAngleDeg = normalizeDegrees(controlAngleDeg - target.storedAngleOffsetDeg);
+    if (storedAngleDeg === currentStoredAngleDeg) return element;
+    return setParameterValue(element, target.angleKey, storedAngleDeg);
+  }
+
+  const controlAngleDeg =
+    movedLength === 0
+      ? currentControlAngleDeg
+      : normalizeDegrees(radiansToDegrees(Math.atan2(movedVector.y, movedVector.x)));
+  const storedAngleDeg = normalizeDegrees(controlAngleDeg - target.storedAngleOffsetDeg);
+  if (movedLength === currentLength && storedAngleDeg === currentStoredAngleDeg) return element;
+  return setParameterValue(
+    setParameterValue(element, target.angleKey, storedAngleDeg),
+    target.lengthKey,
+    movedLength
+  );
+};
+
+const moveBezierHandleByDelta = ({
+  elementId,
+  dx = 0,
+  dy = 0,
+  bezierHandleRole,
+  intermediatePointId,
+  angleLocked,
+  distanceLocked,
+  commitMode = "commit",
+  baseElements,
+  historySnapshot
+}: CommandContext) => {
+  if (!elementId || !bezierHandleRole) return;
+  if (dx === 0 && dy === 0) {
+    if (baseElements) {
+      useCadStore.getState().previewDocumentChange({ elements: baseElements });
+    }
+    return;
+  }
+
+  const sourceElements = baseElements ?? useCadStore.getState().elements;
+  let didMove = false;
+  const nextElements = sourceElements.map((element) => {
+    if (element.id !== elementId || element.type !== "bezierCurve") return element;
+    const nextElement = moveBezierHandle({
+      element,
+      sourceElements,
+      dx,
+      dy,
+      role: bezierHandleRole,
+      intermediatePointId,
+      angleLocked,
+      distanceLocked
+    });
+    didMove = nextElement !== element;
+    return nextElement;
   });
 
   if (!didMove) return;
@@ -899,6 +1120,14 @@ export const commands: Record<CommandId, Command> = {
     run: (context) => {
       if (!context) return;
       movePointElementByDelta(context);
+    }
+  },
+  moveBezierHandleByDelta: {
+    id: "moveBezierHandleByDelta",
+    label: "曲線ハンドルを移動",
+    run: (context) => {
+      if (!context) return;
+      moveBezierHandleByDelta(context);
     }
   },
   applyNumericExpressionReference: {

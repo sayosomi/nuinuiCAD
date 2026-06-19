@@ -5,6 +5,7 @@ import type {
 } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { dispatchCommand } from "../commands/commands";
+import type { BezierHandleRole as CommandBezierHandleRole } from "../commands/commands";
 import { lineMeasurementLabel } from "../geometry/numericExpressions";
 import { findParameterDefinition } from "../parameters/parameterDefinitions";
 import type { ParameterKey } from "../parameters/parameterDefinitions";
@@ -44,6 +45,17 @@ type PointDragState = {
   snapshot: CadHistorySnapshot;
 };
 
+type BezierHandleDragState = {
+  pointerId: number;
+  elementId: ElementId;
+  role: CommandBezierHandleRole;
+  intermediatePointId?: string;
+  startClientX: number;
+  startClientY: number;
+  zoom: number;
+  snapshot: CadHistorySnapshot;
+};
+
 type AxisLockKeys = {
   x: boolean;
   y: boolean;
@@ -61,11 +73,21 @@ type MeasurementCandidateMenu = {
   targetParameterKey: ParameterKey;
 };
 
+type BezierHandleOverlay = {
+  id: string;
+  curveId: ElementId;
+  role: CommandBezierHandleRole;
+  intermediatePointId?: string;
+  anchor: ScreenPoint;
+  control: ScreenPoint;
+};
+
 const GRID_STEP = 10;
 const MAJOR_GRID_MULTIPLIER = 5;
 const MIN_GRID_SPACING_PX = 8;
 const WHEEL_ZOOM_BASE = 1.1;
 const GRID_ENABLED = true;
+const BEZIER_HANDLE_HIT_RADIUS_PX = 9;
 
 const isPoint = (geometry: unknown): geometry is ComputedPoint =>
   typeof geometry === "object" && geometry !== null && "kind" in geometry && geometry.kind === "point";
@@ -118,6 +140,25 @@ const constrainedWorldDelta = ({
   dy: axisLockKeys.x ? 0 : screenDy / zoom
 });
 
+const squaredScreenDistance = (a: ScreenPoint, b: ScreenPoint) => {
+  const dx = a.x - b.x;
+  const dy = a.y - b.y;
+  return dx * dx + dy * dy;
+};
+
+const hitTestBezierHandle = (
+  screen: ScreenPoint,
+  handles: BezierHandleOverlay[]
+): BezierHandleOverlay | null => {
+  const hitRadiusSquared = BEZIER_HANDLE_HIT_RADIUS_PX * BEZIER_HANDLE_HIT_RADIUS_PX;
+  for (let index = handles.length - 1; index >= 0; index -= 1) {
+    if (squaredScreenDistance(screen, handles[index].control) <= hitRadiusSquared) {
+      return handles[index];
+    }
+  }
+  return null;
+};
+
 const drawGrid = (
   ctx: CanvasRenderingContext2D,
   size: ViewportSize,
@@ -166,11 +207,13 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const panDragRef = useRef<{ pointerId: number; lastX: number; lastY: number } | null>(null);
   const pointDragRef = useRef<PointDragState | null>(null);
+  const bezierHandleDragRef = useRef<BezierHandleDragState | null>(null);
   const axisLockKeysRef = useRef<AxisLockKeys>({ x: false, y: false });
   const polarLockKeysRef = useRef<PolarLockKeys>({ angle: false, distance: false });
   const [viewportSize, setViewportSize] = useState<ViewportSize>({ width: 0, height: 0 });
   const [isPanning, setIsPanning] = useState(false);
   const [isPointDragging, setIsPointDragging] = useState(false);
+  const [isBezierHandleDragging, setIsBezierHandleDragging] = useState(false);
   const [measurementCandidateMenu, setMeasurementCandidateMenu] =
     useState<MeasurementCandidateMenu | null>(null);
   const elements = useCadStore((state) => state.elements);
@@ -225,6 +268,63 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
         })),
     [canvasViewport, curves, viewportSize, visibleElementIds]
   );
+  const selectedBezierHandles = useMemo(() => {
+    const curveElement = elements.find((element) => element.id === selectedElementId);
+    if (!curveElement || curveElement.type !== "bezierCurve" || !visibleElementIds.has(curveElement.id)) {
+      return [];
+    }
+
+    const curve = curves.find((item) => item.elementId === curveElement.id);
+    if (!curve || curve.segments.length === 0) return [];
+
+    const handles: BezierHandleOverlay[] = [];
+    const firstSegment = curve.segments[0];
+    handles.push({
+      id: `${curve.elementId}:start`,
+      curveId: curve.elementId,
+      role: "start",
+      anchor: worldToScreen(firstSegment.start, viewportSize, canvasViewport),
+      control: worldToScreen(firstSegment.control1, viewportSize, canvasViewport)
+    });
+
+    curveElement.intermediatePoints.forEach((point, index) => {
+      const incomingSegment = curve.segments[index];
+      const outgoingSegment = curve.segments[index + 1];
+      if (incomingSegment) {
+        handles.push({
+          id: `${curve.elementId}:${point.id}:incoming`,
+          curveId: curve.elementId,
+          role: "intermediateIncoming",
+          intermediatePointId: point.id,
+          anchor: worldToScreen(incomingSegment.end, viewportSize, canvasViewport),
+          control: worldToScreen(incomingSegment.control2, viewportSize, canvasViewport)
+        });
+      }
+      if (outgoingSegment) {
+        handles.push({
+          id: `${curve.elementId}:${point.id}:outgoing`,
+          curveId: curve.elementId,
+          role: "intermediateOutgoing",
+          intermediatePointId: point.id,
+          anchor: worldToScreen(outgoingSegment.start, viewportSize, canvasViewport),
+          control: worldToScreen(outgoingSegment.control1, viewportSize, canvasViewport)
+        });
+      }
+    });
+
+    const lastSegment = curve.segments.at(-1);
+    if (lastSegment) {
+      handles.push({
+        id: `${curve.elementId}:end`,
+        curveId: curve.elementId,
+        role: "end",
+        anchor: worldToScreen(lastSegment.end, viewportSize, canvasViewport),
+        control: worldToScreen(lastSegment.control2, viewportSize, canvasViewport)
+      });
+    }
+
+    return handles;
+  }, [canvasViewport, curves, elements, selectedElementId, viewportSize, visibleElementIds]);
 
   useEffect(() => {
     const viewport = canvasFocusRef.current;
@@ -309,7 +409,7 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
     const setDragLockKey = (event: KeyboardEvent, isPressed: boolean) => {
       const key = event.key.toLowerCase();
       if (key !== "x" && key !== "y" && key !== "r" && key !== "f") return;
-      if (pointDragRef.current) {
+      if (pointDragRef.current || bezierHandleDragRef.current) {
         event.preventDefault();
         event.stopImmediatePropagation();
       }
@@ -445,6 +545,31 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
     setIsPointDragging(false);
   };
 
+  const stopBezierHandleDragging = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const drag = bezierHandleDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+
+    dispatchCommand("moveBezierHandleByDelta", {
+      elementId: drag.elementId,
+      bezierHandleRole: drag.role,
+      intermediatePointId: drag.intermediatePointId,
+      dx: (event.clientX - drag.startClientX) / drag.zoom,
+      dy: (event.clientY - drag.startClientY) / drag.zoom,
+      angleLocked: polarLockKeysRef.current.angle,
+      distanceLocked: polarLockKeysRef.current.distance,
+      commitMode: "commit",
+      baseElements: drag.snapshot.elements,
+      historySnapshot: drag.snapshot
+    });
+
+    bezierHandleDragRef.current = null;
+    setIsBezierHandleDragging(false);
+  };
+
   const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (event.button === 0) {
       if (viewportSize.width <= 0 || viewportSize.height <= 0) return;
@@ -453,6 +578,35 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
         x: event.clientX - rect.left - event.currentTarget.clientLeft,
         y: event.clientY - rect.top - event.currentTarget.clientTop
       };
+      const handle = hitTestBezierHandle(screen, selectedBezierHandles);
+      if (handle) {
+        event.preventDefault();
+        event.currentTarget.focus();
+        setMeasurementCandidateMenu(null);
+        dispatchCommand("selectElement", { elementId: handle.curveId, selectionMode: "replace" });
+
+        event.currentTarget.setPointerCapture(event.pointerId);
+        const state = useCadStore.getState();
+        bezierHandleDragRef.current = {
+          pointerId: event.pointerId,
+          elementId: handle.curveId,
+          role: handle.role,
+          intermediatePointId: handle.intermediatePointId,
+          startClientX: event.clientX,
+          startClientY: event.clientY,
+          zoom: canvasViewport.zoom,
+          snapshot: {
+            elements: state.elements,
+            selectedElementId: state.selectedElementId,
+            selectedElementIds: state.selectedElementIds,
+            selectionAnchorElementId: state.selectionAnchorElementId,
+            isParameterEditMode: state.isParameterEditMode,
+            selectedParameterKey: state.selectedParameterKey
+          }
+        };
+        setIsBezierHandleDragging(true);
+        return;
+      }
       const expressionTarget = numericExpressionTarget();
       if (expressionTarget) {
         const candidates = hitTestLineMeasurementCandidates({
@@ -524,6 +678,28 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
   };
 
   const handlePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const bezierHandleDrag = bezierHandleDragRef.current;
+    if (bezierHandleDrag?.pointerId === event.pointerId) {
+      if ((event.buttons & 1) === 0) {
+        stopBezierHandleDragging(event);
+        return;
+      }
+
+      event.preventDefault();
+      dispatchCommand("moveBezierHandleByDelta", {
+        elementId: bezierHandleDrag.elementId,
+        bezierHandleRole: bezierHandleDrag.role,
+        intermediatePointId: bezierHandleDrag.intermediatePointId,
+        dx: (event.clientX - bezierHandleDrag.startClientX) / bezierHandleDrag.zoom,
+        dy: (event.clientY - bezierHandleDrag.startClientY) / bezierHandleDrag.zoom,
+        angleLocked: polarLockKeysRef.current.angle,
+        distanceLocked: polarLockKeysRef.current.distance,
+        commitMode: "preview",
+        baseElements: bezierHandleDrag.snapshot.elements
+      });
+      return;
+    }
+
     const pointDrag = pointDragRef.current;
     if (pointDrag?.pointerId === event.pointerId) {
       if ((event.buttons & 1) === 0) {
@@ -576,7 +752,8 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
         className={[
           "canvas-viewport",
           isPanning ? "is-panning" : "",
-          isPointDragging ? "is-point-dragging" : ""
+          isPointDragging ? "is-point-dragging" : "",
+          isBezierHandleDragging ? "is-bezier-handle-dragging" : ""
         ].filter(Boolean).join(" ")}
         ref={canvasFocusRef}
         tabIndex={-1}
@@ -584,10 +761,12 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={(event) => {
+          stopBezierHandleDragging(event);
           stopPointDragging(event);
           stopPanning(event);
         }}
         onPointerCancel={(event) => {
+          stopBezierHandleDragging(event);
           stopPointDragging(event);
           stopPanning(event);
         }}
@@ -615,6 +794,23 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
               points={points.map((point) => `${point.x},${point.y}`).join(" ")}
               className={selectedElementIdSet.has(curve.elementId) ? "overlay-selected-line" : ""}
             />
+          ))}
+          {selectedBezierHandles.map((handle) => (
+            <g key={handle.id} className="overlay-bezier-handle">
+              <line
+                x1={handle.anchor.x}
+                y1={handle.anchor.y}
+                x2={handle.control.x}
+                y2={handle.control.y}
+                className="overlay-bezier-handle-line"
+              />
+              <circle
+                cx={handle.control.x}
+                cy={handle.control.y}
+                r={5}
+                className="overlay-bezier-handle-point"
+              />
+            </g>
           ))}
           {overlayPoints.map(({ point, screen }) => (
             <g key={point.elementId}>

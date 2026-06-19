@@ -401,6 +401,155 @@ describe("commands", () => {
     expect(useCadStore.getState().elements[0]).toMatchObject({ x: 50, y: 50 });
   });
 
+  it("moves a Bezier start handle by updating angle and length", () => {
+    dispatchCommand("moveBezierHandleByDelta", {
+      elementId: "curve-ac",
+      bezierHandleRole: "start",
+      dx: 0,
+      dy: -45
+    });
+
+    const curve = useCadStore.getState().elements.find((element) => element.id === "curve-ac");
+    expect(curve).toMatchObject({ type: "bezierCurve" });
+    if (curve?.type !== "bezierCurve") throw new Error("Expected a Bezier curve");
+    expect(curve.startHandleAngleDeg).toBeCloseTo(45);
+    expect(curve.startHandleLength).toBeCloseTo(63.63961030678928);
+    expect(useCadStore.getState().past).toHaveLength(1);
+  });
+
+  it("locks Bezier handle angle while dragging", () => {
+    dispatchCommand("moveBezierHandleByDelta", {
+      elementId: "curve-ac",
+      bezierHandleRole: "start",
+      dx: 10,
+      dy: -45,
+      angleLocked: true
+    });
+
+    const curve = useCadStore.getState().elements.find((element) => element.id === "curve-ac");
+    expect(curve).toMatchObject({ type: "bezierCurve" });
+    if (curve?.type !== "bezierCurve") throw new Error("Expected a Bezier curve");
+    expect(curve.startHandleAngleDeg).toBe(0);
+    expect(curve.startHandleLength).toBeCloseTo(55);
+  });
+
+  it("locks Bezier handle distance while dragging", () => {
+    dispatchCommand("moveBezierHandleByDelta", {
+      elementId: "curve-ac",
+      bezierHandleRole: "start",
+      dx: 0,
+      dy: -45,
+      distanceLocked: true
+    });
+
+    const curve = useCadStore.getState().elements.find((element) => element.id === "curve-ac");
+    expect(curve).toMatchObject({ type: "bezierCurve" });
+    if (curve?.type !== "bezierCurve") throw new Error("Expected a Bezier curve");
+    expect(curve.startHandleAngleDeg).toBeCloseTo(45);
+    expect(curve.startHandleLength).toBe(45);
+  });
+
+  it("updates a Bezier end handle using the incoming handle angle convention", () => {
+    dispatchCommand("moveBezierHandleByDelta", {
+      elementId: "curve-ac",
+      bezierHandleRole: "end",
+      dx: 35,
+      dy: 0
+    });
+
+    const curve = useCadStore.getState().elements.find((element) => element.id === "curve-ac");
+    expect(curve).toMatchObject({ type: "bezierCurve" });
+    if (curve?.type !== "bezierCurve") throw new Error("Expected a Bezier curve");
+    expect(curve.endHandleAngleDeg).toBeCloseTo(135);
+    expect(curve.endHandleLength).toBeCloseTo(49.49747468305833);
+  });
+
+  it("moves a Bezier intermediate incoming handle", () => {
+    useCadStore.setState({
+      elements: sampleElements.map((element) =>
+        element.id === "curve-ac" && element.type === "bezierCurve"
+          ? {
+              ...element,
+              intermediatePoints: [
+                {
+                  id: "mid-b",
+                  pointId: "point-b",
+                  handleAngleDeg: 0,
+                  incomingHandleLength: 10,
+                  outgoingHandleLength: 20
+                }
+              ]
+            }
+          : element
+      )
+    });
+
+    dispatchCommand("moveBezierHandleByDelta", {
+      elementId: "curve-ac",
+      bezierHandleRole: "intermediateIncoming",
+      intermediatePointId: "mid-b",
+      dx: 0,
+      dy: -10
+    });
+
+    const curve = useCadStore.getState().elements.find((element) => element.id === "curve-ac");
+    expect(curve).toMatchObject({ type: "bezierCurve" });
+    if (curve?.type !== "bezierCurve") throw new Error("Expected a Bezier curve");
+    expect(curve.intermediatePoints[0].handleAngleDeg).toBeCloseTo(315);
+    expect(curve.intermediatePoints[0].incomingHandleLength).toBeCloseTo(14.142135623730951);
+    expect(curve.intermediatePoints[0].outgoingHandleLength).toBe(20);
+  });
+
+  it("previews Bezier handle movement without history and commits one undo step", () => {
+    const state = useCadStore.getState();
+    const snapshot = {
+      elements: state.elements,
+      selectedElementId: state.selectedElementId,
+      selectedElementIds: state.selectedElementIds,
+      selectionAnchorElementId: state.selectionAnchorElementId,
+      isParameterEditMode: state.isParameterEditMode,
+      selectedParameterKey: state.selectedParameterKey
+    };
+
+    dispatchCommand("moveBezierHandleByDelta", {
+      elementId: "curve-ac",
+      bezierHandleRole: "start",
+      dx: 10,
+      dy: -10,
+      commitMode: "preview",
+      baseElements: snapshot.elements
+    });
+    dispatchCommand("moveBezierHandleByDelta", {
+      elementId: "curve-ac",
+      bezierHandleRole: "start",
+      dx: 20,
+      dy: -20,
+      commitMode: "preview",
+      baseElements: snapshot.elements
+    });
+
+    let curve = useCadStore.getState().elements.find((element) => element.id === "curve-ac");
+    expect(curve).toMatchObject({ type: "bezierCurve" });
+    if (curve?.type !== "bezierCurve") throw new Error("Expected a Bezier curve");
+    expect(curve.startHandleLength).toBeCloseTo(68.00735254367721);
+    expect(useCadStore.getState().past).toHaveLength(0);
+
+    dispatchCommand("moveBezierHandleByDelta", {
+      elementId: "curve-ac",
+      bezierHandleRole: "start",
+      dx: 20,
+      dy: -20,
+      commitMode: "commit",
+      baseElements: snapshot.elements,
+      historySnapshot: snapshot
+    });
+
+    expect(useCadStore.getState().past).toHaveLength(1);
+    dispatchCommand("undo");
+    curve = useCadStore.getState().elements.find((element) => element.id === "curve-ac");
+    expect(curve).toMatchObject({ type: "bezierCurve", startHandleAngleDeg: 0, startHandleLength: 45 });
+  });
+
   it("toggles selected element visibility", () => {
     dispatchCommand("toggleSelectedElementVisibility");
     expect(useCadStore.getState().elements[0].visible).toBe(false);
