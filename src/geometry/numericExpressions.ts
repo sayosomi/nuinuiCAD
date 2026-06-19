@@ -31,6 +31,7 @@ export const numericValueExpression = (value: NumericValue) =>
 
 export const makeNumericExpression = (expression: string): NumericValue => {
   const trimmed = expression.trim();
+  if (trimmed.length === 0) return 0;
   const numeric = Number(trimmed);
   return trimmed.length > 0 && Number.isFinite(numeric)
     ? numeric

@@ -109,6 +109,15 @@ describe("LeftPanel numeric input dragging", () => {
     expect(screen.getByDisplayValue("0.13")).toBeInTheDocument();
   });
 
+  it("normalizes a blank numeric parameter input to zero", () => {
+    renderRightPanel();
+
+    fireEvent.change(screen.getByLabelText("x 値"), { target: { value: "" } });
+
+    expect(useCadStore.getState().elements[0]).toMatchObject({ x: 0 });
+    expect(screen.getByLabelText("x 値")).toHaveValue("0");
+  });
+
   it("increments a numeric parameter after an 8px middle-button drag to the right", () => {
     renderRightPanel();
 

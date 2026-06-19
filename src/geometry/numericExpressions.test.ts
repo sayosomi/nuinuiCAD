@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addToNumericValue } from "./numericExpressions";
+import { addToNumericValue, makeNumericExpression } from "./numericExpressions";
 
 const expression = (value: string) => ({ kind: "expression" as const, expression: value });
 
@@ -48,5 +48,12 @@ describe("addToNumericValue", () => {
 
     value = addToNumericValue(value, -30) as typeof value;
     expect(value).toEqual(expression("line-bc.startAngleDeg - 30"));
+  });
+});
+
+describe("makeNumericExpression", () => {
+  it("normalizes blank numeric input to zero", () => {
+    expect(makeNumericExpression("")).toBe(0);
+    expect(makeNumericExpression("   ")).toBe(0);
   });
 });
