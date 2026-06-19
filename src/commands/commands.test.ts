@@ -1293,6 +1293,25 @@ describe("commands", () => {
     expect(useCadStore.getState().past).toHaveLength(1);
   });
 
+  it("applies a picked derived point anchor to the selected reference parameter", () => {
+    useCadStore.setState({
+      selectedElementId: "line-bc",
+      selectedElementIds: ["line-bc"],
+      selectedParameterKey: "startPoint"
+    });
+
+    dispatchCommand("startPointPick");
+    dispatchCommand("applyPickedPoint", {
+      pickedPointAnchor: { mode: "derived", elementId: "line-ab", pointKey: "end" }
+    });
+
+    expect(useCadStore.getState().activePointPickTarget).toBeNull();
+    expect(useCadStore.getState().elements[4]).toMatchObject({
+      startPoint: { mode: "derived", elementId: "line-ab", pointKey: "end" }
+    });
+    expect(useCadStore.getState().past).toHaveLength(1);
+  });
+
   it("cancels point picking without changing the document", () => {
     useCadStore.setState({
       selectedElementId: "line-ab",

@@ -32,14 +32,16 @@ export type FreePointElement = CadElementBase & {
 
 export type OffsetPointElement = CadElementBase & {
   type: "offsetPoint";
-  fromPointId: ElementId;
+  fromPoint?: PointAnchor;
+  fromPointId?: ElementId;
   dx: NumericValue;
   dy: NumericValue;
 };
 
 export type PolarOffsetPointElement = CadElementBase & {
   type: "polarOffsetPoint";
-  fromPointId: ElementId;
+  fromPoint?: PointAnchor;
+  fromPointId?: ElementId;
   angleDeg: NumericValue;
   distance: NumericValue;
 };
@@ -48,6 +50,11 @@ export type PointAnchor =
   | {
       mode: "reference";
       pointId: ElementId;
+    }
+  | {
+      mode: "derived";
+      elementId: ElementId;
+      pointKey: string;
     }
   | {
       mode: "coordinate";

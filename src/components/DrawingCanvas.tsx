@@ -7,6 +7,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { dispatchCommand } from "../commands/commands";
 import type { BezierHandleRole as CommandBezierHandleRole } from "../commands/commands";
 import { lineMeasurementLabel } from "../geometry/numericExpressions";
+import { selectablePointsForGeometry } from "../model/pointAnchors";
 import { findParameterDefinition } from "../parameters/parameterDefinitions";
 import type { ParameterKey } from "../parameters/parameterDefinitions";
 import { useCadStore } from "../state/useCadStore";
@@ -16,7 +17,8 @@ import type {
   ComputedLine,
   ComputedPoint,
   ElementId,
-  EvaluationResult
+  EvaluationResult,
+  PointAnchor
 } from "../types/geometry";
 import {
   hitTestCanvasGeometry,
@@ -73,6 +75,17 @@ type MeasurementCandidateMenu = {
   targetParameterKey: ParameterKey;
 };
 
+type PointPickCandidate = {
+  anchor: PointAnchor;
+  label: string;
+  screen: ScreenPoint;
+};
+
+type PointPickCandidateMenu = {
+  screen: ScreenPoint;
+  candidates: PointPickCandidate[];
+};
+
 type BezierHandleOverlay = {
   id: string;
   curveId: ElementId;
@@ -88,6 +101,7 @@ const MIN_GRID_SPACING_PX = 8;
 const WHEEL_ZOOM_BASE = 1.1;
 const GRID_ENABLED = true;
 const BEZIER_HANDLE_HIT_RADIUS_PX = 9;
+const POINT_PICK_CANDIDATE_RADIUS_PX = 10;
 
 const isPoint = (geometry: unknown): geometry is ComputedPoint =>
   typeof geometry === "object" && geometry !== null && "kind" in geometry && geometry.kind === "point";
@@ -159,6 +173,20 @@ const hitTestBezierHandle = (
   return null;
 };
 
+const hitTestPointPickCandidates = (
+  screen: ScreenPoint,
+  candidates: PointPickCandidate[]
+) => {
+  const hitRadiusSquared = POINT_PICK_CANDIDATE_RADIUS_PX * POINT_PICK_CANDIDATE_RADIUS_PX;
+  const hits: PointPickCandidate[] = [];
+  for (let index = candidates.length - 1; index >= 0; index -= 1) {
+    if (squaredScreenDistance(screen, candidates[index].screen) <= hitRadiusSquared) {
+      hits.push(candidates[index]);
+    }
+  }
+  return hits;
+};
+
 const drawGrid = (
   ctx: CanvasRenderingContext2D,
   size: ViewportSize,
@@ -216,6 +244,8 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
   const [isBezierHandleDragging, setIsBezierHandleDragging] = useState(false);
   const [measurementCandidateMenu, setMeasurementCandidateMenu] =
     useState<MeasurementCandidateMenu | null>(null);
+  const [pointPickCandidateMenu, setPointPickCandidateMenu] =
+    useState<PointPickCandidateMenu | null>(null);
   const elements = useCadStore((state) => state.elements);
   const selectedElementId = useCadStore((state) => state.selectedElementId);
   const selectedElementIds = useCadStore((state) => state.selectedElementIds);
@@ -269,6 +299,18 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
         })),
     [canvasViewport, curves, viewportSize, visibleElementIds]
   );
+  const overlayPointPickCandidates = useMemo(() => {
+    const elementsById = new Map(elements.map((element) => [element.id, element]));
+    return geometries
+      .filter((geometry) => visibleElementIds.has(geometry.elementId))
+      .flatMap((geometry) =>
+        selectablePointsForGeometry(geometry, elementsById).map((candidate) => ({
+          anchor: candidate.anchor,
+          label: candidate.label,
+          screen: worldToScreen(candidate.point, viewportSize, canvasViewport)
+        }))
+      );
+  }, [canvasViewport, elements, geometries, viewportSize, visibleElementIds]);
   const selectedBezierHandles = useMemo(() => {
     const curveElement = elements.find((element) => element.id === selectedElementId);
     if (!curveElement || curveElement.type !== "bezierCurve" || !visibleElementIds.has(curveElement.id)) {
@@ -597,19 +639,22 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
       };
       const handle = hitTestBezierHandle(screen, selectedBezierHandles);
       if (activePointPickTarget) {
-        const pointElementId = hitTestCanvasGeometry({
-          screen,
-          lines: [],
-          curves: [],
-          points: overlayPoints
-        });
+        const candidates = hitTestPointPickCandidates(screen, overlayPointPickCandidates);
         event.preventDefault();
         event.currentTarget.focus();
-        if (pointElementId) {
-          dispatchCommand("applyPickedPoint", { pickedPointId: pointElementId });
+        if (candidates.length === 1) {
+          dispatchCommand("applyPickedPoint", { pickedPointAnchor: candidates[0].anchor });
+          setPointPickCandidateMenu(null);
+          return;
         }
+        if (candidates.length > 1) {
+          setPointPickCandidateMenu({ screen, candidates });
+          return;
+        }
+        setPointPickCandidateMenu(null);
         return;
       }
+      setPointPickCandidateMenu(null);
       if (handle) {
         event.preventDefault();
         event.currentTarget.focus();
@@ -859,6 +904,17 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
               </text>
             </g>
           ))}
+          {activePointPickTarget
+            ? overlayPointPickCandidates.map((candidate, index) => (
+                <circle
+                  key={`${candidate.label}-${index}`}
+                  cx={candidate.screen.x}
+                  cy={candidate.screen.y}
+                  r={7}
+                  className="overlay-derived-point-pick-candidate"
+                />
+              ))
+            : null}
         </svg>
         {activePointPickTarget ? (
           <div className="point-pick-canvas-banner">
@@ -884,6 +940,34 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
                 onClick={() => applyMeasurementCandidate(candidate)}
               >
                 {candidate.line.name}.{lineMeasurementLabel(candidate.property)}
+              </button>
+            ))}
+          </div>
+        ) : null}
+        {pointPickCandidateMenu ? (
+          <div
+            className="measurement-candidate-menu"
+            style={{
+              left: pointPickCandidateMenu.screen.x,
+              top: pointPickCandidateMenu.screen.y
+            }}
+            role="menu"
+            aria-label="点選択候補"
+          >
+            {pointPickCandidateMenu.candidates.map((candidate) => (
+              <button
+                key={candidate.label}
+                type="button"
+                role="menuitem"
+                onPointerDown={(event) => event.stopPropagation()}
+                onClick={() => {
+                  dispatchCommand("applyPickedPoint", {
+                    pickedPointAnchor: candidate.anchor
+                  });
+                  setPointPickCandidateMenu(null);
+                }}
+              >
+                {candidate.label}
               </button>
             ))}
           </div>

@@ -10,6 +10,11 @@ import type {
   PointAnchor
 } from "../types/geometry";
 import { evaluateNumericValue } from "./numericExpressions";
+import {
+  anchorReferenceElementId,
+  pointAnchorForElement,
+  resolveDerivedPoint
+} from "../model/pointAnchors";
 
 const isPoint = (
   geometry: ComputedGeometry | undefined
@@ -52,9 +57,6 @@ const getComputedPointOrError = (
 
   return point;
 };
-
-const pointAnchorReferenceId = (anchor: PointAnchor) =>
-  anchor.mode === "reference" ? anchor.pointId : null;
 
 const degreesToRadians = (degrees: number) => (degrees * Math.PI) / 180;
 const radiansToDegrees = (radians: number) => (radians * 180) / Math.PI;
@@ -154,6 +156,20 @@ const getPointAnchorOrError = (
       elementsById,
       errors
     );
+  }
+
+  if (anchor.mode === "derived") {
+    const source = computedGeometry.get(anchor.elementId);
+    const point = resolveDerivedPoint(source, anchor.pointKey, elementsById);
+    if (!point) {
+      errors.push(dependencyError(element, anchor.elementId, elementsById));
+      return undefined;
+    }
+    return {
+      ...point,
+      elementId: `${anchor.elementId}:${anchor.pointKey}`,
+      name: `${source!.name}.${anchor.pointKey}`
+    };
   }
 
   const x = numericError(
@@ -264,14 +280,28 @@ export const evaluateElements = (elements: CadElement[]): EvaluationResult => {
         break;
       }
       case "offsetPoint": {
-        const fromPoint = getComputedPointOrError(
-          element,
-          element.fromPointId,
-          computedGeometry,
-          elementsById,
-          errors
-        );
-        if (!fromPoint) {
+        const fromAnchor = pointAnchorForElement(element);
+        if (!fromAnchor) break;
+        const resolvedFromPoint =
+          fromAnchor.mode === "reference"
+            ? getComputedPointOrError(
+                element,
+                fromAnchor.pointId,
+                computedGeometry,
+                elementsById,
+                errors
+              )
+            : getPointAnchorOrError(
+                element,
+                fromAnchor,
+                "from",
+                computedGeometry,
+                elementsById,
+                errors,
+                localVariableValues,
+                localVariableNames
+              );
+        if (!resolvedFromPoint) {
           break;
         }
         const dx = numericError(
@@ -298,20 +328,34 @@ export const evaluateElements = (elements: CadElement[]): EvaluationResult => {
           kind: "point",
           elementId: element.id,
           name: element.name,
-          x: fromPoint.x + dx,
-          y: fromPoint.y + dy
+          x: resolvedFromPoint.x + dx,
+          y: resolvedFromPoint.y + dy
         });
         break;
       }
       case "polarOffsetPoint": {
-        const fromPoint = getComputedPointOrError(
-          element,
-          element.fromPointId,
-          computedGeometry,
-          elementsById,
-          errors
-        );
-        if (!fromPoint) {
+        const fromAnchor = pointAnchorForElement(element);
+        if (!fromAnchor) break;
+        const resolvedFromPoint =
+          fromAnchor.mode === "reference"
+            ? getComputedPointOrError(
+                element,
+                fromAnchor.pointId,
+                computedGeometry,
+                elementsById,
+                errors
+              )
+            : getPointAnchorOrError(
+                element,
+                fromAnchor,
+                "from",
+                computedGeometry,
+                elementsById,
+                errors,
+                localVariableValues,
+                localVariableNames
+              );
+        if (!resolvedFromPoint) {
           break;
         }
 
@@ -340,8 +384,8 @@ export const evaluateElements = (elements: CadElement[]): EvaluationResult => {
           kind: "point",
           elementId: element.id,
           name: element.name,
-          x: fromPoint.x + Math.cos(angleRad) * distance,
-          y: fromPoint.y - Math.sin(angleRad) * distance
+          x: resolvedFromPoint.x + Math.cos(angleRad) * distance,
+          y: resolvedFromPoint.y - Math.sin(angleRad) * distance
         });
         break;
       }
@@ -381,8 +425,8 @@ export const evaluateElements = (elements: CadElement[]): EvaluationResult => {
           kind: "line",
           elementId: element.id,
           name: element.name,
-          startPointId: pointAnchorReferenceId(element.startPoint),
-          endPointId: pointAnchorReferenceId(element.endPoint),
+          startPointId: anchorReferenceElementId(element.startPoint),
+          endPointId: anchorReferenceElementId(element.endPoint),
           start,
           end,
           length,
@@ -534,10 +578,10 @@ export const evaluateElements = (elements: CadElement[]): EvaluationResult => {
           kind: "bezierCurve",
           elementId: element.id,
           name: element.name,
-          startPointId: pointAnchorReferenceId(element.startPoint),
-          endPointId: pointAnchorReferenceId(element.endPoint),
+          startPointId: anchorReferenceElementId(element.startPoint),
+          endPointId: anchorReferenceElementId(element.endPoint),
           intermediatePointIds: element.intermediatePoints.flatMap((point) =>
-            pointAnchorReferenceId(point.point) ? [pointAnchorReferenceId(point.point)!] : []
+            anchorReferenceElementId(point.point) ? [anchorReferenceElementId(point.point)!] : []
           ),
           segments,
           length: segments.reduce(

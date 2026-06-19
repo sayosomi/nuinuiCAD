@@ -590,6 +590,107 @@ describe("evaluateElements", () => {
     });
   });
 
+  it("evaluates derived line start and end point anchors", () => {
+    const result = evaluateElements([
+      ...validElements,
+      {
+        id: "derived-line",
+        name: "派生線",
+        type: "line",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "derived", elementId: "ab", pointKey: "start" },
+        endPoint: { mode: "derived", elementId: "ab", pointKey: "end" }
+      }
+    ]);
+
+    expect(result.errors).toHaveLength(0);
+    expect(result.computedGeometry.get("derived-line")).toMatchObject({
+      kind: "line",
+      start: { x: 10, y: 20 },
+      end: { x: 40, y: 25 }
+    });
+  });
+
+  it("evaluates derived Bezier intermediate point anchors", () => {
+    const result = evaluateElements([
+      ...validElements,
+      {
+        id: "c",
+        name: "点C",
+        type: "offsetPoint",
+        visible: true,
+        enabled: true,
+        fromPointId: "b",
+        dx: 0,
+        dy: 40
+      },
+      {
+        id: "curve",
+        name: "曲線ABC",
+        type: "bezierCurve",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "a" },
+        startHandleAngleDeg: 0,
+        startHandleLength: 20,
+        intermediatePoints: [
+          {
+            id: "mid-1",
+            point: { mode: "reference", pointId: "b" },
+            handleAngleDeg: 90,
+            incomingHandleLength: 10,
+            outgoingHandleLength: 15
+          }
+        ],
+        endPoint: { mode: "reference", pointId: "c" },
+        endHandleAngleDeg: 90,
+        endHandleLength: 20
+      },
+      {
+        id: "from-mid",
+        name: "中間点からの点",
+        type: "offsetPoint",
+        visible: true,
+        enabled: true,
+        fromPoint: { mode: "derived", elementId: "curve", pointKey: "intermediate:mid-1" },
+        dx: 5,
+        dy: 6
+      }
+    ]);
+
+    expect(result.errors).toHaveLength(0);
+    expect(result.computedGeometry.get("from-mid")).toMatchObject({
+      kind: "point",
+      x: 45,
+      y: 31
+    });
+  });
+
+  it("reports a derived point dependency that appears too late", () => {
+    const result = evaluateElements([
+      validElements[0],
+      {
+        id: "before-line",
+        name: "前の線",
+        type: "line",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "a" },
+        endPoint: { mode: "derived", elementId: "ab", pointKey: "end" }
+      },
+      validElements[1],
+      validElements[2]
+    ]);
+
+    expect(result.computedGeometry.has("before-line")).toBe(false);
+    expect(result.errors[0]).toMatchObject({
+      elementId: "before-line",
+      missingDependencyId: "ab",
+      missingDependencyName: "直線AB"
+    });
+  });
+
   it("allows hidden elements to be evaluated and referenced", () => {
     const hiddenSource: CadElement[] = [
       { ...validElements[0], visible: false },

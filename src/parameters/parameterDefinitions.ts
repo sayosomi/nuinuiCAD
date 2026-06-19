@@ -1,4 +1,5 @@
-import type { CadElement, ElementId, PointAnchor } from "../types/geometry";
+import type { CadElement, PointAnchor } from "../types/geometry";
+import { pointAnchorOptions } from "../model/pointAnchors";
 
 export type ParameterValueKind = "text" | "boolean" | "number" | "reference";
 
@@ -63,7 +64,7 @@ export const getParameterDefinitions = (element: CadElement): ParameterDefinitio
       return [
         ...commonParameters,
         ...numericVariableParameters(element),
-        { key: "fromPointId", directKey: "b", label: "基準点", kind: "reference" },
+        { key: "fromPoint", directKey: "b", label: "基準点", kind: "reference" },
         { key: "dx", directKey: "x", label: "dx", kind: "number" },
         { key: "dy", directKey: "y", label: "dy", kind: "number" }
       ];
@@ -71,7 +72,7 @@ export const getParameterDefinitions = (element: CadElement): ParameterDefinitio
       return [
         ...commonParameters,
         ...numericVariableParameters(element),
-        { key: "fromPointId", directKey: "b", label: "基準点", kind: "reference" },
+        { key: "fromPoint", directKey: "b", label: "基準点", kind: "reference" },
         {
           key: "angleDeg",
           directKey: "r",
@@ -174,13 +175,7 @@ export const findParameterByDirectKey = (element: CadElement, directKey: string)
     (definition) => definition.directKey === directKey.toLowerCase()
   );
 
-export const isPointElement = (element: CadElement) =>
-  element.type === "freePoint" ||
-  element.type === "offsetPoint" ||
-  element.type === "polarOffsetPoint";
-
-export const pointReferenceOptions = (elements: CadElement[]): ElementId[] =>
-  elements.filter(isPointElement).map((element) => element.id);
+export const pointAnchorReferenceOptions = pointAnchorOptions;
 
 export const getNumericParameterStep = (element: CadElement, key: ParameterKey) =>
   element.numericParameterSteps?.[key] ?? defaultNumericParameterStep;

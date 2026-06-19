@@ -16,8 +16,15 @@ import {
   getNumericParameterStepLevels,
   getParameterDefinitions,
   normalizeParameterKey,
-  pointReferenceOptions
+  pointAnchorReferenceOptions
 } from "../parameters/parameterDefinitions";
+import {
+  anchorEquals,
+  anchorReferenceElementId,
+  pointAnchorForElement,
+  referenceAnchor,
+  resolveDerivedPoint
+} from "../model/pointAnchors";
 import type {
   CadElement,
   CadElementType,
@@ -115,6 +122,7 @@ export type CommandContext = {
   intermediatePointId?: string;
   variableId?: string;
   pickedPointId?: ElementId;
+  pickedPointAnchor?: PointAnchor;
 };
 
 export type Command = {
@@ -204,7 +212,17 @@ const movePolarOffsetPointByDelta = ({
 
   const evaluation = evaluateElements(sourceElements);
   const point = evaluation.computedGeometry.get(element.id);
-  const fromPoint = evaluation.computedGeometry.get(element.fromPointId);
+  const fromAnchor = pointAnchorForElement(element);
+  const fromPointId = fromAnchor ? anchorReferenceElementId(fromAnchor) : null;
+  const fromGeometry = fromPointId ? evaluation.computedGeometry.get(fromPointId) : null;
+  const fromPoint =
+    fromAnchor?.mode === "derived"
+      ? resolveDerivedPoint(
+          fromGeometry ?? undefined,
+          fromAnchor.pointKey,
+          new Map(sourceElements.map((item) => [item.id, item]))
+        )
+      : fromGeometry;
   if (!isComputedPoint(point) || !isComputedPoint(fromPoint)) return element;
 
   const currentVector = {
@@ -552,8 +570,6 @@ const parseVariableParameterKey = (key: string) => {
   return { variableId };
 };
 
-const referenceAnchor = (pointId: ElementId): PointAnchor => ({ mode: "reference", pointId });
-
 const anchorPointId = (anchor: PointAnchor) => (anchor.mode === "reference" ? anchor.pointId : null);
 
 const parseAnchorCoordinateParameterKey = (key: string) => {
@@ -573,8 +589,8 @@ const getPointAnchor = (element: CadElement, key: string): PointAnchor | null =>
   if ((key === "startPoint" || key === "endPoint") && (element.type === "line" || element.type === "bezierCurve")) {
     return element[key];
   }
-  if (key === "fromPointId" && (element.type === "offsetPoint" || element.type === "polarOffsetPoint")) {
-    return referenceAnchor(element.fromPointId);
+  if (key === "fromPoint" && (element.type === "offsetPoint" || element.type === "polarOffsetPoint")) {
+    return pointAnchorForElement(element);
   }
   return null;
 };
@@ -595,11 +611,11 @@ const setPointAnchor = (element: CadElement, key: string, anchor: PointAnchor): 
   if (key === "endPoint" && (element.type === "line" || element.type === "bezierCurve")) {
     return { ...element, endPoint: anchor };
   }
-  if (key === "fromPointId" && anchor.mode === "reference" && element.type === "offsetPoint") {
-    return { ...element, fromPointId: anchor.pointId };
+  if (key === "fromPoint" && element.type === "offsetPoint") {
+    return { ...element, fromPoint: anchor, fromPointId: anchor.mode === "reference" ? anchor.pointId : undefined };
   }
-  if (key === "fromPointId" && anchor.mode === "reference" && element.type === "polarOffsetPoint") {
-    return { ...element, fromPointId: anchor.pointId };
+  if (key === "fromPoint" && element.type === "polarOffsetPoint") {
+    return { ...element, fromPoint: anchor, fromPointId: anchor.mode === "reference" ? anchor.pointId : undefined };
   }
   return element;
 };
@@ -717,6 +733,7 @@ const makeElement = (type: CadElementType, elements: CadElement[]): CadElement =
         type,
         visible: true,
         enabled: true,
+        fromPoint: referenceAnchor(firstPointId),
         fromPointId: firstPointId,
         dx: 30,
         dy: 0
@@ -731,6 +748,7 @@ const makeElement = (type: CadElementType, elements: CadElement[]): CadElement =
         type,
         visible: true,
         enabled: true,
+        fromPoint: referenceAnchor(firstPointId),
         fromPointId: firstPointId,
         angleDeg: 0,
         distance: 30
@@ -888,17 +906,17 @@ const cycleReferenceParameter = (direction: 1 | -1) => {
   const definition = selectedParameterDefinition();
   if (!selectedElement || definition?.kind !== "reference") return;
 
-  const options = pointReferenceOptions(useCadStore.getState().elements);
+  const options = pointAnchorReferenceOptions(useCadStore.getState().elements);
   if (options.length === 0) return;
 
   const parameterValue = getParameterValue(selectedElement, definition.key);
-  const currentValue =
+  const currentAnchor =
     typeof parameterValue === "string"
-      ? parameterValue
+      ? referenceAnchor(parameterValue)
       : parameterValue && typeof parameterValue === "object" && "mode" in parameterValue
-        ? anchorPointId(parameterValue as PointAnchor)
+        ? parameterValue as PointAnchor
         : null;
-  const currentIndex = options.indexOf(currentValue ?? "");
+  const currentIndex = options.findIndex((option) => anchorEquals(option, currentAnchor));
   const nextIndex =
     currentIndex < 0 ? 0 : (currentIndex + direction + options.length) % options.length;
   updateSelectedElement((element) => setParameterValue(element, definition.key, options[nextIndex]));
@@ -915,25 +933,32 @@ const startPointPick = () => {
   });
 };
 
-const applyPickedPoint = (pointId: ElementId | undefined) => {
-  if (!pointId) return;
+const applyPickedPoint = (context?: Pick<CommandContext, "pickedPointId" | "pickedPointAnchor">) => {
+  const anchor = context?.pickedPointAnchor ?? (context?.pickedPointId ? referenceAnchor(context.pickedPointId) : null);
+  if (!anchor) return;
   const { activePointPickTarget, elements } = useCadStore.getState();
   if (!activePointPickTarget) return;
 
-  const pointElement = elements.find((element) => element.id === pointId);
-  if (
-    !pointElement ||
-    (pointElement.type !== "freePoint" &&
-      pointElement.type !== "offsetPoint" &&
-      pointElement.type !== "polarOffsetPoint")
-  ) {
+  if (anchor.mode === "reference") {
+    const pointElement = elements.find((element) => element.id === anchor.pointId);
+    if (
+      !pointElement ||
+      (pointElement.type !== "freePoint" &&
+        pointElement.type !== "offsetPoint" &&
+        pointElement.type !== "polarOffsetPoint")
+    ) {
+      return;
+    }
+  }
+
+  if (anchor.mode === "derived" && !elements.some((element) => element.id === anchor.elementId)) {
     return;
   }
 
   useCadStore.getState().commitDocumentChange({
     elements: elements.map((element) =>
       element.id === activePointPickTarget.elementId
-        ? setParameterValue(element, activePointPickTarget.parameterKey, pointId)
+        ? setParameterValue(element, activePointPickTarget.parameterKey, anchor)
         : element
     ),
     selectedElementId: activePointPickTarget.elementId,
@@ -988,15 +1013,16 @@ const addBezierIntermediatePoint = () => {
   const selectedElement = getSelectedElement();
   if (selectedElement?.type !== "bezierCurve") return;
 
-  const options = pointReferenceOptions(useCadStore.getState().elements);
+  const options = pointAnchorReferenceOptions(useCadStore.getState().elements);
   const startPointId = anchorPointId(selectedElement.startPoint);
   const endPointId = anchorPointId(selectedElement.endPoint);
-  const pointId = options.find(
-    (id) => id !== startPointId && id !== endPointId
-  ) ?? options[0] ?? "";
+  const pointAnchor = options.find((anchor) => {
+    const pointId = anchorPointId(anchor);
+    return pointId !== startPointId && pointId !== endPointId;
+  }) ?? options[0] ?? referenceAnchor("");
   const intermediatePoint = {
     id: createId("bezierCurve"),
-    point: referenceAnchor(pointId),
+    point: pointAnchor,
     handleAngleDeg: 0,
     incomingHandleLength: 30,
     outgoingHandleLength: 30
@@ -1362,7 +1388,7 @@ export const commands: Record<CommandId, Command> = {
   applyPickedPoint: {
     id: "applyPickedPoint",
     label: "選択した点を参照に設定",
-    run: (context) => applyPickedPoint(context?.pickedPointId)
+    run: (context) => applyPickedPoint(context)
   },
   cancelPointPick: {
     id: "cancelPointPick",

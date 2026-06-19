@@ -386,6 +386,23 @@ select {
   white-space: nowrap;
 }
 
+.element-point-pick-actions {
+  display: flex;
+  grid-column: 1 / -1;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding-top: 6px;
+}
+
+.element-point-pick-actions button {
+  min-height: 28px;
+  padding: 4px 8px;
+  border-color: #0f766e;
+  background: #ffffff;
+  color: #0f4f49;
+  font-size: 12px;
+}
+
 .reorder-row {
   margin-top: 10px;
 }
@@ -994,6 +1011,12 @@ select {
 .drawing-overlay .overlay-point-pick-candidate {
   fill: rgb(15 118 110 / 10%);
   stroke: rgb(15 118 110 / 42%);
+  stroke-width: 2.25;
+}
+
+.drawing-overlay .overlay-derived-point-pick-candidate {
+  fill: rgb(255 255 255 / 78%);
+  stroke: rgb(15 118 110 / 72%);
   stroke-width: 2.25;
 }
 

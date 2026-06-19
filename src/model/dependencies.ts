@@ -1,5 +1,6 @@
 import type { CadElement, ElementId, PointAnchor } from "../types/geometry";
 import { extractNumericExpressionReferences } from "../geometry/numericExpressions";
+import { anchorReferenceElementId, pointAnchorForElement } from "./pointAnchors";
 
 export type DependencyReference = {
   id: ElementId;
@@ -25,12 +26,12 @@ const numericVariableReferences = (element: CadElement) =>
   );
 
 const pointAnchorParentIds = (anchor: PointAnchor) =>
-  anchor.mode === "reference"
-    ? [anchor.pointId]
-    : [
+  anchor.mode === "coordinate"
+    ? [
         ...extractNumericExpressionReferences(anchor.x),
         ...extractNumericExpressionReferences(anchor.y)
-      ].map((reference) => reference.elementId);
+      ].map((reference) => reference.elementId)
+    : [anchorReferenceElementId(anchor)].filter((id): id is ElementId => Boolean(id));
 
 export const getDirectParentIds = (element: CadElement): ElementId[] => {
   const numericExpressionParentIds = () => {
@@ -83,7 +84,10 @@ export const getDirectParentIds = (element: CadElement): ElementId[] => {
       return numericExpressionParentIds();
     case "offsetPoint":
     case "polarOffsetPoint":
-      return [element.fromPointId, ...numericExpressionParentIds()];
+      return [
+        ...pointAnchorParentIds(pointAnchorForElement(element) ?? { mode: "reference", pointId: "" }),
+        ...numericExpressionParentIds()
+      ].filter(Boolean);
     case "line":
       return numericExpressionParentIds();
     case "bezierCurve":

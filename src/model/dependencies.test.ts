@@ -105,6 +105,35 @@ describe("dependencies", () => {
     expect(getDirectParentIds(directLine)).toEqual(["bc"]);
   });
 
+  it("returns derived point references as direct parent ids", () => {
+    const derivedLine: CadElement = {
+      id: "derived",
+      name: "派生線",
+      type: "line",
+      visible: true,
+      enabled: true,
+      startPoint: { mode: "derived", elementId: "ab", pointKey: "start" },
+      endPoint: { mode: "derived", elementId: "bc", pointKey: "end" }
+    };
+
+    expect(getDirectParentIds(derivedLine)).toEqual(["ab", "bc"]);
+  });
+
+  it("returns derived base point references for offset points", () => {
+    const derivedOffset: CadElement = {
+      id: "derived-offset",
+      name: "派生オフセット",
+      type: "offsetPoint",
+      visible: true,
+      enabled: true,
+      fromPoint: { mode: "derived", elementId: "ab", pointKey: "end" },
+      dx: 10,
+      dy: 0
+    };
+
+    expect(getDirectParentIds(derivedOffset)).toEqual(["ab"]);
+  });
+
   it("returns direct children", () => {
     expect(getDirectChildren("b", elements).map((element) => element.id)).toEqual([
       "c",
