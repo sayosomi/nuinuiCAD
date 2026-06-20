@@ -1,7 +1,6 @@
 import type {
   ComputedArcLine,
   ComputedBezierCurve,
-  ComputedBezierSegment,
   ComputedLine,
   ComputedOffsetLine,
   ComputedPoint,
@@ -19,6 +18,13 @@ const LINE_HIT_DISTANCE_PX = 6;
 const LINE_ENDPOINT_MEASUREMENT_RADIUS_PX = 12;
 const CURVE_HIT_STEPS = 32;
 const ARC_HIT_STEPS = 32;
+
+type BezierLikeSegment = {
+  start: ScreenPoint;
+  control1: ScreenPoint;
+  control2: ScreenPoint;
+  end: ScreenPoint;
+};
 
 const squaredDistance = (a: ScreenPoint, b: ScreenPoint) => {
   const dx = a.x - b.x;
@@ -43,7 +49,7 @@ const distanceToLineSegment = (point: ScreenPoint, start: ScreenPoint, end: Scre
   return Math.sqrt(squaredDistance(point, projection));
 };
 
-const cubicPointAt = (segment: ComputedBezierSegment, t: number): ScreenPoint => {
+const cubicPointAt = (segment: BezierLikeSegment, t: number): ScreenPoint => {
   const inverse = 1 - t;
   const a = inverse * inverse * inverse;
   const b = 3 * inverse * inverse * t;
@@ -99,6 +105,11 @@ export const sampleOffsetLineScreenPoints = (
   line.segments.flatMap((segment) => {
     if (segment.kind === "line") {
       return [worldToScreen(segment.start), worldToScreen(segment.end)];
+    }
+    if (segment.kind === "bezier") {
+      return Array.from({ length: CURVE_HIT_STEPS + 1 }, (_, index) =>
+        worldToScreen(cubicPointAt(segment, index / CURVE_HIT_STEPS))
+      );
     }
     const stepCount = Math.max(1, Math.ceil((Math.abs(segment.sweepAngleDeg) / 360) * ARC_HIT_STEPS));
     return Array.from({ length: stepCount + 1 }, (_, index) => {

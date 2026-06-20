@@ -1,7 +1,6 @@
 import type {
   ComputedArcLine,
   ComputedBezierCurve,
-  ComputedBezierSegment,
   ComputedGeometry,
   ComputedLine,
   ComputedOffsetLine,
@@ -11,6 +10,13 @@ import type {
 type Point = { x: number; y: number };
 
 export type LineLikeGeometry = ComputedLine | ComputedArcLine | ComputedBezierCurve | ComputedOffsetLine;
+
+type BezierLikeSegment = {
+  start: Point;
+  control1: Point;
+  control2: Point;
+  end: Point;
+};
 
 type PathSegment = {
   start: Point;
@@ -44,7 +50,7 @@ const extendFrom = (point: Point, direction: Point, distanceFromPoint: number): 
   y: point.y + direction.y * distanceFromPoint
 });
 
-const cubicPointAt = (segment: ComputedBezierSegment, t: number): Point => {
+const cubicPointAt = (segment: BezierLikeSegment, t: number): Point => {
   const inverse = 1 - t;
   const a = inverse * inverse * inverse;
   const b = 3 * inverse * inverse * t;
@@ -120,6 +126,15 @@ const offsetSegments = (line: ComputedOffsetLine) =>
     if (segment.kind === "line") {
       const path = pathSegment(segment.start, segment.end);
       return path ? [path] : [];
+    }
+    if (segment.kind === "bezier") {
+      const points = Array.from({ length: CURVE_PATH_STEPS + 1 }, (_, index) =>
+        cubicPointAt(segment, index / CURVE_PATH_STEPS)
+      );
+      return points.slice(0, -1).flatMap((start, index) => {
+        const path = pathSegment(start, points[index + 1]);
+        return path ? [path] : [];
+      });
     }
     return arcSegments({
       center: segment.center,

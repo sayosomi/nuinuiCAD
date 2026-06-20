@@ -531,6 +531,13 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
           ctx.lineTo(end.x, end.y);
           return;
         }
+        if (segment.kind === "bezier") {
+          const control1 = worldToScreen(segment.control1, viewportSize, canvasViewport);
+          const control2 = worldToScreen(segment.control2, viewportSize, canvasViewport);
+          const end = worldToScreen(segment.end, viewportSize, canvasViewport);
+          ctx.bezierCurveTo(control1.x, control1.y, control2.x, control2.y, end.x, end.y);
+          return;
+        }
         const center = worldToScreen(segment.center, viewportSize, canvasViewport);
         ctx.arc(
           center.x,

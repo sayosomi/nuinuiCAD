@@ -1582,6 +1582,94 @@ describe("evaluateElements", () => {
     expect(offset.segments.at(-1)!.end.y).toBeCloseTo(100);
   });
 
+  it("keeps Bezier-derived offset lines as smooth curve segments", () => {
+    const elements: CadElement[] = [
+      {
+        id: "curve",
+        name: "曲線",
+        type: "bezierCurve",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "coordinate", x: 0, y: 0 },
+        startHandleAngleDeg: 45,
+        startHandleLength: 80,
+        intermediatePoints: [],
+        endPoint: { mode: "coordinate", x: 120, y: 0 },
+        endHandleAngleDeg: 135,
+        endHandleLength: 80
+      },
+      {
+        id: "offset",
+        name: "オフセット",
+        type: "offsetLine",
+        visible: true,
+        enabled: true,
+        baseLineIds: ["curve"],
+        offset: 10,
+        side: "right",
+        closed: false
+      }
+    ];
+
+    const result = evaluateElements(elements);
+    const offset = result.computedGeometry.get("offset");
+
+    expect(result.errors).toHaveLength(0);
+    expect(offset).toMatchObject({ kind: "offsetLine" });
+    if (offset?.kind !== "offsetLine") throw new Error("Expected an offset line");
+    expect(offset.segments.some((segment) => segment.kind === "bezier")).toBe(true);
+    expect(offset.segments.every((segment) => segment.kind !== "line")).toBe(true);
+  });
+
+  it("keeps repeated Bezier-derived offset lines as smooth curve segments", () => {
+    const elements: CadElement[] = [
+      {
+        id: "curve",
+        name: "曲線",
+        type: "bezierCurve",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "coordinate", x: 0, y: 0 },
+        startHandleAngleDeg: 45,
+        startHandleLength: 80,
+        intermediatePoints: [],
+        endPoint: { mode: "coordinate", x: 120, y: 0 },
+        endHandleAngleDeg: 135,
+        endHandleLength: 80
+      },
+      {
+        id: "offset-1",
+        name: "オフセット1",
+        type: "offsetLine",
+        visible: true,
+        enabled: true,
+        baseLineIds: ["curve"],
+        offset: 10,
+        side: "right",
+        closed: false
+      },
+      {
+        id: "offset-2",
+        name: "オフセット2",
+        type: "offsetLine",
+        visible: true,
+        enabled: true,
+        baseLineIds: ["offset-1"],
+        offset: 10,
+        side: "right",
+        closed: false
+      }
+    ];
+
+    const result = evaluateElements(elements);
+    const offset = result.computedGeometry.get("offset-2");
+
+    expect(result.errors).toHaveLength(0);
+    expect(offset).toMatchObject({ kind: "offsetLine" });
+    if (offset?.kind !== "offsetLine") throw new Error("Expected an offset line");
+    expect(offset.segments.some((segment) => segment.kind === "bezier")).toBe(true);
+  });
+
   it("reports offset line dependencies that appear too late", () => {
     const result = evaluateElements([
       validElements[0],

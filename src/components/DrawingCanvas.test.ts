@@ -199,6 +199,50 @@ beforeEach(() => {
   vi.stubGlobal("ResizeObserver", ResizeObserverMock);
 });
 
+describe("DrawingCanvas rendering", () => {
+  it("draws Bezier offset line segments as canvas Bezier curves", () => {
+    const context = mockCanvasContext();
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(
+      context as unknown as CanvasRenderingContext2D
+    );
+    useCadStore.setState({
+      elements: [
+        {
+          id: "curve",
+          name: "曲線",
+          type: "bezierCurve",
+          visible: false,
+          enabled: true,
+          startPoint: { mode: "coordinate", x: 0, y: 0 },
+          startHandleAngleDeg: 45,
+          startHandleLength: 80,
+          intermediatePoints: [],
+          endPoint: { mode: "coordinate", x: 120, y: 0 },
+          endHandleAngleDeg: 135,
+          endHandleLength: 80
+        },
+        {
+          id: "offset",
+          name: "オフセット",
+          type: "offsetLine",
+          visible: true,
+          enabled: true,
+          baseLineIds: ["curve"],
+          offset: 10,
+          side: "right",
+          closed: false
+        }
+      ],
+      selectedElementId: "offset",
+      selectedElementIds: ["offset"]
+    });
+
+    renderDrawingCanvas();
+
+    expect(context.bezierCurveTo).toHaveBeenCalled();
+  });
+});
+
 describe("hitTestCanvasGeometry", () => {
   const start = point("point-a", 0, 0);
   const end = point("point-b", 100, 0);

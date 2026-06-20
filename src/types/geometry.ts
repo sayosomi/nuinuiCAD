@@ -219,6 +219,14 @@ export type ComputedOffsetLineSegment =
       length: number;
     }
   | {
+      kind: "bezier";
+      start: ComputedPoint;
+      control1: { x: number; y: number };
+      control2: { x: number; y: number };
+      end: ComputedPoint;
+      length: number;
+    }
+  | {
       kind: "arc";
       center: ComputedPoint;
       start: ComputedPoint;
