@@ -10,7 +10,8 @@ import type {
   PointAnchor
 } from "../types/geometry";
 import { evaluateNumericValue } from "./numericExpressions";
-import { buildOffsetLineGeometry, isLineLikeGeometry } from "./offsetPaths";
+import { pointAtDistanceFromEndpoint, isLineLikeGeometry } from "./linePaths";
+import { buildOffsetLineGeometry } from "./offsetPaths";
 import {
   anchorReferenceElementId,
   pointAnchorForElement,
@@ -511,6 +512,63 @@ export const evaluateElements = (elements: CadElement[]): EvaluationResult => {
           name: element.name,
           x: start.x + vector.x * ratio,
           y: start.y + vector.y * ratio
+        });
+        break;
+      }
+      case "lineDivisionPoint": {
+        const geometry = computedGeometry.get(element.endpoint.lineId);
+        if (!isLineLikeGeometry(geometry)) {
+          errors.push(dependencyError(element, element.endpoint.lineId, elementsById));
+          break;
+        }
+
+        const distanceFromEndpoint =
+          element.placementMode === "distance"
+            ? numericError(
+                element,
+                element.distance,
+                computedGeometry,
+                elementsById,
+                errors,
+                localVariableValues,
+                localVariableNames
+              )
+            : numericError(
+                element,
+                element.ratio,
+                computedGeometry,
+                elementsById,
+                errors,
+                localVariableValues,
+                localVariableNames
+              );
+        if (distanceFromEndpoint === undefined) break;
+
+        const pathDistance =
+          element.placementMode === "distance"
+            ? distanceFromEndpoint
+            : geometry.length * distanceFromEndpoint;
+        const point = pointAtDistanceFromEndpoint(
+          geometry,
+          element.endpoint.endpointKey,
+          pathDistance
+        );
+        if (!point) {
+          errors.push(
+            geometryError(
+              element,
+              `${element.name} は参照線から線上位置を作図できません。長さのある線を指定してください。`
+            )
+          );
+          break;
+        }
+
+        computedGeometry.set(element.id, {
+          kind: "point",
+          elementId: element.id,
+          name: element.name,
+          x: point.x,
+          y: point.y
         });
         break;
       }

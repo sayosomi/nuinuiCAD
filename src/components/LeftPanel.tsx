@@ -4,6 +4,8 @@ import { dispatchCommand } from "../commands/commands";
 import { getDependencyJumpTargets, getDependencySummary } from "../model/dependencies";
 import {
   isPointElement,
+  lineEndpointReferenceLabel,
+  lineEndpointReferenceOptions,
   pointAnchorForElement,
   pointAnchorLabel,
   referenceAnchor,
@@ -34,6 +36,7 @@ import type {
   ComputedPoint,
   ElementId,
   EvaluationResult,
+  LineEndpointReference,
   NumericValue,
   PointAnchor
 } from "../types/geometry";
@@ -426,6 +429,49 @@ const ElementEditor = ({
     </div>
     );
   };
+  const lineEndpointEditor = ({
+    parameterKey,
+    label,
+    endpoint
+  }: {
+    parameterKey: ParameterKey;
+    label: string;
+    endpoint: LineEndpointReference;
+  }) => {
+    const options = lineEndpointReferenceOptions(elements);
+    const value = `${endpoint.lineId}:${endpoint.endpointKey}`;
+
+    return (
+      <label
+        className={parameterFieldClass(parameterKey)}
+        onClick={() => selectParameter(parameterKey)}
+      >
+        <ParameterName element={element} parameterKey={parameterKey} label={label} />
+        <select
+          {...controlProps(parameterKey)}
+          value={value}
+          onChange={(event) => {
+            const [lineId, endpointKey] = event.target.value.split(":");
+            if ((endpointKey !== "start" && endpointKey !== "end") || !lineId) return;
+            updateParameterValue(parameterKey, { lineId, endpointKey });
+          }}
+        >
+          {options.length === 0 ? (
+            <option value={value}>参照できる線がありません</option>
+          ) : (
+            options.map((option) => (
+              <option
+                key={`${option.lineId}:${option.endpointKey}`}
+                value={`${option.lineId}:${option.endpointKey}`}
+              >
+                {lineEndpointReferenceLabel(option, elements)}
+              </option>
+            ))
+          )}
+        </select>
+      </label>
+    );
+  };
   const finishNumericDrag = (event: PointerEvent<HTMLInputElement>) => {
     const drag = numericDragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
@@ -676,6 +722,54 @@ const ElementEditor = ({
             <div className={parameterFieldClass("placementMode")} onClick={() => selectParameter("placementMode")}>
               <ParameterName element={element} parameterKey="placementMode" label="方式" />
               <div className="point-anchor-mode" role="group" aria-label="分点方式">
+                <button
+                  type="button"
+                  className={element.placementMode === "distance" ? "active-toggle" : ""}
+                  onClick={() => {
+                    updateParameterValue("placementMode", "distance");
+                    selectParameter("placementMode");
+                  }}
+                >
+                  距離
+                </button>
+                <button
+                  type="button"
+                  className={element.placementMode === "ratio" ? "active-toggle" : ""}
+                  onClick={() => {
+                    updateParameterValue("placementMode", "ratio");
+                    selectParameter("placementMode");
+                  }}
+                >
+                  割合
+                </button>
+              </div>
+            </div>
+            {element.placementMode === "distance"
+              ? numericInput({
+                  parameterKey: "distance",
+                  label: "距離",
+                  value: element.distance,
+                  ariaLabel: "距離"
+                })
+              : numericInput({
+                  parameterKey: "ratio",
+                  label: "割合",
+                  value: element.ratio,
+                  ariaLabel: "割合"
+                })}
+          </>
+        )}
+
+        {element.type === "lineDivisionPoint" && (
+          <>
+            {lineEndpointEditor({
+              parameterKey: "endpoint",
+              label: "端点",
+              endpoint: element.endpoint
+            })}
+            <div className={parameterFieldClass("placementMode")} onClick={() => selectParameter("placementMode")}>
+              <ParameterName element={element} parameterKey="placementMode" label="方式" />
+              <div className="point-anchor-mode" role="group" aria-label="線上分点方式">
                 <button
                   type="button"
                   className={element.placementMode === "distance" ? "active-toggle" : ""}

@@ -234,6 +234,257 @@ describe("evaluateElements", () => {
     });
   });
 
+  it("evaluates line division points along a line from the selected endpoint", () => {
+    const result = evaluateElements([
+      {
+        id: "a",
+        name: "A",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 0,
+        y: 0
+      },
+      {
+        id: "b",
+        name: "B",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 100,
+        y: 0
+      },
+      {
+        id: "line",
+        name: "線",
+        type: "line",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "a" },
+        endPoint: { mode: "reference", pointId: "b" }
+      },
+      {
+        id: "division",
+        name: "線上分点",
+        type: "lineDivisionPoint",
+        visible: true,
+        enabled: true,
+        endpoint: { lineId: "line", endpointKey: "start" },
+        placementMode: "distance",
+        distance: 25,
+        ratio: 0.5
+      }
+    ]);
+
+    expect(result.errors).toHaveLength(0);
+    expect(result.computedGeometry.get("division")).toMatchObject({
+      kind: "point",
+      x: 25,
+      y: 0
+    });
+  });
+
+  it("extends line division points past the opposite endpoint along the endpoint tangent", () => {
+    const result = evaluateElements([
+      {
+        id: "a",
+        name: "A",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 0,
+        y: 0
+      },
+      {
+        id: "b",
+        name: "B",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 100,
+        y: 0
+      },
+      {
+        id: "line",
+        name: "線",
+        type: "line",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "a" },
+        endPoint: { mode: "reference", pointId: "b" }
+      },
+      {
+        id: "division",
+        name: "線上分点",
+        type: "lineDivisionPoint",
+        visible: true,
+        enabled: true,
+        endpoint: { lineId: "line", endpointKey: "end" },
+        placementMode: "ratio",
+        distance: 25,
+        ratio: 1.2
+      }
+    ]);
+
+    expect(result.errors).toHaveLength(0);
+    expect(result.computedGeometry.get("division")).toMatchObject({
+      kind: "point",
+      x: -20,
+      y: 0
+    });
+  });
+
+  it("evaluates line division points along arc, Bezier, and offset lines", () => {
+    const result = evaluateElements([
+      {
+        id: "center",
+        name: "中心",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 0,
+        y: 0
+      },
+      {
+        id: "a",
+        name: "A",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 0,
+        y: 0
+      },
+      {
+        id: "b",
+        name: "B",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 100,
+        y: 0
+      },
+      {
+        id: "arc",
+        name: "円弧",
+        type: "arcLine",
+        visible: true,
+        enabled: true,
+        centerPoint: { mode: "reference", pointId: "center" },
+        radius: 10,
+        startAngleDeg: 0,
+        endAngleDeg: 90
+      },
+      {
+        id: "curve",
+        name: "曲線",
+        type: "bezierCurve",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "a" },
+        startHandleAngleDeg: 0,
+        startHandleLength: 0,
+        intermediatePoints: [],
+        endPoint: { mode: "reference", pointId: "b" },
+        endHandleAngleDeg: 180,
+        endHandleLength: 0
+      },
+      {
+        id: "line",
+        name: "線",
+        type: "line",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "a" },
+        endPoint: { mode: "reference", pointId: "b" }
+      },
+      {
+        id: "offset",
+        name: "オフセット",
+        type: "offsetLine",
+        visible: true,
+        enabled: true,
+        baseLineIds: ["line"],
+        offset: 10,
+        side: "right",
+        closed: false
+      },
+      {
+        id: "arc-division",
+        name: "円弧分点",
+        type: "lineDivisionPoint",
+        visible: true,
+        enabled: true,
+        endpoint: { lineId: "arc", endpointKey: "start" },
+        placementMode: "ratio",
+        distance: 0,
+        ratio: 0.5
+      },
+      {
+        id: "curve-division",
+        name: "曲線分点",
+        type: "lineDivisionPoint",
+        visible: true,
+        enabled: true,
+        endpoint: { lineId: "curve", endpointKey: "start" },
+        placementMode: "ratio",
+        distance: 0,
+        ratio: 0.5
+      },
+      {
+        id: "offset-division",
+        name: "オフセット分点",
+        type: "lineDivisionPoint",
+        visible: true,
+        enabled: true,
+        endpoint: { lineId: "offset", endpointKey: "start" },
+        placementMode: "ratio",
+        distance: 0,
+        ratio: 0.5
+      }
+    ]);
+
+    const arcPoint = result.computedGeometry.get("arc-division");
+    expect(result.errors).toHaveLength(0);
+    expect(arcPoint).toMatchObject({ kind: "point" });
+    if (arcPoint?.kind !== "point") throw new Error("Expected a point");
+    expect(arcPoint.x).toBeCloseTo(10 / Math.sqrt(2), 1);
+    expect(arcPoint.y).toBeCloseTo(-10 / Math.sqrt(2), 1);
+    expect(result.computedGeometry.get("curve-division")).toMatchObject({
+      kind: "point",
+      x: 50,
+      y: 0
+    });
+    expect(result.computedGeometry.get("offset-division")).toMatchObject({
+      kind: "point",
+      x: 50,
+      y: 10
+    });
+  });
+
+  it("reports a line division point dependency that appears too late", () => {
+    const result = evaluateElements([
+      {
+        id: "division",
+        name: "線上分点",
+        type: "lineDivisionPoint",
+        visible: true,
+        enabled: true,
+        endpoint: { lineId: "ab", endpointKey: "start" },
+        placementMode: "ratio",
+        distance: 0,
+        ratio: 0.5
+      },
+      ...validElements
+    ]);
+
+    expect(result.computedGeometry.has("division")).toBe(false);
+    expect(result.errors[0]).toMatchObject({
+      elementId: "division",
+      missingDependencyId: "ab",
+      missingDependencyName: "直線AB"
+    });
+  });
+
   it("evaluates numeric expressions that reference earlier line measurements", () => {
     const result = evaluateElements([
       ...validElements,

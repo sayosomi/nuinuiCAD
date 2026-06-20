@@ -344,6 +344,20 @@ const parameterValueShortcutItems: Record<ParameterValueKind, ShortcutHelpItem[]
   ],
   boolean: [helpItem(parameterShortcut("toggleSelectedBooleanParameter"))],
   lineReferenceList: [],
+  lineEndpointReference: [
+    {
+      id: "cycleSelectedLineEndpointForward",
+      commandId: "incrementSelectedParameter",
+      label: "端点候補を次へ",
+      keys: "ArrowRight"
+    },
+    {
+      id: "cycleSelectedLineEndpointBackward",
+      commandId: "decrementSelectedParameter",
+      label: "端点候補を前へ",
+      keys: "ArrowLeft"
+    }
+  ],
   choice: [
     {
       id: "cycleSelectedChoiceForward",

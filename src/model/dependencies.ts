@@ -63,6 +63,14 @@ export const getDirectParentIds = (element: CadElement): ElementId[] => {
             ? extractNumericExpressionReferences(element.distance)
             : extractNumericExpressionReferences(element.ratio))
         ].map((reference) => reference.elementId);
+      case "lineDivisionPoint":
+        return [
+          ...numericVariableReferences(element),
+          { elementId: element.endpoint.lineId },
+          ...(element.placementMode === "distance"
+            ? extractNumericExpressionReferences(element.distance)
+            : extractNumericExpressionReferences(element.ratio))
+        ].map((reference) => reference.elementId);
       case "line":
         return [
           ...numericVariableReferences(element),
@@ -121,6 +129,7 @@ export const getDirectParentIds = (element: CadElement): ElementId[] => {
         ...numericExpressionParentIds()
       ].filter(Boolean);
     case "divisionPoint":
+    case "lineDivisionPoint":
       return numericExpressionParentIds();
     case "line":
     case "arcLine":

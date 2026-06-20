@@ -141,6 +141,22 @@ describe("dependencies", () => {
     expect(getDirectParentIds(point)).toEqual(["a", "b", "ab"]);
   });
 
+  it("returns line division point endpoint and active numeric expression references as direct parent ids", () => {
+    const point: CadElement = {
+      id: "line-division",
+      name: "線上分点",
+      type: "lineDivisionPoint",
+      visible: true,
+      enabled: true,
+      endpoint: { lineId: "ab", endpointKey: "start" },
+      placementMode: "distance",
+      distance: { kind: "expression", expression: "bc.length / 2" },
+      ratio: { kind: "expression", expression: "cd.length / 100" }
+    };
+
+    expect(getDirectParentIds(point)).toEqual(["ab", "bc"]);
+  });
+
   it("returns direct coordinate expression references as parent ids", () => {
     const directLine: CadElement = {
       id: "direct",

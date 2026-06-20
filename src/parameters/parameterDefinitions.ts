@@ -6,6 +6,7 @@ export type ParameterValueKind =
   | "boolean"
   | "number"
   | "reference"
+  | "lineEndpointReference"
   | "lineReferenceList"
   | "choice";
 
@@ -106,6 +107,27 @@ export const getParameterDefinitions = (element: CadElement): ParameterDefinitio
           directKey: "t",
           label: "終点"
         }),
+        {
+          key: "placementMode",
+          directKey: "m",
+          label: "方式",
+          kind: "choice",
+          choiceOptions: ["distance", "ratio"]
+        },
+        { key: "distance", directKey: "d", label: "距離", kind: "number" },
+        {
+          key: "ratio",
+          directKey: "r",
+          label: "割合",
+          kind: "number",
+          stepLevels: ratioNumericParameterStepLevels
+        }
+      ];
+    case "lineDivisionPoint":
+      return [
+        ...commonParameters,
+        ...numericVariableParameters(element),
+        { key: "endpoint", directKey: "b", label: "端点", kind: "lineEndpointReference" },
         {
           key: "placementMode",
           directKey: "m",

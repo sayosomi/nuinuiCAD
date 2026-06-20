@@ -122,6 +122,31 @@ describe("parameterAccess", () => {
     expect(supportsNumericVariables(point)).toBe(true);
   });
 
+  it("updates line division point endpoint references", () => {
+    const point: CadElement = {
+      id: "line-division",
+      name: "線上分点",
+      type: "lineDivisionPoint",
+      visible: true,
+      enabled: true,
+      endpoint: { lineId: "line-a", endpointKey: "start" },
+      placementMode: "ratio",
+      distance: 30,
+      ratio: 0.5
+    };
+
+    expect(getParameterValue(point, "endpoint")).toEqual({
+      lineId: "line-a",
+      endpointKey: "start"
+    });
+    expect(
+      setParameterValue(point, "endpoint", { lineId: "line-b", endpointKey: "end" })
+    ).toMatchObject({
+      endpoint: { lineId: "line-b", endpointKey: "end" }
+    });
+    expect(supportsNumericVariables(point)).toBe(true);
+  });
+
   it("updates Bezier intermediate anchors and handle parameters", () => {
     const curve: CadElement = {
       id: "curve",

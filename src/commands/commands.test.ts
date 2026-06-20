@@ -1013,6 +1013,56 @@ describe("commands", () => {
     expect(useCadStore.getState().selectedElementId).toBe(added?.id);
   });
 
+  it("adds a line division point from the selected line-like element", () => {
+    useCadStore.setState({
+      selectedElementId: "line-bc",
+      selectedElementIds: ["line-bc"],
+      selectionAnchorElementId: "line-bc"
+    });
+
+    dispatchCommand("addLineDivisionPoint");
+
+    const added = useCadStore.getState().elements.at(-1);
+    expect(added).toMatchObject({
+      type: "lineDivisionPoint",
+      endpoint: { lineId: "line-bc", endpointKey: "start" },
+      placementMode: "ratio",
+      distance: 30,
+      ratio: 0.5,
+      numericParameterSteps: { ratio: 0.01 }
+    });
+    expect(useCadStore.getState().selectedElementId).toBe(added?.id);
+  });
+
+  it("cycles line division endpoint references in parameter edit mode", () => {
+    const point = {
+      id: "line-division",
+      name: "線上分点",
+      type: "lineDivisionPoint" as const,
+      visible: true,
+      enabled: true,
+      endpoint: { lineId: "line-ab", endpointKey: "start" as const },
+      placementMode: "ratio" as const,
+      distance: 30,
+      ratio: 0.5
+    };
+    useCadStore.setState({
+      elements: [...sampleElements, point],
+      selectedElementId: point.id,
+      selectedElementIds: [point.id],
+      selectionAnchorElementId: point.id,
+      selectedParameterKey: "endpoint"
+    });
+
+    dispatchCommand("incrementSelectedParameter");
+
+    const updated = useCadStore.getState().elements.find((element) => element.id === point.id);
+    expect(updated).toMatchObject({
+      type: "lineDivisionPoint",
+      endpoint: { lineId: "line-ab", endpointKey: "end" }
+    });
+  });
+
   it("uses a unique name when adding an element would reuse an existing name", () => {
     useCadStore.setState({
       elements: [

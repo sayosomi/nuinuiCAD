@@ -18,7 +18,8 @@ export const createCadElement = (
       element.type === "freePoint" ||
       element.type === "offsetPoint" ||
       element.type === "polarOffsetPoint" ||
-      element.type === "divisionPoint"
+      element.type === "divisionPoint" ||
+      element.type === "lineDivisionPoint"
   );
   const firstPointId = points[0]?.id ?? "";
   const secondPointId = points[1]?.id ?? firstPointId;
@@ -96,6 +97,26 @@ export const createCadElement = (
         numericParameterSteps: { ratio: 0.01 },
         startPoint: referenceAnchor(firstPointId),
         endPoint: referenceAnchor(secondPointId),
+        placementMode: "ratio",
+        distance: 30,
+        ratio: 0.5
+      };
+    }
+    case "lineDivisionPoint": {
+      const id = createId(type);
+      const requestedName = `線上分点${points.length + 1}`;
+      return {
+        id,
+        name: uniqueName(id, requestedName),
+        type,
+        visible: true,
+        enabled: true,
+        numericVariables: [],
+        numericParameterSteps: { ratio: 0.01 },
+        endpoint: {
+          lineId: lineLikeElements[0]?.id ?? "",
+          endpointKey: "start"
+        },
         placementMode: "ratio",
         distance: 30,
         ratio: 0.5

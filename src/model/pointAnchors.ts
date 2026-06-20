@@ -6,6 +6,7 @@ import type {
   ComputedOffsetLine,
   ComputedPoint,
   ElementId,
+  LineEndpointReference,
   PointAnchor
 } from "../types/geometry";
 
@@ -48,7 +49,8 @@ export const isPointElement = (element: CadElement) =>
   element.type === "freePoint" ||
   element.type === "offsetPoint" ||
   element.type === "polarOffsetPoint" ||
-  element.type === "divisionPoint";
+  element.type === "divisionPoint" ||
+  element.type === "lineDivisionPoint";
 
 export const pointAnchorForElement = (element: CadElement): PointAnchor | null => {
   if (element.type === "offsetPoint" || element.type === "polarOffsetPoint") {
@@ -287,4 +289,35 @@ export const pointAnchorLabel = (anchor: PointAnchor, elements: CadElement[]) =>
   }
   if (anchor.pointKey === "center") return `${elementName}.中心点`;
   return `${elementName}.${anchor.pointKey}`;
+};
+
+export const isLineLikeElement = (element: CadElement) =>
+  element.type === "line" ||
+  element.type === "arcLine" ||
+  element.type === "threePointArcLine" ||
+  element.type === "bezierCurve" ||
+  element.type === "offsetLine";
+
+export const lineEndpointReferenceOptions = (elements: CadElement[]): LineEndpointReference[] =>
+  elements.flatMap((element) =>
+    isLineLikeElement(element)
+      ? [
+          { lineId: element.id, endpointKey: "start" as const },
+          { lineId: element.id, endpointKey: "end" as const }
+        ]
+      : []
+  );
+
+export const lineEndpointReferenceEquals = (
+  a: LineEndpointReference | null,
+  b: LineEndpointReference | null
+) => Boolean(a && b && a.lineId === b.lineId && a.endpointKey === b.endpointKey);
+
+export const lineEndpointReferenceLabel = (
+  endpoint: LineEndpointReference,
+  elements: CadElement[]
+) => {
+  const element = elements.find((item) => item.id === endpoint.lineId);
+  const lineName = element?.name ?? endpoint.lineId;
+  return `${lineName}.${endpoint.endpointKey === "start" ? "始点" : "終点"}`;
 };

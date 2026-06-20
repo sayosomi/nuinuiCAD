@@ -36,12 +36,15 @@ import {
 } from "../parameters/parameterAccess";
 import {
   anchorEquals,
+  lineEndpointReferenceEquals,
+  lineEndpointReferenceOptions,
   referenceAnchor
 } from "../model/pointAnchors";
 import type {
   CadElement,
   CadElementType,
   ElementId,
+  LineEndpointReference,
   NumericValue,
   PointAnchor
 } from "../types/geometry";
@@ -80,6 +83,7 @@ export type CommandId =
   | "addOffsetPoint"
   | "addPolarOffsetPoint"
   | "addDivisionPoint"
+  | "addLineDivisionPoint"
   | "addLine"
   | "addArcLine"
   | "addThreePointArcLine"
@@ -284,6 +288,14 @@ const selectedParameterDefinition = () => {
 
 const anchorPointId = (anchor: PointAnchor) => (anchor.mode === "reference" ? anchor.pointId : null);
 
+const isLineEndpointReferenceValue = (value: unknown): value is LineEndpointReference =>
+  typeof value === "object" &&
+  value !== null &&
+  "lineId" in value &&
+  "endpointKey" in value &&
+  typeof value.lineId === "string" &&
+  (value.endpointKey === "start" || value.endpointKey === "end");
+
 const addElement = (type: CadElementType) => {
   const { elements } = useCadStore.getState();
   const element = createCadElement(type, elements);
@@ -360,6 +372,10 @@ const updateNumericParameter = (direction: 1 | -1, context?: CommandContext) => 
     cycleReferenceParameter(direction);
     return;
   }
+  if (definition.kind === "lineEndpointReference") {
+    cycleLineEndpointParameter(direction);
+    return;
+  }
   if (definition.kind === "choice") {
     cycleChoiceParameter(direction);
     return;
@@ -421,7 +437,7 @@ const applyParameterDirectKey = (
           ? setParameterValue(
               element,
               definition.key,
-              !Boolean(getParameterValue(element, definition.key))
+              !getParameterValue(element, definition.key)
             )
           : element
       ),
@@ -552,6 +568,47 @@ const cycleReferenceParameter = (direction: 1 | -1) => {
   updateSelectedElement((element) => setParameterValue(element, definition.key, options[nextIndex]));
 };
 
+const cycleLineEndpointParameter = (direction: 1 | -1) => {
+  const selectedElement = getSelectedElement();
+  const definition = selectedParameterDefinition();
+  if (!selectedElement || definition?.kind !== "lineEndpointReference") return;
+
+  const options = lineEndpointReferenceOptions(useCadStore.getState().elements);
+  if (options.length === 0) return;
+
+  const parameterValue = getParameterValue(selectedElement, definition.key);
+  const currentEndpoint = isLineEndpointReferenceValue(parameterValue) ? parameterValue : null;
+  const currentIndex = options.findIndex((option) =>
+    lineEndpointReferenceEquals(option, currentEndpoint)
+  );
+  const nextIndex =
+    currentIndex < 0 ? 0 : (currentIndex + direction + options.length) % options.length;
+  updateSelectedElement((element) => setParameterValue(element, definition.key, options[nextIndex]));
+};
+
+const addLineDivisionPoint = () => {
+  const { elements } = useCadStore.getState();
+  const selectedIds = new Set(getSelectedElementIds());
+  const selectedLine = elements.find((element) => selectedIds.has(element.id) && isLineLikeElement(element));
+  const fallbackLine = selectedLine ?? elements.find(isLineLikeElement);
+  const element = createCadElement("lineDivisionPoint", elements);
+  if (element.type !== "lineDivisionPoint") return;
+  const lineDivisionPoint: CadElement = {
+    ...element,
+    endpoint: {
+      lineId: fallbackLine?.id ?? "",
+      endpointKey: "start"
+    }
+  };
+  useCadStore.getState().commitDocumentChange({
+    elements: [...elements, lineDivisionPoint],
+    selectedElementId: lineDivisionPoint.id,
+    selectedElementIds: [lineDivisionPoint.id],
+    selectionAnchorElementId: lineDivisionPoint.id,
+    selectedParameterKey: getFirstParameterKey(lineDivisionPoint)
+  });
+};
+
 const startPointPick = () => {
   const selectedElement = getSelectedElement();
   const definition = selectedParameterDefinition();
@@ -580,7 +637,8 @@ const applyPickedPoint = (context?: Pick<CommandContext, "pickedPointId" | "pick
       (pointElement.type !== "freePoint" &&
         pointElement.type !== "offsetPoint" &&
         pointElement.type !== "polarOffsetPoint" &&
-        pointElement.type !== "divisionPoint")
+        pointElement.type !== "divisionPoint" &&
+        pointElement.type !== "lineDivisionPoint")
     ) {
       return;
     }
@@ -763,7 +821,7 @@ const toggleBooleanParameterByDirectKey = (directKey: string | undefined) => {
         ? setParameterValue(
             element,
             definition.key,
-            !Boolean(getParameterValue(element, definition.key))
+            !getParameterValue(element, definition.key)
           )
         : element
     ),
@@ -1125,6 +1183,11 @@ export const commands: Record<CommandId, Command> = {
     label: "点間分点を追加",
     run: () => addElement("divisionPoint")
   },
+  addLineDivisionPoint: {
+    id: "addLineDivisionPoint",
+    label: "線上分点を追加",
+    run: () => addLineDivisionPoint()
+  },
   addLine: {
     id: "addLine",
     label: "line を追加",
@@ -1373,6 +1436,10 @@ export const commands: Record<CommandId, Command> = {
         startLinePick();
         return;
       }
+      if (definition?.kind === "lineEndpointReference") {
+        cycleLineEndpointParameter(1);
+        return;
+      }
       if (definition?.kind === "number") {
         startNumericReferencePick();
         return;
@@ -1397,6 +1464,7 @@ const paletteCommandIds: CommandId[] = [
   "addOffsetPoint",
   "addPolarOffsetPoint",
   "addDivisionPoint",
+  "addLineDivisionPoint",
   "addLine",
   "addArcLine",
   "addThreePointArcLine",
@@ -1437,6 +1505,7 @@ const paletteKeywords: Partial<Record<CommandId, string[]>> = {
   addOffsetPoint: ["offset", "offset point", "オフセット", "点", "追加"],
   addPolarOffsetPoint: ["polar", "angle", "distance", "角度", "距離", "点", "追加"],
   addDivisionPoint: ["division", "between", "ratio", "distance", "分点", "点間", "中点", "割合", "距離", "点", "追加"],
+  addLineDivisionPoint: ["division", "line", "endpoint", "ratio", "distance", "分点", "線上", "端点", "割合", "距離", "点", "追加"],
   addLine: ["line", "直線", "線", "追加"],
   addArcLine: ["arc", "arc line", "radius", "円弧", "円弧線", "半径", "線", "追加"],
   addThreePointArcLine: [

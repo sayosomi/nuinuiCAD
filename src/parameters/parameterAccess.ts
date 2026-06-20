@@ -7,6 +7,7 @@ export const supportsNumericVariables = (element: CadElement) =>
   element.type === "offsetPoint" ||
   element.type === "polarOffsetPoint" ||
   element.type === "divisionPoint" ||
+  element.type === "lineDivisionPoint" ||
   element.type === "line" ||
   element.type === "arcLine" ||
   element.type === "threePointArcLine" ||
