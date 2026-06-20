@@ -766,6 +766,7 @@ export const LeftPanel = ({
   const [draggedElementIds, setDraggedElementIds] = useState<ElementId[]>([]);
   const [dropTarget, setDropTarget] = useState<ElementDropTarget | null>(null);
   const errorElementIds = new Set(evaluation.errors.map((error) => error.elementId));
+  const warningElementIds = new Set(evaluation.warnings.map((warning) => warning.elementId));
   const selectedElementIdSet = new Set(selectedElementIds);
   const elementsById = new Map(elements.map((element) => [element.id, element]));
   const activePointPickTargetElement = activePointPickTarget
@@ -950,6 +951,8 @@ export const LeftPanel = ({
                 !element.enabled ? "is-disabled" : ""
               } ${
                 errorElementIds.has(element.id) ? "has-error" : ""
+              } ${
+                warningElementIds.has(element.id) ? "has-warning" : ""
               } ${activePointPickTarget ? "is-point-pick-mode" : ""} ${
                 isPointPickCandidate ? "is-point-pick-candidate" : ""
               } ${
@@ -1028,7 +1031,7 @@ export const LeftPanel = ({
                 </button>
               </span>
               <span className="element-name">
-                {errorElementIds.has(element.id) ? "⚠ " : ""}
+                {errorElementIds.has(element.id) || warningElementIds.has(element.id) ? "⚠ " : ""}
                 {element.name}
               </span>
               <span className="element-type">{elementTypeLabels[element.type]}</span>
@@ -1164,14 +1167,20 @@ export const RightPanel = ({
         <div className="section-header">
           <h2>バリデーション</h2>
         </div>
-        {evaluation.errors.length === 0 ? (
-          <p className="empty-state">エラーはありません。</p>
+        {evaluation.errors.length === 0 && evaluation.warnings.length === 0 ? (
+          <p className="empty-state">エラーや警告はありません。</p>
         ) : (
           <ul className="error-list">
             {evaluation.errors.map((error) => (
               <li key={`${error.elementId}-${error.missingDependencyId}`}>
                 <strong>{error.elementName}</strong>
                 <span>{error.message}</span>
+              </li>
+            ))}
+            {evaluation.warnings.map((warning, index) => (
+              <li key={`${warning.elementId}-warning-${index}`} className="warning-item">
+                <strong>{warning.elementName}</strong>
+                <span>{warning.message}</span>
               </li>
             ))}
           </ul>

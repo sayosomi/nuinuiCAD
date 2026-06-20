@@ -1582,6 +1582,83 @@ describe("evaluateElements", () => {
     expect(offset.segments.at(-1)!.end.y).toBeCloseTo(100);
   });
 
+  it("adds a finite pointed join for a folded line-to-curve offset at a shared point", () => {
+    const elements: CadElement[] = [
+      {
+        id: "a",
+        name: "A",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 50,
+        y: 50
+      },
+      {
+        id: "b",
+        name: "B",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 150,
+        y: 50
+      },
+      {
+        id: "c",
+        name: "C",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 150,
+        y: 130
+      },
+      {
+        id: "ab",
+        name: "AB",
+        type: "line",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "a" },
+        endPoint: { mode: "reference", pointId: "b" }
+      },
+      {
+        id: "ac",
+        name: "AC",
+        type: "bezierCurve",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "a" },
+        startHandleAngleDeg: 0,
+        startHandleLength: 45,
+        intermediatePoints: [],
+        endPoint: { mode: "reference", pointId: "c" },
+        endHandleAngleDeg: 90,
+        endHandleLength: 35
+      },
+      {
+        id: "offset",
+        name: "オフセット",
+        type: "offsetLine",
+        visible: true,
+        enabled: true,
+        baseLineIds: ["ab", "ac"],
+        offset: 10,
+        side: "right",
+        closed: false
+      }
+    ];
+
+    const result = evaluateElements(elements);
+    const offset = result.computedGeometry.get("offset");
+
+    expect(result.errors).toHaveLength(0);
+    expect(result.warnings).toHaveLength(0);
+    expect(offset).toMatchObject({ kind: "offsetLine" });
+    if (offset?.kind !== "offsetLine") throw new Error("Expected an offset line");
+    const lineSegments = offset.segments.filter((segment) => segment.kind === "line");
+    expect(lineSegments.length).toBeGreaterThanOrEqual(3);
+    expect(Math.min(...lineSegments.flatMap((segment) => [segment.start.x, segment.end.x]))).toBeLessThan(50);
+  });
+
   it("keeps Bezier-derived offset lines as smooth curve segments", () => {
     const elements: CadElement[] = [
       {
@@ -1668,6 +1745,151 @@ describe("evaluateElements", () => {
     expect(offset).toMatchObject({ kind: "offsetLine" });
     if (offset?.kind !== "offsetLine") throw new Error("Expected an offset line");
     expect(offset.segments.some((segment) => segment.kind === "bezier")).toBe(true);
+  });
+
+  it("keeps large Bezier-derived offsets continuous without internal connector lines", () => {
+    const elements: CadElement[] = [
+      {
+        id: "curve",
+        name: "曲線",
+        type: "bezierCurve",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "coordinate", x: 0, y: 0 },
+        startHandleAngleDeg: 45,
+        startHandleLength: 90,
+        intermediatePoints: [],
+        endPoint: { mode: "coordinate", x: 140, y: 0 },
+        endHandleAngleDeg: 135,
+        endHandleLength: 90
+      },
+      {
+        id: "offset",
+        name: "大きいオフセット",
+        type: "offsetLine",
+        visible: true,
+        enabled: true,
+        baseLineIds: ["curve"],
+        offset: 20,
+        side: "right",
+        closed: false
+      }
+    ];
+
+    const result = evaluateElements(elements);
+    const offset = result.computedGeometry.get("offset");
+
+    expect(result.errors).toHaveLength(0);
+    expect(result.warnings).toHaveLength(0);
+    expect(offset).toMatchObject({ kind: "offsetLine" });
+    if (offset?.kind !== "offsetLine") throw new Error("Expected an offset line");
+    expect(offset.segments.length).toBeGreaterThan(1);
+    expect(offset.segments.every((segment) => segment.kind === "bezier")).toBe(true);
+    for (let index = 0; index < offset.segments.length - 1; index += 1) {
+      expect(offset.segments[index].end.x).toBeCloseTo(offset.segments[index + 1].start.x);
+      expect(offset.segments[index].end.y).toBeCloseTo(offset.segments[index + 1].start.y);
+    }
+  });
+
+  it("uses more Bezier offset segments when larger offsets need more approximation detail", () => {
+    const curve: CadElement = {
+      id: "curve",
+      name: "曲線",
+      type: "bezierCurve",
+      visible: true,
+      enabled: true,
+      startPoint: { mode: "coordinate", x: 0, y: 0 },
+      startHandleAngleDeg: 45,
+      startHandleLength: 90,
+      intermediatePoints: [],
+      endPoint: { mode: "coordinate", x: 140, y: 0 },
+      endHandleAngleDeg: 135,
+      endHandleLength: 90
+    };
+    const smallResult = evaluateElements([
+      curve,
+      {
+        id: "offset",
+        name: "小さいオフセット",
+        type: "offsetLine",
+        visible: true,
+        enabled: true,
+        baseLineIds: ["curve"],
+        offset: 5,
+        side: "right",
+        closed: false
+      }
+    ]);
+    const largeResult = evaluateElements([
+      curve,
+      {
+        id: "offset",
+        name: "大きいオフセット",
+        type: "offsetLine",
+        visible: true,
+        enabled: true,
+        baseLineIds: ["curve"],
+        offset: 60,
+        side: "right",
+        closed: false
+      }
+    ]);
+    const smallOffset = smallResult.computedGeometry.get("offset");
+    const largeOffset = largeResult.computedGeometry.get("offset");
+
+    expect(smallResult.errors).toHaveLength(0);
+    expect(largeResult.errors).toHaveLength(0);
+    expect(smallOffset).toMatchObject({ kind: "offsetLine" });
+    expect(largeOffset).toMatchObject({ kind: "offsetLine" });
+    if (smallOffset?.kind !== "offsetLine" || largeOffset?.kind !== "offsetLine") {
+      throw new Error("Expected offset lines");
+    }
+    expect(largeOffset.segments.length).toBeGreaterThanOrEqual(smallOffset.segments.length);
+  });
+
+  it("trims Bezier offset sections where the offset exceeds the curve radius", () => {
+    const elements: CadElement[] = [
+      {
+        id: "curve",
+        name: "曲線AC",
+        type: "bezierCurve",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "coordinate", x: 50, y: 50 },
+        startHandleAngleDeg: 0,
+        startHandleLength: 45,
+        intermediatePoints: [],
+        endPoint: { mode: "coordinate", x: 150, y: 130 },
+        endHandleAngleDeg: 90,
+        endHandleLength: 35
+      },
+      {
+        id: "offset",
+        name: "オフセット線",
+        type: "offsetLine",
+        visible: true,
+        enabled: true,
+        baseLineIds: ["curve"],
+        offset: 35,
+        side: "right",
+        closed: false
+      }
+    ];
+
+    const result = evaluateElements(elements);
+    const offset = result.computedGeometry.get("offset");
+
+    expect(result.errors).toHaveLength(0);
+    expect(result.warnings).toHaveLength(1);
+    expect(result.warnings[0]).toMatchObject({
+      elementId: "offset",
+      elementName: "オフセット線"
+    });
+    expect(result.warnings[0].message).toContain("トリム");
+    expect(offset).toMatchObject({ kind: "offsetLine" });
+    if (offset?.kind !== "offsetLine") throw new Error("Expected an offset line");
+    expect(offset.segments.length).toBeGreaterThan(0);
+    expect(offset.segments.every((segment) => segment.kind === "bezier")).toBe(true);
   });
 
   it("reports offset line dependencies that appear too late", () => {

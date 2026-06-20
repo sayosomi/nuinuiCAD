@@ -1220,9 +1220,9 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
             ))}
           </div>
         ) : null}
-        {evaluation.errors.length > 0 ? (
+        {evaluation.errors.length + evaluation.warnings.length > 0 ? (
           <div className="canvas-warning">
-            ⚠ {evaluation.errors.length} 件の依存エラーがあります
+            ⚠ {evaluation.errors.length + evaluation.warnings.length} 件のエラー/警告があります
           </div>
         ) : null}
         <div className="canvas-scale-overlay">縮尺 {canvasViewport.zoom.toFixed(2)}px/mm</div>

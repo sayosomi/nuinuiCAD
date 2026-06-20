@@ -7,6 +7,7 @@ import type {
   ElementId,
   NumericValue,
   EvaluationResult,
+  EvaluationWarning,
   PointAnchor
 } from "../types/geometry";
 import { evaluateNumericValue } from "./numericExpressions";
@@ -49,6 +50,12 @@ const geometryError = (element: CadElement, message: string): DependencyError =>
   elementName: element.name,
   missingDependencyId: element.id,
   missingDependencyName: element.name,
+  message
+});
+
+const geometryWarning = (element: CadElement, message: string): EvaluationWarning => ({
+  elementId: element.id,
+  elementName: element.name,
   message
 });
 
@@ -277,6 +284,7 @@ const evaluateLocalVariables = (
 export const evaluateElements = (elements: CadElement[]): EvaluationResult => {
   const computedGeometry = new Map<ElementId, ComputedGeometry>();
   const errors: DependencyError[] = [];
+  const warnings: EvaluationWarning[] = [];
   const elementsById = new Map(elements.map((element) => [element.id, element]));
 
   for (const element of elements) {
@@ -998,11 +1006,14 @@ export const evaluateElements = (elements: CadElement[]): EvaluationResult => {
           errors.push(geometryError(element, result.error));
           break;
         }
+        for (const warning of result.warnings ?? []) {
+          warnings.push(geometryWarning(element, warning));
+        }
         if (result.geometry) computedGeometry.set(element.id, result.geometry);
         break;
       }
     }
   }
 
-  return { computedGeometry, errors };
+  return { computedGeometry, errors, warnings };
 };

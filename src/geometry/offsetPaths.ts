@@ -26,9 +26,20 @@ type SourceSegment =
       sweepAngleDeg: number;
     };
 
+type RawOffsetSegment = {
+  segment: ComputedOffsetLineSegment;
+  joinWithPrevious: "miter" | "smooth" | "none";
+  source: SourceSegment;
+};
+
 const BEZIER_OFFSET_FLATNESS_TOLERANCE_MM = 0.1;
-const BEZIER_OFFSET_MAX_DEPTH = 8;
+const BEZIER_OFFSET_MAX_DEPTH = 12;
 const BEZIER_LENGTH_STEPS = 16;
+const OVER_OFFSET_SAMPLE_STEPS = 64;
+const OVER_OFFSET_MIN_SCALE = 0.02;
+const POINTED_JOIN_DOT_THRESHOLD = -0.95;
+const POINTED_JOIN_MITER_FACTOR = 4;
+const POINTED_JOIN_MAX_LENGTH = 200;
 const EPSILON = 1e-9;
 
 const degreesToRadians = (degrees: number) => (degrees * Math.PI) / 180;
@@ -61,19 +72,6 @@ const angleOfPoint = (center: Point, point: Point) =>
   normalizeDegrees(radiansToDegrees(Math.atan2(center.y - point.y, point.x - center.x)));
 
 const lineLength = (start: Point, end: Point) => Math.hypot(end.x - start.x, end.y - start.y);
-
-const distanceToLine = (point: Point, start: Point, end: Point) => {
-  const dx = end.x - start.x;
-  const dy = end.y - start.y;
-  const length = Math.hypot(dx, dy);
-  if (length <= EPSILON) return lineLength(point, start);
-  return Math.abs(dy * point.x - dx * point.y + end.x * start.y - end.y * start.x) / length;
-};
-
-const midpoint = (first: Point, second: Point): Point => ({
-  x: (first.x + second.x) / 2,
-  y: (first.y + second.y) / 2
-});
 
 const bezierSourceSegments = (curve: ComputedBezierCurve): SourceSegment[] =>
   curve.segments.map((segment) => ({
@@ -147,6 +145,18 @@ const cubicDerivativeAt = (
   };
 };
 
+const cubicSecondDerivativeAt = (
+  segment: Extract<SourceSegment, { kind: "bezier" }>,
+  t: number
+): Point => ({
+  x:
+    6 * (1 - t) * (segment.control2.x - 2 * segment.control1.x + segment.start.x) +
+    6 * t * (segment.end.x - 2 * segment.control2.x + segment.control1.x),
+  y:
+    6 * (1 - t) * (segment.control2.y - 2 * segment.control1.y + segment.start.y) +
+    6 * t * (segment.end.y - 2 * segment.control2.y + segment.control1.y)
+});
+
 const fallbackTangent = (
   segment: Extract<SourceSegment, { kind: "bezier" }>,
   atEnd: boolean
@@ -175,6 +185,210 @@ const offsetPointByTangent = (point: Point, tangent: Point, offset: number): Poi
   };
 };
 
+const squaredDistance = (first: Point, second: Point) => {
+  const dx = first.x - second.x;
+  const dy = first.y - second.y;
+  return dx * dx + dy * dy;
+};
+
+const cubicPoint = (
+  start: Point,
+  control1: Point,
+  control2: Point,
+  end: Point,
+  t: number
+): Point => {
+  const inverse = 1 - t;
+  const a = inverse * inverse * inverse;
+  const b = 3 * inverse * inverse * t;
+  const c = 3 * inverse * t * t;
+  const d = t * t * t;
+
+  return {
+    x: a * start.x + b * control1.x + c * control2.x + d * end.x,
+    y: a * start.y + b * control1.y + c * control2.y + d * end.y
+  };
+};
+
+const unitTangentAt = (
+  segment: Extract<SourceSegment, { kind: "bezier" }>,
+  t: number
+): Point => {
+  const tangent = cubicDerivativeAt(segment, t);
+  const length = Math.hypot(tangent.x, tangent.y);
+  if (length > EPSILON) return { x: tangent.x / length, y: tangent.y / length };
+
+  const fallback = fallbackTangent(segment, t >= 0.5);
+  const fallbackLength = Math.hypot(fallback.x, fallback.y);
+  return fallbackLength > EPSILON
+    ? { x: fallback.x / fallbackLength, y: fallback.y / fallbackLength }
+    : { x: 1, y: 0 };
+};
+
+const offsetPointAt = (
+  segment: Extract<SourceSegment, { kind: "bezier" }>,
+  t: number,
+  offset: number
+): Point => offsetPointByTangent(cubicSourcePointAt(segment, t), unitTangentAt(segment, t), offset);
+
+const signedCurvatureAt = (
+  segment: Extract<SourceSegment, { kind: "bezier" }>,
+  t: number
+) => {
+  const first = cubicDerivativeAt(segment, t);
+  const second = cubicSecondDerivativeAt(segment, t);
+  const speed = Math.hypot(first.x, first.y);
+  if (speed <= EPSILON) return 0;
+  return (first.x * second.y - first.y * second.x) / speed ** 3;
+};
+
+const offsetScaleAt = (
+  segment: Extract<SourceSegment, { kind: "bezier" }>,
+  t: number,
+  offset: number
+) => 1 - offset * signedCurvatureAt(segment, t);
+
+const isSafeOffsetT = (
+  segment: Extract<SourceSegment, { kind: "bezier" }>,
+  t: number,
+  offset: number
+) => offsetScaleAt(segment, t, offset) > OVER_OFFSET_MIN_SCALE;
+
+const findSafeBoundary = (
+  segment: Extract<SourceSegment, { kind: "bezier" }>,
+  safeT: number,
+  unsafeT: number,
+  offset: number
+) => {
+  let safe = safeT;
+  let unsafe = unsafeT;
+  for (let iteration = 0; iteration < 32; iteration += 1) {
+    const mid = (safe + unsafe) / 2;
+    if (isSafeOffsetT(segment, mid, offset)) {
+      safe = mid;
+    } else {
+      unsafe = mid;
+    }
+  }
+  return safe;
+};
+
+const safeOffsetIntervals = (
+  segment: Extract<SourceSegment, { kind: "bezier" }>,
+  offset: number
+) => {
+  const intervals: Array<{ t0: number; t1: number }> = [];
+  let intervalStart: number | null = isSafeOffsetT(segment, 0, offset) ? 0 : null;
+  let previousT = 0;
+  let previousSafe = intervalStart !== null;
+
+  for (let index = 1; index <= OVER_OFFSET_SAMPLE_STEPS; index += 1) {
+    const currentT = index / OVER_OFFSET_SAMPLE_STEPS;
+    const currentSafe = isSafeOffsetT(segment, currentT, offset);
+
+    if (previousSafe && !currentSafe && intervalStart !== null) {
+      const boundary = findSafeBoundary(segment, previousT, currentT, offset);
+      if (boundary - intervalStart > EPSILON) intervals.push({ t0: intervalStart, t1: boundary });
+      intervalStart = null;
+    } else if (!previousSafe && currentSafe) {
+      intervalStart = findSafeBoundary(segment, currentT, previousT, offset);
+    }
+
+    previousT = currentT;
+    previousSafe = currentSafe;
+  }
+
+  if (intervalStart !== null && 1 - intervalStart > EPSILON) {
+    intervals.push({ t0: intervalStart, t1: 1 });
+  }
+
+  return {
+    intervals,
+    trimmed: intervals.length !== 1 || intervals[0]?.t0 > EPSILON || intervals[0]?.t1 < 1 - EPSILON
+  };
+};
+
+type PlainBezierSegment = {
+  start: Point;
+  control1: Point;
+  control2: Point;
+  end: Point;
+};
+
+const fitOffsetBezierSegment = (
+  segment: Extract<SourceSegment, { kind: "bezier" }>,
+  t0: number,
+  t1: number,
+  offset: number
+): PlainBezierSegment => {
+  const start = offsetPointAt(segment, t0, offset);
+  const end = offsetPointAt(segment, t1, offset);
+  const midT = (t0 + t1) / 2;
+  const mid = offsetPointAt(segment, midT, offset);
+  const startTangent = unitTangentAt(segment, t0);
+  const endTangent = unitTangentAt(segment, t1);
+  const chordLength = Math.max(lineLength(start, end), EPSILON);
+
+  const target = {
+    x: (mid.x - (start.x + end.x) / 2) / 0.375,
+    y: (mid.y - (start.y + end.y) / 2) / 0.375
+  };
+  const a11 = startTangent.x * startTangent.x + startTangent.y * startTangent.y;
+  const a12 = -(startTangent.x * endTangent.x + startTangent.y * endTangent.y);
+  const a22 = endTangent.x * endTangent.x + endTangent.y * endTangent.y;
+  const b1 = startTangent.x * target.x + startTangent.y * target.y;
+  const b2 = -(endTangent.x * target.x + endTangent.y * target.y);
+  const determinant = a11 * a22 - a12 * a12;
+  const fallbackHandleLength = chordLength / 3;
+  const rawStartHandle =
+    Math.abs(determinant) > EPSILON ? (b1 * a22 - b2 * a12) / determinant : fallbackHandleLength;
+  const rawEndHandle =
+    Math.abs(determinant) > EPSILON ? (a11 * b2 - a12 * b1) / determinant : fallbackHandleLength;
+  const maxHandleLength = chordLength * 2;
+  const startHandleLength =
+    Number.isFinite(rawStartHandle) && rawStartHandle > 0
+      ? Math.min(rawStartHandle, maxHandleLength)
+      : fallbackHandleLength;
+  const endHandleLength =
+    Number.isFinite(rawEndHandle) && rawEndHandle > 0
+      ? Math.min(rawEndHandle, maxHandleLength)
+      : fallbackHandleLength;
+
+  return {
+    start,
+    control1: {
+      x: start.x + startTangent.x * startHandleLength,
+      y: start.y + startTangent.y * startHandleLength
+    },
+    control2: {
+      x: end.x - endTangent.x * endHandleLength,
+      y: end.y - endTangent.y * endHandleLength
+    },
+    end
+  };
+};
+
+const offsetBezierApproximationError = (
+  source: Extract<SourceSegment, { kind: "bezier" }>,
+  candidate: PlainBezierSegment,
+  t0: number,
+  t1: number,
+  offset: number
+) => {
+  const samplePositions = [0.25, 0.5, 0.75];
+  return Math.sqrt(
+    Math.max(
+      ...samplePositions.map((localT) => {
+        const sourceT = t0 + (t1 - t0) * localT;
+        return squaredDistance(
+          cubicPoint(candidate.start, candidate.control1, candidate.control2, candidate.end, localT),
+          offsetPointAt(source, sourceT, offset)
+        );
+      })
+    )
+  );
+};
+
 const approximateBezierLength = (
   segment: Extract<ComputedOffsetLineSegment, { kind: "bezier" }>
 ) => {
@@ -195,70 +409,16 @@ const approximateBezierLength = (
   return length;
 };
 
-const bezierFlatness = (segment: Extract<SourceSegment, { kind: "bezier" }>) =>
-  Math.max(
-    distanceToLine(segment.control1, segment.start, segment.end),
-    distanceToLine(segment.control2, segment.start, segment.end)
-  );
-
-const splitBezierSegment = (
-  segment: Extract<SourceSegment, { kind: "bezier" }>
-): [Extract<SourceSegment, { kind: "bezier" }>, Extract<SourceSegment, { kind: "bezier" }>] => {
-  const startControl = midpoint(segment.start, segment.control1);
-  const controlMid = midpoint(segment.control1, segment.control2);
-  const endControl = midpoint(segment.control2, segment.end);
-  const leftControl2 = midpoint(startControl, controlMid);
-  const rightControl1 = midpoint(controlMid, endControl);
-  const center = midpoint(leftControl2, rightControl1);
-
-  return [
-    {
-      kind: "bezier",
-      start: segment.start,
-      control1: startControl,
-      control2: leftControl2,
-      end: center
-    },
-    {
-      kind: "bezier",
-      start: center,
-      control1: rightControl1,
-      control2: endControl,
-      end: segment.end
-    }
-  ];
-};
-
 const offsetBezierLeafSegment = (
-  segment: Extract<SourceSegment, { kind: "bezier" }>,
-  offset: number
+  candidate: PlainBezierSegment
 ): ComputedOffsetLineSegment | null => {
-  if (lineLength(segment.start, segment.end) <= EPSILON) return null;
-
-  const startTangent = cubicDerivativeAt(segment, 0);
-  const endTangent = cubicDerivativeAt(segment, 1);
-  const start = offsetPointByTangent(
-    segment.start,
-    Math.hypot(startTangent.x, startTangent.y) > EPSILON
-      ? startTangent
-      : fallbackTangent(segment, false),
-    offset
-  );
-  const end = offsetPointByTangent(
-    segment.end,
-    Math.hypot(endTangent.x, endTangent.y) > EPSILON
-      ? endTangent
-      : fallbackTangent(segment, true),
-    offset
-  );
-  const control1 = offsetPointByTangent(segment.control1, fallbackTangent(segment, false), offset);
-  const control2 = offsetPointByTangent(segment.control2, fallbackTangent(segment, true), offset);
+  if (lineLength(candidate.start, candidate.end) <= EPSILON) return null;
   const output = {
     kind: "bezier" as const,
-    start: computedPoint("", "", start),
-    control1,
-    control2,
-    end: computedPoint("", "", end),
+    start: computedPoint("", "", candidate.start),
+    control1: candidate.control1,
+    control2: candidate.control2,
+    end: computedPoint("", "", candidate.end),
     length: 0
   };
 
@@ -268,21 +428,35 @@ const offsetBezierLeafSegment = (
 const offsetBezierSegments = (
   segment: Extract<SourceSegment, { kind: "bezier" }>,
   offset: number,
+  t0 = 0,
+  t1 = 1,
   depth = 0
 ): ComputedOffsetLineSegment[] => {
-  if (
-    depth >= BEZIER_OFFSET_MAX_DEPTH ||
-    bezierFlatness(segment) <= BEZIER_OFFSET_FLATNESS_TOLERANCE_MM
-  ) {
-    const output = offsetBezierLeafSegment(segment, offset);
+  const candidate = fitOffsetBezierSegment(segment, t0, t1, offset);
+  const error = offsetBezierApproximationError(segment, candidate, t0, t1, offset);
+  if (depth >= BEZIER_OFFSET_MAX_DEPTH || error <= BEZIER_OFFSET_FLATNESS_TOLERANCE_MM) {
+    const output = offsetBezierLeafSegment(candidate);
     return output ? [output] : [];
   }
 
-  const [first, second] = splitBezierSegment(segment);
+  const midT = (t0 + t1) / 2;
   return [
-    ...offsetBezierSegments(first, offset, depth + 1),
-    ...offsetBezierSegments(second, offset, depth + 1)
+    ...offsetBezierSegments(segment, offset, t0, midT, depth + 1),
+    ...offsetBezierSegments(segment, offset, midT, t1, depth + 1)
   ];
+};
+
+const offsetBezierSegmentGroups = (
+  segment: Extract<SourceSegment, { kind: "bezier" }>,
+  offset: number
+) => {
+  const { intervals, trimmed } = safeOffsetIntervals(segment, offset);
+  return {
+    groups: intervals
+      .map(({ t0, t1 }) => offsetBezierSegments(segment, offset, t0, t1))
+      .filter((segments) => segments.length > 0),
+    trimmed
+  };
 };
 
 const offsetArcSegment = (
@@ -372,6 +546,39 @@ const sourceStart = (segment: SourceSegment) =>
 
 const connectorSegment = (start: Point, end: Point): SourceSegment | null =>
   lineLength(start, end) <= EPSILON ? null : { kind: "line", start, end };
+
+const sourceStartTangent = (segment: SourceSegment): Point | null => {
+  if (segment.kind === "line") {
+    const length = lineLength(segment.start, segment.end);
+    return length <= EPSILON
+      ? null
+      : { x: (segment.end.x - segment.start.x) / length, y: (segment.end.y - segment.start.y) / length };
+  }
+  if (segment.kind === "bezier") return unitTangentAt(segment, 0);
+
+  const tangentAngle = degreesToRadians(segment.startAngleDeg + (segment.sweepAngleDeg >= 0 ? 90 : -90));
+  return {
+    x: Math.cos(tangentAngle),
+    y: -Math.sin(tangentAngle)
+  };
+};
+
+const sourceEndTangent = (segment: SourceSegment): Point | null => {
+  if (segment.kind === "line") {
+    const length = lineLength(segment.start, segment.end);
+    return length <= EPSILON
+      ? null
+      : { x: (segment.end.x - segment.start.x) / length, y: (segment.end.y - segment.start.y) / length };
+  }
+  if (segment.kind === "bezier") return unitTangentAt(segment, 1);
+
+  const endAngleDeg = segment.startAngleDeg + segment.sweepAngleDeg;
+  const tangentAngle = degreesToRadians(endAngleDeg + (segment.sweepAngleDeg >= 0 ? 90 : -90));
+  return {
+    x: Math.cos(tangentAngle),
+    y: -Math.sin(tangentAngle)
+  };
+};
 
 const reverseSourceSegment = (segment: SourceSegment): SourceSegment =>
   segment.kind === "line"
@@ -792,6 +999,45 @@ const lineConnector = (
   };
 };
 
+const pointedJoinConnectors = ({
+  previous,
+  next,
+  offset,
+  elementId,
+  name,
+  index
+}: {
+  previous: RawOffsetSegment;
+  next: RawOffsetSegment;
+  offset: number;
+  elementId: ElementId;
+  name: string;
+  index: number;
+}) => {
+  const joinPoint = sourceEnd(previous.source);
+  if (lineLength(joinPoint, sourceStart(next.source)) > Math.max(Math.abs(offset) * 0.01, 0.1)) {
+    return [];
+  }
+
+  const incoming = sourceEndTangent(previous.source);
+  const outgoing = sourceStartTangent(next.source);
+  if (!incoming || !outgoing) return [];
+
+  const dot = incoming.x * outgoing.x + incoming.y * outgoing.y;
+  if (dot > POINTED_JOIN_DOT_THRESHOLD) return [];
+
+  const apexDistance = Math.min(Math.abs(offset) * POINTED_JOIN_MITER_FACTOR, POINTED_JOIN_MAX_LENGTH);
+  if (apexDistance <= EPSILON) return [];
+
+  const apex = {
+    x: joinPoint.x + incoming.x * apexDistance,
+    y: joinPoint.y + incoming.y * apexDistance
+  };
+  const first = lineConnector(segmentEnd(previous.segment), apex, elementId, name, index * 2);
+  const second = lineConnector(apex, segmentStart(next.segment), elementId, name, index * 2 + 1);
+  return [first, second].filter((segment): segment is ComputedOffsetLineSegment => Boolean(segment));
+};
+
 export const isLineLikeGeometry = (geometry: ComputedGeometry | undefined) =>
   geometry?.kind === "line" ||
   geometry?.kind === "arcLine" ||
@@ -820,7 +1066,7 @@ export const buildOffsetLineGeometry = ({
   baseGeometries: ComputedGeometry[];
   offset: number;
   closed: boolean;
-}): { geometry?: ComputedOffsetLine; error?: string } => {
+}): { geometry?: ComputedOffsetLine; error?: string; warnings?: string[] } => {
   const sourceSegmentGroups = baseGeometries
     .map(sourceSegmentsForGeometry)
     .filter((segments) => segments.length > 0);
@@ -838,36 +1084,67 @@ export const buildOffsetLineGeometry = ({
     if (connector) connectedSourceSegments.push(connector);
   }
 
-  const rawSegments: ComputedOffsetLineSegment[] = [];
+  const rawSegments: RawOffsetSegment[] = [];
+  const warnings: string[] = [];
   for (const segment of connectedSourceSegments) {
     if (segment.kind === "line") {
       const next = offsetLineSegment(segment, offset);
-      if (next) rawSegments.push(next);
+      if (next) rawSegments.push({ segment: next, joinWithPrevious: "miter", source: segment });
       continue;
     }
     if (segment.kind === "bezier") {
-      rawSegments.push(...offsetBezierSegments(segment, offset));
+      const result = offsetBezierSegmentGroups(segment, offset);
+      if (result.trimmed && warnings.length === 0) {
+        warnings.push(
+          `${name} はオフセット量が曲線の曲率半径を超える箇所があるため、一部区間をトリムしました。オフセット量を下げると全体を作図できます。`
+        );
+      }
+      result.groups.forEach((group, groupIndex) => {
+        group.forEach((next, index) => {
+          rawSegments.push({
+            segment: next,
+            joinWithPrevious: index > 0 ? "smooth" : groupIndex > 0 ? "none" : "miter",
+            source: segment
+          });
+        });
+      });
       continue;
     }
 
     const next = offsetArcSegment(segment, offset, name);
     if (next.error) return { error: next.error };
-    if (next.segment) rawSegments.push(next.segment);
+    if (next.segment) rawSegments.push({ segment: next.segment, joinWithPrevious: "miter", source: segment });
   }
 
   if (rawSegments.length === 0) {
     return { error: `${name} は基準線から作図できる長さの線分がありません。` };
   }
 
-  const adjusted = [...rawSegments];
+  const adjusted = rawSegments.map((item) => item.segment);
   const connectors: Array<{ index: number; segment: ComputedOffsetLineSegment }> = [];
   const joinCount = closed ? adjusted.length : adjusted.length - 1;
   for (let index = 0; index < joinCount; index += 1) {
     const nextIndex = (index + 1) % adjusted.length;
+    const joinMode = rawSegments[nextIndex]?.joinWithPrevious;
+    if (joinMode === "smooth" || joinMode === "none") continue;
+
     const intersection = joinIntersection(adjusted[index], adjusted[nextIndex]);
     if (intersection) {
       adjusted[index] = withEnd(adjusted[index], intersection, elementId, name);
       adjusted[nextIndex] = withStart(adjusted[nextIndex], intersection, elementId, name);
+      continue;
+    }
+
+    const pointedConnectors = pointedJoinConnectors({
+      previous: { ...rawSegments[index], segment: adjusted[index] },
+      next: { ...rawSegments[nextIndex], segment: adjusted[nextIndex] },
+      offset,
+      elementId,
+      name,
+      index
+    });
+    if (pointedConnectors.length > 0) {
+      pointedConnectors.forEach((segment) => connectors.push({ index, segment }));
       continue;
     }
 
@@ -898,6 +1175,7 @@ export const buildOffsetLineGeometry = ({
       segments: outputSegments,
       closed,
       length: outputSegments.reduce((sum, segment) => sum + segment.length, 0)
-    }
+    },
+    warnings
   };
 };

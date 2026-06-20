@@ -10,7 +10,8 @@ import type { CadElement, EvaluationResult } from "../types/geometry";
 
 const emptyEvaluation: EvaluationResult = {
   computedGeometry: new Map(),
-  errors: []
+  errors: [],
+  warnings: []
 };
 
 const resetStore = () => {
@@ -35,10 +36,10 @@ const resetStore = () => {
   });
 };
 
-const renderRightPanel = () =>
+const renderRightPanel = (evaluation = emptyEvaluation) =>
   render(
     <RightPanel
-      evaluation={emptyEvaluation}
+      evaluation={evaluation}
       isParameterEditMode={false}
       isDependencyJumpMode={false}
       registerParameterControl={() => undefined}
@@ -364,6 +365,42 @@ describe("Shortcut help display", () => {
 describe("LeftPanel element list dragging", () => {
   beforeEach(() => {
     resetStore();
+  });
+
+  it("shows evaluation warnings without treating them as errors", () => {
+    const evaluation: EvaluationResult = {
+      computedGeometry: new Map(),
+      errors: [],
+      warnings: [
+        {
+          elementId: "curve-ac",
+          elementName: "曲線AC",
+          message: "オフセット量が曲線の曲率半径を超える箇所があるため、一部区間をトリムしました。"
+        }
+      ]
+    };
+
+    renderLeftPanel(evaluation);
+
+    const row = screen.getByLabelText(/曲線AC, Bezier curve/);
+    expect(row).toHaveClass("has-warning");
+    expect(row).not.toHaveClass("has-error");
+  });
+
+  it("shows evaluation warning messages in the validation section", () => {
+    renderRightPanel({
+      computedGeometry: new Map(),
+      errors: [],
+      warnings: [
+        {
+          elementId: "curve-ac",
+          elementName: "曲線AC",
+          message: "オフセット量が曲線の曲率半径を超える箇所があるため、一部区間をトリムしました。"
+        }
+      ]
+    });
+
+    expect(screen.getByText(/一部区間をトリムしました/)).toBeInTheDocument();
   });
 
   it("uses row styling instead of visible state text in the element list", () => {

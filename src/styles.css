@@ -274,8 +274,17 @@ select {
   background: #fff3ed;
 }
 
+.element-row.has-warning:not(.has-error) {
+  border-color: #c58b1b;
+  background: #fff9e8;
+}
+
 .element-row.has-error.is-disabled {
   box-shadow: inset 4px 0 0 #c2410c;
+}
+
+.element-row.has-warning.is-disabled:not(.has-error) {
+  box-shadow: inset 4px 0 0 #c58b1b;
 }
 
 .element-row.dragging {
@@ -954,6 +963,11 @@ select {
   padding: 9px;
 }
 
+.error-list li.warning-item {
+  border-color: #e0bd65;
+  background: #fff9e8;
+}
+
 .error-list strong,
 .error-list span {
   display: block;
@@ -964,6 +978,10 @@ select {
   color: #73320d;
   font-size: 12px;
   line-height: 1.5;
+}
+
+.error-list .warning-item span {
+  color: #71510b;
 }
 
 .shortcut-list {

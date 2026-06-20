@@ -262,9 +262,16 @@ export type DependencyError = {
   message: string;
 };
 
+export type EvaluationWarning = {
+  elementId: ElementId;
+  elementName: string;
+  message: string;
+};
+
 export type EvaluationResult = {
   computedGeometry: Map<ElementId, ComputedGeometry>;
   errors: DependencyError[];
+  warnings: EvaluationWarning[];
 };
 
 export const elementTypeLabels: Record<CadElementType, string> = {
