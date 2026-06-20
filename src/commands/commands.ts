@@ -392,6 +392,65 @@ const cycleChoiceParameter = (direction: 1 | -1) => {
   );
 };
 
+const nextChoiceValue = (
+  element: CadElement,
+  definition: NonNullable<ReturnType<typeof selectedParameterDefinition>>
+) => {
+  if (definition.kind !== "choice" || !definition.choiceOptions?.length) return null;
+  const currentValue = getParameterValue(element, definition.key);
+  const currentIndex = definition.choiceOptions.findIndex((option) => option === currentValue);
+  const nextIndex =
+    currentIndex < 0 ? 0 : (currentIndex + 1) % definition.choiceOptions.length;
+  return definition.choiceOptions[nextIndex];
+};
+
+const applyParameterDirectKey = (
+  directKey: string | undefined,
+  focusSelectedParameterInput?: () => void
+) => {
+  const selectedElement = getSelectedElement();
+  if (!selectedElement || !directKey) return;
+
+  const definition = findParameterByDirectKey(selectedElement, directKey);
+  if (!definition) return;
+
+  if (definition.kind === "boolean") {
+    useCadStore.getState().commitDocumentChange({
+      elements: useCadStore.getState().elements.map((element) =>
+        element.id === selectedElement.id
+          ? setParameterValue(
+              element,
+              definition.key,
+              !Boolean(getParameterValue(element, definition.key))
+            )
+          : element
+      ),
+      selectedParameterKey: definition.key
+    });
+    return;
+  }
+
+  if (definition.kind === "choice") {
+    const nextValue = nextChoiceValue(selectedElement, definition);
+    if (nextValue === null) {
+      useCadStore.setState({ selectedParameterKey: definition.key });
+      return;
+    }
+    useCadStore.getState().commitDocumentChange({
+      elements: useCadStore.getState().elements.map((element) =>
+        element.id === selectedElement.id
+          ? setParameterValue(element, definition.key, nextValue)
+          : element
+      ),
+      selectedParameterKey: definition.key
+    });
+    return;
+  }
+
+  useCadStore.setState({ selectedParameterKey: definition.key });
+  focusSelectedParameterInput?.();
+};
+
 const applyNumericExpressionReference = (context?: CommandContext) => {
   const numericExpression = context?.numericExpression;
   if (!numericExpression) return;
@@ -698,10 +757,18 @@ const toggleBooleanParameterByDirectKey = (directKey: string | undefined) => {
   const definition = findParameterByDirectKey(selectedElement, directKey);
   if (definition?.kind !== "boolean") return;
 
-  updateSelectedElement((element) => ({
-    ...element,
-    [definition.key]: !element[definition.key as keyof CadElement]
-  } as CadElement));
+  useCadStore.getState().commitDocumentChange({
+    elements: useCadStore.getState().elements.map((element) =>
+      element.id === selectedElement.id
+        ? setParameterValue(
+            element,
+            definition.key,
+            !Boolean(getParameterValue(element, definition.key))
+          )
+        : element
+    ),
+    selectedParameterKey: definition.key
+  });
 };
 
 const toggleSelectedElementsBooleanProperty = (property: "visible" | "enabled") => {
@@ -1250,14 +1317,8 @@ export const commands: Record<CommandId, Command> = {
   selectParameterByKey: {
     id: "selectParameterByKey",
     label: "キーでパラメーターを選択",
-    run: (context) => {
-      const selectedElement = getSelectedElement();
-      if (!selectedElement || !context?.parameterDirectKey) return;
-      const definition = findParameterByDirectKey(selectedElement, context.parameterDirectKey);
-      if (!definition) return;
-      useCadStore.setState({ selectedParameterKey: definition.key });
-      context.focusSelectedParameterInput?.();
-    }
+    run: (context) =>
+      applyParameterDirectKey(context?.parameterDirectKey, context?.focusSelectedParameterInput)
   },
   incrementSelectedParameter: {
     id: "incrementSelectedParameter",

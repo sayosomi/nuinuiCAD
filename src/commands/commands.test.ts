@@ -1142,14 +1142,17 @@ describe("commands", () => {
     expect(useCadStore.getState().selectedParameterKey).toBe("endPoint");
     dispatchCommand("selectParameterByKey", { parameterDirectKey: "m" });
     expect(useCadStore.getState().selectedParameterKey).toBe("placementMode");
-
-    dispatchCommand("incrementSelectedParameter");
     expect(useCadStore.getState().elements.at(-1)).toMatchObject({
       placementMode: "distance"
     });
-    dispatchCommand("decrementSelectedParameter");
+
+    dispatchCommand("incrementSelectedParameter");
     expect(useCadStore.getState().elements.at(-1)).toMatchObject({
       placementMode: "ratio"
+    });
+    dispatchCommand("decrementSelectedParameter");
+    expect(useCadStore.getState().elements.at(-1)).toMatchObject({
+      placementMode: "distance"
     });
   });
 
@@ -1611,6 +1614,48 @@ describe("commands", () => {
     expect(useCadStore.getState().elements[0]).toMatchObject({
       visible: false,
       enabled: false
+    });
+    expect(useCadStore.getState().selectedParameterKey).toBe("enabled");
+  });
+
+  it("toggles boolean and choice parameters from direct keys", () => {
+    useCadStore.setState({
+      elements: [
+        ...sampleElements,
+        {
+          id: "offset-line",
+          name: "オフセット線",
+          type: "offsetLine",
+          visible: true,
+          enabled: true,
+          numericVariables: [],
+          baseLineIds: ["line-ab"],
+          offset: 10,
+          side: "right",
+          closed: false
+        }
+      ],
+      selectedElementId: "offset-line",
+      selectedElementIds: ["offset-line"],
+      selectedParameterKey: "name"
+    });
+
+    dispatchCommand("selectParameterByKey", { parameterDirectKey: "s" });
+    expect(useCadStore.getState().selectedParameterKey).toBe("side");
+    expect(useCadStore.getState().elements.at(-1)).toMatchObject({
+      side: "left",
+      closed: false
+    });
+
+    dispatchCommand("selectParameterByKey", { parameterDirectKey: "s" });
+    expect(useCadStore.getState().elements.at(-1)).toMatchObject({
+      side: "right"
+    });
+
+    dispatchCommand("selectParameterByKey", { parameterDirectKey: "c" });
+    expect(useCadStore.getState().selectedParameterKey).toBe("closed");
+    expect(useCadStore.getState().elements.at(-1)).toMatchObject({
+      closed: true
     });
   });
 
