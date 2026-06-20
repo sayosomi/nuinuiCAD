@@ -46,6 +46,23 @@ describe("createCadElement", () => {
     });
   });
 
+  it("creates division points using the first two points as default endpoints", () => {
+    expect(createCadElement("divisionPoint", sampleElements, { createId: createTestId })).toMatchObject({
+      id: "divisionPoint-test-id",
+      name: "分点4",
+      type: "divisionPoint",
+      visible: true,
+      enabled: true,
+      numericVariables: [],
+      numericParameterSteps: { ratio: 0.01 },
+      startPoint: { mode: "reference", pointId: "point-a" },
+      endPoint: { mode: "reference", pointId: "point-b" },
+      placementMode: "ratio",
+      distance: 30,
+      ratio: 0.5
+    });
+  });
+
   it("creates lines using the first two points as default endpoints", () => {
     expect(createCadElement("line", sampleElements, { createId: createTestId })).toMatchObject({
       id: "line-test-id",

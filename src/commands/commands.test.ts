@@ -934,7 +934,7 @@ describe("commands", () => {
       "addFreePoint",
       "addOffsetPoint",
       "addPolarOffsetPoint",
-      "addLine"
+      "addDivisionPoint"
     ]);
     expect(filterCommandPaletteItems("point").map((item) => item.commandId)).toEqual(
       expect.arrayContaining(["addFreePoint", "addOffsetPoint", "addPolarOffsetPoint"])
@@ -944,6 +944,12 @@ describe("commands", () => {
     );
     expect(filterCommandPaletteItems("角度").map((item) => item.commandId)).toContain(
       "addPolarOffsetPoint"
+    );
+    expect(filterCommandPaletteItems("分点").map((item) => item.commandId)).toContain(
+      "addDivisionPoint"
+    );
+    expect(filterCommandPaletteItems("中点").map((item) => item.commandId)).toContain(
+      "addDivisionPoint"
     );
     expect(filterCommandPaletteItems("line").map((item) => item.commandId)).toContain("addLine");
     expect(filterCommandPaletteItems("直線").map((item) => item.commandId)).toContain("addLine");
@@ -962,6 +968,22 @@ describe("commands", () => {
       fromPointId: "point-a",
       angleDeg: 0,
       distance: 30
+    });
+    expect(useCadStore.getState().selectedElementId).toBe(added?.id);
+  });
+
+  it("adds a division point from a command", () => {
+    dispatchCommand("addDivisionPoint");
+
+    const added = useCadStore.getState().elements.at(-1);
+    expect(added).toMatchObject({
+      type: "divisionPoint",
+      startPoint: { mode: "reference", pointId: "point-a" },
+      endPoint: { mode: "reference", pointId: "point-b" },
+      placementMode: "ratio",
+      distance: 30,
+      ratio: 0.5,
+      numericParameterSteps: { ratio: 0.01 }
     });
     expect(useCadStore.getState().selectedElementId).toBe(added?.id);
   });
@@ -1066,6 +1088,46 @@ describe("commands", () => {
     expect(focusSelectedParameterInput).toHaveBeenCalledTimes(2);
   });
 
+  it("selects division point parameters by direct key and cycles placement mode", () => {
+    useCadStore.setState({
+      elements: [
+        ...sampleElements,
+        {
+          id: "division",
+          name: "分点",
+          type: "divisionPoint",
+          visible: true,
+          enabled: true,
+          startPoint: { mode: "reference", pointId: "point-a" },
+          endPoint: { mode: "reference", pointId: "point-b" },
+          placementMode: "ratio",
+          distance: 30,
+          ratio: 0.5,
+          numericParameterSteps: { ratio: 0.01 }
+        }
+      ],
+      selectedElementId: "division",
+      selectedElementIds: ["division"],
+      selectedParameterKey: "name"
+    });
+
+    dispatchCommand("selectParameterByKey", { parameterDirectKey: "s" });
+    expect(useCadStore.getState().selectedParameterKey).toBe("startPoint");
+    dispatchCommand("selectParameterByKey", { parameterDirectKey: "t" });
+    expect(useCadStore.getState().selectedParameterKey).toBe("endPoint");
+    dispatchCommand("selectParameterByKey", { parameterDirectKey: "m" });
+    expect(useCadStore.getState().selectedParameterKey).toBe("placementMode");
+
+    dispatchCommand("incrementSelectedParameter");
+    expect(useCadStore.getState().elements.at(-1)).toMatchObject({
+      placementMode: "distance"
+    });
+    dispatchCommand("decrementSelectedParameter");
+    expect(useCadStore.getState().elements.at(-1)).toMatchObject({
+      placementMode: "ratio"
+    });
+  });
+
   it("increments numeric parameters using the parameter step", () => {
     useCadStore.setState({
       selectedParameterKey: "x",
@@ -1094,6 +1156,38 @@ describe("commands", () => {
 
     dispatchCommand("decreaseSelectedParameterStep");
     expect(useCadStore.getState().elements[0].numericParameterSteps).toMatchObject({ x: 0.1 });
+  });
+
+  it("uses ratio-specific step levels for division point ratios", () => {
+    useCadStore.setState({
+      elements: [
+        ...sampleElements,
+        {
+          id: "division",
+          name: "分点",
+          type: "divisionPoint",
+          visible: true,
+          enabled: true,
+          startPoint: { mode: "reference", pointId: "point-a" },
+          endPoint: { mode: "reference", pointId: "point-b" },
+          placementMode: "ratio",
+          distance: 30,
+          ratio: 0.5,
+          numericParameterSteps: { ratio: 0.01 }
+        }
+      ],
+      selectedElementId: "division",
+      selectedElementIds: ["division"],
+      selectedParameterKey: "ratio"
+    });
+
+    dispatchCommand("incrementSelectedParameter");
+    expect(useCadStore.getState().elements.at(-1)).toMatchObject({ ratio: 0.51 });
+
+    dispatchCommand("increaseSelectedParameterStep");
+    expect(useCadStore.getState().elements.at(-1)?.numericParameterSteps).toMatchObject({
+      ratio: 0.1
+    });
   });
 
   it("changes angle parameter steps through angle-specific fixed levels", () => {

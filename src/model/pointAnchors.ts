@@ -46,7 +46,8 @@ export const anchorEquals = (a: PointAnchor | null, b: PointAnchor | null) => {
 export const isPointElement = (element: CadElement) =>
   element.type === "freePoint" ||
   element.type === "offsetPoint" ||
-  element.type === "polarOffsetPoint";
+  element.type === "polarOffsetPoint" ||
+  element.type === "divisionPoint";
 
 export const pointAnchorForElement = (element: CadElement): PointAnchor | null => {
   if (element.type === "offsetPoint" || element.type === "polarOffsetPoint") {

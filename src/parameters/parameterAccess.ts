@@ -6,6 +6,7 @@ export const supportsNumericVariables = (element: CadElement) =>
   element.type === "freePoint" ||
   element.type === "offsetPoint" ||
   element.type === "polarOffsetPoint" ||
+  element.type === "divisionPoint" ||
   element.type === "line" ||
   element.type === "arcLine" ||
   element.type === "threePointArcLine" ||
@@ -37,7 +38,10 @@ export const getPointAnchor = (element: CadElement, key: string): PointAnchor | 
   if (parsed && element.type === "bezierCurve" && parsed.field === "point") {
     return element.intermediatePoints.find((point) => point.id === parsed.intermediatePointId)?.point ?? null;
   }
-  if ((key === "startPoint" || key === "endPoint") && (element.type === "line" || element.type === "bezierCurve")) {
+  if (
+    (key === "startPoint" || key === "endPoint") &&
+    (element.type === "line" || element.type === "bezierCurve" || element.type === "divisionPoint")
+  ) {
     return element[key];
   }
   if (key === "centerPoint" && element.type === "arcLine") {
@@ -69,10 +73,16 @@ export const setPointAnchor = (
       )
     };
   }
-  if (key === "startPoint" && (element.type === "line" || element.type === "bezierCurve")) {
+  if (
+    key === "startPoint" &&
+    (element.type === "line" || element.type === "bezierCurve" || element.type === "divisionPoint")
+  ) {
     return { ...element, startPoint: anchor };
   }
-  if (key === "endPoint" && (element.type === "line" || element.type === "bezierCurve")) {
+  if (
+    key === "endPoint" &&
+    (element.type === "line" || element.type === "bezierCurve" || element.type === "divisionPoint")
+  ) {
     return { ...element, endPoint: anchor };
   }
   if (key === "centerPoint" && element.type === "arcLine") {

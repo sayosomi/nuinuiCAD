@@ -123,6 +123,70 @@ const movePolarOffsetPointByDelta = ({
   };
 };
 
+const divisionPointDragTarget = ({
+  element,
+  sourceElements
+}: {
+  element: Extract<CadElement, { type: "divisionPoint" }>;
+  sourceElements: CadElement[];
+}) => {
+  const evaluation = evaluateElements(sourceElements);
+  const elementsById = new Map(sourceElements.map((item) => [item.id, item]));
+  const point = evaluation.computedGeometry.get(element.id);
+  const startGeometry = evaluation.computedGeometry.get(
+    anchorReferenceElementId(element.startPoint) ?? ""
+  );
+  const endGeometry = evaluation.computedGeometry.get(
+    anchorReferenceElementId(element.endPoint) ?? ""
+  );
+  const start =
+    element.startPoint.mode === "derived"
+      ? resolveDerivedPoint(startGeometry ?? undefined, element.startPoint.pointKey, elementsById)
+      : startGeometry;
+  const end =
+    element.endPoint.mode === "derived"
+      ? resolveDerivedPoint(endGeometry ?? undefined, element.endPoint.pointKey, elementsById)
+      : endGeometry;
+
+  if (!isComputedPoint(point) || !isComputedPoint(start) || !isComputedPoint(end)) return null;
+  return { point, start, end };
+};
+
+const moveDivisionPointByDelta = ({
+  element,
+  sourceElements,
+  dx,
+  dy
+}: {
+  element: Extract<CadElement, { type: "divisionPoint" }>;
+  sourceElements: CadElement[];
+  dx: number;
+  dy: number;
+}) => {
+  const target = divisionPointDragTarget({ element, sourceElements });
+  if (!target) return element;
+
+  const baseVector = {
+    x: target.end.x - target.start.x,
+    y: target.end.y - target.start.y
+  };
+  const baseLength = Math.hypot(baseVector.x, baseVector.y);
+  if (baseLength === 0) return element;
+
+  const movedVector = {
+    x: target.point.x + dx - target.start.x,
+    y: target.point.y + dy - target.start.y
+  };
+  const projectedDistance =
+    (movedVector.x * baseVector.x + movedVector.y * baseVector.y) / baseLength;
+
+  if (element.placementMode === "distance") {
+    return setNumericParameterOrLocalVariable(element, "distance", projectedDistance);
+  }
+
+  return setNumericParameterOrLocalVariable(element, "ratio", projectedDistance / baseLength);
+};
+
 export const movePointElementByDeltaInElements = (
   elements: CadElement[],
   elementId: ElementId,
@@ -160,6 +224,17 @@ export const movePointElementByDeltaInElements = (
         dy,
         angleLocked,
         distanceLocked
+      });
+      didMove = didMove || nextElement !== element;
+      return nextElement;
+    }
+
+    if (element.type === "divisionPoint") {
+      const nextElement = moveDivisionPointByDelta({
+        element,
+        sourceElements: elements,
+        dx,
+        dy
       });
       didMove = didMove || nextElement !== element;
       return nextElement;

@@ -17,7 +17,8 @@ export const createCadElement = (
     (element) =>
       element.type === "freePoint" ||
       element.type === "offsetPoint" ||
-      element.type === "polarOffsetPoint"
+      element.type === "polarOffsetPoint" ||
+      element.type === "divisionPoint"
   );
   const firstPointId = points[0]?.id ?? "";
   const secondPointId = points[1]?.id ?? firstPointId;
@@ -72,6 +73,24 @@ export const createCadElement = (
         fromPointId: firstPointId,
         angleDeg: 0,
         distance: 30
+      };
+    }
+    case "divisionPoint": {
+      const id = createId(type);
+      const requestedName = `分点${points.length + 1}`;
+      return {
+        id,
+        name: uniqueName(id, requestedName),
+        type,
+        visible: true,
+        enabled: true,
+        numericVariables: [],
+        numericParameterSteps: { ratio: 0.01 },
+        startPoint: referenceAnchor(firstPointId),
+        endPoint: referenceAnchor(secondPointId),
+        placementMode: "ratio",
+        distance: 30,
+        ratio: 0.5
       };
     }
     case "line": {

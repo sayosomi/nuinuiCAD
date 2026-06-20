@@ -337,6 +337,20 @@ const parameterValueShortcutItems: Record<ParameterValueKind, ShortcutHelpItem[]
     helpItem(parameterShortcut("increaseSelectedParameterStep"))
   ],
   boolean: [helpItem(parameterShortcut("toggleSelectedBooleanParameter"))],
+  choice: [
+    {
+      id: "cycleSelectedChoiceForward",
+      commandId: "incrementSelectedParameter",
+      label: "候補を次へ",
+      keys: "ArrowRight"
+    },
+    {
+      id: "cycleSelectedChoiceBackward",
+      commandId: "decrementSelectedParameter",
+      label: "候補を前へ",
+      keys: "ArrowLeft"
+    }
+  ],
   reference: [
     {
       id: "cycleSelectedReferenceForward",

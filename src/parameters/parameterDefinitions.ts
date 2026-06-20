@@ -1,7 +1,7 @@
 import type { CadElement, PointAnchor } from "../types/geometry";
 import { pointAnchorOptions } from "../model/pointAnchors";
 
-export type ParameterValueKind = "text" | "boolean" | "number" | "reference";
+export type ParameterValueKind = "text" | "boolean" | "number" | "reference" | "choice";
 
 export type ParameterKey = string;
 
@@ -11,10 +11,12 @@ export type ParameterDefinition = {
   label: string;
   kind: ParameterValueKind;
   stepLevels?: readonly number[];
+  choiceOptions?: readonly string[];
 };
 
 export const defaultNumericParameterStep = 1;
 export const defaultNumericParameterStepLevels = [0.1, 1, 10, 100] as const;
+export const ratioNumericParameterStepLevels = [0.01, 0.1, 1, 10] as const;
 export const angleNumericParameterStepLevels = [0.1, 1, 15, 60, 90] as const;
 
 const commonParameters: ParameterDefinition[] = [
@@ -81,6 +83,38 @@ export const getParameterDefinitions = (element: CadElement): ParameterDefinitio
           stepLevels: angleNumericParameterStepLevels
         },
         { key: "distance", directKey: "f", label: "距離", kind: "number" }
+      ];
+    case "divisionPoint":
+      return [
+        ...commonParameters,
+        ...numericVariableParameters(element),
+        ...pointAnchorParameters({
+          anchor: element.startPoint,
+          key: "startPoint",
+          directKey: "s",
+          label: "始点"
+        }),
+        ...pointAnchorParameters({
+          anchor: element.endPoint,
+          key: "endPoint",
+          directKey: "t",
+          label: "終点"
+        }),
+        {
+          key: "placementMode",
+          directKey: "m",
+          label: "方式",
+          kind: "choice",
+          choiceOptions: ["distance", "ratio"]
+        },
+        { key: "distance", directKey: "d", label: "距離", kind: "number" },
+        {
+          key: "ratio",
+          directKey: "r",
+          label: "割合",
+          kind: "number",
+          stepLevels: ratioNumericParameterStepLevels
+        }
       ];
     case "line":
       return [

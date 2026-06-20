@@ -46,6 +46,17 @@ export type PolarOffsetPointElement = CadElementBase & {
   distance: NumericValue;
 };
 
+export type DivisionPointMode = "distance" | "ratio";
+
+export type DivisionPointElement = CadElementBase & {
+  type: "divisionPoint";
+  startPoint: PointAnchor;
+  endPoint: PointAnchor;
+  placementMode: DivisionPointMode;
+  distance: NumericValue;
+  ratio: NumericValue;
+};
+
 export type PointAnchor =
   | {
       mode: "reference";
@@ -108,6 +119,7 @@ export type CadElement =
   | FreePointElement
   | OffsetPointElement
   | PolarOffsetPointElement
+  | DivisionPointElement
   | LineElement
   | ArcLineElement
   | ThreePointArcLineElement
@@ -193,6 +205,7 @@ export const elementTypeLabels: Record<CadElementType, string> = {
   freePoint: "free point",
   offsetPoint: "offset point",
   polarOffsetPoint: "polar offset point",
+  divisionPoint: "点間分点",
   line: "line",
   arcLine: "arc line",
   threePointArcLine: "three-point arc line",

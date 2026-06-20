@@ -432,6 +432,87 @@ export const evaluateElements = (elements: CadElement[]): EvaluationResult => {
         });
         break;
       }
+      case "divisionPoint": {
+        const start = getPointAnchorOrError(
+          element,
+          element.startPoint,
+          "start",
+          computedGeometry,
+          elementsById,
+          errors,
+          localVariableValues,
+          localVariableNames
+        );
+        const end = getPointAnchorOrError(
+          element,
+          element.endPoint,
+          "end",
+          computedGeometry,
+          elementsById,
+          errors,
+          localVariableValues,
+          localVariableNames
+        );
+        if (!start || !end) {
+          break;
+        }
+
+        const vector = {
+          x: end.x - start.x,
+          y: end.y - start.y
+        };
+        const length = Math.hypot(vector.x, vector.y);
+
+        if (element.placementMode === "distance") {
+          const distance = numericError(
+            element,
+            element.distance,
+            computedGeometry,
+            elementsById,
+            errors,
+            localVariableValues,
+            localVariableNames
+          );
+          if (distance === undefined) break;
+          if (length <= CIRCLE_EPSILON) {
+            errors.push(
+              geometryError(
+                element,
+                `${element.name} は始点と終点が同じ位置のため、距離方向を決められません。始点と終点を別の位置にしてください。`
+              )
+            );
+            break;
+          }
+          computedGeometry.set(element.id, {
+            kind: "point",
+            elementId: element.id,
+            name: element.name,
+            x: start.x + (vector.x / length) * distance,
+            y: start.y + (vector.y / length) * distance
+          });
+          break;
+        }
+
+        const ratio = numericError(
+          element,
+          element.ratio,
+          computedGeometry,
+          elementsById,
+          errors,
+          localVariableValues,
+          localVariableNames
+        );
+        if (ratio === undefined) break;
+
+        computedGeometry.set(element.id, {
+          kind: "point",
+          elementId: element.id,
+          name: element.name,
+          x: start.x + vector.x * ratio,
+          y: start.y + vector.y * ratio
+        });
+        break;
+      }
       case "line": {
         const start = getPointAnchorOrError(
           element,

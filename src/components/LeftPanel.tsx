@@ -632,6 +632,61 @@ const ElementEditor = ({
           </>
         )}
 
+        {element.type === "divisionPoint" && (
+          <>
+            {pointAnchorEditor({
+              parameterKey: "startPoint",
+              label: "始点",
+              anchor: element.startPoint,
+              allowCoordinate: false
+            })}
+            {pointAnchorEditor({
+              parameterKey: "endPoint",
+              label: "終点",
+              anchor: element.endPoint,
+              allowCoordinate: false
+            })}
+            <div className={parameterFieldClass("placementMode")} onClick={() => selectParameter("placementMode")}>
+              <ParameterName element={element} parameterKey="placementMode" label="方式" />
+              <div className="point-anchor-mode" role="group" aria-label="分点方式">
+                <button
+                  type="button"
+                  className={element.placementMode === "distance" ? "active-toggle" : ""}
+                  onClick={() => {
+                    updateParameterValue("placementMode", "distance");
+                    selectParameter("placementMode");
+                  }}
+                >
+                  距離
+                </button>
+                <button
+                  type="button"
+                  className={element.placementMode === "ratio" ? "active-toggle" : ""}
+                  onClick={() => {
+                    updateParameterValue("placementMode", "ratio");
+                    selectParameter("placementMode");
+                  }}
+                >
+                  割合
+                </button>
+              </div>
+            </div>
+            {element.placementMode === "distance"
+              ? numericInput({
+                  parameterKey: "distance",
+                  label: "距離",
+                  value: element.distance,
+                  ariaLabel: "距離"
+                })
+              : numericInput({
+                  parameterKey: "ratio",
+                  label: "割合",
+                  value: element.ratio,
+                  ariaLabel: "割合"
+                })}
+          </>
+        )}
+
         {element.type === "line" && (
           <>
             {pointAnchorEditor({

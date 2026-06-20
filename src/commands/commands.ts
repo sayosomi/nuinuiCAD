@@ -76,6 +76,7 @@ export type CommandId =
   | "addFreePoint"
   | "addOffsetPoint"
   | "addPolarOffsetPoint"
+  | "addDivisionPoint"
   | "addLine"
   | "addArcLine"
   | "addThreePointArcLine"
@@ -321,6 +322,10 @@ const updateNumericParameter = (direction: 1 | -1, context?: CommandContext) => 
     cycleReferenceParameter(direction);
     return;
   }
+  if (definition.kind === "choice") {
+    cycleChoiceParameter(direction);
+    return;
+  }
   if (definition.kind !== "number") return;
 
   const delta = getNumericParameterStep(selectedElement, definition.key) * stepForContext(context) * direction;
@@ -331,6 +336,22 @@ const updateNumericParameter = (direction: 1 | -1, context?: CommandContext) => 
       addToNumericValue(getParameterValue(element, definition.key) as NumericValue, delta)
     )
   }));
+};
+
+const cycleChoiceParameter = (direction: 1 | -1) => {
+  const selectedElement = getSelectedElement();
+  const definition = selectedParameterDefinition();
+  if (!selectedElement || definition?.kind !== "choice" || !definition.choiceOptions?.length) return;
+
+  const currentValue = getParameterValue(selectedElement, definition.key);
+  const currentIndex = definition.choiceOptions.findIndex((option) => option === currentValue);
+  const nextIndex =
+    currentIndex < 0
+      ? 0
+      : (currentIndex + direction + definition.choiceOptions.length) % definition.choiceOptions.length;
+  updateSelectedElement((element) =>
+    setParameterValue(element, definition.key, definition.choiceOptions![nextIndex])
+  );
 };
 
 const applyNumericExpressionReference = (context?: CommandContext) => {
@@ -459,7 +480,8 @@ const applyPickedPoint = (context?: Pick<CommandContext, "pickedPointId" | "pick
       !pointElement ||
       (pointElement.type !== "freePoint" &&
         pointElement.type !== "offsetPoint" &&
-        pointElement.type !== "polarOffsetPoint")
+        pointElement.type !== "polarOffsetPoint" &&
+        pointElement.type !== "divisionPoint")
     ) {
       return;
     }
@@ -924,6 +946,11 @@ export const commands: Record<CommandId, Command> = {
     label: "polar offset point を追加",
     run: () => addElement("polarOffsetPoint")
   },
+  addDivisionPoint: {
+    id: "addDivisionPoint",
+    label: "点間分点を追加",
+    run: () => addElement("divisionPoint")
+  },
   addLine: {
     id: "addLine",
     label: "line を追加",
@@ -1191,6 +1218,7 @@ const paletteCommandIds: CommandId[] = [
   "addFreePoint",
   "addOffsetPoint",
   "addPolarOffsetPoint",
+  "addDivisionPoint",
   "addLine",
   "addArcLine",
   "addThreePointArcLine",
@@ -1228,6 +1256,7 @@ const paletteKeywords: Partial<Record<CommandId, string[]>> = {
   addFreePoint: ["point", "free", "free point", "点", "追加"],
   addOffsetPoint: ["offset", "offset point", "オフセット", "点", "追加"],
   addPolarOffsetPoint: ["polar", "angle", "distance", "角度", "距離", "点", "追加"],
+  addDivisionPoint: ["division", "between", "ratio", "distance", "分点", "点間", "中点", "割合", "距離", "点", "追加"],
   addLine: ["line", "直線", "線", "追加"],
   addArcLine: ["arc", "arc line", "radius", "円弧", "円弧線", "半径", "線", "追加"],
   addThreePointArcLine: [

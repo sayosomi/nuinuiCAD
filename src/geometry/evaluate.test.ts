@@ -131,6 +131,109 @@ describe("evaluateElements", () => {
     expect(result.computedGeometry.get("up")).toMatchObject({ kind: "point", x: 10, y: 10 });
   });
 
+  it("evaluates division points by distance from the start point toward the end point", () => {
+    const result = evaluateElements([
+      validElements[0],
+      validElements[1],
+      {
+        id: "division",
+        name: "分点",
+        type: "divisionPoint",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "a" },
+        endPoint: { mode: "reference", pointId: "b" },
+        placementMode: "distance",
+        distance: 15,
+        ratio: 0.5
+      }
+    ]);
+
+    const point = result.computedGeometry.get("division");
+    expect(result.errors).toHaveLength(0);
+    expect(point).toMatchObject({ kind: "point" });
+    if (point?.kind !== "point") throw new Error("Expected a point");
+    expect(point.x).toBeCloseTo(10 + (30 / Math.hypot(30, 5)) * 15);
+    expect(point.y).toBeCloseTo(20 + (5 / Math.hypot(30, 5)) * 15);
+  });
+
+  it("evaluates division points by ratio and allows the midpoint", () => {
+    const result = evaluateElements([
+      validElements[0],
+      validElements[1],
+      {
+        id: "division",
+        name: "中点",
+        type: "divisionPoint",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "a" },
+        endPoint: { mode: "reference", pointId: "b" },
+        placementMode: "ratio",
+        distance: 30,
+        ratio: 0.5
+      }
+    ]);
+
+    expect(result.errors).toHaveLength(0);
+    expect(result.computedGeometry.get("division")).toMatchObject({
+      kind: "point",
+      x: 25,
+      y: 22.5
+    });
+  });
+
+  it("reports a division point dependency that appears too late", () => {
+    const result = evaluateElements([
+      validElements[0],
+      {
+        id: "division",
+        name: "分点",
+        type: "divisionPoint",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "a" },
+        endPoint: { mode: "reference", pointId: "b" },
+        placementMode: "ratio",
+        distance: 30,
+        ratio: 0.5
+      },
+      validElements[1]
+    ]);
+
+    expect(result.computedGeometry.has("division")).toBe(false);
+    expect(result.errors[0]).toMatchObject({
+      elementId: "division",
+      missingDependencyId: "b",
+      missingDependencyName: "点B"
+    });
+  });
+
+  it("reports a division point distance error when the endpoints overlap", () => {
+    const result = evaluateElements([
+      validElements[0],
+      {
+        id: "same",
+        name: "同一点",
+        type: "divisionPoint",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "a" },
+        endPoint: { mode: "reference", pointId: "a" },
+        placementMode: "distance",
+        distance: 10,
+        ratio: 0.5
+      }
+    ]);
+
+    expect(result.computedGeometry.has("same")).toBe(false);
+    expect(result.errors[0]).toMatchObject({
+      elementId: "same",
+      missingDependencyId: "same",
+      message: expect.stringContaining("距離方向を決められません")
+    });
+  });
+
   it("evaluates numeric expressions that reference earlier line measurements", () => {
     const result = evaluateElements([
       ...validElements,

@@ -19,6 +19,19 @@ const polarPoint: CadElement = {
 
 const withPolarPoint = () => [...sampleElements, polarPoint];
 
+const divisionPoint = (placementMode: "distance" | "ratio"): CadElement => ({
+  id: "division-point",
+  name: "分点",
+  type: "divisionPoint",
+  visible: true,
+  enabled: true,
+  startPoint: { mode: "reference", pointId: "point-a" },
+  endPoint: { mode: "reference", pointId: "point-b" },
+  placementMode,
+  distance: 30,
+  ratio: 0.5
+});
+
 const curveWithIntermediate = (): CadElement[] =>
   sampleElements.map((element) =>
     element.id === "curve-ac" && element.type === "bezierCurve"
@@ -113,6 +126,32 @@ describe("elementDragTransforms", () => {
     }
     expect(distanceLockedPoint.angleDeg).toBeCloseTo(18.43494882292201);
     expect(bothLocked).toBeNull();
+  });
+
+  it("moves division points by updating distance in distance mode", () => {
+    const moved = movePointElementByDeltaInElements(
+      [...sampleElements, divisionPoint("distance")],
+      "division-point",
+      { dx: 10, dy: 0 }
+    );
+    const point = moved?.at(-1);
+
+    expect(point).toMatchObject({ type: "divisionPoint" });
+    if (point?.type !== "divisionPoint") throw new Error("Expected a division point");
+    expect(point.distance).toBeCloseTo(40);
+  });
+
+  it("moves division points by updating ratio in ratio mode", () => {
+    const moved = movePointElementByDeltaInElements(
+      [...sampleElements, divisionPoint("ratio")],
+      "division-point",
+      { dx: 10, dy: 0 }
+    );
+    const point = moved?.at(-1);
+
+    expect(point).toMatchObject({ type: "divisionPoint" });
+    if (point?.type !== "divisionPoint") throw new Error("Expected a division point");
+    expect(point.ratio).toBeCloseTo(0.6);
   });
 
   it("returns null for zero movement, missing ids, and non-point targets", () => {

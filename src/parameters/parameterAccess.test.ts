@@ -101,6 +101,27 @@ describe("parameterAccess", () => {
     });
   });
 
+  it("updates division point anchors", () => {
+    const point: CadElement = {
+      id: "division",
+      name: "分点",
+      type: "divisionPoint",
+      visible: true,
+      enabled: true,
+      startPoint: referenceAnchor("point-a"),
+      endPoint: referenceAnchor("point-b"),
+      placementMode: "ratio",
+      distance: 30,
+      ratio: 0.5
+    };
+
+    expect(getPointAnchor(point, "startPoint")).toEqual(referenceAnchor("point-a"));
+    expect(setParameterValue(point, "endPoint", referenceAnchor("point-c"))).toMatchObject({
+      endPoint: referenceAnchor("point-c")
+    });
+    expect(supportsNumericVariables(point)).toBe(true);
+  });
+
   it("updates Bezier intermediate anchors and handle parameters", () => {
     const curve: CadElement = {
       id: "curve",
