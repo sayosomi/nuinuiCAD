@@ -116,7 +116,7 @@ select {
   padding-top: 14px;
 }
 
-.left-panel .panel-section {
+.element-list-section {
   display: flex;
   flex: 1;
   min-height: 0;
@@ -147,6 +147,7 @@ select {
 
 .element-list {
   display: grid;
+  flex: 1;
   align-content: start;
   min-height: 0;
   overflow: auto;
@@ -156,10 +157,11 @@ select {
 .element-row {
   position: relative;
   display: grid;
-  grid-template-columns: max-content 40px minmax(0, 1fr) auto 24px;
+  grid-template-columns: max-content 40px minmax(0, 1fr) minmax(0, auto) 24px;
   align-items: center;
   column-gap: 4px;
   width: 100%;
+  min-width: 0;
   min-height: 42px;
   border: 1px solid #b9bdb2;
   border-radius: 6px;
@@ -387,8 +389,12 @@ select {
 
 .element-index,
 .element-type {
+  min-width: 0;
+  overflow: hidden;
   color: #686b62;
   font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .element-name {
@@ -430,6 +436,7 @@ select {
 }
 
 .reorder-row {
+  flex: 0 0 auto;
   margin-top: 10px;
 }
 

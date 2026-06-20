@@ -1,30 +1,18 @@
-import { useRef, useState } from "react";
-import type { DragEvent, KeyboardEvent, MouseEvent, PointerEvent, RefObject } from "react";
+import { useState } from "react";
+import type { DragEvent, MouseEvent, RefObject } from "react";
 import { dispatchCommand } from "../commands/commands";
 import { getDependencyJumpTargets, getDependencySummary } from "../model/dependencies";
 import {
   isPointElement,
   lineEndpointReferenceForAnchor,
-  lineEndpointReferenceLabel,
   pointAnchorForElement,
-  pointAnchorLabel,
   referenceAnchor,
   selectablePointsForElement
 } from "../model/pointAnchors";
-import {
-  lineMeasurementLabel,
-  formatNumericExpressionForDisplay,
-  makeNumericExpression,
-  normalizeNumericExpressionInput
-} from "../geometry/numericExpressions";
-import { numericDragStepsForDelta } from "./numericDrag";
-import {
-  defaultNumericParameterStep,
-  getNumericParameterStep,
-  getParameterDefinitions
-} from "../parameters/parameterDefinitions";
+import { lineMeasurementLabel } from "../geometry/numericExpressions";
+import { getParameterDefinitions } from "../parameters/parameterDefinitions";
 import type { ParameterKey } from "../parameters/parameterDefinitions";
-import { setParameterValue, supportsNumericVariables } from "../parameters/parameterAccess";
+import { getParameterValue, supportsNumericVariables } from "../parameters/parameterAccess";
 import { useCadStore } from "../state/useCadStore";
 import type {
   CadElement,
@@ -44,7 +32,6 @@ import { elementTypeLabels } from "../types/geometry";
 import {
   arcLineInfoRows,
   bezierCurveInfoRows,
-  formatNumber,
   lineInfoRows,
   numericReferenceExpression,
   numericReferenceProperties,
@@ -52,6 +39,15 @@ import {
   offsetLineInfoRows,
   pointCoordinateRows
 } from "./geometryDisplay";
+import {
+  BooleanParameterEditor,
+  ChoiceParameterEditor,
+  LineEndpointReferenceEditor,
+  LineReferenceListEditor,
+  NumericParameterEditor,
+  ParameterName,
+  PointAnchorParameterEditor
+} from "./ParameterEditors";
 
 type LeftPanelProps = {
   evaluation: EvaluationResult;
@@ -93,14 +89,6 @@ const isLineLikeElement = (element: CadElement) =>
 
 const formatDependencyCount = (count: number) => (count > 99 ? "99+" : `${count}`);
 
-const coordinateAnchor = (x: NumericValue = 0, y: NumericValue = 0): PointAnchor => ({
-  mode: "coordinate",
-  x,
-  y
-});
-
-const anchorPointId = (anchor: PointAnchor) => (anchor.mode === "reference" ? anchor.pointId : "");
-
 type ElementStatusIconKind = "visible" | "hidden" | "enabled" | "disabled";
 
 const ElementStatusIcon = ({ kind }: { kind: ElementStatusIconKind }) => {
@@ -135,31 +123,6 @@ const ElementStatusIcon = ({ kind }: { kind: ElementStatusIconKind }) => {
   );
 };
 
-const ParameterName = ({
-  element,
-  parameterKey,
-  label
-}: {
-  element: CadElement;
-  parameterKey: ParameterKey;
-  label: string;
-}) => {
-  const definition = getParameterDefinitions(element).find((parameter) => parameter.key === parameterKey);
-  return (
-    <span className="parameter-name">
-      <kbd>{definition?.directKey}</kbd>
-      {label}
-    </span>
-  );
-};
-
-type NumericDragState = {
-  parameterKey: ParameterKey;
-  pointerId: number;
-  previousClientX: number;
-  remainderX: number;
-};
-
 type ElementDropTarget = {
   elementId: ElementId;
   insertionIndex: number;
@@ -176,360 +139,37 @@ const ElementEditor = ({
   isParameterEditMode: boolean;
   registerParameterControl: (key: string, element: HTMLElement | null) => void;
 }) => {
-  const numericDragRef = useRef<NumericDragState | null>(null);
   const updateElement = useCadStore((state) => state.updateElement);
   const renameElement = useCadStore((state) => state.renameElement);
   const selectedParameterKey = useCadStore((state) => state.selectedParameterKey);
   const setSelectedParameterKey = useCadStore((state) => state.setSelectedParameterKey);
-  const activePointPickTarget = useCadStore((state) => state.activePointPickTarget);
-  const activeNumericReferencePickTarget = useCadStore((state) => state.activeNumericReferencePickTarget);
-  const activeLinePickTarget = useCadStore((state) => state.activeLinePickTarget);
 
   const commitName = (name: string) => renameElement(element.id, name);
-  const updateVisible = (visible: boolean) => updateElement(element.id, { visible });
-  const updateEnabled = (enabled: boolean) => updateElement(element.id, { enabled });
-  const updateParameterValue = (field: ParameterKey, value: unknown) => {
-    updateElement(element.id, setParameterValue(element, field, value) as Partial<CadElement>);
-  };
-  const updateField = (field: ParameterKey, value: string) => {
-    updateParameterValue(
-      field,
-      makeNumericExpression(
-        normalizeNumericExpressionInput(
-          value,
-          elements,
-          element.numericVariables ?? []
-        )
-      )
-    );
-  };
-  const updateOffsetLineBaseIds = (baseLineIds: ElementId[]) => {
-    if (element.type !== "offsetLine") return;
-    updateElement(element.id, { baseLineIds } as Partial<CadElement>);
-    selectParameter("baseLineIds");
-  };
-  const moveOffsetLineBaseId = (index: number, direction: -1 | 1) => {
-    if (element.type !== "offsetLine") return;
-    const nextIndex = index + direction;
-    if (nextIndex < 0 || nextIndex >= element.baseLineIds.length) return;
-    const next = [...element.baseLineIds];
-    [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
-    updateOffsetLineBaseIds(next);
-  };
-  const updateStep = (field: ParameterKey, value: string) => {
-    const nextStep = Number(value);
-    updateElement(element.id, {
-      numericParameterSteps: {
-        ...element.numericParameterSteps,
-        [field]: Number.isFinite(nextStep) && nextStep > 0 ? nextStep : defaultNumericParameterStep
-      }
-    } as Partial<CadElement>);
-  };
   const parameterFieldClass = (key: ParameterKey) =>
     `parameter-field ${
       isParameterEditMode && selectedParameterKey === key ? "selected-parameter" : ""
     }`;
-  const controlProps = (key: ParameterKey) => ({
-    ref: (node: HTMLElement | null) => registerParameterControl(key, node),
-    onFocus: () => setSelectedParameterKey(key),
-    onKeyDown: (event: KeyboardEvent<HTMLElement>) => {
-      if (event.key === "Escape") {
-        event.currentTarget.blur();
-      }
-    }
-  });
   const selectParameter = (key: ParameterKey) => setSelectedParameterKey(key);
-  const numericInput = ({
-    parameterKey,
-    label,
-    value,
-    ariaLabel,
-    compact = false
-  }: {
+  const commonEditorProps = { element, elements, isParameterEditMode, registerParameterControl };
+  const elementEditorProps = { element, isParameterEditMode, registerParameterControl };
+  const numericInput = (props: {
     parameterKey: ParameterKey;
     label: string;
     value: NumericValue;
     ariaLabel: string;
     compact?: boolean;
-  }) => {
-    const isPickingThisNumericReference =
-      activeNumericReferencePickTarget?.elementId === element.id &&
-      activeNumericReferencePickTarget.parameterKey === parameterKey;
-    const input = (
-      <input
-        {...controlProps(parameterKey)}
-        {...numericDragProps(parameterKey)}
-        aria-label={ariaLabel}
-        type="text"
-        inputMode="decimal"
-        step="1"
-        data-numeric-parameter-key={parameterKey}
-        value={formatNumericExpressionForDisplay(
-          value,
-          elements,
-          element.numericVariables ?? []
-        )}
-        onChange={(event) => updateField(parameterKey, event.target.value)}
-      />
-    );
-    const stepControl = (
-      <span className="parameter-step">
-        増減単位
-        <input
-          type="number"
-          min="0.1"
-          step="0.1"
-          value={formatNumber(getNumericParameterStep(element, parameterKey))}
-          onFocus={() => selectParameter(parameterKey)}
-          onKeyDown={(event) => {
-            if (event.key === "Escape") event.currentTarget.blur();
-          }}
-          onChange={(event) => updateStep(parameterKey, event.target.value)}
-        />
-      </span>
-    );
-
-    if (compact) {
-      return (
-        <label className={parameterFieldClass(parameterKey)} onClick={() => selectParameter(parameterKey)}>
-          <ParameterName element={element} parameterKey={parameterKey} label={label} />
-          {input}
-          {stepControl}
-        </label>
-      );
-    }
-
-    return (
-      <div
-        className={`${parameterFieldClass(parameterKey)} numeric-parameter-editor ${
-          isPickingThisNumericReference ? "is-picking-numeric-reference" : ""
-        }`}
-        onClick={() => selectParameter(parameterKey)}
-      >
-        <div className="numeric-parameter-header">
-          <ParameterName element={element} parameterKey={parameterKey} label={label} />
-          <button
-            type="button"
-            className={`numeric-reference-pick-button ${isPickingThisNumericReference ? "active" : ""}`}
-            onClick={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              selectParameter(parameterKey);
-              if (isPickingThisNumericReference) {
-                dispatchCommand("cancelNumericReferencePick");
-                return;
-              }
-              dispatchCommand("startNumericReferencePick");
-            }}
-          >
-            {isPickingThisNumericReference ? "数値選択中" : "数値選択"}
-          </button>
-        </div>
-        {input}
-        <div className="numeric-parameter-footer">
-          {stepControl}
-          {isPickingThisNumericReference ? (
-            <p className="numeric-reference-pick-hint">canvas または構成リストから選択</p>
-          ) : null}
-        </div>
-      </div>
-    );
-  };
-  const pointAnchorEditor = ({
-    parameterKey,
-    label,
-    anchor,
-    allowCoordinate = true
-  }: {
+  }) => <NumericParameterEditor {...commonEditorProps} {...props} />;
+  const pointAnchorEditor = (props: {
     parameterKey: ParameterKey;
     label: string;
     anchor: PointAnchor;
     allowCoordinate?: boolean;
-  }) => {
-    const isPickingThisPoint =
-      activePointPickTarget?.elementId === element.id &&
-      activePointPickTarget.parameterKey === parameterKey;
-
-    return (
-    <div className={`point-anchor-editor ${isPickingThisPoint ? "is-picking-point" : ""}`}>
-      <div className="point-anchor-header">
-        <ParameterName element={element} parameterKey={parameterKey} label={label} />
-        <div className="point-anchor-actions">
-          <div className="point-anchor-mode" role="group" aria-label={`${label}の指定方法`}>
-            <button
-              type="button"
-              className={anchor.mode === "reference" ? "active-toggle" : ""}
-              onClick={() => {
-                const fallbackPointId = anchorPointId(anchor) || elements.find(isPointElement)?.id || "";
-                updateParameterValue(parameterKey, referenceAnchor(fallbackPointId));
-                selectParameter(parameterKey);
-              }}
-            >
-              既存点
-            </button>
-            {allowCoordinate ? (
-              <button
-                type="button"
-                className={anchor.mode === "coordinate" ? "active-toggle" : ""}
-                onClick={() => {
-                  updateParameterValue(parameterKey, coordinateAnchor());
-                  selectParameter(`${parameterKey}:x`);
-                }}
-              >
-                座標
-              </button>
-            ) : null}
-          </div>
-          <button
-            type="button"
-            className={`point-pick-button ${isPickingThisPoint ? "active" : ""}`}
-            onClick={() => {
-              selectParameter(parameterKey);
-              if (isPickingThisPoint) {
-                dispatchCommand("cancelPointPick");
-                return;
-              }
-              dispatchCommand("startPointPick");
-            }}
-          >
-            {isPickingThisPoint ? "点選択中" : "点を選択"}
-          </button>
-        </div>
-      </div>
-      {isPickingThisPoint ? (
-        <p className="point-pick-hint">canvas または構成リストから点を選択します。</p>
-      ) : null}
-      {anchor.mode !== "coordinate" ? (
-        <button
-          type="button"
-          className={`${parameterFieldClass(parameterKey)} point-anchor-reference`}
-          onClick={() => selectParameter(parameterKey)}
-        >
-          <span className="reference-label">参照点</span>
-          <span className="reference-value">{pointAnchorLabel(anchor, elements)}</span>
-        </button>
-      ) : (
-        <div className="point-anchor-coordinate-grid">
-          {numericInput({
-            parameterKey: `${parameterKey}:x`,
-            label: `${label} x`,
-            value: anchor.x,
-            ariaLabel: `${label} x`,
-            compact: true
-          })}
-          {numericInput({
-            parameterKey: `${parameterKey}:y`,
-            label: `${label} y`,
-            value: anchor.y,
-            ariaLabel: `${label} y`,
-            compact: true
-          })}
-        </div>
-      )}
-    </div>
-    );
-  };
-  const lineEndpointEditor = ({
-    parameterKey,
-    label,
-    endpoint
-  }: {
+  }) => <PointAnchorParameterEditor {...commonEditorProps} {...props} />;
+  const lineEndpointEditor = (props: {
     parameterKey: ParameterKey;
     label: string;
     endpoint: LineEndpointReference;
-  }) => {
-    const isPickingThisEndpoint =
-      activePointPickTarget?.elementId === element.id &&
-      activePointPickTarget.parameterKey === parameterKey;
-
-    return (
-      <div className={`point-anchor-editor ${isPickingThisEndpoint ? "is-picking-point" : ""}`}>
-        <div className="point-anchor-header">
-          <ParameterName element={element} parameterKey={parameterKey} label={label} />
-          <button
-            type="button"
-            className={`point-pick-button ${isPickingThisEndpoint ? "active" : ""}`}
-            onClick={() => {
-              selectParameter(parameterKey);
-              if (isPickingThisEndpoint) {
-                dispatchCommand("cancelPointPick");
-                return;
-              }
-              dispatchCommand("startPointPick");
-            }}
-          >
-            {isPickingThisEndpoint ? "端点選択中" : "端点を選択"}
-          </button>
-        </div>
-        {isPickingThisEndpoint ? (
-          <p className="point-pick-hint">canvas または構成リストから線の始点/終点を選択します。</p>
-        ) : null}
-        <button
-          {...controlProps(parameterKey)}
-          type="button"
-          className={`${parameterFieldClass(parameterKey)} point-anchor-reference`}
-          onClick={() => selectParameter(parameterKey)}
-        >
-          <span className="reference-label">参照端点</span>
-          <span className="reference-value">{lineEndpointReferenceLabel(endpoint, elements)}</span>
-        </button>
-      </div>
-    );
-  };
-  const finishNumericDrag = (event: PointerEvent<HTMLInputElement>) => {
-    const drag = numericDragRef.current;
-    if (!drag || drag.pointerId !== event.pointerId) return;
-
-    event.preventDefault();
-    if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId);
-    }
-    numericDragRef.current = null;
-  };
-  const numericDragProps = (key: ParameterKey) => ({
-    onPointerDown: (event: PointerEvent<HTMLInputElement>) => {
-      if (event.button !== 1) return;
-
-      event.preventDefault();
-      event.stopPropagation();
-      selectParameter(key);
-      event.currentTarget.focus();
-      event.currentTarget.setPointerCapture?.(event.pointerId);
-      numericDragRef.current = {
-        parameterKey: key,
-        pointerId: event.pointerId,
-        previousClientX: event.clientX,
-        remainderX: 0
-      };
-    },
-    onPointerMove: (event: PointerEvent<HTMLInputElement>) => {
-      const drag = numericDragRef.current;
-      if (!drag || drag.pointerId !== event.pointerId) return;
-
-      event.preventDefault();
-      const deltaX = drag.remainderX + event.clientX - drag.previousClientX;
-      const { steps, remainderX } = numericDragStepsForDelta(deltaX);
-      drag.previousClientX = event.clientX;
-      drag.remainderX = remainderX;
-
-      if (steps === 0) return;
-
-      setSelectedParameterKey(drag.parameterKey);
-      const commandId = steps > 0 ? "incrementSelectedParameter" : "decrementSelectedParameter";
-      for (let index = 0; index < Math.abs(steps); index += 1) {
-        dispatchCommand(commandId);
-      }
-    },
-    onPointerUp: finishNumericDrag,
-    onPointerCancel: finishNumericDrag,
-    onLostPointerCapture: (event: PointerEvent<HTMLInputElement>) => {
-      if (numericDragRef.current?.pointerId !== event.pointerId) return;
-      numericDragRef.current = null;
-    },
-    onAuxClick: (event: MouseEvent<HTMLInputElement>) => {
-      if (event.button === 1) event.preventDefault();
-    }
-  });
+  }) => <LineEndpointReferenceEditor {...commonEditorProps} {...props} />;
 
   return (
     <section className="panel-section">
@@ -565,30 +205,18 @@ const ElementEditor = ({
             }}
           />
         </label>
-        <label
-          className={`checkbox-line ${parameterFieldClass("visible")}`}
-          onClick={() => selectParameter("visible")}
-        >
-          <input
-            {...controlProps("visible")}
-            type="checkbox"
-            checked={element.visible}
-            onChange={(event) => updateVisible(event.target.checked)}
-          />
-          <ParameterName element={element} parameterKey="visible" label="表示する" />
-        </label>
-        <label
-          className={`checkbox-line ${parameterFieldClass("enabled")}`}
-          onClick={() => selectParameter("enabled")}
-        >
-          <input
-            {...controlProps("enabled")}
-            type="checkbox"
-            checked={element.enabled}
-            onChange={(event) => updateEnabled(event.target.checked)}
-          />
-          <ParameterName element={element} parameterKey="enabled" label="評価する" />
-        </label>
+        <BooleanParameterEditor
+          {...elementEditorProps}
+          parameterKey="visible"
+          label="表示する"
+          checked={element.visible}
+        />
+        <BooleanParameterEditor
+          {...elementEditorProps}
+          parameterKey="enabled"
+          label="評価する"
+          checked={element.enabled}
+        />
 
         {supportsNumericVariables(element) && (
           <div className="curve-point-editor">
@@ -723,31 +351,15 @@ const ElementEditor = ({
               anchor: element.endPoint,
               allowCoordinate: false
             })}
-            <div className={parameterFieldClass("placementMode")} onClick={() => selectParameter("placementMode")}>
-              <ParameterName element={element} parameterKey="placementMode" label="方式" />
-              <div className="point-anchor-mode" role="group" aria-label="分点方式">
-                <button
-                  type="button"
-                  className={element.placementMode === "distance" ? "active-toggle" : ""}
-                  onClick={() => {
-                    updateParameterValue("placementMode", "distance");
-                    selectParameter("placementMode");
-                  }}
-                >
-                  距離
-                </button>
-                <button
-                  type="button"
-                  className={element.placementMode === "ratio" ? "active-toggle" : ""}
-                  onClick={() => {
-                    updateParameterValue("placementMode", "ratio");
-                    selectParameter("placementMode");
-                  }}
-                >
-                  割合
-                </button>
-              </div>
-            </div>
+            <ChoiceParameterEditor
+              {...elementEditorProps}
+              parameterKey="placementMode"
+              label="方式"
+              value={element.placementMode}
+              options={["distance", "ratio"]}
+              optionLabels={{ distance: "距離", ratio: "割合" }}
+              ariaLabel="分点方式"
+            />
             {element.placementMode === "distance"
               ? numericInput({
                   parameterKey: "distance",
@@ -771,31 +383,15 @@ const ElementEditor = ({
               label: "端点",
               endpoint: element.endpoint
             })}
-            <div className={parameterFieldClass("placementMode")} onClick={() => selectParameter("placementMode")}>
-              <ParameterName element={element} parameterKey="placementMode" label="方式" />
-              <div className="point-anchor-mode" role="group" aria-label="線上分点方式">
-                <button
-                  type="button"
-                  className={element.placementMode === "distance" ? "active-toggle" : ""}
-                  onClick={() => {
-                    updateParameterValue("placementMode", "distance");
-                    selectParameter("placementMode");
-                  }}
-                >
-                  距離
-                </button>
-                <button
-                  type="button"
-                  className={element.placementMode === "ratio" ? "active-toggle" : ""}
-                  onClick={() => {
-                    updateParameterValue("placementMode", "ratio");
-                    selectParameter("placementMode");
-                  }}
-                >
-                  割合
-                </button>
-              </div>
-            </div>
+            <ChoiceParameterEditor
+              {...elementEditorProps}
+              parameterKey="placementMode"
+              label="方式"
+              value={element.placementMode}
+              options={["distance", "ratio"]}
+              optionLabels={{ distance: "距離", ratio: "割合" }}
+              ariaLabel="線上分点方式"
+            />
             {element.placementMode === "distance"
               ? numericInput({
                   parameterKey: "distance",
@@ -985,131 +581,34 @@ const ElementEditor = ({
 
         {element.type === "offsetLine" && (
           <>
-            <div
-              className={`line-anchor-editor ${parameterFieldClass("baseLineIds")} ${
-                activeLinePickTarget?.elementId === element.id &&
-                activeLinePickTarget.parameterKey === "baseLineIds"
-                  ? "is-picking-line"
-                  : ""
-              }`}
-              onClick={() => selectParameter("baseLineIds")}
-            >
-              <div className="point-anchor-header">
-                <ParameterName element={element} parameterKey="baseLineIds" label="基準線" />
-                <button
-                  type="button"
-                  className={`line-pick-button ${
-                    activeLinePickTarget?.elementId === element.id &&
-                    activeLinePickTarget.parameterKey === "baseLineIds"
-                      ? "active"
-                      : ""
-                  }`}
-                  onClick={() => {
-                    selectParameter("baseLineIds");
-                    if (
-                      activeLinePickTarget?.elementId === element.id &&
-                      activeLinePickTarget.parameterKey === "baseLineIds"
-                    ) {
-                      dispatchCommand("cancelLinePick");
-                      return;
-                    }
-                    dispatchCommand("startLinePick");
-                  }}
-                >
-                  {activeLinePickTarget?.elementId === element.id &&
-                  activeLinePickTarget.parameterKey === "baseLineIds"
-                    ? "線選択中"
-                    : "線を選択"}
-                </button>
-              </div>
-              {activeLinePickTarget?.elementId === element.id &&
-              activeLinePickTarget.parameterKey === "baseLineIds" ? (
-                <p className="line-pick-hint">canvas または構成リストから線を選択します。</p>
-              ) : null}
-              {element.baseLineIds.length === 0 ? (
-                <p className="empty-state">基準線はありません。</p>
-              ) : (
-                element.baseLineIds.map((baseLineId, index) => {
-                  const baseLine = elements.find((item) => item.id === baseLineId);
-                  return (
-                    <div className="curve-point-group" key={`${baseLineId}-${index}`}>
-                      <div className="curve-point-header">
-                        <span>{baseLine?.name ?? baseLineId}</span>
-                        <div className="button-row">
-                          <button
-                            type="button"
-                            onClick={() => moveOffsetLineBaseId(index, -1)}
-                            disabled={index === 0}
-                          >
-                            上
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => moveOffsetLineBaseId(index, 1)}
-                            disabled={index === element.baseLineIds.length - 1}
-                          >
-                            下
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              updateOffsetLineBaseIds(
-                                element.baseLineIds.filter((_, itemIndex) => itemIndex !== index)
-                              )
-                            }
-                          >
-                            削除
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
+            <LineReferenceListEditor
+              {...commonEditorProps}
+              parameterKey="baseLineIds"
+              label="基準線"
+              lineIds={element.baseLineIds}
+              emptyLabel="基準線はありません。"
+            />
             {numericInput({
               parameterKey: "offset",
               label: "オフセット量",
               value: element.offset,
               ariaLabel: "オフセット量"
             })}
-            <div className={parameterFieldClass("side")} onClick={() => selectParameter("side")}>
-              <ParameterName element={element} parameterKey="side" label="位置" />
-              <div className="point-anchor-mode" role="group" aria-label="オフセット位置">
-                <button
-                  type="button"
-                  className={element.side === "right" ? "active-toggle" : ""}
-                  onClick={() => {
-                    updateParameterValue("side", "right");
-                    selectParameter("side");
-                  }}
-                >
-                  右
-                </button>
-                <button
-                  type="button"
-                  className={element.side === "left" ? "active-toggle" : ""}
-                  onClick={() => {
-                    updateParameterValue("side", "left");
-                    selectParameter("side");
-                  }}
-                >
-                  左
-                </button>
-              </div>
-            </div>
-            <label
-              className={`checkbox-line ${parameterFieldClass("closed")}`}
-              onClick={() => selectParameter("closed")}
-            >
-              <input
-                {...controlProps("closed")}
-                type="checkbox"
-                checked={element.closed}
-                onChange={(event) => updateParameterValue("closed", event.target.checked)}
-              />
-              <ParameterName element={element} parameterKey="closed" label="閉じる" />
-            </label>
+            <ChoiceParameterEditor
+              {...elementEditorProps}
+              parameterKey="side"
+              label="位置"
+              value={element.side}
+              options={["right", "left"]}
+              optionLabels={{ right: "右", left: "左" }}
+              ariaLabel="オフセット位置"
+            />
+            <BooleanParameterEditor
+              {...elementEditorProps}
+              parameterKey="closed"
+              label="閉じる"
+              checked={element.closed}
+            />
           </>
         )}
       </div>
@@ -1282,10 +781,17 @@ export const LeftPanel = ({
   const activeLinePickTargetElement = activeLinePickTarget
     ? elements.find((element) => element.id === activeLinePickTarget.elementId)
     : null;
-  const activeLinePickBaseLineIds =
-    activeLinePickTargetElement?.type === "offsetLine"
-      ? new Set(activeLinePickTargetElement.baseLineIds)
-      : new Set<ElementId>();
+  const activeLinePickParameterValue =
+    activeLinePickTargetElement && activeLinePickTarget
+      ? getParameterValue(activeLinePickTargetElement, activeLinePickTarget.parameterKey)
+      : null;
+  const activeLinePickSelectedLineIds = new Set<ElementId>(
+    Array.isArray(activeLinePickParameterValue)
+      ? (activeLinePickParameterValue as unknown[]).filter(
+          (id): id is ElementId => typeof id === "string"
+        )
+      : []
+  );
   const clearElementDrag = () => {
     setDraggedElementIds([]);
     setDropTarget(null);
@@ -1339,7 +845,7 @@ export const LeftPanel = ({
         element &&
         isLineLikeElement(element) &&
         element.id !== activeLinePickTarget.elementId &&
-        !activeLinePickBaseLineIds.has(element.id)
+        !activeLinePickSelectedLineIds.has(element.id)
       ) {
         dispatchCommand("applyPickedLine", { pickedLineId: element.id });
       }
@@ -1384,7 +890,7 @@ export const LeftPanel = ({
         <h1>nuinuiCAD</h1>
       </header>
 
-      <section className="panel-section">
+      <section className="panel-section element-list-section">
         <div className="section-header">
           <div>
             <h2>構成リスト</h2>
@@ -1432,7 +938,7 @@ export const LeftPanel = ({
               Boolean(activeLinePickTarget) &&
               isLineLikeElement(element) &&
               element.id !== activeLinePickTarget?.elementId &&
-              !activeLinePickBaseLineIds.has(element.id);
+              !activeLinePickSelectedLineIds.has(element.id);
             return (
             <div
               key={element.id}

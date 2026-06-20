@@ -717,14 +717,23 @@ const applyPickedLine = (context?: Pick<CommandContext, "pickedLineId">) => {
 
   const targetElement = elements.find((element) => element.id === activeLinePickTarget.elementId);
   const pickedLine = elements.find((element) => element.id === pickedLineId);
+  const definition = targetElement
+    ? findParameterDefinition(targetElement, activeLinePickTarget.parameterKey)
+    : null;
+  const currentValue = targetElement
+    ? getParameterValue(targetElement, activeLinePickTarget.parameterKey)
+    : null;
+  const currentLineIds = Array.isArray(currentValue)
+    ? (currentValue as unknown[]).filter((id): id is ElementId => typeof id === "string")
+    : null;
   if (
     !targetElement ||
-    targetElement.type !== "offsetLine" ||
-    activeLinePickTarget.parameterKey !== "baseLineIds" ||
+    definition?.kind !== "lineReferenceList" ||
+    !currentLineIds ||
     !pickedLine ||
     !isLineLikeElement(pickedLine) ||
     pickedLine.id === targetElement.id ||
-    targetElement.baseLineIds.includes(pickedLine.id)
+    currentLineIds.includes(pickedLine.id)
   ) {
     return;
   }
@@ -732,7 +741,10 @@ const applyPickedLine = (context?: Pick<CommandContext, "pickedLineId">) => {
   useCadStore.getState().commitDocumentChange({
     elements: elements.map((element) =>
       element.id === targetElement.id
-        ? { ...targetElement, baseLineIds: [...targetElement.baseLineIds, pickedLine.id] }
+        ? setParameterValue(targetElement, activeLinePickTarget.parameterKey, [
+            ...currentLineIds,
+            pickedLine.id
+          ])
         : element
     ),
     selectedElementId: targetElement.id,
