@@ -1105,4 +1105,255 @@ describe("evaluateElements", () => {
       missingDependencyId: "a"
     });
   });
+
+  it("evaluates offset lines from multiple base lines with mitered joins", () => {
+    const elements: CadElement[] = [
+      {
+        id: "a",
+        name: "A",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 0,
+        y: 0
+      },
+      {
+        id: "b",
+        name: "B",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 100,
+        y: 0
+      },
+      {
+        id: "c",
+        name: "C",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 100,
+        y: 100
+      },
+      {
+        id: "ab",
+        name: "AB",
+        type: "line",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "a" },
+        endPoint: { mode: "reference", pointId: "b" }
+      },
+      {
+        id: "bc",
+        name: "BC",
+        type: "line",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "b" },
+        endPoint: { mode: "reference", pointId: "c" }
+      },
+      {
+        id: "offset",
+        name: "オフセット",
+        type: "offsetLine",
+        visible: true,
+        enabled: true,
+        baseLineIds: ["ab", "bc"],
+        offset: 10,
+        side: "right",
+        closed: false
+      }
+    ];
+
+    const result = evaluateElements(elements);
+    const offset = result.computedGeometry.get("offset");
+
+    expect(result.errors).toHaveLength(0);
+    expect(offset).toMatchObject({ kind: "offsetLine", length: 180 });
+    if (offset?.kind !== "offsetLine") throw new Error("Expected an offset line");
+    expect(offset.segments).toHaveLength(2);
+    expect(offset.segments[0].start).toMatchObject({ x: 0, y: 10 });
+    expect(offset.segments[0].end).toMatchObject({ x: 90, y: 10 });
+    expect(offset.segments[1].start).toMatchObject({ x: 90, y: 10 });
+    expect(offset.segments[1].end).toMatchObject({ x: 90, y: 100 });
+  });
+
+  it("ignores base line direction and connects the nearest endpoints", () => {
+    const elements: CadElement[] = [
+      {
+        id: "a",
+        name: "A",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 0,
+        y: 0
+      },
+      {
+        id: "b",
+        name: "B",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 100,
+        y: 0
+      },
+      {
+        id: "c",
+        name: "C",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 100,
+        y: 100
+      },
+      {
+        id: "ab",
+        name: "AB",
+        type: "line",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "a" },
+        endPoint: { mode: "reference", pointId: "b" }
+      },
+      {
+        id: "cb",
+        name: "CB",
+        type: "line",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "c" },
+        endPoint: { mode: "reference", pointId: "b" }
+      },
+      {
+        id: "offset",
+        name: "オフセット",
+        type: "offsetLine",
+        visible: true,
+        enabled: true,
+        baseLineIds: ["ab", "cb"],
+        offset: 10,
+        side: "right",
+        closed: false
+      }
+    ];
+
+    const result = evaluateElements(elements);
+    const offset = result.computedGeometry.get("offset");
+
+    expect(result.errors).toHaveLength(0);
+    expect(offset).toMatchObject({ kind: "offsetLine", length: 180 });
+    if (offset?.kind !== "offsetLine") throw new Error("Expected an offset line");
+    expect(offset.segments).toHaveLength(2);
+    expect(offset.segments[0].start).toMatchObject({ x: 0, y: 10 });
+    expect(offset.segments[0].end).toMatchObject({ x: 90, y: 10 });
+    expect(offset.segments[1].start).toMatchObject({ x: 90, y: 10 });
+    expect(offset.segments[1].end).toMatchObject({ x: 90, y: 100 });
+  });
+
+  it("can reverse the first base line to connect AB then curve AC as B to A to C", () => {
+    const elements: CadElement[] = [
+      {
+        id: "a",
+        name: "A",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 0,
+        y: 0
+      },
+      {
+        id: "b",
+        name: "B",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 100,
+        y: 0
+      },
+      {
+        id: "c",
+        name: "C",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 0,
+        y: 100
+      },
+      {
+        id: "ab",
+        name: "AB",
+        type: "line",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "a" },
+        endPoint: { mode: "reference", pointId: "b" }
+      },
+      {
+        id: "ac",
+        name: "AC",
+        type: "bezierCurve",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "a" },
+        startHandleAngleDeg: 270,
+        startHandleLength: 30,
+        intermediatePoints: [],
+        endPoint: { mode: "reference", pointId: "c" },
+        endHandleAngleDeg: 270,
+        endHandleLength: 30
+      },
+      {
+        id: "offset",
+        name: "オフセット",
+        type: "offsetLine",
+        visible: true,
+        enabled: true,
+        baseLineIds: ["ab", "ac"],
+        offset: 10,
+        side: "right",
+        closed: false
+      }
+    ];
+
+    const result = evaluateElements(elements);
+    const offset = result.computedGeometry.get("offset");
+
+    expect(result.errors).toHaveLength(0);
+    if (offset?.kind !== "offsetLine") throw new Error("Expected an offset line");
+    expect(offset.segments[0].start.x).toBeCloseTo(100);
+    expect(offset.segments[0].start.y).toBeCloseTo(-10);
+    expect(offset.segments[0].end.x).toBeCloseTo(-10);
+    expect(offset.segments[0].end.y).toBeCloseTo(-10);
+    expect(offset.segments[1].start.x).toBeCloseTo(-10);
+    expect(offset.segments.at(-1)!.end.x).toBeCloseTo(-10);
+    expect(offset.segments.at(-1)!.end.y).toBeCloseTo(100);
+  });
+
+  it("reports offset line dependencies that appear too late", () => {
+    const result = evaluateElements([
+      validElements[0],
+      {
+        id: "offset",
+        name: "先のオフセット",
+        type: "offsetLine",
+        visible: true,
+        enabled: true,
+        baseLineIds: ["ab"],
+        offset: 10,
+        side: "right",
+        closed: false
+      },
+      validElements[1],
+      validElements[2]
+    ]);
+
+    expect(result.computedGeometry.has("offset")).toBe(false);
+    expect(result.errors[0]).toMatchObject({
+      elementId: "offset",
+      missingDependencyId: "ab",
+      missingDependencyName: "直線AB"
+    });
+  });
 });

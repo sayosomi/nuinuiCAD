@@ -115,6 +115,16 @@ export type BezierCurveElement = CadElementBase & {
   endHandleLength: NumericValue;
 };
 
+export type OffsetLineSide = "right" | "left";
+
+export type OffsetLineElement = CadElementBase & {
+  type: "offsetLine";
+  baseLineIds: ElementId[];
+  offset: NumericValue;
+  side: OffsetLineSide;
+  closed: boolean;
+};
+
 export type CadElement =
   | FreePointElement
   | OffsetPointElement
@@ -123,7 +133,8 @@ export type CadElement =
   | LineElement
   | ArcLineElement
   | ThreePointArcLineElement
-  | BezierCurveElement;
+  | BezierCurveElement
+  | OffsetLineElement;
 export type CadElementType = CadElement["type"];
 
 export type ComputedPoint = {
@@ -186,7 +197,40 @@ export type ComputedBezierCurve = {
   endHandleLength: number;
 };
 
-export type ComputedGeometry = ComputedPoint | ComputedLine | ComputedArcLine | ComputedBezierCurve;
+export type ComputedOffsetLineSegment =
+  | {
+      kind: "line";
+      start: ComputedPoint;
+      end: ComputedPoint;
+      length: number;
+    }
+  | {
+      kind: "arc";
+      center: ComputedPoint;
+      start: ComputedPoint;
+      end: ComputedPoint;
+      radius: number;
+      startAngleDeg: number;
+      sweepAngleDeg: number;
+      length: number;
+    };
+
+export type ComputedOffsetLine = {
+  kind: "offsetLine";
+  elementId: ElementId;
+  name: string;
+  baseLineIds: ElementId[];
+  segments: ComputedOffsetLineSegment[];
+  closed: boolean;
+  length: number;
+};
+
+export type ComputedGeometry =
+  | ComputedPoint
+  | ComputedLine
+  | ComputedArcLine
+  | ComputedBezierCurve
+  | ComputedOffsetLine;
 
 export type DependencyError = {
   elementId: ElementId;
@@ -209,5 +253,6 @@ export const elementTypeLabels: Record<CadElementType, string> = {
   line: "line",
   arcLine: "arc line",
   threePointArcLine: "three-point arc line",
-  bezierCurve: "Bezier curve"
+  bezierCurve: "Bezier curve",
+  offsetLine: "オフセット線"
 };

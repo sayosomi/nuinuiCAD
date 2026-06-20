@@ -50,6 +50,11 @@ export const AppLayout = () => {
         dispatchCommand("cancelNumericReferencePick");
         return;
       }
+      if (useCadStore.getState().activeLinePickTarget && event.key === "Escape") {
+        event.preventDefault();
+        dispatchCommand("cancelLinePick");
+        return;
+      }
       if (!keyboardCommand) return;
       if (
         useCadStore.getState().showShortcutHelp &&

@@ -10,7 +10,8 @@ export const supportsNumericVariables = (element: CadElement) =>
   element.type === "line" ||
   element.type === "arcLine" ||
   element.type === "threePointArcLine" ||
-  element.type === "bezierCurve";
+  element.type === "bezierCurve" ||
+  element.type === "offsetLine";
 
 export const parseIntermediateParameterKey = (key: string) => {
   const [, intermediatePointId, field] = key.split(":");

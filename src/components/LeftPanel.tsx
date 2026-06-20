@@ -30,6 +30,7 @@ import type {
   ComputedBezierCurve,
   ComputedGeometry,
   ComputedLine,
+  ComputedOffsetLine,
   ComputedPoint,
   ElementId,
   EvaluationResult,
@@ -45,6 +46,7 @@ import {
   numericReferenceExpression,
   numericReferenceProperties,
   numericReferenceValue,
+  offsetLineInfoRows,
   pointCoordinateRows
 } from "./geometryDisplay";
 
@@ -60,7 +62,7 @@ type RightPanelProps = {
   registerParameterControl: (key: string, element: HTMLElement | null) => void;
 };
 
-type NumericReferenceGeometry = ComputedLine | ComputedArcLine | ComputedBezierCurve;
+type NumericReferenceGeometry = ComputedLine | ComputedArcLine | ComputedBezierCurve | ComputedOffsetLine;
 
 const isComputedPoint = (geometry: ComputedGeometry | undefined): geometry is ComputedPoint =>
   geometry?.kind === "point";
@@ -74,6 +76,17 @@ const isComputedArcLine = (geometry: ComputedGeometry | undefined): geometry is 
 const isComputedBezierCurve = (
   geometry: ComputedGeometry | undefined
 ): geometry is ComputedBezierCurve => geometry?.kind === "bezierCurve";
+
+const isComputedOffsetLine = (
+  geometry: ComputedGeometry | undefined
+): geometry is ComputedOffsetLine => geometry?.kind === "offsetLine";
+
+const isLineLikeElement = (element: CadElement) =>
+  element.type === "line" ||
+  element.type === "arcLine" ||
+  element.type === "threePointArcLine" ||
+  element.type === "bezierCurve" ||
+  element.type === "offsetLine";
 
 const formatDependencyCount = (count: number) => (count > 99 ? "99+" : `${count}`);
 
@@ -167,6 +180,7 @@ const ElementEditor = ({
   const setSelectedParameterKey = useCadStore((state) => state.setSelectedParameterKey);
   const activePointPickTarget = useCadStore((state) => state.activePointPickTarget);
   const activeNumericReferencePickTarget = useCadStore((state) => state.activeNumericReferencePickTarget);
+  const activeLinePickTarget = useCadStore((state) => state.activeLinePickTarget);
 
   const commitName = (name: string) => renameElement(element.id, name);
   const updateVisible = (visible: boolean) => updateElement(element.id, { visible });
@@ -185,6 +199,19 @@ const ElementEditor = ({
         )
       )
     );
+  };
+  const updateOffsetLineBaseIds = (baseLineIds: ElementId[]) => {
+    if (element.type !== "offsetLine") return;
+    updateElement(element.id, { baseLineIds } as Partial<CadElement>);
+    selectParameter("baseLineIds");
+  };
+  const moveOffsetLineBaseId = (index: number, direction: -1 | 1) => {
+    if (element.type !== "offsetLine") return;
+    const nextIndex = index + direction;
+    if (nextIndex < 0 || nextIndex >= element.baseLineIds.length) return;
+    const next = [...element.baseLineIds];
+    [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
+    updateOffsetLineBaseIds(next);
   };
   const updateStep = (field: ParameterKey, value: string) => {
     const nextStep = Number(value);
@@ -857,6 +884,136 @@ const ElementEditor = ({
             })}
           </>
         )}
+
+        {element.type === "offsetLine" && (
+          <>
+            <div
+              className={`line-anchor-editor ${parameterFieldClass("baseLineIds")} ${
+                activeLinePickTarget?.elementId === element.id &&
+                activeLinePickTarget.parameterKey === "baseLineIds"
+                  ? "is-picking-line"
+                  : ""
+              }`}
+              onClick={() => selectParameter("baseLineIds")}
+            >
+              <div className="point-anchor-header">
+                <ParameterName element={element} parameterKey="baseLineIds" label="基準線" />
+                <button
+                  type="button"
+                  className={`line-pick-button ${
+                    activeLinePickTarget?.elementId === element.id &&
+                    activeLinePickTarget.parameterKey === "baseLineIds"
+                      ? "active"
+                      : ""
+                  }`}
+                  onClick={() => {
+                    selectParameter("baseLineIds");
+                    if (
+                      activeLinePickTarget?.elementId === element.id &&
+                      activeLinePickTarget.parameterKey === "baseLineIds"
+                    ) {
+                      dispatchCommand("cancelLinePick");
+                      return;
+                    }
+                    dispatchCommand("startLinePick");
+                  }}
+                >
+                  {activeLinePickTarget?.elementId === element.id &&
+                  activeLinePickTarget.parameterKey === "baseLineIds"
+                    ? "線選択中"
+                    : "線を選択"}
+                </button>
+              </div>
+              {activeLinePickTarget?.elementId === element.id &&
+              activeLinePickTarget.parameterKey === "baseLineIds" ? (
+                <p className="line-pick-hint">canvas または構成リストから線を選択します。</p>
+              ) : null}
+              {element.baseLineIds.length === 0 ? (
+                <p className="empty-state">基準線はありません。</p>
+              ) : (
+                element.baseLineIds.map((baseLineId, index) => {
+                  const baseLine = elements.find((item) => item.id === baseLineId);
+                  return (
+                    <div className="curve-point-group" key={`${baseLineId}-${index}`}>
+                      <div className="curve-point-header">
+                        <span>{baseLine?.name ?? baseLineId}</span>
+                        <div className="button-row">
+                          <button
+                            type="button"
+                            onClick={() => moveOffsetLineBaseId(index, -1)}
+                            disabled={index === 0}
+                          >
+                            上
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => moveOffsetLineBaseId(index, 1)}
+                            disabled={index === element.baseLineIds.length - 1}
+                          >
+                            下
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              updateOffsetLineBaseIds(
+                                element.baseLineIds.filter((_, itemIndex) => itemIndex !== index)
+                              )
+                            }
+                          >
+                            削除
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+            {numericInput({
+              parameterKey: "offset",
+              label: "オフセット量",
+              value: element.offset,
+              ariaLabel: "オフセット量"
+            })}
+            <div className={parameterFieldClass("side")} onClick={() => selectParameter("side")}>
+              <ParameterName element={element} parameterKey="side" label="位置" />
+              <div className="point-anchor-mode" role="group" aria-label="オフセット位置">
+                <button
+                  type="button"
+                  className={element.side === "right" ? "active-toggle" : ""}
+                  onClick={() => {
+                    updateParameterValue("side", "right");
+                    selectParameter("side");
+                  }}
+                >
+                  右
+                </button>
+                <button
+                  type="button"
+                  className={element.side === "left" ? "active-toggle" : ""}
+                  onClick={() => {
+                    updateParameterValue("side", "left");
+                    selectParameter("side");
+                  }}
+                >
+                  左
+                </button>
+              </div>
+            </div>
+            <label
+              className={`checkbox-line ${parameterFieldClass("closed")}`}
+              onClick={() => selectParameter("closed")}
+            >
+              <input
+                {...controlProps("closed")}
+                type="checkbox"
+                checked={element.closed}
+                onChange={(event) => updateParameterValue("closed", event.target.checked)}
+              />
+              <ParameterName element={element} parameterKey="closed" label="閉じる" />
+            </label>
+          </>
+        )}
       </div>
     </section>
   );
@@ -887,10 +1044,12 @@ const ElementInfoPanel = ({
       ? pointCoordinateRows(geometry)
       : isComputedLine(geometry)
         ? lineInfoRows(geometry)
-        : isComputedArcLine(geometry)
-          ? arcLineInfoRows(geometry)
-          : isComputedBezierCurve(geometry)
-            ? bezierCurveInfoRows(geometry)
+          : isComputedArcLine(geometry)
+            ? arcLineInfoRows(geometry)
+            : isComputedBezierCurve(geometry)
+              ? bezierCurveInfoRows(geometry)
+              : isComputedOffsetLine(geometry)
+                ? offsetLineInfoRows(geometry)
             : [];
   const selectDependency = (id: ElementId) => setSelectedElementId(id);
   const dependencyButtonClass = (id: ElementId) => {
@@ -1006,11 +1165,19 @@ export const LeftPanel = ({
   const selectedElementIds = useCadStore((state) => state.selectedElementIds);
   const activePointPickTarget = useCadStore((state) => state.activePointPickTarget);
   const activeNumericReferencePickTarget = useCadStore((state) => state.activeNumericReferencePickTarget);
+  const activeLinePickTarget = useCadStore((state) => state.activeLinePickTarget);
   const [draggedElementIds, setDraggedElementIds] = useState<ElementId[]>([]);
   const [dropTarget, setDropTarget] = useState<ElementDropTarget | null>(null);
   const errorElementIds = new Set(evaluation.errors.map((error) => error.elementId));
   const selectedElementIdSet = new Set(selectedElementIds);
   const elementsById = new Map(elements.map((element) => [element.id, element]));
+  const activeLinePickTargetElement = activeLinePickTarget
+    ? elements.find((element) => element.id === activeLinePickTarget.elementId)
+    : null;
+  const activeLinePickBaseLineIds =
+    activeLinePickTargetElement?.type === "offsetLine"
+      ? new Set(activeLinePickTargetElement.baseLineIds)
+      : new Set<ElementId>();
   const clearElementDrag = () => {
     setDraggedElementIds([]);
     setDropTarget(null);
@@ -1058,6 +1225,18 @@ export const LeftPanel = ({
       ? ` drop-${position}`
       : "";
   const selectElement = (elementId: ElementId, event: MouseEvent<HTMLElement>) => {
+    if (activeLinePickTarget) {
+      const element = elements.find((item) => item.id === elementId);
+      if (
+        element &&
+        isLineLikeElement(element) &&
+        element.id !== activeLinePickTarget.elementId &&
+        !activeLinePickBaseLineIds.has(element.id)
+      ) {
+        dispatchCommand("applyPickedLine", { pickedLineId: element.id });
+      }
+      return;
+    }
     if (activePointPickTarget) {
       const element = elements.find((item) => item.id === elementId);
       if (element && isPointElement(element)) {
@@ -1075,7 +1254,12 @@ export const LeftPanel = ({
   };
   const numericReferenceGeometry = (elementId: ElementId) => {
     const geometry = evaluation.computedGeometry.get(elementId);
-    return isComputedLine(geometry) || isComputedArcLine(geometry) || isComputedBezierCurve(geometry) ? geometry : null;
+    return isComputedLine(geometry) ||
+      isComputedArcLine(geometry) ||
+      isComputedBezierCurve(geometry) ||
+      isComputedOffsetLine(geometry)
+      ? geometry
+      : null;
   };
   const applyNumericReference = (
     geometry: NumericReferenceGeometry,
@@ -1097,12 +1281,16 @@ export const LeftPanel = ({
           <div>
             <h2>構成リスト</h2>
             <p className={`section-subtitle ${
-              activePointPickTarget || activeNumericReferencePickTarget ? "point-pick-list-subtitle" : ""
+              activePointPickTarget || activeNumericReferencePickTarget || activeLinePickTarget
+                ? "point-pick-list-subtitle"
+                : ""
             }`}>
               {activePointPickTarget
                 ? "点選択中: 点の行だけ選択できます"
                 : activeNumericReferencePickTarget
                   ? "数値選択中: 線と曲線の行だけ選択できます"
+                  : activeLinePickTarget
+                    ? "線選択中: 線と曲線の行だけ選択できます"
                 : "gで戻る / Enterで要素設定"}
             </p>
           </div>
@@ -1126,6 +1314,11 @@ export const LeftPanel = ({
             const referenceGeometry = numericReferenceGeometry(element.id);
             const isNumericReferenceCandidate =
               Boolean(activeNumericReferencePickTarget) && referenceGeometry !== null;
+            const isLinePickCandidate =
+              Boolean(activeLinePickTarget) &&
+              isLineLikeElement(element) &&
+              element.id !== activeLinePickTarget?.elementId &&
+              !activeLinePickBaseLineIds.has(element.id);
             return (
             <div
               key={element.id}
@@ -1146,6 +1339,12 @@ export const LeftPanel = ({
               } ${
                 activeNumericReferencePickTarget && !isNumericReferenceCandidate
                   ? "is-not-numeric-reference-pick-candidate"
+                  : ""
+              } ${activeLinePickTarget ? "is-line-pick-mode" : ""} ${
+                isLinePickCandidate ? "is-line-pick-candidate" : ""
+              } ${
+                activeLinePickTarget && !isLinePickCandidate
+                  ? "is-not-line-pick-candidate"
                   : ""
               } ${
                 draggedElementIds.includes(element.id) ? "dragging" : ""}${dropMarkerClass(

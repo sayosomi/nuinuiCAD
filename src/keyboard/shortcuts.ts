@@ -175,6 +175,12 @@ export const shortcutDefinitions: ShortcutDefinition[] = [
     label: "曲線を追加",
     keys: "c",
     matches: (event) => event.key.toLowerCase() === "c" && noModifier(event)
+  },
+  {
+    commandId: "addOffsetLine",
+    label: "オフセット線を追加",
+    keys: "Shift+O",
+    matches: (event) => event.key.toLowerCase() === "o" && shiftOnly(event)
   }
 ];
 
@@ -337,6 +343,7 @@ const parameterValueShortcutItems: Record<ParameterValueKind, ShortcutHelpItem[]
     helpItem(parameterShortcut("increaseSelectedParameterStep"))
   ],
   boolean: [helpItem(parameterShortcut("toggleSelectedBooleanParameter"))],
+  lineReferenceList: [],
   choice: [
     {
       id: "cycleSelectedChoiceForward",

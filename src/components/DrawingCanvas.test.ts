@@ -73,6 +73,7 @@ const resetStore = () => {
     isDependencyJumpMode: false,
     activePointPickTarget: null,
     activeNumericReferencePickTarget: null,
+    activeLinePickTarget: null,
     selectedDependencyJumpIndex: 0,
     showShortcutHelp: false,
     showCommandPalette: false,
@@ -458,6 +459,111 @@ describe("DrawingCanvas point dragging", () => {
     expect(useCadStore.getState().activeNumericReferencePickTarget).toBeNull();
     expect(useCadStore.getState().elements[0]).toMatchObject({
       x: { kind: "expression", expression: "line-ab.length" }
+    });
+  });
+
+  it("adds a base line while line picking is active", () => {
+    useCadStore.setState({
+      elements: [
+        ...sampleElements,
+        {
+          id: "offset-line",
+          name: "オフセット線",
+          type: "offsetLine",
+          visible: true,
+          enabled: true,
+          numericVariables: [],
+          baseLineIds: [],
+          offset: 10,
+          side: "right",
+          closed: false
+        }
+      ],
+      selectedElementId: "offset-line",
+      selectedElementIds: ["offset-line"],
+      selectedParameterKey: "baseLineIds",
+      activeLinePickTarget: {
+        elementId: "offset-line",
+        parameterKey: "baseLineIds"
+      }
+    });
+    const { viewport } = renderDrawingCanvas();
+
+    expect(viewport).toHaveClass("is-line-picking");
+
+    fireEvent.pointerDown(viewport, {
+      button: 0,
+      buttons: 1,
+      clientX: 350,
+      clientY: 250,
+      pointerId: 1
+    });
+
+    expect(useCadStore.getState().activeLinePickTarget).toEqual({
+      elementId: "offset-line",
+      parameterKey: "baseLineIds"
+    });
+    expect(useCadStore.getState().elements.at(-1)).toMatchObject({
+      type: "offsetLine",
+      baseLineIds: ["line-ab"]
+    });
+  });
+
+  it("shows a candidate menu when multiple line pick targets overlap", () => {
+    useCadStore.setState({
+      elements: [
+        ...sampleElements,
+        {
+          id: "line-ab-copy",
+          name: "直線AB重ね",
+          type: "line",
+          visible: true,
+          enabled: true,
+          startPoint: { mode: "reference", pointId: "point-a" },
+          endPoint: { mode: "reference", pointId: "point-b" }
+        },
+        {
+          id: "offset-line",
+          name: "オフセット線",
+          type: "offsetLine",
+          visible: true,
+          enabled: true,
+          numericVariables: [],
+          baseLineIds: [],
+          offset: 10,
+          side: "right",
+          closed: false
+        }
+      ],
+      selectedElementId: "offset-line",
+      selectedElementIds: ["offset-line"],
+      selectedParameterKey: "baseLineIds",
+      activeLinePickTarget: {
+        elementId: "offset-line",
+        parameterKey: "baseLineIds"
+      }
+    });
+    const { viewport, getByRole } = renderDrawingCanvas();
+
+    fireEvent.pointerDown(viewport, {
+      button: 0,
+      buttons: 1,
+      clientX: 350,
+      clientY: 250,
+      pointerId: 1
+    });
+
+    expect(getByRole("menu", { name: "線選択候補" })).toBeInTheDocument();
+
+    fireEvent.click(getByRole("menuitem", { name: "直線AB重ね" }));
+
+    expect(useCadStore.getState().elements.at(-1)).toMatchObject({
+      type: "offsetLine",
+      baseLineIds: ["line-ab-copy"]
+    });
+    expect(useCadStore.getState().activeLinePickTarget).toEqual({
+      elementId: "offset-line",
+      parameterKey: "baseLineIds"
     });
   });
 

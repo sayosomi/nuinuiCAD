@@ -15,6 +15,7 @@ import type {
   ComputedArcLine,
   ComputedBezierCurve,
   ComputedLine,
+  ComputedOffsetLine,
   ComputedPoint,
   ElementId,
   EvaluationResult,
@@ -24,7 +25,8 @@ import {
   hitTestCanvasGeometry,
   hitTestLineMeasurementCandidates,
   sampleArcLineScreenPoints,
-  sampleBezierCurveScreenPoints
+  sampleBezierCurveScreenPoints,
+  sampleOffsetLineScreenPoints
 } from "./DrawingCanvasHitTest";
 import type { LineMeasurementCandidate } from "./DrawingCanvasHitTest";
 import type { ScreenPoint } from "./DrawingCanvasHitTest";
@@ -90,6 +92,15 @@ type PointPickCandidateMenu = {
   candidates: PointPickCandidate[];
 };
 
+type LinePickCandidate = {
+  line: ComputedLine | ComputedArcLine | ComputedBezierCurve | ComputedOffsetLine;
+};
+
+type LinePickCandidateMenu = {
+  screen: ScreenPoint;
+  candidates: LinePickCandidate[];
+};
+
 type BezierHandleOverlay = {
   id: string;
   curveId: ElementId;
@@ -121,6 +132,12 @@ const isBezierCurve = (geometry: unknown): geometry is ComputedBezierCurve =>
   geometry !== null &&
   "kind" in geometry &&
   geometry.kind === "bezierCurve";
+
+const isOffsetLine = (geometry: unknown): geometry is ComputedOffsetLine =>
+  typeof geometry === "object" &&
+  geometry !== null &&
+  "kind" in geometry &&
+  geometry.kind === "offsetLine";
 
 const drawGrid = (
   ctx: CanvasRenderingContext2D,
@@ -185,6 +202,8 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
     useState<MeasurementCandidateMenu | null>(null);
   const [pointPickCandidateMenu, setPointPickCandidateMenu] =
     useState<PointPickCandidateMenu | null>(null);
+  const [linePickCandidateMenu, setLinePickCandidateMenu] =
+    useState<LinePickCandidateMenu | null>(null);
   const elements = useCadStore((state) => state.elements);
   const selectedElementId = useCadStore((state) => state.selectedElementId);
   const selectedElementIds = useCadStore((state) => state.selectedElementIds);
@@ -193,6 +212,7 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
   const zoomCanvasViewportAt = useCadStore((state) => state.zoomCanvasViewportAt);
   const activePointPickTarget = useCadStore((state) => state.activePointPickTarget);
   const activeNumericReferencePickTarget = useCadStore((state) => state.activeNumericReferencePickTarget);
+  const activeLinePickTarget = useCadStore((state) => state.activeLinePickTarget);
   const visibleElementIds = useMemo(
     () => new Set(elements.filter((element) => element.visible).map((element) => element.id)),
     [elements]
@@ -205,6 +225,7 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
   const lines = useMemo(() => geometries.filter(isLine), [geometries]);
   const arcs = useMemo(() => geometries.filter(isArcLine), [geometries]);
   const curves = useMemo(() => geometries.filter(isBezierCurve), [geometries]);
+  const offsetLines = useMemo(() => geometries.filter(isOffsetLine), [geometries]);
   const points = useMemo(() => geometries.filter(isPoint), [geometries]);
   const overlayLines = useMemo(
     () =>
@@ -253,6 +274,18 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
         })),
     [canvasViewport, curves, viewportSize, visibleElementIds]
   );
+  const overlayOffsetLines = useMemo(
+    () =>
+      offsetLines
+        .filter((line) => visibleElementIds.has(line.elementId))
+        .map((line) => ({
+          line,
+          points: sampleOffsetLineScreenPoints(line, (point) =>
+            worldToScreen(point, viewportSize, canvasViewport)
+          )
+        })),
+    [canvasViewport, offsetLines, viewportSize, visibleElementIds]
+  );
   const overlayPointPickCandidates = useMemo(() => {
     const elementsById = new Map(elements.map((element) => [element.id, element]));
     return geometries
@@ -269,9 +302,10 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
     () => [
       ...overlayLines.map(({ line, start, end }) => ({ line, start, end })),
       ...overlayArcs.map(({ arc, start, end, points }) => ({ line: arc, start, end, points })),
-      ...overlayCurves.map(({ curve, points }) => ({ line: curve, points }))
+      ...overlayCurves.map(({ curve, points }) => ({ line: curve, points })),
+      ...overlayOffsetLines.map(({ line, points }) => ({ line, points }))
     ],
-    [overlayArcs, overlayCurves, overlayLines]
+    [overlayArcs, overlayCurves, overlayLines, overlayOffsetLines]
   );
   const selectedBezierHandles = useMemo(() => {
     const curveElement = elements.find((element) => element.id === selectedElementId);
@@ -375,14 +409,14 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
       ctx.strokeStyle =
         activePointPickTarget
           ? "#c5cac0"
-          : activeNumericReferencePickTarget
+          : activeNumericReferencePickTarget || activeLinePickTarget
             ? "#0f766e"
             : isSelected
               ? "#0f766e"
               : "#31322f";
       ctx.lineWidth = activePointPickTarget
         ? 1.25
-        : activeNumericReferencePickTarget
+        : activeNumericReferencePickTarget || activeLinePickTarget
           ? 3
           : isPrimarySelected
             ? 3.5
@@ -410,14 +444,14 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
       ctx.strokeStyle =
         activePointPickTarget
           ? "#c5cac0"
-          : activeNumericReferencePickTarget
+          : activeNumericReferencePickTarget || activeLinePickTarget
             ? "#0f766e"
             : isSelected
               ? "#0f766e"
               : "#31322f";
       ctx.lineWidth = activePointPickTarget
         ? 1.25
-        : activeNumericReferencePickTarget
+        : activeNumericReferencePickTarget || activeLinePickTarget
           ? 3
           : isPrimarySelected
             ? 3.5
@@ -443,14 +477,57 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
       ctx.strokeStyle =
         activePointPickTarget
           ? "#c5cac0"
-          : activeNumericReferencePickTarget
+          : activeNumericReferencePickTarget || activeLinePickTarget
             ? "#0f766e"
             : isSelected
               ? "#0f766e"
               : "#31322f";
       ctx.lineWidth = activePointPickTarget
         ? 1.25
-        : activeNumericReferencePickTarget
+        : activeNumericReferencePickTarget || activeLinePickTarget
+          ? 3
+          : isPrimarySelected
+            ? 3.5
+            : isSelected
+              ? 3
+              : 2;
+      ctx.stroke();
+    }
+
+    for (const line of offsetLines) {
+      if (!visibleElementIds.has(line.elementId)) continue;
+      const isSelected = selectedElementIdSet.has(line.elementId);
+      const isPrimarySelected = line.elementId === selectedElementId;
+      ctx.beginPath();
+      line.segments.forEach((segment, index) => {
+        const start = worldToScreen(segment.start, viewportSize, canvasViewport);
+        if (index === 0) ctx.moveTo(start.x, start.y);
+        if (segment.kind === "line") {
+          const end = worldToScreen(segment.end, viewportSize, canvasViewport);
+          ctx.lineTo(end.x, end.y);
+          return;
+        }
+        const center = worldToScreen(segment.center, viewportSize, canvasViewport);
+        ctx.arc(
+          center.x,
+          center.y,
+          Math.max(segment.radius, 0) * canvasViewport.zoom,
+          -((segment.startAngleDeg * Math.PI) / 180),
+          -(((segment.startAngleDeg + segment.sweepAngleDeg) * Math.PI) / 180),
+          segment.sweepAngleDeg >= 0
+        );
+      });
+      ctx.strokeStyle =
+        activePointPickTarget
+          ? "#c5cac0"
+          : activeNumericReferencePickTarget || activeLinePickTarget
+            ? "#0f766e"
+            : isSelected
+              ? "#0f766e"
+              : "#475569";
+      ctx.lineWidth = activePointPickTarget
+        ? 1.25
+        : activeNumericReferencePickTarget || activeLinePickTarget
           ? 3
           : isPrimarySelected
             ? 3.5
@@ -473,6 +550,8 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
           ? 5.75
           : activeNumericReferencePickTarget
             ? 3.5
+            : activeLinePickTarget
+            ? 3.5
             : isPrimarySelected
               ? 5.5
               : isSelected
@@ -483,26 +562,28 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
       );
       ctx.fillStyle = activePointPickTarget
         ? "#e7f4ef"
-        : activeNumericReferencePickTarget
+        : activeNumericReferencePickTarget || activeLinePickTarget
           ? "#f6f7f3"
           : isSelected
             ? "#0f766e"
             : "#ffffff";
       ctx.strokeStyle = activePointPickTarget
         ? "#0f766e"
-        : activeNumericReferencePickTarget
+        : activeNumericReferencePickTarget || activeLinePickTarget
           ? "#b7bbb0"
           : "#31322f";
-      ctx.lineWidth = activePointPickTarget ? 2.5 : activeNumericReferencePickTarget ? 1.25 : 2;
+      ctx.lineWidth = activePointPickTarget ? 2.5 : activeNumericReferencePickTarget || activeLinePickTarget ? 1.25 : 2;
       ctx.fill();
       ctx.stroke();
     }
   }, [
     activePointPickTarget,
     activeNumericReferencePickTarget,
+    activeLinePickTarget,
     arcs,
     canvasViewport,
     curves,
+    offsetLines,
     lines,
     points,
     selectedElementId,
@@ -587,6 +668,30 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
     }
     setMeasurementCandidateMenu(null);
   };
+  const applyLinePickCandidate = (candidate: LinePickCandidate) => {
+    dispatchCommand("applyPickedLine", {
+      pickedLineId: candidate.line.elementId
+    });
+    setLinePickCandidateMenu(null);
+  };
+  const linePickCandidatesAt = (screen: ScreenPoint) => {
+    const activeTarget = activeLinePickTarget;
+    if (!activeTarget) return [];
+
+    const targetElement = elements.find((element) => element.id === activeTarget.elementId);
+    const pickedBaseLineIds =
+      targetElement?.type === "offsetLine" ? new Set(targetElement.baseLineIds) : new Set<ElementId>();
+    const uniqueCandidates = new Map<ElementId, LinePickCandidate>();
+    for (const candidate of hitTestLineMeasurementCandidates({
+      screen,
+      lines: overlayNumericReferenceCandidates
+    })) {
+      if (candidate.line.elementId === activeTarget.elementId) continue;
+      if (pickedBaseLineIds.has(candidate.line.elementId)) continue;
+      uniqueCandidates.set(candidate.line.elementId, { line: candidate.line });
+    }
+    return Array.from(uniqueCandidates.values());
+  };
 
   const stopPanning = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (panDragRef.current?.pointerId === event.pointerId) {
@@ -666,6 +771,27 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
         selectedBezierHandles,
         BEZIER_HANDLE_HIT_RADIUS_PX
       );
+      if (activeLinePickTarget) {
+        const candidates = linePickCandidatesAt(screen);
+        event.preventDefault();
+        event.currentTarget.focus();
+        if (candidates.length === 1) {
+          applyLinePickCandidate(candidates[0]);
+          setMeasurementCandidateMenu(null);
+          setPointPickCandidateMenu(null);
+          return;
+        }
+        if (candidates.length > 1) {
+          setLinePickCandidateMenu({ screen, candidates });
+          setMeasurementCandidateMenu(null);
+          setPointPickCandidateMenu(null);
+          return;
+        }
+        setLinePickCandidateMenu(null);
+        setMeasurementCandidateMenu(null);
+        setPointPickCandidateMenu(null);
+        return;
+      }
       if (activePointPickTarget) {
         const candidates = hitTestPointPickCandidates(
           screen,
@@ -687,6 +813,7 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
         return;
       }
       setPointPickCandidateMenu(null);
+      setLinePickCandidateMenu(null);
       if (activeNumericReferencePickTarget) {
         const candidates = hitTestLineMeasurementCandidates({
           screen,
@@ -740,11 +867,13 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
         return;
       }
       setMeasurementCandidateMenu(null);
+      setLinePickCandidateMenu(null);
       const elementId = hitTestCanvasGeometry({
         screen,
         lines: overlayLines,
         arcs: overlayArcs,
         curves: overlayCurves,
+        offsetLines: overlayOffsetLines,
         points: overlayPoints
       });
       if (!elementId) return;
@@ -865,7 +994,8 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
           isPointDragging ? "is-point-dragging" : "",
           isBezierHandleDragging ? "is-bezier-handle-dragging" : "",
           activePointPickTarget ? "is-point-picking" : "",
-          activeNumericReferencePickTarget ? "is-numeric-reference-picking" : ""
+          activeNumericReferencePickTarget ? "is-numeric-reference-picking" : "",
+          activeLinePickTarget ? "is-line-picking" : ""
         ].filter(Boolean).join(" ")}
         ref={canvasFocusRef}
         tabIndex={-1}
@@ -899,6 +1029,7 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
               y2={end.y}
               className={selectedElementIdSet.has(line.elementId) ? "overlay-selected-line" : ""}
               data-numeric-reference-candidate={activeNumericReferencePickTarget ? "true" : undefined}
+              data-line-pick-candidate={activeLinePickTarget ? "true" : undefined}
             />
           ))}
           {overlayCurves.map(({ curve, points }) => (
@@ -907,6 +1038,7 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
               points={points.map((point) => `${point.x},${point.y}`).join(" ")}
               className={selectedElementIdSet.has(curve.elementId) ? "overlay-selected-line" : ""}
               data-numeric-reference-candidate={activeNumericReferencePickTarget ? "true" : undefined}
+              data-line-pick-candidate={activeLinePickTarget ? "true" : undefined}
             />
           ))}
           {overlayArcs.map(({ arc, points }) => (
@@ -915,6 +1047,7 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
               points={points.map((point) => `${point.x},${point.y}`).join(" ")}
               className={selectedElementIdSet.has(arc.elementId) ? "overlay-selected-line" : ""}
               data-numeric-reference-candidate={activeNumericReferencePickTarget ? "true" : undefined}
+              data-line-pick-candidate={activeLinePickTarget ? "true" : undefined}
             />
           ))}
           {selectedBezierHandles.map((handle) => (
@@ -971,6 +1104,11 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
             数値選択中: 線または曲線を選択
           </div>
         ) : null}
+        {activeLinePickTarget ? (
+          <div className="line-pick-canvas-banner">
+            線選択中: canvas または構成リストの線を選択
+          </div>
+        ) : null}
         {measurementCandidateMenu ? (
           <div
             className="numeric-reference-candidate-menu"
@@ -1022,6 +1160,29 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
                 }}
               >
                 {candidate.label}
+              </button>
+            ))}
+          </div>
+        ) : null}
+        {linePickCandidateMenu ? (
+          <div
+            className="line-pick-candidate-menu"
+            style={{
+              left: linePickCandidateMenu.screen.x,
+              top: linePickCandidateMenu.screen.y
+            }}
+            role="menu"
+            aria-label="線選択候補"
+          >
+            {linePickCandidateMenu.candidates.map((candidate) => (
+              <button
+                key={candidate.line.elementId}
+                type="button"
+                role="menuitem"
+                onPointerDown={(event) => event.stopPropagation()}
+                onClick={() => applyLinePickCandidate(candidate)}
+              >
+                {candidate.line.name}
               </button>
             ))}
           </div>

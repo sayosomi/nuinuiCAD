@@ -3,6 +3,7 @@ import type {
   ComputedBezierCurve,
   ComputedBezierSegment,
   ComputedLine,
+  ComputedOffsetLine,
   ComputedPoint,
   ElementId
 } from "../types/geometry";
@@ -80,7 +81,7 @@ export const sampleArcLineScreenPoints = (
   worldToScreen: (point: ScreenPoint) => ScreenPoint
 ) => {
   const radius = arc.radius > 0 ? arc.radius : 0;
-  const stepCount = Math.max(1, Math.ceil((arc.sweepAngleDeg / 360) * ARC_HIT_STEPS));
+  const stepCount = Math.max(1, Math.ceil((Math.abs(arc.sweepAngleDeg) / 360) * ARC_HIT_STEPS));
   return Array.from({ length: stepCount + 1 }, (_, index) => {
     const angleDeg = arc.startAngleDeg + (arc.sweepAngleDeg * index) / stepCount;
     const angleRad = degreesToRadians(angleDeg);
@@ -90,6 +91,25 @@ export const sampleArcLineScreenPoints = (
     });
   });
 };
+
+export const sampleOffsetLineScreenPoints = (
+  line: ComputedOffsetLine,
+  worldToScreen: (point: ScreenPoint) => ScreenPoint
+) =>
+  line.segments.flatMap((segment) => {
+    if (segment.kind === "line") {
+      return [worldToScreen(segment.start), worldToScreen(segment.end)];
+    }
+    const stepCount = Math.max(1, Math.ceil((Math.abs(segment.sweepAngleDeg) / 360) * ARC_HIT_STEPS));
+    return Array.from({ length: stepCount + 1 }, (_, index) => {
+      const angleDeg = segment.startAngleDeg + (segment.sweepAngleDeg * index) / stepCount;
+      const angleRad = degreesToRadians(angleDeg);
+      return worldToScreen({
+        x: segment.center.x + Math.cos(angleRad) * segment.radius,
+        y: segment.center.y - Math.sin(angleRad) * segment.radius
+      });
+    });
+  });
 
 const distanceToPolyline = (point: ScreenPoint, points: ScreenPoint[]) => {
   let distance = Number.POSITIVE_INFINITY;
@@ -104,12 +124,14 @@ export const hitTestCanvasGeometry = ({
   lines,
   arcs,
   curves,
+  offsetLines,
   points
 }: {
   screen: ScreenPoint;
   lines: Array<{ line: ComputedLine; start: ScreenPoint; end: ScreenPoint }>;
   arcs?: Array<{ arc: ComputedArcLine; points: ScreenPoint[] }>;
   curves?: Array<{ curve: ComputedBezierCurve; points: ScreenPoint[] }>;
+  offsetLines?: Array<{ line: ComputedOffsetLine; points: ScreenPoint[] }>;
   points: Array<{ point: ComputedPoint; screen: ScreenPoint }>;
 }): ElementId | null => {
   for (let index = points.length - 1; index >= 0; index -= 1) {
@@ -140,11 +162,18 @@ export const hitTestCanvasGeometry = ({
     }
   }
 
+  for (let index = (offsetLines?.length ?? 0) - 1; index >= 0; index -= 1) {
+    const item = offsetLines![index];
+    if (distanceToPolyline(screen, item.points) <= LINE_HIT_DISTANCE_PX) {
+      return item.line.elementId;
+    }
+  }
+
   return null;
 };
 
 export type LineMeasurementCandidate = {
-  line: ComputedLine | ComputedArcLine | ComputedBezierCurve;
+  line: ComputedLine | ComputedArcLine | ComputedBezierCurve | ComputedOffsetLine;
   property: LineMeasurementKey;
 };
 
@@ -153,13 +182,13 @@ export const hitTestLineMeasurementCandidates = ({
   lines
 }: {
   screen: ScreenPoint;
-  lines: Array<{ line: ComputedLine | ComputedArcLine | ComputedBezierCurve; start?: ScreenPoint; end?: ScreenPoint; points?: ScreenPoint[] }>;
+  lines: Array<{ line: ComputedLine | ComputedArcLine | ComputedBezierCurve | ComputedOffsetLine; start?: ScreenPoint; end?: ScreenPoint; points?: ScreenPoint[] }>;
 }): LineMeasurementCandidate[] => {
   const candidates: LineMeasurementCandidate[] = [];
 
   for (let index = lines.length - 1; index >= 0; index -= 1) {
     const item = lines[index];
-    if (item.line.kind === "bezierCurve") {
+    if (item.line.kind === "bezierCurve" || item.line.kind === "offsetLine") {
       if (item.points && distanceToPolyline(screen, item.points) <= LINE_HIT_DISTANCE_PX) {
         candidates.push({ line: item.line, property: "length" });
       }

@@ -86,7 +86,7 @@ const trimRedundantOuterParentheses = (expression: string): string => {
 const isSimpleNumericTerm = (expression: string) =>
   /^(\d+(?:\.\d+)?|\.\d+)$/.test(expression) ||
   /^@[^\s()+*/.]+$/.test(expression) ||
-  /^[^\s()+*/.]+\.(length|startAngleDeg|endAngleDeg|startHandleAngleDeg|startHandleLength|endHandleAngleDeg|endHandleLength)$/.test(expression);
+    /^[^\s()+*/.]+\.(length|startAngleDeg|endAngleDeg|startHandleAngleDeg|startHandleLength|endHandleAngleDeg|endHandleLength)$/.test(expression);
 
 const trimSimpleOuterParentheses = (expression: string): string => {
   const fullyTrimmed = trimRedundantOuterParentheses(expression);
@@ -160,7 +160,8 @@ export const normalizeNumericExpressionInput = (
         element.type === "line" ||
         element.type === "arcLine" ||
         element.type === "threePointArcLine" ||
-        element.type === "bezierCurve"
+        element.type === "bezierCurve" ||
+        element.type === "offsetLine"
     )
     .sort((a, b) => b.name.length - a.name.length);
 
@@ -183,6 +184,7 @@ export const normalizeNumericExpressionInput = (
       ) {
         continue;
       }
+      if (element.type === "offsetLine" && property !== "length") continue;
       expression = expression.replace(
         new RegExp(`${escapeRegExp(element.name)}\\.${escapeRegExp(label)}(?=$|[\\s()+*/-])`, "g"),
         `${element.id}.${property}`
@@ -375,11 +377,17 @@ export const evaluateNumericValue = ({
       const geometry = computedGeometry.get(reference.elementId);
       if (
         !geometry ||
-        (geometry.kind !== "line" && geometry.kind !== "arcLine" && geometry.kind !== "bezierCurve") ||
+        (
+          geometry.kind !== "line" &&
+          geometry.kind !== "arcLine" &&
+          geometry.kind !== "bezierCurve" &&
+          geometry.kind !== "offsetLine"
+        ) ||
         ((geometry.kind === "line" || geometry.kind === "arcLine") &&
           reference.property !== "length" &&
           reference.property !== "startAngleDeg" &&
-          reference.property !== "endAngleDeg")
+          reference.property !== "endAngleDeg") ||
+        (geometry.kind === "offsetLine" && reference.property !== "length")
       ) {
         const dependencyName = elementsById.get(reference.elementId)?.name;
         throw Object.assign(

@@ -23,6 +23,14 @@ export const createCadElement = (
   const firstPointId = points[0]?.id ?? "";
   const secondPointId = points[1]?.id ?? firstPointId;
   const thirdPointId = points[2]?.id ?? secondPointId;
+  const lineLikeElements = elements.filter(
+    (element) =>
+      element.type === "line" ||
+      element.type === "arcLine" ||
+      element.type === "threePointArcLine" ||
+      element.type === "bezierCurve" ||
+      element.type === "offsetLine"
+  );
   const uniqueName = (elementId: ElementId, requestedName: string) =>
     makeUniqueElementName({
       elements,
@@ -161,6 +169,23 @@ export const createCadElement = (
         endPoint: referenceAnchor(secondPointId),
         endHandleAngleDeg: 0,
         endHandleLength: 30
+      };
+    }
+    case "offsetLine": {
+      const id = createId(type);
+      const offsetLineCount = elements.filter((element) => element.type === "offsetLine").length;
+      const requestedName = `オフセット線${offsetLineCount + 1}`;
+      return {
+        id,
+        name: uniqueName(id, requestedName),
+        type,
+        visible: true,
+        enabled: true,
+        numericVariables: [],
+        baseLineIds: lineLikeElements[0] ? [lineLikeElements[0].id] : [],
+        offset: 10,
+        side: "right",
+        closed: false
       };
     }
   }

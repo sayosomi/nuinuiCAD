@@ -15,6 +15,11 @@ export type ActiveNumericReferencePickTarget = {
   parameterKey: ParameterKey;
 };
 
+export type ActiveLinePickTarget = {
+  elementId: ElementId;
+  parameterKey: ParameterKey;
+};
+
 export type CanvasViewport = {
   panX: number;
   panY: number;
@@ -50,6 +55,7 @@ export type CadState = {
   isDependencyJumpMode: boolean;
   activePointPickTarget: ActivePointPickTarget | null;
   activeNumericReferencePickTarget: ActiveNumericReferencePickTarget | null;
+  activeLinePickTarget: ActiveLinePickTarget | null;
   selectedDependencyJumpIndex: number;
   showShortcutHelp: boolean;
   showCommandPalette: boolean;
@@ -67,6 +73,7 @@ export type CadState = {
   setActiveNumericReferencePickTarget: (
     activeNumericReferencePickTarget: ActiveNumericReferencePickTarget | null
   ) => void;
+  setActiveLinePickTarget: (activeLinePickTarget: ActiveLinePickTarget | null) => void;
   setSelectedDependencyJumpIndex: (selectedDependencyJumpIndex: number) => void;
   setShowShortcutHelp: (showShortcutHelp: boolean) => void;
   setShowCommandPalette: (showCommandPalette: boolean) => void;
@@ -155,6 +162,7 @@ export const useCadStore = create<CadState>((set) => ({
   isDependencyJumpMode: false,
   activePointPickTarget: null,
   activeNumericReferencePickTarget: null,
+  activeLinePickTarget: null,
   selectedDependencyJumpIndex: 0,
   showShortcutHelp: false,
   showCommandPalette: false,
@@ -174,6 +182,7 @@ export const useCadStore = create<CadState>((set) => ({
         isParameterEditMode: selectedElement ? state.isParameterEditMode : false,
         activePointPickTarget: null,
         activeNumericReferencePickTarget: null,
+        activeLinePickTarget: null,
         selectedDependencyJumpIndex: 0
       };
     }),
@@ -200,6 +209,7 @@ export const useCadStore = create<CadState>((set) => ({
         isParameterEditMode: selectedElement ? state.isParameterEditMode : false,
         activePointPickTarget: null,
         activeNumericReferencePickTarget: null,
+        activeLinePickTarget: null,
         selectedDependencyJumpIndex: 0
       };
     }),
@@ -221,6 +231,7 @@ export const useCadStore = create<CadState>((set) => ({
         isParameterEditMode: state.isParameterEditMode,
         activePointPickTarget: null,
         activeNumericReferencePickTarget: null,
+        activeLinePickTarget: null,
         selectedDependencyJumpIndex: 0
       };
     }),
@@ -253,12 +264,14 @@ export const useCadStore = create<CadState>((set) => ({
       isDependencyJumpMode,
       activePointPickTarget: null,
       activeNumericReferencePickTarget: null,
+      activeLinePickTarget: null,
       isParameterEditMode: isDependencyJumpMode ? false : useCadStore.getState().isParameterEditMode,
       showElementInfoPanel: isDependencyJumpMode ? true : useCadStore.getState().showElementInfoPanel
     }),
   setActivePointPickTarget: (activePointPickTarget) => set({ activePointPickTarget }),
   setActiveNumericReferencePickTarget: (activeNumericReferencePickTarget) =>
     set({ activeNumericReferencePickTarget }),
+  setActiveLinePickTarget: (activeLinePickTarget) => set({ activeLinePickTarget }),
   setSelectedDependencyJumpIndex: (selectedDependencyJumpIndex) =>
     set({ selectedDependencyJumpIndex }),
   setShowShortcutHelp: (showShortcutHelp) => set({ showShortcutHelp }),

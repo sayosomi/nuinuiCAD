@@ -25,6 +25,7 @@ const resetStore = () => {
     isDependencyJumpMode: false,
     activePointPickTarget: null,
     activeNumericReferencePickTarget: null,
+    activeLinePickTarget: null,
     selectedDependencyJumpIndex: 0,
     showShortcutHelp: false,
     showCommandPalette: false,
@@ -213,6 +214,34 @@ describe("LeftPanel numeric input dragging", () => {
     dragNumericInput(screen.getByLabelText("x 値"), { toX: 8 });
 
     expect(useCadStore.getState().elements[0]).toMatchObject({ x: 52.5 });
+  });
+
+  it("uses a click-pick button instead of a dropdown for offset line base lines", () => {
+    useCadStore.setState({
+      elements: [
+        ...sampleElements,
+        {
+          id: "offset-line",
+          name: "オフセット線",
+          type: "offsetLine",
+          visible: true,
+          enabled: true,
+          numericVariables: [],
+          baseLineIds: [],
+          offset: 10,
+          side: "right",
+          closed: false
+        }
+      ],
+      selectedElementId: "offset-line",
+      selectedElementIds: ["offset-line"],
+      selectedParameterKey: "baseLineIds"
+    });
+
+    renderRightPanel();
+
+    expect(screen.getByRole("button", { name: "線を選択" })).toBeInTheDocument();
+    expect(screen.queryByLabelText("追加する基準線")).not.toBeInTheDocument();
   });
 
   it("folds repeated middle-button drags into a stable expression offset", () => {
@@ -464,6 +493,90 @@ describe("LeftPanel element list dragging", () => {
     expect(useCadStore.getState().activeNumericReferencePickTarget).toBeNull();
     expect(useCadStore.getState().elements[0]).toMatchObject({
       x: { kind: "expression", expression: "line-ab.length" }
+    });
+  });
+
+  it("adds a base line from the element list while line picking", () => {
+    useCadStore.setState({
+      elements: [
+        ...sampleElements,
+        {
+          id: "offset-line",
+          name: "オフセット線",
+          type: "offsetLine",
+          visible: true,
+          enabled: true,
+          numericVariables: [],
+          baseLineIds: [],
+          offset: 10,
+          side: "right",
+          closed: false
+        }
+      ],
+      selectedElementId: "offset-line",
+      selectedElementIds: ["offset-line"],
+      selectedParameterKey: "baseLineIds",
+      activeLinePickTarget: {
+        elementId: "offset-line",
+        parameterKey: "baseLineIds"
+      }
+    });
+    renderLeftPanel(evaluateElements(useCadStore.getState().elements));
+
+    const pointRow = screen.getByText("点C").closest("[data-element-list-row='true']");
+    const lineRow = screen.getByText("直線BC").closest("[data-element-list-row='true']");
+    expect(pointRow).toHaveClass("is-not-line-pick-candidate");
+    expect(lineRow).toHaveClass("is-line-pick-candidate");
+
+    fireEvent.click(lineRow!);
+    fireEvent.click(pointRow!);
+
+    expect(useCadStore.getState().activeLinePickTarget).toEqual({
+      elementId: "offset-line",
+      parameterKey: "baseLineIds"
+    });
+    expect(useCadStore.getState().selectedElementId).toBe("offset-line");
+    expect(useCadStore.getState().elements.at(-1)).toMatchObject({
+      type: "offsetLine",
+      baseLineIds: ["line-bc"]
+    });
+  });
+
+  it("does not offer already picked base lines while line picking", () => {
+    useCadStore.setState({
+      elements: [
+        ...sampleElements,
+        {
+          id: "offset-line",
+          name: "オフセット線",
+          type: "offsetLine",
+          visible: true,
+          enabled: true,
+          numericVariables: [],
+          baseLineIds: ["line-bc"],
+          offset: 10,
+          side: "right",
+          closed: false
+        }
+      ],
+      selectedElementId: "offset-line",
+      selectedElementIds: ["offset-line"],
+      selectedParameterKey: "baseLineIds",
+      activeLinePickTarget: {
+        elementId: "offset-line",
+        parameterKey: "baseLineIds"
+      }
+    });
+    renderLeftPanel(evaluateElements(useCadStore.getState().elements));
+
+    const lineRow = screen.getByText("直線BC").closest("[data-element-list-row='true']");
+    expect(lineRow).toHaveClass("is-not-line-pick-candidate");
+
+    fireEvent.click(lineRow!);
+
+    expect(useCadStore.getState().elements.at(-1)).toMatchObject({
+      type: "offsetLine",
+      baseLineIds: ["line-bc"]
     });
   });
 

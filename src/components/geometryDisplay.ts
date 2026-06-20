@@ -3,6 +3,7 @@ import type {
   ComputedArcLine,
   ComputedBezierCurve,
   ComputedLine,
+  ComputedOffsetLine,
   ComputedPoint
 } from "../types/geometry";
 
@@ -20,7 +21,7 @@ export const formatAngleDeg = (degrees: number | null) =>
   degrees === null ? "未定義" : `${formatNumber(normalizeDegrees(degrees))}°`;
 
 export const numericReferenceProperties = (
-  geometry: ComputedLine | ComputedArcLine | ComputedBezierCurve
+  geometry: ComputedLine | ComputedArcLine | ComputedBezierCurve | ComputedOffsetLine
 ) =>
   geometry.kind === "line"
     ? (["length", "startAngleDeg", "endAngleDeg"] as const)
@@ -29,12 +30,12 @@ export const numericReferenceProperties = (
       : (["length"] as const);
 
 export const numericReferenceExpression = (
-  geometry: ComputedLine | ComputedArcLine | ComputedBezierCurve,
+  geometry: ComputedLine | ComputedArcLine | ComputedBezierCurve | ComputedOffsetLine,
   property: NumericMeasurementKey
 ) => `${geometry.elementId}.${property}`;
 
 export const numericReferenceValue = (
-  geometry: ComputedLine | ComputedArcLine | ComputedBezierCurve,
+  geometry: ComputedLine | ComputedArcLine | ComputedBezierCurve | ComputedOffsetLine,
   property: NumericMeasurementKey
 ) => {
   if (property === "length") return formatMillimeters(geometry.length);
@@ -72,4 +73,11 @@ export const arcLineInfoRows = (arc: ComputedArcLine) => [
 export const bezierCurveInfoRows = (curve: ComputedBezierCurve) => [
   { label: "区間数", value: `${curve.segments.length}` },
   { label: "長さ", value: formatMillimeters(curve.length) }
+];
+
+export const offsetLineInfoRows = (line: ComputedOffsetLine) => [
+  { label: "基準線数", value: `${line.baseLineIds.length}` },
+  { label: "区間数", value: `${line.segments.length}` },
+  { label: "閉じる", value: line.closed ? "はい" : "いいえ" },
+  { label: "長さ", value: formatMillimeters(line.length) }
 ];

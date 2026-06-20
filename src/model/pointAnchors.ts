@@ -3,6 +3,7 @@ import type {
   ComputedBezierCurve,
   ComputedGeometry,
   ComputedLine,
+  ComputedOffsetLine,
   ComputedPoint,
   ElementId,
   PointAnchor
@@ -57,7 +58,7 @@ export const pointAnchorForElement = (element: CadElement): PointAnchor | null =
 };
 
 const derivedPoint = (
-  source: ComputedLine | ComputedBezierCurve | Extract<ComputedGeometry, { kind: "arcLine" }>,
+  source: ComputedLine | ComputedBezierCurve | ComputedOffsetLine | Extract<ComputedGeometry, { kind: "arcLine" }>,
   pointKey: string,
   elementsById: Map<ElementId, CadElement>
 ): ComputedPoint | null => {
@@ -71,6 +72,12 @@ const derivedPoint = (
     if (pointKey === "center") return source.center;
     if (pointKey === "start") return source.start;
     if (pointKey === "end") return source.end;
+    return null;
+  }
+
+  if (source.kind === "offsetLine") {
+    if (pointKey === "start") return source.segments[0]?.start ?? null;
+    if (pointKey === "end") return source.segments.at(-1)?.end ?? null;
     return null;
   }
 
@@ -92,7 +99,15 @@ export const resolveDerivedPoint = (
   pointKey: string,
   elementsById: Map<ElementId, CadElement>
 ) => {
-  if (!source || (source.kind !== "line" && source.kind !== "arcLine" && source.kind !== "bezierCurve")) return null;
+  if (
+    !source ||
+    (
+      source.kind !== "line" &&
+      source.kind !== "arcLine" &&
+      source.kind !== "bezierCurve" &&
+      source.kind !== "offsetLine"
+    )
+  ) return null;
   return derivedPoint(source, pointKey, elementsById);
 };
 
@@ -154,6 +169,27 @@ export const selectablePointsForGeometry = (
         label: `${geometry.name}.終点`,
         point: computedPoint(`${geometry.elementId}:end`, `${geometry.name}.終点`, geometry.end)
       }
+    ];
+  }
+
+  if (geometry.kind === "offsetLine") {
+    const start = geometry.segments[0]?.start;
+    const end = geometry.segments.at(-1)?.end;
+    return [
+      ...(start
+        ? [{
+            anchor: derivedAnchor(geometry.elementId, "start"),
+            label: `${geometry.name}.始点`,
+            point: computedPoint(`${geometry.elementId}:start`, `${geometry.name}.始点`, start)
+          }]
+        : []),
+      ...(end
+        ? [{
+            anchor: derivedAnchor(geometry.elementId, "end"),
+            label: `${geometry.name}.終点`,
+            point: computedPoint(`${geometry.elementId}:end`, `${geometry.name}.終点`, end)
+          }]
+        : [])
     ];
   }
 
@@ -227,6 +263,9 @@ export const pointAnchorOptions = (elements: CadElement[]): PointAnchor[] =>
         ),
         derivedAnchor(element.id, "end")
       ];
+    }
+    if (element.type === "offsetLine") {
+      return [derivedAnchor(element.id, "start"), derivedAnchor(element.id, "end")];
     }
     return [];
   });

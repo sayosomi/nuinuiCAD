@@ -10,6 +10,7 @@ import type {
   PointAnchor
 } from "../types/geometry";
 import { evaluateNumericValue } from "./numericExpressions";
+import { buildOffsetLineGeometry, isLineLikeGeometry } from "./offsetPaths";
 import {
   anchorReferenceElementId,
   pointAnchorForElement,
@@ -900,6 +901,46 @@ export const evaluateElements = (elements: CadElement[]): EvaluationResult => {
           endHandleAngleDeg,
           endHandleLength
         });
+        break;
+      }
+      case "offsetLine": {
+        const offset = numericError(
+          element,
+          element.offset,
+          computedGeometry,
+          elementsById,
+          errors,
+          localVariableValues,
+          localVariableNames
+        );
+        if (offset === undefined) break;
+
+        const baseGeometries: ComputedGeometry[] = [];
+        let hasMissingBase = false;
+        for (const baseLineId of element.baseLineIds) {
+          const geometry = computedGeometry.get(baseLineId);
+          if (!isLineLikeGeometry(geometry)) {
+            errors.push(dependencyError(element, baseLineId, elementsById));
+            hasMissingBase = true;
+            continue;
+          }
+          baseGeometries.push(geometry);
+        }
+        if (hasMissingBase) break;
+
+        const result = buildOffsetLineGeometry({
+          elementId: element.id,
+          name: element.name,
+          baseLineIds: element.baseLineIds,
+          baseGeometries,
+          offset: element.side === "right" ? offset : -offset,
+          closed: element.closed
+        });
+        if (result.error) {
+          errors.push(geometryError(element, result.error));
+          break;
+        }
+        if (result.geometry) computedGeometry.set(element.id, result.geometry);
         break;
       }
     }

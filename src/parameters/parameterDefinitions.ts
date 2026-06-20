@@ -1,7 +1,13 @@
 import type { CadElement, PointAnchor } from "../types/geometry";
 import { pointAnchorOptions } from "../model/pointAnchors";
 
-export type ParameterValueKind = "text" | "boolean" | "number" | "reference" | "choice";
+export type ParameterValueKind =
+  | "text"
+  | "boolean"
+  | "number"
+  | "reference"
+  | "lineReferenceList"
+  | "choice";
 
 export type ParameterKey = string;
 
@@ -255,6 +261,21 @@ export const getParameterDefinitions = (element: CadElement): ParameterDefinitio
           stepLevels: angleNumericParameterStepLevels
         },
         { key: "endHandleLength", directKey: "g", label: "終点ハンドル長", kind: "number" }
+      ];
+    case "offsetLine":
+      return [
+        ...commonParameters,
+        ...numericVariableParameters(element),
+        { key: "baseLineIds", directKey: "b", label: "基準線", kind: "lineReferenceList" },
+        { key: "offset", directKey: "d", label: "オフセット量", kind: "number" },
+        {
+          key: "side",
+          directKey: "s",
+          label: "位置",
+          kind: "choice",
+          choiceOptions: ["right", "left"]
+        },
+        { key: "closed", directKey: "c", label: "閉じる", kind: "boolean" }
       ];
   }
 };

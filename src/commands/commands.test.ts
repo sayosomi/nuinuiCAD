@@ -14,6 +14,9 @@ describe("commands", () => {
       selectedParameterKey: "name",
       showElementInfoPanel: true,
       isDependencyJumpMode: false,
+      activePointPickTarget: null,
+      activeNumericReferencePickTarget: null,
+      activeLinePickTarget: null,
       selectedDependencyJumpIndex: 0,
       showShortcutHelp: true,
       showCommandPalette: false,
@@ -726,6 +729,28 @@ describe("commands", () => {
       endPoint: { mode: "reference", pointId: "point-b" }
     });
     expect(state.selectedElementId).toBe(curve?.id);
+    expect(state.past).toHaveLength(1);
+  });
+
+  it("adds an offset line from selected line-like elements", () => {
+    useCadStore.setState({
+      selectedElementId: "line-bc",
+      selectedElementIds: ["line-ab", "line-bc"],
+      selectionAnchorElementId: "line-ab"
+    });
+
+    dispatchCommand("addOffsetLine");
+
+    const state = useCadStore.getState();
+    const offsetLine = state.elements.at(-1);
+    expect(offsetLine).toMatchObject({
+      type: "offsetLine",
+      baseLineIds: ["line-ab", "line-bc"],
+      offset: 10,
+      side: "right",
+      closed: false
+    });
+    expect(state.selectedElementId).toBe(offsetLine?.id);
     expect(state.past).toHaveLength(1);
   });
 
@@ -1457,6 +1482,116 @@ describe("commands", () => {
     expect(useCadStore.getState().activePointPickTarget).toBeNull();
     expect(useCadStore.getState().elements[3]).toMatchObject({
       startPoint: { mode: "reference", pointId: "point-a" }
+    });
+    expect(useCadStore.getState().past).toHaveLength(0);
+  });
+
+  it("starts line picking and appends picked base lines in click order", () => {
+    useCadStore.setState({
+      elements: [
+        ...sampleElements,
+        {
+          id: "offset-line",
+          name: "オフセット線",
+          type: "offsetLine",
+          visible: true,
+          enabled: true,
+          numericVariables: [],
+          baseLineIds: [],
+          offset: 10,
+          side: "right",
+          closed: false
+        }
+      ],
+      selectedElementId: "offset-line",
+      selectedElementIds: ["offset-line"],
+      selectedParameterKey: "baseLineIds"
+    });
+
+    dispatchCommand("startLinePick");
+    expect(useCadStore.getState().activeLinePickTarget).toEqual({
+      elementId: "offset-line",
+      parameterKey: "baseLineIds"
+    });
+
+    dispatchCommand("applyPickedLine", { pickedLineId: "line-ab" });
+    dispatchCommand("applyPickedLine", { pickedLineId: "line-bc" });
+
+    const offsetLine = useCadStore.getState().elements.at(-1);
+    expect(offsetLine).toMatchObject({
+      type: "offsetLine",
+      baseLineIds: ["line-ab", "line-bc"]
+    });
+    expect(useCadStore.getState().activeLinePickTarget).toEqual({
+      elementId: "offset-line",
+      parameterKey: "baseLineIds"
+    });
+  });
+
+  it("ignores duplicate, non-line, self, and missing picked lines", () => {
+    useCadStore.setState({
+      elements: [
+        ...sampleElements,
+        {
+          id: "offset-line",
+          name: "オフセット線",
+          type: "offsetLine",
+          visible: true,
+          enabled: true,
+          numericVariables: [],
+          baseLineIds: ["line-ab"],
+          offset: 10,
+          side: "right",
+          closed: false
+        }
+      ],
+      selectedElementId: "offset-line",
+      selectedElementIds: ["offset-line"],
+      selectedParameterKey: "baseLineIds"
+    });
+
+    dispatchCommand("startLinePick");
+    dispatchCommand("applyPickedLine", { pickedLineId: "line-ab" });
+    dispatchCommand("applyPickedLine", { pickedLineId: "point-a" });
+    dispatchCommand("applyPickedLine", { pickedLineId: "offset-line" });
+    dispatchCommand("applyPickedLine", { pickedLineId: "missing" });
+
+    expect(useCadStore.getState().elements.at(-1)).toMatchObject({
+      type: "offsetLine",
+      baseLineIds: ["line-ab"]
+    });
+    expect(useCadStore.getState().past).toHaveLength(0);
+  });
+
+  it("cancels line picking without changing the document", () => {
+    useCadStore.setState({
+      elements: [
+        ...sampleElements,
+        {
+          id: "offset-line",
+          name: "オフセット線",
+          type: "offsetLine",
+          visible: true,
+          enabled: true,
+          numericVariables: [],
+          baseLineIds: [],
+          offset: 10,
+          side: "right",
+          closed: false
+        }
+      ],
+      selectedElementId: "offset-line",
+      selectedElementIds: ["offset-line"],
+      selectedParameterKey: "baseLineIds"
+    });
+
+    dispatchCommand("startLinePick");
+    dispatchCommand("cancelLinePick");
+
+    expect(useCadStore.getState().activeLinePickTarget).toBeNull();
+    expect(useCadStore.getState().elements.at(-1)).toMatchObject({
+      type: "offsetLine",
+      baseLineIds: []
     });
     expect(useCadStore.getState().past).toHaveLength(0);
   });

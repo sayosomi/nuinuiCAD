@@ -68,6 +68,9 @@ export type CommandId =
   | "startPointPick"
   | "applyPickedPoint"
   | "cancelPointPick"
+  | "startLinePick"
+  | "applyPickedLine"
+  | "cancelLinePick"
   | "toggleElementVisibility"
   | "toggleElementEnabled"
   | "toggleSelectedElementVisibility"
@@ -81,6 +84,7 @@ export type CommandId =
   | "addArcLine"
   | "addThreePointArcLine"
   | "addBezierCurve"
+  | "addOffsetLine"
   | "addNumericVariable"
   | "deleteNumericVariable"
   | "addBezierNumericVariable"
@@ -142,6 +146,7 @@ export type CommandContext = {
   variableId?: string;
   pickedPointId?: ElementId;
   pickedPointAnchor?: PointAnchor;
+  pickedLineId?: ElementId;
 };
 
 export type Command = {
@@ -165,6 +170,13 @@ const getSelectedElement = () => {
   const { elements, selectedElementId } = useCadStore.getState();
   return selectedElementId ? elements.find((element) => element.id === selectedElementId) ?? null : null;
 };
+
+const isLineLikeElement = (element: CadElement) =>
+  element.type === "line" ||
+  element.type === "arcLine" ||
+  element.type === "threePointArcLine" ||
+  element.type === "bezierCurve" ||
+  element.type === "offsetLine";
 
 const updateSelectedElement = (updater: (element: CadElement) => CadElement) => {
   const { elements, selectedElementId } = useCadStore.getState();
@@ -284,6 +296,32 @@ const addElement = (type: CadElementType) => {
   });
 };
 
+const addOffsetLine = () => {
+  const { elements } = useCadStore.getState();
+  const selectedIds = new Set(getSelectedElementIds());
+  const selectedBaseLineIds = elements
+    .filter((element) => selectedIds.has(element.id) && isLineLikeElement(element))
+    .map((element) => element.id);
+  const fallbackBaseLineId = elements.find(isLineLikeElement)?.id;
+  const element = createCadElement("offsetLine", elements);
+  if (element.type !== "offsetLine") return;
+  const offsetLine: CadElement = {
+    ...element,
+    baseLineIds: selectedBaseLineIds.length > 0
+      ? selectedBaseLineIds
+      : fallbackBaseLineId
+        ? [fallbackBaseLineId]
+        : []
+  };
+  useCadStore.getState().commitDocumentChange({
+    elements: [...elements, offsetLine],
+    selectedElementId: offsetLine.id,
+    selectedElementIds: [offsetLine.id],
+    selectionAnchorElementId: offsetLine.id,
+    selectedParameterKey: getFirstParameterKey(offsetLine)
+  });
+};
+
 const selectParameterByOffset = (offset: number) => {
   const selectedElement = getSelectedElement();
   if (!selectedElement) return;
@@ -388,6 +426,7 @@ const startNumericReferencePick = () => {
 
   useCadStore.setState({
     activePointPickTarget: null,
+    activeLinePickTarget: null,
     activeNumericReferencePickTarget: {
       elementId: selectedElement.id,
       parameterKey: definition.key
@@ -461,6 +500,7 @@ const startPointPick = () => {
 
   useCadStore.setState({
     activeNumericReferencePickTarget: null,
+    activeLinePickTarget: null,
     activePointPickTarget: {
       elementId: selectedElement.id,
       parameterKey: definition.key
@@ -507,6 +547,58 @@ const applyPickedPoint = (context?: Pick<CommandContext, "pickedPointId" | "pick
 
 const cancelPointPick = () => {
   useCadStore.getState().setActivePointPickTarget(null);
+};
+
+const startLinePick = () => {
+  const selectedElement = getSelectedElement();
+  const definition = selectedParameterDefinition();
+  if (!selectedElement || definition?.kind !== "lineReferenceList") return;
+
+  useCadStore.setState({
+    activePointPickTarget: null,
+    activeNumericReferencePickTarget: null,
+    activeLinePickTarget: {
+      elementId: selectedElement.id,
+      parameterKey: definition.key
+    }
+  });
+};
+
+const applyPickedLine = (context?: Pick<CommandContext, "pickedLineId">) => {
+  const pickedLineId = context?.pickedLineId;
+  if (!pickedLineId) return;
+  const { activeLinePickTarget, elements } = useCadStore.getState();
+  if (!activeLinePickTarget) return;
+
+  const targetElement = elements.find((element) => element.id === activeLinePickTarget.elementId);
+  const pickedLine = elements.find((element) => element.id === pickedLineId);
+  if (
+    !targetElement ||
+    targetElement.type !== "offsetLine" ||
+    activeLinePickTarget.parameterKey !== "baseLineIds" ||
+    !pickedLine ||
+    !isLineLikeElement(pickedLine) ||
+    pickedLine.id === targetElement.id ||
+    targetElement.baseLineIds.includes(pickedLine.id)
+  ) {
+    return;
+  }
+
+  useCadStore.getState().commitDocumentChange({
+    elements: elements.map((element) =>
+      element.id === targetElement.id
+        ? { ...targetElement, baseLineIds: [...targetElement.baseLineIds, pickedLine.id] }
+        : element
+    ),
+    selectedElementId: targetElement.id,
+    selectedElementIds: [targetElement.id],
+    selectionAnchorElementId: targetElement.id,
+    selectedParameterKey: activeLinePickTarget.parameterKey
+  });
+};
+
+const cancelLinePick = () => {
+  useCadStore.getState().setActiveLinePickTarget(null);
 };
 
 const addNumericVariable = () => {
@@ -892,6 +984,21 @@ export const commands: Record<CommandId, Command> = {
     label: "点選択をキャンセル",
     run: () => cancelPointPick()
   },
+  startLinePick: {
+    id: "startLinePick",
+    label: "線を選択して基準線に追加",
+    run: () => startLinePick()
+  },
+  applyPickedLine: {
+    id: "applyPickedLine",
+    label: "選択した線を基準線に追加",
+    run: (context) => applyPickedLine(context)
+  },
+  cancelLinePick: {
+    id: "cancelLinePick",
+    label: "線選択をキャンセル",
+    run: () => cancelLinePick()
+  },
   toggleElementVisibility: {
     id: "toggleElementVisibility",
     label: "要素の表示/非表示を切替",
@@ -970,6 +1077,11 @@ export const commands: Record<CommandId, Command> = {
     id: "addBezierCurve",
     label: "Bezier curve を追加",
     run: () => addElement("bezierCurve")
+  },
+  addOffsetLine: {
+    id: "addOffsetLine",
+    label: "オフセット線を追加",
+    run: () => addOffsetLine()
   },
   addNumericVariable: {
     id: "addNumericVariable",
@@ -1073,6 +1185,7 @@ export const commands: Record<CommandId, Command> = {
     run: () => {
       cancelPointPick();
       cancelNumericReferencePick();
+      cancelLinePick();
       const targets = selectedDependencyJumpTargets();
       if (targets.length === 0) return;
       useCadStore.setState({
@@ -1195,6 +1308,10 @@ export const commands: Record<CommandId, Command> = {
         startPointPick();
         return;
       }
+      if (definition?.kind === "lineReferenceList") {
+        startLinePick();
+        return;
+      }
       if (definition?.kind === "number") {
         startNumericReferencePick();
         return;
@@ -1223,7 +1340,9 @@ const paletteCommandIds: CommandId[] = [
   "addArcLine",
   "addThreePointArcLine",
   "addBezierCurve",
+  "addOffsetLine",
   "startPointPick",
+  "startLinePick",
   "startNumericReferencePick",
   "addNumericVariable",
   "deleteNumericVariable",
@@ -1271,7 +1390,9 @@ const paletteKeywords: Partial<Record<CommandId, string[]>> = {
     "追加"
   ],
   addBezierCurve: ["bezier", "curve", "曲線", "ベジェ", "追加"],
+  addOffsetLine: ["offset", "line", "curve", "オフセット", "線", "曲線", "追加"],
   startNumericReferencePick: ["number", "reference", "measurement", "数値", "参照", "選択"],
+  startLinePick: ["line", "reference", "base", "基準線", "線", "選択"],
   addNumericVariable: ["variable", "共有", "共通", "変数", "追加"],
   deleteNumericVariable: ["variable", "共有", "共通", "変数", "削除"],
   addBezierNumericVariable: ["bezier", "curve", "variable", "共有", "変数", "追加"],

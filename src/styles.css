@@ -229,6 +229,7 @@ select {
 }
 
 .element-row.is-point-pick-mode,
+.element-row.is-line-pick-mode,
 .element-row.is-numeric-reference-pick-mode {
   transition:
     background-color 120ms ease,
@@ -237,6 +238,7 @@ select {
 }
 
 .element-row.is-point-pick-candidate,
+.element-row.is-line-pick-candidate,
 .element-row.is-numeric-reference-pick-candidate {
   border-color: #0f766e;
   background: #f0faf6;
@@ -245,18 +247,22 @@ select {
 
 .element-row.is-point-pick-candidate:hover,
 .element-row.is-point-pick-candidate:focus-visible,
+.element-row.is-line-pick-candidate:hover,
+.element-row.is-line-pick-candidate:focus-visible,
 .element-row.is-numeric-reference-pick-candidate:hover,
 .element-row.is-numeric-reference-pick-candidate:focus-visible {
   background: #d9f0e8;
 }
 
 .element-row.is-not-point-pick-candidate,
+.element-row.is-not-line-pick-candidate,
 .element-row.is-not-numeric-reference-pick-candidate {
   opacity: 0.42;
   cursor: default;
 }
 
 .element-row.is-not-point-pick-candidate:hover,
+.element-row.is-not-line-pick-candidate:hover,
 .element-row.is-not-numeric-reference-pick-candidate:hover {
   background: #ffffff;
 }
@@ -654,7 +660,8 @@ select {
   text-align: right;
 }
 
-.point-anchor-editor {
+.point-anchor-editor,
+.line-anchor-editor {
   display: grid;
   grid-column: 1 / -1;
   gap: 8px;
@@ -665,6 +672,12 @@ select {
 }
 
 .point-anchor-editor.is-picking-point {
+  border-color: #0f766e;
+  background: #f0faf6;
+  box-shadow: inset 3px 0 0 #0f766e;
+}
+
+.line-anchor-editor.is-picking-line {
   border-color: #0f766e;
   background: #f0faf6;
   box-shadow: inset 3px 0 0 #0f766e;
@@ -711,19 +724,22 @@ select {
   color: #0f4f49;
 }
 
-.point-pick-button {
+.point-pick-button,
+.line-pick-button {
   min-height: 32px;
   padding: 5px 9px;
   font-size: 12px;
 }
 
-.point-pick-button.active {
+.point-pick-button.active,
+.line-pick-button.active {
   border-color: #0f766e;
   background: #0f766e;
   color: #ffffff;
 }
 
-.point-pick-hint {
+.point-pick-hint,
+.line-pick-hint {
   margin: 0;
   color: #0f4f49;
   font-size: 12px;
@@ -1019,6 +1035,10 @@ select {
   cursor: pointer;
 }
 
+.canvas-viewport.is-line-picking {
+  cursor: pointer;
+}
+
 .canvas-viewport.is-point-dragging,
 .canvas-viewport.is-bezier-handle-dragging {
   cursor: grabbing;
@@ -1061,6 +1081,11 @@ select {
   stroke-width: 13;
 }
 
+.drawing-overlay [data-line-pick-candidate="true"] {
+  stroke: rgb(15 118 110 / 34%);
+  stroke-width: 13;
+}
+
 .drawing-overlay .overlay-bezier-handle-line {
   stroke: rgb(83 86 79 / 42%);
   stroke-width: 1.25;
@@ -1096,6 +1121,7 @@ select {
 }
 
 .point-pick-canvas-banner,
+.line-pick-canvas-banner,
 .numeric-reference-canvas-banner {
   position: absolute;
   top: 12px;
@@ -1126,6 +1152,7 @@ select {
 }
 
 .measurement-candidate-menu,
+.line-pick-candidate-menu,
 .numeric-reference-candidate-menu {
   position: absolute;
   z-index: 5;
@@ -1138,7 +1165,8 @@ select {
   transform: translate(8px, 8px);
 }
 
-.measurement-candidate-menu {
+.measurement-candidate-menu,
+.line-pick-candidate-menu {
   min-width: 150px;
 }
 
@@ -1147,6 +1175,7 @@ select {
 }
 
 .measurement-candidate-menu button,
+.line-pick-candidate-menu button,
 .numeric-reference-candidate-menu button {
   width: 100%;
   border: 0;
@@ -1188,6 +1217,8 @@ select {
 
 .measurement-candidate-menu button:hover,
 .measurement-candidate-menu button:focus-visible,
+.line-pick-candidate-menu button:hover,
+.line-pick-candidate-menu button:focus-visible,
 .numeric-reference-candidate-menu button:hover,
 .numeric-reference-candidate-menu button:focus-visible {
   background: #e7f4ef;
