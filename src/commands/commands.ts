@@ -36,6 +36,7 @@ import {
 } from "../parameters/parameterAccess";
 import {
   anchorEquals,
+  lineEndpointReferenceForAnchor,
   lineEndpointReferenceEquals,
   lineEndpointReferenceOptions,
   referenceAnchor
@@ -612,7 +613,10 @@ const addLineDivisionPoint = () => {
 const startPointPick = () => {
   const selectedElement = getSelectedElement();
   const definition = selectedParameterDefinition();
-  if (!selectedElement || definition?.kind !== "reference") return;
+  if (
+    !selectedElement ||
+    (definition?.kind !== "reference" && definition?.kind !== "lineEndpointReference")
+  ) return;
 
   useCadStore.setState({
     activeNumericReferencePickTarget: null,
@@ -629,6 +633,30 @@ const applyPickedPoint = (context?: Pick<CommandContext, "pickedPointId" | "pick
   if (!anchor) return;
   const { activePointPickTarget, elements } = useCadStore.getState();
   if (!activePointPickTarget) return;
+  const targetElement = elements.find((element) => element.id === activePointPickTarget.elementId);
+  if (!targetElement) return;
+
+  const definition = findParameterDefinition(targetElement, activePointPickTarget.parameterKey);
+  if (definition?.kind === "lineEndpointReference") {
+    const endpoint = lineEndpointReferenceForAnchor(anchor, elements);
+    if (!endpoint) return;
+
+    useCadStore.getState().commitDocumentChange({
+      elements: elements.map((element) =>
+        element.id === activePointPickTarget.elementId
+          ? setParameterValue(element, activePointPickTarget.parameterKey, endpoint)
+          : element
+      ),
+      selectedElementId: activePointPickTarget.elementId,
+      selectedElementIds: [activePointPickTarget.elementId],
+      selectionAnchorElementId: activePointPickTarget.elementId,
+      selectedParameterKey: activePointPickTarget.parameterKey
+    });
+    useCadStore.getState().setActivePointPickTarget(null);
+    return;
+  }
+
+  if (definition?.kind !== "reference") return;
 
   if (anchor.mode === "reference") {
     const pointElement = elements.find((element) => element.id === anchor.pointId);
@@ -1437,7 +1465,7 @@ export const commands: Record<CommandId, Command> = {
         return;
       }
       if (definition?.kind === "lineEndpointReference") {
-        cycleLineEndpointParameter(1);
+        startPointPick();
         return;
       }
       if (definition?.kind === "number") {

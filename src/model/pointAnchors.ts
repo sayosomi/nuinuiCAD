@@ -313,6 +313,23 @@ export const lineEndpointReferenceEquals = (
   b: LineEndpointReference | null
 ) => Boolean(a && b && a.lineId === b.lineId && a.endpointKey === b.endpointKey);
 
+export const lineEndpointReferenceForAnchor = (
+  anchor: PointAnchor,
+  elements: CadElement[]
+): LineEndpointReference | null => {
+  if (anchor.mode !== "derived" || (anchor.pointKey !== "start" && anchor.pointKey !== "end")) {
+    return null;
+  }
+
+  const element = elements.find((item) => item.id === anchor.elementId);
+  if (!element || !isLineLikeElement(element)) return null;
+
+  return {
+    lineId: anchor.elementId,
+    endpointKey: anchor.pointKey
+  };
+};
+
 export const lineEndpointReferenceLabel = (
   endpoint: LineEndpointReference,
   elements: CadElement[]

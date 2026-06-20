@@ -1522,6 +1522,78 @@ describe("commands", () => {
     expect(useCadStore.getState().past).toHaveLength(1);
   });
 
+  it("applies a picked line endpoint anchor to a line division point endpoint", () => {
+    const point = {
+      id: "line-division",
+      name: "線上分点",
+      type: "lineDivisionPoint" as const,
+      visible: true,
+      enabled: true,
+      endpoint: { lineId: "line-ab", endpointKey: "start" as const },
+      placementMode: "ratio" as const,
+      distance: 30,
+      ratio: 0.5
+    };
+    useCadStore.setState({
+      elements: [...sampleElements, point],
+      selectedElementId: point.id,
+      selectedElementIds: [point.id],
+      selectedParameterKey: "endpoint"
+    });
+
+    dispatchCommand("startPointPick");
+    expect(useCadStore.getState().activePointPickTarget).toEqual({
+      elementId: point.id,
+      parameterKey: "endpoint"
+    });
+
+    dispatchCommand("applyPickedPoint", {
+      pickedPointAnchor: { mode: "derived", elementId: "line-bc", pointKey: "end" }
+    });
+
+    const updated = useCadStore.getState().elements.find((element) => element.id === point.id);
+    expect(useCadStore.getState().activePointPickTarget).toBeNull();
+    expect(updated).toMatchObject({
+      type: "lineDivisionPoint",
+      endpoint: { lineId: "line-bc", endpointKey: "end" }
+    });
+    expect(useCadStore.getState().past).toHaveLength(1);
+  });
+
+  it("ignores picked anchors that are not line endpoints for line division endpoints", () => {
+    const point = {
+      id: "line-division",
+      name: "線上分点",
+      type: "lineDivisionPoint" as const,
+      visible: true,
+      enabled: true,
+      endpoint: { lineId: "line-ab", endpointKey: "start" as const },
+      placementMode: "ratio" as const,
+      distance: 30,
+      ratio: 0.5
+    };
+    useCadStore.setState({
+      elements: [...sampleElements, point],
+      selectedElementId: point.id,
+      selectedElementIds: [point.id],
+      selectedParameterKey: "endpoint"
+    });
+
+    dispatchCommand("startPointPick");
+    dispatchCommand("applyPickedPoint", { pickedPointId: "point-c" });
+
+    const updated = useCadStore.getState().elements.find((element) => element.id === point.id);
+    expect(useCadStore.getState().activePointPickTarget).toEqual({
+      elementId: point.id,
+      parameterKey: "endpoint"
+    });
+    expect(updated).toMatchObject({
+      type: "lineDivisionPoint",
+      endpoint: { lineId: "line-ab", endpointKey: "start" }
+    });
+    expect(useCadStore.getState().past).toHaveLength(0);
+  });
+
   it("cancels point picking without changing the document", () => {
     useCadStore.setState({
       selectedElementId: "line-ab",

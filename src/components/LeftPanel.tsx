@@ -4,8 +4,8 @@ import { dispatchCommand } from "../commands/commands";
 import { getDependencyJumpTargets, getDependencySummary } from "../model/dependencies";
 import {
   isPointElement,
+  lineEndpointReferenceForAnchor,
   lineEndpointReferenceLabel,
-  lineEndpointReferenceOptions,
   pointAnchorForElement,
   pointAnchorLabel,
   referenceAnchor,
@@ -438,38 +438,42 @@ const ElementEditor = ({
     label: string;
     endpoint: LineEndpointReference;
   }) => {
-    const options = lineEndpointReferenceOptions(elements);
-    const value = `${endpoint.lineId}:${endpoint.endpointKey}`;
+    const isPickingThisEndpoint =
+      activePointPickTarget?.elementId === element.id &&
+      activePointPickTarget.parameterKey === parameterKey;
 
     return (
-      <label
-        className={parameterFieldClass(parameterKey)}
-        onClick={() => selectParameter(parameterKey)}
-      >
-        <ParameterName element={element} parameterKey={parameterKey} label={label} />
-        <select
+      <div className={`point-anchor-editor ${isPickingThisEndpoint ? "is-picking-point" : ""}`}>
+        <div className="point-anchor-header">
+          <ParameterName element={element} parameterKey={parameterKey} label={label} />
+          <button
+            type="button"
+            className={`point-pick-button ${isPickingThisEndpoint ? "active" : ""}`}
+            onClick={() => {
+              selectParameter(parameterKey);
+              if (isPickingThisEndpoint) {
+                dispatchCommand("cancelPointPick");
+                return;
+              }
+              dispatchCommand("startPointPick");
+            }}
+          >
+            {isPickingThisEndpoint ? "端点選択中" : "端点を選択"}
+          </button>
+        </div>
+        {isPickingThisEndpoint ? (
+          <p className="point-pick-hint">canvas または構成リストから線の始点/終点を選択します。</p>
+        ) : null}
+        <button
           {...controlProps(parameterKey)}
-          value={value}
-          onChange={(event) => {
-            const [lineId, endpointKey] = event.target.value.split(":");
-            if ((endpointKey !== "start" && endpointKey !== "end") || !lineId) return;
-            updateParameterValue(parameterKey, { lineId, endpointKey });
-          }}
+          type="button"
+          className={`${parameterFieldClass(parameterKey)} point-anchor-reference`}
+          onClick={() => selectParameter(parameterKey)}
         >
-          {options.length === 0 ? (
-            <option value={value}>参照できる線がありません</option>
-          ) : (
-            options.map((option) => (
-              <option
-                key={`${option.lineId}:${option.endpointKey}`}
-                value={`${option.lineId}:${option.endpointKey}`}
-              >
-                {lineEndpointReferenceLabel(option, elements)}
-              </option>
-            ))
-          )}
-        </select>
-      </label>
+          <span className="reference-label">参照端点</span>
+          <span className="reference-value">{lineEndpointReferenceLabel(endpoint, elements)}</span>
+        </button>
+      </div>
     );
   };
   const finishNumericDrag = (event: PointerEvent<HTMLInputElement>) => {
@@ -1265,6 +1269,16 @@ export const LeftPanel = ({
   const errorElementIds = new Set(evaluation.errors.map((error) => error.elementId));
   const selectedElementIdSet = new Set(selectedElementIds);
   const elementsById = new Map(elements.map((element) => [element.id, element]));
+  const activePointPickTargetElement = activePointPickTarget
+    ? elements.find((element) => element.id === activePointPickTarget.elementId)
+    : null;
+  const activePointPickTargetDefinition = activePointPickTargetElement && activePointPickTarget
+    ? getParameterDefinitions(activePointPickTargetElement).find(
+        (definition) => definition.key === activePointPickTarget.parameterKey
+      )
+    : null;
+  const isLineEndpointPointPick =
+    activePointPickTargetDefinition?.kind === "lineEndpointReference";
   const activeLinePickTargetElement = activeLinePickTarget
     ? elements.find((element) => element.id === activeLinePickTarget.elementId)
     : null;
@@ -1333,7 +1347,7 @@ export const LeftPanel = ({
     }
     if (activePointPickTarget) {
       const element = elements.find((item) => item.id === elementId);
-      if (element && isPointElement(element)) {
+      if (!isLineEndpointPointPick && element && isPointElement(element)) {
         dispatchCommand("applyPickedPoint", { pickedPointAnchor: referenceAnchor(element.id) });
       }
       return;
@@ -1398,13 +1412,19 @@ export const LeftPanel = ({
           aria-label="要素リスト"
         >
           {elements.map((element, index) => {
-            const selectablePoints = selectablePointsForElement(
+            const rawSelectablePoints = selectablePointsForElement(
               element,
               evaluation.computedGeometry,
               elementsById
             );
+            const selectablePoints = isLineEndpointPointPick
+              ? rawSelectablePoints.filter((point) =>
+                  lineEndpointReferenceForAnchor(point.anchor, elements)
+                )
+              : rawSelectablePoints;
             const isPointPickCandidate =
-              activePointPickTarget && (isPointElement(element) || selectablePoints.length > 0);
+              activePointPickTarget &&
+              ((!isLineEndpointPointPick && isPointElement(element)) || selectablePoints.length > 0);
             const referenceGeometry = numericReferenceGeometry(element.id);
             const isNumericReferenceCandidate =
               Boolean(activeNumericReferencePickTarget) && referenceGeometry !== null;

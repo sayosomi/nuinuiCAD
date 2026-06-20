@@ -7,7 +7,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { dispatchCommand } from "../commands/commands";
 import type { BezierHandleRole as CommandBezierHandleRole } from "../commands/commands";
 import { lineMeasurementLabel } from "../geometry/numericExpressions";
-import { selectablePointsForGeometry } from "../model/pointAnchors";
+import {
+  lineEndpointReferenceForAnchor,
+  selectablePointsForGeometry
+} from "../model/pointAnchors";
+import { findParameterDefinition } from "../parameters/parameterDefinitions";
 import type { ParameterKey } from "../parameters/parameterDefinitions";
 import { useCadStore } from "../state/useCadStore";
 import type { CadHistorySnapshot, CanvasViewport } from "../state/useCadStore";
@@ -227,6 +231,14 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
   const curves = useMemo(() => geometries.filter(isBezierCurve), [geometries]);
   const offsetLines = useMemo(() => geometries.filter(isOffsetLine), [geometries]);
   const points = useMemo(() => geometries.filter(isPoint), [geometries]);
+  const activePointPickTargetElement = activePointPickTarget
+    ? elements.find((element) => element.id === activePointPickTarget.elementId)
+    : null;
+  const activePointPickTargetDefinition = activePointPickTargetElement && activePointPickTarget
+    ? findParameterDefinition(activePointPickTargetElement, activePointPickTarget.parameterKey)
+    : null;
+  const isLineEndpointPointPick =
+    activePointPickTargetDefinition?.kind === "lineEndpointReference";
   const overlayLines = useMemo(
     () =>
       lines
@@ -291,13 +303,25 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
     return geometries
       .filter((geometry) => visibleElementIds.has(geometry.elementId))
       .flatMap((geometry) =>
-        selectablePointsForGeometry(geometry, elementsById).map((candidate) => ({
-          anchor: candidate.anchor,
-          label: candidate.label,
-          screen: worldToScreen(candidate.point, viewportSize, canvasViewport)
-        }))
+        selectablePointsForGeometry(geometry, elementsById)
+          .filter((candidate) =>
+            !isLineEndpointPointPick ||
+            lineEndpointReferenceForAnchor(candidate.anchor, elements)
+          )
+          .map((candidate) => ({
+            anchor: candidate.anchor,
+            label: candidate.label,
+            screen: worldToScreen(candidate.point, viewportSize, canvasViewport)
+          }))
       );
-  }, [canvasViewport, elements, geometries, viewportSize, visibleElementIds]);
+  }, [
+    canvasViewport,
+    elements,
+    geometries,
+    isLineEndpointPointPick,
+    viewportSize,
+    visibleElementIds
+  ]);
   const overlayNumericReferenceCandidates = useMemo(
     () => [
       ...overlayLines.map(({ line, start, end }) => ({ line, start, end })),
@@ -1096,7 +1120,9 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
         </svg>
         {activePointPickTarget ? (
           <div className="point-pick-canvas-banner">
-            点選択中: canvas または構成リストの点を選択
+            {isLineEndpointPointPick
+              ? "端点選択中: canvas または構成リストの線端点を選択"
+              : "点選択中: canvas または構成リストの点を選択"}
           </div>
         ) : null}
         {activeNumericReferencePickTarget ? (

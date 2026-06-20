@@ -244,6 +244,34 @@ describe("LeftPanel numeric input dragging", () => {
     expect(screen.queryByLabelText("追加する基準線")).not.toBeInTheDocument();
   });
 
+  it("uses a click-pick button instead of a dropdown for line division endpoints", () => {
+    useCadStore.setState({
+      elements: [
+        ...sampleElements,
+        {
+          id: "line-division",
+          name: "線上分点",
+          type: "lineDivisionPoint",
+          visible: true,
+          enabled: true,
+          endpoint: { lineId: "line-ab", endpointKey: "start" },
+          placementMode: "ratio",
+          distance: 30,
+          ratio: 0.5
+        }
+      ],
+      selectedElementId: "line-division",
+      selectedElementIds: ["line-division"],
+      selectedParameterKey: "endpoint"
+    });
+
+    renderRightPanel();
+
+    expect(screen.getByRole("button", { name: "端点を選択" })).toBeInTheDocument();
+    expect(screen.getByText("直線AB.始点")).toBeInTheDocument();
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+  });
+
   it("folds repeated middle-button drags into a stable expression offset", () => {
     useCadStore.setState({
       elements: [
@@ -440,6 +468,52 @@ describe("LeftPanel element list dragging", () => {
       endPoint: { mode: "reference", pointId: "point-c" }
     });
     expect(useCadStore.getState().selectedElementId).toBe("line-ab");
+  });
+
+  it("applies a picked line endpoint from the element list while endpoint picking", () => {
+    const point = {
+      id: "line-division",
+      name: "線上分点",
+      type: "lineDivisionPoint" as const,
+      visible: true,
+      enabled: true,
+      endpoint: { lineId: "line-ab", endpointKey: "start" as const },
+      placementMode: "ratio" as const,
+      distance: 30,
+      ratio: 0.5
+    };
+    useCadStore.setState({
+      elements: [...sampleElements, point],
+      selectedElementId: point.id,
+      selectedElementIds: [point.id],
+      selectedParameterKey: "endpoint",
+      activePointPickTarget: {
+        elementId: point.id,
+        parameterKey: "endpoint"
+      }
+    });
+    renderLeftPanel(evaluateElements(useCadStore.getState().elements));
+
+    const pointRow = screen.getByText("点C").closest("[data-element-list-row='true']");
+    const lineRow = screen.getByText("直線BC").closest("[data-element-list-row='true']");
+    expect(pointRow).toHaveClass("is-not-point-pick-candidate");
+    expect(lineRow).toHaveClass("is-point-pick-candidate");
+
+    fireEvent.click(pointRow!);
+    expect(useCadStore.getState().activePointPickTarget).toEqual({
+      elementId: point.id,
+      parameterKey: "endpoint"
+    });
+
+    const endpointButtons = lineRow!.querySelectorAll(".element-point-pick-actions button");
+    fireEvent.click(endpointButtons[1]);
+
+    const updated = useCadStore.getState().elements.find((element) => element.id === point.id);
+    expect(useCadStore.getState().activePointPickTarget).toBeNull();
+    expect(updated).toMatchObject({
+      type: "lineDivisionPoint",
+      endpoint: { lineId: "line-bc", endpointKey: "end" }
+    });
   });
 
   it("dims non-point rows and ignores them while point picking", () => {
