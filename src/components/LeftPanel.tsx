@@ -1,48 +1,31 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import type { CSSProperties, DragEvent, KeyboardEvent, MouseEvent, RefObject } from "react";
-import { Folder, FolderOpen, Search, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import type { DragEvent, KeyboardEvent, MouseEvent, RefObject } from "react";
+import { Search, X } from "lucide-react";
 import { dispatchCommand } from "../commands/commands";
-import { elementSearchResults } from "../model/elementSearch";
 import {
-  descendantIdsForGroup,
-  effectiveEnabledElementIds,
-  effectiveVisibleElementIds,
-  groupStateByElementId,
   isGroupElement,
-  subtreeIdsForElement,
-  visibleOutlineElements
+  subtreeIdsForElement
 } from "../model/groups";
 import {
   isPointElement,
-  lineEndpointReferenceForAnchor,
-  referenceAnchor,
-  selectablePointsForElement
+  referenceAnchor
 } from "../model/pointAnchors";
 import {
   numericReferencePropertiesForGeometry,
-  pickCandidates,
-  resolvedPickCursor
 } from "../model/pickCandidates";
-import { lineMeasurementLabel } from "../geometry/numericExpressions";
-import { getParameterDefinitions } from "../parameters/parameterDefinitions";
-import { getParameterValue } from "../parameters/parameterAccess";
+import type { NumericMeasurementKey } from "../geometry/numericExpressions";
 import { useCadStore } from "../state/useCadStore";
 import type {
   CadElement,
-  ComputedArcLine,
-  ComputedBezierCurve,
-  ComputedGeometry,
-  ComputedLine,
-  ComputedOffsetLine,
   ElementId,
   EvaluationResult
 } from "../types/geometry";
-import { elementTypeLabels } from "../types/geometry";
 import {
   numericReferenceExpression,
-  numericReferenceValue
 } from "./geometryDisplay";
-import { ElementStatusIcon } from "./ElementStatusIcon";
+import { ElementListRow } from "./ElementListRow";
+import { useElementListData } from "./useElementListData";
+import type { NumericReferenceGeometry } from "./useElementListData";
 export { RightPanel } from "./RightPanel";
 
 type LeftPanelProps = {
@@ -50,22 +33,6 @@ type LeftPanelProps = {
   elementListFocusRef: RefObject<HTMLDivElement | null>;
   elementSearchInputRef: RefObject<HTMLInputElement | null>;
 };
-
-type NumericReferenceGeometry = ComputedLine | ComputedArcLine | ComputedBezierCurve | ComputedOffsetLine;
-
-const isComputedLine = (geometry: ComputedGeometry | undefined): geometry is ComputedLine =>
-  geometry?.kind === "line";
-
-const isComputedArcLine = (geometry: ComputedGeometry | undefined): geometry is ComputedArcLine =>
-  geometry?.kind === "arcLine";
-
-const isComputedBezierCurve = (
-  geometry: ComputedGeometry | undefined
-): geometry is ComputedBezierCurve => geometry?.kind === "bezierCurve";
-
-const isComputedOffsetLine = (
-  geometry: ComputedGeometry | undefined
-): geometry is ComputedOffsetLine => geometry?.kind === "offsetLine";
 
 const isLineLikeElement = (element: CadElement) =>
   element.type === "line" ||
@@ -100,77 +67,31 @@ export const LeftPanel = ({
   const [draggedElementIds, setDraggedElementIds] = useState<ElementId[]>([]);
   const [dropTarget, setDropTarget] = useState<ElementDropTarget | null>(null);
   const rowRefs = useRef(new Map<ElementId, HTMLDivElement>());
-  const errorElementIds = new Set(evaluation.errors.map((error) => error.elementId));
-  const warningElementIds = new Set(evaluation.warnings.map((warning) => warning.elementId));
   const selectedElementIdSet = new Set(selectedElementIds);
-  const elementsById = new Map(elements.map((element) => [element.id, element]));
-  const outlineElements = visibleOutlineElements(elements);
-  const isSearchActive = elementSearchQuery.trim().length > 0;
-  const rawSearchResults = useMemo(
-    () => elementSearchResults(elements, elementSearchQuery),
-    [elements, elementSearchQuery]
-  );
-  const groupStates = groupStateByElementId(elements);
-  const effectiveVisibleIds = evaluation.effectiveVisibleElementIds ?? effectiveVisibleElementIds(elements);
-  const effectiveEnabledIds = evaluation.effectiveEnabledElementIds ?? effectiveEnabledElementIds(elements);
-  const descendantIdsByGroupId = new Map(
-    elements
-      .filter(isGroupElement)
-      .map((element) => [element.id, descendantIdsForGroup(elements, element.id)])
-  );
-  const groupIssueCounts = (elementId: ElementId) => {
-    const descendantIds = descendantIdsByGroupId.get(elementId) ?? [];
-    return {
-      childCount: descendantIds.length,
-      errorCount: descendantIds.filter((id) => errorElementIds.has(id)).length,
-      warningCount: descendantIds.filter((id) => warningElementIds.has(id)).length
-    };
-  };
-  const activePointPickTargetElement = activePointPickTarget
-    ? elements.find((element) => element.id === activePointPickTarget.elementId)
-    : null;
-  const activePointPickTargetDefinition = activePointPickTargetElement && activePointPickTarget
-    ? getParameterDefinitions(activePointPickTargetElement).find(
-        (definition) => definition.key === activePointPickTarget.parameterKey
-      )
-    : null;
-  const isLineEndpointPointPick =
-    activePointPickTargetDefinition?.kind === "lineEndpointReference";
-  const activeLinePickTargetElement = activeLinePickTarget
-    ? elements.find((element) => element.id === activeLinePickTarget.elementId)
-    : null;
-  const activeLinePickParameterValue =
-    activeLinePickTargetElement && activeLinePickTarget
-      ? getParameterValue(activeLinePickTargetElement, activeLinePickTarget.parameterKey)
-      : null;
-  const activeLinePickSelectedLineIds = new Set<ElementId>(
-    Array.isArray(activeLinePickParameterValue)
-      ? (activeLinePickParameterValue as unknown[]).filter(
-          (id): id is ElementId => typeof id === "string"
-        )
-      : []
-  );
-  const candidateList = pickCandidates(elements, evaluation, {
+  const {
+    rawSearchResults,
+    searchResults,
+    displayedElements,
+    activeSearchCursorId,
+    selectedPickCursor,
+    isSearchActive,
+    isLineEndpointPointPick,
+    activeLinePickSelectedLineIds,
+    selectablePointOptions,
+    numericReferenceGeometry,
+    isSearchPickableElement,
+    getRowData
+  } = useElementListData({
+    elements,
+    evaluation,
+    elementSearchQuery,
+    elementSearchCursorId,
+    elementSearchPickableOnly,
     activePointPickTarget,
     activeNumericReferencePickTarget,
-    activeLinePickTarget
+    activeLinePickTarget,
+    activePickCursor
   });
-  const candidateByElementId = new Map(
-    candidateList.map((candidate) => [candidate.elementId, candidate])
-  );
-  const selectedPickCursor = resolvedPickCursor(candidateList, activePickCursor);
-  const selectablePointOptions = (element: CadElement) => {
-    const rawSelectablePoints = selectablePointsForElement(
-      element,
-      evaluation.computedGeometry,
-      elementsById
-    );
-    return isLineEndpointPointPick
-      ? rawSelectablePoints.filter((point) =>
-          lineEndpointReferenceForAnchor(point.anchor, elements)
-        )
-      : rawSelectablePoints;
-  };
 
   useEffect(() => {
     if (!selectedPickCursor) return;
@@ -263,48 +184,14 @@ export const LeftPanel = ({
       selectionMode: event.shiftKey ? "range" : event.metaKey || event.ctrlKey ? "toggle" : "replace"
     });
   };
-  const numericReferenceGeometry = (elementId: ElementId) => {
-    const geometry = evaluation.computedGeometry.get(elementId);
-    return isComputedLine(geometry) ||
-      isComputedArcLine(geometry) ||
-      isComputedBezierCurve(geometry) ||
-      isComputedOffsetLine(geometry)
-      ? geometry
-      : null;
-  };
   const applyNumericReference = (
     geometry: NumericReferenceGeometry,
-    property: ReturnType<typeof numericReferencePropertiesForGeometry>[number]
+    property: NumericMeasurementKey
   ) => {
     dispatchCommand("applyPickedNumericReference", {
       numericReferenceExpression: numericReferenceExpression(geometry, property)
     });
   };
-  const isSearchPickableElement = (element: CadElement) => {
-    if (activeLinePickTarget) {
-      return (
-        isLineLikeElement(element) &&
-        element.id !== activeLinePickTarget.elementId &&
-        !activeLinePickSelectedLineIds.has(element.id)
-      );
-    }
-    if (activeNumericReferencePickTarget) {
-      return numericReferenceGeometry(element.id) !== null;
-    }
-    if (activePointPickTarget) {
-      return (!isLineEndpointPointPick && isPointElement(element)) || selectablePointOptions(element).length > 0;
-    }
-    return true;
-  };
-  const searchResults = rawSearchResults.filter(
-    (result) => !elementSearchPickableOnly || isSearchPickableElement(result.element)
-  );
-  const displayedElements = isSearchActive ? searchResults.map((result) => result.element) : outlineElements;
-  const searchResultByElementId = new Map(searchResults.map((result) => [result.element.id, result]));
-  const activeSearchCursorId =
-    isSearchActive && searchResults.some((result) => result.element.id === elementSearchCursorId)
-      ? elementSearchCursorId
-      : searchResults[0]?.element.id ?? null;
   const moveSearchCursor = (offset: 1 | -1) => {
     if (searchResults.length === 0) {
       setElementSearchCursorId(null);
@@ -340,7 +227,7 @@ export const LeftPanel = ({
     if (activeNumericReferencePickTarget) {
       const geometry = numericReferenceGeometry(element.id);
       const property = geometry ? numericReferencePropertiesForGeometry(geometry)[0] : null;
-      if (geometry && property) applyNumericReference(geometry, property);
+              if (geometry && property) applyNumericReference(geometry, property);
       return;
     }
     dispatchCommand("selectElement", { elementId: element.id });
@@ -461,265 +348,90 @@ export const LeftPanel = ({
           aria-label="要素リスト"
         >
           {displayedElements.map((element) => {
-            const index = elements.findIndex((item) => item.id === element.id);
-            const searchResult = searchResultByElementId.get(element.id);
-            const groupState = groupStates.get(element.id);
-            const depth = groupState?.depth ?? 0;
-            const hiddenByGroup = Boolean(groupState?.hiddenByGroupId);
-            const disabledByGroup = Boolean(groupState?.disabledByGroupId);
-            const isEffectivelyVisible = effectiveVisibleIds.has(element.id);
-            const isEffectivelyEnabled = effectiveEnabledIds.has(element.id);
-            const groupIssues = isGroupElement(element) ? groupIssueCounts(element.id) : null;
-            const hasError = errorElementIds.has(element.id) || Boolean(groupIssues?.errorCount);
-            const hasWarning = warningElementIds.has(element.id) || Boolean(groupIssues?.warningCount);
-            const selectablePoints = selectablePointOptions(element);
-            const isPointPickCandidate =
-              activePointPickTarget &&
-              ((!isLineEndpointPointPick && isPointElement(element)) || selectablePoints.length > 0);
-            const referenceGeometry = numericReferenceGeometry(element.id);
-            const isNumericReferenceCandidate =
-              Boolean(activeNumericReferencePickTarget) && referenceGeometry !== null;
-            const isLinePickCandidate =
-              Boolean(activeLinePickTarget) &&
-              isLineLikeElement(element) &&
-              element.id !== activeLinePickTarget?.elementId &&
-              !activeLinePickSelectedLineIds.has(element.id);
-            const pickCandidate = candidateByElementId.get(element.id);
-            const selectedPickOptionIndex =
-              selectedPickCursor?.elementId === element.id ? selectedPickCursor.optionIndex : -1;
+            const rowData = getRowData(element);
             return (
-            <div
-              key={element.id}
-              ref={(node) => {
-                if (node) {
-                  rowRefs.current.set(element.id, node);
-                } else {
-                  rowRefs.current.delete(element.id);
-                }
-              }}
-              tabIndex={0}
-              data-element-list-row="true"
-              aria-selected={selectedPickOptionIndex >= 0 || activeSearchCursorId === element.id}
-              className={`element-row ${selectedElementIdSet.has(element.id) ? "selected" : ""} ${
-                element.id === selectedElementId ? "primary-selected" : ""
-              } ${!isEffectivelyVisible ? "is-hidden" : ""} ${
-                !isEffectivelyEnabled ? "is-disabled" : ""
-              } ${
-                hasError ? "has-error" : ""
-              } ${
-                hasWarning ? "has-warning" : ""
-              } ${
-                isGroupElement(element) ? "is-group" : ""
-              } ${
-                hiddenByGroup ? "is-hidden-by-group" : ""
-              } ${
-                disabledByGroup ? "is-disabled-by-group" : ""
-              } ${activePointPickTarget ? "is-point-pick-mode" : ""} ${
-                isPointPickCandidate ? "is-point-pick-candidate" : ""
-              } ${
-                activePointPickTarget && !isPointPickCandidate ? "is-not-point-pick-candidate" : ""
-              } ${activeNumericReferencePickTarget ? "is-numeric-reference-pick-mode" : ""} ${
-                isNumericReferenceCandidate ? "is-numeric-reference-pick-candidate" : ""
-              } ${
-                activeNumericReferencePickTarget && !isNumericReferenceCandidate
-                  ? "is-not-numeric-reference-pick-candidate"
-                  : ""
-              } ${activeLinePickTarget ? "is-line-pick-mode" : ""} ${
-                isLinePickCandidate ? "is-line-pick-candidate" : ""
-              } ${
-                activeLinePickTarget && !isLinePickCandidate
-                  ? "is-not-line-pick-candidate"
-                  : ""
-              } ${
-                selectedPickOptionIndex >= 0 ? "selected-pick-candidate" : ""
-              } ${
-                isSearchActive && activeSearchCursorId === element.id ? "search-cursor" : ""
-              } ${
-                isSearchActive && !isSearchPickableElement(element) ? "is-not-search-pickable" : ""
-              } ${
-                draggedElementIds.includes(element.id) ? "dragging" : ""}${dropMarkerClass(
-                element.id,
-                index,
-                "before"
-              )}${dropMarkerClass(element.id, index + 1, "after")}`}
-              aria-label={`${index + 1}. ${element.name}, ${elementTypeLabels[element.type]}, ${
-                isEffectivelyVisible ? "表示" : "非表示"
-              }, ${isEffectivelyEnabled ? "評価する" : "評価しない"}`}
-              onClick={(event) => selectElement(element.id, event)}
-              onDragOver={(event) => {
-                if (isSearchActive) return;
-                updateDropTarget(event, element, index);
-              }}
-              onDragLeave={(event) => {
-                if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
-                  setDropTarget(null);
-                }
-              }}
-              onDrop={(event) => {
-                if (isSearchActive) return;
-                const elementIds = dragElementIds(event);
-                const insertionIndex =
-                  dropTarget?.elementId === element.id
-                    ? dropTarget.insertionIndex
-                    : rowInsertionIndex(event, element, index);
-                event.preventDefault();
-                if (elementIds.length > 0 && !isNoopDrop(elementIds, insertionIndex)) {
-                  dispatchCommand("moveElementToInsertionIndex", {
-                    elementId: elementIds[0],
-                    insertionIndex
-                  });
-                }
-                clearElementDrag();
-              }}
-            >
-              <span
-                className="element-outline-indent"
-                style={{ "--outline-depth": depth } as CSSProperties}
-                aria-hidden="true"
-              />
-              {isGroupElement(element) ? (
-                <button
-                  type="button"
-                  className="element-expand-button"
-                  aria-label={`${element.name}を${element.expanded ? "折り畳む" : "展開"} `}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    dispatchCommand("toggleGroupExpanded", { elementId: element.id });
-                  }}
-                >
-                  {element.expanded ? "▾" : "▸"}
-                </button>
-              ) : (
-                <span className="element-expand-spacer" aria-hidden="true" />
-              )}
-              <span className="element-index">{index + 1}</span>
-              <span
-                className="element-status-icons"
-                data-visible-state={element.visible ? "visible" : "hidden"}
-                data-evaluation-state={element.enabled ? "enabled" : "disabled"}
-              >
-                <button
-                  type="button"
-                  className="element-status-button"
-                  aria-label={`${element.name}を${element.visible ? "非表示" : "表示"}にする`}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    dispatchCommand("toggleElementVisibility", { elementId: element.id });
-                  }}
-                >
-                  <ElementStatusIcon kind={element.visible ? "visible" : "hidden"} />
-                </button>
-                <button
-                  type="button"
-                  className="element-status-button"
-                  aria-label={`${element.name}を${element.enabled ? "評価しない" : "評価する"}`}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    dispatchCommand("toggleElementEnabled", { elementId: element.id });
-                  }}
-                >
-                  <ElementStatusIcon kind={element.enabled ? "enabled" : "disabled"} />
-                </button>
-              </span>
-              <span className="element-name">
-                {hasError || hasWarning ? "⚠ " : ""}
-                {element.name}
-                {isSearchActive && searchResult?.parentGroupNames.length ? (
-                  <small className="group-mask-label">{searchResult.parentGroupNames.join(" / ")}</small>
-                ) : null}
-                {hiddenByGroup ? <small className="group-mask-label">親で非表示</small> : null}
-                {disabledByGroup ? <small className="group-mask-label">親で評価OFF</small> : null}
-              </span>
-              <span className="element-type">
-                {isGroupElement(element) && groupIssues ? (
-                  <span className="element-group-summary">
-                    {element.expanded ? (
-                      <FolderOpen className="element-group-icon" aria-hidden="true" />
-                    ) : (
-                      <Folder className="element-group-icon" aria-hidden="true" />
-                    )}
-                    <span>{groupIssues.childCount}件</span>
-                    {groupIssues.errorCount > 0 ? <span>/ エラー{groupIssues.errorCount}</span> : null}
-                    {groupIssues.warningCount > 0 ? <span>/ 警告{groupIssues.warningCount}</span> : null}
-                  </span>
-                ) : (
-                  elementTypeLabels[element.type]
-                )}
-              </span>
-              <button
-                type="button"
-                className="element-drag-handle"
-                draggable={!isSearchActive}
-                disabled={isSearchActive}
-                aria-label={`${element.name}を並び替え`}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  dispatchCommand("selectElement", { elementId: element.id });
+              <ElementListRow
+                key={element.id}
+                element={element}
+                index={rowData.index}
+                rowRef={(node) => {
+                  if (node) {
+                    rowRefs.current.set(element.id, node);
+                  } else {
+                    rowRefs.current.delete(element.id);
+                  }
                 }}
-                onDragStart={(event) => {
+                depth={rowData.depth}
+                selectedElementId={selectedElementId}
+                selectedElementIdSet={selectedElementIdSet}
+                isEffectivelyVisible={rowData.isEffectivelyVisible}
+                isEffectivelyEnabled={rowData.isEffectivelyEnabled}
+                hiddenByGroup={rowData.hiddenByGroup}
+                disabledByGroup={rowData.disabledByGroup}
+                hasError={rowData.hasError}
+                hasWarning={rowData.hasWarning}
+                groupIssues={rowData.groupIssues}
+                selectablePoints={rowData.selectablePoints}
+                referenceGeometry={rowData.referenceGeometry}
+                pickCandidate={rowData.pickCandidate}
+                selectedPickOptionIndex={rowData.selectedPickOptionIndex}
+                activeSearchCursorId={activeSearchCursorId}
+                isSearchActive={isSearchActive}
+                isSearchPickable={rowData.isSearchPickable}
+                searchParentGroupNames={rowData.searchParentGroupNames}
+                isPointPickMode={Boolean(activePointPickTarget)}
+                isPointPickCandidate={rowData.isPointPickCandidate}
+                isNumericReferencePickMode={Boolean(activeNumericReferencePickTarget)}
+                isNumericReferenceCandidate={rowData.isNumericReferenceCandidate}
+                isLinePickMode={Boolean(activeLinePickTarget)}
+                isLinePickCandidate={rowData.isLinePickCandidate}
+                isDragging={draggedElementIds.includes(element.id)}
+                dropBefore={dropMarkerClass(element.id, rowData.index, "before") !== ""}
+                dropAfter={dropMarkerClass(element.id, rowData.index + 1, "after") !== ""}
+                onSelectElement={selectElement}
+                onDragOver={(event, rowElement, rowIndex) => {
+                  if (isSearchActive) return;
+                  updateDropTarget(event, rowElement, rowIndex);
+                }}
+                onDragLeave={(event) => {
+                  if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+                    setDropTarget(null);
+                  }
+                }}
+                onDrop={(event, rowElement, rowIndex) => {
+                  if (isSearchActive) return;
+                  const elementIds = dragElementIds(event);
+                  const insertionIndex =
+                    dropTarget?.elementId === rowElement.id
+                      ? dropTarget.insertionIndex
+                      : rowInsertionIndex(event, rowElement, rowIndex);
+                  event.preventDefault();
+                  if (elementIds.length > 0 && !isNoopDrop(elementIds, insertionIndex)) {
+                    dispatchCommand("moveElementToInsertionIndex", {
+                      elementId: elementIds[0],
+                      insertionIndex
+                    });
+                  }
+                  clearElementDrag();
+                }}
+                onDragStart={(event, rowElement) => {
                   if (isSearchActive) {
                     event.preventDefault();
                     return;
                   }
-                  const movingIds = selectedElementIdSet.has(element.id) ? selectedElementIds : [element.id];
-                  if (!selectedElementIdSet.has(element.id)) {
-                    dispatchCommand("selectElement", { elementId: element.id });
+                  const movingIds = selectedElementIdSet.has(rowElement.id) ? selectedElementIds : [rowElement.id];
+                  if (!selectedElementIdSet.has(rowElement.id)) {
+                    dispatchCommand("selectElement", { elementId: rowElement.id });
                   }
                   setDraggedElementIds(movingIds);
                   event.dataTransfer.effectAllowed = "move";
-                  event.dataTransfer.setData("application/x-nuinui-element-id", element.id);
+                  event.dataTransfer.setData("application/x-nuinui-element-id", rowElement.id);
                   event.dataTransfer.setData("application/x-nuinui-element-ids", movingIds.join(","));
-                  event.dataTransfer.setData("text/plain", element.name);
+                  event.dataTransfer.setData("text/plain", rowElement.name);
                 }}
                 onDragEnd={clearElementDrag}
-              >
-                <span aria-hidden="true">::</span>
-              </button>
-              {activePointPickTarget && selectablePoints.length > 0 ? (
-                <div className="element-point-pick-actions">
-                  {selectablePoints.map((point) => (
-                    <button
-                      key={`${point.anchor.mode}-${point.label}`}
-                      type="button"
-                      className={
-                        pickCandidate?.options[selectedPickOptionIndex]?.kind === "point" &&
-                        pickCandidate.options[selectedPickOptionIndex].label === point.label
-                          ? "selected-pick-option"
-                          : ""
-                      }
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        dispatchCommand("applyPickedPoint", {
-                          pickedPointAnchor: point.anchor
-                        });
-                      }}
-                    >
-                      {point.label.includes(".") ? point.label.split(".").at(-1) : "点"}
-                    </button>
-                  ))}
-                </div>
-              ) : null}
-              {activeNumericReferencePickTarget && referenceGeometry ? (
-                <div className="element-numeric-reference-actions">
-                  {numericReferencePropertiesForGeometry(referenceGeometry).map((property, optionIndex) => (
-                    <button
-                      key={property}
-                      type="button"
-                      className={
-                        selectedPickOptionIndex === optionIndex ? "selected-pick-option" : ""
-                      }
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        applyNumericReference(referenceGeometry, property);
-                      }}
-                    >
-                      <span>{lineMeasurementLabel(property)}</span>
-                      <small>{numericReferenceValue(referenceGeometry, property)}</small>
-                    </button>
-                  ))}
-                </div>
-              ) : null}
-            </div>
+                onApplyNumericReference={applyNumericReference}
+              />
           );
           })}
         </div>
