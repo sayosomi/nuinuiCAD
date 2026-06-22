@@ -473,6 +473,22 @@ select {
   white-space: nowrap;
 }
 
+.element-group-summary {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+  vertical-align: middle;
+}
+
+.element-group-icon {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  color: #5d6d5f;
+  stroke-width: 2;
+}
+
 .group-mask-label {
   display: inline-block;
   margin-left: 6px;

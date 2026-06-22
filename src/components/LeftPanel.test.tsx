@@ -428,6 +428,33 @@ describe("LeftPanel element list dragging", () => {
     );
   });
 
+  it("shows group child counts with a folder icon instead of the child label", () => {
+    useCadStore.setState({
+      elements: [
+        {
+          id: "group-1",
+          name: "身頃",
+          type: "group",
+          visible: true,
+          enabled: true,
+          expanded: true
+        },
+        { ...sampleElements[0], parentGroupId: "group-1" },
+        { ...sampleElements[1], parentGroupId: "group-1" }
+      ],
+      selectedElementId: "group-1",
+      selectedElementIds: ["group-1"],
+      selectionAnchorElementId: "group-1"
+    });
+
+    renderLeftPanel();
+
+    const groupRow = screen.getByText("身頃").closest("[data-element-list-row='true']");
+    expect(screen.queryByText(/配下/)).not.toBeInTheDocument();
+    expect(screen.getByText("2件")).toBeInTheDocument();
+    expect(groupRow?.querySelector(".element-group-icon")).toBeInTheDocument();
+  });
+
   it("toggles row visibility from the status icon without changing selection", () => {
     renderLeftPanel();
 

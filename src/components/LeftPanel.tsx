@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { CSSProperties, DragEvent, MouseEvent, RefObject } from "react";
+import { Folder, FolderOpen } from "lucide-react";
 import { dispatchCommand } from "../commands/commands";
 import { getDependencyJumpTargets, getDependencySummary } from "../model/dependencies";
 import {
@@ -1215,13 +1216,20 @@ export const LeftPanel = ({
                 {disabledByGroup ? <small className="group-mask-label">親で評価OFF</small> : null}
               </span>
               <span className="element-type">
-                {isGroupElement(element) && groupIssues
-                  ? `配下${groupIssues.childCount}件${
-                      groupIssues.errorCount > 0 ? ` / エラー${groupIssues.errorCount}` : ""
-                    }${
-                      groupIssues.warningCount > 0 ? ` / 警告${groupIssues.warningCount}` : ""
-                    }`
-                  : elementTypeLabels[element.type]}
+                {isGroupElement(element) && groupIssues ? (
+                  <span className="element-group-summary">
+                    {element.expanded ? (
+                      <FolderOpen className="element-group-icon" aria-hidden="true" />
+                    ) : (
+                      <Folder className="element-group-icon" aria-hidden="true" />
+                    )}
+                    <span>{groupIssues.childCount}件</span>
+                    {groupIssues.errorCount > 0 ? <span>/ エラー{groupIssues.errorCount}</span> : null}
+                    {groupIssues.warningCount > 0 ? <span>/ 警告{groupIssues.warningCount}</span> : null}
+                  </span>
+                ) : (
+                  elementTypeLabels[element.type]
+                )}
               </span>
               <button
                 type="button"
