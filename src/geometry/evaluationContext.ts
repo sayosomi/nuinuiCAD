@@ -1,0 +1,207 @@
+import type {
+  CadElement,
+  ComputedGeometry,
+  ComputedPoint,
+  DependencyError,
+  ElementId,
+  EvaluationWarning,
+  NumericValue,
+  PointAnchor
+} from "../types/geometry";
+import { resolveDerivedPoint } from "../model/pointAnchors";
+import { evaluateNumericValue } from "./numericExpressions";
+
+export type LocalVariableEvaluation = {
+  localVariableValues: Map<string, number>;
+  localVariableNames: Map<string, string>;
+};
+
+export const isPoint = (
+  geometry: ComputedGeometry | undefined
+): geometry is ComputedPoint => geometry?.kind === "point";
+
+const findElementName = (
+  elementsById: Map<ElementId, CadElement>,
+  id: ElementId
+) => elementsById.get(id)?.name;
+
+export const dependencyError = (
+  element: CadElement,
+  missingDependencyId: ElementId,
+  elementsById: Map<ElementId, CadElement>,
+  disabledByGroupId: Map<ElementId, ElementId> = new Map()
+): DependencyError => {
+  const missingDependencyName = findElementName(elementsById, missingDependencyId);
+  const dependencyLabel = missingDependencyName ?? missingDependencyId;
+  const disabledGroupId = disabledByGroupId.get(missingDependencyId);
+  const disabledGroupName = disabledGroupId ? findElementName(elementsById, disabledGroupId) : null;
+
+  return {
+    elementId: element.id,
+    elementName: element.name,
+    missingDependencyId,
+    missingDependencyName,
+    message: disabledGroupName
+      ? `${element.name} は ${dependencyLabel} を参照していますが、${dependencyLabel} はグループ ${disabledGroupName} により評価OFFです。${disabledGroupName} を評価ONにするか、参照先を変更してください。`
+      : `${element.name} は ${dependencyLabel} を参照していますが、${dependencyLabel} はこの要素より後にあるか、存在しません。${dependencyLabel} を ${element.name} より前に移動してください。`
+  };
+};
+
+export const geometryError = (element: CadElement, message: string): DependencyError => ({
+  elementId: element.id,
+  elementName: element.name,
+  missingDependencyId: element.id,
+  missingDependencyName: element.name,
+  message
+});
+
+export const geometryWarning = (element: CadElement, message: string): EvaluationWarning => ({
+  elementId: element.id,
+  elementName: element.name,
+  message
+});
+
+export const getComputedPointOrError = (
+  element: CadElement,
+  pointId: ElementId,
+  computedGeometry: Map<ElementId, ComputedGeometry>,
+  elementsById: Map<ElementId, CadElement>,
+  errors: DependencyError[],
+  disabledByGroupId?: Map<ElementId, ElementId>
+) => {
+  const point = computedGeometry.get(pointId);
+  if (!isPoint(point)) {
+    errors.push(dependencyError(element, pointId, elementsById, disabledByGroupId));
+    return undefined;
+  }
+
+  return point;
+};
+
+export const numericError = (
+  element: CadElement,
+  value: NumericValue,
+  computedGeometry: Map<ElementId, ComputedGeometry>,
+  elementsById: Map<ElementId, CadElement>,
+  errors: DependencyError[],
+  localVariables?: Map<string, number>,
+  localVariableNames?: Map<string, string>,
+  disabledByGroupId?: Map<ElementId, ElementId>
+) => {
+  const result = evaluateNumericValue({
+    value,
+    computedGeometry,
+    elementsById,
+    localVariables,
+    localVariableNames
+  });
+  if (result.value !== undefined) return result.value;
+
+  if (result.error) {
+    const disabledGroupId = disabledByGroupId?.get(result.error.dependencyId);
+    const disabledGroupName = disabledGroupId ? findElementName(elementsById, disabledGroupId) : null;
+    errors.push({
+      elementId: element.id,
+      elementName: element.name,
+      missingDependencyId: result.error.dependencyId,
+      missingDependencyName: result.error.dependencyName,
+      message: disabledGroupName
+        ? `${element.name} の数値式を評価できません。参照先はグループ ${disabledGroupName} により評価OFFです。${disabledGroupName} を評価ONにするか、数値式を変更してください。`
+        : `${element.name} の数値式を評価できません。${result.error.message}`
+    });
+  }
+  return undefined;
+};
+
+export const getPointAnchorOrError = (
+  element: CadElement,
+  anchor: PointAnchor,
+  anchorKey: string,
+  computedGeometry: Map<ElementId, ComputedGeometry>,
+  elementsById: Map<ElementId, CadElement>,
+  errors: DependencyError[],
+  localVariables?: Map<string, number>,
+  localVariableNames?: Map<string, string>,
+  disabledByGroupId?: Map<ElementId, ElementId>
+) => {
+  if (anchor.mode === "reference") {
+    return getComputedPointOrError(
+      element,
+      anchor.pointId,
+      computedGeometry,
+      elementsById,
+      errors,
+      disabledByGroupId
+    );
+  }
+
+  if (anchor.mode === "derived") {
+    const source = computedGeometry.get(anchor.elementId);
+    const point = resolveDerivedPoint(source, anchor.pointKey, elementsById);
+    if (!point) {
+      errors.push(dependencyError(element, anchor.elementId, elementsById, disabledByGroupId));
+      return undefined;
+    }
+    return {
+      ...point,
+      elementId: `${anchor.elementId}:${anchor.pointKey}`,
+      name: `${source!.name}.${anchor.pointKey}`
+    };
+  }
+
+  const x = numericError(
+    element,
+    anchor.x,
+    computedGeometry,
+    elementsById,
+    errors,
+    localVariables,
+    localVariableNames
+  );
+  const y = numericError(
+    element,
+    anchor.y,
+    computedGeometry,
+    elementsById,
+    errors,
+    localVariables,
+    localVariableNames
+  );
+  if (x === undefined || y === undefined) return undefined;
+
+  return {
+    kind: "point" as const,
+    elementId: `${element.id}:${anchorKey}`,
+    name: `${element.name}.${anchorKey}`,
+    x,
+    y
+  };
+};
+
+export const evaluateLocalVariables = (
+  element: CadElement,
+  computedGeometry: Map<ElementId, ComputedGeometry>,
+  elementsById: Map<ElementId, CadElement>,
+  errors: DependencyError[]
+): LocalVariableEvaluation | null => {
+  const localVariableValues = new Map<string, number>();
+  const localVariableNames = new Map(
+    (element.numericVariables ?? []).map((variable) => [variable.id, variable.name])
+  );
+
+  for (const variable of element.numericVariables ?? []) {
+    const value = numericError(
+      element,
+      variable.value,
+      computedGeometry,
+      elementsById,
+      errors,
+      localVariableValues,
+      localVariableNames
+    );
+    if (value === undefined) return null;
+    localVariableValues.set(variable.id, value);
+  }
+
+  return { localVariableValues, localVariableNames };
+};
