@@ -2,8 +2,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, DragEvent, KeyboardEvent, MouseEvent, RefObject } from "react";
 import { Folder, FolderOpen, Search, X } from "lucide-react";
 import { dispatchCommand } from "../commands/commands";
-import { ElementEditor } from "./ElementEditor";
-import { getDependencyJumpTargets, getDependencySummary } from "../model/dependencies";
 import { elementSearchResults } from "../model/elementSearch";
 import {
   descendantIdsForGroup,
@@ -36,20 +34,16 @@ import type {
   ComputedGeometry,
   ComputedLine,
   ComputedOffsetLine,
-  ComputedPoint,
   ElementId,
   EvaluationResult
 } from "../types/geometry";
 import { elementTypeLabels } from "../types/geometry";
 import {
-  arcLineInfoRows,
-  bezierCurveInfoRows,
-  lineInfoRows,
   numericReferenceExpression,
-  numericReferenceValue,
-  offsetLineInfoRows,
-  pointCoordinateRows
+  numericReferenceValue
 } from "./geometryDisplay";
+import { ElementStatusIcon } from "./ElementStatusIcon";
+export { RightPanel } from "./RightPanel";
 
 type LeftPanelProps = {
   evaluation: EvaluationResult;
@@ -57,17 +51,7 @@ type LeftPanelProps = {
   elementSearchInputRef: RefObject<HTMLInputElement | null>;
 };
 
-type RightPanelProps = {
-  evaluation: EvaluationResult;
-  isParameterEditMode: boolean;
-  isDependencyJumpMode: boolean;
-  registerParameterControl: (key: string, element: HTMLElement | null) => void;
-};
-
 type NumericReferenceGeometry = ComputedLine | ComputedArcLine | ComputedBezierCurve | ComputedOffsetLine;
-
-const isComputedPoint = (geometry: ComputedGeometry | undefined): geometry is ComputedPoint =>
-  geometry?.kind === "point";
 
 const isComputedLine = (geometry: ComputedGeometry | undefined): geometry is ComputedLine =>
   geometry?.kind === "line";
@@ -90,182 +74,9 @@ const isLineLikeElement = (element: CadElement) =>
   element.type === "bezierCurve" ||
   element.type === "offsetLine";
 
-const formatDependencyCount = (count: number) => (count > 99 ? "99+" : `${count}`);
-
-type ElementStatusIconKind = "visible" | "hidden" | "enabled" | "disabled";
-
-const ElementStatusIcon = ({ kind }: { kind: ElementStatusIconKind }) => {
-  return (
-    <svg
-      className={`element-status-icon element-status-icon-${kind}`}
-      viewBox="0 0 24 24"
-      aria-hidden="true"
-      focusable="false"
-    >
-      {kind === "visible" ? (
-        <>
-          <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" />
-          <circle cx="12" cy="12" r="2.7" />
-        </>
-      ) : kind === "hidden" ? (
-        <>
-          <path d="M3.5 3.5l17 17" />
-          <path d="M10.7 6.2A10.1 10.1 0 0 1 12 6c6 0 9.5 6 9.5 6a15.1 15.1 0 0 1-2.3 2.9" />
-          <path d="M14.1 14.1A2.7 2.7 0 0 1 9.9 9.9" />
-          <path d="M6.4 6.9C3.9 8.6 2.5 12 2.5 12s3.5 6 9.5 6a9.9 9.9 0 0 0 4.1-.9" />
-        </>
-      ) : kind === "enabled" ? (
-        <path d="M5 12.5l4.2 4.2L19 6.8" />
-      ) : (
-        <>
-          <path d="M9 6v12" />
-          <path d="M15 6v12" />
-        </>
-      )}
-    </svg>
-  );
-};
-
 type ElementDropTarget = {
   elementId: ElementId;
   insertionIndex: number;
-};
-
-const ElementInfoPanel = ({
-  element,
-  elements,
-  evaluation,
-  isDependencyJumpMode,
-  selectedDependencyJumpIndex,
-  setSelectedElementId
-}: {
-  element: CadElement | null;
-  elements: CadElement[];
-  evaluation: EvaluationResult;
-  isDependencyJumpMode: boolean;
-  selectedDependencyJumpIndex: number;
-  setSelectedElementId: (id: ElementId | null) => void;
-}) => {
-  const showElementInfoPanel = useCadStore((state) => state.showElementInfoPanel);
-  const geometry = element ? evaluation.computedGeometry.get(element.id) : undefined;
-  const dependencySummary = element ? getDependencySummary(element, elements) : null;
-  const jumpTargets = getDependencyJumpTargets(element, elements);
-  const jumpTargetIndexes = new Map(jumpTargets.map((target, index) => [target.id, index]));
-  const infoRows =
-    isComputedPoint(geometry)
-      ? pointCoordinateRows(geometry)
-      : isComputedLine(geometry)
-        ? lineInfoRows(geometry)
-          : isComputedArcLine(geometry)
-            ? arcLineInfoRows(geometry)
-            : isComputedBezierCurve(geometry)
-              ? bezierCurveInfoRows(geometry)
-              : isComputedOffsetLine(geometry)
-                ? offsetLineInfoRows(geometry)
-            : [];
-  const selectDependency = (id: ElementId) => setSelectedElementId(id);
-  const dependencyButtonClass = (id: ElementId) => {
-    const jumpIndex = jumpTargetIndexes.get(id);
-    return `dependency-row ${
-      isDependencyJumpMode && jumpIndex === selectedDependencyJumpIndex ? "selected-dependency" : ""
-    }`;
-  };
-  const dependencyNameWithCount = (name: string, count: number) => (
-    <span className="dependency-primary">
-      <span className="dependency-name">{name}</span>
-      <span className="dependency-count-badge" aria-label={`関連要素 ${count} 件`}>
-        {formatDependencyCount(count)}
-      </span>
-    </span>
-  );
-
-  return (
-    <section className="panel-section">
-      <div className="section-header">
-        <div>
-          <h2>要素詳細</h2>
-          {element ? (
-            <p className="section-subtitle">
-              {isDependencyJumpMode ? "親子要素ジャンプ中" : "iで折り畳み / jで親子ジャンプ"}
-            </p>
-          ) : null}
-        </div>
-        <button type="button" onClick={() => dispatchCommand("toggleElementInfoPanel")}>
-          i
-        </button>
-      </div>
-
-      {!showElementInfoPanel ? (
-        <p className="empty-state">折り畳み中です。</p>
-      ) : !element ? (
-        <p className="empty-state">要素を選択してください。</p>
-      ) : (
-        <>
-          {infoRows.length > 0 ? (
-            <dl className="element-info-grid">
-              {infoRows.map((row) => (
-                <div key={row.label}>
-                  <dt>{row.label}</dt>
-                  <dd>{row.value}</dd>
-                </div>
-              ))}
-            </dl>
-          ) : (
-            <p className="empty-state">未評価です。</p>
-          )}
-
-          <div className="dependency-group">
-            <h3 className="shortcut-group-title">親要素</h3>
-            {dependencySummary && dependencySummary.parents.length > 0 ? (
-              <div className="dependency-list">
-                {dependencySummary.parents.map((parent, index) =>
-                  parent.element ? (
-                    <button
-                      key={`${parent.id}-${index}`}
-                      type="button"
-                      className={dependencyButtonClass(parent.element.id)}
-                      onClick={() => selectDependency(parent.element!.id)}
-                    >
-                      {dependencyNameWithCount(parent.element.name, parent.ancestorCount)}
-                      <small>{elementTypeLabels[parent.element.type]}</small>
-                    </button>
-                  ) : (
-                    <div key={`${parent.id}-${index}`} className="dependency-row unresolved">
-                      {dependencyNameWithCount(parent.id, parent.ancestorCount)}
-                      <small>未解決</small>
-                    </div>
-                  )
-                )}
-              </div>
-            ) : (
-              <p className="empty-state">親要素はありません。</p>
-            )}
-          </div>
-
-          <div className="dependency-group">
-            <h3 className="shortcut-group-title">子要素</h3>
-            {dependencySummary && dependencySummary.children.length > 0 ? (
-              <div className="dependency-list">
-                {dependencySummary.children.map((child) => (
-                  <button
-                    key={child.element.id}
-                    type="button"
-                    className={dependencyButtonClass(child.element.id)}
-                    onClick={() => selectDependency(child.element.id)}
-                  >
-                    {dependencyNameWithCount(child.element.name, child.descendantCount)}
-                    <small>{elementTypeLabels[child.element.type]}</small>
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <p className="empty-state">子要素はありません。</p>
-            )}
-          </div>
-        </>
-      )}
-    </section>
-  );
 };
 
 export const LeftPanel = ({
@@ -931,90 +742,6 @@ export const LeftPanel = ({
           </button>
         </div>
       </section>
-    </aside>
-  );
-};
-
-export const RightPanel = ({
-  evaluation,
-  isParameterEditMode,
-  isDependencyJumpMode,
-  registerParameterControl
-}: RightPanelProps) => {
-  const elements = useCadStore((state) => state.elements);
-  const selectedElementId = useCadStore((state) => state.selectedElementId);
-  const selectedDependencyJumpIndex = useCadStore((state) => state.selectedDependencyJumpIndex);
-  const setSelectedElementId = useCadStore((state) => state.setSelectedElementId);
-  const selectedElement = elements.find((element) => element.id === selectedElementId) ?? null;
-  const shortcutHint = isParameterEditMode || isDependencyJumpMode
-    ? "Esc で終了 / ? でショートカット"
-    : "? でショートカット";
-
-  return (
-    <aside className="right-panel">
-      {selectedElement ? (
-        <ElementEditor
-          element={selectedElement}
-          elements={elements}
-          isParameterEditMode={isParameterEditMode}
-          registerParameterControl={registerParameterControl}
-        />
-      ) : (
-        <section className="panel-section">
-          <div className="section-header">
-            <h2>要素設定</h2>
-          </div>
-          <p className="empty-state">要素を選択してください。</p>
-        </section>
-      )}
-
-      <ElementInfoPanel
-        element={selectedElement}
-        elements={elements}
-        evaluation={evaluation}
-        isDependencyJumpMode={isDependencyJumpMode}
-        selectedDependencyJumpIndex={selectedDependencyJumpIndex}
-        setSelectedElementId={setSelectedElementId}
-      />
-
-      <section className="panel-section">
-        <div className="section-header">
-          <h2>バリデーション</h2>
-        </div>
-        {evaluation.errors.length === 0 && evaluation.warnings.length === 0 ? (
-          <p className="empty-state">エラーや警告はありません。</p>
-        ) : (
-          <ul className="error-list">
-            {evaluation.errors.map((error) => (
-              <li key={`${error.elementId}-${error.missingDependencyId}`}>
-                <strong>{error.elementName}</strong>
-                <span>{error.message}</span>
-              </li>
-            ))}
-            {evaluation.warnings.map((warning, index) => (
-              <li key={`${warning.elementId}-warning-${index}`} className="warning-item">
-                <strong>{warning.elementName}</strong>
-                <span>{warning.message}</span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      <section className="panel-section">
-        <div className="section-header">
-          <h2>ショートカット</h2>
-          <button
-            type="button"
-            aria-label="ショートカット一覧を表示"
-            onClick={() => dispatchCommand("toggleShortcutHelp")}
-          >
-            ?
-          </button>
-        </div>
-        <p className="empty-state">{shortcutHint}</p>
-      </section>
-
     </aside>
   );
 };
