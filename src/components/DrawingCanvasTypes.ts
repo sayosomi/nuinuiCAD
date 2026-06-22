@@ -39,6 +39,13 @@ export type CanvasOverlayPoint = {
   screen: ScreenPoint;
 };
 
+export type CanvasNumericReferenceCandidate = {
+  line: ComputedLine | ComputedArcLine | ComputedBezierCurve | ComputedOffsetLine;
+  start?: ScreenPoint;
+  end?: ScreenPoint;
+  points?: ScreenPoint[];
+};
+
 export type MeasurementCandidateMenu = {
   screen: ScreenPoint;
   candidates: LineMeasurementCandidate[];
@@ -73,4 +80,22 @@ export type BezierHandleOverlay = {
   intermediatePointId?: string;
   anchor: ScreenPoint;
   control: ScreenPoint;
+};
+
+export type CanvasOverlayData = {
+  lines: ComputedLine[];
+  arcs: ComputedArcLine[];
+  curves: ComputedBezierCurve[];
+  offsetLines: ComputedOffsetLine[];
+  points: ComputedPoint[];
+  visibleElementIds: Set<ElementId>;
+  overlayLines: CanvasOverlayLine[];
+  overlayPoints: CanvasOverlayPoint[];
+  overlayArcs: CanvasOverlayArc[];
+  overlayCurves: CanvasOverlayCurve[];
+  overlayOffsetLines: CanvasOverlayOffsetLine[];
+  overlayPointPickCandidates: PointPickCandidate[];
+  overlayNumericReferenceCandidates: CanvasNumericReferenceCandidate[];
+  selectedBezierHandles: BezierHandleOverlay[];
+  isLineEndpointPointPick: boolean;
 };
