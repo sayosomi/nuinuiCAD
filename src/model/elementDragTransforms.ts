@@ -1,7 +1,11 @@
 import { evaluateElements } from "../geometry/evaluate";
+import {
+  isLineLikeGeometry,
+  tangentAtPointOnLineLikeGeometry
+} from "../geometry/linePaths";
 import { addToNumericValue } from "../geometry/numericExpressions";
 import { setNumericParameterOrLocalVariable } from "../parameters/parameterAccess";
-import type { CadElement, ComputedBezierCurve, ElementId } from "../types/geometry";
+import type { CadElement, ComputedBezierCurve, ElementId, PointAnchor } from "../types/geometry";
 import {
   anchorReferenceElementId,
   pointAnchorForElement,
@@ -187,6 +191,96 @@ const moveDivisionPointByDelta = ({
   return setNumericParameterOrLocalVariable(element, "ratio", projectedDistance / baseLength);
 };
 
+const computedPointForAnchor = (
+  anchor: PointAnchor,
+  sourceElements: CadElement[],
+  evaluation: ReturnType<typeof evaluateElements>
+) => {
+  const elementsById = new Map(sourceElements.map((item) => [item.id, item]));
+  const geometry = evaluation.computedGeometry.get(anchorReferenceElementId(anchor) ?? "");
+  if (anchor.mode === "derived") {
+    return resolveDerivedPoint(geometry ?? undefined, anchor.pointKey, elementsById);
+  }
+  return geometry;
+};
+
+const moveLineTangentOffsetPointByDelta = ({
+  element,
+  sourceElements,
+  dx,
+  dy,
+  angleLocked,
+  distanceLocked
+}: {
+  element: Extract<CadElement, { type: "lineTangentOffsetPoint" }>;
+  sourceElements: CadElement[];
+  dx: number;
+  dy: number;
+  angleLocked?: boolean;
+  distanceLocked?: boolean;
+}) => {
+  if (angleLocked && distanceLocked) return element;
+
+  const evaluation = evaluateElements(sourceElements);
+  const point = evaluation.computedGeometry.get(element.id);
+  const baseLine = evaluation.computedGeometry.get(element.baseLineId);
+  const basePoint = computedPointForAnchor(element.basePoint, sourceElements, evaluation);
+  if (!isComputedPoint(point) || !isComputedPoint(basePoint) || !isLineLikeGeometry(baseLine)) {
+    return element;
+  }
+
+  const tangent = tangentAtPointOnLineLikeGeometry(baseLine, basePoint);
+  if (!tangent) return element;
+
+  const currentVector = {
+    x: point.x - basePoint.x,
+    y: basePoint.y - point.y
+  };
+  const currentDistance = Math.hypot(currentVector.x, currentVector.y);
+  const currentAbsoluteAngleDeg =
+    currentDistance === 0
+      ? tangent.angleDeg
+      : normalizeDegrees(radiansToDegrees(Math.atan2(currentVector.y, currentVector.x)));
+  const currentRelativeAngleDeg = normalizeDegrees(currentAbsoluteAngleDeg - tangent.angleDeg);
+  const target = {
+    x: point.x + dx,
+    y: point.y + dy
+  };
+  const vector = {
+    x: target.x - basePoint.x,
+    y: basePoint.y - target.y
+  };
+
+  if (angleLocked) {
+    const currentAbsoluteAngleRad = degreesToRadians(currentAbsoluteAngleDeg);
+    const currentUnit = {
+      x: Math.cos(currentAbsoluteAngleRad),
+      y: Math.sin(currentAbsoluteAngleRad)
+    };
+    const projectedDistance = Math.max(0, vector.x * currentUnit.x + vector.y * currentUnit.y);
+    if (projectedDistance === currentDistance) return element;
+    return setNumericParameterOrLocalVariable(element, "distance", projectedDistance);
+  }
+
+  if (distanceLocked) {
+    if (Math.hypot(vector.x, vector.y) === 0) return element;
+    const absoluteAngleDeg = normalizeDegrees(radiansToDegrees(Math.atan2(vector.y, vector.x)));
+    const relativeAngleDeg = normalizeDegrees(absoluteAngleDeg - tangent.angleDeg);
+    if (relativeAngleDeg === currentRelativeAngleDeg) return element;
+    return setNumericParameterOrLocalVariable(element, "tangentAngleDeg", relativeAngleDeg);
+  }
+
+  const distance = Math.hypot(vector.x, vector.y);
+  const absoluteAngleDeg =
+    distance === 0
+      ? currentAbsoluteAngleDeg
+      : normalizeDegrees(radiansToDegrees(Math.atan2(vector.y, vector.x)));
+  const relativeAngleDeg = normalizeDegrees(absoluteAngleDeg - tangent.angleDeg);
+  if (distance === currentDistance && relativeAngleDeg === currentRelativeAngleDeg) return element;
+  const nextElement = setNumericParameterOrLocalVariable(element, "distance", distance);
+  return setNumericParameterOrLocalVariable(nextElement, "tangentAngleDeg", relativeAngleDeg);
+};
+
 export const movePointElementByDeltaInElements = (
   elements: CadElement[],
   elementId: ElementId,
@@ -235,6 +329,19 @@ export const movePointElementByDeltaInElements = (
         sourceElements: elements,
         dx,
         dy
+      });
+      didMove = didMove || nextElement !== element;
+      return nextElement;
+    }
+
+    if (element.type === "lineTangentOffsetPoint") {
+      const nextElement = moveLineTangentOffsetPointByDelta({
+        element,
+        sourceElements: elements,
+        dx,
+        dy,
+        angleLocked,
+        distanceLocked
       });
       didMove = didMove || nextElement !== element;
       return nextElement;

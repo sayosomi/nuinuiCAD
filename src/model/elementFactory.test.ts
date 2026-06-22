@@ -94,6 +94,21 @@ describe("createCadElement", () => {
     });
   });
 
+  it("creates line tangent offset points using the first line start as the default base", () => {
+    expect(createCadElement("lineTangentOffsetPoint", sampleElements, { createId: createTestId })).toMatchObject({
+      id: "lineTangentOffsetPoint-test-id",
+      name: "線上オフセット点1",
+      type: "lineTangentOffsetPoint",
+      visible: true,
+      enabled: true,
+      numericVariables: [],
+      baseLineId: "line-ab",
+      basePoint: { mode: "derived", elementId: "line-ab", pointKey: "start" },
+      tangentAngleDeg: 0,
+      distance: 30
+    });
+  });
+
   it("creates lines using the first two points as default endpoints", () => {
     expect(createCadElement("line", sampleElements, { createId: createTestId })).toMatchObject({
       id: "line-test-id",

@@ -1,7 +1,7 @@
 import type { CadElement, CadElementType, ElementId } from "../types/geometry";
 import { createCadElementId } from "./cadIds";
 import { makeUniqueElementName } from "./elementNames";
-import { referenceAnchor } from "./pointAnchors";
+import { derivedAnchor, referenceAnchor } from "./pointAnchors";
 
 type CreateCadElementOptions = {
   createId?: (type: CadElementType) => ElementId;
@@ -19,7 +19,9 @@ export const createCadElement = (
       element.type === "offsetPoint" ||
       element.type === "polarOffsetPoint" ||
       element.type === "divisionPoint" ||
-      element.type === "lineDivisionPoint"
+      element.type === "lineDivisionPoint" ||
+      element.type === "intersectionPoint" ||
+      element.type === "lineTangentOffsetPoint"
   );
   const firstPointId = points[0]?.id ?? "";
   const secondPointId = points[1]?.id ?? firstPointId;
@@ -137,6 +139,24 @@ export const createCadElement = (
         line2Id: lineLikeElements[1]?.id ?? lineLikeElements[0]?.id ?? "",
         intersectionIndex: 0,
         useExtensions: false
+      };
+    }
+    case "lineTangentOffsetPoint": {
+      const id = createId(type);
+      const pointCount = elements.filter((element) => element.type === "lineTangentOffsetPoint").length;
+      const requestedName = `線上オフセット点${pointCount + 1}`;
+      const baseLine = lineLikeElements[0];
+      return {
+        id,
+        name: uniqueName(id, requestedName),
+        type,
+        visible: true,
+        enabled: true,
+        numericVariables: [],
+        baseLineId: baseLine?.id ?? "",
+        basePoint: baseLine ? derivedAnchor(baseLine.id, "start") : referenceAnchor(firstPointId),
+        tangentAngleDeg: 0,
+        distance: 30
       };
     }
     case "line": {

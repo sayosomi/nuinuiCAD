@@ -11,7 +11,11 @@ import type {
   PointAnchor
 } from "../types/geometry";
 import { evaluateNumericValue } from "./numericExpressions";
-import { pointAtDistanceFromEndpoint, isLineLikeGeometry } from "./linePaths";
+import {
+  pointAtDistanceFromEndpoint,
+  isLineLikeGeometry,
+  tangentAtPointOnLineLikeGeometry
+} from "./linePaths";
 import { findLineIntersections } from "./lineIntersections";
 import { buildOffsetLineGeometry } from "./offsetPaths";
 import {
@@ -646,6 +650,66 @@ export const evaluateElements = (elements: CadElement[]): EvaluationResult => {
           name: element.name,
           x: intersection.x,
           y: intersection.y
+        });
+        break;
+      }
+      case "lineTangentOffsetPoint": {
+        const baseLine = computedGeometry.get(element.baseLineId);
+        if (!isLineLikeGeometry(baseLine)) {
+          errors.push(dependencyError(element, element.baseLineId, elementsById));
+          break;
+        }
+
+        const basePoint = getPointAnchorOrError(
+          element,
+          element.basePoint,
+          "basePoint",
+          computedGeometry,
+          elementsById,
+          errors,
+          localVariableValues,
+          localVariableNames
+        );
+        if (!basePoint) break;
+
+        const tangent = tangentAtPointOnLineLikeGeometry(baseLine, basePoint);
+        if (!tangent) {
+          errors.push(
+            geometryError(
+              element,
+              `${element.name} の基準点は基準線上にありません。基準線上の点を指定してください。`
+            )
+          );
+          break;
+        }
+
+        const tangentAngleDeg = numericError(
+          element,
+          element.tangentAngleDeg,
+          computedGeometry,
+          elementsById,
+          errors,
+          localVariableValues,
+          localVariableNames
+        );
+        const distance = numericError(
+          element,
+          element.distance,
+          computedGeometry,
+          elementsById,
+          errors,
+          localVariableValues,
+          localVariableNames
+        );
+        if (tangentAngleDeg === undefined || distance === undefined) break;
+
+        const angleRad = degreesToRadians(tangent.angleDeg + tangentAngleDeg);
+        computedGeometry.set(element.id, {
+          kind: "point",
+          elementId: element.id,
+          name: element.name,
+          x: basePoint.x + Math.cos(angleRad) * distance,
+          y: basePoint.y - Math.sin(angleRad) * distance
         });
         break;
       }

@@ -25,4 +25,27 @@ describe("parameterDefinitions", () => {
       ])
     );
   });
+
+  it("defines editable parameters for line tangent offset points", () => {
+    const point: CadElement = {
+      id: "line-tangent-offset",
+      name: "線上オフセット点",
+      type: "lineTangentOffsetPoint",
+      visible: true,
+      enabled: true,
+      baseLineId: "line-a",
+      basePoint: { mode: "reference", pointId: "point-a" },
+      tangentAngleDeg: 0,
+      distance: 30
+    };
+
+    expect(getParameterDefinitions(point)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ key: "baseLineId", directKey: "b", label: "基準線", kind: "lineReference" }),
+        expect.objectContaining({ key: "basePoint", directKey: "p", label: "基準点", kind: "reference" }),
+        expect.objectContaining({ key: "tangentAngleDeg", directKey: "r", label: "接線角度", kind: "number" }),
+        expect.objectContaining({ key: "distance", directKey: "d", label: "距離", kind: "number" })
+      ])
+    );
+  });
 });

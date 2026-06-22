@@ -485,6 +485,194 @@ describe("evaluateElements", () => {
     });
   });
 
+  it("evaluates line tangent offset points relative to the tangent at the base point", () => {
+    const result = evaluateElements([
+      {
+        id: "a",
+        name: "A",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 0,
+        y: 0
+      },
+      {
+        id: "b",
+        name: "B",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 100,
+        y: 0
+      },
+      {
+        id: "line",
+        name: "線",
+        type: "line",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "a" },
+        endPoint: { mode: "reference", pointId: "b" }
+      },
+      {
+        id: "offset",
+        name: "線上オフセット点",
+        type: "lineTangentOffsetPoint",
+        visible: true,
+        enabled: true,
+        baseLineId: "line",
+        basePoint: { mode: "reference", pointId: "a" },
+        tangentAngleDeg: 90,
+        distance: 10
+      }
+    ]);
+
+    expect(result.errors).toHaveLength(0);
+    const point = result.computedGeometry.get("offset");
+    expect(point).toMatchObject({ kind: "point" });
+    if (point?.kind !== "point") throw new Error("Expected a point");
+    expect(point.x).toBeCloseTo(0);
+    expect(point.y).toBeCloseTo(-10);
+  });
+
+  it("evaluates line tangent offset points on a Bezier line-like geometry", () => {
+    const result = evaluateElements([
+      {
+        id: "a",
+        name: "A",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 0,
+        y: 0
+      },
+      {
+        id: "b",
+        name: "B",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 100,
+        y: 0
+      },
+      {
+        id: "curve",
+        name: "曲線",
+        type: "bezierCurve",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "a" },
+        startHandleAngleDeg: 0,
+        startHandleLength: 0,
+        intermediatePoints: [],
+        endPoint: { mode: "reference", pointId: "b" },
+        endHandleAngleDeg: 180,
+        endHandleLength: 0
+      },
+      {
+        id: "offset",
+        name: "線上オフセット点",
+        type: "lineTangentOffsetPoint",
+        visible: true,
+        enabled: true,
+        baseLineId: "curve",
+        basePoint: { mode: "reference", pointId: "a" },
+        tangentAngleDeg: 0,
+        distance: 10
+      }
+    ]);
+
+    expect(result.errors).toHaveLength(0);
+    expect(result.computedGeometry.get("offset")).toMatchObject({
+      kind: "point",
+      x: 10,
+      y: 0
+    });
+  });
+
+  it("reports a line tangent offset point dependency that appears too late", () => {
+    const result = evaluateElements([
+      {
+        id: "offset",
+        name: "線上オフセット点",
+        type: "lineTangentOffsetPoint",
+        visible: true,
+        enabled: true,
+        baseLineId: "ab",
+        basePoint: { mode: "reference", pointId: "a" },
+        tangentAngleDeg: 0,
+        distance: 10
+      },
+      ...validElements
+    ]);
+
+    expect(result.computedGeometry.has("offset")).toBe(false);
+    expect(result.errors[0]).toMatchObject({
+      elementId: "offset",
+      missingDependencyId: "ab",
+      missingDependencyName: "直線AB"
+    });
+  });
+
+  it("reports a line tangent offset point when the base point is not on the base line", () => {
+    const result = evaluateElements([
+      {
+        id: "a",
+        name: "A",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 0,
+        y: 0
+      },
+      {
+        id: "b",
+        name: "B",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 100,
+        y: 0
+      },
+      {
+        id: "c",
+        name: "C",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 50,
+        y: 5
+      },
+      {
+        id: "line",
+        name: "線",
+        type: "line",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "a" },
+        endPoint: { mode: "reference", pointId: "b" }
+      },
+      {
+        id: "offset",
+        name: "線上オフセット点",
+        type: "lineTangentOffsetPoint",
+        visible: true,
+        enabled: true,
+        baseLineId: "line",
+        basePoint: { mode: "reference", pointId: "c" },
+        tangentAngleDeg: 0,
+        distance: 10
+      }
+    ]);
+
+    expect(result.computedGeometry.has("offset")).toBe(false);
+    expect(result.errors[0]).toMatchObject({
+      elementId: "offset",
+      missingDependencyId: "offset",
+      message: expect.stringContaining("基準点は基準線上にありません")
+    });
+  });
+
   it("evaluates an intersection point between two line segments", () => {
     const result = evaluateElements([
       {

@@ -78,6 +78,14 @@ export type IntersectionPointElement = CadElementBase & {
   useExtensions: boolean;
 };
 
+export type LineTangentOffsetPointElement = CadElementBase & {
+  type: "lineTangentOffsetPoint";
+  baseLineId: ElementId;
+  basePoint: PointAnchor;
+  tangentAngleDeg: NumericValue;
+  distance: NumericValue;
+};
+
 export type PointAnchor =
   | {
       mode: "reference";
@@ -153,6 +161,7 @@ export type CadElement =
   | DivisionPointElement
   | LineDivisionPointElement
   | IntersectionPointElement
+  | LineTangentOffsetPointElement
   | LineElement
   | ArcLineElement
   | ThreePointArcLineElement
@@ -290,6 +299,7 @@ export const elementTypeLabels: Record<CadElementType, string> = {
   divisionPoint: "点間分点",
   lineDivisionPoint: "線上分点",
   intersectionPoint: "交点",
+  lineTangentOffsetPoint: "線上オフセット点",
   line: "line",
   arcLine: "arc line",
   threePointArcLine: "three-point arc line",

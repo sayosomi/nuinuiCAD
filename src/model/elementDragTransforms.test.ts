@@ -32,6 +32,18 @@ const divisionPoint = (placementMode: "distance" | "ratio"): CadElement => ({
   ratio: 0.5
 });
 
+const lineTangentOffsetPoint: CadElement = {
+  id: "line-tangent-offset-point",
+  name: "線上オフセット点",
+  type: "lineTangentOffsetPoint",
+  visible: true,
+  enabled: true,
+  baseLineId: "line-ab",
+  basePoint: { mode: "reference", pointId: "point-a" },
+  tangentAngleDeg: 90,
+  distance: 10
+};
+
 const curveWithIntermediate = (): CadElement[] =>
   sampleElements.map((element) =>
     element.id === "curve-ac" && element.type === "bezierCurve"
@@ -152,6 +164,22 @@ describe("elementDragTransforms", () => {
     expect(point).toMatchObject({ type: "divisionPoint" });
     if (point?.type !== "divisionPoint") throw new Error("Expected a division point");
     expect(point.ratio).toBeCloseTo(0.6);
+  });
+
+  it("moves line tangent offset points by updating relative angle and distance", () => {
+    const moved = movePointElementByDeltaInElements(
+      [...sampleElements, lineTangentOffsetPoint],
+      "line-tangent-offset-point",
+      { dx: 10, dy: 0 }
+    );
+    const point = moved?.at(-1);
+
+    expect(point).toMatchObject({ type: "lineTangentOffsetPoint" });
+    if (point?.type !== "lineTangentOffsetPoint") {
+      throw new Error("Expected a line tangent offset point");
+    }
+    expect(point.tangentAngleDeg).toBeCloseTo(45);
+    expect(point.distance).toBeCloseTo(Math.sqrt(200));
   });
 
   it("returns null for zero movement, missing ids, and non-point targets", () => {

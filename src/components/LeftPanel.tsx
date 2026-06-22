@@ -441,6 +441,34 @@ const ElementEditor = ({
           </>
         )}
 
+        {element.type === "lineTangentOffsetPoint" && (
+          <>
+            {lineReferenceEditor({
+              parameterKey: "baseLineId",
+              label: "基準線",
+              lineId: element.baseLineId
+            })}
+            {pointAnchorEditor({
+              parameterKey: "basePoint",
+              label: "基準点",
+              anchor: element.basePoint,
+              allowCoordinate: false
+            })}
+            {numericInput({
+              parameterKey: "tangentAngleDeg",
+              label: "接線角度",
+              value: element.tangentAngleDeg,
+              ariaLabel: "接線角度"
+            })}
+            {numericInput({
+              parameterKey: "distance",
+              label: "距離",
+              value: element.distance,
+              ariaLabel: "距離"
+            })}
+          </>
+        )}
+
         {element.type === "line" && (
           <>
             {pointAnchorEditor({

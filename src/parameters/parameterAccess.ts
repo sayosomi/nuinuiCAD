@@ -9,6 +9,7 @@ export const supportsNumericVariables = (element: CadElement) =>
   element.type === "divisionPoint" ||
   element.type === "lineDivisionPoint" ||
   element.type === "intersectionPoint" ||
+  element.type === "lineTangentOffsetPoint" ||
   element.type === "line" ||
   element.type === "arcLine" ||
   element.type === "threePointArcLine" ||
@@ -58,6 +59,9 @@ export const getPointAnchor = (element: CadElement, key: string): PointAnchor | 
   }
   if (key === "fromPoint" && (element.type === "offsetPoint" || element.type === "polarOffsetPoint")) {
     return pointAnchorForElement(element);
+  }
+  if (key === "basePoint" && element.type === "lineTangentOffsetPoint") {
+    return element.basePoint;
   }
   return null;
 };
@@ -110,6 +114,9 @@ export const setPointAnchor = (
       fromPoint: anchor,
       fromPointId: anchor.mode === "reference" ? anchor.pointId : undefined
     };
+  }
+  if (key === "basePoint" && element.type === "lineTangentOffsetPoint") {
+    return { ...element, basePoint: anchor };
   }
   return element;
 };

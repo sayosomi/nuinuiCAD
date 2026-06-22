@@ -8,6 +8,7 @@ const defaultNameBases: Record<CadElementType, string> = {
   divisionPoint: "分点",
   lineDivisionPoint: "線上分点",
   intersectionPoint: "交点",
+  lineTangentOffsetPoint: "線上オフセット点",
   line: "直線",
   arcLine: "円弧線",
   threePointArcLine: "三点円弧線",

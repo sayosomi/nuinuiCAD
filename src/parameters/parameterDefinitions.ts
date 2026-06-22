@@ -154,6 +154,21 @@ export const getParameterDefinitions = (element: CadElement): ParameterDefinitio
         { key: "intersectionIndex", directKey: "i", label: "番号", kind: "number" },
         { key: "useExtensions", directKey: "x", label: "延長", kind: "boolean" }
       ];
+    case "lineTangentOffsetPoint":
+      return [
+        ...commonParameters,
+        ...numericVariableParameters(element),
+        { key: "baseLineId", directKey: "b", label: "基準線", kind: "lineReference" },
+        { key: "basePoint", directKey: "p", label: "基準点", kind: "reference" },
+        {
+          key: "tangentAngleDeg",
+          directKey: "r",
+          label: "接線角度",
+          kind: "number",
+          stepLevels: angleNumericParameterStepLevels
+        },
+        { key: "distance", directKey: "d", label: "距離", kind: "number" }
+      ];
     case "line":
       return [
         ...commonParameters,

@@ -78,6 +78,14 @@ export const getDirectParentIds = (element: CadElement): ElementId[] => {
           { elementId: element.line2Id },
           ...extractNumericExpressionReferences(element.intersectionIndex)
         ].map((reference) => reference.elementId);
+      case "lineTangentOffsetPoint":
+        return [
+          ...numericVariableReferences(element),
+          { elementId: element.baseLineId },
+          ...pointAnchorParentIds(element.basePoint).map((elementId) => ({ elementId })),
+          ...extractNumericExpressionReferences(element.tangentAngleDeg),
+          ...extractNumericExpressionReferences(element.distance)
+        ].map((reference) => reference.elementId);
       case "line":
         return [
           ...numericVariableReferences(element),
@@ -138,6 +146,7 @@ export const getDirectParentIds = (element: CadElement): ElementId[] => {
     case "divisionPoint":
     case "lineDivisionPoint":
     case "intersectionPoint":
+    case "lineTangentOffsetPoint":
       return numericExpressionParentIds();
     case "line":
     case "arcLine":

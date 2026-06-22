@@ -31,6 +31,10 @@ const degreesToRadians = (degrees: number) => (degrees * Math.PI) / 180;
 
 const distance = (a: Point, b: Point) => Math.hypot(b.x - a.x, b.y - a.y);
 
+const radiansToDegrees = (radians: number) => (radians * 180) / Math.PI;
+
+const normalizeDegrees = (degrees: number) => ((degrees % 360) + 360) % 360;
+
 const interpolate = (start: Point, end: Point, t: number): Point => ({
   x: start.x + (end.x - start.x) * t,
   y: start.y + (end.y - start.y) * t
@@ -49,6 +53,25 @@ const extendFrom = (point: Point, direction: Point, distanceFromPoint: number): 
   x: point.x + direction.x * distanceFromPoint,
   y: point.y + direction.y * distanceFromPoint
 });
+
+const projectedPointOnSegment = (point: Point, segment: PathSegment) => {
+  const vector = {
+    x: segment.end.x - segment.start.x,
+    y: segment.end.y - segment.start.y
+  };
+  const lengthSquared = vector.x * vector.x + vector.y * vector.y;
+  if (lengthSquared <= EPSILON) return null;
+
+  const rawT =
+    ((point.x - segment.start.x) * vector.x + (point.y - segment.start.y) * vector.y) /
+    lengthSquared;
+  const t = Math.min(1, Math.max(0, rawT));
+  const projected = interpolate(segment.start, segment.end, t);
+  return {
+    point: projected,
+    distance: distance(point, projected)
+  };
+};
 
 const cubicPointAt = (segment: BezierLikeSegment, t: number): Point => {
   const inverse = 1 - t;
@@ -207,4 +230,39 @@ export const pointAtDistanceFromEndpoint = (
   }
 
   return endPoint;
+};
+
+export const tangentAtPointOnLineLikeGeometry = (
+  geometry: LineLikeGeometry,
+  point: Point,
+  tolerance = 0.001
+): { angleDeg: number; distanceFromLine: number } | null => {
+  const segments = segmentsForLineLikeGeometry(geometry);
+  let best:
+    | {
+        segment: PathSegment;
+        distanceFromLine: number;
+      }
+    | null = null;
+
+  for (const segment of segments) {
+    const projection = projectedPointOnSegment(point, segment);
+    if (!projection) continue;
+    if (!best || projection.distance < best.distanceFromLine) {
+      best = {
+        segment,
+        distanceFromLine: projection.distance
+      };
+    }
+  }
+
+  if (!best || best.distanceFromLine > tolerance) return null;
+
+  const direction = unitVector(best.segment.start, best.segment.end);
+  if (!direction) return null;
+
+  return {
+    angleDeg: normalizeDegrees(radiansToDegrees(Math.atan2(-direction.y, direction.x))),
+    distanceFromLine: best.distanceFromLine
+  };
 };

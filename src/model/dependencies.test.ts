@@ -173,6 +173,22 @@ describe("dependencies", () => {
     expect(getDirectParentIds(point)).toEqual(["ab", "bc", "cd"]);
   });
 
+  it("returns line tangent offset point line, point, and numeric expression references as direct parent ids", () => {
+    const point: CadElement = {
+      id: "line-tangent-offset",
+      name: "線上オフセット点",
+      type: "lineTangentOffsetPoint",
+      visible: true,
+      enabled: true,
+      baseLineId: "ab",
+      basePoint: { mode: "reference", pointId: "b" },
+      tangentAngleDeg: { kind: "expression", expression: "bc.startAngleDeg" },
+      distance: { kind: "expression", expression: "cd.length / 2" }
+    };
+
+    expect(getDirectParentIds(point)).toEqual(["ab", "b", "bc", "cd"]);
+  });
+
   it("returns direct coordinate expression references as parent ids", () => {
     const directLine: CadElement = {
       id: "direct",

@@ -167,6 +167,30 @@ describe("parameterAccess", () => {
     expect(supportsNumericVariables(point)).toBe(true);
   });
 
+  it("updates line tangent offset point references and supports numeric variables", () => {
+    const point: CadElement = {
+      id: "line-tangent-offset",
+      name: "線上オフセット点",
+      type: "lineTangentOffsetPoint",
+      visible: true,
+      enabled: true,
+      baseLineId: "line-a",
+      basePoint: referenceAnchor("point-a"),
+      tangentAngleDeg: 0,
+      distance: 30
+    };
+
+    expect(getParameterValue(point, "baseLineId")).toBe("line-a");
+    expect(getPointAnchor(point, "basePoint")).toEqual(referenceAnchor("point-a"));
+    expect(setParameterValue(point, "baseLineId", "line-b")).toMatchObject({
+      baseLineId: "line-b"
+    });
+    expect(setParameterValue(point, "basePoint", referenceAnchor("point-b"))).toMatchObject({
+      basePoint: referenceAnchor("point-b")
+    });
+    expect(supportsNumericVariables(point)).toBe(true);
+  });
+
   it("updates Bezier intermediate anchors and handle parameters", () => {
     const curve: CadElement = {
       id: "curve",
