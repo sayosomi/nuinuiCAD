@@ -63,6 +63,9 @@ export type CadState = {
   activeLinePickTarget: ActiveLinePickTarget | null;
   activePickCursor: ActivePickCursor | null;
   selectedDependencyJumpIndex: number;
+  elementSearchQuery: string;
+  elementSearchCursorId: ElementId | null;
+  elementSearchPickableOnly: boolean;
   showShortcutHelp: boolean;
   showCommandPalette: boolean;
   canvasViewport: CanvasViewport;
@@ -82,6 +85,9 @@ export type CadState = {
   setActiveLinePickTarget: (activeLinePickTarget: ActiveLinePickTarget | null) => void;
   setActivePickCursor: (activePickCursor: ActivePickCursor | null) => void;
   setSelectedDependencyJumpIndex: (selectedDependencyJumpIndex: number) => void;
+  setElementSearchQuery: (elementSearchQuery: string) => void;
+  setElementSearchCursorId: (elementSearchCursorId: ElementId | null) => void;
+  setElementSearchPickableOnly: (elementSearchPickableOnly: boolean) => void;
   setShowShortcutHelp: (showShortcutHelp: boolean) => void;
   setShowCommandPalette: (showCommandPalette: boolean) => void;
   setCanvasViewport: (canvasViewport: CanvasViewport) => void;
@@ -172,6 +178,9 @@ export const useCadStore = create<CadState>((set) => ({
   activeLinePickTarget: null,
   activePickCursor: null,
   selectedDependencyJumpIndex: 0,
+  elementSearchQuery: "",
+  elementSearchCursorId: null,
+  elementSearchPickableOnly: false,
   showShortcutHelp: false,
   showCommandPalette: false,
   canvasViewport: DEFAULT_CANVAS_VIEWPORT,
@@ -287,6 +296,11 @@ export const useCadStore = create<CadState>((set) => ({
   setActivePickCursor: (activePickCursor) => set({ activePickCursor }),
   setSelectedDependencyJumpIndex: (selectedDependencyJumpIndex) =>
     set({ selectedDependencyJumpIndex }),
+  setElementSearchQuery: (elementSearchQuery) =>
+    set({ elementSearchQuery, elementSearchCursorId: null }),
+  setElementSearchCursorId: (elementSearchCursorId) => set({ elementSearchCursorId }),
+  setElementSearchPickableOnly: (elementSearchPickableOnly) =>
+    set({ elementSearchPickableOnly, elementSearchCursorId: null }),
   setShowShortcutHelp: (showShortcutHelp) => set({ showShortcutHelp }),
   setShowCommandPalette: (showCommandPalette) => set({ showCommandPalette }),
   setCanvasViewport: (canvasViewport) =>

@@ -29,6 +29,9 @@ const resetStore = () => {
     activeLinePickTarget: null,
     activePickCursor: null,
     selectedDependencyJumpIndex: 0,
+    elementSearchQuery: "",
+    elementSearchCursorId: null,
+    elementSearchPickableOnly: false,
     showShortcutHelp: false,
     showCommandPalette: false,
     canvasViewport: DEFAULT_CANVAS_VIEWPORT,
@@ -52,6 +55,7 @@ const renderLeftPanel = (evaluation = emptyEvaluation) =>
     <LeftPanel
       evaluation={evaluation}
       elementListFocusRef={createRef<HTMLDivElement>()}
+      elementSearchInputRef={createRef<HTMLInputElement>()}
     />
   );
 
@@ -426,6 +430,38 @@ describe("LeftPanel element list dragging", () => {
       "data-evaluation-state",
       "disabled"
     );
+  });
+
+  it("searches collapsed group children and selects the active result with Enter", () => {
+    useCadStore.setState({
+      elements: [
+        {
+          id: "group-1",
+          name: "身頃",
+          type: "group",
+          visible: true,
+          enabled: true,
+          expanded: false
+        },
+        { ...sampleElements[0], parentGroupId: "group-1" },
+        sampleElements[1]
+      ],
+      selectedElementId: "group-1",
+      selectedElementIds: ["group-1"],
+      selectionAnchorElementId: "group-1"
+    });
+
+    renderLeftPanel();
+
+    const searchInput = screen.getByRole("textbox", { name: "要素を検索" });
+    fireEvent.change(searchInput, { target: { value: "点A" } });
+
+    expect(screen.getByText("点A")).toBeInTheDocument();
+    expect(screen.getByText("身頃")).toBeInTheDocument();
+
+    fireEvent.keyDown(searchInput, { key: "Enter" });
+
+    expect(useCadStore.getState().selectedElementId).toBe("point-a");
   });
 
   it("shows group child counts with a folder icon instead of the child label", () => {

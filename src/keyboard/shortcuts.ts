@@ -37,6 +37,12 @@ export const globalShortcutDefinitions: ShortcutDefinition[] = [
     matches: (event) => event.key === "/" && noModifier(event)
   },
   {
+    commandId: "focusElementSearch",
+    label: "要素検索へ移動",
+    keys: "Mod+F",
+    matches: (event) => event.key.toLowerCase() === "f" && isMod(event) && !event.altKey && !event.shiftKey
+  },
+  {
     commandId: "undo",
     label: "元に戻す",
     keys: "Mod+Z",
@@ -611,7 +617,7 @@ export const keyboardCommandForEvent = (
   ];
   const shortcut = definitions.find((definition) => definition.matches(event));
   if (!shortcut) return null;
-  if (shouldIgnoreKeyboardEvent(event)) return null;
+  if (shortcut.commandId !== "focusElementSearch" && shouldIgnoreKeyboardEvent(event)) return null;
   return {
     commandId: shortcut.commandId,
     context: shortcut.context?.(event)

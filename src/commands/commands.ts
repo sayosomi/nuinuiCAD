@@ -128,6 +128,7 @@ export type CommandId =
   | "closeCommandPalette"
   | "focusCanvas"
   | "focusElementList"
+  | "focusElementSearch"
   | "enterElementListMode"
   | "toggleShortcutHelp"
   | "toggleElementInfoPanel"
@@ -159,6 +160,7 @@ export type CommandId =
 export type CommandContext = {
   focusCanvas?: () => void;
   focusElementList?: () => void;
+  focusElementSearch?: () => void;
   focusSelectedParameterInput?: () => void;
   getCanvasViewportRect?: () => DOMRect | null;
   parameterDirectKey?: string;
@@ -1834,6 +1836,11 @@ export const commands: Record<CommandId, Command> = {
     label: "要素リストへフォーカス",
     run: (context) => context?.focusElementList?.()
   },
+  focusElementSearch: {
+    id: "focusElementSearch",
+    label: "要素検索へフォーカス",
+    run: (context) => context?.focusElementSearch?.()
+  },
   enterElementListMode: {
     id: "enterElementListMode",
     label: "構成リストモードに入る",
@@ -2084,6 +2091,7 @@ const paletteCommandIds: CommandId[] = [
   "deleteSelectedElement",
   "focusCanvas",
   "focusElementList",
+  "focusElementSearch",
   "enterElementListMode",
   "toggleShortcutHelp",
   "toggleElementInfoPanel",
@@ -2144,6 +2152,7 @@ const paletteKeywords: Partial<Record<CommandId, string[]>> = {
   deleteSelectedElement: ["delete", "remove", "削除"],
   focusCanvas: ["focus", "canvas", "キャンバス"],
   focusElementList: ["focus", "element list", "構成リスト", "要素リスト"],
+  focusElementSearch: ["focus", "find", "search", "element", "検索", "要素"],
   enterElementListMode: ["mode", "element list", "構成リスト", "要素リスト"],
   toggleShortcutHelp: ["shortcut", "help", "ショートカット", "ヘルプ"],
   toggleElementInfoPanel: ["information", "info", "要素詳細", "折り畳み", "表示"],

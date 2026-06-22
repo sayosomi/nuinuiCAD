@@ -20,6 +20,7 @@ export const AppLayout = () => {
   );
   const canvasFocusRef = useRef<HTMLDivElement>(null);
   const elementListFocusRef = useRef<HTMLDivElement>(null);
+  const elementSearchInputRef = useRef<HTMLInputElement>(null);
   const parameterInputRefs = useRef(new Map<string, HTMLElement>());
   const evaluation = useMemo(() => evaluateElements(elements), [elements]);
   const registerParameterControl = (key: string, element: HTMLElement | null) => {
@@ -32,6 +33,12 @@ export const AppLayout = () => {
   const commandContext = useMemo(() => ({
     focusCanvas: () => canvasFocusRef.current?.focus(),
     focusElementList: () => elementListFocusRef.current?.focus(),
+    focusElementSearch: () => {
+      requestAnimationFrame(() => {
+        elementSearchInputRef.current?.focus();
+        elementSearchInputRef.current?.select();
+      });
+    },
     getCanvasViewportRect: () => canvasFocusRef.current?.getBoundingClientRect() ?? null,
     focusSelectedParameterInput: () => {
       const selectedKey = useCadStore.getState().selectedParameterKey;
@@ -90,6 +97,7 @@ export const AppLayout = () => {
       <LeftPanel
         evaluation={evaluation}
         elementListFocusRef={elementListFocusRef}
+        elementSearchInputRef={elementSearchInputRef}
       />
       <DrawingCanvas
         evaluation={evaluation}

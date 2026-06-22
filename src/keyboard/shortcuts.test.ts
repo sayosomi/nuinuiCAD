@@ -28,6 +28,7 @@ describe("shortcuts", () => {
     expect(commandIdForKeyboardEvent(keyboardEvent("e"))).toBe("enterParameterEditMode");
     expect(commandIdForKeyboardEvent(keyboardEvent("j"))).toBe("enterDependencyJumpMode");
     expect(commandIdForKeyboardEvent(keyboardEvent("/"))).toBe("openCommandPalette");
+    expect(commandIdForKeyboardEvent(keyboardEvent("f", { metaKey: true }))).toBe("focusElementSearch");
     expect(commandIdForKeyboardEvent(keyboardEvent("p"))).toBeNull();
     expect(commandIdForKeyboardEvent(keyboardEvent("o"))).toBeNull();
     expect(commandIdForKeyboardEvent(keyboardEvent("l"))).toBeNull();
@@ -229,6 +230,9 @@ describe("shortcuts", () => {
     expect(commandIdForKeyboardEvent(keyboardEventFrom("i", input))).toBeNull();
     expect(commandIdForKeyboardEvent(keyboardEventFrom("?", input))).toBeNull();
     expect(commandIdForKeyboardEvent(keyboardEventFrom("/", input))).toBeNull();
+    expect(commandIdForKeyboardEvent(keyboardEventFrom("f", input, { metaKey: true }))).toBe(
+      "focusElementSearch"
+    );
     expect(
       commandIdForKeyboardEvent(keyboardEventFrom("[", input), { isParameterEditMode: true })
     ).toBeNull();

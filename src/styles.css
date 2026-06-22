@@ -154,6 +154,80 @@ select {
   gap: 6px;
 }
 
+.element-search {
+  position: relative;
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.element-search-icon {
+  width: 16px;
+  height: 16px;
+  color: #686b62;
+}
+
+.element-search input {
+  padding-right: 10px;
+}
+
+.element-search kbd {
+  border: 1px solid #c9ccc2;
+  border-radius: 5px;
+  background: #ffffff;
+  padding: 3px 6px;
+  color: #686b62;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.element-search-clear {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  padding: 0;
+}
+
+.element-search-clear svg {
+  width: 15px;
+  height: 15px;
+}
+
+.element-search-status {
+  display: flex;
+  min-height: 24px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 6px 0 8px;
+  color: #686b62;
+  font-size: 12px;
+}
+
+.search-mode-badge {
+  border: 1px solid #8dbdb4;
+  border-radius: 999px;
+  background: #e7f4ef;
+  padding: 2px 7px;
+  color: #0f4f49;
+  font-weight: 700;
+}
+
+.search-pickable-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.search-pickable-toggle input {
+  width: auto;
+}
+
 .element-row {
   position: relative;
   display: grid;
@@ -307,6 +381,15 @@ select {
   box-shadow:
     inset 3px 0 0 #0b625c,
     0 0 0 2px rgba(15, 118, 110, 0.22);
+}
+
+.element-row.search-cursor {
+  border-color: #0f766e;
+  box-shadow: 0 0 0 2px rgba(15, 118, 110, 0.2);
+}
+
+.element-row.is-not-search-pickable {
+  opacity: 0.52;
 }
 
 .element-point-pick-actions button.selected-pick-option,
