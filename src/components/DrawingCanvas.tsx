@@ -6,14 +6,12 @@ import type {
 import { useEffect, useMemo, useRef, useState } from "react";
 import { dispatchCommand } from "../commands/commands";
 import type { BezierHandleRole as CommandBezierHandleRole } from "../commands/commands";
-import { lineMeasurementLabel } from "../geometry/numericExpressions";
 import {
   lineEndpointReferenceForAnchor,
   selectablePointsForGeometry
 } from "../model/pointAnchors";
 import { effectiveVisibleElementIds } from "../model/groups";
 import { findParameterDefinition } from "../parameters/parameterDefinitions";
-import type { ParameterKey } from "../parameters/parameterDefinitions";
 import { useCadStore } from "../state/useCadStore";
 import type { CadHistorySnapshot } from "../state/useCadStore";
 import type {
@@ -23,9 +21,10 @@ import type {
   ComputedOffsetLine,
   ComputedPoint,
   ElementId,
-  EvaluationResult,
-  PointAnchor
+  EvaluationResult
 } from "../types/geometry";
+import { CanvasCandidateMenus } from "./CanvasCandidateMenus";
+import { CanvasOverlay } from "./CanvasOverlay";
 import {
   hitTestCanvasGeometry,
   hitTestLineMeasurementCandidates,
@@ -46,7 +45,14 @@ import {
   worldToScreen
 } from "./canvasViewport";
 import { renderCanvasGeometry } from "./canvasRenderer";
-import { numericReferenceValue } from "./geometryDisplay";
+import type {
+  BezierHandleOverlay,
+  LinePickCandidate,
+  LinePickCandidateMenu,
+  MeasurementCandidateMenu,
+  PointPickCandidate,
+  PointPickCandidateMenu
+} from "./DrawingCanvasTypes";
 
 type DrawingCanvasProps = {
   evaluation: EvaluationResult;
@@ -76,42 +82,6 @@ type BezierHandleDragState = {
 type PolarLockKeys = {
   angle: boolean;
   distance: boolean;
-};
-
-type MeasurementCandidateMenu = {
-  screen: ScreenPoint;
-  candidates: LineMeasurementCandidate[];
-  targetElementId: ElementId;
-  targetParameterKey: ParameterKey;
-};
-
-type PointPickCandidate = {
-  anchor: PointAnchor;
-  label: string;
-  screen: ScreenPoint;
-};
-
-type PointPickCandidateMenu = {
-  screen: ScreenPoint;
-  candidates: PointPickCandidate[];
-};
-
-type LinePickCandidate = {
-  line: ComputedLine | ComputedArcLine | ComputedBezierCurve | ComputedOffsetLine;
-};
-
-type LinePickCandidateMenu = {
-  screen: ScreenPoint;
-  candidates: LinePickCandidate[];
-};
-
-type BezierHandleOverlay = {
-  id: string;
-  curveId: ElementId;
-  role: CommandBezierHandleRole;
-  intermediatePointId?: string;
-  anchor: ScreenPoint;
-  control: ScreenPoint;
 };
 
 const WHEEL_ZOOM_BASE = 1.1;
@@ -478,6 +448,12 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
     });
     setLinePickCandidateMenu(null);
   };
+  const applyPointPickCandidate = (candidate: PointPickCandidate) => {
+    dispatchCommand("applyPickedPoint", {
+      pickedPointAnchor: candidate.anchor
+    });
+    setPointPickCandidateMenu(null);
+  };
   const linePickCandidatesAt = (screen: ScreenPoint) => {
     const activeTarget = activeLinePickTarget;
     if (!activeTarget) return [];
@@ -819,85 +795,20 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
         onAuxClick={(event) => event.preventDefault()}
       >
         <canvas ref={canvasRef} aria-label="CAD drawing canvas" />
-        <svg
-          className="drawing-overlay"
-          viewBox={`0 0 ${viewportSize.width} ${viewportSize.height}`}
-          aria-hidden="true"
-        >
-          {overlayLines.map(({ line, start, end }) => (
-            <line
-              key={line.elementId}
-              x1={start.x}
-              y1={start.y}
-              x2={end.x}
-              y2={end.y}
-              className={selectedElementIdSet.has(line.elementId) ? "overlay-selected-line" : ""}
-              data-numeric-reference-candidate={activeNumericReferencePickTarget ? "true" : undefined}
-              data-line-pick-candidate={activeLinePickTarget ? "true" : undefined}
-            />
-          ))}
-          {overlayCurves.map(({ curve, points }) => (
-            <polyline
-              key={curve.elementId}
-              points={points.map((point) => `${point.x},${point.y}`).join(" ")}
-              className={selectedElementIdSet.has(curve.elementId) ? "overlay-selected-line" : ""}
-              data-numeric-reference-candidate={activeNumericReferencePickTarget ? "true" : undefined}
-              data-line-pick-candidate={activeLinePickTarget ? "true" : undefined}
-            />
-          ))}
-          {overlayArcs.map(({ arc, points }) => (
-            <polyline
-              key={arc.elementId}
-              points={points.map((point) => `${point.x},${point.y}`).join(" ")}
-              className={selectedElementIdSet.has(arc.elementId) ? "overlay-selected-line" : ""}
-              data-numeric-reference-candidate={activeNumericReferencePickTarget ? "true" : undefined}
-              data-line-pick-candidate={activeLinePickTarget ? "true" : undefined}
-            />
-          ))}
-          {selectedBezierHandles.map((handle) => (
-            <g key={handle.id} className="overlay-bezier-handle">
-              <line
-                x1={handle.anchor.x}
-                y1={handle.anchor.y}
-                x2={handle.control.x}
-                y2={handle.control.y}
-                className="overlay-bezier-handle-line"
-              />
-              <circle
-                cx={handle.control.x}
-                cy={handle.control.y}
-                r={5}
-                className="overlay-bezier-handle-point"
-              />
-            </g>
-          ))}
-          {overlayPoints.map(({ point, screen }) => (
-            <g key={point.elementId}>
-              <circle
-                cx={screen.x}
-                cy={screen.y}
-                r={point.elementId === selectedElementId ? 8 : selectedElementIdSet.has(point.elementId) ? 7 : 6}
-                className={`overlay-draggable-point ${
-                  selectedElementIdSet.has(point.elementId) ? "overlay-selected-point" : ""
-                } ${activePointPickTarget ? "overlay-point-pick-candidate" : ""}`}
-              />
-              <text x={screen.x + 8} y={screen.y - 8}>
-                {point.name}
-              </text>
-            </g>
-          ))}
-          {activePointPickTarget
-            ? overlayPointPickCandidates.map((candidate, index) => (
-                <circle
-                  key={`${candidate.label}-${index}`}
-                  cx={candidate.screen.x}
-                  cy={candidate.screen.y}
-                  r={7}
-                  className="overlay-derived-point-pick-candidate"
-                />
-              ))
-            : null}
-        </svg>
+        <CanvasOverlay
+          viewportSize={viewportSize}
+          overlayLines={overlayLines}
+          overlayArcs={overlayArcs}
+          overlayCurves={overlayCurves}
+          overlayPoints={overlayPoints}
+          selectedBezierHandles={selectedBezierHandles}
+          overlayPointPickCandidates={overlayPointPickCandidates}
+          selectedElementIdSet={selectedElementIdSet}
+          selectedElementId={selectedElementId}
+          isPointPickActive={Boolean(activePointPickTarget)}
+          isNumericReferencePickActive={Boolean(activeNumericReferencePickTarget)}
+          isLinePickActive={Boolean(activeLinePickTarget)}
+        />
         {activePointPickTarget ? (
           <div className="point-pick-canvas-banner">
             {isLineEndpointPointPick
@@ -915,84 +826,14 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
             線選択中: canvas または構成リストの線を選択
           </div>
         ) : null}
-        {measurementCandidateMenu ? (
-          <div
-            className="numeric-reference-candidate-menu"
-            style={{
-              left: measurementCandidateMenu.screen.x,
-              top: measurementCandidateMenu.screen.y
-            }}
-            role="menu"
-            aria-label="数値参照候補"
-          >
-            {measurementCandidateMenu.candidates.map((candidate) => (
-              <button
-                key={`${candidate.line.elementId}-${candidate.property}`}
-                type="button"
-                role="menuitem"
-                onPointerDown={(event) => event.stopPropagation()}
-                onClick={() => applyMeasurementCandidate(candidate)}
-              >
-                <span className="numeric-reference-candidate-main">
-                  <strong>{candidate.line.name}</strong>
-                  <span>{lineMeasurementLabel(candidate.property)}</span>
-                </span>
-                <small>{numericReferenceValue(candidate.line, candidate.property)}</small>
-              </button>
-            ))}
-          </div>
-        ) : null}
-        {pointPickCandidateMenu ? (
-          <div
-            className="measurement-candidate-menu"
-            style={{
-              left: pointPickCandidateMenu.screen.x,
-              top: pointPickCandidateMenu.screen.y
-            }}
-            role="menu"
-            aria-label="点選択候補"
-          >
-            {pointPickCandidateMenu.candidates.map((candidate) => (
-              <button
-                key={candidate.label}
-                type="button"
-                role="menuitem"
-                onPointerDown={(event) => event.stopPropagation()}
-                onClick={() => {
-                  dispatchCommand("applyPickedPoint", {
-                    pickedPointAnchor: candidate.anchor
-                  });
-                  setPointPickCandidateMenu(null);
-                }}
-              >
-                {candidate.label}
-              </button>
-            ))}
-          </div>
-        ) : null}
-        {linePickCandidateMenu ? (
-          <div
-            className="line-pick-candidate-menu"
-            style={{
-              left: linePickCandidateMenu.screen.x,
-              top: linePickCandidateMenu.screen.y
-            }}
-            role="menu"
-            aria-label="線選択候補"
-          >
-            {linePickCandidateMenu.candidates.map((candidate) => (
-              <button
-                key={candidate.line.elementId}
-                type="button"
-                role="menuitem"
-                onPointerDown={(event) => event.stopPropagation()}
-                onClick={() => applyLinePickCandidate(candidate)}
-              >
-                {candidate.line.name}
-              </button>
-            ))}
-          </div>
-        ) : null}
+        <CanvasCandidateMenus
+          measurementCandidateMenu={measurementCandidateMenu}
+          pointPickCandidateMenu={pointPickCandidateMenu}
+          linePickCandidateMenu={linePickCandidateMenu}
+          onApplyMeasurementCandidate={applyMeasurementCandidate}
+          onApplyPointPickCandidate={applyPointPickCandidate}
+          onApplyLinePickCandidate={applyLinePickCandidate}
+        />
         {evaluation.errors.length + evaluation.warnings.length > 0 ? (
           <div className="canvas-warning">
             ⚠ {evaluation.errors.length + evaluation.warnings.length} 件のエラー/警告があります
