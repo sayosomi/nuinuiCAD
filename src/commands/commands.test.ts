@@ -982,6 +982,12 @@ describe("commands", () => {
     expect(filterCommandPaletteItems("三点円弧").map((item) => item.commandId)).toContain(
       "addThreePointArcLine"
     );
+    expect(filterCommandPaletteItems("交点").map((item) => item.commandId)).toContain(
+      "addIntersectionPoint"
+    );
+    expect(filterCommandPaletteItems("intersection").map((item) => item.commandId)).toContain(
+      "addIntersectionPoint"
+    );
   });
 
   it("adds a polar offset point from a command", () => {
@@ -1032,6 +1038,58 @@ describe("commands", () => {
       numericParameterSteps: { ratio: 0.01 }
     });
     expect(useCadStore.getState().selectedElementId).toBe(added?.id);
+  });
+
+  it("adds an intersection point from selected line-like elements", () => {
+    useCadStore.setState({
+      selectedElementId: "line-bc",
+      selectedElementIds: ["line-ab", "line-bc"],
+      selectionAnchorElementId: "line-ab"
+    });
+
+    dispatchCommand("addIntersectionPoint");
+
+    const added = useCadStore.getState().elements.at(-1);
+    expect(added).toMatchObject({
+      type: "intersectionPoint",
+      line1Id: "line-ab",
+      line2Id: "line-bc",
+      intersectionIndex: 0,
+      useExtensions: false
+    });
+    expect(useCadStore.getState().selectedElementId).toBe(added?.id);
+  });
+
+  it("replaces single line reference parameters from line pick mode", () => {
+    const intersection = {
+      id: "intersection",
+      name: "交点",
+      type: "intersectionPoint" as const,
+      visible: true,
+      enabled: true,
+      line1Id: "line-ab",
+      line2Id: "line-bc",
+      intersectionIndex: 0,
+      useExtensions: false
+    };
+    useCadStore.setState({
+      elements: [...sampleElements, intersection],
+      selectedElementId: "intersection",
+      selectedElementIds: ["intersection"],
+      selectionAnchorElementId: "intersection",
+      selectedParameterKey: "line1Id"
+    });
+
+    dispatchCommand("startLinePick");
+    dispatchCommand("applyPickedLine", { pickedLineId: "curve-ac" });
+
+    const updated = useCadStore.getState().elements.find((element) => element.id === "intersection");
+    expect(updated).toMatchObject({
+      type: "intersectionPoint",
+      line1Id: "curve-ac",
+      line2Id: "line-bc"
+    });
+    expect(useCadStore.getState().activeLinePickTarget).toBeNull();
   });
 
   it("cycles line division endpoint references in parameter edit mode", () => {

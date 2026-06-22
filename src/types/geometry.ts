@@ -70,6 +70,14 @@ export type LineDivisionPointElement = CadElementBase & {
   ratio: NumericValue;
 };
 
+export type IntersectionPointElement = CadElementBase & {
+  type: "intersectionPoint";
+  line1Id: ElementId;
+  line2Id: ElementId;
+  intersectionIndex: NumericValue;
+  useExtensions: boolean;
+};
+
 export type PointAnchor =
   | {
       mode: "reference";
@@ -144,6 +152,7 @@ export type CadElement =
   | PolarOffsetPointElement
   | DivisionPointElement
   | LineDivisionPointElement
+  | IntersectionPointElement
   | LineElement
   | ArcLineElement
   | ThreePointArcLineElement
@@ -280,6 +289,7 @@ export const elementTypeLabels: Record<CadElementType, string> = {
   polarOffsetPoint: "polar offset point",
   divisionPoint: "点間分点",
   lineDivisionPoint: "線上分点",
+  intersectionPoint: "交点",
   line: "line",
   arcLine: "arc line",
   threePointArcLine: "three-point arc line",

@@ -50,7 +50,8 @@ export const isPointElement = (element: CadElement) =>
   element.type === "offsetPoint" ||
   element.type === "polarOffsetPoint" ||
   element.type === "divisionPoint" ||
-  element.type === "lineDivisionPoint";
+  element.type === "lineDivisionPoint" ||
+  element.type === "intersectionPoint";
 
 export const pointAnchorForElement = (element: CadElement): PointAnchor | null => {
   if (element.type === "offsetPoint" || element.type === "polarOffsetPoint") {

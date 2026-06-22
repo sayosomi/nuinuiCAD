@@ -79,6 +79,21 @@ describe("createCadElement", () => {
     });
   });
 
+  it("creates intersection points using the first two lines as defaults", () => {
+    expect(createCadElement("intersectionPoint", sampleElements, { createId: createTestId })).toMatchObject({
+      id: "intersectionPoint-test-id",
+      name: "交点1",
+      type: "intersectionPoint",
+      visible: true,
+      enabled: true,
+      numericVariables: [],
+      line1Id: "line-ab",
+      line2Id: "line-bc",
+      intersectionIndex: 0,
+      useExtensions: false
+    });
+  });
+
   it("creates lines using the first two points as default endpoints", () => {
     expect(createCadElement("line", sampleElements, { createId: createTestId })).toMatchObject({
       id: "line-test-id",

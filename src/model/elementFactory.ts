@@ -122,6 +122,23 @@ export const createCadElement = (
         ratio: 0.5
       };
     }
+    case "intersectionPoint": {
+      const id = createId(type);
+      const intersectionCount = elements.filter((element) => element.type === "intersectionPoint").length;
+      const requestedName = `交点${intersectionCount + 1}`;
+      return {
+        id,
+        name: uniqueName(id, requestedName),
+        type,
+        visible: true,
+        enabled: true,
+        numericVariables: [],
+        line1Id: lineLikeElements[0]?.id ?? "",
+        line2Id: lineLikeElements[1]?.id ?? lineLikeElements[0]?.id ?? "",
+        intersectionIndex: 0,
+        useExtensions: false
+      };
+    }
     case "line": {
       const id = createId(type);
       const lineCount = elements.filter((element) => element.type === "line").length;

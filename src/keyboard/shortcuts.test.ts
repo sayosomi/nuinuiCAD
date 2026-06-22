@@ -31,6 +31,7 @@ describe("shortcuts", () => {
     expect(commandIdForKeyboardEvent(keyboardEvent("p"))).toBeNull();
     expect(commandIdForKeyboardEvent(keyboardEvent("o"))).toBeNull();
     expect(commandIdForKeyboardEvent(keyboardEvent("l"))).toBeNull();
+    expect(commandIdForKeyboardEvent(keyboardEvent("x"))).toBe("addIntersectionPoint");
     expect(commandIdForKeyboardEvent(keyboardEvent("Enter"))).toBe("enterParameterEditMode");
     expect(commandIdForKeyboardEvent(keyboardEvent("+"))).toBe("zoomInCanvas");
     expect(commandIdForKeyboardEvent(keyboardEvent("="))).toBe("zoomInCanvas");
@@ -94,6 +95,9 @@ describe("shortcuts", () => {
       "toggleBooleanParameterByDirectKey"
     );
     expect(commandIdForKeyboardEvent(keyboardEvent("x"), { isParameterEditMode: true })).toBe(
+      "selectParameterByKey"
+    );
+    expect(commandIdForKeyboardEvent(keyboardEvent("1"), { isParameterEditMode: true })).toBe(
       "selectParameterByKey"
     );
     expect(commandIdForKeyboardEvent(keyboardEvent("Escape"), { isParameterEditMode: true })).toBe(

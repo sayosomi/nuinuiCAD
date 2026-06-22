@@ -85,6 +85,7 @@ export type CommandId =
   | "addPolarOffsetPoint"
   | "addDivisionPoint"
   | "addLineDivisionPoint"
+  | "addIntersectionPoint"
   | "addLine"
   | "addArcLine"
   | "addThreePointArcLine"
@@ -377,6 +378,10 @@ const updateNumericParameter = (direction: 1 | -1, context?: CommandContext) => 
     cycleLineEndpointParameter(direction);
     return;
   }
+  if (definition.kind === "lineReference") {
+    cycleLineReferenceParameter(direction);
+    return;
+  }
   if (definition.kind === "choice") {
     cycleChoiceParameter(direction);
     return;
@@ -587,6 +592,25 @@ const cycleLineEndpointParameter = (direction: 1 | -1) => {
   updateSelectedElement((element) => setParameterValue(element, definition.key, options[nextIndex]));
 };
 
+const lineReferenceOptions = (elements: CadElement[]) => elements.filter(isLineLikeElement);
+
+const cycleLineReferenceParameter = (direction: 1 | -1) => {
+  const selectedElement = getSelectedElement();
+  const definition = selectedParameterDefinition();
+  if (!selectedElement || definition?.kind !== "lineReference") return;
+
+  const options = lineReferenceOptions(useCadStore.getState().elements).filter(
+    (element) => element.id !== selectedElement.id
+  );
+  if (options.length === 0) return;
+
+  const currentValue = getParameterValue(selectedElement, definition.key);
+  const currentIndex = options.findIndex((option) => option.id === currentValue);
+  const nextIndex =
+    currentIndex < 0 ? 0 : (currentIndex + direction + options.length) % options.length;
+  updateSelectedElement((element) => setParameterValue(element, definition.key, options[nextIndex].id));
+};
+
 const addLineDivisionPoint = () => {
   const { elements } = useCadStore.getState();
   const selectedIds = new Set(getSelectedElementIds());
@@ -607,6 +631,34 @@ const addLineDivisionPoint = () => {
     selectedElementIds: [lineDivisionPoint.id],
     selectionAnchorElementId: lineDivisionPoint.id,
     selectedParameterKey: getFirstParameterKey(lineDivisionPoint)
+  });
+};
+
+const addIntersectionPoint = () => {
+  const { elements } = useCadStore.getState();
+  const selectedIds = new Set(getSelectedElementIds());
+  const selectedLines = elements
+    .filter((element) => selectedIds.has(element.id) && isLineLikeElement(element))
+    .map((element) => element.id);
+  const fallbackLines = elements.filter(isLineLikeElement).map((element) => element.id);
+  const element = createCadElement("intersectionPoint", elements);
+  if (element.type !== "intersectionPoint") return;
+  const line1Id = selectedLines[0] ?? fallbackLines[0] ?? "";
+  const line2Id =
+    selectedLines.find((id) => id !== line1Id) ??
+    fallbackLines.find((id) => id !== line1Id) ??
+    line1Id;
+  const intersectionPoint: CadElement = {
+    ...element,
+    line1Id,
+    line2Id
+  };
+  useCadStore.getState().commitDocumentChange({
+    elements: [...elements, intersectionPoint],
+    selectedElementId: intersectionPoint.id,
+    selectedElementIds: [intersectionPoint.id],
+    selectionAnchorElementId: intersectionPoint.id,
+    selectedParameterKey: getFirstParameterKey(intersectionPoint)
   });
 };
 
@@ -666,7 +718,8 @@ const applyPickedPoint = (context?: Pick<CommandContext, "pickedPointId" | "pick
         pointElement.type !== "offsetPoint" &&
         pointElement.type !== "polarOffsetPoint" &&
         pointElement.type !== "divisionPoint" &&
-        pointElement.type !== "lineDivisionPoint")
+        pointElement.type !== "lineDivisionPoint" &&
+        pointElement.type !== "intersectionPoint")
     ) {
       return;
     }
@@ -697,7 +750,7 @@ const cancelPointPick = () => {
 const startLinePick = () => {
   const selectedElement = getSelectedElement();
   const definition = selectedParameterDefinition();
-  if (!selectedElement || definition?.kind !== "lineReferenceList") return;
+  if (!selectedElement || (definition?.kind !== "lineReferenceList" && definition?.kind !== "lineReference")) return;
 
   useCadStore.setState({
     activePointPickTarget: null,
@@ -728,15 +781,31 @@ const applyPickedLine = (context?: Pick<CommandContext, "pickedLineId">) => {
     : null;
   if (
     !targetElement ||
-    definition?.kind !== "lineReferenceList" ||
-    !currentLineIds ||
+    (definition?.kind !== "lineReferenceList" && definition?.kind !== "lineReference") ||
     !pickedLine ||
     !isLineLikeElement(pickedLine) ||
-    pickedLine.id === targetElement.id ||
-    currentLineIds.includes(pickedLine.id)
+    pickedLine.id === targetElement.id
   ) {
     return;
   }
+
+  if (definition.kind === "lineReference") {
+    useCadStore.getState().commitDocumentChange({
+      elements: elements.map((element) =>
+        element.id === targetElement.id
+          ? setParameterValue(targetElement, activeLinePickTarget.parameterKey, pickedLine.id)
+          : element
+      ),
+      selectedElementId: targetElement.id,
+      selectedElementIds: [targetElement.id],
+      selectionAnchorElementId: targetElement.id,
+      selectedParameterKey: activeLinePickTarget.parameterKey
+    });
+    useCadStore.getState().setActiveLinePickTarget(null);
+    return;
+  }
+
+  if (!currentLineIds || currentLineIds.includes(pickedLine.id)) return;
 
   useCadStore.getState().commitDocumentChange({
     elements: elements.map((element) =>
@@ -1228,6 +1297,11 @@ export const commands: Record<CommandId, Command> = {
     label: "線上分点を追加",
     run: () => addLineDivisionPoint()
   },
+  addIntersectionPoint: {
+    id: "addIntersectionPoint",
+    label: "交点を追加",
+    run: () => addIntersectionPoint()
+  },
   addLine: {
     id: "addLine",
     label: "line を追加",
@@ -1476,6 +1550,10 @@ export const commands: Record<CommandId, Command> = {
         startLinePick();
         return;
       }
+      if (definition?.kind === "lineReference") {
+        startLinePick();
+        return;
+      }
       if (definition?.kind === "lineEndpointReference") {
         startPointPick();
         return;
@@ -1505,6 +1583,7 @@ const paletteCommandIds: CommandId[] = [
   "addPolarOffsetPoint",
   "addDivisionPoint",
   "addLineDivisionPoint",
+  "addIntersectionPoint",
   "addLine",
   "addArcLine",
   "addThreePointArcLine",
@@ -1546,6 +1625,7 @@ const paletteKeywords: Partial<Record<CommandId, string[]>> = {
   addPolarOffsetPoint: ["polar", "angle", "distance", "角度", "距離", "点", "追加"],
   addDivisionPoint: ["division", "between", "ratio", "distance", "分点", "点間", "中点", "割合", "距離", "点", "追加"],
   addLineDivisionPoint: ["division", "line", "endpoint", "ratio", "distance", "分点", "線上", "端点", "割合", "距離", "点", "追加"],
+  addIntersectionPoint: ["intersection", "cross", "line", "交点", "交差", "線", "点", "追加"],
   addLine: ["line", "直線", "線", "追加"],
   addArcLine: ["arc", "arc line", "radius", "円弧", "円弧線", "半径", "線", "追加"],
   addThreePointArcLine: [

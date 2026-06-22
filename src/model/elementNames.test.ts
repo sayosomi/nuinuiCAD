@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  fallbackElementName,
   formatReferenceOptionLabel,
   makeUniqueElementName
 } from "./elementNames";
@@ -80,5 +81,9 @@ describe("elementNames", () => {
 
   it("includes element type in reference option labels", () => {
     expect(formatReferenceOptionLabel(elements[1])).toBe("点A 2 - offset point");
+  });
+
+  it("has a fallback name for intersection points", () => {
+    expect(fallbackElementName("intersectionPoint")).toBe("交点");
   });
 });

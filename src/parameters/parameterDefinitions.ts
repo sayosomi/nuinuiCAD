@@ -7,6 +7,7 @@ export type ParameterValueKind =
   | "number"
   | "reference"
   | "lineEndpointReference"
+  | "lineReference"
   | "lineReferenceList"
   | "choice";
 
@@ -143,6 +144,15 @@ export const getParameterDefinitions = (element: CadElement): ParameterDefinitio
           kind: "number",
           stepLevels: ratioNumericParameterStepLevels
         }
+      ];
+    case "intersectionPoint":
+      return [
+        ...commonParameters,
+        ...numericVariableParameters(element),
+        { key: "line1Id", directKey: "1", label: "線1", kind: "lineReference" },
+        { key: "line2Id", directKey: "2", label: "線2", kind: "lineReference" },
+        { key: "intersectionIndex", directKey: "i", label: "番号", kind: "number" },
+        { key: "useExtensions", directKey: "x", label: "延長", kind: "boolean" }
       ];
     case "line":
       return [

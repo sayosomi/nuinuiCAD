@@ -171,6 +171,12 @@ export const shortcutDefinitions: ShortcutDefinition[] = [
     matches: (event) => event.key === "0" && noModifier(event)
   },
   {
+    commandId: "addIntersectionPoint",
+    label: "交点を追加",
+    keys: "x",
+    matches: (event) => event.key.toLowerCase() === "x" && noModifier(event)
+  },
+  {
     commandId: "addBezierCurve",
     label: "曲線を追加",
     keys: "c",
@@ -306,8 +312,8 @@ export const parameterEditShortcutDefinitions: ShortcutDefinition[] = [
   {
     commandId: "selectParameterByKey",
     label: "名前キーでパラメーターを選択",
-    keys: "n / x / y / b / s / t / r / h / m / u / i / o / e / g",
-    matches: (event) => /^[a-z]$/i.test(event.key) && noModifier(event),
+    keys: "n / x / y / b / s / t / r / h / m / u / i / o / e / g / 1 / 2 / 3",
+    matches: (event) => /^[a-z0-9]$/i.test(event.key) && noModifier(event),
     context: (event) => ({ parameterDirectKey: event.key.toLowerCase() })
   }
 ];
@@ -343,6 +349,20 @@ const parameterValueShortcutItems: Record<ParameterValueKind, ShortcutHelpItem[]
     helpItem(parameterShortcut("increaseSelectedParameterStep"))
   ],
   boolean: [helpItem(parameterShortcut("toggleSelectedBooleanParameter"))],
+  lineReference: [
+    {
+      id: "cycleSelectedLineReferenceForward",
+      commandId: "incrementSelectedParameter",
+      label: "線候補を次へ",
+      keys: "ArrowRight"
+    },
+    {
+      id: "cycleSelectedLineReferenceBackward",
+      commandId: "decrementSelectedParameter",
+      label: "線候補を前へ",
+      keys: "ArrowLeft"
+    }
+  ],
   lineReferenceList: [],
   lineEndpointReference: [
     {

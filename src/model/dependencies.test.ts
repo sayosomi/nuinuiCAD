@@ -157,6 +157,22 @@ describe("dependencies", () => {
     expect(getDirectParentIds(point)).toEqual(["ab", "bc"]);
   });
 
+  it("returns intersection point line references and index expression references as direct parent ids", () => {
+    const point: CadElement = {
+      id: "intersection",
+      name: "交点",
+      type: "intersectionPoint",
+      visible: true,
+      enabled: true,
+      line1Id: "ab",
+      line2Id: "bc",
+      intersectionIndex: { kind: "expression", expression: "cd.length / 100" },
+      useExtensions: false
+    };
+
+    expect(getDirectParentIds(point)).toEqual(["ab", "bc", "cd"]);
+  });
+
   it("returns direct coordinate expression references as parent ids", () => {
     const directLine: CadElement = {
       id: "direct",

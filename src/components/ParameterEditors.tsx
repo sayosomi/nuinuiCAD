@@ -622,3 +622,67 @@ export const LineReferenceListEditor = ({
     </div>
   );
 };
+
+export const LineReferenceEditor = ({
+  element,
+  elements,
+  isParameterEditMode,
+  registerParameterControl,
+  parameterKey,
+  label,
+  lineId
+}: CommonEditorProps & {
+  parameterKey: ParameterKey;
+  label: string;
+  lineId: ElementId;
+}) => {
+  const activeLinePickTarget = useCadStore((state) => state.activeLinePickTarget);
+  const { controlProps, parameterFieldClass, selectParameter } = useParameterEditor({
+    element,
+    isParameterEditMode,
+    registerParameterControl
+  });
+  const isPickingThisLine =
+    activeLinePickTarget?.elementId === element.id &&
+    activeLinePickTarget.parameterKey === parameterKey;
+  const line = elements.find((item) => item.id === lineId);
+
+  return (
+    <div
+      className={`line-anchor-editor ${parameterFieldClass(parameterKey)} ${
+        isPickingThisLine ? "is-picking-line" : ""
+      }`}
+      onClick={() => selectParameter(parameterKey)}
+    >
+      <div className="point-anchor-header">
+        <ParameterName element={element} parameterKey={parameterKey} label={label} />
+        <button
+          type="button"
+          className={`line-pick-button ${isPickingThisLine ? "active" : ""}`}
+          onClick={() => {
+            selectParameter(parameterKey);
+            if (isPickingThisLine) {
+              dispatchCommand("cancelLinePick");
+              return;
+            }
+            dispatchCommand("startLinePick");
+          }}
+        >
+          {isPickingThisLine ? "線選択中" : "線を選択"}
+        </button>
+      </div>
+      {isPickingThisLine ? (
+        <p className="line-pick-hint">canvas または構成リストから線を選択します。</p>
+      ) : null}
+      <button
+        {...controlProps(parameterKey)}
+        type="button"
+        className={`${parameterFieldClass(parameterKey)} point-anchor-reference`}
+        onClick={() => selectParameter(parameterKey)}
+      >
+        <span className="reference-label">参照線</span>
+        <span className="reference-value">{line?.name ?? lineId}</span>
+      </button>
+    </div>
+  );
+};

@@ -12,6 +12,7 @@ import type {
 } from "../types/geometry";
 import { evaluateNumericValue } from "./numericExpressions";
 import { pointAtDistanceFromEndpoint, isLineLikeGeometry } from "./linePaths";
+import { findLineIntersections } from "./lineIntersections";
 import { buildOffsetLineGeometry } from "./offsetPaths";
 import {
   anchorReferenceElementId,
@@ -577,6 +578,74 @@ export const evaluateElements = (elements: CadElement[]): EvaluationResult => {
           name: element.name,
           x: point.x,
           y: point.y
+        });
+        break;
+      }
+      case "intersectionPoint": {
+        if (element.line1Id === element.line2Id) {
+          errors.push(
+            geometryError(
+              element,
+              `${element.name} は同じ線を2回参照しているため、交点を作図できません。線1と線2に別の線を指定してください。`
+            )
+          );
+          break;
+        }
+
+        const line1 = computedGeometry.get(element.line1Id);
+        const line2 = computedGeometry.get(element.line2Id);
+        if (!isLineLikeGeometry(line1)) {
+          errors.push(dependencyError(element, element.line1Id, elementsById));
+          break;
+        }
+        if (!isLineLikeGeometry(line2)) {
+          errors.push(dependencyError(element, element.line2Id, elementsById));
+          break;
+        }
+
+        const intersectionIndex = numericError(
+          element,
+          element.intersectionIndex,
+          computedGeometry,
+          elementsById,
+          errors,
+          localVariableValues,
+          localVariableNames
+        );
+        if (intersectionIndex === undefined) break;
+        if (!Number.isInteger(intersectionIndex) || intersectionIndex < 0) {
+          errors.push(
+            geometryError(
+              element,
+              `${element.name} の番号は0以上の整数で指定してください。`
+            )
+          );
+          break;
+        }
+
+        const result = findLineIntersections(line1, line2, {
+          useExtensions: element.useExtensions
+        });
+        if (result.error) {
+          errors.push(geometryError(element, result.error));
+          break;
+        }
+        const intersection = result.intersections[intersectionIndex];
+        if (!intersection) {
+          const message =
+            result.intersections.length === 0
+              ? `${element.name} は参照線同士の交点を見つけられません。線1・線2または延長設定を確認してください。`
+              : `${element.name} の番号 ${intersectionIndex} に対応する交点はありません。交点数は ${result.intersections.length} 個です。`;
+          errors.push(geometryError(element, message));
+          break;
+        }
+
+        computedGeometry.set(element.id, {
+          kind: "point",
+          elementId: element.id,
+          name: element.name,
+          x: intersection.x,
+          y: intersection.y
         });
         break;
       }

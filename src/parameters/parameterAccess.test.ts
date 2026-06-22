@@ -147,6 +147,26 @@ describe("parameterAccess", () => {
     expect(supportsNumericVariables(point)).toBe(true);
   });
 
+  it("updates intersection point line references and supports numeric variables", () => {
+    const point: CadElement = {
+      id: "intersection",
+      name: "交点",
+      type: "intersectionPoint",
+      visible: true,
+      enabled: true,
+      line1Id: "line-a",
+      line2Id: "line-b",
+      intersectionIndex: 0,
+      useExtensions: false
+    };
+
+    expect(getParameterValue(point, "line1Id")).toBe("line-a");
+    expect(setParameterValue(point, "line2Id", "line-c")).toMatchObject({
+      line2Id: "line-c"
+    });
+    expect(supportsNumericVariables(point)).toBe(true);
+  });
+
   it("updates Bezier intermediate anchors and handle parameters", () => {
     const curve: CadElement = {
       id: "curve",

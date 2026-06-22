@@ -485,6 +485,368 @@ describe("evaluateElements", () => {
     });
   });
 
+  it("evaluates an intersection point between two line segments", () => {
+    const result = evaluateElements([
+      {
+        id: "a",
+        name: "A",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 0,
+        y: 0
+      },
+      {
+        id: "b",
+        name: "B",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 100,
+        y: 100
+      },
+      {
+        id: "c",
+        name: "C",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 0,
+        y: 100
+      },
+      {
+        id: "d",
+        name: "D",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 100,
+        y: 0
+      },
+      {
+        id: "ab",
+        name: "AB",
+        type: "line",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "a" },
+        endPoint: { mode: "reference", pointId: "b" }
+      },
+      {
+        id: "cd",
+        name: "CD",
+        type: "line",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "c" },
+        endPoint: { mode: "reference", pointId: "d" }
+      },
+      {
+        id: "intersection",
+        name: "交点",
+        type: "intersectionPoint",
+        visible: true,
+        enabled: true,
+        line1Id: "ab",
+        line2Id: "cd",
+        intersectionIndex: 0,
+        useExtensions: false
+      }
+    ]);
+
+    expect(result.errors).toHaveLength(0);
+    expect(result.computedGeometry.get("intersection")).toMatchObject({
+      kind: "point",
+      x: 50,
+      y: 50
+    });
+  });
+
+  it("uses line endpoint tangent extensions when requested", () => {
+    const elements: CadElement[] = [
+      { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
+      { id: "b", name: "B", type: "freePoint", visible: true, enabled: true, x: 10, y: 0 },
+      { id: "c", name: "C", type: "freePoint", visible: true, enabled: true, x: 20, y: -10 },
+      { id: "d", name: "D", type: "freePoint", visible: true, enabled: true, x: 20, y: 10 },
+      {
+        id: "ab",
+        name: "AB",
+        type: "line",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "a" },
+        endPoint: { mode: "reference", pointId: "b" }
+      },
+      {
+        id: "cd",
+        name: "CD",
+        type: "line",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "c" },
+        endPoint: { mode: "reference", pointId: "d" }
+      }
+    ];
+    const withoutExtension = evaluateElements([
+      ...elements,
+      {
+        id: "intersection",
+        name: "交点",
+        type: "intersectionPoint",
+        visible: true,
+        enabled: true,
+        line1Id: "ab",
+        line2Id: "cd",
+        intersectionIndex: 0,
+        useExtensions: false
+      }
+    ]);
+    const withExtension = evaluateElements([
+      ...elements,
+      {
+        id: "intersection",
+        name: "交点",
+        type: "intersectionPoint",
+        visible: true,
+        enabled: true,
+        line1Id: "ab",
+        line2Id: "cd",
+        intersectionIndex: 0,
+        useExtensions: true
+      }
+    ]);
+
+    expect(withoutExtension.computedGeometry.has("intersection")).toBe(false);
+    expect(withExtension.errors).toHaveLength(0);
+    expect(withExtension.computedGeometry.get("intersection")).toMatchObject({
+      kind: "point",
+      x: 20,
+      y: 0
+    });
+  });
+
+  it("evaluates intersections with arc, Bezier, and offset lines", () => {
+    const result = evaluateElements([
+      { id: "center", name: "中心", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
+      { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
+      { id: "b", name: "B", type: "freePoint", visible: true, enabled: true, x: 100, y: 0 },
+      { id: "p1", name: "P1", type: "freePoint", visible: true, enabled: true, x: -20, y: -7 },
+      { id: "p2", name: "P2", type: "freePoint", visible: true, enabled: true, x: 20, y: -7 },
+      { id: "v1", name: "V1", type: "freePoint", visible: true, enabled: true, x: 50, y: -20 },
+      { id: "v2", name: "V2", type: "freePoint", visible: true, enabled: true, x: 50, y: 20 },
+      {
+        id: "arc",
+        name: "円弧",
+        type: "arcLine",
+        visible: true,
+        enabled: true,
+        centerPoint: { mode: "reference", pointId: "center" },
+        radius: 10,
+        startAngleDeg: 0,
+        endAngleDeg: 180
+      },
+      {
+        id: "horizontal",
+        name: "水平線",
+        type: "line",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "p1" },
+        endPoint: { mode: "reference", pointId: "p2" }
+      },
+      {
+        id: "curve",
+        name: "曲線",
+        type: "bezierCurve",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "a" },
+        startHandleAngleDeg: 0,
+        startHandleLength: 0,
+        intermediatePoints: [],
+        endPoint: { mode: "reference", pointId: "b" },
+        endHandleAngleDeg: 180,
+        endHandleLength: 0
+      },
+      {
+        id: "vertical",
+        name: "垂直線",
+        type: "line",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "v1" },
+        endPoint: { mode: "reference", pointId: "v2" }
+      },
+      {
+        id: "offset",
+        name: "オフセット",
+        type: "offsetLine",
+        visible: true,
+        enabled: true,
+        baseLineIds: ["curve"],
+        offset: 10,
+        side: "right",
+        closed: false
+      },
+      {
+        id: "arc-intersection",
+        name: "円弧交点",
+        type: "intersectionPoint",
+        visible: true,
+        enabled: true,
+        line1Id: "arc",
+        line2Id: "horizontal",
+        intersectionIndex: 0,
+        useExtensions: false
+      },
+      {
+        id: "curve-intersection",
+        name: "曲線交点",
+        type: "intersectionPoint",
+        visible: true,
+        enabled: true,
+        line1Id: "curve",
+        line2Id: "vertical",
+        intersectionIndex: 0,
+        useExtensions: false
+      },
+      {
+        id: "offset-intersection",
+        name: "オフセット交点",
+        type: "intersectionPoint",
+        visible: true,
+        enabled: true,
+        line1Id: "offset",
+        line2Id: "vertical",
+        intersectionIndex: 0,
+        useExtensions: false
+      }
+    ]);
+
+    const arc = result.computedGeometry.get("arc-intersection");
+    const curve = result.computedGeometry.get("curve-intersection");
+    const offset = result.computedGeometry.get("offset-intersection");
+    expect(result.errors).toHaveLength(0);
+    if (arc?.kind !== "point" || curve?.kind !== "point" || offset?.kind !== "point") {
+      throw new Error("Expected points");
+    }
+    expect(arc.x).toBeCloseTo(Math.sqrt(51), 0);
+    expect(arc.y).toBeCloseTo(-7, 1);
+    expect(curve.x).toBeCloseTo(50);
+    expect(curve.y).toBeCloseTo(0);
+    expect(offset.x).toBeCloseTo(50);
+    expect(offset.y).toBeCloseTo(10);
+  });
+
+  it("selects an intersection by index when multiple intersections exist", () => {
+    const result = evaluateElements([
+      { id: "center", name: "中心", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
+      { id: "p1", name: "P1", type: "freePoint", visible: true, enabled: true, x: -20, y: -7 },
+      { id: "p2", name: "P2", type: "freePoint", visible: true, enabled: true, x: 20, y: -7 },
+      {
+        id: "arc",
+        name: "円弧",
+        type: "arcLine",
+        visible: true,
+        enabled: true,
+        centerPoint: { mode: "reference", pointId: "center" },
+        radius: 10,
+        startAngleDeg: 0,
+        endAngleDeg: 180
+      },
+      {
+        id: "line",
+        name: "水平線",
+        type: "line",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "p1" },
+        endPoint: { mode: "reference", pointId: "p2" }
+      },
+      {
+        id: "intersection",
+        name: "交点",
+        type: "intersectionPoint",
+        visible: true,
+        enabled: true,
+        line1Id: "arc",
+        line2Id: "line",
+        intersectionIndex: 1,
+        useExtensions: false
+      }
+    ]);
+
+    const point = result.computedGeometry.get("intersection");
+    expect(result.errors).toHaveLength(0);
+    if (point?.kind !== "point") throw new Error("Expected a point");
+    expect(point.x).toBeCloseTo(-Math.sqrt(51), 0);
+    expect(point.y).toBeCloseTo(-7, 1);
+  });
+
+  it("reports intersection point dependency and geometry errors", () => {
+    const missing = evaluateElements([
+      {
+        id: "intersection",
+        name: "交点",
+        type: "intersectionPoint",
+        visible: true,
+        enabled: true,
+        line1Id: "ab",
+        line2Id: "missing",
+        intersectionIndex: 0,
+        useExtensions: false
+      },
+      ...validElements
+    ]);
+    const sameLine = evaluateElements([
+      ...validElements,
+      {
+        id: "intersection",
+        name: "交点",
+        type: "intersectionPoint",
+        visible: true,
+        enabled: true,
+        line1Id: "ab",
+        line2Id: "ab",
+        intersectionIndex: 0,
+        useExtensions: false
+      }
+    ]);
+    const invalidIndex = evaluateElements([
+      ...validElements,
+      { id: "c", name: "C", type: "freePoint", visible: true, enabled: true, x: 10, y: 25 },
+      { id: "d", name: "D", type: "freePoint", visible: true, enabled: true, x: 40, y: 20 },
+      {
+        id: "cd",
+        name: "CD",
+        type: "line",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "c" },
+        endPoint: { mode: "reference", pointId: "d" }
+      },
+      {
+        id: "intersection",
+        name: "交点",
+        type: "intersectionPoint",
+        visible: true,
+        enabled: true,
+        line1Id: "ab",
+        line2Id: "cd",
+        intersectionIndex: 0.5,
+        useExtensions: false
+      }
+    ]);
+
+    expect(missing.errors[0]).toMatchObject({
+      elementId: "intersection",
+      missingDependencyId: "ab",
+      missingDependencyName: "直線AB"
+    });
+    expect(sameLine.errors[0].message).toContain("同じ線");
+    expect(invalidIndex.errors[0].message).toContain("0以上の整数");
+  });
+
   it("evaluates numeric expressions that reference earlier line measurements", () => {
     const result = evaluateElements([
       ...validElements,

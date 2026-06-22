@@ -43,6 +43,7 @@ import {
   BooleanParameterEditor,
   ChoiceParameterEditor,
   LineEndpointReferenceEditor,
+  LineReferenceEditor,
   LineReferenceListEditor,
   NumericParameterEditor,
   ParameterName,
@@ -170,6 +171,11 @@ const ElementEditor = ({
     label: string;
     endpoint: LineEndpointReference;
   }) => <LineEndpointReferenceEditor {...commonEditorProps} {...props} />;
+  const lineReferenceEditor = (props: {
+    parameterKey: ParameterKey;
+    label: string;
+    lineId: ElementId;
+  }) => <LineReferenceEditor {...commonEditorProps} {...props} />;
 
   return (
     <section className="panel-section">
@@ -405,6 +411,33 @@ const ElementEditor = ({
                   value: element.ratio,
                   ariaLabel: "割合"
                 })}
+          </>
+        )}
+
+        {element.type === "intersectionPoint" && (
+          <>
+            {lineReferenceEditor({
+              parameterKey: "line1Id",
+              label: "線1",
+              lineId: element.line1Id
+            })}
+            {lineReferenceEditor({
+              parameterKey: "line2Id",
+              label: "線2",
+              lineId: element.line2Id
+            })}
+            {numericInput({
+              parameterKey: "intersectionIndex",
+              label: "番号",
+              value: element.intersectionIndex,
+              ariaLabel: "交点番号"
+            })}
+            <BooleanParameterEditor
+              {...elementEditorProps}
+              parameterKey="useExtensions"
+              label="延長線上の交点を使う"
+              checked={element.useExtensions}
+            />
           </>
         )}
 
