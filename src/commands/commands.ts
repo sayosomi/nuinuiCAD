@@ -22,6 +22,13 @@ import {
 } from "../model/elementDragTransforms";
 import { createCadElement } from "../model/elementFactory";
 import {
+  descendantIdsForGroup,
+  isGroupElement,
+  nearestPreviousGroup,
+  subtreeIdsForElement,
+  visibleOutlineElements
+} from "../model/groups";
+import {
   findParameterByDirectKey,
   findParameterDefinition,
   getFirstParameterKey,
@@ -68,6 +75,12 @@ export type CommandId =
   | "moveSelectedElementUp"
   | "moveSelectedElementDown"
   | "moveElementToInsertionIndex"
+  | "groupSelectedElements"
+  | "ungroupSelectedGroup"
+  | "toggleGroupExpanded"
+  | "indentSelectedElements"
+  | "outdentSelectedElements"
+  | "selectParentGroup"
   | "movePointElementByDelta"
   | "moveBezierHandleByDelta"
   | "applyNumericExpressionReference"
@@ -1196,7 +1209,7 @@ const updateDependencyJumpModeAfterSelectionChange = () => {
 
 const selectElementByOffset = (offset: number) => {
   const { elements, selectedElementId } = useCadStore.getState();
-  const nextElementId = elementIdByOffset(elements, selectedElementId, offset);
+  const nextElementId = elementIdByOffset(visibleOutlineElements(elements), selectedElementId, offset);
   if (!nextElementId) return;
 
   useCadStore.getState().setSelectedElementId(nextElementId);
@@ -1205,7 +1218,8 @@ const selectElementByOffset = (offset: number) => {
 
 const extendSelectionByOffset = (offset: number) => {
   const { elements, selectedElementId, selectionAnchorElementId } = useCadStore.getState();
-  const nextElementId = elementIdByOffset(elements, selectedElementId, offset);
+  const visibleElements = visibleOutlineElements(elements);
+  const nextElementId = elementIdByOffset(visibleElements, selectedElementId, offset);
   if (!nextElementId) return;
 
   const anchorId = selectionAnchorElementId ?? selectedElementId ?? elements[0]?.id ?? nextElementId;
@@ -1241,9 +1255,10 @@ const selectElement = (elementId: ElementId, selectionMode: CommandContext["sele
 
 const moveElementsToInsertionIndex = (elementIds: ElementId[], insertionIndex: number) => {
   const { elements, selectedElementId, selectionAnchorElementId } = useCadStore.getState();
+  const expandedElementIds = elementIds.flatMap((id) => subtreeIdsForElement(elements, id));
   const change = moveDocumentElementsToInsertionIndex({
     elements,
-    elementIds,
+    elementIds: expandedElementIds,
     insertionIndex,
     selectedElementId,
     selectionAnchorElementId
@@ -1259,6 +1274,159 @@ const moveElementToInsertionIndex = (elementId: ElementId, insertionIndex: numbe
   if (selectedElementIds.includes(elementId) || elements.some((element) => element.id === elementId)) {
     moveElementsToInsertionIndex(elementIds, insertionIndex);
   }
+};
+
+const hasSelectedAncestor = (
+  element: CadElement,
+  elementsById: Map<ElementId, CadElement>,
+  selectedIds: Set<ElementId>
+) => {
+  let parentId = element.parentGroupId;
+  while (parentId) {
+    if (selectedIds.has(parentId)) return true;
+    parentId = elementsById.get(parentId)?.parentGroupId;
+  }
+  return false;
+};
+
+const groupSelectedElements = () => {
+  const { elements, selectedElementId, selectedElementIds } = useCadStore.getState();
+  const selectedIds = new Set(getSelectedElementIds());
+  if (selectedIds.size === 0) return;
+
+  const elementsById = new Map(elements.map((element) => [element.id, element]));
+  const selectedTopLevelElements = elements.filter(
+    (element) => selectedIds.has(element.id) && !hasSelectedAncestor(element, elementsById, selectedIds)
+  );
+  if (selectedTopLevelElements.length === 0) return;
+
+  const firstIndex = elements.findIndex((element) => element.id === selectedTopLevelElements[0].id);
+  const parentGroupId = selectedTopLevelElements[0].parentGroupId;
+  if (selectedTopLevelElements.some((element) => element.parentGroupId !== parentGroupId)) return;
+
+  const group = {
+    ...createCadElement("group", elements),
+    parentGroupId
+  };
+  const selectedTopLevelIds = new Set(selectedTopLevelElements.map((element) => element.id));
+  const nextElements = [
+    ...elements.slice(0, firstIndex),
+    group,
+    ...elements.slice(firstIndex).map((element) =>
+      selectedTopLevelIds.has(element.id)
+        ? { ...element, parentGroupId: group.id }
+        : element
+    )
+  ];
+
+  useCadStore.getState().commitDocumentChange({
+    elements: nextElements,
+    selectedElementId: selectedElementId && selectedElementIds.includes(selectedElementId)
+      ? selectedElementId
+      : group.id,
+    selectedElementIds: selectedTopLevelElements.map((element) => element.id),
+    selectionAnchorElementId: selectedTopLevelElements[0].id
+  });
+};
+
+const ungroupSelectedGroup = () => {
+  const selectedElement = getSelectedElement();
+  if (!selectedElement || !isGroupElement(selectedElement)) return;
+
+  const { elements } = useCadStore.getState();
+  const childIds = new Set(descendantIdsForGroup(elements, selectedElement.id));
+  const directChildIds = new Set(
+    elements
+      .filter((element) => element.parentGroupId === selectedElement.id)
+      .map((element) => element.id)
+  );
+  const nextElements = elements
+    .filter((element) => element.id !== selectedElement.id)
+    .map((element) =>
+      directChildIds.has(element.id)
+        ? { ...element, parentGroupId: selectedElement.parentGroupId }
+        : element
+    );
+  const nextSelectedIds = [...childIds].filter((id) =>
+    nextElements.some((element) => element.id === id)
+  );
+
+  useCadStore.getState().commitDocumentChange({
+    elements: nextElements,
+    selectedElementId: nextSelectedIds[0] ?? null,
+    selectedElementIds: nextSelectedIds,
+    selectionAnchorElementId: nextSelectedIds[0] ?? null
+  });
+};
+
+const toggleGroupExpanded = (elementId?: ElementId) => {
+  const { elements, selectedElementId } = useCadStore.getState();
+  const targetId = elementId ?? selectedElementId ?? undefined;
+  const target = targetId ? elements.find((element) => element.id === targetId) : null;
+  if (!target || !isGroupElement(target)) return;
+  const expanded = target.expanded;
+
+  useCadStore.getState().commitDocumentChange({
+    elements: elements.map((element) =>
+      element.id === target.id ? { ...element, expanded: !expanded } : element
+    )
+  });
+};
+
+const indentSelectedElements = () => {
+  const { elements } = useCadStore.getState();
+  const selectedIds = new Set(getSelectedElementIds());
+  if (selectedIds.size === 0) return;
+
+  const elementsById = new Map(elements.map((element) => [element.id, element]));
+  const selectedTopLevel = elements.filter(
+    (element) => selectedIds.has(element.id) && !hasSelectedAncestor(element, elementsById, selectedIds)
+  );
+  if (selectedTopLevel.length === 0) return;
+
+  const targetGroup = nearestPreviousGroup(elements, selectedTopLevel[0].id);
+  if (!targetGroup) return;
+  const selectedTopLevelIds = new Set(selectedTopLevel.map((element) => element.id));
+
+  useCadStore.getState().commitDocumentChange({
+    elements: elements.map((element) =>
+      selectedTopLevelIds.has(element.id) ? { ...element, parentGroupId: targetGroup.id } : element
+    )
+  });
+};
+
+const outdentSelectedElements = () => {
+  const { elements } = useCadStore.getState();
+  const selectedIds = new Set(getSelectedElementIds());
+  if (selectedIds.size === 0) return;
+
+  const elementsById = new Map(elements.map((element) => [element.id, element]));
+  const selectedTopLevel = elements.filter(
+    (element) => selectedIds.has(element.id) && !hasSelectedAncestor(element, elementsById, selectedIds)
+  );
+  if (selectedTopLevel.length === 0) return;
+
+  const firstParentId = selectedTopLevel[0].parentGroupId;
+  const firstParent = firstParentId ? elementsById.get(firstParentId) : null;
+  if (!firstParent || !isGroupElement(firstParent)) return;
+  const selectedTopLevelIds = new Set(selectedTopLevel.map((element) => element.id));
+
+  useCadStore.getState().commitDocumentChange({
+    elements: elements.map((element) =>
+      selectedTopLevelIds.has(element.id)
+        ? { ...element, parentGroupId: firstParent.parentGroupId }
+        : element.id === firstParent.id && isGroupElement(element) && !element.expanded
+          ? { ...element, expanded: true }
+          : element
+    ),
+    selectionAnchorElementId: selectedTopLevel[0].id
+  });
+};
+
+const selectParentGroup = () => {
+  const selected = getSelectedElement();
+  if (!selected?.parentGroupId) return;
+  selectElement(selected.parentGroupId);
 };
 
 const selectDependencyJumpTargetByOffset = (offset: number) => {
@@ -1352,7 +1520,8 @@ export const commands: Record<CommandId, Command> = {
     run: () => {
       const { elements } = useCadStore.getState();
       const selectedIds = getSelectedElementIds();
-      const indexes = selectedIndexes(elements, selectedIds);
+      const movingIds = selectedIds.flatMap((id) => subtreeIdsForElement(elements, id));
+      const indexes = selectedIndexes(elements, movingIds);
       if (indexes.length === 0 || indexes[0] <= 0) return;
       moveElementsToInsertionIndex(selectedIds, indexes[0] - 1);
     }
@@ -1363,7 +1532,8 @@ export const commands: Record<CommandId, Command> = {
     run: () => {
       const { elements } = useCadStore.getState();
       const selectedIds = getSelectedElementIds();
-      const indexes = selectedIndexes(elements, selectedIds);
+      const movingIds = selectedIds.flatMap((id) => subtreeIdsForElement(elements, id));
+      const indexes = selectedIndexes(elements, movingIds);
       const lastIndex = indexes.at(-1) ?? -1;
       if (indexes.length === 0 || lastIndex >= elements.length - 1) return;
       moveElementsToInsertionIndex(selectedIds, lastIndex + 2);
@@ -1376,6 +1546,36 @@ export const commands: Record<CommandId, Command> = {
       if (!context?.elementId || context.insertionIndex === undefined) return;
       moveElementToInsertionIndex(context.elementId, context.insertionIndex);
     }
+  },
+  groupSelectedElements: {
+    id: "groupSelectedElements",
+    label: "選択要素をグループ化",
+    run: () => groupSelectedElements()
+  },
+  ungroupSelectedGroup: {
+    id: "ungroupSelectedGroup",
+    label: "選択グループを解除",
+    run: () => ungroupSelectedGroup()
+  },
+  toggleGroupExpanded: {
+    id: "toggleGroupExpanded",
+    label: "グループを開閉",
+    run: (context) => toggleGroupExpanded(context?.elementId)
+  },
+  indentSelectedElements: {
+    id: "indentSelectedElements",
+    label: "選択要素をインデント",
+    run: () => indentSelectedElements()
+  },
+  outdentSelectedElements: {
+    id: "outdentSelectedElements",
+    label: "選択要素をアウトデント",
+    run: () => outdentSelectedElements()
+  },
+  selectParentGroup: {
+    id: "selectParentGroup",
+    label: "親グループを選択",
+    run: () => selectParentGroup()
   },
   movePointElementByDelta: {
     id: "movePointElementByDelta",
@@ -1493,7 +1693,9 @@ export const commands: Record<CommandId, Command> = {
     label: "選択要素を削除",
     run: () => {
       const { elements } = useCadStore.getState();
-      const selectedIds = new Set(getSelectedElementIds());
+      const selectedIds = new Set(
+        getSelectedElementIds().flatMap((id) => subtreeIdsForElement(elements, id))
+      );
       const indexes = selectedIndexes(elements, [...selectedIds]);
       if (indexes.length === 0) return;
       const index = indexes[0];
@@ -1871,6 +2073,12 @@ const paletteCommandIds: CommandId[] = [
   "selectPreviousElement",
   "moveSelectedElementUp",
   "moveSelectedElementDown",
+  "groupSelectedElements",
+  "ungroupSelectedGroup",
+  "toggleGroupExpanded",
+  "indentSelectedElements",
+  "outdentSelectedElements",
+  "selectParentGroup",
   "toggleSelectedElementVisibility",
   "toggleSelectedElementEnabled",
   "deleteSelectedElement",
@@ -1925,6 +2133,12 @@ const paletteKeywords: Partial<Record<CommandId, string[]>> = {
   selectPreviousElement: ["select", "previous", "前", "要素"],
   moveSelectedElementUp: ["move", "up", "上", "並べ替え"],
   moveSelectedElementDown: ["move", "down", "下", "並べ替え"],
+  groupSelectedElements: ["group", "folder", "グループ", "まとめる"],
+  ungroupSelectedGroup: ["ungroup", "group", "解除", "グループ"],
+  toggleGroupExpanded: ["group", "expand", "collapse", "開閉", "折り畳み"],
+  indentSelectedElements: ["indent", "group", "入れ子", "インデント"],
+  outdentSelectedElements: ["outdent", "group", "解除", "アウトデント"],
+  selectParentGroup: ["parent", "group", "親", "グループ"],
   toggleSelectedElementVisibility: ["visibility", "visible", "hide", "show", "表示", "非表示"],
   toggleSelectedElementEnabled: ["enabled", "active", "evaluate", "評価", "有効", "無効"],
   deleteSelectedElement: ["delete", "remove", "削除"],

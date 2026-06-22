@@ -1,7 +1,16 @@
 import { useEffect, useRef, useState } from "react";
-import type { DragEvent, MouseEvent, RefObject } from "react";
+import type { CSSProperties, DragEvent, MouseEvent, RefObject } from "react";
 import { dispatchCommand } from "../commands/commands";
 import { getDependencyJumpTargets, getDependencySummary } from "../model/dependencies";
+import {
+  descendantIdsForGroup,
+  effectiveEnabledElementIds,
+  effectiveVisibleElementIds,
+  groupStateByElementId,
+  isGroupElement,
+  subtreeIdsForElement,
+  visibleOutlineElements
+} from "../model/groups";
 import {
   isPointElement,
   lineEndpointReferenceForAnchor,
@@ -227,6 +236,15 @@ const ElementEditor = ({
           label="評価する"
           checked={element.enabled}
         />
+
+        {element.type === "group" && (
+          <BooleanParameterEditor
+            {...elementEditorProps}
+            parameterKey="expanded"
+            label="展開する"
+            checked={element.expanded}
+          />
+        )}
 
         {supportsNumericVariables(element) && (
           <div className="curve-point-editor">
@@ -836,6 +854,23 @@ export const LeftPanel = ({
   const warningElementIds = new Set(evaluation.warnings.map((warning) => warning.elementId));
   const selectedElementIdSet = new Set(selectedElementIds);
   const elementsById = new Map(elements.map((element) => [element.id, element]));
+  const outlineElements = visibleOutlineElements(elements);
+  const groupStates = groupStateByElementId(elements);
+  const effectiveVisibleIds = evaluation.effectiveVisibleElementIds ?? effectiveVisibleElementIds(elements);
+  const effectiveEnabledIds = evaluation.effectiveEnabledElementIds ?? effectiveEnabledElementIds(elements);
+  const descendantIdsByGroupId = new Map(
+    elements
+      .filter(isGroupElement)
+      .map((element) => [element.id, descendantIdsForGroup(elements, element.id)])
+  );
+  const groupIssueCounts = (elementId: ElementId) => {
+    const descendantIds = descendantIdsByGroupId.get(elementId) ?? [];
+    return {
+      childCount: descendantIds.length,
+      errorCount: descendantIds.filter((id) => errorElementIds.has(id)).length,
+      warningCount: descendantIds.filter((id) => warningElementIds.has(id)).length
+    };
+  };
   const activePointPickTargetElement = activePointPickTarget
     ? elements.find((element) => element.id === activePointPickTarget.elementId)
     : null;
@@ -884,8 +919,9 @@ export const LeftPanel = ({
     setDropTarget(null);
   };
   const isNoopDrop = (elementIds: ElementId[], insertionIndex: number) => {
+    const movingIds = elementIds.flatMap((id) => subtreeIdsForElement(elements, id));
     const indexes = elements
-      .map((element, index) => (elementIds.includes(element.id) ? index : -1))
+      .map((element, index) => (movingIds.includes(element.id) ? index : -1))
       .filter((index) => index >= 0);
     if (indexes.length === 0) return true;
     const minIndex = indexes[0];
@@ -899,9 +935,16 @@ export const LeftPanel = ({
     const id = event.dataTransfer.getData("application/x-nuinui-element-id");
     return id ? [id] : [];
   };
-  const rowInsertionIndex = (event: DragEvent<HTMLElement>, rowIndex: number) => {
+  const rowInsertionIndex = (event: DragEvent<HTMLElement>, element: CadElement, rowIndex: number) => {
     const rect = event.currentTarget.getBoundingClientRect();
     const isAfter = event.clientY >= rect.top + rect.height / 2;
+    if (isAfter && isGroupElement(element)) {
+      const subtreeIds = subtreeIdsForElement(elements, element.id);
+      const indexes = elements
+        .map((item, index) => (subtreeIds.includes(item.id) ? index : -1))
+        .filter((index) => index >= 0);
+      return (indexes.at(-1) ?? rowIndex) + 1;
+    }
     return rowIndex + (isAfter ? 1 : 0);
   };
   const updateDropTarget = (event: DragEvent<HTMLElement>, element: CadElement, rowIndex: number) => {
@@ -911,7 +954,7 @@ export const LeftPanel = ({
       return;
     }
 
-    const insertionIndex = rowInsertionIndex(event, rowIndex);
+    const insertionIndex = rowInsertionIndex(event, element, rowIndex);
     if (isNoopDrop(elementIds, insertionIndex)) {
       setDropTarget(null);
       return;
@@ -1004,7 +1047,17 @@ export const LeftPanel = ({
           data-element-list="true"
           aria-label="要素リスト"
         >
-          {elements.map((element, index) => {
+          {outlineElements.map((element) => {
+            const index = elements.findIndex((item) => item.id === element.id);
+            const groupState = groupStates.get(element.id);
+            const depth = groupState?.depth ?? 0;
+            const hiddenByGroup = Boolean(groupState?.hiddenByGroupId);
+            const disabledByGroup = Boolean(groupState?.disabledByGroupId);
+            const isEffectivelyVisible = effectiveVisibleIds.has(element.id);
+            const isEffectivelyEnabled = effectiveEnabledIds.has(element.id);
+            const groupIssues = isGroupElement(element) ? groupIssueCounts(element.id) : null;
+            const hasError = errorElementIds.has(element.id) || Boolean(groupIssues?.errorCount);
+            const hasWarning = warningElementIds.has(element.id) || Boolean(groupIssues?.warningCount);
             const rawSelectablePoints = selectablePointsForElement(
               element,
               evaluation.computedGeometry,
@@ -1044,12 +1097,18 @@ export const LeftPanel = ({
               aria-selected={selectedPickOptionIndex >= 0}
               className={`element-row ${selectedElementIdSet.has(element.id) ? "selected" : ""} ${
                 element.id === selectedElementId ? "primary-selected" : ""
-              } ${!element.visible ? "is-hidden" : ""} ${
-                !element.enabled ? "is-disabled" : ""
+              } ${!isEffectivelyVisible ? "is-hidden" : ""} ${
+                !isEffectivelyEnabled ? "is-disabled" : ""
               } ${
-                errorElementIds.has(element.id) ? "has-error" : ""
+                hasError ? "has-error" : ""
               } ${
-                warningElementIds.has(element.id) ? "has-warning" : ""
+                hasWarning ? "has-warning" : ""
+              } ${
+                isGroupElement(element) ? "is-group" : ""
+              } ${
+                hiddenByGroup ? "is-hidden-by-group" : ""
+              } ${
+                disabledByGroup ? "is-disabled-by-group" : ""
               } ${activePointPickTarget ? "is-point-pick-mode" : ""} ${
                 isPointPickCandidate ? "is-point-pick-candidate" : ""
               } ${
@@ -1075,8 +1134,8 @@ export const LeftPanel = ({
                 "before"
               )}${dropMarkerClass(element.id, index + 1, "after")}`}
               aria-label={`${index + 1}. ${element.name}, ${elementTypeLabels[element.type]}, ${
-                element.visible ? "表示" : "非表示"
-              }, ${element.enabled ? "評価する" : "評価しない"}`}
+                isEffectivelyVisible ? "表示" : "非表示"
+              }, ${isEffectivelyEnabled ? "評価する" : "評価しない"}`}
               onClick={(event) => selectElement(element.id, event)}
               onDragOver={(event) => updateDropTarget(event, element, index)}
               onDragLeave={(event) => {
@@ -1089,7 +1148,7 @@ export const LeftPanel = ({
                 const insertionIndex =
                   dropTarget?.elementId === element.id
                     ? dropTarget.insertionIndex
-                    : rowInsertionIndex(event, index);
+                    : rowInsertionIndex(event, element, index);
                 event.preventDefault();
                 if (elementIds.length > 0 && !isNoopDrop(elementIds, insertionIndex)) {
                   dispatchCommand("moveElementToInsertionIndex", {
@@ -1100,6 +1159,26 @@ export const LeftPanel = ({
                 clearElementDrag();
               }}
             >
+              <span
+                className="element-outline-indent"
+                style={{ "--outline-depth": depth } as CSSProperties}
+                aria-hidden="true"
+              />
+              {isGroupElement(element) ? (
+                <button
+                  type="button"
+                  className="element-expand-button"
+                  aria-label={`${element.name}を${element.expanded ? "折り畳む" : "展開"} `}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    dispatchCommand("toggleGroupExpanded", { elementId: element.id });
+                  }}
+                >
+                  {element.expanded ? "▾" : "▸"}
+                </button>
+              ) : (
+                <span className="element-expand-spacer" aria-hidden="true" />
+              )}
               <span className="element-index">{index + 1}</span>
               <span
                 className="element-status-icons"
@@ -1130,10 +1209,20 @@ export const LeftPanel = ({
                 </button>
               </span>
               <span className="element-name">
-                {errorElementIds.has(element.id) || warningElementIds.has(element.id) ? "⚠ " : ""}
+                {hasError || hasWarning ? "⚠ " : ""}
                 {element.name}
+                {hiddenByGroup ? <small className="group-mask-label">親で非表示</small> : null}
+                {disabledByGroup ? <small className="group-mask-label">親で評価OFF</small> : null}
               </span>
-              <span className="element-type">{elementTypeLabels[element.type]}</span>
+              <span className="element-type">
+                {isGroupElement(element) && groupIssues
+                  ? `配下${groupIssues.childCount}件${
+                      groupIssues.errorCount > 0 ? ` / エラー${groupIssues.errorCount}` : ""
+                    }${
+                      groupIssues.warningCount > 0 ? ` / 警告${groupIssues.warningCount}` : ""
+                    }`
+                  : elementTypeLabels[element.type]}
+              </span>
               <button
                 type="button"
                 className="element-drag-handle"

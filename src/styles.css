@@ -157,7 +157,7 @@ select {
 .element-row {
   position: relative;
   display: grid;
-  grid-template-columns: max-content 40px minmax(0, 1fr) minmax(0, auto) 24px;
+  grid-template-columns: max-content 18px max-content 40px minmax(0, 1fr) minmax(0, auto) 24px;
   align-items: center;
   column-gap: 4px;
   width: 100%;
@@ -170,6 +170,51 @@ select {
   cursor: pointer;
   padding: 7px 10px;
   text-align: left;
+}
+
+.element-row.is-group {
+  background: #f8faf7;
+  font-weight: 600;
+}
+
+.element-row.is-group.selected {
+  background: #e3f2ee;
+}
+
+.element-outline-indent {
+  display: block;
+  width: calc(var(--outline-depth, 0) * 14px);
+  height: 100%;
+  min-height: 24px;
+  border-left: calc(min(var(--outline-depth, 0), 1) * 1px) solid #d7dbd1;
+}
+
+.element-expand-button,
+.element-expand-spacer {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 24px;
+}
+
+.element-expand-button {
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #4f5750;
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  padding: 0;
+}
+
+.element-expand-button:hover {
+  background: rgb(81 94 87 / 0.12);
+}
+
+.element-row.is-hidden-by-group,
+.element-row.is-disabled-by-group {
+  opacity: 0.68;
 }
 
 .element-row:hover {
@@ -426,6 +471,14 @@ select {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.group-mask-label {
+  display: inline-block;
+  margin-left: 6px;
+  color: #7a8177;
+  font-size: 11px;
+  font-weight: 500;
 }
 
 .element-point-pick-actions,

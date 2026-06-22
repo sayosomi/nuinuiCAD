@@ -2,6 +2,7 @@ import { elementTypeLabels } from "../types/geometry";
 import type { CadElement, CadElementType, ElementId } from "../types/geometry";
 
 const defaultNameBases: Record<CadElementType, string> = {
+  group: "グループ",
   freePoint: "点",
   offsetPoint: "オフセット点",
   polarOffsetPoint: "角度距離点",

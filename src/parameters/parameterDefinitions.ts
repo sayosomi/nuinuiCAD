@@ -66,6 +66,11 @@ const pointAnchorParameters = ({
 
 export const getParameterDefinitions = (element: CadElement): ParameterDefinition[] => {
   switch (element.type) {
+    case "group":
+      return [
+        ...commonParameters,
+        { key: "expanded", directKey: "x", label: "展開", kind: "boolean" }
+      ];
     case "freePoint":
       return [
         ...commonParameters,

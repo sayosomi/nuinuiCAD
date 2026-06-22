@@ -85,6 +85,20 @@ export const modeInvariantShortcutDefinitions: ShortcutDefinition[] = [
 
 export const shortcutDefinitions: ShortcutDefinition[] = [
   {
+    commandId: "groupSelectedElements",
+    label: "選択要素をグループ化",
+    keys: "Mod+G",
+    matches: (event) =>
+      event.key.toLowerCase() === "g" && isMod(event) && !event.altKey && !event.shiftKey
+  },
+  {
+    commandId: "ungroupSelectedGroup",
+    label: "選択グループを解除",
+    keys: "Mod+Shift+G",
+    matches: (event) =>
+      event.key.toLowerCase() === "g" && isMod(event) && !event.altKey && event.shiftKey
+  },
+  {
     commandId: "moveSelectedElementUp",
     label: "選択要素を上へ移動",
     keys: "Mod+ArrowUp / Alt+ArrowUp",
@@ -125,6 +139,30 @@ export const shortcutDefinitions: ShortcutDefinition[] = [
     label: "次の要素まで選択",
     keys: "Shift+ArrowDown",
     matches: (event) => event.key === "ArrowDown" && shiftOnly(event)
+  },
+  {
+    commandId: "toggleGroupExpanded",
+    label: "グループを開閉",
+    keys: "ArrowRight",
+    matches: (event) => event.key === "ArrowRight" && noModifier(event)
+  },
+  {
+    commandId: "selectParentGroup",
+    label: "親グループを選択",
+    keys: "ArrowLeft",
+    matches: (event) => event.key === "ArrowLeft" && noModifier(event)
+  },
+  {
+    commandId: "outdentSelectedElements",
+    label: "選択要素をアウトデント",
+    keys: "[",
+    matches: (event) => event.key === "[" && noModifier(event) && isElementListTarget(event)
+  },
+  {
+    commandId: "indentSelectedElements",
+    label: "選択要素をインデント",
+    keys: "]",
+    matches: (event) => event.key === "]" && noModifier(event) && isElementListTarget(event)
   },
   {
     commandId: "deleteSelectedElement",

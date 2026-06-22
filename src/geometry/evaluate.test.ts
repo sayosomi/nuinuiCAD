@@ -44,6 +44,56 @@ describe("evaluateElements", () => {
     expect(result.computedGeometry.get("ab")).toMatchObject({ kind: "line" });
   });
 
+  it("keeps child visibility settings while applying parent visibility as a drawing mask", () => {
+    const result = evaluateElements([
+      {
+        id: "group",
+        name: "前身頃",
+        type: "group",
+        visible: false,
+        enabled: true,
+        expanded: true
+      },
+      { ...validElements[0], parentGroupId: "group", visible: true }
+    ]);
+
+    expect(result.errors).toHaveLength(0);
+    expect(result.computedGeometry.has("a")).toBe(true);
+    expect(result.effectiveVisibleElementIds?.has("a")).toBe(false);
+  });
+
+  it("reports references to geometry disabled by a parent group", () => {
+    const result = evaluateElements([
+      {
+        id: "group",
+        name: "前身頃",
+        type: "group",
+        visible: true,
+        enabled: false,
+        expanded: true
+      },
+      { ...validElements[0], parentGroupId: "group", enabled: true },
+      {
+        id: "line",
+        name: "参照線",
+        type: "line",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "a" },
+        endPoint: { mode: "coordinate", x: 10, y: 10 }
+      }
+    ]);
+
+    expect(result.computedGeometry.has("a")).toBe(false);
+    expect(result.errors[0]).toMatchObject({
+      elementId: "line",
+      missingDependencyId: "a",
+      missingDependencyName: "点A"
+    });
+    expect(result.errors[0].message).toContain("前身頃");
+    expect(result.errors[0].message).toContain("評価OFF");
+  });
+
   it("evaluates line anchors from direct coordinate expressions", () => {
     const result = evaluateElements([
       validElements[0],

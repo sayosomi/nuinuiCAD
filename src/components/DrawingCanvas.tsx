@@ -11,6 +11,7 @@ import {
   lineEndpointReferenceForAnchor,
   selectablePointsForGeometry
 } from "../model/pointAnchors";
+import { effectiveVisibleElementIds } from "../model/groups";
 import { findParameterDefinition } from "../parameters/parameterDefinitions";
 import type { ParameterKey } from "../parameters/parameterDefinitions";
 import { useCadStore } from "../state/useCadStore";
@@ -218,8 +219,8 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
   const activeNumericReferencePickTarget = useCadStore((state) => state.activeNumericReferencePickTarget);
   const activeLinePickTarget = useCadStore((state) => state.activeLinePickTarget);
   const visibleElementIds = useMemo(
-    () => new Set(elements.filter((element) => element.visible).map((element) => element.id)),
-    [elements]
+    () => evaluation.effectiveVisibleElementIds ?? effectiveVisibleElementIds(elements),
+    [elements, evaluation.effectiveVisibleElementIds]
   );
   const selectedElementIdSet = useMemo(() => new Set(selectedElementIds), [selectedElementIds]);
   const geometries = useMemo(

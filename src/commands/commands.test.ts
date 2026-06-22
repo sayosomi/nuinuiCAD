@@ -173,6 +173,62 @@ describe("commands", () => {
     expect(useCadStore.getState().elements[0].id).toBe(sampleElements[0].id);
   });
 
+  it("groups selected elements and ungroups the selected group without changing child order", () => {
+    useCadStore.setState({
+      selectedElementId: sampleElements[2].id,
+      selectedElementIds: [sampleElements[1].id, sampleElements[2].id],
+      selectionAnchorElementId: sampleElements[1].id
+    });
+
+    dispatchCommand("groupSelectedElements");
+
+    const grouped = useCadStore.getState().elements;
+    const group = grouped[1];
+    expect(group).toMatchObject({ type: "group", expanded: true });
+    expect(grouped[2]).toMatchObject({ id: sampleElements[1].id, parentGroupId: group.id });
+    expect(grouped[3]).toMatchObject({ id: sampleElements[2].id, parentGroupId: group.id });
+
+    dispatchCommand("selectElement", { elementId: group.id });
+    dispatchCommand("ungroupSelectedGroup");
+
+    const ungrouped = useCadStore.getState().elements;
+    expect(ungrouped.map((element) => element.id)).toEqual(sampleElements.map((element) => element.id));
+    expect(ungrouped[1].parentGroupId).toBeUndefined();
+    expect(ungrouped[2].parentGroupId).toBeUndefined();
+  });
+
+  it("moves a selected group together with its children", () => {
+    useCadStore.setState({
+      elements: [
+        sampleElements[0],
+        {
+          id: "group-1",
+          name: "前身頃",
+          type: "group",
+          visible: true,
+          enabled: true,
+          expanded: true
+        },
+        { ...sampleElements[1], parentGroupId: "group-1" },
+        { ...sampleElements[2], parentGroupId: "group-1" },
+        sampleElements[3]
+      ],
+      selectedElementId: "group-1",
+      selectedElementIds: ["group-1"],
+      selectionAnchorElementId: "group-1"
+    });
+
+    dispatchCommand("moveSelectedElementDown");
+
+    expect(useCadStore.getState().elements.map((element) => element.id)).toEqual([
+      sampleElements[0].id,
+      sampleElements[3].id,
+      "group-1",
+      sampleElements[1].id,
+      sampleElements[2].id
+    ]);
+  });
+
   it("does not add history for no-op insertion moves", () => {
     dispatchCommand("moveElementToInsertionIndex", {
       elementId: sampleElements[0].id,

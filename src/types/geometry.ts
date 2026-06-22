@@ -5,6 +5,7 @@ export type CadElementBase = {
   name: string;
   visible: boolean;
   enabled: boolean;
+  parentGroupId?: ElementId;
   numericVariables?: NumericVariable[];
   numericParameterSteps?: Partial<Record<string, number>>;
 };
@@ -154,7 +155,13 @@ export type OffsetLineElement = CadElementBase & {
   closed: boolean;
 };
 
+export type GroupElement = CadElementBase & {
+  type: "group";
+  expanded: boolean;
+};
+
 export type CadElement =
+  | GroupElement
   | FreePointElement
   | OffsetPointElement
   | PolarOffsetPointElement
@@ -290,9 +297,12 @@ export type EvaluationResult = {
   computedGeometry: Map<ElementId, ComputedGeometry>;
   errors: DependencyError[];
   warnings: EvaluationWarning[];
+  effectiveVisibleElementIds?: Set<ElementId>;
+  effectiveEnabledElementIds?: Set<ElementId>;
 };
 
 export const elementTypeLabels: Record<CadElementType, string> = {
+  group: "グループ",
   freePoint: "free point",
   offsetPoint: "offset point",
   polarOffsetPoint: "polar offset point",

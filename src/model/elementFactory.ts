@@ -43,6 +43,18 @@ export const createCadElement = (
     });
 
   switch (type) {
+    case "group": {
+      const groupCount = elements.filter((element) => element.type === "group").length;
+      const id = createId(type);
+      return {
+        id,
+        name: uniqueName(id, `グループ${groupCount + 1}`),
+        type,
+        visible: true,
+        enabled: true,
+        expanded: true
+      };
+    }
     case "freePoint": {
       const id = createId(type);
       const requestedName = `点${points.length + 1}`;

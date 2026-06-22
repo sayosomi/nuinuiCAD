@@ -23,6 +23,12 @@ import {
   pointAnchorForElement,
   resolveDerivedPoint
 } from "../model/pointAnchors";
+import {
+  effectiveEnabledElementIds,
+  effectiveVisibleElementIds,
+  groupStateByElementId,
+  isGroupElement
+} from "../model/groups";
 
 const isPoint = (
   geometry: ComputedGeometry | undefined
@@ -36,17 +42,22 @@ const findElementName = (
 const dependencyError = (
   element: CadElement,
   missingDependencyId: ElementId,
-  elementsById: Map<ElementId, CadElement>
+  elementsById: Map<ElementId, CadElement>,
+  disabledByGroupId: Map<ElementId, ElementId> = new Map()
 ): DependencyError => {
   const missingDependencyName = findElementName(elementsById, missingDependencyId);
   const dependencyLabel = missingDependencyName ?? missingDependencyId;
+  const disabledGroupId = disabledByGroupId.get(missingDependencyId);
+  const disabledGroupName = disabledGroupId ? findElementName(elementsById, disabledGroupId) : null;
 
   return {
     elementId: element.id,
     elementName: element.name,
     missingDependencyId,
     missingDependencyName,
-    message: `${element.name} は ${dependencyLabel} を参照していますが、${dependencyLabel} はこの要素より後にあるか、存在しません。${dependencyLabel} を ${element.name} より前に移動してください。`
+    message: disabledGroupName
+      ? `${element.name} は ${dependencyLabel} を参照していますが、${dependencyLabel} はグループ ${disabledGroupName} により評価OFFです。${disabledGroupName} を評価ONにするか、参照先を変更してください。`
+      : `${element.name} は ${dependencyLabel} を参照していますが、${dependencyLabel} はこの要素より後にあるか、存在しません。${dependencyLabel} を ${element.name} より前に移動してください。`
   };
 };
 
@@ -69,11 +80,12 @@ const getComputedPointOrError = (
   pointId: ElementId,
   computedGeometry: Map<ElementId, ComputedGeometry>,
   elementsById: Map<ElementId, CadElement>,
-  errors: DependencyError[]
+  errors: DependencyError[],
+  disabledByGroupId?: Map<ElementId, ElementId>
 ) => {
   const point = computedGeometry.get(pointId);
   if (!isPoint(point)) {
-    errors.push(dependencyError(element, pointId, elementsById));
+    errors.push(dependencyError(element, pointId, elementsById, disabledByGroupId));
     return undefined;
   }
 
@@ -172,7 +184,8 @@ const numericError = (
   elementsById: Map<ElementId, CadElement>,
   errors: DependencyError[],
   localVariables?: Map<string, number>,
-  localVariableNames?: Map<string, string>
+  localVariableNames?: Map<string, string>,
+  disabledByGroupId?: Map<ElementId, ElementId>
 ) => {
   const result = evaluateNumericValue({
     value,
@@ -184,12 +197,16 @@ const numericError = (
   if (result.value !== undefined) return result.value;
 
   if (result.error) {
+    const disabledGroupId = disabledByGroupId?.get(result.error.dependencyId);
+    const disabledGroupName = disabledGroupId ? findElementName(elementsById, disabledGroupId) : null;
     errors.push({
       elementId: element.id,
       elementName: element.name,
       missingDependencyId: result.error.dependencyId,
       missingDependencyName: result.error.dependencyName,
-      message: `${element.name} の数値式を評価できません。${result.error.message}`
+      message: disabledGroupName
+        ? `${element.name} の数値式を評価できません。参照先はグループ ${disabledGroupName} により評価OFFです。${disabledGroupName} を評価ONにするか、数値式を変更してください。`
+        : `${element.name} の数値式を評価できません。${result.error.message}`
     });
   }
   return undefined;
@@ -203,7 +220,8 @@ const getPointAnchorOrError = (
   elementsById: Map<ElementId, CadElement>,
   errors: DependencyError[],
   localVariables?: Map<string, number>,
-  localVariableNames?: Map<string, string>
+  localVariableNames?: Map<string, string>,
+  disabledByGroupId?: Map<ElementId, ElementId>
 ) => {
   if (anchor.mode === "reference") {
     return getComputedPointOrError(
@@ -211,7 +229,8 @@ const getPointAnchorOrError = (
       anchor.pointId,
       computedGeometry,
       elementsById,
-      errors
+      errors,
+      disabledByGroupId
     );
   }
 
@@ -219,7 +238,7 @@ const getPointAnchorOrError = (
     const source = computedGeometry.get(anchor.elementId);
     const point = resolveDerivedPoint(source, anchor.pointKey, elementsById);
     if (!point) {
-      errors.push(dependencyError(element, anchor.elementId, elementsById));
+      errors.push(dependencyError(element, anchor.elementId, elementsById, disabledByGroupId));
       return undefined;
     }
     return {
@@ -291,9 +310,18 @@ export const evaluateElements = (elements: CadElement[]): EvaluationResult => {
   const errors: DependencyError[] = [];
   const warnings: EvaluationWarning[] = [];
   const elementsById = new Map(elements.map((element) => [element.id, element]));
+  const effectiveVisibleIds = effectiveVisibleElementIds(elements);
+  const effectiveEnabledIds = effectiveEnabledElementIds(elements);
+  const groupStates = groupStateByElementId(elements);
+  const disabledByGroupId = new Map(
+    elements.flatMap((element) => {
+      const disabledBy = groupStates.get(element.id)?.disabledByGroupId;
+      return disabledBy ? [[element.id, disabledBy] as const] : [];
+    })
+  );
 
   for (const element of elements) {
-    if (!element.enabled) {
+    if (isGroupElement(element) || !effectiveEnabledIds.has(element.id)) {
       continue;
     }
 
@@ -347,7 +375,8 @@ export const evaluateElements = (elements: CadElement[]): EvaluationResult => {
                 fromAnchor.pointId,
                 computedGeometry,
                 elementsById,
-                errors
+                errors,
+                disabledByGroupId
               )
             : getPointAnchorOrError(
                 element,
@@ -357,7 +386,8 @@ export const evaluateElements = (elements: CadElement[]): EvaluationResult => {
                 elementsById,
                 errors,
                 localVariableValues,
-                localVariableNames
+                localVariableNames,
+                disabledByGroupId
               );
         if (!resolvedFromPoint) {
           break;
@@ -401,7 +431,8 @@ export const evaluateElements = (elements: CadElement[]): EvaluationResult => {
                 fromAnchor.pointId,
                 computedGeometry,
                 elementsById,
-                errors
+                errors,
+                disabledByGroupId
               )
             : getPointAnchorOrError(
                 element,
@@ -411,7 +442,8 @@ export const evaluateElements = (elements: CadElement[]): EvaluationResult => {
                 elementsById,
                 errors,
                 localVariableValues,
-                localVariableNames
+                localVariableNames,
+                disabledByGroupId
               );
         if (!resolvedFromPoint) {
           break;
@@ -424,7 +456,8 @@ export const evaluateElements = (elements: CadElement[]): EvaluationResult => {
           elementsById,
           errors,
           localVariableValues,
-          localVariableNames
+          localVariableNames,
+          disabledByGroupId
         );
         const distance = numericError(
           element,
@@ -433,7 +466,8 @@ export const evaluateElements = (elements: CadElement[]): EvaluationResult => {
           elementsById,
           errors,
           localVariableValues,
-          localVariableNames
+          localVariableNames,
+          disabledByGroupId
         );
         if (angleDeg === undefined || distance === undefined) break;
 
@@ -456,7 +490,8 @@ export const evaluateElements = (elements: CadElement[]): EvaluationResult => {
           elementsById,
           errors,
           localVariableValues,
-          localVariableNames
+          localVariableNames,
+          disabledByGroupId
         );
         const end = getPointAnchorOrError(
           element,
@@ -466,7 +501,8 @@ export const evaluateElements = (elements: CadElement[]): EvaluationResult => {
           elementsById,
           errors,
           localVariableValues,
-          localVariableNames
+          localVariableNames,
+          disabledByGroupId
         );
         if (!start || !end) {
           break;
@@ -515,7 +551,8 @@ export const evaluateElements = (elements: CadElement[]): EvaluationResult => {
           elementsById,
           errors,
           localVariableValues,
-          localVariableNames
+          localVariableNames,
+          disabledByGroupId
         );
         if (ratio === undefined) break;
 
@@ -531,7 +568,7 @@ export const evaluateElements = (elements: CadElement[]): EvaluationResult => {
       case "lineDivisionPoint": {
         const geometry = computedGeometry.get(element.endpoint.lineId);
         if (!isLineLikeGeometry(geometry)) {
-          errors.push(dependencyError(element, element.endpoint.lineId, elementsById));
+          errors.push(dependencyError(element, element.endpoint.lineId, elementsById, disabledByGroupId));
           break;
         }
 
@@ -599,11 +636,11 @@ export const evaluateElements = (elements: CadElement[]): EvaluationResult => {
         const line1 = computedGeometry.get(element.line1Id);
         const line2 = computedGeometry.get(element.line2Id);
         if (!isLineLikeGeometry(line1)) {
-          errors.push(dependencyError(element, element.line1Id, elementsById));
+          errors.push(dependencyError(element, element.line1Id, elementsById, disabledByGroupId));
           break;
         }
         if (!isLineLikeGeometry(line2)) {
-          errors.push(dependencyError(element, element.line2Id, elementsById));
+          errors.push(dependencyError(element, element.line2Id, elementsById, disabledByGroupId));
           break;
         }
 
@@ -614,7 +651,8 @@ export const evaluateElements = (elements: CadElement[]): EvaluationResult => {
           elementsById,
           errors,
           localVariableValues,
-          localVariableNames
+          localVariableNames,
+          disabledByGroupId
         );
         if (intersectionIndex === undefined) break;
         if (!Number.isInteger(intersectionIndex) || intersectionIndex < 0) {
@@ -656,7 +694,7 @@ export const evaluateElements = (elements: CadElement[]): EvaluationResult => {
       case "lineTangentOffsetPoint": {
         const baseLine = computedGeometry.get(element.baseLineId);
         if (!isLineLikeGeometry(baseLine)) {
-          errors.push(dependencyError(element, element.baseLineId, elementsById));
+          errors.push(dependencyError(element, element.baseLineId, elementsById, disabledByGroupId));
           break;
         }
 
@@ -668,7 +706,8 @@ export const evaluateElements = (elements: CadElement[]): EvaluationResult => {
           elementsById,
           errors,
           localVariableValues,
-          localVariableNames
+          localVariableNames,
+          disabledByGroupId
         );
         if (!basePoint) break;
 
@@ -690,7 +729,8 @@ export const evaluateElements = (elements: CadElement[]): EvaluationResult => {
           elementsById,
           errors,
           localVariableValues,
-          localVariableNames
+          localVariableNames,
+          disabledByGroupId
         );
         const distance = numericError(
           element,
@@ -699,7 +739,8 @@ export const evaluateElements = (elements: CadElement[]): EvaluationResult => {
           elementsById,
           errors,
           localVariableValues,
-          localVariableNames
+          localVariableNames,
+          disabledByGroupId
         );
         if (tangentAngleDeg === undefined || distance === undefined) break;
 
@@ -722,7 +763,8 @@ export const evaluateElements = (elements: CadElement[]): EvaluationResult => {
           elementsById,
           errors,
           localVariableValues,
-          localVariableNames
+          localVariableNames,
+          disabledByGroupId
         );
         const end = getPointAnchorOrError(
           element,
@@ -732,7 +774,8 @@ export const evaluateElements = (elements: CadElement[]): EvaluationResult => {
           elementsById,
           errors,
           localVariableValues,
-          localVariableNames
+          localVariableNames,
+          disabledByGroupId
         );
         if (!start || !end) {
           break;
@@ -768,7 +811,8 @@ export const evaluateElements = (elements: CadElement[]): EvaluationResult => {
           elementsById,
           errors,
           localVariableValues,
-          localVariableNames
+          localVariableNames,
+          disabledByGroupId
         );
         if (!center) {
           break;
@@ -972,7 +1016,8 @@ export const evaluateElements = (elements: CadElement[]): EvaluationResult => {
             elementsById,
             errors,
             localVariableValues,
-            localVariableNames
+            localVariableNames,
+            disabledByGroupId
           )
         );
         if (!start || !end || intermediatePoints.some((point) => !point)) {
@@ -1119,7 +1164,7 @@ export const evaluateElements = (elements: CadElement[]): EvaluationResult => {
         for (const baseLineId of element.baseLineIds) {
           const geometry = computedGeometry.get(baseLineId);
           if (!isLineLikeGeometry(geometry)) {
-            errors.push(dependencyError(element, baseLineId, elementsById));
+            errors.push(dependencyError(element, baseLineId, elementsById, disabledByGroupId));
             hasMissingBase = true;
             continue;
           }
@@ -1148,5 +1193,11 @@ export const evaluateElements = (elements: CadElement[]): EvaluationResult => {
     }
   }
 
-  return { computedGeometry, errors, warnings };
+  return {
+    computedGeometry,
+    errors,
+    warnings,
+    effectiveVisibleElementIds: effectiveVisibleIds,
+    effectiveEnabledElementIds: effectiveEnabledIds
+  };
 };

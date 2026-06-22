@@ -36,6 +36,8 @@ const pointAnchorParentIds = (anchor: PointAnchor) =>
 export const getDirectParentIds = (element: CadElement): ElementId[] => {
   const numericExpressionParentIds = () => {
     switch (element.type) {
+      case "group":
+        return [];
       case "freePoint":
         return [
           ...numericVariableReferences(element),
@@ -135,6 +137,8 @@ export const getDirectParentIds = (element: CadElement): ElementId[] => {
   };
 
   switch (element.type) {
+    case "group":
+      return [];
     case "freePoint":
       return numericExpressionParentIds();
     case "offsetPoint":
