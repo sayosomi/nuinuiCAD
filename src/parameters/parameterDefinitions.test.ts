@@ -48,4 +48,38 @@ describe("parameterDefinitions", () => {
       ])
     );
   });
+
+  it("marks which point reference parameters can use coordinate mode", () => {
+    const line: CadElement = {
+      id: "line",
+      name: "線",
+      type: "line",
+      visible: true,
+      enabled: true,
+      startPoint: { mode: "reference", pointId: "point-a" },
+      endPoint: { mode: "reference", pointId: "point-b" }
+    };
+    const offsetPoint: CadElement = {
+      id: "offset",
+      name: "オフセット点",
+      type: "offsetPoint",
+      visible: true,
+      enabled: true,
+      fromPointId: "point-a",
+      dx: 10,
+      dy: 20
+    };
+
+    expect(getParameterDefinitions(line)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ key: "startPoint", kind: "reference", allowCoordinate: true }),
+        expect.objectContaining({ key: "endPoint", kind: "reference", allowCoordinate: true })
+      ])
+    );
+    expect(getParameterDefinitions(offsetPoint)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ key: "fromPoint", kind: "reference", allowCoordinate: false })
+      ])
+    );
+  });
 });

@@ -6,12 +6,15 @@ import { useCadStore } from "../state/useCadStore";
 type ShortcutHelpOverlayProps = {
   isParameterEditMode: boolean;
   isDependencyJumpMode: boolean;
+  isPickMode?: boolean;
 };
 
 const modeLabel = ({
   isParameterEditMode,
-  isDependencyJumpMode
+  isDependencyJumpMode,
+  isPickMode = false
 }: ShortcutHelpOverlayProps) => {
+  if (isPickMode) return "構成リスト選択";
   if (isDependencyJumpMode) return "親子要素ジャンプ";
   if (isParameterEditMode) return "パラメーター編集";
   return "通常";
@@ -19,7 +22,8 @@ const modeLabel = ({
 
 export const ShortcutHelpOverlay = ({
   isParameterEditMode,
-  isDependencyJumpMode
+  isDependencyJumpMode,
+  isPickMode = false
 }: ShortcutHelpOverlayProps) => {
   const elements = useCadStore((state) => state.elements);
   const selectedElementId = useCadStore((state) => state.selectedElementId);
@@ -30,6 +34,7 @@ export const ShortcutHelpOverlay = ({
   const shortcuts = shortcutHelpItems({
     isParameterEditMode,
     isDependencyJumpMode,
+    isPickMode,
     selectedElement,
     selectedParameterKey
   });
@@ -64,7 +69,7 @@ export const ShortcutHelpOverlay = ({
         <div className="shortcut-overlay-header">
           <div>
             <h2>ショートカット</h2>
-            <p>{modeLabel({ isParameterEditMode, isDependencyJumpMode })}</p>
+            <p>{modeLabel({ isParameterEditMode, isDependencyJumpMode, isPickMode })}</p>
           </div>
           <button type="button" onClick={() => dispatchCommand("toggleShortcutHelp")}>
             閉じる

@@ -27,6 +27,7 @@ const resetStore = () => {
     activePointPickTarget: null,
     activeNumericReferencePickTarget: null,
     activeLinePickTarget: null,
+    activePickCursor: null,
     selectedDependencyJumpIndex: 0,
     showShortcutHelp: false,
     showCommandPalette: false,
@@ -605,6 +606,30 @@ describe("LeftPanel element list dragging", () => {
     expect(useCadStore.getState().elements[0]).toMatchObject({
       x: { kind: "expression", expression: "line-ab.length" }
     });
+  });
+
+  it("marks the active keyboard pick row and row option", () => {
+    useCadStore.setState({
+      selectedElementId: "point-a",
+      selectedElementIds: ["point-a"],
+      selectedParameterKey: "x",
+      activeNumericReferencePickTarget: {
+        elementId: "point-a",
+        parameterKey: "x"
+      },
+      activePickCursor: {
+        elementId: "line-ab",
+        optionIndex: 1
+      }
+    });
+    renderLeftPanel(evaluateElements(sampleElements));
+
+    const lineRow = screen.getByText("直線AB").closest("[data-element-list-row='true']");
+    expect(lineRow).toHaveClass("selected-pick-candidate");
+
+    const optionButtons = lineRow!.querySelectorAll(".element-numeric-reference-actions button");
+    expect(optionButtons[1]).toHaveClass("selected-pick-option");
+    expect(optionButtons[0]).not.toHaveClass("selected-pick-option");
   });
 
   it("adds a base line from the element list while line picking", () => {

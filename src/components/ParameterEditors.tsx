@@ -6,7 +6,7 @@ import {
   makeNumericExpression,
   normalizeNumericExpressionInput
 } from "../geometry/numericExpressions";
-import { isPointElement, lineEndpointReferenceLabel, pointAnchorLabel, referenceAnchor } from "../model/pointAnchors";
+import { lineEndpointReferenceLabel, pointAnchorLabel } from "../model/pointAnchors";
 import {
   defaultNumericParameterStep,
   getNumericParameterStep,
@@ -34,14 +34,6 @@ type NumericDragState = {
   previousClientX: number;
   remainderX: number;
 };
-
-const coordinateAnchor = (x: NumericValue = 0, y: NumericValue = 0): PointAnchor => ({
-  mode: "coordinate",
-  x,
-  y
-});
-
-const anchorPointId = (anchor: PointAnchor) => (anchor.mode === "reference" ? anchor.pointId : "");
 
 export const ParameterName = ({
   element,
@@ -292,7 +284,7 @@ export const PointAnchorParameterEditor = ({
   allowCoordinate?: boolean;
 }) => {
   const activePointPickTarget = useCadStore((state) => state.activePointPickTarget);
-  const { parameterFieldClass, selectParameter, updateParameterValue } = useParameterEditor({
+  const { parameterFieldClass, selectParameter } = useParameterEditor({
     element,
     isParameterEditMode,
     registerParameterControl
@@ -301,6 +293,9 @@ export const PointAnchorParameterEditor = ({
     activePointPickTarget?.elementId === element.id &&
     activePointPickTarget.parameterKey === parameterKey;
   const numericProps = { element, elements, isParameterEditMode, registerParameterControl };
+  const definition = getParameterDefinitions(element).find((parameter) => parameter.key === parameterKey);
+  const canUseCoordinate = definition?.allowCoordinate ?? allowCoordinate;
+  const commandContext = { elementId: element.id, parameterKey };
 
   return (
     <div className={`point-anchor-editor ${isPickingThisPoint ? "is-picking-point" : ""}`}>
@@ -312,20 +307,19 @@ export const PointAnchorParameterEditor = ({
               type="button"
               className={anchor.mode === "reference" ? "active-toggle" : ""}
               onClick={() => {
-                const fallbackPointId = anchorPointId(anchor) || elements.find(isPointElement)?.id || "";
-                updateParameterValue(parameterKey, referenceAnchor(fallbackPointId));
                 selectParameter(parameterKey);
+                dispatchCommand("setSelectedPointAnchorReferenceMode", commandContext);
               }}
             >
               既存点
             </button>
-            {allowCoordinate ? (
+            {canUseCoordinate ? (
               <button
                 type="button"
                 className={anchor.mode === "coordinate" ? "active-toggle" : ""}
                 onClick={() => {
-                  updateParameterValue(parameterKey, coordinateAnchor());
-                  selectParameter(`${parameterKey}:x`);
+                  selectParameter(parameterKey);
+                  dispatchCommand("setSelectedPointAnchorCoordinateMode", commandContext);
                 }}
               >
                 座標
@@ -350,6 +344,10 @@ export const PointAnchorParameterEditor = ({
       </div>
       {isPickingThisPoint ? (
         <p className="point-pick-hint">canvas または構成リストから点を選択します。</p>
+      ) : isParameterEditMode ? (
+        <p className="point-pick-hint">
+          Enterで点選択{canUseCoordinate ? " / Spaceで座標切替" : ""}
+        </p>
       ) : null}
       {anchor.mode !== "coordinate" ? (
         <button

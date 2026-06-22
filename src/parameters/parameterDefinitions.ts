@@ -18,6 +18,7 @@ export type ParameterDefinition = {
   directKey: string;
   label: string;
   kind: ParameterValueKind;
+  allowCoordinate?: boolean;
   stepLevels?: readonly number[];
   choiceOptions?: readonly string[];
 };
@@ -45,14 +46,16 @@ const pointAnchorParameters = ({
   anchor,
   key,
   directKey,
-  label
+  label,
+  allowCoordinate
 }: {
   anchor: PointAnchor;
   key: string;
   directKey: string;
   label: string;
+  allowCoordinate: boolean;
 }): ParameterDefinition[] => [
-  { key, directKey, label, kind: "reference" },
+  { key, directKey, label, kind: "reference", allowCoordinate },
   ...(anchor.mode === "coordinate"
     ? [
         { key: `${key}:x`, directKey: "x", label: `${label} x`, kind: "number" as const },
@@ -74,7 +77,7 @@ export const getParameterDefinitions = (element: CadElement): ParameterDefinitio
       return [
         ...commonParameters,
         ...numericVariableParameters(element),
-        { key: "fromPoint", directKey: "b", label: "基準点", kind: "reference" },
+        { key: "fromPoint", directKey: "b", label: "基準点", kind: "reference", allowCoordinate: false },
         { key: "dx", directKey: "x", label: "dx", kind: "number" },
         { key: "dy", directKey: "y", label: "dy", kind: "number" }
       ];
@@ -82,7 +85,7 @@ export const getParameterDefinitions = (element: CadElement): ParameterDefinitio
       return [
         ...commonParameters,
         ...numericVariableParameters(element),
-        { key: "fromPoint", directKey: "b", label: "基準点", kind: "reference" },
+        { key: "fromPoint", directKey: "b", label: "基準点", kind: "reference", allowCoordinate: false },
         {
           key: "angleDeg",
           directKey: "r",
@@ -100,13 +103,15 @@ export const getParameterDefinitions = (element: CadElement): ParameterDefinitio
           anchor: element.startPoint,
           key: "startPoint",
           directKey: "s",
-          label: "始点"
+          label: "始点",
+          allowCoordinate: false
         }),
         ...pointAnchorParameters({
           anchor: element.endPoint,
           key: "endPoint",
           directKey: "t",
-          label: "終点"
+          label: "終点",
+          allowCoordinate: false
         }),
         {
           key: "placementMode",
@@ -159,7 +164,7 @@ export const getParameterDefinitions = (element: CadElement): ParameterDefinitio
         ...commonParameters,
         ...numericVariableParameters(element),
         { key: "baseLineId", directKey: "b", label: "基準線", kind: "lineReference" },
-        { key: "basePoint", directKey: "p", label: "基準点", kind: "reference" },
+        { key: "basePoint", directKey: "p", label: "基準点", kind: "reference", allowCoordinate: false },
         {
           key: "tangentAngleDeg",
           directKey: "r",
@@ -177,13 +182,15 @@ export const getParameterDefinitions = (element: CadElement): ParameterDefinitio
           anchor: element.startPoint,
           key: "startPoint",
           directKey: "s",
-          label: "始点"
+          label: "始点",
+          allowCoordinate: true
         }),
         ...pointAnchorParameters({
           anchor: element.endPoint,
           key: "endPoint",
           directKey: "t",
-          label: "終点"
+          label: "終点",
+          allowCoordinate: true
         })
       ];
     case "arcLine":
@@ -194,7 +201,8 @@ export const getParameterDefinitions = (element: CadElement): ParameterDefinitio
           anchor: element.centerPoint,
           key: "centerPoint",
           directKey: "c",
-          label: "中心点"
+          label: "中心点",
+          allowCoordinate: true
         }),
         { key: "radius", directKey: "d", label: "半径", kind: "number" },
         {
@@ -220,19 +228,22 @@ export const getParameterDefinitions = (element: CadElement): ParameterDefinitio
           anchor: element.point1,
           key: "point1",
           directKey: "1",
-          label: "点1"
+          label: "点1",
+          allowCoordinate: true
         }),
         ...pointAnchorParameters({
           anchor: element.point2,
           key: "point2",
           directKey: "2",
-          label: "点2"
+          label: "点2",
+          allowCoordinate: true
         }),
         ...pointAnchorParameters({
           anchor: element.point3,
           key: "point3",
           directKey: "3",
-          label: "点3"
+          label: "点3",
+          allowCoordinate: true
         }),
         {
           key: "startAngleDeg",
@@ -257,7 +268,8 @@ export const getParameterDefinitions = (element: CadElement): ParameterDefinitio
           anchor: element.startPoint,
           key: "startPoint",
           directKey: "s",
-          label: "始点"
+          label: "始点",
+          allowCoordinate: true
         }),
         {
           key: "startHandleAngleDeg",
@@ -272,7 +284,8 @@ export const getParameterDefinitions = (element: CadElement): ParameterDefinitio
             anchor: point.point,
             key: `intermediate:${point.id}:point`,
             directKey: "m",
-            label: `中間点${index + 1}`
+            label: `中間点${index + 1}`,
+            allowCoordinate: true
           }),
           {
             key: `intermediate:${point.id}:handleAngleDeg`,
@@ -298,7 +311,8 @@ export const getParameterDefinitions = (element: CadElement): ParameterDefinitio
           anchor: element.endPoint,
           key: "endPoint",
           directKey: "t",
-          label: "終点"
+          label: "終点",
+          allowCoordinate: true
         }),
         {
           key: "endHandleAngleDeg",

@@ -4,9 +4,11 @@ import {
   addToNumericValue,
   makeNumericExpression
 } from "../geometry/numericExpressions";
+import { evaluateElements } from "../geometry/evaluate";
 import { createCadElementId } from "../model/cadIds";
 import { getDependencyJumpTargets } from "../model/dependencies";
 import { moveElementsToInsertionIndex as moveDocumentElementsToInsertionIndex } from "../model/documentOrder";
+import { pickCandidates, selectedPickOption } from "../model/pickCandidates";
 import {
   elementIdByOffset,
   elementIdsInDocumentOrder,
@@ -31,6 +33,8 @@ import {
 } from "../parameters/parameterDefinitions";
 import {
   getParameterValue,
+  getPointAnchor,
+  parseAnchorCoordinateParameterKey,
   setParameterValue,
   supportsNumericVariables
 } from "../parameters/parameterAccess";
@@ -70,6 +74,11 @@ export type CommandId =
   | "startNumericReferencePick"
   | "applyPickedNumericReference"
   | "cancelNumericReferencePick"
+  | "selectNextPickCandidate"
+  | "selectPreviousPickCandidate"
+  | "selectNextPickOption"
+  | "selectPreviousPickOption"
+  | "applySelectedPickCandidate"
   | "startPointPick"
   | "applyPickedPoint"
   | "cancelPointPick"
@@ -125,8 +134,13 @@ export type CommandId =
   | "decreaseSelectedParameterStep"
   | "cycleSelectedReferenceForward"
   | "cycleSelectedReferenceBackward"
+  | "toggleSelectedParameterValue"
+  | "toggleSelectedPointAnchorMode"
+  | "setSelectedPointAnchorReferenceMode"
+  | "setSelectedPointAnchorCoordinateMode"
   | "toggleSelectedBooleanParameter"
   | "toggleBooleanParameterByDirectKey"
+  | "activateSelectedParameter"
   | "focusSelectedParameterInput";
 
 export type CommandContext = {
@@ -152,6 +166,7 @@ export type CommandContext = {
   numericReferenceExpression?: string;
   intermediatePointId?: string;
   variableId?: string;
+  pointAnchorMode?: "reference" | "coordinate";
   pickedPointId?: ElementId;
   pickedPointAnchor?: PointAnchor;
   pickedLineId?: ElementId;
@@ -299,7 +314,36 @@ const selectedParameterDefinition = () => {
   return findParameterDefinition(selectedElement, selectedParameterKey);
 };
 
+const coordinateAnchor = (x: NumericValue = 0, y: NumericValue = 0): PointAnchor => ({
+  mode: "coordinate",
+  x,
+  y
+});
+
 const anchorPointId = (anchor: PointAnchor) => (anchor.mode === "reference" ? anchor.pointId : null);
+
+const parentPointAnchorParameterKey = (parameterKey: string | null | undefined) => {
+  if (!parameterKey) return null;
+  return parseAnchorCoordinateParameterKey(parameterKey)?.anchorKey ?? parameterKey;
+};
+
+const pointAnchorParameterTarget = (context?: CommandContext) => {
+  const { elements, selectedElementId, selectedParameterKey } = useCadStore.getState();
+  const elementId = context?.elementId ?? selectedElementId;
+  const element = elementId ? elements.find((item) => item.id === elementId) ?? null : null;
+  if (!element) return null;
+
+  const parameterKey = parentPointAnchorParameterKey(context?.parameterKey ?? selectedParameterKey);
+  if (!parameterKey) return null;
+
+  const definition = findParameterDefinition(element, parameterKey);
+  if (definition?.kind !== "reference") return null;
+
+  const anchor = getPointAnchor(element, parameterKey);
+  if (!anchor) return null;
+
+  return { element, parameterKey, definition, anchor };
+};
 
 const isLineEndpointReferenceValue = (value: unknown): value is LineEndpointReference =>
   typeof value === "object" &&
@@ -542,6 +586,77 @@ const applyPickedNumericReference = (context?: Pick<CommandContext, "numericRefe
 
 const cancelNumericReferencePick = () => {
   useCadStore.getState().setActiveNumericReferencePickTarget(null);
+};
+
+const activePickCandidates = () => {
+  const {
+    elements,
+    activePointPickTarget,
+    activeNumericReferencePickTarget,
+    activeLinePickTarget
+  } = useCadStore.getState();
+  return pickCandidates(elements, evaluateElements(elements), {
+    activePointPickTarget,
+    activeNumericReferencePickTarget,
+    activeLinePickTarget
+  });
+};
+
+const selectPickCandidateByOffset = (offset: number) => {
+  const candidates = activePickCandidates();
+  if (candidates.length === 0) {
+    useCadStore.getState().setActivePickCursor(null);
+    return;
+  }
+
+  const { activePickCursor } = useCadStore.getState();
+  const currentIndex = activePickCursor
+    ? candidates.findIndex((candidate) => candidate.elementId === activePickCursor.elementId)
+    : -1;
+  const nextIndex =
+    currentIndex < 0
+      ? offset > 0 ? 0 : candidates.length - 1
+      : (currentIndex + offset + candidates.length) % candidates.length;
+  const candidate = candidates[nextIndex];
+  const optionIndex = Math.min(activePickCursor?.optionIndex ?? 0, candidate.options.length - 1);
+  useCadStore.getState().setActivePickCursor({
+    elementId: candidate.elementId,
+    optionIndex
+  });
+};
+
+const selectPickOptionByOffset = (offset: number) => {
+  const candidates = activePickCandidates();
+  const selected = selectedPickOption(candidates, useCadStore.getState().activePickCursor);
+  if (!selected) {
+    useCadStore.getState().setActivePickCursor(null);
+    return;
+  }
+
+  const optionCount = selected.candidate.options.length;
+  const optionIndex = (selected.cursor.optionIndex + offset + optionCount) % optionCount;
+  useCadStore.getState().setActivePickCursor({
+    elementId: selected.candidate.elementId,
+    optionIndex
+  });
+};
+
+const applySelectedPickCandidate = () => {
+  const candidates = activePickCandidates();
+  const selected = selectedPickOption(candidates, useCadStore.getState().activePickCursor);
+  if (!selected) return;
+
+  if (selected.option.kind === "point") {
+    applyPickedPoint({ pickedPointAnchor: selected.option.anchor });
+    return;
+  }
+  if (selected.option.kind === "line") {
+    applyPickedLine({ pickedLineId: selected.option.lineId });
+    return;
+  }
+  applyPickedNumericReference({
+    numericReferenceExpression: selected.option.expression
+  });
 };
 
 const updateSelectedNumericParameterStep = (direction: 1 | -1) => {
@@ -956,6 +1071,62 @@ const toggleBooleanParameter = () => {
   } as CadElement));
 };
 
+const setSelectedPointAnchorMode = (
+  mode: "reference" | "coordinate",
+  context?: CommandContext
+) => {
+  const target = pointAnchorParameterTarget(context);
+  if (!target) return false;
+  if (mode === "coordinate" && !target.definition.allowCoordinate) return false;
+  if (target.anchor.mode === mode) {
+    useCadStore.setState({
+      selectedParameterKey: mode === "coordinate" ? `${target.parameterKey}:x` : target.parameterKey
+    });
+    return true;
+  }
+
+  const nextAnchor =
+    mode === "coordinate"
+      ? coordinateAnchor()
+      : referenceAnchor(
+          target.anchor.mode === "reference"
+            ? target.anchor.pointId
+            : useCadStore.getState().elements.find(isPointLikeElement)?.id ?? ""
+        );
+  const selectedParameterKey = mode === "coordinate" ? `${target.parameterKey}:x` : target.parameterKey;
+
+  useCadStore.getState().commitDocumentChange({
+    elements: useCadStore.getState().elements.map((element) =>
+      element.id === target.element.id
+        ? setParameterValue(element, target.parameterKey, nextAnchor)
+        : element
+    ),
+    selectedElementId: target.element.id,
+    selectedElementIds: [target.element.id],
+    selectionAnchorElementId: target.element.id,
+    selectedParameterKey
+  });
+  return true;
+};
+
+const toggleSelectedPointAnchorMode = (context?: CommandContext) => {
+  const target = pointAnchorParameterTarget(context);
+  if (!target || !target.definition.allowCoordinate) return false;
+  return setSelectedPointAnchorMode(
+    target.anchor.mode === "coordinate" ? "reference" : "coordinate",
+    {
+      ...context,
+      elementId: target.element.id,
+      parameterKey: target.parameterKey
+    }
+  );
+};
+
+const toggleSelectedParameterValue = () => {
+  if (toggleSelectedPointAnchorMode()) return;
+  toggleBooleanParameter();
+};
+
 const toggleBooleanParameterByDirectKey = (directKey: string | undefined) => {
   const selectedElement = getSelectedElement();
   if (!selectedElement || !directKey) return;
@@ -1241,6 +1412,31 @@ export const commands: Record<CommandId, Command> = {
     id: "cancelNumericReferencePick",
     label: "数値選択をキャンセル",
     run: () => cancelNumericReferencePick()
+  },
+  selectNextPickCandidate: {
+    id: "selectNextPickCandidate",
+    label: "次の選択候補へ",
+    run: () => selectPickCandidateByOffset(1)
+  },
+  selectPreviousPickCandidate: {
+    id: "selectPreviousPickCandidate",
+    label: "前の選択候補へ",
+    run: () => selectPickCandidateByOffset(-1)
+  },
+  selectNextPickOption: {
+    id: "selectNextPickOption",
+    label: "行内の次の候補へ",
+    run: () => selectPickOptionByOffset(1)
+  },
+  selectPreviousPickOption: {
+    id: "selectPreviousPickOption",
+    label: "行内の前の候補へ",
+    run: () => selectPickOptionByOffset(-1)
+  },
+  applySelectedPickCandidate: {
+    id: "applySelectedPickCandidate",
+    label: "選択候補を確定",
+    run: () => applySelectedPickCandidate()
   },
   startPointPick: {
     id: "startPointPick",
@@ -1571,6 +1767,26 @@ export const commands: Record<CommandId, Command> = {
     label: "参照パラメーターを前へ",
     run: () => cycleReferenceParameter(-1)
   },
+  toggleSelectedParameterValue: {
+    id: "toggleSelectedParameterValue",
+    label: "選択パラメーターを切替",
+    run: () => toggleSelectedParameterValue()
+  },
+  toggleSelectedPointAnchorMode: {
+    id: "toggleSelectedPointAnchorMode",
+    label: "点指定方法を切替",
+    run: (context) => toggleSelectedPointAnchorMode(context)
+  },
+  setSelectedPointAnchorReferenceMode: {
+    id: "setSelectedPointAnchorReferenceMode",
+    label: "点指定を既存点にする",
+    run: (context) => setSelectedPointAnchorMode("reference", context)
+  },
+  setSelectedPointAnchorCoordinateMode: {
+    id: "setSelectedPointAnchorCoordinateMode",
+    label: "点指定を座標にする",
+    run: (context) => setSelectedPointAnchorMode("coordinate", context)
+  },
   toggleSelectedBooleanParameter: {
     id: "toggleSelectedBooleanParameter",
     label: "真偽値パラメーターを切替",
@@ -1581,9 +1797,9 @@ export const commands: Record<CommandId, Command> = {
     label: "キーに対応する真偽値パラメーターを切替",
     run: (context) => toggleBooleanParameterByDirectKey(context?.parameterDirectKey)
   },
-  focusSelectedParameterInput: {
-    id: "focusSelectedParameterInput",
-    label: "選択パラメーターの入力欄へフォーカス",
+  activateSelectedParameter: {
+    id: "activateSelectedParameter",
+    label: "選択パラメーターを実行",
     run: (context) => {
       const definition = selectedParameterDefinition();
       if (definition?.kind === "reference") {
@@ -1608,6 +1824,11 @@ export const commands: Record<CommandId, Command> = {
       }
       context?.focusSelectedParameterInput?.();
     }
+  },
+  focusSelectedParameterInput: {
+    id: "focusSelectedParameterInput",
+    label: "選択パラメーターの入力欄へフォーカス",
+    run: (context) => commands.activateSelectedParameter.run(context)
   }
 };
 

@@ -17,6 +17,7 @@ describe("commands", () => {
       activePointPickTarget: null,
       activeNumericReferencePickTarget: null,
       activeLinePickTarget: null,
+      activePickCursor: null,
       selectedDependencyJumpIndex: 0,
       showShortcutHelp: true,
       showCommandPalette: false,
@@ -1221,6 +1222,80 @@ describe("commands", () => {
     expect(focusSelectedParameterInput).toHaveBeenCalledTimes(2);
   });
 
+  it("activates selected parameters with Enter behavior", () => {
+    useCadStore.setState({
+      selectedElementId: "line-ab",
+      selectedElementIds: ["line-ab"],
+      selectedParameterKey: "startPoint"
+    });
+
+    dispatchCommand("activateSelectedParameter");
+
+    expect(useCadStore.getState().activePointPickTarget).toEqual({
+      elementId: "line-ab",
+      parameterKey: "startPoint"
+    });
+  });
+
+  it("toggles coordinate-capable point anchors between reference and coordinate modes", () => {
+    useCadStore.setState({
+      selectedElementId: "line-ab",
+      selectedElementIds: ["line-ab"],
+      selectedParameterKey: "startPoint"
+    });
+
+    dispatchCommand("toggleSelectedParameterValue");
+
+    expect(useCadStore.getState().elements[3]).toMatchObject({
+      startPoint: { mode: "coordinate", x: 0, y: 0 }
+    });
+    expect(useCadStore.getState().selectedParameterKey).toBe("startPoint:x");
+
+    dispatchCommand("toggleSelectedParameterValue");
+
+    expect(useCadStore.getState().elements[3]).toMatchObject({
+      startPoint: { mode: "reference", pointId: "point-a" }
+    });
+    expect(useCadStore.getState().selectedParameterKey).toBe("startPoint");
+  });
+
+  it("does not switch point anchors to coordinates when the parameter disallows coordinates", () => {
+    useCadStore.setState({
+      selectedElementId: "point-b",
+      selectedElementIds: ["point-b"],
+      selectedParameterKey: "fromPoint"
+    });
+
+    dispatchCommand("toggleSelectedParameterValue");
+
+    expect(useCadStore.getState().elements[1]).toMatchObject({
+      fromPointId: "point-a"
+    });
+    expect(useCadStore.getState().selectedParameterKey).toBe("fromPoint");
+  });
+
+  it("sets point anchor modes from explicit commands", () => {
+    dispatchCommand("setSelectedPointAnchorCoordinateMode", {
+      elementId: "line-ab",
+      parameterKey: "endPoint"
+    });
+
+    expect(useCadStore.getState().elements[3]).toMatchObject({
+      endPoint: { mode: "coordinate", x: 0, y: 0 }
+    });
+    expect(useCadStore.getState().selectedParameterKey).toBe("endPoint:x");
+
+    dispatchCommand("setSelectedPointAnchorReferenceMode", {
+      elementId: "line-ab",
+      parameterKey: "endPoint"
+    });
+
+    expect(useCadStore.getState().elements[3]).toMatchObject({
+      endPoint: { mode: "reference", pointId: "point-a" }
+    });
+    expect(useCadStore.getState().selectedParameterKey).toBe("endPoint");
+  });
+
   it("selects division point parameters by direct key and cycles placement mode", () => {
     useCadStore.setState({
       elements: [
@@ -1561,6 +1636,25 @@ describe("commands", () => {
     expect(useCadStore.getState().past).toHaveLength(1);
   });
 
+  it("applies a point pick candidate using keyboard candidate commands", () => {
+    useCadStore.setState({
+      selectedElementId: "line-ab",
+      selectedElementIds: ["line-ab"],
+      selectedParameterKey: "endPoint"
+    });
+
+    dispatchCommand("startPointPick");
+    dispatchCommand("selectNextPickCandidate");
+    dispatchCommand("selectNextPickCandidate");
+    dispatchCommand("selectNextPickCandidate");
+    dispatchCommand("applySelectedPickCandidate");
+
+    expect(useCadStore.getState().activePointPickTarget).toBeNull();
+    expect(useCadStore.getState().elements[3]).toMatchObject({
+      endPoint: { mode: "reference", pointId: "point-c" }
+    });
+  });
+
   it("applies a picked derived point anchor to the selected reference parameter", () => {
     useCadStore.setState({
       selectedElementId: "line-bc",
@@ -1616,6 +1710,37 @@ describe("commands", () => {
       endpoint: { lineId: "line-bc", endpointKey: "end" }
     });
     expect(useCadStore.getState().past).toHaveLength(1);
+  });
+
+  it("uses left and right to choose a line endpoint option before applying it", () => {
+    const point = {
+      id: "line-division",
+      name: "線上分点",
+      type: "lineDivisionPoint" as const,
+      visible: true,
+      enabled: true,
+      endpoint: { lineId: "line-ab", endpointKey: "start" as const },
+      placementMode: "ratio" as const,
+      distance: 30,
+      ratio: 0.5
+    };
+    useCadStore.setState({
+      elements: [...sampleElements, point],
+      selectedElementId: point.id,
+      selectedElementIds: [point.id],
+      selectedParameterKey: "endpoint"
+    });
+
+    dispatchCommand("startPointPick");
+    dispatchCommand("selectNextPickCandidate");
+    dispatchCommand("selectNextPickOption");
+    dispatchCommand("applySelectedPickCandidate");
+
+    expect(useCadStore.getState().activePointPickTarget).toBeNull();
+    expect(useCadStore.getState().elements.at(-1)).toMatchObject({
+      type: "lineDivisionPoint",
+      endpoint: { lineId: "line-ab", endpointKey: "end" }
+    });
   });
 
   it("ignores picked anchors that are not line endpoints for line division endpoints", () => {
@@ -1708,6 +1833,60 @@ describe("commands", () => {
     expect(useCadStore.getState().activeLinePickTarget).toEqual({
       elementId: "offset-line",
       parameterKey: "baseLineIds"
+    });
+  });
+
+  it("applies line pick candidates from the keyboard and skips already picked lines", () => {
+    useCadStore.setState({
+      elements: [
+        ...sampleElements,
+        {
+          id: "offset-line",
+          name: "オフセット線",
+          type: "offsetLine",
+          visible: true,
+          enabled: true,
+          numericVariables: [],
+          baseLineIds: [],
+          offset: 10,
+          side: "right",
+          closed: false
+        }
+      ],
+      selectedElementId: "offset-line",
+      selectedElementIds: ["offset-line"],
+      selectedParameterKey: "baseLineIds"
+    });
+
+    dispatchCommand("startLinePick");
+    dispatchCommand("applySelectedPickCandidate");
+    dispatchCommand("applySelectedPickCandidate");
+
+    expect(useCadStore.getState().activeLinePickTarget).toEqual({
+      elementId: "offset-line",
+      parameterKey: "baseLineIds"
+    });
+    expect(useCadStore.getState().elements.at(-1)).toMatchObject({
+      type: "offsetLine",
+      baseLineIds: ["line-ab", "line-bc"]
+    });
+  });
+
+  it("applies a numeric reference candidate using left and right option selection", () => {
+    useCadStore.setState({
+      selectedElementId: "point-a",
+      selectedElementIds: ["point-a"],
+      selectedParameterKey: "x"
+    });
+
+    dispatchCommand("startNumericReferencePick");
+    dispatchCommand("selectNextPickCandidate");
+    dispatchCommand("selectNextPickOption");
+    dispatchCommand("applySelectedPickCandidate");
+
+    expect(useCadStore.getState().activeNumericReferencePickTarget).toBeNull();
+    expect(useCadStore.getState().elements[0]).toMatchObject({
+      x: { kind: "expression", expression: "line-ab.startAngleDeg" }
     });
   });
 

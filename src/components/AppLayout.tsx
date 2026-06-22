@@ -12,6 +12,12 @@ export const AppLayout = () => {
   const elements = useCadStore((state) => state.elements);
   const isParameterEditMode = useCadStore((state) => state.isParameterEditMode);
   const isDependencyJumpMode = useCadStore((state) => state.isDependencyJumpMode);
+  const isPickMode = useCadStore(
+    (state) =>
+      Boolean(state.activePointPickTarget) ||
+      Boolean(state.activeNumericReferencePickTarget) ||
+      Boolean(state.activeLinePickTarget)
+  );
   const canvasFocusRef = useRef<HTMLDivElement>(null);
   const elementListFocusRef = useRef<HTMLDivElement>(null);
   const parameterInputRefs = useRef(new Map<string, HTMLElement>());
@@ -38,7 +44,12 @@ export const AppLayout = () => {
     const onKeyDown = (event: KeyboardEvent) => {
       const keyboardCommand = keyboardCommandForEvent(event, {
         isParameterEditMode: useCadStore.getState().isParameterEditMode,
-        isDependencyJumpMode: useCadStore.getState().isDependencyJumpMode
+        isDependencyJumpMode: useCadStore.getState().isDependencyJumpMode,
+        isPickMode: Boolean(
+          useCadStore.getState().activePointPickTarget ||
+            useCadStore.getState().activeNumericReferencePickTarget ||
+            useCadStore.getState().activeLinePickTarget
+        )
       });
       if (useCadStore.getState().activePointPickTarget && event.key === "Escape") {
         event.preventDefault();
@@ -94,6 +105,7 @@ export const AppLayout = () => {
       <ShortcutHelpOverlay
         isParameterEditMode={isParameterEditMode}
         isDependencyJumpMode={isDependencyJumpMode}
+        isPickMode={isPickMode}
       />
     </main>
   );

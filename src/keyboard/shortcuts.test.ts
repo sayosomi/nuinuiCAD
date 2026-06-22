@@ -88,6 +88,12 @@ describe("shortcuts", () => {
       })
     ).toBe("selectPreviousElement");
     expect(commandIdForKeyboardEvent(keyboardEvent("Tab"), { isParameterEditMode: true })).toBeNull();
+    expect(commandIdForKeyboardEvent(keyboardEvent("Enter"), { isParameterEditMode: true })).toBe(
+      "activateSelectedParameter"
+    );
+    expect(commandIdForKeyboardEvent(keyboardEvent(" "), { isParameterEditMode: true })).toBe(
+      "toggleSelectedParameterValue"
+    );
     expect(commandIdForKeyboardEvent(keyboardEvent("v"), { isParameterEditMode: true })).toBe(
       "toggleBooleanParameterByDirectKey"
     );
@@ -158,6 +164,36 @@ describe("shortcuts", () => {
         isDependencyJumpMode: true
       })
     ).toBe("selectNextParameter");
+  });
+
+  it("prioritizes pick mode over parameter edit and dependency jump modes", () => {
+    expect(
+      commandIdForKeyboardEvent(keyboardEvent("ArrowDown"), {
+        isParameterEditMode: true,
+        isDependencyJumpMode: true,
+        isPickMode: true
+      })
+    ).toBe("selectNextPickCandidate");
+    expect(commandIdForKeyboardEvent(keyboardEvent("ArrowRight"), { isPickMode: true })).toBe(
+      "selectNextPickOption"
+    );
+    expect(commandIdForKeyboardEvent(keyboardEvent("Enter"), { isPickMode: true })).toBe(
+      "applySelectedPickCandidate"
+    );
+  });
+
+  it("shows pick mode shortcuts while selecting from the construction list", () => {
+    const ids = shortcutHelpItems({
+      isParameterEditMode: true,
+      isPickMode: true
+    }).map((shortcut) => shortcut.commandId);
+
+    expect(ids).toContain("selectNextPickCandidate");
+    expect(ids).toContain("selectPreviousPickCandidate");
+    expect(ids).toContain("selectNextPickOption");
+    expect(ids).toContain("selectPreviousPickOption");
+    expect(ids).toContain("applySelectedPickCandidate");
+    expect(ids).not.toContain("selectNextParameter");
   });
 
   it("passes edit mode command context", () => {
@@ -401,7 +437,7 @@ describe("shortcuts", () => {
     expect(ids).toContain("decrementSelectedParameter");
     expect(ids).toContain("increaseSelectedParameterStep");
     expect(ids).toContain("decreaseSelectedParameterStep");
-    expect(ids).not.toContain("toggleSelectedBooleanParameter");
+    expect(ids).not.toContain("toggleSelectedParameterValue");
   });
 
   it("shows boolean parameter shortcuts only for boolean parameters", () => {
@@ -412,7 +448,7 @@ describe("shortcuts", () => {
     });
     const ids = shortcuts.map((shortcut) => shortcut.commandId);
 
-    expect(ids).toContain("toggleSelectedBooleanParameter");
+    expect(ids).toContain("toggleSelectedParameterValue");
     expect(ids).not.toContain("incrementSelectedParameter");
     expect(ids).not.toContain("decrementSelectedParameter");
     expect(ids).not.toContain("increaseSelectedParameterStep");
@@ -440,9 +476,20 @@ describe("shortcuts", () => {
         })
       ])
     );
+    expect(shortcuts.map((shortcut) => shortcut.commandId)).toContain("toggleSelectedParameterValue");
     expect(shortcuts.map((shortcut) => shortcut.commandId)).not.toEqual(
       expect.arrayContaining(["increaseSelectedParameterStep", "decreaseSelectedParameterStep"])
     );
+  });
+
+  it("hides coordinate toggle shortcut for point references that cannot use coordinates", () => {
+    const shortcuts = shortcutHelpItems({
+      isParameterEditMode: true,
+      selectedElement: sampleElements[1],
+      selectedParameterKey: "fromPoint"
+    });
+
+    expect(shortcuts.map((shortcut) => shortcut.commandId)).not.toContain("toggleSelectedParameterValue");
   });
 
   it("does not show step shortcuts for text parameters", () => {

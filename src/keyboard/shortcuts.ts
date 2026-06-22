@@ -229,6 +229,39 @@ export const dependencyJumpShortcutDefinitions: ShortcutDefinition[] = [
   }
 ];
 
+export const pickShortcutDefinitions: ShortcutDefinition[] = [
+  {
+    commandId: "selectPreviousPickCandidate",
+    label: "前の選択候補へ",
+    keys: "ArrowUp",
+    matches: (event) => event.key === "ArrowUp" && noModifier(event)
+  },
+  {
+    commandId: "selectNextPickCandidate",
+    label: "次の選択候補へ",
+    keys: "ArrowDown",
+    matches: (event) => event.key === "ArrowDown" && noModifier(event)
+  },
+  {
+    commandId: "selectPreviousPickOption",
+    label: "行内の前の候補へ",
+    keys: "ArrowLeft",
+    matches: (event) => event.key === "ArrowLeft" && noModifier(event)
+  },
+  {
+    commandId: "selectNextPickOption",
+    label: "行内の次の候補へ",
+    keys: "ArrowRight",
+    matches: (event) => event.key === "ArrowRight" && noModifier(event)
+  },
+  {
+    commandId: "applySelectedPickCandidate",
+    label: "選択候補を確定",
+    keys: "Enter",
+    matches: (event) => event.key === "Enter" && noModifier(event)
+  }
+];
+
 const arrowStepContext = (event: KeyboardEvent): CommandContext => ({
   stepMultiplier: event.shiftKey ? 10 : event.altKey ? 0.1 : 1
 });
@@ -241,8 +274,8 @@ export const parameterEditShortcutDefinitions: ShortcutDefinition[] = [
     matches: (event) => event.key === "Escape" && noModifier(event)
   },
   {
-    commandId: "focusSelectedParameterInput",
-    label: "選択パラメーターを直接入力",
+    commandId: "activateSelectedParameter",
+    label: "選択パラメーターを実行",
     keys: "Enter",
     matches: (event) => event.key === "Enter" && noModifier(event)
   },
@@ -297,8 +330,8 @@ export const parameterEditShortcutDefinitions: ShortcutDefinition[] = [
     matches: (event) => event.key === "]" && noModifier(event)
   },
   {
-    commandId: "toggleSelectedBooleanParameter",
-    label: "真偽値を切替",
+    commandId: "toggleSelectedParameterValue",
+    label: "値または指定方法を切替",
     keys: "Space",
     matches: (event) => event.key === " " && noModifier(event)
   },
@@ -348,7 +381,7 @@ const parameterValueShortcutItems: Record<ParameterValueKind, ShortcutHelpItem[]
     helpItem(parameterShortcut("decreaseSelectedParameterStep")),
     helpItem(parameterShortcut("increaseSelectedParameterStep"))
   ],
-  boolean: [helpItem(parameterShortcut("toggleSelectedBooleanParameter"))],
+  boolean: [helpItem(parameterShortcut("toggleSelectedParameterValue"))],
   lineReference: [
     {
       id: "cycleSelectedLineReferenceForward",
@@ -411,14 +444,24 @@ const parameterValueShortcutItems: Record<ParameterValueKind, ShortcutHelpItem[]
 export const shortcutHelpItems = ({
   isParameterEditMode = false,
   isDependencyJumpMode = false,
+  isPickMode = false,
   selectedElement = null,
   selectedParameterKey = null
 }: {
   isParameterEditMode?: boolean;
   isDependencyJumpMode?: boolean;
+  isPickMode?: boolean;
   selectedElement?: CadElement | null;
   selectedParameterKey?: string | null;
 } = {}): ShortcutHelpItem[] => {
+  if (isPickMode) {
+    return [
+      ...globalShortcutDefinitions,
+      ...modeInvariantShortcutDefinitions,
+      ...pickShortcutDefinitions
+    ].map(helpItem);
+  }
+
   if (!isParameterEditMode) {
     if (isDependencyJumpMode) {
       return [
@@ -439,7 +482,7 @@ export const shortcutHelpItems = ({
     ...globalShortcutDefinitions.map(helpItem),
     ...modeInvariantShortcutDefinitions.map(helpItem),
     helpItem(parameterShortcut("exitParameterEditMode")),
-    helpItem(parameterShortcut("focusSelectedParameterInput")),
+    helpItem(parameterShortcut("activateSelectedParameter")),
     helpItem(parameterShortcut("selectNextParameter")),
     helpItem(parameterShortcut("selectPreviousParameter")),
     ...parameterModeElementSelectionShortcutItems
@@ -452,6 +495,9 @@ export const shortcutHelpItems = ({
   const selectedParameter = findParameterDefinition(selectedElement, selectedParameterKey);
   if (selectedParameter) {
     items.push(...parameterValueShortcutItems[selectedParameter.kind]);
+    if (selectedParameter.kind === "reference" && selectedParameter.allowCoordinate) {
+      items.push(helpItem(parameterShortcut("toggleSelectedParameterValue")));
+    }
   }
 
   items.push(helpItem(parameterShortcut("toggleBooleanParameterByDirectKey")));
@@ -508,14 +554,20 @@ export const shouldIgnoreKeyboardEvent = (event: KeyboardEvent) => {
 
 export const keyboardCommandForEvent = (
   event: KeyboardEvent,
-  options: { isParameterEditMode?: boolean; isDependencyJumpMode?: boolean } = {}
+  options: {
+    isParameterEditMode?: boolean;
+    isDependencyJumpMode?: boolean;
+    isPickMode?: boolean;
+  } = {}
 ): KeyboardCommand | null => {
   const definitions = [
     ...globalShortcutDefinitions,
     ...modeInvariantShortcutDefinitions,
-    ...(options.isParameterEditMode
-      ? parameterEditShortcutDefinitions
-      : options.isDependencyJumpMode
+    ...(options.isPickMode
+      ? pickShortcutDefinitions
+      : options.isParameterEditMode
+        ? parameterEditShortcutDefinitions
+        : options.isDependencyJumpMode
         ? dependencyJumpShortcutDefinitions
         : shortcutDefinitions)
   ];
@@ -530,7 +582,11 @@ export const keyboardCommandForEvent = (
 
 export const commandIdForKeyboardEvent = (
   event: KeyboardEvent,
-  options: { isParameterEditMode?: boolean; isDependencyJumpMode?: boolean } = {}
+  options: {
+    isParameterEditMode?: boolean;
+    isDependencyJumpMode?: boolean;
+    isPickMode?: boolean;
+  } = {}
 ): CommandId | null => {
   return keyboardCommandForEvent(event, options)?.commandId ?? null;
 };

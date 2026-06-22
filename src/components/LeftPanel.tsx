@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { DragEvent, MouseEvent, RefObject } from "react";
 import { dispatchCommand } from "../commands/commands";
 import { getDependencyJumpTargets, getDependencySummary } from "../model/dependencies";
@@ -9,6 +9,11 @@ import {
   referenceAnchor,
   selectablePointsForElement
 } from "../model/pointAnchors";
+import {
+  numericReferencePropertiesForGeometry,
+  pickCandidates,
+  resolvedPickCursor
+} from "../model/pickCandidates";
 import { lineMeasurementLabel } from "../geometry/numericExpressions";
 import { getParameterDefinitions } from "../parameters/parameterDefinitions";
 import type { ParameterKey } from "../parameters/parameterDefinitions";
@@ -34,7 +39,6 @@ import {
   bezierCurveInfoRows,
   lineInfoRows,
   numericReferenceExpression,
-  numericReferenceProperties,
   numericReferenceValue,
   offsetLineInfoRows,
   pointCoordinateRows
@@ -824,8 +828,10 @@ export const LeftPanel = ({
   const activePointPickTarget = useCadStore((state) => state.activePointPickTarget);
   const activeNumericReferencePickTarget = useCadStore((state) => state.activeNumericReferencePickTarget);
   const activeLinePickTarget = useCadStore((state) => state.activeLinePickTarget);
+  const activePickCursor = useCadStore((state) => state.activePickCursor);
   const [draggedElementIds, setDraggedElementIds] = useState<ElementId[]>([]);
   const [dropTarget, setDropTarget] = useState<ElementDropTarget | null>(null);
+  const rowRefs = useRef(new Map<ElementId, HTMLDivElement>());
   const errorElementIds = new Set(evaluation.errors.map((error) => error.elementId));
   const warningElementIds = new Set(evaluation.warnings.map((warning) => warning.elementId));
   const selectedElementIdSet = new Set(selectedElementIds);
@@ -854,6 +860,25 @@ export const LeftPanel = ({
         )
       : []
   );
+  const candidateList = pickCandidates(elements, evaluation, {
+    activePointPickTarget,
+    activeNumericReferencePickTarget,
+    activeLinePickTarget
+  });
+  const candidateByElementId = new Map(
+    candidateList.map((candidate) => [candidate.elementId, candidate])
+  );
+  const selectedPickCursor = resolvedPickCursor(candidateList, activePickCursor);
+
+  useEffect(() => {
+    if (!selectedPickCursor) return;
+    const row = rowRefs.current.get(selectedPickCursor.elementId);
+    if (!row?.scrollIntoView) return;
+    row.scrollIntoView({
+      block: "nearest"
+    });
+  }, [selectedPickCursor]);
+
   const clearElementDrag = () => {
     setDraggedElementIds([]);
     setDropTarget(null);
@@ -939,7 +964,7 @@ export const LeftPanel = ({
   };
   const applyNumericReference = (
     geometry: NumericReferenceGeometry,
-    property: ReturnType<typeof numericReferenceProperties>[number]
+    property: ReturnType<typeof numericReferencePropertiesForGeometry>[number]
   ) => {
     dispatchCommand("applyPickedNumericReference", {
       numericReferenceExpression: numericReferenceExpression(geometry, property)
@@ -1001,11 +1026,22 @@ export const LeftPanel = ({
               isLineLikeElement(element) &&
               element.id !== activeLinePickTarget?.elementId &&
               !activeLinePickSelectedLineIds.has(element.id);
+            const pickCandidate = candidateByElementId.get(element.id);
+            const selectedPickOptionIndex =
+              selectedPickCursor?.elementId === element.id ? selectedPickCursor.optionIndex : -1;
             return (
             <div
               key={element.id}
+              ref={(node) => {
+                if (node) {
+                  rowRefs.current.set(element.id, node);
+                } else {
+                  rowRefs.current.delete(element.id);
+                }
+              }}
               tabIndex={0}
               data-element-list-row="true"
+              aria-selected={selectedPickOptionIndex >= 0}
               className={`element-row ${selectedElementIdSet.has(element.id) ? "selected" : ""} ${
                 element.id === selectedElementId ? "primary-selected" : ""
               } ${!element.visible ? "is-hidden" : ""} ${
@@ -1030,6 +1066,8 @@ export const LeftPanel = ({
                 activeLinePickTarget && !isLinePickCandidate
                   ? "is-not-line-pick-candidate"
                   : ""
+              } ${
+                selectedPickOptionIndex >= 0 ? "selected-pick-candidate" : ""
               } ${
                 draggedElementIds.includes(element.id) ? "dragging" : ""}${dropMarkerClass(
                 element.id,
@@ -1126,6 +1164,12 @@ export const LeftPanel = ({
                     <button
                       key={`${point.anchor.mode}-${point.label}`}
                       type="button"
+                      className={
+                        pickCandidate?.options[selectedPickOptionIndex]?.kind === "point" &&
+                        pickCandidate.options[selectedPickOptionIndex].label === point.label
+                          ? "selected-pick-option"
+                          : ""
+                      }
                       onClick={(event) => {
                         event.stopPropagation();
                         dispatchCommand("applyPickedPoint", {
@@ -1140,10 +1184,13 @@ export const LeftPanel = ({
               ) : null}
               {activeNumericReferencePickTarget && referenceGeometry ? (
                 <div className="element-numeric-reference-actions">
-                  {numericReferenceProperties(referenceGeometry).map((property) => (
+                  {numericReferencePropertiesForGeometry(referenceGeometry).map((property, optionIndex) => (
                     <button
                       key={property}
                       type="button"
+                      className={
+                        selectedPickOptionIndex === optionIndex ? "selected-pick-option" : ""
+                      }
                       onClick={(event) => {
                         event.stopPropagation();
                         applyNumericReference(referenceGeometry, property);

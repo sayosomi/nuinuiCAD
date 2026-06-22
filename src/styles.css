@@ -256,6 +256,21 @@ select {
   background: #d9f0e8;
 }
 
+.element-row.selected-pick-candidate {
+  border-color: #0b625c;
+  background: #d9f0e8;
+  box-shadow:
+    inset 3px 0 0 #0b625c,
+    0 0 0 2px rgba(15, 118, 110, 0.22);
+}
+
+.element-point-pick-actions button.selected-pick-option,
+.element-numeric-reference-actions button.selected-pick-option {
+  border-color: #0b625c;
+  background: #c4e8df;
+  box-shadow: inset 0 0 0 1px #0b625c;
+}
+
 .element-row.is-not-point-pick-candidate,
 .element-row.is-not-line-pick-candidate,
 .element-row.is-not-numeric-reference-pick-candidate {
