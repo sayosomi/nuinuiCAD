@@ -54,6 +54,8 @@ export type CommandId =
   | "addArcLine"
   | "addThreePointArcLine"
   | "addCornerRadiusArcLine"
+  | "addEdge"
+  | "addExtendTrim"
   | "addBezierCurve"
   | "addOffsetLine"
   | "addSplitLine"

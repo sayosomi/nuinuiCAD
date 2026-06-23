@@ -250,6 +250,48 @@ export const createCadElement = (
         intersectionIndex: 0
       };
     }
+    case "edge": {
+      const id = createId(type);
+      const edgeCount = elements.filter((element) => element.type === "edge").length;
+      const firstLine = lineLikeElements[0];
+      const secondLine = lineLikeElements.find((element) => element.id !== firstLine?.id) ?? firstLine;
+      const requestedName = `エッジ${edgeCount + 1}`;
+      return {
+        id,
+        name: uniqueName(id, requestedName),
+        type,
+        visible: true,
+        enabled: true,
+        numericVariables: [],
+        endpoint1: {
+          lineId: firstLine?.id ?? "",
+          endpointKey: "start"
+        },
+        endpoint2: {
+          lineId: secondLine?.id ?? "",
+          endpointKey: "start"
+        },
+        intersectionIndex: 0
+      };
+    }
+    case "extendTrim": {
+      const id = createId(type);
+      const extendTrimCount = elements.filter((element) => element.type === "extendTrim").length;
+      const requestedName = `延長短縮${extendTrimCount + 1}`;
+      return {
+        id,
+        name: uniqueName(id, requestedName),
+        type,
+        visible: true,
+        enabled: true,
+        numericVariables: [],
+        endpoint: {
+          lineId: lineLikeElements[0]?.id ?? "",
+          endpointKey: "start"
+        },
+        point: referenceAnchor(firstPointId)
+      };
+    }
     case "bezierCurve": {
       const id = createId(type);
       const curveCount = elements.filter((element) => element.type === "bezierCurve").length;

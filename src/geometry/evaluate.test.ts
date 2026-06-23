@@ -495,6 +495,436 @@ describe("evaluateElements", () => {
     expect(far.segments[0].start.y).toBeCloseTo(0, 2);
   });
 
+  it("extends and trims two line endpoints to an edge intersection", () => {
+    const result = evaluateElements([
+      {
+        id: "a",
+        name: "A",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 0,
+        y: 0
+      },
+      {
+        id: "b",
+        name: "B",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 100,
+        y: 0
+      },
+      {
+        id: "c",
+        name: "C",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 150,
+        y: 80
+      },
+      {
+        id: "d",
+        name: "D",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 150,
+        y: 160
+      },
+      {
+        id: "ab",
+        name: "AB",
+        type: "line",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "a" },
+        endPoint: { mode: "reference", pointId: "b" }
+      },
+      {
+        id: "cd",
+        name: "CD",
+        type: "line",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "c" },
+        endPoint: { mode: "reference", pointId: "d" }
+      },
+      {
+        id: "edge",
+        name: "エッジ",
+        type: "edge",
+        visible: true,
+        enabled: true,
+        endpoint1: { lineId: "ab", endpointKey: "end" },
+        endpoint2: { lineId: "cd", endpointKey: "start" },
+        intersectionIndex: 0
+      }
+    ]);
+
+    expect(result.errors).toHaveLength(0);
+    expect(result.computedGeometry.get("ab")).toMatchObject({
+      kind: "line",
+      start: { x: 0, y: 0 },
+      end: { x: 150, y: 0 }
+    });
+    expect(result.computedGeometry.get("cd")).toMatchObject({
+      kind: "line",
+      start: { x: 150, y: 0 },
+      end: { x: 150, y: 160 }
+    });
+    expect(result.computedGeometry.has("edge")).toBe(false);
+  });
+
+  it("reports an edge error for parallel lines", () => {
+    const result = evaluateElements([
+      {
+        id: "a",
+        name: "A",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 0,
+        y: 0
+      },
+      {
+        id: "b",
+        name: "B",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 100,
+        y: 0
+      },
+      {
+        id: "c",
+        name: "C",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 0,
+        y: 20
+      },
+      {
+        id: "d",
+        name: "D",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 100,
+        y: 20
+      },
+      {
+        id: "ab",
+        name: "AB",
+        type: "line",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "a" },
+        endPoint: { mode: "reference", pointId: "b" }
+      },
+      {
+        id: "cd",
+        name: "CD",
+        type: "line",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "c" },
+        endPoint: { mode: "reference", pointId: "d" }
+      },
+      {
+        id: "edge",
+        name: "エッジ",
+        type: "edge",
+        visible: true,
+        enabled: true,
+        endpoint1: { lineId: "ab", endpointKey: "end" },
+        endpoint2: { lineId: "cd", endpointKey: "start" },
+        intersectionIndex: 0
+      }
+    ]);
+
+    expect(result.errors[0]).toMatchObject({
+      elementId: "edge",
+      missingDependencyId: "edge"
+    });
+    expect(result.errors[0].message).toContain("交点");
+  });
+
+  it("extends or trims a line endpoint to a point on the line extension", () => {
+    const result = evaluateElements([
+      {
+        id: "a",
+        name: "A",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 0,
+        y: 0
+      },
+      {
+        id: "b",
+        name: "B",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 100,
+        y: 0
+      },
+      {
+        id: "target",
+        name: "目標",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 140,
+        y: 0
+      },
+      {
+        id: "line",
+        name: "線",
+        type: "line",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "a" },
+        endPoint: { mode: "reference", pointId: "b" }
+      },
+      {
+        id: "extend",
+        name: "延長短縮",
+        type: "extendTrim",
+        visible: true,
+        enabled: true,
+        endpoint: { lineId: "line", endpointKey: "end" },
+        point: { mode: "reference", pointId: "target" }
+      }
+    ]);
+
+    expect(result.errors).toHaveLength(0);
+    expect(result.computedGeometry.get("line")).toMatchObject({
+      kind: "line",
+      end: { x: 140, y: 0 },
+      length: 140
+    });
+    expect(result.computedGeometry.has("extend")).toBe(false);
+  });
+
+  it("rejects extend trim when the point is not on the line or extension", () => {
+    const result = evaluateElements([
+      validElements[0],
+      validElements[1],
+      validElements[2],
+      {
+        id: "target",
+        name: "外点",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 140,
+        y: 20
+      },
+      {
+        id: "extend",
+        name: "延長短縮",
+        type: "extendTrim",
+        visible: true,
+        enabled: true,
+        endpoint: { lineId: "ab", endpointKey: "end" },
+        point: { mode: "reference", pointId: "target" }
+      }
+    ]);
+
+    expect(result.errors[0]).toMatchObject({
+      elementId: "extend",
+      missingDependencyId: "extend"
+    });
+    expect(result.errors[0].message).toContain("直線上または延長線上");
+  });
+
+  it("moves an arc endpoint to a point on the same circle", () => {
+    const result = evaluateElements([
+      {
+        id: "center",
+        name: "中心",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 0,
+        y: 0
+      },
+      {
+        id: "target",
+        name: "目標",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: -10,
+        y: 0
+      },
+      {
+        id: "arc",
+        name: "円弧",
+        type: "arcLine",
+        visible: true,
+        enabled: true,
+        centerPoint: { mode: "reference", pointId: "center" },
+        radius: 10,
+        startAngleDeg: 0,
+        endAngleDeg: 90
+      },
+      {
+        id: "extend",
+        name: "延長短縮",
+        type: "extendTrim",
+        visible: true,
+        enabled: true,
+        endpoint: { lineId: "arc", endpointKey: "end" },
+        point: { mode: "reference", pointId: "target" }
+      }
+    ]);
+
+    expect(result.errors).toHaveLength(0);
+    const arc = result.computedGeometry.get("arc");
+    expect(arc).toMatchObject({
+      kind: "arcLine",
+      endAngleDeg: 180,
+      sweepAngleDeg: 180
+    });
+    if (arc?.kind !== "arcLine") throw new Error("Expected an arc line");
+    expect(arc.end.x).toBeCloseTo(-10);
+    expect(arc.end.y).toBeCloseTo(0);
+  });
+
+  it("moves a Bezier endpoint only along the endpoint tangent line", () => {
+    const result = evaluateElements([
+      {
+        id: "start",
+        name: "始点",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 0,
+        y: 0
+      },
+      {
+        id: "end",
+        name: "終点",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 100,
+        y: 0
+      },
+      {
+        id: "target",
+        name: "目標",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: -20,
+        y: 0
+      },
+      {
+        id: "curve",
+        name: "曲線",
+        type: "bezierCurve",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "start" },
+        startHandleAngleDeg: 0,
+        startHandleLength: 30,
+        intermediatePoints: [],
+        endPoint: { mode: "reference", pointId: "end" },
+        endHandleAngleDeg: 180,
+        endHandleLength: 30
+      },
+      {
+        id: "extend",
+        name: "延長短縮",
+        type: "extendTrim",
+        visible: true,
+        enabled: true,
+        endpoint: { lineId: "curve", endpointKey: "start" },
+        point: { mode: "reference", pointId: "target" }
+      }
+    ]);
+
+    const curve = result.computedGeometry.get("curve");
+    expect(result.errors).toHaveLength(0);
+    expect(curve).toMatchObject({ kind: "bezierCurve" });
+    if (curve?.kind !== "bezierCurve") throw new Error("Expected a Bezier curve");
+    expect(curve.segments[0].start).toMatchObject({ x: -20, y: 0 });
+    expect(curve.segments[0].control1).toMatchObject({ x: 10, y: 0 });
+  });
+
+  it("moves an open offset line endpoint along the endpoint tangent", () => {
+    const result = evaluateElements([
+      {
+        id: "a",
+        name: "A",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 0,
+        y: 0
+      },
+      {
+        id: "b",
+        name: "B",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 100,
+        y: 0
+      },
+      {
+        id: "target",
+        name: "目標",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 140,
+        y: 10
+      },
+      {
+        id: "line",
+        name: "線",
+        type: "line",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "a" },
+        endPoint: { mode: "reference", pointId: "b" }
+      },
+      {
+        id: "offset",
+        name: "オフセット",
+        type: "offsetLine",
+        visible: true,
+        enabled: true,
+        baseLineIds: ["line"],
+        offset: 10,
+        side: "right",
+        closed: false
+      },
+      {
+        id: "extend",
+        name: "延長短縮",
+        type: "extendTrim",
+        visible: true,
+        enabled: true,
+        endpoint: { lineId: "offset", endpointKey: "end" },
+        point: { mode: "reference", pointId: "target" }
+      }
+    ]);
+
+    const offset = result.computedGeometry.get("offset");
+    expect(result.errors).toHaveLength(0);
+    expect(offset).toMatchObject({ kind: "offsetLine" });
+    if (offset?.kind !== "offsetLine") throw new Error("Expected an offset line");
+    expect(offset.segments.at(-1)?.end).toMatchObject({ x: 140, y: 10 });
+  });
+
   it("reports a division point distance error when the endpoints overlap", () => {
     const result = evaluateElements([
       validElements[0],

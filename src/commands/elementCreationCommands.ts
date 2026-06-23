@@ -215,6 +215,66 @@ export const addCornerRadiusArcLine = () => {
   });
 };
 
+export const addEdge = () => {
+  const { elements } = useCadDocumentStore.getState();
+  const selectedIds = new Set(getSelectedElementIds());
+  const selectedLines = elements
+    .filter((element) => selectedIds.has(element.id) && isLineLikeElement(element))
+    .map((element) => element.id);
+  const fallbackLines = elements.filter(isLineLikeElement).map((element) => element.id);
+  const element = createCadElement("edge", elements);
+  if (element.type !== "edge") return;
+  const line1Id = selectedLines[0] ?? fallbackLines[0] ?? "";
+  const line2Id =
+    selectedLines.find((id) => id !== line1Id) ??
+    fallbackLines.find((id) => id !== line1Id) ??
+    line1Id;
+  const edge: CadElement = {
+    ...element,
+    endpoint1: {
+      lineId: line1Id,
+      endpointKey: "start"
+    },
+    endpoint2: {
+      lineId: line2Id,
+      endpointKey: "start"
+    }
+  };
+  useCadDocumentStore.getState().commitDocumentChange({
+    elements: [...elements, edge],
+    selectedElementId: edge.id,
+    selectedElementIds: [edge.id],
+    selectionAnchorElementId: edge.id,
+    selectedParameterKey: getFirstParameterKey(edge)
+  });
+};
+
+export const addExtendTrim = () => {
+  const { elements } = useCadDocumentStore.getState();
+  const selectedIds = new Set(getSelectedElementIds());
+  const selectedLine = elements.find((element) => selectedIds.has(element.id) && isLineLikeElement(element));
+  const fallbackLine = selectedLine ?? elements.find(isLineLikeElement);
+  const selectedPoint = elements.find((element) => selectedIds.has(element.id) && isPointLikeElement(element));
+  const fallbackPoint = selectedPoint ?? elements.find(isPointLikeElement);
+  const element = createCadElement("extendTrim", elements);
+  if (element.type !== "extendTrim") return;
+  const extendTrim: CadElement = {
+    ...element,
+    endpoint: {
+      lineId: fallbackLine?.id ?? "",
+      endpointKey: "start"
+    },
+    point: referenceAnchor(fallbackPoint?.id ?? "")
+  };
+  useCadDocumentStore.getState().commitDocumentChange({
+    elements: [...elements, extendTrim],
+    selectedElementId: extendTrim.id,
+    selectedElementIds: [extendTrim.id],
+    selectionAnchorElementId: extendTrim.id,
+    selectedParameterKey: getFirstParameterKey(extendTrim)
+  });
+};
+
 export const addLineTangentOffsetPoint = () => {
   const { elements } = useCadDocumentStore.getState();
   const selectedIds = new Set(getSelectedElementIds());

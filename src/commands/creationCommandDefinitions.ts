@@ -1,7 +1,9 @@
 import {
   addCornerRadiusArcLine,
   addCopyLine,
+  addEdge,
   addElement,
+  addExtendTrim,
   addIntersectionPoint,
   addLineDivisionPoint,
   addSplitLine,
@@ -133,49 +135,61 @@ export const creationCommandDefinitions = {
     shortcuts: [{ keys: "Shift+R" }],
     run: () => addCornerRadiusArcLine()
   },
+  addEdge: {
+    id: "addEdge",
+    label: "エッジを追加",
+    palette: { order: 12, keywords: ["edge", "extend", "trim", "corner", "エッジ", "延長", "短縮", "接続", "変更", "追加"] },
+    run: () => addEdge()
+  },
+  addExtendTrim: {
+    id: "addExtendTrim",
+    label: "延長短縮を追加",
+    palette: { order: 13, keywords: ["extend", "trim", "line", "endpoint", "延長", "短縮", "端点", "変更", "追加"] },
+    run: () => addExtendTrim()
+  },
   addBezierCurve: {
     id: "addBezierCurve",
     label: "Bezier curve を追加",
-    palette: { order: 12, keywords: ["bezier", "curve", "曲線", "ベジェ", "追加"] },
+    palette: { order: 14, keywords: ["bezier", "curve", "曲線", "ベジェ", "追加"] },
     shortcuts: [{ keys: "c", label: "曲線を追加" }],
     run: () => addElement("bezierCurve")
   },
   addOffsetLine: {
     id: "addOffsetLine",
     label: "オフセット線を追加",
-    palette: { order: 13, keywords: ["offset", "line", "curve", "オフセット", "線", "曲線", "追加"] },
+    palette: { order: 15, keywords: ["offset", "line", "curve", "オフセット", "線", "曲線", "追加"] },
     shortcuts: [{ keys: "Shift+O" }],
     run: () => addOffsetLine()
   },
   addCopyLine: {
     id: "addCopyLine",
     label: "コピー線を追加",
-    palette: { order: 14, keywords: ["copy", "line", "curve", "コピー", "複写", "線", "曲線", "追加"] },
+    palette: { order: 16, keywords: ["copy", "line", "curve", "コピー", "複写", "線", "曲線", "追加"] },
     shortcuts: [{ keys: "Shift+C" }],
     run: () => addCopyLine()
   },
   addSymmetricCopyLine: {
     id: "addSymmetricCopyLine",
     label: "対称コピー線を追加",
-    palette: { order: 15, keywords: ["symmetric", "mirror", "copy", "line", "対称", "反転", "コピー", "線", "追加"] },
+    palette: { order: 17, keywords: ["symmetric", "mirror", "copy", "line", "対称", "反転", "コピー", "線", "追加"] },
     run: () => addSymmetricCopyLine()
   },
   addSplitLine: {
     id: "addSplitLine",
     label: "分割線を追加",
-    palette: { order: 16, keywords: ["split", "divide", "line", "分割", "分割線", "線", "追加"] },
+    palette: { order: 18, keywords: ["split", "divide", "line", "分割", "分割線", "線", "追加"] },
     run: () => addSplitLine()
   },
   addNumericVariable: {
     id: "addNumericVariable",
     label: "共通変数を追加",
-    palette: { order: 17, keywords: ["variable", "共有", "共通", "変数", "追加"] },
+    palette: { order: 19, keywords: ["variable", "共有", "共通", "変数", "追加"] },
     run: () => addNumericVariable()
   },
   deleteNumericVariable: {
     id: "deleteNumericVariable",
     label: "共通変数を削除",
-    palette: { order: 18, keywords: ["variable", "共有", "共通", "変数", "削除"] },
+    palette: { order: 20, keywords: ["variable", "共有", "共通", "変数", "削除"] },
     run: (context) => deleteNumericVariable(context?.variableId)
   },
   addBezierNumericVariable: {
@@ -191,13 +205,13 @@ export const creationCommandDefinitions = {
   addBezierIntermediatePoint: {
     id: "addBezierIntermediatePoint",
     label: "曲線の中間点を追加",
-    palette: { order: 19, keywords: ["bezier", "curve", "middle", "中間点", "追加"] },
+    palette: { order: 21, keywords: ["bezier", "curve", "middle", "中間点", "追加"] },
     run: () => addBezierIntermediatePoint()
   },
   deleteBezierIntermediatePoint: {
     id: "deleteBezierIntermediatePoint",
     label: "曲線の中間点を削除",
-    palette: { order: 20, keywords: ["bezier", "curve", "middle", "中間点", "削除"] },
+    palette: { order: 22, keywords: ["bezier", "curve", "middle", "中間点", "削除"] },
     run: (context) => deleteBezierIntermediatePoint(context?.intermediatePointId)
   }
 } satisfies Partial<Record<CommandId, Command>>;

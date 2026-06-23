@@ -14,6 +14,8 @@ const defaultNameBases: Record<CadElementType, string> = {
   arcLine: "円弧線",
   threePointArcLine: "三点円弧線",
   cornerRadiusArcLine: "角R円弧線",
+  edge: "エッジ",
+  extendTrim: "延長短縮",
   bezierCurve: "曲線",
   offsetLine: "オフセット線",
   splitLine: "分割線",

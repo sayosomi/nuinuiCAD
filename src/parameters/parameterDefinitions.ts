@@ -281,6 +281,21 @@ export const getParameterDefinitions = (element: CadElement): ParameterDefinitio
         { key: "radius", directKey: "r", label: "半径", kind: "number" },
         { key: "intersectionIndex", directKey: "i", label: "番号", kind: "number" }
       ];
+    case "edge":
+      return [
+        ...commonParameters,
+        ...numericVariableParameters(element),
+        { key: "endpoint1", directKey: "1", label: "端点1", kind: "lineEndpointReference" },
+        { key: "endpoint2", directKey: "2", label: "端点2", kind: "lineEndpointReference" },
+        { key: "intersectionIndex", directKey: "i", label: "番号", kind: "number" }
+      ];
+    case "extendTrim":
+      return [
+        ...commonParameters,
+        ...numericVariableParameters(element),
+        { key: "endpoint", directKey: "e", label: "端点", kind: "lineEndpointReference" },
+        { key: "point", directKey: "p", label: "点", kind: "reference", allowCoordinate: false }
+      ];
     case "bezierCurve":
       return [
         ...commonParameters,

@@ -3,6 +3,7 @@ import { evaluateCornerRadiusArcLineElement } from "./cornerRadiusArcEvaluator";
 import { evaluateCopyLineElement } from "./copyLineEvaluator";
 import type { ElementEvaluationContext } from "./elementEvaluatorTypes";
 import { evaluateLineElement } from "./lineEvaluators";
+import { evaluateModificationElement } from "./modificationEvaluators";
 import { evaluateOffsetLineElement } from "./offsetLineEvaluator";
 import { evaluatePointElement } from "./pointEvaluators";
 import { evaluateSplitLineElement } from "./splitLineEvaluator";
@@ -16,4 +17,5 @@ export const evaluateElement = (element: CadElement, context: ElementEvaluationC
   evaluateSplitLineElement(element, context);
   evaluateCopyLineElement(element, context);
   evaluateSymmetricCopyLineElement(element, context);
+  evaluateModificationElement(element, context);
 };

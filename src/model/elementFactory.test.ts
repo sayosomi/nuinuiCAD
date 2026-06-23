@@ -168,6 +168,33 @@ describe("createCadElement", () => {
     });
   });
 
+  it("creates edge modifications using the first two line endpoints as defaults", () => {
+    expect(createCadElement("edge", sampleElements, { createId: createTestId })).toMatchObject({
+      id: "edge-test-id",
+      name: "エッジ1",
+      type: "edge",
+      visible: true,
+      enabled: true,
+      numericVariables: [],
+      endpoint1: { lineId: "line-ab", endpointKey: "start" },
+      endpoint2: { lineId: "line-bc", endpointKey: "start" },
+      intersectionIndex: 0
+    });
+  });
+
+  it("creates extend trim modifications using the first line endpoint and first point as defaults", () => {
+    expect(createCadElement("extendTrim", sampleElements, { createId: createTestId })).toMatchObject({
+      id: "extendTrim-test-id",
+      name: "延長短縮1",
+      type: "extendTrim",
+      visible: true,
+      enabled: true,
+      numericVariables: [],
+      endpoint: { lineId: "line-ab", endpointKey: "start" },
+      point: { mode: "reference", pointId: "point-a" }
+    });
+  });
+
   it("creates Bezier curves using the first two points as default endpoints", () => {
     expect(createCadElement("bezierCurve", sampleElements, { createId: createTestId })).toMatchObject({
       id: "bezierCurve-test-id",

@@ -14,7 +14,7 @@ import type {
   ComputedOffsetLine,
   ElementId
 } from "../types/geometry";
-import { elementTypeLabels } from "../types/geometry";
+import { elementCategoryLabels, elementTypeCategories, elementTypeLabels } from "../types/geometry";
 import { numericReferenceValue } from "./geometryDisplay";
 import { ElementStatusIcon } from "./ElementStatusIcon";
 
@@ -229,7 +229,7 @@ export const ElementListRow = ({
           {groupIssues.warningCount > 0 ? <span>/ 警告{groupIssues.warningCount}</span> : null}
         </span>
       ) : (
-        elementTypeLabels[element.type]
+        `${elementCategoryLabels[elementTypeCategories[element.type]]} / ${elementTypeLabels[element.type]}`
       )}
     </span>
     <button

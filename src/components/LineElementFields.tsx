@@ -149,6 +149,45 @@ export const LineElementFields = ({
         </>
       );
 
+    case "edge":
+      return (
+        <>
+          {lineEndpointEditor({
+            parameterKey: "endpoint1",
+            label: "端点1",
+            endpoint: element.endpoint1
+          })}
+          {lineEndpointEditor({
+            parameterKey: "endpoint2",
+            label: "端点2",
+            endpoint: element.endpoint2
+          })}
+          {numericInput({
+            parameterKey: "intersectionIndex",
+            label: "番号",
+            value: element.intersectionIndex,
+            ariaLabel: "交点番号"
+          })}
+        </>
+      );
+
+    case "extendTrim":
+      return (
+        <>
+          {lineEndpointEditor({
+            parameterKey: "endpoint",
+            label: "端点",
+            endpoint: element.endpoint
+          })}
+          {pointAnchorEditor({
+            parameterKey: "point",
+            label: "点",
+            anchor: element.point,
+            allowCoordinate: false
+          })}
+        </>
+      );
+
     case "offsetLine":
       return (
         <>

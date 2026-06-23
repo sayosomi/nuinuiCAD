@@ -12,9 +12,11 @@ export const supportsNumericVariables = (element: CadElement) =>
   element.type === "lineTangentOffsetPoint" ||
   element.type === "line" ||
   element.type === "arcLine" ||
-  element.type === "threePointArcLine" ||
-  element.type === "cornerRadiusArcLine" ||
-  element.type === "bezierCurve" ||
+    element.type === "threePointArcLine" ||
+    element.type === "cornerRadiusArcLine" ||
+    element.type === "edge" ||
+    element.type === "extendTrim" ||
+    element.type === "bezierCurve" ||
   element.type === "offsetLine" ||
   element.type === "splitLine" ||
   element.type === "copyLine" ||
@@ -78,6 +80,9 @@ export const getPointAnchor = (element: CadElement, key: string): PointAnchor | 
   }
   if (key === "splitPoint" && element.type === "splitLine") {
     return element.splitPoint;
+  }
+  if (key === "point" && element.type === "extendTrim") {
+    return element.point;
   }
   return null;
 };
@@ -148,6 +153,9 @@ export const setPointAnchor = (
   }
   if (key === "splitPoint" && element.type === "splitLine") {
     return { ...element, splitPoint: anchor };
+  }
+  if (key === "point" && element.type === "extendTrim") {
+    return { ...element, point: anchor };
   }
   return element;
 };

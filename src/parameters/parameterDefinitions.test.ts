@@ -91,6 +91,46 @@ describe("parameterDefinitions", () => {
     );
   });
 
+  it("defines editable parameters for edge modifications", () => {
+    const edge: CadElement = {
+      id: "edge",
+      name: "エッジ",
+      type: "edge",
+      visible: true,
+      enabled: true,
+      endpoint1: { lineId: "line-a", endpointKey: "start" },
+      endpoint2: { lineId: "line-b", endpointKey: "end" },
+      intersectionIndex: 0
+    };
+
+    expect(getParameterDefinitions(edge)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ key: "endpoint1", directKey: "1", label: "端点1", kind: "lineEndpointReference" }),
+        expect.objectContaining({ key: "endpoint2", directKey: "2", label: "端点2", kind: "lineEndpointReference" }),
+        expect.objectContaining({ key: "intersectionIndex", directKey: "i", label: "番号", kind: "number" })
+      ])
+    );
+  });
+
+  it("defines editable parameters for extend trim modifications", () => {
+    const extendTrim: CadElement = {
+      id: "extend",
+      name: "延長短縮",
+      type: "extendTrim",
+      visible: true,
+      enabled: true,
+      endpoint: { lineId: "line-a", endpointKey: "end" },
+      point: { mode: "reference", pointId: "point-a" }
+    };
+
+    expect(getParameterDefinitions(extendTrim)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ key: "endpoint", directKey: "e", label: "端点", kind: "lineEndpointReference" }),
+        expect.objectContaining({ key: "point", directKey: "p", label: "点", kind: "reference", allowCoordinate: false })
+      ])
+    );
+  });
+
   it("defines editable parameters for copy lines", () => {
     const line: CadElement = {
       id: "copy",

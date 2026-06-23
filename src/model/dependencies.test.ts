@@ -189,6 +189,35 @@ describe("dependencies", () => {
     expect(getDirectParentIds(point)).toEqual(["ab", "b", "bc", "cd"]);
   });
 
+  it("returns edge endpoint and index expression references as direct parent ids", () => {
+    const edge: CadElement = {
+      id: "edge",
+      name: "エッジ",
+      type: "edge",
+      visible: true,
+      enabled: true,
+      endpoint1: { lineId: "ab", endpointKey: "end" },
+      endpoint2: { lineId: "bc", endpointKey: "start" },
+      intersectionIndex: { kind: "expression", expression: "cd.length / 100" }
+    };
+
+    expect(getDirectParentIds(edge)).toEqual(["ab", "bc", "cd"]);
+  });
+
+  it("returns extend trim endpoint and point references as direct parent ids", () => {
+    const extendTrim: CadElement = {
+      id: "extend",
+      name: "延長短縮",
+      type: "extendTrim",
+      visible: true,
+      enabled: true,
+      endpoint: { lineId: "ab", endpointKey: "end" },
+      point: { mode: "reference", pointId: "c" }
+    };
+
+    expect(getDirectParentIds(extendTrim)).toEqual(["ab", "c"]);
+  });
+
   it("returns direct coordinate expression references as parent ids", () => {
     const directLine: CadElement = {
       id: "direct",

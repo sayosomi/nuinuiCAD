@@ -134,6 +134,19 @@ export type CornerRadiusArcLineElement = CadElementBase & {
   intersectionIndex: NumericValue;
 };
 
+export type EdgeElement = CadElementBase & {
+  type: "edge";
+  endpoint1: LineEndpointReference;
+  endpoint2: LineEndpointReference;
+  intersectionIndex: NumericValue;
+};
+
+export type ExtendTrimElement = CadElementBase & {
+  type: "extendTrim";
+  endpoint: LineEndpointReference;
+  point: PointAnchor;
+};
+
 export type BezierIntermediatePoint = {
   id: string;
   point: PointAnchor;
@@ -203,12 +216,15 @@ export type CadElement =
   | ArcLineElement
   | ThreePointArcLineElement
   | CornerRadiusArcLineElement
+  | EdgeElement
+  | ExtendTrimElement
   | BezierCurveElement
   | OffsetLineElement
   | SplitLineElement
   | CopyLineElement
   | SymmetricCopyLineElement;
 export type CadElementType = CadElement["type"];
+export type CadElementCategory = "group" | "point" | "line" | "modification";
 
 export type ComputedPoint = {
   kind: "point";
@@ -348,9 +364,40 @@ export const elementTypeLabels: Record<CadElementType, string> = {
   arcLine: "arc line",
   threePointArcLine: "three-point arc line",
   cornerRadiusArcLine: "角R円弧線",
+  edge: "エッジ",
+  extendTrim: "延長短縮",
   bezierCurve: "Bezier curve",
   offsetLine: "オフセット線",
   splitLine: "分割線",
   copyLine: "コピー線",
   symmetricCopyLine: "対称コピー線"
+};
+
+export const elementTypeCategories: Record<CadElementType, CadElementCategory> = {
+  group: "group",
+  freePoint: "point",
+  offsetPoint: "point",
+  polarOffsetPoint: "point",
+  divisionPoint: "point",
+  lineDivisionPoint: "point",
+  intersectionPoint: "point",
+  lineTangentOffsetPoint: "point",
+  line: "line",
+  arcLine: "line",
+  threePointArcLine: "line",
+  cornerRadiusArcLine: "line",
+  edge: "modification",
+  extendTrim: "modification",
+  bezierCurve: "line",
+  offsetLine: "line",
+  splitLine: "line",
+  copyLine: "line",
+  symmetricCopyLine: "line"
+};
+
+export const elementCategoryLabels: Record<CadElementCategory, string> = {
+  group: "グループ",
+  point: "点",
+  line: "線",
+  modification: "変更"
 };

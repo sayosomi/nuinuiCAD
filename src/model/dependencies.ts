@@ -125,6 +125,19 @@ export const getDirectParentIds = (element: CadElement): ElementId[] => {
           ...extractNumericExpressionReferences(element.radius),
           ...extractNumericExpressionReferences(element.intersectionIndex)
         ].map((reference) => reference.elementId);
+      case "edge":
+        return [
+          ...numericVariableReferences(element),
+          { elementId: element.endpoint1.lineId },
+          { elementId: element.endpoint2.lineId },
+          ...extractNumericExpressionReferences(element.intersectionIndex)
+        ].map((reference) => reference.elementId);
+      case "extendTrim":
+        return [
+          ...numericVariableReferences(element),
+          { elementId: element.endpoint.lineId },
+          ...pointAnchorParentIds(element.point).map((elementId) => ({ elementId }))
+        ].map((reference) => reference.elementId);
       case "bezierCurve":
         return [
           ...numericVariableReferences(element),
@@ -185,6 +198,8 @@ export const getDirectParentIds = (element: CadElement): ElementId[] => {
     case "arcLine":
     case "threePointArcLine":
     case "cornerRadiusArcLine":
+    case "edge":
+    case "extendTrim":
       return numericExpressionParentIds();
     case "bezierCurve":
     case "offsetLine":
