@@ -5,6 +5,7 @@ import type {
 } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { dispatchCommand } from "../commands/commands";
+import { getParameterValue } from "../parameters/parameterAccess";
 import type { BezierHandleRole as CommandBezierHandleRole } from "../commands/commands";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import type { CadDocumentSnapshot } from "../state/cadDocumentStore";
@@ -278,8 +279,14 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
     if (!activeTarget) return [];
 
     const targetElement = elements.find((element) => element.id === activeTarget.elementId);
-    const pickedBaseLineIds =
-      targetElement?.type === "offsetLine" ? new Set(targetElement.baseLineIds) : new Set<ElementId>();
+    const parameterValue = targetElement
+      ? getParameterValue(targetElement, activeTarget.parameterKey)
+      : null;
+    const pickedBaseLineIds = new Set<ElementId>(
+      Array.isArray(parameterValue)
+        ? (parameterValue as unknown[]).filter((id): id is ElementId => typeof id === "string")
+        : []
+    );
     const uniqueCandidates = new Map<ElementId, LinePickCandidate>();
     for (const candidate of hitTestLineMeasurementCandidates({
       screen,

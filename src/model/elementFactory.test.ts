@@ -215,6 +215,20 @@ describe("createCadElement", () => {
     });
   });
 
+  it("creates symmetric copy lines using the first two points and first line as defaults", () => {
+    expect(createCadElement("symmetricCopyLine", sampleElements, { createId: createTestId })).toMatchObject({
+      id: "symmetricCopyLine-test-id",
+      name: "対称コピー線1",
+      type: "symmetricCopyLine",
+      visible: true,
+      enabled: true,
+      numericVariables: [],
+      axisPoint1: { mode: "reference", pointId: "point-a" },
+      axisPoint2: { mode: "reference", pointId: "point-b" },
+      baseLineIds: ["line-ab"]
+    });
+  });
+
   it("keeps names unique when the requested default name already exists", () => {
     const existing = [
       ...sampleElements,

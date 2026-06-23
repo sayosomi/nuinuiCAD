@@ -41,7 +41,10 @@ const isLineLikeElement = (element: CadElement) =>
   element.type === "threePointArcLine" ||
   element.type === "cornerRadiusArcLine" ||
   element.type === "bezierCurve" ||
-  element.type === "offsetLine";
+  element.type === "offsetLine" ||
+  element.type === "splitLine" ||
+  element.type === "copyLine" ||
+  element.type === "symmetricCopyLine";
 
 type ElementDropTarget = {
   elementId: ElementId;

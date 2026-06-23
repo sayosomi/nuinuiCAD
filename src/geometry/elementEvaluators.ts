@@ -6,6 +6,7 @@ import { evaluateLineElement } from "./lineEvaluators";
 import { evaluateOffsetLineElement } from "./offsetLineEvaluator";
 import { evaluatePointElement } from "./pointEvaluators";
 import { evaluateSplitLineElement } from "./splitLineEvaluator";
+import { evaluateSymmetricCopyLineElement } from "./symmetricCopyLineEvaluator";
 
 export const evaluateElement = (element: CadElement, context: ElementEvaluationContext) => {
   if (evaluatePointElement(element, context)) return;
@@ -14,4 +15,5 @@ export const evaluateElement = (element: CadElement, context: ElementEvaluationC
   evaluateOffsetLineElement(element, context);
   evaluateSplitLineElement(element, context);
   evaluateCopyLineElement(element, context);
+  evaluateSymmetricCopyLineElement(element, context);
 };

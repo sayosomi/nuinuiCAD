@@ -155,6 +155,13 @@ export const getDirectParentIds = (element: CadElement): ElementId[] => {
           ...extractNumericExpressionReferences(element.angleDeg),
           ...element.baseLineIds.map((elementId) => ({ elementId }))
         ].map((reference) => reference.elementId);
+      case "symmetricCopyLine":
+        return [
+          ...numericVariableReferences(element),
+          ...pointAnchorParentIds(element.axisPoint1).map((elementId) => ({ elementId })),
+          ...pointAnchorParentIds(element.axisPoint2).map((elementId) => ({ elementId })),
+          ...element.baseLineIds.map((elementId) => ({ elementId }))
+        ].map((reference) => reference.elementId);
     }
   };
 
@@ -183,6 +190,7 @@ export const getDirectParentIds = (element: CadElement): ElementId[] => {
     case "offsetLine":
     case "splitLine":
     case "copyLine":
+    case "symmetricCopyLine":
       return numericExpressionParentIds();
   }
 };

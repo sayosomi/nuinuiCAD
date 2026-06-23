@@ -27,7 +27,8 @@ export const isLineLikeElement = (element: CadElement) =>
   element.type === "bezierCurve" ||
   element.type === "offsetLine" ||
   element.type === "splitLine" ||
-  element.type === "copyLine";
+  element.type === "copyLine" ||
+  element.type === "symmetricCopyLine";
 
 export const isPointLikeElement = (element: CadElement) =>
   element.type === "freePoint" ||

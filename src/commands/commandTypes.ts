@@ -58,6 +58,7 @@ export type CommandId =
   | "addOffsetLine"
   | "addSplitLine"
   | "addCopyLine"
+  | "addSymmetricCopyLine"
   | "addNumericVariable"
   | "deleteNumericVariable"
   | "addBezierNumericVariable"

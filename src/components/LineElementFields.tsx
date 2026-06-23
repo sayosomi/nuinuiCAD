@@ -238,6 +238,31 @@ export const LineElementFields = ({
         </>
       );
 
+    case "symmetricCopyLine":
+      return (
+        <>
+          {pointAnchorEditor({
+            parameterKey: "axisPoint1",
+            label: "対称点1",
+            anchor: element.axisPoint1,
+            allowCoordinate: false
+          })}
+          {pointAnchorEditor({
+            parameterKey: "axisPoint2",
+            label: "対称点2",
+            anchor: element.axisPoint2,
+            allowCoordinate: false
+          })}
+          <LineReferenceListEditor
+            {...commonEditorProps}
+            parameterKey="baseLineIds"
+            label="基準線"
+            lineIds={element.baseLineIds}
+            emptyLabel="基準線はありません。"
+          />
+        </>
+      );
+
     default:
       return null;
   }

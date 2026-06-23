@@ -387,6 +387,26 @@ export const getParameterDefinitions = (element: CadElement): ParameterDefinitio
         { key: "mirrorX", directKey: "m", label: "左右反転", kind: "boolean" },
         { key: "baseLineIds", directKey: "b", label: "基準線", kind: "lineReferenceList" }
       ];
+    case "symmetricCopyLine":
+      return [
+        ...commonParameters,
+        ...numericVariableParameters(element),
+        ...pointAnchorParameters({
+          anchor: element.axisPoint1,
+          key: "axisPoint1",
+          directKey: "1",
+          label: "対称点1",
+          allowCoordinate: false
+        }),
+        ...pointAnchorParameters({
+          anchor: element.axisPoint2,
+          key: "axisPoint2",
+          directKey: "2",
+          label: "対称点2",
+          allowCoordinate: false
+        }),
+        { key: "baseLineIds", directKey: "b", label: "基準線", kind: "lineReferenceList" }
+      ];
   }
 };
 

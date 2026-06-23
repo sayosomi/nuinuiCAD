@@ -1025,6 +1025,241 @@ describe("evaluateElements", () => {
     expect(copy.segments[1].end.y).toBeCloseTo(180);
   });
 
+  it("mirrors copied lines across an axis defined by two points", () => {
+    const result = evaluateElements([
+      {
+        id: "a",
+        name: "A",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 0,
+        y: 0
+      },
+      {
+        id: "b",
+        name: "B",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 80,
+        y: 0
+      },
+      {
+        id: "c",
+        name: "C",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 80,
+        y: 30
+      },
+      {
+        id: "axis-a",
+        name: "軸A",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 40,
+        y: -50
+      },
+      {
+        id: "axis-b",
+        name: "軸B",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 40,
+        y: 50
+      },
+      {
+        id: "ab",
+        name: "AB",
+        type: "line",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "a" },
+        endPoint: { mode: "reference", pointId: "b" }
+      },
+      {
+        id: "bc",
+        name: "BC",
+        type: "line",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "b" },
+        endPoint: { mode: "reference", pointId: "c" }
+      },
+      {
+        id: "symmetric",
+        name: "対称コピー線",
+        type: "symmetricCopyLine",
+        visible: true,
+        enabled: true,
+        axisPoint1: { mode: "reference", pointId: "axis-a" },
+        axisPoint2: { mode: "reference", pointId: "axis-b" },
+        baseLineIds: ["ab", "bc"]
+      }
+    ]);
+
+    const line = result.computedGeometry.get("symmetric");
+    expect(result.errors).toHaveLength(0);
+    expect(line).toMatchObject({ kind: "offsetLine", length: 110 });
+    if (line?.kind !== "offsetLine") throw new Error("Expected a symmetric copy line");
+    expect(line.segments[0]).toMatchObject({
+      kind: "line",
+      start: { x: 80, y: 0 },
+      end: { x: 0, y: 0 }
+    });
+    expect(line.segments[1]).toMatchObject({
+      kind: "line",
+      start: { x: 0, y: 0 },
+      end: { x: 0, y: 30 }
+    });
+  });
+
+  it("mirrors copied lines across a diagonal axis", () => {
+    const result = evaluateElements([
+      {
+        id: "axis-a",
+        name: "軸A",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 0,
+        y: 0
+      },
+      {
+        id: "axis-b",
+        name: "軸B",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 100,
+        y: 100
+      },
+      {
+        id: "p1",
+        name: "P1",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 0,
+        y: 20
+      },
+      {
+        id: "p2",
+        name: "P2",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 30,
+        y: 20
+      },
+      {
+        id: "line",
+        name: "線",
+        type: "line",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "p1" },
+        endPoint: { mode: "reference", pointId: "p2" }
+      },
+      {
+        id: "symmetric",
+        name: "対称コピー線",
+        type: "symmetricCopyLine",
+        visible: true,
+        enabled: true,
+        axisPoint1: { mode: "reference", pointId: "axis-a" },
+        axisPoint2: { mode: "reference", pointId: "axis-b" },
+        baseLineIds: ["line"]
+      }
+    ]);
+
+    const line = result.computedGeometry.get("symmetric");
+    expect(result.errors).toHaveLength(0);
+    if (line?.kind !== "offsetLine") throw new Error("Expected a symmetric copy line");
+    expect(line.segments[0].start.x).toBeCloseTo(20);
+    expect(line.segments[0].start.y).toBeCloseTo(0);
+    expect(line.segments[0].end.x).toBeCloseTo(20);
+    expect(line.segments[0].end.y).toBeCloseTo(30);
+  });
+
+  it("reports symmetric copy line dependencies that appear too late", () => {
+    const result = evaluateElements([
+      {
+        id: "axis-a",
+        name: "軸A",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 0,
+        y: 0
+      },
+      {
+        id: "axis-b",
+        name: "軸B",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 0,
+        y: 100
+      },
+      {
+        id: "symmetric",
+        name: "対称コピー線",
+        type: "symmetricCopyLine",
+        visible: true,
+        enabled: true,
+        axisPoint1: { mode: "reference", pointId: "axis-a" },
+        axisPoint2: { mode: "reference", pointId: "axis-b" },
+        baseLineIds: ["line"]
+      },
+      {
+        id: "line",
+        name: "線",
+        type: "line",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "axis-a" },
+        endPoint: { mode: "reference", pointId: "axis-b" }
+      }
+    ]);
+
+    expect(result.computedGeometry.has("symmetric")).toBe(false);
+    expect(result.errors[0]).toMatchObject({
+      elementId: "symmetric",
+      missingDependencyId: "line",
+      missingDependencyName: "線"
+    });
+  });
+
+  it("reports a geometry error when symmetric copy axis points are the same", () => {
+    const result = evaluateElements([
+      validElements[0],
+      validElements[1],
+      validElements[2],
+      {
+        id: "symmetric",
+        name: "対称コピー線",
+        type: "symmetricCopyLine",
+        visible: true,
+        enabled: true,
+        axisPoint1: { mode: "reference", pointId: "a" },
+        axisPoint2: { mode: "reference", pointId: "a" },
+        baseLineIds: ["ab"]
+      }
+    ]);
+
+    expect(result.computedGeometry.has("symmetric")).toBe(false);
+    expect(result.errors[0]).toMatchObject({
+      elementId: "symmetric",
+      missingDependencyId: "symmetric"
+    });
+    expect(result.errors[0].message).toContain("同じ点");
+  });
+
   it("evaluates line tangent offset points relative to the tangent at the base point", () => {
     const result = evaluateElements([
       {

@@ -116,6 +116,27 @@ describe("parameterDefinitions", () => {
     );
   });
 
+  it("defines editable parameters for symmetric copy lines", () => {
+    const line: CadElement = {
+      id: "symmetric",
+      name: "対称コピー線",
+      type: "symmetricCopyLine",
+      visible: true,
+      enabled: true,
+      axisPoint1: { mode: "reference", pointId: "point-a" },
+      axisPoint2: { mode: "reference", pointId: "point-b" },
+      baseLineIds: ["line-a"]
+    };
+
+    expect(getParameterDefinitions(line)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ key: "axisPoint1", directKey: "1", label: "対称点1", kind: "reference", allowCoordinate: false }),
+        expect.objectContaining({ key: "axisPoint2", directKey: "2", label: "対称点2", kind: "reference", allowCoordinate: false }),
+        expect.objectContaining({ key: "baseLineIds", directKey: "b", label: "基準線", kind: "lineReferenceList" })
+      ])
+    );
+  });
+
   it("marks which point reference parameters can use coordinate mode", () => {
     const line: CadElement = {
       id: "line",

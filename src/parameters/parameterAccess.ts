@@ -17,7 +17,8 @@ export const supportsNumericVariables = (element: CadElement) =>
   element.type === "bezierCurve" ||
   element.type === "offsetLine" ||
   element.type === "splitLine" ||
-  element.type === "copyLine";
+  element.type === "copyLine" ||
+  element.type === "symmetricCopyLine";
 
 export const parseIntermediateParameterKey = (key: string) => {
   const [, intermediatePointId, field] = key.split(":");
@@ -51,6 +52,12 @@ export const getPointAnchor = (element: CadElement, key: string): PointAnchor | 
       element.type === "bezierCurve" ||
       element.type === "divisionPoint" ||
       element.type === "copyLine")
+  ) {
+    return element[key];
+  }
+  if (
+    (key === "axisPoint1" || key === "axisPoint2") &&
+    element.type === "symmetricCopyLine"
   ) {
     return element[key];
   }
@@ -106,6 +113,12 @@ export const setPointAnchor = (
       element.type === "copyLine")
   ) {
     return { ...element, endPoint: anchor };
+  }
+  if (key === "axisPoint1" && element.type === "symmetricCopyLine") {
+    return { ...element, axisPoint1: anchor };
+  }
+  if (key === "axisPoint2" && element.type === "symmetricCopyLine") {
+    return { ...element, axisPoint2: anchor };
   }
   if (key === "centerPoint" && element.type === "arcLine") {
     return { ...element, centerPoint: anchor };

@@ -5,6 +5,7 @@ import {
   addIntersectionPoint,
   addLineDivisionPoint,
   addSplitLine,
+  addSymmetricCopyLine,
   addLineTangentOffsetPoint,
   addOffsetLine
 } from "./elementCreationCommands";
@@ -153,10 +154,16 @@ export const creationCommandDefinitions = {
     shortcuts: [{ keys: "Shift+C" }],
     run: () => addCopyLine()
   },
+  addSymmetricCopyLine: {
+    id: "addSymmetricCopyLine",
+    label: "対称コピー線を追加",
+    palette: { order: 15, keywords: ["symmetric", "mirror", "copy", "line", "対称", "反転", "コピー", "線", "追加"] },
+    run: () => addSymmetricCopyLine()
+  },
   addSplitLine: {
     id: "addSplitLine",
     label: "分割線を追加",
-    palette: { order: 15, keywords: ["split", "divide", "line", "分割", "分割線", "線", "追加"] },
+    palette: { order: 16, keywords: ["split", "divide", "line", "分割", "分割線", "線", "追加"] },
     run: () => addSplitLine()
   },
   addNumericVariable: {

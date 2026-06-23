@@ -91,7 +91,8 @@ export const lineLikeElementTypes = [
   "cornerRadiusArcLine",
   "bezierCurve",
   "offsetLine",
-  "copyLine"
+  "copyLine",
+  "symmetricCopyLine"
 ] as const;
 
 export const buildOffsetLineGeometry = ({

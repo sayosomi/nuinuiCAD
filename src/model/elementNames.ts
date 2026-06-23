@@ -17,7 +17,8 @@ const defaultNameBases: Record<CadElementType, string> = {
   bezierCurve: "曲線",
   offsetLine: "オフセット線",
   splitLine: "分割線",
-  copyLine: "コピー線"
+  copyLine: "コピー線",
+  symmetricCopyLine: "対称コピー線"
 };
 
 const normalizeName = (name: string, fallbackBaseName: string) => {

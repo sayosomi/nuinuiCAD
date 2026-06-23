@@ -98,6 +98,38 @@ export const addCopyLine = () => {
   });
 };
 
+export const addSymmetricCopyLine = () => {
+  const { elements } = useCadDocumentStore.getState();
+  const selectedIds = new Set(getSelectedElementIds());
+  const selectedBaseLineIds = elements
+    .filter((element) => selectedIds.has(element.id) && isLineLikeElement(element))
+    .map((element) => element.id);
+  const fallbackBaseLineId = elements.find(isLineLikeElement)?.id;
+  const selectedPoints = elements.filter((element) => selectedIds.has(element.id) && isPointLikeElement(element));
+  const fallbackPoints = elements.filter(isPointLikeElement);
+  const axisPoint1 = selectedPoints[0] ?? fallbackPoints[0];
+  const axisPoint2 = selectedPoints[1] ?? fallbackPoints.find((point) => point.id !== axisPoint1?.id) ?? axisPoint1;
+  const element = createCadElement("symmetricCopyLine", elements);
+  if (element.type !== "symmetricCopyLine") return;
+  const symmetricCopyLine: CadElement = {
+    ...element,
+    axisPoint1: referenceAnchor(axisPoint1?.id ?? ""),
+    axisPoint2: referenceAnchor(axisPoint2?.id ?? ""),
+    baseLineIds: selectedBaseLineIds.length > 0
+      ? selectedBaseLineIds
+      : fallbackBaseLineId
+        ? [fallbackBaseLineId]
+        : []
+  };
+  useCadDocumentStore.getState().commitDocumentChange({
+    elements: [...elements, symmetricCopyLine],
+    selectedElementId: symmetricCopyLine.id,
+    selectedElementIds: [symmetricCopyLine.id],
+    selectionAnchorElementId: symmetricCopyLine.id,
+    selectedParameterKey: getFirstParameterKey(symmetricCopyLine)
+  });
+};
+
 export const addLineDivisionPoint = () => {
   const { elements } = useCadDocumentStore.getState();
   const selectedIds = new Set(getSelectedElementIds());

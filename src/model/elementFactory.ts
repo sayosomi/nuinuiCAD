@@ -35,7 +35,8 @@ export const createCadElement = (
       element.type === "bezierCurve" ||
       element.type === "offsetLine" ||
       element.type === "splitLine" ||
-      element.type === "copyLine"
+      element.type === "copyLine" ||
+      element.type === "symmetricCopyLine"
   );
   const uniqueName = (elementId: ElementId, requestedName: string) =>
     makeUniqueElementName({
@@ -316,6 +317,22 @@ export const createCadElement = (
         endPoint: referenceAnchor(secondPointId),
         angleDeg: 0,
         mirrorX: false,
+        baseLineIds: lineLikeElements[0] ? [lineLikeElements[0].id] : []
+      };
+    }
+    case "symmetricCopyLine": {
+      const id = createId(type);
+      const symmetricCopyLineCount = elements.filter((element) => element.type === "symmetricCopyLine").length;
+      const requestedName = `対称コピー線${symmetricCopyLineCount + 1}`;
+      return {
+        id,
+        name: uniqueName(id, requestedName),
+        type,
+        visible: true,
+        enabled: true,
+        numericVariables: [],
+        axisPoint1: referenceAnchor(firstPointId),
+        axisPoint2: referenceAnchor(secondPointId),
         baseLineIds: lineLikeElements[0] ? [lineLikeElements[0].id] : []
       };
     }

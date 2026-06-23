@@ -837,6 +837,27 @@ describe("commands", () => {
     expect(state.past).toHaveLength(1);
   });
 
+  it("adds a symmetric copy line from selected line-like elements and points", () => {
+    useCadStore.setState({
+      selectedElementId: "line-bc",
+      selectedElementIds: ["point-a", "point-b", "line-ab", "line-bc"],
+      selectionAnchorElementId: "point-a"
+    });
+
+    dispatchCommand("addSymmetricCopyLine");
+
+    const state = useCadStore.getState();
+    const symmetricCopyLine = state.elements.at(-1);
+    expect(symmetricCopyLine).toMatchObject({
+      type: "symmetricCopyLine",
+      axisPoint1: { mode: "reference", pointId: "point-a" },
+      axisPoint2: { mode: "reference", pointId: "point-b" },
+      baseLineIds: ["line-ab", "line-bc"]
+    });
+    expect(state.selectedElementId).toBe(symmetricCopyLine?.id);
+    expect(state.past).toHaveLength(1);
+  });
+
   it("adds a split line from the selected line and point", () => {
     useCadStore.setState({
       selectedElementId: "line-ab",

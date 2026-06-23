@@ -178,6 +178,13 @@ export type CopyLineElement = CadElementBase & {
   baseLineIds: ElementId[];
 };
 
+export type SymmetricCopyLineElement = CadElementBase & {
+  type: "symmetricCopyLine";
+  axisPoint1: PointAnchor;
+  axisPoint2: PointAnchor;
+  baseLineIds: ElementId[];
+};
+
 export type GroupElement = CadElementBase & {
   type: "group";
   expanded: boolean;
@@ -199,7 +206,8 @@ export type CadElement =
   | BezierCurveElement
   | OffsetLineElement
   | SplitLineElement
-  | CopyLineElement;
+  | CopyLineElement
+  | SymmetricCopyLineElement;
 export type CadElementType = CadElement["type"];
 
 export type ComputedPoint = {
@@ -343,5 +351,6 @@ export const elementTypeLabels: Record<CadElementType, string> = {
   bezierCurve: "Bezier curve",
   offsetLine: "オフセット線",
   splitLine: "分割線",
-  copyLine: "コピー線"
+  copyLine: "コピー線",
+  symmetricCopyLine: "対称コピー線"
 };
