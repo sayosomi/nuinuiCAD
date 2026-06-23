@@ -4,7 +4,8 @@ import { pickCandidates, selectedPickOption } from "../model/pickCandidates";
 import { lineEndpointReferenceForAnchor, referenceAnchor } from "../model/pointAnchors";
 import { findParameterDefinition } from "../parameters/parameterDefinitions";
 import { getParameterValue, setParameterValue } from "../parameters/parameterAccess";
-import { useCadStore } from "../state/useCadStore";
+import { useCadDocumentStore } from "../state/cadDocumentStore";
+import { useCadUiStore } from "../state/cadUiStore";
 import type { ElementId } from "../types/geometry";
 import type { CommandContext } from "./commandTypes";
 import { getSelectedElement, isLineLikeElement, selectedParameterDefinition } from "./commandRuntime";
@@ -12,7 +13,7 @@ import { getSelectedElement, isLineLikeElement, selectedParameterDefinition } fr
 export const applyNumericExpressionReference = (context?: CommandContext) => {
   const numericExpression = context?.numericExpression;
   if (!numericExpression) return;
-  const { elements, selectedElementId, selectedParameterKey } = useCadStore.getState();
+  const { elements, selectedElementId, selectedParameterKey } = useCadDocumentStore.getState();
   const targetElementId = context.elementId ?? selectedElementId;
   const targetElement = targetElementId
     ? elements.find((element) => element.id === targetElementId) ?? null
@@ -23,7 +24,7 @@ export const applyNumericExpressionReference = (context?: CommandContext) => {
   const definition = findParameterDefinition(targetElement, key);
   if (definition?.kind !== "number") return;
 
-  useCadStore.getState().commitDocumentChange({
+  useCadDocumentStore.getState().commitDocumentChange({
     elements: elements.map((element) =>
       element.id === targetElement.id
         ? setParameterValue(element, definition.key, makeNumericExpression(numericExpression))
@@ -41,7 +42,7 @@ export const startNumericReferencePick = () => {
   const definition = selectedParameterDefinition();
   if (!selectedElement || definition?.kind !== "number") return;
 
-  useCadStore.setState({
+  useCadUiStore.setState({
     activePointPickTarget: null,
     activeLinePickTarget: null,
     activeNumericReferencePickTarget: {
@@ -54,7 +55,7 @@ export const startNumericReferencePick = () => {
 export const applyPickedNumericReference = (context?: Pick<CommandContext, "numericReferenceExpression">) => {
   const numericExpression = context?.numericReferenceExpression;
   if (!numericExpression) return;
-  const { activeNumericReferencePickTarget } = useCadStore.getState();
+  const { activeNumericReferencePickTarget } = useCadUiStore.getState();
   if (!activeNumericReferencePickTarget) return;
 
   applyNumericExpressionReference({
@@ -62,20 +63,20 @@ export const applyPickedNumericReference = (context?: Pick<CommandContext, "nume
     parameterKey: activeNumericReferencePickTarget.parameterKey,
     numericExpression
   });
-  useCadStore.getState().setActiveNumericReferencePickTarget(null);
+  useCadUiStore.getState().setActiveNumericReferencePickTarget(null);
 };
 
 export const cancelNumericReferencePick = () => {
-  useCadStore.getState().setActiveNumericReferencePickTarget(null);
+  useCadUiStore.getState().setActiveNumericReferencePickTarget(null);
 };
 
 const activePickCandidates = () => {
   const {
-    elements,
     activePointPickTarget,
     activeNumericReferencePickTarget,
     activeLinePickTarget
-  } = useCadStore.getState();
+  } = useCadUiStore.getState();
+  const { elements } = useCadDocumentStore.getState();
   return pickCandidates(elements, evaluateElements(elements), {
     activePointPickTarget,
     activeNumericReferencePickTarget,
@@ -86,11 +87,11 @@ const activePickCandidates = () => {
 export const selectPickCandidateByOffset = (offset: number) => {
   const candidates = activePickCandidates();
   if (candidates.length === 0) {
-    useCadStore.getState().setActivePickCursor(null);
+    useCadUiStore.getState().setActivePickCursor(null);
     return;
   }
 
-  const { activePickCursor } = useCadStore.getState();
+  const { activePickCursor } = useCadUiStore.getState();
   const currentIndex = activePickCursor
     ? candidates.findIndex((candidate) => candidate.elementId === activePickCursor.elementId)
     : -1;
@@ -100,7 +101,7 @@ export const selectPickCandidateByOffset = (offset: number) => {
       : (currentIndex + offset + candidates.length) % candidates.length;
   const candidate = candidates[nextIndex];
   const optionIndex = Math.min(activePickCursor?.optionIndex ?? 0, candidate.options.length - 1);
-  useCadStore.getState().setActivePickCursor({
+  useCadUiStore.getState().setActivePickCursor({
     elementId: candidate.elementId,
     optionIndex
   });
@@ -108,15 +109,15 @@ export const selectPickCandidateByOffset = (offset: number) => {
 
 export const selectPickOptionByOffset = (offset: number) => {
   const candidates = activePickCandidates();
-  const selected = selectedPickOption(candidates, useCadStore.getState().activePickCursor);
+  const selected = selectedPickOption(candidates, useCadUiStore.getState().activePickCursor);
   if (!selected) {
-    useCadStore.getState().setActivePickCursor(null);
+    useCadUiStore.getState().setActivePickCursor(null);
     return;
   }
 
   const optionCount = selected.candidate.options.length;
   const optionIndex = (selected.cursor.optionIndex + offset + optionCount) % optionCount;
-  useCadStore.getState().setActivePickCursor({
+  useCadUiStore.getState().setActivePickCursor({
     elementId: selected.candidate.elementId,
     optionIndex
   });
@@ -124,7 +125,7 @@ export const selectPickOptionByOffset = (offset: number) => {
 
 export const applySelectedPickCandidate = () => {
   const candidates = activePickCandidates();
-  const selected = selectedPickOption(candidates, useCadStore.getState().activePickCursor);
+  const selected = selectedPickOption(candidates, useCadUiStore.getState().activePickCursor);
   if (!selected) return;
 
   if (selected.option.kind === "point") {
@@ -148,7 +149,7 @@ export const startPointPick = () => {
     (definition?.kind !== "reference" && definition?.kind !== "lineEndpointReference")
   ) return;
 
-  useCadStore.setState({
+  useCadUiStore.setState({
     activeNumericReferencePickTarget: null,
     activeLinePickTarget: null,
     activePointPickTarget: {
@@ -161,7 +162,8 @@ export const startPointPick = () => {
 export const applyPickedPoint = (context?: Pick<CommandContext, "pickedPointId" | "pickedPointAnchor">) => {
   const anchor = context?.pickedPointAnchor ?? (context?.pickedPointId ? referenceAnchor(context.pickedPointId) : null);
   if (!anchor) return;
-  const { activePointPickTarget, elements } = useCadStore.getState();
+  const { activePointPickTarget } = useCadUiStore.getState();
+  const { elements } = useCadDocumentStore.getState();
   if (!activePointPickTarget) return;
   const targetElement = elements.find((element) => element.id === activePointPickTarget.elementId);
   if (!targetElement) return;
@@ -171,7 +173,7 @@ export const applyPickedPoint = (context?: Pick<CommandContext, "pickedPointId" 
     const endpoint = lineEndpointReferenceForAnchor(anchor, elements);
     if (!endpoint) return;
 
-    useCadStore.getState().commitDocumentChange({
+    useCadDocumentStore.getState().commitDocumentChange({
       elements: elements.map((element) =>
         element.id === activePointPickTarget.elementId
           ? setParameterValue(element, activePointPickTarget.parameterKey, endpoint)
@@ -182,7 +184,7 @@ export const applyPickedPoint = (context?: Pick<CommandContext, "pickedPointId" 
       selectionAnchorElementId: activePointPickTarget.elementId,
       selectedParameterKey: activePointPickTarget.parameterKey
     });
-    useCadStore.getState().setActivePointPickTarget(null);
+    useCadUiStore.getState().setActivePointPickTarget(null);
     return;
   }
 
@@ -208,7 +210,7 @@ export const applyPickedPoint = (context?: Pick<CommandContext, "pickedPointId" 
     return;
   }
 
-  useCadStore.getState().commitDocumentChange({
+  useCadDocumentStore.getState().commitDocumentChange({
     elements: elements.map((element) =>
       element.id === activePointPickTarget.elementId
         ? setParameterValue(element, activePointPickTarget.parameterKey, anchor)
@@ -219,11 +221,11 @@ export const applyPickedPoint = (context?: Pick<CommandContext, "pickedPointId" 
     selectionAnchorElementId: activePointPickTarget.elementId,
     selectedParameterKey: activePointPickTarget.parameterKey
   });
-  useCadStore.getState().setActivePointPickTarget(null);
+  useCadUiStore.getState().setActivePointPickTarget(null);
 };
 
 export const cancelPointPick = () => {
-  useCadStore.getState().setActivePointPickTarget(null);
+  useCadUiStore.getState().setActivePointPickTarget(null);
 };
 
 export const startLinePick = () => {
@@ -231,7 +233,7 @@ export const startLinePick = () => {
   const definition = selectedParameterDefinition();
   if (!selectedElement || (definition?.kind !== "lineReferenceList" && definition?.kind !== "lineReference")) return;
 
-  useCadStore.setState({
+  useCadUiStore.setState({
     activePointPickTarget: null,
     activeNumericReferencePickTarget: null,
     activeLinePickTarget: {
@@ -244,7 +246,8 @@ export const startLinePick = () => {
 export const applyPickedLine = (context?: Pick<CommandContext, "pickedLineId">) => {
   const pickedLineId = context?.pickedLineId;
   if (!pickedLineId) return;
-  const { activeLinePickTarget, elements } = useCadStore.getState();
+  const { activeLinePickTarget } = useCadUiStore.getState();
+  const { elements } = useCadDocumentStore.getState();
   if (!activeLinePickTarget) return;
 
   const targetElement = elements.find((element) => element.id === activeLinePickTarget.elementId);
@@ -269,7 +272,7 @@ export const applyPickedLine = (context?: Pick<CommandContext, "pickedLineId">) 
   }
 
   if (definition.kind === "lineReference") {
-    useCadStore.getState().commitDocumentChange({
+    useCadDocumentStore.getState().commitDocumentChange({
       elements: elements.map((element) =>
         element.id === targetElement.id
           ? setParameterValue(targetElement, activeLinePickTarget.parameterKey, pickedLine.id)
@@ -280,13 +283,13 @@ export const applyPickedLine = (context?: Pick<CommandContext, "pickedLineId">) 
       selectionAnchorElementId: targetElement.id,
       selectedParameterKey: activeLinePickTarget.parameterKey
     });
-    useCadStore.getState().setActiveLinePickTarget(null);
+    useCadUiStore.getState().setActiveLinePickTarget(null);
     return;
   }
 
   if (!currentLineIds || currentLineIds.includes(pickedLine.id)) return;
 
-  useCadStore.getState().commitDocumentChange({
+  useCadDocumentStore.getState().commitDocumentChange({
     elements: elements.map((element) =>
       element.id === targetElement.id
         ? setParameterValue(targetElement, activeLinePickTarget.parameterKey, [
@@ -303,5 +306,5 @@ export const applyPickedLine = (context?: Pick<CommandContext, "pickedLineId">) 
 };
 
 export const cancelLinePick = () => {
-  useCadStore.getState().setActiveLinePickTarget(null);
+  useCadUiStore.getState().setActiveLinePickTarget(null);
 };

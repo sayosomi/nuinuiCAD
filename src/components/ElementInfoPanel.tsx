@@ -1,6 +1,6 @@
 import { dispatchCommand } from "../commands/commands";
 import { getDependencyJumpTargets, getDependencySummary } from "../model/dependencies";
-import { useCadStore } from "../state/useCadStore";
+import { useCadUiStore } from "../state/cadUiStore";
 import type {
   CadElement,
   ComputedArcLine,
@@ -55,7 +55,7 @@ export const ElementInfoPanel = ({
   selectedDependencyJumpIndex: number;
   setSelectedElementId: (id: ElementId | null) => void;
 }) => {
-  const showElementInfoPanel = useCadStore((state) => state.showElementInfoPanel);
+  const showElementInfoPanel = useCadUiStore((state) => state.showElementInfoPanel);
   const geometry = element ? evaluation.computedGeometry.get(element.id) : undefined;
   const dependencySummary = element ? getDependencySummary(element, elements) : null;
   const jumpTargets = getDependencyJumpTargets(element, elements);

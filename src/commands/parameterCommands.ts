@@ -16,7 +16,7 @@ import {
   setParameterValue,
   supportsNumericVariables
 } from "../parameters/parameterAccess";
-import { useCadStore } from "../state/useCadStore";
+import { useCadDocumentStore } from "../state/cadDocumentStore";
 import type { CadElement, LineEndpointReference, NumericValue, PointAnchor } from "../types/geometry";
 import type { CommandContext } from "./commandTypes";
 import {
@@ -41,7 +41,7 @@ const parentPointAnchorParameterKey = (parameterKey: string | null | undefined) 
 };
 
 const pointAnchorParameterTarget = (context?: CommandContext) => {
-  const { elements, selectedElementId, selectedParameterKey } = useCadStore.getState();
+  const { elements, selectedElementId, selectedParameterKey } = useCadDocumentStore.getState();
   const elementId = context?.elementId ?? selectedElementId;
   const element = elementId ? elements.find((item) => item.id === elementId) ?? null : null;
   if (!element) return null;
@@ -71,11 +71,11 @@ export const selectParameterByOffset = (offset: number) => {
   if (!selectedElement) return;
 
   const definitions = getParameterDefinitions(selectedElement);
-  const { selectedParameterKey } = useCadStore.getState();
+  const { selectedParameterKey } = useCadDocumentStore.getState();
   const index = definitions.findIndex((definition) => definition.key === selectedParameterKey);
   const currentIndex = index < 0 ? 0 : index;
   const nextIndex = (currentIndex + offset + definitions.length) % definitions.length;
-  useCadStore.setState({ selectedParameterKey: definitions[nextIndex].key });
+  useCadDocumentStore.setState({ selectedParameterKey: definitions[nextIndex].key });
 };
 
 const stepForContext = (context?: CommandContext) => context?.stepMultiplier ?? 1;
@@ -167,8 +167,8 @@ export const applyParameterDirectKey = (
   if (!definition) return;
 
   if (definition.kind === "boolean") {
-    useCadStore.getState().commitDocumentChange({
-      elements: useCadStore.getState().elements.map((element) =>
+    useCadDocumentStore.getState().commitDocumentChange({
+      elements: useCadDocumentStore.getState().elements.map((element) =>
         element.id === selectedElement.id
           ? setParameterValue(
               element,
@@ -185,11 +185,11 @@ export const applyParameterDirectKey = (
   if (definition.kind === "choice") {
     const nextValue = nextChoiceValue(selectedElement, definition);
     if (nextValue === null) {
-      useCadStore.setState({ selectedParameterKey: definition.key });
+      useCadDocumentStore.setState({ selectedParameterKey: definition.key });
       return;
     }
-    useCadStore.getState().commitDocumentChange({
-      elements: useCadStore.getState().elements.map((element) =>
+    useCadDocumentStore.getState().commitDocumentChange({
+      elements: useCadDocumentStore.getState().elements.map((element) =>
         element.id === selectedElement.id
           ? setParameterValue(element, definition.key, nextValue)
           : element
@@ -199,7 +199,7 @@ export const applyParameterDirectKey = (
     return;
   }
 
-  useCadStore.setState({ selectedParameterKey: definition.key });
+  useCadDocumentStore.setState({ selectedParameterKey: definition.key });
   focusSelectedParameterInput?.();
 };
 
@@ -228,7 +228,7 @@ export const cycleReferenceParameter = (direction: 1 | -1) => {
   const definition = selectedParameterDefinition();
   if (!selectedElement || definition?.kind !== "reference") return;
 
-  const options = pointAnchorReferenceOptions(useCadStore.getState().elements);
+  const options = pointAnchorReferenceOptions(useCadDocumentStore.getState().elements);
   if (options.length === 0) return;
 
   const parameterValue = getParameterValue(selectedElement, definition.key);
@@ -249,7 +249,7 @@ const cycleLineEndpointParameter = (direction: 1 | -1) => {
   const definition = selectedParameterDefinition();
   if (!selectedElement || definition?.kind !== "lineEndpointReference") return;
 
-  const options = lineEndpointReferenceOptions(useCadStore.getState().elements);
+  const options = lineEndpointReferenceOptions(useCadDocumentStore.getState().elements);
   if (options.length === 0) return;
 
   const parameterValue = getParameterValue(selectedElement, definition.key);
@@ -269,7 +269,7 @@ const cycleLineReferenceParameter = (direction: 1 | -1) => {
   const definition = selectedParameterDefinition();
   if (!selectedElement || definition?.kind !== "lineReference") return;
 
-  const options = lineReferenceOptions(useCadStore.getState().elements).filter(
+  const options = lineReferenceOptions(useCadDocumentStore.getState().elements).filter(
     (element) => element.id !== selectedElement.id
   );
   if (options.length === 0) return;
@@ -299,7 +299,7 @@ export const addNumericVariable = () => {
       numericVariables: [...(element.numericVariables ?? []), variable]
     };
   });
-  useCadStore.setState({ selectedParameterKey: `variable:${variable.id}:value` });
+  useCadDocumentStore.setState({ selectedParameterKey: `variable:${variable.id}:value` });
 };
 
 export const deleteNumericVariable = (variableId: string | undefined) => {
@@ -321,7 +321,7 @@ export const addBezierIntermediatePoint = () => {
   const selectedElement = getSelectedElement();
   if (selectedElement?.type !== "bezierCurve") return;
 
-  const options = pointAnchorReferenceOptions(useCadStore.getState().elements);
+  const options = pointAnchorReferenceOptions(useCadDocumentStore.getState().elements);
   const startPointId = anchorPointId(selectedElement.startPoint);
   const endPointId = anchorPointId(selectedElement.endPoint);
   const pointAnchor = options.find((anchor) => {
@@ -343,7 +343,7 @@ export const addBezierIntermediatePoint = () => {
       intermediatePoints: [...element.intermediatePoints, intermediatePoint]
     };
   });
-  useCadStore.setState({ selectedParameterKey: `intermediate:${intermediatePoint.id}:point` });
+  useCadDocumentStore.setState({ selectedParameterKey: `intermediate:${intermediatePoint.id}:point` });
 };
 
 export const deleteBezierIntermediatePoint = (intermediatePointId: string | undefined) => {
@@ -379,7 +379,7 @@ export const setSelectedPointAnchorMode = (
   if (!target) return false;
   if (mode === "coordinate" && !target.definition.allowCoordinate) return false;
   if (target.anchor.mode === mode) {
-    useCadStore.setState({
+    useCadDocumentStore.setState({
       selectedParameterKey: mode === "coordinate" ? `${target.parameterKey}:x` : target.parameterKey
     });
     return true;
@@ -391,12 +391,12 @@ export const setSelectedPointAnchorMode = (
       : referenceAnchor(
           target.anchor.mode === "reference"
             ? target.anchor.pointId
-            : useCadStore.getState().elements.find(isPointLikeElement)?.id ?? ""
+            : useCadDocumentStore.getState().elements.find(isPointLikeElement)?.id ?? ""
         );
   const selectedParameterKey = mode === "coordinate" ? `${target.parameterKey}:x` : target.parameterKey;
 
-  useCadStore.getState().commitDocumentChange({
-    elements: useCadStore.getState().elements.map((element) =>
+  useCadDocumentStore.getState().commitDocumentChange({
+    elements: useCadDocumentStore.getState().elements.map((element) =>
       element.id === target.element.id
         ? setParameterValue(element, target.parameterKey, nextAnchor)
         : element
@@ -434,8 +434,8 @@ export const toggleBooleanParameterByDirectKey = (directKey: string | undefined)
   const definition = findParameterByDirectKey(selectedElement, directKey);
   if (definition?.kind !== "boolean") return;
 
-  useCadStore.getState().commitDocumentChange({
-    elements: useCadStore.getState().elements.map((element) =>
+  useCadDocumentStore.getState().commitDocumentChange({
+    elements: useCadDocumentStore.getState().elements.map((element) =>
       element.id === selectedElement.id
         ? setParameterValue(
             element,

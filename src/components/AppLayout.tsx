@@ -2,17 +2,18 @@ import { useEffect, useMemo, useRef } from "react";
 import { dispatchCommand } from "../commands/commands";
 import { evaluateElements } from "../geometry/evaluate";
 import { keyboardCommandForEvent } from "../keyboard/shortcuts";
-import { useCadStore } from "../state/useCadStore";
+import { useCadDocumentStore } from "../state/cadDocumentStore";
+import { useCadUiStore } from "../state/cadUiStore";
 import { CommandPalette } from "./CommandPalette";
 import { DrawingCanvas } from "./DrawingCanvas";
 import { LeftPanel, RightPanel } from "./LeftPanel";
 import { ShortcutHelpOverlay } from "./ShortcutHelpOverlay";
 
 export const AppLayout = () => {
-  const elements = useCadStore((state) => state.elements);
-  const isParameterEditMode = useCadStore((state) => state.isParameterEditMode);
-  const isDependencyJumpMode = useCadStore((state) => state.isDependencyJumpMode);
-  const isPickMode = useCadStore(
+  const elements = useCadDocumentStore((state) => state.elements);
+  const isParameterEditMode = useCadUiStore((state) => state.isParameterEditMode);
+  const isDependencyJumpMode = useCadUiStore((state) => state.isDependencyJumpMode);
+  const isPickMode = useCadUiStore(
     (state) =>
       Boolean(state.activePointPickTarget) ||
       Boolean(state.activeNumericReferencePickTarget) ||
@@ -41,7 +42,7 @@ export const AppLayout = () => {
     },
     getCanvasViewportRect: () => canvasFocusRef.current?.getBoundingClientRect() ?? null,
     focusSelectedParameterInput: () => {
-      const selectedKey = useCadStore.getState().selectedParameterKey;
+      const selectedKey = useCadDocumentStore.getState().selectedParameterKey;
       if (!selectedKey) return;
       parameterInputRefs.current.get(selectedKey)?.focus();
     }
@@ -50,32 +51,32 @@ export const AppLayout = () => {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const keyboardCommand = keyboardCommandForEvent(event, {
-        isParameterEditMode: useCadStore.getState().isParameterEditMode,
-        isDependencyJumpMode: useCadStore.getState().isDependencyJumpMode,
+        isParameterEditMode: useCadUiStore.getState().isParameterEditMode,
+        isDependencyJumpMode: useCadUiStore.getState().isDependencyJumpMode,
         isPickMode: Boolean(
-          useCadStore.getState().activePointPickTarget ||
-            useCadStore.getState().activeNumericReferencePickTarget ||
-            useCadStore.getState().activeLinePickTarget
+          useCadUiStore.getState().activePointPickTarget ||
+            useCadUiStore.getState().activeNumericReferencePickTarget ||
+            useCadUiStore.getState().activeLinePickTarget
         )
       });
-      if (useCadStore.getState().activePointPickTarget && event.key === "Escape") {
+      if (useCadUiStore.getState().activePointPickTarget && event.key === "Escape") {
         event.preventDefault();
         dispatchCommand("cancelPointPick");
         return;
       }
-      if (useCadStore.getState().activeNumericReferencePickTarget && event.key === "Escape") {
+      if (useCadUiStore.getState().activeNumericReferencePickTarget && event.key === "Escape") {
         event.preventDefault();
         dispatchCommand("cancelNumericReferencePick");
         return;
       }
-      if (useCadStore.getState().activeLinePickTarget && event.key === "Escape") {
+      if (useCadUiStore.getState().activeLinePickTarget && event.key === "Escape") {
         event.preventDefault();
         dispatchCommand("cancelLinePick");
         return;
       }
       if (!keyboardCommand) return;
       if (
-        useCadStore.getState().showShortcutHelp &&
+        useCadUiStore.getState().showShortcutHelp &&
         keyboardCommand.commandId !== "toggleShortcutHelp"
       ) {
         event.preventDefault();

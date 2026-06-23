@@ -12,17 +12,18 @@ import {
   subtreeIdsForElement,
   visibleOutlineElements
 } from "../model/groups";
-import { useCadStore } from "../state/useCadStore";
+import { useCadDocumentStore } from "../state/cadDocumentStore";
+import { useCadUiStore } from "../state/cadUiStore";
 import type { CadElement, ElementId } from "../types/geometry";
 import type { CommandContext } from "./commandTypes";
 import { getSelectedElement, getSelectedElementIds } from "./commandRuntime";
 
 export const toggleSelectedElementsBooleanProperty = (property: "visible" | "enabled") => {
-  const { elements } = useCadStore.getState();
+  const { elements } = useCadDocumentStore.getState();
   const selectedIds = new Set(getSelectedElementIds());
   if (selectedIds.size === 0) return;
 
-  useCadStore.getState().commitDocumentChange({
+  useCadDocumentStore.getState().commitDocumentChange({
     elements: elements.map((element) =>
       selectedIds.has(element.id) ? { ...element, [property]: !element[property] } : element
     )
@@ -34,10 +35,10 @@ export const toggleElementBooleanProperty = (
   property: "visible" | "enabled"
 ) => {
   if (!elementId) return;
-  const { elements } = useCadStore.getState();
+  const { elements } = useCadDocumentStore.getState();
   if (!elements.some((element) => element.id === elementId)) return;
 
-  useCadStore.getState().commitDocumentChange({
+  useCadDocumentStore.getState().commitDocumentChange({
     elements: elements.map((element) =>
       element.id === elementId ? { ...element, [property]: !element[property] } : element
     )
@@ -45,7 +46,7 @@ export const toggleElementBooleanProperty = (
 };
 
 export const selectedDependencyJumpTargets = () => {
-  const { elements, selectedElementId } = useCadStore.getState();
+  const { elements, selectedElementId } = useCadDocumentStore.getState();
   const selectedElement = selectedElementId
     ? elements.find((element) => element.id === selectedElementId) ?? null
     : null;
@@ -53,43 +54,51 @@ export const selectedDependencyJumpTargets = () => {
 };
 
 const updateDependencyJumpModeAfterSelectionChange = () => {
-  const { isDependencyJumpMode } = useCadStore.getState();
+  const { isDependencyJumpMode } = useCadUiStore.getState();
   if (!isDependencyJumpMode) return;
 
   const targets = selectedDependencyJumpTargets();
-  useCadStore.setState({
+  useCadUiStore.setState({
     isDependencyJumpMode: targets.length > 0,
     selectedDependencyJumpIndex: 0
   });
 };
 
+const clearTransientSelectionUi = () => {
+  useCadUiStore.getState().clearPickMode();
+  useCadUiStore.getState().setSelectedDependencyJumpIndex(0);
+};
+
 export const selectElementByOffset = (offset: number) => {
-  const { elements, selectedElementId } = useCadStore.getState();
+  const { elements, selectedElementId } = useCadDocumentStore.getState();
   const nextElementId = elementIdByOffset(visibleOutlineElements(elements), selectedElementId, offset);
   if (!nextElementId) return;
 
-  useCadStore.getState().setSelectedElementId(nextElementId);
+  useCadDocumentStore.getState().setSelectedElementId(nextElementId);
+  clearTransientSelectionUi();
   updateDependencyJumpModeAfterSelectionChange();
 };
 
 export const extendSelectionByOffset = (offset: number) => {
-  const { elements, selectedElementId, selectionAnchorElementId } = useCadStore.getState();
+  const { elements, selectedElementId, selectionAnchorElementId } = useCadDocumentStore.getState();
   const visibleElements = visibleOutlineElements(elements);
   const nextElementId = elementIdByOffset(visibleElements, selectedElementId, offset);
   if (!nextElementId) return;
 
   const anchorId = selectionAnchorElementId ?? selectedElementId ?? elements[0]?.id ?? nextElementId;
-  useCadStore.getState().setSelectedElementRange(anchorId, nextElementId);
+  useCadDocumentStore.getState().setSelectedElementRange(anchorId, nextElementId);
+  clearTransientSelectionUi();
   updateDependencyJumpModeAfterSelectionChange();
 };
 
 export const selectElement = (elementId: ElementId, selectionMode: CommandContext["selectionMode"] = "replace") => {
-  const { elements, selectedElementIds, selectionAnchorElementId } = useCadStore.getState();
+  const { elements, selectedElementIds, selectionAnchorElementId } = useCadDocumentStore.getState();
   const element = elements.find((item) => item.id === elementId);
   if (!element) return;
 
   if (selectionMode === "range") {
-    useCadStore.getState().setSelectedElementRange(selectionAnchorElementId ?? elementId, elementId);
+    useCadDocumentStore.getState().setSelectedElementRange(selectionAnchorElementId ?? elementId, elementId);
+    clearTransientSelectionUi();
     updateDependencyJumpModeAfterSelectionChange();
     return;
   }
@@ -97,20 +106,22 @@ export const selectElement = (elementId: ElementId, selectionMode: CommandContex
   if (selectionMode === "toggle") {
     const selection = toggleSelectionIds(elements, selectedElementIds, elementId);
     if (!selection) return;
-    useCadStore.getState().setSelectedElementIds(
+    useCadDocumentStore.getState().setSelectedElementIds(
       selection.selectedElementIds,
       selection.selectedElementId
     );
+    clearTransientSelectionUi();
     updateDependencyJumpModeAfterSelectionChange();
     return;
   }
 
-  useCadStore.getState().setSelectedElementId(elementId);
+  useCadDocumentStore.getState().setSelectedElementId(elementId);
+  clearTransientSelectionUi();
   updateDependencyJumpModeAfterSelectionChange();
 };
 
 export const moveElementsToInsertionIndex = (elementIds: ElementId[], insertionIndex: number) => {
-  const { elements, selectedElementId, selectionAnchorElementId } = useCadStore.getState();
+  const { elements, selectedElementId, selectionAnchorElementId } = useCadDocumentStore.getState();
   const expandedElementIds = elementIds.flatMap((id) => subtreeIdsForElement(elements, id));
   const change = moveDocumentElementsToInsertionIndex({
     elements,
@@ -121,11 +132,11 @@ export const moveElementsToInsertionIndex = (elementIds: ElementId[], insertionI
   });
   if (!change) return;
 
-  useCadStore.getState().commitDocumentChange(change);
+  useCadDocumentStore.getState().commitDocumentChange(change);
 };
 
 export const moveElementToInsertionIndex = (elementId: ElementId, insertionIndex: number) => {
-  const { elements, selectedElementIds } = useCadStore.getState();
+  const { elements, selectedElementIds } = useCadDocumentStore.getState();
   const elementIds = selectedElementIds.includes(elementId) ? selectedElementIds : [elementId];
   if (selectedElementIds.includes(elementId) || elements.some((element) => element.id === elementId)) {
     moveElementsToInsertionIndex(elementIds, insertionIndex);
@@ -146,7 +157,7 @@ const hasSelectedAncestor = (
 };
 
 export const groupSelectedElements = () => {
-  const { elements, selectedElementId, selectedElementIds } = useCadStore.getState();
+  const { elements, selectedElementId, selectedElementIds } = useCadDocumentStore.getState();
   const selectedIds = new Set(getSelectedElementIds());
   if (selectedIds.size === 0) return;
 
@@ -175,7 +186,7 @@ export const groupSelectedElements = () => {
     )
   ];
 
-  useCadStore.getState().commitDocumentChange({
+  useCadDocumentStore.getState().commitDocumentChange({
     elements: nextElements,
     selectedElementId: selectedElementId && selectedElementIds.includes(selectedElementId)
       ? selectedElementId
@@ -189,7 +200,7 @@ export const ungroupSelectedGroup = () => {
   const selectedElement = getSelectedElement();
   if (!selectedElement || !isGroupElement(selectedElement)) return;
 
-  const { elements } = useCadStore.getState();
+  const { elements } = useCadDocumentStore.getState();
   const childIds = new Set(descendantIdsForGroup(elements, selectedElement.id));
   const directChildIds = new Set(
     elements
@@ -207,7 +218,7 @@ export const ungroupSelectedGroup = () => {
     nextElements.some((element) => element.id === id)
   );
 
-  useCadStore.getState().commitDocumentChange({
+  useCadDocumentStore.getState().commitDocumentChange({
     elements: nextElements,
     selectedElementId: nextSelectedIds[0] ?? null,
     selectedElementIds: nextSelectedIds,
@@ -216,13 +227,13 @@ export const ungroupSelectedGroup = () => {
 };
 
 export const toggleGroupExpanded = (elementId?: ElementId) => {
-  const { elements, selectedElementId } = useCadStore.getState();
+  const { elements, selectedElementId } = useCadDocumentStore.getState();
   const targetId = elementId ?? selectedElementId ?? undefined;
   const target = targetId ? elements.find((element) => element.id === targetId) : null;
   if (!target || !isGroupElement(target)) return;
   const expanded = target.expanded;
 
-  useCadStore.getState().commitDocumentChange({
+  useCadDocumentStore.getState().commitDocumentChange({
     elements: elements.map((element) =>
       element.id === target.id ? { ...element, expanded: !expanded } : element
     )
@@ -230,7 +241,7 @@ export const toggleGroupExpanded = (elementId?: ElementId) => {
 };
 
 export const indentSelectedElements = () => {
-  const { elements } = useCadStore.getState();
+  const { elements } = useCadDocumentStore.getState();
   const selectedIds = new Set(getSelectedElementIds());
   if (selectedIds.size === 0) return;
 
@@ -244,7 +255,7 @@ export const indentSelectedElements = () => {
   if (!targetGroup) return;
   const selectedTopLevelIds = new Set(selectedTopLevel.map((element) => element.id));
 
-  useCadStore.getState().commitDocumentChange({
+  useCadDocumentStore.getState().commitDocumentChange({
     elements: elements.map((element) =>
       selectedTopLevelIds.has(element.id) ? { ...element, parentGroupId: targetGroup.id } : element
     )
@@ -252,7 +263,7 @@ export const indentSelectedElements = () => {
 };
 
 export const outdentSelectedElements = () => {
-  const { elements } = useCadStore.getState();
+  const { elements } = useCadDocumentStore.getState();
   const selectedIds = new Set(getSelectedElementIds());
   if (selectedIds.size === 0) return;
 
@@ -267,7 +278,7 @@ export const outdentSelectedElements = () => {
   if (!firstParent || !isGroupElement(firstParent)) return;
   const selectedTopLevelIds = new Set(selectedTopLevel.map((element) => element.id));
 
-  useCadStore.getState().commitDocumentChange({
+  useCadDocumentStore.getState().commitDocumentChange({
     elements: elements.map((element) =>
       selectedTopLevelIds.has(element.id)
         ? { ...element, parentGroupId: firstParent.parentGroupId }
@@ -288,33 +299,34 @@ export const selectParentGroup = () => {
 export const selectDependencyJumpTargetByOffset = (offset: number) => {
   const targets = selectedDependencyJumpTargets();
   if (targets.length === 0) {
-    useCadStore.setState({ isDependencyJumpMode: false, selectedDependencyJumpIndex: 0 });
+    useCadUiStore.setState({ isDependencyJumpMode: false, selectedDependencyJumpIndex: 0 });
     return;
   }
 
-  const { selectedDependencyJumpIndex } = useCadStore.getState();
+  const { selectedDependencyJumpIndex } = useCadUiStore.getState();
   const currentIndex =
     selectedDependencyJumpIndex >= 0 && selectedDependencyJumpIndex < targets.length
       ? selectedDependencyJumpIndex
       : 0;
   const nextIndex = (currentIndex + offset + targets.length) % targets.length;
-  useCadStore.setState({ selectedDependencyJumpIndex: nextIndex });
+  useCadUiStore.setState({ selectedDependencyJumpIndex: nextIndex });
 };
 
 export const jumpToSelectedDependencyTarget = () => {
   const targets = selectedDependencyJumpTargets();
   if (targets.length === 0) {
-    useCadStore.setState({ isDependencyJumpMode: false, selectedDependencyJumpIndex: 0 });
+    useCadUiStore.setState({ isDependencyJumpMode: false, selectedDependencyJumpIndex: 0 });
     return;
   }
 
-  const { selectedDependencyJumpIndex } = useCadStore.getState();
+  const { selectedDependencyJumpIndex } = useCadUiStore.getState();
   const target = targets[Math.min(Math.max(selectedDependencyJumpIndex, 0), targets.length - 1)];
   if (!target) return;
 
-  useCadStore.getState().setSelectedElementId(target.id);
+  useCadDocumentStore.getState().setSelectedElementId(target.id);
+  clearTransientSelectionUi();
   const nextTargets = selectedDependencyJumpTargets();
-  useCadStore.setState({
+  useCadUiStore.setState({
     isDependencyJumpMode: nextTargets.length > 0,
     selectedDependencyJumpIndex: 0
   });

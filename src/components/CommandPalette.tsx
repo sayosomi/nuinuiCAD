@@ -4,14 +4,14 @@ import {
   filterCommandPaletteItems,
   type CommandContext
 } from "../commands/commands";
-import { useCadStore } from "../state/useCadStore";
+import { useCadUiStore } from "../state/cadUiStore";
 
 type CommandPaletteProps = {
   commandContext: CommandContext;
 };
 
 export const CommandPalette = ({ commandContext }: CommandPaletteProps) => {
-  const showCommandPalette = useCadStore((state) => state.showCommandPalette);
+  const showCommandPalette = useCadUiStore((state) => state.showCommandPalette);
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);

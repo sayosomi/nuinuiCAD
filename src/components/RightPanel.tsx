@@ -1,5 +1,6 @@
 import { dispatchCommand } from "../commands/commands";
-import { useCadStore } from "../state/useCadStore";
+import { useCadDocumentStore } from "../state/cadDocumentStore";
+import { useCadUiStore } from "../state/cadUiStore";
 import type { EvaluationResult } from "../types/geometry";
 import { ElementEditor } from "./ElementEditor";
 import { ElementInfoPanel } from "./ElementInfoPanel";
@@ -17,10 +18,9 @@ export const RightPanel = ({
   isDependencyJumpMode,
   registerParameterControl
 }: RightPanelProps) => {
-  const elements = useCadStore((state) => state.elements);
-  const selectedElementId = useCadStore((state) => state.selectedElementId);
-  const selectedDependencyJumpIndex = useCadStore((state) => state.selectedDependencyJumpIndex);
-  const setSelectedElementId = useCadStore((state) => state.setSelectedElementId);
+  const elements = useCadDocumentStore((state) => state.elements);
+  const selectedElementId = useCadDocumentStore((state) => state.selectedElementId);
+  const selectedDependencyJumpIndex = useCadUiStore((state) => state.selectedDependencyJumpIndex);
   const selectedElement = elements.find((element) => element.id === selectedElementId) ?? null;
   const shortcutHint = isParameterEditMode || isDependencyJumpMode
     ? "Esc で終了 / ? でショートカット"
@@ -50,7 +50,9 @@ export const RightPanel = ({
         evaluation={evaluation}
         isDependencyJumpMode={isDependencyJumpMode}
         selectedDependencyJumpIndex={selectedDependencyJumpIndex}
-        setSelectedElementId={setSelectedElementId}
+        setSelectedElementId={(id) => {
+          if (id) dispatchCommand("selectElement", { elementId: id });
+        }}
       />
 
       <section className="panel-section">

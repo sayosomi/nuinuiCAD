@@ -1,5 +1,5 @@
 import type { BezierHandleRole } from "../model/elementDragTransforms";
-import type { CadHistorySnapshot } from "../state/useCadStore";
+import type { CadDocumentSnapshot } from "../state/cadDocumentStore";
 import type { CadElement, ElementId, PointAnchor } from "../types/geometry";
 
 export type { BezierHandleRole };
@@ -116,7 +116,7 @@ export type CommandContext = {
   bezierHandleRole?: BezierHandleRole;
   commitMode?: "preview" | "commit";
   baseElements?: CadElement[];
-  historySnapshot?: CadHistorySnapshot;
+  historySnapshot?: CadDocumentSnapshot;
   parameterKey?: string;
   numericExpression?: string;
   numericReferenceExpression?: string;

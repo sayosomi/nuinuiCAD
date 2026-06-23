@@ -1,10 +1,10 @@
 import { elementIdsInDocumentOrder } from "../model/documentSelection";
 import { findParameterDefinition } from "../parameters/parameterDefinitions";
-import { useCadStore } from "../state/useCadStore";
+import { useCadDocumentStore } from "../state/cadDocumentStore";
 import type { CadElement } from "../types/geometry";
 
 export const getSelectedElementIds = () => {
-  const { elements, selectedElementId, selectedElementIds } = useCadStore.getState();
+  const { elements, selectedElementId, selectedElementIds } = useCadDocumentStore.getState();
   if (selectedElementId && !selectedElementIds.includes(selectedElementId)) {
     return [selectedElementId];
   }
@@ -15,7 +15,7 @@ export const getSelectedElementIds = () => {
 };
 
 export const getSelectedElement = () => {
-  const { elements, selectedElementId } = useCadStore.getState();
+  const { elements, selectedElementId } = useCadDocumentStore.getState();
   return selectedElementId ? elements.find((element) => element.id === selectedElementId) ?? null : null;
 };
 
@@ -37,10 +37,10 @@ export const isPointLikeElement = (element: CadElement) =>
   element.type === "lineTangentOffsetPoint";
 
 export const updateSelectedElement = (updater: (element: CadElement) => CadElement) => {
-  const { elements, selectedElementId } = useCadStore.getState();
+  const { elements, selectedElementId } = useCadDocumentStore.getState();
   if (!selectedElementId) return;
 
-  useCadStore.getState().commitDocumentChange({
+  useCadDocumentStore.getState().commitDocumentChange({
     elements: elements.map((element) => (element.id === selectedElementId ? updater(element) : element))
   });
 };
@@ -48,6 +48,6 @@ export const updateSelectedElement = (updater: (element: CadElement) => CadEleme
 export const selectedParameterDefinition = () => {
   const selectedElement = getSelectedElement();
   if (!selectedElement) return null;
-  const { selectedParameterKey } = useCadStore.getState();
+  const { selectedParameterKey } = useCadDocumentStore.getState();
   return findParameterDefinition(selectedElement, selectedParameterKey);
 };

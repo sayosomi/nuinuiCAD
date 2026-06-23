@@ -1,6 +1,6 @@
 import { selectedIndexes } from "../model/documentSelection";
 import { subtreeIdsForElement } from "../model/groups";
-import { useCadStore } from "../state/useCadStore";
+import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { moveBezierHandleByDelta, movePointElementByDelta } from "./geometryEditCommands";
 import { getSelectedElementIds } from "./commandRuntime";
 import {
@@ -61,7 +61,7 @@ export const selectionCommandDefinitions = {
     palette: { order: 28, keywords: ["move", "up", "上", "並べ替え"] },
     shortcuts: [{ keys: "Mod+ArrowUp / Alt+ArrowUp", label: "選択要素を上へ移動" }],
     run: () => {
-      const { elements } = useCadStore.getState();
+      const { elements } = useCadDocumentStore.getState();
       const selectedIds = getSelectedElementIds();
       const movingIds = selectedIds.flatMap((id) => subtreeIdsForElement(elements, id));
       const indexes = selectedIndexes(elements, movingIds);
@@ -75,7 +75,7 @@ export const selectionCommandDefinitions = {
     palette: { order: 29, keywords: ["move", "down", "下", "並べ替え"] },
     shortcuts: [{ keys: "Mod+ArrowDown / Alt+ArrowDown", label: "選択要素を下へ移動" }],
     run: () => {
-      const { elements } = useCadStore.getState();
+      const { elements } = useCadDocumentStore.getState();
       const selectedIds = getSelectedElementIds();
       const movingIds = selectedIds.flatMap((id) => subtreeIdsForElement(elements, id));
       const indexes = selectedIndexes(elements, movingIds);
@@ -180,7 +180,7 @@ export const selectionCommandDefinitions = {
     palette: { order: 38, keywords: ["delete", "remove", "削除"] },
     shortcuts: [{ keys: "d / Delete / Backspace" }],
     run: () => {
-      const { elements } = useCadStore.getState();
+      const { elements } = useCadDocumentStore.getState();
       const selectedIds = new Set(
         getSelectedElementIds().flatMap((id) => subtreeIdsForElement(elements, id))
       );
@@ -189,7 +189,7 @@ export const selectionCommandDefinitions = {
       const index = indexes[0];
       const nextElements = elements.filter((element) => !selectedIds.has(element.id));
       const nextSelectedElementId = nextElements[Math.min(index, nextElements.length - 1)]?.id ?? null;
-      useCadStore.getState().commitDocumentChange({
+      useCadDocumentStore.getState().commitDocumentChange({
         elements: nextElements,
         selectedElementId: nextSelectedElementId,
         selectedElementIds: nextSelectedElementId ? [nextSelectedElementId] : [],

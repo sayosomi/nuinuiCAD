@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import type { CanvasViewport } from "../state/useCadStore";
+import type { CanvasViewport } from "../state/cadUiStore";
 import type {
   CadElement,
   ComputedArcLine,
@@ -16,7 +16,7 @@ import {
   selectablePointsForGeometry
 } from "../model/pointAnchors";
 import { findParameterDefinition } from "../parameters/parameterDefinitions";
-import type { ActivePointPickTarget } from "../state/useCadStore";
+import type { ActivePointPickTarget } from "../state/cadUiStore";
 import {
   sampleArcLineScreenPoints,
   sampleBezierCurveScreenPoints,

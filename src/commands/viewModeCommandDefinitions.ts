@@ -1,5 +1,6 @@
 import { normalizeParameterKey } from "../parameters/parameterDefinitions";
-import { useCadStore } from "../state/useCadStore";
+import { useCadDocumentStore } from "../state/cadDocumentStore";
+import { useCadUiStore } from "../state/cadUiStore";
 import { getSelectedElement } from "./commandRuntime";
 import {
   jumpToSelectedDependencyTarget,
@@ -26,46 +27,46 @@ export const viewModeCommandDefinitions = {
     label: "元に戻す",
     palette: { order: 24, keywords: ["undo", "戻す"] },
     shortcuts: [{ keys: "Mod+Z" }],
-    run: () => useCadStore.getState().undo()
+    run: () => useCadDocumentStore.getState().undo()
   },
   redo: {
     id: "redo",
     label: "やり直す",
     palette: { order: 25, keywords: ["redo", "やり直す"] },
     shortcuts: [{ keys: "Mod+Y" }],
-    run: () => useCadStore.getState().redo()
+    run: () => useCadDocumentStore.getState().redo()
   },
   zoomInCanvas: {
     id: "zoomInCanvas",
     label: "キャンバスを拡大",
     palette: { order: 21, keywords: ["zoom", "in", "拡大", "キャンバス"] },
     shortcuts: [{ keys: "+ / =" }],
-    run: (context) => useCadStore.getState().zoomCanvasViewportAt(1.1, canvasZoomAnchor(context))
+    run: (context) => useCadUiStore.getState().zoomCanvasViewportAt(1.1, canvasZoomAnchor(context))
   },
   zoomOutCanvas: {
     id: "zoomOutCanvas",
     label: "キャンバスを縮小",
     palette: { order: 22, keywords: ["zoom", "out", "縮小", "キャンバス"] },
     shortcuts: [{ keys: "-" }],
-    run: (context) => useCadStore.getState().zoomCanvasViewportAt(1 / 1.1, canvasZoomAnchor(context))
+    run: (context) => useCadUiStore.getState().zoomCanvasViewportAt(1 / 1.1, canvasZoomAnchor(context))
   },
   resetCanvasView: {
     id: "resetCanvasView",
     label: "キャンバス表示をリセット",
     palette: { order: 23, keywords: ["zoom", "reset", "pan", "origin", "リセット", "原点", "キャンバス"] },
     shortcuts: [{ keys: "0" }],
-    run: () => useCadStore.getState().resetCanvasViewport()
+    run: () => useCadUiStore.getState().resetCanvasViewport()
   },
   openCommandPalette: {
     id: "openCommandPalette",
     label: "コマンドパレットを開く",
     shortcuts: [{ keys: "/" }],
-    run: () => useCadStore.setState({ showCommandPalette: true })
+    run: () => useCadUiStore.getState().setShowCommandPalette(true)
   },
   closeCommandPalette: {
     id: "closeCommandPalette",
     label: "コマンドパレットを閉じる",
-    run: () => useCadStore.setState({ showCommandPalette: false })
+    run: () => useCadUiStore.getState().setShowCommandPalette(false)
   },
   focusCanvas: {
     id: "focusCanvas",
@@ -92,7 +93,7 @@ export const viewModeCommandDefinitions = {
     palette: { order: 42, keywords: ["mode", "element list", "構成リスト", "要素リスト"] },
     shortcuts: [{ keys: "g" }],
     run: (context) => {
-      useCadStore.setState({
+      useCadUiStore.setState({
         isParameterEditMode: false,
         isDependencyJumpMode: false,
         selectedDependencyJumpIndex: 0
@@ -106,8 +107,8 @@ export const viewModeCommandDefinitions = {
     palette: { order: 43, keywords: ["shortcut", "help", "ショートカット", "ヘルプ"] },
     shortcuts: [{ keys: "?" }],
     run: () => {
-      const { showShortcutHelp } = useCadStore.getState();
-      useCadStore.setState({ showShortcutHelp: !showShortcutHelp });
+      const { showShortcutHelp } = useCadUiStore.getState();
+      useCadUiStore.getState().setShowShortcutHelp(!showShortcutHelp);
     }
   },
   toggleElementInfoPanel: {
@@ -116,10 +117,10 @@ export const viewModeCommandDefinitions = {
     palette: { order: 44, keywords: ["information", "info", "要素詳細", "折り畳み", "表示"] },
     shortcuts: [{ keys: "i" }],
     run: () => {
-      const { showElementInfoPanel } = useCadStore.getState();
-      useCadStore.setState({
+      const { showElementInfoPanel, isDependencyJumpMode } = useCadUiStore.getState();
+      useCadUiStore.setState({
         showElementInfoPanel: !showElementInfoPanel,
-        isDependencyJumpMode: showElementInfoPanel ? false : useCadStore.getState().isDependencyJumpMode
+        isDependencyJumpMode: showElementInfoPanel ? false : isDependencyJumpMode
       });
     }
   },
@@ -134,7 +135,7 @@ export const viewModeCommandDefinitions = {
       cancelLinePick();
       const targets = selectedDependencyJumpTargets();
       if (targets.length === 0) return;
-      useCadStore.setState({
+      useCadUiStore.setState({
         showElementInfoPanel: true,
         isParameterEditMode: false,
         isDependencyJumpMode: true,
@@ -146,7 +147,7 @@ export const viewModeCommandDefinitions = {
     id: "exitDependencyJumpMode",
     label: "親子要素ジャンプモードを終了",
     shortcuts: [{ keys: "Escape" }],
-    run: () => useCadStore.setState({ isDependencyJumpMode: false, selectedDependencyJumpIndex: 0 })
+    run: () => useCadUiStore.setState({ isDependencyJumpMode: false, selectedDependencyJumpIndex: 0 })
   },
   selectNextDependencyJumpTarget: {
     id: "selectNextDependencyJumpTarget",
@@ -174,14 +175,13 @@ export const viewModeCommandDefinitions = {
     run: () => {
       const selectedElement = getSelectedElement();
       if (!selectedElement) return;
-      useCadStore.setState({
+      useCadUiStore.setState({
         isParameterEditMode: true,
-        isDependencyJumpMode: false,
-        selectedParameterKey: normalizeParameterKey(
-          selectedElement,
-          useCadStore.getState().selectedParameterKey
-        )
+        isDependencyJumpMode: false
       });
+      useCadDocumentStore.getState().setSelectedParameterKey(
+        normalizeParameterKey(selectedElement, useCadDocumentStore.getState().selectedParameterKey)
+      );
     }
   },
   exitParameterEditMode: {
@@ -189,6 +189,6 @@ export const viewModeCommandDefinitions = {
     label: "パラメーター編集モードを終了",
     palette: { order: 47, keywords: ["parameter", "edit", "escape", "パラメーター", "終了"] },
     shortcuts: [{ keys: "Escape" }],
-    run: () => useCadStore.setState({ isParameterEditMode: false })
+    run: () => useCadUiStore.getState().setParameterEditMode(false)
   }
 } satisfies Partial<Record<CommandId, Command>>;

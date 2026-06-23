@@ -14,7 +14,8 @@ import {
   numericReferencePropertiesForGeometry,
 } from "../model/pickCandidates";
 import type { NumericMeasurementKey } from "../geometry/numericExpressions";
-import { useCadStore } from "../state/useCadStore";
+import { useCadDocumentStore } from "../state/cadDocumentStore";
+import { useCadUiStore } from "../state/cadUiStore";
 import type {
   CadElement,
   ElementId,
@@ -52,19 +53,19 @@ export const LeftPanel = ({
   elementListFocusRef,
   elementSearchInputRef
 }: LeftPanelProps) => {
-  const elements = useCadStore((state) => state.elements);
-  const selectedElementId = useCadStore((state) => state.selectedElementId);
-  const selectedElementIds = useCadStore((state) => state.selectedElementIds);
-  const elementSearchQuery = useCadStore((state) => state.elementSearchQuery);
-  const elementSearchCursorId = useCadStore((state) => state.elementSearchCursorId);
-  const elementSearchPickableOnly = useCadStore((state) => state.elementSearchPickableOnly);
-  const activePointPickTarget = useCadStore((state) => state.activePointPickTarget);
-  const activeNumericReferencePickTarget = useCadStore((state) => state.activeNumericReferencePickTarget);
-  const activeLinePickTarget = useCadStore((state) => state.activeLinePickTarget);
-  const activePickCursor = useCadStore((state) => state.activePickCursor);
-  const setElementSearchQuery = useCadStore((state) => state.setElementSearchQuery);
-  const setElementSearchCursorId = useCadStore((state) => state.setElementSearchCursorId);
-  const setElementSearchPickableOnly = useCadStore((state) => state.setElementSearchPickableOnly);
+  const elements = useCadDocumentStore((state) => state.elements);
+  const selectedElementId = useCadDocumentStore((state) => state.selectedElementId);
+  const selectedElementIds = useCadDocumentStore((state) => state.selectedElementIds);
+  const elementSearchQuery = useCadUiStore((state) => state.elementSearchQuery);
+  const elementSearchCursorId = useCadUiStore((state) => state.elementSearchCursorId);
+  const elementSearchPickableOnly = useCadUiStore((state) => state.elementSearchPickableOnly);
+  const activePointPickTarget = useCadUiStore((state) => state.activePointPickTarget);
+  const activeNumericReferencePickTarget = useCadUiStore((state) => state.activeNumericReferencePickTarget);
+  const activeLinePickTarget = useCadUiStore((state) => state.activeLinePickTarget);
+  const activePickCursor = useCadUiStore((state) => state.activePickCursor);
+  const setElementSearchQuery = useCadUiStore((state) => state.setElementSearchQuery);
+  const setElementSearchCursorId = useCadUiStore((state) => state.setElementSearchCursorId);
+  const setElementSearchPickableOnly = useCadUiStore((state) => state.setElementSearchPickableOnly);
   const [draggedElementIds, setDraggedElementIds] = useState<ElementId[]>([]);
   const [dropTarget, setDropTarget] = useState<ElementDropTarget | null>(null);
   const rowRefs = useRef(new Map<ElementId, HTMLDivElement>());

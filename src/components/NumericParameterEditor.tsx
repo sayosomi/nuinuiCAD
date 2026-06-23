@@ -11,7 +11,7 @@ import {
   getNumericParameterStep
 } from "../parameters/parameterDefinitions";
 import type { ParameterKey } from "../parameters/parameterDefinitions";
-import { useCadStore } from "../state/useCadStore";
+import { useCadUiStore } from "../state/cadUiStore";
 import type { CadElement, NumericValue } from "../types/geometry";
 import { formatNumber } from "./geometryDisplay";
 import { numericDragStepsForDelta } from "./numericDrag";
@@ -44,7 +44,7 @@ export const NumericParameterEditor = ({
   compact?: boolean;
 }) => {
   const [numericDrag, setNumericDrag] = useState<NumericDragState | null>(null);
-  const activeNumericReferencePickTarget = useCadStore((state) => state.activeNumericReferencePickTarget);
+  const activeNumericReferencePickTarget = useCadUiStore((state) => state.activeNumericReferencePickTarget);
   const {
     controlProps,
     parameterFieldClass,

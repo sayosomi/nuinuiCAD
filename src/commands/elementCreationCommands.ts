@@ -1,14 +1,14 @@
 import { createCadElement } from "../model/elementFactory";
 import { derivedAnchor, referenceAnchor } from "../model/pointAnchors";
 import { getFirstParameterKey } from "../parameters/parameterDefinitions";
-import { useCadStore } from "../state/useCadStore";
+import { useCadDocumentStore } from "../state/cadDocumentStore";
 import type { CadElement, CadElementType } from "../types/geometry";
 import { getSelectedElementIds, isLineLikeElement, isPointLikeElement } from "./commandRuntime";
 
 export const addElement = (type: CadElementType) => {
-  const { elements } = useCadStore.getState();
+  const { elements } = useCadDocumentStore.getState();
   const element = createCadElement(type, elements);
-  useCadStore.getState().commitDocumentChange({
+  useCadDocumentStore.getState().commitDocumentChange({
     elements: [...elements, element],
     selectedElementId: element.id,
     selectedElementIds: [element.id],
@@ -18,7 +18,7 @@ export const addElement = (type: CadElementType) => {
 };
 
 export const addOffsetLine = () => {
-  const { elements } = useCadStore.getState();
+  const { elements } = useCadDocumentStore.getState();
   const selectedIds = new Set(getSelectedElementIds());
   const selectedBaseLineIds = elements
     .filter((element) => selectedIds.has(element.id) && isLineLikeElement(element))
@@ -34,7 +34,7 @@ export const addOffsetLine = () => {
         ? [fallbackBaseLineId]
         : []
   };
-  useCadStore.getState().commitDocumentChange({
+  useCadDocumentStore.getState().commitDocumentChange({
     elements: [...elements, offsetLine],
     selectedElementId: offsetLine.id,
     selectedElementIds: [offsetLine.id],
@@ -44,7 +44,7 @@ export const addOffsetLine = () => {
 };
 
 export const addLineDivisionPoint = () => {
-  const { elements } = useCadStore.getState();
+  const { elements } = useCadDocumentStore.getState();
   const selectedIds = new Set(getSelectedElementIds());
   const selectedLine = elements.find((element) => selectedIds.has(element.id) && isLineLikeElement(element));
   const fallbackLine = selectedLine ?? elements.find(isLineLikeElement);
@@ -57,7 +57,7 @@ export const addLineDivisionPoint = () => {
       endpointKey: "start"
     }
   };
-  useCadStore.getState().commitDocumentChange({
+  useCadDocumentStore.getState().commitDocumentChange({
     elements: [...elements, lineDivisionPoint],
     selectedElementId: lineDivisionPoint.id,
     selectedElementIds: [lineDivisionPoint.id],
@@ -67,7 +67,7 @@ export const addLineDivisionPoint = () => {
 };
 
 export const addIntersectionPoint = () => {
-  const { elements } = useCadStore.getState();
+  const { elements } = useCadDocumentStore.getState();
   const selectedIds = new Set(getSelectedElementIds());
   const selectedLines = elements
     .filter((element) => selectedIds.has(element.id) && isLineLikeElement(element))
@@ -85,7 +85,7 @@ export const addIntersectionPoint = () => {
     line1Id,
     line2Id
   };
-  useCadStore.getState().commitDocumentChange({
+  useCadDocumentStore.getState().commitDocumentChange({
     elements: [...elements, intersectionPoint],
     selectedElementId: intersectionPoint.id,
     selectedElementIds: [intersectionPoint.id],
@@ -95,7 +95,7 @@ export const addIntersectionPoint = () => {
 };
 
 export const addCornerRadiusArcLine = () => {
-  const { elements } = useCadStore.getState();
+  const { elements } = useCadDocumentStore.getState();
   const selectedIds = new Set(getSelectedElementIds());
   const selectedLines = elements
     .filter((element) => selectedIds.has(element.id) && isLineLikeElement(element))
@@ -119,7 +119,7 @@ export const addCornerRadiusArcLine = () => {
       endpointKey: "start"
     }
   };
-  useCadStore.getState().commitDocumentChange({
+  useCadDocumentStore.getState().commitDocumentChange({
     elements: [...elements, arc],
     selectedElementId: arc.id,
     selectedElementIds: [arc.id],
@@ -129,7 +129,7 @@ export const addCornerRadiusArcLine = () => {
 };
 
 export const addLineTangentOffsetPoint = () => {
-  const { elements } = useCadStore.getState();
+  const { elements } = useCadDocumentStore.getState();
   const selectedIds = new Set(getSelectedElementIds());
   const selectedLine = elements.find((element) => selectedIds.has(element.id) && isLineLikeElement(element));
   const fallbackLine = selectedLine ?? elements.find(isLineLikeElement);
@@ -146,7 +146,7 @@ export const addLineTangentOffsetPoint = () => {
         ? derivedAnchor(fallbackLine.id, "start")
         : referenceAnchor(fallbackPoint?.id ?? "")
   };
-  useCadStore.getState().commitDocumentChange({
+  useCadDocumentStore.getState().commitDocumentChange({
     elements: [...elements, point],
     selectedElementId: point.id,
     selectedElementIds: [point.id],

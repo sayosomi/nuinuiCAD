@@ -2,7 +2,7 @@ import { dispatchCommand } from "../commands/commands";
 import { pointAnchorForElement, referenceAnchor } from "../model/pointAnchors";
 import { supportsNumericVariables } from "../parameters/parameterAccess";
 import type { ParameterKey } from "../parameters/parameterDefinitions";
-import { useCadStore } from "../state/useCadStore";
+import { useCadDocumentStore } from "../state/cadDocumentStore";
 import type {
   CadElement,
   ElementId,
@@ -33,10 +33,10 @@ export const ElementEditor = ({
   isParameterEditMode: boolean;
   registerParameterControl: (key: string, element: HTMLElement | null) => void;
 }) => {
-  const updateElement = useCadStore((state) => state.updateElement);
-  const renameElement = useCadStore((state) => state.renameElement);
-  const selectedParameterKey = useCadStore((state) => state.selectedParameterKey);
-  const setSelectedParameterKey = useCadStore((state) => state.setSelectedParameterKey);
+  const updateElement = useCadDocumentStore((state) => state.updateElement);
+  const renameElement = useCadDocumentStore((state) => state.renameElement);
+  const selectedParameterKey = useCadDocumentStore((state) => state.selectedParameterKey);
+  const setSelectedParameterKey = useCadDocumentStore((state) => state.setSelectedParameterKey);
 
   const commitName = (name: string) => renameElement(element.id, name);
   const parameterFieldClass = (key: ParameterKey) =>

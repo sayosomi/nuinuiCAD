@@ -2,7 +2,7 @@ import { dispatchCommand } from "../commands/commands";
 import { lineEndpointReferenceLabel, pointAnchorLabel } from "../model/pointAnchors";
 import { getParameterDefinitions } from "../parameters/parameterDefinitions";
 import type { ParameterKey } from "../parameters/parameterDefinitions";
-import { useCadStore } from "../state/useCadStore";
+import { useCadUiStore } from "../state/cadUiStore";
 import type { LineEndpointReference, PointAnchor } from "../types/geometry";
 import { NumericParameterEditor } from "./NumericParameterEditor";
 import { ParameterName } from "./ParameterName";
@@ -24,7 +24,7 @@ export const PointAnchorParameterEditor = ({
   anchor: PointAnchor;
   allowCoordinate?: boolean;
 }) => {
-  const activePointPickTarget = useCadStore((state) => state.activePointPickTarget);
+  const activePointPickTarget = useCadUiStore((state) => state.activePointPickTarget);
   const { parameterFieldClass, selectParameter } = useParameterEditor({
     element,
     isParameterEditMode,
@@ -136,7 +136,7 @@ export const LineEndpointReferenceEditor = ({
   label: string;
   endpoint: LineEndpointReference;
 }) => {
-  const activePointPickTarget = useCadStore((state) => state.activePointPickTarget);
+  const activePointPickTarget = useCadUiStore((state) => state.activePointPickTarget);
   const { controlProps, parameterFieldClass, selectParameter } = useParameterEditor({
     element,
     isParameterEditMode,

@@ -1,6 +1,6 @@
 import { dispatchCommand } from "../commands/commands";
 import type { ParameterKey } from "../parameters/parameterDefinitions";
-import { useCadStore } from "../state/useCadStore";
+import { useCadUiStore } from "../state/cadUiStore";
 import type { ElementId } from "../types/geometry";
 import { ParameterName } from "./ParameterName";
 import type { CommonEditorProps } from "./parameterEditorShared";
@@ -99,7 +99,7 @@ export const LineReferenceListEditor = ({
   lineIds: ElementId[];
   emptyLabel: string;
 }) => {
-  const activeLinePickTarget = useCadStore((state) => state.activeLinePickTarget);
+  const activeLinePickTarget = useCadUiStore((state) => state.activeLinePickTarget);
   const { parameterFieldClass, selectParameter, updateParameterValue } = useParameterEditor({
     element,
     isParameterEditMode,
@@ -200,7 +200,7 @@ export const LineReferenceEditor = ({
   label: string;
   lineId: ElementId;
 }) => {
-  const activeLinePickTarget = useCadStore((state) => state.activeLinePickTarget);
+  const activeLinePickTarget = useCadUiStore((state) => state.activeLinePickTarget);
   const { controlProps, parameterFieldClass, selectParameter } = useParameterEditor({
     element,
     isParameterEditMode,

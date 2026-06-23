@@ -1,4 +1,4 @@
-import type { CanvasViewport } from "../state/useCadStore";
+import type { CanvasViewport } from "../state/cadUiStore";
 import type {
   ComputedArcLine,
   ComputedBezierCurve,

@@ -1,7 +1,8 @@
 import { useEffect } from "react";
 import { dispatchCommand } from "../commands/commands";
 import { shortcutHelpItems } from "../keyboard/shortcuts";
-import { useCadStore } from "../state/useCadStore";
+import { useCadDocumentStore } from "../state/cadDocumentStore";
+import { useCadUiStore } from "../state/cadUiStore";
 
 type ShortcutHelpOverlayProps = {
   isParameterEditMode: boolean;
@@ -25,11 +26,11 @@ export const ShortcutHelpOverlay = ({
   isDependencyJumpMode,
   isPickMode = false
 }: ShortcutHelpOverlayProps) => {
-  const elements = useCadStore((state) => state.elements);
-  const selectedElementId = useCadStore((state) => state.selectedElementId);
-  const selectedParameterKey = useCadStore((state) => state.selectedParameterKey);
-  const showShortcutHelp = useCadStore((state) => state.showShortcutHelp);
-  const setShowShortcutHelp = useCadStore((state) => state.setShowShortcutHelp);
+  const elements = useCadDocumentStore((state) => state.elements);
+  const selectedElementId = useCadDocumentStore((state) => state.selectedElementId);
+  const selectedParameterKey = useCadDocumentStore((state) => state.selectedParameterKey);
+  const showShortcutHelp = useCadUiStore((state) => state.showShortcutHelp);
+  const setShowShortcutHelp = useCadUiStore((state) => state.setShowShortcutHelp);
   const selectedElement = elements.find((element) => element.id === selectedElementId) ?? null;
   const shortcuts = shortcutHelpItems({
     isParameterEditMode,

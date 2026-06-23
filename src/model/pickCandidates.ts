@@ -24,7 +24,7 @@ import type {
   ActiveNumericReferencePickTarget,
   ActivePickCursor,
   ActivePointPickTarget
-} from "../state/useCadStore";
+} from "../state/cadUiStore";
 
 export type PickOption =
   | {

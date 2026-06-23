@@ -6,8 +6,9 @@ import type {
 import { useEffect, useMemo, useRef, useState } from "react";
 import { dispatchCommand } from "../commands/commands";
 import type { BezierHandleRole as CommandBezierHandleRole } from "../commands/commands";
-import { useCadStore } from "../state/useCadStore";
-import type { CadHistorySnapshot } from "../state/useCadStore";
+import { useCadDocumentStore } from "../state/cadDocumentStore";
+import type { CadDocumentSnapshot } from "../state/cadDocumentStore";
+import { useCadUiStore } from "../state/cadUiStore";
 import type {
   ElementId,
   EvaluationResult
@@ -50,7 +51,7 @@ type PointDragState = {
   startClientX: number;
   startClientY: number;
   zoom: number;
-  snapshot: CadHistorySnapshot;
+  snapshot: CadDocumentSnapshot;
 };
 
 type BezierHandleDragState = {
@@ -61,7 +62,7 @@ type BezierHandleDragState = {
   startClientX: number;
   startClientY: number;
   zoom: number;
-  snapshot: CadHistorySnapshot;
+  snapshot: CadDocumentSnapshot;
 };
 
 type PolarLockKeys = {
@@ -90,15 +91,15 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
     useState<PointPickCandidateMenu | null>(null);
   const [linePickCandidateMenu, setLinePickCandidateMenu] =
     useState<LinePickCandidateMenu | null>(null);
-  const elements = useCadStore((state) => state.elements);
-  const selectedElementId = useCadStore((state) => state.selectedElementId);
-  const selectedElementIds = useCadStore((state) => state.selectedElementIds);
-  const canvasViewport = useCadStore((state) => state.canvasViewport);
-  const panCanvasViewport = useCadStore((state) => state.panCanvasViewport);
-  const zoomCanvasViewportAt = useCadStore((state) => state.zoomCanvasViewportAt);
-  const activePointPickTarget = useCadStore((state) => state.activePointPickTarget);
-  const activeNumericReferencePickTarget = useCadStore((state) => state.activeNumericReferencePickTarget);
-  const activeLinePickTarget = useCadStore((state) => state.activeLinePickTarget);
+  const elements = useCadDocumentStore((state) => state.elements);
+  const selectedElementId = useCadDocumentStore((state) => state.selectedElementId);
+  const selectedElementIds = useCadDocumentStore((state) => state.selectedElementIds);
+  const canvasViewport = useCadUiStore((state) => state.canvasViewport);
+  const panCanvasViewport = useCadUiStore((state) => state.panCanvasViewport);
+  const zoomCanvasViewportAt = useCadUiStore((state) => state.zoomCanvasViewportAt);
+  const activePointPickTarget = useCadUiStore((state) => state.activePointPickTarget);
+  const activeNumericReferencePickTarget = useCadUiStore((state) => state.activeNumericReferencePickTarget);
+  const activeLinePickTarget = useCadUiStore((state) => state.activeLinePickTarget);
   const selectedElementIdSet = useMemo(() => new Set(selectedElementIds), [selectedElementIds]);
   const {
     lines,
@@ -443,7 +444,7 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
         dispatchCommand("selectElement", { elementId: handle.curveId, selectionMode: "replace" });
 
         event.currentTarget.setPointerCapture(event.pointerId);
-        const state = useCadStore.getState();
+        const state = useCadDocumentStore.getState();
         bezierHandleDragRef.current = {
           pointerId: event.pointerId,
           elementId: handle.curveId,
@@ -457,7 +458,6 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
             selectedElementId: state.selectedElementId,
             selectedElementIds: state.selectedElementIds,
             selectionAnchorElementId: state.selectionAnchorElementId,
-            isParameterEditMode: state.isParameterEditMode,
             selectedParameterKey: state.selectedParameterKey
           }
         };
@@ -482,7 +482,7 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
       if (!overlayPoints.some(({ point }) => point.elementId === elementId)) return;
 
       event.currentTarget.setPointerCapture(event.pointerId);
-      const state = useCadStore.getState();
+      const state = useCadDocumentStore.getState();
       pointDragRef.current = {
         pointerId: event.pointerId,
         elementId,
@@ -494,7 +494,6 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
           selectedElementId: state.selectedElementId,
           selectedElementIds: state.selectedElementIds,
           selectionAnchorElementId: state.selectionAnchorElementId,
-          isParameterEditMode: state.isParameterEditMode,
           selectedParameterKey: state.selectedParameterKey
         }
       };

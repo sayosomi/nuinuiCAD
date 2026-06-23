@@ -1,4 +1,4 @@
-import { useCadStore } from "../state/useCadStore";
+import { useCadDocumentStore } from "../state/cadDocumentStore";
 import {
   moveBezierHandleByDeltaInElements,
   movePointElementByDeltaInElements
@@ -18,12 +18,12 @@ export const movePointElementByDelta = ({
   if (!elementId) return;
   if (dx === 0 && dy === 0) {
     if (baseElements) {
-      useCadStore.getState().previewDocumentChange({ elements: baseElements });
+      useCadDocumentStore.getState().previewDocumentChange({ elements: baseElements });
     }
     return;
   }
 
-  const sourceElements = baseElements ?? useCadStore.getState().elements;
+  const sourceElements = baseElements ?? useCadDocumentStore.getState().elements;
   const nextElements = movePointElementByDeltaInElements(sourceElements, elementId, {
     dx,
     dy,
@@ -33,18 +33,18 @@ export const movePointElementByDelta = ({
   if (!nextElements) return;
 
   if (commitMode === "preview") {
-    useCadStore.getState().previewDocumentChange({ elements: nextElements });
+    useCadDocumentStore.getState().previewDocumentChange({ elements: nextElements });
     return;
   }
 
   if (historySnapshot) {
-    useCadStore.getState().commitDocumentChangeFromSnapshot(historySnapshot, {
+    useCadDocumentStore.getState().commitDocumentChangeFromSnapshot(historySnapshot, {
       elements: nextElements
     });
     return;
   }
 
-  useCadStore.getState().commitDocumentChange({ elements: nextElements });
+  useCadDocumentStore.getState().commitDocumentChange({ elements: nextElements });
 };
 
 export const moveBezierHandleByDelta = ({
@@ -62,12 +62,12 @@ export const moveBezierHandleByDelta = ({
   if (!elementId || !bezierHandleRole) return;
   if (dx === 0 && dy === 0) {
     if (baseElements) {
-      useCadStore.getState().previewDocumentChange({ elements: baseElements });
+      useCadDocumentStore.getState().previewDocumentChange({ elements: baseElements });
     }
     return;
   }
 
-  const sourceElements = baseElements ?? useCadStore.getState().elements;
+  const sourceElements = baseElements ?? useCadDocumentStore.getState().elements;
   const nextElements = moveBezierHandleByDeltaInElements(sourceElements, elementId, {
     dx,
     dy,
@@ -79,16 +79,16 @@ export const moveBezierHandleByDelta = ({
   if (!nextElements) return;
 
   if (commitMode === "preview") {
-    useCadStore.getState().previewDocumentChange({ elements: nextElements });
+    useCadDocumentStore.getState().previewDocumentChange({ elements: nextElements });
     return;
   }
 
   if (historySnapshot) {
-    useCadStore.getState().commitDocumentChangeFromSnapshot(historySnapshot, {
+    useCadDocumentStore.getState().commitDocumentChangeFromSnapshot(historySnapshot, {
       elements: nextElements
     });
     return;
   }
 
-  useCadStore.getState().commitDocumentChange({ elements: nextElements });
+  useCadDocumentStore.getState().commitDocumentChange({ elements: nextElements });
 };
