@@ -13,6 +13,7 @@ import { dependencyError, geometryError, getPointAnchorOrError, numericError } f
 import { approximateBezierSegmentLength } from "./evaluateGeometryPrimitives";
 import type { ElementEvaluationContext } from "./elementEvaluatorTypes";
 import { isLineLikeGeometry, type LineLikeGeometry } from "./linePaths";
+import { arcTangentAngles, lineTangentAngles, offsetLineEndpointMeasurements } from "./lineMeasurements";
 import { angleOfPoint, degreesToRadians, lineLength, normalizeDegrees, radiansToDegrees } from "./offsetPathMath";
 import type { Point } from "./offsetPathTypes";
 
@@ -117,8 +118,7 @@ const transformLine = (line: ComputedLine, transform: TransformPoint): LineLikeG
     start,
     end,
     length,
-    startAngleDeg: lineAngleDeg(start, end),
-    endAngleDeg: lineAngleDeg(end, start)
+    ...lineTangentAngles(start, end)
   };
 };
 
@@ -142,6 +142,11 @@ const transformArcLine = (
     radius,
     startAngleDeg: angleOfPoint(center, start),
     endAngleDeg: angleOfPoint(center, end),
+    ...arcTangentAngles({
+      startAngleDeg: angleOfPoint(center, start),
+      endAngleDeg: angleOfPoint(center, end),
+      sweepAngleDeg
+    }),
     sweepAngleDeg,
     length: radius * Math.abs(degreesToRadians(sweepAngleDeg))
   };
@@ -184,7 +189,9 @@ const transformBezierCurve = (
     startHandleAngleDeg: pointAngleDeg(firstSegment.start, firstSegment.control1),
     startHandleLength: lineLength(firstSegment.start, firstSegment.control1),
     endHandleAngleDeg: normalizeDegrees(pointAngleDeg(lastSegment.end, lastSegment.control2) - 180),
-    endHandleLength: lineLength(lastSegment.end, lastSegment.control2)
+    endHandleLength: lineLength(lastSegment.end, lastSegment.control2),
+    startTangentAngleDeg: pointAngleDeg(firstSegment.start, firstSegment.control1),
+    endTangentAngleDeg: pointAngleDeg(lastSegment.end, lastSegment.control2)
   };
 };
 
@@ -256,6 +263,7 @@ const transformOffsetLine = (
   return {
     ...line,
     segments,
+    ...offsetLineEndpointMeasurements(segments),
     length: segments.reduce((sum, segment) => sum + segment.length, 0)
   };
 };

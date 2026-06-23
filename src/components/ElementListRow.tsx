@@ -1,7 +1,6 @@
 import type { CSSProperties, DragEvent, MouseEvent, Ref } from "react";
 import { Folder, FolderOpen } from "lucide-react";
 import { dispatchCommand } from "../commands/commands";
-import { lineMeasurementLabel } from "../geometry/numericExpressions";
 import type { PickCandidate } from "../model/pickCandidates";
 import { numericReferencePropertiesForGeometry } from "../model/pickCandidates";
 import { isGroupElement } from "../model/groups";
@@ -15,7 +14,7 @@ import type {
   ElementId
 } from "../types/geometry";
 import { elementCategoryLabels, elementTypeCategories, elementTypeLabels } from "../types/geometry";
-import { numericReferenceValue } from "./geometryDisplay";
+import { numericReferenceLabel, numericReferenceValue } from "./geometryDisplay";
 import { ElementStatusIcon } from "./ElementStatusIcon";
 
 type NumericReferenceGeometry = ComputedLine | ComputedArcLine | ComputedBezierCurve | ComputedOffsetLine;
@@ -285,7 +284,7 @@ export const ElementListRow = ({
               onApplyNumericReference(referenceGeometry, property);
             }}
           >
-            <span>{lineMeasurementLabel(property)}</span>
+            <span>{numericReferenceLabel(referenceGeometry, property)}</span>
             <small>{numericReferenceValue(referenceGeometry, property)}</small>
           </button>
         ))}

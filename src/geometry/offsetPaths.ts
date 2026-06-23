@@ -16,6 +16,7 @@ import {
   withStart
 } from "./offsetJoins";
 import { EPSILON, arcPoint, computedPoint, degreesToRadians, lineLength, normalizeDegrees } from "./offsetPathMath";
+import { offsetLineEndpointMeasurements } from "./lineMeasurements";
 import type { RawOffsetSegment, SourceSegment } from "./offsetPathTypes";
 import {
   connectSourceSegmentGroups,
@@ -215,6 +216,7 @@ export const buildOffsetLineGeometry = ({
       elementId,
       name,
       baseLineIds,
+      ...offsetLineEndpointMeasurements(outputSegments),
       segments: outputSegments,
       closed,
       length: outputSegments.reduce((sum, segment) => sum + segment.length, 0)

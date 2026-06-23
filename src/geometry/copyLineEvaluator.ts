@@ -17,6 +17,7 @@ import {
   sourceStart
 } from "./offsetSourceSegments";
 import { isLineLikeGeometry } from "./linePaths";
+import { offsetLineEndpointMeasurements } from "./lineMeasurements";
 
 const transformPoint = ({
   point,
@@ -219,6 +220,7 @@ export const evaluateCopyLineElement = (element: CadElement, context: ElementEva
     elementId: element.id,
     name: element.name,
     baseLineIds: element.baseLineIds,
+    ...offsetLineEndpointMeasurements(segments),
     segments,
     closed: false,
     length: segments.reduce((sum, segment) => sum + segment.length, 0)

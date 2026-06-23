@@ -6,8 +6,7 @@ import type {
   PointPickCandidate,
   PointPickCandidateMenu
 } from "./DrawingCanvasTypes";
-import { lineMeasurementLabel } from "../geometry/numericExpressions";
-import { numericReferenceValue } from "./geometryDisplay";
+import { numericReferenceLabel, numericReferenceValue } from "./geometryDisplay";
 
 type CanvasCandidateMenusProps = {
   measurementCandidateMenu: MeasurementCandidateMenu | null;
@@ -47,7 +46,7 @@ export const CanvasCandidateMenus = ({
           >
             <span className="numeric-reference-candidate-main">
               <strong>{candidate.line.name}</strong>
-              <span>{lineMeasurementLabel(candidate.property)}</span>
+              <span>{numericReferenceLabel(candidate.line, candidate.property)}</span>
             </span>
             <small>{numericReferenceValue(candidate.line, candidate.property)}</small>
           </button>

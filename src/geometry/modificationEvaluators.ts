@@ -18,6 +18,7 @@ import {
   normalizeDegrees,
   radiansToDegrees
 } from "./evaluateGeometryPrimitives";
+import { arcTangentAngles, lineTangentAngles, offsetLineEndpointMeasurements } from "./lineMeasurements";
 import { findLineIntersections } from "./lineIntersections";
 import { isLineLikeGeometry, type LineLikeGeometry } from "./linePaths";
 import {
@@ -54,13 +55,6 @@ const interpolate = (start: Point, end: Point, t: number): Point => ({
   y: start.y + (end.y - start.y) * t
 });
 
-const lineAngleDeg = (start: Point, end: Point) => {
-  const dx = end.x - start.x;
-  const dy = start.y - end.y;
-  const length = Math.hypot(dx, dy);
-  return length <= EPSILON ? null : normalizeDegrees(radiansToDegrees(Math.atan2(dy, dx)));
-};
-
 const lineDistance = (point: Point, start: Point, end: Point) => {
   const lineLength = distance(start, end);
   if (lineLength <= EPSILON) return null;
@@ -90,8 +84,7 @@ const computedLine = ({
     start: computedPoint(`${line.elementId}:start`, `${line.name}.始点`, start),
     end: computedPoint(`${line.elementId}:end`, `${line.name}.終点`, end),
     length: distance(start, end),
-    startAngleDeg: lineAngleDeg(start, end),
-    endAngleDeg: lineAngleDeg(end, start)
+    ...lineTangentAngles(start, end)
   };
 };
 
@@ -163,6 +156,7 @@ const moveArcEndpoint = (
       ...arc,
       startAngleDeg,
       endAngleDeg,
+      ...arcTangentAngles({ startAngleDeg, endAngleDeg, sweepAngleDeg }),
       sweepAngleDeg,
       start: computedPoint(`${arc.elementId}:start`, `${arc.name}.始点`, arcPoint(arc.center, arc.radius, startAngleDeg)),
       end: computedPoint(`${arc.elementId}:end`, `${arc.name}.終点`, arcPoint(arc.center, arc.radius, endAngleDeg)),
@@ -339,6 +333,7 @@ const polylineGeometry = ({
   return {
     ...line,
     closed: false,
+    ...offsetLineEndpointMeasurements(segments),
     segments,
     length: segments.reduce((sum, segment) => sum + segment.length, 0)
   };

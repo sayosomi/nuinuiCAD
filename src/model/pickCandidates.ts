@@ -74,9 +74,9 @@ const numericReferenceGeometry = (
 export const numericReferencePropertiesForGeometry = (
   geometry: NumericReferenceGeometry
 ): readonly NumericMeasurementKey[] =>
-  geometry.kind === "line" || geometry.kind === "arcLine"
-    ? ["length", "startAngleDeg", "endAngleDeg"]
-    : ["length"];
+  geometry.kind === "arcLine"
+    ? ["length", "startAngleDeg", "endAngleDeg", "startTangentAngleDeg", "endTangentAngleDeg"]
+    : ["length", "startTangentAngleDeg", "endTangentAngleDeg"];
 
 const numericReferenceExpression = (
   geometry: NumericReferenceGeometry,

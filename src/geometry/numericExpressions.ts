@@ -64,7 +64,7 @@ const trimRedundantOuterParentheses = (expression: string): string => {
 const isSimpleNumericTerm = (expression: string) =>
   /^(\d+(?:\.\d+)?|\.\d+)$/.test(expression) ||
   /^@[^\s()+*/.]+$/.test(expression) ||
-    /^[^\s()+*/.]+\.(length|startAngleDeg|endAngleDeg|startHandleAngleDeg|startHandleLength|endHandleAngleDeg|endHandleLength)$/.test(expression);
+    /^[^\s()+*/.]+\.(length|startAngleDeg|endAngleDeg|startTangentAngleDeg|endTangentAngleDeg|startHandleAngleDeg|startHandleLength|endHandleAngleDeg|endHandleLength)$/.test(expression);
 
 const trimSimpleOuterParentheses = (expression: string): string => {
   const fullyTrimmed = trimRedundantOuterParentheses(expression);
@@ -113,7 +113,7 @@ export const formatNumericExpressionForDisplay = (
       return variable ? `@${variable.name}` : match;
     })
     .replace(
-      /([^\s()+*/]+)\.(length|startAngleDeg|endAngleDeg|startHandleAngleDeg|startHandleLength|endHandleAngleDeg|endHandleLength)\b/g,
+      /([^\s()+*/]+)\.(length|startAngleDeg|endAngleDeg|startTangentAngleDeg|endTangentAngleDeg|startHandleAngleDeg|startHandleLength|endHandleAngleDeg|endHandleLength)\b/g,
       (match, elementId: ElementId, property: NumericMeasurementKey) => {
       const element = elementsById.get(elementId);
       return element ? `${element.name}.${propertyLabels[property]}` : match;
@@ -160,7 +160,9 @@ export const normalizeNumericExpressionInput = (
           element.type === "cornerRadiusArcLine") &&
         property !== "length" &&
         property !== "startAngleDeg" &&
-        property !== "endAngleDeg"
+        property !== "endAngleDeg" &&
+        property !== "startTangentAngleDeg" &&
+        property !== "endTangentAngleDeg"
       ) {
         continue;
       }
@@ -168,7 +170,9 @@ export const normalizeNumericExpressionInput = (
         (element.type === "offsetLine" ||
           element.type === "copyLine" ||
           element.type === "symmetricCopyLine") &&
-        property !== "length"
+        property !== "length" &&
+        property !== "startTangentAngleDeg" &&
+        property !== "endTangentAngleDeg"
       ) continue;
       expression = expression.replace(
         new RegExp(`${escapeRegExp(element.name)}\\.${escapeRegExp(label)}(?=$|[\\s()+*/-])`, "g"),
@@ -230,8 +234,21 @@ export const evaluateNumericValue = ({
         ((geometry.kind === "line" || geometry.kind === "arcLine") &&
           reference.property !== "length" &&
           reference.property !== "startAngleDeg" &&
-          reference.property !== "endAngleDeg") ||
-        (geometry.kind === "offsetLine" && reference.property !== "length")
+          reference.property !== "endAngleDeg" &&
+          reference.property !== "startTangentAngleDeg" &&
+          reference.property !== "endTangentAngleDeg") ||
+        (geometry.kind === "bezierCurve" &&
+          reference.property !== "length" &&
+          reference.property !== "startTangentAngleDeg" &&
+          reference.property !== "endTangentAngleDeg" &&
+          reference.property !== "startHandleAngleDeg" &&
+          reference.property !== "startHandleLength" &&
+          reference.property !== "endHandleAngleDeg" &&
+          reference.property !== "endHandleLength") ||
+        (geometry.kind === "offsetLine" &&
+          reference.property !== "length" &&
+          reference.property !== "startTangentAngleDeg" &&
+          reference.property !== "endTangentAngleDeg")
       ) {
         const dependencyName = elementsById.get(reference.elementId)?.name;
         throw Object.assign(

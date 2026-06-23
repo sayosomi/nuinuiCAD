@@ -6,11 +6,11 @@ import {
   degreesToRadians,
   handlePoint,
   normalizeDegrees,
-  positiveSweepDegrees,
-  radiansToDegrees
+  positiveSweepDegrees
 } from "./evaluateGeometryPrimitives";
 import { geometryError, getPointAnchorOrError, numericError } from "./evaluationContext";
 import type { ElementEvaluationContext } from "./elementEvaluatorTypes";
+import { arcTangentAngles, lineTangentAngles } from "./lineMeasurements";
 
 export const evaluateLineElement = (element: CadElement, context: ElementEvaluationContext) => {
   const {
@@ -52,10 +52,7 @@ export const evaluateLineElement = (element: CadElement, context: ElementEvaluat
         const dx = end.x - start.x;
         const dy = start.y - end.y;
         const length = Math.hypot(dx, dy);
-        const startAngleDeg =
-          length === 0 ? null : normalizeDegrees(radiansToDegrees(Math.atan2(dy, dx)));
-        const endAngleDeg =
-          length === 0 ? null : normalizeDegrees(radiansToDegrees(Math.atan2(-dy, -dx)));
+        const angles = lineTangentAngles(start, end);
         computedGeometry.set(element.id, {
           kind: "line",
           elementId: element.id,
@@ -65,8 +62,7 @@ export const evaluateLineElement = (element: CadElement, context: ElementEvaluat
           start,
           end,
           length,
-          startAngleDeg,
-          endAngleDeg
+          ...angles
         });
         break;
       }
@@ -121,6 +117,7 @@ export const evaluateLineElement = (element: CadElement, context: ElementEvaluat
         const endAngleRad = degreesToRadians(endAngleDeg);
         const safeRadius = radius > 0 ? radius : 0;
         const sweepAngleDeg = positiveSweepDegrees(startAngleDeg, endAngleDeg);
+        const tangentAngles = arcTangentAngles({ startAngleDeg, endAngleDeg, sweepAngleDeg });
         computedGeometry.set(element.id, {
           kind: "arcLine",
           elementId: element.id,
@@ -144,6 +141,7 @@ export const evaluateLineElement = (element: CadElement, context: ElementEvaluat
           radius,
           startAngleDeg,
           endAngleDeg,
+          ...tangentAngles,
           sweepAngleDeg,
           length: safeRadius * degreesToRadians(sweepAngleDeg)
         });
@@ -220,6 +218,7 @@ export const evaluateLineElement = (element: CadElement, context: ElementEvaluat
         const startAngleRad = degreesToRadians(startAngleDeg);
         const endAngleRad = degreesToRadians(endAngleDeg);
         const sweepAngleDeg = positiveSweepDegrees(startAngleDeg, endAngleDeg);
+        const tangentAngles = arcTangentAngles({ startAngleDeg, endAngleDeg, sweepAngleDeg });
         computedGeometry.set(element.id, {
           kind: "arcLine",
           elementId: element.id,
@@ -249,6 +248,7 @@ export const evaluateLineElement = (element: CadElement, context: ElementEvaluat
           radius: circle.radius,
           startAngleDeg,
           endAngleDeg,
+          ...tangentAngles,
           sweepAngleDeg,
           length: circle.radius * degreesToRadians(sweepAngleDeg)
         });
@@ -408,6 +408,8 @@ export const evaluateLineElement = (element: CadElement, context: ElementEvaluat
             (sum, segment) => sum + approximateBezierSegmentLength(segment),
             0
           ),
+          startTangentAngleDeg: normalizeDegrees(startHandleAngleDeg),
+          endTangentAngleDeg: normalizeDegrees(endHandleAngleDeg + 180),
           startHandleAngleDeg,
           startHandleLength,
           endHandleAngleDeg,

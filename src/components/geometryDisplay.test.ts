@@ -3,6 +3,7 @@ import type {
   ComputedArcLine,
   ComputedBezierCurve,
   ComputedLine,
+  ComputedOffsetLine,
   ComputedPoint
 } from "../types/geometry";
 import {
@@ -16,6 +17,7 @@ import {
   numericReferenceExpression,
   numericReferenceProperties,
   numericReferenceValue,
+  offsetLineInfoRows,
   pointCoordinateRows
 } from "./geometryDisplay";
 
@@ -37,7 +39,9 @@ const line: ComputedLine = {
   end: point("point-b", 30, 40),
   length: 50,
   startAngleDeg: 53.13010235415598,
-  endAngleDeg: 233.13010235415598
+  endAngleDeg: 233.13010235415598,
+  startTangentAngleDeg: 53.13010235415598,
+  endTangentAngleDeg: 233.13010235415598
 };
 
 const arc: ComputedArcLine = {
@@ -51,6 +55,8 @@ const arc: ComputedArcLine = {
   radius: 30,
   startAngleDeg: 0,
   endAngleDeg: 90,
+  startTangentAngleDeg: 90,
+  endTangentAngleDeg: 0,
   sweepAngleDeg: 90,
   length: Math.PI * 15
 };
@@ -73,10 +79,33 @@ const curve: ComputedBezierCurve = {
     }
   ],
   length: 52.345,
+  startTangentAngleDeg: 0,
+  endTangentAngleDeg: 0,
   startHandleAngleDeg: 0,
   startHandleLength: 10,
   endHandleAngleDeg: 180,
   endHandleLength: 10
+};
+
+const offsetLine: ComputedOffsetLine = {
+  kind: "offsetLine",
+  elementId: "offset",
+  name: "オフセット線",
+  baseLineIds: ["line-ab"],
+  start: point("offset:start", 0, 10),
+  end: point("offset:end", 30, 50),
+  segments: [
+    {
+      kind: "line",
+      start: point("offset:start", 0, 10),
+      end: point("offset:end", 30, 50),
+      length: 50
+    }
+  ],
+  closed: false,
+  length: 50,
+  startTangentAngleDeg: 53.13010235415598,
+  endTangentAngleDeg: 233.13010235415598
 };
 
 describe("geometryDisplay", () => {
@@ -92,9 +121,23 @@ describe("geometryDisplay", () => {
   });
 
   it("returns numeric reference properties and expressions", () => {
-    expect(numericReferenceProperties(line)).toEqual(["length", "startAngleDeg", "endAngleDeg"]);
-    expect(numericReferenceProperties(arc)).toEqual(["length", "startAngleDeg", "endAngleDeg"]);
-    expect(numericReferenceProperties(curve)).toEqual(["length"]);
+    expect(numericReferenceProperties(line)).toEqual([
+      "length",
+      "startTangentAngleDeg",
+      "endTangentAngleDeg"
+    ]);
+    expect(numericReferenceProperties(arc)).toEqual([
+      "length",
+      "startAngleDeg",
+      "endAngleDeg",
+      "startTangentAngleDeg",
+      "endTangentAngleDeg"
+    ]);
+    expect(numericReferenceProperties(curve)).toEqual([
+      "length",
+      "startTangentAngleDeg",
+      "endTangentAngleDeg"
+    ]);
     expect(numericReferenceExpression(line, "length")).toBe("line-ab.length");
   });
 
@@ -102,8 +145,10 @@ describe("geometryDisplay", () => {
     expect(numericReferenceValue(line, "length")).toBe("50 mm");
     expect(numericReferenceValue(line, "startAngleDeg")).toBe("53.13°");
     expect(numericReferenceValue(line, "endAngleDeg")).toBe("233.13°");
+    expect(numericReferenceValue(line, "startTangentAngleDeg")).toBe("53.13°");
+    expect(numericReferenceValue(arc, "startTangentAngleDeg")).toBe("90°");
     expect(numericReferenceValue(curve, "length")).toBe("52.34 mm");
-    expect(numericReferenceValue(curve, "startAngleDeg")).toBe("");
+    expect(numericReferenceValue(curve, "startTangentAngleDeg")).toBe("0°");
   });
 
   it("builds geometry info rows", () => {
@@ -111,8 +156,8 @@ describe("geometryDisplay", () => {
     expect(lineInfoRows(line)).toEqual([
       { label: "始点", value: "(0, 0)" },
       { label: "終点", value: "(30, 40)" },
-      { label: "始角度", value: "53.13°" },
-      { label: "終角度", value: "233.13°" },
+      { label: "始接線角度", value: "53.13°" },
+      { label: "終接線角度", value: "233.13°" },
       { label: "長さ", value: "50 mm" }
     ]);
     expect(arcLineInfoRows(arc)).toEqual([
@@ -120,13 +165,33 @@ describe("geometryDisplay", () => {
       { label: "始点", value: "(30, 0)" },
       { label: "終点", value: "(0, -30)" },
       { label: "半径", value: "30 mm" },
-      { label: "始角度", value: "0°" },
-      { label: "終角度", value: "90°" },
+      { label: "始トリム角度", value: "0°" },
+      { label: "終トリム角度", value: "90°" },
+      { label: "始接線角度", value: "90°" },
+      { label: "終接線角度", value: "0°" },
       { label: "長さ", value: "47.12 mm" }
     ]);
     expect(bezierCurveInfoRows(curve)).toEqual([
-      { label: "区間数", value: "1" },
+      { label: "始点", value: "(0, 0)" },
+      { label: "終点", value: "(30, 40)" },
+      { label: "始接線角度", value: "0°" },
+      { label: "終接線角度", value: "0°" },
       { label: "長さ", value: "52.34 mm" }
+    ]);
+    expect(offsetLineInfoRows(offsetLine)).toEqual([
+      { label: "始点", value: "(0, 10)" },
+      { label: "終点", value: "(30, 50)" },
+      { label: "始接線角度", value: "53.13°" },
+      { label: "終接線角度", value: "233.13°" },
+      { label: "長さ", value: "50 mm" }
+    ]);
+    expect(offsetLineInfoRows({ ...offsetLine, closed: true })).toEqual([
+      { label: "始点", value: "(0, 10)" },
+      { label: "終点", value: "(30, 50)" },
+      { label: "始接線角度", value: "53.13°" },
+      { label: "終接線角度", value: "233.13°" },
+      { label: "長さ", value: "50 mm" },
+      { label: "閉じる", value: "はい" }
     ]);
   });
 });

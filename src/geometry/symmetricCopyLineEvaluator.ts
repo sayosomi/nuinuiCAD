@@ -17,6 +17,7 @@ import {
   sourceStart
 } from "./offsetSourceSegments";
 import { isLineLikeGeometry } from "./linePaths";
+import { offsetLineEndpointMeasurements } from "./lineMeasurements";
 
 const reflectPointAcrossAxis = ({
   point,
@@ -205,6 +206,7 @@ export const evaluateSymmetricCopyLineElement = (
     elementId: element.id,
     name: element.name,
     baseLineIds: element.baseLineIds,
+    ...offsetLineEndpointMeasurements(segments),
     segments,
     closed: false,
     length: segments.reduce((sum, segment) => sum + segment.length, 0)

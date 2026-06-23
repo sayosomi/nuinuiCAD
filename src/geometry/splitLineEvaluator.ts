@@ -15,6 +15,7 @@ import { approximateBezierSegmentLength, degreesToRadians, normalizeDegrees, rad
 import { dependencyError, geometryError, getPointAnchorOrError } from "./evaluationContext";
 import type { ElementEvaluationContext } from "./elementEvaluatorTypes";
 import { isLineLikeGeometry } from "./linePaths";
+import { arcTangentAngles, lineTangentAngles } from "./lineMeasurements";
 
 type Point = { x: number; y: number };
 
@@ -36,13 +37,6 @@ const interpolate = (start: Point, end: Point, t: number): Point => ({
   x: start.x + (end.x - start.x) * t,
   y: start.y + (end.y - start.y) * t
 });
-
-const lineAngleDeg = (start: Point, end: Point) => {
-  const dx = end.x - start.x;
-  const dy = start.y - end.y;
-  const length = Math.hypot(dx, dy);
-  return length <= EPSILON ? null : normalizeDegrees(radiansToDegrees(Math.atan2(dy, dx)));
-};
 
 const computedLine = ({
   elementId,
@@ -67,8 +61,7 @@ const computedLine = ({
   start,
   end,
   length: distance(start, end),
-  startAngleDeg: lineAngleDeg(start, end),
-  endAngleDeg: lineAngleDeg(end, start)
+  ...lineTangentAngles(start, end)
 });
 
 const arcPoint = (center: Point, radius: number, angleDeg: number): Point => {
@@ -108,6 +101,7 @@ const arcGeometry = ({
     radius,
     startAngleDeg,
     endAngleDeg,
+    ...arcTangentAngles({ startAngleDeg, endAngleDeg, sweepAngleDeg }),
     sweepAngleDeg,
     length: Math.max(radius, 0) * Math.abs(degreesToRadians(sweepAngleDeg))
   };

@@ -30,7 +30,9 @@ const line = (
   end,
   length: Math.hypot(end.x - start.x, end.y - start.y),
   startAngleDeg: 0,
-  endAngleDeg: 180
+  endAngleDeg: 180,
+  startTangentAngleDeg: 0,
+  endTangentAngleDeg: 180
 });
 
 const bezierCurve = (
@@ -55,6 +57,8 @@ const bezierCurve = (
     }
   ],
   length: 100,
+  startTangentAngleDeg: 0,
+  endTangentAngleDeg: 180,
   startHandleAngleDeg: 0,
   startHandleLength: 30,
   endHandleAngleDeg: 0,

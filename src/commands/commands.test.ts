@@ -2058,7 +2058,7 @@ describe("commands", () => {
 
     expect(useCadStore.getState().activeNumericReferencePickTarget).toBeNull();
     expect(useCadStore.getState().elements[0]).toMatchObject({
-      x: { kind: "expression", expression: "line-ab.startAngleDeg" }
+      x: { kind: "expression", expression: "line-ab.startTangentAngleDeg" }
     });
   });
 

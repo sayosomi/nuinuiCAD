@@ -18,6 +18,7 @@ import {
 } from "./evaluateGeometryPrimitives";
 import { dependencyError, geometryError, numericError } from "./evaluationContext";
 import type { ElementEvaluationContext } from "./elementEvaluatorTypes";
+import { arcTangentAngles, offsetLineEndpointMeasurements } from "./lineMeasurements";
 
 type Point = { x: number; y: number };
 
@@ -318,6 +319,7 @@ const trimmedPolylineGeometry = ({
     elementId: geometry.elementId,
     name: geometry.name,
     baseLineIds: [],
+    ...offsetLineEndpointMeasurements(segments),
     segments,
     closed: false,
     length: segments.reduce((sum, segment) => sum + segment.length, 0)
@@ -416,6 +418,7 @@ const cornerRadiusGeometry = ({
     radius,
     startAngleDeg,
     endAngleDeg,
+    ...arcTangentAngles({ startAngleDeg, endAngleDeg, sweepAngleDeg }),
     sweepAngleDeg,
     length: radius * Math.abs(degreesToRadians(sweepAngleDeg))
   };

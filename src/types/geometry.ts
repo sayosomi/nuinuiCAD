@@ -263,6 +263,8 @@ export type ComputedLine = {
   length: number;
   startAngleDeg: number | null;
   endAngleDeg: number | null;
+  startTangentAngleDeg: number | null;
+  endTangentAngleDeg: number | null;
 };
 
 export type ComputedArcLine = {
@@ -276,6 +278,8 @@ export type ComputedArcLine = {
   radius: number;
   startAngleDeg: number;
   endAngleDeg: number;
+  startTangentAngleDeg: number;
+  endTangentAngleDeg: number;
   sweepAngleDeg: number;
   length: number;
 };
@@ -298,6 +302,8 @@ export type ComputedBezierCurve = {
   intermediatePointIds: ElementId[];
   segments: ComputedBezierSegment[];
   length: number;
+  startTangentAngleDeg: number | null;
+  endTangentAngleDeg: number | null;
   startHandleAngleDeg: number;
   startHandleLength: number;
   endHandleAngleDeg: number;
@@ -335,9 +341,13 @@ export type ComputedOffsetLine = {
   elementId: ElementId;
   name: string;
   baseLineIds: ElementId[];
+  start: ComputedPoint | null;
+  end: ComputedPoint | null;
   segments: ComputedOffsetLineSegment[];
   closed: boolean;
   length: number;
+  startTangentAngleDeg: number | null;
+  endTangentAngleDeg: number | null;
 };
 
 export type ComputedGeometry =
