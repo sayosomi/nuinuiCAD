@@ -18,76 +18,142 @@ export const creationCommandDefinitions = {
   addFreePoint: {
     id: "addFreePoint",
     label: "free point を追加",
+    palette: { order: 1, keywords: ["point", "free", "free point", "点", "追加"] },
     run: () => addElement("freePoint")
   },
   addOffsetPoint: {
     id: "addOffsetPoint",
     label: "offset point を追加",
+    palette: { order: 2, keywords: ["offset", "offset point", "オフセット", "点", "追加"] },
     run: () => addElement("offsetPoint")
   },
   addPolarOffsetPoint: {
     id: "addPolarOffsetPoint",
     label: "polar offset point を追加",
+    palette: { order: 3, keywords: ["polar", "angle", "distance", "角度", "距離", "点", "追加"] },
     run: () => addElement("polarOffsetPoint")
   },
   addDivisionPoint: {
     id: "addDivisionPoint",
     label: "点間分点を追加",
+    palette: {
+      order: 4,
+      keywords: [
+        "division",
+        "between",
+        "ratio",
+        "distance",
+        "分点",
+        "点間",
+        "中点",
+        "割合",
+        "距離",
+        "点",
+        "追加"
+      ]
+    },
     run: () => addElement("divisionPoint")
   },
   addLineDivisionPoint: {
     id: "addLineDivisionPoint",
     label: "線上分点を追加",
+    palette: {
+      order: 5,
+      keywords: [
+        "division",
+        "line",
+        "endpoint",
+        "ratio",
+        "distance",
+        "分点",
+        "線上",
+        "端点",
+        "割合",
+        "距離",
+        "点",
+        "追加"
+      ]
+    },
     run: () => addLineDivisionPoint()
   },
   addIntersectionPoint: {
     id: "addIntersectionPoint",
     label: "交点を追加",
+    palette: { order: 6, keywords: ["intersection", "cross", "line", "交点", "交差", "線", "点", "追加"] },
+    shortcuts: [{ keys: "x" }],
     run: () => addIntersectionPoint()
   },
   addLineTangentOffsetPoint: {
     id: "addLineTangentOffsetPoint",
     label: "線上オフセット点を追加",
+    palette: {
+      order: 7,
+      keywords: ["line", "tangent", "offset", "angle", "distance", "線上", "オフセット", "接線", "角度", "距離", "点", "追加"]
+    },
     run: () => addLineTangentOffsetPoint()
   },
   addLine: {
     id: "addLine",
     label: "line を追加",
+    palette: { order: 8, keywords: ["line", "直線", "線", "追加"] },
     run: () => addElement("line")
   },
   addArcLine: {
     id: "addArcLine",
     label: "円弧線を追加",
+    palette: { order: 9, keywords: ["arc", "arc line", "radius", "円弧", "円弧線", "半径", "線", "追加"] },
     run: () => addElement("arcLine")
   },
   addThreePointArcLine: {
     id: "addThreePointArcLine",
     label: "三点円弧線を追加",
+    palette: {
+      order: 10,
+      keywords: [
+        "arc",
+        "three point arc",
+        "3 point arc",
+        "circle",
+        "三点円弧",
+        "3点円弧",
+        "円弧",
+        "線",
+        "追加"
+      ]
+    },
     run: () => addElement("threePointArcLine")
   },
   addCornerRadiusArcLine: {
     id: "addCornerRadiusArcLine",
     label: "角R円弧線を追加",
+    palette: { order: 11, keywords: ["corner", "radius", "fillet", "arc", "角R", "角丸", "円弧", "線", "追加"] },
+    shortcuts: [{ keys: "Shift+R" }],
     run: () => addCornerRadiusArcLine()
   },
   addBezierCurve: {
     id: "addBezierCurve",
     label: "Bezier curve を追加",
+    palette: { order: 12, keywords: ["bezier", "curve", "曲線", "ベジェ", "追加"] },
+    shortcuts: [{ keys: "c", label: "曲線を追加" }],
     run: () => addElement("bezierCurve")
   },
   addOffsetLine: {
     id: "addOffsetLine",
     label: "オフセット線を追加",
+    palette: { order: 13, keywords: ["offset", "line", "curve", "オフセット", "線", "曲線", "追加"] },
+    shortcuts: [{ keys: "Shift+O" }],
     run: () => addOffsetLine()
   },
   addNumericVariable: {
     id: "addNumericVariable",
     label: "共通変数を追加",
+    palette: { order: 17, keywords: ["variable", "共有", "共通", "変数", "追加"] },
     run: () => addNumericVariable()
   },
   deleteNumericVariable: {
     id: "deleteNumericVariable",
     label: "共通変数を削除",
+    palette: { order: 18, keywords: ["variable", "共有", "共通", "変数", "削除"] },
     run: (context) => deleteNumericVariable(context?.variableId)
   },
   addBezierNumericVariable: {
@@ -103,11 +169,13 @@ export const creationCommandDefinitions = {
   addBezierIntermediatePoint: {
     id: "addBezierIntermediatePoint",
     label: "曲線の中間点を追加",
+    palette: { order: 19, keywords: ["bezier", "curve", "middle", "中間点", "追加"] },
     run: () => addBezierIntermediatePoint()
   },
   deleteBezierIntermediatePoint: {
     id: "deleteBezierIntermediatePoint",
     label: "曲線の中間点を削除",
+    palette: { order: 20, keywords: ["bezier", "curve", "middle", "中間点", "削除"] },
     run: (context) => deleteBezierIntermediatePoint(context?.intermediatePointId)
   }
 } satisfies Partial<Record<CommandId, Command>>;

@@ -1,4 +1,4 @@
-import type { CommandContext, CommandId } from "../commands/commands";
+import { commands, type CommandContext, type CommandId } from "../commands/commands";
 import { findParameterDefinition, getParameterDefinitions } from "../parameters/parameterDefinitions";
 import type { ParameterValueKind } from "../parameters/parameterDefinitions";
 import type { CadElement } from "../types/geometry";
@@ -29,287 +29,157 @@ const noModifier = (event: KeyboardEvent) =>
 const shiftOnly = (event: KeyboardEvent) =>
   event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey;
 
-export const globalShortcutDefinitions: ShortcutDefinition[] = [
-  {
-    commandId: "openCommandPalette",
-    label: "コマンドパレットを開く",
-    keys: "/",
-    matches: (event) => event.key === "/" && noModifier(event)
-  },
-  {
-    commandId: "focusElementSearch",
-    label: "要素検索へ移動",
-    keys: "Mod+F",
-    matches: (event) => event.key.toLowerCase() === "f" && isMod(event) && !event.altKey && !event.shiftKey
-  },
-  {
-    commandId: "undo",
-    label: "元に戻す",
-    keys: "Mod+Z",
-    matches: (event) => event.key.toLowerCase() === "z" && isMod(event) && !event.altKey && !event.shiftKey
-  },
-  {
-    commandId: "redo",
-    label: "やり直す",
-    keys: "Mod+Y",
-    matches: (event) => event.key.toLowerCase() === "y" && isMod(event) && !event.altKey && !event.shiftKey
-  },
-  {
-    commandId: "enterElementListMode",
-    label: "構成リストモードに入る",
-    keys: "g",
-    matches: (event) => event.key.toLowerCase() === "g" && noModifier(event)
-  },
-  {
-    commandId: "enterParameterEditMode",
-    label: "要素設定モードに入る",
-    keys: "e",
-    matches: (event) => event.key.toLowerCase() === "e" && noModifier(event)
-  },
-  {
-    commandId: "enterDependencyJumpMode",
-    label: "親子ジャンプモードに入る",
-    keys: "j",
-    matches: (event) => event.key.toLowerCase() === "j" && noModifier(event)
+const commandShortcut = (
+  commandId: CommandId,
+  shortcutIndex: number,
+  matches: (event: KeyboardEvent) => boolean,
+  context?: (event: KeyboardEvent) => CommandContext
+): ShortcutDefinition => {
+  const shortcut = commands[commandId].shortcuts?.[shortcutIndex];
+  if (!shortcut) {
+    throw new Error(`Missing shortcut metadata: ${commandId}#${shortcutIndex}`);
   }
+  return {
+    commandId,
+    label: shortcut.label ?? commands[commandId].label,
+    keys: shortcut.keys,
+    matches,
+    context
+  };
+};
+
+export const globalShortcutDefinitions: ShortcutDefinition[] = [
+  commandShortcut("openCommandPalette", 0, (event) => event.key === "/" && noModifier(event)),
+  commandShortcut(
+    "focusElementSearch",
+    0,
+    (event) => event.key.toLowerCase() === "f" && isMod(event) && !event.altKey && !event.shiftKey
+  ),
+  commandShortcut(
+    "undo",
+    0,
+    (event) => event.key.toLowerCase() === "z" && isMod(event) && !event.altKey && !event.shiftKey
+  ),
+  commandShortcut(
+    "redo",
+    0,
+    (event) => event.key.toLowerCase() === "y" && isMod(event) && !event.altKey && !event.shiftKey
+  ),
+  commandShortcut("enterElementListMode", 0, (event) => event.key.toLowerCase() === "g" && noModifier(event)),
+  commandShortcut("enterParameterEditMode", 0, (event) => event.key.toLowerCase() === "e" && noModifier(event)),
+  commandShortcut("enterDependencyJumpMode", 0, (event) => event.key.toLowerCase() === "j" && noModifier(event))
 ];
 
 export const modeInvariantShortcutDefinitions: ShortcutDefinition[] = [
-  {
-    commandId: "toggleElementInfoPanel",
-    label: "要素詳細を表示/非表示",
-    keys: "i",
-    matches: (event) => event.key.toLowerCase() === "i" && noModifier(event)
-  },
-  {
-    commandId: "toggleShortcutHelp",
-    label: "ショートカット一覧を表示/非表示",
-    keys: "?",
-    matches: (event) => event.key === "?" && !event.metaKey && !event.ctrlKey && !event.altKey
-  }
+  commandShortcut("toggleElementInfoPanel", 0, (event) => event.key.toLowerCase() === "i" && noModifier(event)),
+  commandShortcut(
+    "toggleShortcutHelp",
+    0,
+    (event) => event.key === "?" && !event.metaKey && !event.ctrlKey && !event.altKey
+  )
 ];
 
 export const shortcutDefinitions: ShortcutDefinition[] = [
-  {
-    commandId: "groupSelectedElements",
-    label: "選択要素をグループ化",
-    keys: "Mod+G",
-    matches: (event) =>
-      event.key.toLowerCase() === "g" && isMod(event) && !event.altKey && !event.shiftKey
-  },
-  {
-    commandId: "ungroupSelectedGroup",
-    label: "選択グループを解除",
-    keys: "Mod+Shift+G",
-    matches: (event) =>
-      event.key.toLowerCase() === "g" && isMod(event) && !event.altKey && event.shiftKey
-  },
-  {
-    commandId: "moveSelectedElementUp",
-    label: "選択要素を上へ移動",
-    keys: "Mod+ArrowUp / Alt+ArrowUp",
-    matches: (event) =>
+  commandShortcut(
+    "groupSelectedElements",
+    0,
+    (event) => event.key.toLowerCase() === "g" && isMod(event) && !event.altKey && !event.shiftKey
+  ),
+  commandShortcut(
+    "ungroupSelectedGroup",
+    0,
+    (event) => event.key.toLowerCase() === "g" && isMod(event) && !event.altKey && event.shiftKey
+  ),
+  commandShortcut(
+    "moveSelectedElementUp",
+    0,
+    (event) =>
       event.key === "ArrowUp" &&
       ((isMod(event) && !event.altKey) ||
         (event.altKey && !event.metaKey && !event.ctrlKey && isElementListTarget(event)))
-  },
-  {
-    commandId: "moveSelectedElementDown",
-    label: "選択要素を下へ移動",
-    keys: "Mod+ArrowDown / Alt+ArrowDown",
-    matches: (event) =>
+  ),
+  commandShortcut(
+    "moveSelectedElementDown",
+    0,
+    (event) =>
       event.key === "ArrowDown" &&
       ((isMod(event) && !event.altKey) ||
         (event.altKey && !event.metaKey && !event.ctrlKey && isElementListTarget(event)))
-  },
-  {
-    commandId: "selectPreviousElement",
-    label: "前の要素を選択",
-    keys: "ArrowUp",
-    matches: (event) => event.key === "ArrowUp" && noModifier(event)
-  },
-  {
-    commandId: "selectNextElement",
-    label: "次の要素を選択",
-    keys: "ArrowDown",
-    matches: (event) => event.key === "ArrowDown" && noModifier(event)
-  },
-  {
-    commandId: "extendSelectionToPreviousElement",
-    label: "前の要素まで選択",
-    keys: "Shift+ArrowUp",
-    matches: (event) => event.key === "ArrowUp" && shiftOnly(event)
-  },
-  {
-    commandId: "extendSelectionToNextElement",
-    label: "次の要素まで選択",
-    keys: "Shift+ArrowDown",
-    matches: (event) => event.key === "ArrowDown" && shiftOnly(event)
-  },
-  {
-    commandId: "toggleGroupExpanded",
-    label: "グループを開閉",
-    keys: "ArrowRight",
-    matches: (event) => event.key === "ArrowRight" && noModifier(event)
-  },
-  {
-    commandId: "selectParentGroup",
-    label: "親グループを選択",
-    keys: "ArrowLeft",
-    matches: (event) => event.key === "ArrowLeft" && noModifier(event)
-  },
-  {
-    commandId: "outdentSelectedElements",
-    label: "選択要素をアウトデント",
-    keys: "[",
-    matches: (event) => event.key === "[" && noModifier(event) && isElementListTarget(event)
-  },
-  {
-    commandId: "indentSelectedElements",
-    label: "選択要素をインデント",
-    keys: "]",
-    matches: (event) => event.key === "]" && noModifier(event) && isElementListTarget(event)
-  },
-  {
-    commandId: "deleteSelectedElement",
-    label: "選択要素を削除",
-    keys: "d / Delete / Backspace",
-    matches: (event) =>
+  ),
+  commandShortcut("selectPreviousElement", 0, (event) => event.key === "ArrowUp" && noModifier(event)),
+  commandShortcut("selectNextElement", 0, (event) => event.key === "ArrowDown" && noModifier(event)),
+  commandShortcut(
+    "extendSelectionToPreviousElement",
+    0,
+    (event) => event.key === "ArrowUp" && shiftOnly(event)
+  ),
+  commandShortcut(
+    "extendSelectionToNextElement",
+    0,
+    (event) => event.key === "ArrowDown" && shiftOnly(event)
+  ),
+  commandShortcut("toggleGroupExpanded", 0, (event) => event.key === "ArrowRight" && noModifier(event)),
+  commandShortcut("selectParentGroup", 0, (event) => event.key === "ArrowLeft" && noModifier(event)),
+  commandShortcut(
+    "outdentSelectedElements",
+    0,
+    (event) => event.key === "[" && noModifier(event) && isElementListTarget(event)
+  ),
+  commandShortcut(
+    "indentSelectedElements",
+    0,
+    (event) => event.key === "]" && noModifier(event) && isElementListTarget(event)
+  ),
+  commandShortcut(
+    "deleteSelectedElement",
+    0,
+    (event) =>
       (event.key.toLowerCase() === "d" || event.key === "Delete" || event.key === "Backspace") &&
       noModifier(event)
-  },
-  {
-    commandId: "toggleSelectedElementVisibility",
-    label: "表示/非表示を切替",
-    keys: "v",
-    matches: (event) => event.key.toLowerCase() === "v" && noModifier(event)
-  },
-  {
-    commandId: "toggleSelectedElementEnabled",
-    label: "評価する/しないを切替",
-    keys: "a",
-    matches: (event) => event.key.toLowerCase() === "a" && noModifier(event)
-  },
-  {
-    commandId: "enterParameterEditMode",
-    label: "パラメーター編集モードに入る",
-    keys: "Enter",
-    matches: (event) => event.key === "Enter" && noModifier(event)
-  },
-  {
-    commandId: "zoomInCanvas",
-    label: "キャンバスを拡大",
-    keys: "+ / =",
-    matches: (event) => (event.key === "+" || event.key === "=") && noModifier(event)
-  },
-  {
-    commandId: "zoomOutCanvas",
-    label: "キャンバスを縮小",
-    keys: "-",
-    matches: (event) => event.key === "-" && noModifier(event)
-  },
-  {
-    commandId: "resetCanvasView",
-    label: "キャンバス表示をリセット",
-    keys: "0",
-    matches: (event) => event.key === "0" && noModifier(event)
-  },
-  {
-    commandId: "addIntersectionPoint",
-    label: "交点を追加",
-    keys: "x",
-    matches: (event) => event.key.toLowerCase() === "x" && noModifier(event)
-  },
-  {
-    commandId: "addBezierCurve",
-    label: "曲線を追加",
-    keys: "c",
-    matches: (event) => event.key.toLowerCase() === "c" && noModifier(event)
-  },
-  {
-    commandId: "addCornerRadiusArcLine",
-    label: "角R円弧線を追加",
-    keys: "Shift+R",
-    matches: (event) => event.key.toLowerCase() === "r" && shiftOnly(event)
-  },
-  {
-    commandId: "addOffsetLine",
-    label: "オフセット線を追加",
-    keys: "Shift+O",
-    matches: (event) => event.key.toLowerCase() === "o" && shiftOnly(event)
-  }
+  ),
+  commandShortcut(
+    "toggleSelectedElementVisibility",
+    0,
+    (event) => event.key.toLowerCase() === "v" && noModifier(event)
+  ),
+  commandShortcut(
+    "toggleSelectedElementEnabled",
+    0,
+    (event) => event.key.toLowerCase() === "a" && noModifier(event)
+  ),
+  commandShortcut("enterParameterEditMode", 1, (event) => event.key === "Enter" && noModifier(event)),
+  commandShortcut("zoomInCanvas", 0, (event) => (event.key === "+" || event.key === "=") && noModifier(event)),
+  commandShortcut("zoomOutCanvas", 0, (event) => event.key === "-" && noModifier(event)),
+  commandShortcut("resetCanvasView", 0, (event) => event.key === "0" && noModifier(event)),
+  commandShortcut("addIntersectionPoint", 0, (event) => event.key.toLowerCase() === "x" && noModifier(event)),
+  commandShortcut("addBezierCurve", 0, (event) => event.key.toLowerCase() === "c" && noModifier(event)),
+  commandShortcut("addCornerRadiusArcLine", 0, (event) => event.key.toLowerCase() === "r" && shiftOnly(event)),
+  commandShortcut("addOffsetLine", 0, (event) => event.key.toLowerCase() === "o" && shiftOnly(event))
 ];
 
 export const dependencyJumpShortcutDefinitions: ShortcutDefinition[] = [
-  {
-    commandId: "exitDependencyJumpMode",
-    label: "親子要素ジャンプモードを終了",
-    keys: "Escape",
-    matches: (event) => event.key === "Escape" && noModifier(event)
-  },
-  {
-    commandId: "jumpToSelectedDependencyTarget",
-    label: "選択中の親子要素へジャンプ",
-    keys: "Enter",
-    matches: (event) => event.key === "Enter" && noModifier(event)
-  },
-  {
-    commandId: "selectNextDependencyJumpTarget",
-    label: "次の親子要素を選択",
-    keys: "ArrowDown",
-    matches: (event) => event.key === "ArrowDown" && noModifier(event)
-  },
-  {
-    commandId: "selectPreviousDependencyJumpTarget",
-    label: "前の親子要素を選択",
-    keys: "ArrowUp",
-    matches: (event) => event.key === "ArrowUp" && noModifier(event)
-  },
-  {
-    commandId: "selectPreviousElement",
-    label: "前の要素を選択",
-    keys: "Shift+ArrowUp",
-    matches: (event) => event.key === "ArrowUp" && shiftOnly(event)
-  },
-  {
-    commandId: "selectNextElement",
-    label: "次の要素を選択",
-    keys: "Shift+ArrowDown",
-    matches: (event) => event.key === "ArrowDown" && shiftOnly(event)
-  }
+  commandShortcut("exitDependencyJumpMode", 0, (event) => event.key === "Escape" && noModifier(event)),
+  commandShortcut("jumpToSelectedDependencyTarget", 0, (event) => event.key === "Enter" && noModifier(event)),
+  commandShortcut(
+    "selectNextDependencyJumpTarget",
+    0,
+    (event) => event.key === "ArrowDown" && noModifier(event)
+  ),
+  commandShortcut(
+    "selectPreviousDependencyJumpTarget",
+    0,
+    (event) => event.key === "ArrowUp" && noModifier(event)
+  ),
+  commandShortcut("selectPreviousElement", 1, (event) => event.key === "ArrowUp" && shiftOnly(event)),
+  commandShortcut("selectNextElement", 1, (event) => event.key === "ArrowDown" && shiftOnly(event))
 ];
 
 export const pickShortcutDefinitions: ShortcutDefinition[] = [
-  {
-    commandId: "selectPreviousPickCandidate",
-    label: "前の選択候補へ",
-    keys: "ArrowUp",
-    matches: (event) => event.key === "ArrowUp" && noModifier(event)
-  },
-  {
-    commandId: "selectNextPickCandidate",
-    label: "次の選択候補へ",
-    keys: "ArrowDown",
-    matches: (event) => event.key === "ArrowDown" && noModifier(event)
-  },
-  {
-    commandId: "selectPreviousPickOption",
-    label: "行内の前の候補へ",
-    keys: "ArrowLeft",
-    matches: (event) => event.key === "ArrowLeft" && noModifier(event)
-  },
-  {
-    commandId: "selectNextPickOption",
-    label: "行内の次の候補へ",
-    keys: "ArrowRight",
-    matches: (event) => event.key === "ArrowRight" && noModifier(event)
-  },
-  {
-    commandId: "applySelectedPickCandidate",
-    label: "選択候補を確定",
-    keys: "Enter",
-    matches: (event) => event.key === "Enter" && noModifier(event)
-  }
+  commandShortcut("selectPreviousPickCandidate", 0, (event) => event.key === "ArrowUp" && noModifier(event)),
+  commandShortcut("selectNextPickCandidate", 0, (event) => event.key === "ArrowDown" && noModifier(event)),
+  commandShortcut("selectPreviousPickOption", 0, (event) => event.key === "ArrowLeft" && noModifier(event)),
+  commandShortcut("selectNextPickOption", 0, (event) => event.key === "ArrowRight" && noModifier(event)),
+  commandShortcut("applySelectedPickCandidate", 0, (event) => event.key === "Enter" && noModifier(event))
 ];
 
 const arrowStepContext = (event: KeyboardEvent): CommandContext => ({
@@ -317,88 +187,39 @@ const arrowStepContext = (event: KeyboardEvent): CommandContext => ({
 });
 
 export const parameterEditShortcutDefinitions: ShortcutDefinition[] = [
-  {
-    commandId: "exitParameterEditMode",
-    label: "パラメーター編集モードを終了",
-    keys: "Escape",
-    matches: (event) => event.key === "Escape" && noModifier(event)
-  },
-  {
-    commandId: "activateSelectedParameter",
-    label: "選択パラメーターを実行",
-    keys: "Enter",
-    matches: (event) => event.key === "Enter" && noModifier(event)
-  },
-  {
-    commandId: "selectNextParameter",
-    label: "次のパラメーターを選択",
-    keys: "ArrowDown",
-    matches: (event) => event.key === "ArrowDown" && noModifier(event)
-  },
-  {
-    commandId: "selectPreviousParameter",
-    label: "前のパラメーターを選択",
-    keys: "ArrowUp",
-    matches: (event) => event.key === "ArrowUp" && noModifier(event)
-  },
-  {
-    commandId: "selectPreviousElement",
-    label: "前の要素を選択",
-    keys: "Shift+ArrowUp",
-    matches: (event) => event.key === "ArrowUp" && shiftOnly(event)
-  },
-  {
-    commandId: "selectNextElement",
-    label: "次の要素を選択",
-    keys: "Shift+ArrowDown",
-    matches: (event) => event.key === "ArrowDown" && shiftOnly(event)
-  },
-  {
-    commandId: "incrementSelectedParameter",
-    label: "数値を増やす",
-    keys: "ArrowRight / Shift / Alt",
-    matches: (event) => event.key === "ArrowRight" && !event.metaKey && !event.ctrlKey,
-    context: arrowStepContext
-  },
-  {
-    commandId: "decrementSelectedParameter",
-    label: "数値を減らす",
-    keys: "ArrowLeft / Shift / Alt",
-    matches: (event) => event.key === "ArrowLeft" && !event.metaKey && !event.ctrlKey,
-    context: arrowStepContext
-  },
-  {
-    commandId: "decreaseSelectedParameterStep",
-    label: "増減単位を小さくする",
-    keys: "[",
-    matches: (event) => event.key === "[" && noModifier(event)
-  },
-  {
-    commandId: "increaseSelectedParameterStep",
-    label: "増減単位を大きくする",
-    keys: "]",
-    matches: (event) => event.key === "]" && noModifier(event)
-  },
-  {
-    commandId: "toggleSelectedParameterValue",
-    label: "値または指定方法を切替",
-    keys: "Space",
-    matches: (event) => event.key === " " && noModifier(event)
-  },
-  {
-    commandId: "toggleBooleanParameterByDirectKey",
-    label: "表示/評価を切替",
-    keys: "v / a",
-    matches: (event) => ["v", "a"].includes(event.key.toLowerCase()) && noModifier(event),
-    context: (event) => ({ parameterDirectKey: event.key.toLowerCase() })
-  },
-  {
-    commandId: "selectParameterByKey",
-    label: "名前キーでパラメーターを選択",
-    keys: "n / x / y / b / s / t / r / h / m / u / i / o / e / g / 1 / 2 / 3",
-    matches: (event) => /^[a-z0-9]$/i.test(event.key) && noModifier(event),
-    context: (event) => ({ parameterDirectKey: event.key.toLowerCase() })
-  }
+  commandShortcut("exitParameterEditMode", 0, (event) => event.key === "Escape" && noModifier(event)),
+  commandShortcut("activateSelectedParameter", 0, (event) => event.key === "Enter" && noModifier(event)),
+  commandShortcut("selectNextParameter", 0, (event) => event.key === "ArrowDown" && noModifier(event)),
+  commandShortcut("selectPreviousParameter", 0, (event) => event.key === "ArrowUp" && noModifier(event)),
+  commandShortcut("selectPreviousElement", 1, (event) => event.key === "ArrowUp" && shiftOnly(event)),
+  commandShortcut("selectNextElement", 1, (event) => event.key === "ArrowDown" && shiftOnly(event)),
+  commandShortcut(
+    "incrementSelectedParameter",
+    0,
+    (event) => event.key === "ArrowRight" && !event.metaKey && !event.ctrlKey,
+    arrowStepContext
+  ),
+  commandShortcut(
+    "decrementSelectedParameter",
+    0,
+    (event) => event.key === "ArrowLeft" && !event.metaKey && !event.ctrlKey,
+    arrowStepContext
+  ),
+  commandShortcut("decreaseSelectedParameterStep", 0, (event) => event.key === "[" && noModifier(event)),
+  commandShortcut("increaseSelectedParameterStep", 0, (event) => event.key === "]" && noModifier(event)),
+  commandShortcut("toggleSelectedParameterValue", 0, (event) => event.key === " " && noModifier(event)),
+  commandShortcut(
+    "toggleBooleanParameterByDirectKey",
+    0,
+    (event) => ["v", "a"].includes(event.key.toLowerCase()) && noModifier(event),
+    (event) => ({ parameterDirectKey: event.key.toLowerCase() })
+  ),
+  commandShortcut(
+    "selectParameterByKey",
+    0,
+    (event) => /^[a-z0-9]$/i.test(event.key) && noModifier(event),
+    (event) => ({ parameterDirectKey: event.key.toLowerCase() })
+  )
 ];
 
 const helpItem = (shortcut: ShortcutDefinition): ShortcutHelpItem => ({

@@ -131,5 +131,13 @@ export type CommandContext = {
 export type Command = {
   id: CommandId;
   label: string;
+  palette?: {
+    order?: number;
+    keywords?: string[];
+  };
+  shortcuts?: {
+    keys: string;
+    label?: string;
+  }[];
   run: (context?: CommandContext) => void;
 };

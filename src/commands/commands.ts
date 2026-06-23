@@ -1,4 +1,4 @@
-import { filterCommandPaletteItems as filterPaletteItems, paletteCommandIds, paletteKeywords } from "./commandPalette";
+import { filterCommandPaletteItems as filterPaletteItems } from "./commandPalette";
 import { creationCommandDefinitions } from "./creationCommandDefinitions";
 import { parameterCommandDefinitions } from "./parameterCommandDefinitions";
 import { pickCommandDefinitions } from "./pickCommandDefinitions";
@@ -19,13 +19,26 @@ export const dispatchCommand = (commandId: CommandId, context?: CommandContext) 
   commands[commandId].run(context);
 };
 
-export { paletteCommandIds, paletteKeywords } from "./commandPalette";
 export type { CommandPaletteItem } from "./commandPalette";
 
-export const commandPaletteItems = paletteCommandIds.map((commandId) => ({
-  commandId,
-  label: commands[commandId].label,
-  keywords: paletteKeywords[commandId] ?? []
-}));
+export const paletteCommandIds = Object.values(commands)
+  .filter((command) => command.palette)
+  .sort((a, b) => (a.palette?.order ?? Number.MAX_SAFE_INTEGER) - (b.palette?.order ?? Number.MAX_SAFE_INTEGER))
+  .map((command) => command.id);
+
+export const paletteKeywords = Object.fromEntries(
+  Object.values(commands)
+    .filter((command) => command.palette?.keywords)
+    .map((command) => [command.id, command.palette?.keywords ?? []])
+) as Partial<Record<CommandId, string[]>>;
+
+export const commandPaletteItems = Object.values(commands)
+  .filter((command) => command.palette)
+  .sort((a, b) => (a.palette?.order ?? Number.MAX_SAFE_INTEGER) - (b.palette?.order ?? Number.MAX_SAFE_INTEGER))
+  .map((command) => ({
+    commandId: command.id,
+    label: command.label,
+    keywords: command.palette?.keywords ?? []
+  }));
 
 export const filterCommandPaletteItems = (query: string) => filterPaletteItems(commandPaletteItems, query);

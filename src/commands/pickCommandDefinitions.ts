@@ -24,6 +24,7 @@ export const pickCommandDefinitions = {
   startNumericReferencePick: {
     id: "startNumericReferencePick",
     label: "数値選択モードに入る",
+    palette: { order: 16, keywords: ["number", "reference", "measurement", "数値", "参照", "選択"] },
     run: () => startNumericReferencePick()
   },
   applyPickedNumericReference: {
@@ -39,31 +40,37 @@ export const pickCommandDefinitions = {
   selectNextPickCandidate: {
     id: "selectNextPickCandidate",
     label: "次の選択候補へ",
+    shortcuts: [{ keys: "ArrowDown" }],
     run: () => selectPickCandidateByOffset(1)
   },
   selectPreviousPickCandidate: {
     id: "selectPreviousPickCandidate",
     label: "前の選択候補へ",
+    shortcuts: [{ keys: "ArrowUp" }],
     run: () => selectPickCandidateByOffset(-1)
   },
   selectNextPickOption: {
     id: "selectNextPickOption",
     label: "行内の次の候補へ",
+    shortcuts: [{ keys: "ArrowRight" }],
     run: () => selectPickOptionByOffset(1)
   },
   selectPreviousPickOption: {
     id: "selectPreviousPickOption",
     label: "行内の前の候補へ",
+    shortcuts: [{ keys: "ArrowLeft" }],
     run: () => selectPickOptionByOffset(-1)
   },
   applySelectedPickCandidate: {
     id: "applySelectedPickCandidate",
     label: "選択候補を確定",
+    shortcuts: [{ keys: "Enter" }],
     run: () => applySelectedPickCandidate()
   },
   startPointPick: {
     id: "startPointPick",
     label: "点を選択して参照に設定",
+    palette: { order: 14 },
     run: () => startPointPick()
   },
   applyPickedPoint: {
@@ -79,6 +86,7 @@ export const pickCommandDefinitions = {
   startLinePick: {
     id: "startLinePick",
     label: "線を選択して基準線に追加",
+    palette: { order: 15, keywords: ["line", "reference", "base", "基準線", "線", "選択"] },
     run: () => startLinePick()
   },
   applyPickedLine: {
