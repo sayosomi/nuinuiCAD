@@ -198,6 +198,22 @@ export type SymmetricCopyLineElement = CadElementBase & {
   baseLineIds: ElementId[];
 };
 
+export type MoveElement = CadElementBase & {
+  type: "move";
+  startPoint: PointAnchor;
+  endPoint: PointAnchor;
+  angleDeg: NumericValue;
+  mirrorX: boolean;
+  baseLineIds: ElementId[];
+};
+
+export type SymmetricMoveElement = CadElementBase & {
+  type: "symmetricMove";
+  axisPoint1: PointAnchor;
+  axisPoint2: PointAnchor;
+  baseLineIds: ElementId[];
+};
+
 export type GroupElement = CadElementBase & {
   type: "group";
   expanded: boolean;
@@ -222,7 +238,9 @@ export type CadElement =
   | OffsetLineElement
   | SplitLineElement
   | CopyLineElement
-  | SymmetricCopyLineElement;
+  | SymmetricCopyLineElement
+  | MoveElement
+  | SymmetricMoveElement;
 export type CadElementType = CadElement["type"];
 export type CadElementCategory = "group" | "point" | "line" | "modification";
 
@@ -370,7 +388,9 @@ export const elementTypeLabels: Record<CadElementType, string> = {
   offsetLine: "オフセット線",
   splitLine: "分割線",
   copyLine: "コピー線",
-  symmetricCopyLine: "対称コピー線"
+  symmetricCopyLine: "対称コピー線",
+  move: "移動",
+  symmetricMove: "対称移動"
 };
 
 export const elementTypeCategories: Record<CadElementType, CadElementCategory> = {
@@ -392,7 +412,9 @@ export const elementTypeCategories: Record<CadElementType, CadElementCategory> =
   offsetLine: "line",
   splitLine: "line",
   copyLine: "line",
-  symmetricCopyLine: "line"
+  symmetricCopyLine: "line",
+  move: "modification",
+  symmetricMove: "modification"
 };
 
 export const elementCategoryLabels: Record<CadElementCategory, string> = {

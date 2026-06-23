@@ -837,6 +837,29 @@ describe("commands", () => {
     expect(state.past).toHaveLength(1);
   });
 
+  it("adds a move modification from selected line-like elements and points", () => {
+    useCadStore.setState({
+      selectedElementId: "line-bc",
+      selectedElementIds: ["point-a", "point-b", "line-ab", "line-bc"],
+      selectionAnchorElementId: "point-a"
+    });
+
+    dispatchCommand("addMove");
+
+    const state = useCadStore.getState();
+    const move = state.elements.at(-1);
+    expect(move).toMatchObject({
+      type: "move",
+      startPoint: { mode: "reference", pointId: "point-a" },
+      endPoint: { mode: "reference", pointId: "point-b" },
+      angleDeg: 0,
+      mirrorX: false,
+      baseLineIds: ["line-ab", "line-bc"]
+    });
+    expect(state.selectedElementId).toBe(move?.id);
+    expect(state.past).toHaveLength(1);
+  });
+
   it("adds a symmetric copy line from selected line-like elements and points", () => {
     useCadStore.setState({
       selectedElementId: "line-bc",
@@ -855,6 +878,27 @@ describe("commands", () => {
       baseLineIds: ["line-ab", "line-bc"]
     });
     expect(state.selectedElementId).toBe(symmetricCopyLine?.id);
+    expect(state.past).toHaveLength(1);
+  });
+
+  it("adds a symmetric move modification from selected line-like elements and points", () => {
+    useCadStore.setState({
+      selectedElementId: "line-bc",
+      selectedElementIds: ["point-a", "point-b", "line-ab", "line-bc"],
+      selectionAnchorElementId: "point-a"
+    });
+
+    dispatchCommand("addSymmetricMove");
+
+    const state = useCadStore.getState();
+    const symmetricMove = state.elements.at(-1);
+    expect(symmetricMove).toMatchObject({
+      type: "symmetricMove",
+      axisPoint1: { mode: "reference", pointId: "point-a" },
+      axisPoint2: { mode: "reference", pointId: "point-b" },
+      baseLineIds: ["line-ab", "line-bc"]
+    });
+    expect(state.selectedElementId).toBe(symmetricMove?.id);
     expect(state.past).toHaveLength(1);
   });
 
@@ -1112,6 +1156,10 @@ describe("commands", () => {
     );
     expect(filterCommandPaletteItems("intersection").map((item) => item.commandId)).toContain(
       "addIntersectionPoint"
+    );
+    expect(filterCommandPaletteItems("移動").map((item) => item.commandId)).toContain("addMove");
+    expect(filterCommandPaletteItems("対称移動").map((item) => item.commandId)).toContain(
+      "addSymmetricMove"
     );
   });
 

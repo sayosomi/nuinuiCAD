@@ -6,8 +6,10 @@ import {
   addExtendTrim,
   addIntersectionPoint,
   addLineDivisionPoint,
+  addMove,
   addSplitLine,
   addSymmetricCopyLine,
+  addSymmetricMove,
   addLineTangentOffsetPoint,
   addOffsetLine
 } from "./elementCreationCommands";
@@ -174,22 +176,34 @@ export const creationCommandDefinitions = {
     palette: { order: 17, keywords: ["symmetric", "mirror", "copy", "line", "対称", "反転", "コピー", "線", "追加"] },
     run: () => addSymmetricCopyLine()
   },
+  addMove: {
+    id: "addMove",
+    label: "移動を追加",
+    palette: { order: 18, keywords: ["move", "translate", "line", "curve", "移動", "変更", "線", "曲線", "追加"] },
+    run: () => addMove()
+  },
+  addSymmetricMove: {
+    id: "addSymmetricMove",
+    label: "対称移動を追加",
+    palette: { order: 19, keywords: ["symmetric", "mirror", "move", "line", "対称", "反転", "移動", "変更", "線", "追加"] },
+    run: () => addSymmetricMove()
+  },
   addSplitLine: {
     id: "addSplitLine",
     label: "分割線を追加",
-    palette: { order: 18, keywords: ["split", "divide", "line", "分割", "分割線", "線", "追加"] },
+    palette: { order: 20, keywords: ["split", "divide", "line", "分割", "分割線", "線", "追加"] },
     run: () => addSplitLine()
   },
   addNumericVariable: {
     id: "addNumericVariable",
     label: "共通変数を追加",
-    palette: { order: 19, keywords: ["variable", "共有", "共通", "変数", "追加"] },
+    palette: { order: 21, keywords: ["variable", "共有", "共通", "変数", "追加"] },
     run: () => addNumericVariable()
   },
   deleteNumericVariable: {
     id: "deleteNumericVariable",
     label: "共通変数を削除",
-    palette: { order: 20, keywords: ["variable", "共有", "共通", "変数", "削除"] },
+    palette: { order: 22, keywords: ["variable", "共有", "共通", "変数", "削除"] },
     run: (context) => deleteNumericVariable(context?.variableId)
   },
   addBezierNumericVariable: {
@@ -205,13 +219,13 @@ export const creationCommandDefinitions = {
   addBezierIntermediatePoint: {
     id: "addBezierIntermediatePoint",
     label: "曲線の中間点を追加",
-    palette: { order: 21, keywords: ["bezier", "curve", "middle", "中間点", "追加"] },
+    palette: { order: 23, keywords: ["bezier", "curve", "middle", "中間点", "追加"] },
     run: () => addBezierIntermediatePoint()
   },
   deleteBezierIntermediatePoint: {
     id: "deleteBezierIntermediatePoint",
     label: "曲線の中間点を削除",
-    palette: { order: 22, keywords: ["bezier", "curve", "middle", "中間点", "削除"] },
+    palette: { order: 24, keywords: ["bezier", "curve", "middle", "中間点", "削除"] },
     run: (context) => deleteBezierIntermediatePoint(context?.intermediatePointId)
   }
 } satisfies Partial<Record<CommandId, Command>>;

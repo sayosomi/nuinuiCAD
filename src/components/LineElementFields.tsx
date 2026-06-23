@@ -241,6 +241,7 @@ export const LineElementFields = ({
       );
 
     case "copyLine":
+    case "move":
       return (
         <>
           {pointAnchorEditor({
@@ -270,14 +271,15 @@ export const LineElementFields = ({
           <LineReferenceListEditor
             {...commonEditorProps}
             parameterKey="baseLineIds"
-            label="基準線"
+            label={element.type === "move" ? "対象線" : "基準線"}
             lineIds={element.baseLineIds}
-            emptyLabel="基準線はありません。"
+            emptyLabel={element.type === "move" ? "対象線はありません。" : "基準線はありません。"}
           />
         </>
       );
 
     case "symmetricCopyLine":
+    case "symmetricMove":
       return (
         <>
           {pointAnchorEditor({
@@ -295,9 +297,9 @@ export const LineElementFields = ({
           <LineReferenceListEditor
             {...commonEditorProps}
             parameterKey="baseLineIds"
-            label="基準線"
+            label={element.type === "symmetricMove" ? "対象線" : "基準線"}
             lineIds={element.baseLineIds}
-            emptyLabel="基準線はありません。"
+            emptyLabel={element.type === "symmetricMove" ? "対象線はありません。" : "基準線はありません。"}
           />
         </>
       );

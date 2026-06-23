@@ -242,11 +242,41 @@ describe("createCadElement", () => {
     });
   });
 
+  it("creates move modifications using the first two points and first line as defaults", () => {
+    expect(createCadElement("move", sampleElements, { createId: createTestId })).toMatchObject({
+      id: "move-test-id",
+      name: "移動1",
+      type: "move",
+      visible: true,
+      enabled: true,
+      numericVariables: [],
+      startPoint: { mode: "reference", pointId: "point-a" },
+      endPoint: { mode: "reference", pointId: "point-b" },
+      angleDeg: 0,
+      mirrorX: false,
+      baseLineIds: ["line-ab"]
+    });
+  });
+
   it("creates symmetric copy lines using the first two points and first line as defaults", () => {
     expect(createCadElement("symmetricCopyLine", sampleElements, { createId: createTestId })).toMatchObject({
       id: "symmetricCopyLine-test-id",
       name: "対称コピー線1",
       type: "symmetricCopyLine",
+      visible: true,
+      enabled: true,
+      numericVariables: [],
+      axisPoint1: { mode: "reference", pointId: "point-a" },
+      axisPoint2: { mode: "reference", pointId: "point-b" },
+      baseLineIds: ["line-ab"]
+    });
+  });
+
+  it("creates symmetric move modifications using the first two points and first line as defaults", () => {
+    expect(createCadElement("symmetricMove", sampleElements, { createId: createTestId })).toMatchObject({
+      id: "symmetricMove-test-id",
+      name: "対称移動1",
+      type: "symmetricMove",
       visible: true,
       enabled: true,
       numericVariables: [],

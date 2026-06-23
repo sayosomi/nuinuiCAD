@@ -156,6 +156,31 @@ describe("parameterDefinitions", () => {
     );
   });
 
+  it("defines editable parameters for move modifications", () => {
+    const move: CadElement = {
+      id: "move",
+      name: "移動",
+      type: "move",
+      visible: true,
+      enabled: true,
+      startPoint: { mode: "reference", pointId: "point-a" },
+      endPoint: { mode: "reference", pointId: "point-b" },
+      angleDeg: 0,
+      mirrorX: false,
+      baseLineIds: ["line-a"]
+    };
+
+    expect(getParameterDefinitions(move)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ key: "startPoint", directKey: "s", label: "始点", kind: "reference", allowCoordinate: false }),
+        expect.objectContaining({ key: "endPoint", directKey: "t", label: "終点", kind: "reference", allowCoordinate: false }),
+        expect.objectContaining({ key: "angleDeg", directKey: "r", label: "角度", kind: "number" }),
+        expect.objectContaining({ key: "mirrorX", directKey: "m", label: "左右反転", kind: "boolean" }),
+        expect.objectContaining({ key: "baseLineIds", directKey: "b", label: "対象線", kind: "lineReferenceList" })
+      ])
+    );
+  });
+
   it("defines editable parameters for symmetric copy lines", () => {
     const line: CadElement = {
       id: "symmetric",
@@ -173,6 +198,27 @@ describe("parameterDefinitions", () => {
         expect.objectContaining({ key: "axisPoint1", directKey: "1", label: "対称点1", kind: "reference", allowCoordinate: false }),
         expect.objectContaining({ key: "axisPoint2", directKey: "2", label: "対称点2", kind: "reference", allowCoordinate: false }),
         expect.objectContaining({ key: "baseLineIds", directKey: "b", label: "基準線", kind: "lineReferenceList" })
+      ])
+    );
+  });
+
+  it("defines editable parameters for symmetric move modifications", () => {
+    const move: CadElement = {
+      id: "symmetric-move",
+      name: "対称移動",
+      type: "symmetricMove",
+      visible: true,
+      enabled: true,
+      axisPoint1: { mode: "reference", pointId: "point-a" },
+      axisPoint2: { mode: "reference", pointId: "point-b" },
+      baseLineIds: ["line-a"]
+    };
+
+    expect(getParameterDefinitions(move)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ key: "axisPoint1", directKey: "1", label: "対称点1", kind: "reference", allowCoordinate: false }),
+        expect.objectContaining({ key: "axisPoint2", directKey: "2", label: "対称点2", kind: "reference", allowCoordinate: false }),
+        expect.objectContaining({ key: "baseLineIds", directKey: "b", label: "対象線", kind: "lineReferenceList" })
       ])
     );
   });

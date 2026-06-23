@@ -19,6 +19,8 @@ export const ElementSpecificFields = (props: CommonEditorProps) => {
     case "cornerRadiusArcLine":
     case "edge":
     case "extendTrim":
+    case "move":
+    case "symmetricMove":
     case "offsetLine":
     case "splitLine":
     case "copyLine":

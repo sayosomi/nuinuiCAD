@@ -161,6 +161,7 @@ export const getDirectParentIds = (element: CadElement): ElementId[] => {
           ...extractNumericExpressionReferences(element.offset)
         ].map((reference) => reference.elementId);
       case "copyLine":
+      case "move":
         return [
           ...numericVariableReferences(element),
           ...pointAnchorParentIds(element.startPoint).map((elementId) => ({ elementId })),
@@ -169,6 +170,7 @@ export const getDirectParentIds = (element: CadElement): ElementId[] => {
           ...element.baseLineIds.map((elementId) => ({ elementId }))
         ].map((reference) => reference.elementId);
       case "symmetricCopyLine":
+      case "symmetricMove":
         return [
           ...numericVariableReferences(element),
           ...pointAnchorParentIds(element.axisPoint1).map((elementId) => ({ elementId })),
@@ -206,6 +208,8 @@ export const getDirectParentIds = (element: CadElement): ElementId[] => {
     case "splitLine":
     case "copyLine":
     case "symmetricCopyLine":
+    case "move":
+    case "symmetricMove":
       return numericExpressionParentIds();
   }
 };

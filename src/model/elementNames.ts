@@ -20,7 +20,9 @@ const defaultNameBases: Record<CadElementType, string> = {
   offsetLine: "オフセット線",
   splitLine: "分割線",
   copyLine: "コピー線",
-  symmetricCopyLine: "対称コピー線"
+  symmetricCopyLine: "対称コピー線",
+  move: "移動",
+  symmetricMove: "対称移動"
 };
 
 const normalizeName = (name: string, fallbackBaseName: string) => {

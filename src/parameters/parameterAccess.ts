@@ -20,7 +20,9 @@ export const supportsNumericVariables = (element: CadElement) =>
   element.type === "offsetLine" ||
   element.type === "splitLine" ||
   element.type === "copyLine" ||
-  element.type === "symmetricCopyLine";
+  element.type === "symmetricCopyLine" ||
+  element.type === "move" ||
+  element.type === "symmetricMove";
 
 export const parseIntermediateParameterKey = (key: string) => {
   const [, intermediatePointId, field] = key.split(":");
@@ -53,13 +55,14 @@ export const getPointAnchor = (element: CadElement, key: string): PointAnchor | 
     (element.type === "line" ||
       element.type === "bezierCurve" ||
       element.type === "divisionPoint" ||
-      element.type === "copyLine")
+      element.type === "copyLine" ||
+      element.type === "move")
   ) {
     return element[key];
   }
   if (
     (key === "axisPoint1" || key === "axisPoint2") &&
-    element.type === "symmetricCopyLine"
+    (element.type === "symmetricCopyLine" || element.type === "symmetricMove")
   ) {
     return element[key];
   }
@@ -106,7 +109,8 @@ export const setPointAnchor = (
     (element.type === "line" ||
       element.type === "bezierCurve" ||
       element.type === "divisionPoint" ||
-      element.type === "copyLine")
+      element.type === "copyLine" ||
+      element.type === "move")
   ) {
     return { ...element, startPoint: anchor };
   }
@@ -115,14 +119,15 @@ export const setPointAnchor = (
     (element.type === "line" ||
       element.type === "bezierCurve" ||
       element.type === "divisionPoint" ||
-      element.type === "copyLine")
+      element.type === "copyLine" ||
+      element.type === "move")
   ) {
     return { ...element, endPoint: anchor };
   }
-  if (key === "axisPoint1" && element.type === "symmetricCopyLine") {
+  if (key === "axisPoint1" && (element.type === "symmetricCopyLine" || element.type === "symmetricMove")) {
     return { ...element, axisPoint1: anchor };
   }
-  if (key === "axisPoint2" && element.type === "symmetricCopyLine") {
+  if (key === "axisPoint2" && (element.type === "symmetricCopyLine" || element.type === "symmetricMove")) {
     return { ...element, axisPoint2: anchor };
   }
   if (key === "centerPoint" && element.type === "arcLine") {

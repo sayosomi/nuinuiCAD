@@ -375,6 +375,7 @@ export const getParameterDefinitions = (element: CadElement): ParameterDefinitio
         { key: "closed", directKey: "c", label: "閉じる", kind: "boolean" }
       ];
     case "copyLine":
+    case "move":
       return [
         ...commonParameters,
         ...numericVariableParameters(element),
@@ -400,9 +401,15 @@ export const getParameterDefinitions = (element: CadElement): ParameterDefinitio
           stepLevels: angleNumericParameterStepLevels
         },
         { key: "mirrorX", directKey: "m", label: "左右反転", kind: "boolean" },
-        { key: "baseLineIds", directKey: "b", label: "基準線", kind: "lineReferenceList" }
+        {
+          key: "baseLineIds",
+          directKey: "b",
+          label: element.type === "move" ? "対象線" : "基準線",
+          kind: "lineReferenceList"
+        }
       ];
     case "symmetricCopyLine":
+    case "symmetricMove":
       return [
         ...commonParameters,
         ...numericVariableParameters(element),
@@ -420,7 +427,12 @@ export const getParameterDefinitions = (element: CadElement): ParameterDefinitio
           label: "対称点2",
           allowCoordinate: false
         }),
-        { key: "baseLineIds", directKey: "b", label: "基準線", kind: "lineReferenceList" }
+        {
+          key: "baseLineIds",
+          directKey: "b",
+          label: element.type === "symmetricMove" ? "対象線" : "基準線",
+          kind: "lineReferenceList"
+        }
       ];
   }
 };

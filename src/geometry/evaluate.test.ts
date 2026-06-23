@@ -1690,6 +1690,194 @@ describe("evaluateElements", () => {
     expect(result.errors[0].message).toContain("同じ点");
   });
 
+  it("moves target lines without creating geometry for the move element", () => {
+    const result = evaluateElements([
+      {
+        id: "a",
+        name: "A",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 0,
+        y: 0
+      },
+      {
+        id: "b",
+        name: "B",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 80,
+        y: 0
+      },
+      {
+        id: "d",
+        name: "D",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 40,
+        y: 100
+      },
+      {
+        id: "ab",
+        name: "AB",
+        type: "line",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "a" },
+        endPoint: { mode: "reference", pointId: "b" }
+      },
+      {
+        id: "move",
+        name: "移動",
+        type: "move",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "a" },
+        endPoint: { mode: "reference", pointId: "d" },
+        angleDeg: 0,
+        mirrorX: false,
+        baseLineIds: ["ab"]
+      }
+    ]);
+
+    const line = result.computedGeometry.get("ab");
+    expect(result.errors).toHaveLength(0);
+    expect(result.computedGeometry.has("move")).toBe(false);
+    expect(line).toMatchObject({
+      kind: "line",
+      start: { x: 40, y: 100 },
+      end: { x: 120, y: 100 },
+      length: 80
+    });
+  });
+
+  it("restores target lines when a move modification is disabled", () => {
+    const result = evaluateElements([
+      validElements[0],
+      validElements[1],
+      validElements[2],
+      {
+        id: "move",
+        name: "移動",
+        type: "move",
+        visible: true,
+        enabled: false,
+        startPoint: { mode: "reference", pointId: "a" },
+        endPoint: { mode: "reference", pointId: "c" },
+        angleDeg: 0,
+        mirrorX: false,
+        baseLineIds: ["ab"]
+      }
+    ]);
+
+    const line = result.computedGeometry.get("ab");
+    expect(result.errors).toHaveLength(0);
+    expect(result.computedGeometry.has("move")).toBe(false);
+    expect(line).toMatchObject({
+      kind: "line",
+      start: { x: 10, y: 20 },
+      end: { x: 40, y: 25 }
+    });
+  });
+
+  it("symmetrically moves target lines across an axis", () => {
+    const result = evaluateElements([
+      {
+        id: "axis-a",
+        name: "軸A",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 40,
+        y: -50
+      },
+      {
+        id: "axis-b",
+        name: "軸B",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 40,
+        y: 50
+      },
+      {
+        id: "p1",
+        name: "P1",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 0,
+        y: 0
+      },
+      {
+        id: "p2",
+        name: "P2",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 80,
+        y: 0
+      },
+      {
+        id: "line",
+        name: "線",
+        type: "line",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "p1" },
+        endPoint: { mode: "reference", pointId: "p2" }
+      },
+      {
+        id: "symmetric-move",
+        name: "対称移動",
+        type: "symmetricMove",
+        visible: true,
+        enabled: true,
+        axisPoint1: { mode: "reference", pointId: "axis-a" },
+        axisPoint2: { mode: "reference", pointId: "axis-b" },
+        baseLineIds: ["line"]
+      }
+    ]);
+
+    const line = result.computedGeometry.get("line");
+    expect(result.errors).toHaveLength(0);
+    expect(result.computedGeometry.has("symmetric-move")).toBe(false);
+    expect(line).toMatchObject({
+      kind: "line",
+      start: { x: 80, y: 0 },
+      end: { x: 0, y: 0 }
+    });
+  });
+
+  it("reports move dependencies that appear too late", () => {
+    const result = evaluateElements([
+      validElements[0],
+      validElements[1],
+      {
+        id: "move",
+        name: "移動",
+        type: "move",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "a" },
+        endPoint: { mode: "reference", pointId: "b" },
+        angleDeg: 0,
+        mirrorX: false,
+        baseLineIds: ["ab"]
+      },
+      validElements[2]
+    ]);
+
+    expect(result.computedGeometry.has("move")).toBe(false);
+    expect(result.errors[0]).toMatchObject({
+      elementId: "move",
+      missingDependencyId: "ab",
+      missingDependencyName: "直線AB"
+    });
+  });
+
   it("evaluates line tangent offset points relative to the tangent at the base point", () => {
     const result = evaluateElements([
       {

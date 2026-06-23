@@ -362,10 +362,44 @@ export const createCadElement = (
         baseLineIds: lineLikeElements[0] ? [lineLikeElements[0].id] : []
       };
     }
+    case "move": {
+      const id = createId(type);
+      const moveCount = elements.filter((element) => element.type === "move").length;
+      const requestedName = `移動${moveCount + 1}`;
+      return {
+        id,
+        name: uniqueName(id, requestedName),
+        type,
+        visible: true,
+        enabled: true,
+        numericVariables: [],
+        startPoint: referenceAnchor(firstPointId),
+        endPoint: referenceAnchor(secondPointId),
+        angleDeg: 0,
+        mirrorX: false,
+        baseLineIds: lineLikeElements[0] ? [lineLikeElements[0].id] : []
+      };
+    }
     case "symmetricCopyLine": {
       const id = createId(type);
       const symmetricCopyLineCount = elements.filter((element) => element.type === "symmetricCopyLine").length;
       const requestedName = `対称コピー線${symmetricCopyLineCount + 1}`;
+      return {
+        id,
+        name: uniqueName(id, requestedName),
+        type,
+        visible: true,
+        enabled: true,
+        numericVariables: [],
+        axisPoint1: referenceAnchor(firstPointId),
+        axisPoint2: referenceAnchor(secondPointId),
+        baseLineIds: lineLikeElements[0] ? [lineLikeElements[0].id] : []
+      };
+    }
+    case "symmetricMove": {
+      const id = createId(type);
+      const symmetricMoveCount = elements.filter((element) => element.type === "symmetricMove").length;
+      const requestedName = `対称移動${symmetricMoveCount + 1}`;
       return {
         id,
         name: uniqueName(id, requestedName),

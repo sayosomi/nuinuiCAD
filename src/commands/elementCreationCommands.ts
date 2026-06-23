@@ -66,28 +66,38 @@ export const addSplitLine = () => {
   });
 };
 
-export const addCopyLine = () => {
-  const { elements } = useCadDocumentStore.getState();
+const selectedOrFallbackLineIds = (elements: CadElement[]) => {
   const selectedIds = new Set(getSelectedElementIds());
   const selectedBaseLineIds = elements
     .filter((element) => selectedIds.has(element.id) && isLineLikeElement(element))
     .map((element) => element.id);
   const fallbackBaseLineId = elements.find(isLineLikeElement)?.id;
+  return selectedBaseLineIds.length > 0
+    ? selectedBaseLineIds
+    : fallbackBaseLineId
+      ? [fallbackBaseLineId]
+      : [];
+};
+
+const selectedOrFallbackPointPair = (elements: CadElement[]) => {
+  const selectedIds = new Set(getSelectedElementIds());
   const selectedPoints = elements.filter((element) => selectedIds.has(element.id) && isPointLikeElement(element));
   const fallbackPoints = elements.filter(isPointLikeElement);
-  const startPoint = selectedPoints[0] ?? fallbackPoints[0];
-  const endPoint = selectedPoints[1] ?? fallbackPoints.find((point) => point.id !== startPoint?.id) ?? startPoint;
-  const element = createCadElement("copyLine", elements);
-  if (element.type !== "copyLine") return;
+  const firstPoint = selectedPoints[0] ?? fallbackPoints[0];
+  const secondPoint = selectedPoints[1] ?? fallbackPoints.find((point) => point.id !== firstPoint?.id) ?? firstPoint;
+  return { firstPoint, secondPoint };
+};
+
+const addCopyLikeElement = (type: "copyLine" | "move") => {
+  const { elements } = useCadDocumentStore.getState();
+  const { firstPoint: startPoint, secondPoint: endPoint } = selectedOrFallbackPointPair(elements);
+  const element = createCadElement(type, elements);
+  if (element.type !== type) return;
   const copyLine: CadElement = {
     ...element,
     startPoint: referenceAnchor(startPoint?.id ?? ""),
     endPoint: referenceAnchor(endPoint?.id ?? ""),
-    baseLineIds: selectedBaseLineIds.length > 0
-      ? selectedBaseLineIds
-      : fallbackBaseLineId
-        ? [fallbackBaseLineId]
-        : []
+    baseLineIds: selectedOrFallbackLineIds(elements)
   };
   useCadDocumentStore.getState().commitDocumentChange({
     elements: [...elements, copyLine],
@@ -98,28 +108,20 @@ export const addCopyLine = () => {
   });
 };
 
-export const addSymmetricCopyLine = () => {
+export const addCopyLine = () => addCopyLikeElement("copyLine");
+
+export const addMove = () => addCopyLikeElement("move");
+
+const addSymmetricCopyLikeElement = (type: "symmetricCopyLine" | "symmetricMove") => {
   const { elements } = useCadDocumentStore.getState();
-  const selectedIds = new Set(getSelectedElementIds());
-  const selectedBaseLineIds = elements
-    .filter((element) => selectedIds.has(element.id) && isLineLikeElement(element))
-    .map((element) => element.id);
-  const fallbackBaseLineId = elements.find(isLineLikeElement)?.id;
-  const selectedPoints = elements.filter((element) => selectedIds.has(element.id) && isPointLikeElement(element));
-  const fallbackPoints = elements.filter(isPointLikeElement);
-  const axisPoint1 = selectedPoints[0] ?? fallbackPoints[0];
-  const axisPoint2 = selectedPoints[1] ?? fallbackPoints.find((point) => point.id !== axisPoint1?.id) ?? axisPoint1;
-  const element = createCadElement("symmetricCopyLine", elements);
-  if (element.type !== "symmetricCopyLine") return;
+  const { firstPoint: axisPoint1, secondPoint: axisPoint2 } = selectedOrFallbackPointPair(elements);
+  const element = createCadElement(type, elements);
+  if (element.type !== type) return;
   const symmetricCopyLine: CadElement = {
     ...element,
     axisPoint1: referenceAnchor(axisPoint1?.id ?? ""),
     axisPoint2: referenceAnchor(axisPoint2?.id ?? ""),
-    baseLineIds: selectedBaseLineIds.length > 0
-      ? selectedBaseLineIds
-      : fallbackBaseLineId
-        ? [fallbackBaseLineId]
-        : []
+    baseLineIds: selectedOrFallbackLineIds(elements)
   };
   useCadDocumentStore.getState().commitDocumentChange({
     elements: [...elements, symmetricCopyLine],
@@ -129,6 +131,10 @@ export const addSymmetricCopyLine = () => {
     selectedParameterKey: getFirstParameterKey(symmetricCopyLine)
   });
 };
+
+export const addSymmetricCopyLine = () => addSymmetricCopyLikeElement("symmetricCopyLine");
+
+export const addSymmetricMove = () => addSymmetricCopyLikeElement("symmetricMove");
 
 export const addLineDivisionPoint = () => {
   const { elements } = useCadDocumentStore.getState();

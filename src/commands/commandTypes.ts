@@ -61,6 +61,8 @@ export type CommandId =
   | "addSplitLine"
   | "addCopyLine"
   | "addSymmetricCopyLine"
+  | "addMove"
+  | "addSymmetricMove"
   | "addNumericVariable"
   | "deleteNumericVariable"
   | "addBezierNumericVariable"

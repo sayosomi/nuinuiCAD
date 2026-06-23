@@ -218,6 +218,38 @@ describe("dependencies", () => {
     expect(getDirectParentIds(extendTrim)).toEqual(["ab", "c"]);
   });
 
+  it("returns move point, angle, and target line references as direct parent ids", () => {
+    const move: CadElement = {
+      id: "move",
+      name: "移動",
+      type: "move",
+      visible: true,
+      enabled: true,
+      startPoint: { mode: "reference", pointId: "a" },
+      endPoint: { mode: "reference", pointId: "b" },
+      angleDeg: { kind: "expression", expression: "cd.startAngleDeg" },
+      mirrorX: false,
+      baseLineIds: ["ab", "bc"]
+    };
+
+    expect(getDirectParentIds(move)).toEqual(["a", "b", "cd", "ab", "bc"]);
+  });
+
+  it("returns symmetric move axis and target line references as direct parent ids", () => {
+    const move: CadElement = {
+      id: "symmetric-move",
+      name: "対称移動",
+      type: "symmetricMove",
+      visible: true,
+      enabled: true,
+      axisPoint1: { mode: "reference", pointId: "a" },
+      axisPoint2: { mode: "reference", pointId: "b" },
+      baseLineIds: ["ab", "bc"]
+    };
+
+    expect(getDirectParentIds(move)).toEqual(["a", "b", "ab", "bc"]);
+  });
+
   it("returns direct coordinate expression references as parent ids", () => {
     const directLine: CadElement = {
       id: "direct",
