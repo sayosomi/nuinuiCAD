@@ -1,5 +1,6 @@
 import {
   addCornerRadiusArcLine,
+  addCopyLine,
   addElement,
   addIntersectionPoint,
   addLineDivisionPoint,
@@ -145,10 +146,17 @@ export const creationCommandDefinitions = {
     shortcuts: [{ keys: "Shift+O" }],
     run: () => addOffsetLine()
   },
+  addCopyLine: {
+    id: "addCopyLine",
+    label: "コピー線を追加",
+    palette: { order: 14, keywords: ["copy", "line", "curve", "コピー", "複写", "線", "曲線", "追加"] },
+    shortcuts: [{ keys: "Shift+C" }],
+    run: () => addCopyLine()
+  },
   addSplitLine: {
     id: "addSplitLine",
     label: "分割線を追加",
-    palette: { order: 14, keywords: ["split", "divide", "line", "分割", "分割線", "線", "追加"] },
+    palette: { order: 15, keywords: ["split", "divide", "line", "分割", "分割線", "線", "追加"] },
     run: () => addSplitLine()
   },
   addNumericVariable: {

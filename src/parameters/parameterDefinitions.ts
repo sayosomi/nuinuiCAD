@@ -359,6 +359,34 @@ export const getParameterDefinitions = (element: CadElement): ParameterDefinitio
         },
         { key: "closed", directKey: "c", label: "閉じる", kind: "boolean" }
       ];
+    case "copyLine":
+      return [
+        ...commonParameters,
+        ...numericVariableParameters(element),
+        ...pointAnchorParameters({
+          anchor: element.startPoint,
+          key: "startPoint",
+          directKey: "s",
+          label: "始点",
+          allowCoordinate: false
+        }),
+        ...pointAnchorParameters({
+          anchor: element.endPoint,
+          key: "endPoint",
+          directKey: "t",
+          label: "終点",
+          allowCoordinate: false
+        }),
+        {
+          key: "angleDeg",
+          directKey: "r",
+          label: "角度",
+          kind: "number",
+          stepLevels: angleNumericParameterStepLevels
+        },
+        { key: "mirrorX", directKey: "m", label: "左右反転", kind: "boolean" },
+        { key: "baseLineIds", directKey: "b", label: "基準線", kind: "lineReferenceList" }
+      ];
   }
 };
 

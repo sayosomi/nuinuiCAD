@@ -147,6 +147,14 @@ export const getDirectParentIds = (element: CadElement): ElementId[] => {
           ...element.baseLineIds.map((elementId) => ({ elementId })),
           ...extractNumericExpressionReferences(element.offset)
         ].map((reference) => reference.elementId);
+      case "copyLine":
+        return [
+          ...numericVariableReferences(element),
+          ...pointAnchorParentIds(element.startPoint).map((elementId) => ({ elementId })),
+          ...pointAnchorParentIds(element.endPoint).map((elementId) => ({ elementId })),
+          ...extractNumericExpressionReferences(element.angleDeg),
+          ...element.baseLineIds.map((elementId) => ({ elementId }))
+        ].map((reference) => reference.elementId);
     }
   };
 
@@ -174,6 +182,7 @@ export const getDirectParentIds = (element: CadElement): ElementId[] => {
     case "bezierCurve":
     case "offsetLine":
     case "splitLine":
+    case "copyLine":
       return numericExpressionParentIds();
   }
 };

@@ -90,7 +90,8 @@ export const lineLikeElementTypes = [
   "threePointArcLine",
   "cornerRadiusArcLine",
   "bezierCurve",
-  "offsetLine"
+  "offsetLine",
+  "copyLine"
 ] as const;
 
 export const buildOffsetLineGeometry = ({

@@ -169,6 +169,15 @@ export type SplitLineElement = CadElementBase & {
   splitPoint: PointAnchor;
 };
 
+export type CopyLineElement = CadElementBase & {
+  type: "copyLine";
+  startPoint: PointAnchor;
+  endPoint: PointAnchor;
+  angleDeg: NumericValue;
+  mirrorX: boolean;
+  baseLineIds: ElementId[];
+};
+
 export type GroupElement = CadElementBase & {
   type: "group";
   expanded: boolean;
@@ -189,7 +198,8 @@ export type CadElement =
   | CornerRadiusArcLineElement
   | BezierCurveElement
   | OffsetLineElement
-  | SplitLineElement;
+  | SplitLineElement
+  | CopyLineElement;
 export type CadElementType = CadElement["type"];
 
 export type ComputedPoint = {
@@ -332,5 +342,6 @@ export const elementTypeLabels: Record<CadElementType, string> = {
   cornerRadiusArcLine: "角R円弧線",
   bezierCurve: "Bezier curve",
   offsetLine: "オフセット線",
-  splitLine: "分割線"
+  splitLine: "分割線",
+  copyLine: "コピー線"
 };

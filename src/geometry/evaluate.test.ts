@@ -771,6 +771,260 @@ describe("evaluateElements", () => {
     });
   });
 
+  it("copies connected lines by translating from start to end", () => {
+    const result = evaluateElements([
+      {
+        id: "a",
+        name: "A",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 0,
+        y: 0
+      },
+      {
+        id: "b",
+        name: "B",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 80,
+        y: 0
+      },
+      {
+        id: "c",
+        name: "C",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 80,
+        y: 30
+      },
+      {
+        id: "d",
+        name: "D",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 40,
+        y: 100
+      },
+      {
+        id: "ab",
+        name: "AB",
+        type: "line",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "a" },
+        endPoint: { mode: "reference", pointId: "b" }
+      },
+      {
+        id: "bc",
+        name: "BC",
+        type: "line",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "b" },
+        endPoint: { mode: "reference", pointId: "c" }
+      },
+      {
+        id: "copy",
+        name: "コピー線",
+        type: "copyLine",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "a" },
+        endPoint: { mode: "reference", pointId: "d" },
+        angleDeg: 0,
+        mirrorX: false,
+        baseLineIds: ["ab", "bc"]
+      }
+    ]);
+
+    const copy = result.computedGeometry.get("copy");
+    expect(result.errors).toHaveLength(0);
+    expect(copy).toMatchObject({ kind: "offsetLine", length: 110 });
+    if (copy?.kind !== "offsetLine") throw new Error("Expected a copy line");
+    expect(copy.segments[0]).toMatchObject({
+      kind: "line",
+      start: { x: 40, y: 100 },
+      end: { x: 120, y: 100 }
+    });
+    expect(copy.segments[1]).toMatchObject({
+      kind: "line",
+      start: { x: 120, y: 100 },
+      end: { x: 120, y: 130 }
+    });
+  });
+
+  it("mirrors copied lines across the vertical axis through the end point", () => {
+    const result = evaluateElements([
+      {
+        id: "a",
+        name: "A",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 0,
+        y: 0
+      },
+      {
+        id: "b",
+        name: "B",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 80,
+        y: 0
+      },
+      {
+        id: "c",
+        name: "C",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 80,
+        y: 30
+      },
+      {
+        id: "d",
+        name: "D",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 40,
+        y: 100
+      },
+      {
+        id: "ab",
+        name: "AB",
+        type: "line",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "a" },
+        endPoint: { mode: "reference", pointId: "b" }
+      },
+      {
+        id: "bc",
+        name: "BC",
+        type: "line",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "b" },
+        endPoint: { mode: "reference", pointId: "c" }
+      },
+      {
+        id: "copy",
+        name: "コピー線",
+        type: "copyLine",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "a" },
+        endPoint: { mode: "reference", pointId: "d" },
+        angleDeg: 0,
+        mirrorX: true,
+        baseLineIds: ["ab", "bc"]
+      }
+    ]);
+
+    const copy = result.computedGeometry.get("copy");
+    expect(result.errors).toHaveLength(0);
+    expect(copy).toMatchObject({ kind: "offsetLine", length: 110 });
+    if (copy?.kind !== "offsetLine") throw new Error("Expected a copy line");
+    expect(copy.segments[0]).toMatchObject({
+      kind: "line",
+      start: { x: 40, y: 100 },
+      end: { x: -40, y: 100 }
+    });
+    expect(copy.segments[1]).toMatchObject({
+      kind: "line",
+      start: { x: -40, y: 100 },
+      end: { x: -40, y: 130 }
+    });
+  });
+
+  it("rotates mirrored copy lines around the end point", () => {
+    const result = evaluateElements([
+      {
+        id: "a",
+        name: "A",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 0,
+        y: 0
+      },
+      {
+        id: "b",
+        name: "B",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 80,
+        y: 0
+      },
+      {
+        id: "c",
+        name: "C",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 80,
+        y: 30
+      },
+      {
+        id: "d",
+        name: "D",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 40,
+        y: 100
+      },
+      {
+        id: "ab",
+        name: "AB",
+        type: "line",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "a" },
+        endPoint: { mode: "reference", pointId: "b" }
+      },
+      {
+        id: "bc",
+        name: "BC",
+        type: "line",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "b" },
+        endPoint: { mode: "reference", pointId: "c" }
+      },
+      {
+        id: "copy",
+        name: "コピー線",
+        type: "copyLine",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "a" },
+        endPoint: { mode: "reference", pointId: "d" },
+        angleDeg: 90,
+        mirrorX: true,
+        baseLineIds: ["ab", "bc"]
+      }
+    ]);
+
+    const copy = result.computedGeometry.get("copy");
+    expect(result.errors).toHaveLength(0);
+    expect(copy).toMatchObject({ kind: "offsetLine", length: 110 });
+    if (copy?.kind !== "offsetLine") throw new Error("Expected a copy line");
+    expect(copy.segments[0].start.x).toBeCloseTo(40);
+    expect(copy.segments[0].start.y).toBeCloseTo(100);
+    expect(copy.segments[0].end.x).toBeCloseTo(40);
+    expect(copy.segments[0].end.y).toBeCloseTo(180);
+    expect(copy.segments[1].end.x).toBeCloseTo(70);
+    expect(copy.segments[1].end.y).toBeCloseTo(180);
+  });
+
   it("evaluates line tangent offset points relative to the tangent at the base point", () => {
     const result = evaluateElements([
       {

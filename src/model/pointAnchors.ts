@@ -274,6 +274,9 @@ export const pointAnchorOptions = (elements: CadElement[]): PointAnchor[] =>
     if (element.type === "splitLine") {
       return [derivedAnchor(element.id, "start"), derivedAnchor(element.id, "end")];
     }
+    if (element.type === "copyLine") {
+      return [derivedAnchor(element.id, "start"), derivedAnchor(element.id, "end")];
+    }
     return [];
   });
 
@@ -303,7 +306,8 @@ export const isLineLikeElement = (element: CadElement) =>
   element.type === "cornerRadiusArcLine" ||
   element.type === "bezierCurve" ||
   element.type === "offsetLine" ||
-  element.type === "splitLine";
+  element.type === "splitLine" ||
+  element.type === "copyLine";
 
 export const lineEndpointReferenceOptions = (elements: CadElement[]): LineEndpointReference[] =>
   elements.flatMap((element) =>

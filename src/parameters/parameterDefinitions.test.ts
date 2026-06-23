@@ -91,6 +91,31 @@ describe("parameterDefinitions", () => {
     );
   });
 
+  it("defines editable parameters for copy lines", () => {
+    const line: CadElement = {
+      id: "copy",
+      name: "コピー線",
+      type: "copyLine",
+      visible: true,
+      enabled: true,
+      startPoint: { mode: "reference", pointId: "point-a" },
+      endPoint: { mode: "reference", pointId: "point-b" },
+      angleDeg: 0,
+      mirrorX: false,
+      baseLineIds: ["line-a"]
+    };
+
+    expect(getParameterDefinitions(line)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ key: "startPoint", directKey: "s", label: "始点", kind: "reference", allowCoordinate: false }),
+        expect.objectContaining({ key: "endPoint", directKey: "t", label: "終点", kind: "reference", allowCoordinate: false }),
+        expect.objectContaining({ key: "angleDeg", directKey: "r", label: "角度", kind: "number" }),
+        expect.objectContaining({ key: "mirrorX", directKey: "m", label: "左右反転", kind: "boolean" }),
+        expect.objectContaining({ key: "baseLineIds", directKey: "b", label: "基準線", kind: "lineReferenceList" })
+      ])
+    );
+  });
+
   it("marks which point reference parameters can use coordinate mode", () => {
     const line: CadElement = {
       id: "line",

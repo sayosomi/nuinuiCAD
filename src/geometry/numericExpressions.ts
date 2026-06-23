@@ -138,7 +138,8 @@ export const normalizeNumericExpressionInput = (
         element.type === "threePointArcLine" ||
         element.type === "cornerRadiusArcLine" ||
         element.type === "bezierCurve" ||
-        element.type === "offsetLine"
+        element.type === "offsetLine" ||
+        element.type === "copyLine"
     )
     .sort((a, b) => b.name.length - a.name.length);
 
@@ -162,7 +163,7 @@ export const normalizeNumericExpressionInput = (
       ) {
         continue;
       }
-      if (element.type === "offsetLine" && property !== "length") continue;
+      if ((element.type === "offsetLine" || element.type === "copyLine") && property !== "length") continue;
       expression = expression.replace(
         new RegExp(`${escapeRegExp(element.name)}\\.${escapeRegExp(label)}(?=$|[\\s()+*/-])`, "g"),
         `${element.id}.${property}`

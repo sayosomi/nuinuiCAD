@@ -814,6 +814,29 @@ describe("commands", () => {
     expect(state.past).toHaveLength(1);
   });
 
+  it("adds a copy line from selected line-like elements and points", () => {
+    useCadStore.setState({
+      selectedElementId: "line-bc",
+      selectedElementIds: ["point-a", "point-b", "line-ab", "line-bc"],
+      selectionAnchorElementId: "point-a"
+    });
+
+    dispatchCommand("addCopyLine");
+
+    const state = useCadStore.getState();
+    const copyLine = state.elements.at(-1);
+    expect(copyLine).toMatchObject({
+      type: "copyLine",
+      startPoint: { mode: "reference", pointId: "point-a" },
+      endPoint: { mode: "reference", pointId: "point-b" },
+      angleDeg: 0,
+      mirrorX: false,
+      baseLineIds: ["line-ab", "line-bc"]
+    });
+    expect(state.selectedElementId).toBe(copyLine?.id);
+    expect(state.past).toHaveLength(1);
+  });
+
   it("adds a split line from the selected line and point", () => {
     useCadStore.setState({
       selectedElementId: "line-ab",

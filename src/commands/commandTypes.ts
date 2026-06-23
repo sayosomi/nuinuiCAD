@@ -57,6 +57,7 @@ export type CommandId =
   | "addBezierCurve"
   | "addOffsetLine"
   | "addSplitLine"
+  | "addCopyLine"
   | "addNumericVariable"
   | "deleteNumericVariable"
   | "addBezierNumericVariable"

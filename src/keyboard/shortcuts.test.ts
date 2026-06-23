@@ -33,6 +33,7 @@ describe("shortcuts", () => {
     expect(commandIdForKeyboardEvent(keyboardEvent("o"))).toBeNull();
     expect(commandIdForKeyboardEvent(keyboardEvent("l"))).toBeNull();
     expect(commandIdForKeyboardEvent(keyboardEvent("x"))).toBe("addIntersectionPoint");
+    expect(commandIdForKeyboardEvent(keyboardEvent("C", { shiftKey: true }))).toBe("addCopyLine");
     expect(commandIdForKeyboardEvent(keyboardEvent("Enter"))).toBe("enterParameterEditMode");
     expect(commandIdForKeyboardEvent(keyboardEvent("+"))).toBe("zoomInCanvas");
     expect(commandIdForKeyboardEvent(keyboardEvent("="))).toBe("zoomInCanvas");

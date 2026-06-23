@@ -19,6 +19,7 @@ export const ElementSpecificFields = (props: CommonEditorProps) => {
     case "cornerRadiusArcLine":
     case "offsetLine":
     case "splitLine":
+    case "copyLine":
       return <LineElementFields {...props} />;
     case "bezierCurve":
       return <CurveElementFields {...props} />;

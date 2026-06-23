@@ -34,7 +34,8 @@ export const createCadElement = (
       element.type === "cornerRadiusArcLine" ||
       element.type === "bezierCurve" ||
       element.type === "offsetLine" ||
-      element.type === "splitLine"
+      element.type === "splitLine" ||
+      element.type === "copyLine"
   );
   const uniqueName = (elementId: ElementId, requestedName: string) =>
     makeUniqueElementName({
@@ -298,6 +299,24 @@ export const createCadElement = (
         numericVariables: [],
         baseLineId: lineLikeElements[0]?.id ?? "",
         splitPoint: referenceAnchor(firstPointId)
+      };
+    }
+    case "copyLine": {
+      const id = createId(type);
+      const copyLineCount = elements.filter((element) => element.type === "copyLine").length;
+      const requestedName = `コピー線${copyLineCount + 1}`;
+      return {
+        id,
+        name: uniqueName(id, requestedName),
+        type,
+        visible: true,
+        enabled: true,
+        numericVariables: [],
+        startPoint: referenceAnchor(firstPointId),
+        endPoint: referenceAnchor(secondPointId),
+        angleDeg: 0,
+        mirrorX: false,
+        baseLineIds: lineLikeElements[0] ? [lineLikeElements[0].id] : []
       };
     }
   }

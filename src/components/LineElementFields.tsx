@@ -201,6 +201,43 @@ export const LineElementFields = ({
         </>
       );
 
+    case "copyLine":
+      return (
+        <>
+          {pointAnchorEditor({
+            parameterKey: "startPoint",
+            label: "始点",
+            anchor: element.startPoint,
+            allowCoordinate: false
+          })}
+          {pointAnchorEditor({
+            parameterKey: "endPoint",
+            label: "終点",
+            anchor: element.endPoint,
+            allowCoordinate: false
+          })}
+          {numericInput({
+            parameterKey: "angleDeg",
+            label: "角度",
+            value: element.angleDeg,
+            ariaLabel: "コピー角度"
+          })}
+          <BooleanParameterEditor
+            {...elementEditorProps}
+            parameterKey="mirrorX"
+            label="左右反転"
+            checked={element.mirrorX}
+          />
+          <LineReferenceListEditor
+            {...commonEditorProps}
+            parameterKey="baseLineIds"
+            label="基準線"
+            lineIds={element.baseLineIds}
+            emptyLabel="基準線はありません。"
+          />
+        </>
+      );
+
     default:
       return null;
   }

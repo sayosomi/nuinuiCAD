@@ -199,6 +199,22 @@ describe("createCadElement", () => {
     });
   });
 
+  it("creates copy lines using the first two points and first line as defaults", () => {
+    expect(createCadElement("copyLine", sampleElements, { createId: createTestId })).toMatchObject({
+      id: "copyLine-test-id",
+      name: "コピー線1",
+      type: "copyLine",
+      visible: true,
+      enabled: true,
+      numericVariables: [],
+      startPoint: { mode: "reference", pointId: "point-a" },
+      endPoint: { mode: "reference", pointId: "point-b" },
+      angleDeg: 0,
+      mirrorX: false,
+      baseLineIds: ["line-ab"]
+    });
+  });
+
   it("keeps names unique when the requested default name already exists", () => {
     const existing = [
       ...sampleElements,

@@ -1,5 +1,6 @@
 import type { CadElement } from "../types/geometry";
 import { evaluateCornerRadiusArcLineElement } from "./cornerRadiusArcEvaluator";
+import { evaluateCopyLineElement } from "./copyLineEvaluator";
 import type { ElementEvaluationContext } from "./elementEvaluatorTypes";
 import { evaluateLineElement } from "./lineEvaluators";
 import { evaluateOffsetLineElement } from "./offsetLineEvaluator";
@@ -12,4 +13,5 @@ export const evaluateElement = (element: CadElement, context: ElementEvaluationC
   if (evaluateLineElement(element, context)) return;
   evaluateOffsetLineElement(element, context);
   evaluateSplitLineElement(element, context);
+  evaluateCopyLineElement(element, context);
 };

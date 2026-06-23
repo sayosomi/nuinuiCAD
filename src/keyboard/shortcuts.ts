@@ -154,7 +154,8 @@ export const shortcutDefinitions: ShortcutDefinition[] = [
   commandShortcut("addIntersectionPoint", 0, (event) => event.key.toLowerCase() === "x" && noModifier(event)),
   commandShortcut("addBezierCurve", 0, (event) => event.key.toLowerCase() === "c" && noModifier(event)),
   commandShortcut("addCornerRadiusArcLine", 0, (event) => event.key.toLowerCase() === "r" && shiftOnly(event)),
-  commandShortcut("addOffsetLine", 0, (event) => event.key.toLowerCase() === "o" && shiftOnly(event))
+  commandShortcut("addOffsetLine", 0, (event) => event.key.toLowerCase() === "o" && shiftOnly(event)),
+  commandShortcut("addCopyLine", 0, (event) => event.key.toLowerCase() === "c" && shiftOnly(event))
 ];
 
 export const dependencyJumpShortcutDefinitions: ShortcutDefinition[] = [
