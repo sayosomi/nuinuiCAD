@@ -23,6 +23,7 @@ export const isLineLikeElement = (element: CadElement) =>
   element.type === "line" ||
   element.type === "arcLine" ||
   element.type === "threePointArcLine" ||
+  element.type === "cornerRadiusArcLine" ||
   element.type === "bezierCurve" ||
   element.type === "offsetLine";
 
@@ -50,4 +51,3 @@ export const selectedParameterDefinition = () => {
   const { selectedParameterKey } = useCadStore.getState();
   return findParameterDefinition(selectedElement, selectedParameterKey);
 };
-

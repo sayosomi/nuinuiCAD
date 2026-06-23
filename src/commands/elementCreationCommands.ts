@@ -94,6 +94,40 @@ export const addIntersectionPoint = () => {
   });
 };
 
+export const addCornerRadiusArcLine = () => {
+  const { elements } = useCadStore.getState();
+  const selectedIds = new Set(getSelectedElementIds());
+  const selectedLines = elements
+    .filter((element) => selectedIds.has(element.id) && isLineLikeElement(element))
+    .map((element) => element.id);
+  const fallbackLines = elements.filter(isLineLikeElement).map((element) => element.id);
+  const element = createCadElement("cornerRadiusArcLine", elements);
+  if (element.type !== "cornerRadiusArcLine") return;
+  const line1Id = selectedLines[0] ?? fallbackLines[0] ?? "";
+  const line2Id =
+    selectedLines.find((id) => id !== line1Id) ??
+    fallbackLines.find((id) => id !== line1Id) ??
+    line1Id;
+  const arc: CadElement = {
+    ...element,
+    endpoint1: {
+      lineId: line1Id,
+      endpointKey: "start"
+    },
+    endpoint2: {
+      lineId: line2Id,
+      endpointKey: "start"
+    }
+  };
+  useCadStore.getState().commitDocumentChange({
+    elements: [...elements, arc],
+    selectedElementId: arc.id,
+    selectedElementIds: [arc.id],
+    selectionAnchorElementId: arc.id,
+    selectedParameterKey: getFirstParameterKey(arc)
+  });
+};
+
 export const addLineTangentOffsetPoint = () => {
   const { elements } = useCadStore.getState();
   const selectedIds = new Set(getSelectedElementIds());

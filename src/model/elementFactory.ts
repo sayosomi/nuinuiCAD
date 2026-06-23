@@ -31,6 +31,7 @@ export const createCadElement = (
       element.type === "line" ||
       element.type === "arcLine" ||
       element.type === "threePointArcLine" ||
+      element.type === "cornerRadiusArcLine" ||
       element.type === "bezierCurve" ||
       element.type === "offsetLine"
   );
@@ -219,6 +220,31 @@ export const createCadElement = (
         point3: referenceAnchor(thirdPointId),
         startAngleDeg: 0,
         endAngleDeg: 90
+      };
+    }
+    case "cornerRadiusArcLine": {
+      const id = createId(type);
+      const arcCount = elements.filter((element) => element.type === "cornerRadiusArcLine").length;
+      const firstLine = lineLikeElements[0];
+      const secondLine = lineLikeElements.find((element) => element.id !== firstLine?.id) ?? firstLine;
+      const requestedName = `角R円弧線${arcCount + 1}`;
+      return {
+        id,
+        name: uniqueName(id, requestedName),
+        type,
+        visible: true,
+        enabled: true,
+        numericVariables: [],
+        endpoint1: {
+          lineId: firstLine?.id ?? "",
+          endpointKey: "start"
+        },
+        endpoint2: {
+          lineId: secondLine?.id ?? "",
+          endpointKey: "start"
+        },
+        radius: 10,
+        intersectionIndex: 0
       };
     }
     case "bezierCurve": {

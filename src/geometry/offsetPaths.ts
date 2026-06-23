@@ -88,6 +88,7 @@ export const lineLikeElementTypes = [
   "line",
   "arcLine",
   "threePointArcLine",
+  "cornerRadiusArcLine",
   "bezierCurve",
   "offsetLine"
 ] as const;

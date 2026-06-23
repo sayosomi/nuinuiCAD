@@ -53,6 +53,7 @@ export type CommandId =
   | "addLine"
   | "addArcLine"
   | "addThreePointArcLine"
+  | "addCornerRadiusArcLine"
   | "addBezierCurve"
   | "addOffsetLine"
   | "addNumericVariable"

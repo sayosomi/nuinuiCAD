@@ -136,6 +136,7 @@ export const normalizeNumericExpressionInput = (
         element.type === "line" ||
         element.type === "arcLine" ||
         element.type === "threePointArcLine" ||
+        element.type === "cornerRadiusArcLine" ||
         element.type === "bezierCurve" ||
         element.type === "offsetLine"
     )
@@ -153,7 +154,8 @@ export const normalizeNumericExpressionInput = (
       if (
         (element.type === "line" ||
           element.type === "arcLine" ||
-          element.type === "threePointArcLine") &&
+          element.type === "threePointArcLine" ||
+          element.type === "cornerRadiusArcLine") &&
         property !== "length" &&
         property !== "startAngleDeg" &&
         property !== "endAngleDeg"

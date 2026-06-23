@@ -800,6 +800,309 @@ describe("evaluateElements", () => {
     });
   });
 
+  it("evaluates a corner radius arc line and trims the source line endpoints", () => {
+    const result = evaluateElements([
+      {
+        id: "a",
+        name: "点A",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 0,
+        y: 0
+      },
+      {
+        id: "b",
+        name: "点B",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 100,
+        y: 0
+      },
+      {
+        id: "c",
+        name: "点C",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 0,
+        y: 100
+      },
+      {
+        id: "ab",
+        name: "直線AB",
+        type: "line",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "a" },
+        endPoint: { mode: "reference", pointId: "b" }
+      },
+      {
+        id: "ac",
+        name: "直線AC",
+        type: "line",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "a" },
+        endPoint: { mode: "reference", pointId: "c" }
+      },
+      {
+        id: "corner",
+        name: "角R",
+        type: "cornerRadiusArcLine",
+        visible: true,
+        enabled: true,
+        endpoint1: { lineId: "ab", endpointKey: "start" },
+        endpoint2: { lineId: "ac", endpointKey: "start" },
+        radius: 10,
+        intersectionIndex: 0
+      }
+    ]);
+
+    const line1 = result.computedGeometry.get("ab");
+    const line2 = result.computedGeometry.get("ac");
+    const corner = result.computedGeometry.get("corner");
+
+    expect(result.errors).toHaveLength(0);
+    expect(line1).toMatchObject({ kind: "line" });
+    expect(line2).toMatchObject({ kind: "line" });
+    if (line1?.kind !== "line" || line2?.kind !== "line") throw new Error("Expected trimmed lines");
+    expect(line1.start.x).toBeCloseTo(10);
+    expect(line1.start.y).toBeCloseTo(0);
+    expect(line1.length).toBeCloseTo(90);
+    expect(line2.start.x).toBeCloseTo(0);
+    expect(line2.start.y).toBeCloseTo(10);
+    expect(line2.length).toBeCloseTo(90);
+    expect(corner).toMatchObject({
+      kind: "arcLine",
+      radius: 10
+    });
+    if (corner?.kind !== "arcLine") throw new Error("Expected a corner arc");
+    expect(corner.center.x).toBeCloseTo(10);
+    expect(corner.center.y).toBeCloseTo(10);
+    expect(corner.start.x).toBeCloseTo(10);
+    expect(corner.start.y).toBeCloseTo(0);
+    expect(corner.end.x).toBeCloseTo(0);
+    expect(corner.end.y).toBeCloseTo(10);
+    expect(corner.length).toBeCloseTo(Math.PI * 5);
+  });
+
+  it("lets later elements reference the trimmed line result", () => {
+    const result = evaluateElements([
+      {
+        id: "a",
+        name: "点A",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 0,
+        y: 0
+      },
+      {
+        id: "b",
+        name: "点B",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 100,
+        y: 0
+      },
+      {
+        id: "c",
+        name: "点C",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 0,
+        y: 100
+      },
+      {
+        id: "ab",
+        name: "直線AB",
+        type: "line",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "a" },
+        endPoint: { mode: "reference", pointId: "b" }
+      },
+      {
+        id: "ac",
+        name: "直線AC",
+        type: "line",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "a" },
+        endPoint: { mode: "reference", pointId: "c" }
+      },
+      {
+        id: "corner",
+        name: "角R",
+        type: "cornerRadiusArcLine",
+        visible: true,
+        enabled: true,
+        endpoint1: { lineId: "ab", endpointKey: "start" },
+        endpoint2: { lineId: "ac", endpointKey: "start" },
+        radius: 10,
+        intersectionIndex: 0
+      },
+      {
+        id: "division",
+        name: "トリム後始点",
+        type: "lineDivisionPoint",
+        visible: true,
+        enabled: true,
+        endpoint: { lineId: "ab", endpointKey: "start" },
+        placementMode: "distance",
+        distance: 0,
+        ratio: 0
+      },
+      {
+        id: "length-line",
+        name: "長さ参照線",
+        type: "line",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "coordinate", x: 0, y: 0 },
+        endPoint: { mode: "coordinate", x: { kind: "expression", expression: "ab.length" }, y: 0 }
+      }
+    ]);
+
+    expect(result.errors).toHaveLength(0);
+    const division = result.computedGeometry.get("division");
+    expect(division).toMatchObject({ kind: "point" });
+    if (division?.kind !== "point") throw new Error("Expected a point");
+    expect(division.x).toBeCloseTo(10);
+    expect(division.y).toBeCloseTo(0);
+    expect(result.computedGeometry.get("length-line")).toMatchObject({
+      kind: "line",
+      end: { x: 90, y: 0 }
+    });
+  });
+
+  it("evaluates a corner radius arc line between approximated line-like geometries", () => {
+    const result = evaluateElements([
+      {
+        id: "a",
+        name: "点A",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 0,
+        y: 0
+      },
+      {
+        id: "b",
+        name: "点B",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 100,
+        y: 0
+      },
+      {
+        id: "base",
+        name: "基準",
+        type: "line",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "a" },
+        endPoint: { mode: "reference", pointId: "b" }
+      },
+      {
+        id: "curve",
+        name: "曲線",
+        type: "bezierCurve",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "coordinate", x: 0, y: 0 },
+        startHandleAngleDeg: 270,
+        startHandleLength: 40,
+        intermediatePoints: [],
+        endPoint: { mode: "coordinate", x: 0, y: 100 },
+        endHandleAngleDeg: 270,
+        endHandleLength: 40
+      },
+      {
+        id: "corner",
+        name: "角R",
+        type: "cornerRadiusArcLine",
+        visible: true,
+        enabled: true,
+        endpoint1: { lineId: "base", endpointKey: "start" },
+        endpoint2: { lineId: "curve", endpointKey: "start" },
+        radius: 10,
+        intersectionIndex: 0
+      }
+    ]);
+
+    expect(result.errors).toHaveLength(0);
+    expect(result.computedGeometry.get("corner")).toMatchObject({ kind: "arcLine", radius: 10 });
+    expect(result.computedGeometry.get("curve")).toMatchObject({ kind: "offsetLine" });
+  });
+
+  it("reports corner radius arc line dependency and geometry errors", () => {
+    const missing = evaluateElements([
+      {
+        id: "corner",
+        name: "角R",
+        type: "cornerRadiusArcLine",
+        visible: true,
+        enabled: true,
+        endpoint1: { lineId: "ab", endpointKey: "start" },
+        endpoint2: { lineId: "ac", endpointKey: "start" },
+        radius: 10,
+        intersectionIndex: 0
+      }
+    ]);
+    expect(missing.errors[0]).toMatchObject({
+      elementId: "corner",
+      missingDependencyId: "ab"
+    });
+
+    const invalidRadius = evaluateElements([
+      ...validElements,
+      {
+        id: "corner",
+        name: "角R",
+        type: "cornerRadiusArcLine",
+        visible: true,
+        enabled: true,
+        endpoint1: { lineId: "ab", endpointKey: "start" },
+        endpoint2: { lineId: "ab", endpointKey: "end" },
+        radius: 0,
+        intersectionIndex: 0
+      }
+    ]);
+    expect(invalidRadius.computedGeometry.has("corner")).toBe(false);
+    expect(invalidRadius.errors[0].message).toContain("同じ線");
+
+    const invalidIndex = evaluateElements([
+      ...validElements,
+      {
+        id: "ac",
+        name: "直線AC",
+        type: "line",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "a" },
+        endPoint: { mode: "coordinate", x: 10, y: 100 }
+      },
+      {
+        id: "corner",
+        name: "角R",
+        type: "cornerRadiusArcLine",
+        visible: true,
+        enabled: true,
+        endpoint1: { lineId: "ab", endpointKey: "start" },
+        endpoint2: { lineId: "ac", endpointKey: "start" },
+        radius: 10,
+        intersectionIndex: 0.5
+      }
+    ]);
+    expect(invalidIndex.errors[0].message).toContain("0以上の整数");
+  });
+
   it("uses line endpoint tangent extensions when requested", () => {
     const elements: CadElement[] = [
       { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },

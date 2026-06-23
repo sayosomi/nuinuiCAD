@@ -153,6 +153,21 @@ describe("createCadElement", () => {
     });
   });
 
+  it("creates corner radius arc lines using the first two line endpoints as defaults", () => {
+    expect(createCadElement("cornerRadiusArcLine", sampleElements, { createId: createTestId })).toMatchObject({
+      id: "cornerRadiusArcLine-test-id",
+      name: "角R円弧線1",
+      type: "cornerRadiusArcLine",
+      visible: true,
+      enabled: true,
+      numericVariables: [],
+      endpoint1: { lineId: "line-ab", endpointKey: "start" },
+      endpoint2: { lineId: "line-bc", endpointKey: "start" },
+      radius: 10,
+      intersectionIndex: 0
+    });
+  });
+
   it("creates Bezier curves using the first two points as default endpoints", () => {
     expect(createCadElement("bezierCurve", sampleElements, { createId: createTestId })).toMatchObject({
       id: "bezierCurve-test-id",

@@ -49,6 +49,29 @@ describe("parameterDefinitions", () => {
     );
   });
 
+  it("defines editable parameters for corner radius arc lines", () => {
+    const arc: CadElement = {
+      id: "corner",
+      name: "角R",
+      type: "cornerRadiusArcLine",
+      visible: true,
+      enabled: true,
+      endpoint1: { lineId: "line-a", endpointKey: "start" },
+      endpoint2: { lineId: "line-b", endpointKey: "end" },
+      radius: 10,
+      intersectionIndex: 0
+    };
+
+    expect(getParameterDefinitions(arc)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ key: "endpoint1", directKey: "1", label: "端点1", kind: "lineEndpointReference" }),
+        expect.objectContaining({ key: "endpoint2", directKey: "2", label: "端点2", kind: "lineEndpointReference" }),
+        expect.objectContaining({ key: "radius", directKey: "r", label: "半径", kind: "number" }),
+        expect.objectContaining({ key: "intersectionIndex", directKey: "i", label: "番号", kind: "number" })
+      ])
+    );
+  });
+
   it("marks which point reference parameters can use coordinate mode", () => {
     const line: CadElement = {
       id: "line",

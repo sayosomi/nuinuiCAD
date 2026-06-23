@@ -265,6 +265,15 @@ export const getParameterDefinitions = (element: CadElement): ParameterDefinitio
           stepLevels: angleNumericParameterStepLevels
         }
       ];
+    case "cornerRadiusArcLine":
+      return [
+        ...commonParameters,
+        ...numericVariableParameters(element),
+        { key: "endpoint1", directKey: "1", label: "端点1", kind: "lineEndpointReference" },
+        { key: "endpoint2", directKey: "2", label: "端点2", kind: "lineEndpointReference" },
+        { key: "radius", directKey: "r", label: "半径", kind: "number" },
+        { key: "intersectionIndex", directKey: "i", label: "番号", kind: "number" }
+      ];
     case "bezierCurve":
       return [
         ...commonParameters,

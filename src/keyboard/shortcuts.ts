@@ -227,6 +227,12 @@ export const shortcutDefinitions: ShortcutDefinition[] = [
     matches: (event) => event.key.toLowerCase() === "c" && noModifier(event)
   },
   {
+    commandId: "addCornerRadiusArcLine",
+    label: "角R円弧線を追加",
+    keys: "Shift+R",
+    matches: (event) => event.key.toLowerCase() === "r" && shiftOnly(event)
+  },
+  {
     commandId: "addOffsetLine",
     label: "オフセット線を追加",
     keys: "Shift+O",

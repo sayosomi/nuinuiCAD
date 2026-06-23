@@ -13,6 +13,7 @@ const defaultNameBases: Record<CadElementType, string> = {
   line: "直線",
   arcLine: "円弧線",
   threePointArcLine: "三点円弧線",
+  cornerRadiusArcLine: "角R円弧線",
   bezierCurve: "曲線",
   offsetLine: "オフセット線"
 };

@@ -18,6 +18,7 @@ export const paletteCommandIds: CommandId[] = [
   "addLine",
   "addArcLine",
   "addThreePointArcLine",
+  "addCornerRadiusArcLine",
   "addBezierCurve",
   "addOffsetLine",
   "startPointPick",
@@ -78,6 +79,7 @@ export const paletteKeywords: Partial<Record<CommandId, string[]>> = {
     "線",
     "追加"
   ],
+  addCornerRadiusArcLine: ["corner", "radius", "fillet", "arc", "角R", "角丸", "円弧", "線", "追加"],
   addBezierCurve: ["bezier", "curve", "曲線", "ベジェ", "追加"],
   addOffsetLine: ["offset", "line", "curve", "オフセット", "線", "曲線", "追加"],
   startNumericReferencePick: ["number", "reference", "measurement", "数値", "参照", "選択"],
