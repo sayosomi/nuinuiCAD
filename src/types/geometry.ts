@@ -163,6 +163,12 @@ export type OffsetLineElement = CadElementBase & {
   closed: boolean;
 };
 
+export type SplitLineElement = CadElementBase & {
+  type: "splitLine";
+  baseLineId: ElementId;
+  splitPoint: PointAnchor;
+};
+
 export type GroupElement = CadElementBase & {
   type: "group";
   expanded: boolean;
@@ -182,7 +188,8 @@ export type CadElement =
   | ThreePointArcLineElement
   | CornerRadiusArcLineElement
   | BezierCurveElement
-  | OffsetLineElement;
+  | OffsetLineElement
+  | SplitLineElement;
 export type CadElementType = CadElement["type"];
 
 export type ComputedPoint = {
@@ -324,5 +331,6 @@ export const elementTypeLabels: Record<CadElementType, string> = {
   threePointArcLine: "three-point arc line",
   cornerRadiusArcLine: "角R円弧線",
   bezierCurve: "Bezier curve",
-  offsetLine: "オフセット線"
+  offsetLine: "オフセット線",
+  splitLine: "分割線"
 };

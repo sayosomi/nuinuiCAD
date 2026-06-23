@@ -72,6 +72,25 @@ describe("parameterDefinitions", () => {
     );
   });
 
+  it("defines editable parameters for split lines", () => {
+    const line: CadElement = {
+      id: "split",
+      name: "分割線",
+      type: "splitLine",
+      visible: true,
+      enabled: true,
+      baseLineId: "line-a",
+      splitPoint: { mode: "reference", pointId: "point-a" }
+    };
+
+    expect(getParameterDefinitions(line)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ key: "baseLineId", directKey: "b", label: "基準線", kind: "lineReference" }),
+        expect.objectContaining({ key: "splitPoint", directKey: "p", label: "点", kind: "reference", allowCoordinate: false })
+      ])
+    );
+  });
+
   it("marks which point reference parameters can use coordinate mode", () => {
     const line: CadElement = {
       id: "line",

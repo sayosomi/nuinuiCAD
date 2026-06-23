@@ -33,7 +33,8 @@ export const createCadElement = (
       element.type === "threePointArcLine" ||
       element.type === "cornerRadiusArcLine" ||
       element.type === "bezierCurve" ||
-      element.type === "offsetLine"
+      element.type === "offsetLine" ||
+      element.type === "splitLine"
   );
   const uniqueName = (elementId: ElementId, requestedName: string) =>
     makeUniqueElementName({
@@ -282,6 +283,21 @@ export const createCadElement = (
         offset: 10,
         side: "right",
         closed: false
+      };
+    }
+    case "splitLine": {
+      const id = createId(type);
+      const splitLineCount = elements.filter((element) => element.type === "splitLine").length;
+      const requestedName = `分割線${splitLineCount + 1}`;
+      return {
+        id,
+        name: uniqueName(id, requestedName),
+        type,
+        visible: true,
+        enabled: true,
+        numericVariables: [],
+        baseLineId: lineLikeElements[0]?.id ?? "",
+        splitPoint: referenceAnchor(firstPointId)
       };
     }
   }

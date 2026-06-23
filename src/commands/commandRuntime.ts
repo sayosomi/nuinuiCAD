@@ -25,7 +25,8 @@ export const isLineLikeElement = (element: CadElement) =>
   element.type === "threePointArcLine" ||
   element.type === "cornerRadiusArcLine" ||
   element.type === "bezierCurve" ||
-  element.type === "offsetLine";
+  element.type === "offsetLine" ||
+  element.type === "splitLine";
 
 export const isPointLikeElement = (element: CadElement) =>
   element.type === "freePoint" ||

@@ -43,6 +43,29 @@ export const addOffsetLine = () => {
   });
 };
 
+export const addSplitLine = () => {
+  const { elements } = useCadDocumentStore.getState();
+  const selectedIds = new Set(getSelectedElementIds());
+  const selectedLine = elements.find((element) => selectedIds.has(element.id) && isLineLikeElement(element));
+  const fallbackLine = selectedLine ?? elements.find(isLineLikeElement);
+  const selectedPoint = elements.find((element) => selectedIds.has(element.id) && isPointLikeElement(element));
+  const fallbackPoint = selectedPoint ?? elements.find(isPointLikeElement);
+  const element = createCadElement("splitLine", elements);
+  if (element.type !== "splitLine") return;
+  const splitLine: CadElement = {
+    ...element,
+    baseLineId: fallbackLine?.id ?? "",
+    splitPoint: referenceAnchor(fallbackPoint?.id ?? "")
+  };
+  useCadDocumentStore.getState().commitDocumentChange({
+    elements: [...elements, splitLine],
+    selectedElementId: splitLine.id,
+    selectedElementIds: [splitLine.id],
+    selectionAnchorElementId: splitLine.id,
+    selectedParameterKey: getFirstParameterKey(splitLine)
+  });
+};
+
 export const addLineDivisionPoint = () => {
   const { elements } = useCadDocumentStore.getState();
   const selectedIds = new Set(getSelectedElementIds());

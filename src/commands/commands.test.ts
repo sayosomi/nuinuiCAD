@@ -814,6 +814,26 @@ describe("commands", () => {
     expect(state.past).toHaveLength(1);
   });
 
+  it("adds a split line from the selected line and point", () => {
+    useCadStore.setState({
+      selectedElementId: "line-ab",
+      selectedElementIds: ["point-b", "line-ab"],
+      selectionAnchorElementId: "point-b"
+    });
+
+    dispatchCommand("addSplitLine");
+
+    const state = useCadStore.getState();
+    const splitLine = state.elements.at(-1);
+    expect(splitLine).toMatchObject({
+      type: "splitLine",
+      baseLineId: "line-ab",
+      splitPoint: { mode: "reference", pointId: "point-b" }
+    });
+    expect(state.selectedElementId).toBe(splitLine?.id);
+    expect(state.past).toHaveLength(1);
+  });
+
   it("adds an arc line and selects it", () => {
     dispatchCommand("addArcLine");
 
@@ -1037,6 +1057,7 @@ describe("commands", () => {
       "addDivisionPoint"
     );
     expect(filterCommandPaletteItems("line").map((item) => item.commandId)).toContain("addLine");
+    expect(filterCommandPaletteItems("分割").map((item) => item.commandId)).toContain("addSplitLine");
     expect(filterCommandPaletteItems("直線").map((item) => item.commandId)).toContain("addLine");
     expect(filterCommandPaletteItems("円弧").map((item) => item.commandId)).toContain("addArcLine");
     expect(filterCommandPaletteItems("三点円弧").map((item) => item.commandId)).toContain(

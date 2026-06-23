@@ -56,6 +56,7 @@ export type CommandId =
   | "addCornerRadiusArcLine"
   | "addBezierCurve"
   | "addOffsetLine"
+  | "addSplitLine"
   | "addNumericVariable"
   | "deleteNumericVariable"
   | "addBezierNumericVariable"

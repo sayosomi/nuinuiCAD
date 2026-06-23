@@ -88,6 +88,12 @@ export const getDirectParentIds = (element: CadElement): ElementId[] => {
           ...extractNumericExpressionReferences(element.tangentAngleDeg),
           ...extractNumericExpressionReferences(element.distance)
         ].map((reference) => reference.elementId);
+      case "splitLine":
+        return [
+          ...numericVariableReferences(element),
+          { elementId: element.baseLineId },
+          ...pointAnchorParentIds(element.splitPoint).map((elementId) => ({ elementId }))
+        ].map((reference) => reference.elementId);
       case "line":
         return [
           ...numericVariableReferences(element),
@@ -167,6 +173,7 @@ export const getDirectParentIds = (element: CadElement): ElementId[] => {
       return numericExpressionParentIds();
     case "bezierCurve":
     case "offsetLine":
+    case "splitLine":
       return numericExpressionParentIds();
   }
 };

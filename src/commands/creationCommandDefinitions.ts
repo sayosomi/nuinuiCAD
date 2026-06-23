@@ -3,6 +3,7 @@ import {
   addElement,
   addIntersectionPoint,
   addLineDivisionPoint,
+  addSplitLine,
   addLineTangentOffsetPoint,
   addOffsetLine
 } from "./elementCreationCommands";
@@ -143,6 +144,12 @@ export const creationCommandDefinitions = {
     palette: { order: 13, keywords: ["offset", "line", "curve", "オフセット", "線", "曲線", "追加"] },
     shortcuts: [{ keys: "Shift+O" }],
     run: () => addOffsetLine()
+  },
+  addSplitLine: {
+    id: "addSplitLine",
+    label: "分割線を追加",
+    palette: { order: 14, keywords: ["split", "divide", "line", "分割", "分割線", "線", "追加"] },
+    run: () => addSplitLine()
   },
   addNumericVariable: {
     id: "addNumericVariable",

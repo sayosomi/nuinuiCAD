@@ -191,6 +191,28 @@ describe("parameterAccess", () => {
     expect(supportsNumericVariables(point)).toBe(true);
   });
 
+  it("updates split line references and supports numeric variables", () => {
+    const line: CadElement = {
+      id: "split",
+      name: "分割線",
+      type: "splitLine",
+      visible: true,
+      enabled: true,
+      baseLineId: "line-a",
+      splitPoint: referenceAnchor("point-a")
+    };
+
+    expect(getParameterValue(line, "baseLineId")).toBe("line-a");
+    expect(getPointAnchor(line, "splitPoint")).toEqual(referenceAnchor("point-a"));
+    expect(setParameterValue(line, "baseLineId", "line-b")).toMatchObject({
+      baseLineId: "line-b"
+    });
+    expect(setParameterValue(line, "splitPoint", referenceAnchor("point-b"))).toMatchObject({
+      splitPoint: referenceAnchor("point-b")
+    });
+    expect(supportsNumericVariables(line)).toBe(true);
+  });
+
   it("updates Bezier intermediate anchors and handle parameters", () => {
     const curve: CadElement = {
       id: "curve",

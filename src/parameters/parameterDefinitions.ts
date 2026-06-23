@@ -179,6 +179,13 @@ export const getParameterDefinitions = (element: CadElement): ParameterDefinitio
         },
         { key: "distance", directKey: "d", label: "距離", kind: "number" }
       ];
+    case "splitLine":
+      return [
+        ...commonParameters,
+        ...numericVariableParameters(element),
+        { key: "baseLineId", directKey: "b", label: "基準線", kind: "lineReference" },
+        { key: "splitPoint", directKey: "p", label: "点", kind: "reference", allowCoordinate: false }
+      ];
     case "line":
       return [
         ...commonParameters,

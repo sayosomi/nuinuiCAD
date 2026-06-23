@@ -15,7 +15,8 @@ const defaultNameBases: Record<CadElementType, string> = {
   threePointArcLine: "三点円弧線",
   cornerRadiusArcLine: "角R円弧線",
   bezierCurve: "曲線",
-  offsetLine: "オフセット線"
+  offsetLine: "オフセット線",
+  splitLine: "分割線"
 };
 
 const normalizeName = (name: string, fallbackBaseName: string) => {

@@ -259,6 +259,242 @@ describe("evaluateElements", () => {
     });
   });
 
+  it("splits a line at an existing point on the finite segment", () => {
+    const result = evaluateElements([
+      {
+        id: "a",
+        name: "点A",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 0,
+        y: 0
+      },
+      {
+        id: "b",
+        name: "点B",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 100,
+        y: 0
+      },
+      {
+        id: "line",
+        name: "基準線",
+        type: "line",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "a" },
+        endPoint: { mode: "reference", pointId: "b" }
+      },
+      {
+        id: "p",
+        name: "分割点",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 40,
+        y: 0
+      },
+      {
+        id: "split",
+        name: "先の線",
+        type: "splitLine",
+        visible: true,
+        enabled: true,
+        baseLineId: "line",
+        splitPoint: { mode: "reference", pointId: "p" }
+      }
+    ]);
+
+    expect(result.errors).toHaveLength(0);
+    expect(result.computedGeometry.get("line")).toMatchObject({
+      kind: "line",
+      name: "基準線",
+      start: { x: 0, y: 0 },
+      end: { x: 40, y: 0 },
+      length: 40
+    });
+    expect(result.computedGeometry.get("split")).toMatchObject({
+      kind: "line",
+      name: "先の線",
+      start: { x: 40, y: 0 },
+      end: { x: 100, y: 0 },
+      length: 60
+    });
+  });
+
+  it("rejects a split point on the extension outside the line segment", () => {
+    const result = evaluateElements([
+      validElements[0],
+      validElements[1],
+      validElements[2],
+      {
+        id: "outside",
+        name: "外側点",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 160,
+        y: 45
+      },
+      {
+        id: "split",
+        name: "分割線",
+        type: "splitLine",
+        visible: true,
+        enabled: true,
+        baseLineId: "ab",
+        splitPoint: { mode: "reference", pointId: "outside" }
+      }
+    ]);
+
+    expect(result.computedGeometry.has("split")).toBe(false);
+    expect(result.errors[0]).toMatchObject({
+      elementId: "split",
+      missingDependencyId: "split"
+    });
+    expect(result.errors[0].message).toContain("基準線上");
+  });
+
+  it("rejects a split point at a line endpoint", () => {
+    const result = evaluateElements([
+      validElements[0],
+      validElements[1],
+      validElements[2],
+      {
+        id: "split",
+        name: "分割線",
+        type: "splitLine",
+        visible: true,
+        enabled: true,
+        baseLineId: "ab",
+        splitPoint: { mode: "reference", pointId: "a" }
+      }
+    ]);
+
+    expect(result.computedGeometry.has("split")).toBe(false);
+    expect(result.errors[0].message).toContain("端点");
+  });
+
+  it("splits an arc line and keeps the original name on the near side", () => {
+    const result = evaluateElements([
+      {
+        id: "center",
+        name: "中心",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 0,
+        y: 0
+      },
+      {
+        id: "arc",
+        name: "円弧",
+        type: "arcLine",
+        visible: true,
+        enabled: true,
+        centerPoint: { mode: "reference", pointId: "center" },
+        radius: 10,
+        startAngleDeg: 0,
+        endAngleDeg: 90
+      },
+      {
+        id: "mid",
+        name: "中点",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: Math.SQRT1_2 * 10,
+        y: -Math.SQRT1_2 * 10
+      },
+      {
+        id: "split",
+        name: "先円弧",
+        type: "splitLine",
+        visible: true,
+        enabled: true,
+        baseLineId: "arc",
+        splitPoint: { mode: "reference", pointId: "mid" }
+      }
+    ]);
+
+    const near = result.computedGeometry.get("arc");
+    const far = result.computedGeometry.get("split");
+    expect(result.errors).toHaveLength(0);
+    expect(near).toMatchObject({ kind: "arcLine", name: "円弧", startAngleDeg: 0, sweepAngleDeg: 45 });
+    expect(far).toMatchObject({ kind: "arcLine", name: "先円弧", startAngleDeg: 45, sweepAngleDeg: 45 });
+  });
+
+  it("splits a bezier curve into two computed curves", () => {
+    const result = evaluateElements([
+      {
+        id: "start",
+        name: "始点",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 0,
+        y: 0
+      },
+      {
+        id: "end",
+        name: "終点",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 100,
+        y: 0
+      },
+      {
+        id: "curve",
+        name: "曲線",
+        type: "bezierCurve",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "start" },
+        startHandleAngleDeg: 0,
+        startHandleLength: 30,
+        intermediatePoints: [],
+        endPoint: { mode: "reference", pointId: "end" },
+        endHandleAngleDeg: 180,
+        endHandleLength: 30
+      },
+      {
+        id: "mid",
+        name: "中点",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 50,
+        y: 0
+      },
+      {
+        id: "split",
+        name: "先曲線",
+        type: "splitLine",
+        visible: true,
+        enabled: true,
+        baseLineId: "curve",
+        splitPoint: { mode: "reference", pointId: "mid" }
+      }
+    ]);
+
+    const near = result.computedGeometry.get("curve");
+    const far = result.computedGeometry.get("split");
+    expect(result.errors).toHaveLength(0);
+    expect(near).toMatchObject({ kind: "bezierCurve", name: "曲線" });
+    expect(far).toMatchObject({ kind: "bezierCurve", name: "先曲線" });
+    if (near?.kind !== "bezierCurve" || far?.kind !== "bezierCurve") {
+      throw new Error("Expected split bezier curves");
+    }
+    expect(near.segments.at(-1)?.end.x).toBeCloseTo(50, 2);
+    expect(near.segments.at(-1)?.end.y).toBeCloseTo(0, 2);
+    expect(far.segments[0].start.x).toBeCloseTo(50, 2);
+    expect(far.segments[0].start.y).toBeCloseTo(0, 2);
+  });
+
   it("reports a division point distance error when the endpoints overlap", () => {
     const result = evaluateElements([
       validElements[0],

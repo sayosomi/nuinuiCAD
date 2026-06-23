@@ -186,6 +186,19 @@ describe("createCadElement", () => {
     });
   });
 
+  it("creates split lines using the first line and first point as defaults", () => {
+    expect(createCadElement("splitLine", sampleElements, { createId: createTestId })).toMatchObject({
+      id: "splitLine-test-id",
+      name: "分割線1",
+      type: "splitLine",
+      visible: true,
+      enabled: true,
+      numericVariables: [],
+      baseLineId: "line-ab",
+      splitPoint: { mode: "reference", pointId: "point-a" }
+    });
+  });
+
   it("keeps names unique when the requested default name already exists", () => {
     const existing = [
       ...sampleElements,

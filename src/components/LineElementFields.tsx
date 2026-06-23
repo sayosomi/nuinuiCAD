@@ -8,6 +8,7 @@ import {
   BooleanParameterEditor,
   ChoiceParameterEditor,
   LineEndpointReferenceEditor,
+  LineReferenceEditor,
   LineReferenceListEditor,
   NumericParameterEditor,
   PointAnchorParameterEditor
@@ -179,6 +180,24 @@ export const LineElementFields = ({
             label="閉じる"
             checked={element.closed}
           />
+        </>
+      );
+
+    case "splitLine":
+      return (
+        <>
+          <LineReferenceEditor
+            {...commonEditorProps}
+            parameterKey="baseLineId"
+            label="基準線"
+            lineId={element.baseLineId}
+          />
+          {pointAnchorEditor({
+            parameterKey: "splitPoint",
+            label: "点",
+            anchor: element.splitPoint,
+            allowCoordinate: false
+          })}
         </>
       );
 

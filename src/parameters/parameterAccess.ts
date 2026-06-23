@@ -15,7 +15,8 @@ export const supportsNumericVariables = (element: CadElement) =>
   element.type === "threePointArcLine" ||
   element.type === "cornerRadiusArcLine" ||
   element.type === "bezierCurve" ||
-  element.type === "offsetLine";
+  element.type === "offsetLine" ||
+  element.type === "splitLine";
 
 export const parseIntermediateParameterKey = (key: string) => {
   const [, intermediatePointId, field] = key.split(":");
@@ -63,6 +64,9 @@ export const getPointAnchor = (element: CadElement, key: string): PointAnchor | 
   }
   if (key === "basePoint" && element.type === "lineTangentOffsetPoint") {
     return element.basePoint;
+  }
+  if (key === "splitPoint" && element.type === "splitLine") {
+    return element.splitPoint;
   }
   return null;
 };
@@ -118,6 +122,9 @@ export const setPointAnchor = (
   }
   if (key === "basePoint" && element.type === "lineTangentOffsetPoint") {
     return { ...element, basePoint: anchor };
+  }
+  if (key === "splitPoint" && element.type === "splitLine") {
+    return { ...element, splitPoint: anchor };
   }
   return element;
 };
