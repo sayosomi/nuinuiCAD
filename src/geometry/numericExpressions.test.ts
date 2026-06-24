@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   addToNumericValue,
+  formatNumericExpressionForDisplay,
   makeNumericExpression,
   normalizeNumericExpressionInput
 } from "./numericExpressions";
@@ -113,5 +114,68 @@ describe("normalizeNumericExpressionInput", () => {
         elements[0].type === "bezierCurve" ? elements[0].numericVariables ?? [] : []
       )
     ).toBe("curve-ac.startHandleLength + @shared");
+  });
+
+  it("normalizes element names inside numeric measurement functions", () => {
+    const elements: CadElement[] = [
+      {
+        id: "point-a",
+        name: "点A",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 0,
+        y: 0
+      },
+      {
+        id: "point-b",
+        name: "点B",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 10,
+        y: 0
+      },
+      {
+        id: "line-ab",
+        name: "直線AB",
+        type: "line",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "point-a" },
+        endPoint: { mode: "reference", pointId: "point-b" }
+      }
+    ];
+
+    expect(normalizeNumericExpressionInput("distance(点A, 点B) + 点線距離(点B, 直線AB)", elements)).toBe(
+      "distance(point-a, point-b) + 点線距離(point-b, line-ab)"
+    );
+  });
+
+  it("formats numeric measurement function element ids for display", () => {
+    const elements: CadElement[] = [
+      {
+        id: "point-a",
+        name: "点A",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 0,
+        y: 0
+      },
+      {
+        id: "point-b",
+        name: "点B",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 10,
+        y: 0
+      }
+    ];
+
+    expect(formatNumericExpressionForDisplay(expression("距離(point-a, point-b)"), elements)).toBe(
+      "距離(点A, 点B)"
+    );
   });
 });

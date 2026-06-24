@@ -20,7 +20,7 @@ export type LineMeasurementKey =
 
 export type NumericExpressionReference = {
   elementId: ElementId;
-  property: NumericMeasurementKey;
+  property?: NumericMeasurementKey;
 };
 
 export type NumericExpressionError = {

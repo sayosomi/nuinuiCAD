@@ -1,12 +1,15 @@
 import type {
   CadElement,
   ComputedGeometry,
+  ComputedLine,
+  ComputedPoint,
   ComputedVariable,
   ElementId,
   NumericVariable,
   NumericValue
 } from "../types/geometry";
 import { Parser, tokenize } from "./numericExpressionParser";
+import type { NumericExpressionFunctionName } from "./numericExpressionParser";
 import { propertyLabels } from "./numericExpressionProperties";
 import type {
   NumericExpressionError,
@@ -36,6 +39,8 @@ export const makeNumericExpression = (expression: string): NumericValue => {
     ? numeric
     : { kind: "expression", expression: trimmed };
 };
+
+const EPSILON = 1e-9;
 
 const formatExpressionNumber = (value: number) =>
   Number.isInteger(value) ? `${value}` : value.toFixed(10).replace(/\.?0+$/, "");
@@ -115,6 +120,17 @@ export const formatNumericExpressionForDisplay = (
       return variable ? `@${variable.name}` : match;
     })
     .replace(
+      /(distance|angle|lineDistance|距離|角度|点線距離)\(\s*([^)]*?)\s*\)/g,
+      (match, name: string, rawArgs: string) => {
+        const args = rawArgs
+          .split(",")
+          .map((arg) => arg.trim())
+          .map((arg) => elementsById.get(arg)?.name ?? arg)
+          .join(", ");
+        return `${name}(${args})`;
+      }
+    )
+    .replace(
       /([^\s()+*/]+)\.(length|startAngleDeg|endAngleDeg|startTangentAngleDeg|endTangentAngleDeg|startHandleAngleDeg|startHandleLength|endHandleAngleDeg|endHandleLength)\b/g,
       (match, elementId: ElementId, property: NumericMeasurementKey) => {
       const element = elementsById.get(elementId);
@@ -144,6 +160,9 @@ export const normalizeNumericExpressionInput = (
         element.type === "copyLine" ||
         element.type === "symmetricCopyLine"
     )
+    .sort((a, b) => b.name.length - a.name.length);
+  const namedElements = [...elements]
+    .filter((element) => element.name.trim().length > 0)
     .sort((a, b) => b.name.length - a.name.length);
 
   for (const variable of variables) {
@@ -183,6 +202,13 @@ export const normalizeNumericExpressionInput = (
     }
   }
 
+  for (const element of namedElements) {
+    expression = expression.replace(
+      new RegExp(`(^|[(,]\\s*)${escapeRegExp(element.name)}(?=\\s*[,)])`, "g"),
+      `$1${element.id}`
+    );
+  }
+
   return expression;
 };
 
@@ -190,8 +216,12 @@ export const extractNumericExpressionReferences = (value: NumericValue): Numeric
   if (!isNumericExpression(value)) return [];
   try {
     return tokenize(value.expression)
-      .filter((token) => token.type === "reference")
-      .map((token) => ({ elementId: token.elementId, property: token.property }));
+      .filter((token) => token.type === "reference" || token.type === "element")
+      .map((token) =>
+        token.type === "reference"
+          ? { elementId: token.elementId, property: token.property }
+          : { elementId: token.elementId }
+      );
   } catch {
     return [];
   }
@@ -229,9 +259,36 @@ export const evaluateNumericValue = ({
   if (!isNumericExpression(value)) return { value };
 
   try {
+    const dependencyError = (elementId: ElementId) => {
+      const dependencyName = elementsById.get(elementId)?.name;
+      return Object.assign(
+        new Error(`${dependencyName ?? elementId} はこの要素より後にあるか、存在しません。`),
+        { dependencyId: elementId, dependencyName }
+      );
+    };
+    const pointValue = (elementId: ElementId): ComputedPoint => {
+      const geometry = computedGeometry.get(elementId);
+      if (geometry?.kind !== "point") throw dependencyError(elementId);
+      return geometry;
+    };
+    const lineValue = (elementId: ElementId): ComputedLine => {
+      const geometry = computedGeometry.get(elementId);
+      if (geometry?.kind !== "line") throw dependencyError(elementId);
+      return geometry;
+    };
+    const requireArgs = (
+      name: NumericExpressionFunctionName,
+      args: ElementId[],
+      count: number
+    ) => {
+      if (args.length !== count) {
+        throw new Error(`${name} の引数は ${count} 個必要です。`);
+      }
+    };
     const parser = new Parser(tokenize(value.expression), (reference) => {
       const geometry = computedGeometry.get(reference.elementId);
       if (
+        !reference.property ||
         !geometry ||
         (
           geometry.kind !== "line" &&
@@ -306,6 +363,29 @@ export const evaluateNumericValue = ({
         new Error(`${localVariableNames?.get(variableId) ?? variableId} はこの要素内に存在しません。または参照可能な変数に存在しません。`),
         { dependencyId: variableId, dependencyName: localVariableNames?.get(variableId) }
       );
+    }, (name, args) => {
+      if (name === "distance") {
+        requireArgs(name, args, 2);
+        const point1 = pointValue(args[0]);
+        const point2 = pointValue(args[1]);
+        return Math.hypot(point2.x - point1.x, point2.y - point1.y);
+      }
+
+      if (name === "angle") {
+        requireArgs(name, args, 2);
+        const point1 = pointValue(args[0]);
+        const point2 = pointValue(args[1]);
+        return (Math.atan2(point1.y - point2.y, point2.x - point1.x) * 180 / Math.PI + 360) % 360;
+      }
+
+      requireArgs(name, args, 2);
+      const point = pointValue(args[0]);
+      const line = lineValue(args[1]);
+      const dx = line.end.x - line.start.x;
+      const dy = line.end.y - line.start.y;
+      const length = Math.hypot(dx, dy);
+      if (length <= EPSILON) throw new Error(`${line.name} は長さ0のため点線距離を計算できません。`);
+      return Math.abs(dx * (line.start.y - point.y) - (line.start.x - point.x) * dy) / length;
     });
     return { value: parser.parse() };
   } catch (error) {

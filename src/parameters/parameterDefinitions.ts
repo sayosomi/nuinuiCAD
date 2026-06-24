@@ -82,14 +82,14 @@ export const getParameterDefinitions = (element: CadElement): ParameterDefinitio
         {
           key: "scope",
           directKey: "s",
-          label: "スコープ",
+          label: "使える範囲",
           kind: "choice",
           choiceOptions: ["global", "group"]
         },
         {
           key: "valueMode",
           directKey: "m",
-          label: "値の種類",
+          label: "計算方法",
           kind: "choice",
           choiceOptions: ["expression", "pointDistance", "pointAngle", "pointLineDistance"]
         },

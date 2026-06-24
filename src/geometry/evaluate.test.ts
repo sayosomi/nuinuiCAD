@@ -376,6 +376,102 @@ describe("evaluateElements", () => {
     expect(result.computedVariables.get("line-distance")?.value).toBeCloseTo(10);
   });
 
+  it("evaluates point distance, point angle, and point-line distance inside expressions", () => {
+    const result = evaluateElements([
+      {
+        id: "a",
+        name: "点A",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 0,
+        y: 0
+      },
+      {
+        id: "b",
+        name: "点B",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 0,
+        y: -10
+      },
+      {
+        id: "line",
+        name: "直線",
+        type: "line",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "coordinate", x: 0, y: 0 },
+        endPoint: { mode: "coordinate", x: 10, y: 0 }
+      },
+      {
+        id: "measurement",
+        name: "測定",
+        type: "variable",
+        visible: true,
+        enabled: true,
+        scope: "global",
+        valueMode: "expression",
+        expression: {
+          kind: "expression",
+          expression: "distance(a, b) + angle(a, b) + lineDistance(b, line)"
+        },
+        point1: { mode: "reference", pointId: "a" },
+        point2: { mode: "reference", pointId: "b" },
+        point: { mode: "reference", pointId: "a" },
+        lineId: "line"
+      }
+    ]);
+
+    expect(result.errors).toHaveLength(0);
+    expect(result.computedVariables.get("measurement")?.value).toBeCloseTo(110);
+  });
+
+  it("reports dependency errors for measurement function references that appear too late", () => {
+    const result = evaluateElements([
+      {
+        id: "measurement",
+        name: "測定",
+        type: "variable",
+        visible: true,
+        enabled: true,
+        scope: "global",
+        valueMode: "expression",
+        expression: { kind: "expression", expression: "distance(a, b)" },
+        point1: { mode: "reference", pointId: "a" },
+        point2: { mode: "reference", pointId: "b" },
+        point: { mode: "reference", pointId: "a" },
+        lineId: ""
+      },
+      {
+        id: "a",
+        name: "点A",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 0,
+        y: 0
+      },
+      {
+        id: "b",
+        name: "点B",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 10,
+        y: 0
+      }
+    ]);
+
+    expect(result.computedVariables.has("measurement")).toBe(false);
+    expect(result.errors[0]).toMatchObject({
+      elementId: "measurement",
+      missingDependencyId: "a",
+      missingDependencyName: "点A"
+    });
+  });
+
   it("reports a direct coordinate expression dependency that appears too late", () => {
     const result = evaluateElements([
       validElements[0],

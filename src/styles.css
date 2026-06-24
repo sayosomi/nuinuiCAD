@@ -907,6 +907,66 @@ select {
   color: #0f4f49;
 }
 
+.variable-choice-field {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: 7px;
+}
+
+.variable-choice-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.variable-choice-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 8px;
+  text-align: left;
+}
+
+.variable-choice-card svg {
+  color: #0f766e;
+}
+
+.variable-choice-card span {
+  display: grid;
+  min-width: 0;
+  gap: 1px;
+}
+
+.variable-choice-card strong {
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.variable-choice-card small {
+  overflow: hidden;
+  color: #686b62;
+  font-size: 10px;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.variable-choice-card.active-toggle,
+.variable-choice-card.active-toggle:hover {
+  border-color: #7dc8b5;
+  background: #d9f0e8;
+  color: #0f4f49;
+}
+
+.variable-choice-card.active-toggle small {
+  color: #0f4f49;
+}
+
 .point-pick-button,
 .line-pick-button {
   min-height: 32px;
