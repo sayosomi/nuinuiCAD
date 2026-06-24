@@ -28,6 +28,12 @@ export const creationCommandDefinitions = {
     palette: { order: 1, keywords: ["point", "free", "free point", "点", "追加"] },
     run: () => addElement("freePoint")
   },
+  addVariable: {
+    id: "addVariable",
+    label: "変数を追加",
+    palette: { order: 21.5, keywords: ["variable", "global", "local", "変数", "グローバル", "ローカル", "追加"] },
+    run: () => addElement("variable")
+  },
   addOffsetPoint: {
     id: "addOffsetPoint",
     label: "offset point を追加",

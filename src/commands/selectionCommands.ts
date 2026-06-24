@@ -25,7 +25,9 @@ export const toggleSelectedElementsBooleanProperty = (property: "visible" | "ena
 
   useCadDocumentStore.getState().commitDocumentChange({
     elements: elements.map((element) =>
-      selectedIds.has(element.id) ? { ...element, [property]: !element[property] } : element
+      selectedIds.has(element.id) && !(property === "visible" && element.type === "variable")
+        ? { ...element, [property]: !element[property] }
+        : element
     )
   });
 };
@@ -40,7 +42,9 @@ export const toggleElementBooleanProperty = (
 
   useCadDocumentStore.getState().commitDocumentChange({
     elements: elements.map((element) =>
-      element.id === elementId ? { ...element, [property]: !element[property] } : element
+      element.id === elementId && !(property === "visible" && element.type === "variable")
+        ? { ...element, [property]: !element[property] }
+        : element
     )
   });
 };

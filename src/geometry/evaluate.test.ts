@@ -127,6 +127,255 @@ describe("evaluateElements", () => {
     });
   });
 
+  it("evaluates global variable elements and resolves them from later numeric expressions", () => {
+    const result = evaluateElements([
+      {
+        id: "ease",
+        name: "ゆとり",
+        type: "variable",
+        visible: true,
+        enabled: true,
+        scope: "global",
+        valueMode: "expression",
+        expression: 12,
+        point1: { mode: "reference", pointId: "a" },
+        point2: { mode: "reference", pointId: "a" },
+        point: { mode: "reference", pointId: "a" },
+        lineId: ""
+      },
+      {
+        id: "a",
+        name: "点A",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: { kind: "expression", expression: "@ゆとり + 8" },
+        y: 0
+      }
+    ]);
+
+    expect(result.errors).toHaveLength(0);
+    expect(result.computedVariables.get("ease")).toMatchObject({ value: 12 });
+    expect(result.computedGeometry.get("a")).toMatchObject({ kind: "point", x: 20 });
+  });
+
+  it("uses the nearest previous variable with the same name", () => {
+    const variable = (id: string, expression: number): CadElement => ({
+      id,
+      name: "寸法",
+      type: "variable",
+      visible: true,
+      enabled: true,
+      scope: "global",
+      valueMode: "expression",
+      expression,
+      point1: { mode: "reference", pointId: "a" },
+      point2: { mode: "reference", pointId: "a" },
+      point: { mode: "reference", pointId: "a" },
+      lineId: ""
+    });
+    const result = evaluateElements([
+      variable("size-1", 10),
+      variable("size-2", 30),
+      {
+        id: "a",
+        name: "点A",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: { kind: "expression", expression: "@寸法" },
+        y: 0
+      }
+    ]);
+
+    expect(result.errors).toHaveLength(0);
+    expect(result.computedGeometry.get("a")).toMatchObject({ kind: "point", x: 30 });
+  });
+
+  it("keeps root local variables out of child groups", () => {
+    const result = evaluateElements([
+      {
+        id: "local",
+        name: "局所",
+        type: "variable",
+        visible: true,
+        enabled: true,
+        scope: "group",
+        valueMode: "expression",
+        expression: 10,
+        point1: { mode: "reference", pointId: "a" },
+        point2: { mode: "reference", pointId: "a" },
+        point: { mode: "reference", pointId: "a" },
+        lineId: ""
+      },
+      {
+        id: "group",
+        name: "身頃",
+        type: "group",
+        visible: true,
+        enabled: true,
+        expanded: true
+      },
+      {
+        id: "a",
+        name: "点A",
+        type: "freePoint",
+        parentGroupId: "group",
+        visible: true,
+        enabled: true,
+        x: { kind: "expression", expression: "@局所" },
+        y: 0
+      }
+    ]);
+
+    expect(result.computedGeometry.has("a")).toBe(false);
+    expect(result.errors[0].message).toContain("参照可能な変数");
+  });
+
+  it("makes group local variables visible to descendant groups", () => {
+    const result = evaluateElements([
+      {
+        id: "group",
+        name: "身頃",
+        type: "group",
+        visible: true,
+        enabled: true,
+        expanded: true
+      },
+      {
+        id: "local",
+        name: "局所",
+        type: "variable",
+        parentGroupId: "group",
+        visible: true,
+        enabled: true,
+        scope: "group",
+        valueMode: "expression",
+        expression: 10,
+        point1: { mode: "reference", pointId: "a" },
+        point2: { mode: "reference", pointId: "a" },
+        point: { mode: "reference", pointId: "a" },
+        lineId: ""
+      },
+      {
+        id: "child",
+        name: "袖ぐり",
+        type: "group",
+        parentGroupId: "group",
+        visible: true,
+        enabled: true,
+        expanded: true
+      },
+      {
+        id: "a",
+        name: "点A",
+        type: "freePoint",
+        parentGroupId: "child",
+        visible: true,
+        enabled: true,
+        x: { kind: "expression", expression: "@局所 + 2" },
+        y: 0
+      }
+    ]);
+
+    expect(result.errors).toHaveLength(0);
+    expect(result.computedGeometry.get("a")).toMatchObject({ kind: "point", x: 12 });
+  });
+
+  it("evaluates point distance, point angle, and point-line distance variables", () => {
+    const result = evaluateElements([
+      {
+        id: "a",
+        name: "点A",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 0,
+        y: 0
+      },
+      {
+        id: "b",
+        name: "点B",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 0,
+        y: -10
+      },
+      {
+        id: "line",
+        name: "直線",
+        type: "line",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "coordinate", x: 0, y: 0 },
+        endPoint: { mode: "coordinate", x: 10, y: 0 }
+      },
+      {
+        id: "distance",
+        name: "距離",
+        type: "variable",
+        visible: true,
+        enabled: true,
+        scope: "global",
+        valueMode: "pointDistance",
+        expression: 0,
+        point1: { mode: "reference", pointId: "a" },
+        point2: { mode: "reference", pointId: "b" },
+        point: { mode: "reference", pointId: "a" },
+        lineId: "line"
+      },
+      {
+        id: "angle",
+        name: "角度",
+        type: "variable",
+        visible: true,
+        enabled: true,
+        scope: "global",
+        valueMode: "pointAngle",
+        expression: 0,
+        point1: { mode: "reference", pointId: "a" },
+        point2: { mode: "reference", pointId: "b" },
+        point: { mode: "reference", pointId: "a" },
+        lineId: "line"
+      },
+      {
+        id: "line-distance",
+        name: "点線距離",
+        type: "variable",
+        visible: true,
+        enabled: true,
+        scope: "global",
+        valueMode: "pointLineDistance",
+        expression: 0,
+        point1: { mode: "reference", pointId: "a" },
+        point2: { mode: "reference", pointId: "b" },
+        point: { mode: "reference", pointId: "b" },
+        lineId: "line"
+      },
+      {
+        id: "reverse-angle",
+        name: "逆角度",
+        type: "variable",
+        visible: true,
+        enabled: true,
+        scope: "global",
+        valueMode: "pointAngle",
+        expression: 0,
+        point1: { mode: "reference", pointId: "b" },
+        point2: { mode: "reference", pointId: "a" },
+        point: { mode: "reference", pointId: "a" },
+        lineId: "line"
+      }
+    ]);
+
+    expect(result.errors).toHaveLength(0);
+    expect(result.computedVariables.get("distance")?.value).toBeCloseTo(10);
+    expect(result.computedVariables.get("angle")?.value).toBeCloseTo(90);
+    expect(result.computedVariables.get("reverse-angle")?.value).toBeCloseTo(270);
+    expect(result.computedVariables.get("line-distance")?.value).toBeCloseTo(10);
+  });
+
   it("reports a direct coordinate expression dependency that appears too late", () => {
     const result = evaluateElements([
       validElements[0],

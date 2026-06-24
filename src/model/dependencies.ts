@@ -38,6 +38,25 @@ export const getDirectParentIds = (element: CadElement): ElementId[] => {
     switch (element.type) {
       case "group":
         return [];
+      case "variable":
+        return [
+          ...numericVariableReferences(element),
+          ...(element.valueMode === "expression"
+            ? extractNumericExpressionReferences(element.expression)
+            : []),
+          ...(element.valueMode === "pointDistance" || element.valueMode === "pointAngle"
+            ? [
+                ...pointAnchorParentIds(element.point1).map((elementId) => ({ elementId })),
+                ...pointAnchorParentIds(element.point2).map((elementId) => ({ elementId }))
+              ]
+            : []),
+          ...(element.valueMode === "pointLineDistance"
+            ? [
+                ...pointAnchorParentIds(element.point).map((elementId) => ({ elementId })),
+                { elementId: element.lineId }
+              ]
+            : [])
+        ].map((reference) => reference.elementId);
       case "freePoint":
         return [
           ...numericVariableReferences(element),
@@ -183,6 +202,8 @@ export const getDirectParentIds = (element: CadElement): ElementId[] => {
   switch (element.type) {
     case "group":
       return [];
+    case "variable":
+      return numericExpressionParentIds();
     case "freePoint":
       return numericExpressionParentIds();
     case "offsetPoint":

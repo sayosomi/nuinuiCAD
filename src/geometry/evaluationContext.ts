@@ -1,6 +1,7 @@
 import type {
   CadElement,
   ComputedGeometry,
+  ComputedVariable,
   ComputedPoint,
   DependencyError,
   ElementId,
@@ -10,6 +11,7 @@ import type {
 } from "../types/geometry";
 import { resolveDerivedPoint } from "../model/pointAnchors";
 import { evaluateNumericValue } from "./numericExpressions";
+import { isVariableElement, variableIsInScope } from "./variableScope";
 
 export type LocalVariableEvaluation = {
   localVariableValues: Map<string, number>;
@@ -86,14 +88,19 @@ export const numericError = (
   errors: DependencyError[],
   localVariables?: Map<string, number>,
   localVariableNames?: Map<string, string>,
-  disabledByGroupId?: Map<ElementId, ElementId>
+  disabledByGroupId?: Map<ElementId, ElementId>,
+  computedVariables?: Map<ElementId, ComputedVariable>,
+  elements?: CadElement[]
 ) => {
   const result = evaluateNumericValue({
     value,
     computedGeometry,
     elementsById,
     localVariables,
-    localVariableNames
+    localVariableNames,
+    computedVariables,
+    currentElement: element,
+    elements
   });
   if (result.value !== undefined) return result.value;
 
@@ -122,7 +129,9 @@ export const getPointAnchorOrError = (
   errors: DependencyError[],
   localVariables?: Map<string, number>,
   localVariableNames?: Map<string, string>,
-  disabledByGroupId?: Map<ElementId, ElementId>
+  disabledByGroupId?: Map<ElementId, ElementId>,
+  computedVariables?: Map<ElementId, ComputedVariable>,
+  elements?: CadElement[]
 ) => {
   if (anchor.mode === "reference") {
     return getComputedPointOrError(
@@ -156,7 +165,10 @@ export const getPointAnchorOrError = (
     elementsById,
     errors,
     localVariables,
-    localVariableNames
+    localVariableNames,
+    disabledByGroupId,
+    computedVariables,
+    elements
   );
   const y = numericError(
     element,
@@ -165,7 +177,10 @@ export const getPointAnchorOrError = (
     elementsById,
     errors,
     localVariables,
-    localVariableNames
+    localVariableNames,
+    disabledByGroupId,
+    computedVariables,
+    elements
   );
   if (x === undefined || y === undefined) return undefined;
 
@@ -182,12 +197,29 @@ export const evaluateLocalVariables = (
   element: CadElement,
   computedGeometry: Map<ElementId, ComputedGeometry>,
   elementsById: Map<ElementId, CadElement>,
-  errors: DependencyError[]
+  errors: DependencyError[],
+  computedVariables?: Map<ElementId, ComputedVariable>,
+  elements?: CadElement[]
 ): LocalVariableEvaluation | null => {
   const localVariableValues = new Map<string, number>();
   const localVariableNames = new Map(
     (element.numericVariables ?? []).map((variable) => [variable.id, variable.name])
   );
+
+  if (computedVariables && elements) {
+    const elementIndex = elements.findIndex((item) => item.id === element.id);
+    for (let index = elementIndex - 1; index >= 0; index -= 1) {
+      const candidate = elements[index];
+      if (!isVariableElement(candidate)) continue;
+      if (!variableIsInScope({ variable: candidate, consumer: element, elementsById })) continue;
+      const computed = computedVariables.get(candidate.id);
+      if (!computed) continue;
+      if (!localVariableValues.has(candidate.id)) localVariableValues.set(candidate.id, computed.value);
+      if (!localVariableValues.has(candidate.name)) localVariableValues.set(candidate.name, computed.value);
+      if (!localVariableNames.has(candidate.id)) localVariableNames.set(candidate.id, candidate.name);
+      if (!localVariableNames.has(candidate.name)) localVariableNames.set(candidate.name, candidate.name);
+    }
+  }
 
   for (const variable of element.numericVariables ?? []) {
     const value = numericError(
@@ -197,10 +229,14 @@ export const evaluateLocalVariables = (
       elementsById,
       errors,
       localVariableValues,
-      localVariableNames
+      localVariableNames,
+      undefined,
+      computedVariables,
+      elements
     );
     if (value === undefined) return null;
     localVariableValues.set(variable.id, value);
+    localVariableValues.set(variable.name, value);
   }
 
   return { localVariableValues, localVariableNames };

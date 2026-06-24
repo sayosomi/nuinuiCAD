@@ -44,6 +44,7 @@ export type CommandId =
   | "toggleSelectedElementEnabled"
   | "deleteSelectedElement"
   | "addFreePoint"
+  | "addVariable"
   | "addOffsetPoint"
   | "addPolarOffsetPoint"
   | "addDivisionPoint"

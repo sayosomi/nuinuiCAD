@@ -52,12 +52,14 @@ export const ElementCommonFields = ({
           }}
         />
       </label>
-      <BooleanParameterEditor
-        {...elementEditorProps}
-        parameterKey="visible"
-        label="表示する"
-        checked={element.visible}
-      />
+      {element.type !== "variable" ? (
+        <BooleanParameterEditor
+          {...elementEditorProps}
+          parameterKey="visible"
+          label="表示する"
+          checked={element.visible}
+        />
+      ) : null}
       <BooleanParameterEditor
         {...elementEditorProps}
         parameterKey="enabled"

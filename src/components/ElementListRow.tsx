@@ -150,7 +150,7 @@ export const ElementListRow = ({
       isSearchActive && !isSearchPickable ? "is-not-search-pickable" : ""
     } ${isDragging ? "dragging" : ""}${dropBefore ? " drop-before" : ""}${dropAfter ? " drop-after" : ""}`}
     aria-label={`${index + 1}. ${element.name}, ${elementTypeLabels[element.type]}, ${
-      isEffectivelyVisible ? "表示" : "非表示"
+      element.type === "variable" ? "非描画" : isEffectivelyVisible ? "表示" : "非表示"
     }, ${isEffectivelyEnabled ? "評価する" : "評価しない"}`}
     onClick={(event) => onSelectElement(element.id, event)}
     onDragOver={(event) => onDragOver(event, element, index)}
@@ -183,17 +183,19 @@ export const ElementListRow = ({
       data-visible-state={element.visible ? "visible" : "hidden"}
       data-evaluation-state={element.enabled ? "enabled" : "disabled"}
     >
-      <button
-        type="button"
-        className="element-status-button"
-        aria-label={`${element.name}を${element.visible ? "非表示" : "表示"}にする`}
-        onClick={(event) => {
-          event.stopPropagation();
-          dispatchCommand("toggleElementVisibility", { elementId: element.id });
-        }}
-      >
-        <ElementStatusIcon kind={element.visible ? "visible" : "hidden"} />
-      </button>
+      {element.type !== "variable" ? (
+        <button
+          type="button"
+          className="element-status-button"
+          aria-label={`${element.name}を${element.visible ? "非表示" : "表示"}にする`}
+          onClick={(event) => {
+            event.stopPropagation();
+            dispatchCommand("toggleElementVisibility", { elementId: element.id });
+          }}
+        >
+          <ElementStatusIcon kind={element.visible ? "visible" : "hidden"} />
+        </button>
+      ) : null}
       <button
         type="button"
         className="element-status-button"

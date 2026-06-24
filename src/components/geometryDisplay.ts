@@ -4,7 +4,8 @@ import type {
   ComputedBezierCurve,
   ComputedLine,
   ComputedOffsetLine,
-  ComputedPoint
+  ComputedPoint,
+  ComputedVariable
 } from "../types/geometry";
 import { bezierCurveEndpointPoints } from "../geometry/lineMeasurements";
 
@@ -74,6 +75,10 @@ export const numericReferenceLabel = (
 
 export const pointCoordinateRows = (point: ComputedPoint) => [
   { label: "座標", value: formatCoordinate(point) }
+];
+
+export const variableInfoRows = (variable: ComputedVariable) => [
+  { label: "値", value: formatNumber(variable.value) }
 ];
 
 export const lineInfoRows = (line: ComputedLine) => [

@@ -75,6 +75,9 @@ export const getPointAnchor = (element: CadElement, key: string): PointAnchor | 
   ) {
     return element[key];
   }
+  if ((key === "point1" || key === "point2" || key === "point") && element.type === "variable") {
+    return element[key];
+  }
   if (key === "fromPoint" && (element.type === "offsetPoint" || element.type === "polarOffsetPoint")) {
     return pointAnchorForElement(element);
   }
@@ -137,6 +140,9 @@ export const setPointAnchor = (
     (key === "point1" || key === "point2" || key === "point3") &&
     element.type === "threePointArcLine"
   ) {
+    return { ...element, [key]: anchor };
+  }
+  if ((key === "point1" || key === "point2" || key === "point") && element.type === "variable") {
     return { ...element, [key]: anchor };
   }
   if (key === "fromPoint" && element.type === "offsetPoint") {

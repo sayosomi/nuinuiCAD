@@ -25,6 +25,25 @@ export type NumericVariable = {
 
 export type BezierNumericVariable = NumericVariable;
 
+export type VariableScope = "global" | "group";
+
+export type VariableValueMode =
+  | "expression"
+  | "pointDistance"
+  | "pointAngle"
+  | "pointLineDistance";
+
+export type VariableElement = CadElementBase & {
+  type: "variable";
+  scope: VariableScope;
+  valueMode: VariableValueMode;
+  expression: NumericValue;
+  point1: PointAnchor;
+  point2: PointAnchor;
+  point: PointAnchor;
+  lineId: ElementId;
+};
+
 export type FreePointElement = CadElementBase & {
   type: "freePoint";
   x: NumericValue;
@@ -221,6 +240,7 @@ export type GroupElement = CadElementBase & {
 
 export type CadElement =
   | GroupElement
+  | VariableElement
   | FreePointElement
   | OffsetPointElement
   | PolarOffsetPointElement
@@ -350,6 +370,13 @@ export type ComputedOffsetLine = {
   endTangentAngleDeg: number | null;
 };
 
+export type ComputedVariable = {
+  kind: "variable";
+  elementId: ElementId;
+  name: string;
+  value: number;
+};
+
 export type ComputedGeometry =
   | ComputedPoint
   | ComputedLine
@@ -373,6 +400,7 @@ export type EvaluationWarning = {
 
 export type EvaluationResult = {
   computedGeometry: Map<ElementId, ComputedGeometry>;
+  computedVariables: Map<ElementId, ComputedVariable>;
   errors: DependencyError[];
   warnings: EvaluationWarning[];
   effectiveVisibleElementIds?: Set<ElementId>;
@@ -381,6 +409,7 @@ export type EvaluationResult = {
 
 export const elementTypeLabels: Record<CadElementType, string> = {
   group: "グループ",
+  variable: "変数",
   freePoint: "free point",
   offsetPoint: "offset point",
   polarOffsetPoint: "polar offset point",
@@ -405,6 +434,7 @@ export const elementTypeLabels: Record<CadElementType, string> = {
 
 export const elementTypeCategories: Record<CadElementType, CadElementCategory> = {
   group: "group",
+  variable: "modification",
   freePoint: "point",
   offsetPoint: "point",
   polarOffsetPoint: "point",

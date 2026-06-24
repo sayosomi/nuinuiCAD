@@ -1,6 +1,7 @@
 import type {
   CadElement,
   ComputedGeometry,
+  ComputedVariable,
   ElementId,
   NumericVariable,
   NumericValue
@@ -12,6 +13,7 @@ import type {
   NumericExpressionReference,
   NumericMeasurementKey
 } from "./numericExpressionTypes";
+import { resolveVariableReference } from "./variableScope";
 export { lineMeasurementLabel } from "./numericExpressionProperties";
 export type {
   LineMeasurementKey,
@@ -210,13 +212,19 @@ export const evaluateNumericValue = ({
   computedGeometry,
   elementsById,
   localVariables,
-  localVariableNames
+  localVariableNames,
+  computedVariables,
+  currentElement,
+  elements
 }: {
   value: NumericValue;
   computedGeometry: Map<ElementId, ComputedGeometry>;
   elementsById: Map<ElementId, CadElement>;
   localVariables?: Map<string, number>;
   localVariableNames?: Map<string, string>;
+  computedVariables?: Map<ElementId, ComputedVariable>;
+  currentElement?: CadElement;
+  elements?: CadElement[];
 }): { value?: number; error?: NumericExpressionError } => {
   if (!isNumericExpression(value)) return { value };
 
@@ -275,13 +283,29 @@ export const evaluateNumericValue = ({
       return measuredValue;
     }, (variableId) => {
       const variableValue = localVariables?.get(variableId);
-      if (variableValue === undefined) {
-        throw Object.assign(
-          new Error(`${localVariableNames?.get(variableId) ?? variableId} はこの要素内に存在しません。`),
-          { dependencyId: variableId, dependencyName: localVariableNames?.get(variableId) }
-        );
+      if (variableValue !== undefined) return variableValue;
+
+      if (currentElement && elements && computedVariables) {
+        const variable = resolveVariableReference({
+          variableIdOrName: variableId,
+          consumer: currentElement,
+          elements,
+          elementsById,
+          computedVariables
+        });
+        if (variable?.computed) return variable.computed.value;
+        if (variable?.element) {
+          throw Object.assign(
+            new Error(`${variable.element.name} はこの要素より後にあるか、評価できません。`),
+            { dependencyId: variable.element.id, dependencyName: variable.element.name }
+          );
+        }
       }
-      return variableValue;
+
+      throw Object.assign(
+        new Error(`${localVariableNames?.get(variableId) ?? variableId} はこの要素内に存在しません。または参照可能な変数に存在しません。`),
+        { dependencyId: variableId, dependencyName: localVariableNames?.get(variableId) }
+      );
     });
     return { value: parser.parse() };
   } catch (error) {

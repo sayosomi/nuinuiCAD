@@ -2,6 +2,7 @@ import type { CommonEditorProps } from "./parameterEditorShared";
 import { CurveElementFields } from "./CurveElementFields";
 import { LineElementFields } from "./LineElementFields";
 import { PointElementFields } from "./PointElementFields";
+import { VariableElementFields } from "./VariableElementFields";
 
 export const ElementSpecificFields = (props: CommonEditorProps) => {
   switch (props.element.type) {
@@ -30,5 +31,7 @@ export const ElementSpecificFields = (props: CommonEditorProps) => {
       return <CurveElementFields {...props} />;
     case "group":
       return null;
+    case "variable":
+      return <VariableElementFields {...props} />;
   }
 };

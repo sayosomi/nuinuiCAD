@@ -10,6 +10,7 @@ import type { CadElement, EvaluationResult } from "../types/geometry";
 
 const emptyEvaluation: EvaluationResult = {
   computedGeometry: new Map(),
+  computedVariables: new Map(),
   errors: [],
   warnings: []
 };
@@ -375,6 +376,7 @@ describe("LeftPanel element list dragging", () => {
   it("shows evaluation warnings without treating them as errors", () => {
     const evaluation: EvaluationResult = {
       computedGeometry: new Map(),
+      computedVariables: new Map(),
       errors: [],
       warnings: [
         {
@@ -395,6 +397,7 @@ describe("LeftPanel element list dragging", () => {
   it("shows evaluation warning messages in the validation section", () => {
     renderRightPanel({
       computedGeometry: new Map(),
+      computedVariables: new Map(),
       errors: [],
       warnings: [
         {

@@ -1,4 +1,4 @@
-import type { CadElement, ComputedGeometry, DependencyError, ElementId, EvaluationResult, EvaluationWarning } from "../types/geometry";
+import type { CadElement, ComputedGeometry, ComputedVariable, DependencyError, ElementId, EvaluationResult, EvaluationWarning } from "../types/geometry";
 import {
   effectiveEnabledElementIds,
   effectiveVisibleElementIds,
@@ -7,9 +7,11 @@ import {
 } from "../model/groups";
 import { evaluateLocalVariables } from "./evaluationContext";
 import { evaluateElement } from "./elementEvaluators";
+import { evaluateVariableElement } from "./variableEvaluator";
 
 export const evaluateElements = (elements: CadElement[]): EvaluationResult => {
   const computedGeometry = new Map<ElementId, ComputedGeometry>();
+  const computedVariables = new Map<ElementId, ComputedVariable>();
   const errors: DependencyError[] = [];
   const warnings: EvaluationWarning[] = [];
   const elementsById = new Map(elements.map((element) => [element.id, element]));
@@ -32,9 +34,23 @@ export const evaluateElements = (elements: CadElement[]): EvaluationResult => {
       element,
       computedGeometry,
       elementsById,
-      errors
+      errors,
+      computedVariables,
+      elements
     );
     if (!localVariables) continue;
+
+    if (element.type === "variable") {
+      evaluateVariableElement(element, {
+        computedGeometry,
+        computedVariables,
+        elementsById,
+        errors,
+        disabledByGroupId,
+        localVariables
+      });
+      continue;
+    }
 
     evaluateElement(element, {
       computedGeometry,
@@ -48,6 +64,7 @@ export const evaluateElements = (elements: CadElement[]): EvaluationResult => {
 
   return {
     computedGeometry,
+    computedVariables,
     errors,
     warnings,
     effectiveVisibleElementIds: effectiveVisibleIds,

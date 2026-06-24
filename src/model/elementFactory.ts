@@ -59,6 +59,24 @@ export const createCadElement = (
         expanded: true
       };
     }
+    case "variable": {
+      const variableCount = elements.filter((element) => element.type === "variable").length;
+      const id = createId(type);
+      return {
+        id,
+        name: uniqueName(id, `変数${variableCount + 1}`),
+        type,
+        visible: true,
+        enabled: true,
+        scope: "global",
+        valueMode: "expression",
+        expression: 0,
+        point1: referenceAnchor(firstPointId),
+        point2: referenceAnchor(secondPointId),
+        point: referenceAnchor(firstPointId),
+        lineId: lineLikeElements[0]?.id ?? ""
+      };
+    }
     case "freePoint": {
       const id = createId(type);
       const requestedName = `点${points.length + 1}`;

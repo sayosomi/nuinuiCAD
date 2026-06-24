@@ -34,6 +34,11 @@ const commonParameters: ParameterDefinition[] = [
   { key: "enabled", directKey: "a", label: "評価", kind: "boolean" }
 ];
 
+const variableCommonParameters: ParameterDefinition[] = [
+  { key: "name", directKey: "n", label: "名前", kind: "text" },
+  { key: "enabled", directKey: "a", label: "評価", kind: "boolean" }
+];
+
 const numericVariableParameters = (element: CadElement): ParameterDefinition[] =>
   (element.numericVariables ?? []).map((variable) => ({
     key: `variable:${variable.id}:value`,
@@ -70,6 +75,29 @@ export const getParameterDefinitions = (element: CadElement): ParameterDefinitio
       return [
         ...commonParameters,
         { key: "expanded", directKey: "x", label: "展開", kind: "boolean" }
+      ];
+    case "variable":
+      return [
+        ...variableCommonParameters,
+        {
+          key: "scope",
+          directKey: "s",
+          label: "スコープ",
+          kind: "choice",
+          choiceOptions: ["global", "group"]
+        },
+        {
+          key: "valueMode",
+          directKey: "m",
+          label: "値の種類",
+          kind: "choice",
+          choiceOptions: ["expression", "pointDistance", "pointAngle", "pointLineDistance"]
+        },
+        { key: "expression", directKey: "v", label: "式", kind: "number" },
+        { key: "point1", directKey: "1", label: "点1", kind: "reference", allowCoordinate: false },
+        { key: "point2", directKey: "2", label: "点2", kind: "reference", allowCoordinate: false },
+        { key: "point", directKey: "p", label: "点", kind: "reference", allowCoordinate: false },
+        { key: "lineId", directKey: "l", label: "直線", kind: "lineReference" }
       ];
     case "freePoint":
       return [

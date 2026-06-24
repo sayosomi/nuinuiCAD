@@ -18,7 +18,8 @@ import {
   bezierCurveInfoRows,
   lineInfoRows,
   offsetLineInfoRows,
-  pointCoordinateRows
+  pointCoordinateRows,
+  variableInfoRows
 } from "./geometryDisplay";
 
 const isComputedPoint = (geometry: ComputedGeometry | undefined): geometry is ComputedPoint =>
@@ -57,11 +58,14 @@ export const ElementInfoPanel = ({
 }) => {
   const showElementInfoPanel = useCadUiStore((state) => state.showElementInfoPanel);
   const geometry = element ? evaluation.computedGeometry.get(element.id) : undefined;
+  const variable = element ? evaluation.computedVariables.get(element.id) : undefined;
   const dependencySummary = element ? getDependencySummary(element, elements) : null;
   const jumpTargets = getDependencyJumpTargets(element, elements);
   const jumpTargetIndexes = new Map(jumpTargets.map((target, index) => [target.id, index]));
   const infoRows =
-    isComputedPoint(geometry)
+    variable
+      ? variableInfoRows(variable)
+      : isComputedPoint(geometry)
       ? pointCoordinateRows(geometry)
       : isComputedLine(geometry)
         ? lineInfoRows(geometry)
