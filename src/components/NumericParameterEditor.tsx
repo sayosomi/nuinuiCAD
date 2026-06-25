@@ -138,6 +138,7 @@ export const NumericParameterEditor = ({
       inputMode="decimal"
       step="1"
       data-numeric-parameter-key={parameterKey}
+      data-numeric-element-id={element.id}
       value={formatNumericExpressionForDisplay(value, elements, element.numericVariables ?? [])}
       onChange={(event) => updateField(parameterKey, event.target.value)}
     />

@@ -166,6 +166,71 @@ describe("LeftPanel numeric input dragging", () => {
     expect(screen.getByText("数値選択中")).toBeInTheDocument();
   });
 
+  it("inserts point distance measurements into variable expressions", () => {
+    const variable: CadElement = {
+      id: "variable",
+      name: "変数",
+      type: "variable",
+      visible: true,
+      enabled: true,
+      scope: "global",
+      valueMode: "expression",
+      expression: 0,
+      point1: { mode: "reference", pointId: "point-a" },
+      point2: { mode: "reference", pointId: "point-b" },
+      point: { mode: "reference", pointId: "point-a" },
+      lineId: "line-ab"
+    };
+    useCadStore.setState({
+      elements: [...sampleElements, variable],
+      selectedElementId: "variable",
+      selectedElementIds: ["variable"],
+      selectedParameterKey: "expression"
+    });
+    renderRightPanel();
+
+    fireEvent.change(screen.getByLabelText("点1"), { target: { value: "point-a" } });
+    fireEvent.change(screen.getByLabelText("点2"), { target: { value: "point-b" } });
+    fireEvent.click(screen.getByText("式に挿入"));
+
+    expect(useCadStore.getState().elements.at(-1)).toMatchObject({
+      expression: { kind: "expression", expression: "距離(point-a, point-b)" }
+    });
+  });
+
+  it("inserts point-line distance measurements into variable expressions", () => {
+    const variable: CadElement = {
+      id: "variable",
+      name: "変数",
+      type: "variable",
+      visible: true,
+      enabled: true,
+      scope: "global",
+      valueMode: "expression",
+      expression: 0,
+      point1: { mode: "reference", pointId: "point-a" },
+      point2: { mode: "reference", pointId: "point-b" },
+      point: { mode: "reference", pointId: "point-a" },
+      lineId: "line-ab"
+    };
+    useCadStore.setState({
+      elements: [...sampleElements, variable],
+      selectedElementId: "variable",
+      selectedElementIds: ["variable"],
+      selectedParameterKey: "expression"
+    });
+    renderRightPanel();
+
+    fireEvent.click(screen.getAllByText("点と線の距離").at(-1)!);
+    fireEvent.change(screen.getByLabelText("点"), { target: { value: "point-c" } });
+    fireEvent.change(screen.getByLabelText("線"), { target: { value: "line-ab" } });
+    fireEvent.click(screen.getByText("式に挿入"));
+
+    expect(useCadStore.getState().elements.at(-1)).toMatchObject({
+      expression: { kind: "expression", expression: "点線距離(point-c, line-ab)" }
+    });
+  });
+
   it("increments a numeric parameter after an 8px middle-button drag to the right", () => {
     renderRightPanel();
 
