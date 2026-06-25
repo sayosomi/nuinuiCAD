@@ -128,8 +128,8 @@ describe("LeftPanel numeric input dragging", () => {
 
     renderRightPanel();
 
-    expect(screen.getByText("共通変数")).toBeInTheDocument();
-    expect(screen.getByText("共通変数はありません。")).toBeInTheDocument();
+    expect(screen.getByText("要素内変数")).toBeInTheDocument();
+    expect(screen.getByText("要素内変数はありません。")).toBeInTheDocument();
   });
 
   it("shows numeric variables for line elements", () => {
@@ -140,7 +140,7 @@ describe("LeftPanel numeric input dragging", () => {
 
     renderRightPanel();
 
-    expect(screen.getByText("共通変数")).toBeInTheDocument();
+    expect(screen.getByText("要素内変数")).toBeInTheDocument();
   });
 
   it("normalizes a blank numeric parameter input to zero", () => {

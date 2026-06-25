@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import type { ComponentType } from "react";
-import { Folder, Globe, MoveDiagonal, Ruler, Sigma, TriangleRight } from "lucide-react";
+import { Folder, Globe } from "lucide-react";
 import {
   makeNumericExpression,
   normalizeNumericExpressionInput
@@ -9,11 +9,9 @@ import { isLineLikeElement, isPointElement } from "../model/pointAnchors";
 import { setParameterValue } from "../parameters/parameterAccess";
 import type { ParameterKey } from "../parameters/parameterDefinitions";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
-import type { CadElement, ElementId, NumericValue, PointAnchor } from "../types/geometry";
+import type { CadElement, ElementId, NumericValue } from "../types/geometry";
 import {
-  LineReferenceEditor,
-  NumericParameterEditor,
-  PointAnchorParameterEditor
+  NumericParameterEditor
 } from "./ParameterEditors";
 import { ParameterName } from "./ParameterName";
 import type { CommonEditorProps } from "./parameterEditorShared";
@@ -139,11 +137,14 @@ const VariableMeasurementInsertPanel = ({
       `input[data-numeric-element-id="${element.id}"][data-numeric-parameter-key="expression"]`
     );
     const nextExpression = insertAtInputSelection(input, preview);
-    updateElement(element.id, setParameterValue(
+    updateElement(element.id, {
+      ...setParameterValue(
       element,
       "expression",
       makeNumericExpression(normalizeNumericExpressionInput(nextExpression, elements, element.numericVariables ?? []))
-    ) as Partial<CadElement>);
+      ),
+      valueMode: "expression"
+    } as Partial<CadElement>);
     requestAnimationFrame(() => input?.focus());
   };
 
@@ -217,11 +218,6 @@ export const VariableElementFields = ({
 
   const commonEditorProps = { element, elements, isParameterEditMode, registerParameterControl };
   const elementEditorProps = { element, isParameterEditMode, registerParameterControl };
-  const pointAnchorEditor = (props: {
-    parameterKey: ParameterKey;
-    label: string;
-    anchor: PointAnchor;
-  }) => <PointAnchorParameterEditor {...commonEditorProps} {...props} allowCoordinate={false} />;
   const numericInput = (props: {
     parameterKey: ParameterKey;
     label: string;
@@ -242,47 +238,13 @@ export const VariableElementFields = ({
         ]}
         ariaLabel="変数スコープ"
       />
-      <VariableChoiceCards
-        {...elementEditorProps}
-        parameterKey="valueMode"
-        label="計算方法"
-        value={element.valueMode}
-        options={[
-          { value: "expression", label: "式", detail: "数式・測定関数", Icon: Sigma },
-          { value: "pointDistance", label: "2点距離", detail: "点から点まで", Icon: Ruler },
-          { value: "pointAngle", label: "2点角度", detail: "点同士の角度", Icon: TriangleRight },
-          { value: "pointLineDistance", label: "点と線の距離", detail: "垂直距離", Icon: MoveDiagonal }
-        ]}
-        ariaLabel="変数の値の種類"
-      />
-      {element.valueMode === "expression" ? (
-        <>
-          {numericInput({
-            parameterKey: "expression",
-            label: "式",
-            value: element.expression,
-            ariaLabel: "変数式"
-          })}
-          <VariableMeasurementInsertPanel element={element} elements={elements} />
-        </>
-      ) : null}
-      {element.valueMode === "pointDistance" || element.valueMode === "pointAngle" ? (
-        <>
-          {pointAnchorEditor({ parameterKey: "point1", label: "点1", anchor: element.point1 })}
-          {pointAnchorEditor({ parameterKey: "point2", label: "点2", anchor: element.point2 })}
-        </>
-      ) : null}
-      {element.valueMode === "pointLineDistance" ? (
-        <>
-          {pointAnchorEditor({ parameterKey: "point", label: "点", anchor: element.point })}
-          <LineReferenceEditor
-            {...commonEditorProps}
-            parameterKey="lineId"
-            label="直線"
-            lineId={element.lineId}
-          />
-        </>
-      ) : null}
+      {numericInput({
+        parameterKey: "expression",
+        label: "式",
+        value: element.expression,
+        ariaLabel: "変数式"
+      })}
+      <VariableMeasurementInsertPanel element={element} elements={elements} />
     </>
   );
 };

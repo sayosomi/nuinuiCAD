@@ -79,13 +79,13 @@ export const ElementCommonFields = ({
       {supportsNumericVariables(element) && (
         <div className="curve-point-editor">
           <div className="curve-point-header">
-            <span>共通変数</span>
+            <span>要素内変数</span>
             <button type="button" onClick={() => dispatchCommand("addNumericVariable")}>
               追加
             </button>
           </div>
           {(element.numericVariables ?? []).length === 0 ? (
-            <p className="empty-state">共通変数はありません。</p>
+            <p className="empty-state">要素内変数はありません。</p>
           ) : (
             (element.numericVariables ?? []).map((variable, index) => (
               <div className="curve-point-group" key={variable.id}>
@@ -106,7 +106,7 @@ export const ElementCommonFields = ({
                   <span className="parameter-name">名前 (@名前で参照)</span>
                   <input
                     type="text"
-                    aria-label="共通変数名"
+                    aria-label="要素内変数名"
                     value={variable.name}
                     onChange={(event) =>
                       updateElement(element.id, {
@@ -122,7 +122,7 @@ export const ElementCommonFields = ({
                   parameterKey={`variable:${variable.id}:value`}
                   label={variable.name}
                   value={variable.value}
-                  ariaLabel={`共通変数 ${variable.name}`}
+                  ariaLabel={`要素内変数 ${variable.name}`}
                 />
               </div>
             ))

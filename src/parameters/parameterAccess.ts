@@ -231,6 +231,9 @@ export const setParameterValue = (
       )
     };
   }
+  if (element.type === "variable" && key === "expression") {
+    return { ...element, expression: value as NumericValue, valueMode: "expression" };
+  }
   return { ...element, [key]: value } as CadElement;
 };
 

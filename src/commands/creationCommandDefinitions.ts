@@ -202,24 +202,24 @@ export const creationCommandDefinitions = {
   },
   addNumericVariable: {
     id: "addNumericVariable",
-    label: "共通変数を追加",
-    palette: { order: 21, keywords: ["variable", "共有", "共通", "変数", "追加"] },
+    label: "要素内変数を追加",
+    palette: { order: 21, keywords: ["variable", "共有", "共通", "要素内", "変数", "追加"] },
     run: () => addNumericVariable()
   },
   deleteNumericVariable: {
     id: "deleteNumericVariable",
-    label: "共通変数を削除",
-    palette: { order: 22, keywords: ["variable", "共有", "共通", "変数", "削除"] },
+    label: "要素内変数を削除",
+    palette: { order: 22, keywords: ["variable", "共有", "共通", "要素内", "変数", "削除"] },
     run: (context) => deleteNumericVariable(context?.variableId)
   },
   addBezierNumericVariable: {
     id: "addBezierNumericVariable",
-    label: "曲線の共通変数を追加",
+    label: "曲線の要素内変数を追加",
     run: () => addNumericVariable()
   },
   deleteBezierNumericVariable: {
     id: "deleteBezierNumericVariable",
-    label: "曲線の共通変数を削除",
+    label: "曲線の要素内変数を削除",
     run: (context) => deleteNumericVariable(context?.variableId)
   },
   addBezierIntermediatePoint: {

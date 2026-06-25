@@ -86,18 +86,7 @@ export const getParameterDefinitions = (element: CadElement): ParameterDefinitio
           kind: "choice",
           choiceOptions: ["global", "group"]
         },
-        {
-          key: "valueMode",
-          directKey: "m",
-          label: "計算方法",
-          kind: "choice",
-          choiceOptions: ["expression", "pointDistance", "pointAngle", "pointLineDistance"]
-        },
-        { key: "expression", directKey: "v", label: "式", kind: "number" },
-        { key: "point1", directKey: "1", label: "点1", kind: "reference", allowCoordinate: false },
-        { key: "point2", directKey: "2", label: "点2", kind: "reference", allowCoordinate: false },
-        { key: "point", directKey: "p", label: "点", kind: "reference", allowCoordinate: false },
-        { key: "lineId", directKey: "l", label: "直線", kind: "lineReference" }
+        { key: "expression", directKey: "v", label: "式", kind: "number" }
       ];
     case "freePoint":
       return [
