@@ -17,6 +17,7 @@ const resetStore = () => {
     activePointPickTarget: null,
     activeNumericReferencePickTarget: null,
     activeLinePickTarget: null,
+    activeExpressionInsertTarget: null,
     activePickCursor: null,
     selectedDependencyJumpIndex: 0,
     elementSearchQuery: "",

@@ -97,10 +97,10 @@ describe("shortcuts", () => {
       "toggleSelectedParameterValue"
     );
     expect(commandIdForKeyboardEvent(keyboardEvent("v"), { isParameterEditMode: true })).toBe(
-      "toggleBooleanParameterByDirectKey"
+      "selectParameterByKey"
     );
     expect(commandIdForKeyboardEvent(keyboardEvent("a"), { isParameterEditMode: true })).toBe(
-      "toggleBooleanParameterByDirectKey"
+      "selectParameterByKey"
     );
     expect(commandIdForKeyboardEvent(keyboardEvent("x"), { isParameterEditMode: true })).toBe(
       "selectParameterByKey"
@@ -216,7 +216,7 @@ describe("shortcuts", () => {
     expect(
       keyboardCommandForEvent(keyboardEvent("a"), { isParameterEditMode: true })
     ).toMatchObject({
-      commandId: "toggleBooleanParameterByDirectKey",
+      commandId: "selectParameterByKey",
       context: { parameterDirectKey: "a" }
     });
   });
@@ -415,7 +415,7 @@ describe("shortcuts", () => {
     expect(ids).toContain("selectNextParameter");
     expect(ids).toContain("selectNextElement");
     expect(ids).toContain("selectPreviousElement");
-    expect(ids).toContain("toggleBooleanParameterByDirectKey");
+    expect(ids).toContain("selectParameterByKey");
   });
 
   it("shows dependency jump shortcuts while dependency jump mode is active", () => {
@@ -517,6 +517,6 @@ describe("shortcuts", () => {
     });
     const keyShortcut = shortcuts.find((shortcut) => shortcut.commandId === "selectParameterByKey");
 
-    expect(keyShortcut?.keys).toBe("n / s / t");
+    expect(keyShortcut?.keys).toBe("n / v / a / s / t");
   });
 });

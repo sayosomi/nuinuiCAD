@@ -13,6 +13,7 @@ import type { CadUiState } from "./cadUiStore";
 
 export type {
   ActiveLinePickTarget,
+  ActiveExpressionInsertTarget,
   ActiveNumericReferencePickTarget,
   ActivePickCursor,
   ActivePointPickTarget,

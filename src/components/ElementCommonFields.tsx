@@ -123,6 +123,7 @@ export const ElementCommonFields = ({
                   label={variable.name}
                   value={variable.value}
                   ariaLabel={`要素内変数 ${variable.name}`}
+                  enableExpressionInsert
                 />
               </div>
             ))

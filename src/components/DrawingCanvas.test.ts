@@ -78,6 +78,7 @@ const resetStore = () => {
     activePointPickTarget: null,
     activeNumericReferencePickTarget: null,
     activeLinePickTarget: null,
+    activeExpressionInsertTarget: null,
     selectedDependencyJumpIndex: 0,
     showShortcutHelp: false,
     showCommandPalette: false,

@@ -210,12 +210,6 @@ export const parameterEditShortcutDefinitions: ShortcutDefinition[] = [
   commandShortcut("increaseSelectedParameterStep", 0, (event) => event.key === "]" && noModifier(event)),
   commandShortcut("toggleSelectedParameterValue", 0, (event) => event.key === " " && noModifier(event)),
   commandShortcut(
-    "toggleBooleanParameterByDirectKey",
-    0,
-    (event) => ["v", "a"].includes(event.key.toLowerCase()) && noModifier(event),
-    (event) => ({ parameterDirectKey: event.key.toLowerCase() })
-  ),
-  commandShortcut(
     "selectParameterByKey",
     0,
     (event) => /^[a-z0-9]$/i.test(event.key) && noModifier(event),
@@ -372,10 +366,7 @@ export const shortcutHelpItems = ({
     }
   }
 
-  items.push(helpItem(parameterShortcut("toggleBooleanParameterByDirectKey")));
-
   const directKeys = getParameterDefinitions(selectedElement)
-    .filter((definition) => !["v", "a"].includes(definition.directKey))
     .map((definition) => definition.directKey)
     .join(" / ");
   if (directKeys) {

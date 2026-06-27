@@ -17,6 +17,7 @@ describe("commands", () => {
       activePointPickTarget: null,
       activeNumericReferencePickTarget: null,
       activeLinePickTarget: null,
+      activeExpressionInsertTarget: null,
       activePickCursor: null,
       selectedDependencyJumpIndex: 0,
       elementSearchQuery: "",
@@ -2059,6 +2060,62 @@ describe("commands", () => {
     expect(useCadStore.getState().activeNumericReferencePickTarget).toBeNull();
     expect(useCadStore.getState().elements[0]).toMatchObject({
       x: { kind: "expression", expression: "line-ab.startTangentAngleDeg" }
+    });
+  });
+
+  it("toggles the expression insert tray for the selected numeric parameter", () => {
+    useCadStore.setState({
+      selectedElementId: "point-a",
+      selectedElementIds: ["point-a"],
+      selectedParameterKey: "x"
+    });
+
+    dispatchCommand("toggleExpressionInsertTray");
+
+    expect(useCadStore.getState().activeExpressionInsertTarget).toEqual({
+      elementId: "point-a",
+      parameterKey: "x"
+    });
+
+    dispatchCommand("toggleExpressionInsertTray");
+
+    expect(useCadStore.getState().activeExpressionInsertTarget).toBeNull();
+  });
+
+  it("inserts numeric expression snippets with replacement, append, and selection rules", () => {
+    useCadStore.setState({
+      selectedElementId: "point-a",
+      selectedElementIds: ["point-a"],
+      selectedParameterKey: "x"
+    });
+
+    dispatchCommand("insertNumericExpressionSnippet", {
+      numericExpressionSnippet: "line-ab.length",
+      displayedExpression: "0"
+    });
+
+    expect(useCadStore.getState().elements[0]).toMatchObject({
+      x: { kind: "expression", expression: "line-ab.length" }
+    });
+
+    dispatchCommand("insertNumericExpressionSnippet", {
+      numericExpressionSnippet: "@base",
+      displayedExpression: "line-ab.length"
+    });
+
+    expect(useCadStore.getState().elements[0]).toMatchObject({
+      x: { kind: "expression", expression: "line-ab.length + @base" }
+    });
+
+    dispatchCommand("insertNumericExpressionSnippet", {
+      numericExpressionSnippet: "距離(point-a, point-b)",
+      displayedExpression: "line-ab.length + @base",
+      selectionStart: 17,
+      selectionEnd: 22
+    });
+
+    expect(useCadStore.getState().elements[0]).toMatchObject({
+      x: { kind: "expression", expression: "line-ab.length + 距離(point-a, point-b)" }
     });
   });
 

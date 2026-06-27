@@ -1,5 +1,10 @@
 import { evaluateElements } from "../geometry/evaluate";
-import { makeNumericExpression } from "../geometry/numericExpressions";
+import { insertNumericExpressionSnippet as insertSnippetIntoExpression } from "../geometry/numericExpressionInsertion";
+import {
+  makeNumericExpression,
+  normalizeNumericExpressionInput,
+  numericValueExpression
+} from "../geometry/numericExpressions";
 import { pickCandidates, selectedPickOption } from "../model/pickCandidates";
 import { lineEndpointReferenceForAnchor, referenceAnchor } from "../model/pointAnchors";
 import { findParameterDefinition } from "../parameters/parameterDefinitions";
@@ -7,6 +12,7 @@ import { getParameterValue, setParameterValue } from "../parameters/parameterAcc
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
 import type { ElementId } from "../types/geometry";
+import type { NumericValue } from "../types/geometry";
 import type { CommandContext } from "./commandTypes";
 import { getSelectedElement, isLineLikeElement, selectedParameterDefinition } from "./commandRuntime";
 
@@ -35,6 +41,84 @@ export const applyNumericExpressionReference = (context?: CommandContext) => {
     selectionAnchorElementId: targetElement.id,
     selectedParameterKey: definition.key
   });
+};
+
+const isNumericValue = (value: unknown): value is NumericValue =>
+  typeof value === "number" ||
+  (typeof value === "object" &&
+    value !== null &&
+    "kind" in value &&
+    (value as { kind?: unknown }).kind === "expression");
+
+const numericExpressionTarget = (context?: CommandContext) => {
+  const { elements, selectedElementId, selectedParameterKey } = useCadDocumentStore.getState();
+  const targetElementId = context?.elementId ?? selectedElementId;
+  const targetElement = targetElementId
+    ? elements.find((element) => element.id === targetElementId) ?? null
+    : null;
+  if (!targetElement) return null;
+
+  const key = context?.parameterKey ?? selectedParameterKey;
+  const definition = findParameterDefinition(targetElement, key);
+  if (definition?.kind !== "number") return null;
+
+  return { elements, targetElement, definition };
+};
+
+export const insertNumericExpressionSnippet = (context?: CommandContext) => {
+  const snippet = context?.numericExpressionSnippet;
+  if (!snippet) return;
+
+  const target = numericExpressionTarget(context);
+  if (!target) return;
+
+  const currentValue = getParameterValue(target.targetElement, target.definition.key);
+  const displayedExpression =
+    context?.displayedExpression ??
+    (isNumericValue(currentValue) ? numericValueExpression(currentValue) : "");
+  const nextDisplayExpression = insertSnippetIntoExpression({
+    currentExpression: displayedExpression,
+    snippet,
+    selectionStart: context?.selectionStart,
+    selectionEnd: context?.selectionEnd
+  });
+  const nextExpression = normalizeNumericExpressionInput(
+    nextDisplayExpression,
+    target.elements,
+    target.targetElement.numericVariables ?? []
+  );
+
+  useCadDocumentStore.getState().commitDocumentChange({
+    elements: target.elements.map((element) =>
+      element.id === target.targetElement.id
+        ? setParameterValue(element, target.definition.key, makeNumericExpression(nextExpression))
+        : element
+    ),
+    selectedElementId: target.targetElement.id,
+    selectedElementIds: [target.targetElement.id],
+    selectionAnchorElementId: target.targetElement.id,
+    selectedParameterKey: target.definition.key
+  });
+};
+
+export const toggleExpressionInsertTray = (context?: CommandContext) => {
+  const target = numericExpressionTarget(context);
+  if (!target) return;
+
+  const current = useCadUiStore.getState().activeExpressionInsertTarget;
+  const nextTarget = {
+    elementId: target.targetElement.id,
+    parameterKey: target.definition.key
+  };
+  useCadUiStore.getState().setActiveExpressionInsertTarget(
+    current?.elementId === nextTarget.elementId && current.parameterKey === nextTarget.parameterKey
+      ? null
+      : nextTarget
+  );
+};
+
+export const closeExpressionInsertTray = () => {
+  useCadUiStore.getState().setActiveExpressionInsertTarget(null);
 };
 
 export const startNumericReferencePick = () => {

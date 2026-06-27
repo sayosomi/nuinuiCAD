@@ -18,6 +18,7 @@ import {
   pickCandidates,
   resolvedPickCursor
 } from "../model/pickCandidates";
+import type { NumericReferenceGeometry } from "../geometry/numericReferenceProperties";
 import { getParameterDefinitions } from "../parameters/parameterDefinitions";
 import { getParameterValue } from "../parameters/parameterAccess";
 import type {
@@ -36,8 +37,6 @@ import type {
   ActivePickCursor,
   ActivePointPickTarget
 } from "../state/cadUiStore";
-
-export type NumericReferenceGeometry = ComputedLine | ComputedArcLine | ComputedBezierCurve | ComputedOffsetLine;
 
 const isComputedLine = (geometry: ComputedGeometry | undefined): geometry is ComputedLine =>
   geometry?.kind === "line";

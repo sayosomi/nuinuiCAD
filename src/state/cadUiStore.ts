@@ -17,6 +17,11 @@ export type ActiveLinePickTarget = {
   parameterKey: ParameterKey;
 };
 
+export type ActiveExpressionInsertTarget = {
+  elementId: ElementId;
+  parameterKey: ParameterKey;
+};
+
 export type ActivePickCursor = {
   elementId: ElementId;
   optionIndex: number;
@@ -44,6 +49,7 @@ export type CadUiState = {
   activePointPickTarget: ActivePointPickTarget | null;
   activeNumericReferencePickTarget: ActiveNumericReferencePickTarget | null;
   activeLinePickTarget: ActiveLinePickTarget | null;
+  activeExpressionInsertTarget: ActiveExpressionInsertTarget | null;
   activePickCursor: ActivePickCursor | null;
   selectedDependencyJumpIndex: number;
   elementSearchQuery: string;
@@ -60,6 +66,9 @@ export type CadUiState = {
     activeNumericReferencePickTarget: ActiveNumericReferencePickTarget | null
   ) => void;
   setActiveLinePickTarget: (activeLinePickTarget: ActiveLinePickTarget | null) => void;
+  setActiveExpressionInsertTarget: (
+    activeExpressionInsertTarget: ActiveExpressionInsertTarget | null
+  ) => void;
   setActivePickCursor: (activePickCursor: ActivePickCursor | null) => void;
   clearPickMode: () => void;
   setSelectedDependencyJumpIndex: (selectedDependencyJumpIndex: number) => void;
@@ -85,6 +94,7 @@ export const initialCadUiState = (): Omit<
   | "setActivePointPickTarget"
   | "setActiveNumericReferencePickTarget"
   | "setActiveLinePickTarget"
+  | "setActiveExpressionInsertTarget"
   | "setActivePickCursor"
   | "clearPickMode"
   | "setSelectedDependencyJumpIndex"
@@ -104,6 +114,7 @@ export const initialCadUiState = (): Omit<
   activePointPickTarget: null,
   activeNumericReferencePickTarget: null,
   activeLinePickTarget: null,
+  activeExpressionInsertTarget: null,
   activePickCursor: null,
   selectedDependencyJumpIndex: 0,
   elementSearchQuery: "",
@@ -141,6 +152,8 @@ export const useCadUiStore = create<CadUiState>((set) => ({
     set({ activeNumericReferencePickTarget, activePickCursor: null }),
   setActiveLinePickTarget: (activeLinePickTarget) =>
     set({ activeLinePickTarget, activePickCursor: null }),
+  setActiveExpressionInsertTarget: (activeExpressionInsertTarget) =>
+    set({ activeExpressionInsertTarget }),
   setActivePickCursor: (activePickCursor) => set({ activePickCursor }),
   clearPickMode: () =>
     set({

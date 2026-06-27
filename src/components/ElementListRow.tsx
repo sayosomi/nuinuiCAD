@@ -2,22 +2,19 @@ import type { CSSProperties, DragEvent, MouseEvent, Ref } from "react";
 import { Folder, FolderOpen } from "lucide-react";
 import { dispatchCommand } from "../commands/commands";
 import type { PickCandidate } from "../model/pickCandidates";
-import { numericReferencePropertiesForGeometry } from "../model/pickCandidates";
+import {
+  numericReferencePropertiesForGeometry,
+  type NumericReferenceGeometry
+} from "../geometry/numericReferenceProperties";
 import { isGroupElement } from "../model/groups";
 import type { SelectablePoint } from "../model/pointAnchors";
 import type {
   CadElement,
-  ComputedArcLine,
-  ComputedBezierCurve,
-  ComputedLine,
-  ComputedOffsetLine,
   ElementId
 } from "../types/geometry";
 import { elementCategoryLabels, elementTypeCategories, elementTypeLabels } from "../types/geometry";
 import { numericReferenceLabel, numericReferenceValue } from "./geometryDisplay";
 import { ElementStatusIcon } from "./ElementStatusIcon";
-
-type NumericReferenceGeometry = ComputedLine | ComputedArcLine | ComputedBezierCurve | ComputedOffsetLine;
 
 export type ElementListGroupIssues = {
   childCount: number;

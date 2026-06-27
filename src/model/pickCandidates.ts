@@ -1,4 +1,8 @@
 import type { NumericMeasurementKey } from "../geometry/numericExpressions";
+import {
+  numericReferencePropertiesForGeometry,
+  type NumericReferenceGeometry
+} from "../geometry/numericReferenceProperties";
 import { getParameterDefinitions } from "../parameters/parameterDefinitions";
 import { getParameterValue } from "../parameters/parameterAccess";
 import type {
@@ -55,12 +59,6 @@ type PickTargets = {
   activeLinePickTarget: ActiveLinePickTarget | null;
 };
 
-type NumericReferenceGeometry =
-  | ComputedLine
-  | ComputedArcLine
-  | ComputedBezierCurve
-  | ComputedOffsetLine;
-
 const numericReferenceGeometry = (
   geometry: ComputedGeometry | undefined
 ): NumericReferenceGeometry | null =>
@@ -70,13 +68,6 @@ const numericReferenceGeometry = (
   geometry?.kind === "offsetLine"
     ? geometry
     : null;
-
-export const numericReferencePropertiesForGeometry = (
-  geometry: NumericReferenceGeometry
-): readonly NumericMeasurementKey[] =>
-  geometry.kind === "arcLine"
-    ? ["length", "startAngleDeg", "endAngleDeg", "startTangentAngleDeg", "endTangentAngleDeg"]
-    : ["length", "startTangentAngleDeg", "endTangentAngleDeg"];
 
 const numericReferenceExpression = (
   geometry: NumericReferenceGeometry,

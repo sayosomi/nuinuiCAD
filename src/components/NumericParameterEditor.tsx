@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { MouseEvent, PointerEvent } from "react";
 import { dispatchCommand } from "../commands/commands";
 import {
@@ -15,6 +15,7 @@ import { useCadUiStore } from "../state/cadUiStore";
 import type { CadElement, NumericValue } from "../types/geometry";
 import { formatNumber } from "./geometryDisplay";
 import { numericDragStepsForDelta } from "./numericDrag";
+import { ExpressionInsertTray } from "./ExpressionInsertTray";
 import { ParameterName } from "./ParameterName";
 import type { CommonEditorProps } from "./parameterEditorShared";
 import { useParameterEditor } from "./parameterEditorShared";
@@ -35,16 +36,21 @@ export const NumericParameterEditor = ({
   label,
   value,
   ariaLabel,
-  compact = false
+  compact = false,
+  enableExpressionInsert = false
 }: CommonEditorProps & {
   parameterKey: ParameterKey;
   label: string;
   value: NumericValue;
   ariaLabel: string;
   compact?: boolean;
+  enableExpressionInsert?: boolean;
 }) => {
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const inputSelectionRef = useRef<{ start: number; end: number } | null>(null);
   const [numericDrag, setNumericDrag] = useState<NumericDragState | null>(null);
   const activeNumericReferencePickTarget = useCadUiStore((state) => state.activeNumericReferencePickTarget);
+  const activeExpressionInsertTarget = useCadUiStore((state) => state.activeExpressionInsertTarget);
   const {
     controlProps,
     parameterFieldClass,
@@ -55,6 +61,9 @@ export const NumericParameterEditor = ({
   const isPickingThisNumericReference =
     activeNumericReferencePickTarget?.elementId === element.id &&
     activeNumericReferencePickTarget.parameterKey === parameterKey;
+  const isExpressionInsertOpen =
+    activeExpressionInsertTarget?.elementId === element.id &&
+    activeExpressionInsertTarget.parameterKey === parameterKey;
   const updateField = (field: ParameterKey, nextValue: string) => {
     updateParameterValue(
       field,
@@ -129,9 +138,21 @@ export const NumericParameterEditor = ({
       if (event.button === 1) event.preventDefault();
     }
   });
+  const rememberInputSelection = () => {
+    const inputElement = inputRef.current;
+    if (!inputElement || document.activeElement !== inputElement) return;
+    inputSelectionRef.current = {
+      start: inputElement.selectionStart ?? inputElement.value.length,
+      end: inputElement.selectionEnd ?? inputElement.selectionStart ?? inputElement.value.length
+    };
+  };
   const input = (
     <input
       {...controlProps(parameterKey)}
+      ref={(node) => {
+        inputRef.current = node;
+        registerParameterControl(parameterKey, node);
+      }}
       {...numericDragProps(parameterKey)}
       aria-label={ariaLabel}
       type="text"
@@ -141,6 +162,13 @@ export const NumericParameterEditor = ({
       data-numeric-element-id={element.id}
       value={formatNumericExpressionForDisplay(value, elements, element.numericVariables ?? [])}
       onChange={(event) => updateField(parameterKey, event.target.value)}
+      onSelect={rememberInputSelection}
+      onKeyUp={rememberInputSelection}
+      onMouseUp={rememberInputSelection}
+      onFocus={() => {
+        selectParameter(parameterKey);
+        inputSelectionRef.current = null;
+      }}
     />
   );
   const stepControl = (
@@ -179,24 +207,56 @@ export const NumericParameterEditor = ({
     >
       <div className="numeric-parameter-header">
         <ParameterName element={element} parameterKey={parameterKey} label={label} />
-        <button
-          type="button"
-          className={`numeric-reference-pick-button ${isPickingThisNumericReference ? "active" : ""}`}
-          onClick={(event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            selectParameter(parameterKey);
-            if (isPickingThisNumericReference) {
-              dispatchCommand("cancelNumericReferencePick");
-              return;
-            }
-            dispatchCommand("startNumericReferencePick");
-          }}
-        >
-          {isPickingThisNumericReference ? "数値選択中" : "数値選択"}
-        </button>
+        <div className="numeric-parameter-actions">
+          <button
+            type="button"
+            className={`numeric-reference-pick-button ${isPickingThisNumericReference ? "active" : ""}`}
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              selectParameter(parameterKey);
+              if (isPickingThisNumericReference) {
+                dispatchCommand("cancelNumericReferencePick");
+                return;
+              }
+              dispatchCommand("startNumericReferencePick");
+            }}
+          >
+            {isPickingThisNumericReference ? "数値選択中" : "数値選択"}
+          </button>
+          {enableExpressionInsert ? (
+            <button
+              type="button"
+              className={`expression-insert-toggle ${isExpressionInsertOpen ? "active" : ""}`}
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                selectParameter(parameterKey);
+                dispatchCommand("toggleExpressionInsertTray", {
+                  elementId: element.id,
+                  parameterKey
+                });
+              }}
+            >
+              参照を挿入
+            </button>
+          ) : null}
+        </div>
       </div>
       {input}
+      {enableExpressionInsert && isExpressionInsertOpen ? (
+        <ExpressionInsertTray
+          element={element}
+          elements={elements}
+          parameterKey={parameterKey}
+          input={inputRef.current}
+          getInputTarget={() => ({
+            displayedExpression: inputRef.current?.value ?? "",
+            selectionStart: inputSelectionRef.current?.start ?? null,
+            selectionEnd: inputSelectionRef.current?.end ?? null
+          })}
+        />
+      ) : null}
       <div className="numeric-parameter-footer">
         {stepControl}
         {isPickingThisNumericReference ? (

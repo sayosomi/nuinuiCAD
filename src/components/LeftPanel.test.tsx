@@ -28,6 +28,7 @@ const resetStore = () => {
     activePointPickTarget: null,
     activeNumericReferencePickTarget: null,
     activeLinePickTarget: null,
+    activeExpressionInsertTarget: null,
     activePickCursor: null,
     selectedDependencyJumpIndex: 0,
     elementSearchQuery: "",
@@ -189,6 +190,8 @@ describe("LeftPanel numeric input dragging", () => {
     });
     renderRightPanel();
 
+    expect(screen.queryByText("測定・参照を挿入")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText("参照を挿入"));
     fireEvent.change(screen.getByLabelText("点1"), { target: { value: "point-a" } });
     fireEvent.change(screen.getByLabelText("点2"), { target: { value: "point-b" } });
     fireEvent.click(screen.getByText("式に挿入"));
@@ -221,6 +224,7 @@ describe("LeftPanel numeric input dragging", () => {
     });
     renderRightPanel();
 
+    fireEvent.click(screen.getByText("参照を挿入"));
     fireEvent.click(screen.getAllByText("点と線の距離").at(-1)!);
     fireEvent.change(screen.getByLabelText("点"), { target: { value: "point-c" } });
     fireEvent.change(screen.getByLabelText("線"), { target: { value: "line-ab" } });
@@ -228,6 +232,44 @@ describe("LeftPanel numeric input dragging", () => {
 
     expect(useCadStore.getState().elements.at(-1)).toMatchObject({
       expression: { kind: "expression", expression: "点線距離(point-c, line-ab)" }
+    });
+  });
+
+  it("inserts line properties and valid variable references from the expression tray", () => {
+    const baseVariable: CadElement = {
+      id: "base-variable",
+      name: "基準寸法",
+      type: "variable",
+      visible: true,
+      enabled: true,
+      scope: "global",
+      valueMode: "expression",
+      expression: 20,
+      point1: { mode: "reference", pointId: "point-a" },
+      point2: { mode: "reference", pointId: "point-b" },
+      point: { mode: "reference", pointId: "point-a" },
+      lineId: "line-ab"
+    };
+    const variable: CadElement = {
+      ...baseVariable,
+      id: "variable",
+      name: "変数",
+      expression: 0
+    };
+    useCadStore.setState({
+      elements: [...sampleElements, baseVariable, variable],
+      selectedElementId: "variable",
+      selectedElementIds: ["variable"],
+      selectedParameterKey: "expression"
+    });
+    renderRightPanel();
+
+    fireEvent.click(screen.getByText("参照を挿入"));
+    fireEvent.click(screen.getAllByText("長さ")[0]);
+    fireEvent.click(screen.getByText("@基準寸法"));
+
+    expect(useCadStore.getState().elements.at(-1)).toMatchObject({
+      expression: { kind: "expression", expression: "line-ab.length + @base-variable" }
     });
   });
 

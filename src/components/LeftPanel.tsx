@@ -12,7 +12,8 @@ import {
 } from "../model/pointAnchors";
 import {
   numericReferencePropertiesForGeometry,
-} from "../model/pickCandidates";
+  type NumericReferenceGeometry
+} from "../geometry/numericReferenceProperties";
 import type { NumericMeasurementKey } from "../geometry/numericExpressions";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
@@ -26,7 +27,6 @@ import {
 } from "./geometryDisplay";
 import { ElementListRow } from "./ElementListRow";
 import { useElementListData } from "./useElementListData";
-import type { NumericReferenceGeometry } from "./useElementListData";
 export { RightPanel } from "./RightPanel";
 
 type LeftPanelProps = {

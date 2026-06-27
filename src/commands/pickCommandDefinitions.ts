@@ -1,5 +1,7 @@
 import {
   applyNumericExpressionReference,
+  closeExpressionInsertTray,
+  insertNumericExpressionSnippet,
   applyPickedLine,
   applyPickedNumericReference,
   applyPickedPoint,
@@ -11,6 +13,7 @@ import {
   selectPickOptionByOffset,
   startLinePick,
   startNumericReferencePick,
+  toggleExpressionInsertTray,
   startPointPick
 } from "./pickCommands";
 import type { Command, CommandId } from "./commandTypes";
@@ -20,6 +23,21 @@ export const pickCommandDefinitions = {
     id: "applyNumericExpressionReference",
     label: "数値参照式を採用",
     run: (context) => applyNumericExpressionReference(context)
+  },
+  insertNumericExpressionSnippet: {
+    id: "insertNumericExpressionSnippet",
+    label: "数値式へ挿入",
+    run: (context) => insertNumericExpressionSnippet(context)
+  },
+  toggleExpressionInsertTray: {
+    id: "toggleExpressionInsertTray",
+    label: "式の挿入候補を開閉",
+    run: (context) => toggleExpressionInsertTray(context)
+  },
+  closeExpressionInsertTray: {
+    id: "closeExpressionInsertTray",
+    label: "式の挿入候補を閉じる",
+    run: () => closeExpressionInsertTray()
   },
   startNumericReferencePick: {
     id: "startNumericReferencePick",

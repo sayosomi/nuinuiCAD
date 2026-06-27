@@ -829,9 +829,30 @@ select {
   white-space: nowrap;
 }
 
+.numeric-parameter-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
 .numeric-reference-pick-button.active {
   border-color: #0f766e;
   background: #0f766e;
+  color: #ffffff;
+}
+
+.expression-insert-toggle {
+  min-height: 30px;
+  padding: 5px 9px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.expression-insert-toggle.active,
+.expression-insert-toggle.active:hover {
+  border-color: #4b63a3;
+  background: #4b63a3;
   color: #ffffff;
 }
 
@@ -967,38 +988,6 @@ select {
   color: #0f4f49;
 }
 
-.measurement-insert-panel {
-  display: grid;
-  grid-column: 1 / -1;
-  gap: 8px;
-  border: 1px solid #d8dbd2;
-  border-radius: 6px;
-  background: #fbfbfa;
-  padding: 8px;
-}
-
-.measurement-insert-header {
-  display: grid;
-  gap: 4px;
-  color: #4a4d45;
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.measurement-insert-header code {
-  overflow: hidden;
-  border: 1px solid #d8dbd2;
-  border-radius: 4px;
-  background: #ffffff;
-  padding: 4px 6px;
-  color: #0f4f49;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 11px;
-  font-weight: 400;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .measurement-mode-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1053,16 +1042,113 @@ select {
   font-size: 11px;
 }
 
-.measurement-insert-button {
+.expression-insert-tray {
+  display: grid;
+  gap: 8px;
+  border: 1px solid #d8dbd2;
+  border-radius: 6px;
+  background: #f6f7f4;
+  padding: 8px;
+}
+
+.expression-insert-header,
+.expression-insert-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.expression-insert-header {
+  color: #34362f;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.expression-insert-header button {
+  min-height: 28px;
+  padding: 4px 8px;
+  font-size: 11px;
+}
+
+.expression-insert-section {
+  display: grid;
+  gap: 7px;
+  border-top: 1px solid #d8dbd2;
+  padding-top: 8px;
+}
+
+.expression-insert-section:first-of-type {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.expression-insert-title {
+  color: #4a4d45;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.expression-insert-title code {
+  overflow: hidden;
+  max-width: 170px;
+  border: 1px solid #d8dbd2;
+  border-radius: 4px;
+  background: #ffffff;
+  padding: 4px 6px;
+  color: #0f4f49;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11px;
+  font-weight: 400;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.expression-insert-button {
   justify-self: end;
   min-height: 30px;
   padding: 5px 10px;
   font-size: 12px;
 }
 
-.measurement-insert-button:disabled {
+.expression-insert-button:disabled {
   cursor: not-allowed;
   opacity: 0.55;
+}
+
+.expression-token-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.expression-token-grid .empty-state {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+.expression-token-grid button {
+  display: grid;
+  min-height: 44px;
+  gap: 2px;
+  padding: 6px;
+  text-align: left;
+}
+
+.expression-token-grid strong,
+.expression-token-grid small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.expression-token-grid strong {
+  font-size: 11px;
+}
+
+.expression-token-grid small {
+  color: #686b62;
+  font-size: 10px;
 }
 
 .point-pick-button,

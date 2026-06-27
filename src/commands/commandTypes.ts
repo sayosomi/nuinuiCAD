@@ -24,6 +24,9 @@ export type CommandId =
   | "movePointElementByDelta"
   | "moveBezierHandleByDelta"
   | "applyNumericExpressionReference"
+  | "insertNumericExpressionSnippet"
+  | "toggleExpressionInsertTray"
+  | "closeExpressionInsertTray"
   | "startNumericReferencePick"
   | "applyPickedNumericReference"
   | "cancelNumericReferencePick"
@@ -128,6 +131,10 @@ export type CommandContext = {
   parameterKey?: string;
   numericExpression?: string;
   numericReferenceExpression?: string;
+  numericExpressionSnippet?: string;
+  displayedExpression?: string;
+  selectionStart?: number | null;
+  selectionEnd?: number | null;
   intermediatePointId?: string;
   variableId?: string;
   pointAnchorMode?: "reference" | "coordinate";
