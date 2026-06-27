@@ -1,0 +1,19 @@
+[package]
+name = "nuinuicad"
+version = "0.0.0"
+description = "2D parametric CAD editor for sewing pattern drafting"
+authors = ["yosomi"]
+edition = "2021"
+rust-version = "1.77"
+
+[lib]
+name = "nuinuicad_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tauri = { version = "2", features = [] }

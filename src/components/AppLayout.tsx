@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef } from "react";
 import { dispatchCommand } from "../commands/commands";
-import { evaluateElements } from "../geometry/evaluate";
+import { useEvaluationEngine } from "../geometry/useEvaluationEngine";
 import { keyboardCommandForEvent } from "../keyboard/shortcuts";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
@@ -24,10 +24,8 @@ export const AppLayout = () => {
   const elementListFocusRef = useRef<HTMLDivElement>(null);
   const elementSearchInputRef = useRef<HTMLInputElement>(null);
   const parameterInputRefs = useRef(new Map<string, HTMLElement>());
-  const evaluation = useMemo(
-    () => evaluateElements(elements, { evaluationLimitIndex }),
-    [elements, evaluationLimitIndex]
-  );
+  const evaluationOptions = useMemo(() => ({ evaluationLimitIndex }), [evaluationLimitIndex]);
+  const evaluation = useEvaluationEngine(elements, evaluationOptions);
   const registerParameterControl = (key: string, element: HTMLElement | null) => {
     if (element) {
       parameterInputRefs.current.set(key, element);

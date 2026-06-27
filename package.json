@@ -6,11 +6,14 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "desktop:dev": "tauri dev",
+    "desktop:build": "tauri build",
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@tauri-apps/api": "^2.11.1",
     "@vitejs/plugin-react": "latest",
     "lucide-react": "^1.21.0",
     "react": "latest",
@@ -20,6 +23,7 @@
   },
   "devDependencies": {
     "@eslint/js": "latest",
+    "@tauri-apps/cli": "^2.11.3",
     "@testing-library/jest-dom": "latest",
     "@testing-library/react": "latest",
     "@types/node": "latest",

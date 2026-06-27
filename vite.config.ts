@@ -3,6 +3,17 @@ import react from "@vitejs/plugin-react";
 
 export default defineConfig({
   plugins: [react()],
+  clearScreen: false,
+  server: {
+    port: 5173,
+    strictPort: true,
+    watch: {
+      ignored: ["**/src-tauri/**"]
+    }
+  },
+  build: {
+    target: process.env.TAURI_ENV_PLATFORM === "darwin" ? "safari13" : "es2022"
+  },
   test: {
     environment: "jsdom",
     globals: true,
