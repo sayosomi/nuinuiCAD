@@ -7,11 +7,7 @@ import { getParameterDefinitions } from "../parameters/parameterDefinitions";
 import { getParameterValue } from "../parameters/parameterAccess";
 import type {
   CadElement,
-  ComputedArcLine,
-  ComputedBezierCurve,
   ComputedGeometry,
-  ComputedLine,
-  ComputedOffsetLine,
   ElementId,
   EvaluationResult,
   PointAnchor

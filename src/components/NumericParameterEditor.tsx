@@ -249,7 +249,7 @@ export const NumericParameterEditor = ({
           element={element}
           elements={elements}
           parameterKey={parameterKey}
-          input={inputRef.current}
+          focusInput={() => inputRef.current?.focus()}
           getInputTarget={() => ({
             displayedExpression: inputRef.current?.value ?? "",
             selectionStart: inputSelectionRef.current?.start ?? null,

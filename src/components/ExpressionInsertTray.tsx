@@ -20,7 +20,7 @@ type ExpressionInsertTrayProps = {
   element: CadElement;
   elements: CadElement[];
   parameterKey: ParameterKey;
-  input: HTMLInputElement | null;
+  focusInput: () => void;
   getInputTarget: () => InsertTargetInput;
 };
 
@@ -84,7 +84,7 @@ export const ExpressionInsertTray = ({
   element,
   elements,
   parameterKey,
-  input,
+  focusInput,
   getInputTarget
 }: ExpressionInsertTrayProps) => {
   const [mode, setMode] = useState<MeasurementInsertMode>("distance");
@@ -148,7 +148,7 @@ export const ExpressionInsertTray = ({
       selectionStart: target.selectionStart,
       selectionEnd: target.selectionEnd
     });
-    requestAnimationFrame(() => input?.focus());
+    requestAnimationFrame(focusInput);
   };
 
   return (

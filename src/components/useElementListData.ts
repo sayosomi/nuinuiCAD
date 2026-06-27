@@ -18,7 +18,6 @@ import {
   pickCandidates,
   resolvedPickCursor
 } from "../model/pickCandidates";
-import type { NumericReferenceGeometry } from "../geometry/numericReferenceProperties";
 import { getParameterDefinitions } from "../parameters/parameterDefinitions";
 import { getParameterValue } from "../parameters/parameterAccess";
 import type {
