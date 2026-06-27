@@ -366,6 +366,29 @@ describe("shortcuts", () => {
     expect(commandIdForKeyboardEvent(keyboardEventFrom("ArrowDown", button, { altKey: true }))).toBeNull();
   });
 
+  it("moves the evaluation divider with Shift+Alt+Arrow only from focused element list targets", () => {
+    const list = document.createElement("div");
+    const row = document.createElement("div");
+    const input = document.createElement("input");
+    list.dataset.elementList = "true";
+    row.dataset.elementListRow = "true";
+    row.append(input);
+    list.append(row);
+
+    expect(
+      commandIdForKeyboardEvent(keyboardEventFrom("ArrowUp", list, { altKey: true, shiftKey: true }))
+    ).toBe("moveEvaluationDividerUp");
+    expect(
+      commandIdForKeyboardEvent(keyboardEventFrom("ArrowDown", row, { altKey: true, shiftKey: true }))
+    ).toBe("moveEvaluationDividerDown");
+    expect(
+      commandIdForKeyboardEvent(keyboardEvent("ArrowUp", { altKey: true, shiftKey: true }))
+    ).toBeNull();
+    expect(
+      commandIdForKeyboardEvent(keyboardEventFrom("ArrowDown", input, { altKey: true, shiftKey: true }))
+    ).toBeNull();
+  });
+
   it("does not use list Alt+Arrow reordering in parameter edit mode", () => {
     const row = document.createElement("button");
     row.dataset.elementListRow = "true";

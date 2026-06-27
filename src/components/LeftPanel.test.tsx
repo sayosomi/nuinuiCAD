@@ -563,7 +563,7 @@ describe("LeftPanel element list dragging", () => {
     });
     renderLeftPanel(evaluateElements(sampleElements, { evaluationLimitIndex: 2 }));
     const dataTransfer = dragDataTransfer();
-    const divider = screen.getByLabelText("評価区切り線。6件中2件を評価");
+    const divider = screen.getByLabelText(/評価区切り線。6件中2件を評価/);
     const targetRow = screen.getByText("直線BC").closest("[data-element-list-row='true']");
     expect(targetRow).toBeInstanceOf(HTMLElement);
     targetRow!.getBoundingClientRect = () => ({
@@ -583,6 +583,31 @@ describe("LeftPanel element list dragging", () => {
     fireEvent.drop(targetRow!, { dataTransfer, clientY: 75 });
 
     expect(useCadStore.getState().evaluationLimitIndex).toBe(4);
+  });
+
+  it("moves the evaluation divider from keyboard focus", () => {
+    useCadStore.setState({
+      evaluationLimitIndex: 3
+    });
+    renderLeftPanel(evaluateElements(sampleElements, { evaluationLimitIndex: 3 }));
+    let divider = screen.getByLabelText(/評価区切り線。6件中3件を評価/);
+
+    divider.focus();
+    expect(divider).toHaveFocus();
+
+    fireEvent.keyDown(divider, { key: "ArrowUp" });
+    expect(useCadStore.getState().evaluationLimitIndex).toBe(2);
+
+    fireEvent.keyDown(divider, { key: "ArrowDown", shiftKey: true });
+    expect(useCadStore.getState().evaluationLimitIndex).toBe(sampleElements.length);
+
+    divider = screen.getByLabelText(/評価区切り線。6件中6件を評価/);
+    fireEvent.keyDown(divider, { key: "Home" });
+    expect(useCadStore.getState().evaluationLimitIndex).toBe(0);
+
+    divider = screen.getByLabelText(/評価区切り線。6件中0件を評価/);
+    fireEvent.keyDown(divider, { key: "End" });
+    expect(useCadStore.getState().evaluationLimitIndex).toBe(sampleElements.length);
   });
 
   it("searches collapsed group children and selects the active result with Enter", () => {

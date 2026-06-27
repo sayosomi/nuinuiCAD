@@ -66,6 +66,10 @@ type EvaluationDividerRowProps = {
   onDragEnd: () => void;
 };
 
+const moveEvaluationDividerToIndex = (evaluationLimitIndex: number) => {
+  dispatchCommand("setEvaluationLimitIndex", { evaluationLimitIndex });
+};
+
 const EvaluationDividerRow = ({
   evaluationLimitIndex,
   evaluatedCount,
@@ -82,9 +86,33 @@ const EvaluationDividerRow = ({
     className={`evaluation-divider-row ${isDragging ? "dragging" : ""} ${
       isDropTarget ? "drop-target" : ""
     }`}
+    tabIndex={0}
+    role="separator"
+    aria-orientation="horizontal"
     draggable
     data-evaluation-divider="true"
-    aria-label={`評価区切り線。${totalCount}件中${evaluatedCount}件を評価`}
+    aria-label={`評価区切り線。${totalCount}件中${evaluatedCount}件を評価。上下矢印で移動、Shift+上下矢印で10件移動、Homeで先頭、Endで末尾`}
+    onKeyDown={(event) => {
+      if (event.key === "ArrowUp") {
+        event.preventDefault();
+        moveEvaluationDividerToIndex(evaluationLimitIndex - (event.shiftKey ? 10 : 1));
+        return;
+      }
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        moveEvaluationDividerToIndex(evaluationLimitIndex + (event.shiftKey ? 10 : 1));
+        return;
+      }
+      if (event.key === "Home") {
+        event.preventDefault();
+        moveEvaluationDividerToIndex(0);
+        return;
+      }
+      if (event.key === "End") {
+        event.preventDefault();
+        moveEvaluationDividerToIndex(totalCount);
+      }
+    }}
     onDragStart={onDragStart}
     onDragOver={onDragOver}
     onDragLeave={onDragLeave}
