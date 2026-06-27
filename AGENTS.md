@@ -1,386 +1,176 @@
 # AGENTS.md
 
-## Project overview
+## Purpose
 
-This project is a prototype of a 2D parametric CAD application for sewing pattern drafting.
+This file is the implementation guide for agents working in this repository.
+Keep it focused on durable product and engineering rules, not a complete
+roadmap or a duplicate of the current source code.
 
-The goal is not to build a general-purpose CAD application. The goal is to build a practical pattern-drafting editor that can eventually replace workflows currently done in Momoko CAD / [桃CAD](https://xn--6xw240d.net/index.html).
+This project is a 2D parametric CAD editor for sewing pattern drafting. It is
+not intended to become a general-purpose mechanical CAD system.
 
-The application should prioritize:
+Prioritize:
 
-* sewing pattern drafting
-* parametric construction steps
-* clear dependency errors
+* sewing pattern drafting workflows
+* deterministic parametric construction
+* clear dependency and evaluation errors
 * editable geometric elements
-* curve length measurement
-* fast keyboard-driven operation
-* SVG-based 2D editing
-* future PDF export and tiled A4 printing
+* curve and path length measurement
+* keyboard-driven operation
+* SVG/Canvas-based 2D editing
+* future SVG/PDF export and tiled A4 printing
 
-## Core product direction
+## Product principles
 
-This application is a parametric pattern drafting editor.
+Prefer clothing-pattern features over generic CAD features: pattern lines,
+curves, dimensions, labels, notches, seam allowances, grain lines, and printable
+physical units.
 
-Prefer features useful for clothing pattern work over general mechanical CAD features.
+Do not introduce a full generic geometric constraint solver unless the product
+need is explicit. The core engine should remain a deterministic construction
+evaluator: elements are evaluated in document order, and invalid dependencies
+are reported rather than silently repaired.
 
-Important future features include:
+Use millimeters as the conceptual unit. Rendering may map millimeters to pixels,
+but geometry values should remain physical units so export and printing stay
+predictable.
 
-* free points
-* offset points
-* construction lines
-* line segments
-* cubic Bézier curves
-* curve handle editing
-* curve length measurement
-* combined path length measurement
-* dimensions and labels
-* notches
-* seam allowances
-* grain lines
-* SVG export
-* PDF export
-* tiled A4 printing
+## Source of truth
 
-Do not start by implementing a full generic geometric constraint solver.
+When updating behavior, prefer these source files over duplicating details here:
 
-Instead, start with a deterministic parametric construction engine.
+* Element and geometry types: `src/types/geometry.ts`
+* Geometry evaluation: `src/geometry/`
+* Dependency and document ordering logic: `src/model/`
+* Commands and command palette data: `src/commands/`
+* Keyboard shortcut mapping: `src/keyboard/shortcuts.ts`
+* Editable parameter definitions: `src/parameters/parameterDefinitions.ts`
+* Store state and undo behavior: `src/state/`
+* Rendering and interaction components: `src/components/`
 
-## Evaluation model
+If behavior changes at the architectural or product-policy level, update this
+file. If only a shortcut, label, parameter, or element field changes, update the
+source of truth instead.
 
-Elements are evaluated from top to bottom.
+## Evaluation and dependencies
 
-Each element may only reference elements that have already been evaluated earlier in the list.
+Elements are evaluated from top to bottom. An element may only reference
+geometry that has already been evaluated earlier in the document order. Do not
+automatically sort, repair, or reorder elements to hide dependency problems.
 
-For example, this is valid:
+Dependency errors should be explicit and actionable. Include the broken element
+ID/name, the missing or unavailable dependency ID/name when known, and a
+human-readable message explaining whether the dependency is missing, disabled,
+invalid, or appears too late.
 
-1. Point A
-2. Point B
-3. Line AB using Point A and Point B
+Elements with dependency errors should be visibly marked in the UI. Invalid
+geometry should not be drawn as normal valid geometry; either omit it or render
+a clear warning marker.
 
-This is invalid:
+`visible` controls drawing. `enabled` controls evaluation. A hidden element may
+still be evaluated and referenced. A disabled element must not produce computed
+geometry, even if it is visible.
 
-1. Point A
-2. Line AB using Point A and Point B
-3. Point B
+For now, document order can continue to serve as both evaluation order and
+display order unless a change explicitly introduces separate visual layering.
 
-In the invalid case, Line AB must report a clear dependency error because Point B is not available at the time Line AB is evaluated.
+## Commands, keyboard, and parameters
 
-Do not automatically sort or repair the element order in the initial implementation.
+Keyboard operation is a first-class product requirement. Do not design
+mouse-only workflows.
 
-The user should be able to see which element is broken and which dependency is missing or appears too late.
+Major operations must be implemented as commands. Buttons, menus, keyboard
+shortcuts, command palette entries, and canvas interactions should dispatch the
+same command implementations instead of duplicating business logic in React
+components.
 
-## Dependency error policy
+Global shortcuts must not interfere with normal text and number entry. When an
+`input`, `textarea`, `select`, or `contenteditable` element is focused,
+ordinary typing and editing shortcuts should continue to work normally.
 
-When dependency order is broken, show a clear error.
+Do not choose geometry references from large static dropdowns. Pattern documents
+can grow to hundreds or thousands of elements, so references should use scalable
+selection UI such as canvas picking, searchable construction lists,
+command-driven candidate selection, or keyboard navigation.
 
-Errors should include:
+Selected element parameters must remain operable by keyboard through explicit
+parameter edit mode. When adding a parameter, define it in the centralized
+parameter definition table with a stable key, label, direct key, and value kind.
+Numeric parameters should support per-parameter keyboard step sizes, defaulting
+to 1 mm unless the parameter needs domain-specific levels such as ratios or
+angles.
 
-* the broken element ID
-* the broken element name
-* the missing dependency ID
-* the missing dependency name if available
-* a human-readable message
+Do not maintain a hand-written shortcut list in this file. Shortcut help should
+come from command and shortcut metadata in the application.
 
-Example message:
+## Architecture and code organization
 
-> Line AB references Point B, but Point B is after this element or does not exist. Move Point B before Line AB.
+Use Vite, React, TypeScript, SVG/Canvas rendering, and Zustand where shared
+state is useful.
 
-Elements with dependency errors should be visibly marked in the element list.
+Keep geometry computation out of React rendering components. Prefer small pure
+functions for geometry, dependency, validation, ordering, and parameter access
+logic.
 
-Invalid geometry should either not be drawn or should be drawn as a clear warning marker.
+Use TypeScript discriminated unions for element types. Avoid stringly-typed
+geometry where reasonable, and keep element IDs stable.
 
-Prefer understandable errors over automatic correction.
+Keep changes local to the relevant subsystem. Avoid broad architectural
+rewrites unless the requested feature or bug fix genuinely requires them.
 
-## Display order and evaluation order
+## Rendering and performance
 
-For the initial implementation, display order and evaluation order may be the same.
+The application should remain viable for roughly 1,000 editable geometry
+elements, large reference images used as underlays, frequent pan/zoom, and
+real-time editing feedback.
 
-In the future, these may be separated into:
+Do not assume all geometry should always be rendered as React DOM or individual
+SVG elements. Keep the rendering architecture able to evolve toward:
 
-* evaluation order / construction history
-* visual layer order
+* Canvas for main geometry and large reference images
+* SVG or HTML overlays for selected elements, handles, labels, and editing UI
+* cached curve/path measurements recomputed only when geometry changes
 
-Do not introduce this separation prematurely unless necessary.
-
-## Keyboard-first UI policy
-
-Keyboard operation is a first-class requirement.
-
-One of the major motivations for this project is dissatisfaction with CAD software that requires too much mouse interaction and does not support meaningful keyboard operation outside text and number inputs.
-
-Therefore:
-
-* Do not design mouse-only workflows.
-* Major operations must be available through keyboard shortcuts.
-* Buttons, menus, and keyboard shortcuts should call the same command implementations.
-* Implement actions as commands, not as ad-hoc button-only handlers.
-* Keep command definitions centralized enough that a command palette can be added later.
-* The UI should expose a shortcut list or help view.
-* Do not let global shortcuts interfere with normal text or number entry.
-* Do not make users choose geometry elements from large dropdown/select lists.
-  Pattern documents can grow to hundreds of elements, so element references
-  must use scalable selection UI such as canvas picking, searchable construction
-  lists, command-driven candidate selection, or keyboard navigation.
-
-When an `input`, `textarea`, `select`, or `contenteditable` element is focused, ordinary typing and editing shortcuts must continue to work normally.
-
-## Parameter edit mode
-
-Selected element parameters must be operable by keyboard, not only by mouse or direct form focus.
-
-Use an explicit parameter edit mode:
-
-* `Enter`: enter parameter edit mode for the selected element
-* `Escape`: leave parameter edit mode
-* `ArrowDown` / `ArrowUp`: move between editable parameters
-* parameter name keys: jump to parameters only while parameter edit mode is active; define the actual keys in the centralized parameter definition table
-* `ArrowRight` / `ArrowLeft`: adjust the selected numeric parameter or cycle reference choices when appropriate
-* `[` / `]`: decrease or increase the selected numeric parameter's keyboard step size
-* `Space`: toggle the selected boolean parameter
-
-When adding a new element type, also add its editable parameters to the centralized parameter definition table. Each parameter should define:
-
-* stable parameter key
-* human-readable label
-* direct key used in parameter edit mode
-* value kind: text, number, boolean, or reference
-
-Numeric parameters should support per-parameter keyboard step sizes, defaulting to 1 mm. Keyboard step shortcuts should use the fixed levels `0.1`, `1`, `10`, and `100` mm.
-
-## Command architecture
-
-Prefer a command-based architecture.
-
-Examples of commands:
-
-* selectNextElement
-* selectPreviousElement
-* moveSelectedElementUp
-* moveSelectedElementDown
-* toggleSelectedElementVisibility
-* deleteSelectedElement
-* addFreePoint
-* addOffsetPoint
-* addLine
-* focusCanvas
-* focusElementList
-
-UI buttons and keyboard shortcuts should dispatch the same commands.
-
-Avoid duplicating business logic inside React components.
-
-## Suggested initial keyboard shortcuts
-
-Use `Mod` to mean Command on macOS and Ctrl on Windows/Linux.
-
-Initial shortcuts:
-
-* `ArrowUp`: select previous element
-* `ArrowDown`: select next element
-* `Mod+ArrowUp`: move selected element up
-* `Mod+ArrowDown`: move selected element down
-* `Delete` / `Backspace`: delete selected element
-* `v`: toggle selected element visibility
-* `p`: add free point
-* `o`: add offset point
-* `l`: add line
-* `?`: show or hide shortcut help
-
-These are initial defaults and may be changed later.
-
-## Technical stack
-
-Use:
-
-* Vite
-* React
-* TypeScript
-* SVG rendering
-* Zustand if state management becomes useful
-
-## Code organization
-
-Keep the code modular.
-
-Recommended separation:
-
-* types
-* geometry evaluation
-* validation
-* commands
-* keyboard shortcuts
-* state/store
-* React components
-* SVG rendering
-
-Avoid mixing geometry computation directly into React rendering components.
-
-Avoid mixing keyboard shortcut handling directly into individual UI buttons.
-
-## Geometry model
-
-The initial geometry model should support:
-
-* free point
-* offset point
-* line
-
-All elements should have:
-
-* id
-* name
-* type
-* visible
-* enabled
-
-`visible` controls whether the element is drawn.
-
-`enabled` controls whether the element is evaluated.
-
-A hidden element may still be evaluated and referenced by other elements.
-
-A disabled element must not produce computed geometry, even if it is visible.
-
-
-Free point:
-
-* x
-* y
-
-Offset point:
-
-* fromPointId
-* dx
-* dy
-
-Line:
-
-* startPointId
-* endPointId
-
-Computed geometry should be derived by evaluating the element list from top to bottom.
-
-## Performance and large document policy
-
-This application must handle sewing patterns and embroidery drawings with many elements.
-
-Target scale:
-
-- approximately 1,000 editable geometry elements
-- large reference images used as underlays
-- frequent pan and zoom operations
-- real-time editing feedback
-
-Do not assume that all geometry should be rendered as React DOM or SVG elements.
-
-Prefer a rendering architecture that can evolve toward:
-
-- Canvas for main geometry rendering
-- Canvas for large reference images
-- SVG or HTML overlays for selected elements, handles, labels, and editing UI
-
-Large reference images must be treated as assets, not ordinary lightweight elements.
-
-The application should eventually generate reduced-size preview images for display and avoid redrawing full-resolution images unnecessarily.
-
-Undo history must not duplicate large image data. Store image assets separately and refer to them by asset ID.
-
-Curve length calculations should be cached and recomputed only when the curve geometry changes.
-
-## Units and coordinate system
-
-Use millimeters as the conceptual unit.
-
-The SVG canvas may map millimeters to pixels through a scale factor, but geometry values should be treated as millimeters.
-
-Future printing and PDF export depend on predictable physical units.
-
-## Future curve support
-
-Design the architecture so that cubic Bézier curves can be added later.
-
-Future Bézier curve elements should support:
-
-* start point
-* end point
-* start handle length
-* start handle angle
-* end handle length
-* end handle angle
-* real-time curve length measurement
-
-Curve length measurement is a high-priority future feature.
-
-Do not implement curve length constraints first.
-
-The first curve-related goal is:
-
-* draw curves
-* edit handles
-* show curve length in real time
-* show target length and difference if a target is entered
-
-## Solver policy
-
-Do not implement a full general-purpose geometric constraint solver in the initial prototype.
-
-The initial engine should be a parametric construction evaluator, not a SolveSpace-like solver.
-
-Acceptable early features:
-
-* fixed/free points
-* offset points
-* horizontal/vertical offsets by dx/dy
-* lines between existing points
-* dependency validation
-
-Future features may include:
-
-* point on line
-* intersection point
-* midpoint
-* perpendicular/horizontal/vertical construction helpers
-* simple constraint assists
-
-A full solver can be considered later only if the product needs it.
-
-## Error handling preference
-
-Prefer explicit, readable errors.
-
-Do not silently fix model problems.
-
-Do not hide broken dependencies.
-
-Do not produce geometry from invalid dependencies.
-
-When possible, show what the user should move or edit to fix the issue.
+Treat large reference images as assets, not ordinary lightweight elements. Undo
+history should reference large assets by ID and must not duplicate image data.
 
 ## Testing and quality
 
-When adding geometry or validation logic, prefer small pure functions that can be tested.
+When adding geometry, dependency, command, parameter, or keyboard behavior, add
+focused tests for the pure logic and the user-facing command behavior.
 
-If a test setup exists, add tests for:
+Important scenarios include:
 
 * valid evaluation order
-* missing dependency
-* dependency that appears too late
-* visibility behavior
-* command behavior
-* keyboard shortcut mapping
+* missing, disabled, invalid, or too-late dependencies
+* visibility versus enabled behavior
+* command dispatch behavior
+* keyboard shortcut mapping and form-input exclusion
+* parameter definition and keyboard edit behavior
+* geometry measurement behavior when relevant
 
-If no test setup exists, keep logic simple and isolated so tests can be added later.
+Run the relevant checks before handing work back:
 
-## Implementation style
+* `npm test`
+* `npm run build`
+* `npm run lint`
 
-Use TypeScript types carefully.
+If a check cannot be run or fails for unrelated existing reasons, report that
+clearly.
 
-Prefer discriminated unions for element types.
+## Adding a new element type
 
-Avoid stringly-typed geometry where possible.
+When adding a new CAD element type, update the complete path for that element:
 
-Keep IDs stable.
+* type definitions and display labels
+* factory/default creation behavior
+* dependency extraction and ordering behavior
+* geometry evaluator and error reporting
+* parameter definitions and parameter access
+* creation/edit commands and command palette metadata when user-facing
+* rendering, hit testing, selection, and canvas interaction as needed
+* tests for valid evaluation, broken dependencies, commands, and parameters
 
-Avoid making large architectural changes unless necessary.
-
-When changing behavior, update this file if the project policy changes.
+Prefer clear errors and simple deterministic construction over automatic
+correction. If a model problem exists, show the user what to move or edit rather
+than hiding the issue.
