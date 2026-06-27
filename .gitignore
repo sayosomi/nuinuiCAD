@@ -1,5 +1,6 @@
 node_modules
 dist
+src-tauri/gen
 src-tauri/target
 .npm-cache
 .DS_Store
