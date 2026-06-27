@@ -1098,16 +1098,37 @@ select {
   color: #0f4f49;
 }
 
-.measurement-insert-grid {
+.measurement-pick-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
 }
 
-.measurement-insert-grid label {
+.measurement-pick-field {
   display: grid;
   gap: 4px;
+  align-content: start;
+  min-width: 0;
   color: #4a4d45;
+  font-size: 11px;
+}
+
+.measurement-pick-field strong {
+  overflow: hidden;
+  border: 1px solid #d8dbd2;
+  border-radius: 4px;
+  background: #fff;
+  padding: 5px 6px;
+  color: #34362f;
+  font-size: 12px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.measurement-pick-field button {
+  min-height: 28px;
+  padding: 4px 8px;
   font-size: 11px;
 }
 

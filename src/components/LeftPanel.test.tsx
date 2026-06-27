@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { createRef } from "react";
 import { beforeEach, describe, expect, it } from "vitest";
 import { LeftPanel, RightPanel } from "./LeftPanel";
@@ -7,6 +7,7 @@ import { evaluateElements } from "../geometry/evaluate";
 import { sampleElements } from "../sampleData";
 import { DEFAULT_CANVAS_VIEWPORT, useCadStore } from "../state/useCadStore";
 import type { CadElement, EvaluationResult } from "../types/geometry";
+import { dispatchCommand } from "../commands/commands";
 
 const emptyEvaluation: EvaluationResult = {
   computedGeometry: new Map(),
@@ -30,6 +31,7 @@ const resetStore = () => {
     activeNumericReferencePickTarget: null,
     activeLinePickTarget: null,
     activeExpressionInsertTarget: null,
+    activeMeasurementInsertTarget: null,
     activePickCursor: null,
     selectedDependencyJumpIndex: 0,
     elementSearchQuery: "",
@@ -193,8 +195,16 @@ describe("LeftPanel numeric input dragging", () => {
 
     expect(screen.queryByText("測定・参照を挿入")).not.toBeInTheDocument();
     fireEvent.click(screen.getByText("参照を挿入"));
-    fireEvent.change(screen.getByLabelText("点1"), { target: { value: "point-a" } });
-    fireEvent.change(screen.getByLabelText("点2"), { target: { value: "point-b" } });
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getAllByText("点を選択")[0]);
+    act(() => {
+      dispatchCommand("applyPickedPoint", { pickedPointId: "point-a" });
+    });
+    fireEvent.click(screen.getAllByText("点を選択").at(-1)!);
+    act(() => {
+      dispatchCommand("applyPickedPoint", { pickedPointId: "point-b" });
+    });
     fireEvent.click(screen.getByText("式に挿入"));
 
     expect(useCadStore.getState().elements.at(-1)).toMatchObject({
@@ -227,8 +237,16 @@ describe("LeftPanel numeric input dragging", () => {
 
     fireEvent.click(screen.getByText("参照を挿入"));
     fireEvent.click(screen.getAllByText("点と線の距離").at(-1)!);
-    fireEvent.change(screen.getByLabelText("点"), { target: { value: "point-c" } });
-    fireEvent.change(screen.getByLabelText("線"), { target: { value: "line-ab" } });
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("点を選択"));
+    act(() => {
+      dispatchCommand("applyPickedPoint", { pickedPointId: "point-c" });
+    });
+    fireEvent.click(screen.getByText("線を選択"));
+    act(() => {
+      dispatchCommand("applyPickedLine", { pickedLineId: "line-ab" });
+    });
     fireEvent.click(screen.getByText("式に挿入"));
 
     expect(useCadStore.getState().elements.at(-1)).toMatchObject({

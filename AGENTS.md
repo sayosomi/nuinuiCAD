@@ -117,6 +117,10 @@ Therefore:
 * Keep command definitions centralized enough that a command palette can be added later.
 * The UI should expose a shortcut list or help view.
 * Do not let global shortcuts interfere with normal text or number entry.
+* Do not make users choose geometry elements from large dropdown/select lists.
+  Pattern documents can grow to hundreds of elements, so element references
+  must use scalable selection UI such as canvas picking, searchable construction
+  lists, command-driven candidate selection, or keyboard navigation.
 
 When an `input`, `textarea`, `select`, or `contenteditable` element is focused, ordinary typing and editing shortcuts must continue to work normally.
 

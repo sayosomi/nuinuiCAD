@@ -1,6 +1,7 @@
 import {
   applyNumericExpressionReference,
   closeExpressionInsertTray,
+  insertSelectedMeasurement,
   insertNumericExpressionSnippet,
   applyPickedLine,
   applyPickedNumericReference,
@@ -11,7 +12,10 @@ import {
   cancelPointPick,
   selectPickCandidateByOffset,
   selectPickOptionByOffset,
+  setMeasurementInsertMode,
   startLinePick,
+  startMeasurementLinePick,
+  startMeasurementPointPick,
   startNumericReferencePick,
   toggleExpressionInsertTray,
   startPointPick
@@ -38,6 +42,26 @@ export const pickCommandDefinitions = {
     id: "closeExpressionInsertTray",
     label: "式の挿入候補を閉じる",
     run: () => closeExpressionInsertTray()
+  },
+  setMeasurementInsertMode: {
+    id: "setMeasurementInsertMode",
+    label: "挿入する測定を切り替え",
+    run: (context) => setMeasurementInsertMode(context)
+  },
+  startMeasurementPointPick: {
+    id: "startMeasurementPointPick",
+    label: "測定用の点を選択",
+    run: (context) => startMeasurementPointPick(context)
+  },
+  startMeasurementLinePick: {
+    id: "startMeasurementLinePick",
+    label: "測定用の線を選択",
+    run: (context) => startMeasurementLinePick(context)
+  },
+  insertSelectedMeasurement: {
+    id: "insertSelectedMeasurement",
+    label: "選択した測定を式に挿入",
+    run: (context) => insertSelectedMeasurement(context)
   },
   startNumericReferencePick: {
     id: "startNumericReferencePick",

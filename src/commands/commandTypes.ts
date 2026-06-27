@@ -1,5 +1,9 @@
 import type { BezierHandleRole } from "../model/elementDragTransforms";
 import type { CadDocumentSnapshot } from "../state/cadDocumentStore";
+import type {
+  MeasurementInsertMode,
+  MeasurementPointSlot
+} from "../state/cadUiStore";
 import type { CadElement, ElementId, PointAnchor } from "../types/geometry";
 
 export type { BezierHandleRole };
@@ -32,6 +36,10 @@ export type CommandId =
   | "insertNumericExpressionSnippet"
   | "toggleExpressionInsertTray"
   | "closeExpressionInsertTray"
+  | "setMeasurementInsertMode"
+  | "startMeasurementPointPick"
+  | "startMeasurementLinePick"
+  | "insertSelectedMeasurement"
   | "startNumericReferencePick"
   | "applyPickedNumericReference"
   | "cancelNumericReferencePick"
@@ -142,6 +150,8 @@ export type CommandContext = {
   displayedExpression?: string;
   selectionStart?: number | null;
   selectionEnd?: number | null;
+  measurementInsertMode?: MeasurementInsertMode;
+  measurementPointSlot?: MeasurementPointSlot;
   intermediatePointId?: string;
   variableId?: string;
   pointAnchorMode?: "reference" | "coordinate";

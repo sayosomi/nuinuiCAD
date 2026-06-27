@@ -1,14 +1,13 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { dispatchCommand } from "../commands/commands";
 import { numericReferencePropertiesForElement } from "../geometry/numericReferenceProperties";
 import { lineMeasurementLabel } from "../geometry/numericExpressions";
-import { isPointElement } from "../model/pointAnchors";
 import { parseVariableParameterKey } from "../parameters/parameterAccess";
 import type { ParameterKey } from "../parameters/parameterDefinitions";
 import { variableIsInScope } from "../geometry/variableScope";
-import type { CadElement, ElementId } from "../types/geometry";
-
-type MeasurementInsertMode = "distance" | "angle" | "lineDistance";
+import { useCadUiStore } from "../state/cadUiStore";
+import type { MeasurementInsertMode, MeasurementPointSlot } from "../state/cadUiStore";
+import type { CadElement, ElementId, PointAnchor } from "../types/geometry";
 
 type InsertTargetInput = {
   displayedExpression: string;
@@ -39,6 +38,20 @@ const selectedElementName = (elements: CadElement[], elementId: ElementId) =>
   elements.find((element) => element.id === elementId)?.name ?? elementId;
 
 const elementLabel = (element: CadElement) => `${element.name} (${element.id})`;
+
+const pointAnchorLabel = (anchor: PointAnchor | null, elements: CadElement[]) => {
+  if (!anchor) return "未選択";
+  if (anchor.mode === "reference") return selectedElementName(elements, anchor.pointId);
+  if (anchor.mode === "derived") {
+    const elementName = selectedElementName(elements, anchor.elementId);
+    if (anchor.pointKey === "start") return `${elementName}.始点`;
+    if (anchor.pointKey === "end") return `${elementName}.終点`;
+    if (anchor.pointKey === "center") return `${elementName}.中心点`;
+    if (anchor.pointKey.startsWith("intermediate:")) return `${elementName}.中間点`;
+    return `${elementName}.${anchor.pointKey}`;
+  }
+  return `座標(${anchor.x}, ${anchor.y})`;
+};
 
 const scopedVariableOptions = ({
   element,
@@ -87,16 +100,17 @@ export const ExpressionInsertTray = ({
   focusInput,
   getInputTarget
 }: ExpressionInsertTrayProps) => {
-  const [mode, setMode] = useState<MeasurementInsertMode>("distance");
+  const activeMeasurementInsertTarget = useCadUiStore((state) => state.activeMeasurementInsertTarget);
+  const activePointPickTarget = useCadUiStore((state) => state.activePointPickTarget);
+  const activeLinePickTarget = useCadUiStore((state) => state.activeLinePickTarget);
+  const isMeasurementTarget =
+    activeMeasurementInsertTarget?.elementId === element.id &&
+    activeMeasurementInsertTarget.parameterKey === parameterKey;
+  const mode = isMeasurementTarget ? activeMeasurementInsertTarget.mode : "distance";
   const previousElements = useMemo(() => {
     const targetIndex = elements.findIndex((item) => item.id === element.id);
     return targetIndex < 0 ? [] : elements.slice(0, targetIndex);
   }, [element.id, elements]);
-  const pointOptions = useMemo(() => previousElements.filter(isPointElement), [previousElements]);
-  const lineOptions = useMemo(
-    () => previousElements.filter((item) => item.type === "line"),
-    [previousElements]
-  );
   const propertyOptions = useMemo(
     () =>
       previousElements.flatMap((item) =>
@@ -112,31 +126,18 @@ export const ExpressionInsertTray = ({
     () => scopedVariableOptions({ element, elements, parameterKey }),
     [element, elements, parameterKey]
   );
-  const [point1Id, setPoint1Id] = useState<ElementId>(pointOptions[0]?.id ?? "");
-  const [point2Id, setPoint2Id] = useState<ElementId>(pointOptions[1]?.id ?? pointOptions[0]?.id ?? "");
-  const [lineId, setLineId] = useState<ElementId>(lineOptions[0]?.id ?? "");
-  const effectivePoint1Id = pointOptions.some((point) => point.id === point1Id)
-    ? point1Id
-    : pointOptions[0]?.id ?? "";
-  const effectivePoint2Id = pointOptions.some((point) => point.id === point2Id)
-    ? point2Id
-    : pointOptions[1]?.id ?? pointOptions[0]?.id ?? "";
-  const effectiveLineId = lineOptions.some((line) => line.id === lineId)
-    ? lineId
-    : lineOptions[0]?.id ?? "";
+  const point1Anchor = isMeasurementTarget ? activeMeasurementInsertTarget.point1Anchor : null;
+  const point2Anchor = isMeasurementTarget ? activeMeasurementInsertTarget.point2Anchor : null;
+  const lineId = isMeasurementTarget ? activeMeasurementInsertTarget.lineId : null;
   const selectedMode = measurementModes.find((item) => item.mode === mode) ?? measurementModes[0];
   const canInsertMeasurement =
     mode === "lineDistance"
-      ? Boolean(effectivePoint1Id && effectiveLineId)
-      : Boolean(effectivePoint1Id && effectivePoint2Id);
-  const measurementExpression =
-    mode === "lineDistance"
-      ? `${selectedMode.functionName}(${effectivePoint1Id}, ${effectiveLineId})`
-      : `${selectedMode.functionName}(${effectivePoint1Id}, ${effectivePoint2Id})`;
+      ? Boolean(point1Anchor && lineId)
+      : Boolean(point1Anchor && point2Anchor);
   const measurementPreview =
     mode === "lineDistance"
-      ? `${selectedMode.functionName}(${selectedElementName(elements, effectivePoint1Id)}, ${selectedElementName(elements, effectiveLineId)})`
-      : `${selectedMode.functionName}(${selectedElementName(elements, effectivePoint1Id)}, ${selectedElementName(elements, effectivePoint2Id)})`;
+      ? `${selectedMode.functionName}(${pointAnchorLabel(point1Anchor, elements)}, ${lineId ? selectedElementName(elements, lineId) : "未選択"})`
+      : `${selectedMode.functionName}(${pointAnchorLabel(point1Anchor, elements)}, ${pointAnchorLabel(point2Anchor, elements)})`;
 
   const insertSnippet = (snippet: string) => {
     const target = getInputTarget();
@@ -150,6 +151,50 @@ export const ExpressionInsertTray = ({
     });
     requestAnimationFrame(focusInput);
   };
+  const inputTargetContext = () => {
+    const target = getInputTarget();
+    return {
+      elementId: element.id,
+      parameterKey,
+      displayedExpression: target.displayedExpression,
+      selectionStart: target.selectionStart,
+      selectionEnd: target.selectionEnd
+    };
+  };
+  const startPointPick = (measurementPointSlot: MeasurementPointSlot) => {
+    dispatchCommand("startMeasurementPointPick", {
+      ...inputTargetContext(),
+      measurementInsertMode: mode,
+      measurementPointSlot
+    });
+  };
+  const startLinePick = () => {
+    dispatchCommand("startMeasurementLinePick", {
+      ...inputTargetContext(),
+      measurementInsertMode: mode
+    });
+  };
+  const insertMeasurement = () => {
+    dispatchCommand("insertSelectedMeasurement", {
+      ...inputTargetContext(),
+      measurementInsertMode: mode
+    });
+    requestAnimationFrame(focusInput);
+  };
+  const setMode = (measurementInsertMode: MeasurementInsertMode) => {
+    dispatchCommand("setMeasurementInsertMode", {
+      ...inputTargetContext(),
+      measurementInsertMode
+    });
+  };
+  const isPickingPoint = (slot: MeasurementPointSlot) =>
+    activePointPickTarget?.elementId === element.id &&
+    activePointPickTarget.parameterKey === parameterKey &&
+    activePointPickTarget.measurementSlot === slot;
+  const isPickingLine =
+    activeLinePickTarget?.elementId === element.id &&
+    activeLinePickTarget.parameterKey === parameterKey &&
+    activeLinePickTarget.measurementSlot === "line";
 
   return (
     <div className="expression-insert-tray">
@@ -178,43 +223,48 @@ export const ExpressionInsertTray = ({
             </button>
           ))}
         </div>
-        <div className="measurement-insert-grid">
-          <label>
-            {mode === "lineDistance" ? "点" : "点1"}
-            <select
-              aria-label={mode === "lineDistance" ? "点" : "点1"}
-              value={effectivePoint1Id}
-              onChange={(event) => setPoint1Id(event.target.value)}
+        <div className="measurement-pick-grid">
+          <div className="measurement-pick-field">
+            <span>{mode === "lineDistance" ? "点" : "点1"}</span>
+            <strong>{pointAnchorLabel(point1Anchor, elements)}</strong>
+            <button
+              type="button"
+              className={isPickingPoint("point1") ? "active-toggle" : ""}
+              onClick={() => startPointPick("point1")}
             >
-              {pointOptions.map((point) => (
-                <option key={point.id} value={point.id}>{point.name}</option>
-              ))}
-            </select>
-          </label>
+              {isPickingPoint("point1") ? "点選択中" : "点を選択"}
+            </button>
+          </div>
           {mode === "lineDistance" ? (
-            <label>
-              線
-              <select aria-label="線" value={effectiveLineId} onChange={(event) => setLineId(event.target.value)}>
-                {lineOptions.map((line) => (
-                  <option key={line.id} value={line.id}>{line.name}</option>
-                ))}
-              </select>
-            </label>
+            <div className="measurement-pick-field">
+              <span>線</span>
+              <strong>{lineId ? selectedElementName(elements, lineId) : "未選択"}</strong>
+              <button
+                type="button"
+                className={isPickingLine ? "active-toggle" : ""}
+                onClick={startLinePick}
+              >
+                {isPickingLine ? "線選択中" : "線を選択"}
+              </button>
+            </div>
           ) : (
-            <label>
-              点2
-              <select aria-label="点2" value={effectivePoint2Id} onChange={(event) => setPoint2Id(event.target.value)}>
-                {pointOptions.map((point) => (
-                  <option key={point.id} value={point.id}>{point.name}</option>
-                ))}
-              </select>
-            </label>
+            <div className="measurement-pick-field">
+              <span>点2</span>
+              <strong>{pointAnchorLabel(point2Anchor, elements)}</strong>
+              <button
+                type="button"
+                className={isPickingPoint("point2") ? "active-toggle" : ""}
+                onClick={() => startPointPick("point2")}
+              >
+                {isPickingPoint("point2") ? "点選択中" : "点を選択"}
+              </button>
+            </div>
           )}
         </div>
         <button
           type="button"
           className="expression-insert-button"
-          onClick={() => insertSnippet(measurementExpression)}
+          onClick={insertMeasurement}
           disabled={!canInsertMeasurement}
         >
           式に挿入

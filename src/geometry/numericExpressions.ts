@@ -8,6 +8,8 @@ import type {
   NumericVariable,
   NumericValue
 } from "../types/geometry";
+import type { PointAnchor } from "../types/geometry";
+import { resolveDerivedPoint } from "../model/pointAnchors";
 import { Parser, tokenize } from "./numericExpressionParser";
 import type { NumericExpressionFunctionName } from "./numericExpressionParser";
 import { propertyLabels } from "./numericExpressionProperties";
@@ -38,6 +40,37 @@ export const makeNumericExpression = (expression: string): NumericValue => {
   return trimmed.length > 0 && Number.isFinite(numeric)
     ? numeric
     : { kind: "expression", expression: trimmed };
+};
+
+export const pointAnchorExpression = (anchor: PointAnchor) => {
+  if (anchor.mode === "reference") return anchor.pointId;
+  if (anchor.mode === "derived") return `${anchor.elementId}:${anchor.pointKey}`;
+  return "";
+};
+
+const pointExpressionSourceId = (expressionId: ElementId) => {
+  const separatorIndex = expressionId.indexOf(":");
+  return separatorIndex < 0 ? expressionId : expressionId.slice(0, separatorIndex);
+};
+
+const pointExpressionKey = (expressionId: ElementId) => {
+  const separatorIndex = expressionId.indexOf(":");
+  return separatorIndex < 0 ? null : expressionId.slice(separatorIndex + 1);
+};
+
+const pointExpressionLabel = (
+  expressionId: ElementId,
+  elementsById: Map<ElementId, CadElement>
+) => {
+  const pointKey = pointExpressionKey(expressionId);
+  if (!pointKey) return elementsById.get(expressionId)?.name ?? expressionId;
+  const elementId = pointExpressionSourceId(expressionId);
+  const elementName = elementsById.get(elementId)?.name ?? elementId;
+  if (pointKey === "start") return `${elementName}.始点`;
+  if (pointKey === "end") return `${elementName}.終点`;
+  if (pointKey === "center") return `${elementName}.中心点`;
+  if (pointKey.startsWith("intermediate:")) return `${elementName}.中間点`;
+  return `${elementName}.${pointKey}`;
 };
 
 const EPSILON = 1e-9;
@@ -125,7 +158,7 @@ export const formatNumericExpressionForDisplay = (
         const args = rawArgs
           .split(",")
           .map((arg) => arg.trim())
-          .map((arg) => elementsById.get(arg)?.name ?? arg)
+          .map((arg) => pointExpressionLabel(arg, elementsById))
           .join(", ");
         return `${name}(${args})`;
       }
@@ -220,7 +253,7 @@ export const extractNumericExpressionReferences = (value: NumericValue): Numeric
       .map((token) =>
         token.type === "reference"
           ? { elementId: token.elementId, property: token.property }
-          : { elementId: token.elementId }
+          : { elementId: pointExpressionSourceId(token.elementId) }
       );
   } catch {
     return [];
@@ -267,8 +300,15 @@ export const evaluateNumericValue = ({
       );
     };
     const pointValue = (elementId: ElementId): ComputedPoint => {
-      const geometry = computedGeometry.get(elementId);
-      if (geometry?.kind !== "point") throw dependencyError(elementId);
+      const pointKey = pointExpressionKey(elementId);
+      const sourceId = pointExpressionSourceId(elementId);
+      const geometry = computedGeometry.get(sourceId);
+      if (pointKey) {
+        const point = resolveDerivedPoint(geometry, pointKey, elementsById);
+        if (!point) throw dependencyError(sourceId);
+        return point;
+      }
+      if (geometry?.kind !== "point") throw dependencyError(sourceId);
       return geometry;
     };
     const lineValue = (elementId: ElementId): ComputedLine => {

@@ -1,10 +1,15 @@
 import { create } from "zustand";
 import type { ParameterKey } from "../parameters/parameterDefinitions";
-import type { ElementId } from "../types/geometry";
+import type { ElementId, PointAnchor } from "../types/geometry";
+
+export type MeasurementInsertMode = "distance" | "angle" | "lineDistance";
+export type MeasurementPointSlot = "point1" | "point2";
+export type MeasurementPickSlot = MeasurementPointSlot | "line";
 
 export type ActivePointPickTarget = {
   elementId: ElementId;
   parameterKey: ParameterKey;
+  measurementSlot?: MeasurementPointSlot;
 };
 
 export type ActiveNumericReferencePickTarget = {
@@ -15,11 +20,24 @@ export type ActiveNumericReferencePickTarget = {
 export type ActiveLinePickTarget = {
   elementId: ElementId;
   parameterKey: ParameterKey;
+  measurementSlot?: "line";
 };
 
 export type ActiveExpressionInsertTarget = {
   elementId: ElementId;
   parameterKey: ParameterKey;
+};
+
+export type ActiveMeasurementInsertTarget = {
+  elementId: ElementId;
+  parameterKey: ParameterKey;
+  mode: MeasurementInsertMode;
+  point1Anchor: PointAnchor | null;
+  point2Anchor: PointAnchor | null;
+  lineId: ElementId | null;
+  displayedExpression: string;
+  selectionStart: number | null;
+  selectionEnd: number | null;
 };
 
 export type ActivePickCursor = {
@@ -50,6 +68,7 @@ export type CadUiState = {
   activeNumericReferencePickTarget: ActiveNumericReferencePickTarget | null;
   activeLinePickTarget: ActiveLinePickTarget | null;
   activeExpressionInsertTarget: ActiveExpressionInsertTarget | null;
+  activeMeasurementInsertTarget: ActiveMeasurementInsertTarget | null;
   activePickCursor: ActivePickCursor | null;
   selectedDependencyJumpIndex: number;
   elementSearchQuery: string;
@@ -68,6 +87,9 @@ export type CadUiState = {
   setActiveLinePickTarget: (activeLinePickTarget: ActiveLinePickTarget | null) => void;
   setActiveExpressionInsertTarget: (
     activeExpressionInsertTarget: ActiveExpressionInsertTarget | null
+  ) => void;
+  setActiveMeasurementInsertTarget: (
+    activeMeasurementInsertTarget: ActiveMeasurementInsertTarget | null
   ) => void;
   setActivePickCursor: (activePickCursor: ActivePickCursor | null) => void;
   clearPickMode: () => void;
@@ -95,6 +117,7 @@ export const initialCadUiState = (): Omit<
   | "setActiveNumericReferencePickTarget"
   | "setActiveLinePickTarget"
   | "setActiveExpressionInsertTarget"
+  | "setActiveMeasurementInsertTarget"
   | "setActivePickCursor"
   | "clearPickMode"
   | "setSelectedDependencyJumpIndex"
@@ -115,6 +138,7 @@ export const initialCadUiState = (): Omit<
   activeNumericReferencePickTarget: null,
   activeLinePickTarget: null,
   activeExpressionInsertTarget: null,
+  activeMeasurementInsertTarget: null,
   activePickCursor: null,
   selectedDependencyJumpIndex: 0,
   elementSearchQuery: "",
@@ -153,7 +177,14 @@ export const useCadUiStore = create<CadUiState>((set) => ({
   setActiveLinePickTarget: (activeLinePickTarget) =>
     set({ activeLinePickTarget, activePickCursor: null }),
   setActiveExpressionInsertTarget: (activeExpressionInsertTarget) =>
-    set({ activeExpressionInsertTarget }),
+    set((state) => ({
+      activeExpressionInsertTarget,
+      activeMeasurementInsertTarget: activeExpressionInsertTarget
+        ? state.activeMeasurementInsertTarget
+        : null
+    })),
+  setActiveMeasurementInsertTarget: (activeMeasurementInsertTarget) =>
+    set({ activeMeasurementInsertTarget }),
   setActivePickCursor: (activePickCursor) => set({ activePickCursor }),
   clearPickMode: () =>
     set({

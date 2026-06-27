@@ -452,6 +452,55 @@ describe("evaluateElements", () => {
     expect(result.computedVariables.get("measurement")?.value).toBeCloseTo(110);
   });
 
+  it("evaluates point distance expressions with line endpoint arguments", () => {
+    const result = evaluateElements([
+      {
+        id: "a",
+        name: "点A",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 0,
+        y: 0
+      },
+      {
+        id: "b",
+        name: "点B",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 10,
+        y: 0
+      },
+      {
+        id: "line",
+        name: "線AB",
+        type: "line",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "a" },
+        endPoint: { mode: "reference", pointId: "b" }
+      },
+      {
+        id: "measurement",
+        name: "測定",
+        type: "variable",
+        visible: true,
+        enabled: true,
+        scope: "global",
+        valueMode: "expression",
+        expression: { kind: "expression", expression: "distance(line:start, line:end)" },
+        point1: { mode: "reference", pointId: "a" },
+        point2: { mode: "reference", pointId: "b" },
+        point: { mode: "reference", pointId: "a" },
+        lineId: "line"
+      }
+    ]);
+
+    expect(result.errors).toHaveLength(0);
+    expect(result.computedVariables.get("measurement")?.value).toBeCloseTo(10);
+  });
+
   it("reports dependency errors for measurement function references that appear too late", () => {
     const result = evaluateElements([
       {

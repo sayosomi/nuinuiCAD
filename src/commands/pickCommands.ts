@@ -3,7 +3,8 @@ import { insertNumericExpressionSnippet as insertSnippetIntoExpression } from ".
 import {
   makeNumericExpression,
   normalizeNumericExpressionInput,
-  numericValueExpression
+  numericValueExpression,
+  pointAnchorExpression
 } from "../geometry/numericExpressions";
 import { pickCandidates, selectedPickOption } from "../model/pickCandidates";
 import { lineEndpointReferenceForAnchor, referenceAnchor } from "../model/pointAnchors";
@@ -118,7 +119,136 @@ export const toggleExpressionInsertTray = (context?: CommandContext) => {
 };
 
 export const closeExpressionInsertTray = () => {
-  useCadUiStore.getState().setActiveExpressionInsertTarget(null);
+  useCadUiStore.setState({
+    activeExpressionInsertTarget: null,
+    activeMeasurementInsertTarget: null,
+    activePointPickTarget: null,
+    activeLinePickTarget: null,
+    activePickCursor: null
+  });
+};
+
+const measurementTargetFromContext = (context?: CommandContext) => {
+  const target = numericExpressionTarget(context);
+  if (!target) return null;
+  const { activeMeasurementInsertTarget } = useCadUiStore.getState();
+  const mode =
+    context?.measurementInsertMode ??
+    (activeMeasurementInsertTarget?.elementId === target.targetElement.id &&
+    activeMeasurementInsertTarget.parameterKey === target.definition.key
+      ? activeMeasurementInsertTarget.mode
+      : "distance");
+  const currentValue = getParameterValue(target.targetElement, target.definition.key);
+  const displayedExpression =
+    context?.displayedExpression ??
+    activeMeasurementInsertTarget?.displayedExpression ??
+    (isNumericValue(currentValue) ? numericValueExpression(currentValue) : "");
+
+  return {
+    elementId: target.targetElement.id,
+    parameterKey: target.definition.key,
+    mode,
+    displayedExpression,
+    selectionStart: context?.selectionStart ?? activeMeasurementInsertTarget?.selectionStart ?? null,
+    selectionEnd: context?.selectionEnd ?? activeMeasurementInsertTarget?.selectionEnd ?? null
+  };
+};
+
+const ensureMeasurementTarget = (context?: CommandContext) => {
+  const target = measurementTargetFromContext(context);
+  if (!target) return null;
+  const current = useCadUiStore.getState().activeMeasurementInsertTarget;
+  const isSame =
+    current?.elementId === target.elementId && current.parameterKey === target.parameterKey;
+  const next = {
+    elementId: target.elementId,
+    parameterKey: target.parameterKey,
+    mode: target.mode,
+    point1Anchor: isSame ? current.point1Anchor : null,
+    point2Anchor: isSame ? current.point2Anchor : null,
+    lineId: isSame ? current.lineId : null,
+    displayedExpression: target.displayedExpression,
+    selectionStart: target.selectionStart,
+    selectionEnd: target.selectionEnd
+  };
+  useCadUiStore.getState().setActiveMeasurementInsertTarget(next);
+  return next;
+};
+
+export const setMeasurementInsertMode = (context?: CommandContext) => {
+  const target = ensureMeasurementTarget(context);
+  if (!target || !context?.measurementInsertMode) return;
+  useCadUiStore.getState().setActiveMeasurementInsertTarget({
+    ...target,
+    mode: context.measurementInsertMode
+  });
+};
+
+export const startMeasurementPointPick = (context?: CommandContext) => {
+  const target = ensureMeasurementTarget(context);
+  const measurementSlot = context?.measurementPointSlot;
+  if (!target || !measurementSlot) return;
+
+  useCadUiStore.setState({
+    activeNumericReferencePickTarget: null,
+    activeLinePickTarget: null,
+    activePointPickTarget: {
+      elementId: target.elementId,
+      parameterKey: target.parameterKey,
+      measurementSlot
+    }
+  });
+};
+
+export const startMeasurementLinePick = (context?: CommandContext) => {
+  const target = ensureMeasurementTarget(context);
+  if (!target) return;
+
+  useCadUiStore.setState({
+    activeNumericReferencePickTarget: null,
+    activePointPickTarget: null,
+    activeLinePickTarget: {
+      elementId: target.elementId,
+      parameterKey: target.parameterKey,
+      measurementSlot: "line"
+    }
+  });
+};
+
+export const insertSelectedMeasurement = (context?: CommandContext) => {
+  const target = ensureMeasurementTarget(context);
+  if (!target) return;
+
+  const { activeMeasurementInsertTarget } = useCadUiStore.getState();
+  if (!activeMeasurementInsertTarget) return;
+
+  const point1 = activeMeasurementInsertTarget.point1Anchor
+    ? pointAnchorExpression(activeMeasurementInsertTarget.point1Anchor)
+    : "";
+  const point2 = activeMeasurementInsertTarget.point2Anchor
+    ? pointAnchorExpression(activeMeasurementInsertTarget.point2Anchor)
+    : "";
+  const lineId = activeMeasurementInsertTarget.lineId ?? "";
+  const functionName =
+    activeMeasurementInsertTarget.mode === "angle"
+      ? "角度"
+      : activeMeasurementInsertTarget.mode === "lineDistance"
+        ? "点線距離"
+        : "距離";
+  const snippet =
+    activeMeasurementInsertTarget.mode === "lineDistance"
+      ? point1 && lineId ? `${functionName}(${point1}, ${lineId})` : ""
+      : point1 && point2 ? `${functionName}(${point1}, ${point2})` : "";
+  if (!snippet) return;
+
+  insertNumericExpressionSnippet({
+    elementId: activeMeasurementInsertTarget.elementId,
+    parameterKey: activeMeasurementInsertTarget.parameterKey,
+    numericExpressionSnippet: snippet,
+    displayedExpression: activeMeasurementInsertTarget.displayedExpression,
+    selectionStart: activeMeasurementInsertTarget.selectionStart,
+    selectionEnd: activeMeasurementInsertTarget.selectionEnd
+  });
 };
 
 export const startNumericReferencePick = () => {
@@ -249,6 +379,16 @@ export const applyPickedPoint = (context?: Pick<CommandContext, "pickedPointId" 
   const { activePointPickTarget } = useCadUiStore.getState();
   const { elements } = useCadDocumentStore.getState();
   if (!activePointPickTarget) return;
+  if (activePointPickTarget.measurementSlot) {
+    const current = useCadUiStore.getState().activeMeasurementInsertTarget;
+    if (!current) return;
+    useCadUiStore.getState().setActiveMeasurementInsertTarget({
+      ...current,
+      [activePointPickTarget.measurementSlot === "point1" ? "point1Anchor" : "point2Anchor"]: anchor
+    });
+    useCadUiStore.getState().setActivePointPickTarget(null);
+    return;
+  }
   const targetElement = elements.find((element) => element.id === activePointPickTarget.elementId);
   if (!targetElement) return;
 
@@ -333,6 +473,17 @@ export const applyPickedLine = (context?: Pick<CommandContext, "pickedLineId">) 
   const { activeLinePickTarget } = useCadUiStore.getState();
   const { elements } = useCadDocumentStore.getState();
   if (!activeLinePickTarget) return;
+  if (activeLinePickTarget.measurementSlot) {
+    const pickedLine = elements.find((element) => element.id === pickedLineId);
+    const current = useCadUiStore.getState().activeMeasurementInsertTarget;
+    if (!current || !pickedLine || !isLineLikeElement(pickedLine)) return;
+    useCadUiStore.getState().setActiveMeasurementInsertTarget({
+      ...current,
+      lineId: pickedLine.id
+    });
+    useCadUiStore.getState().setActiveLinePickTarget(null);
+    return;
+  }
 
   const targetElement = elements.find((element) => element.id === activeLinePickTarget.elementId);
   const pickedLine = elements.find((element) => element.id === pickedLineId);
