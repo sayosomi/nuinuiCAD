@@ -96,7 +96,7 @@ export const shortcutDefinitions: ShortcutDefinition[] = [
     (event) =>
       event.key === "ArrowUp" &&
       ((isMod(event) && !event.altKey) ||
-        (event.altKey && !event.metaKey && !event.ctrlKey && isElementListTarget(event)))
+        (event.altKey && !event.shiftKey && !event.metaKey && !event.ctrlKey && isElementListTarget(event)))
   ),
   commandShortcut(
     "moveSelectedElementDown",
@@ -104,7 +104,29 @@ export const shortcutDefinitions: ShortcutDefinition[] = [
     (event) =>
       event.key === "ArrowDown" &&
       ((isMod(event) && !event.altKey) ||
-        (event.altKey && !event.metaKey && !event.ctrlKey && isElementListTarget(event)))
+        (event.altKey && !event.shiftKey && !event.metaKey && !event.ctrlKey && isElementListTarget(event)))
+  ),
+  commandShortcut(
+    "moveEvaluationDividerUp",
+    0,
+    (event) =>
+      event.key === "ArrowUp" &&
+      event.altKey &&
+      event.shiftKey &&
+      !event.metaKey &&
+      !event.ctrlKey &&
+      isElementListTarget(event)
+  ),
+  commandShortcut(
+    "moveEvaluationDividerDown",
+    0,
+    (event) =>
+      event.key === "ArrowDown" &&
+      event.altKey &&
+      event.shiftKey &&
+      !event.metaKey &&
+      !event.ctrlKey &&
+      isElementListTarget(event)
   ),
   commandShortcut("selectPreviousElement", 0, (event) => event.key === "ArrowUp" && noModifier(event)),
   commandShortcut("selectNextElement", 0, (event) => event.key === "ArrowDown" && noModifier(event)),

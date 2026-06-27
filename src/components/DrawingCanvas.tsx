@@ -462,6 +462,7 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
           zoom: canvasViewport.zoom,
           snapshot: {
             elements: state.elements,
+            evaluationLimitIndex: state.evaluationLimitIndex,
             selectedElementId: state.selectedElementId,
             selectedElementIds: state.selectedElementIds,
             selectionAnchorElementId: state.selectionAnchorElementId,
@@ -498,6 +499,7 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
         zoom: canvasViewport.zoom,
         snapshot: {
           elements: state.elements,
+          evaluationLimitIndex: state.evaluationLimitIndex,
           selectedElementId: state.selectedElementId,
           selectedElementIds: state.selectedElementIds,
           selectionAnchorElementId: state.selectionAnchorElementId,

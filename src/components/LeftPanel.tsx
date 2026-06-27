@@ -51,12 +51,78 @@ type ElementDropTarget = {
   insertionIndex: number;
 };
 
+const EVALUATION_DIVIDER_DRAG_TYPE = "application/x-nuinui-evaluation-divider";
+
+type EvaluationDividerRowProps = {
+  evaluationLimitIndex: number;
+  evaluatedCount: number;
+  totalCount: number;
+  isDragging: boolean;
+  isDropTarget: boolean;
+  onDragStart: (event: DragEvent<HTMLDivElement>) => void;
+  onDragOver: (event: DragEvent<HTMLDivElement>) => void;
+  onDragLeave: (event: DragEvent<HTMLDivElement>) => void;
+  onDrop: (event: DragEvent<HTMLDivElement>) => void;
+  onDragEnd: () => void;
+};
+
+const EvaluationDividerRow = ({
+  evaluationLimitIndex,
+  evaluatedCount,
+  totalCount,
+  isDragging,
+  isDropTarget,
+  onDragStart,
+  onDragOver,
+  onDragLeave,
+  onDrop,
+  onDragEnd
+}: EvaluationDividerRowProps) => (
+  <div
+    className={`evaluation-divider-row ${isDragging ? "dragging" : ""} ${
+      isDropTarget ? "drop-target" : ""
+    }`}
+    draggable
+    data-evaluation-divider="true"
+    aria-label={`評価区切り線。${totalCount}件中${evaluatedCount}件を評価`}
+    onDragStart={onDragStart}
+    onDragOver={onDragOver}
+    onDragLeave={onDragLeave}
+    onDrop={onDrop}
+    onDragEnd={onDragEnd}
+  >
+    <button
+      type="button"
+      className="evaluation-divider-button"
+      aria-label="評価区切り線を上へ"
+      onClick={() => dispatchCommand("moveEvaluationDividerUp")}
+    >
+      ↑
+    </button>
+    <span className="evaluation-divider-line" aria-hidden="true" />
+    <span className="evaluation-divider-label">
+      ここまで評価
+      <small>{evaluationLimitIndex} / {totalCount}</small>
+    </span>
+    <span className="evaluation-divider-line" aria-hidden="true" />
+    <button
+      type="button"
+      className="evaluation-divider-button"
+      aria-label="評価区切り線を下へ"
+      onClick={() => dispatchCommand("moveEvaluationDividerDown")}
+    >
+      ↓
+    </button>
+  </div>
+);
+
 export const LeftPanel = ({
   evaluation,
   elementListFocusRef,
   elementSearchInputRef
 }: LeftPanelProps) => {
   const elements = useCadDocumentStore((state) => state.elements);
+  const evaluationLimitIndex = useCadDocumentStore((state) => state.evaluationLimitIndex);
   const selectedElementId = useCadDocumentStore((state) => state.selectedElementId);
   const selectedElementIds = useCadDocumentStore((state) => state.selectedElementIds);
   const elementSearchQuery = useCadUiStore((state) => state.elementSearchQuery);
@@ -70,9 +136,13 @@ export const LeftPanel = ({
   const setElementSearchCursorId = useCadUiStore((state) => state.setElementSearchCursorId);
   const setElementSearchPickableOnly = useCadUiStore((state) => state.setElementSearchPickableOnly);
   const [draggedElementIds, setDraggedElementIds] = useState<ElementId[]>([]);
+  const [isDividerDragging, setIsDividerDragging] = useState(false);
   const [dropTarget, setDropTarget] = useState<ElementDropTarget | null>(null);
+  const [dividerDropTargetIndex, setDividerDropTargetIndex] = useState<number | null>(null);
   const rowRefs = useRef(new Map<ElementId, HTMLDivElement>());
   const selectedElementIdSet = new Set(selectedElementIds);
+  const evaluatedElementIdSet =
+    evaluation.evaluatedElementIds ?? new Set(elements.map((element) => element.id));
   const {
     rawSearchResults,
     searchResults,
@@ -109,8 +179,14 @@ export const LeftPanel = ({
 
   const clearElementDrag = () => {
     setDraggedElementIds([]);
+    setIsDividerDragging(false);
     setDropTarget(null);
+    setDividerDropTargetIndex(null);
   };
+  const isDividerDrag = (event: DragEvent<HTMLElement>) =>
+    isDividerDragging ||
+    Array.from(event.dataTransfer.types ?? []).includes(EVALUATION_DIVIDER_DRAG_TYPE) ||
+    event.dataTransfer.getData(EVALUATION_DIVIDER_DRAG_TYPE) === "true";
   const isNoopDrop = (elementIds: ElementId[], insertionIndex: number) => {
     const movingIds = elementIds.flatMap((id) => subtreeIdsForElement(elements, id));
     const indexes = elements
@@ -141,6 +217,14 @@ export const LeftPanel = ({
     return rowIndex + (isAfter ? 1 : 0);
   };
   const updateDropTarget = (event: DragEvent<HTMLElement>, element: CadElement, rowIndex: number) => {
+    if (isDividerDrag(event)) {
+      const insertionIndex = rowInsertionIndex(event, element, rowIndex);
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "move";
+      setDropTarget({ elementId: element.id, insertionIndex });
+      return;
+    }
+
     const elementIds = dragElementIds(event);
     if (elementIds.length === 0 || elementIds.includes(element.id)) {
       setDropTarget(null);
@@ -161,11 +245,32 @@ export const LeftPanel = ({
     dropTarget?.elementId === elementId && dropTarget.insertionIndex === insertionIndex
       ? ` drop-${position}`
       : "";
+  const updateDividerDropTarget = (event: DragEvent<HTMLElement>) => {
+    if (isDividerDrag(event)) return;
+    const elementIds = dragElementIds(event);
+    if (elementIds.length === 0) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    setDividerDropTargetIndex(evaluationLimitIndex);
+  };
+  const dropElementsAtDivider = (event: DragEvent<HTMLElement>) => {
+    if (isDividerDrag(event)) return;
+    const elementIds = dragElementIds(event);
+    event.preventDefault();
+    if (elementIds.length > 0 && !isNoopDrop(elementIds, evaluationLimitIndex)) {
+      dispatchCommand("moveElementToInsertionIndex", {
+        elementId: elementIds[0],
+        insertionIndex: evaluationLimitIndex
+      });
+    }
+    clearElementDrag();
+  };
   const selectElement = (elementId: ElementId, event: MouseEvent<HTMLElement>) => {
     if (activeLinePickTarget) {
       const element = elements.find((item) => item.id === elementId);
       if (
         element &&
+        evaluatedElementIdSet.has(element.id) &&
         isLineLikeElement(element) &&
         element.id !== activeLinePickTarget.elementId &&
         !activeLinePickSelectedLineIds.has(element.id)
@@ -176,7 +281,12 @@ export const LeftPanel = ({
     }
     if (activePointPickTarget) {
       const element = elements.find((item) => item.id === elementId);
-      if (!isLineEndpointPointPick && element && isPointElement(element)) {
+      if (
+        !isLineEndpointPointPick &&
+        element &&
+        evaluatedElementIdSet.has(element.id) &&
+        isPointElement(element)
+      ) {
         dispatchCommand("applyPickedPoint", { pickedPointAnchor: referenceAnchor(element.id) });
       }
       return;
@@ -330,7 +440,7 @@ export const LeftPanel = ({
           <span>
             {isSearchActive
               ? `${searchResults.length} / ${rawSearchResults.length} 件`
-              : `${elements.length} 件`}
+              : `${evaluationLimitIndex} / ${elements.length} 件を評価`}
           </span>
           {isSearchActive ? <span className="search-mode-badge">検索中</span> : null}
           {activePointPickTarget || activeNumericReferencePickTarget || activeLinePickTarget ? (
@@ -352,9 +462,43 @@ export const LeftPanel = ({
           data-element-list="true"
           aria-label="要素リスト"
         >
-          {displayedElements.map((element) => {
+          {displayedElements.flatMap((element) => {
             const rowData = getRowData(element);
-            return (
+            const dividerBeforeRow =
+              !isSearchActive &&
+              rowData.index >= evaluationLimitIndex &&
+              !displayedElements.some((item) => {
+                const itemIndex = elements.findIndex((candidate) => candidate.id === item.id);
+                return itemIndex >= evaluationLimitIndex && itemIndex < rowData.index;
+              });
+            const rows = [];
+            if (dividerBeforeRow) {
+              rows.push(
+                <EvaluationDividerRow
+                  key="evaluation-divider"
+                  evaluationLimitIndex={evaluationLimitIndex}
+                  evaluatedCount={evaluationLimitIndex}
+                  totalCount={elements.length}
+                  isDragging={isDividerDragging}
+                  isDropTarget={dividerDropTargetIndex === evaluationLimitIndex}
+                  onDragStart={(event) => {
+                    setIsDividerDragging(true);
+                    event.dataTransfer.effectAllowed = "move";
+                    event.dataTransfer.setData(EVALUATION_DIVIDER_DRAG_TYPE, "true");
+                    event.dataTransfer.setData("text/plain", "評価区切り線");
+                  }}
+                  onDragOver={updateDividerDropTarget}
+                  onDragLeave={(event) => {
+                    if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+                      setDividerDropTargetIndex(null);
+                    }
+                  }}
+                  onDrop={dropElementsAtDivider}
+                  onDragEnd={clearElementDrag}
+                />
+              );
+            }
+            rows.push(
               <ElementListRow
                 key={element.id}
                 element={element}
@@ -371,6 +515,7 @@ export const LeftPanel = ({
                 selectedElementIdSet={selectedElementIdSet}
                 isEffectivelyVisible={rowData.isEffectivelyVisible}
                 isEffectivelyEnabled={rowData.isEffectivelyEnabled}
+                isEvaluated={rowData.isEvaluated}
                 hiddenByGroup={rowData.hiddenByGroup}
                 disabledByGroup={rowData.disabledByGroup}
                 hasError={rowData.hasError}
@@ -411,7 +556,11 @@ export const LeftPanel = ({
                       ? dropTarget.insertionIndex
                       : rowInsertionIndex(event, rowElement, rowIndex);
                   event.preventDefault();
-                  if (elementIds.length > 0 && !isNoopDrop(elementIds, insertionIndex)) {
+                  if (isDividerDrag(event)) {
+                    dispatchCommand("setEvaluationLimitIndex", {
+                      evaluationLimitIndex: insertionIndex
+                    });
+                  } else if (elementIds.length > 0 && !isNoopDrop(elementIds, insertionIndex)) {
                     dispatchCommand("moveElementToInsertionIndex", {
                       elementId: elementIds[0],
                       insertionIndex
@@ -437,8 +586,33 @@ export const LeftPanel = ({
                 onDragEnd={clearElementDrag}
                 onApplyNumericReference={applyNumericReference}
               />
-          );
+            );
+            return rows;
           })}
+          {!isSearchActive && evaluationLimitIndex >= elements.length ? (
+            <EvaluationDividerRow
+              key="evaluation-divider"
+              evaluationLimitIndex={evaluationLimitIndex}
+              evaluatedCount={evaluationLimitIndex}
+              totalCount={elements.length}
+              isDragging={isDividerDragging}
+              isDropTarget={dividerDropTargetIndex === evaluationLimitIndex}
+              onDragStart={(event) => {
+                setIsDividerDragging(true);
+                event.dataTransfer.effectAllowed = "move";
+                event.dataTransfer.setData(EVALUATION_DIVIDER_DRAG_TYPE, "true");
+                event.dataTransfer.setData("text/plain", "評価区切り線");
+              }}
+              onDragOver={updateDividerDropTarget}
+              onDragLeave={(event) => {
+                if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+                  setDividerDropTargetIndex(null);
+                }
+              }}
+              onDrop={dropElementsAtDivider}
+              onDragEnd={clearElementDrag}
+            />
+          ) : null}
         </div>
 
         <div className="button-row reorder-row">

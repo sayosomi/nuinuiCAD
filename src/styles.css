@@ -313,6 +313,17 @@ select {
   color: #5f635a;
 }
 
+.element-row.is-unevaluated {
+  border-style: dashed;
+  background: #f4f4f1;
+  color: #70746b;
+  opacity: 0.62;
+}
+
+.element-row.is-unevaluated:hover {
+  background: #eeeeea;
+}
+
 .element-row.is-disabled:hover {
   background: #e7e9e3;
 }
@@ -452,6 +463,55 @@ select {
 
 .element-row.drop-after::after {
   bottom: 2px;
+}
+
+.evaluation-divider-row {
+  display: grid;
+  grid-template-columns: 28px minmax(18px, 1fr) auto minmax(18px, 1fr) 28px;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  color: #0f4f49;
+  cursor: grab;
+}
+
+.evaluation-divider-row.dragging {
+  opacity: 0.5;
+}
+
+.evaluation-divider-row.drop-target {
+  border-radius: 6px;
+  background: #d9f0e8;
+}
+
+.evaluation-divider-line {
+  height: 2px;
+  border-radius: 999px;
+  background: #0f766e;
+}
+
+.evaluation-divider-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.evaluation-divider-label small {
+  color: #5f746f;
+  font-weight: 600;
+}
+
+.evaluation-divider-button {
+  display: grid;
+  width: 28px;
+  height: 26px;
+  min-height: 0;
+  place-items: center;
+  padding: 0;
+  color: #0f4f49;
 }
 
 .element-drag-handle {

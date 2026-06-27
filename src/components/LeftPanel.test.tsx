@@ -18,6 +18,7 @@ const emptyEvaluation: EvaluationResult = {
 const resetStore = () => {
   useCadStore.setState({
     elements: sampleElements,
+    evaluationLimitIndex: sampleElements.length,
     selectedElementId: sampleElements[0].id,
     selectedElementIds: [sampleElements[0].id],
     selectionAnchorElementId: sampleElements[0].id,
@@ -540,6 +541,48 @@ describe("LeftPanel element list dragging", () => {
       "data-evaluation-state",
       "disabled"
     );
+  });
+
+  it("shows the evaluation divider and marks later rows as unevaluated", () => {
+    useCadStore.setState({
+      evaluationLimitIndex: 2
+    });
+
+    renderLeftPanel(evaluateElements(sampleElements, { evaluationLimitIndex: 2 }));
+
+    expect(screen.getByText("ここまで評価")).toBeInTheDocument();
+    expect(screen.getByText("2 / 6")).toBeInTheDocument();
+    expect(screen.getByText("点C").closest("[data-element-list-row='true']")).toHaveClass(
+      "is-unevaluated"
+    );
+  });
+
+  it("moves the evaluation divider by dragging it onto an element row", () => {
+    useCadStore.setState({
+      evaluationLimitIndex: 2
+    });
+    renderLeftPanel(evaluateElements(sampleElements, { evaluationLimitIndex: 2 }));
+    const dataTransfer = dragDataTransfer();
+    const divider = screen.getByLabelText("評価区切り線。6件中2件を評価");
+    const targetRow = screen.getByText("直線BC").closest("[data-element-list-row='true']");
+    expect(targetRow).toBeInstanceOf(HTMLElement);
+    targetRow!.getBoundingClientRect = () => ({
+      x: 0,
+      y: 0,
+      top: 0,
+      left: 0,
+      right: 320,
+      bottom: 100,
+      width: 320,
+      height: 100,
+      toJSON: () => ({})
+    });
+
+    fireEvent.dragStart(divider, { dataTransfer });
+    fireEvent.dragOver(targetRow!, { dataTransfer, clientY: 75 });
+    fireEvent.drop(targetRow!, { dataTransfer, clientY: 75 });
+
+    expect(useCadStore.getState().evaluationLimitIndex).toBe(4);
   });
 
   it("searches collapsed group children and selects the active result with Enter", () => {

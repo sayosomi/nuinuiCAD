@@ -5,6 +5,7 @@ import { derivedAnchor, referenceAnchor } from "./pointAnchors";
 
 type CreateCadElementOptions = {
   createId?: (type: CadElementType) => ElementId;
+  referenceElements?: CadElement[];
 };
 
 export const createCadElement = (
@@ -13,7 +14,8 @@ export const createCadElement = (
   options: CreateCadElementOptions = {}
 ): CadElement => {
   const createId = options.createId ?? createCadElementId;
-  const points = elements.filter(
+  const referenceElements = options.referenceElements ?? elements;
+  const points = referenceElements.filter(
     (element) =>
       element.type === "freePoint" ||
       element.type === "offsetPoint" ||
@@ -26,7 +28,7 @@ export const createCadElement = (
   const firstPointId = points[0]?.id ?? "";
   const secondPointId = points[1]?.id ?? firstPointId;
   const thirdPointId = points[2]?.id ?? secondPointId;
-  const lineLikeElements = elements.filter(
+  const lineLikeElements = referenceElements.filter(
     (element) =>
       element.type === "line" ||
       element.type === "arcLine" ||

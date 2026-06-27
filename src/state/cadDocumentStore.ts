@@ -7,6 +7,7 @@ import type { CadElement, ElementId } from "../types/geometry";
 
 export type CadDocumentSnapshot = {
   elements: CadElement[];
+  evaluationLimitIndex: number;
   selectedElementId: ElementId | null;
   selectedElementIds: ElementId[];
   selectionAnchorElementId: ElementId | null;
@@ -35,6 +36,7 @@ export type CadDocumentState = CadDocumentSnapshot & {
 
 export const currentDocumentSnapshot = (state: CadDocumentSnapshot): CadDocumentSnapshot => ({
   elements: state.elements,
+  evaluationLimitIndex: state.evaluationLimitIndex,
   selectedElementId: state.selectedElementId,
   selectedElementIds: state.selectedElementIds,
   selectionAnchorElementId: state.selectionAnchorElementId,
@@ -45,6 +47,10 @@ const uniqueElementIds = (ids: ElementId[]) => Array.from(new Set(ids));
 
 const normalizeSnapshot = (snapshot: CadDocumentSnapshot): CadDocumentSnapshot => {
   const existingIds = new Set(snapshot.elements.map((element) => element.id));
+  const evaluationLimitIndex = Math.min(
+    Math.max(snapshot.evaluationLimitIndex ?? snapshot.elements.length, 0),
+    snapshot.elements.length
+  );
   const selectedElementIds = uniqueElementIds(snapshot.selectedElementIds).filter((id) =>
     existingIds.has(id)
   );
@@ -64,6 +70,7 @@ const normalizeSnapshot = (snapshot: CadDocumentSnapshot): CadDocumentSnapshot =
 
   return {
     elements: snapshot.elements,
+    evaluationLimitIndex,
     selectedElementId,
     selectedElementIds: normalizedSelectedElementIds,
     selectionAnchorElementId,
@@ -75,6 +82,7 @@ const normalizeSnapshot = (snapshot: CadDocumentSnapshot): CadDocumentSnapshot =
 
 const snapshotEquals = (a: CadDocumentSnapshot, b: CadDocumentSnapshot) =>
   a.elements === b.elements &&
+  a.evaluationLimitIndex === b.evaluationLimitIndex &&
   a.selectedElementId === b.selectedElementId &&
   a.selectedElementIds.length === b.selectedElementIds.length &&
   a.selectedElementIds.every((id, index) => id === b.selectedElementIds[index]) &&
@@ -83,6 +91,7 @@ const snapshotEquals = (a: CadDocumentSnapshot, b: CadDocumentSnapshot) =>
 
 export const initialCadDocumentState = (): CadDocumentSnapshot & Pick<CadDocumentState, "past" | "future"> => ({
   elements: sampleElements,
+  evaluationLimitIndex: sampleElements.length,
   selectedElementId: sampleElements[0]?.id ?? null,
   selectedElementIds: sampleElements[0] ? [sampleElements[0].id] : [],
   selectionAnchorElementId: sampleElements[0]?.id ?? null,

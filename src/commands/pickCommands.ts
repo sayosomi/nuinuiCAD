@@ -160,8 +160,8 @@ const activePickCandidates = () => {
     activeNumericReferencePickTarget,
     activeLinePickTarget
   } = useCadUiStore.getState();
-  const { elements } = useCadDocumentStore.getState();
-  return pickCandidates(elements, evaluateElements(elements), {
+  const { elements, evaluationLimitIndex } = useCadDocumentStore.getState();
+  return pickCandidates(elements, evaluateElements(elements, { evaluationLimitIndex }), {
     activePointPickTarget,
     activeNumericReferencePickTarget,
     activeLinePickTarget

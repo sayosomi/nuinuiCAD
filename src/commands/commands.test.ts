@@ -7,6 +7,7 @@ describe("commands", () => {
   beforeEach(() => {
     useCadStore.setState({
       elements: sampleElements,
+      evaluationLimitIndex: sampleElements.length,
       selectedElementId: sampleElements[0].id,
       selectedElementIds: [sampleElements[0].id],
       selectionAnchorElementId: sampleElements[0].id,
@@ -208,6 +209,34 @@ describe("commands", () => {
       insertionIndex: 0
     });
     expect(useCadStore.getState().elements[0].id).toBe(sampleElements[0].id);
+  });
+
+  it("adds new elements immediately above the evaluation divider", () => {
+    useCadStore.setState({
+      evaluationLimitIndex: 2,
+      selectedElementId: sampleElements[0].id,
+      selectedElementIds: [sampleElements[0].id]
+    });
+
+    dispatchCommand("addFreePoint");
+
+    const state = useCadStore.getState();
+    expect(state.elements[2]).toMatchObject({ type: "freePoint" });
+    expect(state.evaluationLimitIndex).toBe(3);
+    expect(state.selectedElementId).toBe(state.elements[2].id);
+  });
+
+  it("moves the evaluation divider by command", () => {
+    useCadStore.setState({ evaluationLimitIndex: 2 });
+
+    dispatchCommand("moveEvaluationDividerDown");
+    expect(useCadStore.getState().evaluationLimitIndex).toBe(3);
+
+    dispatchCommand("moveEvaluationDividerUp");
+    expect(useCadStore.getState().evaluationLimitIndex).toBe(2);
+
+    dispatchCommand("setEvaluationLimitIndex", { evaluationLimitIndex: 999 });
+    expect(useCadStore.getState().evaluationLimitIndex).toBe(sampleElements.length);
   });
 
   it("groups selected elements and ungroups the selected group without changing child order", () => {
@@ -457,6 +486,7 @@ describe("commands", () => {
     const state = useCadStore.getState();
     const snapshot = {
       elements: state.elements,
+      evaluationLimitIndex: state.evaluationLimitIndex,
       selectedElementId: state.selectedElementId,
       selectedElementIds: state.selectedElementIds,
       selectionAnchorElementId: state.selectionAnchorElementId,
@@ -672,6 +702,7 @@ describe("commands", () => {
     const state = useCadStore.getState();
     const snapshot = {
       elements: state.elements,
+      evaluationLimitIndex: state.evaluationLimitIndex,
       selectedElementId: state.selectedElementId,
       selectedElementIds: state.selectedElementIds,
       selectionAnchorElementId: state.selectionAnchorElementId,
@@ -1337,12 +1368,14 @@ describe("commands", () => {
           id: "manual-point-4",
           name: "点5"
         }
-      ]
+      ],
+      evaluationLimitIndex: sampleElements.length + 1
     });
 
     dispatchCommand("addFreePoint");
 
-    expect(useCadStore.getState().elements.at(-1)?.name).toBe("点5 2");
+    const state = useCadStore.getState();
+    expect(state.elements.find((element) => element.id === state.selectedElementId)?.name).toBe("点5 2");
   });
 
   it("renames elements with a unique name", () => {

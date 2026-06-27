@@ -15,6 +15,11 @@ export type CommandId =
   | "moveSelectedElementUp"
   | "moveSelectedElementDown"
   | "moveElementToInsertionIndex"
+  | "setEvaluationLimitIndex"
+  | "moveEvaluationDividerUp"
+  | "moveEvaluationDividerDown"
+  | "moveEvaluationDividerToSelectedElement"
+  | "moveEvaluationDividerToEnd"
   | "groupSelectedElements"
   | "ungroupSelectedGroup"
   | "toggleGroupExpanded"
@@ -120,6 +125,7 @@ export type CommandContext = {
   stepMultiplier?: number;
   elementId?: ElementId;
   insertionIndex?: number;
+  evaluationLimitIndex?: number;
   selectionMode?: "replace" | "toggle" | "range";
   dx?: number;
   dy?: number;

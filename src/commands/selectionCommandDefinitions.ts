@@ -1,5 +1,9 @@
 import { selectedIndexes } from "../model/documentSelection";
 import { duplicateElements } from "../model/elementDuplication";
+import {
+  adjustEvaluationLimitForDeletion,
+  adjustEvaluationLimitForInsertion
+} from "../model/evaluationDivider";
 import { subtreeIdsForElement } from "../model/groups";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { moveBezierHandleByDelta, movePointElementByDelta } from "./geometryEditCommands";
@@ -10,10 +14,14 @@ import {
   indentSelectedElements,
   moveElementToInsertionIndex,
   moveElementsToInsertionIndex,
+  moveEvaluationDividerByOffset,
+  moveEvaluationDividerToEnd,
+  moveEvaluationDividerToSelectedElement,
   outdentSelectedElements,
   selectElement,
   selectElementByOffset,
   selectParentGroup,
+  setEvaluationLimitIndex,
   toggleElementBooleanProperty,
   toggleGroupExpanded,
   toggleSelectedElementsBooleanProperty,
@@ -93,45 +101,79 @@ export const selectionCommandDefinitions = {
       moveElementToInsertionIndex(context.elementId, context.insertionIndex);
     }
   },
+  setEvaluationLimitIndex: {
+    id: "setEvaluationLimitIndex",
+    label: "評価区切り線を移動",
+    run: (context) => {
+      if (context?.evaluationLimitIndex === undefined) return;
+      setEvaluationLimitIndex(context.evaluationLimitIndex);
+    }
+  },
+  moveEvaluationDividerUp: {
+    id: "moveEvaluationDividerUp",
+    label: "評価区切り線を上へ",
+    palette: { order: 30, keywords: ["evaluation", "divider", "評価", "区切り", "上"] },
+    shortcuts: [{ keys: "Shift+Alt+ArrowUp" }],
+    run: () => moveEvaluationDividerByOffset(-1)
+  },
+  moveEvaluationDividerDown: {
+    id: "moveEvaluationDividerDown",
+    label: "評価区切り線を下へ",
+    palette: { order: 31, keywords: ["evaluation", "divider", "評価", "区切り", "下"] },
+    shortcuts: [{ keys: "Shift+Alt+ArrowDown" }],
+    run: () => moveEvaluationDividerByOffset(1)
+  },
+  moveEvaluationDividerToSelectedElement: {
+    id: "moveEvaluationDividerToSelectedElement",
+    label: "評価区切り線を選択要素の下へ",
+    palette: { order: 32, keywords: ["evaluation", "divider", "selected", "評価", "区切り", "選択"] },
+    run: () => moveEvaluationDividerToSelectedElement()
+  },
+  moveEvaluationDividerToEnd: {
+    id: "moveEvaluationDividerToEnd",
+    label: "評価区切り線を末尾へ",
+    palette: { order: 33, keywords: ["evaluation", "divider", "end", "評価", "区切り", "末尾", "全件"] },
+    run: () => moveEvaluationDividerToEnd()
+  },
   groupSelectedElements: {
     id: "groupSelectedElements",
     label: "選択要素をグループ化",
-    palette: { order: 30, keywords: ["group", "folder", "グループ", "まとめる"] },
+    palette: { order: 34, keywords: ["group", "folder", "グループ", "まとめる"] },
     shortcuts: [{ keys: "Mod+G" }],
     run: () => groupSelectedElements()
   },
   ungroupSelectedGroup: {
     id: "ungroupSelectedGroup",
     label: "選択グループを解除",
-    palette: { order: 31, keywords: ["ungroup", "group", "解除", "グループ"] },
+    palette: { order: 35, keywords: ["ungroup", "group", "解除", "グループ"] },
     shortcuts: [{ keys: "Mod+Shift+G" }],
     run: () => ungroupSelectedGroup()
   },
   toggleGroupExpanded: {
     id: "toggleGroupExpanded",
     label: "グループを開閉",
-    palette: { order: 32, keywords: ["group", "expand", "collapse", "開閉", "折り畳み"] },
+    palette: { order: 36, keywords: ["group", "expand", "collapse", "開閉", "折り畳み"] },
     shortcuts: [{ keys: "ArrowRight" }],
     run: (context) => toggleGroupExpanded(context?.elementId)
   },
   indentSelectedElements: {
     id: "indentSelectedElements",
     label: "選択要素をインデント",
-    palette: { order: 33, keywords: ["indent", "group", "入れ子", "インデント"] },
+    palette: { order: 37, keywords: ["indent", "group", "入れ子", "インデント"] },
     shortcuts: [{ keys: "]" }],
     run: () => indentSelectedElements()
   },
   outdentSelectedElements: {
     id: "outdentSelectedElements",
     label: "選択要素をアウトデント",
-    palette: { order: 34, keywords: ["outdent", "group", "解除", "アウトデント"] },
+    palette: { order: 38, keywords: ["outdent", "group", "解除", "アウトデント"] },
     shortcuts: [{ keys: "[" }],
     run: () => outdentSelectedElements()
   },
   selectParentGroup: {
     id: "selectParentGroup",
     label: "親グループを選択",
-    palette: { order: 35, keywords: ["parent", "group", "親", "グループ"] },
+    palette: { order: 39, keywords: ["parent", "group", "親", "グループ"] },
     shortcuts: [{ keys: "ArrowLeft" }],
     run: () => selectParentGroup()
   },
@@ -164,36 +206,49 @@ export const selectionCommandDefinitions = {
   toggleSelectedElementVisibility: {
     id: "toggleSelectedElementVisibility",
     label: "表示/非表示を切替",
-    palette: { order: 36, keywords: ["visibility", "visible", "hide", "show", "表示", "非表示"] },
+    palette: { order: 40, keywords: ["visibility", "visible", "hide", "show", "表示", "非表示"] },
     shortcuts: [{ keys: "v" }],
     run: () => toggleSelectedElementsBooleanProperty("visible")
   },
   toggleSelectedElementEnabled: {
     id: "toggleSelectedElementEnabled",
     label: "評価する/しないを切替",
-    palette: { order: 37, keywords: ["enabled", "active", "evaluate", "評価", "有効", "無効"] },
+    palette: { order: 41, keywords: ["enabled", "active", "evaluate", "評価", "有効", "無効"] },
     shortcuts: [{ keys: "a" }],
     run: () => toggleSelectedElementsBooleanProperty("enabled")
   },
   duplicateSelectedElement: {
     id: "duplicateSelectedElement",
     label: "選択要素を複製",
-    palette: { order: 38, keywords: ["duplicate", "copy", "複製", "コピー"] },
+    palette: { order: 42, keywords: ["duplicate", "copy", "複製", "コピー"] },
     shortcuts: [{ keys: "Mod+D" }],
     run: () => {
-      const { elements } = useCadDocumentStore.getState();
+      const { elements, evaluationLimitIndex } = useCadDocumentStore.getState();
+      const selectedIds = getSelectedElementIds();
+      const indexes = selectedIndexes(
+        elements,
+        selectedIds.flatMap((id) => subtreeIdsForElement(elements, id))
+      );
       const change = duplicateElements(elements, getSelectedElementIds());
       if (!change) return;
-      useCadDocumentStore.getState().commitDocumentChange(change);
+      useCadDocumentStore.getState().commitDocumentChange({
+        ...change,
+        evaluationLimitIndex: adjustEvaluationLimitForInsertion({
+          elements,
+          evaluationLimitIndex,
+          insertionIndex: (indexes.at(-1) ?? -1) + 1,
+          insertedCount: change.selectedElementIds.length
+        })
+      });
     }
   },
   deleteSelectedElement: {
     id: "deleteSelectedElement",
     label: "選択要素を削除",
-    palette: { order: 39, keywords: ["delete", "remove", "削除"] },
+    palette: { order: 43, keywords: ["delete", "remove", "削除"] },
     shortcuts: [{ keys: "d / Delete / Backspace" }],
     run: () => {
-      const { elements } = useCadDocumentStore.getState();
+      const { elements, evaluationLimitIndex } = useCadDocumentStore.getState();
       const selectedIds = new Set(
         getSelectedElementIds().flatMap((id) => subtreeIdsForElement(elements, id))
       );
@@ -204,6 +259,11 @@ export const selectionCommandDefinitions = {
       const nextSelectedElementId = nextElements[Math.min(index, nextElements.length - 1)]?.id ?? null;
       useCadDocumentStore.getState().commitDocumentChange({
         elements: nextElements,
+        evaluationLimitIndex: adjustEvaluationLimitForDeletion({
+          elements,
+          evaluationLimitIndex,
+          deletedIds: selectedIds
+        }),
         selectedElementId: nextSelectedElementId,
         selectedElementIds: nextSelectedElementId ? [nextSelectedElementId] : [],
         selectionAnchorElementId: nextSelectedElementId

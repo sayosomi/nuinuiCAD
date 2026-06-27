@@ -74,6 +74,8 @@ export const useElementListData = ({
 }) => {
   const errorElementIds = new Set(evaluation.errors.map((error) => error.elementId));
   const warningElementIds = new Set(evaluation.warnings.map((warning) => warning.elementId));
+  const evaluatedElementIds =
+    evaluation.evaluatedElementIds ?? new Set(elements.map((element) => element.id));
   const elementsById = new Map(elements.map((element) => [element.id, element]));
   const outlineElements = visibleOutlineElements(elements);
   const isSearchActive = elementSearchQuery.trim().length > 0;
@@ -144,6 +146,7 @@ export const useElementListData = ({
       : null;
   };
   const isSearchPickableElement = (element: CadElement) => {
+    if (!evaluatedElementIds.has(element.id)) return false;
     if (activeLinePickTarget) {
       return (
         isLineLikeElement(element) &&
@@ -202,6 +205,7 @@ export const useElementListData = ({
       disabledByGroup: Boolean(groupState?.disabledByGroupId),
       isEffectivelyVisible: effectiveVisibleIds.has(element.id),
       isEffectivelyEnabled: effectiveEnabledIds.has(element.id),
+      isEvaluated: evaluatedElementIds.has(element.id),
       groupIssues,
       hasError: errorElementIds.has(element.id) || Boolean(groupIssues?.errorCount),
       hasWarning: warningElementIds.has(element.id) || Boolean(groupIssues?.warningCount),

@@ -11,6 +11,7 @@ import { ShortcutHelpOverlay } from "./ShortcutHelpOverlay";
 
 export const AppLayout = () => {
   const elements = useCadDocumentStore((state) => state.elements);
+  const evaluationLimitIndex = useCadDocumentStore((state) => state.evaluationLimitIndex);
   const isParameterEditMode = useCadUiStore((state) => state.isParameterEditMode);
   const isDependencyJumpMode = useCadUiStore((state) => state.isDependencyJumpMode);
   const isPickMode = useCadUiStore(
@@ -23,7 +24,10 @@ export const AppLayout = () => {
   const elementListFocusRef = useRef<HTMLDivElement>(null);
   const elementSearchInputRef = useRef<HTMLInputElement>(null);
   const parameterInputRefs = useRef(new Map<string, HTMLElement>());
-  const evaluation = useMemo(() => evaluateElements(elements), [elements]);
+  const evaluation = useMemo(
+    () => evaluateElements(elements, { evaluationLimitIndex }),
+    [elements, evaluationLimitIndex]
+  );
   const registerParameterControl = (key: string, element: HTMLElement | null) => {
     if (element) {
       parameterInputRefs.current.set(key, element);

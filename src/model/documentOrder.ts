@@ -1,8 +1,10 @@
 import type { CadElement, ElementId } from "../types/geometry";
 import { elementIdsInDocumentOrder } from "./documentSelection";
+import { adjustEvaluationLimitForMove } from "./evaluationDivider";
 
 export type DocumentOrderChange = {
   elements: CadElement[];
+  evaluationLimitIndex?: number;
   selectedElementId: ElementId | null;
   selectedElementIds: ElementId[];
   selectionAnchorElementId: ElementId | null;
@@ -13,13 +15,15 @@ export const moveElementsToInsertionIndex = ({
   elementIds,
   insertionIndex,
   selectedElementId,
-  selectionAnchorElementId
+  selectionAnchorElementId,
+  evaluationLimitIndex
 }: {
   elements: CadElement[];
   elementIds: ElementId[];
   insertionIndex: number;
   selectedElementId: ElementId | null;
   selectionAnchorElementId: ElementId | null;
+  evaluationLimitIndex?: number;
 }): DocumentOrderChange | null => {
   const movingIds = elementIdsInDocumentOrder(elements, elementIds);
   if (movingIds.length === 0) return null;
@@ -44,10 +48,20 @@ export const moveElementsToInsertionIndex = ({
     ...movingElements,
     ...remainingElements.slice(targetIndex)
   ];
+  const nextEvaluationLimitIndex =
+    evaluationLimitIndex === undefined
+      ? undefined
+      : adjustEvaluationLimitForMove({
+          elements,
+          evaluationLimitIndex,
+          movingIds,
+          insertionIndex
+        });
 
   if (movingIds.length === 1) {
     return {
       elements: nextElements,
+      evaluationLimitIndex: nextEvaluationLimitIndex,
       selectedElementId: movingIds[0],
       selectedElementIds: [movingIds[0]],
       selectionAnchorElementId: movingIds[0]
@@ -56,6 +70,7 @@ export const moveElementsToInsertionIndex = ({
 
   return {
     elements: nextElements,
+    evaluationLimitIndex: nextEvaluationLimitIndex,
     selectedElementId: selectedElementId && movingIdSet.has(selectedElementId)
       ? selectedElementId
       : movingIds[0],

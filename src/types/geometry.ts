@@ -403,6 +403,8 @@ export type EvaluationResult = {
   computedVariables: Map<ElementId, ComputedVariable>;
   errors: DependencyError[];
   warnings: EvaluationWarning[];
+  evaluatedElementIds?: Set<ElementId>;
+  evaluationLimitIndex?: number;
   effectiveVisibleElementIds?: Set<ElementId>;
   effectiveEnabledElementIds?: Set<ElementId>;
 };

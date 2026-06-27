@@ -44,6 +44,30 @@ describe("evaluateElements", () => {
     expect(result.computedGeometry.get("ab")).toMatchObject({ kind: "line" });
   });
 
+  it("evaluates only elements before the evaluation limit", () => {
+    const result = evaluateElements(validElements, { evaluationLimitIndex: 2 });
+
+    expect(result.errors).toHaveLength(0);
+    expect(result.evaluationLimitIndex).toBe(2);
+    expect(result.evaluatedElementIds).toEqual(new Set(["a", "b"]));
+    expect(result.computedGeometry.has("a")).toBe(true);
+    expect(result.computedGeometry.has("b")).toBe(true);
+    expect(result.computedGeometry.has("ab")).toBe(false);
+  });
+
+  it("reports a dependency error when an evaluated element references an element after the limit", () => {
+    const result = evaluateElements([validElements[0], validElements[2], validElements[1]], {
+      evaluationLimitIndex: 2
+    });
+
+    expect(result.computedGeometry.has("ab")).toBe(false);
+    expect(result.errors[0]).toMatchObject({
+      elementId: "ab",
+      missingDependencyId: "b",
+      missingDependencyName: "点B"
+    });
+  });
+
   it("keeps child visibility settings while applying parent visibility as a drawing mask", () => {
     const result = evaluateElements([
       {

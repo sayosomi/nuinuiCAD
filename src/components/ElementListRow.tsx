@@ -31,6 +31,7 @@ type ElementListRowProps = {
   selectedElementIdSet: Set<ElementId>;
   isEffectivelyVisible: boolean;
   isEffectivelyEnabled: boolean;
+  isEvaluated: boolean;
   hiddenByGroup: boolean;
   disabledByGroup: boolean;
   hasError: boolean;
@@ -74,6 +75,7 @@ export const ElementListRow = ({
   selectedElementIdSet,
   isEffectivelyVisible,
   isEffectivelyEnabled,
+  isEvaluated,
   hiddenByGroup,
   disabledByGroup,
   hasError,
@@ -113,6 +115,8 @@ export const ElementListRow = ({
       element.id === selectedElementId ? "primary-selected" : ""
     } ${!isEffectivelyVisible ? "is-hidden" : ""} ${
       !isEffectivelyEnabled ? "is-disabled" : ""
+    } ${
+      !isEvaluated ? "is-unevaluated" : ""
     } ${
       hasError ? "has-error" : ""
     } ${
@@ -213,6 +217,7 @@ export const ElementListRow = ({
       ) : null}
       {hiddenByGroup ? <small className="group-mask-label">親で非表示</small> : null}
       {disabledByGroup ? <small className="group-mask-label">親で評価OFF</small> : null}
+      {!isEvaluated ? <small className="group-mask-label">未評価</small> : null}
     </span>
     <span className="element-type">
       {isGroupElement(element) && groupIssues ? (

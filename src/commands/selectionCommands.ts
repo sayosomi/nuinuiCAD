@@ -6,6 +6,11 @@ import {
 import { moveElementsToInsertionIndex as moveDocumentElementsToInsertionIndex } from "../model/documentOrder";
 import { createCadElement } from "../model/elementFactory";
 import {
+  adjustEvaluationLimitForDeletion,
+  adjustEvaluationLimitForInsertion,
+  clampEvaluationLimitIndex
+} from "../model/evaluationDivider";
+import {
   descendantIdsForGroup,
   isGroupElement,
   nearestPreviousGroup,
@@ -125,14 +130,16 @@ export const selectElement = (elementId: ElementId, selectionMode: CommandContex
 };
 
 export const moveElementsToInsertionIndex = (elementIds: ElementId[], insertionIndex: number) => {
-  const { elements, selectedElementId, selectionAnchorElementId } = useCadDocumentStore.getState();
+  const { elements, evaluationLimitIndex, selectedElementId, selectionAnchorElementId } =
+    useCadDocumentStore.getState();
   const expandedElementIds = elementIds.flatMap((id) => subtreeIdsForElement(elements, id));
   const change = moveDocumentElementsToInsertionIndex({
     elements,
     elementIds: expandedElementIds,
     insertionIndex,
     selectedElementId,
-    selectionAnchorElementId
+    selectionAnchorElementId,
+    evaluationLimitIndex
   });
   if (!change) return;
 
@@ -145,6 +152,29 @@ export const moveElementToInsertionIndex = (elementId: ElementId, insertionIndex
   if (selectedElementIds.includes(elementId) || elements.some((element) => element.id === elementId)) {
     moveElementsToInsertionIndex(elementIds, insertionIndex);
   }
+};
+
+export const setEvaluationLimitIndex = (evaluationLimitIndex: number) => {
+  const { elements } = useCadDocumentStore.getState();
+  const nextIndex = clampEvaluationLimitIndex(elements, evaluationLimitIndex);
+  useCadDocumentStore.getState().commitDocumentChange({ evaluationLimitIndex: nextIndex });
+};
+
+export const moveEvaluationDividerByOffset = (offset: number) => {
+  const { evaluationLimitIndex } = useCadDocumentStore.getState();
+  setEvaluationLimitIndex(evaluationLimitIndex + offset);
+};
+
+export const moveEvaluationDividerToSelectedElement = () => {
+  const { elements, selectedElementId } = useCadDocumentStore.getState();
+  const selectedIndex = elements.findIndex((element) => element.id === selectedElementId);
+  if (selectedIndex < 0) return;
+  setEvaluationLimitIndex(selectedIndex + 1);
+};
+
+export const moveEvaluationDividerToEnd = () => {
+  const { elements } = useCadDocumentStore.getState();
+  setEvaluationLimitIndex(elements.length);
 };
 
 const hasSelectedAncestor = (
@@ -161,7 +191,8 @@ const hasSelectedAncestor = (
 };
 
 export const groupSelectedElements = () => {
-  const { elements, selectedElementId, selectedElementIds } = useCadDocumentStore.getState();
+  const { elements, evaluationLimitIndex, selectedElementId, selectedElementIds } =
+    useCadDocumentStore.getState();
   const selectedIds = new Set(getSelectedElementIds());
   if (selectedIds.size === 0) return;
 
@@ -192,6 +223,12 @@ export const groupSelectedElements = () => {
 
   useCadDocumentStore.getState().commitDocumentChange({
     elements: nextElements,
+    evaluationLimitIndex: adjustEvaluationLimitForInsertion({
+      elements,
+      evaluationLimitIndex,
+      insertionIndex: firstIndex,
+      insertedCount: 1
+    }),
     selectedElementId: selectedElementId && selectedElementIds.includes(selectedElementId)
       ? selectedElementId
       : group.id,
@@ -204,7 +241,7 @@ export const ungroupSelectedGroup = () => {
   const selectedElement = getSelectedElement();
   if (!selectedElement || !isGroupElement(selectedElement)) return;
 
-  const { elements } = useCadDocumentStore.getState();
+  const { elements, evaluationLimitIndex } = useCadDocumentStore.getState();
   const childIds = new Set(descendantIdsForGroup(elements, selectedElement.id));
   const directChildIds = new Set(
     elements
@@ -224,6 +261,11 @@ export const ungroupSelectedGroup = () => {
 
   useCadDocumentStore.getState().commitDocumentChange({
     elements: nextElements,
+    evaluationLimitIndex: adjustEvaluationLimitForDeletion({
+      elements,
+      evaluationLimitIndex,
+      deletedIds: new Set([selectedElement.id])
+    }),
     selectedElementId: nextSelectedIds[0] ?? null,
     selectedElementIds: nextSelectedIds,
     selectionAnchorElementId: nextSelectedIds[0] ?? null

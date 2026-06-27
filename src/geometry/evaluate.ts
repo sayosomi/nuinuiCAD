@@ -9,14 +9,31 @@ import { evaluateLocalVariables } from "./evaluationContext";
 import { evaluateElement } from "./elementEvaluators";
 import { evaluateVariableElement } from "./variableEvaluator";
 
-export const evaluateElements = (elements: CadElement[]): EvaluationResult => {
+export type EvaluateElementsOptions = {
+  evaluationLimitIndex?: number;
+};
+
+export const evaluateElements = (
+  elements: CadElement[],
+  options: EvaluateElementsOptions = {}
+): EvaluationResult => {
+  const evaluationLimitIndex = Math.min(
+    Math.max(options.evaluationLimitIndex ?? elements.length, 0),
+    elements.length
+  );
+  const evaluatedElements = elements.slice(0, evaluationLimitIndex);
+  const evaluatedElementIds = new Set(evaluatedElements.map((element) => element.id));
   const computedGeometry = new Map<ElementId, ComputedGeometry>();
   const computedVariables = new Map<ElementId, ComputedVariable>();
   const errors: DependencyError[] = [];
   const warnings: EvaluationWarning[] = [];
   const elementsById = new Map(elements.map((element) => [element.id, element]));
-  const effectiveVisibleIds = effectiveVisibleElementIds(elements);
-  const effectiveEnabledIds = effectiveEnabledElementIds(elements);
+  const effectiveVisibleIds = new Set(
+    [...effectiveVisibleElementIds(elements)].filter((id) => evaluatedElementIds.has(id))
+  );
+  const effectiveEnabledIds = new Set(
+    [...effectiveEnabledElementIds(elements)].filter((id) => evaluatedElementIds.has(id))
+  );
   const groupStates = groupStateByElementId(elements);
   const disabledByGroupId = new Map(
     elements.flatMap((element) => {
@@ -25,7 +42,7 @@ export const evaluateElements = (elements: CadElement[]): EvaluationResult => {
     })
   );
 
-  for (const element of elements) {
+  for (const element of evaluatedElements) {
     if (isGroupElement(element) || !effectiveEnabledIds.has(element.id)) {
       continue;
     }
@@ -36,7 +53,7 @@ export const evaluateElements = (elements: CadElement[]): EvaluationResult => {
       elementsById,
       errors,
       computedVariables,
-      elements
+      evaluatedElements
     );
     if (!localVariables) continue;
 
@@ -67,6 +84,8 @@ export const evaluateElements = (elements: CadElement[]): EvaluationResult => {
     computedVariables,
     errors,
     warnings,
+    evaluatedElementIds,
+    evaluationLimitIndex,
     effectiveVisibleElementIds: effectiveVisibleIds,
     effectiveEnabledElementIds: effectiveEnabledIds
   };
