@@ -1,4 +1,5 @@
 import { selectedIndexes } from "../model/documentSelection";
+import { duplicateElements } from "../model/elementDuplication";
 import { subtreeIdsForElement } from "../model/groups";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { moveBezierHandleByDelta, movePointElementByDelta } from "./geometryEditCommands";
@@ -174,10 +175,22 @@ export const selectionCommandDefinitions = {
     shortcuts: [{ keys: "a" }],
     run: () => toggleSelectedElementsBooleanProperty("enabled")
   },
+  duplicateSelectedElement: {
+    id: "duplicateSelectedElement",
+    label: "選択要素を複製",
+    palette: { order: 38, keywords: ["duplicate", "copy", "複製", "コピー"] },
+    shortcuts: [{ keys: "Mod+D" }],
+    run: () => {
+      const { elements } = useCadDocumentStore.getState();
+      const change = duplicateElements(elements, getSelectedElementIds());
+      if (!change) return;
+      useCadDocumentStore.getState().commitDocumentChange(change);
+    }
+  },
   deleteSelectedElement: {
     id: "deleteSelectedElement",
     label: "選択要素を削除",
-    palette: { order: 38, keywords: ["delete", "remove", "削除"] },
+    palette: { order: 39, keywords: ["delete", "remove", "削除"] },
     shortcuts: [{ keys: "d / Delete / Backspace" }],
     run: () => {
       const { elements } = useCadDocumentStore.getState();

@@ -147,6 +147,11 @@ export const shortcutDefinitions: ShortcutDefinition[] = [
     0,
     (event) => event.key.toLowerCase() === "a" && noModifier(event)
   ),
+  commandShortcut(
+    "duplicateSelectedElement",
+    0,
+    (event) => event.key.toLowerCase() === "d" && isMod(event) && !event.altKey && !event.shiftKey
+  ),
   commandShortcut("enterParameterEditMode", 1, (event) => event.key === "Enter" && noModifier(event)),
   commandShortcut("zoomInCanvas", 0, (event) => (event.key === "+" || event.key === "=") && noModifier(event)),
   commandShortcut("zoomOutCanvas", 0, (event) => event.key === "-" && noModifier(event)),

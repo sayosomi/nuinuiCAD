@@ -148,6 +148,39 @@ describe("commands", () => {
     );
   });
 
+  it("duplicates selected elements and selects the copies", () => {
+    useCadStore.setState({
+      selectedElementId: "line-ab",
+      selectedElementIds: ["point-a", "line-ab"],
+      selectionAnchorElementId: "point-a"
+    });
+
+    dispatchCommand("duplicateSelectedElement");
+
+    const state = useCadStore.getState();
+    const pointCopy = state.elements[4];
+    const lineCopy = state.elements[5];
+
+    expect(state.elements.map((element) => element.id).slice(0, 6)).toEqual([
+      "point-a",
+      "point-b",
+      "point-c",
+      "line-ab",
+      pointCopy.id,
+      lineCopy.id
+    ]);
+    expect(pointCopy).toMatchObject({ type: "freePoint", name: "点A コピー" });
+    expect(lineCopy).toMatchObject({
+      type: "line",
+      name: "直線AB コピー",
+      startPoint: { mode: "reference", pointId: pointCopy.id },
+      endPoint: { mode: "reference", pointId: "point-b" }
+    });
+    expect(state.selectedElementIds).toEqual([pointCopy.id, lineCopy.id]);
+    expect(state.selectedElementId).toBe(lineCopy.id);
+    expect(state.past).toHaveLength(1);
+  });
+
   it("moves an element to a requested insertion index", () => {
     dispatchCommand("moveElementToInsertionIndex", {
       elementId: sampleElements[0].id,

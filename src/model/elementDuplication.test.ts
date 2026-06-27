@@ -1,0 +1,178 @@
+import { describe, expect, it } from "vitest";
+import type { CadElement } from "../types/geometry";
+import { duplicateElements } from "./elementDuplication";
+
+const createId = (type: CadElement["type"]) => `${type}-copy`;
+
+describe("duplicateElements", () => {
+  it("duplicates a single element after the selected element", () => {
+    const elements: CadElement[] = [
+      {
+        id: "point-a",
+        name: "点A",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 10,
+        y: 20
+      },
+      {
+        id: "point-b",
+        name: "点B",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 30,
+        y: 40
+      }
+    ];
+
+    const change = duplicateElements(elements, ["point-a"], { createId });
+
+    expect(change?.elements.map((element) => element.id)).toEqual([
+      "point-a",
+      "freePoint-copy",
+      "point-b"
+    ]);
+    expect(change?.elements[1]).toMatchObject({
+      id: "freePoint-copy",
+      name: "点A コピー",
+      type: "freePoint",
+      x: 10,
+      y: 20
+    });
+    expect(change?.selectedElementIds).toEqual(["freePoint-copy"]);
+    expect(change?.selectedElementId).toBe("freePoint-copy");
+  });
+
+  it("remaps references inside the duplicated selection only", () => {
+    const ids = ["point-a-copy", "line-ab-copy"];
+    const elements: CadElement[] = [
+      {
+        id: "point-a",
+        name: "点A",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 10,
+        y: 20
+      },
+      {
+        id: "point-b",
+        name: "点B",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 30,
+        y: 40
+      },
+      {
+        id: "line-ab",
+        name: "直線AB",
+        type: "line",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "point-a" },
+        endPoint: { mode: "reference", pointId: "point-b" },
+        numericVariables: [{
+          id: "local",
+          name: "補正",
+          value: { kind: "expression", expression: "distance(point-a, point-b)" }
+        }]
+      }
+    ];
+
+    const change = duplicateElements(elements, ["point-a", "line-ab"], {
+      createId: () => ids.shift() ?? "unexpected"
+    });
+    const copiedLine = change?.elements.find((element) => element.id === "line-ab-copy");
+
+    expect(copiedLine).toMatchObject({
+      type: "line",
+      startPoint: { mode: "reference", pointId: "point-a-copy" },
+      endPoint: { mode: "reference", pointId: "point-b" },
+      numericVariables: [{
+        id: "local",
+        value: { kind: "expression", expression: "distance(point-a-copy, point-b)" }
+      }]
+    });
+  });
+
+  it("duplicates a selected group with its descendants and remaps parent groups", () => {
+    const ids = ["group-copy", "point-a-copy", "point-b-copy", "line-copy"];
+    const elements: CadElement[] = [
+      {
+        id: "group",
+        name: "前身頃",
+        type: "group",
+        visible: true,
+        enabled: true,
+        expanded: true
+      },
+      {
+        id: "point-a",
+        name: "点A",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        parentGroupId: "group",
+        x: 10,
+        y: 20
+      },
+      {
+        id: "point-b",
+        name: "点B",
+        type: "offsetPoint",
+        visible: true,
+        enabled: true,
+        parentGroupId: "group",
+        fromPointId: "point-a",
+        dx: 30,
+        dy: 0
+      },
+      {
+        id: "line",
+        name: "線",
+        type: "line",
+        visible: true,
+        enabled: true,
+        parentGroupId: "group",
+        startPoint: { mode: "reference", pointId: "point-a" },
+        endPoint: { mode: "reference", pointId: "point-b" }
+      }
+    ];
+
+    const change = duplicateElements(elements, ["group"], {
+      createId: () => ids.shift() ?? "unexpected"
+    });
+
+    expect(change?.elements.map((element) => element.id)).toEqual([
+      "group",
+      "point-a",
+      "point-b",
+      "line",
+      "group-copy",
+      "point-a-copy",
+      "point-b-copy",
+      "line-copy"
+    ]);
+    expect(change?.elements.find((element) => element.id === "point-a-copy")).toMatchObject({
+      parentGroupId: "group-copy"
+    });
+    expect(change?.elements.find((element) => element.id === "point-b-copy")).toMatchObject({
+      parentGroupId: "group-copy",
+      fromPointId: "point-a-copy"
+    });
+    expect(change?.elements.find((element) => element.id === "line-copy")).toMatchObject({
+      parentGroupId: "group-copy",
+      startPoint: { mode: "reference", pointId: "point-a-copy" },
+      endPoint: { mode: "reference", pointId: "point-b-copy" }
+    });
+    expect(change?.selectedElementIds).toEqual([
+      "group-copy",
+      "point-a-copy",
+      "point-b-copy",
+      "line-copy"
+    ]);
+  });
+});

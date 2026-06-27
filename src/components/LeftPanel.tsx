@@ -448,6 +448,9 @@ export const LeftPanel = ({
           <button type="button" disabled={isSearchActive} onClick={() => dispatchCommand("moveSelectedElementDown")}>
             下へ
           </button>
+          <button type="button" onClick={() => dispatchCommand("duplicateSelectedElement")}>
+            複製
+          </button>
           <button type="button" onClick={() => dispatchCommand("toggleSelectedElementVisibility")}>
             表示切替
           </button>

@@ -45,6 +45,7 @@ export type CommandId =
   | "toggleElementEnabled"
   | "toggleSelectedElementVisibility"
   | "toggleSelectedElementEnabled"
+  | "duplicateSelectedElement"
   | "deleteSelectedElement"
   | "addFreePoint"
   | "addVariable"

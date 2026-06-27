@@ -19,6 +19,9 @@ describe("shortcuts", () => {
       "moveSelectedElementUp"
     );
     expect(commandIdForKeyboardEvent(keyboardEvent("d"))).toBe("deleteSelectedElement");
+    expect(commandIdForKeyboardEvent(keyboardEvent("d", { metaKey: true }))).toBe(
+      "duplicateSelectedElement"
+    );
     expect(commandIdForKeyboardEvent(keyboardEvent("Backspace"))).toBe("deleteSelectedElement");
     expect(commandIdForKeyboardEvent(keyboardEvent("Delete"))).toBe("deleteSelectedElement");
     expect(commandIdForKeyboardEvent(keyboardEvent("v"))).toBe("toggleSelectedElementVisibility");
