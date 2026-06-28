@@ -83,6 +83,18 @@ const lineTangentOffsetPoint = (lineId: string): CadElement => ({
   distance: 10
 });
 
+const intersectionPoint = (line1Id: string, line2Id: string): CadElement => ({
+  id: `intersection-${line1Id}-${line2Id}`,
+  name: "交点",
+  type: "intersectionPoint",
+  visible: true,
+  enabled: true,
+  line1Id,
+  line2Id,
+  intersectionIndex: 0,
+  useExtensions: false
+});
+
 describe("canUseRustEvaluationForElements", () => {
   it("allows lineDivisionPoint when it references a supported line type", () => {
     expect(canUseRustEvaluationForElements([pointA, pointB, line, lineDivisionPoint("line")])).toBe(
@@ -119,6 +131,24 @@ describe("canUseRustEvaluationForElements", () => {
       )
     ).toBe(false);
     expect(canUseRustEvaluationForElements([pointA, lineTangentOffsetPoint("missing")])).toBe(
+      false
+    );
+  });
+
+  it("allows intersectionPoint when both references are supported line types", () => {
+    expect(
+      canUseRustEvaluationForElements([pointA, pointB, line, arcLine, intersectionPoint("line", "arc")])
+    ).toBe(true);
+  });
+
+  it("keeps intersectionPoint on the TypeScript path for unsupported or missing line references", () => {
+    expect(
+      canUseRustEvaluationForElements(
+        [pointA, pointB, line, bezierCurve, intersectionPoint("line", "curve")],
+        { evaluationLimitIndex: 5 }
+      )
+    ).toBe(false);
+    expect(canUseRustEvaluationForElements([pointA, line, intersectionPoint("line", "missing")])).toBe(
       false
     );
   });

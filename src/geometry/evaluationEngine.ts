@@ -20,6 +20,7 @@ const rustSupportedElementTypes = new Set<CadElement["type"]>([
   "divisionPoint",
   "lineDivisionPoint",
   "lineTangentOffsetPoint",
+  "intersectionPoint",
   "line",
   "arcLine"
 ]);
@@ -49,6 +50,12 @@ const canUseRustEvaluationForElement = (
   }
   if (element.type === "lineTangentOffsetPoint") {
     return referencesRustSupportedLine(element.baseLineId, elementsById);
+  }
+  if (element.type === "intersectionPoint") {
+    return (
+      referencesRustSupportedLine(element.line1Id, elementsById) &&
+      referencesRustSupportedLine(element.line2Id, elementsById)
+    );
   }
   return true;
 };

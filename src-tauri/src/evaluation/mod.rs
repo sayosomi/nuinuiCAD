@@ -1,7 +1,11 @@
 mod errors;
 mod groups;
+mod intersection_point_evaluator;
+#[cfg(test)]
+mod intersection_point_tests;
 mod line_division_point_evaluator;
 mod line_evaluators;
+mod line_intersections;
 mod line_path;
 mod line_tangent_offset_point_evaluator;
 #[cfg(test)]
@@ -19,6 +23,7 @@ mod variable_evaluator;
 use std::collections::{HashMap, HashSet};
 
 use groups::{effective_element_ids, group_state_by_element_id};
+use intersection_point_evaluator::evaluate_intersection_point;
 use line_division_point_evaluator::evaluate_line_division_point;
 use line_evaluators::{evaluate_arc_line, evaluate_line};
 use line_tangent_offset_point_evaluator::evaluate_line_tangent_offset_point;
@@ -106,6 +111,9 @@ fn evaluate_document_input(input: EvaluationInput) -> EvaluationPayload {
             }
             Some("lineTangentOffsetPoint") => {
                 evaluate_line_tangent_offset_point(&element, &local_variables, &mut state)
+            }
+            Some("intersectionPoint") => {
+                evaluate_intersection_point(&element, &local_variables, &mut state)
             }
             Some("line") => evaluate_line(&element, &local_variables, &mut state),
             Some("arcLine") => evaluate_arc_line(&element, &local_variables, &mut state),
