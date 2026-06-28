@@ -41,6 +41,8 @@ When updating behavior, prefer these source files over duplicating details here:
 
 * Element and geometry types: `src/types/geometry.ts`
 * Geometry evaluation: `src/geometry/`
+* Rust/Tauri evaluation core: `src-tauri/src/evaluation/`
+* Tauri desktop shell and commands: `src-tauri/`
 * Dependency and document ordering logic: `src/model/`
 * Commands and command palette data: `src/commands/`
 * Keyboard shortcut mapping: `src/keyboard/shortcuts.ts`
@@ -74,6 +76,19 @@ geometry, even if it is visible.
 For now, document order can continue to serve as both evaluation order and
 display order unless a change explicitly introduces separate visual layering.
 
+The Rust evaluation core is the intended long-term source of truth for CAD
+document evaluation. During migration, keep the TypeScript evaluator as a
+reference implementation and compare Rust output against it for supported
+element ranges. Do not switch an element type to Rust-first evaluation until
+its dependency behavior, geometry output, errors, warnings, and visibility /
+enabled masks match the TypeScript reference for focused fixtures.
+
+Keep the Tauri command boundary stable. The public Rust command for document
+evaluation should remain `evaluate_document(input)` unless a deliberate
+architecture change is requested. IPC payloads must use JSON-friendly arrays and
+objects, not JavaScript `Map` or `Set`; convert to `Map` / `Set` only on the
+TypeScript side when needed.
+
 ## Commands, keyboard, and parameters
 
 Keyboard operation is a first-class product requirement. Do not design
@@ -105,8 +120,26 @@ come from command and shortcut metadata in the application.
 
 ## Architecture and code organization
 
-Use Vite, React, TypeScript, SVG/Canvas rendering, and Zustand where shared
-state is useful.
+Use Vite, React, TypeScript, SVG/Canvas rendering, Zustand where shared state
+is useful, and Tauri v2 for the desktop application shell.
+
+The app should continue to work as a browser/Vite app for tests and frontend
+development, while also being packaged as a Tauri desktop app for local macOS
+use. Browser and test environments should use the TypeScript reference
+evaluator. Tauri runtime may call Rust evaluation through the evaluation engine
+adapter when the current document slice is within the Rust-supported element
+set.
+
+Prefer Rust for deterministic, CPU-heavy, or platform-adjacent work:
+
+* CAD document evaluation and dependency checks as element coverage matures
+* curve/path measurement, offset geometry, and other performance-sensitive math
+* large file, image asset, SVG/PDF, and tiled A4 export workflows
+* local filesystem and desktop integration behind explicit Tauri commands
+
+Keep React components and Zustand stores independent from Tauri-specific APIs.
+Frontend code should call small adapters such as the evaluation engine rather
+than importing Tauri APIs directly throughout the UI.
 
 Keep geometry computation out of React rendering components. Prefer small pure
 functions for geometry, dependency, validation, ordering, and parameter access
@@ -114,6 +147,12 @@ logic.
 
 Use TypeScript discriminated unions for element types. Avoid stringly-typed
 geometry where reasonable, and keep element IDs stable.
+
+Keep the TypeScript element JSON shape and Rust `serde` handling aligned. Until
+type generation is introduced, maintain this manually with parity tests. When
+Rust supports only a subset of an element's possible dependencies, the
+TypeScript Rust-eligibility check must account for referenced element types, not
+just the element's own `type`.
 
 Keep changes local to the relevant subsystem. Avoid broad architectural
 rewrites unless the requested feature or bug fix genuinely requires them.
@@ -154,6 +193,10 @@ Run the relevant checks before handing work back:
 * `npm test`
 * `npm run build`
 * `npm run lint`
+* `cargo fmt --check` in `src-tauri` when Rust code changed
+* `cargo test` in `src-tauri` when Rust code changed
+* `cargo clippy --all-targets -- -D warnings` in `src-tauri` when Rust code changed
+* `npm run desktop:build` when Tauri packaging, commands, or Rust evaluation changed
 
 If a check cannot be run or fails for unrelated existing reasons, report that
 clearly.

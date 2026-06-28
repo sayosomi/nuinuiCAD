@@ -18,9 +18,28 @@ const rustSupportedElementTypes = new Set<CadElement["type"]>([
   "offsetPoint",
   "polarOffsetPoint",
   "divisionPoint",
+  "lineDivisionPoint",
   "line",
   "arcLine"
 ]);
+
+const rustSupportedLineDivisionBaseTypes = new Set<CadElement["type"]>([
+  "line",
+  "arcLine"
+]);
+
+const canUseRustEvaluationForElement = (
+  element: CadElement,
+  elementsById: Map<string, CadElement>
+) => {
+  if (!rustSupportedElementTypes.has(element.type)) return false;
+  if (element.type !== "lineDivisionPoint") return true;
+
+  const referencedLine = elementsById.get(element.endpoint.lineId);
+  return referencedLine
+    ? rustSupportedLineDivisionBaseTypes.has(referencedLine.type)
+    : false;
+};
 
 export const canUseRustEvaluationForElements = (
   elements: CadElement[],
@@ -30,9 +49,10 @@ export const canUseRustEvaluationForElements = (
     Math.max(options.evaluationLimitIndex ?? elements.length, 0),
     elements.length
   );
+  const elementsById = new Map(elements.map((element) => [element.id, element]));
   return elements
     .slice(0, evaluationLimitIndex)
-    .every((element) => rustSupportedElementTypes.has(element.type));
+    .every((element) => canUseRustEvaluationForElement(element, elementsById));
 };
 
 export const isTauriRuntime = () =>
