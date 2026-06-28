@@ -27,6 +27,9 @@ mod offset_source_segments;
 mod offset_types;
 mod point_anchor;
 mod point_evaluators;
+mod split_line_evaluator;
+#[cfg(test)]
+mod split_line_tests;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]
@@ -48,6 +51,7 @@ use point_evaluators::{
     evaluate_division_point, evaluate_free_point, evaluate_offset_point,
     evaluate_polar_offset_point,
 };
+use split_line_evaluator::evaluate_split_line;
 use types::{element_id, element_type, ElementId, EvaluationState};
 pub use types::{EvaluationInput, EvaluationPayload};
 use variable_evaluator::evaluate_variable_element;
@@ -138,6 +142,7 @@ fn evaluate_document_input(input: EvaluationInput) -> EvaluationPayload {
             }
             Some("bezierCurve") => evaluate_bezier_curve(&element, &local_variables, &mut state),
             Some("offsetLine") => evaluate_offset_line(&element, &local_variables, &mut state),
+            Some("splitLine") => evaluate_split_line(&element, &local_variables, &mut state),
             _ => {}
         }
     }

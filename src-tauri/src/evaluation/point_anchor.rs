@@ -96,6 +96,15 @@ pub(crate) fn resolve_derived_point(
                 None
             }
         }
+        "offsetLine" => {
+            if point_key == "start" {
+                source.get("start").and_then(point_from_value)
+            } else if point_key == "end" {
+                source.get("end").and_then(point_from_value)
+            } else {
+                None
+            }
+        }
         "bezierCurve" => {
             if point_key == "start" {
                 source

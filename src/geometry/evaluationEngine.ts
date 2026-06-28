@@ -25,7 +25,8 @@ const rustSupportedElementTypes = new Set<CadElement["type"]>([
   "arcLine",
   "threePointArcLine",
   "bezierCurve",
-  "offsetLine"
+  "offsetLine",
+  "splitLine"
 ]);
 
 const rustSupportedLineReferenceTypes = new Set<CadElement["type"]>([
@@ -33,7 +34,8 @@ const rustSupportedLineReferenceTypes = new Set<CadElement["type"]>([
   "arcLine",
   "threePointArcLine",
   "bezierCurve",
-  "offsetLine"
+  "offsetLine",
+  "splitLine"
 ]);
 
 const referencesRustSupportedLine = (
@@ -67,6 +69,9 @@ const canUseRustEvaluationForElement = (
     return element.baseLineIds.every((baseLineId) =>
       referencesRustSupportedLine(baseLineId, elementsById)
     );
+  }
+  if (element.type === "splitLine") {
+    return referencesRustSupportedLine(element.baseLineId, elementsById);
   }
   return true;
 };

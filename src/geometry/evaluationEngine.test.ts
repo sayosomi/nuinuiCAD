@@ -84,6 +84,16 @@ const offsetLine: CadElement = {
   closed: false
 };
 
+const splitLine: CadElement = {
+  id: "split",
+  name: "分割線",
+  type: "splitLine",
+  visible: true,
+  enabled: true,
+  baseLineId: "line",
+  splitPoint: { mode: "reference", pointId: "a" }
+};
+
 const lineDivisionPoint = (lineId: string): CadElement => ({
   id: `division-${lineId}`,
   name: "線上分点",
@@ -212,6 +222,33 @@ describe("canUseRustEvaluationForElements", () => {
         {
           ...offsetLine,
           baseLineIds: ["missing"]
+        }
+      ])
+    ).toBe(false);
+  });
+
+  it("allows splitLine and supported elements that reference it", () => {
+    expect(canUseRustEvaluationForElements([pointA, pointB, line, splitLine])).toBe(true);
+    expect(
+      canUseRustEvaluationForElements([
+        pointA,
+        pointB,
+        line,
+        splitLine,
+        lineDivisionPoint("split"),
+        lineTangentOffsetPoint("split"),
+        intersectionPoint("line", "split"),
+        { ...offsetLine, baseLineIds: ["split"] }
+      ])
+    ).toBe(true);
+  });
+
+  it("keeps splitLine on the TypeScript path when its base reference is missing", () => {
+    expect(
+      canUseRustEvaluationForElements([
+        {
+          ...splitLine,
+          baseLineId: "missing"
         }
       ])
     ).toBe(false);
