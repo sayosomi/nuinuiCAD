@@ -22,12 +22,14 @@ const rustSupportedElementTypes = new Set<CadElement["type"]>([
   "lineTangentOffsetPoint",
   "intersectionPoint",
   "line",
-  "arcLine"
+  "arcLine",
+  "threePointArcLine"
 ]);
 
 const rustSupportedLineReferenceTypes = new Set<CadElement["type"]>([
   "line",
-  "arcLine"
+  "arcLine",
+  "threePointArcLine"
 ]);
 
 const referencesRustSupportedLine = (

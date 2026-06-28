@@ -17,6 +17,8 @@ mod point_anchor;
 mod point_evaluators;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod three_point_arc_line_tests;
 mod types;
 mod variable_evaluator;
 
@@ -25,7 +27,7 @@ use std::collections::{HashMap, HashSet};
 use groups::{effective_element_ids, group_state_by_element_id};
 use intersection_point_evaluator::evaluate_intersection_point;
 use line_division_point_evaluator::evaluate_line_division_point;
-use line_evaluators::{evaluate_arc_line, evaluate_line};
+use line_evaluators::{evaluate_arc_line, evaluate_line, evaluate_three_point_arc_line};
 use line_tangent_offset_point_evaluator::evaluate_line_tangent_offset_point;
 use local_variables::evaluate_local_variables;
 use point_evaluators::{
@@ -117,6 +119,9 @@ fn evaluate_document_input(input: EvaluationInput) -> EvaluationPayload {
             }
             Some("line") => evaluate_line(&element, &local_variables, &mut state),
             Some("arcLine") => evaluate_arc_line(&element, &local_variables, &mut state),
+            Some("threePointArcLine") => {
+                evaluate_three_point_arc_line(&element, &local_variables, &mut state)
+            }
             _ => {}
         }
     }

@@ -44,6 +44,19 @@ const arcLine: CadElement = {
   endAngleDeg: 90
 };
 
+const threePointArcLine: CadElement = {
+  id: "three-point-arc",
+  name: "三点円弧",
+  type: "threePointArcLine",
+  visible: true,
+  enabled: true,
+  point1: { mode: "reference", pointId: "a" },
+  point2: { mode: "coordinate", x: 0, y: -10 },
+  point3: { mode: "coordinate", x: -10, y: 0 },
+  startAngleDeg: 0,
+  endAngleDeg: 90
+};
+
 const bezierCurve: CadElement = {
   id: "curve",
   name: "曲線",
@@ -151,5 +164,20 @@ describe("canUseRustEvaluationForElements", () => {
     expect(canUseRustEvaluationForElements([pointA, line, intersectionPoint("line", "missing")])).toBe(
       false
     );
+  });
+
+  it("allows threePointArcLine and supported point elements that reference it", () => {
+    expect(canUseRustEvaluationForElements([pointA, threePointArcLine])).toBe(true);
+    expect(
+      canUseRustEvaluationForElements([
+        pointA,
+        pointB,
+        line,
+        threePointArcLine,
+        lineDivisionPoint("three-point-arc"),
+        lineTangentOffsetPoint("three-point-arc"),
+        intersectionPoint("line", "three-point-arc")
+      ])
+    ).toBe(true);
   });
 });
