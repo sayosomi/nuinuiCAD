@@ -24,14 +24,16 @@ const rustSupportedElementTypes = new Set<CadElement["type"]>([
   "line",
   "arcLine",
   "threePointArcLine",
-  "bezierCurve"
+  "bezierCurve",
+  "offsetLine"
 ]);
 
 const rustSupportedLineReferenceTypes = new Set<CadElement["type"]>([
   "line",
   "arcLine",
   "threePointArcLine",
-  "bezierCurve"
+  "bezierCurve",
+  "offsetLine"
 ]);
 
 const referencesRustSupportedLine = (
@@ -59,6 +61,11 @@ const canUseRustEvaluationForElement = (
     return (
       referencesRustSupportedLine(element.line1Id, elementsById) &&
       referencesRustSupportedLine(element.line2Id, elementsById)
+    );
+  }
+  if (element.type === "offsetLine") {
+    return element.baseLineIds.every((baseLineId) =>
+      referencesRustSupportedLine(baseLineId, elementsById)
     );
   }
   return true;

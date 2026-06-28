@@ -17,6 +17,14 @@ mod line_tangent_offset_point_tests;
 mod local_variables;
 mod math;
 mod numeric_expression;
+mod offset_bezier;
+mod offset_joins;
+mod offset_line_evaluator;
+#[cfg(test)]
+mod offset_line_tests;
+mod offset_paths;
+mod offset_source_segments;
+mod offset_types;
 mod point_anchor;
 mod point_evaluators;
 #[cfg(test)]
@@ -35,6 +43,7 @@ use line_division_point_evaluator::evaluate_line_division_point;
 use line_evaluators::{evaluate_arc_line, evaluate_line, evaluate_three_point_arc_line};
 use line_tangent_offset_point_evaluator::evaluate_line_tangent_offset_point;
 use local_variables::evaluate_local_variables;
+use offset_line_evaluator::evaluate_offset_line;
 use point_evaluators::{
     evaluate_division_point, evaluate_free_point, evaluate_offset_point,
     evaluate_polar_offset_point,
@@ -128,6 +137,7 @@ fn evaluate_document_input(input: EvaluationInput) -> EvaluationPayload {
                 evaluate_three_point_arc_line(&element, &local_variables, &mut state)
             }
             Some("bezierCurve") => evaluate_bezier_curve(&element, &local_variables, &mut state),
+            Some("offsetLine") => evaluate_offset_line(&element, &local_variables, &mut state),
             _ => {}
         }
     }

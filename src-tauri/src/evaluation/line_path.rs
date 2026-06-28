@@ -127,6 +127,58 @@ fn bezier_segments(geometry: &Value) -> Option<Vec<PathSegment>> {
     )
 }
 
+fn offset_segment_points(segment: &Value) -> Option<Vec<PathPoint>> {
+    match segment.get("kind")?.as_str()? {
+        "line" => Some(vec![
+            segment.get("start").and_then(value_point)?,
+            segment.get("end").and_then(value_point)?,
+        ]),
+        "bezier" => Some(
+            bezier_path::segment_points(segment, CURVE_PATH_STEPS as usize)?
+                .into_iter()
+                .map(|point| PathPoint {
+                    x: point.x,
+                    y: point.y,
+                })
+                .collect(),
+        ),
+        "arc" => {
+            let center = segment.get("center").and_then(value_point)?;
+            let radius = segment.get("radius")?.as_f64()?.max(0.0);
+            let start_angle_deg = segment.get("startAngleDeg")?.as_f64()?;
+            let sweep_angle_deg = segment.get("sweepAngleDeg")?.as_f64()?;
+            let step_count = ((sweep_angle_deg.abs() / 360.0) * CURVE_PATH_STEPS)
+                .ceil()
+                .max(1.0) as usize;
+            Some(
+                (0..=step_count)
+                    .map(|index| {
+                        arc_point(
+                            center,
+                            radius,
+                            start_angle_deg + (sweep_angle_deg * index as f64) / step_count as f64,
+                        )
+                    })
+                    .collect(),
+            )
+        }
+        _ => None,
+    }
+}
+
+fn offset_segments(geometry: &Value) -> Option<Vec<PathSegment>> {
+    let mut output = Vec::new();
+    for segment in geometry.get("segments")?.as_array()? {
+        let points = offset_segment_points(segment)?;
+        output.extend(
+            points
+                .windows(2)
+                .filter_map(|pair| path_segment(pair[0], pair[1])),
+        );
+    }
+    Some(output)
+}
+
 fn segments_for_geometry(geometry: &Value) -> Option<Vec<PathSegment>> {
     match geometry.get("kind")?.as_str()? {
         "line" => {
@@ -136,6 +188,7 @@ fn segments_for_geometry(geometry: &Value) -> Option<Vec<PathSegment>> {
         }
         "arcLine" => arc_segments(geometry),
         "bezierCurve" => bezier_segments(geometry),
+        "offsetLine" => offset_segments(geometry),
         _ => None,
     }
 }

@@ -131,11 +131,6 @@ describe("canUseRustEvaluationForElements", () => {
   });
 
   it("keeps lineDivisionPoint on the TypeScript path for unsupported or missing line references", () => {
-    expect(
-      canUseRustEvaluationForElements([pointA, lineDivisionPoint("offset"), pointB, offsetLine], {
-        evaluationLimitIndex: 2
-      })
-    ).toBe(false);
     expect(canUseRustEvaluationForElements([pointA, lineDivisionPoint("missing")])).toBe(false);
   });
 
@@ -149,12 +144,6 @@ describe("canUseRustEvaluationForElements", () => {
   });
 
   it("keeps lineTangentOffsetPoint on the TypeScript path for unsupported or missing line references", () => {
-    expect(
-      canUseRustEvaluationForElements(
-        [pointA, lineTangentOffsetPoint("offset"), pointB, offsetLine],
-        { evaluationLimitIndex: 2 }
-      )
-    ).toBe(false);
     expect(canUseRustEvaluationForElements([pointA, lineTangentOffsetPoint("missing")])).toBe(
       false
     );
@@ -167,12 +156,6 @@ describe("canUseRustEvaluationForElements", () => {
   });
 
   it("keeps intersectionPoint on the TypeScript path for unsupported or missing line references", () => {
-    expect(
-      canUseRustEvaluationForElements(
-        [pointA, pointB, line, offsetLine, intersectionPoint("line", "offset")],
-        { evaluationLimitIndex: 5 }
-      )
-    ).toBe(false);
     expect(canUseRustEvaluationForElements([pointA, line, intersectionPoint("line", "missing")])).toBe(
       false
     );
@@ -206,5 +189,31 @@ describe("canUseRustEvaluationForElements", () => {
         intersectionPoint("line", "curve")
       ])
     ).toBe(true);
+  });
+
+  it("allows offsetLine and supported point elements that reference it", () => {
+    expect(canUseRustEvaluationForElements([pointA, pointB, line, offsetLine])).toBe(true);
+    expect(
+      canUseRustEvaluationForElements([
+        pointA,
+        pointB,
+        line,
+        offsetLine,
+        lineDivisionPoint("offset"),
+        lineTangentOffsetPoint("offset"),
+        intersectionPoint("line", "offset")
+      ])
+    ).toBe(true);
+  });
+
+  it("keeps offsetLine on the TypeScript path when a base reference is missing", () => {
+    expect(
+      canUseRustEvaluationForElements([
+        {
+          ...offsetLine,
+          baseLineIds: ["missing"]
+        }
+      ])
+    ).toBe(false);
   });
 });

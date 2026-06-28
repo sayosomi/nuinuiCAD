@@ -119,6 +119,61 @@ fn bezier_points(geometry: &Value) -> Option<Vec<Point>> {
     )
 }
 
+fn offset_segment_points(segment: &Value) -> Option<Vec<Point>> {
+    match segment.get("kind")?.as_str()? {
+        "line" => Some(vec![
+            segment.get("start").and_then(value_point)?,
+            segment.get("end").and_then(value_point)?,
+        ]),
+        "bezier" => Some(
+            bezier_path::segment_points(segment, CURVE_STEPS)?
+                .into_iter()
+                .map(|point| Point {
+                    x: point.x,
+                    y: point.y,
+                })
+                .collect(),
+        ),
+        "arc" => {
+            let center = segment.get("center").and_then(value_point)?;
+            let radius = segment.get("radius")?.as_f64()?.max(0.0);
+            let start_angle_deg = segment.get("startAngleDeg")?.as_f64()?;
+            let sweep_angle_deg = segment.get("sweepAngleDeg")?.as_f64()?;
+            let step_count = ((sweep_angle_deg.abs() / 360.0) * ARC_STEPS)
+                .ceil()
+                .max(1.0) as usize;
+            Some(
+                (0..=step_count)
+                    .map(|index| {
+                        arc_point(
+                            center,
+                            radius,
+                            start_angle_deg + (sweep_angle_deg * index as f64) / step_count as f64,
+                        )
+                    })
+                    .collect(),
+            )
+        }
+        _ => None,
+    }
+}
+
+fn offset_points(line: &Value) -> Option<Vec<Point>> {
+    line.get("segments")?
+        .as_array()?
+        .iter()
+        .enumerate()
+        .try_fold(Vec::new(), |mut output, (index, segment)| {
+            let points = offset_segment_points(segment)?;
+            if index == 0 {
+                output.extend(points);
+            } else {
+                output.extend(points.into_iter().skip(1));
+            }
+            Some(output)
+        })
+}
+
 fn path_segments_for_line(geometry: &Value) -> Option<Vec<IntersectionSegment>> {
     match geometry.get("kind")?.as_str()? {
         "line" => {
@@ -128,6 +183,16 @@ fn path_segments_for_line(geometry: &Value) -> Option<Vec<IntersectionSegment>> 
         }
         "arcLine" => arc_points(geometry).map(|points| point_path_segments(&points)),
         "bezierCurve" => bezier_points(geometry).map(|points| point_path_segments(&points)),
+        "offsetLine" => {
+            if geometry
+                .get("closed")
+                .and_then(Value::as_bool)
+                .unwrap_or(false)
+            {
+                return Some(Vec::new());
+            }
+            offset_points(geometry).map(|points| point_path_segments(&points))
+        }
         _ => None,
     }
 }
