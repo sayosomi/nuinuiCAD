@@ -1,6 +1,7 @@
 use serde_json::Value;
 use std::collections::HashMap;
 
+use super::errors::numeric_error;
 use super::point_anchor::{point_from_geometry, point_from_value, resolve_derived_point};
 use super::types::{
     element_id, element_name, find_element_name, EvaluationState, NumericEvalError, Point, Token,
@@ -30,6 +31,22 @@ pub(crate) fn numeric_value(
         message,
     })?;
     Parser::new(tokens, state, local_variables, local_variable_names).parse()
+}
+
+pub(crate) fn evaluate_numeric_or_push(
+    value: &Value,
+    state: &mut EvaluationState,
+    element: &Value,
+    local_variables: &HashMap<String, f64>,
+    local_variable_names: &HashMap<String, String>,
+) -> Option<f64> {
+    match numeric_value(value, state, element, local_variables, local_variable_names) {
+        Ok(value) => Some(value),
+        Err(error) => {
+            numeric_error(state, element, error);
+            None
+        }
+    }
 }
 
 fn tokenize(expression: &str) -> Result<Vec<Token>, String> {

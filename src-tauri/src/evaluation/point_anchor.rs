@@ -1,7 +1,8 @@
 use serde_json::{json, Value};
 use std::collections::HashMap;
 
-use super::evaluators::{dependency_error, evaluate_numeric_or_push};
+use super::errors::dependency_error;
+use super::numeric_expression::evaluate_numeric_or_push;
 use super::types::{
     element_id, element_name, element_type, find_element_name, ElementId, EvaluationState, Point,
 };

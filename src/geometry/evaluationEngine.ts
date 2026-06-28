@@ -17,6 +17,7 @@ const rustSupportedElementTypes = new Set<CadElement["type"]>([
   "freePoint",
   "offsetPoint",
   "polarOffsetPoint",
+  "divisionPoint",
   "line",
   "arcLine"
 ]);

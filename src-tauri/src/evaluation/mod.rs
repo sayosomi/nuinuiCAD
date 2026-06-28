@@ -1,18 +1,26 @@
-mod evaluators;
+mod errors;
 mod groups;
+mod line_evaluators;
+mod local_variables;
+mod math;
 mod numeric_expression;
 mod point_anchor;
+mod point_evaluators;
 mod types;
+mod variable_evaluator;
 
 use std::collections::{HashMap, HashSet};
 
-use evaluators::{
-    evaluate_arc_line, evaluate_free_point, evaluate_line, evaluate_local_variables,
-    evaluate_offset_point, evaluate_polar_offset_point, evaluate_variable_element,
-};
 use groups::{effective_element_ids, group_state_by_element_id};
+use line_evaluators::{evaluate_arc_line, evaluate_line};
+use local_variables::evaluate_local_variables;
+use point_evaluators::{
+    evaluate_division_point, evaluate_free_point, evaluate_offset_point,
+    evaluate_polar_offset_point,
+};
 use types::{element_id, element_type, ElementId, EvaluationState};
 pub use types::{EvaluationInput, EvaluationPayload};
+use variable_evaluator::evaluate_variable_element;
 
 #[tauri::command]
 pub fn evaluate_document(input: EvaluationInput) -> EvaluationPayload {
@@ -81,6 +89,9 @@ fn evaluate_document_input(input: EvaluationInput) -> EvaluationPayload {
             Some("polarOffsetPoint") => {
                 evaluate_polar_offset_point(&element, &local_variables, &mut state)
             }
+            Some("divisionPoint") => {
+                evaluate_division_point(&element, &local_variables, &mut state)
+            }
             Some("line") => evaluate_line(&element, &local_variables, &mut state),
             Some("arcLine") => evaluate_arc_line(&element, &local_variables, &mut state),
             _ => {}
@@ -115,6 +126,37 @@ mod tests {
 
     fn element(value: Value) -> Value {
         value
+    }
+
+    fn point<'a>(result: &'a EvaluationPayload, id: &str) -> &'a Value {
+        result
+            .computed_geometry
+            .iter()
+            .find(|geometry| geometry["elementId"] == json!(id))
+            .expect("expected computed point")
+    }
+
+    fn base_points() -> Vec<Value> {
+        vec![
+            element(json!({
+                "id": "a",
+                "name": "点A",
+                "type": "freePoint",
+                "visible": true,
+                "enabled": true,
+                "x": 10,
+                "y": 20
+            })),
+            element(json!({
+                "id": "b",
+                "name": "点B",
+                "type": "freePoint",
+                "visible": true,
+                "enabled": true,
+                "x": 40,
+                "y": 25
+            })),
+        ]
     }
 
     #[test]
@@ -254,5 +296,181 @@ mod tests {
         assert!(!result
             .effective_enabled_element_ids
             .contains(&"a".to_owned()));
+    }
+
+    #[test]
+    fn evaluates_division_point_by_distance() {
+        let mut elements = base_points();
+        elements.push(element(json!({
+            "id": "division",
+            "name": "分点",
+            "type": "divisionPoint",
+            "visible": true,
+            "enabled": true,
+            "startPoint": { "mode": "reference", "pointId": "a" },
+            "endPoint": { "mode": "reference", "pointId": "b" },
+            "placementMode": "distance",
+            "distance": 15,
+            "ratio": 0.5
+        })));
+        let result = evaluate_document_input(EvaluationInput {
+            elements,
+            evaluation_limit_index: None,
+        });
+
+        let division = point(&result, "division");
+        assert!(result.errors.is_empty());
+        assert_eq!(division["kind"], json!("point"));
+        assert!(
+            (division["x"].as_f64().unwrap() - (10.0 + (30.0 / 30.4138126514911) * 15.0)).abs()
+                < 1e-9
+        );
+        assert!(
+            (division["y"].as_f64().unwrap() - (20.0 + (5.0 / 30.4138126514911) * 15.0)).abs()
+                < 1e-9
+        );
+    }
+
+    #[test]
+    fn evaluates_division_point_by_ratio() {
+        let mut elements = base_points();
+        elements.push(element(json!({
+            "id": "division",
+            "name": "中点",
+            "type": "divisionPoint",
+            "visible": true,
+            "enabled": true,
+            "startPoint": { "mode": "reference", "pointId": "a" },
+            "endPoint": { "mode": "reference", "pointId": "b" },
+            "placementMode": "ratio",
+            "distance": 30,
+            "ratio": 0.5
+        })));
+        let result = evaluate_document_input(EvaluationInput {
+            elements,
+            evaluation_limit_index: None,
+        });
+
+        let division = point(&result, "division");
+        assert!(result.errors.is_empty());
+        assert_eq!(division["x"], json!(25.0));
+        assert_eq!(division["y"], json!(22.5));
+    }
+
+    #[test]
+    fn reports_division_point_dependency_that_appears_too_late() {
+        let result = evaluate_document_input(EvaluationInput {
+            elements: vec![
+                element(json!({
+                    "id": "a",
+                    "name": "点A",
+                    "type": "freePoint",
+                    "visible": true,
+                    "enabled": true,
+                    "x": 10,
+                    "y": 20
+                })),
+                element(json!({
+                    "id": "division",
+                    "name": "分点",
+                    "type": "divisionPoint",
+                    "visible": true,
+                    "enabled": true,
+                    "startPoint": { "mode": "reference", "pointId": "a" },
+                    "endPoint": { "mode": "reference", "pointId": "b" },
+                    "placementMode": "ratio",
+                    "distance": 30,
+                    "ratio": 0.5
+                })),
+                element(json!({
+                    "id": "b",
+                    "name": "点B",
+                    "type": "freePoint",
+                    "visible": true,
+                    "enabled": true,
+                    "x": 40,
+                    "y": 25
+                })),
+            ],
+            evaluation_limit_index: None,
+        });
+
+        assert!(result
+            .computed_geometry
+            .iter()
+            .all(|geometry| geometry["elementId"] != json!("division")));
+        assert_eq!(result.errors[0].element_id, "division");
+        assert_eq!(result.errors[0].missing_dependency_id, "b");
+        assert_eq!(
+            result.errors[0].missing_dependency_name.as_deref(),
+            Some("点B")
+        );
+    }
+
+    #[test]
+    fn reports_zero_length_distance_division_point() {
+        let result = evaluate_document_input(EvaluationInput {
+            elements: vec![
+                element(json!({
+                    "id": "a",
+                    "name": "点A",
+                    "type": "freePoint",
+                    "visible": true,
+                    "enabled": true,
+                    "x": 10,
+                    "y": 20
+                })),
+                element(json!({
+                    "id": "division",
+                    "name": "分点",
+                    "type": "divisionPoint",
+                    "visible": true,
+                    "enabled": true,
+                    "startPoint": { "mode": "reference", "pointId": "a" },
+                    "endPoint": { "mode": "reference", "pointId": "a" },
+                    "placementMode": "distance",
+                    "distance": 15,
+                    "ratio": 0.5
+                })),
+            ],
+            evaluation_limit_index: None,
+        });
+
+        assert!(result
+            .computed_geometry
+            .iter()
+            .all(|geometry| geometry["elementId"] != json!("division")));
+        assert_eq!(result.errors[0].element_id, "division");
+        assert_eq!(result.errors[0].missing_dependency_id, "division");
+        assert!(result.errors[0].message.contains("始点と終点が同じ位置"));
+    }
+
+    #[test]
+    fn evaluates_division_point_numeric_variables_and_expressions() {
+        let mut elements = base_points();
+        elements.push(element(json!({
+            "id": "division",
+            "name": "式分点",
+            "type": "divisionPoint",
+            "visible": true,
+            "enabled": true,
+            "numericVariables": [
+                { "id": "base", "name": "基準", "value": 0.25 }
+            ],
+            "startPoint": { "mode": "reference", "pointId": "a" },
+            "endPoint": { "mode": "reference", "pointId": "b" },
+            "placementMode": "ratio",
+            "distance": 30,
+            "ratio": { "kind": "expression", "expression": "@基準 + 0.25" }
+        })));
+        let result = evaluate_document_input(EvaluationInput {
+            elements,
+            evaluation_limit_index: None,
+        });
+
+        let division = point(&result, "division");
+        assert!(result.errors.is_empty());
+        assert_eq!(division["x"], json!(25.0));
+        assert_eq!(division["y"], json!(22.5));
     }
 }
