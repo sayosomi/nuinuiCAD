@@ -71,6 +71,18 @@ const lineDivisionPoint = (lineId: string): CadElement => ({
   ratio: 0.5
 });
 
+const lineTangentOffsetPoint = (lineId: string): CadElement => ({
+  id: `tangent-offset-${lineId}`,
+  name: "線上オフセット点",
+  type: "lineTangentOffsetPoint",
+  visible: true,
+  enabled: true,
+  baseLineId: lineId,
+  basePoint: { mode: "reference", pointId: "a" },
+  tangentAngleDeg: 90,
+  distance: 10
+});
+
 describe("canUseRustEvaluationForElements", () => {
   it("allows lineDivisionPoint when it references a supported line type", () => {
     expect(canUseRustEvaluationForElements([pointA, pointB, line, lineDivisionPoint("line")])).toBe(
@@ -88,5 +100,26 @@ describe("canUseRustEvaluationForElements", () => {
       })
     ).toBe(false);
     expect(canUseRustEvaluationForElements([pointA, lineDivisionPoint("missing")])).toBe(false);
+  });
+
+  it("allows lineTangentOffsetPoint when it references a supported line type", () => {
+    expect(
+      canUseRustEvaluationForElements([pointA, pointB, line, lineTangentOffsetPoint("line")])
+    ).toBe(true);
+    expect(canUseRustEvaluationForElements([pointA, arcLine, lineTangentOffsetPoint("arc")])).toBe(
+      true
+    );
+  });
+
+  it("keeps lineTangentOffsetPoint on the TypeScript path for unsupported or missing line references", () => {
+    expect(
+      canUseRustEvaluationForElements(
+        [pointA, lineTangentOffsetPoint("curve"), pointB, bezierCurve],
+        { evaluationLimitIndex: 2 }
+      )
+    ).toBe(false);
+    expect(canUseRustEvaluationForElements([pointA, lineTangentOffsetPoint("missing")])).toBe(
+      false
+    );
   });
 });

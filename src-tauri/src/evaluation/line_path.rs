@@ -1,6 +1,6 @@
 use serde_json::Value;
 
-use super::math::CIRCLE_EPSILON;
+use super::math::{normalize_degrees, CIRCLE_EPSILON};
 
 const CURVE_PATH_STEPS: f64 = 32.0;
 
@@ -47,6 +47,23 @@ fn extend_from(point: PathPoint, direction: PathPoint, distance_from_point: f64)
         x: point.x + direction.x * distance_from_point,
         y: point.y + direction.y * distance_from_point,
     }
+}
+
+fn projected_point_on_segment(point: PathPoint, segment: &PathSegment) -> Option<(PathPoint, f64)> {
+    let vector = PathPoint {
+        x: segment.end.x - segment.start.x,
+        y: segment.end.y - segment.start.y,
+    };
+    let length_squared = vector.x * vector.x + vector.y * vector.y;
+    if length_squared <= CIRCLE_EPSILON {
+        return None;
+    }
+
+    let raw_t = ((point.x - segment.start.x) * vector.x + (point.y - segment.start.y) * vector.y)
+        / length_squared;
+    let t = raw_t.clamp(0.0, 1.0);
+    let projected = interpolate(segment.start, segment.end, t);
+    Some((projected, distance(point, projected)))
 }
 
 fn path_segment(start: PathPoint, end: PathPoint) -> Option<PathSegment> {
@@ -159,4 +176,33 @@ pub(crate) fn point_at_distance_from_endpoint(
     };
 
     Some((point.x, point.y))
+}
+
+pub(crate) fn tangent_at_point_on_geometry(
+    geometry: &Value,
+    point: (f64, f64),
+    tolerance: f64,
+) -> Option<(f64, f64)> {
+    let point = PathPoint {
+        x: point.0,
+        y: point.1,
+    };
+    let segments = segments_for_geometry(geometry)?;
+    let best = segments
+        .iter()
+        .filter_map(|segment| {
+            projected_point_on_segment(point, segment)
+                .map(|(_, distance_from_line)| (segment, distance_from_line))
+        })
+        .min_by(|(_, left), (_, right)| left.total_cmp(right))?;
+
+    if best.1 > tolerance {
+        return None;
+    }
+
+    let direction = unit_vector(best.0.start, best.0.end)?;
+    Some((
+        normalize_degrees((-direction.y).atan2(direction.x).to_degrees()),
+        best.1,
+    ))
 }

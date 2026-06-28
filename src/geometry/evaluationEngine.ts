@@ -19,26 +19,38 @@ const rustSupportedElementTypes = new Set<CadElement["type"]>([
   "polarOffsetPoint",
   "divisionPoint",
   "lineDivisionPoint",
+  "lineTangentOffsetPoint",
   "line",
   "arcLine"
 ]);
 
-const rustSupportedLineDivisionBaseTypes = new Set<CadElement["type"]>([
+const rustSupportedLineReferenceTypes = new Set<CadElement["type"]>([
   "line",
   "arcLine"
 ]);
+
+const referencesRustSupportedLine = (
+  lineId: string,
+  elementsById: Map<string, CadElement>
+) => {
+  const referencedLine = elementsById.get(lineId);
+  return referencedLine
+    ? rustSupportedLineReferenceTypes.has(referencedLine.type)
+    : false;
+};
 
 const canUseRustEvaluationForElement = (
   element: CadElement,
   elementsById: Map<string, CadElement>
 ) => {
   if (!rustSupportedElementTypes.has(element.type)) return false;
-  if (element.type !== "lineDivisionPoint") return true;
-
-  const referencedLine = elementsById.get(element.endpoint.lineId);
-  return referencedLine
-    ? rustSupportedLineDivisionBaseTypes.has(referencedLine.type)
-    : false;
+  if (element.type === "lineDivisionPoint") {
+    return referencesRustSupportedLine(element.endpoint.lineId, elementsById);
+  }
+  if (element.type === "lineTangentOffsetPoint") {
+    return referencesRustSupportedLine(element.baseLineId, elementsById);
+  }
+  return true;
 };
 
 export const canUseRustEvaluationForElements = (
