@@ -27,7 +27,7 @@ pub(crate) fn evaluate_line_division_point(
     };
     if !matches!(
         geometry.get("kind").and_then(Value::as_str),
-        Some("line" | "arcLine")
+        Some("line" | "arcLine" | "bezierCurve")
     ) {
         state.errors.push(dependency_error(state, element, line_id));
         return;

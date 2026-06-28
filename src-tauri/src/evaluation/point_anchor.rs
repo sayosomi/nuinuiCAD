@@ -70,7 +70,11 @@ pub(crate) fn anchor_reference_element_id(anchor: &Value) -> Option<ElementId> {
     }
 }
 
-pub(crate) fn resolve_derived_point(source: &Value, point_key: &str) -> Option<Point> {
+pub(crate) fn resolve_derived_point(
+    source: &Value,
+    point_key: &str,
+    state: &EvaluationState,
+) -> Option<Point> {
     match source.get("kind")?.as_str()? {
         "line" => {
             if point_key == "start" {
@@ -90,6 +94,46 @@ pub(crate) fn resolve_derived_point(source: &Value, point_key: &str) -> Option<P
                 source.get("end").and_then(point_from_value)
             } else {
                 None
+            }
+        }
+        "bezierCurve" => {
+            if point_key == "start" {
+                source
+                    .get("segments")?
+                    .as_array()?
+                    .first()?
+                    .get("start")
+                    .and_then(point_from_value)
+            } else if point_key == "end" {
+                source
+                    .get("segments")?
+                    .as_array()?
+                    .last()?
+                    .get("end")
+                    .and_then(point_from_value)
+            } else {
+                let intermediate_id = point_key.strip_prefix("intermediate:")?;
+                let element_id = source.get("elementId")?.as_str()?;
+                let element = state
+                    .elements_by_id
+                    .get(element_id)
+                    .and_then(|index| state.elements.get(*index))?;
+                if element_type(element) != Some("bezierCurve") {
+                    return None;
+                }
+                let index = element
+                    .get("intermediatePoints")?
+                    .as_array()?
+                    .iter()
+                    .position(|point| {
+                        point.get("id").and_then(Value::as_str) == Some(intermediate_id)
+                    })?;
+                source
+                    .get("segments")?
+                    .as_array()?
+                    .get(index)?
+                    .get("end")
+                    .and_then(point_from_value)
             }
         }
         _ => None,
@@ -124,7 +168,7 @@ pub(crate) fn point_anchor_or_error(
             let point = state
                 .computed_geometry
                 .get(source_id)
-                .and_then(|source| resolve_derived_point(source, point_key));
+                .and_then(|source| resolve_derived_point(source, point_key, state));
             if point.is_none() {
                 state
                     .errors

@@ -23,13 +23,15 @@ const rustSupportedElementTypes = new Set<CadElement["type"]>([
   "intersectionPoint",
   "line",
   "arcLine",
-  "threePointArcLine"
+  "threePointArcLine",
+  "bezierCurve"
 ]);
 
 const rustSupportedLineReferenceTypes = new Set<CadElement["type"]>([
   "line",
   "arcLine",
-  "threePointArcLine"
+  "threePointArcLine",
+  "bezierCurve"
 ]);
 
 const referencesRustSupportedLine = (

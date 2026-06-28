@@ -378,7 +378,7 @@ impl<'a> Parser<'a> {
             .get(source_id)
             .ok_or_else(|| self.dependency_error(source_id))?;
         if let Some(key) = point_key {
-            return resolve_derived_point(geometry, key)
+            return resolve_derived_point(geometry, key, self.state)
                 .ok_or_else(|| self.dependency_error(source_id));
         }
         point_from_geometry(geometry).ok_or_else(|| self.dependency_error(source_id))

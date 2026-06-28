@@ -1,5 +1,6 @@
 use serde_json::Value;
 
+use super::bezier_path;
 use super::math::{normalize_degrees, CIRCLE_EPSILON};
 
 const CURVE_PATH_STEPS: f64 = 32.0;
@@ -105,6 +106,27 @@ fn arc_segments(geometry: &Value) -> Option<Vec<PathSegment>> {
     )
 }
 
+fn bezier_segments(geometry: &Value) -> Option<Vec<PathSegment>> {
+    let points = bezier_path::curve_points(geometry, CURVE_PATH_STEPS as usize)?;
+    Some(
+        points
+            .windows(2)
+            .filter_map(|pair| {
+                path_segment(
+                    PathPoint {
+                        x: pair[0].x,
+                        y: pair[0].y,
+                    },
+                    PathPoint {
+                        x: pair[1].x,
+                        y: pair[1].y,
+                    },
+                )
+            })
+            .collect(),
+    )
+}
+
 fn segments_for_geometry(geometry: &Value) -> Option<Vec<PathSegment>> {
     match geometry.get("kind")?.as_str()? {
         "line" => {
@@ -113,6 +135,7 @@ fn segments_for_geometry(geometry: &Value) -> Option<Vec<PathSegment>> {
             Some(path_segment(start, end).into_iter().collect())
         }
         "arcLine" => arc_segments(geometry),
+        "bezierCurve" => bezier_segments(geometry),
         _ => None,
     }
 }

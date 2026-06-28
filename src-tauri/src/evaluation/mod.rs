@@ -1,3 +1,7 @@
+#[cfg(test)]
+mod bezier_curve_tests;
+mod bezier_evaluator;
+mod bezier_path;
 mod errors;
 mod groups;
 mod intersection_point_evaluator;
@@ -24,6 +28,7 @@ mod variable_evaluator;
 
 use std::collections::{HashMap, HashSet};
 
+use bezier_evaluator::evaluate_bezier_curve;
 use groups::{effective_element_ids, group_state_by_element_id};
 use intersection_point_evaluator::evaluate_intersection_point;
 use line_division_point_evaluator::evaluate_line_division_point;
@@ -122,6 +127,7 @@ fn evaluate_document_input(input: EvaluationInput) -> EvaluationPayload {
             Some("threePointArcLine") => {
                 evaluate_three_point_arc_line(&element, &local_variables, &mut state)
             }
+            Some("bezierCurve") => evaluate_bezier_curve(&element, &local_variables, &mut state),
             _ => {}
         }
     }

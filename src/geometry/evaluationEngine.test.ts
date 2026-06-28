@@ -72,6 +72,18 @@ const bezierCurve: CadElement = {
   endHandleLength: 0
 };
 
+const offsetLine: CadElement = {
+  id: "offset",
+  name: "オフセット",
+  type: "offsetLine",
+  visible: true,
+  enabled: true,
+  baseLineIds: ["line"],
+  offset: 10,
+  side: "right",
+  closed: false
+};
+
 const lineDivisionPoint = (lineId: string): CadElement => ({
   id: `division-${lineId}`,
   name: "線上分点",
@@ -120,7 +132,7 @@ describe("canUseRustEvaluationForElements", () => {
 
   it("keeps lineDivisionPoint on the TypeScript path for unsupported or missing line references", () => {
     expect(
-      canUseRustEvaluationForElements([pointA, lineDivisionPoint("curve"), pointB, bezierCurve], {
+      canUseRustEvaluationForElements([pointA, lineDivisionPoint("offset"), pointB, offsetLine], {
         evaluationLimitIndex: 2
       })
     ).toBe(false);
@@ -139,7 +151,7 @@ describe("canUseRustEvaluationForElements", () => {
   it("keeps lineTangentOffsetPoint on the TypeScript path for unsupported or missing line references", () => {
     expect(
       canUseRustEvaluationForElements(
-        [pointA, lineTangentOffsetPoint("curve"), pointB, bezierCurve],
+        [pointA, lineTangentOffsetPoint("offset"), pointB, offsetLine],
         { evaluationLimitIndex: 2 }
       )
     ).toBe(false);
@@ -157,7 +169,7 @@ describe("canUseRustEvaluationForElements", () => {
   it("keeps intersectionPoint on the TypeScript path for unsupported or missing line references", () => {
     expect(
       canUseRustEvaluationForElements(
-        [pointA, pointB, line, bezierCurve, intersectionPoint("line", "curve")],
+        [pointA, pointB, line, offsetLine, intersectionPoint("line", "offset")],
         { evaluationLimitIndex: 5 }
       )
     ).toBe(false);
@@ -177,6 +189,21 @@ describe("canUseRustEvaluationForElements", () => {
         lineDivisionPoint("three-point-arc"),
         lineTangentOffsetPoint("three-point-arc"),
         intersectionPoint("line", "three-point-arc")
+      ])
+    ).toBe(true);
+  });
+
+  it("allows bezierCurve and supported point elements that reference it", () => {
+    expect(canUseRustEvaluationForElements([pointA, pointB, bezierCurve])).toBe(true);
+    expect(
+      canUseRustEvaluationForElements([
+        pointA,
+        pointB,
+        line,
+        bezierCurve,
+        lineDivisionPoint("curve"),
+        lineTangentOffsetPoint("curve"),
+        intersectionPoint("line", "curve")
       ])
     ).toBe(true);
   });
