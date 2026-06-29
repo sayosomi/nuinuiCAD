@@ -115,6 +115,18 @@ const extendTrim = (lineId: string): CadElement => ({
   point: { mode: "reference", pointId: "a" }
 });
 
+const cornerRadiusArcLine = (line1Id: string, line2Id: string): CadElement => ({
+  id: `corner-${line1Id}-${line2Id}`,
+  name: "角R",
+  type: "cornerRadiusArcLine",
+  visible: true,
+  enabled: true,
+  endpoint1: { lineId: line1Id, endpointKey: "end" },
+  endpoint2: { lineId: line2Id, endpointKey: "start" },
+  radius: 10,
+  intersectionIndex: 0
+});
+
 const lineDivisionPoint = (lineId: string): CadElement => ({
   id: `division-${lineId}`,
   name: "線上分点",
@@ -347,6 +359,26 @@ describe("canUseRustEvaluationForElements", () => {
       false
     );
     expect(canUseRustEvaluationForElements([pointA, extendTrim("missing")])).toBe(false);
+  });
+
+  it("allows cornerRadiusArcLine and supported elements that reference it", () => {
+    expect(
+      canUseRustEvaluationForElements([
+        pointA,
+        pointB,
+        line,
+        arcLine,
+        cornerRadiusArcLine("line", "arc"),
+        lineDivisionPoint("corner-line-arc"),
+        intersectionPoint("line", "corner-line-arc")
+      ])
+    ).toBe(true);
+  });
+
+  it("keeps cornerRadiusArcLine on the TypeScript path when references are missing", () => {
+    expect(
+      canUseRustEvaluationForElements([pointA, pointB, line, cornerRadiusArcLine("line", "missing")])
+    ).toBe(false);
   });
 
   it("allows copy and move elements when all base lines are supported", () => {

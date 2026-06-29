@@ -2,6 +2,11 @@
 mod bezier_curve_tests;
 mod bezier_evaluator;
 mod bezier_path;
+mod corner_radius_evaluator;
+mod corner_radius_path;
+#[cfg(test)]
+mod corner_radius_tests;
+mod corner_radius_trim;
 mod edge_extend_evaluator;
 #[cfg(test)]
 mod edge_extend_test_support;
@@ -53,6 +58,7 @@ mod variable_evaluator;
 use std::collections::{HashMap, HashSet};
 
 use bezier_evaluator::evaluate_bezier_curve;
+use corner_radius_evaluator::evaluate_corner_radius_arc_line;
 use edge_extend_evaluator::{evaluate_edge, evaluate_extend_trim};
 use groups::{effective_element_ids, group_state_by_element_id};
 use intersection_point_evaluator::evaluate_intersection_point;
@@ -156,6 +162,9 @@ fn evaluate_document_input(input: EvaluationInput) -> EvaluationPayload {
             Some("arcLine") => evaluate_arc_line(&element, &local_variables, &mut state),
             Some("threePointArcLine") => {
                 evaluate_three_point_arc_line(&element, &local_variables, &mut state)
+            }
+            Some("cornerRadiusArcLine") => {
+                evaluate_corner_radius_arc_line(&element, &local_variables, &mut state)
             }
             Some("bezierCurve") => evaluate_bezier_curve(&element, &local_variables, &mut state),
             Some("offsetLine") => evaluate_offset_line(&element, &local_variables, &mut state),

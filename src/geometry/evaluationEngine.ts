@@ -24,6 +24,7 @@ const rustSupportedElementTypes = new Set<CadElement["type"]>([
   "line",
   "arcLine",
   "threePointArcLine",
+  "cornerRadiusArcLine",
   "bezierCurve",
   "offsetLine",
   "splitLine",
@@ -39,9 +40,12 @@ const rustSupportedLineReferenceTypes = new Set<CadElement["type"]>([
   "line",
   "arcLine",
   "threePointArcLine",
+  "cornerRadiusArcLine",
   "bezierCurve",
   "offsetLine",
-  "splitLine"
+  "splitLine",
+  "copyLine",
+  "symmetricCopyLine"
 ]);
 
 const referencesRustSupportedLine = (
@@ -87,6 +91,12 @@ const canUseRustEvaluationForElement = (
   }
   if (element.type === "extendTrim") {
     return referencesRustSupportedLine(element.endpoint.lineId, elementsById);
+  }
+  if (element.type === "cornerRadiusArcLine") {
+    return (
+      referencesRustSupportedLine(element.endpoint1.lineId, elementsById) &&
+      referencesRustSupportedLine(element.endpoint2.lineId, elementsById)
+    );
   }
   if (
     element.type === "copyLine" ||
