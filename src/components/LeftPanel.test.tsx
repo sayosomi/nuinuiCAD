@@ -55,7 +55,9 @@ const resetStore = () => {
     showCommandPalette: false,
     canvasViewport: DEFAULT_CANVAS_VIEWPORT,
     past: [],
-    future: []
+    future: [],
+    currentFilePath: null,
+    dirtySinceSave: false
   });
 };
 
@@ -122,6 +124,18 @@ const mockElementListRowRects = () => {
 describe("LeftPanel numeric input dragging", () => {
   beforeEach(() => {
     resetStore();
+  });
+
+  it("shows the current document file state", () => {
+    useCadStore.setState({
+      currentFilePath: "/tmp/pattern.nuinui.json",
+      dirtySinceSave: true
+    });
+
+    renderLeftPanel();
+
+    expect(screen.getByText("pattern.nuinui.json")).toBeInTheDocument();
+    expect(screen.getByText("未保存の変更")).toBeInTheDocument();
   });
 
   it("rounds numeric parameter display to at most two decimal places", () => {

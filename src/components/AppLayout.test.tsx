@@ -27,7 +27,9 @@ const resetStore = () => {
     showCommandPalette: false,
     canvasViewport: DEFAULT_CANVAS_VIEWPORT,
     past: [],
-    future: []
+    future: [],
+    currentFilePath: null,
+    dirtySinceSave: false
   });
 };
 

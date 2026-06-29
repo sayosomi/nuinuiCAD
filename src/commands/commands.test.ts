@@ -28,7 +28,9 @@ describe("commands", () => {
       showCommandPalette: false,
       canvasViewport: DEFAULT_CANVAS_VIEWPORT,
       past: [],
-      future: []
+      future: [],
+      currentFilePath: null,
+      dirtySinceSave: false
     });
   });
 
@@ -1226,6 +1228,10 @@ describe("commands", () => {
     expect(filterCommandPaletteItems("対称移動").map((item) => item.commandId)).toContain(
       "addSymmetricMove"
     );
+    expect(filterCommandPaletteItems("保存").map((item) => item.commandId)).toEqual(
+      expect.arrayContaining(["saveDocument", "saveDocumentAs"])
+    );
+    expect(filterCommandPaletteItems("開く").map((item) => item.commandId)).toContain("openDocument");
   });
 
   it("adds a polar offset point from a command", () => {

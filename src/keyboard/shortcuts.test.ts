@@ -31,6 +31,11 @@ describe("shortcuts", () => {
     expect(commandIdForKeyboardEvent(keyboardEvent("e"))).toBe("enterParameterEditMode");
     expect(commandIdForKeyboardEvent(keyboardEvent("j"))).toBe("enterDependencyJumpMode");
     expect(commandIdForKeyboardEvent(keyboardEvent("/"))).toBe("openCommandPalette");
+    expect(commandIdForKeyboardEvent(keyboardEvent("o", { metaKey: true }))).toBe("openDocument");
+    expect(commandIdForKeyboardEvent(keyboardEvent("s", { metaKey: true }))).toBe("saveDocument");
+    expect(commandIdForKeyboardEvent(keyboardEvent("s", { metaKey: true, shiftKey: true }))).toBe(
+      "saveDocumentAs"
+    );
     expect(commandIdForKeyboardEvent(keyboardEvent("f", { metaKey: true }))).toBe("focusElementSearch");
     expect(commandIdForKeyboardEvent(keyboardEvent("p"))).toBeNull();
     expect(commandIdForKeyboardEvent(keyboardEvent("o"))).toBeNull();

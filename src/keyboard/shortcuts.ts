@@ -49,6 +49,21 @@ const commandShortcut = (
 };
 
 export const globalShortcutDefinitions: ShortcutDefinition[] = [
+  commandShortcut(
+    "openDocument",
+    0,
+    (event) => event.key.toLowerCase() === "o" && isMod(event) && !event.altKey && !event.shiftKey
+  ),
+  commandShortcut(
+    "saveDocument",
+    0,
+    (event) => event.key.toLowerCase() === "s" && isMod(event) && !event.altKey && !event.shiftKey
+  ),
+  commandShortcut(
+    "saveDocumentAs",
+    0,
+    (event) => event.key.toLowerCase() === "s" && isMod(event) && !event.altKey && event.shiftKey
+  ),
   commandShortcut("openCommandPalette", 0, (event) => event.key === "/" && noModifier(event)),
   commandShortcut(
     "focusElementSearch",

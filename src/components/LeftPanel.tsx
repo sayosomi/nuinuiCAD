@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { KeyboardEvent, MouseEvent, PointerEvent, RefObject } from "react";
 import { Search, X } from "lucide-react";
 import { dispatchCommand } from "../commands/commands";
+import { fileNameFromPath } from "../document/documentFormat";
 import {
   isPointElement,
   referenceAnchor
@@ -136,6 +137,8 @@ export const LeftPanel = ({
   const evaluationLimitIndex = useCadDocumentStore((state) => state.evaluationLimitIndex);
   const selectedElementId = useCadDocumentStore((state) => state.selectedElementId);
   const selectedElementIds = useCadDocumentStore((state) => state.selectedElementIds);
+  const currentFilePath = useCadDocumentStore((state) => state.currentFilePath);
+  const dirtySinceSave = useCadDocumentStore((state) => state.dirtySinceSave);
   const elementSearchQuery = useCadUiStore((state) => state.elementSearchQuery);
   const elementSearchCursorId = useCadUiStore((state) => state.elementSearchCursorId);
   const elementSearchPickableOnly = useCadUiStore((state) => state.elementSearchPickableOnly);
@@ -421,6 +424,10 @@ export const LeftPanel = ({
     <aside className="left-panel">
       <header className="app-title">
         <h1>nuinuiCAD</h1>
+        <p className="document-status" title={currentFilePath ?? "未保存"}>
+          <span>{fileNameFromPath(currentFilePath)}</span>
+          {dirtySinceSave ? <span className="document-dirty">未保存の変更</span> : null}
+        </p>
       </header>
 
       <section className="panel-section element-list-section">

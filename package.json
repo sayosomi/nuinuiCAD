@@ -18,6 +18,7 @@
   },
   "dependencies": {
     "@tauri-apps/api": "^2.11.1",
+    "@tauri-apps/plugin-dialog": "^2.7.1",
     "@vitejs/plugin-react": "latest",
     "lucide-react": "^1.21.0",
     "react": "latest",

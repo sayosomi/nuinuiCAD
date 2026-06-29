@@ -1,0 +1,110 @@
+import {
+  CAD_DOCUMENT_EXTENSION,
+  ensureCadDocumentFileName,
+  parseCadDocumentFile,
+  serializeCadDocumentFile
+} from "./documentFormat";
+import {
+  currentDocumentSnapshot,
+  useCadDocumentStore,
+  type CadDocumentSnapshot
+} from "../state/cadDocumentStore";
+import { isTauriRuntime } from "../geometry/evaluationEngine";
+
+type DocumentFileFilter = {
+  name: string;
+  extensions: string[];
+};
+
+const documentFilter: DocumentFileFilter = {
+  name: "nuinuiCAD document",
+  extensions: [CAD_DOCUMENT_EXTENSION]
+};
+
+const invokeWriteDocumentFile = (path: string, content: string) =>
+  import("@tauri-apps/api/core").then(({ invoke }) =>
+    invoke<void>("write_document_file", { path, content })
+  );
+
+const invokeReadDocumentFile = (path: string) =>
+  import("@tauri-apps/api/core").then(({ invoke }) =>
+    invoke<string>("read_document_file", { path })
+  );
+
+const openDocumentDialog = () =>
+  import("@tauri-apps/plugin-dialog").then(({ open }) =>
+    open({
+      filters: [documentFilter],
+      multiple: false
+    })
+  );
+
+const saveDocumentDialog = (defaultPath: string) =>
+  import("@tauri-apps/plugin-dialog").then(({ save }) =>
+    save({
+      filters: [documentFilter],
+      defaultPath
+    })
+  );
+
+const selectedPath = (value: string | string[] | null) =>
+  Array.isArray(value) ? value[0] ?? null : value;
+
+const assertTauriFileRuntime = () => {
+  if (!isTauriRuntime()) {
+    throw new Error("ローカルファイル操作はTauri版でのみ利用できます。");
+  }
+};
+
+export const writeDocumentSnapshotToPath = async (
+  snapshot: CadDocumentSnapshot,
+  path: string
+) => {
+  const normalizedPath = ensureCadDocumentFileName(path);
+  await invokeWriteDocumentFile(normalizedPath, serializeCadDocumentFile(snapshot));
+  return normalizedPath;
+};
+
+export const saveDocumentAs = async () => {
+  assertTauriFileRuntime();
+  const state = useCadDocumentStore.getState();
+  const path = selectedPath(
+    await saveDocumentDialog(state.currentFilePath ?? `pattern.${CAD_DOCUMENT_EXTENSION}`)
+  );
+  if (!path) return;
+
+  const savedPath = await writeDocumentSnapshotToPath(currentDocumentSnapshot(state), path);
+  useCadDocumentStore.getState().markDocumentSaved(savedPath);
+};
+
+export const saveDocument = async () => {
+  assertTauriFileRuntime();
+  const state = useCadDocumentStore.getState();
+  if (!state.currentFilePath) {
+    await saveDocumentAs();
+    return;
+  }
+
+  const savedPath = await writeDocumentSnapshotToPath(
+    currentDocumentSnapshot(state),
+    state.currentFilePath
+  );
+  useCadDocumentStore.getState().markDocumentSaved(savedPath);
+};
+
+export const openDocument = async () => {
+  assertTauriFileRuntime();
+  const state = useCadDocumentStore.getState();
+  if (state.dirtySinceSave && !window.confirm("未保存の変更を破棄して開きますか？")) {
+    return;
+  }
+
+  const path = selectedPath(
+    await openDocumentDialog()
+  );
+  if (!path) return;
+
+  const content = await invokeReadDocumentFile(path);
+  const document = parseCadDocumentFile(content);
+  useCadDocumentStore.getState().replaceDocument(document, path);
+};

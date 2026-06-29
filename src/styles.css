@@ -94,6 +94,33 @@ select {
   font-size: 28px;
 }
 
+.document-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  max-width: 100%;
+}
+
+.document-status span:first-child {
+  overflow: hidden;
+  min-width: 0;
+  max-width: 100%;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.document-dirty {
+  border: 1px solid #d7c38b;
+  border-radius: 999px;
+  background: #fff9e8;
+  padding: 1px 6px;
+  color: #71510b;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
 .app-title p,
 .section-subtitle,
 .empty-state {

@@ -17,6 +17,8 @@ export type CadDocumentSnapshot = {
 export type CadDocumentState = CadDocumentSnapshot & {
   past: CadDocumentSnapshot[];
   future: CadDocumentSnapshot[];
+  currentFilePath: string | null;
+  dirtySinceSave: boolean;
   setSelectedElementId: (id: ElementId | null) => void;
   setSelectedElementIds: (ids: ElementId[], primaryId?: ElementId | null) => void;
   setSelectedElementRange: (anchorId: ElementId, targetId: ElementId) => void;
@@ -30,6 +32,8 @@ export type CadDocumentState = CadDocumentSnapshot & {
   setElements: (elements: CadElement[]) => void;
   updateElement: (id: ElementId, patch: Partial<CadElement>) => void;
   renameElement: (id: ElementId, requestedName: string) => void;
+  replaceDocument: (snapshot: CadDocumentSnapshot, filePath: string | null) => void;
+  markDocumentSaved: (filePath: string) => void;
   undo: () => void;
   redo: () => void;
 };
@@ -89,7 +93,8 @@ const snapshotEquals = (a: CadDocumentSnapshot, b: CadDocumentSnapshot) =>
   a.selectionAnchorElementId === b.selectionAnchorElementId &&
   a.selectedParameterKey === b.selectedParameterKey;
 
-export const initialCadDocumentState = (): CadDocumentSnapshot & Pick<CadDocumentState, "past" | "future"> => ({
+export const initialCadDocumentState = (): CadDocumentSnapshot &
+  Pick<CadDocumentState, "past" | "future" | "currentFilePath" | "dirtySinceSave"> => ({
   elements: sampleElements,
   evaluationLimitIndex: sampleElements.length,
   selectedElementId: sampleElements[0]?.id ?? null,
@@ -97,7 +102,9 @@ export const initialCadDocumentState = (): CadDocumentSnapshot & Pick<CadDocumen
   selectionAnchorElementId: sampleElements[0]?.id ?? null,
   selectedParameterKey: sampleElements[0] ? normalizeParameterKey(sampleElements[0], null) : null,
   past: [],
-  future: []
+  future: [],
+  currentFilePath: null,
+  dirtySinceSave: false
 });
 
 export const useCadDocumentStore = create<CadDocumentState>((set) => ({
@@ -173,7 +180,8 @@ export const useCadDocumentStore = create<CadDocumentState>((set) => ({
       return {
         ...after,
         past: [...state.past, before],
-        future: []
+        future: [],
+        dirtySinceSave: true
       };
     }),
   commitDocumentChangeFromSnapshot: (before, change) =>
@@ -184,7 +192,8 @@ export const useCadDocumentStore = create<CadDocumentState>((set) => ({
       return {
         ...after,
         past: [...state.past, before],
-        future: []
+        future: [],
+        dirtySinceSave: true
       };
     }),
   setElements: (elements) => useCadDocumentStore.getState().commitDocumentChange({ elements }),
@@ -203,7 +212,8 @@ export const useCadDocumentStore = create<CadDocumentState>((set) => ({
       return {
         ...after,
         past: [...state.past, before],
-        future: []
+        future: [],
+        dirtySinceSave: true
       };
     }),
   renameElement: (id, requestedName) =>
@@ -231,8 +241,22 @@ export const useCadDocumentStore = create<CadDocumentState>((set) => ({
       return {
         ...after,
         past: [...state.past, before],
-        future: []
+        future: [],
+        dirtySinceSave: true
       };
+    }),
+  replaceDocument: (snapshot, currentFilePath) =>
+    set(() => ({
+      ...normalizeSnapshot(snapshot),
+      past: [],
+      future: [],
+      currentFilePath,
+      dirtySinceSave: false
+    })),
+  markDocumentSaved: (currentFilePath) =>
+    set({
+      currentFilePath,
+      dirtySinceSave: false
     }),
   undo: () =>
     set((state) => {
@@ -242,7 +266,8 @@ export const useCadDocumentStore = create<CadDocumentState>((set) => ({
       return {
         ...previous,
         past: state.past.slice(0, -1),
-        future: [currentDocumentSnapshot(state), ...state.future]
+        future: [currentDocumentSnapshot(state), ...state.future],
+        dirtySinceSave: true
       };
     }),
   redo: () =>
@@ -253,7 +278,8 @@ export const useCadDocumentStore = create<CadDocumentState>((set) => ({
       return {
         ...next,
         past: [...state.past, currentDocumentSnapshot(state)],
-        future: state.future.slice(1)
+        future: state.future.slice(1),
+        dirtySinceSave: true
       };
     })
 }));

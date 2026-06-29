@@ -1,5 +1,6 @@
 import { filterCommandPaletteItems as filterPaletteItems } from "./commandPalette";
 import { creationCommandDefinitions } from "./creationCommandDefinitions";
+import { documentCommandDefinitions } from "./documentCommandDefinitions";
 import { parameterCommandDefinitions } from "./parameterCommandDefinitions";
 import { pickCommandDefinitions } from "./pickCommandDefinitions";
 import { selectionCommandDefinitions } from "./selectionCommandDefinitions";
@@ -8,6 +9,7 @@ import type { Command, CommandContext, CommandId } from "./commandTypes";
 export type { BezierHandleRole, Command, CommandContext, CommandId } from "./commandTypes";
 
 export const commands: Record<CommandId, Command> = {
+  ...documentCommandDefinitions,
   ...viewModeCommandDefinitions,
   ...selectionCommandDefinitions,
   ...pickCommandDefinitions,
