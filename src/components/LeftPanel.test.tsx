@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { createRef } from "react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LeftPanel, RightPanel } from "./LeftPanel";
 import { ShortcutHelpOverlay } from "./ShortcutHelpOverlay";
 import { evaluateElements } from "../geometry/evaluate";
@@ -120,6 +120,62 @@ const mockElementListRowRects = () => {
     });
   });
 };
+
+const mockScrollableElementListRects = () => {
+  const list = document.querySelector<HTMLElement>("[data-element-list='true']");
+  expect(list).toBeInstanceOf(HTMLElement);
+  list!.scrollTop = 0;
+  list!.getBoundingClientRect = () => ({
+    x: 0,
+    y: 0,
+    top: 0,
+    left: 0,
+    right: 320,
+    bottom: 100,
+    width: 320,
+    height: 100,
+    toJSON: () => ({})
+  });
+  document.querySelectorAll<HTMLElement>("[data-element-list-row='true']").forEach((row, index) => {
+    row.getBoundingClientRect = () => {
+      const top = index * 100 - list!.scrollTop;
+      return {
+        x: 0,
+        y: top,
+        top,
+        left: 0,
+        right: 320,
+        bottom: top + 100,
+        width: 320,
+        height: 100,
+        toJSON: () => ({})
+      };
+    };
+  });
+  return list!;
+};
+
+const mockAnimationFrames = () => {
+  const callbacks: FrameRequestCallback[] = [];
+  vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+    callbacks.push(callback);
+    return callbacks.length;
+  });
+  vi.spyOn(window, "cancelAnimationFrame").mockImplementation(() => undefined);
+  return {
+    runNextFrame: () => {
+      const callback = callbacks.shift();
+      if (!callback) return;
+      act(() => {
+        callback(performance.now());
+      });
+    }
+  };
+};
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 describe("LeftPanel numeric input dragging", () => {
   beforeEach(() => {
@@ -790,6 +846,48 @@ describe("LeftPanel element list dragging", () => {
     ]);
     expect(useCadStore.getState().selectedElementId).toBe("point-a");
     expect(useCadStore.getState().past).toHaveLength(1);
+  });
+
+  it("auto-scrolls while pointer dragging an element near the list edge", () => {
+    renderLeftPanel();
+    const list = mockScrollableElementListRects();
+    const animationFrames = mockAnimationFrames();
+    const handle = screen.getByLabelText("点Aを並び替え");
+
+    fireEvent.pointerDown(handle, { button: 0, clientY: 25, pointerId: 1 });
+    fireEvent.pointerMove(window, { clientY: 95, pointerId: 1 });
+    for (let index = 0; index < 7; index += 1) {
+      animationFrames.runNextFrame();
+    }
+    fireEvent.pointerUp(window, { clientY: 95, pointerId: 1 });
+
+    expect(list.scrollTop).toBeGreaterThan(100);
+    expect(useCadStore.getState().elements.map((element) => element.id).slice(0, 4)).toEqual([
+      "point-b",
+      "point-a",
+      "point-c",
+      "line-ab"
+    ]);
+  });
+
+  it("auto-scrolls while pointer dragging the evaluation divider near the list edge", () => {
+    useCadStore.setState({
+      evaluationLimitIndex: 0
+    });
+    renderLeftPanel(evaluateElements(sampleElements, { evaluationLimitIndex: 0 }));
+    const list = mockScrollableElementListRects();
+    const animationFrames = mockAnimationFrames();
+    const divider = screen.getByLabelText(/評価区切り線。6件中0件を評価/);
+
+    fireEvent.pointerDown(divider, { button: 0, clientY: 5, pointerId: 1 });
+    fireEvent.pointerMove(window, { clientY: 95, pointerId: 1 });
+    for (let index = 0; index < 7; index += 1) {
+      animationFrames.runNextFrame();
+    }
+    fireEvent.pointerUp(window, { clientY: 95, pointerId: 1 });
+
+    expect(list.scrollTop).toBeGreaterThan(100);
+    expect(useCadStore.getState().evaluationLimitIndex).toBe(2);
   });
 
   it("selects a range with shift click and toggles with mod click", () => {

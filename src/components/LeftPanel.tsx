@@ -24,6 +24,7 @@ import {
 } from "./geometryDisplay";
 import { ElementListRow } from "./ElementListRow";
 import {
+  elementListAutoScrollDelta,
   elementListDropTargetForClientY,
   isNoopElementDrop,
   type ElementListPointerDrag
@@ -152,9 +153,11 @@ export const LeftPanel = ({
   const [pointerDrag, setPointerDrag] = useState<ElementListPointerDrag | null>(null);
   const rowRefs = useRef(new Map<ElementId, HTMLDivElement>());
   const pointerDragRef = useRef<ElementListPointerDrag | null>(null);
+  const pointerDragClientYRef = useRef<number | null>(null);
   const selectedElementIdSet = new Set(selectedElementIds);
   const draggedElementIds = pointerDrag?.kind === "elements" ? pointerDrag.movingIds : [];
   const isDividerDragging = pointerDrag?.kind === "divider";
+  const isPointerDragging = pointerDrag !== null;
   const dropTarget = pointerDrag?.target ?? null;
   const evaluatedElementIdSet =
     evaluation.evaluatedElementIds ?? new Set(elements.map((element) => element.id));
@@ -227,6 +230,7 @@ export const LeftPanel = ({
       sourceElementId: rowElement.id,
       target: null
     });
+    pointerDragClientYRef.current = event.clientY;
   };
   const startDividerPointerDrag = (event: PointerEvent<HTMLDivElement>) => {
     if (event.button !== 0 || isSearchActive) return;
@@ -237,6 +241,7 @@ export const LeftPanel = ({
       pointerId: event.pointerId,
       target: null
     });
+    pointerDragClientYRef.current = event.clientY;
   };
   const selectElement = (elementId: ElementId, event: MouseEvent<HTMLElement>) => {
     if (activeLinePickTarget) {
@@ -357,13 +362,11 @@ export const LeftPanel = ({
   }, [activeSearchCursorId]);
 
   useEffect(() => {
-    if (!pointerDrag) return;
+    if (!isPointerDragging) return;
+    let animationFrameId: number | null = null;
 
-    const onPointerMove = (event: globalThis.PointerEvent) => {
-      const drag = pointerDragRef.current;
-      if (!drag || drag.pointerId !== event.pointerId) return;
-      event.preventDefault();
-      const target = elementListDropTargetForClientY(elements, rowRefs.current, event.clientY);
+    const refreshDropTarget = (clientY: number) => {
+      const target = elementListDropTargetForClientY(elements, rowRefs.current, clientY);
       setPointerDrag((currentDrag) => {
         if (!currentDrag) return currentDrag;
         if (
@@ -375,6 +378,37 @@ export const LeftPanel = ({
         }
         return { ...currentDrag, target };
       });
+    };
+
+    const stopAutoScroll = () => {
+      if (animationFrameId !== null) {
+        cancelAnimationFrame(animationFrameId);
+        animationFrameId = null;
+      }
+      pointerDragClientYRef.current = null;
+    };
+
+    const autoScroll = () => {
+      const list = elementListFocusRef.current;
+      const clientY = pointerDragClientYRef.current;
+      if (list && clientY !== null) {
+        const delta = elementListAutoScrollDelta(list.getBoundingClientRect(), clientY);
+        if (delta !== 0) {
+          list.scrollTop += delta;
+          refreshDropTarget(clientY);
+        }
+      }
+      animationFrameId = requestAnimationFrame(autoScroll);
+    };
+
+    animationFrameId = requestAnimationFrame(autoScroll);
+
+    const onPointerMove = (event: globalThis.PointerEvent) => {
+      const drag = pointerDragRef.current;
+      if (!drag || drag.pointerId !== event.pointerId) return;
+      event.preventDefault();
+      pointerDragClientYRef.current = event.clientY;
+      refreshDropTarget(event.clientY);
     };
     const onPointerUp = (event: globalThis.PointerEvent) => {
       const drag = pointerDragRef.current;
@@ -393,16 +427,23 @@ export const LeftPanel = ({
           });
         }
       }
+      stopAutoScroll();
       clearPointerDrag();
     };
     const onPointerCancel = (event: globalThis.PointerEvent) => {
       const drag = pointerDragRef.current;
       if (!drag || drag.pointerId !== event.pointerId) return;
+      stopAutoScroll();
       clearPointerDrag();
     };
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
       if (event.key !== "Escape") return;
       event.preventDefault();
+      stopAutoScroll();
+      clearPointerDrag();
+    };
+    const onBlur = () => {
+      stopAutoScroll();
       clearPointerDrag();
     };
 
@@ -410,15 +451,16 @@ export const LeftPanel = ({
     window.addEventListener("pointerup", onPointerUp);
     window.addEventListener("pointercancel", onPointerCancel);
     window.addEventListener("keydown", onKeyDown);
-    window.addEventListener("blur", clearPointerDrag);
+    window.addEventListener("blur", onBlur);
     return () => {
+      stopAutoScroll();
       window.removeEventListener("pointermove", onPointerMove);
       window.removeEventListener("pointerup", onPointerUp);
       window.removeEventListener("pointercancel", onPointerCancel);
       window.removeEventListener("keydown", onKeyDown);
-      window.removeEventListener("blur", clearPointerDrag);
+      window.removeEventListener("blur", onBlur);
     };
-  }, [pointerDrag, elements]);
+  }, [isPointerDragging, elements, elementListFocusRef]);
 
   return (
     <aside className="left-panel">

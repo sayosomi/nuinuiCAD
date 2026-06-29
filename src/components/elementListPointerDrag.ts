@@ -26,6 +26,24 @@ export type ElementListPointerDrag =
       target: ElementListDropTarget | null;
     };
 
+const AUTO_SCROLL_EDGE_SIZE = 48;
+const AUTO_SCROLL_MAX_DELTA = 18;
+
+export const elementListAutoScrollDelta = (
+  rect: Pick<DOMRect, "top" | "bottom">,
+  clientY: number
+) => {
+  if (clientY < rect.top + AUTO_SCROLL_EDGE_SIZE) {
+    const distance = rect.top + AUTO_SCROLL_EDGE_SIZE - clientY;
+    return -Math.min(AUTO_SCROLL_MAX_DELTA, (distance / AUTO_SCROLL_EDGE_SIZE) * AUTO_SCROLL_MAX_DELTA);
+  }
+  if (clientY > rect.bottom - AUTO_SCROLL_EDGE_SIZE) {
+    const distance = clientY - (rect.bottom - AUTO_SCROLL_EDGE_SIZE);
+    return Math.min(AUTO_SCROLL_MAX_DELTA, (distance / AUTO_SCROLL_EDGE_SIZE) * AUTO_SCROLL_MAX_DELTA);
+  }
+  return 0;
+};
+
 export const isNoopElementDrop = (
   elements: CadElement[],
   elementIds: ElementId[],
