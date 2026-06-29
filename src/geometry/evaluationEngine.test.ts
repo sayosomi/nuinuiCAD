@@ -151,6 +151,54 @@ const intersectionPoint = (line1Id: string, line2Id: string): CadElement => ({
   useExtensions: false
 });
 
+const copyLine = (baseLineIds: string[]): CadElement => ({
+  id: `copy-${baseLineIds.join("-")}`,
+  name: "コピー",
+  type: "copyLine",
+  visible: true,
+  enabled: true,
+  startPoint: { mode: "reference", pointId: "a" },
+  endPoint: { mode: "reference", pointId: "b" },
+  angleDeg: 0,
+  mirrorX: false,
+  baseLineIds
+});
+
+const symmetricCopyLine = (baseLineIds: string[]): CadElement => ({
+  id: `symmetric-copy-${baseLineIds.join("-")}`,
+  name: "対称コピー",
+  type: "symmetricCopyLine",
+  visible: true,
+  enabled: true,
+  axisPoint1: { mode: "reference", pointId: "a" },
+  axisPoint2: { mode: "reference", pointId: "b" },
+  baseLineIds
+});
+
+const move = (baseLineIds: string[]): CadElement => ({
+  id: `move-${baseLineIds.join("-")}`,
+  name: "移動",
+  type: "move",
+  visible: true,
+  enabled: true,
+  startPoint: { mode: "reference", pointId: "a" },
+  endPoint: { mode: "reference", pointId: "b" },
+  angleDeg: 0,
+  mirrorX: false,
+  baseLineIds
+});
+
+const symmetricMove = (baseLineIds: string[]): CadElement => ({
+  id: `symmetric-move-${baseLineIds.join("-")}`,
+  name: "対称移動",
+  type: "symmetricMove",
+  visible: true,
+  enabled: true,
+  axisPoint1: { mode: "reference", pointId: "a" },
+  axisPoint2: { mode: "reference", pointId: "b" },
+  baseLineIds
+});
+
 describe("canUseRustEvaluationForElements", () => {
   it("allows lineDivisionPoint when it references a supported line type", () => {
     expect(canUseRustEvaluationForElements([pointA, pointB, line, lineDivisionPoint("line")])).toBe(
@@ -299,5 +347,34 @@ describe("canUseRustEvaluationForElements", () => {
       false
     );
     expect(canUseRustEvaluationForElements([pointA, extendTrim("missing")])).toBe(false);
+  });
+
+  it("allows copy and move elements when all base lines are supported", () => {
+    expect(
+      canUseRustEvaluationForElements([
+        pointA,
+        pointB,
+        line,
+        arcLine,
+        bezierCurve,
+        offsetLine,
+        splitLine,
+        copyLine(["line", "arc", "curve", "offset", "split"]),
+        symmetricCopyLine(["line", "curve"]),
+        move(["line", "offset"]),
+        symmetricMove(["arc", "split"])
+      ])
+    ).toBe(true);
+  });
+
+  it("keeps copy and move elements on the TypeScript path when base references are missing", () => {
+    expect(canUseRustEvaluationForElements([pointA, pointB, copyLine(["missing"])])).toBe(false);
+    expect(canUseRustEvaluationForElements([pointA, pointB, symmetricCopyLine(["missing"])])).toBe(
+      false
+    );
+    expect(canUseRustEvaluationForElements([pointA, pointB, move(["missing"])])).toBe(false);
+    expect(canUseRustEvaluationForElements([pointA, pointB, symmetricMove(["missing"])])).toBe(
+      false
+    );
   });
 });

@@ -15,6 +15,10 @@ mod groups;
 mod intersection_point_evaluator;
 #[cfg(test)]
 mod intersection_point_tests;
+mod line_copy_geometry;
+mod line_copy_move_evaluator;
+#[cfg(test)]
+mod line_copy_move_tests;
 mod line_division_point_evaluator;
 mod line_evaluators;
 mod line_intersections;
@@ -22,6 +26,7 @@ mod line_path;
 mod line_tangent_offset_point_evaluator;
 #[cfg(test)]
 mod line_tangent_offset_point_tests;
+mod line_transform;
 mod local_variables;
 mod math;
 mod numeric_expression;
@@ -51,6 +56,9 @@ use bezier_evaluator::evaluate_bezier_curve;
 use edge_extend_evaluator::{evaluate_edge, evaluate_extend_trim};
 use groups::{effective_element_ids, group_state_by_element_id};
 use intersection_point_evaluator::evaluate_intersection_point;
+use line_copy_move_evaluator::{
+    evaluate_copy_line, evaluate_move, evaluate_symmetric_copy_line, evaluate_symmetric_move,
+};
 use line_division_point_evaluator::evaluate_line_division_point;
 use line_evaluators::{evaluate_arc_line, evaluate_line, evaluate_three_point_arc_line};
 use line_tangent_offset_point_evaluator::evaluate_line_tangent_offset_point;
@@ -154,6 +162,14 @@ fn evaluate_document_input(input: EvaluationInput) -> EvaluationPayload {
             Some("splitLine") => evaluate_split_line(&element, &local_variables, &mut state),
             Some("edge") => evaluate_edge(&element, &local_variables, &mut state),
             Some("extendTrim") => evaluate_extend_trim(&element, &local_variables, &mut state),
+            Some("copyLine") => evaluate_copy_line(&element, &local_variables, &mut state),
+            Some("symmetricCopyLine") => {
+                evaluate_symmetric_copy_line(&element, &local_variables, &mut state)
+            }
+            Some("move") => evaluate_move(&element, &local_variables, &mut state),
+            Some("symmetricMove") => {
+                evaluate_symmetric_move(&element, &local_variables, &mut state)
+            }
             _ => {}
         }
     }

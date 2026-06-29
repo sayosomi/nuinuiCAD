@@ -28,7 +28,11 @@ const rustSupportedElementTypes = new Set<CadElement["type"]>([
   "offsetLine",
   "splitLine",
   "edge",
-  "extendTrim"
+  "extendTrim",
+  "copyLine",
+  "symmetricCopyLine",
+  "move",
+  "symmetricMove"
 ]);
 
 const rustSupportedLineReferenceTypes = new Set<CadElement["type"]>([
@@ -83,6 +87,16 @@ const canUseRustEvaluationForElement = (
   }
   if (element.type === "extendTrim") {
     return referencesRustSupportedLine(element.endpoint.lineId, elementsById);
+  }
+  if (
+    element.type === "copyLine" ||
+    element.type === "symmetricCopyLine" ||
+    element.type === "move" ||
+    element.type === "symmetricMove"
+  ) {
+    return element.baseLineIds.every((baseLineId) =>
+      referencesRustSupportedLine(baseLineId, elementsById)
+    );
   }
   return true;
 };
