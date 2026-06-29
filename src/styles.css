@@ -135,6 +135,28 @@ select {
   font-size: 15px;
 }
 
+.evaluation-engine-status {
+  border: 1px solid #c9cec3;
+  border-radius: 999px;
+  padding: 2px 7px;
+  color: #4b5148;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.evaluation-engine-status.stale {
+  border-color: #d7c38b;
+  background: #fff9e8;
+  color: #71510b;
+}
+
+.evaluation-engine-status.fallback {
+  border-color: #efb08f;
+  background: #fff7f2;
+  color: #73320d;
+}
+
 .button-row {
   display: flex;
   flex-wrap: wrap;

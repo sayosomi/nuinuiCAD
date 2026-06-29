@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { LeftPanel, RightPanel } from "./LeftPanel";
 import { ShortcutHelpOverlay } from "./ShortcutHelpOverlay";
 import { evaluateElements } from "../geometry/evaluate";
+import type { EvaluationEngineState } from "../geometry/useEvaluationEngine";
 import { sampleElements } from "../sampleData";
 import { DEFAULT_CANVAS_VIEWPORT, useCadStore } from "../state/useCadStore";
 import type { CadElement, EvaluationResult } from "../types/geometry";
@@ -15,6 +16,19 @@ const emptyEvaluation: EvaluationResult = {
   errors: [],
   warnings: []
 };
+
+const evaluationEngineState = (
+  overrides: Partial<EvaluationEngineState> = {}
+): EvaluationEngineState => ({
+  evaluation: emptyEvaluation,
+  mode: "rust",
+  source: "rust",
+  status: "ready",
+  rustEligible: true,
+  isStale: false,
+  error: null,
+  ...overrides
+});
 
 const resetStore = () => {
   useCadStore.setState({
@@ -45,10 +59,14 @@ const resetStore = () => {
   });
 };
 
-const renderRightPanel = (evaluation = emptyEvaluation) =>
+const renderRightPanel = (
+  evaluation = emptyEvaluation,
+  engineState?: EvaluationEngineState
+) =>
   render(
     <RightPanel
       evaluation={evaluation}
+      evaluationState={engineState}
       isParameterEditMode={false}
       isDependencyJumpMode={false}
       registerParameterControl={() => undefined}
@@ -539,6 +557,25 @@ describe("LeftPanel element list dragging", () => {
     });
 
     expect(screen.getByText(/一部区間をトリムしました/)).toBeInTheDocument();
+  });
+
+  it("shows Tauri evaluation engine status in the validation section", () => {
+    renderRightPanel(emptyEvaluation, evaluationEngineState({
+      status: "evaluating",
+      isStale: true
+    }));
+
+    expect(screen.getByText("Rust評価中 / stale")).toBeInTheDocument();
+  });
+
+  it("shows fallback evaluation engine status in the validation section", () => {
+    renderRightPanel(emptyEvaluation, evaluationEngineState({
+      source: "fallback",
+      status: "failed",
+      error: new Error("failed")
+    }));
+
+    expect(screen.getByText("TS fallback")).toBeInTheDocument();
   });
 
   it("uses row styling instead of visible state text in the element list", () => {

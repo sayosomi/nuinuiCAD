@@ -7,6 +7,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "desktop:dev": "tauri dev",
+    "desktop:dev:shadow": "VITE_EVALUATION_ENGINE=shadow npm run desktop:dev",
+    "desktop:dev:rust": "VITE_EVALUATION_ENGINE=rust npm run desktop:dev",
     "desktop:build": "tauri build",
     "lint": "eslint .",
     "test": "vitest run",

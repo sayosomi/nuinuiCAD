@@ -25,7 +25,8 @@ export const AppLayout = () => {
   const elementSearchInputRef = useRef<HTMLInputElement>(null);
   const parameterInputRefs = useRef(new Map<string, HTMLElement>());
   const evaluationOptions = useMemo(() => ({ evaluationLimitIndex }), [evaluationLimitIndex]);
-  const evaluation = useEvaluationEngine(elements, evaluationOptions);
+  const evaluationState = useEvaluationEngine(elements, evaluationOptions);
+  const { evaluation } = evaluationState;
   const registerParameterControl = (key: string, element: HTMLElement | null) => {
     if (element) {
       parameterInputRefs.current.set(key, element);
@@ -108,6 +109,7 @@ export const AppLayout = () => {
       />
       <RightPanel
         evaluation={evaluation}
+        evaluationState={evaluationState}
         isParameterEditMode={isParameterEditMode}
         isDependencyJumpMode={isDependencyJumpMode}
         registerParameterControl={registerParameterControl}

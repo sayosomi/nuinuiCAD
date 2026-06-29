@@ -4,6 +4,7 @@ import type { EvaluateElementsOptions } from "./evaluate";
 import {
   canUseRustEvaluationForElements,
   emptyEvaluationResult,
+  type EvaluationEngineMode,
   evaluateElementsReference,
   evaluateElementsWithRust,
   evaluationResultsMatch,
@@ -11,22 +12,52 @@ import {
   isTauriRuntime
 } from "./evaluationEngine";
 
+export type EvaluationSource = "reference" | "rust" | "fallback";
+export type EvaluationStatus = "idle" | "evaluating" | "ready" | "failed";
+
+export type EvaluationEngineState = {
+  evaluation: EvaluationResult;
+  mode: EvaluationEngineMode;
+  source: EvaluationSource;
+  status: EvaluationStatus;
+  rustEligible: boolean;
+  isStale: boolean;
+  error: unknown | null;
+};
+
+type AsyncEvaluationState = {
+  requestKey: string;
+  evaluation: EvaluationResult;
+  source: Exclude<EvaluationSource, "reference">;
+  status: Extract<EvaluationStatus, "ready" | "failed">;
+  error: unknown | null;
+};
+
 export const useEvaluationEngine = (
   elements: CadElement[],
   options: EvaluateElementsOptions
-): EvaluationResult => {
+): EvaluationEngineState => {
+  const evaluationLimitIndex = options.evaluationLimitIndex;
+  const evaluationOptions = useMemo(
+    () => ({ evaluationLimitIndex }),
+    [evaluationLimitIndex]
+  );
   const engineMode = getEvaluationEngineMode();
   const tauriRuntime = isTauriRuntime();
-  const rustEligible = canUseRustEvaluationForElements(elements, options);
+  const rustEligible = canUseRustEvaluationForElements(elements, evaluationOptions);
+  const requestKey = useMemo(
+    () => JSON.stringify({ elements, evaluationLimitIndex }),
+    [elements, evaluationLimitIndex]
+  );
   const needsReferenceEvaluation = !tauriRuntime || engineMode !== "rust" || !rustEligible;
   const referenceEvaluation = useMemo(
-    () => (needsReferenceEvaluation ? evaluateElementsReference(elements, options) : null),
-    [elements, needsReferenceEvaluation, options]
+    () => (needsReferenceEvaluation ? evaluateElementsReference(elements, evaluationOptions) : null),
+    [elements, evaluationOptions, needsReferenceEvaluation]
   );
-  const [asyncEvaluation, setAsyncEvaluation] = useState<EvaluationResult | null>(null);
+  const [asyncEvaluation, setAsyncEvaluation] = useState<AsyncEvaluationState | null>(null);
   const emptyEvaluation = useMemo(
-    () => emptyEvaluationResult(elements, options),
-    [elements, options]
+    () => emptyEvaluationResult(elements, evaluationOptions),
+    [elements, evaluationOptions]
   );
 
   useEffect(() => {
@@ -35,10 +66,16 @@ export const useEvaluationEngine = (
     }
 
     let cancelled = false;
-    evaluateElementsWithRust(elements, options)
+    evaluateElementsWithRust(elements, evaluationOptions)
       .then((nextEvaluation) => {
         if (cancelled) return;
-        setAsyncEvaluation(nextEvaluation);
+        setAsyncEvaluation({
+          requestKey,
+          evaluation: nextEvaluation,
+          source: "rust",
+          status: "ready",
+          error: null
+        });
         if (
           engineMode === "shadow" &&
           referenceEvaluation &&
@@ -54,7 +91,21 @@ export const useEvaluationEngine = (
         if (!cancelled) {
           console.error("Rust evaluation failed; using the TypeScript reference evaluation.", error);
           setAsyncEvaluation(
-            engineMode === "rust" ? evaluateElementsReference(elements, options) : null
+            engineMode === "rust"
+              ? {
+                  requestKey,
+                  evaluation: evaluateElementsReference(elements, evaluationOptions),
+                  source: "fallback",
+                  status: "failed",
+                  error
+                }
+              : {
+                  requestKey,
+                  evaluation: referenceEvaluation ?? evaluateElementsReference(elements, evaluationOptions),
+                  source: "fallback",
+                  status: "failed",
+                  error
+                }
           );
         }
       });
@@ -62,15 +113,61 @@ export const useEvaluationEngine = (
     return () => {
       cancelled = true;
     };
-  }, [elements, engineMode, options, referenceEvaluation, rustEligible, tauriRuntime]);
+  }, [
+    elements,
+    engineMode,
+    evaluationOptions,
+    referenceEvaluation,
+    requestKey,
+    rustEligible,
+    tauriRuntime
+  ]);
 
   if (engineMode === "reference" || !rustEligible || !tauriRuntime) {
-    return referenceEvaluation ?? emptyEvaluation;
+    return {
+      evaluation: referenceEvaluation ?? emptyEvaluation,
+      mode: engineMode,
+      source: "reference",
+      status: "idle",
+      rustEligible,
+      isStale: false,
+      error: null
+    };
   }
 
   if (engineMode === "shadow") {
-    return asyncEvaluation ?? referenceEvaluation ?? emptyEvaluation;
+    const isCurrentAsyncEvaluation = asyncEvaluation?.requestKey === requestKey;
+    return {
+      evaluation: referenceEvaluation ?? emptyEvaluation,
+      mode: engineMode,
+      source: "reference",
+      status: isCurrentAsyncEvaluation ? asyncEvaluation.status : "evaluating",
+      rustEligible,
+      isStale: false,
+      error: isCurrentAsyncEvaluation ? asyncEvaluation.error : null
+    };
   }
 
-  return asyncEvaluation ?? emptyEvaluation;
+  if (asyncEvaluation) {
+    const isCurrentAsyncEvaluation = asyncEvaluation.requestKey === requestKey;
+    return {
+      evaluation: asyncEvaluation.evaluation,
+      mode: engineMode,
+      source: asyncEvaluation.source,
+      status: isCurrentAsyncEvaluation ? asyncEvaluation.status : "evaluating",
+      rustEligible,
+      isStale: !isCurrentAsyncEvaluation,
+      error: isCurrentAsyncEvaluation ? asyncEvaluation.error : null
+    };
+  }
+
+  return {
+    evaluation: emptyEvaluation,
+    mode: engineMode,
+    source: "rust",
+    status: "evaluating",
+    rustEligible,
+    isStale: false,
+    error: null
+  };
 };

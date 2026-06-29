@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { CadElement } from "../types/geometry";
 import {
   canUseRustEvaluationForElements,
+  evaluationResultsMatch,
   resolveEvaluationEngineMode
 } from "./evaluationEngine";
 
@@ -471,5 +472,62 @@ describe("resolveEvaluationEngineMode", () => {
         dev: false
       })
     ).toBe("rust");
+  });
+});
+
+describe("evaluationResultsMatch", () => {
+  it("allows small numeric differences but keeps structural differences strict", () => {
+    const base = {
+      computedGeometry: new Map([
+        [
+          "a",
+          {
+            kind: "point" as const,
+            elementId: "a",
+            name: "点A",
+            x: 10.123456789,
+            y: -0
+          }
+        ]
+      ]),
+      computedVariables: new Map(),
+      errors: [],
+      warnings: [],
+      evaluatedElementIds: new Set(["a"]),
+      evaluationLimitIndex: 1,
+      effectiveVisibleElementIds: new Set(["a"]),
+      effectiveEnabledElementIds: new Set(["a"])
+    };
+
+    expect(
+      evaluationResultsMatch(base, {
+        ...base,
+        computedGeometry: new Map([
+          [
+            "a",
+            JSON.parse(
+              '{"y":0,"x":10.123456781,"name":"点A","elementId":"a","kind":"point"}'
+            )
+          ]
+        ])
+      })
+    ).toBe(true);
+    expect(
+      evaluationResultsMatch(base, {
+        ...base,
+        computedGeometry: new Map([
+          [
+            "b",
+            {
+              kind: "point",
+              elementId: "b",
+              name: "点B",
+              x: 10.123456781,
+              y: 0
+            }
+          ]
+        ])
+      })
+    ).toBe(false);
   });
 });

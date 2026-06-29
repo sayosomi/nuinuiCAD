@@ -205,8 +205,27 @@ export const evaluateElementsWithRust = async (
   return evaluationPayloadToResult(payload);
 };
 
+const normalizeEvaluationPayloadForComparison = (value: unknown): unknown => {
+  if (typeof value === "number") {
+    const normalized = Math.round(value * 1e7) / 1e7;
+    return Object.is(normalized, -0) ? 0 : normalized;
+  }
+  if (Array.isArray(value)) {
+    return value.map(normalizeEvaluationPayloadForComparison);
+  }
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value)
+        .filter(([, nested]) => nested !== undefined)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([key, nested]) => [key, normalizeEvaluationPayloadForComparison(nested)])
+    );
+  }
+  return value;
+};
+
 const payloadForComparison = (result: EvaluationResult) =>
-  JSON.stringify(evaluationResultToPayload(result));
+  JSON.stringify(normalizeEvaluationPayloadForComparison(evaluationResultToPayload(result)));
 
 export const evaluationResultsMatch = (
   left: EvaluationResult,
