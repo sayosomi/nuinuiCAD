@@ -94,6 +94,27 @@ const splitLine: CadElement = {
   splitPoint: { mode: "reference", pointId: "a" }
 };
 
+const edge = (line1Id: string, line2Id: string): CadElement => ({
+  id: `edge-${line1Id}-${line2Id}`,
+  name: "エッジ",
+  type: "edge",
+  visible: true,
+  enabled: true,
+  endpoint1: { lineId: line1Id, endpointKey: "end" },
+  endpoint2: { lineId: line2Id, endpointKey: "start" },
+  intersectionIndex: 0
+});
+
+const extendTrim = (lineId: string): CadElement => ({
+  id: `extend-${lineId}`,
+  name: "延長短縮",
+  type: "extendTrim",
+  visible: true,
+  enabled: true,
+  endpoint: { lineId, endpointKey: "end" },
+  point: { mode: "reference", pointId: "a" }
+});
+
 const lineDivisionPoint = (lineId: string): CadElement => ({
   id: `division-${lineId}`,
   name: "線上分点",
@@ -252,5 +273,31 @@ describe("canUseRustEvaluationForElements", () => {
         }
       ])
     ).toBe(false);
+  });
+
+  it("allows edge and extendTrim when they reference supported line types", () => {
+    expect(canUseRustEvaluationForElements([pointA, pointB, line, arcLine, edge("line", "arc")])).toBe(
+      true
+    );
+    expect(canUseRustEvaluationForElements([pointA, pointB, line, extendTrim("line")])).toBe(
+      true
+    );
+    expect(
+      canUseRustEvaluationForElements([
+        pointA,
+        pointB,
+        line,
+        splitLine,
+        edge("line", "split"),
+        extendTrim("split")
+      ])
+    ).toBe(true);
+  });
+
+  it("keeps edge and extendTrim on the TypeScript path when references are missing", () => {
+    expect(canUseRustEvaluationForElements([pointA, pointB, line, edge("line", "missing")])).toBe(
+      false
+    );
+    expect(canUseRustEvaluationForElements([pointA, extendTrim("missing")])).toBe(false);
   });
 });

@@ -2,7 +2,15 @@
 mod bezier_curve_tests;
 mod bezier_evaluator;
 mod bezier_path;
+mod edge_extend_evaluator;
+#[cfg(test)]
+mod edge_extend_test_support;
+#[cfg(test)]
+mod edge_tests;
+mod endpoint_move;
 mod errors;
+#[cfg(test)]
+mod extend_trim_tests;
 mod groups;
 mod intersection_point_evaluator;
 #[cfg(test)]
@@ -40,6 +48,7 @@ mod variable_evaluator;
 use std::collections::{HashMap, HashSet};
 
 use bezier_evaluator::evaluate_bezier_curve;
+use edge_extend_evaluator::{evaluate_edge, evaluate_extend_trim};
 use groups::{effective_element_ids, group_state_by_element_id};
 use intersection_point_evaluator::evaluate_intersection_point;
 use line_division_point_evaluator::evaluate_line_division_point;
@@ -143,6 +152,8 @@ fn evaluate_document_input(input: EvaluationInput) -> EvaluationPayload {
             Some("bezierCurve") => evaluate_bezier_curve(&element, &local_variables, &mut state),
             Some("offsetLine") => evaluate_offset_line(&element, &local_variables, &mut state),
             Some("splitLine") => evaluate_split_line(&element, &local_variables, &mut state),
+            Some("edge") => evaluate_edge(&element, &local_variables, &mut state),
+            Some("extendTrim") => evaluate_extend_trim(&element, &local_variables, &mut state),
             _ => {}
         }
     }
