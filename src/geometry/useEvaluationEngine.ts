@@ -9,6 +9,7 @@ import {
   evaluateElementsWithRust,
   evaluationResultsMatch,
   getEvaluationEngineMode,
+  isParityEvaluationEngineMode,
   isTauriRuntime
 } from "./evaluationEngine";
 
@@ -45,6 +46,7 @@ export const useEvaluationEngine = (
   const engineMode = getEvaluationEngineMode();
   const tauriRuntime = isTauriRuntime();
   const rustEligible = canUseRustEvaluationForElements(elements, evaluationOptions);
+  const parityMode = isParityEvaluationEngineMode(engineMode);
   const requestKey = useMemo(
     () => JSON.stringify({ elements, evaluationLimitIndex }),
     [elements, evaluationLimitIndex]
@@ -77,7 +79,7 @@ export const useEvaluationEngine = (
           error: null
         });
         if (
-          engineMode === "shadow" &&
+          parityMode &&
           referenceEvaluation &&
           !evaluationResultsMatch(referenceEvaluation, nextEvaluation)
         ) {
@@ -117,6 +119,7 @@ export const useEvaluationEngine = (
     elements,
     engineMode,
     evaluationOptions,
+    parityMode,
     referenceEvaluation,
     requestKey,
     rustEligible,
@@ -135,7 +138,7 @@ export const useEvaluationEngine = (
     };
   }
 
-  if (engineMode === "shadow") {
+  if (parityMode) {
     const isCurrentAsyncEvaluation = asyncEvaluation?.requestKey === requestKey;
     return {
       evaluation: referenceEvaluation ?? emptyEvaluation,

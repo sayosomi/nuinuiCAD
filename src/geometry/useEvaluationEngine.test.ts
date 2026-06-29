@@ -41,6 +41,14 @@ const line: CadElement = {
 
 const elements = [pointA, pointB, line];
 
+const unsupportedElement = {
+  id: "unsupported",
+  name: "未対応",
+  type: "unsupportedElement",
+  visible: true,
+  enabled: true
+} as unknown as CadElement;
+
 const invokeMock = vi.mocked(invoke);
 
 const setTauriRuntime = () => {
@@ -88,6 +96,38 @@ describe("useEvaluationEngine", () => {
     expect(result.current.status).toBe("evaluating");
     expect(result.current.isStale).toBe(false);
     expect(result.current.evaluation.computedGeometry.size).toBe(0);
+  });
+
+  it("uses Rust by default in Tauri dev when the document is supported", async () => {
+    setTauriRuntime();
+    invokeMock.mockResolvedValue(evaluateElementsReferencePayload(elements));
+
+    const { result } = renderHook(() =>
+      useEvaluationEngine(elements, { evaluationLimitIndex: elements.length })
+    );
+
+    expect(result.current.mode).toBe("rust");
+    expect(result.current.source).toBe("rust");
+    expect(result.current.status).toBe("evaluating");
+    await waitFor(() => expect(invokeMock).toHaveBeenCalledWith("evaluate_document", expect.any(Object)));
+  });
+
+  it("does not invoke Rust for unsupported Tauri documents", () => {
+    setTauriRuntime();
+    vi.stubEnv("VITE_EVALUATION_ENGINE", "rust");
+    const unsupportedElements = [unsupportedElement];
+
+    const { result } = renderHook(() =>
+      useEvaluationEngine(unsupportedElements, {
+        evaluationLimitIndex: unsupportedElements.length
+      })
+    );
+
+    expect(result.current.mode).toBe("rust");
+    expect(result.current.source).toBe("reference");
+    expect(result.current.rustEligible).toBe(false);
+    expect(result.current.status).toBe("idle");
+    expect(invokeMock).not.toHaveBeenCalled();
   });
 
   it("uses the Rust result after Rust evaluation succeeds", async () => {
@@ -171,6 +211,32 @@ describe("useEvaluationEngine", () => {
     );
 
     expect(result.current.mode).toBe("shadow");
+    expect(result.current.source).toBe("reference");
+    expect(result.current.status).toBe("evaluating");
+    expect(result.current.evaluation.computedGeometry.size).toBe(3);
+
+    await waitFor(() => expect(result.current.status).toBe("ready"));
+    expect(result.current.source).toBe("reference");
+    expect(warn).toHaveBeenCalledWith(
+      "Rust evaluation differs from the TypeScript reference evaluation.",
+      expect.any(Object)
+    );
+  });
+
+  it("returns the TypeScript reference result in parity mode and warns on Rust differences", async () => {
+    setTauriRuntime();
+    vi.stubEnv("VITE_EVALUATION_ENGINE", "parity");
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    invokeMock.mockResolvedValue({
+      ...evaluateElementsReferencePayload(elements),
+      computedGeometry: []
+    });
+
+    const { result } = renderHook(() =>
+      useEvaluationEngine(elements, { evaluationLimitIndex: elements.length })
+    );
+
+    expect(result.current.mode).toBe("parity");
     expect(result.current.source).toBe("reference");
     expect(result.current.status).toBe("evaluating");
     expect(result.current.evaluation.computedGeometry.size).toBe(3);

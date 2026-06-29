@@ -215,6 +215,14 @@ const symmetricMove = (baseLineIds: string[]): CadElement => ({
   baseLineIds
 });
 
+const unsupportedElement = {
+  id: "unsupported",
+  name: "未対応",
+  type: "unsupportedElement",
+  visible: true,
+  enabled: true
+} as unknown as CadElement;
+
 describe("canUseRustEvaluationForElements", () => {
   it("allows lineDivisionPoint when it references a supported line type", () => {
     expect(canUseRustEvaluationForElements([pointA, pointB, line, lineDivisionPoint("line")])).toBe(
@@ -413,6 +421,18 @@ describe("canUseRustEvaluationForElements", () => {
       false
     );
   });
+
+  it("keeps elements with unsupported point-anchor dependencies on the TypeScript path", () => {
+    expect(
+      canUseRustEvaluationForElements([
+        unsupportedElement,
+        {
+          ...line,
+          startPoint: { mode: "derived", elementId: "unsupported", pointKey: "start" }
+        }
+      ])
+    ).toBe(false);
+  });
 });
 
 describe("resolveEvaluationEngineMode", () => {
@@ -425,13 +445,13 @@ describe("resolveEvaluationEngineMode", () => {
     ).toBe("reference");
   });
 
-  it("uses shadow mode in Tauri dev and Rust mode in Tauri production by default", () => {
+  it("uses Rust mode in Tauri dev and production by default", () => {
     expect(
       resolveEvaluationEngineMode({
         tauriRuntime: true,
         dev: true
       })
-    ).toBe("shadow");
+    ).toBe("rust");
     expect(
       resolveEvaluationEngineMode({
         tauriRuntime: true,
@@ -448,6 +468,13 @@ describe("resolveEvaluationEngineMode", () => {
         dev: false
       })
     ).toBe("reference");
+    expect(
+      resolveEvaluationEngineMode({
+        configuredMode: "parity",
+        tauriRuntime: false,
+        dev: false
+      })
+    ).toBe("parity");
     expect(
       resolveEvaluationEngineMode({
         configuredMode: "shadow",

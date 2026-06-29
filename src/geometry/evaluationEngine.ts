@@ -1,4 +1,6 @@
-import type { CadElement, EvaluationResult } from "../types/geometry";
+import type { CadElement, EvaluationResult, PointAnchor } from "../types/geometry";
+import { anchorReferenceElementId, pointAnchorForElement } from "../model/pointAnchors";
+import { getDirectParentIds } from "../model/dependencies";
 import { evaluateElements, type EvaluateElementsOptions } from "./evaluate";
 import {
   evaluationPayloadToResult,
@@ -11,12 +13,12 @@ type EvaluateDocumentInput = {
   evaluationLimitIndex?: number;
 };
 
-export type EvaluationEngineMode = "reference" | "shadow" | "rust";
+export type EvaluationEngineMode = "reference" | "parity" | "shadow" | "rust";
 
 const configuredEvaluationEngineMode = (
   value: string | undefined
 ): EvaluationEngineMode | null => {
-  if (value === "reference" || value === "shadow" || value === "rust") {
+  if (value === "reference" || value === "parity" || value === "shadow" || value === "rust") {
     return value;
   }
   return null;
@@ -24,8 +26,7 @@ const configuredEvaluationEngineMode = (
 
 export const resolveEvaluationEngineMode = ({
   configuredMode,
-  tauriRuntime,
-  dev
+  tauriRuntime
 }: {
   configuredMode?: string;
   tauriRuntime: boolean;
@@ -34,8 +35,11 @@ export const resolveEvaluationEngineMode = ({
   const configured = configuredEvaluationEngineMode(configuredMode);
   if (configured) return configured;
   if (!tauriRuntime) return "reference";
-  return dev ? "shadow" : "rust";
+  return "rust";
 };
+
+export const isParityEvaluationEngineMode = (mode: EvaluationEngineMode) =>
+  mode === "parity" || mode === "shadow";
 
 export const getEvaluationEngineMode = (): EvaluationEngineMode =>
   resolveEvaluationEngineMode({
@@ -81,6 +85,28 @@ const rustSupportedLineReferenceTypes = new Set<CadElement["type"]>([
   "symmetricCopyLine"
 ]);
 
+const rustSupportedPointReferenceTypes = new Set<CadElement["type"]>([
+  "freePoint",
+  "offsetPoint",
+  "polarOffsetPoint",
+  "divisionPoint",
+  "lineDivisionPoint",
+  "lineTangentOffsetPoint",
+  "intersectionPoint"
+]);
+
+const rustSupportedDerivedPointSourceTypes = new Set<CadElement["type"]>([
+  "line",
+  "arcLine",
+  "threePointArcLine",
+  "cornerRadiusArcLine",
+  "bezierCurve",
+  "offsetLine",
+  "splitLine",
+  "copyLine",
+  "symmetricCopyLine"
+]);
+
 const referencesRustSupportedLine = (
   lineId: string,
   elementsById: Map<string, CadElement>
@@ -91,11 +117,83 @@ const referencesRustSupportedLine = (
     : false;
 };
 
+const referencesRustSupportedPointAnchor = (
+  anchor: PointAnchor,
+  elementsById: Map<string, CadElement>
+) => {
+  if (anchor.mode === "coordinate") return true;
+  const referencedElement = elementsById.get(anchorReferenceElementId(anchor) ?? "");
+  if (!referencedElement) return false;
+  return anchor.mode === "reference"
+    ? rustSupportedPointReferenceTypes.has(referencedElement.type)
+    : rustSupportedDerivedPointSourceTypes.has(referencedElement.type);
+};
+
+const pointAnchorsForElement = (element: CadElement): PointAnchor[] => {
+  switch (element.type) {
+    case "variable":
+      return [
+        ...(element.valueMode === "pointDistance" || element.valueMode === "pointAngle"
+          ? [element.point1, element.point2]
+          : []),
+        ...(element.valueMode === "pointLineDistance" ? [element.point] : [])
+      ];
+    case "offsetPoint":
+    case "polarOffsetPoint": {
+      const fromPoint = pointAnchorForElement(element);
+      return fromPoint ? [fromPoint] : [];
+    }
+    case "divisionPoint":
+      return [element.startPoint, element.endPoint];
+    case "lineTangentOffsetPoint":
+      return [element.basePoint];
+    case "line":
+      return [element.startPoint, element.endPoint];
+    case "arcLine":
+      return [element.centerPoint];
+    case "threePointArcLine":
+      return [element.point1, element.point2, element.point3];
+    case "extendTrim":
+      return [element.point];
+    case "bezierCurve":
+      return [
+        element.startPoint,
+        ...element.intermediatePoints.map((point) => point.point),
+        element.endPoint
+      ];
+    case "splitLine":
+      return [element.splitPoint];
+    case "copyLine":
+    case "move":
+      return [element.startPoint, element.endPoint];
+    case "symmetricCopyLine":
+    case "symmetricMove":
+      return [element.axisPoint1, element.axisPoint2];
+    default:
+      return [];
+  }
+};
+
 const canUseRustEvaluationForElement = (
   element: CadElement,
   elementsById: Map<string, CadElement>
 ) => {
   if (!rustSupportedElementTypes.has(element.type)) return false;
+  if (
+    pointAnchorsForElement(element).some(
+      (anchor) => !referencesRustSupportedPointAnchor(anchor, elementsById)
+    )
+  ) {
+    return false;
+  }
+  if (
+    getDirectParentIds(element).some((parentId) => {
+      const parent = elementsById.get(parentId);
+      return parent ? !rustSupportedElementTypes.has(parent.type) : false;
+    })
+  ) {
+    return false;
+  }
   if (element.type === "lineDivisionPoint") {
     return referencesRustSupportedLine(element.endpoint.lineId, elementsById);
   }

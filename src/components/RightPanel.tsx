@@ -15,10 +15,10 @@ type RightPanelProps = {
 };
 
 const evaluationEngineLabel = (state: EvaluationEngineState) => {
-  if (state.mode === "shadow") {
-    if (state.status === "evaluating") return "shadow / Rust評価中";
-    if (state.status === "failed") return "shadow / Rust失敗";
-    return "shadow";
+  if (state.mode === "parity" || state.mode === "shadow") {
+    if (state.status === "evaluating") return "parity / Rust評価中";
+    if (state.status === "failed") return "parity / Rust失敗";
+    return "parity";
   }
   if (state.source === "fallback") return "TS fallback";
   if (state.status === "evaluating") return state.isStale ? "Rust評価中 / stale" : "Rust評価中";
