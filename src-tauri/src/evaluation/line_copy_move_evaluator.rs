@@ -9,7 +9,7 @@ use super::offset_paths::is_line_like_geometry;
 use super::offset_source_segments::{connect_source_segment_groups, source_segments_for_geometry};
 use super::offset_types::{line_length, OffsetPoint};
 use super::point_anchor::point_anchor_or_error;
-use super::types::{element_id, element_name, insert_geometry, EvaluationState};
+use super::types::{element_id, element_name, element_type, insert_geometry, EvaluationState};
 
 fn base_line_ids(element: &Value) -> Vec<String> {
     element
@@ -73,9 +73,15 @@ fn evaluate_copy_with_transform(
         return;
     }
     let source_segments = connect_source_segment_groups(&source_segment_groups, false);
-    let Some(geometry) =
-        copied_offset_line_geometry(&id, &name, base_line_ids, &source_segments, transform)
-    else {
+    let include_bezier_control_metadata = element_type(element) == Some("copyLine");
+    let Some(geometry) = copied_offset_line_geometry(
+        &id,
+        &name,
+        base_line_ids,
+        &source_segments,
+        transform,
+        include_bezier_control_metadata,
+    ) else {
         state.errors.push(geometry_error(
             element,
             format!("{name} は基準線から作図できる長さの線分がありません。"),

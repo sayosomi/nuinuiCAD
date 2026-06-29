@@ -96,7 +96,12 @@ pub(crate) fn line_length(start: OffsetPoint, end: OffsetPoint) -> f64 {
 }
 
 pub(crate) fn normalize_degrees(degrees: f64) -> f64 {
-    degrees.rem_euclid(360.0)
+    let normalized = degrees.rem_euclid(360.0);
+    if normalized.abs() < EPSILON || (360.0 - normalized).abs() < EPSILON {
+        0.0
+    } else {
+        normalized
+    }
 }
 
 pub(crate) fn positive_sweep_degrees(start_angle_deg: f64, end_angle_deg: f64) -> f64 {

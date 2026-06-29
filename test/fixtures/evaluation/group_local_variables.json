@@ -1,0 +1,80 @@
+{
+  "elements": [
+    {
+      "id": "group-visible",
+      "name": "表示グループ",
+      "type": "group",
+      "visible": true,
+      "enabled": true,
+      "expanded": true
+    },
+    {
+      "id": "group-hidden",
+      "name": "非表示グループ",
+      "type": "group",
+      "visible": false,
+      "enabled": true,
+      "expanded": true
+    },
+    {
+      "id": "group-disabled",
+      "name": "無効グループ",
+      "type": "group",
+      "visible": true,
+      "enabled": false,
+      "expanded": true
+    },
+    {
+      "id": "base",
+      "name": "基準点",
+      "type": "freePoint",
+      "visible": true,
+      "enabled": true,
+      "parentGroupId": "group-visible",
+      "numericVariables": [
+        { "id": "base-len", "name": "基準長", "value": 40 },
+        { "id": "half", "name": "半分", "value": { "kind": "expression", "expression": "@基準長 / 2" } }
+      ],
+      "x": { "kind": "expression", "expression": "@基準長" },
+      "y": { "kind": "expression", "expression": "@半分" }
+    },
+    {
+      "id": "hidden-point",
+      "name": "非表示点",
+      "type": "freePoint",
+      "visible": true,
+      "enabled": true,
+      "parentGroupId": "group-hidden",
+      "x": 10,
+      "y": 10
+    },
+    {
+      "id": "disabled-point",
+      "name": "無効点",
+      "type": "freePoint",
+      "visible": true,
+      "enabled": true,
+      "parentGroupId": "group-disabled",
+      "x": 20,
+      "y": 20
+    },
+    {
+      "id": "visible-line",
+      "name": "表示線",
+      "type": "line",
+      "visible": true,
+      "enabled": true,
+      "startPoint": { "mode": "reference", "pointId": "base" },
+      "endPoint": { "mode": "reference", "pointId": "hidden-point" }
+    },
+    {
+      "id": "disabled-line",
+      "name": "無効依存線",
+      "type": "line",
+      "visible": true,
+      "enabled": true,
+      "startPoint": { "mode": "reference", "pointId": "base" },
+      "endPoint": { "mode": "reference", "pointId": "disabled-point" }
+    }
+  ]
+}

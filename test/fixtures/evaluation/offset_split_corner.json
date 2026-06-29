@@ -1,0 +1,121 @@
+{
+  "elements": [
+    {
+      "id": "a",
+      "name": "点A",
+      "type": "freePoint",
+      "visible": true,
+      "enabled": true,
+      "x": 0,
+      "y": 0
+    },
+    {
+      "id": "b",
+      "name": "点B",
+      "type": "freePoint",
+      "visible": true,
+      "enabled": true,
+      "x": 100,
+      "y": 0
+    },
+    {
+      "id": "c",
+      "name": "点C",
+      "type": "freePoint",
+      "visible": true,
+      "enabled": true,
+      "x": 100,
+      "y": 100
+    },
+    {
+      "id": "ab",
+      "name": "直線AB",
+      "type": "line",
+      "visible": true,
+      "enabled": true,
+      "startPoint": { "mode": "reference", "pointId": "a" },
+      "endPoint": { "mode": "reference", "pointId": "b" }
+    },
+    {
+      "id": "bc",
+      "name": "直線BC",
+      "type": "line",
+      "visible": true,
+      "enabled": true,
+      "startPoint": { "mode": "reference", "pointId": "b" },
+      "endPoint": { "mode": "reference", "pointId": "c" }
+    },
+    {
+      "id": "offset",
+      "name": "オフセット",
+      "type": "offsetLine",
+      "visible": true,
+      "enabled": true,
+      "baseLineIds": ["ab", "bc"],
+      "offset": 10,
+      "side": "right",
+      "closed": false
+    },
+    {
+      "id": "split-point",
+      "name": "分割点",
+      "type": "lineDivisionPoint",
+      "visible": true,
+      "enabled": true,
+      "endpoint": { "lineId": "offset", "endpointKey": "start" },
+      "placementMode": "ratio",
+      "distance": 0,
+      "ratio": 0.5
+    },
+    {
+      "id": "split",
+      "name": "分割線",
+      "type": "splitLine",
+      "visible": true,
+      "enabled": true,
+      "baseLineId": "offset",
+      "splitPoint": { "mode": "reference", "pointId": "split-point" }
+    },
+    {
+      "id": "corner",
+      "name": "角R",
+      "type": "cornerRadiusArcLine",
+      "visible": true,
+      "enabled": true,
+      "endpoint1": { "lineId": "ab", "endpointKey": "end" },
+      "endpoint2": { "lineId": "bc", "endpointKey": "start" },
+      "radius": 20,
+      "intersectionIndex": 0
+    },
+    {
+      "id": "edge",
+      "name": "エッジ",
+      "type": "edge",
+      "visible": true,
+      "enabled": true,
+      "endpoint1": { "lineId": "ab", "endpointKey": "end" },
+      "endpoint2": { "lineId": "bc", "endpointKey": "start" },
+      "intersectionIndex": 0
+    },
+    {
+      "id": "extend",
+      "name": "延長短縮",
+      "type": "extendTrim",
+      "visible": true,
+      "enabled": true,
+      "endpoint": { "lineId": "bc", "endpointKey": "end" },
+      "point": { "mode": "coordinate", "x": 100, "y": 120 }
+    },
+    {
+      "id": "intersection",
+      "name": "交点",
+      "type": "intersectionPoint",
+      "visible": true,
+      "enabled": true,
+      "line1Id": "ab",
+      "line2Id": "bc",
+      "intersectionIndex": 0,
+      "useExtensions": true
+    }
+  ]
+}

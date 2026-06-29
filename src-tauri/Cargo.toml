@@ -5,6 +5,7 @@ description = "2D parametric CAD editor for sewing pattern drafting"
 authors = ["yosomi"]
 edition = "2021"
 rust-version = "1.77"
+default-run = "nuinuicad"
 
 [lib]
 name = "nuinuicad_lib"

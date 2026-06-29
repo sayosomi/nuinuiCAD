@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { CadElement } from "../types/geometry";
-import { canUseRustEvaluationForElements } from "./evaluationEngine";
+import {
+  canUseRustEvaluationForElements,
+  resolveEvaluationEngineMode
+} from "./evaluationEngine";
 
 const pointA: CadElement = {
   id: "a",
@@ -408,5 +411,65 @@ describe("canUseRustEvaluationForElements", () => {
     expect(canUseRustEvaluationForElements([pointA, pointB, symmetricMove(["missing"])])).toBe(
       false
     );
+  });
+});
+
+describe("resolveEvaluationEngineMode", () => {
+  it("uses the TypeScript reference evaluator outside Tauri by default", () => {
+    expect(
+      resolveEvaluationEngineMode({
+        tauriRuntime: false,
+        dev: false
+      })
+    ).toBe("reference");
+  });
+
+  it("uses shadow mode in Tauri dev and Rust mode in Tauri production by default", () => {
+    expect(
+      resolveEvaluationEngineMode({
+        tauriRuntime: true,
+        dev: true
+      })
+    ).toBe("shadow");
+    expect(
+      resolveEvaluationEngineMode({
+        tauriRuntime: true,
+        dev: false
+      })
+    ).toBe("rust");
+  });
+
+  it("allows VITE_EVALUATION_ENGINE to override the default mode", () => {
+    expect(
+      resolveEvaluationEngineMode({
+        configuredMode: "reference",
+        tauriRuntime: true,
+        dev: false
+      })
+    ).toBe("reference");
+    expect(
+      resolveEvaluationEngineMode({
+        configuredMode: "shadow",
+        tauriRuntime: false,
+        dev: false
+      })
+    ).toBe("shadow");
+    expect(
+      resolveEvaluationEngineMode({
+        configuredMode: "rust",
+        tauriRuntime: false,
+        dev: true
+      })
+    ).toBe("rust");
+  });
+
+  it("ignores invalid VITE_EVALUATION_ENGINE values", () => {
+    expect(
+      resolveEvaluationEngineMode({
+        configuredMode: "invalid",
+        tauriRuntime: true,
+        dev: false
+      })
+    ).toBe("rust");
   });
 });

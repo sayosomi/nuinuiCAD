@@ -43,6 +43,8 @@ mod offset_line_tests;
 mod offset_paths;
 mod offset_source_segments;
 mod offset_types;
+#[cfg(test)]
+mod performance_tests;
 mod point_anchor;
 mod point_evaluators;
 mod split_line_evaluator;

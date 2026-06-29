@@ -3,9 +3,11 @@ import type { CadElement, EvaluationResult } from "../types/geometry";
 import type { EvaluateElementsOptions } from "./evaluate";
 import {
   canUseRustEvaluationForElements,
+  emptyEvaluationResult,
   evaluateElementsReference,
   evaluateElementsWithRust,
   evaluationResultsMatch,
+  getEvaluationEngineMode,
   isTauriRuntime
 } from "./evaluationEngine";
 
@@ -13,15 +15,22 @@ export const useEvaluationEngine = (
   elements: CadElement[],
   options: EvaluateElementsOptions
 ): EvaluationResult => {
+  const engineMode = getEvaluationEngineMode();
+  const tauriRuntime = isTauriRuntime();
+  const rustEligible = canUseRustEvaluationForElements(elements, options);
+  const needsReferenceEvaluation = !tauriRuntime || engineMode !== "rust" || !rustEligible;
   const referenceEvaluation = useMemo(
-    () => evaluateElementsReference(elements, options),
+    () => (needsReferenceEvaluation ? evaluateElementsReference(elements, options) : null),
+    [elements, needsReferenceEvaluation, options]
+  );
+  const [asyncEvaluation, setAsyncEvaluation] = useState<EvaluationResult | null>(null);
+  const emptyEvaluation = useMemo(
+    () => emptyEvaluationResult(elements, options),
     [elements, options]
   );
-  const [rustEvaluation, setRustEvaluation] = useState<EvaluationResult | null>(null);
-  const rustEligible = canUseRustEvaluationForElements(elements, options);
 
   useEffect(() => {
-    if (!isTauriRuntime()) {
+    if (!tauriRuntime || engineMode === "reference" || !rustEligible) {
       return;
     }
 
@@ -29,8 +38,12 @@ export const useEvaluationEngine = (
     evaluateElementsWithRust(elements, options)
       .then((nextEvaluation) => {
         if (cancelled) return;
-        setRustEvaluation(nextEvaluation);
-        if (rustEligible && !evaluationResultsMatch(referenceEvaluation, nextEvaluation)) {
+        setAsyncEvaluation(nextEvaluation);
+        if (
+          engineMode === "shadow" &&
+          referenceEvaluation &&
+          !evaluationResultsMatch(referenceEvaluation, nextEvaluation)
+        ) {
           console.warn("Rust evaluation differs from the TypeScript reference evaluation.", {
             referenceEvaluation,
             rustEvaluation: nextEvaluation
@@ -40,14 +53,24 @@ export const useEvaluationEngine = (
       .catch((error: unknown) => {
         if (!cancelled) {
           console.error("Rust evaluation failed; using the TypeScript reference evaluation.", error);
-          setRustEvaluation(null);
+          setAsyncEvaluation(
+            engineMode === "rust" ? evaluateElementsReference(elements, options) : null
+          );
         }
       });
 
     return () => {
       cancelled = true;
     };
-  }, [elements, options, referenceEvaluation, rustEligible]);
+  }, [elements, engineMode, options, referenceEvaluation, rustEligible, tauriRuntime]);
 
-  return rustEligible && rustEvaluation ? rustEvaluation : referenceEvaluation;
+  if (engineMode === "reference" || !rustEligible || !tauriRuntime) {
+    return referenceEvaluation ?? emptyEvaluation;
+  }
+
+  if (engineMode === "shadow") {
+    return asyncEvaluation ?? referenceEvaluation ?? emptyEvaluation;
+  }
+
+  return asyncEvaluation ?? emptyEvaluation;
 };

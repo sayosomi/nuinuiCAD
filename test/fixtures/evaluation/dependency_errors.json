@@ -1,0 +1,54 @@
+{
+  "elements": [
+    {
+      "id": "late-line",
+      "name": "後方依存線",
+      "type": "line",
+      "visible": true,
+      "enabled": true,
+      "startPoint": { "mode": "reference", "pointId": "later" },
+      "endPoint": { "mode": "coordinate", "x": 10, "y": 0 }
+    },
+    {
+      "id": "later",
+      "name": "後の点",
+      "type": "freePoint",
+      "visible": true,
+      "enabled": true,
+      "x": 0,
+      "y": 0
+    },
+    {
+      "id": "same",
+      "name": "同一点",
+      "type": "freePoint",
+      "visible": true,
+      "enabled": true,
+      "x": 0,
+      "y": 0
+    },
+    {
+      "id": "bad-division",
+      "name": "不正分点",
+      "type": "divisionPoint",
+      "visible": true,
+      "enabled": true,
+      "startPoint": { "mode": "reference", "pointId": "later" },
+      "endPoint": { "mode": "reference", "pointId": "same" },
+      "placementMode": "distance",
+      "distance": 10,
+      "ratio": 0
+    },
+    {
+      "id": "bad-intersection",
+      "name": "不正交点",
+      "type": "intersectionPoint",
+      "visible": true,
+      "enabled": true,
+      "line1Id": "missing-line-1",
+      "line2Id": "missing-line-2",
+      "intersectionIndex": -1,
+      "useExtensions": false
+    }
+  ]
+}

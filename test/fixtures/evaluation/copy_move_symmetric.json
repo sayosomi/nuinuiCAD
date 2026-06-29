@@ -1,0 +1,120 @@
+{
+  "elements": [
+    {
+      "id": "a",
+      "name": "点A",
+      "type": "freePoint",
+      "visible": true,
+      "enabled": true,
+      "x": 0,
+      "y": 0
+    },
+    {
+      "id": "b",
+      "name": "点B",
+      "type": "freePoint",
+      "visible": true,
+      "enabled": true,
+      "x": 80,
+      "y": 0
+    },
+    {
+      "id": "c",
+      "name": "点C",
+      "type": "freePoint",
+      "visible": true,
+      "enabled": true,
+      "x": 0,
+      "y": 60
+    },
+    {
+      "id": "ab",
+      "name": "直線AB",
+      "type": "line",
+      "visible": true,
+      "enabled": true,
+      "startPoint": { "mode": "reference", "pointId": "a" },
+      "endPoint": { "mode": "reference", "pointId": "b" }
+    },
+    {
+      "id": "arc",
+      "name": "円弧",
+      "type": "arcLine",
+      "visible": true,
+      "enabled": true,
+      "centerPoint": { "mode": "reference", "pointId": "a" },
+      "radius": 30,
+      "startAngleDeg": 0,
+      "endAngleDeg": 90
+    },
+    {
+      "id": "curve",
+      "name": "曲線",
+      "type": "bezierCurve",
+      "visible": true,
+      "enabled": true,
+      "startPoint": { "mode": "reference", "pointId": "a" },
+      "startHandleAngleDeg": 0,
+      "startHandleLength": 20,
+      "intermediatePoints": [],
+      "endPoint": { "mode": "reference", "pointId": "c" },
+      "endHandleAngleDeg": 90,
+      "endHandleLength": 20
+    },
+    {
+      "id": "copy",
+      "name": "コピー",
+      "type": "copyLine",
+      "visible": true,
+      "enabled": true,
+      "startPoint": { "mode": "reference", "pointId": "a" },
+      "endPoint": { "mode": "coordinate", "x": 20, "y": 10 },
+      "angleDeg": 30,
+      "mirrorX": true,
+      "baseLineIds": ["ab", "arc", "curve"]
+    },
+    {
+      "id": "sym-copy",
+      "name": "対称コピー",
+      "type": "symmetricCopyLine",
+      "visible": true,
+      "enabled": true,
+      "axisPoint1": { "mode": "reference", "pointId": "a" },
+      "axisPoint2": { "mode": "reference", "pointId": "b" },
+      "baseLineIds": ["curve"]
+    },
+    {
+      "id": "move",
+      "name": "移動",
+      "type": "move",
+      "visible": true,
+      "enabled": true,
+      "startPoint": { "mode": "reference", "pointId": "a" },
+      "endPoint": { "mode": "coordinate", "x": 10, "y": 20 },
+      "angleDeg": 0,
+      "mirrorX": false,
+      "baseLineIds": ["ab"]
+    },
+    {
+      "id": "sym-move",
+      "name": "対称移動",
+      "type": "symmetricMove",
+      "visible": true,
+      "enabled": true,
+      "axisPoint1": { "mode": "reference", "pointId": "a" },
+      "axisPoint2": { "mode": "reference", "pointId": "c" },
+      "baseLineIds": ["arc"]
+    },
+    {
+      "id": "after-move",
+      "name": "移動後分点",
+      "type": "lineDivisionPoint",
+      "visible": true,
+      "enabled": true,
+      "endpoint": { "lineId": "ab", "endpointKey": "start" },
+      "placementMode": "ratio",
+      "distance": 0,
+      "ratio": 0.5
+    }
+  ]
+}

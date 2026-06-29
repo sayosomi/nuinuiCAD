@@ -57,5 +57,10 @@ pub(crate) fn circle_through_three_points(
 }
 
 pub(crate) fn normalize_degrees(degrees: f64) -> f64 {
-    degrees.rem_euclid(360.0)
+    let normalized = degrees.rem_euclid(360.0);
+    if normalized.abs() < CIRCLE_EPSILON || (360.0 - normalized).abs() < CIRCLE_EPSILON {
+        0.0
+    } else {
+        normalized
+    }
 }

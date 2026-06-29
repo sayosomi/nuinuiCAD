@@ -21,6 +21,7 @@ fn copy_segment_value(
     element_id: &str,
     name: &str,
     index: usize,
+    include_bezier_control_metadata: bool,
 ) -> Value {
     match segment {
         OffsetSegment::Line { start, end, length } => json!({
@@ -38,8 +39,16 @@ fn copy_segment_value(
         } => json!({
             "kind": "bezier",
             "start": copy_point(element_id, name, index, *start),
-            "control1": { "x": control1.x, "y": control1.y },
-            "control2": { "x": control2.x, "y": control2.y },
+            "control1": if include_bezier_control_metadata {
+                copy_point(element_id, name, index, *control1)
+            } else {
+                json!({ "x": control1.x, "y": control1.y })
+            },
+            "control2": if include_bezier_control_metadata {
+                copy_point(element_id, name, index, *control2)
+            } else {
+                json!({ "x": control2.x, "y": control2.y })
+            },
             "end": copy_point(element_id, name, index, *end),
             "length": length
         }),
@@ -138,6 +147,7 @@ pub(crate) fn copied_offset_line_geometry(
     base_line_ids: Vec<String>,
     source_segments: &[SourceSegment],
     transform: &LineTransform,
+    include_bezier_control_metadata: bool,
 ) -> Option<Value> {
     let segments = source_segments
         .iter()
@@ -151,7 +161,15 @@ pub(crate) fn copied_offset_line_geometry(
     let segment_values = segments
         .iter()
         .enumerate()
-        .map(|(index, segment)| copy_segment_value(segment, element_id, name, index))
+        .map(|(index, segment)| {
+            copy_segment_value(
+                segment,
+                element_id,
+                name,
+                index,
+                include_bezier_control_metadata,
+            )
+        })
         .collect::<Vec<_>>();
     let start = segment_values
         .first()

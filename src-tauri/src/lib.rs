@@ -1,4 +1,4 @@
-mod evaluation;
+pub mod evaluation;
 
 pub fn run() {
     tauri::Builder::default()

@@ -1,0 +1,124 @@
+{
+  "elements": [
+    {
+      "id": "ease",
+      "name": "ゆとり",
+      "type": "variable",
+      "visible": true,
+      "enabled": true,
+      "scope": "global",
+      "valueMode": "expression",
+      "expression": 12,
+      "point1": { "mode": "coordinate", "x": 0, "y": 0 },
+      "point2": { "mode": "coordinate", "x": 0, "y": 0 },
+      "point": { "mode": "coordinate", "x": 0, "y": 0 },
+      "lineId": ""
+    },
+    {
+      "id": "a",
+      "name": "点A",
+      "type": "freePoint",
+      "visible": true,
+      "enabled": true,
+      "x": 0,
+      "y": 0
+    },
+    {
+      "id": "b",
+      "name": "点B",
+      "type": "offsetPoint",
+      "visible": true,
+      "enabled": true,
+      "fromPoint": { "mode": "reference", "pointId": "a" },
+      "dx": { "kind": "expression", "expression": "@ゆとり + 88" },
+      "dy": 0
+    },
+    {
+      "id": "c",
+      "name": "点C",
+      "type": "polarOffsetPoint",
+      "visible": true,
+      "enabled": true,
+      "fromPoint": { "mode": "reference", "pointId": "a" },
+      "angleDeg": 90,
+      "distance": 50
+    },
+    {
+      "id": "ab",
+      "name": "直線AB",
+      "type": "line",
+      "visible": true,
+      "enabled": true,
+      "startPoint": { "mode": "reference", "pointId": "a" },
+      "endPoint": { "mode": "reference", "pointId": "b" }
+    },
+    {
+      "id": "arc",
+      "name": "円弧",
+      "type": "arcLine",
+      "visible": true,
+      "enabled": true,
+      "centerPoint": { "mode": "reference", "pointId": "a" },
+      "radius": 25,
+      "startAngleDeg": 0,
+      "endAngleDeg": 90
+    },
+    {
+      "id": "three",
+      "name": "三点円弧",
+      "type": "threePointArcLine",
+      "visible": true,
+      "enabled": true,
+      "point1": { "mode": "reference", "pointId": "b" },
+      "point2": { "mode": "coordinate", "x": 100, "y": 50 },
+      "point3": { "mode": "reference", "pointId": "c" },
+      "startAngleDeg": 0,
+      "endAngleDeg": 180
+    },
+    {
+      "id": "div",
+      "name": "点間分点",
+      "type": "divisionPoint",
+      "visible": true,
+      "enabled": true,
+      "startPoint": { "mode": "reference", "pointId": "a" },
+      "endPoint": { "mode": "reference", "pointId": "b" },
+      "placementMode": "ratio",
+      "distance": 0,
+      "ratio": 0.25
+    },
+    {
+      "id": "line-div",
+      "name": "線上分点",
+      "type": "lineDivisionPoint",
+      "visible": true,
+      "enabled": true,
+      "endpoint": { "lineId": "ab", "endpointKey": "start" },
+      "placementMode": "distance",
+      "distance": 40,
+      "ratio": 0
+    },
+    {
+      "id": "curve",
+      "name": "Bezier",
+      "type": "bezierCurve",
+      "visible": true,
+      "enabled": true,
+      "startPoint": { "mode": "reference", "pointId": "a" },
+      "startHandleAngleDeg": 0,
+      "startHandleLength": 30,
+      "intermediatePoints": [
+        {
+          "id": "mid",
+          "point": { "mode": "reference", "pointId": "c" },
+          "handleAngleDeg": 180,
+          "incomingHandleLength": 20,
+          "outgoingHandleLength": 20
+        }
+      ],
+      "endPoint": { "mode": "reference", "pointId": "b" },
+      "endHandleAngleDeg": 180,
+      "endHandleLength": 30
+    }
+  ]
+}

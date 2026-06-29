@@ -11,6 +11,39 @@ type EvaluateDocumentInput = {
   evaluationLimitIndex?: number;
 };
 
+export type EvaluationEngineMode = "reference" | "shadow" | "rust";
+
+const configuredEvaluationEngineMode = (
+  value: string | undefined
+): EvaluationEngineMode | null => {
+  if (value === "reference" || value === "shadow" || value === "rust") {
+    return value;
+  }
+  return null;
+};
+
+export const resolveEvaluationEngineMode = ({
+  configuredMode,
+  tauriRuntime,
+  dev
+}: {
+  configuredMode?: string;
+  tauriRuntime: boolean;
+  dev: boolean;
+}): EvaluationEngineMode => {
+  const configured = configuredEvaluationEngineMode(configuredMode);
+  if (configured) return configured;
+  if (!tauriRuntime) return "reference";
+  return dev ? "shadow" : "rust";
+};
+
+export const getEvaluationEngineMode = (): EvaluationEngineMode =>
+  resolveEvaluationEngineMode({
+    configuredMode: import.meta.env.VITE_EVALUATION_ENGINE,
+    tauriRuntime: isTauriRuntime(),
+    dev: import.meta.env.DEV
+  });
+
 const rustSupportedElementTypes = new Set<CadElement["type"]>([
   "group",
   "variable",
@@ -132,6 +165,26 @@ export const evaluateElementsReference = (
   elements: CadElement[],
   options: EvaluateElementsOptions = {}
 ) => evaluateElements(elements, options);
+
+export const emptyEvaluationResult = (
+  elements: CadElement[],
+  options: EvaluateElementsOptions = {}
+): EvaluationResult => {
+  const evaluationLimitIndex = Math.min(
+    Math.max(options.evaluationLimitIndex ?? elements.length, 0),
+    elements.length
+  );
+  return {
+    computedGeometry: new Map(),
+    computedVariables: new Map(),
+    errors: [],
+    warnings: [],
+    evaluatedElementIds: new Set(),
+    evaluationLimitIndex,
+    effectiveVisibleElementIds: new Set(),
+    effectiveEnabledElementIds: new Set()
+  };
+};
 
 export const evaluateElementsReferencePayload = (
   elements: CadElement[],
