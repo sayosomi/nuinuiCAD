@@ -1,11 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import type { DragEvent, KeyboardEvent, MouseEvent, RefObject } from "react";
+import type { KeyboardEvent, MouseEvent, PointerEvent, RefObject } from "react";
 import { Search, X } from "lucide-react";
 import { dispatchCommand } from "../commands/commands";
-import {
-  isGroupElement,
-  subtreeIdsForElement
-} from "../model/groups";
 import {
   isPointElement,
   referenceAnchor
@@ -26,6 +22,11 @@ import {
   numericReferenceExpression,
 } from "./geometryDisplay";
 import { ElementListRow } from "./ElementListRow";
+import {
+  elementListDropTargetForClientY,
+  isNoopElementDrop,
+  type ElementListPointerDrag
+} from "./elementListPointerDrag";
 import { useElementListData } from "./useElementListData";
 export { RightPanel } from "./RightPanel";
 
@@ -46,24 +47,13 @@ const isLineLikeElement = (element: CadElement) =>
   element.type === "copyLine" ||
   element.type === "symmetricCopyLine";
 
-type ElementDropTarget = {
-  elementId: ElementId;
-  insertionIndex: number;
-};
-
-const EVALUATION_DIVIDER_DRAG_TYPE = "application/x-nuinui-evaluation-divider";
-
 type EvaluationDividerRowProps = {
   evaluationLimitIndex: number;
   evaluatedCount: number;
   totalCount: number;
   isDragging: boolean;
   isDropTarget: boolean;
-  onDragStart: (event: DragEvent<HTMLDivElement>) => void;
-  onDragOver: (event: DragEvent<HTMLDivElement>) => void;
-  onDragLeave: (event: DragEvent<HTMLDivElement>) => void;
-  onDrop: (event: DragEvent<HTMLDivElement>) => void;
-  onDragEnd: () => void;
+  onPointerDown: (event: PointerEvent<HTMLDivElement>) => void;
 };
 
 const moveEvaluationDividerToIndex = (evaluationLimitIndex: number) => {
@@ -76,11 +66,7 @@ const EvaluationDividerRow = ({
   totalCount,
   isDragging,
   isDropTarget,
-  onDragStart,
-  onDragOver,
-  onDragLeave,
-  onDrop,
-  onDragEnd
+  onPointerDown
 }: EvaluationDividerRowProps) => (
   <div
     className={`evaluation-divider-row ${isDragging ? "dragging" : ""} ${
@@ -89,7 +75,6 @@ const EvaluationDividerRow = ({
     tabIndex={0}
     role="separator"
     aria-orientation="horizontal"
-    draggable
     data-evaluation-divider="true"
     aria-label={`評価区切り線。${totalCount}件中${evaluatedCount}件を評価。上下矢印で移動、Shift+上下矢印で10件移動、Homeで先頭、Endで末尾`}
     onKeyDown={(event) => {
@@ -113,16 +98,13 @@ const EvaluationDividerRow = ({
         moveEvaluationDividerToIndex(totalCount);
       }
     }}
-    onDragStart={onDragStart}
-    onDragOver={onDragOver}
-    onDragLeave={onDragLeave}
-    onDrop={onDrop}
-    onDragEnd={onDragEnd}
+    onPointerDown={onPointerDown}
   >
     <button
       type="button"
       className="evaluation-divider-button"
       aria-label="評価区切り線を上へ"
+      onPointerDown={(event) => event.stopPropagation()}
       onClick={() => dispatchCommand("moveEvaluationDividerUp")}
     >
       ↑
@@ -137,6 +119,7 @@ const EvaluationDividerRow = ({
       type="button"
       className="evaluation-divider-button"
       aria-label="評価区切り線を下へ"
+      onPointerDown={(event) => event.stopPropagation()}
       onClick={() => dispatchCommand("moveEvaluationDividerDown")}
     >
       ↓
@@ -163,12 +146,13 @@ export const LeftPanel = ({
   const setElementSearchQuery = useCadUiStore((state) => state.setElementSearchQuery);
   const setElementSearchCursorId = useCadUiStore((state) => state.setElementSearchCursorId);
   const setElementSearchPickableOnly = useCadUiStore((state) => state.setElementSearchPickableOnly);
-  const [draggedElementIds, setDraggedElementIds] = useState<ElementId[]>([]);
-  const [isDividerDragging, setIsDividerDragging] = useState(false);
-  const [dropTarget, setDropTarget] = useState<ElementDropTarget | null>(null);
-  const [dividerDropTargetIndex, setDividerDropTargetIndex] = useState<number | null>(null);
+  const [pointerDrag, setPointerDrag] = useState<ElementListPointerDrag | null>(null);
   const rowRefs = useRef(new Map<ElementId, HTMLDivElement>());
+  const pointerDragRef = useRef<ElementListPointerDrag | null>(null);
   const selectedElementIdSet = new Set(selectedElementIds);
+  const draggedElementIds = pointerDrag?.kind === "elements" ? pointerDrag.movingIds : [];
+  const isDividerDragging = pointerDrag?.kind === "divider";
+  const dropTarget = pointerDrag?.target ?? null;
   const evaluatedElementIdSet =
     evaluation.evaluatedElementIds ?? new Set(elements.map((element) => element.id));
   const {
@@ -205,93 +189,51 @@ export const LeftPanel = ({
     });
   }, [selectedPickCursor]);
 
-  const clearElementDrag = () => {
-    setDraggedElementIds([]);
-    setIsDividerDragging(false);
-    setDropTarget(null);
-    setDividerDropTargetIndex(null);
-  };
-  const isDividerDrag = (event: DragEvent<HTMLElement>) =>
-    isDividerDragging ||
-    Array.from(event.dataTransfer.types ?? []).includes(EVALUATION_DIVIDER_DRAG_TYPE) ||
-    event.dataTransfer.getData(EVALUATION_DIVIDER_DRAG_TYPE) === "true";
-  const isNoopDrop = (elementIds: ElementId[], insertionIndex: number) => {
-    const movingIds = elementIds.flatMap((id) => subtreeIdsForElement(elements, id));
-    const indexes = elements
-      .map((element, index) => (movingIds.includes(element.id) ? index : -1))
-      .filter((index) => index >= 0);
-    if (indexes.length === 0) return true;
-    const minIndex = indexes[0];
-    const maxIndex = indexes[indexes.length - 1];
-    return insertionIndex >= minIndex && insertionIndex <= maxIndex + 1;
-  };
-  const dragElementIds = (event: DragEvent<HTMLElement>) => {
-    if (draggedElementIds.length > 0) return draggedElementIds;
-    const ids = event.dataTransfer.getData("application/x-nuinui-element-ids");
-    if (ids) return ids.split(",").filter(Boolean);
-    const id = event.dataTransfer.getData("application/x-nuinui-element-id");
-    return id ? [id] : [];
-  };
-  const rowInsertionIndex = (event: DragEvent<HTMLElement>, element: CadElement, rowIndex: number) => {
-    const rect = event.currentTarget.getBoundingClientRect();
-    const isAfter = event.clientY >= rect.top + rect.height / 2;
-    if (isAfter && isGroupElement(element)) {
-      const subtreeIds = subtreeIdsForElement(elements, element.id);
-      const indexes = elements
-        .map((item, index) => (subtreeIds.includes(item.id) ? index : -1))
-        .filter((index) => index >= 0);
-      return (indexes.at(-1) ?? rowIndex) + 1;
-    }
-    return rowIndex + (isAfter ? 1 : 0);
-  };
-  const updateDropTarget = (event: DragEvent<HTMLElement>, element: CadElement, rowIndex: number) => {
-    if (isDividerDrag(event)) {
-      const insertionIndex = rowInsertionIndex(event, element, rowIndex);
-      event.preventDefault();
-      event.dataTransfer.dropEffect = "move";
-      setDropTarget({ elementId: element.id, insertionIndex });
-      return;
-    }
+  useEffect(() => {
+    pointerDragRef.current = pointerDrag;
+  }, [pointerDrag]);
 
-    const elementIds = dragElementIds(event);
-    if (elementIds.length === 0 || elementIds.includes(element.id)) {
-      setDropTarget(null);
-      return;
-    }
-
-    const insertionIndex = rowInsertionIndex(event, element, rowIndex);
-    if (isNoopDrop(elementIds, insertionIndex)) {
-      setDropTarget(null);
-      return;
-    }
-
-    event.preventDefault();
-    event.dataTransfer.dropEffect = "move";
-    setDropTarget({ elementId: element.id, insertionIndex });
+  const clearPointerDrag = () => setPointerDrag(null);
+  const dropMarkerClass = (
+    elementId: ElementId,
+    rowIndex: number,
+    position: "before" | "after"
+  ) => {
+    if (dropTarget?.elementId !== elementId) return "";
+    if (position === "before" && dropTarget.insertionIndex === rowIndex) return " drop-before";
+    if (position === "after" && dropTarget.insertionIndex !== rowIndex) return " drop-after";
+    return "";
   };
-  const dropMarkerClass = (elementId: ElementId, insertionIndex: number, position: "before" | "after") =>
-    dropTarget?.elementId === elementId && dropTarget.insertionIndex === insertionIndex
-      ? ` drop-${position}`
-      : "";
-  const updateDividerDropTarget = (event: DragEvent<HTMLElement>) => {
-    if (isDividerDrag(event)) return;
-    const elementIds = dragElementIds(event);
-    if (elementIds.length === 0) return;
+  const startElementPointerDrag = (
+    event: PointerEvent<HTMLButtonElement>,
+    rowElement: CadElement
+  ) => {
+    if (event.button !== 0 || isSearchActive) return;
     event.preventDefault();
-    event.dataTransfer.dropEffect = "move";
-    setDividerDropTargetIndex(evaluationLimitIndex);
-  };
-  const dropElementsAtDivider = (event: DragEvent<HTMLElement>) => {
-    if (isDividerDrag(event)) return;
-    const elementIds = dragElementIds(event);
-    event.preventDefault();
-    if (elementIds.length > 0 && !isNoopDrop(elementIds, evaluationLimitIndex)) {
-      dispatchCommand("moveElementToInsertionIndex", {
-        elementId: elementIds[0],
-        insertionIndex: evaluationLimitIndex
-      });
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+
+    const movingIds = selectedElementIdSet.has(rowElement.id) ? selectedElementIds : [rowElement.id];
+    if (!selectedElementIdSet.has(rowElement.id)) {
+      dispatchCommand("selectElement", { elementId: rowElement.id });
     }
-    clearElementDrag();
+    setPointerDrag({
+      kind: "elements",
+      pointerId: event.pointerId,
+      movingIds,
+      sourceElementId: rowElement.id,
+      target: null
+    });
+  };
+  const startDividerPointerDrag = (event: PointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0 || isSearchActive) return;
+    event.preventDefault();
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    setPointerDrag({
+      kind: "divider",
+      pointerId: event.pointerId,
+      target: null
+    });
   };
   const selectElement = (elementId: ElementId, event: MouseEvent<HTMLElement>) => {
     if (activeLinePickTarget) {
@@ -411,6 +353,70 @@ export const LeftPanel = ({
     });
   }, [activeSearchCursorId]);
 
+  useEffect(() => {
+    if (!pointerDrag) return;
+
+    const onPointerMove = (event: globalThis.PointerEvent) => {
+      const drag = pointerDragRef.current;
+      if (!drag || drag.pointerId !== event.pointerId) return;
+      event.preventDefault();
+      const target = elementListDropTargetForClientY(elements, rowRefs.current, event.clientY);
+      setPointerDrag((currentDrag) => {
+        if (!currentDrag) return currentDrag;
+        if (
+          currentDrag.kind === "elements" &&
+          target &&
+          isNoopElementDrop(elements, currentDrag.movingIds, target.insertionIndex)
+        ) {
+          return { ...currentDrag, target: null };
+        }
+        return { ...currentDrag, target };
+      });
+    };
+    const onPointerUp = (event: globalThis.PointerEvent) => {
+      const drag = pointerDragRef.current;
+      if (!drag || drag.pointerId !== event.pointerId) return;
+      event.preventDefault();
+      const target = drag.target;
+      if (target) {
+        if (drag.kind === "divider") {
+          dispatchCommand("setEvaluationLimitIndex", {
+            evaluationLimitIndex: target.insertionIndex
+          });
+        } else if (!isNoopElementDrop(elements, drag.movingIds, target.insertionIndex)) {
+          dispatchCommand("moveElementToInsertionIndex", {
+            elementId: drag.movingIds[0],
+            insertionIndex: target.insertionIndex
+          });
+        }
+      }
+      clearPointerDrag();
+    };
+    const onPointerCancel = (event: globalThis.PointerEvent) => {
+      const drag = pointerDragRef.current;
+      if (!drag || drag.pointerId !== event.pointerId) return;
+      clearPointerDrag();
+    };
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      clearPointerDrag();
+    };
+
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp);
+    window.addEventListener("pointercancel", onPointerCancel);
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("blur", clearPointerDrag);
+    return () => {
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
+      window.removeEventListener("pointercancel", onPointerCancel);
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("blur", clearPointerDrag);
+    };
+  }, [pointerDrag, elements]);
+
   return (
     <aside className="left-panel">
       <header className="app-title">
@@ -508,21 +514,11 @@ export const LeftPanel = ({
                   evaluatedCount={evaluationLimitIndex}
                   totalCount={elements.length}
                   isDragging={isDividerDragging}
-                  isDropTarget={dividerDropTargetIndex === evaluationLimitIndex}
-                  onDragStart={(event) => {
-                    setIsDividerDragging(true);
-                    event.dataTransfer.effectAllowed = "move";
-                    event.dataTransfer.setData(EVALUATION_DIVIDER_DRAG_TYPE, "true");
-                    event.dataTransfer.setData("text/plain", "評価区切り線");
-                  }}
-                  onDragOver={updateDividerDropTarget}
-                  onDragLeave={(event) => {
-                    if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
-                      setDividerDropTargetIndex(null);
-                    }
-                  }}
-                  onDrop={dropElementsAtDivider}
-                  onDragEnd={clearElementDrag}
+                  isDropTarget={
+                    pointerDrag?.kind === "elements" &&
+                    pointerDrag.target?.insertionIndex === evaluationLimitIndex
+                  }
+                  onPointerDown={startDividerPointerDrag}
                 />
               );
             }
@@ -565,53 +561,9 @@ export const LeftPanel = ({
                 isLinePickCandidate={rowData.isLinePickCandidate}
                 isDragging={draggedElementIds.includes(element.id)}
                 dropBefore={dropMarkerClass(element.id, rowData.index, "before") !== ""}
-                dropAfter={dropMarkerClass(element.id, rowData.index + 1, "after") !== ""}
+                dropAfter={dropMarkerClass(element.id, rowData.index, "after") !== ""}
                 onSelectElement={selectElement}
-                onDragOver={(event, rowElement, rowIndex) => {
-                  if (isSearchActive) return;
-                  updateDropTarget(event, rowElement, rowIndex);
-                }}
-                onDragLeave={(event) => {
-                  if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
-                    setDropTarget(null);
-                  }
-                }}
-                onDrop={(event, rowElement, rowIndex) => {
-                  if (isSearchActive) return;
-                  const elementIds = dragElementIds(event);
-                  const insertionIndex =
-                    dropTarget?.elementId === rowElement.id
-                      ? dropTarget.insertionIndex
-                      : rowInsertionIndex(event, rowElement, rowIndex);
-                  event.preventDefault();
-                  if (isDividerDrag(event)) {
-                    dispatchCommand("setEvaluationLimitIndex", {
-                      evaluationLimitIndex: insertionIndex
-                    });
-                  } else if (elementIds.length > 0 && !isNoopDrop(elementIds, insertionIndex)) {
-                    dispatchCommand("moveElementToInsertionIndex", {
-                      elementId: elementIds[0],
-                      insertionIndex
-                    });
-                  }
-                  clearElementDrag();
-                }}
-                onDragStart={(event, rowElement) => {
-                  if (isSearchActive) {
-                    event.preventDefault();
-                    return;
-                  }
-                  const movingIds = selectedElementIdSet.has(rowElement.id) ? selectedElementIds : [rowElement.id];
-                  if (!selectedElementIdSet.has(rowElement.id)) {
-                    dispatchCommand("selectElement", { elementId: rowElement.id });
-                  }
-                  setDraggedElementIds(movingIds);
-                  event.dataTransfer.effectAllowed = "move";
-                  event.dataTransfer.setData("application/x-nuinui-element-id", rowElement.id);
-                  event.dataTransfer.setData("application/x-nuinui-element-ids", movingIds.join(","));
-                  event.dataTransfer.setData("text/plain", rowElement.name);
-                }}
-                onDragEnd={clearElementDrag}
+                onHandlePointerDown={startElementPointerDrag}
                 onApplyNumericReference={applyNumericReference}
               />
             );
@@ -624,21 +576,11 @@ export const LeftPanel = ({
               evaluatedCount={evaluationLimitIndex}
               totalCount={elements.length}
               isDragging={isDividerDragging}
-              isDropTarget={dividerDropTargetIndex === evaluationLimitIndex}
-              onDragStart={(event) => {
-                setIsDividerDragging(true);
-                event.dataTransfer.effectAllowed = "move";
-                event.dataTransfer.setData(EVALUATION_DIVIDER_DRAG_TYPE, "true");
-                event.dataTransfer.setData("text/plain", "評価区切り線");
-              }}
-              onDragOver={updateDividerDropTarget}
-              onDragLeave={(event) => {
-                if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
-                  setDividerDropTargetIndex(null);
-                }
-              }}
-              onDrop={dropElementsAtDivider}
-              onDragEnd={clearElementDrag}
+              isDropTarget={
+                pointerDrag?.kind === "elements" &&
+                pointerDrag.target?.insertionIndex === evaluationLimitIndex
+              }
+              onPointerDown={startDividerPointerDrag}
             />
           ) : null}
         </div>

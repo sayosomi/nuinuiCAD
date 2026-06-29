@@ -68,18 +68,6 @@ const renderShortcutHelpOverlay = (
   props = { isParameterEditMode: false, isDependencyJumpMode: false }
 ) => render(<ShortcutHelpOverlay {...props} />);
 
-const dragDataTransfer = () => {
-  const data: Record<string, string> = {};
-  return {
-    dropEffect: "",
-    effectAllowed: "",
-    getData: (type: string) => data[type] ?? "",
-    setData: (type: string, value: string) => {
-      data[type] = value;
-    }
-  } as unknown as DataTransfer;
-};
-
 const dragNumericInput = (
   input: HTMLElement,
   {
@@ -95,6 +83,22 @@ const dragNumericInput = (
   fireEvent.pointerDown(input, { button, clientX: fromX, pointerId: 1 });
   fireEvent.pointerMove(input, { clientX: toX, pointerId: 1 });
   fireEvent.pointerUp(input, { clientX: toX, pointerId: 1 });
+};
+
+const mockElementListRowRects = () => {
+  document.querySelectorAll<HTMLElement>("[data-element-list-row='true']").forEach((row, index) => {
+    row.getBoundingClientRect = () => ({
+      x: 0,
+      y: index * 100,
+      top: index * 100,
+      left: 0,
+      right: 320,
+      bottom: index * 100 + 100,
+      width: 320,
+      height: 100,
+      toJSON: () => ({})
+    });
+  });
 };
 
 describe("LeftPanel numeric input dragging", () => {
@@ -575,32 +579,39 @@ describe("LeftPanel element list dragging", () => {
     );
   });
 
-  it("moves the evaluation divider by dragging it onto an element row", () => {
+  it("moves the evaluation divider with pointer dragging", () => {
     useCadStore.setState({
       evaluationLimitIndex: 2
     });
     renderLeftPanel(evaluateElements(sampleElements, { evaluationLimitIndex: 2 }));
-    const dataTransfer = dragDataTransfer();
+    mockElementListRowRects();
     const divider = screen.getByLabelText(/評価区切り線。6件中2件を評価/);
-    const targetRow = screen.getByText("直線BC").closest("[data-element-list-row='true']");
+    const targetRow = screen.getByText("直線AB").closest("[data-element-list-row='true']");
     expect(targetRow).toBeInstanceOf(HTMLElement);
-    targetRow!.getBoundingClientRect = () => ({
-      x: 0,
-      y: 0,
-      top: 0,
-      left: 0,
-      right: 320,
-      bottom: 100,
-      width: 320,
-      height: 100,
-      toJSON: () => ({})
+
+    fireEvent.pointerDown(divider, { button: 0, clientY: 205, pointerId: 1 });
+    fireEvent.pointerMove(window, { clientY: 325, pointerId: 1 });
+    fireEvent.pointerUp(window, { clientY: 325, pointerId: 1 });
+
+    expect(useCadStore.getState().evaluationLimitIndex).toBe(3);
+  });
+
+  it("cancels evaluation divider pointer dragging without committing", () => {
+    useCadStore.setState({
+      evaluationLimitIndex: 2
     });
+    renderLeftPanel(evaluateElements(sampleElements, { evaluationLimitIndex: 2 }));
+    mockElementListRowRects();
+    const divider = screen.getByLabelText(/評価区切り線。6件中2件を評価/);
 
-    fireEvent.dragStart(divider, { dataTransfer });
-    fireEvent.dragOver(targetRow!, { dataTransfer, clientY: 75 });
-    fireEvent.drop(targetRow!, { dataTransfer, clientY: 75 });
+    fireEvent.pointerDown(divider, { button: 0, clientY: 205, pointerId: 1 });
+    fireEvent.pointerMove(window, { clientY: 325, pointerId: 1 });
+    expect(divider).toHaveClass("dragging");
 
-    expect(useCadStore.getState().evaluationLimitIndex).toBe(4);
+    fireEvent.pointerCancel(window, { pointerId: 1 });
+
+    expect(useCadStore.getState().evaluationLimitIndex).toBe(2);
+    expect(divider).not.toHaveClass("dragging");
   });
 
   it("moves the evaluation divider from keyboard focus", () => {
@@ -711,16 +722,14 @@ describe("LeftPanel element list dragging", () => {
     expect(state.selectedElementIds).toEqual(["point-a"]);
   });
 
-  it("reorders elements by dragging a handle before another row", () => {
+  it("reorders elements by pointer dragging a handle before another row", () => {
     renderLeftPanel();
-    const dataTransfer = dragDataTransfer();
+    mockElementListRowRects();
     const handle = screen.getByLabelText("点Aを並び替え");
-    const targetRow = screen.getByText("直線AB").closest("[data-element-list-row='true']");
-    expect(targetRow).toBeInstanceOf(HTMLElement);
 
-    fireEvent.dragStart(handle, { dataTransfer });
-    fireEvent.dragOver(targetRow!, { dataTransfer });
-    fireEvent.drop(targetRow!, { dataTransfer });
+    fireEvent.pointerDown(handle, { button: 0, clientY: 25, pointerId: 1 });
+    fireEvent.pointerMove(window, { clientY: 325, pointerId: 1 });
+    fireEvent.pointerUp(window, { clientY: 325, pointerId: 1 });
 
     expect(useCadStore.getState().elements.map((element) => element.id).slice(0, 4)).toEqual([
       "point-b",
@@ -982,14 +991,12 @@ describe("LeftPanel element list dragging", () => {
       selectionAnchorElementId: "point-b"
     });
     renderLeftPanel();
-    const dataTransfer = dragDataTransfer();
+    mockElementListRowRects();
     const handle = screen.getByLabelText("点Cを並び替え");
-    const targetRow = screen.getByText("直線BC").closest("[data-element-list-row='true']");
-    expect(targetRow).toBeInstanceOf(HTMLElement);
 
-    fireEvent.dragStart(handle, { dataTransfer });
-    fireEvent.dragOver(targetRow!, { dataTransfer });
-    fireEvent.drop(targetRow!, { dataTransfer });
+    fireEvent.pointerDown(handle, { button: 0, clientY: 225, pointerId: 1 });
+    fireEvent.pointerMove(window, { clientY: 425, pointerId: 1 });
+    fireEvent.pointerUp(window, { clientY: 425, pointerId: 1 });
 
     expect(useCadStore.getState().elements.map((element) => element.id)).toEqual([
       "point-a",
@@ -1000,5 +1007,24 @@ describe("LeftPanel element list dragging", () => {
       "curve-ac"
     ]);
     expect(useCadStore.getState().selectedElementIds).toEqual(["point-b", "point-c"]);
+  });
+
+  it("does not start pointer reordering while searching", () => {
+    renderLeftPanel();
+    mockElementListRowRects();
+    const searchInput = screen.getByRole("textbox", { name: "要素を検索" });
+    fireEvent.change(searchInput, { target: { value: "点" } });
+    const handle = screen.getByLabelText("点Aを並び替え");
+
+    fireEvent.pointerDown(handle, { button: 0, clientY: 25, pointerId: 1 });
+    fireEvent.pointerMove(window, { clientY: 325, pointerId: 1 });
+    fireEvent.pointerUp(window, { clientY: 325, pointerId: 1 });
+
+    expect(useCadStore.getState().elements.map((element) => element.id).slice(0, 4)).toEqual([
+      "point-a",
+      "point-b",
+      "point-c",
+      "line-ab"
+    ]);
   });
 });

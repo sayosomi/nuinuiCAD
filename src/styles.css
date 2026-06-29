@@ -147,6 +147,7 @@ select {
 
 .element-list {
   display: grid;
+  grid-auto-rows: max-content;
   flex: 1;
   align-content: start;
   min-height: 0;
@@ -232,8 +233,13 @@ select {
   position: relative;
   display: grid;
   grid-template-columns: max-content 18px max-content 40px minmax(0, 1fr) minmax(0, auto) 24px;
+  grid-template-areas:
+    "outline expand index status name type handle"
+    "actions actions actions actions actions actions actions";
+  grid-template-rows: auto auto;
   align-items: center;
   column-gap: 4px;
+  row-gap: 6px;
   width: 100%;
   min-width: 0;
   min-height: 42px;
@@ -256,6 +262,7 @@ select {
 }
 
 .element-outline-indent {
+  grid-area: outline;
   display: block;
   width: calc(var(--outline-depth, 0) * 14px);
   height: 100%;
@@ -265,6 +272,7 @@ select {
 
 .element-expand-button,
 .element-expand-spacer {
+  grid-area: expand;
   display: grid;
   place-items: center;
   width: 18px;
@@ -524,6 +532,7 @@ select {
 }
 
 .element-drag-handle {
+  grid-area: handle;
   display: grid;
   place-items: center;
   width: 24px;
@@ -549,6 +558,7 @@ select {
 }
 
 .element-status-icons {
+  grid-area: status;
   display: grid;
   grid-template-columns: 18px 18px;
   gap: 2px;
@@ -618,7 +628,16 @@ select {
   white-space: nowrap;
 }
 
+.element-index {
+  grid-area: index;
+}
+
+.element-type {
+  grid-area: type;
+}
+
 .element-name {
+  grid-area: name;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -651,33 +670,47 @@ select {
 
 .element-point-pick-actions,
 .element-numeric-reference-actions {
+  grid-area: actions;
   display: flex;
-  grid-column: 1 / -1;
+  min-width: 0;
+  max-width: 100%;
   flex-wrap: wrap;
+  align-items: flex-start;
   gap: 5px;
-  padding-top: 6px;
+  padding-top: 2px;
 }
 
 .element-point-pick-actions button,
 .element-numeric-reference-actions button {
+  max-width: 100%;
   min-height: 28px;
+  min-width: 0;
   padding: 4px 8px;
   border-color: #0f766e;
   background: #ffffff;
   color: #0f4f49;
   font-size: 12px;
+  overflow-wrap: anywhere;
 }
 
 .element-numeric-reference-actions button {
   display: grid;
-  grid-template-columns: auto auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 6px;
   align-items: baseline;
+}
+
+.element-numeric-reference-actions button span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .element-numeric-reference-actions small {
   color: #5c6359;
   font-size: 11px;
+  white-space: nowrap;
 }
 
 .reorder-row {

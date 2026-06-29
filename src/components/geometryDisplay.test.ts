@@ -15,6 +15,7 @@ import {
   formatNumber,
   lineInfoRows,
   numericReferenceExpression,
+  numericReferenceLabel,
   numericReferenceProperties,
   numericReferenceValue,
   offsetLineInfoRows,
@@ -149,6 +150,17 @@ describe("geometryDisplay", () => {
     expect(numericReferenceValue(arc, "startTangentAngleDeg")).toBe("90°");
     expect(numericReferenceValue(curve, "length")).toBe("52.34 mm");
     expect(numericReferenceValue(curve, "startTangentAngleDeg")).toBe("0°");
+    expect(numericReferenceValue(curve, "startHandleAngleDeg")).toBe("0°");
+    expect(numericReferenceValue(curve, "startHandleLength")).toBe("10 mm");
+    expect(numericReferenceValue(curve, "endHandleAngleDeg")).toBe("180°");
+    expect(numericReferenceValue(curve, "endHandleLength")).toBe("10 mm");
+  });
+
+  it("labels Bezier handle numeric references", () => {
+    expect(numericReferenceLabel(curve, "startHandleAngleDeg")).toBe("始点角度");
+    expect(numericReferenceLabel(curve, "startHandleLength")).toBe("始点ハンドル長");
+    expect(numericReferenceLabel(curve, "endHandleAngleDeg")).toBe("終点角度");
+    expect(numericReferenceLabel(curve, "endHandleLength")).toBe("終点ハンドル長");
   });
 
   it("builds geometry info rows", () => {

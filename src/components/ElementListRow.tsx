@@ -1,4 +1,4 @@
-import type { CSSProperties, DragEvent, MouseEvent, Ref } from "react";
+import type { CSSProperties, MouseEvent, PointerEvent, Ref } from "react";
 import { Folder, FolderOpen } from "lucide-react";
 import { dispatchCommand } from "../commands/commands";
 import type { PickCandidate } from "../model/pickCandidates";
@@ -55,11 +55,7 @@ type ElementListRowProps = {
   dropBefore: boolean;
   dropAfter: boolean;
   onSelectElement: (elementId: ElementId, event: MouseEvent<HTMLElement>) => void;
-  onDragOver: (event: DragEvent<HTMLElement>, element: CadElement, index: number) => void;
-  onDragLeave: (event: DragEvent<HTMLElement>) => void;
-  onDrop: (event: DragEvent<HTMLElement>, element: CadElement, index: number) => void;
-  onDragStart: (event: DragEvent<HTMLButtonElement>, element: CadElement) => void;
-  onDragEnd: () => void;
+  onHandlePointerDown: (event: PointerEvent<HTMLButtonElement>, element: CadElement) => void;
   onApplyNumericReference: (
     geometry: NumericReferenceGeometry,
     property: ReturnType<typeof numericReferencePropertiesForGeometry>[number]
@@ -99,11 +95,7 @@ export const ElementListRow = ({
   dropBefore,
   dropAfter,
   onSelectElement,
-  onDragOver,
-  onDragLeave,
-  onDrop,
-  onDragStart,
-  onDragEnd,
+  onHandlePointerDown,
   onApplyNumericReference
 }: ElementListRowProps) => (
   <div
@@ -154,9 +146,6 @@ export const ElementListRow = ({
       element.type === "variable" ? "非描画" : isEffectivelyVisible ? "表示" : "非表示"
     }, ${isEffectivelyEnabled ? "評価する" : "評価しない"}`}
     onClick={(event) => onSelectElement(element.id, event)}
-    onDragOver={(event) => onDragOver(event, element, index)}
-    onDragLeave={onDragLeave}
-    onDrop={(event) => onDrop(event, element, index)}
   >
     <span
       className="element-outline-indent"
@@ -238,15 +227,13 @@ export const ElementListRow = ({
     <button
       type="button"
       className="element-drag-handle"
-      draggable={!isSearchActive}
       disabled={isSearchActive}
       aria-label={`${element.name}を並び替え`}
       onClick={(event) => {
         event.stopPropagation();
         dispatchCommand("selectElement", { elementId: element.id });
       }}
-      onDragStart={(event) => onDragStart(event, element)}
-      onDragEnd={onDragEnd}
+      onPointerDown={(event) => onHandlePointerDown(event, element)}
     >
       <span aria-hidden="true">::</span>
     </button>

@@ -1,4 +1,5 @@
 import type { NumericMeasurementKey } from "../geometry/numericExpressions";
+import { propertyLabels } from "../geometry/numericExpressionProperties";
 import type {
   ComputedArcLine,
   ComputedBezierCurve,
@@ -57,6 +58,18 @@ export const numericReferenceValue = (
   if (property === "endTangentAngleDeg") {
     return formatAngleDeg(geometry.endTangentAngleDeg);
   }
+  if (geometry.kind === "bezierCurve" && property === "startHandleAngleDeg") {
+    return formatAngleDeg(geometry.startHandleAngleDeg);
+  }
+  if (geometry.kind === "bezierCurve" && property === "startHandleLength") {
+    return formatMillimeters(geometry.startHandleLength);
+  }
+  if (geometry.kind === "bezierCurve" && property === "endHandleAngleDeg") {
+    return formatAngleDeg(geometry.endHandleAngleDeg);
+  }
+  if (geometry.kind === "bezierCurve" && property === "endHandleLength") {
+    return formatMillimeters(geometry.endHandleLength);
+  }
   return "";
 };
 
@@ -70,7 +83,7 @@ export const numericReferenceLabel = (
   if (property === "endTangentAngleDeg") return "終接線角度";
   if (geometry.kind === "line" && property === "startAngleDeg") return "始接線角度";
   if (geometry.kind === "line" && property === "endAngleDeg") return "終接線角度";
-  return property === "length" ? "長さ" : property;
+  return propertyLabels[property];
 };
 
 export const pointCoordinateRows = (point: ComputedPoint) => [
