@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { dispatchCommand } from "../commands/commands";
 import { registerUnsavedChangesGuard } from "../document/unsavedChangesGuard";
 import { useEvaluationEngine } from "../geometry/useEvaluationEngine";
+import { loadShortcutSettings } from "../keyboard/shortcutSettingsStorage";
 import { keyboardCommandForEvent } from "../keyboard/shortcuts";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
@@ -9,12 +10,14 @@ import { CommandPalette } from "./CommandPalette";
 import { DrawingCanvas } from "./DrawingCanvas";
 import { LeftPanel, RightPanel } from "./LeftPanel";
 import { ShortcutHelpOverlay } from "./ShortcutHelpOverlay";
+import { ShortcutSettingsDialog } from "./ShortcutSettingsDialog";
 
 export const AppLayout = () => {
   const elements = useCadDocumentStore((state) => state.elements);
   const evaluationLimitIndex = useCadDocumentStore((state) => state.evaluationLimitIndex);
   const isParameterEditMode = useCadUiStore((state) => state.isParameterEditMode);
   const isDependencyJumpMode = useCadUiStore((state) => state.isDependencyJumpMode);
+  const shortcutSettings = useCadUiStore((state) => state.shortcutSettings);
   const isPickMode = useCadUiStore(
     (state) =>
       Boolean(state.activePointPickTarget) ||
@@ -57,8 +60,35 @@ export const AppLayout = () => {
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
+    useCadUiStore.getState().setShortcutSettingsLoading(true);
+    void loadShortcutSettings()
+      .then((settings) => {
+        if (cancelled) return;
+        useCadUiStore.getState().setShortcutSettings(settings);
+        useCadUiStore.getState().setShortcutSettingsError(null);
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        useCadUiStore
+          .getState()
+          .setShortcutSettingsError(
+            error instanceof Error ? error.message : "ショートカット設定を読み込めません。"
+          );
+      })
+      .finally(() => {
+        if (!cancelled) useCadUiStore.getState().setShortcutSettingsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      if (useCadUiStore.getState().showShortcutSettings) return;
       const keyboardCommand = keyboardCommandForEvent(event, {
+        settings: useCadUiStore.getState().shortcutSettings,
         isParameterEditMode: useCadUiStore.getState().isParameterEditMode,
         isDependencyJumpMode: useCadUiStore.getState().isDependencyJumpMode,
         isPickMode: Boolean(
@@ -99,7 +129,7 @@ export const AppLayout = () => {
 
     window.addEventListener("keydown", onKeyDown, { capture: true });
     return () => window.removeEventListener("keydown", onKeyDown, { capture: true });
-  }, [commandContext]);
+  }, [commandContext, shortcutSettings]);
 
   return (
     <main className="app-shell">
@@ -126,6 +156,7 @@ export const AppLayout = () => {
         isDependencyJumpMode={isDependencyJumpMode}
         isPickMode={isPickMode}
       />
+      <ShortcutSettingsDialog />
     </main>
   );
 };

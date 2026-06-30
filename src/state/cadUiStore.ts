@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import type { ShortcutSettings } from "../keyboard/shortcutTypes";
 import type { ParameterKey } from "../parameters/parameterDefinitions";
 import type { ElementId, PointAnchor } from "../types/geometry";
 
@@ -75,6 +76,10 @@ export type CadUiState = {
   elementSearchCursorId: ElementId | null;
   elementSearchPickableOnly: boolean;
   showShortcutHelp: boolean;
+  showShortcutSettings: boolean;
+  shortcutSettings: ShortcutSettings;
+  shortcutSettingsLoading: boolean;
+  shortcutSettingsError: string | null;
   showCommandPalette: boolean;
   canvasViewport: CanvasViewport;
   setParameterEditMode: (isParameterEditMode: boolean) => void;
@@ -98,6 +103,10 @@ export type CadUiState = {
   setElementSearchCursorId: (elementSearchCursorId: ElementId | null) => void;
   setElementSearchPickableOnly: (elementSearchPickableOnly: boolean) => void;
   setShowShortcutHelp: (showShortcutHelp: boolean) => void;
+  setShowShortcutSettings: (showShortcutSettings: boolean) => void;
+  setShortcutSettings: (shortcutSettings: ShortcutSettings) => void;
+  setShortcutSettingsLoading: (shortcutSettingsLoading: boolean) => void;
+  setShortcutSettingsError: (shortcutSettingsError: string | null) => void;
   setShowCommandPalette: (showCommandPalette: boolean) => void;
   setCanvasViewport: (canvasViewport: CanvasViewport) => void;
   panCanvasViewport: (dx: number, dy: number) => void;
@@ -125,6 +134,10 @@ export const initialCadUiState = (): Omit<
   | "setElementSearchCursorId"
   | "setElementSearchPickableOnly"
   | "setShowShortcutHelp"
+  | "setShowShortcutSettings"
+  | "setShortcutSettings"
+  | "setShortcutSettingsLoading"
+  | "setShortcutSettingsError"
   | "setShowCommandPalette"
   | "setCanvasViewport"
   | "panCanvasViewport"
@@ -145,6 +158,10 @@ export const initialCadUiState = (): Omit<
   elementSearchCursorId: null,
   elementSearchPickableOnly: false,
   showShortcutHelp: false,
+  showShortcutSettings: false,
+  shortcutSettings: { version: 1, overrides: [] },
+  shortcutSettingsLoading: false,
+  shortcutSettingsError: null,
   showCommandPalette: false,
   canvasViewport: DEFAULT_CANVAS_VIEWPORT
 });
@@ -201,6 +218,10 @@ export const useCadUiStore = create<CadUiState>((set) => ({
   setElementSearchPickableOnly: (elementSearchPickableOnly) =>
     set({ elementSearchPickableOnly, elementSearchCursorId: null }),
   setShowShortcutHelp: (showShortcutHelp) => set({ showShortcutHelp }),
+  setShowShortcutSettings: (showShortcutSettings) => set({ showShortcutSettings }),
+  setShortcutSettings: (shortcutSettings) => set({ shortcutSettings }),
+  setShortcutSettingsLoading: (shortcutSettingsLoading) => set({ shortcutSettingsLoading }),
+  setShortcutSettingsError: (shortcutSettingsError) => set({ shortcutSettingsError }),
   setShowCommandPalette: (showCommandPalette) => set({ showCommandPalette }),
   setCanvasViewport: (canvasViewport) =>
     set({

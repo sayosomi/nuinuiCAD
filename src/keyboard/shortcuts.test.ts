@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { sampleElements } from "../sampleData";
-import { commandIdForKeyboardEvent, keyboardCommandForEvent, shortcutHelpItems } from "./shortcuts";
+import {
+  commandIdForKeyboardEvent,
+  keyboardCommandForEvent,
+  shortcutConflicts,
+  shortcutHelpItems,
+  type ShortcutSettings
+} from "./shortcuts";
 
 const keyboardEvent = (key: string, init: KeyboardEventInit = {}) =>
   new KeyboardEvent("keydown", { key, ...init });
@@ -12,6 +18,13 @@ const keyboardEventFrom = (key: string, target: EventTarget, init: KeyboardEvent
 };
 
 describe("shortcuts", () => {
+  const settingsWithOverrides = (
+    overrides: ShortcutSettings["overrides"]
+  ): ShortcutSettings => ({
+    version: 1,
+    overrides
+  });
+
   it("maps keys to commands", () => {
     expect(commandIdForKeyboardEvent(keyboardEvent("ArrowUp"))).toBe("selectPreviousElement");
     expect(commandIdForKeyboardEvent(keyboardEvent("ArrowDown"))).toBe("selectNextElement");
@@ -58,6 +71,83 @@ describe("shortcuts", () => {
     );
     expect(commandIdForKeyboardEvent(keyboardEvent("ArrowUp", { shiftKey: true }))).toBe(
       "extendSelectionToPreviousElement"
+    );
+  });
+
+  it("uses user shortcut overrides", () => {
+    const settings = settingsWithOverrides([
+      {
+        bindingId: "normal.toggleSelectedElementVisibility",
+        chords: [{ key: "h", mod: false, alt: false, shift: false }]
+      }
+    ]);
+
+    expect(commandIdForKeyboardEvent(keyboardEvent("h"), { settings })).toBe(
+      "toggleSelectedElementVisibility"
+    );
+    expect(commandIdForKeyboardEvent(keyboardEvent("v"), { settings })).toBeNull();
+  });
+
+  it("adds shortcuts to executable commands without defaults", () => {
+    const settings = settingsWithOverrides([
+      {
+        bindingId: "normal.addFreePoint",
+        chords: [{ key: "p", mod: false, alt: false, shift: false }]
+      }
+    ]);
+
+    expect(commandIdForKeyboardEvent(keyboardEvent("p"), { settings })).toBe("addFreePoint");
+  });
+
+  it("detects same-mode shortcut conflicts", () => {
+    const settings = settingsWithOverrides([
+      {
+        bindingId: "normal.addFreePoint",
+        chords: [{ key: "p", mod: false, alt: false, shift: false }]
+      },
+      {
+        bindingId: "normal.addLine",
+        chords: [{ key: "p", mod: false, alt: false, shift: false }]
+      }
+    ]);
+
+    expect(shortcutConflicts(settings)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          scope: "normal",
+          bindingIds: expect.arrayContaining(["normal.addFreePoint", "normal.addLine"])
+        })
+      ])
+    );
+  });
+
+  it("ignores user shortcut overrides from inputs", () => {
+    const input = document.createElement("input");
+    const settings = settingsWithOverrides([
+      {
+        bindingId: "normal.addFreePoint",
+        chords: [{ key: "p", mod: false, alt: false, shift: false }]
+      }
+    ]);
+
+    expect(commandIdForKeyboardEvent(keyboardEventFrom("p", input), { settings })).toBeNull();
+  });
+
+  it("shows user shortcut overrides in help", () => {
+    const settings = settingsWithOverrides([
+      {
+        bindingId: "normal.addFreePoint",
+        chords: [{ key: "p", mod: false, alt: false, shift: false }]
+      }
+    ]);
+
+    expect(shortcutHelpItems({ settings })).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          commandId: "addFreePoint",
+          keys: "p"
+        })
+      ])
     );
   });
 

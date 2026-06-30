@@ -96,6 +96,8 @@ export type CommandId =
   | "resetCanvasView"
   | "openCommandPalette"
   | "closeCommandPalette"
+  | "openShortcutSettings"
+  | "closeShortcutSettings"
   | "focusCanvas"
   | "focusElementList"
   | "focusElementSearch"

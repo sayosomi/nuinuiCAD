@@ -68,6 +68,24 @@ export const viewModeCommandDefinitions = {
     label: "コマンドパレットを閉じる",
     run: () => useCadUiStore.getState().setShowCommandPalette(false)
   },
+  openShortcutSettings: {
+    id: "openShortcutSettings",
+    label: "ショートカット設定を開く",
+    palette: { order: 44, keywords: ["shortcut", "settings", "keymap", "ショートカット", "設定", "キー"] },
+    run: () => {
+      useCadUiStore.setState({
+        showShortcutSettings: true,
+        showShortcutHelp: false,
+        showCommandPalette: false,
+        shortcutSettingsError: null
+      });
+    }
+  },
+  closeShortcutSettings: {
+    id: "closeShortcutSettings",
+    label: "ショートカット設定を閉じる",
+    run: () => useCadUiStore.getState().setShowShortcutSettings(false)
+  },
   focusCanvas: {
     id: "focusCanvas",
     label: "キャンバスへフォーカス",

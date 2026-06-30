@@ -901,6 +901,131 @@ select {
   padding: 12px 16px 16px;
 }
 
+.shortcut-settings-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  background: rgb(37 38 34 / 24%);
+  padding: 56px 24px 24px;
+}
+
+.shortcut-settings {
+  display: grid;
+  width: min(920px, 100%);
+  max-height: calc(100vh - 96px);
+  overflow: hidden;
+  border: 1px solid #aeb4aa;
+  border-radius: 8px;
+  background: #fbfbfa;
+  box-shadow: 0 18px 48px rgb(37 38 34 / 24%);
+}
+
+.shortcut-settings-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  border-bottom: 1px solid #d2d4cd;
+  padding: 12px 16px;
+}
+
+.shortcut-settings-toolbar input {
+  min-width: 0;
+  border: 1px solid #c9ccc2;
+  border-radius: 6px;
+  background: #ffffff;
+  padding: 8px 10px;
+}
+
+.shortcut-settings-error {
+  margin: 10px 16px 0;
+  border: 1px solid #efb08f;
+  border-radius: 6px;
+  background: #fff7f2;
+  padding: 8px 10px;
+  color: #73320d;
+  font-size: 12px;
+}
+
+.shortcut-settings-list {
+  display: grid;
+  gap: 8px;
+  overflow: auto;
+  padding: 12px 16px 16px;
+}
+
+.shortcut-settings-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(160px, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  border: 1px solid #d2d4cd;
+  border-radius: 6px;
+  background: #ffffff;
+  padding: 10px;
+}
+
+.shortcut-settings-row.conflict {
+  border-color: #d97706;
+  background: #fff9e8;
+}
+
+.shortcut-settings-command {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.shortcut-settings-command strong {
+  overflow: hidden;
+  color: #252622;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shortcut-settings-command span,
+.shortcut-settings-row small {
+  color: #686b62;
+  font-size: 11px;
+}
+
+.shortcut-settings-keys,
+.shortcut-settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.shortcut-settings-keys button,
+.shortcut-settings-empty {
+  border: 1px solid #c9ccc2;
+  border-radius: 5px;
+  background: #fbfbfa;
+  padding: 4px 7px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+}
+
+.shortcut-settings-empty {
+  color: #686b62;
+}
+
+.shortcut-settings-row small {
+  grid-column: 1 / -1;
+}
+
+.shortcut-settings-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  border-top: 1px solid #d2d4cd;
+  padding: 12px 16px;
+}
+
 .editor-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;

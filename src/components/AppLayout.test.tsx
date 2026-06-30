@@ -1,4 +1,4 @@
-import { fireEvent, render } from "@testing-library/react";
+import { fireEvent, render, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { sampleElements } from "../sampleData";
 import { DEFAULT_CANVAS_VIEWPORT, useCadStore } from "../state/useCadStore";
@@ -24,6 +24,10 @@ const resetStore = () => {
     elementSearchCursorId: null,
     elementSearchPickableOnly: false,
     showShortcutHelp: false,
+    showShortcutSettings: false,
+    shortcutSettings: { version: 1, overrides: [] },
+    shortcutSettingsLoading: false,
+    shortcutSettingsError: null,
     showCommandPalette: false,
     canvasViewport: DEFAULT_CANVAS_VIEWPORT,
     past: [],
@@ -48,6 +52,7 @@ const mockCanvasContext = () => ({
 
 beforeEach(() => {
   resetStore();
+  window.localStorage.clear();
 
   Object.defineProperty(HTMLElement.prototype, "clientWidth", {
     configurable: true,
@@ -107,6 +112,36 @@ describe("AppLayout keyboard handling", () => {
     fireEvent.keyDown(window, { key: "a" });
 
     expect(useCadStore.getState().elements[0].enabled).toBe(false);
+    expect(useCadStore.getState().past).toHaveLength(1);
+  });
+
+  it("uses saved shortcut settings for keyboard dispatch", async () => {
+    window.localStorage.setItem(
+      "nuinuiCAD.shortcutSettings.v1",
+      JSON.stringify({
+        version: 1,
+        overrides: [
+          {
+            bindingId: "normal.toggleSelectedElementVisibility",
+            chords: [{ key: "h", mod: false, alt: false, shift: false }]
+          }
+        ]
+      })
+    );
+    const view = render(<AppLayout />);
+    const viewport = view.container.querySelector(".canvas-viewport");
+    if (!(viewport instanceof HTMLDivElement)) {
+      throw new Error("Missing canvas viewport");
+    }
+
+    await waitFor(() =>
+      expect(useCadStore.getState().shortcutSettings.overrides).toHaveLength(1)
+    );
+
+    viewport.focus();
+    fireEvent.keyDown(window, { key: "h" });
+
+    expect(useCadStore.getState().elements[0].visible).toBe(false);
     expect(useCadStore.getState().past).toHaveLength(1);
   });
 });

@@ -30,9 +30,11 @@ export const ShortcutHelpOverlay = ({
   const selectedElementId = useCadDocumentStore((state) => state.selectedElementId);
   const selectedParameterKey = useCadDocumentStore((state) => state.selectedParameterKey);
   const showShortcutHelp = useCadUiStore((state) => state.showShortcutHelp);
+  const shortcutSettings = useCadUiStore((state) => state.shortcutSettings);
   const setShowShortcutHelp = useCadUiStore((state) => state.setShowShortcutHelp);
   const selectedElement = elements.find((element) => element.id === selectedElementId) ?? null;
   const shortcuts = shortcutHelpItems({
+    settings: shortcutSettings,
     isParameterEditMode,
     isDependencyJumpMode,
     isPickMode,
@@ -74,6 +76,9 @@ export const ShortcutHelpOverlay = ({
           </div>
           <button type="button" onClick={() => dispatchCommand("toggleShortcutHelp")}>
             閉じる
+          </button>
+          <button type="button" onClick={() => dispatchCommand("openShortcutSettings")}>
+            設定
           </button>
         </div>
 
