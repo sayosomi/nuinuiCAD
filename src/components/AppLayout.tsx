@@ -11,6 +11,7 @@ import { DrawingCanvas } from "./DrawingCanvas";
 import { LeftPanel, RightPanel } from "./LeftPanel";
 import { ShortcutHelpOverlay } from "./ShortcutHelpOverlay";
 import { ShortcutSettingsDialog } from "./ShortcutSettingsDialog";
+import { registerTauriMenuCommandListener } from "../commands/tauriMenuEvents";
 
 export const AppLayout = () => {
   const elements = useCadDocumentStore((state) => state.elements);
@@ -58,6 +59,8 @@ export const AppLayout = () => {
   useEffect(() => {
     return registerUnsavedChangesGuard();
   }, []);
+
+  useEffect(() => registerTauriMenuCommandListener(commandContext), [commandContext]);
 
   useEffect(() => {
     let cancelled = false;
