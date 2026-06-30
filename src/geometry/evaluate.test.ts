@@ -118,6 +118,109 @@ describe("evaluateElements", () => {
     expect(result.errors[0].message).toContain("評価OFF");
   });
 
+  it("evaluates only the then branch of a conditional group when condition is non-zero", () => {
+    const result = evaluateElements([
+      {
+        id: "if",
+        name: "寸法分岐",
+        type: "conditionalGroup",
+        visible: true,
+        enabled: true,
+        condition: 1,
+        expanded: true,
+        elseExpanded: true
+      },
+      { ...validElements[0], id: "then-point", name: "then点", parentGroupId: "if", conditionalBranch: "then" },
+      { ...validElements[0], id: "else-point", name: "else点", parentGroupId: "if", conditionalBranch: "else" }
+    ]);
+
+    expect(result.errors).toHaveLength(0);
+    expect(result.computedGeometry.has("then-point")).toBe(true);
+    expect(result.computedGeometry.has("else-point")).toBe(false);
+    expect(result.conditionInactiveElementIds).toEqual(new Set(["else-point"]));
+    expect(result.effectiveEnabledElementIds?.has("then-point")).toBe(true);
+    expect(result.effectiveEnabledElementIds?.has("else-point")).toBe(false);
+  });
+
+  it("evaluates only the else branch of a conditional group when condition is zero", () => {
+    const result = evaluateElements([
+      {
+        id: "if",
+        name: "寸法分岐",
+        type: "conditionalGroup",
+        visible: true,
+        enabled: true,
+        condition: 0,
+        expanded: true,
+        elseExpanded: true
+      },
+      { ...validElements[0], id: "then-point", name: "then点", parentGroupId: "if", conditionalBranch: "then" },
+      { ...validElements[0], id: "else-point", name: "else点", parentGroupId: "if", conditionalBranch: "else" }
+    ]);
+
+    expect(result.errors).toHaveLength(0);
+    expect(result.computedGeometry.has("then-point")).toBe(false);
+    expect(result.computedGeometry.has("else-point")).toBe(true);
+    expect(result.conditionInactiveElementIds).toEqual(new Set(["then-point"]));
+  });
+
+  it("reports references to geometry in an inactive conditional branch", () => {
+    const result = evaluateElements([
+      {
+        id: "if",
+        name: "寸法分岐",
+        type: "conditionalGroup",
+        visible: true,
+        enabled: true,
+        condition: 0,
+        expanded: true,
+        elseExpanded: true
+      },
+      { ...validElements[0], id: "then-point", name: "then点", parentGroupId: "if", conditionalBranch: "then" },
+      {
+        id: "line",
+        name: "参照線",
+        type: "line",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "then-point" },
+        endPoint: { mode: "coordinate", x: 10, y: 10 }
+      }
+    ]);
+
+    expect(result.computedGeometry.has("then-point")).toBe(false);
+    expect(result.errors[0]).toMatchObject({
+      elementId: "line",
+      missingDependencyId: "then-point",
+      missingDependencyName: "then点"
+    });
+    expect(result.errors[0].message).toContain("寸法分岐");
+    expect(result.errors[0].message).toContain("評価OFF");
+  });
+
+  it("marks a conditional group invalid when its condition cannot be evaluated", () => {
+    const result = evaluateElements([
+      {
+        id: "if",
+        name: "寸法分岐",
+        type: "conditionalGroup",
+        visible: true,
+        enabled: true,
+        condition: makeNumericExpression("missing.length"),
+        expanded: true,
+        elseExpanded: true
+      },
+      { ...validElements[0], id: "then-point", name: "then点", parentGroupId: "if", conditionalBranch: "then" }
+    ]);
+
+    expect(result.computedGeometry.has("then-point")).toBe(false);
+    expect(result.errors[0]).toMatchObject({
+      elementId: "if",
+      missingDependencyId: "missing"
+    });
+    expect(result.conditionInactiveElementIds).toEqual(new Set(["then-point"]));
+  });
+
   it("evaluates line anchors from direct coordinate expressions", () => {
     const result = evaluateElements([
       validElements[0],

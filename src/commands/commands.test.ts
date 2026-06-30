@@ -265,6 +265,79 @@ describe("commands", () => {
     expect(ungrouped[2].parentGroupId).toBeUndefined();
   });
 
+  it("adds a conditional group above the evaluation divider", () => {
+    useCadStore.setState({
+      evaluationLimitIndex: 2,
+      selectedElementId: sampleElements[0].id,
+      selectedElementIds: [sampleElements[0].id]
+    });
+
+    dispatchCommand("addConditionalGroup");
+
+    const state = useCadStore.getState();
+    expect(state.elements[2]).toMatchObject({
+      type: "conditionalGroup",
+      condition: 1,
+      expanded: true,
+      elseExpanded: true
+    });
+    expect(state.evaluationLimitIndex).toBe(3);
+    expect(state.selectedElementId).toBe(state.elements[2].id);
+    expect(state.selectedParameterKey).toBe("name");
+  });
+
+  it("wraps selected elements in a conditional group and assigns them to then", () => {
+    useCadStore.setState({
+      selectedElementId: sampleElements[2].id,
+      selectedElementIds: [sampleElements[1].id, sampleElements[2].id],
+      selectionAnchorElementId: sampleElements[1].id
+    });
+
+    dispatchCommand("wrapSelectedElementsInConditionalGroup");
+
+    const state = useCadStore.getState();
+    const group = state.elements[1];
+    expect(group).toMatchObject({ type: "conditionalGroup", condition: 1 });
+    expect(state.elements[2]).toMatchObject({
+      id: sampleElements[1].id,
+      parentGroupId: group.id,
+      conditionalBranch: "then"
+    });
+    expect(state.elements[3]).toMatchObject({
+      id: sampleElements[2].id,
+      parentGroupId: group.id,
+      conditionalBranch: "then"
+    });
+  });
+
+  it("marks selected conditional children as else branch", () => {
+    useCadStore.setState({
+      elements: [
+        sampleElements[0],
+        {
+          id: "if",
+          name: "寸法分岐",
+          type: "conditionalGroup",
+          visible: true,
+          enabled: true,
+          condition: 1,
+          expanded: true,
+          elseExpanded: false
+        },
+        { ...sampleElements[1], parentGroupId: "if", conditionalBranch: "then" }
+      ],
+      selectedElementId: sampleElements[1].id,
+      selectedElementIds: [sampleElements[1].id],
+      selectionAnchorElementId: sampleElements[1].id
+    });
+
+    dispatchCommand("addElseBranchToSelectedConditionalGroup");
+
+    const state = useCadStore.getState();
+    expect(state.elements[1]).toMatchObject({ type: "conditionalGroup", elseExpanded: true });
+    expect(state.elements[2]).toMatchObject({ conditionalBranch: "else" });
+  });
+
   it("moves a selected group together with its children", () => {
     useCadStore.setState({
       elements: [

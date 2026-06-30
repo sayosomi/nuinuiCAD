@@ -41,6 +41,7 @@ pub struct EvaluationPayload {
     pub(crate) evaluation_limit_index: usize,
     pub(crate) effective_visible_element_ids: Vec<ElementId>,
     pub(crate) effective_enabled_element_ids: Vec<ElementId>,
+    pub(crate) condition_inactive_element_ids: Vec<ElementId>,
 }
 
 #[derive(Clone, Debug, Default)]

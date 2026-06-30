@@ -3,6 +3,7 @@ import type { CadElement, CadElementType, ElementId } from "../types/geometry";
 
 const defaultNameBases: Record<CadElementType, string> = {
   group: "グループ",
+  conditionalGroup: "ifブロック",
   variable: "変数",
   freePoint: "点",
   offsetPoint: "オフセット点",

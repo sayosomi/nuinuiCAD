@@ -50,6 +50,7 @@ export const getEvaluationEngineMode = (): EvaluationEngineMode =>
 
 const rustSupportedElementTypes = new Set<CadElement["type"]>([
   "group",
+  "conditionalGroup",
   "variable",
   "freePoint",
   "offsetPoint",

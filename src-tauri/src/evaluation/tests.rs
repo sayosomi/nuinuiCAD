@@ -209,6 +209,103 @@ fn applies_group_visibility_and_enabled_masks() {
 }
 
 #[test]
+fn evaluates_only_active_conditional_branch() {
+    let result = evaluate_document_input(EvaluationInput {
+        elements: vec![
+            element(json!({
+                "id": "if",
+                "name": "寸法分岐",
+                "type": "conditionalGroup",
+                "visible": true,
+                "enabled": true,
+                "condition": 0,
+                "expanded": true,
+                "elseExpanded": true
+            })),
+            element(json!({
+                "id": "then-point",
+                "name": "then点",
+                "type": "freePoint",
+                "parentGroupId": "if",
+                "conditionalBranch": "then",
+                "visible": true,
+                "enabled": true,
+                "x": 0,
+                "y": 0
+            })),
+            element(json!({
+                "id": "else-point",
+                "name": "else点",
+                "type": "freePoint",
+                "parentGroupId": "if",
+                "conditionalBranch": "else",
+                "visible": true,
+                "enabled": true,
+                "x": 10,
+                "y": 0
+            })),
+        ],
+        evaluation_limit_index: None,
+    });
+
+    assert!(result.errors.is_empty());
+    assert!(result
+        .computed_geometry
+        .iter()
+        .all(|geometry| geometry["elementId"] != json!("then-point")));
+    assert!(result
+        .computed_geometry
+        .iter()
+        .any(|geometry| geometry["elementId"] == json!("else-point")));
+    assert_eq!(result.condition_inactive_element_ids, vec!["then-point"]);
+}
+
+#[test]
+fn reports_references_to_inactive_conditional_branch() {
+    let result = evaluate_document_input(EvaluationInput {
+        elements: vec![
+            element(json!({
+                "id": "if",
+                "name": "寸法分岐",
+                "type": "conditionalGroup",
+                "visible": true,
+                "enabled": true,
+                "condition": 0,
+                "expanded": true,
+                "elseExpanded": true
+            })),
+            element(json!({
+                "id": "then-point",
+                "name": "then点",
+                "type": "freePoint",
+                "parentGroupId": "if",
+                "conditionalBranch": "then",
+                "visible": true,
+                "enabled": true,
+                "x": 0,
+                "y": 0
+            })),
+            element(json!({
+                "id": "line",
+                "name": "参照線",
+                "type": "line",
+                "visible": true,
+                "enabled": true,
+                "startPoint": { "mode": "reference", "pointId": "then-point" },
+                "endPoint": { "mode": "coordinate", "x": 10, "y": 10 }
+            })),
+        ],
+        evaluation_limit_index: None,
+    });
+
+    assert!(result.computed_geometry.is_empty());
+    assert_eq!(result.errors[0].element_id, "line");
+    assert_eq!(result.errors[0].missing_dependency_id, "then-point");
+    assert!(result.errors[0].message.contains("寸法分岐"));
+    assert!(result.errors[0].message.contains("評価OFF"));
+}
+
+#[test]
 fn evaluates_division_point_by_distance() {
     let mut elements = base_points();
     elements.push(element(json!({

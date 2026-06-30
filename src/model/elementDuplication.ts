@@ -109,6 +109,11 @@ const remapElementReferences = (source: CadElement, idMap: Map<ElementId, Elemen
   switch (element.type) {
     case "group":
       return element;
+    case "conditionalGroup":
+      return {
+        ...element,
+        condition: remapNumericValue(element.condition, idMap)
+      };
     case "variable":
       return {
         ...element,

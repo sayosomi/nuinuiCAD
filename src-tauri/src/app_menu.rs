@@ -107,6 +107,22 @@ const EDIT_ITEMS: &[MenuSpec] = &[
         "選択要素をグループ化",
         Some("CmdOrCtrl+G"),
     ),
+    cmd("addConditionalGroup", "ifブロックを追加", Some("Alt+I")),
+    cmd(
+        "wrapSelectedElementsInConditionalGroup",
+        "選択範囲をifで囲む",
+        Some("Shift+Alt+I"),
+    ),
+    cmd(
+        "addElseBranchToSelectedConditionalGroup",
+        "else枝を追加",
+        None,
+    ),
+    cmd(
+        "deleteElseBranchFromSelectedConditionalGroup",
+        "else枝を削除",
+        None,
+    ),
     cmd(
         "ungroupSelectedGroup",
         "選択グループを解除",

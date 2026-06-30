@@ -74,6 +74,7 @@ export const useElementListData = ({
 }) => {
   const errorElementIds = new Set(evaluation.errors.map((error) => error.elementId));
   const warningElementIds = new Set(evaluation.warnings.map((warning) => warning.elementId));
+  const conditionInactiveElementIds = evaluation.conditionInactiveElementIds ?? new Set<ElementId>();
   const evaluatedElementIds =
     evaluation.evaluatedElementIds ?? new Set(elements.map((element) => element.id));
   const elementsById = new Map(elements.map((element) => [element.id, element]));
@@ -203,6 +204,7 @@ export const useElementListData = ({
       depth: groupState?.depth ?? 0,
       hiddenByGroup: Boolean(groupState?.hiddenByGroupId),
       disabledByGroup: Boolean(groupState?.disabledByGroupId),
+      conditionInactive: conditionInactiveElementIds.has(element.id),
       isEffectivelyVisible: effectiveVisibleIds.has(element.id),
       isEffectivelyEnabled: effectiveEnabledIds.has(element.id),
       isEvaluated: evaluatedElementIds.has(element.id),

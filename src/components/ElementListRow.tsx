@@ -1,6 +1,7 @@
 import type { CSSProperties, MouseEvent, PointerEvent, Ref } from "react";
 import { Folder, FolderOpen } from "lucide-react";
 import { dispatchCommand } from "../commands/commands";
+import { numericValueExpression } from "../geometry/numericExpressions";
 import type { PickCandidate } from "../model/pickCandidates";
 import {
   numericReferencePropertiesForGeometry,
@@ -34,6 +35,7 @@ type ElementListRowProps = {
   isEvaluated: boolean;
   hiddenByGroup: boolean;
   disabledByGroup: boolean;
+  conditionInactive: boolean;
   hasError: boolean;
   hasWarning: boolean;
   groupIssues: ElementListGroupIssues | null;
@@ -74,6 +76,7 @@ export const ElementListRow = ({
   isEvaluated,
   hiddenByGroup,
   disabledByGroup,
+  conditionInactive,
   hasError,
   hasWarning,
   groupIssues,
@@ -121,6 +124,8 @@ export const ElementListRow = ({
       hiddenByGroup ? "is-hidden-by-group" : ""
     } ${
       disabledByGroup ? "is-disabled-by-group" : ""
+    } ${
+      conditionInactive ? "is-condition-inactive" : ""
     } ${isPointPickMode ? "is-point-pick-mode" : ""} ${
       isPointPickCandidate ? "is-point-pick-candidate" : ""
     } ${
@@ -146,7 +151,9 @@ export const ElementListRow = ({
     } ${isDragging ? "dragging" : ""}${dropBefore ? " drop-before" : ""}${dropAfter ? " drop-after" : ""}`}
     aria-label={`${index + 1}. ${element.name}, ${elementTypeLabels[element.type]}, ${
       element.type === "variable" ? "非描画" : isEffectivelyVisible ? "表示" : "非表示"
-    }, ${isEffectivelyEnabled ? "評価する" : "評価しない"}`}
+    }, ${isEffectivelyEnabled ? "評価する" : "評価しない"}${
+      conditionInactive ? ", 条件OFF" : ""
+    }`}
     onClick={(event) => onSelectElement(element.id, event)}
   >
     <span
@@ -202,12 +209,15 @@ export const ElementListRow = ({
     </span>
     <span className="element-name">
       {hasError || hasWarning ? "⚠ " : ""}
-      {element.name}
+      {element.type === "conditionalGroup"
+        ? `if ${numericValueExpression(element.condition)}`
+        : element.name}
       {isSearchActive && searchParentGroupNames.length ? (
         <small className="group-mask-label">{searchParentGroupNames.join(" / ")}</small>
       ) : null}
       {hiddenByGroup ? <small className="group-mask-label">親で非表示</small> : null}
       {disabledByGroup ? <small className="group-mask-label">親で評価OFF</small> : null}
+      {conditionInactive ? <small className="group-mask-label">条件OFF</small> : null}
       {!isEvaluated ? <small className="group-mask-label">未評価</small> : null}
     </span>
     <span className="element-type">

@@ -6,6 +6,7 @@ export type CadElementBase = {
   visible: boolean;
   enabled: boolean;
   parentGroupId?: ElementId;
+  conditionalBranch?: ConditionalBranch;
   numericVariables?: NumericVariable[];
   numericParameterSteps?: Partial<Record<string, number>>;
 };
@@ -16,6 +17,8 @@ export type NumericExpression = {
 };
 
 export type NumericValue = number | NumericExpression;
+
+export type ConditionalBranch = "then" | "else";
 
 export type NumericVariable = {
   id: string;
@@ -238,8 +241,16 @@ export type GroupElement = CadElementBase & {
   expanded: boolean;
 };
 
+export type ConditionalGroupElement = CadElementBase & {
+  type: "conditionalGroup";
+  condition: NumericValue;
+  expanded: boolean;
+  elseExpanded: boolean;
+};
+
 export type CadElement =
   | GroupElement
+  | ConditionalGroupElement
   | VariableElement
   | FreePointElement
   | OffsetPointElement
@@ -407,10 +418,12 @@ export type EvaluationResult = {
   evaluationLimitIndex?: number;
   effectiveVisibleElementIds?: Set<ElementId>;
   effectiveEnabledElementIds?: Set<ElementId>;
+  conditionInactiveElementIds?: Set<ElementId>;
 };
 
 export const elementTypeLabels: Record<CadElementType, string> = {
   group: "グループ",
+  conditionalGroup: "ifブロック",
   variable: "変数",
   freePoint: "free point",
   offsetPoint: "offset point",
@@ -436,6 +449,7 @@ export const elementTypeLabels: Record<CadElementType, string> = {
 
 export const elementTypeCategories: Record<CadElementType, CadElementCategory> = {
   group: "group",
+  conditionalGroup: "group",
   variable: "modification",
   freePoint: "point",
   offsetPoint: "point",

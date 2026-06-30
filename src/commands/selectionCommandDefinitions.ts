@@ -9,6 +9,12 @@ import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { moveBezierHandleByDelta, movePointElementByDelta } from "./geometryEditCommands";
 import { getSelectedElementIds } from "./commandRuntime";
 import {
+  addConditionalGroup,
+  addElseBranchToSelectedConditionalGroup,
+  deleteElseBranchFromSelectedConditionalGroup,
+  wrapSelectedElementsInConditionalGroup
+} from "./conditionalGroupCommands";
+import {
   extendSelectionByOffset,
   groupSelectedElements,
   indentSelectedElements,
@@ -141,6 +147,32 @@ export const selectionCommandDefinitions = {
     palette: { order: 34, keywords: ["group", "folder", "グループ", "まとめる"] },
     shortcuts: [{ keys: "Mod+G" }],
     run: () => groupSelectedElements()
+  },
+  addConditionalGroup: {
+    id: "addConditionalGroup",
+    label: "ifブロックを追加",
+    palette: { order: 34.2, keywords: ["if", "condition", "conditional", "条件", "分岐", "追加"] },
+    shortcuts: [{ keys: "Alt+I" }],
+    run: () => addConditionalGroup()
+  },
+  wrapSelectedElementsInConditionalGroup: {
+    id: "wrapSelectedElementsInConditionalGroup",
+    label: "選択範囲をifで囲む",
+    palette: { order: 34.4, keywords: ["if", "wrap", "condition", "条件", "分岐", "囲む"] },
+    shortcuts: [{ keys: "Shift+Alt+I" }],
+    run: () => wrapSelectedElementsInConditionalGroup()
+  },
+  addElseBranchToSelectedConditionalGroup: {
+    id: "addElseBranchToSelectedConditionalGroup",
+    label: "else枝を追加",
+    palette: { order: 34.6, keywords: ["else", "if", "branch", "条件", "分岐", "追加"] },
+    run: () => addElseBranchToSelectedConditionalGroup()
+  },
+  deleteElseBranchFromSelectedConditionalGroup: {
+    id: "deleteElseBranchFromSelectedConditionalGroup",
+    label: "else枝を削除",
+    palette: { order: 34.8, keywords: ["else", "if", "branch", "条件", "分岐", "削除"] },
+    run: () => deleteElseBranchFromSelectedConditionalGroup()
   },
   ungroupSelectedGroup: {
     id: "ungroupSelectedGroup",

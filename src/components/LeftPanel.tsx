@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { KeyboardEvent, MouseEvent, PointerEvent, RefObject } from "react";
+import type { CSSProperties, KeyboardEvent, MouseEvent, PointerEvent, RefObject } from "react";
 import { Search, X } from "lucide-react";
 import { dispatchCommand } from "../commands/commands";
 import { fileNameFromPath } from "../document/documentFormat";
@@ -7,6 +7,7 @@ import {
   isPointElement,
   referenceAnchor
 } from "../model/pointAnchors";
+import { isConditionalGroupElement } from "../model/groups";
 import {
   numericReferencePropertiesForGeometry,
   type NumericReferenceGeometry
@@ -126,6 +127,19 @@ const EvaluationDividerRow = ({
     >
       ↓
     </button>
+  </div>
+);
+
+const ElseDividerRow = ({ depth }: { depth: number }) => (
+  <div className="element-else-row">
+    <span
+      className="element-outline-indent"
+      style={{ "--outline-depth": Math.max(depth, 0) } as CSSProperties}
+      aria-hidden="true"
+    />
+    <span className="element-expand-spacer" aria-hidden="true" />
+    <span className="element-index" aria-hidden="true" />
+    <span className="element-else-label">else</span>
   </div>
 );
 
@@ -545,8 +559,19 @@ export const LeftPanel = ({
           data-element-list="true"
           aria-label="要素リスト"
         >
-          {displayedElements.flatMap((element) => {
+          {displayedElements.flatMap((element, displayIndex) => {
             const rowData = getRowData(element);
+            const parent = element.parentGroupId
+              ? elements.find((item) => item.id === element.parentGroupId)
+              : null;
+            const insertElseDivider =
+              !isSearchActive &&
+              element.conditionalBranch === "else" &&
+              parent &&
+              isConditionalGroupElement(parent) &&
+              !displayedElements
+                .slice(0, displayIndex)
+                .some((item) => item.parentGroupId === parent.id && item.conditionalBranch === "else");
             const dividerBeforeRow =
               !isSearchActive &&
               rowData.index >= evaluationLimitIndex &&
@@ -571,6 +596,9 @@ export const LeftPanel = ({
                 />
               );
             }
+            if (insertElseDivider) {
+              rows.push(<ElseDividerRow key={`${parent.id}:else`} depth={rowData.depth} />);
+            }
             rows.push(
               <ElementListRow
                 key={element.id}
@@ -591,6 +619,7 @@ export const LeftPanel = ({
                 isEvaluated={rowData.isEvaluated}
                 hiddenByGroup={rowData.hiddenByGroup}
                 disabledByGroup={rowData.disabledByGroup}
+                conditionInactive={rowData.conditionInactive}
                 hasError={rowData.hasError}
                 hasWarning={rowData.hasWarning}
                 groupIssues={rowData.groupIssues}

@@ -1,7 +1,13 @@
-import type { CadElement, ElementId, GroupElement } from "../types/geometry";
+import type { CadElement, ConditionalGroupElement, ElementId, GroupElement } from "../types/geometry";
 
-export const isGroupElement = (element: CadElement): element is GroupElement =>
-  element.type === "group";
+export type GroupLikeElement = GroupElement | ConditionalGroupElement;
+
+export const isGroupElement = (element: CadElement): element is GroupLikeElement =>
+  element.type === "group" || element.type === "conditionalGroup";
+
+export const isConditionalGroupElement = (
+  element: CadElement
+): element is ConditionalGroupElement => element.type === "conditionalGroup";
 
 export type ElementGroupState = {
   depth: number;
@@ -48,12 +54,18 @@ export const groupStateByElementId = (elements: CadElement[]) => {
     const parentState = stateFor(parent, visiting);
     visiting.delete(element.id);
 
+    const collapsedByParent =
+      parentState.isCollapsedByGroup ||
+      !parent.expanded ||
+      (isConditionalGroupElement(parent) &&
+        element.conditionalBranch === "else" &&
+        !parent.elseExpanded);
     const state: ElementGroupState = {
       depth: parentState.depth + 1,
       ancestorGroupIds: [...parentState.ancestorGroupIds, parent.id],
       hiddenByGroupId: parentState.hiddenByGroupId ?? (!parent.visible ? parent.id : null),
       disabledByGroupId: parentState.disabledByGroupId ?? (!parent.enabled ? parent.id : null),
-      isCollapsedByGroup: parentState.isCollapsedByGroup || !parent.expanded
+      isCollapsedByGroup: collapsedByParent
     };
     cache.set(element.id, state);
     return state;
@@ -129,7 +141,7 @@ export const effectiveEnabledElementIds = (elements: CadElement[]) => {
 export const nearestPreviousGroup = (
   elements: CadElement[],
   elementId: ElementId
-): GroupElement | null => {
+): GroupLikeElement | null => {
   const index = elements.findIndex((element) => element.id === elementId);
   if (index <= 0) return null;
   const element = elements[index];

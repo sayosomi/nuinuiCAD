@@ -61,6 +61,20 @@ export const createCadElement = (
         expanded: true
       };
     }
+    case "conditionalGroup": {
+      const conditionalCount = elements.filter((element) => element.type === "conditionalGroup").length;
+      const id = createId(type);
+      return {
+        id,
+        name: uniqueName(id, `ifブロック${conditionalCount + 1}`),
+        type,
+        visible: true,
+        enabled: true,
+        condition: 1,
+        expanded: true,
+        elseExpanded: true
+      };
+    }
     case "variable": {
       const variableCount = elements.filter((element) => element.type === "variable").length;
       const id = createId(type);

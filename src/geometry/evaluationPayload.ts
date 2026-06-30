@@ -16,6 +16,7 @@ export type EvaluationPayload = {
   evaluationLimitIndex: number;
   effectiveVisibleElementIds: ElementId[];
   effectiveEnabledElementIds: ElementId[];
+  conditionInactiveElementIds?: ElementId[];
 };
 
 export const evaluationResultToPayload = (result: EvaluationResult): EvaluationPayload => ({
@@ -26,7 +27,8 @@ export const evaluationResultToPayload = (result: EvaluationResult): EvaluationP
   evaluatedElementIds: Array.from(result.evaluatedElementIds ?? []),
   evaluationLimitIndex: result.evaluationLimitIndex ?? result.evaluatedElementIds?.size ?? 0,
   effectiveVisibleElementIds: Array.from(result.effectiveVisibleElementIds ?? []),
-  effectiveEnabledElementIds: Array.from(result.effectiveEnabledElementIds ?? [])
+  effectiveEnabledElementIds: Array.from(result.effectiveEnabledElementIds ?? []),
+  conditionInactiveElementIds: Array.from(result.conditionInactiveElementIds ?? [])
 });
 
 export const evaluationPayloadToResult = (payload: EvaluationPayload): EvaluationResult => ({
@@ -37,5 +39,6 @@ export const evaluationPayloadToResult = (payload: EvaluationPayload): Evaluatio
   evaluatedElementIds: new Set(payload.evaluatedElementIds),
   evaluationLimitIndex: payload.evaluationLimitIndex,
   effectiveVisibleElementIds: new Set(payload.effectiveVisibleElementIds),
-  effectiveEnabledElementIds: new Set(payload.effectiveEnabledElementIds)
+  effectiveEnabledElementIds: new Set(payload.effectiveEnabledElementIds),
+  conditionInactiveElementIds: new Set(payload.conditionInactiveElementIds ?? [])
 });

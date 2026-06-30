@@ -12,6 +12,7 @@ import {
 } from "../model/evaluationDivider";
 import {
   descendantIdsForGroup,
+  isConditionalGroupElement,
   isGroupElement,
   nearestPreviousGroup,
   subtreeIdsForElement,
@@ -144,7 +145,34 @@ export const moveElementsToInsertionIndex = (elementIds: ElementId[], insertionI
   });
   if (!change) return;
 
-  useCadDocumentStore.getState().commitDocumentChange(change);
+  const movingRootIds = new Set(elementIds);
+  const movingIndexes = change.elements
+    .map((element, index) => (expandedElementIds.includes(element.id) ? index : -1))
+    .filter((index) => index >= 0);
+  const firstMovingIndex = movingIndexes[0] ?? -1;
+  const lastMovingIndex = movingIndexes.at(-1) ?? -1;
+  const elementsById = new Map(change.elements.map((element) => [element.id, element]));
+  const branchContext = [change.elements[firstMovingIndex - 1], change.elements[lastMovingIndex + 1]]
+    .flatMap((neighbor) => {
+      if (!neighbor?.parentGroupId) return [];
+      const parent = elementsById.get(neighbor.parentGroupId);
+      return parent && isConditionalGroupElement(parent)
+        ? [{ parentId: parent.id, branch: neighbor.conditionalBranch ?? ("then" as const) }]
+        : [];
+    })[0];
+  const movingRoots = change.elements.filter((element) => movingRootIds.has(element.id));
+  const nextElements =
+    branchContext &&
+    movingRoots.length > 0 &&
+    movingRoots.every((element) => element.parentGroupId === branchContext.parentId)
+      ? change.elements.map((element) =>
+          movingRootIds.has(element.id)
+            ? { ...element, conditionalBranch: branchContext.branch }
+            : element
+        )
+      : change.elements;
+
+  useCadDocumentStore.getState().commitDocumentChange({ ...change, elements: nextElements });
 };
 
 export const moveElementToInsertionIndex = (elementId: ElementId, insertionIndex: number) => {
@@ -240,7 +268,7 @@ export const groupSelectedElements = () => {
 
 export const ungroupSelectedGroup = () => {
   const selectedElement = getSelectedElement();
-  if (!selectedElement || !isGroupElement(selectedElement)) return;
+  if (!selectedElement || selectedElement.type !== "group") return;
 
   const { elements, evaluationLimitIndex } = useCadDocumentStore.getState();
   const childIds = new Set(descendantIdsForGroup(elements, selectedElement.id));

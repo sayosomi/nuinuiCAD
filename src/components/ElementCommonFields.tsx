@@ -75,6 +75,30 @@ export const ElementCommonFields = ({
           checked={element.expanded}
         />
       )}
+      {element.type === "conditionalGroup" && (
+        <>
+          <NumericParameterEditor
+            {...commonEditorProps}
+            parameterKey="condition"
+            label="条件"
+            value={element.condition}
+            ariaLabel={`${element.name} の条件`}
+            enableExpressionInsert
+          />
+          <BooleanParameterEditor
+            {...elementEditorProps}
+            parameterKey="expanded"
+            label="thenを展開する"
+            checked={element.expanded}
+          />
+          <BooleanParameterEditor
+            {...elementEditorProps}
+            parameterKey="elseExpanded"
+            label="elseを展開する"
+            checked={element.elseExpanded}
+          />
+        </>
+      )}
 
       {supportsNumericVariables(element) && (
         <div className="curve-point-editor">

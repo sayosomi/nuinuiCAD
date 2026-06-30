@@ -76,6 +76,13 @@ export const getParameterDefinitions = (element: CadElement): ParameterDefinitio
         ...commonParameters,
         { key: "expanded", directKey: "x", label: "展開", kind: "boolean" }
       ];
+    case "conditionalGroup":
+      return [
+        ...commonParameters,
+        { key: "condition", directKey: "i", label: "条件", kind: "number" },
+        { key: "expanded", directKey: "x", label: "then展開", kind: "boolean" },
+        { key: "elseExpanded", directKey: "e", label: "else展開", kind: "boolean" }
+      ];
     case "variable":
       return [
         ...variableCommonParameters,

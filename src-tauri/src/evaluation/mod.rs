@@ -71,6 +71,7 @@ use line_division_point_evaluator::evaluate_line_division_point;
 use line_evaluators::{evaluate_arc_line, evaluate_line, evaluate_three_point_arc_line};
 use line_tangent_offset_point_evaluator::evaluate_line_tangent_offset_point;
 use local_variables::evaluate_local_variables;
+use numeric_expression::evaluate_numeric_or_push;
 use offset_line_evaluator::evaluate_offset_line;
 use point_evaluators::{
     evaluate_division_point, evaluate_free_point, evaluate_offset_point,
@@ -99,16 +100,10 @@ fn evaluate_document_input(input: EvaluationInput) -> EvaluationPayload {
         .into_iter()
         .filter(|id| evaluated_ids.contains(id))
         .collect::<Vec<_>>();
-    let effective_enabled_ids = effective_element_ids(&input.elements, &group_states, false)
+    let base_effective_enabled_ids = effective_element_ids(&input.elements, &group_states, false)
         .into_iter()
         .filter(|id| evaluated_ids.contains(id))
         .collect::<HashSet<_>>();
-    let effective_enabled_element_ids = input
-        .elements
-        .iter()
-        .filter_map(element_id)
-        .filter(|id| effective_enabled_ids.contains(id) && evaluated_ids.contains(id))
-        .collect::<Vec<_>>();
 
     let mut state = EvaluationState {
         elements_by_id: input
@@ -126,6 +121,48 @@ fn evaluate_document_input(input: EvaluationInput) -> EvaluationPayload {
         errors: Vec::new(),
         warnings: Vec::new(),
     };
+    let mut conditional_group_states = HashMap::<ElementId, Option<&'static str>>::new();
+    let mut condition_inactive_ids = HashSet::<ElementId>::new();
+    let mut effective_enabled_ids = HashSet::<ElementId>::new();
+
+    let inactive_conditional_group_id =
+        |element: &serde_json::Value,
+         state: &EvaluationState,
+         conditional_group_states: &HashMap<ElementId, Option<&'static str>>|
+         -> Option<ElementId> {
+            let mut child = element;
+            let mut parent_id = child
+                .get("parentGroupId")
+                .and_then(serde_json::Value::as_str)
+                .map(ToOwned::to_owned);
+            let mut visited = HashSet::<ElementId>::new();
+            while let Some(current_parent_id) = parent_id {
+                if !visited.insert(current_parent_id.clone()) {
+                    return None;
+                }
+                let parent_index = state.elements_by_id.get(&current_parent_id).copied()?;
+                let parent = state.elements.get(parent_index)?;
+                if element_type(parent) == Some("conditionalGroup") {
+                    let active_branch = conditional_group_states
+                        .get(&current_parent_id)
+                        .copied()
+                        .flatten();
+                    let branch = child
+                        .get("conditionalBranch")
+                        .and_then(serde_json::Value::as_str)
+                        .unwrap_or("then");
+                    if active_branch != Some(branch) {
+                        return Some(current_parent_id);
+                    }
+                }
+                child = parent;
+                parent_id = child
+                    .get("parentGroupId")
+                    .and_then(serde_json::Value::as_str)
+                    .map(ToOwned::to_owned);
+            }
+            None
+        };
 
     for index in 0..evaluation_limit_index {
         let element = state.elements[index].clone();
@@ -133,15 +170,43 @@ fn evaluate_document_input(input: EvaluationInput) -> EvaluationPayload {
             Some(id) => id,
             None => continue,
         };
-        if element_type(&element) == Some("group") || !effective_enabled_ids.contains(&id) {
+        if let Some(condition_group_id) =
+            inactive_conditional_group_id(&element, &state, &conditional_group_states)
+        {
+            condition_inactive_ids.insert(id.clone());
+            state
+                .group_states
+                .entry(id)
+                .or_default()
+                .disabled_by_group_id = Some(condition_group_id);
             continue;
         }
+        if !base_effective_enabled_ids.contains(&id) {
+            continue;
+        }
+        effective_enabled_ids.insert(id.clone());
 
         let Some(local_variables) = evaluate_local_variables(index, &mut state) else {
             continue;
         };
 
         match element_type(&element) {
+            Some("conditionalGroup") => {
+                let condition = element
+                    .get("condition")
+                    .unwrap_or(&serde_json::Value::Null)
+                    .clone();
+                let active_branch = evaluate_numeric_or_push(
+                    &condition,
+                    &mut state,
+                    &element,
+                    &local_variables.0,
+                    &local_variables.1,
+                )
+                .map(|value| if value == 0.0 { "else" } else { "then" });
+                conditional_group_states.insert(id, active_branch);
+            }
+            Some("group") => {}
             Some("variable") => evaluate_variable_element(&element, &local_variables, &mut state),
             Some("freePoint") => evaluate_free_point(&element, &local_variables, &mut state),
             Some("offsetPoint") => evaluate_offset_point(&element, &local_variables, &mut state),
@@ -201,6 +266,17 @@ fn evaluate_document_input(input: EvaluationInput) -> EvaluationPayload {
         evaluated_element_ids: evaluated_elements.iter().filter_map(element_id).collect(),
         evaluation_limit_index,
         effective_visible_element_ids,
-        effective_enabled_element_ids,
+        effective_enabled_element_ids: state
+            .elements
+            .iter()
+            .filter_map(element_id)
+            .filter(|id| effective_enabled_ids.contains(id) && evaluated_ids.contains(id))
+            .collect(),
+        condition_inactive_element_ids: state
+            .elements
+            .iter()
+            .filter_map(element_id)
+            .filter(|id| condition_inactive_ids.contains(id))
+            .collect(),
     }
 }

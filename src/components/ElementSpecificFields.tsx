@@ -30,6 +30,7 @@ export const ElementSpecificFields = (props: CommonEditorProps) => {
     case "bezierCurve":
       return <CurveElementFields {...props} />;
     case "group":
+    case "conditionalGroup":
       return null;
     case "variable":
       return <VariableElementFields {...props} />;

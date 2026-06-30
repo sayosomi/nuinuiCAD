@@ -61,6 +61,8 @@ const defaultBindings: ShortcutBinding[] = [
   binding("modeInvariant", "toggleElementInfoPanel", [ch("i")]),
   binding("modeInvariant", "toggleShortcutHelp", [ch("?", { shift: "any" })]),
   binding("normal", "groupSelectedElements", [ch("g", { mod: true })]),
+  binding("normal", "addConditionalGroup", [ch("i", { alt: true })]),
+  binding("normal", "wrapSelectedElementsInConditionalGroup", [ch("i", { alt: true, shift: true })]),
   binding("normal", "ungroupSelectedGroup", [ch("g", { mod: true, shift: true })]),
   binding(
     "normal",
