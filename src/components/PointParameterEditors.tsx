@@ -39,7 +39,9 @@ export const PointAnchorParameterEditor = ({
   const commandContext = { elementId: element.id, parameterKey };
 
   return (
-    <div className={`point-anchor-editor ${isPickingThisPoint ? "is-picking-point" : ""}`}>
+    <div className={`point-anchor-editor ${parameterFieldClass(parameterKey)} ${
+      isPickingThisPoint ? "is-picking-point" : ""
+    }`}>
       <div className="point-anchor-header">
         <ParameterName element={element} parameterKey={parameterKey} label={label} />
         <div className="point-anchor-actions">
@@ -93,7 +95,7 @@ export const PointAnchorParameterEditor = ({
       {anchor.mode !== "coordinate" ? (
         <button
           type="button"
-          className={`${parameterFieldClass(parameterKey)} point-anchor-reference`}
+          className="point-anchor-reference"
           onClick={() => selectParameter(parameterKey)}
         >
           <span className="reference-label">参照点</span>
@@ -147,7 +149,9 @@ export const LineEndpointReferenceEditor = ({
     activePointPickTarget.parameterKey === parameterKey;
 
   return (
-    <div className={`point-anchor-editor ${isPickingThisEndpoint ? "is-picking-point" : ""}`}>
+    <div className={`point-anchor-editor ${parameterFieldClass(parameterKey)} ${
+      isPickingThisEndpoint ? "is-picking-point" : ""
+    }`}>
       <div className="point-anchor-header">
         <ParameterName element={element} parameterKey={parameterKey} label={label} />
         <button
@@ -171,7 +175,7 @@ export const LineEndpointReferenceEditor = ({
       <button
         {...controlProps(parameterKey)}
         type="button"
-        className={`${parameterFieldClass(parameterKey)} point-anchor-reference`}
+        className="point-anchor-reference"
         onClick={() => selectParameter(parameterKey)}
       >
         <span className="reference-label">参照端点</span>

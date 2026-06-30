@@ -63,14 +63,18 @@ const resetStore = () => {
 
 const renderRightPanel = (
   evaluation = emptyEvaluation,
-  engineState?: EvaluationEngineState
+  engineState?: EvaluationEngineState,
+  options: {
+    isParameterEditMode?: boolean;
+    isDependencyJumpMode?: boolean;
+  } = {}
 ) =>
   render(
     <RightPanel
       evaluation={evaluation}
       evaluationState={engineState}
-      isParameterEditMode={false}
-      isDependencyJumpMode={false}
+      isParameterEditMode={options.isParameterEditMode ?? false}
+      isDependencyJumpMode={options.isDependencyJumpMode ?? false}
       registerParameterControl={() => undefined}
     />
   );
@@ -237,6 +241,54 @@ describe("LeftPanel numeric input dragging", () => {
     renderRightPanel();
 
     expect(screen.getByText("要素内変数")).toBeInTheDocument();
+  });
+
+  it("scrolls the selected right-panel parameter into view while parameter edit mode moves", () => {
+    const scrollIntoView = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: scrollIntoView
+    });
+    const animationFrames = mockAnimationFrames();
+    renderRightPanel(emptyEvaluation, undefined, { isParameterEditMode: true });
+    animationFrames.runNextFrame();
+    scrollIntoView.mockClear();
+
+    act(() => {
+      useCadStore.setState({ selectedParameterKey: "y" });
+    });
+    animationFrames.runNextFrame();
+
+    expect(scrollIntoView).toHaveBeenCalledWith({
+      block: "nearest",
+      inline: "nearest"
+    });
+    expect(document.querySelector(".right-panel .selected-parameter")).toContainElement(
+      screen.getByLabelText("y 値")
+    );
+  });
+
+  it("marks a coordinate point-anchor parent parameter as selected", () => {
+    const lineWithCoordinateStart: CadElement = {
+      ...(sampleElements[3] as Extract<CadElement, { type: "line" }>),
+      startPoint: { mode: "coordinate", x: 10, y: -20 }
+    };
+    useCadStore.setState({
+      elements: [
+        ...sampleElements.slice(0, 3),
+        lineWithCoordinateStart,
+        ...sampleElements.slice(4)
+      ],
+      selectedElementId: "line-ab",
+      selectedElementIds: ["line-ab"],
+      selectedParameterKey: "startPoint"
+    });
+
+    renderRightPanel(emptyEvaluation, undefined, { isParameterEditMode: true });
+
+    expect(
+      document.querySelector(".right-panel .point-anchor-editor.selected-parameter")
+    ).toBeInTheDocument();
   });
 
   it("keeps a blank numeric parameter input while focused and commits zero on blur", () => {

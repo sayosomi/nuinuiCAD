@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { dispatchCommand } from "../commands/commands";
 import type { EvaluationEngineState } from "../geometry/useEvaluationEngine";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
@@ -33,8 +34,10 @@ export const RightPanel = ({
   isDependencyJumpMode,
   registerParameterControl
 }: RightPanelProps) => {
+  const rightPanelRef = useRef<HTMLElement | null>(null);
   const elements = useCadDocumentStore((state) => state.elements);
   const selectedElementId = useCadDocumentStore((state) => state.selectedElementId);
+  const selectedParameterKey = useCadDocumentStore((state) => state.selectedParameterKey);
   const selectedDependencyJumpIndex = useCadUiStore((state) => state.selectedDependencyJumpIndex);
   const selectedElement = elements.find((element) => element.id === selectedElementId) ?? null;
   const shortcutHint = isParameterEditMode || isDependencyJumpMode
@@ -44,8 +47,25 @@ export const RightPanel = ({
     ? evaluationEngineLabel(evaluationState)
     : null;
 
+  useEffect(() => {
+    if (!isParameterEditMode || !selectedElementId || !selectedParameterKey) return undefined;
+
+    const animationFrameId = requestAnimationFrame(() => {
+      const selectedParameter = rightPanelRef.current?.querySelector<HTMLElement>(
+        ".selected-parameter"
+      );
+      if (!selectedParameter?.scrollIntoView) return;
+      selectedParameter.scrollIntoView({
+        block: "nearest",
+        inline: "nearest"
+      });
+    });
+
+    return () => cancelAnimationFrame(animationFrameId);
+  }, [isParameterEditMode, selectedElementId, selectedParameterKey]);
+
   return (
-    <aside className="right-panel">
+    <aside className="right-panel" ref={rightPanelRef}>
       {selectedElement ? (
         <ElementEditor
           element={selectedElement}
