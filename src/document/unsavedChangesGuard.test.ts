@@ -25,11 +25,19 @@ vi.mock("@tauri-apps/api/window", () => ({
 }));
 
 const dialogMock = vi.hoisted(() => ({
-  confirm: vi.fn(async () => true)
+  message: vi.fn(async () => "保存しないで閉じる")
 }));
 
 vi.mock("@tauri-apps/plugin-dialog", () => ({
-  confirm: dialogMock.confirm
+  message: dialogMock.message
+}));
+
+const documentFileMock = vi.hoisted(() => ({
+  saveDocument: vi.fn(async () => undefined)
+}));
+
+vi.mock("./documentFile", () => ({
+  saveDocument: documentFileMock.saveDocument
 }));
 
 const setTauriRuntime = () => {
@@ -72,8 +80,10 @@ describe("unsaved changes guard", () => {
         return windowMock.unlisten;
       }
     );
-    dialogMock.confirm.mockReset();
-    dialogMock.confirm.mockResolvedValue(true);
+    dialogMock.message.mockReset();
+    dialogMock.message.mockResolvedValue("保存しないで閉じる");
+    documentFileMock.saveDocument.mockReset();
+    documentFileMock.saveDocument.mockResolvedValue(undefined);
   });
 
   it("does not block reload when the document is clean", () => {
@@ -108,9 +118,9 @@ describe("unsaved changes guard", () => {
     expect(remove).toHaveBeenCalledWith("beforeunload", handleBeforeUnloadWithUnsavedChanges);
   });
 
-  it("destroys the native window when the dirty document discard is confirmed", async () => {
+  it("prevents native close and destroys the window when closing without saving is selected", async () => {
     setTauriRuntime();
-    dialogMock.confirm.mockResolvedValue(true);
+    dialogMock.message.mockResolvedValue("保存しないで閉じる");
     useCadDocumentStore.getState().commitDocumentChange({ evaluationLimitIndex: 1 });
 
     const cleanup = registerUnsavedChangesGuard();
@@ -120,20 +130,27 @@ describe("unsaved changes guard", () => {
 
     expect(windowMock.onCloseRequested).toHaveBeenCalled();
     expect(preventDefault).toHaveBeenCalled();
-    expect(dialogMock.confirm).toHaveBeenCalledWith("未保存の変更を破棄して閉じますか？", {
+    expect(dialogMock.message).toHaveBeenCalledWith("未保存の変更があります。閉じる前に保存しますか？", {
       title: "nuinuiCAD",
       kind: "warning",
-      okLabel: "破棄して閉じる",
-      cancelLabel: "キャンセル"
+      buttons: {
+        yes: "保存して閉じる",
+        no: "保存しないで閉じる",
+        cancel: "キャンセル"
+      }
     });
+    expect(documentFileMock.saveDocument).not.toHaveBeenCalled();
     expect(windowMock.destroy).toHaveBeenCalled();
     cleanup();
     expect(windowMock.unlisten).toHaveBeenCalled();
   });
 
-  it("prevents native close without destroying when the dirty document discard is declined", async () => {
+  it("saves then destroys the window when save and close is selected", async () => {
     setTauriRuntime();
-    dialogMock.confirm.mockResolvedValue(false);
+    dialogMock.message.mockResolvedValue("保存して閉じる");
+    documentFileMock.saveDocument.mockImplementation(async () => {
+      useCadDocumentStore.getState().markDocumentSaved("/tmp/pattern.nuinui.json");
+    });
     useCadDocumentStore.getState().commitDocumentChange({ evaluationLimitIndex: 1 });
 
     const cleanup = registerUnsavedChangesGuard();
@@ -142,7 +159,58 @@ describe("unsaved changes guard", () => {
     await windowMock.closeHandler?.({ preventDefault });
 
     expect(preventDefault).toHaveBeenCalled();
-    expect(dialogMock.confirm).toHaveBeenCalled();
+    expect(documentFileMock.saveDocument).toHaveBeenCalled();
+    expect(windowMock.destroy).toHaveBeenCalled();
+    cleanup();
+  });
+
+  it("does not destroy the window when save and close is selected but saving is canceled", async () => {
+    setTauriRuntime();
+    dialogMock.message.mockResolvedValue("保存して閉じる");
+    useCadDocumentStore.getState().commitDocumentChange({ evaluationLimitIndex: 1 });
+
+    const cleanup = registerUnsavedChangesGuard();
+    await flushPromises();
+    const preventDefault = vi.fn();
+    await windowMock.closeHandler?.({ preventDefault });
+
+    expect(preventDefault).toHaveBeenCalled();
+    expect(documentFileMock.saveDocument).toHaveBeenCalled();
+    expect(windowMock.destroy).not.toHaveBeenCalled();
+    cleanup();
+  });
+
+  it("does not destroy the window when save before close fails", async () => {
+    setTauriRuntime();
+    const error = new Error("write failed");
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    dialogMock.message.mockResolvedValue("保存して閉じる");
+    documentFileMock.saveDocument.mockRejectedValue(error);
+    useCadDocumentStore.getState().commitDocumentChange({ evaluationLimitIndex: 1 });
+
+    const cleanup = registerUnsavedChangesGuard();
+    await flushPromises();
+    const preventDefault = vi.fn();
+    await windowMock.closeHandler?.({ preventDefault });
+
+    expect(consoleError).toHaveBeenCalledWith("Failed to save document before closing.", error);
+    expect(windowMock.destroy).not.toHaveBeenCalled();
+    cleanup();
+  });
+
+  it("prevents native close without destroying when cancel is selected", async () => {
+    setTauriRuntime();
+    dialogMock.message.mockResolvedValue("キャンセル");
+    useCadDocumentStore.getState().commitDocumentChange({ evaluationLimitIndex: 1 });
+
+    const cleanup = registerUnsavedChangesGuard();
+    await flushPromises();
+    const preventDefault = vi.fn();
+    await windowMock.closeHandler?.({ preventDefault });
+
+    expect(preventDefault).toHaveBeenCalled();
+    expect(dialogMock.message).toHaveBeenCalled();
+    expect(documentFileMock.saveDocument).not.toHaveBeenCalled();
     expect(windowMock.destroy).not.toHaveBeenCalled();
     cleanup();
   });
@@ -155,7 +223,7 @@ describe("unsaved changes guard", () => {
     const preventDefault = vi.fn();
     await windowMock.closeHandler?.({ preventDefault });
 
-    expect(dialogMock.confirm).not.toHaveBeenCalled();
+    expect(dialogMock.message).not.toHaveBeenCalled();
     expect(preventDefault).not.toHaveBeenCalled();
     expect(windowMock.destroy).not.toHaveBeenCalled();
     cleanup();

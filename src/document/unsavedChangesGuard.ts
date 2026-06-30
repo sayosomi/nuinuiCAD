@@ -1,5 +1,13 @@
 import { isTauriRuntime } from "../geometry/evaluationEngine";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
+import { saveDocument } from "./documentFile";
+
+const CLOSE_DIALOG_SAVE = "保存して閉じる";
+const CLOSE_DIALOG_DISCARD = "保存しないで閉じる";
+const CLOSE_DIALOG_CANCEL = "キャンセル";
+
+const shouldSaveAndClose = (choice: string) => choice === CLOSE_DIALOG_SAVE || choice === "Yes";
+const shouldDiscardAndClose = (choice: string) => choice === CLOSE_DIALOG_DISCARD || choice === "No";
 
 export const handleBeforeUnloadWithUnsavedChanges = (event: BeforeUnloadEvent) => {
   if (!useCadDocumentStore.getState().dirtySinceSave) return;
@@ -19,21 +27,37 @@ export const registerUnsavedChangesGuard = () => {
     void import("@tauri-apps/api/window")
       .then(async ({ getCurrentWindow }) => {
         const currentWindow = getCurrentWindow();
-        const { confirm } = await import("@tauri-apps/plugin-dialog");
+        const { message } = await import("@tauri-apps/plugin-dialog");
 
         return currentWindow.onCloseRequested(async (event) => {
           if (!useCadDocumentStore.getState().dirtySinceSave) return;
 
           event.preventDefault();
 
-          const shouldDiscard = await confirm("未保存の変更を破棄して閉じますか？", {
+          const closeChoice = await message("未保存の変更があります。閉じる前に保存しますか？", {
             title: "nuinuiCAD",
             kind: "warning",
-            okLabel: "破棄して閉じる",
-            cancelLabel: "キャンセル"
+            buttons: {
+              yes: CLOSE_DIALOG_SAVE,
+              no: CLOSE_DIALOG_DISCARD,
+              cancel: CLOSE_DIALOG_CANCEL
+            }
           });
-          if (shouldDiscard) {
+
+          if (shouldDiscardAndClose(closeChoice)) {
             await currentWindow.destroy();
+          }
+
+          if (shouldSaveAndClose(closeChoice)) {
+            try {
+              await saveDocument();
+            } catch (error: unknown) {
+              console.error("Failed to save document before closing.", error);
+              return;
+            }
+            if (!useCadDocumentStore.getState().dirtySinceSave) {
+              await currentWindow.destroy();
+            }
           }
         })
       })
