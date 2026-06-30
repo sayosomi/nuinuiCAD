@@ -8,7 +8,7 @@ export const sampleElements: CadElement[] = [
     visible: true,
     enabled: true,
     x: 50,
-    y: 50
+    y: -50
   },
   {
     id: "point-b",
@@ -28,7 +28,7 @@ export const sampleElements: CadElement[] = [
     enabled: true,
     fromPointId: "point-b",
     dx: 0,
-    dy: 80
+    dy: -80
   },
   {
     id: "line-ab",

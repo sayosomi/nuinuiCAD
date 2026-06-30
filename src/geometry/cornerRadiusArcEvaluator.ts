@@ -59,7 +59,7 @@ const pointAt = (start: Point, direction: Point, amount: number): Point => ({
 const samePoint = (a: Point, b: Point) => distance(a, b) <= EPSILON;
 
 const angleOfPoint = (center: Point, point: Point) =>
-  normalizeDegrees(radiansToDegrees(Math.atan2(center.y - point.y, point.x - center.x)));
+  normalizeDegrees(radiansToDegrees(Math.atan2(point.y - center.y, point.x - center.x)));
 
 const signedSweep = (startAngleDeg: number, endAngleDeg: number, direction: "cw" | "ccw") => {
   const positive = normalizeDegrees(endAngleDeg - startAngleDeg);
@@ -94,7 +94,7 @@ const arcPoint = (center: Point, radius: number, angleDeg: number): Point => {
   const angleRad = degreesToRadians(angleDeg);
   return {
     x: center.x + Math.cos(angleRad) * radius,
-    y: center.y - Math.sin(angleRad) * radius
+    y: center.y + Math.sin(angleRad) * radius
   };
 };
 
@@ -334,7 +334,7 @@ const trimmedLineGeometry = (
   const start = endpoint.endpointKey === "start" ? tangentPoint : geometry.start;
   const end = endpoint.endpointKey === "end" ? tangentPoint : geometry.end;
   const dx = end.x - start.x;
-  const dy = start.y - end.y;
+  const dy = end.y - start.y;
   const length = Math.hypot(dx, dy);
   if (length <= EPSILON) return null;
   return {
@@ -404,7 +404,7 @@ const cornerRadiusGeometry = ({
   const direction = cross(
     { x: tangent1.x - center.x, y: tangent1.y - center.y },
     { x: tangent2.x - center.x, y: tangent2.y - center.y }
-  ) > 0 ? "cw" : "ccw";
+  ) > 0 ? "ccw" : "cw";
   const sweepAngleDeg = signedSweep(startAngleDeg, endAngleDeg, direction);
 
   return {

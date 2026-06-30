@@ -38,7 +38,7 @@ describe("documentFormat", () => {
       "nuinuiCADドキュメントではありません"
     );
     expect(() =>
-      parseCadDocumentFile(JSON.stringify({ app: CAD_DOCUMENT_APP_ID, schemaVersion: 2, document: {} }))
+      parseCadDocumentFile(JSON.stringify({ app: CAD_DOCUMENT_APP_ID, schemaVersion: 3, document: {} }))
     ).toThrow("未対応のドキュメント形式です");
     expect(() =>
       parseCadDocumentFile(
@@ -62,5 +62,44 @@ describe("documentFormat", () => {
     expect(fileNameFromPath("/tmp/pattern.nuinui.json")).toBe("pattern.nuinui.json");
     expect(fileNameFromPath("C:\\tmp\\pattern.nuinui.json")).toBe("pattern.nuinui.json");
     expect(fileNameFromPath(null)).toBe("未保存");
+  });
+
+  it("migrates v1 documents to Y-up coordinates", () => {
+    const content = JSON.stringify({
+      app: CAD_DOCUMENT_APP_ID,
+      schemaVersion: 1,
+      savedAt: "2026-06-29T00:00:00.000Z",
+      document: {
+        ...snapshot,
+        elements: [
+          { id: "p", name: "P", type: "freePoint", visible: true, enabled: true, x: 10, y: 20 },
+          {
+            id: "q",
+            name: "Q",
+            type: "offsetPoint",
+            visible: true,
+            enabled: true,
+            fromPointId: "p",
+            dx: 5,
+            dy: { kind: "expression", expression: "p.y + 10" }
+          },
+          {
+            id: "l",
+            name: "L",
+            type: "line",
+            visible: true,
+            enabled: true,
+            startPoint: { mode: "coordinate", x: 0, y: 30 },
+            endPoint: { mode: "reference", pointId: "p" }
+          }
+        ]
+      }
+    });
+
+    expect(parseCadDocumentFile(content).elements).toMatchObject([
+      { y: -20 },
+      { dy: { kind: "expression", expression: "-(p.y + 10)" } },
+      { startPoint: { y: -30 } }
+    ]);
   });
 });

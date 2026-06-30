@@ -24,8 +24,8 @@ fn offset_line_segment(segment: &SourceSegment, offset: f64) -> Option<OffsetSeg
     if length <= EPSILON {
         return None;
     }
-    let nx = (-dy / length) * offset;
-    let ny = (dx / length) * offset;
+    let nx = (dy / length) * offset;
+    let ny = (-dx / length) * offset;
     let next_start = OffsetPoint {
         x: start.x + nx,
         y: start.y + ny,
@@ -57,9 +57,9 @@ fn offset_arc_segment(
     };
     let next_radius = radius
         + if *sweep_angle_deg >= 0.0 {
-            offset
-        } else {
             -offset
+        } else {
+            offset
         };
     if next_radius <= EPSILON {
         return Err(format!(

@@ -87,7 +87,7 @@ pub(crate) fn evaluate_line_tangent_offset_point(
             id,
             element_name(element),
             base_point.x + angle_rad.cos() * distance,
-            base_point.y - angle_rad.sin() * distance,
+            base_point.y + angle_rad.sin() * distance,
         ),
     );
 }

@@ -141,7 +141,7 @@ fn splits_arc_line() {
                 "mid",
                 "中点",
                 std::f64::consts::SQRT_2 * 5.0,
-                -std::f64::consts::SQRT_2 * 5.0,
+                std::f64::consts::SQRT_2 * 5.0,
             ),
             split_line("split", "arc", "mid"),
         ],
@@ -221,7 +221,7 @@ fn splits_offset_line() {
                 "side": "right",
                 "closed": false
             })),
-            free_point("mid", "中点", 50.0, 10.0),
+            free_point("mid", "中点", 50.0, -10.0),
             split_line("split", "offset", "mid"),
         ],
         evaluation_limit_index: None,
@@ -301,6 +301,6 @@ fn split_line_can_feed_downstream_line_helpers() {
         geometry(&result, "offset")["segments"][0]["start"]["y"]
             .as_f64()
             .unwrap(),
-        10.0,
+        -10.0,
     );
 }

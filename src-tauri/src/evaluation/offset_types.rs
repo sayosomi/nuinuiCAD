@@ -112,12 +112,12 @@ pub(crate) fn arc_point(center: OffsetPoint, radius: f64, angle_deg: f64) -> Off
     let angle_rad = angle_deg.to_radians();
     OffsetPoint {
         x: center.x + angle_rad.cos() * radius,
-        y: center.y - angle_rad.sin() * radius,
+        y: center.y + angle_rad.sin() * radius,
     }
 }
 
 pub(crate) fn angle_of_point(center: OffsetPoint, point: OffsetPoint) -> f64 {
-    normalize_degrees((center.y - point.y).atan2(point.x - center.x).to_degrees())
+    normalize_degrees((point.y - center.y).atan2(point.x - center.x).to_degrees())
 }
 
 pub(crate) fn segment_start(segment: &OffsetSegment) -> OffsetPoint {
@@ -138,7 +138,7 @@ pub(crate) fn segment_end(segment: &OffsetSegment) -> OffsetPoint {
 
 fn angle_from_to(start: OffsetPoint, end: OffsetPoint) -> Option<f64> {
     let dx = end.x - start.x;
-    let dy = start.y - end.y;
+    let dy = end.y - start.y;
     let length = dx.hypot(dy);
     (length > EPSILON).then(|| normalize_degrees(dy.atan2(dx).to_degrees()))
 }

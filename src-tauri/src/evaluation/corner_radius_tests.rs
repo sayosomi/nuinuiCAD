@@ -103,8 +103,8 @@ fn corner_radius_trims_bezier_and_offset_line_to_polylines() {
         elements: vec![
             free_point("a", "A", 0.0, 0.0),
             free_point("b", "B", 100.0, 0.0),
-            free_point("c", "C", 100.0, 10.0),
-            free_point("d", "D", 100.0, 100.0),
+            free_point("c", "C", 100.0, -10.0),
+            free_point("d", "D", 100.0, -100.0),
             line("ab", "AB", "a", "b"),
             line("cd", "CD", "c", "d"),
             element(json!({

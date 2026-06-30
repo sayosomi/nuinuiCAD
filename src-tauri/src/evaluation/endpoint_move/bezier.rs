@@ -10,7 +10,7 @@ fn point_on_angle_line(point: Point, origin: Point, angle_deg: f64) -> f64 {
     let angle_rad = angle_deg.to_radians();
     let direction = Point {
         x: angle_rad.cos(),
-        y: -angle_rad.sin(),
+        y: angle_rad.sin(),
     };
     ((point.x - origin.x) * direction.y - (point.y - origin.y) * direction.x).abs()
 }
@@ -19,7 +19,7 @@ fn handle_point(point: Point, angle_deg: f64, length: f64) -> Value {
     let angle_rad = angle_deg.to_radians();
     json!({
         "x": point.x + angle_rad.cos() * length,
-        "y": point.y - angle_rad.sin() * length
+        "y": point.y + angle_rad.sin() * length
     })
 }
 

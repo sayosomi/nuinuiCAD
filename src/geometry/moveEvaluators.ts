@@ -21,7 +21,7 @@ type TransformPoint = (point: Point) => Point | null;
 
 const lineAngleDeg = (start: Point, end: Point) => {
   const dx = end.x - start.x;
-  const dy = start.y - end.y;
+  const dy = end.y - start.y;
   const length = Math.hypot(dx, dy);
   return length <= 0 ? null : normalizeDegrees(radiansToDegrees(Math.atan2(dy, dx)));
 };
@@ -69,8 +69,8 @@ const moveTransform = ({
     const dx = mirrored.x - endPoint.x;
     const dy = mirrored.y - endPoint.y;
     return {
-      x: endPoint.x + dx * cos + dy * sin,
-      y: endPoint.y - dx * sin + dy * cos
+      x: endPoint.x + dx * cos - dy * sin,
+      y: endPoint.y + dx * sin + dy * cos
     };
   };
 };

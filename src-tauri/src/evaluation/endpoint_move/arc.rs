@@ -10,12 +10,12 @@ pub(super) fn arc_point(center: Point, radius: f64, angle_deg: f64) -> Point {
     let angle_rad = angle_deg.to_radians();
     Point {
         x: center.x + angle_rad.cos() * radius,
-        y: center.y - angle_rad.sin() * radius,
+        y: center.y + angle_rad.sin() * radius,
     }
 }
 
 fn angle_of_point(center: Point, point: Point) -> f64 {
-    normalize_degrees((center.y - point.y).atan2(point.x - center.x).to_degrees())
+    normalize_degrees((point.y - center.y).atan2(point.x - center.x).to_degrees())
 }
 
 fn signed_sweep(start_angle_deg: f64, end_angle_deg: f64, prefer_negative: bool) -> f64 {

@@ -48,8 +48,8 @@ const transformPoint = ({
   const sin = Math.sin(angleRad);
 
   return {
-    x: rotationCenter.x + dx * cos + dy * sin,
-    y: rotationCenter.y - dx * sin + dy * cos
+    x: rotationCenter.x + dx * cos - dy * sin,
+    y: rotationCenter.y + dx * sin + dy * cos
   };
 };
 

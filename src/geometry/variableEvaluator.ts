@@ -97,7 +97,7 @@ export const evaluateVariableElement = (
     const point2 = point(element.point2, "point2");
     if (point1 && point2) {
       value = normalizeDegrees(
-        Math.atan2(point1.y - point2.y, point2.x - point1.x) * 180 / Math.PI
+        Math.atan2(point2.y - point1.y, point2.x - point1.x) * 180 / Math.PI
       );
     }
   }

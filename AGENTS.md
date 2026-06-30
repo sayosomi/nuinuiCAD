@@ -35,6 +35,11 @@ Use millimeters as the conceptual unit. Rendering may map millimeters to pixels,
 but geometry values should remain physical units so export and printing stay
 predictable.
 
+Use a Y-up drafting coordinate system: positive Y values go upward, and
+negative Y values go downward. Screen rendering may convert this to browser
+pixel coordinates, but stored geometry, evaluation, angles, and user-facing
+coordinate values should remain Y-up.
+
 ## Source of truth
 
 When updating behavior, prefer these source files over duplicating details here:

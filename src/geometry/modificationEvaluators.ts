@@ -117,12 +117,12 @@ const arcPoint = (center: Point, radius: number, angleDeg: number): Point => {
   const angleRad = degreesToRadians(angleDeg);
   return {
     x: center.x + Math.cos(angleRad) * radius,
-    y: center.y - Math.sin(angleRad) * radius
+    y: center.y + Math.sin(angleRad) * radius
   };
 };
 
 const angleOfPoint = (center: Point, point: Point) =>
-  normalizeDegrees(radiansToDegrees(Math.atan2(center.y - point.y, point.x - center.x)));
+  normalizeDegrees(radiansToDegrees(Math.atan2(point.y - center.y, point.x - center.x)));
 
 const signedSweep = (startAngleDeg: number, endAngleDeg: number, preferNegative: boolean) => {
   const positive = normalizeDegrees(endAngleDeg - startAngleDeg);
@@ -167,7 +167,7 @@ const moveArcEndpoint = (
 
 const pointOnAngleLine = (point: Point, origin: Point, angleDeg: number) => {
   const angleRad = degreesToRadians(angleDeg);
-  const direction = { x: Math.cos(angleRad), y: -Math.sin(angleRad) };
+  const direction = { x: Math.cos(angleRad), y: Math.sin(angleRad) };
   return Math.abs((point.x - origin.x) * direction.y - (point.y - origin.y) * direction.x);
 };
 

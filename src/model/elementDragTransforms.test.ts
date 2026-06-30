@@ -83,7 +83,7 @@ describe("elementDragTransforms", () => {
 
     expect(moved?.[0]).toMatchObject({
       x: { kind: "expression", expression: "line-ab.length + 22" },
-      y: 45
+      y: -55
     });
   });
 
@@ -109,7 +109,7 @@ describe("elementDragTransforms", () => {
 
     expect(point).toMatchObject({ type: "polarOffsetPoint" });
     if (point?.type !== "polarOffsetPoint") throw new Error("Expected a polar offset point");
-    expect(point.angleDeg).toBeCloseTo(18.43494882292201);
+    expect(point.angleDeg).toBeCloseTo(341.565051177078);
     expect(point.distance).toBeCloseTo(31.622776601683793);
   });
 
@@ -129,7 +129,7 @@ describe("elementDragTransforms", () => {
     const point = moved?.at(-1);
 
     if (point?.type !== "polarOffsetPoint") throw new Error("Expected a polar offset point");
-    expect(point.angleDeg).toBeCloseTo(18.43494882292201);
+    expect(point.angleDeg).toBeCloseTo(341.565051177078);
     expect(point.distance).toBeCloseTo(31.622776601683793);
   });
 
@@ -157,7 +157,7 @@ describe("elementDragTransforms", () => {
     if (distanceLockedPoint?.type !== "polarOffsetPoint") {
       throw new Error("Expected a polar offset point");
     }
-    expect(distanceLockedPoint.angleDeg).toBeCloseTo(18.43494882292201);
+    expect(distanceLockedPoint.angleDeg).toBeCloseTo(341.565051177078);
     expect(bothLocked).toBeNull();
   });
 
@@ -226,7 +226,7 @@ describe("elementDragTransforms", () => {
     if (startCurve.type !== "bezierCurve" || endCurve.type !== "bezierCurve") {
       throw new Error("Expected Bezier curves");
     }
-    expect(startCurve.startHandleAngleDeg).toBeCloseTo(45);
+    expect(startCurve.startHandleAngleDeg).toBeCloseTo(315);
     expect(startCurve.startHandleLength).toBeCloseTo(63.63961030678928);
     expect(endCurve.endHandleAngleDeg).toBeCloseTo(135);
     expect(endCurve.endHandleLength).toBeCloseTo(49.49747468305833);
@@ -248,7 +248,7 @@ describe("elementDragTransforms", () => {
     const curve = elementById(moved ?? [], "curve-ac");
 
     if (curve.type !== "bezierCurve") throw new Error("Expected a Bezier curve");
-    expect(curve.startHandleAngleDeg).toBeCloseTo(45);
+    expect(curve.startHandleAngleDeg).toBeCloseTo(315);
     expect(curve.startHandleLength).toBeCloseTo(63.63961030678928);
   });
 
@@ -280,7 +280,7 @@ describe("elementDragTransforms", () => {
     }
     expect(angleLockedCurve.startHandleAngleDeg).toBe(0);
     expect(angleLockedCurve.startHandleLength).toBeCloseTo(55);
-    expect(distanceLockedCurve.startHandleAngleDeg).toBeCloseTo(45);
+    expect(distanceLockedCurve.startHandleAngleDeg).toBeCloseTo(315);
     expect(distanceLockedCurve.startHandleLength).toBe(45);
     expect(bothLocked).toBeNull();
   });
@@ -304,12 +304,12 @@ describe("elementDragTransforms", () => {
     if (incomingCurve.type !== "bezierCurve" || outgoingCurve.type !== "bezierCurve") {
       throw new Error("Expected Bezier curves");
     }
-    expect(incomingCurve.intermediatePoints[0].handleAngleDeg).toBeCloseTo(315);
+    expect(incomingCurve.intermediatePoints[0].handleAngleDeg).toBeCloseTo(45);
     expect(incomingCurve.intermediatePoints[0].incomingHandleLength).toBeCloseTo(
       14.142135623730951
     );
     expect(incomingCurve.intermediatePoints[0].outgoingHandleLength).toBe(20);
-    expect(outgoingCurve.intermediatePoints[0].handleAngleDeg).toBeCloseTo(26.565051177077976);
+    expect(outgoingCurve.intermediatePoints[0].handleAngleDeg).toBeCloseTo(333.434948822922);
     expect(outgoingCurve.intermediatePoints[0].incomingHandleLength).toBe(10);
     expect(outgoingCurve.intermediatePoints[0].outgoingHandleLength).toBeCloseTo(
       22.360679774997898

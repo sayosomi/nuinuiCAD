@@ -69,7 +69,7 @@ pub(crate) fn evaluate_variable_element(
                 return;
             };
             Some(normalize_degrees(
-                (point1.y - point2.y)
+                (point2.y - point1.y)
                     .atan2(point2.x - point1.x)
                     .to_degrees(),
             ))

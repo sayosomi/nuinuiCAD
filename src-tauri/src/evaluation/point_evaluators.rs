@@ -158,7 +158,7 @@ pub(crate) fn evaluate_polar_offset_point(
             id,
             element_name(element),
             from_point.x + angle_rad.cos() * distance,
-            from_point.y - angle_rad.sin() * distance,
+            from_point.y + angle_rad.sin() * distance,
         ),
     );
 }

@@ -66,7 +66,7 @@ const arcPoint = (center: Point, radius: number, angleDeg: number): Point => {
   const angleRad = degreesToRadians(angleDeg);
   return {
     x: center.x + Math.cos(angleRad) * radius,
-    y: center.y - Math.sin(angleRad) * radius
+    y: center.y + Math.sin(angleRad) * radius
   };
 };
 

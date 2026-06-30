@@ -20,7 +20,7 @@ fn handle_point(point: &Point, angle_deg: f64, length: f64) -> Value {
     let angle_rad = angle_deg.to_radians();
     json!({
         "x": point.x + angle_rad.cos() * length,
-        "y": point.y - angle_rad.sin() * length
+        "y": point.y + angle_rad.sin() * length
     })
 }
 

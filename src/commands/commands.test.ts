@@ -387,7 +387,7 @@ describe("commands", () => {
       dy: -5
     });
 
-    expect(useCadStore.getState().elements[0]).toMatchObject({ x: 62, y: 45 });
+    expect(useCadStore.getState().elements[0]).toMatchObject({ x: 62, y: -55 });
     expect(useCadStore.getState().past).toHaveLength(1);
   });
 
@@ -432,7 +432,7 @@ describe("commands", () => {
     const moved = useCadStore.getState().elements.at(-1);
     expect(moved).toMatchObject({ type: "polarOffsetPoint" });
     if (moved?.type !== "polarOffsetPoint") throw new Error("Expected a polar offset point");
-    expect(moved.angleDeg).toBeCloseTo(18.43494882292201);
+    expect(moved.angleDeg).toBeCloseTo(341.565051177078);
     expect(moved.distance).toBeCloseTo(31.622776601683793);
     expect(useCadStore.getState().past).toHaveLength(1);
   });
@@ -494,7 +494,7 @@ describe("commands", () => {
     const moved = useCadStore.getState().elements.at(-1);
     expect(moved).toMatchObject({ type: "polarOffsetPoint" });
     if (moved?.type !== "polarOffsetPoint") throw new Error("Expected a polar offset point");
-    expect(moved.angleDeg).toBeCloseTo(18.43494882292201);
+    expect(moved.angleDeg).toBeCloseTo(341.565051177078);
     expect(moved.distance).toBe(30);
   });
 
@@ -584,7 +584,7 @@ describe("commands", () => {
       baseElements: snapshot.elements
     });
 
-    expect(useCadStore.getState().elements[0]).toMatchObject({ x: 65, y: 60 });
+    expect(useCadStore.getState().elements[0]).toMatchObject({ x: 65, y: -40 });
     expect(useCadStore.getState().past).toHaveLength(0);
 
     dispatchCommand("movePointElementByDelta", {
@@ -596,11 +596,11 @@ describe("commands", () => {
       historySnapshot: snapshot
     });
 
-    expect(useCadStore.getState().elements[0]).toMatchObject({ x: 65, y: 60 });
+    expect(useCadStore.getState().elements[0]).toMatchObject({ x: 65, y: -40 });
     expect(useCadStore.getState().past).toHaveLength(1);
 
     dispatchCommand("undo");
-    expect(useCadStore.getState().elements[0]).toMatchObject({ x: 50, y: 50 });
+    expect(useCadStore.getState().elements[0]).toMatchObject({ x: 50, y: -50 });
   });
 
   it("moves a Bezier start handle by updating angle and length", () => {
@@ -614,7 +614,7 @@ describe("commands", () => {
     const curve = useCadStore.getState().elements.find((element) => element.id === "curve-ac");
     expect(curve).toMatchObject({ type: "bezierCurve" });
     if (curve?.type !== "bezierCurve") throw new Error("Expected a Bezier curve");
-    expect(curve.startHandleAngleDeg).toBeCloseTo(45);
+    expect(curve.startHandleAngleDeg).toBeCloseTo(315);
     expect(curve.startHandleLength).toBeCloseTo(63.63961030678928);
     expect(useCadStore.getState().past).toHaveLength(1);
   });
@@ -718,7 +718,7 @@ describe("commands", () => {
     const curve = useCadStore.getState().elements.find((element) => element.id === "curve-ac");
     expect(curve).toMatchObject({ type: "bezierCurve" });
     if (curve?.type !== "bezierCurve") throw new Error("Expected a Bezier curve");
-    expect(curve.startHandleAngleDeg).toBeCloseTo(45);
+    expect(curve.startHandleAngleDeg).toBeCloseTo(315);
     expect(curve.startHandleLength).toBe(45);
   });
 
@@ -768,7 +768,7 @@ describe("commands", () => {
     const curve = useCadStore.getState().elements.find((element) => element.id === "curve-ac");
     expect(curve).toMatchObject({ type: "bezierCurve" });
     if (curve?.type !== "bezierCurve") throw new Error("Expected a Bezier curve");
-    expect(curve.intermediatePoints[0].handleAngleDeg).toBeCloseTo(315);
+    expect(curve.intermediatePoints[0].handleAngleDeg).toBeCloseTo(45);
     expect(curve.intermediatePoints[0].incomingHandleLength).toBeCloseTo(14.142135623730951);
     expect(curve.intermediatePoints[0].outgoingHandleLength).toBe(20);
   });

@@ -13,7 +13,7 @@ const EPSILON = 1e-9;
 
 const angleFromTo = (start: Point, end: Point) => {
   const dx = end.x - start.x;
-  const dy = start.y - end.y;
+  const dy = end.y - start.y;
   const length = Math.hypot(dx, dy);
   return length <= EPSILON ? null : normalizeDegrees(radiansToDegrees(Math.atan2(dy, dx)));
 };

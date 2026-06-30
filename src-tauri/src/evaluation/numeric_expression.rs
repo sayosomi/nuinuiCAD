@@ -332,7 +332,7 @@ impl<'a> Parser<'a> {
             let point1 = self.point_value(&args[0])?;
             let point2 = self.point_value(&args[1])?;
             return Ok(normalize_degrees(
-                (point1.y - point2.y)
+                (point2.y - point1.y)
                     .atan2(point2.x - point1.x)
                     .to_degrees(),
             ));

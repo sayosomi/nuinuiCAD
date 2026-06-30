@@ -158,7 +158,7 @@ export const evaluatePointElement = (element: CadElement, context: ElementEvalua
           elementId: element.id,
           name: element.name,
           x: resolvedFromPoint.x + Math.cos(angleRad) * distance,
-          y: resolvedFromPoint.y - Math.sin(angleRad) * distance
+          y: resolvedFromPoint.y + Math.sin(angleRad) * distance
         });
         break;
       }
@@ -431,7 +431,7 @@ export const evaluatePointElement = (element: CadElement, context: ElementEvalua
           elementId: element.id,
           name: element.name,
           x: basePoint.x + Math.cos(angleRad) * distance,
-          y: basePoint.y - Math.sin(angleRad) * distance
+          y: basePoint.y + Math.sin(angleRad) * distance
         });
         break;
       }

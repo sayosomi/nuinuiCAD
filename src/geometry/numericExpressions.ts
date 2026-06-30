@@ -415,7 +415,7 @@ export const evaluateNumericValue = ({
         requireArgs(name, args, 2);
         const point1 = pointValue(args[0]);
         const point2 = pointValue(args[1]);
-        return (Math.atan2(point1.y - point2.y, point2.x - point1.x) * 180 / Math.PI + 360) % 360;
+        return (Math.atan2(point2.y - point1.y, point2.x - point1.x) * 180 / Math.PI + 360) % 360;
       }
 
       requireArgs(name, args, 2);

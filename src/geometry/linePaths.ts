@@ -102,7 +102,7 @@ const arcPoint = (
   const angleRad = degreesToRadians(angleDeg);
   return {
     x: center.x + Math.cos(angleRad) * radius,
-    y: center.y - Math.sin(angleRad) * radius
+    y: center.y + Math.sin(angleRad) * radius
   };
 };
 
@@ -262,7 +262,7 @@ export const tangentAtPointOnLineLikeGeometry = (
   if (!direction) return null;
 
   return {
-    angleDeg: normalizeDegrees(radiansToDegrees(Math.atan2(-direction.y, direction.x))),
+    angleDeg: normalizeDegrees(radiansToDegrees(Math.atan2(direction.y, direction.x))),
     distanceFromLine: best.distanceFromLine
   };
 };

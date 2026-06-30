@@ -13,7 +13,7 @@ describe("canvasViewport", () => {
   it("converts world coordinates to screen coordinates", () => {
     expect(worldToScreen({ x: 10, y: -5 }, size, viewport)).toEqual({
       x: 290,
-      y: 180
+      y: 200
     });
   });
 
@@ -21,8 +21,8 @@ describe("canvasViewport", () => {
     expect(visibleWorldBounds(size, viewport)).toEqual({
       minX: -135,
       maxX: 115,
-      minY: -95,
-      maxY: 105
+      minY: -105,
+      maxY: 95
     });
   });
 
@@ -46,7 +46,7 @@ describe("canvasViewport", () => {
         zoom: 2,
         axisLockKeys: { x: false, y: false }
       })
-    ).toEqual({ dx: 10, dy: -5 });
+    ).toEqual({ dx: 10, dy: 5 });
     expect(
       constrainedWorldDelta({
         screenDx: 20,
@@ -62,6 +62,6 @@ describe("canvasViewport", () => {
         zoom: 2,
         axisLockKeys: { x: false, y: true }
       })
-    ).toEqual({ dx: 0, dy: -5 });
+    ).toEqual({ dx: 0, dy: 5 });
   });
 });

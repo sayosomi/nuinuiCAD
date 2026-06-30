@@ -571,7 +571,7 @@ fn evaluates_line_division_point_on_arc_line() {
     let division = point(&result, "division");
     assert!(result.errors.is_empty());
     assert!((division["x"].as_f64().unwrap() - 10.0 / 2f64.sqrt()).abs() < 0.2);
-    assert!((division["y"].as_f64().unwrap() + 10.0 / 2f64.sqrt()).abs() < 0.2);
+    assert!((division["y"].as_f64().unwrap() - 10.0 / 2f64.sqrt()).abs() < 0.2);
 }
 
 #[test]

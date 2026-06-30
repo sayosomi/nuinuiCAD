@@ -79,9 +79,9 @@ fn evaluates_line_offset() {
     let offset = geometry(&result, "offset");
     assert_eq!(offset["kind"], json!("offsetLine"));
     assert_close(offset["segments"][0]["start"]["x"].as_f64().unwrap(), 0.0);
-    assert_close(offset["segments"][0]["start"]["y"].as_f64().unwrap(), 10.0);
+    assert_close(offset["segments"][0]["start"]["y"].as_f64().unwrap(), -10.0);
     assert_close(offset["segments"][0]["end"]["x"].as_f64().unwrap(), 100.0);
-    assert_close(offset["segments"][0]["end"]["y"].as_f64().unwrap(), 10.0);
+    assert_close(offset["segments"][0]["end"]["y"].as_f64().unwrap(), -10.0);
     assert_close(offset["length"].as_f64().unwrap(), 100.0);
 }
 
@@ -105,7 +105,7 @@ fn evaluates_local_expression_offset() {
         geometry(&result, "offset")["segments"][0]["start"]["y"]
             .as_f64()
             .unwrap(),
-        10.0,
+        -10.0,
     );
 }
 
@@ -136,9 +136,9 @@ fn connects_reversed_base_lines() {
 
     assert!(result.errors.is_empty());
     let offset = geometry(&result, "offset");
-    assert_close(offset["length"].as_f64().unwrap(), 180.0);
-    assert_close(offset["segments"][0]["end"]["x"].as_f64().unwrap(), 90.0);
-    assert_close(offset["segments"][1]["start"]["x"].as_f64().unwrap(), 90.0);
+    assert_close(offset["length"].as_f64().unwrap(), 220.0);
+    assert_close(offset["segments"][0]["end"]["x"].as_f64().unwrap(), 110.0);
+    assert_close(offset["segments"][1]["start"]["x"].as_f64().unwrap(), 110.0);
 }
 
 #[test]
@@ -162,7 +162,7 @@ fn evaluates_arc_offset_and_radius_error() {
         geometry(&result, "offset")["segments"][0]["radius"]
             .as_f64()
             .unwrap(),
-        15.0,
+        5.0,
     );
 
     let mut failing = vec![
@@ -174,7 +174,7 @@ fn evaluates_arc_offset_and_radius_error() {
         ),
     ];
     let mut failing_offset = offset_line("offset", vec!["arc"], json!(20));
-    failing_offset["side"] = json!("left");
+    failing_offset["side"] = json!("right");
     failing.push(failing_offset);
     let failing_result = evaluate_document_input(EvaluationInput {
         elements: failing,
@@ -311,7 +311,7 @@ fn offset_line_can_feed_line_point_and_intersection_helpers() {
 
     assert!(result.errors.is_empty());
     assert_close(geometry(&result, "mid")["x"].as_f64().unwrap(), 50.0);
-    assert_close(geometry(&result, "mid")["y"].as_f64().unwrap(), 10.0);
+    assert_close(geometry(&result, "mid")["y"].as_f64().unwrap(), -10.0);
     assert_close(geometry(&result, "cross")["x"].as_f64().unwrap(), 50.0);
-    assert_close(geometry(&result, "cross")["y"].as_f64().unwrap(), 10.0);
+    assert_close(geometry(&result, "cross")["y"].as_f64().unwrap(), -10.0);
 }

@@ -498,8 +498,8 @@ describe("evaluateElements", () => {
 
     expect(result.errors).toHaveLength(0);
     expect(result.computedVariables.get("distance")?.value).toBeCloseTo(10);
-    expect(result.computedVariables.get("angle")?.value).toBeCloseTo(90);
-    expect(result.computedVariables.get("reverse-angle")?.value).toBeCloseTo(270);
+    expect(result.computedVariables.get("angle")?.value).toBeCloseTo(270);
+    expect(result.computedVariables.get("reverse-angle")?.value).toBeCloseTo(90);
     expect(result.computedVariables.get("line-distance")?.value).toBeCloseTo(10);
   });
 
@@ -552,7 +552,7 @@ describe("evaluateElements", () => {
     ]);
 
     expect(result.errors).toHaveLength(0);
-    expect(result.computedVariables.get("measurement")?.value).toBeCloseTo(110);
+    expect(result.computedVariables.get("measurement")?.value).toBeCloseTo(290);
   });
 
   it("evaluates point distance expressions with line endpoint arguments", () => {
@@ -699,7 +699,7 @@ describe("evaluateElements", () => {
 
     expect(result.errors).toHaveLength(0);
     expect(result.computedGeometry.get("right")).toMatchObject({ kind: "point", x: 20, y: 20 });
-    expect(result.computedGeometry.get("up")).toMatchObject({ kind: "point", x: 10, y: 10 });
+    expect(result.computedGeometry.get("up")).toMatchObject({ kind: "point", x: 10, y: 30 });
   });
 
   it("evaluates division points by distance from the start point toward the end point", () => {
@@ -928,7 +928,7 @@ describe("evaluateElements", () => {
         visible: true,
         enabled: true,
         x: Math.SQRT1_2 * 10,
-        y: -Math.SQRT1_2 * 10
+        y: Math.SQRT1_2 * 10
       },
       {
         id: "split",
@@ -1406,7 +1406,7 @@ describe("evaluateElements", () => {
         visible: true,
         enabled: true,
         x: 140,
-        y: 10
+        y: -10
       },
       {
         id: "line",
@@ -1443,7 +1443,7 @@ describe("evaluateElements", () => {
     expect(result.errors).toHaveLength(0);
     expect(offset).toMatchObject({ kind: "offsetLine" });
     if (offset?.kind !== "offsetLine") throw new Error("Expected an offset line");
-    expect(offset.segments.at(-1)?.end).toMatchObject({ x: 140, y: 10 });
+    expect(offset.segments.at(-1)?.end).toMatchObject({ x: 140, y: -10 });
   });
 
   it("reports a division point distance error when the endpoints overlap", () => {
@@ -1685,7 +1685,7 @@ describe("evaluateElements", () => {
     expect(arcPoint).toMatchObject({ kind: "point" });
     if (arcPoint?.kind !== "point") throw new Error("Expected a point");
     expect(arcPoint.x).toBeCloseTo(10 / Math.sqrt(2), 1);
-    expect(arcPoint.y).toBeCloseTo(-10 / Math.sqrt(2), 1);
+    expect(arcPoint.y).toBeCloseTo(10 / Math.sqrt(2), 1);
     expect(result.computedGeometry.get("curve-division")).toMatchObject({
       kind: "point",
       x: 50,
@@ -1694,7 +1694,7 @@ describe("evaluateElements", () => {
     expect(result.computedGeometry.get("offset-division")).toMatchObject({
       kind: "point",
       x: 50,
-      y: 10
+      y: -10
     });
   });
 
@@ -1971,9 +1971,9 @@ describe("evaluateElements", () => {
     expect(copy.segments[0].start.x).toBeCloseTo(40);
     expect(copy.segments[0].start.y).toBeCloseTo(100);
     expect(copy.segments[0].end.x).toBeCloseTo(40);
-    expect(copy.segments[0].end.y).toBeCloseTo(180);
-    expect(copy.segments[1].end.x).toBeCloseTo(70);
-    expect(copy.segments[1].end.y).toBeCloseTo(180);
+    expect(copy.segments[0].end.y).toBeCloseTo(20);
+    expect(copy.segments[1].end.x).toBeCloseTo(10);
+    expect(copy.segments[1].end.y).toBeCloseTo(20);
   });
 
   it("mirrors copied lines across an axis defined by two points", () => {
@@ -2446,7 +2446,7 @@ describe("evaluateElements", () => {
     expect(point).toMatchObject({ kind: "point" });
     if (point?.kind !== "point") throw new Error("Expected a point");
     expect(point.x).toBeCloseTo(0);
-    expect(point.y).toBeCloseTo(-10);
+    expect(point.y).toBeCloseTo(10);
   });
 
   it("evaluates line tangent offset points on a Bezier line-like geometry", () => {
@@ -2880,11 +2880,11 @@ describe("evaluateElements", () => {
         visible: true,
         enabled: true,
         startPoint: { mode: "coordinate", x: 0, y: 0 },
-        startHandleAngleDeg: 270,
+        startHandleAngleDeg: 90,
         startHandleLength: 40,
         intermediatePoints: [],
         endPoint: { mode: "coordinate", x: 0, y: 100 },
-        endHandleAngleDeg: 270,
+        endHandleAngleDeg: 90,
         endHandleLength: 40
       },
       {
@@ -3035,8 +3035,8 @@ describe("evaluateElements", () => {
       { id: "center", name: "中心", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
       { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
       { id: "b", name: "B", type: "freePoint", visible: true, enabled: true, x: 100, y: 0 },
-      { id: "p1", name: "P1", type: "freePoint", visible: true, enabled: true, x: -20, y: -7 },
-      { id: "p2", name: "P2", type: "freePoint", visible: true, enabled: true, x: 20, y: -7 },
+      { id: "p1", name: "P1", type: "freePoint", visible: true, enabled: true, x: -20, y: 7 },
+      { id: "p2", name: "P2", type: "freePoint", visible: true, enabled: true, x: 20, y: 7 },
       { id: "v1", name: "V1", type: "freePoint", visible: true, enabled: true, x: 50, y: -20 },
       { id: "v2", name: "V2", type: "freePoint", visible: true, enabled: true, x: 50, y: 20 },
       {
@@ -3136,7 +3136,7 @@ describe("evaluateElements", () => {
       throw new Error("Expected points");
     }
     expect(arc.x).toBeCloseTo(Math.sqrt(51), 0);
-    expect(arc.y).toBeCloseTo(-7, 1);
+    expect(arc.y).toBeCloseTo(7, 1);
     expect(curve.x).toBeCloseTo(50);
     expect(curve.y).toBeCloseTo(0);
     expect(offset.x).toBeCloseTo(50);
@@ -3146,8 +3146,8 @@ describe("evaluateElements", () => {
   it("selects an intersection by index when multiple intersections exist", () => {
     const result = evaluateElements([
       { id: "center", name: "中心", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
-      { id: "p1", name: "P1", type: "freePoint", visible: true, enabled: true, x: -20, y: -7 },
-      { id: "p2", name: "P2", type: "freePoint", visible: true, enabled: true, x: 20, y: -7 },
+      { id: "p1", name: "P1", type: "freePoint", visible: true, enabled: true, x: -20, y: 7 },
+      { id: "p2", name: "P2", type: "freePoint", visible: true, enabled: true, x: 20, y: 7 },
       {
         id: "arc",
         name: "円弧",
@@ -3185,7 +3185,7 @@ describe("evaluateElements", () => {
     expect(result.errors).toHaveLength(0);
     if (point?.kind !== "point") throw new Error("Expected a point");
     expect(point.x).toBeCloseTo(-Math.sqrt(51), 0);
-    expect(point.y).toBeCloseTo(-7, 1);
+    expect(point.y).toBeCloseTo(7, 1);
   });
 
   it("reports intersection point dependency and geometry errors", () => {
@@ -3450,7 +3450,7 @@ describe("evaluateElements", () => {
       kind: "arcLine",
       centerPointId: "a",
       start: { x: 20, y: 20 },
-      end: { x: 10, y: 10 },
+      end: { x: 10, y: 30 },
       sweepAngleDeg: 90
     });
     if (arc?.kind !== "arcLine") throw new Error("Expected an arc line");
@@ -3570,7 +3570,7 @@ describe("evaluateElements", () => {
     expect(arc.start.x).toBeCloseTo(10);
     expect(arc.start.y).toBeCloseTo(0);
     expect(arc.end.x).toBeCloseTo(0);
-    expect(arc.end.y).toBeCloseTo(-10);
+    expect(arc.end.y).toBeCloseTo(10);
     expect(arc.length).toBeCloseTo((Math.PI * 10) / 2);
   });
 
@@ -3802,7 +3802,7 @@ describe("evaluateElements", () => {
     ]);
 
     expect(result.errors).toHaveLength(0);
-    expect(result.computedGeometry.get("b")).toMatchObject({ kind: "point", x: 10, y: 10 });
+    expect(result.computedGeometry.get("b")).toMatchObject({ kind: "point", x: 10, y: 30 });
   });
 
   it("reports missing local numeric variables on non-curve elements", () => {
@@ -4188,13 +4188,13 @@ describe("evaluateElements", () => {
     const offset = result.computedGeometry.get("offset");
 
     expect(result.errors).toHaveLength(0);
-    expect(offset).toMatchObject({ kind: "offsetLine", length: 180 });
+    expect(offset).toMatchObject({ kind: "offsetLine", length: 220 });
     if (offset?.kind !== "offsetLine") throw new Error("Expected an offset line");
     expect(offset.segments).toHaveLength(2);
-    expect(offset.segments[0].start).toMatchObject({ x: 0, y: 10 });
-    expect(offset.segments[0].end).toMatchObject({ x: 90, y: 10 });
-    expect(offset.segments[1].start).toMatchObject({ x: 90, y: 10 });
-    expect(offset.segments[1].end).toMatchObject({ x: 90, y: 100 });
+    expect(offset.segments[0].start).toMatchObject({ x: 0, y: -10 });
+    expect(offset.segments[0].end).toMatchObject({ x: 110, y: -10 });
+    expect(offset.segments[1].start).toMatchObject({ x: 110, y: -10 });
+    expect(offset.segments[1].end).toMatchObject({ x: 110, y: 100 });
   });
 
   it("ignores base line direction and connects the nearest endpoints", () => {
@@ -4261,13 +4261,13 @@ describe("evaluateElements", () => {
     const offset = result.computedGeometry.get("offset");
 
     expect(result.errors).toHaveLength(0);
-    expect(offset).toMatchObject({ kind: "offsetLine", length: 180 });
+    expect(offset).toMatchObject({ kind: "offsetLine", length: 220 });
     if (offset?.kind !== "offsetLine") throw new Error("Expected an offset line");
     expect(offset.segments).toHaveLength(2);
-    expect(offset.segments[0].start).toMatchObject({ x: 0, y: 10 });
-    expect(offset.segments[0].end).toMatchObject({ x: 90, y: 10 });
-    expect(offset.segments[1].start).toMatchObject({ x: 90, y: 10 });
-    expect(offset.segments[1].end).toMatchObject({ x: 90, y: 100 });
+    expect(offset.segments[0].start).toMatchObject({ x: 0, y: -10 });
+    expect(offset.segments[0].end).toMatchObject({ x: 110, y: -10 });
+    expect(offset.segments[1].start).toMatchObject({ x: 110, y: -10 });
+    expect(offset.segments[1].end).toMatchObject({ x: 110, y: 100 });
   });
 
   it("can reverse the first base line to connect AB then curve AC as B to A to C", () => {
@@ -4341,11 +4341,11 @@ describe("evaluateElements", () => {
     expect(result.errors).toHaveLength(0);
     if (offset?.kind !== "offsetLine") throw new Error("Expected an offset line");
     expect(offset.segments[0].start.x).toBeCloseTo(100);
-    expect(offset.segments[0].start.y).toBeCloseTo(-10);
-    expect(offset.segments[0].end.x).toBeCloseTo(-10);
-    expect(offset.segments[0].end.y).toBeCloseTo(-10);
-    expect(offset.segments[1].start.x).toBeCloseTo(-10);
-    expect(offset.segments.at(-1)!.end.x).toBeCloseTo(-10);
+    expect(offset.segments[0].start.y).toBeCloseTo(10);
+    expect(offset.segments[0].end.x).toBeCloseTo(10);
+    expect(offset.segments[0].end.y).toBeCloseTo(10);
+    expect(offset.segments[1].start.x).toBeCloseTo(10);
+    expect(offset.segments.at(-1)!.end.x).toBeCloseTo(10);
     expect(offset.segments.at(-1)!.end.y).toBeCloseTo(100);
   });
 
@@ -4538,7 +4538,7 @@ describe("evaluateElements", () => {
         enabled: true,
         baseLineIds: ["curve"],
         offset: 20,
-        side: "right",
+        side: "left",
         closed: false
       }
     ];

@@ -184,7 +184,7 @@ fn trimmed_line_geometry(
         return None;
     }
     let dx = end.x - start.x;
-    let dy = start.y - end.y;
+    let dy = end.y - start.y;
     let mut next = geometry.clone();
     let element_id = geometry.get("elementId")?.as_str()?;
     let name = geometry.get("name")?.as_str()?;

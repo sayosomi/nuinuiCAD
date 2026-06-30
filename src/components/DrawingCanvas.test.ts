@@ -629,7 +629,7 @@ describe("DrawingCanvas point dragging", () => {
     });
 
     expect(useCadStore.getState().selectedElementId).toBe("point-a");
-    expect(useCadStore.getState().elements[0]).toMatchObject({ x: 70, y: 60 });
+    expect(useCadStore.getState().elements[0]).toMatchObject({ x: 70, y: -60 });
     expect(useCadStore.getState().past).toHaveLength(1);
   });
 
@@ -646,7 +646,7 @@ describe("DrawingCanvas point dragging", () => {
       toY: 310
     });
 
-    expect(useCadStore.getState().elements[0]).toMatchObject({ x: 60, y: 55 });
+    expect(useCadStore.getState().elements[0]).toMatchObject({ x: 60, y: -55 });
   });
 
   it("locks movement to the x axis while x is pressed", () => {
@@ -674,7 +674,7 @@ describe("DrawingCanvas point dragging", () => {
     });
     fireEvent.keyUp(window, { key: "x" });
 
-    expect(useCadStore.getState().elements[0]).toMatchObject({ x: 70, y: 50 });
+    expect(useCadStore.getState().elements[0]).toMatchObject({ x: 70, y: -50 });
   });
 
   it("locks movement to the y axis while y is pressed", () => {
@@ -702,7 +702,7 @@ describe("DrawingCanvas point dragging", () => {
     });
     fireEvent.keyUp(window, { key: "y" });
 
-    expect(useCadStore.getState().elements[0]).toMatchObject({ x: 50, y: 70 });
+    expect(useCadStore.getState().elements[0]).toMatchObject({ x: 50, y: -70 });
   });
 
   it("locks polar angle while r is pressed during point dragging", () => {

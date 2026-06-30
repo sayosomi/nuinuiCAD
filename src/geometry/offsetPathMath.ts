@@ -33,11 +33,11 @@ export const arcPoint = (center: Point, radius: number, angleDeg: number): Point
   const angleRad = degreesToRadians(angleDeg);
   return {
     x: center.x + Math.cos(angleRad) * radius,
-    y: center.y - Math.sin(angleRad) * radius
+    y: center.y + Math.sin(angleRad) * radius
   };
 };
 
 export const angleOfPoint = (center: Point, point: Point) =>
-  normalizeDegrees(radiansToDegrees(Math.atan2(center.y - point.y, point.x - center.x)));
+  normalizeDegrees(radiansToDegrees(Math.atan2(point.y - center.y, point.x - center.x)));
 
 export const lineLength = (start: Point, end: Point) => Math.hypot(end.x - start.x, end.y - start.y);

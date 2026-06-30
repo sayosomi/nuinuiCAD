@@ -49,7 +49,7 @@ export const handlePoint = (point: ComputedPoint, angleDeg: number, length: numb
   const angleRad = degreesToRadians(angleDeg);
   return {
     x: point.x + Math.cos(angleRad) * length,
-    y: point.y - Math.sin(angleRad) * length
+    y: point.y + Math.sin(angleRad) * length
   };
 };
 

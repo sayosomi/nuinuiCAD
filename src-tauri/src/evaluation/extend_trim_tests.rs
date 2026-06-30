@@ -156,7 +156,7 @@ fn extend_trim_moves_open_offset_line_and_rejects_closed_offset_line() {
         elements: vec![
             free_point("a", "A", 0.0, 0.0),
             free_point("b", "B", 100.0, 0.0),
-            free_point("target", "目標", 140.0, 10.0),
+            free_point("target", "目標", 140.0, -10.0),
             line("line", "線", "a", "b"),
             element(json!({
                 "id": "offset",
@@ -194,14 +194,14 @@ fn extend_trim_moves_open_offset_line_and_rejects_closed_offset_line() {
         offset["segments"].as_array().unwrap().last().unwrap()["end"]["y"]
             .as_f64()
             .unwrap(),
-        10.0,
+        -10.0,
     );
 
     let closed = evaluate_document_input(EvaluationInput {
         elements: vec![
             free_point("a", "A", 0.0, 0.0),
             free_point("b", "B", 100.0, 0.0),
-            free_point("target", "目標", 140.0, 10.0),
+            free_point("target", "目標", 140.0, -10.0),
             line("line", "線", "a", "b"),
             element(json!({
                 "id": "offset",

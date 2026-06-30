@@ -102,7 +102,7 @@ const movePolarOffsetPointByDelta = ({
 
   const currentVector = {
     x: point.x - fromPoint.x,
-    y: fromPoint.y - point.y
+    y: point.y - fromPoint.y
   };
   const currentDistance = Math.hypot(currentVector.x, currentVector.y);
   const currentAngleDeg =
@@ -116,7 +116,7 @@ const movePolarOffsetPointByDelta = ({
   };
   const vector = {
     x: target.x - fromPoint.x,
-    y: fromPoint.y - target.y
+    y: target.y - fromPoint.y
   };
 
   if (angleLocked) {
@@ -252,7 +252,7 @@ const moveLineTangentOffsetPointByDelta = ({
 
   const currentVector = {
     x: point.x - basePoint.x,
-    y: basePoint.y - point.y
+    y: point.y - basePoint.y
   };
   const currentDistance = Math.hypot(currentVector.x, currentVector.y);
   const currentAbsoluteAngleDeg =
@@ -266,7 +266,7 @@ const moveLineTangentOffsetPointByDelta = ({
   };
   const vector = {
     x: target.x - basePoint.x,
-    y: basePoint.y - target.y
+    y: target.y - basePoint.y
   };
 
   if (angleLocked) {
@@ -476,7 +476,7 @@ const moveBezierHandle = ({
 
   const currentVector = {
     x: target.control.x - target.anchor.x,
-    y: target.anchor.y - target.control.y
+    y: target.control.y - target.anchor.y
   };
   const currentLength = Math.hypot(currentVector.x, currentVector.y);
   const currentControlAngleDeg =
@@ -493,7 +493,7 @@ const moveBezierHandle = ({
   };
   const movedVector = {
     x: movedControl.x - target.anchor.x,
-    y: target.anchor.y - movedControl.y
+    y: movedControl.y - target.anchor.y
   };
 
   if (angleLocked) {

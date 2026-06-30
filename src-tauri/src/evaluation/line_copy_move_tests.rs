@@ -94,7 +94,7 @@ fn copy_line_transforms_line_arc_bezier_and_offset_line() {
     let segments = copy["segments"].as_array().unwrap();
     assert!(segments.len() >= 4);
     assert!(has_segment_endpoint(segments, 20.0, 10.0));
-    assert!(has_segment_endpoint(segments, 20.0, -90.0));
+    assert!(has_segment_endpoint(segments, 20.0, 110.0));
     assert!(copy["length"].as_f64().unwrap() > 230.0);
 }
 

@@ -114,8 +114,8 @@ fn evaluates_intersection_point_between_arc_and_line() {
     let result = evaluate_document_input(EvaluationInput {
         elements: vec![
             free_point("center", "中心", 0.0, 0.0),
-            free_point("p1", "P1", -20.0, -7.0),
-            free_point("p2", "P2", 20.0, -7.0),
+            free_point("p1", "P1", -20.0, 7.0),
+            free_point("p2", "P2", 20.0, 7.0),
             element(json!({
                 "id": "arc",
                 "name": "円弧",
@@ -136,7 +136,7 @@ fn evaluates_intersection_point_between_arc_and_line() {
     let intersection = point(&result, "intersection");
     assert!(result.errors.is_empty());
     assert!((intersection["x"].as_f64().unwrap() - 51f64.sqrt()).abs() < 1.0);
-    assert!((intersection["y"].as_f64().unwrap() + 7.0).abs() < 0.2);
+    assert!((intersection["y"].as_f64().unwrap() - 7.0).abs() < 0.2);
 }
 
 #[test]
@@ -144,8 +144,8 @@ fn selects_intersection_point_by_index() {
     let result = evaluate_document_input(EvaluationInput {
         elements: vec![
             free_point("center", "中心", 0.0, 0.0),
-            free_point("p1", "P1", -20.0, -7.0),
-            free_point("p2", "P2", 20.0, -7.0),
+            free_point("p1", "P1", -20.0, 7.0),
+            free_point("p2", "P2", 20.0, 7.0),
             element(json!({
                 "id": "arc",
                 "name": "円弧",
@@ -166,7 +166,7 @@ fn selects_intersection_point_by_index() {
     let intersection = point(&result, "intersection");
     assert!(result.errors.is_empty());
     assert!((intersection["x"].as_f64().unwrap() + 51f64.sqrt()).abs() < 1.0);
-    assert!((intersection["y"].as_f64().unwrap() + 7.0).abs() < 0.2);
+    assert!((intersection["y"].as_f64().unwrap() - 7.0).abs() < 0.2);
 }
 
 #[test]

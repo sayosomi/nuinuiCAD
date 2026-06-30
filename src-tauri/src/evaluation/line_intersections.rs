@@ -57,7 +57,7 @@ fn arc_point(center: Point, radius: f64, angle_deg: f64) -> Point {
     let angle_rad = angle_deg.to_radians();
     Point {
         x: center.x + angle_rad.cos() * radius,
-        y: center.y - angle_rad.sin() * radius,
+        y: center.y + angle_rad.sin() * radius,
     }
 }
 

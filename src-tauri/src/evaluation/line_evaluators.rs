@@ -41,7 +41,7 @@ pub(crate) fn evaluate_line(
         return;
     };
     let dx = end.x - start.x;
-    let dy = start.y - end.y;
+    let dy = end.y - start.y;
     let length = dx.hypot(dy);
     let start_angle = angle_from_to(&start, &end);
     let end_angle = angle_from_to(&end, &start);
@@ -251,8 +251,8 @@ fn insert_arc_line_geometry(state: &mut EvaluationState, arc: ArcGeometry) {
             "name": arc.name,
             "centerPointId": arc.center_point_id,
             "center": computed_point(arc.center.element_id, arc.center.name, arc.center.x, arc.center.y),
-            "start": computed_point(format!("{}:start", arc.id), format!("{}.始点", arc.name), arc.center.x + start_angle_rad.cos() * arc.safe_radius, arc.center.y - start_angle_rad.sin() * arc.safe_radius),
-            "end": computed_point(format!("{}:end", arc.id), format!("{}.終点", arc.name), arc.center.x + end_angle_rad.cos() * arc.safe_radius, arc.center.y - end_angle_rad.sin() * arc.safe_radius),
+            "start": computed_point(format!("{}:start", arc.id), format!("{}.始点", arc.name), arc.center.x + start_angle_rad.cos() * arc.safe_radius, arc.center.y + start_angle_rad.sin() * arc.safe_radius),
+            "end": computed_point(format!("{}:end", arc.id), format!("{}.終点", arc.name), arc.center.x + end_angle_rad.cos() * arc.safe_radius, arc.center.y + end_angle_rad.sin() * arc.safe_radius),
             "radius": arc.radius,
             "startAngleDeg": arc.start_angle_deg,
             "endAngleDeg": arc.end_angle_deg,

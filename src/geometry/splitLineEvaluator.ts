@@ -68,7 +68,7 @@ const arcPoint = (center: Point, radius: number, angleDeg: number): Point => {
   const angleRad = degreesToRadians(angleDeg);
   return {
     x: center.x + Math.cos(angleRad) * radius,
-    y: center.y - Math.sin(angleRad) * radius
+    y: center.y + Math.sin(angleRad) * radius
   };
 };
 
@@ -173,7 +173,7 @@ const splitArcGeometry = (
   const radiusDistance = distance(splitPoint, arc.center);
   if (Math.abs(radiusDistance - arc.radius) > TOLERANCE_MM) return null;
 
-  const pointAngleDeg = normalizeDegrees(radiansToDegrees(Math.atan2(arc.center.y - splitPoint.y, splitPoint.x - arc.center.x)));
+  const pointAngleDeg = normalizeDegrees(radiansToDegrees(Math.atan2(splitPoint.y - arc.center.y, splitPoint.x - arc.center.x)));
   const progress = signedArcProgress(arc.startAngleDeg, arc.sweepAngleDeg, pointAngleDeg);
   const t = progress / arc.sweepAngleDeg;
   const projected = arcPoint(arc.center, arc.radius, arc.startAngleDeg + progress);

@@ -93,7 +93,7 @@ export const sampleArcLineScreenPoints = (
     const angleRad = degreesToRadians(angleDeg);
     return worldToScreen({
       x: arc.center.x + Math.cos(angleRad) * radius,
-      y: arc.center.y - Math.sin(angleRad) * radius
+      y: arc.center.y + Math.sin(angleRad) * radius
     });
   });
 };
@@ -117,7 +117,7 @@ export const sampleOffsetLineScreenPoints = (
       const angleRad = degreesToRadians(angleDeg);
       return worldToScreen({
         x: segment.center.x + Math.cos(angleRad) * segment.radius,
-        y: segment.center.y - Math.sin(angleRad) * segment.radius
+        y: segment.center.y + Math.sin(angleRad) * segment.radius
       });
     });
   });

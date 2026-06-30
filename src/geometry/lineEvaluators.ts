@@ -129,14 +129,14 @@ export const evaluateLineElement = (element: CadElement, context: ElementEvaluat
             elementId: `${element.id}:start`,
             name: `${element.name}.始点`,
             x: center.x + Math.cos(startAngleRad) * safeRadius,
-            y: center.y - Math.sin(startAngleRad) * safeRadius
+            y: center.y + Math.sin(startAngleRad) * safeRadius
           },
           end: {
             kind: "point",
             elementId: `${element.id}:end`,
             name: `${element.name}.終点`,
             x: center.x + Math.cos(endAngleRad) * safeRadius,
-            y: center.y - Math.sin(endAngleRad) * safeRadius
+            y: center.y + Math.sin(endAngleRad) * safeRadius
           },
           radius,
           startAngleDeg,
@@ -236,14 +236,14 @@ export const evaluateLineElement = (element: CadElement, context: ElementEvaluat
             elementId: `${element.id}:start`,
             name: `${element.name}.始点`,
             x: circle.x + Math.cos(startAngleRad) * circle.radius,
-            y: circle.y - Math.sin(startAngleRad) * circle.radius
+            y: circle.y + Math.sin(startAngleRad) * circle.radius
           },
           end: {
             kind: "point",
             elementId: `${element.id}:end`,
             name: `${element.name}.終点`,
             x: circle.x + Math.cos(endAngleRad) * circle.radius,
-            y: circle.y - Math.sin(endAngleRad) * circle.radius
+            y: circle.y + Math.sin(endAngleRad) * circle.radius
           },
           radius: circle.radius,
           startAngleDeg,

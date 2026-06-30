@@ -35,8 +35,8 @@ const offsetLineSegment = (
   const length = Math.hypot(dx, dy);
   if (length <= EPSILON) return null;
 
-  const nx = (-dy / length) * offset;
-  const ny = (dx / length) * offset;
+  const nx = (dy / length) * offset;
+  const ny = (-dx / length) * offset;
   const start = { x: segment.start.x + nx, y: segment.start.y + ny };
   const end = { x: segment.end.x + nx, y: segment.end.y + ny };
 
@@ -53,7 +53,7 @@ const offsetArcSegment = (
   offset: number,
   elementName: string
 ) => {
-  const radius = segment.radius + (segment.sweepAngleDeg >= 0 ? offset : -offset);
+  const radius = segment.radius + (segment.sweepAngleDeg >= 0 ? -offset : offset);
   if (radius <= EPSILON) {
     return {
       segment: null,

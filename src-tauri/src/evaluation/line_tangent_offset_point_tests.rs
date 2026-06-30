@@ -68,7 +68,7 @@ fn evaluates_line_tangent_offset_point_on_line() {
     let offset = point(&result, "offset");
     assert!(result.errors.is_empty());
     assert!(offset["x"].as_f64().unwrap().abs() < 1e-9);
-    assert!((offset["y"].as_f64().unwrap() + 10.0).abs() < 1e-9);
+    assert!((offset["y"].as_f64().unwrap() - 10.0).abs() < 1e-9);
 }
 
 #[test]
@@ -244,5 +244,5 @@ fn evaluates_line_tangent_offset_point_numeric_variables_and_expressions() {
     let offset = point(&result, "offset");
     assert!(result.errors.is_empty());
     assert!((offset["x"].as_f64().unwrap() - 10.0 * 2f64.sqrt()).abs() < 1e-9);
-    assert!((offset["y"].as_f64().unwrap() + 10.0 * 2f64.sqrt()).abs() < 1e-9);
+    assert!((offset["y"].as_f64().unwrap() - 10.0 * 2f64.sqrt()).abs() < 1e-9);
 }

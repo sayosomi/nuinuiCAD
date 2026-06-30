@@ -74,7 +74,7 @@ fn interpolate(start: Point, end: Point, t: f64) -> Point {
 
 fn angle_from_to(start: Point, end: Point) -> Value {
     let dx = end.x - start.x;
-    let dy = start.y - end.y;
+    let dy = end.y - start.y;
     let length = dx.hypot(dy);
     if length <= EPSILON {
         Value::Null
@@ -200,7 +200,7 @@ fn arc_point(center: Point, radius: f64, angle_deg: f64) -> Point {
     let angle_rad = angle_deg.to_radians();
     Point {
         x: center.x + angle_rad.cos() * radius,
-        y: center.y - angle_rad.sin() * radius,
+        y: center.y + angle_rad.sin() * radius,
     }
 }
 
@@ -277,7 +277,7 @@ fn split_arc_geometry(
         return SplitGeometryResult::NotOnLine;
     }
     let point_angle_deg =
-        normalize_degrees((center.y - point.y).atan2(point.x - center.x).to_degrees());
+        normalize_degrees((point.y - center.y).atan2(point.x - center.x).to_degrees());
     let progress = signed_arc_progress(start_angle_deg, sweep_angle_deg, point_angle_deg);
     let t = progress / sweep_angle_deg;
     let projected = arc_point(center, radius, start_angle_deg + progress);

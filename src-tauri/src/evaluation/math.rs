@@ -10,7 +10,7 @@ pub(crate) struct Circle {
 
 pub(crate) fn angle_from_to(start: &Point, end: &Point) -> Option<f64> {
     let dx = end.x - start.x;
-    let dy = start.y - end.y;
+    let dy = end.y - start.y;
     let length = dx.hypot(dy);
     (length > CIRCLE_EPSILON).then(|| normalize_degrees(dy.atan2(dx).to_degrees()))
 }

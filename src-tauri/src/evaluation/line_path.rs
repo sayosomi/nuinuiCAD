@@ -76,7 +76,7 @@ fn arc_point(center: PathPoint, radius: f64, angle_deg: f64) -> PathPoint {
     let angle_rad = angle_deg.to_radians();
     PathPoint {
         x: center.x + angle_rad.cos() * radius,
-        y: center.y - angle_rad.sin() * radius,
+        y: center.y + angle_rad.sin() * radius,
     }
 }
 

@@ -81,7 +81,7 @@ export const sourceStartTangent = (segment: SourceSegment): Point | null => {
   const tangentAngle = degreesToRadians(segment.startAngleDeg + (segment.sweepAngleDeg >= 0 ? 90 : -90));
   return {
     x: Math.cos(tangentAngle),
-    y: -Math.sin(tangentAngle)
+    y: Math.sin(tangentAngle)
   };
 };
 
@@ -98,7 +98,7 @@ export const sourceEndTangent = (segment: SourceSegment): Point | null => {
   const tangentAngle = degreesToRadians(endAngleDeg + (segment.sweepAngleDeg >= 0 ? 90 : -90));
   return {
     x: Math.cos(tangentAngle),
-    y: -Math.sin(tangentAngle)
+    y: Math.sin(tangentAngle)
   };
 };
 

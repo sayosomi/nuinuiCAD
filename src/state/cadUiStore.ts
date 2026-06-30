@@ -254,13 +254,13 @@ export const useCadUiStore = create<CadUiState>((set) => ({
       }
 
       const worldX = (anchor.x - anchor.width / 2 - current.panX) / current.zoom;
-      const worldY = (anchor.y - anchor.height / 2 - current.panY) / current.zoom;
+      const worldY = (anchor.height / 2 + current.panY - anchor.y) / current.zoom;
 
       return {
         canvasViewport: {
           zoom: nextZoom,
           panX: anchor.x - anchor.width / 2 - worldX * nextZoom,
-          panY: anchor.y - anchor.height / 2 - worldY * nextZoom
+          panY: anchor.y - anchor.height / 2 + worldY * nextZoom
         }
       };
     }),

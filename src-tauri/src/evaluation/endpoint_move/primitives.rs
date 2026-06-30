@@ -44,7 +44,7 @@ pub(super) fn line_distance(point: Point, start: Point, end: Point) -> Option<f6
 
 pub(super) fn angle_from_to(start: Point, end: Point) -> Value {
     let dx = end.x - start.x;
-    let dy = start.y - end.y;
+    let dy = end.y - start.y;
     let length = dx.hypot(dy);
     if length <= EPSILON {
         Value::Null

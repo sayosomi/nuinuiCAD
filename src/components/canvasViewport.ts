@@ -17,14 +17,14 @@ export const worldToScreen = (
   viewport: CanvasViewport
 ): ScreenPoint => ({
   x: size.width / 2 + viewport.panX + point.x * viewport.zoom,
-  y: size.height / 2 + viewport.panY + point.y * viewport.zoom
+  y: size.height / 2 + viewport.panY - point.y * viewport.zoom
 });
 
 export const visibleWorldBounds = (size: ViewportSize, viewport: CanvasViewport) => ({
   minX: (0 - size.width / 2 - viewport.panX) / viewport.zoom,
   maxX: (size.width - size.width / 2 - viewport.panX) / viewport.zoom,
-  minY: (0 - size.height / 2 - viewport.panY) / viewport.zoom,
-  maxY: (size.height - size.height / 2 - viewport.panY) / viewport.zoom
+  minY: (size.height / 2 + viewport.panY - size.height) / viewport.zoom,
+  maxY: (size.height / 2 + viewport.panY) / viewport.zoom
 });
 
 export const visibleGridStep = (
@@ -58,5 +58,5 @@ export const constrainedWorldDelta = ({
   axisLockKeys: AxisLockKeys;
 }) => ({
   dx: axisLockKeys.y && !axisLockKeys.x ? 0 : screenDx / zoom,
-  dy: axisLockKeys.x ? 0 : screenDy / zoom
+  dy: axisLockKeys.x ? 0 : -screenDy / zoom
 });

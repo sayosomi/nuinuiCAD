@@ -68,7 +68,7 @@ fn evaluates_three_point_arc_line() {
     assert!((arc["start"]["x"].as_f64().unwrap() - 10.0).abs() < 1e-9);
     assert!(arc["start"]["y"].as_f64().unwrap().abs() < 1e-9);
     assert!(arc["end"]["x"].as_f64().unwrap().abs() < 1e-9);
-    assert!((arc["end"]["y"].as_f64().unwrap() + 10.0).abs() < 1e-9);
+    assert!((arc["end"]["y"].as_f64().unwrap() - 10.0).abs() < 1e-9);
     assert!((arc["length"].as_f64().unwrap() - std::f64::consts::PI * 5.0).abs() < 1e-9);
 }
 
@@ -244,7 +244,7 @@ fn allows_supported_point_elements_to_reference_three_point_arc() {
             "visible": true,
             "enabled": true,
             "x": -20,
-            "y": -7
+            "y": 7
         })),
         element(json!({
             "id": "cross-line-end",
@@ -253,7 +253,7 @@ fn allows_supported_point_elements_to_reference_three_point_arc() {
             "visible": true,
             "enabled": true,
             "x": 20,
-            "y": -7
+            "y": 7
         })),
         element(json!({
             "id": "cross-line",

@@ -79,8 +79,8 @@ impl LineTransform {
                 let dx = mirrored.x - center.x;
                 let dy = mirrored.y - center.y;
                 Some(OffsetPoint {
-                    x: center.x + dx * cos + dy * sin,
-                    y: center.y - dx * sin + dy * cos,
+                    x: center.x + dx * cos - dy * sin,
+                    y: center.y + dx * sin + dy * cos,
                 })
             }
             Self::Reflect {
@@ -124,7 +124,7 @@ fn transform_point_value(point: &Value, transform: &LineTransform) -> Option<Val
 
 fn angle_from_to(start: OffsetPoint, end: OffsetPoint) -> Option<f64> {
     let dx = end.x - start.x;
-    let dy = start.y - end.y;
+    let dy = end.y - start.y;
     let length = dx.hypot(dy);
     (length > EPSILON).then(|| normalize_degrees(dy.atan2(dx).to_degrees()))
 }

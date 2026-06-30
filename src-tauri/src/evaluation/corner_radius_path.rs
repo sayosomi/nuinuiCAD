@@ -64,7 +64,7 @@ fn same_point(a: Point, b: Point) -> bool {
 }
 
 fn angle_of_point(center: Point, point: Point) -> f64 {
-    normalize_degrees((center.y - point.y).atan2(point.x - center.x).to_degrees())
+    normalize_degrees((point.y - center.y).atan2(point.x - center.x).to_degrees())
 }
 
 fn signed_sweep(start_angle_deg: f64, end_angle_deg: f64, ccw: bool) -> f64 {
@@ -80,7 +80,7 @@ fn arc_point(center: Point, radius: f64, angle_deg: f64) -> Point {
     let angle_rad = angle_deg.to_radians();
     Point {
         x: center.x + angle_rad.cos() * radius,
-        y: center.y - angle_rad.sin() * radius,
+        y: center.y + angle_rad.sin() * radius,
     }
 }
 
@@ -281,7 +281,7 @@ pub(crate) fn corner_radius_geometry(
             x: tangent2.x - center.x,
             y: tangent2.y - center.y,
         },
-    ) <= 0.0;
+    ) >= 0.0;
     let sweep_angle_deg = signed_sweep(start_angle_deg, end_angle_deg, ccw);
     let (start_tangent_angle_deg, end_tangent_angle_deg) =
         arc_tangent_angles(start_angle_deg, end_angle_deg, sweep_angle_deg);

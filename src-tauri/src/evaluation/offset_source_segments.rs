@@ -137,7 +137,7 @@ pub(crate) fn source_start_tangent(segment: &SourceSegment) -> Option<OffsetPoin
                 (start_angle_deg + if *sweep_angle_deg >= 0.0 { 90.0 } else { -90.0 }).to_radians();
             Some(OffsetPoint {
                 x: tangent_angle.cos(),
-                y: -tangent_angle.sin(),
+                y: tangent_angle.sin(),
             })
         }
     }
@@ -163,7 +163,7 @@ pub(crate) fn source_end_tangent(segment: &SourceSegment) -> Option<OffsetPoint>
                 (end_angle_deg + if *sweep_angle_deg >= 0.0 { 90.0 } else { -90.0 }).to_radians();
             Some(OffsetPoint {
                 x: tangent_angle.cos(),
-                y: -tangent_angle.sin(),
+                y: tangent_angle.sin(),
             })
         }
     }
