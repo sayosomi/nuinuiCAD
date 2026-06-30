@@ -162,16 +162,18 @@ const ShortcutSettingsDialogContent = ({
           </button>
         </div>
 
-        {shortcutSettingsError ? (
-          <p className="shortcut-settings-error" role="alert">
-            {shortcutSettingsError}
-          </p>
-        ) : null}
-        {conflicts.length > 0 ? (
-          <p className="shortcut-settings-error" role="alert">
-            {conflicts.length}件のキー重複があります。
-          </p>
-        ) : null}
+        <div className="shortcut-settings-errors">
+          {shortcutSettingsError ? (
+            <p className="shortcut-settings-error" role="alert">
+              {shortcutSettingsError}
+            </p>
+          ) : null}
+          {conflicts.length > 0 ? (
+            <p className="shortcut-settings-error" role="alert">
+              {conflicts.length}件のキー重複があります。
+            </p>
+          ) : null}
+        </div>
 
         <div className="shortcut-settings-list">
           {filteredBindings.map((sourceBinding) => {
