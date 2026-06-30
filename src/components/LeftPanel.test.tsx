@@ -672,6 +672,14 @@ describe("LeftPanel element list dragging", () => {
     );
   });
 
+  it("collapses hierarchy spacing when the element list has no groups", () => {
+    renderLeftPanel();
+
+    expect(screen.getByText("点A").closest("[data-element-list-row='true']")).toHaveClass(
+      "is-flat-list"
+    );
+  });
+
   it("shows the evaluation divider and marks later rows as unevaluated", () => {
     useCadStore.setState({
       evaluationLimitIndex: 2
@@ -800,6 +808,10 @@ describe("LeftPanel element list dragging", () => {
     renderLeftPanel();
 
     const groupRow = screen.getByText("身頃").closest("[data-element-list-row='true']");
+    expect(groupRow).not.toHaveClass("is-flat-list");
+    expect(screen.getByText("点A").closest("[data-element-list-row='true']")).not.toHaveClass(
+      "is-flat-list"
+    );
     expect(screen.queryByText(/配下/)).not.toBeInTheDocument();
     expect(screen.getByText("2件")).toBeInTheDocument();
     expect(groupRow?.querySelector(".element-group-icon")).toBeInTheDocument();
