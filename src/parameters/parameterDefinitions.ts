@@ -83,6 +83,16 @@ export const getParameterDefinitions = (element: CadElement): ParameterDefinitio
         { key: "expanded", directKey: "x", label: "then展開", kind: "boolean" },
         { key: "elseExpanded", directKey: "e", label: "else展開", kind: "boolean" }
       ];
+    case "forGroup":
+      return [
+        ...commonParameters,
+        { key: "variableName", directKey: "i", label: "変数名", kind: "text" },
+        { key: "start", directKey: "s", label: "開始", kind: "number" },
+        { key: "count", directKey: "c", label: "回数", kind: "number" },
+        { key: "step", directKey: "p", label: "ステップ", kind: "number" },
+        { key: "expanded", directKey: "x", label: "展開", kind: "boolean" },
+        { key: "showGenerated", directKey: "g", label: "生成結果を表示", kind: "boolean" }
+      ];
     case "variable":
       return [
         ...variableCommonParameters,

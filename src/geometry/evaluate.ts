@@ -4,11 +4,16 @@ import {
   effectiveVisibleElementIds,
   groupStateByElementId,
   isConditionalGroupElement,
+  isForGroupElement,
   isGroupElement
 } from "../model/groups";
 import { evaluateLocalVariables, numericError } from "./evaluationContext";
 import { evaluateElement } from "./elementEvaluators";
 import { evaluateVariableElement } from "./variableEvaluator";
+import {
+  expandForGroupIteration,
+  forGroupTemplateDescendantIds
+} from "./forGroupExpansion";
 
 export type EvaluateElementsOptions = {
   evaluationLimitIndex?: number;
@@ -29,6 +34,8 @@ export const evaluateElements = (
   const errors: DependencyError[] = [];
   const warnings: EvaluationWarning[] = [];
   const elementsById = new Map(elements.map((element) => [element.id, element]));
+  const runtimeElementsById = new Map(elementsById);
+  const runtimeElements = [...evaluatedElements];
   const effectiveVisibleIds = new Set(
     [...effectiveVisibleElementIds(elements)].filter((id) => evaluatedElementIds.has(id))
   );
@@ -45,6 +52,45 @@ export const evaluateElements = (
   const conditionalGroupStates = new Map<ElementId, "then" | "else" | null>();
   const conditionInactiveElementIds = new Set<ElementId>();
   const effectiveEnabledIds = new Set<ElementId>();
+  const templateDescendantIds = forGroupTemplateDescendantIds(elements);
+  const forGroupGeneratedRows: EvaluationResult["forGroupGeneratedRows"] = [];
+
+  const pushGeneratedVisibilityState = (generatedElement: CadElement, templateElement: CadElement) => {
+    if (effectiveVisibleIds.has(templateElement.id)) {
+      effectiveVisibleIds.add(generatedElement.id);
+    }
+    if (baseEffectiveEnabledIds.has(templateElement.id)) {
+      effectiveEnabledIds.add(generatedElement.id);
+    }
+  };
+
+  const forGroupIterationCount = (
+    element: CadElement,
+    countValue: number | undefined
+  ) => {
+    if (countValue === undefined) return undefined;
+    if (!Number.isFinite(countValue) || countValue < 0 || !Number.isInteger(countValue)) {
+      errors.push({
+        elementId: element.id,
+        elementName: element.name,
+        missingDependencyId: element.id,
+        missingDependencyName: element.name,
+        message: `${element.name} の回数は0以上の整数にしてください。`
+      });
+      return undefined;
+    }
+    if (countValue > 1000) {
+      errors.push({
+        elementId: element.id,
+        elementName: element.name,
+        missingDependencyId: element.id,
+        missingDependencyName: element.name,
+        message: `${element.name} の回数は1000以下にしてください。`
+      });
+      return undefined;
+    }
+    return countValue;
+  };
 
   const inactiveConditionalGroupId = (element: CadElement) => {
     let child = element;
@@ -52,7 +98,7 @@ export const evaluateElements = (
     const visited = new Set<ElementId>();
     while (parentId && !visited.has(parentId)) {
       visited.add(parentId);
-      const parent = elementsById.get(parentId);
+      const parent = runtimeElementsById.get(parentId);
       if (!parent) return null;
       if (isConditionalGroupElement(parent)) {
         const activeBranch = conditionalGroupStates.get(parent.id);
@@ -65,73 +111,148 @@ export const evaluateElements = (
     return null;
   };
 
-  for (const element of evaluatedElements) {
+  const evaluateRuntimeElement = (element: CadElement, sourceElement?: CadElement) => {
     const inactiveGroupId = inactiveConditionalGroupId(element);
     if (inactiveGroupId) {
       conditionInactiveElementIds.add(element.id);
       disabledByGroupId.set(element.id, inactiveGroupId);
-      continue;
+      return;
     }
 
-    if (!baseEffectiveEnabledIds.has(element.id)) {
-      continue;
+    const enabled = sourceElement
+      ? baseEffectiveEnabledIds.has(sourceElement.id)
+      : baseEffectiveEnabledIds.has(element.id);
+    if (!enabled) {
+      return;
     }
     effectiveEnabledIds.add(element.id);
 
     const localVariables = evaluateLocalVariables(
       element,
       computedGeometry,
-      elementsById,
+      runtimeElementsById,
       errors,
       computedVariables,
-      evaluatedElements
+      runtimeElements
     );
-    if (!localVariables) continue;
+    if (!localVariables) return;
 
     if (isConditionalGroupElement(element)) {
       const conditionValue = numericError(
         element,
         element.condition,
         computedGeometry,
-        elementsById,
+        runtimeElementsById,
         errors,
         localVariables.localVariableValues,
         localVariables.localVariableNames,
         disabledByGroupId,
         computedVariables,
-        evaluatedElements
+        runtimeElements
       );
       conditionalGroupStates.set(
         element.id,
         conditionValue === undefined ? null : conditionValue === 0 ? "else" : "then"
       );
-      continue;
+      return;
+    }
+
+    if (isForGroupElement(element)) {
+      const start = numericError(
+        element,
+        element.start,
+        computedGeometry,
+        runtimeElementsById,
+        errors,
+        localVariables.localVariableValues,
+        localVariables.localVariableNames,
+        disabledByGroupId,
+        computedVariables,
+        runtimeElements
+      );
+      const count = forGroupIterationCount(
+        element,
+        numericError(
+          element,
+          element.count,
+          computedGeometry,
+          runtimeElementsById,
+          errors,
+          localVariables.localVariableValues,
+          localVariables.localVariableNames,
+          disabledByGroupId,
+          computedVariables,
+          runtimeElements
+        )
+      );
+      const step = numericError(
+        element,
+        element.step,
+        computedGeometry,
+        runtimeElementsById,
+        errors,
+        localVariables.localVariableValues,
+        localVariables.localVariableNames,
+        disabledByGroupId,
+        computedVariables,
+        runtimeElements
+      );
+      if (start === undefined || count === undefined || step === undefined) return;
+
+      for (let iterationIndex = 0; iterationIndex < count; iterationIndex += 1) {
+        const variableValue = start + iterationIndex * step;
+        const { generatedElements, rows } = expandForGroupIteration({
+          elements,
+          forGroup: element,
+          iterationIndex,
+          variableValue
+        });
+        forGroupGeneratedRows.push(...rows);
+        for (const generatedElement of generatedElements) {
+          const templateElement = elementsById.get(rows.find(
+            (row) => row.generatedElementId === generatedElement.id
+          )?.templateElementId ?? "") ?? elements.find(
+            (candidate) =>
+              generatedElement.id === `${candidate.id}@${element.id}:${iterationIndex}`
+          );
+          runtimeElements.push(generatedElement);
+          runtimeElementsById.set(generatedElement.id, generatedElement);
+          if (templateElement) pushGeneratedVisibilityState(generatedElement, templateElement);
+          evaluateRuntimeElement(generatedElement, templateElement);
+        }
+      }
+      return;
     }
 
     if (isGroupElement(element)) {
-      continue;
+      return;
     }
 
     if (element.type === "variable") {
       evaluateVariableElement(element, {
         computedGeometry,
         computedVariables,
-        elementsById,
+        elementsById: runtimeElementsById,
         errors,
         disabledByGroupId,
         localVariables
       });
-      continue;
+      return;
     }
 
     evaluateElement(element, {
       computedGeometry,
-      elementsById,
+      elementsById: runtimeElementsById,
       errors,
       warnings,
       disabledByGroupId,
       localVariables
     });
+  };
+
+  for (const element of evaluatedElements) {
+    if (templateDescendantIds.has(element.id)) continue;
+    evaluateRuntimeElement(element);
   }
 
   return {
@@ -143,6 +264,7 @@ export const evaluateElements = (
     evaluationLimitIndex,
     effectiveVisibleElementIds: effectiveVisibleIds,
     effectiveEnabledElementIds: effectiveEnabledIds,
-    conditionInactiveElementIds
+    conditionInactiveElementIds,
+    forGroupGeneratedRows
   };
 };

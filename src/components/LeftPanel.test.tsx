@@ -795,6 +795,84 @@ describe("LeftPanel element list dragging", () => {
     );
   });
 
+  it("shows for group template and generated preview rows", () => {
+    const elements: CadElement[] = [
+      {
+        id: "loop",
+        name: "プリーツ繰り返し",
+        type: "forGroup",
+        visible: true,
+        enabled: true,
+        variableName: "i",
+        start: 0,
+        count: 3,
+        step: 1,
+        expanded: true,
+        showGenerated: true
+      },
+      {
+        id: "pleat",
+        name: "プリーツ点",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        parentGroupId: "loop",
+        x: { kind: "expression", expression: "@i * 10" },
+        y: 0
+      }
+    ];
+    useCadStore.setState({
+      elements,
+      evaluationLimitIndex: elements.length
+    });
+
+    renderLeftPanel(evaluateElements(elements));
+
+    expect(screen.getByText("for i = 0..2 step 1")).toBeInTheDocument();
+    expect(screen.getByText("テンプレート")).toBeInTheDocument();
+    expect(screen.getByText("生成結果")).toBeInTheDocument();
+    expect(screen.getByText("[i=0] プリーツ点")).toBeInTheDocument();
+    expect(screen.getByText("[i=1] プリーツ点")).toBeInTheDocument();
+    expect(screen.getByText("[i=2] プリーツ点")).toBeInTheDocument();
+  });
+
+  it("includes shown for group generated rows while searching", () => {
+    const elements: CadElement[] = [
+      {
+        id: "loop",
+        name: "プリーツ繰り返し",
+        type: "forGroup",
+        visible: true,
+        enabled: true,
+        variableName: "i",
+        start: 0,
+        count: 2,
+        step: 1,
+        expanded: true,
+        showGenerated: true
+      },
+      {
+        id: "pleat",
+        name: "プリーツ点",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        parentGroupId: "loop",
+        x: { kind: "expression", expression: "@i * 10" },
+        y: 0
+      }
+    ];
+    useCadStore.setState({
+      elements,
+      evaluationLimitIndex: elements.length,
+      elementSearchQuery: "i=1"
+    });
+
+    renderLeftPanel(evaluateElements(elements));
+
+    expect(screen.getByText("[i=1] プリーツ点")).toBeInTheDocument();
+  });
+
   it("shows the evaluation divider and marks later rows as unevaluated", () => {
     useCadStore.setState({
       evaluationLimitIndex: 2

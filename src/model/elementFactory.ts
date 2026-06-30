@@ -75,6 +75,23 @@ export const createCadElement = (
         elseExpanded: true
       };
     }
+    case "forGroup": {
+      const forCount = elements.filter((element) => element.type === "forGroup").length;
+      const id = createId(type);
+      return {
+        id,
+        name: uniqueName(id, `forブロック${forCount + 1}`),
+        type,
+        visible: true,
+        enabled: true,
+        variableName: "i",
+        start: 0,
+        count: 3,
+        step: 1,
+        expanded: true,
+        showGenerated: false
+      };
+    }
     case "variable": {
       const variableCount = elements.filter((element) => element.type === "variable").length;
       const id = createId(type);

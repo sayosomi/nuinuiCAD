@@ -7,7 +7,7 @@ import {
   isPointElement,
   referenceAnchor
 } from "../model/pointAnchors";
-import { isConditionalGroupElement } from "../model/groups";
+import { descendantIdsForGroup, isConditionalGroupElement, isForGroupElement } from "../model/groups";
 import {
   numericReferencePropertiesForGeometry,
   type NumericReferenceGeometry
@@ -18,8 +18,11 @@ import { useCadUiStore } from "../state/cadUiStore";
 import type {
   CadElement,
   ElementId,
-  EvaluationResult
+  EvaluationResult,
+  ForGroupElement,
+  ForGroupGeneratedRow
 } from "../types/geometry";
+import { elementCategoryLabels, elementTypeCategories, elementTypeLabels } from "../types/geometry";
 import {
   numericReferenceExpression,
 } from "./geometryDisplay";
@@ -143,6 +146,52 @@ const ElseDividerRow = ({ depth }: { depth: number }) => (
   </div>
 );
 
+const ForSectionDividerRow = ({
+  depth,
+  label
+}: {
+  depth: number;
+  label: string;
+}) => (
+  <div className="element-for-section-row">
+    <span
+      className="element-outline-indent"
+      style={{ "--outline-depth": Math.max(depth, 0) } as CSSProperties}
+      aria-hidden="true"
+    />
+    <span className="element-expand-spacer" aria-hidden="true" />
+    <span className="element-index" aria-hidden="true" />
+    <span className="element-for-section-label">{label}</span>
+  </div>
+);
+
+const ForGeneratedPreviewRow = ({
+  row,
+  depth
+}: {
+  row: ForGroupGeneratedRow;
+  depth: number;
+}) => (
+  <div
+    className="element-generated-row"
+    aria-label={`${row.variableName}=${row.variableValue} の生成結果 ${row.elementName}`}
+  >
+    <span
+      className="element-outline-indent"
+      style={{ "--outline-depth": Math.max(depth, 0) } as CSSProperties}
+      aria-hidden="true"
+    />
+    <span className="element-expand-spacer" aria-hidden="true" />
+    <span className="element-index" aria-hidden="true" />
+    <span className="element-status-icons" aria-hidden="true" />
+    <span className="element-name">{row.elementName}</span>
+    <span className="element-type">
+      {elementCategoryLabels[elementTypeCategories[row.elementType]]} / {elementTypeLabels[row.elementType]}
+    </span>
+    <span className="element-drag-handle" aria-hidden="true" />
+  </div>
+);
+
 export const LeftPanel = ({
   evaluation,
   elementListFocusRef,
@@ -169,6 +218,34 @@ export const LeftPanel = ({
   const pointerDragRef = useRef<ElementListPointerDrag | null>(null);
   const pointerDragClientYRef = useRef<number | null>(null);
   const selectedElementIdSet = new Set(selectedElementIds);
+  const elementsById = new Map(elements.map((element) => [element.id, element]));
+  const generatedRowsByForGroupId = new Map<ElementId, ForGroupGeneratedRow[]>();
+  for (const row of evaluation.forGroupGeneratedRows ?? []) {
+    generatedRowsByForGroupId.set(row.forGroupId, [
+      ...(generatedRowsByForGroupId.get(row.forGroupId) ?? []),
+      row
+    ]);
+  }
+  const firstVisibleChildForGroupId = (forGroupId: ElementId) =>
+    displayedElements.find((element) => element.parentGroupId === forGroupId)?.id ?? null;
+  const lastVisibleDescendantForGroupId = (forGroupId: ElementId) => {
+    const descendantIds = new Set(descendantIdsForGroup(elements, forGroupId));
+    for (let index = displayedElements.length - 1; index >= 0; index -= 1) {
+      if (descendantIds.has(displayedElements[index].id)) return displayedElements[index].id;
+    }
+    return null;
+  };
+  const generatedPreviewOwnerAfter = (element: CadElement): ForGroupElement | null => {
+    if (isSearchActive) return null;
+    if (isForGroupElement(element)) {
+      return lastVisibleDescendantForGroupId(element.id) ? null : element;
+    }
+    return elements.find((candidate): candidate is ForGroupElement =>
+      isForGroupElement(candidate) &&
+      candidate.showGenerated &&
+      lastVisibleDescendantForGroupId(candidate.id) === element.id
+    ) ?? null;
+  };
   const draggedElementIds = pointerDrag?.kind === "elements" ? pointerDrag.movingIds : [];
   const isDividerDragging = pointerDrag?.kind === "divider";
   const isPointerDragging = pointerDrag !== null;
@@ -199,6 +276,23 @@ export const LeftPanel = ({
     activeLinePickTarget,
     activePickCursor
   });
+  const generatedSearchRows = isSearchActive
+    ? Array.from(generatedRowsByForGroupId.values())
+        .flat()
+        .filter((row) => {
+          const owner = elementsById.get(row.forGroupId);
+          if (!owner || !isForGroupElement(owner) || !owner.showGenerated) return false;
+          const query = elementSearchQuery.trim().toLowerCase();
+          const typeLabel = `${elementCategoryLabels[elementTypeCategories[row.elementType]]} ${elementTypeLabels[row.elementType]}`;
+          return [
+            row.generatedElementId,
+            row.elementName,
+            row.variableName,
+            `${row.variableValue}`,
+            typeLabel
+          ].some((value) => value.toLowerCase().includes(query));
+        })
+    : [];
 
   useEffect(() => {
     if (!selectedPickCursor) return;
@@ -562,8 +656,14 @@ export const LeftPanel = ({
           {displayedElements.flatMap((element, displayIndex) => {
             const rowData = getRowData(element);
             const parent = element.parentGroupId
-              ? elements.find((item) => item.id === element.parentGroupId)
+              ? elementsById.get(element.parentGroupId)
               : null;
+            const forParent = parent && isForGroupElement(parent) ? parent : null;
+            const insertForTemplateDivider =
+              !isSearchActive &&
+              forParent &&
+              forParent.expanded &&
+              firstVisibleChildForGroupId(forParent.id) === element.id;
             const insertElseDivider =
               !isSearchActive &&
               element.conditionalBranch === "else" &&
@@ -598,6 +698,15 @@ export const LeftPanel = ({
             }
             if (insertElseDivider) {
               rows.push(<ElseDividerRow key={`${parent.id}:else`} depth={rowData.depth} />);
+            }
+            if (insertForTemplateDivider) {
+              rows.push(
+                <ForSectionDividerRow
+                  key={`${forParent.id}:template`}
+                  depth={rowData.depth}
+                  label="テンプレート"
+                />
+              );
             }
             rows.push(
               <ElementListRow
@@ -645,8 +754,46 @@ export const LeftPanel = ({
                 onApplyNumericReference={applyNumericReference}
               />
             );
+            const forGeneratedAfterElement = generatedPreviewOwnerAfter(element);
+            if (
+              forGeneratedAfterElement &&
+              forGeneratedAfterElement.showGenerated &&
+              forGeneratedAfterElement.expanded
+            ) {
+              const generatedRows = generatedRowsByForGroupId.get(forGeneratedAfterElement.id) ?? [];
+              const generatedDepth =
+                (getRowData(forGeneratedAfterElement).depth ?? rowData.depth) + 1;
+              rows.push(
+                <ForSectionDividerRow
+                  key={`${forGeneratedAfterElement.id}:generated`}
+                  depth={generatedDepth}
+                  label="生成結果"
+                />
+              );
+              rows.push(
+                ...generatedRows.map((generatedRow) => (
+                  <ForGeneratedPreviewRow
+                    key={generatedRow.generatedElementId}
+                    row={generatedRow}
+                    depth={generatedDepth + 1}
+                  />
+                ))
+              );
+            }
             return rows;
           })}
+          {isSearchActive && generatedSearchRows.length > 0 ? (
+            <>
+              <ForSectionDividerRow key="generated-search" depth={0} label="生成結果" />
+              {generatedSearchRows.map((generatedRow) => (
+                <ForGeneratedPreviewRow
+                  key={generatedRow.generatedElementId}
+                  row={generatedRow}
+                  depth={1}
+                />
+              ))}
+            </>
+          ) : null}
           {!isSearchActive && evaluationLimitIndex >= elements.length ? (
             <EvaluationDividerRow
               key="evaluation-divider"

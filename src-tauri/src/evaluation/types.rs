@@ -32,6 +32,19 @@ pub struct EvaluationWarning {
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub(crate) struct ForGroupGeneratedRow {
+    pub(crate) for_group_id: ElementId,
+    pub(crate) template_element_id: ElementId,
+    pub(crate) generated_element_id: ElementId,
+    pub(crate) iteration_index: usize,
+    pub(crate) variable_name: String,
+    pub(crate) variable_value: f64,
+    pub(crate) element_name: String,
+    pub(crate) element_type: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct EvaluationPayload {
     pub(crate) computed_geometry: Vec<Value>,
     pub(crate) computed_variables: Vec<Value>,
@@ -42,6 +55,8 @@ pub struct EvaluationPayload {
     pub(crate) effective_visible_element_ids: Vec<ElementId>,
     pub(crate) effective_enabled_element_ids: Vec<ElementId>,
     pub(crate) condition_inactive_element_ids: Vec<ElementId>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub(crate) for_group_generated_rows: Vec<ForGroupGeneratedRow>,
 }
 
 #[derive(Clone, Debug, Default)]

@@ -15,6 +15,11 @@ import {
   wrapSelectedElementsInConditionalGroup
 } from "./conditionalGroupCommands";
 import {
+  addForGroup,
+  toggleSelectedForGroupGenerated,
+  wrapSelectedElementsInForGroup
+} from "./forGroupCommands";
+import {
   extendSelectionByOffset,
   groupSelectedElements,
   indentSelectedElements,
@@ -173,6 +178,26 @@ export const selectionCommandDefinitions = {
     label: "else枝を削除",
     palette: { order: 34.8, keywords: ["else", "if", "branch", "条件", "分岐", "削除"] },
     run: () => deleteElseBranchFromSelectedConditionalGroup()
+  },
+  addForGroup: {
+    id: "addForGroup",
+    label: "forブロックを追加",
+    palette: { order: 34.9, keywords: ["for", "loop", "repeat", "繰り返し", "追加"] },
+    shortcuts: [{ keys: "Alt+F" }],
+    run: () => addForGroup()
+  },
+  wrapSelectedElementsInForGroup: {
+    id: "wrapSelectedElementsInForGroup",
+    label: "選択範囲をforで囲む",
+    palette: { order: 34.95, keywords: ["for", "loop", "wrap", "繰り返し", "囲む"] },
+    shortcuts: [{ keys: "Shift+Alt+F" }],
+    run: () => wrapSelectedElementsInForGroup()
+  },
+  toggleSelectedForGroupGenerated: {
+    id: "toggleSelectedForGroupGenerated",
+    label: "for生成結果を表示/非表示",
+    palette: { order: 34.98, keywords: ["for", "generated", "preview", "生成", "表示"] },
+    run: () => toggleSelectedForGroupGenerated()
   },
   ungroupSelectedGroup: {
     id: "ungroupSelectedGroup",

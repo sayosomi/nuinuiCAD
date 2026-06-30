@@ -1,13 +1,23 @@
-import type { CadElement, ConditionalGroupElement, ElementId, GroupElement } from "../types/geometry";
+import type {
+  CadElement,
+  ConditionalGroupElement,
+  ElementId,
+  ForGroupElement,
+  GroupElement
+} from "../types/geometry";
 
-export type GroupLikeElement = GroupElement | ConditionalGroupElement;
+export type GroupLikeElement = GroupElement | ConditionalGroupElement | ForGroupElement;
 
 export const isGroupElement = (element: CadElement): element is GroupLikeElement =>
-  element.type === "group" || element.type === "conditionalGroup";
+  element.type === "group" || element.type === "conditionalGroup" || element.type === "forGroup";
 
 export const isConditionalGroupElement = (
   element: CadElement
 ): element is ConditionalGroupElement => element.type === "conditionalGroup";
+
+export const isForGroupElement = (
+  element: CadElement
+): element is ForGroupElement => element.type === "forGroup";
 
 export type ElementGroupState = {
   depth: number;

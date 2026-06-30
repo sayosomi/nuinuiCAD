@@ -164,6 +164,129 @@ describe("evaluateElements", () => {
     expect(result.conditionInactiveElementIds).toEqual(new Set(["then-point"]));
   });
 
+  it("evaluates for group template elements once per iteration with a local variable", () => {
+    const result = evaluateElements([
+      {
+        id: "loop",
+        name: "プリーツ繰り返し",
+        type: "forGroup",
+        visible: true,
+        enabled: true,
+        variableName: "i",
+        start: 0,
+        count: 3,
+        step: 2,
+        expanded: true,
+        showGenerated: true
+      },
+      {
+        id: "p",
+        name: "プリーツ点",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        parentGroupId: "loop",
+        x: makeNumericExpression("@i * 10"),
+        y: 5
+      }
+    ]);
+
+    expect(result.errors).toHaveLength(0);
+    expect(result.computedGeometry.has("p")).toBe(false);
+    expect(result.computedGeometry.get("p@loop:0")).toMatchObject({ kind: "point", x: 0, y: 5 });
+    expect(result.computedGeometry.get("p@loop:1")).toMatchObject({ kind: "point", x: 20, y: 5 });
+    expect(result.computedGeometry.get("p@loop:2")).toMatchObject({ kind: "point", x: 40, y: 5 });
+    expect(result.forGroupGeneratedRows).toEqual([
+      expect.objectContaining({ forGroupId: "loop", templateElementId: "p", generatedElementId: "p@loop:0" }),
+      expect.objectContaining({ forGroupId: "loop", templateElementId: "p", generatedElementId: "p@loop:1" }),
+      expect.objectContaining({ forGroupId: "loop", templateElementId: "p", generatedElementId: "p@loop:2" })
+    ]);
+  });
+
+  it("remaps references between generated for group template elements", () => {
+    const result = evaluateElements([
+      {
+        id: "origin",
+        name: "原点",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 0,
+        y: 0
+      },
+      {
+        id: "loop",
+        name: "ボタン繰り返し",
+        type: "forGroup",
+        visible: true,
+        enabled: true,
+        variableName: "i",
+        start: 1,
+        count: 2,
+        step: 1,
+        expanded: true,
+        showGenerated: false
+      },
+      {
+        id: "button",
+        name: "ボタン位置",
+        type: "offsetPoint",
+        visible: true,
+        enabled: true,
+        parentGroupId: "loop",
+        fromPoint: { mode: "reference", pointId: "origin" },
+        fromPointId: "origin",
+        dx: makeNumericExpression("@i * 15"),
+        dy: 0
+      },
+      {
+        id: "button-line",
+        name: "ボタン線",
+        type: "line",
+        visible: true,
+        enabled: true,
+        parentGroupId: "loop",
+        startPoint: { mode: "reference", pointId: "origin" },
+        endPoint: { mode: "reference", pointId: "button" }
+      }
+    ]);
+
+    expect(result.errors).toHaveLength(0);
+    expect(result.computedGeometry.get("button@loop:0")).toMatchObject({ kind: "point", x: 15 });
+    expect(result.computedGeometry.get("button-line@loop:0")).toMatchObject({
+      kind: "line",
+      endPointId: "button@loop:0"
+    });
+    expect(result.computedGeometry.get("button@loop:1")).toMatchObject({ kind: "point", x: 30 });
+    expect(result.computedGeometry.get("button-line@loop:1")).toMatchObject({
+      kind: "line",
+      endPointId: "button@loop:1"
+    });
+  });
+
+  it("reports invalid for group counts", () => {
+    const result = evaluateElements([
+      {
+        id: "loop",
+        name: "不正な繰り返し",
+        type: "forGroup",
+        visible: true,
+        enabled: true,
+        variableName: "i",
+        start: 0,
+        count: 1.5,
+        step: 1,
+        expanded: true,
+        showGenerated: false
+      }
+    ]);
+
+    expect(result.errors[0]).toMatchObject({
+      elementId: "loop",
+      message: "不正な繰り返し の回数は0以上の整数にしてください。"
+    });
+  });
+
   it("reports references to geometry in an inactive conditional branch", () => {
     const result = evaluateElements([
       {

@@ -63,6 +63,8 @@ const defaultBindings: ShortcutBinding[] = [
   binding("normal", "groupSelectedElements", [ch("g", { mod: true })]),
   binding("normal", "addConditionalGroup", [ch("i", { alt: true })]),
   binding("normal", "wrapSelectedElementsInConditionalGroup", [ch("i", { alt: true, shift: true })]),
+  binding("normal", "addForGroup", [ch("f", { alt: true })]),
+  binding("normal", "wrapSelectedElementsInForGroup", [ch("f", { alt: true, shift: true })]),
   binding("normal", "ungroupSelectedGroup", [ch("g", { mod: true, shift: true })]),
   binding(
     "normal",

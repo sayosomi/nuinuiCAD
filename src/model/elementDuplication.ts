@@ -103,7 +103,7 @@ const remapNumericFields = <T extends CadElement>(element: T, idMap: Map<Element
 const remapBaseLineIds = (baseLineIds: ElementId[], idMap: Map<ElementId, ElementId>) =>
   baseLineIds.map((id) => mapId(id, idMap));
 
-const remapElementReferences = (source: CadElement, idMap: Map<ElementId, ElementId>): CadElement => {
+export const remapElementReferences = (source: CadElement, idMap: Map<ElementId, ElementId>): CadElement => {
   const element = remapNumericFields(source, idMap);
 
   switch (element.type) {
@@ -113,6 +113,13 @@ const remapElementReferences = (source: CadElement, idMap: Map<ElementId, Elemen
       return {
         ...element,
         condition: remapNumericValue(element.condition, idMap)
+      };
+    case "forGroup":
+      return {
+        ...element,
+        start: remapNumericValue(element.start, idMap),
+        count: remapNumericValue(element.count, idMap),
+        step: remapNumericValue(element.step, idMap)
       };
     case "variable":
       return {

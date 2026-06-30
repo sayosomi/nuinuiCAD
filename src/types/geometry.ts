@@ -248,9 +248,20 @@ export type ConditionalGroupElement = CadElementBase & {
   elseExpanded: boolean;
 };
 
+export type ForGroupElement = CadElementBase & {
+  type: "forGroup";
+  variableName: string;
+  start: NumericValue;
+  count: NumericValue;
+  step: NumericValue;
+  expanded: boolean;
+  showGenerated: boolean;
+};
+
 export type CadElement =
   | GroupElement
   | ConditionalGroupElement
+  | ForGroupElement
   | VariableElement
   | FreePointElement
   | OffsetPointElement
@@ -409,6 +420,17 @@ export type EvaluationWarning = {
   message: string;
 };
 
+export type ForGroupGeneratedRow = {
+  forGroupId: ElementId;
+  templateElementId: ElementId;
+  generatedElementId: ElementId;
+  iterationIndex: number;
+  variableName: string;
+  variableValue: number;
+  elementName: string;
+  elementType: CadElementType;
+};
+
 export type EvaluationResult = {
   computedGeometry: Map<ElementId, ComputedGeometry>;
   computedVariables: Map<ElementId, ComputedVariable>;
@@ -419,11 +441,13 @@ export type EvaluationResult = {
   effectiveVisibleElementIds?: Set<ElementId>;
   effectiveEnabledElementIds?: Set<ElementId>;
   conditionInactiveElementIds?: Set<ElementId>;
+  forGroupGeneratedRows?: ForGroupGeneratedRow[];
 };
 
 export const elementTypeLabels: Record<CadElementType, string> = {
   group: "グループ",
   conditionalGroup: "ifブロック",
+  forGroup: "forブロック",
   variable: "変数",
   freePoint: "free point",
   offsetPoint: "offset point",
@@ -450,6 +474,7 @@ export const elementTypeLabels: Record<CadElementType, string> = {
 export const elementTypeCategories: Record<CadElementType, CadElementCategory> = {
   group: "group",
   conditionalGroup: "group",
+  forGroup: "group",
   variable: "modification",
   freePoint: "point",
   offsetPoint: "point",

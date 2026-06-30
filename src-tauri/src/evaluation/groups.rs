@@ -43,8 +43,11 @@ fn state_for_group(
         })
         .and_then(|(parent_id, parent_index)| {
             let parent = &elements[parent_index];
-            matches!(element_type(parent), Some("group" | "conditionalGroup"))
-                .then_some((parent_id, parent_index))
+            matches!(
+                element_type(parent),
+                Some("group" | "conditionalGroup" | "forGroup")
+            )
+            .then_some((parent_id, parent_index))
         })
         .map(|(parent_id, parent_index)| {
             let parent = &elements[parent_index];

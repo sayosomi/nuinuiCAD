@@ -4,7 +4,8 @@ import type {
   DependencyError,
   ElementId,
   EvaluationResult,
-  EvaluationWarning
+  EvaluationWarning,
+  ForGroupGeneratedRow
 } from "../types/geometry";
 
 export type EvaluationPayload = {
@@ -17,6 +18,7 @@ export type EvaluationPayload = {
   effectiveVisibleElementIds: ElementId[];
   effectiveEnabledElementIds: ElementId[];
   conditionInactiveElementIds?: ElementId[];
+  forGroupGeneratedRows?: ForGroupGeneratedRow[];
 };
 
 export const evaluationResultToPayload = (result: EvaluationResult): EvaluationPayload => ({
@@ -28,7 +30,10 @@ export const evaluationResultToPayload = (result: EvaluationResult): EvaluationP
   evaluationLimitIndex: result.evaluationLimitIndex ?? result.evaluatedElementIds?.size ?? 0,
   effectiveVisibleElementIds: Array.from(result.effectiveVisibleElementIds ?? []),
   effectiveEnabledElementIds: Array.from(result.effectiveEnabledElementIds ?? []),
-  conditionInactiveElementIds: Array.from(result.conditionInactiveElementIds ?? [])
+  conditionInactiveElementIds: Array.from(result.conditionInactiveElementIds ?? []),
+  forGroupGeneratedRows: result.forGroupGeneratedRows?.length
+    ? result.forGroupGeneratedRows
+    : undefined
 });
 
 export const evaluationPayloadToResult = (payload: EvaluationPayload): EvaluationResult => ({
@@ -40,5 +45,6 @@ export const evaluationPayloadToResult = (payload: EvaluationPayload): Evaluatio
   evaluationLimitIndex: payload.evaluationLimitIndex,
   effectiveVisibleElementIds: new Set(payload.effectiveVisibleElementIds),
   effectiveEnabledElementIds: new Set(payload.effectiveEnabledElementIds),
-  conditionInactiveElementIds: new Set(payload.conditionInactiveElementIds ?? [])
+  conditionInactiveElementIds: new Set(payload.conditionInactiveElementIds ?? []),
+  forGroupGeneratedRows: payload.forGroupGeneratedRows ?? []
 });

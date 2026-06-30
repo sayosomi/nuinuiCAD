@@ -7,7 +7,7 @@ import {
   numericReferencePropertiesForGeometry,
   type NumericReferenceGeometry
 } from "../geometry/numericReferenceProperties";
-import { isGroupElement } from "../model/groups";
+import { isForGroupElement, isGroupElement } from "../model/groups";
 import type { SelectablePoint } from "../model/pointAnchors";
 import type {
   CadElement,
@@ -16,6 +16,25 @@ import type {
 import { elementCategoryLabels, elementTypeCategories, elementTypeLabels } from "../types/geometry";
 import { numericReferenceLabel, numericReferenceValue } from "./geometryDisplay";
 import { ElementStatusIcon } from "./ElementStatusIcon";
+
+const forGroupLabel = (element: CadElement) => {
+  if (!isForGroupElement(element)) return element.name;
+  const variableName = element.variableName.trim() || "i";
+  const start = numericValueExpression(element.start);
+  const count = numericValueExpression(element.count);
+  const step = numericValueExpression(element.step);
+  const numericEnd =
+    typeof element.start === "number" &&
+    typeof element.count === "number" &&
+    typeof element.step === "number" &&
+    Number.isInteger(element.count) &&
+    element.count > 0
+      ? element.start + (element.count - 1) * element.step
+      : null;
+  return numericEnd === null
+    ? `for ${variableName} = ${start} / ${count}回 step ${step}`
+    : `for ${variableName} = ${start}..${numericEnd} step ${step}`;
+};
 
 export type ElementListGroupIssues = {
   childCount: number;
@@ -211,6 +230,8 @@ export const ElementListRow = ({
       {hasError || hasWarning ? "⚠ " : ""}
       {element.type === "conditionalGroup"
         ? `if ${numericValueExpression(element.condition)}`
+        : element.type === "forGroup"
+          ? forGroupLabel(element)
         : element.name}
       {isSearchActive && searchParentGroupNames.length ? (
         <small className="group-mask-label">{searchParentGroupNames.join(" / ")}</small>
@@ -228,7 +249,11 @@ export const ElementListRow = ({
           ) : (
             <Folder className="element-group-icon" aria-hidden="true" />
           )}
-          <span>{groupIssues.childCount}件</span>
+          <span>
+            {element.type === "forGroup"
+              ? `繰り返し / ${numericValueExpression(element.count)}回`
+              : `${groupIssues.childCount}件`}
+          </span>
           {groupIssues.errorCount > 0 ? <span>/ エラー{groupIssues.errorCount}</span> : null}
           {groupIssues.warningCount > 0 ? <span>/ 警告{groupIssues.warningCount}</span> : null}
         </span>

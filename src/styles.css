@@ -321,6 +321,36 @@ select {
   background: #e3f2ee;
 }
 
+.element-for-section-row,
+.element-generated-row {
+  display: grid;
+  grid-template-columns: max-content 18px 40px 40px minmax(0, 1fr) minmax(0, auto) 24px;
+  grid-template-areas: "outline expand index status name type handle";
+  align-items: center;
+  column-gap: 4px;
+  min-height: 28px;
+  padding: 3px 10px;
+  color: #646961;
+  font-size: 12px;
+}
+
+.element-for-section-label {
+  grid-area: name;
+  font-weight: 700;
+}
+
+.element-generated-row {
+  border: 1px dashed #d5d9cf;
+  border-radius: 6px;
+  background: #fafbf8;
+  color: #73786f;
+  pointer-events: none;
+}
+
+.element-generated-row .element-name {
+  font-weight: 500;
+}
+
 .element-outline-indent {
   grid-area: outline;
   display: block;

@@ -16,6 +16,7 @@ mod endpoint_move;
 mod errors;
 #[cfg(test)]
 mod extend_trim_tests;
+mod for_group;
 mod groups;
 mod intersection_point_evaluator;
 #[cfg(test)]
@@ -59,9 +60,12 @@ mod variable_evaluator;
 
 use std::collections::{HashMap, HashSet};
 
+use serde_json::Value;
+
 use bezier_evaluator::evaluate_bezier_curve;
 use corner_radius_evaluator::evaluate_corner_radius_arc_line;
 use edge_extend_evaluator::{evaluate_edge, evaluate_extend_trim};
+use for_group::{expand_for_group_iteration, for_group_template_descendant_ids};
 use groups::{effective_element_ids, group_state_by_element_id};
 use intersection_point_evaluator::evaluate_intersection_point;
 use line_copy_move_evaluator::{
@@ -78,13 +82,108 @@ use point_evaluators::{
     evaluate_polar_offset_point,
 };
 use split_line_evaluator::evaluate_split_line;
-use types::{element_id, element_type, ElementId, EvaluationState};
+use types::{element_id, element_name, element_type, ElementId, EvaluationState};
 pub use types::{EvaluationInput, EvaluationPayload};
 use variable_evaluator::evaluate_variable_element;
 
 #[tauri::command]
 pub fn evaluate_document(input: EvaluationInput) -> EvaluationPayload {
     evaluate_document_input(input)
+}
+
+fn inactive_conditional_group_id(
+    element: &Value,
+    state: &EvaluationState,
+    conditional_group_states: &HashMap<ElementId, Option<&'static str>>,
+) -> Option<ElementId> {
+    let mut child = element;
+    let mut parent_id = child
+        .get("parentGroupId")
+        .and_then(Value::as_str)
+        .map(ToOwned::to_owned);
+    let mut visited = HashSet::<ElementId>::new();
+    while let Some(current_parent_id) = parent_id {
+        if !visited.insert(current_parent_id.clone()) {
+            return None;
+        }
+        let parent_index = state.elements_by_id.get(&current_parent_id).copied()?;
+        let parent = state.elements.get(parent_index)?;
+        if element_type(parent) == Some("conditionalGroup") {
+            let active_branch = conditional_group_states
+                .get(&current_parent_id)
+                .copied()
+                .flatten();
+            let branch = child
+                .get("conditionalBranch")
+                .and_then(Value::as_str)
+                .unwrap_or("then");
+            if active_branch != Some(branch) {
+                return Some(current_parent_id);
+            }
+        }
+        child = parent;
+        parent_id = child
+            .get("parentGroupId")
+            .and_then(Value::as_str)
+            .map(ToOwned::to_owned);
+    }
+    None
+}
+
+fn evaluate_element_by_type(
+    id: ElementId,
+    element: Value,
+    local_variables: (HashMap<String, f64>, HashMap<String, String>),
+    conditional_group_states: &mut HashMap<ElementId, Option<&'static str>>,
+    state: &mut EvaluationState,
+) {
+    match element_type(&element) {
+        Some("conditionalGroup") => {
+            let condition = element.get("condition").unwrap_or(&Value::Null).clone();
+            let active_branch = evaluate_numeric_or_push(
+                &condition,
+                state,
+                &element,
+                &local_variables.0,
+                &local_variables.1,
+            )
+            .map(|value| if value == 0.0 { "else" } else { "then" });
+            conditional_group_states.insert(id, active_branch);
+        }
+        Some("group" | "forGroup") => {}
+        Some("variable") => evaluate_variable_element(&element, &local_variables, state),
+        Some("freePoint") => evaluate_free_point(&element, &local_variables, state),
+        Some("offsetPoint") => evaluate_offset_point(&element, &local_variables, state),
+        Some("polarOffsetPoint") => evaluate_polar_offset_point(&element, &local_variables, state),
+        Some("divisionPoint") => evaluate_division_point(&element, &local_variables, state),
+        Some("lineDivisionPoint") => {
+            evaluate_line_division_point(&element, &local_variables, state)
+        }
+        Some("lineTangentOffsetPoint") => {
+            evaluate_line_tangent_offset_point(&element, &local_variables, state)
+        }
+        Some("intersectionPoint") => evaluate_intersection_point(&element, &local_variables, state),
+        Some("line") => evaluate_line(&element, &local_variables, state),
+        Some("arcLine") => evaluate_arc_line(&element, &local_variables, state),
+        Some("threePointArcLine") => {
+            evaluate_three_point_arc_line(&element, &local_variables, state)
+        }
+        Some("cornerRadiusArcLine") => {
+            evaluate_corner_radius_arc_line(&element, &local_variables, state)
+        }
+        Some("bezierCurve") => evaluate_bezier_curve(&element, &local_variables, state),
+        Some("offsetLine") => evaluate_offset_line(&element, &local_variables, state),
+        Some("splitLine") => evaluate_split_line(&element, &local_variables, state),
+        Some("edge") => evaluate_edge(&element, &local_variables, state),
+        Some("extendTrim") => evaluate_extend_trim(&element, &local_variables, state),
+        Some("copyLine") => evaluate_copy_line(&element, &local_variables, state),
+        Some("symmetricCopyLine") => {
+            evaluate_symmetric_copy_line(&element, &local_variables, state)
+        }
+        Some("move") => evaluate_move(&element, &local_variables, state),
+        Some("symmetricMove") => evaluate_symmetric_move(&element, &local_variables, state),
+        _ => {}
+    }
 }
 
 fn evaluate_document_input(input: EvaluationInput) -> EvaluationPayload {
@@ -96,10 +195,11 @@ fn evaluate_document_input(input: EvaluationInput) -> EvaluationPayload {
     let evaluated_ids: HashSet<ElementId> =
         evaluated_elements.iter().filter_map(element_id).collect();
     let group_states = group_state_by_element_id(&input.elements);
-    let effective_visible_element_ids = effective_element_ids(&input.elements, &group_states, true)
-        .into_iter()
-        .filter(|id| evaluated_ids.contains(id))
-        .collect::<Vec<_>>();
+    let mut effective_visible_element_ids =
+        effective_element_ids(&input.elements, &group_states, true)
+            .into_iter()
+            .filter(|id| evaluated_ids.contains(id))
+            .collect::<Vec<_>>();
     let base_effective_enabled_ids = effective_element_ids(&input.elements, &group_states, false)
         .into_iter()
         .filter(|id| evaluated_ids.contains(id))
@@ -124,45 +224,9 @@ fn evaluate_document_input(input: EvaluationInput) -> EvaluationPayload {
     let mut conditional_group_states = HashMap::<ElementId, Option<&'static str>>::new();
     let mut condition_inactive_ids = HashSet::<ElementId>::new();
     let mut effective_enabled_ids = HashSet::<ElementId>::new();
-
-    let inactive_conditional_group_id =
-        |element: &serde_json::Value,
-         state: &EvaluationState,
-         conditional_group_states: &HashMap<ElementId, Option<&'static str>>|
-         -> Option<ElementId> {
-            let mut child = element;
-            let mut parent_id = child
-                .get("parentGroupId")
-                .and_then(serde_json::Value::as_str)
-                .map(ToOwned::to_owned);
-            let mut visited = HashSet::<ElementId>::new();
-            while let Some(current_parent_id) = parent_id {
-                if !visited.insert(current_parent_id.clone()) {
-                    return None;
-                }
-                let parent_index = state.elements_by_id.get(&current_parent_id).copied()?;
-                let parent = state.elements.get(parent_index)?;
-                if element_type(parent) == Some("conditionalGroup") {
-                    let active_branch = conditional_group_states
-                        .get(&current_parent_id)
-                        .copied()
-                        .flatten();
-                    let branch = child
-                        .get("conditionalBranch")
-                        .and_then(serde_json::Value::as_str)
-                        .unwrap_or("then");
-                    if active_branch != Some(branch) {
-                        return Some(current_parent_id);
-                    }
-                }
-                child = parent;
-                parent_id = child
-                    .get("parentGroupId")
-                    .and_then(serde_json::Value::as_str)
-                    .map(ToOwned::to_owned);
-            }
-            None
-        };
+    let template_descendant_ids = for_group_template_descendant_ids(&state.elements);
+    let original_elements = state.elements.clone();
+    let mut for_group_generated_rows = Vec::new();
 
     for index in 0..evaluation_limit_index {
         let element = state.elements[index].clone();
@@ -170,6 +234,9 @@ fn evaluate_document_input(input: EvaluationInput) -> EvaluationPayload {
             Some(id) => id,
             None => continue,
         };
+        if template_descendant_ids.contains(&id) {
+            continue;
+        }
         if let Some(condition_group_id) =
             inactive_conditional_group_id(&element, &state, &conditional_group_states)
         {
@@ -190,64 +257,108 @@ fn evaluate_document_input(input: EvaluationInput) -> EvaluationPayload {
             continue;
         };
 
-        match element_type(&element) {
-            Some("conditionalGroup") => {
-                let condition = element
-                    .get("condition")
-                    .unwrap_or(&serde_json::Value::Null)
-                    .clone();
-                let active_branch = evaluate_numeric_or_push(
-                    &condition,
-                    &mut state,
+        if element_type(&element) == Some("forGroup") {
+            let start = evaluate_numeric_or_push(
+                element.get("start").unwrap_or(&Value::Null),
+                &mut state,
+                &element,
+                &local_variables.0,
+                &local_variables.1,
+            );
+            let count = evaluate_numeric_or_push(
+                element.get("count").unwrap_or(&Value::Null),
+                &mut state,
+                &element,
+                &local_variables.0,
+                &local_variables.1,
+            );
+            let step = evaluate_numeric_or_push(
+                element.get("step").unwrap_or(&Value::Null),
+                &mut state,
+                &element,
+                &local_variables.0,
+                &local_variables.1,
+            );
+            let Some((start, count, step)) =
+                start.zip(count).zip(step).map(|((a, b), c)| (a, b, c))
+            else {
+                continue;
+            };
+            if !count.is_finite() || count < 0.0 || count.fract() != 0.0 || count > 1000.0 {
+                state.errors.push(types::DependencyError {
+                    element_id: id.clone(),
+                    element_name: element_name(&element),
+                    missing_dependency_id: id.clone(),
+                    missing_dependency_name: Some(element_name(&element)),
+                    message: format!(
+                        "{} の回数は0以上の整数にしてください。",
+                        element_name(&element)
+                    ),
+                });
+                continue;
+            }
+            for iteration_index in 0..(count as usize) {
+                let variable_value = start + iteration_index as f64 * step;
+                let (generated, rows) = expand_for_group_iteration(
+                    &original_elements,
                     &element,
-                    &local_variables.0,
-                    &local_variables.1,
-                )
-                .map(|value| if value == 0.0 { "else" } else { "then" });
-                conditional_group_states.insert(id, active_branch);
+                    iteration_index,
+                    variable_value,
+                );
+                for_group_generated_rows.extend(rows);
+                for (generated_element, template_id) in generated {
+                    let Some(generated_id) = element_id(&generated_element) else {
+                        continue;
+                    };
+                    if effective_visible_element_ids.contains(&template_id) {
+                        effective_visible_element_ids.push(generated_id.clone());
+                    }
+                    state
+                        .elements_by_id
+                        .insert(generated_id.clone(), state.elements.len());
+                    state.elements.push(generated_element.clone());
+                    if let Some(condition_group_id) = inactive_conditional_group_id(
+                        &generated_element,
+                        &state,
+                        &conditional_group_states,
+                    ) {
+                        condition_inactive_ids.insert(generated_id.clone());
+                        state
+                            .group_states
+                            .entry(generated_id)
+                            .or_default()
+                            .disabled_by_group_id = Some(condition_group_id);
+                        continue;
+                    }
+                    if !base_effective_enabled_ids.contains(&template_id) {
+                        continue;
+                    }
+                    effective_enabled_ids.insert(generated_id.clone());
+                    let generated_index = state.elements_by_id[&generated_id];
+                    let Some(generated_local_variables) =
+                        evaluate_local_variables(generated_index, &mut state)
+                    else {
+                        continue;
+                    };
+                    evaluate_element_by_type(
+                        generated_id,
+                        generated_element,
+                        generated_local_variables,
+                        &mut conditional_group_states,
+                        &mut state,
+                    );
+                }
             }
-            Some("group") => {}
-            Some("variable") => evaluate_variable_element(&element, &local_variables, &mut state),
-            Some("freePoint") => evaluate_free_point(&element, &local_variables, &mut state),
-            Some("offsetPoint") => evaluate_offset_point(&element, &local_variables, &mut state),
-            Some("polarOffsetPoint") => {
-                evaluate_polar_offset_point(&element, &local_variables, &mut state)
-            }
-            Some("divisionPoint") => {
-                evaluate_division_point(&element, &local_variables, &mut state)
-            }
-            Some("lineDivisionPoint") => {
-                evaluate_line_division_point(&element, &local_variables, &mut state)
-            }
-            Some("lineTangentOffsetPoint") => {
-                evaluate_line_tangent_offset_point(&element, &local_variables, &mut state)
-            }
-            Some("intersectionPoint") => {
-                evaluate_intersection_point(&element, &local_variables, &mut state)
-            }
-            Some("line") => evaluate_line(&element, &local_variables, &mut state),
-            Some("arcLine") => evaluate_arc_line(&element, &local_variables, &mut state),
-            Some("threePointArcLine") => {
-                evaluate_three_point_arc_line(&element, &local_variables, &mut state)
-            }
-            Some("cornerRadiusArcLine") => {
-                evaluate_corner_radius_arc_line(&element, &local_variables, &mut state)
-            }
-            Some("bezierCurve") => evaluate_bezier_curve(&element, &local_variables, &mut state),
-            Some("offsetLine") => evaluate_offset_line(&element, &local_variables, &mut state),
-            Some("splitLine") => evaluate_split_line(&element, &local_variables, &mut state),
-            Some("edge") => evaluate_edge(&element, &local_variables, &mut state),
-            Some("extendTrim") => evaluate_extend_trim(&element, &local_variables, &mut state),
-            Some("copyLine") => evaluate_copy_line(&element, &local_variables, &mut state),
-            Some("symmetricCopyLine") => {
-                evaluate_symmetric_copy_line(&element, &local_variables, &mut state)
-            }
-            Some("move") => evaluate_move(&element, &local_variables, &mut state),
-            Some("symmetricMove") => {
-                evaluate_symmetric_move(&element, &local_variables, &mut state)
-            }
-            _ => {}
+            continue;
         }
+
+        evaluate_element_by_type(
+            id,
+            element,
+            local_variables,
+            &mut conditional_group_states,
+            &mut state,
+        );
     }
 
     EvaluationPayload {
@@ -265,12 +376,12 @@ fn evaluate_document_input(input: EvaluationInput) -> EvaluationPayload {
         warnings: state.warnings,
         evaluated_element_ids: evaluated_elements.iter().filter_map(element_id).collect(),
         evaluation_limit_index,
-        effective_visible_element_ids,
+        effective_visible_element_ids: effective_visible_element_ids.into_iter().collect(),
         effective_enabled_element_ids: state
             .elements
             .iter()
             .filter_map(element_id)
-            .filter(|id| effective_enabled_ids.contains(id) && evaluated_ids.contains(id))
+            .filter(|id| effective_enabled_ids.contains(id))
             .collect(),
         condition_inactive_element_ids: state
             .elements
@@ -278,5 +389,6 @@ fn evaluate_document_input(input: EvaluationInput) -> EvaluationPayload {
             .filter_map(element_id)
             .filter(|id| condition_inactive_ids.contains(id))
             .collect(),
+        for_group_generated_rows,
     }
 }

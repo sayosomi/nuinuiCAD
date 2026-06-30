@@ -51,6 +51,13 @@ export const getDirectParentIds = (element: CadElement): ElementId[] => {
           ...numericVariableReferences(element),
           ...extractNumericExpressionReferences(element.condition)
         ].map((reference) => reference.elementId);
+      case "forGroup":
+        return [
+          ...numericVariableReferences(element),
+          ...extractNumericExpressionReferences(element.start),
+          ...extractNumericExpressionReferences(element.count),
+          ...extractNumericExpressionReferences(element.step)
+        ].map((reference) => reference.elementId);
       case "variable":
         return [
           ...numericVariableReferences(element),
@@ -216,6 +223,8 @@ export const getDirectParentIds = (element: CadElement): ElementId[] => {
     case "group":
       return [];
     case "conditionalGroup":
+      return numericExpressionParentIds();
+    case "forGroup":
       return numericExpressionParentIds();
     case "variable":
       return numericExpressionParentIds();

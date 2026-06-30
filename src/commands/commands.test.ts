@@ -310,6 +310,79 @@ describe("commands", () => {
     });
   });
 
+  it("adds a for group above the evaluation divider", () => {
+    useCadStore.setState({
+      evaluationLimitIndex: 2,
+      selectedElementId: sampleElements[0].id,
+      selectedElementIds: [sampleElements[0].id]
+    });
+
+    dispatchCommand("addForGroup");
+
+    const state = useCadStore.getState();
+    expect(state.elements[2]).toMatchObject({
+      type: "forGroup",
+      variableName: "i",
+      start: 0,
+      count: 3,
+      step: 1,
+      expanded: true,
+      showGenerated: false
+    });
+    expect(state.evaluationLimitIndex).toBe(3);
+    expect(state.selectedElementId).toBe(state.elements[2].id);
+  });
+
+  it("wraps selected elements in a for group", () => {
+    useCadStore.setState({
+      selectedElementId: sampleElements[2].id,
+      selectedElementIds: [sampleElements[1].id, sampleElements[2].id],
+      selectionAnchorElementId: sampleElements[1].id
+    });
+
+    dispatchCommand("wrapSelectedElementsInForGroup");
+
+    const state = useCadStore.getState();
+    const group = state.elements[1];
+    expect(group).toMatchObject({ type: "forGroup", count: 3 });
+    expect(state.elements[2]).toMatchObject({
+      id: sampleElements[1].id,
+      parentGroupId: group.id
+    });
+    expect(state.elements[3]).toMatchObject({
+      id: sampleElements[2].id,
+      parentGroupId: group.id
+    });
+  });
+
+  it("toggles generated preview on the selected for group", () => {
+    useCadStore.setState({
+      elements: [
+        sampleElements[0],
+        {
+          id: "loop",
+          name: "プリーツ繰り返し",
+          type: "forGroup",
+          visible: true,
+          enabled: true,
+          variableName: "i",
+          start: 0,
+          count: 3,
+          step: 1,
+          expanded: true,
+          showGenerated: false
+        }
+      ],
+      selectedElementId: "loop",
+      selectedElementIds: ["loop"],
+      selectionAnchorElementId: "loop"
+    });
+
+    dispatchCommand("toggleSelectedForGroupGenerated");
+
+    expect(useCadStore.getState().elements[1]).toMatchObject({ showGenerated: true });
+  });
+
   it("marks selected conditional children as else branch", () => {
     useCadStore.setState({
       elements: [
