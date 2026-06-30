@@ -170,7 +170,7 @@ fn normalize_degrees(degrees: f64) -> f64 {
 }
 
 fn is_expression_delimiter(ch: char) -> bool {
-    ch.is_whitespace() || matches!(ch, '(' | ')' | ',' | '+' | '-' | '*' | '/')
+    ch.is_whitespace() || matches!(ch, '(' | ')' | ',' | '+' | '*' | '/')
 }
 
 struct Parser<'a> {

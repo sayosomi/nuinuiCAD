@@ -196,6 +196,63 @@ fn evaluates_bezier_curve_numeric_variables_and_expressions() {
 }
 
 #[test]
+fn evaluates_bezier_curve_numeric_variable_ids_with_hyphens() {
+    let result = evaluate_document_input(EvaluationInput {
+        elements: vec![
+            free_point("freePoint-mr0czcze-2", "点1", 0.0, 0.0),
+            free_point("offsetPoint-mr0czf1a-3", "点2", 0.0, -100.0),
+            element(json!({
+                "id": "bezierCurve-mr0d07nx-4",
+                "name": "曲線1",
+                "type": "bezierCurve",
+                "visible": true,
+                "enabled": true,
+                "numericVariables": [
+                    { "id": "bezierCurve-mr0d0mvz-5", "name": "v1", "value": 30 }
+                ],
+                "startPoint": { "mode": "reference", "pointId": "freePoint-mr0czcze-2" },
+                "startHandleAngleDeg": 0,
+                "startHandleLength": {
+                    "kind": "expression",
+                    "expression": "@bezierCurve-mr0d0mvz-5"
+                },
+                "intermediatePoints": [],
+                "endPoint": { "mode": "reference", "pointId": "offsetPoint-mr0czf1a-3" },
+                "endHandleAngleDeg": 180,
+                "endHandleLength": {
+                    "kind": "expression",
+                    "expression": "@bezierCurve-mr0d0mvz-5"
+                }
+            })),
+            element(json!({
+                "id": "measurement-point",
+                "name": "測定点",
+                "type": "freePoint",
+                "visible": true,
+                "enabled": true,
+                "x": {
+                    "kind": "expression",
+                    "expression": "bezierCurve-mr0d07nx-4.length"
+                },
+                "y": {
+                    "kind": "expression",
+                    "expression": "距離(freePoint-mr0czcze-2, offsetPoint-mr0czf1a-3)"
+                }
+            })),
+        ],
+        evaluation_limit_index: None,
+    });
+
+    let curve = geometry(&result, "bezierCurve-mr0d07nx-4");
+    let measurement_point = geometry(&result, "measurement-point");
+    assert!(result.errors.is_empty());
+    assert_eq!(curve["startHandleLength"], json!(30.0));
+    assert_eq!(curve["endHandleLength"], json!(30.0));
+    assert_eq!(measurement_point["x"], curve["length"]);
+    assert_eq!(measurement_point["y"], json!(100.0));
+}
+
+#[test]
 fn resolves_bezier_derived_points() {
     let result = evaluate_document_input(EvaluationInput {
         elements: vec![

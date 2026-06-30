@@ -141,6 +141,11 @@ evaluator. Tauri production should use Rust evaluation through the evaluation
 engine adapter by default. Tauri development may run shadow evaluation to keep
 Rust output checked against the TypeScript reference.
 
+The macOS app is for local use only and is not distributed to other users.
+Do not add or require Apple notarization for normal builds; notarization
+warnings from `npm run desktop:build` are expected when Apple credentials are
+not configured.
+
 Prefer Rust for deterministic, CPU-heavy, or platform-adjacent work:
 
 * CAD document evaluation and dependency checks
