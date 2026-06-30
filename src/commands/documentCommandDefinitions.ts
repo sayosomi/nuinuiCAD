@@ -1,4 +1,4 @@
-import { openDocument, saveDocument, saveDocumentAs } from "../document/documentFile";
+import { newDocument, openDocument, saveDocument, saveDocumentAs } from "../document/documentFile";
 import type { Command, CommandId } from "./commandTypes";
 
 const runFileCommand = (operation: () => Promise<void>) => {
@@ -8,6 +8,13 @@ const runFileCommand = (operation: () => Promise<void>) => {
 };
 
 export const documentCommandDefinitions = {
+  newDocument: {
+    id: "newDocument",
+    label: "新規ドキュメント",
+    palette: { order: 29, keywords: ["new", "file", "document", "新規", "ファイル"] },
+    shortcuts: [{ keys: "Mod+N" }],
+    run: () => runFileCommand(newDocument)
+  },
   openDocument: {
     id: "openDocument",
     label: "ドキュメントを開く",

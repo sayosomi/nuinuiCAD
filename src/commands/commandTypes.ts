@@ -9,6 +9,7 @@ import type { CadElement, ElementId, PointAnchor } from "../types/geometry";
 export type { BezierHandleRole };
 
 export type CommandId =
+  | "newDocument"
   | "openDocument"
   | "saveDocument"
   | "saveDocumentAs"

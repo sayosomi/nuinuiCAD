@@ -50,6 +50,11 @@ const commandShortcut = (
 
 export const globalShortcutDefinitions: ShortcutDefinition[] = [
   commandShortcut(
+    "newDocument",
+    0,
+    (event) => event.key.toLowerCase() === "n" && isMod(event) && !event.altKey && !event.shiftKey
+  ),
+  commandShortcut(
     "openDocument",
     0,
     (event) => event.key.toLowerCase() === "o" && isMod(event) && !event.altKey && !event.shiftKey

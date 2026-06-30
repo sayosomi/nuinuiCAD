@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef } from "react";
 import { dispatchCommand } from "../commands/commands";
+import { registerUnsavedChangesGuard } from "../document/unsavedChangesGuard";
 import { useEvaluationEngine } from "../geometry/useEvaluationEngine";
 import { keyboardCommandForEvent } from "../keyboard/shortcuts";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
@@ -50,6 +51,10 @@ export const AppLayout = () => {
       parameterInputRefs.current.get(selectedKey)?.focus();
     }
   }), []);
+
+  useEffect(() => {
+    return registerUnsavedChangesGuard();
+  }, []);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {

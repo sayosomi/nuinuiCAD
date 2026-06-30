@@ -6,6 +6,7 @@ import {
 } from "./documentFormat";
 import {
   currentDocumentSnapshot,
+  initialCadDocumentState,
   useCadDocumentStore,
   type CadDocumentSnapshot
 } from "../state/cadDocumentStore";
@@ -56,6 +57,18 @@ const assertTauriFileRuntime = () => {
   }
 };
 
+export const confirmDiscardUnsavedChanges = (actionLabel: string) => {
+  if (!useCadDocumentStore.getState().dirtySinceSave) return true;
+  return window.confirm(`未保存の変更を破棄して${actionLabel}ますか？`);
+};
+
+export const newDocument = async () => {
+  if (!confirmDiscardUnsavedChanges("新規ドキュメントを作成し")) return;
+
+  const initialDocument = initialCadDocumentState();
+  useCadDocumentStore.getState().replaceDocument(currentDocumentSnapshot(initialDocument), null);
+};
+
 export const writeDocumentSnapshotToPath = async (
   snapshot: CadDocumentSnapshot,
   path: string
@@ -94,10 +107,7 @@ export const saveDocument = async () => {
 
 export const openDocument = async () => {
   assertTauriFileRuntime();
-  const state = useCadDocumentStore.getState();
-  if (state.dirtySinceSave && !window.confirm("未保存の変更を破棄して開きますか？")) {
-    return;
-  }
+  if (!confirmDiscardUnsavedChanges("開き")) return;
 
   const path = selectedPath(
     await openDocumentDialog()

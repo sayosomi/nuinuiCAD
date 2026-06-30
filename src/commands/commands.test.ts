@@ -1231,7 +1231,33 @@ describe("commands", () => {
     expect(filterCommandPaletteItems("保存").map((item) => item.commandId)).toEqual(
       expect.arrayContaining(["saveDocument", "saveDocumentAs"])
     );
+    expect(filterCommandPaletteItems("新規").map((item) => item.commandId)).toContain("newDocument");
     expect(filterCommandPaletteItems("開く").map((item) => item.commandId)).toContain("openDocument");
+  });
+
+  it("creates a new document from a command", async () => {
+    useCadStore.setState({
+      currentFilePath: "/tmp/edited.nuinui.json",
+      dirtySinceSave: true,
+      past: [useCadStore.getState()],
+      evaluationLimitIndex: 1
+    });
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+
+    dispatchCommand("newDocument");
+    await Promise.resolve();
+
+    expect(useCadStore.getState()).toMatchObject({
+      elements: sampleElements,
+      evaluationLimitIndex: sampleElements.length,
+      selectedElementId: sampleElements[0].id,
+      selectedElementIds: [sampleElements[0].id],
+      selectionAnchorElementId: sampleElements[0].id,
+      currentFilePath: null,
+      dirtySinceSave: false,
+      past: [],
+      future: []
+    });
   });
 
   it("adds a polar offset point from a command", () => {
