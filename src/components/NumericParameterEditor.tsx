@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import type { MouseEvent, PointerEvent } from "react";
 import { dispatchCommand } from "../commands/commands";
 import {
@@ -25,6 +25,21 @@ type NumericDragState = {
   pointerId: number;
   previousClientX: number;
   remainderX: number;
+};
+
+type NumericInputDraft = {
+  value: string;
+  baseValue: NumericValue;
+};
+
+const deferredNumericInputValues = new Set(["", "+", "-", ".", "+.", "-."]);
+
+const isDeferredNumericInput = (input: string) =>
+  deferredNumericInputValues.has(input.trim());
+
+const numericValuesEqual = (left: NumericValue, right: NumericValue) => {
+  if (typeof left === "number" || typeof right === "number") return left === right;
+  return left.expression === right.expression;
 };
 
 export const NumericParameterEditor = ({
@@ -64,13 +79,37 @@ export const NumericParameterEditor = ({
   const isExpressionInsertOpen =
     activeExpressionInsertTarget?.elementId === element.id &&
     activeExpressionInsertTarget.parameterKey === parameterKey;
-  const updateField = (field: ParameterKey, nextValue: string) => {
-    updateParameterValue(
-      field,
+  const displayValue = formatNumericExpressionForDisplay(
+    value,
+    elements,
+    element.numericVariables ?? []
+  );
+  const [draft, setDraft] = useState<NumericInputDraft | null>(null);
+  const numericValueFromInput = useCallback(
+    (nextValue: string) =>
       makeNumericExpression(
         normalizeNumericExpressionInput(nextValue, elements, element.numericVariables ?? [])
-      )
-    );
+      ),
+    [element.numericVariables, elements]
+  );
+
+  const shouldUseDraftValue =
+    draft !== null &&
+    (isDeferredNumericInput(draft.value)
+      ? numericValuesEqual(draft.baseValue, value)
+      : numericValuesEqual(numericValueFromInput(draft.value), value));
+  const inputValue = shouldUseDraftValue ? draft.value : displayValue;
+
+  const updateField = (field: ParameterKey, nextValue: string) => {
+    setDraft({ value: nextValue, baseValue: value });
+    if (isDeferredNumericInput(nextValue)) return;
+    updateParameterValue(field, numericValueFromInput(nextValue));
+  };
+  const finishEditingField = (field: ParameterKey) => {
+    if (draft === null) return;
+    if (draft.value.trim().length === 0) updateParameterValue(field, 0);
+    setDraft(null);
+    inputSelectionRef.current = null;
   };
   const updateStep = (field: ParameterKey, nextValue: string) => {
     const nextStep = Number(nextValue);
@@ -160,7 +199,7 @@ export const NumericParameterEditor = ({
       step="1"
       data-numeric-parameter-key={parameterKey}
       data-numeric-element-id={element.id}
-      value={formatNumericExpressionForDisplay(value, elements, element.numericVariables ?? [])}
+      value={inputValue}
       onChange={(event) => updateField(parameterKey, event.target.value)}
       onSelect={rememberInputSelection}
       onKeyUp={rememberInputSelection}
@@ -169,6 +208,7 @@ export const NumericParameterEditor = ({
         selectParameter(parameterKey);
         inputSelectionRef.current = null;
       }}
+      onBlur={() => finishEditingField(parameterKey)}
     />
   );
   const stepControl = (

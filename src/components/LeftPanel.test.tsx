@@ -239,13 +239,75 @@ describe("LeftPanel numeric input dragging", () => {
     expect(screen.getByText("要素内変数")).toBeInTheDocument();
   });
 
-  it("normalizes a blank numeric parameter input to zero", () => {
+  it("keeps a blank numeric parameter input while focused and commits zero on blur", () => {
     renderRightPanel();
 
-    fireEvent.change(screen.getByLabelText("x 値"), { target: { value: "" } });
+    const input = screen.getByLabelText("x 値");
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: "" } });
+
+    expect(useCadStore.getState().elements[0]).toMatchObject({ x: 50 });
+    expect(input).toHaveValue("");
+
+    fireEvent.blur(input);
 
     expect(useCadStore.getState().elements[0]).toMatchObject({ x: 0 });
-    expect(screen.getByLabelText("x 値")).toHaveValue("0");
+    expect(input).toHaveValue("0");
+  });
+
+  it("lets a numeric parameter expression start with a local variable reference", () => {
+    renderRightPanel();
+
+    const input = screen.getByLabelText("x 値");
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: "" } });
+    fireEvent.change(input, { target: { value: "@v1" } });
+
+    expect(useCadStore.getState().elements[0]).toMatchObject({
+      x: { kind: "expression", expression: "@v1" }
+    });
+    expect(input).toHaveValue("@v1");
+  });
+
+  it("shows a numeric expression inserted while a blank input draft is focused", () => {
+    renderRightPanel();
+
+    const input = screen.getByLabelText("x 値");
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: "" } });
+
+    act(() => {
+      dispatchCommand("insertNumericExpressionSnippet", {
+        elementId: "point-a",
+        parameterKey: "x",
+        numericExpressionSnippet: "line-ab.length",
+        displayedExpression: (input as HTMLInputElement).value,
+        selectionStart: null,
+        selectionEnd: null
+      });
+    });
+
+    expect(useCadStore.getState().elements[0]).toMatchObject({
+      x: { kind: "expression", expression: "line-ab.length" }
+    });
+    expect(input).toHaveValue("直線AB.長さ");
+  });
+
+  it("keeps an incomplete negative numeric input until it becomes a valid number", () => {
+    renderRightPanel();
+
+    const input = screen.getByLabelText("x 値");
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: "" } });
+    fireEvent.change(input, { target: { value: "-" } });
+
+    expect(useCadStore.getState().elements[0]).toMatchObject({ x: 50 });
+    expect(input).toHaveValue("-");
+
+    fireEvent.change(input, { target: { value: "-12" } });
+
+    expect(useCadStore.getState().elements[0]).toMatchObject({ x: -12 });
+    expect(input).toHaveValue("-12");
   });
 
   it("starts numeric reference picking from a numeric parameter", () => {
@@ -382,6 +444,7 @@ describe("LeftPanel numeric input dragging", () => {
     expect(useCadStore.getState().elements.at(-1)).toMatchObject({
       expression: { kind: "expression", expression: "line-ab.length + @base-variable" }
     });
+    expect(screen.getByLabelText("変数式")).toHaveValue("直線AB.長さ + @base-variable");
   });
 
   it("increments a numeric parameter after an 8px middle-button drag to the right", () => {
