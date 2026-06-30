@@ -5,6 +5,7 @@ import type {
 } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { dispatchCommand } from "../commands/commands";
+import type { EvaluationEngineState } from "../geometry/useEvaluationEngine";
 import { getParameterValue } from "../parameters/parameterAccess";
 import type { BezierHandleRole as CommandBezierHandleRole } from "../commands/commands";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
@@ -43,6 +44,7 @@ import type {
 
 type DrawingCanvasProps = {
   evaluation: EvaluationResult;
+  evaluationState?: EvaluationEngineState;
   canvasFocusRef: RefObject<HTMLDivElement | null>;
 };
 
@@ -53,6 +55,7 @@ type PointDragState = {
   startClientY: number;
   zoom: number;
   snapshot: CadDocumentSnapshot;
+  baseEvaluation?: EvaluationResult;
 };
 
 type BezierHandleDragState = {
@@ -64,6 +67,7 @@ type BezierHandleDragState = {
   startClientY: number;
   zoom: number;
   snapshot: CadDocumentSnapshot;
+  baseEvaluation?: EvaluationResult;
 };
 
 type PolarLockKeys = {
@@ -75,7 +79,7 @@ const WHEEL_ZOOM_BASE = 1.1;
 const BEZIER_HANDLE_HIT_RADIUS_PX = 9;
 const POINT_PICK_CANDIDATE_RADIUS_PX = 10;
 
-export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps) => {
+export const DrawingCanvas = ({ evaluation, evaluationState, canvasFocusRef }: DrawingCanvasProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const panDragRef = useRef<{ pointerId: number; lastX: number; lastY: number } | null>(null);
   const pointDragRef = useRef<PointDragState | null>(null);
@@ -126,6 +130,33 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
     viewportSize,
     canvasViewport
   });
+  const reusableDragEvaluation = (snapshotElements: typeof elements) => {
+    if (evaluationState?.isStale) return undefined;
+    if ((evaluation.evaluationLimitIndex ?? snapshotElements.length) !== snapshotElements.length) {
+      return undefined;
+    }
+    if (
+      evaluation.evaluatedElementIds &&
+      snapshotElements.some((element) => !evaluation.evaluatedElementIds?.has(element.id))
+    ) {
+      return undefined;
+    }
+    return evaluation;
+  };
+  const currentDocumentDragSnapshot = () => {
+    const state = useCadDocumentStore.getState();
+    return {
+      snapshot: {
+        elements: state.elements,
+        evaluationLimitIndex: state.evaluationLimitIndex,
+        selectedElementId: state.selectedElementId,
+        selectedElementIds: state.selectedElementIds,
+        selectionAnchorElementId: state.selectionAnchorElementId,
+        selectedParameterKey: state.selectedParameterKey
+      },
+      baseEvaluation: reusableDragEvaluation(state.elements)
+    };
+  };
 
   useEffect(() => {
     const viewport = canvasFocusRef.current;
@@ -332,6 +363,7 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
       distanceLocked: polarLockKeysRef.current.distance,
       commitMode: "commit",
       baseElements: drag.snapshot.elements,
+      baseEvaluation: drag.baseEvaluation,
       historySnapshot: drag.snapshot
     });
 
@@ -357,6 +389,7 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
       distanceLocked: polarLockKeysRef.current.distance,
       commitMode: "commit",
       baseElements: drag.snapshot.elements,
+      baseEvaluation: drag.baseEvaluation,
       historySnapshot: drag.snapshot
     });
 
@@ -451,7 +484,7 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
         dispatchCommand("selectElement", { elementId: handle.curveId, selectionMode: "replace" });
 
         event.currentTarget.setPointerCapture(event.pointerId);
-        const state = useCadDocumentStore.getState();
+        const dragSnapshot = currentDocumentDragSnapshot();
         bezierHandleDragRef.current = {
           pointerId: event.pointerId,
           elementId: handle.curveId,
@@ -460,14 +493,7 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
           startClientX: event.clientX,
           startClientY: event.clientY,
           zoom: canvasViewport.zoom,
-          snapshot: {
-            elements: state.elements,
-            evaluationLimitIndex: state.evaluationLimitIndex,
-            selectedElementId: state.selectedElementId,
-            selectedElementIds: state.selectedElementIds,
-            selectionAnchorElementId: state.selectionAnchorElementId,
-            selectedParameterKey: state.selectedParameterKey
-          }
+          ...dragSnapshot
         };
         setIsBezierHandleDragging(true);
         return;
@@ -490,21 +516,14 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
       if (!overlayPoints.some(({ point }) => point.elementId === elementId)) return;
 
       event.currentTarget.setPointerCapture(event.pointerId);
-      const state = useCadDocumentStore.getState();
+      const dragSnapshot = currentDocumentDragSnapshot();
       pointDragRef.current = {
         pointerId: event.pointerId,
         elementId,
         startClientX: event.clientX,
         startClientY: event.clientY,
         zoom: canvasViewport.zoom,
-        snapshot: {
-          elements: state.elements,
-          evaluationLimitIndex: state.evaluationLimitIndex,
-          selectedElementId: state.selectedElementId,
-          selectedElementIds: state.selectedElementIds,
-          selectionAnchorElementId: state.selectionAnchorElementId,
-          selectedParameterKey: state.selectedParameterKey
-        }
+        ...dragSnapshot
       };
       setIsPointDragging(true);
       return;
@@ -540,7 +559,8 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
         angleLocked: polarLockKeysRef.current.angle,
         distanceLocked: polarLockKeysRef.current.distance,
         commitMode: "preview",
-        baseElements: bezierHandleDrag.snapshot.elements
+        baseElements: bezierHandleDrag.snapshot.elements,
+        baseEvaluation: bezierHandleDrag.baseEvaluation
       });
       return;
     }
@@ -569,7 +589,8 @@ export const DrawingCanvas = ({ evaluation, canvasFocusRef }: DrawingCanvasProps
         angleLocked: polarLockKeysRef.current.angle,
         distanceLocked: polarLockKeysRef.current.distance,
         commitMode: "preview",
-        baseElements: pointDrag.snapshot.elements
+        baseElements: pointDrag.snapshot.elements,
+        baseEvaluation: pointDrag.baseEvaluation
       });
       return;
     }

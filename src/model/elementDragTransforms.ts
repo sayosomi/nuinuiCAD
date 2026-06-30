@@ -5,7 +5,13 @@ import {
 } from "../geometry/linePaths";
 import { addToNumericValue } from "../geometry/numericExpressions";
 import { setNumericParameterOrLocalVariable } from "../parameters/parameterAccess";
-import type { CadElement, ComputedBezierCurve, ElementId, PointAnchor } from "../types/geometry";
+import type {
+  CadElement,
+  ComputedBezierCurve,
+  ElementId,
+  EvaluationResult,
+  PointAnchor
+} from "../types/geometry";
 import {
   anchorReferenceElementId,
   pointAnchorForElement,
@@ -23,6 +29,7 @@ type DragDeltaOptions = {
   dy?: number;
   angleLocked?: boolean;
   distanceLocked?: boolean;
+  baseEvaluation?: EvaluationResult;
 };
 
 type BezierHandleDragDeltaOptions = DragDeltaOptions & {
@@ -48,16 +55,29 @@ const degreesToRadians = (degrees: number) => (degrees * Math.PI) / 180;
 
 const normalizeDegrees = (degrees: number) => ((degrees % 360) + 360) % 360;
 
+type DragEvaluationContext = {
+  evaluation: EvaluationResult;
+  elementsById: Map<ElementId, CadElement>;
+};
+
+const dragEvaluationContext = (
+  sourceElements: CadElement[],
+  baseEvaluation?: EvaluationResult
+): DragEvaluationContext => ({
+  evaluation: baseEvaluation ?? evaluateElements(sourceElements),
+  elementsById: new Map(sourceElements.map((item) => [item.id, item]))
+});
+
 const movePolarOffsetPointByDelta = ({
   element,
-  sourceElements,
+  context,
   dx,
   dy,
   angleLocked,
   distanceLocked
 }: {
   element: Extract<CadElement, { type: "polarOffsetPoint" }>;
-  sourceElements: CadElement[];
+  context: DragEvaluationContext;
   dx: number;
   dy: number;
   angleLocked?: boolean;
@@ -65,7 +85,7 @@ const movePolarOffsetPointByDelta = ({
 }) => {
   if (angleLocked && distanceLocked) return element;
 
-  const evaluation = evaluateElements(sourceElements);
+  const { evaluation, elementsById } = context;
   const point = evaluation.computedGeometry.get(element.id);
   const fromAnchor = pointAnchorForElement(element);
   const fromPointId = fromAnchor ? anchorReferenceElementId(fromAnchor) : null;
@@ -75,7 +95,7 @@ const movePolarOffsetPointByDelta = ({
       ? resolveDerivedPoint(
           fromGeometry ?? undefined,
           fromAnchor.pointKey,
-          new Map(sourceElements.map((item) => [item.id, item]))
+          elementsById
         )
       : fromGeometry;
   if (!isComputedPoint(point) || !isComputedPoint(fromPoint)) return element;
@@ -129,13 +149,12 @@ const movePolarOffsetPointByDelta = ({
 
 const divisionPointDragTarget = ({
   element,
-  sourceElements
+  context
 }: {
   element: Extract<CadElement, { type: "divisionPoint" }>;
-  sourceElements: CadElement[];
+  context: DragEvaluationContext;
 }) => {
-  const evaluation = evaluateElements(sourceElements);
-  const elementsById = new Map(sourceElements.map((item) => [item.id, item]));
+  const { evaluation, elementsById } = context;
   const point = evaluation.computedGeometry.get(element.id);
   const startGeometry = evaluation.computedGeometry.get(
     anchorReferenceElementId(element.startPoint) ?? ""
@@ -158,16 +177,16 @@ const divisionPointDragTarget = ({
 
 const moveDivisionPointByDelta = ({
   element,
-  sourceElements,
+  context,
   dx,
   dy
 }: {
   element: Extract<CadElement, { type: "divisionPoint" }>;
-  sourceElements: CadElement[];
+  context: DragEvaluationContext;
   dx: number;
   dy: number;
 }) => {
-  const target = divisionPointDragTarget({ element, sourceElements });
+  const target = divisionPointDragTarget({ element, context });
   if (!target) return element;
 
   const baseVector = {
@@ -193,10 +212,9 @@ const moveDivisionPointByDelta = ({
 
 const computedPointForAnchor = (
   anchor: PointAnchor,
-  sourceElements: CadElement[],
-  evaluation: ReturnType<typeof evaluateElements>
+  context: DragEvaluationContext
 ) => {
-  const elementsById = new Map(sourceElements.map((item) => [item.id, item]));
+  const { evaluation, elementsById } = context;
   const geometry = evaluation.computedGeometry.get(anchorReferenceElementId(anchor) ?? "");
   if (anchor.mode === "derived") {
     return resolveDerivedPoint(geometry ?? undefined, anchor.pointKey, elementsById);
@@ -206,14 +224,14 @@ const computedPointForAnchor = (
 
 const moveLineTangentOffsetPointByDelta = ({
   element,
-  sourceElements,
+  context,
   dx,
   dy,
   angleLocked,
   distanceLocked
 }: {
   element: Extract<CadElement, { type: "lineTangentOffsetPoint" }>;
-  sourceElements: CadElement[];
+  context: DragEvaluationContext;
   dx: number;
   dy: number;
   angleLocked?: boolean;
@@ -221,10 +239,10 @@ const moveLineTangentOffsetPointByDelta = ({
 }) => {
   if (angleLocked && distanceLocked) return element;
 
-  const evaluation = evaluateElements(sourceElements);
+  const { evaluation } = context;
   const point = evaluation.computedGeometry.get(element.id);
   const baseLine = evaluation.computedGeometry.get(element.baseLineId);
-  const basePoint = computedPointForAnchor(element.basePoint, sourceElements, evaluation);
+  const basePoint = computedPointForAnchor(element.basePoint, context);
   if (!isComputedPoint(point) || !isComputedPoint(basePoint) || !isLineLikeGeometry(baseLine)) {
     return element;
   }
@@ -284,11 +302,16 @@ const moveLineTangentOffsetPointByDelta = ({
 export const movePointElementByDeltaInElements = (
   elements: CadElement[],
   elementId: ElementId,
-  { dx = 0, dy = 0, angleLocked, distanceLocked }: DragDeltaOptions
+  { dx = 0, dy = 0, angleLocked, distanceLocked, baseEvaluation }: DragDeltaOptions
 ) => {
   if (dx === 0 && dy === 0) return null;
 
   let didMove = false;
+  let context: DragEvaluationContext | null = null;
+  const getContext = () => {
+    context ??= dragEvaluationContext(elements, baseEvaluation);
+    return context;
+  };
   const nextElements = elements.map((element) => {
     if (element.id !== elementId) return element;
 
@@ -313,7 +336,7 @@ export const movePointElementByDeltaInElements = (
     if (element.type === "polarOffsetPoint") {
       const nextElement = movePolarOffsetPointByDelta({
         element,
-        sourceElements: elements,
+        context: getContext(),
         dx,
         dy,
         angleLocked,
@@ -326,7 +349,7 @@ export const movePointElementByDeltaInElements = (
     if (element.type === "divisionPoint") {
       const nextElement = moveDivisionPointByDelta({
         element,
-        sourceElements: elements,
+        context: getContext(),
         dx,
         dy
       });
@@ -337,7 +360,7 @@ export const movePointElementByDeltaInElements = (
     if (element.type === "lineTangentOffsetPoint") {
       const nextElement = moveLineTangentOffsetPointByDelta({
         element,
-        sourceElements: elements,
+        context: getContext(),
         dx,
         dy,
         angleLocked,
@@ -363,16 +386,16 @@ type BezierHandleTarget = {
 
 const bezierHandleTarget = ({
   element,
-  sourceElements,
+  context,
   role,
   intermediatePointId
 }: {
   element: Extract<CadElement, { type: "bezierCurve" }>;
-  sourceElements: CadElement[];
+  context: DragEvaluationContext;
   role: BezierHandleRole;
   intermediatePointId?: string;
 }): BezierHandleTarget | null => {
-  const curve = evaluateElements(sourceElements).computedGeometry.get(element.id);
+  const curve = context.evaluation.computedGeometry.get(element.id);
   if (!isComputedBezierCurve(curve) || curve.segments.length === 0) return null;
 
   if (role === "start") {
@@ -429,7 +452,7 @@ const bezierHandleTarget = ({
 
 const moveBezierHandle = ({
   element,
-  sourceElements,
+  context,
   dx,
   dy,
   role,
@@ -438,7 +461,7 @@ const moveBezierHandle = ({
   distanceLocked
 }: {
   element: Extract<CadElement, { type: "bezierCurve" }>;
-  sourceElements: CadElement[];
+  context: DragEvaluationContext;
   dx: number;
   dy: number;
   role: BezierHandleRole;
@@ -448,7 +471,7 @@ const moveBezierHandle = ({
 }) => {
   if (angleLocked && distanceLocked) return element;
 
-  const target = bezierHandleTarget({ element, sourceElements, role, intermediatePointId });
+  const target = bezierHandleTarget({ element, context, role, intermediatePointId });
   if (!target) return element;
 
   const currentVector = {
@@ -512,17 +535,19 @@ export const moveBezierHandleByDeltaInElements = (
     role,
     intermediatePointId,
     angleLocked,
-    distanceLocked
+    distanceLocked,
+    baseEvaluation
   }: BezierHandleDragDeltaOptions
 ) => {
   if (dx === 0 && dy === 0) return null;
 
   let didMove = false;
+  const context = dragEvaluationContext(elements, baseEvaluation);
   const nextElements = elements.map((element) => {
     if (element.id !== elementId || element.type !== "bezierCurve") return element;
     const nextElement = moveBezierHandle({
       element,
-      sourceElements: elements,
+      context,
       dx,
       dy,
       role,

@@ -1,4 +1,4 @@
-import { getDependencyJumpTargets } from "../model/dependencies";
+import { createDependencyIndex, getDependencyJumpTargets } from "../model/dependencies";
 import {
   elementIdByOffset,
   toggleSelectionIds
@@ -56,10 +56,11 @@ export const toggleElementBooleanProperty = (
 
 export const selectedDependencyJumpTargets = () => {
   const { elements, selectedElementId } = useCadDocumentStore.getState();
+  const dependencyIndex = createDependencyIndex(elements);
   const selectedElement = selectedElementId
-    ? elements.find((element) => element.id === selectedElementId) ?? null
+    ? dependencyIndex.elementsById.get(selectedElementId) ?? null
     : null;
-  return getDependencyJumpTargets(selectedElement, elements);
+  return getDependencyJumpTargets(selectedElement, elements, dependencyIndex);
 };
 
 const updateDependencyJumpModeAfterSelectionChange = () => {

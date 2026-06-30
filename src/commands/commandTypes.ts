@@ -4,7 +4,7 @@ import type {
   MeasurementInsertMode,
   MeasurementPointSlot
 } from "../state/cadUiStore";
-import type { CadElement, ElementId, PointAnchor } from "../types/geometry";
+import type { CadElement, ElementId, EvaluationResult, PointAnchor } from "../types/geometry";
 
 export type { BezierHandleRole };
 
@@ -146,6 +146,7 @@ export type CommandContext = {
   bezierHandleRole?: BezierHandleRole;
   commitMode?: "preview" | "commit";
   baseElements?: CadElement[];
+  baseEvaluation?: EvaluationResult;
   historySnapshot?: CadDocumentSnapshot;
   parameterKey?: string;
   numericExpression?: string;

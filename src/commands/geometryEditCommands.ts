@@ -13,6 +13,7 @@ export const movePointElementByDelta = ({
   distanceLocked,
   commitMode = "commit",
   baseElements,
+  baseEvaluation,
   historySnapshot
 }: CommandContext) => {
   if (!elementId) return;
@@ -28,7 +29,8 @@ export const movePointElementByDelta = ({
     dx,
     dy,
     angleLocked,
-    distanceLocked
+    distanceLocked,
+    baseEvaluation
   });
   if (!nextElements) return;
 
@@ -57,6 +59,7 @@ export const moveBezierHandleByDelta = ({
   distanceLocked,
   commitMode = "commit",
   baseElements,
+  baseEvaluation,
   historySnapshot
 }: CommandContext) => {
   if (!elementId || !bezierHandleRole) return;
@@ -74,7 +77,8 @@ export const moveBezierHandleByDelta = ({
     role: bezierHandleRole,
     intermediatePointId,
     angleLocked,
-    distanceLocked
+    distanceLocked,
+    baseEvaluation
   });
   if (!nextElements) return;
 

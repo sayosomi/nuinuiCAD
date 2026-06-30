@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { evaluateElements } from "../geometry/evaluate";
 import { sampleElements } from "../sampleData";
 import type { CadElement } from "../types/geometry";
 import {
@@ -112,6 +113,26 @@ describe("elementDragTransforms", () => {
     expect(point.distance).toBeCloseTo(31.622776601683793);
   });
 
+  it("reuses the provided evaluation while dragging polar offset points", () => {
+    const baseElements = withPolarPoint();
+    const baseEvaluation = evaluateElements(baseElements);
+    const changedElements = baseElements.map((element) =>
+      element.id === "polar-point" && element.type === "polarOffsetPoint"
+        ? { ...element, distance: 40 }
+        : element
+    );
+    const moved = movePointElementByDeltaInElements(changedElements, "polar-point", {
+      dx: 0,
+      dy: -10,
+      baseEvaluation
+    });
+    const point = moved?.at(-1);
+
+    if (point?.type !== "polarOffsetPoint") throw new Error("Expected a polar offset point");
+    expect(point.angleDeg).toBeCloseTo(18.43494882292201);
+    expect(point.distance).toBeCloseTo(31.622776601683793);
+  });
+
   it("respects polar point angle and distance locks", () => {
     const angleLocked = movePointElementByDeltaInElements(withPolarPoint(), "polar-point", {
       dx: 0,
@@ -209,6 +230,26 @@ describe("elementDragTransforms", () => {
     expect(startCurve.startHandleLength).toBeCloseTo(63.63961030678928);
     expect(endCurve.endHandleAngleDeg).toBeCloseTo(135);
     expect(endCurve.endHandleLength).toBeCloseTo(49.49747468305833);
+  });
+
+  it("reuses the provided evaluation while dragging Bezier handles", () => {
+    const baseEvaluation = evaluateElements(sampleElements);
+    const changedElements = sampleElements.map((element) =>
+      element.id === "curve-ac" && element.type === "bezierCurve"
+        ? { ...element, startHandleLength: 90 }
+        : element
+    );
+    const moved = moveBezierHandleByDeltaInElements(changedElements, "curve-ac", {
+      role: "start",
+      dx: 0,
+      dy: -45,
+      baseEvaluation
+    });
+    const curve = elementById(moved ?? [], "curve-ac");
+
+    if (curve.type !== "bezierCurve") throw new Error("Expected a Bezier curve");
+    expect(curve.startHandleAngleDeg).toBeCloseTo(45);
+    expect(curve.startHandleLength).toBeCloseTo(63.63961030678928);
   });
 
   it("respects Bezier angle and distance locks", () => {

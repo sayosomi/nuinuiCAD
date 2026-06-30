@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { CadElement } from "../types/geometry";
 import {
+  createDependencyIndex,
   getDependencyJumpTargets,
   getDependencySummary,
   getDirectChildren,
@@ -301,8 +302,29 @@ describe("dependencies", () => {
     ]);
   });
 
+  it("returns direct children from a shared dependency index", () => {
+    const index = createDependencyIndex(elements);
+
+    expect(getDirectChildren("b", elements, index).map((element) => element.id)).toEqual([
+      "c",
+      "ab",
+      "bc"
+    ]);
+  });
+
   it("summarizes direct relationships and recursive counts without duplicates", () => {
     const summary = getDependencySummary(elements[4], elements);
+
+    expect(summary.parents.map((parent) => parent.element?.id)).toEqual(["b", "c"]);
+    expect(summary.parents.map((parent) => parent.ancestorCount)).toEqual([1, 2]);
+    expect(summary.children).toEqual([]);
+    expect(summary.ancestorCount).toBe(3);
+    expect(summary.descendantCount).toBe(0);
+  });
+
+  it("summarizes relationships from a shared dependency index", () => {
+    const index = createDependencyIndex(elements);
+    const summary = getDependencySummary(elements[4], elements, index);
 
     expect(summary.parents.map((parent) => parent.element?.id)).toEqual(["b", "c"]);
     expect(summary.parents.map((parent) => parent.ancestorCount)).toEqual([1, 2]);
@@ -338,6 +360,17 @@ describe("dependencies", () => {
 
   it("orders jump targets as direct parents then direct children", () => {
     expect(getDependencyJumpTargets(elements[1], elements).map((element) => element.id)).toEqual([
+      "a",
+      "c",
+      "ab",
+      "bc"
+    ]);
+  });
+
+  it("orders jump targets from a shared dependency index", () => {
+    const index = createDependencyIndex(elements);
+
+    expect(getDependencyJumpTargets(elements[1], elements, index).map((element) => element.id)).toEqual([
       "a",
       "c",
       "ab",

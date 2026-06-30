@@ -110,6 +110,7 @@ export const AppLayout = () => {
       />
       <DrawingCanvas
         evaluation={evaluation}
+        evaluationState={evaluationState}
         canvasFocusRef={canvasFocusRef}
       />
       <RightPanel

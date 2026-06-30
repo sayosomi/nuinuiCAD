@@ -20,6 +20,14 @@ export type DependencySummary = {
   descendantCount: number;
 };
 
+export type DependencyIndex = {
+  elementsById: Map<ElementId, CadElement>;
+  parentIdsByElementId: Map<ElementId, ElementId[]>;
+  childIdsByElementId: Map<ElementId, ElementId[]>;
+  ancestorIdsForElement: (elementId: ElementId) => Set<ElementId>;
+  descendantIdsForElement: (elementId: ElementId) => Set<ElementId>;
+};
+
 const numericVariableReferences = (element: CadElement) =>
   (element.numericVariables ?? []).flatMap((variable) =>
     extractNumericExpressionReferences(variable.value)
@@ -235,27 +243,116 @@ export const getDirectParentIds = (element: CadElement): ElementId[] => {
   }
 };
 
+export const createDependencyIndex = (elements: CadElement[]): DependencyIndex => {
+  const elementsById = new Map(elements.map((element) => [element.id, element]));
+  const parentIdsByElementId = new Map(
+    elements.map((element) => [element.id, getDirectParentIds(element)])
+  );
+  const childIdSetsByElementId = new Map<ElementId, Set<ElementId>>();
+
+  for (const element of elements) {
+    for (const parentId of parentIdsByElementId.get(element.id) ?? []) {
+      if (!elementsById.has(parentId)) continue;
+      const childIds = childIdSetsByElementId.get(parentId) ?? new Set<ElementId>();
+      childIds.add(element.id);
+      childIdSetsByElementId.set(parentId, childIds);
+    }
+  }
+
+  const childIdsByElementId = new Map(
+    elements.map((element) => [
+      element.id,
+      [...(childIdSetsByElementId.get(element.id) ?? new Set<ElementId>())]
+    ])
+  );
+  const ancestorCache = new Map<ElementId, Set<ElementId>>();
+  const descendantCache = new Map<ElementId, Set<ElementId>>();
+
+  const ancestorIdsForElement = (elementId: ElementId, visiting = new Set<ElementId>()) => {
+    const cached = ancestorCache.get(elementId);
+    if (cached) return new Set(cached);
+    if (visiting.has(elementId)) return new Set<ElementId>();
+
+    visiting.add(elementId);
+    const ancestors = new Set<ElementId>();
+    for (const parentId of parentIdsByElementId.get(elementId) ?? []) {
+      if (!elementsById.has(parentId)) continue;
+      ancestors.add(parentId);
+      for (const ancestorId of ancestorIdsForElement(parentId, visiting)) {
+        ancestors.add(ancestorId);
+      }
+    }
+    visiting.delete(elementId);
+    ancestorCache.set(elementId, ancestors);
+    return new Set(ancestors);
+  };
+
+  const descendantIdsForElement = (elementId: ElementId, visiting = new Set<ElementId>()) => {
+    const cached = descendantCache.get(elementId);
+    if (cached) return new Set(cached);
+    if (visiting.has(elementId)) return new Set<ElementId>();
+
+    visiting.add(elementId);
+    const descendants = new Set<ElementId>();
+    for (const childId of childIdsByElementId.get(elementId) ?? []) {
+      descendants.add(childId);
+      for (const descendantId of descendantIdsForElement(childId, visiting)) {
+        descendants.add(descendantId);
+      }
+    }
+    visiting.delete(elementId);
+    descendantCache.set(elementId, descendants);
+    return new Set(descendants);
+  };
+
+  return {
+    elementsById,
+    parentIdsByElementId,
+    childIdsByElementId,
+    ancestorIdsForElement,
+    descendantIdsForElement
+  };
+};
+
 export const getDirectParents = (
   element: CadElement,
-  elementsById: Map<ElementId, CadElement>
+  elementsByIdOrIndex: Map<ElementId, CadElement> | DependencyIndex
 ): DependencyReference[] =>
-  getDirectParentIds(element).map((id) => {
+  (elementsByIdOrIndex instanceof Map
+    ? getDirectParentIds(element)
+    : elementsByIdOrIndex.parentIdsByElementId.get(element.id) ?? getDirectParentIds(element)
+  ).map((id) => {
+    const elementsById =
+      elementsByIdOrIndex instanceof Map
+        ? elementsByIdOrIndex
+        : elementsByIdOrIndex.elementsById;
     const parent = elementsById.get(id) ?? null;
-    const ancestors = new Set<ElementId>();
-
-    if (parent) {
-      collectAncestors(parent, elementsById, ancestors);
-    }
+    const ancestorCount =
+      parent && !(elementsByIdOrIndex instanceof Map)
+        ? elementsByIdOrIndex.ancestorIdsForElement(parent.id).size
+        : (() => {
+            const ancestors = new Set<ElementId>();
+            if (parent) collectAncestors(parent, elementsById, ancestors);
+            return ancestors.size;
+          })();
 
     return {
       id,
       element: parent,
-      ancestorCount: ancestors.size
+      ancestorCount
     };
   });
 
-export const getDirectChildren = (elementId: ElementId, elements: CadElement[]): CadElement[] =>
-  elements.filter((element) => getDirectParentIds(element).includes(elementId));
+export const getDirectChildren = (
+  elementId: ElementId,
+  elements: CadElement[],
+  index?: DependencyIndex
+): CadElement[] => {
+  const dependencyIndex = index ?? createDependencyIndex(elements);
+  return (dependencyIndex.childIdsByElementId.get(elementId) ?? [])
+    .map((id) => dependencyIndex.elementsById.get(id))
+    .filter((element): element is CadElement => Boolean(element));
+};
 
 const collectAncestors = (
   element: CadElement,
@@ -270,28 +367,14 @@ const collectAncestors = (
   }
 };
 
-const collectDescendants = (
-  elementId: ElementId,
-  elements: CadElement[],
-  visited: Set<ElementId>
-) => {
-  for (const child of getDirectChildren(elementId, elements)) {
-    if (visited.has(child.id)) continue;
-    visited.add(child.id);
-    collectDescendants(child.id, elements, visited);
-  }
-};
-
 export const getDependencySummary = (
   element: CadElement,
-  elements: CadElement[]
+  elements: CadElement[],
+  index?: DependencyIndex
 ): DependencySummary => {
-  const elementsById = new Map(elements.map((item) => [item.id, item]));
-  const ancestors = new Set<ElementId>();
-  const descendants = new Set<ElementId>();
-  const directChildren = getDirectChildren(element.id, elements).map((child) => {
-    const childDescendants = new Set<ElementId>();
-    collectDescendants(child.id, elements, childDescendants);
+  const dependencyIndex = index ?? createDependencyIndex(elements);
+  const directChildren = getDirectChildren(element.id, elements, dependencyIndex).map((child) => {
+    const childDescendants = dependencyIndex.descendantIdsForElement(child.id);
 
     return {
       element: child,
@@ -299,11 +382,11 @@ export const getDependencySummary = (
     };
   });
 
-  collectAncestors(element, elementsById, ancestors);
-  collectDescendants(element.id, elements, descendants);
+  const ancestors = dependencyIndex.ancestorIdsForElement(element.id);
+  const descendants = dependencyIndex.descendantIdsForElement(element.id);
 
   return {
-    parents: getDirectParents(element, elementsById),
+    parents: getDirectParents(element, dependencyIndex),
     children: directChildren,
     ancestorCount: ancestors.size,
     descendantCount: descendants.size
@@ -312,11 +395,12 @@ export const getDependencySummary = (
 
 export const getDependencyJumpTargets = (
   element: CadElement | null,
-  elements: CadElement[]
+  elements: CadElement[],
+  index?: DependencyIndex
 ): CadElement[] => {
   if (!element) return [];
 
-  const summary = getDependencySummary(element, elements);
+  const summary = getDependencySummary(element, elements, index);
   const targets = new Map<ElementId, CadElement>();
 
   for (const parent of summary.parents) {

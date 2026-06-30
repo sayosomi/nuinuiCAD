@@ -1,5 +1,10 @@
+import { useMemo } from "react";
 import { dispatchCommand } from "../commands/commands";
-import { getDependencyJumpTargets, getDependencySummary } from "../model/dependencies";
+import {
+  createDependencyIndex,
+  getDependencyJumpTargets,
+  getDependencySummary
+} from "../model/dependencies";
 import { useCadUiStore } from "../state/cadUiStore";
 import type {
   CadElement,
@@ -57,10 +62,11 @@ export const ElementInfoPanel = ({
   setSelectedElementId: (id: ElementId | null) => void;
 }) => {
   const showElementInfoPanel = useCadUiStore((state) => state.showElementInfoPanel);
+  const dependencyIndex = useMemo(() => createDependencyIndex(elements), [elements]);
   const geometry = element ? evaluation.computedGeometry.get(element.id) : undefined;
   const variable = element ? evaluation.computedVariables.get(element.id) : undefined;
-  const dependencySummary = element ? getDependencySummary(element, elements) : null;
-  const jumpTargets = getDependencyJumpTargets(element, elements);
+  const dependencySummary = element ? getDependencySummary(element, elements, dependencyIndex) : null;
+  const jumpTargets = getDependencyJumpTargets(element, elements, dependencyIndex);
   const jumpTargetIndexes = new Map(jumpTargets.map((target, index) => [target.id, index]));
   const infoRows =
     variable
