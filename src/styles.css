@@ -309,6 +309,10 @@ select {
 }
 
 .element-row.is-group {
+  grid-template-columns: 18px max-content 40px minmax(0, 1fr) minmax(0, auto) 24px;
+  grid-template-areas:
+    "expand index status name type handle"
+    "actions actions actions actions actions actions";
   background: #f8faf7;
   font-weight: 600;
 }
@@ -350,6 +354,7 @@ select {
   background: rgb(81 94 87 / 0.12);
 }
 
+.element-row.is-group .element-outline-indent,
 .element-row.is-flat-list .element-outline-indent,
 .element-row.is-flat-list .element-expand-spacer {
   display: none;

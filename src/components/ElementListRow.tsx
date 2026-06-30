@@ -27,7 +27,6 @@ type ElementListRowProps = {
   index: number;
   rowRef: Ref<HTMLDivElement>;
   depth: number;
-  showHierarchyControls: boolean;
   selectedElementId: ElementId | null;
   selectedElementIdSet: Set<ElementId>;
   isEffectivelyVisible: boolean;
@@ -68,7 +67,6 @@ export const ElementListRow = ({
   index,
   rowRef,
   depth,
-  showHierarchyControls,
   selectedElementId,
   selectedElementIdSet,
   isEffectivelyVisible,
@@ -105,7 +103,7 @@ export const ElementListRow = ({
     tabIndex={0}
     data-element-list-row="true"
     aria-selected={selectedPickOptionIndex >= 0 || activeSearchCursorId === element.id}
-    className={`element-row ${!showHierarchyControls ? "is-flat-list" : ""} ${
+    className={`element-row ${!isGroupElement(element) ? "is-flat-list" : ""} ${
       selectedElementIdSet.has(element.id) ? "selected" : ""
     } ${
       element.id === selectedElementId ? "primary-selected" : ""

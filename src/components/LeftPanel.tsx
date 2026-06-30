@@ -7,7 +7,6 @@ import {
   isPointElement,
   referenceAnchor
 } from "../model/pointAnchors";
-import { isGroupElement } from "../model/groups";
 import {
   numericReferencePropertiesForGeometry,
   type NumericReferenceGeometry
@@ -157,7 +156,6 @@ export const LeftPanel = ({
   const pointerDragClientYRef = useRef<number | null>(null);
   const selectedElementIdSet = new Set(selectedElementIds);
   const draggedElementIds = pointerDrag?.kind === "elements" ? pointerDrag.movingIds : [];
-  const showHierarchyControls = elements.some(isGroupElement);
   const isDividerDragging = pointerDrag?.kind === "divider";
   const isPointerDragging = pointerDrag !== null;
   const dropTarget = pointerDrag?.target ?? null;
@@ -586,7 +584,6 @@ export const LeftPanel = ({
                   }
                 }}
                 depth={rowData.depth}
-                showHierarchyControls={showHierarchyControls}
                 selectedElementId={selectedElementId}
                 selectedElementIdSet={selectedElementIdSet}
                 isEffectivelyVisible={rowData.isEffectivelyVisible}

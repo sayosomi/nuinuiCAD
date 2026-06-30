@@ -672,7 +672,7 @@ describe("LeftPanel element list dragging", () => {
     );
   });
 
-  it("collapses hierarchy spacing when the element list has no groups", () => {
+  it("collapses hierarchy spacing for non-group rows", () => {
     renderLeftPanel();
 
     expect(screen.getByText("点A").closest("[data-element-list-row='true']")).toHaveClass(
@@ -809,7 +809,7 @@ describe("LeftPanel element list dragging", () => {
 
     const groupRow = screen.getByText("身頃").closest("[data-element-list-row='true']");
     expect(groupRow).not.toHaveClass("is-flat-list");
-    expect(screen.getByText("点A").closest("[data-element-list-row='true']")).not.toHaveClass(
+    expect(screen.getByText("点A").closest("[data-element-list-row='true']")).toHaveClass(
       "is-flat-list"
     );
     expect(screen.queryByText(/配下/)).not.toBeInTheDocument();
