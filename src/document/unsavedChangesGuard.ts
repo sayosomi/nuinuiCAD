@@ -1,6 +1,5 @@
 import { isTauriRuntime } from "../geometry/evaluationEngine";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
-import { confirmDiscardUnsavedChanges } from "./documentFile";
 
 export const handleBeforeUnloadWithUnsavedChanges = (event: BeforeUnloadEvent) => {
   if (!useCadDocumentStore.getState().dirtySinceSave) return;
@@ -18,13 +17,26 @@ export const registerUnsavedChangesGuard = () => {
 
   if (isTauriRuntime()) {
     void import("@tauri-apps/api/window")
-      .then(({ getCurrentWindow }) =>
-        getCurrentWindow().onCloseRequested((event) => {
-          if (!confirmDiscardUnsavedChanges("閉じ")) {
-            event.preventDefault();
+      .then(async ({ getCurrentWindow }) => {
+        const currentWindow = getCurrentWindow();
+        const { confirm } = await import("@tauri-apps/plugin-dialog");
+
+        return currentWindow.onCloseRequested(async (event) => {
+          if (!useCadDocumentStore.getState().dirtySinceSave) return;
+
+          event.preventDefault();
+
+          const shouldDiscard = await confirm("未保存の変更を破棄して閉じますか？", {
+            title: "nuinuiCAD",
+            kind: "warning",
+            okLabel: "破棄して閉じる",
+            cancelLabel: "キャンセル"
+          });
+          if (shouldDiscard) {
+            await currentWindow.destroy();
           }
         })
-      )
+      })
       .then((unlisten) => {
         if (disposed) {
           unlisten();

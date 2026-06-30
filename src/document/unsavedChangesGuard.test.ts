@@ -7,6 +7,7 @@ import {
 
 const windowMock = vi.hoisted(() => ({
   closeHandler: null as null | ((event: { preventDefault: () => void }) => void | Promise<void>),
+  destroy: vi.fn(async () => undefined),
   unlisten: vi.fn(),
   onCloseRequested: vi.fn(
     async (handler: (event: { preventDefault: () => void }) => void | Promise<void>) => {
@@ -18,8 +19,17 @@ const windowMock = vi.hoisted(() => ({
 
 vi.mock("@tauri-apps/api/window", () => ({
   getCurrentWindow: () => ({
+    destroy: windowMock.destroy,
     onCloseRequested: windowMock.onCloseRequested
   })
+}));
+
+const dialogMock = vi.hoisted(() => ({
+  confirm: vi.fn(async () => true)
+}));
+
+vi.mock("@tauri-apps/plugin-dialog", () => ({
+  confirm: dialogMock.confirm
 }));
 
 const setTauriRuntime = () => {
@@ -53,6 +63,7 @@ describe("unsaved changes guard", () => {
     useCadDocumentStore.setState(initialCadDocumentState());
     clearTauriRuntime();
     windowMock.closeHandler = null;
+    windowMock.destroy.mockClear();
     windowMock.unlisten.mockReset();
     windowMock.onCloseRequested.mockReset();
     windowMock.onCloseRequested.mockImplementation(
@@ -61,6 +72,8 @@ describe("unsaved changes guard", () => {
         return windowMock.unlisten;
       }
     );
+    dialogMock.confirm.mockReset();
+    dialogMock.confirm.mockResolvedValue(true);
   });
 
   it("does not block reload when the document is clean", () => {
@@ -95,9 +108,9 @@ describe("unsaved changes guard", () => {
     expect(remove).toHaveBeenCalledWith("beforeunload", handleBeforeUnloadWithUnsavedChanges);
   });
 
-  it("allows native close when the dirty document discard is confirmed", async () => {
+  it("destroys the native window when the dirty document discard is confirmed", async () => {
     setTauriRuntime();
-    vi.spyOn(window, "confirm").mockReturnValue(true);
+    dialogMock.confirm.mockResolvedValue(true);
     useCadDocumentStore.getState().commitDocumentChange({ evaluationLimitIndex: 1 });
 
     const cleanup = registerUnsavedChangesGuard();
@@ -106,14 +119,21 @@ describe("unsaved changes guard", () => {
     await windowMock.closeHandler?.({ preventDefault });
 
     expect(windowMock.onCloseRequested).toHaveBeenCalled();
-    expect(preventDefault).not.toHaveBeenCalled();
+    expect(preventDefault).toHaveBeenCalled();
+    expect(dialogMock.confirm).toHaveBeenCalledWith("未保存の変更を破棄して閉じますか？", {
+      title: "nuinuiCAD",
+      kind: "warning",
+      okLabel: "破棄して閉じる",
+      cancelLabel: "キャンセル"
+    });
+    expect(windowMock.destroy).toHaveBeenCalled();
     cleanup();
     expect(windowMock.unlisten).toHaveBeenCalled();
   });
 
-  it("prevents native close when the dirty document discard is declined", async () => {
+  it("prevents native close without destroying when the dirty document discard is declined", async () => {
     setTauriRuntime();
-    vi.spyOn(window, "confirm").mockReturnValue(false);
+    dialogMock.confirm.mockResolvedValue(false);
     useCadDocumentStore.getState().commitDocumentChange({ evaluationLimitIndex: 1 });
 
     const cleanup = registerUnsavedChangesGuard();
@@ -122,20 +142,35 @@ describe("unsaved changes guard", () => {
     await windowMock.closeHandler?.({ preventDefault });
 
     expect(preventDefault).toHaveBeenCalled();
+    expect(dialogMock.confirm).toHaveBeenCalled();
+    expect(windowMock.destroy).not.toHaveBeenCalled();
     cleanup();
   });
 
   it("allows native close without confirmation when the document is clean", async () => {
     setTauriRuntime();
-    const confirm = vi.spyOn(window, "confirm");
 
     const cleanup = registerUnsavedChangesGuard();
     await flushPromises();
     const preventDefault = vi.fn();
     await windowMock.closeHandler?.({ preventDefault });
 
-    expect(confirm).not.toHaveBeenCalled();
+    expect(dialogMock.confirm).not.toHaveBeenCalled();
     expect(preventDefault).not.toHaveBeenCalled();
+    expect(windowMock.destroy).not.toHaveBeenCalled();
     cleanup();
+  });
+
+  it("logs close guard registration failures without throwing", async () => {
+    setTauriRuntime();
+    const error = new Error("registration failed");
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    windowMock.onCloseRequested.mockRejectedValue(error);
+
+    const cleanup = registerUnsavedChangesGuard();
+    await flushPromises();
+
+    expect(consoleError).toHaveBeenCalledWith("Failed to register window close guard.", error);
+    expect(() => cleanup()).not.toThrow();
   });
 });
