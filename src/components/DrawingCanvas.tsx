@@ -6,6 +6,7 @@ import type {
 import { useEffect, useMemo, useRef, useState } from "react";
 import { dispatchCommand } from "../commands/commands";
 import type { EvaluationEngineState } from "../geometry/useEvaluationEngine";
+import { generatedElementIdForTargetForGroup } from "../model/forGroupGeneratedReferences";
 import { getParameterValue } from "../parameters/parameterAccess";
 import type { BezierHandleRole as CommandBezierHandleRole } from "../commands/commands";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
@@ -323,9 +324,14 @@ export const DrawingCanvas = ({ evaluation, evaluationState, canvasFocusRef }: D
       screen,
       lines: overlayNumericReferenceCandidates
     })) {
-      if (candidate.line.elementId === activeTarget.elementId) continue;
-      if (pickedBaseLineIds.has(candidate.line.elementId)) continue;
-      uniqueCandidates.set(candidate.line.elementId, { line: candidate.line });
+      const normalizedLineId = generatedElementIdForTargetForGroup({
+        elements,
+        targetElementId: activeTarget.elementId,
+        pickedElementId: candidate.line.elementId
+      });
+      if (!normalizedLineId || normalizedLineId === activeTarget.elementId) continue;
+      if (pickedBaseLineIds.has(normalizedLineId)) continue;
+      uniqueCandidates.set(normalizedLineId, { line: candidate.line });
     }
     return Array.from(uniqueCandidates.values());
   };

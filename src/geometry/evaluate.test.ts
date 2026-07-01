@@ -264,6 +264,119 @@ describe("evaluateElements", () => {
     });
   });
 
+  it("applies generated for group extend trims to matching generated lines", () => {
+    const result = evaluateElements([
+      { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
+      { id: "b", name: "B", type: "freePoint", visible: true, enabled: true, x: 110, y: 0 },
+      { id: "c", name: "C", type: "freePoint", visible: true, enabled: true, x: 0, y: 30 },
+      { id: "d", name: "D", type: "freePoint", visible: true, enabled: true, x: 110, y: 30 },
+      {
+        id: "ab",
+        name: "AB",
+        type: "line",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "a" },
+        endPoint: { mode: "reference", pointId: "b" }
+      },
+      {
+        id: "cd",
+        name: "CD",
+        type: "line",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "c" },
+        endPoint: { mode: "reference", pointId: "d" }
+      },
+      {
+        id: "loop",
+        name: "繰り返し",
+        type: "forGroup",
+        visible: true,
+        enabled: true,
+        variableName: "i",
+        start: 1,
+        count: 2,
+        step: 1,
+        expanded: true,
+        showGenerated: true
+      },
+      {
+        id: "division",
+        name: "線上分点",
+        type: "lineDivisionPoint",
+        visible: true,
+        enabled: true,
+        parentGroupId: "loop",
+        endpoint: { lineId: "ab", endpointKey: "start" },
+        placementMode: "ratio",
+        distance: 30,
+        ratio: makeNumericExpression("@i / 11")
+      },
+      {
+        id: "offset",
+        name: "線上オフセット点",
+        type: "lineTangentOffsetPoint",
+        visible: true,
+        enabled: true,
+        parentGroupId: "loop",
+        baseLineId: "ab",
+        basePoint: { mode: "reference", pointId: "division" },
+        tangentAngleDeg: 90,
+        distance: 20
+      },
+      {
+        id: "guide",
+        name: "補助線",
+        type: "line",
+        visible: true,
+        enabled: true,
+        parentGroupId: "loop",
+        startPoint: { mode: "reference", pointId: "division" },
+        endPoint: { mode: "reference", pointId: "offset" }
+      },
+      {
+        id: "intersection",
+        name: "交点",
+        type: "intersectionPoint",
+        visible: true,
+        enabled: true,
+        parentGroupId: "loop",
+        line1Id: "guide",
+        line2Id: "cd",
+        intersectionIndex: 0,
+        useExtensions: true
+      },
+      {
+        id: "trim",
+        name: "延長短縮",
+        type: "extendTrim",
+        visible: true,
+        enabled: true,
+        parentGroupId: "loop",
+        endpoint: { lineId: "guide", endpointKey: "end" },
+        point: { mode: "reference", pointId: "intersection" }
+      }
+    ]);
+
+    expect(result.errors).toHaveLength(0);
+    const firstGuide = result.computedGeometry.get("guide@loop:0");
+    const secondGuide = result.computedGeometry.get("guide@loop:1");
+    expect(firstGuide).toMatchObject({ kind: "line", length: 30 });
+    expect(secondGuide).toMatchObject({ kind: "line", length: 30 });
+    if (firstGuide?.kind !== "line" || secondGuide?.kind !== "line") {
+      throw new Error("Expected generated guide lines");
+    }
+    expect(firstGuide.start.x).toBeCloseTo(10);
+    expect(firstGuide.start.y).toBeCloseTo(0);
+    expect(firstGuide.end.x).toBeCloseTo(10);
+    expect(firstGuide.end.y).toBeCloseTo(30);
+    expect(secondGuide.start.x).toBeCloseTo(20);
+    expect(secondGuide.start.y).toBeCloseTo(0);
+    expect(secondGuide.end.x).toBeCloseTo(20);
+    expect(secondGuide.end.y).toBeCloseTo(30);
+  });
+
   it("reports invalid for group counts", () => {
     const result = evaluateElements([
       {

@@ -11,8 +11,8 @@ import type {
   EvaluationResult
 } from "../types/geometry";
 import { effectiveVisibleElementIds } from "../model/groups";
+import { isValidPickedPointAnchorForTarget } from "../model/forGroupGeneratedReferences";
 import {
-  lineEndpointReferenceForAnchor,
   selectablePointsForGeometry
 } from "../model/pointAnchors";
 import { findParameterDefinition } from "../parameters/parameterDefinitions";
@@ -148,8 +148,13 @@ export const useCanvasOverlayData = ({
       .flatMap((geometry) =>
         selectablePointsForGeometry(geometry, elementsById)
           .filter((candidate) =>
-            !isLineEndpointPointPick ||
-            lineEndpointReferenceForAnchor(candidate.anchor, elements)
+            !activePointPickTarget ||
+            isValidPickedPointAnchorForTarget({
+              elements,
+              targetElementId: activePointPickTarget.elementId,
+              anchor: candidate.anchor,
+              allowLineEndpoint: isLineEndpointPointPick
+            })
           )
           .map((candidate) => ({
             anchor: candidate.anchor,
@@ -158,6 +163,7 @@ export const useCanvasOverlayData = ({
           }))
       );
   }, [
+    activePointPickTarget,
     canvasViewport,
     elements,
     geometries,

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { dispatchCommand, filterCommandPaletteItems } from "./commands";
 import { sampleElements } from "../sampleData";
 import { DEFAULT_CANVAS_VIEWPORT, MAX_CANVAS_ZOOM, MIN_CANVAS_ZOOM, useCadStore } from "../state/useCadStore";
+import type { CadElement } from "../types/geometry";
 
 describe("commands", () => {
   beforeEach(() => {
@@ -2091,6 +2092,115 @@ describe("commands", () => {
     expect(useCadStore.getState().past).toHaveLength(1);
   });
 
+  it("maps picked generated point anchors to templates when editing the same for group", () => {
+    const elements: CadElement[] = [
+      {
+        id: "loop",
+        name: "繰り返し",
+        type: "forGroup",
+        visible: true,
+        enabled: true,
+        variableName: "i",
+        start: 0,
+        count: 3,
+        step: 1,
+        expanded: true,
+        showGenerated: true
+      },
+      {
+        id: "template-point",
+        name: "テンプレート点",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        parentGroupId: "loop",
+        x: 0,
+        y: 0
+      },
+      {
+        id: "target-line",
+        name: "対象線",
+        type: "line",
+        visible: true,
+        enabled: true,
+        parentGroupId: "loop",
+        startPoint: { mode: "coordinate", x: 0, y: 0 },
+        endPoint: { mode: "coordinate", x: 10, y: 0 }
+      }
+    ];
+    useCadStore.setState({
+      elements,
+      selectedElementId: "target-line",
+      selectedElementIds: ["target-line"],
+      selectedParameterKey: "startPoint"
+    });
+
+    dispatchCommand("startPointPick");
+    dispatchCommand("applyPickedPoint", {
+      pickedPointAnchor: { mode: "reference", pointId: "template-point@loop:2" }
+    });
+
+    expect(useCadStore.getState().activePointPickTarget).toBeNull();
+    expect(useCadStore.getState().elements[2]).toMatchObject({
+      type: "line",
+      startPoint: { mode: "reference", pointId: "template-point" }
+    });
+  });
+
+  it("ignores picked generated point anchors when editing outside the owning for group", () => {
+    const elements: CadElement[] = [
+      {
+        id: "loop",
+        name: "繰り返し",
+        type: "forGroup",
+        visible: true,
+        enabled: true,
+        variableName: "i",
+        start: 0,
+        count: 3,
+        step: 1,
+        expanded: true,
+        showGenerated: true
+      },
+      {
+        id: "template-point",
+        name: "テンプレート点",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        parentGroupId: "loop",
+        x: 0,
+        y: 0
+      },
+      {
+        id: "outside-line",
+        name: "外側線",
+        type: "line",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "coordinate", x: 0, y: 0 },
+        endPoint: { mode: "coordinate", x: 10, y: 0 }
+      }
+    ];
+    useCadStore.setState({
+      elements,
+      selectedElementId: "outside-line",
+      selectedElementIds: ["outside-line"],
+      selectedParameterKey: "startPoint"
+    });
+
+    dispatchCommand("startPointPick");
+    dispatchCommand("applyPickedPoint", {
+      pickedPointAnchor: { mode: "reference", pointId: "template-point@loop:2" }
+    });
+
+    expect(useCadStore.getState().elements[2]).toMatchObject({
+      type: "line",
+      startPoint: { mode: "coordinate", x: 0, y: 0 }
+    });
+    expect(useCadStore.getState().past).toHaveLength(0);
+  });
+
   it("applies a picked line endpoint anchor to a line division point endpoint", () => {
     const point = {
       id: "line-division",
@@ -2127,6 +2237,61 @@ describe("commands", () => {
       endpoint: { lineId: "line-bc", endpointKey: "end" }
     });
     expect(useCadStore.getState().past).toHaveLength(1);
+  });
+
+  it("maps picked generated line endpoints to template endpoints in the same for group", () => {
+    const elements: CadElement[] = [
+      {
+        id: "loop",
+        name: "繰り返し",
+        type: "forGroup",
+        visible: true,
+        enabled: true,
+        variableName: "i",
+        start: 0,
+        count: 3,
+        step: 1,
+        expanded: true,
+        showGenerated: true
+      },
+      {
+        id: "template-line",
+        name: "テンプレート線",
+        type: "line",
+        visible: true,
+        enabled: true,
+        parentGroupId: "loop",
+        startPoint: { mode: "coordinate", x: 0, y: 0 },
+        endPoint: { mode: "coordinate", x: 10, y: 0 }
+      },
+      {
+        id: "extend",
+        name: "延長短縮",
+        type: "extendTrim",
+        visible: true,
+        enabled: true,
+        parentGroupId: "loop",
+        endpoint: { lineId: "template-line", endpointKey: "start" },
+        point: { mode: "derived", elementId: "template-line", pointKey: "start" }
+      }
+    ];
+    useCadStore.setState({
+      elements,
+      selectedElementId: "extend",
+      selectedElementIds: ["extend"],
+      selectedParameterKey: "endpoint"
+    });
+
+    dispatchCommand("startPointPick");
+    dispatchCommand("applyPickedPoint", {
+      pickedPointAnchor: { mode: "derived", elementId: "template-line@loop:1", pointKey: "end" }
+    });
+
+    expect(useCadStore.getState().activePointPickTarget).toBeNull();
+    expect(useCadStore.getState().elements[2]).toMatchObject({
+      type: "extendTrim",
+      endpoint: { lineId: "template-line", endpointKey: "end" }
+    });
   });
 
   it("uses left and right to choose a line endpoint option before applying it", () => {
@@ -2250,6 +2415,125 @@ describe("commands", () => {
     expect(useCadStore.getState().activeLinePickTarget).toEqual({
       elementId: "offset-line",
       parameterKey: "baseLineIds"
+    });
+  });
+
+  it("maps picked generated lines to template line references in the same for group", () => {
+    const elements: CadElement[] = [
+      {
+        id: "loop",
+        name: "繰り返し",
+        type: "forGroup",
+        visible: true,
+        enabled: true,
+        variableName: "i",
+        start: 0,
+        count: 3,
+        step: 1,
+        expanded: true,
+        showGenerated: true
+      },
+      {
+        id: "template-line",
+        name: "テンプレート線",
+        type: "line",
+        visible: true,
+        enabled: true,
+        parentGroupId: "loop",
+        startPoint: { mode: "coordinate", x: 0, y: 0 },
+        endPoint: { mode: "coordinate", x: 10, y: 0 }
+      },
+      {
+        id: "other-line",
+        name: "外部線",
+        type: "line",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "coordinate", x: 0, y: 10 },
+        endPoint: { mode: "coordinate", x: 10, y: 10 }
+      },
+      {
+        id: "intersection",
+        name: "交点",
+        type: "intersectionPoint",
+        visible: true,
+        enabled: true,
+        parentGroupId: "loop",
+        line1Id: "other-line",
+        line2Id: "other-line",
+        intersectionIndex: 0,
+        useExtensions: true
+      }
+    ];
+    useCadStore.setState({
+      elements,
+      selectedElementId: "intersection",
+      selectedElementIds: ["intersection"],
+      selectedParameterKey: "line1Id"
+    });
+
+    dispatchCommand("startLinePick");
+    dispatchCommand("applyPickedLine", { pickedLineId: "template-line@loop:2" });
+
+    expect(useCadStore.getState().activeLinePickTarget).toBeNull();
+    expect(useCadStore.getState().elements[3]).toMatchObject({
+      type: "intersectionPoint",
+      line1Id: "template-line"
+    });
+  });
+
+  it("maps generated lines once for line reference lists", () => {
+    const elements: CadElement[] = [
+      {
+        id: "loop",
+        name: "繰り返し",
+        type: "forGroup",
+        visible: true,
+        enabled: true,
+        variableName: "i",
+        start: 0,
+        count: 3,
+        step: 1,
+        expanded: true,
+        showGenerated: true
+      },
+      {
+        id: "template-line",
+        name: "テンプレート線",
+        type: "line",
+        visible: true,
+        enabled: true,
+        parentGroupId: "loop",
+        startPoint: { mode: "coordinate", x: 0, y: 0 },
+        endPoint: { mode: "coordinate", x: 10, y: 0 }
+      },
+      {
+        id: "offset-line",
+        name: "オフセット線",
+        type: "offsetLine",
+        visible: true,
+        enabled: true,
+        parentGroupId: "loop",
+        baseLineIds: [],
+        offset: 10,
+        side: "right",
+        closed: false
+      }
+    ];
+    useCadStore.setState({
+      elements,
+      selectedElementId: "offset-line",
+      selectedElementIds: ["offset-line"],
+      selectedParameterKey: "baseLineIds"
+    });
+
+    dispatchCommand("startLinePick");
+    dispatchCommand("applyPickedLine", { pickedLineId: "template-line@loop:0" });
+    dispatchCommand("applyPickedLine", { pickedLineId: "template-line@loop:1" });
+
+    expect(useCadStore.getState().elements[2]).toMatchObject({
+      type: "offsetLine",
+      baseLineIds: ["template-line"]
     });
   });
 

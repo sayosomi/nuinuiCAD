@@ -6,8 +6,13 @@ import {
   numericValueExpression,
   pointAnchorExpression
 } from "../geometry/numericExpressions";
+import {
+  generatedElementIdForTargetForGroup,
+  lineEndpointReferenceForPickedAnchor,
+  pickedPointAnchorForTargetForGroup
+} from "../model/forGroupGeneratedReferences";
 import { pickCandidates, selectedPickOption } from "../model/pickCandidates";
-import { lineEndpointReferenceForAnchor, referenceAnchor } from "../model/pointAnchors";
+import { referenceAnchor } from "../model/pointAnchors";
 import { findParameterDefinition } from "../parameters/parameterDefinitions";
 import { getParameterValue, setParameterValue } from "../parameters/parameterAccess";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
@@ -393,8 +398,19 @@ export const applyPickedPoint = (context?: Pick<CommandContext, "pickedPointId" 
   if (!targetElement) return;
 
   const definition = findParameterDefinition(targetElement, activePointPickTarget.parameterKey);
+  const pickedAnchor = pickedPointAnchorForTargetForGroup({
+    elements,
+    targetElementId: activePointPickTarget.elementId,
+    anchor
+  });
+  if (!pickedAnchor) return;
+
   if (definition?.kind === "lineEndpointReference") {
-    const endpoint = lineEndpointReferenceForAnchor(anchor, elements);
+    const endpoint = lineEndpointReferenceForPickedAnchor({
+      elements,
+      targetElementId: activePointPickTarget.elementId,
+      anchor
+    });
     if (!endpoint) return;
 
     useCadDocumentStore.getState().commitDocumentChange({
@@ -414,8 +430,8 @@ export const applyPickedPoint = (context?: Pick<CommandContext, "pickedPointId" 
 
   if (definition?.kind !== "reference") return;
 
-  if (anchor.mode === "reference") {
-    const pointElement = elements.find((element) => element.id === anchor.pointId);
+  if (pickedAnchor.mode === "reference") {
+    const pointElement = elements.find((element) => element.id === pickedAnchor.pointId);
     if (
       !pointElement ||
       (pointElement.type !== "freePoint" &&
@@ -430,14 +446,14 @@ export const applyPickedPoint = (context?: Pick<CommandContext, "pickedPointId" 
     }
   }
 
-  if (anchor.mode === "derived" && !elements.some((element) => element.id === anchor.elementId)) {
+  if (pickedAnchor.mode === "derived" && !elements.some((element) => element.id === pickedAnchor.elementId)) {
     return;
   }
 
   useCadDocumentStore.getState().commitDocumentChange({
     elements: elements.map((element) =>
       element.id === activePointPickTarget.elementId
-        ? setParameterValue(element, activePointPickTarget.parameterKey, anchor)
+        ? setParameterValue(element, activePointPickTarget.parameterKey, pickedAnchor)
         : element
     ),
     selectedElementId: activePointPickTarget.elementId,
@@ -486,7 +502,14 @@ export const applyPickedLine = (context?: Pick<CommandContext, "pickedLineId">) 
   }
 
   const targetElement = elements.find((element) => element.id === activeLinePickTarget.elementId);
-  const pickedLine = elements.find((element) => element.id === pickedLineId);
+  const normalizedPickedLineId = generatedElementIdForTargetForGroup({
+    elements,
+    targetElementId: activeLinePickTarget.elementId,
+    pickedElementId: pickedLineId
+  });
+  if (!normalizedPickedLineId) return;
+
+  const pickedLine = elements.find((element) => element.id === normalizedPickedLineId);
   const definition = targetElement
     ? findParameterDefinition(targetElement, activeLinePickTarget.parameterKey)
     : null;
@@ -501,7 +524,7 @@ export const applyPickedLine = (context?: Pick<CommandContext, "pickedLineId">) 
     (definition?.kind !== "lineReferenceList" && definition?.kind !== "lineReference") ||
     !pickedLine ||
     !isLineLikeElement(pickedLine) ||
-    pickedLine.id === targetElement.id
+    normalizedPickedLineId === targetElement.id
   ) {
     return;
   }
@@ -510,7 +533,7 @@ export const applyPickedLine = (context?: Pick<CommandContext, "pickedLineId">) 
     useCadDocumentStore.getState().commitDocumentChange({
       elements: elements.map((element) =>
         element.id === targetElement.id
-          ? setParameterValue(targetElement, activeLinePickTarget.parameterKey, pickedLine.id)
+          ? setParameterValue(targetElement, activeLinePickTarget.parameterKey, normalizedPickedLineId)
           : element
       ),
       selectedElementId: targetElement.id,
@@ -522,14 +545,14 @@ export const applyPickedLine = (context?: Pick<CommandContext, "pickedLineId">) 
     return;
   }
 
-  if (!currentLineIds || currentLineIds.includes(pickedLine.id)) return;
+  if (!currentLineIds || currentLineIds.includes(normalizedPickedLineId)) return;
 
   useCadDocumentStore.getState().commitDocumentChange({
     elements: elements.map((element) =>
       element.id === targetElement.id
         ? setParameterValue(targetElement, activeLinePickTarget.parameterKey, [
             ...currentLineIds,
-            pickedLine.id
+            normalizedPickedLineId
           ])
         : element
     ),
