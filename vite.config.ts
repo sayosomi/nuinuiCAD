@@ -12,7 +12,20 @@ export default defineConfig({
     }
   },
   build: {
-    target: process.env.TAURI_ENV_PLATFORM === "darwin" ? "safari13" : "es2022"
+    target: process.env.TAURI_ENV_PLATFORM === "darwin" ? "safari13" : "es2022",
+    rolldownOptions: {
+      output: {
+        codeSplitting: {
+          groups: [
+            {
+              name: "vendor-react",
+              test: /node_modules[\\/](react|react-dom|scheduler)[\\/]/,
+              priority: 10
+            }
+          ]
+        }
+      }
+    }
   },
   test: {
     environment: "jsdom",
