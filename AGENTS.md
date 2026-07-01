@@ -146,6 +146,12 @@ Do not add or require Apple notarization for normal builds; notarization
 warnings from `npm run desktop:build` are expected when Apple credentials are
 not configured.
 
+The product has not started production use yet. When improving the document
+model or saved file format, prefer the cleanest durable shape over backward
+compatibility with earlier local drafts. Breaking saved-format changes are
+acceptable unless the user explicitly asks for a migration path or compatibility
+layer.
+
 Prefer Rust for deterministic, CPU-heavy, or platform-adjacent work:
 
 * CAD document evaluation and dependency checks
@@ -179,6 +185,11 @@ rewrites unless the requested feature or bug fix genuinely requires them.
 The application should remain viable for roughly 1,000 editable geometry
 elements, large reference images used as underlays, frequent pan/zoom, and
 real-time editing feedback.
+
+Always design UI workflows with three-digit element counts in mind. Element
+lists, inspectors, reference pickers, selection tools, visibility controls, and
+error navigation must remain searchable, filterable, keyboard-friendly, and
+scannable once a document has more than 100 elements.
 
 Do not assume all geometry should always be rendered as React DOM or individual
 SVG elements. Keep the rendering architecture able to evolve toward:
