@@ -74,6 +74,7 @@ const renderLineAndReturnLastStrokeWidth = ({
     visibleElementIds: new Set([elementId]),
     selectedElementIdSet: new Set(selectedElementIds),
     selectedElementId,
+    showCanvasPoints: true,
     isPointPickActive: false,
     isNumericReferencePickActive: false,
     isLinePickActive: false
@@ -102,5 +103,83 @@ describe("renderCanvasGeometry", () => {
     const zoomedWidth = renderLineAndReturnLastStrokeWidth({ zoom: 4 });
 
     expect(zoomedWidth).toBe(normalWidth);
+  });
+
+  it("omits point markers when point display is off", () => {
+    const ctx = {
+      arc: vi.fn(),
+      beginPath: vi.fn(),
+      clearRect: vi.fn(),
+      fill: vi.fn(),
+      fillRect: vi.fn(),
+      lineTo: vi.fn(),
+      moveTo: vi.fn(),
+      stroke: vi.fn(),
+      set fillStyle(_value: string) {},
+      set lineCap(_value: CanvasLineCap) {},
+      set lineJoin(_value: CanvasLineJoin) {},
+      set lineWidth(_value: number) {},
+      set strokeStyle(_value: string) {}
+    } as unknown as CanvasRenderingContext2D;
+    const elementId = "point";
+
+    renderCanvasGeometry({
+      ctx,
+      size: { width: 500, height: 400 },
+      viewport: { panX: 0, panY: 0, zoom: 1 },
+      lines: [],
+      arcs: [],
+      curves: [],
+      offsetLines: [],
+      points: [point(elementId, 0, 0)],
+      visibleElementIds: new Set([elementId]),
+      selectedElementIdSet: new Set(),
+      selectedElementId: null,
+      showCanvasPoints: false,
+      isPointPickActive: false,
+      isNumericReferencePickActive: false,
+      isLinePickActive: false
+    });
+
+    expect(ctx.arc).not.toHaveBeenCalled();
+  });
+
+  it("keeps selected points visible when point display is off", () => {
+    const ctx = {
+      arc: vi.fn(),
+      beginPath: vi.fn(),
+      clearRect: vi.fn(),
+      fill: vi.fn(),
+      fillRect: vi.fn(),
+      lineTo: vi.fn(),
+      moveTo: vi.fn(),
+      stroke: vi.fn(),
+      set fillStyle(_value: string) {},
+      set lineCap(_value: CanvasLineCap) {},
+      set lineJoin(_value: CanvasLineJoin) {},
+      set lineWidth(_value: number) {},
+      set strokeStyle(_value: string) {}
+    } as unknown as CanvasRenderingContext2D;
+    const elementId = "point";
+
+    renderCanvasGeometry({
+      ctx,
+      size: { width: 500, height: 400 },
+      viewport: { panX: 0, panY: 0, zoom: 1 },
+      lines: [],
+      arcs: [],
+      curves: [],
+      offsetLines: [],
+      points: [point(elementId, 0, 0)],
+      visibleElementIds: new Set([elementId]),
+      selectedElementIdSet: new Set([elementId]),
+      selectedElementId: elementId,
+      showCanvasPoints: false,
+      isPointPickActive: false,
+      isNumericReferencePickActive: false,
+      isLinePickActive: false
+    });
+
+    expect(ctx.arc).toHaveBeenCalled();
   });
 });

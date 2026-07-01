@@ -57,6 +57,24 @@ export const viewModeCommandDefinitions = {
     shortcuts: [{ keys: "0" }],
     run: () => useCadUiStore.getState().resetCanvasViewport()
   },
+  toggleCanvasElementNames: {
+    id: "toggleCanvasElementNames",
+    label: "キャンバス要素名を表示/非表示",
+    palette: { order: 26, keywords: ["canvas", "label", "name", "要素名", "ラベル", "表示", "非表示"] },
+    run: () => {
+      const { showCanvasElementNames } = useCadUiStore.getState();
+      useCadUiStore.getState().setShowCanvasElementNames(!showCanvasElementNames);
+    }
+  },
+  toggleCanvasPoints: {
+    id: "toggleCanvasPoints",
+    label: "キャンバス点を表示/非表示",
+    palette: { order: 27, keywords: ["canvas", "point", "点", "表示", "非表示"] },
+    run: () => {
+      const { showCanvasPoints } = useCadUiStore.getState();
+      useCadUiStore.getState().setShowCanvasPoints(!showCanvasPoints);
+    }
+  },
   openCommandPalette: {
     id: "openCommandPalette",
     label: "コマンドパレットを開く",

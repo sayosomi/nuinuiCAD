@@ -25,6 +25,8 @@ describe("commands", () => {
       elementSearchQuery: "",
       elementSearchCursorId: null,
       elementSearchPickableOnly: false,
+      showCanvasElementNames: true,
+      showCanvasPoints: true,
       showShortcutHelp: true,
       showCommandPalette: false,
       canvasViewport: DEFAULT_CANVAS_VIEWPORT,
@@ -42,6 +44,14 @@ describe("commands", () => {
 
     dispatchCommand("selectPreviousElement");
     expect(useCadStore.getState().selectedElementId).toBe(sampleElements[0].id);
+  });
+
+  it("toggles canvas display helpers", () => {
+    dispatchCommand("toggleCanvasElementNames");
+    expect(useCadStore.getState().showCanvasElementNames).toBe(false);
+
+    dispatchCommand("toggleCanvasPoints");
+    expect(useCadStore.getState().showCanvasPoints).toBe(false);
   });
 
   it("selects ranges and toggles individual elements", () => {

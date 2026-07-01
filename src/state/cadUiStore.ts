@@ -75,6 +75,8 @@ export type CadUiState = {
   elementSearchQuery: string;
   elementSearchCursorId: ElementId | null;
   elementSearchPickableOnly: boolean;
+  showCanvasElementNames: boolean;
+  showCanvasPoints: boolean;
   showShortcutHelp: boolean;
   showShortcutSettings: boolean;
   shortcutSettings: ShortcutSettings;
@@ -102,6 +104,8 @@ export type CadUiState = {
   setElementSearchQuery: (elementSearchQuery: string) => void;
   setElementSearchCursorId: (elementSearchCursorId: ElementId | null) => void;
   setElementSearchPickableOnly: (elementSearchPickableOnly: boolean) => void;
+  setShowCanvasElementNames: (showCanvasElementNames: boolean) => void;
+  setShowCanvasPoints: (showCanvasPoints: boolean) => void;
   setShowShortcutHelp: (showShortcutHelp: boolean) => void;
   setShowShortcutSettings: (showShortcutSettings: boolean) => void;
   setShortcutSettings: (shortcutSettings: ShortcutSettings) => void;
@@ -133,6 +137,8 @@ export const initialCadUiState = (): Omit<
   | "setElementSearchQuery"
   | "setElementSearchCursorId"
   | "setElementSearchPickableOnly"
+  | "setShowCanvasElementNames"
+  | "setShowCanvasPoints"
   | "setShowShortcutHelp"
   | "setShowShortcutSettings"
   | "setShortcutSettings"
@@ -157,6 +163,8 @@ export const initialCadUiState = (): Omit<
   elementSearchQuery: "",
   elementSearchCursorId: null,
   elementSearchPickableOnly: false,
+  showCanvasElementNames: true,
+  showCanvasPoints: true,
   showShortcutHelp: false,
   showShortcutSettings: false,
   shortcutSettings: { version: 1, overrides: [] },
@@ -217,6 +225,8 @@ export const useCadUiStore = create<CadUiState>((set) => ({
   setElementSearchCursorId: (elementSearchCursorId) => set({ elementSearchCursorId }),
   setElementSearchPickableOnly: (elementSearchPickableOnly) =>
     set({ elementSearchPickableOnly, elementSearchCursorId: null }),
+  setShowCanvasElementNames: (showCanvasElementNames) => set({ showCanvasElementNames }),
+  setShowCanvasPoints: (showCanvasPoints) => set({ showCanvasPoints }),
   setShowShortcutHelp: (showShortcutHelp) => set({ showShortcutHelp }),
   setShowShortcutSettings: (showShortcutSettings) => set({ showShortcutSettings }),
   setShortcutSettings: (shortcutSettings) => set({ shortcutSettings }),

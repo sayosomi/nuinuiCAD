@@ -19,6 +19,8 @@ type CanvasOverlayProps = {
   overlayPointPickCandidates: PointPickCandidate[];
   selectedElementIdSet: Set<ElementId>;
   selectedElementId: ElementId | null;
+  showCanvasElementNames: boolean;
+  showCanvasPoints: boolean;
   isPointPickActive: boolean;
   isNumericReferencePickActive: boolean;
   isLinePickActive: boolean;
@@ -34,6 +36,8 @@ export const CanvasOverlay = ({
   overlayPointPickCandidates,
   selectedElementIdSet,
   selectedElementId,
+  showCanvasElementNames,
+  showCanvasPoints,
   isPointPickActive,
   isNumericReferencePickActive,
   isLinePickActive
@@ -90,21 +94,29 @@ export const CanvasOverlay = ({
         />
       </g>
     ))}
-    {overlayPoints.map(({ point, screen }) => (
-      <g key={point.elementId}>
-        <circle
-          cx={screen.x}
-          cy={screen.y}
-          r={point.elementId === selectedElementId ? 8 : selectedElementIdSet.has(point.elementId) ? 7 : 6}
-          className={`overlay-draggable-point ${
-            selectedElementIdSet.has(point.elementId) ? "overlay-selected-point" : ""
-          } ${isPointPickActive ? "overlay-point-pick-candidate" : ""}`}
-        />
-        <text x={screen.x + 8} y={screen.y - 8}>
-          {point.name}
-        </text>
-      </g>
-    ))}
+    {overlayPoints.map(({ point, screen }) => {
+      const isSelected = selectedElementIdSet.has(point.elementId);
+      const shouldShowPoint = showCanvasPoints || isSelected || isPointPickActive;
+      return (
+        <g key={point.elementId}>
+          {shouldShowPoint ? (
+            <circle
+              cx={screen.x}
+              cy={screen.y}
+              r={point.elementId === selectedElementId ? 8 : isSelected ? 7 : 6}
+              className={`overlay-draggable-point ${
+                isSelected ? "overlay-selected-point" : ""
+              } ${isPointPickActive ? "overlay-point-pick-candidate" : ""}`}
+            />
+          ) : null}
+          {showCanvasElementNames ? (
+            <text x={screen.x + 8} y={screen.y - 8}>
+              {point.name}
+            </text>
+          ) : null}
+        </g>
+      );
+    })}
     {isPointPickActive
       ? overlayPointPickCandidates.map((candidate, index) => (
           <circle

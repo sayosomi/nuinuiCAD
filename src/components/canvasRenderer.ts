@@ -79,6 +79,7 @@ type RenderCanvasGeometryArgs = {
   visibleElementIds: Set<ElementId>;
   selectedElementIdSet: Set<ElementId>;
   selectedElementId: ElementId | null;
+  showCanvasPoints: boolean;
   isPointPickActive: boolean;
   isNumericReferencePickActive: boolean;
   isLinePickActive: boolean;
@@ -143,6 +144,7 @@ export const renderCanvasGeometry = ({
   visibleElementIds,
   selectedElementIdSet,
   selectedElementId,
+  showCanvasPoints,
   isPointPickActive,
   isNumericReferencePickActive,
   isLinePickActive
@@ -291,6 +293,7 @@ export const renderCanvasGeometry = ({
     if (!visibleElementIds.has(point.elementId)) continue;
     const isSelected = selectedElementIdSet.has(point.elementId);
     const isPrimarySelected = point.elementId === selectedElementId;
+    if (!showCanvasPoints && !isSelected && !isPointPickActive) continue;
     const screen = worldToScreen(point, size, viewport);
     ctx.beginPath();
     ctx.arc(

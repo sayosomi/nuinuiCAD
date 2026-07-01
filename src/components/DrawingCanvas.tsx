@@ -103,6 +103,8 @@ export const DrawingCanvas = ({ evaluation, evaluationState, canvasFocusRef }: D
   const canvasViewport = useCadUiStore((state) => state.canvasViewport);
   const panCanvasViewport = useCadUiStore((state) => state.panCanvasViewport);
   const zoomCanvasViewportAt = useCadUiStore((state) => state.zoomCanvasViewportAt);
+  const showCanvasElementNames = useCadUiStore((state) => state.showCanvasElementNames);
+  const showCanvasPoints = useCadUiStore((state) => state.showCanvasPoints);
   const activePointPickTarget = useCadUiStore((state) => state.activePointPickTarget);
   const activeNumericReferencePickTarget = useCadUiStore((state) => state.activeNumericReferencePickTarget);
   const activeLinePickTarget = useCadUiStore((state) => state.activeLinePickTarget);
@@ -198,6 +200,7 @@ export const DrawingCanvas = ({ evaluation, evaluationState, canvasFocusRef }: D
       visibleElementIds,
       selectedElementIdSet,
       selectedElementId,
+      showCanvasPoints,
       isPointPickActive: Boolean(activePointPickTarget),
       isNumericReferencePickActive: Boolean(activeNumericReferencePickTarget),
       isLinePickActive: Boolean(activeLinePickTarget)
@@ -214,6 +217,7 @@ export const DrawingCanvas = ({ evaluation, evaluationState, canvasFocusRef }: D
     points,
     selectedElementId,
     selectedElementIdSet,
+    showCanvasPoints,
     viewportSize,
     visibleElementIds
   ]);
@@ -658,10 +662,30 @@ export const DrawingCanvas = ({ evaluation, evaluationState, canvasFocusRef }: D
           overlayPointPickCandidates={overlayPointPickCandidates}
           selectedElementIdSet={selectedElementIdSet}
           selectedElementId={selectedElementId}
+          showCanvasElementNames={showCanvasElementNames}
+          showCanvasPoints={showCanvasPoints}
           isPointPickActive={Boolean(activePointPickTarget)}
           isNumericReferencePickActive={Boolean(activeNumericReferencePickTarget)}
           isLinePickActive={Boolean(activeLinePickTarget)}
         />
+        <div className="canvas-display-controls" aria-label="キャンバス表示設定">
+          <button
+            type="button"
+            className={showCanvasElementNames ? "active-toggle" : ""}
+            aria-pressed={showCanvasElementNames}
+            onClick={() => dispatchCommand("toggleCanvasElementNames")}
+          >
+            要素名
+          </button>
+          <button
+            type="button"
+            className={showCanvasPoints ? "active-toggle" : ""}
+            aria-pressed={showCanvasPoints}
+            onClick={() => dispatchCommand("toggleCanvasPoints")}
+          >
+            点
+          </button>
+        </div>
         {activePointPickTarget ? (
           <div className="point-pick-canvas-banner">
             {isLineEndpointPointPick

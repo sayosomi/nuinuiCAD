@@ -79,8 +79,19 @@ const resetStore = () => {
     activeNumericReferencePickTarget: null,
     activeLinePickTarget: null,
     activeExpressionInsertTarget: null,
+    activeMeasurementInsertTarget: null,
+    activePickCursor: null,
     selectedDependencyJumpIndex: 0,
+    elementSearchQuery: "",
+    elementSearchCursorId: null,
+    elementSearchPickableOnly: false,
+    showCanvasElementNames: true,
+    showCanvasPoints: true,
     showShortcutHelp: false,
+    showShortcutSettings: false,
+    shortcutSettings: { version: 1, overrides: [] },
+    shortcutSettingsLoading: false,
+    shortcutSettingsError: null,
     showCommandPalette: false,
     canvasViewport: DEFAULT_CANVAS_VIEWPORT,
     past: [],
@@ -247,6 +258,28 @@ describe("DrawingCanvas rendering", () => {
     renderDrawingCanvas();
 
     expect(context.bezierCurveTo).toHaveBeenCalled();
+  });
+
+  it("toggles canvas point names from the canvas controls", () => {
+    const { container, getByRole } = renderDrawingCanvas();
+
+    expect(container.querySelector("text")?.textContent).toBe("点A");
+
+    fireEvent.click(getByRole("button", { name: "要素名" }));
+
+    expect(container.querySelector("text")).toBeNull();
+    expect(useCadStore.getState().showCanvasElementNames).toBe(false);
+  });
+
+  it("hides unselected overlay points while keeping the selected point visible", () => {
+    const { container, getByRole } = renderDrawingCanvas();
+
+    expect(container.querySelectorAll(".overlay-draggable-point")).toHaveLength(3);
+
+    fireEvent.click(getByRole("button", { name: "点" }));
+
+    expect(container.querySelectorAll(".overlay-draggable-point")).toHaveLength(1);
+    expect(useCadStore.getState().showCanvasPoints).toBe(false);
   });
 });
 

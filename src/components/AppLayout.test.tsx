@@ -23,6 +23,8 @@ const resetStore = () => {
     elementSearchQuery: "",
     elementSearchCursorId: null,
     elementSearchPickableOnly: false,
+    showCanvasElementNames: true,
+    showCanvasPoints: true,
     showShortcutHelp: false,
     showShortcutSettings: false,
     shortcutSettings: { version: 1, overrides: [] },

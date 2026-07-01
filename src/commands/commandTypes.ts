@@ -101,6 +101,8 @@ export type CommandId =
   | "zoomInCanvas"
   | "zoomOutCanvas"
   | "resetCanvasView"
+  | "toggleCanvasElementNames"
+  | "toggleCanvasPoints"
   | "openCommandPalette"
   | "closeCommandPalette"
   | "openShortcutSettings"
