@@ -83,6 +83,34 @@ fn tokenize(expression: &str) -> Result<Vec<Token>, String> {
             }
             _ => {}
         }
+        if matches!(ch, '&' | '|') {
+            let next = chars.get(index + 1).copied();
+            let operator = match (ch, next) {
+                ('&', Some('&')) | ('|', Some('|')) => {
+                    index += 2;
+                    [ch, ch].iter().collect::<String>()
+                }
+                _ => return Err(format!("式を解釈できません: {}", &expression[index..])),
+            };
+            tokens.push(Token::LogicalOperator(operator));
+            continue;
+        }
+        if matches!(ch, '>' | '<' | '=' | '!') {
+            let next = chars.get(index + 1).copied();
+            let operator = match (ch, next) {
+                ('>', Some('=')) | ('<', Some('=')) | ('=', Some('=')) | ('!', Some('=')) => {
+                    index += 2;
+                    [ch, '='].iter().collect::<String>()
+                }
+                ('>', _) | ('<', _) => {
+                    index += 1;
+                    ch.to_string()
+                }
+                _ => return Err(format!("式を解釈できません: {}", &expression[index..])),
+            };
+            tokens.push(Token::ComparisonOperator(operator));
+            continue;
+        }
 
         if ch.is_ascii_digit() || ch == '.' {
             let start = index;
@@ -170,7 +198,11 @@ fn normalize_degrees(degrees: f64) -> f64 {
 }
 
 fn is_expression_delimiter(ch: char) -> bool {
-    ch.is_whitespace() || matches!(ch, '(' | ')' | ',' | '+' | '*' | '/')
+    ch.is_whitespace()
+        || matches!(
+            ch,
+            '(' | ')' | ',' | '+' | '*' | '/' | '>' | '<' | '=' | '!' | '&' | '|'
+        )
 }
 
 struct Parser<'a> {
@@ -198,11 +230,57 @@ impl<'a> Parser<'a> {
     }
 
     fn parse(&mut self) -> Result<f64, NumericEvalError> {
-        let value = self.parse_expression()?;
+        let value = self.parse_logical_or()?;
         if self.index < self.tokens.len() {
             return Err(self.simple_error("式の末尾を解釈できません。"));
         }
         Ok(value)
+    }
+
+    fn parse_logical_or(&mut self) -> Result<f64, NumericEvalError> {
+        let mut value = self.parse_logical_and()?;
+        while self.peek_logical_operator("||") {
+            self.consume_logical_operator()?;
+            let right = self.parse_logical_and()?;
+            value = if value != 0.0 || right != 0.0 {
+                1.0
+            } else {
+                0.0
+            };
+        }
+        Ok(value)
+    }
+
+    fn parse_logical_and(&mut self) -> Result<f64, NumericEvalError> {
+        let mut value = self.parse_comparison()?;
+        while self.peek_logical_operator("&&") {
+            self.consume_logical_operator()?;
+            let right = self.parse_comparison()?;
+            value = if value != 0.0 && right != 0.0 {
+                1.0
+            } else {
+                0.0
+            };
+        }
+        Ok(value)
+    }
+
+    fn parse_comparison(&mut self) -> Result<f64, NumericEvalError> {
+        let left = self.parse_expression()?;
+        let Some(operator) = self.consume_comparison_operator_if_present() else {
+            return Ok(left);
+        };
+        let right = self.parse_expression()?;
+        let result = match operator.as_str() {
+            ">" => left > right,
+            ">=" => left >= right,
+            "<" => left < right,
+            "<=" => left <= right,
+            "!=" => left != right,
+            "==" => left == right,
+            _ => return Err(self.simple_error("未対応の比較演算子です。")),
+        };
+        Ok(if result { 1.0 } else { 0.0 })
     }
 
     fn parse_expression(&mut self) -> Result<f64, NumericEvalError> {
@@ -251,7 +329,7 @@ impl<'a> Parser<'a> {
             Token::Operator('+') => self.parse_factor(),
             Token::Operator('-') => Ok(-self.parse_factor()?),
             Token::LeftParen => {
-                let value = self.parse_expression()?;
+                let value = self.parse_logical_or()?;
                 if self.consume() != Some(Token::RightParen) {
                     return Err(self.simple_error("閉じ括弧がありません。"));
                 }
@@ -412,6 +490,30 @@ impl<'a> Parser<'a> {
         match self.consume() {
             Some(Token::Operator(operator)) => Ok(operator),
             _ => Err(self.simple_error("演算子が必要です。")),
+        }
+    }
+
+    fn consume_comparison_operator_if_present(&mut self) -> Option<String> {
+        match self.tokens.get(self.index) {
+            Some(Token::ComparisonOperator(operator)) => {
+                self.index += 1;
+                Some(operator.clone())
+            }
+            _ => None,
+        }
+    }
+
+    fn peek_logical_operator(&self, operator: &str) -> bool {
+        matches!(
+            self.tokens.get(self.index),
+            Some(Token::LogicalOperator(value)) if value == operator
+        )
+    }
+
+    fn consume_logical_operator(&mut self) -> Result<String, NumericEvalError> {
+        match self.consume() {
+            Some(Token::LogicalOperator(operator)) => Ok(operator),
+            _ => Err(self.simple_error("論理演算子が必要です。")),
         }
     }
 

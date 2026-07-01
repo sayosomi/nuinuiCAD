@@ -91,6 +91,8 @@ pub(crate) enum Token {
     LocalVariable(String),
     Function(String),
     Operator(char),
+    ComparisonOperator(String),
+    LogicalOperator(String),
     Comma,
     LeftParen,
     RightParen,

@@ -86,6 +86,12 @@ describe("normalizeNumericExpressionInput", () => {
     expect(normalizeNumericExpressionInput("曲線AC.長さ + 5", elements)).toBe(
       "curve-ac.length + 5"
     );
+    expect(normalizeNumericExpressionInput("曲線AC.長さ > 0", elements)).toBe(
+      "curve-ac.length > 0"
+    );
+    expect(normalizeNumericExpressionInput("曲線AC.長さ >= 100 || 曲線AC.長さ == 0", elements)).toBe(
+      "curve-ac.length >= 100 || curve-ac.length == 0"
+    );
   });
 
   it("normalizes Japanese curve handle references and local variable references", () => {

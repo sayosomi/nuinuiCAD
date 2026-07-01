@@ -108,6 +108,21 @@ describe("dependencies", () => {
     expect(getDirectParentIds(arc)).toEqual(["a", "bc", "ab"]);
   });
 
+  it("returns conditional group comparison expression references as direct parent ids", () => {
+    const group: CadElement = {
+      id: "if",
+      name: "分岐",
+      type: "conditionalGroup",
+      visible: true,
+      enabled: true,
+      condition: { kind: "expression", expression: "ab.length >= 100 || bc.length >= 100" },
+      expanded: true,
+      elseExpanded: true
+    };
+
+    expect(getDirectParentIds(group)).toEqual(["ab", "bc"]);
+  });
+
   it("returns three-point arc point and numeric expression references as direct parent ids", () => {
     const arc: CadElement = {
       id: "three-point-arc",

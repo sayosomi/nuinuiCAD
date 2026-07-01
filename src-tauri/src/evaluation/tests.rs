@@ -261,6 +261,174 @@ fn evaluates_only_active_conditional_branch() {
 }
 
 #[test]
+fn evaluates_conditional_group_comparison_expression() {
+    let mut elements = base_line_elements();
+    elements.extend(vec![
+        element(json!({
+            "id": "c",
+            "name": "点C",
+            "type": "freePoint",
+            "visible": true,
+            "enabled": true,
+            "x": 50,
+            "y": 0
+        })),
+        element(json!({
+            "id": "short-line",
+            "name": "短い線",
+            "type": "line",
+            "visible": true,
+            "enabled": true,
+            "startPoint": { "mode": "reference", "pointId": "a" },
+            "endPoint": { "mode": "reference", "pointId": "c" }
+        })),
+        element(json!({
+            "id": "if",
+            "name": "寸法分岐",
+            "type": "conditionalGroup",
+            "visible": true,
+            "enabled": true,
+            "condition": { "kind": "expression", "expression": "short-line.length >= 100 || line.length >= 100" },
+            "expanded": true,
+            "elseExpanded": true
+        })),
+        element(json!({
+            "id": "then-point",
+            "name": "then点",
+            "type": "freePoint",
+            "parentGroupId": "if",
+            "conditionalBranch": "then",
+            "visible": true,
+            "enabled": true,
+            "x": 0,
+            "y": 0
+        })),
+        element(json!({
+            "id": "else-point",
+            "name": "else点",
+            "type": "freePoint",
+            "parentGroupId": "if",
+            "conditionalBranch": "else",
+            "visible": true,
+            "enabled": true,
+            "x": 10,
+            "y": 0
+        })),
+    ]);
+
+    let result = evaluate_document_input(EvaluationInput {
+        elements,
+        evaluation_limit_index: None,
+    });
+
+    assert!(result.errors.is_empty());
+    assert!(result
+        .computed_geometry
+        .iter()
+        .any(|geometry| geometry["elementId"] == json!("then-point")));
+    assert!(result
+        .computed_geometry
+        .iter()
+        .all(|geometry| geometry["elementId"] != json!("else-point")));
+    assert_eq!(result.condition_inactive_element_ids, vec!["else-point"]);
+}
+
+#[test]
+fn evaluates_false_conditional_group_comparison_expression() {
+    let mut elements = base_line_elements();
+    elements.extend(vec![
+        element(json!({
+            "id": "if",
+            "name": "寸法分岐",
+            "type": "conditionalGroup",
+            "visible": true,
+            "enabled": true,
+            "condition": { "kind": "expression", "expression": "line.length > 0 && line.length + 10 <= 10" },
+            "expanded": true,
+            "elseExpanded": true
+        })),
+        element(json!({
+            "id": "then-point",
+            "name": "then点",
+            "type": "freePoint",
+            "parentGroupId": "if",
+            "conditionalBranch": "then",
+            "visible": true,
+            "enabled": true,
+            "x": 0,
+            "y": 0
+        })),
+        element(json!({
+            "id": "else-point",
+            "name": "else点",
+            "type": "freePoint",
+            "parentGroupId": "if",
+            "conditionalBranch": "else",
+            "visible": true,
+            "enabled": true,
+            "x": 10,
+            "y": 0
+        })),
+    ]);
+
+    let result = evaluate_document_input(EvaluationInput {
+        elements,
+        evaluation_limit_index: None,
+    });
+
+    assert!(result.errors.is_empty());
+    assert!(result
+        .computed_geometry
+        .iter()
+        .all(|geometry| geometry["elementId"] != json!("then-point")));
+    assert!(result
+        .computed_geometry
+        .iter()
+        .any(|geometry| geometry["elementId"] == json!("else-point")));
+    assert_eq!(result.condition_inactive_element_ids, vec!["then-point"]);
+}
+
+#[test]
+fn does_not_treat_single_equals_as_equality_in_conditional_expression() {
+    let mut elements = base_line_elements();
+    elements.extend(vec![
+        element(json!({
+            "id": "if",
+            "name": "寸法分岐",
+            "type": "conditionalGroup",
+            "visible": true,
+            "enabled": true,
+            "condition": { "kind": "expression", "expression": "line.length = 0" },
+            "expanded": true,
+            "elseExpanded": true
+        })),
+        element(json!({
+            "id": "then-point",
+            "name": "then点",
+            "type": "freePoint",
+            "parentGroupId": "if",
+            "conditionalBranch": "then",
+            "visible": true,
+            "enabled": true,
+            "x": 0,
+            "y": 0
+        })),
+    ]);
+
+    let result = evaluate_document_input(EvaluationInput {
+        elements,
+        evaluation_limit_index: None,
+    });
+
+    assert_eq!(result.errors[0].element_id, "if");
+    assert_eq!(result.errors[0].missing_dependency_id, "line.length = 0");
+    assert!(result
+        .computed_geometry
+        .iter()
+        .all(|geometry| geometry["elementId"] != json!("then-point")));
+}
+
+#[test]
 fn reports_references_to_inactive_conditional_branch() {
     let result = evaluate_document_input(EvaluationInput {
         elements: vec![

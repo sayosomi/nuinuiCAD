@@ -103,8 +103,8 @@ const trimRedundantOuterParentheses = (expression: string): string => {
 
 const isSimpleNumericTerm = (expression: string) =>
   /^(\d+(?:\.\d+)?|\.\d+)$/.test(expression) ||
-  /^@[^\s()+*/.]+$/.test(expression) ||
-    /^[^\s()+*/.]+\.(length|startAngleDeg|endAngleDeg|startTangentAngleDeg|endTangentAngleDeg|startHandleAngleDeg|startHandleLength|endHandleAngleDeg|endHandleLength)$/.test(expression);
+  /^@[^\s()+*/.<>!=&|]+$/.test(expression) ||
+    /^[^\s()+*/.<>!=&|]+\.(length|startAngleDeg|endAngleDeg|startTangentAngleDeg|endTangentAngleDeg|startHandleAngleDeg|startHandleLength|endHandleAngleDeg|endHandleLength)$/.test(expression);
 
 const trimSimpleOuterParentheses = (expression: string): string => {
   const fullyTrimmed = trimRedundantOuterParentheses(expression);
@@ -148,7 +148,7 @@ export const formatNumericExpressionForDisplay = (
   const elementsById = new Map(elements.map((element) => [element.id, element]));
   const variablesById = new Map(localVariables.map((variable) => [variable.id, variable]));
   return value.expression
-    .replace(/@([^\s()+*/.]+)/g, (match, variableId: string) => {
+    .replace(/@([^\s()+*/.<>!=&|]+)/g, (match, variableId: string) => {
       const variable = variablesById.get(variableId);
       return variable ? `@${variable.name}` : match;
     })
@@ -164,7 +164,7 @@ export const formatNumericExpressionForDisplay = (
       }
     )
     .replace(
-      /([^\s()+*/]+)\.(length|startAngleDeg|endAngleDeg|startTangentAngleDeg|endTangentAngleDeg|startHandleAngleDeg|startHandleLength|endHandleAngleDeg|endHandleLength)\b/g,
+      /([^\s()+*/<>!=&|]+)\.(length|startAngleDeg|endAngleDeg|startTangentAngleDeg|endTangentAngleDeg|startHandleAngleDeg|startHandleLength|endHandleAngleDeg|endHandleLength)\b/g,
       (match, elementId: ElementId, property: NumericMeasurementKey) => {
       const element = elementsById.get(elementId);
       return element ? `${element.name}.${propertyLabels[property]}` : match;
@@ -200,7 +200,7 @@ export const normalizeNumericExpressionInput = (
 
   for (const variable of variables) {
     expression = expression.replace(
-      new RegExp(`@${escapeRegExp(variable.name)}(?=$|[\\s()+*/-])`, "g"),
+      new RegExp(`@${escapeRegExp(variable.name)}(?=$|[\\s()+*/<>=!&|-])`, "g"),
       `@${variable.id}`
     );
   }
@@ -229,7 +229,7 @@ export const normalizeNumericExpressionInput = (
         property !== "endTangentAngleDeg"
       ) continue;
       expression = expression.replace(
-        new RegExp(`${escapeRegExp(element.name)}\\.${escapeRegExp(label)}(?=$|[\\s()+*/-])`, "g"),
+        new RegExp(`${escapeRegExp(element.name)}\\.${escapeRegExp(label)}(?=$|[\\s()+*/<>=!&|-])`, "g"),
         `${element.id}.${property}`
       );
     }

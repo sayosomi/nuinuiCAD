@@ -3,6 +3,9 @@ import { labelToProperty, propertyLabels } from "./numericExpressionProperties";
 import type { NumericExpressionReference, NumericMeasurementKey } from "./numericExpressionTypes";
 
 export type NumericExpressionFunctionName = "distance" | "angle" | "lineDistance";
+type ArithmeticOperator = "+" | "-" | "*" | "/";
+type ComparisonOperator = ">" | ">=" | "<" | "<=" | "==" | "!=";
+type LogicalOperator = "&&" | "||";
 
 export type Token =
   | { type: "number"; value: number }
@@ -10,7 +13,9 @@ export type Token =
   | { type: "element"; elementId: ElementId }
   | { type: "localVariable"; variableId: string }
   | { type: "function"; name: NumericExpressionFunctionName }
-  | { type: "operator"; value: "+" | "-" | "*" | "/" }
+  | { type: "operator"; value: ArithmeticOperator }
+  | { type: "comparisonOperator"; value: ComparisonOperator }
+  | { type: "logicalOperator"; value: LogicalOperator }
   | { type: "comma" }
   | { type: "leftParen" }
   | { type: "rightParen" };
@@ -54,6 +59,18 @@ export const tokenize = (expression: string): Token[] => {
       index += 1;
       continue;
     }
+    const logicalMatch = expression.slice(index).match(/^(&&|\|\|)/);
+    if (logicalMatch) {
+      tokens.push({ type: "logicalOperator", value: logicalMatch[0] as LogicalOperator });
+      index += logicalMatch[0].length;
+      continue;
+    }
+    const comparisonMatch = expression.slice(index).match(/^(>=|<=|==|!=|>|<)/);
+    if (comparisonMatch) {
+      tokens.push({ type: "comparisonOperator", value: comparisonMatch[0] as ComparisonOperator });
+      index += comparisonMatch[0].length;
+      continue;
+    }
 
     const numberMatch = expression.slice(index).match(/^\d+(?:\.\d+)?|^\.\d+/);
     if (numberMatch) {
@@ -62,14 +79,14 @@ export const tokenize = (expression: string): Token[] => {
       continue;
     }
 
-    const localVariableMatch = expression.slice(index).match(/^@([^\s()+*/.]+)/);
+    const localVariableMatch = expression.slice(index).match(/^@([^\s()+*/.<>!=&|]+)/);
     if (localVariableMatch) {
       tokens.push({ type: "localVariable", variableId: localVariableMatch[1] });
       index += localVariableMatch[0].length;
       continue;
     }
 
-    const functionMatch = expression.slice(index).match(/^([^\s(),+*/.]+)\s*(?=\()/);
+    const functionMatch = expression.slice(index).match(/^([^\s(),+*/.<>!=&|]+)\s*(?=\()/);
     const functionName = functionMatch ? functionNames.get(functionMatch[1]) : undefined;
     if (functionMatch && functionName) {
       tokens.push({ type: "function", name: functionName });
@@ -79,7 +96,7 @@ export const tokenize = (expression: string): Token[] => {
 
     const referenceMatch = expression
       .slice(index)
-      .match(/^([^\s()+*/.]+)\.([^\s()+*/.]+)/);
+      .match(/^([^\s()+*/.<>!=&|]+)\.([^\s()+*/.<>!=&|]+)/);
     if (referenceMatch) {
       const property = labelToProperty.get(referenceMatch[2]) ?? referenceMatch[2];
       if (!(property in propertyLabels)) {
@@ -94,7 +111,7 @@ export const tokenize = (expression: string): Token[] => {
       continue;
     }
 
-    const elementMatch = expression.slice(index).match(/^([^\s(),+*/]+)/);
+    const elementMatch = expression.slice(index).match(/^([^\s(),+*/<>!=&|]+)/);
     if (elementMatch) {
       tokens.push({ type: "element", elementId: elementMatch[1] });
       index += elementMatch[0].length;
@@ -121,9 +138,45 @@ export class Parser {
   ) {}
 
   parse() {
-    const value = this.parseExpression();
+    const value = this.parseLogicalOr();
     if (this.index < this.tokens.length) throw new Error("式の末尾を解釈できません。");
     return value;
+  }
+
+  private parseLogicalOr() {
+    let value = this.parseLogicalAnd();
+    while (this.peekLogicalOperator("||")) {
+      this.consumeLogicalOperator();
+      const right = this.parseLogicalAnd();
+      value = value !== 0 || right !== 0 ? 1 : 0;
+    }
+    return value;
+  }
+
+  private parseLogicalAnd() {
+    let value = this.parseComparison();
+    while (this.peekLogicalOperator("&&")) {
+      this.consumeLogicalOperator();
+      const right = this.parseComparison();
+      value = value !== 0 && right !== 0 ? 1 : 0;
+    }
+    return value;
+  }
+
+  private parseComparison() {
+    const left = this.parseExpression();
+    if (!this.peekComparisonOperator()) return left;
+
+    const operator = this.consumeComparisonOperator();
+    const right = this.parseExpression();
+    const result =
+      operator === ">" ? left > right :
+      operator === ">=" ? left >= right :
+      operator === "<" ? left < right :
+      operator === "<=" ? left <= right :
+      operator === "!=" ? left !== right :
+      left === right;
+    return result ? 1 : 0;
   }
 
   private parseExpression() {
@@ -157,7 +210,7 @@ export class Parser {
     if (token.type === "operator" && token.value === "+") return this.parseFactor();
     if (token.type === "operator" && token.value === "-") return -this.parseFactor();
     if (token.type === "leftParen") {
-      const value = this.parseExpression();
+      const value = this.parseLogicalOr();
       if (this.consume()?.type !== "rightParen") throw new Error("閉じ括弧がありません。");
       return value;
     }
@@ -181,7 +234,7 @@ export class Parser {
     return this.functionValue(name, args);
   }
 
-  private peekOperator(value: "+" | "-" | "*" | "/") {
+  private peekOperator(value: ArithmeticOperator) {
     const token = this.tokens[this.index];
     return token?.type === "operator" && token.value === value;
   }
@@ -189,6 +242,27 @@ export class Parser {
   private consumeOperator() {
     const token = this.consume();
     if (token?.type !== "operator") throw new Error("演算子が必要です。");
+    return token.value;
+  }
+
+  private peekComparisonOperator() {
+    return this.tokens[this.index]?.type === "comparisonOperator";
+  }
+
+  private consumeComparisonOperator() {
+    const token = this.consume();
+    if (token?.type !== "comparisonOperator") throw new Error("比較演算子が必要です。");
+    return token.value;
+  }
+
+  private peekLogicalOperator(value: LogicalOperator) {
+    const token = this.tokens[this.index];
+    return token?.type === "logicalOperator" && token.value === value;
+  }
+
+  private consumeLogicalOperator() {
+    const token = this.consume();
+    if (token?.type !== "logicalOperator") throw new Error("論理演算子が必要です。");
     return token.value;
   }
 
