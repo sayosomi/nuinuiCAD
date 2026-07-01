@@ -7,7 +7,12 @@ import { sampleElements } from "../sampleData";
 import { DEFAULT_CANVAS_VIEWPORT, useCadStore } from "../state/useCadStore";
 import { DrawingCanvas } from "./DrawingCanvas";
 import { hitTestCanvasGeometry } from "./DrawingCanvasHitTest";
-import type { ComputedBezierCurve, ComputedLine, ComputedPoint } from "../types/geometry";
+import type {
+  CadElement,
+  ComputedBezierCurve,
+  ComputedLine,
+  ComputedPoint
+} from "../types/geometry";
 
 const point = (elementId: string, x: number, y: number): ComputedPoint => ({
   kind: "point",
@@ -272,6 +277,39 @@ describe("DrawingCanvas rendering", () => {
 
     expect(container.querySelector("text")).toBeNull();
     expect(useCadStore.getState().showCanvasElementNames).toBe(false);
+  });
+
+  it("uses resolved element colors for selected line overlays", () => {
+    useCadStore.setState({
+      elements: sampleElements.map((element): CadElement =>
+        element.id === "line-ab" ? { ...element, colorId: "cut-red" } : element
+      ),
+      selectedElementId: "line-ab",
+      selectedElementIds: ["line-ab"]
+    });
+
+    const { container } = renderDrawingCanvas();
+    const selectedLine = container.querySelector(".overlay-selected-line");
+
+    expect(selectedLine).toHaveStyle({ stroke: "rgb(180 35 24 / 0.3)" });
+  });
+
+  it("uses resolved element colors for selected point overlays", () => {
+    useCadStore.setState({
+      elements: sampleElements.map((element): CadElement =>
+        element.id === "point-a" ? { ...element, colorId: "guide-blue" } : element
+      ),
+      selectedElementId: "point-a",
+      selectedElementIds: ["point-a"]
+    });
+
+    const { container } = renderDrawingCanvas();
+    const selectedPoint = container.querySelector(".overlay-selected-point");
+
+    expect(selectedPoint).toHaveStyle({
+      fill: "rgb(37 99 235 / 0.14)",
+      stroke: "rgb(37 99 235 / 0.45)"
+    });
   });
 
   it("hides unselected overlay points while keeping the selected point visible", () => {

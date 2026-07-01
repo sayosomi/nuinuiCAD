@@ -140,6 +140,71 @@ const renderLineAndReturnLastStrokeStyle = ({
   return strokeStyles.at(-1);
 };
 
+const renderPointAndReturnLastPaintStyles = ({
+  elementColors = new Map(),
+  selectedElementIds = [],
+  selectedElementId = null,
+  isLinePickActive = false
+}: {
+  elementColors?: Map<string, string>;
+  selectedElementIds?: string[];
+  selectedElementId?: string | null;
+  isLinePickActive?: boolean;
+}) => {
+  let currentFillStyle = "";
+  let currentStrokeStyle = "";
+  const fillStyles: string[] = [];
+  const strokeStyles: string[] = [];
+  const ctx = {
+    arc: vi.fn(),
+    beginPath: vi.fn(),
+    clearRect: vi.fn(),
+    fill: vi.fn(() => {
+      fillStyles.push(currentFillStyle);
+    }),
+    fillRect: vi.fn(),
+    lineTo: vi.fn(),
+    moveTo: vi.fn(),
+    stroke: vi.fn(() => {
+      strokeStyles.push(currentStrokeStyle);
+    }),
+    set fillStyle(value: string) {
+      currentFillStyle = value;
+    },
+    set lineCap(_value: CanvasLineCap) {},
+    set lineJoin(_value: CanvasLineJoin) {},
+    set lineWidth(_value: number) {},
+    set strokeStyle(value: string) {
+      currentStrokeStyle = value;
+    }
+  } as unknown as CanvasRenderingContext2D;
+  const elementId = "point";
+
+  renderCanvasGeometry({
+    ctx,
+    size: { width: 500, height: 400 },
+    viewport: { panX: 0, panY: 0, zoom: 1 },
+    lines: [],
+    arcs: [],
+    curves: [],
+    offsetLines: [],
+    points: [point(elementId, 0, 0)],
+    visibleElementIds: new Set([elementId]),
+    selectedElementIdSet: new Set(selectedElementIds),
+    selectedElementId,
+    elementColors,
+    showCanvasPoints: true,
+    isPointPickActive: false,
+    isNumericReferencePickActive: false,
+    isLinePickActive
+  });
+
+  return {
+    fillStyle: fillStyles.at(-1),
+    strokeStyle: strokeStyles.at(-1)
+  };
+};
+
 describe("renderCanvasGeometry", () => {
   it("draws normal geometry with a thin screen-space line width", () => {
     expect(renderLineAndReturnLastStrokeWidth({ zoom: 1 })).toBe(1);
@@ -170,6 +235,16 @@ describe("renderCanvasGeometry", () => {
     ).toBe("#aa0000");
   });
 
+  it("uses resolved element colors for selected geometry", () => {
+    expect(
+      renderLineAndReturnLastStrokeStyle({
+        elementColors: new Map([["line", "#aa0000"]]),
+        selectedElementIds: ["line"],
+        selectedElementId: "line"
+      })
+    ).toBe("#aa0000");
+  });
+
   it("keeps pick emphasis above resolved element colors", () => {
     expect(
       renderLineAndReturnLastStrokeStyle({
@@ -177,6 +252,33 @@ describe("renderCanvasGeometry", () => {
         isLinePickActive: true
       })
     ).toBe("#0f766e");
+  });
+
+  it("uses resolved element colors for selected point markers", () => {
+    expect(
+      renderPointAndReturnLastPaintStyles({
+        elementColors: new Map([["point", "#aa0000"]]),
+        selectedElementIds: ["point"],
+        selectedElementId: "point"
+      })
+    ).toEqual({
+      fillStyle: "#aa0000",
+      strokeStyle: "#aa0000"
+    });
+  });
+
+  it("keeps point pick emphasis above resolved element colors", () => {
+    expect(
+      renderPointAndReturnLastPaintStyles({
+        elementColors: new Map([["point", "#aa0000"]]),
+        selectedElementIds: ["point"],
+        selectedElementId: "point",
+        isLinePickActive: true
+      })
+    ).toEqual({
+      fillStyle: "#f6f7f3",
+      strokeStyle: "#b7bbb0"
+    });
   });
 
   it("omits point markers when point display is off", () => {

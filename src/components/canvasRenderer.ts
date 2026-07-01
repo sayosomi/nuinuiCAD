@@ -87,13 +87,11 @@ type RenderCanvasGeometryArgs = {
 };
 
 const strokeStyleForGeometry = ({
-  isSelected,
   isPointPickActive,
   isNumericReferencePickActive,
   isLinePickActive,
   defaultColor
 }: {
-  isSelected: boolean;
   isPointPickActive: boolean;
   isNumericReferencePickActive: boolean;
   isLinePickActive: boolean;
@@ -103,9 +101,7 @@ const strokeStyleForGeometry = ({
     ? "#c5cac0"
     : isNumericReferencePickActive || isLinePickActive
       ? "#0f766e"
-      : isSelected
-        ? "#0f766e"
-        : defaultColor;
+      : defaultColor;
 
 const DEFAULT_GEOMETRY_LINE_WIDTH = 1;
 const EMPHASIZED_GEOMETRY_LINE_WIDTH = 1.2;
@@ -166,7 +162,6 @@ export const renderCanvasGeometry = ({
     ctx.moveTo(start.x, start.y);
     ctx.lineTo(end.x, end.y);
     ctx.strokeStyle = strokeStyleForGeometry({
-      isSelected,
       isPointPickActive,
       isNumericReferencePickActive,
       isLinePickActive,
@@ -198,7 +193,6 @@ export const renderCanvasGeometry = ({
       true
     );
     ctx.strokeStyle = strokeStyleForGeometry({
-      isSelected,
       isPointPickActive,
       isNumericReferencePickActive,
       isLinePickActive,
@@ -228,7 +222,6 @@ export const renderCanvasGeometry = ({
       ctx.bezierCurveTo(control1.x, control1.y, control2.x, control2.y, end.x, end.y);
     });
     ctx.strokeStyle = strokeStyleForGeometry({
-      isSelected,
       isPointPickActive,
       isNumericReferencePickActive,
       isLinePickActive,
@@ -275,7 +268,6 @@ export const renderCanvasGeometry = ({
       );
     });
     ctx.strokeStyle = strokeStyleForGeometry({
-      isSelected,
       isPointPickActive,
       isNumericReferencePickActive,
       isLinePickActive,
@@ -297,6 +289,7 @@ export const renderCanvasGeometry = ({
     const isPrimarySelected = point.elementId === selectedElementId;
     if (!showCanvasPoints && !isSelected && !isPointPickActive) continue;
     const screen = worldToScreen(point, size, viewport);
+    const pointColor = elementColors.get(point.elementId) ?? "#31322f";
     ctx.beginPath();
     ctx.arc(
       screen.x,
@@ -320,15 +313,15 @@ export const renderCanvasGeometry = ({
       : isNumericReferencePickActive || isLinePickActive
         ? "#f6f7f3"
         : isSelected
-          ? "#0f766e"
+          ? pointColor
           : "#ffffff";
     ctx.strokeStyle = isPointPickActive
       ? "#0f766e"
       : isNumericReferencePickActive || isLinePickActive
         ? "#b7bbb0"
         : isSelected
-          ? "#31322f"
-          : elementColors.get(point.elementId) ?? "#31322f";
+          ? pointColor
+          : pointColor;
     ctx.lineWidth = isPointPickActive
       ? 2.5
       : isNumericReferencePickActive || isLinePickActive

@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import type { ElementId } from "../types/geometry";
 import type { ViewportSize } from "./canvasViewport";
 import type {
@@ -5,6 +6,7 @@ import type {
   CanvasOverlayArc,
   CanvasOverlayCurve,
   CanvasOverlayLine,
+  CanvasOverlayOffsetLine,
   CanvasOverlayPoint,
   PointPickCandidate
 } from "./DrawingCanvasTypes";
@@ -14,11 +16,13 @@ type CanvasOverlayProps = {
   overlayLines: CanvasOverlayLine[];
   overlayArcs: CanvasOverlayArc[];
   overlayCurves: CanvasOverlayCurve[];
+  overlayOffsetLines: CanvasOverlayOffsetLine[];
   overlayPoints: CanvasOverlayPoint[];
   selectedBezierHandles: BezierHandleOverlay[];
   overlayPointPickCandidates: PointPickCandidate[];
   selectedElementIdSet: Set<ElementId>;
   selectedElementId: ElementId | null;
+  elementColors: Map<ElementId, string>;
   showCanvasElementNames: boolean;
   showCanvasPoints: boolean;
   isPointPickActive: boolean;
@@ -31,17 +35,42 @@ export const CanvasOverlay = ({
   overlayLines,
   overlayArcs,
   overlayCurves,
+  overlayOffsetLines,
   overlayPoints,
   selectedBezierHandles,
   overlayPointPickCandidates,
   selectedElementIdSet,
   selectedElementId,
+  elementColors,
   showCanvasElementNames,
   showCanvasPoints,
   isPointPickActive,
   isNumericReferencePickActive,
   isLinePickActive
-}: CanvasOverlayProps) => (
+}: CanvasOverlayProps) => {
+  const transparentElementColor = (elementId: ElementId, alpha: number) => {
+    const color = elementColors.get(elementId) ?? "#31322f";
+    const match = /^#([0-9a-fA-F]{6})$/.exec(color);
+    if (!match) return color;
+    const hex = match[1];
+    const red = Number.parseInt(hex.slice(0, 2), 16);
+    const green = Number.parseInt(hex.slice(2, 4), 16);
+    const blue = Number.parseInt(hex.slice(4, 6), 16);
+    return `rgb(${red} ${green} ${blue} / ${alpha})`;
+  };
+  const selectedLineStyle = (elementId: ElementId): CSSProperties | undefined =>
+    isNumericReferencePickActive || isLinePickActive
+      ? undefined
+      : { stroke: transparentElementColor(elementId, 0.3) };
+  const selectedPointStyle = (elementId: ElementId): CSSProperties | undefined =>
+    isPointPickActive
+      ? undefined
+      : {
+          fill: transparentElementColor(elementId, 0.14),
+          stroke: transparentElementColor(elementId, 0.45)
+        };
+
+  return (
   <svg
     className="drawing-overlay"
     viewBox={`0 0 ${viewportSize.width} ${viewportSize.height}`}
@@ -55,6 +84,7 @@ export const CanvasOverlay = ({
         x2={end.x}
         y2={end.y}
         className={selectedElementIdSet.has(line.elementId) ? "overlay-selected-line" : ""}
+        style={selectedElementIdSet.has(line.elementId) ? selectedLineStyle(line.elementId) : undefined}
         data-numeric-reference-candidate={isNumericReferencePickActive ? "true" : undefined}
         data-line-pick-candidate={isLinePickActive ? "true" : undefined}
       />
@@ -64,6 +94,7 @@ export const CanvasOverlay = ({
         key={curve.elementId}
         points={points.map((point) => `${point.x},${point.y}`).join(" ")}
         className={selectedElementIdSet.has(curve.elementId) ? "overlay-selected-line" : ""}
+        style={selectedElementIdSet.has(curve.elementId) ? selectedLineStyle(curve.elementId) : undefined}
         data-numeric-reference-candidate={isNumericReferencePickActive ? "true" : undefined}
         data-line-pick-candidate={isLinePickActive ? "true" : undefined}
       />
@@ -73,6 +104,17 @@ export const CanvasOverlay = ({
         key={arc.elementId}
         points={points.map((point) => `${point.x},${point.y}`).join(" ")}
         className={selectedElementIdSet.has(arc.elementId) ? "overlay-selected-line" : ""}
+        style={selectedElementIdSet.has(arc.elementId) ? selectedLineStyle(arc.elementId) : undefined}
+        data-numeric-reference-candidate={isNumericReferencePickActive ? "true" : undefined}
+        data-line-pick-candidate={isLinePickActive ? "true" : undefined}
+      />
+    ))}
+    {overlayOffsetLines.map(({ line, points }) => (
+      <polyline
+        key={line.elementId}
+        points={points.map((point) => `${point.x},${point.y}`).join(" ")}
+        className={selectedElementIdSet.has(line.elementId) ? "overlay-selected-line" : ""}
+        style={selectedElementIdSet.has(line.elementId) ? selectedLineStyle(line.elementId) : undefined}
         data-numeric-reference-candidate={isNumericReferencePickActive ? "true" : undefined}
         data-line-pick-candidate={isLinePickActive ? "true" : undefined}
       />
@@ -107,6 +149,7 @@ export const CanvasOverlay = ({
               className={`overlay-draggable-point ${
                 isSelected ? "overlay-selected-point" : ""
               } ${isPointPickActive ? "overlay-point-pick-candidate" : ""}`}
+              style={isSelected ? selectedPointStyle(point.elementId) : undefined}
             />
           ) : null}
           {showCanvasElementNames ? (
@@ -129,4 +172,5 @@ export const CanvasOverlay = ({
         ))
       : null}
   </svg>
-);
+  );
+};
