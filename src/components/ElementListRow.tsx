@@ -69,6 +69,7 @@ type ElementListRowProps = {
   isDragging: boolean;
   dropBefore: boolean;
   dropAfter: boolean;
+  elementColor: string;
   onSelectElement: (elementId: ElementId, event: MouseEvent<HTMLElement>) => void;
   onHandlePointerDown: (event: PointerEvent<HTMLButtonElement>, element: CadElement) => void;
 };
@@ -105,6 +106,7 @@ export const ElementListRow = ({
   isDragging,
   dropBefore,
   dropAfter,
+  elementColor,
   onSelectElement,
   onHandlePointerDown
 }: ElementListRowProps) => (
@@ -184,6 +186,11 @@ export const ElementListRow = ({
       <span className="element-expand-spacer" aria-hidden="true" />
     )}
     <span className="element-index">{index + 1}</span>
+    <span
+      className="element-color-swatch"
+      style={{ "--element-color": elementColor } as CSSProperties}
+      aria-hidden="true"
+    />
     <span
       className="element-status-icons"
       data-visible-state={element.visible ? "visible" : "hidden"}

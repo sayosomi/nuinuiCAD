@@ -2,6 +2,7 @@ import { fireEvent, render } from "@testing-library/react";
 import { createElement, createRef } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { evaluateElements } from "../geometry/evaluate";
+import { defaultDocumentPalette } from "../palette/palette";
 import { sampleElements } from "../sampleData";
 import { DEFAULT_CANVAS_VIEWPORT, useCadStore } from "../state/useCadStore";
 import { DrawingCanvas } from "./DrawingCanvas";
@@ -68,6 +69,7 @@ const bezierCurve = (
 const resetStore = () => {
   useCadStore.setState({
     elements: sampleElements,
+    palette: defaultDocumentPalette(),
     selectedElementId: sampleElements[0].id,
     selectedElementIds: [sampleElements[0].id],
     selectionAnchorElementId: sampleElements[0].id,

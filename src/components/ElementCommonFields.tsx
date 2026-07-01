@@ -8,6 +8,7 @@ import {
   NumericParameterEditor,
   ParameterName
 } from "./ParameterEditors";
+import { ColorParameterEditor } from "./ColorParameterEditor";
 import type { CommonEditorProps } from "./parameterEditorShared";
 
 export const ElementCommonFields = ({
@@ -53,12 +54,15 @@ export const ElementCommonFields = ({
         />
       </label>
       {element.type !== "variable" ? (
-        <BooleanParameterEditor
-          {...elementEditorProps}
-          parameterKey="visible"
-          label="表示する"
-          checked={element.visible}
-        />
+        <>
+          <ColorParameterEditor {...elementEditorProps} />
+          <BooleanParameterEditor
+            {...elementEditorProps}
+            parameterKey="visible"
+            label="表示する"
+            checked={element.visible}
+          />
+        </>
       ) : null}
       <BooleanParameterEditor
         {...elementEditorProps}

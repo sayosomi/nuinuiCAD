@@ -116,6 +116,10 @@ export const updateNumericParameter = (direction: 1 | -1, context?: CommandConte
     cycleChoiceParameter(direction);
     return;
   }
+  if (definition.kind === "color") {
+    cycleColorParameter(direction);
+    return;
+  }
   if (definition.kind !== "number") return;
 
   const delta = getNumericParameterStep(selectedElement, definition.key) * stepForContext(context) * direction;
@@ -142,6 +146,20 @@ const cycleChoiceParameter = (direction: 1 | -1) => {
   updateSelectedElement((element) =>
     setParameterValue(element, definition.key, definition.choiceOptions![nextIndex])
   );
+};
+
+const cycleColorParameter = (direction: 1 | -1) => {
+  const selectedElement = getSelectedElement();
+  const definition = selectedParameterDefinition();
+  if (!selectedElement || definition?.kind !== "color") return;
+
+  const options = [undefined, ...useCadDocumentStore.getState().palette.colors.map((color) => color.id)];
+  const currentValue = getParameterValue(selectedElement, definition.key);
+  const currentIndex = options.findIndex((option) => option === currentValue);
+  const nextIndex = currentIndex < 0
+    ? 0
+    : (currentIndex + direction + options.length) % options.length;
+  updateSelectedElement((element) => setParameterValue(element, definition.key, options[nextIndex]));
 };
 
 const nextChoiceValue = (
@@ -196,6 +214,12 @@ export const applyParameterDirectKey = (
       ),
       selectedParameterKey: definition.key
     });
+    return;
+  }
+
+  if (definition.kind === "color") {
+    useCadDocumentStore.setState({ selectedParameterKey: definition.key });
+    cycleColorParameter(1);
     return;
   }
 

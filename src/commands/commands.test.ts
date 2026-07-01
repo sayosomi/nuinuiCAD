@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { waitFor } from "@testing-library/react";
 import { dispatchCommand, filterCommandPaletteItems } from "./commands";
+import { defaultDocumentPalette } from "../palette/palette";
 import { sampleElements } from "../sampleData";
 import { DEFAULT_CANVAS_VIEWPORT, MAX_CANVAS_ZOOM, MIN_CANVAS_ZOOM, useCadStore } from "../state/useCadStore";
 import type { CadElement } from "../types/geometry";
@@ -8,6 +10,7 @@ describe("commands", () => {
   beforeEach(() => {
     useCadStore.setState({
       elements: sampleElements,
+      palette: defaultDocumentPalette(),
       evaluationLimitIndex: sampleElements.length,
       selectedElementId: sampleElements[0].id,
       selectedElementIds: [sampleElements[0].id],
@@ -645,6 +648,7 @@ describe("commands", () => {
     const state = useCadStore.getState();
     const snapshot = {
       elements: state.elements,
+      palette: state.palette,
       evaluationLimitIndex: state.evaluationLimitIndex,
       selectedElementId: state.selectedElementId,
       selectedElementIds: state.selectedElementIds,
@@ -861,6 +865,7 @@ describe("commands", () => {
     const state = useCadStore.getState();
     const snapshot = {
       elements: state.elements,
+      palette: state.palette,
       evaluationLimitIndex: state.evaluationLimitIndex,
       selectedElementId: state.selectedElementId,
       selectedElementIds: state.selectedElementIds,
@@ -1402,19 +1407,20 @@ describe("commands", () => {
     vi.spyOn(window, "confirm").mockReturnValue(true);
 
     dispatchCommand("newDocument");
-    await Promise.resolve();
 
-    expect(useCadStore.getState()).toMatchObject({
-      elements: sampleElements,
-      evaluationLimitIndex: sampleElements.length,
-      selectedElementId: sampleElements[0].id,
-      selectedElementIds: [sampleElements[0].id],
-      selectionAnchorElementId: sampleElements[0].id,
-      currentFilePath: null,
-      dirtySinceSave: false,
-      past: [],
-      future: []
-    });
+    await waitFor(() =>
+      expect(useCadStore.getState()).toMatchObject({
+        elements: sampleElements,
+        evaluationLimitIndex: sampleElements.length,
+        selectedElementId: sampleElements[0].id,
+        selectedElementIds: [sampleElements[0].id],
+        selectionAnchorElementId: sampleElements[0].id,
+        currentFilePath: null,
+        dirtySinceSave: false,
+        past: [],
+        future: []
+      })
+    );
   });
 
   it("adds a polar offset point from a command", () => {
@@ -1594,7 +1600,7 @@ describe("commands", () => {
     dispatchCommand("enterParameterEditMode");
 
     dispatchCommand("selectNextParameter", { focusSelectedParameterInput });
-    expect(useCadStore.getState().selectedParameterKey).toBe("visible");
+    expect(useCadStore.getState().selectedParameterKey).toBe("colorId");
 
     dispatchCommand("selectPreviousParameter", { focusSelectedParameterInput });
     expect(useCadStore.getState().selectedParameterKey).toBe("name");

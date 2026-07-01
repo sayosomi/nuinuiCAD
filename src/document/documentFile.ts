@@ -11,6 +11,8 @@ import {
   type CadDocumentSnapshot
 } from "../state/cadDocumentStore";
 import { isTauriRuntime } from "../geometry/evaluationEngine";
+import { defaultDocumentPalette } from "../palette/palette";
+import { loadPaletteTemplateSettings } from "../palette/paletteSettingsStorage";
 
 type DocumentFileFilter = {
   name: string;
@@ -66,7 +68,16 @@ export const newDocument = async () => {
   if (!confirmDiscardUnsavedChanges("新規ドキュメントを作成し")) return;
 
   const initialDocument = initialCadDocumentState();
-  useCadDocumentStore.getState().replaceDocument(currentDocumentSnapshot(initialDocument), null);
+  const palette = await loadPaletteTemplateSettings()
+    .then((settings) => settings.palette)
+    .catch(() => defaultDocumentPalette());
+  useCadDocumentStore.getState().replaceDocument(
+    {
+      ...currentDocumentSnapshot(initialDocument),
+      palette
+    },
+    null
+  );
 };
 
 export const writeDocumentSnapshotToPath = async (

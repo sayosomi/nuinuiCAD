@@ -117,6 +117,10 @@ const parameterValueShortcutItems = (
       { ...helpItem(decrement), id: "cycleSelectedLineReferenceBackward", label: "線候補を前へ" }
     ],
     lineReferenceList: [],
+    color: [
+      { ...helpItem(increment), id: "cycleSelectedColorForward", label: "色を次へ" },
+      { ...helpItem(decrement), id: "cycleSelectedColorBackward", label: "色を前へ" }
+    ],
     lineEndpointReference: [
       { ...helpItem(increment), id: "cycleSelectedLineEndpointForward", label: "端点候補を次へ" },
       { ...helpItem(decrement), id: "cycleSelectedLineEndpointBackward", label: "端点候補を前へ" }

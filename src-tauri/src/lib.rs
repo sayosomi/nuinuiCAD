@@ -1,6 +1,7 @@
 pub mod app_menu;
 pub mod document_file;
 pub mod evaluation;
+pub mod palette_settings;
 pub mod shortcut_settings;
 
 use tauri::Emitter;
@@ -20,6 +21,8 @@ pub fn run() {
             evaluation::evaluate_document,
             document_file::read_document_file,
             document_file::write_document_file,
+            palette_settings::load_palette_template,
+            palette_settings::save_palette_template,
             shortcut_settings::load_shortcut_settings,
             shortcut_settings::save_shortcut_settings
         ])

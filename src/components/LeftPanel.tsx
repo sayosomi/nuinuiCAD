@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, KeyboardEvent, MouseEvent, PointerEvent, RefObject } from "react";
 import { Search, X } from "lucide-react";
 import { dispatchCommand } from "../commands/commands";
@@ -13,6 +13,7 @@ import {
   type NumericReferenceGeometry
 } from "../geometry/numericReferenceProperties";
 import { lineMeasurementLabel, type NumericMeasurementKey } from "../geometry/numericExpressions";
+import { resolvedElementColorMap } from "../palette/elementColors";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
 import type {
@@ -27,6 +28,7 @@ import {
   numericReferenceExpression,
 } from "./geometryDisplay";
 import { ElementListRow } from "./ElementListRow";
+import { PalettePanel } from "./PalettePanel";
 import {
   elementListAutoScrollDelta,
   elementListDropTargetForClientY,
@@ -198,6 +200,7 @@ export const LeftPanel = ({
   elementSearchInputRef
 }: LeftPanelProps) => {
   const elements = useCadDocumentStore((state) => state.elements);
+  const palette = useCadDocumentStore((state) => state.palette);
   const evaluationLimitIndex = useCadDocumentStore((state) => state.evaluationLimitIndex);
   const selectedElementId = useCadDocumentStore((state) => state.selectedElementId);
   const selectedElementIds = useCadDocumentStore((state) => state.selectedElementIds);
@@ -219,6 +222,10 @@ export const LeftPanel = ({
   const pointerDragClientYRef = useRef<number | null>(null);
   const selectedElementIdSet = new Set(selectedElementIds);
   const elementsById = new Map(elements.map((element) => [element.id, element]));
+  const elementColors = useMemo(
+    () => resolvedElementColorMap(elements, palette),
+    [elements, palette]
+  );
   const generatedRowsByForGroupId = new Map<ElementId, ForGroupGeneratedRow[]>();
   for (const row of evaluation.forGroupGeneratedRows ?? []) {
     generatedRowsByForGroupId.set(row.forGroupId, [
@@ -587,6 +594,8 @@ export const LeftPanel = ({
         </p>
       </header>
 
+      <PalettePanel />
+
       <section className="panel-section element-list-section">
         <div className="section-header">
           <div>
@@ -755,6 +764,7 @@ export const LeftPanel = ({
                 isDragging={draggedElementIds.includes(element.id)}
                 dropBefore={dropMarkerClass(element.id, rowData.index, "before") !== ""}
                 dropAfter={dropMarkerClass(element.id, rowData.index, "after") !== ""}
+                elementColor={elementColors.get(element.id) ?? "#31322f"}
                 onSelectElement={selectElement}
                 onHandlePointerDown={startElementPointerDrag}
               />

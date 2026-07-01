@@ -281,10 +281,10 @@ select {
 .element-row {
   position: relative;
   display: grid;
-  grid-template-columns: max-content 18px max-content 40px minmax(0, 1fr) minmax(0, auto) 24px;
+  grid-template-columns: max-content 18px max-content 14px 40px minmax(0, 1fr) minmax(0, auto) 24px;
   grid-template-areas:
-    "outline expand index status name type handle"
-    "actions actions actions actions actions actions actions";
+    "outline expand index color status name type handle"
+    "actions actions actions actions actions actions actions actions";
   grid-template-rows: auto auto;
   align-items: center;
   column-gap: 4px;
@@ -302,17 +302,17 @@ select {
 }
 
 .element-row.is-flat-list {
-  grid-template-columns: max-content 40px minmax(0, 1fr) minmax(0, auto) 24px;
+  grid-template-columns: max-content 14px 40px minmax(0, 1fr) minmax(0, auto) 24px;
   grid-template-areas:
-    "index status name type handle"
-    "actions actions actions actions actions";
+    "index color status name type handle"
+    "actions actions actions actions actions actions";
 }
 
 .element-row.is-group {
-  grid-template-columns: 18px max-content 40px minmax(0, 1fr) minmax(0, auto) 24px;
+  grid-template-columns: 18px max-content 14px 40px minmax(0, 1fr) minmax(0, auto) 24px;
   grid-template-areas:
-    "expand index status name type handle"
-    "actions actions actions actions actions actions";
+    "expand index color status name type handle"
+    "actions actions actions actions actions actions actions";
   background: #f8faf7;
   font-weight: 600;
 }
@@ -674,6 +674,16 @@ select {
   color: #7f8378;
 }
 
+.element-color-swatch {
+  grid-area: color;
+  display: block;
+  width: 12px;
+  height: 12px;
+  border: 1px solid rgb(37 38 34 / 0.24);
+  border-radius: 999px;
+  background: var(--element-color);
+}
+
 .element-status-button {
   display: inline-grid;
   width: 18px;
@@ -748,6 +758,54 @@ select {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.palette-panel {
+  display: grid;
+  gap: 10px;
+}
+
+.palette-color-list {
+  display: grid;
+  gap: 6px;
+}
+
+.palette-color-row {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto auto;
+  gap: 6px;
+  align-items: center;
+}
+
+.palette-color-row input[type="color"] {
+  width: 34px;
+  height: 34px;
+  padding: 3px;
+}
+
+.palette-color-row button {
+  min-height: 34px;
+  padding: 5px 8px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.palette-color-row button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.palette-color-row button.active-toggle,
+.palette-color-row button.active-toggle:hover {
+  border-color: #0f766e;
+  background: #0f766e;
+  color: #ffffff;
+}
+
+.palette-status {
+  margin: 0;
+  color: #686b62;
+  font-size: 12px;
 }
 
 .element-group-summary {

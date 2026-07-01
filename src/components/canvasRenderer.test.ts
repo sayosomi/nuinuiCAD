@@ -83,6 +83,63 @@ const renderLineAndReturnLastStrokeWidth = ({
   return strokeLineWidths.at(-1);
 };
 
+const renderLineAndReturnLastStrokeStyle = ({
+  elementColors = new Map(),
+  selectedElementIds = [],
+  selectedElementId = null,
+  isLinePickActive = false
+}: {
+  elementColors?: Map<string, string>;
+  selectedElementIds?: string[];
+  selectedElementId?: string | null;
+  isLinePickActive?: boolean;
+}) => {
+  let currentStrokeStyle = "";
+  const strokeStyles: string[] = [];
+  const ctx = {
+    arc: vi.fn(),
+    beginPath: vi.fn(),
+    clearRect: vi.fn(),
+    fillRect: vi.fn(),
+    lineTo: vi.fn(),
+    moveTo: vi.fn(),
+    stroke: vi.fn(() => {
+      strokeStyles.push(currentStrokeStyle);
+    }),
+    set fillStyle(_value: string) {},
+    set lineCap(_value: CanvasLineCap) {},
+    set lineJoin(_value: CanvasLineJoin) {},
+    set lineWidth(_value: number) {},
+    set strokeStyle(value: string) {
+      currentStrokeStyle = value;
+    }
+  } as unknown as CanvasRenderingContext2D;
+  const start = point("start", 0, 0);
+  const end = point("end", 100, 0);
+  const elementId = "line";
+
+  renderCanvasGeometry({
+    ctx,
+    size: { width: 500, height: 400 },
+    viewport: { panX: 0, panY: 0, zoom: 1 },
+    lines: [line(elementId, start, end)],
+    arcs: [],
+    curves: [],
+    offsetLines: [],
+    points: [],
+    visibleElementIds: new Set([elementId]),
+    selectedElementIdSet: new Set(selectedElementIds),
+    selectedElementId,
+    elementColors,
+    showCanvasPoints: true,
+    isPointPickActive: false,
+    isNumericReferencePickActive: false,
+    isLinePickActive
+  });
+
+  return strokeStyles.at(-1);
+};
+
 describe("renderCanvasGeometry", () => {
   it("draws normal geometry with a thin screen-space line width", () => {
     expect(renderLineAndReturnLastStrokeWidth({ zoom: 1 })).toBe(1);
@@ -103,6 +160,23 @@ describe("renderCanvasGeometry", () => {
     const zoomedWidth = renderLineAndReturnLastStrokeWidth({ zoom: 4 });
 
     expect(zoomedWidth).toBe(normalWidth);
+  });
+
+  it("uses resolved element colors for normal geometry", () => {
+    expect(
+      renderLineAndReturnLastStrokeStyle({
+        elementColors: new Map([["line", "#aa0000"]])
+      })
+    ).toBe("#aa0000");
+  });
+
+  it("keeps pick emphasis above resolved element colors", () => {
+    expect(
+      renderLineAndReturnLastStrokeStyle({
+        elementColors: new Map([["line", "#aa0000"]]),
+        isLinePickActive: true
+      })
+    ).toBe("#0f766e");
   });
 
   it("omits point markers when point display is off", () => {

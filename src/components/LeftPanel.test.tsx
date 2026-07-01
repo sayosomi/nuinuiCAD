@@ -1,10 +1,11 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { createRef } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LeftPanel, RightPanel } from "./LeftPanel";
 import { ShortcutHelpOverlay } from "./ShortcutHelpOverlay";
 import { evaluateElements } from "../geometry/evaluate";
 import type { EvaluationEngineState } from "../geometry/useEvaluationEngine";
+import { defaultDocumentPalette } from "../palette/palette";
 import { sampleElements } from "../sampleData";
 import { DEFAULT_CANVAS_VIEWPORT, useCadStore } from "../state/useCadStore";
 import type { CadElement, EvaluationResult } from "../types/geometry";
@@ -33,6 +34,7 @@ const evaluationEngineState = (
 const resetStore = () => {
   useCadStore.setState({
     elements: sampleElements,
+    palette: defaultDocumentPalette(),
     evaluationLimitIndex: sampleElements.length,
     selectedElementId: sampleElements[0].id,
     selectedElementIds: [sampleElements[0].id],
@@ -662,7 +664,7 @@ describe("LeftPanel numeric input dragging", () => {
 
     expect(screen.getByRole("button", { name: "端点を選択" })).toBeInTheDocument();
     expect(screen.getByText("直線AB.始点")).toBeInTheDocument();
-    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: /端点/ })).not.toBeInTheDocument();
   });
 
   it("folds repeated middle-button drags into a stable expression offset", () => {
@@ -712,6 +714,40 @@ describe("LeftPanel numeric input dragging", () => {
     expect(useCadStore.getState().elements[0]).toMatchObject({
       x: { kind: "expression", expression: "line-bc.startAngleDeg - 30" }
     });
+  });
+});
+
+describe("Palette and element color editing", () => {
+  beforeEach(() => {
+    resetStore();
+  });
+
+  it("changes and clears the selected element display color from the right panel", () => {
+    renderRightPanel();
+
+    const select = screen.getByLabelText("点A の表示色");
+    fireEvent.change(select, { target: { value: "cut-red" } });
+
+    expect(useCadStore.getState().elements[0].colorId).toBe("cut-red");
+
+    fireEvent.change(select, { target: { value: "__auto__" } });
+
+    expect(useCadStore.getState().elements[0].colorId).toBeUndefined();
+  });
+
+  it("removes deleted palette colors from elements", () => {
+    useCadStore.setState({
+      elements: [{ ...sampleElements[0], colorId: "cut-red" }, ...sampleElements.slice(1)]
+    });
+    renderLeftPanel();
+
+    const nameInput = screen.getByLabelText("裁断線 の名前");
+    const row = nameInput.closest(".palette-color-row");
+    if (!row) throw new Error("Missing palette color row");
+    fireEvent.click(within(row as HTMLElement).getByRole("button", { name: "削除" }));
+
+    expect(useCadStore.getState().palette.colors.some((color) => color.id === "cut-red")).toBe(false);
+    expect(useCadStore.getState().elements[0].colorId).toBeUndefined();
   });
 });
 

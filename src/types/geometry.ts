@@ -5,10 +5,22 @@ export type CadElementBase = {
   name: string;
   visible: boolean;
   enabled: boolean;
+  colorId?: string;
   parentGroupId?: ElementId;
   conditionalBranch?: ConditionalBranch;
   numericVariables?: NumericVariable[];
   numericParameterSteps?: Partial<Record<string, number>>;
+};
+
+export type PaletteColor = {
+  id: string;
+  name: string;
+  hex: string;
+};
+
+export type DocumentPalette = {
+  colors: PaletteColor[];
+  defaultColorId: string;
 };
 
 export type NumericExpression = {

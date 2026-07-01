@@ -234,6 +234,11 @@ export const setParameterValue = (
   if (element.type === "variable" && key === "expression") {
     return { ...element, expression: value as NumericValue, valueMode: "expression" };
   }
+  if (key === "colorId" && value === undefined) {
+    const rest = { ...element };
+    delete rest.colorId;
+    return rest as CadElement;
+  }
   return { ...element, [key]: value } as CadElement;
 };
 

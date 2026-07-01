@@ -30,6 +30,7 @@ describe("cadDocumentStore file state", () => {
     useCadDocumentStore.getState().replaceDocument(
       {
         elements: [sampleElements[1]],
+        palette: useCadDocumentStore.getState().palette,
         evaluationLimitIndex: 999,
         selectedElementId: "missing",
         selectedElementIds: ["missing"],
@@ -58,5 +59,27 @@ describe("cadDocumentStore file state", () => {
 
     expect(currentDocumentSnapshot(useCadDocumentStore.getState())).not.toHaveProperty("currentFilePath");
     expect(currentDocumentSnapshot(useCadDocumentStore.getState())).not.toHaveProperty("dirtySinceSave");
+  });
+
+  it("tracks palette edits in document history", () => {
+    useCadDocumentStore.getState().setDefaultColorId("cut-red");
+
+    expect(useCadDocumentStore.getState().palette.defaultColorId).toBe("cut-red");
+    expect(useCadDocumentStore.getState().past).toHaveLength(1);
+
+    useCadDocumentStore.getState().undo();
+
+    expect(useCadDocumentStore.getState().palette.defaultColorId).toBe("pattern-black");
+  });
+
+  it("clears element color ids when deleting a palette color", () => {
+    useCadDocumentStore.setState({
+      elements: [{ ...sampleElements[0], colorId: "cut-red" }, ...sampleElements.slice(1)]
+    });
+
+    useCadDocumentStore.getState().deletePaletteColor("cut-red");
+
+    expect(useCadDocumentStore.getState().elements[0].colorId).toBeUndefined();
+    expect(useCadDocumentStore.getState().palette.colors.some((color) => color.id === "cut-red")).toBe(false);
   });
 });

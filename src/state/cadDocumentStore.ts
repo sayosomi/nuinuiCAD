@@ -3,10 +3,17 @@ import { sampleElements } from "../sampleData";
 import { fallbackElementName, makeUniqueElementName } from "../model/elementNames";
 import { normalizeParameterKey } from "../parameters/parameterDefinitions";
 import type { ParameterKey } from "../parameters/parameterDefinitions";
-import type { CadElement, ElementId } from "../types/geometry";
+import {
+  createPaletteColor,
+  defaultDocumentPalette,
+  isValidPaletteColorId,
+  normalizeDocumentPalette
+} from "../palette/palette";
+import type { CadElement, DocumentPalette, ElementId, PaletteColor } from "../types/geometry";
 
 export type CadDocumentSnapshot = {
   elements: CadElement[];
+  palette: DocumentPalette;
   evaluationLimitIndex: number;
   selectedElementId: ElementId | null;
   selectedElementIds: ElementId[];
@@ -31,6 +38,11 @@ export type CadDocumentState = CadDocumentSnapshot & {
   ) => void;
   setElements: (elements: CadElement[]) => void;
   updateElement: (id: ElementId, patch: Partial<CadElement>) => void;
+  setPalette: (palette: DocumentPalette) => void;
+  updatePaletteColor: (id: string, patch: Partial<PaletteColor>) => void;
+  addPaletteColor: () => void;
+  deletePaletteColor: (id: string) => void;
+  setDefaultColorId: (id: string) => void;
   renameElement: (id: ElementId, requestedName: string) => void;
   replaceDocument: (snapshot: CadDocumentSnapshot, filePath: string | null) => void;
   markDocumentSaved: (filePath: string) => void;
@@ -40,6 +52,7 @@ export type CadDocumentState = CadDocumentSnapshot & {
 
 export const currentDocumentSnapshot = (state: CadDocumentSnapshot): CadDocumentSnapshot => ({
   elements: state.elements,
+  palette: state.palette,
   evaluationLimitIndex: state.evaluationLimitIndex,
   selectedElementId: state.selectedElementId,
   selectedElementIds: state.selectedElementIds,
@@ -48,12 +61,27 @@ export const currentDocumentSnapshot = (state: CadDocumentSnapshot): CadDocument
 });
 
 const uniqueElementIds = (ids: ElementId[]) => Array.from(new Set(ids));
+const elementWithoutColorId = (element: CadElement): CadElement => {
+  const rest = { ...element };
+  delete rest.colorId;
+  return rest as CadElement;
+};
+const elementsWithValidColorIds = (elements: CadElement[], palette: DocumentPalette) =>
+  elements.some((element) => element.colorId && !isValidPaletteColorId(palette, element.colorId))
+    ? elements.map((element) =>
+        !element.colorId || isValidPaletteColorId(palette, element.colorId)
+          ? element
+          : elementWithoutColorId(element)
+      )
+    : elements;
 
 const normalizeSnapshot = (snapshot: CadDocumentSnapshot): CadDocumentSnapshot => {
-  const existingIds = new Set(snapshot.elements.map((element) => element.id));
+  const palette = normalizeDocumentPalette(snapshot.palette);
+  const elements = elementsWithValidColorIds(snapshot.elements, palette);
+  const existingIds = new Set(elements.map((element) => element.id));
   const evaluationLimitIndex = Math.min(
-    Math.max(snapshot.evaluationLimitIndex ?? snapshot.elements.length, 0),
-    snapshot.elements.length
+    Math.max(snapshot.evaluationLimitIndex ?? elements.length, 0),
+    elements.length
   );
   const selectedElementIds = uniqueElementIds(snapshot.selectedElementIds).filter((id) =>
     existingIds.has(id)
@@ -61,7 +89,7 @@ const normalizeSnapshot = (snapshot: CadDocumentSnapshot): CadDocumentSnapshot =
   const selectedElementId =
     snapshot.selectedElementId && existingIds.has(snapshot.selectedElementId)
       ? snapshot.selectedElementId
-      : selectedElementIds[0] ?? snapshot.elements[0]?.id ?? null;
+      : selectedElementIds[0] ?? elements[0]?.id ?? null;
   const normalizedSelectedElementIds =
     selectedElementId && !selectedElementIds.includes(selectedElementId)
       ? uniqueElementIds([...selectedElementIds, selectedElementId]).filter((id) => existingIds.has(id))
@@ -70,10 +98,11 @@ const normalizeSnapshot = (snapshot: CadDocumentSnapshot): CadDocumentSnapshot =
     snapshot.selectionAnchorElementId && existingIds.has(snapshot.selectionAnchorElementId)
       ? snapshot.selectionAnchorElementId
       : selectedElementId;
-  const selectedElement = snapshot.elements.find((element) => element.id === selectedElementId);
+  const selectedElement = elements.find((element) => element.id === selectedElementId);
 
   return {
-    elements: snapshot.elements,
+    elements,
+    palette,
     evaluationLimitIndex,
     selectedElementId,
     selectedElementIds: normalizedSelectedElementIds,
@@ -86,6 +115,7 @@ const normalizeSnapshot = (snapshot: CadDocumentSnapshot): CadDocumentSnapshot =
 
 const snapshotEquals = (a: CadDocumentSnapshot, b: CadDocumentSnapshot) =>
   a.elements === b.elements &&
+  a.palette === b.palette &&
   a.evaluationLimitIndex === b.evaluationLimitIndex &&
   a.selectedElementId === b.selectedElementId &&
   a.selectedElementIds.length === b.selectedElementIds.length &&
@@ -96,6 +126,7 @@ const snapshotEquals = (a: CadDocumentSnapshot, b: CadDocumentSnapshot) =>
 export const initialCadDocumentState = (): CadDocumentSnapshot &
   Pick<CadDocumentState, "past" | "future" | "currentFilePath" | "dirtySinceSave"> => ({
   elements: sampleElements,
+  palette: defaultDocumentPalette(),
   evaluationLimitIndex: sampleElements.length,
   selectedElementId: sampleElements[0]?.id ?? null,
   selectedElementIds: sampleElements[0] ? [sampleElements[0].id] : [],
@@ -209,6 +240,89 @@ export const useCadDocumentStore = create<CadDocumentState>((set) => ({
         )
       });
 
+      return {
+        ...after,
+        past: [...state.past, before],
+        future: [],
+        dirtySinceSave: true
+      };
+    }),
+  setPalette: (palette) =>
+    useCadDocumentStore.getState().commitDocumentChange({
+      palette
+    }),
+  updatePaletteColor: (id, patch) =>
+    set((state) => {
+      if (!state.palette.colors.some((color) => color.id === id)) return {};
+      const before = currentDocumentSnapshot(state);
+      const after = normalizeSnapshot({
+        ...before,
+        palette: {
+          ...state.palette,
+          colors: state.palette.colors.map((color) =>
+            color.id === id ? { ...color, ...patch, id: color.id } : color
+          )
+        }
+      });
+      if (snapshotEquals(before, after)) return {};
+      return {
+        ...after,
+        past: [...state.past, before],
+        future: [],
+        dirtySinceSave: true
+      };
+    }),
+  addPaletteColor: () =>
+    set((state) => {
+      const before = currentDocumentSnapshot(state);
+      const after = normalizeSnapshot({
+        ...before,
+        palette: {
+          ...state.palette,
+          colors: [...state.palette.colors, createPaletteColor(state.palette.colors)]
+        }
+      });
+      return {
+        ...after,
+        past: [...state.past, before],
+        future: [],
+        dirtySinceSave: true
+      };
+    }),
+  deletePaletteColor: (id) =>
+    set((state) => {
+      if (id === state.palette.defaultColorId) return {};
+      if (!state.palette.colors.some((color) => color.id === id)) return {};
+      const before = currentDocumentSnapshot(state);
+      const after = normalizeSnapshot({
+        ...before,
+        elements: state.elements.map((element) =>
+          element.colorId === id ? elementWithoutColorId(element) : element
+        ),
+        palette: {
+          ...state.palette,
+          colors: state.palette.colors.filter((color) => color.id !== id)
+        }
+      });
+      if (snapshotEquals(before, after)) return {};
+      return {
+        ...after,
+        past: [...state.past, before],
+        future: [],
+        dirtySinceSave: true
+      };
+    }),
+  setDefaultColorId: (id) =>
+    set((state) => {
+      if (!isValidPaletteColorId(state.palette, id) || state.palette.defaultColorId === id) return {};
+      const before = currentDocumentSnapshot(state);
+      const after = normalizeSnapshot({
+        ...before,
+        palette: {
+          ...state.palette,
+          defaultColorId: id
+        }
+      });
       return {
         ...after,
         past: [...state.past, before],

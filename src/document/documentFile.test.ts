@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { sampleElements } from "../sampleData";
+import { defaultDocumentPalette } from "../palette/palette";
 import {
   currentDocumentSnapshot,
   initialCadDocumentState,
@@ -34,6 +35,7 @@ const clearTauriRuntime = () => {
 
 const loadedSnapshot = (): CadDocumentSnapshot => ({
   elements: [sampleElements[1]],
+  palette: defaultDocumentPalette(),
   evaluationLimitIndex: 1,
   selectedElementId: sampleElements[1].id,
   selectedElementIds: [sampleElements[1].id],

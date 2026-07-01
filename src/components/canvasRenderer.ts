@@ -79,6 +79,7 @@ type RenderCanvasGeometryArgs = {
   visibleElementIds: Set<ElementId>;
   selectedElementIdSet: Set<ElementId>;
   selectedElementId: ElementId | null;
+  elementColors?: Map<ElementId, string>;
   showCanvasPoints: boolean;
   isPointPickActive: boolean;
   isNumericReferencePickActive: boolean;
@@ -144,6 +145,7 @@ export const renderCanvasGeometry = ({
   visibleElementIds,
   selectedElementIdSet,
   selectedElementId,
+  elementColors = new Map(),
   showCanvasPoints,
   isPointPickActive,
   isNumericReferencePickActive,
@@ -168,7 +170,7 @@ export const renderCanvasGeometry = ({
       isPointPickActive,
       isNumericReferencePickActive,
       isLinePickActive,
-      defaultColor: "#31322f"
+      defaultColor: elementColors.get(line.elementId) ?? "#31322f"
     });
     ctx.lineWidth = lineWidthForGeometry({
       isSelected,
@@ -200,7 +202,7 @@ export const renderCanvasGeometry = ({
       isPointPickActive,
       isNumericReferencePickActive,
       isLinePickActive,
-      defaultColor: "#31322f"
+      defaultColor: elementColors.get(arc.elementId) ?? "#31322f"
     });
     ctx.lineWidth = lineWidthForGeometry({
       isSelected,
@@ -230,7 +232,7 @@ export const renderCanvasGeometry = ({
       isPointPickActive,
       isNumericReferencePickActive,
       isLinePickActive,
-      defaultColor: "#31322f"
+      defaultColor: elementColors.get(curve.elementId) ?? "#31322f"
     });
     ctx.lineWidth = lineWidthForGeometry({
       isSelected,
@@ -277,7 +279,7 @@ export const renderCanvasGeometry = ({
       isPointPickActive,
       isNumericReferencePickActive,
       isLinePickActive,
-      defaultColor: "#475569"
+      defaultColor: elementColors.get(line.elementId) ?? "#475569"
     });
     ctx.lineWidth = lineWidthForGeometry({
       isSelected,
@@ -324,7 +326,9 @@ export const renderCanvasGeometry = ({
       ? "#0f766e"
       : isNumericReferencePickActive || isLinePickActive
         ? "#b7bbb0"
-        : "#31322f";
+        : isSelected
+          ? "#31322f"
+          : elementColors.get(point.elementId) ?? "#31322f";
     ctx.lineWidth = isPointPickActive
       ? 2.5
       : isNumericReferencePickActive || isLinePickActive

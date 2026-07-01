@@ -9,6 +9,7 @@ import type { EvaluationEngineState } from "../geometry/useEvaluationEngine";
 import { generatedElementIdForTargetForGroup } from "../model/forGroupGeneratedReferences";
 import { numericReferenceGeometrySupportsProperty } from "../geometry/numericReferenceProperties";
 import { getParameterValue } from "../parameters/parameterAccess";
+import { resolvedElementColorMap } from "../palette/elementColors";
 import type { BezierHandleRole as CommandBezierHandleRole } from "../commands/commands";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import type { CadDocumentSnapshot } from "../state/cadDocumentStore";
@@ -100,6 +101,7 @@ export const DrawingCanvas = ({ evaluation, evaluationState, canvasFocusRef }: D
   const [linePickCandidateMenu, setLinePickCandidateMenu] =
     useState<LinePickCandidateMenu | null>(null);
   const elements = useCadDocumentStore((state) => state.elements);
+  const palette = useCadDocumentStore((state) => state.palette);
   const selectedElementId = useCadDocumentStore((state) => state.selectedElementId);
   const selectedElementIds = useCadDocumentStore((state) => state.selectedElementIds);
   const canvasViewport = useCadUiStore((state) => state.canvasViewport);
@@ -111,6 +113,10 @@ export const DrawingCanvas = ({ evaluation, evaluationState, canvasFocusRef }: D
   const activeNumericReferencePickTarget = useCadUiStore((state) => state.activeNumericReferencePickTarget);
   const activeLinePickTarget = useCadUiStore((state) => state.activeLinePickTarget);
   const selectedElementIdSet = useMemo(() => new Set(selectedElementIds), [selectedElementIds]);
+  const elementColors = useMemo(
+    () => resolvedElementColorMap(elements, palette),
+    [elements, palette]
+  );
   const {
     lines,
     arcs,
@@ -153,6 +159,7 @@ export const DrawingCanvas = ({ evaluation, evaluationState, canvasFocusRef }: D
     return {
       snapshot: {
         elements: state.elements,
+        palette: state.palette,
         evaluationLimitIndex: state.evaluationLimitIndex,
         selectedElementId: state.selectedElementId,
         selectedElementIds: state.selectedElementIds,
@@ -202,6 +209,7 @@ export const DrawingCanvas = ({ evaluation, evaluationState, canvasFocusRef }: D
       visibleElementIds,
       selectedElementIdSet,
       selectedElementId,
+      elementColors,
       showCanvasPoints,
       isPointPickActive: Boolean(activePointPickTarget),
       isNumericReferencePickActive: Boolean(activeNumericReferencePickTarget),
@@ -214,6 +222,7 @@ export const DrawingCanvas = ({ evaluation, evaluationState, canvasFocusRef }: D
     arcs,
     canvasViewport,
     curves,
+    elementColors,
     offsetLines,
     lines,
     points,

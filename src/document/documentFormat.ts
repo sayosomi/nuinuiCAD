@@ -1,9 +1,8 @@
 import type { CadDocumentSnapshot } from "../state/cadDocumentStore";
-import { migrateDocumentToYUp } from "./documentMigration";
+import { normalizeDocumentPalette } from "../palette/palette";
 
 export const CAD_DOCUMENT_APP_ID = "nuinuiCAD";
-export const CAD_DOCUMENT_SCHEMA_VERSION = 2;
-const SUPPORTED_CAD_DOCUMENT_SCHEMA_VERSIONS = [1, CAD_DOCUMENT_SCHEMA_VERSION] as const;
+export const CAD_DOCUMENT_SCHEMA_VERSION = 3;
 export const CAD_DOCUMENT_EXTENSION = "nuinui.json";
 
 export type CadDocumentFile = {
@@ -26,6 +25,7 @@ const parseDocumentObject = (value: unknown): CadDocumentSnapshot => {
 
   return {
     elements: value.elements as CadDocumentSnapshot["elements"],
+    palette: normalizeDocumentPalette(value.palette),
     evaluationLimitIndex:
       typeof value.evaluationLimitIndex === "number"
         ? value.evaluationLimitIndex
@@ -74,15 +74,12 @@ export const parseCadDocumentFile = (content: string): CadDocumentSnapshot => {
   }
   if (
     typeof parsed.schemaVersion !== "number" ||
-    !SUPPORTED_CAD_DOCUMENT_SCHEMA_VERSIONS.includes(
-      parsed.schemaVersion as (typeof SUPPORTED_CAD_DOCUMENT_SCHEMA_VERSIONS)[number]
-    )
+    parsed.schemaVersion !== CAD_DOCUMENT_SCHEMA_VERSION
   ) {
     throw new Error(`未対応のドキュメント形式です: schemaVersion ${String(parsed.schemaVersion)}`);
   }
 
-  const document = parseDocumentObject(parsed.document);
-  return parsed.schemaVersion === 1 ? migrateDocumentToYUp(document) : document;
+  return parseDocumentObject(parsed.document);
 };
 
 export const ensureCadDocumentFileName = (path: string) =>
