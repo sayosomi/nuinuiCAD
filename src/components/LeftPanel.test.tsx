@@ -245,6 +245,52 @@ describe("LeftPanel numeric input dragging", () => {
     expect(screen.getByText("要素内変数")).toBeInTheDocument();
   });
 
+  it("edits for group parameters from the right panel", () => {
+    const loop: CadElement = {
+      id: "loop",
+      name: "プリーツ繰り返し",
+      type: "forGroup",
+      visible: true,
+      enabled: true,
+      variableName: "i",
+      start: 0,
+      count: 3,
+      step: 1,
+      expanded: true,
+      showGenerated: false
+    };
+    useCadStore.setState({
+      elements: [loop],
+      evaluationLimitIndex: 1,
+      selectedElementId: "loop",
+      selectedElementIds: ["loop"],
+      selectionAnchorElementId: "loop"
+    });
+
+    renderRightPanel();
+
+    expect(screen.getByText("変数名")).toBeInTheDocument();
+    expect(screen.getByText("開始")).toBeInTheDocument();
+    expect(screen.getByText("回数")).toBeInTheDocument();
+    expect(screen.getByText("ステップ")).toBeInTheDocument();
+    expect(screen.getByText("展開する")).toBeInTheDocument();
+    expect(screen.getByText("生成結果を表示")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("プリーツ繰り返し の変数名"), {
+      target: { value: "n" }
+    });
+    fireEvent.change(screen.getByLabelText("ステップ"), {
+      target: { value: "2" }
+    });
+    fireEvent.click(screen.getByRole("checkbox", { name: /生成結果を表示/ }));
+
+    expect(useCadStore.getState().elements[0]).toMatchObject({
+      variableName: "n",
+      step: 2,
+      showGenerated: true
+    });
+  });
+
   it("scrolls the selected right-panel parameter into view while parameter edit mode moves", () => {
     const scrollIntoView = vi.fn();
     Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {

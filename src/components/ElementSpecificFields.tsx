@@ -1,5 +1,6 @@
 import type { CommonEditorProps } from "./parameterEditorShared";
 import { CurveElementFields } from "./CurveElementFields";
+import { ForGroupElementFields } from "./ForGroupElementFields";
 import { LineElementFields } from "./LineElementFields";
 import { PointElementFields } from "./PointElementFields";
 import { VariableElementFields } from "./VariableElementFields";
@@ -29,6 +30,8 @@ export const ElementSpecificFields = (props: CommonEditorProps) => {
       return <LineElementFields {...props} />;
     case "bezierCurve":
       return <CurveElementFields {...props} />;
+    case "forGroup":
+      return <ForGroupElementFields {...props} />;
     case "group":
     case "conditionalGroup":
       return null;

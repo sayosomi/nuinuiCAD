@@ -3,6 +3,33 @@ import type { CadElement } from "../types/geometry";
 import { getParameterDefinitions } from "./parameterDefinitions";
 
 describe("parameterDefinitions", () => {
+  it("defines editable parameters for for groups", () => {
+    const group: CadElement = {
+      id: "loop",
+      name: "forブロック",
+      type: "forGroup",
+      visible: true,
+      enabled: true,
+      variableName: "i",
+      start: 0,
+      count: 3,
+      step: 1,
+      expanded: true,
+      showGenerated: false
+    };
+
+    expect(getParameterDefinitions(group)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ key: "variableName", directKey: "i", label: "変数名", kind: "text" }),
+        expect.objectContaining({ key: "start", directKey: "s", label: "開始", kind: "number" }),
+        expect.objectContaining({ key: "count", directKey: "c", label: "回数", kind: "number" }),
+        expect.objectContaining({ key: "step", directKey: "p", label: "ステップ", kind: "number" }),
+        expect.objectContaining({ key: "expanded", directKey: "x", label: "展開", kind: "boolean" }),
+        expect.objectContaining({ key: "showGenerated", directKey: "g", label: "生成結果を表示", kind: "boolean" })
+      ])
+    );
+  });
+
   it("defines editable parameters for intersection points", () => {
     const point: CadElement = {
       id: "intersection",
