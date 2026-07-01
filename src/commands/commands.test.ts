@@ -31,6 +31,7 @@ describe("commands", () => {
       showCanvasElementNames: true,
       showCanvasPoints: true,
       showShortcutHelp: true,
+      showPaletteSettings: false,
       showCommandPalette: false,
       canvasViewport: DEFAULT_CANVAS_VIEWPORT,
       past: [],
@@ -1213,6 +1214,19 @@ describe("commands", () => {
     expect(useCadStore.getState().showCommandPalette).toBe(false);
   });
 
+  it("opens and closes palette settings", () => {
+    useCadStore.setState({ showCommandPalette: true });
+
+    dispatchCommand("openPaletteSettings");
+    expect(useCadStore.getState()).toMatchObject({
+      showPaletteSettings: true,
+      showCommandPalette: false
+    });
+
+    dispatchCommand("closePaletteSettings");
+    expect(useCadStore.getState().showPaletteSettings).toBe(false);
+  });
+
   it("enters element list mode and focuses the element list", () => {
     const focusElementList = vi.fn();
     useCadStore.setState({
@@ -1395,6 +1409,9 @@ describe("commands", () => {
     );
     expect(filterCommandPaletteItems("新規").map((item) => item.commandId)).toContain("newDocument");
     expect(filterCommandPaletteItems("開く").map((item) => item.commandId)).toContain("openDocument");
+    expect(filterCommandPaletteItems("パレット").map((item) => item.commandId)).toContain(
+      "openPaletteSettings"
+    );
   });
 
   it("creates a new document from a command", async () => {

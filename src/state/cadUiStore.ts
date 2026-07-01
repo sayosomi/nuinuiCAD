@@ -85,6 +85,7 @@ export type CadUiState = {
   showCanvasPoints: boolean;
   showShortcutHelp: boolean;
   showShortcutSettings: boolean;
+  showPaletteSettings: boolean;
   shortcutSettings: ShortcutSettings;
   shortcutSettingsLoading: boolean;
   shortcutSettingsError: string | null;
@@ -114,6 +115,7 @@ export type CadUiState = {
   setShowCanvasPoints: (showCanvasPoints: boolean) => void;
   setShowShortcutHelp: (showShortcutHelp: boolean) => void;
   setShowShortcutSettings: (showShortcutSettings: boolean) => void;
+  setShowPaletteSettings: (showPaletteSettings: boolean) => void;
   setShortcutSettings: (shortcutSettings: ShortcutSettings) => void;
   setShortcutSettingsLoading: (shortcutSettingsLoading: boolean) => void;
   setShortcutSettingsError: (shortcutSettingsError: string | null) => void;
@@ -147,6 +149,7 @@ export const initialCadUiState = (): Omit<
   | "setShowCanvasPoints"
   | "setShowShortcutHelp"
   | "setShowShortcutSettings"
+  | "setShowPaletteSettings"
   | "setShortcutSettings"
   | "setShortcutSettingsLoading"
   | "setShortcutSettingsError"
@@ -173,6 +176,7 @@ export const initialCadUiState = (): Omit<
   showCanvasPoints: true,
   showShortcutHelp: false,
   showShortcutSettings: false,
+  showPaletteSettings: false,
   shortcutSettings: { version: 1, overrides: [] },
   shortcutSettingsLoading: false,
   shortcutSettingsError: null,
@@ -235,6 +239,7 @@ export const useCadUiStore = create<CadUiState>((set) => ({
   setShowCanvasPoints: (showCanvasPoints) => set({ showCanvasPoints }),
   setShowShortcutHelp: (showShortcutHelp) => set({ showShortcutHelp }),
   setShowShortcutSettings: (showShortcutSettings) => set({ showShortcutSettings }),
+  setShowPaletteSettings: (showPaletteSettings) => set({ showPaletteSettings }),
   setShortcutSettings: (shortcutSettings) => set({ shortcutSettings }),
   setShortcutSettingsLoading: (shortcutSettingsLoading) => set({ shortcutSettingsLoading }),
   setShortcutSettingsError: (shortcutSettingsError) => set({ shortcutSettingsError }),

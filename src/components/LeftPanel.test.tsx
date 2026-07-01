@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { createRef } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LeftPanel, RightPanel } from "./LeftPanel";
+import { PaletteSettingsDialog } from "./PalettePanel";
 import { ShortcutHelpOverlay } from "./ShortcutHelpOverlay";
 import { evaluateElements } from "../geometry/evaluate";
 import type { EvaluationEngineState } from "../geometry/useEvaluationEngine";
@@ -56,6 +57,7 @@ const resetStore = () => {
     showCanvasElementNames: true,
     showCanvasPoints: true,
     showShortcutHelp: false,
+    showPaletteSettings: false,
     showCommandPalette: false,
     canvasViewport: DEFAULT_CANVAS_VIEWPORT,
     past: [],
@@ -735,11 +737,60 @@ describe("Palette and element color editing", () => {
     expect(useCadStore.getState().elements[0].colorId).toBeUndefined();
   });
 
+  it("keeps palette editing out of the permanent left panel and opens it from the left button", () => {
+    render(
+      <>
+        <LeftPanel
+          evaluation={emptyEvaluation}
+          elementListFocusRef={createRef<HTMLDivElement>()}
+          elementSearchInputRef={createRef<HTMLInputElement>()}
+        />
+        <PaletteSettingsDialog />
+      </>
+    );
+
+    expect(screen.queryByLabelText("裁断線 の名前")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "パレット" }));
+
+    expect(screen.getByRole("dialog", { name: "パレット設定" })).toBeInTheDocument();
+    expect(screen.getByLabelText("裁断線 の名前")).toBeInTheDocument();
+  });
+
+  it("opens palette editing from the selected element color field", () => {
+    render(
+      <>
+        <RightPanel
+          evaluation={emptyEvaluation}
+          isParameterEditMode={false}
+          isDependencyJumpMode={false}
+          registerParameterControl={() => undefined}
+        />
+        <PaletteSettingsDialog />
+      </>
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "編集" }));
+
+    expect(screen.getByRole("dialog", { name: "パレット設定" })).toBeInTheDocument();
+  });
+
+  it("closes palette editing with Escape", () => {
+    useCadStore.setState({ showPaletteSettings: true });
+    render(<PaletteSettingsDialog />);
+
+    const dialog = screen.getByRole("dialog", { name: "パレット設定" });
+    fireEvent.keyDown(dialog, { key: "Escape" });
+
+    expect(useCadStore.getState().showPaletteSettings).toBe(false);
+  });
+
   it("removes deleted palette colors from elements", () => {
     useCadStore.setState({
       elements: [{ ...sampleElements[0], colorId: "cut-red" }, ...sampleElements.slice(1)]
     });
-    renderLeftPanel();
+    useCadStore.setState({ showPaletteSettings: true });
+    render(<PaletteSettingsDialog />);
 
     const nameInput = screen.getByLabelText("裁断線 の名前");
     const row = nameInput.closest(".palette-color-row");

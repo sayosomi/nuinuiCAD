@@ -28,7 +28,6 @@ import {
   numericReferenceExpression,
 } from "./geometryDisplay";
 import { ElementListRow } from "./ElementListRow";
-import { PalettePanel } from "./PalettePanel";
 import {
   elementListAutoScrollDelta,
   elementListDropTargetForClientY,
@@ -587,14 +586,21 @@ export const LeftPanel = ({
   return (
     <aside className="left-panel">
       <header className="app-title">
-        <h1>nuinuiCAD</h1>
+        <div className="app-title-row">
+          <h1>nuinuiCAD</h1>
+          <button
+            type="button"
+            className="palette-open-button"
+            onClick={() => dispatchCommand("openPaletteSettings")}
+          >
+            パレット
+          </button>
+        </div>
         <p className="document-status" title={currentFilePath ?? "未保存"}>
           <span>{fileNameFromPath(currentFilePath)}</span>
           {dirtySinceSave ? <span className="document-dirty">未保存の変更</span> : null}
         </p>
       </header>
-
-      <PalettePanel />
 
       <section className="panel-section element-list-section">
         <div className="section-header">

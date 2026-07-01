@@ -29,6 +29,7 @@ const resetStore = () => {
     showCanvasPoints: true,
     showShortcutHelp: false,
     showShortcutSettings: false,
+    showPaletteSettings: false,
     shortcutSettings: { version: 1, overrides: [] },
     shortcutSettingsLoading: false,
     shortcutSettingsError: null,

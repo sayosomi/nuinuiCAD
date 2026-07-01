@@ -1,3 +1,4 @@
+import { dispatchCommand } from "../commands/commands";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import type { CadElement } from "../types/geometry";
 import { ParameterName } from "./ParameterName";
@@ -31,21 +32,32 @@ export const ColorParameterEditor = ({
   };
 
   return (
-    <label className={parameterFieldClass("colorId")} onClick={() => selectParameter("colorId")}>
+    <div className={parameterFieldClass("colorId")} onClick={() => selectParameter("colorId")}>
       <ParameterName element={element} parameterKey="colorId" label="表示色" />
-      <select
-        {...controlProps("colorId")}
-        value={selectedValue}
-        aria-label={`${element.name} の表示色`}
-        onChange={(event) => updateColor(event.target.value)}
-      >
-        <option value={AUTO_COLOR_VALUE}>自動（親グループ / 既定色）</option>
-        {palette.colors.map((color) => (
-          <option key={color.id} value={color.id}>
-            {color.name} {color.hex}
-          </option>
-        ))}
-      </select>
-    </label>
+      <div className="color-parameter-control">
+        <select
+          {...controlProps("colorId")}
+          value={selectedValue}
+          aria-label={`${element.name} の表示色`}
+          onChange={(event) => updateColor(event.target.value)}
+        >
+          <option value={AUTO_COLOR_VALUE}>自動（親グループ / 既定色）</option>
+          {palette.colors.map((color) => (
+            <option key={color.id} value={color.id}>
+              {color.name} {color.hex}
+            </option>
+          ))}
+        </select>
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            dispatchCommand("openPaletteSettings");
+          }}
+        >
+          編集
+        </button>
+      </div>
+    </div>
   );
 };

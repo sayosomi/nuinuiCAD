@@ -110,6 +110,8 @@ export type CommandId =
   | "closeCommandPalette"
   | "openShortcutSettings"
   | "closeShortcutSettings"
+  | "openPaletteSettings"
+  | "closePaletteSettings"
   | "focusCanvas"
   | "focusElementList"
   | "focusElementSearch"

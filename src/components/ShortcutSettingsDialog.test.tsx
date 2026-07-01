@@ -8,6 +8,7 @@ const resetStore = () => {
   useCadStore.setState({
     palette: defaultDocumentPalette(),
     showShortcutSettings: true,
+    showPaletteSettings: false,
     shortcutSettings: { version: 1, overrides: [] },
     shortcutSettingsLoading: false,
     shortcutSettingsError: null,

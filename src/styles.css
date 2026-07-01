@@ -94,6 +94,20 @@ select {
   font-size: 28px;
 }
 
+.app-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.palette-open-button {
+  min-height: 30px;
+  padding: 5px 9px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
 .document-status {
   display: flex;
   flex-wrap: wrap;
@@ -765,6 +779,43 @@ select {
   gap: 10px;
 }
 
+.palette-settings-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  background: rgb(37 38 34 / 24%);
+  padding: 56px 24px 24px;
+}
+
+.palette-settings {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  width: min(620px, 100%);
+  max-height: min(700px, calc(100vh - 96px));
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid #aeb4aa;
+  border-radius: 8px;
+  background: #fbfbfa;
+  box-shadow: 0 18px 48px rgb(37 38 34 / 24%);
+}
+
+.palette-settings-body {
+  min-height: 0;
+  overflow: auto;
+  padding: 14px 16px;
+}
+
+.palette-settings-footer {
+  display: grid;
+  gap: 8px;
+  border-top: 1px solid #d2d4cd;
+  padding: 12px 16px;
+}
+
 .palette-color-list {
   display: grid;
   gap: 6px;
@@ -806,6 +857,19 @@ select {
   margin: 0;
   color: #686b62;
   font-size: 12px;
+}
+
+.color-parameter-control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px;
+}
+
+.color-parameter-control button {
+  min-height: 34px;
+  padding: 5px 9px;
+  font-size: 12px;
+  white-space: nowrap;
 }
 
 .element-group-summary {
@@ -1182,6 +1246,7 @@ select {
 }
 
 .editor-grid label,
+.editor-grid > .parameter-field,
 .editor-grid .numeric-parameter-editor {
   display: grid;
   gap: 4px;
