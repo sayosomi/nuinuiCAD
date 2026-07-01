@@ -1,4 +1,5 @@
 import { dispatchCommand } from "../commands/commands";
+import { elementSupportsDisplayColor } from "../palette/colorApplicability";
 import { supportsNumericVariables } from "../parameters/parameterAccess";
 import type { ParameterKey } from "../parameters/parameterDefinitions";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
@@ -55,7 +56,9 @@ export const ElementCommonFields = ({
       </label>
       {element.type !== "variable" ? (
         <>
-          <ColorParameterEditor {...elementEditorProps} />
+          {elementSupportsDisplayColor(element) ? (
+            <ColorParameterEditor {...elementEditorProps} />
+          ) : null}
           <BooleanParameterEditor
             {...elementEditorProps}
             parameterKey="visible"

@@ -863,9 +863,137 @@ select {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 6px;
+  align-items: center;
 }
 
-.color-parameter-control button {
+.editor-grid > .parameter-field:has(.color-parameter-control) {
+  grid-column: 1 / -1;
+}
+
+.color-select {
+  position: relative;
+  min-width: 0;
+}
+
+.color-option-list {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  display: grid;
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 4px;
+  border: 1px solid #c8cbc3;
+  border-radius: 6px;
+  background: #ffffff;
+  box-shadow: 0 8px 24px rgba(30, 34, 28, 0.16);
+  gap: 2px;
+}
+
+.color-select-trigger {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) 12px;
+  width: 100%;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 5px 8px;
+  border: 1px solid #d8d8d2;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #2d2f2b;
+  text-align: left;
+}
+
+.color-select-trigger:hover,
+.color-select-trigger[aria-expanded="true"] {
+  border-color: #9aa196;
+  background: #f7f8f4;
+}
+
+.color-select-arrow {
+  color: #686b62;
+  font-size: 12px;
+  line-height: 1;
+  text-align: center;
+}
+
+.color-select-label {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.color-option-button {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding: 5px 6px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: #ffffff;
+  color: #2d2f2b;
+  text-align: left;
+}
+
+.color-option-button:hover {
+  border-color: #9aa196;
+  background: #f7f8f4;
+}
+
+.color-option-button.active,
+.color-option-button.active:hover {
+  border-color: #0f766e;
+  background: #e7f4ef;
+}
+
+.color-option-swatch {
+  width: 16px;
+  height: 16px;
+  border: 1px solid rgba(0, 0, 0, 0.18);
+  border-radius: 50%;
+  background: var(--color-option, #2d2f2b);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35);
+}
+
+.color-option-swatch-auto {
+  background:
+    linear-gradient(135deg, transparent 43%, #71746d 44%, #71746d 56%, transparent 57%),
+    conic-gradient(#f5f5f0 0 25%, #dcded6 0 50%, #f5f5f0 0 75%, #dcded6 0);
+}
+
+.color-option-label {
+  display: grid;
+  min-width: 0;
+  gap: 1px;
+}
+
+.color-option-label strong,
+.color-option-label small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.color-option-label strong {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.color-option-label small {
+  color: #686b62;
+  font-size: 11px;
+}
+
+.color-palette-edit-button {
+  justify-self: start;
   min-height: 34px;
   padding: 5px 9px;
   font-size: 12px;
@@ -1242,6 +1370,7 @@ select {
 .editor-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
+  align-items: start;
   gap: 10px;
 }
 

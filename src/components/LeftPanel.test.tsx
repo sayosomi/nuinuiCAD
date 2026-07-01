@@ -727,14 +727,53 @@ describe("Palette and element color editing", () => {
   it("changes and clears the selected element display color from the right panel", () => {
     renderRightPanel();
 
-    const select = screen.getByLabelText("点A の表示色");
-    fireEvent.change(select, { target: { value: "cut-red" } });
+    expect(screen.queryByRole("listbox", { name: "点A の表示色候補" })).not.toBeInTheDocument();
+    expect(screen.queryByText("親グループ / 既定色")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "点A の表示色" }));
+    const colorOptions = screen.getByRole("listbox", { name: "点A の表示色候補" });
+    expect(within(colorOptions).getByText("親グループ / 既定色")).toBeInTheDocument();
+    expect(within(colorOptions).getByRole("option", { name: /裁断線/ })).toBeInTheDocument();
+
+    fireEvent.click(within(colorOptions).getByRole("option", { name: /裁断線/ }));
 
     expect(useCadStore.getState().elements[0].colorId).toBe("cut-red");
+    expect(screen.queryByRole("listbox", { name: "点A の表示色候補" })).not.toBeInTheDocument();
 
-    fireEvent.change(select, { target: { value: "__auto__" } });
+    fireEvent.click(screen.getByRole("button", { name: "点A の表示色" }));
+    fireEvent.click(
+      within(screen.getByRole("listbox", { name: "点A の表示色候補" })).getByRole("option", {
+        name: /自動/
+      })
+    );
 
     expect(useCadStore.getState().elements[0].colorId).toBeUndefined();
+  });
+
+  it("hides the display color field for elements that do not draw their own color", () => {
+    const move: CadElement = {
+      id: "move",
+      name: "移動",
+      type: "move",
+      visible: true,
+      enabled: true,
+      startPoint: { mode: "reference", pointId: "point-a" },
+      endPoint: { mode: "reference", pointId: "point-b" },
+      angleDeg: 0,
+      mirrorX: false,
+      baseLineIds: ["line-ab"]
+    };
+    useCadStore.setState({
+      elements: [...sampleElements, move],
+      selectedElementId: move.id,
+      selectedElementIds: [move.id],
+      selectionAnchorElementId: move.id
+    });
+
+    renderRightPanel();
+
+    expect(screen.queryByText("表示色")).not.toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: /表示する/ })).toBeInTheDocument();
   });
 
   it("keeps palette editing out of the permanent left panel and opens it from the left button", () => {

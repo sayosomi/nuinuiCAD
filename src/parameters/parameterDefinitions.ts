@@ -36,6 +36,12 @@ const commonParameters: ParameterDefinition[] = [
   { key: "enabled", directKey: "a", label: "評価", kind: "boolean" }
 ];
 
+const nonColorCommonParameters: ParameterDefinition[] = [
+  { key: "name", directKey: "n", label: "名前", kind: "text" },
+  { key: "visible", directKey: "v", label: "表示", kind: "boolean" },
+  { key: "enabled", directKey: "a", label: "評価", kind: "boolean" }
+];
+
 const variableCommonParameters: ParameterDefinition[] = [
   { key: "name", directKey: "n", label: "名前", kind: "text" },
   { key: "enabled", directKey: "a", label: "評価", kind: "boolean" }
@@ -319,7 +325,7 @@ export const getParameterDefinitions = (element: CadElement): ParameterDefinitio
       ];
     case "edge":
       return [
-        ...commonParameters,
+        ...nonColorCommonParameters,
         ...numericVariableParameters(element),
         { key: "endpoint1", directKey: "1", label: "端点1", kind: "lineEndpointReference" },
         { key: "endpoint2", directKey: "2", label: "端点2", kind: "lineEndpointReference" },
@@ -327,7 +333,7 @@ export const getParameterDefinitions = (element: CadElement): ParameterDefinitio
       ];
     case "extendTrim":
       return [
-        ...commonParameters,
+        ...nonColorCommonParameters,
         ...numericVariableParameters(element),
         { key: "endpoint", directKey: "e", label: "端点", kind: "lineEndpointReference" },
         { key: "point", directKey: "p", label: "点", kind: "reference", allowCoordinate: false }
@@ -413,7 +419,7 @@ export const getParameterDefinitions = (element: CadElement): ParameterDefinitio
     case "copyLine":
     case "move":
       return [
-        ...commonParameters,
+        ...(element.type === "move" ? nonColorCommonParameters : commonParameters),
         ...numericVariableParameters(element),
         ...pointAnchorParameters({
           anchor: element.startPoint,
@@ -447,7 +453,7 @@ export const getParameterDefinitions = (element: CadElement): ParameterDefinitio
     case "symmetricCopyLine":
     case "symmetricMove":
       return [
-        ...commonParameters,
+        ...(element.type === "symmetricMove" ? nonColorCommonParameters : commonParameters),
         ...numericVariableParameters(element),
         ...pointAnchorParameters({
           anchor: element.axisPoint1,

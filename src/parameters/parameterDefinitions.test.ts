@@ -137,6 +137,9 @@ describe("parameterDefinitions", () => {
         expect.objectContaining({ key: "intersectionIndex", directKey: "i", label: "番号", kind: "number" })
       ])
     );
+    expect(getParameterDefinitions(edge).some((definition) => definition.key === "colorId")).toBe(
+      false
+    );
   });
 
   it("defines editable parameters for extend trim modifications", () => {
@@ -156,6 +159,9 @@ describe("parameterDefinitions", () => {
         expect.objectContaining({ key: "point", directKey: "p", label: "点", kind: "reference", allowCoordinate: false })
       ])
     );
+    expect(
+      getParameterDefinitions(extendTrim).some((definition) => definition.key === "colorId")
+    ).toBe(false);
   });
 
   it("defines editable parameters for copy lines", () => {
@@ -174,6 +180,7 @@ describe("parameterDefinitions", () => {
 
     expect(getParameterDefinitions(line)).toEqual(
       expect.arrayContaining([
+        expect.objectContaining({ key: "colorId", directKey: "k", label: "表示色", kind: "color" }),
         expect.objectContaining({ key: "startPoint", directKey: "s", label: "始点", kind: "reference", allowCoordinate: false }),
         expect.objectContaining({ key: "endPoint", directKey: "t", label: "終点", kind: "reference", allowCoordinate: false }),
         expect.objectContaining({ key: "angleDeg", directKey: "r", label: "角度", kind: "number" }),
@@ -206,6 +213,9 @@ describe("parameterDefinitions", () => {
         expect.objectContaining({ key: "baseLineIds", directKey: "b", label: "対象線", kind: "lineReferenceList" })
       ])
     );
+    expect(getParameterDefinitions(move).some((definition) => definition.key === "colorId")).toBe(
+      false
+    );
   });
 
   it("defines editable parameters for symmetric copy lines", () => {
@@ -222,6 +232,7 @@ describe("parameterDefinitions", () => {
 
     expect(getParameterDefinitions(line)).toEqual(
       expect.arrayContaining([
+        expect.objectContaining({ key: "colorId", directKey: "k", label: "表示色", kind: "color" }),
         expect.objectContaining({ key: "axisPoint1", directKey: "1", label: "対称点1", kind: "reference", allowCoordinate: false }),
         expect.objectContaining({ key: "axisPoint2", directKey: "2", label: "対称点2", kind: "reference", allowCoordinate: false }),
         expect.objectContaining({ key: "baseLineIds", directKey: "b", label: "基準線", kind: "lineReferenceList" })
@@ -247,6 +258,9 @@ describe("parameterDefinitions", () => {
         expect.objectContaining({ key: "axisPoint2", directKey: "2", label: "対称点2", kind: "reference", allowCoordinate: false }),
         expect.objectContaining({ key: "baseLineIds", directKey: "b", label: "対象線", kind: "lineReferenceList" })
       ])
+    );
+    expect(getParameterDefinitions(move).some((definition) => definition.key === "colorId")).toBe(
+      false
     );
   });
 
