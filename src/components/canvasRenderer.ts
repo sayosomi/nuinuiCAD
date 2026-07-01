@@ -105,6 +105,9 @@ const strokeStyleForGeometry = ({
         ? "#0f766e"
         : defaultColor;
 
+const DEFAULT_GEOMETRY_LINE_WIDTH = 1;
+const EMPHASIZED_GEOMETRY_LINE_WIDTH = 1.2;
+
 const lineWidthForGeometry = ({
   isSelected,
   isPrimarySelected,
@@ -119,14 +122,14 @@ const lineWidthForGeometry = ({
   isLinePickActive: boolean;
 }) =>
   isPointPickActive
-    ? 1.25
+    ? DEFAULT_GEOMETRY_LINE_WIDTH
     : isNumericReferencePickActive || isLinePickActive
-      ? 3
+      ? EMPHASIZED_GEOMETRY_LINE_WIDTH
       : isPrimarySelected
-        ? 3.5
+        ? EMPHASIZED_GEOMETRY_LINE_WIDTH
         : isSelected
-          ? 3
-          : 2;
+          ? EMPHASIZED_GEOMETRY_LINE_WIDTH
+          : DEFAULT_GEOMETRY_LINE_WIDTH;
 
 export const renderCanvasGeometry = ({
   ctx,
