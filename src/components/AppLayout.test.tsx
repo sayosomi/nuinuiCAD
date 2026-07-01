@@ -20,6 +20,7 @@ const resetStore = () => {
     activeNumericReferencePickTarget: null,
     activeLinePickTarget: null,
     activeExpressionInsertTarget: null,
+    activeMeasurementInsertTarget: null,
     activePickCursor: null,
     selectedDependencyJumpIndex: 0,
     elementSearchQuery: "",
@@ -148,5 +149,67 @@ describe("AppLayout keyboard handling", () => {
 
     expect(useCadStore.getState().elements[0].visible).toBe(false);
     expect(useCadStore.getState().past).toHaveLength(1);
+  });
+});
+
+describe("AppLayout left panel resizing", () => {
+  it("loads the saved left panel width", async () => {
+    window.localStorage.setItem(
+      "nuinuiCAD.layoutSettings.v1",
+      JSON.stringify({ version: 1, leftPanelWidth: 520 })
+    );
+    const view = render(<AppLayout />);
+    const shell = view.container.querySelector(".app-shell");
+    if (!(shell instanceof HTMLElement)) {
+      throw new Error("Missing app shell");
+    }
+
+    await waitFor(() => expect(shell.style.getPropertyValue("--left-panel-width")).toBe("520px"));
+  });
+
+  it("saves the left panel width after pointer resizing", async () => {
+    const view = render(<AppLayout />);
+    const shell = view.container.querySelector(".app-shell");
+    if (!(shell instanceof HTMLElement)) {
+      throw new Error("Missing app shell");
+    }
+    const handle = view.getByRole("separator", { name: "左パネル幅を変更" });
+
+    fireEvent.pointerDown(handle, { button: 0, clientX: 320, pointerId: 1 });
+    await waitFor(() => expect(shell).toHaveClass("is-resizing-left-panel"));
+    fireEvent.pointerMove(window, { clientX: 500, pointerId: 1 });
+    fireEvent.pointerUp(window, { clientX: 500, pointerId: 1 });
+
+    await waitFor(() =>
+      expect(JSON.parse(window.localStorage.getItem("nuinuiCAD.layoutSettings.v1") ?? "{}")).toEqual({
+        version: 1,
+        leftPanelWidth: 500
+      })
+    );
+    expect(shell.style.getPropertyValue("--left-panel-width")).toBe("500px");
+  });
+
+  it("resets the left panel width with a double click", async () => {
+    window.localStorage.setItem(
+      "nuinuiCAD.layoutSettings.v1",
+      JSON.stringify({ version: 1, leftPanelWidth: 520 })
+    );
+    const view = render(<AppLayout />);
+    const shell = view.container.querySelector(".app-shell");
+    if (!(shell instanceof HTMLElement)) {
+      throw new Error("Missing app shell");
+    }
+    const handle = view.getByRole("separator", { name: "左パネル幅を変更" });
+    await waitFor(() => expect(shell.style.getPropertyValue("--left-panel-width")).toBe("520px"));
+
+    fireEvent.doubleClick(handle);
+
+    await waitFor(() =>
+      expect(JSON.parse(window.localStorage.getItem("nuinuiCAD.layoutSettings.v1") ?? "{}")).toEqual({
+        version: 1,
+        leftPanelWidth: 320
+      })
+    );
+    expect(shell.style.getPropertyValue("--left-panel-width")).toBe("320px");
   });
 });

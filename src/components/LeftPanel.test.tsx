@@ -974,6 +974,19 @@ describe("LeftPanel element list dragging", () => {
     );
   });
 
+  it("keeps long element names available in the element list", () => {
+    const longName = "前身頃ダーツ展開後の脇線補助線と縫い代確認用の長い要素名";
+    useCadStore.setState({
+      elements: [{ ...sampleElements[0], name: longName }]
+    });
+
+    renderLeftPanel();
+
+    const nameText = screen.getByText(longName);
+    expect(nameText).toHaveClass("element-name-text");
+    expect(nameText).toHaveAttribute("title", longName);
+  });
+
   it("shows for group template and generated preview rows", () => {
     const elements: CadElement[] = [
       {

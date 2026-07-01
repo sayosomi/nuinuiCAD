@@ -1,9 +1,16 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { CSSProperties, PointerEvent } from "react";
 import { dispatchCommand } from "../commands/commands";
 import { registerUnsavedChangesGuard } from "../document/unsavedChangesGuard";
 import { useEvaluationEngine } from "../geometry/useEvaluationEngine";
 import { loadShortcutSettings } from "../keyboard/shortcutSettingsStorage";
 import { keyboardCommandForEvent } from "../keyboard/shortcuts";
+import {
+  DEFAULT_LEFT_PANEL_WIDTH,
+  clampLeftPanelWidth,
+  loadLayoutSettings,
+  saveLayoutSettings
+} from "../layout/layoutSettingsStorage";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
 import { CommandPalette } from "./CommandPalette";
@@ -13,6 +20,12 @@ import { PaletteSettingsDialog } from "./PalettePanel";
 import { ShortcutHelpOverlay } from "./ShortcutHelpOverlay";
 import { ShortcutSettingsDialog } from "./ShortcutSettingsDialog";
 import { registerTauriMenuCommandListener } from "../commands/tauriMenuEvents";
+
+const saveLeftPanelWidth = (leftPanelWidth: number) => {
+  void saveLayoutSettings({ version: 1, leftPanelWidth }).catch((error: unknown) => {
+    console.error("failed to save layout settings", error);
+  });
+};
 
 export const AppLayout = () => {
   const elements = useCadDocumentStore((state) => state.elements);
@@ -30,6 +43,9 @@ export const AppLayout = () => {
   const elementListFocusRef = useRef<HTMLDivElement>(null);
   const elementSearchInputRef = useRef<HTMLInputElement>(null);
   const parameterInputRefs = useRef(new Map<string, HTMLElement>());
+  const [leftPanelWidth, setLeftPanelWidth] = useState(DEFAULT_LEFT_PANEL_WIDTH);
+  const [isResizingLeftPanel, setIsResizingLeftPanel] = useState(false);
+  const leftPanelResizeStartRef = useRef<{ clientX: number; width: number } | null>(null);
   const evaluationOptions = useMemo(() => ({ evaluationLimitIndex }), [evaluationLimitIndex]);
   const evaluationState = useEvaluationEngine(elements, evaluationOptions);
   const { evaluation } = evaluationState;
@@ -56,6 +72,20 @@ export const AppLayout = () => {
       parameterInputRefs.current.get(selectedKey)?.focus();
     }
   }), []);
+
+  useEffect(() => {
+    let cancelled = false;
+    void loadLayoutSettings()
+      .then((settings) => {
+        if (!cancelled) setLeftPanelWidth(settings.leftPanelWidth);
+      })
+      .catch((error: unknown) => {
+        console.error("failed to load layout settings", error);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     return registerUnsavedChangesGuard();
@@ -87,6 +117,65 @@ export const AppLayout = () => {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (!isResizingLeftPanel) return;
+
+    const onPointerMove = (event: globalThis.PointerEvent) => {
+      const start = leftPanelResizeStartRef.current;
+      if (!start) return;
+      event.preventDefault();
+      setLeftPanelWidth(clampLeftPanelWidth(start.width + event.clientX - start.clientX));
+    };
+    const stopResize = (event: globalThis.PointerEvent) => {
+      const start = leftPanelResizeStartRef.current;
+      if (!start) return;
+      event.preventDefault();
+      const nextWidth = clampLeftPanelWidth(start.width + event.clientX - start.clientX);
+      setLeftPanelWidth(nextWidth);
+      saveLeftPanelWidth(nextWidth);
+      leftPanelResizeStartRef.current = null;
+      setIsResizingLeftPanel(false);
+    };
+    const cancelResize = () => {
+      leftPanelResizeStartRef.current = null;
+      setIsResizingLeftPanel(false);
+    };
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      cancelResize();
+    };
+
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", stopResize);
+    window.addEventListener("pointercancel", cancelResize);
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("blur", cancelResize);
+    return () => {
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", stopResize);
+      window.removeEventListener("pointercancel", cancelResize);
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("blur", cancelResize);
+    };
+  }, [isResizingLeftPanel]);
+
+  const startLeftPanelResize = (event: PointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    leftPanelResizeStartRef.current = {
+      clientX: event.clientX,
+      width: leftPanelWidth
+    };
+    setIsResizingLeftPanel(true);
+  };
+
+  const resetLeftPanelWidth = () => {
+    setLeftPanelWidth(DEFAULT_LEFT_PANEL_WIDTH);
+    saveLeftPanelWidth(DEFAULT_LEFT_PANEL_WIDTH);
+  };
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -137,11 +226,44 @@ export const AppLayout = () => {
   }, [commandContext, shortcutSettings]);
 
   return (
-    <main className="app-shell">
+    <main
+      className={`app-shell ${isResizingLeftPanel ? "is-resizing-left-panel" : ""}`}
+      style={{ "--left-panel-width": `${leftPanelWidth}px` } as CSSProperties}
+    >
       <LeftPanel
         evaluation={evaluation}
         elementListFocusRef={elementListFocusRef}
         elementSearchInputRef={elementSearchInputRef}
+      />
+      <div
+        className="left-panel-resize-handle"
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="左パネル幅を変更"
+        title="ドラッグで左パネル幅を変更 / ダブルクリックでリセット"
+        tabIndex={0}
+        onPointerDown={startLeftPanelResize}
+        onDoubleClick={resetLeftPanelWidth}
+        onKeyDown={(event) => {
+          if (event.key === "ArrowLeft") {
+            event.preventDefault();
+            const nextWidth = clampLeftPanelWidth(leftPanelWidth - (event.shiftKey ? 40 : 10));
+            setLeftPanelWidth(nextWidth);
+            saveLeftPanelWidth(nextWidth);
+            return;
+          }
+          if (event.key === "ArrowRight") {
+            event.preventDefault();
+            const nextWidth = clampLeftPanelWidth(leftPanelWidth + (event.shiftKey ? 40 : 10));
+            setLeftPanelWidth(nextWidth);
+            saveLeftPanelWidth(nextWidth);
+            return;
+          }
+          if (event.key === "Home") {
+            event.preventDefault();
+            resetLeftPanelWidth();
+          }
+        }}
       />
       <DrawingCanvas
         evaluation={evaluation}

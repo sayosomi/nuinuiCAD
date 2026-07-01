@@ -31,6 +31,12 @@ const forGroupLabel = (element: CadElement) => {
     : `for ${variableName} = ${start}..${numericEnd} step ${step}`;
 };
 
+const elementListDisplayName = (element: CadElement) => {
+  if (element.type === "conditionalGroup") return `if ${numericValueExpression(element.condition)}`;
+  if (element.type === "forGroup") return forGroupLabel(element);
+  return element.name;
+};
+
 export type ElementListGroupIssues = {
   childCount: number;
   errorCount: number;
@@ -223,11 +229,9 @@ export const ElementListRow = ({
     </span>
     <span className="element-name">
       {hasError || hasWarning ? "⚠ " : ""}
-      {element.type === "conditionalGroup"
-        ? `if ${numericValueExpression(element.condition)}`
-        : element.type === "forGroup"
-          ? forGroupLabel(element)
-        : element.name}
+      <span className="element-name-text" title={elementListDisplayName(element)}>
+        {elementListDisplayName(element)}
+      </span>
       {isSearchActive && searchParentGroupNames.length ? (
         <small className="group-mask-label">{searchParentGroupNames.join(" / ")}</small>
       ) : null}

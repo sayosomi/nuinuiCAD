@@ -1,6 +1,7 @@
 pub mod app_menu;
 pub mod document_file;
 pub mod evaluation;
+pub mod layout_settings;
 pub mod palette_settings;
 pub mod shortcut_settings;
 
@@ -21,6 +22,8 @@ pub fn run() {
             evaluation::evaluate_document,
             document_file::read_document_file,
             document_file::write_document_file,
+            layout_settings::load_layout_settings,
+            layout_settings::save_layout_settings,
             palette_settings::load_palette_template,
             palette_settings::save_palette_template,
             shortcut_settings::load_shortcut_settings,

@@ -185,7 +185,9 @@ const ForGeneratedPreviewRow = ({
     <span className="element-expand-spacer" aria-hidden="true" />
     <span className="element-index" aria-hidden="true" />
     <span className="element-status-icons" aria-hidden="true" />
-    <span className="element-name">{row.elementName}</span>
+    <span className="element-name">
+      <span className="element-name-text" title={row.elementName}>{row.elementName}</span>
+    </span>
     <span className="element-type">
       {elementCategoryLabels[elementTypeCategories[row.elementType]]} / {elementTypeLabels[row.elementType]}
     </span>

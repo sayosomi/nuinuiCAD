@@ -60,9 +60,41 @@ select {
 }
 
 .app-shell {
+  position: relative;
   display: grid;
-  grid-template-columns: 320px minmax(0, 1fr) 360px;
+  grid-template-columns: var(--left-panel-width, 320px) minmax(0, 1fr) 360px;
   min-height: 100vh;
+}
+
+.app-shell.is-resizing-left-panel {
+  cursor: col-resize;
+  user-select: none;
+}
+
+.left-panel-resize-handle {
+  position: absolute;
+  z-index: 20;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--left-panel-width, 320px) - 5px);
+  width: 10px;
+  cursor: col-resize;
+}
+
+.left-panel-resize-handle::after {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 4px;
+  width: 1px;
+  background: transparent;
+  content: "";
+}
+
+.left-panel-resize-handle:hover::after,
+.left-panel-resize-handle:focus-visible::after,
+.app-shell.is-resizing-left-panel .left-panel-resize-handle::after {
+  background: #0f766e;
 }
 
 .left-panel,
@@ -770,8 +802,15 @@ select {
   grid-area: name;
   min-width: 0;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.25;
+}
+
+.element-name-text {
+  display: -webkit-box;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .palette-panel {
