@@ -524,7 +524,9 @@ describe("DrawingCanvas point dragging", () => {
       selectedParameterKey: "x",
       activeNumericReferencePickTarget: {
         elementId: "point-a",
-        parameterKey: "x"
+        parameterKey: "x",
+        mode: "replace",
+        property: "length"
       }
     });
     const { viewport } = renderDrawingCanvas();
@@ -538,7 +540,6 @@ describe("DrawingCanvas point dragging", () => {
       clientY: 250,
       pointerId: 1
     });
-    fireEvent.click(viewport.querySelector(".numeric-reference-candidate-menu button")!);
 
     expect(useCadStore.getState().activeNumericReferencePickTarget).toBeNull();
     expect(useCadStore.getState().elements[0]).toMatchObject({

@@ -4,6 +4,7 @@ import type {
   MeasurementInsertMode,
   MeasurementPointSlot
 } from "../state/cadUiStore";
+import type { NumericMeasurementKey } from "../geometry/numericExpressionTypes";
 import type { CadElement, ElementId, EvaluationResult, PointAnchor } from "../types/geometry";
 
 export type { BezierHandleRole };
@@ -52,6 +53,8 @@ export type CommandId =
   | "startMeasurementLinePick"
   | "insertSelectedMeasurement"
   | "startNumericReferencePick"
+  | "startNumericReferenceInsertPick"
+  | "setNumericReferencePickProperty"
   | "applyPickedNumericReference"
   | "cancelNumericReferencePick"
   | "selectNextPickCandidate"
@@ -162,6 +165,7 @@ export type CommandContext = {
   parameterKey?: string;
   numericExpression?: string;
   numericReferenceExpression?: string;
+  numericReferenceProperty?: NumericMeasurementKey;
   numericExpressionSnippet?: string;
   displayedExpression?: string;
   selectionStart?: number | null;

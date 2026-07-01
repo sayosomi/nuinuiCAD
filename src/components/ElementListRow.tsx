@@ -3,10 +3,6 @@ import { Folder, FolderOpen } from "lucide-react";
 import { dispatchCommand } from "../commands/commands";
 import { numericValueExpression } from "../geometry/numericExpressions";
 import type { PickCandidate } from "../model/pickCandidates";
-import {
-  numericReferencePropertiesForGeometry,
-  type NumericReferenceGeometry
-} from "../geometry/numericReferenceProperties";
 import { isForGroupElement, isGroupElement } from "../model/groups";
 import type { SelectablePoint } from "../model/pointAnchors";
 import type {
@@ -14,7 +10,6 @@ import type {
   ElementId
 } from "../types/geometry";
 import { elementCategoryLabels, elementTypeCategories, elementTypeLabels } from "../types/geometry";
-import { numericReferenceLabel, numericReferenceValue } from "./geometryDisplay";
 import { ElementStatusIcon } from "./ElementStatusIcon";
 
 const forGroupLabel = (element: CadElement) => {
@@ -59,7 +54,6 @@ type ElementListRowProps = {
   hasWarning: boolean;
   groupIssues: ElementListGroupIssues | null;
   selectablePoints: SelectablePoint[];
-  referenceGeometry: NumericReferenceGeometry | null;
   pickCandidate: PickCandidate | undefined;
   selectedPickOptionIndex: number;
   activeSearchCursorId: ElementId | null;
@@ -77,10 +71,6 @@ type ElementListRowProps = {
   dropAfter: boolean;
   onSelectElement: (elementId: ElementId, event: MouseEvent<HTMLElement>) => void;
   onHandlePointerDown: (event: PointerEvent<HTMLButtonElement>, element: CadElement) => void;
-  onApplyNumericReference: (
-    geometry: NumericReferenceGeometry,
-    property: ReturnType<typeof numericReferencePropertiesForGeometry>[number]
-  ) => void;
 };
 
 export const ElementListRow = ({
@@ -100,7 +90,6 @@ export const ElementListRow = ({
   hasWarning,
   groupIssues,
   selectablePoints,
-  referenceGeometry,
   pickCandidate,
   selectedPickOptionIndex,
   activeSearchCursorId,
@@ -117,8 +106,7 @@ export const ElementListRow = ({
   dropBefore,
   dropAfter,
   onSelectElement,
-  onHandlePointerDown,
-  onApplyNumericReference
+  onHandlePointerDown
 }: ElementListRowProps) => (
   <div
     ref={rowRef}
@@ -294,26 +282,6 @@ export const ElementListRow = ({
             }}
           >
             {point.label.includes(".") ? point.label.split(".").at(-1) : "点"}
-          </button>
-        ))}
-      </div>
-    ) : null}
-    {isNumericReferencePickMode && referenceGeometry ? (
-      <div className="element-numeric-reference-actions">
-        {numericReferencePropertiesForGeometry(referenceGeometry).map((property, optionIndex) => (
-          <button
-            key={property}
-            type="button"
-            className={
-              selectedPickOptionIndex === optionIndex ? "selected-pick-option" : ""
-            }
-            onClick={(event) => {
-              event.stopPropagation();
-              onApplyNumericReference(referenceGeometry, property);
-            }}
-          >
-            <span>{numericReferenceLabel(referenceGeometry, property)}</span>
-            <small>{numericReferenceValue(referenceGeometry, property)}</small>
           </button>
         ))}
       </div>

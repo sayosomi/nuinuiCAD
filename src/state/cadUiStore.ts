@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import type { NumericMeasurementKey } from "../geometry/numericExpressionTypes";
 import type { ShortcutSettings } from "../keyboard/shortcutTypes";
 import type { ParameterKey } from "../parameters/parameterDefinitions";
 import type { ElementId, PointAnchor } from "../types/geometry";
@@ -16,6 +17,11 @@ export type ActivePointPickTarget = {
 export type ActiveNumericReferencePickTarget = {
   elementId: ElementId;
   parameterKey: ParameterKey;
+  mode: "replace" | "insert";
+  property: NumericMeasurementKey;
+  displayedExpression?: string;
+  selectionStart?: number | null;
+  selectionEnd?: number | null;
 };
 
 export type ActiveLinePickTarget = {

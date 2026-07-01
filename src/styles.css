@@ -1504,6 +1504,35 @@ select {
   opacity: 0.55;
 }
 
+.numeric-reference-property-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.numeric-reference-property-grid button {
+  min-height: 30px;
+  padding: 5px 6px;
+  font-size: 11px;
+}
+
+.numeric-reference-property-grid button.active-toggle,
+.numeric-reference-property-grid button.active-toggle:hover {
+  border-color: #0f766e;
+  background: #e7f4ef;
+  color: #0f4f49;
+}
+
+.expression-variable-search {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #c9cdc4;
+  border-radius: 5px;
+  background: #ffffff;
+  padding: 6px 8px;
+  font-size: 12px;
+}
+
 .expression-token-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

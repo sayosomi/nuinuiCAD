@@ -1,4 +1,5 @@
 import { evaluateElements } from "../geometry/evaluate";
+import { numericReferencePickProperties } from "../geometry/numericReferenceProperties";
 import { insertNumericExpressionSnippet as insertSnippetIntoExpression } from "../geometry/numericExpressionInsertion";
 import {
   makeNumericExpression,
@@ -266,8 +267,43 @@ export const startNumericReferencePick = () => {
     activeLinePickTarget: null,
     activeNumericReferencePickTarget: {
       elementId: selectedElement.id,
-      parameterKey: definition.key
+      parameterKey: definition.key,
+      mode: "replace",
+      property: "length"
     }
+  });
+};
+
+export const startNumericReferenceInsertPick = (context?: CommandContext) => {
+  const target = numericExpressionTarget(context);
+  if (!target) return;
+  const currentValue = getParameterValue(target.targetElement, target.definition.key);
+  const displayedExpression =
+    context?.displayedExpression ??
+    (isNumericValue(currentValue) ? numericValueExpression(currentValue) : "");
+
+  useCadUiStore.setState({
+    activePointPickTarget: null,
+    activeLinePickTarget: null,
+    activeNumericReferencePickTarget: {
+      elementId: target.targetElement.id,
+      parameterKey: target.definition.key,
+      mode: "insert",
+      property: context?.numericReferenceProperty ?? "length",
+      displayedExpression,
+      selectionStart: context?.selectionStart ?? null,
+      selectionEnd: context?.selectionEnd ?? null
+    }
+  });
+};
+
+export const setNumericReferencePickProperty = (context?: CommandContext) => {
+  const property = context?.numericReferenceProperty;
+  const current = useCadUiStore.getState().activeNumericReferencePickTarget;
+  if (!current || !property) return;
+  useCadUiStore.getState().setActiveNumericReferencePickTarget({
+    ...current,
+    property
   });
 };
 
@@ -277,11 +313,22 @@ export const applyPickedNumericReference = (context?: Pick<CommandContext, "nume
   const { activeNumericReferencePickTarget } = useCadUiStore.getState();
   if (!activeNumericReferencePickTarget) return;
 
-  applyNumericExpressionReference({
-    elementId: activeNumericReferencePickTarget.elementId,
-    parameterKey: activeNumericReferencePickTarget.parameterKey,
-    numericExpression
-  });
+  if (activeNumericReferencePickTarget.mode === "insert") {
+    insertNumericExpressionSnippet({
+      elementId: activeNumericReferencePickTarget.elementId,
+      parameterKey: activeNumericReferencePickTarget.parameterKey,
+      numericExpressionSnippet: numericExpression,
+      displayedExpression: activeNumericReferencePickTarget.displayedExpression,
+      selectionStart: activeNumericReferencePickTarget.selectionStart,
+      selectionEnd: activeNumericReferencePickTarget.selectionEnd
+    });
+  } else {
+    applyNumericExpressionReference({
+      elementId: activeNumericReferencePickTarget.elementId,
+      parameterKey: activeNumericReferencePickTarget.parameterKey,
+      numericExpression
+    });
+  }
   useCadUiStore.getState().setActiveNumericReferencePickTarget(null);
 };
 
@@ -327,6 +374,21 @@ export const selectPickCandidateByOffset = (offset: number) => {
 };
 
 export const selectPickOptionByOffset = (offset: number) => {
+  const { activeNumericReferencePickTarget } = useCadUiStore.getState();
+  if (activeNumericReferencePickTarget) {
+    const currentIndex = numericReferencePickProperties.indexOf(activeNumericReferencePickTarget.property);
+    const nextIndex =
+      currentIndex < 0
+        ? 0
+        : (currentIndex + offset + numericReferencePickProperties.length) %
+          numericReferencePickProperties.length;
+    useCadUiStore.getState().setActiveNumericReferencePickTarget({
+      ...activeNumericReferencePickTarget,
+      property: numericReferencePickProperties[nextIndex]
+    });
+    return;
+  }
+
   const candidates = activePickCandidates();
   const selected = selectedPickOption(candidates, useCadUiStore.getState().activePickCursor);
   if (!selected) {

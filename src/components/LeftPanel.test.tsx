@@ -419,7 +419,9 @@ describe("LeftPanel numeric input dragging", () => {
 
     expect(useCadStore.getState().activeNumericReferencePickTarget).toEqual({
       elementId: "point-a",
-      parameterKey: "x"
+      parameterKey: "x",
+      mode: "replace",
+      property: "length"
     });
     expect(screen.getByText("数値選択中")).toBeInTheDocument();
   });
@@ -538,7 +540,10 @@ describe("LeftPanel numeric input dragging", () => {
     renderRightPanel();
 
     fireEvent.click(screen.getByText("参照を挿入"));
-    fireEvent.click(screen.getAllByText("長さ")[0]);
+    fireEvent.click(screen.getByRole("button", { name: "線・曲線を選択" }));
+    act(() => {
+      dispatchCommand("applyPickedNumericReference", { numericReferenceExpression: "line-ab.length" });
+    });
     fireEvent.click(screen.getByText("@基準寸法"));
 
     expect(useCadStore.getState().elements.at(-1)).toMatchObject({
@@ -1260,7 +1265,9 @@ describe("LeftPanel element list dragging", () => {
       selectedParameterKey: "x",
       activeNumericReferencePickTarget: {
         elementId: "point-a",
-        parameterKey: "x"
+        parameterKey: "x",
+        mode: "replace",
+        property: "length"
       }
     });
     renderLeftPanel(evaluateElements(sampleElements));
@@ -1270,7 +1277,7 @@ describe("LeftPanel element list dragging", () => {
     expect(pointRow).toHaveClass("is-not-numeric-reference-pick-candidate");
     expect(lineRow).toHaveClass("is-numeric-reference-pick-candidate");
 
-    fireEvent.click(lineRow!.querySelector(".element-numeric-reference-actions button")!);
+    fireEvent.click(lineRow!);
 
     expect(useCadStore.getState().activeNumericReferencePickTarget).toBeNull();
     expect(useCadStore.getState().elements[0]).toMatchObject({
@@ -1278,28 +1285,26 @@ describe("LeftPanel element list dragging", () => {
     });
   });
 
-  it("marks the active keyboard pick row and row option", () => {
+  it("marks the active keyboard pick row", () => {
     useCadStore.setState({
       selectedElementId: "point-a",
       selectedElementIds: ["point-a"],
       selectedParameterKey: "x",
       activeNumericReferencePickTarget: {
         elementId: "point-a",
-        parameterKey: "x"
+        parameterKey: "x",
+        mode: "replace",
+        property: "length"
       },
       activePickCursor: {
         elementId: "line-ab",
-        optionIndex: 1
+        optionIndex: 0
       }
     });
     renderLeftPanel(evaluateElements(sampleElements));
 
     const lineRow = screen.getByText("直線AB").closest("[data-element-list-row='true']");
     expect(lineRow).toHaveClass("selected-pick-candidate");
-
-    const optionButtons = lineRow!.querySelectorAll(".element-numeric-reference-actions button");
-    expect(optionButtons[1]).toHaveClass("selected-pick-option");
-    expect(optionButtons[0]).not.toHaveClass("selected-pick-option");
   });
 
   it("adds a base line from the element list while line picking", () => {

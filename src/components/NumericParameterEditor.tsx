@@ -75,7 +75,8 @@ export const NumericParameterEditor = ({
   } = useParameterEditor({ element, isParameterEditMode, registerParameterControl });
   const isPickingThisNumericReference =
     activeNumericReferencePickTarget?.elementId === element.id &&
-    activeNumericReferencePickTarget.parameterKey === parameterKey;
+    activeNumericReferencePickTarget.parameterKey === parameterKey &&
+    activeNumericReferencePickTarget.mode === "replace";
   const isExpressionInsertOpen =
     activeExpressionInsertTarget?.elementId === element.id &&
     activeExpressionInsertTarget.parameterKey === parameterKey;

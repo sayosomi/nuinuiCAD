@@ -1,6 +1,8 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { dispatchCommand } from "../commands/commands";
-import { numericReferencePropertiesForElement } from "../geometry/numericReferenceProperties";
+import {
+  numericReferencePickProperties
+} from "../geometry/numericReferenceProperties";
 import { lineMeasurementLabel } from "../geometry/numericExpressions";
 import { parseVariableParameterKey } from "../parameters/parameterAccess";
 import type { ParameterKey } from "../parameters/parameterDefinitions";
@@ -37,7 +39,7 @@ const measurementModes: {
 const selectedElementName = (elements: CadElement[], elementId: ElementId) =>
   elements.find((element) => element.id === elementId)?.name ?? elementId;
 
-const elementLabel = (element: CadElement) => `${element.name} (${element.id})`;
+const MAX_VISIBLE_VARIABLE_OPTIONS = 20;
 
 const pointAnchorLabel = (anchor: PointAnchor | null, elements: CadElement[]) => {
   if (!anchor) return "未選択";
@@ -100,32 +102,37 @@ export const ExpressionInsertTray = ({
   focusInput,
   getInputTarget
 }: ExpressionInsertTrayProps) => {
+  const [variableSearch, setVariableSearch] = useState("");
+  const [numericReferenceProperty, setLocalNumericReferenceProperty] =
+    useState<typeof numericReferencePickProperties[number]>("length");
   const activeMeasurementInsertTarget = useCadUiStore((state) => state.activeMeasurementInsertTarget);
   const activePointPickTarget = useCadUiStore((state) => state.activePointPickTarget);
   const activeLinePickTarget = useCadUiStore((state) => state.activeLinePickTarget);
+  const activeNumericReferencePickTarget = useCadUiStore((state) => state.activeNumericReferencePickTarget);
   const isMeasurementTarget =
     activeMeasurementInsertTarget?.elementId === element.id &&
     activeMeasurementInsertTarget.parameterKey === parameterKey;
+  const isNumericReferenceInsertPickTarget =
+    activeNumericReferencePickTarget?.elementId === element.id &&
+    activeNumericReferencePickTarget.parameterKey === parameterKey &&
+    activeNumericReferencePickTarget.mode === "insert";
   const mode = isMeasurementTarget ? activeMeasurementInsertTarget.mode : "distance";
-  const previousElements = useMemo(() => {
-    const targetIndex = elements.findIndex((item) => item.id === element.id);
-    return targetIndex < 0 ? [] : elements.slice(0, targetIndex);
-  }, [element.id, elements]);
-  const propertyOptions = useMemo(
-    () =>
-      previousElements.flatMap((item) =>
-        numericReferencePropertiesForElement(item).map((property) => ({
-          element: item,
-          property,
-          expression: `${item.id}.${property}`
-        }))
-      ),
-    [previousElements]
-  );
   const variableOptions = useMemo(
     () => scopedVariableOptions({ element, elements, parameterKey }),
     [element, elements, parameterKey]
   );
+  const visibleVariableOptions = useMemo(() => {
+    const normalizedSearch = variableSearch.trim().toLocaleLowerCase();
+    const filtered =
+      normalizedSearch.length === 0
+        ? variableOptions
+        : variableOptions.filter((option) =>
+            `${option.label} ${option.expression} ${option.detail}`
+              .toLocaleLowerCase()
+              .includes(normalizedSearch)
+          );
+    return filtered.slice(0, MAX_VISIBLE_VARIABLE_OPTIONS);
+  }, [variableOptions, variableSearch]);
   const point1Anchor = isMeasurementTarget ? activeMeasurementInsertTarget.point1Anchor : null;
   const point2Anchor = isMeasurementTarget ? activeMeasurementInsertTarget.point2Anchor : null;
   const lineId = isMeasurementTarget ? activeMeasurementInsertTarget.lineId : null;
@@ -185,6 +192,20 @@ export const ExpressionInsertTray = ({
     dispatchCommand("setMeasurementInsertMode", {
       ...inputTargetContext(),
       measurementInsertMode
+    });
+  };
+  const selectedNumericReferenceProperty =
+    isNumericReferenceInsertPickTarget ? activeNumericReferencePickTarget.property : numericReferenceProperty;
+  const setNumericReferenceProperty = (numericReferenceProperty: typeof numericReferencePickProperties[number]) => {
+    setLocalNumericReferenceProperty(numericReferenceProperty);
+    if (isNumericReferenceInsertPickTarget) {
+      dispatchCommand("setNumericReferencePickProperty", { numericReferenceProperty });
+    }
+  };
+  const startNumericReferenceInsertPick = () => {
+    dispatchCommand("startNumericReferenceInsertPick", {
+      ...inputTargetContext(),
+      numericReferenceProperty: selectedNumericReferenceProperty
     });
   };
   const isPickingPoint = (slot: MeasurementPointSlot) =>
@@ -275,33 +296,50 @@ export const ExpressionInsertTray = ({
         <div className="expression-insert-title">
           <span>線・曲線プロパティ</span>
         </div>
-        <div className="expression-token-grid">
-          {propertyOptions.length === 0 ? (
-            <p className="empty-state">参照できる線・曲線はありません。</p>
-          ) : (
-            propertyOptions.map((option) => (
-              <button
-                key={`${option.element.id}-${option.property}`}
-                type="button"
-                onClick={() => insertSnippet(option.expression)}
-              >
-                <strong>{lineMeasurementLabel(option.property)}</strong>
-                <small>{elementLabel(option.element)}</small>
-              </button>
-            ))
-          )}
+        <div className="numeric-reference-property-grid" role="group" aria-label="挿入する線・曲線プロパティ">
+          {numericReferencePickProperties.map((property) => (
+            <button
+              key={property}
+              type="button"
+              className={selectedNumericReferenceProperty === property ? "active-toggle" : ""}
+              onClick={() => setNumericReferenceProperty(property)}
+            >
+              {lineMeasurementLabel(property)}
+            </button>
+          ))}
         </div>
+        <button
+          type="button"
+          className="expression-insert-button"
+          onClick={startNumericReferenceInsertPick}
+        >
+          {isNumericReferenceInsertPickTarget ? "線・曲線選択中" : "線・曲線を選択"}
+        </button>
       </div>
 
       <div className="expression-insert-section">
         <div className="expression-insert-title">
           <span>変数参照</span>
+          {variableOptions.length > MAX_VISIBLE_VARIABLE_OPTIONS ? (
+            <small>{visibleVariableOptions.length} / {variableOptions.length} 件</small>
+          ) : null}
         </div>
+        {variableOptions.length > MAX_VISIBLE_VARIABLE_OPTIONS ? (
+          <input
+            className="expression-variable-search"
+            value={variableSearch}
+            placeholder="変数を検索"
+            aria-label="変数参照を検索"
+            onChange={(event) => setVariableSearch(event.target.value)}
+          />
+        ) : null}
         <div className="expression-token-grid">
           {variableOptions.length === 0 ? (
             <p className="empty-state">参照できる変数はありません。</p>
+          ) : visibleVariableOptions.length === 0 ? (
+            <p className="empty-state">一致する変数はありません。</p>
           ) : (
-            variableOptions.map((option) => (
+            visibleVariableOptions.map((option) => (
               <button
                 key={option.expression}
                 type="button"

@@ -7,6 +7,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { dispatchCommand } from "../commands/commands";
 import type { EvaluationEngineState } from "../geometry/useEvaluationEngine";
 import { generatedElementIdForTargetForGroup } from "../model/forGroupGeneratedReferences";
+import { numericReferenceGeometrySupportsProperty } from "../geometry/numericReferenceProperties";
 import { getParameterValue } from "../parameters/parameterAccess";
 import type { BezierHandleRole as CommandBezierHandleRole } from "../commands/commands";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
@@ -20,6 +21,7 @@ import { CanvasCandidateMenus } from "./CanvasCandidateMenus";
 import { CanvasOverlay } from "./CanvasOverlay";
 import {
   hitTestCanvasGeometry,
+  hitTestLineCandidates,
   hitTestLineMeasurementCandidates
 } from "./DrawingCanvasHitTest";
 import type { LineMeasurementCandidate } from "./DrawingCanvasHitTest";
@@ -283,13 +285,14 @@ export const DrawingCanvas = ({ evaluation, evaluationState, canvasFocusRef }: D
   };
 
   const applyMeasurementCandidate = (candidate: LineMeasurementCandidate) => {
-    if (!measurementCandidateMenu) return;
-    const expression = `${candidate.line.elementId}.${candidate.property}`;
+    const property = activeNumericReferencePickTarget?.property ?? candidate.property;
+    const expression = `${candidate.line.elementId}.${property}`;
     if (activeNumericReferencePickTarget) {
       dispatchCommand("applyPickedNumericReference", {
         numericReferenceExpression: expression
       });
     } else {
+      if (!measurementCandidateMenu) return;
       dispatchCommand("applyNumericExpressionReference", {
         elementId: measurementCandidateMenu.targetElementId,
         parameterKey: measurementCandidateMenu.targetParameterKey,
@@ -336,6 +339,17 @@ export const DrawingCanvas = ({ evaluation, evaluationState, canvasFocusRef }: D
       if (!normalizedLineId || normalizedLineId === activeTarget.elementId) continue;
       if (pickedBaseLineIds.has(normalizedLineId)) continue;
       uniqueCandidates.set(normalizedLineId, { line: candidate.line });
+    }
+    return Array.from(uniqueCandidates.values());
+  };
+  const numericReferenceCandidatesAt = (screen: ScreenPoint) => {
+    const activeTarget = activeNumericReferencePickTarget;
+    if (!activeTarget) return [];
+
+    const uniqueCandidates = new Map<ElementId, LinePickCandidate>();
+    for (const line of hitTestLineCandidates({ screen, lines: overlayNumericReferenceCandidates })) {
+      if (!numericReferenceGeometrySupportsProperty(line, activeTarget.property)) continue;
+      uniqueCandidates.set(line.elementId, { line });
     }
     return Array.from(uniqueCandidates.values());
   };
@@ -464,21 +478,23 @@ export const DrawingCanvas = ({ evaluation, evaluationState, canvasFocusRef }: D
       setPointPickCandidateMenu(null);
       setLinePickCandidateMenu(null);
       if (activeNumericReferencePickTarget) {
-        const candidates = hitTestLineMeasurementCandidates({
-          screen,
-          lines: overlayNumericReferenceCandidates
-        }).filter(
-          (candidate) =>
-            candidate.property === "length" ||
-            ((candidate.line.kind === "line" || candidate.line.kind === "arcLine") &&
-              candidate.line[candidate.property] !== null)
-        );
+        const candidates = numericReferenceCandidatesAt(screen);
         event.preventDefault();
         event.currentTarget.focus();
-        if (candidates.length > 0) {
+        if (candidates.length === 1) {
+          applyMeasurementCandidate({
+            line: candidates[0].line,
+            property: activeNumericReferencePickTarget.property
+          });
+          return;
+        }
+        if (candidates.length > 1) {
           setMeasurementCandidateMenu({
             screen,
-            candidates,
+            candidates: candidates.map((candidate) => ({
+              line: candidate.line,
+              property: activeNumericReferencePickTarget.property
+            })),
             targetElementId: activeNumericReferencePickTarget.elementId,
             targetParameterKey: activeNumericReferencePickTarget.parameterKey
           });

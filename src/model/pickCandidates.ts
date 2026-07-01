@@ -1,6 +1,6 @@
 import type { NumericMeasurementKey } from "../geometry/numericExpressions";
 import {
-  numericReferencePropertiesForGeometry,
+  numericReferenceGeometrySupportsProperty,
   type NumericReferenceGeometry
 } from "../geometry/numericReferenceProperties";
 import { getParameterDefinitions } from "../parameters/parameterDefinitions";
@@ -145,19 +145,24 @@ const lineCandidates = (
 
 const numericReferenceCandidates = (
   elements: CadElement[],
-  evaluation: EvaluationResult
+  evaluation: EvaluationResult,
+  activeNumericReferencePickTarget: ActiveNumericReferencePickTarget
 ): PickCandidate[] =>
   elements
     .map((element) => {
       const geometry = numericReferenceGeometry(evaluation.computedGeometry.get(element.id));
-      const options = geometry
-        ? numericReferencePropertiesForGeometry(geometry).map((property) => ({
-            kind: "numericReference" as const,
-            label: property,
-            property,
-            expression: numericReferenceExpression(geometry, property)
-          }))
-        : [];
+      const property = activeNumericReferencePickTarget.property;
+      const options =
+        geometry && numericReferenceGeometrySupportsProperty(geometry, property)
+          ? [
+              {
+                kind: "numericReference" as const,
+                label: property,
+                property,
+                expression: numericReferenceExpression(geometry, property)
+              }
+            ]
+          : [];
       return { elementId: element.id, options };
     })
     .filter((candidate) => candidate.options.length > 0);
@@ -174,7 +179,7 @@ export const pickCandidates = (
     return lineCandidates(elements, targets.activeLinePickTarget);
   }
   if (targets.activeNumericReferencePickTarget) {
-    return numericReferenceCandidates(elements, evaluation);
+    return numericReferenceCandidates(elements, evaluation, targets.activeNumericReferencePickTarget);
   }
   return [];
 };

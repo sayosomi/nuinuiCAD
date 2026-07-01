@@ -13,6 +13,18 @@ export type NumericReferenceGeometry =
   | ComputedBezierCurve
   | ComputedOffsetLine;
 
+export const numericReferencePickProperties: readonly NumericMeasurementKey[] = [
+  "length",
+  "startTangentAngleDeg",
+  "endTangentAngleDeg",
+  "startAngleDeg",
+  "endAngleDeg",
+  "startHandleAngleDeg",
+  "startHandleLength",
+  "endHandleAngleDeg",
+  "endHandleLength"
+];
+
 export const numericReferencePropertiesForGeometry = (
   geometry: NumericReferenceGeometry
 ): readonly NumericMeasurementKey[] => {
@@ -69,3 +81,8 @@ export const numericReferencePropertiesForElement = (
 
   return [];
 };
+
+export const numericReferenceGeometrySupportsProperty = (
+  geometry: NumericReferenceGeometry,
+  property: NumericMeasurementKey
+) => numericReferencePropertiesForGeometry(geometry).includes(property);

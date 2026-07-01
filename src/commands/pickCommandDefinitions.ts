@@ -13,9 +13,11 @@ import {
   selectPickCandidateByOffset,
   selectPickOptionByOffset,
   setMeasurementInsertMode,
+  setNumericReferencePickProperty,
   startLinePick,
   startMeasurementLinePick,
   startMeasurementPointPick,
+  startNumericReferenceInsertPick,
   startNumericReferencePick,
   toggleExpressionInsertTray,
   startPointPick
@@ -68,6 +70,16 @@ export const pickCommandDefinitions = {
     label: "数値選択モードに入る",
     palette: { order: 16, keywords: ["number", "reference", "measurement", "数値", "参照", "選択"] },
     run: () => startNumericReferencePick()
+  },
+  startNumericReferenceInsertPick: {
+    id: "startNumericReferenceInsertPick",
+    label: "線・曲線プロパティを式に挿入",
+    run: (context) => startNumericReferenceInsertPick(context)
+  },
+  setNumericReferencePickProperty: {
+    id: "setNumericReferencePickProperty",
+    label: "数値参照プロパティを切り替え",
+    run: (context) => setNumericReferencePickProperty(context)
   },
   applyPickedNumericReference: {
     id: "applyPickedNumericReference",

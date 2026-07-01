@@ -9,10 +9,10 @@ import {
 } from "../model/pointAnchors";
 import { descendantIdsForGroup, isConditionalGroupElement, isForGroupElement } from "../model/groups";
 import {
-  numericReferencePropertiesForGeometry,
+  numericReferenceGeometrySupportsProperty,
   type NumericReferenceGeometry
 } from "../geometry/numericReferenceProperties";
-import type { NumericMeasurementKey } from "../geometry/numericExpressions";
+import { lineMeasurementLabel, type NumericMeasurementKey } from "../geometry/numericExpressions";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
 import type {
@@ -378,6 +378,11 @@ export const LeftPanel = ({
       return;
     }
     if (activeNumericReferencePickTarget) {
+      const property = activeNumericReferencePickTarget.property;
+      const geometry = numericReferenceGeometry(elementId);
+      if (geometry && numericReferenceGeometrySupportsProperty(geometry, property)) {
+        applyNumericReference(geometry, property);
+      }
       return;
     }
     dispatchCommand("selectElement", {
@@ -427,8 +432,10 @@ export const LeftPanel = ({
     }
     if (activeNumericReferencePickTarget) {
       const geometry = numericReferenceGeometry(element.id);
-      const property = geometry ? numericReferencePropertiesForGeometry(geometry)[0] : null;
-              if (geometry && property) applyNumericReference(geometry, property);
+      const property = activeNumericReferencePickTarget.property;
+      if (geometry && numericReferenceGeometrySupportsProperty(geometry, property)) {
+        applyNumericReference(geometry, property);
+      }
       return;
     }
     dispatchCommand("selectElement", { elementId: element.id });
@@ -592,7 +599,7 @@ export const LeftPanel = ({
               {activePointPickTarget
                 ? "点選択中: 点の行だけ選択できます"
                 : activeNumericReferencePickTarget
-                  ? "数値選択中: 線と曲線の行だけ選択できます"
+                  ? `数値選択中: ${lineMeasurementLabel(activeNumericReferencePickTarget.property)}を持つ線と曲線だけ選択できます`
                   : activeLinePickTarget
                     ? "線選択中: 線と曲線の行だけ選択できます"
                 : "gで戻る / Enterで要素設定"}
@@ -733,7 +740,6 @@ export const LeftPanel = ({
                 hasWarning={rowData.hasWarning}
                 groupIssues={rowData.groupIssues}
                 selectablePoints={rowData.selectablePoints}
-                referenceGeometry={rowData.referenceGeometry}
                 pickCandidate={rowData.pickCandidate}
                 selectedPickOptionIndex={rowData.selectedPickOptionIndex}
                 activeSearchCursorId={activeSearchCursorId}
@@ -751,7 +757,6 @@ export const LeftPanel = ({
                 dropAfter={dropMarkerClass(element.id, rowData.index, "after") !== ""}
                 onSelectElement={selectElement}
                 onHandlePointerDown={startElementPointerDrag}
-                onApplyNumericReference={applyNumericReference}
               />
             );
             const forGeneratedAfterElement = generatedPreviewOwnerAfter(element);

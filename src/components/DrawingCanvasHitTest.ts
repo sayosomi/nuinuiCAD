@@ -6,7 +6,7 @@ import type {
   ComputedPoint,
   ElementId
 } from "../types/geometry";
-import type { LineMeasurementKey } from "../geometry/numericExpressions";
+import type { NumericMeasurementKey } from "../geometry/numericExpressions";
 
 export type ScreenPoint = {
   x: number;
@@ -185,7 +185,32 @@ export const hitTestCanvasGeometry = ({
 
 export type LineMeasurementCandidate = {
   line: ComputedLine | ComputedArcLine | ComputedBezierCurve | ComputedOffsetLine;
-  property: LineMeasurementKey;
+  property: NumericMeasurementKey;
+};
+
+export const hitTestLineCandidates = ({
+  screen,
+  lines
+}: {
+  screen: ScreenPoint;
+  lines: Array<{ line: ComputedLine | ComputedArcLine | ComputedBezierCurve | ComputedOffsetLine; start?: ScreenPoint; end?: ScreenPoint; points?: ScreenPoint[] }>;
+}) => {
+  const candidates: Array<ComputedLine | ComputedArcLine | ComputedBezierCurve | ComputedOffsetLine> = [];
+
+  for (let index = lines.length - 1; index >= 0; index -= 1) {
+    const item = lines[index];
+    if (item.line.kind === "line") {
+      if (item.start && item.end && distanceToLineSegment(screen, item.start, item.end) <= LINE_HIT_DISTANCE_PX) {
+        candidates.push(item.line);
+      }
+      continue;
+    }
+    if (item.points && distanceToPolyline(screen, item.points) <= LINE_HIT_DISTANCE_PX) {
+      candidates.push(item.line);
+    }
+  }
+
+  return candidates;
 };
 
 export const hitTestLineMeasurementCandidates = ({
