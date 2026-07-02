@@ -813,6 +813,10 @@ select {
   -webkit-line-clamp: 2;
 }
 
+.element-name-text.is-compact-name {
+  font-size: 13px;
+}
+
 .palette-panel {
   display: grid;
   gap: 10px;

@@ -984,7 +984,15 @@ describe("LeftPanel element list dragging", () => {
 
     const nameText = screen.getByText(longName);
     expect(nameText).toHaveClass("element-name-text");
+    expect(nameText).toHaveClass("is-compact-name");
     expect(nameText).toHaveAttribute("title", longName);
+  });
+
+  it("keeps short element names at the normal list font size", () => {
+    renderLeftPanel();
+
+    expect(screen.getByText("点A")).toHaveClass("element-name-text");
+    expect(screen.getByText("点A")).not.toHaveClass("is-compact-name");
   });
 
   it("shows for group template and generated preview rows", () => {
@@ -1026,6 +1034,46 @@ describe("LeftPanel element list dragging", () => {
     expect(screen.getByText("[i=0] プリーツ点")).toBeInTheDocument();
     expect(screen.getByText("[i=1] プリーツ点")).toBeInTheDocument();
     expect(screen.getByText("[i=2] プリーツ点")).toBeInTheDocument();
+  });
+
+  it("uses the compact element name font for long generated preview row names", () => {
+    const longName = "プリーツ展開後の長い生成プレビュー用補助点";
+    const elements: CadElement[] = [
+      {
+        id: "loop",
+        name: "プリーツ繰り返し",
+        type: "forGroup",
+        visible: true,
+        enabled: true,
+        variableName: "i",
+        start: 0,
+        count: 1,
+        step: 1,
+        expanded: true,
+        showGenerated: true
+      },
+      {
+        id: "pleat",
+        name: longName,
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        parentGroupId: "loop",
+        x: { kind: "expression", expression: "@i * 10" },
+        y: 0
+      }
+    ];
+    useCadStore.setState({
+      elements,
+      evaluationLimitIndex: elements.length
+    });
+
+    renderLeftPanel(evaluateElements(elements));
+
+    const generatedName = screen.getByText(`[i=0] ${longName}`);
+    expect(generatedName).toHaveClass("element-name-text");
+    expect(generatedName).toHaveClass("is-compact-name");
+    expect(generatedName).toHaveAttribute("title", `[i=0] ${longName}`);
   });
 
   it("includes shown for group generated rows while searching", () => {

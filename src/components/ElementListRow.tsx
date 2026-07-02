@@ -10,6 +10,7 @@ import type {
   ElementId
 } from "../types/geometry";
 import { elementCategoryLabels, elementTypeCategories, elementTypeLabels } from "../types/geometry";
+import { elementListNameTextClassName } from "./elementListName";
 import { ElementStatusIcon } from "./ElementStatusIcon";
 
 const forGroupLabel = (element: CadElement) => {
@@ -229,7 +230,10 @@ export const ElementListRow = ({
     </span>
     <span className="element-name">
       {hasError || hasWarning ? "⚠ " : ""}
-      <span className="element-name-text" title={elementListDisplayName(element)}>
+      <span
+        className={elementListNameTextClassName(elementListDisplayName(element))}
+        title={elementListDisplayName(element)}
+      >
         {elementListDisplayName(element)}
       </span>
       {isSearchActive && searchParentGroupNames.length ? (

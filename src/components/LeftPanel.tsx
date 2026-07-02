@@ -28,6 +28,7 @@ import {
   numericReferenceExpression,
 } from "./geometryDisplay";
 import { ElementListRow } from "./ElementListRow";
+import { elementListNameTextClassName } from "./elementListName";
 import {
   elementListAutoScrollDelta,
   elementListDropTargetForClientY,
@@ -186,7 +187,9 @@ const ForGeneratedPreviewRow = ({
     <span className="element-index" aria-hidden="true" />
     <span className="element-status-icons" aria-hidden="true" />
     <span className="element-name">
-      <span className="element-name-text" title={row.elementName}>{row.elementName}</span>
+      <span className={elementListNameTextClassName(row.elementName)} title={row.elementName}>
+        {row.elementName}
+      </span>
     </span>
     <span className="element-type">
       {elementCategoryLabels[elementTypeCategories[row.elementType]]} / {elementTypeLabels[row.elementType]}
