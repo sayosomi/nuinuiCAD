@@ -3,6 +3,7 @@ export type NumericExpressionInsertionInput = {
   snippet: string;
   selectionStart?: number | null;
   selectionEnd?: number | null;
+  appendMode?: "sum" | "raw";
 };
 
 const hasSelection = (start: number | null | undefined, end: number | null | undefined) =>
@@ -12,7 +13,8 @@ export const insertNumericExpressionSnippet = ({
   currentExpression,
   snippet,
   selectionStart,
-  selectionEnd
+  selectionEnd,
+  appendMode = "sum"
 }: NumericExpressionInsertionInput) => {
   if (snippet.trim().length === 0) return currentExpression;
 
@@ -22,7 +24,8 @@ export const insertNumericExpressionSnippet = ({
     return `${currentExpression.slice(0, start)}${snippet}${currentExpression.slice(end)}`;
   }
 
-  if (currentExpression.trim() === "0") return snippet;
+  if (currentExpression.trim() === "0" && appendMode === "sum") return snippet;
   if (currentExpression.trim().length === 0) return snippet;
+  if (appendMode === "raw") return `${currentExpression}${snippet}`;
   return `${currentExpression} + ${snippet}`;
 };

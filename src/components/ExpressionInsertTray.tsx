@@ -17,6 +17,8 @@ type InsertTargetInput = {
   selectionEnd: number | null;
 };
 
+type NumericExpressionAppendMode = "sum" | "raw";
+
 type ExpressionInsertTrayProps = {
   element: CadElement;
   elements: CadElement[];
@@ -35,6 +37,8 @@ const measurementModes: {
   { mode: "angle", label: "2点角度", functionName: "角度", description: "点同士の角度" },
   { mode: "lineDistance", label: "点と線の距離", functionName: "点線距離", description: "垂直距離" }
 ];
+
+const conditionalOperators = [">", ">=", "<", "<=", "==", "!=", "&&", "||"] as const;
 
 const selectedElementName = (elements: CadElement[], elementId: ElementId) =>
   elements.find((element) => element.id === elementId)?.name ?? elementId;
@@ -146,12 +150,13 @@ export const ExpressionInsertTray = ({
       ? `${selectedMode.functionName}(${pointAnchorLabel(point1Anchor, elements)}, ${lineId ? selectedElementName(elements, lineId) : "未選択"})`
       : `${selectedMode.functionName}(${pointAnchorLabel(point1Anchor, elements)}, ${pointAnchorLabel(point2Anchor, elements)})`;
 
-  const insertSnippet = (snippet: string) => {
+  const insertSnippet = (snippet: string, appendMode: NumericExpressionAppendMode = "sum") => {
     const target = getInputTarget();
     dispatchCommand("insertNumericExpressionSnippet", {
       elementId: element.id,
       parameterKey,
       numericExpressionSnippet: snippet,
+      numericExpressionAppendMode: appendMode,
       displayedExpression: target.displayedExpression,
       selectionStart: target.selectionStart,
       selectionEnd: target.selectionEnd
@@ -216,6 +221,7 @@ export const ExpressionInsertTray = ({
     activeLinePickTarget?.elementId === element.id &&
     activeLinePickTarget.parameterKey === parameterKey &&
     activeLinePickTarget.measurementSlot === "line";
+  const showConditionalOperators = element.type === "conditionalGroup" && parameterKey === "condition";
 
   return (
     <div className="expression-insert-tray">
@@ -291,6 +297,26 @@ export const ExpressionInsertTray = ({
           式に挿入
         </button>
       </div>
+
+      {showConditionalOperators ? (
+        <div className="expression-insert-section">
+          <div className="expression-insert-title">
+            <span>条件演算子</span>
+          </div>
+          <div className="expression-operator-grid" role="group" aria-label="挿入する条件演算子">
+            {conditionalOperators.map((operator) => (
+              <button
+                key={operator}
+                type="button"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => insertSnippet(` ${operator} `, "raw")}
+              >
+                <code>{operator}</code>
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       <div className="expression-insert-section">
         <div className="expression-insert-title">

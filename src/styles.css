@@ -1847,6 +1847,24 @@ select {
   color: #0f4f49;
 }
 
+.expression-operator-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.expression-operator-grid button {
+  min-height: 32px;
+  padding: 5px 6px;
+  font-size: 12px;
+}
+
+.expression-operator-grid code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .expression-variable-search {
   width: 100%;
   min-width: 0;

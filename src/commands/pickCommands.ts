@@ -87,7 +87,8 @@ export const insertNumericExpressionSnippet = (context?: CommandContext) => {
     currentExpression: displayedExpression,
     snippet,
     selectionStart: context?.selectionStart,
-    selectionEnd: context?.selectionEnd
+    selectionEnd: context?.selectionEnd,
+    appendMode: context?.numericExpressionAppendMode
   });
   const nextExpression = normalizeNumericExpressionInput(
     nextDisplayExpression,

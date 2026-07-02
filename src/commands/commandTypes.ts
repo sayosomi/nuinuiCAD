@@ -170,6 +170,7 @@ export type CommandContext = {
   numericReferenceExpression?: string;
   numericReferenceProperty?: NumericMeasurementKey;
   numericExpressionSnippet?: string;
+  numericExpressionAppendMode?: "sum" | "raw";
   displayedExpression?: string;
   selectionStart?: number | null;
   selectionEnd?: number | null;

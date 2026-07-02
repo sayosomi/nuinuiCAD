@@ -91,6 +91,7 @@ export const ElementCommonFields = ({
             value={element.condition}
             ariaLabel={`${element.name} の条件`}
             enableExpressionInsert
+            showStepControl={false}
           />
           <BooleanParameterEditor
             {...elementEditorProps}

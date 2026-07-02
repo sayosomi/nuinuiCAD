@@ -52,7 +52,8 @@ export const NumericParameterEditor = ({
   value,
   ariaLabel,
   compact = false,
-  enableExpressionInsert = false
+  enableExpressionInsert = false,
+  showStepControl = true
 }: CommonEditorProps & {
   parameterKey: ParameterKey;
   label: string;
@@ -60,6 +61,7 @@ export const NumericParameterEditor = ({
   ariaLabel: string;
   compact?: boolean;
   enableExpressionInsert?: boolean;
+  showStepControl?: boolean;
 }) => {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const inputSelectionRef = useRef<{ start: number; end: number } | null>(null);
@@ -234,7 +236,7 @@ export const NumericParameterEditor = ({
       <label className={parameterFieldClass(parameterKey)} onClick={() => selectParameter(parameterKey)}>
         <ParameterName element={element} parameterKey={parameterKey} label={label} />
         {input}
-        {stepControl}
+        {showStepControl ? stepControl : null}
       </label>
     );
   }
@@ -299,7 +301,7 @@ export const NumericParameterEditor = ({
         />
       ) : null}
       <div className="numeric-parameter-footer">
-        {stepControl}
+        {showStepControl ? stepControl : null}
         {isPickingThisNumericReference ? (
           <p className="numeric-reference-pick-hint">canvas または構成リストから選択</p>
         ) : null}

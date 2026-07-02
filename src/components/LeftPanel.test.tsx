@@ -557,6 +557,81 @@ describe("LeftPanel numeric input dragging", () => {
     expect(screen.getByLabelText("変数式")).toHaveValue("直線AB.長さ + @base-variable");
   });
 
+  it("inserts conditional comparison and logical operators from the expression tray", () => {
+    const conditionalGroup: CadElement = {
+      id: "if",
+      name: "ifブロック",
+      type: "conditionalGroup",
+      visible: true,
+      enabled: true,
+      condition: { kind: "expression", expression: "line-ab.length > 0" },
+      expanded: true,
+      elseExpanded: false
+    };
+    useCadStore.setState({
+      elements: [...sampleElements, conditionalGroup],
+      selectedElementId: "if",
+      selectedElementIds: ["if"],
+      selectedParameterKey: "condition"
+    });
+    renderRightPanel();
+
+    expect(screen.queryByText("増減単位")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText("参照を挿入"));
+
+    const operatorGroup = screen.getByRole("group", { name: "挿入する条件演算子" });
+    for (const operator of [">", ">=", "<", "<=", "==", "!=", "&&", "||"]) {
+      expect(within(operatorGroup).getByRole("button", { name: operator })).toBeInTheDocument();
+    }
+
+    const input = screen.getByLabelText("ifブロック の条件") as HTMLInputElement;
+    const operatorIndex = input.value.indexOf(">");
+    input.focus();
+    input.setSelectionRange(operatorIndex - 1, operatorIndex + 2);
+    fireEvent.select(input);
+    fireEvent.click(within(operatorGroup).getByRole("button", { name: "!=" }));
+
+    input.focus();
+    input.setSelectionRange(input.value.length, input.value.length);
+    fireEvent.select(input);
+    fireEvent.click(within(operatorGroup).getByRole("button", { name: "&&" }));
+
+    expect(useCadStore.getState().elements.at(-1)).toMatchObject({
+      condition: { kind: "expression", expression: "line-ab.length != 0 &&" }
+    });
+  });
+
+  it("keeps line reference insertion working from the conditional expression tray", () => {
+    const conditionalGroup: CadElement = {
+      id: "if",
+      name: "ifブロック",
+      type: "conditionalGroup",
+      visible: true,
+      enabled: true,
+      condition: 0,
+      expanded: true,
+      elseExpanded: false
+    };
+    useCadStore.setState({
+      elements: [...sampleElements, conditionalGroup],
+      selectedElementId: "if",
+      selectedElementIds: ["if"],
+      selectedParameterKey: "condition"
+    });
+    renderRightPanel();
+
+    fireEvent.click(screen.getByText("参照を挿入"));
+    fireEvent.click(screen.getByRole("button", { name: "線・曲線を選択" }));
+    act(() => {
+      dispatchCommand("applyPickedNumericReference", { numericReferenceExpression: "line-ab.length" });
+    });
+
+    expect(useCadStore.getState().elements.at(-1)).toMatchObject({
+      condition: { kind: "expression", expression: "line-ab.length" }
+    });
+    expect(screen.getByLabelText("ifブロック の条件")).toHaveValue("直線AB.長さ");
+  });
+
   it("increments a numeric parameter after an 8px middle-button drag to the right", () => {
     renderRightPanel();
 
