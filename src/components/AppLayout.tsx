@@ -17,6 +17,7 @@ import { CommandPalette } from "./CommandPalette";
 import { DrawingCanvas } from "./DrawingCanvas";
 import { LeftPanel, RightPanel } from "./LeftPanel";
 import { PaletteSettingsDialog } from "./PalettePanel";
+import { SelectionColorPickerDialog } from "./SelectionColorPickerDialog";
 import { ShortcutHelpOverlay } from "./ShortcutHelpOverlay";
 import { ShortcutSettingsDialog } from "./ShortcutSettingsDialog";
 import { registerTauriMenuCommandListener } from "../commands/tauriMenuEvents";
@@ -181,6 +182,7 @@ export const AppLayout = () => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (useCadUiStore.getState().showShortcutSettings) return;
       if (useCadUiStore.getState().showPaletteSettings) return;
+      if (useCadUiStore.getState().showSelectionColorPicker) return;
       const keyboardCommand = keyboardCommandForEvent(event, {
         settings: useCadUiStore.getState().shortcutSettings,
         isParameterEditMode: useCadUiStore.getState().isParameterEditMode,
@@ -284,6 +286,7 @@ export const AppLayout = () => {
         isPickMode={isPickMode}
       />
       <PaletteSettingsDialog />
+      <SelectionColorPickerDialog />
       <ShortcutSettingsDialog />
     </main>
   );

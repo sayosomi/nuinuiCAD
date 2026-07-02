@@ -3,6 +3,7 @@ import { createRef } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LeftPanel, RightPanel } from "./LeftPanel";
 import { PaletteSettingsDialog } from "./PalettePanel";
+import { SelectionColorPickerDialog } from "./SelectionColorPickerDialog";
 import { ShortcutHelpOverlay } from "./ShortcutHelpOverlay";
 import { evaluateElements } from "../geometry/evaluate";
 import type { EvaluationEngineState } from "../geometry/useEvaluationEngine";
@@ -59,6 +60,7 @@ const resetStore = () => {
     showElementListColorAccents: false,
     showShortcutHelp: false,
     showPaletteSettings: false,
+    showSelectionColorPicker: false,
     showCommandPalette: false,
     canvasViewport: DEFAULT_CANVAS_VIEWPORT,
     past: [],
@@ -959,6 +961,40 @@ describe("Palette and element color editing", () => {
 
     expect(useCadStore.getState().palette.colors.some((color) => color.id === "cut-red")).toBe(false);
     expect(useCadStore.getState().elements[0].colorId).toBeUndefined();
+  });
+
+  it("applies a display color to the current selection from the batch picker", () => {
+    useCadStore.setState({
+      selectedElementId: sampleElements[1].id,
+      selectedElementIds: [sampleElements[0].id, sampleElements[1].id],
+      selectionAnchorElementId: sampleElements[0].id
+    });
+    render(<SelectionColorPickerDialog />);
+
+    act(() => dispatchCommand("openSelectionColorPicker"));
+
+    const dialog = screen.getByRole("dialog", { name: "選択範囲の表示色" });
+    expect(within(dialog).getByText("2件に適用")).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("option", { name: /裁断線/ }));
+
+    expect(useCadStore.getState().elements[0].colorId).toBe("cut-red");
+    expect(useCadStore.getState().elements[1].colorId).toBe("cut-red");
+    expect(screen.queryByRole("dialog", { name: "選択範囲の表示色" })).not.toBeInTheDocument();
+  });
+
+  it("closes the batch display color picker with Escape without changing colors", () => {
+    useCadStore.setState({
+      elements: [{ ...sampleElements[0], colorId: "guide-blue" }, ...sampleElements.slice(1)],
+      selectedElementId: sampleElements[0].id,
+      selectedElementIds: [sampleElements[0].id],
+      showSelectionColorPicker: true
+    });
+    render(<SelectionColorPickerDialog />);
+
+    fireEvent.keyDown(screen.getByRole("dialog", { name: "選択範囲の表示色" }), { key: "Escape" });
+
+    expect(useCadStore.getState().elements[0].colorId).toBe("guide-blue");
+    expect(screen.queryByRole("dialog", { name: "選択範囲の表示色" })).not.toBeInTheDocument();
   });
 });
 

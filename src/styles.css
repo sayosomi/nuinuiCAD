@@ -841,7 +841,8 @@ select {
   gap: 10px;
 }
 
-.palette-settings-backdrop {
+.palette-settings-backdrop,
+.selection-color-picker-backdrop {
   position: fixed;
   inset: 0;
   z-index: 30;
@@ -852,7 +853,8 @@ select {
   padding: 56px 24px 24px;
 }
 
-.palette-settings {
+.palette-settings,
+.selection-color-picker {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
   width: min(620px, 100%);
@@ -865,10 +867,21 @@ select {
   box-shadow: 0 18px 48px rgb(37 38 34 / 24%);
 }
 
-.palette-settings-body {
+.selection-color-picker {
+  grid-template-rows: auto minmax(0, 1fr);
+  width: min(420px, 100%);
+}
+
+.palette-settings-body,
+.selection-color-picker-list {
   min-height: 0;
   overflow: auto;
   padding: 14px 16px;
+}
+
+.selection-color-picker-list {
+  display: grid;
+  gap: 6px;
 }
 
 .palette-settings-footer {

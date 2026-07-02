@@ -9,6 +9,7 @@ const resetStore = () => {
     palette: defaultDocumentPalette(),
     showShortcutSettings: true,
     showPaletteSettings: false,
+    showSelectionColorPicker: false,
     shortcutSettings: { version: 1, overrides: [] },
     shortcutSettingsLoading: false,
     shortcutSettingsError: null,

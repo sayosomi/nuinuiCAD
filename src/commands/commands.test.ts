@@ -33,6 +33,7 @@ describe("commands", () => {
       showElementListColorAccents: false,
       showShortcutHelp: true,
       showPaletteSettings: false,
+      showSelectionColorPicker: false,
       showCommandPalette: false,
       canvasViewport: DEFAULT_CANVAS_VIEWPORT,
       past: [],
@@ -65,6 +66,91 @@ describe("commands", () => {
 
     dispatchCommand("toggleElementListColorAccents");
     expect(useCadStore.getState().showElementListColorAccents).toBe(false);
+  });
+
+  it("applies a display color to the color-capable current selection only", () => {
+    const variable: CadElement = {
+      id: "variable",
+      name: "変数",
+      type: "variable",
+      visible: true,
+      enabled: true,
+      scope: "global",
+      valueMode: "expression",
+      expression: 0,
+      point1: { mode: "reference", pointId: "point-a" },
+      point2: { mode: "reference", pointId: "point-b" },
+      point: { mode: "reference", pointId: "point-a" },
+      lineId: "line-ab"
+    };
+    useCadStore.setState({
+      elements: [...sampleElements, variable],
+      selectedElementId: sampleElements[1].id,
+      selectedElementIds: [sampleElements[0].id, sampleElements[1].id, variable.id],
+      selectionAnchorElementId: sampleElements[0].id
+    });
+
+    dispatchCommand("applyDisplayColorToSelection", { colorId: "cut-red" });
+
+    const state = useCadStore.getState();
+    expect(state.elements.find((element) => element.id === sampleElements[0].id)?.colorId).toBe(
+      "cut-red"
+    );
+    expect(state.elements.find((element) => element.id === sampleElements[1].id)?.colorId).toBe(
+      "cut-red"
+    );
+    expect(state.elements.find((element) => element.id === sampleElements[2].id)?.colorId).toBeUndefined();
+    expect(state.elements.find((element) => element.id === variable.id)?.colorId).toBeUndefined();
+    expect(state.selectedElementIds).toEqual([sampleElements[0].id, sampleElements[1].id, variable.id]);
+    expect(state.past).toHaveLength(1);
+  });
+
+  it("resets display colors to auto across the current selection", () => {
+    useCadStore.setState({
+      elements: [
+        { ...sampleElements[0], colorId: "cut-red" },
+        { ...sampleElements[1], colorId: "guide-blue" },
+        ...sampleElements.slice(2)
+      ],
+      selectedElementId: sampleElements[1].id,
+      selectedElementIds: [sampleElements[0].id, sampleElements[1].id],
+      selectionAnchorElementId: sampleElements[0].id
+    });
+
+    dispatchCommand("applyDisplayColorToSelection");
+
+    const state = useCadStore.getState();
+    expect(state.elements[0].colorId).toBeUndefined();
+    expect(state.elements[1].colorId).toBeUndefined();
+    expect(state.selectedElementId).toBe(sampleElements[1].id);
+    expect(state.selectedElementIds).toEqual([sampleElements[0].id, sampleElements[1].id]);
+  });
+
+  it("clears deleted palette colors from multi-selected elements without collapsing selection", () => {
+    useCadStore.setState({
+      elements: [
+        { ...sampleElements[0], colorId: "cut-red" },
+        { ...sampleElements[1], colorId: "cut-red" },
+        { ...sampleElements[2], colorId: "guide-blue" },
+        ...sampleElements.slice(3)
+      ],
+      selectedElementId: sampleElements[1].id,
+      selectedElementIds: [sampleElements[0].id, sampleElements[1].id, sampleElements[2].id],
+      selectionAnchorElementId: sampleElements[0].id
+    });
+
+    useCadStore.getState().deletePaletteColor("cut-red");
+
+    const state = useCadStore.getState();
+    expect(state.elements[0].colorId).toBeUndefined();
+    expect(state.elements[1].colorId).toBeUndefined();
+    expect(state.elements[2].colorId).toBe("guide-blue");
+    expect(state.selectedElementId).toBe(sampleElements[1].id);
+    expect(state.selectedElementIds).toEqual([
+      sampleElements[0].id,
+      sampleElements[1].id,
+      sampleElements[2].id
+    ]);
   });
 
   it("selects ranges and toggles individual elements", () => {
@@ -1420,6 +1506,12 @@ describe("commands", () => {
     expect(filterCommandPaletteItems("開く").map((item) => item.commandId)).toContain("openDocument");
     expect(filterCommandPaletteItems("パレット").map((item) => item.commandId)).toContain(
       "openPaletteSettings"
+    );
+    expect(filterCommandPaletteItems("一括").map((item) => item.commandId)).toContain(
+      "openSelectionColorPicker"
+    );
+    expect(filterCommandPaletteItems("色").map((item) => item.commandId)).toContain(
+      "openSelectionColorPicker"
     );
   });
 

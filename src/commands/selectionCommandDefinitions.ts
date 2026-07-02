@@ -6,6 +6,7 @@ import {
 } from "../model/evaluationDivider";
 import { subtreeIdsForElement } from "../model/groups";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
+import { useCadUiStore } from "../state/cadUiStore";
 import { moveBezierHandleByDelta, movePointElementByDelta } from "./geometryEditCommands";
 import { getSelectedElementIds } from "./commandRuntime";
 import {
@@ -29,6 +30,7 @@ import {
   moveEvaluationDividerToEnd,
   moveEvaluationDividerToSelectedElement,
   outdentSelectedElements,
+  applyDisplayColorToSelection,
   selectElement,
   selectElementByOffset,
   selectParentGroup,
@@ -119,6 +121,30 @@ export const selectionCommandDefinitions = {
       if (context?.evaluationLimitIndex === undefined) return;
       setEvaluationLimitIndex(context.evaluationLimitIndex);
     }
+  },
+  openSelectionColorPicker: {
+    id: "openSelectionColorPicker",
+    label: "選択範囲の表示色を一括変更",
+    palette: {
+      order: 46,
+      keywords: ["color", "selection", "batch", "表示色", "色", "選択範囲", "一括"]
+    },
+    run: () => {
+      useCadUiStore.setState({
+        showSelectionColorPicker: true,
+        showCommandPalette: false
+      });
+    }
+  },
+  closeSelectionColorPicker: {
+    id: "closeSelectionColorPicker",
+    label: "選択範囲の表示色選択を閉じる",
+    run: () => useCadUiStore.getState().setShowSelectionColorPicker(false)
+  },
+  applyDisplayColorToSelection: {
+    id: "applyDisplayColorToSelection",
+    label: "選択範囲へ表示色を適用",
+    run: (context) => applyDisplayColorToSelection(context?.colorId)
   },
   moveEvaluationDividerUp: {
     id: "moveEvaluationDividerUp",

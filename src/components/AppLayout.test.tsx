@@ -31,6 +31,7 @@ const resetStore = () => {
     showShortcutHelp: false,
     showShortcutSettings: false,
     showPaletteSettings: false,
+    showSelectionColorPicker: false,
     shortcutSettings: { version: 1, overrides: [] },
     shortcutSettingsLoading: false,
     shortcutSettingsError: null,

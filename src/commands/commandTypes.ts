@@ -113,6 +113,9 @@ export type CommandId =
   | "closeShortcutSettings"
   | "openPaletteSettings"
   | "closePaletteSettings"
+  | "openSelectionColorPicker"
+  | "closeSelectionColorPicker"
+  | "applyDisplayColorToSelection"
   | "focusCanvas"
   | "focusElementList"
   | "focusElementSearch"
@@ -182,6 +185,7 @@ export type CommandContext = {
   pickedPointId?: ElementId;
   pickedPointAnchor?: PointAnchor;
   pickedLineId?: ElementId;
+  colorId?: string;
 };
 
 export type Command = {

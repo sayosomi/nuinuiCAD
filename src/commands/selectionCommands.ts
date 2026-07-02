@@ -18,6 +18,8 @@ import {
   subtreeIdsForElement,
   visibleOutlineElements
 } from "../model/groups";
+import { elementSupportsDisplayColor } from "../palette/colorApplicability";
+import { isValidPaletteColorId } from "../palette/palette";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
 import type { CadElement, ElementId } from "../types/geometry";
@@ -52,6 +54,27 @@ export const toggleElementBooleanProperty = (
         ? { ...element, [property]: !element[property] }
         : element
     )
+  });
+};
+
+const elementWithoutColorId = (element: CadElement): CadElement => {
+  const rest = { ...element };
+  delete rest.colorId;
+  return rest as CadElement;
+};
+
+export const applyDisplayColorToSelection = (colorId: string | undefined) => {
+  const { elements, palette } = useCadDocumentStore.getState();
+  if (colorId !== undefined && !isValidPaletteColorId(palette, colorId)) return;
+
+  const selectedIds = new Set(getSelectedElementIds());
+  if (selectedIds.size === 0) return;
+
+  useCadDocumentStore.getState().commitDocumentChange({
+    elements: elements.map((element) => {
+      if (!selectedIds.has(element.id) || !elementSupportsDisplayColor(element)) return element;
+      return colorId === undefined ? elementWithoutColorId(element) : { ...element, colorId };
+    })
   });
 };
 
