@@ -363,6 +363,10 @@ select {
   font-weight: 600;
 }
 
+.left-panel.is-print-layout .element-row.is-group {
+  grid-template-columns: 18px max-content 58px minmax(0, 1fr) minmax(0, auto) 24px;
+}
+
 .element-row.is-group.selected {
   background: #e3f2ee;
 }
@@ -749,6 +753,10 @@ select {
   color: #7f8378;
 }
 
+.element-status-icons.has-print-toggle {
+  grid-template-columns: 18px 18px 18px;
+}
+
 .element-status-button {
   display: inline-grid;
   width: 18px;
@@ -779,6 +787,25 @@ select {
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-width: 1.8;
+}
+
+.element-print-status-button svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
+.element-print-status-button.is-print-enabled {
+  color: #0f766e;
+}
+
+.element-print-status-button.is-print-disabled {
+  color: #9a9f94;
+  opacity: 0.45;
 }
 
 .element-status-icon-visible,
@@ -2572,7 +2599,7 @@ select {
 
 .print-page-tile line {
   stroke: #a0a79b;
-  stroke-width: 0.35;
+  stroke-width: 0.45;
   stroke-dasharray: 4 3;
 }
 
@@ -2583,7 +2610,7 @@ select {
   stroke: #252622;
   stroke-linecap: round;
   stroke-linejoin: round;
-  stroke-width: 0.7;
+  stroke-width: 0.8;
 }
 
 .print-placement-anchor circle {

@@ -1058,6 +1058,38 @@ describe("commands", () => {
     expect(useCadStore.getState().past).toHaveLength(1);
   });
 
+  it("toggles print enabled for a specified group only", () => {
+    const group: CadElement = {
+      id: "group-print",
+      name: "印刷グループ",
+      type: "group",
+      visible: true,
+      enabled: true,
+      expanded: true,
+      printEnabled: false
+    };
+    useCadStore.setState({
+      elements: [sampleElements[0], group],
+      selectedElementId: sampleElements[0].id,
+      selectedElementIds: [sampleElements[0].id],
+      selectionAnchorElementId: sampleElements[0].id
+    });
+
+    dispatchCommand("toggleGroupPrintEnabled", { elementId: group.id });
+
+    expect(useCadStore.getState().elements[1]).toMatchObject({ printEnabled: true });
+    expect(useCadStore.getState().selectedElementId).toBe(sampleElements[0].id);
+    expect(useCadStore.getState().past).toHaveLength(1);
+  });
+
+  it("does not add history when toggling print for a missing or non-group element", () => {
+    dispatchCommand("toggleGroupPrintEnabled", { elementId: "missing-element" });
+    dispatchCommand("toggleGroupPrintEnabled", { elementId: sampleElements[0].id });
+
+    expect(useCadStore.getState().elements).toBe(sampleElements);
+    expect(useCadStore.getState().past).toHaveLength(0);
+  });
+
   it("does not add history when toggling state for a missing element", () => {
     dispatchCommand("toggleElementVisibility", { elementId: "missing-element" });
     dispatchCommand("toggleElementEnabled", { elementId: "missing-element" });

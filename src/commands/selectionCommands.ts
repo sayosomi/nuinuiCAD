@@ -57,6 +57,20 @@ export const toggleElementBooleanProperty = (
   });
 };
 
+export const toggleGroupPrintEnabled = (elementId: ElementId | undefined) => {
+  if (!elementId) return;
+  const { elements } = useCadDocumentStore.getState();
+  if (!elements.some((element) => element.id === elementId && element.type === "group")) return;
+
+  useCadDocumentStore.getState().commitDocumentChange({
+    elements: elements.map((element) =>
+      element.id === elementId && element.type === "group"
+        ? { ...element, printEnabled: element.printEnabled !== true }
+        : element
+    )
+  });
+};
+
 const elementWithoutColorId = (element: CadElement): CadElement => {
   const rest = { ...element };
   delete rest.colorId;

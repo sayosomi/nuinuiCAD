@@ -72,6 +72,7 @@ export type CommandId =
   | "cancelLinePick"
   | "toggleElementVisibility"
   | "toggleElementEnabled"
+  | "toggleGroupPrintEnabled"
   | "toggleSelectedElementVisibility"
   | "toggleSelectedElementEnabled"
   | "duplicateSelectedElement"

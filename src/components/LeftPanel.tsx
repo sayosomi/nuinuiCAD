@@ -214,6 +214,7 @@ export const LeftPanel = ({
   const elementSearchCursorId = useCadUiStore((state) => state.elementSearchCursorId);
   const elementSearchPickableOnly = useCadUiStore((state) => state.elementSearchPickableOnly);
   const showElementListColorAccents = useCadUiStore((state) => state.showElementListColorAccents);
+  const showPrintLayout = useCadUiStore((state) => state.showPrintLayout);
   const activePointPickTarget = useCadUiStore((state) => state.activePointPickTarget);
   const activeNumericReferencePickTarget = useCadUiStore((state) => state.activeNumericReferencePickTarget);
   const activeLinePickTarget = useCadUiStore((state) => state.activeLinePickTarget);
@@ -590,7 +591,7 @@ export const LeftPanel = ({
   }, [isPointerDragging, elements, elementListFocusRef]);
 
   return (
-    <aside className="left-panel">
+    <aside className={`left-panel ${showPrintLayout ? "is-print-layout" : ""}`}>
       <header className="app-title">
         <div className="app-title-row">
           <h1>nuinuiCAD</h1>
@@ -778,6 +779,7 @@ export const LeftPanel = ({
                 dropAfter={dropMarkerClass(element.id, rowData.index, "after") !== ""}
                 elementColor={elementColors.get(element.id) ?? "#31322f"}
                 showColorAccentForAllRows={showElementListColorAccents}
+                showPrintControls={showPrintLayout}
                 onSelectElement={selectElement}
                 onHandlePointerDown={startElementPointerDrag}
               />

@@ -56,6 +56,8 @@ pub fn export_print_pdf(input: ExportPrintPdfInput) -> Result<(), String> {
 }
 
 const PT_PER_MM: f64 = 72.0 / 25.4;
+const PRINT_PATH_LINE_WIDTH_MM: f64 = 0.18;
+const PRINT_GUIDE_LINE_WIDTH_MM: f64 = 0.15;
 
 fn pt(value_mm: f64) -> f64 {
     value_mm * PT_PER_MM
@@ -74,6 +76,10 @@ fn pdf_number(value: f64) -> String {
             .trim_end_matches('.')
             .to_owned()
     }
+}
+
+fn pdf_mm(value_mm: f64) -> String {
+    pdf_number(pt(value_mm))
 }
 
 fn point_on_page(point: PrintPoint, page_origin: PrintPoint) -> (String, String) {
@@ -134,7 +140,8 @@ fn push_guides(content: &mut String, paper: &PaperInput, overlap_mm: f64) {
     let right_s = pdf_number(width - overlap);
     let top_s = pdf_number(height - overlap);
 
-    content.push_str("q 0.65 G 0.18 w [4 3] 0 d\n");
+    let guide_line_width = pdf_mm(PRINT_GUIDE_LINE_WIDTH_MM);
+    content.push_str(&format!("q 0.65 G {guide_line_width} w [4 3] 0 d\n"));
     content.push_str(&format!("{overlap_s} 0 m {overlap_s} {height_s} l S\n"));
     content.push_str(&format!("{right_s} 0 m {right_s} {height_s} l S\n"));
     content.push_str(&format!("0 {overlap_s} m {width_s} {overlap_s} l S\n"));
@@ -157,7 +164,8 @@ fn page_content(input: &ExportPrintPdfInput, column: usize, row: usize) -> Strin
 
     content.push_str("q\n");
     content.push_str(&format!("0 0 {width} {height} re W n\n"));
-    content.push_str("0 G 0.25 w 1 J 1 j\n");
+    let path_line_width = pdf_mm(PRINT_PATH_LINE_WIDTH_MM);
+    content.push_str(&format!("0 G {path_line_width} w 1 J 1 j\n"));
     for path in &input.paths {
         push_path(&mut content, path, page_origin);
     }
@@ -273,6 +281,8 @@ mod tests {
         let text = String::from_utf8_lossy(&pdf);
         assert!(text.starts_with("%PDF-1.4"));
         assert!(text.contains("/Count 2"));
+        assert!(text.contains("0 G 0.51 w 1 J 1 j"));
+        assert!(text.contains("q 0.65 G 0.425 w [4 3] 0 d"));
         assert!(text.contains("28.346 0 m 28.346 841.89 l S"));
     }
 }

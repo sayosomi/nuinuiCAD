@@ -1,5 +1,5 @@
 import type { CSSProperties, MouseEvent, PointerEvent, Ref } from "react";
-import { Folder, FolderOpen } from "lucide-react";
+import { Folder, FolderOpen, Printer } from "lucide-react";
 import { dispatchCommand } from "../commands/commands";
 import { numericValueExpression } from "../geometry/numericExpressions";
 import type { PickCandidate } from "../model/pickCandidates";
@@ -79,6 +79,7 @@ type ElementListRowProps = {
   dropAfter: boolean;
   elementColor: string;
   showColorAccentForAllRows: boolean;
+  showPrintControls: boolean;
   onSelectElement: (elementId: ElementId, event: MouseEvent<HTMLElement>) => void;
   onHandlePointerDown: (event: PointerEvent<HTMLButtonElement>, element: CadElement) => void;
 };
@@ -117,6 +118,7 @@ export const ElementListRow = ({
   dropAfter,
   elementColor,
   showColorAccentForAllRows,
+  showPrintControls,
   onSelectElement,
   onHandlePointerDown
 }: ElementListRowProps) => {
@@ -214,9 +216,10 @@ export const ElementListRow = ({
     )}
     <span className="element-index">{index + 1}</span>
     <span
-      className="element-status-icons"
+      className={`element-status-icons ${showPrintControls && element.type === "group" ? "has-print-toggle" : ""}`}
       data-visible-state={element.visible ? "visible" : "hidden"}
       data-evaluation-state={element.enabled ? "enabled" : "disabled"}
+      data-print-state={element.type === "group" && element.printEnabled === true ? "enabled" : "disabled"}
     >
       {element.type !== "variable" ? (
         <button
@@ -242,6 +245,21 @@ export const ElementListRow = ({
       >
         <ElementStatusIcon kind={element.enabled ? "enabled" : "disabled"} />
       </button>
+      {showPrintControls && element.type === "group" ? (
+        <button
+          type="button"
+          className={`element-status-button element-print-status-button ${
+            element.printEnabled === true ? "is-print-enabled" : "is-print-disabled"
+          }`}
+          aria-label={`${element.name}を${element.printEnabled === true ? "印刷しない" : "印刷する"}`}
+          onClick={(event) => {
+            event.stopPropagation();
+            dispatchCommand("toggleGroupPrintEnabled", { elementId: element.id });
+          }}
+        >
+          <Printer aria-hidden="true" />
+        </button>
+      ) : null}
     </span>
     <span className="element-name">
       {hasError || hasWarning ? "⚠ " : ""}

@@ -58,6 +58,7 @@ const resetStore = () => {
     showCanvasElementNames: true,
     showCanvasPoints: true,
     showElementListColorAccents: false,
+    showPrintLayout: false,
     showShortcutHelp: false,
     showPaletteSettings: false,
     showSelectionColorPicker: false,
@@ -1154,6 +1155,91 @@ describe("LeftPanel element list dragging", () => {
     expect(selectedRow).toHaveClass("has-color-accent", "has-selected-color-tint");
     expect(nonSelectedRow).toHaveClass("has-color-accent");
     expect(nonSelectedRow).not.toHaveClass("has-selected-color-tint");
+  });
+
+  it("shows group print toggles in the element list only while editing print layout", () => {
+    const group: CadElement = {
+      id: "group-print",
+      name: "前身頃",
+      type: "group",
+      visible: true,
+      enabled: true,
+      expanded: true,
+      printEnabled: false
+    };
+    useCadStore.setState({
+      elements: [group, sampleElements[0]],
+      selectedElementId: sampleElements[0].id,
+      selectedElementIds: [sampleElements[0].id],
+      selectionAnchorElementId: sampleElements[0].id,
+      evaluationLimitIndex: 2,
+      showPrintLayout: true
+    });
+
+    renderLeftPanel();
+
+    const groupRow = screen.getByText("前身頃").closest("[data-element-list-row='true']");
+    const pointRow = screen.getByText("点A").closest("[data-element-list-row='true']");
+    expect(groupRow).not.toBeNull();
+    expect(pointRow).not.toBeNull();
+    expect(within(groupRow as HTMLElement).getByRole("button", { name: "前身頃を印刷する" }))
+      .toBeInTheDocument();
+    expect(within(pointRow as HTMLElement).queryByRole("button", { name: /印刷/ }))
+      .not.toBeInTheDocument();
+  });
+
+  it("hides group print toggles outside print layout editing", () => {
+    const group: CadElement = {
+      id: "group-print",
+      name: "前身頃",
+      type: "group",
+      visible: true,
+      enabled: true,
+      expanded: true,
+      printEnabled: false
+    };
+    useCadStore.setState({
+      elements: [group],
+      selectedElementId: group.id,
+      selectedElementIds: [group.id],
+      selectionAnchorElementId: group.id,
+      evaluationLimitIndex: 1,
+      showPrintLayout: false
+    });
+
+    renderLeftPanel();
+
+    const groupRow = screen.getByText("前身頃").closest("[data-element-list-row='true']");
+    expect(groupRow).not.toBeNull();
+    expect(within(groupRow as HTMLElement).queryByRole("button", { name: /印刷/ }))
+      .not.toBeInTheDocument();
+  });
+
+  it("toggles group print enabled from the print layout element list without changing selection", () => {
+    const group: CadElement = {
+      id: "group-print",
+      name: "前身頃",
+      type: "group",
+      visible: true,
+      enabled: true,
+      expanded: true,
+      printEnabled: false
+    };
+    useCadStore.setState({
+      elements: [group, sampleElements[0]],
+      selectedElementId: sampleElements[0].id,
+      selectedElementIds: [sampleElements[0].id],
+      selectionAnchorElementId: sampleElements[0].id,
+      evaluationLimitIndex: 2,
+      showPrintLayout: true
+    });
+    renderLeftPanel();
+
+    fireEvent.click(screen.getByRole("button", { name: "前身頃を印刷する" }));
+
+    expect(useCadStore.getState().elements[0]).toMatchObject({ printEnabled: true });
+    expect(useCadStore.getState().selectedElementId).toBe(sampleElements[0].id);
+    expect(screen.getByRole("button", { name: "前身頃を印刷しない" })).toBeInTheDocument();
   });
 
   it("keeps error row styling ahead of selected display color tint", () => {

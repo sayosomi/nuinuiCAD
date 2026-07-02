@@ -37,6 +37,7 @@ import {
   selectParentGroup,
   setEvaluationLimitIndex,
   toggleElementBooleanProperty,
+  toggleGroupPrintEnabled,
   toggleGroupExpanded,
   toggleSelectedElementsBooleanProperty,
   ungroupSelectedGroup
@@ -292,6 +293,11 @@ export const selectionCommandDefinitions = {
     id: "toggleElementEnabled",
     label: "要素の評価する/しないを切替",
     run: (context) => toggleElementBooleanProperty(context?.elementId, "enabled")
+  },
+  toggleGroupPrintEnabled: {
+    id: "toggleGroupPrintEnabled",
+    label: "グループの印刷する/しないを切替",
+    run: (context) => toggleGroupPrintEnabled(context?.elementId)
   },
   toggleSelectedElementVisibility: {
     id: "toggleSelectedElementVisibility",
