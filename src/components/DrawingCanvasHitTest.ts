@@ -136,6 +136,7 @@ export const hitTestCanvasGeometry = ({
   arcs,
   curves,
   offsetLines,
+  images,
   points
 }: {
   screen: ScreenPoint;
@@ -143,6 +144,7 @@ export const hitTestCanvasGeometry = ({
   arcs?: Array<{ arc: ComputedArcLine; points: ScreenPoint[] }>;
   curves?: Array<{ curve: ComputedBezierCurve; points: ScreenPoint[] }>;
   offsetLines?: Array<{ line: ComputedOffsetLine; points: ScreenPoint[] }>;
+  images?: Array<{ image: { elementId: ElementId }; corners: ScreenPoint[] }>;
   points: Array<{ point: ComputedPoint; screen: ScreenPoint }>;
 }): ElementId | null => {
   for (let index = points.length - 1; index >= 0; index -= 1) {
@@ -180,7 +182,30 @@ export const hitTestCanvasGeometry = ({
     }
   }
 
+  for (let index = (images?.length ?? 0) - 1; index >= 0; index -= 1) {
+    const item = images![index];
+    if (pointInPolygon(screen, item.corners)) {
+      return item.image.elementId;
+    }
+  }
+
   return null;
+};
+
+const pointInPolygon = (point: ScreenPoint, polygon: ScreenPoint[]) => {
+  let inside = false;
+  for (let index = 0, previous = polygon.length - 1; index < polygon.length; previous = index, index += 1) {
+    const currentPoint = polygon[index];
+    const previousPoint = polygon[previous];
+    const intersects =
+      currentPoint.y > point.y !== previousPoint.y > point.y &&
+      point.x <
+        ((previousPoint.x - currentPoint.x) * (point.y - currentPoint.y)) /
+          (previousPoint.y - currentPoint.y) +
+          currentPoint.x;
+    if (intersects) inside = !inside;
+  }
+  return inside;
 };
 
 export type LineMeasurementCandidate = {

@@ -216,6 +216,13 @@ export const getDirectParentIds = (element: CadElement): ElementId[] => {
           ...pointAnchorParentIds(element.axisPoint2).map((elementId) => ({ elementId })),
           ...element.baseLineIds.map((elementId) => ({ elementId }))
         ].map((reference) => reference.elementId);
+      case "image":
+        return [
+          ...numericVariableReferences(element),
+          ...pointAnchorParentIds(element.originPoint).map((elementId) => ({ elementId })),
+          ...extractNumericExpressionReferences(element.scale),
+          ...extractNumericExpressionReferences(element.angleDeg)
+        ].map((reference) => reference.elementId);
     }
   };
 
@@ -255,6 +262,7 @@ export const getDirectParentIds = (element: CadElement): ElementId[] => {
     case "symmetricCopyLine":
     case "move":
     case "symmetricMove":
+    case "image":
       return numericExpressionParentIds();
   }
 };

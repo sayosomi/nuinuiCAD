@@ -4,6 +4,7 @@ import type {
   CadElement,
   ComputedArcLine,
   ComputedBezierCurve,
+  ComputedImage,
   ComputedLine,
   ComputedOffsetLine,
   ComputedPoint,
@@ -11,6 +12,7 @@ import type {
   EvaluationResult
 } from "../types/geometry";
 import { effectiveVisibleElementIds } from "../model/groups";
+import { imageWorldCorners } from "../geometry/imageGeometry";
 import { isValidPickedPointAnchorForTarget } from "../model/forGroupGeneratedReferences";
 import {
   selectablePointsForGeometry
@@ -23,6 +25,7 @@ import {
   sampleOffsetLineScreenPoints
 } from "./DrawingCanvasHitTest";
 import { type ViewportSize, worldToScreen } from "./canvasViewport";
+import { imageSourceUrl } from "./imageSourceUrls";
 import type { BezierHandleOverlay, CanvasOverlayData } from "./DrawingCanvasTypes";
 
 const isPoint = (geometry: unknown): geometry is ComputedPoint =>
@@ -46,13 +49,17 @@ const isOffsetLine = (geometry: unknown): geometry is ComputedOffsetLine =>
   "kind" in geometry &&
   geometry.kind === "offsetLine";
 
+const isImage = (geometry: unknown): geometry is ComputedImage =>
+  typeof geometry === "object" && geometry !== null && "kind" in geometry && geometry.kind === "image";
+
 export const useCanvasOverlayData = ({
   evaluation,
   elements,
   selectedElementId,
   activePointPickTarget,
   viewportSize,
-  canvasViewport
+  canvasViewport,
+  documentPath
 }: {
   evaluation: EvaluationResult;
   elements: CadElement[];
@@ -60,6 +67,7 @@ export const useCanvasOverlayData = ({
   activePointPickTarget: ActivePointPickTarget | null;
   viewportSize: ViewportSize;
   canvasViewport: CanvasViewport;
+  documentPath: string | null;
 }): CanvasOverlayData => {
   const visibleElementIds = useMemo(
     () => evaluation.effectiveVisibleElementIds ?? effectiveVisibleElementIds(elements),
@@ -73,6 +81,7 @@ export const useCanvasOverlayData = ({
   const arcs = useMemo(() => geometries.filter(isArcLine), [geometries]);
   const curves = useMemo(() => geometries.filter(isBezierCurve), [geometries]);
   const offsetLines = useMemo(() => geometries.filter(isOffsetLine), [geometries]);
+  const images = useMemo(() => geometries.filter(isImage), [geometries]);
   const points = useMemo(() => geometries.filter(isPoint), [geometries]);
   const activePointPickTargetElement = activePointPickTarget
     ? elements.find((element) => element.id === activePointPickTarget.elementId)
@@ -140,6 +149,19 @@ export const useCanvasOverlayData = ({
           )
         })),
     [canvasViewport, offsetLines, viewportSize, visibleElementIds]
+  );
+  const overlayImages = useMemo(
+    () =>
+      images
+        .filter((image) => visibleElementIds.has(image.elementId))
+        .map((image) => ({
+          image,
+          sourceUrl: imageSourceUrl(image.sourcePath, documentPath),
+          corners: imageWorldCorners(image).map((point) =>
+            worldToScreen(point, viewportSize, canvasViewport)
+          )
+        })),
+    [canvasViewport, documentPath, images, viewportSize, visibleElementIds]
   );
   const overlayPointPickCandidates = useMemo(() => {
     const elementsById = new Map(elements.map((element) => [element.id, element]));
@@ -243,6 +265,7 @@ export const useCanvasOverlayData = ({
     arcs,
     curves,
     offsetLines,
+    images,
     points,
     visibleElementIds,
     overlayLines,
@@ -250,6 +273,7 @@ export const useCanvasOverlayData = ({
     overlayArcs,
     overlayCurves,
     overlayOffsetLines,
+    overlayImages,
     overlayPointPickCandidates,
     overlayNumericReferenceCandidates,
     selectedBezierHandles,

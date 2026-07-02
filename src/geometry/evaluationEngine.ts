@@ -72,7 +72,8 @@ const rustSupportedElementTypes = new Set<CadElement["type"]>([
   "copyLine",
   "symmetricCopyLine",
   "move",
-  "symmetricMove"
+  "symmetricMove",
+  "image"
 ]);
 
 const rustSupportedLineReferenceTypes = new Set<CadElement["type"]>([
@@ -171,6 +172,8 @@ const pointAnchorsForElement = (element: CadElement): PointAnchor[] => {
     case "symmetricCopyLine":
     case "symmetricMove":
       return [element.axisPoint1, element.axisPoint2];
+    case "image":
+      return [element.originPoint];
     default:
       return [];
   }

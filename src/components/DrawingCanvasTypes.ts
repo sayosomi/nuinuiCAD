@@ -3,6 +3,7 @@ import type { ParameterKey } from "../parameters/parameterDefinitions";
 import type {
   ComputedArcLine,
   ComputedBezierCurve,
+  ComputedImage,
   ComputedLine,
   ComputedOffsetLine,
   ComputedPoint,
@@ -37,6 +38,12 @@ export type CanvasOverlayOffsetLine = {
 export type CanvasOverlayPoint = {
   point: ComputedPoint;
   screen: ScreenPoint;
+};
+
+export type CanvasOverlayImage = {
+  image: ComputedImage;
+  sourceUrl: string;
+  corners: ScreenPoint[];
 };
 
 export type CanvasNumericReferenceCandidate = {
@@ -87,6 +94,7 @@ export type CanvasOverlayData = {
   arcs: ComputedArcLine[];
   curves: ComputedBezierCurve[];
   offsetLines: ComputedOffsetLine[];
+  images: ComputedImage[];
   points: ComputedPoint[];
   visibleElementIds: Set<ElementId>;
   overlayLines: CanvasOverlayLine[];
@@ -94,6 +102,7 @@ export type CanvasOverlayData = {
   overlayArcs: CanvasOverlayArc[];
   overlayCurves: CanvasOverlayCurve[];
   overlayOffsetLines: CanvasOverlayOffsetLine[];
+  overlayImages: CanvasOverlayImage[];
   overlayPointPickCandidates: PointPickCandidate[];
   overlayNumericReferenceCandidates: CanvasNumericReferenceCandidate[];
   selectedBezierHandles: BezierHandleOverlay[];

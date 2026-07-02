@@ -108,6 +108,27 @@ describe("dependencies", () => {
     expect(getDirectParentIds(arc)).toEqual(["a", "bc", "ab"]);
   });
 
+  it("returns image origin and numeric expression references as direct parent ids", () => {
+    const image: CadElement = {
+      id: "image",
+      name: "画像",
+      type: "image",
+      visible: true,
+      enabled: true,
+      sourcePath: "underlay.png",
+      originPoint: { mode: "reference", pointId: "a" },
+      naturalWidthPx: 100,
+      naturalHeightPx: 50,
+      sourceDpi: 300,
+      targetPixelsPerMm: 10,
+      scale: { kind: "expression", expression: "ab.length / 100" },
+      angleDeg: { kind: "expression", expression: "bc.startAngleDeg" },
+      mirrorX: false
+    };
+
+    expect(getDirectParentIds(image)).toEqual(["a", "ab", "bc"]);
+  });
+
   it("returns conditional group comparison expression references as direct parent ids", () => {
     const group: CadElement = {
       id: "if",

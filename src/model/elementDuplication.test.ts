@@ -98,6 +98,48 @@ describe("duplicateElements", () => {
     });
   });
 
+  it("remaps image origin and numeric expressions inside the duplicated selection", () => {
+    const ids = ["point-a-copy", "image-copy"];
+    const elements: CadElement[] = [
+      {
+        id: "point-a",
+        name: "点A",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 10,
+        y: 20
+      },
+      {
+        id: "image",
+        name: "下絵",
+        type: "image",
+        visible: true,
+        enabled: true,
+        sourcePath: "underlay.png",
+        originPoint: { mode: "reference", pointId: "point-a" },
+        naturalWidthPx: 300,
+        naturalHeightPx: 200,
+        sourceDpi: 300,
+        targetPixelsPerMm: 10,
+        scale: { kind: "expression", expression: "distance(point-a, point-a)" },
+        angleDeg: 0,
+        mirrorX: false
+      }
+    ];
+
+    const change = duplicateElements(elements, ["point-a", "image"], {
+      createId: () => ids.shift() ?? "unexpected"
+    });
+    const copiedImage = change?.elements.find((element) => element.id === "image-copy");
+
+    expect(copiedImage).toMatchObject({
+      type: "image",
+      originPoint: { mode: "reference", pointId: "point-a-copy" },
+      scale: { kind: "expression", expression: "distance(point-a-copy, point-a-copy)" }
+    });
+  });
+
   it("duplicates a selected group with its descendants and remaps parent groups", () => {
     const ids = ["group-copy", "point-a-copy", "point-b-copy", "line-copy"];
     const elements: CadElement[] = [

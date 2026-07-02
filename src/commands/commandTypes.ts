@@ -95,6 +95,7 @@ export type CommandId =
   | "addSymmetricCopyLine"
   | "addMove"
   | "addSymmetricMove"
+  | "addImage"
   | "addNumericVariable"
   | "deleteNumericVariable"
   | "addBezierNumericVariable"

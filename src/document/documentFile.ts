@@ -13,6 +13,7 @@ import {
 import { isTauriRuntime } from "../geometry/evaluationEngine";
 import { defaultDocumentPalette } from "../palette/palette";
 import { loadPaletteTemplateSettings } from "../palette/paletteSettingsStorage";
+import { snapshotWithImagePathsForSave } from "./imageFilePaths";
 
 type DocumentFileFilter = {
   name: string;
@@ -82,10 +83,16 @@ export const newDocument = async () => {
 
 export const writeDocumentSnapshotToPath = async (
   snapshot: CadDocumentSnapshot,
-  path: string
+  path: string,
+  currentFilePath: string | null = null
 ) => {
   const normalizedPath = ensureCadDocumentFileName(path);
-  await invokeWriteDocumentFile(normalizedPath, serializeCadDocumentFile(snapshot));
+  await invokeWriteDocumentFile(
+    normalizedPath,
+    serializeCadDocumentFile(
+      snapshotWithImagePathsForSave(snapshot, currentFilePath, normalizedPath)
+    )
+  );
   return normalizedPath;
 };
 
@@ -97,7 +104,11 @@ export const saveDocumentAs = async () => {
   );
   if (!path) return;
 
-  const savedPath = await writeDocumentSnapshotToPath(currentDocumentSnapshot(state), path);
+  const savedPath = await writeDocumentSnapshotToPath(
+    currentDocumentSnapshot(state),
+    path,
+    state.currentFilePath
+  );
   useCadDocumentStore.getState().markDocumentSaved(savedPath);
 };
 
@@ -111,6 +122,7 @@ export const saveDocument = async () => {
 
   const savedPath = await writeDocumentSnapshotToPath(
     currentDocumentSnapshot(state),
+    state.currentFilePath,
     state.currentFilePath
   );
   useCadDocumentStore.getState().markDocumentSaved(savedPath);

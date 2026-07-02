@@ -1451,11 +1451,27 @@ select {
 
 .editor-grid label,
 .editor-grid > .parameter-field,
-.editor-grid .numeric-parameter-editor {
+.editor-grid .numeric-parameter-editor,
+.editor-grid > .parameter-row {
   display: grid;
   gap: 4px;
   color: #4a4d45;
   font-size: 12px;
+}
+
+.editor-grid > .parameter-row {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+
+.parameter-label {
+  font-weight: 700;
+}
+
+.parameter-readonly-value {
+  overflow-wrap: anywhere;
+  color: #686b62;
+  line-height: 1.4;
 }
 
 .parameter-field {

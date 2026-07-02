@@ -248,6 +248,19 @@ export type SymmetricMoveElement = CadElementBase & {
   baseLineIds: ElementId[];
 };
 
+export type ImageElement = CadElementBase & {
+  type: "image";
+  sourcePath: string;
+  originPoint: PointAnchor;
+  naturalWidthPx: number;
+  naturalHeightPx: number;
+  sourceDpi: number;
+  targetPixelsPerMm: number;
+  scale: NumericValue;
+  angleDeg: NumericValue;
+  mirrorX: boolean;
+};
+
 export type GroupElement = CadElementBase & {
   type: "group";
   expanded: boolean;
@@ -294,7 +307,8 @@ export type CadElement =
   | CopyLineElement
   | SymmetricCopyLineElement
   | MoveElement
-  | SymmetricMoveElement;
+  | SymmetricMoveElement
+  | ImageElement;
 export type CadElementType = CadElement["type"];
 export type CadElementCategory = "group" | "point" | "line" | "modification";
 
@@ -404,6 +418,23 @@ export type ComputedOffsetLine = {
   endTangentAngleDeg: number | null;
 };
 
+export type ComputedImage = {
+  kind: "image";
+  elementId: ElementId;
+  name: string;
+  sourcePath: string;
+  origin: ComputedPoint;
+  naturalWidthPx: number;
+  naturalHeightPx: number;
+  sourceDpi: number;
+  targetPixelsPerMm: number;
+  scale: number;
+  angleDeg: number;
+  mirrorX: boolean;
+  widthMm: number;
+  heightMm: number;
+};
+
 export type ComputedVariable = {
   kind: "variable";
   elementId: ElementId;
@@ -416,7 +447,8 @@ export type ComputedGeometry =
   | ComputedLine
   | ComputedArcLine
   | ComputedBezierCurve
-  | ComputedOffsetLine;
+  | ComputedOffsetLine
+  | ComputedImage;
 
 export type DependencyError = {
   elementId: ElementId;
@@ -480,7 +512,8 @@ export const elementTypeLabels: Record<CadElementType, string> = {
   copyLine: "コピー線",
   symmetricCopyLine: "対称コピー線",
   move: "移動",
-  symmetricMove: "対称移動"
+  symmetricMove: "対称移動",
+  image: "画像"
 };
 
 export const elementTypeCategories: Record<CadElementType, CadElementCategory> = {
@@ -507,7 +540,8 @@ export const elementTypeCategories: Record<CadElementType, CadElementCategory> =
   copyLine: "line",
   symmetricCopyLine: "line",
   move: "modification",
-  symmetricMove: "modification"
+  symmetricMove: "modification",
+  image: "modification"
 };
 
 export const elementCategoryLabels: Record<CadElementCategory, string> = {

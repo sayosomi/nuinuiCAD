@@ -18,6 +18,7 @@ mod errors;
 mod extend_trim_tests;
 mod for_group;
 mod groups;
+mod image_evaluator;
 mod intersection_point_evaluator;
 #[cfg(test)]
 mod intersection_point_tests;
@@ -67,6 +68,7 @@ use corner_radius_evaluator::evaluate_corner_radius_arc_line;
 use edge_extend_evaluator::{evaluate_edge, evaluate_extend_trim};
 use for_group::{expand_for_group_iteration, for_group_template_descendant_ids};
 use groups::{effective_element_ids, group_state_by_element_id};
+use image_evaluator::evaluate_image;
 use intersection_point_evaluator::evaluate_intersection_point;
 use line_copy_move_evaluator::{
     evaluate_copy_line, evaluate_move, evaluate_symmetric_copy_line, evaluate_symmetric_move,
@@ -182,6 +184,7 @@ fn evaluate_element_by_type(
         }
         Some("move") => evaluate_move(&element, &local_variables, state),
         Some("symmetricMove") => evaluate_symmetric_move(&element, &local_variables, state),
+        Some("image") => evaluate_image(&element, &local_variables, state),
         _ => {}
     }
 }

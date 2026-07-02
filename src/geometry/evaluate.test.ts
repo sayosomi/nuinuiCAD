@@ -44,6 +44,66 @@ describe("evaluateElements", () => {
     expect(result.computedGeometry.get("ab")).toMatchObject({ kind: "line" });
   });
 
+  it("evaluates image placement from source dpi and scale", () => {
+    const result = evaluateElements([
+      validElements[0],
+      {
+        id: "image",
+        name: "下絵",
+        type: "image",
+        visible: true,
+        enabled: true,
+        sourcePath: "underlay.png",
+        originPoint: { mode: "reference", pointId: "a" },
+        naturalWidthPx: 300,
+        naturalHeightPx: 150,
+        sourceDpi: 300,
+        targetPixelsPerMm: 10,
+        scale: 2,
+        angleDeg: 15,
+        mirrorX: true
+      }
+    ]);
+
+    expect(result.errors).toHaveLength(0);
+    expect(result.computedGeometry.get("image")).toMatchObject({
+      kind: "image",
+      origin: { x: 10, y: 20 },
+      widthMm: 50.8,
+      heightMm: 25.4,
+      scale: 2,
+      angleDeg: 15,
+      mirrorX: true
+    });
+  });
+
+  it("reports image geometry errors for invalid dpi or scale", () => {
+    const result = evaluateElements([
+      {
+        id: "image",
+        name: "壊れた画像",
+        type: "image",
+        visible: true,
+        enabled: true,
+        sourcePath: "broken.png",
+        originPoint: { mode: "coordinate", x: 0, y: 0 },
+        naturalWidthPx: 300,
+        naturalHeightPx: 150,
+        sourceDpi: 0,
+        targetPixelsPerMm: 10,
+        scale: 1,
+        angleDeg: 0,
+        mirrorX: false
+      }
+    ]);
+
+    expect(result.computedGeometry.has("image")).toBe(false);
+    expect(result.errors[0]).toMatchObject({
+      elementId: "image",
+      missingDependencyId: "image"
+    });
+  });
+
   it("evaluates only elements before the evaluation limit", () => {
     const result = evaluateElements(validElements, { evaluationLimitIndex: 2 });
 

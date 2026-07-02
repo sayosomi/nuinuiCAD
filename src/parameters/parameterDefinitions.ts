@@ -476,6 +476,33 @@ export const getParameterDefinitions = (element: CadElement): ParameterDefinitio
           kind: "lineReferenceList"
         }
       ];
+    case "image":
+      return [
+        ...commonParameters,
+        ...numericVariableParameters(element),
+        ...pointAnchorParameters({
+          anchor: element.originPoint,
+          key: "originPoint",
+          directKey: "b",
+          label: "基準点",
+          allowCoordinate: true
+        }),
+        {
+          key: "scale",
+          directKey: "s",
+          label: "倍率",
+          kind: "number",
+          stepLevels: ratioNumericParameterStepLevels
+        },
+        {
+          key: "angleDeg",
+          directKey: "r",
+          label: "角度",
+          kind: "number",
+          stepLevels: angleNumericParameterStepLevels
+        },
+        { key: "mirrorX", directKey: "m", label: "左右反転", kind: "boolean" }
+      ];
   }
 };
 

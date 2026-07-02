@@ -1,6 +1,7 @@
 pub mod app_menu;
 pub mod document_file;
 pub mod evaluation;
+pub mod image_metadata;
 pub mod layout_settings;
 pub mod palette_settings;
 pub mod shortcut_settings;
@@ -20,6 +21,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             evaluation::evaluate_document,
+            image_metadata::read_image_metadata,
             document_file::read_document_file,
             document_file::write_document_file,
             layout_settings::load_layout_settings,

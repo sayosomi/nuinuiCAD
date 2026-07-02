@@ -396,6 +396,27 @@ describe("hitTestCanvasGeometry", () => {
     ).toBe("curve-ab");
   });
 
+  it("selects an image inside its transformed screen corners", () => {
+    expect(
+      hitTestCanvasGeometry({
+        screen: { x: 70, y: 70 },
+        lines: [],
+        images: [
+          {
+            image: { elementId: "image" },
+            corners: [
+              { x: 50, y: 50 },
+              { x: 100, y: 50 },
+              { x: 100, y: 100 },
+              { x: 50, y: 100 }
+            ]
+          }
+        ],
+        points: []
+      })
+    ).toBe("image");
+  });
+
   it("ignores hidden or unevaluated geometry because it is omitted from hit-test input", () => {
     expect(
       hitTestCanvasGeometry({

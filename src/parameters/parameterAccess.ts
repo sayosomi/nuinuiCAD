@@ -22,7 +22,8 @@ export const supportsNumericVariables = (element: CadElement) =>
   element.type === "copyLine" ||
   element.type === "symmetricCopyLine" ||
   element.type === "move" ||
-  element.type === "symmetricMove";
+  element.type === "symmetricMove" ||
+  element.type === "image";
 
 export const parseIntermediateParameterKey = (key: string) => {
   const [, intermediatePointId, field] = key.split(":");
@@ -89,6 +90,9 @@ export const getPointAnchor = (element: CadElement, key: string): PointAnchor | 
   }
   if (key === "point" && element.type === "extendTrim") {
     return element.point;
+  }
+  if (key === "originPoint" && element.type === "image") {
+    return element.originPoint;
   }
   return null;
 };
@@ -167,6 +171,9 @@ export const setPointAnchor = (
   }
   if (key === "point" && element.type === "extendTrim") {
     return { ...element, point: anchor };
+  }
+  if (key === "originPoint" && element.type === "image") {
+    return { ...element, originPoint: anchor };
   }
   return element;
 };

@@ -7,6 +7,8 @@ import type {
   ComputedPoint,
   ElementId
 } from "../types/geometry";
+import type { CanvasOverlayImage } from "./DrawingCanvasTypes";
+import { imageAssetForSource } from "./imageAssetCache";
 import type { ViewportSize } from "./canvasViewport";
 import {
   visibleGridStep,
@@ -75,6 +77,7 @@ type RenderCanvasGeometryArgs = {
   arcs: ComputedArcLine[];
   curves: ComputedBezierCurve[];
   offsetLines: ComputedOffsetLine[];
+  images?: CanvasOverlayImage[];
   points: ComputedPoint[];
   visibleElementIds: Set<ElementId>;
   selectedElementIdSet: Set<ElementId>;
@@ -84,6 +87,7 @@ type RenderCanvasGeometryArgs = {
   isPointPickActive: boolean;
   isNumericReferencePickActive: boolean;
   isLinePickActive: boolean;
+  onImageAssetSettled?: () => void;
 };
 
 const strokeStyleForGeometry = ({
@@ -137,6 +141,7 @@ export const renderCanvasGeometry = ({
   arcs,
   curves,
   offsetLines,
+  images = [],
   points,
   visibleElementIds,
   selectedElementIdSet,
@@ -145,12 +150,52 @@ export const renderCanvasGeometry = ({
   showCanvasPoints,
   isPointPickActive,
   isNumericReferencePickActive,
-  isLinePickActive
+  isLinePickActive,
+  onImageAssetSettled
 }: RenderCanvasGeometryArgs) => {
   drawGrid(ctx, size, viewport);
 
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
+
+  for (const item of images) {
+    if (!visibleElementIds.has(item.image.elementId)) continue;
+    const isSelected = selectedElementIdSet.has(item.image.elementId);
+    const isPrimarySelected = item.image.elementId === selectedElementId;
+    const origin = worldToScreen(item.image.origin, size, viewport);
+    const asset = imageAssetForSource(item.sourceUrl, onImageAssetSettled);
+    const width = item.image.widthMm * viewport.zoom;
+    const height = item.image.heightMm * viewport.zoom;
+
+    ctx.save();
+    ctx.translate(origin.x, origin.y);
+    ctx.rotate(-((item.image.angleDeg * Math.PI) / 180));
+    ctx.scale(item.image.mirrorX ? -1 : 1, 1);
+    if (asset.status === "loaded") {
+      ctx.drawImage(asset.image, 0, 0, width, height);
+    } else {
+      ctx.fillStyle = asset.status === "error" ? "rgba(254, 226, 226, 0.8)" : "rgba(241, 245, 249, 0.8)";
+      ctx.strokeStyle = asset.status === "error" ? "#b91c1c" : "#94a3b8";
+      ctx.lineWidth = 1;
+      ctx.fillRect(0, 0, width, height);
+      ctx.strokeRect(0, 0, width, height);
+    }
+    ctx.restore();
+
+    if (isSelected || isPrimarySelected) {
+      ctx.beginPath();
+      item.corners.forEach((corner, index) => {
+        if (index === 0) ctx.moveTo(corner.x, corner.y);
+        else ctx.lineTo(corner.x, corner.y);
+      });
+      ctx.closePath();
+      ctx.strokeStyle = elementColors.get(item.image.elementId) ?? "#0f766e";
+      ctx.lineWidth = isPrimarySelected ? 1.5 : 1;
+      ctx.setLineDash([6, 4]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+  }
 
   for (const line of lines) {
     if (!visibleElementIds.has(line.elementId)) continue;

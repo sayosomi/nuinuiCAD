@@ -27,6 +27,7 @@ export const elementSupportsDisplayColor = (element: CadElement): boolean => {
     case "extendTrim":
     case "move":
     case "symmetricMove":
+    case "image":
       return false;
   }
 };

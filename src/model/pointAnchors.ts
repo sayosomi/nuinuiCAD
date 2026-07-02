@@ -197,6 +197,10 @@ export const selectablePointsForGeometry = (
     ];
   }
 
+  if (geometry.kind === "image") {
+    return [];
+  }
+
   const element = elementsById.get(geometry.elementId);
   const points: SelectablePoint[] = [];
   const start = geometry.segments[0]?.start;

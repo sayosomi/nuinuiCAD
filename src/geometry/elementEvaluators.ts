@@ -2,6 +2,7 @@ import type { CadElement } from "../types/geometry";
 import { evaluateCornerRadiusArcLineElement } from "./cornerRadiusArcEvaluator";
 import { evaluateCopyLineElement } from "./copyLineEvaluator";
 import type { ElementEvaluationContext } from "./elementEvaluatorTypes";
+import { evaluateImageElement } from "./imageEvaluator";
 import { evaluateLineElement } from "./lineEvaluators";
 import { evaluateModificationElement } from "./modificationEvaluators";
 import { evaluateMoveElement } from "./moveEvaluators";
@@ -19,5 +20,6 @@ export const evaluateElement = (element: CadElement, context: ElementEvaluationC
   evaluateCopyLineElement(element, context);
   evaluateSymmetricCopyLineElement(element, context);
   evaluateMoveElement(element, context);
+  evaluateImageElement(element, context);
   evaluateModificationElement(element, context);
 };

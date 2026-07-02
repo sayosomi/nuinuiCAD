@@ -266,6 +266,13 @@ export const remapElementReferences = (source: CadElement, idMap: Map<ElementId,
         axisPoint2: remapPointAnchor(element.axisPoint2, idMap),
         baseLineIds: remapBaseLineIds(element.baseLineIds, idMap)
       };
+    case "image":
+      return {
+        ...element,
+        originPoint: remapPointAnchor(element.originPoint, idMap),
+        scale: remapNumericValue(element.scale, idMap),
+        angleDeg: remapNumericValue(element.angleDeg, idMap)
+      };
   }
 };
 

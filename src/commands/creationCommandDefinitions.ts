@@ -13,6 +13,7 @@ import {
   addLineTangentOffsetPoint,
   addOffsetLine
 } from "./elementCreationCommands";
+import { addImage } from "./imageCreationCommands";
 import {
   addBezierIntermediatePoint,
   addNumericVariable,
@@ -193,6 +194,14 @@ export const creationCommandDefinitions = {
     label: "対称移動を追加",
     palette: { order: 19, keywords: ["symmetric", "mirror", "move", "line", "対称", "反転", "移動", "変更", "線", "追加"] },
     run: () => addSymmetricMove()
+  },
+  addImage: {
+    id: "addImage",
+    label: "画像を追加",
+    palette: { order: 19.5, keywords: ["image", "picture", "photo", "画像", "下絵", "読込", "追加"] },
+    run: () => {
+      void addImage();
+    }
   },
   addSplitLine: {
     id: "addSplitLine",

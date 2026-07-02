@@ -3,7 +3,7 @@ import type {
   RefObject,
   WheelEvent as ReactWheelEvent
 } from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { dispatchCommand } from "../commands/commands";
 import type { EvaluationEngineState } from "../geometry/useEvaluationEngine";
 import { generatedElementIdForTargetForGroup } from "../model/forGroupGeneratedReferences";
@@ -104,6 +104,7 @@ export const DrawingCanvas = ({ evaluation, evaluationState, canvasFocusRef }: D
   const palette = useCadDocumentStore((state) => state.palette);
   const selectedElementId = useCadDocumentStore((state) => state.selectedElementId);
   const selectedElementIds = useCadDocumentStore((state) => state.selectedElementIds);
+  const currentFilePath = useCadDocumentStore((state) => state.currentFilePath);
   const canvasViewport = useCadUiStore((state) => state.canvasViewport);
   const panCanvasViewport = useCadUiStore((state) => state.panCanvasViewport);
   const zoomCanvasViewportAt = useCadUiStore((state) => state.zoomCanvasViewportAt);
@@ -113,6 +114,7 @@ export const DrawingCanvas = ({ evaluation, evaluationState, canvasFocusRef }: D
   const activeNumericReferencePickTarget = useCadUiStore((state) => state.activeNumericReferencePickTarget);
   const activeLinePickTarget = useCadUiStore((state) => state.activeLinePickTarget);
   const selectedElementIdSet = useMemo(() => new Set(selectedElementIds), [selectedElementIds]);
+  const [imageRenderVersion, scheduleImageRender] = useReducer((version: number) => version + 1, 0);
   const elementColors = useMemo(
     () => resolvedElementColorMap(elements, palette),
     [elements, palette]
@@ -129,6 +131,7 @@ export const DrawingCanvas = ({ evaluation, evaluationState, canvasFocusRef }: D
     overlayArcs,
     overlayCurves,
     overlayOffsetLines,
+    overlayImages,
     overlayPointPickCandidates,
     overlayNumericReferenceCandidates,
     selectedBezierHandles,
@@ -139,7 +142,8 @@ export const DrawingCanvas = ({ evaluation, evaluationState, canvasFocusRef }: D
     selectedElementId,
     activePointPickTarget,
     viewportSize,
-    canvasViewport
+    canvasViewport,
+    documentPath: currentFilePath
   });
   const reusableDragEvaluation = (snapshotElements: typeof elements) => {
     if (evaluationState?.isStale) return undefined;
@@ -205,6 +209,7 @@ export const DrawingCanvas = ({ evaluation, evaluationState, canvasFocusRef }: D
       arcs,
       curves,
       offsetLines,
+      images: overlayImages,
       points,
       visibleElementIds,
       selectedElementIdSet,
@@ -213,7 +218,8 @@ export const DrawingCanvas = ({ evaluation, evaluationState, canvasFocusRef }: D
       showCanvasPoints,
       isPointPickActive: Boolean(activePointPickTarget),
       isNumericReferencePickActive: Boolean(activeNumericReferencePickTarget),
-      isLinePickActive: Boolean(activeLinePickTarget)
+      isLinePickActive: Boolean(activeLinePickTarget),
+      onImageAssetSettled: scheduleImageRender
     });
   }, [
     activePointPickTarget,
@@ -223,7 +229,9 @@ export const DrawingCanvas = ({ evaluation, evaluationState, canvasFocusRef }: D
     canvasViewport,
     curves,
     elementColors,
+    imageRenderVersion,
     offsetLines,
+    overlayImages,
     lines,
     points,
     selectedElementId,
@@ -541,6 +549,7 @@ export const DrawingCanvas = ({ evaluation, evaluationState, canvasFocusRef }: D
         arcs: overlayArcs,
         curves: overlayCurves,
         offsetLines: overlayOffsetLines,
+        images: overlayImages,
         points: overlayPoints
       });
       if (!elementId) return;

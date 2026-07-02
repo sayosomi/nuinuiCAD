@@ -118,6 +118,36 @@ describe("parameterDefinitions", () => {
     );
   });
 
+  it("defines editable parameters for images", () => {
+    const image: CadElement = {
+      id: "image",
+      name: "画像",
+      type: "image",
+      visible: true,
+      enabled: true,
+      sourcePath: "underlay.png",
+      originPoint: { mode: "coordinate", x: 0, y: 0 },
+      naturalWidthPx: 100,
+      naturalHeightPx: 50,
+      sourceDpi: 300,
+      targetPixelsPerMm: 10,
+      scale: 1,
+      angleDeg: 0,
+      mirrorX: false
+    };
+
+    expect(getParameterDefinitions(image)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ key: "originPoint", directKey: "b", label: "基準点", kind: "reference", allowCoordinate: true }),
+        expect.objectContaining({ key: "originPoint:x", directKey: "x", label: "基準点 x", kind: "number" }),
+        expect.objectContaining({ key: "originPoint:y", directKey: "y", label: "基準点 y", kind: "number" }),
+        expect.objectContaining({ key: "scale", directKey: "s", label: "倍率", kind: "number" }),
+        expect.objectContaining({ key: "angleDeg", directKey: "r", label: "角度", kind: "number" }),
+        expect.objectContaining({ key: "mirrorX", directKey: "m", label: "左右反転", kind: "boolean" })
+      ])
+    );
+  });
+
   it("defines editable parameters for edge modifications", () => {
     const edge: CadElement = {
       id: "edge",

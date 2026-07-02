@@ -1,6 +1,7 @@
 import type { CommonEditorProps } from "./parameterEditorShared";
 import { CurveElementFields } from "./CurveElementFields";
 import { ForGroupElementFields } from "./ForGroupElementFields";
+import { ImageElementFields } from "./ImageElementFields";
 import { LineElementFields } from "./LineElementFields";
 import { PointElementFields } from "./PointElementFields";
 import { VariableElementFields } from "./VariableElementFields";
@@ -37,5 +38,7 @@ export const ElementSpecificFields = (props: CommonEditorProps) => {
       return null;
     case "variable":
       return <VariableElementFields {...props} />;
+    case "image":
+      return <ImageElementFields {...props} />;
   }
 };

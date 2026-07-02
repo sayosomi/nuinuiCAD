@@ -463,5 +463,28 @@ export const createCadElement = (
         baseLineIds: lineLikeElements[0] ? [lineLikeElements[0].id] : []
       };
     }
+    case "image": {
+      const id = createId(type);
+      const imageCount = elements.filter((element) => element.type === "image").length;
+      const requestedName = `画像${imageCount + 1}`;
+      return {
+        id,
+        name: uniqueName(id, requestedName),
+        type,
+        visible: true,
+        enabled: true,
+        numericVariables: [],
+        numericParameterSteps: { scale: 0.01 },
+        sourcePath: "",
+        originPoint: { mode: "coordinate", x: 0, y: 0 },
+        naturalWidthPx: 1,
+        naturalHeightPx: 1,
+        sourceDpi: 300,
+        targetPixelsPerMm: 300 / 25.4,
+        scale: 1,
+        angleDeg: 0,
+        mirrorX: false
+      };
+    }
   }
 };
