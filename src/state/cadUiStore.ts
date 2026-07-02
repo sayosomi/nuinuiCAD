@@ -106,6 +106,7 @@ export type CadUiState = {
   shortcutSettingsLoading: boolean;
   shortcutSettingsError: string | null;
   showCommandPalette: boolean;
+  selectedPrintPlacementId: string | null;
   canvasViewport: CanvasViewport;
   setParameterEditMode: (isParameterEditMode: boolean) => void;
   setShowElementInfoPanel: (showElementInfoPanel: boolean) => void;
@@ -141,6 +142,7 @@ export type CadUiState = {
   setShortcutSettingsLoading: (shortcutSettingsLoading: boolean) => void;
   setShortcutSettingsError: (shortcutSettingsError: string | null) => void;
   setShowCommandPalette: (showCommandPalette: boolean) => void;
+  setSelectedPrintPlacementId: (selectedPrintPlacementId: string | null) => void;
   setCanvasViewport: (canvasViewport: CanvasViewport) => void;
   panCanvasViewport: (dx: number, dy: number) => void;
   zoomCanvasViewportAt: (
@@ -180,6 +182,7 @@ export const initialCadUiState = (): Omit<
   | "setShortcutSettingsLoading"
   | "setShortcutSettingsError"
   | "setShowCommandPalette"
+  | "setSelectedPrintPlacementId"
   | "setCanvasViewport"
   | "panCanvasViewport"
   | "zoomCanvasViewportAt"
@@ -212,6 +215,7 @@ export const initialCadUiState = (): Omit<
   shortcutSettingsLoading: false,
   shortcutSettingsError: null,
   showCommandPalette: false,
+  selectedPrintPlacementId: null,
   canvasViewport: DEFAULT_CANVAS_VIEWPORT
 });
 
@@ -281,6 +285,7 @@ export const useCadUiStore = create<CadUiState>((set) => ({
   setShortcutSettingsLoading: (shortcutSettingsLoading) => set({ shortcutSettingsLoading }),
   setShortcutSettingsError: (shortcutSettingsError) => set({ shortcutSettingsError }),
   setShowCommandPalette: (showCommandPalette) => set({ showCommandPalette }),
+  setSelectedPrintPlacementId: (selectedPrintPlacementId) => set({ selectedPrintPlacementId }),
   setCanvasViewport: (canvasViewport) =>
     set({
       canvasViewport: {

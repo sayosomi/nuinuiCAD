@@ -2593,36 +2593,226 @@ select {
   cursor: grab;
 }
 
+.print-placement-anchor.selected circle {
+  fill: #b45309;
+  stroke: #fff7ed;
+  stroke-width: 2;
+}
+
 .print-placement-anchor text {
   fill: #252622;
-  font-size: 8px;
+  font-size: 9px;
+  font-weight: 700;
   paint-order: stroke;
   stroke: #ffffff;
-  stroke-width: 2;
+  stroke-width: 2.4;
+}
+
+.print-settings-panel {
+  gap: 10px;
+}
+
+.print-settings-hero {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  border-bottom: 1px solid #d7dace;
+  background: #fbfbfa;
+}
+
+.print-settings-title {
+  align-items: flex-start;
+}
+
+.print-settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.print-settings-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.print-settings-actions svg,
+.print-group-list svg,
+.print-placement-row-actions svg {
+  width: 14px;
+  height: 14px;
+}
+
+.print-settings-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.print-select-field,
+.print-number-field,
+.print-toggle-field {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.print-select-field span,
+.print-number-field span,
+.print-toggle-field span {
+  color: #5c6359;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.print-number-field input,
+.print-select-field select,
+.print-search-input {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #c8cec2;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #252622;
+  padding: 7px 8px;
+  font: inherit;
+  font-size: 13px;
+}
+
+.print-number-field input {
+  cursor: ew-resize;
+}
+
+.print-toggle-field {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  border: 1px solid #d7dace;
+  border-radius: 6px;
+  background: #ffffff;
+  padding: 7px 8px;
 }
 
 .print-group-list {
   display: grid;
-  gap: 6px;
+  max-height: 230px;
+  overflow: auto;
+  gap: 4px;
+  padding-right: 2px;
 }
 
 .print-group-list button {
-  justify-content: flex-start;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 8px;
+  align-items: center;
   width: 100%;
+  border-color: transparent;
+  background: #f6f7f3;
+  padding: 7px 8px;
+  text-align: left;
+}
+
+.print-group-list button span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.print-group-list button small {
+  min-width: 22px;
+  border-radius: 999px;
+  background: #e2e6dd;
+  color: #4a4d45;
+  padding: 2px 6px;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 700;
 }
 
 .print-placement-list {
   display: grid;
-  gap: 10px;
+  max-height: 280px;
+  overflow: auto;
+  gap: 4px;
+  padding-right: 2px;
 }
 
-.print-placement-card {
+.print-placement-row {
   display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
   gap: 8px;
-  border: 1px solid #d7dace;
-  border-radius: 8px;
-  background: #ffffff;
-  padding: 10px;
+  align-items: center;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: #f6f7f3;
+  padding: 7px;
+  cursor: pointer;
+}
+
+.print-placement-row:hover,
+.print-placement-row:focus-visible {
+  border-color: #aeb4aa;
+  outline: none;
+}
+
+.print-placement-row.selected {
+  border-color: #0f766e;
+  background: #e7f4ef;
+}
+
+.print-placement-index {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border-radius: 999px;
+  background: #e2e6dd;
+  color: #4a4d45;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.print-placement-main {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.print-placement-main strong,
+.print-placement-main small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.print-placement-main strong {
+  color: #252622;
+  font-size: 12px;
+}
+
+.print-placement-main small {
+  color: #5c6359;
+  font-size: 11px;
+}
+
+.print-placement-row-actions {
+  display: flex;
+  gap: 3px;
+}
+
+.print-placement-row-actions button {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  border-color: transparent;
+  background: transparent;
+  padding: 0;
+}
+
+.print-placement-detail {
+  border-top: 1px solid #d7dace;
 }
 
 .checkbox-field {
