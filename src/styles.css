@@ -842,7 +842,8 @@ select {
 }
 
 .palette-settings-backdrop,
-.selection-color-picker-backdrop {
+.selection-color-picker-backdrop,
+.image-import-backdrop {
   position: fixed;
   inset: 0;
   z-index: 30;
@@ -854,7 +855,8 @@ select {
 }
 
 .palette-settings,
-.selection-color-picker {
+.selection-color-picker,
+.image-import-dialog {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
   width: min(620px, 100%);
@@ -872,11 +874,68 @@ select {
   width: min(420px, 100%);
 }
 
+.image-import-dialog {
+  grid-template-rows: auto minmax(0, 1fr);
+  width: min(460px, 100%);
+}
+
 .palette-settings-body,
-.selection-color-picker-list {
+.selection-color-picker-list,
+.image-import-form {
   min-height: 0;
   overflow: auto;
   padding: 14px 16px;
+}
+
+.image-import-form,
+.image-import-summary {
+  display: grid;
+  gap: 10px;
+}
+
+.image-import-form label {
+  display: grid;
+  gap: 5px;
+  color: #4a4d45;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.image-import-summary {
+  gap: 3px;
+  border: 1px solid #d2d4cd;
+  border-radius: 6px;
+  background: #f6f7f3;
+  padding: 9px 10px;
+  color: #4a4d45;
+  font-size: 12px;
+}
+
+.image-import-note {
+  margin: 0;
+  color: #686b62;
+  font-size: 12px;
+}
+
+.image-import-error {
+  margin: 0;
+  border: 1px solid #efb08f;
+  border-radius: 6px;
+  background: #fff7f2;
+  padding: 9px 10px;
+  color: #73320d;
+  font-size: 13px;
+}
+
+.image-import-dialog > .image-import-error {
+  margin: 14px 16px;
+}
+
+.image-import-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 2px;
 }
 
 .selection-color-picker-list {

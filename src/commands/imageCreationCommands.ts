@@ -6,6 +6,7 @@ import { createCadElement } from "../model/elementFactory";
 import { makeUniqueElementName } from "../model/elementNames";
 import { getFirstParameterKey } from "../parameters/parameterDefinitions";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
+import { useCadUiStore } from "../state/cadUiStore";
 import type { CadElement } from "../types/geometry";
 
 type ImageMetadata = {
@@ -21,13 +22,6 @@ const IMAGE_FILTER = {
 
 const selectedPath = (value: string | string[] | null) =>
   Array.isArray(value) ? value[0] ?? null : value;
-
-const promptPositiveNumber = (message: string, defaultValue: number) => {
-  const input = window.prompt(message, `${Number.isFinite(defaultValue) ? defaultValue : 10}`);
-  if (input === null) return null;
-  const value = Number(input);
-  return Number.isFinite(value) && value > 0 ? value : null;
-};
 
 const fileNameFromPath = (path: string) => path.replace(/\\/g, "/").split("/").pop() ?? path;
 
@@ -98,16 +92,18 @@ const commitCreatedImage = (element: CadElement, elements: CadElement[], inserti
   });
 };
 
-const createImageElementFromMetadata = ({
+export const commitPendingImageImport = ({
   sourcePath,
   displayName,
-  metadata,
+  naturalWidthPx,
+  naturalHeightPx,
   sourceDpi,
   targetPixelsPerMm
 }: {
   sourcePath: string;
   displayName: string;
-  metadata: ImageMetadata;
+  naturalWidthPx: number;
+  naturalHeightPx: number;
   sourceDpi: number;
   targetPixelsPerMm: number;
 }) => {
@@ -124,14 +120,21 @@ const createImageElementFromMetadata = ({
       fallbackBaseName: element.name
     }),
     sourcePath,
-    naturalWidthPx: metadata.widthPx,
-    naturalHeightPx: metadata.heightPx,
+    naturalWidthPx,
+    naturalHeightPx,
     sourceDpi,
     targetPixelsPerMm,
     scale: initialImageScale(sourceDpi, targetPixelsPerMm)
   };
   commitCreatedImage(imageElement, elements, insertionIndex);
 };
+
+const metadataErrorMessage = (error: unknown) =>
+  error instanceof Error
+    ? error.message
+    : typeof error === "string"
+      ? error
+      : "画像を読み込めません。";
 
 export const addImage = async () => {
   try {
@@ -154,26 +157,24 @@ export const addImage = async () => {
       displayName = file.name;
     }
 
-    const sourceDpi =
-      metadata.dpi && metadata.dpi > 0
-        ? metadata.dpi
-        : promptPositiveNumber("画像にDPI情報がありません。DPIを入力してください。", 300);
-    if (!sourceDpi) return;
-
-    const targetPixelsPerMm = promptPositiveNumber(
-      "読み込み時の基準解像度を px/mm で入力してください。",
-      defaultTargetPixelsPerMm(metadata.dpi)
-    );
-    if (!targetPixelsPerMm) return;
-
-    createImageElementFromMetadata({
-      sourcePath,
-      displayName,
-      metadata,
-      sourceDpi,
-      targetPixelsPerMm
+    const sourceDpi = metadata.dpi && metadata.dpi > 0 ? metadata.dpi : 300;
+    useCadUiStore.setState({
+      pendingImageImport: {
+        sourcePath,
+        displayName,
+        naturalWidthPx: metadata.widthPx,
+        naturalHeightPx: metadata.heightPx,
+        detectedDpi: metadata.dpi && metadata.dpi > 0 ? metadata.dpi : null,
+        sourceDpi,
+        targetPixelsPerMm: defaultTargetPixelsPerMm(metadata.dpi),
+        error: null
+      },
+      imageImportError: null,
+      showCommandPalette: false
     });
   } catch (error) {
+    useCadUiStore.getState().setImageImportError(metadataErrorMessage(error));
+    useCadUiStore.getState().setPendingImageImport(null);
     console.error("Failed to add image.", error);
   }
 };

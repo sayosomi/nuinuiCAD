@@ -15,6 +15,7 @@ import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
 import { CommandPalette } from "./CommandPalette";
 import { DrawingCanvas } from "./DrawingCanvas";
+import { ImageImportDialog } from "./ImageImportDialog";
 import { LeftPanel, RightPanel } from "./LeftPanel";
 import { PaletteSettingsDialog } from "./PalettePanel";
 import { SelectionColorPickerDialog } from "./SelectionColorPickerDialog";
@@ -183,6 +184,7 @@ export const AppLayout = () => {
       if (useCadUiStore.getState().showShortcutSettings) return;
       if (useCadUiStore.getState().showPaletteSettings) return;
       if (useCadUiStore.getState().showSelectionColorPicker) return;
+      if (useCadUiStore.getState().pendingImageImport || useCadUiStore.getState().imageImportError) return;
       const keyboardCommand = keyboardCommandForEvent(event, {
         settings: useCadUiStore.getState().shortcutSettings,
         isParameterEditMode: useCadUiStore.getState().isParameterEditMode,
@@ -287,6 +289,7 @@ export const AppLayout = () => {
       />
       <PaletteSettingsDialog />
       <SelectionColorPickerDialog />
+      <ImageImportDialog />
       <ShortcutSettingsDialog />
     </main>
   );

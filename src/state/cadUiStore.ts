@@ -58,6 +58,17 @@ export type CanvasViewport = {
   zoom: number;
 };
 
+export type PendingImageImport = {
+  sourcePath: string;
+  displayName: string;
+  naturalWidthPx: number;
+  naturalHeightPx: number;
+  detectedDpi: number | null;
+  sourceDpi: number;
+  targetPixelsPerMm: number;
+  error: string | null;
+};
+
 export const DEFAULT_CANVAS_VIEWPORT: CanvasViewport = {
   panX: 0,
   panY: 0,
@@ -88,6 +99,8 @@ export type CadUiState = {
   showShortcutSettings: boolean;
   showPaletteSettings: boolean;
   showSelectionColorPicker: boolean;
+  pendingImageImport: PendingImageImport | null;
+  imageImportError: string | null;
   shortcutSettings: ShortcutSettings;
   shortcutSettingsLoading: boolean;
   shortcutSettingsError: string | null;
@@ -120,6 +133,8 @@ export type CadUiState = {
   setShowShortcutSettings: (showShortcutSettings: boolean) => void;
   setShowPaletteSettings: (showPaletteSettings: boolean) => void;
   setShowSelectionColorPicker: (showSelectionColorPicker: boolean) => void;
+  setPendingImageImport: (pendingImageImport: PendingImageImport | null) => void;
+  setImageImportError: (imageImportError: string | null) => void;
   setShortcutSettings: (shortcutSettings: ShortcutSettings) => void;
   setShortcutSettingsLoading: (shortcutSettingsLoading: boolean) => void;
   setShortcutSettingsError: (shortcutSettingsError: string | null) => void;
@@ -156,6 +171,8 @@ export const initialCadUiState = (): Omit<
   | "setShowShortcutSettings"
   | "setShowPaletteSettings"
   | "setShowSelectionColorPicker"
+  | "setPendingImageImport"
+  | "setImageImportError"
   | "setShortcutSettings"
   | "setShortcutSettingsLoading"
   | "setShortcutSettingsError"
@@ -185,6 +202,8 @@ export const initialCadUiState = (): Omit<
   showShortcutSettings: false,
   showPaletteSettings: false,
   showSelectionColorPicker: false,
+  pendingImageImport: null,
+  imageImportError: null,
   shortcutSettings: { version: 1, overrides: [] },
   shortcutSettingsLoading: false,
   shortcutSettingsError: null,
@@ -251,6 +270,8 @@ export const useCadUiStore = create<CadUiState>((set) => ({
   setShowShortcutSettings: (showShortcutSettings) => set({ showShortcutSettings }),
   setShowPaletteSettings: (showPaletteSettings) => set({ showPaletteSettings }),
   setShowSelectionColorPicker: (showSelectionColorPicker) => set({ showSelectionColorPicker }),
+  setPendingImageImport: (pendingImageImport) => set({ pendingImageImport }),
+  setImageImportError: (imageImportError) => set({ imageImportError }),
   setShortcutSettings: (shortcutSettings) => set({ shortcutSettings }),
   setShortcutSettingsLoading: (shortcutSettingsLoading) => set({ shortcutSettingsLoading }),
   setShortcutSettingsError: (shortcutSettingsError) => set({ shortcutSettingsError }),
