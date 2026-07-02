@@ -83,6 +83,7 @@ export type CadUiState = {
   elementSearchPickableOnly: boolean;
   showCanvasElementNames: boolean;
   showCanvasPoints: boolean;
+  showElementListColorAccents: boolean;
   showShortcutHelp: boolean;
   showShortcutSettings: boolean;
   showPaletteSettings: boolean;
@@ -113,6 +114,7 @@ export type CadUiState = {
   setElementSearchPickableOnly: (elementSearchPickableOnly: boolean) => void;
   setShowCanvasElementNames: (showCanvasElementNames: boolean) => void;
   setShowCanvasPoints: (showCanvasPoints: boolean) => void;
+  setShowElementListColorAccents: (showElementListColorAccents: boolean) => void;
   setShowShortcutHelp: (showShortcutHelp: boolean) => void;
   setShowShortcutSettings: (showShortcutSettings: boolean) => void;
   setShowPaletteSettings: (showPaletteSettings: boolean) => void;
@@ -147,6 +149,7 @@ export const initialCadUiState = (): Omit<
   | "setElementSearchPickableOnly"
   | "setShowCanvasElementNames"
   | "setShowCanvasPoints"
+  | "setShowElementListColorAccents"
   | "setShowShortcutHelp"
   | "setShowShortcutSettings"
   | "setShowPaletteSettings"
@@ -174,6 +177,7 @@ export const initialCadUiState = (): Omit<
   elementSearchPickableOnly: false,
   showCanvasElementNames: true,
   showCanvasPoints: true,
+  showElementListColorAccents: false,
   showShortcutHelp: false,
   showShortcutSettings: false,
   showPaletteSettings: false,
@@ -237,6 +241,8 @@ export const useCadUiStore = create<CadUiState>((set) => ({
     set({ elementSearchPickableOnly, elementSearchCursorId: null }),
   setShowCanvasElementNames: (showCanvasElementNames) => set({ showCanvasElementNames }),
   setShowCanvasPoints: (showCanvasPoints) => set({ showCanvasPoints }),
+  setShowElementListColorAccents: (showElementListColorAccents) =>
+    set({ showElementListColorAccents }),
   setShowShortcutHelp: (showShortcutHelp) => set({ showShortcutHelp }),
   setShowShortcutSettings: (showShortcutSettings) => set({ showShortcutSettings }),
   setShowPaletteSettings: (showPaletteSettings) => set({ showPaletteSettings }),

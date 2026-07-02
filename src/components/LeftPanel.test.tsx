@@ -56,6 +56,7 @@ const resetStore = () => {
     elementSearchPickableOnly: false,
     showCanvasElementNames: true,
     showCanvasPoints: true,
+    showElementListColorAccents: false,
     showShortcutHelp: false,
     showPaletteSettings: false,
     showCommandPalette: false,
@@ -999,7 +1000,7 @@ describe("LeftPanel element list dragging", () => {
     );
   });
 
-  it("shows element display color on the drag handle instead of a separate swatch", () => {
+  it("shows selected element display color as a row accent instead of a separate swatch", () => {
     useCadStore.setState({
       elements: [{ ...sampleElements[0], colorId: "cut-red" }, ...sampleElements.slice(1)]
     });
@@ -1009,7 +1010,51 @@ describe("LeftPanel element list dragging", () => {
     const row = screen.getByText("点A").closest("[data-element-list-row='true']") as HTMLElement;
     expect(row.querySelector(".element-color-swatch")).not.toBeInTheDocument();
     expect(row).toHaveStyle({ "--element-color": "#b42318" });
+    expect(row).toHaveClass("has-color-accent", "has-selected-color-tint");
     expect(within(row).getByRole("button", { name: "点Aを並び替え" })).toBeInTheDocument();
+  });
+
+  it("can show display color accents on non-selected element list rows", () => {
+    useCadStore.setState({
+      elements: [
+        { ...sampleElements[0], colorId: "cut-red" },
+        { ...sampleElements[1], colorId: "guide-blue" },
+        ...sampleElements.slice(2)
+      ],
+      showElementListColorAccents: true
+    });
+
+    renderLeftPanel();
+
+    const selectedRow = screen.getByText("点A").closest("[data-element-list-row='true']");
+    const nonSelectedRow = screen.getByText("点B").closest("[data-element-list-row='true']");
+    expect(selectedRow).toHaveClass("has-color-accent", "has-selected-color-tint");
+    expect(nonSelectedRow).toHaveClass("has-color-accent");
+    expect(nonSelectedRow).not.toHaveClass("has-selected-color-tint");
+  });
+
+  it("keeps error row styling ahead of selected display color tint", () => {
+    useCadStore.setState({
+      elements: [{ ...sampleElements[0], colorId: "cut-red" }, ...sampleElements.slice(1)]
+    });
+
+    renderLeftPanel({
+      computedGeometry: new Map(),
+      computedVariables: new Map(),
+      errors: [
+        {
+          elementId: "point-a",
+          elementName: "点A",
+          missingDependencyId: "missing",
+          message: "broken"
+        }
+      ],
+      warnings: []
+    });
+
+    const row = screen.getByText("点A").closest("[data-element-list-row='true']");
+    expect(row).toHaveClass("has-error", "has-color-accent");
+    expect(row).not.toHaveClass("has-selected-color-tint");
   });
 
   it("collapses hierarchy spacing for non-group rows", () => {

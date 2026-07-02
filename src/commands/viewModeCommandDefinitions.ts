@@ -75,6 +75,18 @@ export const viewModeCommandDefinitions = {
       useCadUiStore.getState().setShowCanvasPoints(!showCanvasPoints);
     }
   },
+  toggleElementListColorAccents: {
+    id: "toggleElementListColorAccents",
+    label: "構成リストの色アクセントを表示/非表示",
+    palette: {
+      order: 28,
+      keywords: ["element list", "color", "accent", "構成リスト", "色", "アクセント", "表示", "非表示"]
+    },
+    run: () => {
+      const { showElementListColorAccents } = useCadUiStore.getState();
+      useCadUiStore.getState().setShowElementListColorAccents(!showElementListColorAccents);
+    }
+  },
   openCommandPalette: {
     id: "openCommandPalette",
     label: "コマンドパレットを開く",

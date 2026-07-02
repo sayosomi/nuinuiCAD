@@ -106,6 +106,7 @@ export type CommandId =
   | "resetCanvasView"
   | "toggleCanvasElementNames"
   | "toggleCanvasPoints"
+  | "toggleElementListColorAccents"
   | "openCommandPalette"
   | "closeCommandPalette"
   | "openShortcutSettings"

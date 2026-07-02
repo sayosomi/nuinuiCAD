@@ -30,6 +30,7 @@ describe("commands", () => {
       elementSearchPickableOnly: false,
       showCanvasElementNames: true,
       showCanvasPoints: true,
+      showElementListColorAccents: false,
       showShortcutHelp: true,
       showPaletteSettings: false,
       showCommandPalette: false,
@@ -56,6 +57,14 @@ describe("commands", () => {
 
     dispatchCommand("toggleCanvasPoints");
     expect(useCadStore.getState().showCanvasPoints).toBe(false);
+  });
+
+  it("toggles element list color accents", () => {
+    dispatchCommand("toggleElementListColorAccents");
+    expect(useCadStore.getState().showElementListColorAccents).toBe(true);
+
+    dispatchCommand("toggleElementListColorAccents");
+    expect(useCadStore.getState().showElementListColorAccents).toBe(false);
   });
 
   it("selects ranges and toggles individual elements", () => {

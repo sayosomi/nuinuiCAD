@@ -213,6 +213,7 @@ export const LeftPanel = ({
   const elementSearchQuery = useCadUiStore((state) => state.elementSearchQuery);
   const elementSearchCursorId = useCadUiStore((state) => state.elementSearchCursorId);
   const elementSearchPickableOnly = useCadUiStore((state) => state.elementSearchPickableOnly);
+  const showElementListColorAccents = useCadUiStore((state) => state.showElementListColorAccents);
   const activePointPickTarget = useCadUiStore((state) => state.activePointPickTarget);
   const activeNumericReferencePickTarget = useCadUiStore((state) => state.activeNumericReferencePickTarget);
   const activeLinePickTarget = useCadUiStore((state) => state.activeLinePickTarget);
@@ -776,6 +777,7 @@ export const LeftPanel = ({
                 dropBefore={dropMarkerClass(element.id, rowData.index, "before") !== ""}
                 dropAfter={dropMarkerClass(element.id, rowData.index, "after") !== ""}
                 elementColor={elementColors.get(element.id) ?? "#31322f"}
+                showColorAccentForAllRows={showElementListColorAccents}
                 onSelectElement={selectElement}
                 onHandlePointerDown={startElementPointerDrag}
               />

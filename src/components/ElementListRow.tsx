@@ -5,6 +5,7 @@ import { numericValueExpression } from "../geometry/numericExpressions";
 import type { PickCandidate } from "../model/pickCandidates";
 import { isForGroupElement, isGroupElement } from "../model/groups";
 import type { SelectablePoint } from "../model/pointAnchors";
+import { elementSupportsDisplayColor } from "../palette/colorApplicability";
 import type {
   CadElement,
   ElementId
@@ -77,6 +78,7 @@ type ElementListRowProps = {
   dropBefore: boolean;
   dropAfter: boolean;
   elementColor: string;
+  showColorAccentForAllRows: boolean;
   onSelectElement: (elementId: ElementId, event: MouseEvent<HTMLElement>) => void;
   onHandlePointerDown: (event: PointerEvent<HTMLButtonElement>, element: CadElement) => void;
 };
@@ -114,16 +116,31 @@ export const ElementListRow = ({
   dropBefore,
   dropAfter,
   elementColor,
+  showColorAccentForAllRows,
   onSelectElement,
   onHandlePointerDown
-}: ElementListRowProps) => (
+}: ElementListRowProps) => {
+  const supportsDisplayColor = elementSupportsDisplayColor(element);
+  const isSelected = selectedElementIdSet.has(element.id);
+  const hasStateBackground =
+    hasError ||
+    hasWarning ||
+    !isEffectivelyVisible ||
+    !isEffectivelyEnabled ||
+    !isEvaluated ||
+    conditionInactive;
+  const showColorAccent =
+    supportsDisplayColor && (isSelected || (showColorAccentForAllRows && !isSelected));
+  const showSelectedColorTint = supportsDisplayColor && isSelected && !hasStateBackground;
+
+  return (
   <div
     ref={rowRef}
     tabIndex={0}
     data-element-list-row="true"
     aria-selected={selectedPickOptionIndex >= 0 || activeSearchCursorId === element.id}
     className={`element-row ${!isGroupElement(element) ? "is-flat-list" : ""} ${
-      selectedElementIdSet.has(element.id) ? "selected" : ""
+      isSelected ? "selected" : ""
     } ${
       element.id === selectedElementId ? "primary-selected" : ""
     } ${!isEffectivelyVisible ? "is-hidden" : ""} ${
@@ -164,6 +181,8 @@ export const ElementListRow = ({
       isSearchActive && activeSearchCursorId === element.id ? "search-cursor" : ""
     } ${
       isSearchActive && !isSearchPickable ? "is-not-search-pickable" : ""
+    } ${showColorAccent ? "has-color-accent" : ""} ${
+      showSelectedColorTint ? "has-selected-color-tint" : ""
     } ${isDragging ? "dragging" : ""}${dropBefore ? " drop-before" : ""}${dropAfter ? " drop-after" : ""}`}
     style={{ "--element-color": elementColor } as CSSProperties}
     aria-label={`${index + 1}. ${element.name}, ${elementTypeLabels[element.type]}, ${
@@ -298,4 +317,5 @@ export const ElementListRow = ({
       </div>
     ) : null}
   </div>
-);
+  );
+};

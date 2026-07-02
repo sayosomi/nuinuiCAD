@@ -493,6 +493,10 @@ select {
   background: #e7f4ef;
 }
 
+.element-row.has-selected-color-tint {
+  background: color-mix(in srgb, var(--element-color, #0f766e) 12%, white);
+}
+
 .element-row.selected.is-disabled {
   border-color: #7d8579;
   background: #e2e7e1;
@@ -512,6 +516,36 @@ select {
 
 .element-row.primary-selected {
   box-shadow: inset 3px 0 0 #0f766e;
+}
+
+.element-row.has-color-accent::after {
+  content: "";
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  left: 0;
+  width: 3px;
+  border-radius: 0 999px 999px 0;
+  background: var(--element-color, #31322f);
+  pointer-events: none;
+}
+
+.element-row.selected.has-color-accent::after {
+  top: 4px;
+  bottom: 4px;
+  width: 4px;
+}
+
+.element-row.has-color-accent.is-hidden::after,
+.element-row.has-color-accent.is-disabled::after,
+.element-row.has-color-accent.is-unevaluated::after,
+.element-row.has-color-accent.is-condition-inactive::after {
+  opacity: 0.45;
+}
+
+.element-row.has-color-accent.has-error::after,
+.element-row.has-color-accent.has-warning::after {
+  display: none;
 }
 
 .element-row.primary-selected.is-disabled {
@@ -685,7 +719,6 @@ select {
 
 .element-drag-handle {
   grid-area: handle;
-  position: relative;
   display: grid;
   place-items: center;
   width: 24px;
@@ -699,17 +732,6 @@ select {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 14px;
   line-height: 1;
-}
-
-.element-drag-handle::before {
-  content: "";
-  position: absolute;
-  top: 5px;
-  right: 2px;
-  bottom: 5px;
-  width: 3px;
-  border-radius: 999px;
-  background: var(--element-color, #31322f);
 }
 
 .element-drag-handle:hover {
