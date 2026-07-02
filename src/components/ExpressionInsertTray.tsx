@@ -38,7 +38,16 @@ const measurementModes: {
   { mode: "lineDistance", label: "点と線の距離", functionName: "点線距離", description: "垂直距離" }
 ];
 
-const conditionalOperators = [">", ">=", "<", "<=", "==", "!=", "&&", "||"] as const;
+const conditionalOperators = [
+  { operator: ">", description: "A > B: AがBより大きいとき真" },
+  { operator: ">=", description: "A >= B: AがB以上のとき真" },
+  { operator: "<", description: "A < B: AがBより小さいとき真" },
+  { operator: "<=", description: "A <= B: AがB以下のとき真" },
+  { operator: "==", description: "A == B: AとBが等しいとき真" },
+  { operator: "!=", description: "A != B: AとBが等しくないとき真" },
+  { operator: "&&", description: "A && B: AとBの両方が真のとき真" },
+  { operator: "||", description: "A || B: AとBのどちらかが真のとき真" }
+] as const;
 
 const selectedElementName = (elements: CadElement[], elementId: ElementId) =>
   elements.find((element) => element.id === elementId)?.name ?? elementId;
@@ -304,10 +313,12 @@ export const ExpressionInsertTray = ({
             <span>条件演算子</span>
           </div>
           <div className="expression-operator-grid" role="group" aria-label="挿入する条件演算子">
-            {conditionalOperators.map((operator) => (
+            {conditionalOperators.map(({ operator, description }) => (
               <button
                 key={operator}
                 type="button"
+                title={description}
+                aria-label={`${operator} ${description}`}
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => insertSnippet(` ${operator} `, "raw")}
               >

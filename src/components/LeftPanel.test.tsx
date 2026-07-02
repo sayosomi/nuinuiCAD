@@ -580,8 +580,20 @@ describe("LeftPanel numeric input dragging", () => {
     fireEvent.click(screen.getByText("参照を挿入"));
 
     const operatorGroup = screen.getByRole("group", { name: "挿入する条件演算子" });
-    for (const operator of [">", ">=", "<", "<=", "==", "!=", "&&", "||"]) {
-      expect(within(operatorGroup).getByRole("button", { name: operator })).toBeInTheDocument();
+    const operatorDescriptions = [
+      [">", "A > B: AがBより大きいとき真"],
+      [">=", "A >= B: AがB以上のとき真"],
+      ["<", "A < B: AがBより小さいとき真"],
+      ["<=", "A <= B: AがB以下のとき真"],
+      ["==", "A == B: AとBが等しいとき真"],
+      ["!=", "A != B: AとBが等しくないとき真"],
+      ["&&", "A && B: AとBの両方が真のとき真"],
+      ["||", "A || B: AとBのどちらかが真のとき真"]
+    ] as const;
+    for (const [operator, description] of operatorDescriptions) {
+      const button = within(operatorGroup).getByTitle(description);
+      expect(button).toBeInTheDocument();
+      expect(button).toHaveTextContent(operator);
     }
 
     const input = screen.getByLabelText("ifブロック の条件") as HTMLInputElement;
@@ -589,12 +601,12 @@ describe("LeftPanel numeric input dragging", () => {
     input.focus();
     input.setSelectionRange(operatorIndex - 1, operatorIndex + 2);
     fireEvent.select(input);
-    fireEvent.click(within(operatorGroup).getByRole("button", { name: "!=" }));
+    fireEvent.click(within(operatorGroup).getByTitle("A != B: AとBが等しくないとき真"));
 
     input.focus();
     input.setSelectionRange(input.value.length, input.value.length);
     fireEvent.select(input);
-    fireEvent.click(within(operatorGroup).getByRole("button", { name: "&&" }));
+    fireEvent.click(within(operatorGroup).getByTitle("A && B: AとBの両方が真のとき真"));
 
     expect(useCadStore.getState().elements.at(-1)).toMatchObject({
       condition: { kind: "expression", expression: "line-ab.length != 0 &&" }
