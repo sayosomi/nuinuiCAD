@@ -641,6 +641,39 @@ describe("LeftPanel numeric input dragging", () => {
     expect(screen.queryByLabelText("追加する基準線")).not.toBeInTheDocument();
   });
 
+  it("lays out offset line side choices as a compact choice parameter", () => {
+    useCadStore.setState({
+      elements: [
+        ...sampleElements,
+        {
+          id: "offset-line",
+          name: "オフセット線",
+          type: "offsetLine",
+          visible: true,
+          enabled: true,
+          numericVariables: [],
+          baseLineIds: [],
+          offset: 10,
+          side: "right",
+          closed: false
+        }
+      ],
+      selectedElementId: "offset-line",
+      selectedElementIds: ["offset-line"],
+      selectedParameterKey: "side"
+    });
+
+    renderRightPanel(emptyEvaluation, undefined, { isParameterEditMode: true });
+
+    const sideChoices = screen.getByRole("group", { name: "オフセット位置" });
+    expect(sideChoices.closest(".choice-parameter-editor")).toBeInTheDocument();
+    expect(sideChoices.closest(".selected-parameter")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "左" }));
+
+    expect(useCadStore.getState().elements.at(-1)).toMatchObject({ side: "left" });
+  });
+
   it("uses a click-pick button instead of a dropdown for line division endpoints", () => {
     useCadStore.setState({
       elements: [
@@ -964,6 +997,19 @@ describe("LeftPanel element list dragging", () => {
       "data-evaluation-state",
       "disabled"
     );
+  });
+
+  it("shows element display color on the drag handle instead of a separate swatch", () => {
+    useCadStore.setState({
+      elements: [{ ...sampleElements[0], colorId: "cut-red" }, ...sampleElements.slice(1)]
+    });
+
+    renderLeftPanel();
+
+    const row = screen.getByText("点A").closest("[data-element-list-row='true']") as HTMLElement;
+    expect(row.querySelector(".element-color-swatch")).not.toBeInTheDocument();
+    expect(row).toHaveStyle({ "--element-color": "#b42318" });
+    expect(within(row).getByRole("button", { name: "点Aを並び替え" })).toBeInTheDocument();
   });
 
   it("collapses hierarchy spacing for non-group rows", () => {

@@ -165,6 +165,7 @@ export const ElementListRow = ({
     } ${
       isSearchActive && !isSearchPickable ? "is-not-search-pickable" : ""
     } ${isDragging ? "dragging" : ""}${dropBefore ? " drop-before" : ""}${dropAfter ? " drop-after" : ""}`}
+    style={{ "--element-color": elementColor } as CSSProperties}
     aria-label={`${index + 1}. ${element.name}, ${elementTypeLabels[element.type]}, ${
       element.type === "variable" ? "非描画" : isEffectivelyVisible ? "表示" : "非表示"
     }, ${isEffectivelyEnabled ? "評価する" : "評価しない"}${
@@ -193,11 +194,6 @@ export const ElementListRow = ({
       <span className="element-expand-spacer" aria-hidden="true" />
     )}
     <span className="element-index">{index + 1}</span>
-    <span
-      className="element-color-swatch"
-      style={{ "--element-color": elementColor } as CSSProperties}
-      aria-hidden="true"
-    />
     <span
       className="element-status-icons"
       data-visible-state={element.visible ? "visible" : "hidden"}

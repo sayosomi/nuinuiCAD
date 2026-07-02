@@ -30,7 +30,10 @@ export const ChoiceParameterEditor = ({
     registerParameterControl
   });
   return (
-    <div className={parameterFieldClass(parameterKey)} onClick={() => selectParameter(parameterKey)}>
+    <div
+      className={`choice-parameter-editor ${parameterFieldClass(parameterKey)}`}
+      onClick={() => selectParameter(parameterKey)}
+    >
       <ParameterName element={element} parameterKey={parameterKey} label={label} />
       <div className="point-anchor-mode" role="group" aria-label={ariaLabel}>
         {options.map((option) => (

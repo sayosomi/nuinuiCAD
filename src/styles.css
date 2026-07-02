@@ -327,10 +327,10 @@ select {
 .element-row {
   position: relative;
   display: grid;
-  grid-template-columns: max-content 18px max-content 14px 40px minmax(0, 1fr) minmax(0, auto) 24px;
+  grid-template-columns: max-content 18px max-content 40px minmax(0, 1fr) minmax(0, auto) 24px;
   grid-template-areas:
-    "outline expand index color status name type handle"
-    "actions actions actions actions actions actions actions actions";
+    "outline expand index status name type handle"
+    "actions actions actions actions actions actions actions";
   grid-template-rows: auto auto;
   align-items: center;
   column-gap: 4px;
@@ -348,17 +348,17 @@ select {
 }
 
 .element-row.is-flat-list {
-  grid-template-columns: max-content 14px 40px minmax(0, 1fr) minmax(0, auto) 24px;
+  grid-template-columns: max-content 40px minmax(0, 1fr) minmax(0, auto) 24px;
   grid-template-areas:
-    "index color status name type handle"
-    "actions actions actions actions actions actions";
+    "index status name type handle"
+    "actions actions actions actions actions";
 }
 
 .element-row.is-group {
-  grid-template-columns: 18px max-content 14px 40px minmax(0, 1fr) minmax(0, auto) 24px;
+  grid-template-columns: 18px max-content 40px minmax(0, 1fr) minmax(0, auto) 24px;
   grid-template-areas:
-    "expand index color status name type handle"
-    "actions actions actions actions actions actions actions";
+    "expand index status name type handle"
+    "actions actions actions actions actions actions";
   background: #f8faf7;
   font-weight: 600;
 }
@@ -685,6 +685,7 @@ select {
 
 .element-drag-handle {
   grid-area: handle;
+  position: relative;
   display: grid;
   place-items: center;
   width: 24px;
@@ -698,6 +699,17 @@ select {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 14px;
   line-height: 1;
+}
+
+.element-drag-handle::before {
+  content: "";
+  position: absolute;
+  top: 5px;
+  right: 2px;
+  bottom: 5px;
+  width: 3px;
+  border-radius: 999px;
+  background: var(--element-color, #31322f);
 }
 
 .element-drag-handle:hover {
@@ -718,16 +730,6 @@ select {
   justify-self: start;
   transform: translateX(-2px);
   color: #7f8378;
-}
-
-.element-color-swatch {
-  grid-area: color;
-  display: block;
-  width: 12px;
-  height: 12px;
-  border: 1px solid rgb(37 38 34 / 0.24);
-  border-radius: 999px;
-  background: var(--element-color);
 }
 
 .element-status-button {
@@ -1435,6 +1437,16 @@ select {
 .parameter-field.selected-parameter {
   border-color: #0f766e;
   background: #e7f4ef;
+}
+
+.choice-parameter-editor {
+  grid-template-columns: minmax(0, 1fr) max-content;
+  align-items: center;
+  column-gap: 8px;
+}
+
+.choice-parameter-editor .point-anchor-mode {
+  justify-self: end;
 }
 
 .parameter-name {
