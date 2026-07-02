@@ -82,6 +82,14 @@ export const getParameterDefinitions = (element: CadElement): ParameterDefinitio
     case "group":
       return [
         ...commonParameters,
+        { key: "printEnabled", directKey: "p", label: "印刷", kind: "boolean" },
+        ...pointAnchorParameters({
+          anchor: element.printAnchor ?? { mode: "coordinate", x: 0, y: 0 },
+          key: "printAnchor",
+          directKey: "b",
+          label: "印刷基準点",
+          allowCoordinate: true
+        }),
         { key: "expanded", directKey: "x", label: "展開", kind: "boolean" }
       ];
     case "conditionalGroup":

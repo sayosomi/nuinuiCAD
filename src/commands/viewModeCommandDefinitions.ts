@@ -57,6 +57,23 @@ export const viewModeCommandDefinitions = {
     shortcuts: [{ keys: "0" }],
     run: () => useCadUiStore.getState().resetCanvasViewport()
   },
+  openPrintLayout: {
+    id: "openPrintLayout",
+    label: "印刷レイアウトを開く",
+    palette: { order: 28.2, keywords: ["print", "pdf", "layout", "印刷", "PDF", "レイアウト"] },
+    run: () => {
+      useCadUiStore.setState({
+        showPrintLayout: true,
+        showCommandPalette: false
+      });
+    }
+  },
+  closePrintLayout: {
+    id: "closePrintLayout",
+    label: "CAD編集に戻る",
+    palette: { order: 28.3, keywords: ["canvas", "edit", "戻る", "編集", "CAD"] },
+    run: () => useCadUiStore.getState().setShowPrintLayout(false)
+  },
   toggleCanvasElementNames: {
     id: "toggleCanvasElementNames",
     label: "キャンバス要素名を表示/非表示",

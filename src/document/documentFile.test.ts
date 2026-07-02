@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { sampleElements } from "../sampleData";
 import { defaultDocumentPalette } from "../palette/palette";
+import { DEFAULT_PRINT_LAYOUT } from "../print/printLayout";
 import {
   currentDocumentSnapshot,
   initialCadDocumentState,
@@ -36,6 +37,7 @@ const clearTauriRuntime = () => {
 const loadedSnapshot = (): CadDocumentSnapshot => ({
   elements: [sampleElements[1]],
   palette: defaultDocumentPalette(),
+  printLayout: DEFAULT_PRINT_LAYOUT,
   evaluationLimitIndex: 1,
   selectedElementId: sampleElements[1].id,
   selectedElementIds: [sampleElements[1].id],

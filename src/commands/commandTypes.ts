@@ -14,6 +14,7 @@ export type CommandId =
   | "openDocument"
   | "saveDocument"
   | "saveDocumentAs"
+  | "exportPrintPdf"
   | "undo"
   | "redo"
   | "selectElement"
@@ -106,6 +107,8 @@ export type CommandId =
   | "zoomInCanvas"
   | "zoomOutCanvas"
   | "resetCanvasView"
+  | "openPrintLayout"
+  | "closePrintLayout"
   | "toggleCanvasElementNames"
   | "toggleCanvasPoints"
   | "toggleElementListColorAccents"
@@ -160,6 +163,7 @@ export type CommandContext = {
   elementId?: ElementId;
   insertionIndex?: number;
   evaluationLimitIndex?: number;
+  evaluation?: EvaluationResult;
   selectionMode?: "replace" | "toggle" | "range";
   dx?: number;
   dy?: number;

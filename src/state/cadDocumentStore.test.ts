@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { sampleElements } from "../sampleData";
+import { DEFAULT_PRINT_LAYOUT } from "../print/printLayout";
 import { currentDocumentSnapshot, initialCadDocumentState, useCadDocumentStore } from "./cadDocumentStore";
 
 describe("cadDocumentStore file state", () => {
@@ -31,6 +32,7 @@ describe("cadDocumentStore file state", () => {
       {
         elements: [sampleElements[1]],
         palette: useCadDocumentStore.getState().palette,
+        printLayout: DEFAULT_PRINT_LAYOUT,
         evaluationLimitIndex: 999,
         selectedElementId: "missing",
         selectedElementIds: ["missing"],

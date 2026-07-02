@@ -18,6 +18,7 @@ import { DrawingCanvas } from "./DrawingCanvas";
 import { ImageImportDialog } from "./ImageImportDialog";
 import { LeftPanel, RightPanel } from "./LeftPanel";
 import { PaletteSettingsDialog } from "./PalettePanel";
+import { PrintLayoutCanvas, PrintLayoutPanel } from "./PrintLayoutView";
 import { SelectionColorPickerDialog } from "./SelectionColorPickerDialog";
 import { ShortcutHelpOverlay } from "./ShortcutHelpOverlay";
 import { ShortcutSettingsDialog } from "./ShortcutSettingsDialog";
@@ -35,6 +36,7 @@ export const AppLayout = () => {
   const isParameterEditMode = useCadUiStore((state) => state.isParameterEditMode);
   const isDependencyJumpMode = useCadUiStore((state) => state.isDependencyJumpMode);
   const shortcutSettings = useCadUiStore((state) => state.shortcutSettings);
+  const showPrintLayout = useCadUiStore((state) => state.showPrintLayout);
   const isPickMode = useCadUiStore(
     (state) =>
       Boolean(state.activePointPickTarget) ||
@@ -72,8 +74,9 @@ export const AppLayout = () => {
       const selectedKey = useCadDocumentStore.getState().selectedParameterKey;
       if (!selectedKey) return;
       parameterInputRefs.current.get(selectedKey)?.focus();
-    }
-  }), []);
+    },
+    evaluation
+  }), [evaluation]);
 
   useEffect(() => {
     let cancelled = false;
@@ -269,18 +272,27 @@ export const AppLayout = () => {
           }
         }}
       />
-      <DrawingCanvas
-        evaluation={evaluation}
-        evaluationState={evaluationState}
-        canvasFocusRef={canvasFocusRef}
-      />
-      <RightPanel
-        evaluation={evaluation}
-        evaluationState={evaluationState}
-        isParameterEditMode={isParameterEditMode}
-        isDependencyJumpMode={isDependencyJumpMode}
-        registerParameterControl={registerParameterControl}
-      />
+      {showPrintLayout ? (
+        <>
+          <PrintLayoutCanvas evaluation={evaluation} canvasFocusRef={canvasFocusRef} />
+          <PrintLayoutPanel evaluation={evaluation} />
+        </>
+      ) : (
+        <>
+          <DrawingCanvas
+            evaluation={evaluation}
+            evaluationState={evaluationState}
+            canvasFocusRef={canvasFocusRef}
+          />
+          <RightPanel
+            evaluation={evaluation}
+            evaluationState={evaluationState}
+            isParameterEditMode={isParameterEditMode}
+            isDependencyJumpMode={isDependencyJumpMode}
+            registerParameterControl={registerParameterControl}
+          />
+        </>
+      )}
       <CommandPalette commandContext={commandContext} />
       <ShortcutHelpOverlay
         isParameterEditMode={isParameterEditMode}

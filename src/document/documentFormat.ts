@@ -1,8 +1,9 @@
 import type { CadDocumentSnapshot } from "../state/cadDocumentStore";
 import { normalizeDocumentPalette } from "../palette/palette";
+import { normalizePrintLayout } from "../print/printLayout";
 
 export const CAD_DOCUMENT_APP_ID = "nuinuiCAD";
-export const CAD_DOCUMENT_SCHEMA_VERSION = 3;
+export const CAD_DOCUMENT_SCHEMA_VERSION = 4;
 export const CAD_DOCUMENT_EXTENSION = "nuinui.json";
 
 export type CadDocumentFile = {
@@ -26,6 +27,7 @@ const parseDocumentObject = (value: unknown): CadDocumentSnapshot => {
   return {
     elements: value.elements as CadDocumentSnapshot["elements"],
     palette: normalizeDocumentPalette(value.palette),
+    printLayout: normalizePrintLayout(value.printLayout, value.elements as CadDocumentSnapshot["elements"]),
     evaluationLimitIndex:
       typeof value.evaluationLimitIndex === "number"
         ? value.evaluationLimitIndex
@@ -74,7 +76,7 @@ export const parseCadDocumentFile = (content: string): CadDocumentSnapshot => {
   }
   if (
     typeof parsed.schemaVersion !== "number" ||
-    parsed.schemaVersion !== CAD_DOCUMENT_SCHEMA_VERSION
+    (parsed.schemaVersion !== CAD_DOCUMENT_SCHEMA_VERSION && parsed.schemaVersion !== 3)
   ) {
     throw new Error(`未対応のドキュメント形式です: schemaVersion ${String(parsed.schemaVersion)}`);
   }

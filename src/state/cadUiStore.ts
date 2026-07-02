@@ -99,6 +99,7 @@ export type CadUiState = {
   showShortcutSettings: boolean;
   showPaletteSettings: boolean;
   showSelectionColorPicker: boolean;
+  showPrintLayout: boolean;
   pendingImageImport: PendingImageImport | null;
   imageImportError: string | null;
   shortcutSettings: ShortcutSettings;
@@ -133,6 +134,7 @@ export type CadUiState = {
   setShowShortcutSettings: (showShortcutSettings: boolean) => void;
   setShowPaletteSettings: (showPaletteSettings: boolean) => void;
   setShowSelectionColorPicker: (showSelectionColorPicker: boolean) => void;
+  setShowPrintLayout: (showPrintLayout: boolean) => void;
   setPendingImageImport: (pendingImageImport: PendingImageImport | null) => void;
   setImageImportError: (imageImportError: string | null) => void;
   setShortcutSettings: (shortcutSettings: ShortcutSettings) => void;
@@ -171,6 +173,7 @@ export const initialCadUiState = (): Omit<
   | "setShowShortcutSettings"
   | "setShowPaletteSettings"
   | "setShowSelectionColorPicker"
+  | "setShowPrintLayout"
   | "setPendingImageImport"
   | "setImageImportError"
   | "setShortcutSettings"
@@ -202,6 +205,7 @@ export const initialCadUiState = (): Omit<
   showShortcutSettings: false,
   showPaletteSettings: false,
   showSelectionColorPicker: false,
+  showPrintLayout: false,
   pendingImageImport: null,
   imageImportError: null,
   shortcutSettings: { version: 1, overrides: [] },
@@ -270,6 +274,7 @@ export const useCadUiStore = create<CadUiState>((set) => ({
   setShowShortcutSettings: (showShortcutSettings) => set({ showShortcutSettings }),
   setShowPaletteSettings: (showPaletteSettings) => set({ showPaletteSettings }),
   setShowSelectionColorPicker: (showSelectionColorPicker) => set({ showSelectionColorPicker }),
+  setShowPrintLayout: (showPrintLayout) => set({ showPrintLayout }),
   setPendingImageImport: (pendingImageImport) => set({ pendingImageImport }),
   setImageImportError: (imageImportError) => set({ imageImportError }),
   setShortcutSettings: (shortcutSettings) => set({ shortcutSettings }),

@@ -58,7 +58,9 @@ export const createCadElement = (
         type,
         visible: true,
         enabled: true,
-        expanded: true
+        expanded: true,
+        printEnabled: false,
+        printAnchor: { mode: "coordinate", x: 0, y: 0 }
       };
     }
     case "conditionalGroup": {

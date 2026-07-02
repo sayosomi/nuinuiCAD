@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { defaultDocumentPalette } from "../palette/palette";
+import { DEFAULT_PRINT_LAYOUT } from "../print/printLayout";
 import { sampleElements } from "../sampleData";
 import type { CadDocumentSnapshot } from "../state/cadDocumentStore";
 import {
@@ -14,6 +15,7 @@ import {
 const snapshot: CadDocumentSnapshot = {
   elements: sampleElements,
   palette: defaultDocumentPalette(),
+  printLayout: DEFAULT_PRINT_LAYOUT,
   evaluationLimitIndex: sampleElements.length,
   selectedElementId: sampleElements[0].id,
   selectedElementIds: [sampleElements[0].id],
@@ -108,5 +110,19 @@ describe("documentFormat", () => {
       defaultColorId: "ink",
       colors: [{ id: "ink", hex: "#31322f" }]
     });
+  });
+
+  it("loads v3 documents with default print layout", () => {
+    const content = JSON.stringify({
+      app: CAD_DOCUMENT_APP_ID,
+      schemaVersion: 3,
+      savedAt: "2026-06-29T00:00:00.000Z",
+      document: {
+        ...snapshot,
+        printLayout: undefined
+      }
+    });
+
+    expect(parseCadDocumentFile(content).printLayout).toEqual(DEFAULT_PRINT_LAYOUT);
   });
 });

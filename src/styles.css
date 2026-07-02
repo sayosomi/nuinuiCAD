@@ -2548,6 +2548,87 @@ select {
   font-size: 13px;
 }
 
+.print-layout-viewport {
+  background: #f4f5f1;
+}
+
+.print-layout-svg {
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+
+.print-canvas-background {
+  fill: #eef0ea;
+  stroke: #c6cbbf;
+  stroke-width: 0.6;
+}
+
+.print-page-tile rect {
+  fill: rgb(255 255 255 / 72%);
+  stroke: #8f978b;
+  stroke-width: 0.6;
+}
+
+.print-page-tile line {
+  stroke: #a0a79b;
+  stroke-width: 0.35;
+  stroke-dasharray: 4 3;
+}
+
+.print-paths line,
+.print-paths path,
+.print-paths polyline {
+  fill: none;
+  stroke: #252622;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 0.7;
+}
+
+.print-placement-anchor circle {
+  fill: #0f766e;
+  stroke: #ffffff;
+  stroke-width: 1.5;
+  cursor: grab;
+}
+
+.print-placement-anchor text {
+  fill: #252622;
+  font-size: 8px;
+  paint-order: stroke;
+  stroke: #ffffff;
+  stroke-width: 2;
+}
+
+.print-group-list {
+  display: grid;
+  gap: 6px;
+}
+
+.print-group-list button {
+  justify-content: flex-start;
+  width: 100%;
+}
+
+.print-placement-list {
+  display: grid;
+  gap: 10px;
+}
+
+.print-placement-card {
+  display: grid;
+  gap: 8px;
+  border: 1px solid #d7dace;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 10px;
+}
+
+.checkbox-field {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
 .sr-only {
   position: absolute;
   width: 1px;

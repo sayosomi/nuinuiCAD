@@ -23,6 +23,27 @@ export type DocumentPalette = {
   defaultColorId: string;
 };
 
+export type PaperSizeId = "a4" | "a3" | "b5" | "b4" | "letter" | "legal";
+
+export type PrintLayoutPlacement = {
+  id: string;
+  groupId: ElementId;
+  x: number;
+  y: number;
+  angleDeg: number;
+  mirrorX: boolean;
+};
+
+export type PrintLayout = {
+  paperSizeId: PaperSizeId;
+  orientation: "portrait" | "landscape";
+  columns: number;
+  rows: number;
+  overlapMm: number;
+  scale: number;
+  placements: PrintLayoutPlacement[];
+};
+
 export type NumericExpression = {
   kind: "expression";
   expression: string;
@@ -264,6 +285,8 @@ export type ImageElement = CadElementBase & {
 export type GroupElement = CadElementBase & {
   type: "group";
   expanded: boolean;
+  printEnabled?: boolean;
+  printAnchor?: PointAnchor;
 };
 
 export type ConditionalGroupElement = CadElementBase & {

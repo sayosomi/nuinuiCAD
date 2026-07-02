@@ -9,11 +9,19 @@ import {
   isValidPaletteColorId,
   normalizeDocumentPalette
 } from "../palette/palette";
-import type { CadElement, DocumentPalette, ElementId, PaletteColor } from "../types/geometry";
+import { DEFAULT_PRINT_LAYOUT, normalizePrintLayout } from "../print/printLayout";
+import type {
+  CadElement,
+  DocumentPalette,
+  ElementId,
+  PaletteColor,
+  PrintLayout
+} from "../types/geometry";
 
 export type CadDocumentSnapshot = {
   elements: CadElement[];
   palette: DocumentPalette;
+  printLayout: PrintLayout;
   evaluationLimitIndex: number;
   selectedElementId: ElementId | null;
   selectedElementIds: ElementId[];
@@ -38,6 +46,8 @@ export type CadDocumentState = CadDocumentSnapshot & {
   ) => void;
   setElements: (elements: CadElement[]) => void;
   updateElement: (id: ElementId, patch: Partial<CadElement>) => void;
+  setPrintLayout: (printLayout: PrintLayout) => void;
+  updatePrintLayout: (patch: Partial<PrintLayout>) => void;
   setPalette: (palette: DocumentPalette) => void;
   updatePaletteColor: (id: string, patch: Partial<PaletteColor>) => void;
   addPaletteColor: () => void;
@@ -53,6 +63,7 @@ export type CadDocumentState = CadDocumentSnapshot & {
 export const currentDocumentSnapshot = (state: CadDocumentSnapshot): CadDocumentSnapshot => ({
   elements: state.elements,
   palette: state.palette,
+  printLayout: state.printLayout,
   evaluationLimitIndex: state.evaluationLimitIndex,
   selectedElementId: state.selectedElementId,
   selectedElementIds: state.selectedElementIds,
@@ -75,9 +86,19 @@ const elementsWithValidColorIds = (elements: CadElement[], palette: DocumentPale
       )
     : elements;
 
+const normalizedGroupPrintFields = (element: CadElement): CadElement => {
+  if (element.type !== "group") return element;
+  return {
+    ...element,
+    printEnabled: element.printEnabled === true,
+    printAnchor: element.printAnchor ?? { mode: "coordinate", x: 0, y: 0 }
+  };
+};
+
 const normalizeSnapshot = (snapshot: CadDocumentSnapshot): CadDocumentSnapshot => {
   const palette = normalizeDocumentPalette(snapshot.palette);
-  const elements = elementsWithValidColorIds(snapshot.elements, palette);
+  const elements = elementsWithValidColorIds(snapshot.elements, palette).map(normalizedGroupPrintFields);
+  const printLayout = normalizePrintLayout(snapshot.printLayout, elements);
   const existingIds = new Set(elements.map((element) => element.id));
   const evaluationLimitIndex = Math.min(
     Math.max(snapshot.evaluationLimitIndex ?? elements.length, 0),
@@ -103,6 +124,7 @@ const normalizeSnapshot = (snapshot: CadDocumentSnapshot): CadDocumentSnapshot =
   return {
     elements,
     palette,
+    printLayout,
     evaluationLimitIndex,
     selectedElementId,
     selectedElementIds: normalizedSelectedElementIds,
@@ -116,6 +138,7 @@ const normalizeSnapshot = (snapshot: CadDocumentSnapshot): CadDocumentSnapshot =
 const snapshotEquals = (a: CadDocumentSnapshot, b: CadDocumentSnapshot) =>
   a.elements === b.elements &&
   a.palette === b.palette &&
+  a.printLayout === b.printLayout &&
   a.evaluationLimitIndex === b.evaluationLimitIndex &&
   a.selectedElementId === b.selectedElementId &&
   a.selectedElementIds.length === b.selectedElementIds.length &&
@@ -127,6 +150,7 @@ export const initialCadDocumentState = (): CadDocumentSnapshot &
   Pick<CadDocumentState, "past" | "future" | "currentFilePath" | "dirtySinceSave"> => ({
   elements: sampleElements,
   palette: defaultDocumentPalette(),
+  printLayout: DEFAULT_PRINT_LAYOUT,
   evaluationLimitIndex: sampleElements.length,
   selectedElementId: sampleElements[0]?.id ?? null,
   selectedElementIds: sampleElements[0] ? [sampleElements[0].id] : [],
@@ -246,6 +270,17 @@ export const useCadDocumentStore = create<CadDocumentState>((set) => ({
         future: [],
         dirtySinceSave: true
       };
+    }),
+  setPrintLayout: (printLayout) =>
+    useCadDocumentStore.getState().commitDocumentChange({
+      printLayout
+    }),
+  updatePrintLayout: (patch) =>
+    useCadDocumentStore.getState().commitDocumentChange({
+      printLayout: {
+        ...useCadDocumentStore.getState().printLayout,
+        ...patch
+      }
     }),
   setPalette: (palette) =>
     useCadDocumentStore.getState().commitDocumentChange({

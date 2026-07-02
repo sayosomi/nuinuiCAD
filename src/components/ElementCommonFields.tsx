@@ -9,6 +9,7 @@ import {
   NumericParameterEditor,
   ParameterName
 } from "./ParameterEditors";
+import { PointAnchorParameterEditor } from "./PointParameterEditors";
 import { ColorParameterEditor } from "./ColorParameterEditor";
 import type { CommonEditorProps } from "./parameterEditorShared";
 
@@ -75,12 +76,27 @@ export const ElementCommonFields = ({
       />
 
       {element.type === "group" && (
-        <BooleanParameterEditor
-          {...elementEditorProps}
-          parameterKey="expanded"
-          label="展開する"
-          checked={element.expanded}
-        />
+        <>
+          <BooleanParameterEditor
+            {...elementEditorProps}
+            parameterKey="printEnabled"
+            label="印刷する"
+            checked={element.printEnabled === true}
+          />
+          <PointAnchorParameterEditor
+            {...commonEditorProps}
+            parameterKey="printAnchor"
+            label="印刷基準点"
+            anchor={element.printAnchor ?? { mode: "coordinate", x: 0, y: 0 }}
+            allowCoordinate
+          />
+          <BooleanParameterEditor
+            {...elementEditorProps}
+            parameterKey="expanded"
+            label="展開する"
+            checked={element.expanded}
+          />
+        </>
       )}
       {element.type === "conditionalGroup" && (
         <>

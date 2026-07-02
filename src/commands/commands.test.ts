@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { waitFor } from "@testing-library/react";
 import { dispatchCommand, filterCommandPaletteItems } from "./commands";
 import { defaultDocumentPalette } from "../palette/palette";
+import { DEFAULT_PRINT_LAYOUT } from "../print/printLayout";
 import { sampleElements } from "../sampleData";
 import { DEFAULT_CANVAS_VIEWPORT, MAX_CANVAS_ZOOM, MIN_CANVAS_ZOOM, useCadStore } from "../state/useCadStore";
 import type { CadElement } from "../types/geometry";
@@ -11,6 +12,7 @@ describe("commands", () => {
     useCadStore.setState({
       elements: sampleElements,
       palette: defaultDocumentPalette(),
+      printLayout: DEFAULT_PRINT_LAYOUT,
       evaluationLimitIndex: sampleElements.length,
       selectedElementId: sampleElements[0].id,
       selectedElementIds: [sampleElements[0].id],
@@ -762,6 +764,7 @@ describe("commands", () => {
     const snapshot = {
       elements: state.elements,
       palette: state.palette,
+      printLayout: state.printLayout,
       evaluationLimitIndex: state.evaluationLimitIndex,
       selectedElementId: state.selectedElementId,
       selectedElementIds: state.selectedElementIds,
@@ -979,6 +982,7 @@ describe("commands", () => {
     const snapshot = {
       elements: state.elements,
       palette: state.palette,
+      printLayout: state.printLayout,
       evaluationLimitIndex: state.evaluationLimitIndex,
       selectedElementId: state.selectedElementId,
       selectedElementIds: state.selectedElementIds,

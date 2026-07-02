@@ -1,4 +1,5 @@
 import { newDocument, openDocument, saveDocument, saveDocumentAs } from "../document/documentFile";
+import { exportPrintPdf } from "../document/printPdfExport";
 import type { Command, CommandId } from "./commandTypes";
 
 const runFileCommand = (operation: () => Promise<void>) => {
@@ -35,5 +36,11 @@ export const documentCommandDefinitions = {
     palette: { order: 32, keywords: ["save as", "file", "document", "保存", "別名", "ファイル"] },
     shortcuts: [{ keys: "Mod+Shift+S" }],
     run: () => runFileCommand(saveDocumentAs)
+  },
+  exportPrintPdf: {
+    id: "exportPrintPdf",
+    label: "印刷用PDFを書き出す",
+    palette: { order: 33, keywords: ["pdf", "print", "export", "印刷", "書き出し", "PDF"] },
+    run: (context) => runFileCommand(() => exportPrintPdf(context?.evaluation))
   }
 } satisfies Partial<Record<CommandId, Command>>;

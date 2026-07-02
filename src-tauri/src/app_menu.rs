@@ -82,6 +82,8 @@ const FILE_ITEMS: &[MenuSpec] = &[
         "名前を付けて保存...",
         Some("CmdOrCtrl+Shift+S"),
     ),
+    SEP,
+    cmd("exportPrintPdf", "印刷用PDFを書き出す...", None),
 ];
 
 const EDIT_ITEMS: &[MenuSpec] = &[
@@ -165,6 +167,9 @@ const VIEW_ITEMS: &[MenuSpec] = &[
     cmd("zoomInCanvas", "キャンバスを拡大", None),
     cmd("zoomOutCanvas", "キャンバスを縮小", None),
     cmd("resetCanvasView", "キャンバス表示をリセット", None),
+    SEP,
+    cmd("openPrintLayout", "印刷レイアウトを開く", None),
+    cmd("closePrintLayout", "CAD編集に戻る", None),
     SEP,
     cmd("toggleElementInfoPanel", "要素詳細を表示/非表示", None),
     cmd("openCommandPalette", "コマンドパレットを開く", None),
