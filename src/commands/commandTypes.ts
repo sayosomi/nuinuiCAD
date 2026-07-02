@@ -17,6 +17,7 @@ export type CommandId =
   | "undo"
   | "redo"
   | "selectElement"
+  | "selectAllElements"
   | "selectNextElement"
   | "selectPreviousElement"
   | "extendSelectionToNextElement"

@@ -31,6 +31,7 @@ import {
   moveEvaluationDividerToSelectedElement,
   outdentSelectedElements,
   applyDisplayColorToSelection,
+  selectAllElements,
   selectElement,
   selectElementByOffset,
   selectParentGroup,
@@ -50,6 +51,12 @@ export const selectionCommandDefinitions = {
       if (!context?.elementId) return;
       selectElement(context.elementId, context.selectionMode);
     }
+  },
+  selectAllElements: {
+    id: "selectAllElements",
+    label: "すべての要素を選択",
+    palette: { order: 25.5, keywords: ["select", "select all", "all", "全選択", "すべて", "要素"] },
+    run: () => selectAllElements()
   },
   selectNextElement: {
     id: "selectNextElement",

@@ -52,6 +52,23 @@ describe("commands", () => {
     expect(useCadStore.getState().selectedElementId).toBe(sampleElements[0].id);
   });
 
+  it("selects all elements from a command", () => {
+    useCadStore.setState({
+      selectedElementId: sampleElements[2].id,
+      selectedElementIds: [sampleElements[2].id],
+      selectionAnchorElementId: sampleElements[2].id
+    });
+
+    dispatchCommand("selectAllElements");
+
+    const state = useCadStore.getState();
+    expect(state.selectedElementId).toBe(sampleElements[2].id);
+    expect(state.selectedElementIds).toEqual(sampleElements.map((element) => element.id));
+    expect(state.selectionAnchorElementId).toBe(sampleElements[2].id);
+    expect(state.past).toHaveLength(0);
+    expect(state.dirtySinceSave).toBe(false);
+  });
+
   it("toggles canvas display helpers", () => {
     dispatchCommand("toggleCanvasElementNames");
     expect(useCadStore.getState().showCanvasElementNames).toBe(false);
@@ -1512,6 +1529,12 @@ describe("commands", () => {
     );
     expect(filterCommandPaletteItems("色").map((item) => item.commandId)).toContain(
       "openSelectionColorPicker"
+    );
+    expect(filterCommandPaletteItems("全選択").map((item) => item.commandId)).toContain(
+      "selectAllElements"
+    );
+    expect(filterCommandPaletteItems("select all").map((item) => item.commandId)).toContain(
+      "selectAllElements"
     );
   });
 

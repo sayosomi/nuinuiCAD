@@ -113,6 +113,19 @@ export const selectElementByOffset = (offset: number) => {
   updateDependencyJumpModeAfterSelectionChange();
 };
 
+export const selectAllElements = () => {
+  const { elements, selectedElementId } = useCadDocumentStore.getState();
+  const allElementIds = elements.map((element) => element.id);
+  const primaryId =
+    selectedElementId && allElementIds.includes(selectedElementId)
+      ? selectedElementId
+      : allElementIds[0] ?? null;
+
+  useCadDocumentStore.getState().setSelectedElementIds(allElementIds, primaryId);
+  clearTransientSelectionUi();
+  updateDependencyJumpModeAfterSelectionChange();
+};
+
 export const extendSelectionByOffset = (offset: number) => {
   const { elements, selectedElementId, selectionAnchorElementId } = useCadDocumentStore.getState();
   const visibleElements = visibleOutlineElements(elements);
