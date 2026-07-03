@@ -215,3 +215,94 @@ describe("AppLayout left panel resizing", () => {
     expect(shell.style.getPropertyValue("--left-panel-width")).toBe("320px");
   });
 });
+
+describe("AppLayout command ribbon", () => {
+  it("loads the saved command ribbon position", async () => {
+    window.localStorage.setItem(
+      "nuinuiCAD.commandRibbonSettings.v1",
+      JSON.stringify({
+        version: 1,
+        ribbons: [
+          {
+            id: "custom",
+            label: "Custom",
+            x: 80,
+            y: 24,
+            orientation: "horizontal",
+            buttons: [
+              {
+                id: "line",
+                commandId: "addLine",
+                icon: "slash",
+                label: "Line",
+                showLabel: true
+              }
+            ]
+          }
+        ]
+      })
+    );
+    const view = render(<AppLayout />);
+
+    const ribbon = await view.findByLabelText("コマンドリボン");
+    const customRibbon = ribbon.querySelector(".command-ribbon");
+    if (!(customRibbon instanceof HTMLElement)) {
+      throw new Error("Missing command ribbon");
+    }
+
+    expect(customRibbon.style.left).toBe("8px");
+    expect(customRibbon.style.top).toBe("24px");
+  });
+
+  it("saves the command ribbon position after dragging its handle", async () => {
+    const view = render(<AppLayout />);
+    const handle = await view.findByRole("button", { name: "作図を移動" });
+
+    fireEvent.pointerDown(handle, { button: 0, clientX: 250, clientY: 20, pointerId: 2 });
+    await waitFor(() => expect(handle.closest(".command-ribbon")).toHaveClass("is-dragging"));
+    fireEvent.pointerMove(handle, { clientX: 300, clientY: 50, pointerId: 2 });
+    fireEvent.pointerUp(handle, { clientX: 300, clientY: 50, pointerId: 2 });
+
+    await waitFor(() => {
+      const settings = JSON.parse(
+        window.localStorage.getItem("nuinuiCAD.commandRibbonSettings.v1") ?? "{}"
+      );
+      expect(settings.ribbons[0].x).toBeGreaterThan(0);
+      expect(settings.ribbons[0].y).toBe(42);
+    });
+  });
+
+  it("dispatches commands from command ribbon buttons", async () => {
+    window.localStorage.setItem(
+      "nuinuiCAD.commandRibbonSettings.v1",
+      JSON.stringify({
+        version: 1,
+        ribbons: [
+          {
+            id: "custom",
+            label: "Custom",
+            x: 80,
+            y: 24,
+            orientation: "horizontal",
+            buttons: [
+              {
+                id: "line",
+                commandId: "addLine",
+                icon: "slash",
+                label: "Line",
+                showLabel: true
+              }
+            ]
+          }
+        ]
+      })
+    );
+    const initialCount = useCadStore.getState().elements.length;
+    const view = render(<AppLayout />);
+    const button = await view.findByRole("button", { name: "Line" });
+
+    fireEvent.click(button);
+
+    expect(useCadStore.getState().elements).toHaveLength(initialCount + 1);
+  });
+});

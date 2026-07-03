@@ -1,4 +1,5 @@
 pub mod app_menu;
+pub mod command_ribbon_settings;
 pub mod document_file;
 pub mod evaluation;
 pub mod image_metadata;
@@ -28,6 +29,8 @@ pub fn run() {
             document_file::write_document_file,
             print_pdf::export_print_pdf,
             print_svg::export_print_svg,
+            command_ribbon_settings::load_command_ribbon_settings,
+            command_ribbon_settings::save_command_ribbon_settings,
             layout_settings::load_layout_settings,
             layout_settings::save_layout_settings,
             palette_settings::load_palette_template,

@@ -283,6 +283,7 @@ export const AppLayout = () => {
             evaluation={evaluation}
             evaluationState={evaluationState}
             canvasFocusRef={canvasFocusRef}
+            commandContext={commandContext}
           />
           <RightPanel
             evaluation={evaluation}

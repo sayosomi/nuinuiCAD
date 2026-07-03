@@ -5,6 +5,7 @@ import type {
 } from "react";
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { dispatchCommand } from "../commands/commands";
+import type { CommandContext } from "../commands/commands";
 import type { EvaluationEngineState } from "../geometry/useEvaluationEngine";
 import { generatedElementIdForTargetForGroup } from "../model/forGroupGeneratedReferences";
 import { numericReferenceGeometrySupportsProperty } from "../geometry/numericReferenceProperties";
@@ -20,6 +21,7 @@ import type {
 } from "../types/geometry";
 import { CanvasCandidateMenus } from "./CanvasCandidateMenus";
 import { CanvasOverlay } from "./CanvasOverlay";
+import { CommandRibbonOverlay } from "./CommandRibbonOverlay";
 import {
   hitTestCanvasGeometry,
   hitTestLineCandidates,
@@ -50,6 +52,7 @@ type DrawingCanvasProps = {
   evaluation: EvaluationResult;
   evaluationState?: EvaluationEngineState;
   canvasFocusRef: RefObject<HTMLDivElement | null>;
+  commandContext?: CommandContext;
 };
 
 type PointDragState = {
@@ -83,7 +86,12 @@ const WHEEL_ZOOM_BASE = 1.1;
 const BEZIER_HANDLE_HIT_RADIUS_PX = 9;
 const POINT_PICK_CANDIDATE_RADIUS_PX = 10;
 
-export const DrawingCanvas = ({ evaluation, evaluationState, canvasFocusRef }: DrawingCanvasProps) => {
+export const DrawingCanvas = ({
+  evaluation,
+  evaluationState,
+  canvasFocusRef,
+  commandContext = {}
+}: DrawingCanvasProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const panDragRef = useRef<{ pointerId: number; lastX: number; lastY: number } | null>(null);
   const pointDragRef = useRef<PointDragState | null>(null);
@@ -707,6 +715,7 @@ export const DrawingCanvas = ({ evaluation, evaluationState, canvasFocusRef }: D
           isNumericReferencePickActive={Boolean(activeNumericReferencePickTarget)}
           isLinePickActive={Boolean(activeLinePickTarget)}
         />
+        <CommandRibbonOverlay commandContext={commandContext} viewportSize={viewportSize} />
         <div className="canvas-display-controls" aria-label="キャンバス表示設定">
           <button
             type="button"
