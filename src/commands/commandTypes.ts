@@ -120,6 +120,8 @@ export type CommandId =
   | "closeShortcutSettings"
   | "openPaletteSettings"
   | "closePaletteSettings"
+  | "openCommandRibbonSettings"
+  | "closeCommandRibbonSettings"
   | "openSelectionColorPicker"
   | "closeSelectionColorPicker"
   | "applyDisplayColorToSelection"

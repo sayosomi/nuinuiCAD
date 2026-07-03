@@ -1,5 +1,6 @@
 import { fireEvent, render, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { dispatchCommand } from "../commands/commands";
 import { defaultDocumentPalette } from "../palette/palette";
 import { sampleElements } from "../sampleData";
 import { DEFAULT_CANVAS_VIEWPORT, useCadStore } from "../state/useCadStore";
@@ -31,10 +32,14 @@ const resetStore = () => {
     showShortcutHelp: false,
     showShortcutSettings: false,
     showPaletteSettings: false,
+    showCommandRibbonSettings: false,
     showSelectionColorPicker: false,
     shortcutSettings: { version: 1, overrides: [] },
     shortcutSettingsLoading: false,
     shortcutSettingsError: null,
+    commandRibbonSettings: null,
+    commandRibbonSettingsLoading: false,
+    commandRibbonSettingsError: null,
     showCommandPalette: false,
     canvasViewport: DEFAULT_CANVAS_VIEWPORT,
     printCanvasViewport: DEFAULT_CANVAS_VIEWPORT,
@@ -229,6 +234,7 @@ describe("AppLayout command ribbon", () => {
             x: 80,
             y: 24,
             orientation: "horizontal",
+            iconSize: 20,
             buttons: [
               {
                 id: "line",
@@ -250,7 +256,7 @@ describe("AppLayout command ribbon", () => {
       throw new Error("Missing command ribbon");
     }
 
-    expect(customRibbon.style.left).toBe("8px");
+    expect(customRibbon.style.left).toBe("80px");
     expect(customRibbon.style.top).toBe("24px");
   });
 
@@ -284,6 +290,7 @@ describe("AppLayout command ribbon", () => {
             x: 80,
             y: 24,
             orientation: "horizontal",
+            iconSize: 16,
             buttons: [
               {
                 id: "line",
@@ -304,5 +311,23 @@ describe("AppLayout command ribbon", () => {
     fireEvent.click(button);
 
     expect(useCadStore.getState().elements).toHaveLength(initialCount + 1);
+  });
+
+  it("saves command ribbon icon size from settings dialog", async () => {
+    const view = render(<AppLayout />);
+    await view.findByRole("button", { name: "作図を移動" });
+
+    dispatchCommand("openCommandRibbonSettings");
+    const sizeSelect = await view.findByLabelText("アイコンサイズ");
+    fireEvent.change(sizeSelect, { target: { value: "24" } });
+    fireEvent.click(view.getByRole("button", { name: "保存" }));
+
+    await waitFor(() => {
+      const settings = JSON.parse(
+        window.localStorage.getItem("nuinuiCAD.commandRibbonSettings.v1") ?? "{}"
+      );
+      expect(settings.ribbons[0].iconSize).toBe(24);
+    });
+    expect(useCadStore.getState().commandRibbonSettings?.ribbons[0].iconSize).toBe(24);
   });
 });

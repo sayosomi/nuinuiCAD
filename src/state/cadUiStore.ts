@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import type { CommandRibbonSettings } from "../commandRibbons/commandRibbonSettings";
 import type { NumericMeasurementKey } from "../geometry/numericExpressionTypes";
 import type { ShortcutSettings } from "../keyboard/shortcutTypes";
 import type { ParameterKey } from "../parameters/parameterDefinitions";
@@ -98,6 +99,7 @@ export type CadUiState = {
   showShortcutHelp: boolean;
   showShortcutSettings: boolean;
   showPaletteSettings: boolean;
+  showCommandRibbonSettings: boolean;
   showSelectionColorPicker: boolean;
   showPrintLayout: boolean;
   pendingImageImport: PendingImageImport | null;
@@ -105,6 +107,9 @@ export type CadUiState = {
   shortcutSettings: ShortcutSettings;
   shortcutSettingsLoading: boolean;
   shortcutSettingsError: string | null;
+  commandRibbonSettings: CommandRibbonSettings | null;
+  commandRibbonSettingsLoading: boolean;
+  commandRibbonSettingsError: string | null;
   showCommandPalette: boolean;
   selectedPrintPlacementId: string | null;
   canvasViewport: CanvasViewport;
@@ -135,6 +140,7 @@ export type CadUiState = {
   setShowShortcutHelp: (showShortcutHelp: boolean) => void;
   setShowShortcutSettings: (showShortcutSettings: boolean) => void;
   setShowPaletteSettings: (showPaletteSettings: boolean) => void;
+  setShowCommandRibbonSettings: (showCommandRibbonSettings: boolean) => void;
   setShowSelectionColorPicker: (showSelectionColorPicker: boolean) => void;
   setShowPrintLayout: (showPrintLayout: boolean) => void;
   setPendingImageImport: (pendingImageImport: PendingImageImport | null) => void;
@@ -142,6 +148,9 @@ export type CadUiState = {
   setShortcutSettings: (shortcutSettings: ShortcutSettings) => void;
   setShortcutSettingsLoading: (shortcutSettingsLoading: boolean) => void;
   setShortcutSettingsError: (shortcutSettingsError: string | null) => void;
+  setCommandRibbonSettings: (commandRibbonSettings: CommandRibbonSettings | null) => void;
+  setCommandRibbonSettingsLoading: (commandRibbonSettingsLoading: boolean) => void;
+  setCommandRibbonSettingsError: (commandRibbonSettingsError: string | null) => void;
   setShowCommandPalette: (showCommandPalette: boolean) => void;
   setSelectedPrintPlacementId: (selectedPrintPlacementId: string | null) => void;
   setCanvasViewport: (canvasViewport: CanvasViewport) => void;
@@ -182,6 +191,7 @@ export const initialCadUiState = (): Omit<
   | "setShowShortcutHelp"
   | "setShowShortcutSettings"
   | "setShowPaletteSettings"
+  | "setShowCommandRibbonSettings"
   | "setShowSelectionColorPicker"
   | "setShowPrintLayout"
   | "setPendingImageImport"
@@ -189,6 +199,9 @@ export const initialCadUiState = (): Omit<
   | "setShortcutSettings"
   | "setShortcutSettingsLoading"
   | "setShortcutSettingsError"
+  | "setCommandRibbonSettings"
+  | "setCommandRibbonSettingsLoading"
+  | "setCommandRibbonSettingsError"
   | "setShowCommandPalette"
   | "setSelectedPrintPlacementId"
   | "setCanvasViewport"
@@ -219,6 +232,7 @@ export const initialCadUiState = (): Omit<
   showShortcutHelp: false,
   showShortcutSettings: false,
   showPaletteSettings: false,
+  showCommandRibbonSettings: false,
   showSelectionColorPicker: false,
   showPrintLayout: false,
   pendingImageImport: null,
@@ -226,6 +240,9 @@ export const initialCadUiState = (): Omit<
   shortcutSettings: { version: 1, overrides: [] },
   shortcutSettingsLoading: false,
   shortcutSettingsError: null,
+  commandRibbonSettings: null,
+  commandRibbonSettingsLoading: false,
+  commandRibbonSettingsError: null,
   showCommandPalette: false,
   selectedPrintPlacementId: null,
   canvasViewport: DEFAULT_CANVAS_VIEWPORT,
@@ -315,6 +332,8 @@ export const useCadUiStore = create<CadUiState>((set) => ({
   setShowShortcutHelp: (showShortcutHelp) => set({ showShortcutHelp }),
   setShowShortcutSettings: (showShortcutSettings) => set({ showShortcutSettings }),
   setShowPaletteSettings: (showPaletteSettings) => set({ showPaletteSettings }),
+  setShowCommandRibbonSettings: (showCommandRibbonSettings) =>
+    set({ showCommandRibbonSettings }),
   setShowSelectionColorPicker: (showSelectionColorPicker) => set({ showSelectionColorPicker }),
   setShowPrintLayout: (showPrintLayout) => set({ showPrintLayout }),
   setPendingImageImport: (pendingImageImport) => set({ pendingImageImport }),
@@ -322,6 +341,11 @@ export const useCadUiStore = create<CadUiState>((set) => ({
   setShortcutSettings: (shortcutSettings) => set({ shortcutSettings }),
   setShortcutSettingsLoading: (shortcutSettingsLoading) => set({ shortcutSettingsLoading }),
   setShortcutSettingsError: (shortcutSettingsError) => set({ shortcutSettingsError }),
+  setCommandRibbonSettings: (commandRibbonSettings) => set({ commandRibbonSettings }),
+  setCommandRibbonSettingsLoading: (commandRibbonSettingsLoading) =>
+    set({ commandRibbonSettingsLoading }),
+  setCommandRibbonSettingsError: (commandRibbonSettingsError) =>
+    set({ commandRibbonSettingsError }),
   setShowCommandPalette: (showCommandPalette) => set({ showCommandPalette }),
   setSelectedPrintPlacementId: (selectedPrintPlacementId) => set({ selectedPrintPlacementId }),
   setCanvasViewport: (canvasViewport) =>

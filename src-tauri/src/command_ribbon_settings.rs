@@ -15,6 +15,7 @@ fn default_command_ribbon_settings() -> Value {
                 "x": null,
                 "y": 12,
                 "orientation": "horizontal",
+                "iconSize": 16,
                 "buttons": [
                     { "id": "addFreePoint", "commandId": "addFreePoint", "icon": "circle-dot", "label": "点", "showLabel": false },
                     { "id": "addOffsetPoint", "commandId": "addOffsetPoint", "icon": "move-right", "label": "オフセット点", "showLabel": false },

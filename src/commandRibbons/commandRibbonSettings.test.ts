@@ -29,6 +29,7 @@ describe("commandRibbonSettings", () => {
           x: 80,
           y: 24,
           orientation: "vertical",
+          iconSize: 20,
           buttons: [
             {
               id: "line",
@@ -51,6 +52,7 @@ describe("commandRibbonSettings", () => {
           x: 80,
           y: 24,
           orientation: "vertical",
+          iconSize: 20,
           buttons: [
             {
               id: "line",
@@ -83,6 +85,7 @@ describe("commandRibbonSettings", () => {
           label: "Ribbon",
           x: -12,
           y: 20000,
+          iconSize: 999,
           orientation: "sideways",
           buttons: [
             { id: "line", commandId: "addLine", icon: "slash", label: "Line", showLabel: true },
@@ -95,6 +98,7 @@ describe("commandRibbonSettings", () => {
     expect(settings.ribbons[0].x).toBe(0);
     expect(settings.ribbons[0].y).toBe(10000);
     expect(settings.ribbons[0].orientation).toBe("horizontal");
+    expect(settings.ribbons[0].iconSize).toBe(16);
     expect(settings.ribbons[0].buttons).toHaveLength(1);
   });
 

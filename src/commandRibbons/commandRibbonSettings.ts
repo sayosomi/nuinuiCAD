@@ -1,21 +1,15 @@
 import { invoke } from "@tauri-apps/api/core";
 import { commands, type CommandId } from "../commands/commands";
 import { isTauriRuntime } from "../geometry/evaluationEngine";
+import { isCommandRibbonIconId, type CommandRibbonIconId } from "./commandRibbonIcons";
 
 const STORAGE_KEY = "nuinuiCAD.commandRibbonSettings.v1";
 
-export const commandRibbonIconIds = [
-  "circle-dot",
-  "move-right",
-  "slash",
-  "corner-down-right",
-  "spline",
-  "copy",
-  "flip-horizontal",
-  "scissors"
-] as const;
+export type { CommandRibbonIconId };
 
-export type CommandRibbonIconId = (typeof commandRibbonIconIds)[number];
+export const commandRibbonIconSizes = [14, 16, 18, 20, 24] as const;
+
+export type CommandRibbonIconSize = (typeof commandRibbonIconSizes)[number];
 
 export type CommandRibbonButton = {
   id: string;
@@ -31,6 +25,7 @@ export type CommandRibbon = {
   x: number | null;
   y: number;
   orientation: "horizontal" | "vertical";
+  iconSize: CommandRibbonIconSize;
   buttons: CommandRibbonButton[];
 };
 
@@ -40,6 +35,7 @@ export type CommandRibbonSettings = {
 };
 
 const DEFAULT_RIBBON_Y = 12;
+const DEFAULT_ICON_SIZE: CommandRibbonIconSize = 16;
 const MIN_RIBBON_COORDINATE = 0;
 const MAX_RIBBON_COORDINATE = 10000;
 
@@ -49,11 +45,13 @@ const isObject = (value: unknown): value is Record<string, unknown> =>
 const isCommandId = (value: unknown): value is CommandId =>
   typeof value === "string" && Object.hasOwn(commands, value);
 
-const isCommandRibbonIconId = (value: unknown): value is CommandRibbonIconId =>
-  typeof value === "string" && (commandRibbonIconIds as readonly string[]).includes(value);
-
 const clampCoordinate = (value: number) =>
   Math.min(Math.max(Math.round(value), MIN_RIBBON_COORDINATE), MAX_RIBBON_COORDINATE);
+
+const normalizeIconSize = (value: unknown): CommandRibbonIconSize =>
+  typeof value === "number" && (commandRibbonIconSizes as readonly number[]).includes(value)
+    ? (value as CommandRibbonIconSize)
+    : DEFAULT_ICON_SIZE;
 
 const defaultButton = (
   commandId: CommandId,
@@ -76,6 +74,7 @@ export const defaultCommandRibbonSettings = (): CommandRibbonSettings => ({
       x: null,
       y: DEFAULT_RIBBON_Y,
       orientation: "horizontal",
+      iconSize: DEFAULT_ICON_SIZE,
       buttons: [
         defaultButton("addFreePoint", "circle-dot", "点"),
         defaultButton("addOffsetPoint", "move-right", "オフセット点"),
@@ -121,6 +120,7 @@ const normalizeRibbon = (value: unknown): CommandRibbon | null => {
     x: typeof value.x === "number" && Number.isFinite(value.x) ? clampCoordinate(value.x) : null,
     y: typeof value.y === "number" && Number.isFinite(value.y) ? clampCoordinate(value.y) : DEFAULT_RIBBON_Y,
     orientation: value.orientation === "vertical" ? "vertical" : "horizontal",
+    iconSize: normalizeIconSize(value.iconSize),
     buttons
   };
 };

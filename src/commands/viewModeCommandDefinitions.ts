@@ -172,6 +172,23 @@ export const viewModeCommandDefinitions = {
     label: "パレット設定を閉じる",
     run: () => useCadUiStore.getState().setShowPaletteSettings(false)
   },
+  openCommandRibbonSettings: {
+    id: "openCommandRibbonSettings",
+    label: "コマンドリボンを編集",
+    palette: { order: 45.5, keywords: ["ribbon", "toolbar", "command", "button", "リボン", "ツールバー", "コマンド", "ボタン", "設定"] },
+    run: () => {
+      useCadUiStore.setState({
+        showCommandRibbonSettings: true,
+        showCommandPalette: false,
+        commandRibbonSettingsError: null
+      });
+    }
+  },
+  closeCommandRibbonSettings: {
+    id: "closeCommandRibbonSettings",
+    label: "コマンドリボン設定を閉じる",
+    run: () => useCadUiStore.getState().setShowCommandRibbonSettings(false)
+  },
   focusCanvas: {
     id: "focusCanvas",
     label: "キャンバスへフォーカス",

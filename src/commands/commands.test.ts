@@ -36,8 +36,16 @@ describe("commands", () => {
       showCanvasPoints: true,
       showElementListColorAccents: false,
       showShortcutHelp: true,
+      showShortcutSettings: false,
       showPaletteSettings: false,
+      showCommandRibbonSettings: false,
       showSelectionColorPicker: false,
+      shortcutSettings: { version: 1, overrides: [] },
+      shortcutSettingsLoading: false,
+      shortcutSettingsError: null,
+      commandRibbonSettings: null,
+      commandRibbonSettingsLoading: false,
+      commandRibbonSettingsError: null,
       showCommandPalette: false,
       canvasViewport: DEFAULT_CANVAS_VIEWPORT,
       printCanvasViewport: DEFAULT_CANVAS_VIEWPORT,
@@ -1382,6 +1390,19 @@ describe("commands", () => {
     expect(useCadStore.getState().showPaletteSettings).toBe(false);
   });
 
+  it("opens and closes command ribbon settings", () => {
+    useCadStore.setState({ showCommandPalette: true });
+
+    dispatchCommand("openCommandRibbonSettings");
+    expect(useCadStore.getState()).toMatchObject({
+      showCommandRibbonSettings: true,
+      showCommandPalette: false
+    });
+
+    dispatchCommand("closeCommandRibbonSettings");
+    expect(useCadStore.getState().showCommandRibbonSettings).toBe(false);
+  });
+
   it("enters element list mode and focuses the element list", () => {
     const focusElementList = vi.fn();
     useCadStore.setState({
@@ -1586,6 +1607,9 @@ describe("commands", () => {
     expect(filterCommandPaletteItems("開く").map((item) => item.commandId)).toContain("openDocument");
     expect(filterCommandPaletteItems("パレット").map((item) => item.commandId)).toContain(
       "openPaletteSettings"
+    );
+    expect(filterCommandPaletteItems("リボン").map((item) => item.commandId)).toContain(
+      "openCommandRibbonSettings"
     );
     expect(filterCommandPaletteItems("一括").map((item) => item.commandId)).toContain(
       "openSelectionColorPicker"

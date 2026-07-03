@@ -1,29 +1,19 @@
 import type { PointerEvent as ReactPointerEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  CircleDot,
-  Copy,
-  CornerDownRight,
-  FlipHorizontal,
-  GripVertical,
-  MoveRight,
-  Scissors,
-  Slash,
-  Spline
-} from "lucide-react";
-import {
   dispatchCommand,
   type CommandContext
 } from "../commands/commands";
 import type {
   CommandRibbon,
-  CommandRibbonIconId,
   CommandRibbonSettings
 } from "../commandRibbons/commandRibbonSettings";
+import { saveCommandRibbonSettings } from "../commandRibbons/commandRibbonSettings";
 import {
-  loadCommandRibbonSettings,
-  saveCommandRibbonSettings
-} from "../commandRibbons/commandRibbonSettings";
+  CommandRibbonGripIcon,
+  commandRibbonIconComponents
+} from "../commandRibbons/commandRibbonIcons";
+import { useCadUiStore } from "../state/cadUiStore";
 import type { ViewportSize } from "./canvasViewport";
 
 type CommandRibbonOverlayProps = {
@@ -34,7 +24,7 @@ type CommandRibbonOverlayProps = {
 type RibbonDrag = {
   pointerId: number;
   ribbonId: string;
-  orientation: CommandRibbon["orientation"];
+  ribbon: CommandRibbon;
   settings: CommandRibbonSettings;
   startClientX: number;
   startClientY: number;
@@ -42,35 +32,38 @@ type RibbonDrag = {
   startY: number;
 };
 
-const RIBBON_ESTIMATED_WIDTH = 490;
-const RIBBON_ESTIMATED_HEIGHT = 36;
 const RIBBON_MARGIN = 8;
+const RIBBON_BUTTON_PADDING = 14;
+const RIBBON_HANDLE_WIDTH = 24;
 
-const iconComponents = {
-  "circle-dot": CircleDot,
-  "move-right": MoveRight,
-  slash: Slash,
-  "corner-down-right": CornerDownRight,
-  spline: Spline,
-  copy: Copy,
-  "flip-horizontal": FlipHorizontal,
-  scissors: Scissors
-} satisfies Record<CommandRibbonIconId, typeof CircleDot>;
+const estimatedRibbonLength = (ribbon: CommandRibbon) =>
+  RIBBON_HANDLE_WIDTH + ribbon.buttons.length * (ribbon.iconSize + RIBBON_BUTTON_PADDING);
 
-const defaultRibbonX = (viewportSize: ViewportSize) =>
-  Math.max(RIBBON_MARGIN, Math.round((viewportSize.width - RIBBON_ESTIMATED_WIDTH) / 2));
+const estimatedRibbonThickness = (ribbon: CommandRibbon) =>
+  ribbon.iconSize + RIBBON_BUTTON_PADDING;
+
+const defaultRibbonX = (viewportSize: ViewportSize, ribbon: CommandRibbon) =>
+  Math.max(RIBBON_MARGIN, Math.round((viewportSize.width - estimatedRibbonLength(ribbon)) / 2));
 
 const clampRibbonPosition = (
   x: number,
   y: number,
   viewportSize: ViewportSize,
-  orientation: CommandRibbon["orientation"]
+  ribbon: CommandRibbon
 ) => {
-  const estimatedWidth = orientation === "vertical" ? RIBBON_ESTIMATED_HEIGHT : RIBBON_ESTIMATED_WIDTH;
-  const estimatedHeight = orientation === "vertical" ? RIBBON_ESTIMATED_WIDTH : RIBBON_ESTIMATED_HEIGHT;
+  const length = estimatedRibbonLength(ribbon);
+  const thickness = estimatedRibbonThickness(ribbon);
+  const estimatedWidth = ribbon.orientation === "vertical" ? thickness : length;
+  const estimatedHeight = ribbon.orientation === "vertical" ? length : thickness;
   return {
-    x: Math.min(Math.max(Math.round(x), RIBBON_MARGIN), Math.max(RIBBON_MARGIN, viewportSize.width - estimatedWidth - RIBBON_MARGIN)),
-    y: Math.min(Math.max(Math.round(y), RIBBON_MARGIN), Math.max(RIBBON_MARGIN, viewportSize.height - estimatedHeight - RIBBON_MARGIN))
+    x: Math.min(
+      Math.max(Math.round(x), RIBBON_MARGIN),
+      Math.max(RIBBON_MARGIN, viewportSize.width - estimatedWidth - RIBBON_MARGIN)
+    ),
+    y: Math.min(
+      Math.max(Math.round(y), RIBBON_MARGIN),
+      Math.max(RIBBON_MARGIN, viewportSize.height - estimatedHeight - RIBBON_MARGIN)
+    )
   };
 };
 
@@ -84,7 +77,8 @@ export const CommandRibbonOverlay = ({
   commandContext,
   viewportSize
 }: CommandRibbonOverlayProps) => {
-  const [settings, setSettings] = useState<CommandRibbonSettings | null>(null);
+  const settings = useCadUiStore((state) => state.commandRibbonSettings);
+  const setCommandRibbonSettings = useCadUiStore((state) => state.setCommandRibbonSettings);
   const settingsRef = useRef<CommandRibbonSettings | null>(null);
   const dragRef = useRef<RibbonDrag | null>(null);
   const [draggingRibbonId, setDraggingRibbonId] = useState<string | null>(null);
@@ -93,31 +87,14 @@ export const CommandRibbonOverlay = ({
     settingsRef.current = settings;
   }, [settings]);
 
-  useEffect(() => {
-    let cancelled = false;
-    void loadCommandRibbonSettings()
-      .then((loadedSettings) => {
-        if (!cancelled) {
-          settingsRef.current = loadedSettings;
-          setSettings(loadedSettings);
-        }
-      })
-      .catch((error: unknown) => {
-        console.error("failed to load command ribbon settings", error);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
   const resolvedRibbons = useMemo(() => {
     if (!settings) return [];
     return settings.ribbons.map((ribbon) => {
       const position = clampRibbonPosition(
-        ribbon.x ?? defaultRibbonX(viewportSize),
+        ribbon.x ?? defaultRibbonX(viewportSize, ribbon),
         ribbon.y,
         viewportSize,
-        ribbon.orientation
+        ribbon
       );
       return { ...ribbon, ...position };
     });
@@ -134,14 +111,32 @@ export const CommandRibbonOverlay = ({
     dragRef.current = {
       pointerId: event.pointerId,
       ribbonId: ribbon.id,
-      orientation: ribbon.orientation,
+      ribbon,
       settings,
       startClientX: event.clientX,
       startClientY: event.clientY,
-      startX: resolved.x ?? defaultRibbonX(viewportSize),
+      startX: resolved.x ?? defaultRibbonX(viewportSize, ribbon),
       startY: resolved.y
     };
     setDraggingRibbonId(ribbon.id);
+  };
+
+  const settingsWithRibbonPosition = (drag: RibbonDrag, clientX: number, clientY: number) => {
+    const currentSettings = settingsRef.current ?? drag.settings;
+    const currentRibbon =
+      currentSettings.ribbons.find((item) => item.id === drag.ribbonId) ?? drag.ribbon;
+    const nextPosition = clampRibbonPosition(
+      drag.startX + clientX - drag.startClientX,
+      drag.startY + clientY - drag.startClientY,
+      viewportSize,
+      currentRibbon
+    );
+    return {
+      version: 1,
+      ribbons: currentSettings.ribbons.map((item) =>
+        item.id === drag.ribbonId ? { ...item, ...nextPosition } : item
+      )
+    } satisfies CommandRibbonSettings;
   };
 
   const moveDrag = (event: ReactPointerEvent<HTMLButtonElement>) => {
@@ -149,21 +144,7 @@ export const CommandRibbonOverlay = ({
     if (!drag) return;
     event.preventDefault();
     event.stopPropagation();
-    const nextPosition = clampRibbonPosition(
-      drag.startX + event.clientX - drag.startClientX,
-      drag.startY + event.clientY - drag.startClientY,
-      viewportSize,
-      drag.orientation
-    );
-    setSettings((current) => {
-      if (!current) return current;
-      return {
-        version: 1,
-        ribbons: current.ribbons.map((item) =>
-          item.id === drag.ribbonId ? { ...item, ...nextPosition } : item
-        )
-      };
-    });
+    setCommandRibbonSettings(settingsWithRibbonPosition(drag, event.clientX, event.clientY));
   };
 
   const stopDrag = (event: ReactPointerEvent<HTMLButtonElement>) => {
@@ -172,21 +153,9 @@ export const CommandRibbonOverlay = ({
     event.preventDefault();
     event.stopPropagation();
     event.currentTarget.releasePointerCapture?.(event.pointerId);
-    const nextPosition = clampRibbonPosition(
-      drag.startX + event.clientX - drag.startClientX,
-      drag.startY + event.clientY - drag.startClientY,
-      viewportSize,
-      drag.orientation
-    );
-    const currentSettings = settingsRef.current ?? drag.settings;
-    const nextSettings: CommandRibbonSettings = {
-      version: 1,
-      ribbons: currentSettings.ribbons.map((item) =>
-        item.id === drag.ribbonId ? { ...item, ...nextPosition } : item
-      )
-    };
+    const nextSettings = settingsWithRibbonPosition(drag, event.clientX, event.clientY);
     settingsRef.current = nextSettings;
-    setSettings(nextSettings);
+    setCommandRibbonSettings(nextSettings);
     saveRibbonSettings(nextSettings);
     dragRef.current = null;
     setDraggingRibbonId(null);
@@ -220,11 +189,11 @@ export const CommandRibbonOverlay = ({
             onPointerUp={stopDrag}
             onPointerCancel={cancelDrag}
           >
-            <GripVertical size={16} strokeWidth={2} />
+            <CommandRibbonGripIcon size={Math.max(14, ribbon.iconSize)} strokeWidth={2} />
           </button>
           <div className="command-ribbon-buttons">
             {ribbon.buttons.map((button) => {
-              const Icon = iconComponents[button.icon];
+              const Icon = commandRibbonIconComponents[button.icon];
               return (
                 <button
                   key={button.id}
@@ -232,13 +201,17 @@ export const CommandRibbonOverlay = ({
                   className={button.showLabel ? "command-ribbon-button has-label" : "command-ribbon-button"}
                   aria-label={button.label}
                   title={button.label}
+                  style={{
+                    minWidth: ribbon.iconSize + RIBBON_BUTTON_PADDING,
+                    minHeight: ribbon.iconSize + RIBBON_BUTTON_PADDING
+                  }}
                   onClick={(event) => {
                     event.stopPropagation();
                     dispatchCommand(button.commandId, commandContext);
                     commandContext.focusCanvas?.();
                   }}
                 >
-                  <Icon size={16} strokeWidth={2} />
+                  <Icon size={ribbon.iconSize} strokeWidth={2} />
                   {button.showLabel ? <span>{button.label}</span> : null}
                 </button>
               );

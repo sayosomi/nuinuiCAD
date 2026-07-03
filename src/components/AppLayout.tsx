@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, PointerEvent } from "react";
 import { dispatchCommand } from "../commands/commands";
+import { loadCommandRibbonSettings } from "../commandRibbons/commandRibbonSettings";
 import { registerUnsavedChangesGuard } from "../document/unsavedChangesGuard";
 import { useEvaluationEngine } from "../geometry/useEvaluationEngine";
 import { loadShortcutSettings } from "../keyboard/shortcutSettingsStorage";
@@ -14,6 +15,7 @@ import {
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
 import { CommandPalette } from "./CommandPalette";
+import { CommandRibbonSettingsDialog } from "./CommandRibbonSettingsDialog";
 import { DrawingCanvas } from "./DrawingCanvas";
 import { ImageImportDialog } from "./ImageImportDialog";
 import { LeftPanel, RightPanel } from "./LeftPanel";
@@ -124,6 +126,31 @@ export const AppLayout = () => {
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
+    useCadUiStore.getState().setCommandRibbonSettingsLoading(true);
+    void loadCommandRibbonSettings()
+      .then((settings) => {
+        if (cancelled) return;
+        useCadUiStore.getState().setCommandRibbonSettings(settings);
+        useCadUiStore.getState().setCommandRibbonSettingsError(null);
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        useCadUiStore
+          .getState()
+          .setCommandRibbonSettingsError(
+            error instanceof Error ? error.message : "コマンドリボン設定を読み込めません。"
+          );
+      })
+      .finally(() => {
+        if (!cancelled) useCadUiStore.getState().setCommandRibbonSettingsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
     if (!isResizingLeftPanel) return;
 
     const onPointerMove = (event: globalThis.PointerEvent) => {
@@ -186,6 +213,7 @@ export const AppLayout = () => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (useCadUiStore.getState().showShortcutSettings) return;
       if (useCadUiStore.getState().showPaletteSettings) return;
+      if (useCadUiStore.getState().showCommandRibbonSettings) return;
       if (useCadUiStore.getState().showSelectionColorPicker) return;
       if (useCadUiStore.getState().pendingImageImport || useCadUiStore.getState().imageImportError) return;
       const keyboardCommand = keyboardCommandForEvent(event, {
@@ -304,6 +332,7 @@ export const AppLayout = () => {
       <SelectionColorPickerDialog />
       <ImageImportDialog />
       <ShortcutSettingsDialog />
+      <CommandRibbonSettingsDialog />
     </main>
   );
 };
