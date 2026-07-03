@@ -17,6 +17,7 @@ import { useCadUiStore } from "../state/cadUiStore";
 import { CommandPalette } from "./CommandPalette";
 import { CommandRibbonSettingsDialog } from "./CommandRibbonSettingsDialog";
 import { DrawingCanvas } from "./DrawingCanvas";
+import { GroupTemplateLibraryDialog } from "./GroupTemplateLibraryDialog";
 import { ImageImportDialog } from "./ImageImportDialog";
 import { LeftPanel, RightPanel } from "./LeftPanel";
 import { PaletteSettingsDialog } from "./PalettePanel";
@@ -213,6 +214,7 @@ export const AppLayout = () => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (useCadUiStore.getState().showShortcutSettings) return;
       if (useCadUiStore.getState().showPaletteSettings) return;
+      if (useCadUiStore.getState().showGroupTemplateLibrary) return;
       if (useCadUiStore.getState().showCommandRibbonSettings) return;
       if (useCadUiStore.getState().showSelectionColorPicker) return;
       if (useCadUiStore.getState().pendingImageImport || useCadUiStore.getState().imageImportError) return;
@@ -329,6 +331,7 @@ export const AppLayout = () => {
         isPickMode={isPickMode}
       />
       <PaletteSettingsDialog />
+      <GroupTemplateLibraryDialog />
       <SelectionColorPickerDialog />
       <ImageImportDialog />
       <ShortcutSettingsDialog />

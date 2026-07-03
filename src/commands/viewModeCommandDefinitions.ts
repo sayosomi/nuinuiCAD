@@ -172,6 +172,25 @@ export const viewModeCommandDefinitions = {
     label: "パレット設定を閉じる",
     run: () => useCadUiStore.getState().setShowPaletteSettings(false)
   },
+  openGroupTemplateLibrary: {
+    id: "openGroupTemplateLibrary",
+    label: "グループテンプレート",
+    palette: {
+      order: 46.8,
+      keywords: ["template", "group", "library", "insert", "テンプレート", "グループ", "挿入"]
+    },
+    run: () => {
+      useCadUiStore.setState({
+        showGroupTemplateLibrary: true,
+        showCommandPalette: false
+      });
+    }
+  },
+  closeGroupTemplateLibrary: {
+    id: "closeGroupTemplateLibrary",
+    label: "グループテンプレートを閉じる",
+    run: () => useCadUiStore.getState().setShowGroupTemplateLibrary(false)
+  },
   openCommandRibbonSettings: {
     id: "openCommandRibbonSettings",
     label: "コマンドリボンを編集",

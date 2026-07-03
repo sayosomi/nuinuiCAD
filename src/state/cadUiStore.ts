@@ -99,6 +99,7 @@ export type CadUiState = {
   showShortcutHelp: boolean;
   showShortcutSettings: boolean;
   showPaletteSettings: boolean;
+  showGroupTemplateLibrary: boolean;
   showCommandRibbonSettings: boolean;
   showSelectionColorPicker: boolean;
   showPrintLayout: boolean;
@@ -140,6 +141,7 @@ export type CadUiState = {
   setShowShortcutHelp: (showShortcutHelp: boolean) => void;
   setShowShortcutSettings: (showShortcutSettings: boolean) => void;
   setShowPaletteSettings: (showPaletteSettings: boolean) => void;
+  setShowGroupTemplateLibrary: (showGroupTemplateLibrary: boolean) => void;
   setShowCommandRibbonSettings: (showCommandRibbonSettings: boolean) => void;
   setShowSelectionColorPicker: (showSelectionColorPicker: boolean) => void;
   setShowPrintLayout: (showPrintLayout: boolean) => void;
@@ -191,6 +193,7 @@ export const initialCadUiState = (): Omit<
   | "setShowShortcutHelp"
   | "setShowShortcutSettings"
   | "setShowPaletteSettings"
+  | "setShowGroupTemplateLibrary"
   | "setShowCommandRibbonSettings"
   | "setShowSelectionColorPicker"
   | "setShowPrintLayout"
@@ -232,6 +235,7 @@ export const initialCadUiState = (): Omit<
   showShortcutHelp: false,
   showShortcutSettings: false,
   showPaletteSettings: false,
+  showGroupTemplateLibrary: false,
   showCommandRibbonSettings: false,
   showSelectionColorPicker: false,
   showPrintLayout: false,
@@ -332,6 +336,8 @@ export const useCadUiStore = create<CadUiState>((set) => ({
   setShowShortcutHelp: (showShortcutHelp) => set({ showShortcutHelp }),
   setShowShortcutSettings: (showShortcutSettings) => set({ showShortcutSettings }),
   setShowPaletteSettings: (showPaletteSettings) => set({ showPaletteSettings }),
+  setShowGroupTemplateLibrary: (showGroupTemplateLibrary) =>
+    set({ showGroupTemplateLibrary }),
   setShowCommandRibbonSettings: (showCommandRibbonSettings) =>
     set({ showCommandRibbonSettings }),
   setShowSelectionColorPicker: (showSelectionColorPicker) => set({ showSelectionColorPicker }),

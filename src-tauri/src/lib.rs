@@ -2,6 +2,7 @@ pub mod app_menu;
 pub mod command_ribbon_settings;
 pub mod document_file;
 pub mod evaluation;
+pub mod group_template_settings;
 pub mod image_metadata;
 pub mod layout_settings;
 pub mod palette_settings;
@@ -33,6 +34,8 @@ pub fn run() {
             command_ribbon_settings::save_command_ribbon_settings,
             layout_settings::load_layout_settings,
             layout_settings::save_layout_settings,
+            group_template_settings::load_group_template_library,
+            group_template_settings::save_group_template_library,
             palette_settings::load_palette_template,
             palette_settings::save_palette_template,
             shortcut_settings::load_shortcut_settings,

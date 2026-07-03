@@ -870,6 +870,7 @@ select {
 
 .palette-settings-backdrop,
 .selection-color-picker-backdrop,
+.template-library-backdrop,
 .image-import-backdrop {
   position: fixed;
   inset: 0;
@@ -883,6 +884,7 @@ select {
 
 .palette-settings,
 .selection-color-picker,
+.template-library-dialog,
 .image-import-dialog {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
@@ -906,8 +908,13 @@ select {
   width: min(460px, 100%);
 }
 
+.template-library-dialog {
+  width: min(960px, 100%);
+}
+
 .palette-settings-body,
 .selection-color-picker-list,
+.template-library-grid,
 .image-import-form {
   min-height: 0;
   overflow: auto;
@@ -968,6 +975,85 @@ select {
 .selection-color-picker-list {
   display: grid;
   gap: 6px;
+}
+
+.template-library-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.2fr);
+  gap: 12px;
+}
+
+.template-panel {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  min-width: 0;
+}
+
+.template-panel h3 {
+  margin: 0;
+  color: #34362f;
+  font-size: 14px;
+}
+
+.template-field,
+.template-checkbox {
+  display: grid;
+  gap: 5px;
+  color: #4a4d45;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.template-checkbox {
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  font-weight: 600;
+}
+
+.template-field input,
+.template-field select {
+  min-width: 0;
+}
+
+.template-list,
+.template-variable-list,
+.template-input-list {
+  display: grid;
+  gap: 6px;
+  min-height: 0;
+  max-height: 360px;
+  overflow: auto;
+}
+
+.template-list button {
+  display: grid;
+  gap: 3px;
+  justify-items: start;
+  text-align: left;
+}
+
+.template-list small,
+.template-field small {
+  color: #686b62;
+  font-weight: 500;
+}
+
+.template-list .active-template {
+  border-color: #5f7661;
+  background: #e9f0e7;
+}
+
+.template-empty,
+.template-status {
+  margin: 0;
+  color: #686b62;
+  font-size: 12px;
+}
+
+.template-status {
+  border-top: 1px solid #d2d4cd;
+  padding: 10px 16px;
 }
 
 .palette-settings-footer {
