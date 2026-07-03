@@ -3,15 +3,23 @@ import type { MouseEvent, PointerEvent, RefObject } from "react";
 import { Copy, FileText, Plus, Trash2 } from "lucide-react";
 import { dispatchCommand } from "../commands/commands";
 import { formatNumber } from "./geometryDisplay";
+import {
+  addToNumericValue,
+  formatNumericExpressionForDisplay,
+  makeNumericExpression,
+  normalizeNumericExpressionInput
+} from "../geometry/numericExpressions";
 import { defaultPlacementForGroup, printableGroups, printablePathsForLayout } from "../print/printGeometry";
 import {
+  DEFAULT_PRINT_LAYOUT,
   PAPER_SIZES,
   orientedPaperSize,
-  printCanvasSizeMm
+  printCanvasSizeMm,
+  resolvePrintLayout
 } from "../print/printLayout";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
-import type { ElementId, EvaluationResult, PrintLayoutPlacement } from "../types/geometry";
+import type { ElementId, EvaluationResult, NumericValue, PrintLayoutPlacement } from "../types/geometry";
 import { numericDragStepsForDelta } from "./numericDrag";
 
 type PrintLayoutCanvasProps = {
@@ -27,26 +35,49 @@ type PrintNumberDragState = {
   remainderX: number;
 };
 
-const printNumberValue = (value: number, min: number | undefined) =>
-  min === undefined ? value : Math.max(value, min);
+const deferredPrintNumberInputValues = new Set(["", "+", "-", ".", "+.", "-."]);
+
+const isDeferredPrintNumberInput = (input: string) =>
+  deferredPrintNumberInputValues.has(input.trim());
+
+const clampNumericValue = (value: NumericValue, min: number | undefined): NumericValue =>
+  typeof value === "number" && min !== undefined ? Math.max(value, min) : value;
 
 const PrintNumberInput = ({
   label,
   value,
+  resolvedValue,
+  defaultValue,
+  elements,
   step,
   min,
   onChange
 }: {
   label: string;
-  value: number;
+  value: NumericValue;
+  resolvedValue: number;
+  defaultValue: NumericValue;
+  elements: ReturnType<typeof useCadDocumentStore.getState>["elements"];
   step: number;
   min?: number;
-  onChange: (value: number) => void;
+  onChange: (value: NumericValue) => void;
 }) => {
   const [drag, setDrag] = useState<PrintNumberDragState | null>(null);
-  const commitValue = (nextValue: number) => {
-    if (!Number.isFinite(nextValue)) return;
-    onChange(Number(printNumberValue(nextValue, min).toFixed(4)));
+  const [draft, setDraft] = useState<string | null>(null);
+  const globalVariables = elements
+    .filter((element) => element.type === "variable" && element.scope === "global")
+    .map((variable) => ({
+      id: variable.id,
+      name: variable.name,
+      value: 0
+    }));
+  const displayValue = formatNumericExpressionForDisplay(value, elements, globalVariables);
+  const inputValue = draft ?? displayValue;
+  const valueFromInput = (input: string) =>
+    makeNumericExpression(normalizeNumericExpressionInput(input, elements, globalVariables));
+  const commitValue = (nextValue: NumericValue) => {
+    if (typeof nextValue === "number" && !Number.isFinite(nextValue)) return;
+    onChange(clampNumericValue(nextValue, min));
   };
   const finishDrag = (event: PointerEvent<HTMLInputElement>) => {
     if (!drag || drag.pointerId !== event.pointerId) return;
@@ -60,10 +91,32 @@ const PrintNumberInput = ({
       <input
         type="text"
         inputMode="decimal"
-        value={formatNumber(value)}
-        onChange={(event) => commitValue(Number(event.currentTarget.value))}
+        value={inputValue}
+        title={`評価値 ${formatNumber(resolvedValue)}`}
+        onChange={(event) => {
+          const nextValue = event.currentTarget.value;
+          setDraft(nextValue);
+          if (isDeferredPrintNumberInput(nextValue)) return;
+          commitValue(valueFromInput(nextValue));
+        }}
         onKeyDown={(event) => {
-          if (event.key === "Escape") event.currentTarget.blur();
+          if (event.key === "Enter") {
+            event.preventDefault();
+            if (draft !== null && draft.trim().length === 0) {
+              commitValue(defaultValue);
+            } else if (draft !== null && !isDeferredPrintNumberInput(draft)) {
+              commitValue(valueFromInput(draft));
+            }
+            setDraft(null);
+            event.currentTarget.blur();
+          }
+          if (event.key === "Escape") {
+            setDraft(null);
+            event.currentTarget.blur();
+          }
+        }}
+        onBlur={() => {
+          setDraft(null);
         }}
         onPointerDown={(event) => {
           if (event.button !== 1) return;
@@ -85,7 +138,7 @@ const PrintNumberInput = ({
           setDrag({ ...drag, previousClientX: event.clientX, remainderX });
           if (steps === 0) return;
           const multiplier = event.shiftKey ? 10 : event.altKey ? 0.1 : 1;
-          commitValue(value + steps * step * multiplier);
+          commitValue(addToNumericValue(value, steps * step * multiplier));
         }}
         onPointerUp={finishDrag}
         onPointerCancel={finishDrag}
@@ -101,7 +154,7 @@ const PrintNumberInput = ({
 };
 
 const placementName = (
-  placement: PrintLayoutPlacement,
+  placement: Pick<PrintLayoutPlacement, "groupId">,
   groupNames: Map<ElementId, string>
 ) => groupNames.get(placement.groupId) ?? placement.groupId;
 
@@ -117,8 +170,12 @@ export const PrintLayoutCanvas = ({ evaluation, canvasFocusRef }: PrintLayoutCan
     offsetX: number;
     offsetY: number;
   } | null>(null);
-  const paper = orientedPaperSize(layout);
-  const canvas = printCanvasSizeMm(layout);
+  const resolvedLayout = useMemo(
+    () => resolvePrintLayout({ layout, elements, evaluation }),
+    [elements, evaluation, layout]
+  );
+  const paper = orientedPaperSize(resolvedLayout);
+  const canvas = printCanvasSizeMm(resolvedLayout);
   const paths = useMemo(
     () => printablePathsForLayout({ elements, evaluation, layout }),
     [elements, evaluation, layout]
@@ -148,14 +205,14 @@ export const PrintLayoutCanvas = ({ evaluation, canvasFocusRef }: PrintLayoutCan
     });
   };
   const hitPlacement = (point: { x: number; y: number }) => {
-    for (let index = layout.placements.length - 1; index >= 0; index -= 1) {
-      const placement = layout.placements[index];
+    for (let index = resolvedLayout.placements.length - 1; index >= 0; index -= 1) {
+      const placement = resolvedLayout.placements[index];
       if (Math.hypot(point.x - placement.x, point.y - placement.y) <= 8) return placement;
     }
     return null;
   };
-  const pageStepX = Math.max(paper.widthMm - layout.overlapMm, 1);
-  const pageStepY = Math.max(paper.heightMm - layout.overlapMm, 1);
+  const pageStepX = Math.max(paper.widthMm - resolvedLayout.overlapMm, 1);
+  const pageStepY = Math.max(paper.heightMm - resolvedLayout.overlapMm, 1);
 
   return (
     <section className="canvas-panel print-layout-panel">
@@ -204,8 +261,8 @@ export const PrintLayoutCanvas = ({ evaluation, canvasFocusRef }: PrintLayoutCan
             height={canvas.heightMm}
             className="print-canvas-background"
           />
-          {Array.from({ length: layout.rows }).flatMap((_, row) =>
-            Array.from({ length: layout.columns }).map((__, column) => {
+          {Array.from({ length: resolvedLayout.rows }).flatMap((_, row) =>
+            Array.from({ length: resolvedLayout.columns }).map((__, column) => {
               const x = column * pageStepX;
               const y = canvas.heightMm - paper.heightMm - row * pageStepY;
               const topLeft = toSvg({ x, y: y + paper.heightMm });
@@ -217,12 +274,12 @@ export const PrintLayoutCanvas = ({ evaluation, canvasFocusRef }: PrintLayoutCan
                     width={paper.widthMm}
                     height={paper.heightMm}
                   />
-                  {layout.overlapMm > 0 ? (
+                  {resolvedLayout.overlapMm > 0 ? (
                     <>
-                      <line x1={topLeft.x + layout.overlapMm} y1={topLeft.y} x2={topLeft.x + layout.overlapMm} y2={topLeft.y + paper.heightMm} />
-                      <line x1={topLeft.x + paper.widthMm - layout.overlapMm} y1={topLeft.y} x2={topLeft.x + paper.widthMm - layout.overlapMm} y2={topLeft.y + paper.heightMm} />
-                      <line x1={topLeft.x} y1={topLeft.y + layout.overlapMm} x2={topLeft.x + paper.widthMm} y2={topLeft.y + layout.overlapMm} />
-                      <line x1={topLeft.x} y1={topLeft.y + paper.heightMm - layout.overlapMm} x2={topLeft.x + paper.widthMm} y2={topLeft.y + paper.heightMm - layout.overlapMm} />
+                      <line x1={topLeft.x + resolvedLayout.overlapMm} y1={topLeft.y} x2={topLeft.x + resolvedLayout.overlapMm} y2={topLeft.y + paper.heightMm} />
+                      <line x1={topLeft.x + paper.widthMm - resolvedLayout.overlapMm} y1={topLeft.y} x2={topLeft.x + paper.widthMm - resolvedLayout.overlapMm} y2={topLeft.y + paper.heightMm} />
+                      <line x1={topLeft.x} y1={topLeft.y + resolvedLayout.overlapMm} x2={topLeft.x + paper.widthMm} y2={topLeft.y + resolvedLayout.overlapMm} />
+                      <line x1={topLeft.x} y1={topLeft.y + paper.heightMm - resolvedLayout.overlapMm} x2={topLeft.x + paper.widthMm} y2={topLeft.y + paper.heightMm - resolvedLayout.overlapMm} />
                     </>
                   ) : null}
                 </g>
@@ -259,7 +316,7 @@ export const PrintLayoutCanvas = ({ evaluation, canvasFocusRef }: PrintLayoutCan
               );
             })}
           </g>
-          {layout.placements.map((placement) => {
+          {resolvedLayout.placements.map((placement) => {
             const center = toSvg(placement);
             const isSelected = placement.id === selectedPrintPlacementId;
             return (
@@ -295,12 +352,21 @@ export const PrintLayoutPanel = ({ evaluation }: { evaluation: EvaluationResult 
   const selectedPrintPlacementId = useCadUiStore((state) => state.selectedPrintPlacementId);
   const setSelectedPrintPlacementId = useCadUiStore((state) => state.setSelectedPrintPlacementId);
   const [groupQuery, setGroupQuery] = useState("");
+  const resolvedLayout = useMemo(
+    () => resolvePrintLayout({ layout, elements, evaluation }),
+    [elements, evaluation, layout]
+  );
+  const canvas = printCanvasSizeMm(resolvedLayout);
   const groups = printableGroups(elements);
   const groupsById = new Map(groups.map((group) => [group.id, group]));
   const selectedPlacement =
     layout.placements.find((placement) => placement.id === selectedPrintPlacementId) ??
     layout.placements[0] ??
     null;
+  const selectedResolvedPlacement =
+    selectedPlacement
+      ? resolvedLayout.placements.find((placement) => placement.id === selectedPlacement.id) ?? null
+      : null;
   const filteredGroups = groups.filter((group) =>
     group.name.toLowerCase().includes(groupQuery.trim().toLowerCase())
   );
@@ -312,7 +378,7 @@ export const PrintLayoutPanel = ({ evaluation }: { evaluation: EvaluationResult 
     );
   }
   const addPlacement = (groupId: ElementId) => {
-    const placement = defaultPlacementForGroup(groupId, layout);
+    const placement = defaultPlacementForGroup(groupId, resolvedLayout);
     updatePrintLayout({
       placements: [...layout.placements, placement]
     });
@@ -343,7 +409,7 @@ export const PrintLayoutPanel = ({ evaluation }: { evaluation: EvaluationResult 
     const copy = {
       ...placement,
       id: `placement-${nextIndex}`,
-      x: placement.x + 20
+      x: addToNumericValue(placement.x, 20)
     };
     updatePrintLayout({
       placements: [...layout.placements, copy]
@@ -358,7 +424,7 @@ export const PrintLayoutPanel = ({ evaluation }: { evaluation: EvaluationResult 
           <div>
             <h2>印刷設定</h2>
             <p className="section-subtitle">
-              {PAPER_SIZES.find((paper) => paper.id === layout.paperSizeId)?.label ?? "用紙"} / {layout.columns}x{layout.rows} / 倍率 {formatNumber(layout.scale)}
+              {PAPER_SIZES.find((paper) => paper.id === layout.paperSizeId)?.label ?? "用紙"} / {resolvedLayout.columns}x{resolvedLayout.rows} / 倍率 {formatNumber(resolvedLayout.scale)}
             </p>
           </div>
           <div className="print-settings-actions">
@@ -393,10 +459,10 @@ export const PrintLayoutPanel = ({ evaluation }: { evaluation: EvaluationResult 
               <option value="landscape">横</option>
             </select>
           </label>
-          <PrintNumberInput label="横枚数" value={layout.columns} min={1} step={1} onChange={(columns) => updatePrintLayout({ columns })} />
-          <PrintNumberInput label="縦枚数" value={layout.rows} min={1} step={1} onChange={(rows) => updatePrintLayout({ rows })} />
-          <PrintNumberInput label="重複 mm" value={layout.overlapMm} min={0} step={1} onChange={(overlapMm) => updatePrintLayout({ overlapMm })} />
-          <PrintNumberInput label="拡大率" value={layout.scale} min={0.01} step={0.1} onChange={(scale) => updatePrintLayout({ scale })} />
+          <PrintNumberInput label="横枚数" value={layout.columns} resolvedValue={resolvedLayout.columns} defaultValue={DEFAULT_PRINT_LAYOUT.columns} elements={elements} min={1} step={1} onChange={(columns) => updatePrintLayout({ columns })} />
+          <PrintNumberInput label="縦枚数" value={layout.rows} resolvedValue={resolvedLayout.rows} defaultValue={DEFAULT_PRINT_LAYOUT.rows} elements={elements} min={1} step={1} onChange={(rows) => updatePrintLayout({ rows })} />
+          <PrintNumberInput label="重複 mm" value={layout.overlapMm} resolvedValue={resolvedLayout.overlapMm} defaultValue={DEFAULT_PRINT_LAYOUT.overlapMm} elements={elements} min={0} step={1} onChange={(overlapMm) => updatePrintLayout({ overlapMm })} />
+          <PrintNumberInput label="拡大率" value={layout.scale} resolvedValue={resolvedLayout.scale} defaultValue={DEFAULT_PRINT_LAYOUT.scale} elements={elements} min={0.01} step={0.1} onChange={(scale) => updatePrintLayout({ scale })} />
         </div>
       </section>
 
@@ -455,7 +521,7 @@ export const PrintLayoutPanel = ({ evaluation }: { evaluation: EvaluationResult 
                 <span className="print-placement-main">
                   <strong>{groupsById.get(placement.groupId)?.name ?? placement.groupId}</strong>
                   <small>
-                    x {formatNumber(placement.x)} / y {formatNumber(placement.y)} / {formatNumber(placement.angleDeg)}°
+                    x {formatNumber(resolvedLayout.placements.find((item) => item.id === placement.id)?.x ?? 0)} / y {formatNumber(resolvedLayout.placements.find((item) => item.id === placement.id)?.y ?? 0)} / {formatNumber(resolvedLayout.placements.find((item) => item.id === placement.id)?.angleDeg ?? 0)}°
                     {placement.mirrorX ? " / 反転" : ""}
                   </small>
                 </span>
@@ -511,9 +577,9 @@ export const PrintLayoutPanel = ({ evaluation }: { evaluation: EvaluationResult 
               </select>
             </label>
             <div className="print-settings-grid">
-              <PrintNumberInput label="x mm" value={selectedPlacement.x} step={1} onChange={(x) => updatePlacement(selectedPlacement.id, { x })} />
-              <PrintNumberInput label="y mm" value={selectedPlacement.y} step={1} onChange={(y) => updatePlacement(selectedPlacement.id, { y })} />
-              <PrintNumberInput label="角度" value={selectedPlacement.angleDeg} step={1} onChange={(angleDeg) => updatePlacement(selectedPlacement.id, { angleDeg })} />
+              <PrintNumberInput label="x mm" value={selectedPlacement.x} resolvedValue={selectedResolvedPlacement?.x ?? 0} defaultValue={Math.round(canvas.widthMm / 2)} elements={elements} step={1} onChange={(x) => updatePlacement(selectedPlacement.id, { x })} />
+              <PrintNumberInput label="y mm" value={selectedPlacement.y} resolvedValue={selectedResolvedPlacement?.y ?? 0} defaultValue={Math.round(canvas.heightMm / 2)} elements={elements} step={1} onChange={(y) => updatePlacement(selectedPlacement.id, { y })} />
+              <PrintNumberInput label="角度" value={selectedPlacement.angleDeg} resolvedValue={selectedResolvedPlacement?.angleDeg ?? 0} defaultValue={0} elements={elements} step={1} onChange={(angleDeg) => updatePlacement(selectedPlacement.id, { angleDeg })} />
               <label className="print-toggle-field">
                 <span>左右反転</span>
                 <input

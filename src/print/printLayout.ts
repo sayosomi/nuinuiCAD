@@ -1,16 +1,36 @@
 import type {
   CadElement,
+  EvaluationResult,
   ElementId,
+  NumericValue,
   PaperSizeId,
   PrintLayout,
   PrintLayoutPlacement
 } from "../types/geometry";
+import { evaluateNumericValue, isNumericExpression, makeNumericExpression } from "../geometry/numericExpressions";
 
 export type PaperSize = {
   id: PaperSizeId;
   label: string;
   widthMm: number;
   heightMm: number;
+};
+
+export type ResolvedPrintLayoutPlacement = Omit<PrintLayoutPlacement, "x" | "y" | "angleDeg"> & {
+  x: number;
+  y: number;
+  angleDeg: number;
+};
+
+export type ResolvedPrintLayout = Omit<
+  PrintLayout,
+  "columns" | "rows" | "overlapMm" | "scale" | "placements"
+> & {
+  columns: number;
+  rows: number;
+  overlapMm: number;
+  scale: number;
+  placements: ResolvedPrintLayoutPlacement[];
 };
 
 export const PAPER_SIZES: PaperSize[] = [
@@ -48,12 +68,23 @@ export const DEFAULT_PRINT_LAYOUT: PrintLayout = {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === "object" && !Array.isArray(value);
 
-const finiteNumber = (value: unknown, fallback: number) =>
-  typeof value === "number" && Number.isFinite(value) ? value : fallback;
+const isNumericValue = (value: unknown): value is NumericValue => {
+  if (typeof value === "number") return Number.isFinite(value);
+  return Boolean(
+    value &&
+    typeof value === "object" &&
+    !Array.isArray(value) &&
+    "kind" in value &&
+    value.kind === "expression" &&
+    "expression" in value &&
+    typeof value.expression === "string"
+  );
+};
 
-const positiveInteger = (value: unknown, fallback: number, max: number) => {
-  const number = finiteNumber(value, fallback);
-  return Math.min(Math.max(Math.trunc(number), 1), max);
+const normalizeNumericValue = (value: unknown, fallback: NumericValue): NumericValue => {
+  if (isNumericValue(value)) return value;
+  if (typeof value === "string" && value.trim().length > 0) return makeNumericExpression(value);
+  return fallback;
 };
 
 const normalizePlacement = (
@@ -67,9 +98,9 @@ const normalizePlacement = (
   return {
     id: value.id,
     groupId: value.groupId,
-    x: finiteNumber(value.x, 0),
-    y: finiteNumber(value.y, 0),
-    angleDeg: finiteNumber(value.angleDeg, 0),
+    x: normalizeNumericValue(value.x, 0),
+    y: normalizeNumericValue(value.y, 0),
+    angleDeg: normalizeNumericValue(value.angleDeg, 0),
     mirrorX: value.mirrorX === true
   };
 };
@@ -96,15 +127,104 @@ export const normalizePrintLayout = (
   return {
     paperSizeId,
     orientation,
-    columns: positiveInteger(value.columns, DEFAULT_PRINT_LAYOUT.columns, 20),
-    rows: positiveInteger(value.rows, DEFAULT_PRINT_LAYOUT.rows, 20),
-    overlapMm: Math.max(finiteNumber(value.overlapMm, DEFAULT_PRINT_LAYOUT.overlapMm), 0),
-    scale: Math.max(finiteNumber(value.scale, DEFAULT_PRINT_LAYOUT.scale), 0.01),
+    columns: normalizeNumericValue(value.columns, DEFAULT_PRINT_LAYOUT.columns),
+    rows: normalizeNumericValue(value.rows, DEFAULT_PRINT_LAYOUT.rows),
+    overlapMm: normalizeNumericValue(value.overlapMm, DEFAULT_PRINT_LAYOUT.overlapMm),
+    scale: normalizeNumericValue(value.scale, DEFAULT_PRINT_LAYOUT.scale),
     placements
   };
 };
 
-export const printCanvasSizeMm = (layout: PrintLayout) => {
+const clampInteger = (value: number, fallback: number, max: number) =>
+  Math.min(Math.max(Math.trunc(Number.isFinite(value) ? value : fallback), 1), max);
+
+const clampMin = (value: number, fallback: number, min: number) =>
+  Math.max(Number.isFinite(value) ? value : fallback, min);
+
+const globalVariableValues = (elements: CadElement[], evaluation: EvaluationResult) => {
+  const values = new Map<string, number>();
+  for (const element of elements) {
+    if (element.type !== "variable" || element.scope !== "global") continue;
+    const computed = evaluation.computedVariables.get(element.id);
+    if (!computed) continue;
+    values.set(element.id, computed.value);
+    values.set(element.name, computed.value);
+  }
+  return values;
+};
+
+const resolveNumericValue = ({
+  value,
+  fallback,
+  elements,
+  evaluation
+}: {
+  value: NumericValue;
+  fallback: number;
+  elements: CadElement[];
+  evaluation: EvaluationResult;
+}) => {
+  if (!isNumericExpression(value)) return value;
+  const result = evaluateNumericValue({
+    value,
+    computedGeometry: evaluation.computedGeometry,
+    elementsById: new Map(elements.map((element) => [element.id, element])),
+    computedVariables: evaluation.computedVariables,
+    elements,
+    localVariables: globalVariableValues(elements, evaluation)
+  });
+  return result.value ?? fallback;
+};
+
+export const resolvePrintLayout = ({
+  layout,
+  elements,
+  evaluation
+}: {
+  layout: PrintLayout;
+  elements: CadElement[];
+  evaluation: EvaluationResult;
+}): ResolvedPrintLayout => {
+  const columns = clampInteger(
+    resolveNumericValue({ value: layout.columns, fallback: DEFAULT_PRINT_LAYOUT.columns as number, elements, evaluation }),
+    DEFAULT_PRINT_LAYOUT.columns as number,
+    20
+  );
+  const rows = clampInteger(
+    resolveNumericValue({ value: layout.rows, fallback: DEFAULT_PRINT_LAYOUT.rows as number, elements, evaluation }),
+    DEFAULT_PRINT_LAYOUT.rows as number,
+    20
+  );
+  const overlapMm = clampMin(
+    resolveNumericValue({ value: layout.overlapMm, fallback: DEFAULT_PRINT_LAYOUT.overlapMm as number, elements, evaluation }),
+    DEFAULT_PRINT_LAYOUT.overlapMm as number,
+    0
+  );
+  const scale = clampMin(
+    resolveNumericValue({ value: layout.scale, fallback: DEFAULT_PRINT_LAYOUT.scale as number, elements, evaluation }),
+    DEFAULT_PRINT_LAYOUT.scale as number,
+    0.01
+  );
+
+  return {
+    paperSizeId: layout.paperSizeId,
+    orientation: layout.orientation,
+    columns,
+    rows,
+    overlapMm,
+    scale,
+    placements: layout.placements.map((placement) => ({
+      ...placement,
+      x: resolveNumericValue({ value: placement.x, fallback: 0, elements, evaluation }),
+      y: resolveNumericValue({ value: placement.y, fallback: 0, elements, evaluation }),
+      angleDeg: resolveNumericValue({ value: placement.angleDeg, fallback: 0, elements, evaluation })
+    }))
+  };
+};
+
+export const printCanvasSizeMm = (
+  layout: Pick<ResolvedPrintLayout, "paperSizeId" | "orientation" | "columns" | "rows" | "overlapMm">
+) => {
   const paper = orientedPaperSize(layout);
   const stepX = Math.max(paper.widthMm - layout.overlapMm, 1);
   const stepY = Math.max(paper.heightMm - layout.overlapMm, 1);

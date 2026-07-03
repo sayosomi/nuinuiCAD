@@ -11,10 +11,10 @@ import type {
   ElementId,
   EvaluationResult,
   PointAnchor,
-  PrintLayout,
-  PrintLayoutPlacement
+  PrintLayout
 } from "../types/geometry";
-import { printCanvasSizeMm } from "./printLayout";
+import { printCanvasSizeMm, resolvePrintLayout } from "./printLayout";
+import type { ResolvedPrintLayout, ResolvedPrintLayoutPlacement } from "./printLayout";
 
 export type PrintPoint = { x: number; y: number };
 
@@ -116,7 +116,7 @@ export const transformPrintPoint = ({
 }: {
   point: PrintPoint;
   anchor: PrintPoint;
-  placement: PrintLayoutPlacement;
+  placement: ResolvedPrintLayoutPlacement;
   scale: number;
 }): PrintPoint => {
   const localX = (point.x - anchor.x) * scale * (placement.mirrorX ? -1 : 1);
@@ -154,7 +154,7 @@ const transformPolyline = ({
   points: PrintPoint[];
   geometry: ComputedGeometry;
   groupId: ElementId;
-  placement: PrintLayoutPlacement;
+  placement: ResolvedPrintLayoutPlacement;
   anchor: PrintPoint;
   scale: number;
 }): PrintablePath => ({
@@ -174,7 +174,7 @@ const pathsForGeometry = ({
 }: {
   geometry: ComputedGeometry;
   groupId: ElementId;
-  placement: PrintLayoutPlacement;
+  placement: ResolvedPrintLayoutPlacement;
   anchor: PrintPoint;
   scale: number;
 }): PrintablePath[] => {
@@ -259,11 +259,12 @@ export const printablePathsForLayout = ({
   layout: PrintLayout;
 }) => {
   const geometries = Array.from(evaluation.computedGeometry.values());
+  const resolvedLayout = resolvePrintLayout({ layout, elements, evaluation });
   const visibleIds = evaluation.effectiveVisibleElementIds ?? new Set(elements.map((element) => element.id));
   const enabledIds = evaluation.effectiveEnabledElementIds ?? new Set(elements.map((element) => element.id));
   const groupsById = new Map(printableGroups(elements).map((group) => [group.id, group]));
 
-  return layout.placements.flatMap((placement) => {
+  return resolvedLayout.placements.flatMap((placement) => {
     const group = groupsById.get(placement.groupId);
     if (!group) return [];
     const descendants = new Set(descendantIdsForGroup(elements, group.id));
@@ -282,7 +283,7 @@ export const printablePathsForLayout = ({
           groupId: group.id,
           placement,
           anchor,
-          scale: layout.scale
+          scale: resolvedLayout.scale
         })
       );
   });
@@ -290,8 +291,8 @@ export const printablePathsForLayout = ({
 
 export const defaultPlacementForGroup = (
   groupId: ElementId,
-  layout: PrintLayout
-): PrintLayoutPlacement => {
+  layout: ResolvedPrintLayout
+) => {
   const canvas = printCanvasSizeMm(layout);
   let index = layout.placements.length + 1;
   const existingIds = new Set(layout.placements.map((placement) => placement.id));

@@ -28,19 +28,19 @@ export type PaperSizeId = "a4" | "a3" | "b5" | "b4" | "letter" | "legal";
 export type PrintLayoutPlacement = {
   id: string;
   groupId: ElementId;
-  x: number;
-  y: number;
-  angleDeg: number;
+  x: NumericValue;
+  y: NumericValue;
+  angleDeg: NumericValue;
   mirrorX: boolean;
 };
 
 export type PrintLayout = {
   paperSizeId: PaperSizeId;
   orientation: "portrait" | "landscape";
-  columns: number;
-  rows: number;
-  overlapMm: number;
-  scale: number;
+  columns: NumericValue;
+  rows: NumericValue;
+  overlapMm: NumericValue;
+  scale: NumericValue;
   placements: PrintLayoutPlacement[];
 };
 

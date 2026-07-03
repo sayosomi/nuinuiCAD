@@ -347,7 +347,7 @@ describe("LeftPanel numeric input dragging", () => {
     ).toBeInTheDocument();
   });
 
-  it("keeps a blank numeric parameter input while focused and commits zero on blur", () => {
+  it("keeps a blank numeric parameter input while focused and restores the saved value on blur", () => {
     renderRightPanel();
 
     const input = screen.getByLabelText("x 値");
@@ -358,6 +358,18 @@ describe("LeftPanel numeric input dragging", () => {
     expect(input).toHaveValue("");
 
     fireEvent.blur(input);
+
+    expect(useCadStore.getState().elements[0]).toMatchObject({ x: 50 });
+    expect(input).toHaveValue("50");
+  });
+
+  it("commits zero when pressing Enter on a blank numeric parameter input", () => {
+    renderRightPanel();
+
+    const input = screen.getByLabelText("x 値");
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: "" } });
+    fireEvent.keyDown(input, { key: "Enter" });
 
     expect(useCadStore.getState().elements[0]).toMatchObject({ x: 0 });
     expect(input).toHaveValue("0");

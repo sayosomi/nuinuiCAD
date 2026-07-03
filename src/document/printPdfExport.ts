@@ -2,13 +2,14 @@ import { invoke } from "@tauri-apps/api/core";
 import { save } from "@tauri-apps/plugin-dialog";
 import { isTauriRuntime } from "../geometry/evaluationEngine";
 import { printablePathsForLayout } from "../print/printGeometry";
-import { orientedPaperSize } from "../print/printLayout";
+import { orientedPaperSize, resolvePrintLayout } from "../print/printLayout";
 import { currentDocumentSnapshot, useCadDocumentStore } from "../state/cadDocumentStore";
-import type { EvaluationResult, PrintLayout } from "../types/geometry";
+import type { EvaluationResult } from "../types/geometry";
+import type { ResolvedPrintLayout } from "../print/printLayout";
 
 type ExportPrintPdfInput = {
   path: string;
-  layout: PrintLayout;
+  layout: ResolvedPrintLayout;
   paper: {
     widthMm: number;
     heightMm: number;
@@ -35,13 +36,18 @@ export const exportPrintPdf = async (evaluation: EvaluationResult | undefined) =
 
   const state = useCadDocumentStore.getState();
   const snapshot = currentDocumentSnapshot(state);
+  const resolvedLayout = resolvePrintLayout({
+    layout: snapshot.printLayout,
+    elements: snapshot.elements,
+    evaluation
+  });
   const path = await exportPrintPdfDialog("pattern-print.pdf");
   if (!path) return;
 
   const input: ExportPrintPdfInput = {
     path: ensurePdfFileName(path),
-    layout: snapshot.printLayout,
-    paper: orientedPaperSize(snapshot.printLayout),
+    layout: resolvedLayout,
+    paper: orientedPaperSize(resolvedLayout),
     paths: printablePathsForLayout({
       elements: snapshot.elements,
       evaluation,

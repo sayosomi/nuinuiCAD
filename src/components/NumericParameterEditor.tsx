@@ -108,9 +108,13 @@ export const NumericParameterEditor = ({
     if (isDeferredNumericInput(nextValue)) return;
     updateParameterValue(field, numericValueFromInput(nextValue));
   };
-  const finishEditingField = (field: ParameterKey) => {
+  const finishEditingField = () => {
     if (draft === null) return;
-    if (draft.value.trim().length === 0) updateParameterValue(field, 0);
+    if (draft.value.trim().length === 0) {
+      setDraft(null);
+      inputSelectionRef.current = null;
+      return;
+    }
     setDraft(null);
     inputSelectionRef.current = null;
   };
@@ -211,7 +215,21 @@ export const NumericParameterEditor = ({
         selectParameter(parameterKey);
         inputSelectionRef.current = null;
       }}
-      onBlur={() => finishEditingField(parameterKey)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" && draft?.value.trim().length === 0) {
+          event.preventDefault();
+          updateParameterValue(parameterKey, 0);
+          setDraft(null);
+          inputSelectionRef.current = null;
+          event.currentTarget.blur();
+        }
+        if (event.key === "Escape") {
+          setDraft(null);
+          inputSelectionRef.current = null;
+          event.currentTarget.blur();
+        }
+      }}
+      onBlur={finishEditingField}
     />
   );
   const stepControl = (

@@ -20,6 +20,20 @@ const group = (id: string, name: string, printEnabled = true): CadElement => ({
 });
 
 const elements: CadElement[] = [
+  {
+    id: "scale-var",
+    name: "倍率",
+    type: "variable",
+    visible: true,
+    enabled: true,
+    scope: "global",
+    valueMode: "expression",
+    expression: 1.5,
+    point1: { mode: "coordinate", x: 0, y: 0 },
+    point2: { mode: "coordinate", x: 0, y: 0 },
+    point: { mode: "coordinate", x: 0, y: 0 },
+    lineId: ""
+  },
   group("front", "前身頃"),
   group("back", "後ろ身頃"),
   group("sleeve", "袖"),
@@ -111,5 +125,39 @@ describe("PrintLayoutPanel", () => {
     fireEvent.pointerUp(scaleInput, { pointerId: 1, clientX: 16 });
 
     expect(useCadDocumentStore.getState().printLayout.scale).toBe(1.2);
+  });
+
+  it("stores print number inputs as expressions using global variables", () => {
+    renderPanel();
+    const scaleInput = screen.getByLabelText("拡大率");
+
+    fireEvent.change(scaleInput, { target: { value: "@倍率" } });
+
+    expect(useCadDocumentStore.getState().printLayout.scale).toEqual({
+      kind: "expression",
+      expression: "@scale-var"
+    });
+    expect(scaleInput).toHaveValue("@倍率");
+  });
+
+  it("keeps print number inputs blank while editing and restores scale to one on Enter", () => {
+    useCadDocumentStore.setState({
+      printLayout: {
+        ...DEFAULT_PRINT_LAYOUT,
+        scale: 2
+      }
+    });
+    renderPanel();
+    const scaleInput = screen.getByLabelText("拡大率");
+
+    fireEvent.change(scaleInput, { target: { value: "" } });
+
+    expect(useCadDocumentStore.getState().printLayout.scale).toBe(2);
+    expect(scaleInput).toHaveValue("");
+
+    fireEvent.keyDown(scaleInput, { key: "Enter" });
+
+    expect(useCadDocumentStore.getState().printLayout.scale).toBe(1);
+    expect(scaleInput).toHaveValue("1");
   });
 });
