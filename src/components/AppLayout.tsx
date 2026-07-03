@@ -25,6 +25,7 @@ import { PrintLayoutCanvas, PrintLayoutPanel } from "./PrintLayoutView";
 import { SelectionColorPickerDialog } from "./SelectionColorPickerDialog";
 import { ShortcutHelpOverlay } from "./ShortcutHelpOverlay";
 import { ShortcutSettingsDialog } from "./ShortcutSettingsDialog";
+import { TemplateInsertionPanel } from "./TemplateInsertionPanel";
 import { registerTauriMenuCommandListener } from "../commands/tauriMenuEvents";
 
 const saveLeftPanelWidth = (leftPanelWidth: number) => {
@@ -40,11 +41,13 @@ export const AppLayout = () => {
   const isDependencyJumpMode = useCadUiStore((state) => state.isDependencyJumpMode);
   const shortcutSettings = useCadUiStore((state) => state.shortcutSettings);
   const showPrintLayout = useCadUiStore((state) => state.showPrintLayout);
+  const activeTemplateInsertion = useCadUiStore((state) => state.activeTemplateInsertion);
   const isPickMode = useCadUiStore(
     (state) =>
       Boolean(state.activePointPickTarget) ||
       Boolean(state.activeNumericReferencePickTarget) ||
-      Boolean(state.activeLinePickTarget)
+      Boolean(state.activeLinePickTarget) ||
+      Boolean(state.activeTemplateInsertion)
   );
   const canvasFocusRef = useRef<HTMLDivElement>(null);
   const elementListFocusRef = useRef<HTMLDivElement>(null);
@@ -228,6 +231,11 @@ export const AppLayout = () => {
             useCadUiStore.getState().activeLinePickTarget
         )
       });
+      if (useCadUiStore.getState().activeTemplateInsertion && event.key === "Escape") {
+        event.preventDefault();
+        dispatchCommand("cancelTemplateInsertion");
+        return;
+      }
       if (useCadUiStore.getState().activePointPickTarget && event.key === "Escape") {
         event.preventDefault();
         dispatchCommand("cancelPointPick");
@@ -325,6 +333,7 @@ export const AppLayout = () => {
         </>
       )}
       <CommandPalette commandContext={commandContext} />
+      {activeTemplateInsertion ? <TemplateInsertionPanel /> : null}
       <ShortcutHelpOverlay
         isParameterEditMode={isParameterEditMode}
         isDependencyJumpMode={isDependencyJumpMode}

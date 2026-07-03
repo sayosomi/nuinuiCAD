@@ -1,0 +1,58 @@
+import {
+  cancelTemplateInsertion,
+  confirmTemplateInsertion,
+  selectTemplateInsertionInput,
+  selectTemplateInsertionInputByOffset,
+  setTemplateNumericInput,
+  startTemplateInsertion
+} from "../templates/templateInsertionCommands";
+import type { Command, CommandId } from "./commandTypes";
+
+export const templateCommandDefinitions = {
+  startTemplateInsertion: {
+    id: "startTemplateInsertion",
+    label: "テンプレート挿入を開始",
+    run: (context) => {
+      if (!context?.groupTemplate) return;
+      startTemplateInsertion({
+        template: context.groupTemplate,
+        insertionIndex: context.insertionIndex
+      });
+    }
+  },
+  cancelTemplateInsertion: {
+    id: "cancelTemplateInsertion",
+    label: "テンプレート挿入をキャンセル",
+    run: () => cancelTemplateInsertion()
+  },
+  selectNextTemplateInsertionInput: {
+    id: "selectNextTemplateInsertionInput",
+    label: "次のテンプレート入力へ",
+    run: () => selectTemplateInsertionInputByOffset(1)
+  },
+  selectPreviousTemplateInsertionInput: {
+    id: "selectPreviousTemplateInsertionInput",
+    label: "前のテンプレート入力へ",
+    run: () => selectTemplateInsertionInputByOffset(-1)
+  },
+  selectTemplateInsertionInput: {
+    id: "selectTemplateInsertionInput",
+    label: "テンプレート入力を選択",
+    run: (context) => {
+      if (context?.templateInputId) selectTemplateInsertionInput(context.templateInputId);
+    }
+  },
+  setTemplateNumericInput: {
+    id: "setTemplateNumericInput",
+    label: "テンプレート数値入力を設定",
+    run: (context) => {
+      if (!context?.templateInputId || context.numericValue === undefined) return;
+      setTemplateNumericInput(context.templateInputId, context.numericValue);
+    }
+  },
+  confirmTemplateInsertion: {
+    id: "confirmTemplateInsertion",
+    label: "テンプレートを挿入",
+    run: () => confirmTemplateInsertion()
+  }
+} satisfies Partial<Record<CommandId, Command>>;

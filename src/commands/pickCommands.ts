@@ -18,6 +18,14 @@ import { findParameterDefinition } from "../parameters/parameterDefinitions";
 import { getParameterValue, setParameterValue } from "../parameters/parameterAccess";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
+import {
+  applyTemplatePickedLine,
+  applyTemplatePickedPoint,
+  insertTemplateNumericExpressionSnippet,
+  startTemplateNumericReferenceInsertPick,
+  templateNumericTargetContext
+} from "../templates/templateInsertionCommands";
+import { TEMPLATE_INSERTION_NUMERIC_TARGET_ID } from "../templates/templateInsertionMode";
 import type { ElementId } from "../types/geometry";
 import type { NumericValue } from "../types/geometry";
 import type { CommandContext } from "./commandTypes";
@@ -75,6 +83,19 @@ const numericExpressionTarget = (context?: CommandContext) => {
 export const insertNumericExpressionSnippet = (context?: CommandContext) => {
   const snippet = context?.numericExpressionSnippet;
   if (!snippet) return;
+
+  const templateTarget = templateNumericTargetContext(context?.elementId, context?.parameterKey);
+  if (templateTarget) {
+    insertTemplateNumericExpressionSnippet({
+      inputId: templateTarget.inputId,
+      snippet,
+      displayedExpression: context?.displayedExpression,
+      selectionStart: context?.selectionStart,
+      selectionEnd: context?.selectionEnd,
+      appendMode: context?.numericExpressionAppendMode
+    });
+    return;
+  }
 
   const target = numericExpressionTarget(context);
   if (!target) return;
@@ -136,6 +157,32 @@ export const closeExpressionInsertTray = () => {
 };
 
 const measurementTargetFromContext = (context?: CommandContext) => {
+  const templateTarget = templateNumericTargetContext(context?.elementId, context?.parameterKey);
+  if (templateTarget) {
+    const { activeMeasurementInsertTarget } = useCadUiStore.getState();
+    const mode =
+      context?.measurementInsertMode ??
+      (activeMeasurementInsertTarget?.elementId === TEMPLATE_INSERTION_NUMERIC_TARGET_ID &&
+      activeMeasurementInsertTarget.parameterKey === templateTarget.inputId
+        ? activeMeasurementInsertTarget.mode
+        : "distance");
+    const currentValue =
+      templateTarget.insertion.inputValues[templateTarget.inputId] ?? templateTarget.input.defaultValue;
+    const displayedExpression =
+      context?.displayedExpression ??
+      activeMeasurementInsertTarget?.displayedExpression ??
+      numericValueExpression(currentValue as NumericValue);
+
+    return {
+      elementId: TEMPLATE_INSERTION_NUMERIC_TARGET_ID,
+      parameterKey: templateTarget.inputId,
+      mode,
+      displayedExpression,
+      selectionStart: context?.selectionStart ?? activeMeasurementInsertTarget?.selectionStart ?? null,
+      selectionEnd: context?.selectionEnd ?? activeMeasurementInsertTarget?.selectionEnd ?? null
+    };
+  }
+
   const target = numericExpressionTarget(context);
   if (!target) return null;
   const { activeMeasurementInsertTarget } = useCadUiStore.getState();
@@ -276,6 +323,20 @@ export const startNumericReferencePick = () => {
 };
 
 export const startNumericReferenceInsertPick = (context?: CommandContext) => {
+  const templateTarget = templateNumericTargetContext(context?.elementId, context?.parameterKey);
+  if (templateTarget) {
+    startTemplateNumericReferenceInsertPick({
+      inputId: templateTarget.inputId,
+      property: context?.numericReferenceProperty ?? "length",
+      displayedExpression: context?.displayedExpression ?? numericValueExpression(
+        (templateTarget.insertion.inputValues[templateTarget.inputId] ?? templateTarget.input.defaultValue) as NumericValue
+      ),
+      selectionStart: context?.selectionStart ?? null,
+      selectionEnd: context?.selectionEnd ?? null
+    });
+    return;
+  }
+
   const target = numericExpressionTarget(context);
   if (!target) return;
   const currentValue = getParameterValue(target.targetElement, target.definition.key);
@@ -446,6 +507,7 @@ export const startPointPick = () => {
 export const applyPickedPoint = (context?: Pick<CommandContext, "pickedPointId" | "pickedPointAnchor">) => {
   const anchor = context?.pickedPointAnchor ?? (context?.pickedPointId ? referenceAnchor(context.pickedPointId) : null);
   if (!anchor) return;
+  if (applyTemplatePickedPoint(anchor)) return;
   const { activePointPickTarget } = useCadUiStore.getState();
   const { elements } = useCadDocumentStore.getState();
   if (!activePointPickTarget) return;
@@ -551,6 +613,7 @@ export const startLinePick = () => {
 export const applyPickedLine = (context?: Pick<CommandContext, "pickedLineId">) => {
   const pickedLineId = context?.pickedLineId;
   if (!pickedLineId) return;
+  if (applyTemplatePickedLine(pickedLineId)) return;
   const { activeLinePickTarget } = useCadUiStore.getState();
   const { elements } = useCadDocumentStore.getState();
   if (!activeLinePickTarget) return;

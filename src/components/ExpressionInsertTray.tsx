@@ -24,6 +24,7 @@ type ExpressionInsertTrayProps = {
   parameterKey: ParameterKey;
   focusInput: () => void;
   getInputTarget: () => InsertTargetInput;
+  onClose?: () => void;
 };
 
 const measurementModes: {
@@ -72,7 +73,8 @@ export const ExpressionInsertTray = ({
   elements,
   parameterKey,
   focusInput,
-  getInputTarget
+  getInputTarget,
+  onClose
 }: ExpressionInsertTrayProps) => {
   const [variableSearch, setVariableSearch] = useState("");
   const [numericReferenceProperty, setLocalNumericReferenceProperty] =
@@ -195,7 +197,7 @@ export const ExpressionInsertTray = ({
     <div className="expression-insert-tray">
       <div className="expression-insert-header">
         <span>測定・参照を挿入</span>
-        <button type="button" onClick={() => dispatchCommand("closeExpressionInsertTray")}>
+        <button type="button" onClick={() => onClose ? onClose() : dispatchCommand("closeExpressionInsertTray")}>
           閉じる
         </button>
       </div>

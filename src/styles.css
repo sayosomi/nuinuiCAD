@@ -3657,6 +3657,120 @@ select {
   grid-template-columns: minmax(0, 1fr) auto;
 }
 
+.template-insertion-panel {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 24;
+  display: grid;
+  width: min(420px, calc(100vw - 36px));
+  max-height: min(760px, calc(100vh - 36px));
+  overflow: auto;
+  gap: 10px;
+  border: 1px solid #aeb4aa;
+  border-radius: 8px;
+  background: #fbfbfa;
+  box-shadow: 0 16px 42px rgb(37 38 34 / 20%);
+  padding: 12px;
+}
+
+.template-insertion-header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.template-insertion-header h2 {
+  margin: 0;
+  color: #252622;
+  font-size: 16px;
+}
+
+.template-insertion-header p,
+.template-insertion-hint,
+.template-insertion-error {
+  margin: 2px 0 0;
+  color: #686b62;
+  font-size: 12px;
+}
+
+.template-insertion-current {
+  display: grid;
+  gap: 3px;
+  border: 1px solid #d2d4cd;
+  border-radius: 6px;
+  background: #f6f7f3;
+  padding: 8px 10px;
+}
+
+.template-insertion-current span,
+.template-insertion-current small {
+  overflow-wrap: anywhere;
+  color: #686b62;
+  font-size: 12px;
+}
+
+.template-insertion-current strong {
+  overflow-wrap: anywhere;
+  color: #252622;
+  font-size: 14px;
+}
+
+.template-insertion-numeric {
+  display: grid;
+  gap: 8px;
+}
+
+.template-insertion-numeric > input {
+  min-width: 0;
+}
+
+.template-insertion-error {
+  border: 1px solid #efb08f;
+  border-radius: 6px;
+  background: #fff7f2;
+  padding: 8px 10px;
+  color: #73320d;
+}
+
+.template-insertion-list {
+  display: grid;
+  max-height: 180px;
+  overflow: auto;
+  gap: 5px;
+}
+
+.template-insertion-list button {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  text-align: left;
+}
+
+.template-insertion-list span,
+.template-insertion-list small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.template-insertion-list .active-template-input {
+  border-color: #5f7661;
+  background: #e9f0e7;
+}
+
+.template-insertion-actions {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  gap: 6px;
+}
+
+.template-insertion-actions .primary-action {
+  justify-self: end;
+}
+
 .sr-only {
   position: absolute;
   width: 1px;

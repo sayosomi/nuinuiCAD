@@ -4,6 +4,7 @@ import { documentCommandDefinitions } from "./documentCommandDefinitions";
 import { parameterCommandDefinitions } from "./parameterCommandDefinitions";
 import { pickCommandDefinitions } from "./pickCommandDefinitions";
 import { selectionCommandDefinitions } from "./selectionCommandDefinitions";
+import { templateCommandDefinitions } from "./templateCommandDefinitions";
 import { viewModeCommandDefinitions } from "./viewModeCommandDefinitions";
 import type { Command, CommandContext, CommandId } from "./commandTypes";
 export type { BezierHandleRole, Command, CommandContext, CommandId } from "./commandTypes";
@@ -14,6 +15,7 @@ export const commands: Record<CommandId, Command> = {
   ...selectionCommandDefinitions,
   ...pickCommandDefinitions,
   ...creationCommandDefinitions,
+  ...templateCommandDefinitions,
   ...parameterCommandDefinitions
 };
 

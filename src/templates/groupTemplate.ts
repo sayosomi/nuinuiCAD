@@ -118,6 +118,43 @@ const remapNumericInputValue = (
   }
 };
 
+const pointInputAnchorReplacement = (
+  value: unknown,
+  replacements: Map<ElementId, PointAnchor>
+): unknown => {
+  if (!value || typeof value !== "object") return value;
+  if (Array.isArray(value)) {
+    return value.map((item) => pointInputAnchorReplacement(item, replacements));
+  }
+
+  const record = value as Record<string, unknown>;
+  if (record.mode === "reference" && typeof record.pointId === "string") {
+    return replacements.get(record.pointId) ?? value;
+  }
+  if (record.mode === "derived" && typeof record.elementId === "string") {
+    return replacements.get(record.elementId) ?? value;
+  }
+
+  const next: Record<string, unknown> = {};
+  for (const [key, item] of Object.entries(record)) {
+    if (key === "fromPointId" && typeof item === "string" && replacements.has(item)) {
+      const anchor = replacements.get(item);
+      if (anchor?.mode === "reference") next[key] = anchor.pointId;
+      continue;
+    }
+    next[key] = pointInputAnchorReplacement(item, replacements);
+  }
+  return next;
+};
+
+const applyPointInputAnchorReplacements = (
+  element: CadElement,
+  replacements: Map<ElementId, PointAnchor>
+): CadElement =>
+  replacements.size === 0
+    ? element
+    : pointInputAnchorReplacement(element, replacements) as CadElement;
+
 const externalReferenceInputs = (
   elements: CadElement[],
   templateElements: CadElement[],
@@ -210,16 +247,27 @@ export const instantiateGroupTemplate = ({
 }): TemplateInstantiationChange => {
   const targetIndex = Math.min(Math.max(insertionIndex ?? elements.length, 0), elements.length);
   const idMap = new Map<ElementId, ElementId>();
+  const pointInputReplacements = new Map<ElementId, PointAnchor>();
   for (const element of template.elements) {
     idMap.set(element.id, createCadElementId(element.type));
   }
   for (const input of template.inputs) {
-    if (input.kind === "point" || input.kind === "line") {
+    if (input.kind === "line") {
       const value = inputValues[input.id];
       if (typeof value !== "string") {
         throw new Error(`${input.label} を指定してください。`);
       }
       idMap.set(input.sourceElementId, value);
+    }
+    if (input.kind === "point") {
+      const value = inputValues[input.id];
+      if (typeof value === "string" && value.length > 0) {
+        idMap.set(input.sourceElementId, value);
+      } else if (value && typeof value === "object" && "mode" in value) {
+        pointInputReplacements.set(input.sourceElementId, value as PointAnchor);
+      } else {
+        throw new Error(`${input.label} を指定してください。`);
+      }
     }
   }
 
@@ -245,6 +293,7 @@ export const instantiateGroupTemplate = ({
       }),
       parentGroupId: original.parentGroupId ? idMap.get(original.parentGroupId) : undefined
     } as CadElement;
+    copied = applyPointInputAnchorReplacements(copied, pointInputReplacements);
     copied = remapElementReferences(copied, idMap);
 
     const variableInput = variableInputs.get(original.id);

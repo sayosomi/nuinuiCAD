@@ -151,4 +151,34 @@ describe("group templates", () => {
       endPoint: { mode: "reference", pointId: "bodice-point" }
     });
   });
+
+  it("applies picked point anchors to point template inputs", () => {
+    const template = createTemplateFromGroup({
+      elements,
+      groupId: "sleeve",
+      numericVariableElementIds: []
+    });
+    const change = instantiateGroupTemplate({
+      elements,
+      template,
+      inputValues: {
+        "point:bodice-point": { mode: "derived", elementId: "bodice-line", pointKey: "end" },
+        "line:bodice-line": "bodice-line"
+      },
+      insertionIndex: elements.length
+    });
+    const inserted = change.elements.slice(elements.length);
+    const insertedPoint = inserted.find((element) => element.type === "offsetPoint");
+    const insertedLine = inserted.find((element) => element.type === "line");
+
+    expect(insertedPoint).toMatchObject({
+      type: "offsetPoint",
+      fromPoint: { mode: "derived", elementId: "bodice-line", pointKey: "end" }
+    });
+    expect(insertedPoint).toHaveProperty("fromPointId", undefined);
+    expect(insertedLine).toMatchObject({
+      type: "line",
+      endPoint: { mode: "derived", elementId: "bodice-line", pointKey: "end" }
+    });
+  });
 });

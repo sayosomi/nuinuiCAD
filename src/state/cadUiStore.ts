@@ -3,6 +3,7 @@ import type { CommandRibbonSettings } from "../commandRibbons/commandRibbonSetti
 import type { NumericMeasurementKey } from "../geometry/numericExpressionTypes";
 import type { ShortcutSettings } from "../keyboard/shortcutTypes";
 import type { ParameterKey } from "../parameters/parameterDefinitions";
+import type { ActiveTemplateInsertion } from "../templates/templateInsertionMode";
 import type { ElementId, PointAnchor } from "../types/geometry";
 
 export type MeasurementInsertMode = "distance" | "angle" | "lineDistance";
@@ -88,6 +89,7 @@ export type CadUiState = {
   activeLinePickTarget: ActiveLinePickTarget | null;
   activeExpressionInsertTarget: ActiveExpressionInsertTarget | null;
   activeMeasurementInsertTarget: ActiveMeasurementInsertTarget | null;
+  activeTemplateInsertion: ActiveTemplateInsertion | null;
   activePickCursor: ActivePickCursor | null;
   selectedDependencyJumpIndex: number;
   elementSearchQuery: string;
@@ -129,6 +131,7 @@ export type CadUiState = {
   setActiveMeasurementInsertTarget: (
     activeMeasurementInsertTarget: ActiveMeasurementInsertTarget | null
   ) => void;
+  setActiveTemplateInsertion: (activeTemplateInsertion: ActiveTemplateInsertion | null) => void;
   setActivePickCursor: (activePickCursor: ActivePickCursor | null) => void;
   clearPickMode: () => void;
   setSelectedDependencyJumpIndex: (selectedDependencyJumpIndex: number) => void;
@@ -181,6 +184,7 @@ export const initialCadUiState = (): Omit<
   | "setActiveLinePickTarget"
   | "setActiveExpressionInsertTarget"
   | "setActiveMeasurementInsertTarget"
+  | "setActiveTemplateInsertion"
   | "setActivePickCursor"
   | "clearPickMode"
   | "setSelectedDependencyJumpIndex"
@@ -224,6 +228,7 @@ export const initialCadUiState = (): Omit<
   activeLinePickTarget: null,
   activeExpressionInsertTarget: null,
   activeMeasurementInsertTarget: null,
+  activeTemplateInsertion: null,
   activePickCursor: null,
   selectedDependencyJumpIndex: 0,
   elementSearchQuery: "",
@@ -314,12 +319,15 @@ export const useCadUiStore = create<CadUiState>((set) => ({
     })),
   setActiveMeasurementInsertTarget: (activeMeasurementInsertTarget) =>
     set({ activeMeasurementInsertTarget }),
+  setActiveTemplateInsertion: (activeTemplateInsertion) =>
+    set({ activeTemplateInsertion, activePickCursor: null }),
   setActivePickCursor: (activePickCursor) => set({ activePickCursor }),
   clearPickMode: () =>
     set({
       activePointPickTarget: null,
       activeNumericReferencePickTarget: null,
       activeLinePickTarget: null,
+      activeTemplateInsertion: null,
       activePickCursor: null
     }),
   setSelectedDependencyJumpIndex: (selectedDependencyJumpIndex) =>

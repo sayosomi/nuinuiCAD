@@ -1,8 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { dispatchCommand } from "../commands/commands";
-import { isLineLikeElement, isPointLikeElement } from "../commands/commandRuntime";
-import { makeNumericExpression, numericValueExpression } from "../geometry/numericExpressions";
-import { adjustEvaluationLimitForInsertion } from "../model/evaluationDivider";
 import { isGroupElement, subtreeIdsForElement } from "../model/groups";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
@@ -10,11 +7,8 @@ import {
   candidateNumericTemplateInputs,
   createTemplateFromGroup,
   insertionIndexAfterSelection,
-  instantiateGroupTemplate,
   type GroupTemplate,
-  type GroupTemplateInput,
-  type GroupTemplateLibrary,
-  type TemplateInstantiationInputValues
+  type GroupTemplateLibrary
 } from "../templates/groupTemplate";
 import {
   deleteGroupTemplate,
@@ -25,7 +19,7 @@ import {
   upsertGroupTemplate
 } from "../templates/groupTemplateStorage";
 import { isImeComposingKeyEvent } from "./keyboardEventGuards";
-import type { CadElement, ElementId, NumericValue } from "../types/geometry";
+import type { CadElement, ElementId } from "../types/geometry";
 
 const selectedGroup = (elements: CadElement[], selectedElementId: ElementId | null) => {
   const element = selectedElementId
@@ -34,31 +28,15 @@ const selectedGroup = (elements: CadElement[], selectedElementId: ElementId | nu
   return element && isGroupElement(element) ? element : null;
 };
 
-const defaultInputValue = (input: GroupTemplateInput): NumericValue | string =>
-  input.kind === "numeric" ? input.defaultValue : "";
-
-const defaultInputValues = (template: GroupTemplate | null): TemplateInstantiationInputValues =>
-  template
-    ? Object.fromEntries(template.inputs.map((input) => [input.id, defaultInputValue(input)]))
-    : {};
-
-const inputDescription = (input: GroupTemplateInput) => {
-  if (input.kind === "numeric") return "数値/式";
-  if (input.kind === "point") return "点";
-  return "線";
-};
-
 export const GroupTemplateLibraryDialog = () => {
   const showGroupTemplateLibrary = useCadUiStore((state) => state.showGroupTemplateLibrary);
   const elements = useCadDocumentStore((state) => state.elements);
   const selectedElementId = useCadDocumentStore((state) => state.selectedElementId);
   const selectedElementIds = useCadDocumentStore((state) => state.selectedElementIds);
-  const evaluationLimitIndex = useCadDocumentStore((state) => state.evaluationLimitIndex);
   const [library, setLibrary] = useState<GroupTemplateLibrary>({ version: 1, templates: [] });
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [templateName, setTemplateName] = useState("");
   const [numericInputIds, setNumericInputIds] = useState<Set<ElementId>>(new Set());
-  const [inputValues, setInputValues] = useState<TemplateInstantiationInputValues>({});
   const [status, setStatus] = useState<string | null>(null);
   const group = selectedGroup(elements, selectedElementId);
   const selectedTemplate = library.templates.find((template) => template.id === selectedTemplateId)
@@ -74,9 +52,6 @@ export const GroupTemplateLibraryDialog = () => {
     () => candidateNumericTemplateInputs(templateElements),
     [templateElements]
   );
-  const pointOptions = elements.filter(isPointLikeElement);
-  const lineOptions = elements.filter(isLineLikeElement);
-
   useEffect(() => {
     if (!showGroupTemplateLibrary) return;
     let cancelled = false;
@@ -86,7 +61,6 @@ export const GroupTemplateLibraryDialog = () => {
         setLibrary(nextLibrary);
         const nextSelectedTemplate = nextLibrary.templates[0] ?? null;
         setSelectedTemplateId(nextSelectedTemplate?.id ?? null);
-        setInputValues(defaultInputValues(nextSelectedTemplate));
       })
       .catch((error: unknown) => {
         if (!cancelled) setStatus(error instanceof Error ? error.message : "テンプレートを読み込めません。");
@@ -115,7 +89,6 @@ export const GroupTemplateLibraryDialog = () => {
       const nextLibrary = await upsertGroupTemplate(template);
       setLibrary(nextLibrary);
       setSelectedTemplateId(template.id);
-      setInputValues(defaultInputValues(template));
       setStatus("テンプレートを保存しました。");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "テンプレートを保存できません。");
@@ -124,27 +97,10 @@ export const GroupTemplateLibraryDialog = () => {
 
   const insertTemplate = () => {
     if (!selectedTemplate) return;
-    try {
-      const insertionIndex = insertionIndexAfterSelection(elements, selectedElementIds);
-      const change = instantiateGroupTemplate({
-        elements,
-        template: selectedTemplate,
-        inputValues,
-        insertionIndex
-      });
-      useCadDocumentStore.getState().commitDocumentChange({
-        ...change,
-        evaluationLimitIndex: adjustEvaluationLimitForInsertion({
-          elements,
-          evaluationLimitIndex,
-          insertionIndex: change.insertionIndex,
-          insertedCount: change.insertedCount
-        })
-      });
-      setStatus("テンプレートを挿入しました。");
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : "テンプレートを挿入できません。");
-    }
+    dispatchCommand("startTemplateInsertion", {
+      groupTemplate: selectedTemplate,
+      insertionIndex: insertionIndexAfterSelection(elements, selectedElementIds)
+    });
   };
 
   const removeTemplate = async (template: GroupTemplate) => {
@@ -152,7 +108,6 @@ export const GroupTemplateLibraryDialog = () => {
       const nextLibrary = await deleteGroupTemplate(template.id);
       setLibrary(nextLibrary);
       setSelectedTemplateId(nextLibrary.templates[0]?.id ?? null);
-      setInputValues(defaultInputValues(nextLibrary.templates[0] ?? null));
       setStatus("テンプレートを削除しました。");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "テンプレートを削除できません。");
@@ -166,7 +121,6 @@ export const GroupTemplateLibraryDialog = () => {
       const nextLibrary = await upsertGroupTemplate(template);
       setLibrary(nextLibrary);
       setSelectedTemplateId(template.id);
-      setInputValues(defaultInputValues(template));
       setStatus("テンプレートを読み込みました。");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "テンプレートを読み込めません。");
@@ -190,13 +144,6 @@ export const GroupTemplateLibraryDialog = () => {
     };
     setLibrary(nextLibrary);
     await saveGroupTemplateLibrary(nextLibrary);
-  };
-
-  const setInputValue = (input: GroupTemplateInput, value: string) => {
-    setInputValues((current) => ({
-      ...current,
-      [input.id]: input.kind === "numeric" ? makeNumericExpression(value) : value
-    }));
   };
 
   return (
@@ -277,7 +224,6 @@ export const GroupTemplateLibraryDialog = () => {
                     className={selectedTemplate?.id === template.id ? "active-template" : ""}
                     onClick={() => {
                       setSelectedTemplateId(template.id);
-                      setInputValues(defaultInputValues(template));
                     }}
                   >
                     <strong>{template.name}</strong>
@@ -309,35 +255,9 @@ export const GroupTemplateLibraryDialog = () => {
                     }}
                   />
                 </label>
-                <div className="template-input-list">
-                  {selectedTemplate.inputs.length === 0 ? (
-                    <p className="template-empty">入力なしで挿入できます。</p>
-                  ) : (
-                    selectedTemplate.inputs.map((input) => (
-                      <label className="template-field" key={input.id}>
-                        <span>{input.label} <small>{inputDescription(input)}</small></span>
-                        {input.kind === "numeric" ? (
-                          <input
-                            value={numericValueExpression((inputValues[input.id] ?? input.defaultValue) as NumericValue)}
-                            onChange={(event) => setInputValue(input, event.currentTarget.value)}
-                          />
-                        ) : (
-                          <select
-                            value={typeof inputValues[input.id] === "string" ? inputValues[input.id] as string : ""}
-                            onChange={(event) => setInputValue(input, event.currentTarget.value)}
-                          >
-                            <option value="">未指定</option>
-                            {(input.kind === "point" ? pointOptions : lineOptions).map((element) => (
-                              <option key={element.id} value={element.id}>
-                                {element.name}
-                              </option>
-                            ))}
-                          </select>
-                        )}
-                      </label>
-                    ))
-                  )}
-                </div>
+                <p className="template-empty">
+                  挿入を開始すると、点・線・式入力を順番に指定します。
+                </p>
                 <div className="button-row">
                   <button type="button" onClick={insertTemplate}>挿入</button>
                   <button type="button" onClick={() => removeTemplate(selectedTemplate)}>削除</button>

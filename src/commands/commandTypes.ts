@@ -5,7 +5,9 @@ import type {
   MeasurementPointSlot
 } from "../state/cadUiStore";
 import type { NumericMeasurementKey } from "../geometry/numericExpressionTypes";
+import type { GroupTemplate } from "../templates/groupTemplate";
 import type { CadElement, ElementId, EvaluationResult, PointAnchor } from "../types/geometry";
+import type { NumericValue } from "../types/geometry";
 
 export type { BezierHandleRole };
 
@@ -122,6 +124,13 @@ export type CommandId =
   | "closePaletteSettings"
   | "openGroupTemplateLibrary"
   | "closeGroupTemplateLibrary"
+  | "startTemplateInsertion"
+  | "cancelTemplateInsertion"
+  | "selectNextTemplateInsertionInput"
+  | "selectPreviousTemplateInsertionInput"
+  | "selectTemplateInsertionInput"
+  | "setTemplateNumericInput"
+  | "confirmTemplateInsertion"
   | "openCommandRibbonSettings"
   | "closeCommandRibbonSettings"
   | "openSelectionColorPicker"
@@ -197,6 +206,9 @@ export type CommandContext = {
   pickedPointId?: ElementId;
   pickedPointAnchor?: PointAnchor;
   pickedLineId?: ElementId;
+  groupTemplate?: GroupTemplate;
+  templateInputId?: string;
+  numericValue?: NumericValue;
   colorId?: string;
 };
 
