@@ -1426,8 +1426,8 @@ select {
 .command-ribbon-settings {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
-  width: min(1120px, 100%);
-  height: min(780px, calc(100vh - 80px));
+  width: min(1230px, 100%);
+  height: min(820px, calc(100vh - 80px));
   min-height: 0;
   overflow: hidden;
   border: 1px solid #aeb4aa;
@@ -1438,8 +1438,9 @@ select {
 
 .command-ribbon-settings-body {
   display: grid;
-  grid-template-columns: 260px minmax(0, 1fr);
+  grid-template-columns: 260px minmax(0, 1fr) 340px;
   min-height: 0;
+  overflow: hidden;
 }
 
 .command-ribbon-settings-sidebar {
@@ -1517,13 +1518,24 @@ select {
   font-size: 11px;
 }
 
-.command-ribbon-settings-editor {
+.command-ribbon-settings-workspace {
   display: grid;
-  grid-template-rows: auto auto auto auto minmax(0, 1fr);
-  gap: 12px;
+  grid-template-rows: auto auto minmax(130px, 0.42fr) minmax(0, 1fr);
+  gap: 10px;
   min-height: 0;
   overflow: hidden;
   padding: 14px 16px;
+}
+
+.command-ribbon-settings-inspector {
+  display: grid;
+  grid-template-rows: auto auto auto minmax(0, 1fr);
+  gap: 10px;
+  min-height: 0;
+  overflow: hidden;
+  border-left: 1px solid #d2d4cd;
+  background: #f8f7f2;
+  padding: 14px;
 }
 
 .command-ribbon-settings-grid {
@@ -1548,6 +1560,14 @@ select {
   align-items: center;
 }
 
+.command-ribbon-command-panel {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 8px;
+  min-height: 0;
+  overflow: hidden;
+}
+
 .command-ribbon-button-list {
   display: grid;
   align-content: start;
@@ -1558,13 +1578,13 @@ select {
 
 .command-ribbon-button-row {
   display: grid;
-  grid-template-columns: minmax(180px, 1.1fr) minmax(140px, 0.8fr) auto auto auto auto;
+  grid-template-columns: minmax(190px, 1fr) minmax(80px, 0.45fr) 56px auto auto;
   gap: 8px;
-  align-items: end;
+  align-items: center;
   border: 1px solid #d2d4cd;
   border-radius: 6px;
   background: #ffffff;
-  padding: 10px;
+  padding: 8px;
 }
 
 .command-ribbon-button-row.selected {
@@ -1574,7 +1594,9 @@ select {
 
 .command-ribbon-button-select {
   display: grid;
-  gap: 2px;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 2px 7px;
+  align-items: center;
   min-width: 0;
   min-height: 34px;
   border-color: #c9ccc2;
@@ -1583,8 +1605,14 @@ select {
   text-align: left;
 }
 
+.command-ribbon-button-select svg {
+  grid-row: span 2;
+}
+
 .command-ribbon-button-select span,
-.command-ribbon-button-select small {
+.command-ribbon-button-select small,
+.command-ribbon-button-row-label,
+.command-ribbon-button-row-state {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1599,6 +1627,17 @@ select {
 .command-ribbon-button-select small {
   color: #686b62;
   font-size: 10px;
+}
+
+.command-ribbon-button-row-label {
+  color: #252622;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.command-ribbon-button-row-state {
+  color: #686b62;
+  font-size: 11px;
 }
 
 .command-ribbon-label-toggle {
@@ -1722,12 +1761,32 @@ select {
   font-size: 11px;
 }
 
+.command-ribbon-button-fields {
+  display: grid;
+  gap: 10px;
+}
+
+.command-ribbon-button-fields label {
+  display: grid;
+  gap: 4px;
+  color: #4a4d45;
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .command-ribbon-command-candidates {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
   gap: 6px;
-  max-height: 150px;
+  min-height: 0;
   overflow: auto;
+}
+
+.command-ribbon-command-candidates > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px;
+  min-width: 0;
 }
 
 .command-ribbon-command-candidates button {
@@ -1740,7 +1799,7 @@ select {
   text-align: left;
 }
 
-.command-ribbon-command-candidates button.selected,
+.command-ribbon-command-candidates > div.selected > button:first-child,
 .command-ribbon-command-candidates button:hover,
 .command-ribbon-icon-grid button.selected,
 .command-ribbon-icon-grid button:hover {
@@ -1771,7 +1830,7 @@ select {
 
 .command-ribbon-icon-tools {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 160px;
+  grid-template-columns: minmax(0, 1fr);
   gap: 8px;
   align-items: end;
 }
@@ -1788,7 +1847,7 @@ select {
   display: grid;
   grid-template-columns: 1fr;
   gap: 10px;
-  max-height: 230px;
+  min-height: 0;
   overflow: auto;
 }
 
@@ -1836,6 +1895,12 @@ select {
 
 .command-ribbon-settings-footer .shortcut-settings-error {
   margin-right: auto;
+}
+
+.command-ribbon-empty-state {
+  margin: 0;
+  color: #686b62;
+  font-size: 13px;
 }
 
 .shortcut-settings-toolbar {

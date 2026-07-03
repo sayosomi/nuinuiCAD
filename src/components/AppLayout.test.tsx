@@ -433,7 +433,7 @@ describe("AppLayout command ribbon", () => {
       dispatchCommand("openCommandRibbonSettings");
     });
     fireEvent.change(await view.findByLabelText("コマンドを検索"), { target: { value: "保存" } });
-    fireEvent.click(await view.findByRole("button", { name: /^保存\s*saveDocument$/ }));
+    fireEvent.click(await view.findByRole("button", { name: "保存を適用" }));
     fireEvent.change(view.getByLabelText("アイコンを検索"), { target: { value: "保存" } });
     fireEvent.click(view.getByRole("button", { name: "保存 アイコン" }));
     fireEvent.change(view.getByLabelText("アイコン色"), { target: { value: "teal" } });
@@ -450,6 +450,23 @@ describe("AppLayout command ribbon", () => {
         label: "保存"
       });
     });
+  });
+
+  it("keeps command ribbon settings panes independently scrollable", async () => {
+    const view = render(<AppLayout />);
+    await view.findByRole("button", { name: "作図を移動" });
+
+    act(() => {
+      dispatchCommand("openCommandRibbonSettings");
+    });
+
+    const dialog = await view.findByRole("dialog", { name: "コマンドリボン設定" });
+    expect(dialog.querySelector(".command-ribbon-settings-body")).toBeTruthy();
+    expect(dialog.querySelector(".command-ribbon-settings-sidebar")).toBeTruthy();
+    expect(dialog.querySelector(".command-ribbon-settings-workspace")).toBeTruthy();
+    expect(dialog.querySelector(".command-ribbon-settings-inspector")).toBeTruthy();
+    expect(dialog.querySelector(".command-ribbon-icon-grid")).toBeTruthy();
+    expect(view.getByRole("button", { name: "保存" })).toBeTruthy();
   });
 
   it("keeps command ribbon settings unchanged when cancelling edits", async () => {

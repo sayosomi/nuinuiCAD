@@ -235,6 +235,26 @@ const CommandRibbonSettingsDialogContent = ({
     );
   };
 
+  const addButtonForCommand = (commandId: CommandId) => {
+    if (!selectedRibbon) return;
+    const buttonId = newId("button");
+    setDraftSettings((current) =>
+      withRibbon(current, selectedRibbon.id, (ribbon) => ({
+        ...ribbon,
+        buttons: [
+          ...ribbon.buttons,
+          {
+            ...defaultButton(),
+            id: buttonId,
+            commandId,
+            label: commandLabel(commandId)
+          }
+        ]
+      }))
+    );
+    setSelectedButtonId(buttonId);
+  };
+
   const applyIconToSelectedButton = (icon: CommandRibbonIconId) => {
     if (!selectedRibbon || !selectedButton) return;
     setDraftSettings((current) =>
@@ -326,301 +346,304 @@ const CommandRibbonSettingsDialogContent = ({
           </aside>
 
           {selectedRibbon ? (
-            <div className="command-ribbon-settings-editor">
-              <div className="command-ribbon-settings-grid">
-                <label>
-                  名前
-                  <input
-                    value={selectedRibbon.label}
-                    onChange={(event) =>
-                      setDraftSettings((current) =>
-                        withRibbon(current, selectedRibbon.id, (ribbon) => ({
-                          ...ribbon,
-                          label: event.target.value
-                        }))
-                      )
-                    }
-                  />
-                </label>
-                <label>
-                  向き
-                  <select
-                    value={selectedRibbon.orientation}
-                    onChange={(event) =>
-                      setDraftSettings((current) =>
-                        withRibbon(current, selectedRibbon.id, (ribbon) => ({
-                          ...ribbon,
-                          orientation: event.target.value === "vertical" ? "vertical" : "horizontal"
-                        }))
-                      )
-                    }
-                  >
-                    <option value="horizontal">横</option>
-                    <option value="vertical">縦</option>
-                  </select>
-                </label>
-                <label>
-                  アイコンサイズ
-                  <select
-                    value={selectedRibbon.iconSize}
-                    onChange={(event) =>
-                      setDraftSettings((current) =>
-                        withRibbon(current, selectedRibbon.id, (ribbon) => ({
-                          ...ribbon,
-                          iconSize: Number(event.target.value) as CommandRibbonIconSize
-                        }))
-                      )
-                    }
-                  >
-                    {commandRibbonIconSizes.map((size) => (
-                      <option key={size} value={size}>{size}px</option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-
-              <div className="command-ribbon-command-filter">
-                <input
-                  value={commandQuery}
-                  placeholder="コマンドを検索"
-                  aria-label="コマンドを検索"
-                  onChange={(event) => setCommandQuery(event.target.value)}
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    const commandId = filteredCommands[0]?.commandId ?? firstCommandId;
-                    const buttonId = newId("button");
-                    setDraftSettings((current) =>
-                      withRibbon(current, selectedRibbon.id, (ribbon) => ({
-                        ...ribbon,
-                        buttons: [
-                          ...ribbon.buttons,
-                          {
-                            ...defaultButton(),
-                            id: buttonId,
-                            commandId,
-                            label: commandLabel(commandId)
-                          }
-                        ]
-                      }))
-                    );
-                    setSelectedButtonId(buttonId);
-                  }}
-                >
-                  ボタン追加
-                </button>
-              </div>
-
-              <div className="command-ribbon-draft-preview" aria-label="リボンプレビュー">
-                <div className={`command-ribbon-preview is-${selectedRibbon.orientation}`}>
-                  {selectedRibbon.buttons.map((button) => {
-                    const Icon = commandRibbonIconComponents[button.icon];
-                    return (
-                      <span
-                        className={button.id === selectedButton?.id ? "selected" : ""}
-                        key={button.id}
-                      >
-                        <Icon
-                          size={selectedRibbon.iconSize}
-                          strokeWidth={2}
-                          style={{ color: commandRibbonIconColorValues[button.iconColor] }}
-                        />
-                        {button.showLabel ? <em>{button.label}</em> : null}
-                      </span>
-                    );
-                  })}
+            <>
+              <div className="command-ribbon-settings-workspace">
+                <div className="command-ribbon-settings-grid">
+                  <label>
+                    名前
+                    <input
+                      value={selectedRibbon.label}
+                      onChange={(event) =>
+                        setDraftSettings((current) =>
+                          withRibbon(current, selectedRibbon.id, (ribbon) => ({
+                            ...ribbon,
+                            label: event.target.value
+                          }))
+                        )
+                      }
+                    />
+                  </label>
+                  <label>
+                    向き
+                    <select
+                      value={selectedRibbon.orientation}
+                      onChange={(event) =>
+                        setDraftSettings((current) =>
+                          withRibbon(current, selectedRibbon.id, (ribbon) => ({
+                            ...ribbon,
+                            orientation: event.target.value === "vertical" ? "vertical" : "horizontal"
+                          }))
+                        )
+                      }
+                    >
+                      <option value="horizontal">横</option>
+                      <option value="vertical">縦</option>
+                    </select>
+                  </label>
+                  <label>
+                    アイコンサイズ
+                    <select
+                      value={selectedRibbon.iconSize}
+                      onChange={(event) =>
+                        setDraftSettings((current) =>
+                          withRibbon(current, selectedRibbon.id, (ribbon) => ({
+                            ...ribbon,
+                            iconSize: Number(event.target.value) as CommandRibbonIconSize
+                          }))
+                        )
+                      }
+                    >
+                      {commandRibbonIconSizes.map((size) => (
+                        <option key={size} value={size}>{size}px</option>
+                      ))}
+                    </select>
+                  </label>
                 </div>
-              </div>
 
-              {selectedButton ? (
-                <div className="command-ribbon-button-picker">
-                  <div className="command-ribbon-button-picker-header">
-                    <strong>選択中: {selectedButton.label}</strong>
-                    <span>{selectedButton.commandId}</span>
+                <div className="command-ribbon-draft-preview" aria-label="リボンプレビュー">
+                  <div className={`command-ribbon-preview is-${selectedRibbon.orientation}`}>
+                    {selectedRibbon.buttons.map((button) => {
+                      const Icon = commandRibbonIconComponents[button.icon];
+                      return (
+                        <span
+                          className={button.id === selectedButton?.id ? "selected" : ""}
+                          key={button.id}
+                        >
+                          <Icon
+                            size={selectedRibbon.iconSize}
+                            strokeWidth={2}
+                            style={{ color: commandRibbonIconColorValues[button.iconColor] }}
+                          />
+                          {button.showLabel ? <em>{button.label}</em> : null}
+                        </span>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="command-ribbon-command-panel">
+                  <div className="command-ribbon-command-filter">
+                    <input
+                      value={commandQuery}
+                      placeholder="コマンドを検索"
+                      aria-label="コマンドを検索"
+                      onChange={(event) => setCommandQuery(event.target.value)}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => addButtonForCommand(filteredCommands[0]?.commandId ?? firstCommandId)}
+                    >
+                      先頭候補を追加
+                    </button>
                   </div>
                   <div className="command-ribbon-command-candidates" aria-label="コマンド候補">
                     {commandCandidates.length === 0 ? (
                       <p>該当するコマンドはありません。</p>
                     ) : (
                       commandCandidates.slice(0, 24).map((item) => (
-                        <button
-                          type="button"
+                        <div
                           key={item.commandId}
-                          className={item.commandId === selectedButton.commandId ? "selected" : ""}
-                          onClick={() => applyCommandToSelectedButton(item.commandId)}
+                          className={item.commandId === selectedButton?.commandId ? "selected" : ""}
                         >
-                          <span>{item.label}</span>
-                          <small>{item.commandId}</small>
-                        </button>
+                          <button
+                            type="button"
+                            aria-label={`${item.label}を適用`}
+                            onClick={() => applyCommandToSelectedButton(item.commandId)}
+                          >
+                            <span>{item.label}</span>
+                            <small>{item.commandId}</small>
+                          </button>
+                          <button
+                            type="button"
+                            aria-label={`${item.label}を追加`}
+                            onClick={() => addButtonForCommand(item.commandId)}
+                          >
+                            追加
+                          </button>
+                        </div>
                       ))
                     )}
                   </div>
-                  <div className="command-ribbon-icon-tools">
-                    <input
-                      value={iconQuery}
-                      placeholder="アイコンを検索"
-                      aria-label="アイコンを検索"
-                      onChange={(event) => setIconQuery(event.target.value)}
-                    />
-                    <label>
-                      アイコン色
-                      <select
-                        value={selectedButton.iconColor}
-                        aria-label="アイコン色"
-                        onChange={(event) =>
-                          setDraftSettings((current) =>
-                            withButton(current, selectedRibbon.id, selectedButton.id, (button) => ({
-                              ...button,
-                              iconColor: event.target.value as CommandRibbonButton["iconColor"]
-                            }))
-                          )
-                        }
-                      >
-                        {commandRibbonIconColors.map((color) => (
-                          <option key={color} value={color}>{commandRibbonIconColorLabels[color]}</option>
-                        ))}
-                      </select>
-                    </label>
-                  </div>
-                  <div className="command-ribbon-icon-grid" aria-label="アイコン候補">
-                    {filteredIcons.length === 0 ? (
-                      <p>該当するアイコンはありません。</p>
-                    ) : (
-                      Object.entries(commandRibbonIconCategoryLabels).map(([category, categoryLabel]) => {
-                        const categoryIcons = filteredIcons.filter((icon) => icon.category === category);
-                        if (categoryIcons.length === 0) return null;
-                        return (
-                          <section key={category} className="command-ribbon-icon-category">
-                            <h3>{categoryLabel}</h3>
-                            <div>
-                              {categoryIcons.map((icon) => {
-                                const Icon = commandRibbonIconComponents[icon.id];
-                                return (
-                                  <button
-                                    type="button"
-                                    key={icon.id}
-                                    className={icon.id === selectedButton.icon ? "selected" : ""}
-                                    aria-label={`${icon.label} アイコン`}
-                                    title={`${icon.label} / ${icon.id}`}
-                                    onClick={() => applyIconToSelectedButton(icon.id)}
-                                  >
-                                    <Icon
-                                      size={selectedRibbon.iconSize}
-                                      strokeWidth={2}
-                                      style={{ color: commandRibbonIconColorValues[selectedButton.iconColor] }}
-                                    />
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          </section>
-                        );
-                      })
-                    )}
-                  </div>
                 </div>
-              ) : null}
 
-              <div className="command-ribbon-button-list">
-                {selectedRibbon.buttons.map((button, index) => (
-                  <div
-                    className={`command-ribbon-button-row ${button.id === selectedButton?.id ? "selected" : ""}`}
-                    key={button.id}
-                  >
-                    <button
-                      type="button"
-                      className="command-ribbon-button-select"
-                      onClick={() => setSelectedButtonId(button.id)}
-                    >
-                      <span>{commandLabel(button.commandId)}</span>
-                      <small>{button.commandId}</small>
-                    </button>
-                    <label>
-                      表示名
-                      <input
-                        value={button.label}
-                        onChange={(event) =>
-                          setDraftSettings((current) =>
-                            withButton(current, selectedRibbon.id, button.id, (item) => ({
-                              ...item,
-                              label: event.target.value
-                            }))
-                          )
-                        }
-                      />
-                    </label>
-                    <label className="command-ribbon-label-toggle">
-                      <input
-                        type="checkbox"
-                        checked={button.showLabel}
-                        onChange={(event) =>
-                          setDraftSettings((current) =>
-                            withButton(current, selectedRibbon.id, button.id, (item) => ({
-                              ...item,
-                              showLabel: event.target.checked
-                            }))
-                          )
-                        }
-                      />
-                      リボンに表示
-                    </label>
-                    <div className="command-ribbon-icon-preview" aria-hidden="true">
-                      {(() => {
-                        const Icon = commandRibbonIconComponents[button.icon];
-                        return (
+                <div className="command-ribbon-button-list" aria-label="リボンボタン">
+                  {selectedRibbon.buttons.map((button, index) => {
+                    const Icon = commandRibbonIconComponents[button.icon];
+                    return (
+                      <div
+                        className={`command-ribbon-button-row ${button.id === selectedButton?.id ? "selected" : ""}`}
+                        key={button.id}
+                      >
+                        <button
+                          type="button"
+                          className="command-ribbon-button-select"
+                          onClick={() => setSelectedButtonId(button.id)}
+                        >
                           <Icon
                             size={selectedRibbon.iconSize}
                             strokeWidth={2}
                             style={{ color: commandRibbonIconColorValues[button.iconColor] }}
                           />
-                        );
-                      })()}
-                    </div>
-                    <div className="command-ribbon-order-buttons">
-                      <button
-                        type="button"
-                        aria-label={`${button.label}を前へ`}
-                        disabled={index === 0}
-                        onClick={() => {
-                          setSelectedButtonId(button.id);
-                          moveButton(button.id, -1);
-                        }}
-                      >
-                        ↑
-                      </button>
-                      <button
-                        type="button"
-                        aria-label={`${button.label}を後へ`}
-                        disabled={index === selectedRibbon.buttons.length - 1}
-                        onClick={() => {
-                          setSelectedButtonId(button.id);
-                          moveButton(button.id, 1);
-                        }}
-                      >
-                        ↓
-                      </button>
-                    </div>
-                    <button
-                      type="button"
-                      disabled={selectedRibbon.buttons.length <= 1}
-                      onClick={() =>
-                        setDraftSettings((current) => {
-                          const nextButtons = selectedRibbon.buttons.filter((item) => item.id !== button.id);
-                          setSelectedButtonId(nextButtons[0]?.id ?? "");
-                          return withRibbon(current, selectedRibbon.id, (ribbon) => ({
-                            ...ribbon,
-                            buttons: ribbon.buttons.filter((item) => item.id !== button.id)
-                          }));
-                        })
-                      }
-                    >
-                      削除
-                    </button>
-                  </div>
-                ))}
+                          <span>{commandLabel(button.commandId)}</span>
+                          <small>{button.commandId}</small>
+                        </button>
+                        <span className="command-ribbon-button-row-label">{button.label}</span>
+                        <span className="command-ribbon-button-row-state">
+                          {button.showLabel ? "表示" : "非表示"}
+                        </span>
+                        <div className="command-ribbon-order-buttons">
+                          <button
+                            type="button"
+                            aria-label={`${button.label}を前へ`}
+                            disabled={index === 0}
+                            onClick={() => {
+                              setSelectedButtonId(button.id);
+                              moveButton(button.id, -1);
+                            }}
+                          >
+                            ↑
+                          </button>
+                          <button
+                            type="button"
+                            aria-label={`${button.label}を後へ`}
+                            disabled={index === selectedRibbon.buttons.length - 1}
+                            onClick={() => {
+                              setSelectedButtonId(button.id);
+                              moveButton(button.id, 1);
+                            }}
+                          >
+                            ↓
+                          </button>
+                        </div>
+                        <button
+                          type="button"
+                          disabled={selectedRibbon.buttons.length <= 1}
+                          onClick={() =>
+                            setDraftSettings((current) => {
+                              const nextButtons = selectedRibbon.buttons.filter((item) => item.id !== button.id);
+                              setSelectedButtonId(nextButtons[0]?.id ?? "");
+                              return withRibbon(current, selectedRibbon.id, (ribbon) => ({
+                                ...ribbon,
+                                buttons: ribbon.buttons.filter((item) => item.id !== button.id)
+                              }));
+                            })
+                          }
+                        >
+                          削除
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
+
+              <aside className="command-ribbon-settings-inspector" aria-label="ボタン詳細">
+                {selectedButton ? (
+                  <>
+                    <div className="command-ribbon-button-picker-header">
+                      <strong>選択中: {selectedButton.label}</strong>
+                      <span>{selectedButton.commandId}</span>
+                    </div>
+                    <div className="command-ribbon-button-fields">
+                      <label>
+                        表示名
+                        <input
+                          value={selectedButton.label}
+                          onChange={(event) =>
+                            setDraftSettings((current) =>
+                              withButton(current, selectedRibbon.id, selectedButton.id, (button) => ({
+                                ...button,
+                                label: event.target.value
+                              }))
+                            )
+                          }
+                        />
+                      </label>
+                      <label className="command-ribbon-label-toggle">
+                        <input
+                          type="checkbox"
+                          checked={selectedButton.showLabel}
+                          onChange={(event) =>
+                            setDraftSettings((current) =>
+                              withButton(current, selectedRibbon.id, selectedButton.id, (button) => ({
+                                ...button,
+                                showLabel: event.target.checked
+                              }))
+                            )
+                          }
+                        />
+                        リボンに表示
+                      </label>
+                      <label>
+                        アイコン色
+                        <select
+                          value={selectedButton.iconColor}
+                          aria-label="アイコン色"
+                          onChange={(event) =>
+                            setDraftSettings((current) =>
+                              withButton(current, selectedRibbon.id, selectedButton.id, (button) => ({
+                                ...button,
+                                iconColor: event.target.value as CommandRibbonButton["iconColor"]
+                              }))
+                            )
+                          }
+                        >
+                          {commandRibbonIconColors.map((color) => (
+                            <option key={color} value={color}>{commandRibbonIconColorLabels[color]}</option>
+                          ))}
+                        </select>
+                      </label>
+                    </div>
+                    <div className="command-ribbon-icon-tools">
+                      <input
+                        value={iconQuery}
+                        placeholder="アイコンを検索"
+                        aria-label="アイコンを検索"
+                        onChange={(event) => setIconQuery(event.target.value)}
+                      />
+                    </div>
+                    <div className="command-ribbon-icon-grid" aria-label="アイコン候補">
+                      {filteredIcons.length === 0 ? (
+                        <p>該当するアイコンはありません。</p>
+                      ) : (
+                        Object.entries(commandRibbonIconCategoryLabels).map(([category, categoryLabel]) => {
+                          const categoryIcons = filteredIcons.filter((icon) => icon.category === category);
+                          if (categoryIcons.length === 0) return null;
+                          return (
+                            <section key={category} className="command-ribbon-icon-category">
+                              <h3>{categoryLabel}</h3>
+                              <div>
+                                {categoryIcons.map((icon) => {
+                                  const Icon = commandRibbonIconComponents[icon.id];
+                                  return (
+                                    <button
+                                      type="button"
+                                      key={icon.id}
+                                      className={icon.id === selectedButton.icon ? "selected" : ""}
+                                      aria-label={`${icon.label} アイコン`}
+                                      title={`${icon.label} / ${icon.id}`}
+                                      onClick={() => applyIconToSelectedButton(icon.id)}
+                                    >
+                                      <Icon
+                                        size={selectedRibbon.iconSize}
+                                        strokeWidth={2}
+                                        style={{ color: commandRibbonIconColorValues[selectedButton.iconColor] }}
+                                      />
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </section>
+                          );
+                        })
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  <p className="command-ribbon-empty-state">編集するボタンを選択してください。</p>
+                )}
+              </aside>
+            </>
           ) : null}
         </div>
 
