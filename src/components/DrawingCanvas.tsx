@@ -164,6 +164,8 @@ export const DrawingCanvas = ({ evaluation, evaluationState, canvasFocusRef }: D
       snapshot: {
         elements: state.elements,
         palette: state.palette,
+        printLayouts: state.printLayouts,
+        activePrintLayoutId: state.activePrintLayoutId,
         printLayout: state.printLayout,
         evaluationLimitIndex: state.evaluationLimitIndex,
         selectedElementId: state.selectedElementId,

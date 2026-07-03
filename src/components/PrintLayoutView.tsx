@@ -446,7 +446,13 @@ export const PrintLayoutCanvas = ({ evaluation, canvasFocusRef }: PrintLayoutCan
 export const PrintLayoutPanel = ({ evaluation }: { evaluation: EvaluationResult }) => {
   const elements = useCadDocumentStore((state) => state.elements);
   const layout = useCadDocumentStore((state) => state.printLayout);
+  const printLayouts = useCadDocumentStore((state) => state.printLayouts);
+  const activePrintLayoutId = useCadDocumentStore((state) => state.activePrintLayoutId);
   const updatePrintLayout = useCadDocumentStore((state) => state.updatePrintLayout);
+  const setActivePrintLayoutId = useCadDocumentStore((state) => state.setActivePrintLayoutId);
+  const addPrintLayout = useCadDocumentStore((state) => state.addPrintLayout);
+  const duplicatePrintLayout = useCadDocumentStore((state) => state.duplicatePrintLayout);
+  const deletePrintLayout = useCadDocumentStore((state) => state.deletePrintLayout);
   const selectedPrintPlacementId = useCadUiStore((state) => state.selectedPrintPlacementId);
   const setSelectedPrintPlacementId = useCadUiStore((state) => state.setSelectedPrintPlacementId);
   const [groupQuery, setGroupQuery] = useState("");
@@ -545,6 +551,25 @@ export const PrintLayoutPanel = ({ evaluation }: { evaluation: EvaluationResult 
     });
     setSelectedPrintPlacementId(copy.id);
   };
+  const switchPrintLayout = (layoutId: string) => {
+    const nextLayout = printLayouts.find((item) => item.id === layoutId);
+    setActivePrintLayoutId(layoutId);
+    setSelectedPrintPlacementId(nextLayout?.placements[0]?.id ?? null);
+  };
+  const addAndSelectPrintLayout = () => {
+    addPrintLayout();
+    setSelectedPrintPlacementId(null);
+  };
+  const duplicateAndSelectPrintLayout = () => {
+    duplicatePrintLayout(activePrintLayoutId);
+    setSelectedPrintPlacementId(selectedPrintPlacementId ?? layout.placements[0]?.id ?? null);
+  };
+  const deleteAndSelectNextPrintLayout = () => {
+    if (printLayouts.length <= 1) return;
+    const nextLayout = printLayouts.find((item) => item.id !== activePrintLayoutId);
+    deletePrintLayout(activePrintLayoutId);
+    setSelectedPrintPlacementId(nextLayout?.placements[0]?.id ?? null);
+  };
 
   return (
     <aside className="right-panel print-settings-panel">
@@ -563,6 +588,49 @@ export const PrintLayoutPanel = ({ evaluation }: { evaluation: EvaluationResult 
             <button type="button" onClick={() => dispatchCommand("exportPrintPdf", { evaluation })}>
               <FileText aria-hidden="true" />
               PDF
+            </button>
+          </div>
+        </div>
+        <div className="print-layout-switcher">
+          <label className="print-select-field">
+            <span>レイアウト</span>
+            <select
+              value={activePrintLayoutId}
+              onChange={(event) => switchPrintLayout(event.currentTarget.value)}
+            >
+              {printLayouts.map((item, index) => (
+                <option key={item.id} value={item.id}>
+                  {item.name.trim() || `レイアウト${index + 1}`}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="print-select-field">
+            <span>名前</span>
+            <input
+              type="text"
+              aria-label="印刷レイアウト名"
+              value={layout.name}
+              placeholder="PDFファイル名"
+              onChange={(event) => updatePrintLayout({ name: event.currentTarget.value })}
+            />
+          </label>
+          <div className="print-layout-actions">
+            <button type="button" onClick={addAndSelectPrintLayout}>
+              <Plus aria-hidden="true" />
+              新規
+            </button>
+            <button type="button" onClick={duplicateAndSelectPrintLayout}>
+              <Copy aria-hidden="true" />
+              複製
+            </button>
+            <button
+              type="button"
+              onClick={deleteAndSelectNextPrintLayout}
+              disabled={printLayouts.length <= 1}
+            >
+              <Trash2 aria-hidden="true" />
+              削除
             </button>
           </div>
         </div>

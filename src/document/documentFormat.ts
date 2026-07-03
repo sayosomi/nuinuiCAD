@@ -1,9 +1,9 @@
 import type { CadDocumentSnapshot } from "../state/cadDocumentStore";
 import { normalizeDocumentPalette } from "../palette/palette";
-import { normalizePrintLayout } from "../print/printLayout";
+import { normalizePrintLayouts } from "../print/printLayout";
 
 export const CAD_DOCUMENT_APP_ID = "nuinuiCAD";
-export const CAD_DOCUMENT_SCHEMA_VERSION = 4;
+export const CAD_DOCUMENT_SCHEMA_VERSION = 5;
 export const CAD_DOCUMENT_EXTENSION = "nuinui.json";
 
 export type CadDocumentFile = {
@@ -24,10 +24,26 @@ const parseDocumentObject = (value: unknown): CadDocumentSnapshot => {
     throw new Error("ドキュメントのelementsが不正です。");
   }
 
+  const elements = value.elements as CadDocumentSnapshot["elements"];
+  const printLayouts = normalizePrintLayouts({
+    printLayouts: value.printLayouts,
+    legacyPrintLayout: value.printLayout,
+    elements
+  });
+  const activePrintLayoutId =
+    typeof value.activePrintLayoutId === "string" &&
+    printLayouts.some((layout) => layout.id === value.activePrintLayoutId)
+      ? value.activePrintLayoutId
+      : printLayouts[0].id;
+  const printLayout =
+    printLayouts.find((layout) => layout.id === activePrintLayoutId) ?? printLayouts[0];
+
   return {
     elements: value.elements as CadDocumentSnapshot["elements"],
     palette: normalizeDocumentPalette(value.palette),
-    printLayout: normalizePrintLayout(value.printLayout, value.elements as CadDocumentSnapshot["elements"]),
+    printLayouts,
+    activePrintLayoutId,
+    printLayout,
     evaluationLimitIndex:
       typeof value.evaluationLimitIndex === "number"
         ? value.evaluationLimitIndex
@@ -76,7 +92,7 @@ export const parseCadDocumentFile = (content: string): CadDocumentSnapshot => {
   }
   if (
     typeof parsed.schemaVersion !== "number" ||
-    (parsed.schemaVersion !== CAD_DOCUMENT_SCHEMA_VERSION && parsed.schemaVersion !== 3)
+    ![CAD_DOCUMENT_SCHEMA_VERSION, 4, 3].includes(parsed.schemaVersion)
   ) {
     throw new Error(`未対応のドキュメント形式です: schemaVersion ${String(parsed.schemaVersion)}`);
   }

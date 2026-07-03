@@ -37,6 +37,8 @@ const clearTauriRuntime = () => {
 const loadedSnapshot = (): CadDocumentSnapshot => ({
   elements: [sampleElements[1]],
   palette: defaultDocumentPalette(),
+  printLayouts: [DEFAULT_PRINT_LAYOUT],
+  activePrintLayoutId: DEFAULT_PRINT_LAYOUT.id,
   printLayout: DEFAULT_PRINT_LAYOUT,
   evaluationLimitIndex: 1,
   selectedElementId: sampleElements[1].id,

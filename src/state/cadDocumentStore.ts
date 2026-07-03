@@ -9,7 +9,13 @@ import {
   isValidPaletteColorId,
   normalizeDocumentPalette
 } from "../palette/palette";
-import { DEFAULT_PRINT_LAYOUT, normalizePrintLayout } from "../print/printLayout";
+import {
+  DEFAULT_PRINT_LAYOUT,
+  createDefaultPrintLayout,
+  nextPrintLayoutId,
+  normalizePrintLayout,
+  normalizePrintLayouts
+} from "../print/printLayout";
 import type {
   CadElement,
   DocumentPalette,
@@ -21,6 +27,12 @@ import type {
 export type CadDocumentSnapshot = {
   elements: CadElement[];
   palette: DocumentPalette;
+  printLayouts: PrintLayout[];
+  activePrintLayoutId: string;
+  /**
+   * Compatibility mirror of the active layout for older call sites.
+   * New persistence should use printLayouts + activePrintLayoutId.
+   */
   printLayout: PrintLayout;
   evaluationLimitIndex: number;
   selectedElementId: ElementId | null;
@@ -48,6 +60,10 @@ export type CadDocumentState = CadDocumentSnapshot & {
   updateElement: (id: ElementId, patch: Partial<CadElement>) => void;
   setPrintLayout: (printLayout: PrintLayout) => void;
   updatePrintLayout: (patch: Partial<PrintLayout>) => void;
+  setActivePrintLayoutId: (id: string) => void;
+  addPrintLayout: () => void;
+  duplicatePrintLayout: (id?: string) => void;
+  deletePrintLayout: (id: string) => void;
   setPalette: (palette: DocumentPalette) => void;
   updatePaletteColor: (id: string, patch: Partial<PaletteColor>) => void;
   addPaletteColor: () => void;
@@ -63,6 +79,8 @@ export type CadDocumentState = CadDocumentSnapshot & {
 export const currentDocumentSnapshot = (state: CadDocumentSnapshot): CadDocumentSnapshot => ({
   elements: state.elements,
   palette: state.palette,
+  printLayouts: state.printLayouts,
+  activePrintLayoutId: state.activePrintLayoutId,
   printLayout: state.printLayout,
   evaluationLimitIndex: state.evaluationLimitIndex,
   selectedElementId: state.selectedElementId,
@@ -98,7 +116,16 @@ const normalizedGroupPrintFields = (element: CadElement): CadElement => {
 const normalizeSnapshot = (snapshot: CadDocumentSnapshot): CadDocumentSnapshot => {
   const palette = normalizeDocumentPalette(snapshot.palette);
   const elements = elementsWithValidColorIds(snapshot.elements, palette).map(normalizedGroupPrintFields);
-  const printLayout = normalizePrintLayout(snapshot.printLayout, elements);
+  const printLayouts = normalizePrintLayouts({
+    printLayouts: snapshot.printLayouts,
+    legacyPrintLayout: snapshot.printLayout,
+    elements
+  });
+  const activePrintLayoutId = printLayouts.some((layout) => layout.id === snapshot.activePrintLayoutId)
+    ? snapshot.activePrintLayoutId
+    : printLayouts[0].id;
+  const printLayout =
+    printLayouts.find((layout) => layout.id === activePrintLayoutId) ?? printLayouts[0];
   const existingIds = new Set(elements.map((element) => element.id));
   const evaluationLimitIndex = Math.min(
     Math.max(snapshot.evaluationLimitIndex ?? elements.length, 0),
@@ -124,6 +151,8 @@ const normalizeSnapshot = (snapshot: CadDocumentSnapshot): CadDocumentSnapshot =
   return {
     elements,
     palette,
+    printLayouts,
+    activePrintLayoutId,
     printLayout,
     evaluationLimitIndex,
     selectedElementId,
@@ -138,6 +167,8 @@ const normalizeSnapshot = (snapshot: CadDocumentSnapshot): CadDocumentSnapshot =
 const snapshotEquals = (a: CadDocumentSnapshot, b: CadDocumentSnapshot) =>
   a.elements === b.elements &&
   a.palette === b.palette &&
+  a.printLayouts === b.printLayouts &&
+  a.activePrintLayoutId === b.activePrintLayoutId &&
   a.printLayout === b.printLayout &&
   a.evaluationLimitIndex === b.evaluationLimitIndex &&
   a.selectedElementId === b.selectedElementId &&
@@ -151,6 +182,8 @@ export const initialCadDocumentState = (): CadDocumentSnapshot &
   elements: sampleElements,
   palette: defaultDocumentPalette(),
   printLayout: DEFAULT_PRINT_LAYOUT,
+  printLayouts: [DEFAULT_PRINT_LAYOUT],
+  activePrintLayoutId: DEFAULT_PRINT_LAYOUT.id,
   evaluationLimitIndex: sampleElements.length,
   selectedElementId: sampleElements[0]?.id ?? null,
   selectedElementIds: sampleElements[0] ? [sampleElements[0].id] : [],
@@ -273,14 +306,79 @@ export const useCadDocumentStore = create<CadDocumentState>((set) => ({
     }),
   setPrintLayout: (printLayout) =>
     useCadDocumentStore.getState().commitDocumentChange({
-      printLayout
+      printLayouts: useCadDocumentStore.getState().printLayouts.map((layout) =>
+        layout.id === useCadDocumentStore.getState().activePrintLayoutId
+          ? normalizePrintLayout(printLayout, useCadDocumentStore.getState().elements)
+          : layout
+      )
     }),
   updatePrintLayout: (patch) =>
-    useCadDocumentStore.getState().commitDocumentChange({
-      printLayout: {
-        ...useCadDocumentStore.getState().printLayout,
-        ...patch
-      }
+    useCadDocumentStore.getState().setPrintLayout({
+      ...useCadDocumentStore.getState().printLayout,
+      ...patch
+    }),
+  setActivePrintLayoutId: (activePrintLayoutId) =>
+    useCadDocumentStore.getState().commitDocumentChange({ activePrintLayoutId }),
+  addPrintLayout: () =>
+    set((state) => {
+      const before = currentDocumentSnapshot(state);
+      const layout = createDefaultPrintLayout(state.printLayouts);
+      const after = normalizeSnapshot({
+        ...before,
+        printLayouts: [...state.printLayouts, layout],
+        activePrintLayoutId: layout.id
+      });
+      return {
+        ...after,
+        past: [...state.past, before],
+        future: [],
+        dirtySinceSave: true
+      };
+    }),
+  duplicatePrintLayout: (id) =>
+    set((state) => {
+      const source = state.printLayouts.find((layout) => layout.id === (id ?? state.activePrintLayoutId));
+      if (!source) return {};
+      const before = currentDocumentSnapshot(state);
+      const nextId = nextPrintLayoutId(state.printLayouts);
+      const name = source.name.trim().length > 0 ? `${source.name.trim()} コピー` : "";
+      const copy = {
+        ...source,
+        id: nextId,
+        name,
+        placements: source.placements.map((placement) => ({ ...placement })),
+        numericVariables: source.numericVariables?.map((variable) => ({ ...variable })) ?? []
+      };
+      const after = normalizeSnapshot({
+        ...before,
+        printLayouts: [...state.printLayouts, copy],
+        activePrintLayoutId: copy.id
+      });
+      return {
+        ...after,
+        past: [...state.past, before],
+        future: [],
+        dirtySinceSave: true
+      };
+    }),
+  deletePrintLayout: (id) =>
+    set((state) => {
+      if (state.printLayouts.length <= 1) return {};
+      if (!state.printLayouts.some((layout) => layout.id === id)) return {};
+      const before = currentDocumentSnapshot(state);
+      const nextLayouts = state.printLayouts.filter((layout) => layout.id !== id);
+      const after = normalizeSnapshot({
+        ...before,
+        printLayouts: nextLayouts,
+        activePrintLayoutId:
+          state.activePrintLayoutId === id ? nextLayouts[0].id : state.activePrintLayoutId
+      });
+      return {
+        ...after,
+        past: [...state.past, before],
+        future: [],
+        dirtySinceSave: true
+      };
     }),
   setPalette: (palette) =>
     useCadDocumentStore.getState().commitDocumentChange({

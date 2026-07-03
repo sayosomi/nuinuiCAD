@@ -32,6 +32,8 @@ describe("cadDocumentStore file state", () => {
       {
         elements: [sampleElements[1]],
         palette: useCadDocumentStore.getState().palette,
+        printLayouts: [DEFAULT_PRINT_LAYOUT],
+        activePrintLayoutId: DEFAULT_PRINT_LAYOUT.id,
         printLayout: DEFAULT_PRINT_LAYOUT,
         evaluationLimitIndex: 999,
         selectedElementId: "missing",
@@ -72,6 +74,31 @@ describe("cadDocumentStore file state", () => {
     useCadDocumentStore.getState().undo();
 
     expect(useCadDocumentStore.getState().palette.defaultColorId).toBe("pattern-black");
+  });
+
+  it("adds, switches, duplicates, and deletes print layouts in document history", () => {
+    useCadDocumentStore.getState().addPrintLayout();
+
+    expect(useCadDocumentStore.getState().printLayouts).toHaveLength(2);
+    expect(useCadDocumentStore.getState().activePrintLayoutId).toBe("print-layout-2");
+    expect(useCadDocumentStore.getState().printLayout.id).toBe("print-layout-2");
+
+    useCadDocumentStore.getState().updatePrintLayout({ name: "袖のみ", columns: 4 });
+    expect(useCadDocumentStore.getState().printLayout.name).toBe("袖のみ");
+
+    useCadDocumentStore.getState().setActivePrintLayoutId("print-layout-1");
+    expect(useCadDocumentStore.getState().printLayout.id).toBe("print-layout-1");
+
+    useCadDocumentStore.getState().duplicatePrintLayout("print-layout-1");
+    expect(useCadDocumentStore.getState().printLayouts).toHaveLength(3);
+    expect(useCadDocumentStore.getState().activePrintLayoutId).toBe("print-layout-3");
+
+    useCadDocumentStore.getState().deletePrintLayout("print-layout-3");
+    expect(useCadDocumentStore.getState().printLayouts.map((layout) => layout.id)).toEqual([
+      "print-layout-1",
+      "print-layout-2"
+    ]);
+    expect(useCadDocumentStore.getState().past.length).toBeGreaterThan(0);
   });
 
   it("clears element color ids when deleting a palette color", () => {

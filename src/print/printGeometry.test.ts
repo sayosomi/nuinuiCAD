@@ -84,6 +84,8 @@ const elements: CadElement[] = [
 ];
 
 const layout = (patch: Partial<PrintLayout> = {}): PrintLayout => ({
+  id: "print-layout-1",
+  name: "",
   paperSizeId: "a4",
   orientation: "portrait",
   columns: 1,

@@ -2711,10 +2711,34 @@ select {
 }
 
 .print-settings-actions svg,
+.print-layout-actions svg,
 .print-group-list svg,
 .print-placement-row-actions svg {
   width: 14px;
   height: 14px;
+}
+
+.print-layout-switcher {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+  margin-top: 10px;
+  margin-bottom: 10px;
+}
+
+.print-layout-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.print-layout-actions button {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 7px 6px;
 }
 
 .print-settings-grid {

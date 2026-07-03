@@ -35,6 +35,8 @@ export type PrintLayoutPlacement = {
 };
 
 export type PrintLayout = {
+  id: string;
+  name: string;
   paperSizeId: PaperSizeId;
   orientation: "portrait" | "landscape";
   columns: NumericValue;

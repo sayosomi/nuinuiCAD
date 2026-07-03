@@ -15,6 +15,8 @@ import {
 const snapshot: CadDocumentSnapshot = {
   elements: sampleElements,
   palette: defaultDocumentPalette(),
+  printLayouts: [DEFAULT_PRINT_LAYOUT],
+  activePrintLayoutId: DEFAULT_PRINT_LAYOUT.id,
   printLayout: DEFAULT_PRINT_LAYOUT,
   evaluationLimitIndex: sampleElements.length,
   selectedElementId: sampleElements[0].id,
@@ -112,7 +114,7 @@ describe("documentFormat", () => {
     });
   });
 
-  it("loads v3 documents with default print layout", () => {
+  it("loads v3 documents with default print layouts", () => {
     const content = JSON.stringify({
       app: CAD_DOCUMENT_APP_ID,
       schemaVersion: 3,
@@ -124,5 +126,33 @@ describe("documentFormat", () => {
     });
 
     expect(parseCadDocumentFile(content).printLayout).toEqual(DEFAULT_PRINT_LAYOUT);
+    expect(parseCadDocumentFile(content).printLayouts).toEqual([DEFAULT_PRINT_LAYOUT]);
+  });
+
+  it("loads v4 documents with a legacy single print layout", () => {
+    const legacyLayout = {
+      ...DEFAULT_PRINT_LAYOUT,
+      id: undefined,
+      name: undefined,
+      columns: 3
+    };
+    const content = JSON.stringify({
+      app: CAD_DOCUMENT_APP_ID,
+      schemaVersion: 4,
+      savedAt: "2026-06-29T00:00:00.000Z",
+      document: {
+        ...snapshot,
+        printLayouts: undefined,
+        activePrintLayoutId: undefined,
+        printLayout: legacyLayout
+      }
+    });
+
+    expect(parseCadDocumentFile(content).printLayouts).toEqual([
+      {
+        ...DEFAULT_PRINT_LAYOUT,
+        columns: 3
+      }
+    ]);
   });
 });

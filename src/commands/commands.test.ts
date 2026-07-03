@@ -12,6 +12,8 @@ describe("commands", () => {
     useCadStore.setState({
       elements: sampleElements,
       palette: defaultDocumentPalette(),
+      printLayouts: [DEFAULT_PRINT_LAYOUT],
+      activePrintLayoutId: DEFAULT_PRINT_LAYOUT.id,
       printLayout: DEFAULT_PRINT_LAYOUT,
       evaluationLimitIndex: sampleElements.length,
       selectedElementId: sampleElements[0].id,
@@ -765,6 +767,8 @@ describe("commands", () => {
     const snapshot = {
       elements: state.elements,
       palette: state.palette,
+      printLayouts: state.printLayouts,
+      activePrintLayoutId: state.activePrintLayoutId,
       printLayout: state.printLayout,
       evaluationLimitIndex: state.evaluationLimitIndex,
       selectedElementId: state.selectedElementId,
@@ -983,6 +987,8 @@ describe("commands", () => {
     const snapshot = {
       elements: state.elements,
       palette: state.palette,
+      printLayouts: state.printLayouts,
+      activePrintLayoutId: state.activePrintLayoutId,
       printLayout: state.printLayout,
       evaluationLimitIndex: state.evaluationLimitIndex,
       selectedElementId: state.selectedElementId,

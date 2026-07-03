@@ -49,6 +49,8 @@ describe("PrintLayoutPanel", () => {
     useCadDocumentStore.setState({
       elements,
       palette: defaultDocumentPalette(),
+      printLayouts: [DEFAULT_PRINT_LAYOUT],
+      activePrintLayoutId: DEFAULT_PRINT_LAYOUT.id,
       printLayout: DEFAULT_PRINT_LAYOUT,
       evaluationLimitIndex: elements.length,
       selectedElementId: elements[0].id,
@@ -90,6 +92,14 @@ describe("PrintLayoutPanel", () => {
 
   it("switches detail editing when a placement row is selected", () => {
     useCadDocumentStore.setState({
+      printLayouts: [{
+        ...DEFAULT_PRINT_LAYOUT,
+        placements: [
+          { id: "placement-1", groupId: "front", x: 10, y: 20, angleDeg: 0, mirrorX: false },
+          { id: "placement-2", groupId: "back", x: 30, y: 40, angleDeg: 15, mirrorX: true }
+        ]
+      }],
+      activePrintLayoutId: DEFAULT_PRINT_LAYOUT.id,
       printLayout: {
         ...DEFAULT_PRINT_LAYOUT,
         placements: [
@@ -172,6 +182,10 @@ describe("PrintLayoutPanel", () => {
 
   it("deletes print-local variables from the print layout", () => {
     useCadDocumentStore.setState({
+      printLayouts: [{
+        ...DEFAULT_PRINT_LAYOUT,
+        numericVariables: [{ id: "print-variable-1", name: "倍率", value: 2 }]
+      }],
       printLayout: {
         ...DEFAULT_PRINT_LAYOUT,
         numericVariables: [{ id: "print-variable-1", name: "倍率", value: 2 }]
@@ -189,6 +203,10 @@ describe("PrintLayoutPanel", () => {
 
   it("keeps print number inputs blank while editing and restores scale to one on Enter", () => {
     useCadDocumentStore.setState({
+      printLayouts: [{
+        ...DEFAULT_PRINT_LAYOUT,
+        scale: 2
+      }],
       printLayout: {
         ...DEFAULT_PRINT_LAYOUT,
         scale: 2

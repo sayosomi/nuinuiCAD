@@ -58,6 +58,8 @@ export const orientedPaperSize = ({
 };
 
 export const DEFAULT_PRINT_LAYOUT: PrintLayout = {
+  id: "print-layout-1",
+  name: "",
   paperSizeId: "a4",
   orientation: "portrait",
   columns: 2,
@@ -108,6 +110,23 @@ const normalizePlacement = (
   };
 };
 
+export const nextPrintLayoutId = (layouts: Pick<PrintLayout, "id">[]) => {
+  let index = layouts.length + 1;
+  const existingIds = new Set(layouts.map((layout) => layout.id));
+  while (existingIds.has(`print-layout-${index}`)) {
+    index += 1;
+  }
+  return `print-layout-${index}`;
+};
+
+export const createDefaultPrintLayout = (
+  layouts: Pick<PrintLayout, "id">[] = []
+): PrintLayout => ({
+  ...DEFAULT_PRINT_LAYOUT,
+  id: nextPrintLayoutId(layouts),
+  name: ""
+});
+
 const normalizeNumericVariable = (value: unknown): NumericVariable | null => {
   if (!isRecord(value) || typeof value.id !== "string" || typeof value.name !== "string") {
     return null;
@@ -126,8 +145,12 @@ export const normalizePrintLayout = (
   const groupIds = new Set(
     elements.filter((element) => element.type === "group").map((element) => element.id)
   );
-  if (!isRecord(value)) return DEFAULT_PRINT_LAYOUT;
+  if (!isRecord(value)) return createDefaultPrintLayout();
 
+  const id = typeof value.id === "string" && value.id.trim().length > 0
+    ? value.id
+    : DEFAULT_PRINT_LAYOUT.id;
+  const name = typeof value.name === "string" ? value.name : "";
   const paperSizeId = PAPER_SIZES.some((paperSize) => paperSize.id === value.paperSizeId)
     ? value.paperSizeId as PaperSizeId
     : DEFAULT_PRINT_LAYOUT.paperSizeId;
@@ -144,6 +167,8 @@ export const normalizePrintLayout = (
     : [];
 
   return {
+    id,
+    name,
     paperSizeId,
     orientation,
     columns: normalizeNumericValue(value.columns, DEFAULT_PRINT_LAYOUT.columns),
@@ -153,6 +178,48 @@ export const normalizePrintLayout = (
     numericVariables,
     placements
   };
+};
+
+const uniquePrintLayoutName = (baseName: string, layouts: PrintLayout[]) => {
+  const existingNames = new Set(layouts.map((layout) => layout.name.trim()).filter(Boolean));
+  const trimmedBase = baseName.trim();
+  if (!trimmedBase || !existingNames.has(trimmedBase)) return baseName;
+  let index = 2;
+  while (existingNames.has(`${trimmedBase} ${index}`)) {
+    index += 1;
+  }
+  return `${trimmedBase} ${index}`;
+};
+
+export const normalizePrintLayouts = ({
+  printLayouts,
+  legacyPrintLayout,
+  elements
+}: {
+  printLayouts: unknown;
+  legacyPrintLayout: unknown;
+  elements: CadElement[];
+}) => {
+  const source = Array.isArray(printLayouts) && printLayouts.length > 0
+    ? printLayouts
+    : [legacyPrintLayout];
+  const normalized: PrintLayout[] = [];
+  const usedIds = new Set<string>();
+
+  for (const item of source) {
+    const layout = normalizePrintLayout(item, elements);
+    const id = layout.id.trim().length > 0 && !usedIds.has(layout.id)
+      ? layout.id
+      : nextPrintLayoutId(normalized);
+    usedIds.add(id);
+    normalized.push({
+      ...layout,
+      id,
+      name: uniquePrintLayoutName(layout.name, normalized)
+    });
+  }
+
+  return normalized.length > 0 ? normalized : [createDefaultPrintLayout()];
 };
 
 const clampInteger = (value: number, fallback: number, max: number) =>
@@ -267,6 +334,8 @@ export const resolvePrintLayout = ({
   );
 
   return {
+    id: layout.id,
+    name: layout.name,
     paperSizeId: layout.paperSizeId,
     orientation: layout.orientation,
     columns,
