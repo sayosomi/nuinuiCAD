@@ -1,4 +1,4 @@
-import { fireEvent, render, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { dispatchCommand } from "../commands/commands";
 import { defaultDocumentPalette } from "../palette/palette";
@@ -317,7 +317,9 @@ describe("AppLayout command ribbon", () => {
     const view = render(<AppLayout />);
     await view.findByRole("button", { name: "作図を移動" });
 
-    dispatchCommand("openCommandRibbonSettings");
+    act(() => {
+      dispatchCommand("openCommandRibbonSettings");
+    });
     const sizeSelect = await view.findByLabelText("アイコンサイズ");
     fireEvent.change(sizeSelect, { target: { value: "24" } });
     fireEvent.click(view.getByRole("button", { name: "保存" }));
@@ -329,5 +331,136 @@ describe("AppLayout command ribbon", () => {
       expect(settings.ribbons[0].iconSize).toBe(24);
     });
     expect(useCadStore.getState().commandRibbonSettings?.ribbons[0].iconSize).toBe(24);
+  });
+
+  it("reorders command ribbons from settings dialog", async () => {
+    window.localStorage.setItem(
+      "nuinuiCAD.commandRibbonSettings.v1",
+      JSON.stringify({
+        version: 1,
+        ribbons: [
+          {
+            id: "first",
+            label: "First",
+            x: 20,
+            y: 20,
+            orientation: "horizontal",
+            iconSize: 16,
+            buttons: [
+              { id: "line", commandId: "addLine", icon: "slash", label: "Line", showLabel: true }
+            ]
+          },
+          {
+            id: "second",
+            label: "Second",
+            x: 20,
+            y: 70,
+            orientation: "horizontal",
+            iconSize: 16,
+            buttons: [
+              { id: "curve", commandId: "addBezierCurve", icon: "spline", label: "Curve", showLabel: true }
+            ]
+          }
+        ]
+      })
+    );
+    const view = render(<AppLayout />);
+    await view.findByRole("button", { name: "Firstを移動" });
+
+    act(() => {
+      dispatchCommand("openCommandRibbonSettings");
+    });
+    fireEvent.click(await view.findByRole("button", { name: "Firstを下へ" }));
+    fireEvent.click(view.getByRole("button", { name: "保存" }));
+
+    await waitFor(() => {
+      const settings = JSON.parse(
+        window.localStorage.getItem("nuinuiCAD.commandRibbonSettings.v1") ?? "{}"
+      );
+      expect(settings.ribbons.map((ribbon: { id: string }) => ribbon.id)).toEqual([
+        "second",
+        "first"
+      ]);
+    });
+  });
+
+  it("reorders command ribbon buttons from settings dialog", async () => {
+    window.localStorage.setItem(
+      "nuinuiCAD.commandRibbonSettings.v1",
+      JSON.stringify({
+        version: 1,
+        ribbons: [
+          {
+            id: "custom",
+            label: "Custom",
+            x: 20,
+            y: 20,
+            orientation: "horizontal",
+            iconSize: 16,
+            buttons: [
+              { id: "line", commandId: "addLine", icon: "slash", label: "Line", showLabel: true },
+              { id: "curve", commandId: "addBezierCurve", icon: "spline", label: "Curve", showLabel: true }
+            ]
+          }
+        ]
+      })
+    );
+    const view = render(<AppLayout />);
+    await view.findByRole("button", { name: "Customを移動" });
+
+    act(() => {
+      dispatchCommand("openCommandRibbonSettings");
+    });
+    fireEvent.click(await view.findByRole("button", { name: "Lineを後へ" }));
+    fireEvent.click(view.getByRole("button", { name: "保存" }));
+
+    await waitFor(() => {
+      const settings = JSON.parse(
+        window.localStorage.getItem("nuinuiCAD.commandRibbonSettings.v1") ?? "{}"
+      );
+      expect(settings.ribbons[0].buttons.map((button: { id: string }) => button.id)).toEqual([
+        "curve",
+        "line"
+      ]);
+    });
+  });
+
+  it("changes a ribbon button command and icon from picker controls", async () => {
+    const view = render(<AppLayout />);
+    await view.findByRole("button", { name: "作図を移動" });
+
+    act(() => {
+      dispatchCommand("openCommandRibbonSettings");
+    });
+    fireEvent.change(await view.findByLabelText("コマンドを検索"), { target: { value: "保存" } });
+    fireEvent.click(await view.findByRole("button", { name: /^保存\s*saveDocument$/ }));
+    fireEvent.click(view.getByRole("button", { name: "保存 アイコン" }));
+    fireEvent.click(view.getByRole("button", { name: "保存" }));
+
+    await waitFor(() => {
+      const settings = JSON.parse(
+        window.localStorage.getItem("nuinuiCAD.commandRibbonSettings.v1") ?? "{}"
+      );
+      expect(settings.ribbons[0].buttons[0]).toMatchObject({
+        commandId: "saveDocument",
+        icon: "save",
+        label: "保存"
+      });
+    });
+  });
+
+  it("keeps command ribbon settings unchanged when cancelling edits", async () => {
+    const view = render(<AppLayout />);
+    await view.findByRole("button", { name: "作図を移動" });
+
+    act(() => {
+      dispatchCommand("openCommandRibbonSettings");
+    });
+    const sizeSelect = await view.findByLabelText("アイコンサイズ");
+    fireEvent.change(sizeSelect, { target: { value: "24" } });
+    fireEvent.click(view.getByRole("button", { name: "キャンセル" }));
+
+    expect(useCadStore.getState().commandRibbonSettings?.ribbons[0].iconSize).toBe(16);
+    expect(window.localStorage.getItem("nuinuiCAD.commandRibbonSettings.v1")).toBeNull();
   });
 });
