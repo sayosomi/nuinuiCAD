@@ -1,3 +1,4 @@
+import { invoke } from "@tauri-apps/api/core";
 import { isTauriRuntime } from "../geometry/evaluationEngine";
 
 export const DEFAULT_LEFT_PANEL_WIDTH = 320;
@@ -48,7 +49,6 @@ const saveLayoutSettingsToLocalStorage = (settings: LayoutSettings) => {
 
 export const loadLayoutSettings = async (): Promise<LayoutSettings> => {
   if (!isTauriRuntime()) return loadLayoutSettingsFromLocalStorage();
-  const { invoke } = await import("@tauri-apps/api/core");
   const settings = await invoke<unknown>("load_layout_settings");
   return normalizeLayoutSettings(settings);
 };
@@ -59,6 +59,5 @@ export const saveLayoutSettings = async (settings: LayoutSettings) => {
     saveLayoutSettingsToLocalStorage(normalized);
     return;
   }
-  const { invoke } = await import("@tauri-apps/api/core");
   await invoke<void>("save_layout_settings", { input: normalized });
 };

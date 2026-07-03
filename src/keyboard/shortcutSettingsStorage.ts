@@ -1,3 +1,4 @@
+import { invoke } from "@tauri-apps/api/core";
 import { isTauriRuntime } from "../geometry/evaluationEngine";
 import { defaultShortcutSettings } from "./shortcutRegistry";
 import type { KeyChord, ShortcutOverride, ShortcutSettings } from "./shortcutTypes";
@@ -56,7 +57,6 @@ const saveShortcutSettingsToLocalStorage = (settings: ShortcutSettings) => {
 
 export const loadShortcutSettings = async (): Promise<ShortcutSettings> => {
   if (!isTauriRuntime()) return loadShortcutSettingsFromLocalStorage();
-  const { invoke } = await import("@tauri-apps/api/core");
   const settings = await invoke<unknown>("load_shortcut_settings");
   return normalizeShortcutSettings(settings);
 };
@@ -67,6 +67,5 @@ export const saveShortcutSettings = async (settings: ShortcutSettings) => {
     saveShortcutSettingsToLocalStorage(normalized);
     return;
   }
-  const { invoke } = await import("@tauri-apps/api/core");
   await invoke<void>("save_shortcut_settings", { input: normalized });
 };

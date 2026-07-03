@@ -1,3 +1,4 @@
+import { invoke } from "@tauri-apps/api/core";
 import { isTauriRuntime } from "../geometry/evaluationEngine";
 import type { DocumentPalette } from "../types/geometry";
 import { defaultDocumentPalette, normalizeDocumentPalette } from "./palette";
@@ -41,7 +42,6 @@ const savePaletteTemplateToLocalStorage = (settings: PaletteTemplateSettings) =>
 
 export const loadPaletteTemplateSettings = async (): Promise<PaletteTemplateSettings> => {
   if (!isTauriRuntime()) return loadPaletteTemplateFromLocalStorage();
-  const { invoke } = await import("@tauri-apps/api/core");
   const settings = await invoke<unknown>("load_palette_template");
   return normalizePaletteTemplateSettings(settings);
 };
@@ -52,6 +52,5 @@ export const savePaletteTemplateSettings = async (palette: DocumentPalette) => {
     savePaletteTemplateToLocalStorage(normalized);
     return;
   }
-  const { invoke } = await import("@tauri-apps/api/core");
   await invoke<void>("save_palette_template", { input: normalized });
 };

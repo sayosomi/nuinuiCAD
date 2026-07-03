@@ -1,3 +1,5 @@
+import { invoke } from "@tauri-apps/api/core";
+import { open } from "@tauri-apps/plugin-dialog";
 import { relativeImagePath } from "../document/imageFilePaths";
 import { isTauriRuntime } from "../geometry/evaluationEngine";
 import { defaultTargetPixelsPerMm, initialImageScale } from "../geometry/imageScale";
@@ -53,7 +55,6 @@ const pickBrowserImageFile = () =>
   });
 
 const pickTauriImagePath = async () => {
-  const { open } = await import("@tauri-apps/plugin-dialog");
   return selectedPath(
     await open({
       filters: [IMAGE_FILTER],
@@ -63,7 +64,6 @@ const pickTauriImagePath = async () => {
 };
 
 const loadTauriImageMetadata = async (path: string) => {
-  const { invoke } = await import("@tauri-apps/api/core");
   return invoke<ImageMetadata>("read_image_metadata", { path });
 };
 

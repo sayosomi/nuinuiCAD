@@ -1,3 +1,4 @@
+import { message } from "@tauri-apps/plugin-dialog";
 import { isTauriRuntime } from "../geometry/evaluationEngine";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { saveDocument } from "./documentFile";
@@ -27,7 +28,6 @@ export const registerUnsavedChangesGuard = () => {
     void import("@tauri-apps/api/window")
       .then(async ({ getCurrentWindow }) => {
         const currentWindow = getCurrentWindow();
-        const { message } = await import("@tauri-apps/plugin-dialog");
 
         return currentWindow.onCloseRequested(async (event) => {
           if (!useCadDocumentStore.getState().dirtySinceSave) return;

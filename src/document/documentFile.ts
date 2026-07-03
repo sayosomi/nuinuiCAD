@@ -1,3 +1,5 @@
+import { invoke } from "@tauri-apps/api/core";
+import { open, save } from "@tauri-apps/plugin-dialog";
 import {
   CAD_DOCUMENT_EXTENSION,
   ensureCadDocumentFileName,
@@ -26,30 +28,22 @@ const documentFilter: DocumentFileFilter = {
 };
 
 const invokeWriteDocumentFile = (path: string, content: string) =>
-  import("@tauri-apps/api/core").then(({ invoke }) =>
-    invoke<void>("write_document_file", { path, content })
-  );
+  invoke<void>("write_document_file", { path, content });
 
 const invokeReadDocumentFile = (path: string) =>
-  import("@tauri-apps/api/core").then(({ invoke }) =>
-    invoke<string>("read_document_file", { path })
-  );
+  invoke<string>("read_document_file", { path });
 
 const openDocumentDialog = () =>
-  import("@tauri-apps/plugin-dialog").then(({ open }) =>
-    open({
-      filters: [documentFilter],
-      multiple: false
-    })
-  );
+  open({
+    filters: [documentFilter],
+    multiple: false
+  });
 
 const saveDocumentDialog = (defaultPath: string) =>
-  import("@tauri-apps/plugin-dialog").then(({ save }) =>
-    save({
-      filters: [documentFilter],
-      defaultPath
-    })
-  );
+  save({
+    filters: [documentFilter],
+    defaultPath
+  });
 
 const selectedPath = (value: string | string[] | null) =>
   Array.isArray(value) ? value[0] ?? null : value;

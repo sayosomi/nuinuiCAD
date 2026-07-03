@@ -1,3 +1,4 @@
+import { invoke } from "@tauri-apps/api/core";
 import type { CadElement, EvaluationResult, PointAnchor } from "../types/geometry";
 import { anchorReferenceElementId, pointAnchorForElement } from "../model/pointAnchors";
 import { getDirectParentIds } from "../model/dependencies";
@@ -298,7 +299,6 @@ export const evaluateElementsWithRust = async (
   elements: CadElement[],
   options: EvaluateElementsOptions = {}
 ): Promise<EvaluationResult> => {
-  const { invoke } = await import("@tauri-apps/api/core");
   const payload = await invoke<EvaluationPayload>("evaluate_document", {
     input: {
       elements,
