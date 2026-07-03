@@ -3,6 +3,50 @@ import type { CadElement } from "../types/geometry";
 import { getParameterDefinitions } from "./parameterDefinitions";
 
 describe("parameterDefinitions", () => {
+  it("defines empty Enter defaults for ratio-like and identity numeric parameters", () => {
+    const conditionalGroup: CadElement = {
+      id: "condition",
+      name: "ifブロック",
+      type: "conditionalGroup",
+      visible: true,
+      enabled: true,
+      condition: 1,
+      expanded: true,
+      elseExpanded: true
+    };
+    const divisionPoint: CadElement = {
+      id: "division",
+      name: "分点",
+      type: "divisionPoint",
+      visible: true,
+      enabled: true,
+      startPoint: { mode: "reference", pointId: "point-a" },
+      endPoint: { mode: "reference", pointId: "point-b" },
+      placementMode: "ratio",
+      distance: 10,
+      ratio: 0.5
+    };
+
+    expect(getParameterDefinitions(conditionalGroup)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          key: "condition",
+          kind: "number",
+          emptyInputDefaultValue: 1
+        })
+      ])
+    );
+    expect(getParameterDefinitions(divisionPoint)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          key: "ratio",
+          kind: "number",
+          emptyInputDefaultValue: 1
+        })
+      ])
+    );
+  });
+
   it("defines editable parameters for for groups", () => {
     const group: CadElement = {
       id: "loop",
@@ -23,7 +67,13 @@ describe("parameterDefinitions", () => {
         expect.objectContaining({ key: "variableName", directKey: "i", label: "変数名", kind: "text" }),
         expect.objectContaining({ key: "start", directKey: "s", label: "開始", kind: "number" }),
         expect.objectContaining({ key: "count", directKey: "c", label: "回数", kind: "number" }),
-        expect.objectContaining({ key: "step", directKey: "p", label: "ステップ", kind: "number" }),
+        expect.objectContaining({
+          key: "step",
+          directKey: "p",
+          label: "ステップ",
+          kind: "number",
+          emptyInputDefaultValue: 1
+        }),
         expect.objectContaining({ key: "expanded", directKey: "x", label: "展開", kind: "boolean" }),
         expect.objectContaining({ key: "showGenerated", directKey: "g", label: "生成結果を表示", kind: "boolean" })
       ])
@@ -141,7 +191,13 @@ describe("parameterDefinitions", () => {
         expect.objectContaining({ key: "originPoint", directKey: "b", label: "基準点", kind: "reference", allowCoordinate: true }),
         expect.objectContaining({ key: "originPoint:x", directKey: "x", label: "基準点 x", kind: "number" }),
         expect.objectContaining({ key: "originPoint:y", directKey: "y", label: "基準点 y", kind: "number" }),
-        expect.objectContaining({ key: "scale", directKey: "s", label: "倍率", kind: "number" }),
+        expect.objectContaining({
+          key: "scale",
+          directKey: "s",
+          label: "倍率",
+          kind: "number",
+          emptyInputDefaultValue: 1
+        }),
         expect.objectContaining({ key: "angleDeg", directKey: "r", label: "角度", kind: "number" }),
         expect.objectContaining({ key: "mirrorX", directKey: "m", label: "左右反転", kind: "boolean" })
       ])

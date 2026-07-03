@@ -72,6 +72,16 @@ const resetStore = () => {
   });
 };
 
+const selectOnlyElement = (element: CadElement) => {
+  useCadStore.setState({
+    elements: [element],
+    evaluationLimitIndex: 1,
+    selectedElementId: element.id,
+    selectedElementIds: [element.id],
+    selectionAnchorElementId: element.id
+  });
+};
+
 const renderRightPanel = (
   evaluation = emptyEvaluation,
   engineState?: EvaluationEngineState,
@@ -374,6 +384,105 @@ describe("LeftPanel numeric input dragging", () => {
 
     expect(useCadStore.getState().elements[0]).toMatchObject({ x: 0 });
     expect(input).toHaveValue("0");
+  });
+
+  it("commits one when pressing Enter on a blank image scale input", () => {
+    selectOnlyElement({
+      id: "image",
+      name: "画像",
+      type: "image",
+      visible: true,
+      enabled: true,
+      sourcePath: "underlay.png",
+      originPoint: { mode: "coordinate", x: 0, y: 0 },
+      naturalWidthPx: 100,
+      naturalHeightPx: 50,
+      sourceDpi: 300,
+      targetPixelsPerMm: 10,
+      scale: 2,
+      angleDeg: 0,
+      mirrorX: false
+    });
+    renderRightPanel();
+
+    const input = screen.getByLabelText("画像倍率");
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: "" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    expect(useCadStore.getState().elements[0]).toMatchObject({ scale: 1 });
+    expect(input).toHaveValue("1");
+  });
+
+  it("commits one when pressing Enter on a blank ratio input", () => {
+    selectOnlyElement({
+      id: "division",
+      name: "分点",
+      type: "divisionPoint",
+      visible: true,
+      enabled: true,
+      startPoint: { mode: "reference", pointId: "point-a" },
+      endPoint: { mode: "reference", pointId: "point-b" },
+      placementMode: "ratio",
+      distance: 10,
+      ratio: 0.5
+    });
+    renderRightPanel();
+
+    const input = screen.getByLabelText("割合");
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: "" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    expect(useCadStore.getState().elements[0]).toMatchObject({ ratio: 1 });
+    expect(input).toHaveValue("1");
+  });
+
+  it("commits one when pressing Enter on blank identity numeric inputs", () => {
+    selectOnlyElement({
+      id: "loop",
+      name: "forブロック",
+      type: "forGroup",
+      visible: true,
+      enabled: true,
+      variableName: "i",
+      start: 0,
+      count: 3,
+      step: 2,
+      expanded: true,
+      showGenerated: false
+    });
+    renderRightPanel();
+
+    const stepInput = screen.getByLabelText("ステップ");
+    fireEvent.focus(stepInput);
+    fireEvent.change(stepInput, { target: { value: "" } });
+    fireEvent.keyDown(stepInput, { key: "Enter" });
+
+    expect(useCadStore.getState().elements[0]).toMatchObject({ step: 1 });
+    expect(stepInput).toHaveValue("1");
+  });
+
+  it("commits one when pressing Enter on a blank conditional group condition", () => {
+    selectOnlyElement({
+      id: "condition",
+      name: "ifブロック",
+      type: "conditionalGroup",
+      visible: true,
+      enabled: true,
+      condition: 0,
+      expanded: true,
+      elseExpanded: true
+    });
+    renderRightPanel();
+
+    const input = screen.getByLabelText("ifブロック の条件");
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: "" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    expect(useCadStore.getState().elements[0]).toMatchObject({ condition: 1 });
+    expect(input).toHaveValue("1");
   });
 
   it("lets a numeric parameter expression start with a local variable reference", () => {

@@ -8,6 +8,8 @@ import {
 } from "../geometry/numericExpressions";
 import {
   defaultNumericParameterStep,
+  findParameterDefinition,
+  getEmptyNumericInputDefaultValue,
   getNumericParameterStep
 } from "../parameters/parameterDefinitions";
 import type { ParameterKey } from "../parameters/parameterDefinitions";
@@ -82,6 +84,8 @@ export const NumericParameterEditor = ({
   const isExpressionInsertOpen =
     activeExpressionInsertTarget?.elementId === element.id &&
     activeExpressionInsertTarget.parameterKey === parameterKey;
+  const parameterDefinition = findParameterDefinition(element, parameterKey);
+  const emptyInputDefaultValue = getEmptyNumericInputDefaultValue(parameterDefinition);
   const displayValue = formatNumericExpressionForDisplay(
     value,
     elements,
@@ -218,7 +222,7 @@ export const NumericParameterEditor = ({
       onKeyDown={(event) => {
         if (event.key === "Enter" && draft?.value.trim().length === 0) {
           event.preventDefault();
-          updateParameterValue(parameterKey, 0);
+          updateParameterValue(parameterKey, emptyInputDefaultValue);
           setDraft(null);
           inputSelectionRef.current = null;
           event.currentTarget.blur();

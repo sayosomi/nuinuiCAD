@@ -20,6 +20,7 @@ export type ParameterDefinition = {
   label: string;
   kind: ParameterValueKind;
   allowCoordinate?: boolean;
+  emptyInputDefaultValue?: number;
   stepLevels?: readonly number[];
   choiceOptions?: readonly string[];
 };
@@ -95,7 +96,13 @@ export const getParameterDefinitions = (element: CadElement): ParameterDefinitio
     case "conditionalGroup":
       return [
         ...commonParameters,
-        { key: "condition", directKey: "i", label: "条件", kind: "number" },
+        {
+          key: "condition",
+          directKey: "i",
+          label: "条件",
+          kind: "number",
+          emptyInputDefaultValue: 1
+        },
         { key: "expanded", directKey: "x", label: "then展開", kind: "boolean" },
         { key: "elseExpanded", directKey: "e", label: "else展開", kind: "boolean" }
       ];
@@ -105,7 +112,13 @@ export const getParameterDefinitions = (element: CadElement): ParameterDefinitio
         { key: "variableName", directKey: "i", label: "変数名", kind: "text" },
         { key: "start", directKey: "s", label: "開始", kind: "number" },
         { key: "count", directKey: "c", label: "回数", kind: "number" },
-        { key: "step", directKey: "p", label: "ステップ", kind: "number" },
+        {
+          key: "step",
+          directKey: "p",
+          label: "ステップ",
+          kind: "number",
+          emptyInputDefaultValue: 1
+        },
         { key: "expanded", directKey: "x", label: "展開", kind: "boolean" },
         { key: "showGenerated", directKey: "g", label: "生成結果を表示", kind: "boolean" }
       ];
@@ -181,6 +194,7 @@ export const getParameterDefinitions = (element: CadElement): ParameterDefinitio
           directKey: "r",
           label: "割合",
           kind: "number",
+          emptyInputDefaultValue: 1,
           stepLevels: ratioNumericParameterStepLevels
         }
       ];
@@ -202,6 +216,7 @@ export const getParameterDefinitions = (element: CadElement): ParameterDefinitio
           directKey: "r",
           label: "割合",
           kind: "number",
+          emptyInputDefaultValue: 1,
           stepLevels: ratioNumericParameterStepLevels
         }
       ];
@@ -500,6 +515,7 @@ export const getParameterDefinitions = (element: CadElement): ParameterDefinitio
           directKey: "s",
           label: "倍率",
           kind: "number",
+          emptyInputDefaultValue: 1,
           stepLevels: ratioNumericParameterStepLevels
         },
         {
@@ -534,3 +550,6 @@ export const getNumericParameterStep = (element: CadElement, key: ParameterKey) 
 
 export const getNumericParameterStepLevels = (definition: ParameterDefinition) =>
   definition.stepLevels ?? defaultNumericParameterStepLevels;
+
+export const getEmptyNumericInputDefaultValue = (definition?: ParameterDefinition) =>
+  definition?.emptyInputDefaultValue ?? 0;
