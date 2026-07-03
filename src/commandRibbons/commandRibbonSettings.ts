@@ -11,10 +11,52 @@ export const commandRibbonIconSizes = [14, 16, 18, 20, 24] as const;
 
 export type CommandRibbonIconSize = (typeof commandRibbonIconSizes)[number];
 
+export const commandRibbonIconColors = [
+  "default",
+  "teal",
+  "blue",
+  "green",
+  "amber",
+  "orange",
+  "red",
+  "pink",
+  "purple",
+  "slate"
+] as const;
+
+export type CommandRibbonIconColor = (typeof commandRibbonIconColors)[number];
+
+export const commandRibbonIconColorLabels: Record<CommandRibbonIconColor, string> = {
+  default: "標準",
+  teal: "青緑",
+  blue: "青",
+  green: "緑",
+  amber: "黄",
+  orange: "橙",
+  red: "赤",
+  pink: "桃",
+  purple: "紫",
+  slate: "灰"
+};
+
+export const commandRibbonIconColorValues: Record<CommandRibbonIconColor, string> = {
+  default: "currentColor",
+  teal: "#0f766e",
+  blue: "#2563eb",
+  green: "#15803d",
+  amber: "#b7791f",
+  orange: "#c2410c",
+  red: "#dc2626",
+  pink: "#db2777",
+  purple: "#7c3aed",
+  slate: "#475569"
+};
+
 export type CommandRibbonButton = {
   id: string;
   commandId: CommandId;
   icon: CommandRibbonIconId;
+  iconColor: CommandRibbonIconColor;
   label: string;
   showLabel: boolean;
 };
@@ -53,6 +95,11 @@ const normalizeIconSize = (value: unknown): CommandRibbonIconSize =>
     ? (value as CommandRibbonIconSize)
     : DEFAULT_ICON_SIZE;
 
+const normalizeIconColor = (value: unknown): CommandRibbonIconColor =>
+  typeof value === "string" && (commandRibbonIconColors as readonly string[]).includes(value)
+    ? (value as CommandRibbonIconColor)
+    : "default";
+
 const defaultButton = (
   commandId: CommandId,
   icon: CommandRibbonIconId,
@@ -61,6 +108,7 @@ const defaultButton = (
   id: commandId,
   commandId,
   icon,
+  iconColor: "default",
   label: label ?? commands[commandId].label,
   showLabel: false
 });
@@ -99,6 +147,7 @@ const normalizeButton = (value: unknown): CommandRibbonButton | null => {
     id: typeof value.id === "string" && value.id.length > 0 ? value.id : value.commandId,
     commandId: value.commandId,
     icon: isCommandRibbonIconId(value.icon) ? value.icon : "circle-dot",
+    iconColor: normalizeIconColor(value.iconColor),
     label:
       typeof value.label === "string" && value.label.trim().length > 0
         ? value.label

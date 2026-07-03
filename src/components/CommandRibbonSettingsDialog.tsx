@@ -1,6 +1,9 @@
 import { useMemo, useState } from "react";
 import { dispatchCommand, commandPaletteItems, commands, type CommandId } from "../commands/commands";
 import {
+  commandRibbonIconColorLabels,
+  commandRibbonIconColors,
+  commandRibbonIconColorValues,
   commandRibbonIconSizes,
   defaultCommandRibbonSettings,
   normalizeCommandRibbonSettings,
@@ -11,9 +14,9 @@ import {
   type CommandRibbonSettings
 } from "../commandRibbons/commandRibbonSettings";
 import {
+  commandRibbonIconCatalog,
+  commandRibbonIconCategoryLabels,
   commandRibbonIconComponents,
-  commandRibbonIconIds,
-  commandRibbonIconLabels,
   type CommandRibbonIconId
 } from "../commandRibbons/commandRibbonIcons";
 import { useCadUiStore } from "../state/cadUiStore";
@@ -28,6 +31,7 @@ const defaultButton = (): CommandRibbonButton => ({
   id: newId("button"),
   commandId: firstCommandId,
   icon: "slash",
+  iconColor: "default",
   label: commandLabel(firstCommandId),
   showLabel: false
 });
@@ -44,6 +48,9 @@ const defaultRibbon = (index: number): CommandRibbon => ({
 
 const commandSearchText = (commandId: CommandId) =>
   `${commandLabel(commandId)} ${commandId} ${(commands[commandId].palette?.keywords ?? []).join(" ")}`.toLowerCase();
+
+const iconSearchText = (icon: (typeof commandRibbonIconCatalog)[number]) =>
+  `${icon.label} ${icon.id} ${icon.category} ${icon.keywords.join(" ")}`.toLowerCase();
 
 const withRibbon = (
   settings: CommandRibbonSettings,
@@ -102,6 +109,7 @@ const CommandRibbonSettingsDialogContent = ({
   const [selectedRibbonId, setSelectedRibbonId] = useState(draftSettings.ribbons[0]?.id ?? "");
   const [selectedButtonId, setSelectedButtonId] = useState(draftSettings.ribbons[0]?.buttons[0]?.id ?? "");
   const [commandQuery, setCommandQuery] = useState("");
+  const [iconQuery, setIconQuery] = useState("");
   const selectedRibbon =
     draftSettings.ribbons.find((ribbon) => ribbon.id === selectedRibbonId) ??
     draftSettings.ribbons[0] ??
@@ -126,6 +134,11 @@ const CommandRibbonSettingsDialogContent = ({
         ...filteredCommands
       ]
     : filteredCommands;
+  const filteredIcons = useMemo(() => {
+    const query = iconQuery.trim().toLowerCase();
+    if (!query) return commandRibbonIconCatalog;
+    return commandRibbonIconCatalog.filter((icon) => iconSearchText(icon).includes(query));
+  }, [iconQuery]);
 
   const close = () => dispatchCommand("closeCommandRibbonSettings");
 
@@ -408,7 +421,11 @@ const CommandRibbonSettingsDialogContent = ({
                         className={button.id === selectedButton?.id ? "selected" : ""}
                         key={button.id}
                       >
-                        <Icon size={selectedRibbon.iconSize} strokeWidth={2} />
+                        <Icon
+                          size={selectedRibbon.iconSize}
+                          strokeWidth={2}
+                          style={{ color: commandRibbonIconColorValues[button.iconColor] }}
+                        />
                         {button.showLabel ? <em>{button.label}</em> : null}
                       </span>
                     );
@@ -439,22 +456,68 @@ const CommandRibbonSettingsDialogContent = ({
                       ))
                     )}
                   </div>
+                  <div className="command-ribbon-icon-tools">
+                    <input
+                      value={iconQuery}
+                      placeholder="アイコンを検索"
+                      aria-label="アイコンを検索"
+                      onChange={(event) => setIconQuery(event.target.value)}
+                    />
+                    <label>
+                      アイコン色
+                      <select
+                        value={selectedButton.iconColor}
+                        aria-label="アイコン色"
+                        onChange={(event) =>
+                          setDraftSettings((current) =>
+                            withButton(current, selectedRibbon.id, selectedButton.id, (button) => ({
+                              ...button,
+                              iconColor: event.target.value as CommandRibbonButton["iconColor"]
+                            }))
+                          )
+                        }
+                      >
+                        {commandRibbonIconColors.map((color) => (
+                          <option key={color} value={color}>{commandRibbonIconColorLabels[color]}</option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
                   <div className="command-ribbon-icon-grid" aria-label="アイコン候補">
-                    {commandRibbonIconIds.map((iconId) => {
-                      const Icon = commandRibbonIconComponents[iconId];
-                      return (
-                        <button
-                          type="button"
-                          key={iconId}
-                          className={iconId === selectedButton.icon ? "selected" : ""}
-                          aria-label={`${commandRibbonIconLabels[iconId]} アイコン`}
-                          title={commandRibbonIconLabels[iconId]}
-                          onClick={() => applyIconToSelectedButton(iconId)}
-                        >
-                          <Icon size={selectedRibbon.iconSize} strokeWidth={2} />
-                        </button>
-                      );
-                    })}
+                    {filteredIcons.length === 0 ? (
+                      <p>該当するアイコンはありません。</p>
+                    ) : (
+                      Object.entries(commandRibbonIconCategoryLabels).map(([category, categoryLabel]) => {
+                        const categoryIcons = filteredIcons.filter((icon) => icon.category === category);
+                        if (categoryIcons.length === 0) return null;
+                        return (
+                          <section key={category} className="command-ribbon-icon-category">
+                            <h3>{categoryLabel}</h3>
+                            <div>
+                              {categoryIcons.map((icon) => {
+                                const Icon = commandRibbonIconComponents[icon.id];
+                                return (
+                                  <button
+                                    type="button"
+                                    key={icon.id}
+                                    className={icon.id === selectedButton.icon ? "selected" : ""}
+                                    aria-label={`${icon.label} アイコン`}
+                                    title={`${icon.label} / ${icon.id}`}
+                                    onClick={() => applyIconToSelectedButton(icon.id)}
+                                  >
+                                    <Icon
+                                      size={selectedRibbon.iconSize}
+                                      strokeWidth={2}
+                                      style={{ color: commandRibbonIconColorValues[selectedButton.iconColor] }}
+                                    />
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </section>
+                        );
+                      })
+                    )}
                   </div>
                 </div>
               ) : null}
@@ -474,7 +537,7 @@ const CommandRibbonSettingsDialogContent = ({
                       <small>{button.commandId}</small>
                     </button>
                     <label>
-                      ラベル
+                      表示名
                       <input
                         value={button.label}
                         onChange={(event) =>
@@ -500,12 +563,18 @@ const CommandRibbonSettingsDialogContent = ({
                           )
                         }
                       />
-                      表示
+                      リボンに表示
                     </label>
                     <div className="command-ribbon-icon-preview" aria-hidden="true">
                       {(() => {
                         const Icon = commandRibbonIconComponents[button.icon];
-                        return <Icon size={selectedRibbon.iconSize} strokeWidth={2} />;
+                        return (
+                          <Icon
+                            size={selectedRibbon.iconSize}
+                            strokeWidth={2}
+                            style={{ color: commandRibbonIconColorValues[button.iconColor] }}
+                          />
+                        );
                       })()}
                     </div>
                     <div className="command-ribbon-order-buttons">

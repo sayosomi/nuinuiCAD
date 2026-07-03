@@ -1652,10 +1652,11 @@ select {
   width: max-content;
   max-width: 100%;
   overflow: hidden;
-  border: 1px solid rgb(37 38 34 / 72%);
+  border: 1px solid #c9ccc2;
   border-radius: 6px;
-  background: rgb(43 44 42 / 96%);
-  color: #f5f5f2;
+  background: #ffffff;
+  color: #252622;
+  box-shadow: 0 4px 12px rgb(37 38 34 / 10%);
 }
 
 .command-ribbon-preview.is-vertical {
@@ -1670,17 +1671,17 @@ select {
   justify-content: center;
   min-width: 30px;
   min-height: 30px;
-  border-left: 1px solid rgb(255 255 255 / 10%);
+  border-left: 1px solid #e1e3dc;
   padding: 6px;
 }
 
 .command-ribbon-preview.is-vertical span {
-  border-top: 1px solid rgb(255 255 255 / 10%);
+  border-top: 1px solid #e1e3dc;
   border-left: 0;
 }
 
 .command-ribbon-preview span.selected {
-  background: rgb(15 118 110 / 45%);
+  background: #e7f4ef;
 }
 
 .command-ribbon-preview em {
@@ -1768,13 +1769,53 @@ select {
   font-size: 12px;
 }
 
+.command-ribbon-icon-tools {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 160px;
+  gap: 8px;
+  align-items: end;
+}
+
+.command-ribbon-icon-tools label {
+  display: grid;
+  gap: 4px;
+  color: #686b62;
+  font-size: 11px;
+  font-weight: 700;
+}
+
 .command-ribbon-icon-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  max-height: 230px;
+  overflow: auto;
+}
+
+.command-ribbon-icon-grid p {
+  margin: 0;
+  color: #686b62;
+  font-size: 12px;
+}
+
+.command-ribbon-icon-category {
+  display: grid;
+  gap: 5px;
+}
+
+.command-ribbon-icon-category h3 {
+  margin: 0;
+  color: #686b62;
+  font-size: 11px;
+}
+
+.command-ribbon-icon-category div {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(34px, 1fr));
   gap: 5px;
 }
 
-.command-ribbon-icon-grid button {
+.command-ribbon-icon-category button {
   display: grid;
   min-width: 34px;
   height: 34px;
@@ -2933,11 +2974,11 @@ select {
   display: flex;
   align-items: stretch;
   overflow: hidden;
-  border: 1px solid rgb(37 38 34 / 72%);
+  border: 1px solid #c9ccc2;
   border-radius: 6px;
-  background: rgb(43 44 42 / 96%);
-  box-shadow: 0 8px 22px rgb(37 38 34 / 22%);
-  color: #f5f5f2;
+  background: #ffffff;
+  box-shadow: 0 8px 22px rgb(37 38 34 / 14%);
+  color: #252622;
   pointer-events: auto;
 }
 
@@ -2966,13 +3007,15 @@ select {
 
 .command-ribbon-handle {
   width: 24px;
-  color: #989a93;
+  background: #f8f7f2;
+  color: #686b62;
   cursor: grab;
 }
 
 .command-ribbon-handle:hover,
 .command-ribbon-button:hover {
-  background: rgb(255 255 255 / 10%);
+  background: #e7f4ef;
+  color: #0f4f49;
 }
 
 .command-ribbon-handle:active {
@@ -2990,11 +3033,11 @@ select {
 
 .command-ribbon-button {
   gap: 5px;
-  border-left: 1px solid rgb(255 255 255 / 10%);
+  border-left: 1px solid #e1e3dc;
 }
 
 .command-ribbon.is-vertical .command-ribbon-button {
-  border-top: 1px solid rgb(255 255 255 / 10%);
+  border-top: 1px solid #e1e3dc;
   border-left: 0;
 }
 

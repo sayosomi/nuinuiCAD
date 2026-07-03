@@ -8,7 +8,10 @@ import type {
   CommandRibbon,
   CommandRibbonSettings
 } from "../commandRibbons/commandRibbonSettings";
-import { saveCommandRibbonSettings } from "../commandRibbons/commandRibbonSettings";
+import {
+  commandRibbonIconColorValues,
+  saveCommandRibbonSettings
+} from "../commandRibbons/commandRibbonSettings";
 import {
   CommandRibbonGripIcon,
   commandRibbonIconComponents
@@ -211,7 +214,11 @@ export const CommandRibbonOverlay = ({
                     commandContext.focusCanvas?.();
                   }}
                 >
-                  <Icon size={ribbon.iconSize} strokeWidth={2} />
+                  <Icon
+                    size={ribbon.iconSize}
+                    strokeWidth={2}
+                    style={{ color: commandRibbonIconColorValues[button.iconColor] }}
+                  />
                   {button.showLabel ? <span>{button.label}</span> : null}
                 </button>
               );

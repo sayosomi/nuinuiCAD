@@ -434,7 +434,9 @@ describe("AppLayout command ribbon", () => {
     });
     fireEvent.change(await view.findByLabelText("コマンドを検索"), { target: { value: "保存" } });
     fireEvent.click(await view.findByRole("button", { name: /^保存\s*saveDocument$/ }));
+    fireEvent.change(view.getByLabelText("アイコンを検索"), { target: { value: "保存" } });
     fireEvent.click(view.getByRole("button", { name: "保存 アイコン" }));
+    fireEvent.change(view.getByLabelText("アイコン色"), { target: { value: "teal" } });
     fireEvent.click(view.getByRole("button", { name: "保存" }));
 
     await waitFor(() => {
@@ -444,6 +446,7 @@ describe("AppLayout command ribbon", () => {
       expect(settings.ribbons[0].buttons[0]).toMatchObject({
         commandId: "saveDocument",
         icon: "save",
+        iconColor: "teal",
         label: "保存"
       });
     });

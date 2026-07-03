@@ -17,18 +17,18 @@ fn default_command_ribbon_settings() -> Value {
                 "orientation": "horizontal",
                 "iconSize": 16,
                 "buttons": [
-                    { "id": "addFreePoint", "commandId": "addFreePoint", "icon": "circle-dot", "label": "点", "showLabel": false },
-                    { "id": "addOffsetPoint", "commandId": "addOffsetPoint", "icon": "move-right", "label": "オフセット点", "showLabel": false },
-                    { "id": "addPolarOffsetPoint", "commandId": "addPolarOffsetPoint", "icon": "slash", "label": "極座標点", "showLabel": false },
-                    { "id": "addLine", "commandId": "addLine", "icon": "slash", "label": "線", "showLabel": false },
-                    { "id": "addArcLine", "commandId": "addArcLine", "icon": "corner-down-right", "label": "円弧", "showLabel": false },
-                    { "id": "addThreePointArcLine", "commandId": "addThreePointArcLine", "icon": "corner-down-right", "label": "3点円弧", "showLabel": false },
-                    { "id": "addCornerRadiusArcLine", "commandId": "addCornerRadiusArcLine", "icon": "corner-down-right", "label": "角R", "showLabel": false },
-                    { "id": "addBezierCurve", "commandId": "addBezierCurve", "icon": "spline", "label": "曲線", "showLabel": false },
-                    { "id": "addOffsetLine", "commandId": "addOffsetLine", "icon": "move-right", "label": "オフセット線", "showLabel": false },
-                    { "id": "addSplitLine", "commandId": "addSplitLine", "icon": "scissors", "label": "分割線", "showLabel": false },
-                    { "id": "addCopyLine", "commandId": "addCopyLine", "icon": "copy", "label": "コピー線", "showLabel": false },
-                    { "id": "addSymmetricCopyLine", "commandId": "addSymmetricCopyLine", "icon": "flip-horizontal", "label": "対称コピー", "showLabel": false }
+                    { "id": "addFreePoint", "commandId": "addFreePoint", "icon": "circle-dot", "iconColor": "default", "label": "点", "showLabel": false },
+                    { "id": "addOffsetPoint", "commandId": "addOffsetPoint", "icon": "move-right", "iconColor": "default", "label": "オフセット点", "showLabel": false },
+                    { "id": "addPolarOffsetPoint", "commandId": "addPolarOffsetPoint", "icon": "slash", "iconColor": "default", "label": "極座標点", "showLabel": false },
+                    { "id": "addLine", "commandId": "addLine", "icon": "slash", "iconColor": "default", "label": "線", "showLabel": false },
+                    { "id": "addArcLine", "commandId": "addArcLine", "icon": "corner-down-right", "iconColor": "default", "label": "円弧", "showLabel": false },
+                    { "id": "addThreePointArcLine", "commandId": "addThreePointArcLine", "icon": "corner-down-right", "iconColor": "default", "label": "3点円弧", "showLabel": false },
+                    { "id": "addCornerRadiusArcLine", "commandId": "addCornerRadiusArcLine", "icon": "corner-down-right", "iconColor": "default", "label": "角R", "showLabel": false },
+                    { "id": "addBezierCurve", "commandId": "addBezierCurve", "icon": "spline", "iconColor": "default", "label": "曲線", "showLabel": false },
+                    { "id": "addOffsetLine", "commandId": "addOffsetLine", "icon": "move-right", "iconColor": "default", "label": "オフセット線", "showLabel": false },
+                    { "id": "addSplitLine", "commandId": "addSplitLine", "icon": "scissors", "iconColor": "default", "label": "分割線", "showLabel": false },
+                    { "id": "addCopyLine", "commandId": "addCopyLine", "icon": "copy", "iconColor": "default", "label": "コピー線", "showLabel": false },
+                    { "id": "addSymmetricCopyLine", "commandId": "addSymmetricCopyLine", "icon": "flip-horizontal", "iconColor": "default", "label": "対称コピー", "showLabel": false }
                 ]
             }
         ]

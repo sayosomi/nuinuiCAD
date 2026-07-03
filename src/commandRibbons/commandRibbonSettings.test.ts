@@ -35,6 +35,7 @@ describe("commandRibbonSettings", () => {
               id: "line",
               commandId: "addLine",
               icon: "slash",
+              iconColor: "teal",
               label: "Line",
               showLabel: true
             }
@@ -58,6 +59,7 @@ describe("commandRibbonSettings", () => {
               id: "line",
               commandId: "addLine",
               icon: "slash",
+              iconColor: "teal",
               label: "Line",
               showLabel: true
             }
@@ -100,6 +102,7 @@ describe("commandRibbonSettings", () => {
     expect(settings.ribbons[0].orientation).toBe("horizontal");
     expect(settings.ribbons[0].iconSize).toBe(16);
     expect(settings.ribbons[0].buttons).toHaveLength(1);
+    expect(settings.ribbons[0].buttons[0].iconColor).toBe("default");
   });
 
   it("falls back to the default ribbon for broken browser settings", async () => {
