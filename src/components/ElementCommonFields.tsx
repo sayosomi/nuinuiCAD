@@ -125,8 +125,8 @@ export const ElementCommonFields = ({
       )}
 
       {supportsNumericVariables(element) && (
-        <div className="curve-point-editor">
-          <div className="curve-point-header">
+        <div className="local-variable-editor">
+          <div className="local-variable-section-header">
             <span>要素内変数</span>
             <button type="button" onClick={() => dispatchCommand("addNumericVariable")}>
               追加
@@ -136,8 +136,8 @@ export const ElementCommonFields = ({
             <p className="empty-state">要素内変数はありません。</p>
           ) : (
             (element.numericVariables ?? []).map((variable, index) => (
-              <div className="curve-point-group" key={variable.id}>
-                <div className="curve-point-header">
+              <div className="local-variable-group" key={variable.id}>
+                <div className="local-variable-row-header">
                   <span>変数{index + 1}</span>
                   <button
                     type="button"
