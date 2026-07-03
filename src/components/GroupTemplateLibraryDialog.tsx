@@ -24,6 +24,7 @@ import {
   saveGroupTemplateLibrary,
   upsertGroupTemplate
 } from "../templates/groupTemplateStorage";
+import { isImeComposingKeyEvent } from "./keyboardEventGuards";
 import type { CadElement, ElementId, NumericValue } from "../types/geometry";
 
 const selectedGroup = (elements: CadElement[], selectedElementId: ElementId | null) => {
@@ -303,6 +304,7 @@ export const GroupTemplateLibraryDialog = () => {
                     defaultValue={selectedTemplate.name}
                     onBlur={(event) => renameTemplate(selectedTemplate, event.currentTarget.value)}
                     onKeyDown={(event) => {
+                      if (event.key === "Enter" && isImeComposingKeyEvent(event)) return;
                       if (event.key === "Enter") event.currentTarget.blur();
                     }}
                   />

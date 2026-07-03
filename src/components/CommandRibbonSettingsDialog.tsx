@@ -20,6 +20,7 @@ import {
   type CommandRibbonIconId
 } from "../commandRibbons/commandRibbonIcons";
 import { useCadUiStore } from "../state/cadUiStore";
+import { isImeComposingKeyEvent } from "./keyboardEventGuards";
 
 const newId = (prefix: string) => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -445,6 +446,7 @@ const CommandRibbonSettingsDialogContent = ({
                         }
 
                         if (event.key === "Enter") {
+                          if (isImeComposingKeyEvent(event)) return;
                           event.preventDefault();
                           if (selectedCommandCandidate) {
                             applyCommandToSelectedButton(selectedCommandCandidate.commandId);

@@ -386,6 +386,32 @@ describe("LeftPanel numeric input dragging", () => {
     expect(input).toHaveValue("0");
   });
 
+  it("does not commit or blur a numeric parameter input on IME composition Enter", () => {
+    renderRightPanel();
+
+    const input = screen.getByLabelText("x 値");
+    input.focus();
+    fireEvent.change(input, { target: { value: "" } });
+    fireEvent.keyDown(input, { key: "Enter", isComposing: true });
+
+    expect(useCadStore.getState().elements[0]).toMatchObject({ x: 50 });
+    expect(input).toHaveValue("");
+    expect(input).toHaveFocus();
+  });
+
+  it("does not commit or blur an element name input on IME composition Enter", () => {
+    renderRightPanel();
+
+    const nameInput = screen.getByDisplayValue("点A");
+    nameInput.focus();
+    fireEvent.change(nameInput, { target: { value: "点あ" } });
+    fireEvent.keyDown(nameInput, { key: "Enter", isComposing: true });
+
+    expect(useCadStore.getState().elements[0]).toMatchObject({ name: "点A" });
+    expect(nameInput).toHaveValue("点あ");
+    expect(nameInput).toHaveFocus();
+  });
+
   it("commits one when pressing Enter on a blank image scale input", () => {
     selectOnlyElement({
       id: "image",
@@ -1639,6 +1665,24 @@ describe("LeftPanel element list dragging", () => {
     fireEvent.keyDown(searchInput, { key: "Enter" });
 
     expect(useCadStore.getState().selectedElementId).toBe("point-a");
+  });
+
+  it("does not select an element search result on IME composition Enter", () => {
+    useCadStore.setState({
+      selectedElementId: "point-b",
+      selectedElementIds: ["point-b"],
+      selectionAnchorElementId: "point-b"
+    });
+
+    renderLeftPanel();
+
+    const searchInput = screen.getByRole("textbox", { name: "要素を検索" });
+    searchInput.focus();
+    fireEvent.change(searchInput, { target: { value: "点A" } });
+    fireEvent.keyDown(searchInput, { key: "Enter", isComposing: true });
+
+    expect(useCadStore.getState().selectedElementId).toBe("point-b");
+    expect(searchInput).toHaveFocus();
   });
 
   it("shows group child counts with a folder icon instead of the child label", () => {

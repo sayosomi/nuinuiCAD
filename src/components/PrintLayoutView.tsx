@@ -3,6 +3,7 @@ import type { MouseEvent, PointerEvent, RefObject, WheelEvent as ReactWheelEvent
 import { Copy, FileCode, FileText, Plus, Trash2 } from "lucide-react";
 import { dispatchCommand } from "../commands/commands";
 import { formatNumber } from "./geometryDisplay";
+import { isImeComposingKeyEvent } from "./keyboardEventGuards";
 import {
   addToNumericValue,
   formatNumericExpressionForDisplay,
@@ -120,6 +121,7 @@ const PrintNumberInput = ({
           commitValue(valueFromInput(nextValue));
         }}
         onKeyDown={(event) => {
+          if (event.key === "Enter" && isImeComposingKeyEvent(event)) return;
           if (event.key === "Enter") {
             event.preventDefault();
             if (draft !== null && draft.trim().length === 0) {

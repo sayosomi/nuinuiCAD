@@ -29,6 +29,7 @@ import {
 } from "./geometryDisplay";
 import { ElementListRow } from "./ElementListRow";
 import { elementListNameTextClassName } from "./elementListName";
+import { isImeComposingKeyEvent } from "./keyboardEventGuards";
 import {
   elementListAutoScrollDelta,
   elementListDropTargetForClientY,
@@ -465,6 +466,7 @@ export const LeftPanel = ({
       return;
     }
     if (event.key === "Enter") {
+      if (isImeComposingKeyEvent(event)) return;
       event.preventDefault();
       const result = searchResults.find((item) => item.element.id === activeSearchCursorId) ?? searchResults[0];
       if (result) applySearchResult(result.element);

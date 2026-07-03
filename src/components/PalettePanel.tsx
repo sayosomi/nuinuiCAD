@@ -6,6 +6,7 @@ import {
 } from "../palette/paletteSettingsStorage";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
+import { isImeComposingKeyEvent } from "./keyboardEventGuards";
 
 export const PaletteSettingsDialog = () => {
   const showPaletteSettings = useCadUiStore((state) => state.showPaletteSettings);
@@ -79,6 +80,7 @@ export const PaletteSettingsDialog = () => {
                   aria-label={`${color.name} の名前`}
                   onBlur={(event) => updatePaletteColor(color.id, { name: event.currentTarget.value })}
                   onKeyDown={(event) => {
+                    if (event.key === "Enter" && isImeComposingKeyEvent(event)) return;
                     if (event.key === "Enter") event.currentTarget.blur();
                     if (event.key === "Escape") {
                       event.currentTarget.value = color.name;

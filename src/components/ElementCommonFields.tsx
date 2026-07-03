@@ -11,6 +11,7 @@ import {
 } from "./ParameterEditors";
 import { PointAnchorParameterEditor } from "./PointParameterEditors";
 import { ColorParameterEditor } from "./ColorParameterEditor";
+import { isImeComposingKeyEvent } from "./keyboardEventGuards";
 import type { CommonEditorProps } from "./parameterEditorShared";
 
 export const ElementCommonFields = ({
@@ -44,6 +45,7 @@ export const ElementCommonFields = ({
           onFocus={() => setSelectedParameterKey("name")}
           onBlur={(event) => commitName(event.currentTarget.value)}
           onKeyDown={(event) => {
+            if (event.key === "Enter" && isImeComposingKeyEvent(event)) return;
             if (event.key === "Enter") {
               commitName(event.currentTarget.value);
               event.currentTarget.blur();

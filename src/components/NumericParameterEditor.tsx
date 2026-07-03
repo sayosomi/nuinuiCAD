@@ -18,6 +18,7 @@ import type { CadElement, NumericValue } from "../types/geometry";
 import { formatNumber } from "./geometryDisplay";
 import { numericDragStepsForDelta } from "./numericDrag";
 import { ExpressionInsertTray } from "./ExpressionInsertTray";
+import { isImeComposingKeyEvent } from "./keyboardEventGuards";
 import { ParameterName } from "./ParameterName";
 import type { CommonEditorProps } from "./parameterEditorShared";
 import { useParameterEditor } from "./parameterEditorShared";
@@ -220,6 +221,7 @@ export const NumericParameterEditor = ({
         inputSelectionRef.current = null;
       }}
       onKeyDown={(event) => {
+        if (event.key === "Enter" && isImeComposingKeyEvent(event)) return;
         if (event.key === "Enter" && draft?.value.trim().length === 0) {
           event.preventDefault();
           updateParameterValue(parameterKey, emptyInputDefaultValue);

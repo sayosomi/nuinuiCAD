@@ -5,6 +5,7 @@ import {
   type CommandContext
 } from "../commands/commands";
 import { useCadUiStore } from "../state/cadUiStore";
+import { isImeComposingKeyEvent } from "./keyboardEventGuards";
 
 type CommandPaletteProps = {
   commandContext: CommandContext;
@@ -77,6 +78,7 @@ export const CommandPalette = ({ commandContext }: CommandPaletteProps) => {
             }
 
             if (event.key === "Enter") {
+              if (isImeComposingKeyEvent(event)) return;
               event.preventDefault();
               runSelectedCommand();
             }
