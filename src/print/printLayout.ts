@@ -2,6 +2,7 @@ import type {
   CadElement,
   EvaluationResult,
   ElementId,
+  NumericVariable,
   NumericValue,
   PaperSizeId,
   PrintLayout,
@@ -24,12 +25,13 @@ export type ResolvedPrintLayoutPlacement = Omit<PrintLayoutPlacement, "x" | "y" 
 
 export type ResolvedPrintLayout = Omit<
   PrintLayout,
-  "columns" | "rows" | "overlapMm" | "scale" | "placements"
+  "columns" | "rows" | "overlapMm" | "scale" | "numericVariables" | "placements"
 > & {
   columns: number;
   rows: number;
   overlapMm: number;
   scale: number;
+  numericVariables: Array<Omit<NumericVariable, "value"> & { value: number }>;
   placements: ResolvedPrintLayoutPlacement[];
 };
 
@@ -62,6 +64,7 @@ export const DEFAULT_PRINT_LAYOUT: PrintLayout = {
   rows: 2,
   overlapMm: 10,
   scale: 1,
+  numericVariables: [],
   placements: []
 };
 
@@ -105,6 +108,17 @@ const normalizePlacement = (
   };
 };
 
+const normalizeNumericVariable = (value: unknown): NumericVariable | null => {
+  if (!isRecord(value) || typeof value.id !== "string" || typeof value.name !== "string") {
+    return null;
+  }
+  return {
+    id: value.id,
+    name: value.name,
+    value: normalizeNumericValue(value.value, 30)
+  };
+};
+
 export const normalizePrintLayout = (
   value: unknown,
   elements: CadElement[]
@@ -123,6 +137,11 @@ export const normalizePrintLayout = (
         .map((placement) => normalizePlacement(placement, groupIds))
         .filter((placement): placement is PrintLayoutPlacement => Boolean(placement))
     : [];
+  const numericVariables = Array.isArray(value.numericVariables)
+    ? value.numericVariables
+        .map(normalizeNumericVariable)
+        .filter((variable): variable is NumericVariable => Boolean(variable))
+    : [];
 
   return {
     paperSizeId,
@@ -131,6 +150,7 @@ export const normalizePrintLayout = (
     rows: normalizeNumericValue(value.rows, DEFAULT_PRINT_LAYOUT.rows),
     overlapMm: normalizeNumericValue(value.overlapMm, DEFAULT_PRINT_LAYOUT.overlapMm),
     scale: normalizeNumericValue(value.scale, DEFAULT_PRINT_LAYOUT.scale),
+    numericVariables,
     placements
   };
 };
@@ -153,16 +173,51 @@ const globalVariableValues = (elements: CadElement[], evaluation: EvaluationResu
   return values;
 };
 
+const printVariableValues = ({
+  variables,
+  elements,
+  evaluation
+}: {
+  variables: NumericVariable[];
+  elements: CadElement[];
+  evaluation: EvaluationResult;
+}) => {
+  const values = globalVariableValues(elements, evaluation);
+  const resolvedVariables: Array<Omit<NumericVariable, "value"> & { value: number }> = [];
+  const elementsById = new Map(elements.map((element) => [element.id, element]));
+  for (const variable of variables) {
+    const result = evaluateNumericValue({
+      value: variable.value,
+      computedGeometry: evaluation.computedGeometry,
+      elementsById,
+      computedVariables: evaluation.computedVariables,
+      elements,
+      localVariables: values
+    });
+    if (result.value === undefined) continue;
+    resolvedVariables.push({
+      id: variable.id,
+      name: variable.name,
+      value: result.value
+    });
+    values.set(variable.id, result.value);
+    values.set(variable.name, result.value);
+  }
+  return { values, resolvedVariables };
+};
+
 const resolveNumericValue = ({
   value,
   fallback,
   elements,
-  evaluation
+  evaluation,
+  localVariables
 }: {
   value: NumericValue;
   fallback: number;
   elements: CadElement[];
   evaluation: EvaluationResult;
+  localVariables: Map<string, number>;
 }) => {
   if (!isNumericExpression(value)) return value;
   const result = evaluateNumericValue({
@@ -171,7 +226,7 @@ const resolveNumericValue = ({
     elementsById: new Map(elements.map((element) => [element.id, element])),
     computedVariables: evaluation.computedVariables,
     elements,
-    localVariables: globalVariableValues(elements, evaluation)
+    localVariables
   });
   return result.value ?? fallback;
 };
@@ -185,23 +240,28 @@ export const resolvePrintLayout = ({
   elements: CadElement[];
   evaluation: EvaluationResult;
 }): ResolvedPrintLayout => {
+  const { values: localVariables, resolvedVariables } = printVariableValues({
+    variables: layout.numericVariables ?? [],
+    elements,
+    evaluation
+  });
   const columns = clampInteger(
-    resolveNumericValue({ value: layout.columns, fallback: DEFAULT_PRINT_LAYOUT.columns as number, elements, evaluation }),
+    resolveNumericValue({ value: layout.columns, fallback: DEFAULT_PRINT_LAYOUT.columns as number, elements, evaluation, localVariables }),
     DEFAULT_PRINT_LAYOUT.columns as number,
     20
   );
   const rows = clampInteger(
-    resolveNumericValue({ value: layout.rows, fallback: DEFAULT_PRINT_LAYOUT.rows as number, elements, evaluation }),
+    resolveNumericValue({ value: layout.rows, fallback: DEFAULT_PRINT_LAYOUT.rows as number, elements, evaluation, localVariables }),
     DEFAULT_PRINT_LAYOUT.rows as number,
     20
   );
   const overlapMm = clampMin(
-    resolveNumericValue({ value: layout.overlapMm, fallback: DEFAULT_PRINT_LAYOUT.overlapMm as number, elements, evaluation }),
+    resolveNumericValue({ value: layout.overlapMm, fallback: DEFAULT_PRINT_LAYOUT.overlapMm as number, elements, evaluation, localVariables }),
     DEFAULT_PRINT_LAYOUT.overlapMm as number,
     0
   );
   const scale = clampMin(
-    resolveNumericValue({ value: layout.scale, fallback: DEFAULT_PRINT_LAYOUT.scale as number, elements, evaluation }),
+    resolveNumericValue({ value: layout.scale, fallback: DEFAULT_PRINT_LAYOUT.scale as number, elements, evaluation, localVariables }),
     DEFAULT_PRINT_LAYOUT.scale as number,
     0.01
   );
@@ -213,11 +273,12 @@ export const resolvePrintLayout = ({
     rows,
     overlapMm,
     scale,
+    numericVariables: resolvedVariables,
     placements: layout.placements.map((placement) => ({
       ...placement,
-      x: resolveNumericValue({ value: placement.x, fallback: 0, elements, evaluation }),
-      y: resolveNumericValue({ value: placement.y, fallback: 0, elements, evaluation }),
-      angleDeg: resolveNumericValue({ value: placement.angleDeg, fallback: 0, elements, evaluation })
+      x: resolveNumericValue({ value: placement.x, fallback: 0, elements, evaluation, localVariables }),
+      y: resolveNumericValue({ value: placement.y, fallback: 0, elements, evaluation, localVariables }),
+      angleDeg: resolveNumericValue({ value: placement.angleDeg, fallback: 0, elements, evaluation, localVariables })
     }))
   };
 };

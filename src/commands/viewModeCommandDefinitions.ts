@@ -41,21 +41,44 @@ export const viewModeCommandDefinitions = {
     label: "キャンバスを拡大",
     palette: { order: 21, keywords: ["zoom", "in", "拡大", "キャンバス"] },
     shortcuts: [{ keys: "+ / =" }],
-    run: (context) => useCadUiStore.getState().zoomCanvasViewportAt(1.1, canvasZoomAnchor(context))
+    run: (context) => {
+      const state = useCadUiStore.getState();
+      const anchor = canvasZoomAnchor(context);
+      if (state.showPrintLayout) {
+        state.zoomPrintCanvasViewportAt(1.1, anchor);
+        return;
+      }
+      state.zoomCanvasViewportAt(1.1, anchor);
+    }
   },
   zoomOutCanvas: {
     id: "zoomOutCanvas",
     label: "キャンバスを縮小",
     palette: { order: 22, keywords: ["zoom", "out", "縮小", "キャンバス"] },
     shortcuts: [{ keys: "-" }],
-    run: (context) => useCadUiStore.getState().zoomCanvasViewportAt(1 / 1.1, canvasZoomAnchor(context))
+    run: (context) => {
+      const state = useCadUiStore.getState();
+      const anchor = canvasZoomAnchor(context);
+      if (state.showPrintLayout) {
+        state.zoomPrintCanvasViewportAt(1 / 1.1, anchor);
+        return;
+      }
+      state.zoomCanvasViewportAt(1 / 1.1, anchor);
+    }
   },
   resetCanvasView: {
     id: "resetCanvasView",
     label: "キャンバス表示をリセット",
     palette: { order: 23, keywords: ["zoom", "reset", "pan", "origin", "リセット", "原点", "キャンバス"] },
     shortcuts: [{ keys: "0" }],
-    run: () => useCadUiStore.getState().resetCanvasViewport()
+    run: () => {
+      const state = useCadUiStore.getState();
+      if (state.showPrintLayout) {
+        state.resetPrintCanvasViewport();
+        return;
+      }
+      state.resetCanvasViewport();
+    }
   },
   openPrintLayout: {
     id: "openPrintLayout",

@@ -140,6 +140,53 @@ describe("PrintLayoutPanel", () => {
     expect(scaleInput).toHaveValue("@倍率");
   });
 
+  it("adds print-local variables and prefers them in print number expressions", () => {
+    renderPanel();
+    const variableSection = screen.getByRole("heading", { name: "印刷変数" }).closest("section");
+    expect(variableSection).not.toBeNull();
+
+    fireEvent.click(within(variableSection!).getByRole("button", { name: "追加" }));
+    fireEvent.change(within(variableSection!).getByLabelText("印刷変数名"), {
+      target: { value: "倍率" }
+    });
+    fireEvent.change(within(variableSection!).getByLabelText("値"), {
+      target: { value: "2" }
+    });
+
+    const scaleInput = screen.getByLabelText("拡大率");
+    fireEvent.change(scaleInput, { target: { value: "@倍率" } });
+
+    expect(useCadDocumentStore.getState().printLayout.numericVariables).toEqual([
+      {
+        id: "print-variable-1",
+        name: "倍率",
+        value: 2
+      }
+    ]);
+    expect(useCadDocumentStore.getState().printLayout.scale).toEqual({
+      kind: "expression",
+      expression: "@print-variable-1"
+    });
+    expect(scaleInput).toHaveValue("@倍率");
+  });
+
+  it("deletes print-local variables from the print layout", () => {
+    useCadDocumentStore.setState({
+      printLayout: {
+        ...DEFAULT_PRINT_LAYOUT,
+        numericVariables: [{ id: "print-variable-1", name: "倍率", value: 2 }]
+      }
+    });
+    renderPanel();
+    const variableSection = screen.getByRole("heading", { name: "印刷変数" }).closest("section");
+    expect(variableSection).not.toBeNull();
+
+    fireEvent.click(within(variableSection!).getByRole("button", { name: "削除" }));
+
+    expect(useCadDocumentStore.getState().printLayout.numericVariables).toEqual([]);
+    expect(within(variableSection!).getByText("印刷変数はありません。")).toBeInTheDocument();
+  });
+
   it("keeps print number inputs blank while editing and restores scale to one on Enter", () => {
     useCadDocumentStore.setState({
       printLayout: {

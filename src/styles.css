@@ -2695,6 +2695,7 @@ select {
 
 .print-number-field input,
 .print-select-field select,
+.print-select-field input,
 .print-search-input {
   width: 100%;
   min-width: 0;
@@ -2763,6 +2764,23 @@ select {
   overflow: auto;
   gap: 4px;
   padding-right: 2px;
+}
+
+.print-variable-list {
+  display: grid;
+  max-height: 260px;
+  overflow: auto;
+  gap: 8px;
+  padding-right: 2px;
+}
+
+.print-variable-row {
+  display: grid;
+  gap: 8px;
+  border: 1px solid #d7dace;
+  border-radius: 6px;
+  background: #ffffff;
+  padding: 8px;
 }
 
 .print-placement-row {

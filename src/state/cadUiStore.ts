@@ -108,6 +108,7 @@ export type CadUiState = {
   showCommandPalette: boolean;
   selectedPrintPlacementId: string | null;
   canvasViewport: CanvasViewport;
+  printCanvasViewport: CanvasViewport;
   setParameterEditMode: (isParameterEditMode: boolean) => void;
   setShowElementInfoPanel: (showElementInfoPanel: boolean) => void;
   setDependencyJumpMode: (isDependencyJumpMode: boolean) => void;
@@ -150,6 +151,13 @@ export type CadUiState = {
     anchor?: { x: number; y: number; width: number; height: number }
   ) => void;
   resetCanvasViewport: () => void;
+  setPrintCanvasViewport: (printCanvasViewport: CanvasViewport) => void;
+  panPrintCanvasViewport: (dx: number, dy: number) => void;
+  zoomPrintCanvasViewportAt: (
+    zoomFactor: number,
+    anchor?: { x: number; y: number; width: number; height: number }
+  ) => void;
+  resetPrintCanvasViewport: () => void;
 };
 
 export const initialCadUiState = (): Omit<
@@ -187,6 +195,10 @@ export const initialCadUiState = (): Omit<
   | "panCanvasViewport"
   | "zoomCanvasViewportAt"
   | "resetCanvasViewport"
+  | "setPrintCanvasViewport"
+  | "panPrintCanvasViewport"
+  | "zoomPrintCanvasViewportAt"
+  | "resetPrintCanvasViewport"
 > => ({
   isParameterEditMode: false,
   showElementInfoPanel: true,
@@ -216,11 +228,37 @@ export const initialCadUiState = (): Omit<
   shortcutSettingsError: null,
   showCommandPalette: false,
   selectedPrintPlacementId: null,
-  canvasViewport: DEFAULT_CANVAS_VIEWPORT
+  canvasViewport: DEFAULT_CANVAS_VIEWPORT,
+  printCanvasViewport: DEFAULT_CANVAS_VIEWPORT
 });
 
 const clampCanvasZoom = (zoom: number) =>
   Math.min(Math.max(zoom, MIN_CANVAS_ZOOM), MAX_CANVAS_ZOOM);
+
+const zoomViewportAt = (
+  current: CanvasViewport,
+  zoomFactor: number,
+  anchor?: { x: number; y: number; width: number; height: number }
+) => {
+  const nextZoom = clampCanvasZoom(current.zoom * zoomFactor);
+  if (nextZoom === current.zoom) return current;
+
+  if (!anchor) {
+    return {
+      ...current,
+      zoom: nextZoom
+    };
+  }
+
+  const worldX = (anchor.x - anchor.width / 2 - current.panX) / current.zoom;
+  const worldY = (anchor.height / 2 + current.panY - anchor.y) / current.zoom;
+
+  return {
+    zoom: nextZoom,
+    panX: anchor.x - anchor.width / 2 - worldX * nextZoom,
+    panY: anchor.y - anchor.height / 2 + worldY * nextZoom
+  };
+};
 
 export const useCadUiStore = create<CadUiState>((set) => ({
   ...initialCadUiState(),
@@ -303,29 +341,29 @@ export const useCadUiStore = create<CadUiState>((set) => ({
     })),
   zoomCanvasViewportAt: (zoomFactor, anchor) =>
     set((state) => {
-      const current = state.canvasViewport;
-      const nextZoom = clampCanvasZoom(current.zoom * zoomFactor);
-      if (nextZoom === current.zoom) return {};
-
-      if (!anchor) {
-        return {
-          canvasViewport: {
-            ...current,
-            zoom: nextZoom
-          }
-        };
-      }
-
-      const worldX = (anchor.x - anchor.width / 2 - current.panX) / current.zoom;
-      const worldY = (anchor.height / 2 + current.panY - anchor.y) / current.zoom;
-
-      return {
-        canvasViewport: {
-          zoom: nextZoom,
-          panX: anchor.x - anchor.width / 2 - worldX * nextZoom,
-          panY: anchor.y - anchor.height / 2 + worldY * nextZoom
-        }
-      };
+      const canvasViewport = zoomViewportAt(state.canvasViewport, zoomFactor, anchor);
+      return canvasViewport === state.canvasViewport ? {} : { canvasViewport };
     }),
-  resetCanvasViewport: () => set({ canvasViewport: DEFAULT_CANVAS_VIEWPORT })
+  resetCanvasViewport: () => set({ canvasViewport: DEFAULT_CANVAS_VIEWPORT }),
+  setPrintCanvasViewport: (printCanvasViewport) =>
+    set({
+      printCanvasViewport: {
+        ...printCanvasViewport,
+        zoom: clampCanvasZoom(printCanvasViewport.zoom)
+      }
+    }),
+  panPrintCanvasViewport: (dx, dy) =>
+    set((state) => ({
+      printCanvasViewport: {
+        ...state.printCanvasViewport,
+        panX: state.printCanvasViewport.panX + dx,
+        panY: state.printCanvasViewport.panY + dy
+      }
+    })),
+  zoomPrintCanvasViewportAt: (zoomFactor, anchor) =>
+    set((state) => {
+      const printCanvasViewport = zoomViewportAt(state.printCanvasViewport, zoomFactor, anchor);
+      return printCanvasViewport === state.printCanvasViewport ? {} : { printCanvasViewport };
+    }),
+  resetPrintCanvasViewport: () => set({ printCanvasViewport: DEFAULT_CANVAS_VIEWPORT })
 }));

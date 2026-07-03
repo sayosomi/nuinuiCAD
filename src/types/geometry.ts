@@ -41,6 +41,7 @@ export type PrintLayout = {
   rows: NumericValue;
   overlapMm: NumericValue;
   scale: NumericValue;
+  numericVariables?: NumericVariable[];
   placements: PrintLayoutPlacement[];
 };
 

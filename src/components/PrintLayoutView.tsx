@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import type { MouseEvent, PointerEvent, RefObject } from "react";
+import { useEffect, useMemo, useState } from "react";
+import type { MouseEvent, PointerEvent, RefObject, WheelEvent as ReactWheelEvent } from "react";
 import { Copy, FileText, Plus, Trash2 } from "lucide-react";
 import { dispatchCommand } from "../commands/commands";
 import { formatNumber } from "./geometryDisplay";
@@ -19,7 +19,7 @@ import {
 } from "../print/printLayout";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
-import type { ElementId, EvaluationResult, NumericValue, PrintLayoutPlacement } from "../types/geometry";
+import type { ElementId, EvaluationResult, NumericVariable, NumericValue, PrintLayoutPlacement } from "../types/geometry";
 import { numericDragStepsForDelta } from "./numericDrag";
 
 type PrintLayoutCanvasProps = {
@@ -35,6 +35,23 @@ type PrintNumberDragState = {
   remainderX: number;
 };
 
+type PrintCanvasDrag =
+  | {
+      kind: "placement";
+      placementId: string;
+      pointerId: number;
+      offsetX: number;
+      offsetY: number;
+    }
+  | {
+      kind: "pan";
+      pointerId: number;
+      lastX: number;
+      lastY: number;
+    };
+
+const WHEEL_ZOOM_BASE = 1.1;
+
 const deferredPrintNumberInputValues = new Set(["", "+", "-", ".", "+.", "-."]);
 
 const isDeferredPrintNumberInput = (input: string) =>
@@ -49,6 +66,7 @@ const PrintNumberInput = ({
   resolvedValue,
   defaultValue,
   elements,
+  printVariables,
   step,
   min,
   onChange
@@ -58,6 +76,7 @@ const PrintNumberInput = ({
   resolvedValue: number;
   defaultValue: NumericValue;
   elements: ReturnType<typeof useCadDocumentStore.getState>["elements"];
+  printVariables: NumericVariable[];
   step: number;
   min?: number;
   onChange: (value: NumericValue) => void;
@@ -71,10 +90,11 @@ const PrintNumberInput = ({
       name: variable.name,
       value: 0
     }));
-  const displayValue = formatNumericExpressionForDisplay(value, elements, globalVariables);
+  const availableVariables = [...printVariables, ...globalVariables];
+  const displayValue = formatNumericExpressionForDisplay(value, elements, availableVariables);
   const inputValue = draft ?? displayValue;
   const valueFromInput = (input: string) =>
-    makeNumericExpression(normalizeNumericExpressionInput(input, elements, globalVariables));
+    makeNumericExpression(normalizeNumericExpressionInput(input, elements, availableVariables));
   const commitValue = (nextValue: NumericValue) => {
     if (typeof nextValue === "number" && !Number.isFinite(nextValue)) return;
     onChange(clampNumericValue(nextValue, min));
@@ -164,12 +184,11 @@ export const PrintLayoutCanvas = ({ evaluation, canvasFocusRef }: PrintLayoutCan
   const updatePrintLayout = useCadDocumentStore((state) => state.updatePrintLayout);
   const selectedPrintPlacementId = useCadUiStore((state) => state.selectedPrintPlacementId);
   const setSelectedPrintPlacementId = useCadUiStore((state) => state.setSelectedPrintPlacementId);
-  const [drag, setDrag] = useState<{
-    placementId: string;
-    pointerId: number;
-    offsetX: number;
-    offsetY: number;
-  } | null>(null);
+  const printCanvasViewport = useCadUiStore((state) => state.printCanvasViewport);
+  const panPrintCanvasViewport = useCadUiStore((state) => state.panPrintCanvasViewport);
+  const zoomPrintCanvasViewportAt = useCadUiStore((state) => state.zoomPrintCanvasViewportAt);
+  const [drag, setDrag] = useState<PrintCanvasDrag | null>(null);
+  const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
   const resolvedLayout = useMemo(
     () => resolvePrintLayout({ layout, elements, evaluation }),
     [elements, evaluation, layout]
@@ -184,8 +203,43 @@ export const PrintLayoutCanvas = ({ evaluation, canvasFocusRef }: PrintLayoutCan
     () => new Map(elements.filter((element) => element.type === "group").map((element) => [element.id, element.name])),
     [elements]
   );
-  const viewportWidth = canvas.widthMm + SVG_PADDING * 2;
-  const viewportHeight = canvas.heightMm + SVG_PADDING * 2;
+  useEffect(() => {
+    const viewport = canvasFocusRef.current;
+    if (!viewport) return;
+    const updateSize = () => {
+      setViewportSize({
+        width: Math.max(viewport.clientWidth, 0),
+        height: Math.max(viewport.clientHeight, 0)
+      });
+    };
+    updateSize();
+    const observer = new ResizeObserver(updateSize);
+    observer.observe(viewport);
+    return () => observer.disconnect();
+  }, [canvasFocusRef]);
+
+  const visiblePrintBounds = (() => {
+    if (viewportSize.width <= 0 || viewportSize.height <= 0) {
+      return {
+        minX: -SVG_PADDING,
+        maxX: canvas.widthMm + SVG_PADDING,
+        minY: -SVG_PADDING,
+        maxY: canvas.heightMm + SVG_PADDING
+      };
+    }
+    const centerX = canvas.widthMm / 2;
+    const centerY = canvas.heightMm / 2;
+    return {
+      minX: centerX + (-viewportSize.width / 2 - printCanvasViewport.panX) / printCanvasViewport.zoom,
+      maxX: centerX + (viewportSize.width / 2 - printCanvasViewport.panX) / printCanvasViewport.zoom,
+      minY: centerY + (-viewportSize.height / 2 + printCanvasViewport.panY) / printCanvasViewport.zoom,
+      maxY: centerY + (viewportSize.height / 2 + printCanvasViewport.panY) / printCanvasViewport.zoom
+    };
+  })();
+  const viewportWidth = visiblePrintBounds.maxX - visiblePrintBounds.minX;
+  const viewportHeight = visiblePrintBounds.maxY - visiblePrintBounds.minY;
+  const viewBoxX = SVG_PADDING + visiblePrintBounds.minX;
+  const viewBoxY = SVG_PADDING + canvas.heightMm - visiblePrintBounds.maxY;
   const toSvg = (point: { x: number; y: number }) => ({
     x: SVG_PADDING + point.x,
     y: SVG_PADDING + canvas.heightMm - point.y
@@ -193,9 +247,20 @@ export const PrintLayoutCanvas = ({ evaluation, canvasFocusRef }: PrintLayoutCan
   const screenToPrint = (event: PointerEvent<SVGSVGElement>) => {
     const svg = event.currentTarget;
     const rect = svg.getBoundingClientRect();
-    const x = ((event.clientX - rect.left) / rect.width) * viewportWidth - SVG_PADDING;
-    const y = canvas.heightMm - (((event.clientY - rect.top) / rect.height) * viewportHeight - SVG_PADDING);
+    const x = visiblePrintBounds.minX + ((event.clientX - rect.left) / rect.width) * viewportWidth;
+    const y = visiblePrintBounds.maxY - ((event.clientY - rect.top) / rect.height) * viewportHeight;
     return { x, y };
+  };
+  const handleWheel = (event: ReactWheelEvent<HTMLDivElement>) => {
+    if (viewportSize.width <= 0 || viewportSize.height <= 0) return;
+    event.preventDefault();
+    const rect = event.currentTarget.getBoundingClientRect();
+    zoomPrintCanvasViewportAt(Math.pow(WHEEL_ZOOM_BASE, -event.deltaY / 100), {
+      x: event.clientX - rect.left - event.currentTarget.clientLeft,
+      y: event.clientY - rect.top - event.currentTarget.clientTop,
+      width: event.currentTarget.clientWidth,
+      height: event.currentTarget.clientHeight
+    });
   };
   const updatePlacement = (placementId: string, patch: Partial<PrintLayoutPlacement>) => {
     updatePrintLayout({
@@ -220,19 +285,34 @@ export const PrintLayoutCanvas = ({ evaluation, canvasFocusRef }: PrintLayoutCan
         className="canvas-viewport print-layout-viewport"
         ref={canvasFocusRef}
         tabIndex={-1}
+        onWheel={handleWheel}
       >
         <svg
           className="print-layout-svg"
-          viewBox={`0 0 ${viewportWidth} ${viewportHeight}`}
+          viewBox={`${viewBoxX} ${viewBoxY} ${viewportWidth} ${viewportHeight}`}
           role="img"
           aria-label="印刷レイアウト"
           onPointerDown={(event) => {
+            if (event.button === 1) {
+              event.preventDefault();
+              event.currentTarget.setPointerCapture(event.pointerId);
+              setDrag({
+                kind: "pan",
+                pointerId: event.pointerId,
+                lastX: event.clientX,
+                lastY: event.clientY
+              });
+              return;
+            }
+            if (event.button !== 0) return;
             const point = screenToPrint(event);
             const placement = hitPlacement(point);
             if (!placement) return;
             setSelectedPrintPlacementId(placement.id);
+            event.preventDefault();
             event.currentTarget.setPointerCapture(event.pointerId);
             setDrag({
+              kind: "placement",
               placementId: placement.id,
               pointerId: event.pointerId,
               offsetX: point.x - placement.x,
@@ -241,6 +321,20 @@ export const PrintLayoutCanvas = ({ evaluation, canvasFocusRef }: PrintLayoutCan
           }}
           onPointerMove={(event) => {
             if (!drag || drag.pointerId !== event.pointerId) return;
+            if (drag.kind === "pan") {
+              if ((event.buttons & 4) === 0) {
+                setDrag(null);
+                return;
+              }
+              event.preventDefault();
+              panPrintCanvasViewport(event.clientX - drag.lastX, event.clientY - drag.lastY);
+              setDrag({
+                ...drag,
+                lastX: event.clientX,
+                lastY: event.clientY
+              });
+              return;
+            }
             const point = screenToPrint(event);
             updatePlacement(drag.placementId, {
               x: Number((point.x - drag.offsetX).toFixed(2)),
@@ -252,6 +346,9 @@ export const PrintLayoutCanvas = ({ evaluation, canvasFocusRef }: PrintLayoutCan
           }}
           onPointerCancel={(event) => {
             if (drag?.pointerId === event.pointerId) setDrag(null);
+          }}
+          onAuxClick={(event) => {
+            if (event.button === 1) event.preventDefault();
           }}
         >
           <rect
@@ -340,6 +437,7 @@ export const PrintLayoutCanvas = ({ evaluation, canvasFocusRef }: PrintLayoutCan
             PDF
           </button>
         </div>
+        <div className="canvas-scale-overlay">縮尺 {printCanvasViewport.zoom.toFixed(2)}px/mm</div>
       </div>
     </section>
   );
@@ -357,6 +455,7 @@ export const PrintLayoutPanel = ({ evaluation }: { evaluation: EvaluationResult 
     [elements, evaluation, layout]
   );
   const canvas = printCanvasSizeMm(resolvedLayout);
+  const printVariables = layout.numericVariables ?? [];
   const groups = printableGroups(elements);
   const groupsById = new Map(groups.map((group) => [group.id, group]));
   const selectedPlacement =
@@ -383,6 +482,36 @@ export const PrintLayoutPanel = ({ evaluation }: { evaluation: EvaluationResult 
       placements: [...layout.placements, placement]
     });
     setSelectedPrintPlacementId(placement.id);
+  };
+  const nextPrintVariableId = () => {
+    let index = printVariables.length + 1;
+    const existingIds = new Set(printVariables.map((variable) => variable.id));
+    while (existingIds.has(`print-variable-${index}`)) {
+      index += 1;
+    }
+    return `print-variable-${index}`;
+  };
+  const addPrintVariable = () => {
+    const variable: NumericVariable = {
+      id: nextPrintVariableId(),
+      name: `v${printVariables.length + 1}`,
+      value: 30
+    };
+    updatePrintLayout({
+      numericVariables: [...printVariables, variable]
+    });
+  };
+  const updatePrintVariable = (variableId: string, patch: Partial<NumericVariable>) => {
+    updatePrintLayout({
+      numericVariables: printVariables.map((variable) =>
+        variable.id === variableId ? { ...variable, ...patch } : variable
+      )
+    });
+  };
+  const deletePrintVariable = (variableId: string) => {
+    updatePrintLayout({
+      numericVariables: printVariables.filter((variable) => variable.id !== variableId)
+    });
   };
   const updatePlacement = (placementId: string, patch: Partial<PrintLayoutPlacement>) => {
     updatePrintLayout({
@@ -459,11 +588,56 @@ export const PrintLayoutPanel = ({ evaluation }: { evaluation: EvaluationResult 
               <option value="landscape">横</option>
             </select>
           </label>
-          <PrintNumberInput label="横枚数" value={layout.columns} resolvedValue={resolvedLayout.columns} defaultValue={DEFAULT_PRINT_LAYOUT.columns} elements={elements} min={1} step={1} onChange={(columns) => updatePrintLayout({ columns })} />
-          <PrintNumberInput label="縦枚数" value={layout.rows} resolvedValue={resolvedLayout.rows} defaultValue={DEFAULT_PRINT_LAYOUT.rows} elements={elements} min={1} step={1} onChange={(rows) => updatePrintLayout({ rows })} />
-          <PrintNumberInput label="重複 mm" value={layout.overlapMm} resolvedValue={resolvedLayout.overlapMm} defaultValue={DEFAULT_PRINT_LAYOUT.overlapMm} elements={elements} min={0} step={1} onChange={(overlapMm) => updatePrintLayout({ overlapMm })} />
-          <PrintNumberInput label="拡大率" value={layout.scale} resolvedValue={resolvedLayout.scale} defaultValue={DEFAULT_PRINT_LAYOUT.scale} elements={elements} min={0.01} step={0.1} onChange={(scale) => updatePrintLayout({ scale })} />
+          <PrintNumberInput label="横枚数" value={layout.columns} resolvedValue={resolvedLayout.columns} defaultValue={DEFAULT_PRINT_LAYOUT.columns} elements={elements} printVariables={printVariables} min={1} step={1} onChange={(columns) => updatePrintLayout({ columns })} />
+          <PrintNumberInput label="縦枚数" value={layout.rows} resolvedValue={resolvedLayout.rows} defaultValue={DEFAULT_PRINT_LAYOUT.rows} elements={elements} printVariables={printVariables} min={1} step={1} onChange={(rows) => updatePrintLayout({ rows })} />
+          <PrintNumberInput label="重複 mm" value={layout.overlapMm} resolvedValue={resolvedLayout.overlapMm} defaultValue={DEFAULT_PRINT_LAYOUT.overlapMm} elements={elements} printVariables={printVariables} min={0} step={1} onChange={(overlapMm) => updatePrintLayout({ overlapMm })} />
+          <PrintNumberInput label="拡大率" value={layout.scale} resolvedValue={resolvedLayout.scale} defaultValue={DEFAULT_PRINT_LAYOUT.scale} elements={elements} printVariables={printVariables} min={0.01} step={0.1} onChange={(scale) => updatePrintLayout({ scale })} />
         </div>
+      </section>
+
+      <section className="panel-section">
+        <div className="section-header">
+          <div>
+            <h2>印刷変数</h2>
+            <p className="section-subtitle">@名前で印刷設定から参照</p>
+          </div>
+          <button type="button" onClick={addPrintVariable}>追加</button>
+        </div>
+        {printVariables.length === 0 ? (
+          <p className="empty-state">印刷変数はありません。</p>
+        ) : (
+          <div className="print-variable-list">
+            {printVariables.map((variable, index) => (
+              <div className="print-variable-row" key={variable.id}>
+                <div className="curve-point-header">
+                  <span>変数{index + 1}</span>
+                  <button type="button" onClick={() => deletePrintVariable(variable.id)}>
+                    削除
+                  </button>
+                </div>
+                <label className="print-select-field">
+                  <span>名前</span>
+                  <input
+                    type="text"
+                    aria-label="印刷変数名"
+                    value={variable.name}
+                    onChange={(event) => updatePrintVariable(variable.id, { name: event.currentTarget.value })}
+                  />
+                </label>
+                <PrintNumberInput
+                  label="値"
+                  value={variable.value}
+                  resolvedValue={resolvedLayout.numericVariables.find((item) => item.id === variable.id)?.value ?? 30}
+                  defaultValue={30}
+                  elements={elements}
+                  printVariables={printVariables}
+                  step={1}
+                  onChange={(value) => updatePrintVariable(variable.id, { value })}
+                />
+              </div>
+            ))}
+          </div>
+        )}
       </section>
 
       <section className="panel-section">
@@ -577,9 +751,9 @@ export const PrintLayoutPanel = ({ evaluation }: { evaluation: EvaluationResult 
               </select>
             </label>
             <div className="print-settings-grid">
-              <PrintNumberInput label="x mm" value={selectedPlacement.x} resolvedValue={selectedResolvedPlacement?.x ?? 0} defaultValue={Math.round(canvas.widthMm / 2)} elements={elements} step={1} onChange={(x) => updatePlacement(selectedPlacement.id, { x })} />
-              <PrintNumberInput label="y mm" value={selectedPlacement.y} resolvedValue={selectedResolvedPlacement?.y ?? 0} defaultValue={Math.round(canvas.heightMm / 2)} elements={elements} step={1} onChange={(y) => updatePlacement(selectedPlacement.id, { y })} />
-              <PrintNumberInput label="角度" value={selectedPlacement.angleDeg} resolvedValue={selectedResolvedPlacement?.angleDeg ?? 0} defaultValue={0} elements={elements} step={1} onChange={(angleDeg) => updatePlacement(selectedPlacement.id, { angleDeg })} />
+              <PrintNumberInput label="x mm" value={selectedPlacement.x} resolvedValue={selectedResolvedPlacement?.x ?? 0} defaultValue={Math.round(canvas.widthMm / 2)} elements={elements} printVariables={printVariables} step={1} onChange={(x) => updatePlacement(selectedPlacement.id, { x })} />
+              <PrintNumberInput label="y mm" value={selectedPlacement.y} resolvedValue={selectedResolvedPlacement?.y ?? 0} defaultValue={Math.round(canvas.heightMm / 2)} elements={elements} printVariables={printVariables} step={1} onChange={(y) => updatePlacement(selectedPlacement.id, { y })} />
+              <PrintNumberInput label="角度" value={selectedPlacement.angleDeg} resolvedValue={selectedResolvedPlacement?.angleDeg ?? 0} defaultValue={0} elements={elements} printVariables={printVariables} step={1} onChange={(angleDeg) => updatePlacement(selectedPlacement.id, { angleDeg })} />
               <label className="print-toggle-field">
                 <span>左右反転</span>
                 <input

@@ -42,7 +42,8 @@ const resetStore = () => {
     pendingImageImport: null,
     imageImportError: null,
     showCommandPalette: false,
-    canvasViewport: DEFAULT_CANVAS_VIEWPORT
+    canvasViewport: DEFAULT_CANVAS_VIEWPORT,
+    printCanvasViewport: DEFAULT_CANVAS_VIEWPORT
   });
 };
 

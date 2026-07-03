@@ -17,7 +17,8 @@ const resetStore = () => {
     showCommandPalette: false,
     showCanvasElementNames: true,
     showCanvasPoints: true,
-    canvasViewport: DEFAULT_CANVAS_VIEWPORT
+    canvasViewport: DEFAULT_CANVAS_VIEWPORT,
+    printCanvasViewport: DEFAULT_CANVAS_VIEWPORT
   });
 };
 

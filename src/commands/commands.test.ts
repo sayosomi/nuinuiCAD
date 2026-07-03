@@ -38,6 +38,7 @@ describe("commands", () => {
       showSelectionColorPicker: false,
       showCommandPalette: false,
       canvasViewport: DEFAULT_CANVAS_VIEWPORT,
+      printCanvasViewport: DEFAULT_CANVAS_VIEWPORT,
       past: [],
       future: [],
       currentFilePath: null,
@@ -1427,6 +1428,26 @@ describe("commands", () => {
       panY: 5,
       zoom: expect.any(Number)
     });
+  });
+
+  it("zooms the print canvas viewport while the print layout is open", () => {
+    useCadStore.setState({ showPrintLayout: true });
+
+    dispatchCommand("zoomInCanvas");
+
+    expect(useCadStore.getState().canvasViewport).toEqual(DEFAULT_CANVAS_VIEWPORT);
+    expect(useCadStore.getState().printCanvasViewport.zoom).toBeCloseTo(1.1);
+  });
+
+  it("resets the print canvas viewport without changing the drafting canvas viewport", () => {
+    useCadStore.getState().setCanvasViewport({ panX: 12, panY: -8, zoom: 2 });
+    useCadStore.getState().setPrintCanvasViewport({ panX: 20, panY: 10, zoom: 3 });
+    useCadStore.setState({ showPrintLayout: true });
+
+    dispatchCommand("resetCanvasView");
+
+    expect(useCadStore.getState().canvasViewport).toEqual({ panX: 12, panY: -8, zoom: 2 });
+    expect(useCadStore.getState().printCanvasViewport).toEqual(DEFAULT_CANVAS_VIEWPORT);
   });
 
   it("toggles the element info panel and exits dependency jump mode when collapsed", () => {

@@ -64,6 +64,7 @@ const resetStore = () => {
     showSelectionColorPicker: false,
     showCommandPalette: false,
     canvasViewport: DEFAULT_CANVAS_VIEWPORT,
+    printCanvasViewport: DEFAULT_CANVAS_VIEWPORT,
     past: [],
     future: [],
     currentFilePath: null,
