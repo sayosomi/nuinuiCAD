@@ -1862,56 +1862,58 @@ select {
 
 .command-ribbon-command-candidates {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-  gap: 6px;
-  min-height: 0;
-  overflow: auto;
-}
-
-.command-ribbon-command-candidates > div {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 4px;
-  min-width: 0;
-}
-
-.command-ribbon-command-candidates button {
-  display: grid;
+  align-content: start;
   gap: 2px;
-  min-width: 0;
-  border-color: #d2d4cd;
-  background: #fbfbfa;
-  padding: 6px 8px;
-  text-align: left;
+  min-height: 0;
+  max-height: none;
+  overflow: auto;
+  border: 1px solid #d2d4cd;
+  border-radius: 6px;
+  background: #ffffff;
+  padding: 6px;
 }
 
-.command-ribbon-command-candidates > div.selected > button:first-child,
-.command-ribbon-command-candidates button:hover,
-.command-ribbon-icon-grid button.selected,
-.command-ribbon-icon-grid button:hover {
+.command-ribbon-command-candidate-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 34px;
+  gap: 6px;
+  min-width: 0;
+}
+
+.command-ribbon-command-candidate-row .command-palette-item {
+  min-height: 36px;
+  padding: 6px 8px;
+}
+
+.command-ribbon-command-add-button {
+  display: grid;
+  width: 34px;
+  min-width: 34px;
+  height: 34px;
+  padding: 0;
+  place-items: center;
+  border-color: transparent;
+  background: transparent;
+  color: #0f766e;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.command-ribbon-command-add-button:hover {
   border-color: #0f766e;
   background: #e7f4ef;
   color: #0f4f49;
 }
 
-.command-ribbon-command-candidates span,
-.command-ribbon-command-candidates small {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.command-ribbon-command-candidates .command-palette-empty {
+  margin: 8px;
 }
 
-.command-ribbon-command-candidates small {
-  color: #686b62;
-  font-size: 10px;
-}
-
-.command-ribbon-command-candidates p {
-  grid-column: 1 / -1;
-  margin: 0;
-  color: #686b62;
-  font-size: 12px;
+.command-ribbon-icon-grid button.selected,
+.command-ribbon-icon-grid button:hover {
+  border-color: #0f766e;
+  background: #e7f4ef;
+  color: #0f4f49;
 }
 
 .command-ribbon-icon-tools {

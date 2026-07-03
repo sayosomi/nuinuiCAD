@@ -109,6 +109,7 @@ const CommandRibbonSettingsDialogContent = ({
   const [selectedRibbonId, setSelectedRibbonId] = useState(draftSettings.ribbons[0]?.id ?? "");
   const [selectedButtonId, setSelectedButtonId] = useState(draftSettings.ribbons[0]?.buttons[0]?.id ?? "");
   const [commandQuery, setCommandQuery] = useState("");
+  const [selectedCommandIndex, setSelectedCommandIndex] = useState(0);
   const [iconQuery, setIconQuery] = useState("");
   const selectedRibbon =
     draftSettings.ribbons.find((ribbon) => ribbon.id === selectedRibbonId) ??
@@ -124,16 +125,13 @@ const CommandRibbonSettingsDialogContent = ({
     if (!query) return commandPaletteItems;
     return commandPaletteItems.filter((item) => commandSearchText(item.commandId).includes(query));
   }, [commandQuery]);
-  const commandCandidates = selectedButton && !filteredCommands.some((item) => item.commandId === selectedButton.commandId)
-    ? [
-        {
-          commandId: selectedButton.commandId,
-          label: commandLabel(selectedButton.commandId),
-          keywords: []
-        },
-        ...filteredCommands
-      ]
-    : filteredCommands;
+  const commandCandidates = filteredCommands;
+  const visibleCommandCandidates = commandCandidates.slice(0, 24);
+  const clampedCommandIndex = Math.min(
+    selectedCommandIndex,
+    Math.max(visibleCommandCandidates.length - 1, 0)
+  );
+  const selectedCommandCandidate = visibleCommandCandidates[clampedCommandIndex] ?? null;
   const filteredIcons = useMemo(() => {
     const query = iconQuery.trim().toLowerCase();
     if (!query) return commandRibbonIconCatalog;
@@ -427,7 +425,32 @@ const CommandRibbonSettingsDialogContent = ({
                       value={commandQuery}
                       placeholder="コマンドを検索"
                       aria-label="コマンドを検索"
-                      onChange={(event) => setCommandQuery(event.target.value)}
+                      onChange={(event) => {
+                        setCommandQuery(event.target.value);
+                        setSelectedCommandIndex(0);
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === "ArrowDown") {
+                          event.preventDefault();
+                          setSelectedCommandIndex((index) =>
+                            Math.min(index + 1, Math.max(visibleCommandCandidates.length - 1, 0))
+                          );
+                          return;
+                        }
+
+                        if (event.key === "ArrowUp") {
+                          event.preventDefault();
+                          setSelectedCommandIndex((index) => Math.max(index - 1, 0));
+                          return;
+                        }
+
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          if (selectedCommandCandidate) {
+                            applyCommandToSelectedButton(selectedCommandCandidate.commandId);
+                          }
+                        }
+                      }}
                     />
                     <button
                       type="button"
@@ -436,29 +459,38 @@ const CommandRibbonSettingsDialogContent = ({
                       先頭候補を追加
                     </button>
                   </div>
-                  <div className="command-ribbon-command-candidates" aria-label="コマンド候補">
-                    {commandCandidates.length === 0 ? (
-                      <p>該当するコマンドはありません。</p>
+                  <div
+                    className="command-ribbon-command-candidates command-palette-list"
+                    role="listbox"
+                    aria-label="コマンド候補"
+                  >
+                    {visibleCommandCandidates.length === 0 ? (
+                      <p className="command-palette-empty">該当するコマンドはありません。</p>
                     ) : (
-                      commandCandidates.slice(0, 24).map((item) => (
+                      visibleCommandCandidates.map((item, index) => (
                         <div
                           key={item.commandId}
-                          className={item.commandId === selectedButton?.commandId ? "selected" : ""}
+                          className="command-ribbon-command-candidate-row"
+                          onMouseEnter={() => setSelectedCommandIndex(index)}
                         >
                           <button
                             type="button"
+                            className={`command-palette-item ${index === clampedCommandIndex ? "selected" : ""}`}
+                            role="option"
+                            aria-selected={index === clampedCommandIndex}
                             aria-label={`${item.label}を適用`}
                             onClick={() => applyCommandToSelectedButton(item.commandId)}
                           >
                             <span>{item.label}</span>
-                            <small>{item.commandId}</small>
+                            <kbd>{item.commandId}</kbd>
                           </button>
                           <button
                             type="button"
+                            className="command-ribbon-command-add-button"
                             aria-label={`${item.label}を追加`}
                             onClick={() => addButtonForCommand(item.commandId)}
                           >
-                            追加
+                            +
                           </button>
                         </div>
                       ))

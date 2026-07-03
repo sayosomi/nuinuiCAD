@@ -433,7 +433,7 @@ describe("AppLayout command ribbon", () => {
       dispatchCommand("openCommandRibbonSettings");
     });
     fireEvent.change(await view.findByLabelText("コマンドを検索"), { target: { value: "保存" } });
-    fireEvent.click(await view.findByRole("button", { name: "保存を適用" }));
+    fireEvent.click(await view.findByRole("option", { name: "保存を適用" }));
     fireEvent.change(view.getByLabelText("アイコンを検索"), { target: { value: "保存" } });
     fireEvent.click(view.getByRole("button", { name: "保存 アイコン" }));
     fireEvent.change(view.getByLabelText("アイコン色"), { target: { value: "teal" } });
@@ -447,6 +447,52 @@ describe("AppLayout command ribbon", () => {
         commandId: "saveDocument",
         icon: "save",
         iconColor: "teal",
+        label: "保存"
+      });
+    });
+  });
+
+  it("applies a command ribbon command candidate from the keyboard", async () => {
+    const view = render(<AppLayout />);
+    await view.findByRole("button", { name: "作図を移動" });
+
+    act(() => {
+      dispatchCommand("openCommandRibbonSettings");
+    });
+    const commandSearch = await view.findByLabelText("コマンドを検索");
+    fireEvent.change(commandSearch, { target: { value: "保存" } });
+    fireEvent.keyDown(commandSearch, { key: "Enter" });
+    fireEvent.click(view.getByRole("button", { name: "保存" }));
+
+    await waitFor(() => {
+      const settings = JSON.parse(
+        window.localStorage.getItem("nuinuiCAD.commandRibbonSettings.v1") ?? "{}"
+      );
+      expect(settings.ribbons[0].buttons[0]).toMatchObject({
+        commandId: "saveDocument",
+        label: "保存"
+      });
+    });
+  });
+
+  it("adds a command ribbon button from the command candidate add button", async () => {
+    const view = render(<AppLayout />);
+    await view.findByRole("button", { name: "作図を移動" });
+
+    act(() => {
+      dispatchCommand("openCommandRibbonSettings");
+    });
+    fireEvent.change(await view.findByLabelText("コマンドを検索"), { target: { value: "保存" } });
+    fireEvent.click(await view.findByRole("button", { name: "保存を追加" }));
+    fireEvent.click(view.getByRole("button", { name: "保存" }));
+
+    await waitFor(() => {
+      const settings = JSON.parse(
+        window.localStorage.getItem("nuinuiCAD.commandRibbonSettings.v1") ?? "{}"
+      );
+      expect(settings.ribbons[0].buttons).toHaveLength(13);
+      expect(settings.ribbons[0].buttons[12]).toMatchObject({
+        commandId: "saveDocument",
         label: "保存"
       });
     });
