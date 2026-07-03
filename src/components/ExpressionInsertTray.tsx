@@ -4,9 +4,8 @@ import {
   numericReferencePickProperties
 } from "../geometry/numericReferenceProperties";
 import { lineMeasurementLabel } from "../geometry/numericExpressions";
-import { parseVariableParameterKey } from "../parameters/parameterAccess";
+import { availableNumericVariableReferenceOptions } from "../geometry/variableReferenceOptions";
 import type { ParameterKey } from "../parameters/parameterDefinitions";
-import { variableIsInScope } from "../geometry/variableScope";
 import { useCadUiStore } from "../state/cadUiStore";
 import type { MeasurementInsertMode, MeasurementPointSlot } from "../state/cadUiStore";
 import type { CadElement, ElementId, PointAnchor } from "../types/geometry";
@@ -68,46 +67,6 @@ const pointAnchorLabel = (anchor: PointAnchor | null, elements: CadElement[]) =>
   return `座標(${anchor.x}, ${anchor.y})`;
 };
 
-const scopedVariableOptions = ({
-  element,
-  elements,
-  parameterKey
-}: {
-  element: CadElement;
-  elements: CadElement[];
-  parameterKey: ParameterKey;
-}) => {
-  const targetIndex = elements.findIndex((item) => item.id === element.id);
-  const elementsById = new Map(elements.map((item) => [item.id, item]));
-  const options: { expression: string; label: string; detail: string }[] = [];
-
-  const localVariable = parseVariableParameterKey(parameterKey);
-  const localVariables = element.numericVariables ?? [];
-  const localVariableLimit = localVariable
-    ? localVariables.findIndex((variable) => variable.id === localVariable.variableId)
-    : localVariables.length;
-  for (const variable of localVariables.slice(0, Math.max(0, localVariableLimit))) {
-    options.push({
-      expression: `@${variable.id}`,
-      label: `@${variable.name}`,
-      detail: "要素内変数"
-    });
-  }
-
-  for (let index = 0; index < targetIndex; index += 1) {
-    const candidate = elements[index];
-    if (candidate.type !== "variable") continue;
-    if (!variableIsInScope({ variable: candidate, consumer: element, elementsById })) continue;
-    options.push({
-      expression: `@${candidate.id}`,
-      label: `@${candidate.name}`,
-      detail: candidate.scope === "global" ? "全体変数" : "グループ変数"
-    });
-  }
-
-  return options;
-};
-
 export const ExpressionInsertTray = ({
   element,
   elements,
@@ -131,7 +90,7 @@ export const ExpressionInsertTray = ({
     activeNumericReferencePickTarget.mode === "insert";
   const mode = isMeasurementTarget ? activeMeasurementInsertTarget.mode : "distance";
   const variableOptions = useMemo(
-    () => scopedVariableOptions({ element, elements, parameterKey }),
+    () => availableNumericVariableReferenceOptions({ element, elements, parameterKey }),
     [element, elements, parameterKey]
   );
   const visibleVariableOptions = useMemo(() => {

@@ -18,7 +18,6 @@ import {
   pickCandidates,
   resolvedPickCursor
 } from "../model/pickCandidates";
-import { numericReferenceGeometrySupportsProperty } from "../geometry/numericReferenceProperties";
 import { getParameterDefinitions } from "../parameters/parameterDefinitions";
 import { getParameterValue } from "../parameters/parameterAccess";
 import type {
@@ -157,14 +156,7 @@ export const useElementListData = ({
       );
     }
     if (activeNumericReferencePickTarget) {
-      const geometry = numericReferenceGeometry(element.id);
-      return Boolean(
-        geometry &&
-          numericReferenceGeometrySupportsProperty(
-            geometry,
-            activeNumericReferencePickTarget.property
-          )
-      );
+      return candidateByElementId.has(element.id);
     }
     if (activePointPickTarget) {
       return (!isLineEndpointPointPick && isPointElement(element)) || selectablePointOptions(element).length > 0;
@@ -199,14 +191,7 @@ export const useElementListData = ({
       activePointPickTarget &&
       ((!isLineEndpointPointPick && isPointElement(element)) || selectablePoints.length > 0);
     const isNumericReferenceCandidate =
-      Boolean(
-        activeNumericReferencePickTarget &&
-          referenceGeometry &&
-          numericReferenceGeometrySupportsProperty(
-            referenceGeometry,
-            activeNumericReferencePickTarget.property
-          )
-      );
+      Boolean(activeNumericReferencePickTarget && candidateByElementId.has(element.id));
     const isLinePickCandidate =
       Boolean(activeLinePickTarget) &&
       isLineLikeElement(element) &&

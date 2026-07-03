@@ -12,6 +12,7 @@ import {
   numericReferenceGeometrySupportsProperty,
   type NumericReferenceGeometry
 } from "../geometry/numericReferenceProperties";
+import { availableNumericVariableReferenceOptions } from "../geometry/variableReferenceOptions";
 import { lineMeasurementLabel, type NumericMeasurementKey } from "../geometry/numericExpressions";
 import { resolvedElementColorMap } from "../palette/elementColors";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
@@ -365,6 +366,38 @@ export const LeftPanel = ({
     });
     pointerDragClientYRef.current = event.clientY;
   };
+  const applyNumericReference = (
+    geometry: NumericReferenceGeometry,
+    property: NumericMeasurementKey
+  ) => {
+    dispatchCommand("applyPickedNumericReference", {
+      numericReferenceExpression: numericReferenceExpression(geometry, property)
+    });
+  };
+  const applyNumericReferenceForElement = (elementId: ElementId) => {
+    if (!activeNumericReferencePickTarget) return false;
+    const property = activeNumericReferencePickTarget.property;
+    const geometry = numericReferenceGeometry(elementId);
+    if (geometry && numericReferenceGeometrySupportsProperty(geometry, property)) {
+      applyNumericReference(geometry, property);
+      return true;
+    }
+
+    const targetElement = elementsById.get(activeNumericReferencePickTarget.elementId);
+    if (!targetElement) return false;
+    const variableOption = availableNumericVariableReferenceOptions({
+      element: targetElement,
+      elements,
+      parameterKey: activeNumericReferencePickTarget.parameterKey,
+      computedVariables: evaluation.computedVariables
+    }).find((option) => option.elementId === elementId);
+    if (!variableOption) return false;
+
+    dispatchCommand("applyPickedNumericReference", {
+      numericReferenceExpression: variableOption.expression
+    });
+    return true;
+  };
   const selectElement = (elementId: ElementId, event: MouseEvent<HTMLElement>) => {
     if (activeLinePickTarget) {
       const element = elements.find((item) => item.id === elementId);
@@ -392,24 +425,12 @@ export const LeftPanel = ({
       return;
     }
     if (activeNumericReferencePickTarget) {
-      const property = activeNumericReferencePickTarget.property;
-      const geometry = numericReferenceGeometry(elementId);
-      if (geometry && numericReferenceGeometrySupportsProperty(geometry, property)) {
-        applyNumericReference(geometry, property);
-      }
+      applyNumericReferenceForElement(elementId);
       return;
     }
     dispatchCommand("selectElement", {
       elementId,
       selectionMode: event.shiftKey ? "range" : event.metaKey || event.ctrlKey ? "toggle" : "replace"
-    });
-  };
-  const applyNumericReference = (
-    geometry: NumericReferenceGeometry,
-    property: NumericMeasurementKey
-  ) => {
-    dispatchCommand("applyPickedNumericReference", {
-      numericReferenceExpression: numericReferenceExpression(geometry, property)
     });
   };
   const moveSearchCursor = (offset: 1 | -1) => {
@@ -445,11 +466,7 @@ export const LeftPanel = ({
       return;
     }
     if (activeNumericReferencePickTarget) {
-      const geometry = numericReferenceGeometry(element.id);
-      const property = activeNumericReferencePickTarget.property;
-      if (geometry && numericReferenceGeometrySupportsProperty(geometry, property)) {
-        applyNumericReference(geometry, property);
-      }
+      applyNumericReferenceForElement(element.id);
       return;
     }
     dispatchCommand("selectElement", { elementId: element.id });
@@ -623,7 +640,7 @@ export const LeftPanel = ({
               {activePointPickTarget
                 ? "点選択中: 点の行だけ選択できます"
                 : activeNumericReferencePickTarget
-                  ? `数値選択中: ${lineMeasurementLabel(activeNumericReferencePickTarget.property)}を持つ線と曲線だけ選択できます`
+                  ? `数値選択中: ${lineMeasurementLabel(activeNumericReferencePickTarget.property)}を持つ線・曲線または変数を選択できます`
                   : activeLinePickTarget
                     ? "線選択中: 線と曲線の行だけ選択できます"
                 : "gで戻る / Enterで要素設定"}

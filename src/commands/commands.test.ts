@@ -2835,6 +2835,39 @@ describe("commands", () => {
     });
   });
 
+  it("applies an available variable candidate while numeric reference picking", () => {
+    const variable: CadElement = {
+      id: "base-variable",
+      name: "基準寸法",
+      type: "variable",
+      visible: true,
+      enabled: true,
+      scope: "global",
+      valueMode: "expression",
+      expression: 20,
+      point1: { mode: "reference", pointId: "point-a" },
+      point2: { mode: "reference", pointId: "point-b" },
+      point: { mode: "reference", pointId: "point-a" },
+      lineId: "line-ab"
+    };
+    useCadStore.setState({
+      elements: [variable, ...sampleElements],
+      evaluationLimitIndex: sampleElements.length + 1,
+      selectedElementId: "point-a",
+      selectedElementIds: ["point-a"],
+      selectedParameterKey: "x"
+    });
+
+    dispatchCommand("startNumericReferencePick");
+    dispatchCommand("selectNextPickCandidate");
+    dispatchCommand("applySelectedPickCandidate");
+
+    expect(useCadStore.getState().activeNumericReferencePickTarget).toBeNull();
+    expect(useCadStore.getState().elements[1]).toMatchObject({
+      x: { kind: "expression", expression: "@base-variable" }
+    });
+  });
+
   it("toggles the expression insert tray for the selected numeric parameter", () => {
     useCadStore.setState({
       selectedElementId: "point-a",

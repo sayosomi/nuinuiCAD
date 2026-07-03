@@ -19,10 +19,11 @@ import type { CommonEditorProps } from "./parameterEditorShared";
 export const PointElementFields = ({
   element,
   elements,
+  evaluation,
   isParameterEditMode,
   registerParameterControl
 }: CommonEditorProps) => {
-  const commonEditorProps = { element, elements, isParameterEditMode, registerParameterControl };
+  const commonEditorProps = { element, elements, evaluation, isParameterEditMode, registerParameterControl };
   const elementEditorProps = { element, isParameterEditMode, registerParameterControl };
   const numericInput = (props: {
     parameterKey: ParameterKey;

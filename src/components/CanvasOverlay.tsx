@@ -66,7 +66,7 @@ export const CanvasOverlay = ({
     isPointPickActive
       ? undefined
       : {
-          fill: transparentElementColor(elementId, 0.14),
+          fill: "transparent",
           stroke: transparentElementColor(elementId, 0.45)
         };
 
@@ -145,7 +145,7 @@ export const CanvasOverlay = ({
             <circle
               cx={screen.x}
               cy={screen.y}
-              r={point.elementId === selectedElementId ? 8 : isSelected ? 7 : 6}
+              r={point.elementId === selectedElementId ? 5 : isSelected ? 4.5 : 6}
               className={`overlay-draggable-point ${
                 isSelected ? "overlay-selected-point" : ""
               } ${isPointPickActive ? "overlay-point-pick-candidate" : ""}`}

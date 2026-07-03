@@ -11,10 +11,11 @@ import { useParameterEditor } from "./parameterEditorShared";
 export const ForGroupElementFields = ({
   element,
   elements,
+  evaluation,
   isParameterEditMode,
   registerParameterControl
 }: CommonEditorProps) => {
-  const commonEditorProps = { element, elements, isParameterEditMode, registerParameterControl };
+  const commonEditorProps = { element, elements, evaluation, isParameterEditMode, registerParameterControl };
   const elementEditorProps = { element, isParameterEditMode, registerParameterControl };
   const { controlProps, parameterFieldClass, selectParameter, updateParameterValue } =
     useParameterEditor(elementEditorProps);

@@ -153,10 +153,13 @@ const renderPointAndReturnLastPaintStyles = ({
 }) => {
   let currentFillStyle = "";
   let currentStrokeStyle = "";
+  const radii: number[] = [];
   const fillStyles: string[] = [];
   const strokeStyles: string[] = [];
   const ctx = {
-    arc: vi.fn(),
+    arc: vi.fn((_x: number, _y: number, radius: number) => {
+      radii.push(radius);
+    }),
     beginPath: vi.fn(),
     clearRect: vi.fn(),
     fill: vi.fn(() => {
@@ -201,6 +204,7 @@ const renderPointAndReturnLastPaintStyles = ({
 
   return {
     fillStyle: fillStyles.at(-1),
+    radius: radii.at(-1),
     strokeStyle: strokeStyles.at(-1)
   };
 };
@@ -262,7 +266,8 @@ describe("renderCanvasGeometry", () => {
         selectedElementId: "point"
       })
     ).toEqual({
-      fillStyle: "#aa0000",
+      fillStyle: "transparent",
+      radius: 4,
       strokeStyle: "#aa0000"
     });
   });
@@ -277,6 +282,7 @@ describe("renderCanvasGeometry", () => {
       })
     ).toEqual({
       fillStyle: "#f6f7f3",
+      radius: 3.5,
       strokeStyle: "#b7bbb0"
     });
   });

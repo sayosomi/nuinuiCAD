@@ -308,8 +308,9 @@ describe("DrawingCanvas rendering", () => {
     const { container } = renderDrawingCanvas();
     const selectedPoint = container.querySelector(".overlay-selected-point");
 
+    expect(selectedPoint).toHaveAttribute("r", "5");
     expect(selectedPoint).toHaveStyle({
-      fill: "rgb(37 99 235 / 0.14)",
+      fill: "rgba(0, 0, 0, 0)",
       stroke: "rgb(37 99 235 / 0.45)"
     });
   });

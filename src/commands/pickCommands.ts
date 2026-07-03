@@ -418,9 +418,11 @@ export const applySelectedPickCandidate = () => {
     applyPickedLine({ pickedLineId: selected.option.lineId });
     return;
   }
-  applyPickedNumericReference({
-    numericReferenceExpression: selected.option.expression
-  });
+  if (selected.option.kind === "numericReference" || selected.option.kind === "variableReference") {
+    applyPickedNumericReference({
+      numericReferenceExpression: selected.option.expression
+    });
+  }
 };
 
 export const startPointPick = () => {

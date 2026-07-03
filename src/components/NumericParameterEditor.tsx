@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import type { MouseEvent, PointerEvent } from "react";
 import { dispatchCommand } from "../commands/commands";
 import {
@@ -19,9 +19,18 @@ import { formatNumber } from "./geometryDisplay";
 import { numericDragStepsForDelta } from "./numericDrag";
 import { ExpressionInsertTray } from "./ExpressionInsertTray";
 import { isImeComposingKeyEvent } from "./keyboardEventGuards";
+import {
+  NumericVariableSuggestPopover
+} from "./NumericVariableSuggestPopover";
+import {
+  filteredNumericVariableSuggestions,
+  numericVariableSuggestionMatch,
+  replaceNumericVariableSuggestionToken
+} from "./numericVariableSuggestion";
 import { ParameterName } from "./ParameterName";
 import type { CommonEditorProps } from "./parameterEditorShared";
 import { useParameterEditor } from "./parameterEditorShared";
+import { availableNumericVariableReferenceOptions } from "../geometry/variableReferenceOptions";
 
 type NumericDragState = {
   parameterKey: ParameterKey;
@@ -48,6 +57,7 @@ const numericValuesEqual = (left: NumericValue, right: NumericValue) => {
 export const NumericParameterEditor = ({
   element,
   elements,
+  evaluation,
   isParameterEditMode,
   registerParameterControl,
   parameterKey,
@@ -68,7 +78,9 @@ export const NumericParameterEditor = ({
 }) => {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const inputSelectionRef = useRef<{ start: number; end: number } | null>(null);
+  const [inputSelection, setInputSelection] = useState<{ start: number; end: number } | null>(null);
   const [numericDrag, setNumericDrag] = useState<NumericDragState | null>(null);
+  const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(0);
   const activeNumericReferencePickTarget = useCadUiStore((state) => state.activeNumericReferencePickTarget);
   const activeExpressionInsertTarget = useCadUiStore((state) => state.activeExpressionInsertTarget);
   const {
@@ -107,6 +119,30 @@ export const NumericParameterEditor = ({
       ? numericValuesEqual(draft.baseValue, value)
       : numericValuesEqual(numericValueFromInput(draft.value), value));
   const inputValue = shouldUseDraftValue ? draft.value : displayValue;
+  const variableOptions = useMemo(
+    () =>
+      availableNumericVariableReferenceOptions({
+        element,
+        elements,
+        parameterKey,
+        computedVariables: evaluation?.computedVariables.size
+          ? evaluation.computedVariables
+          : undefined
+      }),
+    [element, elements, evaluation, parameterKey]
+  );
+  const suggestionMatch = numericVariableSuggestionMatch(
+    inputValue,
+    inputSelection?.start ?? null,
+    inputSelection?.end ?? null
+  );
+  const visibleSuggestions = suggestionMatch
+    ? filteredNumericVariableSuggestions(variableOptions, suggestionMatch.query)
+    : [];
+  const selectedSuggestionIndex =
+    visibleSuggestions.length === 0
+      ? 0
+      : Math.min(activeSuggestionIndex, visibleSuggestions.length - 1);
 
   const updateField = (field: ParameterKey, nextValue: string) => {
     setDraft({ value: nextValue, baseValue: value });
@@ -118,10 +154,12 @@ export const NumericParameterEditor = ({
     if (draft.value.trim().length === 0) {
       setDraft(null);
       inputSelectionRef.current = null;
+      setInputSelection(null);
       return;
     }
     setDraft(null);
     inputSelectionRef.current = null;
+    setInputSelection(null);
   };
   const updateStep = (field: ParameterKey, nextValue: string) => {
     const nextStep = Number(nextValue);
@@ -192,10 +230,29 @@ export const NumericParameterEditor = ({
   const rememberInputSelection = () => {
     const inputElement = inputRef.current;
     if (!inputElement || document.activeElement !== inputElement) return;
-    inputSelectionRef.current = {
+    const nextSelection = {
       start: inputElement.selectionStart ?? inputElement.value.length,
       end: inputElement.selectionEnd ?? inputElement.selectionStart ?? inputElement.value.length
     };
+    inputSelectionRef.current = nextSelection;
+    setInputSelection(nextSelection);
+  };
+  const applyVariableSuggestion = (option = visibleSuggestions[selectedSuggestionIndex]) => {
+    if (!suggestionMatch || !option) return;
+    const nextValue = replaceNumericVariableSuggestionToken(
+      inputValue,
+      suggestionMatch,
+      option.expression
+    );
+    const nextSelection = suggestionMatch.tokenStart + option.expression.length;
+    const nextInputSelection = { start: nextSelection, end: nextSelection };
+    inputSelectionRef.current = nextInputSelection;
+    setInputSelection(nextInputSelection);
+    updateField(parameterKey, nextValue);
+    requestAnimationFrame(() => {
+      inputRef.current?.focus();
+      inputRef.current?.setSelectionRange(nextSelection, nextSelection);
+    });
   };
   const input = (
     <input
@@ -212,32 +269,73 @@ export const NumericParameterEditor = ({
       data-numeric-parameter-key={parameterKey}
       data-numeric-element-id={element.id}
       value={inputValue}
-      onChange={(event) => updateField(parameterKey, event.target.value)}
+      aria-autocomplete={visibleSuggestions.length > 0 ? "list" : undefined}
+      aria-expanded={visibleSuggestions.length > 0 ? true : undefined}
+      onChange={(event) => {
+        const nextInputSelection = {
+          start: event.target.selectionStart ?? event.target.value.length,
+          end: event.target.selectionEnd ?? event.target.selectionStart ?? event.target.value.length
+        };
+        inputSelectionRef.current = nextInputSelection;
+        setInputSelection(nextInputSelection);
+        setActiveSuggestionIndex(0);
+        updateField(parameterKey, event.target.value);
+      }}
       onSelect={rememberInputSelection}
       onKeyUp={rememberInputSelection}
       onMouseUp={rememberInputSelection}
       onFocus={() => {
         selectParameter(parameterKey);
         inputSelectionRef.current = null;
+        setInputSelection(null);
       }}
       onKeyDown={(event) => {
         if (event.key === "Enter" && isImeComposingKeyEvent(event)) return;
+        if (visibleSuggestions.length > 0) {
+          if (event.key === "ArrowDown") {
+            event.preventDefault();
+            setActiveSuggestionIndex((index) => (index + 1) % visibleSuggestions.length);
+            return;
+          }
+          if (event.key === "ArrowUp") {
+            event.preventDefault();
+            setActiveSuggestionIndex(
+              (index) => (index - 1 + visibleSuggestions.length) % visibleSuggestions.length
+            );
+            return;
+          }
+          if (event.key === "Enter" || event.key === "Tab") {
+            event.preventDefault();
+            applyVariableSuggestion();
+            return;
+          }
+        }
         if (event.key === "Enter" && draft?.value.trim().length === 0) {
           event.preventDefault();
           updateParameterValue(parameterKey, emptyInputDefaultValue);
           setDraft(null);
           inputSelectionRef.current = null;
+          setInputSelection(null);
           event.currentTarget.blur();
         }
         if (event.key === "Escape") {
           setDraft(null);
           inputSelectionRef.current = null;
+          setInputSelection(null);
           event.currentTarget.blur();
         }
       }}
       onBlur={finishEditingField}
     />
   );
+  const variableSuggestPopover = visibleSuggestions.length > 0 ? (
+    <NumericVariableSuggestPopover
+      options={visibleSuggestions}
+      activeIndex={selectedSuggestionIndex}
+      onHover={setActiveSuggestionIndex}
+      onApply={applyVariableSuggestion}
+    />
+  ) : null;
   const stepControl = (
     <span className="parameter-step">
       増減単位
@@ -260,6 +358,7 @@ export const NumericParameterEditor = ({
       <label className={parameterFieldClass(parameterKey)} onClick={() => selectParameter(parameterKey)}>
         <ParameterName element={element} parameterKey={parameterKey} label={label} />
         {input}
+        {variableSuggestPopover}
         {showStepControl ? stepControl : null}
       </label>
     );
@@ -311,6 +410,7 @@ export const NumericParameterEditor = ({
         </div>
       </div>
       {input}
+      {variableSuggestPopover}
       {enableExpressionInsert && isExpressionInsertOpen ? (
         <ExpressionInsertTray
           element={element}

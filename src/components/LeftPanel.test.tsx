@@ -708,6 +708,50 @@ describe("LeftPanel numeric input dragging", () => {
     expect(screen.getByLabelText("変数式")).toHaveValue("直線AB.長さ + @base-variable");
   });
 
+  it("suggests available variables when typing @ in a numeric input", () => {
+    const baseVariable: CadElement = {
+      id: "base-variable",
+      name: "基準寸法",
+      type: "variable",
+      visible: true,
+      enabled: true,
+      scope: "global",
+      valueMode: "expression",
+      expression: 20,
+      point1: { mode: "reference", pointId: "point-a" },
+      point2: { mode: "reference", pointId: "point-b" },
+      point: { mode: "reference", pointId: "point-a" },
+      lineId: "line-ab"
+    };
+    const variable: CadElement = {
+      ...baseVariable,
+      id: "variable",
+      name: "変数",
+      expression: 0
+    };
+    const elements = [...sampleElements, baseVariable, variable];
+    useCadStore.setState({
+      elements,
+      evaluationLimitIndex: elements.length,
+      selectedElementId: "variable",
+      selectedElementIds: ["variable"],
+      selectedParameterKey: "expression"
+    });
+    renderRightPanel(evaluateElements(elements));
+
+    const input = screen.getByLabelText("変数式") as HTMLInputElement;
+    fireEvent.change(input, {
+      target: { value: "@", selectionStart: 1, selectionEnd: 1 }
+    });
+
+    fireEvent.click(screen.getByRole("option", { name: /@基準寸法/ }));
+
+    expect(useCadStore.getState().elements.at(-1)).toMatchObject({
+      expression: { kind: "expression", expression: "@base-variable" }
+    });
+    expect(input).toHaveValue("@base-variable");
+  });
+
   it("inserts conditional comparison and logical operators from the expression tray", () => {
     const conditionalGroup: CadElement = {
       id: "if",
@@ -1935,6 +1979,48 @@ describe("LeftPanel element list dragging", () => {
     expect(useCadStore.getState().activeNumericReferencePickTarget).toBeNull();
     expect(useCadStore.getState().elements[0]).toMatchObject({
       x: { kind: "expression", expression: "line-ab.length" }
+    });
+  });
+
+  it("shows variable candidates in the element list while numeric reference picking", () => {
+    const variable: CadElement = {
+      id: "base-variable",
+      name: "基準寸法",
+      type: "variable",
+      visible: true,
+      enabled: true,
+      scope: "global",
+      valueMode: "expression",
+      expression: 20,
+      point1: { mode: "reference", pointId: "point-a" },
+      point2: { mode: "reference", pointId: "point-b" },
+      point: { mode: "reference", pointId: "point-a" },
+      lineId: "line-ab"
+    };
+    const elements = [variable, ...sampleElements];
+    useCadStore.setState({
+      elements,
+      evaluationLimitIndex: elements.length,
+      selectedElementId: "point-a",
+      selectedElementIds: ["point-a"],
+      selectedParameterKey: "x",
+      activeNumericReferencePickTarget: {
+        elementId: "point-a",
+        parameterKey: "x",
+        mode: "replace",
+        property: "length"
+      }
+    });
+    renderLeftPanel(evaluateElements(elements));
+
+    const variableRow = screen.getByText("基準寸法").closest("[data-element-list-row='true']");
+    expect(variableRow).toHaveClass("is-numeric-reference-pick-candidate");
+
+    fireEvent.click(variableRow!);
+
+    expect(useCadStore.getState().activeNumericReferencePickTarget).toBeNull();
+    expect(useCadStore.getState().elements[1]).toMatchObject({
+      x: { kind: "expression", expression: "@base-variable" }
     });
   });
 

@@ -70,6 +70,7 @@ export const RightPanel = ({
         <ElementEditor
           element={selectedElement}
           elements={elements}
+          evaluation={evaluation}
           isParameterEditMode={isParameterEditMode}
           registerParameterControl={registerParameterControl}
         />

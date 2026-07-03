@@ -1,4 +1,4 @@
-import type { CadElement } from "../types/geometry";
+import type { CadElement, EvaluationResult } from "../types/geometry";
 import { elementTypeLabels } from "../types/geometry";
 import { ElementCommonFields } from "./ElementCommonFields";
 import { ElementSpecificFields } from "./ElementSpecificFields";
@@ -6,15 +6,17 @@ import { ElementSpecificFields } from "./ElementSpecificFields";
 export const ElementEditor = ({
   element,
   elements,
+  evaluation,
   isParameterEditMode,
   registerParameterControl
 }: {
   element: CadElement;
   elements: CadElement[];
+  evaluation?: EvaluationResult;
   isParameterEditMode: boolean;
   registerParameterControl: (key: string, element: HTMLElement | null) => void;
 }) => {
-  const editorProps = { element, elements, isParameterEditMode, registerParameterControl };
+  const editorProps = { element, elements, evaluation, isParameterEditMode, registerParameterControl };
 
   return (
     <section className="panel-section">

@@ -70,12 +70,13 @@ const VariableChoiceCards = ({
 export const VariableElementFields = ({
   element,
   elements,
+  evaluation,
   isParameterEditMode,
   registerParameterControl
 }: CommonEditorProps) => {
   if (element.type !== "variable") return null;
 
-  const commonEditorProps = { element, elements, isParameterEditMode, registerParameterControl };
+  const commonEditorProps = { element, elements, evaluation, isParameterEditMode, registerParameterControl };
   const elementEditorProps = { element, isParameterEditMode, registerParameterControl };
   const numericInput = (props: {
     parameterKey: ParameterKey;

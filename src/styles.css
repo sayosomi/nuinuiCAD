@@ -2143,6 +2143,7 @@ select {
   border: 1px solid transparent;
   border-radius: 6px;
   padding: 5px;
+  position: relative;
 }
 
 .parameter-field.selected-parameter {
@@ -2190,6 +2191,7 @@ select {
 .numeric-parameter-editor {
   grid-column: 1 / -1;
   gap: 7px;
+  position: relative;
   background: #fbfbfa;
 }
 
@@ -2197,6 +2199,56 @@ select {
   border-color: #0f766e;
   background: #f0faf6;
   box-shadow: inset 3px 0 0 #0f766e;
+}
+
+.numeric-variable-suggest-popover {
+  display: grid;
+  gap: 2px;
+  position: absolute;
+  z-index: 30;
+  left: 0;
+  right: 0;
+  top: calc(100% - 2px);
+  padding: 4px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #ffffff;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.16);
+}
+
+.parameter-field > .numeric-variable-suggest-popover {
+  top: calc(100% + 2px);
+}
+
+.numeric-variable-suggest-popover button {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 6px 7px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: #1f2937;
+  text-align: left;
+}
+
+.numeric-variable-suggest-popover button:hover,
+.numeric-variable-suggest-popover button.active-suggestion {
+  background: #ecfdf5;
+}
+
+.numeric-variable-suggest-popover strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.numeric-variable-suggest-popover small {
+  flex: 0 0 auto;
+  color: #64748b;
 }
 
 .numeric-parameter-header,
@@ -3034,7 +3086,7 @@ select {
 }
 
 .drawing-overlay .overlay-selected-point {
-  fill: rgb(15 118 110 / 14%);
+  fill: transparent;
   stroke: rgb(15 118 110 / 45%);
   stroke-width: 2;
 }

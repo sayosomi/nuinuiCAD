@@ -17,6 +17,7 @@ import type { CommonEditorProps } from "./parameterEditorShared";
 export const ElementCommonFields = ({
   element,
   elements,
+  evaluation,
   isParameterEditMode,
   registerParameterControl
 }: CommonEditorProps) => {
@@ -24,7 +25,7 @@ export const ElementCommonFields = ({
   const renameElement = useCadDocumentStore((state) => state.renameElement);
   const selectedParameterKey = useCadDocumentStore((state) => state.selectedParameterKey);
   const setSelectedParameterKey = useCadDocumentStore((state) => state.setSelectedParameterKey);
-  const commonEditorProps = { element, elements, isParameterEditMode, registerParameterControl };
+  const commonEditorProps = { element, elements, evaluation, isParameterEditMode, registerParameterControl };
   const elementEditorProps = { element, isParameterEditMode, registerParameterControl };
 
   const commitName = (name: string) => renameElement(element.id, name);

@@ -12,6 +12,7 @@ import { useParameterEditor } from "./parameterEditorShared";
 export const PointAnchorParameterEditor = ({
   element,
   elements,
+  evaluation,
   isParameterEditMode,
   registerParameterControl,
   parameterKey,
@@ -33,7 +34,7 @@ export const PointAnchorParameterEditor = ({
   const isPickingThisPoint =
     activePointPickTarget?.elementId === element.id &&
     activePointPickTarget.parameterKey === parameterKey;
-  const numericProps = { element, elements, isParameterEditMode, registerParameterControl };
+  const numericProps = { element, elements, evaluation, isParameterEditMode, registerParameterControl };
   const definition = getParameterDefinitions(element).find((parameter) => parameter.key === parameterKey);
   const canUseCoordinate = definition?.allowCoordinate ?? allowCoordinate;
   const commandContext = { elementId: element.id, parameterKey };

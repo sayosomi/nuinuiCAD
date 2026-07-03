@@ -3,6 +3,10 @@ import {
   numericReferenceGeometrySupportsProperty,
   type NumericReferenceGeometry
 } from "../geometry/numericReferenceProperties";
+import {
+  availableNumericVariableReferenceOptions,
+  isVariableReferenceCandidate
+} from "../geometry/variableReferenceOptions";
 import { getParameterDefinitions } from "../parameters/parameterDefinitions";
 import { getParameterValue } from "../parameters/parameterAccess";
 import type {
@@ -41,6 +45,11 @@ export type PickOption =
       kind: "numericReference";
       label: string;
       property: NumericMeasurementKey;
+      expression: string;
+    }
+  | {
+      kind: "variableReference";
+      label: string;
       expression: string;
     };
 
@@ -147,12 +156,13 @@ const numericReferenceCandidates = (
   elements: CadElement[],
   evaluation: EvaluationResult,
   activeNumericReferencePickTarget: ActiveNumericReferencePickTarget
-): PickCandidate[] =>
-  elements
+): PickCandidate[] => {
+  const targetElement = elements.find((element) => element.id === activeNumericReferencePickTarget.elementId);
+  return elements
     .map((element) => {
       const geometry = numericReferenceGeometry(evaluation.computedGeometry.get(element.id));
       const property = activeNumericReferencePickTarget.property;
-      const options =
+      const options: PickOption[] =
         geometry && numericReferenceGeometrySupportsProperty(geometry, property)
           ? [
               {
@@ -163,9 +173,28 @@ const numericReferenceCandidates = (
               }
             ]
           : [];
+      if (
+        targetElement &&
+        isVariableReferenceCandidate(element, targetElement, elements, evaluation.computedVariables)
+      ) {
+        const option = availableNumericVariableReferenceOptions({
+          element: targetElement,
+          elements,
+          parameterKey: activeNumericReferencePickTarget.parameterKey,
+          computedVariables: evaluation.computedVariables
+        }).find((candidate) => candidate.elementId === element.id);
+        if (option) {
+          options.push({
+            kind: "variableReference",
+            label: option.label,
+            expression: option.expression
+          });
+        }
+      }
       return { elementId: element.id, options };
     })
     .filter((candidate) => candidate.options.length > 0);
+};
 
 export const pickCandidates = (
   elements: CadElement[],

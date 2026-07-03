@@ -2,13 +2,14 @@ import type { KeyboardEvent } from "react";
 import type { ParameterKey } from "../parameters/parameterDefinitions";
 import { setParameterValue } from "../parameters/parameterAccess";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
-import type { CadElement } from "../types/geometry";
+import type { CadElement, EvaluationResult } from "../types/geometry";
 
 export type RegisterParameterControl = (key: string, element: HTMLElement | null) => void;
 
 export type CommonEditorProps = {
   element: CadElement;
   elements: CadElement[];
+  evaluation?: EvaluationResult;
   isParameterEditMode: boolean;
   registerParameterControl: RegisterParameterControl;
 };

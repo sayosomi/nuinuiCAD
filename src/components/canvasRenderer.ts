@@ -346,9 +346,9 @@ export const renderCanvasGeometry = ({
           : isLinePickActive
             ? 3.5
             : isPrimarySelected
-              ? 5.5
+              ? 4
               : isSelected
-                ? 5
+                ? 3.75
                 : 4,
       0,
       Math.PI * 2
@@ -358,7 +358,7 @@ export const renderCanvasGeometry = ({
       : isNumericReferencePickActive || isLinePickActive
         ? "#f6f7f3"
         : isSelected
-          ? pointColor
+          ? "transparent"
           : "#ffffff";
     ctx.strokeStyle = isPointPickActive
       ? "#0f766e"
