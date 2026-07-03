@@ -353,6 +353,15 @@ describe("shortcuts", () => {
     ).toBeNull();
   });
 
+  it("keeps native text editing shortcuts available from inputs", () => {
+    const input = document.createElement("input");
+
+    for (const key of ["c", "v", "x", "a"]) {
+      expect(commandIdForKeyboardEvent(keyboardEventFrom(key, input, { metaKey: true }))).toBeNull();
+      expect(commandIdForKeyboardEvent(keyboardEventFrom(key, input, { ctrlKey: true }))).toBeNull();
+    }
+  });
+
   it("ignores events from editable form targets", () => {
     const textarea = document.createElement("textarea");
     const select = document.createElement("select");

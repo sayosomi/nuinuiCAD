@@ -37,6 +37,14 @@ enum NativeSpec {
     Fullscreen,
     #[cfg(target_os = "macos")]
     CloseWindow,
+    #[cfg(target_os = "macos")]
+    Cut,
+    #[cfg(target_os = "macos")]
+    Copy,
+    #[cfg(target_os = "macos")]
+    Paste,
+    #[cfg(target_os = "macos")]
+    SelectAll,
 }
 
 #[derive(Clone, Copy)]
@@ -60,6 +68,8 @@ const fn native(item: NativeSpec) -> MenuSpec {
 
 const SEP: MenuSpec = MenuSpec::Separator;
 const CAD_ACTION_MENU_TITLE: &str = "操作";
+#[cfg(target_os = "macos")]
+const NATIVE_EDIT_MENU_TITLE: &str = "編集";
 
 #[cfg(target_os = "macos")]
 const APP_ITEMS: &[MenuSpec] = &[
@@ -85,6 +95,14 @@ const FILE_ITEMS: &[MenuSpec] = &[
     SEP,
     cmd("exportPrintSvg", "SVGを書き出す...", None),
     cmd("exportPrintPdf", "印刷用PDFを書き出す...", None),
+];
+
+#[cfg(target_os = "macos")]
+const NATIVE_EDIT_ITEMS: &[MenuSpec] = &[
+    native(NativeSpec::Cut),
+    native(NativeSpec::Copy),
+    native(NativeSpec::Paste),
+    native(NativeSpec::SelectAll),
 ];
 
 const EDIT_ITEMS: &[MenuSpec] = &[
@@ -288,6 +306,14 @@ fn add_item<'a>(
             NativeSpec::Fullscreen => builder.fullscreen(),
             #[cfg(target_os = "macos")]
             NativeSpec::CloseWindow => builder.close_window(),
+            #[cfg(target_os = "macos")]
+            NativeSpec::Cut => builder.cut(),
+            #[cfg(target_os = "macos")]
+            NativeSpec::Copy => builder.copy(),
+            #[cfg(target_os = "macos")]
+            NativeSpec::Paste => builder.paste(),
+            #[cfg(target_os = "macos")]
+            NativeSpec::SelectAll => builder.select_all(),
         }),
         MenuSpec::Separator => Ok(builder.separator()),
     }
@@ -314,8 +340,16 @@ pub fn build_app_menu(app: &AppHandle<Wry>) -> tauri::Result<AppMenu> {
         builder = builder.item(&app_menu);
     }
 
+    let file_menu = build_submenu(app, "ファイル", FILE_ITEMS)?;
+    builder = builder.item(&file_menu);
+
+    #[cfg(target_os = "macos")]
+    {
+        let edit_menu = build_submenu(app, NATIVE_EDIT_MENU_TITLE, NATIVE_EDIT_ITEMS)?;
+        builder = builder.item(&edit_menu);
+    }
+
     for (title, items) in [
-        ("ファイル", FILE_ITEMS),
         (CAD_ACTION_MENU_TITLE, EDIT_ITEMS),
         ("作図", DRAW_ITEMS),
         ("表示", VIEW_ITEMS),
@@ -337,6 +371,8 @@ pub fn build_app_menu(app: &AppHandle<Wry>) -> tauri::Result<AppMenu> {
 #[cfg(test)]
 mod tests {
     use super::{command_id_from_menu_id, MenuSpec, NativeSpec, CAD_ACTION_MENU_TITLE, EDIT_ITEMS};
+    #[cfg(target_os = "macos")]
+    use super::{NATIVE_EDIT_ITEMS, NATIVE_EDIT_MENU_TITLE};
 
     #[test]
     fn extracts_command_id_from_menu_id() {
@@ -351,20 +387,8 @@ mod tests {
     #[test]
     fn edit_menu_contains_only_cad_commands_and_separators() {
         for item in EDIT_ITEMS {
-            if let MenuSpec::Native(native_item) = item {
-                match native_item {
-                    #[cfg(target_os = "macos")]
-                    NativeSpec::About
-                    | NativeSpec::Hide
-                    | NativeSpec::HideOthers
-                    | NativeSpec::ShowAll
-                    | NativeSpec::Quit
-                    | NativeSpec::Minimize
-                    | NativeSpec::Fullscreen
-                    | NativeSpec::CloseWindow => {
-                        panic!("edit menu should not contain native macOS items")
-                    }
-                }
+            if let MenuSpec::Native(_) = item {
+                panic!("CAD action menu should not contain native macOS edit items")
             }
         }
     }
@@ -372,5 +396,24 @@ mod tests {
     #[test]
     fn cad_action_menu_does_not_use_the_standard_edit_title() {
         assert_eq!(CAD_ACTION_MENU_TITLE, "操作");
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn native_edit_menu_contains_text_editing_items() {
+        assert_eq!(NATIVE_EDIT_MENU_TITLE, "編集");
+
+        let native_items = NATIVE_EDIT_ITEMS
+            .iter()
+            .map(|item| match item {
+                MenuSpec::Native(native_item) => *native_item,
+                _ => panic!("native edit menu should contain only native menu items"),
+            })
+            .collect::<Vec<_>>();
+
+        assert!(matches!(native_items[0], NativeSpec::Cut));
+        assert!(matches!(native_items[1], NativeSpec::Copy));
+        assert!(matches!(native_items[2], NativeSpec::Paste));
+        assert!(matches!(native_items[3], NativeSpec::SelectAll));
     }
 }
