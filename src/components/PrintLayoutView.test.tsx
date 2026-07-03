@@ -150,7 +150,25 @@ describe("PrintLayoutPanel", () => {
     expect(scaleInput).toHaveValue("@倍率");
   });
 
+  it("shows only PDF-specific settings for PDF layouts", () => {
+    renderPanel();
+
+    expect(screen.getByLabelText("出力形式")).toHaveValue("pdf");
+    expect(screen.getByLabelText("用紙")).toBeInTheDocument();
+    expect(screen.getByLabelText("横枚数")).toBeInTheDocument();
+    expect(screen.getByLabelText("縦枚数")).toBeInTheDocument();
+    expect(screen.getByLabelText("重複 mm")).toBeInTheDocument();
+    expect(screen.queryByLabelText("SVG幅 mm")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("SVG高さ mm")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "PDF" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "SVG" })).not.toBeInTheDocument();
+  });
+
   it("edits the SVG canvas size for the active print layout", () => {
+    useCadDocumentStore.setState({
+      printLayouts: [{ ...DEFAULT_PRINT_LAYOUT, outputKind: "svg" }],
+      printLayout: { ...DEFAULT_PRINT_LAYOUT, outputKind: "svg" }
+    });
     renderPanel();
 
     fireEvent.change(screen.getByLabelText("SVG幅 mm"), {
@@ -164,6 +182,24 @@ describe("PrintLayoutPanel", () => {
       svgCanvasWidthMm: 500,
       svgCanvasHeightMm: 700
     });
+  });
+
+  it("switches visible settings when the output format changes", () => {
+    renderPanel();
+
+    fireEvent.change(screen.getByLabelText("出力形式"), {
+      target: { value: "svg" }
+    });
+
+    expect(useCadDocumentStore.getState().printLayout.outputKind).toBe("svg");
+    expect(screen.getByLabelText("SVG幅 mm")).toBeInTheDocument();
+    expect(screen.getByLabelText("SVG高さ mm")).toBeInTheDocument();
+    expect(screen.queryByLabelText("用紙")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("横枚数")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("縦枚数")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("重複 mm")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "SVG" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "PDF" })).not.toBeInTheDocument();
   });
 
   it("adds print-local variables and prefers them in print number expressions", () => {

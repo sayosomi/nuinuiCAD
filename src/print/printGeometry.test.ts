@@ -103,6 +103,7 @@ const layout = (patch: Partial<PrintLayout> = {}): PrintLayout => {
   return {
     id: "print-layout-1",
     name: "",
+    outputKind: "pdf",
     paperSizeId: "a4",
     orientation: "portrait",
     columns: 1,

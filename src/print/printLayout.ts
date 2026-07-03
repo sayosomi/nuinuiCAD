@@ -69,6 +69,7 @@ export const orientedPaperSize = ({
 export const DEFAULT_PRINT_LAYOUT: PrintLayout = {
   id: "print-layout-1",
   name: "",
+  outputKind: "pdf",
   paperSizeId: "a4",
   orientation: "portrait",
   columns: 2,
@@ -162,6 +163,7 @@ export const normalizePrintLayout = (
     ? value.id
     : DEFAULT_PRINT_LAYOUT.id;
   const name = typeof value.name === "string" ? value.name : "";
+  const outputKind = value.outputKind === "svg" ? "svg" : "pdf";
   const paperSizeId = PAPER_SIZES.some((paperSize) => paperSize.id === value.paperSizeId)
     ? value.paperSizeId as PaperSizeId
     : DEFAULT_PRINT_LAYOUT.paperSizeId;
@@ -180,6 +182,7 @@ export const normalizePrintLayout = (
   return {
     id,
     name,
+    outputKind,
     paperSizeId,
     orientation,
     columns: normalizeNumericValue(value.columns, DEFAULT_PRINT_LAYOUT.columns),
@@ -359,6 +362,7 @@ export const resolvePrintLayout = ({
   return {
     id: layout.id,
     name: layout.name,
+    outputKind: layout.outputKind,
     paperSizeId: layout.paperSizeId,
     orientation: layout.orientation,
     columns,

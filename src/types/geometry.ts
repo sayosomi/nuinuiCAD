@@ -25,6 +25,8 @@ export type DocumentPalette = {
 
 export type PaperSizeId = "a4" | "a3" | "b5" | "b4" | "letter" | "legal";
 
+export type PrintLayoutOutputKind = "pdf" | "svg";
+
 export type PrintLayoutPlacement = {
   id: string;
   groupId: ElementId;
@@ -37,6 +39,7 @@ export type PrintLayoutPlacement = {
 export type PrintLayout = {
   id: string;
   name: string;
+  outputKind: PrintLayoutOutputKind;
   paperSizeId: PaperSizeId;
   orientation: "portrait" | "landscape";
   columns: NumericValue;

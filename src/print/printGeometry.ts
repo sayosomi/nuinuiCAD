@@ -293,7 +293,9 @@ export const defaultPlacementForGroup = (
   groupId: ElementId,
   layout: ResolvedPrintLayout
 ) => {
-  const canvas = printCanvasSizeMm(layout);
+  const canvas = layout.outputKind === "svg"
+    ? { widthMm: layout.svgCanvasWidthMm, heightMm: layout.svgCanvasHeightMm }
+    : printCanvasSizeMm(layout);
   let index = layout.placements.length + 1;
   const existingIds = new Set(layout.placements.map((placement) => placement.id));
   while (existingIds.has(`placement-${index}`)) {

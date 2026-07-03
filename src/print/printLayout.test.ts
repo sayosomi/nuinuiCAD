@@ -54,6 +54,7 @@ describe("printLayout", () => {
       ]
     }, elements);
 
+    expect(layout.outputKind).toBe("pdf");
     expect(layout.columns).toBe(3);
     expect(layout.scale).toEqual({ kind: "expression", expression: "@scale-var" });
     expect(layout.svgCanvasWidthMm).toEqual({ kind: "expression", expression: "@scale-var * 100" });
@@ -69,6 +70,15 @@ describe("printLayout", () => {
       y: 20,
       angleDeg: 15
     });
+  });
+
+  it("normalizes SVG print layout output kind", () => {
+    const layout = normalizePrintLayout({
+      ...DEFAULT_PRINT_LAYOUT,
+      outputKind: "svg"
+    }, elements);
+
+    expect(layout.outputKind).toBe("svg");
   });
 
   it("resolves print layout expressions with global variables and clamps page counts", () => {
