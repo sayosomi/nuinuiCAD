@@ -5,6 +5,10 @@ import { getFirstParameterKey } from "../parameters/parameterDefinitions";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import type { CadElement, CadElementType } from "../types/geometry";
 import { getSelectedElementIds, isLineLikeElement, isPointLikeElement } from "./commandRuntime";
+import {
+  enterCreatedElementNameEntry,
+  type FocusSelectedParameterInput
+} from "./nameEntryAfterCreation";
 
 const creationContext = () => {
   const { elements, evaluationLimitIndex } = useCadDocumentStore.getState();
@@ -19,7 +23,12 @@ const creationContext = () => {
 const createElement = (type: CadElementType, elements: CadElement[], referenceElements: CadElement[]) =>
   createCadElement(type, elements, { referenceElements });
 
-const commitCreatedElement = (element: CadElement, elements: CadElement[], insertionIndex: number) => {
+const commitCreatedElement = (
+  element: CadElement,
+  elements: CadElement[],
+  insertionIndex: number,
+  focusSelectedParameterInput?: FocusSelectedParameterInput
+) => {
   useCadDocumentStore.getState().commitDocumentChange({
     elements: [
       ...elements.slice(0, insertionIndex),
@@ -32,15 +41,19 @@ const commitCreatedElement = (element: CadElement, elements: CadElement[], inser
     selectionAnchorElementId: element.id,
     selectedParameterKey: getFirstParameterKey(element)
   });
+  enterCreatedElementNameEntry(focusSelectedParameterInput);
 };
 
-export const addElement = (type: CadElementType) => {
+export const addElement = (
+  type: CadElementType,
+  focusSelectedParameterInput?: FocusSelectedParameterInput
+) => {
   const { elements, insertionIndex, referenceElements } = creationContext();
   const element = createElement(type, elements, referenceElements);
-  commitCreatedElement(element, elements, insertionIndex);
+  commitCreatedElement(element, elements, insertionIndex, focusSelectedParameterInput);
 };
 
-export const addOffsetLine = () => {
+export const addOffsetLine = (focusSelectedParameterInput?: FocusSelectedParameterInput) => {
   const { elements, insertionIndex, referenceElements } = creationContext();
   const selectedIds = new Set(getSelectedElementIds());
   const selectedBaseLineIds = referenceElements
@@ -57,10 +70,10 @@ export const addOffsetLine = () => {
         ? [fallbackBaseLineId]
         : []
   };
-  commitCreatedElement(offsetLine, elements, insertionIndex);
+  commitCreatedElement(offsetLine, elements, insertionIndex, focusSelectedParameterInput);
 };
 
-export const addSplitLine = () => {
+export const addSplitLine = (focusSelectedParameterInput?: FocusSelectedParameterInput) => {
   const { elements, insertionIndex, referenceElements } = creationContext();
   const selectedIds = new Set(getSelectedElementIds());
   const selectedLine = referenceElements.find((element) => selectedIds.has(element.id) && isLineLikeElement(element));
@@ -74,7 +87,7 @@ export const addSplitLine = () => {
     baseLineId: fallbackLine?.id ?? "",
     splitPoint: referenceAnchor(fallbackPoint?.id ?? "")
   };
-  commitCreatedElement(splitLine, elements, insertionIndex);
+  commitCreatedElement(splitLine, elements, insertionIndex, focusSelectedParameterInput);
 };
 
 const selectedOrFallbackLineIds = (elements: CadElement[]) => {
@@ -99,7 +112,10 @@ const selectedOrFallbackPointPair = (elements: CadElement[]) => {
   return { firstPoint, secondPoint };
 };
 
-const addCopyLikeElement = (type: "copyLine" | "move") => {
+const addCopyLikeElement = (
+  type: "copyLine" | "move",
+  focusSelectedParameterInput?: FocusSelectedParameterInput
+) => {
   const { elements, insertionIndex, referenceElements } = creationContext();
   const { firstPoint: startPoint, secondPoint: endPoint } = selectedOrFallbackPointPair(referenceElements);
   const element = createElement(type, elements, referenceElements);
@@ -110,14 +126,19 @@ const addCopyLikeElement = (type: "copyLine" | "move") => {
     endPoint: referenceAnchor(endPoint?.id ?? ""),
     baseLineIds: selectedOrFallbackLineIds(referenceElements)
   };
-  commitCreatedElement(copyLine, elements, insertionIndex);
+  commitCreatedElement(copyLine, elements, insertionIndex, focusSelectedParameterInput);
 };
 
-export const addCopyLine = () => addCopyLikeElement("copyLine");
+export const addCopyLine = (focusSelectedParameterInput?: FocusSelectedParameterInput) =>
+  addCopyLikeElement("copyLine", focusSelectedParameterInput);
 
-export const addMove = () => addCopyLikeElement("move");
+export const addMove = (focusSelectedParameterInput?: FocusSelectedParameterInput) =>
+  addCopyLikeElement("move", focusSelectedParameterInput);
 
-const addSymmetricCopyLikeElement = (type: "symmetricCopyLine" | "symmetricMove") => {
+const addSymmetricCopyLikeElement = (
+  type: "symmetricCopyLine" | "symmetricMove",
+  focusSelectedParameterInput?: FocusSelectedParameterInput
+) => {
   const { elements, insertionIndex, referenceElements } = creationContext();
   const { firstPoint: axisPoint1, secondPoint: axisPoint2 } = selectedOrFallbackPointPair(referenceElements);
   const element = createElement(type, elements, referenceElements);
@@ -128,14 +149,16 @@ const addSymmetricCopyLikeElement = (type: "symmetricCopyLine" | "symmetricMove"
     axisPoint2: referenceAnchor(axisPoint2?.id ?? ""),
     baseLineIds: selectedOrFallbackLineIds(referenceElements)
   };
-  commitCreatedElement(symmetricCopyLine, elements, insertionIndex);
+  commitCreatedElement(symmetricCopyLine, elements, insertionIndex, focusSelectedParameterInput);
 };
 
-export const addSymmetricCopyLine = () => addSymmetricCopyLikeElement("symmetricCopyLine");
+export const addSymmetricCopyLine = (focusSelectedParameterInput?: FocusSelectedParameterInput) =>
+  addSymmetricCopyLikeElement("symmetricCopyLine", focusSelectedParameterInput);
 
-export const addSymmetricMove = () => addSymmetricCopyLikeElement("symmetricMove");
+export const addSymmetricMove = (focusSelectedParameterInput?: FocusSelectedParameterInput) =>
+  addSymmetricCopyLikeElement("symmetricMove", focusSelectedParameterInput);
 
-export const addLineDivisionPoint = () => {
+export const addLineDivisionPoint = (focusSelectedParameterInput?: FocusSelectedParameterInput) => {
   const { elements, insertionIndex, referenceElements } = creationContext();
   const selectedIds = new Set(getSelectedElementIds());
   const selectedLine = referenceElements.find((element) => selectedIds.has(element.id) && isLineLikeElement(element));
@@ -149,10 +172,10 @@ export const addLineDivisionPoint = () => {
       endpointKey: "start"
     }
   };
-  commitCreatedElement(lineDivisionPoint, elements, insertionIndex);
+  commitCreatedElement(lineDivisionPoint, elements, insertionIndex, focusSelectedParameterInput);
 };
 
-export const addIntersectionPoint = () => {
+export const addIntersectionPoint = (focusSelectedParameterInput?: FocusSelectedParameterInput) => {
   const { elements, insertionIndex, referenceElements } = creationContext();
   const selectedIds = new Set(getSelectedElementIds());
   const selectedLines = referenceElements
@@ -171,10 +194,10 @@ export const addIntersectionPoint = () => {
     line1Id,
     line2Id
   };
-  commitCreatedElement(intersectionPoint, elements, insertionIndex);
+  commitCreatedElement(intersectionPoint, elements, insertionIndex, focusSelectedParameterInput);
 };
 
-export const addCornerRadiusArcLine = () => {
+export const addCornerRadiusArcLine = (focusSelectedParameterInput?: FocusSelectedParameterInput) => {
   const { elements, insertionIndex, referenceElements } = creationContext();
   const selectedIds = new Set(getSelectedElementIds());
   const selectedLines = referenceElements
@@ -199,10 +222,10 @@ export const addCornerRadiusArcLine = () => {
       endpointKey: "start"
     }
   };
-  commitCreatedElement(arc, elements, insertionIndex);
+  commitCreatedElement(arc, elements, insertionIndex, focusSelectedParameterInput);
 };
 
-export const addEdge = () => {
+export const addEdge = (focusSelectedParameterInput?: FocusSelectedParameterInput) => {
   const { elements, insertionIndex, referenceElements } = creationContext();
   const selectedIds = new Set(getSelectedElementIds());
   const selectedLines = referenceElements
@@ -227,10 +250,10 @@ export const addEdge = () => {
       endpointKey: "start"
     }
   };
-  commitCreatedElement(edge, elements, insertionIndex);
+  commitCreatedElement(edge, elements, insertionIndex, focusSelectedParameterInput);
 };
 
-export const addExtendTrim = () => {
+export const addExtendTrim = (focusSelectedParameterInput?: FocusSelectedParameterInput) => {
   const { elements, insertionIndex, referenceElements } = creationContext();
   const selectedIds = new Set(getSelectedElementIds());
   const selectedLine = referenceElements.find((element) => selectedIds.has(element.id) && isLineLikeElement(element));
@@ -247,10 +270,12 @@ export const addExtendTrim = () => {
     },
     point: referenceAnchor(fallbackPoint?.id ?? "")
   };
-  commitCreatedElement(extendTrim, elements, insertionIndex);
+  commitCreatedElement(extendTrim, elements, insertionIndex, focusSelectedParameterInput);
 };
 
-export const addLineTangentOffsetPoint = () => {
+export const addLineTangentOffsetPoint = (
+  focusSelectedParameterInput?: FocusSelectedParameterInput
+) => {
   const { elements, insertionIndex, referenceElements } = creationContext();
   const selectedIds = new Set(getSelectedElementIds());
   const selectedLine = referenceElements.find((element) => selectedIds.has(element.id) && isLineLikeElement(element));
@@ -268,5 +293,5 @@ export const addLineTangentOffsetPoint = () => {
         ? derivedAnchor(fallbackLine.id, "start")
         : referenceAnchor(fallbackPoint?.id ?? "")
   };
-  commitCreatedElement(point, elements, insertionIndex);
+  commitCreatedElement(point, elements, insertionIndex, focusSelectedParameterInput);
 };

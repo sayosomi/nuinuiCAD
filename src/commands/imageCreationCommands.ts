@@ -10,6 +10,10 @@ import { getFirstParameterKey } from "../parameters/parameterDefinitions";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
 import type { CadElement } from "../types/geometry";
+import {
+  enterCreatedElementNameEntry,
+  type FocusSelectedParameterInput
+} from "./nameEntryAfterCreation";
 
 type ImageMetadata = {
   widthPx: number;
@@ -77,7 +81,12 @@ const creationContext = () => {
   };
 };
 
-const commitCreatedImage = (element: CadElement, elements: CadElement[], insertionIndex: number) => {
+const commitCreatedImage = (
+  element: CadElement,
+  elements: CadElement[],
+  insertionIndex: number,
+  focusSelectedParameterInput?: FocusSelectedParameterInput
+) => {
   useCadDocumentStore.getState().commitDocumentChange({
     elements: [
       ...elements.slice(0, insertionIndex),
@@ -90,6 +99,7 @@ const commitCreatedImage = (element: CadElement, elements: CadElement[], inserti
     selectionAnchorElementId: element.id,
     selectedParameterKey: getFirstParameterKey(element)
   });
+  enterCreatedElementNameEntry(focusSelectedParameterInput);
 };
 
 export const commitPendingImageImport = ({
@@ -106,7 +116,7 @@ export const commitPendingImageImport = ({
   naturalHeightPx: number;
   sourceDpi: number;
   targetPixelsPerMm: number;
-}) => {
+}, focusSelectedParameterInput?: FocusSelectedParameterInput) => {
   const { elements, insertionIndex, referenceElements } = creationContext();
   const element = createCadElement("image", elements, { referenceElements });
   if (element.type !== "image") return;
@@ -126,7 +136,7 @@ export const commitPendingImageImport = ({
     targetPixelsPerMm,
     scale: initialImageScale(sourceDpi, targetPixelsPerMm)
   };
-  commitCreatedImage(imageElement, elements, insertionIndex);
+  commitCreatedImage(imageElement, elements, insertionIndex, focusSelectedParameterInput);
 };
 
 const metadataErrorMessage = (error: unknown) =>

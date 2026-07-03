@@ -25,6 +25,10 @@ import { useCadUiStore } from "../state/cadUiStore";
 import type { CadElement, ElementId } from "../types/geometry";
 import type { CommandContext } from "./commandTypes";
 import { getSelectedElement, getSelectedElementIds } from "./commandRuntime";
+import {
+  enterCreatedElementNameEntry,
+  type FocusSelectedParameterInput
+} from "./nameEntryAfterCreation";
 
 export const toggleSelectedElementsBooleanProperty = (property: "visible" | "enabled") => {
   const { elements } = useCadDocumentStore.getState();
@@ -269,9 +273,10 @@ const hasSelectedAncestor = (
   return false;
 };
 
-export const groupSelectedElements = () => {
-  const { elements, evaluationLimitIndex, selectedElementId, selectedElementIds } =
-    useCadDocumentStore.getState();
+export const groupSelectedElements = (
+  focusSelectedParameterInput?: FocusSelectedParameterInput
+) => {
+  const { elements, evaluationLimitIndex } = useCadDocumentStore.getState();
   const selectedIds = new Set(getSelectedElementIds());
   if (selectedIds.size === 0) return;
 
@@ -308,12 +313,12 @@ export const groupSelectedElements = () => {
       insertionIndex: firstIndex,
       insertedCount: 1
     }),
-    selectedElementId: selectedElementId && selectedElementIds.includes(selectedElementId)
-      ? selectedElementId
-      : group.id,
-    selectedElementIds: selectedTopLevelElements.map((element) => element.id),
-    selectionAnchorElementId: selectedTopLevelElements[0].id
+    selectedElementId: group.id,
+    selectedElementIds: [group.id],
+    selectionAnchorElementId: group.id,
+    selectedParameterKey: "name"
   });
+  enterCreatedElementNameEntry(focusSelectedParameterInput);
 };
 
 export const ungroupSelectedGroup = () => {

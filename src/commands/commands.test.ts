@@ -366,6 +366,8 @@ describe("commands", () => {
     expect(state.elements[2]).toMatchObject({ type: "freePoint" });
     expect(state.evaluationLimitIndex).toBe(3);
     expect(state.selectedElementId).toBe(state.elements[2].id);
+    expect(state.selectedParameterKey).toBe("name");
+    expect(state.isParameterEditMode).toBe(true);
   });
 
   it("moves the evaluation divider by command", () => {
@@ -395,6 +397,13 @@ describe("commands", () => {
     expect(group).toMatchObject({ type: "group", expanded: true });
     expect(grouped[2]).toMatchObject({ id: sampleElements[1].id, parentGroupId: group.id });
     expect(grouped[3]).toMatchObject({ id: sampleElements[2].id, parentGroupId: group.id });
+    expect(useCadStore.getState()).toMatchObject({
+      selectedElementId: group.id,
+      selectedElementIds: [group.id],
+      selectionAnchorElementId: group.id,
+      selectedParameterKey: "name",
+      isParameterEditMode: true
+    });
 
     dispatchCommand("selectElement", { elementId: group.id });
     dispatchCommand("ungroupSelectedGroup");
@@ -424,6 +433,7 @@ describe("commands", () => {
     expect(state.evaluationLimitIndex).toBe(3);
     expect(state.selectedElementId).toBe(state.elements[2].id);
     expect(state.selectedParameterKey).toBe("name");
+    expect(state.isParameterEditMode).toBe(true);
   });
 
   it("wraps selected elements in a conditional group and assigns them to then", () => {
@@ -448,6 +458,13 @@ describe("commands", () => {
       parentGroupId: group.id,
       conditionalBranch: "then"
     });
+    expect(state).toMatchObject({
+      selectedElementId: group.id,
+      selectedElementIds: [group.id],
+      selectionAnchorElementId: group.id,
+      selectedParameterKey: "name",
+      isParameterEditMode: true
+    });
   });
 
   it("adds a for group above the evaluation divider", () => {
@@ -471,6 +488,8 @@ describe("commands", () => {
     });
     expect(state.evaluationLimitIndex).toBe(3);
     expect(state.selectedElementId).toBe(state.elements[2].id);
+    expect(state.selectedParameterKey).toBe("name");
+    expect(state.isParameterEditMode).toBe(true);
   });
 
   it("wraps selected elements in a for group", () => {
@@ -492,6 +511,13 @@ describe("commands", () => {
     expect(state.elements[3]).toMatchObject({
       id: sampleElements[2].id,
       parentGroupId: group.id
+    });
+    expect(state).toMatchObject({
+      selectedElementId: group.id,
+      selectedElementIds: [group.id],
+      selectionAnchorElementId: group.id,
+      selectedParameterKey: "name",
+      isParameterEditMode: true
     });
   });
 
@@ -1169,6 +1195,8 @@ describe("commands", () => {
     expect(state.elements).toHaveLength(sampleElements.length + 1);
     expect(state.elements.at(-1)?.type).toBe("freePoint");
     expect(state.selectedElementId).toBe(state.elements.at(-1)?.id);
+    expect(state.selectedParameterKey).toBe("name");
+    expect(state.isParameterEditMode).toBe(true);
   });
 
   it("adds a Bezier curve and selects it", () => {

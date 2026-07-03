@@ -5,6 +5,10 @@ import { getFirstParameterKey } from "../parameters/parameterDefinitions";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import type { CadElement, ElementId } from "../types/geometry";
 import { getSelectedElement, getSelectedElementIds } from "./commandRuntime";
+import {
+  enterCreatedElementNameEntry,
+  type FocusSelectedParameterInput
+} from "./nameEntryAfterCreation";
 
 const hasSelectedAncestor = (
   element: CadElement,
@@ -19,7 +23,9 @@ const hasSelectedAncestor = (
   return false;
 };
 
-export const addConditionalGroup = () => {
+export const addConditionalGroup = (
+  focusSelectedParameterInput?: FocusSelectedParameterInput
+) => {
   const { elements, evaluationLimitIndex } = useCadDocumentStore.getState();
   const insertionIndex = Math.min(Math.max(evaluationLimitIndex, 0), elements.length);
   const group = createCadElement("conditionalGroup", elements);
@@ -36,11 +42,13 @@ export const addConditionalGroup = () => {
     selectionAnchorElementId: group.id,
     selectedParameterKey: getFirstParameterKey(group)
   });
+  enterCreatedElementNameEntry(focusSelectedParameterInput);
 };
 
-export const wrapSelectedElementsInConditionalGroup = () => {
-  const { elements, evaluationLimitIndex, selectedElementId, selectedElementIds } =
-    useCadDocumentStore.getState();
+export const wrapSelectedElementsInConditionalGroup = (
+  focusSelectedParameterInput?: FocusSelectedParameterInput
+) => {
+  const { elements, evaluationLimitIndex } = useCadDocumentStore.getState();
   const selectedIds = new Set(getSelectedElementIds());
   if (selectedIds.size === 0) return;
 
@@ -77,12 +85,12 @@ export const wrapSelectedElementsInConditionalGroup = () => {
       insertionIndex: firstIndex,
       insertedCount: 1
     }),
-    selectedElementId: selectedElementId && selectedElementIds.includes(selectedElementId)
-      ? selectedElementId
-      : group.id,
-    selectedElementIds: selectedTopLevelElements.map((element) => element.id),
-    selectionAnchorElementId: selectedTopLevelElements[0].id
+    selectedElementId: group.id,
+    selectedElementIds: [group.id],
+    selectionAnchorElementId: group.id,
+    selectedParameterKey: "name"
   });
+  enterCreatedElementNameEntry(focusSelectedParameterInput);
 };
 
 export const addElseBranchToSelectedConditionalGroup = () => {

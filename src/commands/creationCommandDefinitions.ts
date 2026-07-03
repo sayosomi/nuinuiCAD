@@ -27,25 +27,25 @@ export const creationCommandDefinitions = {
     id: "addFreePoint",
     label: "free point を追加",
     palette: { order: 1, keywords: ["point", "free", "free point", "点", "追加"] },
-    run: () => addElement("freePoint")
+    run: (context) => addElement("freePoint", context?.focusSelectedParameterInput)
   },
   addVariable: {
     id: "addVariable",
     label: "変数を追加",
     palette: { order: 21.5, keywords: ["variable", "global", "local", "変数", "グローバル", "ローカル", "追加"] },
-    run: () => addElement("variable")
+    run: (context) => addElement("variable", context?.focusSelectedParameterInput)
   },
   addOffsetPoint: {
     id: "addOffsetPoint",
     label: "offset point を追加",
     palette: { order: 2, keywords: ["offset", "offset point", "オフセット", "点", "追加"] },
-    run: () => addElement("offsetPoint")
+    run: (context) => addElement("offsetPoint", context?.focusSelectedParameterInput)
   },
   addPolarOffsetPoint: {
     id: "addPolarOffsetPoint",
     label: "polar offset point を追加",
     palette: { order: 3, keywords: ["polar", "angle", "distance", "角度", "距離", "点", "追加"] },
-    run: () => addElement("polarOffsetPoint")
+    run: (context) => addElement("polarOffsetPoint", context?.focusSelectedParameterInput)
   },
   addDivisionPoint: {
     id: "addDivisionPoint",
@@ -66,7 +66,7 @@ export const creationCommandDefinitions = {
         "追加"
       ]
     },
-    run: () => addElement("divisionPoint")
+    run: (context) => addElement("divisionPoint", context?.focusSelectedParameterInput)
   },
   addLineDivisionPoint: {
     id: "addLineDivisionPoint",
@@ -88,14 +88,14 @@ export const creationCommandDefinitions = {
         "追加"
       ]
     },
-    run: () => addLineDivisionPoint()
+    run: (context) => addLineDivisionPoint(context?.focusSelectedParameterInput)
   },
   addIntersectionPoint: {
     id: "addIntersectionPoint",
     label: "交点を追加",
     palette: { order: 6, keywords: ["intersection", "cross", "line", "交点", "交差", "線", "点", "追加"] },
     shortcuts: [{ keys: "x" }],
-    run: () => addIntersectionPoint()
+    run: (context) => addIntersectionPoint(context?.focusSelectedParameterInput)
   },
   addLineTangentOffsetPoint: {
     id: "addLineTangentOffsetPoint",
@@ -104,19 +104,19 @@ export const creationCommandDefinitions = {
       order: 7,
       keywords: ["line", "tangent", "offset", "angle", "distance", "線上", "オフセット", "接線", "角度", "距離", "点", "追加"]
     },
-    run: () => addLineTangentOffsetPoint()
+    run: (context) => addLineTangentOffsetPoint(context?.focusSelectedParameterInput)
   },
   addLine: {
     id: "addLine",
     label: "line を追加",
     palette: { order: 8, keywords: ["line", "直線", "線", "追加"] },
-    run: () => addElement("line")
+    run: (context) => addElement("line", context?.focusSelectedParameterInput)
   },
   addArcLine: {
     id: "addArcLine",
     label: "円弧線を追加",
     palette: { order: 9, keywords: ["arc", "arc line", "radius", "円弧", "円弧線", "半径", "線", "追加"] },
-    run: () => addElement("arcLine")
+    run: (context) => addElement("arcLine", context?.focusSelectedParameterInput)
   },
   addThreePointArcLine: {
     id: "addThreePointArcLine",
@@ -135,65 +135,65 @@ export const creationCommandDefinitions = {
         "追加"
       ]
     },
-    run: () => addElement("threePointArcLine")
+    run: (context) => addElement("threePointArcLine", context?.focusSelectedParameterInput)
   },
   addCornerRadiusArcLine: {
     id: "addCornerRadiusArcLine",
     label: "角R円弧線を追加",
     palette: { order: 11, keywords: ["corner", "radius", "fillet", "arc", "角R", "角丸", "円弧", "線", "追加"] },
     shortcuts: [{ keys: "Shift+R" }],
-    run: () => addCornerRadiusArcLine()
+    run: (context) => addCornerRadiusArcLine(context?.focusSelectedParameterInput)
   },
   addEdge: {
     id: "addEdge",
     label: "エッジを追加",
     palette: { order: 12, keywords: ["edge", "extend", "trim", "corner", "エッジ", "延長", "短縮", "接続", "変更", "追加"] },
-    run: () => addEdge()
+    run: (context) => addEdge(context?.focusSelectedParameterInput)
   },
   addExtendTrim: {
     id: "addExtendTrim",
     label: "延長短縮を追加",
     palette: { order: 13, keywords: ["extend", "trim", "line", "endpoint", "延長", "短縮", "端点", "変更", "追加"] },
-    run: () => addExtendTrim()
+    run: (context) => addExtendTrim(context?.focusSelectedParameterInput)
   },
   addBezierCurve: {
     id: "addBezierCurve",
     label: "Bezier curve を追加",
     palette: { order: 14, keywords: ["bezier", "curve", "曲線", "ベジェ", "追加"] },
     shortcuts: [{ keys: "c", label: "曲線を追加" }],
-    run: () => addElement("bezierCurve")
+    run: (context) => addElement("bezierCurve", context?.focusSelectedParameterInput)
   },
   addOffsetLine: {
     id: "addOffsetLine",
     label: "オフセット線を追加",
     palette: { order: 15, keywords: ["offset", "line", "curve", "オフセット", "線", "曲線", "追加"] },
     shortcuts: [{ keys: "Shift+O" }],
-    run: () => addOffsetLine()
+    run: (context) => addOffsetLine(context?.focusSelectedParameterInput)
   },
   addCopyLine: {
     id: "addCopyLine",
     label: "コピー線を追加",
     palette: { order: 16, keywords: ["copy", "line", "curve", "コピー", "複写", "線", "曲線", "追加"] },
     shortcuts: [{ keys: "Shift+C" }],
-    run: () => addCopyLine()
+    run: (context) => addCopyLine(context?.focusSelectedParameterInput)
   },
   addSymmetricCopyLine: {
     id: "addSymmetricCopyLine",
     label: "対称コピー線を追加",
     palette: { order: 17, keywords: ["symmetric", "mirror", "copy", "line", "対称", "反転", "コピー", "線", "追加"] },
-    run: () => addSymmetricCopyLine()
+    run: (context) => addSymmetricCopyLine(context?.focusSelectedParameterInput)
   },
   addMove: {
     id: "addMove",
     label: "移動を追加",
     palette: { order: 18, keywords: ["move", "translate", "line", "curve", "移動", "変更", "線", "曲線", "追加"] },
-    run: () => addMove()
+    run: (context) => addMove(context?.focusSelectedParameterInput)
   },
   addSymmetricMove: {
     id: "addSymmetricMove",
     label: "対称移動を追加",
     palette: { order: 19, keywords: ["symmetric", "mirror", "move", "line", "対称", "反転", "移動", "変更", "線", "追加"] },
-    run: () => addSymmetricMove()
+    run: (context) => addSymmetricMove(context?.focusSelectedParameterInput)
   },
   addImage: {
     id: "addImage",
@@ -207,7 +207,7 @@ export const creationCommandDefinitions = {
     id: "addSplitLine",
     label: "分割線を追加",
     palette: { order: 20, keywords: ["split", "divide", "line", "分割", "分割線", "線", "追加"] },
-    run: () => addSplitLine()
+    run: (context) => addSplitLine(context?.focusSelectedParameterInput)
   },
   addNumericVariable: {
     id: "addNumericVariable",

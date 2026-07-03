@@ -79,7 +79,11 @@ export const AppLayout = () => {
     focusSelectedParameterInput: () => {
       const selectedKey = useCadDocumentStore.getState().selectedParameterKey;
       if (!selectedKey) return;
-      parameterInputRefs.current.get(selectedKey)?.focus();
+      const input = parameterInputRefs.current.get(selectedKey);
+      input?.focus();
+      if (input instanceof HTMLInputElement || input instanceof HTMLTextAreaElement) {
+        input.select();
+      }
     },
     evaluation
   }), [evaluation]);
@@ -342,7 +346,7 @@ export const AppLayout = () => {
       <PaletteSettingsDialog />
       <GroupTemplateLibraryDialog />
       <SelectionColorPickerDialog />
-      <ImageImportDialog />
+      <ImageImportDialog focusSelectedParameterInput={commandContext.focusSelectedParameterInput} />
       <ShortcutSettingsDialog />
       <CommandRibbonSettingsDialog />
     </main>

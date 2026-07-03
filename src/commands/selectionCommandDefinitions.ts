@@ -185,21 +185,21 @@ export const selectionCommandDefinitions = {
     label: "選択要素をグループ化",
     palette: { order: 34, keywords: ["group", "folder", "グループ", "まとめる"] },
     shortcuts: [{ keys: "Mod+G" }],
-    run: () => groupSelectedElements()
+    run: (context) => groupSelectedElements(context?.focusSelectedParameterInput)
   },
   addConditionalGroup: {
     id: "addConditionalGroup",
     label: "ifブロックを追加",
     palette: { order: 34.2, keywords: ["if", "condition", "conditional", "条件", "分岐", "追加"] },
     shortcuts: [{ keys: "Alt+I" }],
-    run: () => addConditionalGroup()
+    run: (context) => addConditionalGroup(context?.focusSelectedParameterInput)
   },
   wrapSelectedElementsInConditionalGroup: {
     id: "wrapSelectedElementsInConditionalGroup",
     label: "選択範囲をifで囲む",
     palette: { order: 34.4, keywords: ["if", "wrap", "condition", "条件", "分岐", "囲む"] },
     shortcuts: [{ keys: "Shift+Alt+I" }],
-    run: () => wrapSelectedElementsInConditionalGroup()
+    run: (context) => wrapSelectedElementsInConditionalGroup(context?.focusSelectedParameterInput)
   },
   addElseBranchToSelectedConditionalGroup: {
     id: "addElseBranchToSelectedConditionalGroup",
@@ -218,14 +218,14 @@ export const selectionCommandDefinitions = {
     label: "forブロックを追加",
     palette: { order: 34.9, keywords: ["for", "loop", "repeat", "繰り返し", "追加"] },
     shortcuts: [{ keys: "Alt+F" }],
-    run: () => addForGroup()
+    run: (context) => addForGroup(context?.focusSelectedParameterInput)
   },
   wrapSelectedElementsInForGroup: {
     id: "wrapSelectedElementsInForGroup",
     label: "選択範囲をforで囲む",
     palette: { order: 34.95, keywords: ["for", "loop", "wrap", "繰り返し", "囲む"] },
     shortcuts: [{ keys: "Shift+Alt+F" }],
-    run: () => wrapSelectedElementsInForGroup()
+    run: (context) => wrapSelectedElementsInForGroup(context?.focusSelectedParameterInput)
   },
   toggleSelectedForGroupGenerated: {
     id: "toggleSelectedForGroupGenerated",
