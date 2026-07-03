@@ -37,6 +37,7 @@ describe("printLayout", () => {
       ...DEFAULT_PRINT_LAYOUT,
       columns: "3",
       scale: { kind: "expression", expression: "@scale-var" },
+      svgCanvasWidthMm: "@scale-var * 100",
       numericVariables: [
         { id: "print-variable-1", name: "余白", value: "@scale-var * 10" },
         { id: "broken-variable", name: 12, value: 10 }
@@ -55,6 +56,7 @@ describe("printLayout", () => {
 
     expect(layout.columns).toBe(3);
     expect(layout.scale).toEqual({ kind: "expression", expression: "@scale-var" });
+    expect(layout.svgCanvasWidthMm).toEqual({ kind: "expression", expression: "@scale-var * 100" });
     expect(layout.numericVariables).toEqual([
       {
         id: "print-variable-1",
@@ -74,6 +76,8 @@ describe("printLayout", () => {
       ...DEFAULT_PRINT_LAYOUT,
       columns: { kind: "expression", expression: "30" },
       scale: { kind: "expression", expression: "@scale-var" },
+      svgCanvasWidthMm: { kind: "expression", expression: "@scale-var * 100" },
+      svgCanvasHeightMm: { kind: "expression", expression: "-20" },
       placements: [
         {
           id: "placement-1",
@@ -94,6 +98,8 @@ describe("printLayout", () => {
 
     expect(resolved.columns).toBe(20);
     expect(resolved.scale).toBe(1.5);
+    expect(resolved.svgCanvasWidthMm).toBe(150);
+    expect(resolved.svgCanvasHeightMm).toBe(1);
     expect(resolved.placements[0].x).toBe(15);
   });
 

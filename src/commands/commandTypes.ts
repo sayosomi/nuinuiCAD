@@ -14,6 +14,7 @@ export type CommandId =
   | "openDocument"
   | "saveDocument"
   | "saveDocumentAs"
+  | "exportPrintSvg"
   | "exportPrintPdf"
   | "undo"
   | "redo"

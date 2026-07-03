@@ -150,6 +150,22 @@ describe("PrintLayoutPanel", () => {
     expect(scaleInput).toHaveValue("@倍率");
   });
 
+  it("edits the SVG canvas size for the active print layout", () => {
+    renderPanel();
+
+    fireEvent.change(screen.getByLabelText("SVG幅 mm"), {
+      target: { value: "500" }
+    });
+    fireEvent.change(screen.getByLabelText("SVG高さ mm"), {
+      target: { value: "700" }
+    });
+
+    expect(useCadDocumentStore.getState().printLayout).toMatchObject({
+      svgCanvasWidthMm: 500,
+      svgCanvasHeightMm: 700
+    });
+  });
+
   it("adds print-local variables and prefers them in print number expressions", () => {
     renderPanel();
     const variableSection = screen.getByRole("heading", { name: "印刷変数" }).closest("section");

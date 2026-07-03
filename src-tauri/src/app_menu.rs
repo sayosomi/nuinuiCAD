@@ -83,6 +83,7 @@ const FILE_ITEMS: &[MenuSpec] = &[
         Some("CmdOrCtrl+Shift+S"),
     ),
     SEP,
+    cmd("exportPrintSvg", "SVGを書き出す...", None),
     cmd("exportPrintPdf", "印刷用PDFを書き出す...", None),
 ];
 

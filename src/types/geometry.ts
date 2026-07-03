@@ -43,6 +43,8 @@ export type PrintLayout = {
   rows: NumericValue;
   overlapMm: NumericValue;
   scale: NumericValue;
+  svgCanvasWidthMm: NumericValue;
+  svgCanvasHeightMm: NumericValue;
   numericVariables?: NumericVariable[];
   placements: PrintLayoutPlacement[];
 };

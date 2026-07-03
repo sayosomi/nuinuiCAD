@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { MouseEvent, PointerEvent, RefObject, WheelEvent as ReactWheelEvent } from "react";
-import { Copy, FileText, Plus, Trash2 } from "lucide-react";
+import { Copy, FileCode, FileText, Plus, Trash2 } from "lucide-react";
 import { dispatchCommand } from "../commands/commands";
 import { formatNumber } from "./geometryDisplay";
 import {
@@ -194,7 +194,11 @@ export const PrintLayoutCanvas = ({ evaluation, canvasFocusRef }: PrintLayoutCan
     [elements, evaluation, layout]
   );
   const paper = orientedPaperSize(resolvedLayout);
-  const canvas = printCanvasSizeMm(resolvedLayout);
+  const printCanvas = printCanvasSizeMm(resolvedLayout);
+  const canvas = {
+    widthMm: Math.max(printCanvas.widthMm, resolvedLayout.svgCanvasWidthMm),
+    heightMm: Math.max(printCanvas.heightMm, resolvedLayout.svgCanvasHeightMm)
+  };
   const paths = useMemo(
     () => printablePathsForLayout({ elements, evaluation, layout }),
     [elements, evaluation, layout]
@@ -358,10 +362,17 @@ export const PrintLayoutCanvas = ({ evaluation, canvasFocusRef }: PrintLayoutCan
             height={canvas.heightMm}
             className="print-canvas-background"
           />
+          <rect
+            x={SVG_PADDING}
+            y={SVG_PADDING + canvas.heightMm - resolvedLayout.svgCanvasHeightMm}
+            width={resolvedLayout.svgCanvasWidthMm}
+            height={resolvedLayout.svgCanvasHeightMm}
+            className="print-svg-canvas-outline"
+          />
           {Array.from({ length: resolvedLayout.rows }).flatMap((_, row) =>
             Array.from({ length: resolvedLayout.columns }).map((__, column) => {
               const x = column * pageStepX;
-              const y = canvas.heightMm - paper.heightMm - row * pageStepY;
+              const y = printCanvas.heightMm - paper.heightMm - row * pageStepY;
               const topLeft = toSvg({ x, y: y + paper.heightMm });
               return (
                 <g key={`${column}-${row}`} className="print-page-tile">
@@ -432,6 +443,9 @@ export const PrintLayoutCanvas = ({ evaluation, canvasFocusRef }: PrintLayoutCan
         <div className="canvas-display-controls" aria-label="印刷レイアウト操作">
           <button type="button" onClick={() => dispatchCommand("closePrintLayout")}>
             CAD編集
+          </button>
+          <button type="button" onClick={() => dispatchCommand("exportPrintSvg", { evaluation })}>
+            SVG
           </button>
           <button type="button" onClick={() => dispatchCommand("exportPrintPdf", { evaluation })}>
             PDF
@@ -585,6 +599,10 @@ export const PrintLayoutPanel = ({ evaluation }: { evaluation: EvaluationResult 
             <button type="button" onClick={() => dispatchCommand("closePrintLayout")}>
               CAD編集
             </button>
+            <button type="button" onClick={() => dispatchCommand("exportPrintSvg", { evaluation })}>
+              <FileCode aria-hidden="true" />
+              SVG
+            </button>
             <button type="button" onClick={() => dispatchCommand("exportPrintPdf", { evaluation })}>
               <FileText aria-hidden="true" />
               PDF
@@ -660,6 +678,8 @@ export const PrintLayoutPanel = ({ evaluation }: { evaluation: EvaluationResult 
           <PrintNumberInput label="縦枚数" value={layout.rows} resolvedValue={resolvedLayout.rows} defaultValue={DEFAULT_PRINT_LAYOUT.rows} elements={elements} printVariables={printVariables} min={1} step={1} onChange={(rows) => updatePrintLayout({ rows })} />
           <PrintNumberInput label="重複 mm" value={layout.overlapMm} resolvedValue={resolvedLayout.overlapMm} defaultValue={DEFAULT_PRINT_LAYOUT.overlapMm} elements={elements} printVariables={printVariables} min={0} step={1} onChange={(overlapMm) => updatePrintLayout({ overlapMm })} />
           <PrintNumberInput label="拡大率" value={layout.scale} resolvedValue={resolvedLayout.scale} defaultValue={DEFAULT_PRINT_LAYOUT.scale} elements={elements} printVariables={printVariables} min={0.01} step={0.1} onChange={(scale) => updatePrintLayout({ scale })} />
+          <PrintNumberInput label="SVG幅 mm" value={layout.svgCanvasWidthMm} resolvedValue={resolvedLayout.svgCanvasWidthMm} defaultValue={DEFAULT_PRINT_LAYOUT.svgCanvasWidthMm} elements={elements} printVariables={printVariables} min={1} step={1} onChange={(svgCanvasWidthMm) => updatePrintLayout({ svgCanvasWidthMm })} />
+          <PrintNumberInput label="SVG高さ mm" value={layout.svgCanvasHeightMm} resolvedValue={resolvedLayout.svgCanvasHeightMm} defaultValue={DEFAULT_PRINT_LAYOUT.svgCanvasHeightMm} elements={elements} printVariables={printVariables} min={1} step={1} onChange={(svgCanvasHeightMm) => updatePrintLayout({ svgCanvasHeightMm })} />
         </div>
       </section>
 

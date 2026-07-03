@@ -83,16 +83,14 @@ const elements: CadElement[] = [
   }
 ];
 
-const layout = (patch: Partial<PrintLayout> = {}): PrintLayout => ({
-  id: "print-layout-1",
-  name: "",
-  paperSizeId: "a4",
-  orientation: "portrait",
-  columns: 1,
-  rows: 1,
-  overlapMm: 10,
-  scale: 1,
-  placements: [
+const layout = (patch: Partial<PrintLayout> = {}): PrintLayout => {
+  const {
+    svgCanvasWidthMm = 210,
+    svgCanvasHeightMm = 297,
+    placements: patchedPlacements,
+    ...rest
+  } = patch;
+  const placements = patchedPlacements ?? [
     {
       id: "placement-1",
       groupId: "print-group",
@@ -101,9 +99,22 @@ const layout = (patch: Partial<PrintLayout> = {}): PrintLayout => ({
       angleDeg: 0,
       mirrorX: false
     }
-  ],
-  ...patch
-});
+  ];
+  return {
+    id: "print-layout-1",
+    name: "",
+    paperSizeId: "a4",
+    orientation: "portrait",
+    columns: 1,
+    rows: 1,
+    overlapMm: 10,
+    scale: 1,
+    ...rest,
+    svgCanvasWidthMm,
+    svgCanvasHeightMm,
+    placements
+  };
+};
 
 describe("printGeometry", () => {
   it("returns only groups explicitly enabled for printing", () => {

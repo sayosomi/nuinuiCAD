@@ -2637,6 +2637,12 @@ select {
   stroke-width: 0.6;
 }
 
+.print-svg-canvas-outline {
+  fill: rgb(255 255 255 / 28%);
+  stroke: #245d8f;
+  stroke-width: 0.9;
+}
+
 .print-page-tile rect {
   fill: rgb(255 255 255 / 72%);
   stroke: #8f978b;

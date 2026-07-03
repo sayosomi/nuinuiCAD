@@ -1,5 +1,6 @@
 import { newDocument, openDocument, saveDocument, saveDocumentAs } from "../document/documentFile";
 import { exportPrintPdf } from "../document/printPdfExport";
+import { exportPrintSvg } from "../document/printSvgExport";
 import type { Command, CommandId } from "./commandTypes";
 
 const runFileCommand = (operation: () => Promise<void>) => {
@@ -36,6 +37,12 @@ export const documentCommandDefinitions = {
     palette: { order: 32, keywords: ["save as", "file", "document", "保存", "別名", "ファイル"] },
     shortcuts: [{ keys: "Mod+Shift+S" }],
     run: () => runFileCommand(saveDocumentAs)
+  },
+  exportPrintSvg: {
+    id: "exportPrintSvg",
+    label: "SVGを書き出す",
+    palette: { order: 32.5, keywords: ["svg", "export", "書き出し", "SVG", "Affinity", "Inkscape"] },
+    run: (context) => runFileCommand(() => exportPrintSvg(context?.evaluation))
   },
   exportPrintPdf: {
     id: "exportPrintPdf",

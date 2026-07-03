@@ -25,12 +25,21 @@ export type ResolvedPrintLayoutPlacement = Omit<PrintLayoutPlacement, "x" | "y" 
 
 export type ResolvedPrintLayout = Omit<
   PrintLayout,
-  "columns" | "rows" | "overlapMm" | "scale" | "numericVariables" | "placements"
+  | "columns"
+  | "rows"
+  | "overlapMm"
+  | "scale"
+  | "svgCanvasWidthMm"
+  | "svgCanvasHeightMm"
+  | "numericVariables"
+  | "placements"
 > & {
   columns: number;
   rows: number;
   overlapMm: number;
   scale: number;
+  svgCanvasWidthMm: number;
+  svgCanvasHeightMm: number;
   numericVariables: Array<Omit<NumericVariable, "value"> & { value: number }>;
   placements: ResolvedPrintLayoutPlacement[];
 };
@@ -66,6 +75,8 @@ export const DEFAULT_PRINT_LAYOUT: PrintLayout = {
   rows: 2,
   overlapMm: 10,
   scale: 1,
+  svgCanvasWidthMm: 410,
+  svgCanvasHeightMm: 584,
   numericVariables: [],
   placements: []
 };
@@ -175,6 +186,8 @@ export const normalizePrintLayout = (
     rows: normalizeNumericValue(value.rows, DEFAULT_PRINT_LAYOUT.rows),
     overlapMm: normalizeNumericValue(value.overlapMm, DEFAULT_PRINT_LAYOUT.overlapMm),
     scale: normalizeNumericValue(value.scale, DEFAULT_PRINT_LAYOUT.scale),
+    svgCanvasWidthMm: normalizeNumericValue(value.svgCanvasWidthMm, DEFAULT_PRINT_LAYOUT.svgCanvasWidthMm),
+    svgCanvasHeightMm: normalizeNumericValue(value.svgCanvasHeightMm, DEFAULT_PRINT_LAYOUT.svgCanvasHeightMm),
     numericVariables,
     placements
   };
@@ -332,6 +345,16 @@ export const resolvePrintLayout = ({
     DEFAULT_PRINT_LAYOUT.scale as number,
     0.01
   );
+  const svgCanvasWidthMm = clampMin(
+    resolveNumericValue({ value: layout.svgCanvasWidthMm, fallback: DEFAULT_PRINT_LAYOUT.svgCanvasWidthMm as number, elements, evaluation, localVariables }),
+    DEFAULT_PRINT_LAYOUT.svgCanvasWidthMm as number,
+    1
+  );
+  const svgCanvasHeightMm = clampMin(
+    resolveNumericValue({ value: layout.svgCanvasHeightMm, fallback: DEFAULT_PRINT_LAYOUT.svgCanvasHeightMm as number, elements, evaluation, localVariables }),
+    DEFAULT_PRINT_LAYOUT.svgCanvasHeightMm as number,
+    1
+  );
 
   return {
     id: layout.id,
@@ -342,6 +365,8 @@ export const resolvePrintLayout = ({
     rows,
     overlapMm,
     scale,
+    svgCanvasWidthMm,
+    svgCanvasHeightMm,
     numericVariables: resolvedVariables,
     placements: layout.placements.map((placement) => ({
       ...placement,

@@ -5,6 +5,7 @@ pub mod image_metadata;
 pub mod layout_settings;
 pub mod palette_settings;
 pub mod print_pdf;
+pub mod print_svg;
 pub mod shortcut_settings;
 
 use tauri::Emitter;
@@ -26,6 +27,7 @@ pub fn run() {
             document_file::read_document_file,
             document_file::write_document_file,
             print_pdf::export_print_pdf,
+            print_svg::export_print_svg,
             layout_settings::load_layout_settings,
             layout_settings::save_layout_settings,
             palette_settings::load_palette_template,
