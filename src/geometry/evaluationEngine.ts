@@ -62,6 +62,7 @@ const rustSupportedElementTypes = new Set<CadElement["type"]>([
   "lineTangentOffsetPoint",
   "intersectionPoint",
   "line",
+  "angleLengthLine",
   "arcLine",
   "threePointArcLine",
   "cornerRadiusArcLine",
@@ -79,6 +80,7 @@ const rustSupportedElementTypes = new Set<CadElement["type"]>([
 
 const rustSupportedLineReferenceTypes = new Set<CadElement["type"]>([
   "line",
+  "angleLengthLine",
   "arcLine",
   "threePointArcLine",
   "cornerRadiusArcLine",
@@ -101,6 +103,7 @@ const rustSupportedPointReferenceTypes = new Set<CadElement["type"]>([
 
 const rustSupportedDerivedPointSourceTypes = new Set<CadElement["type"]>([
   "line",
+  "angleLengthLine",
   "arcLine",
   "threePointArcLine",
   "cornerRadiusArcLine",
@@ -151,6 +154,8 @@ const pointAnchorsForElement = (element: CadElement): PointAnchor[] => {
       return [element.startPoint, element.endPoint];
     case "lineTangentOffsetPoint":
       return [element.basePoint];
+    case "angleLengthLine":
+      return [element.startPoint];
     case "line":
       return [element.startPoint, element.endPoint];
     case "arcLine":

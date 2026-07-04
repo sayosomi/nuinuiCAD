@@ -11,6 +11,7 @@ export const supportsNumericVariables = (element: CadElement) =>
   element.type === "intersectionPoint" ||
   element.type === "lineTangentOffsetPoint" ||
   element.type === "line" ||
+  element.type === "angleLengthLine" ||
   element.type === "arcLine" ||
     element.type === "threePointArcLine" ||
     element.type === "cornerRadiusArcLine" ||
@@ -52,14 +53,25 @@ export const getPointAnchor = (element: CadElement, key: string): PointAnchor | 
     return element.intermediatePoints.find((point) => point.id === parsed.intermediatePointId)?.point ?? null;
   }
   if (
-    (key === "startPoint" || key === "endPoint") &&
+    key === "startPoint" &&
+    (element.type === "line" ||
+      element.type === "angleLengthLine" ||
+      element.type === "bezierCurve" ||
+      element.type === "divisionPoint" ||
+      element.type === "copyLine" ||
+      element.type === "move")
+  ) {
+    return element.startPoint;
+  }
+  if (
+    key === "endPoint" &&
     (element.type === "line" ||
       element.type === "bezierCurve" ||
       element.type === "divisionPoint" ||
       element.type === "copyLine" ||
       element.type === "move")
   ) {
-    return element[key];
+    return element.endPoint;
   }
   if (
     (key === "axisPoint1" || key === "axisPoint2") &&
@@ -117,6 +129,7 @@ export const setPointAnchor = (
   if (
     key === "startPoint" &&
     (element.type === "line" ||
+      element.type === "angleLengthLine" ||
       element.type === "bezierCurve" ||
       element.type === "divisionPoint" ||
       element.type === "copyLine" ||

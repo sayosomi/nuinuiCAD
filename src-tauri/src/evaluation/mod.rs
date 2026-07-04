@@ -74,7 +74,9 @@ use line_copy_move_evaluator::{
     evaluate_copy_line, evaluate_move, evaluate_symmetric_copy_line, evaluate_symmetric_move,
 };
 use line_division_point_evaluator::evaluate_line_division_point;
-use line_evaluators::{evaluate_arc_line, evaluate_line, evaluate_three_point_arc_line};
+use line_evaluators::{
+    evaluate_angle_length_line, evaluate_arc_line, evaluate_line, evaluate_three_point_arc_line,
+};
 use line_tangent_offset_point_evaluator::evaluate_line_tangent_offset_point;
 use local_variables::evaluate_local_variables;
 use numeric_expression::evaluate_numeric_or_push;
@@ -166,6 +168,7 @@ fn evaluate_element_by_type(
         }
         Some("intersectionPoint") => evaluate_intersection_point(&element, &local_variables, state),
         Some("line") => evaluate_line(&element, &local_variables, state),
+        Some("angleLengthLine") => evaluate_angle_length_line(&element, &local_variables, state),
         Some("arcLine") => evaluate_arc_line(&element, &local_variables, state),
         Some("threePointArcLine") => {
             evaluate_three_point_arc_line(&element, &local_variables, state)

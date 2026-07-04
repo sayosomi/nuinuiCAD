@@ -1850,6 +1850,19 @@ describe("commands", () => {
     expect(useCadStore.getState().selectedElementId).toBe(added?.id);
   });
 
+  it("adds an angle length line from a command", () => {
+    dispatchCommand("addAngleLengthLine");
+
+    const added = useCadStore.getState().elements.at(-1);
+    expect(added).toMatchObject({
+      type: "angleLengthLine",
+      startPoint: { mode: "reference", pointId: "point-a" },
+      angleDeg: 0,
+      length: 100
+    });
+    expect(useCadStore.getState().selectedElementId).toBe(added?.id);
+  });
+
   it("adds a division point from a command", () => {
     dispatchCommand("addDivisionPoint");
 

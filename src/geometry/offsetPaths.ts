@@ -87,6 +87,7 @@ export const isLineLikeGeometry = (geometry: ComputedGeometry | undefined) =>
 
 export const lineLikeElementTypes = [
   "line",
+  "angleLengthLine",
   "arcLine",
   "threePointArcLine",
   "cornerRadiusArcLine",

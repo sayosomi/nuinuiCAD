@@ -31,6 +31,7 @@ export const createCadElement = (
   const lineLikeElements = referenceElements.filter(
     (element) =>
       element.type === "line" ||
+      element.type === "angleLengthLine" ||
       element.type === "arcLine" ||
       element.type === "threePointArcLine" ||
       element.type === "cornerRadiusArcLine" ||
@@ -241,6 +242,22 @@ export const createCadElement = (
         numericVariables: [],
         startPoint: referenceAnchor(firstPointId),
         endPoint: referenceAnchor(secondPointId)
+      };
+    }
+    case "angleLengthLine": {
+      const id = createId(type);
+      const lineCount = elements.filter((element) => element.type === "angleLengthLine").length;
+      const requestedName = `角度距離線${lineCount + 1}`;
+      return {
+        id,
+        name: uniqueName(id, requestedName),
+        type,
+        visible: true,
+        enabled: true,
+        numericVariables: [],
+        startPoint: firstPointId ? referenceAnchor(firstPointId) : { mode: "coordinate", x: 0, y: 0 },
+        angleDeg: 0,
+        length: 100
       };
     }
     case "arcLine": {

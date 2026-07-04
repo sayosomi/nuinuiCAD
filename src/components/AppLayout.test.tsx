@@ -562,8 +562,8 @@ describe("AppLayout command ribbon", () => {
       const settings = JSON.parse(
         window.localStorage.getItem("nuinuiCAD.commandRibbonSettings.v1") ?? "{}"
       );
-      expect(settings.ribbons[0].buttons).toHaveLength(13);
-      expect(settings.ribbons[0].buttons[12]).toMatchObject({
+      expect(settings.ribbons[0].buttons).toHaveLength(14);
+      expect(settings.ribbons[0].buttons[13]).toMatchObject({
         commandId: "saveDocument",
         label: "保存"
       });

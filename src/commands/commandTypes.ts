@@ -91,6 +91,7 @@ export type CommandId =
   | "addIntersectionPoint"
   | "addLineTangentOffsetPoint"
   | "addLine"
+  | "addAngleLengthLine"
   | "addArcLine"
   | "addThreePointArcLine"
   | "addCornerRadiusArcLine"

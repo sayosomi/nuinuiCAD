@@ -116,6 +116,16 @@ fn evaluates_points_lines_variables_and_arcs() {
                 "endPoint": { "mode": "reference", "pointId": "b" }
             })),
             element(json!({
+                "id": "angle-line",
+                "name": "角度距離線",
+                "type": "angleLengthLine",
+                "visible": true,
+                "enabled": true,
+                "startPoint": { "mode": "reference", "pointId": "a" },
+                "angleDeg": 90,
+                "length": 10
+            })),
+            element(json!({
                 "id": "arc",
                 "name": "円弧",
                 "type": "arcLine",
@@ -135,7 +145,10 @@ fn evaluates_points_lines_variables_and_arcs() {
     assert_eq!(result.computed_geometry[0]["x"], json!(20.0));
     assert_eq!(result.computed_geometry[1]["x"], json!(30.0));
     assert_eq!(result.computed_geometry[2]["kind"], json!("line"));
-    assert_eq!(result.computed_geometry[3]["kind"], json!("arcLine"));
+    assert_eq!(result.computed_geometry[3]["kind"], json!("line"));
+    assert_eq!(result.computed_geometry[3]["end"]["x"], json!(20.0));
+    assert_eq!(result.computed_geometry[3]["end"]["y"], json!(30.0));
+    assert_eq!(result.computed_geometry[4]["kind"], json!("arcLine"));
 }
 
 #[test]

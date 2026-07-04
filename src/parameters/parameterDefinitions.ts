@@ -270,6 +270,26 @@ export const getParameterDefinitions = (element: CadElement): ParameterDefinitio
           allowCoordinate: true
         })
       ];
+    case "angleLengthLine":
+      return [
+        ...commonParameters,
+        ...numericVariableParameters(element),
+        ...pointAnchorParameters({
+          anchor: element.startPoint,
+          key: "startPoint",
+          directKey: "s",
+          label: "始点",
+          allowCoordinate: true
+        }),
+        {
+          key: "angleDeg",
+          directKey: "r",
+          label: "角度",
+          kind: "number",
+          stepLevels: angleNumericParameterStepLevels
+        },
+        { key: "length", directKey: "l", label: "長さ", kind: "number" }
+      ];
     case "arcLine":
       return [
         ...commonParameters,

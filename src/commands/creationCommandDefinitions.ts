@@ -11,6 +11,7 @@ import {
   addSymmetricCopyLine,
   addSymmetricMove,
   addLineTangentOffsetPoint,
+  addAngleLengthLine,
   addOffsetLine
 } from "./elementCreationCommands";
 import { addImage } from "./imageCreationCommands";
@@ -111,6 +112,12 @@ export const creationCommandDefinitions = {
     label: "line を追加",
     palette: { order: 8, keywords: ["line", "直線", "線", "追加"] },
     run: (context) => addElement("line", context?.focusSelectedParameterInput)
+  },
+  addAngleLengthLine: {
+    id: "addAngleLengthLine",
+    label: "角度距離線を追加",
+    palette: { order: 8.5, keywords: ["angle", "length", "line", "角度", "距離", "長さ", "線", "追加"] },
+    run: (context) => addAngleLengthLine(context?.focusSelectedParameterInput)
   },
   addArcLine: {
     id: "addArcLine",

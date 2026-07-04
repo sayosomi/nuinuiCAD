@@ -135,6 +135,20 @@ export const addCopyLine = (focusSelectedParameterInput?: FocusSelectedParameter
 export const addMove = (focusSelectedParameterInput?: FocusSelectedParameterInput) =>
   addCopyLikeElement("move", focusSelectedParameterInput);
 
+export const addAngleLengthLine = (focusSelectedParameterInput?: FocusSelectedParameterInput) => {
+  const { elements, insertionIndex, referenceElements } = creationContext();
+  const selectedIds = new Set(getSelectedElementIds());
+  const selectedPoint = referenceElements.find((element) => selectedIds.has(element.id) && isPointLikeElement(element));
+  const fallbackPoint = selectedPoint ?? referenceElements.find(isPointLikeElement);
+  const element = createElement("angleLengthLine", elements, referenceElements);
+  if (element.type !== "angleLengthLine") return;
+  const angleLengthLine: CadElement = {
+    ...element,
+    startPoint: fallbackPoint ? referenceAnchor(fallbackPoint.id) : element.startPoint
+  };
+  commitCreatedElement(angleLengthLine, elements, insertionIndex, focusSelectedParameterInput);
+};
+
 const addSymmetricCopyLikeElement = (
   type: "symmetricCopyLine" | "symmetricMove",
   focusSelectedParameterInput?: FocusSelectedParameterInput

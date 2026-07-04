@@ -308,6 +308,7 @@ export const pointAnchorLabel = (anchor: PointAnchor, elements: CadElement[]) =>
 
 export const isLineLikeElement = (element: CadElement) =>
   element.type === "line" ||
+  element.type === "angleLengthLine" ||
   element.type === "arcLine" ||
   element.type === "threePointArcLine" ||
   element.type === "cornerRadiusArcLine" ||

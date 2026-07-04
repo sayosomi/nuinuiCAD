@@ -14,6 +14,7 @@ const defaultNameBases: Record<CadElementType, string> = {
   intersectionPoint: "交点",
   lineTangentOffsetPoint: "線上オフセット点",
   line: "直線",
+  angleLengthLine: "角度距離線",
   arcLine: "円弧線",
   threePointArcLine: "三点円弧線",
   cornerRadiusArcLine: "角R円弧線",

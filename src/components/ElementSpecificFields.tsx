@@ -17,6 +17,7 @@ export const ElementSpecificFields = (props: CommonEditorProps) => {
     case "lineTangentOffsetPoint":
       return <PointElementFields {...props} />;
     case "line":
+    case "angleLengthLine":
     case "arcLine":
     case "threePointArcLine":
     case "cornerRadiusArcLine":

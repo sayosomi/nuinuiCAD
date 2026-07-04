@@ -210,6 +210,7 @@ export const normalizeNumericExpressionInput = (
     .filter(
       (element) =>
         element.type === "line" ||
+        element.type === "angleLengthLine" ||
         element.type === "arcLine" ||
         element.type === "threePointArcLine" ||
         element.type === "cornerRadiusArcLine" ||
@@ -256,6 +257,7 @@ export const normalizeNumericExpressionInput = (
     for (const [property, label] of Object.entries(propertyLabels)) {
       if (
         (element.type === "line" ||
+          element.type === "angleLengthLine" ||
           element.type === "arcLine" ||
           element.type === "threePointArcLine" ||
           element.type === "cornerRadiusArcLine") &&

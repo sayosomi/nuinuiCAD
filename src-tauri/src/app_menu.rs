@@ -163,6 +163,7 @@ const DRAW_ITEMS: &[MenuSpec] = &[
     cmd("addLineTangentOffsetPoint", "線上オフセット点を追加", None),
     SEP,
     cmd("addLine", "line を追加", None),
+    cmd("addAngleLengthLine", "角度距離線を追加", None),
     cmd("addArcLine", "円弧線を追加", None),
     cmd("addThreePointArcLine", "三点円弧線を追加", None),
     cmd("addCornerRadiusArcLine", "角R円弧線を追加", Some("Shift+R")),

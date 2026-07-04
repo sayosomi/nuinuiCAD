@@ -66,6 +66,72 @@ export const evaluateLineElement = (element: CadElement, context: ElementEvaluat
         });
         break;
       }
+      case "angleLengthLine": {
+        const start = getPointAnchorOrError(
+          element,
+          element.startPoint,
+          "start",
+          computedGeometry,
+          elementsById,
+          errors,
+          localVariableValues,
+          localVariableNames,
+          disabledByGroupId
+        );
+        if (!start) {
+          break;
+        }
+
+        const angleDeg = numericError(
+          element,
+          element.angleDeg,
+          computedGeometry,
+          elementsById,
+          errors,
+          localVariableValues,
+          localVariableNames
+        );
+        const length = numericError(
+          element,
+          element.length,
+          computedGeometry,
+          elementsById,
+          errors,
+          localVariableValues,
+          localVariableNames
+        );
+        if (angleDeg === undefined || length === undefined) {
+          break;
+        }
+
+        const angleRad = degreesToRadians(angleDeg);
+        const end: ComputedPoint = {
+          kind: "point",
+          elementId: `${element.id}:end`,
+          name: `${element.name}.終点`,
+          x: start.x + Math.cos(angleRad) * length,
+          y: start.y + Math.sin(angleRad) * length
+        };
+        const angles = lineTangentAngles(start, end);
+        computedGeometry.set(element.id, {
+          kind: "line",
+          elementId: element.id,
+          name: element.name,
+          startPointId: anchorReferenceElementId(element.startPoint),
+          endPointId: null,
+          start: {
+            kind: "point",
+            elementId: `${element.id}:start`,
+            name: `${element.name}.始点`,
+            x: start.x,
+            y: start.y
+          },
+          end,
+          length: Math.hypot(end.x - start.x, end.y - start.y),
+          ...angles
+        });
+        break;
+      }
       case "arcLine": {
         const center = getPointAnchorOrError(
           element,

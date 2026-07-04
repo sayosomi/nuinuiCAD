@@ -21,6 +21,7 @@ fn default_command_ribbon_settings() -> Value {
                     { "id": "addOffsetPoint", "commandId": "addOffsetPoint", "icon": "move-right", "iconColor": "default", "label": "オフセット点", "showLabel": false },
                     { "id": "addPolarOffsetPoint", "commandId": "addPolarOffsetPoint", "icon": "slash", "iconColor": "default", "label": "極座標点", "showLabel": false },
                     { "id": "addLine", "commandId": "addLine", "icon": "slash", "iconColor": "default", "label": "線", "showLabel": false },
+                    { "id": "addAngleLengthLine", "commandId": "addAngleLengthLine", "icon": "compass", "iconColor": "default", "label": "角度距離線", "showLabel": false },
                     { "id": "addArcLine", "commandId": "addArcLine", "icon": "corner-down-right", "iconColor": "default", "label": "円弧", "showLabel": false },
                     { "id": "addThreePointArcLine", "commandId": "addThreePointArcLine", "icon": "corner-down-right", "iconColor": "default", "label": "3点円弧", "showLabel": false },
                     { "id": "addCornerRadiusArcLine", "commandId": "addCornerRadiusArcLine", "icon": "corner-down-right", "iconColor": "default", "label": "角R", "showLabel": false },

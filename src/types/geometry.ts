@@ -172,6 +172,13 @@ export type LineElement = CadElementBase & {
   endPoint: PointAnchor;
 };
 
+export type AngleLengthLineElement = CadElementBase & {
+  type: "angleLengthLine";
+  startPoint: PointAnchor;
+  angleDeg: NumericValue;
+  length: NumericValue;
+};
+
 export type ArcLineElement = CadElementBase & {
   type: "arcLine";
   centerPoint: PointAnchor;
@@ -329,6 +336,7 @@ export type CadElement =
   | IntersectionPointElement
   | LineTangentOffsetPointElement
   | LineElement
+  | AngleLengthLineElement
   | ArcLineElement
   | ThreePointArcLineElement
   | CornerRadiusArcLineElement
@@ -534,6 +542,7 @@ export const elementTypeLabels: Record<CadElementType, string> = {
   intersectionPoint: "交点",
   lineTangentOffsetPoint: "線上オフセット点",
   line: "line",
+  angleLengthLine: "角度距離線",
   arcLine: "arc line",
   threePointArcLine: "three-point arc line",
   cornerRadiusArcLine: "角R円弧線",
@@ -562,6 +571,7 @@ export const elementTypeCategories: Record<CadElementType, CadElementCategory> =
   intersectionPoint: "point",
   lineTangentOffsetPoint: "point",
   line: "line",
+  angleLengthLine: "line",
   arcLine: "line",
   threePointArcLine: "line",
   cornerRadiusArcLine: "line",

@@ -52,6 +52,7 @@ export const numericReferencePropertiesForElement = (
 ): readonly NumericMeasurementKey[] => {
   if (
     element.type === "line" ||
+    element.type === "angleLengthLine" ||
     element.type === "arcLine" ||
     element.type === "threePointArcLine" ||
     element.type === "cornerRadiusArcLine"

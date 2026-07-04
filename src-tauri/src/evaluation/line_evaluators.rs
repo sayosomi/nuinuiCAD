@@ -66,6 +66,74 @@ pub(crate) fn evaluate_line(
     );
 }
 
+pub(crate) fn evaluate_angle_length_line(
+    element: &Value,
+    local_variables: &(HashMap<String, f64>, HashMap<String, String>),
+    state: &mut EvaluationState,
+) {
+    let Some(start_anchor) = element.get("startPoint") else {
+        return;
+    };
+    let Some(start) = point_anchor_or_error(
+        element,
+        start_anchor,
+        "start",
+        state,
+        &local_variables.0,
+        &local_variables.1,
+    ) else {
+        return;
+    };
+    let Some(angle_deg) = evaluate_numeric_or_push(
+        element.get("angleDeg").unwrap_or(&Value::Null),
+        state,
+        element,
+        &local_variables.0,
+        &local_variables.1,
+    ) else {
+        return;
+    };
+    let Some(length) = evaluate_numeric_or_push(
+        element.get("length").unwrap_or(&Value::Null),
+        state,
+        element,
+        &local_variables.0,
+        &local_variables.1,
+    ) else {
+        return;
+    };
+
+    let angle_rad = angle_deg.to_radians();
+    let end = Point {
+        element_id: format!("{}:end", element_id(element).unwrap_or_default()),
+        name: format!("{}.終点", element_name(element)),
+        x: start.x + angle_rad.cos() * length,
+        y: start.y + angle_rad.sin() * length,
+    };
+    let computed_length = (end.x - start.x).hypot(end.y - start.y);
+    let start_angle = angle_from_to(&start, &end);
+    let end_angle = angle_from_to(&end, &start);
+    let id = element_id(element).unwrap_or_default();
+    insert_geometry(
+        state,
+        id.clone(),
+        json!({
+            "kind": "line",
+            "elementId": id,
+            "name": element_name(element),
+            "startPointId": anchor_reference_element_id(start_anchor),
+            "endPointId": null,
+            "start": computed_point(format!("{id}:start"), format!("{}.始点", element_name(element)), start.x, start.y),
+            "end": computed_point(end.element_id, end.name, end.x, end.y),
+            "length": computed_length,
+            "startAngleDeg": start_angle,
+            "endAngleDeg": end_angle,
+            "startTangentAngleDeg": start_angle,
+            "endTangentAngleDeg": end_angle
+        }),
+    );
+}
+
 pub(crate) fn evaluate_arc_line(
     element: &Value,
     local_variables: &(HashMap<String, f64>, HashMap<String, String>),

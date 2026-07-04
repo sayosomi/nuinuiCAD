@@ -126,6 +126,27 @@ describe("parameterDefinitions", () => {
     );
   });
 
+  it("defines editable parameters for angle length lines", () => {
+    const line: CadElement = {
+      id: "angle-length-line",
+      name: "角度距離線",
+      type: "angleLengthLine",
+      visible: true,
+      enabled: true,
+      startPoint: { mode: "reference", pointId: "point-a" },
+      angleDeg: 0,
+      length: 100
+    };
+
+    expect(getParameterDefinitions(line)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ key: "startPoint", directKey: "s", label: "始点", kind: "reference" }),
+        expect.objectContaining({ key: "angleDeg", directKey: "r", label: "角度", kind: "number" }),
+        expect.objectContaining({ key: "length", directKey: "l", label: "長さ", kind: "number" })
+      ])
+    );
+  });
+
   it("defines editable parameters for corner radius arc lines", () => {
     const arc: CadElement = {
       id: "corner",

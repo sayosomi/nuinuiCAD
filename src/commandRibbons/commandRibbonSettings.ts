@@ -128,6 +128,7 @@ export const defaultCommandRibbonSettings = (): CommandRibbonSettings => ({
         defaultButton("addOffsetPoint", "move-right", "オフセット点"),
         defaultButton("addPolarOffsetPoint", "slash", "極座標点"),
         defaultButton("addLine", "slash", "線"),
+        defaultButton("addAngleLengthLine", "compass", "角度距離線"),
         defaultButton("addArcLine", "corner-down-right", "円弧"),
         defaultButton("addThreePointArcLine", "corner-down-right", "3点円弧"),
         defaultButton("addCornerRadiusArcLine", "corner-down-right", "角R"),

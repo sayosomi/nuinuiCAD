@@ -43,6 +43,11 @@ const migrateElementToYUp = (element: CadElement): CadElement => {
         startPoint: migratePointAnchorToYUp(element.startPoint),
         endPoint: migratePointAnchorToYUp(element.endPoint)
       };
+    case "angleLengthLine":
+      return {
+        ...element,
+        startPoint: migratePointAnchorToYUp(element.startPoint)
+      };
     case "arcLine":
       return { ...element, centerPoint: migratePointAnchorToYUp(element.centerPoint) };
     case "threePointArcLine":

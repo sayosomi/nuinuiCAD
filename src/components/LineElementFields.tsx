@@ -83,6 +83,29 @@ export const LineElementFields = ({
       );
     }
 
+    case "angleLengthLine":
+      return (
+        <>
+          {pointAnchorEditor({
+            parameterKey: "startPoint",
+            label: "始点",
+            anchor: element.startPoint
+          })}
+          {numericInput({
+            parameterKey: "angleDeg",
+            label: "角度",
+            value: element.angleDeg,
+            ariaLabel: "角度"
+          })}
+          {numericInput({
+            parameterKey: "length",
+            label: "長さ",
+            value: element.length,
+            ariaLabel: "長さ"
+          })}
+        </>
+      );
+
     case "arcLine":
       return (
         <>

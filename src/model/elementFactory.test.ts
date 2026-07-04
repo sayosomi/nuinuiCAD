@@ -122,6 +122,20 @@ describe("createCadElement", () => {
     });
   });
 
+  it("creates angle length lines using the first point as the default start", () => {
+    expect(createCadElement("angleLengthLine", sampleElements, { createId: createTestId })).toMatchObject({
+      id: "angleLengthLine-test-id",
+      name: "角度距離線1",
+      type: "angleLengthLine",
+      visible: true,
+      enabled: true,
+      numericVariables: [],
+      startPoint: { mode: "reference", pointId: "point-a" },
+      angleDeg: 0,
+      length: 100
+    });
+  });
+
   it("creates arc lines with the existing radius and angle defaults", () => {
     expect(createCadElement("arcLine", sampleElements, { createId: createTestId })).toMatchObject({
       id: "arcLine-test-id",

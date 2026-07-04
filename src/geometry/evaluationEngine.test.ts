@@ -36,6 +36,17 @@ const line: CadElement = {
   endPoint: { mode: "reference", pointId: "b" }
 };
 
+const angleLengthLine: CadElement = {
+  id: "angle-line",
+  name: "角度距離線",
+  type: "angleLengthLine",
+  visible: true,
+  enabled: true,
+  startPoint: { mode: "reference", pointId: "a" },
+  angleDeg: 0,
+  length: 100
+};
+
 const arcLine: CadElement = {
   id: "arc",
   name: "円弧",
@@ -226,6 +237,13 @@ const unsupportedElement = {
 } as unknown as CadElement;
 
 describe("canUseRustEvaluationForElements", () => {
+  it("allows angleLengthLine and downstream line references to use Rust evaluation", () => {
+    expect(canUseRustEvaluationForElements([pointA, angleLengthLine])).toBe(true);
+    expect(
+      canUseRustEvaluationForElements([pointA, angleLengthLine, lineDivisionPoint("angle-line")])
+    ).toBe(true);
+  });
+
   it("allows lineDivisionPoint when it references a supported line type", () => {
     expect(canUseRustEvaluationForElements([pointA, pointB, line, lineDivisionPoint("line")])).toBe(
       true

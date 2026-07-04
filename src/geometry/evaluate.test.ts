@@ -1086,6 +1086,50 @@ describe("evaluateElements", () => {
     expect(result.computedGeometry.get("up")).toMatchObject({ kind: "point", x: 10, y: 30 });
   });
 
+  it("evaluates angle length lines using mathematical angles", () => {
+    const result = evaluateElements([
+      validElements[0],
+      {
+        id: "right-line",
+        name: "右線",
+        type: "angleLengthLine",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "a" },
+        angleDeg: 0,
+        length: 10
+      },
+      {
+        id: "up-line",
+        name: "上線",
+        type: "angleLengthLine",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "a" },
+        angleDeg: 90,
+        length: 10
+      }
+    ]);
+
+    expect(result.errors).toHaveLength(0);
+    expect(result.computedGeometry.get("right-line")).toMatchObject({
+      kind: "line",
+      start: { x: 10, y: 20 },
+      end: { x: 20, y: 20 },
+      length: 10,
+      startAngleDeg: 0,
+      endAngleDeg: 180
+    });
+    expect(result.computedGeometry.get("up-line")).toMatchObject({
+      kind: "line",
+      start: { x: 10, y: 20 },
+      end: { x: 10, y: 30 },
+      length: 10,
+      startAngleDeg: 90,
+      endAngleDeg: 270
+    });
+  });
+
   it("evaluates division points by distance from the start point toward the end point", () => {
     const result = evaluateElements([
       validElements[0],
@@ -4469,6 +4513,27 @@ describe("evaluateElements", () => {
     expect(result.computedGeometry.has("polar")).toBe(false);
     expect(result.errors[0]).toMatchObject({
       elementId: "polar",
+      missingDependencyId: "missing"
+    });
+  });
+
+  it("reports a missing angle length line start point dependency", () => {
+    const result = evaluateElements([
+      {
+        id: "angle-line",
+        name: "角度距離線",
+        type: "angleLengthLine",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "missing" },
+        angleDeg: 0,
+        length: 30
+      }
+    ]);
+
+    expect(result.computedGeometry.has("angle-line")).toBe(false);
+    expect(result.errors[0]).toMatchObject({
+      elementId: "angle-line",
       missingDependencyId: "missing"
     });
   });

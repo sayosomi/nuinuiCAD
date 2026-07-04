@@ -189,6 +189,13 @@ export const remapElementReferences = (source: CadElement, idMap: Map<ElementId,
         startPoint: remapPointAnchor(element.startPoint, idMap),
         endPoint: remapPointAnchor(element.endPoint, idMap)
       };
+    case "angleLengthLine":
+      return {
+        ...element,
+        startPoint: remapPointAnchor(element.startPoint, idMap),
+        angleDeg: remapNumericValue(element.angleDeg, idMap),
+        length: remapNumericValue(element.length, idMap)
+      };
     case "arcLine":
       return {
         ...element,
