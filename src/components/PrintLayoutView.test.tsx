@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 import { evaluateElements } from "../geometry/evaluate";
 import { DEFAULT_PRINT_LAYOUT } from "../print/printLayout";
@@ -127,6 +127,35 @@ describe("PrintLayoutPanel", () => {
     expect(within(detail!).getByDisplayValue("15")).toBeInTheDocument();
   });
 
+  it("duplicates placements without changing their numeric values", () => {
+    useCadDocumentStore.setState({
+      printLayouts: [{
+        ...DEFAULT_PRINT_LAYOUT,
+        placements: [
+          { id: "placement-1", groupId: "front", x: 10, y: 20, angleDeg: 15, mirrorX: true }
+        ]
+      }],
+      activePrintLayoutId: DEFAULT_PRINT_LAYOUT.id,
+      printLayout: {
+        ...DEFAULT_PRINT_LAYOUT,
+        placements: [
+          { id: "placement-1", groupId: "front", x: 10, y: 20, angleDeg: 15, mirrorX: true }
+        ]
+      }
+    });
+    renderPanel();
+
+    const placementSection = screen.getByRole("heading", { name: "配置" }).closest("section");
+    expect(placementSection).not.toBeNull();
+    fireEvent.click(within(placementSection!).getByRole("button", { name: "配置を複製" }));
+
+    expect(useCadDocumentStore.getState().printLayout.placements).toEqual([
+      { id: "placement-1", groupId: "front", x: 10, y: 20, angleDeg: 15, mirrorX: true },
+      { id: "placement-2", groupId: "front", x: 10, y: 20, angleDeg: 15, mirrorX: true }
+    ]);
+    expect(useCadUiStore.getState().selectedPrintPlacementId).toBe("placement-2");
+  });
+
   it("keeps disabled print group placements visible without offering them as add candidates", () => {
     useCadDocumentStore.setState({
       printLayouts: [{
@@ -187,6 +216,37 @@ describe("PrintLayoutPanel", () => {
       expression: "@scale-var"
     });
     expect(scaleInput).toHaveValue("@倍率");
+  });
+
+  it("offers global variables as explicit print number suggestions", async () => {
+    useCadDocumentStore.setState({
+      printLayouts: [{
+        ...DEFAULT_PRINT_LAYOUT,
+        numericVariables: [{ id: "print-variable-1", name: "倍率", value: 2 }]
+      }],
+      printLayout: {
+        ...DEFAULT_PRINT_LAYOUT,
+        numericVariables: [{ id: "print-variable-1", name: "倍率", value: 2 }]
+      }
+    });
+    renderPanel();
+    const scaleInput = screen.getByLabelText("拡大率");
+
+    fireEvent.change(scaleInput, {
+      target: { value: "@", selectionStart: 1, selectionEnd: 1 }
+    });
+
+    const suggestions = screen.getByRole("listbox", { name: "変数候補" });
+    expect(within(suggestions).getByRole("option", { name: /@倍率.*印刷変数/ })).toBeInTheDocument();
+    const globalOption = within(suggestions).getByRole("option", { name: /@倍率.*全体変数/ });
+    fireEvent.click(globalOption);
+
+    await waitFor(() => {
+      expect(useCadDocumentStore.getState().printLayout.scale).toEqual({
+        kind: "expression",
+        expression: "@scale-var"
+      });
+    });
   });
 
   it("shows only PDF-specific settings for PDF layouts", () => {

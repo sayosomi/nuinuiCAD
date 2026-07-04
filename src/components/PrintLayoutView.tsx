@@ -16,6 +16,11 @@ import {
   makeNumericExpression,
   normalizeNumericExpressionInput
 } from "../geometry/numericExpressions";
+import {
+  filteredNumericVariableSuggestions,
+  numericVariableSuggestionMatch,
+  replaceNumericVariableSuggestionToken
+} from "./numericVariableSuggestion";
 import { defaultPlacementForGroup, printableGroups, printablePathsForLayout } from "../print/printGeometry";
 import {
   DEFAULT_PRINT_LAYOUT,
@@ -36,10 +41,13 @@ import type {
   CadElement,
   ElementId,
   EvaluationResult,
+  NumericExpression,
   NumericVariable,
   NumericValue,
   PrintLayoutPlacement
 } from "../types/geometry";
+import { NumericVariableSuggestPopover } from "./NumericVariableSuggestPopover";
+import type { NumericVariableReferenceOption } from "../geometry/variableReferenceOptions";
 import { numericDragStepsForDelta } from "./numericDrag";
 
 type PrintLayoutCanvasProps = {
@@ -53,6 +61,11 @@ type PrintNumberDragState = {
   pointerId: number;
   previousClientX: number;
   remainderX: number;
+};
+
+type PrintNumberInputSelection = {
+  start: number | null;
+  end: number | null;
 };
 
 type PrintCanvasDrag =
@@ -81,6 +94,35 @@ const isDeferredPrintNumberInput = (input: string) =>
 const clampNumericValue = (value: NumericValue, min: number | undefined): NumericValue =>
   typeof value === "number" && min !== undefined ? Math.max(value, min) : value;
 
+const printVariableReferenceOptions = ({
+  printVariables,
+  elements
+}: {
+  printVariables: NumericVariable[];
+  elements: CadElement[];
+}): NumericVariableReferenceOption[] => [
+  ...printVariables.map((variable) => ({
+    expression: `@${variable.id}`,
+    displayExpression: `@${variable.name}`,
+    label: `@${variable.name}`,
+    detail: "印刷変数",
+    source: "local" as const,
+    variableId: variable.id
+  })),
+  ...elements
+    .filter((element): element is Extract<CadElement, { type: "variable" }> =>
+      element.type === "variable" && element.scope === "global"
+    )
+    .map((variable) => ({
+      expression: `@${variable.id}`,
+      displayExpression: `@${variable.name}`,
+      label: `@${variable.name}`,
+      detail: "全体変数",
+      source: "global" as const,
+      elementId: variable.id
+    }))
+];
+
 const PrintNumberInput = ({
   label,
   value,
@@ -104,6 +146,9 @@ const PrintNumberInput = ({
 }) => {
   const [drag, setDrag] = useState<PrintNumberDragState | null>(null);
   const [draft, setDraft] = useState<string | null>(null);
+  const [inputSelection, setInputSelection] = useState<PrintNumberInputSelection>({ start: null, end: null });
+  const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(0);
+  const inputRef = useRef<HTMLInputElement>(null);
   const globalVariables = elements
     .filter((element) => element.type === "variable" && element.scope === "global")
     .map((variable) => ({
@@ -116,9 +161,44 @@ const PrintNumberInput = ({
   const inputValue = draft ?? displayValue;
   const valueFromInput = (input: string) =>
     makeNumericExpression(normalizeNumericExpressionInput(input, elements, availableVariables));
+  const variableOptions = useMemo(
+    () => printVariableReferenceOptions({ printVariables, elements }),
+    [elements, printVariables]
+  );
+  const suggestionMatch = numericVariableSuggestionMatch(
+    inputValue,
+    inputSelection.start,
+    inputSelection.end
+  );
+  const visibleSuggestions = suggestionMatch
+    ? filteredNumericVariableSuggestions(variableOptions, suggestionMatch.query)
+    : [];
+  const selectedSuggestionIndex =
+    visibleSuggestions.length === 0
+      ? 0
+      : Math.min(activeSuggestionIndex, visibleSuggestions.length - 1);
   const commitValue = (nextValue: NumericValue) => {
     if (typeof nextValue === "number" && !Number.isFinite(nextValue)) return;
     onChange(clampNumericValue(nextValue, min));
+  };
+  const updateSelection = (input: HTMLInputElement) => {
+    setInputSelection({ start: input.selectionStart, end: input.selectionEnd });
+  };
+  const applyVariableSuggestion = (option = visibleSuggestions[selectedSuggestionIndex]) => {
+    if (!suggestionMatch || !option) return;
+    const nextInput = replaceNumericVariableSuggestionToken(inputValue, suggestionMatch, option.expression);
+    setDraft(nextInput);
+    commitValue({
+      kind: "expression",
+      expression: normalizeNumericExpressionInput(nextInput, elements, availableVariables)
+    } satisfies NumericExpression);
+    setActiveSuggestionIndex(0);
+    const nextCursor = suggestionMatch.tokenStart + option.expression.length;
+    requestAnimationFrame(() => {
+      inputRef.current?.focus();
+      inputRef.current?.setSelectionRange(nextCursor, nextCursor);
+      setInputSelection({ start: nextCursor, end: nextCursor });
+    });
   };
   const finishDrag = (event: PointerEvent<HTMLInputElement>) => {
     if (!drag || drag.pointerId !== event.pointerId) return;
@@ -130,6 +210,7 @@ const PrintNumberInput = ({
     <label className="print-number-field">
       <span>{label}</span>
       <input
+        ref={inputRef}
         type="text"
         inputMode="decimal"
         value={inputValue}
@@ -137,10 +218,39 @@ const PrintNumberInput = ({
         onChange={(event) => {
           const nextValue = event.currentTarget.value;
           setDraft(nextValue);
+          updateSelection(event.currentTarget);
+          setActiveSuggestionIndex(0);
           if (isDeferredPrintNumberInput(nextValue)) return;
           commitValue(valueFromInput(nextValue));
         }}
+        onClick={(event) => updateSelection(event.currentTarget)}
+        onSelect={(event) => updateSelection(event.currentTarget)}
+        onKeyUp={(event) => updateSelection(event.currentTarget)}
         onKeyDown={(event) => {
+          if (visibleSuggestions.length > 0) {
+            if (event.key === "ArrowDown") {
+              event.preventDefault();
+              setActiveSuggestionIndex((index) => (index + 1) % visibleSuggestions.length);
+              return;
+            }
+            if (event.key === "ArrowUp") {
+              event.preventDefault();
+              setActiveSuggestionIndex(
+                (index) => (index - 1 + visibleSuggestions.length) % visibleSuggestions.length
+              );
+              return;
+            }
+            if (event.key === "Tab") {
+              event.preventDefault();
+              applyVariableSuggestion();
+              return;
+            }
+            if (event.key === "Enter" && !isImeComposingKeyEvent(event)) {
+              event.preventDefault();
+              applyVariableSuggestion();
+              return;
+            }
+          }
           if (event.key === "Enter" && isImeComposingKeyEvent(event)) return;
           if (event.key === "Enter") {
             event.preventDefault();
@@ -154,11 +264,13 @@ const PrintNumberInput = ({
           }
           if (event.key === "Escape") {
             setDraft(null);
+            setInputSelection({ start: null, end: null });
             event.currentTarget.blur();
           }
         }}
         onBlur={() => {
           setDraft(null);
+          setInputSelection({ start: null, end: null });
         }}
         onPointerDown={(event) => {
           if (event.button !== 1) return;
@@ -190,6 +302,12 @@ const PrintNumberInput = ({
         onAuxClick={(event: MouseEvent<HTMLInputElement>) => {
           if (event.button === 1) event.preventDefault();
         }}
+      />
+      <NumericVariableSuggestPopover
+        options={visibleSuggestions}
+        activeIndex={selectedSuggestionIndex}
+        onHover={setActiveSuggestionIndex}
+        onApply={applyVariableSuggestion}
       />
     </label>
   );
@@ -693,8 +811,7 @@ export const PrintLayoutPanel = ({ evaluation }: { evaluation: EvaluationResult 
     }
     const copy = {
       ...placement,
-      id: `placement-${nextIndex}`,
-      x: addToNumericValue(placement.x, 20)
+      id: `placement-${nextIndex}`
     };
     updatePrintLayout({
       placements: [...layout.placements, copy]

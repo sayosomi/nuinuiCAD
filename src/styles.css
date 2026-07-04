@@ -3665,8 +3665,8 @@ select {
 }
 
 .print-page-tile line {
-  stroke: #a0a79b;
-  stroke-width: 0.45;
+  stroke: #252622;
+  stroke-width: 0.8;
   stroke-dasharray: 4 3;
 }
 
