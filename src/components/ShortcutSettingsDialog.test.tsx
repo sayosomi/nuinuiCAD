@@ -35,6 +35,55 @@ beforeEach(() => {
 });
 
 describe("ShortcutSettingsDialog", () => {
+  it("filters commands by recorded shortcut key", () => {
+    render(<ShortcutSettingsDialog />);
+
+    fireEvent.click(screen.getByRole("button", { name: "キーで検索" }));
+    fireEvent.keyDown(window, { key: "s", metaKey: true });
+
+    expect(screen.getByText("全体 / saveDocument")).toBeInTheDocument();
+    expect(screen.queryByText("free point を追加")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("検索中のショートカットキー")).toHaveTextContent("Mod+s");
+  });
+
+  it("filters commands by shortcuts added in the current draft", () => {
+    render(<ShortcutSettingsDialog />);
+
+    const pointRow = rowForCommand("free point を追加");
+    fireEvent.click(within(pointRow).getByText("キー追加"));
+    fireEvent.keyDown(window, { key: "p" });
+
+    fireEvent.click(screen.getByRole("button", { name: "キーで検索" }));
+    fireEvent.keyDown(window, { key: "p" });
+
+    expect(screen.getByText("free point を追加")).toBeInTheDocument();
+    expect(screen.queryByText("line を追加")).not.toBeInTheDocument();
+  });
+
+  it("cancels shortcut key search recording with Escape", () => {
+    render(<ShortcutSettingsDialog />);
+
+    fireEvent.click(screen.getByRole("button", { name: "キーで検索" }));
+    fireEvent.keyDown(window, { key: "Escape" });
+
+    expect(screen.getByRole("button", { name: "キーで検索" })).toBeInTheDocument();
+    expect(screen.queryByLabelText("検索中のショートカットキー")).not.toBeInTheDocument();
+    expect(screen.getByText("free point を追加")).toBeInTheDocument();
+  });
+
+  it("combines command text and shortcut key filters", () => {
+    render(<ShortcutSettingsDialog />);
+
+    fireEvent.change(screen.getByLabelText("ショートカット設定を検索"), {
+      target: { value: "名前" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "キーで検索" }));
+    fireEvent.keyDown(window, { key: "s", metaKey: true, shiftKey: true });
+
+    expect(screen.getByText("名前を付けて保存")).toBeInTheDocument();
+    expect(screen.queryByText("全体 / saveDocument")).not.toBeInTheDocument();
+  });
+
   it("records and saves a shortcut for a command without a default", async () => {
     render(<ShortcutSettingsDialog />);
 

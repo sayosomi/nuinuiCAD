@@ -32,7 +32,8 @@ export {
   keyChordFromEvent,
   keyChordLabel,
   keyChordListLabel,
-  keyChordMatchesEvent
+  keyChordMatchesEvent,
+  keyChordMatchesSearch
 } from "./shortcutChords";
 
 const eventTargetTagName = (event: KeyboardEvent) => {

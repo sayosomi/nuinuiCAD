@@ -7,6 +7,7 @@ import {
   keyChordFromEvent,
   keyChordLabel,
   keyChordListLabel,
+  keyChordMatchesSearch,
   shortcutConflicts
 } from "../keyboard/shortcuts";
 import { keyChordEquals } from "../keyboard/shortcutChords";
@@ -62,6 +63,8 @@ const ShortcutSettingsDialogContent = ({
   const setShortcutSettingsError = useCadUiStore((state) => state.setShortcutSettingsError);
   const [draftSettings, setDraftSettings] = useState(shortcutSettings);
   const [query, setQuery] = useState("");
+  const [searchChord, setSearchChord] = useState<KeyChord | null>(null);
+  const [isRecordingSearchChord, setIsRecordingSearchChord] = useState(false);
   const [recordingBindingId, setRecordingBindingId] = useState<string | null>(null);
   const bindings = useMemo(() => effectiveShortcutBindings(draftSettings), [draftSettings]);
   const bindingById = useMemo(
@@ -70,13 +73,40 @@ const ShortcutSettingsDialogContent = ({
   );
   const filteredBindings = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
-    if (!normalizedQuery) return configurableShortcutBindings;
-    return configurableShortcutBindings.filter((binding) =>
-      commandFilterText(binding).includes(normalizedQuery)
-    );
-  }, [query]);
+    return configurableShortcutBindings.filter((binding) => {
+      if (normalizedQuery && !commandFilterText(binding).includes(normalizedQuery)) {
+        return false;
+      }
+      if (!searchChord) return true;
+      const effectiveBinding = bindingById.get(binding.id);
+      return Boolean(effectiveBinding?.chords.some((chord) => keyChordMatchesSearch(chord, searchChord)));
+    });
+  }, [bindingById, query, searchChord]);
   const conflicts = useMemo(() => shortcutConflicts(draftSettings), [draftSettings]);
   const hasChanges = JSON.stringify(shortcutSettings) !== JSON.stringify(draftSettings);
+
+  useEffect(() => {
+    if (!isRecordingSearchChord) return;
+
+    const recordSearchKey = (event: KeyboardEvent) => {
+      event.preventDefault();
+      event.stopPropagation();
+
+      if (event.key === "Escape") {
+        setIsRecordingSearchChord(false);
+        return;
+      }
+
+      const chord = keyChordFromEvent(event);
+      if (!chord) return;
+
+      setSearchChord(chord);
+      setIsRecordingSearchChord(false);
+    };
+
+    window.addEventListener("keydown", recordSearchKey, { capture: true });
+    return () => window.removeEventListener("keydown", recordSearchKey, { capture: true });
+  }, [isRecordingSearchChord]);
 
   useEffect(() => {
     if (!recordingBindingId) return;
@@ -109,6 +139,16 @@ const ShortcutSettingsDialogContent = ({
 
   const updateBindingChords = (bindingId: string, chords: KeyChord[]) => {
     setDraftSettings((current) => settingWithBindingChords(current, bindingId, chords));
+  };
+
+  const startSearchKeyRecording = () => {
+    setRecordingBindingId(null);
+    setIsRecordingSearchChord(true);
+  };
+
+  const startBindingKeyRecording = (bindingId: string) => {
+    setIsRecordingSearchChord(false);
+    setRecordingBindingId(bindingId);
   };
 
   const saveSettings = async () => {
@@ -157,6 +197,19 @@ const ShortcutSettingsDialogContent = ({
             aria-label="ショートカット設定を検索"
             onChange={(event) => setQuery(event.target.value)}
           />
+          <div className="shortcut-settings-key-search">
+            <button type="button" onClick={startSearchKeyRecording}>
+              {isRecordingSearchChord ? "検索キー入力中..." : "キーで検索"}
+            </button>
+            {searchChord ? (
+              <>
+                <span aria-label="検索中のショートカットキー">{keyChordLabel(searchChord)}</span>
+                <button type="button" onClick={() => setSearchChord(null)}>
+                  クリア
+                </button>
+              </>
+            ) : null}
+          </div>
           <button type="button" onClick={() => setDraftSettings(defaultShortcutSettings())}>
             すべて初期値
           </button>
@@ -176,6 +229,9 @@ const ShortcutSettingsDialogContent = ({
         </div>
 
         <div className="shortcut-settings-list">
+          {filteredBindings.length === 0 ? (
+            <p className="shortcut-settings-empty-state">一致するショートカットはありません。</p>
+          ) : null}
           {filteredBindings.map((sourceBinding) => {
             const binding = bindingById.get(sourceBinding.id) ?? {
               ...sourceBinding,
@@ -213,7 +269,7 @@ const ShortcutSettingsDialogContent = ({
                   )}
                 </div>
                 <div className="shortcut-settings-actions">
-                  <button type="button" onClick={() => setRecordingBindingId(binding.id)}>
+                  <button type="button" onClick={() => startBindingKeyRecording(binding.id)}>
                     {recordingBindingId === binding.id ? "入力中..." : "キー追加"}
                   </button>
                   <button

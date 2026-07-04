@@ -1935,6 +1935,33 @@ describe("LeftPanel element list dragging", () => {
     expect(childRow?.querySelector(".element-expand-button")).not.toBeInTheDocument();
   });
 
+  it("toggles a root group from the element list expand button", () => {
+    useCadStore.setState({
+      elements: [
+        {
+          id: "group-1",
+          name: "身頃",
+          type: "group",
+          visible: true,
+          enabled: true,
+          expanded: true
+        },
+        { ...sampleElements[0], parentGroupId: "group-1" }
+      ],
+      selectedElementId: "group-1",
+      selectedElementIds: ["group-1"],
+      selectionAnchorElementId: "group-1"
+    });
+
+    renderLeftPanel();
+
+    fireEvent.click(screen.getByRole("button", { name: /身頃を折り畳む/ }));
+
+    expect(useCadStore.getState().elements[0]).toMatchObject({ expanded: false });
+    expect(screen.queryByText("点A")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /身頃を展開/ })).toBeInTheDocument();
+  });
+
   it("toggles row visibility from the status icon without changing selection", () => {
     renderLeftPanel();
 

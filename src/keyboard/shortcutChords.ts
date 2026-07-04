@@ -13,6 +13,12 @@ export const keyChordMatchesEvent = (chord: KeyChord, event: KeyboardEvent) =>
   modifierMatches(event.altKey, chord.alt) &&
   modifierMatches(event.shiftKey, chord.shift);
 
+export const keyChordMatchesSearch = (stored: KeyChord, query: KeyChord) =>
+  stored.key.toLowerCase() === query.key.toLowerCase() &&
+  modifierMatches(Boolean(query.mod), stored.mod) &&
+  modifierMatches(Boolean(query.alt), stored.alt) &&
+  modifierMatches(Boolean(query.shift), stored.shift);
+
 export const keyChordId = (chord: KeyChord) =>
   [
     chord.mod === "any" ? "mod:any" : `mod:${Boolean(chord.mod)}`,

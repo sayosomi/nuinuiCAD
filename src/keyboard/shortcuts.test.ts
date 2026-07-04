@@ -3,6 +3,7 @@ import { sampleElements } from "../sampleData";
 import {
   commandIdForKeyboardEvent,
   keyboardCommandForEvent,
+  keyChordMatchesSearch,
   shortcutConflicts,
   shortcutHelpItems,
   type ShortcutSettings
@@ -119,6 +120,33 @@ describe("shortcuts", () => {
         })
       ])
     );
+  });
+
+  it("matches shortcut search keys with wildcard modifiers", () => {
+    expect(
+      keyChordMatchesSearch(
+        { key: "?", mod: false, alt: false, shift: "any" },
+        { key: "?", mod: false, alt: false, shift: true }
+      )
+    ).toBe(true);
+    expect(
+      keyChordMatchesSearch(
+        { key: "?", mod: false, alt: false, shift: "any" },
+        { key: "?", mod: false, alt: false, shift: false }
+      )
+    ).toBe(true);
+    expect(
+      keyChordMatchesSearch(
+        { key: "s", mod: true, alt: false, shift: false },
+        { key: "s", mod: false, alt: false, shift: false }
+      )
+    ).toBe(false);
+    expect(
+      keyChordMatchesSearch(
+        { key: "s", mod: true, alt: false, shift: false },
+        { key: "o", mod: true, alt: false, shift: false }
+      )
+    ).toBe(false);
   });
 
   it("ignores user shortcut overrides from inputs", () => {

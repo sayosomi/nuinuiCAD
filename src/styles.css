@@ -248,6 +248,7 @@ select {
   min-height: 0;
   overflow: auto;
   gap: 6px;
+  padding-left: 23px;
 }
 
 .element-search {
@@ -2011,8 +2012,9 @@ select {
 
 .shortcut-settings-toolbar {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   gap: 10px;
+  align-items: center;
   border-bottom: 1px solid #d2d4cd;
   padding: 12px 16px;
 }
@@ -2023,6 +2025,23 @@ select {
   border-radius: 6px;
   background: #ffffff;
   padding: 8px 10px;
+}
+
+.shortcut-settings-key-search {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  min-width: 0;
+}
+
+.shortcut-settings-key-search span {
+  border: 1px solid #c9ccc2;
+  border-radius: 5px;
+  background: #fbfbfa;
+  padding: 4px 7px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
 }
 
 .shortcut-settings-errors {
@@ -2053,6 +2072,12 @@ select {
   min-height: 0;
   overflow: auto;
   padding: 12px 16px 16px;
+}
+
+.shortcut-settings-empty-state {
+  margin: 8px 0;
+  color: #686b62;
+  font-size: 13px;
 }
 
 .shortcut-settings-row {
