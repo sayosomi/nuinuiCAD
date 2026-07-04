@@ -101,7 +101,7 @@ export const ExpressionInsertTray = ({
       normalizedSearch.length === 0
         ? variableOptions
         : variableOptions.filter((option) =>
-            `${option.label} ${option.expression} ${option.detail}`
+            `${option.label} ${option.displayExpression} ${option.expression} ${option.detail}`
               .toLocaleLowerCase()
               .includes(normalizedSearch)
           );
@@ -341,7 +341,7 @@ export const ExpressionInsertTray = ({
               <button
                 key={option.expression}
                 type="button"
-                onClick={() => insertSnippet(option.expression)}
+                onClick={() => insertSnippet(option.displayExpression)}
               >
                 <strong>{option.label}</strong>
                 <small>{option.detail}</small>

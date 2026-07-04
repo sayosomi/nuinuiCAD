@@ -726,7 +726,7 @@ describe("LeftPanel numeric input dragging", () => {
     expect(useCadStore.getState().elements.at(-1)).toMatchObject({
       expression: { kind: "expression", expression: "line-ab.length + @base-variable" }
     });
-    expect(screen.getByLabelText("変数式")).toHaveValue("直線AB.長さ + @base-variable");
+    expect(screen.getByLabelText("変数式")).toHaveValue("直線AB.長さ + @基準寸法");
   });
 
   it("suggests available variables when typing @ in a numeric input", () => {
@@ -770,7 +770,7 @@ describe("LeftPanel numeric input dragging", () => {
     expect(useCadStore.getState().elements.at(-1)).toMatchObject({
       expression: { kind: "expression", expression: "@base-variable" }
     });
-    expect(input).toHaveValue("@base-variable");
+    expect(input).toHaveValue("@基準寸法");
   });
 
   it("inserts conditional comparison and logical operators from the expression tray", () => {

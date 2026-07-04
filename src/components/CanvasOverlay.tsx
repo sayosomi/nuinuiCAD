@@ -67,7 +67,20 @@ export const CanvasOverlay = ({
       ? undefined
       : {
           fill: "transparent",
-          stroke: transparentElementColor(elementId, 0.45)
+          stroke: transparentElementColor(elementId, 0.8)
+        };
+  const selectedPointGlowStyle = (
+    elementId: ElementId,
+    isPrimarySelected: boolean
+  ): CSSProperties | undefined =>
+    isPointPickActive
+      ? undefined
+      : {
+          stroke: transparentElementColor(elementId, isPrimarySelected ? 0.34 : 0.24),
+          filter: `drop-shadow(0 0 ${isPrimarySelected ? 4 : 3}px ${transparentElementColor(
+            elementId,
+            isPrimarySelected ? 0.55 : 0.38
+          )})`
         };
 
   return (
@@ -138,19 +151,31 @@ export const CanvasOverlay = ({
     ))}
     {overlayPoints.map(({ point, screen }) => {
       const isSelected = selectedElementIdSet.has(point.elementId);
+      const isPrimarySelected = point.elementId === selectedElementId;
       const shouldShowPoint = showCanvasPoints || isSelected || isPointPickActive;
       return (
         <g key={point.elementId}>
           {shouldShowPoint ? (
-            <circle
-              cx={screen.x}
-              cy={screen.y}
-              r={point.elementId === selectedElementId ? 5 : isSelected ? 4.5 : 6}
-              className={`overlay-draggable-point ${
-                isSelected ? "overlay-selected-point" : ""
-              } ${isPointPickActive ? "overlay-point-pick-candidate" : ""}`}
-              style={isSelected ? selectedPointStyle(point.elementId) : undefined}
-            />
+            <>
+              {isSelected && !isPointPickActive ? (
+                <circle
+                  cx={screen.x}
+                  cy={screen.y}
+                  r={isPrimarySelected ? 9 : 7.5}
+                  className="overlay-selected-point-glow"
+                  style={selectedPointGlowStyle(point.elementId, isPrimarySelected)}
+                />
+              ) : null}
+              <circle
+                cx={screen.x}
+                cy={screen.y}
+                r={isPrimarySelected ? 3.5 : isSelected ? 3.25 : 6}
+                className={`overlay-draggable-point ${
+                  isSelected ? "overlay-selected-point" : ""
+                } ${isPointPickActive ? "overlay-point-pick-candidate" : ""}`}
+                style={isSelected ? selectedPointStyle(point.elementId) : undefined}
+              />
+            </>
           ) : null}
           {showCanvasElementNames ? (
             <text x={screen.x + 8} y={screen.y - 8}>

@@ -142,15 +142,32 @@ export const addToNumericValue = (value: NumericValue, delta: number): NumericVa
 export const formatNumericExpressionForDisplay = (
   value: NumericValue,
   elements: CadElement[],
-  localVariables: NumericVariable[] = []
+  localVariables: NumericVariable[] = [],
+  currentElement?: CadElement
 ) => {
   if (!isNumericExpression(value)) return Number.isInteger(value) ? `${value}` : value.toFixed(2).replace(/\.?0+$/, "");
   const elementsById = new Map(elements.map((element) => [element.id, element]));
-  const variablesById = new Map(localVariables.map((variable) => [variable.id, variable]));
+  const localVariableNameCounts = new Map<string, number>();
+  for (const variable of localVariables) {
+    localVariableNameCounts.set(variable.name, (localVariableNameCounts.get(variable.name) ?? 0) + 1);
+  }
+  const variablesById = new Map(
+    localVariables.map((variable) => {
+      const ambiguousName = currentElement && (localVariableNameCounts.get(variable.name) ?? 0) > 1;
+      const name = currentElement && !ambiguousName
+        ? `${currentElement.name}.${variable.name}`
+        : ambiguousName
+          ? variable.id
+          : variable.name;
+      return [variable.id, name];
+    })
+  );
   return value.expression
     .replace(/@([^\s()+*/.<>!=&|]+)/g, (match, variableId: string) => {
-      const variable = variablesById.get(variableId);
-      return variable ? `@${variable.name}` : match;
+      const variableName = variablesById.get(variableId);
+      if (variableName) return `@${variableName}`;
+      const variableElement = elementsById.get(variableId);
+      return variableElement?.type === "variable" ? `@${variableElement.name}` : match;
     })
     .replace(
       /(distance|angle|lineDistance|距離|角度|点線距離)\(\s*([^)]*?)\s*\)/g,
@@ -177,10 +194,18 @@ const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\
 export const normalizeNumericExpressionInput = (
   input: string,
   elements: CadElement[],
-  localVariables: NumericVariable[] = []
+  localVariables: NumericVariable[] = [],
+  currentElement?: CadElement
 ) => {
   let expression = input.trim();
   const variables = [...localVariables].sort((a, b) => b.name.length - a.name.length);
+  const localVariableNameCounts = new Map<string, number>();
+  for (const variable of localVariables) {
+    localVariableNameCounts.set(variable.name, (localVariableNameCounts.get(variable.name) ?? 0) + 1);
+  }
+  const variableElements = [...elements]
+    .filter((element): element is Extract<CadElement, { type: "variable" }> => element.type === "variable")
+    .sort((a, b) => b.name.length - a.name.length);
   const measurableElements = elements
     .filter(
       (element) =>
@@ -198,7 +223,29 @@ export const normalizeNumericExpressionInput = (
     .filter((element) => element.name.trim().length > 0)
     .sort((a, b) => b.name.length - a.name.length);
 
+  if (currentElement) {
+    const qualifiedVariables = [...variables].sort(
+      (a, b) =>
+        `${currentElement.name}.${b.name}`.length - `${currentElement.name}.${a.name}`.length
+    );
+    for (const variable of qualifiedVariables) {
+      if (currentElement && (localVariableNameCounts.get(variable.name) ?? 0) > 1) continue;
+      expression = expression.replace(
+        new RegExp(`@${escapeRegExp(`${currentElement.name}.${variable.name}`)}(?=$|[\\s()+*/<>=!&|-])`, "g"),
+        `@${variable.id}`
+      );
+    }
+  }
+
   for (const variable of variables) {
+    if (currentElement && (localVariableNameCounts.get(variable.name) ?? 0) > 1) continue;
+    expression = expression.replace(
+      new RegExp(`@${escapeRegExp(variable.name)}(?=$|[\\s()+*/<>=!&|-])`, "g"),
+      `@${variable.id}`
+    );
+  }
+
+  for (const variable of variableElements) {
     expression = expression.replace(
       new RegExp(`@${escapeRegExp(variable.name)}(?=$|[\\s()+*/<>=!&|-])`, "g"),
       `@${variable.id}`

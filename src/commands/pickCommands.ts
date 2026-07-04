@@ -114,7 +114,8 @@ export const insertNumericExpressionSnippet = (context?: CommandContext) => {
   const nextExpression = normalizeNumericExpressionInput(
     nextDisplayExpression,
     target.elements,
-    target.targetElement.numericVariables ?? []
+    target.targetElement.numericVariables ?? [],
+    target.targetElement
   );
 
   useCadDocumentStore.getState().commitDocumentChange({

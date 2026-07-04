@@ -35,7 +35,7 @@ export const filteredNumericVariableSuggestions = (
     normalizedQuery.length === 0
       ? options
       : options.filter((option) =>
-          `${option.label} ${option.expression} ${option.detail}`
+          `${option.label} ${option.displayExpression} ${option.expression} ${option.detail}`
             .toLocaleLowerCase()
             .includes(normalizedQuery)
         );

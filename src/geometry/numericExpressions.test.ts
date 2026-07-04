@@ -122,6 +122,68 @@ describe("normalizeNumericExpressionInput", () => {
     ).toBe("curve-ac.startHandleLength + @shared");
   });
 
+  it("normalizes qualified local variables and global variable display names", () => {
+    const variable: CadElement = {
+      id: "base-variable",
+      name: "基準寸法",
+      type: "variable",
+      visible: true,
+      enabled: true,
+      scope: "global",
+      valueMode: "expression",
+      expression: 20,
+      point1: { mode: "reference", pointId: "point-a" },
+      point2: { mode: "reference", pointId: "point-b" },
+      point: { mode: "reference", pointId: "point-a" },
+      lineId: "line-ab"
+    };
+    const point: CadElement = {
+      id: "point-a",
+      name: "袖",
+      type: "freePoint",
+      visible: true,
+      enabled: true,
+      numericVariables: [{ id: "local-width", name: "寸法", value: 30 }],
+      x: 0,
+      y: 0
+    };
+    const elements = [variable, point];
+
+    expect(
+      normalizeNumericExpressionInput(
+        "@袖.寸法 + @基準寸法",
+        elements,
+        point.numericVariables ?? [],
+        point
+      )
+    ).toBe("@local-width + @base-variable");
+  });
+
+  it("does not normalize ambiguous local variable display names", () => {
+    const point: CadElement = {
+      id: "point-a",
+      name: "袖",
+      type: "freePoint",
+      visible: true,
+      enabled: true,
+      numericVariables: [
+        { id: "local-width-1", name: "寸法", value: 30 },
+        { id: "local-width-2", name: "寸法", value: 40 }
+      ],
+      x: 0,
+      y: 0
+    };
+
+    expect(
+      normalizeNumericExpressionInput(
+        "@袖.寸法",
+        [point],
+        point.numericVariables ?? [],
+        point
+      )
+    ).toBe("@袖.寸法");
+  });
+
   it("normalizes element names inside numeric measurement functions", () => {
     const elements: CadElement[] = [
       {
@@ -183,5 +245,66 @@ describe("normalizeNumericExpressionInput", () => {
     expect(formatNumericExpressionForDisplay(expression("距離(point-a, point-b)"), elements)).toBe(
       "距離(点A, 点B)"
     );
+  });
+
+  it("formats local and global variable ids for display", () => {
+    const variable: CadElement = {
+      id: "base-variable",
+      name: "基準寸法",
+      type: "variable",
+      visible: true,
+      enabled: true,
+      scope: "global",
+      valueMode: "expression",
+      expression: 20,
+      point1: { mode: "reference", pointId: "point-a" },
+      point2: { mode: "reference", pointId: "point-b" },
+      point: { mode: "reference", pointId: "point-a" },
+      lineId: "line-ab"
+    };
+    const point: CadElement = {
+      id: "point-a",
+      name: "袖",
+      type: "freePoint",
+      visible: true,
+      enabled: true,
+      numericVariables: [{ id: "local-width", name: "寸法", value: 30 }],
+      x: { kind: "expression", expression: "@local-width + @base-variable" },
+      y: 0
+    };
+
+    expect(
+      formatNumericExpressionForDisplay(
+        expression("@local-width + @base-variable"),
+        [variable, point],
+        point.numericVariables ?? [],
+        point
+      )
+    ).toBe("@袖.寸法 + @基準寸法");
+  });
+
+  it("falls back to local variable ids when display names are ambiguous", () => {
+    const point: CadElement = {
+      id: "point-a",
+      name: "袖",
+      type: "freePoint",
+      visible: true,
+      enabled: true,
+      numericVariables: [
+        { id: "local-width-1", name: "寸法", value: 30 },
+        { id: "local-width-2", name: "寸法", value: 40 }
+      ],
+      x: 0,
+      y: 0
+    };
+
+    expect(
+      formatNumericExpressionForDisplay(
+        expression("@local-width-1 + @local-width-2"),
+        [point],
+        point.numericVariables ?? [],
+        point
+      )
+    ).toBe("@local-width-1 + @local-width-2");
   });
 });

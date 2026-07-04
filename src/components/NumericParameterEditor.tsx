@@ -109,15 +109,16 @@ export const NumericParameterEditor = ({
   const displayValue = formatNumericExpressionForDisplay(
     value,
     elements,
-    element.numericVariables ?? []
+    element.numericVariables ?? [],
+    element
   );
   const [draft, setDraft] = useState<NumericInputDraft | null>(null);
   const numericValueFromInput = useCallback(
     (nextValue: string) =>
       makeNumericExpression(
-        normalizeNumericExpressionInput(nextValue, elements, element.numericVariables ?? [])
+        normalizeNumericExpressionInput(nextValue, elements, element.numericVariables ?? [], element)
       ),
-    [element.numericVariables, elements]
+    [element, elements]
   );
 
   const shouldUseDraftValue =
@@ -318,9 +319,9 @@ export const NumericParameterEditor = ({
     const nextValue = replaceNumericVariableSuggestionToken(
       inputValue,
       suggestionMatch,
-      option.expression
+      option.displayExpression
     );
-    const nextSelection = suggestionMatch.tokenStart + option.expression.length;
+    const nextSelection = suggestionMatch.tokenStart + option.displayExpression.length;
     const nextInputSelection = { start: nextSelection, end: nextSelection };
     inputSelectionRef.current = nextInputSelection;
     setInputSelection(nextInputSelection);

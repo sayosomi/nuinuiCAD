@@ -267,7 +267,7 @@ describe("renderCanvasGeometry", () => {
       })
     ).toEqual({
       fillStyle: "transparent",
-      radius: 4,
+      radius: 3.5,
       strokeStyle: "#aa0000"
     });
   });

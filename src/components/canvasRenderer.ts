@@ -346,9 +346,9 @@ export const renderCanvasGeometry = ({
           : isLinePickActive
             ? 3.5
             : isPrimarySelected
-              ? 4
+              ? 3.5
               : isSelected
-                ? 3.75
+                ? 3.25
                 : 4,
       0,
       Math.PI * 2
@@ -371,6 +371,8 @@ export const renderCanvasGeometry = ({
       ? 2.5
       : isNumericReferencePickActive || isLinePickActive
         ? 1.25
+        : isSelected
+          ? 1.25
         : 2;
     ctx.fill();
     ctx.stroke();

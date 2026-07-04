@@ -3129,8 +3129,14 @@ select {
 
 .drawing-overlay .overlay-selected-point {
   fill: transparent;
-  stroke: rgb(15 118 110 / 45%);
-  stroke-width: 2;
+  stroke: rgb(15 118 110 / 80%);
+  stroke-width: 1.25;
+}
+
+.drawing-overlay .overlay-selected-point-glow {
+  fill: transparent;
+  stroke: rgb(15 118 110 / 34%);
+  stroke-width: 2.5;
 }
 
 .drawing-overlay .overlay-point-pick-candidate {

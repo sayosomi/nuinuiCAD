@@ -10,6 +10,7 @@ import { variableIsInScope } from "./variableScope";
 
 export type NumericVariableReferenceOption = {
   expression: string;
+  displayExpression: string;
   label: string;
   detail: string;
   source: "local" | "global" | "group";
@@ -37,10 +38,19 @@ export const availableNumericVariableReferenceOptions = ({
   const localVariableLimit = localVariable
     ? localVariables.findIndex((variable) => variable.id === localVariable.variableId)
     : localVariables.length;
-  for (const variable of localVariables.slice(0, Math.max(0, localVariableLimit))) {
+  const visibleLocalVariables = localVariables.slice(0, Math.max(0, localVariableLimit));
+  const localVariableNameCounts = new Map<string, number>();
+  for (const variable of visibleLocalVariables) {
+    localVariableNameCounts.set(variable.name, (localVariableNameCounts.get(variable.name) ?? 0) + 1);
+  }
+  for (const variable of visibleLocalVariables) {
+    const displayExpression = (localVariableNameCounts.get(variable.name) ?? 0) > 1
+      ? `@${variable.id}`
+      : `@${element.name}.${variable.name}`;
     options.push({
       expression: `@${variable.id}`,
-      label: `@${variable.name}`,
+      displayExpression,
+      label: displayExpression,
       detail: "要素内変数",
       source: "local",
       variableId: variable.id
@@ -57,6 +67,7 @@ export const availableNumericVariableReferenceOptions = ({
 
     options.push({
       expression: `@${candidate.id}`,
+      displayExpression: `@${candidate.name}`,
       label: `@${candidate.name}`,
       detail: candidate.scope === "global" ? "全体変数" : "グループ変数",
       source: candidate.scope,
