@@ -249,7 +249,11 @@ const NAVIGATE_ITEMS: &[MenuSpec] = &[
         "評価区切り線を選択要素の下へ",
         None,
     ),
-    cmd("moveEvaluationDividerToEnd", "評価区切り線を末尾へ", None),
+    cmd(
+        "moveEvaluationDividerToEnd",
+        "評価区切り線を末尾へ",
+        Some("Shift+Alt+End"),
+    ),
 ];
 
 #[cfg(target_os = "macos")]

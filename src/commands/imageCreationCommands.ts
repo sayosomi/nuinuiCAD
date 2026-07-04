@@ -3,7 +3,10 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { relativeImagePath } from "../document/imageFilePaths";
 import { isTauriRuntime } from "../geometry/evaluationEngine";
 import { defaultTargetPixelsPerMm, initialImageScale } from "../geometry/imageScale";
-import { evaluatedElements } from "../model/evaluationDivider";
+import {
+  applyCreationPlacement,
+  creationPlacementForEvaluationLimit
+} from "../model/elementCreationPlacement";
 import { createCadElement } from "../model/elementFactory";
 import { makeUniqueElementName } from "../model/elementNames";
 import { getFirstParameterKey } from "../parameters/parameterDefinitions";
@@ -73,11 +76,9 @@ const loadTauriImageMetadata = async (path: string) => {
 
 const creationContext = () => {
   const { elements, evaluationLimitIndex } = useCadDocumentStore.getState();
-  const insertionIndex = Math.min(Math.max(evaluationLimitIndex, 0), elements.length);
   return {
     elements,
-    insertionIndex,
-    referenceElements: evaluatedElements(elements, insertionIndex)
+    ...creationPlacementForEvaluationLimit(elements, evaluationLimitIndex)
   };
 };
 
@@ -87,17 +88,18 @@ const commitCreatedImage = (
   insertionIndex: number,
   focusSelectedParameterInput?: FocusSelectedParameterInput
 ) => {
+  const placedElement = applyCreationPlacement(element, creationPlacementForEvaluationLimit(elements, insertionIndex));
   useCadDocumentStore.getState().commitDocumentChange({
     elements: [
       ...elements.slice(0, insertionIndex),
-      element,
+      placedElement,
       ...elements.slice(insertionIndex)
     ],
     evaluationLimitIndex: insertionIndex + 1,
-    selectedElementId: element.id,
-    selectedElementIds: [element.id],
-    selectionAnchorElementId: element.id,
-    selectedParameterKey: getFirstParameterKey(element)
+    selectedElementId: placedElement.id,
+    selectedElementIds: [placedElement.id],
+    selectionAnchorElementId: placedElement.id,
+    selectedParameterKey: getFirstParameterKey(placedElement)
   });
   enterCreatedElementNameEntry(focusSelectedParameterInput);
 };

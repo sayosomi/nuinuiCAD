@@ -529,6 +529,9 @@ describe("shortcuts", () => {
       commandIdForKeyboardEvent(keyboardEventFrom("ArrowDown", row, { altKey: true, shiftKey: true }))
     ).toBe("moveEvaluationDividerDown");
     expect(
+      commandIdForKeyboardEvent(keyboardEventFrom("End", row, { altKey: true, shiftKey: true }))
+    ).toBe("moveEvaluationDividerToEnd");
+    expect(
       commandIdForKeyboardEvent(keyboardEvent("ArrowUp", { altKey: true, shiftKey: true }))
     ).toBeNull();
     expect(

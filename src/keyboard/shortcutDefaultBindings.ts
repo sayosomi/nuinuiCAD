@@ -84,6 +84,9 @@ const defaultBindings: ShortcutBinding[] = [
   binding("normal", "moveEvaluationDividerDown", [ch("ArrowDown", { alt: true, shift: true })], {
     defaultChordMatches: elementListAltArrowMatch
   }),
+  binding("normal", "moveEvaluationDividerToEnd", [ch("End", { alt: true, shift: true })], {
+    defaultChordMatches: elementListAltArrowMatch
+  }),
   binding("normal", "selectPreviousElement", [ch("ArrowUp")]),
   binding("normal", "selectNextElement", [ch("ArrowDown")]),
   binding("normal", "extendSelectionToPreviousElement", [ch("ArrowUp", { shift: true })]),

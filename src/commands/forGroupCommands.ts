@@ -1,4 +1,8 @@
 import { createCadElement } from "../model/elementFactory";
+import {
+  applyCreationPlacement,
+  creationPlacementForEvaluationLimit
+} from "../model/elementCreationPlacement";
 import { adjustEvaluationLimitForInsertion } from "../model/evaluationDivider";
 import { isForGroupElement } from "../model/groups";
 import { getFirstParameterKey } from "../parameters/parameterDefinitions";
@@ -25,8 +29,9 @@ const hasSelectedAncestor = (
 
 export const addForGroup = (focusSelectedParameterInput?: FocusSelectedParameterInput) => {
   const { elements, evaluationLimitIndex } = useCadDocumentStore.getState();
-  const insertionIndex = Math.min(Math.max(evaluationLimitIndex, 0), elements.length);
-  const group = createCadElement("forGroup", elements);
+  const placement = creationPlacementForEvaluationLimit(elements, evaluationLimitIndex);
+  const { insertionIndex } = placement;
+  const group = applyCreationPlacement(createCadElement("forGroup", elements), placement);
 
   useCadDocumentStore.getState().commitDocumentChange({
     elements: [

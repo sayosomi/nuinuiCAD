@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, KeyboardEvent, MouseEvent, PointerEvent, RefObject } from "react";
-import { Search, X } from "lucide-react";
+import { ChevronsDown, Search, X } from "lucide-react";
 import { dispatchCommand } from "../commands/commands";
 import type { CommandContext } from "../commands/commands";
 import { fileNameFromPath } from "../document/documentFormat";
@@ -148,6 +148,15 @@ const EvaluationDividerRow = ({
       onClick={() => dispatchCommand("moveEvaluationDividerDown")}
     >
       ↓
+    </button>
+    <button
+      type="button"
+      className="evaluation-divider-button"
+      aria-label="評価区切り線を末尾へ"
+      onPointerDown={(event) => event.stopPropagation()}
+      onClick={() => dispatchCommand("moveEvaluationDividerToEnd")}
+    >
+      <ChevronsDown aria-hidden="true" size={16} />
     </button>
   </div>
 );

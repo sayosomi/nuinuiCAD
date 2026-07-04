@@ -1,4 +1,8 @@
 import { createCadElement } from "../model/elementFactory";
+import {
+  applyCreationPlacement,
+  creationPlacementForEvaluationLimit
+} from "../model/elementCreationPlacement";
 import { adjustEvaluationLimitForInsertion } from "../model/evaluationDivider";
 import { isConditionalGroupElement } from "../model/groups";
 import { getFirstParameterKey } from "../parameters/parameterDefinitions";
@@ -27,8 +31,9 @@ export const addConditionalGroup = (
   focusSelectedParameterInput?: FocusSelectedParameterInput
 ) => {
   const { elements, evaluationLimitIndex } = useCadDocumentStore.getState();
-  const insertionIndex = Math.min(Math.max(evaluationLimitIndex, 0), elements.length);
-  const group = createCadElement("conditionalGroup", elements);
+  const placement = creationPlacementForEvaluationLimit(elements, evaluationLimitIndex);
+  const { insertionIndex } = placement;
+  const group = applyCreationPlacement(createCadElement("conditionalGroup", elements), placement);
 
   useCadDocumentStore.getState().commitDocumentChange({
     elements: [

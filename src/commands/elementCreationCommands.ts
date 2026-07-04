@@ -1,5 +1,8 @@
 import { createCadElement } from "../model/elementFactory";
-import { evaluatedElements } from "../model/evaluationDivider";
+import {
+  applyCreationPlacement,
+  creationPlacementForEvaluationLimit
+} from "../model/elementCreationPlacement";
 import { derivedAnchor, referenceAnchor } from "../model/pointAnchors";
 import { getFirstParameterKey } from "../parameters/parameterDefinitions";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
@@ -12,11 +15,9 @@ import {
 
 const creationContext = () => {
   const { elements, evaluationLimitIndex } = useCadDocumentStore.getState();
-  const insertionIndex = Math.min(Math.max(evaluationLimitIndex, 0), elements.length);
   return {
     elements,
-    insertionIndex,
-    referenceElements: evaluatedElements(elements, insertionIndex)
+    ...creationPlacementForEvaluationLimit(elements, evaluationLimitIndex)
   };
 };
 
@@ -29,17 +30,19 @@ const commitCreatedElement = (
   insertionIndex: number,
   focusSelectedParameterInput?: FocusSelectedParameterInput
 ) => {
+  const placement = creationPlacementForEvaluationLimit(elements, insertionIndex);
+  const placedElement = applyCreationPlacement(element, placement);
   useCadDocumentStore.getState().commitDocumentChange({
     elements: [
       ...elements.slice(0, insertionIndex),
-      element,
+      placedElement,
       ...elements.slice(insertionIndex)
     ],
     evaluationLimitIndex: insertionIndex + 1,
-    selectedElementId: element.id,
-    selectedElementIds: [element.id],
-    selectionAnchorElementId: element.id,
-    selectedParameterKey: getFirstParameterKey(element)
+    selectedElementId: placedElement.id,
+    selectedElementIds: [placedElement.id],
+    selectionAnchorElementId: placedElement.id,
+    selectedParameterKey: getFirstParameterKey(placedElement)
   });
   enterCreatedElementNameEntry(focusSelectedParameterInput);
 };
@@ -48,7 +51,8 @@ export const addElement = (
   type: CadElementType,
   focusSelectedParameterInput?: FocusSelectedParameterInput
 ) => {
-  const { elements, insertionIndex, referenceElements } = creationContext();
+  const context = creationContext();
+  const { elements, insertionIndex, referenceElements } = context;
   const element = createElement(type, elements, referenceElements);
   commitCreatedElement(element, elements, insertionIndex, focusSelectedParameterInput);
 };

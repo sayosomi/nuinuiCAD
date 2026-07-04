@@ -2225,6 +2225,17 @@ describe("LeftPanel element list dragging", () => {
     expect(useCadStore.getState().evaluationLimitIndex).toBe(sampleElements.length);
   });
 
+  it("moves the evaluation divider to the end from the divider button", () => {
+    useCadStore.setState({
+      evaluationLimitIndex: 2
+    });
+    renderLeftPanel(evaluateElements(sampleElements, { evaluationLimitIndex: 2 }));
+
+    fireEvent.click(screen.getByRole("button", { name: "評価区切り線を末尾へ" }));
+
+    expect(useCadStore.getState().evaluationLimitIndex).toBe(sampleElements.length);
+  });
+
   it("searches collapsed group children and selects the active result with Enter", () => {
     useCadStore.setState({
       elements: [

@@ -373,6 +373,101 @@ describe("commands", () => {
     expect(state.isParameterEditMode).toBe(true);
   });
 
+  it("adds new elements inside a group when the divider is directly below the group tail", () => {
+    useCadStore.setState({
+      elements: [
+        {
+          id: "group-1",
+          name: "本体",
+          type: "group",
+          visible: true,
+          enabled: true,
+          expanded: true
+        },
+        { ...sampleElements[0], parentGroupId: "group-1" },
+        sampleElements[1]
+      ],
+      evaluationLimitIndex: 2
+    });
+
+    dispatchCommand("addFreePoint");
+
+    const state = useCadStore.getState();
+    expect(state.elements[2]).toMatchObject({
+      type: "freePoint",
+      parentGroupId: "group-1"
+    });
+    expect(state.evaluationLimitIndex).toBe(3);
+  });
+
+  it("adds conditional and for groups inside a group when the divider is below the group tail", () => {
+    const elements: CadElement[] = [
+      {
+        id: "group-1",
+        name: "本体",
+        type: "group",
+        visible: true,
+        enabled: true,
+        expanded: true
+      },
+      { ...sampleElements[0], parentGroupId: "group-1" },
+      sampleElements[1]
+    ];
+    useCadStore.setState({
+      elements,
+      evaluationLimitIndex: 2
+    });
+
+    dispatchCommand("addConditionalGroup");
+
+    let state = useCadStore.getState();
+    expect(state.elements[2]).toMatchObject({
+      type: "conditionalGroup",
+      parentGroupId: "group-1"
+    });
+
+    useCadStore.setState({
+      elements,
+      evaluationLimitIndex: 2
+    });
+
+    dispatchCommand("addForGroup");
+
+    state = useCadStore.getState();
+    expect(state.elements[2]).toMatchObject({
+      type: "forGroup",
+      parentGroupId: "group-1"
+    });
+  });
+
+  it("adds new elements to the previous if branch when the divider is below an if group tail", () => {
+    useCadStore.setState({
+      elements: [
+        {
+          id: "if",
+          name: "分岐",
+          type: "conditionalGroup",
+          visible: true,
+          enabled: true,
+          condition: 1,
+          expanded: true,
+          elseExpanded: true
+        },
+        { ...sampleElements[0], parentGroupId: "if", conditionalBranch: "else" },
+        sampleElements[1]
+      ],
+      evaluationLimitIndex: 2
+    });
+
+    dispatchCommand("addFreePoint");
+
+    expect(useCadStore.getState().elements[2]).toMatchObject({
+      type: "freePoint",
+      parentGroupId: "if",
+      conditionalBranch: "else"
+    });
+  });
+
   it("moves the evaluation divider by command", () => {
     useCadStore.setState({ evaluationLimitIndex: 2 });
 
