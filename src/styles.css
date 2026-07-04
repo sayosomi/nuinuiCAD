@@ -63,7 +63,9 @@ select {
   position: relative;
   display: grid;
   grid-template-columns: var(--left-panel-width, 320px) minmax(0, 1fr) 360px;
+  height: 100vh;
   min-height: 100vh;
+  overflow: hidden;
 }
 
 .app-shell.is-resizing-left-panel {
@@ -3702,14 +3704,88 @@ select {
 
 .print-settings-panel {
   gap: 10px;
+  overflow: hidden;
 }
 
 .print-settings-hero {
+  flex: 0 0 auto;
   position: sticky;
   top: 0;
   z-index: 2;
   border-bottom: 1px solid #d7dace;
   background: #fbfbfa;
+}
+
+.print-settings-scroll {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  flex-direction: column;
+  gap: 10px;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.print-collapsible-section {
+  flex: 0 0 auto;
+}
+
+.print-collapsible-header {
+  align-items: stretch;
+  margin-bottom: 0;
+}
+
+.print-section-toggle {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  flex: 1;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  border-color: transparent;
+  background: transparent;
+  padding: 0;
+  text-align: left;
+}
+
+.print-section-toggle:hover {
+  background: transparent;
+}
+
+.print-section-toggle svg {
+  width: 16px;
+  height: 16px;
+  color: #5c6359;
+  transition: transform 120ms ease;
+}
+
+.print-section-toggle[aria-expanded="false"] svg {
+  transform: rotate(-90deg);
+}
+
+.print-section-toggle span {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.print-section-toggle h2 {
+  margin: 0;
+  color: #252622;
+  font-size: 15px;
+}
+
+.print-section-toggle small {
+  overflow: hidden;
+  color: #686b62;
+  font-size: 12px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.print-collapsible-body {
+  margin-top: 10px;
 }
 
 .print-settings-title {
@@ -3960,7 +4036,11 @@ select {
 }
 
 .print-placement-detail {
+  flex: 0 0 auto;
+  max-height: 42vh;
+  overflow: auto;
   border-top: 1px solid #d7dace;
+  background: #fbfbfa;
 }
 
 .checkbox-field {

@@ -263,7 +263,8 @@ describe("AppLayout left panel resizing", () => {
     await waitFor(() =>
       expect(JSON.parse(window.localStorage.getItem("nuinuiCAD.layoutSettings.v1") ?? "{}")).toEqual({
         version: 1,
-        leftPanelWidth: 500
+        leftPanelWidth: 500,
+        collapsedPrintPanelSections: ["variables"]
       })
     );
     expect(shell.style.getPropertyValue("--left-panel-width")).toBe("500px");
@@ -287,7 +288,8 @@ describe("AppLayout left panel resizing", () => {
     await waitFor(() =>
       expect(JSON.parse(window.localStorage.getItem("nuinuiCAD.layoutSettings.v1") ?? "{}")).toEqual({
         version: 1,
-        leftPanelWidth: 320
+        leftPanelWidth: 320,
+        collapsedPrintPanelSections: ["variables"]
       })
     );
     expect(shell.style.getPropertyValue("--left-panel-width")).toBe("320px");

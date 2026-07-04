@@ -1,6 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
-import type { MouseEvent, PointerEvent, RefObject, WheelEvent as ReactWheelEvent } from "react";
-import { Copy, FileCode, FileText, Plus, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type {
+  MouseEvent,
+  PointerEvent,
+  ReactNode,
+  RefObject,
+  WheelEvent as ReactWheelEvent
+} from "react";
+import { ChevronDown, Copy, FileCode, FileText, Plus, Trash2 } from "lucide-react";
 import { dispatchCommand } from "../commands/commands";
 import { formatNumber } from "./geometryDisplay";
 import { isImeComposingKeyEvent } from "./keyboardEventGuards";
@@ -20,6 +26,12 @@ import {
 } from "../print/printLayout";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
+import {
+  loadLayoutSettings,
+  PRINT_PANEL_SECTION_IDS,
+  saveLayoutSettings,
+  type PrintPanelSectionId
+} from "../layout/layoutSettingsStorage";
 import type {
   CadElement,
   ElementId,
@@ -61,6 +73,7 @@ type PrintCanvasDrag =
 const WHEEL_ZOOM_BASE = 1.1;
 
 const deferredPrintNumberInputValues = new Set(["", "+", "-", ".", "+.", "-."]);
+const DEFAULT_COLLAPSED_PRINT_PANEL_SECTIONS = new Set<PrintPanelSectionId>(["variables"]);
 
 const isDeferredPrintNumberInput = (input: string) =>
   deferredPrintNumberInputValues.has(input.trim());
@@ -179,6 +192,50 @@ const PrintNumberInput = ({
         }}
       />
     </label>
+  );
+};
+
+type CollapsiblePanelSectionProps = {
+  id: PrintPanelSectionId;
+  title: string;
+  subtitle?: string;
+  collapsedSections: Set<PrintPanelSectionId>;
+  onToggle: (sectionId: PrintPanelSectionId) => void;
+  actions?: ReactNode;
+  className?: string;
+  children: ReactNode;
+};
+
+const CollapsiblePanelSection = ({
+  id,
+  title,
+  subtitle,
+  collapsedSections,
+  onToggle,
+  actions,
+  className,
+  children
+}: CollapsiblePanelSectionProps) => {
+  const isCollapsed = collapsedSections.has(id);
+  return (
+    <section className={`panel-section print-collapsible-section ${className ?? ""}`}>
+      <div className="section-header print-collapsible-header">
+        <button
+          type="button"
+          className="print-section-toggle"
+          aria-expanded={!isCollapsed}
+          onClick={() => onToggle(id)}
+        >
+          <ChevronDown aria-hidden="true" />
+          <span>
+            <h2>{title}</h2>
+            {subtitle ? <small className="section-subtitle">{subtitle}</small> : null}
+          </span>
+        </button>
+        {actions}
+      </div>
+      {isCollapsed ? null : <div className="print-collapsible-body">{children}</div>}
+    </section>
   );
 };
 
@@ -475,6 +532,11 @@ export const PrintLayoutPanel = ({ evaluation }: { evaluation: EvaluationResult 
   const selectedPrintPlacementId = useCadUiStore((state) => state.selectedPrintPlacementId);
   const setSelectedPrintPlacementId = useCadUiStore((state) => state.setSelectedPrintPlacementId);
   const [groupQuery, setGroupQuery] = useState("");
+  const [collapsedSections, setCollapsedSections] = useState<Set<PrintPanelSectionId>>(
+    DEFAULT_COLLAPSED_PRINT_PANEL_SECTIONS
+  );
+  const placementRowRefs = useRef(new Map<string, HTMLDivElement>());
+  const validPrintPanelSectionIds = useMemo(() => new Set<PrintPanelSectionId>(PRINT_PANEL_SECTION_IDS), []);
   const resolvedLayout = useMemo(
     () => resolvePrintLayout({ layout, elements, evaluation }),
     [elements, evaluation, layout]
@@ -508,6 +570,9 @@ export const PrintLayoutPanel = ({ evaluation }: { evaluation: EvaluationResult 
   const filteredGroups = groups.filter((group) =>
     group.name.toLowerCase().includes(groupQuery.trim().toLowerCase())
   );
+  const printSettingsSummary = isSvgLayout
+    ? `SVG ${formatNumber(resolvedLayout.svgCanvasWidthMm)}x${formatNumber(resolvedLayout.svgCanvasHeightMm)}mm / 倍率 ${formatNumber(resolvedLayout.scale)}`
+    : `${PAPER_SIZES.find((paper) => paper.id === layout.paperSizeId)?.label ?? "用紙"} / ${resolvedLayout.columns}x${resolvedLayout.rows} / 倍率 ${formatNumber(resolvedLayout.scale)}`;
   const placementCountByGroupId = new Map<ElementId, number>();
   for (const placement of layout.placements) {
     placementCountByGroupId.set(
@@ -515,6 +580,58 @@ export const PrintLayoutPanel = ({ evaluation }: { evaluation: EvaluationResult 
       (placementCountByGroupId.get(placement.groupId) ?? 0) + 1
     );
   }
+  useEffect(() => {
+    let cancelled = false;
+    void loadLayoutSettings()
+      .then((settings) => {
+        if (cancelled) return;
+        setCollapsedSections(
+          new Set(settings.collapsedPrintPanelSections.filter((id) => validPrintPanelSectionIds.has(id)))
+        );
+      })
+      .catch((error: unknown) => {
+        console.error("failed to load print panel section settings", error);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [validPrintPanelSectionIds]);
+  useEffect(() => {
+    const selectedId = selectedPlacement?.id;
+    if (!selectedId) return;
+    placementRowRefs.current.get(selectedId)?.scrollIntoView?.({ block: "nearest" });
+  }, [selectedPlacement?.id, layout.placements.length]);
+  const saveCollapsedSections = (nextSections: Set<PrintPanelSectionId>) => {
+    void loadLayoutSettings()
+      .then((settings) =>
+        saveLayoutSettings({
+          ...settings,
+          collapsedPrintPanelSections: Array.from(nextSections)
+        })
+      )
+      .catch((error: unknown) => {
+        console.error("failed to save print panel section settings", error);
+      });
+  };
+  const toggleSection = (sectionId: PrintPanelSectionId) => {
+    setCollapsedSections((current) => {
+      const next = new Set(current);
+      if (next.has(sectionId)) {
+        next.delete(sectionId);
+      } else {
+        next.add(sectionId);
+      }
+      saveCollapsedSections(next);
+      return next;
+    });
+  };
+  const registerPlacementRow = (placementId: string, element: HTMLDivElement | null) => {
+    if (element) {
+      placementRowRefs.current.set(placementId, element);
+    } else {
+      placementRowRefs.current.delete(placementId);
+    }
+  };
   const addPlacement = (groupId: ElementId) => {
     const placement = defaultPlacementForGroup(groupId, resolvedLayout);
     updatePrintLayout({
@@ -610,11 +727,7 @@ export const PrintLayoutPanel = ({ evaluation }: { evaluation: EvaluationResult 
         <div className="section-header print-settings-title">
           <div>
             <h2>印刷設定</h2>
-            <p className="section-subtitle">
-              {isSvgLayout
-                ? `SVG ${formatNumber(resolvedLayout.svgCanvasWidthMm)}x${formatNumber(resolvedLayout.svgCanvasHeightMm)}mm / 倍率 ${formatNumber(resolvedLayout.scale)}`
-                : `${PAPER_SIZES.find((paper) => paper.id === layout.paperSizeId)?.label ?? "用紙"} / ${resolvedLayout.columns}x${resolvedLayout.rows} / 倍率 ${formatNumber(resolvedLayout.scale)}`}
-            </p>
+            <p className="section-subtitle">{printSettingsSummary}</p>
           </div>
           <div className="print-settings-actions">
             <button type="button" onClick={() => dispatchCommand("closePrintLayout")}>
@@ -633,6 +746,16 @@ export const PrintLayoutPanel = ({ evaluation }: { evaluation: EvaluationResult 
             )}
           </div>
         </div>
+      </section>
+
+      <div className="print-settings-scroll">
+        <CollapsiblePanelSection
+          id="output"
+          title="出力設定"
+          subtitle={printSettingsSummary}
+          collapsedSections={collapsedSections}
+          onToggle={toggleSection}
+        >
         <div className="print-layout-switcher">
           <label className="print-select-field">
             <span>レイアウト</span>
@@ -723,16 +846,16 @@ export const PrintLayoutPanel = ({ evaluation }: { evaluation: EvaluationResult 
             </>
           ) : null}
         </div>
-      </section>
+        </CollapsiblePanelSection>
 
-      <section className="panel-section">
-        <div className="section-header">
-          <div>
-            <h2>印刷変数</h2>
-            <p className="section-subtitle">@名前で印刷設定から参照</p>
-          </div>
-          <button type="button" onClick={addPrintVariable}>追加</button>
-        </div>
+        <CollapsiblePanelSection
+          id="variables"
+          title="印刷変数"
+          subtitle="@名前で印刷設定から参照"
+          collapsedSections={collapsedSections}
+          onToggle={toggleSection}
+          actions={<button type="button" onClick={addPrintVariable}>追加</button>}
+        >
         {printVariables.length === 0 ? (
           <p className="empty-state">印刷変数はありません。</p>
         ) : (
@@ -768,15 +891,15 @@ export const PrintLayoutPanel = ({ evaluation }: { evaluation: EvaluationResult 
             ))}
           </div>
         )}
-      </section>
+        </CollapsiblePanelSection>
 
-      <section className="panel-section">
-        <div className="section-header">
-          <div>
-            <h2>印刷グループ</h2>
-            <p className="section-subtitle">{groups.length}件 / 追加するグループを検索</p>
-          </div>
-        </div>
+        <CollapsiblePanelSection
+          id="groups"
+          title="印刷グループ"
+          subtitle={`${groups.length}件 / 追加するグループを検索`}
+          collapsedSections={collapsedSections}
+          onToggle={toggleSection}
+        >
         <input
           className="print-search-input"
           type="search"
@@ -798,12 +921,16 @@ export const PrintLayoutPanel = ({ evaluation }: { evaluation: EvaluationResult 
             ))}
           </div>
         )}
-      </section>
+        </CollapsiblePanelSection>
 
-      <section className="panel-section">
-        <div className="section-header">
-          <h2>配置</h2>
-        </div>
+        <CollapsiblePanelSection
+          id="placements"
+          title="配置"
+          subtitle={`${layout.placements.length}件`}
+          collapsedSections={collapsedSections}
+          onToggle={toggleSection}
+          className="print-placement-section"
+        >
         {layout.placements.length === 0 ? (
           <p className="empty-state">印刷グループを追加してください。</p>
         ) : (
@@ -815,6 +942,7 @@ export const PrintLayoutPanel = ({ evaluation }: { evaluation: EvaluationResult 
                 <div
                   role="button"
                   tabIndex={0}
+                  ref={(element) => registerPlacementRow(placement.id, element)}
                   className={`print-placement-row ${placement.id === selectedPlacement?.id ? "selected" : ""} ${
                     isPrintDisabled ? "is-print-disabled" : ""
                   }`}
@@ -862,7 +990,8 @@ export const PrintLayoutPanel = ({ evaluation }: { evaluation: EvaluationResult 
             })}
           </div>
         )}
-      </section>
+        </CollapsiblePanelSection>
+      </div>
       <section className="panel-section print-placement-detail">
         <div className="section-header">
           <div>

@@ -46,6 +46,7 @@ const renderPanel = () => {
 
 describe("PrintLayoutPanel", () => {
   beforeEach(() => {
+    window.localStorage.clear();
     useCadDocumentStore.setState({
       elements,
       palette: defaultDocumentPalette(),
@@ -202,6 +203,16 @@ describe("PrintLayoutPanel", () => {
     expect(screen.queryByRole("button", { name: "SVG" })).not.toBeInTheDocument();
   });
 
+  it("collapses output settings while keeping the summary visible", () => {
+    renderPanel();
+
+    fireEvent.click(screen.getByRole("button", { name: /出力設定/ }));
+
+    expect(screen.getByRole("button", { name: /出力設定/ })).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getAllByText(/A4 \/ 2x2 \/ 倍率/).length).toBeGreaterThan(0);
+    expect(screen.queryByLabelText("出力形式")).not.toBeInTheDocument();
+  });
+
   it("edits the SVG canvas size for the active print layout", () => {
     useCadDocumentStore.setState({
       printLayouts: [{ ...DEFAULT_PRINT_LAYOUT, outputKind: "svg" }],
@@ -245,6 +256,7 @@ describe("PrintLayoutPanel", () => {
     const variableSection = screen.getByRole("heading", { name: "印刷変数" }).closest("section");
     expect(variableSection).not.toBeNull();
 
+    fireEvent.click(within(variableSection!).getByRole("button", { name: /印刷変数/ }));
     fireEvent.click(within(variableSection!).getByRole("button", { name: "追加" }));
     fireEvent.change(within(variableSection!).getByLabelText("印刷変数名"), {
       target: { value: "倍率" }
@@ -285,6 +297,7 @@ describe("PrintLayoutPanel", () => {
     const variableSection = screen.getByRole("heading", { name: "印刷変数" }).closest("section");
     expect(variableSection).not.toBeNull();
 
+    fireEvent.click(within(variableSection!).getByRole("button", { name: /印刷変数/ }));
     fireEvent.click(within(variableSection!).getByRole("button", { name: "削除" }));
 
     expect(useCadDocumentStore.getState().printLayout.numericVariables).toEqual([]);

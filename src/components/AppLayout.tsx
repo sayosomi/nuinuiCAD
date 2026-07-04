@@ -30,9 +30,11 @@ import { registerTauriMenuCommandListener } from "../commands/tauriMenuEvents";
 import { selectTextInputValue } from "./textInputSelection";
 
 const saveLeftPanelWidth = (leftPanelWidth: number) => {
-  void saveLayoutSettings({ version: 1, leftPanelWidth }).catch((error: unknown) => {
-    console.error("failed to save layout settings", error);
-  });
+  void loadLayoutSettings()
+    .then((settings) => saveLayoutSettings({ ...settings, leftPanelWidth }))
+    .catch((error: unknown) => {
+      console.error("failed to save layout settings", error);
+    });
 };
 
 export const AppLayout = () => {

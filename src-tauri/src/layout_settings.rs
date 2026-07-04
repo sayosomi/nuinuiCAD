@@ -8,7 +8,8 @@ const SETTINGS_FILE_NAME: &str = "layout-settings.json";
 fn default_layout_settings() -> Value {
     json!({
         "version": 1,
-        "leftPanelWidth": 320
+        "leftPanelWidth": 320,
+        "collapsedPrintPanelSections": ["variables"]
     })
 }
 
@@ -76,7 +77,14 @@ mod tests {
         let path = test_path("missing.json");
         let settings = load_layout_settings_from_path(&path).expect("missing file should load");
 
-        assert_eq!(settings, json!({ "version": 1, "leftPanelWidth": 320 }));
+        assert_eq!(
+            settings,
+            json!({
+                "version": 1,
+                "leftPanelWidth": 320,
+                "collapsedPrintPanelSections": ["variables"]
+            })
+        );
     }
 
     #[test]
@@ -101,7 +109,14 @@ mod tests {
 
         let settings = load_layout_settings_from_path(&path).expect("broken file should load");
 
-        assert_eq!(settings, json!({ "version": 1, "leftPanelWidth": 320 }));
+        assert_eq!(
+            settings,
+            json!({
+                "version": 1,
+                "leftPanelWidth": 320,
+                "collapsedPrintPanelSections": ["variables"]
+            })
+        );
         fs::remove_file(&path).expect("broken file should be removable");
         fs::remove_dir_all(path.parent().expect("path should have a parent"))
             .expect("test directory should be removable");
