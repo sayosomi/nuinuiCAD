@@ -126,6 +126,44 @@ describe("PrintLayoutPanel", () => {
     expect(within(detail!).getByDisplayValue("15")).toBeInTheDocument();
   });
 
+  it("keeps disabled print group placements visible without offering them as add candidates", () => {
+    useCadDocumentStore.setState({
+      printLayouts: [{
+        ...DEFAULT_PRINT_LAYOUT,
+        placements: [
+          { id: "placement-1", groupId: "hidden-print", x: 10, y: 20, angleDeg: 0, mirrorX: false }
+        ]
+      }],
+      activePrintLayoutId: DEFAULT_PRINT_LAYOUT.id,
+      printLayout: {
+        ...DEFAULT_PRINT_LAYOUT,
+        placements: [
+          { id: "placement-1", groupId: "hidden-print", x: 10, y: 20, angleDeg: 0, mirrorX: false }
+        ]
+      }
+    });
+    renderPanel();
+
+    const groupSection = screen.getByRole("heading", { name: "印刷グループ" }).closest("section");
+    const placementSection = screen.getByRole("heading", { name: "配置" }).closest("section");
+    expect(groupSection).not.toBeNull();
+    expect(placementSection).not.toBeNull();
+    expect(within(groupSection!).queryByRole("button", { name: /印刷しない/ })).not.toBeInTheDocument();
+    expect(within(placementSection!).getByText("印刷しない")).toBeInTheDocument();
+    expect(within(placementSection!).getByText("印刷OFF")).toBeInTheDocument();
+  });
+
+  it("points the empty print group list to the left outline toggles", () => {
+    useCadDocumentStore.setState({
+      elements: elements.map((element) =>
+        element.type === "group" ? { ...element, printEnabled: false } : element
+      )
+    });
+    renderPanel();
+
+    expect(screen.getByText("左のアウトラインで印刷するグループをONにしてください。")).toBeInTheDocument();
+  });
+
   it("increments number inputs with middle-button horizontal drag", () => {
     renderPanel();
     const scaleInput = screen.getByLabelText("拡大率");

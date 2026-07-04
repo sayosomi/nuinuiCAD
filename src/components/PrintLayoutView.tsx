@@ -20,7 +20,14 @@ import {
 } from "../print/printLayout";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
-import type { ElementId, EvaluationResult, NumericVariable, NumericValue, PrintLayoutPlacement } from "../types/geometry";
+import type {
+  CadElement,
+  ElementId,
+  EvaluationResult,
+  NumericVariable,
+  NumericValue,
+  PrintLayoutPlacement
+} from "../types/geometry";
 import { numericDragStepsForDelta } from "./numericDrag";
 
 type PrintLayoutCanvasProps = {
@@ -478,7 +485,11 @@ export const PrintLayoutPanel = ({ evaluation }: { evaluation: EvaluationResult 
     : printCanvasSizeMm(resolvedLayout);
   const printVariables = layout.numericVariables ?? [];
   const groups = printableGroups(elements);
+  const allGroups = elements.filter(
+    (element): element is Extract<CadElement, { type: "group" }> => element.type === "group"
+  );
   const groupsById = new Map(groups.map((group) => [group.id, group]));
+  const allGroupsById = new Map(allGroups.map((group) => [group.id, group]));
   const selectedPlacement =
     layout.placements.find((placement) => placement.id === selectedPrintPlacementId) ??
     layout.placements[0] ??
@@ -487,6 +498,13 @@ export const PrintLayoutPanel = ({ evaluation }: { evaluation: EvaluationResult 
     selectedPlacement
       ? resolvedLayout.placements.find((placement) => placement.id === selectedPlacement.id) ?? null
       : null;
+  const selectedPlacementGroup = selectedPlacement
+    ? allGroupsById.get(selectedPlacement.groupId) ?? null
+    : null;
+  const selectedPlacementGroupOptions =
+    selectedPlacementGroup && !groupsById.has(selectedPlacementGroup.id)
+      ? [selectedPlacementGroup, ...groups]
+      : groups;
   const filteredGroups = groups.filter((group) =>
     group.name.toLowerCase().includes(groupQuery.trim().toLowerCase())
   );
@@ -768,7 +786,7 @@ export const PrintLayoutPanel = ({ evaluation }: { evaluation: EvaluationResult 
           onChange={(event) => setGroupQuery(event.currentTarget.value)}
         />
         {groups.length === 0 ? (
-          <p className="empty-state">印刷するグループがありません。</p>
+          <p className="empty-state">左のアウトラインで印刷するグループをONにしてください。</p>
         ) : (
           <div className="print-group-list">
             {filteredGroups.map((group) => (
@@ -790,51 +808,58 @@ export const PrintLayoutPanel = ({ evaluation }: { evaluation: EvaluationResult 
           <p className="empty-state">印刷グループを追加してください。</p>
         ) : (
           <div className="print-placement-list">
-            {layout.placements.map((placement, index) => (
-              <div
-                role="button"
-                tabIndex={0}
-                className={`print-placement-row ${placement.id === selectedPlacement?.id ? "selected" : ""}`}
-                key={placement.id}
-                onClick={() => setSelectedPrintPlacementId(placement.id)}
-                onKeyDown={(event) => {
-                  if (event.key !== "Enter" && event.key !== " ") return;
-                  event.preventDefault();
-                  setSelectedPrintPlacementId(placement.id);
-                }}
-              >
-                <span className="print-placement-index">{index + 1}</span>
-                <span className="print-placement-main">
-                  <strong>{groupsById.get(placement.groupId)?.name ?? placement.groupId}</strong>
-                  <small>
-                    x {formatNumber(resolvedLayout.placements.find((item) => item.id === placement.id)?.x ?? 0)} / y {formatNumber(resolvedLayout.placements.find((item) => item.id === placement.id)?.y ?? 0)} / {formatNumber(resolvedLayout.placements.find((item) => item.id === placement.id)?.angleDeg ?? 0)}°
-                    {placement.mirrorX ? " / 反転" : ""}
-                  </small>
-                </span>
-                <span className="print-placement-row-actions">
-                  <button
-                    type="button"
-                    aria-label="配置を複製"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      duplicatePlacement(placement);
-                    }}
-                  >
-                    <Copy aria-hidden="true" />
-                  </button>
-                  <button
-                    type="button"
-                    aria-label="配置を削除"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      deletePlacement(placement.id);
-                    }}
-                  >
-                    <Trash2 aria-hidden="true" />
-                  </button>
-                </span>
-              </div>
-            ))}
+            {layout.placements.map((placement, index) => {
+              const placementGroup = allGroupsById.get(placement.groupId);
+              const isPrintDisabled = !placementGroup || placementGroup.printEnabled !== true;
+              return (
+                <div
+                  role="button"
+                  tabIndex={0}
+                  className={`print-placement-row ${placement.id === selectedPlacement?.id ? "selected" : ""} ${
+                    isPrintDisabled ? "is-print-disabled" : ""
+                  }`}
+                  key={placement.id}
+                  onClick={() => setSelectedPrintPlacementId(placement.id)}
+                  onKeyDown={(event) => {
+                    if (event.key !== "Enter" && event.key !== " ") return;
+                    event.preventDefault();
+                    setSelectedPrintPlacementId(placement.id);
+                  }}
+                >
+                  <span className="print-placement-index">{index + 1}</span>
+                  <span className="print-placement-main">
+                    <strong>{placementGroup?.name ?? placement.groupId}</strong>
+                    <small>
+                      x {formatNumber(resolvedLayout.placements.find((item) => item.id === placement.id)?.x ?? 0)} / y {formatNumber(resolvedLayout.placements.find((item) => item.id === placement.id)?.y ?? 0)} / {formatNumber(resolvedLayout.placements.find((item) => item.id === placement.id)?.angleDeg ?? 0)}°
+                      {placement.mirrorX ? " / 反転" : ""}
+                    </small>
+                  </span>
+                  {isPrintDisabled ? <span className="print-placement-badge">印刷OFF</span> : null}
+                  <span className="print-placement-row-actions">
+                    <button
+                      type="button"
+                      aria-label="配置を複製"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        duplicatePlacement(placement);
+                      }}
+                    >
+                      <Copy aria-hidden="true" />
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="配置を削除"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        deletePlacement(placement.id);
+                      }}
+                    >
+                      <Trash2 aria-hidden="true" />
+                    </button>
+                  </span>
+                </div>
+              );
+            })}
           </div>
         )}
       </section>
@@ -843,7 +868,7 @@ export const PrintLayoutPanel = ({ evaluation }: { evaluation: EvaluationResult 
           <div>
             <h2>選択配置</h2>
             <p className="section-subtitle">
-              {selectedPlacement ? groupsById.get(selectedPlacement.groupId)?.name ?? selectedPlacement.groupId : "未選択"}
+              {selectedPlacement ? allGroupsById.get(selectedPlacement.groupId)?.name ?? selectedPlacement.groupId : "未選択"}
             </p>
           </div>
         </div>
@@ -857,8 +882,10 @@ export const PrintLayoutPanel = ({ evaluation }: { evaluation: EvaluationResult 
                 value={selectedPlacement.groupId}
                 onChange={(event) => updatePlacement(selectedPlacement.id, { groupId: event.target.value })}
               >
-                {groups.map((group) => (
-                  <option key={group.id} value={group.id}>{group.name}</option>
+                {selectedPlacementGroupOptions.map((group) => (
+                  <option key={group.id} value={group.id}>
+                    {group.name}{group.printEnabled === true ? "" : "（印刷OFF）"}
+                  </option>
                 ))}
               </select>
             </label>

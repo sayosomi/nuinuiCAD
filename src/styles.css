@@ -3849,7 +3849,7 @@ select {
 
 .print-placement-row {
   display: grid;
-  grid-template-columns: 28px minmax(0, 1fr) auto;
+  grid-template-columns: 28px minmax(0, 1fr) auto auto;
   gap: 8px;
   align-items: center;
   border: 1px solid transparent;
@@ -3868,6 +3868,10 @@ select {
 .print-placement-row.selected {
   border-color: #0f766e;
   background: #e7f4ef;
+}
+
+.print-placement-row.is-print-disabled {
+  color: #777b71;
 }
 
 .print-placement-index {
@@ -3903,6 +3907,16 @@ select {
 .print-placement-main small {
   color: #5c6359;
   font-size: 11px;
+}
+
+.print-placement-badge {
+  border-radius: 999px;
+  background: #e2e6dd;
+  color: #5c6359;
+  padding: 2px 7px;
+  white-space: nowrap;
+  font-size: 11px;
+  font-weight: 700;
 }
 
 .print-placement-row-actions {
