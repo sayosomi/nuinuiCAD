@@ -177,6 +177,7 @@ export type CommandContext = {
   stepMultiplier?: number;
   elementId?: ElementId;
   insertionIndex?: number;
+  targetParentGroupId?: ElementId | null;
   evaluationLimitIndex?: number;
   evaluation?: EvaluationResult;
   selectionMode?: "replace" | "toggle" | "range";

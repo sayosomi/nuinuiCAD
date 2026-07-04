@@ -186,8 +186,42 @@ export const selectElement = (elementId: ElementId, selectionMode: CommandContex
 };
 
 export const moveElementsToInsertionIndex = (elementIds: ElementId[], insertionIndex: number) => {
+  moveElementsToInsertionIndexWithParent(elementIds, insertionIndex);
+};
+
+const targetParentIsValid = (
+  elements: CadElement[],
+  movingRootIds: Set<ElementId>,
+  targetParentGroupId: ElementId | null | undefined
+) => {
+  if (targetParentGroupId === undefined || targetParentGroupId === null) return true;
+  const targetParent = elements.find((element) => element.id === targetParentGroupId);
+  if (!targetParent || !isGroupElement(targetParent)) return false;
+  for (const movingId of movingRootIds) {
+    if (movingId === targetParentGroupId) return false;
+    if (descendantIdsForGroup(elements, movingId).includes(targetParentGroupId)) return false;
+  }
+  return true;
+};
+
+export const moveElementsToInsertionIndexWithParent = (
+  elementIds: ElementId[],
+  insertionIndex: number,
+  targetParentGroupId?: ElementId | null
+) => {
   const { elements, evaluationLimitIndex, selectedElementId, selectionAnchorElementId } =
     useCadDocumentStore.getState();
+  const elementsById = new Map(elements.map((element) => [element.id, element]));
+  const movingRootIds = new Set(
+    elements
+      .filter(
+        (element) =>
+          elementIds.includes(element.id) && !hasSelectedAncestor(element, elementsById, new Set(elementIds))
+      )
+      .map((element) => element.id)
+  );
+  if (!targetParentIsValid(elements, movingRootIds, targetParentGroupId)) return;
+
   const expandedElementIds = elementIds.flatMap((id) => subtreeIdsForElement(elements, id));
   const change = moveDocumentElementsToInsertionIndex({
     elements,
@@ -197,43 +231,66 @@ export const moveElementsToInsertionIndex = (elementIds: ElementId[], insertionI
     selectionAnchorElementId,
     evaluationLimitIndex
   });
-  if (!change) return;
+  if (!change && targetParentGroupId === undefined) return;
 
-  const movingRootIds = new Set(elementIds);
-  const movingIndexes = change.elements
+  const orderedElements = change?.elements ?? elements;
+  const movingIndexes = orderedElements
     .map((element, index) => (expandedElementIds.includes(element.id) ? index : -1))
     .filter((index) => index >= 0);
   const firstMovingIndex = movingIndexes[0] ?? -1;
   const lastMovingIndex = movingIndexes.at(-1) ?? -1;
-  const elementsById = new Map(change.elements.map((element) => [element.id, element]));
-  const branchContext = [change.elements[firstMovingIndex - 1], change.elements[lastMovingIndex + 1]]
+  const orderedElementsById = new Map(orderedElements.map((element) => [element.id, element]));
+  const branchContext = [orderedElements[firstMovingIndex - 1], orderedElements[lastMovingIndex + 1]]
     .flatMap((neighbor) => {
       if (!neighbor?.parentGroupId) return [];
-      const parent = elementsById.get(neighbor.parentGroupId);
+      const parent = orderedElementsById.get(neighbor.parentGroupId);
       return parent && isConditionalGroupElement(parent)
         ? [{ parentId: parent.id, branch: neighbor.conditionalBranch ?? ("then" as const) }]
         : [];
     })[0];
-  const movingRoots = change.elements.filter((element) => movingRootIds.has(element.id));
+  const movingRoots = orderedElements.filter((element) => movingRootIds.has(element.id));
   const nextElements =
+    targetParentGroupId === undefined &&
     branchContext &&
     movingRoots.length > 0 &&
     movingRoots.every((element) => element.parentGroupId === branchContext.parentId)
-      ? change.elements.map((element) =>
+      ? orderedElements.map((element) =>
           movingRootIds.has(element.id)
             ? { ...element, conditionalBranch: branchContext.branch }
             : element
         )
-      : change.elements;
+      : targetParentGroupId !== undefined
+        ? orderedElements.map((element) =>
+            movingRootIds.has(element.id)
+              ? {
+                  ...element,
+                  parentGroupId: targetParentGroupId ?? undefined,
+                  conditionalBranch: undefined
+                }
+              : element
+          )
+        : orderedElements;
 
-  useCadDocumentStore.getState().commitDocumentChange({ ...change, elements: nextElements });
+  useCadUiStore.getState().setCommandErrorMessage(null);
+  useCadDocumentStore.getState().commitDocumentChange({
+    ...(change ?? {
+      selectedElementId,
+      selectedElementIds: elementIds,
+      selectionAnchorElementId: selectionAnchorElementId ?? elementIds[0] ?? null
+    }),
+    elements: nextElements
+  });
 };
 
-export const moveElementToInsertionIndex = (elementId: ElementId, insertionIndex: number) => {
+export const moveElementToInsertionIndex = (
+  elementId: ElementId,
+  insertionIndex: number,
+  targetParentGroupId?: ElementId | null
+) => {
   const { elements, selectedElementIds } = useCadDocumentStore.getState();
   const elementIds = selectedElementIds.includes(elementId) ? selectedElementIds : [elementId];
   if (selectedElementIds.includes(elementId) || elements.some((element) => element.id === elementId)) {
-    moveElementsToInsertionIndex(elementIds, insertionIndex);
+    moveElementsToInsertionIndexWithParent(elementIds, insertionIndex, targetParentGroupId);
   }
 };
 
@@ -288,7 +345,14 @@ export const groupSelectedElements = (
 
   const firstIndex = elements.findIndex((element) => element.id === selectedTopLevelElements[0].id);
   const parentGroupId = selectedTopLevelElements[0].parentGroupId;
-  if (selectedTopLevelElements.some((element) => element.parentGroupId !== parentGroupId)) return;
+  if (selectedTopLevelElements.some((element) => element.parentGroupId !== parentGroupId)) {
+    useCadUiStore
+      .getState()
+      .setCommandErrorMessage(
+        "違う階層の要素はまとめてグループ化できません。ドラッグで同じグループへ入れるか、グループから出してから実行してください。"
+      );
+    return;
+  }
 
   const group = {
     ...createCadElement("group", elements),
@@ -318,6 +382,7 @@ export const groupSelectedElements = (
     selectionAnchorElementId: group.id,
     selectedParameterKey: "name"
   });
+  useCadUiStore.getState().setCommandErrorMessage(null);
   enterCreatedElementNameEntry(focusSelectedParameterInput);
 };
 

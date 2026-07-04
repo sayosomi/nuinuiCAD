@@ -59,6 +59,7 @@ const resetStore = () => {
     showCanvasPoints: true,
     showElementListColorAccents: false,
     showPrintLayout: false,
+    commandErrorMessage: null,
     showShortcutHelp: false,
     showPaletteSettings: false,
     showSelectionColorPicker: false,
@@ -1893,6 +1894,85 @@ describe("LeftPanel element list dragging", () => {
     ]);
     expect(useCadStore.getState().selectedElementId).toBe("point-a");
     expect(useCadStore.getState().past).toHaveLength(1);
+  });
+
+  it("moves an element into an existing group by dropping on the group row", () => {
+    useCadStore.setState({
+      elements: [
+        {
+          id: "group-1",
+          name: "本体",
+          type: "group",
+          visible: true,
+          enabled: true,
+          expanded: true
+        },
+        { ...sampleElements[0], parentGroupId: "group-1" },
+        sampleElements[1],
+        sampleElements[2]
+      ],
+      selectedElementId: sampleElements[1].id,
+      selectedElementIds: [sampleElements[1].id],
+      selectionAnchorElementId: sampleElements[1].id
+    });
+    renderLeftPanel();
+    mockElementListRowRects();
+    const handle = screen.getByLabelText("点Bを並び替え");
+
+    fireEvent.pointerDown(handle, { button: 0, clientY: 225, pointerId: 1 });
+    fireEvent.pointerMove(window, { clientY: 50, pointerId: 1 });
+    expect(screen.getByText("本体").closest("[data-element-list-row='true']")).toHaveClass(
+      "drop-inside"
+    );
+    fireEvent.pointerUp(window, { clientY: 50, pointerId: 1 });
+
+    expect(useCadStore.getState().elements[2]).toMatchObject({
+      id: sampleElements[1].id,
+      parentGroupId: "group-1"
+    });
+  });
+
+  it("moves an element out of a group by dropping beside a root row", () => {
+    useCadStore.setState({
+      elements: [
+        {
+          id: "group-1",
+          name: "本体",
+          type: "group",
+          visible: true,
+          enabled: true,
+          expanded: true
+        },
+        { ...sampleElements[0], parentGroupId: "group-1" },
+        { ...sampleElements[1], parentGroupId: "group-1" },
+        sampleElements[2]
+      ],
+      selectedElementId: sampleElements[0].id,
+      selectedElementIds: [sampleElements[0].id],
+      selectionAnchorElementId: sampleElements[0].id
+    });
+    renderLeftPanel();
+    mockElementListRowRects();
+    const handle = screen.getByLabelText("点Aを並び替え");
+
+    fireEvent.pointerDown(handle, { button: 0, clientY: 125, pointerId: 1 });
+    fireEvent.pointerMove(window, { clientY: 325, pointerId: 1 });
+    fireEvent.pointerUp(window, { clientY: 325, pointerId: 1 });
+
+    expect(useCadStore.getState().elements[2]).toMatchObject({
+      id: sampleElements[0].id,
+      parentGroupId: undefined
+    });
+  });
+
+  it("shows command errors in the element list area", () => {
+    useCadStore.setState({
+      commandErrorMessage: "違う階層の要素はまとめてグループ化できません。"
+    });
+
+    renderLeftPanel();
+
+    expect(screen.getByRole("alert")).toHaveTextContent("違う階層の要素");
   });
 
   it("auto-scrolls while pointer dragging an element near the list edge", () => {

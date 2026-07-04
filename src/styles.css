@@ -638,6 +638,12 @@ select {
   opacity: 0.48;
 }
 
+.element-row.drop-inside {
+  border-color: #0f766e;
+  background: #e5f4ef;
+  box-shadow: inset 0 0 0 2px #0f766e;
+}
+
 .element-row.drop-before::before,
 .element-row.drop-after::after {
   content: "";
@@ -656,6 +662,18 @@ select {
 
 .element-row.drop-after::after {
   bottom: 2px;
+}
+
+.command-error-message {
+  margin: 0;
+  border: 1px solid #d97706;
+  border-radius: 6px;
+  background: #fff7ed;
+  color: #7c2d12;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.45;
 }
 
 .evaluation-divider-row {

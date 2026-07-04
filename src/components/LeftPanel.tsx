@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, KeyboardEvent, MouseEvent, PointerEvent, RefObject } from "react";
 import { Search, X } from "lucide-react";
 import { dispatchCommand } from "../commands/commands";
@@ -7,7 +7,12 @@ import {
   isPointElement,
   referenceAnchor
 } from "../model/pointAnchors";
-import { descendantIdsForGroup, isConditionalGroupElement, isForGroupElement } from "../model/groups";
+import {
+  descendantIdsForGroup,
+  isConditionalGroupElement,
+  isForGroupElement,
+  isGroupElement
+} from "../model/groups";
 import {
   numericReferenceGeometrySupportsProperty,
   type NumericReferenceGeometry
@@ -217,6 +222,7 @@ export const LeftPanel = ({
   const elementSearchPickableOnly = useCadUiStore((state) => state.elementSearchPickableOnly);
   const showElementListColorAccents = useCadUiStore((state) => state.showElementListColorAccents);
   const showPrintLayout = useCadUiStore((state) => state.showPrintLayout);
+  const commandErrorMessage = useCadUiStore((state) => state.commandErrorMessage);
   const activePointPickTarget = useCadUiStore((state) => state.activePointPickTarget);
   const activeNumericReferencePickTarget = useCadUiStore((state) => state.activeNumericReferencePickTarget);
   const activeLinePickTarget = useCadUiStore((state) => state.activeLinePickTarget);
@@ -228,8 +234,11 @@ export const LeftPanel = ({
   const rowRefs = useRef(new Map<ElementId, HTMLDivElement>());
   const pointerDragRef = useRef<ElementListPointerDrag | null>(null);
   const pointerDragClientYRef = useRef<number | null>(null);
-  const selectedElementIdSet = new Set(selectedElementIds);
-  const elementsById = new Map(elements.map((element) => [element.id, element]));
+  const selectedElementIdSet = useMemo(() => new Set(selectedElementIds), [selectedElementIds]);
+  const elementsById = useMemo(
+    () => new Map(elements.map((element) => [element.id, element])),
+    [elements]
+  );
   const elementColors = useMemo(
     () => resolvedElementColorMap(elements, palette),
     [elements, palette]
@@ -326,13 +335,52 @@ export const LeftPanel = ({
   const dropMarkerClass = (
     elementId: ElementId,
     rowIndex: number,
-    position: "before" | "after"
+    position: "before" | "after" | "inside"
   ) => {
     if (dropTarget?.elementId !== elementId) return "";
+    if (position === "inside" && dropTarget.placement === "inside") return " drop-inside";
+    if (dropTarget.placement === "inside") return "";
     if (position === "before" && dropTarget.insertionIndex === rowIndex) return " drop-before";
     if (position === "after" && dropTarget.insertionIndex !== rowIndex) return " drop-after";
     return "";
   };
+  const movingRootIdsForDrag = useCallback((movingIds: ElementId[]) => {
+    const movingIdSet = new Set(movingIds);
+    return elements
+      .filter((element) => {
+        if (!movingIdSet.has(element.id)) return false;
+        let parentId = element.parentGroupId;
+        while (parentId) {
+          if (movingIdSet.has(parentId)) return false;
+          parentId = elementsById.get(parentId)?.parentGroupId;
+        }
+        return true;
+      })
+      .map((element) => element.id);
+  }, [elements, elementsById]);
+  const isNoopDropTarget = useCallback(
+    (movingIds: ElementId[], target: NonNullable<ElementListPointerDrag["target"]>) => {
+      if (target.targetParentGroupId !== undefined) {
+        const movingRootIds = movingRootIdsForDrag(movingIds);
+        const isInvalidParent = movingRootIds.some((id) => {
+          const targetParentGroupId = target.targetParentGroupId;
+          if (targetParentGroupId === null || targetParentGroupId === undefined) return false;
+          if (targetParentGroupId === id) return true;
+          const element = elementsById.get(id);
+          return element && isGroupElement(element)
+            ? descendantIdsForGroup(elements, id).includes(targetParentGroupId)
+            : false;
+        });
+        if (isInvalidParent) return true;
+        const keepsSameParent = movingRootIds.every(
+          (id) => (elementsById.get(id)?.parentGroupId ?? null) === target.targetParentGroupId
+        );
+        if (!keepsSameParent) return false;
+      }
+      return isNoopElementDrop(elements, movingIds, target.insertionIndex);
+    },
+    [elements, elementsById, movingRootIdsForDrag]
+  );
   const startElementPointerDrag = (
     event: PointerEvent<HTMLButtonElement>,
     rowElement: CadElement
@@ -519,7 +567,7 @@ export const LeftPanel = ({
         if (
           currentDrag.kind === "elements" &&
           target &&
-          isNoopElementDrop(elements, currentDrag.movingIds, target.insertionIndex)
+          isNoopDropTarget(currentDrag.movingIds, target)
         ) {
           return { ...currentDrag, target: null };
         }
@@ -567,10 +615,11 @@ export const LeftPanel = ({
           dispatchCommand("setEvaluationLimitIndex", {
             evaluationLimitIndex: target.insertionIndex
           });
-        } else if (!isNoopElementDrop(elements, drag.movingIds, target.insertionIndex)) {
+        } else if (!isNoopDropTarget(drag.movingIds, target)) {
           dispatchCommand("moveElementToInsertionIndex", {
             elementId: drag.movingIds[0],
-            insertionIndex: target.insertionIndex
+            insertionIndex: target.insertionIndex,
+            targetParentGroupId: target.targetParentGroupId
           });
         }
       }
@@ -607,7 +656,7 @@ export const LeftPanel = ({
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("blur", onBlur);
     };
-  }, [isPointerDragging, elements, elementListFocusRef]);
+  }, [isPointerDragging, elements, elementListFocusRef, isNoopDropTarget]);
 
   return (
     <aside className={`left-panel ${showPrintLayout ? "is-print-layout" : ""}`}>
@@ -693,6 +742,11 @@ export const LeftPanel = ({
             </label>
           ) : null}
         </div>
+        {commandErrorMessage ? (
+          <p className="command-error-message" role="alert">
+            {commandErrorMessage}
+          </p>
+        ) : null}
 
         <div
           className="element-list"
@@ -796,6 +850,7 @@ export const LeftPanel = ({
                 isDragging={draggedElementIds.includes(element.id)}
                 dropBefore={dropMarkerClass(element.id, rowData.index, "before") !== ""}
                 dropAfter={dropMarkerClass(element.id, rowData.index, "after") !== ""}
+                dropInside={dropMarkerClass(element.id, rowData.index, "inside") !== ""}
                 elementColor={elementColors.get(element.id) ?? "#31322f"}
                 showColorAccentForAllRows={showElementListColorAccents}
                 showPrintControls={showPrintLayout}

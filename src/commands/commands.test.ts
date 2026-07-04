@@ -40,6 +40,7 @@ describe("commands", () => {
       showPaletteSettings: false,
       showCommandRibbonSettings: false,
       showSelectionColorPicker: false,
+      commandErrorMessage: null,
       shortcutSettings: { version: 1, overrides: [] },
       shortcutSettingsLoading: false,
       shortcutSettingsError: null,
@@ -414,6 +415,37 @@ describe("commands", () => {
     expect(ungrouped[2].parentGroupId).toBeUndefined();
   });
 
+  it("shows an error instead of grouping selected elements from different parents", () => {
+    useCadStore.setState({
+      elements: [
+        {
+          id: "group-1",
+          name: "本体",
+          type: "group",
+          visible: true,
+          enabled: true,
+          expanded: true
+        },
+        { ...sampleElements[0], parentGroupId: "group-1" },
+        sampleElements[1]
+      ],
+      selectedElementId: sampleElements[1].id,
+      selectedElementIds: [sampleElements[0].id, sampleElements[1].id],
+      selectionAnchorElementId: sampleElements[0].id
+    });
+
+    dispatchCommand("groupSelectedElements");
+
+    const state = useCadStore.getState();
+    expect(state.elements.map((element) => element.id)).toEqual([
+      "group-1",
+      sampleElements[0].id,
+      sampleElements[1].id
+    ]);
+    expect(state.commandErrorMessage).toContain("違う階層の要素");
+    expect(state.past).toHaveLength(0);
+  });
+
   it("adds a conditional group above the evaluation divider", () => {
     useCadStore.setState({
       evaluationLimitIndex: 2,
@@ -607,6 +639,89 @@ describe("commands", () => {
       sampleElements[1].id,
       sampleElements[2].id
     ]);
+  });
+
+  it("moves an element into and out of an existing group", () => {
+    useCadStore.setState({
+      elements: [
+        {
+          id: "group-1",
+          name: "本体",
+          type: "group",
+          visible: true,
+          enabled: true,
+          expanded: true
+        },
+        { ...sampleElements[0], parentGroupId: "group-1" },
+        sampleElements[1],
+        sampleElements[2]
+      ],
+      selectedElementId: sampleElements[1].id,
+      selectedElementIds: [sampleElements[1].id],
+      selectionAnchorElementId: sampleElements[1].id
+    });
+
+    dispatchCommand("moveElementToInsertionIndex", {
+      elementId: sampleElements[1].id,
+      insertionIndex: 2,
+      targetParentGroupId: "group-1"
+    });
+
+    let state = useCadStore.getState();
+    expect(state.elements[2]).toMatchObject({
+      id: sampleElements[1].id,
+      parentGroupId: "group-1"
+    });
+
+    dispatchCommand("moveElementToInsertionIndex", {
+      elementId: sampleElements[1].id,
+      insertionIndex: 3,
+      targetParentGroupId: null
+    });
+
+    state = useCadStore.getState();
+    expect(state.elements[2]).toMatchObject({
+      id: sampleElements[1].id,
+      parentGroupId: undefined
+    });
+  });
+
+  it("does not move a group into its own descendant", () => {
+    useCadStore.setState({
+      elements: [
+        {
+          id: "group-1",
+          name: "本体",
+          type: "group",
+          visible: true,
+          enabled: true,
+          expanded: true
+        },
+        {
+          id: "group-2",
+          name: "内側",
+          type: "group",
+          visible: true,
+          enabled: true,
+          expanded: true,
+          parentGroupId: "group-1"
+        },
+        sampleElements[0]
+      ],
+      selectedElementId: "group-1",
+      selectedElementIds: ["group-1"],
+      selectionAnchorElementId: "group-1"
+    });
+
+    dispatchCommand("moveElementToInsertionIndex", {
+      elementId: "group-1",
+      insertionIndex: 2,
+      targetParentGroupId: "group-2"
+    });
+
+    expect(useCadStore.getState().elements[0].id).toBe("group-1");
+    expect(useCadStore.getState().elements[0].parentGroupId).toBeUndefined();
+    expect(useCadStore.getState().past).toHaveLength(0);
   });
 
   it("does not add history for no-op insertion moves", () => {

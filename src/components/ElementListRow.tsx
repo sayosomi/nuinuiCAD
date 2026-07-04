@@ -77,6 +77,7 @@ type ElementListRowProps = {
   isDragging: boolean;
   dropBefore: boolean;
   dropAfter: boolean;
+  dropInside: boolean;
   elementColor: string;
   showColorAccentForAllRows: boolean;
   showPrintControls: boolean;
@@ -116,6 +117,7 @@ export const ElementListRow = ({
   isDragging,
   dropBefore,
   dropAfter,
+  dropInside,
   elementColor,
   showColorAccentForAllRows,
   showPrintControls,
@@ -185,7 +187,9 @@ export const ElementListRow = ({
       isSearchActive && !isSearchPickable ? "is-not-search-pickable" : ""
     } ${showColorAccent ? "has-color-accent" : ""} ${
       showSelectedColorTint ? "has-selected-color-tint" : ""
-    } ${isDragging ? "dragging" : ""}${dropBefore ? " drop-before" : ""}${dropAfter ? " drop-after" : ""}`}
+    } ${isDragging ? "dragging" : ""}${dropBefore ? " drop-before" : ""}${dropAfter ? " drop-after" : ""}${
+      dropInside ? " drop-inside" : ""
+    }`}
     style={{ "--element-color": elementColor } as CSSProperties}
     aria-label={`${index + 1}. ${element.name}, ${elementTypeLabels[element.type]}, ${
       element.type === "variable" ? "非描画" : isEffectivelyVisible ? "表示" : "非表示"

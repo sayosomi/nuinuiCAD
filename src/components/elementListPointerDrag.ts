@@ -10,6 +10,8 @@ import type {
 export type ElementListDropTarget = {
   elementId: ElementId;
   insertionIndex: number;
+  placement: "before" | "after" | "inside";
+  targetParentGroupId?: ElementId | null;
 };
 
 export type ElementListPointerDrag =
@@ -77,6 +79,60 @@ export const elementInsertionIndexForClientY = (
   return rowIndex + (isAfter ? 1 : 0);
 };
 
+const subtreeIdSetForElement = (elements: CadElement[], elementId: ElementId) =>
+  new Set(subtreeIdsForElement(elements, elementId));
+
+const lastSubtreeIndex = (elements: CadElement[], elementId: ElementId, fallbackIndex: number) => {
+  const subtreeIds = subtreeIdSetForElement(elements, elementId);
+  const indexes = elements
+    .map((item, index) => (subtreeIds.has(item.id) ? index : -1))
+    .filter((index) => index >= 0);
+  return indexes.at(-1) ?? fallbackIndex;
+};
+
+export const elementListDropTargetForRow = (
+  elements: CadElement[],
+  element: CadElement,
+  rowIndex: number,
+  rect: DOMRect,
+  clientY: number
+): ElementListDropTarget => {
+  if (isGroupElement(element)) {
+    const topBand = rect.top + rect.height / 3;
+    const bottomBand = rect.bottom - rect.height / 3;
+    if (clientY >= topBand && clientY <= bottomBand) {
+      return {
+        elementId: element.id,
+        insertionIndex: lastSubtreeIndex(elements, element.id, rowIndex) + 1,
+        placement: "inside",
+        targetParentGroupId: element.id
+      };
+    }
+    if (clientY > bottomBand) {
+      return {
+        elementId: element.id,
+        insertionIndex: lastSubtreeIndex(elements, element.id, rowIndex) + 1,
+        placement: "after",
+        targetParentGroupId: element.parentGroupId ?? null
+      };
+    }
+    return {
+      elementId: element.id,
+      insertionIndex: rowIndex,
+      placement: "before",
+      targetParentGroupId: element.parentGroupId ?? null
+    };
+  }
+
+  const isAfter = clientY >= rect.top + rect.height / 2;
+  return {
+    elementId: element.id,
+    insertionIndex: rowIndex + (isAfter ? 1 : 0),
+    placement: isAfter ? "after" : "before",
+    targetParentGroupId: element.parentGroupId ?? null
+  };
+};
+
 export const elementListDropTargetForClientY = (
   elements: CadElement[],
   rowRefs: Map<ElementId, HTMLDivElement>,
@@ -101,8 +157,7 @@ export const elementListDropTargetForClientY = (
     });
 
   return {
-    elementId: row.element.id,
-    insertionIndex: elementInsertionIndexForClientY(
+    ...elementListDropTargetForRow(
       elements,
       row.element,
       row.index,

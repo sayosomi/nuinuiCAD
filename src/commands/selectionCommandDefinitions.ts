@@ -130,7 +130,11 @@ export const selectionCommandDefinitions = {
     label: "要素を指定位置へ移動",
     run: (context) => {
       if (!context?.elementId || context.insertionIndex === undefined) return;
-      moveElementToInsertionIndex(context.elementId, context.insertionIndex);
+      moveElementToInsertionIndex(
+        context.elementId,
+        context.insertionIndex,
+        context.targetParentGroupId
+      );
     }
   },
   setEvaluationLimitIndex: {
