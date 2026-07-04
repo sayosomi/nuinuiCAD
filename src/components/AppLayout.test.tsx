@@ -59,6 +59,7 @@ const mockCanvasContext = () => ({
   fillRect: vi.fn(),
   lineTo: vi.fn(),
   moveTo: vi.fn(),
+  setLineDash: vi.fn(),
   setTransform: vi.fn(),
   stroke: vi.fn()
 });

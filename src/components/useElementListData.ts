@@ -9,11 +9,10 @@ import {
   visibleOutlineElements
 } from "../model/groups";
 import {
-  isPointElement,
   isLineLikeElement,
-  lineEndpointReferenceForAnchor,
   selectablePointsForElement
 } from "../model/pointAnchors";
+import { isValidPickedPointAnchorForTarget } from "../model/forGroupGeneratedReferences";
 import {
   pickCandidates,
   resolvedPickCursor
@@ -131,11 +130,15 @@ export const useElementListData = ({
       evaluation.computedGeometry,
       elementsById
     );
-    return isLineEndpointPointPick
-      ? rawSelectablePoints.filter((point) =>
-          lineEndpointReferenceForAnchor(point.anchor, elements)
-        )
-      : rawSelectablePoints;
+    return rawSelectablePoints.filter((point) =>
+      !activePointPickTarget ||
+      isValidPickedPointAnchorForTarget({
+        elements,
+        targetElementId: activePointPickTarget.elementId,
+        anchor: point.anchor,
+        allowLineEndpoint: isLineEndpointPointPick
+      })
+    );
   };
   const numericReferenceGeometry = (elementId: ElementId) => {
     const geometry = evaluation.computedGeometry.get(elementId);
@@ -159,7 +162,7 @@ export const useElementListData = ({
       return candidateByElementId.has(element.id);
     }
     if (activePointPickTarget) {
-      return (!isLineEndpointPointPick && isPointElement(element)) || selectablePointOptions(element).length > 0;
+      return candidateByElementId.has(element.id);
     }
     return true;
   };
@@ -189,7 +192,7 @@ export const useElementListData = ({
     const referenceGeometry = numericReferenceGeometry(element.id);
     const isPointPickCandidate =
       activePointPickTarget &&
-      ((!isLineEndpointPointPick && isPointElement(element)) || selectablePoints.length > 0);
+      candidateByElementId.has(element.id);
     const isNumericReferenceCandidate =
       Boolean(activeNumericReferencePickTarget && candidateByElementId.has(element.id));
     const isLinePickCandidate =

@@ -2587,6 +2587,28 @@ describe("commands", () => {
     expect(useCadStore.getState().past).toHaveLength(1);
   });
 
+  it("ignores point picks that would reference the target element itself", () => {
+    useCadStore.setState({
+      selectedElementId: "line-ab",
+      selectedElementIds: ["line-ab"],
+      selectedParameterKey: "startPoint"
+    });
+
+    dispatchCommand("startPointPick");
+    dispatchCommand("applyPickedPoint", {
+      pickedPointAnchor: { mode: "derived", elementId: "line-ab", pointKey: "start" }
+    });
+
+    expect(useCadStore.getState().activePointPickTarget).toEqual({
+      elementId: "line-ab",
+      parameterKey: "startPoint"
+    });
+    expect(useCadStore.getState().elements[3]).toMatchObject({
+      startPoint: { mode: "reference", pointId: "point-a" }
+    });
+    expect(useCadStore.getState().past).toHaveLength(0);
+  });
+
   it("maps picked generated point anchors to templates when editing the same for group", () => {
     const elements: CadElement[] = [
       {
@@ -3171,6 +3193,36 @@ describe("commands", () => {
     expect(useCadStore.getState().elements[0]).toMatchObject({
       x: { kind: "expression", expression: "line-ab.startTangentAngleDeg" }
     });
+  });
+
+  it("ignores numeric reference picks that would reference the target element itself", () => {
+    useCadStore.setState({
+      selectedElementId: "curve-ac",
+      selectedElementIds: ["curve-ac"],
+      selectedParameterKey: "startHandleLength",
+      activeNumericReferencePickTarget: {
+        elementId: "curve-ac",
+        parameterKey: "startHandleLength",
+        mode: "replace",
+        property: "length"
+      }
+    });
+
+    dispatchCommand("applyPickedNumericReference", {
+      numericReferenceExpression: "curve-ac.length"
+    });
+
+    expect(useCadStore.getState().activeNumericReferencePickTarget).toEqual({
+      elementId: "curve-ac",
+      parameterKey: "startHandleLength",
+      mode: "replace",
+      property: "length"
+    });
+    expect(useCadStore.getState().elements[5]).toMatchObject({
+      type: "bezierCurve",
+      startHandleLength: 45
+    });
+    expect(useCadStore.getState().past).toHaveLength(0);
   });
 
   it("applies an available variable candidate while numeric reference picking", () => {

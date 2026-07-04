@@ -19,10 +19,10 @@ import type {
 import {
   isLineLikeElement,
   isPointElement,
-  lineEndpointReferenceForAnchor,
   referenceAnchor,
   selectablePointsForElement
 } from "./pointAnchors";
+import { isValidPickedPointAnchorForTarget } from "./forGroupGeneratedReferences";
 import type {
   ActiveLinePickTarget,
   ActiveNumericReferencePickTarget,
@@ -92,6 +92,13 @@ const pointCandidates = (
     : null;
   const isLineEndpointPointPick = targetDefinition?.kind === "lineEndpointReference";
   const elementsById = new Map(elements.map((element) => [element.id, element]));
+  const isValidPointCandidate = (anchor: PointAnchor) =>
+    isValidPickedPointAnchorForTarget({
+      elements,
+      targetElementId: activePointPickTarget.elementId,
+      anchor,
+      allowLineEndpoint: isLineEndpointPointPick
+    });
 
   return elements
     .map((element) => {
@@ -99,12 +106,10 @@ const pointCandidates = (
         element,
         evaluation.computedGeometry,
         elementsById
-      ).filter((point) =>
-        isLineEndpointPointPick ? lineEndpointReferenceForAnchor(point.anchor, elements) : true
-      );
+      ).filter((point) => isValidPointCandidate(point.anchor));
       const options: PickOption[] = [];
 
-      if (!isLineEndpointPointPick && isPointElement(element)) {
+      if (!isLineEndpointPointPick && isPointElement(element) && isValidPointCandidate(referenceAnchor(element.id))) {
         options.push({
           kind: "point",
           label: element.name,
@@ -163,7 +168,9 @@ const numericReferenceCandidates = (
       const geometry = numericReferenceGeometry(evaluation.computedGeometry.get(element.id));
       const property = activeNumericReferencePickTarget.property;
       const options: PickOption[] =
-        geometry && numericReferenceGeometrySupportsProperty(geometry, property)
+        geometry &&
+        geometry.elementId !== activeNumericReferencePickTarget.elementId &&
+        numericReferenceGeometrySupportsProperty(geometry, property)
           ? [
               {
                 kind: "numericReference" as const,

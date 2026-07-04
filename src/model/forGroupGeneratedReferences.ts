@@ -130,6 +130,23 @@ export const lineEndpointReferenceForPickedAnchor = ({
   };
 };
 
+export const pickedPointAnchorReferencesTarget = ({
+  elements,
+  targetElementId,
+  anchor
+}: {
+  elements: CadElement[];
+  targetElementId: ElementId;
+  anchor: PointAnchor;
+}) => {
+  if (anchor.mode === "coordinate") return false;
+  const normalized = pickedPointAnchorForTargetForGroup({ elements, targetElementId, anchor });
+  if (!normalized || normalized.mode === "coordinate") return false;
+  return normalized.mode === "reference"
+    ? normalized.pointId === targetElementId
+    : normalized.elementId === targetElementId;
+};
+
 export const isValidPickedPointAnchorForTarget = ({
   elements,
   targetElementId,
@@ -142,15 +159,17 @@ export const isValidPickedPointAnchorForTarget = ({
   allowLineEndpoint: boolean;
 }) => {
   if (allowLineEndpoint) {
-    return Boolean(lineEndpointReferenceForPickedAnchor({ elements, targetElementId, anchor }));
+    const endpoint = lineEndpointReferenceForPickedAnchor({ elements, targetElementId, anchor });
+    return Boolean(endpoint && endpoint.lineId !== targetElementId);
   }
 
   const normalized = pickedPointAnchorForTargetForGroup({ elements, targetElementId, anchor });
   if (!normalized || normalized.mode === "coordinate") return Boolean(normalized);
   if (normalized.mode === "reference") {
+    if (normalized.pointId === targetElementId) return false;
     const point = elements.find((element) => element.id === normalized.pointId);
     return Boolean(point && isPointElement(point));
   }
+  if (normalized.elementId === targetElementId) return false;
   return elements.some((element) => element.id === normalized.elementId);
 };
-

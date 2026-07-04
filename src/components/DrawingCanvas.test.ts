@@ -120,6 +120,7 @@ const mockCanvasContext = () => ({
   fillRect: vi.fn(),
   lineTo: vi.fn(),
   moveTo: vi.fn(),
+  setLineDash: vi.fn(),
   setTransform: vi.fn(),
   stroke: vi.fn()
 });
@@ -615,6 +616,90 @@ describe("DrawingCanvas point dragging", () => {
     expect(useCadStore.getState().elements[0]).toMatchObject({
       x: { kind: "expression", expression: "line-ab.length" }
     });
+  });
+
+  it("does not offer the target line itself while numeric reference picking on the canvas", () => {
+    const elements: CadElement[] = [
+      {
+        id: "self-line",
+        name: "自己線",
+        type: "line",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "coordinate", x: 0, y: 0 },
+        endPoint: { mode: "coordinate", x: 100, y: 0 }
+      }
+    ];
+    useCadStore.setState({
+      elements,
+      selectedElementId: "self-line",
+      selectedElementIds: ["self-line"],
+      selectedParameterKey: "name",
+      activeNumericReferencePickTarget: {
+        elementId: "self-line",
+        parameterKey: "name",
+        mode: "replace",
+        property: "length"
+      }
+    });
+    const { viewport } = renderDrawingCanvas();
+
+    fireEvent.pointerDown(viewport, {
+      button: 0,
+      buttons: 1,
+      clientX: 300,
+      clientY: 200,
+      pointerId: 1
+    });
+
+    expect(viewport.querySelector(".numeric-reference-candidate-menu")).toBeNull();
+    expect(useCadStore.getState().activeNumericReferencePickTarget).toEqual({
+      elementId: "self-line",
+      parameterKey: "name",
+      mode: "replace",
+      property: "length"
+    });
+    expect(useCadStore.getState().past).toHaveLength(0);
+  });
+
+  it("does not offer the target line's own endpoints while point picking on the canvas", () => {
+    const elements: CadElement[] = [
+      {
+        id: "self-line",
+        name: "自己線",
+        type: "line",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "coordinate", x: 0, y: 0 },
+        endPoint: { mode: "coordinate", x: 100, y: 0 }
+      }
+    ];
+    useCadStore.setState({
+      elements,
+      selectedElementId: "self-line",
+      selectedElementIds: ["self-line"],
+      selectedParameterKey: "startPoint",
+      activePointPickTarget: {
+        elementId: "self-line",
+        parameterKey: "startPoint"
+      }
+    });
+    const { viewport } = renderDrawingCanvas();
+
+    fireEvent.pointerDown(viewport, {
+      button: 0,
+      buttons: 1,
+      clientX: 250,
+      clientY: 200,
+      pointerId: 1
+    });
+
+    expect(viewport.querySelector(".measurement-candidate-menu")).toBeNull();
+    expect(useCadStore.getState().activePointPickTarget).toEqual({
+      elementId: "self-line",
+      parameterKey: "startPoint"
+    });
+    expect(useCadStore.getState().past).toHaveLength(0);
   });
 
   it("adds a base line while line picking is active", () => {

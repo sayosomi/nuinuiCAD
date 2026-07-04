@@ -10,6 +10,7 @@ import {
 import {
   generatedElementIdForTargetForGroup,
   lineEndpointReferenceForPickedAnchor,
+  pickedPointAnchorReferencesTarget,
   pickedPointAnchorForTargetForGroup
 } from "../model/forGroupGeneratedReferences";
 import { pickCandidates, selectedPickOption } from "../model/pickCandidates";
@@ -375,6 +376,7 @@ export const applyPickedNumericReference = (context?: Pick<CommandContext, "nume
   if (!numericExpression) return;
   const { activeNumericReferencePickTarget } = useCadUiStore.getState();
   if (!activeNumericReferencePickTarget) return;
+  if (numericExpression.startsWith(`${activeNumericReferencePickTarget.elementId}.`)) return;
 
   if (activeNumericReferencePickTarget.mode === "insert") {
     insertNumericExpressionSnippet({
@@ -556,6 +558,15 @@ export const applyPickedPoint = (context?: Pick<CommandContext, "pickedPointId" 
   if (!targetElement) return;
 
   const definition = findParameterDefinition(targetElement, activePointPickTarget.parameterKey);
+  if (
+    pickedPointAnchorReferencesTarget({
+      elements,
+      targetElementId: activePointPickTarget.elementId,
+      anchor
+    })
+  ) {
+    return;
+  }
   const pickedAnchor = pickedPointAnchorForTargetForGroup({
     elements,
     targetElementId: activePointPickTarget.elementId,
@@ -698,7 +709,12 @@ export const applyPickedLine = (context?: Pick<CommandContext, "pickedLineId">) 
   if (activeLinePickTarget.measurementSlot) {
     const pickedLine = elements.find((element) => element.id === pickedLineId);
     const current = useCadUiStore.getState().activeMeasurementInsertTarget;
-    if (!current || !pickedLine || !isLineLikeElement(pickedLine)) return;
+    if (
+      !current ||
+      !pickedLine ||
+      !isLineLikeElement(pickedLine) ||
+      pickedLine.id === activeLinePickTarget.elementId
+    ) return;
     useCadUiStore.getState().setActiveMeasurementInsertTarget({
       ...current,
       lineId: pickedLine.id

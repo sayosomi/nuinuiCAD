@@ -2331,6 +2331,25 @@ describe("LeftPanel element list dragging", () => {
     });
   });
 
+  it("does not offer the target element's own endpoints while point picking", () => {
+    useCadStore.setState({
+      selectedElementId: "line-ab",
+      selectedElementIds: ["line-ab"],
+      selectedParameterKey: "startPoint",
+      activePointPickTarget: {
+        elementId: "line-ab",
+        parameterKey: "startPoint"
+      }
+    });
+    renderLeftPanel(evaluateElements(sampleElements));
+
+    const selfRow = screen.getByText("直線AB").closest("[data-element-list-row='true']");
+    const otherLineRow = screen.getByText("直線BC").closest("[data-element-list-row='true']");
+    expect(selfRow).toHaveClass("is-not-point-pick-candidate");
+    expect(otherLineRow).toHaveClass("is-point-pick-candidate");
+    expect(selfRow?.querySelectorAll(".element-point-pick-actions button")).toHaveLength(0);
+  });
+
   it("shows numeric reference candidates in the element list and applies one", () => {
     useCadStore.setState({
       selectedElementId: "point-a",
@@ -2356,6 +2375,26 @@ describe("LeftPanel element list dragging", () => {
     expect(useCadStore.getState().elements[0]).toMatchObject({
       x: { kind: "expression", expression: "line-ab.length" }
     });
+  });
+
+  it("does not offer the target element itself while numeric reference picking", () => {
+    useCadStore.setState({
+      selectedElementId: "curve-ac",
+      selectedElementIds: ["curve-ac"],
+      selectedParameterKey: "startHandleLength",
+      activeNumericReferencePickTarget: {
+        elementId: "curve-ac",
+        parameterKey: "startHandleLength",
+        mode: "replace",
+        property: "length"
+      }
+    });
+    renderLeftPanel(evaluateElements(sampleElements));
+
+    const selfRow = screen.getByText("曲線AC").closest("[data-element-list-row='true']");
+    const otherLineRow = screen.getByText("直線AB").closest("[data-element-list-row='true']");
+    expect(selfRow).toHaveClass("is-not-numeric-reference-pick-candidate");
+    expect(otherLineRow).toHaveClass("is-numeric-reference-pick-candidate");
   });
 
   it("shows variable candidates in the element list while numeric reference picking", () => {

@@ -376,6 +376,7 @@ export const DrawingCanvas = ({
 
     const uniqueCandidates = new Map<ElementId, LinePickCandidate>();
     for (const line of hitTestLineCandidates({ screen, lines: overlayNumericReferenceCandidates })) {
+      if (line.elementId === activeTarget.elementId) continue;
       if (!numericReferenceGeometrySupportsProperty(line, activeTarget.property)) continue;
       uniqueCandidates.set(line.elementId, { line });
     }
