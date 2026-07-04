@@ -1367,6 +1367,7 @@ describe("commands", () => {
       type: "copyLine",
       startPoint: { mode: "reference", pointId: "point-a" },
       endPoint: { mode: "reference", pointId: "point-b" },
+      scale: 1,
       angleDeg: 0,
       mirrorX: false,
       baseLineIds: ["line-ab", "line-bc"]
@@ -1390,6 +1391,7 @@ describe("commands", () => {
       type: "move",
       startPoint: { mode: "reference", pointId: "point-a" },
       endPoint: { mode: "reference", pointId: "point-b" },
+      scale: 1,
       angleDeg: 0,
       mirrorX: false,
       baseLineIds: ["line-ab", "line-bc"]

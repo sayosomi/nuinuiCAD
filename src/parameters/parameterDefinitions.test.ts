@@ -259,6 +259,7 @@ describe("parameterDefinitions", () => {
       enabled: true,
       startPoint: { mode: "reference", pointId: "point-a" },
       endPoint: { mode: "reference", pointId: "point-b" },
+      scale: 1,
       angleDeg: 0,
       mirrorX: false,
       baseLineIds: ["line-a"]
@@ -269,6 +270,7 @@ describe("parameterDefinitions", () => {
         expect.objectContaining({ key: "colorId", directKey: "k", label: "表示色", kind: "color" }),
         expect.objectContaining({ key: "startPoint", directKey: "s", label: "始点", kind: "reference", allowCoordinate: false }),
         expect.objectContaining({ key: "endPoint", directKey: "t", label: "終点", kind: "reference", allowCoordinate: false }),
+        expect.objectContaining({ key: "scale", directKey: "s", label: "倍率", kind: "number" }),
         expect.objectContaining({ key: "angleDeg", directKey: "r", label: "角度", kind: "number" }),
         expect.objectContaining({ key: "mirrorX", directKey: "m", label: "左右反転", kind: "boolean" }),
         expect.objectContaining({ key: "baseLineIds", directKey: "b", label: "基準線", kind: "lineReferenceList" })
@@ -285,6 +287,7 @@ describe("parameterDefinitions", () => {
       enabled: true,
       startPoint: { mode: "reference", pointId: "point-a" },
       endPoint: { mode: "reference", pointId: "point-b" },
+      scale: 1,
       angleDeg: 0,
       mirrorX: false,
       baseLineIds: ["line-a"]
@@ -294,6 +297,7 @@ describe("parameterDefinitions", () => {
       expect.arrayContaining([
         expect.objectContaining({ key: "startPoint", directKey: "s", label: "始点", kind: "reference", allowCoordinate: false }),
         expect.objectContaining({ key: "endPoint", directKey: "t", label: "終点", kind: "reference", allowCoordinate: false }),
+        expect.objectContaining({ key: "scale", directKey: "s", label: "倍率", kind: "number" }),
         expect.objectContaining({ key: "angleDeg", directKey: "r", label: "角度", kind: "number" }),
         expect.objectContaining({ key: "mirrorX", directKey: "m", label: "左右反転", kind: "boolean" }),
         expect.objectContaining({ key: "baseLineIds", directKey: "b", label: "対象線", kind: "lineReferenceList" })

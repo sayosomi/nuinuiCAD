@@ -12,6 +12,7 @@ pub(crate) enum LineTransform {
         translation: OffsetPoint,
         mirror_x: bool,
         center: OffsetPoint,
+        scale: f64,
         cos: f64,
         sin: f64,
     },
@@ -27,6 +28,7 @@ impl LineTransform {
         end_point: OffsetPoint,
         angle_deg: f64,
         mirror_x: bool,
+        scale: f64,
     ) -> Self {
         let angle_rad = angle_deg.to_radians();
         Self::Move {
@@ -36,6 +38,7 @@ impl LineTransform {
             },
             mirror_x,
             center: end_point,
+            scale,
             cos: angle_rad.cos(),
             sin: angle_rad.sin(),
         }
@@ -61,6 +64,7 @@ impl LineTransform {
                 translation,
                 mirror_x,
                 center,
+                scale,
                 cos,
                 sin,
             } => {
@@ -78,9 +82,11 @@ impl LineTransform {
                 };
                 let dx = mirrored.x - center.x;
                 let dy = mirrored.y - center.y;
+                let scaled_dx = dx * scale;
+                let scaled_dy = dy * scale;
                 Some(OffsetPoint {
-                    x: center.x + dx * cos - dy * sin,
-                    y: center.y + dx * sin + dy * cos,
+                    x: center.x + scaled_dx * cos - scaled_dy * sin,
+                    y: center.y + scaled_dx * sin + scaled_dy * cos,
                 })
             }
             Self::Reflect {

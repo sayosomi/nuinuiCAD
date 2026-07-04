@@ -175,6 +175,7 @@ const copyLine = (baseLineIds: string[]): CadElement => ({
   enabled: true,
   startPoint: { mode: "reference", pointId: "a" },
   endPoint: { mode: "reference", pointId: "b" },
+  scale: 1,
   angleDeg: 0,
   mirrorX: false,
   baseLineIds
@@ -199,6 +200,7 @@ const move = (baseLineIds: string[]): CadElement => ({
   enabled: true,
   startPoint: { mode: "reference", pointId: "a" },
   endPoint: { mode: "reference", pointId: "b" },
+  scale: 1,
   angleDeg: 0,
   mirrorX: false,
   baseLineIds

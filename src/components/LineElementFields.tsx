@@ -280,6 +280,12 @@ export const LineElementFields = ({
             allowCoordinate: false
           })}
           {numericInput({
+            parameterKey: "scale",
+            label: "倍率",
+            value: element.scale,
+            ariaLabel: element.type === "move" ? "移動倍率" : "コピー倍率"
+          })}
+          {numericInput({
             parameterKey: "angleDeg",
             label: "角度",
             value: element.angleDeg,

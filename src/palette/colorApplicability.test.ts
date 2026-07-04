@@ -59,6 +59,7 @@ describe("elementSupportsDisplayColor", () => {
       enabled: true,
       startPoint: { mode: "reference", pointId: "point-a" },
       endPoint: { mode: "reference", pointId: "point-b" },
+      scale: 1,
       angleDeg: 0,
       mirrorX: false,
       baseLineIds: ["line-a"]

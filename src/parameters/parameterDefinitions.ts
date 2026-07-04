@@ -459,6 +459,14 @@ export const getParameterDefinitions = (element: CadElement): ParameterDefinitio
           allowCoordinate: false
         }),
         {
+          key: "scale",
+          directKey: "s",
+          label: "倍率",
+          kind: "number",
+          emptyInputDefaultValue: 1,
+          stepLevels: ratioNumericParameterStepLevels
+        },
+        {
           key: "angleDeg",
           directKey: "r",
           label: "角度",

@@ -1,4 +1,5 @@
 import type { CadDocumentSnapshot } from "../state/cadDocumentStore";
+import { normalizedElementFields } from "../model/elementNormalization";
 import { normalizeDocumentPalette } from "../palette/palette";
 import { normalizePrintLayouts } from "../print/printLayout";
 
@@ -24,7 +25,7 @@ const parseDocumentObject = (value: unknown): CadDocumentSnapshot => {
     throw new Error("ドキュメントのelementsが不正です。");
   }
 
-  const elements = value.elements as CadDocumentSnapshot["elements"];
+  const elements = (value.elements as CadDocumentSnapshot["elements"]).map(normalizedElementFields);
   const printLayouts = normalizePrintLayouts({
     printLayouts: value.printLayouts,
     legacyPrintLayout: value.printLayout,
@@ -39,7 +40,7 @@ const parseDocumentObject = (value: unknown): CadDocumentSnapshot => {
     printLayouts.find((layout) => layout.id === activePrintLayoutId) ?? printLayouts[0];
 
   return {
-    elements: value.elements as CadDocumentSnapshot["elements"],
+    elements,
     palette: normalizeDocumentPalette(value.palette),
     printLayouts,
     activePrintLayoutId,

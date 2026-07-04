@@ -2170,6 +2170,7 @@ describe("evaluateElements", () => {
         enabled: true,
         startPoint: { mode: "reference", pointId: "a" },
         endPoint: { mode: "reference", pointId: "d" },
+        scale: 1,
         angleDeg: 0,
         mirrorX: false,
         baseLineIds: ["ab", "bc"]
@@ -2189,6 +2190,70 @@ describe("evaluateElements", () => {
       kind: "line",
       start: { x: 120, y: 100 },
       end: { x: 120, y: 130 }
+    });
+  });
+
+  it("scales copied lines around the end point", () => {
+    const result = evaluateElements([
+      {
+        id: "a",
+        name: "A",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 0,
+        y: 0
+      },
+      {
+        id: "b",
+        name: "B",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 20,
+        y: 0
+      },
+      {
+        id: "target",
+        name: "移動先",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 10,
+        y: 10
+      },
+      {
+        id: "ab",
+        name: "AB",
+        type: "line",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "a" },
+        endPoint: { mode: "reference", pointId: "b" }
+      },
+      {
+        id: "copy",
+        name: "コピー線",
+        type: "copyLine",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "a" },
+        endPoint: { mode: "reference", pointId: "target" },
+        scale: 0.5,
+        angleDeg: 0,
+        mirrorX: false,
+        baseLineIds: ["ab"]
+      }
+    ]);
+
+    const copy = result.computedGeometry.get("copy");
+    expect(result.errors).toHaveLength(0);
+    expect(copy).toMatchObject({ kind: "offsetLine", length: 10 });
+    if (copy?.kind !== "offsetLine") throw new Error("Expected a copy line");
+    expect(copy.segments[0]).toMatchObject({
+      kind: "line",
+      start: { x: 10, y: 10 },
+      end: { x: 20, y: 10 }
     });
   });
 
@@ -2256,6 +2321,7 @@ describe("evaluateElements", () => {
         enabled: true,
         startPoint: { mode: "reference", pointId: "a" },
         endPoint: { mode: "reference", pointId: "d" },
+        scale: 1,
         angleDeg: 0,
         mirrorX: true,
         baseLineIds: ["ab", "bc"]
@@ -2342,6 +2408,7 @@ describe("evaluateElements", () => {
         enabled: true,
         startPoint: { mode: "reference", pointId: "a" },
         endPoint: { mode: "reference", pointId: "d" },
+        scale: 1,
         angleDeg: 90,
         mirrorX: true,
         baseLineIds: ["ab", "bc"]
@@ -2641,6 +2708,7 @@ describe("evaluateElements", () => {
         enabled: true,
         startPoint: { mode: "reference", pointId: "a" },
         endPoint: { mode: "reference", pointId: "d" },
+        scale: 1,
         angleDeg: 0,
         mirrorX: false,
         baseLineIds: ["ab"]
@@ -2658,6 +2726,70 @@ describe("evaluateElements", () => {
     });
   });
 
+  it("scales moved target lines around the end point", () => {
+    const result = evaluateElements([
+      {
+        id: "a",
+        name: "A",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 0,
+        y: 0
+      },
+      {
+        id: "b",
+        name: "B",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 20,
+        y: 0
+      },
+      {
+        id: "target",
+        name: "移動先",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 10,
+        y: 10
+      },
+      {
+        id: "ab",
+        name: "AB",
+        type: "line",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "a" },
+        endPoint: { mode: "reference", pointId: "b" }
+      },
+      {
+        id: "move",
+        name: "移動",
+        type: "move",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "a" },
+        endPoint: { mode: "reference", pointId: "target" },
+        scale: 0.5,
+        angleDeg: 0,
+        mirrorX: false,
+        baseLineIds: ["ab"]
+      }
+    ]);
+
+    const line = result.computedGeometry.get("ab");
+    expect(result.errors).toHaveLength(0);
+    expect(result.computedGeometry.has("move")).toBe(false);
+    expect(line).toMatchObject({
+      kind: "line",
+      start: { x: 10, y: 10 },
+      end: { x: 20, y: 10 },
+      length: 10
+    });
+  });
+
   it("restores target lines when a move modification is disabled", () => {
     const result = evaluateElements([
       validElements[0],
@@ -2671,6 +2803,7 @@ describe("evaluateElements", () => {
         enabled: false,
         startPoint: { mode: "reference", pointId: "a" },
         endPoint: { mode: "reference", pointId: "c" },
+        scale: 1,
         angleDeg: 0,
         mirrorX: false,
         baseLineIds: ["ab"]
@@ -2768,6 +2901,7 @@ describe("evaluateElements", () => {
         enabled: true,
         startPoint: { mode: "reference", pointId: "a" },
         endPoint: { mode: "reference", pointId: "b" },
+        scale: 1,
         angleDeg: 0,
         mirrorX: false,
         baseLineIds: ["ab"]

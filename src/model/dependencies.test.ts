@@ -264,12 +264,13 @@ describe("dependencies", () => {
       enabled: true,
       startPoint: { mode: "reference", pointId: "a" },
       endPoint: { mode: "reference", pointId: "b" },
+      scale: { kind: "expression", expression: "ef.length / 10" },
       angleDeg: { kind: "expression", expression: "cd.startAngleDeg" },
       mirrorX: false,
       baseLineIds: ["ab", "bc"]
     };
 
-    expect(getDirectParentIds(move)).toEqual(["a", "b", "cd", "ab", "bc"]);
+    expect(getDirectParentIds(move)).toEqual(["a", "b", "ef", "cd", "ab", "bc"]);
   });
 
   it("returns symmetric move axis and target line references as direct parent ids", () => {

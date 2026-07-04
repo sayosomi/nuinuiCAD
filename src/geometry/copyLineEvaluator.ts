@@ -24,13 +24,15 @@ const transformPoint = ({
   translation,
   mirrorX,
   rotationCenter,
-  angleRad
+  angleRad,
+  scale
 }: {
   point: Point;
   translation: Point;
   mirrorX: boolean;
   rotationCenter: Point;
   angleRad: number;
+  scale: number;
 }): Point => {
   const moved = {
     x: point.x + translation.x,
@@ -44,12 +46,14 @@ const transformPoint = ({
     : moved;
   const dx = mirrored.x - rotationCenter.x;
   const dy = mirrored.y - rotationCenter.y;
+  const scaledDx = dx * scale;
+  const scaledDy = dy * scale;
   const cos = Math.cos(angleRad);
   const sin = Math.sin(angleRad);
 
   return {
-    x: rotationCenter.x + dx * cos - dy * sin,
-    y: rotationCenter.y + dx * sin + dy * cos
+    x: rotationCenter.x + scaledDx * cos - scaledDy * sin,
+    y: rotationCenter.y + scaledDx * sin + scaledDy * cos
   };
 };
 
@@ -61,7 +65,8 @@ const transformedSegment = ({
   translation,
   mirrorX,
   rotationCenter,
-  angleRad
+  angleRad,
+  scale
 }: {
   segment: SourceSegment;
   elementId: ElementId;
@@ -71,12 +76,13 @@ const transformedSegment = ({
   mirrorX: boolean;
   rotationCenter: Point;
   angleRad: number;
+  scale: number;
 }): ComputedOffsetLineSegment | null => {
   const transform = (point: Point) =>
     computedPoint(
       `${elementId}:${index}`,
       `${name}.${index + 1}`,
-      transformPoint({ point, translation, mirrorX, rotationCenter, angleRad })
+      transformPoint({ point, translation, mirrorX, rotationCenter, angleRad, scale })
     );
 
   if (segment.kind === "line") {
@@ -170,7 +176,20 @@ export const evaluateCopyLineElement = (element: CadElement, context: ElementEva
     localVariableValues,
     localVariableNames
   );
-  if (!startPoint || !endPoint || angleDeg === undefined) return true;
+  const scale = numericError(
+    element,
+    element.scale ?? 1,
+    computedGeometry,
+    elementsById,
+    errors,
+    localVariableValues,
+    localVariableNames
+  );
+  if (!startPoint || !endPoint || angleDeg === undefined || scale === undefined) return true;
+  if (scale <= 0) {
+    errors.push(geometryError(element, `${element.name} は倍率が0以下のためコピーできません。倍率を正の値にしてください。`));
+    return true;
+  }
 
   const sourceSegmentGroups: SourceSegment[][] = [];
   let hasMissingBase = false;
@@ -205,7 +224,8 @@ export const evaluateCopyLineElement = (element: CadElement, context: ElementEva
       translation,
       mirrorX: element.mirrorX,
       rotationCenter: endPoint,
-      angleRad
+      angleRad,
+      scale
     });
     return transformed ? [transformed] : [];
   });

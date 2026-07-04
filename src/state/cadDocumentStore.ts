@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { sampleElements } from "../sampleData";
 import { fallbackElementName, makeUniqueElementName } from "../model/elementNames";
+import { normalizedElementFields } from "../model/elementNormalization";
 import { normalizeParameterKey } from "../parameters/parameterDefinitions";
 import type { ParameterKey } from "../parameters/parameterDefinitions";
 import {
@@ -115,7 +116,9 @@ const normalizedGroupPrintFields = (element: CadElement): CadElement => {
 
 const normalizeSnapshot = (snapshot: CadDocumentSnapshot): CadDocumentSnapshot => {
   const palette = normalizeDocumentPalette(snapshot.palette);
-  const elements = elementsWithValidColorIds(snapshot.elements, palette).map(normalizedGroupPrintFields);
+  const elements = elementsWithValidColorIds(snapshot.elements, palette)
+    .map(normalizedElementFields)
+    .map(normalizedGroupPrintFields);
   const printLayouts = normalizePrintLayouts({
     printLayouts: snapshot.printLayouts,
     legacyPrintLayout: snapshot.printLayout,

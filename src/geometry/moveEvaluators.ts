@@ -40,12 +40,14 @@ const moveTransform = ({
   startPoint,
   endPoint,
   angleDeg,
-  mirrorX
+  mirrorX,
+  scale
 }: {
   startPoint: Point;
   endPoint: Point;
   angleDeg: number;
   mirrorX: boolean;
+  scale: number;
 }): TransformPoint => {
   const translation = {
     x: endPoint.x - startPoint.x,
@@ -68,9 +70,11 @@ const moveTransform = ({
       : moved;
     const dx = mirrored.x - endPoint.x;
     const dy = mirrored.y - endPoint.y;
+    const scaledDx = dx * scale;
+    const scaledDy = dy * scale;
     return {
-      x: endPoint.x + dx * cos - dy * sin,
-      y: endPoint.y + dx * sin + dy * cos
+      x: endPoint.x + scaledDx * cos - scaledDy * sin,
+      y: endPoint.y + scaledDx * sin + scaledDy * cos
     };
   };
 };
@@ -362,12 +366,26 @@ export const evaluateMoveElement = (element: CadElement, context: ElementEvaluat
       localVariableNames,
       disabledByGroupId
     );
-    if (!startPoint || !endPoint || angleDeg === undefined) return true;
+    const scale = numericError(
+      element,
+      element.scale ?? 1,
+      computedGeometry,
+      elementsById,
+      errors,
+      localVariableValues,
+      localVariableNames,
+      disabledByGroupId
+    );
+    if (!startPoint || !endPoint || angleDeg === undefined || scale === undefined) return true;
+    if (scale <= 0) {
+      errors.push(geometryError(element, `${element.name} は倍率が0以下のため移動できません。倍率を正の値にしてください。`));
+      return true;
+    }
 
     applyTransformToTargets({
       element,
       context,
-      transform: moveTransform({ startPoint, endPoint, angleDeg, mirrorX: element.mirrorX }),
+      transform: moveTransform({ startPoint, endPoint, angleDeg, mirrorX: element.mirrorX, scale }),
       reverseOrientation: element.mirrorX
     });
     return true;

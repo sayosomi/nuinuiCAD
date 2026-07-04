@@ -236,6 +236,7 @@ describe("createCadElement", () => {
       numericVariables: [],
       startPoint: { mode: "reference", pointId: "point-a" },
       endPoint: { mode: "reference", pointId: "point-b" },
+      scale: 1,
       angleDeg: 0,
       mirrorX: false,
       baseLineIds: ["line-ab"]
@@ -252,6 +253,7 @@ describe("createCadElement", () => {
       numericVariables: [],
       startPoint: { mode: "reference", pointId: "point-a" },
       endPoint: { mode: "reference", pointId: "point-b" },
+      scale: 1,
       angleDeg: 0,
       mirrorX: false,
       baseLineIds: ["line-ab"]

@@ -256,6 +256,7 @@ export const remapElementReferences = (source: CadElement, idMap: Map<ElementId,
         ...element,
         startPoint: remapPointAnchor(element.startPoint, idMap),
         endPoint: remapPointAnchor(element.endPoint, idMap),
+        scale: remapNumericValue(element.scale, idMap),
         angleDeg: remapNumericValue(element.angleDeg, idMap),
         baseLineIds: remapBaseLineIds(element.baseLineIds, idMap)
       };

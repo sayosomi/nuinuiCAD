@@ -1,4 +1,4 @@
-use serde_json::Value;
+use serde_json::{json, Value};
 use std::collections::HashMap;
 
 use super::errors::{dependency_error, geometry_error};
@@ -178,6 +178,25 @@ pub(crate) fn evaluate_copy_line(
     ) else {
         return;
     };
+    let Some(scale) = evaluate_numeric_or_push(
+        element.get("scale").unwrap_or(&json!(1.0)),
+        state,
+        element,
+        &local_variables.0,
+        &local_variables.1,
+    ) else {
+        return;
+    };
+    if scale <= 0.0 {
+        state.errors.push(geometry_error(
+            element,
+            format!(
+                "{} は倍率が0以下のためコピーできません。倍率を正の値にしてください。",
+                element_name(element)
+            ),
+        ));
+        return;
+    }
     let transform = LineTransform::move_between(
         point_to_offset(&start_point),
         point_to_offset(&end_point),
@@ -186,6 +205,7 @@ pub(crate) fn evaluate_copy_line(
             .get("mirrorX")
             .and_then(Value::as_bool)
             .unwrap_or(false),
+        scale,
     );
     evaluate_copy_with_transform(element, state, &transform);
 }
@@ -279,6 +299,25 @@ pub(crate) fn evaluate_move(
     ) else {
         return;
     };
+    let Some(scale) = evaluate_numeric_or_push(
+        element.get("scale").unwrap_or(&json!(1.0)),
+        state,
+        element,
+        &local_variables.0,
+        &local_variables.1,
+    ) else {
+        return;
+    };
+    if scale <= 0.0 {
+        state.errors.push(geometry_error(
+            element,
+            format!(
+                "{} は倍率が0以下のため移動できません。倍率を正の値にしてください。",
+                element_name(element)
+            ),
+        ));
+        return;
+    }
     let transform = LineTransform::move_between(
         point_to_offset(&start_point),
         point_to_offset(&end_point),
@@ -287,6 +326,7 @@ pub(crate) fn evaluate_move(
             .get("mirrorX")
             .and_then(Value::as_bool)
             .unwrap_or(false),
+        scale,
     );
     apply_transform_to_targets(element, state, &transform);
 }

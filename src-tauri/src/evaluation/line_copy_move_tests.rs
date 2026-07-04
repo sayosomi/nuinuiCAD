@@ -140,6 +140,80 @@ fn copy_line_mirror_reverses_arc_sweep_and_supports_numeric_expression() {
 }
 
 #[test]
+fn copy_line_and_move_scale_around_end_point() {
+    let copy_result = evaluate_document_input(EvaluationInput {
+        elements: vec![
+            free_point("origin", "原点", 0.0, 0.0),
+            free_point("target", "移動先", 10.0, 10.0),
+            free_point("a", "A", 0.0, 0.0),
+            free_point("b", "B", 20.0, 0.0),
+            line("line", "線", "a", "b"),
+            element(json!({
+                "id": "copy",
+                "name": "コピー",
+                "type": "copyLine",
+                "visible": true,
+                "enabled": true,
+                "startPoint": { "mode": "reference", "pointId": "origin" },
+                "endPoint": { "mode": "reference", "pointId": "target" },
+                "scale": 0.5,
+                "angleDeg": 0,
+                "mirrorX": false,
+                "baseLineIds": ["line"]
+            })),
+        ],
+        evaluation_limit_index: None,
+    });
+
+    assert!(copy_result.errors.is_empty());
+    let copy = geometry(&copy_result, "copy");
+    assert_close(copy["segments"][0]["start"]["x"].as_f64().unwrap(), 10.0);
+    assert_close(copy["segments"][0]["end"]["x"].as_f64().unwrap(), 20.0);
+    assert_close(copy["length"].as_f64().unwrap(), 10.0);
+
+    let move_result = evaluate_document_input(EvaluationInput {
+        elements: vec![
+            free_point("origin", "原点", 0.0, 0.0),
+            free_point("target", "移動先", 10.0, 10.0),
+            free_point("a", "A", 0.0, 0.0),
+            free_point("b", "B", 20.0, 0.0),
+            line("line", "線", "a", "b"),
+            element(json!({
+                "id": "move",
+                "name": "移動",
+                "type": "move",
+                "visible": true,
+                "enabled": true,
+                "startPoint": { "mode": "reference", "pointId": "origin" },
+                "endPoint": { "mode": "reference", "pointId": "target" },
+                "scale": 0.5,
+                "angleDeg": 0,
+                "mirrorX": false,
+                "baseLineIds": ["line"]
+            })),
+        ],
+        evaluation_limit_index: None,
+    });
+
+    assert!(move_result.errors.is_empty());
+    assert!(geometry_missing(&move_result, "move"));
+    assert_close(
+        geometry(&move_result, "line")["start"]["x"]
+            .as_f64()
+            .unwrap(),
+        10.0,
+    );
+    assert_close(
+        geometry(&move_result, "line")["end"]["x"].as_f64().unwrap(),
+        20.0,
+    );
+    assert_close(
+        geometry(&move_result, "line")["length"].as_f64().unwrap(),
+        10.0,
+    );
+}
+
+#[test]
 fn symmetric_copy_line_reflects_base_lines() {
     let result = evaluate_document_input(EvaluationInput {
         elements: vec![

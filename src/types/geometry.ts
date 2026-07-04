@@ -249,6 +249,7 @@ export type CopyLineElement = CadElementBase & {
   type: "copyLine";
   startPoint: PointAnchor;
   endPoint: PointAnchor;
+  scale: NumericValue;
   angleDeg: NumericValue;
   mirrorX: boolean;
   baseLineIds: ElementId[];
@@ -265,6 +266,7 @@ export type MoveElement = CadElementBase & {
   type: "move";
   startPoint: PointAnchor;
   endPoint: PointAnchor;
+  scale: NumericValue;
   angleDeg: NumericValue;
   mirrorX: boolean;
   baseLineIds: ElementId[];

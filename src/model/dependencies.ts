@@ -205,6 +205,7 @@ export const getDirectParentIds = (element: CadElement): ElementId[] => {
           ...numericVariableReferences(element),
           ...pointAnchorParentIds(element.startPoint).map((elementId) => ({ elementId })),
           ...pointAnchorParentIds(element.endPoint).map((elementId) => ({ elementId })),
+          ...extractNumericExpressionReferences(element.scale),
           ...extractNumericExpressionReferences(element.angleDeg),
           ...element.baseLineIds.map((elementId) => ({ elementId }))
         ].map((reference) => reference.elementId);

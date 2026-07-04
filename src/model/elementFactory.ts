@@ -410,6 +410,7 @@ export const createCadElement = (
         numericVariables: [],
         startPoint: referenceAnchor(firstPointId),
         endPoint: referenceAnchor(secondPointId),
+        scale: 1,
         angleDeg: 0,
         mirrorX: false,
         baseLineIds: lineLikeElements[0] ? [lineLikeElements[0].id] : []
@@ -428,6 +429,7 @@ export const createCadElement = (
         numericVariables: [],
         startPoint: referenceAnchor(firstPointId),
         endPoint: referenceAnchor(secondPointId),
+        scale: 1,
         angleDeg: 0,
         mirrorX: false,
         baseLineIds: lineLikeElements[0] ? [lineLikeElements[0].id] : []
