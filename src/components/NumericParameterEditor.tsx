@@ -7,7 +7,6 @@ import {
   normalizeNumericExpressionInput
 } from "../geometry/numericExpressions";
 import {
-  defaultNumericParameterStep,
   findParameterDefinition,
   getEmptyNumericInputDefaultValue,
   getNumericParameterStep
@@ -42,6 +41,11 @@ type NumericDragState = {
 type NumericInputDraft = {
   value: string;
   baseValue: NumericValue;
+};
+
+type StepInputDraft = {
+  parameterKey: ParameterKey;
+  value: string;
 };
 
 const deferredNumericInputValues = new Set(["", "+", "-", ".", "+.", "-."]);
@@ -80,6 +84,8 @@ export const NumericParameterEditor = ({
   const inputSelectionRef = useRef<{ start: number; end: number } | null>(null);
   const [inputSelection, setInputSelection] = useState<{ start: number; end: number } | null>(null);
   const [numericDrag, setNumericDrag] = useState<NumericDragState | null>(null);
+  const [stepDrag, setStepDrag] = useState<NumericDragState | null>(null);
+  const [stepDraft, setStepDraft] = useState<StepInputDraft | null>(null);
   const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(0);
   const activeNumericReferencePickTarget = useCadUiStore((state) => state.activeNumericReferencePickTarget);
   const activeExpressionInsertTarget = useCadUiStore((state) => state.activeExpressionInsertTarget);
@@ -162,14 +168,83 @@ export const NumericParameterEditor = ({
     setInputSelection(null);
   };
   const updateStep = (field: ParameterKey, nextValue: string) => {
+    setStepDraft({ parameterKey: field, value: nextValue });
     const nextStep = Number(nextValue);
+    if (!Number.isFinite(nextStep) || nextStep <= 0) return;
+
     updateElement(element.id, {
       numericParameterSteps: {
         ...element.numericParameterSteps,
-        [field]: Number.isFinite(nextStep) && nextStep > 0 ? nextStep : defaultNumericParameterStep
+        [field]: nextStep
       }
     } as Partial<CadElement>);
   };
+  const finishEditingStep = () => {
+    setStepDraft(null);
+  };
+  const finishStepDrag = (event: PointerEvent<HTMLInputElement>) => {
+    const drag = stepDrag;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+
+    event.preventDefault();
+    if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    setStepDrag(null);
+  };
+  const dispatchStepChange = (key: ParameterKey, direction: 1 | -1) => {
+    setStepDraft(null);
+    selectParameter(key);
+    dispatchCommand(direction > 0 ? "increaseSelectedParameterStep" : "decreaseSelectedParameterStep");
+  };
+  const stepDragProps = (key: ParameterKey) => ({
+    onPointerDown: (event: PointerEvent<HTMLInputElement>) => {
+      if (event.button !== 1) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      setStepDraft(null);
+      selectParameter(key);
+      event.currentTarget.focus();
+      event.currentTarget.setPointerCapture?.(event.pointerId);
+      setStepDrag({
+        parameterKey: key,
+        pointerId: event.pointerId,
+        previousClientX: event.clientX,
+        remainderX: 0
+      });
+    },
+    onPointerMove: (event: PointerEvent<HTMLInputElement>) => {
+      const drag = stepDrag;
+      if (!drag || drag.pointerId !== event.pointerId) return;
+
+      event.preventDefault();
+      const deltaX = drag.remainderX + event.clientX - drag.previousClientX;
+      const { steps, remainderX } = numericDragStepsForDelta(deltaX);
+      setStepDrag({
+        ...drag,
+        previousClientX: event.clientX,
+        remainderX
+      });
+
+      if (steps === 0) return;
+
+      selectParameter(drag.parameterKey);
+      const commandId = steps > 0 ? "increaseSelectedParameterStep" : "decreaseSelectedParameterStep";
+      for (let index = 0; index < Math.abs(steps); index += 1) {
+        dispatchCommand(commandId);
+      }
+    },
+    onPointerUp: finishStepDrag,
+    onPointerCancel: finishStepDrag,
+    onLostPointerCapture: (event: PointerEvent<HTMLInputElement>) => {
+      if (stepDrag?.pointerId !== event.pointerId) return;
+      setStepDrag(null);
+    },
+    onAuxClick: (event: MouseEvent<HTMLInputElement>) => {
+      if (event.button === 1) event.preventDefault();
+    }
+  });
   const finishNumericDrag = (event: PointerEvent<HTMLInputElement>) => {
     const drag = numericDrag;
     if (!drag || drag.pointerId !== event.pointerId) return;
@@ -340,14 +415,33 @@ export const NumericParameterEditor = ({
     <span className="parameter-step">
       増減単位
       <input
-        type="number"
-        min="0.1"
-        step="0.1"
-        value={formatNumber(getNumericParameterStep(element, parameterKey))}
+        {...stepDragProps(parameterKey)}
+        type="text"
+        inputMode="decimal"
+        aria-label={`${label} 増減単位`}
+        value={
+          stepDraft?.parameterKey === parameterKey
+            ? stepDraft.value
+            : formatNumber(getNumericParameterStep(element, parameterKey))
+        }
         onFocus={() => selectParameter(parameterKey)}
         onKeyDown={(event) => {
-          if (event.key === "Escape") event.currentTarget.blur();
+          if (event.key === "ArrowUp") {
+            event.preventDefault();
+            dispatchStepChange(parameterKey, 1);
+            return;
+          }
+          if (event.key === "ArrowDown") {
+            event.preventDefault();
+            dispatchStepChange(parameterKey, -1);
+            return;
+          }
+          if (event.key === "Enter" || event.key === "Escape") {
+            setStepDraft(null);
+            event.currentTarget.blur();
+          }
         }}
+        onBlur={finishEditingStep}
         onChange={(event) => updateStep(parameterKey, event.target.value)}
       />
     </span>

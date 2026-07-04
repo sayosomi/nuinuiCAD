@@ -879,6 +879,98 @@ describe("LeftPanel numeric input dragging", () => {
     expect(useCadStore.getState().elements[0]).toMatchObject({ x: 50 });
   });
 
+  it("allows direct positive numeric parameter step input", () => {
+    renderRightPanel();
+
+    fireEvent.change(screen.getByLabelText("x 増減単位"), { target: { value: "0.01" } });
+
+    expect(useCadStore.getState().elements[0].numericParameterSteps).toMatchObject({ x: 0.01 });
+    expect(screen.getByLabelText("x 増減単位")).toHaveValue("0.01");
+  });
+
+  it("keeps empty numeric parameter step input as a draft while editing", () => {
+    useCadStore.setState({
+      elements: [
+        {
+          ...sampleElements[0],
+          numericParameterSteps: { x: 0.01 }
+        },
+        ...sampleElements.slice(1)
+      ]
+    });
+    renderRightPanel();
+
+    const stepInput = screen.getByLabelText("x 増減単位");
+    fireEvent.change(stepInput, { target: { value: "" } });
+
+    expect(stepInput).toHaveValue("");
+    expect(useCadStore.getState().elements[0].numericParameterSteps).toMatchObject({ x: 0.01 });
+
+    fireEvent.blur(stepInput);
+
+    expect(stepInput).toHaveValue("0.01");
+  });
+
+  it("allows negative numeric parameter step drafts without saving them", () => {
+    renderRightPanel();
+
+    const stepInput = screen.getByLabelText("x 増減単位");
+    fireEvent.change(stepInput, { target: { value: "-" } });
+
+    expect(stepInput).toHaveValue("-");
+    expect(useCadStore.getState().elements[0].numericParameterSteps?.x).toBeUndefined();
+
+    fireEvent.change(stepInput, { target: { value: "-1" } });
+
+    expect(stepInput).toHaveValue("-1");
+    expect(useCadStore.getState().elements[0].numericParameterSteps?.x).toBeUndefined();
+
+    fireEvent.blur(stepInput);
+
+    expect(stepInput).toHaveValue("1");
+  });
+
+  it("changes numeric parameter steps by fixed levels with arrow keys", () => {
+    renderRightPanel();
+
+    const stepInput = screen.getByLabelText("x 増減単位");
+    fireEvent.keyDown(stepInput, { key: "ArrowUp" });
+
+    expect(useCadStore.getState().elements[0].numericParameterSteps).toMatchObject({ x: 10 });
+    expect(stepInput).toHaveValue("10");
+
+    useCadStore.setState({
+      elements: [
+        {
+          ...useCadStore.getState().elements[0],
+          numericParameterSteps: { x: 1 }
+        },
+        ...useCadStore.getState().elements.slice(1)
+      ]
+    });
+
+    fireEvent.keyDown(stepInput, { key: "ArrowDown" });
+
+    expect(useCadStore.getState().elements[0].numericParameterSteps).toMatchObject({ x: 0.1 });
+    expect(stepInput).toHaveValue("0.1");
+  });
+
+  it("changes numeric parameter steps with middle-button horizontal drag", () => {
+    renderRightPanel();
+
+    dragNumericInput(screen.getByLabelText("x 増減単位"), { toX: 8 });
+
+    expect(useCadStore.getState().elements[0].numericParameterSteps).toMatchObject({ x: 10 });
+  });
+
+  it("decreases numeric parameter steps with middle-button horizontal drag to the left", () => {
+    renderRightPanel();
+
+    dragNumericInput(screen.getByLabelText("x 増減単位"), { fromX: 8, toX: 0 });
+
+    expect(useCadStore.getState().elements[0].numericParameterSteps).toMatchObject({ x: 0.1 });
+  });
+
   it("uses the selected parameter's configured numeric step", () => {
     useCadStore.setState({
       elements: [
