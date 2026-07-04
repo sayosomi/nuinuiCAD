@@ -42,7 +42,9 @@ export const commandPaletteItems = Object.values(commands)
   .map((command) => ({
     commandId: command.id,
     label: command.label,
-    keywords: command.palette?.keywords ?? []
+    keywords: command.palette?.keywords ?? [],
+    isAvailable: command.palette?.isAvailable
   }));
 
-export const filterCommandPaletteItems = (query: string) => filterPaletteItems(commandPaletteItems, query);
+export const filterCommandPaletteItems = (query: string, context?: CommandContext) =>
+  filterPaletteItems(commandPaletteItems, query, context);

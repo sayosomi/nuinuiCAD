@@ -114,6 +114,38 @@ beforeEach(() => {
 });
 
 describe("AppLayout keyboard handling", () => {
+  it.each(["d", "Delete", "Backspace"])("deletes the selected element with %s", (key) => {
+    const view = render(<AppLayout />);
+    const viewport = view.container.querySelector(".canvas-viewport");
+    if (!(viewport instanceof HTMLDivElement)) {
+      throw new Error("Missing canvas viewport");
+    }
+
+    viewport.focus();
+    fireEvent.keyDown(window, { key });
+
+    expect(useCadStore.getState().elements.some((element) => element.id === sampleElements[0].id)).toBe(
+      false
+    );
+    expect(useCadStore.getState().selectedElementId).toBe(sampleElements[1].id);
+    expect(useCadStore.getState().past).toHaveLength(1);
+  });
+
+  it("deletes the selected element from the command palette delete query", async () => {
+    const view = render(<AppLayout />);
+
+    fireEvent.keyDown(window, { key: "/" });
+    const input = await view.findByLabelText("コマンドを検索");
+    fireEvent.change(input, { target: { value: "削除" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    expect(useCadStore.getState().elements.some((element) => element.id === sampleElements[0].id)).toBe(
+      false
+    );
+    expect(useCadStore.getState().selectedElementId).toBe(sampleElements[1].id);
+    expect(view.queryByRole("dialog", { name: "コマンドパレット" })).not.toBeInTheDocument();
+  });
+
   it("selects the default name after creating an element from a shortcut", async () => {
     const view = render(<AppLayout />);
     const viewport = view.container.querySelector(".canvas-viewport");

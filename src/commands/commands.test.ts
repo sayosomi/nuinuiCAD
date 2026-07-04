@@ -1653,6 +1653,27 @@ describe("commands", () => {
     );
   });
 
+  it("prioritizes selected element deletion in command palette delete queries", () => {
+    const deleteCommandIds = filterCommandPaletteItems("削除").map((item) => item.commandId);
+
+    expect(deleteCommandIds[0]).toBe("deleteSelectedElement");
+    expect(deleteCommandIds).not.toContain("deleteNumericVariable");
+    expect(deleteCommandIds).not.toContain("deleteBezierIntermediatePoint");
+    expect(deleteCommandIds).not.toContain("deleteElseBranchFromSelectedConditionalGroup");
+  });
+
+  it("hides selected element deletion from the command palette without a selection", () => {
+    useCadStore.setState({
+      selectedElementId: null,
+      selectedElementIds: [],
+      selectionAnchorElementId: null
+    });
+
+    expect(filterCommandPaletteItems("削除").map((item) => item.commandId)).not.toContain(
+      "deleteSelectedElement"
+    );
+  });
+
   it("creates a new document from a command", async () => {
     useCadStore.setState({
       currentFilePath: "/tmp/edited.nuinui.json",

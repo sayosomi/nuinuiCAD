@@ -232,7 +232,8 @@ export const AppLayout = () => {
         isPickMode: Boolean(
           useCadUiStore.getState().activePointPickTarget ||
             useCadUiStore.getState().activeNumericReferencePickTarget ||
-            useCadUiStore.getState().activeLinePickTarget
+            useCadUiStore.getState().activeLinePickTarget ||
+            useCadUiStore.getState().activeTemplateInsertion
         )
       });
       if (useCadUiStore.getState().activeTemplateInsertion && event.key === "Escape") {

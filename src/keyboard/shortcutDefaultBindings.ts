@@ -128,6 +128,7 @@ const defaultBindings: ShortcutBinding[] = [
   binding("parameter", "selectPreviousParameter", [ch("ArrowUp")]),
   binding("parameter", "selectPreviousElement", [ch("ArrowUp", { shift: true })]),
   binding("parameter", "selectNextElement", [ch("ArrowDown", { shift: true })]),
+  binding("parameter", "deleteSelectedElement", [ch("Delete"), ch("Backspace")]),
   binding("parameter", "incrementSelectedParameter", [ch("ArrowRight", { shift: "any", alt: "any" })], {
     context: arrowStepContext
   }),

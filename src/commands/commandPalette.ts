@@ -1,18 +1,25 @@
 import type { CommandId } from "./commandTypes";
+import type { CommandContext } from "./commandTypes";
 
 export type CommandPaletteItem = {
   commandId: CommandId;
   label: string;
   keywords: string[];
+  isAvailable?: (context?: CommandContext) => boolean;
 };
 
 const normalizePaletteText = (text: string) => text.trim().toLowerCase();
 
-export const filterCommandPaletteItems = (items: CommandPaletteItem[], query: string) => {
+export const filterCommandPaletteItems = (
+  items: CommandPaletteItem[],
+  query: string,
+  context?: CommandContext
+) => {
   const normalizedQuery = normalizePaletteText(query);
-  if (!normalizedQuery) return items;
+  const availableItems = items.filter((item) => item.isAvailable?.(context) ?? true);
+  if (!normalizedQuery) return availableItems;
 
-  return items.filter((item) => {
+  return availableItems.filter((item) => {
     const searchableText = [item.commandId, item.label, ...item.keywords]
       .map(normalizePaletteText)
       .join(" ");

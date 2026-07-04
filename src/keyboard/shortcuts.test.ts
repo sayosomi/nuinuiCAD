@@ -188,6 +188,12 @@ describe("shortcuts", () => {
         isParameterEditMode: true
       })
     ).toBe("selectPreviousElement");
+    expect(commandIdForKeyboardEvent(keyboardEvent("Backspace"), { isParameterEditMode: true })).toBe(
+      "deleteSelectedElement"
+    );
+    expect(commandIdForKeyboardEvent(keyboardEvent("Delete"), { isParameterEditMode: true })).toBe(
+      "deleteSelectedElement"
+    );
     expect(commandIdForKeyboardEvent(keyboardEvent("Tab"), { isParameterEditMode: true })).toBeNull();
     expect(commandIdForKeyboardEvent(keyboardEvent("Enter"), { isParameterEditMode: true })).toBe(
       "activateSelectedParameter"
@@ -327,6 +333,8 @@ describe("shortcuts", () => {
     expect(commandIdForKeyboardEvent(keyboardEventFrom("v", input))).toBeNull();
     expect(commandIdForKeyboardEvent(keyboardEventFrom("a", input))).toBeNull();
     expect(commandIdForKeyboardEvent(keyboardEventFrom("d", input))).toBeNull();
+    expect(commandIdForKeyboardEvent(keyboardEventFrom("Backspace", input))).toBeNull();
+    expect(commandIdForKeyboardEvent(keyboardEventFrom("Delete", input))).toBeNull();
     expect(commandIdForKeyboardEvent(keyboardEventFrom("i", input))).toBeNull();
     expect(commandIdForKeyboardEvent(keyboardEventFrom("?", input))).toBeNull();
     expect(commandIdForKeyboardEvent(keyboardEventFrom("/", input))).toBeNull();
@@ -335,6 +343,12 @@ describe("shortcuts", () => {
     );
     expect(
       commandIdForKeyboardEvent(keyboardEventFrom("[", input), { isParameterEditMode: true })
+    ).toBeNull();
+    expect(
+      commandIdForKeyboardEvent(keyboardEventFrom("Backspace", input), { isParameterEditMode: true })
+    ).toBeNull();
+    expect(
+      commandIdForKeyboardEvent(keyboardEventFrom("Delete", input), { isParameterEditMode: true })
     ).toBeNull();
     expect(commandIdForKeyboardEvent(keyboardEventFrom("z", input, { metaKey: true }))).toBeNull();
     expect(commandIdForKeyboardEvent(keyboardEventFrom("y", input, { metaKey: true }))).toBeNull();

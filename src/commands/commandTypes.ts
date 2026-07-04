@@ -218,6 +218,7 @@ export type Command = {
   palette?: {
     order?: number;
     keywords?: string[];
+    isAvailable?: (context?: CommandContext) => boolean;
   };
   shortcuts?: {
     keys: string;

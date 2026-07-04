@@ -16,7 +16,7 @@ export const CommandPalette = ({ commandContext }: CommandPaletteProps) => {
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
-  const items = useMemo(() => filterCommandPaletteItems(query), [query]);
+  const items = useMemo(() => filterCommandPaletteItems(query, commandContext), [query, commandContext]);
   const clampedSelectedIndex = Math.min(selectedIndex, Math.max(items.length - 1, 0));
   const selectedItem = items[clampedSelectedIndex] ?? null;
 

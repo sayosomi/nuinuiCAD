@@ -4,11 +4,11 @@ import {
   adjustEvaluationLimitForDeletion,
   adjustEvaluationLimitForInsertion
 } from "../model/evaluationDivider";
-import { subtreeIdsForElement } from "../model/groups";
+import { isConditionalGroupElement, subtreeIdsForElement } from "../model/groups";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
 import { moveBezierHandleByDelta, movePointElementByDelta } from "./geometryEditCommands";
-import { getSelectedElementIds } from "./commandRuntime";
+import { getSelectedElement, getSelectedElementIds } from "./commandRuntime";
 import {
   addConditionalGroup,
   addElseBranchToSelectedConditionalGroup,
@@ -43,6 +43,17 @@ import {
   ungroupSelectedGroup
 } from "./selectionCommands";
 import type { Command, CommandId } from "./commandTypes";
+
+const hasSelection = () => getSelectedElementIds().length > 0;
+
+const selectedConditionalGroupHasElseBranch = () => {
+  const selectedElement = getSelectedElement();
+  if (!selectedElement || !isConditionalGroupElement(selectedElement)) return false;
+  const { elements } = useCadDocumentStore.getState();
+  return elements.some(
+    (element) => element.parentGroupId === selectedElement.id && element.conditionalBranch === "else"
+  );
+};
 
 export const selectionCommandDefinitions = {
   selectElement: {
@@ -210,7 +221,11 @@ export const selectionCommandDefinitions = {
   deleteElseBranchFromSelectedConditionalGroup: {
     id: "deleteElseBranchFromSelectedConditionalGroup",
     label: "else枝を削除",
-    palette: { order: 34.8, keywords: ["else", "if", "branch", "条件", "分岐", "削除"] },
+    palette: {
+      order: 34.8,
+      keywords: ["else", "if", "branch", "条件", "分岐", "削除"],
+      isAvailable: selectedConditionalGroupHasElseBranch
+    },
     run: () => deleteElseBranchFromSelectedConditionalGroup()
   },
   addForGroup: {
@@ -341,7 +356,11 @@ export const selectionCommandDefinitions = {
   deleteSelectedElement: {
     id: "deleteSelectedElement",
     label: "選択要素を削除",
-    palette: { order: 43, keywords: ["delete", "remove", "削除"] },
+    palette: {
+      order: 34.7,
+      keywords: ["delete", "remove", "削除"],
+      isAvailable: hasSelection
+    },
     shortcuts: [{ keys: "d / Delete / Backspace" }],
     run: () => {
       const { elements, evaluationLimitIndex } = useCadDocumentStore.getState();

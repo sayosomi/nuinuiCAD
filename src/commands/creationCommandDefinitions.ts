@@ -218,7 +218,11 @@ export const creationCommandDefinitions = {
   deleteNumericVariable: {
     id: "deleteNumericVariable",
     label: "要素内変数を削除",
-    palette: { order: 22, keywords: ["variable", "共有", "共通", "要素内", "変数", "削除"] },
+    palette: {
+      order: 22,
+      keywords: ["variable", "共有", "共通", "要素内", "変数", "削除"],
+      isAvailable: (context) => Boolean(context?.variableId)
+    },
     run: (context) => deleteNumericVariable(context?.variableId)
   },
   addBezierNumericVariable: {
@@ -240,7 +244,11 @@ export const creationCommandDefinitions = {
   deleteBezierIntermediatePoint: {
     id: "deleteBezierIntermediatePoint",
     label: "曲線の中間点を削除",
-    palette: { order: 24, keywords: ["bezier", "curve", "middle", "中間点", "削除"] },
+    palette: {
+      order: 24,
+      keywords: ["bezier", "curve", "middle", "中間点", "削除"],
+      isAvailable: (context) => Boolean(context?.intermediatePointId)
+    },
     run: (context) => deleteBezierIntermediatePoint(context?.intermediatePointId)
   }
 } satisfies Partial<Record<CommandId, Command>>;
