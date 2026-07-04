@@ -1,5 +1,7 @@
+import { dispatchCommand } from "../commands/commands";
 import { pointAnchorForElement, referenceAnchor } from "../model/pointAnchors";
 import type { ParameterKey } from "../parameters/parameterDefinitions";
+import { useCadUiStore } from "../state/cadUiStore";
 import type {
   ElementId,
   LineEndpointReference,
@@ -23,6 +25,8 @@ export const PointElementFields = ({
   isParameterEditMode,
   registerParameterControl
 }: CommonEditorProps) => {
+  const activePointPickTarget = useCadUiStore((state) => state.activePointPickTarget);
+  const activeLinePickTarget = useCadUiStore((state) => state.activeLinePickTarget);
   const commonEditorProps = { element, elements, evaluation, isParameterEditMode, registerParameterControl };
   const elementEditorProps = { element, isParameterEditMode, registerParameterControl };
   const numericInput = (props: {
@@ -217,9 +221,43 @@ export const PointElementFields = ({
         </>
       );
 
-    case "lineTangentOffsetPoint":
+    case "lineTangentOffsetPoint": {
+      const isLineAndPointPicking =
+        (activeLinePickTarget?.elementId === element.id &&
+          activeLinePickTarget.pickFlow === "lineAndPoint") ||
+        (activePointPickTarget?.elementId === element.id &&
+          activePointPickTarget.pickFlow === "lineAndPoint");
       return (
         <>
+          <div className="line-endpoint-pair-actions">
+            <button
+              type="button"
+              className={isLineAndPointPicking ? "active" : ""}
+              onClick={() => {
+                if (
+                  activeLinePickTarget?.elementId === element.id &&
+                  activeLinePickTarget.pickFlow === "lineAndPoint"
+                ) {
+                  dispatchCommand("cancelLinePick");
+                  return;
+                }
+                if (
+                  activePointPickTarget?.elementId === element.id &&
+                  activePointPickTarget.pickFlow === "lineAndPoint"
+                ) {
+                  dispatchCommand("cancelPointPick");
+                  return;
+                }
+                dispatchCommand("startLineAndPointPick", {
+                  elementId: element.id,
+                  parameterKey: "baseLineId",
+                  nextParameterKey: "basePoint"
+                });
+              }}
+            >
+              線→点
+            </button>
+          </div>
           {lineReferenceEditor({
             parameterKey: "baseLineId",
             label: "基準線",
@@ -245,6 +283,7 @@ export const PointElementFields = ({
           })}
         </>
       );
+    }
 
     default:
       return null;

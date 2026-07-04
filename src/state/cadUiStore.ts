@@ -15,7 +15,7 @@ export type ActivePointPickTarget = {
   parameterKey: ParameterKey;
   measurementSlot?: MeasurementPointSlot;
   nextParameterKey?: ParameterKey;
-  pickFlow?: "lineEndpointPair";
+  pickFlow?: "lineEndpointPair" | "lineAndPoint";
 };
 
 export type ActiveNumericReferencePickTarget = {
@@ -32,6 +32,8 @@ export type ActiveLinePickTarget = {
   elementId: ElementId;
   parameterKey: ParameterKey;
   measurementSlot?: "line";
+  nextPointParameterKey?: ParameterKey;
+  pickFlow?: "lineAndPoint";
 };
 
 export type ActiveExpressionInsertTarget = {

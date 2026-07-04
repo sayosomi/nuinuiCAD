@@ -1098,6 +1098,39 @@ describe("LeftPanel numeric input dragging", () => {
     expect(screen.queryByRole("combobox", { name: /基準線/ })).not.toBeInTheDocument();
   });
 
+  it("starts a line to point pick flow for line tangent offset points", () => {
+    useCadStore.setState({
+      elements: [
+        ...sampleElements,
+        {
+          id: "tangent-point",
+          name: "接線オフセット点",
+          type: "lineTangentOffsetPoint",
+          visible: true,
+          enabled: true,
+          baseLineId: "line-ab",
+          basePoint: { mode: "reference", pointId: "point-a" },
+          tangentAngleDeg: 90,
+          distance: 30
+        }
+      ],
+      selectedElementId: "tangent-point",
+      selectedElementIds: ["tangent-point"],
+      selectedParameterKey: "baseLineId"
+    });
+
+    renderRightPanel();
+
+    fireEvent.click(screen.getByRole("button", { name: "線→点" }));
+
+    expect(useCadStore.getState().activeLinePickTarget).toEqual({
+      elementId: "tangent-point",
+      parameterKey: "baseLineId",
+      nextPointParameterKey: "basePoint",
+      pickFlow: "lineAndPoint"
+    });
+  });
+
   it("lays out offset line side choices as a compact choice parameter", () => {
     useCadStore.setState({
       elements: [

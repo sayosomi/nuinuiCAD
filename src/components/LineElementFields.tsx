@@ -25,6 +25,7 @@ export const LineElementFields = ({
   registerParameterControl
 }: CommonEditorProps) => {
   const activePointPickTarget = useCadUiStore((state) => state.activePointPickTarget);
+  const activeLinePickTarget = useCadUiStore((state) => state.activeLinePickTarget);
   const commonEditorProps = { element, elements, evaluation, isParameterEditMode, registerParameterControl };
   const elementEditorProps = { element, isParameterEditMode, registerParameterControl };
   const numericInput = (props: {
@@ -245,9 +246,43 @@ export const LineElementFields = ({
         </>
       );
 
-    case "splitLine":
+    case "splitLine": {
+      const isLineAndPointPicking =
+        (activeLinePickTarget?.elementId === element.id &&
+          activeLinePickTarget.pickFlow === "lineAndPoint") ||
+        (activePointPickTarget?.elementId === element.id &&
+          activePointPickTarget.pickFlow === "lineAndPoint");
       return (
         <>
+          <div className="line-endpoint-pair-actions">
+            <button
+              type="button"
+              className={isLineAndPointPicking ? "active" : ""}
+              onClick={() => {
+                if (
+                  activeLinePickTarget?.elementId === element.id &&
+                  activeLinePickTarget.pickFlow === "lineAndPoint"
+                ) {
+                  dispatchCommand("cancelLinePick");
+                  return;
+                }
+                if (
+                  activePointPickTarget?.elementId === element.id &&
+                  activePointPickTarget.pickFlow === "lineAndPoint"
+                ) {
+                  dispatchCommand("cancelPointPick");
+                  return;
+                }
+                dispatchCommand("startLineAndPointPick", {
+                  elementId: element.id,
+                  parameterKey: "baseLineId",
+                  nextParameterKey: "splitPoint"
+                });
+              }}
+            >
+              線→点
+            </button>
+          </div>
           <LineReferenceEditor
             {...commonEditorProps}
             parameterKey="baseLineId"
@@ -262,6 +297,7 @@ export const LineElementFields = ({
           })}
         </>
       );
+    }
 
     case "copyLine":
     case "move":

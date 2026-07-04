@@ -14,6 +14,7 @@ import {
   selectPickOptionByOffset,
   setMeasurementInsertMode,
   setNumericReferencePickProperty,
+  startLineAndPointPick,
   startLineEndpointPairPick,
   startLinePick,
   startMeasurementLinePick,
@@ -148,6 +149,11 @@ export const pickCommandDefinitions = {
     label: "線を選択して基準線に追加",
     palette: { order: 15, keywords: ["line", "reference", "base", "基準線", "線", "選択"] },
     run: (context) => startLinePick(context)
+  },
+  startLineAndPointPick: {
+    id: "startLineAndPointPick",
+    label: "線と点を続けて選択",
+    run: (context) => startLineAndPointPick(context)
   },
   applyPickedLine: {
     id: "applyPickedLine",

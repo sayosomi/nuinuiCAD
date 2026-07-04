@@ -2932,6 +2932,61 @@ describe("commands", () => {
     });
   });
 
+  it("picks a line and then advances to point picking for line-point elements", () => {
+    useCadStore.setState({
+      elements: [
+        ...sampleElements,
+        {
+          id: "tangent-point",
+          name: "接線オフセット点",
+          type: "lineTangentOffsetPoint",
+          visible: true,
+          enabled: true,
+          baseLineId: "line-ab",
+          basePoint: { mode: "reference", pointId: "point-a" },
+          tangentAngleDeg: 90,
+          distance: 30
+        }
+      ],
+      selectedElementId: "tangent-point",
+      selectedElementIds: ["tangent-point"],
+      selectedParameterKey: "name"
+    });
+
+    dispatchCommand("startLineAndPointPick", {
+      elementId: "tangent-point",
+      parameterKey: "baseLineId",
+      nextParameterKey: "basePoint"
+    });
+    expect(useCadStore.getState().activeLinePickTarget).toEqual({
+      elementId: "tangent-point",
+      parameterKey: "baseLineId",
+      nextPointParameterKey: "basePoint",
+      pickFlow: "lineAndPoint"
+    });
+
+    dispatchCommand("applyPickedLine", { pickedLineId: "line-bc" });
+    expect(useCadStore.getState().activeLinePickTarget).toBeNull();
+    expect(useCadStore.getState().activePointPickTarget).toEqual({
+      elementId: "tangent-point",
+      parameterKey: "basePoint",
+      pickFlow: "lineAndPoint"
+    });
+    expect(useCadStore.getState().elements.at(-1)).toMatchObject({
+      type: "lineTangentOffsetPoint",
+      baseLineId: "line-bc"
+    });
+
+    dispatchCommand("applyPickedPoint", { pickedPointId: "point-c" });
+    expect(useCadStore.getState().activePointPickTarget).toBeNull();
+    expect(useCadStore.getState().elements.at(-1)).toMatchObject({
+      type: "lineTangentOffsetPoint",
+      baseLineId: "line-bc",
+      basePoint: { mode: "reference", pointId: "point-c" }
+    });
+    expect(useCadStore.getState().past).toHaveLength(2);
+  });
+
   it("maps picked generated lines to template line references in the same for group", () => {
     const elements: CadElement[] = [
       {
