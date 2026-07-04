@@ -10,8 +10,12 @@ export const radiansToDegrees = (radians: number) => (radians * 180) / Math.PI;
 
 export const normalizeDegrees = (degrees: number) => ((degrees % 360) + 360) % 360;
 
-export const positiveSweepDegrees = (startAngleDeg: number, endAngleDeg: number) =>
-  normalizeDegrees(endAngleDeg - startAngleDeg);
+export const positiveSweepDegrees = (startAngleDeg: number, endAngleDeg: number) => {
+  const rawSweep = endAngleDeg - startAngleDeg;
+  const normalized = normalizeDegrees(rawSweep);
+  const isFullCircle = normalized <= CIRCLE_EPSILON || 360 - normalized <= CIRCLE_EPSILON;
+  return isFullCircle && Math.abs(rawSweep) > CIRCLE_EPSILON ? 360 : normalized;
+};
 
 export const circleThroughThreePoints = (
   point1: ComputedPoint,

@@ -152,6 +152,45 @@ fn evaluates_points_lines_variables_and_arcs() {
 }
 
 #[test]
+fn evaluates_arc_line_with_full_360_degree_sweep() {
+    let result = evaluate_document_input(EvaluationInput {
+        elements: vec![
+            element(json!({
+                "id": "a",
+                "name": "点A",
+                "type": "freePoint",
+                "visible": true,
+                "enabled": true,
+                "x": 10,
+                "y": 20
+            })),
+            element(json!({
+                "id": "arc",
+                "name": "完全円",
+                "type": "arcLine",
+                "visible": true,
+                "enabled": true,
+                "centerPoint": { "mode": "reference", "pointId": "a" },
+                "radius": 10,
+                "startAngleDeg": 0,
+                "endAngleDeg": 360
+            })),
+        ],
+        evaluation_limit_index: None,
+    });
+
+    let arc = point(&result, "arc");
+    assert!(result.errors.is_empty());
+    assert_eq!(arc["kind"], json!("arcLine"));
+    assert_eq!(arc["sweepAngleDeg"], json!(360.0));
+    assert_eq!(arc["start"]["x"], json!(20.0));
+    assert_eq!(arc["start"]["y"], json!(20.0));
+    assert!((arc["end"]["x"].as_f64().unwrap() - 20.0).abs() < 1e-9);
+    assert!((arc["end"]["y"].as_f64().unwrap() - 20.0).abs() < 1e-9);
+    assert!((arc["length"].as_f64().unwrap() - std::f64::consts::PI * 20.0).abs() < 1e-9);
+}
+
+#[test]
 fn evaluates_sqrt_and_pi_numeric_expressions() {
     let result = evaluate_document_input(EvaluationInput {
         elements: vec![element(json!({

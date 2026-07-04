@@ -64,3 +64,13 @@ pub(crate) fn normalize_degrees(degrees: f64) -> f64 {
         normalized
     }
 }
+
+pub(crate) fn positive_sweep_degrees(start_angle_deg: f64, end_angle_deg: f64) -> f64 {
+    let raw_sweep = end_angle_deg - start_angle_deg;
+    let normalized = normalize_degrees(raw_sweep);
+    if normalized == 0.0 && raw_sweep.abs() > CIRCLE_EPSILON {
+        360.0
+    } else {
+        normalized
+    }
+}

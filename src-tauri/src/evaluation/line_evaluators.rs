@@ -3,7 +3,7 @@ use std::collections::HashMap;
 
 use super::errors::geometry_error;
 use super::math::{
-    angle_from_to, arc_tangent_angles, circle_through_three_points, normalize_degrees,
+    angle_from_to, arc_tangent_angles, circle_through_three_points, positive_sweep_degrees,
 };
 use super::numeric_expression::evaluate_numeric_or_push;
 use super::point_anchor::{anchor_reference_element_id, computed_point, point_anchor_or_error};
@@ -180,7 +180,7 @@ pub(crate) fn evaluate_arc_line(
         return;
     };
     let safe_radius = if radius > 0.0 { radius } else { 0.0 };
-    let sweep_angle_deg = normalize_degrees(end_angle_deg - start_angle_deg);
+    let sweep_angle_deg = positive_sweep_degrees(start_angle_deg, end_angle_deg);
     let (start_tangent_angle_deg, end_tangent_angle_deg) =
         arc_tangent_angles(start_angle_deg, end_angle_deg, sweep_angle_deg);
     let id = element_id(element).unwrap_or_default();
@@ -266,7 +266,7 @@ pub(crate) fn evaluate_three_point_arc_line(
         return;
     };
 
-    let sweep_angle_deg = normalize_degrees(end_angle_deg - start_angle_deg);
+    let sweep_angle_deg = positive_sweep_degrees(start_angle_deg, end_angle_deg);
     let (start_tangent_angle_deg, end_tangent_angle_deg) =
         arc_tangent_angles(start_angle_deg, end_angle_deg, sweep_angle_deg);
     let id = element_id(element).unwrap_or_default();

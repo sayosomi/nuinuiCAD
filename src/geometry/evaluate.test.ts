@@ -4203,6 +4203,35 @@ describe("evaluateElements", () => {
     expect(arc.length).toBeCloseTo((Math.PI * 20) / 2);
   });
 
+  it("evaluates an arc line with a full 360 degree sweep", () => {
+    const result = evaluateElements([
+      validElements[0],
+      {
+        id: "arc",
+        name: "完全円",
+        type: "arcLine",
+        visible: true,
+        enabled: true,
+        centerPoint: { mode: "reference", pointId: "a" },
+        radius: 10,
+        startAngleDeg: 0,
+        endAngleDeg: 360
+      }
+    ]);
+
+    const arc = result.computedGeometry.get("arc");
+    expect(result.errors).toHaveLength(0);
+    expect(arc).toMatchObject({
+      kind: "arcLine",
+      start: { x: 20, y: 20 },
+      sweepAngleDeg: 360
+    });
+    if (arc?.kind !== "arcLine") throw new Error("Expected an arc line");
+    expect(arc.end.x).toBeCloseTo(20);
+    expect(arc.end.y).toBeCloseTo(20);
+    expect(arc.length).toBeCloseTo(Math.PI * 20);
+  });
+
   it("evaluates numeric expressions that reference earlier arc measurements", () => {
     const result = evaluateElements([
       validElements[0],
