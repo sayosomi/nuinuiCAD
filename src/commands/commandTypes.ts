@@ -124,6 +124,7 @@ export type CommandId =
   | "openPaletteSettings"
   | "closePaletteSettings"
   | "openGroupTemplateLibrary"
+  | "openGroupTemplateInsertion"
   | "closeGroupTemplateLibrary"
   | "startTemplateInsertion"
   | "cancelTemplateInsertion"

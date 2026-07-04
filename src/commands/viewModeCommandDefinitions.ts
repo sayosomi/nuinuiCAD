@@ -177,11 +177,27 @@ export const viewModeCommandDefinitions = {
     label: "グループテンプレート",
     palette: {
       order: 46.8,
-      keywords: ["template", "group", "library", "insert", "テンプレート", "グループ", "挿入"]
+      keywords: ["template", "group", "library", "manage", "テンプレート", "グループ", "管理"]
     },
     run: () => {
       useCadUiStore.setState({
         showGroupTemplateLibrary: true,
+        groupTemplateLibraryMode: "manage",
+        showCommandPalette: false
+      });
+    }
+  },
+  openGroupTemplateInsertion: {
+    id: "openGroupTemplateInsertion",
+    label: "テンプレートを挿入",
+    palette: {
+      order: 46.7,
+      keywords: ["template", "insert", "group", "テンプレート", "挿入", "グループ"]
+    },
+    run: () => {
+      useCadUiStore.setState({
+        showGroupTemplateLibrary: true,
+        groupTemplateLibraryMode: "insert",
         showCommandPalette: false
       });
     }

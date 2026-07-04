@@ -104,6 +104,7 @@ export type CadUiState = {
   showShortcutSettings: boolean;
   showPaletteSettings: boolean;
   showGroupTemplateLibrary: boolean;
+  groupTemplateLibraryMode: "manage" | "insert";
   showCommandRibbonSettings: boolean;
   showSelectionColorPicker: boolean;
   showPrintLayout: boolean;
@@ -148,6 +149,7 @@ export type CadUiState = {
   setShowShortcutSettings: (showShortcutSettings: boolean) => void;
   setShowPaletteSettings: (showPaletteSettings: boolean) => void;
   setShowGroupTemplateLibrary: (showGroupTemplateLibrary: boolean) => void;
+  setGroupTemplateLibraryMode: (groupTemplateLibraryMode: "manage" | "insert") => void;
   setShowCommandRibbonSettings: (showCommandRibbonSettings: boolean) => void;
   setShowSelectionColorPicker: (showSelectionColorPicker: boolean) => void;
   setShowPrintLayout: (showPrintLayout: boolean) => void;
@@ -202,6 +204,7 @@ export const initialCadUiState = (): Omit<
   | "setShowShortcutSettings"
   | "setShowPaletteSettings"
   | "setShowGroupTemplateLibrary"
+  | "setGroupTemplateLibraryMode"
   | "setShowCommandRibbonSettings"
   | "setShowSelectionColorPicker"
   | "setShowPrintLayout"
@@ -246,6 +249,7 @@ export const initialCadUiState = (): Omit<
   showShortcutSettings: false,
   showPaletteSettings: false,
   showGroupTemplateLibrary: false,
+  groupTemplateLibraryMode: "manage",
   showCommandRibbonSettings: false,
   showSelectionColorPicker: false,
   showPrintLayout: false,
@@ -352,6 +356,8 @@ export const useCadUiStore = create<CadUiState>((set) => ({
   setShowPaletteSettings: (showPaletteSettings) => set({ showPaletteSettings }),
   setShowGroupTemplateLibrary: (showGroupTemplateLibrary) =>
     set({ showGroupTemplateLibrary }),
+  setGroupTemplateLibraryMode: (groupTemplateLibraryMode) =>
+    set({ groupTemplateLibraryMode }),
   setShowCommandRibbonSettings: (showCommandRibbonSettings) =>
     set({ showCommandRibbonSettings }),
   setShowSelectionColorPicker: (showSelectionColorPicker) => set({ showSelectionColorPicker }),

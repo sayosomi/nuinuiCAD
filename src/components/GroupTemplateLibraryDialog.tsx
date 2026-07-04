@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Download, Search, Upload } from "lucide-react";
 import { dispatchCommand } from "../commands/commands";
 import { isGroupElement, subtreeIdsForElement } from "../model/groups";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
@@ -18,8 +19,9 @@ import {
   saveGroupTemplateLibrary,
   upsertGroupTemplate
 } from "../templates/groupTemplateStorage";
-import { isImeComposingKeyEvent } from "./keyboardEventGuards";
 import type { CadElement, ElementId } from "../types/geometry";
+import { GroupTemplateDetailPanel } from "./GroupTemplateDetailPanel";
+import { GroupTemplateSavePanel } from "./GroupTemplateSavePanel";
 
 const selectedGroup = (elements: CadElement[], selectedElementId: ElementId | null) => {
   const element = selectedElementId
@@ -28,8 +30,21 @@ const selectedGroup = (elements: CadElement[], selectedElementId: ElementId | nu
   return element && isGroupElement(element) ? element : null;
 };
 
+const templateSummary = (template: GroupTemplate) => {
+  const points = template.inputs.filter((input) => input.kind === "point").length;
+  const lines = template.inputs.filter((input) => input.kind === "line").length;
+  const numbers = template.inputs.filter((input) => input.kind === "numeric").length;
+  return `${template.elements.length}要素 / 点${points} / 線${lines} / 数値${numbers}`;
+};
+
+const normalizedSearchText = (template: GroupTemplate) =>
+  [template.name, templateSummary(template), ...template.inputs.map((input) => input.label)]
+    .join(" ")
+    .toLowerCase();
+
 export const GroupTemplateLibraryDialog = () => {
   const showGroupTemplateLibrary = useCadUiStore((state) => state.showGroupTemplateLibrary);
+  const groupTemplateLibraryMode = useCadUiStore((state) => state.groupTemplateLibraryMode);
   const elements = useCadDocumentStore((state) => state.elements);
   const selectedElementId = useCadDocumentStore((state) => state.selectedElementId);
   const selectedElementIds = useCadDocumentStore((state) => state.selectedElementIds);
@@ -37,12 +52,11 @@ export const GroupTemplateLibraryDialog = () => {
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [templateName, setTemplateName] = useState("");
   const [numericInputIds, setNumericInputIds] = useState<Set<ElementId>>(new Set());
+  const [query, setQuery] = useState("");
   const [status, setStatus] = useState<string | null>(null);
   const group = selectedGroup(elements, selectedElementId);
-  const selectedTemplate = library.templates.find((template) => template.id === selectedTemplateId)
-    ?? library.templates[0]
-    ?? null;
   const saveTemplateName = templateName.trim() || (group?.name ? `${group.name} テンプレート` : "");
+  const insertionIndex = insertionIndexAfterSelection(elements, selectedElementIds);
 
   const templateElements = useMemo(
     () => group ? elements.filter((element) => subtreeIdsForElement(elements, group.id).includes(element.id)) : [],
@@ -52,6 +66,19 @@ export const GroupTemplateLibraryDialog = () => {
     () => candidateNumericTemplateInputs(templateElements),
     [templateElements]
   );
+  const filteredTemplates = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+    if (!normalizedQuery) return library.templates;
+    return library.templates.filter((template) =>
+      normalizedSearchText(template).includes(normalizedQuery)
+    );
+  }, [library.templates, query]);
+  const selectedTemplate =
+    filteredTemplates.find((template) => template.id === selectedTemplateId)
+    ?? filteredTemplates[0]
+    ?? library.templates.find((template) => template.id === selectedTemplateId)
+    ?? null;
+
   useEffect(() => {
     if (!showGroupTemplateLibrary) return;
     let cancelled = false;
@@ -61,6 +88,7 @@ export const GroupTemplateLibraryDialog = () => {
         setLibrary(nextLibrary);
         const nextSelectedTemplate = nextLibrary.templates[0] ?? null;
         setSelectedTemplateId(nextSelectedTemplate?.id ?? null);
+        setStatus(null);
       })
       .catch((error: unknown) => {
         if (!cancelled) setStatus(error instanceof Error ? error.message : "テンプレートを読み込めません。");
@@ -89,6 +117,7 @@ export const GroupTemplateLibraryDialog = () => {
       const nextLibrary = await upsertGroupTemplate(template);
       setLibrary(nextLibrary);
       setSelectedTemplateId(template.id);
+      setTemplateName("");
       setStatus("テンプレートを保存しました。");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "テンプレートを保存できません。");
@@ -99,7 +128,7 @@ export const GroupTemplateLibraryDialog = () => {
     if (!selectedTemplate) return;
     dispatchCommand("startTemplateInsertion", {
       groupTemplate: selectedTemplate,
-      insertionIndex: insertionIndexAfterSelection(elements, selectedElementIds)
+      insertionIndex
     });
   };
 
@@ -143,6 +172,7 @@ export const GroupTemplateLibraryDialog = () => {
       templates: library.templates.map((item) => item.id === renamed.id ? renamed : item)
     };
     setLibrary(nextLibrary);
+    setSelectedTemplateId(renamed.id);
     await saveGroupTemplateLibrary(nextLibrary);
   };
 
@@ -164,110 +194,74 @@ export const GroupTemplateLibraryDialog = () => {
       >
         <div className="shortcut-overlay-header">
           <div>
-            <h2>グループテンプレート</h2>
-            <p>{library.templates.length}件</p>
+            <h2>{groupTemplateLibraryMode === "insert" ? "テンプレートを挿入" : "グループテンプレート"}</h2>
+            <p>{library.templates.length}件 / 挿入位置 {insertionIndex + 1}</p>
           </div>
           <button type="button" onClick={close}>閉じる</button>
         </div>
-        <div className="template-library-grid">
-          <section className="template-panel">
-            <h3>保存</h3>
-            <label className="template-field">
-              <span>名前</span>
+
+        <div className="template-library-workspace">
+          <section className="template-library-sidebar" aria-label="テンプレート一覧">
+            <label className="template-search-field">
+              <Search size={15} aria-hidden="true" />
               <input
-                value={templateName}
-                placeholder={group?.name ? `${group.name} テンプレート` : "グループを選択"}
-                onChange={(event) => setTemplateName(event.currentTarget.value)}
+                value={query}
+                placeholder="テンプレートを検索"
+                aria-label="テンプレートを検索"
+                onChange={(event) => setQuery(event.currentTarget.value)}
               />
             </label>
-            <div className="template-variable-list">
-              {numericCandidates.length === 0 ? (
-                <p className="template-empty">入力化できる変数がありません。</p>
-              ) : (
-                numericCandidates.map((input) => (
-                  <label className="template-checkbox" key={input.variableElementId}>
-                    <input
-                      type="checkbox"
-                      checked={numericInputIds.has(input.variableElementId)}
-                      onChange={(event) => {
-                        setNumericInputIds((current) => {
-                          const next = new Set(current);
-                          if (event.currentTarget.checked) {
-                            next.add(input.variableElementId);
-                          } else {
-                            next.delete(input.variableElementId);
-                          }
-                          return next;
-                        });
-                      }}
-                    />
-                    <span>{input.label}</span>
-                  </label>
-                ))
-              )}
-            </div>
-            <button type="button" onClick={saveSelectedGroup} disabled={!group}>
-              選択グループを保存
-            </button>
-          </section>
-
-          <section className="template-panel">
-            <h3>ライブラリ</h3>
             <div className="template-list">
-              {library.templates.length === 0 ? (
-                <p className="template-empty">保存済みテンプレートはありません。</p>
+              {filteredTemplates.length === 0 ? (
+                <p className="template-empty">
+                  {library.templates.length === 0 ? "保存済みテンプレートはありません。" : "一致するテンプレートはありません。"}
+                </p>
               ) : (
-                library.templates.map((template) => (
+                filteredTemplates.map((template) => (
                   <button
                     type="button"
                     key={template.id}
                     className={selectedTemplate?.id === template.id ? "active-template" : ""}
-                    onClick={() => {
-                      setSelectedTemplateId(template.id);
-                    }}
+                    onClick={() => setSelectedTemplateId(template.id)}
                   >
                     <strong>{template.name}</strong>
-                    <small>{template.elements.length}要素 / {template.inputs.length}入力</small>
+                    <small>{templateSummary(template)}</small>
                   </button>
                 ))
               )}
             </div>
             <div className="button-row">
-              <button type="button" onClick={importTemplate}>読み込み</button>
+              <button type="button" onClick={importTemplate}>
+                <Upload size={14} aria-hidden="true" />読み込み
+              </button>
               {selectedTemplate ? (
-                <button type="button" onClick={() => exportTemplate(selectedTemplate)}>書き出し</button>
+                <button type="button" onClick={() => exportTemplate(selectedTemplate)}>
+                  <Download size={14} aria-hidden="true" />書き出し
+                </button>
               ) : null}
             </div>
           </section>
 
-          <section className="template-panel">
-            <h3>挿入</h3>
-            {selectedTemplate ? (
-              <>
-                <label className="template-field">
-                  <span>テンプレート名</span>
-                  <input
-                    defaultValue={selectedTemplate.name}
-                    onBlur={(event) => renameTemplate(selectedTemplate, event.currentTarget.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter" && isImeComposingKeyEvent(event)) return;
-                      if (event.key === "Enter") event.currentTarget.blur();
-                    }}
-                  />
-                </label>
-                <p className="template-empty">
-                  挿入を開始すると、点・線・式入力を順番に指定します。
-                </p>
-                <div className="button-row">
-                  <button type="button" onClick={insertTemplate}>挿入</button>
-                  <button type="button" onClick={() => removeTemplate(selectedTemplate)}>削除</button>
-                </div>
-              </>
-            ) : (
-              <p className="template-empty">テンプレートを選択してください。</p>
-            )}
-          </section>
+          <GroupTemplateDetailPanel
+            template={selectedTemplate}
+            insertionIndex={insertionIndex}
+            onInsert={insertTemplate}
+            onRename={renameTemplate}
+            onRemove={removeTemplate}
+          />
+
+          <GroupTemplateSavePanel
+            groupName={group?.name ?? null}
+            childCount={Math.max(templateElements.length - 1, 0)}
+            templateName={templateName}
+            numericCandidates={numericCandidates}
+            numericInputIds={numericInputIds}
+            onTemplateNameChange={setTemplateName}
+            onNumericInputIdsChange={setNumericInputIds}
+            onSave={saveSelectedGroup}
+          />
         </div>
+
         {status ? <p className="template-status">{status}</p> : null}
       </section>
     </div>

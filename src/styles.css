@@ -928,12 +928,11 @@ select {
 }
 
 .template-library-dialog {
-  width: min(960px, 100%);
+  width: min(1080px, 100%);
 }
 
 .palette-settings-body,
 .selection-color-picker-list,
-.template-library-grid,
 .image-import-form {
   min-height: 0;
   overflow: auto;
@@ -996,23 +995,63 @@ select {
   gap: 6px;
 }
 
-.template-library-grid {
+.template-library-workspace {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.2fr);
+  grid-template-columns: minmax(210px, 0.85fr) minmax(360px, 1.45fr) minmax(240px, 0.9fr);
   gap: 12px;
+  min-height: 0;
+  overflow: auto;
+  padding: 14px 16px;
 }
 
-.template-panel {
+.template-library-sidebar,
+.template-detail-panel,
+.template-save-panel {
   display: grid;
   align-content: start;
   gap: 10px;
   min-width: 0;
 }
 
-.template-panel h3 {
+.template-save-panel {
+  border-left: 1px solid #d2d4cd;
+  padding-left: 12px;
+}
+
+.template-save-panel h3 {
   margin: 0;
   color: #34362f;
   font-size: 14px;
+}
+
+.template-detail-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: end;
+}
+
+.template-search-field {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 6px;
+  align-items: center;
+  border: 1px solid #bfc4ba;
+  border-radius: 6px;
+  background: #ffffff;
+  padding: 6px 8px;
+  color: #686b62;
+}
+
+.template-search-field input {
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+
+.template-search-field input:focus {
+  outline: 0;
 }
 
 .template-field,
@@ -1052,6 +1091,15 @@ select {
   text-align: left;
 }
 
+.template-list button,
+.template-input-row,
+.template-insert-summary,
+.template-metadata-grid span {
+  border: 1px solid #d2d4cd;
+  border-radius: 6px;
+  background: #ffffff;
+}
+
 .template-list small,
 .template-field small {
   color: #686b62;
@@ -1070,9 +1118,111 @@ select {
   font-size: 12px;
 }
 
+.template-primary-action {
+  display: inline-grid;
+  grid-auto-flow: column;
+  gap: 5px;
+  align-items: center;
+  border-color: #0f766e;
+  background: #0f766e;
+  color: #ffffff;
+  white-space: nowrap;
+}
+
+.template-insert-summary {
+  display: grid;
+  gap: 3px;
+  padding: 10px 12px;
+}
+
+.template-insert-summary strong {
+  color: #252622;
+  font-size: 14px;
+}
+
+.template-insert-summary span {
+  color: #686b62;
+  font-size: 12px;
+}
+
+.template-metadata-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.template-metadata-grid span {
+  overflow: hidden;
+  padding: 7px 8px;
+  color: #4a4d45;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.template-input-row {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  padding: 8px 10px;
+}
+
+.template-input-row span {
+  border-radius: 999px;
+  background: #eef2eb;
+  padding: 2px 6px;
+  color: #4a4d45;
+  font-size: 11px;
+  text-align: center;
+}
+
+.template-input-row strong {
+  min-width: 0;
+  overflow: hidden;
+  color: #252622;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.template-danger-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.template-danger-actions button,
+.template-library-sidebar .button-row button {
+  display: inline-grid;
+  grid-auto-flow: column;
+  gap: 5px;
+  align-items: center;
+}
+
 .template-status {
   border-top: 1px solid #d2d4cd;
   padding: 10px 16px;
+}
+
+@media (max-width: 920px) {
+  .template-library-workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .template-save-panel {
+    border-left: 0;
+    border-top: 1px solid #d2d4cd;
+    padding-top: 12px;
+    padding-left: 0;
+  }
+
+  .template-detail-heading {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .template-primary-action {
+    justify-content: center;
+  }
 }
 
 .palette-settings-footer {
@@ -3802,8 +3952,14 @@ select {
   gap: 10px;
 }
 
+.template-insertion-header span {
+  color: #686b62;
+  font-size: 11px;
+  font-weight: 700;
+}
+
 .template-insertion-header h2 {
-  margin: 0;
+  margin: 2px 0 0;
   color: #252622;
   font-size: 16px;
 }
@@ -3819,9 +3975,9 @@ select {
 .template-insertion-current {
   display: grid;
   gap: 3px;
-  border: 1px solid #d2d4cd;
+  border: 1px solid #b7c7b3;
   border-radius: 6px;
-  background: #f6f7f3;
+  background: #eef6ec;
   padding: 8px 10px;
 }
 
@@ -3867,6 +4023,7 @@ select {
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 8px;
   align-items: center;
+  min-height: 34px;
   text-align: left;
 }
 
@@ -3880,6 +4037,12 @@ select {
 .template-insertion-list .active-template-input {
   border-color: #5f7661;
   background: #e9f0e7;
+}
+
+.template-insertion-list small {
+  border-radius: 999px;
+  background: #eef2eb;
+  padding: 2px 6px;
 }
 
 .template-insertion-actions {

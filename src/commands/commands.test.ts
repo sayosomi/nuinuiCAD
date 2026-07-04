@@ -38,6 +38,8 @@ describe("commands", () => {
       showShortcutHelp: true,
       showShortcutSettings: false,
       showPaletteSettings: false,
+      showGroupTemplateLibrary: false,
+      groupTemplateLibraryMode: "manage",
       showCommandRibbonSettings: false,
       showSelectionColorPicker: false,
       commandErrorMessage: null,
@@ -1546,6 +1548,18 @@ describe("commands", () => {
     expect(useCadStore.getState().showCommandRibbonSettings).toBe(false);
   });
 
+  it("opens group template insertion from a dedicated command", () => {
+    useCadStore.setState({ showCommandPalette: true });
+
+    dispatchCommand("openGroupTemplateInsertion");
+
+    expect(useCadStore.getState()).toMatchObject({
+      showGroupTemplateLibrary: true,
+      groupTemplateLibraryMode: "insert",
+      showCommandPalette: false
+    });
+  });
+
   it("enters element list mode and focuses the element list", () => {
     const focusElementList = vi.fn();
     useCadStore.setState({
@@ -1753,6 +1767,12 @@ describe("commands", () => {
     );
     expect(filterCommandPaletteItems("リボン").map((item) => item.commandId)).toContain(
       "openCommandRibbonSettings"
+    );
+    expect(filterCommandPaletteItems("挿入").map((item) => item.commandId)).toContain(
+      "openGroupTemplateInsertion"
+    );
+    expect(filterCommandPaletteItems("insert").map((item) => item.commandId)).toContain(
+      "openGroupTemplateInsertion"
     );
     expect(filterCommandPaletteItems("一括").map((item) => item.commandId)).toContain(
       "openSelectionColorPicker"

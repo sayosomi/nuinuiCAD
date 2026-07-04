@@ -11,6 +11,7 @@ import {
   currentTemplateInput,
   TEMPLATE_INSERTION_NUMERIC_TARGET_ID,
   templateInputLabel,
+  templateInputValueIsFilled,
   templateInputProgress,
   templateInsertionCanConfirm
 } from "../templates/templateInsertionMode";
@@ -71,6 +72,7 @@ export const TemplateInsertionPanel = () => {
   const isNumericReferencePicking =
     activeNumericReferencePickTarget?.elementId === TEMPLATE_INSERTION_NUMERIC_TARGET_ID &&
     activeNumericReferencePickTarget.parameterKey === input?.id;
+  const remainingCount = progress ? progress.total - progress.completed : 0;
 
   const valueLabel = () => {
     if (!input) return "入力なし";
@@ -102,8 +104,9 @@ export const TemplateInsertionPanel = () => {
     <aside className="template-insertion-panel" aria-label="テンプレート挿入">
       <div className="template-insertion-header">
         <div>
+          <span>テンプレート挿入</span>
           <h2>{activeTemplateInsertion.template.name}</h2>
-          <p>{progress ? `${progress.completed} / ${progress.total} 入力` : "入力なし"}</p>
+          <p>{progress ? `${progress.completed} / ${progress.total} 入力済み` : "入力なし"}</p>
         </div>
         <button type="button" onClick={() => dispatchCommand("cancelTemplateInsertion")}>
           キャンセル
@@ -111,7 +114,7 @@ export const TemplateInsertionPanel = () => {
       </div>
 
       <div className="template-insertion-current">
-        <span>現在</span>
+        <span>現在の指定</span>
         <strong>{templateInputLabel(input)}</strong>
         <small>{valueLabel()}</small>
       </div>
@@ -168,12 +171,12 @@ export const TemplateInsertionPanel = () => {
 
       {input?.kind === "point" ? (
         <p className="template-insertion-hint">
-          {activePointPickTarget ? "canvas または構成リストから点を選択" : "点入力を選択してください。"}
+          {activePointPickTarget ? "キャンバスまたは構成リストから点を選択します。" : "入力一覧から点入力を選択してください。"}
         </p>
       ) : null}
       {input?.kind === "line" ? (
         <p className="template-insertion-hint">
-          {activeLinePickTarget ? "canvas または構成リストから線・曲線を選択" : "線入力を選択してください。"}
+          {activeLinePickTarget ? "キャンバスまたは構成リストから線・曲線を選択します。" : "入力一覧から線入力を選択してください。"}
         </p>
       ) : null}
 
@@ -191,7 +194,11 @@ export const TemplateInsertionPanel = () => {
           >
             <span>{templateInputLabel(item)}</span>
             <small>
-              {item.id === input?.id ? "編集中" : activeTemplateInsertion.inputValues[item.id] ? "入力済み" : "未入力"}
+              {item.id === input?.id
+                ? "編集中"
+                : templateInputValueIsFilled(item, activeTemplateInsertion.inputValues[item.id])
+                  ? "入力済み"
+                  : "未入力"}
             </small>
           </button>
         ))}
@@ -210,7 +217,7 @@ export const TemplateInsertionPanel = () => {
           disabled={!canConfirm}
           onClick={() => dispatchCommand("confirmTemplateInsertion")}
         >
-          挿入
+          {canConfirm ? "挿入を確定" : `残り${remainingCount}件`}
         </button>
       </div>
     </aside>
