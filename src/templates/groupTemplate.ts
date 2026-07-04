@@ -83,7 +83,7 @@ const expressionTokenText = (
     case "element":
       return idMap.get(token.elementId) ?? token.elementId;
     case "localVariable":
-      return `@${token.variableId}`;
+      return `@${idMap.get(token.variableId) ?? token.variableId}`;
     case "function":
       return token.name;
     case "operator":

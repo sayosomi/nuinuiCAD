@@ -152,6 +152,119 @@ describe("group templates", () => {
     });
   });
 
+  it("remaps variable id references inside inserted template numeric expressions", () => {
+    const sourceElements: CadElement[] = [
+      {
+        id: "anchor",
+        name: "基準点",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 0,
+        y: 0
+      },
+      {
+        id: "guide",
+        name: "印刷ガイド",
+        type: "group",
+        visible: true,
+        enabled: true,
+        expanded: true
+      },
+      {
+        id: "scale",
+        name: "倍率",
+        type: "variable",
+        visible: true,
+        enabled: true,
+        parentGroupId: "guide",
+        scope: "group",
+        valueMode: "expression",
+        expression: 1,
+        point1: { mode: "reference", pointId: "anchor" },
+        point2: { mode: "reference", pointId: "anchor" },
+        point: { mode: "reference", pointId: "anchor" },
+        lineId: ""
+      },
+      {
+        id: "print-size",
+        name: "印刷時のサイズ",
+        type: "variable",
+        visible: true,
+        enabled: true,
+        parentGroupId: "guide",
+        scope: "group",
+        valueMode: "expression",
+        expression: 50,
+        point1: { mode: "reference", pointId: "anchor" },
+        point2: { mode: "reference", pointId: "anchor" },
+        point: { mode: "reference", pointId: "anchor" },
+        lineId: ""
+      },
+      {
+        id: "draw-size",
+        name: "描画サイズ",
+        type: "variable",
+        visible: true,
+        enabled: true,
+        parentGroupId: "guide",
+        scope: "group",
+        valueMode: "expression",
+        expression: { kind: "expression", expression: "@print-size * @scale" },
+        point1: { mode: "reference", pointId: "anchor" },
+        point2: { mode: "reference", pointId: "anchor" },
+        point: { mode: "reference", pointId: "anchor" },
+        lineId: ""
+      },
+      {
+        id: "draw-point",
+        name: "描画点",
+        type: "offsetPoint",
+        visible: true,
+        enabled: true,
+        parentGroupId: "guide",
+        fromPoint: { mode: "reference", pointId: "anchor" },
+        fromPointId: "anchor",
+        dx: { kind: "expression", expression: "@draw-size" },
+        dy: 0
+      }
+    ];
+    const template = createTemplateFromGroup({
+      elements: sourceElements,
+      groupId: "guide",
+      numericVariableElementIds: []
+    });
+
+    const change = instantiateGroupTemplate({
+      elements: sourceElements,
+      template,
+      inputValues: {
+        "point:anchor": "anchor"
+      },
+      insertionIndex: sourceElements.length
+    });
+    const inserted = change.elements.slice(sourceElements.length);
+    const insertedScale = inserted[1];
+    const insertedPrintSize = inserted[2];
+    const insertedDrawSize = inserted[3];
+    const insertedPoint = inserted[4];
+
+    expect(insertedDrawSize).toMatchObject({
+      type: "variable",
+      expression: {
+        kind: "expression",
+        expression: `@${insertedPrintSize?.id} * @${insertedScale?.id}`
+      }
+    });
+    expect(insertedPoint).toMatchObject({
+      type: "offsetPoint",
+      dx: {
+        kind: "expression",
+        expression: `@${insertedDrawSize?.id}`
+      }
+    });
+  });
+
   it("applies picked point anchors to point template inputs", () => {
     const template = createTemplateFromGroup({
       elements,

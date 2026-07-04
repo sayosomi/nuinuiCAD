@@ -58,7 +58,7 @@ const tokenText = (token: Token, idMap: Map<ElementId, ElementId>) => {
     case "element":
       return mapId(token.elementId, idMap);
     case "localVariable":
-      return `@${token.variableId}`;
+      return `@${mapId(token.variableId, idMap)}`;
     case "function":
       return token.name;
     case "operator":
@@ -77,8 +77,9 @@ const remapExpression = (expression: string, idMap: Map<ElementId, ElementId>) =
     const tokens = tokenize(expression);
     const referencesCopiedElement = tokens.some(
       (token) =>
-        (token.type === "reference" || token.type === "element") &&
-        idMap.has(token.elementId)
+        ((token.type === "reference" || token.type === "element") &&
+          idMap.has(token.elementId)) ||
+        (token.type === "localVariable" && idMap.has(token.variableId))
     );
     if (!referencesCopiedElement) return expression;
     return tokens.map((token) => tokenText(token, idMap)).join("").replace(/\s+/g, " ").trim();

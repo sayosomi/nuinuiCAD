@@ -140,6 +140,56 @@ describe("duplicateElements", () => {
     });
   });
 
+  it("remaps copied variable id references in numeric expressions", () => {
+    const ids = ["variable-copy", "point-copy"];
+    const elements: CadElement[] = [
+      {
+        id: "anchor",
+        name: "基準点",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 0,
+        y: 0
+      },
+      {
+        id: "variable",
+        name: "寸法",
+        type: "variable",
+        visible: true,
+        enabled: true,
+        scope: "global",
+        valueMode: "expression",
+        expression: 50,
+        point1: { mode: "reference", pointId: "anchor" },
+        point2: { mode: "reference", pointId: "anchor" },
+        point: { mode: "reference", pointId: "anchor" },
+        lineId: ""
+      },
+      {
+        id: "point",
+        name: "オフセット点",
+        type: "offsetPoint",
+        visible: true,
+        enabled: true,
+        fromPoint: { mode: "reference", pointId: "anchor" },
+        fromPointId: "anchor",
+        dx: { kind: "expression", expression: "@variable" },
+        dy: 0
+      }
+    ];
+
+    const change = duplicateElements(elements, ["variable", "point"], {
+      createId: () => ids.shift() ?? "unexpected"
+    });
+    const copiedPoint = change?.elements.find((element) => element.id === "point-copy");
+
+    expect(copiedPoint).toMatchObject({
+      type: "offsetPoint",
+      dx: { kind: "expression", expression: "@variable-copy" }
+    });
+  });
+
   it("duplicates a selected group with its descendants and remaps parent groups", () => {
     const ids = ["group-copy", "point-a-copy", "point-b-copy", "line-copy"];
     const elements: CadElement[] = [
