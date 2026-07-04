@@ -147,7 +147,7 @@ export const pickCommandDefinitions = {
     id: "startLinePick",
     label: "線を選択して基準線に追加",
     palette: { order: 15, keywords: ["line", "reference", "base", "基準線", "線", "選択"] },
-    run: () => startLinePick()
+    run: (context) => startLinePick(context)
   },
   applyPickedLine: {
     id: "applyPickedLine",

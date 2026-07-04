@@ -1037,6 +1037,38 @@ describe("LeftPanel numeric input dragging", () => {
     expect(screen.queryByLabelText("追加する基準線")).not.toBeInTheDocument();
   });
 
+  it("uses the reference display for single line reference picking", () => {
+    useCadStore.setState({
+      elements: [
+        ...sampleElements,
+        {
+          id: "tangent-point",
+          name: "接線オフセット点",
+          type: "lineTangentOffsetPoint",
+          visible: true,
+          enabled: true,
+          baseLineId: "line-ab",
+          basePoint: { mode: "reference", pointId: "point-a" },
+          tangentAngleDeg: 90,
+          distance: 30
+        }
+      ],
+      selectedElementId: "tangent-point",
+      selectedElementIds: ["tangent-point"],
+      selectedParameterKey: "baseLineId"
+    });
+
+    renderRightPanel();
+
+    fireEvent.click(screen.getByRole("button", { name: "参照線直線AB" }));
+
+    expect(useCadStore.getState().activeLinePickTarget).toEqual({
+      elementId: "tangent-point",
+      parameterKey: "baseLineId"
+    });
+    expect(screen.queryByRole("combobox", { name: /基準線/ })).not.toBeInTheDocument();
+  });
+
   it("lays out offset line side choices as a compact choice parameter", () => {
     useCadStore.setState({
       elements: [

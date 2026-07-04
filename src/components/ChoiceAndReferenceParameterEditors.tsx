@@ -213,6 +213,15 @@ export const LineReferenceEditor = ({
     activeLinePickTarget?.elementId === element.id &&
     activeLinePickTarget.parameterKey === parameterKey;
   const line = elements.find((item) => item.id === lineId);
+  const commandContext = { elementId: element.id, parameterKey };
+  const toggleLinePick = () => {
+    selectParameter(parameterKey);
+    if (isPickingThisLine) {
+      dispatchCommand("cancelLinePick");
+      return;
+    }
+    dispatchCommand("startLinePick", commandContext);
+  };
 
   return (
     <div
@@ -223,20 +232,6 @@ export const LineReferenceEditor = ({
     >
       <div className="point-anchor-header">
         <ParameterName element={element} parameterKey={parameterKey} label={label} />
-        <button
-          type="button"
-          className={`line-pick-button ${isPickingThisLine ? "active" : ""}`}
-          onClick={() => {
-            selectParameter(parameterKey);
-            if (isPickingThisLine) {
-              dispatchCommand("cancelLinePick");
-              return;
-            }
-            dispatchCommand("startLinePick");
-          }}
-        >
-          {isPickingThisLine ? "線選択中" : "線を選択"}
-        </button>
       </div>
       {isPickingThisLine ? (
         <p className="line-pick-hint">canvas または構成リストから線を選択します。</p>
@@ -244,8 +239,8 @@ export const LineReferenceEditor = ({
       <button
         {...controlProps(parameterKey)}
         type="button"
-        className={`${parameterFieldClass(parameterKey)} point-anchor-reference`}
-        onClick={() => selectParameter(parameterKey)}
+        className={`${parameterFieldClass(parameterKey)} point-anchor-reference ${isPickingThisLine ? "active" : ""}`}
+        onClick={toggleLinePick}
       >
         <span className="reference-label">参照線</span>
         <span className="reference-value">{line?.name ?? lineId}</span>

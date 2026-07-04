@@ -2900,6 +2900,38 @@ describe("commands", () => {
     });
   });
 
+  it("starts line picking for an explicit line reference parameter", () => {
+    useCadStore.setState({
+      elements: [
+        ...sampleElements,
+        {
+          id: "tangent-point",
+          name: "接線オフセット点",
+          type: "lineTangentOffsetPoint",
+          visible: true,
+          enabled: true,
+          baseLineId: "line-ab",
+          basePoint: { mode: "reference", pointId: "point-a" },
+          tangentAngleDeg: 90,
+          distance: 30
+        }
+      ],
+      selectedElementId: "tangent-point",
+      selectedElementIds: ["tangent-point"],
+      selectedParameterKey: "name"
+    });
+
+    dispatchCommand("startLinePick", {
+      elementId: "tangent-point",
+      parameterKey: "baseLineId"
+    });
+
+    expect(useCadStore.getState().activeLinePickTarget).toEqual({
+      elementId: "tangent-point",
+      parameterKey: "baseLineId"
+    });
+  });
+
   it("maps picked generated lines to template line references in the same for group", () => {
     const elements: CadElement[] = [
       {

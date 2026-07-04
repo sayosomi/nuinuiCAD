@@ -637,9 +637,17 @@ export const cancelPointPick = () => {
   useCadUiStore.getState().setActivePointPickTarget(null);
 };
 
-export const startLinePick = () => {
-  const selectedElement = getSelectedElement();
-  const definition = selectedParameterDefinition();
+export const startLinePick = (context?: Pick<CommandContext, "elementId" | "parameterKey">) => {
+  const { elements, selectedElementId } = useCadDocumentStore.getState();
+  const targetElementId = context?.elementId ?? selectedElementId;
+  const selectedElement = targetElementId
+    ? elements.find((element) => element.id === targetElementId) ?? null
+    : getSelectedElement();
+  const definition = context?.parameterKey
+    ? selectedElement
+      ? findParameterDefinition(selectedElement, context.parameterKey)
+      : null
+    : selectedParameterDefinition();
   if (!selectedElement || (definition?.kind !== "lineReferenceList" && definition?.kind !== "lineReference")) return;
 
   useCadUiStore.setState({
