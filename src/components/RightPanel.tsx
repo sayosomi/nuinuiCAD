@@ -46,6 +46,9 @@ export const RightPanel = ({
   const engineLabel = evaluationState && evaluationState.mode !== "reference"
     ? evaluationEngineLabel(evaluationState)
     : null;
+  const issueCount = evaluation.errors.length + evaluation.warnings.length;
+  const firstIssueElementId =
+    evaluation.errors[0]?.elementId ?? evaluation.warnings[0]?.elementId ?? null;
 
   useEffect(() => {
     if (!isParameterEditMode || !selectedElementId || !selectedParameterKey) return undefined;
@@ -107,23 +110,22 @@ export const RightPanel = ({
             </small>
           ) : null}
         </div>
-        {evaluation.errors.length === 0 && evaluation.warnings.length === 0 ? (
+        {issueCount === 0 ? (
           <p className="empty-state">エラーや警告はありません。</p>
         ) : (
-          <ul className="error-list">
-            {evaluation.errors.map((error) => (
-              <li key={`${error.elementId}-${error.missingDependencyId}`}>
-                <strong>{error.elementName}</strong>
-                <span>{error.message}</span>
-              </li>
-            ))}
-            {evaluation.warnings.map((warning, index) => (
-              <li key={`${warning.elementId}-warning-${index}`} className="warning-item">
-                <strong>{warning.elementName}</strong>
-                <span>{warning.message}</span>
-              </li>
-            ))}
-          </ul>
+          <div className="validation-summary">
+            <span>
+              エラー {evaluation.errors.length} / 警告 {evaluation.warnings.length}
+            </span>
+            {firstIssueElementId ? (
+              <button
+                type="button"
+                onClick={() => dispatchCommand("selectElement", { elementId: firstIssueElementId })}
+              >
+                最初の問題へ
+              </button>
+            ) : null}
+          </div>
         )}
       </section>
 

@@ -1373,7 +1373,12 @@ describe("LeftPanel element list dragging", () => {
     expect(row).not.toHaveClass("has-error");
   });
 
-  it("shows evaluation warning messages in the validation section", () => {
+  it("shows selected element warning messages in the element detail section", () => {
+    useCadStore.setState({
+      selectedElementId: "curve-ac",
+      selectedElementIds: ["curve-ac"]
+    });
+
     renderRightPanel({
       computedGeometry: new Map(),
       computedVariables: new Map(),
@@ -1388,6 +1393,56 @@ describe("LeftPanel element list dragging", () => {
     });
 
     expect(screen.getByText(/一部区間をトリムしました/)).toBeInTheDocument();
+    expect(screen.getByText("エラー 0 / 警告 1")).toBeInTheDocument();
+  });
+
+  it("shows selected element dependency errors on parent rows", () => {
+    useCadStore.setState({
+      selectedElementId: "line-ab",
+      selectedElementIds: ["line-ab"]
+    });
+
+    renderRightPanel({
+      computedGeometry: new Map(),
+      computedVariables: new Map(),
+      errors: [
+        {
+          elementId: "line-ab",
+          elementName: "直線AB",
+          missingDependencyId: "point-b",
+          missingDependencyName: "点B",
+          message: "直線AB は 点B を参照していますが、点B はこの要素より後にあります。"
+        }
+      ],
+      warnings: []
+    });
+
+    expect(screen.getByText(/直線AB は 点B を参照しています/)).toBeInTheDocument();
+    expect(screen.getByText("エラー 1 / 警告 0")).toBeInTheDocument();
+  });
+
+  it("shows child element errors on child rows", () => {
+    useCadStore.setState({
+      selectedElementId: "point-a",
+      selectedElementIds: ["point-a"]
+    });
+
+    renderRightPanel({
+      computedGeometry: new Map(),
+      computedVariables: new Map(),
+      errors: [
+        {
+          elementId: "line-ab",
+          elementName: "直線AB",
+          missingDependencyId: "point-b",
+          missingDependencyName: "点B",
+          message: "直線AB は 点B を参照していますが、点B はこの要素より後にあります。"
+        }
+      ],
+      warnings: []
+    });
+
+    expect(screen.getByText(/直線AB は 点B を参照しています/)).toBeInTheDocument();
   });
 
   it("shows Tauri evaluation engine status in the validation section", () => {

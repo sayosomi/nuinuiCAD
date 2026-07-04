@@ -14,7 +14,9 @@ import type {
   ComputedLine,
   ComputedOffsetLine,
   ComputedPoint,
+  DependencyError,
   ElementId,
+  EvaluationWarning,
   EvaluationResult
 } from "../types/geometry";
 import { elementTypeLabels } from "../types/geometry";
@@ -46,6 +48,24 @@ const isComputedOffsetLine = (
 
 const formatDependencyCount = (count: number) => (count > 99 ? "99+" : `${count}`);
 
+type DependencyIssue = {
+  kind: "error" | "warning";
+  key: string;
+  message: string;
+};
+
+const errorIssue = (error: DependencyError, index: number): DependencyIssue => ({
+  kind: "error",
+  key: `error-${error.elementId}-${error.missingDependencyId}-${index}`,
+  message: error.message
+});
+
+const warningIssue = (warning: EvaluationWarning, index: number): DependencyIssue => ({
+  kind: "warning",
+  key: `warning-${warning.elementId}-${index}`,
+  message: warning.message
+});
+
 export const ElementInfoPanel = ({
   element,
   elements,
@@ -66,6 +86,34 @@ export const ElementInfoPanel = ({
   const geometry = element ? evaluation.computedGeometry.get(element.id) : undefined;
   const variable = element ? evaluation.computedVariables.get(element.id) : undefined;
   const dependencySummary = element ? getDependencySummary(element, elements, dependencyIndex) : null;
+  const parentIds = new Set(dependencySummary?.parents.map((parent) => parent.id) ?? []);
+  const selectedElementIssues = element
+    ? [
+        ...evaluation.errors
+          .map((error, index) => ({ error, index }))
+          .filter(({ error }) => error.elementId === element.id)
+          .map(({ error, index }) => errorIssue(error, index)),
+        ...evaluation.warnings
+          .map((warning, index) => ({ warning, index }))
+          .filter(({ warning }) => warning.elementId === element.id)
+          .map(({ warning, index }) => warningIssue(warning, index))
+      ]
+    : [];
+  const unassignedSelectedIssues = element
+    ? [
+        ...evaluation.errors
+          .map((error, index) => ({ error, index }))
+          .filter(
+            ({ error }) =>
+              error.elementId === element.id && !parentIds.has(error.missingDependencyId)
+          )
+          .map(({ error, index }) => errorIssue(error, index)),
+        ...evaluation.warnings
+          .map((warning, index) => ({ warning, index }))
+          .filter(({ warning }) => warning.elementId === element.id)
+          .map(({ warning, index }) => warningIssue(warning, index))
+      ]
+    : [];
   const jumpTargets = getDependencyJumpTargets(element, elements, dependencyIndex);
   const jumpTargetIndexes = new Map(jumpTargets.map((target, index) => [target.id, index]));
   const infoRows =
@@ -89,6 +137,26 @@ export const ElementInfoPanel = ({
       isDependencyJumpMode && jumpIndex === selectedDependencyJumpIndex ? "selected-dependency" : ""
     }`;
   };
+  const parentIssues = (parentId: ElementId) =>
+    element
+      ? evaluation.errors
+          .map((error, index) => ({ error, index }))
+          .filter(
+            ({ error }) =>
+              error.elementId === element.id && error.missingDependencyId === parentId
+          )
+          .map(({ error, index }) => errorIssue(error, index))
+      : [];
+  const childIssues = (childId: ElementId) => [
+    ...evaluation.errors
+      .map((error, index) => ({ error, index }))
+      .filter(({ error }) => error.elementId === childId)
+      .map(({ error, index }) => errorIssue(error, index)),
+    ...evaluation.warnings
+      .map((warning, index) => ({ warning, index }))
+      .filter(({ warning }) => warning.elementId === childId)
+      .map(({ warning, index }) => warningIssue(warning, index))
+  ];
   const dependencyNameWithCount = (name: string, count: number) => (
     <span className="dependency-primary">
       <span className="dependency-name">{name}</span>
@@ -97,6 +165,22 @@ export const ElementInfoPanel = ({
       </span>
     </span>
   );
+  const issueList = (issues: DependencyIssue[]) =>
+    issues.length > 0 ? (
+      <span className="dependency-issue-list">
+        {issues.map((issue) => (
+          <span key={issue.key} className={`dependency-issue ${issue.kind}`}>
+            {issue.message}
+          </span>
+        ))}
+      </span>
+    ) : null;
+  const issueClass = (issues: DependencyIssue[]) =>
+    issues.some((issue) => issue.kind === "error")
+      ? " has-error"
+      : issues.some((issue) => issue.kind === "warning")
+        ? " has-warning"
+        : "";
 
   return (
     <section className="panel-section">
@@ -133,28 +217,57 @@ export const ElementInfoPanel = ({
             <p className="empty-state">未評価です。</p>
           )}
 
+          {unassignedSelectedIssues.length > 0 ? (
+            <div className="dependency-group">
+              <h3 className="shortcut-group-title">この要素の問題</h3>
+              <div className="dependency-list">
+                <div className={`dependency-row dependency-row-with-issues${issueClass(unassignedSelectedIssues)}`}>
+                  <span className="dependency-row-main">
+                    {dependencyNameWithCount(element.name, selectedElementIssues.length)}
+                    <small>{elementTypeLabels[element.type]}</small>
+                  </span>
+                  {issueList(unassignedSelectedIssues)}
+                </div>
+              </div>
+            </div>
+          ) : null}
+
           <div className="dependency-group">
             <h3 className="shortcut-group-title">親要素</h3>
             {dependencySummary && dependencySummary.parents.length > 0 ? (
               <div className="dependency-list">
-                {dependencySummary.parents.map((parent, index) =>
-                  parent.element ? (
+                {dependencySummary.parents.map((parent, index) => {
+                  const issues = parentIssues(parent.id);
+                  return parent.element ? (
                     <button
                       key={`${parent.id}-${index}`}
                       type="button"
-                      className={dependencyButtonClass(parent.element.id)}
+                      className={`${dependencyButtonClass(parent.element.id)}${
+                        issues.length > 0 ? " dependency-row-with-issues" : ""
+                      }${issueClass(issues)}`}
                       onClick={() => selectDependency(parent.element!.id)}
                     >
-                      {dependencyNameWithCount(parent.element.name, parent.ancestorCount)}
-                      <small>{elementTypeLabels[parent.element.type]}</small>
+                      <span className="dependency-row-main">
+                        {dependencyNameWithCount(parent.element.name, parent.ancestorCount)}
+                        <small>{elementTypeLabels[parent.element.type]}</small>
+                      </span>
+                      {issueList(issues)}
                     </button>
                   ) : (
-                    <div key={`${parent.id}-${index}`} className="dependency-row unresolved">
-                      {dependencyNameWithCount(parent.id, parent.ancestorCount)}
-                      <small>未解決</small>
+                    <div
+                      key={`${parent.id}-${index}`}
+                      className={`dependency-row unresolved${
+                        issues.length > 0 ? " dependency-row-with-issues" : ""
+                      }${issueClass(issues)}`}
+                    >
+                      <span className="dependency-row-main">
+                        {dependencyNameWithCount(parent.id, parent.ancestorCount)}
+                        <small>未解決</small>
+                      </span>
+                      {issueList(issues)}
                     </div>
-                  )
-                )}
+                  );
+                })}
               </div>
             ) : (
               <p className="empty-state">親要素はありません。</p>
@@ -165,17 +278,25 @@ export const ElementInfoPanel = ({
             <h3 className="shortcut-group-title">子要素</h3>
             {dependencySummary && dependencySummary.children.length > 0 ? (
               <div className="dependency-list">
-                {dependencySummary.children.map((child) => (
-                  <button
-                    key={child.element.id}
-                    type="button"
-                    className={dependencyButtonClass(child.element.id)}
-                    onClick={() => selectDependency(child.element.id)}
-                  >
-                    {dependencyNameWithCount(child.element.name, child.descendantCount)}
-                    <small>{elementTypeLabels[child.element.type]}</small>
-                  </button>
-                ))}
+                {dependencySummary.children.map((child) => {
+                  const issues = childIssues(child.element.id);
+                  return (
+                    <button
+                      key={child.element.id}
+                      type="button"
+                      className={`${dependencyButtonClass(child.element.id)}${
+                        issues.length > 0 ? " dependency-row-with-issues" : ""
+                      }${issueClass(issues)}`}
+                      onClick={() => selectDependency(child.element.id)}
+                    >
+                      <span className="dependency-row-main">
+                        {dependencyNameWithCount(child.element.name, child.descendantCount)}
+                        <small>{elementTypeLabels[child.element.type]}</small>
+                      </span>
+                      {issueList(issues)}
+                    </button>
+                  );
+                })}
               </div>
             ) : (
               <p className="empty-state">子要素はありません。</p>

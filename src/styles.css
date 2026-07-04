@@ -2904,6 +2904,29 @@ select {
   text-align: left;
 }
 
+.dependency-row-main {
+  display: contents;
+}
+
+.dependency-row-with-issues {
+  grid-template-columns: 1fr;
+  align-items: stretch;
+  border-color: #efb08f;
+  background: #fff7f2;
+}
+
+.dependency-row-with-issues.has-warning:not(.has-error) {
+  border-color: #e0bd65;
+  background: #fff9e8;
+}
+
+.dependency-row-with-issues .dependency-row-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
 .dependency-primary {
   display: flex;
   align-items: center;
@@ -2952,6 +2975,22 @@ select {
   font-size: 13px;
 }
 
+.dependency-issue-list {
+  display: grid;
+  gap: 4px;
+}
+
+.dependency-issue {
+  display: block;
+  color: #73320d;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.dependency-issue.warning {
+  color: #71510b;
+}
+
 .error-list {
   display: grid;
   gap: 8px;
@@ -2986,6 +3025,15 @@ select {
 
 .error-list .warning-item span {
   color: #71510b;
+}
+
+.validation-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: #4b5148;
+  font-size: 13px;
 }
 
 .shortcut-list {
