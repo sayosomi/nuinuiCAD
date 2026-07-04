@@ -1878,6 +1878,108 @@ describe("LeftPanel element list dragging", () => {
     expect(screen.getByRole("button", { name: "前身頃を印刷しない" })).toBeInTheDocument();
   });
 
+  it("opens an element context menu and selects an unselected row", () => {
+    renderLeftPanel();
+
+    fireEvent.contextMenu(screen.getByText("点B").closest("[data-element-list-row='true']")!, {
+      clientX: 120,
+      clientY: 80
+    });
+
+    expect(useCadStore.getState().selectedElementId).toBe("point-b");
+    const menu = screen.getByRole("menu", { name: "点Bの操作" });
+    expect(within(menu).getByRole("menuitem", { name: "パラメーター編集" })).toBeInTheDocument();
+    expect(within(menu).getByRole("menuitem", { name: "非表示にする" })).toBeInTheDocument();
+    expect(within(menu).getByRole("menuitem", { name: "表示色を変更" })).toBeInTheDocument();
+  });
+
+  it("keeps a multi-selection when opening the context menu on a selected row", () => {
+    useCadStore.setState({
+      selectedElementId: "point-a",
+      selectedElementIds: ["point-a", "point-b"],
+      selectionAnchorElementId: "point-a"
+    });
+    renderLeftPanel();
+
+    fireEvent.contextMenu(screen.getByText("点B").closest("[data-element-list-row='true']")!, {
+      clientX: 120,
+      clientY: 80
+    });
+    fireEvent.click(within(screen.getByRole("menu", { name: "点Bの操作" })).getByRole("menuitem", {
+      name: "削除"
+    }));
+
+    const state = useCadStore.getState();
+    expect(state.elements.some((element) => element.id === "point-a")).toBe(false);
+    expect(state.elements.some((element) => element.id === "point-b")).toBe(false);
+  });
+
+  it("shows group-specific context menu items including print layout controls", () => {
+    const group: CadElement = {
+      id: "group-print",
+      name: "前身頃",
+      type: "group",
+      visible: true,
+      enabled: true,
+      expanded: true,
+      printEnabled: false
+    };
+    useCadStore.setState({
+      elements: [group],
+      selectedElementId: group.id,
+      selectedElementIds: [group.id],
+      selectionAnchorElementId: group.id,
+      evaluationLimitIndex: 1,
+      showPrintLayout: true
+    });
+    renderLeftPanel();
+
+    fireEvent.contextMenu(screen.getByText("前身頃").closest("[data-element-list-row='true']")!, {
+      clientX: 120,
+      clientY: 80
+    });
+
+    const menu = screen.getByRole("menu", { name: "前身頃の操作" });
+    expect(within(menu).getByRole("menuitem", { name: "折り畳む" })).toBeInTheDocument();
+    fireEvent.click(within(menu).getByRole("menuitem", { name: "印刷する" }));
+
+    expect(useCadStore.getState().elements[0]).toMatchObject({ printEnabled: true });
+  });
+
+  it("closes the element context menu with Escape", () => {
+    renderLeftPanel();
+
+    fireEvent.contextMenu(screen.getByText("点A").closest("[data-element-list-row='true']")!, {
+      clientX: 120,
+      clientY: 80
+    });
+    expect(screen.getByRole("menu", { name: "点Aの操作" })).toBeInTheDocument();
+
+    fireEvent.keyDown(window, { key: "Escape" });
+
+    expect(screen.queryByRole("menu", { name: "点Aの操作" })).not.toBeInTheDocument();
+  });
+
+  it("does not open the element context menu while picking from the list", () => {
+    useCadStore.setState({
+      selectedElementId: "line-ab",
+      selectedElementIds: ["line-ab"],
+      selectedParameterKey: "endPoint",
+      activePointPickTarget: {
+        elementId: "line-ab",
+        parameterKey: "endPoint"
+      }
+    });
+    renderLeftPanel();
+
+    fireEvent.contextMenu(screen.getByText("点C").closest("[data-element-list-row='true']")!, {
+      clientX: 120,
+      clientY: 80
+    });
+
+    expect(screen.queryByRole("menu", { name: "点Cの操作" })).not.toBeInTheDocument();
+  });
+
   it("keeps error row styling ahead of selected display color tint", () => {
     useCadStore.setState({
       elements: [{ ...sampleElements[0], colorId: "cut-red" }, ...sampleElements.slice(1)]

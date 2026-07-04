@@ -34,6 +34,10 @@ import { elementCategoryLabels, elementTypeCategories, elementTypeLabels } from 
 import {
   numericReferenceExpression,
 } from "./geometryDisplay";
+import {
+  ElementListContextMenu,
+  type ElementListContextMenuState
+} from "./ElementListContextMenu";
 import { ElementListRow } from "./ElementListRow";
 import { LeftPanelRibbonDock } from "./LeftPanelRibbonDock";
 import { elementListNameTextClassName } from "./elementListName";
@@ -240,6 +244,7 @@ export const LeftPanel = ({
   const setElementSearchCursorId = useCadUiStore((state) => state.setElementSearchCursorId);
   const setElementSearchPickableOnly = useCadUiStore((state) => state.setElementSearchPickableOnly);
   const [pointerDrag, setPointerDrag] = useState<ElementListPointerDrag | null>(null);
+  const [contextMenu, setContextMenu] = useState<ElementListContextMenuState | null>(null);
   const rowRefs = useRef(new Map<ElementId, HTMLDivElement>());
   const pointerDragRef = useRef<ElementListPointerDrag | null>(null);
   const pointerDragClientYRef = useRef<number | null>(null);
@@ -326,6 +331,15 @@ export const LeftPanel = ({
           ].some((value) => value.toLowerCase().includes(query));
         })
     : [];
+  const contextMenuElement = contextMenu ? elementsById.get(contextMenu.elementId) ?? null : null;
+  const contextMenuSelectedElements =
+    contextMenuElement && selectedElementIdSet.has(contextMenuElement.id)
+      ? selectedElementIds
+          .map((elementId) => elementsById.get(elementId))
+          .filter((element): element is CadElement => Boolean(element))
+      : contextMenuElement
+        ? [contextMenuElement]
+        : [];
 
   useEffect(() => {
     if (!selectedPickCursor) return;
@@ -488,6 +502,20 @@ export const LeftPanel = ({
     dispatchCommand("selectElement", {
       elementId,
       selectionMode: event.shiftKey ? "range" : event.metaKey || event.ctrlKey ? "toggle" : "replace"
+    });
+  };
+  const openElementContextMenu = (elementId: ElementId, event: MouseEvent<HTMLElement>) => {
+    if (activeLinePickTarget || activePointPickTarget || activeNumericReferencePickTarget) return;
+    event.preventDefault();
+    event.stopPropagation();
+    clearPointerDrag();
+    if (!selectedElementIdSet.has(elementId)) {
+      dispatchCommand("selectElement", { elementId });
+    }
+    setContextMenu({
+      elementId,
+      x: event.clientX,
+      y: event.clientY
     });
   };
   const moveSearchCursor = (offset: 1 | -1) => {
@@ -864,6 +892,7 @@ export const LeftPanel = ({
                 showColorAccentForAllRows={showElementListColorAccents}
                 showPrintControls={showPrintLayout}
                 onSelectElement={selectElement}
+                onOpenContextMenu={openElementContextMenu}
                 onHandlePointerDown={startElementPointerDrag}
               />
             );
@@ -919,6 +948,17 @@ export const LeftPanel = ({
                 pointerDrag.target?.insertionIndex === evaluationLimitIndex
               }
               onPointerDown={startDividerPointerDrag}
+            />
+          ) : null}
+          {contextMenu && contextMenuElement ? (
+            <ElementListContextMenu
+              commandContext={commandContext}
+              element={contextMenuElement}
+              selectedElements={contextMenuSelectedElements}
+              showPrintControls={showPrintLayout}
+              x={contextMenu.x}
+              y={contextMenu.y}
+              onClose={() => setContextMenu(null)}
             />
           ) : null}
         </div>

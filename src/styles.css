@@ -763,6 +763,43 @@ select {
   cursor: grabbing;
 }
 
+.element-list-context-menu {
+  position: fixed;
+  z-index: 20;
+  display: grid;
+  min-width: 190px;
+  overflow: hidden;
+  border: 1px solid #aeb4aa;
+  border-radius: 6px;
+  background: #ffffff;
+  box-shadow: 0 12px 30px rgb(37 38 34 / 20%);
+  padding: 4px;
+}
+
+.element-list-context-menu button {
+  width: 100%;
+  min-height: 30px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #252622;
+  padding: 6px 10px;
+  text-align: left;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.element-list-context-menu button:hover,
+.element-list-context-menu button:focus-visible {
+  background: #e7f4ef;
+}
+
+.element-list-context-menu-separator {
+  height: 1px;
+  margin: 4px 2px;
+  background: #dce0d8;
+}
+
 .element-status-icons {
   grid-area: status;
   display: grid;

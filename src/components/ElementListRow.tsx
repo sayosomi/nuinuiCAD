@@ -82,6 +82,7 @@ type ElementListRowProps = {
   showColorAccentForAllRows: boolean;
   showPrintControls: boolean;
   onSelectElement: (elementId: ElementId, event: MouseEvent<HTMLElement>) => void;
+  onOpenContextMenu: (elementId: ElementId, event: MouseEvent<HTMLElement>) => void;
   onHandlePointerDown: (event: PointerEvent<HTMLButtonElement>, element: CadElement) => void;
 };
 
@@ -122,6 +123,7 @@ export const ElementListRow = ({
   showColorAccentForAllRows,
   showPrintControls,
   onSelectElement,
+  onOpenContextMenu,
   onHandlePointerDown
 }: ElementListRowProps) => {
   const supportsDisplayColor = elementSupportsDisplayColor(element);
@@ -202,6 +204,7 @@ export const ElementListRow = ({
       conditionInactive ? ", 条件OFF" : ""
     }`}
     onClick={(event) => onSelectElement(element.id, event)}
+    onContextMenu={(event) => onOpenContextMenu(element.id, event)}
   >
     {isGroupElement(element) ? (
       <button
