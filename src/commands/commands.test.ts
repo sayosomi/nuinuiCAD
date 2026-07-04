@@ -1823,7 +1823,7 @@ describe("commands", () => {
       type: "polarOffsetPoint",
       fromPointId: "point-a",
       angleDeg: 0,
-      distance: 30
+      distance: 0
     });
     expect(useCadStore.getState().selectedElementId).toBe(added?.id);
   });
@@ -1837,7 +1837,7 @@ describe("commands", () => {
       startPoint: { mode: "reference", pointId: "point-a" },
       endPoint: { mode: "reference", pointId: "point-b" },
       placementMode: "ratio",
-      distance: 30,
+      distance: 0,
       ratio: 0.5,
       numericParameterSteps: { ratio: 0.01 }
     });
@@ -1858,7 +1858,7 @@ describe("commands", () => {
       type: "lineDivisionPoint",
       endpoint: { lineId: "line-bc", endpointKey: "start" },
       placementMode: "ratio",
-      distance: 30,
+      distance: 0,
       ratio: 0.5,
       numericParameterSteps: { ratio: 0.01 }
     });

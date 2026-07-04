@@ -121,8 +121,8 @@ export const createCadElement = (
         type,
         visible: true,
         enabled: true,
-        x: 80 + points.length * 20,
-        y: 80 + points.length * 20
+        x: 0,
+        y: 0
       };
     }
     case "offsetPoint": {
@@ -136,7 +136,7 @@ export const createCadElement = (
         enabled: true,
         fromPoint: referenceAnchor(firstPointId),
         fromPointId: firstPointId,
-        dx: 30,
+        dx: 0,
         dy: 0
       };
     }
@@ -152,7 +152,7 @@ export const createCadElement = (
         fromPoint: referenceAnchor(firstPointId),
         fromPointId: firstPointId,
         angleDeg: 0,
-        distance: 30
+        distance: 0
       };
     }
     case "divisionPoint": {
@@ -169,7 +169,7 @@ export const createCadElement = (
         startPoint: referenceAnchor(firstPointId),
         endPoint: referenceAnchor(secondPointId),
         placementMode: "ratio",
-        distance: 30,
+        distance: 0,
         ratio: 0.5
       };
     }
@@ -189,7 +189,7 @@ export const createCadElement = (
           endpointKey: "start"
         },
         placementMode: "ratio",
-        distance: 30,
+        distance: 0,
         ratio: 0.5
       };
     }
@@ -225,7 +225,7 @@ export const createCadElement = (
         baseLineId: baseLine?.id ?? "",
         basePoint: baseLine ? derivedAnchor(baseLine.id, "start") : referenceAnchor(firstPointId),
         tangentAngleDeg: 0,
-        distance: 30
+        distance: 0
       };
     }
     case "line": {

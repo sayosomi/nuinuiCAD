@@ -6,15 +6,15 @@ import { createCadElement } from "./elementFactory";
 const createTestId = (type: CadElementType) => `${type}-test-id`;
 
 describe("createCadElement", () => {
-  it("creates a free point with the existing default position pattern", () => {
+  it("creates a free point at the origin by default", () => {
     expect(createCadElement("freePoint", sampleElements, { createId: createTestId })).toMatchObject({
       id: "freePoint-test-id",
       name: "点4",
       type: "freePoint",
       visible: true,
       enabled: true,
-      x: 140,
-      y: 140
+      x: 0,
+      y: 0
     });
   });
 
@@ -27,7 +27,7 @@ describe("createCadElement", () => {
       enabled: true,
       fromPoint: { mode: "reference", pointId: "point-a" },
       fromPointId: "point-a",
-      dx: 30,
+      dx: 0,
       dy: 0
     });
   });
@@ -42,7 +42,7 @@ describe("createCadElement", () => {
       fromPoint: { mode: "reference", pointId: "point-a" },
       fromPointId: "point-a",
       angleDeg: 0,
-      distance: 30
+      distance: 0
     });
   });
 
@@ -58,7 +58,7 @@ describe("createCadElement", () => {
       startPoint: { mode: "reference", pointId: "point-a" },
       endPoint: { mode: "reference", pointId: "point-b" },
       placementMode: "ratio",
-      distance: 30,
+      distance: 0,
       ratio: 0.5
     });
   });
@@ -74,7 +74,7 @@ describe("createCadElement", () => {
       numericParameterSteps: { ratio: 0.01 },
       endpoint: { lineId: "line-ab", endpointKey: "start" },
       placementMode: "ratio",
-      distance: 30,
+      distance: 0,
       ratio: 0.5
     });
   });
@@ -105,7 +105,7 @@ describe("createCadElement", () => {
       baseLineId: "line-ab",
       basePoint: { mode: "derived", elementId: "line-ab", pointKey: "start" },
       tangentAngleDeg: 0,
-      distance: 30
+      distance: 0
     });
   });
 
