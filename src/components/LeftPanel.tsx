@@ -687,7 +687,7 @@ export const LeftPanel = ({
                 : ""
             }`}>
               {activePointPickTarget
-                ? "点選択中: 点の行だけ選択できます"
+                ? `${activePointPickTarget.parameterKey === "startPoint" ? "始点" : activePointPickTarget.parameterKey === "endPoint" ? "終点" : "点"}選択中: 点の行だけ選択できます`
                 : activeNumericReferencePickTarget
                   ? `数値選択中: ${lineMeasurementLabel(activeNumericReferencePickTarget.property)}を持つ線・曲線または変数を選択できます`
                   : activeLinePickTarget

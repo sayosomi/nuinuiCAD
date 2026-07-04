@@ -2462,6 +2462,58 @@ describe("commands", () => {
     expect(useCadStore.getState().past).toHaveLength(1);
   });
 
+  it("starts point picking for an explicit reference parameter", () => {
+    useCadStore.setState({
+      selectedElementId: "line-ab",
+      selectedElementIds: ["line-ab"],
+      selectedParameterKey: "name"
+    });
+
+    dispatchCommand("startPointPick", {
+      elementId: "line-ab",
+      parameterKey: "endPoint"
+    });
+
+    expect(useCadStore.getState().activePointPickTarget).toEqual({
+      elementId: "line-ab",
+      parameterKey: "endPoint"
+    });
+  });
+
+  it("picks a line start point and then advances to the end point", () => {
+    useCadStore.setState({
+      selectedElementId: "line-ab",
+      selectedElementIds: ["line-ab"],
+      selectedParameterKey: "name"
+    });
+
+    dispatchCommand("startLineEndpointPairPick", { elementId: "line-ab" });
+    expect(useCadStore.getState().activePointPickTarget).toEqual({
+      elementId: "line-ab",
+      parameterKey: "startPoint",
+      nextParameterKey: "endPoint",
+      pickFlow: "lineEndpointPair"
+    });
+
+    dispatchCommand("applyPickedPoint", { pickedPointId: "point-c" });
+    expect(useCadStore.getState().activePointPickTarget).toEqual({
+      elementId: "line-ab",
+      parameterKey: "endPoint",
+      pickFlow: "lineEndpointPair"
+    });
+    expect(useCadStore.getState().elements[3]).toMatchObject({
+      startPoint: { mode: "reference", pointId: "point-c" }
+    });
+
+    dispatchCommand("applyPickedPoint", { pickedPointId: "point-b" });
+    expect(useCadStore.getState().activePointPickTarget).toBeNull();
+    expect(useCadStore.getState().elements[3]).toMatchObject({
+      startPoint: { mode: "reference", pointId: "point-c" },
+      endPoint: { mode: "reference", pointId: "point-b" }
+    });
+    expect(useCadStore.getState().past).toHaveLength(2);
+  });
+
   it("applies a point pick candidate using keyboard candidate commands", () => {
     useCadStore.setState({
       selectedElementId: "line-ab",

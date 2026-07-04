@@ -1,4 +1,6 @@
+import { dispatchCommand } from "../commands/commands";
 import type { ParameterKey } from "../parameters/parameterDefinitions";
+import { useCadUiStore } from "../state/cadUiStore";
 import type {
   LineEndpointReference,
   NumericValue,
@@ -22,6 +24,7 @@ export const LineElementFields = ({
   isParameterEditMode,
   registerParameterControl
 }: CommonEditorProps) => {
+  const activePointPickTarget = useCadUiStore((state) => state.activePointPickTarget);
   const commonEditorProps = { element, elements, evaluation, isParameterEditMode, registerParameterControl };
   const elementEditorProps = { element, isParameterEditMode, registerParameterControl };
   const numericInput = (props: {
@@ -44,9 +47,27 @@ export const LineElementFields = ({
   }) => <LineEndpointReferenceEditor {...commonEditorProps} {...props} />;
 
   switch (element.type) {
-    case "line":
+    case "line": {
+      const isPairPicking =
+        activePointPickTarget?.elementId === element.id &&
+        activePointPickTarget.pickFlow === "lineEndpointPair";
       return (
         <>
+          <div className="line-endpoint-pair-actions">
+            <button
+              type="button"
+              className={isPairPicking ? "active" : ""}
+              onClick={() => {
+                if (isPairPicking) {
+                  dispatchCommand("cancelPointPick");
+                  return;
+                }
+                dispatchCommand("startLineEndpointPairPick", { elementId: element.id });
+              }}
+            >
+              始点→終点
+            </button>
+          </div>
           {pointAnchorEditor({
             parameterKey: "startPoint",
             label: "始点",
@@ -59,6 +80,7 @@ export const LineElementFields = ({
           })}
         </>
       );
+    }
 
     case "arcLine":
       return (

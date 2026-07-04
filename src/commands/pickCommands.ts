@@ -486,9 +486,21 @@ export const applySelectedPickCandidate = () => {
   }
 };
 
-export const startPointPick = () => {
-  const selectedElement = getSelectedElement();
-  const definition = selectedParameterDefinition();
+export const startPointPick = (
+  context?: Pick<CommandContext, "elementId" | "parameterKey" | "nextParameterKey"> & {
+    pickFlow?: "lineEndpointPair";
+  }
+) => {
+  const { elements, selectedElementId } = useCadDocumentStore.getState();
+  const targetElementId = context?.elementId ?? selectedElementId;
+  const selectedElement = targetElementId
+    ? elements.find((element) => element.id === targetElementId) ?? null
+    : getSelectedElement();
+  const definition = context?.parameterKey
+    ? selectedElement
+      ? findParameterDefinition(selectedElement, context.parameterKey)
+      : null
+    : selectedParameterDefinition();
   if (
     !selectedElement ||
     (definition?.kind !== "reference" && definition?.kind !== "lineEndpointReference")
@@ -499,8 +511,26 @@ export const startPointPick = () => {
     activeLinePickTarget: null,
     activePointPickTarget: {
       elementId: selectedElement.id,
-      parameterKey: definition.key
+      parameterKey: definition.key,
+      ...(context?.nextParameterKey ? { nextParameterKey: context.nextParameterKey } : {}),
+      ...(context?.pickFlow ? { pickFlow: context.pickFlow } : {})
     }
+  });
+};
+
+export const startLineEndpointPairPick = (context?: Pick<CommandContext, "elementId">) => {
+  const { elements, selectedElementId } = useCadDocumentStore.getState();
+  const targetElementId = context?.elementId ?? selectedElementId;
+  const targetElement = targetElementId
+    ? elements.find((element) => element.id === targetElementId) ?? null
+    : null;
+  if (!targetElement || targetElement.type !== "line") return;
+
+  startPointPick({
+    elementId: targetElement.id,
+    parameterKey: "startPoint",
+    nextParameterKey: "endPoint",
+    pickFlow: "lineEndpointPair"
   });
 };
 
@@ -588,6 +618,17 @@ export const applyPickedPoint = (context?: Pick<CommandContext, "pickedPointId" 
     selectionAnchorElementId: activePointPickTarget.elementId,
     selectedParameterKey: activePointPickTarget.parameterKey
   });
+  if (activePointPickTarget.nextParameterKey) {
+    const nextDefinition = findParameterDefinition(targetElement, activePointPickTarget.nextParameterKey);
+    if (nextDefinition?.kind === "reference" || nextDefinition?.kind === "lineEndpointReference") {
+      useCadUiStore.getState().setActivePointPickTarget({
+        elementId: activePointPickTarget.elementId,
+        parameterKey: nextDefinition.key,
+        ...(activePointPickTarget.pickFlow ? { pickFlow: activePointPickTarget.pickFlow } : {})
+      });
+      return;
+    }
+  }
   useCadUiStore.getState().setActivePointPickTarget(null);
 };
 

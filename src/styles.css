@@ -2706,6 +2706,30 @@ select {
   text-align: left;
 }
 
+.point-anchor-reference.active {
+  border-color: #0f766e;
+  background: #e7f4ef;
+  color: #0f4f49;
+}
+
+.line-endpoint-pair-actions {
+  display: flex;
+  grid-column: 1 / -1;
+  justify-content: flex-end;
+}
+
+.line-endpoint-pair-actions button {
+  min-height: 30px;
+  padding: 5px 9px;
+  font-size: 12px;
+}
+
+.line-endpoint-pair-actions button.active {
+  border-color: #0f766e;
+  background: #0f766e;
+  color: #ffffff;
+}
+
 .reference-label {
   color: #686b62;
   font-size: 12px;

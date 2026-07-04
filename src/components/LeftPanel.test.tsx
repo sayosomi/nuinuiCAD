@@ -1070,7 +1070,7 @@ describe("LeftPanel numeric input dragging", () => {
     expect(useCadStore.getState().elements.at(-1)).toMatchObject({ side: "left" });
   });
 
-  it("uses a click-pick button instead of a dropdown for line division endpoints", () => {
+  it("uses the reference display instead of a dropdown for line division endpoint picking", () => {
     useCadStore.setState({
       elements: [
         ...sampleElements,
@@ -1093,8 +1093,12 @@ describe("LeftPanel numeric input dragging", () => {
 
     renderRightPanel();
 
-    expect(screen.getByRole("button", { name: "端点を選択" })).toBeInTheDocument();
-    expect(screen.getByText("直線AB.始点")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "参照端点直線AB.始点" }));
+
+    expect(useCadStore.getState().activePointPickTarget).toEqual({
+      elementId: "line-division",
+      parameterKey: "endpoint"
+    });
     expect(screen.queryByRole("combobox", { name: /端点/ })).not.toBeInTheDocument();
   });
 

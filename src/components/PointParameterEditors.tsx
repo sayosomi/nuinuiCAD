@@ -38,6 +38,14 @@ export const PointAnchorParameterEditor = ({
   const definition = getParameterDefinitions(element).find((parameter) => parameter.key === parameterKey);
   const canUseCoordinate = definition?.allowCoordinate ?? allowCoordinate;
   const commandContext = { elementId: element.id, parameterKey };
+  const togglePointPick = () => {
+    selectParameter(parameterKey);
+    if (isPickingThisPoint) {
+      dispatchCommand("cancelPointPick");
+      return;
+    }
+    dispatchCommand("startPointPick", commandContext);
+  };
 
   return (
     <div className={`point-anchor-editor ${parameterFieldClass(parameterKey)} ${
@@ -70,20 +78,6 @@ export const PointAnchorParameterEditor = ({
               </button>
             ) : null}
           </div>
-          <button
-            type="button"
-            className={`point-pick-button ${isPickingThisPoint ? "active" : ""}`}
-            onClick={() => {
-              selectParameter(parameterKey);
-              if (isPickingThisPoint) {
-                dispatchCommand("cancelPointPick");
-                return;
-              }
-              dispatchCommand("startPointPick");
-            }}
-          >
-            {isPickingThisPoint ? "点選択中" : "点を選択"}
-          </button>
         </div>
       </div>
       {isPickingThisPoint ? (
@@ -96,8 +90,8 @@ export const PointAnchorParameterEditor = ({
       {anchor.mode !== "coordinate" ? (
         <button
           type="button"
-          className="point-anchor-reference"
-          onClick={() => selectParameter(parameterKey)}
+          className={`point-anchor-reference ${isPickingThisPoint ? "active" : ""}`}
+          onClick={togglePointPick}
         >
           <span className="reference-label">参照点</span>
           <span className="reference-value">{pointAnchorLabel(anchor, elements)}</span>
@@ -148,6 +142,15 @@ export const LineEndpointReferenceEditor = ({
   const isPickingThisEndpoint =
     activePointPickTarget?.elementId === element.id &&
     activePointPickTarget.parameterKey === parameterKey;
+  const commandContext = { elementId: element.id, parameterKey };
+  const toggleEndpointPick = () => {
+    selectParameter(parameterKey);
+    if (isPickingThisEndpoint) {
+      dispatchCommand("cancelPointPick");
+      return;
+    }
+    dispatchCommand("startPointPick", commandContext);
+  };
 
   return (
     <div className={`point-anchor-editor ${parameterFieldClass(parameterKey)} ${
@@ -155,20 +158,6 @@ export const LineEndpointReferenceEditor = ({
     }`}>
       <div className="point-anchor-header">
         <ParameterName element={element} parameterKey={parameterKey} label={label} />
-        <button
-          type="button"
-          className={`point-pick-button ${isPickingThisEndpoint ? "active" : ""}`}
-          onClick={() => {
-            selectParameter(parameterKey);
-            if (isPickingThisEndpoint) {
-              dispatchCommand("cancelPointPick");
-              return;
-            }
-            dispatchCommand("startPointPick");
-          }}
-        >
-          {isPickingThisEndpoint ? "端点選択中" : "端点を選択"}
-        </button>
       </div>
       {isPickingThisEndpoint ? (
         <p className="point-pick-hint">canvas または構成リストから線の始点/終点を選択します。</p>
@@ -176,8 +165,8 @@ export const LineEndpointReferenceEditor = ({
       <button
         {...controlProps(parameterKey)}
         type="button"
-        className="point-anchor-reference"
-        onClick={() => selectParameter(parameterKey)}
+        className={`point-anchor-reference ${isPickingThisEndpoint ? "active" : ""}`}
+        onClick={toggleEndpointPick}
       >
         <span className="reference-label">参照端点</span>
         <span className="reference-value">{lineEndpointReferenceLabel(endpoint, elements)}</span>

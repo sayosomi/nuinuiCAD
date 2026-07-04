@@ -738,7 +738,7 @@ export const DrawingCanvas = ({
           <div className="point-pick-canvas-banner">
             {isLineEndpointPointPick
               ? "端点選択中: canvas または構成リストの線端点を選択"
-              : "点選択中: canvas または構成リストの点を選択"}
+              : `${activePointPickTarget.parameterKey === "startPoint" ? "始点" : activePointPickTarget.parameterKey === "endPoint" ? "終点" : "点"}選択中: canvas または構成リストの点を選択`}
           </div>
         ) : null}
         {activeNumericReferencePickTarget ? (

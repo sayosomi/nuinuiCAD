@@ -68,6 +68,7 @@ export type CommandId =
   | "selectPreviousPickOption"
   | "applySelectedPickCandidate"
   | "startPointPick"
+  | "startLineEndpointPairPick"
   | "applyPickedPoint"
   | "cancelPointPick"
   | "startLinePick"
@@ -201,6 +202,7 @@ export type CommandContext = {
   selectionEnd?: number | null;
   measurementInsertMode?: MeasurementInsertMode;
   measurementPointSlot?: MeasurementPointSlot;
+  nextParameterKey?: string;
   intermediatePointId?: string;
   variableId?: string;
   pointAnchorMode?: "reference" | "coordinate";
