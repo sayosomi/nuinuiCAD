@@ -1,4 +1,4 @@
-import { act, fireEvent, render, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { dispatchCommand } from "../commands/commands";
 import { defaultDocumentPalette } from "../palette/palette";
@@ -329,8 +329,13 @@ describe("AppLayout command ribbon", () => {
       throw new Error("Missing command ribbon");
     }
 
-    expect(customRibbon.style.left).toBe("80px");
-    expect(customRibbon.style.top).toBe("24px");
+    const positionedRibbon = customRibbon.parentElement;
+    if (!(positionedRibbon instanceof HTMLElement)) {
+      throw new Error("Missing positioned command ribbon");
+    }
+
+    expect(positionedRibbon.style.left).toBe("80px");
+    expect(positionedRibbon.style.top).toBe("24px");
   });
 
   it("saves the command ribbon position after dragging its handle", async () => {
@@ -348,6 +353,68 @@ describe("AppLayout command ribbon", () => {
       );
       expect(settings.ribbons[0].x).toBeGreaterThan(0);
       expect(settings.ribbons[0].y).toBe(42);
+    });
+  });
+
+  it("docks a floating command ribbon when dragging it onto the left-panel ribbon dock", async () => {
+    const view = render(<AppLayout />);
+    const dock = await view.findByLabelText("左ペインのコマンドリボン");
+    dock.getBoundingClientRect = () => ({
+      x: 0,
+      y: 330,
+      top: 330,
+      left: 0,
+      right: 320,
+      bottom: 400,
+      width: 320,
+      height: 70,
+      toJSON: () => ({})
+    });
+    const handle = await view.findByRole("button", { name: "作図を移動" });
+
+    fireEvent.pointerDown(handle, { button: 0, clientX: 250, clientY: 20, pointerId: 2 });
+    fireEvent.pointerMove(handle, { clientX: 40, clientY: 360, pointerId: 2 });
+    fireEvent.pointerUp(handle, { clientX: 40, clientY: 360, pointerId: 2 });
+
+    await waitFor(() => {
+      const settings = JSON.parse(
+        window.localStorage.getItem("nuinuiCAD.commandRibbonSettings.v1") ?? "{}"
+      );
+      expect(settings.ribbons.find((ribbon: { id: string }) => ribbon.id === "drafting").dock).toBe(
+        "leftPanelBottom"
+      );
+    });
+  });
+
+  it("undocks a left-panel command ribbon when dragging it onto the canvas", async () => {
+    const view = render(<AppLayout />);
+    const viewport = view.container.querySelector(".canvas-viewport");
+    if (!(viewport instanceof HTMLDivElement)) {
+      throw new Error("Missing canvas viewport");
+    }
+    viewport.getBoundingClientRect = () => ({
+      x: 320,
+      y: 0,
+      top: 0,
+      left: 320,
+      right: 820,
+      bottom: 400,
+      width: 500,
+      height: 400,
+      toJSON: () => ({})
+    });
+    const handle = await view.findByRole("button", { name: "選択操作を移動" });
+
+    fireEvent.pointerDown(handle, { button: 0, clientX: 40, clientY: 360, pointerId: 3 });
+    fireEvent.pointerMove(handle, { clientX: 420, clientY: 60, pointerId: 3 });
+    fireEvent.pointerUp(handle, { clientX: 420, clientY: 60, pointerId: 3 });
+
+    await waitFor(() => {
+      const settings = JSON.parse(
+        window.localStorage.getItem("nuinuiCAD.commandRibbonSettings.v1") ?? "{}"
+      );
+      const ribbon = settings.ribbons.find((item: { id: string }) => item.id === "selection-actions");
+      expect(ribbon).toMatchObject({ dock: "canvas", x: 100, y: 60 });
     });
   });
 
@@ -406,6 +473,27 @@ describe("AppLayout command ribbon", () => {
     expect(useCadStore.getState().commandRibbonSettings?.ribbons[0].iconSize).toBe(24);
   });
 
+  it("edits the left-panel docked ribbon placement from settings dialog", async () => {
+    const view = render(<AppLayout />);
+    await view.findByRole("button", { name: "選択操作を移動" });
+
+    act(() => {
+      dispatchCommand("openCommandRibbonSettings");
+    });
+    const ribbonList = await view.findByRole("listbox", { name: "リボン" });
+    fireEvent.click(within(ribbonList).getAllByRole("button", { name: /選択操作/ })[0]);
+    fireEvent.change(view.getByLabelText("配置"), { target: { value: "canvas" } });
+    fireEvent.click(view.getByRole("button", { name: "保存" }));
+
+    await waitFor(() => {
+      const settings = JSON.parse(
+        window.localStorage.getItem("nuinuiCAD.commandRibbonSettings.v1") ?? "{}"
+      );
+      const ribbon = settings.ribbons.find((item: { id: string }) => item.id === "selection-actions");
+      expect(ribbon.dock).toBe("canvas");
+    });
+  });
+
   it("reorders command ribbons from settings dialog", async () => {
     window.localStorage.setItem(
       "nuinuiCAD.commandRibbonSettings.v1",
@@ -452,7 +540,8 @@ describe("AppLayout command ribbon", () => {
       );
       expect(settings.ribbons.map((ribbon: { id: string }) => ribbon.id)).toEqual([
         "second",
-        "first"
+        "first",
+        "selection-actions"
       ]);
     });
   });

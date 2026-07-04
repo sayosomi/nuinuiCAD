@@ -53,6 +53,7 @@ type DrawingCanvasProps = {
   evaluationState?: EvaluationEngineState;
   canvasFocusRef: RefObject<HTMLDivElement | null>;
   commandContext?: CommandContext;
+  leftPanelDockRef: RefObject<HTMLDivElement | null>;
 };
 
 type PointDragState = {
@@ -90,7 +91,8 @@ export const DrawingCanvas = ({
   evaluation,
   evaluationState,
   canvasFocusRef,
-  commandContext = {}
+  commandContext = {},
+  leftPanelDockRef
 }: DrawingCanvasProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const panDragRef = useRef<{ pointerId: number; lastX: number; lastY: number } | null>(null);
@@ -716,7 +718,11 @@ export const DrawingCanvas = ({
           isNumericReferencePickActive={Boolean(activeNumericReferencePickTarget)}
           isLinePickActive={Boolean(activeLinePickTarget)}
         />
-        <CommandRibbonOverlay commandContext={commandContext} viewportSize={viewportSize} />
+        <CommandRibbonOverlay
+          commandContext={commandContext}
+          leftPanelDockRef={leftPanelDockRef}
+          viewportSize={viewportSize}
+        />
         <div className="canvas-display-controls" aria-label="キャンバス表示設定">
           <button
             type="button"

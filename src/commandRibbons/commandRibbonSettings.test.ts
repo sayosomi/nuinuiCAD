@@ -15,8 +15,13 @@ describe("commandRibbonSettings", () => {
     const settings = await loadCommandRibbonSettings();
 
     expect(settings.ribbons[0].id).toBe("drafting");
+    expect(settings.ribbons[0].dock).toBe("canvas");
     expect(settings.ribbons[0].x).toBeNull();
     expect(settings.ribbons[0].buttons.map((button) => button.commandId)).toContain("addLine");
+    expect(settings.ribbons[1]).toMatchObject({
+      id: "selection-actions",
+      dock: "leftPanelBottom"
+    });
   });
 
   it("saves and loads browser command ribbon settings", async () => {
@@ -26,6 +31,7 @@ describe("commandRibbonSettings", () => {
         {
           id: "custom",
           label: "Custom",
+          dock: "canvas",
           x: 80,
           y: 24,
           orientation: "vertical",
@@ -50,6 +56,7 @@ describe("commandRibbonSettings", () => {
         {
           id: "custom",
           label: "Custom",
+          dock: "canvas",
           x: 80,
           y: 24,
           orientation: "vertical",
@@ -99,10 +106,12 @@ describe("commandRibbonSettings", () => {
 
     expect(settings.ribbons[0].x).toBe(0);
     expect(settings.ribbons[0].y).toBe(10000);
+    expect(settings.ribbons[0].dock).toBe("canvas");
     expect(settings.ribbons[0].orientation).toBe("horizontal");
     expect(settings.ribbons[0].iconSize).toBe(16);
     expect(settings.ribbons[0].buttons).toHaveLength(1);
     expect(settings.ribbons[0].buttons[0].iconColor).toBe("default");
+    expect(settings.ribbons.some((ribbon) => ribbon.id === "selection-actions")).toBe(true);
   });
 
   it("falls back to the default ribbon for broken browser settings", async () => {

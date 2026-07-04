@@ -12,6 +12,7 @@ import { sampleElements } from "../sampleData";
 import { DEFAULT_CANVAS_VIEWPORT, useCadStore } from "../state/useCadStore";
 import type { CadElement, EvaluationResult } from "../types/geometry";
 import { dispatchCommand } from "../commands/commands";
+import { defaultCommandRibbonSettings } from "../commandRibbons/commandRibbonSettings";
 
 const emptyEvaluation: EvaluationResult = {
   computedGeometry: new Map(),
@@ -104,6 +105,9 @@ const renderRightPanel = (
 const renderLeftPanel = (evaluation = emptyEvaluation) =>
   render(
     <LeftPanel
+      canvasFocusRef={createRef<HTMLDivElement>()}
+      commandContext={{}}
+      commandRibbonDockRef={createRef<HTMLDivElement>()}
       evaluation={evaluation}
       elementListFocusRef={createRef<HTMLDivElement>()}
       elementSearchInputRef={createRef<HTMLInputElement>()}
@@ -220,33 +224,37 @@ describe("LeftPanel numeric input dragging", () => {
     expect(screen.getByText("未保存の変更")).toBeInTheDocument();
   });
 
-  it("replaces the old left-panel action buttons with a docked icon ribbon", () => {
+  it("renders the left-panel docked ribbon from command ribbon settings", () => {
+    useCadStore.setState({ commandRibbonSettings: defaultCommandRibbonSettings() });
     renderLeftPanel();
 
-    expect(screen.getByLabelText("選択要素の操作")).toHaveClass("left-panel-action-ribbon");
-    expect(screen.getByRole("button", { name: "選択要素を上へ" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "上へ" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "複製" })).not.toBeInTheDocument();
+    expect(screen.getByLabelText("左ペインのコマンドリボン")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "選択操作を移動" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "上へ" })).toBeInTheDocument();
   });
 
-  it("dispatches selected element commands from the docked icon ribbon", () => {
+  it("dispatches selected element commands from the docked command ribbon", () => {
+    useCadStore.setState({ commandRibbonSettings: defaultCommandRibbonSettings() });
     renderLeftPanel();
 
-    fireEvent.click(screen.getByRole("button", { name: "選択要素を複製" }));
+    fireEvent.click(screen.getByRole("button", { name: "複製" }));
 
     expect(useCadStore.getState().elements).toHaveLength(sampleElements.length + 1);
     expect(useCadStore.getState().past).toHaveLength(1);
   });
 
-  it("disables only ordering actions in the docked icon ribbon while searching", () => {
-    useCadStore.setState({ elementSearchQuery: "point" });
+  it("disables only ordering actions in the docked command ribbon while searching", () => {
+    useCadStore.setState({
+      commandRibbonSettings: defaultCommandRibbonSettings(),
+      elementSearchQuery: "point"
+    });
 
     renderLeftPanel();
 
-    expect(screen.getByRole("button", { name: "選択要素を上へ" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "選択要素を下へ" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "選択要素を複製" })).toBeEnabled();
-    expect(screen.getByRole("button", { name: "選択要素を削除" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "上へ" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "下へ" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "複製" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "削除" })).toBeEnabled();
   });
 
   it("rounds numeric parameter display to at most two decimal places", () => {
@@ -1308,6 +1316,9 @@ describe("Palette and element color editing", () => {
     render(
       <>
         <LeftPanel
+          canvasFocusRef={createRef<HTMLDivElement>()}
+          commandContext={{}}
+          commandRibbonDockRef={createRef<HTMLDivElement>()}
           evaluation={emptyEvaluation}
           elementListFocusRef={createRef<HTMLDivElement>()}
           elementSearchInputRef={createRef<HTMLInputElement>()}

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, KeyboardEvent, MouseEvent, PointerEvent, RefObject } from "react";
 import { Search, X } from "lucide-react";
 import { dispatchCommand } from "../commands/commands";
+import type { CommandContext } from "../commands/commands";
 import { fileNameFromPath } from "../document/documentFormat";
 import {
   isPointElement,
@@ -34,7 +35,7 @@ import {
   numericReferenceExpression,
 } from "./geometryDisplay";
 import { ElementListRow } from "./ElementListRow";
-import { LeftPanelActionRibbon } from "./LeftPanelActionRibbon";
+import { LeftPanelRibbonDock } from "./LeftPanelRibbonDock";
 import { elementListNameTextClassName } from "./elementListName";
 import { isImeComposingKeyEvent } from "./keyboardEventGuards";
 import {
@@ -47,6 +48,9 @@ import { useElementListData } from "./useElementListData";
 export { RightPanel } from "./RightPanel";
 
 type LeftPanelProps = {
+  canvasFocusRef: RefObject<HTMLDivElement | null>;
+  commandContext: CommandContext;
+  commandRibbonDockRef: RefObject<HTMLDivElement | null>;
   evaluation: EvaluationResult;
   elementListFocusRef: RefObject<HTMLDivElement | null>;
   elementSearchInputRef: RefObject<HTMLInputElement | null>;
@@ -208,6 +212,9 @@ const ForGeneratedPreviewRow = ({
 );
 
 export const LeftPanel = ({
+  canvasFocusRef,
+  commandContext,
+  commandRibbonDockRef,
   evaluation,
   elementListFocusRef,
   elementSearchInputRef
@@ -916,7 +923,12 @@ export const LeftPanel = ({
           ) : null}
         </div>
 
-        <LeftPanelActionRibbon isSearchActive={isSearchActive} />
+        <LeftPanelRibbonDock
+          canvasFocusRef={canvasFocusRef}
+          commandContext={commandContext}
+          dockRef={commandRibbonDockRef}
+          isSearchActive={isSearchActive}
+        />
       </section>
     </aside>
   );

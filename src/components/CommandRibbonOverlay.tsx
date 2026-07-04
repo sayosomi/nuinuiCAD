@@ -1,26 +1,25 @@
 import type { PointerEvent as ReactPointerEvent } from "react";
+import type { RefObject } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  dispatchCommand,
-  type CommandContext
-} from "../commands/commands";
+import type { CommandContext } from "../commands/commands";
 import type {
   CommandRibbon,
   CommandRibbonSettings
 } from "../commandRibbons/commandRibbonSettings";
 import {
-  commandRibbonIconColorValues,
   saveCommandRibbonSettings
 } from "../commandRibbons/commandRibbonSettings";
-import {
-  CommandRibbonGripIcon,
-  commandRibbonIconComponents
-} from "../commandRibbons/commandRibbonIcons";
 import { useCadUiStore } from "../state/cadUiStore";
 import type { ViewportSize } from "./canvasViewport";
+import {
+  CommandRibbonView,
+  RIBBON_BUTTON_PADDING,
+  RIBBON_HANDLE_WIDTH
+} from "./CommandRibbonView";
 
 type CommandRibbonOverlayProps = {
   commandContext: CommandContext;
+  leftPanelDockRef: RefObject<HTMLDivElement | null>;
   viewportSize: ViewportSize;
 };
 
@@ -36,8 +35,6 @@ type RibbonDrag = {
 };
 
 const RIBBON_MARGIN = 8;
-const RIBBON_BUTTON_PADDING = 14;
-const RIBBON_HANDLE_WIDTH = 24;
 
 const estimatedRibbonLength = (ribbon: CommandRibbon) =>
   RIBBON_HANDLE_WIDTH + ribbon.buttons.length * (ribbon.iconSize + RIBBON_BUTTON_PADDING);
@@ -76,8 +73,18 @@ const saveRibbonSettings = (settings: CommandRibbonSettings) => {
   });
 };
 
+const isClientPointInRect = (clientX: number, clientY: number, rect: DOMRect | null) =>
+  Boolean(
+    rect &&
+      clientX >= rect.left &&
+      clientX <= rect.right &&
+      clientY >= rect.top &&
+      clientY <= rect.bottom
+  );
+
 export const CommandRibbonOverlay = ({
   commandContext,
+  leftPanelDockRef,
   viewportSize
 }: CommandRibbonOverlayProps) => {
   const settings = useCadUiStore((state) => state.commandRibbonSettings);
@@ -92,7 +99,7 @@ export const CommandRibbonOverlay = ({
 
   const resolvedRibbons = useMemo(() => {
     if (!settings) return [];
-    return settings.ribbons.map((ribbon) => {
+    return settings.ribbons.filter((ribbon) => ribbon.dock === "canvas").map((ribbon) => {
       const position = clampRibbonPosition(
         ribbon.x ?? defaultRibbonX(viewportSize, ribbon),
         ribbon.y,
@@ -137,7 +144,17 @@ export const CommandRibbonOverlay = ({
     return {
       version: 1,
       ribbons: currentSettings.ribbons.map((item) =>
-        item.id === drag.ribbonId ? { ...item, ...nextPosition } : item
+        item.id === drag.ribbonId ? { ...item, dock: "canvas", ...nextPosition } : item
+      )
+    } satisfies CommandRibbonSettings;
+  };
+
+  const settingsWithDockedRibbon = (drag: RibbonDrag, clientX: number, clientY: number) => {
+    const positionedSettings = settingsWithRibbonPosition(drag, clientX, clientY);
+    return {
+      version: 1,
+      ribbons: positionedSettings.ribbons.map((item) =>
+        item.id === drag.ribbonId ? { ...item, dock: "leftPanelBottom" } : item
       )
     } satisfies CommandRibbonSettings;
   };
@@ -156,7 +173,10 @@ export const CommandRibbonOverlay = ({
     event.preventDefault();
     event.stopPropagation();
     event.currentTarget.releasePointerCapture?.(event.pointerId);
-    const nextSettings = settingsWithRibbonPosition(drag, event.clientX, event.clientY);
+    const dockRect = leftPanelDockRef.current?.getBoundingClientRect() ?? null;
+    const nextSettings = isClientPointInRect(event.clientX, event.clientY, dockRect)
+      ? settingsWithDockedRibbon(drag, event.clientX, event.clientY)
+      : settingsWithRibbonPosition(drag, event.clientX, event.clientY);
     settingsRef.current = nextSettings;
     setCommandRibbonSettings(nextSettings);
     saveRibbonSettings(nextSettings);
@@ -177,53 +197,17 @@ export const CommandRibbonOverlay = ({
       {resolvedRibbons.map((ribbon) => (
         <div
           key={ribbon.id}
-          className={`command-ribbon is-${ribbon.orientation} ${draggingRibbonId === ribbon.id ? "is-dragging" : ""}`}
-          style={{ left: ribbon.x, top: ribbon.y }}
-          onPointerDown={(event) => event.stopPropagation()}
-          onWheel={(event) => event.stopPropagation()}
+          style={{ position: "absolute", left: ribbon.x, top: ribbon.y }}
         >
-          <button
-            type="button"
-            className="command-ribbon-handle"
-            aria-label={`${ribbon.label}を移動`}
-            title="ドラッグで移動"
-            onPointerDown={(event) => startDrag(event, ribbon)}
-            onPointerMove={moveDrag}
-            onPointerUp={stopDrag}
-            onPointerCancel={cancelDrag}
-          >
-            <CommandRibbonGripIcon size={Math.max(14, ribbon.iconSize)} strokeWidth={2} />
-          </button>
-          <div className="command-ribbon-buttons">
-            {ribbon.buttons.map((button) => {
-              const Icon = commandRibbonIconComponents[button.icon];
-              return (
-                <button
-                  key={button.id}
-                  type="button"
-                  className={button.showLabel ? "command-ribbon-button has-label" : "command-ribbon-button"}
-                  aria-label={button.label}
-                  title={button.label}
-                  style={{
-                    minWidth: ribbon.iconSize + RIBBON_BUTTON_PADDING,
-                    minHeight: ribbon.iconSize + RIBBON_BUTTON_PADDING
-                  }}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    dispatchCommand(button.commandId, commandContext);
-                    commandContext.focusCanvas?.();
-                  }}
-                >
-                  <Icon
-                    size={ribbon.iconSize}
-                    strokeWidth={2}
-                    style={{ color: commandRibbonIconColorValues[button.iconColor] }}
-                  />
-                  {button.showLabel ? <span>{button.label}</span> : null}
-                </button>
-              );
-            })}
-          </div>
+          <CommandRibbonView
+            ribbon={ribbon}
+            commandContext={commandContext}
+            dragging={draggingRibbonId === ribbon.id}
+            onHandlePointerDown={startDrag}
+            onHandlePointerMove={moveDrag}
+            onHandlePointerUp={stopDrag}
+            onHandlePointerCancel={cancelDrag}
+          />
         </div>
       ))}
     </div>

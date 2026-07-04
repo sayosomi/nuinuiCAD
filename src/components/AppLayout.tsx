@@ -51,6 +51,7 @@ export const AppLayout = () => {
       Boolean(state.activeTemplateInsertion)
   );
   const canvasFocusRef = useRef<HTMLDivElement>(null);
+  const commandRibbonDockRef = useRef<HTMLDivElement>(null);
   const elementListFocusRef = useRef<HTMLDivElement>(null);
   const elementSearchInputRef = useRef<HTMLInputElement>(null);
   const parameterInputRefs = useRef(new Map<string, HTMLElement>());
@@ -283,6 +284,9 @@ export const AppLayout = () => {
       onFocusCapture={(event) => selectTextInputValue(event.target)}
     >
       <LeftPanel
+        canvasFocusRef={canvasFocusRef}
+        commandContext={commandContext}
+        commandRibbonDockRef={commandRibbonDockRef}
         evaluation={evaluation}
         elementListFocusRef={elementListFocusRef}
         elementSearchInputRef={elementSearchInputRef}
@@ -329,6 +333,7 @@ export const AppLayout = () => {
             evaluationState={evaluationState}
             canvasFocusRef={canvasFocusRef}
             commandContext={commandContext}
+            leftPanelDockRef={commandRibbonDockRef}
           />
           <RightPanel
             evaluation={evaluation}

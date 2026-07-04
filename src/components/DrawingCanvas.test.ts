@@ -129,7 +129,8 @@ const renderDrawingCanvas = () => {
   const view = render(
     createElement(DrawingCanvas, {
       evaluation: evaluateElements(useCadStore.getState().elements),
-      canvasFocusRef: createRef<HTMLDivElement>()
+      canvasFocusRef: createRef<HTMLDivElement>(),
+      leftPanelDockRef: createRef<HTMLDivElement>()
     })
   );
   const viewport = view.container.querySelector(".canvas-viewport");

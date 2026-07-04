@@ -12,6 +12,7 @@ fn default_command_ribbon_settings() -> Value {
             {
                 "id": "drafting",
                 "label": "作図",
+                "dock": "canvas",
                 "x": null,
                 "y": 12,
                 "orientation": "horizontal",
@@ -30,6 +31,23 @@ fn default_command_ribbon_settings() -> Value {
                     { "id": "addSplitLine", "commandId": "addSplitLine", "icon": "scissors", "iconColor": "default", "label": "分割線", "showLabel": false },
                     { "id": "addCopyLine", "commandId": "addCopyLine", "icon": "copy", "iconColor": "default", "label": "コピー線", "showLabel": false },
                     { "id": "addSymmetricCopyLine", "commandId": "addSymmetricCopyLine", "icon": "flip-horizontal", "iconColor": "default", "label": "対称コピー", "showLabel": false }
+                ]
+            },
+            {
+                "id": "selection-actions",
+                "label": "選択操作",
+                "dock": "leftPanelBottom",
+                "x": 24,
+                "y": 72,
+                "orientation": "horizontal",
+                "iconSize": 16,
+                "buttons": [
+                    { "id": "moveSelectedElementUp", "commandId": "moveSelectedElementUp", "icon": "arrow-up", "iconColor": "default", "label": "上へ", "showLabel": false },
+                    { "id": "moveSelectedElementDown", "commandId": "moveSelectedElementDown", "icon": "arrow-down", "iconColor": "default", "label": "下へ", "showLabel": false },
+                    { "id": "duplicateSelectedElement", "commandId": "duplicateSelectedElement", "icon": "copy", "iconColor": "default", "label": "複製", "showLabel": false },
+                    { "id": "toggleSelectedElementVisibility", "commandId": "toggleSelectedElementVisibility", "icon": "eye", "iconColor": "default", "label": "表示切替", "showLabel": false },
+                    { "id": "toggleSelectedElementEnabled", "commandId": "toggleSelectedElementEnabled", "icon": "toggle-right", "iconColor": "default", "label": "評価切替", "showLabel": false },
+                    { "id": "deleteSelectedElement", "commandId": "deleteSelectedElement", "icon": "trash", "iconColor": "red", "label": "削除", "showLabel": false }
                 ]
             }
         ]

@@ -40,6 +40,7 @@ const defaultButton = (): CommandRibbonButton => ({
 const defaultRibbon = (index: number): CommandRibbon => ({
   id: newId("ribbon"),
   label: `リボン ${index + 1}`,
+  dock: "canvas",
   x: null,
   y: 12 + index * 44,
   orientation: "horizontal",
@@ -283,7 +284,7 @@ const CommandRibbonSettingsDialogContent = ({
         <div className="shortcut-overlay-header">
           <div>
             <h2>コマンドリボン</h2>
-            <p>Canvas上に固定表示するコマンドボタン</p>
+            <p>Canvas上または左ペイン下部に表示するコマンドボタン</p>
           </div>
           <button type="button" onClick={close}>閉じる</button>
         </div>
@@ -313,7 +314,9 @@ const CommandRibbonSettingsDialogContent = ({
                     onClick={() => selectRibbon(ribbon.id)}
                   >
                     <span>{ribbon.label}</span>
-                    <small>{ribbon.orientation === "vertical" ? "縦" : "横"} / {ribbon.iconSize}px</small>
+                    <small>
+                      {ribbon.dock === "leftPanelBottom" ? "左下" : "Canvas"} / {ribbon.orientation === "vertical" ? "縦" : "横"} / {ribbon.iconSize}px
+                    </small>
                   </button>
                   <div className="command-ribbon-order-buttons">
                     <button
@@ -361,6 +364,23 @@ const CommandRibbonSettingsDialogContent = ({
                         )
                       }
                     />
+                  </label>
+                  <label>
+                    配置
+                    <select
+                      value={selectedRibbon.dock}
+                      onChange={(event) =>
+                        setDraftSettings((current) =>
+                          withRibbon(current, selectedRibbon.id, (ribbon) => ({
+                            ...ribbon,
+                            dock: event.target.value === "leftPanelBottom" ? "leftPanelBottom" : "canvas"
+                          }))
+                        )
+                      }
+                    >
+                      <option value="canvas">Canvas</option>
+                      <option value="leftPanelBottom">左ペイン下部</option>
+                    </select>
                   </label>
                   <label>
                     向き

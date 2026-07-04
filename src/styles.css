@@ -240,47 +240,6 @@ select {
   min-height: 34px;
 }
 
-.left-panel-action-ribbon {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  align-items: stretch;
-  border: 1px solid #c9ccc2;
-  border-radius: 6px;
-  background: #ffffff;
-  padding: 4px;
-  box-shadow: 0 1px 3px rgb(37 38 34 / 8%);
-}
-
-.left-panel-action-ribbon-button {
-  display: inline-grid;
-  place-items: center;
-  flex: 0 0 auto;
-  width: 32px;
-  height: 32px;
-  min-width: 32px;
-  min-height: 32px;
-  border: 1px solid transparent;
-  border-radius: 4px;
-  background: transparent;
-  color: #252622;
-  padding: 0;
-  line-height: 1;
-}
-
-.left-panel-action-ribbon-button:hover:not(:disabled),
-.left-panel-action-ribbon-button:focus-visible {
-  border-color: #b6d8cd;
-  background: #e7f4ef;
-  color: #0f4f49;
-}
-
-.left-panel-action-ribbon-button:disabled {
-  color: #a0a49b;
-  cursor: not-allowed;
-  opacity: 0.55;
-}
-
 .element-list {
   display: grid;
   grid-auto-rows: max-content;
@@ -3487,7 +3446,6 @@ select {
 }
 
 .command-ribbon {
-  position: absolute;
   display: flex;
   align-items: stretch;
   overflow: hidden;
@@ -3501,6 +3459,11 @@ select {
 
 .command-ribbon.is-vertical {
   flex-direction: column;
+}
+
+.command-ribbon.is-docked {
+  width: 100%;
+  overflow: visible;
 }
 
 .command-ribbon.is-dragging {
@@ -3530,9 +3493,15 @@ select {
 }
 
 .command-ribbon-handle:hover,
-.command-ribbon-button:hover {
+.command-ribbon-button:hover:not(:disabled) {
   background: #e7f4ef;
   color: #0f4f49;
+}
+
+.command-ribbon-button:disabled {
+  color: #a0a49b;
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .command-ribbon-handle:active {
@@ -3546,6 +3515,11 @@ select {
 
 .command-ribbon.is-vertical .command-ribbon-buttons {
   flex-direction: column;
+}
+
+.command-ribbon.is-docked .command-ribbon-buttons {
+  flex: 1;
+  flex-wrap: wrap;
 }
 
 .command-ribbon-button {
@@ -3569,6 +3543,16 @@ select {
   font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.left-panel-ribbon-dock {
+  display: grid;
+  gap: 6px;
+  min-height: 42px;
+  border: 1px dashed #c9ccc2;
+  border-radius: 6px;
+  background: rgb(255 255 255 / 62%);
+  padding: 4px;
 }
 
 .measurement-candidate-menu,

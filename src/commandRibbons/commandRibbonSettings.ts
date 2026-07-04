@@ -64,6 +64,7 @@ export type CommandRibbonButton = {
 export type CommandRibbon = {
   id: string;
   label: string;
+  dock: "canvas" | "leftPanelBottom";
   x: number | null;
   y: number;
   orientation: "horizontal" | "vertical";
@@ -80,6 +81,7 @@ const DEFAULT_RIBBON_Y = 12;
 const DEFAULT_ICON_SIZE: CommandRibbonIconSize = 16;
 const MIN_RIBBON_COORDINATE = 0;
 const MAX_RIBBON_COORDINATE = 10000;
+const SELECTION_ACTIONS_RIBBON_ID = "selection-actions";
 
 const isObject = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -119,6 +121,7 @@ export const defaultCommandRibbonSettings = (): CommandRibbonSettings => ({
     {
       id: "drafting",
       label: "作図",
+      dock: "canvas",
       x: null,
       y: DEFAULT_RIBBON_Y,
       orientation: "horizontal",
@@ -137,6 +140,26 @@ export const defaultCommandRibbonSettings = (): CommandRibbonSettings => ({
         defaultButton("addSplitLine", "scissors", "分割線"),
         defaultButton("addCopyLine", "copy", "コピー線"),
         defaultButton("addSymmetricCopyLine", "flip-horizontal", "対称コピー")
+      ]
+    },
+    {
+      id: SELECTION_ACTIONS_RIBBON_ID,
+      label: "選択操作",
+      dock: "leftPanelBottom",
+      x: 24,
+      y: 72,
+      orientation: "horizontal",
+      iconSize: DEFAULT_ICON_SIZE,
+      buttons: [
+        defaultButton("moveSelectedElementUp", "arrow-up", "上へ"),
+        defaultButton("moveSelectedElementDown", "arrow-down", "下へ"),
+        defaultButton("duplicateSelectedElement", "copy", "複製"),
+        defaultButton("toggleSelectedElementVisibility", "eye", "表示切替"),
+        defaultButton("toggleSelectedElementEnabled", "toggle-right", "評価切替"),
+        {
+          ...defaultButton("deleteSelectedElement", "trash", "削除"),
+          iconColor: "red"
+        }
       ]
     }
   ]
@@ -167,6 +190,7 @@ const normalizeRibbon = (value: unknown): CommandRibbon | null => {
   return {
     id: typeof value.id === "string" && value.id.length > 0 ? value.id : "ribbon",
     label: typeof value.label === "string" && value.label.length > 0 ? value.label : "リボン",
+    dock: value.dock === "leftPanelBottom" ? "leftPanelBottom" : "canvas",
     x: typeof value.x === "number" && Number.isFinite(value.x) ? clampCoordinate(value.x) : null,
     y: typeof value.y === "number" && Number.isFinite(value.y) ? clampCoordinate(value.y) : DEFAULT_RIBBON_Y,
     orientation: value.orientation === "vertical" ? "vertical" : "horizontal",
@@ -177,10 +201,23 @@ const normalizeRibbon = (value: unknown): CommandRibbon | null => {
 
 export const normalizeCommandRibbonSettings = (value: unknown): CommandRibbonSettings => {
   if (!isObject(value) || !Array.isArray(value.ribbons)) return defaultCommandRibbonSettings();
+  const hasDockField = value.ribbons.some(
+    (ribbon) => isObject(ribbon) && typeof ribbon.dock === "string"
+  );
   const ribbons = value.ribbons
     .map(normalizeRibbon)
     .filter((ribbon): ribbon is CommandRibbon => Boolean(ribbon));
-  return ribbons.length > 0 ? { version: 1, ribbons } : defaultCommandRibbonSettings();
+  if (ribbons.length === 0) return defaultCommandRibbonSettings();
+  if (!hasDockField && !ribbons.some((ribbon) => ribbon.id === SELECTION_ACTIONS_RIBBON_ID)) {
+    const selectionActionsRibbon = defaultCommandRibbonSettings().ribbons.find(
+      (ribbon) => ribbon.id === SELECTION_ACTIONS_RIBBON_ID
+    );
+    return {
+      version: 1,
+      ribbons: selectionActionsRibbon ? [...ribbons, selectionActionsRibbon] : ribbons
+    };
+  }
+  return { version: 1, ribbons };
 };
 
 const loadCommandRibbonSettingsFromLocalStorage = () => {
