@@ -6,8 +6,11 @@ import { useCadUiStore } from "../state/cadUiStore";
 import type { LineEndpointReference, PointAnchor } from "../types/geometry";
 import { NumericParameterEditor } from "./NumericParameterEditor";
 import { ParameterName } from "./ParameterName";
-import type { CommonEditorProps } from "./parameterEditorShared";
-import { useParameterEditor } from "./parameterEditorShared";
+import {
+  isEditorBackgroundClick,
+  useParameterEditor,
+  type CommonEditorProps
+} from "./parameterEditorShared";
 
 export const PointAnchorParameterEditor = ({
   element,
@@ -50,7 +53,11 @@ export const PointAnchorParameterEditor = ({
   return (
     <div className={`point-anchor-editor ${parameterFieldClass(parameterKey)} ${
       isPickingThisPoint ? "is-picking-point" : ""
-    }`}>
+    }`} onClick={(event) => {
+      if (anchor.mode !== "coordinate" && isEditorBackgroundClick(event)) {
+        togglePointPick();
+      }
+    }}>
       <div className="point-anchor-header">
         <ParameterName element={element} parameterKey={parameterKey} label={label} />
         <div className="point-anchor-actions">
@@ -155,7 +162,11 @@ export const LineEndpointReferenceEditor = ({
   return (
     <div className={`point-anchor-editor ${parameterFieldClass(parameterKey)} ${
       isPickingThisEndpoint ? "is-picking-point" : ""
-    }`}>
+    }`} onClick={(event) => {
+      if (isEditorBackgroundClick(event)) {
+        toggleEndpointPick();
+      }
+    }}>
       <div className="point-anchor-header">
         <ParameterName element={element} parameterKey={parameterKey} label={label} />
       </div>

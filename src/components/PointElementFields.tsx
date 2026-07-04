@@ -16,7 +16,7 @@ import {
   NumericParameterEditor,
   PointAnchorParameterEditor
 } from "./ParameterEditors";
-import type { CommonEditorProps } from "./parameterEditorShared";
+import { isEditorBackgroundClick, type CommonEditorProps } from "./parameterEditorShared";
 
 export const PointElementFields = ({
   element,
@@ -229,7 +229,18 @@ export const PointElementFields = ({
           activePointPickTarget.pickFlow === "lineAndPoint");
       return (
         <>
-          <div className="line-endpoint-pair-actions">
+          <div
+            className="line-endpoint-pair-actions"
+            onClick={(event) => {
+              if (!isLineAndPointPicking && isEditorBackgroundClick(event)) {
+                dispatchCommand("startLineAndPointPick", {
+                  elementId: element.id,
+                  parameterKey: "baseLineId",
+                  nextParameterKey: "basePoint"
+                });
+              }
+            }}
+          >
             <button
               type="button"
               className={isLineAndPointPicking ? "active" : ""}

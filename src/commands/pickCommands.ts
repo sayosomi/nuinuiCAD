@@ -491,7 +491,7 @@ export const applySelectedPickCandidate = () => {
 
 export const startPointPick = (
   context?: Pick<CommandContext, "elementId" | "parameterKey" | "nextParameterKey"> & {
-    pickFlow?: "lineEndpointPair";
+    pickFlow?: "lineEndpointPair" | "lineAndPoint" | "endpointPair" | "endpointAndPoint";
   }
 ) => {
   const { elements, selectedElementId } = useCadDocumentStore.getState();
@@ -534,6 +534,50 @@ export const startLineEndpointPairPick = (context?: Pick<CommandContext, "elemen
     parameterKey: "startPoint",
     nextParameterKey: "endPoint",
     pickFlow: "lineEndpointPair"
+  });
+};
+
+export const startEndpointPairPick = (
+  context?: Pick<CommandContext, "elementId" | "parameterKey" | "nextParameterKey">
+) => {
+  const { elements, selectedElementId } = useCadDocumentStore.getState();
+  const targetElementId = context?.elementId ?? selectedElementId;
+  const targetElement = targetElementId
+    ? elements.find((element) => element.id === targetElementId) ?? null
+    : null;
+  if (!targetElement || !context?.parameterKey || !context.nextParameterKey) return;
+
+  const firstDefinition = findParameterDefinition(targetElement, context.parameterKey);
+  const nextDefinition = findParameterDefinition(targetElement, context.nextParameterKey);
+  if (firstDefinition?.kind !== "lineEndpointReference" || nextDefinition?.kind !== "lineEndpointReference") return;
+
+  startPointPick({
+    elementId: targetElement.id,
+    parameterKey: firstDefinition.key,
+    nextParameterKey: nextDefinition.key,
+    pickFlow: "endpointPair"
+  });
+};
+
+export const startEndpointAndPointPick = (
+  context?: Pick<CommandContext, "elementId" | "parameterKey" | "nextParameterKey">
+) => {
+  const { elements, selectedElementId } = useCadDocumentStore.getState();
+  const targetElementId = context?.elementId ?? selectedElementId;
+  const targetElement = targetElementId
+    ? elements.find((element) => element.id === targetElementId) ?? null
+    : null;
+  if (!targetElement || !context?.parameterKey || !context.nextParameterKey) return;
+
+  const endpointDefinition = findParameterDefinition(targetElement, context.parameterKey);
+  const pointDefinition = findParameterDefinition(targetElement, context.nextParameterKey);
+  if (endpointDefinition?.kind !== "lineEndpointReference" || pointDefinition?.kind !== "reference") return;
+
+  startPointPick({
+    elementId: targetElement.id,
+    parameterKey: endpointDefinition.key,
+    nextParameterKey: pointDefinition.key,
+    pickFlow: "endpointAndPoint"
   });
 };
 
@@ -593,6 +637,17 @@ export const applyPickedPoint = (context?: Pick<CommandContext, "pickedPointId" 
       selectionAnchorElementId: activePointPickTarget.elementId,
       selectedParameterKey: activePointPickTarget.parameterKey
     });
+    if (activePointPickTarget.nextParameterKey) {
+      const nextDefinition = findParameterDefinition(targetElement, activePointPickTarget.nextParameterKey);
+      if (nextDefinition?.kind === "reference" || nextDefinition?.kind === "lineEndpointReference") {
+        useCadUiStore.getState().setActivePointPickTarget({
+          elementId: activePointPickTarget.elementId,
+          parameterKey: nextDefinition.key,
+          ...(activePointPickTarget.pickFlow ? { pickFlow: activePointPickTarget.pickFlow } : {})
+        });
+        return;
+      }
+    }
     useCadUiStore.getState().setActivePointPickTarget(null);
     return;
   }

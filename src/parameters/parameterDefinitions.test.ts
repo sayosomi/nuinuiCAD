@@ -80,6 +80,36 @@ describe("parameterDefinitions", () => {
     );
   });
 
+  it("defines local numeric variable parameters for variable elements", () => {
+    const variable: CadElement = {
+      id: "variable",
+      name: "変数",
+      type: "variable",
+      visible: true,
+      enabled: true,
+      numericVariables: [{ id: "local-width", name: "幅", value: 30 }],
+      scope: "global",
+      valueMode: "expression",
+      expression: { kind: "expression", expression: "@local-width * 2" },
+      point1: { mode: "reference", pointId: "point-a" },
+      point2: { mode: "reference", pointId: "point-b" },
+      point: { mode: "reference", pointId: "point-a" },
+      lineId: "line-ab"
+    };
+
+    expect(getParameterDefinitions(variable)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          key: "variable:local-width:value",
+          directKey: "q",
+          label: "変数 幅",
+          kind: "number"
+        }),
+        expect.objectContaining({ key: "expression", directKey: "v", label: "式", kind: "number" })
+      ])
+    );
+  });
+
   it("defines editable parameters for intersection points", () => {
     const point: CadElement = {
       id: "intersection",

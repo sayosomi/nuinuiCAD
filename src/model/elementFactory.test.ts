@@ -46,6 +46,20 @@ describe("createCadElement", () => {
     });
   });
 
+  it("creates variables with numeric variable support enabled", () => {
+    expect(createCadElement("variable", sampleElements, { createId: createTestId })).toMatchObject({
+      id: "variable-test-id",
+      name: "変数1",
+      type: "variable",
+      visible: true,
+      enabled: true,
+      numericVariables: [],
+      scope: "global",
+      valueMode: "expression",
+      expression: 0
+    });
+  });
+
   it("creates division points using the first two points as default endpoints", () => {
     expect(createCadElement("divisionPoint", sampleElements, { createId: createTestId })).toMatchObject({
       id: "divisionPoint-test-id",

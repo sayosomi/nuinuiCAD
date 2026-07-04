@@ -1066,6 +1066,35 @@ describe("commands", () => {
     expect(line?.numericVariables?.[0]).toMatchObject({ name: "v1", value: 30 });
   });
 
+  it("adds numeric variables to variable elements", () => {
+    const variable: CadElement = {
+      id: "variable",
+      name: "変数",
+      type: "variable",
+      visible: true,
+      enabled: true,
+      scope: "global",
+      valueMode: "expression",
+      expression: 0,
+      point1: { mode: "reference", pointId: "point-a" },
+      point2: { mode: "reference", pointId: "point-b" },
+      point: { mode: "reference", pointId: "point-a" },
+      lineId: "line-ab"
+    };
+    useCadStore.setState({
+      elements: [...sampleElements, variable],
+      selectedElementId: "variable",
+      selectedElementIds: ["variable"]
+    });
+
+    dispatchCommand("addNumericVariable");
+
+    const updated = useCadStore.getState().elements.find((element) => element.id === "variable");
+    expect(updated).toMatchObject({ type: "variable" });
+    expect(updated?.numericVariables?.[0]).toMatchObject({ name: "v1", value: 30 });
+    expect(useCadStore.getState().selectedParameterKey).toBe(`variable:${updated?.numericVariables?.[0].id}:value`);
+  });
+
   it("locks Bezier handle distance while dragging", () => {
     dispatchCommand("moveBezierHandleByDelta", {
       elementId: "curve-ac",
@@ -2545,6 +2574,99 @@ describe("commands", () => {
     expect(useCadStore.getState().elements[3]).toMatchObject({
       startPoint: { mode: "reference", pointId: "point-c" },
       endPoint: { mode: "reference", pointId: "point-b" }
+    });
+    expect(useCadStore.getState().past).toHaveLength(2);
+  });
+
+  it("picks endpoint references in sequence", () => {
+    const element: CadElement = {
+      id: "corner",
+      name: "角丸",
+      type: "cornerRadiusArcLine",
+      visible: true,
+      enabled: true,
+      endpoint1: { lineId: "line-ab", endpointKey: "start" },
+      endpoint2: { lineId: "line-bc", endpointKey: "start" },
+      radius: 10,
+      intersectionIndex: 0
+    };
+    useCadStore.setState({
+      elements: [...sampleElements, element],
+      selectedElementId: element.id,
+      selectedElementIds: [element.id],
+      selectedParameterKey: "name"
+    });
+
+    dispatchCommand("startEndpointPairPick", {
+      elementId: element.id,
+      parameterKey: "endpoint1",
+      nextParameterKey: "endpoint2"
+    });
+    expect(useCadStore.getState().activePointPickTarget).toEqual({
+      elementId: element.id,
+      parameterKey: "endpoint1",
+      nextParameterKey: "endpoint2",
+      pickFlow: "endpointPair"
+    });
+
+    dispatchCommand("applyPickedPoint", {
+      pickedPointAnchor: { mode: "derived", elementId: "line-ab", pointKey: "end" }
+    });
+    expect(useCadStore.getState().activePointPickTarget).toEqual({
+      elementId: element.id,
+      parameterKey: "endpoint2",
+      pickFlow: "endpointPair"
+    });
+
+    dispatchCommand("applyPickedPoint", {
+      pickedPointAnchor: { mode: "derived", elementId: "line-bc", pointKey: "end" }
+    });
+    expect(useCadStore.getState().activePointPickTarget).toBeNull();
+    expect(useCadStore.getState().elements.at(-1)).toMatchObject({
+      type: "cornerRadiusArcLine",
+      endpoint1: { lineId: "line-ab", endpointKey: "end" },
+      endpoint2: { lineId: "line-bc", endpointKey: "end" }
+    });
+    expect(useCadStore.getState().past).toHaveLength(2);
+  });
+
+  it("picks an endpoint and then advances to point picking", () => {
+    const element: CadElement = {
+      id: "extend",
+      name: "延長短縮",
+      type: "extendTrim",
+      visible: true,
+      enabled: true,
+      endpoint: { lineId: "line-ab", endpointKey: "start" },
+      point: { mode: "reference", pointId: "point-a" }
+    };
+    useCadStore.setState({
+      elements: [...sampleElements, element],
+      selectedElementId: element.id,
+      selectedElementIds: [element.id],
+      selectedParameterKey: "name"
+    });
+
+    dispatchCommand("startEndpointAndPointPick", {
+      elementId: element.id,
+      parameterKey: "endpoint",
+      nextParameterKey: "point"
+    });
+    dispatchCommand("applyPickedPoint", {
+      pickedPointAnchor: { mode: "derived", elementId: "line-bc", pointKey: "end" }
+    });
+    expect(useCadStore.getState().activePointPickTarget).toEqual({
+      elementId: element.id,
+      parameterKey: "point",
+      pickFlow: "endpointAndPoint"
+    });
+
+    dispatchCommand("applyPickedPoint", { pickedPointId: "point-c" });
+    expect(useCadStore.getState().activePointPickTarget).toBeNull();
+    expect(useCadStore.getState().elements.at(-1)).toMatchObject({
+      type: "extendTrim",
+      endpoint: { lineId: "line-bc", endpointKey: "end" },
+      point: { mode: "reference", pointId: "point-c" }
     });
     expect(useCadStore.getState().past).toHaveLength(2);
   });

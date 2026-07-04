@@ -3,8 +3,11 @@ import type { ParameterKey } from "../parameters/parameterDefinitions";
 import { useCadUiStore } from "../state/cadUiStore";
 import type { ElementId } from "../types/geometry";
 import { ParameterName } from "./ParameterName";
-import type { CommonEditorProps } from "./parameterEditorShared";
-import { useParameterEditor } from "./parameterEditorShared";
+import {
+  isEditorBackgroundClick,
+  useParameterEditor,
+  type CommonEditorProps
+} from "./parameterEditorShared";
 
 export const ChoiceParameterEditor = ({
   element,
@@ -228,7 +231,12 @@ export const LineReferenceEditor = ({
       className={`line-anchor-editor ${parameterFieldClass(parameterKey)} ${
         isPickingThisLine ? "is-picking-line" : ""
       }`}
-      onClick={() => selectParameter(parameterKey)}
+      onClick={(event) => {
+        selectParameter(parameterKey);
+        if (isEditorBackgroundClick(event)) {
+          toggleLinePick();
+        }
+      }}
     >
       <div className="point-anchor-header">
         <ParameterName element={element} parameterKey={parameterKey} label={label} />

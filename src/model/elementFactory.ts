@@ -104,6 +104,7 @@ export const createCadElement = (
         type,
         visible: true,
         enabled: true,
+        numericVariables: [],
         scope: "global",
         valueMode: "expression",
         expression: 0,

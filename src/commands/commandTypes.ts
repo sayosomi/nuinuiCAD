@@ -69,6 +69,8 @@ export type CommandId =
   | "applySelectedPickCandidate"
   | "startPointPick"
   | "startLineEndpointPairPick"
+  | "startEndpointPairPick"
+  | "startEndpointAndPointPick"
   | "applyPickedPoint"
   | "cancelPointPick"
   | "startLinePick"

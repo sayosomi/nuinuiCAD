@@ -3,6 +3,7 @@ import { pointAnchorForElement, referenceAnchor } from "../model/pointAnchors";
 import type { CadElement, NumericValue, PointAnchor } from "../types/geometry";
 
 export const supportsNumericVariables = (element: CadElement) =>
+  element.type === "variable" ||
   element.type === "freePoint" ||
   element.type === "offsetPoint" ||
   element.type === "polarOffsetPoint" ||

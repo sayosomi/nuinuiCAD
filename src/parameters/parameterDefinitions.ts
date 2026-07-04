@@ -125,6 +125,7 @@ export const getParameterDefinitions = (element: CadElement): ParameterDefinitio
     case "variable":
       return [
         ...variableCommonParameters,
+        ...numericVariableParameters(element),
         {
           key: "scope",
           directKey: "s",

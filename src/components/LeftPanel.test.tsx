@@ -302,6 +302,33 @@ describe("LeftPanel numeric input dragging", () => {
     expect(screen.getByText("要素内変数")).toBeInTheDocument();
   });
 
+  it("shows numeric variables for variable elements", () => {
+    const variable: CadElement = {
+      id: "variable",
+      name: "変数",
+      type: "variable",
+      visible: true,
+      enabled: true,
+      scope: "global",
+      valueMode: "expression",
+      expression: 0,
+      point1: { mode: "reference", pointId: "point-a" },
+      point2: { mode: "reference", pointId: "point-b" },
+      point: { mode: "reference", pointId: "point-a" },
+      lineId: "line-ab"
+    };
+    useCadStore.setState({
+      elements: [...sampleElements, variable],
+      selectedElementId: "variable",
+      selectedElementIds: ["variable"]
+    });
+
+    renderRightPanel();
+
+    expect(screen.getByText("要素内変数")).toBeInTheDocument();
+    expect(screen.getByText("要素内変数はありません。")).toBeInTheDocument();
+  });
+
   it("edits for group parameters from the right panel", () => {
     const loop: CadElement = {
       id: "loop",
@@ -1106,6 +1133,37 @@ describe("LeftPanel numeric input dragging", () => {
     expect(screen.queryByRole("combobox", { name: /基準線/ })).not.toBeInTheDocument();
   });
 
+  it("starts single line picking from the line reference card background", () => {
+    useCadStore.setState({
+      elements: [
+        ...sampleElements,
+        {
+          id: "tangent-point",
+          name: "接線オフセット点",
+          type: "lineTangentOffsetPoint",
+          visible: true,
+          enabled: true,
+          baseLineId: "line-ab",
+          basePoint: { mode: "reference", pointId: "point-a" },
+          tangentAngleDeg: 90,
+          distance: 30
+        }
+      ],
+      selectedElementId: "tangent-point",
+      selectedElementIds: ["tangent-point"],
+      selectedParameterKey: "baseLineId"
+    });
+
+    renderRightPanel();
+
+    fireEvent.click(document.querySelector(".right-panel .line-anchor-editor")!);
+
+    expect(useCadStore.getState().activeLinePickTarget).toEqual({
+      elementId: "tangent-point",
+      parameterKey: "baseLineId"
+    });
+  });
+
   it("starts a line to point pick flow for line tangent offset points", () => {
     useCadStore.setState({
       elements: [
@@ -1136,6 +1194,23 @@ describe("LeftPanel numeric input dragging", () => {
       parameterKey: "baseLineId",
       nextPointParameterKey: "basePoint",
       pickFlow: "lineAndPoint"
+    });
+  });
+
+  it("starts point picking from a point reference card background", () => {
+    useCadStore.setState({
+      selectedElementId: "line-ab",
+      selectedElementIds: ["line-ab"],
+      selectedParameterKey: "startPoint"
+    });
+
+    renderRightPanel();
+
+    fireEvent.click(document.querySelector(".right-panel .point-anchor-editor")!);
+
+    expect(useCadStore.getState().activePointPickTarget).toEqual({
+      elementId: "line-ab",
+      parameterKey: "startPoint"
     });
   });
 
@@ -1202,6 +1277,97 @@ describe("LeftPanel numeric input dragging", () => {
       parameterKey: "endpoint"
     });
     expect(screen.queryByRole("combobox", { name: /端点/ })).not.toBeInTheDocument();
+  });
+
+  it("starts endpoint picking from the endpoint reference card background", () => {
+    useCadStore.setState({
+      elements: [
+        ...sampleElements,
+        {
+          id: "line-division",
+          name: "線上分点",
+          type: "lineDivisionPoint",
+          visible: true,
+          enabled: true,
+          endpoint: { lineId: "line-ab", endpointKey: "start" },
+          placementMode: "ratio",
+          distance: 30,
+          ratio: 0.5
+        }
+      ],
+      selectedElementId: "line-division",
+      selectedElementIds: ["line-division"],
+      selectedParameterKey: "endpoint"
+    });
+
+    renderRightPanel();
+
+    fireEvent.click(document.querySelector(".right-panel .point-anchor-editor")!);
+
+    expect(useCadStore.getState().activePointPickTarget).toEqual({
+      elementId: "line-division",
+      parameterKey: "endpoint"
+    });
+  });
+
+  it("starts endpoint pair picking for corner radius arcs", () => {
+    const element: CadElement = {
+      id: "corner",
+      name: "角丸",
+      type: "cornerRadiusArcLine",
+      visible: true,
+      enabled: true,
+      endpoint1: { lineId: "line-ab", endpointKey: "start" },
+      endpoint2: { lineId: "line-bc", endpointKey: "start" },
+      radius: 10,
+      intersectionIndex: 0
+    };
+    useCadStore.setState({
+      elements: [...sampleElements, element],
+      selectedElementId: element.id,
+      selectedElementIds: [element.id],
+      selectedParameterKey: "endpoint1"
+    });
+
+    renderRightPanel();
+
+    fireEvent.click(screen.getByRole("button", { name: "端点1→端点2" }));
+
+    expect(useCadStore.getState().activePointPickTarget).toEqual({
+      elementId: "corner",
+      parameterKey: "endpoint1",
+      nextParameterKey: "endpoint2",
+      pickFlow: "endpointPair"
+    });
+  });
+
+  it("starts endpoint to point picking for extend trim elements", () => {
+    const element: CadElement = {
+      id: "extend",
+      name: "延長短縮",
+      type: "extendTrim",
+      visible: true,
+      enabled: true,
+      endpoint: { lineId: "line-ab", endpointKey: "start" },
+      point: { mode: "reference", pointId: "point-a" }
+    };
+    useCadStore.setState({
+      elements: [...sampleElements, element],
+      selectedElementId: element.id,
+      selectedElementIds: [element.id],
+      selectedParameterKey: "endpoint"
+    });
+
+    renderRightPanel();
+
+    fireEvent.click(screen.getByRole("button", { name: "端点→点" }));
+
+    expect(useCadStore.getState().activePointPickTarget).toEqual({
+      elementId: "extend",
+      parameterKey: "endpoint",
+      nextParameterKey: "point",
+      pickFlow: "endpointAndPoint"
+    });
   });
 
   it("folds repeated middle-button drags into a stable expression offset", () => {

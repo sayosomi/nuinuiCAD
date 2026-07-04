@@ -282,4 +282,28 @@ describe("parameterAccess", () => {
       x: { kind: "expression", expression: "@var-1" }
     });
   });
+
+  it("supports numeric variables on variable elements", () => {
+    const variable: CadElement = {
+      id: "variable",
+      name: "変数",
+      type: "variable",
+      visible: true,
+      enabled: true,
+      numericVariables: [{ id: "var-1", name: "幅", value: 30 }],
+      scope: "global",
+      valueMode: "expression",
+      expression: { kind: "expression", expression: "@var-1 * 2" },
+      point1: { mode: "reference", pointId: "point-a" },
+      point2: { mode: "reference", pointId: "point-b" },
+      point: { mode: "reference", pointId: "point-a" },
+      lineId: "line-ab"
+    };
+
+    expect(supportsNumericVariables(variable)).toBe(true);
+    expect(getParameterValue(variable, "variable:var-1:value")).toBe(30);
+    expect(setParameterValue(variable, "variable:var-1:value", 40)).toMatchObject({
+      numericVariables: [{ id: "var-1", name: "幅", value: 40 }]
+    });
+  });
 });

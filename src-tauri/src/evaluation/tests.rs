@@ -152,6 +152,46 @@ fn evaluates_points_lines_variables_and_arcs() {
 }
 
 #[test]
+fn evaluates_variable_element_local_numeric_variables() {
+    let result = evaluate_document_input(EvaluationInput {
+        elements: vec![
+            element(json!({
+                "id": "size",
+                "name": "寸法",
+                "type": "variable",
+                "visible": true,
+                "enabled": true,
+                "numericVariables": [
+                    { "id": "base", "name": "基準", "value": 30 },
+                    { "id": "ease", "name": "ゆとり", "value": { "kind": "expression", "expression": "@base + 5" } }
+                ],
+                "scope": "global",
+                "valueMode": "expression",
+                "expression": { "kind": "expression", "expression": "@ゆとり * 2" },
+                "point1": { "mode": "reference", "pointId": "a" },
+                "point2": { "mode": "reference", "pointId": "a" },
+                "point": { "mode": "reference", "pointId": "a" },
+                "lineId": ""
+            })),
+            element(json!({
+                "id": "a",
+                "name": "点A",
+                "type": "freePoint",
+                "visible": true,
+                "enabled": true,
+                "x": { "kind": "expression", "expression": "@寸法" },
+                "y": 0
+            })),
+        ],
+        evaluation_limit_index: None,
+    });
+
+    assert!(result.errors.is_empty());
+    assert_eq!(result.computed_variables[0]["value"], json!(70.0));
+    assert_eq!(result.computed_geometry[0]["x"], json!(70.0));
+}
+
+#[test]
 fn evaluates_arc_line_with_full_360_degree_sweep() {
     let result = evaluate_document_input(EvaluationInput {
         elements: vec![

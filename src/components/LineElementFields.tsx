@@ -15,7 +15,7 @@ import {
   NumericParameterEditor,
   PointAnchorParameterEditor
 } from "./ParameterEditors";
-import type { CommonEditorProps } from "./parameterEditorShared";
+import { isEditorBackgroundClick, type CommonEditorProps } from "./parameterEditorShared";
 
 export const LineElementFields = ({
   element,
@@ -54,7 +54,14 @@ export const LineElementFields = ({
         activePointPickTarget.pickFlow === "lineEndpointPair";
       return (
         <>
-          <div className="line-endpoint-pair-actions">
+          <div
+            className="line-endpoint-pair-actions"
+            onClick={(event) => {
+              if (!isPairPicking && isEditorBackgroundClick(event)) {
+                dispatchCommand("startLineEndpointPairPick", { elementId: element.id });
+              }
+            }}
+          >
             <button
               type="button"
               className={isPairPicking ? "active" : ""}
@@ -168,9 +175,42 @@ export const LineElementFields = ({
         </>
       );
 
-    case "cornerRadiusArcLine":
+    case "cornerRadiusArcLine": {
+      const isEndpointPairPicking =
+        activePointPickTarget?.elementId === element.id &&
+        activePointPickTarget.pickFlow === "endpointPair";
       return (
         <>
+          <div
+            className="line-endpoint-pair-actions"
+            onClick={(event) => {
+              if (!isEndpointPairPicking && isEditorBackgroundClick(event)) {
+                dispatchCommand("startEndpointPairPick", {
+                  elementId: element.id,
+                  parameterKey: "endpoint1",
+                  nextParameterKey: "endpoint2"
+                });
+              }
+            }}
+          >
+            <button
+              type="button"
+              className={isEndpointPairPicking ? "active" : ""}
+              onClick={() => {
+                if (isEndpointPairPicking) {
+                  dispatchCommand("cancelPointPick");
+                  return;
+                }
+                dispatchCommand("startEndpointPairPick", {
+                  elementId: element.id,
+                  parameterKey: "endpoint1",
+                  nextParameterKey: "endpoint2"
+                });
+              }}
+            >
+              端点1→端点2
+            </button>
+          </div>
           {lineEndpointEditor({
             parameterKey: "endpoint1",
             label: "端点1",
@@ -195,10 +235,44 @@ export const LineElementFields = ({
           })}
         </>
       );
+    }
 
-    case "edge":
+    case "edge": {
+      const isEndpointPairPicking =
+        activePointPickTarget?.elementId === element.id &&
+        activePointPickTarget.pickFlow === "endpointPair";
       return (
         <>
+          <div
+            className="line-endpoint-pair-actions"
+            onClick={(event) => {
+              if (!isEndpointPairPicking && isEditorBackgroundClick(event)) {
+                dispatchCommand("startEndpointPairPick", {
+                  elementId: element.id,
+                  parameterKey: "endpoint1",
+                  nextParameterKey: "endpoint2"
+                });
+              }
+            }}
+          >
+            <button
+              type="button"
+              className={isEndpointPairPicking ? "active" : ""}
+              onClick={() => {
+                if (isEndpointPairPicking) {
+                  dispatchCommand("cancelPointPick");
+                  return;
+                }
+                dispatchCommand("startEndpointPairPick", {
+                  elementId: element.id,
+                  parameterKey: "endpoint1",
+                  nextParameterKey: "endpoint2"
+                });
+              }}
+            >
+              端点1→端点2
+            </button>
+          </div>
           {lineEndpointEditor({
             parameterKey: "endpoint1",
             label: "端点1",
@@ -217,10 +291,44 @@ export const LineElementFields = ({
           })}
         </>
       );
+    }
 
-    case "extendTrim":
+    case "extendTrim": {
+      const isEndpointAndPointPicking =
+        activePointPickTarget?.elementId === element.id &&
+        activePointPickTarget.pickFlow === "endpointAndPoint";
       return (
         <>
+          <div
+            className="line-endpoint-pair-actions"
+            onClick={(event) => {
+              if (!isEndpointAndPointPicking && isEditorBackgroundClick(event)) {
+                dispatchCommand("startEndpointAndPointPick", {
+                  elementId: element.id,
+                  parameterKey: "endpoint",
+                  nextParameterKey: "point"
+                });
+              }
+            }}
+          >
+            <button
+              type="button"
+              className={isEndpointAndPointPicking ? "active" : ""}
+              onClick={() => {
+                if (isEndpointAndPointPicking) {
+                  dispatchCommand("cancelPointPick");
+                  return;
+                }
+                dispatchCommand("startEndpointAndPointPick", {
+                  elementId: element.id,
+                  parameterKey: "endpoint",
+                  nextParameterKey: "point"
+                });
+              }}
+            >
+              端点→点
+            </button>
+          </div>
           {lineEndpointEditor({
             parameterKey: "endpoint",
             label: "端点",
@@ -234,6 +342,7 @@ export const LineElementFields = ({
           })}
         </>
       );
+    }
 
     case "offsetLine":
       return (
@@ -277,7 +386,18 @@ export const LineElementFields = ({
           activePointPickTarget.pickFlow === "lineAndPoint");
       return (
         <>
-          <div className="line-endpoint-pair-actions">
+          <div
+            className="line-endpoint-pair-actions"
+            onClick={(event) => {
+              if (!isLineAndPointPicking && isEditorBackgroundClick(event)) {
+                dispatchCommand("startLineAndPointPick", {
+                  elementId: element.id,
+                  parameterKey: "baseLineId",
+                  nextParameterKey: "splitPoint"
+                });
+              }
+            }}
+          >
             <button
               type="button"
               className={isLineAndPointPicking ? "active" : ""}

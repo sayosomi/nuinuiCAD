@@ -670,6 +670,42 @@ describe("evaluateElements", () => {
     expect(result.computedGeometry.get("a")).toMatchObject({ kind: "point", x: 20 });
   });
 
+  it("evaluates variable element expressions from local numeric variables", () => {
+    const result = evaluateElements([
+      {
+        id: "size",
+        name: "寸法",
+        type: "variable",
+        visible: true,
+        enabled: true,
+        numericVariables: [
+          { id: "base", name: "基準", value: 30 },
+          { id: "ease", name: "ゆとり", value: { kind: "expression", expression: "@base + 5" } }
+        ],
+        scope: "global",
+        valueMode: "expression",
+        expression: { kind: "expression", expression: "@ゆとり * 2" },
+        point1: { mode: "reference", pointId: "a" },
+        point2: { mode: "reference", pointId: "a" },
+        point: { mode: "reference", pointId: "a" },
+        lineId: ""
+      },
+      {
+        id: "a",
+        name: "点A",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: { kind: "expression", expression: "@寸法" },
+        y: 0
+      }
+    ]);
+
+    expect(result.errors).toHaveLength(0);
+    expect(result.computedVariables.get("size")).toMatchObject({ value: 70 });
+    expect(result.computedGeometry.get("a")).toMatchObject({ kind: "point", x: 70 });
+  });
+
   it("evaluates sqrt and pi numeric expressions", () => {
     const result = evaluateElements([
       {

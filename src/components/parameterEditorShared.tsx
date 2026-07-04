@@ -1,4 +1,4 @@
-import type { FocusEvent, KeyboardEvent } from "react";
+import type { FocusEvent, KeyboardEvent, MouseEvent } from "react";
 import type { ParameterKey } from "../parameters/parameterDefinitions";
 import { setParameterValue } from "../parameters/parameterAccess";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
@@ -13,6 +13,21 @@ export type CommonEditorProps = {
   evaluation?: EvaluationResult;
   isParameterEditMode: boolean;
   registerParameterControl: RegisterParameterControl;
+};
+
+const interactiveSelector = [
+  "button",
+  "input",
+  "textarea",
+  "select",
+  "a",
+  "[contenteditable='true']"
+].join(",");
+
+export const isEditorBackgroundClick = (event: MouseEvent<HTMLElement>) => {
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) return false;
+  return !target.closest(interactiveSelector);
 };
 
 export const useParameterEditor = ({

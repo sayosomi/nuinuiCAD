@@ -14,6 +14,8 @@ import {
   selectPickOptionByOffset,
   setMeasurementInsertMode,
   setNumericReferencePickProperty,
+  startEndpointAndPointPick,
+  startEndpointPairPick,
   startLineAndPointPick,
   startLineEndpointPairPick,
   startLinePick,
@@ -133,6 +135,16 @@ export const pickCommandDefinitions = {
     id: "startLineEndpointPairPick",
     label: "直線の始点と終点を続けて選択",
     run: (context) => startLineEndpointPairPick(context)
+  },
+  startEndpointPairPick: {
+    id: "startEndpointPairPick",
+    label: "端点を続けて選択",
+    run: (context) => startEndpointPairPick(context)
+  },
+  startEndpointAndPointPick: {
+    id: "startEndpointAndPointPick",
+    label: "端点と点を続けて選択",
+    run: (context) => startEndpointAndPointPick(context)
   },
   applyPickedPoint: {
     id: "applyPickedPoint",
