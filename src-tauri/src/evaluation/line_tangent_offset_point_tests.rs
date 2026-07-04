@@ -72,6 +72,58 @@ fn evaluates_line_tangent_offset_point_on_line() {
 }
 
 #[test]
+fn evaluates_line_tangent_offset_point_on_diagonal_line_using_y_up_angles() {
+    let result = evaluate_document_input(EvaluationInput {
+        elements: vec![
+            element(json!({
+                "id": "a",
+                "name": "点A",
+                "type": "freePoint",
+                "visible": true,
+                "enabled": true,
+                "x": 0,
+                "y": 0
+            })),
+            element(json!({
+                "id": "b",
+                "name": "点B",
+                "type": "freePoint",
+                "visible": true,
+                "enabled": true,
+                "x": 10,
+                "y": 10
+            })),
+            element(json!({
+                "id": "line",
+                "name": "斜線",
+                "type": "line",
+                "visible": true,
+                "enabled": true,
+                "startPoint": { "mode": "reference", "pointId": "a" },
+                "endPoint": { "mode": "reference", "pointId": "b" }
+            })),
+            element(json!({
+                "id": "offset",
+                "name": "線上オフセット点",
+                "type": "lineTangentOffsetPoint",
+                "visible": true,
+                "enabled": true,
+                "baseLineId": "line",
+                "basePoint": { "mode": "reference", "pointId": "a" },
+                "tangentAngleDeg": 0,
+                "distance": 10
+            })),
+        ],
+        evaluation_limit_index: None,
+    });
+
+    let offset = point(&result, "offset");
+    assert!(result.errors.is_empty());
+    assert!((offset["x"].as_f64().unwrap() - 5.0 * 2f64.sqrt()).abs() < 1e-9);
+    assert!((offset["y"].as_f64().unwrap() - 5.0 * 2f64.sqrt()).abs() < 1e-9);
+}
+
+#[test]
 fn evaluates_line_tangent_offset_point_on_arc_line() {
     let result = evaluate_document_input(EvaluationInput {
         elements: vec![
@@ -113,7 +165,81 @@ fn evaluates_line_tangent_offset_point_on_arc_line() {
     let offset = point(&result, "offset");
     assert!(result.errors.is_empty());
     assert!((offset["x"].as_f64().unwrap() - 9.019_828_596_704_393).abs() < 1e-9);
-    assert!((offset["y"].as_f64().unwrap() + 9.951_847_266_721_97).abs() < 1e-9);
+    assert!((offset["y"].as_f64().unwrap() - 9.951_847_266_721_97).abs() < 1e-9);
+}
+
+#[test]
+fn evaluates_line_tangent_offset_point_on_bezier_intermediate_point_tangent() {
+    let result = evaluate_document_input(EvaluationInput {
+        elements: vec![
+            element(json!({
+                "id": "start",
+                "name": "始点",
+                "type": "freePoint",
+                "visible": true,
+                "enabled": true,
+                "x": 62.1,
+                "y": 59.52
+            })),
+            element(json!({
+                "id": "middle",
+                "name": "中間点",
+                "type": "freePoint",
+                "visible": true,
+                "enabled": true,
+                "x": 68.05,
+                "y": 27.18
+            })),
+            element(json!({
+                "id": "end",
+                "name": "終点",
+                "type": "freePoint",
+                "visible": true,
+                "enabled": true,
+                "x": 89.92,
+                "y": 39.33
+            })),
+            element(json!({
+                "id": "curve",
+                "name": "曲線",
+                "type": "bezierCurve",
+                "visible": true,
+                "enabled": true,
+                "startPoint": { "mode": "reference", "pointId": "start" },
+                "startHandleAngleDeg": 254.72,
+                "startHandleLength": 18.52,
+                "intermediatePoints": [
+                    {
+                        "id": "middle-handle",
+                        "point": { "mode": "reference", "pointId": "middle" },
+                        "handleAngleDeg": 336.35,
+                        "incomingHandleLength": 8.2,
+                        "outgoingHandleLength": 7.22
+                    }
+                ],
+                "endPoint": { "mode": "reference", "pointId": "end" },
+                "endHandleAngleDeg": 75.86,
+                "endHandleLength": 13.85
+            })),
+            element(json!({
+                "id": "offset",
+                "name": "線上オフセット点",
+                "type": "lineTangentOffsetPoint",
+                "visible": true,
+                "enabled": true,
+                "baseLineId": "curve",
+                "basePoint": { "mode": "reference", "pointId": "middle" },
+                "tangentAngleDeg": 270,
+                "distance": 10
+            })),
+        ],
+        evaluation_limit_index: None,
+    });
+
+    let offset = point(&result, "offset");
+    assert!(result.errors.is_empty());
+    assert!((offset["x"].as_f64().unwrap() - 64.038_514_426_475_33).abs() < 1e-9);
+    assert!((offset["y"].as_f64().unwrap() - 18.019_869_897_572_224).abs() < 1e-9);
 }
 
 #[test]

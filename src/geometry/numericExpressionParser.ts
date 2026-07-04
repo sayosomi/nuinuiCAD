@@ -2,7 +2,8 @@ import type { ElementId } from "../types/geometry";
 import { labelToProperty, propertyLabels } from "./numericExpressionProperties";
 import type { NumericExpressionReference, NumericMeasurementKey } from "./numericExpressionTypes";
 
-export type NumericExpressionFunctionName = "distance" | "angle" | "lineDistance";
+export type NumericExpressionMeasurementFunctionName = "distance" | "angle" | "lineDistance";
+export type NumericExpressionFunctionName = NumericExpressionMeasurementFunctionName | "sqrt";
 type ArithmeticOperator = "+" | "-" | "*" | "/";
 type ComparisonOperator = ">" | ">=" | "<" | "<=" | "==" | "!=";
 type LogicalOperator = "&&" | "||";
@@ -26,8 +27,12 @@ const functionNames = new Map<string, NumericExpressionFunctionName>([
   ["angle", "angle"],
   ["角度", "angle"],
   ["lineDistance", "lineDistance"],
-  ["点線距離", "lineDistance"]
+  ["点線距離", "lineDistance"],
+  ["sqrt", "sqrt"]
 ]);
+
+const piMatch = (expression: string, index: number) =>
+  expression.slice(index).match(/^pi(?=$|[\s(),+*/<>!=&|])/);
 
 export const tokenize = (expression: string): Token[] => {
   const tokens: Token[] = [];
@@ -111,6 +116,13 @@ export const tokenize = (expression: string): Token[] => {
       continue;
     }
 
+    const constantMatch = piMatch(expression, index);
+    if (constantMatch) {
+      tokens.push({ type: "number", value: Math.PI });
+      index += constantMatch[0].length;
+      continue;
+    }
+
     const elementMatch = expression.slice(index).match(/^([^\s(),+*/<>!=&|]+)/);
     if (elementMatch) {
       tokens.push({ type: "element", elementId: elementMatch[1] });
@@ -132,7 +144,7 @@ export class Parser {
     private readonly referenceValue: (reference: NumericExpressionReference) => number,
     private readonly localVariableValue: (variableId: string) => number,
     private readonly functionValue: (
-      name: NumericExpressionFunctionName,
+      name: NumericExpressionMeasurementFunctionName,
       args: ElementId[]
     ) => number
   ) {}
@@ -218,6 +230,19 @@ export class Parser {
   }
 
   private parseFunctionCall(name: NumericExpressionFunctionName) {
+    if (name === "sqrt") return this.parseSqrtFunctionCall();
+    return this.parseMeasurementFunctionCall(name);
+  }
+
+  private parseSqrtFunctionCall() {
+    if (this.consume()?.type !== "leftParen") throw new Error("関数の開始括弧がありません。");
+    const value = this.parseLogicalOr();
+    if (this.consume()?.type !== "rightParen") throw new Error("閉じ括弧がありません。");
+    if (value < 0) throw new Error("sqrt の引数は0以上である必要があります。");
+    return Math.sqrt(value);
+  }
+
+  private parseMeasurementFunctionCall(name: NumericExpressionMeasurementFunctionName) {
     if (this.consume()?.type !== "leftParen") throw new Error("関数の開始括弧がありません。");
 
     const args: ElementId[] = [];

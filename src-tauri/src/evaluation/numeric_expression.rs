@@ -168,11 +168,15 @@ fn tokenize(expression: &str) -> Result<Vec<Token>, String> {
             });
             continue;
         }
+        if first == "pi" {
+            tokens.push(Token::Number(std::f64::consts::PI));
+            continue;
+        }
         if index < chars.len()
             && chars[index] == '('
             && matches!(
                 first.as_str(),
-                "distance" | "距離" | "angle" | "角度" | "lineDistance" | "点線距離"
+                "distance" | "距離" | "angle" | "角度" | "lineDistance" | "点線距離" | "sqrt"
             )
         {
             let name = match first.as_str() {
@@ -376,6 +380,17 @@ impl<'a> Parser<'a> {
     fn parse_function_call(&mut self, name: &str) -> Result<f64, NumericEvalError> {
         if self.consume() != Some(Token::LeftParen) {
             return Err(self.simple_error("関数の開始括弧がありません。"));
+        }
+
+        if name == "sqrt" {
+            let value = self.parse_logical_or()?;
+            if self.consume() != Some(Token::RightParen) {
+                return Err(self.simple_error("閉じ括弧がありません。"));
+            }
+            if value < 0.0 {
+                return Err(self.simple_error("sqrt の引数は0以上である必要があります。"));
+            }
+            return Ok(value.sqrt());
         }
 
         let mut args = Vec::new();

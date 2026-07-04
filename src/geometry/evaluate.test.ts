@@ -670,6 +670,45 @@ describe("evaluateElements", () => {
     expect(result.computedGeometry.get("a")).toMatchObject({ kind: "point", x: 20 });
   });
 
+  it("evaluates sqrt and pi numeric expressions", () => {
+    const result = evaluateElements([
+      {
+        id: "a",
+        name: "点A",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: { kind: "expression", expression: "sqrt(2) * pi" },
+        y: { kind: "expression", expression: "sqrt(pi * 4)" }
+      }
+    ]);
+
+    expect(result.errors).toHaveLength(0);
+    const point = result.computedGeometry.get("a");
+    expect(point).toMatchObject({ kind: "point" });
+    if (point?.kind !== "point") throw new Error("expected point geometry");
+    expect(point.x).toBeCloseTo(Math.sqrt(2) * Math.PI);
+    expect(point.y).toBeCloseTo(Math.sqrt(Math.PI * 4));
+  });
+
+  it("reports negative sqrt numeric expressions", () => {
+    const result = evaluateElements([
+      {
+        id: "a",
+        name: "点A",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: { kind: "expression", expression: "sqrt(-1)" },
+        y: 0
+      }
+    ]);
+
+    expect(result.computedGeometry.has("a")).toBe(false);
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0].message).toContain("sqrt");
+  });
+
   it("uses the nearest previous variable with the same name", () => {
     const variable = (id: string, expression: number): CadElement => ({
       id,
@@ -3011,6 +3050,56 @@ describe("evaluateElements", () => {
     expect(point.y).toBeCloseTo(10);
   });
 
+  it("evaluates line tangent offset points on diagonal lines using Y-up angles", () => {
+    const result = evaluateElements([
+      {
+        id: "a",
+        name: "A",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 0,
+        y: 0
+      },
+      {
+        id: "b",
+        name: "B",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 10,
+        y: 10
+      },
+      {
+        id: "line",
+        name: "線",
+        type: "line",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "a" },
+        endPoint: { mode: "reference", pointId: "b" }
+      },
+      {
+        id: "offset",
+        name: "線上オフセット点",
+        type: "lineTangentOffsetPoint",
+        visible: true,
+        enabled: true,
+        baseLineId: "line",
+        basePoint: { mode: "reference", pointId: "a" },
+        tangentAngleDeg: 0,
+        distance: 10
+      }
+    ]);
+
+    expect(result.errors).toHaveLength(0);
+    const point = result.computedGeometry.get("offset");
+    expect(point).toMatchObject({ kind: "point" });
+    if (point?.kind !== "point") throw new Error("Expected a point");
+    expect(point.x).toBeCloseTo(5 * Math.SQRT2);
+    expect(point.y).toBeCloseTo(5 * Math.SQRT2);
+  });
+
   it("evaluates line tangent offset points on a Bezier line-like geometry", () => {
     const result = evaluateElements([
       {
@@ -3064,6 +3153,78 @@ describe("evaluateElements", () => {
       x: 10,
       y: 0
     });
+  });
+
+  it("evaluates line tangent offset points from exact Bezier endpoint tangents", () => {
+    const result = evaluateElements([
+      {
+        id: "start",
+        name: "始点",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 62.1,
+        y: 59.52
+      },
+      {
+        id: "middle",
+        name: "中間点",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 68.05,
+        y: 27.18
+      },
+      {
+        id: "end",
+        name: "終点",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 89.92,
+        y: 39.33
+      },
+      {
+        id: "curve",
+        name: "曲線",
+        type: "bezierCurve",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "start" },
+        startHandleAngleDeg: 254.72,
+        startHandleLength: 18.52,
+        intermediatePoints: [
+          {
+            id: "middle-handle",
+            point: { mode: "reference", pointId: "middle" },
+            handleAngleDeg: 336.35,
+            incomingHandleLength: 8.2,
+            outgoingHandleLength: 7.22
+          }
+        ],
+        endPoint: { mode: "reference", pointId: "end" },
+        endHandleAngleDeg: 75.86,
+        endHandleLength: 13.85
+      },
+      {
+        id: "offset",
+        name: "線上オフセット点",
+        type: "lineTangentOffsetPoint",
+        visible: true,
+        enabled: true,
+        baseLineId: "curve",
+        basePoint: { mode: "reference", pointId: "middle" },
+        tangentAngleDeg: 270,
+        distance: 10
+      }
+    ]);
+
+    expect(result.errors).toHaveLength(0);
+    const point = result.computedGeometry.get("offset");
+    expect(point).toMatchObject({ kind: "point" });
+    if (point?.kind !== "point") throw new Error("Expected a point");
+    expect(point.x).toBeCloseTo(64.03851442647533);
+    expect(point.y).toBeCloseTo(18.019869897572224);
   });
 
   it("reports a line tangent offset point dependency that appears too late", () => {

@@ -152,6 +152,47 @@ fn evaluates_points_lines_variables_and_arcs() {
 }
 
 #[test]
+fn evaluates_sqrt_and_pi_numeric_expressions() {
+    let result = evaluate_document_input(EvaluationInput {
+        elements: vec![element(json!({
+            "id": "a",
+            "name": "点A",
+            "type": "freePoint",
+            "visible": true,
+            "enabled": true,
+            "x": { "kind": "expression", "expression": "sqrt(2) * pi" },
+            "y": { "kind": "expression", "expression": "sqrt(pi * 4)" }
+        }))],
+        evaluation_limit_index: None,
+    });
+
+    assert!(result.errors.is_empty());
+    let point = point(&result, "a");
+    assert!((point["x"].as_f64().unwrap() - 2f64.sqrt() * std::f64::consts::PI).abs() < 1e-9);
+    assert!((point["y"].as_f64().unwrap() - (std::f64::consts::PI * 4.0).sqrt()).abs() < 1e-9);
+}
+
+#[test]
+fn reports_negative_sqrt_numeric_expressions() {
+    let result = evaluate_document_input(EvaluationInput {
+        elements: vec![element(json!({
+            "id": "a",
+            "name": "点A",
+            "type": "freePoint",
+            "visible": true,
+            "enabled": true,
+            "x": { "kind": "expression", "expression": "sqrt(-1)" },
+            "y": 0
+        }))],
+        evaluation_limit_index: None,
+    });
+
+    assert!(result.computed_geometry.is_empty());
+    assert_eq!(result.errors.len(), 1);
+    assert!(result.errors[0].message.contains("sqrt"));
+}
+
+#[test]
 fn reports_too_late_dependency() {
     let result = evaluate_document_input(EvaluationInput {
         elements: vec![

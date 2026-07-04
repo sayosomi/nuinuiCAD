@@ -49,6 +49,9 @@ const unitVector = (start: Point, end: Point): Point | null => {
   };
 };
 
+const angleFromDirection = (direction: Point) =>
+  normalizeDegrees(radiansToDegrees(Math.atan2(direction.y, direction.x)));
+
 const extendFrom = (point: Point, direction: Point, distanceFromPoint: number): Point => ({
   x: point.x + direction.x * distanceFromPoint,
   y: point.y + direction.y * distanceFromPoint
@@ -110,6 +113,61 @@ const pathSegment = (start: Point, end: Point): PathSegment | null => {
   const length = distance(start, end);
   return length <= EPSILON ? null : { start, end, length };
 };
+
+const bezierEndpointTangent = (
+  segment: BezierLikeSegment,
+  atEnd: boolean
+): Point | null => {
+  const direction = atEnd
+    ? {
+        x: segment.end.x - segment.control2.x,
+        y: segment.end.y - segment.control2.y
+      }
+    : {
+        x: segment.control1.x - segment.start.x,
+        y: segment.control1.y - segment.start.y
+      };
+  return Math.hypot(direction.x, direction.y) <= EPSILON ? null : direction;
+};
+
+const bezierEndpointTangentAtPoint = (
+  segment: BezierLikeSegment,
+  point: Point,
+  tolerance: number
+): { angleDeg: number; distanceFromLine: number } | null => {
+  const startDistance = distance(point, segment.start);
+  const endDistance = distance(point, segment.end);
+
+  if (startDistance <= tolerance) {
+    const direction = bezierEndpointTangent(segment, false);
+    if (direction) {
+      return {
+        angleDeg: angleFromDirection(direction),
+        distanceFromLine: startDistance
+      };
+    }
+  }
+  if (endDistance <= tolerance) {
+    const direction = bezierEndpointTangent(segment, true);
+    if (direction) {
+      return {
+        angleDeg: angleFromDirection(direction),
+        distanceFromLine: endDistance
+      };
+    }
+  }
+  return null;
+};
+
+const bestBezierEndpointTangent = (
+  segments: BezierLikeSegment[],
+  point: Point,
+  tolerance: number
+) =>
+  segments
+    .map((segment) => bezierEndpointTangentAtPoint(segment, point, tolerance))
+    .filter((tangent): tangent is { angleDeg: number; distanceFromLine: number } => Boolean(tangent))
+    .sort((a, b) => a.distanceFromLine - b.distanceFromLine)[0] ?? null;
 
 const arcSegments = ({
   center,
@@ -237,6 +295,21 @@ export const tangentAtPointOnLineLikeGeometry = (
   point: Point,
   tolerance = 0.001
 ): { angleDeg: number; distanceFromLine: number } | null => {
+  if (geometry.kind === "bezierCurve") {
+    const tangent = bestBezierEndpointTangent(geometry.segments, point, tolerance);
+    if (tangent) return tangent;
+  }
+  if (geometry.kind === "offsetLine") {
+    const tangent = bestBezierEndpointTangent(
+      geometry.segments.filter((segment): segment is Extract<ComputedOffsetLineSegment, { kind: "bezier" }> =>
+        segment.kind === "bezier"
+      ),
+      point,
+      tolerance
+    );
+    if (tangent) return tangent;
+  }
+
   const segments = segmentsForLineLikeGeometry(geometry);
   let best:
     | {
@@ -262,7 +335,7 @@ export const tangentAtPointOnLineLikeGeometry = (
   if (!direction) return null;
 
   return {
-    angleDeg: normalizeDegrees(radiansToDegrees(Math.atan2(direction.y, direction.x))),
+    angleDeg: angleFromDirection(direction),
     distanceFromLine: best.distanceFromLine
   };
 };

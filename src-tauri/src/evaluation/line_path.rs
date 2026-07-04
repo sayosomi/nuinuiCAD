@@ -43,6 +43,10 @@ fn unit_vector(start: PathPoint, end: PathPoint) -> Option<PathPoint> {
     })
 }
 
+fn angle_from_direction(direction: PathPoint) -> f64 {
+    normalize_degrees(direction.y.atan2(direction.x).to_degrees())
+}
+
 fn extend_from(point: PathPoint, direction: PathPoint, distance_from_point: f64) -> PathPoint {
     PathPoint {
         x: point.x + direction.x * distance_from_point,
@@ -70,6 +74,68 @@ fn projected_point_on_segment(point: PathPoint, segment: &PathSegment) -> Option
 fn path_segment(start: PathPoint, end: PathPoint) -> Option<PathSegment> {
     let length = distance(start, end);
     (length > CIRCLE_EPSILON).then_some(PathSegment { start, end, length })
+}
+
+fn bezier_endpoint_tangent(segment: &Value, at_end: bool) -> Option<PathPoint> {
+    let start = segment.get("start").and_then(value_point)?;
+    let control1 = segment.get("control1").and_then(value_point)?;
+    let control2 = segment.get("control2").and_then(value_point)?;
+    let end = segment.get("end").and_then(value_point)?;
+    let direction = if at_end {
+        PathPoint {
+            x: end.x - control2.x,
+            y: end.y - control2.y,
+        }
+    } else {
+        PathPoint {
+            x: control1.x - start.x,
+            y: control1.y - start.y,
+        }
+    };
+    (direction.x.hypot(direction.y) > CIRCLE_EPSILON).then_some(direction)
+}
+
+fn bezier_endpoint_tangent_at_point(
+    segment: &Value,
+    point: PathPoint,
+    tolerance: f64,
+) -> Option<(f64, f64)> {
+    let start = segment.get("start").and_then(value_point)?;
+    let end = segment.get("end").and_then(value_point)?;
+    let start_distance = distance(point, start);
+    let end_distance = distance(point, end);
+
+    if start_distance <= tolerance {
+        if let Some(direction) = bezier_endpoint_tangent(segment, false) {
+            return Some((angle_from_direction(direction), start_distance));
+        }
+    }
+    if end_distance <= tolerance {
+        if let Some(direction) = bezier_endpoint_tangent(segment, true) {
+            return Some((angle_from_direction(direction), end_distance));
+        }
+    }
+    None
+}
+
+fn bezier_endpoint_tangent_on_geometry(
+    geometry: &Value,
+    point: PathPoint,
+    tolerance: f64,
+) -> Option<(f64, f64)> {
+    let segments = geometry.get("segments")?.as_array()?;
+    match geometry.get("kind")?.as_str()? {
+        "bezierCurve" => segments
+            .iter()
+            .filter_map(|segment| bezier_endpoint_tangent_at_point(segment, point, tolerance))
+            .min_by(|(_, left), (_, right)| left.total_cmp(right)),
+        "offsetLine" => segments
+            .iter()
+            .filter(|segment| segment.get("kind").and_then(Value::as_str) == Some("bezier"))
+            .filter_map(|segment| bezier_endpoint_tangent_at_point(segment, point, tolerance))
+            .min_by(|(_, left), (_, right)| left.total_cmp(right)),
+        _ => None,
+    }
 }
 
 fn arc_point(center: PathPoint, radius: f64, angle_deg: f64) -> PathPoint {
@@ -263,6 +329,10 @@ pub(crate) fn tangent_at_point_on_geometry(
         x: point.0,
         y: point.1,
     };
+    if let Some(tangent) = bezier_endpoint_tangent_on_geometry(geometry, point, tolerance) {
+        return Some(tangent);
+    }
+
     let segments = segments_for_geometry(geometry)?;
     let best = segments
         .iter()
@@ -277,8 +347,5 @@ pub(crate) fn tangent_at_point_on_geometry(
     }
 
     let direction = unit_vector(best.0.start, best.0.end)?;
-    Some((
-        normalize_degrees((-direction.y).atan2(direction.x).to_degrees()),
-        best.1,
-    ))
+    Some((angle_from_direction(direction), best.1))
 }

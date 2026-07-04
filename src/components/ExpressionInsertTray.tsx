@@ -49,6 +49,11 @@ const conditionalOperators = [
   { operator: "||", description: "A || B: AとBのどちらかが真のとき真" }
 ] as const;
 
+const numericConstantsAndFunctions = [
+  { snippet: "sqrt()", label: "sqrt()", description: "平方根" },
+  { snippet: "pi", label: "pi", description: "円周率" }
+] as const;
+
 const selectedElementName = (elements: CadElement[], elementId: ElementId) =>
   elements.find((element) => element.id === elementId)?.name ?? elementId;
 
@@ -289,6 +294,24 @@ export const ExpressionInsertTray = ({
           </div>
         </div>
       ) : null}
+
+      <div className="expression-insert-section">
+        <div className="expression-insert-title">
+          <span>定数・関数</span>
+        </div>
+        <div className="expression-token-grid">
+          {numericConstantsAndFunctions.map(({ snippet, label, description }) => (
+            <button
+              key={snippet}
+              type="button"
+              onClick={() => insertSnippet(snippet)}
+            >
+              <strong>{label}</strong>
+              <small>{description}</small>
+            </button>
+          ))}
+        </div>
+      </div>
 
       <div className="expression-insert-section">
         <div className="expression-insert-title">

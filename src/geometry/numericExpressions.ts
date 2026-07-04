@@ -11,7 +11,7 @@ import type {
 import type { PointAnchor } from "../types/geometry";
 import { resolveDerivedPoint } from "../model/pointAnchors";
 import { Parser, tokenize } from "./numericExpressionParser";
-import type { NumericExpressionFunctionName } from "./numericExpressionParser";
+import type { NumericExpressionMeasurementFunctionName } from "./numericExpressionParser";
 import { propertyLabels } from "./numericExpressionProperties";
 import type {
   NumericExpressionError,
@@ -366,7 +366,7 @@ export const evaluateNumericValue = ({
       return geometry;
     };
     const requireArgs = (
-      name: NumericExpressionFunctionName,
+      name: NumericExpressionMeasurementFunctionName,
       args: ElementId[],
       count: number
     ) => {

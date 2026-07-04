@@ -3260,6 +3260,24 @@ describe("commands", () => {
     expect(useCadStore.getState().elements[0]).toMatchObject({
       x: { kind: "expression", expression: "line-ab.length + 距離(point-a, point-b)" }
     });
+
+    dispatchCommand("insertNumericExpressionSnippet", {
+      numericExpressionSnippet: "sqrt()",
+      displayedExpression: "0"
+    });
+
+    expect(useCadStore.getState().elements[0]).toMatchObject({
+      x: { kind: "expression", expression: "sqrt()" }
+    });
+
+    dispatchCommand("insertNumericExpressionSnippet", {
+      numericExpressionSnippet: "pi",
+      displayedExpression: "sqrt()"
+    });
+
+    expect(useCadStore.getState().elements[0]).toMatchObject({
+      x: { kind: "expression", expression: "sqrt() + pi" }
+    });
   });
 
   it("ignores duplicate, non-line, self, and missing picked lines", () => {
