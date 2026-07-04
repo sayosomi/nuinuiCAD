@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { createRef } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LeftPanel, RightPanel } from "./LeftPanel";
@@ -373,6 +373,26 @@ describe("LeftPanel numeric input dragging", () => {
 
     expect(useCadStore.getState().elements[0]).toMatchObject({ x: 50 });
     expect(input).toHaveValue("50");
+  });
+
+  it("selects an element name input value when focused", async () => {
+    renderRightPanel();
+
+    const input = screen.getByDisplayValue("点A") as HTMLInputElement;
+    input.focus();
+
+    await waitFor(() => expect(input.selectionStart).toBe(0));
+    expect(input.selectionEnd).toBe(input.value.length);
+  });
+
+  it("selects a numeric parameter input value when focused", async () => {
+    renderRightPanel();
+
+    const input = screen.getByLabelText("x 値") as HTMLInputElement;
+    input.focus();
+
+    await waitFor(() => expect(input.selectionStart).toBe(0));
+    expect(input.selectionEnd).toBe(input.value.length);
   });
 
   it("commits zero when pressing Enter on a blank numeric parameter input", () => {
@@ -1844,13 +1864,16 @@ describe("LeftPanel element list dragging", () => {
     renderLeftPanel();
 
     const groupRow = screen.getByText("身頃").closest("[data-element-list-row='true']");
+    const childRow = screen.getByText("点A").closest("[data-element-list-row='true']");
     expect(groupRow).not.toHaveClass("is-flat-list");
-    expect(screen.getByText("点A").closest("[data-element-list-row='true']")).toHaveClass(
-      "is-flat-list"
-    );
+    expect(childRow).toHaveClass("is-flat-list");
+    expect(groupRow).toHaveStyle({ "--outline-depth": "0" });
+    expect(childRow).toHaveStyle({ "--outline-depth": "1" });
     expect(screen.queryByText(/配下/)).not.toBeInTheDocument();
     expect(screen.getByText("2件")).toBeInTheDocument();
     expect(groupRow?.querySelector(".element-group-icon")).toBeInTheDocument();
+    expect(groupRow?.querySelector(".element-expand-button")).toBeInTheDocument();
+    expect(childRow?.querySelector(".element-expand-button")).not.toBeInTheDocument();
   });
 
   it("toggles row visibility from the status icon without changing selection", () => {

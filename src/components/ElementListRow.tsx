@@ -190,7 +190,12 @@ export const ElementListRow = ({
     } ${isDragging ? "dragging" : ""}${dropBefore ? " drop-before" : ""}${dropAfter ? " drop-after" : ""}${
       dropInside ? " drop-inside" : ""
     }`}
-    style={{ "--element-color": elementColor } as CSSProperties}
+    style={
+      {
+        "--element-color": elementColor,
+        "--outline-depth": Math.max(depth, 0)
+      } as CSSProperties
+    }
     aria-label={`${index + 1}. ${element.name}, ${elementTypeLabels[element.type]}, ${
       element.type === "variable" ? "非描画" : isEffectivelyVisible ? "表示" : "非表示"
     }, ${isEffectivelyEnabled ? "評価する" : "評価しない"}${
@@ -198,11 +203,6 @@ export const ElementListRow = ({
     }`}
     onClick={(event) => onSelectElement(element.id, event)}
   >
-    <span
-      className="element-outline-indent"
-      style={{ "--outline-depth": depth } as CSSProperties}
-      aria-hidden="true"
-    />
     {isGroupElement(element) ? (
       <button
         type="button"
@@ -215,9 +215,7 @@ export const ElementListRow = ({
       >
         {element.expanded ? "▾" : "▸"}
       </button>
-    ) : (
-      <span className="element-expand-spacer" aria-hidden="true" />
-    )}
+    ) : null}
     <span className="element-index">{index + 1}</span>
     <span
       className={`element-status-icons ${showPrintControls && element.type === "group" ? "has-print-toggle" : ""}`}

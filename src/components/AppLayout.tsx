@@ -27,6 +27,7 @@ import { ShortcutHelpOverlay } from "./ShortcutHelpOverlay";
 import { ShortcutSettingsDialog } from "./ShortcutSettingsDialog";
 import { TemplateInsertionPanel } from "./TemplateInsertionPanel";
 import { registerTauriMenuCommandListener } from "../commands/tauriMenuEvents";
+import { selectTextInputValue } from "./textInputSelection";
 
 const saveLeftPanelWidth = (leftPanelWidth: number) => {
   void saveLayoutSettings({ version: 1, leftPanelWidth }).catch((error: unknown) => {
@@ -279,6 +280,7 @@ export const AppLayout = () => {
     <main
       className={`app-shell ${isResizingLeftPanel ? "is-resizing-left-panel" : ""}`}
       style={{ "--left-panel-width": `${leftPanelWidth}px` } as CSSProperties}
+      onFocusCapture={(event) => selectTextInputValue(event.target)}
     >
       <LeftPanel
         evaluation={evaluation}

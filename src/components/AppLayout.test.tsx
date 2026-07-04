@@ -146,6 +146,19 @@ describe("AppLayout keyboard handling", () => {
     expect(view.queryByRole("dialog", { name: "コマンドパレット" })).not.toBeInTheDocument();
   });
 
+  it("selects the command palette query when the input is focused", async () => {
+    const view = render(<AppLayout />);
+
+    fireEvent.keyDown(window, { key: "/" });
+    const input = await view.findByLabelText("コマンドを検索") as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "削除" } });
+    input.blur();
+    input.focus();
+
+    await waitFor(() => expect(input.selectionStart).toBe(0));
+    expect(input.selectionEnd).toBe(input.value.length);
+  });
+
   it("selects the default name after creating an element from a shortcut", async () => {
     const view = render(<AppLayout />);
     const viewport = view.container.querySelector(".canvas-viewport");

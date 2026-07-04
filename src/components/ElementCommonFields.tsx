@@ -13,6 +13,7 @@ import { PointAnchorParameterEditor } from "./PointParameterEditors";
 import { ColorParameterEditor } from "./ColorParameterEditor";
 import { isImeComposingKeyEvent } from "./keyboardEventGuards";
 import type { CommonEditorProps } from "./parameterEditorShared";
+import { selectTextInputValue } from "./textInputSelection";
 
 export const ElementCommonFields = ({
   element,
@@ -43,7 +44,10 @@ export const ElementCommonFields = ({
           key={`${element.id}-${element.name}`}
           ref={(node) => registerParameterControl("name", node)}
           defaultValue={element.name}
-          onFocus={() => setSelectedParameterKey("name")}
+          onFocus={(event) => {
+            setSelectedParameterKey("name");
+            selectTextInputValue(event.currentTarget);
+          }}
           onBlur={(event) => commitName(event.currentTarget.value)}
           onKeyDown={(event) => {
             if (event.key === "Enter" && isImeComposingKeyEvent(event)) return;
@@ -159,6 +163,7 @@ export const ElementCommonFields = ({
                     type="text"
                     aria-label="要素内変数名"
                     value={variable.name}
+                    onFocus={(event) => selectTextInputValue(event.currentTarget)}
                     onChange={(event) =>
                       updateElement(element.id, {
                         numericVariables: (element.numericVariables ?? []).map((item) =>

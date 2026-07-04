@@ -30,6 +30,7 @@ import { ParameterName } from "./ParameterName";
 import type { CommonEditorProps } from "./parameterEditorShared";
 import { useParameterEditor } from "./parameterEditorShared";
 import { availableNumericVariableReferenceOptions } from "../geometry/variableReferenceOptions";
+import { selectTextInputValue } from "./textInputSelection";
 
 type NumericDragState = {
   parameterKey: ParameterKey;
@@ -361,8 +362,10 @@ export const NumericParameterEditor = ({
       onMouseUp={rememberInputSelection}
       onFocus={() => {
         selectParameter(parameterKey);
-        inputSelectionRef.current = null;
-        setInputSelection(null);
+        selectTextInputValue(inputRef.current, (nextSelection) => {
+          inputSelectionRef.current = nextSelection;
+          setInputSelection(nextSelection);
+        });
       }}
       onKeyDown={(event) => {
         if (event.key === "Enter" && isImeComposingKeyEvent(event)) return;
@@ -424,7 +427,10 @@ export const NumericParameterEditor = ({
             ? stepDraft.value
             : formatNumber(getNumericParameterStep(element, parameterKey))
         }
-        onFocus={() => selectParameter(parameterKey)}
+        onFocus={(event) => {
+          selectParameter(parameterKey);
+          selectTextInputValue(event.currentTarget);
+        }}
         onKeyDown={(event) => {
           if (event.key === "ArrowUp") {
             event.preventDefault();

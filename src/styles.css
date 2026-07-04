@@ -327,17 +327,19 @@ select {
 .element-row {
   position: relative;
   display: grid;
-  grid-template-columns: max-content 18px max-content 40px minmax(0, 1fr) minmax(0, auto) 24px;
+  --row-indent: calc(var(--outline-depth, 0) * 18px);
+  grid-template-columns: max-content 40px minmax(0, 1fr) minmax(0, auto) 24px;
   grid-template-areas:
-    "outline expand index status name type handle"
-    "actions actions actions actions actions actions actions";
+    "index status name type handle"
+    "actions actions actions actions actions";
   grid-template-rows: auto auto;
   align-items: center;
   column-gap: 4px;
   row-gap: 6px;
-  width: 100%;
+  width: calc(100% - var(--row-indent));
   min-width: 0;
   min-height: 42px;
+  margin-left: var(--row-indent);
   border: 1px solid #b9bdb2;
   border-radius: 6px;
   background: #ffffff;
@@ -349,22 +351,16 @@ select {
 
 .element-row.is-flat-list {
   grid-template-columns: max-content 40px minmax(0, 1fr) minmax(0, auto) 24px;
-  grid-template-areas:
-    "index status name type handle"
-    "actions actions actions actions actions";
 }
 
 .element-row.is-group {
-  grid-template-columns: 18px max-content 40px minmax(0, 1fr) minmax(0, auto) 24px;
-  grid-template-areas:
-    "expand index status name type handle"
-    "actions actions actions actions actions actions";
+  grid-template-columns: max-content 40px minmax(0, 1fr) minmax(0, auto) 24px;
   background: #f8faf7;
   font-weight: 600;
 }
 
 .left-panel.is-print-layout .element-row.is-group {
-  grid-template-columns: 18px max-content 58px minmax(0, 1fr) minmax(0, auto) 24px;
+  grid-template-columns: max-content 58px minmax(0, 1fr) minmax(0, auto) 24px;
 }
 
 .element-row.is-group.selected {
@@ -420,6 +416,10 @@ select {
 }
 
 .element-expand-button {
+  position: absolute;
+  top: 50%;
+  left: -23px;
+  transform: translateY(-50%);
   border: 0;
   border-radius: 4px;
   background: transparent;

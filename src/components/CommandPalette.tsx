@@ -6,6 +6,7 @@ import {
 } from "../commands/commands";
 import { useCadUiStore } from "../state/cadUiStore";
 import { isImeComposingKeyEvent } from "./keyboardEventGuards";
+import { selectTextInputValue } from "./textInputSelection";
 
 type CommandPaletteProps = {
   commandContext: CommandContext;
@@ -21,7 +22,12 @@ export const CommandPalette = ({ commandContext }: CommandPaletteProps) => {
   const selectedItem = items[clampedSelectedIndex] ?? null;
 
   useEffect(() => {
-    if (showCommandPalette) requestAnimationFrame(() => inputRef.current?.focus());
+    if (showCommandPalette) {
+      requestAnimationFrame(() => {
+        inputRef.current?.focus();
+        selectTextInputValue(inputRef.current);
+      });
+    }
   }, [showCommandPalette]);
 
   if (!showCommandPalette) return null;

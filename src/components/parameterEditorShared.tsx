@@ -1,8 +1,9 @@
-import type { KeyboardEvent } from "react";
+import type { FocusEvent, KeyboardEvent } from "react";
 import type { ParameterKey } from "../parameters/parameterDefinitions";
 import { setParameterValue } from "../parameters/parameterAccess";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import type { CadElement, EvaluationResult } from "../types/geometry";
+import { selectTextInputValue } from "./textInputSelection";
 
 export type RegisterParameterControl = (key: string, element: HTMLElement | null) => void;
 
@@ -29,7 +30,10 @@ export const useParameterEditor = ({
     }`;
   const controlProps = (key: ParameterKey) => ({
     ref: (node: HTMLElement | null) => registerParameterControl(key, node),
-    onFocus: () => setSelectedParameterKey(key),
+    onFocus: (event: FocusEvent<HTMLElement>) => {
+      setSelectedParameterKey(key);
+      selectTextInputValue(event.currentTarget);
+    },
     onKeyDown: (event: KeyboardEvent<HTMLElement>) => {
       if (event.key === "Escape") {
         event.currentTarget.blur();
