@@ -6,6 +6,25 @@ import { createCadElement } from "./elementFactory";
 const createTestId = (type: CadElementType) => `${type}-test-id`;
 
 describe("createCadElement", () => {
+  it("creates group-like elements collapsed by default", () => {
+    expect(createCadElement("group", sampleElements, { createId: createTestId })).toMatchObject({
+      id: "group-test-id",
+      type: "group",
+      expanded: false
+    });
+    expect(createCadElement("conditionalGroup", sampleElements, { createId: createTestId })).toMatchObject({
+      id: "conditionalGroup-test-id",
+      type: "conditionalGroup",
+      expanded: false,
+      elseExpanded: true
+    });
+    expect(createCadElement("forGroup", sampleElements, { createId: createTestId })).toMatchObject({
+      id: "forGroup-test-id",
+      type: "forGroup",
+      expanded: false
+    });
+  });
+
   it("creates a free point at the origin by default", () => {
     expect(createCadElement("freePoint", sampleElements, { createId: createTestId })).toMatchObject({
       id: "freePoint-test-id",

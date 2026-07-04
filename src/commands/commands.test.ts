@@ -397,7 +397,7 @@ describe("commands", () => {
 
     const grouped = useCadStore.getState().elements;
     const group = grouped[1];
-    expect(group).toMatchObject({ type: "group", expanded: true });
+    expect(group).toMatchObject({ type: "group", expanded: false });
     expect(grouped[2]).toMatchObject({ id: sampleElements[1].id, parentGroupId: group.id });
     expect(grouped[3]).toMatchObject({ id: sampleElements[2].id, parentGroupId: group.id });
     expect(useCadStore.getState()).toMatchObject({
@@ -461,7 +461,7 @@ describe("commands", () => {
     expect(state.elements[2]).toMatchObject({
       type: "conditionalGroup",
       condition: 1,
-      expanded: true,
+      expanded: false,
       elseExpanded: true
     });
     expect(state.evaluationLimitIndex).toBe(3);
@@ -481,7 +481,12 @@ describe("commands", () => {
 
     const state = useCadStore.getState();
     const group = state.elements[1];
-    expect(group).toMatchObject({ type: "conditionalGroup", condition: 1 });
+    expect(group).toMatchObject({
+      type: "conditionalGroup",
+      condition: 1,
+      expanded: false,
+      elseExpanded: true
+    });
     expect(state.elements[2]).toMatchObject({
       id: sampleElements[1].id,
       parentGroupId: group.id,
@@ -517,7 +522,7 @@ describe("commands", () => {
       start: 0,
       count: 3,
       step: 1,
-      expanded: true,
+      expanded: false,
       showGenerated: false
     });
     expect(state.evaluationLimitIndex).toBe(3);
@@ -537,7 +542,7 @@ describe("commands", () => {
 
     const state = useCadStore.getState();
     const group = state.elements[1];
-    expect(group).toMatchObject({ type: "forGroup", count: 3 });
+    expect(group).toMatchObject({ type: "forGroup", count: 3, expanded: false });
     expect(state.elements[2]).toMatchObject({
       id: sampleElements[1].id,
       parentGroupId: group.id
