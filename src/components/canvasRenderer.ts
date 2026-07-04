@@ -20,6 +20,7 @@ const GRID_STEP = 10;
 const MAJOR_GRID_MULTIPLIER = 5;
 const MIN_GRID_SPACING_PX = 8;
 const GRID_ENABLED = true;
+const AXIS_GRID_LINE_DASH = [6, 4];
 
 const drawGrid = (
   ctx: CanvasRenderingContext2D,
@@ -51,9 +52,11 @@ const drawGrid = (
     ctx.beginPath();
     ctx.moveTo(screenX, 0);
     ctx.lineTo(screenX, size.height);
-    ctx.strokeStyle = isAxis ? "#9ca39a" : isMajor ? "#d6d8d2" : "#eceee8";
-    ctx.lineWidth = isAxis ? 1.5 : isMajor ? 1 : 0.5;
+    ctx.strokeStyle = isAxis ? "#c4c9bf" : isMajor ? "#d6d8d2" : "#eceee8";
+    ctx.lineWidth = isAxis ? 1 : isMajor ? 1 : 0.5;
+    if (isAxis) ctx.setLineDash(AXIS_GRID_LINE_DASH);
     ctx.stroke();
+    if (isAxis) ctx.setLineDash([]);
   }
 
   for (let y = startY; y <= endY; y += step) {
@@ -63,9 +66,11 @@ const drawGrid = (
     ctx.beginPath();
     ctx.moveTo(0, screenY);
     ctx.lineTo(size.width, screenY);
-    ctx.strokeStyle = isAxis ? "#9ca39a" : isMajor ? "#d6d8d2" : "#eceee8";
-    ctx.lineWidth = isAxis ? 1.5 : isMajor ? 1 : 0.5;
+    ctx.strokeStyle = isAxis ? "#c4c9bf" : isMajor ? "#d6d8d2" : "#eceee8";
+    ctx.lineWidth = isAxis ? 1 : isMajor ? 1 : 0.5;
+    if (isAxis) ctx.setLineDash(AXIS_GRID_LINE_DASH);
     ctx.stroke();
+    if (isAxis) ctx.setLineDash([]);
   }
 };
 
