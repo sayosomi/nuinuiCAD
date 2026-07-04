@@ -4,7 +4,7 @@ import { isTauriRuntime } from "../geometry/evaluationEngine";
 import { printablePathsForLayout } from "../print/printGeometry";
 import { resolvePrintLayout } from "../print/printLayout";
 import { currentDocumentSnapshot, useCadDocumentStore } from "../state/cadDocumentStore";
-import { fileNameFromPath } from "./documentFormat";
+import { defaultPrintExportFileName, defaultPrintExportPath } from "./printExportFileName";
 import type { EvaluationResult } from "../types/geometry";
 
 type ExportPrintSvgInput = {
@@ -19,28 +19,21 @@ type ExportPrintSvgInput = {
 const ensureSvgFileName = (path: string) =>
   path.toLowerCase().endsWith(".svg") ? path : `${path}.svg`;
 
-const sanitizeSvgBaseName = (name: string) => {
-  const sanitized = Array.from(name.trim(), (character) => {
-    const code = character.charCodeAt(0);
-    return code < 32 || /[<>:"/\\|?*]/.test(character) ? "_" : character;
-  }).join("");
-  return sanitized.length > 0 ? sanitized : "pattern-svg";
-};
-
 export const defaultPrintSvgFileName = ({
   layoutName,
   documentPath
 }: {
   layoutName: string;
   documentPath: string | null;
-}) => {
-  const trimmedLayoutName = layoutName.trim();
-  if (trimmedLayoutName.length > 0) {
-    return `${sanitizeSvgBaseName(trimmedLayoutName)}.svg`;
-  }
-  if (!documentPath) return "pattern-svg.svg";
-  return `${sanitizeSvgBaseName(fileNameFromPath(documentPath).replace(/\.nuinui\.json$/i, ""))}.svg`;
-};
+}) => defaultPrintExportFileName({ layoutName, documentPath, extension: "svg" });
+
+export const defaultPrintSvgPath = ({
+  layoutName,
+  documentPath
+}: {
+  layoutName: string;
+  documentPath: string | null;
+}) => defaultPrintExportPath({ layoutName, documentPath, extension: "svg" });
 
 const exportPrintSvgDialog = (defaultPath: string) =>
   save({
@@ -63,7 +56,7 @@ export const exportPrintSvg = async (evaluation: EvaluationResult | undefined) =
     elements: snapshot.elements,
     evaluation
   });
-  const path = await exportPrintSvgDialog(defaultPrintSvgFileName({
+  const path = await exportPrintSvgDialog(defaultPrintSvgPath({
     layoutName: snapshot.printLayout.name,
     documentPath: state.currentFilePath
   }));

@@ -4,7 +4,7 @@ import { isTauriRuntime } from "../geometry/evaluationEngine";
 import { printablePathsForLayout } from "../print/printGeometry";
 import { orientedPaperSize, resolvePrintLayout } from "../print/printLayout";
 import { currentDocumentSnapshot, useCadDocumentStore } from "../state/cadDocumentStore";
-import { fileNameFromPath } from "./documentFormat";
+import { defaultPrintExportFileName, defaultPrintExportPath } from "./printExportFileName";
 import type { EvaluationResult } from "../types/geometry";
 import type { ResolvedPrintLayout } from "../print/printLayout";
 
@@ -21,28 +21,21 @@ type ExportPrintPdfInput = {
 const ensurePdfFileName = (path: string) =>
   path.toLowerCase().endsWith(".pdf") ? path : `${path}.pdf`;
 
-const sanitizePdfBaseName = (name: string) => {
-  const sanitized = Array.from(name.trim(), (character) => {
-    const code = character.charCodeAt(0);
-    return code < 32 || /[<>:"/\\|?*]/.test(character) ? "_" : character;
-  }).join("");
-  return sanitized.length > 0 ? sanitized : "pattern-print";
-};
-
 export const defaultPrintPdfFileName = ({
   layoutName,
   documentPath
 }: {
   layoutName: string;
   documentPath: string | null;
-}) => {
-  const trimmedLayoutName = layoutName.trim();
-  if (trimmedLayoutName.length > 0) {
-    return `${sanitizePdfBaseName(trimmedLayoutName)}.pdf`;
-  }
-  if (!documentPath) return "pattern-print.pdf";
-  return `${sanitizePdfBaseName(fileNameFromPath(documentPath).replace(/\.nuinui\.json$/i, ""))}.pdf`;
-};
+}) => defaultPrintExportFileName({ layoutName, documentPath, extension: "pdf" });
+
+export const defaultPrintPdfPath = ({
+  layoutName,
+  documentPath
+}: {
+  layoutName: string;
+  documentPath: string | null;
+}) => defaultPrintExportPath({ layoutName, documentPath, extension: "pdf" });
 
 const exportPrintPdfDialog = (defaultPath: string) =>
   save({
@@ -65,7 +58,7 @@ export const exportPrintPdf = async (evaluation: EvaluationResult | undefined) =
     elements: snapshot.elements,
     evaluation
   });
-  const path = await exportPrintPdfDialog(defaultPrintPdfFileName({
+  const path = await exportPrintPdfDialog(defaultPrintPdfPath({
     layoutName: snapshot.printLayout.name,
     documentPath: state.currentFilePath
   }));

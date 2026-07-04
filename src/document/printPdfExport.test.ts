@@ -1,29 +1,36 @@
 import { describe, expect, it } from "vitest";
-import { defaultPrintPdfFileName } from "./printPdfExport";
+import { defaultPrintPdfFileName, defaultPrintPdfPath } from "./printPdfExport";
 
 describe("printPdfExport", () => {
-  it("uses the print layout name for the default PDF file name", () => {
+  it("uses the pattern file name and print layout name for the default PDF file name", () => {
     expect(defaultPrintPdfFileName({
       layoutName: "袖のみ",
       documentPath: "/tmp/pattern.nuinui.json"
-    })).toBe("袖のみ.pdf");
+    })).toBe("pattern_袖のみ.pdf");
   });
 
-  it("falls back to the pattern file name when the print layout name is blank", () => {
+  it("uses the pattern file directory for the default PDF path", () => {
+    expect(defaultPrintPdfPath({
+      layoutName: "袖のみ",
+      documentPath: "/tmp/basic bodice.nuinui.json"
+    })).toBe("/tmp/basic bodice_袖のみ.pdf");
+  });
+
+  it("falls back to layout when the print layout name is blank", () => {
     expect(defaultPrintPdfFileName({
       layoutName: " ",
       documentPath: "/tmp/basic bodice.nuinui.json"
-    })).toBe("basic bodice.pdf");
+    })).toBe("basic bodice_layout.pdf");
   });
 
   it("uses a generic default for unsaved documents and sanitizes invalid characters", () => {
     expect(defaultPrintPdfFileName({
       layoutName: "front/back:1",
       documentPath: null
-    })).toBe("front_back_1.pdf");
+    })).toBe("pattern_front_back_1.pdf");
     expect(defaultPrintPdfFileName({
       layoutName: "",
       documentPath: null
-    })).toBe("pattern-print.pdf");
+    })).toBe("pattern_layout.pdf");
   });
 });
