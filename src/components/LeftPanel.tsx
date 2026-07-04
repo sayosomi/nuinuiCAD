@@ -34,6 +34,7 @@ import {
   numericReferenceExpression,
 } from "./geometryDisplay";
 import { ElementListRow } from "./ElementListRow";
+import { LeftPanelActionRibbon } from "./LeftPanelActionRibbon";
 import { elementListNameTextClassName } from "./elementListName";
 import { isImeComposingKeyEvent } from "./keyboardEventGuards";
 import {
@@ -914,26 +915,7 @@ export const LeftPanel = ({
           ) : null}
         </div>
 
-        <div className="button-row reorder-row">
-          <button type="button" disabled={isSearchActive} onClick={() => dispatchCommand("moveSelectedElementUp")}>
-            上へ
-          </button>
-          <button type="button" disabled={isSearchActive} onClick={() => dispatchCommand("moveSelectedElementDown")}>
-            下へ
-          </button>
-          <button type="button" onClick={() => dispatchCommand("duplicateSelectedElement")}>
-            複製
-          </button>
-          <button type="button" onClick={() => dispatchCommand("toggleSelectedElementVisibility")}>
-            表示切替
-          </button>
-          <button type="button" onClick={() => dispatchCommand("toggleSelectedElementEnabled")}>
-            評価切替
-          </button>
-          <button type="button" onClick={() => dispatchCommand("deleteSelectedElement")}>
-            削除
-          </button>
-        </div>
+        <LeftPanelActionRibbon isSearchActive={isSearchActive} />
       </section>
     </aside>
   );

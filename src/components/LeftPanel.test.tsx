@@ -220,6 +220,35 @@ describe("LeftPanel numeric input dragging", () => {
     expect(screen.getByText("未保存の変更")).toBeInTheDocument();
   });
 
+  it("replaces the old left-panel action buttons with a docked icon ribbon", () => {
+    renderLeftPanel();
+
+    expect(screen.getByLabelText("選択要素の操作")).toHaveClass("left-panel-action-ribbon");
+    expect(screen.getByRole("button", { name: "選択要素を上へ" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "上へ" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "複製" })).not.toBeInTheDocument();
+  });
+
+  it("dispatches selected element commands from the docked icon ribbon", () => {
+    renderLeftPanel();
+
+    fireEvent.click(screen.getByRole("button", { name: "選択要素を複製" }));
+
+    expect(useCadStore.getState().elements).toHaveLength(sampleElements.length + 1);
+    expect(useCadStore.getState().past).toHaveLength(1);
+  });
+
+  it("disables only ordering actions in the docked icon ribbon while searching", () => {
+    useCadStore.setState({ elementSearchQuery: "point" });
+
+    renderLeftPanel();
+
+    expect(screen.getByRole("button", { name: "選択要素を上へ" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "選択要素を下へ" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "選択要素を複製" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "選択要素を削除" })).toBeEnabled();
+  });
+
   it("rounds numeric parameter display to at most two decimal places", () => {
     const editedPoint: CadElement = {
       ...(sampleElements[0] as Extract<CadElement, { type: "freePoint" }>),
