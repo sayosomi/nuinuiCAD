@@ -79,6 +79,20 @@ describe("createCadElement", () => {
     });
   });
 
+  it("creates text elements without a default anchor", () => {
+    expect(createCadElement("text", sampleElements, { createId: createTestId })).toMatchObject({
+      id: "text-test-id",
+      name: "テキスト1",
+      type: "text",
+      visible: true,
+      enabled: true,
+      numericVariables: [],
+      text: "テキスト",
+      anchor: null,
+      fontSize: 3
+    });
+  });
+
   it("creates division points using the first two points as default endpoints", () => {
     expect(createCadElement("divisionPoint", sampleElements, { createId: createTestId })).toMatchObject({
       id: "divisionPoint-test-id",

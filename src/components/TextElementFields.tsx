@@ -35,6 +35,7 @@ export const TextElementFields = ({
       >
         <ParameterName element={element} parameterKey="text" label="テキスト" />
         <textarea
+          className="text-parameter-input"
           key={`${element.id}-${element.text}`}
           ref={(node) => registerParameterControl("text", node)}
           defaultValue={element.text}

@@ -125,7 +125,7 @@ export const createCadElement = (
         enabled: true,
         numericVariables: [],
         text: "テキスト",
-        anchor: firstPointId ? referenceAnchor(firstPointId) : null,
+        anchor: null,
         fontSize: 3
       };
     }

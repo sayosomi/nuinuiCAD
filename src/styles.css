@@ -22,7 +22,8 @@ body {
 
 button,
 input,
-select {
+select,
+textarea {
   font: inherit;
 }
 
@@ -42,6 +43,7 @@ button:hover {
 button:focus-visible,
 input:focus-visible,
 select:focus-visible,
+textarea:focus-visible,
 .canvas-viewport:focus-visible,
 .element-list:focus-visible,
 .element-row:focus-visible {
@@ -50,13 +52,20 @@ select:focus-visible,
 }
 
 input,
-select {
+select,
+textarea {
   width: 100%;
   border: 1px solid #b9bdb2;
   border-radius: 6px;
   background: #ffffff;
   color: #252622;
   padding: 7px 8px;
+}
+
+.text-parameter-input {
+  min-height: 76px;
+  line-height: 1.45;
+  resize: vertical;
 }
 
 .app-shell {
