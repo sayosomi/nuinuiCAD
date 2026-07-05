@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { PointerEvent, RefObject } from "react";
 import { Minus, X, ZoomIn } from "lucide-react";
 import { printablePathsForLayout } from "../print/printGeometry";
@@ -10,7 +10,7 @@ import {
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
 import type { PrintPreviewWindow as PrintPreviewWindowState } from "../state/cadUiStore";
-import type { EvaluationResult } from "../types/geometry";
+import type { EvaluationResult, PrintLayout } from "../types/geometry";
 
 type PrintLayoutPreviewWindowProps = {
   evaluation: EvaluationResult;
@@ -68,6 +68,31 @@ const clampedPreviewWindow = (
   };
 };
 
+const interactiveTitlebarSelector = "button, select, input, textarea, [contenteditable='true']";
+
+const isInteractiveTitlebarTarget = (target: EventTarget | null) =>
+  target instanceof HTMLElement && Boolean(target.closest(interactiveTitlebarSelector));
+
+const previewLayoutSelection = ({
+  layouts,
+  savedLayoutId,
+  activeLayoutId
+}: {
+  layouts: PrintLayout[];
+  savedLayoutId: string | null;
+  activeLayoutId: string;
+}) => {
+  if (layouts.length === 0) {
+    return { layout: null, resolvedLayoutId: null };
+  }
+  const savedLayout = savedLayoutId
+    ? layouts.find((layout) => layout.id === savedLayoutId) ?? null
+    : null;
+  const activeLayout = layouts.find((layout) => layout.id === activeLayoutId) ?? null;
+  const layout = savedLayout ?? activeLayout ?? layouts[0];
+  return { layout, resolvedLayoutId: layout.id };
+};
+
 type PrintPreviewDrag =
   | {
       kind: "move";
@@ -95,29 +120,33 @@ export const PrintLayoutPreviewWindow = ({
   const updatePrintPreviewWindow = useCadUiStore((state) => state.updatePrintPreviewWindow);
   const setShowPrintPreviewWindow = useCadUiStore((state) => state.setShowPrintPreviewWindow);
   const [drag, setDrag] = useState<PrintPreviewDrag | null>(null);
-  const selectedLayout =
-    printLayouts.find((layout) => layout.id === printPreviewWindow.layoutId) ??
-    printLayouts.find((layout) => layout.id === activePrintLayoutId) ??
-    printLayouts[0];
-  const layoutName = selectedLayout.name.trim() || "印刷レイアウト";
+  const { layout: selectedLayout, resolvedLayoutId } = previewLayoutSelection({
+    layouts: printLayouts,
+    savedLayoutId: printPreviewWindow.layoutId,
+    activeLayoutId: activePrintLayoutId
+  });
+  const layoutName = selectedLayout?.name.trim() || "印刷レイアウト";
   const model = useMemo(
-    () => printLayoutCanvasForLayout({ layout: selectedLayout, elements, evaluation }),
+    () =>
+      selectedLayout
+        ? printLayoutCanvasForLayout({ layout: selectedLayout, elements, evaluation })
+        : null,
     [elements, evaluation, selectedLayout]
   );
-  const pageStepX = Math.max(model.paper.widthMm - model.resolvedLayout.overlapMm, 1);
-  const pageStepY = Math.max(model.paper.heightMm - model.resolvedLayout.overlapMm, 1);
+  const pageStepX = model ? Math.max(model.paper.widthMm - model.resolvedLayout.overlapMm, 1) : 1;
+  const pageStepY = model ? Math.max(model.paper.heightMm - model.resolvedLayout.overlapMm, 1) : 1;
   const toSvg = (point: { x: number; y: number }) => ({
     x: SVG_PADDING + point.x,
-    y: SVG_PADDING + model.canvas.heightMm - point.y
+    y: SVG_PADDING + (model?.canvas.heightMm ?? 0) - point.y
   });
-  const saveWindow = (patch: Partial<PrintPreviewWindowState>) => {
+  const saveWindow = useCallback((patch: Partial<PrintPreviewWindowState>) => {
     const nextWindow = {
       ...useCadUiStore.getState().printPreviewWindow,
       ...patch
     };
     useCadUiStore.getState().setPrintPreviewWindow(nextWindow);
     savePrintPreviewWindowSettings(useCadUiStore.getState().printPreviewWindow);
-  };
+  }, []);
   const workspaceBounds = () => {
     const rect = workspaceRef.current?.getBoundingClientRect();
     return { width: rect?.width ?? 0, height: rect?.height ?? 0 };
@@ -129,6 +158,13 @@ export const PrintLayoutPreviewWindow = ({
     savePrintPreviewWindowSettings(useCadUiStore.getState().printPreviewWindow);
     setDrag(null);
   };
+
+  useEffect(() => {
+    if (printPreviewWindow.layoutId === resolvedLayoutId) return;
+    const hadStaleSavedLayout = Boolean(printPreviewWindow.layoutId);
+    if (!hadStaleSavedLayout && resolvedLayoutId !== null) return;
+    saveWindow({ layoutId: resolvedLayoutId });
+  }, [printPreviewWindow.layoutId, resolvedLayoutId, saveWindow]);
 
   return (
     <section
@@ -145,6 +181,7 @@ export const PrintLayoutPreviewWindow = ({
         className="print-preview-titlebar"
         onPointerDown={(event) => {
           if (event.button !== 0) return;
+          if (isInteractiveTitlebarTarget(event.target)) return;
           event.preventDefault();
           event.currentTarget.setPointerCapture?.(event.pointerId);
           setDrag({
@@ -174,7 +211,8 @@ export const PrintLayoutPreviewWindow = ({
       >
         <select
           aria-label="プレビューする印刷レイアウト"
-          value={selectedLayout.id}
+          value={resolvedLayoutId ?? ""}
+          disabled={printLayouts.length === 0}
           onPointerDown={(event) => event.stopPropagation()}
           onChange={(event) => saveWindow({ layoutId: event.currentTarget.value })}
         >
@@ -189,6 +227,7 @@ export const PrintLayoutPreviewWindow = ({
           <button
             type="button"
             aria-label="印刷プレビューを縮小"
+            onPointerDown={(event) => event.stopPropagation()}
             onClick={() => saveWindow({ zoom: printPreviewWindow.zoom / PRINT_PREVIEW_ZOOM_STEP })}
           >
             <Minus aria-hidden="true" />
@@ -196,6 +235,7 @@ export const PrintLayoutPreviewWindow = ({
           <button
             type="button"
             aria-label="印刷プレビューを拡大"
+            onPointerDown={(event) => event.stopPropagation()}
             onClick={() => saveWindow({ zoom: printPreviewWindow.zoom * PRINT_PREVIEW_ZOOM_STEP })}
           >
             <ZoomIn aria-hidden="true" />
@@ -203,6 +243,7 @@ export const PrintLayoutPreviewWindow = ({
           <button
             type="button"
             aria-label="印刷プレビューを閉じる"
+            onPointerDown={(event) => event.stopPropagation()}
             onClick={() => setShowPrintPreviewWindow(false)}
           >
             <X aria-hidden="true" />
@@ -218,74 +259,78 @@ export const PrintLayoutPreviewWindow = ({
           });
         }}
       >
-        <svg
-          className="print-preview-svg"
-          role="img"
-          aria-label={`${layoutName}の印刷プレビュー`}
-          viewBox={`0 0 ${model.canvas.widthMm + SVG_PADDING * 2} ${model.canvas.heightMm + SVG_PADDING * 2}`}
-          style={{
-            width: `${(model.canvas.widthMm + SVG_PADDING * 2) * printPreviewWindow.zoom}px`,
-            height: `${(model.canvas.heightMm + SVG_PADDING * 2) * printPreviewWindow.zoom}px`
-          }}
-        >
-          <rect
-            x={SVG_PADDING}
-            y={SVG_PADDING}
-            width={model.canvas.widthMm}
-            height={model.canvas.heightMm}
-            className="print-canvas-background"
-          />
-          {!model.isSvgLayout ? Array.from({ length: model.resolvedLayout.rows }).flatMap((_, row) =>
-            Array.from({ length: model.resolvedLayout.columns }).map((__, column) => {
-              const x = column * pageStepX;
-              const y = model.printCanvas.heightMm - model.paper.heightMm - row * pageStepY;
-              const topLeft = toSvg({ x, y: y + model.paper.heightMm });
-              return (
-                <g key={`${column}-${row}`} className="print-page-tile">
-                  <rect
-                    x={topLeft.x}
-                    y={topLeft.y}
-                    width={model.paper.widthMm}
-                    height={model.paper.heightMm}
+        {model ? (
+          <svg
+            className="print-preview-svg"
+            role="img"
+            aria-label={`${layoutName}の印刷プレビュー`}
+            viewBox={`0 0 ${model.canvas.widthMm + SVG_PADDING * 2} ${model.canvas.heightMm + SVG_PADDING * 2}`}
+            style={{
+              width: `${(model.canvas.widthMm + SVG_PADDING * 2) * printPreviewWindow.zoom}px`,
+              height: `${(model.canvas.heightMm + SVG_PADDING * 2) * printPreviewWindow.zoom}px`
+            }}
+          >
+            <rect
+              x={SVG_PADDING}
+              y={SVG_PADDING}
+              width={model.canvas.widthMm}
+              height={model.canvas.heightMm}
+              className="print-canvas-background"
+            />
+            {!model.isSvgLayout ? Array.from({ length: model.resolvedLayout.rows }).flatMap((_, row) =>
+              Array.from({ length: model.resolvedLayout.columns }).map((__, column) => {
+                const x = column * pageStepX;
+                const y = model.printCanvas.heightMm - model.paper.heightMm - row * pageStepY;
+                const topLeft = toSvg({ x, y: y + model.paper.heightMm });
+                return (
+                  <g key={`${column}-${row}`} className="print-page-tile">
+                    <rect
+                      x={topLeft.x}
+                      y={topLeft.y}
+                      width={model.paper.widthMm}
+                      height={model.paper.heightMm}
+                    />
+                    {model.resolvedLayout.overlapMm > 0 ? (
+                      <>
+                        <line x1={topLeft.x + model.resolvedLayout.overlapMm} y1={topLeft.y} x2={topLeft.x + model.resolvedLayout.overlapMm} y2={topLeft.y + model.paper.heightMm} />
+                        <line x1={topLeft.x + model.paper.widthMm - model.resolvedLayout.overlapMm} y1={topLeft.y} x2={topLeft.x + model.paper.widthMm - model.resolvedLayout.overlapMm} y2={topLeft.y + model.paper.heightMm} />
+                        <line x1={topLeft.x} y1={topLeft.y + model.resolvedLayout.overlapMm} x2={topLeft.x + model.paper.widthMm} y2={topLeft.y + model.resolvedLayout.overlapMm} />
+                        <line x1={topLeft.x} y1={topLeft.y + model.paper.heightMm - model.resolvedLayout.overlapMm} x2={topLeft.x + model.paper.widthMm} y2={topLeft.y + model.paper.heightMm - model.resolvedLayout.overlapMm} />
+                      </>
+                    ) : null}
+                  </g>
+                );
+              })
+            ) : null}
+            <g className="print-paths">
+              {model.paths.map((path, index) => {
+                if (path.kind === "line") {
+                  const start = toSvg(path.start);
+                  const end = toSvg(path.end);
+                  return <line key={index} x1={start.x} y1={start.y} x2={end.x} y2={end.y} />;
+                }
+                if (path.kind === "bezier") {
+                  const start = toSvg(path.start);
+                  const c1 = toSvg(path.control1);
+                  const c2 = toSvg(path.control2);
+                  const end = toSvg(path.end);
+                  return <path key={index} d={`M ${start.x} ${start.y} C ${c1.x} ${c1.y}, ${c2.x} ${c2.y}, ${end.x} ${end.y}`} />;
+                }
+                return (
+                  <polyline
+                    key={index}
+                    points={path.points.map((point) => {
+                      const svgPoint = toSvg(point);
+                      return `${svgPoint.x},${svgPoint.y}`;
+                    }).join(" ")}
                   />
-                  {model.resolvedLayout.overlapMm > 0 ? (
-                    <>
-                      <line x1={topLeft.x + model.resolvedLayout.overlapMm} y1={topLeft.y} x2={topLeft.x + model.resolvedLayout.overlapMm} y2={topLeft.y + model.paper.heightMm} />
-                      <line x1={topLeft.x + model.paper.widthMm - model.resolvedLayout.overlapMm} y1={topLeft.y} x2={topLeft.x + model.paper.widthMm - model.resolvedLayout.overlapMm} y2={topLeft.y + model.paper.heightMm} />
-                      <line x1={topLeft.x} y1={topLeft.y + model.resolvedLayout.overlapMm} x2={topLeft.x + model.paper.widthMm} y2={topLeft.y + model.resolvedLayout.overlapMm} />
-                      <line x1={topLeft.x} y1={topLeft.y + model.paper.heightMm - model.resolvedLayout.overlapMm} x2={topLeft.x + model.paper.widthMm} y2={topLeft.y + model.paper.heightMm - model.resolvedLayout.overlapMm} />
-                    </>
-                  ) : null}
-                </g>
-              );
-            })
-          ) : null}
-          <g className="print-paths">
-            {model.paths.map((path, index) => {
-              if (path.kind === "line") {
-                const start = toSvg(path.start);
-                const end = toSvg(path.end);
-                return <line key={index} x1={start.x} y1={start.y} x2={end.x} y2={end.y} />;
-              }
-              if (path.kind === "bezier") {
-                const start = toSvg(path.start);
-                const c1 = toSvg(path.control1);
-                const c2 = toSvg(path.control2);
-                const end = toSvg(path.end);
-                return <path key={index} d={`M ${start.x} ${start.y} C ${c1.x} ${c1.y}, ${c2.x} ${c2.y}, ${end.x} ${end.y}`} />;
-              }
-              return (
-                <polyline
-                  key={index}
-                  points={path.points.map((point) => {
-                    const svgPoint = toSvg(point);
-                    return `${svgPoint.x},${svgPoint.y}`;
-                  }).join(" ")}
-                />
-              );
-            })}
-          </g>
-        </svg>
+                );
+              })}
+            </g>
+          </svg>
+        ) : (
+          <p className="empty-state">印刷レイアウトはありません。</p>
+        )}
       </div>
       <div
         className="print-preview-resize-handle"
