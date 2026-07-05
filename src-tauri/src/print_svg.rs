@@ -7,6 +7,8 @@ pub struct ExportPrintSvgInput {
     path: String,
     canvas: SvgCanvasInput,
     paths: Vec<PrintablePath>,
+    #[serde(default)]
+    texts: Vec<PrintableText>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -38,6 +40,14 @@ enum PrintablePath {
     Polyline {
         points: Vec<PrintPoint>,
     },
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PrintableText {
+    text: String,
+    anchor: PrintPoint,
+    font_size: f64,
 }
 
 #[tauri::command]
@@ -99,6 +109,14 @@ fn path_data(path: &PrintablePath, canvas_height_mm: f64) -> Option<String> {
     }
 }
 
+fn escape_xml(value: &str) -> String {
+    value
+        .replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+}
+
 fn build_print_svg(input: &ExportPrintSvgInput) -> Result<String, String> {
     if input.canvas.width_mm <= 0.0
         || input.canvas.height_mm <= 0.0
@@ -128,6 +146,34 @@ fn build_print_svg(input: &ExportPrintSvgInput) -> Result<String, String> {
         };
         svg.push_str(&format!(r#"    <path d="{data}" />"#));
         svg.push('\n');
+    }
+    svg.push_str("  </g>\n");
+    svg.push_str(r##"  <g fill="#000000" stroke="none" font-family="Hiragino Sans, Yu Gothic, sans-serif">"##);
+    svg.push('\n');
+    for text in &input.texts {
+        if text.font_size <= 0.0 || !text.font_size.is_finite() {
+            continue;
+        }
+        let (x, y) = svg_point(text.anchor, input.canvas.height_mm);
+        let font_size = svg_number(text.font_size);
+        let line_height = svg_number(text.font_size * 1.2);
+        svg.push_str(&format!(
+            r#"    <text x="{x}" y="{y}" font-size="{font_size}" dominant-baseline="text-before-edge">"#
+        ));
+        for (index, line) in text.text.lines().enumerate() {
+            if index == 0 {
+                svg.push_str(&format!(
+                    r#"<tspan x="{x}" dy="0">{}</tspan>"#,
+                    escape_xml(line)
+                ));
+            } else {
+                svg.push_str(&format!(
+                    r#"<tspan x="{x}" dy="{line_height}">{}</tspan>"#,
+                    escape_xml(line)
+                ));
+            }
+        }
+        svg.push_str("</text>\n");
     }
     svg.push_str("  </g>\n</svg>\n");
     Ok(svg)
@@ -160,6 +206,11 @@ mod tests {
                     points: vec![PrintPoint { x: 1.0, y: 1.0 }, PrintPoint { x: 2.0, y: 3.0 }],
                 },
             ],
+            texts: vec![PrintableText {
+                text: "前中心".to_owned(),
+                anchor: PrintPoint { x: 4.0, y: 5.0 },
+                font_size: 3.0,
+            }],
         };
 
         let svg = build_print_svg(&input).expect("svg should build");
@@ -169,6 +220,8 @@ mod tests {
         assert!(svg.contains(r#"<path d="M 0 80 L 10 60" />"#));
         assert!(svg.contains(r#"<path d="M 10 60 C 15 55 20 55 25 60" />"#));
         assert!(svg.contains(r#"<path d="M 1 79 L 2 77" />"#));
+        assert!(svg.contains(r#"<text x="4" y="75" font-size="3""#));
+        assert!(svg.contains("前中心"));
     }
 
     #[test]
@@ -180,6 +233,7 @@ mod tests {
                 height_mm: 80.0,
             },
             paths: vec![],
+            texts: vec![],
         };
 
         assert_eq!(

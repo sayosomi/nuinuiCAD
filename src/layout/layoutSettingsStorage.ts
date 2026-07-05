@@ -1,5 +1,12 @@
 import { invoke } from "@tauri-apps/api/core";
 import { isTauriRuntime } from "../geometry/evaluationEngine";
+import {
+  DEFAULT_PRINT_PREVIEW_WINDOW,
+  MIN_PRINT_PREVIEW_HEIGHT,
+  MIN_PRINT_PREVIEW_WIDTH,
+  clampPrintPreviewZoom
+} from "../state/cadUiStore";
+import type { PrintPreviewWindow } from "../state/cadUiStore";
 
 export const DEFAULT_LEFT_PANEL_WIDTH = 320;
 export const MIN_LEFT_PANEL_WIDTH = 320;
@@ -14,6 +21,7 @@ export type LayoutSettings = {
   version: 1;
   leftPanelWidth: number;
   collapsedPrintPanelSections: PrintPanelSectionId[];
+  printPreviewWindow: PrintPreviewWindow;
 };
 
 const isObject = (value: unknown): value is Record<string, unknown> =>
@@ -22,10 +30,32 @@ const isObject = (value: unknown): value is Record<string, unknown> =>
 export const clampLeftPanelWidth = (width: number) =>
   Math.min(Math.max(Math.round(width), MIN_LEFT_PANEL_WIDTH), MAX_LEFT_PANEL_WIDTH);
 
+const finiteNumber = (value: unknown, fallback: number) =>
+  typeof value === "number" && Number.isFinite(value) ? value : fallback;
+
+const normalizePrintPreviewWindowSettings = (value: unknown): PrintPreviewWindow => {
+  if (!isObject(value)) return DEFAULT_PRINT_PREVIEW_WINDOW;
+  return {
+    x: Math.round(finiteNumber(value.x, DEFAULT_PRINT_PREVIEW_WINDOW.x)),
+    y: Math.round(finiteNumber(value.y, DEFAULT_PRINT_PREVIEW_WINDOW.y)),
+    width: Math.max(
+      Math.round(finiteNumber(value.width, DEFAULT_PRINT_PREVIEW_WINDOW.width)),
+      MIN_PRINT_PREVIEW_WIDTH
+    ),
+    height: Math.max(
+      Math.round(finiteNumber(value.height, DEFAULT_PRINT_PREVIEW_WINDOW.height)),
+      MIN_PRINT_PREVIEW_HEIGHT
+    ),
+    zoom: clampPrintPreviewZoom(finiteNumber(value.zoom, DEFAULT_PRINT_PREVIEW_WINDOW.zoom)),
+    layoutId: typeof value.layoutId === "string" ? value.layoutId : null
+  };
+};
+
 export const defaultLayoutSettings = (): LayoutSettings => ({
   version: 1,
   leftPanelWidth: DEFAULT_LEFT_PANEL_WIDTH,
-  collapsedPrintPanelSections: ["variables"]
+  collapsedPrintPanelSections: ["variables"],
+  printPreviewWindow: DEFAULT_PRINT_PREVIEW_WINDOW
 });
 
 export const normalizeLayoutSettings = (value: unknown): LayoutSettings => {
@@ -42,7 +72,8 @@ export const normalizeLayoutSettings = (value: unknown): LayoutSettings => {
   return {
     version: 1,
     leftPanelWidth: clampLeftPanelWidth(value.leftPanelWidth),
-    collapsedPrintPanelSections
+    collapsedPrintPanelSections,
+    printPreviewWindow: normalizePrintPreviewWindowSettings(value.printPreviewWindow)
   };
 };
 

@@ -8,6 +8,7 @@ import type {
   CanvasOverlayLine,
   CanvasOverlayOffsetLine,
   CanvasOverlayPoint,
+  CanvasOverlayText,
   PointPickCandidate
 } from "./DrawingCanvasTypes";
 
@@ -18,6 +19,7 @@ type CanvasOverlayProps = {
   overlayCurves: CanvasOverlayCurve[];
   overlayOffsetLines: CanvasOverlayOffsetLine[];
   overlayPoints: CanvasOverlayPoint[];
+  overlayTexts: CanvasOverlayText[];
   selectedBezierHandles: BezierHandleOverlay[];
   overlayPointPickCandidates: PointPickCandidate[];
   selectedElementIdSet: Set<ElementId>;
@@ -37,6 +39,7 @@ export const CanvasOverlay = ({
   overlayCurves,
   overlayOffsetLines,
   overlayPoints,
+  overlayTexts,
   selectedBezierHandles,
   overlayPointPickCandidates,
   selectedElementIdSet,
@@ -149,6 +152,28 @@ export const CanvasOverlay = ({
         />
       </g>
     ))}
+    {overlayTexts.map(({ text, screen, fontSizePx }) => {
+      const lines = text.text.split(/\r?\n/);
+      const isSelected = selectedElementIdSet.has(text.elementId);
+      const fill = elementColors.get(text.elementId) ?? "#31322f";
+      return (
+        <text
+          key={text.elementId}
+          x={screen.x}
+          y={screen.y}
+          className={isSelected ? "overlay-selected-text" : "overlay-text"}
+          fill={fill}
+          fontSize={fontSizePx}
+          dominantBaseline="text-before-edge"
+        >
+          {lines.map((line, index) => (
+            <tspan key={index} x={screen.x} dy={index === 0 ? 0 : fontSizePx * 1.2}>
+              {line}
+            </tspan>
+          ))}
+        </text>
+      );
+    })}
     {overlayPoints.map(({ point, screen }) => {
       const isSelected = selectedElementIdSet.has(point.elementId);
       const isPrimarySelected = point.elementId === selectedElementId;

@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 import { defaultDocumentPalette } from "../palette/palette";
 import { sampleElements } from "../sampleData";
-import { DEFAULT_CANVAS_VIEWPORT, useCadStore } from "../state/useCadStore";
+import { DEFAULT_CANVAS_VIEWPORT, DEFAULT_PRINT_PREVIEW_WINDOW, useCadStore } from "../state/useCadStore";
 import type { GroupTemplateLibrary } from "../templates/groupTemplate";
 import { GroupTemplateLibraryDialog } from "./GroupTemplateLibraryDialog";
 
@@ -78,11 +78,14 @@ const resetStore = () => {
     showGroupTemplateLibrary: true,
     groupTemplateLibraryMode: "insert",
     showSelectionColorPicker: false,
+    showPrintLayout: false,
+    showPrintPreviewWindow: false,
     pendingImageImport: null,
     imageImportError: null,
     showCommandPalette: false,
     canvasViewport: DEFAULT_CANVAS_VIEWPORT,
-    printCanvasViewport: DEFAULT_CANVAS_VIEWPORT
+    printCanvasViewport: DEFAULT_CANVAS_VIEWPORT,
+    printPreviewWindow: DEFAULT_PRINT_PREVIEW_WINDOW
   });
 };
 

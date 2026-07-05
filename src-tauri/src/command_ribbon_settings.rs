@@ -30,7 +30,8 @@ fn default_command_ribbon_settings() -> Value {
                     { "id": "addOffsetLine", "commandId": "addOffsetLine", "icon": "move-right", "iconColor": "default", "label": "オフセット線", "showLabel": false },
                     { "id": "addSplitLine", "commandId": "addSplitLine", "icon": "scissors", "iconColor": "default", "label": "分割線", "showLabel": false },
                     { "id": "addCopyLine", "commandId": "addCopyLine", "icon": "copy", "iconColor": "default", "label": "コピー線", "showLabel": false },
-                    { "id": "addSymmetricCopyLine", "commandId": "addSymmetricCopyLine", "icon": "flip-horizontal", "iconColor": "default", "label": "対称コピー", "showLabel": false }
+                    { "id": "addSymmetricCopyLine", "commandId": "addSymmetricCopyLine", "icon": "flip-horizontal", "iconColor": "default", "label": "対称コピー", "showLabel": false },
+                    { "id": "addText", "commandId": "addText", "icon": "type", "iconColor": "default", "label": "テキスト", "showLabel": false }
                 ]
             },
             {

@@ -1,5 +1,8 @@
 import type { CadElement, ElementId, PointAnchor } from "../types/geometry";
-import { extractNumericExpressionReferences } from "../geometry/numericExpressions";
+import {
+  extractNumericExpressionReferences,
+  extractTextReferences
+} from "../geometry/numericExpressions";
 import { anchorReferenceElementId, pointAnchorForElement } from "./pointAnchors";
 
 export type DependencyReference = {
@@ -231,6 +234,13 @@ export const getDirectParentIds = (element: CadElement): ElementId[] => {
           ...extractNumericExpressionReferences(element.scale),
           ...extractNumericExpressionReferences(element.angleDeg)
         ].map((reference) => reference.elementId);
+      case "text":
+        return [
+          ...numericVariableReferences(element),
+          ...extractTextReferences(element.text),
+          ...(element.anchor ? pointAnchorParentIds(element.anchor).map((elementId) => ({ elementId })) : []),
+          ...extractNumericExpressionReferences(element.fontSize)
+        ].map((reference) => reference.elementId);
     }
   };
 
@@ -272,6 +282,7 @@ export const getDirectParentIds = (element: CadElement): ElementId[] => {
     case "move":
     case "symmetricMove":
     case "image":
+    case "text":
       return numericExpressionParentIds();
   }
 };

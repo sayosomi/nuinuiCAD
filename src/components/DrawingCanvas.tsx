@@ -120,6 +120,7 @@ export const DrawingCanvas = ({
   const zoomCanvasViewportAt = useCadUiStore((state) => state.zoomCanvasViewportAt);
   const showCanvasElementNames = useCadUiStore((state) => state.showCanvasElementNames);
   const showCanvasPoints = useCadUiStore((state) => state.showCanvasPoints);
+  const showPrintPreviewWindow = useCadUiStore((state) => state.showPrintPreviewWindow);
   const activePointPickTarget = useCadUiStore((state) => state.activePointPickTarget);
   const activeNumericReferencePickTarget = useCadUiStore((state) => state.activeNumericReferencePickTarget);
   const activeLinePickTarget = useCadUiStore((state) => state.activeLinePickTarget);
@@ -142,6 +143,7 @@ export const DrawingCanvas = ({
     overlayCurves,
     overlayOffsetLines,
     overlayImages,
+    overlayTexts,
     overlayPointPickCandidates,
     overlayNumericReferenceCandidates,
     selectedBezierHandles,
@@ -564,6 +566,7 @@ export const DrawingCanvas = ({
         curves: overlayCurves,
         offsetLines: overlayOffsetLines,
         images: overlayImages,
+        texts: overlayTexts,
         points: overlayPoints
       });
       if (!elementId) return;
@@ -707,6 +710,7 @@ export const DrawingCanvas = ({
           overlayCurves={overlayCurves}
           overlayOffsetLines={overlayOffsetLines}
           overlayPoints={overlayPoints}
+          overlayTexts={overlayTexts}
           selectedBezierHandles={selectedBezierHandles}
           overlayPointPickCandidates={overlayPointPickCandidates}
           selectedElementIdSet={selectedElementIdSet}
@@ -739,6 +743,14 @@ export const DrawingCanvas = ({
             onClick={() => dispatchCommand("toggleCanvasPoints")}
           >
             点
+          </button>
+          <button
+            type="button"
+            className={showPrintPreviewWindow ? "active-toggle" : ""}
+            aria-pressed={showPrintPreviewWindow}
+            onClick={() => dispatchCommand("togglePrintPreviewWindow")}
+          >
+            印刷
           </button>
         </div>
         {activePointPickTarget ? (

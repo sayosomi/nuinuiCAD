@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { evaluateElements } from "../geometry/evaluate";
 import type { CadElement, PrintLayout } from "../types/geometry";
-import { printableGroups, printablePathsForLayout } from "./printGeometry";
+import { printableGroups, printableItemsForLayout, printablePathsForLayout } from "./printGeometry";
 
 const elements: CadElement[] = [
   {
@@ -43,6 +43,17 @@ const elements: CadElement[] = [
     parentGroupId: "print-group",
     startPoint: { mode: "reference", pointId: "origin" },
     endPoint: { mode: "reference", pointId: "end" }
+  },
+  {
+    id: "printed-text",
+    name: "注記",
+    type: "text",
+    visible: true,
+    enabled: true,
+    parentGroupId: "print-group",
+    text: "前中心",
+    anchor: { mode: "reference", pointId: "origin" },
+    fontSize: 3
   },
   {
     id: "root-start",
@@ -163,5 +174,49 @@ describe("printGeometry", () => {
       start: { x: 50, y: 40 },
       end: { x: 45, y: 40 }
     });
+  });
+
+  it("prints anchored text and excludes anchorless comments", () => {
+    const evaluation = evaluateElements([
+      ...elements,
+      {
+        id: "comment",
+        name: "コメント",
+        type: "text",
+        visible: true,
+        enabled: true,
+        parentGroupId: "print-group",
+        text: "構成リスト用",
+        anchor: null,
+        fontSize: 3
+      }
+    ]);
+    const items = printableItemsForLayout({
+      elements: [
+        ...elements,
+        {
+          id: "comment",
+          name: "コメント",
+          type: "text",
+          visible: true,
+          enabled: true,
+          parentGroupId: "print-group",
+          text: "構成リスト用",
+          anchor: null,
+          fontSize: 3
+        }
+      ],
+      evaluation,
+      layout: layout({ scale: 2 })
+    });
+
+    expect(items.texts).toEqual([
+      expect.objectContaining({
+        elementId: "printed-text",
+        text: "前中心",
+        anchor: { x: 50, y: 40 },
+        fontSize: 6
+      })
+    ]);
   });
 });

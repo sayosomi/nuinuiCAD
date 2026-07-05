@@ -9,7 +9,15 @@ fn default_layout_settings() -> Value {
     json!({
         "version": 1,
         "leftPanelWidth": 320,
-        "collapsedPrintPanelSections": ["variables"]
+        "collapsedPrintPanelSections": ["variables"],
+        "printPreviewWindow": {
+            "x": 24,
+            "y": 24,
+            "width": 380,
+            "height": 300,
+            "zoom": 0.55,
+            "layoutId": null
+        }
     })
 }
 
@@ -82,7 +90,15 @@ mod tests {
             json!({
                 "version": 1,
                 "leftPanelWidth": 320,
-                "collapsedPrintPanelSections": ["variables"]
+                "collapsedPrintPanelSections": ["variables"],
+                "printPreviewWindow": {
+                    "x": 24,
+                    "y": 24,
+                    "width": 380,
+                    "height": 300,
+                    "zoom": 0.55,
+                    "layoutId": null
+                }
             })
         );
     }
@@ -114,7 +130,15 @@ mod tests {
             json!({
                 "version": 1,
                 "leftPanelWidth": 320,
-                "collapsedPrintPanelSections": ["variables"]
+                "collapsedPrintPanelSections": ["variables"],
+                "printPreviewWindow": {
+                    "x": 24,
+                    "y": 24,
+                    "width": 380,
+                    "height": 300,
+                    "zoom": 0.55,
+                    "layoutId": null
+                }
             })
         );
         fs::remove_file(&path).expect("broken file should be removable");

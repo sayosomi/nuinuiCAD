@@ -299,6 +299,13 @@ export type ImageElement = CadElementBase & {
   mirrorX: boolean;
 };
 
+export type TextElement = CadElementBase & {
+  type: "text";
+  text: string;
+  anchor: PointAnchor | null;
+  fontSize: NumericValue;
+};
+
 export type GroupElement = CadElementBase & {
   type: "group";
   expanded: boolean;
@@ -349,7 +356,8 @@ export type CadElement =
   | SymmetricCopyLineElement
   | MoveElement
   | SymmetricMoveElement
-  | ImageElement;
+  | ImageElement
+  | TextElement;
 export type CadElementType = CadElement["type"];
 export type CadElementCategory = "group" | "point" | "line" | "modification";
 
@@ -476,6 +484,15 @@ export type ComputedImage = {
   heightMm: number;
 };
 
+export type ComputedText = {
+  kind: "text";
+  elementId: ElementId;
+  name: string;
+  text: string;
+  anchor: ComputedPoint | null;
+  fontSize: number;
+};
+
 export type ComputedVariable = {
   kind: "variable";
   elementId: ElementId;
@@ -489,7 +506,8 @@ export type ComputedGeometry =
   | ComputedArcLine
   | ComputedBezierCurve
   | ComputedOffsetLine
-  | ComputedImage;
+  | ComputedImage
+  | ComputedText;
 
 export type DependencyError = {
   elementId: ElementId;
@@ -555,7 +573,8 @@ export const elementTypeLabels: Record<CadElementType, string> = {
   symmetricCopyLine: "対称コピー線",
   move: "移動",
   symmetricMove: "対称移動",
-  image: "画像"
+  image: "画像",
+  text: "テキスト"
 };
 
 export const elementTypeCategories: Record<CadElementType, CadElementCategory> = {
@@ -584,7 +603,8 @@ export const elementTypeCategories: Record<CadElementType, CadElementCategory> =
   symmetricCopyLine: "line",
   move: "modification",
   symmetricMove: "modification",
-  image: "modification"
+  image: "modification",
+  text: "modification"
 };
 
 export const elementCategoryLabels: Record<CadElementCategory, string> = {

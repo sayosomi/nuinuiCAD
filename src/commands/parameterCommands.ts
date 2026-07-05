@@ -53,7 +53,7 @@ const pointAnchorParameterTarget = (context?: CommandContext) => {
   if (definition?.kind !== "reference") return null;
 
   const anchor = getPointAnchor(element, parameterKey);
-  if (!anchor) return null;
+  if (!anchor && !definition.allowNone) return null;
 
   return { element, parameterKey, definition, anchor };
 };
@@ -402,7 +402,7 @@ export const setSelectedPointAnchorMode = (
   const target = pointAnchorParameterTarget(context);
   if (!target) return false;
   if (mode === "coordinate" && !target.definition.allowCoordinate) return false;
-  if (target.anchor.mode === mode) {
+  if (target.anchor?.mode === mode) {
     useCadDocumentStore.setState({
       selectedParameterKey: mode === "coordinate" ? `${target.parameterKey}:x` : target.parameterKey
     });
@@ -413,7 +413,7 @@ export const setSelectedPointAnchorMode = (
     mode === "coordinate"
       ? coordinateAnchor()
       : referenceAnchor(
-          target.anchor.mode === "reference"
+          target.anchor?.mode === "reference"
             ? target.anchor.pointId
             : useCadDocumentStore.getState().elements.find(isPointLikeElement)?.id ?? ""
         );
@@ -437,7 +437,7 @@ export const toggleSelectedPointAnchorMode = (context?: CommandContext) => {
   const target = pointAnchorParameterTarget(context);
   if (!target || !target.definition.allowCoordinate) return false;
   return setSelectedPointAnchorMode(
-    target.anchor.mode === "coordinate" ? "reference" : "coordinate",
+    target.anchor?.mode === "coordinate" ? "reference" : "coordinate",
     {
       ...context,
       elementId: target.element.id,

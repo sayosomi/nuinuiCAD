@@ -246,7 +246,9 @@ export const evaluateElements = (
       errors,
       warnings,
       disabledByGroupId,
-      localVariables
+      localVariables,
+      computedVariables,
+      elements: runtimeElements
     });
   };
 

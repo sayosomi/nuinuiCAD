@@ -25,11 +25,11 @@ export const PointAnchorParameterEditor = ({
 }: CommonEditorProps & {
   parameterKey: ParameterKey;
   label: string;
-  anchor: PointAnchor;
+  anchor: PointAnchor | null;
   allowCoordinate?: boolean;
 }) => {
   const activePointPickTarget = useCadUiStore((state) => state.activePointPickTarget);
-  const { parameterFieldClass, selectParameter } = useParameterEditor({
+  const { parameterFieldClass, selectParameter, updateParameterValue } = useParameterEditor({
     element,
     isParameterEditMode,
     registerParameterControl
@@ -40,6 +40,7 @@ export const PointAnchorParameterEditor = ({
   const numericProps = { element, elements, evaluation, isParameterEditMode, registerParameterControl };
   const definition = getParameterDefinitions(element).find((parameter) => parameter.key === parameterKey);
   const canUseCoordinate = definition?.allowCoordinate ?? allowCoordinate;
+  const canUseNone = definition?.allowNone ?? false;
   const commandContext = { elementId: element.id, parameterKey };
   const togglePointPick = () => {
     selectParameter(parameterKey);
@@ -54,7 +55,7 @@ export const PointAnchorParameterEditor = ({
     <div className={`point-anchor-editor ${parameterFieldClass(parameterKey)} ${
       isPickingThisPoint ? "is-picking-point" : ""
     }`} onClick={(event) => {
-      if (anchor.mode !== "coordinate" && isEditorBackgroundClick(event)) {
+      if (anchor?.mode !== "coordinate" && isEditorBackgroundClick(event)) {
         togglePointPick();
       }
     }}>
@@ -62,9 +63,21 @@ export const PointAnchorParameterEditor = ({
         <ParameterName element={element} parameterKey={parameterKey} label={label} />
         <div className="point-anchor-actions">
           <div className="point-anchor-mode" role="group" aria-label={`${label}の指定方法`}>
+            {canUseNone ? (
+              <button
+                type="button"
+                className={!anchor ? "active-toggle" : ""}
+                onClick={() => {
+                  selectParameter(parameterKey);
+                  updateParameterValue(parameterKey, null);
+                }}
+              >
+                なし
+              </button>
+            ) : null}
             <button
               type="button"
-              className={anchor.mode === "reference" ? "active-toggle" : ""}
+              className={anchor?.mode === "reference" || anchor?.mode === "derived" ? "active-toggle" : ""}
               onClick={() => {
                 selectParameter(parameterKey);
                 dispatchCommand("setSelectedPointAnchorReferenceMode", commandContext);
@@ -75,7 +88,7 @@ export const PointAnchorParameterEditor = ({
             {canUseCoordinate ? (
               <button
                 type="button"
-                className={anchor.mode === "coordinate" ? "active-toggle" : ""}
+                className={anchor?.mode === "coordinate" ? "active-toggle" : ""}
                 onClick={() => {
                   selectParameter(parameterKey);
                   dispatchCommand("setSelectedPointAnchorCoordinateMode", commandContext);
@@ -94,7 +107,16 @@ export const PointAnchorParameterEditor = ({
           Enterで点選択{canUseCoordinate ? " / Spaceで座標切替" : ""}
         </p>
       ) : null}
-      {anchor.mode !== "coordinate" ? (
+      {!anchor ? (
+        <button
+          type="button"
+          className={`point-anchor-reference ${isPickingThisPoint ? "active" : ""}`}
+          onClick={togglePointPick}
+        >
+          <span className="reference-label">参照点</span>
+          <span className="reference-value">なし</span>
+        </button>
+      ) : anchor.mode !== "coordinate" ? (
         <button
           type="button"
           className={`point-anchor-reference ${isPickingThisPoint ? "active" : ""}`}

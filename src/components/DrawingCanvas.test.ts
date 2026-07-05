@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { evaluateElements } from "../geometry/evaluate";
 import { defaultDocumentPalette } from "../palette/palette";
 import { sampleElements } from "../sampleData";
-import { DEFAULT_CANVAS_VIEWPORT, useCadStore } from "../state/useCadStore";
+import { DEFAULT_CANVAS_VIEWPORT, DEFAULT_PRINT_PREVIEW_WINDOW, useCadStore } from "../state/useCadStore";
 import { DrawingCanvas } from "./DrawingCanvas";
 import { hitTestCanvasGeometry } from "./DrawingCanvasHitTest";
 import type {
@@ -98,12 +98,15 @@ const resetStore = () => {
     showShortcutSettings: false,
     showPaletteSettings: false,
     showSelectionColorPicker: false,
+    showPrintLayout: false,
+    showPrintPreviewWindow: false,
     shortcutSettings: { version: 1, overrides: [] },
     shortcutSettingsLoading: false,
     shortcutSettingsError: null,
     showCommandPalette: false,
     canvasViewport: DEFAULT_CANVAS_VIEWPORT,
     printCanvasViewport: DEFAULT_CANVAS_VIEWPORT,
+    printPreviewWindow: DEFAULT_PRINT_PREVIEW_WINDOW,
     past: [],
     future: [],
     currentFilePath: null,

@@ -8,6 +8,8 @@ pub struct ExportPrintPdfInput {
     layout: PrintLayoutInput,
     paper: PaperInput,
     paths: Vec<PrintablePath>,
+    #[serde(default)]
+    texts: Vec<PrintableText>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -47,6 +49,14 @@ enum PrintablePath {
     Polyline {
         points: Vec<PrintPoint>,
     },
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PrintableText {
+    text: String,
+    anchor: PrintPoint,
+    font_size: f64,
 }
 
 #[tauri::command]
@@ -125,6 +135,33 @@ fn push_path(content: &mut String, path: &PrintablePath, page_origin: PrintPoint
     }
 }
 
+fn pdf_utf16_hex(value: &str) -> String {
+    let mut output = String::from("<FEFF");
+    for unit in value.encode_utf16() {
+        output.push_str(&format!("{unit:04X}"));
+    }
+    output.push('>');
+    output
+}
+
+fn push_text(content: &mut String, text: &PrintableText, page_origin: PrintPoint) {
+    if text.font_size <= 0.0 || !text.font_size.is_finite() {
+        return;
+    }
+    let font_size = pdf_number(pt(text.font_size));
+    for (index, line) in text.text.lines().enumerate() {
+        let point = PrintPoint {
+            x: text.anchor.x,
+            y: text.anchor.y - text.font_size * (index as f64 + 1.0),
+        };
+        let (x, y) = point_on_page(point, page_origin);
+        content.push_str(&format!(
+            "BT /F1 {font_size} Tf 1 0 0 1 {x} {y} Tm {} Tj ET\n",
+            pdf_utf16_hex(line)
+        ));
+    }
+}
+
 fn push_guides(content: &mut String, paper: &PaperInput, overlap_mm: f64) {
     if overlap_mm <= 0.0 {
         return;
@@ -169,6 +206,9 @@ fn page_content(input: &ExportPrintPdfInput, column: usize, row: usize) -> Strin
     for path in &input.paths {
         push_path(&mut content, path, page_origin);
     }
+    for text in &input.texts {
+        push_text(&mut content, text, page_origin);
+    }
     content.push_str("Q\n");
     push_guides(&mut content, &input.paper, input.layout.overlap_mm);
     content
@@ -199,7 +239,9 @@ fn build_print_pdf(input: &ExportPrintPdfInput) -> Result<Vec<u8>, String> {
     let catalog_id = 1usize;
     let pages_id = 2usize;
     let first_page_id = 3usize;
-    let first_content_id = first_page_id + page_count;
+    let font_id = first_page_id + page_count;
+    let cid_font_id = font_id + 1;
+    let first_content_id = cid_font_id + 1;
     let mut objects = Vec::<Vec<u8>>::new();
 
     objects.push(pdf_object("<< /Type /Catalog /Pages 2 0 R >>"));
@@ -217,9 +259,16 @@ fn build_print_pdf(input: &ExportPrintPdfInput) -> Result<Vec<u8>, String> {
     for index in 0..page_count {
         let content_id = first_content_id + index;
         objects.push(pdf_object(&format!(
-            "<< /Type /Page /Parent {pages_id} 0 R /MediaBox [0 0 {media_width} {media_height}] /Contents {content_id} 0 R >>"
+            "<< /Type /Page /Parent {pages_id} 0 R /MediaBox [0 0 {media_width} {media_height}] /Resources << /Font << /F1 {font_id} 0 R >> >> /Contents {content_id} 0 R >>"
         )));
     }
+
+    objects.push(pdf_object(&format!(
+        "<< /Type /Font /Subtype /Type0 /BaseFont /HeiseiKakuGo-W5 /Encoding /UniJIS-UCS2-H /DescendantFonts [{cid_font_id} 0 R] >>"
+    )));
+    objects.push(pdf_object(
+        "<< /Type /Font /Subtype /CIDFontType0 /BaseFont /HeiseiKakuGo-W5 /CIDSystemInfo << /Registry (Adobe) /Ordering (Japan1) /Supplement 2 >> /FontDescriptor << /Type /FontDescriptor /FontName /HeiseiKakuGo-W5 /Flags 4 /FontBBox [-92 -250 1010 922] /ItalicAngle 0 /Ascent 752 /Descent -221 /CapHeight 737 /StemV 80 >> >>",
+    ));
 
     for row in 0..input.layout.rows {
         for column in 0..input.layout.columns {
@@ -275,6 +324,11 @@ mod tests {
                 start: PrintPoint { x: 0.0, y: 0.0 },
                 end: PrintPoint { x: 10.0, y: 0.0 },
             }],
+            texts: vec![PrintableText {
+                text: "前中心".to_owned(),
+                anchor: PrintPoint { x: 5.0, y: 20.0 },
+                font_size: 3.0,
+            }],
         };
 
         let pdf = build_print_pdf(&input).expect("pdf should build");
@@ -284,5 +338,7 @@ mod tests {
         assert!(text.contains("0 G 0.51 w 1 J 1 j"));
         assert!(text.contains("q 0 G 0.51 w [4 3] 0 d"));
         assert!(text.contains("28.346 0 m 28.346 841.89 l S"));
+        assert!(text.contains("/Encoding /UniJIS-UCS2-H"));
+        assert!(text.contains("<FEFF524D4E2D5FC3> Tj"));
     }
 }

@@ -4,6 +4,7 @@ import { ForGroupElementFields } from "./ForGroupElementFields";
 import { ImageElementFields } from "./ImageElementFields";
 import { LineElementFields } from "./LineElementFields";
 import { PointElementFields } from "./PointElementFields";
+import { TextElementFields } from "./TextElementFields";
 import { VariableElementFields } from "./VariableElementFields";
 
 export const ElementSpecificFields = (props: CommonEditorProps) => {
@@ -41,5 +42,7 @@ export const ElementSpecificFields = (props: CommonEditorProps) => {
       return <VariableElementFields {...props} />;
     case "image":
       return <ImageElementFields {...props} />;
+    case "text":
+      return <TextElementFields {...props} />;
   }
 };

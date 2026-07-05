@@ -77,6 +77,66 @@ describe("evaluateElements", () => {
     });
   });
 
+  it("evaluates text with point anchors and live numeric references", () => {
+    const result = evaluateElements([
+      ...validElements,
+      {
+        id: "ease",
+        name: "ゆとり",
+        type: "variable",
+        visible: true,
+        enabled: true,
+        scope: "global",
+        valueMode: "expression",
+        expression: 12,
+        point1: { mode: "reference", pointId: "a" },
+        point2: { mode: "reference", pointId: "b" },
+        point: { mode: "reference", pointId: "a" },
+        lineId: "ab"
+      },
+      {
+        id: "text",
+        name: "注記",
+        type: "text",
+        visible: true,
+        enabled: true,
+        text: "前中心 @ゆとり / 直線AB.length",
+        anchor: { mode: "reference", pointId: "a" },
+        fontSize: 4
+      }
+    ]);
+
+    expect(result.errors).toHaveLength(0);
+    expect(result.computedGeometry.get("text")).toMatchObject({
+      kind: "text",
+      text: "前中心 12 / 30.414",
+      anchor: { x: 10, y: 20 },
+      fontSize: 4
+    });
+  });
+
+  it("evaluates text without an anchor as a list comment", () => {
+    const result = evaluateElements([
+      {
+        id: "text",
+        name: "メモ",
+        type: "text",
+        visible: true,
+        enabled: true,
+        text: "ここから前身頃",
+        anchor: null,
+        fontSize: 3
+      }
+    ]);
+
+    expect(result.errors).toHaveLength(0);
+    expect(result.computedGeometry.get("text")).toMatchObject({
+      kind: "text",
+      text: "ここから前身頃",
+      anchor: null
+    });
+  });
+
   it("reports image geometry errors for invalid dpi or scale", () => {
     const result = evaluateElements([
       {

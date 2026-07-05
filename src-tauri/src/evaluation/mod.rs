@@ -54,6 +54,7 @@ mod split_line_evaluator;
 mod split_line_tests;
 #[cfg(test)]
 mod tests;
+mod text_evaluator;
 #[cfg(test)]
 mod three_point_arc_line_tests;
 mod types;
@@ -86,6 +87,7 @@ use point_evaluators::{
     evaluate_polar_offset_point,
 };
 use split_line_evaluator::evaluate_split_line;
+use text_evaluator::evaluate_text;
 use types::{element_id, element_name, element_type, ElementId, EvaluationState};
 pub use types::{EvaluationInput, EvaluationPayload};
 use variable_evaluator::evaluate_variable_element;
@@ -188,6 +190,7 @@ fn evaluate_element_by_type(
         Some("move") => evaluate_move(&element, &local_variables, state),
         Some("symmetricMove") => evaluate_symmetric_move(&element, &local_variables, state),
         Some("image") => evaluate_image(&element, &local_variables, state),
+        Some("text") => evaluate_text(&element, &local_variables, state),
         _ => {}
     }
 }

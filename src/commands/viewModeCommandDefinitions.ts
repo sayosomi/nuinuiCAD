@@ -97,6 +97,18 @@ export const viewModeCommandDefinitions = {
     palette: { order: 28.3, keywords: ["canvas", "edit", "戻る", "編集", "CAD"] },
     run: () => useCadUiStore.getState().setShowPrintLayout(false)
   },
+  togglePrintPreviewWindow: {
+    id: "togglePrintPreviewWindow",
+    label: "印刷プレビューを表示/非表示",
+    palette: { order: 28.25, keywords: ["print", "preview", "layout", "印刷", "プレビュー", "レイアウト"] },
+    run: () => {
+      const { showPrintPreviewWindow } = useCadUiStore.getState();
+      useCadUiStore.setState({
+        showPrintPreviewWindow: !showPrintPreviewWindow,
+        showCommandPalette: false
+      });
+    }
+  },
   toggleCanvasElementNames: {
     id: "toggleCanvasElementNames",
     label: "キャンバス要素名を表示/非表示",

@@ -8,6 +8,7 @@ import type {
   ComputedLine,
   ComputedOffsetLine,
   ComputedPoint,
+  ComputedText,
   ElementId,
   EvaluationResult
 } from "../types/geometry";
@@ -52,6 +53,9 @@ const isOffsetLine = (geometry: unknown): geometry is ComputedOffsetLine =>
 const isImage = (geometry: unknown): geometry is ComputedImage =>
   typeof geometry === "object" && geometry !== null && "kind" in geometry && geometry.kind === "image";
 
+const isText = (geometry: unknown): geometry is ComputedText =>
+  typeof geometry === "object" && geometry !== null && "kind" in geometry && geometry.kind === "text";
+
 export const useCanvasOverlayData = ({
   evaluation,
   elements,
@@ -82,6 +86,7 @@ export const useCanvasOverlayData = ({
   const curves = useMemo(() => geometries.filter(isBezierCurve), [geometries]);
   const offsetLines = useMemo(() => geometries.filter(isOffsetLine), [geometries]);
   const images = useMemo(() => geometries.filter(isImage), [geometries]);
+  const texts = useMemo(() => geometries.filter(isText), [geometries]);
   const points = useMemo(() => geometries.filter(isPoint), [geometries]);
   const activePointPickTargetElement = activePointPickTarget
     ? elements.find((element) => element.id === activePointPickTarget.elementId)
@@ -162,6 +167,17 @@ export const useCanvasOverlayData = ({
           )
         })),
     [canvasViewport, documentPath, images, viewportSize, visibleElementIds]
+  );
+  const overlayTexts = useMemo(
+    () =>
+      texts
+        .filter((text) => visibleElementIds.has(text.elementId) && text.anchor)
+        .map((text) => ({
+          text,
+          screen: worldToScreen(text.anchor!, viewportSize, canvasViewport),
+          fontSizePx: Math.max(text.fontSize * canvasViewport.zoom, 1)
+        })),
+    [canvasViewport, texts, viewportSize, visibleElementIds]
   );
   const overlayPointPickCandidates = useMemo(() => {
     const elementsById = new Map(elements.map((element) => [element.id, element]));
@@ -266,6 +282,7 @@ export const useCanvasOverlayData = ({
     curves,
     offsetLines,
     images,
+    texts,
     points,
     visibleElementIds,
     overlayLines,
@@ -274,6 +291,7 @@ export const useCanvasOverlayData = ({
     overlayCurves,
     overlayOffsetLines,
     overlayImages,
+    overlayTexts,
     overlayPointPickCandidates,
     overlayNumericReferenceCandidates,
     selectedBezierHandles,

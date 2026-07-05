@@ -178,6 +178,8 @@ const DRAW_ITEMS: &[MenuSpec] = &[
     cmd("addMove", "移動を追加", None),
     cmd("addSymmetricMove", "対称移動を追加", None),
     SEP,
+    cmd("addText", "テキストを追加", None),
+    SEP,
     cmd("addVariable", "変数を追加", None),
     cmd("addNumericVariable", "要素内変数を追加", None),
     cmd("addBezierIntermediatePoint", "曲線の中間点を追加", None),

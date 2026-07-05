@@ -3295,6 +3295,18 @@ select {
   background: #fbfbfa;
 }
 
+.canvas-workspace {
+  position: relative;
+  min-width: 0;
+  height: 100vh;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.canvas-workspace .canvas-panel {
+  height: 100%;
+}
+
 .canvas-viewport {
   position: relative;
   width: 100%;
@@ -3737,6 +3749,107 @@ select {
   paint-order: stroke;
   stroke: #ffffff;
   stroke-width: 2.4;
+}
+
+.print-preview-window {
+  position: absolute;
+  z-index: 8;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
+  border: 1px solid #aeb4aa;
+  border-radius: 8px;
+  background: #fbfbfa;
+  box-shadow: 0 16px 40px rgb(37 38 34 / 22%);
+}
+
+.print-preview-titlebar {
+  display: grid;
+  grid-template-columns: minmax(112px, 0.8fr) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid #d7dace;
+  background: #f8f7f2;
+  padding: 7px;
+  cursor: grab;
+  user-select: none;
+}
+
+.print-preview-titlebar:active {
+  cursor: grabbing;
+}
+
+.print-preview-titlebar select {
+  min-width: 0;
+  height: 30px;
+  padding: 4px 7px;
+  font-size: 12px;
+}
+
+.print-preview-titlebar > span {
+  overflow: hidden;
+  color: #4a4d45;
+  font-size: 12px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.print-preview-actions {
+  display: flex;
+  gap: 3px;
+}
+
+.print-preview-actions button {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-color: transparent;
+  background: transparent;
+  padding: 0;
+}
+
+.print-preview-actions svg {
+  width: 15px;
+  height: 15px;
+}
+
+.print-preview-body {
+  display: grid;
+  min-height: 0;
+  overflow: auto;
+  background: #e9ebe4;
+  padding: 12px;
+  place-items: center;
+  touch-action: none;
+}
+
+.print-preview-svg {
+  flex: 0 0 auto;
+  min-width: 80px;
+  min-height: 80px;
+  background: #f4f5f1;
+}
+
+.print-preview-resize-handle {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 18px;
+  height: 18px;
+  cursor: nwse-resize;
+}
+
+.print-preview-resize-handle::after {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid #686b62;
+  border-bottom: 2px solid #686b62;
+  content: "";
 }
 
 .print-settings-panel {

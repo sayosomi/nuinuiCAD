@@ -9,7 +9,7 @@ import { evaluateElements } from "../geometry/evaluate";
 import type { EvaluationEngineState } from "../geometry/useEvaluationEngine";
 import { defaultDocumentPalette } from "../palette/palette";
 import { sampleElements } from "../sampleData";
-import { DEFAULT_CANVAS_VIEWPORT, useCadStore } from "../state/useCadStore";
+import { DEFAULT_CANVAS_VIEWPORT, DEFAULT_PRINT_PREVIEW_WINDOW, useCadStore } from "../state/useCadStore";
 import type { CadElement, EvaluationResult } from "../types/geometry";
 import { dispatchCommand } from "../commands/commands";
 import { defaultCommandRibbonSettings } from "../commandRibbons/commandRibbonSettings";
@@ -60,6 +60,7 @@ const resetStore = () => {
     showCanvasPoints: true,
     showElementListColorAccents: false,
     showPrintLayout: false,
+    showPrintPreviewWindow: false,
     commandErrorMessage: null,
     showShortcutHelp: false,
     showPaletteSettings: false,
@@ -67,6 +68,7 @@ const resetStore = () => {
     showCommandPalette: false,
     canvasViewport: DEFAULT_CANVAS_VIEWPORT,
     printCanvasViewport: DEFAULT_CANVAS_VIEWPORT,
+    printPreviewWindow: DEFAULT_PRINT_PREVIEW_WINDOW,
     past: [],
     future: [],
     currentFilePath: null,

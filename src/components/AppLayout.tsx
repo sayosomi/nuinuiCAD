@@ -22,6 +22,7 @@ import { ImageImportDialog } from "./ImageImportDialog";
 import { LeftPanel, RightPanel } from "./LeftPanel";
 import { PaletteSettingsDialog } from "./PalettePanel";
 import { PrintLayoutCanvas, PrintLayoutPanel } from "./PrintLayoutView";
+import { PrintLayoutPreviewWindow } from "./PrintLayoutPreviewWindow";
 import { SelectionColorPickerDialog } from "./SelectionColorPickerDialog";
 import { ShortcutHelpOverlay } from "./ShortcutHelpOverlay";
 import { ShortcutSettingsDialog } from "./ShortcutSettingsDialog";
@@ -44,6 +45,8 @@ export const AppLayout = () => {
   const isDependencyJumpMode = useCadUiStore((state) => state.isDependencyJumpMode);
   const shortcutSettings = useCadUiStore((state) => state.shortcutSettings);
   const showPrintLayout = useCadUiStore((state) => state.showPrintLayout);
+  const showPrintPreviewWindow = useCadUiStore((state) => state.showPrintPreviewWindow);
+  const setPrintPreviewWindow = useCadUiStore((state) => state.setPrintPreviewWindow);
   const activeTemplateInsertion = useCadUiStore((state) => state.activeTemplateInsertion);
   const isPickMode = useCadUiStore(
     (state) =>
@@ -53,6 +56,7 @@ export const AppLayout = () => {
       Boolean(state.activeTemplateInsertion)
   );
   const canvasFocusRef = useRef<HTMLDivElement>(null);
+  const canvasWorkspaceRef = useRef<HTMLDivElement>(null);
   const commandRibbonDockRef = useRef<HTMLDivElement>(null);
   const elementListFocusRef = useRef<HTMLDivElement>(null);
   const elementSearchInputRef = useRef<HTMLInputElement>(null);
@@ -96,7 +100,10 @@ export const AppLayout = () => {
     let cancelled = false;
     void loadLayoutSettings()
       .then((settings) => {
-        if (!cancelled) setLeftPanelWidth(settings.leftPanelWidth);
+        if (!cancelled) {
+          setLeftPanelWidth(settings.leftPanelWidth);
+          setPrintPreviewWindow(settings.printPreviewWindow);
+        }
       })
       .catch((error: unknown) => {
         console.error("failed to load layout settings", error);
@@ -104,7 +111,7 @@ export const AppLayout = () => {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [setPrintPreviewWindow]);
 
   useEffect(() => {
     return registerUnsavedChangesGuard();
@@ -330,13 +337,21 @@ export const AppLayout = () => {
         </>
       ) : (
         <>
-          <DrawingCanvas
-            evaluation={evaluation}
-            evaluationState={evaluationState}
-            canvasFocusRef={canvasFocusRef}
-            commandContext={commandContext}
-            leftPanelDockRef={commandRibbonDockRef}
-          />
+          <div className="canvas-workspace" ref={canvasWorkspaceRef}>
+            <DrawingCanvas
+              evaluation={evaluation}
+              evaluationState={evaluationState}
+              canvasFocusRef={canvasFocusRef}
+              commandContext={commandContext}
+              leftPanelDockRef={commandRibbonDockRef}
+            />
+            {showPrintPreviewWindow ? (
+              <PrintLayoutPreviewWindow
+                evaluation={evaluation}
+                workspaceRef={canvasWorkspaceRef}
+              />
+            ) : null}
+          </div>
           <RightPanel
             evaluation={evaluation}
             evaluationState={evaluationState}

@@ -2,8 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 import { defaultDocumentPalette } from "../palette/palette";
 import { sampleElements } from "../sampleData";
-import { useCadStore } from "../state/useCadStore";
-import { DEFAULT_CANVAS_VIEWPORT } from "../state/cadUiStore";
+import { DEFAULT_CANVAS_VIEWPORT, DEFAULT_PRINT_PREVIEW_WINDOW, useCadStore } from "../state/useCadStore";
 import { ImageImportDialog } from "./ImageImportDialog";
 
 const resetStore = () => {
@@ -39,11 +38,14 @@ const resetStore = () => {
     showShortcutSettings: false,
     showPaletteSettings: false,
     showSelectionColorPicker: false,
+    showPrintLayout: false,
+    showPrintPreviewWindow: false,
     pendingImageImport: null,
     imageImportError: null,
     showCommandPalette: false,
     canvasViewport: DEFAULT_CANVAS_VIEWPORT,
-    printCanvasViewport: DEFAULT_CANVAS_VIEWPORT
+    printCanvasViewport: DEFAULT_CANVAS_VIEWPORT,
+    printPreviewWindow: DEFAULT_PRINT_PREVIEW_WINDOW
   });
 };
 

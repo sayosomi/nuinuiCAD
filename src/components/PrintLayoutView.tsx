@@ -21,7 +21,7 @@ import {
   numericVariableSuggestionMatch,
   replaceNumericVariableSuggestionToken
 } from "./numericVariableSuggestion";
-import { defaultPlacementForGroup, printableGroups, printablePathsForLayout } from "../print/printGeometry";
+import { defaultPlacementForGroup, printableGroups, printableItemsForLayout } from "../print/printGeometry";
 import {
   DEFAULT_PRINT_LAYOUT,
   PAPER_SIZES,
@@ -383,8 +383,8 @@ export const PrintLayoutCanvas = ({ evaluation, canvasFocusRef }: PrintLayoutCan
   const canvas = isSvgLayout
     ? { widthMm: resolvedLayout.svgCanvasWidthMm, heightMm: resolvedLayout.svgCanvasHeightMm }
     : printCanvas;
-  const paths = useMemo(
-    () => printablePathsForLayout({ elements, evaluation, layout }),
+  const printableItems = useMemo(
+    () => printableItemsForLayout({ elements, evaluation, layout }),
     [elements, evaluation, layout]
   );
   const groupNames = useMemo(
@@ -572,7 +572,7 @@ export const PrintLayoutCanvas = ({ evaluation, canvasFocusRef }: PrintLayoutCan
             })
           ) : null}
           <g className="print-paths">
-            {paths.map((path, index) => {
+            {printableItems.paths.map((path, index) => {
               if (path.kind === "line") {
                 const start = toSvg(path.start);
                 const end = toSvg(path.end);
@@ -598,6 +598,24 @@ export const PrintLayoutCanvas = ({ evaluation, canvasFocusRef }: PrintLayoutCan
                     return `${svgPoint.x},${svgPoint.y}`;
                   }).join(" ")}
                 />
+              );
+            })}
+            {printableItems.texts.map((text, index) => {
+              const anchor = toSvg(text.anchor);
+              return (
+                <text
+                  key={`text-${index}`}
+                  x={anchor.x}
+                  y={anchor.y}
+                  fontSize={text.fontSize}
+                  dominantBaseline="text-before-edge"
+                >
+                  {text.text.split(/\r?\n/).map((line, lineIndex) => (
+                    <tspan key={lineIndex} x={anchor.x} dy={lineIndex === 0 ? 0 : text.fontSize * 1.2}>
+                      {line}
+                    </tspan>
+                  ))}
+                </text>
               );
             })}
           </g>

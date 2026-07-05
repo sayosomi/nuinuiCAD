@@ -64,6 +64,15 @@ export type CanvasViewport = {
   zoom: number;
 };
 
+export type PrintPreviewWindow = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  zoom: number;
+  layoutId: string | null;
+};
+
 export type PendingImageImport = {
   sourcePath: string;
   displayName: string;
@@ -83,6 +92,19 @@ export const DEFAULT_CANVAS_VIEWPORT: CanvasViewport = {
 
 export const MIN_CANVAS_ZOOM = 0.1;
 export const MAX_CANVAS_ZOOM = 20;
+export const MIN_PRINT_PREVIEW_ZOOM = 0.15;
+export const MAX_PRINT_PREVIEW_ZOOM = 4;
+export const MIN_PRINT_PREVIEW_WIDTH = 260;
+export const MIN_PRINT_PREVIEW_HEIGHT = 180;
+
+export const DEFAULT_PRINT_PREVIEW_WINDOW: PrintPreviewWindow = {
+  x: 24,
+  y: 24,
+  width: 380,
+  height: 300,
+  zoom: 0.55,
+  layoutId: null
+};
 
 export type CadUiState = {
   isParameterEditMode: boolean;
@@ -110,6 +132,7 @@ export type CadUiState = {
   showCommandRibbonSettings: boolean;
   showSelectionColorPicker: boolean;
   showPrintLayout: boolean;
+  showPrintPreviewWindow: boolean;
   commandErrorMessage: string | null;
   pendingImageImport: PendingImageImport | null;
   imageImportError: string | null;
@@ -123,6 +146,7 @@ export type CadUiState = {
   selectedPrintPlacementId: string | null;
   canvasViewport: CanvasViewport;
   printCanvasViewport: CanvasViewport;
+  printPreviewWindow: PrintPreviewWindow;
   setParameterEditMode: (isParameterEditMode: boolean) => void;
   setShowElementInfoPanel: (showElementInfoPanel: boolean) => void;
   setDependencyJumpMode: (isDependencyJumpMode: boolean) => void;
@@ -155,6 +179,7 @@ export type CadUiState = {
   setShowCommandRibbonSettings: (showCommandRibbonSettings: boolean) => void;
   setShowSelectionColorPicker: (showSelectionColorPicker: boolean) => void;
   setShowPrintLayout: (showPrintLayout: boolean) => void;
+  setShowPrintPreviewWindow: (showPrintPreviewWindow: boolean) => void;
   setCommandErrorMessage: (commandErrorMessage: string | null) => void;
   setPendingImageImport: (pendingImageImport: PendingImageImport | null) => void;
   setImageImportError: (imageImportError: string | null) => void;
@@ -180,6 +205,8 @@ export type CadUiState = {
     anchor?: { x: number; y: number; width: number; height: number }
   ) => void;
   resetPrintCanvasViewport: () => void;
+  setPrintPreviewWindow: (printPreviewWindow: PrintPreviewWindow) => void;
+  updatePrintPreviewWindow: (patch: Partial<PrintPreviewWindow>) => void;
 };
 
 export const initialCadUiState = (): Omit<
@@ -210,6 +237,7 @@ export const initialCadUiState = (): Omit<
   | "setShowCommandRibbonSettings"
   | "setShowSelectionColorPicker"
   | "setShowPrintLayout"
+  | "setShowPrintPreviewWindow"
   | "setCommandErrorMessage"
   | "setPendingImageImport"
   | "setImageImportError"
@@ -229,6 +257,8 @@ export const initialCadUiState = (): Omit<
   | "panPrintCanvasViewport"
   | "zoomPrintCanvasViewportAt"
   | "resetPrintCanvasViewport"
+  | "setPrintPreviewWindow"
+  | "updatePrintPreviewWindow"
 > => ({
   isParameterEditMode: false,
   showElementInfoPanel: true,
@@ -255,6 +285,7 @@ export const initialCadUiState = (): Omit<
   showCommandRibbonSettings: false,
   showSelectionColorPicker: false,
   showPrintLayout: false,
+  showPrintPreviewWindow: false,
   commandErrorMessage: null,
   pendingImageImport: null,
   imageImportError: null,
@@ -267,11 +298,24 @@ export const initialCadUiState = (): Omit<
   showCommandPalette: false,
   selectedPrintPlacementId: null,
   canvasViewport: DEFAULT_CANVAS_VIEWPORT,
-  printCanvasViewport: DEFAULT_CANVAS_VIEWPORT
+  printCanvasViewport: DEFAULT_CANVAS_VIEWPORT,
+  printPreviewWindow: DEFAULT_PRINT_PREVIEW_WINDOW
 });
 
 const clampCanvasZoom = (zoom: number) =>
   Math.min(Math.max(zoom, MIN_CANVAS_ZOOM), MAX_CANVAS_ZOOM);
+
+export const clampPrintPreviewZoom = (zoom: number) =>
+  Math.min(Math.max(Number.isFinite(zoom) ? zoom : DEFAULT_PRINT_PREVIEW_WINDOW.zoom, MIN_PRINT_PREVIEW_ZOOM), MAX_PRINT_PREVIEW_ZOOM);
+
+export const normalizePrintPreviewWindow = (window: PrintPreviewWindow): PrintPreviewWindow => ({
+  x: Number.isFinite(window.x) ? Math.round(window.x) : DEFAULT_PRINT_PREVIEW_WINDOW.x,
+  y: Number.isFinite(window.y) ? Math.round(window.y) : DEFAULT_PRINT_PREVIEW_WINDOW.y,
+  width: Math.max(Math.round(window.width), MIN_PRINT_PREVIEW_WIDTH),
+  height: Math.max(Math.round(window.height), MIN_PRINT_PREVIEW_HEIGHT),
+  zoom: clampPrintPreviewZoom(window.zoom),
+  layoutId: window.layoutId
+});
 
 const zoomViewportAt = (
   current: CanvasViewport,
@@ -364,6 +408,7 @@ export const useCadUiStore = create<CadUiState>((set) => ({
     set({ showCommandRibbonSettings }),
   setShowSelectionColorPicker: (showSelectionColorPicker) => set({ showSelectionColorPicker }),
   setShowPrintLayout: (showPrintLayout) => set({ showPrintLayout }),
+  setShowPrintPreviewWindow: (showPrintPreviewWindow) => set({ showPrintPreviewWindow }),
   setCommandErrorMessage: (commandErrorMessage) => set({ commandErrorMessage }),
   setPendingImageImport: (pendingImageImport) => set({ pendingImageImport }),
   setImageImportError: (imageImportError) => set({ imageImportError }),
@@ -418,5 +463,14 @@ export const useCadUiStore = create<CadUiState>((set) => ({
       const printCanvasViewport = zoomViewportAt(state.printCanvasViewport, zoomFactor, anchor);
       return printCanvasViewport === state.printCanvasViewport ? {} : { printCanvasViewport };
     }),
-  resetPrintCanvasViewport: () => set({ printCanvasViewport: DEFAULT_CANVAS_VIEWPORT })
+  resetPrintCanvasViewport: () => set({ printCanvasViewport: DEFAULT_CANVAS_VIEWPORT }),
+  setPrintPreviewWindow: (printPreviewWindow) =>
+    set({ printPreviewWindow: normalizePrintPreviewWindow(printPreviewWindow) }),
+  updatePrintPreviewWindow: (patch) =>
+    set((state) => ({
+      printPreviewWindow: normalizePrintPreviewWindow({
+        ...state.printPreviewWindow,
+        ...patch
+      })
+    }))
 }));

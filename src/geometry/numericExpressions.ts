@@ -12,7 +12,7 @@ import type { PointAnchor } from "../types/geometry";
 import { resolveDerivedPoint } from "../model/pointAnchors";
 import { Parser, tokenize } from "./numericExpressionParser";
 import type { NumericExpressionMeasurementFunctionName } from "./numericExpressionParser";
-import { propertyLabels } from "./numericExpressionProperties";
+import { labelToProperty, propertyLabels } from "./numericExpressionProperties";
 import type {
   NumericExpressionError,
   NumericExpressionReference,
@@ -487,4 +487,89 @@ export const evaluateNumericValue = ({
       }
     };
   }
+};
+
+type ResolveTextReferencesArgs = {
+  text: string;
+  computedGeometry: Map<ElementId, ComputedGeometry>;
+  elementsById: Map<ElementId, CadElement>;
+  localVariables?: Map<string, number>;
+  localVariableNames?: Map<string, string>;
+  computedVariables?: Map<ElementId, ComputedVariable>;
+  currentElement?: CadElement;
+  elements?: CadElement[];
+};
+
+const textNumber = (value: number) =>
+  Number.isInteger(value) ? `${value}` : value.toFixed(3).replace(/\.?0+$/, "");
+
+export const resolveTextReferences = ({
+  text,
+  computedGeometry,
+  elementsById,
+  localVariables,
+  localVariableNames,
+  computedVariables,
+  currentElement,
+  elements
+}: ResolveTextReferencesArgs): { text?: string; error?: NumericExpressionError } => {
+  const normalizedText = normalizeNumericExpressionInput(
+    text,
+    elements ?? Array.from(elementsById.values()),
+    currentElement?.numericVariables ?? [],
+    currentElement
+  );
+  const tokenPattern =
+    /@([^\s()+*/.<>!=&|、。！？「」（）【】［］{}]+)/g;
+  const measurementPattern =
+    /([^\s()+*/<>!=&|、。！？「」（）【】［］{}]+)\.(length|長さ|startAngleDeg|始角度|endAngleDeg|終角度|startTangentAngleDeg|始点接線角度|endTangentAngleDeg|終点接線角度|startHandleAngleDeg|始点ハンドル角度|startHandleLength|始点ハンドル長|endHandleAngleDeg|終点ハンドル角度|endHandleLength|終点ハンドル長)\b/g;
+
+  let firstError: NumericExpressionError | undefined;
+  const evaluateInlineExpression = (expression: string) => {
+    const result = evaluateNumericValue({
+      value: { kind: "expression", expression },
+      computedGeometry,
+      elementsById,
+      localVariables,
+      localVariableNames,
+      computedVariables,
+      currentElement,
+      elements
+    });
+    if (result.error) {
+      firstError = result.error;
+      return expression;
+    }
+    return textNumber(result.value ?? 0);
+  };
+
+  const sourceElements = elements ?? Array.from(elementsById.values());
+  const elementIdOrName = (value: string) =>
+    elementsById.has(value)
+      ? value
+      : sourceElements.find((element) => element.name === value)?.id ?? value;
+  const resolved = normalizedText
+    .replace(tokenPattern, (match) => evaluateInlineExpression(match))
+    .replace(measurementPattern, (_match, elementIdOrLabel: string, propertyLabel: string) => {
+      const property = labelToProperty.get(propertyLabel) ?? propertyLabel;
+      return evaluateInlineExpression(`${elementIdOrName(elementIdOrLabel)}.${property}`);
+    });
+
+  if (firstError) return { error: firstError };
+  return { text: resolved };
+};
+
+export const extractTextReferences = (text: string): NumericExpressionReference[] => {
+  const references: NumericExpressionReference[] = [];
+  const variablePattern = /@([^\s()+*/.<>!=&|、。！？「」（）【】［］{}]+)/g;
+  const measurementPattern =
+    /([^\s()+*/<>!=&|、。！？「」（）【】［］{}]+)\.(length|長さ|startAngleDeg|始角度|endAngleDeg|終角度|startTangentAngleDeg|始点接線角度|endTangentAngleDeg|終点接線角度|startHandleAngleDeg|始点ハンドル角度|startHandleLength|始点ハンドル長|endHandleAngleDeg|終点ハンドル角度|endHandleLength|終点ハンドル長)\b/g;
+  for (const match of text.matchAll(variablePattern)) {
+    references.push({ elementId: match[1] });
+  }
+  for (const match of text.matchAll(measurementPattern)) {
+    const property = labelToProperty.get(match[2]) ?? match[2];
+    references.push({ elementId: match[1], property: property as NumericMeasurementKey });
+  }
+  return references;
 };

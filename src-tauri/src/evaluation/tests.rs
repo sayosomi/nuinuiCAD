@@ -192,6 +192,71 @@ fn evaluates_variable_element_local_numeric_variables() {
 }
 
 #[test]
+fn evaluates_text_with_anchor_and_numeric_references() {
+    let mut elements = base_line_elements();
+    elements.push(element(json!({
+        "id": "ease",
+        "name": "ゆとり",
+        "type": "variable",
+        "visible": true,
+        "enabled": true,
+        "scope": "global",
+        "valueMode": "expression",
+        "expression": 12,
+        "point1": { "mode": "reference", "pointId": "a" },
+        "point2": { "mode": "reference", "pointId": "b" },
+        "point": { "mode": "reference", "pointId": "a" },
+        "lineId": "line"
+    })));
+    elements.push(element(json!({
+        "id": "text",
+        "name": "注記",
+        "type": "text",
+        "visible": true,
+        "enabled": true,
+        "text": "前中心 @ゆとり / 直線AB.length",
+        "anchor": { "mode": "reference", "pointId": "a" },
+        "fontSize": 4
+    })));
+
+    let result = evaluate_document_input(EvaluationInput {
+        elements,
+        evaluation_limit_index: None,
+    });
+
+    assert!(result.errors.is_empty());
+    let text = point(&result, "text");
+    assert_eq!(text["kind"], json!("text"));
+    assert_eq!(text["text"], json!("前中心 12 / 100"));
+    assert_eq!(text["anchor"]["x"], json!(0.0));
+    assert_eq!(text["anchor"]["y"], json!(0.0));
+    assert_eq!(text["fontSize"], json!(4.0));
+}
+
+#[test]
+fn evaluates_anchorless_text_as_comment_geometry() {
+    let result = evaluate_document_input(EvaluationInput {
+        elements: vec![element(json!({
+            "id": "text",
+            "name": "コメント",
+            "type": "text",
+            "visible": true,
+            "enabled": true,
+            "text": "構成リスト用",
+            "anchor": null,
+            "fontSize": 3
+        }))],
+        evaluation_limit_index: None,
+    });
+
+    assert!(result.errors.is_empty());
+    let text = point(&result, "text");
+    assert_eq!(text["kind"], json!("text"));
+    assert_eq!(text["text"], json!("構成リスト用"));
+    assert_eq!(text["anchor"], Value::Null);
+}
+
+#[test]
 fn evaluates_arc_line_with_full_360_degree_sweep() {
     let result = evaluate_document_input(EvaluationInput {
         elements: vec![

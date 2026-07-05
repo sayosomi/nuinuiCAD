@@ -7,6 +7,7 @@ import type {
   ComputedLine,
   ComputedOffsetLine,
   ComputedPoint,
+  ComputedText,
   ElementId,
   PointAnchor
 } from "../types/geometry";
@@ -44,6 +45,12 @@ export type CanvasOverlayImage = {
   image: ComputedImage;
   sourceUrl: string;
   corners: ScreenPoint[];
+};
+
+export type CanvasOverlayText = {
+  text: ComputedText;
+  screen: ScreenPoint;
+  fontSizePx: number;
 };
 
 export type CanvasNumericReferenceCandidate = {
@@ -95,6 +102,7 @@ export type CanvasOverlayData = {
   curves: ComputedBezierCurve[];
   offsetLines: ComputedOffsetLine[];
   images: ComputedImage[];
+  texts: ComputedText[];
   points: ComputedPoint[];
   visibleElementIds: Set<ElementId>;
   overlayLines: CanvasOverlayLine[];
@@ -103,6 +111,7 @@ export type CanvasOverlayData = {
   overlayCurves: CanvasOverlayCurve[];
   overlayOffsetLines: CanvasOverlayOffsetLine[];
   overlayImages: CanvasOverlayImage[];
+  overlayTexts: CanvasOverlayText[];
   overlayPointPickCandidates: PointPickCandidate[];
   overlayNumericReferenceCandidates: CanvasNumericReferenceCandidate[];
   selectedBezierHandles: BezierHandleOverlay[];

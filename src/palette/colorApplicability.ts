@@ -22,6 +22,7 @@ export const elementSupportsDisplayColor = (element: CadElement): boolean => {
     case "offsetLine":
     case "copyLine":
     case "symmetricCopyLine":
+    case "text":
       return true;
     case "variable":
     case "edge":

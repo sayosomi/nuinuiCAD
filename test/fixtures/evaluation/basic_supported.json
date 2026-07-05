@@ -119,6 +119,26 @@
       "endPoint": { "mode": "reference", "pointId": "b" },
       "endHandleAngleDeg": 180,
       "endHandleLength": 30
+    },
+    {
+      "id": "text",
+      "name": "注記",
+      "type": "text",
+      "visible": true,
+      "enabled": true,
+      "text": "前中心 @ゆとり / 直線AB.length",
+      "anchor": { "mode": "reference", "pointId": "a" },
+      "fontSize": 4
+    },
+    {
+      "id": "comment",
+      "name": "コメント",
+      "type": "text",
+      "visible": true,
+      "enabled": true,
+      "text": "構成リスト用コメント",
+      "anchor": null,
+      "fontSize": 3
     }
   ]
 }

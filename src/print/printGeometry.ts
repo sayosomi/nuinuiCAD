@@ -8,6 +8,7 @@ import type {
   ComputedBezierCurve,
   ComputedGeometry,
   ComputedOffsetLine,
+  ComputedText,
   ElementId,
   EvaluationResult,
   PointAnchor,
@@ -44,6 +45,22 @@ export type PrintablePath =
       placementId: string;
       points: PrintPoint[];
     };
+
+export type PrintableText = {
+  kind: "text";
+  elementId: ElementId;
+  groupId: ElementId;
+  placementId: string;
+  text: string;
+  anchor: PrintPoint;
+  fontSize: number;
+  angleDeg: number;
+};
+
+export type PrintableItems = {
+  paths: PrintablePath[];
+  texts: PrintableText[];
+};
 
 export type PrintableGroup = Extract<CadElement, { type: "group" }> & {
   printEnabled: true;
@@ -249,6 +266,84 @@ const pathsForGeometry = ({
   return [];
 };
 
+const textForGeometry = ({
+  text,
+  groupId,
+  placement,
+  anchor,
+  scale
+}: {
+  text: ComputedText;
+  groupId: ElementId;
+  placement: ResolvedPrintLayoutPlacement;
+  anchor: PrintPoint;
+  scale: number;
+}): PrintableText[] => {
+  if (!text.anchor) return [];
+  return [{
+    kind: "text",
+    elementId: text.elementId,
+    groupId,
+    placementId: placement.id,
+    text: text.text,
+    anchor: transformPrintPoint({ point: text.anchor, anchor, placement, scale }),
+    fontSize: text.fontSize * scale,
+    angleDeg: placement.angleDeg
+  }];
+};
+
+export const printableItemsForLayout = ({
+  elements,
+  evaluation,
+  layout
+}: {
+  elements: CadElement[];
+  evaluation: EvaluationResult;
+  layout: PrintLayout;
+}): PrintableItems => {
+  const geometries = Array.from(evaluation.computedGeometry.values());
+  const resolvedLayout = resolvePrintLayout({ layout, elements, evaluation });
+  const visibleIds = evaluation.effectiveVisibleElementIds ?? new Set(elements.map((element) => element.id));
+  const enabledIds = evaluation.effectiveEnabledElementIds ?? new Set(elements.map((element) => element.id));
+  const groupsById = new Map(printableGroups(elements).map((group) => [group.id, group]));
+  const items: PrintableItems = { paths: [], texts: [] };
+
+  for (const placement of resolvedLayout.placements) {
+    const group = groupsById.get(placement.groupId);
+    if (!group) continue;
+    const descendants = new Set(descendantIdsForGroup(elements, group.id));
+    const anchor = resolveAnchorPoint({
+      anchor: group.printAnchor,
+      group,
+      elements,
+      evaluation
+    });
+    for (const geometry of geometries) {
+      if (!visibleIds.has(geometry.elementId) || !enabledIds.has(geometry.elementId)) continue;
+      if (!geometryBelongsToGroup(geometry, descendants)) continue;
+      if (geometry.kind === "text") {
+        items.texts.push(...textForGeometry({
+          text: geometry,
+          groupId: group.id,
+          placement,
+          anchor,
+          scale: resolvedLayout.scale
+        }));
+        continue;
+      }
+      items.paths.push(...pathsForGeometry({
+        geometry,
+        groupId: group.id,
+        placement,
+        anchor,
+        scale: resolvedLayout.scale
+      }));
+    }
+  }
+
+  return items;
+};
+
 export const printablePathsForLayout = ({
   elements,
   evaluation,
@@ -257,37 +352,7 @@ export const printablePathsForLayout = ({
   elements: CadElement[];
   evaluation: EvaluationResult;
   layout: PrintLayout;
-}) => {
-  const geometries = Array.from(evaluation.computedGeometry.values());
-  const resolvedLayout = resolvePrintLayout({ layout, elements, evaluation });
-  const visibleIds = evaluation.effectiveVisibleElementIds ?? new Set(elements.map((element) => element.id));
-  const enabledIds = evaluation.effectiveEnabledElementIds ?? new Set(elements.map((element) => element.id));
-  const groupsById = new Map(printableGroups(elements).map((group) => [group.id, group]));
-
-  return resolvedLayout.placements.flatMap((placement) => {
-    const group = groupsById.get(placement.groupId);
-    if (!group) return [];
-    const descendants = new Set(descendantIdsForGroup(elements, group.id));
-    const anchor = resolveAnchorPoint({
-      anchor: group.printAnchor,
-      group,
-      elements,
-      evaluation
-    });
-    return geometries
-      .filter((geometry) => visibleIds.has(geometry.elementId) && enabledIds.has(geometry.elementId))
-      .filter((geometry) => geometryBelongsToGroup(geometry, descendants))
-      .flatMap((geometry) =>
-        pathsForGeometry({
-          geometry,
-          groupId: group.id,
-          placement,
-          anchor,
-          scale: resolvedLayout.scale
-        })
-      );
-  });
-};
+}) => printableItemsForLayout({ elements, evaluation, layout }).paths;
 
 export const defaultPlacementForGroup = (
   groupId: ElementId,

@@ -20,6 +20,7 @@ export type ParameterDefinition = {
   label: string;
   kind: ParameterValueKind;
   allowCoordinate?: boolean;
+  allowNone?: boolean;
   emptyInputDefaultValue?: number;
   stepLevels?: readonly number[];
   choiceOptions?: readonly string[];
@@ -61,16 +62,18 @@ const pointAnchorParameters = ({
   key,
   directKey,
   label,
-  allowCoordinate
+  allowCoordinate,
+  allowNone = false
 }: {
-  anchor: PointAnchor;
+  anchor: PointAnchor | null;
   key: string;
   directKey: string;
   label: string;
   allowCoordinate: boolean;
+  allowNone?: boolean;
 }): ParameterDefinition[] => [
-  { key, directKey, label, kind: "reference", allowCoordinate },
-  ...(anchor.mode === "coordinate"
+  { key, directKey, label, kind: "reference", allowCoordinate, allowNone },
+  ...(anchor?.mode === "coordinate"
     ? [
         { key: `${key}:x`, directKey: "x", label: `${label} x`, kind: "number" as const },
         { key: `${key}:y`, directKey: "y", label: `${label} y`, kind: "number" as const }
@@ -134,6 +137,21 @@ export const getParameterDefinitions = (element: CadElement): ParameterDefinitio
           choiceOptions: ["global", "group"]
         },
         { key: "expression", directKey: "v", label: "式", kind: "number" }
+      ];
+    case "text":
+      return [
+        ...commonParameters,
+        ...numericVariableParameters(element),
+        { key: "text", directKey: "t", label: "テキスト", kind: "text" },
+        ...pointAnchorParameters({
+          anchor: element.anchor,
+          key: "anchor",
+          directKey: "b",
+          label: "基準点",
+          allowCoordinate: true,
+          allowNone: true
+        }),
+        { key: "fontSize", directKey: "s", label: "文字サイズ", kind: "number" }
       ];
     case "freePoint":
       return [

@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { dispatchCommand } from "../commands/commands";
 import { defaultDocumentPalette } from "../palette/palette";
 import { sampleElements } from "../sampleData";
-import { DEFAULT_CANVAS_VIEWPORT, useCadStore } from "../state/useCadStore";
+import { DEFAULT_CANVAS_VIEWPORT, DEFAULT_PRINT_PREVIEW_WINDOW, useCadStore } from "../state/useCadStore";
 import { AppLayout } from "./AppLayout";
 
 const resetStore = () => {
@@ -34,6 +34,8 @@ const resetStore = () => {
     showPaletteSettings: false,
     showCommandRibbonSettings: false,
     showSelectionColorPicker: false,
+    showPrintLayout: false,
+    showPrintPreviewWindow: false,
     shortcutSettings: { version: 1, overrides: [] },
     shortcutSettingsLoading: false,
     shortcutSettingsError: null,
@@ -43,6 +45,7 @@ const resetStore = () => {
     showCommandPalette: false,
     canvasViewport: DEFAULT_CANVAS_VIEWPORT,
     printCanvasViewport: DEFAULT_CANVAS_VIEWPORT,
+    printPreviewWindow: DEFAULT_PRINT_PREVIEW_WINDOW,
     past: [],
     future: [],
     currentFilePath: null,
@@ -236,7 +239,18 @@ describe("AppLayout left panel resizing", () => {
   it("loads the saved left panel width", async () => {
     window.localStorage.setItem(
       "nuinuiCAD.layoutSettings.v1",
-      JSON.stringify({ version: 1, leftPanelWidth: 520 })
+      JSON.stringify({
+        version: 1,
+        leftPanelWidth: 520,
+        printPreviewWindow: {
+          x: 48,
+          y: 36,
+          width: 420,
+          height: 280,
+          zoom: 0.75,
+          layoutId: "print-layout-1"
+        }
+      })
     );
     const view = render(<AppLayout />);
     const shell = view.container.querySelector(".app-shell");
@@ -245,6 +259,56 @@ describe("AppLayout left panel resizing", () => {
     }
 
     await waitFor(() => expect(shell.style.getPropertyValue("--left-panel-width")).toBe("520px"));
+    expect(useCadStore.getState().printPreviewWindow).toEqual({
+      x: 48,
+      y: 36,
+      width: 420,
+      height: 280,
+      zoom: 0.75,
+      layoutId: "print-layout-1"
+    });
+  });
+
+  it("opens and adjusts the floating print preview in the canvas workspace", async () => {
+    const view = render(<AppLayout />);
+    const controls = view.getByLabelText("キャンバス表示設定");
+
+    fireEvent.click(within(controls).getByRole("button", { name: "印刷" }));
+
+    const preview = view.getByLabelText("印刷プレビュー");
+    expect(preview).toBeInTheDocument();
+
+    fireEvent.click(view.getByRole("button", { name: "印刷プレビューを拡大" }));
+    expect(useCadStore.getState().printPreviewWindow.zoom).toBeGreaterThan(
+      DEFAULT_PRINT_PREVIEW_WINDOW.zoom
+    );
+
+    const titlebar = view.getByLabelText("プレビューする印刷レイアウト").closest(".print-preview-titlebar");
+    if (!(titlebar instanceof HTMLElement)) throw new Error("Missing print preview titlebar");
+    fireEvent.pointerDown(titlebar, { button: 0, pointerId: 1, clientX: 20, clientY: 20 });
+    fireEvent.pointerMove(titlebar, { pointerId: 1, clientX: 60, clientY: 50 });
+    fireEvent.pointerUp(titlebar, { pointerId: 1, clientX: 60, clientY: 50 });
+
+    expect(useCadStore.getState().printPreviewWindow).toMatchObject({ x: 64, y: 54 });
+
+    const resizeHandle = view.getByRole("separator", { name: "印刷プレビューのサイズを変更" });
+    fireEvent.pointerDown(resizeHandle, { button: 0, pointerId: 2, clientX: 0, clientY: 0 });
+    fireEvent.pointerMove(resizeHandle, { pointerId: 2, clientX: 40, clientY: 30 });
+    fireEvent.pointerUp(resizeHandle, { pointerId: 2, clientX: 40, clientY: 30 });
+
+    expect(useCadStore.getState().printPreviewWindow).toMatchObject({
+      width: DEFAULT_PRINT_PREVIEW_WINDOW.width + 40,
+      height: DEFAULT_PRINT_PREVIEW_WINDOW.height + 30
+    });
+
+    await waitFor(() => {
+      expect(JSON.parse(window.localStorage.getItem("nuinuiCAD.layoutSettings.v1") ?? "{}")).toMatchObject({
+        printPreviewWindow: expect.objectContaining({
+          width: DEFAULT_PRINT_PREVIEW_WINDOW.width + 40,
+          height: DEFAULT_PRINT_PREVIEW_WINDOW.height + 30
+        })
+      });
+    });
   });
 
   it("saves the left panel width after pointer resizing", async () => {
@@ -264,7 +328,8 @@ describe("AppLayout left panel resizing", () => {
       expect(JSON.parse(window.localStorage.getItem("nuinuiCAD.layoutSettings.v1") ?? "{}")).toEqual({
         version: 1,
         leftPanelWidth: 500,
-        collapsedPrintPanelSections: ["variables"]
+        collapsedPrintPanelSections: ["variables"],
+        printPreviewWindow: DEFAULT_PRINT_PREVIEW_WINDOW
       })
     );
     expect(shell.style.getPropertyValue("--left-panel-width")).toBe("500px");
@@ -289,7 +354,8 @@ describe("AppLayout left panel resizing", () => {
       expect(JSON.parse(window.localStorage.getItem("nuinuiCAD.layoutSettings.v1") ?? "{}")).toEqual({
         version: 1,
         leftPanelWidth: 320,
-        collapsedPrintPanelSections: ["variables"]
+        collapsedPrintPanelSections: ["variables"],
+        printPreviewWindow: DEFAULT_PRINT_PREVIEW_WINDOW
       })
     );
     expect(shell.style.getPropertyValue("--left-panel-width")).toBe("320px");

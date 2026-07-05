@@ -63,6 +63,10 @@ const tokenText = (token: Token, idMap: Map<ElementId, ElementId>) => {
       return token.name;
     case "operator":
       return ` ${token.value} `;
+    case "comparisonOperator":
+      return ` ${token.value} `;
+    case "logicalOperator":
+      return ` ${token.value} `;
     case "comma":
       return ", ";
     case "leftParen":
@@ -281,6 +285,12 @@ export const remapElementReferences = (source: CadElement, idMap: Map<ElementId,
         originPoint: remapPointAnchor(element.originPoint, idMap),
         scale: remapNumericValue(element.scale, idMap),
         angleDeg: remapNumericValue(element.angleDeg, idMap)
+      };
+    case "text":
+      return {
+        ...element,
+        anchor: element.anchor ? remapPointAnchor(element.anchor, idMap) : null,
+        fontSize: remapNumericValue(element.fontSize, idMap)
       };
   }
 };

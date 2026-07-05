@@ -1,4 +1,11 @@
-import type { CadElement, ComputedGeometry, DependencyError, ElementId, EvaluationWarning } from "../types/geometry";
+import type {
+  CadElement,
+  ComputedGeometry,
+  ComputedVariable,
+  DependencyError,
+  ElementId,
+  EvaluationWarning
+} from "../types/geometry";
 import type { LocalVariableEvaluation } from "./evaluationContext";
 
 export type ElementEvaluationContext = {
@@ -8,4 +15,6 @@ export type ElementEvaluationContext = {
   warnings: EvaluationWarning[];
   disabledByGroupId: Map<ElementId, ElementId>;
   localVariables: LocalVariableEvaluation;
+  computedVariables?: Map<ElementId, ComputedVariable>;
+  elements?: CadElement[];
 };

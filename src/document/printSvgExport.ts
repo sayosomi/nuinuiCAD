@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { save } from "@tauri-apps/plugin-dialog";
 import { isTauriRuntime } from "../geometry/evaluationEngine";
-import { printablePathsForLayout } from "../print/printGeometry";
+import { printableItemsForLayout } from "../print/printGeometry";
 import { resolvePrintLayout } from "../print/printLayout";
 import { currentDocumentSnapshot, useCadDocumentStore } from "../state/cadDocumentStore";
 import { defaultPrintExportFileName, defaultPrintExportPath } from "./printExportFileName";
@@ -13,7 +13,8 @@ type ExportPrintSvgInput = {
     widthMm: number;
     heightMm: number;
   };
-  paths: ReturnType<typeof printablePathsForLayout>;
+  paths: ReturnType<typeof printableItemsForLayout>["paths"];
+  texts: ReturnType<typeof printableItemsForLayout>["texts"];
 };
 
 const ensureSvgFileName = (path: string) =>
@@ -62,17 +63,19 @@ export const exportPrintSvg = async (evaluation: EvaluationResult | undefined) =
   }));
   if (!path) return;
 
+  const items = printableItemsForLayout({
+    elements: snapshot.elements,
+    evaluation,
+    layout: snapshot.printLayout
+  });
   const input: ExportPrintSvgInput = {
     path: ensureSvgFileName(path),
     canvas: {
       widthMm: resolvedLayout.svgCanvasWidthMm,
       heightMm: resolvedLayout.svgCanvasHeightMm
     },
-    paths: printablePathsForLayout({
-      elements: snapshot.elements,
-      evaluation,
-      layout: snapshot.printLayout
-    })
+    paths: items.paths,
+    texts: items.texts
   };
 
   await invoke("export_print_svg", { input });

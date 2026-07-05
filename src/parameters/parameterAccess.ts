@@ -25,7 +25,8 @@ export const supportsNumericVariables = (element: CadElement) =>
   element.type === "symmetricCopyLine" ||
   element.type === "move" ||
   element.type === "symmetricMove" ||
-  element.type === "image";
+  element.type === "image" ||
+  element.type === "text";
 
 export const parseIntermediateParameterKey = (key: string) => {
   const [, intermediatePointId, field] = key.split(":");
@@ -107,6 +108,9 @@ export const getPointAnchor = (element: CadElement, key: string): PointAnchor | 
   if (key === "originPoint" && element.type === "image") {
     return element.originPoint;
   }
+  if (key === "anchor" && element.type === "text") {
+    return element.anchor;
+  }
   if (key === "printAnchor" && element.type === "group") {
     return element.printAnchor ?? { mode: "coordinate", x: 0, y: 0 };
   }
@@ -116,8 +120,12 @@ export const getPointAnchor = (element: CadElement, key: string): PointAnchor | 
 export const setPointAnchor = (
   element: CadElement,
   key: string,
-  anchor: PointAnchor
+  anchor: PointAnchor | null
 ): CadElement => {
+  if (!anchor && key === "anchor" && element.type === "text") {
+    return { ...element, anchor: null };
+  }
+  if (!anchor) return element;
   const parsed = parseIntermediateParameterKey(key);
   if (parsed && element.type === "bezierCurve" && parsed.field === "point") {
     return {
@@ -192,6 +200,9 @@ export const setPointAnchor = (
   if (key === "originPoint" && element.type === "image") {
     return { ...element, originPoint: anchor };
   }
+  if (key === "anchor" && element.type === "text") {
+    return { ...element, anchor };
+  }
   if (key === "printAnchor" && element.type === "group") {
     return { ...element, printAnchor: anchor };
   }
@@ -236,8 +247,12 @@ export const setParameterValue = (
       [anchorCoordinate.axis]: value as NumericValue
     });
   }
-  if (getPointAnchor(element, key)) {
-    const anchor = typeof value === "string" ? referenceAnchor(value) : value as PointAnchor;
+  if (getPointAnchor(element, key) || (element.type === "text" && key === "anchor")) {
+    const anchor = value === null
+      ? null
+      : typeof value === "string"
+        ? referenceAnchor(value)
+        : value as PointAnchor;
     return setPointAnchor(element, key, anchor);
   }
   const variable = parseVariableParameterKey(key);

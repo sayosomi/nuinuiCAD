@@ -4,7 +4,13 @@ import { dispatchCommand, filterCommandPaletteItems } from "./commands";
 import { defaultDocumentPalette } from "../palette/palette";
 import { DEFAULT_PRINT_LAYOUT } from "../print/printLayout";
 import { sampleElements } from "../sampleData";
-import { DEFAULT_CANVAS_VIEWPORT, MAX_CANVAS_ZOOM, MIN_CANVAS_ZOOM, useCadStore } from "../state/useCadStore";
+import {
+  DEFAULT_CANVAS_VIEWPORT,
+  DEFAULT_PRINT_PREVIEW_WINDOW,
+  MAX_CANVAS_ZOOM,
+  MIN_CANVAS_ZOOM,
+  useCadStore
+} from "../state/useCadStore";
 import type { CadElement } from "../types/geometry";
 
 describe("commands", () => {
@@ -42,6 +48,8 @@ describe("commands", () => {
       groupTemplateLibraryMode: "manage",
       showCommandRibbonSettings: false,
       showSelectionColorPicker: false,
+      showPrintLayout: false,
+      showPrintPreviewWindow: false,
       commandErrorMessage: null,
       shortcutSettings: { version: 1, overrides: [] },
       shortcutSettingsLoading: false,
@@ -52,6 +60,7 @@ describe("commands", () => {
       showCommandPalette: false,
       canvasViewport: DEFAULT_CANVAS_VIEWPORT,
       printCanvasViewport: DEFAULT_CANVAS_VIEWPORT,
+      printPreviewWindow: DEFAULT_PRINT_PREVIEW_WINDOW,
       past: [],
       future: [],
       currentFilePath: null,
@@ -91,6 +100,23 @@ describe("commands", () => {
 
     dispatchCommand("toggleCanvasPoints");
     expect(useCadStore.getState().showCanvasPoints).toBe(false);
+  });
+
+  it("toggles the floating print preview without touching history", () => {
+    useCadStore.setState({ showCommandPalette: true });
+
+    dispatchCommand("togglePrintPreviewWindow");
+
+    expect(useCadStore.getState()).toMatchObject({
+      showPrintPreviewWindow: true,
+      showCommandPalette: false
+    });
+    expect(useCadStore.getState().past).toHaveLength(0);
+
+    dispatchCommand("togglePrintPreviewWindow");
+
+    expect(useCadStore.getState().showPrintPreviewWindow).toBe(false);
+    expect(useCadStore.getState().past).toHaveLength(0);
   });
 
   it("toggles element list color accents", () => {

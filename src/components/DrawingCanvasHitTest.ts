@@ -137,6 +137,7 @@ export const hitTestCanvasGeometry = ({
   curves,
   offsetLines,
   images,
+  texts,
   points
 }: {
   screen: ScreenPoint;
@@ -145,6 +146,7 @@ export const hitTestCanvasGeometry = ({
   curves?: Array<{ curve: ComputedBezierCurve; points: ScreenPoint[] }>;
   offsetLines?: Array<{ line: ComputedOffsetLine; points: ScreenPoint[] }>;
   images?: Array<{ image: { elementId: ElementId }; corners: ScreenPoint[] }>;
+  texts?: Array<{ text: { elementId: ElementId; text: string }; screen: ScreenPoint; fontSizePx: number }>;
   points: Array<{ point: ComputedPoint; screen: ScreenPoint }>;
 }): ElementId | null => {
   for (let index = points.length - 1; index >= 0; index -= 1) {
@@ -182,6 +184,13 @@ export const hitTestCanvasGeometry = ({
     }
   }
 
+  for (let index = (texts?.length ?? 0) - 1; index >= 0; index -= 1) {
+    const item = texts![index];
+    if (pointInTextBounds(screen, item)) {
+      return item.text.elementId;
+    }
+  }
+
   for (let index = (images?.length ?? 0) - 1; index >= 0; index -= 1) {
     const item = images![index];
     if (pointInPolygon(screen, item.corners)) {
@@ -190,6 +199,22 @@ export const hitTestCanvasGeometry = ({
   }
 
   return null;
+};
+
+const pointInTextBounds = (
+  point: ScreenPoint,
+  item: { text: { text: string }; screen: ScreenPoint; fontSizePx: number }
+) => {
+  const lines = item.text.text.split(/\r?\n/);
+  const maxLineLength = Math.max(1, ...lines.map((line) => Array.from(line).length));
+  const width = maxLineLength * item.fontSizePx * 0.62;
+  const height = Math.max(1, lines.length) * item.fontSizePx * 1.2;
+  return (
+    point.x >= item.screen.x &&
+    point.x <= item.screen.x + width &&
+    point.y >= item.screen.y &&
+    point.y <= item.screen.y + height
+  );
 };
 
 const pointInPolygon = (point: ScreenPoint, polygon: ScreenPoint[]) => {

@@ -36,6 +36,12 @@ export const creationCommandDefinitions = {
     palette: { order: 21.5, keywords: ["variable", "global", "local", "変数", "グローバル", "ローカル", "追加"] },
     run: (context) => addElement("variable", context?.focusSelectedParameterInput)
   },
+  addText: {
+    id: "addText",
+    label: "テキストを追加",
+    palette: { order: 21.75, keywords: ["text", "label", "comment", "テキスト", "ラベル", "コメント", "注記", "追加"] },
+    run: (context) => addElement("text", context?.focusSelectedParameterInput)
+  },
   addOffsetPoint: {
     id: "addOffsetPoint",
     label: "offset point を追加",

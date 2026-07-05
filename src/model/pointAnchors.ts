@@ -197,7 +197,7 @@ export const selectablePointsForGeometry = (
     ];
   }
 
-  if (geometry.kind === "image") {
+  if (geometry.kind === "image" || geometry.kind === "text") {
     return [];
   }
 

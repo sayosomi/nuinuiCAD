@@ -114,6 +114,21 @@ export const createCadElement = (
         lineId: lineLikeElements[0]?.id ?? ""
       };
     }
+    case "text": {
+      const textCount = elements.filter((element) => element.type === "text").length;
+      const id = createId(type);
+      return {
+        id,
+        name: uniqueName(id, `テキスト${textCount + 1}`),
+        type,
+        visible: true,
+        enabled: true,
+        numericVariables: [],
+        text: "テキスト",
+        anchor: firstPointId ? referenceAnchor(firstPointId) : null,
+        fontSize: 3
+      };
+    }
     case "freePoint": {
       const id = createId(type);
       const requestedName = `点${points.length + 1}`;
