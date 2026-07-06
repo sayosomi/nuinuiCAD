@@ -1157,13 +1157,13 @@ export const PrintLayoutPanel = ({ evaluation }: { evaluation: EvaluationResult 
               <PrintNumberInput label="x mm" value={selectedPlacement.x} resolvedValue={selectedResolvedPlacement?.x ?? 0} defaultValue={Math.round(canvas.widthMm / 2)} elements={elements} printVariables={printVariables} step={1} onChange={(x) => updatePlacement(selectedPlacement.id, { x })} />
               <PrintNumberInput label="y mm" value={selectedPlacement.y} resolvedValue={selectedResolvedPlacement?.y ?? 0} defaultValue={Math.round(canvas.heightMm / 2)} elements={elements} printVariables={printVariables} step={1} onChange={(y) => updatePlacement(selectedPlacement.id, { y })} />
               <PrintNumberInput label="角度" value={selectedPlacement.angleDeg} resolvedValue={selectedResolvedPlacement?.angleDeg ?? 0} defaultValue={0} elements={elements} printVariables={printVariables} step={1} onChange={(angleDeg) => updatePlacement(selectedPlacement.id, { angleDeg })} />
-              <label className="print-toggle-field">
-                <span>左右反転</span>
+              <label className="print-checkbox-field">
                 <input
                   type="checkbox"
                   checked={selectedPlacement.mirrorX}
                   onChange={(event) => updatePlacement(selectedPlacement.id, { mirrorX: event.target.checked })}
                 />
+                <span>左右反転</span>
               </label>
             </div>
           </>

@@ -4203,7 +4203,7 @@ textarea {
 
 .print-select-field,
 .print-number-field,
-.print-toggle-field {
+.print-checkbox-field {
   display: grid;
   min-width: 0;
   gap: 4px;
@@ -4211,7 +4211,7 @@ textarea {
 
 .print-select-field span,
 .print-number-field span,
-.print-toggle-field span {
+.print-checkbox-field span {
   color: #5c6359;
   font-size: 11px;
   font-weight: 700;
@@ -4236,13 +4236,18 @@ textarea {
   cursor: ew-resize;
 }
 
-.print-toggle-field {
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: end;
-  border: 1px solid #d7dace;
-  border-radius: 6px;
-  background: #ffffff;
-  padding: 7px 8px;
+.print-checkbox-field {
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  align-self: end;
+  min-height: 35px;
+  padding: 7px 0;
+}
+
+.print-checkbox-field input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
 }
 
 .print-group-list {
