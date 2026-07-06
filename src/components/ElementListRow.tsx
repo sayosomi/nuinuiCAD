@@ -44,6 +44,13 @@ const elementListCommentPreview = (element: CadElement) =>
     ? element.text.replace(/\s+/g, " ").trim()
     : "";
 
+const GroupFolderIcon = ({ expanded }: { expanded: boolean }) =>
+  expanded ? (
+    <FolderOpen className="element-group-icon" aria-hidden="true" />
+  ) : (
+    <Folder className="element-group-icon" aria-hidden="true" />
+  );
+
 export type ElementListGroupIssues = {
   childCount: number;
   errorCount: number;
@@ -274,11 +281,14 @@ export const ElementListRow = ({
     </span>
     <span className="element-name">
       {hasError || hasWarning ? "⚠ " : ""}
-      <span
-        className={elementListNameTextClassName(elementListDisplayName(element))}
-        title={elementListDisplayName(element)}
-      >
-        {elementListDisplayName(element)}
+      <span className="element-name-primary">
+        {isGroupElement(element) ? <GroupFolderIcon expanded={element.expanded} /> : null}
+        <span
+          className={elementListNameTextClassName(elementListDisplayName(element))}
+          title={elementListDisplayName(element)}
+        >
+          {elementListDisplayName(element)}
+        </span>
       </span>
       {isSearchActive && searchParentGroupNames.length ? (
         <small className="group-mask-label">{searchParentGroupNames.join(" / ")}</small>
@@ -292,11 +302,7 @@ export const ElementListRow = ({
     <span className="element-type">
       {isGroupElement(element) && groupIssues ? (
         <span className="element-group-summary">
-          {element.expanded ? (
-            <FolderOpen className="element-group-icon" aria-hidden="true" />
-          ) : (
-            <Folder className="element-group-icon" aria-hidden="true" />
-          )}
+          <GroupFolderIcon expanded={element.expanded} />
           <span>
             {element.type === "forGroup"
               ? `繰り返し / ${numericValueExpression(element.count)}回`

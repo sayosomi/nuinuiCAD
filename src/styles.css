@@ -924,6 +924,13 @@ textarea {
   line-height: 1.25;
 }
 
+.element-name-primary {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+}
+
 .element-name-text {
   display: -webkit-box;
   overflow: hidden;

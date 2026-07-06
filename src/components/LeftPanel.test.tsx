@@ -2318,6 +2318,7 @@ describe("LeftPanel element list dragging", () => {
     expect(screen.queryByText(/配下/)).not.toBeInTheDocument();
     expect(screen.getByText("2件")).toBeInTheDocument();
     expect(groupRow?.querySelector(".element-group-icon")).toBeInTheDocument();
+    expect(groupRow?.querySelector(".element-name-primary .element-group-icon")).toBeInTheDocument();
     expect(groupRow?.querySelector(".element-expand-button")).toBeInTheDocument();
     expect(childRow?.querySelector(".element-expand-button")).not.toBeInTheDocument();
   });
