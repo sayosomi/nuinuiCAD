@@ -52,6 +52,7 @@ const resetStore = () => {
     activeExpressionInsertTarget: null,
     activeMeasurementInsertTarget: null,
     activePickCursor: null,
+    referenceHelperPosition: null,
     selectedDependencyJumpIndex: 0,
     elementSearchQuery: "",
     elementSearchCursorId: null,
@@ -793,6 +794,76 @@ describe("LeftPanel numeric input dragging", () => {
       expression: { kind: "expression", expression: "line-ab.length + @base-variable" }
     });
     expect(screen.getByLabelText("変数式")).toHaveValue("直線AB.長さ + @基準寸法");
+  });
+
+  it("shows the reference helper without the elements tab and keeps normal element candidates searchable", () => {
+    const variable: CadElement = {
+      id: "variable",
+      name: "変数",
+      type: "variable",
+      visible: true,
+      enabled: true,
+      scope: "global",
+      valueMode: "expression",
+      expression: 0,
+      point1: { mode: "reference", pointId: "point-a" },
+      point2: { mode: "reference", pointId: "point-b" },
+      point: { mode: "reference", pointId: "point-a" },
+      lineId: "line-ab"
+    };
+    useCadStore.setState({
+      elements: [...sampleElements, variable],
+      selectedElementId: "variable",
+      selectedElementIds: ["variable"],
+      selectedParameterKey: "expression"
+    });
+    renderRightPanel();
+
+    fireEvent.click(screen.getByText("参照を挿入"));
+
+    const categories = screen.getByRole("navigation", { name: "参照カテゴリ" });
+    expect(within(categories).queryByRole("button", { name: "elements" })).not.toBeInTheDocument();
+    expect(screen.getByText("点A.params.x")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("参照候補を検索"), {
+      target: { value: "点A" }
+    });
+
+    expect(screen.getByText("点A.params.x")).toBeInTheDocument();
+  });
+
+  it("moves the reference helper window by dragging its header", () => {
+    const variable: CadElement = {
+      id: "variable",
+      name: "変数",
+      type: "variable",
+      visible: true,
+      enabled: true,
+      scope: "global",
+      valueMode: "expression",
+      expression: 0,
+      point1: { mode: "reference", pointId: "point-a" },
+      point2: { mode: "reference", pointId: "point-b" },
+      point: { mode: "reference", pointId: "point-a" },
+      lineId: "line-ab"
+    };
+    useCadStore.setState({
+      elements: [...sampleElements, variable],
+      selectedElementId: "variable",
+      selectedElementIds: ["variable"],
+      selectedParameterKey: "expression"
+    });
+    renderRightPanel();
+
+    fireEvent.click(screen.getByText("参照を挿入"));
+    const header = screen.getByText("参照ヘルパー").closest(".reference-helper-header");
+    expect(header).not.toBeNull();
+
+    fireEvent.pointerDown(header!, { pointerId: 1, button: 0, clientX: 40, clientY: 90 });
+    fireEvent.pointerMove(header!, { pointerId: 1, clientX: 140, clientY: 140 });
+    fireEvent.pointerUp(header!, { pointerId: 1, clientX: 140, clientY: 140 });
+
+    expect(useCadStore.getState().referenceHelperPosition).toEqual({ x: 124, y: 122 });
   });
 
   it("suggests available variables when typing @ in a numeric input", () => {

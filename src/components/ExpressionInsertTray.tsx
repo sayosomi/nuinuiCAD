@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type PointerEvent } from "react";
 import { dispatchCommand } from "../commands/commands";
 import {
   numericReferenceCandidates,
@@ -6,7 +6,10 @@ import {
 } from "../geometry/numericReferencePaths";
 import { availableNumericVariableReferenceOptions } from "../geometry/variableReferenceOptions";
 import type { ParameterKey } from "../parameters/parameterDefinitions";
-import { useCadUiStore } from "../state/cadUiStore";
+import {
+  DEFAULT_REFERENCE_HELPER_POSITION,
+  useCadUiStore
+} from "../state/cadUiStore";
 import type { MeasurementInsertMode, MeasurementPointSlot } from "../state/cadUiStore";
 import type { CadElement, EvaluationResult } from "../types/geometry";
 
@@ -36,6 +39,15 @@ const relationLabels: Record<NumericReferenceCandidate["relation"] | "all", stri
   function: "functions"
 };
 
+const relationNavItems: Array<NumericReferenceCandidate["relation"] | "all"> = [
+  "all",
+  "self",
+  "parent",
+  "child",
+  "variable",
+  "function"
+];
+
 const emptyEvaluation: EvaluationResult = {
   computedGeometry: new Map(),
   computedVariables: new Map(),
@@ -60,6 +72,14 @@ const conditionalOperators = [
   { operator: "||", description: "A || B: AとBのどちらかが真のとき真" }
 ] as const;
 
+const clampReferenceHelperPosition = (position: { x: number; y: number }) => {
+  if (typeof window === "undefined") return position;
+  return {
+    x: Math.min(Math.max(8, position.x), Math.max(8, window.innerWidth - 320)),
+    y: Math.min(Math.max(8, position.y), Math.max(8, window.innerHeight - 96))
+  };
+};
+
 export const ExpressionInsertTray = ({
   element,
   elements,
@@ -76,6 +96,15 @@ export const ExpressionInsertTray = ({
   const activeMeasurementInsertTarget = useCadUiStore((state) => state.activeMeasurementInsertTarget);
   const activePointPickTarget = useCadUiStore((state) => state.activePointPickTarget);
   const activeLinePickTarget = useCadUiStore((state) => state.activeLinePickTarget);
+  const referenceHelperPosition = useCadUiStore((state) => state.referenceHelperPosition);
+  const setReferenceHelperPosition = useCadUiStore((state) => state.setReferenceHelperPosition);
+  const [dragState, setDragState] = useState<{
+    pointerId: number;
+    startX: number;
+    startY: number;
+    originX: number;
+    originY: number;
+  } | null>(null);
   const mode = activeMeasurementInsertTarget?.elementId === element.id &&
     activeMeasurementInsertTarget.parameterKey === parameterKey
     ? activeMeasurementInsertTarget.mode
@@ -201,10 +230,53 @@ export const ExpressionInsertTray = ({
     activeLinePickTarget?.elementId === element.id &&
     activeLinePickTarget.parameterKey === parameterKey &&
     activeLinePickTarget.measurementSlot === "line";
+  const helperPosition = clampReferenceHelperPosition(
+    referenceHelperPosition ?? DEFAULT_REFERENCE_HELPER_POSITION
+  );
+
+  const startDrag = (event: PointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0) return;
+    if ((event.target as HTMLElement).closest("button, input, textarea, select")) return;
+    event.preventDefault();
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    setDragState({
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      originX: helperPosition.x,
+      originY: helperPosition.y
+    });
+  };
+
+  const moveDrag = (event: PointerEvent<HTMLDivElement>) => {
+    if (!dragState || dragState.pointerId !== event.pointerId) return;
+    const nextPosition = clampReferenceHelperPosition({
+      x: dragState.originX + event.clientX - dragState.startX,
+      y: dragState.originY + event.clientY - dragState.startY
+    });
+    setReferenceHelperPosition(nextPosition);
+  };
+
+  const endDrag = (event: PointerEvent<HTMLDivElement>) => {
+    if (!dragState || dragState.pointerId !== event.pointerId) return;
+    event.currentTarget.releasePointerCapture?.(event.pointerId);
+    setDragState(null);
+  };
 
   return (
-    <div className="reference-helper-window" role="dialog" aria-label="参照ヘルパー">
-      <div className="reference-helper-header">
+    <div
+      className="reference-helper-window"
+      role="dialog"
+      aria-label="参照ヘルパー"
+      style={{ left: helperPosition.x, top: helperPosition.y }}
+    >
+      <div
+        className={`reference-helper-header ${dragState ? "is-dragging" : ""}`}
+        onPointerDown={startDrag}
+        onPointerMove={moveDrag}
+        onPointerUp={endDrag}
+        onPointerCancel={endDrag}
+      >
         <div>
           <strong>参照ヘルパー</strong>
           <small>挿入先: {element.name}.{parameterKey}</small>
@@ -232,7 +304,7 @@ export const ExpressionInsertTray = ({
 
       <div className="reference-helper-body">
         <nav className="reference-helper-nav" aria-label="参照カテゴリ">
-          {(Object.keys(relationLabels) as Array<NumericReferenceCandidate["relation"] | "all">).map((relation) => (
+          {relationNavItems.map((relation) => (
             <button
               key={relation}
               type="button"

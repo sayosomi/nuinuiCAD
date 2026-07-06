@@ -73,6 +73,11 @@ export type PrintPreviewWindow = {
   layoutId: string | null;
 };
 
+export type ReferenceHelperPosition = {
+  x: number;
+  y: number;
+};
+
 export type PendingImageImport = {
   sourcePath: string;
   displayName: string;
@@ -104,6 +109,11 @@ export const DEFAULT_PRINT_PREVIEW_WINDOW: PrintPreviewWindow = {
   height: 300,
   zoom: 0.55,
   layoutId: null
+};
+
+export const DEFAULT_REFERENCE_HELPER_POSITION: ReferenceHelperPosition = {
+  x: 24,
+  y: 72
 };
 
 export type CadUiState = {
@@ -147,6 +157,7 @@ export type CadUiState = {
   canvasViewport: CanvasViewport;
   printCanvasViewport: CanvasViewport;
   printPreviewWindow: PrintPreviewWindow;
+  referenceHelperPosition: ReferenceHelperPosition | null;
   setParameterEditMode: (isParameterEditMode: boolean) => void;
   setShowElementInfoPanel: (showElementInfoPanel: boolean) => void;
   setDependencyJumpMode: (isDependencyJumpMode: boolean) => void;
@@ -207,6 +218,7 @@ export type CadUiState = {
   resetPrintCanvasViewport: () => void;
   setPrintPreviewWindow: (printPreviewWindow: PrintPreviewWindow) => void;
   updatePrintPreviewWindow: (patch: Partial<PrintPreviewWindow>) => void;
+  setReferenceHelperPosition: (referenceHelperPosition: ReferenceHelperPosition) => void;
 };
 
 export const initialCadUiState = (): Omit<
@@ -259,6 +271,7 @@ export const initialCadUiState = (): Omit<
   | "resetPrintCanvasViewport"
   | "setPrintPreviewWindow"
   | "updatePrintPreviewWindow"
+  | "setReferenceHelperPosition"
 > => ({
   isParameterEditMode: false,
   showElementInfoPanel: true,
@@ -299,7 +312,8 @@ export const initialCadUiState = (): Omit<
   selectedPrintPlacementId: null,
   canvasViewport: DEFAULT_CANVAS_VIEWPORT,
   printCanvasViewport: DEFAULT_CANVAS_VIEWPORT,
-  printPreviewWindow: DEFAULT_PRINT_PREVIEW_WINDOW
+  printPreviewWindow: DEFAULT_PRINT_PREVIEW_WINDOW,
+  referenceHelperPosition: null
 });
 
 const clampCanvasZoom = (zoom: number) =>
@@ -472,5 +486,12 @@ export const useCadUiStore = create<CadUiState>((set) => ({
         ...state.printPreviewWindow,
         ...patch
       })
-    }))
+    })),
+  setReferenceHelperPosition: (referenceHelperPosition) =>
+    set({
+      referenceHelperPosition: {
+        x: Math.round(referenceHelperPosition.x),
+        y: Math.round(referenceHelperPosition.y)
+      }
+    })
 }));

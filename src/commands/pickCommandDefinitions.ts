@@ -3,6 +3,7 @@ import {
   closeExpressionInsertTray,
   insertSelectedMeasurement,
   insertNumericExpressionSnippet,
+  openExpressionInsertTray,
   applyPickedLine,
   applyPickedNumericReference,
   applyPickedPoint,
@@ -43,6 +44,12 @@ export const pickCommandDefinitions = {
     id: "toggleExpressionInsertTray",
     label: "式の挿入候補を開閉",
     run: (context) => toggleExpressionInsertTray(context)
+  },
+  openExpressionInsertTray: {
+    id: "openExpressionInsertTray",
+    label: "参照ヘルパーを開く",
+    palette: { order: 17, keywords: ["reference", "helper", "expression", "参照", "ヘルパー", "式"] },
+    run: (context) => openExpressionInsertTray(context)
   },
   closeExpressionInsertTray: {
     id: "closeExpressionInsertTray",

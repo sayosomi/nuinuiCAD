@@ -33,7 +33,9 @@ describe("commands", () => {
       activeNumericReferencePickTarget: null,
       activeLinePickTarget: null,
       activeExpressionInsertTarget: null,
+      activeMeasurementInsertTarget: null,
       activePickCursor: null,
+      referenceHelperPosition: null,
       selectedDependencyJumpIndex: 0,
       elementSearchQuery: "",
       elementSearchCursorId: null,
@@ -3546,6 +3548,40 @@ describe("commands", () => {
     });
 
     dispatchCommand("toggleExpressionInsertTray");
+
+    expect(useCadStore.getState().activeExpressionInsertTarget).toBeNull();
+  });
+
+  it("opens the expression insert tray for the selected numeric parameter", () => {
+    useCadStore.setState({
+      selectedElementId: "point-a",
+      selectedElementIds: ["point-a"],
+      selectedParameterKey: "x"
+    });
+
+    dispatchCommand("openExpressionInsertTray");
+
+    expect(useCadStore.getState().activeExpressionInsertTarget).toEqual({
+      elementId: "point-a",
+      parameterKey: "x"
+    });
+
+    dispatchCommand("openExpressionInsertTray");
+
+    expect(useCadStore.getState().activeExpressionInsertTarget).toEqual({
+      elementId: "point-a",
+      parameterKey: "x"
+    });
+  });
+
+  it("does not open the expression insert tray for non-numeric parameters", () => {
+    useCadStore.setState({
+      selectedElementId: "point-a",
+      selectedElementIds: ["point-a"],
+      selectedParameterKey: "name"
+    });
+
+    dispatchCommand("openExpressionInsertTray");
 
     expect(useCadStore.getState().activeExpressionInsertTarget).toBeNull();
   });

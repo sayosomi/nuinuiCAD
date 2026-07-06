@@ -148,6 +148,16 @@ export const toggleExpressionInsertTray = (context?: CommandContext) => {
   );
 };
 
+export const openExpressionInsertTray = (context?: CommandContext) => {
+  const target = numericExpressionTarget(context);
+  if (!target) return;
+
+  useCadUiStore.getState().setActiveExpressionInsertTarget({
+    elementId: target.targetElement.id,
+    parameterKey: target.definition.key
+  });
+};
+
 export const closeExpressionInsertTray = () => {
   useCadUiStore.setState({
     activeExpressionInsertTarget: null,

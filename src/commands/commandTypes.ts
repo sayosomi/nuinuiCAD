@@ -52,6 +52,7 @@ export type CommandId =
   | "applyNumericExpressionReference"
   | "insertNumericExpressionSnippet"
   | "toggleExpressionInsertTray"
+  | "openExpressionInsertTray"
   | "closeExpressionInsertTray"
   | "setMeasurementInsertMode"
   | "startMeasurementPointPick"
