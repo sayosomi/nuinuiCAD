@@ -3938,6 +3938,11 @@ textarea {
   stroke-width: 0.8;
 }
 
+.print-paths text {
+  fill: #252622;
+  stroke: none;
+}
+
 .print-placement-anchor circle {
   fill: #0f766e;
   stroke: #ffffff;

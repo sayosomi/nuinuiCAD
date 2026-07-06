@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { PointerEvent, RefObject } from "react";
 import { Minus, X, ZoomIn } from "lucide-react";
-import { printablePathsForLayout } from "../print/printGeometry";
+import { printableItemsForLayout } from "../print/printGeometry";
 import { orientedPaperSize, printCanvasSizeMm, resolvePrintLayout } from "../print/printLayout";
 import {
   loadLayoutSettings,
@@ -43,7 +43,7 @@ const printLayoutCanvasForLayout = ({
     paper,
     printCanvas,
     canvas,
-    paths: printablePathsForLayout({ elements, evaluation, layout })
+    items: printableItemsForLayout({ elements, evaluation, layout })
   };
 };
 
@@ -303,7 +303,7 @@ export const PrintLayoutPreviewWindow = ({
               })
             ) : null}
             <g className="print-paths">
-              {model.paths.map((path, index) => {
+              {model.items.paths.map((path, index) => {
                 if (path.kind === "line") {
                   const start = toSvg(path.start);
                   const end = toSvg(path.end);
@@ -324,6 +324,28 @@ export const PrintLayoutPreviewWindow = ({
                       return `${svgPoint.x},${svgPoint.y}`;
                     }).join(" ")}
                   />
+                );
+              })}
+              {model.items.texts.map((text, index) => {
+                const anchor = toSvg(text.anchor);
+                return (
+                  <text
+                    key={`text-${index}`}
+                    x={anchor.x}
+                    y={anchor.y}
+                    fontSize={text.fontSize}
+                    dominantBaseline="text-before-edge"
+                  >
+                    {text.text.split(/\r?\n/).map((line, lineIndex) => (
+                      <tspan
+                        key={lineIndex}
+                        x={anchor.x}
+                        dy={lineIndex === 0 ? 0 : text.fontSize * 1.2}
+                      >
+                        {line}
+                      </tspan>
+                    ))}
+                  </text>
                 );
               })}
             </g>
