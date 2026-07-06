@@ -226,9 +226,12 @@ export const viewModeCommandDefinitions = {
       order: 46.6,
       keywords: ["dsl", "script", "text", "作図", "テキスト", "スクリプト"]
     },
-    run: () => {
+    run: (context) => {
       useCadUiStore.setState({
         showDslPanel: true,
+        dslPanelSourceRequest: context?.dslElementIds
+          ? { requestId: Date.now(), elementIds: context.dslElementIds }
+          : useCadUiStore.getState().dslPanelSourceRequest,
         showCommandPalette: false
       });
     }

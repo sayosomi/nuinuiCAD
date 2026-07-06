@@ -48,6 +48,8 @@ describe("commands", () => {
       showPaletteSettings: false,
       showGroupTemplateLibrary: false,
       groupTemplateLibraryMode: "manage",
+      showDslPanel: false,
+      dslPanelSourceRequest: null,
       showCommandRibbonSettings: false,
       showSelectionColorPicker: false,
       showPrintLayout: false,
@@ -1842,6 +1844,23 @@ describe("commands", () => {
       groupTemplateLibraryMode: "insert",
       showCommandPalette: false
     });
+  });
+
+  it("opens the DSL panel and requests selected source ids", () => {
+    useCadStore.setState({ showCommandPalette: true });
+
+    dispatchCommand("openDslPanel", { dslElementIds: ["point-b", "point-a"] });
+
+    expect(useCadStore.getState()).toMatchObject({
+      showDslPanel: true,
+      showCommandPalette: false,
+      dslPanelSourceRequest: {
+        elementIds: ["point-b", "point-a"]
+      }
+    });
+
+    dispatchCommand("closeDslPanel");
+    expect(useCadStore.getState().showDslPanel).toBe(false);
   });
 
   it("enters element list mode and focuses the element list", () => {

@@ -343,9 +343,7 @@ export const LeftPanel = ({
   const contextMenuElement = contextMenu ? elementsById.get(contextMenu.elementId) ?? null : null;
   const contextMenuSelectedElements =
     contextMenuElement && selectedElementIdSet.has(contextMenuElement.id)
-      ? selectedElementIds
-          .map((elementId) => elementsById.get(elementId))
-          .filter((element): element is CadElement => Boolean(element))
+      ? elements.filter((element) => selectedElementIdSet.has(element.id))
       : contextMenuElement
         ? [contextMenuElement]
         : [];

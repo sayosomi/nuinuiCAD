@@ -59,6 +59,12 @@ const menuItemsForElement = ({
   const hasColorTarget = selectedElements.some(elementSupportsDisplayColor);
   const items: MenuItem[] = [
     { kind: "command", commandId: "enterParameterEditMode", label: "パラメーター編集" },
+    {
+      kind: "command",
+      commandId: "openDslPanel",
+      label: selectedCount > 1 ? `DSLで編集 (${selectedCount}件)` : "DSLで編集",
+      context: { dslElementIds: selectedElements.map((item) => item.id) }
+    },
     { kind: "separator" }
   ];
 

@@ -225,6 +225,7 @@ export type CommandContext = {
   templateInputId?: string;
   numericValue?: NumericValue;
   colorId?: string;
+  dslElementIds?: ElementId[];
 };
 
 export type Command = {

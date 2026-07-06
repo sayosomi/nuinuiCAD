@@ -7,6 +7,7 @@ import type { DslDiagnostic } from "../dsl/dslTypes";
 import { adjustEvaluationLimitForInsertion } from "../model/evaluationDivider";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
+import { DslEditor } from "./DslEditor";
 
 const defaultSource = [
   "# nuinuiCAD DSL",
@@ -21,11 +22,15 @@ const diagnosticText = (diagnostic: DslDiagnostic) =>
 
 export const DslPanel = () => {
   const showDslPanel = useCadUiStore((state) => state.showDslPanel);
+  const dslPanelSourceRequest = useCadUiStore((state) => state.dslPanelSourceRequest);
   const elements = useCadDocumentStore((state) => state.elements);
   const selectedElementIds = useCadDocumentStore((state) => state.selectedElementIds);
   const evaluationLimitIndex = useCadDocumentStore((state) => state.evaluationLimitIndex);
   const commitDocumentChange = useCadDocumentStore((state) => state.commitDocumentChange);
-  const [source, setSource] = useState(defaultSource);
+  const [sourceState, setSourceState] = useState<{ source: string; requestId: number | null }>({
+    source: defaultSource,
+    requestId: null
+  });
   const [diagnostics, setDiagnostics] = useState<DslDiagnostic[]>([]);
   const [status, setStatus] = useState<string | null>(null);
 
@@ -33,6 +38,21 @@ export const DslPanel = () => {
     () => elements.filter((element) => selectedElementIds.includes(element.id)),
     [elements, selectedElementIds]
   );
+  const requestedElements = useMemo(() => {
+    if (!showDslPanel || !dslPanelSourceRequest) return [];
+    const requestedIds = new Set(dslPanelSourceRequest.elementIds);
+    return elements.filter((element) => requestedIds.has(element.id));
+  }, [dslPanelSourceRequest, elements, showDslPanel]);
+  const activeRequestId = dslPanelSourceRequest?.requestId ?? null;
+  const hasPendingSourceRequest =
+    requestedElements.length > 0 && sourceState.requestId !== activeRequestId;
+  const source = hasPendingSourceRequest
+    ? serializeElementsToDsl(requestedElements)
+    : sourceState.source;
+  const visibleDiagnostics = hasPendingSourceRequest ? [] : diagnostics;
+  const visibleStatus = hasPendingSourceRequest
+    ? `${requestedElements.length}件の要素をDSLへ書き出しました。`
+    : status;
 
   if (!showDslPanel) return null;
 
@@ -45,6 +65,7 @@ export const DslPanel = () => {
     : elements.length;
 
   const validate = () => {
+    setSourceState({ source, requestId: activeRequestId });
     const result = compileDslToElements(source, {
       elements,
       insertionIndex,
@@ -79,7 +100,10 @@ export const DslPanel = () => {
 
   const exportSelection = () => {
     const targets = selectedElements.length > 0 ? selectedElements : elements;
-    setSource(serializeElementsToDsl(targets));
+    setSourceState({
+      source: serializeElementsToDsl(targets),
+      requestId: activeRequestId
+    });
     setDiagnostics([]);
     setStatus(selectedElements.length > 0 ? "選択要素をDSLへ書き出しました。" : "全要素をDSLへ書き出しました。");
   };
@@ -111,21 +135,18 @@ export const DslPanel = () => {
         </button>
       </div>
 
-      <textarea
-        className="dsl-editor"
-        value={source}
-        spellCheck={false}
-        onChange={(event) => {
-          setSource(event.currentTarget.value);
+      <DslEditor
+        source={source}
+        onSourceChange={(nextSource) => {
+          setSourceState({ source: nextSource, requestId: activeRequestId });
           setStatus(null);
         }}
-        aria-label="DSLソース"
       />
 
-      {status ? <p className="dsl-status">{status}</p> : null}
-      {diagnostics.length > 0 ? (
+      {visibleStatus ? <p className="dsl-status">{visibleStatus}</p> : null}
+      {visibleDiagnostics.length > 0 ? (
         <div className="dsl-diagnostics" aria-label="DSL診断">
-          {diagnostics.map((item, index) => (
+          {visibleDiagnostics.map((item, index) => (
             <p key={`${item.line}-${item.column}-${index}`} className={item.severity}>
               {diagnosticText(item)}
             </p>

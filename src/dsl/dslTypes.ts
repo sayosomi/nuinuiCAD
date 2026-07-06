@@ -107,3 +107,24 @@ export type CompileDslResult = {
 export type SerializeDslOptions = {
   includeIds?: boolean;
 };
+
+export type DslTokenKind =
+  | "attributeKey"
+  | "comment"
+  | "elementType"
+  | "keyword"
+  | "number"
+  | "operator"
+  | "plain"
+  | "reference"
+  | "string";
+
+export type DslHighlightToken = {
+  kind: DslTokenKind;
+  text: string;
+};
+
+export type DslHighlightLine = {
+  lineNumber: number;
+  tokens: DslHighlightToken[];
+};

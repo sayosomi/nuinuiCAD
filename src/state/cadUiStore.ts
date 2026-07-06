@@ -86,6 +86,11 @@ export type ReferenceHelperPosition = {
   y: number;
 };
 
+export type DslPanelSourceRequest = {
+  requestId: number;
+  elementIds: ElementId[];
+};
+
 export type PendingImageImport = {
   sourcePath: string;
   displayName: string;
@@ -149,6 +154,7 @@ export type CadUiState = {
   showGroupTemplateLibrary: boolean;
   groupTemplateLibraryMode: "manage" | "insert";
   showDslPanel: boolean;
+  dslPanelSourceRequest: DslPanelSourceRequest | null;
   showCommandRibbonSettings: boolean;
   showSelectionColorPicker: boolean;
   showPrintLayout: boolean;
@@ -201,6 +207,7 @@ export type CadUiState = {
   setShowGroupTemplateLibrary: (showGroupTemplateLibrary: boolean) => void;
   setGroupTemplateLibraryMode: (groupTemplateLibraryMode: "manage" | "insert") => void;
   setShowDslPanel: (showDslPanel: boolean) => void;
+  setDslPanelSourceRequest: (dslPanelSourceRequest: DslPanelSourceRequest | null) => void;
   setShowCommandRibbonSettings: (showCommandRibbonSettings: boolean) => void;
   setShowSelectionColorPicker: (showSelectionColorPicker: boolean) => void;
   setShowPrintLayout: (showPrintLayout: boolean) => void;
@@ -262,6 +269,7 @@ export const initialCadUiState = (): Omit<
   | "setShowGroupTemplateLibrary"
   | "setGroupTemplateLibraryMode"
   | "setShowDslPanel"
+  | "setDslPanelSourceRequest"
   | "setShowCommandRibbonSettings"
   | "setShowSelectionColorPicker"
   | "setShowPrintLayout"
@@ -313,6 +321,7 @@ export const initialCadUiState = (): Omit<
   showGroupTemplateLibrary: false,
   groupTemplateLibraryMode: "manage",
   showDslPanel: false,
+  dslPanelSourceRequest: null,
   showCommandRibbonSettings: false,
   showSelectionColorPicker: false,
   showPrintLayout: false,
@@ -439,6 +448,7 @@ export const useCadUiStore = create<CadUiState>((set) => ({
   setGroupTemplateLibraryMode: (groupTemplateLibraryMode) =>
     set({ groupTemplateLibraryMode }),
   setShowDslPanel: (showDslPanel) => set({ showDslPanel }),
+  setDslPanelSourceRequest: (dslPanelSourceRequest) => set({ dslPanelSourceRequest }),
   setShowCommandRibbonSettings: (showCommandRibbonSettings) =>
     set({ showCommandRibbonSettings }),
   setShowSelectionColorPicker: (showSelectionColorPicker) => set({ showSelectionColorPicker }),

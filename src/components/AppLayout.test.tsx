@@ -37,6 +37,8 @@ const resetStore = () => {
     showShortcutSettings: false,
     showPaletteSettings: false,
     showCommandRibbonSettings: false,
+    showDslPanel: false,
+    dslPanelSourceRequest: null,
     showSelectionColorPicker: false,
     showPrintLayout: false,
     showPrintPreviewWindow: false,

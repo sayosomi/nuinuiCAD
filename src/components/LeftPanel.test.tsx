@@ -66,6 +66,8 @@ const resetStore = () => {
     showShortcutHelp: false,
     showPaletteSettings: false,
     showSelectionColorPicker: false,
+    showDslPanel: false,
+    dslPanelSourceRequest: null,
     showCommandPalette: false,
     canvasViewport: DEFAULT_CANVAS_VIEWPORT,
     printCanvasViewport: DEFAULT_CANVAS_VIEWPORT,
@@ -1959,8 +1961,46 @@ describe("LeftPanel element list dragging", () => {
     expect(useCadStore.getState().selectedElementId).toBe("point-b");
     const menu = screen.getByRole("menu", { name: "点Bの操作" });
     expect(within(menu).getByRole("menuitem", { name: "パラメーター編集" })).toBeInTheDocument();
+    expect(within(menu).getByRole("menuitem", { name: "DSLで編集" })).toBeInTheDocument();
     expect(within(menu).getByRole("menuitem", { name: "非表示にする" })).toBeInTheDocument();
     expect(within(menu).getByRole("menuitem", { name: "表示色を変更" })).toBeInTheDocument();
+  });
+
+  it("opens the DSL panel for an unselected right-clicked row", () => {
+    renderLeftPanel();
+
+    fireEvent.contextMenu(screen.getByText("点B").closest("[data-element-list-row='true']")!, {
+      clientX: 120,
+      clientY: 80
+    });
+    fireEvent.click(within(screen.getByRole("menu", { name: "点Bの操作" })).getByRole("menuitem", {
+      name: "DSLで編集"
+    }));
+
+    const state = useCadStore.getState();
+    expect(state.showDslPanel).toBe(true);
+    expect(state.dslPanelSourceRequest?.elementIds).toEqual(["point-b"]);
+  });
+
+  it("opens the DSL panel for a selected row multi-selection in document order", () => {
+    useCadStore.setState({
+      selectedElementId: "point-b",
+      selectedElementIds: ["point-b", "point-a"],
+      selectionAnchorElementId: "point-b"
+    });
+    renderLeftPanel();
+
+    fireEvent.contextMenu(screen.getByText("点B").closest("[data-element-list-row='true']")!, {
+      clientX: 120,
+      clientY: 80
+    });
+    fireEvent.click(within(screen.getByRole("menu", { name: "点Bの操作" })).getByRole("menuitem", {
+      name: "DSLで編集 (2件)"
+    }));
+
+    const state = useCadStore.getState();
+    expect(state.showDslPanel).toBe(true);
+    expect(state.dslPanelSourceRequest?.elementIds).toEqual(["point-a", "point-b"]);
   });
 
   it("keeps a multi-selection when opening the context menu on a selected row", () => {
