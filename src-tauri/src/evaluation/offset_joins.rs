@@ -10,6 +10,10 @@ use super::offset_types::{
 const POINTED_JOIN_DOT_THRESHOLD: f64 = -0.95;
 const POINTED_JOIN_MITER_FACTOR: f64 = 4.0;
 const POINTED_JOIN_MAX_LENGTH: f64 = 200.0;
+const BEZIER_JOIN_INTERSECTION_STEPS: usize = 96;
+const ARC_JOIN_INTERSECTION_STEPS: f64 = 96.0;
+const BEZIER_TRIM_STEPS: usize = 96;
+const BEZIER_TRIM_TOLERANCE_MM: f64 = 0.5;
 
 fn line_intersection(first: &OffsetSegment, second: &OffsetSegment) -> Option<OffsetPoint> {
     let (
@@ -131,6 +135,191 @@ fn circle_circle_intersections(first: &OffsetSegment, second: &OffsetSegment) ->
     ]
 }
 
+fn interpolate(start: OffsetPoint, end: OffsetPoint, t: f64) -> OffsetPoint {
+    OffsetPoint {
+        x: start.x + (end.x - start.x) * t,
+        y: start.y + (end.y - start.y) * t,
+    }
+}
+
+fn cubic_point(
+    start: OffsetPoint,
+    control1: OffsetPoint,
+    control2: OffsetPoint,
+    end: OffsetPoint,
+    t: f64,
+) -> OffsetPoint {
+    let inverse = 1.0 - t;
+    let a = inverse * inverse * inverse;
+    let b = 3.0 * inverse * inverse * t;
+    let c = 3.0 * inverse * t * t;
+    let d = t * t * t;
+    OffsetPoint {
+        x: a * start.x + b * control1.x + c * control2.x + d * end.x,
+        y: a * start.y + b * control1.y + c * control2.y + d * end.y,
+    }
+}
+
+#[derive(Clone, Copy)]
+struct CubicSplit {
+    left_start: OffsetPoint,
+    left_control1: OffsetPoint,
+    left_control2: OffsetPoint,
+    right_control1: OffsetPoint,
+    right_control2: OffsetPoint,
+    right_end: OffsetPoint,
+}
+
+fn split_cubic(
+    start: OffsetPoint,
+    control1: OffsetPoint,
+    control2: OffsetPoint,
+    end: OffsetPoint,
+    t: f64,
+) -> CubicSplit {
+    let p01 = interpolate(start, control1, t);
+    let p12 = interpolate(control1, control2, t);
+    let p23 = interpolate(control2, end, t);
+    let p012 = interpolate(p01, p12, t);
+    let p123 = interpolate(p12, p23, t);
+    CubicSplit {
+        left_start: start,
+        left_control1: p01,
+        left_control2: p012,
+        right_control1: p123,
+        right_control2: p23,
+        right_end: end,
+    }
+}
+
+fn nearest_bezier_t(segment: &OffsetSegment, target: OffsetPoint) -> Option<(f64, f64)> {
+    let OffsetSegment::Bezier {
+        start,
+        control1,
+        control2,
+        end,
+        ..
+    } = segment
+    else {
+        return None;
+    };
+    (0..=BEZIER_TRIM_STEPS)
+        .map(|index| {
+            let t = index as f64 / BEZIER_TRIM_STEPS as f64;
+            let point = cubic_point(*start, *control1, *control2, *end, t);
+            (t, line_length(point, target))
+        })
+        .min_by(|(_, left_distance), (_, right_distance)| left_distance.total_cmp(right_distance))
+}
+
+fn segment_points(segment: &OffsetSegment) -> Vec<OffsetPoint> {
+    match segment {
+        OffsetSegment::Line { start, end, .. } => vec![*start, *end],
+        OffsetSegment::Bezier {
+            start,
+            control1,
+            control2,
+            end,
+            ..
+        } => (0..=BEZIER_JOIN_INTERSECTION_STEPS)
+            .map(|index| {
+                cubic_point(
+                    *start,
+                    *control1,
+                    *control2,
+                    *end,
+                    index as f64 / BEZIER_JOIN_INTERSECTION_STEPS as f64,
+                )
+            })
+            .collect(),
+        OffsetSegment::Arc {
+            center,
+            radius,
+            start_angle_deg,
+            sweep_angle_deg,
+            ..
+        } => {
+            let step_count = ((sweep_angle_deg.abs() / 360.0) * ARC_JOIN_INTERSECTION_STEPS)
+                .ceil()
+                .max(1.0) as usize;
+            (0..=step_count)
+                .map(|index| {
+                    let angle_rad = (start_angle_deg
+                        + (sweep_angle_deg * index as f64) / step_count as f64)
+                        .to_radians();
+                    OffsetPoint {
+                        x: center.x + angle_rad.cos() * radius,
+                        y: center.y + angle_rad.sin() * radius,
+                    }
+                })
+                .collect()
+        }
+    }
+}
+
+fn finite_segment_intersection(
+    a_start: OffsetPoint,
+    a_end: OffsetPoint,
+    b_start: OffsetPoint,
+    b_end: OffsetPoint,
+) -> Option<OffsetPoint> {
+    let r = OffsetPoint {
+        x: a_end.x - a_start.x,
+        y: a_end.y - a_start.y,
+    };
+    let s = OffsetPoint {
+        x: b_end.x - b_start.x,
+        y: b_end.y - b_start.y,
+    };
+    let denominator = r.x * s.y - r.y * s.x;
+    if denominator.abs() <= EPSILON {
+        return None;
+    }
+    let qp = OffsetPoint {
+        x: b_start.x - a_start.x,
+        y: b_start.y - a_start.y,
+    };
+    let t = (qp.x * s.y - qp.y * s.x) / denominator;
+    let u = (qp.x * r.y - qp.y * r.x) / denominator;
+    if !(-EPSILON..=1.0 + EPSILON).contains(&t) || !(-EPSILON..=1.0 + EPSILON).contains(&u) {
+        return None;
+    }
+    let clamped_t = t.clamp(0.0, 1.0);
+    Some(OffsetPoint {
+        x: a_start.x + r.x * clamped_t,
+        y: a_start.y + r.y * clamped_t,
+    })
+}
+
+fn sampled_segment_intersections(
+    first: &OffsetSegment,
+    second: &OffsetSegment,
+) -> Vec<OffsetPoint> {
+    let first_points = segment_points(first);
+    let second_points = segment_points(second);
+    let mut intersections = Vec::new();
+    for first_pair in first_points.windows(2) {
+        for second_pair in second_points.windows(2) {
+            let Some(intersection) = finite_segment_intersection(
+                first_pair[0],
+                first_pair[1],
+                second_pair[0],
+                second_pair[1],
+            ) else {
+                continue;
+            };
+            if intersections
+                .iter()
+                .any(|point| line_length(*point, intersection) <= 1e-5)
+            {
+                continue;
+            }
+            intersections.push(intersection);
+        }
+    }
+    intersections
+}
+
 fn nearest_point(
     points: impl IntoIterator<Item = OffsetPoint>,
     target_a: OffsetPoint,
@@ -188,6 +377,18 @@ pub(crate) fn join_intersection(
     first: &OffsetSegment,
     second: &OffsetSegment,
 ) -> Option<OffsetPoint> {
+    if matches!(first, OffsetSegment::Bezier { .. })
+        || matches!(second, OffsetSegment::Bezier { .. })
+    {
+        if let Some(sampled) = nearest_point(
+            sampled_segment_intersections(first, second),
+            segment_end(first),
+            segment_start(second),
+        ) {
+            return Some(sampled);
+        }
+    }
+
     match (first, second) {
         (OffsetSegment::Line { .. }, OffsetSegment::Line { .. }) => nearest_point(
             line_intersection(first, second),
@@ -252,6 +453,23 @@ pub(crate) fn with_start(segment: &OffsetSegment, point: OffsetPoint) -> OffsetS
             end,
             ..
         } => {
+            if let Some((t, distance)) = nearest_bezier_t(segment, point) {
+                if distance <= BEZIER_TRIM_TOLERANCE_MM && t > EPSILON && t < 1.0 - EPSILON {
+                    let split = split_cubic(*start, *control1, *control2, *end, t);
+                    let mut next = OffsetSegment::Bezier {
+                        start: point,
+                        control1: split.right_control1,
+                        control2: split.right_control2,
+                        end: split.right_end,
+                        length: 0.0,
+                    };
+                    let length = approximate_bezier_length(&next);
+                    if let OffsetSegment::Bezier { length: item, .. } = &mut next {
+                        *item = length;
+                    }
+                    return next;
+                }
+            }
             let dx = point.x - start.x;
             let dy = point.y - start.y;
             let mut next = OffsetSegment::Bezier {
@@ -311,6 +529,23 @@ pub(crate) fn with_end(segment: &OffsetSegment, point: OffsetPoint) -> OffsetSeg
             end,
             ..
         } => {
+            if let Some((t, distance)) = nearest_bezier_t(segment, point) {
+                if distance <= BEZIER_TRIM_TOLERANCE_MM && t > EPSILON && t < 1.0 - EPSILON {
+                    let split = split_cubic(*start, *control1, *control2, *end, t);
+                    let mut next = OffsetSegment::Bezier {
+                        start: split.left_start,
+                        control1: split.left_control1,
+                        control2: split.left_control2,
+                        end: point,
+                        length: 0.0,
+                    };
+                    let length = approximate_bezier_length(&next);
+                    if let OffsetSegment::Bezier { length: item, .. } = &mut next {
+                        *item = length;
+                    }
+                    return next;
+                }
+            }
             let dx = point.x - end.x;
             let dy = point.y - end.y;
             let mut next = OffsetSegment::Bezier {
@@ -419,4 +654,50 @@ pub(crate) fn pointed_join_connectors(
     .into_iter()
     .flatten()
     .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn point(x: f64, y: f64) -> OffsetPoint {
+        OffsetPoint { x, y }
+    }
+
+    fn test_bezier() -> OffsetSegment {
+        OffsetSegment::Bezier {
+            start: point(0.0, 0.0),
+            control1: point(4.0, 8.0),
+            control2: point(6.0, 8.0),
+            end: point(10.0, 0.0),
+            length: 0.0,
+        }
+    }
+
+    #[test]
+    fn join_uses_finite_bezier_intersection_before_tangent_miter() {
+        let curve = test_bezier();
+        let line = OffsetSegment::Line {
+            start: point(5.0, -1.0),
+            end: point(5.0, 7.0),
+            length: 8.0,
+        };
+
+        let intersection = join_intersection(&curve, &line).expect("expected intersection");
+
+        assert!((intersection.x - 5.0).abs() < 1e-6);
+        assert!((intersection.y - 6.0).abs() < 0.1);
+    }
+
+    #[test]
+    fn with_end_trims_bezier_to_on_curve_join_point() {
+        let trimmed = with_end(&test_bezier(), point(5.0, 6.0));
+
+        let OffsetSegment::Bezier { control2, end, .. } = trimmed else {
+            panic!("expected Bezier segment");
+        };
+        assert!((end.x - 5.0).abs() < 1e-6);
+        assert!((end.y - 6.0).abs() < 1e-6);
+        assert!(control2.y < 7.0);
+    }
 }

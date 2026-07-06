@@ -5275,7 +5275,7 @@ describe("evaluateElements", () => {
     expect(offset.segments.at(-1)!.end.y).toBeCloseTo(100);
   });
 
-  it("adds a finite pointed join for a folded line-to-curve offset at a shared point", () => {
+  it("trims a folded line-to-curve offset at the actual segment intersection", () => {
     const elements: CadElement[] = [
       {
         id: "a",
@@ -5348,8 +5348,13 @@ describe("evaluateElements", () => {
     expect(offset).toMatchObject({ kind: "offsetLine" });
     if (offset?.kind !== "offsetLine") throw new Error("Expected an offset line");
     const lineSegments = offset.segments.filter((segment) => segment.kind === "line");
-    expect(lineSegments.length).toBeGreaterThanOrEqual(3);
-    expect(Math.min(...lineSegments.flatMap((segment) => [segment.start.x, segment.end.x]))).toBeLessThan(50);
+    const bezierSegments = offset.segments.filter((segment) => segment.kind === "bezier");
+    expect(lineSegments).toHaveLength(1);
+    expect(bezierSegments.length).toBeGreaterThan(0);
+    for (let index = 0; index < offset.segments.length - 1; index += 1) {
+      expect(offset.segments[index].end.x).toBeCloseTo(offset.segments[index + 1].start.x);
+      expect(offset.segments[index].end.y).toBeCloseTo(offset.segments[index + 1].start.y);
+    }
   });
 
   it("keeps Bezier-derived offset lines as smooth curve segments", () => {

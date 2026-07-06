@@ -14,6 +14,11 @@ import {
 } from "./offsetPathMath";
 import { sourceEnd, sourceEndTangent, sourceStart, sourceStartTangent } from "./offsetSourceSegments";
 
+const BEZIER_JOIN_INTERSECTION_STEPS = 96;
+const ARC_JOIN_INTERSECTION_STEPS = 96;
+const BEZIER_TRIM_STEPS = 96;
+const BEZIER_TRIM_TOLERANCE_MM = 0.5;
+
 const lineIntersection = (
   first: Extract<ComputedOffsetLineSegment, { kind: "line" }>,
   second: Extract<ComputedOffsetLineSegment, { kind: "line" }>
@@ -92,6 +97,110 @@ const circleCircleIntersections = (
   ];
 };
 
+const interpolate = (start: Point, end: Point, t: number): Point => ({
+  x: start.x + (end.x - start.x) * t,
+  y: start.y + (end.y - start.y) * t
+});
+
+const cubicPoint = (
+  start: Point,
+  control1: Point,
+  control2: Point,
+  end: Point,
+  t: number
+): Point => {
+  const inverse = 1 - t;
+  const a = inverse * inverse * inverse;
+  const b = 3 * inverse * inverse * t;
+  const c = 3 * inverse * t * t;
+  const d = t * t * t;
+  return {
+    x: a * start.x + b * control1.x + c * control2.x + d * end.x,
+    y: a * start.y + b * control1.y + c * control2.y + d * end.y
+  };
+};
+
+const splitCubic = (segment: Extract<ComputedOffsetLineSegment, { kind: "bezier" }>, t: number) => {
+  const p01 = interpolate(segment.start, segment.control1, t);
+  const p12 = interpolate(segment.control1, segment.control2, t);
+  const p23 = interpolate(segment.control2, segment.end, t);
+  const p012 = interpolate(p01, p12, t);
+  const p123 = interpolate(p12, p23, t);
+  const p0123 = interpolate(p012, p123, t);
+  return {
+    left: { start: segment.start, control1: p01, control2: p012, end: p0123 },
+    right: { start: p0123, control1: p123, control2: p23, end: segment.end }
+  };
+};
+
+const nearestBezierT = (segment: Extract<ComputedOffsetLineSegment, { kind: "bezier" }>, target: Point) => {
+  let bestT = 0;
+  let bestDistance = Number.POSITIVE_INFINITY;
+  for (let index = 0; index <= BEZIER_TRIM_STEPS; index += 1) {
+    const t = index / BEZIER_TRIM_STEPS;
+    const point = cubicPoint(segment.start, segment.control1, segment.control2, segment.end, t);
+    const distance = lineLength(point, target);
+    if (distance < bestDistance) {
+      bestT = t;
+      bestDistance = distance;
+    }
+  }
+  return { t: bestT, distance: bestDistance };
+};
+
+const segmentPoints = (segment: ComputedOffsetLineSegment): Point[] => {
+  if (segment.kind === "line") return [segment.start, segment.end];
+  if (segment.kind === "bezier") {
+    return Array.from({ length: BEZIER_JOIN_INTERSECTION_STEPS + 1 }, (_, index) =>
+      cubicPoint(segment.start, segment.control1, segment.control2, segment.end, index / BEZIER_JOIN_INTERSECTION_STEPS)
+    );
+  }
+  const stepCount = Math.max(
+    1,
+    Math.ceil((Math.abs(segment.sweepAngleDeg) / 360) * ARC_JOIN_INTERSECTION_STEPS)
+  );
+  return Array.from({ length: stepCount + 1 }, (_, index) => {
+    const angleRad = ((segment.startAngleDeg + (segment.sweepAngleDeg * index) / stepCount) * Math.PI) / 180;
+    return {
+      x: segment.center.x + Math.cos(angleRad) * segment.radius,
+      y: segment.center.y + Math.sin(angleRad) * segment.radius
+    };
+  });
+};
+
+const finiteSegmentIntersection = (aStart: Point, aEnd: Point, bStart: Point, bEnd: Point) => {
+  const r = { x: aEnd.x - aStart.x, y: aEnd.y - aStart.y };
+  const s = { x: bEnd.x - bStart.x, y: bEnd.y - bStart.y };
+  const denominator = r.x * s.y - r.y * s.x;
+  if (Math.abs(denominator) <= EPSILON) return null;
+  const qp = { x: bStart.x - aStart.x, y: bStart.y - aStart.y };
+  const t = (qp.x * s.y - qp.y * s.x) / denominator;
+  const u = (qp.x * r.y - qp.y * r.x) / denominator;
+  if (t < -EPSILON || t > 1 + EPSILON || u < -EPSILON || u > 1 + EPSILON) return null;
+  const clampedT = Math.min(Math.max(t, 0), 1);
+  return { x: aStart.x + r.x * clampedT, y: aStart.y + r.y * clampedT };
+};
+
+const sampledSegmentIntersections = (first: ComputedOffsetLineSegment, second: ComputedOffsetLineSegment) => {
+  const firstPoints = segmentPoints(first);
+  const secondPoints = segmentPoints(second);
+  const intersections: Point[] = [];
+  for (let firstIndex = 0; firstIndex < firstPoints.length - 1; firstIndex += 1) {
+    for (let secondIndex = 0; secondIndex < secondPoints.length - 1; secondIndex += 1) {
+      const intersection = finiteSegmentIntersection(
+        firstPoints[firstIndex],
+        firstPoints[firstIndex + 1],
+        secondPoints[secondIndex],
+        secondPoints[secondIndex + 1]
+      );
+      if (!intersection) continue;
+      if (intersections.some((point) => lineLength(point, intersection) <= 1e-5)) continue;
+      intersections.push(intersection);
+    }
+  }
+  return intersections;
+};
+
 export const segmentStart = (segment: ComputedOffsetLineSegment) => segment.start;
 export const segmentEnd = (segment: ComputedOffsetLineSegment) => segment.end;
 
@@ -146,6 +255,11 @@ export const joinIntersection = (
       length
     };
   };
+
+  if (first.kind === "bezier" || second.kind === "bezier") {
+    const sampled = nearestPoint(sampledSegmentIntersections(first, second), segmentEnd(first), segmentStart(second));
+    if (sampled) return sampled;
+  }
 
   if (first.kind === "line" && second.kind === "line") {
     return nearestPoint(
@@ -205,6 +319,18 @@ export const withStart = (
   }
   if (segment.kind === "bezier") {
     const start = computedPoint(`${elementId}:segment-start`, `${name}.始点`, point);
+    const nearest = nearestBezierT(segment, point);
+    if (nearest.distance <= BEZIER_TRIM_TOLERANCE_MM && nearest.t > EPSILON && nearest.t < 1 - EPSILON) {
+      const right = splitCubic(segment, nearest.t).right;
+      const next = {
+        ...segment,
+        start,
+        control1: right.control1,
+        control2: right.control2,
+        end: right.end
+      };
+      return { ...next, length: approximateBezierLength(next) };
+    }
     const dx = start.x - segment.start.x;
     const dy = start.y - segment.start.y;
     const next = {
@@ -243,6 +369,18 @@ export const withEnd = (
   }
   if (segment.kind === "bezier") {
     const end = computedPoint(`${elementId}:segment-end`, `${name}.終点`, point);
+    const nearest = nearestBezierT(segment, point);
+    if (nearest.distance <= BEZIER_TRIM_TOLERANCE_MM && nearest.t > EPSILON && nearest.t < 1 - EPSILON) {
+      const left = splitCubic(segment, nearest.t).left;
+      const next = {
+        ...segment,
+        start: left.start,
+        control1: left.control1,
+        control2: left.control2,
+        end
+      };
+      return { ...next, length: approximateBezierLength(next) };
+    }
     const dx = end.x - segment.end.x;
     const dy = end.y - segment.end.y;
     const next = {
