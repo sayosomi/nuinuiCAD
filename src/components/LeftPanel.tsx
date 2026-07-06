@@ -963,6 +963,9 @@ export const LeftPanel = ({
               element={contextMenuElement}
               selectedElements={contextMenuSelectedElements}
               showPrintControls={showPrintLayout}
+              targetEvaluationLimitIndex={
+                elements.findIndex((element) => element.id === contextMenuElement.id) + 1
+              }
               x={contextMenu.x}
               y={contextMenu.y}
               onClose={() => setContextMenu(null)}

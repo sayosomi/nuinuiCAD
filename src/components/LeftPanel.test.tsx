@@ -1963,7 +1963,43 @@ describe("LeftPanel element list dragging", () => {
     expect(within(menu).getByRole("menuitem", { name: "パラメーター編集" })).toBeInTheDocument();
     expect(within(menu).getByRole("menuitem", { name: "DSLで編集" })).toBeInTheDocument();
     expect(within(menu).getByRole("menuitem", { name: "非表示にする" })).toBeInTheDocument();
+    expect(within(menu).getByRole("menuitem", { name: "ここまで評価" })).toBeInTheDocument();
     expect(within(menu).getByRole("menuitem", { name: "表示色を変更" })).toBeInTheDocument();
+  });
+
+  it("moves the evaluation divider below an unselected right-clicked row", () => {
+    useCadStore.setState({ evaluationLimitIndex: sampleElements.length });
+    renderLeftPanel();
+
+    fireEvent.contextMenu(screen.getByText("点B").closest("[data-element-list-row='true']")!, {
+      clientX: 120,
+      clientY: 80
+    });
+    fireEvent.click(within(screen.getByRole("menu", { name: "点Bの操作" })).getByRole("menuitem", {
+      name: "ここまで評価"
+    }));
+
+    expect(useCadStore.getState().evaluationLimitIndex).toBe(2);
+  });
+
+  it("moves the evaluation divider below the right-clicked row in a multi-selection", () => {
+    useCadStore.setState({
+      evaluationLimitIndex: sampleElements.length,
+      selectedElementId: "point-a",
+      selectedElementIds: ["point-a", "point-c"],
+      selectionAnchorElementId: "point-a"
+    });
+    renderLeftPanel();
+
+    fireEvent.contextMenu(screen.getByText("点C").closest("[data-element-list-row='true']")!, {
+      clientX: 120,
+      clientY: 80
+    });
+    fireEvent.click(within(screen.getByRole("menu", { name: "点Cの操作" })).getByRole("menuitem", {
+      name: "ここまで評価"
+    }));
+
+    expect(useCadStore.getState().evaluationLimitIndex).toBe(3);
   });
 
   it("opens the DSL panel for an unselected right-clicked row", () => {

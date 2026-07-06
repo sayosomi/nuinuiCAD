@@ -15,6 +15,7 @@ type ElementListContextMenuProps = {
   element: CadElement;
   selectedElements: CadElement[];
   showPrintControls: boolean;
+  targetEvaluationLimitIndex: number;
   x: number;
   y: number;
   onClose: () => void;
@@ -48,12 +49,14 @@ const menuItemsForElement = ({
   commandContext,
   element,
   selectedElements,
-  showPrintControls
+  showPrintControls,
+  targetEvaluationLimitIndex
 }: {
   commandContext: CommandContext;
   element: CadElement;
   selectedElements: CadElement[];
   showPrintControls: boolean;
+  targetEvaluationLimitIndex: number;
 }): MenuItem[] => {
   const selectedCount = selectedElements.length;
   const hasColorTarget = selectedElements.some(elementSupportsDisplayColor);
@@ -81,6 +84,12 @@ const menuItemsForElement = ({
     commandId: "toggleElementEnabled",
     label: enabledLabel(element),
     context: { elementId: element.id }
+  });
+  items.push({
+    kind: "command",
+    commandId: "setEvaluationLimitIndex",
+    label: "ここまで評価",
+    context: { evaluationLimitIndex: targetEvaluationLimitIndex }
   });
   if (showPrintControls && element.type === "group") {
     items.push({
@@ -157,6 +166,7 @@ export const ElementListContextMenu = ({
   element,
   selectedElements,
   showPrintControls,
+  targetEvaluationLimitIndex,
   x,
   y,
   onClose
@@ -164,8 +174,15 @@ export const ElementListContextMenu = ({
   const menuRef = useRef<HTMLDivElement | null>(null);
   const [position, setPosition] = useState({ x, y });
   const items = useMemo(
-    () => menuItemsForElement({ commandContext, element, selectedElements, showPrintControls }),
-    [commandContext, element, selectedElements, showPrintControls]
+    () =>
+      menuItemsForElement({
+        commandContext,
+        element,
+        selectedElements,
+        showPrintControls,
+        targetEvaluationLimitIndex
+      }),
+    [commandContext, element, selectedElements, showPrintControls, targetEvaluationLimitIndex]
   );
 
   useLayoutEffect(() => {
