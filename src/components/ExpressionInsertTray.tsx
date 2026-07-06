@@ -10,7 +10,6 @@ import {
   DEFAULT_REFERENCE_HELPER_POSITION,
   useCadUiStore
 } from "../state/cadUiStore";
-import type { MeasurementInsertMode, MeasurementPointSlot } from "../state/cadUiStore";
 import type { CadElement, EvaluationResult } from "../types/geometry";
 
 type InsertTargetInput = {
@@ -55,12 +54,6 @@ const emptyEvaluation: EvaluationResult = {
   warnings: []
 };
 
-const measurementModes: { mode: MeasurementInsertMode; label: string }[] = [
-  { mode: "distance", label: "2点距離" },
-  { mode: "angle", label: "2点角度" },
-  { mode: "lineDistance", label: "点と線の距離" }
-];
-
 const conditionalOperators = [
   { operator: ">", description: "A > B: AがBより大きいとき真" },
   { operator: ">=", description: "A >= B: AがB以上のとき真" },
@@ -93,9 +86,6 @@ export const ExpressionInsertTray = ({
   const [relationFilter, setRelationFilter] =
     useState<NumericReferenceCandidate["relation"] | "all">("all");
   const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(null);
-  const activeMeasurementInsertTarget = useCadUiStore((state) => state.activeMeasurementInsertTarget);
-  const activePointPickTarget = useCadUiStore((state) => state.activePointPickTarget);
-  const activeLinePickTarget = useCadUiStore((state) => state.activeLinePickTarget);
   const referenceHelperPosition = useCadUiStore((state) => state.referenceHelperPosition);
   const setReferenceHelperPosition = useCadUiStore((state) => state.setReferenceHelperPosition);
   const [dragState, setDragState] = useState<{
@@ -105,11 +95,6 @@ export const ExpressionInsertTray = ({
     originX: number;
     originY: number;
   } | null>(null);
-  const mode = activeMeasurementInsertTarget?.elementId === element.id &&
-    activeMeasurementInsertTarget.parameterKey === parameterKey
-    ? activeMeasurementInsertTarget.mode
-    : "distance";
-
   const candidates = useMemo(
     () =>
       numericReferenceCandidates({
@@ -196,40 +181,21 @@ export const ExpressionInsertTray = ({
       selectionEnd: target.selectionEnd
     };
   };
-  const setMeasurementMode = (measurementInsertMode: MeasurementInsertMode) => {
-    dispatchCommand("setMeasurementInsertMode", {
+  const startMeasurementFunction = (candidate: NumericReferenceCandidate) => {
+    if (!candidate.measurementMode) return;
+    dispatchCommand("startMeasurementFunctionInsert", {
       ...inputTargetContext(),
-      measurementInsertMode
+      measurementInsertMode: candidate.measurementMode
     });
   };
-  const startPointPick = (measurementPointSlot: MeasurementPointSlot) => {
-    dispatchCommand("startMeasurementPointPick", {
-      ...inputTargetContext(),
-      measurementInsertMode: mode,
-      measurementPointSlot
-    });
+  const applyCandidate = (candidate: NumericReferenceCandidate) => {
+    if (!candidate.insertable) return;
+    if (candidate.measurementMode) {
+      startMeasurementFunction(candidate);
+      return;
+    }
+    insertSnippet(candidate.expression);
   };
-  const startLinePick = () => {
-    dispatchCommand("startMeasurementLinePick", {
-      ...inputTargetContext(),
-      measurementInsertMode: mode
-    });
-  };
-  const insertMeasurement = () => {
-    dispatchCommand("insertSelectedMeasurement", {
-      ...inputTargetContext(),
-      measurementInsertMode: mode
-    });
-    requestAnimationFrame(focusInput);
-  };
-  const isPickingPoint = (slot: MeasurementPointSlot) =>
-    activePointPickTarget?.elementId === element.id &&
-    activePointPickTarget.parameterKey === parameterKey &&
-    activePointPickTarget.measurementSlot === slot;
-  const isPickingLine =
-    activeLinePickTarget?.elementId === element.id &&
-    activeLinePickTarget.parameterKey === parameterKey &&
-    activeLinePickTarget.measurementSlot === "line";
   const helperPosition = clampReferenceHelperPosition(
     referenceHelperPosition ?? DEFAULT_REFERENCE_HELPER_POSITION
   );
@@ -331,11 +297,11 @@ export const ExpressionInsertTray = ({
                     candidate.insertable &&
                     (candidate.relation === "variable" || candidate.relation === "function")
                   ) {
-                    insertSnippet(candidate.expression);
+                    applyCandidate(candidate);
                   }
                 }}
                 onDoubleClick={() => {
-                  if (candidate.insertable) insertSnippet(candidate.expression);
+                  applyCandidate(candidate);
                 }}
               >
                 <span>
@@ -370,9 +336,9 @@ export const ExpressionInsertTray = ({
                 type="button"
                 className="expression-insert-button"
                 disabled={!selectedCandidate.insertable}
-                onClick={() => insertSnippet(selectedCandidate.expression)}
+                onClick={() => applyCandidate(selectedCandidate)}
               >
-                選択候補を挿入
+                {selectedCandidate.measurementMode ? "選択を開始" : "選択候補を挿入"}
               </button>
             </>
           ) : (
@@ -382,46 +348,7 @@ export const ExpressionInsertTray = ({
       </div>
 
       <div className="reference-helper-legacy">
-        <div className="measurement-mode-grid" role="group" aria-label="挿入する測定">
-          {measurementModes.map((item) => (
-            <button
-              key={item.mode}
-              type="button"
-              className={mode === item.mode ? "active-toggle" : ""}
-              onClick={() => setMeasurementMode(item.mode)}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
-        <div className="reference-helper-legacy-actions">
-          <button
-            type="button"
-            className={isPickingPoint("point1") ? "active-toggle" : ""}
-            onClick={() => startPointPick("point1")}
-          >
-            点を選択
-          </button>
-          {mode === "lineDistance" ? (
-            <button
-              type="button"
-              className={isPickingLine ? "active-toggle" : ""}
-              onClick={startLinePick}
-            >
-              線を選択
-            </button>
-          ) : (
-            <button
-              type="button"
-              className={isPickingPoint("point2") ? "active-toggle" : ""}
-              onClick={() => startPointPick("point2")}
-            >
-              点を選択
-            </button>
-          )}
-          <button type="button" onClick={insertMeasurement}>式に挿入</button>
-          <button type="button" onClick={startLegacyLinePick}>線・曲線を選択</button>
-        </div>
+        <button type="button" onClick={startLegacyLinePick}>線・曲線を選択</button>
         {element.type === "conditionalGroup" && parameterKey === "condition" ? (
           <div className="expression-operator-grid" role="group" aria-label="挿入する条件演算子">
             {conditionalOperators.map(({ operator, description }) => (

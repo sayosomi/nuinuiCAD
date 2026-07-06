@@ -56,6 +56,7 @@ export type CommandId =
   | "openExpressionInsertTray"
   | "closeExpressionInsertTray"
   | "setMeasurementInsertMode"
+  | "startMeasurementFunctionInsert"
   | "startMeasurementPointPick"
   | "startMeasurementLinePick"
   | "insertSelectedMeasurement"

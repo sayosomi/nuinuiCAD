@@ -1,11 +1,16 @@
 import { useEffect, useRef } from "react";
 import { dispatchCommand } from "../commands/commands";
+import { numericValueExpression } from "../geometry/numericExpressions";
 import type { EvaluationEngineState } from "../geometry/useEvaluationEngine";
+import { findParameterDefinition } from "../parameters/parameterDefinitions";
+import { getParameterValue } from "../parameters/parameterAccess";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
+import type { NumericValue } from "../types/geometry";
 import type { EvaluationResult } from "../types/geometry";
 import { ElementEditor } from "./ElementEditor";
 import { ElementInfoPanel } from "./ElementInfoPanel";
+import { ExpressionInsertTray } from "./ExpressionInsertTray";
 
 type RightPanelProps = {
   evaluation: EvaluationResult;
@@ -27,6 +32,13 @@ const evaluationEngineLabel = (state: EvaluationEngineState) => {
   return null;
 };
 
+const isNumericValue = (value: unknown): value is NumericValue =>
+  typeof value === "number" ||
+  (typeof value === "object" &&
+    value !== null &&
+    "kind" in value &&
+    (value as { kind?: unknown }).kind === "expression");
+
 export const RightPanel = ({
   evaluation,
   evaluationState,
@@ -39,7 +51,28 @@ export const RightPanel = ({
   const selectedElementId = useCadDocumentStore((state) => state.selectedElementId);
   const selectedParameterKey = useCadDocumentStore((state) => state.selectedParameterKey);
   const selectedDependencyJumpIndex = useCadUiStore((state) => state.selectedDependencyJumpIndex);
+  const activeExpressionInsertTarget = useCadUiStore((state) => state.activeExpressionInsertTarget);
+  const expressionInsertInputTarget = useCadUiStore((state) => state.expressionInsertInputTarget);
   const selectedElement = elements.find((element) => element.id === selectedElementId) ?? null;
+  const expressionInsertElement = activeExpressionInsertTarget
+    ? elements.find((element) => element.id === activeExpressionInsertTarget.elementId) ?? null
+    : null;
+  const expressionInsertParameter = expressionInsertElement && activeExpressionInsertTarget
+    ? findParameterDefinition(expressionInsertElement, activeExpressionInsertTarget.parameterKey)
+    : null;
+  const expressionInsertValue = expressionInsertElement && expressionInsertParameter
+    ? getParameterValue(expressionInsertElement, expressionInsertParameter.key)
+    : null;
+  const currentInputTarget =
+    expressionInsertInputTarget?.elementId === activeExpressionInsertTarget?.elementId &&
+    expressionInsertInputTarget?.parameterKey === activeExpressionInsertTarget?.parameterKey
+      ? expressionInsertInputTarget
+      : null;
+  const displayedExpression = currentInputTarget
+    ? currentInputTarget.displayedExpression
+    : isNumericValue(expressionInsertValue)
+      ? numericValueExpression(expressionInsertValue)
+      : "";
   const shortcutHint = isParameterEditMode || isDependencyJumpMode
     ? "Esc で終了 / ? でショートカット"
     : "? でショートカット";
@@ -82,6 +115,35 @@ export const RightPanel = ({
           <p className="empty-state">要素を選択してください。</p>
         </section>
       )}
+
+      {expressionInsertElement && activeExpressionInsertTarget && expressionInsertParameter?.kind === "number" ? (
+        <ExpressionInsertTray
+          element={expressionInsertElement}
+          elements={elements}
+          evaluation={evaluation}
+          parameterKey={expressionInsertParameter.key}
+          focusInput={() => {
+            document
+              .querySelector<HTMLInputElement>(
+                `input[data-numeric-element-id="${activeExpressionInsertTarget.elementId}"][data-numeric-parameter-key="${activeExpressionInsertTarget.parameterKey}"]`
+              )
+              ?.focus();
+          }}
+          getInputTarget={() => ({
+            displayedExpression,
+            selectionStart:
+              expressionInsertInputTarget?.elementId === activeExpressionInsertTarget.elementId &&
+              expressionInsertInputTarget.parameterKey === activeExpressionInsertTarget.parameterKey
+                ? expressionInsertInputTarget.selectionStart
+                : null,
+            selectionEnd:
+              expressionInsertInputTarget?.elementId === activeExpressionInsertTarget.elementId &&
+              expressionInsertInputTarget.parameterKey === activeExpressionInsertTarget.parameterKey
+                ? expressionInsertInputTarget.selectionEnd
+                : null
+          })}
+        />
+      ) : null}
 
       <ElementInfoPanel
         element={selectedElement}

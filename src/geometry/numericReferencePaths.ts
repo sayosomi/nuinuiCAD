@@ -16,6 +16,7 @@ export type NumericReferenceCandidate = {
   id: string;
   elementId?: ElementId;
   relation: "self" | "parent" | "child" | "element" | "variable" | "function";
+  measurementMode?: "distance" | "angle" | "lineDistance";
   expression: string;
   displayExpression: string;
   label: string;
@@ -394,7 +395,10 @@ export const numericReferenceCandidates = (context: ResolveContext & { query?: s
 
   candidates.push(
     { id: "function:sqrt", relation: "function", expression: "sqrt()", displayExpression: "sqrt()", label: "sqrt()", detail: "平方根", valueLabel: "", insertable: true },
-    { id: "function:pi", relation: "function", expression: "pi", displayExpression: "pi", label: "pi", detail: "円周率", valueLabel: formatNumber(Math.PI), insertable: true }
+    { id: "function:pi", relation: "function", expression: "pi", displayExpression: "pi", label: "pi", detail: "円周率", valueLabel: formatNumber(Math.PI), insertable: true },
+    { id: "function:distance", relation: "function", measurementMode: "distance", expression: "距離()", displayExpression: "距離()", label: "距離()", detail: "2点距離", valueLabel: "2点", insertable: true },
+    { id: "function:angle", relation: "function", measurementMode: "angle", expression: "角度()", displayExpression: "角度()", label: "角度()", detail: "2点角度", valueLabel: "2点", insertable: true },
+    { id: "function:lineDistance", relation: "function", measurementMode: "lineDistance", expression: "点線距離()", displayExpression: "点線距離()", label: "点線距離()", detail: "点と線の距離", valueLabel: "点+線", insertable: true }
   );
 
   const query = context.query?.trim().toLocaleLowerCase() ?? "";

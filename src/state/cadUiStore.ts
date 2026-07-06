@@ -41,6 +41,14 @@ export type ActiveExpressionInsertTarget = {
   parameterKey: ParameterKey;
 };
 
+export type ExpressionInsertInputTarget = {
+  elementId: ElementId;
+  parameterKey: ParameterKey;
+  displayedExpression: string;
+  selectionStart: number | null;
+  selectionEnd: number | null;
+};
+
 export type ActiveMeasurementInsertTarget = {
   elementId: ElementId;
   parameterKey: ParameterKey;
@@ -124,6 +132,7 @@ export type CadUiState = {
   activeNumericReferencePickTarget: ActiveNumericReferencePickTarget | null;
   activeLinePickTarget: ActiveLinePickTarget | null;
   activeExpressionInsertTarget: ActiveExpressionInsertTarget | null;
+  expressionInsertInputTarget: ExpressionInsertInputTarget | null;
   activeMeasurementInsertTarget: ActiveMeasurementInsertTarget | null;
   activeTemplateInsertion: ActiveTemplateInsertion | null;
   activePickCursor: ActivePickCursor | null;
@@ -169,6 +178,9 @@ export type CadUiState = {
   setActiveLinePickTarget: (activeLinePickTarget: ActiveLinePickTarget | null) => void;
   setActiveExpressionInsertTarget: (
     activeExpressionInsertTarget: ActiveExpressionInsertTarget | null
+  ) => void;
+  setExpressionInsertInputTarget: (
+    expressionInsertInputTarget: ExpressionInsertInputTarget | null
   ) => void;
   setActiveMeasurementInsertTarget: (
     activeMeasurementInsertTarget: ActiveMeasurementInsertTarget | null
@@ -232,6 +244,7 @@ export const initialCadUiState = (): Omit<
   | "setActiveNumericReferencePickTarget"
   | "setActiveLinePickTarget"
   | "setActiveExpressionInsertTarget"
+  | "setExpressionInsertInputTarget"
   | "setActiveMeasurementInsertTarget"
   | "setActiveTemplateInsertion"
   | "setActivePickCursor"
@@ -283,6 +296,7 @@ export const initialCadUiState = (): Omit<
   activeNumericReferencePickTarget: null,
   activeLinePickTarget: null,
   activeExpressionInsertTarget: null,
+  expressionInsertInputTarget: null,
   activeMeasurementInsertTarget: null,
   activeTemplateInsertion: null,
   activePickCursor: null,
@@ -391,6 +405,8 @@ export const useCadUiStore = create<CadUiState>((set) => ({
         ? state.activeMeasurementInsertTarget
         : null
     })),
+  setExpressionInsertInputTarget: (expressionInsertInputTarget) =>
+    set({ expressionInsertInputTarget }),
   setActiveMeasurementInsertTarget: (activeMeasurementInsertTarget) =>
     set({ activeMeasurementInsertTarget }),
   setActiveTemplateInsertion: (activeTemplateInsertion) =>

@@ -15,6 +15,7 @@ import {
   selectPickOptionByOffset,
   setMeasurementInsertMode,
   setNumericReferencePickProperty,
+  startMeasurementFunctionInsert,
   startEndpointAndPointPick,
   startEndpointPairPick,
   startLineAndPointPick,
@@ -60,6 +61,11 @@ export const pickCommandDefinitions = {
     id: "setMeasurementInsertMode",
     label: "挿入する測定を切り替え",
     run: (context) => setMeasurementInsertMode(context)
+  },
+  startMeasurementFunctionInsert: {
+    id: "startMeasurementFunctionInsert",
+    label: "測定関数の参照選択を開始",
+    run: (context) => startMeasurementFunctionInsert(context)
   },
   startMeasurementPointPick: {
     id: "startMeasurementPointPick",

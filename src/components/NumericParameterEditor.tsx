@@ -16,7 +16,6 @@ import { useCadUiStore } from "../state/cadUiStore";
 import type { CadElement, NumericValue } from "../types/geometry";
 import { formatNumber } from "./geometryDisplay";
 import { numericDragStepsForDelta } from "./numericDrag";
-import { ExpressionInsertTray } from "./ExpressionInsertTray";
 import { isImeComposingKeyEvent } from "./keyboardEventGuards";
 import {
   NumericVariableSuggestPopover
@@ -70,7 +69,7 @@ export const NumericParameterEditor = ({
   value,
   ariaLabel,
   compact = false,
-  enableExpressionInsert = false,
+  enableExpressionInsert = true,
   showStepControl = true
 }: CommonEditorProps & {
   parameterKey: ParameterKey;
@@ -90,6 +89,7 @@ export const NumericParameterEditor = ({
   const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(0);
   const activeNumericReferencePickTarget = useCadUiStore((state) => state.activeNumericReferencePickTarget);
   const activeExpressionInsertTarget = useCadUiStore((state) => state.activeExpressionInsertTarget);
+  const setExpressionInsertInputTarget = useCadUiStore((state) => state.setExpressionInsertInputTarget);
   const {
     controlProps,
     parameterFieldClass,
@@ -127,6 +127,20 @@ export const NumericParameterEditor = ({
       ? numericValuesEqual(draft.baseValue, value)
       : numericValuesEqual(numericValueFromInput(draft.value), value));
   const inputValue = shouldUseDraftValue ? draft.value : displayValue;
+  const expressionInsertTarget = () => ({
+    elementId: element.id,
+    parameterKey,
+    displayedExpression: inputRef.current?.value ?? inputValue,
+    selectionStart:
+      inputSelectionRef.current?.start ??
+      (document.activeElement === inputRef.current ? inputRef.current?.selectionStart ?? null : null),
+    selectionEnd:
+      inputSelectionRef.current?.end ??
+      (document.activeElement === inputRef.current ? inputRef.current?.selectionEnd ?? null : null)
+  });
+  const syncExpressionInsertTarget = () => {
+    setExpressionInsertInputTarget(expressionInsertTarget());
+  };
   const variableOptions = useMemo(
     () =>
       availableNumericVariableReferenceOptions({
@@ -355,17 +369,40 @@ export const NumericParameterEditor = ({
         };
         inputSelectionRef.current = nextInputSelection;
         setInputSelection(nextInputSelection);
+        setExpressionInsertInputTarget({
+          elementId: element.id,
+          parameterKey,
+          displayedExpression: event.target.value,
+          selectionStart: nextInputSelection.start,
+          selectionEnd: nextInputSelection.end
+        });
         setActiveSuggestionIndex(0);
         updateField(parameterKey, event.target.value);
       }}
-      onSelect={rememberInputSelection}
-      onKeyUp={rememberInputSelection}
-      onMouseUp={rememberInputSelection}
+      onSelect={() => {
+        rememberInputSelection();
+        syncExpressionInsertTarget();
+      }}
+      onKeyUp={() => {
+        rememberInputSelection();
+        syncExpressionInsertTarget();
+      }}
+      onMouseUp={() => {
+        rememberInputSelection();
+        syncExpressionInsertTarget();
+      }}
       onFocus={() => {
         selectParameter(parameterKey);
         selectTextInputValue(inputRef.current, (nextSelection) => {
           inputSelectionRef.current = nextSelection;
           setInputSelection(nextSelection);
+          setExpressionInsertInputTarget({
+            elementId: element.id,
+            parameterKey,
+            displayedExpression: inputRef.current?.value ?? inputValue,
+            selectionStart: nextSelection.start,
+            selectionEnd: nextSelection.end
+          });
         });
       }}
       onKeyDown={(event) => {
@@ -458,7 +495,27 @@ export const NumericParameterEditor = ({
     return (
       <label className={parameterFieldClass(parameterKey)} onClick={() => selectParameter(parameterKey)}>
         <ParameterName element={element} parameterKey={parameterKey} label={label} />
-        {input}
+        <span className="compact-numeric-input-row">
+          {input}
+          {enableExpressionInsert ? (
+            <button
+              type="button"
+              className={`expression-insert-toggle compact ${isExpressionInsertOpen ? "active" : ""}`}
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                selectParameter(parameterKey);
+                setExpressionInsertInputTarget(expressionInsertTarget());
+                dispatchCommand("toggleExpressionInsertTray", {
+                  elementId: element.id,
+                  parameterKey
+                });
+              }}
+            >
+              参照
+            </button>
+          ) : null}
+        </span>
         {variableSuggestPopover}
         {showStepControl ? stepControl : null}
       </label>
@@ -497,11 +554,12 @@ export const NumericParameterEditor = ({
               className={`expression-insert-toggle ${isExpressionInsertOpen ? "active" : ""}`}
               onClick={(event) => {
                 event.preventDefault();
-                event.stopPropagation();
-                selectParameter(parameterKey);
-                dispatchCommand("toggleExpressionInsertTray", {
-                  elementId: element.id,
-                  parameterKey
+              event.stopPropagation();
+              selectParameter(parameterKey);
+              setExpressionInsertInputTarget(expressionInsertTarget());
+              dispatchCommand("toggleExpressionInsertTray", {
+                elementId: element.id,
+                parameterKey
                 });
               }}
             >
@@ -512,20 +570,6 @@ export const NumericParameterEditor = ({
       </div>
       {input}
       {variableSuggestPopover}
-      {enableExpressionInsert && isExpressionInsertOpen ? (
-        <ExpressionInsertTray
-          element={element}
-          elements={elements}
-          evaluation={evaluation}
-          parameterKey={parameterKey}
-          focusInput={() => inputRef.current?.focus()}
-          getInputTarget={() => ({
-            displayedExpression: inputRef.current?.value ?? "",
-            selectionStart: inputSelectionRef.current?.start ?? null,
-            selectionEnd: inputSelectionRef.current?.end ?? null
-          })}
-        />
-      ) : null}
       <div className="numeric-parameter-footer">
         {showStepControl ? stepControl : null}
         {isPickingThisNumericReference ? (

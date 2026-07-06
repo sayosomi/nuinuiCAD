@@ -696,16 +696,15 @@ describe("LeftPanel numeric input dragging", () => {
     expect(screen.queryByText("測定・参照を挿入")).not.toBeInTheDocument();
     fireEvent.click(screen.getByText("参照を挿入"));
     expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+    expect(screen.queryByText("点を選択")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getAllByText("点を選択")[0]);
+    fireEvent.click(screen.getByText("距離()"));
     act(() => {
       dispatchCommand("applyPickedPoint", { pickedPointId: "point-a" });
     });
-    fireEvent.click(screen.getAllByText("点を選択").at(-1)!);
     act(() => {
       dispatchCommand("applyPickedPoint", { pickedPointId: "point-b" });
     });
-    fireEvent.click(screen.getByText("式に挿入"));
 
     expect(useCadStore.getState().elements.at(-1)).toMatchObject({
       expression: { kind: "expression", expression: "距離(point-a, point-b)" }
@@ -736,18 +735,16 @@ describe("LeftPanel numeric input dragging", () => {
     renderRightPanel();
 
     fireEvent.click(screen.getByText("参照を挿入"));
-    fireEvent.click(screen.getAllByText("点と線の距離").at(-1)!);
     expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+    expect(screen.queryByText("線を選択")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByText("点を選択"));
+    fireEvent.click(screen.getByText("点線距離()"));
     act(() => {
       dispatchCommand("applyPickedPoint", { pickedPointId: "point-c" });
     });
-    fireEvent.click(screen.getByText("線を選択"));
     act(() => {
       dispatchCommand("applyPickedLine", { pickedLineId: "line-ab" });
     });
-    fireEvent.click(screen.getByText("式に挿入"));
 
     expect(useCadStore.getState().elements.at(-1)).toMatchObject({
       expression: { kind: "expression", expression: "点線距離(point-c, line-ab)" }

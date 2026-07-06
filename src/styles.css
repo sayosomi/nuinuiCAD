@@ -2632,6 +2632,13 @@ textarea {
   white-space: nowrap;
 }
 
+.compact-numeric-input-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px;
+  align-items: center;
+}
+
 .numeric-parameter-actions {
   display: flex;
   flex-wrap: wrap;
@@ -2650,6 +2657,12 @@ textarea {
   padding: 5px 9px;
   font-size: 12px;
   white-space: nowrap;
+}
+
+.expression-insert-toggle.compact {
+  min-height: 28px;
+  padding: 4px 7px;
+  font-size: 11px;
 }
 
 .expression-insert-toggle.active,
