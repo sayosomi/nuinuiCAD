@@ -1,5 +1,5 @@
 import type { CSSProperties, MouseEvent, PointerEvent, Ref } from "react";
-import { Folder, FolderOpen, Printer } from "lucide-react";
+import { AtSign, CircleDot, Folder, FolderOpen, Minus, Printer, Radius, Spline } from "lucide-react";
 import { dispatchCommand } from "../commands/commands";
 import { numericValueExpression } from "../geometry/numericExpressions";
 import type { PickCandidate } from "../model/pickCandidates";
@@ -44,12 +44,53 @@ const elementListCommentPreview = (element: CadElement) =>
     ? element.text.replace(/\s+/g, " ").trim()
     : "";
 
-const GroupFolderIcon = ({ expanded }: { expanded: boolean }) =>
+const GroupFolderIcon = ({ className = "", expanded }: { className?: string; expanded: boolean }) =>
   expanded ? (
-    <FolderOpen className="element-group-icon" aria-hidden="true" />
+    <FolderOpen className={`element-group-icon ${className}`.trim()} aria-hidden="true" />
   ) : (
-    <Folder className="element-group-icon" aria-hidden="true" />
+    <Folder className={`element-group-icon ${className}`.trim()} aria-hidden="true" />
   );
+
+const elementNameIconClassName = (kind: string) => `element-name-icon element-name-icon-${kind}`;
+
+const ElementNameIcon = ({ element }: { element: CadElement }) => {
+  if (isGroupElement(element)) {
+    return (
+      <GroupFolderIcon
+        className="element-name-icon element-name-icon-group"
+        expanded={element.expanded}
+      />
+    );
+  }
+
+  switch (element.type) {
+    case "variable":
+      return <AtSign className={elementNameIconClassName("variable")} aria-hidden="true" />;
+    case "freePoint":
+    case "offsetPoint":
+    case "polarOffsetPoint":
+    case "divisionPoint":
+    case "lineDivisionPoint":
+    case "intersectionPoint":
+    case "lineTangentOffsetPoint":
+      return <CircleDot className={elementNameIconClassName("point")} aria-hidden="true" />;
+    case "line":
+    case "angleLengthLine":
+    case "offsetLine":
+    case "splitLine":
+    case "copyLine":
+    case "symmetricCopyLine":
+      return <Minus className={elementNameIconClassName("line")} aria-hidden="true" />;
+    case "bezierCurve":
+      return <Spline className={elementNameIconClassName("curve")} aria-hidden="true" />;
+    case "arcLine":
+    case "threePointArcLine":
+    case "cornerRadiusArcLine":
+      return <Radius className={elementNameIconClassName("arc")} aria-hidden="true" />;
+    default:
+      return null;
+  }
+};
 
 export type ElementListGroupIssues = {
   childCount: number;
@@ -282,7 +323,7 @@ export const ElementListRow = ({
     <span className="element-name">
       {hasError || hasWarning ? "⚠ " : ""}
       <span className="element-name-primary">
-        {isGroupElement(element) ? <GroupFolderIcon expanded={element.expanded} /> : null}
+        <ElementNameIcon element={element} />
         <span
           className={elementListNameTextClassName(elementListDisplayName(element))}
           title={elementListDisplayName(element)}

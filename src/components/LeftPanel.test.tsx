@@ -2143,6 +2143,97 @@ describe("LeftPanel element list dragging", () => {
     expect(screen.getByText("点A")).not.toHaveClass("is-compact-name");
   });
 
+  it("shows type icons before element names in the element list", () => {
+    const group: CadElement = {
+      id: "group-1",
+      name: "身頃",
+      type: "group",
+      visible: true,
+      enabled: true,
+      expanded: true
+    };
+    const variable: CadElement = {
+      id: "base-variable",
+      name: "基準寸法",
+      type: "variable",
+      visible: true,
+      enabled: true,
+      scope: "global",
+      valueMode: "expression",
+      expression: 10,
+      point1: { mode: "coordinate", x: 0, y: 0 },
+      point2: { mode: "coordinate", x: 10, y: 0 },
+      point: { mode: "coordinate", x: 0, y: 0 },
+      lineId: "line-ab"
+    };
+    const curve: CadElement = {
+      id: "curve-ac",
+      name: "曲線AC",
+      type: "bezierCurve",
+      visible: true,
+      enabled: true,
+      startPoint: { mode: "reference", pointId: "point-a" },
+      startHandleAngleDeg: 0,
+      startHandleLength: 10,
+      intermediatePoints: [],
+      endPoint: { mode: "reference", pointId: "point-c" },
+      endHandleAngleDeg: 180,
+      endHandleLength: 10
+    };
+    const arc: CadElement = {
+      id: "arc-a",
+      name: "円弧A",
+      type: "arcLine",
+      visible: true,
+      enabled: true,
+      centerPoint: { mode: "reference", pointId: "point-a" },
+      radius: 10,
+      startAngleDeg: 0,
+      endAngleDeg: 90
+    };
+
+    useCadStore.setState({
+      elements: [group, variable, sampleElements[0], sampleElements[3], curve, arc],
+      selectedElementId: group.id,
+      selectedElementIds: [group.id],
+      selectionAnchorElementId: group.id,
+      evaluationLimitIndex: 6
+    });
+
+    renderLeftPanel();
+
+    expect(
+      screen.getByText("身頃").closest("[data-element-list-row='true']")?.querySelector(
+        ".element-name-icon-group"
+      )
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("基準寸法").closest("[data-element-list-row='true']")?.querySelector(
+        ".element-name-icon-variable"
+      )
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("点A").closest("[data-element-list-row='true']")?.querySelector(
+        ".element-name-icon-point"
+      )
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("直線AB").closest("[data-element-list-row='true']")?.querySelector(
+        ".element-name-icon-line"
+      )
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("曲線AC").closest("[data-element-list-row='true']")?.querySelector(
+        ".element-name-icon-curve"
+      )
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("円弧A").closest("[data-element-list-row='true']")?.querySelector(
+        ".element-name-icon-arc"
+      )
+    ).toBeInTheDocument();
+  });
+
   it("shows for group template and generated preview rows", () => {
     const elements: CadElement[] = [
       {

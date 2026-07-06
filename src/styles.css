@@ -931,6 +931,28 @@ textarea {
   gap: 4px;
 }
 
+.element-name-icon {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  color: #5f6860;
+  stroke-width: 2;
+}
+
+.element-name-icon-variable {
+  color: #755c9b;
+}
+
+.element-name-icon-point {
+  color: #356f79;
+}
+
+.element-name-icon-line,
+.element-name-icon-curve,
+.element-name-icon-arc {
+  color: #5d6d5f;
+}
+
 .element-name-text {
   display: -webkit-box;
   overflow: hidden;
