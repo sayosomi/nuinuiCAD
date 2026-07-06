@@ -34,6 +34,48 @@ describe("element creation placement", () => {
     });
   });
 
+  it("places new elements inside an open group when the divider is between its children", () => {
+    const elements: CadElement[] = [
+      {
+        id: "group",
+        name: "身頃",
+        type: "group",
+        visible: true,
+        enabled: true,
+        expanded: true
+      },
+      { ...sampleElements[0], parentGroupId: "group" },
+      { ...sampleElements[1], parentGroupId: "group" },
+      sampleElements[2]
+    ];
+
+    const placement = creationPlacementForEvaluationLimit(elements, 2);
+
+    expect(placement).toMatchObject({
+      insertionIndex: 2,
+      parentGroupId: "group"
+    });
+  });
+
+  it("places new elements inside an open group when the divider is directly below its header", () => {
+    const elements: CadElement[] = [
+      {
+        id: "group",
+        name: "身頃",
+        type: "group",
+        visible: true,
+        enabled: true,
+        expanded: true
+      },
+      { ...sampleElements[0], parentGroupId: "group" },
+      sampleElements[1]
+    ];
+
+    const placement = creationPlacementForEvaluationLimit(elements, 1);
+
+    expect(placement.parentGroupId).toBe("group");
+  });
+
   it("places new elements inside an empty group when the divider is directly below it", () => {
     const elements: CadElement[] = [
       {
@@ -95,6 +137,34 @@ describe("element creation placement", () => {
     ];
 
     const placement = creationPlacementForEvaluationLimit(elements, 3);
+
+    expect(placement.parentGroupId).toBe("outer");
+  });
+
+  it("places new elements outside a closed nested group when the divider is inside that closed subtree", () => {
+    const elements: CadElement[] = [
+      {
+        id: "outer",
+        name: "外側",
+        type: "group",
+        visible: true,
+        enabled: true,
+        expanded: true
+      },
+      {
+        id: "inner",
+        name: "内側",
+        type: "group",
+        visible: true,
+        enabled: true,
+        expanded: false,
+        parentGroupId: "outer"
+      },
+      { ...sampleElements[0], parentGroupId: "inner" },
+      { ...sampleElements[1], parentGroupId: "outer" }
+    ];
+
+    const placement = creationPlacementForEvaluationLimit(elements, 2);
 
     expect(placement.parentGroupId).toBe("outer");
   });

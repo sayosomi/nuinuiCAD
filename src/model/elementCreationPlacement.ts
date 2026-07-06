@@ -26,6 +26,16 @@ const lastSubtreeIndex = (
   return indexes.at(-1) ?? fallbackIndex;
 };
 
+const groupContainsInsertionIndex = (
+  elements: CadElement[],
+  groupId: ElementId,
+  groupIndex: number,
+  insertionIndex: number
+) => (
+  insertionIndex > groupIndex &&
+  insertionIndex <= lastSubtreeIndex(elements, groupId, groupIndex) + 1
+);
+
 const branchForConditionalGroupInsertion = (
   elements: CadElement[],
   parentGroupId: ElementId,
@@ -51,7 +61,7 @@ export const creationPlacementForEvaluationLimit = (
     .filter(({ element, index }) => (
       isGroupElement(element) &&
       element.expanded &&
-      lastSubtreeIndex(elements, element.id, index) + 1 === insertionIndex
+      groupContainsInsertionIndex(elements, element.id, index, insertionIndex)
     ))
     .sort((a, b) => b.depth - a.depth)[0]?.element;
 

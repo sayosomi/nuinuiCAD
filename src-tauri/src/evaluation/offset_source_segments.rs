@@ -5,6 +5,8 @@ use super::offset_types::{
     arc_point, line_length, value_point, OffsetPoint, SourceSegment, EPSILON,
 };
 
+const TANGENT_CONTINUITY_COST_MM: f64 = 0.25;
+
 fn bezier_source_segments(curve: &Value) -> Vec<SourceSegment> {
     curve
         .get("segments")
@@ -212,7 +214,16 @@ struct OrientedSourceGroup {
 }
 
 fn group_connection_cost(previous: &[SourceSegment], next: &[SourceSegment]) -> f64 {
-    line_length(source_end(previous.last().unwrap()), source_start(&next[0]))
+    let distance = line_length(source_end(previous.last().unwrap()), source_start(&next[0]));
+    let Some(previous_tangent) = source_end_tangent(previous.last().unwrap()) else {
+        return distance;
+    };
+    let Some(next_tangent) = source_start_tangent(&next[0]) else {
+        return distance;
+    };
+    let dot = (previous_tangent.x * next_tangent.x + previous_tangent.y * next_tangent.y)
+        .clamp(-1.0, 1.0);
+    distance + (1.0 - dot) * TANGENT_CONTINUITY_COST_MM
 }
 
 fn orient_source_groups_for_initial_orientation(
@@ -326,4 +337,39 @@ pub(crate) fn connect_source_segment_groups(
         connected.extend(group);
     }
     connected
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn point(x: f64, y: f64) -> OffsetPoint {
+        OffsetPoint { x, y }
+    }
+
+    #[test]
+    fn tangent_continuity_orients_equally_close_source_groups() {
+        let incoming = SourceSegment::Line {
+            start: point(-50.0, 0.0),
+            end: point(0.0, 0.0),
+        };
+        let loop_with_opposite_source_direction = SourceSegment::Bezier {
+            start: point(0.0, 0.0),
+            control1: point(-20.0, 0.0),
+            control2: point(20.0, 0.0),
+            end: point(0.0, 0.0),
+        };
+
+        let connected = connect_source_segment_groups(
+            &[vec![incoming], vec![loop_with_opposite_source_direction]],
+            false,
+        );
+
+        assert_eq!(connected.len(), 2);
+        let SourceSegment::Bezier { control1, .. } = connected[1] else {
+            panic!("expected Bezier segment");
+        };
+        assert_eq!(control1.x, 20.0);
+        assert_eq!(control1.y, 0.0);
+    }
 }

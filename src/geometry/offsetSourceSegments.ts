@@ -122,14 +122,22 @@ const reverseSourceSegment = (segment: SourceSegment): SourceSegment =>
 const reverseSourceSegments = (segments: SourceSegment[]) =>
   [...segments].reverse().map(reverseSourceSegment);
 
+const TANGENT_CONTINUITY_COST_MM = 0.25;
+
 type OrientedSourceGroup = {
   segments: SourceSegment[];
   cost: number;
   previousOrientation: 0 | 1 | null;
 };
 
-const groupConnectionCost = (previous: SourceSegment[], next: SourceSegment[]) =>
-  lineLength(sourceEnd(previous.at(-1)!), sourceStart(next[0]));
+const groupConnectionCost = (previous: SourceSegment[], next: SourceSegment[]) => {
+  const distance = lineLength(sourceEnd(previous.at(-1)!), sourceStart(next[0]));
+  const previousTangent = sourceEndTangent(previous.at(-1)!);
+  const nextTangent = sourceStartTangent(next[0]);
+  if (!previousTangent || !nextTangent) return distance;
+  const dot = Math.max(-1, Math.min(1, previousTangent.x * nextTangent.x + previousTangent.y * nextTangent.y));
+  return distance + (1 - dot) * TANGENT_CONTINUITY_COST_MM;
+};
 
 const orientSourceGroupsForInitialOrientation = (
   groups: SourceSegment[][],
