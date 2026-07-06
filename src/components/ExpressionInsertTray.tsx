@@ -1,14 +1,14 @@
 import { useMemo, useState } from "react";
 import { dispatchCommand } from "../commands/commands";
 import {
-  numericReferencePickProperties
-} from "../geometry/numericReferenceProperties";
-import { lineMeasurementLabel } from "../geometry/numericExpressions";
+  numericReferenceCandidates,
+  type NumericReferenceCandidate
+} from "../geometry/numericReferencePaths";
 import { availableNumericVariableReferenceOptions } from "../geometry/variableReferenceOptions";
 import type { ParameterKey } from "../parameters/parameterDefinitions";
 import { useCadUiStore } from "../state/cadUiStore";
 import type { MeasurementInsertMode, MeasurementPointSlot } from "../state/cadUiStore";
-import type { CadElement, ElementId, PointAnchor } from "../types/geometry";
+import type { CadElement, EvaluationResult } from "../types/geometry";
 
 type InsertTargetInput = {
   displayedExpression: string;
@@ -16,26 +16,37 @@ type InsertTargetInput = {
   selectionEnd: number | null;
 };
 
-type NumericExpressionAppendMode = "sum" | "raw";
-
 type ExpressionInsertTrayProps = {
   element: CadElement;
   elements: CadElement[];
+  evaluation?: EvaluationResult;
   parameterKey: ParameterKey;
   focusInput: () => void;
   getInputTarget: () => InsertTargetInput;
   onClose?: () => void;
 };
 
-const measurementModes: {
-  mode: MeasurementInsertMode;
-  label: string;
-  functionName: string;
-  description: string;
-}[] = [
-  { mode: "distance", label: "2点距離", functionName: "距離", description: "点から点まで" },
-  { mode: "angle", label: "2点角度", functionName: "角度", description: "点同士の角度" },
-  { mode: "lineDistance", label: "点と線の距離", functionName: "点線距離", description: "垂直距離" }
+const relationLabels: Record<NumericReferenceCandidate["relation"] | "all", string> = {
+  all: "すべて",
+  self: "self",
+  parent: "parents",
+  child: "children",
+  element: "elements",
+  variable: "variables",
+  function: "functions"
+};
+
+const emptyEvaluation: EvaluationResult = {
+  computedGeometry: new Map(),
+  computedVariables: new Map(),
+  errors: [],
+  warnings: []
+};
+
+const measurementModes: { mode: MeasurementInsertMode; label: string }[] = [
+  { mode: "distance", label: "2点距離" },
+  { mode: "angle", label: "2点角度" },
+  { mode: "lineDistance", label: "点と線の距離" }
 ];
 
 const conditionalOperators = [
@@ -49,83 +60,71 @@ const conditionalOperators = [
   { operator: "||", description: "A || B: AとBのどちらかが真のとき真" }
 ] as const;
 
-const numericConstantsAndFunctions = [
-  { snippet: "sqrt()", label: "sqrt()", description: "平方根" },
-  { snippet: "pi", label: "pi", description: "円周率" }
-] as const;
-
-const selectedElementName = (elements: CadElement[], elementId: ElementId) =>
-  elements.find((element) => element.id === elementId)?.name ?? elementId;
-
-const MAX_VISIBLE_VARIABLE_OPTIONS = 20;
-
-const pointAnchorLabel = (anchor: PointAnchor | null, elements: CadElement[]) => {
-  if (!anchor) return "未選択";
-  if (anchor.mode === "reference") return selectedElementName(elements, anchor.pointId);
-  if (anchor.mode === "derived") {
-    const elementName = selectedElementName(elements, anchor.elementId);
-    if (anchor.pointKey === "start") return `${elementName}.始点`;
-    if (anchor.pointKey === "end") return `${elementName}.終点`;
-    if (anchor.pointKey === "center") return `${elementName}.中心点`;
-    if (anchor.pointKey.startsWith("intermediate:")) return `${elementName}.中間点`;
-    return `${elementName}.${anchor.pointKey}`;
-  }
-  return `座標(${anchor.x}, ${anchor.y})`;
-};
-
 export const ExpressionInsertTray = ({
   element,
   elements,
+  evaluation = emptyEvaluation,
   parameterKey,
   focusInput,
   getInputTarget,
   onClose
 }: ExpressionInsertTrayProps) => {
-  const [variableSearch, setVariableSearch] = useState("");
-  const [numericReferenceProperty, setLocalNumericReferenceProperty] =
-    useState<typeof numericReferencePickProperties[number]>("length");
+  const [query, setQuery] = useState("");
+  const [relationFilter, setRelationFilter] =
+    useState<NumericReferenceCandidate["relation"] | "all">("all");
+  const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(null);
   const activeMeasurementInsertTarget = useCadUiStore((state) => state.activeMeasurementInsertTarget);
   const activePointPickTarget = useCadUiStore((state) => state.activePointPickTarget);
   const activeLinePickTarget = useCadUiStore((state) => state.activeLinePickTarget);
-  const activeNumericReferencePickTarget = useCadUiStore((state) => state.activeNumericReferencePickTarget);
-  const isMeasurementTarget =
-    activeMeasurementInsertTarget?.elementId === element.id &&
-    activeMeasurementInsertTarget.parameterKey === parameterKey;
-  const isNumericReferenceInsertPickTarget =
-    activeNumericReferencePickTarget?.elementId === element.id &&
-    activeNumericReferencePickTarget.parameterKey === parameterKey &&
-    activeNumericReferencePickTarget.mode === "insert";
-  const mode = isMeasurementTarget ? activeMeasurementInsertTarget.mode : "distance";
-  const variableOptions = useMemo(
-    () => availableNumericVariableReferenceOptions({ element, elements, parameterKey }),
-    [element, elements, parameterKey]
-  );
-  const visibleVariableOptions = useMemo(() => {
-    const normalizedSearch = variableSearch.trim().toLocaleLowerCase();
-    const filtered =
-      normalizedSearch.length === 0
-        ? variableOptions
-        : variableOptions.filter((option) =>
-            `${option.label} ${option.displayExpression} ${option.expression} ${option.detail}`
-              .toLocaleLowerCase()
-              .includes(normalizedSearch)
-          );
-    return filtered.slice(0, MAX_VISIBLE_VARIABLE_OPTIONS);
-  }, [variableOptions, variableSearch]);
-  const point1Anchor = isMeasurementTarget ? activeMeasurementInsertTarget.point1Anchor : null;
-  const point2Anchor = isMeasurementTarget ? activeMeasurementInsertTarget.point2Anchor : null;
-  const lineId = isMeasurementTarget ? activeMeasurementInsertTarget.lineId : null;
-  const selectedMode = measurementModes.find((item) => item.mode === mode) ?? measurementModes[0];
-  const canInsertMeasurement =
-    mode === "lineDistance"
-      ? Boolean(point1Anchor && lineId)
-      : Boolean(point1Anchor && point2Anchor);
-  const measurementPreview =
-    mode === "lineDistance"
-      ? `${selectedMode.functionName}(${pointAnchorLabel(point1Anchor, elements)}, ${lineId ? selectedElementName(elements, lineId) : "未選択"})`
-      : `${selectedMode.functionName}(${pointAnchorLabel(point1Anchor, elements)}, ${pointAnchorLabel(point2Anchor, elements)})`;
+  const mode = activeMeasurementInsertTarget?.elementId === element.id &&
+    activeMeasurementInsertTarget.parameterKey === parameterKey
+    ? activeMeasurementInsertTarget.mode
+    : "distance";
 
-  const insertSnippet = (snippet: string, appendMode: NumericExpressionAppendMode = "sum") => {
+  const candidates = useMemo(
+    () =>
+      numericReferenceCandidates({
+        elements,
+        evaluation,
+        currentElement: element,
+        currentParameterKey: parameterKey,
+        query
+      }),
+    [element, elements, evaluation, parameterKey, query]
+  );
+  const variableOptions = useMemo(
+    () =>
+      availableNumericVariableReferenceOptions({
+        element,
+        elements,
+        parameterKey,
+        computedVariables:
+          evaluation.computedVariables.size > 0 ? evaluation.computedVariables : undefined
+      }),
+    [element, elements, evaluation, parameterKey]
+  );
+  const mergedCandidates: NumericReferenceCandidate[] = [
+    ...variableOptions.map((option) => ({
+      id: `variable:${option.expression}`,
+      relation: "variable" as const,
+      expression: option.expression,
+      displayExpression: option.displayExpression,
+      label: option.label,
+      detail: option.detail,
+      valueLabel: option.expression,
+      insertable: true
+    })),
+    ...candidates
+  ];
+  const visibleCandidates = mergedCandidates
+    .filter((candidate) => relationFilter === "all" || candidate.relation === relationFilter)
+    .slice(0, 120);
+  const selectedCandidate =
+    visibleCandidates.find((candidate) => candidate.id === selectedCandidateId) ??
+    visibleCandidates[0] ??
+    null;
+
+  const insertSnippet = (snippet: string, appendMode: "sum" | "raw" = "sum") => {
     const target = getInputTarget();
     dispatchCommand("insertNumericExpressionSnippet", {
       elementId: element.id,
@@ -138,6 +137,26 @@ export const ExpressionInsertTray = ({
     });
     requestAnimationFrame(focusInput);
   };
+
+  const close = () => {
+    if (onClose) {
+      onClose();
+      return;
+    }
+    dispatchCommand("closeExpressionInsertTray");
+  };
+
+  const startLegacyLinePick = () => {
+    const target = getInputTarget();
+    dispatchCommand("startNumericReferenceInsertPick", {
+      elementId: element.id,
+      parameterKey,
+      numericReferenceProperty: "length",
+      displayedExpression: target.displayedExpression,
+      selectionStart: target.selectionStart,
+      selectionEnd: target.selectionEnd
+    });
+  };
   const inputTargetContext = () => {
     const target = getInputTarget();
     return {
@@ -147,6 +166,12 @@ export const ExpressionInsertTray = ({
       selectionStart: target.selectionStart,
       selectionEnd: target.selectionEnd
     };
+  };
+  const setMeasurementMode = (measurementInsertMode: MeasurementInsertMode) => {
+    dispatchCommand("setMeasurementInsertMode", {
+      ...inputTargetContext(),
+      measurementInsertMode
+    });
   };
   const startPointPick = (measurementPointSlot: MeasurementPointSlot) => {
     dispatchCommand("startMeasurementPointPick", {
@@ -168,26 +193,6 @@ export const ExpressionInsertTray = ({
     });
     requestAnimationFrame(focusInput);
   };
-  const setMode = (measurementInsertMode: MeasurementInsertMode) => {
-    dispatchCommand("setMeasurementInsertMode", {
-      ...inputTargetContext(),
-      measurementInsertMode
-    });
-  };
-  const selectedNumericReferenceProperty =
-    isNumericReferenceInsertPickTarget ? activeNumericReferencePickTarget.property : numericReferenceProperty;
-  const setNumericReferenceProperty = (numericReferenceProperty: typeof numericReferencePickProperties[number]) => {
-    setLocalNumericReferenceProperty(numericReferenceProperty);
-    if (isNumericReferenceInsertPickTarget) {
-      dispatchCommand("setNumericReferencePickProperty", { numericReferenceProperty });
-    }
-  };
-  const startNumericReferenceInsertPick = () => {
-    dispatchCommand("startNumericReferenceInsertPick", {
-      ...inputTargetContext(),
-      numericReferenceProperty: selectedNumericReferenceProperty
-    });
-  };
   const isPickingPoint = (slot: MeasurementPointSlot) =>
     activePointPickTarget?.elementId === element.id &&
     activePointPickTarget.parameterKey === parameterKey &&
@@ -196,88 +201,156 @@ export const ExpressionInsertTray = ({
     activeLinePickTarget?.elementId === element.id &&
     activeLinePickTarget.parameterKey === parameterKey &&
     activeLinePickTarget.measurementSlot === "line";
-  const showConditionalOperators = element.type === "conditionalGroup" && parameterKey === "condition";
 
   return (
-    <div className="expression-insert-tray">
-      <div className="expression-insert-header">
-        <span>測定・参照を挿入</span>
-        <button type="button" onClick={() => onClose ? onClose() : dispatchCommand("closeExpressionInsertTray")}>
-          閉じる
-        </button>
+    <div className="reference-helper-window" role="dialog" aria-label="参照ヘルパー">
+      <div className="reference-helper-header">
+        <div>
+          <strong>参照ヘルパー</strong>
+          <small>挿入先: {element.name}.{parameterKey}</small>
+        </div>
+        <button type="button" onClick={close}>閉じる</button>
       </div>
 
-      <div className="expression-insert-section">
-        <div className="expression-insert-title">
-          <span>測定を挿入</span>
-          <code>{measurementPreview}</code>
+      <div className="reference-helper-search-row">
+        <input
+          value={query}
+          placeholder="要素名 / プロパティ / 値を検索"
+          aria-label="参照候補を検索"
+          autoFocus
+          onChange={(event) => setQuery(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") close();
+            if (event.key === "Enter" && selectedCandidate?.insertable) {
+              event.preventDefault();
+              insertSnippet(selectedCandidate.expression);
+            }
+          }}
+        />
+        <button type="button" onClick={startLegacyLinePick}>キャンバスから選択</button>
+      </div>
+
+      <div className="reference-helper-body">
+        <nav className="reference-helper-nav" aria-label="参照カテゴリ">
+          {(Object.keys(relationLabels) as Array<NumericReferenceCandidate["relation"] | "all">).map((relation) => (
+            <button
+              key={relation}
+              type="button"
+              className={relationFilter === relation ? "active-toggle" : ""}
+              onClick={() => setRelationFilter(relation)}
+            >
+              {relationLabels[relation]}
+            </button>
+          ))}
+        </nav>
+
+        <div className="reference-helper-results">
+          {visibleCandidates.length === 0 ? (
+            <p className="empty-state">一致する参照値はありません。</p>
+          ) : (
+            visibleCandidates.map((candidate) => (
+              <button
+                key={candidate.id}
+                type="button"
+                className={`reference-helper-result ${selectedCandidate?.id === candidate.id ? "selected" : ""}`}
+                onClick={() => {
+                  setSelectedCandidateId(candidate.id);
+                  if (
+                    candidate.insertable &&
+                    (candidate.relation === "variable" || candidate.relation === "function")
+                  ) {
+                    insertSnippet(candidate.expression);
+                  }
+                }}
+                onDoubleClick={() => {
+                  if (candidate.insertable) insertSnippet(candidate.expression);
+                }}
+              >
+                <span>
+                  <strong>{candidate.label}</strong>
+                  <small>{candidate.detail}</small>
+                </span>
+                <code>{candidate.valueLabel || candidate.displayExpression}</code>
+              </button>
+            ))
+          )}
         </div>
+
+        <aside className="reference-helper-detail">
+          {selectedCandidate ? (
+            <>
+              <span className="reference-helper-chip">{relationLabels[selectedCandidate.relation]}</span>
+              <strong>{selectedCandidate.label} を挿入</strong>
+              <dl>
+                <div>
+                  <dt>式</dt>
+                  <dd><code>{selectedCandidate.expression}</code></dd>
+                </div>
+                <div>
+                  <dt>値</dt>
+                  <dd>{selectedCandidate.valueLabel || "未表示"}</dd>
+                </div>
+              </dl>
+              {selectedCandidate.disabledReason ? (
+                <p className="reference-helper-disabled">{selectedCandidate.disabledReason}</p>
+              ) : null}
+              <button
+                type="button"
+                className="expression-insert-button"
+                disabled={!selectedCandidate.insertable}
+                onClick={() => insertSnippet(selectedCandidate.expression)}
+              >
+                選択候補を挿入
+              </button>
+            </>
+          ) : (
+            <p className="empty-state">参照値を選択してください。</p>
+          )}
+        </aside>
+      </div>
+
+      <div className="reference-helper-legacy">
         <div className="measurement-mode-grid" role="group" aria-label="挿入する測定">
           {measurementModes.map((item) => (
             <button
               key={item.mode}
               type="button"
               className={mode === item.mode ? "active-toggle" : ""}
-              onClick={() => setMode(item.mode)}
+              onClick={() => setMeasurementMode(item.mode)}
             >
-              <strong>{item.label}</strong>
-              <small>{item.description}</small>
+              {item.label}
             </button>
           ))}
         </div>
-        <div className="measurement-pick-grid">
-          <div className="measurement-pick-field">
-            <span>{mode === "lineDistance" ? "点" : "点1"}</span>
-            <strong>{pointAnchorLabel(point1Anchor, elements)}</strong>
+        <div className="reference-helper-legacy-actions">
+          <button
+            type="button"
+            className={isPickingPoint("point1") ? "active-toggle" : ""}
+            onClick={() => startPointPick("point1")}
+          >
+            点を選択
+          </button>
+          {mode === "lineDistance" ? (
             <button
               type="button"
-              className={isPickingPoint("point1") ? "active-toggle" : ""}
-              onClick={() => startPointPick("point1")}
+              className={isPickingLine ? "active-toggle" : ""}
+              onClick={startLinePick}
             >
-              {isPickingPoint("point1") ? "点選択中" : "点を選択"}
+              線を選択
             </button>
-          </div>
-          {mode === "lineDistance" ? (
-            <div className="measurement-pick-field">
-              <span>線</span>
-              <strong>{lineId ? selectedElementName(elements, lineId) : "未選択"}</strong>
-              <button
-                type="button"
-                className={isPickingLine ? "active-toggle" : ""}
-                onClick={startLinePick}
-              >
-                {isPickingLine ? "線選択中" : "線を選択"}
-              </button>
-            </div>
           ) : (
-            <div className="measurement-pick-field">
-              <span>点2</span>
-              <strong>{pointAnchorLabel(point2Anchor, elements)}</strong>
-              <button
-                type="button"
-                className={isPickingPoint("point2") ? "active-toggle" : ""}
-                onClick={() => startPointPick("point2")}
-              >
-                {isPickingPoint("point2") ? "点選択中" : "点を選択"}
-              </button>
-            </div>
+            <button
+              type="button"
+              className={isPickingPoint("point2") ? "active-toggle" : ""}
+              onClick={() => startPointPick("point2")}
+            >
+              点を選択
+            </button>
           )}
+          <button type="button" onClick={insertMeasurement}>式に挿入</button>
+          <button type="button" onClick={startLegacyLinePick}>線・曲線を選択</button>
         </div>
-        <button
-          type="button"
-          className="expression-insert-button"
-          onClick={insertMeasurement}
-          disabled={!canInsertMeasurement}
-        >
-          式に挿入
-        </button>
-      </div>
-
-      {showConditionalOperators ? (
-        <div className="expression-insert-section">
-          <div className="expression-insert-title">
-            <span>条件演算子</span>
-          </div>
+        {element.type === "conditionalGroup" && parameterKey === "condition" ? (
           <div className="expression-operator-grid" role="group" aria-label="挿入する条件演算子">
             {conditionalOperators.map(({ operator, description }) => (
               <button
@@ -292,86 +365,7 @@ export const ExpressionInsertTray = ({
               </button>
             ))}
           </div>
-        </div>
-      ) : null}
-
-      <div className="expression-insert-section">
-        <div className="expression-insert-title">
-          <span>定数・関数</span>
-        </div>
-        <div className="expression-token-grid">
-          {numericConstantsAndFunctions.map(({ snippet, label, description }) => (
-            <button
-              key={snippet}
-              type="button"
-              onClick={() => insertSnippet(snippet)}
-            >
-              <strong>{label}</strong>
-              <small>{description}</small>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="expression-insert-section">
-        <div className="expression-insert-title">
-          <span>線・曲線プロパティ</span>
-        </div>
-        <div className="numeric-reference-property-grid" role="group" aria-label="挿入する線・曲線プロパティ">
-          {numericReferencePickProperties.map((property) => (
-            <button
-              key={property}
-              type="button"
-              className={selectedNumericReferenceProperty === property ? "active-toggle" : ""}
-              onClick={() => setNumericReferenceProperty(property)}
-            >
-              {lineMeasurementLabel(property)}
-            </button>
-          ))}
-        </div>
-        <button
-          type="button"
-          className="expression-insert-button"
-          onClick={startNumericReferenceInsertPick}
-        >
-          {isNumericReferenceInsertPickTarget ? "線・曲線選択中" : "線・曲線を選択"}
-        </button>
-      </div>
-
-      <div className="expression-insert-section">
-        <div className="expression-insert-title">
-          <span>変数参照</span>
-          {variableOptions.length > MAX_VISIBLE_VARIABLE_OPTIONS ? (
-            <small>{visibleVariableOptions.length} / {variableOptions.length} 件</small>
-          ) : null}
-        </div>
-        {variableOptions.length > MAX_VISIBLE_VARIABLE_OPTIONS ? (
-          <input
-            className="expression-variable-search"
-            value={variableSearch}
-            placeholder="変数を検索"
-            aria-label="変数参照を検索"
-            onChange={(event) => setVariableSearch(event.target.value)}
-          />
         ) : null}
-        <div className="expression-token-grid">
-          {variableOptions.length === 0 ? (
-            <p className="empty-state">参照できる変数はありません。</p>
-          ) : visibleVariableOptions.length === 0 ? (
-            <p className="empty-state">一致する変数はありません。</p>
-          ) : (
-            visibleVariableOptions.map((option) => (
-              <button
-                key={option.expression}
-                type="button"
-                onClick={() => insertSnippet(option.displayExpression)}
-              >
-                <strong>{option.label}</strong>
-                <small>{option.detail}</small>
-              </button>
-            ))
-          )}
-        </div>
       </div>
     </div>
   );

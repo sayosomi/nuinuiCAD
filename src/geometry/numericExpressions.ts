@@ -10,6 +10,7 @@ import type {
 } from "../types/geometry";
 import type { PointAnchor } from "../types/geometry";
 import { resolveDerivedPoint } from "../model/pointAnchors";
+import { getParameterValue } from "../parameters/parameterAccess";
 import { Parser, tokenize } from "./numericExpressionParser";
 import type { NumericExpressionMeasurementFunctionName } from "./numericExpressionParser";
 import { labelToProperty, propertyLabels } from "./numericExpressionProperties";
@@ -104,7 +105,7 @@ const trimRedundantOuterParentheses = (expression: string): string => {
 const isSimpleNumericTerm = (expression: string) =>
   /^(\d+(?:\.\d+)?|\.\d+)$/.test(expression) ||
   /^@[^\s()+*/.<>!=&|]+$/.test(expression) ||
-    /^[^\s()+*/.<>!=&|]+\.(length|startAngleDeg|endAngleDeg|startTangentAngleDeg|endTangentAngleDeg|startHandleAngleDeg|startHandleLength|endHandleAngleDeg|endHandleLength)$/.test(expression);
+    /^[^\s()+*/.<>!=&|]+\.[^\s()+*/<>!=&|]+$/.test(expression);
 
 const trimSimpleOuterParentheses = (expression: string): string => {
   const fullyTrimmed = trimRedundantOuterParentheses(expression);
@@ -181,10 +182,11 @@ export const formatNumericExpressionForDisplay = (
       }
     )
     .replace(
-      /([^\s()+*/<>!=&|]+)\.(length|startAngleDeg|endAngleDeg|startTangentAngleDeg|endTangentAngleDeg|startHandleAngleDeg|startHandleLength|endHandleAngleDeg|endHandleLength)\b/g,
-      (match, elementId: ElementId, property: NumericMeasurementKey) => {
+      /([^\s()+*/<>!=&|]+)\.([^\s()+*/<>!=&|]+)\b/g,
+      (match, elementId: ElementId, property: string) => {
       const element = elementsById.get(elementId);
-      return element ? `${element.name}.${propertyLabels[property]}` : match;
+      const label = propertyLabels[property as NumericMeasurementKey] ?? property;
+      return element ? `${element.name}.${label}` : match;
       }
     );
 };
@@ -294,6 +296,111 @@ export const normalizeNumericExpressionInput = (
   return expression;
 };
 
+const pointValueFromAnchor = ({
+  anchor,
+  axis,
+  computedGeometry,
+  elementsById,
+  dependencyError
+}: {
+  anchor: PointAnchor | null;
+  axis: "x" | "y";
+  computedGeometry: Map<ElementId, ComputedGeometry>;
+  elementsById: Map<ElementId, CadElement>;
+  dependencyError: (elementId: ElementId) => Error & { dependencyId: ElementId; dependencyName?: string };
+}) => {
+  if (!anchor) return undefined;
+  if (anchor.mode === "coordinate") return anchor[axis];
+  const sourceId = anchor.mode === "reference" ? anchor.pointId : anchor.elementId;
+  const geometry = computedGeometry.get(sourceId);
+  if (anchor.mode === "reference") {
+    if (geometry?.kind !== "point") throw dependencyError(sourceId);
+    return geometry[axis];
+  }
+  const point = resolveDerivedPoint(geometry, anchor.pointKey, elementsById);
+  if (!point) throw dependencyError(sourceId);
+  return point[axis];
+};
+
+const computedReferencePathValue = (geometry: ComputedGeometry | undefined, property: string) => {
+  if (!geometry) return undefined;
+  if (geometry.kind === "point") {
+    if (property === "x") return geometry.x;
+    if (property === "y") return geometry.y;
+    return undefined;
+  }
+  if (geometry.kind === "line") {
+    if (property === "length") return geometry.length;
+    if (property === "startAngleDeg") return geometry.startAngleDeg;
+    if (property === "endAngleDeg") return geometry.endAngleDeg;
+    if (property === "startTangentAngleDeg") return geometry.startTangentAngleDeg;
+    if (property === "endTangentAngleDeg") return geometry.endTangentAngleDeg;
+    if (property === "startPoint.x") return geometry.start.x;
+    if (property === "startPoint.y") return geometry.start.y;
+    if (property === "endPoint.x") return geometry.end.x;
+    if (property === "endPoint.y") return geometry.end.y;
+  }
+  if (geometry.kind === "arcLine") {
+    if (property === "length") return geometry.length;
+    if (property === "radius") return geometry.radius;
+    if (property === "startAngleDeg") return geometry.startAngleDeg;
+    if (property === "endAngleDeg") return geometry.endAngleDeg;
+    if (property === "sweepAngleDeg") return geometry.sweepAngleDeg;
+    if (property === "startTangentAngleDeg") return geometry.startTangentAngleDeg;
+    if (property === "endTangentAngleDeg") return geometry.endTangentAngleDeg;
+    if (property === "centerPoint.x") return geometry.center.x;
+    if (property === "centerPoint.y") return geometry.center.y;
+    if (property === "startPoint.x") return geometry.start.x;
+    if (property === "startPoint.y") return geometry.start.y;
+    if (property === "endPoint.x") return geometry.end.x;
+    if (property === "endPoint.y") return geometry.end.y;
+  }
+  if (geometry.kind === "bezierCurve") {
+    const start = geometry.segments[0]?.start;
+    const end = geometry.segments.at(-1)?.end;
+    if (property === "length") return geometry.length;
+    if (property === "startTangentAngleDeg") return geometry.startTangentAngleDeg;
+    if (property === "endTangentAngleDeg") return geometry.endTangentAngleDeg;
+    if (property === "startHandleAngleDeg") return geometry.startHandleAngleDeg;
+    if (property === "startHandleLength") return geometry.startHandleLength;
+    if (property === "endHandleAngleDeg") return geometry.endHandleAngleDeg;
+    if (property === "endHandleLength") return geometry.endHandleLength;
+    if (property === "startPoint.x") return start?.x;
+    if (property === "startPoint.y") return start?.y;
+    if (property === "endPoint.x") return end?.x;
+    if (property === "endPoint.y") return end?.y;
+    const intermediateMatch = property.match(/^intermediatePoints\[(\d+)\]\.(x|y)$/);
+    if (intermediateMatch) return geometry.segments[Number(intermediateMatch[1]) - 1]?.end[intermediateMatch[2] as "x" | "y"];
+  }
+  if (geometry.kind === "offsetLine") {
+    if (property === "length") return geometry.length;
+    if (property === "startTangentAngleDeg") return geometry.startTangentAngleDeg;
+    if (property === "endTangentAngleDeg") return geometry.endTangentAngleDeg;
+    if (property === "startPoint.x") return geometry.start?.x;
+    if (property === "startPoint.y") return geometry.start?.y;
+    if (property === "endPoint.x") return geometry.end?.x;
+    if (property === "endPoint.y") return geometry.end?.y;
+  }
+  if (geometry.kind === "image") {
+    if (property === "originPoint.x") return geometry.origin.x;
+    if (property === "originPoint.y") return geometry.origin.y;
+    if (property === "widthMm") return geometry.widthMm;
+    if (property === "heightMm") return geometry.heightMm;
+    if (property === "scale") return geometry.scale;
+    if (property === "angleDeg") return geometry.angleDeg;
+    if (property === "naturalWidthPx") return geometry.naturalWidthPx;
+    if (property === "naturalHeightPx") return geometry.naturalHeightPx;
+    if (property === "sourceDpi") return geometry.sourceDpi;
+    if (property === "targetPixelsPerMm") return geometry.targetPixelsPerMm;
+  }
+  if (geometry.kind === "text") {
+    if (property === "anchorPoint.x") return geometry.anchor?.x;
+    if (property === "anchorPoint.y") return geometry.anchor?.y;
+    if (property === "fontSize") return geometry.fontSize;
+  }
+  return undefined;
+};
+
 export const extractNumericExpressionReferences = (value: NumericValue): NumericExpressionReference[] => {
   if (!isNumericExpression(value)) return [];
   try {
@@ -376,34 +483,7 @@ export const evaluateNumericValue = ({
     };
     const parser = new Parser(tokenize(value.expression), (reference) => {
       const geometry = computedGeometry.get(reference.elementId);
-      if (
-        !reference.property ||
-        !geometry ||
-        (
-          geometry.kind !== "line" &&
-          geometry.kind !== "arcLine" &&
-          geometry.kind !== "bezierCurve" &&
-          geometry.kind !== "offsetLine"
-        ) ||
-        ((geometry.kind === "line" || geometry.kind === "arcLine") &&
-          reference.property !== "length" &&
-          reference.property !== "startAngleDeg" &&
-          reference.property !== "endAngleDeg" &&
-          reference.property !== "startTangentAngleDeg" &&
-          reference.property !== "endTangentAngleDeg") ||
-        (geometry.kind === "bezierCurve" &&
-          reference.property !== "length" &&
-          reference.property !== "startTangentAngleDeg" &&
-          reference.property !== "endTangentAngleDeg" &&
-          reference.property !== "startHandleAngleDeg" &&
-          reference.property !== "startHandleLength" &&
-          reference.property !== "endHandleAngleDeg" &&
-          reference.property !== "endHandleLength") ||
-        (geometry.kind === "offsetLine" &&
-          reference.property !== "length" &&
-          reference.property !== "startTangentAngleDeg" &&
-          reference.property !== "endTangentAngleDeg")
-      ) {
+      if (!reference.property) {
         const dependencyName = elementsById.get(reference.elementId)?.name;
         throw Object.assign(
           new Error(
@@ -413,17 +493,83 @@ export const evaluateNumericValue = ({
         );
       }
 
-      const measuredValue = geometry[reference.property as keyof typeof geometry];
+      if (reference.property.startsWith("params.")) {
+        const element = elementsById.get(reference.elementId);
+        const parameterPath = reference.property.slice("params.".length);
+        const pointMatch = parameterPath.match(/^(.+)\.(x|y)$/);
+        if (pointMatch) {
+          const anchor = element ? getParameterValue(element, pointMatch[1]) as PointAnchor | null : null;
+          const anchorValue = pointValueFromAnchor({
+            anchor,
+            axis: pointMatch[2] as "x" | "y",
+            computedGeometry,
+            elementsById,
+            dependencyError
+          });
+          if (typeof anchorValue === "number") return anchorValue;
+          if (anchorValue && typeof anchorValue === "object") {
+            const evaluated = evaluateNumericValue({
+              value: anchorValue,
+              computedGeometry,
+              elementsById,
+              localVariables,
+              localVariableNames,
+              computedVariables,
+              currentElement,
+              elements
+            });
+            if (evaluated.value !== undefined) return evaluated.value;
+            throw Object.assign(new Error(evaluated.error?.message ?? "設定値を評価できません。"), {
+              dependencyId: evaluated.error?.dependencyId ?? reference.elementId,
+              dependencyName: evaluated.error?.dependencyName
+            });
+          }
+        }
+        const parameterValue = element ? getParameterValue(element, parameterPath) : undefined;
+        if (typeof parameterValue === "number") return parameterValue;
+        if (isNumericExpression(parameterValue as NumericValue)) {
+          const evaluated = evaluateNumericValue({
+            value: parameterValue as NumericValue,
+            computedGeometry,
+            elementsById,
+            localVariables,
+            localVariableNames,
+            computedVariables,
+            currentElement,
+            elements
+          });
+          if (evaluated.value !== undefined) return evaluated.value;
+          throw Object.assign(new Error(evaluated.error?.message ?? "設定値を評価できません。"), {
+            dependencyId: evaluated.error?.dependencyId ?? reference.elementId,
+            dependencyName: evaluated.error?.dependencyName
+          });
+        }
+      }
+
+      const variableValue = computedVariables?.get(reference.elementId);
+      if (reference.property === "value" && variableValue) return variableValue.value;
+
+      if (!geometry) {
+        const dependencyName = elementsById.get(reference.elementId)?.name;
+        throw Object.assign(
+          new Error(
+            `${dependencyName ?? reference.elementId} はこの要素より後にあるか、存在しません。`
+          ),
+          { dependencyId: reference.elementId, dependencyName }
+        );
+      }
+
+      const measuredValue = computedReferencePathValue(geometry, reference.property);
       if (measuredValue === null) {
-        throw Object.assign(new Error(`${geometry.name}.${propertyLabels[reference.property]} は未定義です。`), {
+        throw Object.assign(new Error(`${geometry?.name ?? reference.elementId}.${reference.property} は未定義です。`), {
           dependencyId: reference.elementId,
-          dependencyName: geometry.name
+          dependencyName: geometry?.name
         });
       }
       if (typeof measuredValue !== "number") {
-        throw Object.assign(new Error(`${geometry.name}.${propertyLabels[reference.property]} は数値ではありません。`), {
+        throw Object.assign(new Error(`${geometry?.name ?? reference.elementId}.${reference.property} は数値ではありません。`), {
           dependencyId: reference.elementId,
-          dependencyName: geometry.name
+          dependencyName: geometry?.name
         });
       }
       return measuredValue;

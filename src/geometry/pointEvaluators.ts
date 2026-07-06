@@ -12,29 +12,42 @@ export const evaluatePointElement = (element: CadElement, context: ElementEvalua
     elementsById,
     errors,
     disabledByGroupId,
+    computedVariables,
+    elements,
     localVariables: { localVariableValues, localVariableNames }
   } = context;
+  const evaluateNumber = (value: Parameters<typeof numericError>[1]) =>
+    numericError(
+      element,
+      value,
+      computedGeometry,
+      elementsById,
+      errors,
+      localVariableValues,
+      localVariableNames,
+      disabledByGroupId,
+      computedVariables,
+      elements
+    );
+  const evaluatePointAnchor = (anchor: Parameters<typeof getPointAnchorOrError>[1], key: string) =>
+    getPointAnchorOrError(
+      element,
+      anchor,
+      key,
+      computedGeometry,
+      elementsById,
+      errors,
+      localVariableValues,
+      localVariableNames,
+      disabledByGroupId,
+      computedVariables,
+      elements
+    );
 
   switch (element.type) {
       case "freePoint": {
-        const x = numericError(
-          element,
-          element.x,
-          computedGeometry,
-          elementsById,
-          errors,
-          localVariableValues,
-          localVariableNames
-        );
-        const y = numericError(
-          element,
-          element.y,
-          computedGeometry,
-          elementsById,
-          errors,
-          localVariableValues,
-          localVariableNames
-        );
+        const x = evaluateNumber(element.x);
+        const y = evaluateNumber(element.y);
         if (x === undefined || y === undefined) break;
 
         computedGeometry.set(element.id, {
@@ -59,38 +72,12 @@ export const evaluatePointElement = (element: CadElement, context: ElementEvalua
                 errors,
                 disabledByGroupId
               )
-            : getPointAnchorOrError(
-                element,
-                fromAnchor,
-                "from",
-                computedGeometry,
-                elementsById,
-                errors,
-                localVariableValues,
-                localVariableNames,
-                disabledByGroupId
-              );
+            : evaluatePointAnchor(fromAnchor, "from");
         if (!resolvedFromPoint) {
           break;
         }
-        const dx = numericError(
-          element,
-          element.dx,
-          computedGeometry,
-          elementsById,
-          errors,
-          localVariableValues,
-          localVariableNames
-        );
-        const dy = numericError(
-          element,
-          element.dy,
-          computedGeometry,
-          elementsById,
-          errors,
-          localVariableValues,
-          localVariableNames
-        );
+        const dx = evaluateNumber(element.dx);
+        const dy = evaluateNumber(element.dy);
         if (dx === undefined || dy === undefined) break;
 
         computedGeometry.set(element.id, {
@@ -115,41 +102,13 @@ export const evaluatePointElement = (element: CadElement, context: ElementEvalua
                 errors,
                 disabledByGroupId
               )
-            : getPointAnchorOrError(
-                element,
-                fromAnchor,
-                "from",
-                computedGeometry,
-                elementsById,
-                errors,
-                localVariableValues,
-                localVariableNames,
-                disabledByGroupId
-              );
+            : evaluatePointAnchor(fromAnchor, "from");
         if (!resolvedFromPoint) {
           break;
         }
 
-        const angleDeg = numericError(
-          element,
-          element.angleDeg,
-          computedGeometry,
-          elementsById,
-          errors,
-          localVariableValues,
-          localVariableNames,
-          disabledByGroupId
-        );
-        const distance = numericError(
-          element,
-          element.distance,
-          computedGeometry,
-          elementsById,
-          errors,
-          localVariableValues,
-          localVariableNames,
-          disabledByGroupId
-        );
+        const angleDeg = evaluateNumber(element.angleDeg);
+        const distance = evaluateNumber(element.distance);
         if (angleDeg === undefined || distance === undefined) break;
 
         const angleRad = degreesToRadians(angleDeg);
@@ -163,28 +122,8 @@ export const evaluatePointElement = (element: CadElement, context: ElementEvalua
         break;
       }
       case "divisionPoint": {
-        const start = getPointAnchorOrError(
-          element,
-          element.startPoint,
-          "start",
-          computedGeometry,
-          elementsById,
-          errors,
-          localVariableValues,
-          localVariableNames,
-          disabledByGroupId
-        );
-        const end = getPointAnchorOrError(
-          element,
-          element.endPoint,
-          "end",
-          computedGeometry,
-          elementsById,
-          errors,
-          localVariableValues,
-          localVariableNames,
-          disabledByGroupId
-        );
+        const start = evaluatePointAnchor(element.startPoint, "start");
+        const end = evaluatePointAnchor(element.endPoint, "end");
         if (!start || !end) {
           break;
         }
@@ -196,15 +135,7 @@ export const evaluatePointElement = (element: CadElement, context: ElementEvalua
         const length = Math.hypot(vector.x, vector.y);
 
         if (element.placementMode === "distance") {
-          const distance = numericError(
-            element,
-            element.distance,
-            computedGeometry,
-            elementsById,
-            errors,
-            localVariableValues,
-            localVariableNames
-          );
+          const distance = evaluateNumber(element.distance);
           if (distance === undefined) break;
           if (length <= CIRCLE_EPSILON) {
             errors.push(
@@ -225,16 +156,7 @@ export const evaluatePointElement = (element: CadElement, context: ElementEvalua
           break;
         }
 
-        const ratio = numericError(
-          element,
-          element.ratio,
-          computedGeometry,
-          elementsById,
-          errors,
-          localVariableValues,
-          localVariableNames,
-          disabledByGroupId
-        );
+        const ratio = evaluateNumber(element.ratio);
         if (ratio === undefined) break;
 
         computedGeometry.set(element.id, {
@@ -255,24 +177,8 @@ export const evaluatePointElement = (element: CadElement, context: ElementEvalua
 
         const distanceFromEndpoint =
           element.placementMode === "distance"
-            ? numericError(
-                element,
-                element.distance,
-                computedGeometry,
-                elementsById,
-                errors,
-                localVariableValues,
-                localVariableNames
-              )
-            : numericError(
-                element,
-                element.ratio,
-                computedGeometry,
-                elementsById,
-                errors,
-                localVariableValues,
-                localVariableNames
-              );
+            ? evaluateNumber(element.distance)
+            : evaluateNumber(element.ratio);
         if (distanceFromEndpoint === undefined) break;
 
         const pathDistance =
@@ -325,16 +231,7 @@ export const evaluatePointElement = (element: CadElement, context: ElementEvalua
           break;
         }
 
-        const intersectionIndex = numericError(
-          element,
-          element.intersectionIndex,
-          computedGeometry,
-          elementsById,
-          errors,
-          localVariableValues,
-          localVariableNames,
-          disabledByGroupId
-        );
+        const intersectionIndex = evaluateNumber(element.intersectionIndex);
         if (intersectionIndex === undefined) break;
         if (!Number.isInteger(intersectionIndex) || intersectionIndex < 0) {
           errors.push(
@@ -379,17 +276,7 @@ export const evaluatePointElement = (element: CadElement, context: ElementEvalua
           break;
         }
 
-        const basePoint = getPointAnchorOrError(
-          element,
-          element.basePoint,
-          "basePoint",
-          computedGeometry,
-          elementsById,
-          errors,
-          localVariableValues,
-          localVariableNames,
-          disabledByGroupId
-        );
+        const basePoint = evaluatePointAnchor(element.basePoint, "basePoint");
         if (!basePoint) break;
 
         const tangent = tangentAtPointOnLineLikeGeometry(baseLine, basePoint);
@@ -403,26 +290,8 @@ export const evaluatePointElement = (element: CadElement, context: ElementEvalua
           break;
         }
 
-        const tangentAngleDeg = numericError(
-          element,
-          element.tangentAngleDeg,
-          computedGeometry,
-          elementsById,
-          errors,
-          localVariableValues,
-          localVariableNames,
-          disabledByGroupId
-        );
-        const distance = numericError(
-          element,
-          element.distance,
-          computedGeometry,
-          elementsById,
-          errors,
-          localVariableValues,
-          localVariableNames,
-          disabledByGroupId
-        );
+        const tangentAngleDeg = evaluateNumber(element.tangentAngleDeg);
+        const distance = evaluateNumber(element.distance);
         if (tangentAngleDeg === undefined || distance === undefined) break;
 
         const angleRad = degreesToRadians(tangent.angleDeg + tangentAngleDeg);

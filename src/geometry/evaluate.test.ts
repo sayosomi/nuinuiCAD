@@ -1191,6 +1191,63 @@ describe("evaluateElements", () => {
     });
   });
 
+  it("evaluates numeric reference paths for computed geometry, parameters, and variables", () => {
+    const result = evaluateElements([
+      validElements[0],
+      validElements[1],
+      validElements[2],
+      {
+        id: "ratio-variable",
+        name: "割合変数",
+        type: "variable",
+        visible: true,
+        enabled: true,
+        scope: "global",
+        valueMode: "expression",
+        expression: 0.25,
+        point1: { mode: "reference", pointId: "a" },
+        point2: { mode: "reference", pointId: "b" },
+        point: { mode: "reference", pointId: "a" },
+        lineId: ""
+      },
+      {
+        id: "division",
+        name: "分点",
+        type: "divisionPoint",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "a" },
+        endPoint: { mode: "reference", pointId: "b" },
+        placementMode: "ratio",
+        distance: 0,
+        ratio: { kind: "expression", expression: "ratio-variable.value" }
+      },
+      {
+        id: "derived",
+        name: "参照確認",
+        type: "offsetPoint",
+        visible: true,
+        enabled: true,
+        fromPoint: { mode: "reference", pointId: "division" },
+        dx: {
+          kind: "expression",
+          expression: "division.params.ratio * ab.length + ab.startPoint.x"
+        },
+        dy: {
+          kind: "expression",
+          expression: "division.params.startPoint.y + ab.endPoint.y"
+        }
+      }
+    ]);
+
+    expect(result.errors).toHaveLength(0);
+    const division = result.computedGeometry.get("division");
+    const derived = result.computedGeometry.get("derived");
+    expect(division).toMatchObject({ kind: "point", x: 17.5, y: 21.25 });
+    expect(derived).toMatchObject({ kind: "point", y: 66.25 });
+    expect(derived?.kind === "point" ? derived.x : 0).toBeCloseTo(35.103453162872775);
+  });
+
   it("evaluates polar offset points using mathematical angles", () => {
     const result = evaluateElements([
       validElements[0],

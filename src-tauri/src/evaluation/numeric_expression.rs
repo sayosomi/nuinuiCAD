@@ -30,7 +30,14 @@ pub(crate) fn numeric_value(
         dependency_name: None,
         message,
     })?;
-    Parser::new(tokens, state, local_variables, local_variable_names).parse()
+    Parser::new(
+        tokens,
+        state,
+        element,
+        local_variables,
+        local_variable_names,
+    )
+    .parse()
 }
 
 pub(crate) fn evaluate_numeric_or_push(
@@ -138,10 +145,7 @@ fn tokenize(expression: &str) -> Result<Vec<Token>, String> {
         if ch == '@' {
             let start = index + 1;
             index = start;
-            while index < chars.len()
-                && !is_expression_delimiter(chars[index])
-                && chars[index] != '.'
-            {
+            while index < chars.len() && !is_expression_delimiter(chars[index]) {
                 index += 1;
             }
             tokens.push(Token::LocalVariable(chars[start..index].iter().collect()));
@@ -156,10 +160,7 @@ fn tokenize(expression: &str) -> Result<Vec<Token>, String> {
         if index < chars.len() && chars[index] == '.' {
             index += 1;
             let property_start = index;
-            while index < chars.len()
-                && !is_expression_delimiter(chars[index])
-                && chars[index] != '.'
-            {
+            while index < chars.len() && !is_expression_delimiter(chars[index]) {
                 index += 1;
             }
             tokens.push(Token::Reference {
@@ -209,10 +210,140 @@ fn is_expression_delimiter(ch: char) -> bool {
         )
 }
 
+fn point_axis_value(value: Option<&Value>, axis: &str) -> Option<f64> {
+    value?.get(axis)?.as_f64()
+}
+
+fn computed_reference_value(geometry: &Value, property: &str) -> Option<f64> {
+    match geometry.get("kind")?.as_str()? {
+        "point" => point_axis_value(Some(geometry), property),
+        "line" => match property {
+            "length"
+            | "startAngleDeg"
+            | "endAngleDeg"
+            | "startTangentAngleDeg"
+            | "endTangentAngleDeg" => geometry.get(property)?.as_f64(),
+            "startPoint.x" => point_axis_value(geometry.get("start"), "x"),
+            "startPoint.y" => point_axis_value(geometry.get("start"), "y"),
+            "endPoint.x" => point_axis_value(geometry.get("end"), "x"),
+            "endPoint.y" => point_axis_value(geometry.get("end"), "y"),
+            _ => None,
+        },
+        "arcLine" => match property {
+            "length"
+            | "radius"
+            | "startAngleDeg"
+            | "endAngleDeg"
+            | "sweepAngleDeg"
+            | "startTangentAngleDeg"
+            | "endTangentAngleDeg" => geometry.get(property)?.as_f64(),
+            "centerPoint.x" => point_axis_value(geometry.get("center"), "x"),
+            "centerPoint.y" => point_axis_value(geometry.get("center"), "y"),
+            "startPoint.x" => point_axis_value(geometry.get("start"), "x"),
+            "startPoint.y" => point_axis_value(geometry.get("start"), "y"),
+            "endPoint.x" => point_axis_value(geometry.get("end"), "x"),
+            "endPoint.y" => point_axis_value(geometry.get("end"), "y"),
+            _ => None,
+        },
+        "bezierCurve" => {
+            let segments = geometry.get("segments")?.as_array()?;
+            let first = segments.first();
+            let last = segments.last();
+            match property {
+                "length"
+                | "startTangentAngleDeg"
+                | "endTangentAngleDeg"
+                | "startHandleAngleDeg"
+                | "startHandleLength"
+                | "endHandleAngleDeg"
+                | "endHandleLength" => geometry.get(property)?.as_f64(),
+                "startPoint.x" => point_axis_value(first?.get("start"), "x"),
+                "startPoint.y" => point_axis_value(first?.get("start"), "y"),
+                "endPoint.x" => point_axis_value(last?.get("end"), "x"),
+                "endPoint.y" => point_axis_value(last?.get("end"), "y"),
+                _ => intermediate_point_value(segments, property),
+            }
+        }
+        "offsetLine" => match property {
+            "length" | "startTangentAngleDeg" | "endTangentAngleDeg" => {
+                geometry.get(property)?.as_f64()
+            }
+            "startPoint.x" => point_axis_value(geometry.get("start"), "x"),
+            "startPoint.y" => point_axis_value(geometry.get("start"), "y"),
+            "endPoint.x" => point_axis_value(geometry.get("end"), "x"),
+            "endPoint.y" => point_axis_value(geometry.get("end"), "y"),
+            _ => None,
+        },
+        "image" => match property {
+            "originPoint.x" => point_axis_value(geometry.get("origin"), "x"),
+            "originPoint.y" => point_axis_value(geometry.get("origin"), "y"),
+            "widthMm" | "heightMm" | "scale" | "angleDeg" | "naturalWidthPx"
+            | "naturalHeightPx" | "sourceDpi" | "targetPixelsPerMm" => {
+                geometry.get(property)?.as_f64()
+            }
+            _ => None,
+        },
+        "text" => match property {
+            "anchorPoint.x" => point_axis_value(geometry.get("anchor"), "x"),
+            "anchorPoint.y" => point_axis_value(geometry.get("anchor"), "y"),
+            "fontSize" => geometry.get("fontSize")?.as_f64(),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+fn intermediate_point_value(segments: &[Value], property: &str) -> Option<f64> {
+    let rest = property.strip_prefix("intermediatePoints[")?;
+    let (index_text, axis_text) = rest.split_once("].")?;
+    let index = index_text.parse::<usize>().ok()?.checked_sub(1)?;
+    if axis_text != "x" && axis_text != "y" {
+        return None;
+    }
+    point_axis_value(segments.get(index)?.get("end"), axis_text)
+}
+
+fn parameter_value<'a>(element: &'a Value, key: &str) -> Option<&'a Value> {
+    if let Some((prefix, variable_rest)) = key.split_once(':') {
+        if prefix == "variable" {
+            let (variable_id, field) = variable_rest.split_once(':')?;
+            if field != "value" {
+                return None;
+            }
+            return element
+                .get("numericVariables")?
+                .as_array()?
+                .iter()
+                .find(|variable| variable.get("id").and_then(Value::as_str) == Some(variable_id))?
+                .get("value");
+        }
+        if prefix == "intermediate" {
+            let (point_id, field) = variable_rest.split_once(':')?;
+            return element
+                .get("intermediatePoints")?
+                .as_array()?
+                .iter()
+                .find(|point| point.get("id").and_then(Value::as_str) == Some(point_id))?
+                .get(field);
+        }
+    }
+
+    if key == "fromPoint" {
+        return element
+            .get("fromPoint")
+            .or_else(|| element.get("fromPointId"));
+    }
+    if key == "printAnchor" {
+        return element.get("printAnchor");
+    }
+    element.get(key)
+}
+
 struct Parser<'a> {
     tokens: Vec<Token>,
     index: usize,
     state: &'a EvaluationState,
+    element: &'a Value,
     local_variables: &'a HashMap<String, f64>,
     local_variable_names: &'a HashMap<String, String>,
 }
@@ -221,6 +352,7 @@ impl<'a> Parser<'a> {
     fn new(
         tokens: Vec<Token>,
         state: &'a EvaluationState,
+        element: &'a Value,
         local_variables: &'a HashMap<String, f64>,
         local_variable_names: &'a HashMap<String, String>,
     ) -> Self {
@@ -228,6 +360,7 @@ impl<'a> Parser<'a> {
             tokens,
             index: 0,
             state,
+            element,
             local_variables,
             local_variable_names,
         }
@@ -344,12 +477,26 @@ impl<'a> Parser<'a> {
     }
 
     fn reference_value(&self, element_id: &str, property: &str) -> Result<f64, NumericEvalError> {
+        if let Some(parameter_path) = property.strip_prefix("params.") {
+            return self.parameter_reference_value(element_id, parameter_path);
+        }
+        if property == "value" {
+            if let Some(value) = self
+                .state
+                .computed_variables
+                .get(element_id)
+                .and_then(|variable| variable.get("value"))
+                .and_then(Value::as_f64)
+            {
+                return Ok(value);
+            }
+        }
         let geometry = self
             .state
             .computed_geometry
             .get(element_id)
             .ok_or_else(|| self.dependency_error(element_id))?;
-        let measured_value = geometry.get(property).and_then(Value::as_f64);
+        let measured_value = computed_reference_value(geometry, property);
         measured_value.ok_or_else(|| NumericEvalError {
             dependency_id: element_id.to_owned(),
             dependency_name: find_element_name(self.state, element_id),
@@ -358,6 +505,73 @@ impl<'a> Parser<'a> {
                 find_element_name(self.state, element_id).unwrap_or_else(|| element_id.to_owned())
             ),
         })
+    }
+
+    fn parameter_reference_value(
+        &self,
+        element_id: &str,
+        parameter_path: &str,
+    ) -> Result<f64, NumericEvalError> {
+        let element = self
+            .state
+            .elements_by_id
+            .get(element_id)
+            .and_then(|index| self.state.elements.get(*index))
+            .ok_or_else(|| self.dependency_error(element_id))?;
+        if let Some((anchor_key, axis)) = parameter_path.rsplit_once('.') {
+            if matches!(axis, "x" | "y") {
+                if let Some(anchor) = parameter_value(element, anchor_key) {
+                    return self.point_anchor_axis_value(anchor, axis);
+                }
+            }
+        }
+        let value = parameter_value(element, parameter_path)
+            .ok_or_else(|| self.dependency_error(element_id))?;
+        numeric_value(
+            value,
+            self.state,
+            self.element,
+            self.local_variables,
+            self.local_variable_names,
+        )
+    }
+
+    fn point_anchor_axis_value(&self, anchor: &Value, axis: &str) -> Result<f64, NumericEvalError> {
+        match anchor.get("mode").and_then(Value::as_str) {
+            Some("coordinate") => {
+                let value = anchor
+                    .get(axis)
+                    .ok_or_else(|| self.simple_error("座標が未定義です。"))?;
+                numeric_value(
+                    value,
+                    self.state,
+                    self.element,
+                    self.local_variables,
+                    self.local_variable_names,
+                )
+            }
+            Some("reference") => {
+                let point_id = anchor
+                    .get("pointId")
+                    .and_then(Value::as_str)
+                    .ok_or_else(|| self.simple_error("参照点が未定義です。"))?;
+                let point = self.point_value(point_id)?;
+                Ok(if axis == "x" { point.x } else { point.y })
+            }
+            Some("derived") => {
+                let element_id = anchor
+                    .get("elementId")
+                    .and_then(Value::as_str)
+                    .ok_or_else(|| self.simple_error("参照要素が未定義です。"))?;
+                let point_key = anchor
+                    .get("pointKey")
+                    .and_then(Value::as_str)
+                    .ok_or_else(|| self.simple_error("参照点が未定義です。"))?;
+                let point = self.point_value(&format!("{element_id}:{point_key}"))?;
+                Ok(if axis == "x" { point.x } else { point.y })
+            }
+            _ => Err(self.simple_error("点設定ではありません。")),
+        }
     }
 
     fn local_variable_value(&self, variable_id: &str) -> Result<f64, NumericEvalError> {

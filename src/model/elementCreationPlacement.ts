@@ -50,6 +50,7 @@ export const creationPlacementForEvaluationLimit = (
     .map((element, index) => ({ element, index, depth: groupStates.get(element.id)?.depth ?? 0 }))
     .filter(({ element, index }) => (
       isGroupElement(element) &&
+      element.expanded &&
       lastSubtreeIndex(elements, element.id, index) + 1 === insertionIndex
     ))
     .sort((a, b) => b.depth - a.depth)[0]?.element;

@@ -426,6 +426,31 @@ describe("commands", () => {
     expect(state.evaluationLimitIndex).toBe(3);
   });
 
+  it("adds new elements outside a closed group when the divider is directly below the group tail", () => {
+    useCadStore.setState({
+      elements: [
+        {
+          id: "group-1",
+          name: "本体",
+          type: "group",
+          visible: true,
+          enabled: true,
+          expanded: false
+        },
+        { ...sampleElements[0], parentGroupId: "group-1" },
+        sampleElements[1]
+      ],
+      evaluationLimitIndex: 2
+    });
+
+    dispatchCommand("addFreePoint");
+
+    const state = useCadStore.getState();
+    expect(state.elements[2]).toMatchObject({ type: "freePoint" });
+    expect(state.elements[2].parentGroupId).toBeUndefined();
+    expect(state.evaluationLimitIndex).toBe(3);
+  });
+
   it("adds conditional and for groups inside a group when the divider is below the group tail", () => {
     const elements: CadElement[] = [
       {

@@ -52,6 +52,53 @@ describe("element creation placement", () => {
     expect(placement.parentGroupId).toBe("group");
   });
 
+  it("places new elements outside a closed group when the divider is directly below it", () => {
+    const elements: CadElement[] = [
+      {
+        id: "group",
+        name: "身頃",
+        type: "group",
+        visible: true,
+        enabled: true,
+        expanded: false
+      },
+      { ...sampleElements[0], parentGroupId: "group" },
+      sampleElements[1]
+    ];
+
+    const placement = creationPlacementForEvaluationLimit(elements, 2);
+
+    expect(placement.parentGroupId).toBeUndefined();
+    expect(placement.conditionalBranch).toBeUndefined();
+  });
+
+  it("places new elements outside a closed nested group but inside an open parent group", () => {
+    const elements: CadElement[] = [
+      {
+        id: "outer",
+        name: "外側",
+        type: "group",
+        visible: true,
+        enabled: true,
+        expanded: true
+      },
+      {
+        id: "inner",
+        name: "内側",
+        type: "group",
+        visible: true,
+        enabled: true,
+        expanded: false,
+        parentGroupId: "outer"
+      },
+      { ...sampleElements[0], parentGroupId: "inner" }
+    ];
+
+    const placement = creationPlacementForEvaluationLimit(elements, 3);
+
+    expect(placement.parentGroupId).toBe("outer");
+  });
+
   it("uses the deepest group when nested group subtrees end at the same position", () => {
     const elements: CadElement[] = [
       {

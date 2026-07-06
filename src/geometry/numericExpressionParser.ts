@@ -1,6 +1,6 @@
 import type { ElementId } from "../types/geometry";
-import { labelToProperty, propertyLabels } from "./numericExpressionProperties";
-import type { NumericExpressionReference, NumericMeasurementKey } from "./numericExpressionTypes";
+import { labelToProperty } from "./numericExpressionProperties";
+import type { NumericExpressionReference } from "./numericExpressionTypes";
 
 export type NumericExpressionMeasurementFunctionName = "distance" | "angle" | "lineDistance";
 export type NumericExpressionFunctionName = NumericExpressionMeasurementFunctionName | "sqrt";
@@ -10,7 +10,7 @@ type LogicalOperator = "&&" | "||";
 
 export type Token =
   | { type: "number"; value: number }
-  | { type: "reference"; elementId: ElementId; property: NumericMeasurementKey }
+  | { type: "reference"; elementId: ElementId; property: string }
   | { type: "element"; elementId: ElementId }
   | { type: "localVariable"; variableId: string }
   | { type: "function"; name: NumericExpressionFunctionName }
@@ -101,16 +101,16 @@ export const tokenize = (expression: string): Token[] => {
 
     const referenceMatch = expression
       .slice(index)
-      .match(/^([^\s()+*/.<>!=&|]+)\.([^\s()+*/.<>!=&|]+)/);
+      .match(/^([^\s()+*/.<>!=&|]+)\.([^\s()+*/<>!=&|]+)/);
     if (referenceMatch) {
-      const property = labelToProperty.get(referenceMatch[2]) ?? referenceMatch[2];
-      if (!(property in propertyLabels)) {
-        throw new Error(`未対応の参照プロパティです: ${referenceMatch[2]}`);
-      }
+      const property = referenceMatch[2]
+        .split(".")
+        .map((part) => labelToProperty.get(part) ?? part)
+        .join(".");
       tokens.push({
         type: "reference",
         elementId: referenceMatch[1],
-        property: property as NumericMeasurementKey
+        property
       });
       index += referenceMatch[0].length;
       continue;

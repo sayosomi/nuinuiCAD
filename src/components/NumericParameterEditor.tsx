@@ -516,6 +516,7 @@ export const NumericParameterEditor = ({
         <ExpressionInsertTray
           element={element}
           elements={elements}
+          evaluation={evaluation}
           parameterKey={parameterKey}
           focusInput={() => inputRef.current?.focus()}
           getInputTarget={() => ({

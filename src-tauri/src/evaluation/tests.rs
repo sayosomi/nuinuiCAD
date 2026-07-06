@@ -317,6 +317,64 @@ fn evaluates_sqrt_and_pi_numeric_expressions() {
 }
 
 #[test]
+fn evaluates_numeric_reference_paths_for_geometry_parameters_and_variables() {
+    let mut elements = base_line_elements();
+    elements.extend(vec![
+        element(json!({
+            "id": "ratio-variable",
+            "name": "割合変数",
+            "type": "variable",
+            "visible": true,
+            "enabled": true,
+            "scope": "global",
+            "valueMode": "expression",
+            "expression": 0.25,
+            "point1": { "mode": "reference", "pointId": "a" },
+            "point2": { "mode": "reference", "pointId": "b" },
+            "point": { "mode": "reference", "pointId": "a" },
+            "lineId": ""
+        })),
+        element(json!({
+            "id": "division",
+            "name": "分点",
+            "type": "divisionPoint",
+            "visible": true,
+            "enabled": true,
+            "startPoint": { "mode": "reference", "pointId": "a" },
+            "endPoint": { "mode": "reference", "pointId": "b" },
+            "placementMode": "ratio",
+            "distance": 0,
+            "ratio": { "kind": "expression", "expression": "ratio-variable.value" }
+        })),
+        element(json!({
+            "id": "derived",
+            "name": "参照確認",
+            "type": "offsetPoint",
+            "visible": true,
+            "enabled": true,
+            "fromPoint": { "mode": "reference", "pointId": "division" },
+            "dx": {
+                "kind": "expression",
+                "expression": "division.params.ratio * line.length + line.startPoint.x"
+            },
+            "dy": {
+                "kind": "expression",
+                "expression": "division.params.startPoint.y + line.endPoint.y"
+            }
+        })),
+    ]);
+    let result = evaluate_document_input(EvaluationInput {
+        elements,
+        evaluation_limit_index: None,
+    });
+
+    assert!(result.errors.is_empty());
+    assert_eq!(point(&result, "division")["x"], json!(25.0));
+    assert_eq!(point(&result, "derived")["x"], json!(50.0));
+    assert_eq!(point(&result, "derived")["y"], json!(0.0));
+}
+
+#[test]
 fn reports_negative_sqrt_numeric_expressions() {
     let result = evaluate_document_input(EvaluationInput {
         elements: vec![element(json!({
