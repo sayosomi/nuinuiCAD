@@ -21,6 +21,7 @@ import {
   wrapSelectedElementsInForGroup
 } from "./forGroupCommands";
 import {
+  addGroup,
   extendSelectionByOffset,
   groupSelectedElements,
   indentSelectedElements,
@@ -201,6 +202,12 @@ export const selectionCommandDefinitions = {
     palette: { order: 34, keywords: ["group", "folder", "グループ", "まとめる"] },
     shortcuts: [{ keys: "Mod+G" }],
     run: (context) => groupSelectedElements(context?.focusSelectedParameterInput)
+  },
+  addGroup: {
+    id: "addGroup",
+    label: "グループを追加",
+    palette: { order: 34.1, keywords: ["group", "folder", "empty", "グループ", "フォルダ", "追加", "空"] },
+    run: (context) => addGroup(context?.focusSelectedParameterInput)
   },
   addConditionalGroup: {
     id: "addConditionalGroup",

@@ -4,6 +4,10 @@ import {
   toggleSelectionIds
 } from "../model/documentSelection";
 import { moveElementsToInsertionIndex as moveDocumentElementsToInsertionIndex } from "../model/documentOrder";
+import {
+  applyCreationPlacement,
+  creationPlacementForEvaluationLimit
+} from "../model/elementCreationPlacement";
 import { createCadElement } from "../model/elementFactory";
 import {
   adjustEvaluationLimitForDeletion,
@@ -18,6 +22,7 @@ import {
   subtreeIdsForElement,
   visibleOutlineElements
 } from "../model/groups";
+import { getFirstParameterKey } from "../parameters/parameterDefinitions";
 import { elementSupportsDisplayColor } from "../palette/colorApplicability";
 import { isValidPaletteColorId } from "../palette/palette";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
@@ -381,6 +386,33 @@ export const groupSelectedElements = (
     selectedElementIds: [group.id],
     selectionAnchorElementId: group.id,
     selectedParameterKey: "name"
+  });
+  useCadUiStore.getState().setCommandErrorMessage(null);
+  enterCreatedElementNameEntry(focusSelectedParameterInput);
+};
+
+export const addGroup = (
+  focusSelectedParameterInput?: FocusSelectedParameterInput
+) => {
+  const { elements, evaluationLimitIndex } = useCadDocumentStore.getState();
+  const placement = creationPlacementForEvaluationLimit(elements, evaluationLimitIndex);
+  const { insertionIndex } = placement;
+  const group = applyCreationPlacement(
+    { ...createCadElement("group", elements), expanded: true },
+    placement
+  );
+
+  useCadDocumentStore.getState().commitDocumentChange({
+    elements: [
+      ...elements.slice(0, insertionIndex),
+      group,
+      ...elements.slice(insertionIndex)
+    ],
+    evaluationLimitIndex: insertionIndex + 1,
+    selectedElementId: group.id,
+    selectedElementIds: [group.id],
+    selectionAnchorElementId: group.id,
+    selectedParameterKey: getFirstParameterKey(group)
   });
   useCadUiStore.getState().setCommandErrorMessage(null);
   enterCreatedElementNameEntry(focusSelectedParameterInput);

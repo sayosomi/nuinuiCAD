@@ -565,6 +565,77 @@ describe("commands", () => {
     expect(ungrouped[2].parentGroupId).toBeUndefined();
   });
 
+  it("adds an expanded empty group and creates following elements inside it", () => {
+    useCadStore.setState({
+      evaluationLimitIndex: 2,
+      selectedElementId: sampleElements[0].id,
+      selectedElementIds: [sampleElements[0].id],
+      selectionAnchorElementId: sampleElements[0].id
+    });
+
+    dispatchCommand("addGroup");
+
+    const groupState = useCadStore.getState();
+    const group = groupState.elements[2];
+    expect(group).toMatchObject({ type: "group", expanded: true });
+    expect(groupState).toMatchObject({
+      evaluationLimitIndex: 3,
+      selectedElementId: group.id,
+      selectedElementIds: [group.id],
+      selectionAnchorElementId: group.id,
+      selectedParameterKey: "name",
+      isParameterEditMode: true
+    });
+
+    dispatchCommand("addFreePoint");
+
+    const pointState = useCadStore.getState();
+    expect(pointState.elements[3]).toMatchObject({
+      type: "freePoint",
+      parentGroupId: group.id
+    });
+    expect(pointState.evaluationLimitIndex).toBe(4);
+  });
+
+  it("adds a new empty group inside the current expanded group", () => {
+    useCadStore.setState({
+      elements: [
+        {
+          id: "group-1",
+          name: "本体",
+          type: "group",
+          visible: true,
+          enabled: true,
+          expanded: true
+        },
+        { ...sampleElements[0], parentGroupId: "group-1" },
+        sampleElements[1]
+      ],
+      evaluationLimitIndex: 2,
+      selectedElementId: sampleElements[0].id,
+      selectedElementIds: [sampleElements[0].id],
+      selectionAnchorElementId: sampleElements[0].id
+    });
+
+    dispatchCommand("addGroup");
+
+    const groupState = useCadStore.getState();
+    const nestedGroup = groupState.elements[2];
+    expect(nestedGroup).toMatchObject({
+      type: "group",
+      parentGroupId: "group-1",
+      expanded: true
+    });
+    expect(groupState.evaluationLimitIndex).toBe(3);
+
+    dispatchCommand("addFreePoint");
+
+    expect(useCadStore.getState().elements[3]).toMatchObject({
+      type: "freePoint",
+      parentGroupId: nestedGroup.id
+    });
+  });
+
   it("shows an error instead of grouping selected elements from different parents", () => {
     useCadStore.setState({
       elements: [

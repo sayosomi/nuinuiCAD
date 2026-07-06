@@ -34,6 +34,7 @@ export type CommandId =
   | "moveEvaluationDividerDown"
   | "moveEvaluationDividerToSelectedElement"
   | "moveEvaluationDividerToEnd"
+  | "addGroup"
   | "groupSelectedElements"
   | "addConditionalGroup"
   | "wrapSelectedElementsInConditionalGroup"
