@@ -219,6 +219,25 @@ export const viewModeCommandDefinitions = {
     label: "グループテンプレートを閉じる",
     run: () => useCadUiStore.getState().setShowGroupTemplateLibrary(false)
   },
+  openDslPanel: {
+    id: "openDslPanel",
+    label: "DSLパネル",
+    palette: {
+      order: 46.6,
+      keywords: ["dsl", "script", "text", "作図", "テキスト", "スクリプト"]
+    },
+    run: () => {
+      useCadUiStore.setState({
+        showDslPanel: true,
+        showCommandPalette: false
+      });
+    }
+  },
+  closeDslPanel: {
+    id: "closeDslPanel",
+    label: "DSLパネルを閉じる",
+    run: () => useCadUiStore.getState().setShowDslPanel(false)
+  },
   openCommandRibbonSettings: {
     id: "openCommandRibbonSettings",
     label: "コマンドリボンを編集",

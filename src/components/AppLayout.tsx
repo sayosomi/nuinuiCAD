@@ -16,6 +16,7 @@ import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
 import { CommandPalette } from "./CommandPalette";
 import { CommandRibbonSettingsDialog } from "./CommandRibbonSettingsDialog";
+import { DslPanel } from "./DslPanel";
 import { DrawingCanvas } from "./DrawingCanvas";
 import { GroupTemplateLibraryDialog } from "./GroupTemplateLibraryDialog";
 import { ImageImportDialog } from "./ImageImportDialog";
@@ -46,6 +47,7 @@ export const AppLayout = () => {
   const shortcutSettings = useCadUiStore((state) => state.shortcutSettings);
   const showPrintLayout = useCadUiStore((state) => state.showPrintLayout);
   const showPrintPreviewWindow = useCadUiStore((state) => state.showPrintPreviewWindow);
+  const showDslPanel = useCadUiStore((state) => state.showDslPanel);
   const setPrintPreviewWindow = useCadUiStore((state) => state.setPrintPreviewWindow);
   const activeTemplateInsertion = useCadUiStore((state) => state.activeTemplateInsertion);
   const isPickMode = useCadUiStore(
@@ -233,6 +235,7 @@ export const AppLayout = () => {
       if (useCadUiStore.getState().showShortcutSettings) return;
       if (useCadUiStore.getState().showPaletteSettings) return;
       if (useCadUiStore.getState().showGroupTemplateLibrary) return;
+      if (useCadUiStore.getState().showDslPanel) return;
       if (useCadUiStore.getState().showCommandRibbonSettings) return;
       if (useCadUiStore.getState().showSelectionColorPicker) return;
       if (useCadUiStore.getState().pendingImageImport || useCadUiStore.getState().imageImportError) return;
@@ -363,6 +366,7 @@ export const AppLayout = () => {
       )}
       <CommandPalette commandContext={commandContext} />
       {activeTemplateInsertion ? <TemplateInsertionPanel /> : null}
+      {showDslPanel ? <DslPanel /> : null}
       <ShortcutHelpOverlay
         isParameterEditMode={isParameterEditMode}
         isDependencyJumpMode={isDependencyJumpMode}

@@ -134,6 +134,8 @@ export type CommandId =
   | "openGroupTemplateLibrary"
   | "openGroupTemplateInsertion"
   | "closeGroupTemplateLibrary"
+  | "openDslPanel"
+  | "closeDslPanel"
   | "startTemplateInsertion"
   | "cancelTemplateInsertion"
   | "selectNextTemplateInsertionInput"
