@@ -1667,7 +1667,7 @@ describe("LeftPanel element list dragging", () => {
     });
 
     expect(screen.getByText(/一部区間をトリムしました/)).toBeInTheDocument();
-    expect(screen.getByText("エラー 0 / 警告 1")).toBeInTheDocument();
+    expect(screen.queryByText("バリデーション")).not.toBeInTheDocument();
   });
 
   it("shows selected element dependency errors on parent rows", () => {
@@ -1692,7 +1692,7 @@ describe("LeftPanel element list dragging", () => {
     });
 
     expect(screen.getByText(/直線AB は 点B を参照しています/)).toBeInTheDocument();
-    expect(screen.getByText("エラー 1 / 警告 0")).toBeInTheDocument();
+    expect(screen.queryByText("バリデーション")).not.toBeInTheDocument();
   });
 
   it("shows child element errors on child rows", () => {
@@ -1719,7 +1719,7 @@ describe("LeftPanel element list dragging", () => {
     expect(screen.getByText(/直線AB は 点B を参照しています/)).toBeInTheDocument();
   });
 
-  it("shows Tauri evaluation engine status in the validation section", () => {
+  it("shows Tauri evaluation engine status in the element detail header", () => {
     renderRightPanel(emptyEvaluation, evaluationEngineState({
       status: "evaluating",
       isStale: true
@@ -1728,7 +1728,7 @@ describe("LeftPanel element list dragging", () => {
     expect(screen.getByText("Rust評価中 / stale")).toBeInTheDocument();
   });
 
-  it("shows fallback evaluation engine status in the validation section", () => {
+  it("shows fallback evaluation engine status in the element detail header", () => {
     renderRightPanel(emptyEvaluation, evaluationEngineState({
       source: "fallback",
       status: "failed",

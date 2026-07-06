@@ -219,6 +219,12 @@ textarea {
   font-size: 15px;
 }
 
+.section-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .evaluation-engine-status {
   border: 1px solid #c9cec3;
   border-radius: 999px;
@@ -3248,15 +3254,6 @@ textarea {
 
 .error-list .warning-item span {
   color: #71510b;
-}
-
-.validation-summary {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  color: #4b5148;
-  font-size: 13px;
 }
 
 .shortcut-list {

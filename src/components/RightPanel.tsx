@@ -46,9 +46,6 @@ export const RightPanel = ({
   const engineLabel = evaluationState && evaluationState.mode !== "reference"
     ? evaluationEngineLabel(evaluationState)
     : null;
-  const issueCount = evaluation.errors.length + evaluation.warnings.length;
-  const firstIssueElementId =
-    evaluation.errors[0]?.elementId ?? evaluation.warnings[0]?.elementId ?? null;
 
   useEffect(() => {
     if (!isParameterEditMode || !selectedElementId || !selectedParameterKey) return undefined;
@@ -90,44 +87,15 @@ export const RightPanel = ({
         element={selectedElement}
         elements={elements}
         evaluation={evaluation}
+        evaluationEngineLabel={engineLabel}
+        isEvaluationFallback={evaluationState?.source === "fallback"}
+        isEvaluationStale={evaluationState?.isStale}
         isDependencyJumpMode={isDependencyJumpMode}
         selectedDependencyJumpIndex={selectedDependencyJumpIndex}
         setSelectedElementId={(id) => {
           if (id) dispatchCommand("selectElement", { elementId: id });
         }}
       />
-
-      <section className="panel-section">
-        <div className="section-header">
-          <h2>バリデーション</h2>
-          {engineLabel ? (
-            <small
-              className={`evaluation-engine-status ${
-                evaluationState?.isStale ? "stale" : ""
-              } ${evaluationState?.source === "fallback" ? "fallback" : ""}`}
-            >
-              {engineLabel}
-            </small>
-          ) : null}
-        </div>
-        {issueCount === 0 ? (
-          <p className="empty-state">エラーや警告はありません。</p>
-        ) : (
-          <div className="validation-summary">
-            <span>
-              エラー {evaluation.errors.length} / 警告 {evaluation.warnings.length}
-            </span>
-            {firstIssueElementId ? (
-              <button
-                type="button"
-                onClick={() => dispatchCommand("selectElement", { elementId: firstIssueElementId })}
-              >
-                最初の問題へ
-              </button>
-            ) : null}
-          </div>
-        )}
-      </section>
 
       <section className="panel-section">
         <div className="section-header">

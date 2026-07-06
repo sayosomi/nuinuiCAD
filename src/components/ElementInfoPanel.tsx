@@ -70,6 +70,9 @@ export const ElementInfoPanel = ({
   element,
   elements,
   evaluation,
+  evaluationEngineLabel,
+  isEvaluationFallback = false,
+  isEvaluationStale = false,
   isDependencyJumpMode,
   selectedDependencyJumpIndex,
   setSelectedElementId
@@ -77,6 +80,9 @@ export const ElementInfoPanel = ({
   element: CadElement | null;
   elements: CadElement[];
   evaluation: EvaluationResult;
+  evaluationEngineLabel?: string | null;
+  isEvaluationFallback?: boolean;
+  isEvaluationStale?: boolean;
   isDependencyJumpMode: boolean;
   selectedDependencyJumpIndex: number;
   setSelectedElementId: (id: ElementId | null) => void;
@@ -193,9 +199,20 @@ export const ElementInfoPanel = ({
             </p>
           ) : null}
         </div>
-        <button type="button" onClick={() => dispatchCommand("toggleElementInfoPanel")}>
-          i
-        </button>
+        <div className="section-header-actions">
+          {evaluationEngineLabel ? (
+            <small
+              className={`evaluation-engine-status ${isEvaluationStale ? "stale" : ""} ${
+                isEvaluationFallback ? "fallback" : ""
+              }`}
+            >
+              {evaluationEngineLabel}
+            </small>
+          ) : null}
+          <button type="button" onClick={() => dispatchCommand("toggleElementInfoPanel")}>
+            i
+          </button>
+        </div>
       </div>
 
       {!showElementInfoPanel ? (
