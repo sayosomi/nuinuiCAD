@@ -1,3 +1,5 @@
+use kurbo::{CubicBez, ParamCurve, ParamCurveDeriv};
+
 use super::offset_types::{line_length, OffsetPoint, OffsetSegment, SourceSegment, EPSILON};
 
 const BEZIER_OFFSET_FLATNESS_TOLERANCE_MM: f64 = 0.1;
@@ -19,7 +21,28 @@ pub(crate) struct OffsetBezierGroups {
     pub(crate) trimmed: bool,
 }
 
-pub(crate) fn cubic_source_point_at(segment: &SourceSegment, t: f64) -> OffsetPoint {
+fn point_to_offset(point: kurbo::Point) -> OffsetPoint {
+    OffsetPoint {
+        x: point.x,
+        y: point.y,
+    }
+}
+
+fn cubic_for_points(
+    start: OffsetPoint,
+    control1: OffsetPoint,
+    control2: OffsetPoint,
+    end: OffsetPoint,
+) -> CubicBez {
+    CubicBez::new(
+        (start.x, start.y),
+        (control1.x, control1.y),
+        (control2.x, control2.y),
+        (end.x, end.y),
+    )
+}
+
+fn source_cubic(segment: &SourceSegment) -> Option<CubicBez> {
     let SourceSegment::Bezier {
         start,
         control1,
@@ -27,48 +50,27 @@ pub(crate) fn cubic_source_point_at(segment: &SourceSegment, t: f64) -> OffsetPo
         end,
     } = segment
     else {
-        return OffsetPoint { x: 0.0, y: 0.0 };
+        return None;
     };
-    cubic_point(*start, *control1, *control2, *end, t)
+    Some(cubic_for_points(*start, *control1, *control2, *end))
+}
+
+pub(crate) fn cubic_source_point_at(segment: &SourceSegment, t: f64) -> OffsetPoint {
+    source_cubic(segment)
+        .map(|cubic| point_to_offset(cubic.eval(t)))
+        .unwrap_or(OffsetPoint { x: 0.0, y: 0.0 })
 }
 
 fn cubic_derivative_at(segment: &SourceSegment, t: f64) -> OffsetPoint {
-    let SourceSegment::Bezier {
-        start,
-        control1,
-        control2,
-        end,
-    } = segment
-    else {
-        return OffsetPoint { x: 0.0, y: 0.0 };
-    };
-    let inverse = 1.0 - t;
-    OffsetPoint {
-        x: 3.0 * inverse * inverse * (control1.x - start.x)
-            + 6.0 * inverse * t * (control2.x - control1.x)
-            + 3.0 * t * t * (end.x - control2.x),
-        y: 3.0 * inverse * inverse * (control1.y - start.y)
-            + 6.0 * inverse * t * (control2.y - control1.y)
-            + 3.0 * t * t * (end.y - control2.y),
-    }
+    source_cubic(segment)
+        .map(|cubic| point_to_offset(cubic.deriv().eval(t)))
+        .unwrap_or(OffsetPoint { x: 0.0, y: 0.0 })
 }
 
 fn cubic_second_derivative_at(segment: &SourceSegment, t: f64) -> OffsetPoint {
-    let SourceSegment::Bezier {
-        start,
-        control1,
-        control2,
-        end,
-    } = segment
-    else {
-        return OffsetPoint { x: 0.0, y: 0.0 };
-    };
-    OffsetPoint {
-        x: 6.0 * (1.0 - t) * (control2.x - 2.0 * control1.x + start.x)
-            + 6.0 * t * (end.x - 2.0 * control2.x + control1.x),
-        y: 6.0 * (1.0 - t) * (control2.y - 2.0 * control1.y + start.y)
-            + 6.0 * t * (end.y - 2.0 * control2.y + control1.y),
-    }
+    source_cubic(segment)
+        .map(|cubic| point_to_offset(cubic.deriv().deriv().eval(t)))
+        .unwrap_or(OffsetPoint { x: 0.0, y: 0.0 })
 }
 
 fn fallback_tangent(segment: &SourceSegment, at_end: bool) -> OffsetPoint {
@@ -125,15 +127,7 @@ fn cubic_point(
     end: OffsetPoint,
     t: f64,
 ) -> OffsetPoint {
-    let inverse = 1.0 - t;
-    let a = inverse * inverse * inverse;
-    let b = 3.0 * inverse * inverse * t;
-    let c = 3.0 * inverse * t * t;
-    let d = t * t * t;
-    OffsetPoint {
-        x: a * start.x + b * control1.x + c * control2.x + d * end.x,
-        y: a * start.y + b * control1.y + c * control2.y + d * end.y,
-    }
+    point_to_offset(cubic_for_points(start, control1, control2, end).eval(t))
 }
 
 pub(crate) fn unit_tangent_at(segment: &SourceSegment, t: f64) -> OffsetPoint {
@@ -413,5 +407,32 @@ pub(crate) fn offset_bezier_segment_groups(
             .filter(|segments| !segments.is_empty())
             .collect(),
         trimmed,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn assert_close(actual: f64, expected: f64) {
+        assert!(
+            (actual - expected).abs() < 1e-9,
+            "expected {actual} to be close to {expected}"
+        );
+    }
+
+    #[test]
+    fn unit_tangent_uses_fallback_for_degenerate_start_handle() {
+        let segment = SourceSegment::Bezier {
+            start: OffsetPoint { x: 0.0, y: 0.0 },
+            control1: OffsetPoint { x: 0.0, y: 0.0 },
+            control2: OffsetPoint { x: 10.0, y: 0.0 },
+            end: OffsetPoint { x: 20.0, y: 0.0 },
+        };
+
+        let tangent = unit_tangent_at(&segment, 0.0);
+
+        assert_close(tangent.x, 1.0);
+        assert_close(tangent.y, 0.0);
     }
 }

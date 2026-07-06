@@ -1,3 +1,4 @@
+use kurbo::{CubicBez, ParamCurve};
 use serde_json::Value;
 
 #[derive(Clone, Copy)]
@@ -13,20 +14,24 @@ fn value_point(value: &Value) -> Option<BezierPoint> {
     })
 }
 
-pub(crate) fn cubic_point_at(segment: &Value, t: f64) -> Option<BezierPoint> {
+fn cubic_segment(segment: &Value) -> Option<CubicBez> {
     let start = segment.get("start").and_then(value_point)?;
     let control1 = segment.get("control1").and_then(value_point)?;
     let control2 = segment.get("control2").and_then(value_point)?;
     let end = segment.get("end").and_then(value_point)?;
-    let inverse = 1.0 - t;
-    let a = inverse * inverse * inverse;
-    let b = 3.0 * inverse * inverse * t;
-    let c = 3.0 * inverse * t * t;
-    let d = t * t * t;
+    Some(CubicBez::new(
+        (start.x, start.y),
+        (control1.x, control1.y),
+        (control2.x, control2.y),
+        (end.x, end.y),
+    ))
+}
 
+pub(crate) fn cubic_point_at(segment: &Value, t: f64) -> Option<BezierPoint> {
+    let point = cubic_segment(segment)?.eval(t);
     Some(BezierPoint {
-        x: a * start.x + b * control1.x + c * control2.x + d * end.x,
-        y: a * start.y + b * control1.y + c * control2.y + d * end.y,
+        x: point.x,
+        y: point.y,
     })
 }
 
@@ -58,4 +63,33 @@ pub(crate) fn approximate_segment_length(segment: &Value, steps: usize) -> Optio
             .map(|pair| (pair[1].x - pair[0].x).hypot(pair[1].y - pair[0].y))
             .sum(),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use super::*;
+
+    fn assert_close(actual: f64, expected: f64) {
+        assert!(
+            (actual - expected).abs() < 1e-9,
+            "expected {actual} to be close to {expected}"
+        );
+    }
+
+    #[test]
+    fn cubic_point_at_uses_cubic_bezier_evaluation() {
+        let segment = json!({
+            "start": { "x": 0.0, "y": 0.0 },
+            "control1": { "x": 10.0, "y": 0.0 },
+            "control2": { "x": 10.0, "y": 10.0 },
+            "end": { "x": 20.0, "y": 10.0 }
+        });
+
+        let point = cubic_point_at(&segment, 0.5).expect("point");
+
+        assert_close(point.x, 10.0);
+        assert_close(point.y, 5.0);
+    }
 }
