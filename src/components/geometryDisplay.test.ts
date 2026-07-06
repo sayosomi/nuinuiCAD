@@ -137,7 +137,11 @@ describe("geometryDisplay", () => {
     expect(numericReferenceProperties(curve)).toEqual([
       "length",
       "startTangentAngleDeg",
-      "endTangentAngleDeg"
+      "endTangentAngleDeg",
+      "startHandleAngleDeg",
+      "startHandleLength",
+      "endHandleAngleDeg",
+      "endHandleLength"
     ]);
     expect(numericReferenceExpression(line, "length")).toBe("line-ab.length");
   });
@@ -188,6 +192,10 @@ describe("geometryDisplay", () => {
       { label: "終点", value: "(30, 40)" },
       { label: "始接線角度", value: "0°" },
       { label: "終接線角度", value: "0°" },
+      { label: "始点角度", value: "0°" },
+      { label: "始点ハンドル長", value: "10 mm" },
+      { label: "終点角度", value: "180°" },
+      { label: "終点ハンドル長", value: "10 mm" },
       { label: "長さ", value: "52.34 mm" }
     ]);
     expect(offsetLineInfoRows(offsetLine)).toEqual([

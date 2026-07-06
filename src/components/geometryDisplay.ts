@@ -1,5 +1,9 @@
 import type { NumericMeasurementKey } from "../geometry/numericExpressions";
 import { propertyLabels } from "../geometry/numericExpressionProperties";
+import {
+  numericReferencePropertiesForGeometry,
+  type NumericReferenceGeometry
+} from "../geometry/numericReferenceProperties";
 import type {
   ComputedArcLine,
   ComputedBezierCurve,
@@ -24,17 +28,8 @@ export const formatAngleDeg = (degrees: number | null) =>
   degrees === null ? "未定義" : `${formatNumber(normalizeDegrees(degrees))}°`;
 
 export const numericReferenceProperties = (
-  geometry: ComputedLine | ComputedArcLine | ComputedBezierCurve | ComputedOffsetLine
-) =>
-  geometry.kind === "arcLine"
-    ? ([
-        "length",
-        "startAngleDeg",
-        "endAngleDeg",
-        "startTangentAngleDeg",
-        "endTangentAngleDeg"
-      ] as const)
-    : (["length", "startTangentAngleDeg", "endTangentAngleDeg"] as const);
+  geometry: NumericReferenceGeometry
+) => numericReferencePropertiesForGeometry(geometry);
 
 export const numericReferenceExpression = (
   geometry: ComputedLine | ComputedArcLine | ComputedBezierCurve | ComputedOffsetLine,
@@ -121,6 +116,10 @@ export const bezierCurveInfoRows = (curve: ComputedBezierCurve) => {
     { label: "終点", value: endpoints.end ? formatCoordinate(endpoints.end) : "未定義" },
     { label: "始接線角度", value: formatAngleDeg(curve.startTangentAngleDeg) },
     { label: "終接線角度", value: formatAngleDeg(curve.endTangentAngleDeg) },
+    { label: "始点角度", value: formatAngleDeg(curve.startHandleAngleDeg) },
+    { label: "始点ハンドル長", value: formatMillimeters(curve.startHandleLength) },
+    { label: "終点角度", value: formatAngleDeg(curve.endHandleAngleDeg) },
+    { label: "終点ハンドル長", value: formatMillimeters(curve.endHandleLength) },
     { label: "長さ", value: formatMillimeters(curve.length) }
   ];
 };

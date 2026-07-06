@@ -9,7 +9,7 @@ import type {
   NumericValue
 } from "../types/geometry";
 import type { PointAnchor } from "../types/geometry";
-import { resolveDerivedPoint } from "../model/pointAnchors";
+import { derivedPointLabel, resolveDerivedPoint } from "../model/pointAnchors";
 import { getParameterValue } from "../parameters/parameterAccess";
 import { Parser, tokenize } from "./numericExpressionParser";
 import type { NumericExpressionMeasurementFunctionName } from "./numericExpressionParser";
@@ -66,12 +66,7 @@ const pointExpressionLabel = (
   const pointKey = pointExpressionKey(expressionId);
   if (!pointKey) return elementsById.get(expressionId)?.name ?? expressionId;
   const elementId = pointExpressionSourceId(expressionId);
-  const elementName = elementsById.get(elementId)?.name ?? elementId;
-  if (pointKey === "start") return `${elementName}.始点`;
-  if (pointKey === "end") return `${elementName}.終点`;
-  if (pointKey === "center") return `${elementName}.中心点`;
-  if (pointKey.startsWith("intermediate:")) return `${elementName}.中間点`;
-  return `${elementName}.${pointKey}`;
+  return derivedPointLabel(elementId, pointKey, elementsById);
 };
 
 const EPSILON = 1e-9;

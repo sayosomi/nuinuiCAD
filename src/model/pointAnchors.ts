@@ -287,23 +287,33 @@ export const pointAnchorOptions = (elements: CadElement[]): PointAnchor[] =>
     return [];
   });
 
+export const derivedPointLabel = (
+  elementId: ElementId,
+  pointKey: string,
+  elements: CadElement[] | Map<ElementId, CadElement>
+) => {
+  const element = Array.isArray(elements)
+    ? elements.find((item) => item.id === elementId)
+    : elements.get(elementId);
+  const elementName = element?.name ?? elementId;
+  if (pointKey === "start") return `${elementName}.始点`;
+  if (pointKey === "end") return `${elementName}.終点`;
+  if (pointKey === "center") return `${elementName}.中心点`;
+  if (pointKey.startsWith("intermediate:") && element?.type === "bezierCurve") {
+    const intermediateId = pointKey.slice("intermediate:".length);
+    const index = element.intermediatePoints.findIndex((point) => point.id === intermediateId);
+    return `${elementName}.中間点${index >= 0 ? index + 1 : intermediateId}`;
+  }
+  return `${elementName}.${pointKey}`;
+};
+
 export const pointAnchorLabel = (anchor: PointAnchor, elements: CadElement[]) => {
   if (anchor.mode === "coordinate") return "座標";
   if (anchor.mode === "reference") {
     return elements.find((element) => element.id === anchor.pointId)?.name ?? anchor.pointId;
   }
 
-  const element = elements.find((item) => item.id === anchor.elementId);
-  const elementName = element?.name ?? anchor.elementId;
-  if (anchor.pointKey === "start") return `${elementName}.始点`;
-  if (anchor.pointKey === "end") return `${elementName}.終点`;
-  if (anchor.pointKey.startsWith("intermediate:") && element?.type === "bezierCurve") {
-    const intermediateId = anchor.pointKey.slice("intermediate:".length);
-    const index = element.intermediatePoints.findIndex((point) => point.id === intermediateId);
-    return `${elementName}.中間点${index >= 0 ? index + 1 : intermediateId}`;
-  }
-  if (anchor.pointKey === "center") return `${elementName}.中心点`;
-  return `${elementName}.${anchor.pointKey}`;
+  return derivedPointLabel(anchor.elementId, anchor.pointKey, elements);
 };
 
 export const isLineLikeElement = (element: CadElement) =>

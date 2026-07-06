@@ -1,0 +1,137 @@
+import { describe, expect, it } from "vitest";
+import type {
+  CadElement,
+  ComputedBezierCurve,
+  ComputedGeometry,
+  ComputedPoint,
+  EvaluationResult
+} from "../types/geometry";
+import {
+  computedNumericReferenceValue,
+  numericReferenceCandidates
+} from "./numericReferencePaths";
+
+const point = (id: string, x: number, y: number): ComputedPoint => ({
+  kind: "point",
+  elementId: id,
+  name: id,
+  x,
+  y
+});
+
+const elements: CadElement[] = [
+  {
+    id: "a",
+    name: "点A",
+    type: "freePoint",
+    visible: true,
+    enabled: true,
+    x: 0,
+    y: 0
+  },
+  {
+    id: "curve",
+    name: "曲線",
+    type: "bezierCurve",
+    visible: true,
+    enabled: true,
+    startPoint: { mode: "reference", pointId: "a" },
+    startHandleAngleDeg: 15,
+    startHandleLength: 20,
+    intermediatePoints: [
+      {
+        id: "mid",
+        point: { mode: "coordinate", x: 40, y: 10 },
+        handleAngleDeg: 45,
+        incomingHandleLength: 12,
+        outgoingHandleLength: 18
+      }
+    ],
+    endPoint: { mode: "coordinate", x: 80, y: 0 },
+    endHandleAngleDeg: 165,
+    endHandleLength: 25
+  },
+  {
+    id: "target",
+    name: "点T",
+    type: "offsetPoint",
+    visible: true,
+    enabled: true,
+    fromPointId: "a",
+    dx: 0,
+    dy: 0
+  }
+];
+
+const curveGeometry: ComputedBezierCurve = {
+  kind: "bezierCurve",
+  elementId: "curve",
+  name: "曲線",
+  startPointId: "a",
+  endPointId: null,
+  intermediatePointIds: ["mid"],
+  segments: [
+    {
+      startPointId: "a",
+      endPointId: "mid",
+      start: point("a", 0, 0),
+      control1: { x: 20, y: 0 },
+      control2: { x: 30, y: 10 },
+      end: point("curve:intermediate:mid", 40, 10)
+    },
+    {
+      startPointId: "mid",
+      endPointId: null,
+      start: point("curve:intermediate:mid", 40, 10),
+      control1: { x: 50, y: 10 },
+      control2: { x: 60, y: 0 },
+      end: point("curve:end", 80, 0)
+    }
+  ],
+  length: 84.25,
+  startTangentAngleDeg: 15,
+  endTangentAngleDeg: 345,
+  startHandleAngleDeg: 15,
+  startHandleLength: 20,
+  endHandleAngleDeg: 165,
+  endHandleLength: 25
+};
+
+const evaluation: EvaluationResult = {
+  computedGeometry: new Map<string, ComputedGeometry>([
+    ["a", point("a", 0, 0)],
+    ["curve", curveGeometry],
+    ["target", point("target", 0, 0)]
+  ]),
+  computedVariables: new Map(),
+  errors: [],
+  warnings: []
+};
+
+describe("numericReferencePaths", () => {
+  it("resolves Bezier handle and intermediate point reference values", () => {
+    expect(computedNumericReferenceValue(curveGeometry, "startHandleAngleDeg")).toBe(15);
+    expect(computedNumericReferenceValue(curveGeometry, "startHandleLength")).toBe(20);
+    expect(computedNumericReferenceValue(curveGeometry, "endHandleAngleDeg")).toBe(165);
+    expect(computedNumericReferenceValue(curveGeometry, "endHandleLength")).toBe(25);
+    expect(computedNumericReferenceValue(curveGeometry, "intermediatePoints[1].x")).toBe(40);
+    expect(computedNumericReferenceValue(curveGeometry, "intermediatePoints[1].y")).toBe(10);
+  });
+
+  it("offers Bezier handle and intermediate point paths as insert candidates", () => {
+    const candidates = numericReferenceCandidates({
+      elements,
+      evaluation,
+      currentElement: elements[2],
+      currentParameterKey: "dx"
+    });
+    const expressions = candidates.map((candidate) => candidate.expression);
+
+    expect(expressions).toContain("curve.startHandleAngleDeg");
+    expect(expressions).toContain("curve.startHandleLength");
+    expect(expressions).toContain("curve.endHandleAngleDeg");
+    expect(expressions).toContain("curve.endHandleLength");
+    expect(expressions).toContain("curve.intermediatePoints[1].x");
+    expect(expressions).toContain("curve.intermediatePoints[1].y");
+  });
+});

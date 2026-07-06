@@ -122,6 +122,47 @@ describe("normalizeNumericExpressionInput", () => {
     ).toBe("curve-ac.startHandleLength + @shared");
   });
 
+  it("formats Bezier intermediate point references with their point index", () => {
+    const elements: CadElement[] = [
+      {
+        id: "curve-ac",
+        name: "曲線AC",
+        type: "bezierCurve",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "a" },
+        startHandleAngleDeg: 0,
+        startHandleLength: 20,
+        intermediatePoints: [
+          {
+            id: "mid-a",
+            point: { mode: "coordinate", x: 10, y: 10 },
+            handleAngleDeg: 45,
+            incomingHandleLength: 10,
+            outgoingHandleLength: 10
+          },
+          {
+            id: "mid-b",
+            point: { mode: "coordinate", x: 20, y: 10 },
+            handleAngleDeg: 45,
+            incomingHandleLength: 10,
+            outgoingHandleLength: 10
+          }
+        ],
+        endPoint: { mode: "reference", pointId: "c" },
+        endHandleAngleDeg: 0,
+        endHandleLength: 20
+      }
+    ];
+
+    expect(
+      formatNumericExpressionForDisplay(
+        makeNumericExpression("distance(curve-ac:intermediate:mid-b, curve-ac:end)"),
+        elements
+      )
+    ).toBe("distance(曲線AC.中間点2, 曲線AC.終点)");
+  });
+
   it("normalizes qualified local variables and global variable display names", () => {
     const variable: CadElement = {
       id: "base-variable",
