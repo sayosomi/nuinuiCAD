@@ -184,6 +184,25 @@ export const viewModeCommandDefinitions = {
     label: "パレット設定を閉じる",
     run: () => useCadUiStore.getState().setShowPaletteSettings(false)
   },
+  openVisibilityProfileSettings: {
+    id: "openVisibilityProfileSettings",
+    label: "表示プロファイルを開く",
+    palette: {
+      order: 45.2,
+      keywords: ["visibility", "profile", "role", "表示", "プロファイル", "ロール", "設定"]
+    },
+    run: () => {
+      useCadUiStore.setState({
+        showVisibilityProfileSettings: true,
+        showCommandPalette: false
+      });
+    }
+  },
+  closeVisibilityProfileSettings: {
+    id: "closeVisibilityProfileSettings",
+    label: "表示プロファイルを閉じる",
+    run: () => useCadUiStore.getState().setShowVisibilityProfileSettings(false)
+  },
   openGroupTemplateLibrary: {
     id: "openGroupTemplateLibrary",
     label: "グループテンプレート",

@@ -35,6 +35,11 @@ const ImageImportDialog = lazy(() =>
 const PaletteSettingsDialog = lazy(() =>
   import("./PalettePanel").then((module) => ({ default: module.PaletteSettingsDialog }))
 );
+const VisibilityProfileSettingsDialog = lazy(() =>
+  import("./VisibilityProfilePanel").then((module) => ({
+    default: module.VisibilityProfileSettingsDialog
+  }))
+);
 const PrintLayoutCanvas = lazy(() =>
   import("./PrintLayoutView").then((module) => ({ default: module.PrintLayoutCanvas }))
 );
@@ -85,6 +90,9 @@ export const AppLayout = () => {
   const showPrintPreviewWindow = useCadUiStore((state) => state.showPrintPreviewWindow);
   const showDslPanel = useCadUiStore((state) => state.showDslPanel);
   const showPaletteSettings = useCadUiStore((state) => state.showPaletteSettings);
+  const showVisibilityProfileSettings = useCadUiStore(
+    (state) => state.showVisibilityProfileSettings
+  );
   const showGroupTemplateLibrary = useCadUiStore((state) => state.showGroupTemplateLibrary);
   const showShortcutSettings = useCadUiStore((state) => state.showShortcutSettings);
   const showCommandRibbonSettings = useCadUiStore((state) => state.showCommandRibbonSettings);
@@ -431,6 +439,11 @@ export const AppLayout = () => {
       {showPaletteSettings ? (
         <Suspense fallback={null}>
           <PaletteSettingsDialog />
+        </Suspense>
+      ) : null}
+      {showVisibilityProfileSettings ? (
+        <Suspense fallback={null}>
+          <VisibilityProfileSettingsDialog />
         </Suspense>
       ) : null}
       {showGroupTemplateLibrary ? (

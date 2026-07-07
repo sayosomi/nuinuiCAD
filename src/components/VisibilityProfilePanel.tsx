@@ -1,7 +1,9 @@
 import { Eye, EyeOff, Plus, Trash2 } from "lucide-react";
+import { dispatchCommand } from "../commands/commands";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
+import { useCadUiStore } from "../state/cadUiStore";
 
-export const VisibilityProfilePanel = () => {
+export const VisibilityProfilePanel = ({ showHeader = true }: { showHeader?: boolean }) => {
   const visibilityRoles = useCadDocumentStore((state) => state.visibilityRoles);
   const visibilityProfiles = useCadDocumentStore((state) => state.visibilityProfiles);
   const activeVisibilityProfileId = useCadDocumentStore((state) => state.activeVisibilityProfileId);
@@ -30,12 +32,14 @@ export const VisibilityProfilePanel = () => {
 
   return (
     <section className="panel-section visibility-profile-panel">
-      <div className="section-header">
-        <div>
-          <h2>表示プロファイル</h2>
-          <p className="section-subtitle">ロールごとの表示を切り替え</p>
+      {showHeader ? (
+        <div className="section-header">
+          <div>
+            <h2>表示プロファイル</h2>
+            <p className="section-subtitle">ロールごとの表示を切り替え</p>
+          </div>
         </div>
-      </div>
+      ) : null}
       <div className="visibility-profile-controls">
         <label className="print-select-field">
           <span>プロファイル</span>
@@ -116,5 +120,45 @@ export const VisibilityProfilePanel = () => {
         ロールを追加
       </button>
     </section>
+  );
+};
+
+export const VisibilityProfileSettingsDialog = () => {
+  const showVisibilityProfileSettings = useCadUiStore(
+    (state) => state.showVisibilityProfileSettings
+  );
+
+  if (!showVisibilityProfileSettings) return null;
+
+  const close = () => dispatchCommand("closeVisibilityProfileSettings");
+
+  return (
+    <div
+      className="visibility-profile-settings-backdrop"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) close();
+      }}
+      onKeyDown={(event) => {
+        if (event.key === "Escape") close();
+      }}
+    >
+      <section
+        className="visibility-profile-settings"
+        role="dialog"
+        aria-modal="true"
+        aria-label="表示プロファイル"
+      >
+        <div className="shortcut-overlay-header">
+          <div>
+            <h2>表示プロファイル</h2>
+            <p>ロールごとの表示を切り替え</p>
+          </div>
+          <button type="button" onClick={close}>閉じる</button>
+        </div>
+        <div className="visibility-profile-settings-body">
+          <VisibilityProfilePanel showHeader={false} />
+        </div>
+      </section>
+    </div>
   );
 };

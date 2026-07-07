@@ -164,6 +164,7 @@ export type CadUiState = {
   showShortcutHelp: boolean;
   showShortcutSettings: boolean;
   showPaletteSettings: boolean;
+  showVisibilityProfileSettings: boolean;
   showGroupTemplateLibrary: boolean;
   groupTemplateLibraryMode: "manage" | "insert";
   showDslPanel: boolean;
@@ -218,6 +219,7 @@ export type CadUiState = {
   setShowShortcutHelp: (showShortcutHelp: boolean) => void;
   setShowShortcutSettings: (showShortcutSettings: boolean) => void;
   setShowPaletteSettings: (showPaletteSettings: boolean) => void;
+  setShowVisibilityProfileSettings: (showVisibilityProfileSettings: boolean) => void;
   setShowGroupTemplateLibrary: (showGroupTemplateLibrary: boolean) => void;
   setGroupTemplateLibraryMode: (groupTemplateLibraryMode: "manage" | "insert") => void;
   setShowDslPanel: (showDslPanel: boolean) => void;
@@ -281,6 +283,7 @@ export const initialCadUiState = (): Omit<
   | "setShowShortcutHelp"
   | "setShowShortcutSettings"
   | "setShowPaletteSettings"
+  | "setShowVisibilityProfileSettings"
   | "setShowGroupTemplateLibrary"
   | "setGroupTemplateLibraryMode"
   | "setShowDslPanel"
@@ -334,6 +337,7 @@ export const initialCadUiState = (): Omit<
   showShortcutHelp: false,
   showShortcutSettings: false,
   showPaletteSettings: false,
+  showVisibilityProfileSettings: false,
   showGroupTemplateLibrary: false,
   groupTemplateLibraryMode: "manage",
   showDslPanel: false,
@@ -473,6 +477,8 @@ export const useCadUiStore = create<CadUiState>((set) => ({
   setShowShortcutHelp: (showShortcutHelp) => set({ showShortcutHelp }),
   setShowShortcutSettings: (showShortcutSettings) => set({ showShortcutSettings }),
   setShowPaletteSettings: (showPaletteSettings) => set({ showPaletteSettings }),
+  setShowVisibilityProfileSettings: (showVisibilityProfileSettings) =>
+    set({ showVisibilityProfileSettings }),
   setShowGroupTemplateLibrary: (showGroupTemplateLibrary) =>
     set({ showGroupTemplateLibrary }),
   setGroupTemplateLibraryMode: (groupTemplateLibraryMode) =>

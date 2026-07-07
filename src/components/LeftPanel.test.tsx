@@ -5,6 +5,7 @@ import { LeftPanel, RightPanel } from "./LeftPanel";
 import { PaletteSettingsDialog } from "./PalettePanel";
 import { SelectionColorPickerDialog } from "./SelectionColorPickerDialog";
 import { ShortcutHelpOverlay } from "./ShortcutHelpOverlay";
+import { VisibilityProfileSettingsDialog } from "./VisibilityProfilePanel";
 import { evaluateElements } from "../geometry/evaluate";
 import type { EvaluationEngineState } from "../geometry/useEvaluationEngine";
 import { defaultDocumentPalette } from "../palette/palette";
@@ -65,6 +66,7 @@ const resetStore = () => {
     commandErrorMessage: null,
     showShortcutHelp: false,
     showPaletteSettings: false,
+    showVisibilityProfileSettings: false,
     showSelectionColorPicker: false,
     showDslPanel: false,
     dslPanelSourceRequest: null,
@@ -1654,6 +1656,30 @@ describe("Palette and element color editing", () => {
 
     expect(screen.getByRole("dialog", { name: "パレット設定" })).toBeInTheDocument();
     expect(screen.getByLabelText("裁断線 の名前")).toBeInTheDocument();
+  });
+
+  it("keeps visibility profile editing out of the permanent left panel and opens it from the palette row", () => {
+    render(
+      <>
+        <LeftPanel
+          canvasFocusRef={createRef<HTMLDivElement>()}
+          commandContext={{}}
+          commandRibbonDockRef={createRef<HTMLDivElement>()}
+          evaluation={emptyEvaluation}
+          elementListFocusRef={createRef<HTMLDivElement>()}
+          elementSearchInputRef={createRef<HTMLInputElement>()}
+        />
+        <VisibilityProfileSettingsDialog />
+      </>
+    );
+
+    expect(screen.queryByRole("dialog", { name: "表示プロファイル" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "ロールを追加" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "表示プロファイルを開く" }));
+
+    expect(screen.getByRole("dialog", { name: "表示プロファイル" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "ロールを追加" })).toBeInTheDocument();
   });
 
   it("opens palette editing from the selected element color field", () => {

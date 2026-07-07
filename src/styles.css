@@ -146,11 +146,31 @@ textarea {
   gap: 10px;
 }
 
+.app-title-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .palette-open-button {
   min-height: 30px;
   padding: 5px 9px;
   font-size: 12px;
   white-space: nowrap;
+}
+
+.visibility-profile-open-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+}
+
+.visibility-profile-open-button svg {
+  width: 15px;
+  height: 15px;
 }
 
 .document-status {
@@ -1043,6 +1063,7 @@ textarea {
 }
 
 .palette-settings-backdrop,
+.visibility-profile-settings-backdrop,
 .selection-color-picker-backdrop,
 .template-library-backdrop,
 .image-import-backdrop {
@@ -1057,6 +1078,7 @@ textarea {
 }
 
 .palette-settings,
+.visibility-profile-settings,
 .selection-color-picker,
 .template-library-dialog,
 .image-import-dialog {
@@ -1077,6 +1099,10 @@ textarea {
   width: min(420px, 100%);
 }
 
+.visibility-profile-settings {
+  width: min(560px, 100%);
+}
+
 .image-import-dialog {
   grid-template-rows: auto minmax(0, 1fr);
   width: min(460px, 100%);
@@ -1087,11 +1113,17 @@ textarea {
 }
 
 .palette-settings-body,
+.visibility-profile-settings-body,
 .selection-color-picker-list,
 .image-import-form {
   min-height: 0;
   overflow: auto;
   padding: 14px 16px;
+}
+
+.visibility-profile-settings-body .visibility-profile-panel {
+  border-top: 0;
+  padding-top: 0;
 }
 
 .image-import-form,

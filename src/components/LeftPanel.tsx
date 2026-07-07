@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, KeyboardEvent, MouseEvent, PointerEvent, RefObject } from "react";
-import { ChevronsDown, Search, X } from "lucide-react";
+import { ChevronsDown, Eye, Search, X } from "lucide-react";
 import { dispatchCommand } from "../commands/commands";
 import type { CommandContext } from "../commands/commands";
 import { fileNameFromPath } from "../document/documentFormat";
@@ -41,7 +41,6 @@ import {
 } from "./ElementListContextMenu";
 import { ElementListRow } from "./ElementListRow";
 import { LeftPanelRibbonDock } from "./LeftPanelRibbonDock";
-import { VisibilityProfilePanel } from "./VisibilityProfilePanel";
 import { elementListNameTextClassName } from "./elementListName";
 import { isImeComposingKeyEvent } from "./keyboardEventGuards";
 import {
@@ -714,21 +713,30 @@ export const LeftPanel = ({
       <header className="app-title">
         <div className="app-title-row">
           <h1>nuinuiCAD</h1>
-          <button
-            type="button"
-            className="palette-open-button"
-            onClick={() => dispatchCommand("openPaletteSettings")}
-          >
-            パレット
-          </button>
+          <div className="app-title-actions">
+            <button
+              type="button"
+              className="palette-open-button"
+              onClick={() => dispatchCommand("openPaletteSettings")}
+            >
+              パレット
+            </button>
+            <button
+              type="button"
+              className="visibility-profile-open-button"
+              aria-label="表示プロファイルを開く"
+              title="表示プロファイル"
+              onClick={() => dispatchCommand("openVisibilityProfileSettings")}
+            >
+              <Eye aria-hidden="true" />
+            </button>
+          </div>
         </div>
         <p className="document-status" title={currentFilePath ?? "未保存"}>
           <span>{fileNameFromPath(currentFilePath)}</span>
           {dirtySinceSave ? <span className="document-dirty">未保存の変更</span> : null}
         </p>
       </header>
-
-      <VisibilityProfilePanel />
 
       <section className="panel-section element-list-section">
         <div className="section-header">

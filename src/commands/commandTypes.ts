@@ -132,6 +132,8 @@ export type CommandId =
   | "closeShortcutSettings"
   | "openPaletteSettings"
   | "closePaletteSettings"
+  | "openVisibilityProfileSettings"
+  | "closeVisibilityProfileSettings"
   | "openGroupTemplateLibrary"
   | "openGroupTemplateInsertion"
   | "closeGroupTemplateLibrary"

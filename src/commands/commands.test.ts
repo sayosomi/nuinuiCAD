@@ -50,6 +50,7 @@ describe("commands", () => {
       showShortcutHelp: true,
       showShortcutSettings: false,
       showPaletteSettings: false,
+      showVisibilityProfileSettings: false,
       showGroupTemplateLibrary: false,
       groupTemplateLibraryMode: "manage",
       showDslPanel: false,
@@ -1832,6 +1833,19 @@ describe("commands", () => {
 
     dispatchCommand("closePaletteSettings");
     expect(useCadStore.getState().showPaletteSettings).toBe(false);
+  });
+
+  it("opens and closes visibility profile settings", () => {
+    useCadStore.setState({ showCommandPalette: true });
+
+    dispatchCommand("openVisibilityProfileSettings");
+    expect(useCadStore.getState()).toMatchObject({
+      showVisibilityProfileSettings: true,
+      showCommandPalette: false
+    });
+
+    dispatchCommand("closeVisibilityProfileSettings");
+    expect(useCadStore.getState().showVisibilityProfileSettings).toBe(false);
   });
 
   it("opens and closes command ribbon settings", () => {
