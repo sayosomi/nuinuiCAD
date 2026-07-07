@@ -795,6 +795,89 @@ describe("LeftPanel numeric input dragging", () => {
     expect(screen.getByLabelText("変数式")).toHaveValue("直線AB.長さ + @基準寸法");
   });
 
+  it("inserts variable suggestions into text elements as brace expressions", () => {
+    const baseVariable: CadElement = {
+      id: "base-variable",
+      name: "基準寸法",
+      type: "variable",
+      visible: true,
+      enabled: true,
+      scope: "global",
+      valueMode: "expression",
+      expression: 20,
+      point1: { mode: "reference", pointId: "point-a" },
+      point2: { mode: "reference", pointId: "point-b" },
+      point: { mode: "reference", pointId: "point-a" },
+      lineId: "line-ab"
+    };
+    const text: CadElement = {
+      id: "text",
+      name: "注記",
+      type: "text",
+      visible: true,
+      enabled: true,
+      text: "",
+      anchor: { mode: "reference", pointId: "point-a" },
+      fontSize: 4
+    };
+    const elements = [...sampleElements, baseVariable, text];
+    useCadStore.setState({
+      elements,
+      evaluationLimitIndex: elements.length,
+      selectedElementId: "text",
+      selectedElementIds: ["text"],
+      selectedParameterKey: "text"
+    });
+    renderRightPanel(evaluateElements(elements));
+
+    const textarea = screen.getByLabelText("注記 のテキスト") as HTMLTextAreaElement;
+    fireEvent.change(textarea, { target: { value: "ゆとり @" } });
+    fireEvent.keyDown(textarea, { key: "Enter" });
+
+    expect(useCadStore.getState().elements.at(-1)).toMatchObject({
+      text: "ゆとり {@基準寸法}"
+    });
+  });
+
+  it("inserts reference helper candidates into text elements as brace expressions", () => {
+    const text: CadElement = {
+      id: "text",
+      name: "注記",
+      type: "text",
+      visible: true,
+      enabled: true,
+      text: "長さ ",
+      anchor: { mode: "reference", pointId: "point-a" },
+      fontSize: 4
+    };
+    const elements = [...sampleElements, text];
+    useCadStore.setState({
+      elements,
+      evaluationLimitIndex: elements.length,
+      selectedElementId: "text",
+      selectedElementIds: ["text"],
+      selectedParameterKey: "text"
+    });
+    renderRightPanel(evaluateElements(elements));
+
+    const textarea = screen.getByLabelText("注記 のテキスト") as HTMLTextAreaElement;
+    act(() => {
+      textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+      fireEvent.select(textarea);
+    });
+    const textField = textarea.closest(".parameter-field") as HTMLElement;
+    fireEvent.click(within(textField).getByText("参照を挿入"));
+    const lineLengthCandidate = screen
+      .getAllByRole("button", { name: /直線AB\.length/ })
+      .find((button) => !button.hasAttribute("disabled"));
+    expect(lineLengthCandidate).toBeDefined();
+    fireEvent.doubleClick(lineLengthCandidate!);
+
+    expect(useCadStore.getState().elements.at(-1)).toMatchObject({
+      text: "長さ {直線AB.length}"
+    });
+  });
+
   it("shows the reference helper without the elements tab and keeps normal element candidates searchable", () => {
     const variable: CadElement = {
       id: "variable",

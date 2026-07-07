@@ -76,9 +76,34 @@ const numericExpressionTarget = (context?: CommandContext) => {
 
   const key = context?.parameterKey ?? selectedParameterKey;
   const definition = findParameterDefinition(targetElement, key);
-  if (definition?.kind !== "number") return null;
+  if (definition?.kind !== "number" && !(targetElement.type === "text" && definition?.key === "text")) {
+    return null;
+  }
 
   return { elements, targetElement, definition };
+};
+
+const isTextExpressionInsertionPoint = (text: string, position: number) => {
+  const before = text.slice(0, position);
+  const lastOpen = before.lastIndexOf("{");
+  if (lastOpen < 0 || before.lastIndexOf("}") > lastOpen) return false;
+  const after = text.slice(position);
+  const nextClose = after.indexOf("}");
+  const nextOpen = after.indexOf("{");
+  return nextClose >= 0 && (nextOpen < 0 || nextClose < nextOpen);
+};
+
+const textExpressionSnippet = (
+  text: string,
+  snippet: string,
+  selectionStart?: number | null,
+  selectionEnd?: number | null
+) => {
+  const start = typeof selectionStart === "number" ? selectionStart : text.length;
+  const end = typeof selectionEnd === "number" ? selectionEnd : start;
+  const selectedText = text.slice(Math.min(start, end), Math.max(start, end)).trim();
+  if (selectedText.startsWith("{") && selectedText.endsWith("}")) return snippet;
+  return isTextExpressionInsertionPoint(text, Math.min(start, end)) ? snippet : `{${snippet}}`;
 };
 
 export const insertNumericExpressionSnippet = (context?: CommandContext) => {
@@ -100,6 +125,44 @@ export const insertNumericExpressionSnippet = (context?: CommandContext) => {
 
   const target = numericExpressionTarget(context);
   if (!target) return;
+
+  if (target.targetElement.type === "text" && target.definition.key === "text") {
+    const currentValue = getParameterValue(target.targetElement, target.definition.key);
+    const displayedText =
+      context?.displayedExpression ??
+      (typeof currentValue === "string" ? currentValue : target.targetElement.text);
+    const nextDisplayText = insertSnippetIntoExpression({
+      currentExpression: displayedText,
+      snippet: textExpressionSnippet(
+        displayedText,
+        snippet,
+        context?.selectionStart,
+        context?.selectionEnd
+      ),
+      selectionStart: context?.selectionStart,
+      selectionEnd: context?.selectionEnd,
+      appendMode: "raw"
+    });
+    useCadDocumentStore.getState().commitDocumentChange({
+      elements: target.elements.map((element) =>
+        element.id === target.targetElement.id
+          ? setParameterValue(element, target.definition.key, nextDisplayText)
+          : element
+      ),
+      selectedElementId: target.targetElement.id,
+      selectedElementIds: [target.targetElement.id],
+      selectionAnchorElementId: target.targetElement.id,
+      selectedParameterKey: target.definition.key
+    });
+    useCadUiStore.getState().setExpressionInsertInputTarget({
+      elementId: target.targetElement.id,
+      parameterKey: target.definition.key,
+      displayedExpression: nextDisplayText,
+      selectionStart: nextDisplayText.length,
+      selectionEnd: nextDisplayText.length
+    });
+    return;
+  }
 
   const currentValue = getParameterValue(target.targetElement, target.definition.key);
   const displayedExpression =
@@ -216,7 +279,11 @@ const measurementTargetFromContext = (context?: CommandContext) => {
   const displayedExpression =
     context?.displayedExpression ??
     activeMeasurementInsertTarget?.displayedExpression ??
-    (isNumericValue(currentValue) ? numericValueExpression(currentValue) : "");
+    (isNumericValue(currentValue)
+      ? numericValueExpression(currentValue)
+      : typeof currentValue === "string"
+        ? currentValue
+        : "");
 
   return {
     elementId: target.targetElement.id,
@@ -388,7 +455,11 @@ export const startNumericReferenceInsertPick = (context?: CommandContext) => {
   const currentValue = getParameterValue(target.targetElement, target.definition.key);
   const displayedExpression =
     context?.displayedExpression ??
-    (isNumericValue(currentValue) ? numericValueExpression(currentValue) : "");
+    (isNumericValue(currentValue)
+      ? numericValueExpression(currentValue)
+      : typeof currentValue === "string"
+        ? currentValue
+        : "");
 
   useCadUiStore.setState({
     activePointPickTarget: null,

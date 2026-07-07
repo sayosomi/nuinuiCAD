@@ -100,7 +100,7 @@ describe("evaluateElements", () => {
         type: "text",
         visible: true,
         enabled: true,
-        text: "前中心 @ゆとり / 直線AB.length",
+        text: "前中心 {@ゆとり} / {直線AB.length} / 裸 @ゆとり",
         anchor: { mode: "reference", pointId: "a" },
         fontSize: 4
       }
@@ -109,7 +109,7 @@ describe("evaluateElements", () => {
     expect(result.errors).toHaveLength(0);
     expect(result.computedGeometry.get("text")).toMatchObject({
       kind: "text",
-      text: "前中心 12 / 30.414",
+      text: "前中心 12 / 30.414 / 裸 @ゆとり",
       anchor: { x: 10, y: 20 },
       fontSize: 4
     });

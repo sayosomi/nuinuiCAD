@@ -214,7 +214,7 @@ fn evaluates_text_with_anchor_and_numeric_references() {
         "type": "text",
         "visible": true,
         "enabled": true,
-        "text": "前中心 @ゆとり / 直線AB.length",
+        "text": "前中心 {@ゆとり} / {直線AB.length} / 裸 @ゆとり",
         "anchor": { "mode": "reference", "pointId": "a" },
         "fontSize": 4
     })));
@@ -227,7 +227,7 @@ fn evaluates_text_with_anchor_and_numeric_references() {
     assert!(result.errors.is_empty());
     let text = point(&result, "text");
     assert_eq!(text["kind"], json!("text"));
-    assert_eq!(text["text"], json!("前中心 12 / 100"));
+    assert_eq!(text["text"], json!("前中心 12 / 100 / 裸 @ゆとり"));
     assert_eq!(text["anchor"]["x"], json!(0.0));
     assert_eq!(text["anchor"]["y"], json!(0.0));
     assert_eq!(text["fontSize"], json!(4.0));

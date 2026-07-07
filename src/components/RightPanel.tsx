@@ -72,6 +72,8 @@ export const RightPanel = ({
     ? currentInputTarget.displayedExpression
     : isNumericValue(expressionInsertValue)
       ? numericValueExpression(expressionInsertValue)
+      : typeof expressionInsertValue === "string"
+        ? expressionInsertValue
       : "";
   const shortcutHint = isParameterEditMode || isDependencyJumpMode
     ? "Esc で終了 / ? でショートカット"
@@ -116,18 +118,20 @@ export const RightPanel = ({
         </section>
       )}
 
-      {expressionInsertElement && activeExpressionInsertTarget && expressionInsertParameter?.kind === "number" ? (
+      {expressionInsertElement && activeExpressionInsertTarget && (
+        expressionInsertParameter?.kind === "number" ||
+        (expressionInsertElement.type === "text" && expressionInsertParameter?.key === "text")
+      ) ? (
         <ExpressionInsertTray
           element={expressionInsertElement}
           elements={elements}
           evaluation={evaluation}
           parameterKey={expressionInsertParameter.key}
           focusInput={() => {
-            document
-              .querySelector<HTMLInputElement>(
-                `input[data-numeric-element-id="${activeExpressionInsertTarget.elementId}"][data-numeric-parameter-key="${activeExpressionInsertTarget.parameterKey}"]`
-              )
-              ?.focus();
+            const selector = activeExpressionInsertTarget.parameterKey === "text"
+              ? `textarea[data-text-element-id="${activeExpressionInsertTarget.elementId}"][data-text-parameter-key="${activeExpressionInsertTarget.parameterKey}"]`
+              : `input[data-numeric-element-id="${activeExpressionInsertTarget.elementId}"][data-numeric-parameter-key="${activeExpressionInsertTarget.parameterKey}"]`;
+            document.querySelector<HTMLInputElement | HTMLTextAreaElement>(selector)?.focus();
           }}
           getInputTarget={() => ({
             displayedExpression,

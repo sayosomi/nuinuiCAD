@@ -13,7 +13,7 @@ import { derivedPointLabel, resolveDerivedPoint } from "../model/pointAnchors";
 import { getParameterValue } from "../parameters/parameterAccess";
 import { Parser, tokenize } from "./numericExpressionParser";
 import type { NumericExpressionMeasurementFunctionName } from "./numericExpressionParser";
-import { labelToProperty, propertyLabels } from "./numericExpressionProperties";
+import { propertyLabels } from "./numericExpressionProperties";
 import type {
   NumericExpressionError,
   NumericExpressionReference,
@@ -288,6 +288,11 @@ export const normalizeNumericExpressionInput = (
   }
 
   for (const element of namedElements) {
+    expression = expression.replace(
+      new RegExp(`(^|[^@])${escapeRegExp(element.name)}\\.`, "g"),
+      `$1${element.id}.`
+    );
+    expression = expression.replace(quotedNamePattern(element.name, "\\."), `${element.id}.`);
     expression = expression.replace(quotedNamePattern(element.name), element.id);
     expression = expression.replace(
       new RegExp(`(^|[(,]\\s*)${escapeRegExp(element.name)}(?=\\s*[,)])`, "g"),
@@ -661,21 +666,16 @@ export const resolveTextReferences = ({
   currentElement,
   elements
 }: ResolveTextReferencesArgs): { text?: string; error?: NumericExpressionError } => {
-  const normalizedText = normalizeNumericExpressionInput(
-    text,
-    elements ?? Array.from(elementsById.values()),
-    currentElement?.numericVariables ?? [],
-    currentElement
-  );
-  const tokenPattern =
-    /@([^\s()+*/.<>!=&|、。！？「」（）【】［］{}]+)/g;
-  const measurementPattern =
-    /([^\s()+*/<>!=&|、。！？「」（）【】［］{}]+)\.(length|長さ|startAngleDeg|始角度|endAngleDeg|終角度|startTangentAngleDeg|始点接線角度|endTangentAngleDeg|終点接線角度|startHandleAngleDeg|始点ハンドル角度|startHandleLength|始点ハンドル長|endHandleAngleDeg|終点ハンドル角度|endHandleLength|終点ハンドル長)\b/g;
-
   let firstError: NumericExpressionError | undefined;
   const evaluateInlineExpression = (expression: string) => {
+    const normalizedExpression = normalizeNumericExpressionInput(
+      expression,
+      elements ?? Array.from(elementsById.values()),
+      currentElement?.numericVariables ?? [],
+      currentElement
+    );
     const result = evaluateNumericValue({
-      value: { kind: "expression", expression },
+      value: { kind: "expression", expression: normalizedExpression },
       computedGeometry,
       elementsById,
       localVariables,
@@ -691,17 +691,10 @@ export const resolveTextReferences = ({
     return textNumber(result.value ?? 0);
   };
 
-  const sourceElements = elements ?? Array.from(elementsById.values());
-  const elementIdOrName = (value: string) =>
-    elementsById.has(value)
-      ? value
-      : sourceElements.find((element) => element.name === value)?.id ?? value;
-  const resolved = normalizedText
-    .replace(tokenPattern, (match) => evaluateInlineExpression(match))
-    .replace(measurementPattern, (_match, elementIdOrLabel: string, propertyLabel: string) => {
-      const property = labelToProperty.get(propertyLabel) ?? propertyLabel;
-      return evaluateInlineExpression(`${elementIdOrName(elementIdOrLabel)}.${property}`);
-    });
+  const resolved = text.replace(/\{([^{}]+)\}/g, (match, expression: string) => {
+    const value = evaluateInlineExpression(expression.trim());
+    return firstError ? match : value;
+  });
 
   if (firstError) return { error: firstError };
   return { text: resolved };
@@ -709,15 +702,12 @@ export const resolveTextReferences = ({
 
 export const extractTextReferences = (text: string): NumericExpressionReference[] => {
   const references: NumericExpressionReference[] = [];
-  const variablePattern = /@([^\s()+*/.<>!=&|、。！？「」（）【】［］{}]+)/g;
-  const measurementPattern =
-    /([^\s()+*/<>!=&|、。！？「」（）【】［］{}]+)\.(length|長さ|startAngleDeg|始角度|endAngleDeg|終角度|startTangentAngleDeg|始点接線角度|endTangentAngleDeg|終点接線角度|startHandleAngleDeg|始点ハンドル角度|startHandleLength|始点ハンドル長|endHandleAngleDeg|終点ハンドル角度|endHandleLength|終点ハンドル長)\b/g;
-  for (const match of text.matchAll(variablePattern)) {
-    references.push({ elementId: match[1] });
-  }
-  for (const match of text.matchAll(measurementPattern)) {
-    const property = labelToProperty.get(match[2]) ?? match[2];
-    references.push({ elementId: match[1], property: property as NumericMeasurementKey });
+  for (const match of text.matchAll(/\{([^{}]+)\}/g)) {
+    const expression = match[1].trim();
+    references.push(...extractNumericExpressionReferences({ kind: "expression", expression }));
+    for (const variableMatch of expression.matchAll(/@([^\s()+*/.<>!=&|、。！？「」（）【】［］{}]+)/g)) {
+      references.push({ elementId: variableMatch[1] });
+    }
   }
   return references;
 };

@@ -43,36 +43,82 @@ fn element_id_or_name(value: &str, state: &EvaluationState) -> String {
         .unwrap_or_else(|| value.to_owned())
 }
 
-fn is_text_delimiter(ch: char) -> bool {
+fn is_expression_delimiter(ch: char) -> bool {
     ch.is_whitespace()
         || matches!(
             ch,
-            '(' | ')'
-                | ','
-                | '+'
-                | '*'
-                | '/'
-                | '>'
-                | '<'
-                | '='
-                | '!'
-                | '&'
-                | '|'
-                | '、'
-                | '。'
-                | '！'
-                | '？'
-                | '「'
-                | '」'
-                | '（'
-                | '）'
-                | '【'
-                | '】'
-                | '［'
-                | '］'
-                | '{'
-                | '}'
+            '(' | ')' | ',' | '+' | '*' | '/' | '>' | '<' | '=' | '!' | '&' | '|'
         )
+}
+
+fn local_variable_id_for_display_name(display_name: &str, element: &Value) -> Option<String> {
+    let (element_name_part, variable_name) = display_name.split_once('.')?;
+    if element_name_part != element_name(element) {
+        return None;
+    }
+    element
+        .get("numericVariables")
+        .and_then(Value::as_array)?
+        .iter()
+        .find(|variable| variable.get("name").and_then(Value::as_str) == Some(variable_name))
+        .and_then(|variable| variable.get("id").and_then(Value::as_str))
+        .map(str::to_owned)
+}
+
+fn normalize_text_expression(expression: &str, element: &Value, state: &EvaluationState) -> String {
+    let chars = expression.chars().collect::<Vec<_>>();
+    let mut index = 0;
+    let mut output = String::new();
+
+    while index < chars.len() {
+        let ch = chars[index];
+        if ch == '@' {
+            output.push('@');
+            index += 1;
+            let start = index;
+            while index < chars.len() && !is_expression_delimiter(chars[index]) {
+                index += 1;
+            }
+            let name = chars[start..index].iter().collect::<String>();
+            output.push_str(&local_variable_id_for_display_name(&name, element).unwrap_or(name));
+            continue;
+        }
+
+        if !is_expression_delimiter(ch) {
+            let start = index;
+            while index < chars.len()
+                && !is_expression_delimiter(chars[index])
+                && chars[index] != '.'
+            {
+                index += 1;
+            }
+            if index < chars.len() && chars[index] == '.' {
+                let name = chars[start..index].iter().collect::<String>();
+                index += 1;
+                let property_start = index;
+                while index < chars.len()
+                    && !is_expression_delimiter(chars[index])
+                    && chars[index] != '.'
+                {
+                    index += 1;
+                }
+                let property = chars[property_start..index].iter().collect::<String>();
+                output.push_str(&format!(
+                    "{}.{}",
+                    element_id_or_name(&name, state),
+                    property_key(&property)
+                ));
+                continue;
+            }
+            output.push_str(&chars[start..index].iter().collect::<String>());
+            continue;
+        }
+
+        output.push(ch);
+        index += 1;
+    }
+
+    output
 }
 
 fn resolve_text(
@@ -87,13 +133,23 @@ fn resolve_text(
 
     while index < chars.len() {
         let ch = chars[index];
-        if ch == '@' {
-            let start = index;
+        if ch == '{' {
             index += 1;
-            while index < chars.len() && !is_text_delimiter(chars[index]) && chars[index] != '.' {
+            let expression_start = index;
+            while index < chars.len() && chars[index] != '}' {
                 index += 1;
             }
-            let expression = chars[start..index].iter().collect::<String>();
+            if index >= chars.len() {
+                output.push('{');
+                output.push_str(&chars[expression_start..index].iter().collect::<String>());
+                continue;
+            }
+            let expression = chars[expression_start..index]
+                .iter()
+                .collect::<String>()
+                .trim()
+                .to_owned();
+            let expression = normalize_text_expression(&expression, element, state);
             let value = json!({ "kind": "expression", "expression": expression });
             output.push_str(&text_number(evaluate_numeric_or_push(
                 &value,
@@ -102,39 +158,7 @@ fn resolve_text(
                 &local_variables.0,
                 &local_variables.1,
             )?));
-            continue;
-        }
-
-        if !is_text_delimiter(ch) {
-            let start = index;
-            while index < chars.len() && !is_text_delimiter(chars[index]) && chars[index] != '.' {
-                index += 1;
-            }
-            if index < chars.len() && chars[index] == '.' {
-                let name = chars[start..index].iter().collect::<String>();
-                index += 1;
-                let property_start = index;
-                while index < chars.len() && !is_text_delimiter(chars[index]) && chars[index] != '.'
-                {
-                    index += 1;
-                }
-                let property = chars[property_start..index].iter().collect::<String>();
-                let expression = format!(
-                    "{}.{}",
-                    element_id_or_name(&name, state),
-                    property_key(&property)
-                );
-                let value = json!({ "kind": "expression", "expression": expression });
-                output.push_str(&text_number(evaluate_numeric_or_push(
-                    &value,
-                    state,
-                    element,
-                    &local_variables.0,
-                    &local_variables.1,
-                )?));
-                continue;
-            }
-            output.push_str(&chars[start..index].iter().collect::<String>());
+            index += 1;
             continue;
         }
 

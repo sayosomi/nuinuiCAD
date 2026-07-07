@@ -194,7 +194,11 @@ export const ExpressionInsertTray = ({
       startMeasurementFunction(candidate);
       return;
     }
-    insertSnippet(candidate.expression);
+    insertSnippet(
+      element.type === "text" && parameterKey === "text"
+        ? candidate.displayExpression
+        : candidate.expression
+    );
   };
   const helperPosition = clampReferenceHelperPosition(
     referenceHelperPosition ?? DEFAULT_REFERENCE_HELPER_POSITION
