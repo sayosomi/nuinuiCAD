@@ -292,3 +292,57 @@ fn evaluates_intersection_index_numeric_variables_and_expressions() {
     assert_eq!(intersection["x"], json!(50.0));
     assert_eq!(intersection["y"], json!(50.0));
 }
+
+#[test]
+fn uses_offset_bezier_endpoint_tangents_for_extension_intersections() {
+    let horizontal = json!({
+        "kind": "offsetLine",
+        "elementId": "horizontal",
+        "name": "horizontal",
+        "baseLineIds": [],
+        "start": { "kind": "point", "elementId": "", "name": "", "x": -100.0, "y": 0.0 },
+        "end": { "kind": "point", "elementId": "", "name": "", "x": 0.0, "y": 0.0 },
+        "segments": [{
+            "kind": "bezier",
+            "start": { "kind": "point", "elementId": "", "name": "", "x": -100.0, "y": 0.0 },
+            "control1": { "x": -70.0, "y": 0.0 },
+            "control2": { "x": -30.0, "y": 0.0 },
+            "end": { "kind": "point", "elementId": "", "name": "", "x": 0.0, "y": 0.0 },
+            "length": 100.0
+        }],
+        "closed": false,
+        "length": 100.0,
+        "startTangentAngleDeg": null,
+        "endTangentAngleDeg": null
+    });
+    let vertical = json!({
+        "kind": "offsetLine",
+        "elementId": "vertical",
+        "name": "vertical",
+        "baseLineIds": [],
+        "start": { "kind": "point", "elementId": "", "name": "", "x": 10.0, "y": 10.0 },
+        "end": { "kind": "point", "elementId": "", "name": "", "x": 10.0, "y": 20.0 },
+        "segments": [{
+            "kind": "bezier",
+            "start": { "kind": "point", "elementId": "", "name": "", "x": 10.0, "y": 10.0 },
+            "control1": { "x": 10.0, "y": 13.0 },
+            "control2": { "x": 10.0, "y": 17.0 },
+            "end": { "kind": "point", "elementId": "", "name": "", "x": 10.0, "y": 20.0 },
+            "length": 10.0
+        }],
+        "closed": false,
+        "length": 10.0,
+        "startTangentAngleDeg": null,
+        "endTangentAngleDeg": null
+    });
+
+    let finite = line_intersections::find_line_intersections(&horizontal, &vertical, false)
+        .expect("expected finite result");
+    assert!(finite.intersections.is_empty());
+
+    let extended = line_intersections::find_line_intersections(&horizontal, &vertical, true)
+        .expect("expected extended result");
+    assert!(extended.error.is_none());
+    assert!((extended.intersections[0].x - 10.0).abs() < 1e-9);
+    assert!(extended.intersections[0].y.abs() < 1e-9);
+}

@@ -46,6 +46,13 @@ const degreesToRadians = (degrees: number) => (degrees * Math.PI) / 180;
 
 const distance = (a: Point, b: Point) => Math.hypot(b.x - a.x, b.y - a.y);
 
+const normalizeVector = (vector: Point) => {
+  const length = Math.hypot(vector.x, vector.y);
+  return length > EPSILON ? { x: vector.x / length, y: vector.y / length } : null;
+};
+
+const vectorBetween = (start: Point, end: Point) => ({ x: end.x - start.x, y: end.y - start.y });
+
 const cubicPointAt = (
   segment: { start: Point; control1: Point; control2: Point; end: Point },
   t: number
@@ -193,47 +200,100 @@ const pathSegmentsForLine = (geometry: LineLikeGeometry) => {
   return pointPathSegments(offsetPoints(geometry), false);
 };
 
+const bezierStartForward = (segment: { start: Point; control1: Point; control2: Point; end: Point }) =>
+  normalizeVector(vectorBetween(segment.start, segment.control1)) ??
+  normalizeVector(vectorBetween(segment.start, segment.control2)) ??
+  normalizeVector(vectorBetween(segment.start, segment.end));
+
+const bezierEndForward = (segment: { start: Point; control1: Point; control2: Point; end: Point }) =>
+  normalizeVector(vectorBetween(segment.control2, segment.end)) ??
+  normalizeVector(vectorBetween(segment.control1, segment.end)) ??
+  normalizeVector(vectorBetween(segment.start, segment.end));
+
+const arcForwardTangent = (angleDeg: number, sweepAngleDeg: number) => {
+  const angleRad = degreesToRadians(angleDeg);
+  const direction = sweepAngleDeg >= 0 ? 1 : -1;
+  return {
+    x: -Math.sin(angleRad) * direction,
+    y: Math.cos(angleRad) * direction
+  };
+};
+
+const offsetSegmentStartForward = (segment: ComputedOffsetLineSegment) => {
+  if (segment.kind === "line") return normalizeVector(vectorBetween(segment.start, segment.end));
+  if (segment.kind === "bezier") return bezierStartForward(segment);
+  return arcForwardTangent(segment.startAngleDeg, segment.sweepAngleDeg);
+};
+
+const offsetSegmentEndForward = (segment: ComputedOffsetLineSegment) => {
+  if (segment.kind === "line") return normalizeVector(vectorBetween(segment.start, segment.end));
+  if (segment.kind === "bezier") return bezierEndForward(segment);
+  return arcForwardTangent(segment.startAngleDeg + segment.sweepAngleDeg, segment.sweepAngleDeg);
+};
+
+const endpointTangents = (geometry: LineLikeGeometry) => {
+  if (geometry.kind === "line") {
+    const forward = normalizeVector(vectorBetween(geometry.start, geometry.end));
+    return forward ? { start: geometry.start, end: geometry.end, startForward: forward, endForward: forward } : null;
+  }
+  if (geometry.kind === "arcLine") {
+    return {
+      start: geometry.start,
+      end: geometry.end,
+      startForward: arcForwardTangent(geometry.startAngleDeg, geometry.sweepAngleDeg),
+      endForward: arcForwardTangent(geometry.startAngleDeg + geometry.sweepAngleDeg, geometry.sweepAngleDeg)
+    };
+  }
+  if (geometry.kind === "bezierCurve") {
+    const first = geometry.segments[0];
+    const last = geometry.segments.at(-1);
+    if (!first || !last) return null;
+    const startForward = bezierStartForward(first);
+    const endForward = bezierEndForward(last);
+    return startForward && endForward
+      ? { start: first.start, end: last.end, startForward, endForward }
+      : null;
+  }
+  if (geometry.closed) return null;
+  const first = geometry.segments[0];
+  const last = geometry.segments.at(-1);
+  if (!first || !last) return null;
+  const startForward = offsetSegmentStartForward(first);
+  const endForward = offsetSegmentEndForward(last);
+  return startForward && endForward
+    ? { start: first.start, end: last.end, startForward, endForward }
+    : null;
+};
+
 const extensionSegments = (
   segments: IntersectionSegment[],
   geometry: LineLikeGeometry
 ): IntersectionSegment[] => {
-  if (segments.length === 0 || (geometry.kind === "offsetLine" && geometry.closed)) return [];
+  const tangents = endpointTangents(geometry);
+  if (!tangents) return [];
 
-  const first = segments[0];
-  const last = segments.at(-1)!;
-  const firstLength = distance(first.start, first.end);
-  const lastLength = distance(last.start, last.end);
-  if (firstLength <= EPSILON || lastLength <= EPSILON) return [];
-
-  const startDirection = {
-    x: (first.start.x - first.end.x) / firstLength,
-    y: (first.start.y - first.end.y) / firstLength
-  };
-  const endDirection = {
-    x: (last.end.x - last.start.x) / lastLength,
-    y: (last.end.y - last.start.y) / lastLength
-  };
+  const totalDistance = segments.at(-1)?.endDistance ?? geometry.length;
 
   return [
     {
       start: {
-        x: first.start.x + startDirection.x * EXTENSION_LENGTH,
-        y: first.start.y + startDirection.y * EXTENSION_LENGTH
+        x: tangents.start.x - tangents.startForward.x * EXTENSION_LENGTH,
+        y: tangents.start.y - tangents.startForward.y * EXTENSION_LENGTH
       },
-      end: first.start,
+      end: tangents.start,
       startDistance: -EXTENSION_LENGTH,
       endDistance: 0,
       extension: true,
       primitive: { kind: "line", exact: true }
     },
     {
-      start: last.end,
+      start: tangents.end,
       end: {
-        x: last.end.x + endDirection.x * EXTENSION_LENGTH,
-        y: last.end.y + endDirection.y * EXTENSION_LENGTH
+        x: tangents.end.x + tangents.endForward.x * EXTENSION_LENGTH,
+        y: tangents.end.y + tangents.endForward.y * EXTENSION_LENGTH
       },
-      startDistance: last.endDistance,
-      endDistance: last.endDistance + EXTENSION_LENGTH,
+      startDistance: totalDistance,
+      endDistance: totalDistance + EXTENSION_LENGTH,
       extension: true,
       primitive: { kind: "line", exact: true }
     }

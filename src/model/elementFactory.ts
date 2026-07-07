@@ -225,7 +225,7 @@ export const createCadElement = (
         line1Id: lineLikeElements[0]?.id ?? "",
         line2Id: lineLikeElements[1]?.id ?? lineLikeElements[0]?.id ?? "",
         intersectionIndex: 0,
-        useExtensions: false
+        useExtensions: true
       };
     }
     case "lineTangentOffsetPoint": {

@@ -2381,7 +2381,7 @@ describe("commands", () => {
       line1Id: "line-ab",
       line2Id: "line-bc",
       intersectionIndex: 0,
-      useExtensions: false
+      useExtensions: true
     });
     expect(useCadStore.getState().selectedElementId).toBe(added?.id);
   });

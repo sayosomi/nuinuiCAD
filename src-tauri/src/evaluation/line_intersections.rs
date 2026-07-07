@@ -66,6 +66,21 @@ fn distance(start: Point, end: Point) -> f64 {
     (end.x - start.x).hypot(end.y - start.y)
 }
 
+fn vector_between(start: Point, end: Point) -> Point {
+    Point {
+        x: end.x - start.x,
+        y: end.y - start.y,
+    }
+}
+
+fn normalize_vector(vector: Point) -> Option<Point> {
+    let length = vector.x.hypot(vector.y);
+    (length > EPSILON).then_some(Point {
+        x: vector.x / length,
+        y: vector.y / length,
+    })
+}
+
 fn arc_point(center: Point, radius: f64, angle_deg: f64) -> Point {
     let angle_rad = angle_deg.to_radians();
     Point {
@@ -238,47 +253,177 @@ fn path_segments_for_line(geometry: &Value) -> Option<Vec<IntersectionSegment>> 
     }
 }
 
-fn extension_segments(segments: &[IntersectionSegment]) -> Vec<IntersectionSegment> {
-    let Some(first) = segments.first() else {
-        return Vec::new();
-    };
-    let Some(last) = segments.last() else {
-        return Vec::new();
-    };
-    let first_length = distance(first.start, first.end);
-    let last_length = distance(last.start, last.end);
-    if first_length <= EPSILON || last_length <= EPSILON {
-        return Vec::new();
-    }
+fn bezier_start_forward(segment: &Value) -> Option<Point> {
+    let start = segment.get("start").and_then(value_point)?;
+    let control1 = segment.get("control1").and_then(value_point)?;
+    let control2 = segment.get("control2").and_then(value_point)?;
+    let end = segment.get("end").and_then(value_point)?;
 
-    let start_direction = Point {
-        x: (first.start.x - first.end.x) / first_length,
-        y: (first.start.y - first.end.y) / first_length,
+    normalize_vector(vector_between(start, control1))
+        .or_else(|| normalize_vector(vector_between(start, control2)))
+        .or_else(|| normalize_vector(vector_between(start, end)))
+}
+
+fn bezier_end_forward(segment: &Value) -> Option<Point> {
+    let start = segment.get("start").and_then(value_point)?;
+    let control1 = segment.get("control1").and_then(value_point)?;
+    let control2 = segment.get("control2").and_then(value_point)?;
+    let end = segment.get("end").and_then(value_point)?;
+
+    normalize_vector(vector_between(control2, end))
+        .or_else(|| normalize_vector(vector_between(control1, end)))
+        .or_else(|| normalize_vector(vector_between(start, end)))
+}
+
+fn arc_forward_tangent(angle_deg: f64, sweep_angle_deg: f64) -> Point {
+    let angle_rad = angle_deg.to_radians();
+    let direction = if sweep_angle_deg >= 0.0 { 1.0 } else { -1.0 };
+    Point {
+        x: -angle_rad.sin() * direction,
+        y: angle_rad.cos() * direction,
+    }
+}
+
+fn offset_segment_start_forward(segment: &Value) -> Option<Point> {
+    match segment.get("kind")?.as_str()? {
+        "line" => {
+            let start = segment.get("start").and_then(value_point)?;
+            let end = segment.get("end").and_then(value_point)?;
+            normalize_vector(vector_between(start, end))
+        }
+        "bezier" => bezier_start_forward(segment),
+        "arc" => Some(arc_forward_tangent(
+            segment.get("startAngleDeg")?.as_f64()?,
+            segment.get("sweepAngleDeg")?.as_f64()?,
+        )),
+        _ => None,
+    }
+}
+
+fn offset_segment_end_forward(segment: &Value) -> Option<Point> {
+    match segment.get("kind")?.as_str()? {
+        "line" => {
+            let start = segment.get("start").and_then(value_point)?;
+            let end = segment.get("end").and_then(value_point)?;
+            normalize_vector(vector_between(start, end))
+        }
+        "bezier" => bezier_end_forward(segment),
+        "arc" => {
+            let start_angle_deg = segment.get("startAngleDeg")?.as_f64()?;
+            let sweep_angle_deg = segment.get("sweepAngleDeg")?.as_f64()?;
+            Some(arc_forward_tangent(
+                start_angle_deg + sweep_angle_deg,
+                sweep_angle_deg,
+            ))
+        }
+        _ => None,
+    }
+}
+
+struct EndpointTangents {
+    start: Point,
+    end: Point,
+    start_forward: Point,
+    end_forward: Point,
+}
+
+fn endpoint_tangents(geometry: &Value) -> Option<EndpointTangents> {
+    match geometry.get("kind")?.as_str()? {
+        "line" => {
+            let start = geometry.get("start").and_then(value_point)?;
+            let end = geometry.get("end").and_then(value_point)?;
+            let forward = normalize_vector(vector_between(start, end))?;
+            Some(EndpointTangents {
+                start,
+                end,
+                start_forward: forward,
+                end_forward: forward,
+            })
+        }
+        "arcLine" => {
+            let start = geometry.get("start").and_then(value_point)?;
+            let end = geometry.get("end").and_then(value_point)?;
+            let start_angle_deg = geometry.get("startAngleDeg")?.as_f64()?;
+            let sweep_angle_deg = geometry.get("sweepAngleDeg")?.as_f64()?;
+            Some(EndpointTangents {
+                start,
+                end,
+                start_forward: arc_forward_tangent(start_angle_deg, sweep_angle_deg),
+                end_forward: arc_forward_tangent(
+                    start_angle_deg + sweep_angle_deg,
+                    sweep_angle_deg,
+                ),
+            })
+        }
+        "bezierCurve" => {
+            let segments = geometry.get("segments")?.as_array()?;
+            let first = segments.first()?;
+            let last = segments.last()?;
+            Some(EndpointTangents {
+                start: first.get("start").and_then(value_point)?,
+                end: last.get("end").and_then(value_point)?,
+                start_forward: bezier_start_forward(first)?,
+                end_forward: bezier_end_forward(last)?,
+            })
+        }
+        "offsetLine" => {
+            if geometry
+                .get("closed")
+                .and_then(Value::as_bool)
+                .unwrap_or(false)
+            {
+                return None;
+            }
+            let segments = geometry.get("segments")?.as_array()?;
+            let first = segments.first()?;
+            let last = segments.last()?;
+            Some(EndpointTangents {
+                start: first.get("start").and_then(value_point)?,
+                end: last.get("end").and_then(value_point)?,
+                start_forward: offset_segment_start_forward(first)?,
+                end_forward: offset_segment_end_forward(last)?,
+            })
+        }
+        _ => None,
+    }
+}
+
+fn extension_segments(
+    segments: &[IntersectionSegment],
+    geometry: &Value,
+) -> Vec<IntersectionSegment> {
+    let Some(tangents) = endpoint_tangents(geometry) else {
+        return Vec::new();
     };
-    let end_direction = Point {
-        x: (last.end.x - last.start.x) / last_length,
-        y: (last.end.y - last.start.y) / last_length,
-    };
+    let total_distance = segments
+        .last()
+        .map(|segment| segment.end_distance)
+        .unwrap_or_else(|| {
+            geometry
+                .get("length")
+                .and_then(Value::as_f64)
+                .unwrap_or(0.0)
+        });
 
     vec![
         IntersectionSegment {
             start: Point {
-                x: first.start.x + start_direction.x * EXTENSION_LENGTH,
-                y: first.start.y + start_direction.y * EXTENSION_LENGTH,
+                x: tangents.start.x - tangents.start_forward.x * EXTENSION_LENGTH,
+                y: tangents.start.y - tangents.start_forward.y * EXTENSION_LENGTH,
             },
-            end: first.start,
+            end: tangents.start,
             start_distance: -EXTENSION_LENGTH,
             end_distance: 0.0,
             primitive: SegmentPrimitive::Line { exact: true },
         },
         IntersectionSegment {
-            start: last.end,
+            start: tangents.end,
             end: Point {
-                x: last.end.x + end_direction.x * EXTENSION_LENGTH,
-                y: last.end.y + end_direction.y * EXTENSION_LENGTH,
+                x: tangents.end.x + tangents.end_forward.x * EXTENSION_LENGTH,
+                y: tangents.end.y + tangents.end_forward.y * EXTENSION_LENGTH,
             },
-            start_distance: last.end_distance,
-            end_distance: last.end_distance + EXTENSION_LENGTH,
+            start_distance: total_distance,
+            end_distance: total_distance + EXTENSION_LENGTH,
             primitive: SegmentPrimitive::Line { exact: true },
         },
     ]
@@ -490,8 +635,8 @@ pub(crate) fn find_line_intersections(
     let mut segments1 = base_segments1.clone();
     let mut segments2 = base_segments2.clone();
     if use_extensions {
-        segments1.extend(extension_segments(&base_segments1));
-        segments2.extend(extension_segments(&base_segments2));
+        segments1.extend(extension_segments(&base_segments1, line1));
+        segments2.extend(extension_segments(&base_segments2, line2));
     }
 
     let mut intersections = Vec::<LineIntersection>::new();

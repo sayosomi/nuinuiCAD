@@ -137,7 +137,7 @@ describe("createCadElement", () => {
       line1Id: "line-ab",
       line2Id: "line-bc",
       intersectionIndex: 0,
-      useExtensions: false
+      useExtensions: true
     });
   });
 
