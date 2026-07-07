@@ -6,11 +6,10 @@ import type {
   PointAnchor
 } from "../types/geometry";
 import type { SerializeDslOptions } from "./dslTypes";
-
-const quote = (value: string) =>
-  `"${value.replace(/\\/g, "\\\\").replace(/"/g, "\\\"")}"`;
+import { formatDslName, quoteDslString } from "./dslTokens";
 
 const numeric = (value: NumericValue) => numericValueExpression(value);
+const elementName = (element: CadElement) => formatDslName(element.name || element.id);
 
 const anchor = (value: PointAnchor | null | undefined) => {
   if (!value) return "none";
@@ -52,7 +51,7 @@ const baseAttrs = (element: CadElement, options: SerializeDslOptions) => [
 const elementLine = (element: CadElement, options: SerializeDslOptions, attrs: string[] = []) =>
   [
     "element",
-    element.name || element.id,
+    elementName(element),
     `type=${element.type}`,
     ...baseAttrs(element, options),
     ...attrs
@@ -67,15 +66,15 @@ export const serializeElementsToDsl = (
   const attrs = baseAttrs(element, options);
   switch (element.type) {
     case "group":
-      return ["group", element.name || element.id, ...attrs, `expanded=${element.expanded}`].join(" ");
+      return ["group", elementName(element), ...attrs, `expanded=${element.expanded}`].join(" ");
     case "variable":
-      return ["var", element.name || element.id, "=", numeric(element.expression), ...attrs].join(" ");
+      return ["var", elementName(element), "=", numeric(element.expression), ...attrs].join(" ");
     case "freePoint":
-      return ["point", element.name || element.id, "=", `(${numeric(element.x)}, ${numeric(element.y)})`, ...attrs].join(" ");
+      return ["point", elementName(element), "=", `(${numeric(element.x)}, ${numeric(element.y)})`, ...attrs].join(" ");
     case "offsetPoint":
       return [
         "point",
-        element.name || element.id,
+        elementName(element),
         "=",
         "offset",
         anchor(element.fromPoint),
@@ -86,7 +85,7 @@ export const serializeElementsToDsl = (
     case "polarOffsetPoint":
       return [
         "point",
-        element.name || element.id,
+        elementName(element),
         "=",
         "polar",
         anchor(element.fromPoint),
@@ -95,11 +94,11 @@ export const serializeElementsToDsl = (
         ...attrs
       ].join(" ");
     case "line":
-      return ["line", element.name || element.id, "=", anchor(element.startPoint), "->", anchor(element.endPoint), ...attrs].join(" ");
+      return ["line", elementName(element), "=", anchor(element.startPoint), "->", anchor(element.endPoint), ...attrs].join(" ");
     case "angleLengthLine":
       return [
         "line",
-        element.name || element.id,
+        elementName(element),
         "=",
         "from",
         anchor(element.startPoint),
@@ -110,7 +109,7 @@ export const serializeElementsToDsl = (
     case "arcLine":
       return [
         "arc",
-        element.name || element.id,
+        elementName(element),
         `center=${anchor(element.centerPoint)}`,
         `radius=${numeric(element.radius)}`,
         `start=${numeric(element.startAngleDeg)}`,
@@ -120,9 +119,9 @@ export const serializeElementsToDsl = (
     case "text":
       return [
         "text",
-        element.name || element.id,
+        elementName(element),
         "=",
-        quote(element.text),
+        quoteDslString(element.text),
         `at=${anchor(element.anchor)}`,
         `size=${numeric(element.fontSize)}`,
         ...attrs
@@ -130,7 +129,7 @@ export const serializeElementsToDsl = (
     case "divisionPoint":
       return [
         "point",
-        element.name || element.id,
+        elementName(element),
         "=",
         "between",
         anchor(element.startPoint),
@@ -143,7 +142,7 @@ export const serializeElementsToDsl = (
     case "lineDivisionPoint":
       return [
         "point",
-        element.name || element.id,
+        elementName(element),
         "=",
         "on",
         endpoint(element.endpoint),
@@ -155,7 +154,7 @@ export const serializeElementsToDsl = (
     case "intersectionPoint":
       return [
         "point",
-        element.name || element.id,
+        elementName(element),
         "=",
         "intersection",
         element.line1Id,
@@ -167,7 +166,7 @@ export const serializeElementsToDsl = (
     case "lineTangentOffsetPoint":
       return [
         "point",
-        element.name || element.id,
+        elementName(element),
         "=",
         "tangentOffset",
         element.baseLineId,
@@ -179,7 +178,7 @@ export const serializeElementsToDsl = (
     case "cornerRadiusArcLine":
       return [
         "arc",
-        element.name || element.id,
+        elementName(element),
         "=",
         "corner",
         endpoint(element.endpoint1),
@@ -197,7 +196,7 @@ export const serializeElementsToDsl = (
     case "extendTrim":
       return [
         "line",
-        element.name || element.id,
+        elementName(element),
         "=",
         "extend",
         endpoint(element.endpoint),
@@ -207,7 +206,7 @@ export const serializeElementsToDsl = (
     case "bezierCurve":
       return [
         "curve",
-        element.name || element.id,
+        elementName(element),
         "=",
         anchor(element.startPoint),
         "->",
@@ -222,7 +221,7 @@ export const serializeElementsToDsl = (
     case "offsetLine":
       return [
         "line",
-        element.name || element.id,
+        elementName(element),
         "=",
         "offset",
         `[${element.baseLineIds.join(",")}]`,
@@ -234,7 +233,7 @@ export const serializeElementsToDsl = (
     case "splitLine":
       return [
         "line",
-        element.name || element.id,
+        elementName(element),
         "=",
         "split",
         element.baseLineId,
@@ -261,7 +260,7 @@ export const serializeElementsToDsl = (
     case "threePointArcLine":
       return [
         "arc",
-        element.name || element.id,
+        elementName(element),
         "=",
         "through",
         anchor(element.point1),
@@ -288,7 +287,7 @@ export const serializeElementsToDsl = (
       ]);
     case "image":
       return elementLine(element, options, [
-        `sourcePath=${quote(element.sourcePath)}`,
+        `sourcePath=${quoteDslString(element.sourcePath)}`,
         `originPoint=${anchor(element.originPoint)}`,
         `scale=${numeric(element.scale)}`,
         `angleDeg=${numeric(element.angleDeg)}`,
@@ -305,7 +304,7 @@ const visibilitySettingsDsl = (options: SerializeDslOptions) => {
   const lines: string[] = [];
 
   for (const role of roles) {
-    lines.push(["role", role.id, `name=${quote(role.name)}`].join(" "));
+    lines.push(["role", formatDslName(role.id), `name=${quoteDslString(role.name)}`].join(" "));
   }
   for (const profile of profiles) {
     const roleAttrs = roles.map((role) =>
@@ -313,21 +312,21 @@ const visibilitySettingsDsl = (options: SerializeDslOptions) => {
     );
     lines.push([
       "view",
-      profile.name || profile.id,
-      ...(profile.id === profile.name ? [] : [`id=${profile.id}`]),
+      formatDslName(profile.name || profile.id),
+      ...(profile.id === profile.name ? [] : [`id=${formatDslName(profile.id)}`]),
       `default=${profile.defaultRoleVisible}`,
       ...roleAttrs
     ].join(" "));
   }
   if (options.activeVisibilityProfileId) {
-    lines.push(["activeView", options.activeVisibilityProfileId].join(" "));
+    lines.push(["activeView", formatDslName(options.activeVisibilityProfileId)].join(" "));
   }
   for (const layout of printLayouts) {
     if (!layout.visibilityProfileId) continue;
     lines.push([
       "printLayout",
-      layout.name.trim() || layout.id,
-      `id=${layout.id}`,
+      formatDslName(layout.name.trim() || layout.id),
+      `id=${formatDslName(layout.id)}`,
       `output=${layout.outputKind}`,
       `visibilityView=${layout.visibilityProfileId}`
     ].join(" "));

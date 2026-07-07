@@ -7,6 +7,7 @@ import type {
   PointAnchor
 } from "../types/geometry";
 import type { DslDiagnostic } from "./dslTypes";
+import { lastIndexOfDslOutsideQuotes, unquoteDslString } from "./dslTokens";
 
 export type NameIndex = {
   elementsById: Map<ElementId, CadElement>;
@@ -38,15 +39,16 @@ export const resolveId = (
   line: number,
   diagnostics: DslDiagnostic[]
 ) => {
-  if (index.elementsById.has(token)) return token;
-  const ids = index.idsByName.get(token) ?? [];
+  const resolvedToken = unquoteDslString(token);
+  if (index.elementsById.has(resolvedToken)) return resolvedToken;
+  const ids = index.idsByName.get(resolvedToken) ?? [];
   if (ids.length === 1) return ids[0];
   if (ids.length > 1) {
-    diagnostics.push(diagnostic(line, `参照名が曖昧です: ${token}`));
-    return token;
+    diagnostics.push(diagnostic(line, `参照名が曖昧です: ${resolvedToken}`));
+    return resolvedToken;
   }
-  diagnostics.push(diagnostic(line, `参照先が見つかりません: ${token}`));
-  return token;
+  diagnostics.push(diagnostic(line, `参照先が見つかりません: ${resolvedToken}`));
+  return resolvedToken;
 };
 
 const coordinateAnchor = (value: string, numeric: (source: string) => NumericValue): PointAnchor | null => {
@@ -63,7 +65,7 @@ export const resolveAnchor = (
 ): PointAnchor => {
   const coordinate = coordinateAnchor(value, numeric);
   if (coordinate) return coordinate;
-  const dotIndex = value.lastIndexOf(".");
+  const dotIndex = lastIndexOfDslOutsideQuotes(value, ".");
   if (dotIndex > 0) {
     const elementId = resolveId(value.slice(0, dotIndex), index, line, diagnostics);
     return derivedAnchor(elementId, value.slice(dotIndex + 1));
@@ -77,7 +79,7 @@ export const resolveEndpoint = (
   line: number,
   diagnostics: DslDiagnostic[]
 ): LineEndpointReference => {
-  const dotIndex = value.lastIndexOf(".");
+  const dotIndex = lastIndexOfDslOutsideQuotes(value, ".");
   const lineName = dotIndex > 0 ? value.slice(0, dotIndex) : value;
   const endpointKey = dotIndex > 0 && value.slice(dotIndex + 1) === "end" ? "end" : "start";
   return {

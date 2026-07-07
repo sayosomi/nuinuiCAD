@@ -187,6 +187,8 @@ export const formatNumericExpressionForDisplay = (
 };
 
 const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const quotedNamePattern = (name: string, suffix = "(?=$|[\\s()+*/<>=!&|,-])") =>
+  new RegExp(`(["'])${escapeRegExp(name)}\\1${suffix}`, "g");
 
 export const normalizeNumericExpressionInput = (
   input: string,
@@ -278,10 +280,15 @@ export const normalizeNumericExpressionInput = (
         new RegExp(`${escapeRegExp(element.name)}\\.${escapeRegExp(label)}(?=$|[\\s()+*/<>=!&|-])`, "g"),
         `${element.id}.${property}`
       );
+      expression = expression.replace(
+        quotedNamePattern(element.name, `\\.${escapeRegExp(label)}(?=$|[\\s()+*/<>=!&|-])`),
+        `${element.id}.${property}`
+      );
     }
   }
 
   for (const element of namedElements) {
+    expression = expression.replace(quotedNamePattern(element.name), element.id);
     expression = expression.replace(
       new RegExp(`(^|[(,]\\s*)${escapeRegExp(element.name)}(?=\\s*[,)])`, "g"),
       `$1${element.id}`

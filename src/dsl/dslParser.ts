@@ -1,5 +1,6 @@
 import type { CadElementType } from "../types/geometry";
 import type { DslAttribute, DslDiagnostic, DslStatement, ParseDslResult } from "./dslTypes";
+import { unquoteDslString } from "./dslTokens";
 
 const elementTypes = new Set<CadElementType>([
   "group",
@@ -43,17 +44,6 @@ const stripComment = (line: string) => {
   return line;
 };
 
-const unquote = (value: string) => {
-  const trimmed = value.trim();
-  if (
-    (trimmed.startsWith("\"") && trimmed.endsWith("\"")) ||
-    (trimmed.startsWith("'") && trimmed.endsWith("'"))
-  ) {
-    return trimmed.slice(1, -1).replace(/\\"/g, "\"").replace(/\\'/g, "'");
-  }
-  return trimmed;
-};
-
 const splitTerms = (line: string) => {
   const terms: string[] = [];
   let current = "";
@@ -85,7 +75,7 @@ const attrsFromTerms = (terms: string[]) =>
     if (equalsIndex <= 0) return [];
     return [{
       key: term.slice(0, equalsIndex).trim(),
-      value: unquote(term.slice(equalsIndex + 1))
+      value: unquoteDslString(term.slice(equalsIndex + 1))
     }];
   });
 
@@ -140,8 +130,9 @@ const parseLine = (rawLine: string, line: number): { statement?: DslStatement; d
   const raw = stripComment(rawLine).trim();
   if (!raw) return { diagnostics: [] };
   const terms = splitTerms(raw);
-  const [keyword, name] = terms;
-  if (!keyword || !name) return { diagnostics: [diagnostic(line, "文はキーワードと名前から始めてください。")] };
+  const [keyword, rawName] = terms;
+  if (!keyword || !rawName) return { diagnostics: [diagnostic(line, "文はキーワードと名前から始めてください。")] };
+  const name = unquoteDslString(rawName);
 
   if (keyword === "var") {
     const parsedExpression = expressionAndAttrs(expressionAfterEquals(raw));
@@ -334,7 +325,7 @@ const parseLine = (rawLine: string, line: number): { statement?: DslStatement; d
     if (!textMatch) return { diagnostics: [diagnostic(line, "テキストは `text label = \"文字\" at 点` で指定してください。")] };
     const rest = splitTerms(afterEquals.slice(textMatch[0].length).trim());
     return {
-      statement: { kind: "text", line, name, text: unquote(textMatch[0]), attrs: attrsFromTerms(rest) },
+      statement: { kind: "text", line, name, text: unquoteDslString(textMatch[0]), attrs: attrsFromTerms(rest) },
       diagnostics: []
     };
   }

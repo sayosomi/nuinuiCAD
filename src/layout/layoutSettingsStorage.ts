@@ -1,8 +1,12 @@
 import { invoke } from "@tauri-apps/api/core";
 import { isTauriRuntime } from "../geometry/evaluationEngine";
 import {
+  DEFAULT_DSL_PANEL_HEIGHT,
+  DEFAULT_DSL_PANEL_WIDTH,
   DEFAULT_DSL_PANEL_WINDOW,
   DEFAULT_PRINT_PREVIEW_WINDOW,
+  MIN_DSL_PANEL_HEIGHT,
+  MIN_DSL_PANEL_WIDTH,
   MIN_PRINT_PREVIEW_HEIGHT,
   MIN_PRINT_PREVIEW_WIDTH,
   clampPrintPreviewZoom
@@ -57,7 +61,15 @@ const normalizeDslPanelWindowSettings = (value: unknown): DslPanelWindow | null 
   if (!isObject(value)) return DEFAULT_DSL_PANEL_WINDOW;
   return {
     x: Math.round(finiteNumber(value.x, 20)),
-    y: Math.round(finiteNumber(value.y, 68))
+    y: Math.round(finiteNumber(value.y, 68)),
+    width: Math.max(
+      Math.round(finiteNumber(value.width, DEFAULT_DSL_PANEL_WIDTH)),
+      MIN_DSL_PANEL_WIDTH
+    ),
+    height: Math.max(
+      Math.round(finiteNumber(value.height, DEFAULT_DSL_PANEL_HEIGHT)),
+      MIN_DSL_PANEL_HEIGHT
+    )
   };
 };
 

@@ -1,4 +1,4 @@
-import { Check, FileInput, Play, X } from "lucide-react";
+import { Check, FileInput, Play, Type, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, KeyboardEvent, PointerEvent } from "react";
 import { dispatchCommand } from "../commands/commands";
@@ -9,6 +9,7 @@ import {
   dslExportAnnotationComment,
   type DslExportSelection
 } from "../dsl/dslDependencyClosure";
+import { findDslNameSelection } from "../dsl/dslNameSelection";
 import { serializeElementsToDsl } from "../dsl/dslSerializer";
 import type { DslDiagnostic } from "../dsl/dslTypes";
 import { keyboardCommandForEvent } from "../keyboard/shortcuts";
@@ -17,6 +18,12 @@ import { adjustEvaluationLimitForInsertion } from "../model/evaluationDivider";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
 import type { DslPanelWindow } from "../state/cadUiStore";
+import {
+  DEFAULT_DSL_PANEL_HEIGHT,
+  DEFAULT_DSL_PANEL_WIDTH,
+  MIN_DSL_PANEL_HEIGHT,
+  MIN_DSL_PANEL_WIDTH
+} from "../state/cadUiStore";
 import type { EvaluationResult } from "../types/geometry";
 import { DslEditor } from "./DslEditor";
 
@@ -41,18 +48,27 @@ const dslPanelCommandIds = new Set<CommandId>([
 ]);
 
 const isInteractiveHeaderTarget = (target: EventTarget | null) =>
-  target instanceof HTMLElement && Boolean(target.closest(INTERACTIVE_HEADER_SELECTOR));
+  target instanceof Element && Boolean(target.closest(INTERACTIVE_HEADER_SELECTOR));
 
 const clampedDslPanelWindow = (
   panelWindow: DslPanelWindow,
-  panelSize: { width: number; height: number },
   viewportSize: { width: number; height: number }
 ): DslPanelWindow => {
-  const maxX = Math.max(viewportSize.width - panelSize.width - PANEL_VIEWPORT_MARGIN, PANEL_VIEWPORT_MARGIN);
-  const maxY = Math.max(viewportSize.height - panelSize.height - PANEL_VIEWPORT_MARGIN, PANEL_VIEWPORT_MARGIN);
+  const width = Math.min(
+    Math.max(Math.round(panelWindow.width), MIN_DSL_PANEL_WIDTH),
+    Math.max(viewportSize.width - PANEL_VIEWPORT_MARGIN * 2, MIN_DSL_PANEL_WIDTH)
+  );
+  const height = Math.min(
+    Math.max(Math.round(panelWindow.height), MIN_DSL_PANEL_HEIGHT),
+    Math.max(viewportSize.height - PANEL_VIEWPORT_MARGIN * 2, MIN_DSL_PANEL_HEIGHT)
+  );
+  const maxX = Math.max(viewportSize.width - width - PANEL_VIEWPORT_MARGIN, PANEL_VIEWPORT_MARGIN);
+  const maxY = Math.max(viewportSize.height - height - PANEL_VIEWPORT_MARGIN, PANEL_VIEWPORT_MARGIN);
   return {
     x: Math.min(Math.max(panelWindow.x, PANEL_VIEWPORT_MARGIN), maxX),
-    y: Math.min(Math.max(panelWindow.y, PANEL_VIEWPORT_MARGIN), maxY)
+    y: Math.min(Math.max(panelWindow.y, PANEL_VIEWPORT_MARGIN), maxY),
+    width,
+    height
   };
 };
 
@@ -64,13 +80,21 @@ const saveDslPanelWindowSettings = (dslPanelWindow: DslPanelWindow | null) => {
     });
 };
 
-type DslPanelDrag = {
-  pointerId: number;
-  startX: number;
-  startY: number;
-  panelWindow: DslPanelWindow;
-  panelSize: { width: number; height: number };
-};
+type DslPanelDrag =
+  | {
+      kind: "move";
+      pointerId: number;
+      startX: number;
+      startY: number;
+      panelWindow: DslPanelWindow;
+    }
+  | {
+      kind: "resize";
+      pointerId: number;
+      startX: number;
+      startY: number;
+      panelWindow: DslPanelWindow;
+    };
 
 type DslPanelProps = {
   commandContext?: CommandContext;
@@ -185,6 +209,31 @@ export const DslPanel = ({ commandContext, evaluation }: DslPanelProps) => {
     restoreFocus();
   }, [restoreFocus]);
 
+  const selectDslName = useCallback((
+    direction: "currentOrNext" | "previous" = "currentOrNext",
+    sourceOverride?: string,
+    cursorOverride?: number
+  ) => {
+    const editor = editorRef.current;
+    if (!editor) return false;
+    const selectionCursor = direction === "previous"
+      ? editor.selectionStart
+      : editor.selectionStart !== editor.selectionEnd
+        ? editor.selectionEnd + 1
+        : editor.selectionStart;
+    const selection = findDslNameSelection(
+      sourceOverride ?? editor.value,
+      cursorOverride ?? selectionCursor,
+      direction
+    );
+    if (!selection) return false;
+    requestAnimationFrame(() => {
+      editor.focus();
+      editor.setSelectionRange(selection.start, selection.end);
+    });
+    return true;
+  }, []);
+
   const validate = useCallback(() => {
     setSourceState({ source, requestId: activeRequestId });
     const result = compileDslToElements(source, {
@@ -251,17 +300,19 @@ export const DslPanel = ({ commandContext, evaluation }: DslPanelProps) => {
 
   const exportSelection = useCallback(() => {
     if (selectedElements.length === 0) {
+      const nextSource = serializeElementsToDsl(elements, {
+        visibilityRoles,
+        visibilityProfiles,
+        activeVisibilityProfileId,
+        printLayouts
+      });
       setSourceState({
-        source: serializeElementsToDsl(elements, {
-          visibilityRoles,
-          visibilityProfiles,
-          activeVisibilityProfileId,
-          printLayouts
-        }),
+        source: nextSource,
         requestId: activeRequestId
       });
       setDiagnostics([]);
       setStatus("全要素をDSLへ書き出しました。");
+      selectDslName("currentOrNext", nextSource, 0);
       return;
     }
     const selection = createDslExportSelection({
@@ -269,12 +320,14 @@ export const DslPanel = ({ commandContext, evaluation }: DslPanelProps) => {
       selectedElementIds,
       evaluation
     });
+    const nextSource = serializeExportSelectionToDsl(selection);
     setSourceState({
-      source: serializeExportSelectionToDsl(selection),
+      source: nextSource,
       requestId: activeRequestId
     });
     setDiagnostics([]);
     setStatus(exportStatus(selection));
+    selectDslName("currentOrNext", nextSource, 0);
   }, [
     activeRequestId,
     activeVisibilityProfileId,
@@ -283,6 +336,7 @@ export const DslPanel = ({ commandContext, evaluation }: DslPanelProps) => {
     printLayouts,
     selectedElementIds,
     selectedElements,
+    selectDslName,
     visibilityProfiles,
     visibilityRoles
   ]);
@@ -307,9 +361,20 @@ export const DslPanel = ({ commandContext, evaluation }: DslPanelProps) => {
     requestAnimationFrame(() => editorRef.current?.focus());
   }, [showDslPanel]);
 
+  useEffect(() => {
+    if (!hasPendingSourceRequest) return;
+    selectDslName("currentOrNext", source, 0);
+  }, [hasPendingSourceRequest, selectDslName, source]);
+
   if (!showDslPanel) return null;
 
   const handleKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+    if (event.key === "F2") {
+      event.preventDefault();
+      event.stopPropagation();
+      selectDslName(event.shiftKey ? "previous" : "currentOrNext");
+      return;
+    }
     const keyboardCommand = keyboardCommandForEvent(event.nativeEvent, {
       settings: shortcutSettings,
       isDslPanelMode: true,
@@ -331,36 +396,76 @@ export const DslPanel = ({ commandContext, evaluation }: DslPanelProps) => {
     if (!rect) return;
     event.preventDefault();
     event.currentTarget.setPointerCapture?.(event.pointerId);
-    const panelWindow = dslPanelWindow ?? { x: rect.left, y: rect.top };
+    const panelWindow = dslPanelWindow ?? {
+      x: rect.left,
+      y: rect.top,
+      width: rect.width || DEFAULT_DSL_PANEL_WIDTH,
+      height: rect.height || DEFAULT_DSL_PANEL_HEIGHT
+    };
     setDrag({
+      kind: "move",
       pointerId: event.pointerId,
       startX: event.clientX,
       startY: event.clientY,
-      panelWindow,
-      panelSize: { width: rect.width, height: rect.height }
+      panelWindow
     });
-    setDslPanelWindow(clampedDslPanelWindow(panelWindow, rect, {
+    setDslPanelWindow(clampedDslPanelWindow(panelWindow, {
       width: window.innerWidth,
       height: window.innerHeight
     }));
   };
 
   const moveDrag = (event: PointerEvent<HTMLDivElement>) => {
-    if (!drag || drag.pointerId !== event.pointerId) return;
+    if (!drag || drag.pointerId !== event.pointerId || drag.kind !== "move") return;
     event.preventDefault();
     setDslPanelWindow(
       clampedDslPanelWindow(
         {
+          ...drag.panelWindow,
           x: drag.panelWindow.x + event.clientX - drag.startX,
           y: drag.panelWindow.y + event.clientY - drag.startY
         },
-        drag.panelSize,
         { width: window.innerWidth, height: window.innerHeight }
       )
     );
   };
 
-  const finishDrag = (event: PointerEvent<HTMLDivElement>) => {
+  const startResize = (event: PointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0) return;
+    const rect = panelRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    event.preventDefault();
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    setDrag({
+      kind: "resize",
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      panelWindow: dslPanelWindow ?? {
+        x: rect.left,
+        y: rect.top,
+        width: rect.width || DEFAULT_DSL_PANEL_WIDTH,
+        height: rect.height || DEFAULT_DSL_PANEL_HEIGHT
+      }
+    });
+  };
+
+  const resizeDrag = (event: PointerEvent<HTMLDivElement>) => {
+    if (!drag || drag.pointerId !== event.pointerId || drag.kind !== "resize") return;
+    event.preventDefault();
+    setDslPanelWindow(
+      clampedDslPanelWindow(
+        {
+          ...drag.panelWindow,
+          width: drag.panelWindow.width + event.clientX - drag.startX,
+          height: drag.panelWindow.height + event.clientY - drag.startY
+        },
+        { width: window.innerWidth, height: window.innerHeight }
+      )
+    );
+  };
+
+  const finishDrag = (event: PointerEvent<HTMLElement>) => {
     if (!drag || drag.pointerId !== event.pointerId) return;
     event.preventDefault();
     event.currentTarget.releasePointerCapture?.(event.pointerId);
@@ -373,6 +478,8 @@ export const DslPanel = ({ commandContext, evaluation }: DslPanelProps) => {
     ? ({
         left: `${dslPanelWindow.x}px`,
         top: `${dslPanelWindow.y}px`,
+        width: `${dslPanelWindow.width}px`,
+        height: `${dslPanelWindow.height}px`,
         right: "auto",
         bottom: "auto"
       } satisfies CSSProperties)
@@ -397,12 +504,21 @@ export const DslPanel = ({ commandContext, evaluation }: DslPanelProps) => {
           <span>DSL</span>
           <h2>テキスト作図</h2>
         </div>
-        <button type="button" onClick={() => dispatchCommand("closeDslPanel", dslCommandContext)} aria-label="DSLパネルを閉じる">
+        <button
+          type="button"
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={() => dispatchCommand("closeDslPanel", dslCommandContext)}
+          aria-label="DSLパネルを閉じる"
+        >
           <X size={16} aria-hidden="true" />
         </button>
       </div>
 
       <div className="dsl-panel-toolbar">
+        <button type="button" onClick={() => selectDslName("currentOrNext")}>
+          <Type size={15} aria-hidden="true" />
+          名前を選択
+        </button>
         <button type="button" onClick={() => dispatchCommand("exportDslSelection", dslCommandContext)}>
           <FileInput size={15} aria-hidden="true" />
           選択を書き出し
@@ -436,6 +552,16 @@ export const DslPanel = ({ commandContext, evaluation }: DslPanelProps) => {
           ))}
         </div>
       ) : null}
+      <div
+        className="dsl-panel-resize-handle"
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="DSLパネルのサイズを変更"
+        onPointerDown={startResize}
+        onPointerMove={resizeDrag}
+        onPointerUp={finishDrag}
+        onPointerCancel={finishDrag}
+      />
     </aside>
   );
 };

@@ -1,5 +1,10 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { DEFAULT_DSL_PANEL_WINDOW, DEFAULT_PRINT_PREVIEW_WINDOW } from "../state/cadUiStore";
+import {
+  DEFAULT_DSL_PANEL_HEIGHT,
+  DEFAULT_DSL_PANEL_WIDTH,
+  DEFAULT_DSL_PANEL_WINDOW,
+  DEFAULT_PRINT_PREVIEW_WINDOW
+} from "../state/cadUiStore";
 import {
   DEFAULT_LEFT_PANEL_WIDTH,
   MAX_LEFT_PANEL_WIDTH,
@@ -37,7 +42,7 @@ describe("layoutSettingsStorage", () => {
         zoom: 0.8,
         layoutId: "print-layout-2"
       },
-      dslPanelWindow: { x: 320, y: 80 }
+      dslPanelWindow: { x: 320, y: 80, width: 560, height: 500 }
     });
 
     await expect(loadLayoutSettings()).resolves.toEqual({
@@ -52,7 +57,7 @@ describe("layoutSettingsStorage", () => {
         zoom: 0.8,
         layoutId: "print-layout-2"
       },
-      dslPanelWindow: { x: 320, y: 80 }
+      dslPanelWindow: { x: 320, y: 80, width: 560, height: 500 }
     });
   });
 
@@ -98,7 +103,9 @@ describe("layoutSettingsStorage", () => {
         },
         dslPanelWindow: {
           x: 300.3,
-          y: 88.6
+          y: 88.6,
+          width: 120,
+          height: 90
         }
       })
     ).toEqual({
@@ -115,7 +122,9 @@ describe("layoutSettingsStorage", () => {
       },
       dslPanelWindow: {
         x: 300,
-        y: 89
+        y: 89,
+        width: 360,
+        height: 260
       }
     });
     expect(normalizeLayoutSettings("{not-json")).toEqual({
@@ -136,6 +145,24 @@ describe("layoutSettingsStorage", () => {
       collapsedPrintPanelSections: ["variables"],
       printPreviewWindow: DEFAULT_PRINT_PREVIEW_WINDOW,
       dslPanelWindow: DEFAULT_DSL_PANEL_WINDOW
+    });
+  });
+
+  it("upgrades older DSL panel window settings without size", () => {
+    expect(
+      normalizeLayoutSettings({
+        version: 1,
+        leftPanelWidth: 420,
+        dslPanelWindow: {
+          x: 300,
+          y: 88
+        }
+      }).dslPanelWindow
+    ).toEqual({
+      x: 300,
+      y: 88,
+      width: DEFAULT_DSL_PANEL_WIDTH,
+      height: DEFAULT_DSL_PANEL_HEIGHT
     });
   });
 });

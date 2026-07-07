@@ -53,6 +53,37 @@ describe("DSL compiler", () => {
     });
   });
 
+  it("supports quoted names and references with spaces", () => {
+    const result = compileDslToElements(
+      [
+        "var 'バスト 寸法' = 840",
+        "point \"前 上\" = (0, 0)",
+        "point \"前 下\" = offset \"前 上\" dx=0 dy=-('バスト 寸法' / 4)",
+        "line \"前 中心線\" = \"前 上\" -> \"前 下\"",
+        "point \"線上 点\" = on \"前 中心線\".end distance=10"
+      ].join("\n"),
+      { elements: [] }
+    );
+
+    expect(result.diagnostics).toEqual([]);
+    expect(result.elements.map((element) => element.name)).toEqual([
+      "バスト 寸法",
+      "前 上",
+      "前 下",
+      "前 中心線",
+      "線上 点"
+    ]);
+    expect(result.elements[3]).toMatchObject({
+      type: "line",
+      startPoint: { mode: "reference", pointId: result.elements[1].id },
+      endPoint: { mode: "reference", pointId: result.elements[2].id }
+    });
+    expect(result.elements[4]).toMatchObject({
+      type: "lineDivisionPoint",
+      endpoint: { lineId: result.elements[3].id, endpointKey: "end" }
+    });
+  });
+
   it("supports generic element syntax for element types without short syntax", () => {
     const base = compileDslToElements(
       [
@@ -197,6 +228,24 @@ describe("DSL compiler", () => {
 
     expect(source).toContain(`point A = (0, 0) id=${result.elements[0].id}`);
     expect(source).toContain(`line AB = ${result.elements[0].id} -> ${result.elements[1].id}`);
+  });
+
+  it("quotes serialized element names that contain spaces", () => {
+    const result = compileDslToElements(
+      [
+        "point \"前 上\" = (0, 0)",
+        "point \"前 下\" = (0, -100)",
+        "line \"前 中心線\" = \"前 上\" -> \"前 下\""
+      ].join("\n"),
+      { elements: [] }
+    );
+    const source = serializeElementsToDsl(result.elements);
+    const roundTrip = compileDslToElements(source, { elements: result.elements });
+
+    expect(source).toContain(`point "前 上" = (0, 0) id=${result.elements[0].id}`);
+    expect(source).toContain(`line "前 中心線" = ${result.elements[0].id} -> ${result.elements[1].id}`);
+    expect(roundTrip.diagnostics).toEqual([]);
+    expect(roundTrip.elements.map((element) => element.name)).toEqual(["前 上", "前 下", "前 中心線"]);
   });
 
   it("serializes advanced GUI elements with natural DSL syntax", () => {

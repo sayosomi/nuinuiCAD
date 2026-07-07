@@ -89,6 +89,8 @@ export type ReferenceHelperPosition = {
 export type DslPanelWindow = {
   x: number;
   y: number;
+  width: number;
+  height: number;
 };
 
 export type DslPanelSourceRequest = {
@@ -119,6 +121,10 @@ export const MIN_PRINT_PREVIEW_ZOOM = 0.15;
 export const MAX_PRINT_PREVIEW_ZOOM = 4;
 export const MIN_PRINT_PREVIEW_WIDTH = 260;
 export const MIN_PRINT_PREVIEW_HEIGHT = 180;
+export const DEFAULT_DSL_PANEL_WIDTH = 520;
+export const DEFAULT_DSL_PANEL_HEIGHT = 640;
+export const MIN_DSL_PANEL_WIDTH = 360;
+export const MIN_DSL_PANEL_HEIGHT = 260;
 
 export const DEFAULT_PRINT_PREVIEW_WINDOW: PrintPreviewWindow = {
   x: 24,
@@ -369,6 +375,19 @@ export const normalizePrintPreviewWindow = (window: PrintPreviewWindow): PrintPr
   layoutId: window.layoutId
 });
 
+export const normalizeDslPanelWindow = (window: DslPanelWindow): DslPanelWindow => ({
+  x: Number.isFinite(window.x) ? Math.round(window.x) : 20,
+  y: Number.isFinite(window.y) ? Math.round(window.y) : 68,
+  width: Math.max(
+    Number.isFinite(window.width) ? Math.round(window.width) : DEFAULT_DSL_PANEL_WIDTH,
+    MIN_DSL_PANEL_WIDTH
+  ),
+  height: Math.max(
+    Number.isFinite(window.height) ? Math.round(window.height) : DEFAULT_DSL_PANEL_HEIGHT,
+    MIN_DSL_PANEL_HEIGHT
+  )
+});
+
 const zoomViewportAt = (
   current: CanvasViewport,
   zoomFactor: number,
@@ -539,10 +558,7 @@ export const useCadUiStore = create<CadUiState>((set) => ({
   setDslPanelWindow: (dslPanelWindow) =>
     set({
       dslPanelWindow: dslPanelWindow
-        ? {
-            x: Math.round(dslPanelWindow.x),
-            y: Math.round(dslPanelWindow.y)
-          }
+        ? normalizeDslPanelWindow(dslPanelWindow)
         : null
     })
 }));

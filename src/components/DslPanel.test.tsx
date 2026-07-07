@@ -93,6 +93,37 @@ describe("DslPanel", () => {
     expect(screen.getByText("実選択1件、依存元1件をDSLへ書き出しました。")).toBeInTheDocument();
   });
 
+  it("selects DSL names with F2 and Shift+F2", async () => {
+    useCadStore.setState({ showDslPanel: true });
+
+    render(<DslPanel />);
+
+    const editor = await screen.findByLabelText("DSLソース") as HTMLTextAreaElement;
+    fireEvent.change(editor, {
+      target: {
+        value: [
+          "point \"長い 点A\" = (0, 0)",
+          "point \"長い 点B\" = offset \"長い 点A\" dx=10 dy=0"
+        ].join("\n")
+      }
+    });
+
+    fireEvent.keyDown(editor, { key: "F2" });
+    await waitFor(() => {
+      expect(editor.value.slice(editor.selectionStart, editor.selectionEnd)).toBe("長い 点A");
+    });
+
+    fireEvent.keyDown(editor, { key: "F2" });
+    await waitFor(() => {
+      expect(editor.value.slice(editor.selectionStart, editor.selectionEnd)).toBe("長い 点B");
+    });
+
+    fireEvent.keyDown(editor, { key: "F2", shiftKey: true });
+    await waitFor(() => {
+      expect(editor.value.slice(editor.selectionStart, editor.selectionEnd)).toBe("長い 点A");
+    });
+  });
+
   it("surfaces warning counts for pulled dependencies", async () => {
     const elements: CadElement[] = [
       {
@@ -236,10 +267,10 @@ describe("DslPanel", () => {
     fireEvent.pointerMove(header, { pointerId: 1, clientX: 420, clientY: 130 });
     fireEvent.pointerUp(header, { pointerId: 1, clientX: 420, clientY: 130 });
 
-    expect(useCadStore.getState().dslPanelWindow).toEqual({ x: 380, y: 80 });
+    expect(useCadStore.getState().dslPanelWindow).toEqual({ x: 380, y: 80, width: 520, height: 712 });
     await waitFor(() =>
       expect(JSON.parse(window.localStorage.getItem("nuinuiCAD.layoutSettings.v1") ?? "{}")).toMatchObject({
-        dslPanelWindow: { x: 380, y: 80 }
+        dslPanelWindow: { x: 380, y: 80, width: 520, height: 712 }
       })
     );
   });
@@ -275,5 +306,29 @@ describe("DslPanel", () => {
     fireEvent.pointerMove(header, { pointerId: 2, clientX: 700, clientY: 140 });
 
     expect(useCadStore.getState().dslPanelWindow).toBeNull();
+  });
+
+  it("resizes the panel from the resize handle and saves its size", async () => {
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 1000 });
+    Object.defineProperty(window, "innerHeight", { configurable: true, value: 800 });
+    useCadStore.setState({
+      showDslPanel: true,
+      dslPanelWindow: { x: 300, y: 80, width: 520, height: 400 }
+    });
+
+    render(<DslPanel />);
+
+    const resizeHandle = screen.getByRole("separator", { name: "DSLパネルのサイズを変更" });
+
+    fireEvent.pointerDown(resizeHandle, { button: 0, pointerId: 3, clientX: 820, clientY: 480 });
+    fireEvent.pointerMove(resizeHandle, { pointerId: 3, clientX: 900, clientY: 530 });
+    fireEvent.pointerUp(resizeHandle, { pointerId: 3, clientX: 900, clientY: 530 });
+
+    expect(useCadStore.getState().dslPanelWindow).toEqual({ x: 300, y: 80, width: 600, height: 450 });
+    await waitFor(() =>
+      expect(JSON.parse(window.localStorage.getItem("nuinuiCAD.layoutSettings.v1") ?? "{}")).toMatchObject({
+        dslPanelWindow: { x: 300, y: 80, width: 600, height: 450 }
+      })
+    );
   });
 });

@@ -1616,6 +1616,26 @@ textarea {
   color: #705400;
 }
 
+.dsl-panel-resize-handle {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 18px;
+  height: 18px;
+  cursor: nwse-resize;
+}
+
+.dsl-panel-resize-handle::after {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid #686b62;
+  border-bottom: 2px solid #686b62;
+  content: "";
+}
+
 @media (max-width: 920px) {
   .template-library-workspace {
     grid-template-columns: minmax(0, 1fr);

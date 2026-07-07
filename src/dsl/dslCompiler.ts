@@ -20,6 +20,7 @@ import {
   type NameIndex
 } from "./dslReferences";
 import type { CompileDslContext, CompileDslResult, DslAttribute, DslDiagnostic, DslStatement } from "./dslTypes";
+import { splitDslList, splitDslRecords, unquoteDslString } from "./dslTokens";
 
 const attr = (attrs: DslAttribute[], key: string) =>
   attrs.find((item) => item.key === key)?.value;
@@ -50,27 +51,15 @@ const booleanValue = (value: string) =>
       ? false
       : null;
 
-const splitList = (value: string) => {
-  const trimmed = value.trim();
-  const content = trimmed.startsWith("[") && trimmed.endsWith("]")
-    ? trimmed.slice(1, -1)
-    : trimmed;
-  return content.split(",").map((item) => item.trim()).filter(Boolean);
+const roleIdByToken = (roles: VisibilityRole[], token: string) => {
+  const normalized = unquoteDslString(token);
+  return roles.find((role) => role.id === normalized || role.name === normalized)?.id ?? normalized;
 };
 
-const splitRecords = (value: string) => {
-  const trimmed = value.trim();
-  const content = trimmed.startsWith("[") && trimmed.endsWith("]")
-    ? trimmed.slice(1, -1)
-    : trimmed;
-  return content.split(";").map((item) => item.trim()).filter(Boolean);
+const profileIdByToken = (profiles: VisibilityProfile[], token: string) => {
+  const normalized = unquoteDslString(token);
+  return profiles.find((profile) => profile.id === normalized || profile.name === normalized)?.id ?? normalized;
 };
-
-const roleIdByToken = (roles: VisibilityRole[], token: string) =>
-  roles.find((role) => role.id === token || role.name === token)?.id ?? token;
-
-const profileIdByToken = (profiles: VisibilityProfile[], token: string) =>
-  profiles.find((profile) => profile.id === token || profile.name === token)?.id ?? token;
 
 const outputKind = (value: string) => value === "svg" ? "svg" : "pdf";
 
@@ -112,7 +101,7 @@ const parseIntermediatePoints = (
   diagnostics: DslDiagnostic[],
   numeric: (source: string) => ReturnType<typeof normalizeExpression>
 ): Extract<CadElement, { type: "bezierCurve" }>["intermediatePoints"] =>
-  splitRecords(value).map((record) => {
+  splitDslRecords(value).map((record) => {
     const parts = record.split(":").map((item) => item.trim());
     const [pointToken, angle = "0", incoming = "30", outgoing = "30", id] = parts;
     return {
@@ -155,7 +144,7 @@ const applyCommonAttributes = (
     if (key === "roles" && next.type === "group") {
       next = {
         ...next,
-        visibilityRoleIds: splitList(value).map((roleToken) =>
+        visibilityRoleIds: splitDslList(value).map((roleToken) =>
           roleIdByToken(visibilityRoles, roleToken)
         )
       };
@@ -193,7 +182,7 @@ const applyCommonAttributes = (
       continue;
     }
     if (definition?.kind === "lineReferenceList") {
-      next = setParameterValue(next, parameterKey, splitList(value).map((item) => resolveId(item, index, line, diagnostics)));
+      next = setParameterValue(next, parameterKey, splitDslList(value).map((item) => resolveId(item, index, line, diagnostics)));
       continue;
     }
     if (definition?.kind === "choice" || definition?.kind === "text" || definition?.kind === "color") {
