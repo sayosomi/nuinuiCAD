@@ -87,13 +87,12 @@ describe("ShortcutSettingsDialog", () => {
     expect(screen.queryByText("全体 / saveDocument")).not.toBeInTheDocument();
   });
 
-  it("records and saves a shortcut for a command without a default", async () => {
+  it("records and auto-saves a shortcut for a command without a default", async () => {
     render(<ShortcutSettingsDialog />);
 
     const row = rowForCommand("free point を追加");
     fireEvent.click(within(row).getByText("キー追加"));
     fireEvent.keyDown(window, { key: "p" });
-    fireEvent.click(screen.getByRole("button", { name: "保存" }));
 
     await waitFor(() =>
       expect(JSON.parse(window.localStorage.getItem("nuinuiCAD.shortcutSettings.v1") ?? "{}")).toEqual({
@@ -108,18 +107,62 @@ describe("ShortcutSettingsDialog", () => {
     );
   });
 
-  it("blocks saving conflicting shortcuts", () => {
+  it("keeps auto-saved shortcuts after closing and reopening the dialog", async () => {
+    render(<ShortcutSettingsDialog />);
+
+    const row = rowForCommand("グループを追加");
+    fireEvent.click(within(row).getByText("キー追加"));
+    fireEvent.keyDown(window, { key: "g", metaKey: true, altKey: true });
+
+    await waitFor(() =>
+      expect(useCadStore.getState().shortcutSettings.overrides).toEqual([
+        {
+          bindingId: "normal.addGroup",
+          chords: [{ key: "g", mod: true, alt: true, shift: false }]
+        }
+      ])
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "閉じる" }));
+    useCadStore.setState({ showShortcutSettings: true });
+
+    await waitFor(() =>
+      expect(within(rowForCommand("グループを追加")).getByText("Mod+Alt+g")).toBeInTheDocument()
+    );
+  });
+
+  it("does not auto-save conflicting shortcuts", async () => {
     render(<ShortcutSettingsDialog />);
 
     const pointRow = rowForCommand("free point を追加");
     fireEvent.click(within(pointRow).getByText("キー追加"));
     fireEvent.keyDown(window, { key: "p" });
 
+    await waitFor(() =>
+      expect(JSON.parse(window.localStorage.getItem("nuinuiCAD.shortcutSettings.v1") ?? "{}")).toEqual({
+        version: 1,
+        overrides: [
+          {
+            bindingId: "normal.addFreePoint",
+            chords: [{ key: "p", mod: false, alt: false, shift: false }]
+          }
+        ]
+      })
+    );
+
     const lineRow = rowForCommand("line を追加");
     fireEvent.click(within(lineRow).getByText("キー追加"));
     fireEvent.keyDown(window, { key: "p" });
 
     expect(screen.getByText("1件のキー重複があります。")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "保存" })).toBeDisabled();
+    expect(JSON.parse(window.localStorage.getItem("nuinuiCAD.shortcutSettings.v1") ?? "{}")).toEqual({
+      version: 1,
+      overrides: [
+        {
+          bindingId: "normal.addFreePoint",
+          chords: [{ key: "p", mod: false, alt: false, shift: false }]
+        }
+      ]
+    });
   });
 });

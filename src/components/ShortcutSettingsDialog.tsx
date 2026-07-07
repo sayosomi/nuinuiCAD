@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { dispatchCommand } from "../commands/commands";
 import {
   configurableShortcutBindings,
@@ -66,6 +66,8 @@ const ShortcutSettingsDialogContent = ({
   const [searchChord, setSearchChord] = useState<KeyChord | null>(null);
   const [isRecordingSearchChord, setIsRecordingSearchChord] = useState(false);
   const [recordingBindingId, setRecordingBindingId] = useState<string | null>(null);
+  const saveQueueRef = useRef(Promise.resolve());
+  const saveSequenceRef = useRef(0);
   const bindings = useMemo(() => effectiveShortcutBindings(draftSettings), [draftSettings]);
   const bindingById = useMemo(
     () => new Map(bindings.map((binding) => [binding.id, binding])),
@@ -83,7 +85,45 @@ const ShortcutSettingsDialogContent = ({
     });
   }, [bindingById, query, searchChord]);
   const conflicts = useMemo(() => shortcutConflicts(draftSettings), [draftSettings]);
-  const hasChanges = JSON.stringify(shortcutSettings) !== JSON.stringify(draftSettings);
+
+  const persistSettings = useCallback((nextSettings: ShortcutSettings) => {
+    const nextConflicts = shortcutConflicts(nextSettings);
+    const sequence = saveSequenceRef.current + 1;
+    saveSequenceRef.current = sequence;
+
+    setDraftSettings(nextSettings);
+
+    if (nextConflicts.length > 0) {
+      setShortcutSettingsLoading(false);
+      setShortcutSettingsError("同じモード内で同じキーが複数のコマンドに割り当てられています。");
+      return;
+    }
+
+    setShortcutSettingsLoading(true);
+    setShortcutSettingsError(null);
+    saveQueueRef.current = saveQueueRef.current
+      .catch(() => undefined)
+      .then(() => saveShortcutSettings(nextSettings))
+      .then(() => {
+        if (saveSequenceRef.current !== sequence) return;
+        setShortcutSettings(nextSettings);
+      })
+      .catch((error: unknown) => {
+        if (saveSequenceRef.current !== sequence) return;
+        setShortcutSettingsError(
+          error instanceof Error ? error.message : "ショートカット設定を保存できません。"
+        );
+      })
+      .finally(() => {
+        if (saveSequenceRef.current === sequence) {
+          setShortcutSettingsLoading(false);
+        }
+      });
+  }, [
+    setShortcutSettings,
+    setShortcutSettingsError,
+    setShortcutSettingsLoading
+  ]);
 
   useEffect(() => {
     if (!isRecordingSearchChord) return;
@@ -123,22 +163,21 @@ const ShortcutSettingsDialogContent = ({
       const chord = keyChordFromEvent(event);
       if (!chord) return;
 
-      setDraftSettings((current) => {
-        const binding = effectiveShortcutBindings(current).find((item) => item.id === recordingBindingId);
-        const nextChords = binding?.chords.some((item) => keyChordEquals(item, chord))
-          ? binding.chords
-          : [...(binding?.chords ?? []), chord];
-        return settingWithBindingChords(current, recordingBindingId, nextChords);
-      });
+      const binding = effectiveShortcutBindings(draftSettings).find((item) => item.id === recordingBindingId);
+      const nextChords = binding?.chords.some((item) => keyChordEquals(item, chord))
+        ? binding.chords
+        : [...(binding?.chords ?? []), chord];
+      persistSettings(settingWithBindingChords(draftSettings, recordingBindingId, nextChords));
       setRecordingBindingId(null);
     };
 
     window.addEventListener("keydown", recordKey, { capture: true });
     return () => window.removeEventListener("keydown", recordKey, { capture: true });
-  }, [recordingBindingId]);
+  }, [draftSettings, persistSettings, recordingBindingId]);
 
   const updateBindingChords = (bindingId: string, chords: KeyChord[]) => {
-    setDraftSettings((current) => settingWithBindingChords(current, bindingId, chords));
+    const nextSettings = settingWithBindingChords(draftSettings, bindingId, chords);
+    persistSettings(nextSettings);
   };
 
   const startSearchKeyRecording = () => {
@@ -149,27 +188,6 @@ const ShortcutSettingsDialogContent = ({
   const startBindingKeyRecording = (bindingId: string) => {
     setIsRecordingSearchChord(false);
     setRecordingBindingId(bindingId);
-  };
-
-  const saveSettings = async () => {
-    if (conflicts.length > 0) {
-      setShortcutSettingsError("同じモード内で同じキーが複数のコマンドに割り当てられています。");
-      return;
-    }
-
-    setShortcutSettingsLoading(true);
-    setShortcutSettingsError(null);
-    try {
-      await saveShortcutSettings(draftSettings);
-      setShortcutSettings(draftSettings);
-      dispatchCommand("closeShortcutSettings");
-    } catch (error) {
-      setShortcutSettingsError(
-        error instanceof Error ? error.message : "ショートカット設定を保存できません。"
-      );
-    } finally {
-      setShortcutSettingsLoading(false);
-    }
   };
 
   return (
@@ -210,7 +228,7 @@ const ShortcutSettingsDialogContent = ({
               </>
             ) : null}
           </div>
-          <button type="button" onClick={() => setDraftSettings(defaultShortcutSettings())}>
+          <button type="button" onClick={() => persistSettings(defaultShortcutSettings())}>
             すべて初期値
           </button>
         </div>
@@ -288,18 +306,11 @@ const ShortcutSettingsDialogContent = ({
           })}
         </div>
 
-        <div className="shortcut-settings-footer">
-          <button type="button" onClick={() => dispatchCommand("closeShortcutSettings")}>
-            キャンセル
-          </button>
-          <button
-            type="button"
-            disabled={shortcutSettingsLoading || conflicts.length > 0 || !hasChanges}
-            onClick={saveSettings}
-          >
-            {shortcutSettingsLoading ? "保存中..." : "保存"}
-          </button>
-        </div>
+        {shortcutSettingsLoading ? (
+          <div className="shortcut-settings-footer" aria-live="polite">
+            <span>保存中...</span>
+          </div>
+        ) : null}
       </section>
     </div>
   );
