@@ -216,6 +216,61 @@ const cubicPointAt = (segment: { start: Point; control1: Point; control2: Point;
   };
 };
 
+const cubicDerivativeAt = (segment: { start: Point; control1: Point; control2: Point; end: Point }, t: number): Point => {
+  const inverse = 1 - t;
+  return {
+    x:
+      3 * inverse * inverse * (segment.control1.x - segment.start.x) +
+      6 * inverse * t * (segment.control2.x - segment.control1.x) +
+      3 * t * t * (segment.end.x - segment.control2.x),
+    y:
+      3 * inverse * inverse * (segment.control1.y - segment.start.y) +
+      6 * inverse * t * (segment.control2.y - segment.control1.y) +
+      3 * t * t * (segment.end.y - segment.control2.y)
+  };
+};
+
+const cubicSecondDerivativeAt = (segment: { start: Point; control1: Point; control2: Point; end: Point }, t: number): Point => ({
+  x:
+    6 * (1 - t) * (segment.control2.x - 2 * segment.control1.x + segment.start.x) +
+    6 * t * (segment.end.x - 2 * segment.control2.x + segment.control1.x),
+  y:
+    6 * (1 - t) * (segment.control2.y - 2 * segment.control1.y + segment.start.y) +
+    6 * t * (segment.end.y - 2 * segment.control2.y + segment.control1.y)
+});
+
+const dot = (a: Point, b: Point) => a.x * b.x + a.y * b.y;
+
+const refineBezierProjection = (
+  segment: { start: Point; control1: Point; control2: Point; end: Point },
+  point: Point,
+  initialT: number
+) => {
+  let t = Math.min(Math.max(initialT, 0), 1);
+
+  for (let index = 0; index < 20; index += 1) {
+    const current = cubicPointAt(segment, t);
+    const first = cubicDerivativeAt(segment, t);
+    const second = cubicSecondDerivativeAt(segment, t);
+    const residual = { x: current.x - point.x, y: current.y - point.y };
+    const denominator = dot(first, first) + dot(residual, second);
+    if (Math.abs(denominator) <= EPSILON) break;
+
+    const nextT = Math.min(Math.max(t - dot(residual, first) / denominator, 0), 1);
+    if (Math.abs(nextT - t) <= EPSILON) {
+      t = nextT;
+      break;
+    }
+    t = nextT;
+  }
+
+  const projected = cubicPointAt(segment, t);
+  return {
+    localT: t,
+    distanceFromLine: distance(point, projected)
+  };
+};
+
 const splitBezierLike = <T extends { start: Point; control1: Point; control2: Point; end: Point }>(segment: T, t: number) => {
   const p01 = interpolate(segment.start, segment.control1, t);
   const p12 = interpolate(segment.control1, segment.control2, t);
@@ -294,13 +349,15 @@ const splitBezierCurveGeometry = (
       pointAt: (t: number) => cubicPointAt(segment, t)
     }))
   );
-  if (!hit || hit.distanceFromLine > TOLERANCE_MM) return null;
+  if (!hit) return null;
+  const original = curve.segments[hit.segmentIndex];
+  const refinedHit = refineBezierProjection(original, splitPoint, hit.localT);
+  if (refinedHit.distanceFromLine > TOLERANCE_MM) return null;
   if (hit.distanceFromStart <= TOLERANCE_MM || hit.distanceFromStart >= totalLength - TOLERANCE_MM) {
     return "endpoint" as const;
   }
 
-  const original = curve.segments[hit.segmentIndex];
-  const split = splitBezierLike(original, hit.localT);
+  const split = splitBezierLike(original, refinedHit.localT);
   const splitComputedPoint = computedPoint(splitPoint.elementId, splitPoint.name, split.point);
   const left = computedBezierSegment(split.left, original.start, splitComputedPoint);
   const right = computedBezierSegment(split.right, splitComputedPoint, original.end);

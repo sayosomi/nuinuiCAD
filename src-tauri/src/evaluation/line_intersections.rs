@@ -1,6 +1,6 @@
 use serde_json::Value;
 
-use super::bezier_path;
+use super::bezier_path::{self, cubic_point_at};
 
 const ARC_STEPS: f64 = 64.0;
 const CURVE_STEPS: usize = 64;
@@ -14,12 +14,25 @@ struct Point {
     y: f64,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
+enum SegmentPrimitive {
+    Line {
+        exact: bool,
+    },
+    Bezier {
+        segment: Value,
+        t_start: f64,
+        t_end: f64,
+    },
+}
+
+#[derive(Clone)]
 struct IntersectionSegment {
     start: Point,
     end: Point,
     start_distance: f64,
     end_distance: f64,
+    primitive: SegmentPrimitive,
 }
 
 #[derive(Clone, Copy)]
@@ -61,7 +74,7 @@ fn arc_point(center: Point, radius: f64, angle_deg: f64) -> Point {
     }
 }
 
-fn point_path_segments(points: &[Point]) -> Vec<IntersectionSegment> {
+fn point_path_segments(points: &[Point], exact_line: bool) -> Vec<IntersectionSegment> {
     let mut segments = Vec::new();
     let mut accumulated = 0.0;
 
@@ -78,6 +91,7 @@ fn point_path_segments(points: &[Point]) -> Vec<IntersectionSegment> {
             end,
             start_distance: accumulated,
             end_distance: accumulated + length,
+            primitive: SegmentPrimitive::Line { exact: exact_line },
         });
         accumulated += length;
     }
@@ -107,16 +121,43 @@ fn arc_points(geometry: &Value) -> Option<Vec<Point>> {
     )
 }
 
-fn bezier_points(geometry: &Value) -> Option<Vec<Point>> {
-    Some(
-        bezier_path::curve_points(geometry, CURVE_STEPS)?
-            .into_iter()
-            .map(|point| Point {
-                x: point.x,
-                y: point.y,
-            })
-            .collect(),
-    )
+fn bezier_path_segments(geometry: &Value) -> Option<Vec<IntersectionSegment>> {
+    let segments = geometry.get("segments")?.as_array()?;
+    let mut output = Vec::new();
+    let mut accumulated = 0.0;
+
+    for segment in segments {
+        let points = bezier_path::segment_points(segment, CURVE_STEPS)?;
+        for (index, pair) in points.windows(2).enumerate() {
+            let start = Point {
+                x: pair[0].x,
+                y: pair[0].y,
+            };
+            let end = Point {
+                x: pair[1].x,
+                y: pair[1].y,
+            };
+            let length = distance(start, end);
+            if length <= EPSILON {
+                continue;
+            }
+
+            output.push(IntersectionSegment {
+                start,
+                end,
+                start_distance: accumulated,
+                end_distance: accumulated + length,
+                primitive: SegmentPrimitive::Bezier {
+                    segment: segment.clone(),
+                    t_start: index as f64 / CURVE_STEPS as f64,
+                    t_end: (index + 1) as f64 / CURVE_STEPS as f64,
+                },
+            });
+            accumulated += length;
+        }
+    }
+
+    Some(output)
 }
 
 fn offset_segment_points(segment: &Value) -> Option<Vec<Point>> {
@@ -179,10 +220,10 @@ fn path_segments_for_line(geometry: &Value) -> Option<Vec<IntersectionSegment>> 
         "line" => {
             let start = geometry.get("start").and_then(value_point)?;
             let end = geometry.get("end").and_then(value_point)?;
-            Some(point_path_segments(&[start, end]))
+            Some(point_path_segments(&[start, end], true))
         }
-        "arcLine" => arc_points(geometry).map(|points| point_path_segments(&points)),
-        "bezierCurve" => bezier_points(geometry).map(|points| point_path_segments(&points)),
+        "arcLine" => arc_points(geometry).map(|points| point_path_segments(&points, false)),
+        "bezierCurve" => bezier_path_segments(geometry),
         "offsetLine" => {
             if geometry
                 .get("closed")
@@ -191,7 +232,7 @@ fn path_segments_for_line(geometry: &Value) -> Option<Vec<IntersectionSegment>> 
             {
                 return Some(Vec::new());
             }
-            offset_points(geometry).map(|points| point_path_segments(&points))
+            offset_points(geometry).map(|points| point_path_segments(&points, false))
         }
         _ => None,
     }
@@ -228,6 +269,7 @@ fn extension_segments(segments: &[IntersectionSegment]) -> Vec<IntersectionSegme
             end: first.start,
             start_distance: -EXTENSION_LENGTH,
             end_distance: 0.0,
+            primitive: SegmentPrimitive::Line { exact: true },
         },
         IntersectionSegment {
             start: last.end,
@@ -237,6 +279,7 @@ fn extension_segments(segments: &[IntersectionSegment]) -> Vec<IntersectionSegme
             },
             start_distance: last.end_distance,
             end_distance: last.end_distance + EXTENSION_LENGTH,
+            primitive: SegmentPrimitive::Line { exact: true },
         },
     ]
 }
@@ -246,8 +289,8 @@ fn cross(a: Point, b: Point) -> f64 {
 }
 
 fn segment_intersection(
-    a: IntersectionSegment,
-    b: IntersectionSegment,
+    a: &IntersectionSegment,
+    b: &IntersectionSegment,
 ) -> Option<SegmentIntersection> {
     let r = Point {
         x: a.end.x - a.start.x,
@@ -294,6 +337,145 @@ fn segment_intersection(
     })
 }
 
+fn projection_t(point: Point, start: Point, end: Point) -> Option<f64> {
+    let vector = Point {
+        x: end.x - start.x,
+        y: end.y - start.y,
+    };
+    let length_squared = vector.x * vector.x + vector.y * vector.y;
+    if length_squared <= EPSILON {
+        return None;
+    }
+    Some(((point.x - start.x) * vector.x + (point.y - start.y) * vector.y) / length_squared)
+}
+
+fn signed_distance_to_line(point: Point, line: &IntersectionSegment) -> f64 {
+    cross(
+        Point {
+            x: point.x - line.start.x,
+            y: point.y - line.start.y,
+        },
+        Point {
+            x: line.end.x - line.start.x,
+            y: line.end.y - line.start.y,
+        },
+    )
+}
+
+fn cubic_point(segment: &Value, t: f64) -> Option<Point> {
+    cubic_point_at(segment, t).map(|point| Point {
+        x: point.x,
+        y: point.y,
+    })
+}
+
+fn refine_bezier_line_intersection(
+    bezier: &IntersectionSegment,
+    line: &IntersectionSegment,
+) -> Option<(Point, f64, f64)> {
+    let SegmentPrimitive::Bezier {
+        segment,
+        t_start,
+        t_end,
+    } = &bezier.primitive
+    else {
+        return None;
+    };
+    let SegmentPrimitive::Line { exact: true } = line.primitive else {
+        return None;
+    };
+
+    let mut low = *t_start;
+    let mut high = *t_end;
+    let mut low_value = signed_distance_to_line(cubic_point(segment, low)?, line);
+    let high_value = signed_distance_to_line(cubic_point(segment, high)?, line);
+
+    if low_value.abs() <= EPSILON {
+        let point = cubic_point(segment, low)?;
+        let line_t = projection_t(point, line.start, line.end)?;
+        if !(-EPSILON..=1.0 + EPSILON).contains(&line_t) {
+            return None;
+        }
+        return Some((point, low, line_t));
+    }
+    if high_value.abs() <= EPSILON {
+        let point = cubic_point(segment, high)?;
+        let line_t = projection_t(point, line.start, line.end)?;
+        if !(-EPSILON..=1.0 + EPSILON).contains(&line_t) {
+            return None;
+        }
+        return Some((point, high, line_t));
+    }
+    if low_value.signum() == high_value.signum() {
+        return None;
+    }
+
+    for _ in 0..80 {
+        let mid = (low + high) / 2.0;
+        let mid_value = signed_distance_to_line(cubic_point(segment, mid)?, line);
+        if mid_value.abs() <= EPSILON {
+            low = mid;
+            high = mid;
+            break;
+        }
+        if low_value.signum() == mid_value.signum() {
+            low = mid;
+            low_value = mid_value;
+        } else {
+            high = mid;
+        }
+    }
+
+    let t = (low + high) / 2.0;
+    let point = cubic_point(segment, t)?;
+    let line_t = projection_t(point, line.start, line.end)?;
+    if !(-EPSILON..=1.0 + EPSILON).contains(&line_t) {
+        return None;
+    }
+    Some((point, t, line_t.clamp(0.0, 1.0)))
+}
+
+fn distance_at_segment_t(segment: &IntersectionSegment, t: f64) -> f64 {
+    let SegmentPrimitive::Bezier { t_start, t_end, .. } = segment.primitive else {
+        return segment.start_distance;
+    };
+    let span = t_end - t_start;
+    let local_t = if span.abs() <= EPSILON {
+        0.0
+    } else {
+        ((t - t_start) / span).clamp(0.0, 1.0)
+    };
+    segment.start_distance + (segment.end_distance - segment.start_distance) * local_t
+}
+
+fn refine_intersection(
+    a: &IntersectionSegment,
+    b: &IntersectionSegment,
+    intersection: SegmentIntersection,
+) -> SegmentIntersection {
+    if matches!(a.primitive, SegmentPrimitive::Bezier { .. }) {
+        if let Some((point, bezier_t, line_t)) = refine_bezier_line_intersection(a, b) {
+            return SegmentIntersection {
+                point,
+                line1_distance: distance_at_segment_t(a, bezier_t),
+                line2_distance: b.start_distance + (b.end_distance - b.start_distance) * line_t,
+                overlap: false,
+            };
+        }
+    }
+    if matches!(b.primitive, SegmentPrimitive::Bezier { .. }) {
+        if let Some((point, bezier_t, line_t)) = refine_bezier_line_intersection(b, a) {
+            return SegmentIntersection {
+                point,
+                line1_distance: a.start_distance + (a.end_distance - a.start_distance) * line_t,
+                line2_distance: distance_at_segment_t(b, bezier_t),
+                overlap: false,
+            };
+        }
+    }
+    intersection
+}
+
 fn same_point(a: &LineIntersection, b: &LineIntersection) -> bool {
     (a.x - b.x).hypot(a.y - b.y) <= DEDUPE_EPSILON
 }
@@ -315,9 +497,10 @@ pub(crate) fn find_line_intersections(
     let mut intersections = Vec::<LineIntersection>::new();
     for segment1 in &segments1 {
         for segment2 in &segments2 {
-            let Some(intersection) = segment_intersection(*segment1, *segment2) else {
+            let Some(intersection) = segment_intersection(segment1, segment2) else {
                 continue;
             };
+            let intersection = refine_intersection(segment1, segment2, intersection);
             if intersection.overlap {
                 return Some(LineIntersectionResult {
                     intersections,

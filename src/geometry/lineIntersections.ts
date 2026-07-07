@@ -15,6 +15,14 @@ type IntersectionSegment = {
   startDistance: number;
   endDistance: number;
   extension: boolean;
+  primitive:
+    | { kind: "line"; exact: boolean }
+    | {
+        kind: "bezier";
+        segment: { start: Point; control1: Point; control2: Point; end: Point };
+        tStart: number;
+        tEnd: number;
+      };
 };
 
 export type LineIntersection = {
@@ -70,7 +78,7 @@ const arcPoint = (center: Point, radius: number, angleDeg: number): Point => {
   };
 };
 
-const pointPathSegments = (points: Point[]) => {
+const pointPathSegments = (points: Point[], exactLine: boolean) => {
   const segments: IntersectionSegment[] = [];
   let accumulated = 0;
 
@@ -85,7 +93,8 @@ const pointPathSegments = (points: Point[]) => {
       end,
       startDistance: accumulated,
       endDistance: accumulated + length,
-      extension: false
+      extension: false,
+      primitive: { kind: "line", exact: exactLine }
     });
     accumulated += length;
   }
@@ -111,13 +120,40 @@ const arcPoints = ({
   );
 };
 
-const bezierPoints = (curve: ComputedBezierCurve) =>
-  curve.segments.flatMap((segment, segmentIndex) => {
+const bezierPathSegments = (curve: ComputedBezierCurve) => {
+  const segments: IntersectionSegment[] = [];
+  let accumulated = 0;
+
+  for (const segment of curve.segments) {
     const points = Array.from({ length: CURVE_STEPS + 1 }, (_, index) =>
       cubicPointAt(segment, index / CURVE_STEPS)
     );
-    return segmentIndex === 0 ? points : points.slice(1);
-  });
+
+    for (let index = 0; index < points.length - 1; index += 1) {
+      const start = points[index];
+      const end = points[index + 1];
+      const length = distance(start, end);
+      if (length <= EPSILON) continue;
+
+      segments.push({
+        start,
+        end,
+        startDistance: accumulated,
+        endDistance: accumulated + length,
+        extension: false,
+        primitive: {
+          kind: "bezier",
+          segment,
+          tStart: index / CURVE_STEPS,
+          tEnd: (index + 1) / CURVE_STEPS
+        }
+      });
+      accumulated += length;
+    }
+  }
+
+  return segments;
+};
 
 const offsetSegmentPoints = (segment: ComputedOffsetLineSegment) => {
   if (segment.kind === "line") return [segment.start, segment.end];
@@ -141,7 +177,7 @@ const offsetPoints = (line: ComputedOffsetLine) =>
   });
 
 const pathSegmentsForLine = (geometry: LineLikeGeometry) => {
-  if (geometry.kind === "line") return pointPathSegments([geometry.start, geometry.end]);
+  if (geometry.kind === "line") return pointPathSegments([geometry.start, geometry.end], true);
   if (geometry.kind === "arcLine") {
     return pointPathSegments(
       arcPoints({
@@ -149,11 +185,12 @@ const pathSegmentsForLine = (geometry: LineLikeGeometry) => {
         radius: geometry.radius,
         startAngleDeg: geometry.startAngleDeg,
         sweepAngleDeg: geometry.sweepAngleDeg
-      })
+      }),
+      false
     );
   }
-  if (geometry.kind === "bezierCurve") return pointPathSegments(bezierPoints(geometry));
-  return pointPathSegments(offsetPoints(geometry));
+  if (geometry.kind === "bezierCurve") return bezierPathSegments(geometry);
+  return pointPathSegments(offsetPoints(geometry), false);
 };
 
 const extensionSegments = (
@@ -186,7 +223,8 @@ const extensionSegments = (
       end: first.start,
       startDistance: -EXTENSION_LENGTH,
       endDistance: 0,
-      extension: true
+      extension: true,
+      primitive: { kind: "line", exact: true }
     },
     {
       start: last.end,
@@ -196,7 +234,8 @@ const extensionSegments = (
       },
       startDistance: last.endDistance,
       endDistance: last.endDistance + EXTENSION_LENGTH,
-      extension: true
+      extension: true,
+      primitive: { kind: "line", exact: true }
     }
   ];
 };
@@ -234,6 +273,102 @@ const segmentIntersection = (
   };
 };
 
+const projectionT = (point: Point, start: Point, end: Point) => {
+  const vector = { x: end.x - start.x, y: end.y - start.y };
+  const lengthSquared = vector.x * vector.x + vector.y * vector.y;
+  if (lengthSquared <= EPSILON) return null;
+  return ((point.x - start.x) * vector.x + (point.y - start.y) * vector.y) / lengthSquared;
+};
+
+const signedDistanceToLine = (point: Point, line: IntersectionSegment) =>
+  cross(
+    { x: point.x - line.start.x, y: point.y - line.start.y },
+    { x: line.end.x - line.start.x, y: line.end.y - line.start.y }
+  );
+
+const refineBezierLineIntersection = (
+  bezier: IntersectionSegment,
+  line: IntersectionSegment
+): { point: Point; bezierT: number; lineT: number } | null => {
+  if (bezier.primitive.kind !== "bezier") return null;
+  if (line.primitive.kind !== "line" || !line.primitive.exact) return null;
+
+  const { segment, tStart, tEnd } = bezier.primitive;
+  let low = tStart;
+  let high = tEnd;
+  let lowValue = signedDistanceToLine(cubicPointAt(segment, low), line);
+  const highValue = signedDistanceToLine(cubicPointAt(segment, high), line);
+
+  const pointAtAcceptedT = (bezierT: number) => {
+    const point = cubicPointAt(segment, bezierT);
+    const lineT = projectionT(point, line.start, line.end);
+    if (lineT === null || lineT < -EPSILON || lineT > 1 + EPSILON) return null;
+    return { point, bezierT, lineT: Math.min(Math.max(lineT, 0), 1) };
+  };
+
+  if (Math.abs(lowValue) <= EPSILON) return pointAtAcceptedT(low);
+  if (Math.abs(highValue) <= EPSILON) return pointAtAcceptedT(high);
+  if (Math.sign(lowValue) === Math.sign(highValue)) return null;
+
+  for (let index = 0; index < 80; index += 1) {
+    const mid = (low + high) / 2;
+    const midValue = signedDistanceToLine(cubicPointAt(segment, mid), line);
+    if (Math.abs(midValue) <= EPSILON) {
+      low = mid;
+      high = mid;
+      break;
+    }
+    if (Math.sign(lowValue) === Math.sign(midValue)) {
+      low = mid;
+      lowValue = midValue;
+    } else {
+      high = mid;
+    }
+  }
+
+  return pointAtAcceptedT((low + high) / 2);
+};
+
+const distanceAtBezierSegmentT = (segment: IntersectionSegment, t: number) => {
+  if (segment.primitive.kind !== "bezier") return segment.startDistance;
+  const span = segment.primitive.tEnd - segment.primitive.tStart;
+  const localT =
+    Math.abs(span) <= EPSILON
+      ? 0
+      : Math.min(Math.max((t - segment.primitive.tStart) / span, 0), 1);
+  return segment.startDistance + (segment.endDistance - segment.startDistance) * localT;
+};
+
+const refineIntersection = (
+  a: IntersectionSegment,
+  b: IntersectionSegment,
+  intersection: { point: Point; line1Distance: number; line2Distance: number; overlap: boolean }
+) => {
+  if (a.primitive.kind === "bezier") {
+    const refined = refineBezierLineIntersection(a, b);
+    if (refined) {
+      return {
+        point: refined.point,
+        line1Distance: distanceAtBezierSegmentT(a, refined.bezierT),
+        line2Distance: b.startDistance + (b.endDistance - b.startDistance) * refined.lineT,
+        overlap: false
+      };
+    }
+  }
+  if (b.primitive.kind === "bezier") {
+    const refined = refineBezierLineIntersection(b, a);
+    if (refined) {
+      return {
+        point: refined.point,
+        line1Distance: a.startDistance + (a.endDistance - a.startDistance) * refined.lineT,
+        line2Distance: distanceAtBezierSegmentT(b, refined.bezierT),
+        overlap: false
+      };
+    }
+  }
+  return intersection;
+};
+
 const samePoint = (a: LineIntersection, b: LineIntersection) =>
   Math.hypot(a.x - b.x, a.y - b.y) <= DEDUPE_EPSILON;
 
@@ -254,8 +389,9 @@ export const findLineIntersections = (
 
   for (const segment1 of segments1) {
     for (const segment2 of segments2) {
-      const intersection = segmentIntersection(segment1, segment2);
-      if (!intersection) continue;
+      const roughIntersection = segmentIntersection(segment1, segment2);
+      if (!roughIntersection) continue;
+      const intersection = refineIntersection(segment1, segment2, roughIntersection);
       if (intersection.overlap) {
         return {
           intersections,

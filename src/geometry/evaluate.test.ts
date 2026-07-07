@@ -1636,6 +1636,97 @@ describe("evaluateElements", () => {
     expect(far.segments[0].start.y).toBeCloseTo(0, 2);
   });
 
+  it("splits a bezier curve at an intersection point with an angle line", () => {
+    const result = evaluateElements([
+      {
+        id: "b",
+        name: "点B",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 28.931366411079747,
+        y: -77.9400300699557
+      },
+      {
+        id: "c",
+        name: "点C",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 176.6944080265404,
+        y: -62.993702802121724
+      },
+      {
+        id: "d",
+        name: "点D",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 101.39129725109973,
+        y: -1.4362552885086997
+      },
+      {
+        id: "curve",
+        name: "曲線BC",
+        type: "bezierCurve",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "b" },
+        startHandleAngleDeg: 335.4717868151397,
+        startHandleLength: 33.637281785342516,
+        intermediatePoints: [],
+        endPoint: { mode: "reference", pointId: "c" },
+        endHandleAngleDeg: 33.64482285411668,
+        endHandleLength: 51.81048707583799
+      },
+      {
+        id: "direction",
+        name: "D方向線",
+        type: "angleLengthLine",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "d" },
+        angleDeg: -77,
+        length: 100
+      },
+      {
+        id: "intersection",
+        name: "交点",
+        type: "intersectionPoint",
+        visible: true,
+        enabled: true,
+        line1Id: "direction",
+        line2Id: "curve",
+        intersectionIndex: 0,
+        useExtensions: false
+      },
+      {
+        id: "split",
+        name: "BC分割",
+        type: "splitLine",
+        visible: true,
+        enabled: true,
+        baseLineId: "curve",
+        splitPoint: { mode: "reference", pointId: "intersection" }
+      }
+    ]);
+
+    const intersection = result.computedGeometry.get("intersection");
+    const near = result.computedGeometry.get("curve");
+    const far = result.computedGeometry.get("split");
+    expect(result.errors).toHaveLength(0);
+    expect(intersection).toMatchObject({ kind: "point" });
+    expect(near).toMatchObject({ kind: "bezierCurve" });
+    expect(far).toMatchObject({ kind: "bezierCurve" });
+    if (intersection?.kind !== "point" || near?.kind !== "bezierCurve" || far?.kind !== "bezierCurve") {
+      throw new Error("Expected intersection point and split bezier curves");
+    }
+    expect(near.segments.at(-1)?.end.x).toBeCloseTo(intersection.x, 6);
+    expect(near.segments.at(-1)?.end.y).toBeCloseTo(intersection.y, 6);
+    expect(far.segments[0].start.x).toBeCloseTo(intersection.x, 6);
+    expect(far.segments[0].start.y).toBeCloseTo(intersection.y, 6);
+  });
+
   it("extends and trims two line endpoints to an edge intersection", () => {
     const result = evaluateElements([
       {

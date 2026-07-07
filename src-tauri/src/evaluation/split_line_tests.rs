@@ -204,6 +204,85 @@ fn splits_bezier_curve() {
 }
 
 #[test]
+fn splits_bezier_curve_at_intersection_with_angle_line() {
+    let result = evaluate_document_input(EvaluationInput {
+        elements: vec![
+            free_point("b", "点B", 28.931366411079747, -77.9400300699557),
+            free_point("c", "点C", 176.6944080265404, -62.993702802121724),
+            free_point("d", "点D", 101.39129725109973, -1.4362552885086997),
+            element(json!({
+                "id": "curve",
+                "name": "曲線BC",
+                "type": "bezierCurve",
+                "visible": true,
+                "enabled": true,
+                "startPoint": { "mode": "reference", "pointId": "b" },
+                "startHandleAngleDeg": 335.4717868151397,
+                "startHandleLength": 33.637281785342516,
+                "intermediatePoints": [],
+                "endPoint": { "mode": "reference", "pointId": "c" },
+                "endHandleAngleDeg": 33.64482285411668,
+                "endHandleLength": 51.81048707583799
+            })),
+            element(json!({
+                "id": "direction",
+                "name": "D方向線",
+                "type": "angleLengthLine",
+                "visible": true,
+                "enabled": true,
+                "startPoint": { "mode": "reference", "pointId": "d" },
+                "angleDeg": -77,
+                "length": 100
+            })),
+            element(json!({
+                "id": "intersection",
+                "name": "交点",
+                "type": "intersectionPoint",
+                "visible": true,
+                "enabled": true,
+                "line1Id": "direction",
+                "line2Id": "curve",
+                "intersectionIndex": 0,
+                "useExtensions": false
+            })),
+            split_line("split", "curve", "intersection"),
+        ],
+        evaluation_limit_index: None,
+    });
+
+    assert!(result.errors.is_empty(), "{:?}", result.errors);
+    let intersection = geometry(&result, "intersection");
+    let near = geometry(&result, "curve");
+    let far = geometry(&result, "split");
+    assert_eq!(near["kind"], json!("bezierCurve"));
+    assert_eq!(far["kind"], json!("bezierCurve"));
+    assert_close_with_tolerance(
+        near["segments"].as_array().unwrap().last().unwrap()["end"]["x"]
+            .as_f64()
+            .unwrap(),
+        intersection["x"].as_f64().unwrap(),
+        1e-6,
+    );
+    assert_close_with_tolerance(
+        near["segments"].as_array().unwrap().last().unwrap()["end"]["y"]
+            .as_f64()
+            .unwrap(),
+        intersection["y"].as_f64().unwrap(),
+        1e-6,
+    );
+    assert_close_with_tolerance(
+        far["segments"][0]["start"]["x"].as_f64().unwrap(),
+        intersection["x"].as_f64().unwrap(),
+        1e-6,
+    );
+    assert_close_with_tolerance(
+        far["segments"][0]["start"]["y"].as_f64().unwrap(),
+        intersection["y"].as_f64().unwrap(),
+        1e-6,
+    );
+}
+
+#[test]
 fn splits_offset_line() {
     let result = evaluate_document_input(EvaluationInput {
         elements: vec![
