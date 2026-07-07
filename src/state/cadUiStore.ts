@@ -86,6 +86,11 @@ export type ReferenceHelperPosition = {
   y: number;
 };
 
+export type DslPanelWindow = {
+  x: number;
+  y: number;
+};
+
 export type DslPanelSourceRequest = {
   requestId: number;
   elementIds: ElementId[];
@@ -128,6 +133,8 @@ export const DEFAULT_REFERENCE_HELPER_POSITION: ReferenceHelperPosition = {
   x: 24,
   y: 72
 };
+
+export const DEFAULT_DSL_PANEL_WINDOW: DslPanelWindow | null = null;
 
 export type CadUiState = {
   isParameterEditMode: boolean;
@@ -174,6 +181,7 @@ export type CadUiState = {
   printCanvasViewport: CanvasViewport;
   printPreviewWindow: PrintPreviewWindow;
   referenceHelperPosition: ReferenceHelperPosition | null;
+  dslPanelWindow: DslPanelWindow | null;
   setParameterEditMode: (isParameterEditMode: boolean) => void;
   setShowElementInfoPanel: (showElementInfoPanel: boolean) => void;
   setDependencyJumpMode: (isDependencyJumpMode: boolean) => void;
@@ -240,6 +248,7 @@ export type CadUiState = {
   setPrintPreviewWindow: (printPreviewWindow: PrintPreviewWindow) => void;
   updatePrintPreviewWindow: (patch: Partial<PrintPreviewWindow>) => void;
   setReferenceHelperPosition: (referenceHelperPosition: ReferenceHelperPosition) => void;
+  setDslPanelWindow: (dslPanelWindow: DslPanelWindow | null) => void;
 };
 
 export const initialCadUiState = (): Omit<
@@ -296,6 +305,7 @@ export const initialCadUiState = (): Omit<
   | "setPrintPreviewWindow"
   | "updatePrintPreviewWindow"
   | "setReferenceHelperPosition"
+  | "setDslPanelWindow"
 > => ({
   isParameterEditMode: false,
   showElementInfoPanel: true,
@@ -340,7 +350,8 @@ export const initialCadUiState = (): Omit<
   canvasViewport: DEFAULT_CANVAS_VIEWPORT,
   printCanvasViewport: DEFAULT_CANVAS_VIEWPORT,
   printPreviewWindow: DEFAULT_PRINT_PREVIEW_WINDOW,
-  referenceHelperPosition: null
+  referenceHelperPosition: null,
+  dslPanelWindow: DEFAULT_DSL_PANEL_WINDOW
 });
 
 const clampCanvasZoom = (zoom: number) =>
@@ -524,5 +535,14 @@ export const useCadUiStore = create<CadUiState>((set) => ({
         x: Math.round(referenceHelperPosition.x),
         y: Math.round(referenceHelperPosition.y)
       }
+    }),
+  setDslPanelWindow: (dslPanelWindow) =>
+    set({
+      dslPanelWindow: dslPanelWindow
+        ? {
+            x: Math.round(dslPanelWindow.x),
+            y: Math.round(dslPanelWindow.y)
+          }
+        : null
     })
 }));

@@ -1,12 +1,13 @@
 import { invoke } from "@tauri-apps/api/core";
 import { isTauriRuntime } from "../geometry/evaluationEngine";
 import {
+  DEFAULT_DSL_PANEL_WINDOW,
   DEFAULT_PRINT_PREVIEW_WINDOW,
   MIN_PRINT_PREVIEW_HEIGHT,
   MIN_PRINT_PREVIEW_WIDTH,
   clampPrintPreviewZoom
 } from "../state/cadUiStore";
-import type { PrintPreviewWindow } from "../state/cadUiStore";
+import type { DslPanelWindow, PrintPreviewWindow } from "../state/cadUiStore";
 
 export const DEFAULT_LEFT_PANEL_WIDTH = 320;
 export const MIN_LEFT_PANEL_WIDTH = 320;
@@ -22,6 +23,7 @@ export type LayoutSettings = {
   leftPanelWidth: number;
   collapsedPrintPanelSections: PrintPanelSectionId[];
   printPreviewWindow: PrintPreviewWindow;
+  dslPanelWindow: DslPanelWindow | null;
 };
 
 const isObject = (value: unknown): value is Record<string, unknown> =>
@@ -51,11 +53,20 @@ const normalizePrintPreviewWindowSettings = (value: unknown): PrintPreviewWindow
   };
 };
 
+const normalizeDslPanelWindowSettings = (value: unknown): DslPanelWindow | null => {
+  if (!isObject(value)) return DEFAULT_DSL_PANEL_WINDOW;
+  return {
+    x: Math.round(finiteNumber(value.x, 20)),
+    y: Math.round(finiteNumber(value.y, 68))
+  };
+};
+
 export const defaultLayoutSettings = (): LayoutSettings => ({
   version: 1,
   leftPanelWidth: DEFAULT_LEFT_PANEL_WIDTH,
   collapsedPrintPanelSections: ["variables"],
-  printPreviewWindow: DEFAULT_PRINT_PREVIEW_WINDOW
+  printPreviewWindow: DEFAULT_PRINT_PREVIEW_WINDOW,
+  dslPanelWindow: DEFAULT_DSL_PANEL_WINDOW
 });
 
 export const normalizeLayoutSettings = (value: unknown): LayoutSettings => {
@@ -73,7 +84,8 @@ export const normalizeLayoutSettings = (value: unknown): LayoutSettings => {
     version: 1,
     leftPanelWidth: clampLeftPanelWidth(value.leftPanelWidth),
     collapsedPrintPanelSections,
-    printPreviewWindow: normalizePrintPreviewWindowSettings(value.printPreviewWindow)
+    printPreviewWindow: normalizePrintPreviewWindowSettings(value.printPreviewWindow),
+    dslPanelWindow: normalizeDslPanelWindowSettings(value.dslPanelWindow)
   };
 };
 

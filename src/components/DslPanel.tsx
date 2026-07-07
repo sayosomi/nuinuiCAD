@@ -1,12 +1,15 @@
 import { Check, FileInput, Play, X } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import type { CSSProperties, PointerEvent } from "react";
 import { dispatchCommand } from "../commands/commands";
 import { compileDslToElements } from "../dsl/dslCompiler";
 import { serializeElementsToDsl } from "../dsl/dslSerializer";
 import type { DslDiagnostic } from "../dsl/dslTypes";
+import { loadLayoutSettings, saveLayoutSettings } from "../layout/layoutSettingsStorage";
 import { adjustEvaluationLimitForInsertion } from "../model/evaluationDivider";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
+import type { DslPanelWindow } from "../state/cadUiStore";
 import { DslEditor } from "./DslEditor";
 
 const defaultSource = [
@@ -20,13 +23,52 @@ const defaultSource = [
 const diagnosticText = (diagnostic: DslDiagnostic) =>
   `${diagnostic.line}:${diagnostic.column} ${diagnostic.message}`;
 
+const INTERACTIVE_HEADER_SELECTOR = "button, select, input, textarea, [contenteditable='true']";
+const PANEL_VIEWPORT_MARGIN = 8;
+
+const isInteractiveHeaderTarget = (target: EventTarget | null) =>
+  target instanceof HTMLElement && Boolean(target.closest(INTERACTIVE_HEADER_SELECTOR));
+
+const clampedDslPanelWindow = (
+  panelWindow: DslPanelWindow,
+  panelSize: { width: number; height: number },
+  viewportSize: { width: number; height: number }
+): DslPanelWindow => {
+  const maxX = Math.max(viewportSize.width - panelSize.width - PANEL_VIEWPORT_MARGIN, PANEL_VIEWPORT_MARGIN);
+  const maxY = Math.max(viewportSize.height - panelSize.height - PANEL_VIEWPORT_MARGIN, PANEL_VIEWPORT_MARGIN);
+  return {
+    x: Math.min(Math.max(panelWindow.x, PANEL_VIEWPORT_MARGIN), maxX),
+    y: Math.min(Math.max(panelWindow.y, PANEL_VIEWPORT_MARGIN), maxY)
+  };
+};
+
+const saveDslPanelWindowSettings = (dslPanelWindow: DslPanelWindow | null) => {
+  void loadLayoutSettings()
+    .then((settings) => saveLayoutSettings({ ...settings, dslPanelWindow }))
+    .catch((error: unknown) => {
+      console.error("failed to save DSL panel window settings", error);
+    });
+};
+
+type DslPanelDrag = {
+  pointerId: number;
+  startX: number;
+  startY: number;
+  panelWindow: DslPanelWindow;
+  panelSize: { width: number; height: number };
+};
+
 export const DslPanel = () => {
   const showDslPanel = useCadUiStore((state) => state.showDslPanel);
   const dslPanelSourceRequest = useCadUiStore((state) => state.dslPanelSourceRequest);
+  const dslPanelWindow = useCadUiStore((state) => state.dslPanelWindow);
+  const setDslPanelWindow = useCadUiStore((state) => state.setDslPanelWindow);
   const elements = useCadDocumentStore((state) => state.elements);
   const selectedElementIds = useCadDocumentStore((state) => state.selectedElementIds);
   const evaluationLimitIndex = useCadDocumentStore((state) => state.evaluationLimitIndex);
   const commitDocumentChange = useCadDocumentStore((state) => state.commitDocumentChange);
+  const panelRef = useRef<HTMLElement | null>(null);
+  const [drag, setDrag] = useState<DslPanelDrag | null>(null);
   const [sourceState, setSourceState] = useState<{ source: string; requestId: number | null }>({
     source: defaultSource,
     requestId: null
@@ -108,9 +150,74 @@ export const DslPanel = () => {
     setStatus(selectedElements.length > 0 ? "選択要素をDSLへ書き出しました。" : "全要素をDSLへ書き出しました。");
   };
 
+  const startDrag = (event: PointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0) return;
+    if (isInteractiveHeaderTarget(event.target)) return;
+    const rect = panelRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    event.preventDefault();
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    const panelWindow = dslPanelWindow ?? { x: rect.left, y: rect.top };
+    setDrag({
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      panelWindow,
+      panelSize: { width: rect.width, height: rect.height }
+    });
+    setDslPanelWindow(clampedDslPanelWindow(panelWindow, rect, {
+      width: window.innerWidth,
+      height: window.innerHeight
+    }));
+  };
+
+  const moveDrag = (event: PointerEvent<HTMLDivElement>) => {
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    event.preventDefault();
+    setDslPanelWindow(
+      clampedDslPanelWindow(
+        {
+          x: drag.panelWindow.x + event.clientX - drag.startX,
+          y: drag.panelWindow.y + event.clientY - drag.startY
+        },
+        drag.panelSize,
+        { width: window.innerWidth, height: window.innerHeight }
+      )
+    );
+  };
+
+  const finishDrag = (event: PointerEvent<HTMLDivElement>) => {
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    event.preventDefault();
+    event.currentTarget.releasePointerCapture?.(event.pointerId);
+    const nextWindow = useCadUiStore.getState().dslPanelWindow;
+    saveDslPanelWindowSettings(nextWindow);
+    setDrag(null);
+  };
+
+  const panelStyle = dslPanelWindow
+    ? ({
+        left: `${dslPanelWindow.x}px`,
+        top: `${dslPanelWindow.y}px`,
+        right: "auto",
+        bottom: "auto"
+      } satisfies CSSProperties)
+    : undefined;
+
   return (
-    <aside className="dsl-panel" aria-label="DSLパネル">
-      <div className="dsl-panel-header">
+    <aside
+      ref={panelRef}
+      className={`dsl-panel ${dslPanelWindow ? "is-positioned" : ""}`}
+      style={panelStyle}
+      aria-label="DSLパネル"
+    >
+      <div
+        className={`dsl-panel-header ${drag ? "is-dragging" : ""}`}
+        onPointerDown={startDrag}
+        onPointerMove={moveDrag}
+        onPointerUp={finishDrag}
+        onPointerCancel={finishDrag}
+      >
         <div>
           <span>DSL</span>
           <h2>テキスト作図</h2>

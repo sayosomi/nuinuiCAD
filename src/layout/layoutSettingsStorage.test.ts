@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { DEFAULT_PRINT_PREVIEW_WINDOW } from "../state/cadUiStore";
+import { DEFAULT_DSL_PANEL_WINDOW, DEFAULT_PRINT_PREVIEW_WINDOW } from "../state/cadUiStore";
 import {
   DEFAULT_LEFT_PANEL_WIDTH,
   MAX_LEFT_PANEL_WIDTH,
@@ -19,7 +19,8 @@ describe("layoutSettingsStorage", () => {
       version: 1,
       leftPanelWidth: DEFAULT_LEFT_PANEL_WIDTH,
       collapsedPrintPanelSections: ["variables"],
-      printPreviewWindow: DEFAULT_PRINT_PREVIEW_WINDOW
+      printPreviewWindow: DEFAULT_PRINT_PREVIEW_WINDOW,
+      dslPanelWindow: DEFAULT_DSL_PANEL_WINDOW
     });
   });
 
@@ -35,7 +36,8 @@ describe("layoutSettingsStorage", () => {
         height: 260,
         zoom: 0.8,
         layoutId: "print-layout-2"
-      }
+      },
+      dslPanelWindow: { x: 320, y: 80 }
     });
 
     await expect(loadLayoutSettings()).resolves.toEqual({
@@ -49,7 +51,8 @@ describe("layoutSettingsStorage", () => {
         height: 260,
         zoom: 0.8,
         layoutId: "print-layout-2"
-      }
+      },
+      dslPanelWindow: { x: 320, y: 80 }
     });
   });
 
@@ -58,13 +61,15 @@ describe("layoutSettingsStorage", () => {
       version: 1,
       leftPanelWidth: MIN_LEFT_PANEL_WIDTH,
       collapsedPrintPanelSections: ["variables"],
-      printPreviewWindow: DEFAULT_PRINT_PREVIEW_WINDOW
+      printPreviewWindow: DEFAULT_PRINT_PREVIEW_WINDOW,
+      dslPanelWindow: DEFAULT_DSL_PANEL_WINDOW
     });
     expect(normalizeLayoutSettings({ version: 1, leftPanelWidth: 900 })).toEqual({
       version: 1,
       leftPanelWidth: MAX_LEFT_PANEL_WIDTH,
       collapsedPrintPanelSections: ["variables"],
-      printPreviewWindow: DEFAULT_PRINT_PREVIEW_WINDOW
+      printPreviewWindow: DEFAULT_PRINT_PREVIEW_WINDOW,
+      dslPanelWindow: DEFAULT_DSL_PANEL_WINDOW
     });
     expect(
       normalizeLayoutSettings({
@@ -76,7 +81,8 @@ describe("layoutSettingsStorage", () => {
       version: 1,
       leftPanelWidth: 420,
       collapsedPrintPanelSections: ["output", "placements"],
-      printPreviewWindow: DEFAULT_PRINT_PREVIEW_WINDOW
+      printPreviewWindow: DEFAULT_PRINT_PREVIEW_WINDOW,
+      dslPanelWindow: DEFAULT_DSL_PANEL_WINDOW
     });
     expect(
       normalizeLayoutSettings({
@@ -89,6 +95,10 @@ describe("layoutSettingsStorage", () => {
           height: 90,
           zoom: 12,
           layoutId: "print-layout-2"
+        },
+        dslPanelWindow: {
+          x: 300.3,
+          y: 88.6
         }
       })
     ).toEqual({
@@ -102,13 +112,18 @@ describe("layoutSettingsStorage", () => {
         height: 180,
         zoom: 4,
         layoutId: "print-layout-2"
+      },
+      dslPanelWindow: {
+        x: 300,
+        y: 89
       }
     });
     expect(normalizeLayoutSettings("{not-json")).toEqual({
       version: 1,
       leftPanelWidth: DEFAULT_LEFT_PANEL_WIDTH,
       collapsedPrintPanelSections: ["variables"],
-      printPreviewWindow: DEFAULT_PRINT_PREVIEW_WINDOW
+      printPreviewWindow: DEFAULT_PRINT_PREVIEW_WINDOW,
+      dslPanelWindow: DEFAULT_DSL_PANEL_WINDOW
     });
   });
 
@@ -119,7 +134,8 @@ describe("layoutSettingsStorage", () => {
       version: 1,
       leftPanelWidth: DEFAULT_LEFT_PANEL_WIDTH,
       collapsedPrintPanelSections: ["variables"],
-      printPreviewWindow: DEFAULT_PRINT_PREVIEW_WINDOW
+      printPreviewWindow: DEFAULT_PRINT_PREVIEW_WINDOW,
+      dslPanelWindow: DEFAULT_DSL_PANEL_WINDOW
     });
   });
 });

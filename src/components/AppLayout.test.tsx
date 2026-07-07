@@ -4,6 +4,7 @@ import { dispatchCommand } from "../commands/commands";
 import { defaultDocumentPalette } from "../palette/palette";
 import { DEFAULT_PRINT_LAYOUT } from "../print/printLayout";
 import { sampleElements } from "../sampleData";
+import { DEFAULT_DSL_PANEL_WINDOW } from "../state/cadUiStore";
 import { DEFAULT_CANVAS_VIEWPORT, DEFAULT_PRINT_PREVIEW_WINDOW, useCadStore } from "../state/useCadStore";
 import { AppLayout } from "./AppLayout";
 
@@ -52,6 +53,7 @@ const resetStore = () => {
     canvasViewport: DEFAULT_CANVAS_VIEWPORT,
     printCanvasViewport: DEFAULT_CANVAS_VIEWPORT,
     printPreviewWindow: DEFAULT_PRINT_PREVIEW_WINDOW,
+    dslPanelWindow: DEFAULT_DSL_PANEL_WINDOW,
     past: [],
     future: [],
     currentFilePath: null,
@@ -452,7 +454,8 @@ describe("AppLayout left panel resizing", () => {
         version: 1,
         leftPanelWidth: 500,
         collapsedPrintPanelSections: ["variables"],
-        printPreviewWindow: DEFAULT_PRINT_PREVIEW_WINDOW
+        printPreviewWindow: DEFAULT_PRINT_PREVIEW_WINDOW,
+        dslPanelWindow: DEFAULT_DSL_PANEL_WINDOW
       })
     );
     expect(shell.style.getPropertyValue("--left-panel-width")).toBe("500px");
@@ -478,7 +481,8 @@ describe("AppLayout left panel resizing", () => {
         version: 1,
         leftPanelWidth: 320,
         collapsedPrintPanelSections: ["variables"],
-        printPreviewWindow: DEFAULT_PRINT_PREVIEW_WINDOW
+        printPreviewWindow: DEFAULT_PRINT_PREVIEW_WINDOW,
+        dslPanelWindow: DEFAULT_DSL_PANEL_WINDOW
       })
     );
     expect(shell.style.getPropertyValue("--left-panel-width")).toBe("320px");

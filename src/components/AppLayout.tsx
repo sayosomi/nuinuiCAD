@@ -49,6 +49,7 @@ export const AppLayout = () => {
   const showPrintPreviewWindow = useCadUiStore((state) => state.showPrintPreviewWindow);
   const showDslPanel = useCadUiStore((state) => state.showDslPanel);
   const setPrintPreviewWindow = useCadUiStore((state) => state.setPrintPreviewWindow);
+  const setDslPanelWindow = useCadUiStore((state) => state.setDslPanelWindow);
   const activeTemplateInsertion = useCadUiStore((state) => state.activeTemplateInsertion);
   const isPickMode = useCadUiStore(
     (state) =>
@@ -105,6 +106,7 @@ export const AppLayout = () => {
         if (!cancelled) {
           setLeftPanelWidth(settings.leftPanelWidth);
           setPrintPreviewWindow(settings.printPreviewWindow);
+          setDslPanelWindow(settings.dslPanelWindow);
         }
       })
       .catch((error: unknown) => {
@@ -113,7 +115,7 @@ export const AppLayout = () => {
     return () => {
       cancelled = true;
     };
-  }, [setPrintPreviewWindow]);
+  }, [setDslPanelWindow, setPrintPreviewWindow]);
 
   useEffect(() => {
     return registerUnsavedChangesGuard();

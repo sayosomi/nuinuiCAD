@@ -4,6 +4,8 @@
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
     sans-serif;
+  --dsl-code-font: "SF Mono", "Cascadia Code", "JetBrains Mono", ui-monospace,
+    SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -1303,6 +1305,11 @@ textarea {
   box-shadow: 0 18px 48px rgb(37 38 34 / 22%);
 }
 
+.dsl-panel.is-positioned {
+  height: calc(100vh - 88px);
+  max-height: calc(100vh - 16px);
+}
+
 .dsl-panel-header,
 .dsl-panel-toolbar {
   display: flex;
@@ -1314,6 +1321,13 @@ textarea {
 
 .dsl-panel-header {
   justify-content: space-between;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.dsl-panel-header.is-dragging {
+  cursor: grabbing;
 }
 
 .dsl-panel-header span {
@@ -1337,6 +1351,10 @@ textarea {
   align-items: center;
 }
 
+.dsl-panel-header button {
+  cursor: pointer;
+}
+
 .dsl-panel-toolbar {
   flex-wrap: wrap;
 }
@@ -1355,7 +1373,7 @@ textarea {
   background: #eef1eb;
   padding: 12px 8px;
   color: #7a7d73;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-family: var(--dsl-code-font);
   font-size: 12px;
   line-height: 1.55;
   text-align: right;
@@ -1382,7 +1400,7 @@ textarea {
   border: 0;
   padding: 12px;
   white-space: pre;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-family: var(--dsl-code-font);
   font-size: 12px;
   line-height: 1.55;
   tab-size: 2;
@@ -1508,6 +1526,11 @@ textarea {
     right: 12px;
     bottom: 12px;
     width: calc(100vw - 24px);
+  }
+
+  .dsl-panel.is-positioned {
+    height: calc(100vh - 64px);
+    max-height: calc(100vh - 16px);
   }
 }
 
