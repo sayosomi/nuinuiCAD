@@ -347,40 +347,40 @@ textarea {
 .element-row {
   position: relative;
   display: grid;
-  --row-indent: calc(var(--outline-depth, 0) * 18px);
-  grid-template-columns: max-content 40px minmax(0, 1fr) minmax(0, auto) 24px;
+  --row-indent: calc(var(--outline-depth, 0) * 16px);
+  grid-template-columns: max-content 34px minmax(0, 1fr) minmax(0, auto) 20px;
   grid-template-areas:
     "index status name type handle"
     "actions actions actions actions actions";
   grid-template-rows: auto auto;
   align-items: center;
   column-gap: 4px;
-  row-gap: 6px;
+  row-gap: 3px;
   width: calc(100% - var(--row-indent));
   min-width: 0;
-  min-height: 42px;
+  min-height: 32px;
   margin-left: var(--row-indent);
   border: 1px solid #b9bdb2;
   border-radius: 6px;
   background: #ffffff;
   color: #252622;
   cursor: pointer;
-  padding: 7px 10px;
+  padding: 4px 8px;
   text-align: left;
 }
 
 .element-row.is-flat-list {
-  grid-template-columns: max-content 40px minmax(0, 1fr) minmax(0, auto) 24px;
+  grid-template-columns: max-content 34px minmax(0, 1fr) minmax(0, auto) 20px;
 }
 
 .element-row.is-group {
-  grid-template-columns: max-content 40px minmax(0, 1fr) minmax(0, auto) 24px;
+  grid-template-columns: max-content 34px minmax(0, 1fr) minmax(0, auto) 20px;
   background: #f8faf7;
   font-weight: 600;
 }
 
 .left-panel.is-print-layout .element-row.is-group {
-  grid-template-columns: max-content 58px minmax(0, 1fr) minmax(0, auto) 24px;
+  grid-template-columns: max-content 50px minmax(0, 1fr) minmax(0, auto) 20px;
 }
 
 .element-row.is-group.selected {
@@ -390,14 +390,14 @@ textarea {
 .element-for-section-row,
 .element-generated-row {
   display: grid;
-  grid-template-columns: max-content 18px 40px 40px minmax(0, 1fr) minmax(0, auto) 24px;
+  grid-template-columns: max-content 16px 34px 34px minmax(0, 1fr) minmax(0, auto) 20px;
   grid-template-areas: "outline expand index status name type handle";
   align-items: center;
   column-gap: 4px;
-  min-height: 28px;
-  padding: 3px 10px;
+  min-height: 22px;
+  padding: 2px 8px;
   color: #646961;
-  font-size: 12px;
+  font-size: 11px;
 }
 
 .element-for-section-label {
@@ -420,9 +420,9 @@ textarea {
 .element-outline-indent {
   grid-area: outline;
   display: block;
-  width: calc(var(--outline-depth, 0) * 14px);
+  width: calc(var(--outline-depth, 0) * 12px);
   height: 100%;
-  min-height: 24px;
+  min-height: 20px;
   border-left: calc(min(var(--outline-depth, 0), 1) * 1px) solid #d7dbd1;
 }
 
@@ -431,21 +431,21 @@ textarea {
   grid-area: expand;
   display: grid;
   place-items: center;
-  width: 18px;
-  height: 24px;
+  width: 16px;
+  height: 20px;
 }
 
 .element-expand-button {
   position: absolute;
   top: 50%;
-  left: -23px;
+  left: -20px;
   transform: translateY(-50%);
   border: 0;
   border-radius: 4px;
   background: transparent;
   color: #4f5750;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 12px;
   line-height: 1;
   padding: 0;
 }
@@ -698,12 +698,12 @@ textarea {
 
 .evaluation-divider-row {
   display: grid;
-  grid-template-columns: 28px minmax(18px, 1fr) auto minmax(18px, 1fr) 28px 28px;
+  grid-template-columns: 24px minmax(14px, 1fr) auto minmax(14px, 1fr) 24px 24px;
   align-items: center;
-  gap: 8px;
+  gap: 5px;
   width: 100%;
   min-width: 0;
-  min-height: 34px;
+  min-height: 26px;
   padding-inline: 2px;
   color: #0f4f49;
   cursor: grab;
@@ -727,10 +727,10 @@ textarea {
 .evaluation-divider-label {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   min-width: 0;
   white-space: nowrap;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
 }
 
@@ -741,8 +741,8 @@ textarea {
 
 .evaluation-divider-button {
   display: grid;
-  width: 28px;
-  height: 26px;
+  width: 24px;
+  height: 22px;
   min-height: 0;
   place-items: center;
   padding: 0;
@@ -758,8 +758,8 @@ textarea {
   grid-area: handle;
   display: grid;
   place-items: center;
-  width: 24px;
-  height: 28px;
+  width: 20px;
+  height: 24px;
   min-height: 0;
   border-color: transparent;
   background: transparent;
@@ -767,7 +767,7 @@ textarea {
   color: #686b62;
   cursor: grab;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 14px;
+  font-size: 13px;
   line-height: 1;
 }
 
@@ -820,7 +820,7 @@ textarea {
 .element-status-icons {
   grid-area: status;
   display: grid;
-  grid-template-columns: 18px 18px;
+  grid-template-columns: 16px 16px;
   gap: 2px;
   align-items: center;
   justify-self: start;
@@ -829,14 +829,14 @@ textarea {
 }
 
 .element-status-icons.has-print-toggle {
-  grid-template-columns: 18px 18px 18px;
+  grid-template-columns: 16px 16px 16px;
 }
 
 .element-status-button {
   display: inline-grid;
-  width: 18px;
-  height: 18px;
-  padding: 2px;
+  width: 16px;
+  height: 16px;
+  padding: 1px;
   place-items: center;
   border: 0;
   border-radius: 4px;
@@ -855,8 +855,8 @@ textarea {
 }
 
 .element-status-icon {
-  width: 14px;
-  height: 14px;
+  width: 13px;
+  height: 13px;
   fill: none;
   stroke: currentColor;
   stroke-linecap: round;
@@ -865,8 +865,8 @@ textarea {
 }
 
 .element-print-status-button svg {
-  width: 14px;
-  height: 14px;
+  width: 13px;
+  height: 13px;
   fill: none;
   stroke: currentColor;
   stroke-linecap: round;
@@ -906,7 +906,7 @@ textarea {
   min-width: 0;
   overflow: hidden;
   color: #686b62;
-  font-size: 12px;
+  font-size: 11px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -923,19 +923,20 @@ textarea {
   grid-area: name;
   min-width: 0;
   overflow: hidden;
-  line-height: 1.25;
+  font-size: 12px;
+  line-height: 1.18;
 }
 
 .element-name-primary {
   display: flex;
   min-width: 0;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
 }
 
 .element-name-icon {
-  width: 14px;
-  height: 14px;
+  width: 12px;
+  height: 12px;
   flex: 0 0 auto;
   color: #5f6860;
   stroke-width: 2;
@@ -960,11 +961,11 @@ textarea {
   overflow: hidden;
   overflow-wrap: anywhere;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 1;
 }
 
 .element-name-text.is-compact-name {
-  font-size: 13px;
+  font-size: 11px;
 }
 
 .palette-panel {
@@ -1734,8 +1735,8 @@ textarea {
 }
 
 .element-group-icon {
-  width: 14px;
-  height: 14px;
+  width: 12px;
+  height: 12px;
   flex: 0 0 auto;
   color: #5d6d5f;
   stroke-width: 2;
@@ -1743,28 +1744,28 @@ textarea {
 
 .element-else-row {
   display: grid;
-  grid-template-columns: max-content 18px 40px minmax(0, 1fr);
+  grid-template-columns: max-content 16px 34px minmax(0, 1fr);
   grid-template-areas: "outline expand index label";
   align-items: center;
   column-gap: 4px;
-  min-height: 28px;
-  padding: 2px 10px;
+  min-height: 22px;
+  padding: 2px 8px;
   color: #6f756c;
-  font-size: 12px;
+  font-size: 11px;
 }
 
 .element-else-label {
   grid-area: label;
   border-top: 1px dashed #c9cdc4;
-  padding-top: 5px;
+  padding-top: 3px;
   font-weight: 700;
 }
 
 .group-mask-label {
   display: inline-block;
-  margin-left: 6px;
+  margin-left: 5px;
   color: #7a8177;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 500;
 }
 
@@ -1776,20 +1777,20 @@ textarea {
   max-width: 100%;
   flex-wrap: wrap;
   align-items: flex-start;
-  gap: 5px;
-  padding-top: 2px;
+  gap: 4px;
+  padding-top: 1px;
 }
 
 .element-point-pick-actions button,
 .element-numeric-reference-actions button {
   max-width: 100%;
-  min-height: 28px;
+  min-height: 24px;
   min-width: 0;
-  padding: 4px 8px;
+  padding: 3px 7px;
   border-color: #0f766e;
   background: #ffffff;
   color: #0f4f49;
-  font-size: 12px;
+  font-size: 11px;
   overflow-wrap: anywhere;
 }
 
@@ -1809,7 +1810,7 @@ textarea {
 
 .element-numeric-reference-actions small {
   color: #5c6359;
-  font-size: 11px;
+  font-size: 10px;
   white-space: nowrap;
 }
 
