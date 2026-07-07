@@ -209,6 +209,66 @@ describe("DslPanel", () => {
     expect(screen.getByLabelText("DSL診断")).toBeInTheDocument();
   });
 
+  it("undoes and redoes DSL source edits while the editor is focused", async () => {
+    useCadStore.setState({ showDslPanel: true });
+
+    render(<DslPanel />);
+
+    const editor = await screen.findByLabelText("DSLソース") as HTMLTextAreaElement;
+    const initialSource = editor.value;
+    fireEvent.change(editor, { target: { value: "point A = (1, 2)" } });
+    fireEvent.change(editor, { target: { value: "point A = (3, 4)" } });
+
+    fireEvent.keyDown(editor, { key: "z", metaKey: true });
+    expect(editor.value).toBe("point A = (1, 2)");
+
+    fireEvent.keyDown(editor, { key: "z", metaKey: true });
+    expect(editor.value).toBe(initialSource);
+
+    fireEvent.keyDown(editor, { key: "y", metaKey: true });
+    expect(editor.value).toBe("point A = (1, 2)");
+
+    fireEvent.keyDown(editor, { key: "z", metaKey: true, shiftKey: true });
+    expect(editor.value).toBe("point A = (3, 4)");
+  });
+
+  it("clears DSL redo history after a new source edit", async () => {
+    useCadStore.setState({ showDslPanel: true });
+
+    render(<DslPanel />);
+
+    const editor = await screen.findByLabelText("DSLソース") as HTMLTextAreaElement;
+    fireEvent.change(editor, { target: { value: "point A = (1, 2)" } });
+    fireEvent.change(editor, { target: { value: "point A = (3, 4)" } });
+    fireEvent.keyDown(editor, { key: "z", metaKey: true });
+    expect(editor.value).toBe("point A = (1, 2)");
+
+    fireEvent.change(editor, { target: { value: "point A = (5, 6)" } });
+    fireEvent.keyDown(editor, { key: "y", metaKey: true });
+
+    expect(editor.value).toBe("point A = (5, 6)");
+  });
+
+  it("undoes a DSL selection export back to the previous source", async () => {
+    useCadStore.setState({
+      showDslPanel: true,
+      selectedElementId: "point-b",
+      selectedElementIds: ["point-b"],
+      selectionAnchorElementId: "point-b"
+    });
+
+    render(<DslPanel />);
+
+    const editor = await screen.findByLabelText("DSLソース") as HTMLTextAreaElement;
+    fireEvent.change(editor, { target: { value: "point Custom = (1, 2)" } });
+    fireEvent.keyDown(editor, { key: "E", metaKey: true, shiftKey: true });
+    expect(editor.value).toContain("point 点B");
+
+    fireEvent.keyDown(editor, { key: "z", metaKey: true });
+
+    expect(editor.value).toBe("point Custom = (1, 2)");
+  });
+
   it("applies valid DSL from the keyboard, closes, and returns focus", async () => {
     const previousTarget = document.createElement("div");
     previousTarget.tabIndex = -1;

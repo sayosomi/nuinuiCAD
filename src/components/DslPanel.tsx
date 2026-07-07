@@ -47,6 +47,17 @@ const dslPanelCommandIds = new Set<CommandId>([
   "closeDslPanel"
 ]);
 
+const isUndoKey = (event: KeyboardEvent<HTMLElement>) =>
+  (event.metaKey || event.ctrlKey) && !event.altKey && event.key.toLowerCase() === "z" && !event.shiftKey;
+
+const isRedoKey = (event: KeyboardEvent<HTMLElement>) =>
+  (event.metaKey || event.ctrlKey) &&
+  !event.altKey &&
+  (
+    (event.key.toLowerCase() === "y" && !event.shiftKey) ||
+    (event.key.toLowerCase() === "z" && event.shiftKey)
+  );
+
 const isInteractiveHeaderTarget = (target: EventTarget | null) =>
   target instanceof Element && Boolean(target.closest(INTERACTIVE_HEADER_SELECTOR));
 
@@ -155,6 +166,10 @@ export const DslPanel = ({ commandContext, evaluation }: DslPanelProps) => {
     source: defaultSource,
     requestId: null
   });
+  const [, setSourceHistory] = useState<{ past: string[]; future: string[] }>({
+    past: [],
+    future: []
+  });
   const [diagnostics, setDiagnostics] = useState<DslDiagnostic[]>([]);
   const [status, setStatus] = useState<string | null>(null);
 
@@ -209,6 +224,60 @@ export const DslPanel = ({ commandContext, evaluation }: DslPanelProps) => {
     restoreFocus();
   }, [restoreFocus]);
 
+  const replaceSource = useCallback((
+    nextSource: string,
+    requestId: number | null,
+    options: { recordHistory?: boolean } = {}
+  ) => {
+    const recordHistory = options.recordHistory ?? true;
+    setSourceState((current) => {
+      if (current.source === nextSource && current.requestId === requestId) return current;
+      if (recordHistory && current.source !== nextSource) {
+        setSourceHistory((history) => ({
+          past: [...history.past, current.source],
+          future: []
+        }));
+      }
+      return { source: nextSource, requestId };
+    });
+    setDiagnostics([]);
+    setStatus(null);
+  }, []);
+
+  const undoSource = useCallback(() => {
+    setSourceHistory((history) => {
+      const previousSource = history.past.at(-1);
+      if (previousSource === undefined) return history;
+      setSourceState({
+        source: previousSource,
+        requestId: activeRequestId
+      });
+      setDiagnostics([]);
+      setStatus(null);
+      return {
+        past: history.past.slice(0, -1),
+        future: [source, ...history.future]
+      };
+    });
+  }, [activeRequestId, source]);
+
+  const redoSource = useCallback(() => {
+    setSourceHistory((history) => {
+      const nextSource = history.future[0];
+      if (nextSource === undefined) return history;
+      setSourceState({
+        source: nextSource,
+        requestId: activeRequestId
+      });
+      setDiagnostics([]);
+      setStatus(null);
+      return {
+        past: [...history.past, source],
+        future: history.future.slice(1)
+      };
+    });
+  }, [activeRequestId, source]);
+
   const selectDslName = useCallback((
     direction: "currentOrNext" | "previous" = "currentOrNext",
     sourceOverride?: string,
@@ -235,7 +304,7 @@ export const DslPanel = ({ commandContext, evaluation }: DslPanelProps) => {
   }, []);
 
   const validate = useCallback(() => {
-    setSourceState({ source, requestId: activeRequestId });
+    replaceSource(source, activeRequestId);
     const result = compileDslToElements(source, {
       elements,
       visibilityRoles,
@@ -255,6 +324,7 @@ export const DslPanel = ({ commandContext, evaluation }: DslPanelProps) => {
     elements,
     insertionIndex,
     printLayouts,
+    replaceSource,
     selectedElementIds,
     source,
     visibilityProfiles,
@@ -306,11 +376,7 @@ export const DslPanel = ({ commandContext, evaluation }: DslPanelProps) => {
         activeVisibilityProfileId,
         printLayouts
       });
-      setSourceState({
-        source: nextSource,
-        requestId: activeRequestId
-      });
-      setDiagnostics([]);
+      replaceSource(nextSource, activeRequestId);
       setStatus("全要素をDSLへ書き出しました。");
       selectDslName("currentOrNext", nextSource, 0);
       return;
@@ -321,11 +387,7 @@ export const DslPanel = ({ commandContext, evaluation }: DslPanelProps) => {
       evaluation
     });
     const nextSource = serializeExportSelectionToDsl(selection);
-    setSourceState({
-      source: nextSource,
-      requestId: activeRequestId
-    });
-    setDiagnostics([]);
+    replaceSource(nextSource, activeRequestId);
     setStatus(exportStatus(selection));
     selectDslName("currentOrNext", nextSource, 0);
   }, [
@@ -334,6 +396,7 @@ export const DslPanel = ({ commandContext, evaluation }: DslPanelProps) => {
     elements,
     evaluation,
     printLayouts,
+    replaceSource,
     selectedElementIds,
     selectedElements,
     selectDslName,
@@ -373,6 +436,18 @@ export const DslPanel = ({ commandContext, evaluation }: DslPanelProps) => {
       event.preventDefault();
       event.stopPropagation();
       selectDslName(event.shiftKey ? "previous" : "currentOrNext");
+      return;
+    }
+    if (isUndoKey(event)) {
+      event.preventDefault();
+      event.stopPropagation();
+      undoSource();
+      return;
+    }
+    if (isRedoKey(event)) {
+      event.preventDefault();
+      event.stopPropagation();
+      redoSource();
       return;
     }
     const keyboardCommand = keyboardCommandForEvent(event.nativeEvent, {
@@ -537,8 +612,7 @@ export const DslPanel = ({ commandContext, evaluation }: DslPanelProps) => {
         textareaRef={editorRef}
         source={source}
         onSourceChange={(nextSource) => {
-          setSourceState({ source: nextSource, requestId: activeRequestId });
-          setStatus(null);
+          replaceSource(nextSource, activeRequestId);
         }}
       />
 
