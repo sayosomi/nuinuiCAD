@@ -1,4 +1,5 @@
 import { derivedAnchor, referenceAnchor } from "../model/pointAnchors";
+import { resolveElementName } from "../model/elementNames";
 import type {
   CadElement,
   ElementId,
@@ -10,6 +11,7 @@ import type { DslDiagnostic } from "./dslTypes";
 import { lastIndexOfDslOutsideQuotes, unquoteDslString } from "./dslTokens";
 
 export type NameIndex = {
+  elements: CadElement[];
   elementsById: Map<ElementId, CadElement>;
   idsByName: Map<string, ElementId[]>;
 };
@@ -21,6 +23,7 @@ export const createNameIndex = (elements: CadElement[]): NameIndex => {
     idsByName.set(element.name, [...(idsByName.get(element.name) ?? []), element.id]);
   }
   return {
+    elements,
     elementsById: new Map(elements.map((element) => [element.id, element])),
     idsByName
   };
@@ -37,13 +40,17 @@ export const resolveId = (
   token: string,
   index: NameIndex,
   line: number,
-  diagnostics: DslDiagnostic[]
+  diagnostics: DslDiagnostic[],
+  currentElement?: CadElement
 ) => {
   const resolvedToken = unquoteDslString(token);
-  if (index.elementsById.has(resolvedToken)) return resolvedToken;
-  const ids = index.idsByName.get(resolvedToken) ?? [];
-  if (ids.length === 1) return ids[0];
-  if (ids.length > 1) {
+  const resolution = resolveElementName({
+    token: resolvedToken,
+    elements: index.elements,
+    currentElement
+  });
+  if (resolution.status === "resolved") return resolution.element.id;
+  if (resolution.status === "ambiguous") {
     diagnostics.push(diagnostic(line, `参照名が曖昧です: ${resolvedToken}`));
     return resolvedToken;
   }
@@ -61,29 +68,31 @@ export const resolveAnchor = (
   index: NameIndex,
   line: number,
   diagnostics: DslDiagnostic[],
-  numeric: (source: string) => NumericValue
+  numeric: (source: string) => NumericValue,
+  currentElement?: CadElement
 ): PointAnchor => {
   const coordinate = coordinateAnchor(value, numeric);
   if (coordinate) return coordinate;
   const dotIndex = lastIndexOfDslOutsideQuotes(value, ".");
   if (dotIndex > 0) {
-    const elementId = resolveId(value.slice(0, dotIndex), index, line, diagnostics);
+    const elementId = resolveId(value.slice(0, dotIndex), index, line, diagnostics, currentElement);
     return derivedAnchor(elementId, value.slice(dotIndex + 1));
   }
-  return referenceAnchor(resolveId(value, index, line, diagnostics));
+  return referenceAnchor(resolveId(value, index, line, diagnostics, currentElement));
 };
 
 export const resolveEndpoint = (
   value: string,
   index: NameIndex,
   line: number,
-  diagnostics: DslDiagnostic[]
+  diagnostics: DslDiagnostic[],
+  currentElement?: CadElement
 ): LineEndpointReference => {
   const dotIndex = lastIndexOfDslOutsideQuotes(value, ".");
   const lineName = dotIndex > 0 ? value.slice(0, dotIndex) : value;
   const endpointKey = dotIndex > 0 && value.slice(dotIndex + 1) === "end" ? "end" : "start";
   return {
-    lineId: resolveId(lineName, index, line, diagnostics),
+    lineId: resolveId(lineName, index, line, diagnostics, currentElement),
     endpointKey
   };
 };

@@ -325,6 +325,7 @@ export const duplicateElements = (
     if (!copiedId) continue;
 
     const baseName = original.name.trim() || fallbackElementName(original.type);
+    const copiedParentGroupId = copy.parentGroupId ? mapId(copy.parentGroupId, idMap) : copy.parentGroupId;
     const renamed = {
       ...copy,
       id: copiedId,
@@ -332,9 +333,10 @@ export const duplicateElements = (
         elements: [...elements, ...copiedElements],
         elementId: copiedId,
         requestedName: `${baseName} コピー`,
-        fallbackBaseName: `${fallbackElementName(original.type)} コピー`
+        fallbackBaseName: `${fallbackElementName(original.type)} コピー`,
+        parentGroupId: copiedParentGroupId
       }),
-      parentGroupId: copy.parentGroupId ? mapId(copy.parentGroupId, idMap) : copy.parentGroupId
+      parentGroupId: copiedParentGroupId
     } as CadElement;
     copiedElements.push(remapElementReferences(renamed, idMap));
   }

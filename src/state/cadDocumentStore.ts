@@ -701,7 +701,8 @@ export const useCadDocumentStore = create<CadDocumentState>((set) => ({
         elements: state.elements,
         elementId: id,
         requestedName,
-        fallbackBaseName: fallbackElementName(elementToRename.type)
+        fallbackBaseName: fallbackElementName(elementToRename.type),
+        parentGroupId: elementToRename.parentGroupId
       });
 
       if (uniqueName === elementToRename.name) return {};

@@ -84,6 +84,38 @@ describe("DSL compiler", () => {
     });
   });
 
+  it("resolves duplicate element names by parent namespace and qualified path", () => {
+    const result = compileDslToElements(
+      [
+        "group front",
+        "group back",
+        "point A = (0, 0) parent=front",
+        "point B = (100, 0) parent=front",
+        "point A = (0, 10) parent=back",
+        "point B = (100, 10) parent=back",
+        "line side = A -> B parent=front",
+        "line backSide = back::A -> back::B parent=front"
+      ].join("\n"),
+      { elements: [] }
+    );
+
+    expect(result.diagnostics).toEqual([]);
+    const frontA = result.elements.find((element) => element.name === "A" && element.parentGroupId === result.elements[0].id);
+    const frontB = result.elements.find((element) => element.name === "B" && element.parentGroupId === result.elements[0].id);
+    const backA = result.elements.find((element) => element.name === "A" && element.parentGroupId === result.elements[1].id);
+    const backB = result.elements.find((element) => element.name === "B" && element.parentGroupId === result.elements[1].id);
+    expect(result.elements.find((element) => element.name === "side")).toMatchObject({
+      type: "line",
+      startPoint: { mode: "reference", pointId: frontA?.id },
+      endPoint: { mode: "reference", pointId: frontB?.id }
+    });
+    expect(result.elements.find((element) => element.name === "backSide")).toMatchObject({
+      type: "line",
+      startPoint: { mode: "reference", pointId: backA?.id },
+      endPoint: { mode: "reference", pointId: backB?.id }
+    });
+  });
+
   it("supports generic element syntax for element types without short syntax", () => {
     const base = compileDslToElements(
       [

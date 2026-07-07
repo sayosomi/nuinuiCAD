@@ -32,8 +32,11 @@ const commitCreatedElement = (
   context?: CommandContext
 ) => {
   const placement = creationPlacementForEvaluationLimit(elements, insertionIndex);
-  const namedElement = withCreatedElementName(element, elements, placement.referenceElements);
-  const placedElement = applyCreationPlacement(namedElement, placement);
+  const placedElement = withCreatedElementName(
+    applyCreationPlacement(element, placement),
+    elements,
+    placement.referenceElements
+  );
   useCadDocumentStore.getState().commitDocumentChange({
     elements: [
       ...elements.slice(0, insertionIndex),

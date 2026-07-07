@@ -285,13 +285,14 @@ export const instantiateGroupTemplate = ({
     let copied = {
       ...structuredClone(original),
       id: copiedId,
+      parentGroupId: original.parentGroupId ? idMap.get(original.parentGroupId) : undefined,
       name: makeUniqueElementName({
         elements: [...elements, ...inserted],
         elementId: copiedId,
         requestedName: baseName,
-        fallbackBaseName: fallbackElementName(original.type)
-      }),
-      parentGroupId: original.parentGroupId ? idMap.get(original.parentGroupId) : undefined
+        fallbackBaseName: fallbackElementName(original.type),
+        parentGroupId: original.parentGroupId ? idMap.get(original.parentGroupId) : undefined
+      })
     } as CadElement;
     copied = applyPointInputAnchorReplacements(copied, pointInputReplacements);
     copied = remapElementReferences(copied, idMap);

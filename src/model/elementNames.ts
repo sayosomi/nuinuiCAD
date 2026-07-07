@@ -38,6 +38,164 @@ const normalizeName = (name: string, fallbackBaseName: string) => {
 
 export const fallbackElementName = (type: CadElementType) => defaultNameBases[type];
 
+const ROOT_NAMESPACE = "__root__";
+
+const namespaceKey = (parentGroupId: ElementId | undefined) => parentGroupId ?? ROOT_NAMESPACE;
+
+const parentGroupIdForElement = (
+  elementsById: Map<ElementId, CadElement>,
+  elementId: ElementId | undefined
+) => elementId ? elementsById.get(elementId)?.parentGroupId : undefined;
+
+const groupPathForElement = (
+  element: CadElement,
+  elementsById: Map<ElementId, CadElement>
+) => {
+  const path: CadElement[] = [];
+  const visited = new Set<ElementId>();
+  let parentId = element.parentGroupId;
+  while (parentId && !visited.has(parentId)) {
+    visited.add(parentId);
+    const parent = elementsById.get(parentId);
+    if (!parent) break;
+    path.unshift(parent);
+    parentId = parent.parentGroupId;
+  }
+  return path;
+};
+
+const namespaceChainForElement = (
+  element: CadElement | undefined,
+  elementsById: Map<ElementId, CadElement>
+) => {
+  const chain: Array<ElementId | undefined> = [];
+  const visited = new Set<ElementId>();
+  let namespaceId = element?.parentGroupId;
+  while (namespaceId && !visited.has(namespaceId)) {
+    chain.push(namespaceId);
+    visited.add(namespaceId);
+    namespaceId = elementsById.get(namespaceId)?.parentGroupId;
+  }
+  chain.push(undefined);
+  return chain;
+};
+
+export type ElementNameResolution =
+  | { status: "resolved"; element: CadElement }
+  | { status: "missing" }
+  | { status: "ambiguous"; name: string; elements: CadElement[] };
+
+const elementsNamedInNamespace = (
+  elements: CadElement[],
+  namespaceId: ElementId | undefined,
+  name: string
+) => elements.filter((element) =>
+  element.parentGroupId === namespaceId &&
+  element.name.trim() === name
+);
+
+const resolveNameSegmentInNamespace = (
+  elements: CadElement[],
+  namespaceId: ElementId | undefined,
+  name: string
+): ElementNameResolution => {
+  const matches = elementsNamedInNamespace(elements, namespaceId, name);
+  if (matches.length === 1) return { status: "resolved", element: matches[0] };
+  if (matches.length > 1) return { status: "ambiguous", name, elements: matches };
+  return { status: "missing" };
+};
+
+const resolveQualifiedNameFromNamespace = (
+  parts: string[],
+  namespaceId: ElementId | undefined,
+  elements: CadElement[]
+): ElementNameResolution => {
+  let currentNamespaceId = namespaceId;
+  let resolved: CadElement | null = null;
+
+  for (const [index, part] of parts.entries()) {
+    const resolution = resolveNameSegmentInNamespace(elements, currentNamespaceId, part);
+    if (resolution.status !== "resolved") return resolution;
+    resolved = resolution.element;
+    if (index < parts.length - 1) {
+      currentNamespaceId = resolved.id;
+    }
+  }
+
+  return resolved ? { status: "resolved", element: resolved } : { status: "missing" };
+};
+
+export const resolveElementName = ({
+  token,
+  elements,
+  currentElement
+}: {
+  token: string;
+  elements: CadElement[];
+  currentElement?: CadElement;
+}): ElementNameResolution => {
+  const trimmedToken = token.trim();
+  if (!trimmedToken) return { status: "missing" };
+  const elementsById = elementById(elements);
+  const directElement = elementsById.get(trimmedToken);
+  if (directElement) return { status: "resolved", element: directElement };
+
+  const absolute = trimmedToken.startsWith("::");
+  const parts = trimmedToken
+    .replace(/^::/, "")
+    .split("::")
+    .map((part) => part.trim())
+    .filter(Boolean);
+  if (parts.length === 0) return { status: "missing" };
+
+  if (absolute || parts.length > 1) {
+    const namespaces = absolute
+      ? [undefined]
+      : namespaceChainForElement(currentElement, elementsById);
+    for (const namespaceId of namespaces) {
+      const resolution = resolveQualifiedNameFromNamespace(parts, namespaceId, elements);
+      if (resolution.status === "resolved" || resolution.status === "ambiguous") return resolution;
+    }
+    return { status: "missing" };
+  }
+
+  for (const namespaceId of namespaceChainForElement(currentElement, elementsById)) {
+    const resolution = resolveNameSegmentInNamespace(elements, namespaceId, parts[0]);
+    if (resolution.status === "resolved" || resolution.status === "ambiguous") return resolution;
+  }
+  return { status: "missing" };
+};
+
+export const elementQualifiedName = (
+  element: CadElement,
+  elements: CadElement[]
+) => {
+  const elementsById = elementById(elements);
+  const groupNames = groupPathForElement(element, elementsById).map((group) => group.name);
+  return [...groupNames, element.name].filter(Boolean).join("::") || element.id;
+};
+
+export const elementNameTokensForContext = ({
+  elements,
+  currentElement
+}: {
+  elements: CadElement[];
+  currentElement?: CadElement;
+}) => {
+  const tokens: Array<{ token: string; element: CadElement }> = [];
+  for (const element of elements) {
+    if (!element.name.trim()) continue;
+    const candidates = new Set([element.name, elementQualifiedName(element, elements)]);
+    for (const token of candidates) {
+      const resolution = resolveElementName({ token, elements, currentElement });
+      if (resolution.status === "resolved" && resolution.element.id === element.id) {
+        tokens.push({ token, element });
+      }
+    }
+  }
+  return tokens.sort((a, b) => b.token.length - a.token.length);
+};
+
 const isPointLikeElement = (element: CadElement) =>
   element.type === "freePoint" ||
   element.type === "offsetPoint" ||
@@ -232,7 +390,8 @@ export const createdElementName = ({
     elements,
     elementId: element.id,
     requestedName: name,
-    fallbackBaseName: fallbackElementName(element.type)
+    fallbackBaseName: fallbackElementName(element.type),
+    parentGroupId: element.parentGroupId
   });
 };
 
@@ -249,17 +408,22 @@ export const makeUniqueElementName = ({
   elements,
   elementId,
   requestedName,
-  fallbackBaseName
+  fallbackBaseName,
+  parentGroupId
 }: {
   elements: CadElement[];
   elementId?: ElementId;
   requestedName: string;
   fallbackBaseName: string;
+  parentGroupId?: ElementId;
 }) => {
   const baseName = normalizeName(requestedName, fallbackBaseName);
+  const elementsById = elementById(elements);
+  const targetNamespaceKey = namespaceKey(parentGroupId ?? parentGroupIdForElement(elementsById, elementId));
   const usedNames = new Set(
     elements
       .filter((element) => element.id !== elementId)
+      .filter((element) => namespaceKey(element.parentGroupId) === targetNamespaceKey)
       .map((element) => element.name.trim())
       .filter(Boolean)
   );
@@ -276,5 +440,7 @@ export const makeUniqueElementName = ({
   return `${baseName} ${suffix}`;
 };
 
-export const formatReferenceOptionLabel = (element: CadElement) =>
-  `${element.name} - ${elementTypeLabels[element.type]}`;
+export const formatReferenceOptionLabel = (element: CadElement, elements?: CadElement[]) => {
+  const label = elements ? elementQualifiedName(element, elements) : element.name;
+  return `${label} - ${elementTypeLabels[element.type]}`;
+};

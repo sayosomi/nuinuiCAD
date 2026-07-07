@@ -65,6 +65,58 @@ describe("makeNumericExpression", () => {
 });
 
 describe("normalizeNumericExpressionInput", () => {
+  it("resolves duplicate names from the current group namespace and qualified paths", () => {
+    const elements: CadElement[] = [
+      {
+        id: "front",
+        name: "前身頃",
+        type: "group",
+        visible: true,
+        enabled: true,
+        expanded: true,
+        printEnabled: false,
+        printAnchor: { mode: "coordinate", x: 0, y: 0 }
+      },
+      {
+        id: "back",
+        name: "後身頃",
+        type: "group",
+        visible: true,
+        enabled: true,
+        expanded: true,
+        printEnabled: false,
+        printAnchor: { mode: "coordinate", x: 0, y: 0 }
+      },
+      {
+        id: "front-line",
+        name: "脇線",
+        type: "line",
+        visible: true,
+        enabled: true,
+        parentGroupId: "front",
+        startPoint: { mode: "reference", pointId: "a" },
+        endPoint: { mode: "reference", pointId: "b" }
+      },
+      {
+        id: "back-line",
+        name: "脇線",
+        type: "line",
+        visible: true,
+        enabled: true,
+        parentGroupId: "back",
+        startPoint: { mode: "reference", pointId: "c" },
+        endPoint: { mode: "reference", pointId: "d" }
+      }
+    ];
+
+    expect(normalizeNumericExpressionInput("脇線.長さ", elements, [], elements[2])).toBe(
+      "front-line.length"
+    );
+    expect(normalizeNumericExpressionInput("後身頃::脇線.長さ", elements, [], elements[2])).toBe(
+      "back-line.length"
+    );
+  });
+
   it("normalizes Japanese curve length references", () => {
     const elements: CadElement[] = [
       {

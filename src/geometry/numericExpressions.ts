@@ -10,6 +10,7 @@ import type {
 } from "../types/geometry";
 import type { PointAnchor } from "../types/geometry";
 import { derivedPointLabel, resolveDerivedPoint } from "../model/pointAnchors";
+import { elementNameTokensForContext, elementQualifiedName } from "../model/elementNames";
 import { getParameterValue } from "../parameters/parameterAccess";
 import { Parser, tokenize } from "./numericExpressionParser";
 import type { NumericExpressionMeasurementFunctionName } from "./numericExpressionParser";
@@ -143,6 +144,15 @@ export const formatNumericExpressionForDisplay = (
 ) => {
   if (!isNumericExpression(value)) return Number.isInteger(value) ? `${value}` : value.toFixed(2).replace(/\.?0+$/, "");
   const elementsById = new Map(elements.map((element) => [element.id, element]));
+  const elementNameCounts = new Map<string, number>();
+  for (const element of elements) {
+    if (!element.name.trim()) continue;
+    elementNameCounts.set(element.name, (elementNameCounts.get(element.name) ?? 0) + 1);
+  }
+  const displayName = (element: CadElement) =>
+    (elementNameCounts.get(element.name) ?? 0) > 1
+      ? elementQualifiedName(element, elements)
+      : element.name;
   const localVariableNameCounts = new Map<string, number>();
   for (const variable of localVariables) {
     localVariableNameCounts.set(variable.name, (localVariableNameCounts.get(variable.name) ?? 0) + 1);
@@ -163,7 +173,7 @@ export const formatNumericExpressionForDisplay = (
       const variableName = variablesById.get(variableId);
       if (variableName) return `@${variableName}`;
       const variableElement = elementsById.get(variableId);
-      return variableElement?.type === "variable" ? `@${variableElement.name}` : match;
+      return variableElement?.type === "variable" ? `@${displayName(variableElement)}` : match;
     })
     .replace(
       /(distance|angle|lineDistance|距離|角度|点線距離)\(\s*([^)]*?)\s*\)/g,
@@ -181,7 +191,7 @@ export const formatNumericExpressionForDisplay = (
       (match, elementId: ElementId, property: string) => {
       const element = elementsById.get(elementId);
       const label = propertyLabels[property as NumericMeasurementKey] ?? property;
-      return element ? `${element.name}.${label}` : match;
+      return element ? `${displayName(element)}.${label}` : match;
       }
     );
 };
@@ -202,9 +212,6 @@ export const normalizeNumericExpressionInput = (
   for (const variable of localVariables) {
     localVariableNameCounts.set(variable.name, (localVariableNameCounts.get(variable.name) ?? 0) + 1);
   }
-  const variableElements = [...elements]
-    .filter((element): element is Extract<CadElement, { type: "variable" }> => element.type === "variable")
-    .sort((a, b) => b.name.length - a.name.length);
   const measurableElements = elements
     .filter(
       (element) =>
@@ -219,9 +226,11 @@ export const normalizeNumericExpressionInput = (
         element.type === "symmetricCopyLine"
     )
     .sort((a, b) => b.name.length - a.name.length);
-  const namedElements = [...elements]
-    .filter((element) => element.name.trim().length > 0)
-    .sort((a, b) => b.name.length - a.name.length);
+  const nameTokens = elementNameTokensForContext({ elements, currentElement });
+  const variableElementTokens = nameTokens.filter(({ element }) => element.type === "variable");
+  const measurableElementTokens = nameTokens.filter(({ element }) =>
+    measurableElements.some((candidate) => candidate.id === element.id)
+  );
 
   if (currentElement) {
     const qualifiedVariables = [...variables].sort(
@@ -245,14 +254,14 @@ export const normalizeNumericExpressionInput = (
     );
   }
 
-  for (const variable of variableElements) {
+  for (const { token, element: variable } of variableElementTokens) {
     expression = expression.replace(
-      new RegExp(`@${escapeRegExp(variable.name)}(?=$|[\\s()+*/<>=!&|-])`, "g"),
+      new RegExp(`@${escapeRegExp(token)}(?=$|[\\s()+*/<>=!&|-])`, "g"),
       `@${variable.id}`
     );
   }
 
-  for (const element of measurableElements) {
+  for (const { token, element } of measurableElementTokens) {
     for (const [property, label] of Object.entries(propertyLabels)) {
       if (
         (element.type === "line" ||
@@ -277,25 +286,25 @@ export const normalizeNumericExpressionInput = (
         property !== "endTangentAngleDeg"
       ) continue;
       expression = expression.replace(
-        new RegExp(`${escapeRegExp(element.name)}\\.${escapeRegExp(label)}(?=$|[\\s()+*/<>=!&|-])`, "g"),
+        new RegExp(`${escapeRegExp(token)}\\.${escapeRegExp(label)}(?=$|[\\s()+*/<>=!&|-])`, "g"),
         `${element.id}.${property}`
       );
       expression = expression.replace(
-        quotedNamePattern(element.name, `\\.${escapeRegExp(label)}(?=$|[\\s()+*/<>=!&|-])`),
+        quotedNamePattern(token, `\\.${escapeRegExp(label)}(?=$|[\\s()+*/<>=!&|-])`),
         `${element.id}.${property}`
       );
     }
   }
 
-  for (const element of namedElements) {
+  for (const { token, element } of nameTokens) {
     expression = expression.replace(
-      new RegExp(`(^|[^@])${escapeRegExp(element.name)}\\.`, "g"),
+      new RegExp(`(^|[^@])${escapeRegExp(token)}\\.`, "g"),
       `$1${element.id}.`
     );
-    expression = expression.replace(quotedNamePattern(element.name, "\\."), `${element.id}.`);
-    expression = expression.replace(quotedNamePattern(element.name), element.id);
+    expression = expression.replace(quotedNamePattern(token, "\\."), `${element.id}.`);
+    expression = expression.replace(quotedNamePattern(token), element.id);
     expression = expression.replace(
-      new RegExp(`(^|[(,]\\s*)${escapeRegExp(element.name)}(?=\\s*[,)])`, "g"),
+      new RegExp(`(^|[(,]\\s*)${escapeRegExp(token)}(?=\\s*[,)])`, "g"),
       `$1${element.id}`
     );
   }

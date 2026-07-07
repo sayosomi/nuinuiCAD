@@ -63,8 +63,8 @@ const profileIdByToken = (profiles: VisibilityProfile[], token: string) => {
 
 const outputKind = (value: string) => value === "svg" ? "svg" : "pdf";
 
-const normalizeExpression = (source: string, elements: CadElement[]) =>
-  makeNumericExpression(normalizeNumericExpressionInput(source, elements));
+const normalizeExpression = (source: string, elements: CadElement[], currentElement?: CadElement) =>
+  makeNumericExpression(normalizeNumericExpressionInput(source, elements, [], currentElement));
 
 const parameterAlias = (element: CadElement, key: string) => {
   if (key === "index") return "intersectionIndex";
@@ -99,14 +99,15 @@ const parseIntermediatePoints = (
   index: NameIndex,
   line: number,
   diagnostics: DslDiagnostic[],
-  numeric: (source: string) => ReturnType<typeof normalizeExpression>
+  numeric: (source: string) => ReturnType<typeof normalizeExpression>,
+  currentElement?: CadElement
 ): Extract<CadElement, { type: "bezierCurve" }>["intermediatePoints"] =>
   splitDslRecords(value).map((record) => {
     const parts = record.split(":").map((item) => item.trim());
     const [pointToken, angle = "0", incoming = "30", outgoing = "30", id] = parts;
     return {
       id: id || createCadElementId("bezierCurve"),
-      point: resolveAnchor(pointToken || "none", index, line, diagnostics, numeric),
+      point: resolveAnchor(pointToken || "none", index, line, diagnostics, numeric, currentElement),
       handleAngleDeg: numeric(angle),
       incomingHandleLength: numeric(incoming),
       outgoingHandleLength: numeric(outgoing)
@@ -122,17 +123,17 @@ const applyCommonAttributes = (
   elementsForExpressions: CadElement[],
   visibilityRoles: VisibilityRole[] = []
 ) => {
-  let next = element;
-  const numeric = (source: string) => normalizeExpression(source, elementsForExpressions);
+  const parentAttr = attr(attrs, "parent");
+  let next = parentAttr
+    ? { ...element, parentGroupId: resolveId(parentAttr, index, line, diagnostics, element) }
+    : element;
+  const numeric = (source: string) => normalizeExpression(source, elementsForExpressions, next);
   const skip = new Set(["id", "type", "angle", "at", "center", "end", "size", "start"]);
 
   for (const { key, value } of attrs) {
     const parameterKey = parameterAlias(next, key);
     if (skip.has(key) && parameterKey === key) continue;
-    if (key === "parent") {
-      next = { ...next, parentGroupId: resolveId(value, index, line, diagnostics) };
-      continue;
-    }
+    if (key === "parent") continue;
     if (key === "branch") {
       next = { ...next, conditionalBranch: value === "else" ? "else" : "then" };
       continue;
@@ -153,7 +154,7 @@ const applyCommonAttributes = (
     if (next.type === "bezierCurve" && key === "intermediates") {
       next = {
         ...next,
-        intermediatePoints: parseIntermediatePoints(value, index, line, diagnostics, numeric)
+        intermediatePoints: parseIntermediatePoints(value, index, line, diagnostics, numeric, next)
       };
       continue;
     }
@@ -170,19 +171,19 @@ const applyCommonAttributes = (
       continue;
     }
     if (definition?.kind === "reference") {
-      next = setParameterValue(next, parameterKey, value === "none" ? null : resolveAnchor(value, index, line, diagnostics, numeric));
+      next = setParameterValue(next, parameterKey, value === "none" ? null : resolveAnchor(value, index, line, diagnostics, numeric, next));
       continue;
     }
     if (definition?.kind === "lineEndpointReference") {
-      next = setParameterValue(next, parameterKey, resolveEndpoint(value, index, line, diagnostics));
+      next = setParameterValue(next, parameterKey, resolveEndpoint(value, index, line, diagnostics, next));
       continue;
     }
     if (definition?.kind === "lineReference") {
-      next = setParameterValue(next, parameterKey, resolveId(value, index, line, diagnostics));
+      next = setParameterValue(next, parameterKey, resolveId(value, index, line, diagnostics, next));
       continue;
     }
     if (definition?.kind === "lineReferenceList") {
-      next = setParameterValue(next, parameterKey, splitDslList(value).map((item) => resolveId(item, index, line, diagnostics)));
+      next = setParameterValue(next, parameterKey, splitDslList(value).map((item) => resolveId(item, index, line, diagnostics, next)));
       continue;
     }
     if (definition?.kind === "choice" || definition?.kind === "text" || definition?.kind === "color") {
@@ -205,9 +206,14 @@ const applyStatement = (
   elementsForExpressions: CadElement[],
   visibilityRoles: VisibilityRole[] = []
 ) => {
-  const numeric = (source: string) => normalizeExpression(source, elementsForExpressions);
-  const anchor = (source: string) => resolveAnchor(source, index, statement.line, diagnostics, numeric);
-  let next = { ...element, name: attr(statement.attrs, "name") ?? statement.name };
+  const parentAttr = attr(statement.attrs, "parent");
+  let next = {
+    ...element,
+    name: attr(statement.attrs, "name") ?? statement.name,
+    ...(parentAttr ? { parentGroupId: resolveId(parentAttr, index, statement.line, diagnostics, element) } : {})
+  };
+  const numeric = (source: string) => normalizeExpression(source, elementsForExpressions, next);
+  const anchor = (source: string) => resolveAnchor(source, index, statement.line, diagnostics, numeric, next);
 
   if (statement.kind === "variable" && next.type === "variable") {
     next = { ...next, valueMode: "expression", expression: numeric(statement.expression) };
@@ -413,10 +419,20 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
     createdIds.set(item.statement, item.id ?? createCadElement(item.type, existing).id);
   }
 
-  const placeholderElements = statementsWithIds.map(({ statement, type }) => ({
+  let placeholderElements = statementsWithIds.map(({ statement, type }) => ({
     ...createCadElement(type, existing, { createId: () => createdIds.get(statement) ?? "" }),
     name: statement.name
   }));
+  const preliminaryIndex = createNameIndex([...existing, ...placeholderElements]);
+  placeholderElements = placeholderElements.map((element, index) => {
+    const parentToken = attr(statementsWithIds[index].statement.attrs, "parent");
+    return parentToken
+      ? {
+          ...element,
+          parentGroupId: resolveId(parentToken, preliminaryIndex, statementsWithIds[index].statement.line, diagnostics, element)
+        }
+      : element;
+  });
   const index = createNameIndex([...existing, ...placeholderElements]);
   const elementsForExpressions = [...existing, ...placeholderElements];
 

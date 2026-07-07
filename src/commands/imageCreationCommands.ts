@@ -118,16 +118,20 @@ export const commitPendingImageImport = ({
   targetPixelsPerMm: number;
 }) => {
   const { elements, insertionIndex, referenceElements } = creationContext();
+  const placement = creationPlacementForEvaluationLimit(elements, insertionIndex);
   const element = createCadElement("image", elements, { referenceElements });
   if (element.type !== "image") return;
 
   const imageElement: CadElement = {
     ...element,
+    ...(placement.parentGroupId ? { parentGroupId: placement.parentGroupId } : {}),
+    ...(placement.conditionalBranch ? { conditionalBranch: placement.conditionalBranch } : {}),
     name: makeUniqueElementName({
       elements,
       elementId: element.id,
       requestedName: displayName,
-      fallbackBaseName: element.name
+      fallbackBaseName: element.name,
+      parentGroupId: placement.parentGroupId
     }),
     sourcePath,
     naturalWidthPx,

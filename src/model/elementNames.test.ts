@@ -59,6 +59,41 @@ describe("elementNames", () => {
     ).toBe("点A 3");
   });
 
+  it("allows the same name in a different parent group namespace", () => {
+    const groupedElements: CadElement[] = [
+      {
+        id: "group-a",
+        name: "前身頃",
+        type: "group",
+        visible: true,
+        enabled: true,
+        expanded: true,
+        printEnabled: false,
+        printAnchor: { mode: "coordinate", x: 0, y: 0 }
+      },
+      {
+        ...elements[0],
+        parentGroupId: "group-a"
+      }
+    ];
+
+    expect(
+      makeUniqueElementName({
+        elements: groupedElements,
+        requestedName: "点A",
+        fallbackBaseName: "点"
+      })
+    ).toBe("点A");
+    expect(
+      makeUniqueElementName({
+        elements: groupedElements,
+        requestedName: "点A",
+        fallbackBaseName: "点",
+        parentGroupId: "group-a"
+      })
+    ).toBe("点A 2");
+  });
+
   it("does not treat the current element name as a duplicate", () => {
     expect(
       makeUniqueElementName({
