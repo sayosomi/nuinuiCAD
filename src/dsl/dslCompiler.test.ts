@@ -109,6 +109,14 @@ describe("DSL compiler", () => {
     });
   });
 
+  it("round-trips locked common attributes", () => {
+    const result = compileDslToElements("point A = (0, 0) locked=true", { elements: [] });
+
+    expect(result.diagnostics).toEqual([]);
+    expect(result.elements[0]).toMatchObject({ locked: true });
+    expect(serializeElementsToDsl(result.elements)).toContain("locked=true");
+  });
+
   it("creates drafting point constructions from natural DSL syntax", () => {
     const result = compileDslToElements(
       [

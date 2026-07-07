@@ -750,6 +750,6 @@ describe("shortcuts", () => {
     });
     const keyShortcut = shortcuts.find((shortcut) => shortcut.commandId === "selectParameterByKey");
 
-    expect(keyShortcut?.keys).toBe("n / k / v / a / s / t");
+    expect(keyShortcut?.keys).toBe("n / k / v / a / l / s / t");
   });
 });

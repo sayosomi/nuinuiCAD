@@ -3,6 +3,22 @@ import type { CadElement } from "../types/geometry";
 import { getParameterDefinitions } from "./parameterDefinitions";
 
 describe("parameterDefinitions", () => {
+  it("defines lock as a common editable boolean parameter", () => {
+    expect(getParameterDefinitions({
+      id: "point",
+      name: "点",
+      type: "freePoint",
+      visible: true,
+      enabled: true,
+      x: 0,
+      y: 0
+    })).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ key: "locked", directKey: "l", label: "ロック", kind: "boolean" })
+      ])
+    );
+  });
+
   it("defines empty Enter defaults for ratio-like and identity numeric parameters", () => {
     const conditionalGroup: CadElement = {
       id: "condition",

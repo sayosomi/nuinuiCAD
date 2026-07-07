@@ -6,7 +6,7 @@ import {
 } from "../parameters/parameterDefinitions";
 import { useCadUiStore } from "../state/cadUiStore";
 
-const commonCreationParameterKeys = new Set(["name", "colorId", "visible", "enabled"]);
+const commonCreationParameterKeys = new Set(["name", "colorId", "visible", "enabled", "locked"]);
 
 export const getInitialCreatedElementParameterKey = (element: CadElement) =>
   getParameterDefinitions(element).find((definition) => !commonCreationParameterKeys.has(definition.key))?.key ??

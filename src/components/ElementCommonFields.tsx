@@ -63,6 +63,12 @@ export const ElementCommonFields = ({
           }}
         />
       </label>
+      <BooleanParameterEditor
+        {...elementEditorProps}
+        parameterKey="locked"
+        label="ロック"
+        checked={element.locked === true}
+      />
       {element.type !== "variable" ? (
         <>
           {elementSupportsDisplayColor(element) ? (

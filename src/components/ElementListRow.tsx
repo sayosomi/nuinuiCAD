@@ -1,5 +1,16 @@
 import type { CSSProperties, MouseEvent, PointerEvent, Ref } from "react";
-import { AtSign, CircleDot, Folder, FolderOpen, Minus, Printer, Radius, Spline } from "lucide-react";
+import {
+  AtSign,
+  CircleDot,
+  Folder,
+  FolderOpen,
+  Lock,
+  Minus,
+  Printer,
+  Radius,
+  Spline,
+  Unlock
+} from "lucide-react";
 import { dispatchCommand } from "../commands/commands";
 import { numericValueExpression } from "../geometry/numericExpressions";
 import type { PickCandidate } from "../model/pickCandidates";
@@ -257,6 +268,8 @@ export const ElementListRow = ({
     aria-label={`${index + 1}. ${element.name}, ${elementTypeLabels[element.type]}, ${
       element.type === "variable" ? "非描画" : isEffectivelyVisible ? "表示" : "非表示"
     }, ${isEffectivelyEnabled ? "評価する" : "評価しない"}${
+      element.locked ? ", ロック" : ""
+    }${
       conditionInactive ? ", 条件OFF" : ""
     }`}
     onClick={(event) => onSelectElement(element.id, event)}
@@ -280,8 +293,22 @@ export const ElementListRow = ({
       className={`element-status-icons ${showPrintControls && element.type === "group" ? "has-print-toggle" : ""}`}
       data-visible-state={element.visible ? "visible" : "hidden"}
       data-evaluation-state={element.enabled ? "enabled" : "disabled"}
+      data-lock-state={element.locked ? "locked" : "unlocked"}
       data-print-state={element.type === "group" && element.printEnabled === true ? "enabled" : "disabled"}
     >
+      <button
+        type="button"
+        className={`element-status-button element-lock-status-button ${
+          element.locked ? "is-locked" : "is-unlocked"
+        }`}
+        aria-label={`${element.name}を${element.locked ? "ロック解除" : "ロック"}する`}
+        onClick={(event) => {
+          event.stopPropagation();
+          dispatchCommand("toggleElementLocked", { elementId: element.id });
+        }}
+      >
+        {element.locked ? <Lock aria-hidden="true" /> : <Unlock aria-hidden="true" />}
+      </button>
       {element.type !== "variable" ? (
         <button
           type="button"

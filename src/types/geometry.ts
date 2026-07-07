@@ -5,6 +5,7 @@ export type CadElementBase = {
   name: string;
   visible: boolean;
   enabled: boolean;
+  locked?: boolean;
   colorId?: string;
   parentGroupId?: ElementId;
   conditionalBranch?: ConditionalBranch;

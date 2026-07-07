@@ -601,6 +601,73 @@ describe("commands", () => {
     expect(ungrouped[2].parentGroupId).toBeUndefined();
   });
 
+  it("does not move, regroup, or ungroup locked subtrees", () => {
+    const group: CadElement = {
+      id: "locked-child-group",
+      name: "子ロックあり",
+      type: "group",
+      visible: true,
+      enabled: true,
+      expanded: true
+    };
+    useCadStore.setState({
+      elements: [
+        group,
+        { ...sampleElements[0], parentGroupId: group.id, locked: true },
+        ...sampleElements.slice(1)
+      ],
+      selectedElementId: group.id,
+      selectedElementIds: [group.id],
+      selectionAnchorElementId: group.id
+    });
+
+    dispatchCommand("moveSelectedElementDown");
+    expect(useCadStore.getState().elements[0].id).toBe(group.id);
+    expect(useCadStore.getState().past).toHaveLength(0);
+
+    dispatchCommand("ungroupSelectedGroup");
+    expect(useCadStore.getState().elements[0].id).toBe(group.id);
+    expect(useCadStore.getState().elements[1].parentGroupId).toBe(group.id);
+    expect(useCadStore.getState().past).toHaveLength(0);
+
+    useCadStore.setState({
+      selectedElementId: sampleElements[0].id,
+      selectedElementIds: [sampleElements[0].id],
+      selectionAnchorElementId: sampleElements[0].id
+    });
+    dispatchCommand("outdentSelectedElements");
+    expect(useCadStore.getState().elements[1].parentGroupId).toBe(group.id);
+    expect(useCadStore.getState().past).toHaveLength(0);
+  });
+
+  it("does not move elements into locked groups", () => {
+    const group: CadElement = {
+      id: "locked-target-group",
+      name: "ロック先",
+      type: "group",
+      visible: true,
+      enabled: true,
+      locked: true,
+      expanded: true
+    };
+    useCadStore.setState({
+      elements: [group, ...sampleElements],
+      selectedElementId: sampleElements[0].id,
+      selectedElementIds: [sampleElements[0].id],
+      selectionAnchorElementId: sampleElements[0].id
+    });
+
+    dispatchCommand("moveElementToInsertionIndex", {
+      elementId: sampleElements[0].id,
+      insertionIndex: 1,
+      targetParentGroupId: group.id
+    });
+
+    expect(useCadStore.getState().elements[1].parentGroupId).toBeUndefined();
+    expect(useCadStore.getState().past).toHaveLength(0);
+    expect(useCadStore.getState().commandErrorMessage).toContain("ロック");
+  });
+
   it("adds an expanded empty group and creates following elements inside it", () => {
     useCadStore.setState({
       evaluationLimitIndex: 2,
@@ -1598,6 +1665,58 @@ describe("commands", () => {
     ]);
     expect(useCadStore.getState().selectedElementId).toBe(sampleElements[3].id);
     expect(useCadStore.getState().selectedElementIds).toEqual([sampleElements[3].id]);
+  });
+
+  it("does not delete locked selected elements", () => {
+    useCadStore.setState({
+      elements: [{ ...sampleElements[0], locked: true }, ...sampleElements.slice(1)]
+    });
+
+    dispatchCommand("deleteSelectedElement");
+
+    expect(useCadStore.getState().elements.map((element) => element.id)).toEqual(
+      sampleElements.map((element) => element.id)
+    );
+    expect(useCadStore.getState().past).toHaveLength(0);
+    expect(useCadStore.getState().commandErrorMessage).toContain("ロック");
+  });
+
+  it("does not delete children of locked groups", () => {
+    const group: CadElement = {
+      id: "locked-group",
+      name: "ロックグループ",
+      type: "group",
+      visible: true,
+      enabled: true,
+      locked: true,
+      expanded: true
+    };
+    useCadStore.setState({
+      elements: [
+        group,
+        { ...sampleElements[0], parentGroupId: group.id },
+        ...sampleElements.slice(1)
+      ],
+      selectedElementId: sampleElements[0].id,
+      selectedElementIds: [sampleElements[0].id],
+      selectionAnchorElementId: sampleElements[0].id
+    });
+
+    dispatchCommand("deleteSelectedElement");
+
+    expect(useCadStore.getState().elements.some((element) => element.id === sampleElements[0].id)).toBe(
+      true
+    );
+    expect(useCadStore.getState().past).toHaveLength(0);
+    expect(useCadStore.getState().commandErrorMessage).toContain("ロック");
+  });
+
+  it("toggles locked state for selected and specified elements", () => {
+    dispatchCommand("toggleSelectedElementLocked");
+    expect(useCadStore.getState().elements[0]).toMatchObject({ locked: true });
+
+    dispatchCommand("toggleElementLocked", { elementId: sampleElements[0].id });
+    expect(useCadStore.getState().elements[0].locked).toBe(false);
   });
 
   it("adds elements, selects them, and leaves text inputs alone", async () => {

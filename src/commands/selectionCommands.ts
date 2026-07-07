@@ -22,6 +22,10 @@ import {
   subtreeIdsForElement,
   visibleOutlineElements
 } from "../model/groups";
+import {
+  lockedElementIdsInSubtrees,
+  protectedElementIdsForDestructiveChange
+} from "../model/elementLocks";
 import { elementSupportsDisplayColor } from "../palette/colorApplicability";
 import { isValidPaletteColorId } from "../palette/palette";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
@@ -44,6 +48,30 @@ export const toggleSelectedElementsBooleanProperty = (property: "visible" | "ena
       selectedIds.has(element.id) && !(property === "visible" && element.type === "variable")
         ? { ...element, [property]: !element[property] }
         : element
+    )
+  });
+};
+
+export const toggleSelectedElementsLocked = () => {
+  const { elements } = useCadDocumentStore.getState();
+  const selectedIds = new Set(getSelectedElementIds());
+  if (selectedIds.size === 0) return;
+
+  useCadDocumentStore.getState().commitDocumentChange({
+    elements: elements.map((element) =>
+      selectedIds.has(element.id) ? { ...element, locked: element.locked !== true } : element
+    )
+  });
+};
+
+export const toggleElementLocked = (elementId: ElementId | undefined) => {
+  if (!elementId) return;
+  const { elements } = useCadDocumentStore.getState();
+  if (!elements.some((element) => element.id === elementId)) return;
+
+  useCadDocumentStore.getState().commitDocumentChange({
+    elements: elements.map((element) =>
+      element.id === elementId ? { ...element, locked: element.locked !== true } : element
     )
   });
 };
@@ -123,6 +151,16 @@ const updateDependencyJumpModeAfterSelectionChange = () => {
 const clearTransientSelectionUi = () => {
   useCadUiStore.getState().clearPickMode();
   useCadUiStore.getState().setSelectedDependencyJumpIndex(0);
+};
+
+const blockedDestructiveChange = (
+  rootIds: Iterable<ElementId>,
+  message = "ロックされた要素が含まれるため、破壊的な操作はできません。"
+) => {
+  const { elements } = useCadDocumentStore.getState();
+  if (protectedElementIdsForDestructiveChange(elements, rootIds).size === 0) return false;
+  useCadUiStore.getState().setCommandErrorMessage(message);
+  return true;
 };
 
 export const selectElementByOffset = (offset: number) => {
@@ -224,6 +262,8 @@ export const moveElementsToInsertionIndexWithParent = (
       )
       .map((element) => element.id)
   );
+  if (blockedDestructiveChange(movingRootIds)) return;
+  if (targetParentGroupId && blockedDestructiveChange([targetParentGroupId])) return;
   if (!targetParentIsValid(elements, movingRootIds, targetParentGroupId)) return;
 
   const expandedElementIds = elementIds.flatMap((id) => subtreeIdsForElement(elements, id));
@@ -344,6 +384,7 @@ export const groupSelectedElements = (context?: CommandContext) => {
     (element) => selectedIds.has(element.id) && !hasSelectedAncestor(element, elementsById, selectedIds)
   );
   if (selectedTopLevelElements.length === 0) return;
+  if (blockedDestructiveChange(selectedTopLevelElements.map((element) => element.id))) return;
 
   const firstIndex = elements.findIndex((element) => element.id === selectedTopLevelElements[0].id);
   const parentGroupId = selectedTopLevelElements[0].parentGroupId;
@@ -418,7 +459,22 @@ export const ungroupSelectedGroup = () => {
   if (!selectedElement || selectedElement.type !== "group") return;
 
   const { elements, evaluationLimitIndex } = useCadDocumentStore.getState();
+  if (
+    blockedDestructiveChange(
+      [selectedElement.id],
+      "ロックされた要素が含まれるため、グループ解除できません。"
+    )
+  ) {
+    return;
+  }
   const childIds = new Set(descendantIdsForGroup(elements, selectedElement.id));
+  const lockedChildIds = lockedElementIdsInSubtrees(elements, childIds);
+  if (lockedChildIds.size > 0) {
+    useCadUiStore
+      .getState()
+      .setCommandErrorMessage("ロックされた子要素が含まれるため、グループ解除できません。");
+    return;
+  }
   const directChildIds = new Set(
     elements
       .filter((element) => element.parentGroupId === selectedElement.id)
@@ -472,9 +528,11 @@ export const indentSelectedElements = () => {
     (element) => selectedIds.has(element.id) && !hasSelectedAncestor(element, elementsById, selectedIds)
   );
   if (selectedTopLevel.length === 0) return;
+  if (blockedDestructiveChange(selectedTopLevel.map((element) => element.id))) return;
 
   const targetGroup = nearestPreviousGroup(elements, selectedTopLevel[0].id);
   if (!targetGroup) return;
+  if (blockedDestructiveChange([targetGroup.id])) return;
   const selectedTopLevelIds = new Set(selectedTopLevel.map((element) => element.id));
 
   useCadDocumentStore.getState().commitDocumentChange({
@@ -494,6 +552,7 @@ export const outdentSelectedElements = () => {
     (element) => selectedIds.has(element.id) && !hasSelectedAncestor(element, elementsById, selectedIds)
   );
   if (selectedTopLevel.length === 0) return;
+  if (blockedDestructiveChange(selectedTopLevel.map((element) => element.id))) return;
 
   const firstParentId = selectedTopLevel[0].parentGroupId;
   const firstParent = firstParentId ? elementsById.get(firstParentId) : null;

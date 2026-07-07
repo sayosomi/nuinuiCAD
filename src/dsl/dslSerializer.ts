@@ -38,6 +38,7 @@ const intermediatePoints = (element: Extract<CadElement, { type: "bezierCurve" }
 
 const baseAttrs = (element: CadElement, options: SerializeDslOptions) => [
   ...(options.includeIds === false ? [] : [`id=${element.id}`]),
+  ...(element.locked ? ["locked=true"] : []),
   ...(element.visible ? [] : ["visible=false"]),
   ...(element.enabled ? [] : ["enabled=false"]),
   ...(element.colorId ? [`color=${element.colorId}`] : []),

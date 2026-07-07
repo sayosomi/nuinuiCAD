@@ -35,18 +35,21 @@ const commonParameters: ParameterDefinition[] = [
   { key: "name", directKey: "n", label: "名前", kind: "text" },
   { key: "colorId", directKey: "k", label: "表示色", kind: "color" },
   { key: "visible", directKey: "v", label: "表示", kind: "boolean" },
-  { key: "enabled", directKey: "a", label: "評価", kind: "boolean" }
+  { key: "enabled", directKey: "a", label: "評価", kind: "boolean" },
+  { key: "locked", directKey: "l", label: "ロック", kind: "boolean" }
 ];
 
 const nonColorCommonParameters: ParameterDefinition[] = [
   { key: "name", directKey: "n", label: "名前", kind: "text" },
   { key: "visible", directKey: "v", label: "表示", kind: "boolean" },
-  { key: "enabled", directKey: "a", label: "評価", kind: "boolean" }
+  { key: "enabled", directKey: "a", label: "評価", kind: "boolean" },
+  { key: "locked", directKey: "l", label: "ロック", kind: "boolean" }
 ];
 
 const variableCommonParameters: ParameterDefinition[] = [
   { key: "name", directKey: "n", label: "名前", kind: "text" },
-  { key: "enabled", directKey: "a", label: "評価", kind: "boolean" }
+  { key: "enabled", directKey: "a", label: "評価", kind: "boolean" },
+  { key: "locked", directKey: "l", label: "ロック", kind: "boolean" }
 ];
 
 const numericVariableParameters = (element: CadElement): ParameterDefinition[] =>

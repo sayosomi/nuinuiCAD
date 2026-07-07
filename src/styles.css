@@ -437,7 +437,7 @@ textarea {
   position: relative;
   display: grid;
   --row-indent: calc(var(--outline-depth, 0) * 16px);
-  grid-template-columns: max-content 34px minmax(0, 1fr) minmax(0, auto) 20px;
+  grid-template-columns: max-content 52px minmax(0, 1fr) minmax(0, auto) 20px;
   grid-template-areas:
     "index status name type handle"
     "actions actions actions actions actions";
@@ -909,7 +909,7 @@ textarea {
 .element-status-icons {
   grid-area: status;
   display: grid;
-  grid-template-columns: 16px 16px;
+  grid-template-columns: 16px 16px 16px;
   gap: 2px;
   align-items: center;
   justify-self: start;
@@ -918,7 +918,7 @@ textarea {
 }
 
 .element-status-icons.has-print-toggle {
-  grid-template-columns: 16px 16px 16px;
+  grid-template-columns: 16px 16px 16px 16px;
 }
 
 .element-status-button {
@@ -961,6 +961,25 @@ textarea {
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-width: 1.8;
+}
+
+.element-lock-status-button svg {
+  width: 13px;
+  height: 13px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
+.element-lock-status-button.is-locked {
+  color: #8a4b16;
+}
+
+.element-lock-status-button.is-unlocked {
+  color: #9a9f94;
+  opacity: 0.42;
 }
 
 .element-print-status-button.is-print-enabled {
