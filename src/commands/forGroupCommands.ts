@@ -5,13 +5,13 @@ import {
 } from "../model/elementCreationPlacement";
 import { adjustEvaluationLimitForInsertion } from "../model/evaluationDivider";
 import { isForGroupElement } from "../model/groups";
-import { getFirstParameterKey } from "../parameters/parameterDefinitions";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import type { CadElement, ElementId } from "../types/geometry";
+import type { CommandContext } from "./commandTypes";
 import { getSelectedElement, getSelectedElementIds } from "./commandRuntime";
 import {
-  enterCreatedElementNameEntry,
-  type FocusSelectedParameterInput
+  finishCreatedElementInteraction,
+  getInitialCreatedElementParameterKey
 } from "./nameEntryAfterCreation";
 
 const hasSelectedAncestor = (
@@ -27,7 +27,7 @@ const hasSelectedAncestor = (
   return false;
 };
 
-export const addForGroup = (focusSelectedParameterInput?: FocusSelectedParameterInput) => {
+export const addForGroup = (context?: CommandContext) => {
   const { elements, evaluationLimitIndex } = useCadDocumentStore.getState();
   const placement = creationPlacementForEvaluationLimit(elements, evaluationLimitIndex);
   const { insertionIndex } = placement;
@@ -43,14 +43,12 @@ export const addForGroup = (focusSelectedParameterInput?: FocusSelectedParameter
     selectedElementId: group.id,
     selectedElementIds: [group.id],
     selectionAnchorElementId: group.id,
-    selectedParameterKey: getFirstParameterKey(group)
+    selectedParameterKey: getInitialCreatedElementParameterKey(group)
   });
-  enterCreatedElementNameEntry(focusSelectedParameterInput);
+  finishCreatedElementInteraction(context);
 };
 
-export const wrapSelectedElementsInForGroup = (
-  focusSelectedParameterInput?: FocusSelectedParameterInput
-) => {
+export const wrapSelectedElementsInForGroup = (context?: CommandContext) => {
   const { elements, evaluationLimitIndex } = useCadDocumentStore.getState();
   const selectedIds = new Set(getSelectedElementIds());
   if (selectedIds.size === 0) return;
@@ -91,9 +89,9 @@ export const wrapSelectedElementsInForGroup = (
     selectedElementId: group.id,
     selectedElementIds: [group.id],
     selectionAnchorElementId: group.id,
-    selectedParameterKey: "name"
+    selectedParameterKey: getInitialCreatedElementParameterKey(group)
   });
-  enterCreatedElementNameEntry(focusSelectedParameterInput);
+  finishCreatedElementInteraction(context);
 };
 
 export const toggleSelectedForGroupGenerated = () => {

@@ -84,8 +84,8 @@ describe("ImageImportDialog", () => {
     });
     expect(image && image.type === "image" ? image.scale : null).toBeCloseTo(72.009 / 254);
     expect(state.selectedElementId).toBe(image?.id);
-    expect(state.selectedParameterKey).toBe("name");
-    expect(state.isParameterEditMode).toBe(true);
+    expect(state.selectedParameterKey).toBe("originPoint");
+    expect(state.isParameterEditMode).toBe(false);
     expect(state.pendingImageImport).toBeNull();
   });
 

@@ -9,13 +9,12 @@ import {
 } from "../model/elementCreationPlacement";
 import { createCadElement } from "../model/elementFactory";
 import { makeUniqueElementName } from "../model/elementNames";
-import { getFirstParameterKey } from "../parameters/parameterDefinitions";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
 import type { CadElement } from "../types/geometry";
 import {
-  enterCreatedElementNameEntry,
-  type FocusSelectedParameterInput
+  finishCreatedElementInteraction,
+  getInitialCreatedElementParameterKey
 } from "./nameEntryAfterCreation";
 
 type ImageMetadata = {
@@ -85,8 +84,7 @@ const creationContext = () => {
 const commitCreatedImage = (
   element: CadElement,
   elements: CadElement[],
-  insertionIndex: number,
-  focusSelectedParameterInput?: FocusSelectedParameterInput
+  insertionIndex: number
 ) => {
   const placedElement = applyCreationPlacement(element, creationPlacementForEvaluationLimit(elements, insertionIndex));
   useCadDocumentStore.getState().commitDocumentChange({
@@ -99,9 +97,9 @@ const commitCreatedImage = (
     selectedElementId: placedElement.id,
     selectedElementIds: [placedElement.id],
     selectionAnchorElementId: placedElement.id,
-    selectedParameterKey: getFirstParameterKey(placedElement)
+    selectedParameterKey: getInitialCreatedElementParameterKey(placedElement)
   });
-  enterCreatedElementNameEntry(focusSelectedParameterInput);
+  finishCreatedElementInteraction();
 };
 
 export const commitPendingImageImport = ({
@@ -118,7 +116,7 @@ export const commitPendingImageImport = ({
   naturalHeightPx: number;
   sourceDpi: number;
   targetPixelsPerMm: number;
-}, focusSelectedParameterInput?: FocusSelectedParameterInput) => {
+}) => {
   const { elements, insertionIndex, referenceElements } = creationContext();
   const element = createCadElement("image", elements, { referenceElements });
   if (element.type !== "image") return;
@@ -138,7 +136,7 @@ export const commitPendingImageImport = ({
     targetPixelsPerMm,
     scale: initialImageScale(sourceDpi, targetPixelsPerMm)
   };
-  commitCreatedImage(imageElement, elements, insertionIndex, focusSelectedParameterInput);
+  commitCreatedImage(imageElement, elements, insertionIndex);
 };
 
 const metadataErrorMessage = (error: unknown) =>

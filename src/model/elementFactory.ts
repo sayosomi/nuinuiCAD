@@ -1,6 +1,6 @@
 import type { CadElement, CadElementType, ElementId } from "../types/geometry";
 import { createCadElementId } from "./cadIds";
-import { makeUniqueElementName } from "./elementNames";
+import { makeUniqueElementName, withCreatedElementName } from "./elementNames";
 import { derivedAnchor, referenceAnchor } from "./pointAnchors";
 
 type CreateCadElementOptions = {
@@ -49,6 +49,7 @@ export const createCadElement = (
       fallbackBaseName: requestedName
     });
 
+  const element = ((): CadElement => {
   switch (type) {
     case "group": {
       const groupCount = elements.filter((element) => element.type === "group").length;
@@ -524,4 +525,6 @@ export const createCadElement = (
       };
     }
   }
+  })();
+  return withCreatedElementName(element, elements, referenceElements);
 };

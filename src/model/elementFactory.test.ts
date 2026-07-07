@@ -28,7 +28,7 @@ describe("createCadElement", () => {
   it("creates a free point at the origin by default", () => {
     expect(createCadElement("freePoint", sampleElements, { createId: createTestId })).toMatchObject({
       id: "freePoint-test-id",
-      name: "点4",
+      name: "点D",
       type: "freePoint",
       visible: true,
       enabled: true,
@@ -40,7 +40,7 @@ describe("createCadElement", () => {
   it("creates offset points using the first point as the default base", () => {
     expect(createCadElement("offsetPoint", sampleElements, { createId: createTestId })).toMatchObject({
       id: "offsetPoint-test-id",
-      name: "オフセット点4",
+      name: "点Aオフセット",
       type: "offsetPoint",
       visible: true,
       enabled: true,
@@ -54,7 +54,7 @@ describe("createCadElement", () => {
   it("creates polar offset points using the first point as the default base", () => {
     expect(createCadElement("polarOffsetPoint", sampleElements, { createId: createTestId })).toMatchObject({
       id: "polarOffsetPoint-test-id",
-      name: "角度距離点4",
+      name: "点A極座標",
       type: "polarOffsetPoint",
       visible: true,
       enabled: true,
@@ -96,7 +96,7 @@ describe("createCadElement", () => {
   it("creates division points using the first two points as default endpoints", () => {
     expect(createCadElement("divisionPoint", sampleElements, { createId: createTestId })).toMatchObject({
       id: "divisionPoint-test-id",
-      name: "分点4",
+      name: "分点AB",
       type: "divisionPoint",
       visible: true,
       enabled: true,
@@ -113,7 +113,7 @@ describe("createCadElement", () => {
   it("creates line division points using the first line endpoint as the default endpoint", () => {
     expect(createCadElement("lineDivisionPoint", sampleElements, { createId: createTestId })).toMatchObject({
       id: "lineDivisionPoint-test-id",
-      name: "線上分点4",
+      name: "AB分点",
       type: "lineDivisionPoint",
       visible: true,
       enabled: true,
@@ -129,7 +129,7 @@ describe("createCadElement", () => {
   it("creates intersection points using the first two lines as defaults", () => {
     expect(createCadElement("intersectionPoint", sampleElements, { createId: createTestId })).toMatchObject({
       id: "intersectionPoint-test-id",
-      name: "交点1",
+      name: "交点AB_BC",
       type: "intersectionPoint",
       visible: true,
       enabled: true,
@@ -144,7 +144,7 @@ describe("createCadElement", () => {
   it("creates line tangent offset points using the first line start as the default base", () => {
     expect(createCadElement("lineTangentOffsetPoint", sampleElements, { createId: createTestId })).toMatchObject({
       id: "lineTangentOffsetPoint-test-id",
-      name: "線上オフセット点1",
+      name: "AB上オフセット点",
       type: "lineTangentOffsetPoint",
       visible: true,
       enabled: true,
@@ -159,7 +159,7 @@ describe("createCadElement", () => {
   it("creates lines using the first two points as default endpoints", () => {
     expect(createCadElement("line", sampleElements, { createId: createTestId })).toMatchObject({
       id: "line-test-id",
-      name: "直線3",
+      name: "直線AB 2",
       type: "line",
       visible: true,
       enabled: true,
@@ -172,7 +172,7 @@ describe("createCadElement", () => {
   it("creates angle length lines using the first point as the default start", () => {
     expect(createCadElement("angleLengthLine", sampleElements, { createId: createTestId })).toMatchObject({
       id: "angleLengthLine-test-id",
-      name: "角度距離線1",
+      name: "A方向線",
       type: "angleLengthLine",
       visible: true,
       enabled: true,
@@ -186,7 +186,7 @@ describe("createCadElement", () => {
   it("creates arc lines with the existing radius and angle defaults", () => {
     expect(createCadElement("arcLine", sampleElements, { createId: createTestId })).toMatchObject({
       id: "arcLine-test-id",
-      name: "円弧線1",
+      name: "A円弧",
       type: "arcLine",
       visible: true,
       enabled: true,
@@ -201,7 +201,7 @@ describe("createCadElement", () => {
   it("creates three-point arc lines using the first three points as default circle points", () => {
     expect(createCadElement("threePointArcLine", sampleElements, { createId: createTestId })).toMatchObject({
       id: "threePointArcLine-test-id",
-      name: "三点円弧線1",
+      name: "円弧AC",
       type: "threePointArcLine",
       visible: true,
       enabled: true,
@@ -217,7 +217,7 @@ describe("createCadElement", () => {
   it("creates corner radius arc lines using the first two line endpoints as defaults", () => {
     expect(createCadElement("cornerRadiusArcLine", sampleElements, { createId: createTestId })).toMatchObject({
       id: "cornerRadiusArcLine-test-id",
-      name: "角R円弧線1",
+      name: "AB_BC角R",
       type: "cornerRadiusArcLine",
       visible: true,
       enabled: true,
@@ -232,7 +232,7 @@ describe("createCadElement", () => {
   it("creates edge modifications using the first two line endpoints as defaults", () => {
     expect(createCadElement("edge", sampleElements, { createId: createTestId })).toMatchObject({
       id: "edge-test-id",
-      name: "エッジ1",
+      name: "AB_BCエッジ",
       type: "edge",
       visible: true,
       enabled: true,
@@ -246,7 +246,7 @@ describe("createCadElement", () => {
   it("creates extend trim modifications using the first line endpoint and first point as defaults", () => {
     expect(createCadElement("extendTrim", sampleElements, { createId: createTestId })).toMatchObject({
       id: "extendTrim-test-id",
-      name: "延長短縮1",
+      name: "AB延長短縮",
       type: "extendTrim",
       visible: true,
       enabled: true,
@@ -259,7 +259,7 @@ describe("createCadElement", () => {
   it("creates Bezier curves using the first two points as default endpoints", () => {
     expect(createCadElement("bezierCurve", sampleElements, { createId: createTestId })).toMatchObject({
       id: "bezierCurve-test-id",
-      name: "曲線2",
+      name: "曲線AB",
       type: "bezierCurve",
       visible: true,
       enabled: true,
@@ -277,7 +277,7 @@ describe("createCadElement", () => {
   it("creates split lines using the first line and first point as defaults", () => {
     expect(createCadElement("splitLine", sampleElements, { createId: createTestId })).toMatchObject({
       id: "splitLine-test-id",
-      name: "分割線1",
+      name: "AB分割",
       type: "splitLine",
       visible: true,
       enabled: true,
@@ -290,7 +290,7 @@ describe("createCadElement", () => {
   it("creates copy lines using the first two points and first line as defaults", () => {
     expect(createCadElement("copyLine", sampleElements, { createId: createTestId })).toMatchObject({
       id: "copyLine-test-id",
-      name: "コピー線1",
+      name: "ABコピー",
       type: "copyLine",
       visible: true,
       enabled: true,
@@ -307,7 +307,7 @@ describe("createCadElement", () => {
   it("creates move modifications using the first two points and first line as defaults", () => {
     expect(createCadElement("move", sampleElements, { createId: createTestId })).toMatchObject({
       id: "move-test-id",
-      name: "移動1",
+      name: "AB移動",
       type: "move",
       visible: true,
       enabled: true,
@@ -324,7 +324,7 @@ describe("createCadElement", () => {
   it("creates symmetric copy lines using the first two points and first line as defaults", () => {
     expect(createCadElement("symmetricCopyLine", sampleElements, { createId: createTestId })).toMatchObject({
       id: "symmetricCopyLine-test-id",
-      name: "対称コピー線1",
+      name: "AB対称コピー",
       type: "symmetricCopyLine",
       visible: true,
       enabled: true,
@@ -338,7 +338,7 @@ describe("createCadElement", () => {
   it("creates symmetric move modifications using the first two points and first line as defaults", () => {
     expect(createCadElement("symmetricMove", sampleElements, { createId: createTestId })).toMatchObject({
       id: "symmetricMove-test-id",
-      name: "対称移動1",
+      name: "AB対称移動",
       type: "symmetricMove",
       visible: true,
       enabled: true,
@@ -354,7 +354,7 @@ describe("createCadElement", () => {
       ...sampleElements,
       {
         id: "existing",
-        name: "直線3",
+        name: "直線AB 2",
         type: "line",
         visible: true,
         enabled: true,
@@ -363,7 +363,7 @@ describe("createCadElement", () => {
       }
     ] satisfies Parameters<typeof createCadElement>[1];
 
-    expect(createCadElement("line", existing, { createId: createTestId }).name).not.toBe("直線3");
+    expect(createCadElement("line", existing, { createId: createTestId }).name).not.toBe("直線AB");
   });
 
   it("keeps the existing empty-reference fallback when no points exist", () => {

@@ -5,13 +5,13 @@ import {
 } from "../model/elementCreationPlacement";
 import { adjustEvaluationLimitForInsertion } from "../model/evaluationDivider";
 import { isConditionalGroupElement } from "../model/groups";
-import { getFirstParameterKey } from "../parameters/parameterDefinitions";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import type { CadElement, ElementId } from "../types/geometry";
+import type { CommandContext } from "./commandTypes";
 import { getSelectedElement, getSelectedElementIds } from "./commandRuntime";
 import {
-  enterCreatedElementNameEntry,
-  type FocusSelectedParameterInput
+  finishCreatedElementInteraction,
+  getInitialCreatedElementParameterKey
 } from "./nameEntryAfterCreation";
 
 const hasSelectedAncestor = (
@@ -28,7 +28,7 @@ const hasSelectedAncestor = (
 };
 
 export const addConditionalGroup = (
-  focusSelectedParameterInput?: FocusSelectedParameterInput
+  context?: CommandContext
 ) => {
   const { elements, evaluationLimitIndex } = useCadDocumentStore.getState();
   const placement = creationPlacementForEvaluationLimit(elements, evaluationLimitIndex);
@@ -45,13 +45,13 @@ export const addConditionalGroup = (
     selectedElementId: group.id,
     selectedElementIds: [group.id],
     selectionAnchorElementId: group.id,
-    selectedParameterKey: getFirstParameterKey(group)
+    selectedParameterKey: getInitialCreatedElementParameterKey(group)
   });
-  enterCreatedElementNameEntry(focusSelectedParameterInput);
+  finishCreatedElementInteraction(context);
 };
 
 export const wrapSelectedElementsInConditionalGroup = (
-  focusSelectedParameterInput?: FocusSelectedParameterInput
+  context?: CommandContext
 ) => {
   const { elements, evaluationLimitIndex } = useCadDocumentStore.getState();
   const selectedIds = new Set(getSelectedElementIds());
@@ -93,9 +93,9 @@ export const wrapSelectedElementsInConditionalGroup = (
     selectedElementId: group.id,
     selectedElementIds: [group.id],
     selectionAnchorElementId: group.id,
-    selectedParameterKey: "name"
+    selectedParameterKey: getInitialCreatedElementParameterKey(group)
   });
-  enterCreatedElementNameEntry(focusSelectedParameterInput);
+  finishCreatedElementInteraction(context);
 };
 
 export const addElseBranchToSelectedConditionalGroup = () => {

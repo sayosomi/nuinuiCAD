@@ -399,8 +399,8 @@ describe("commands", () => {
     expect(state.elements[2]).toMatchObject({ type: "freePoint" });
     expect(state.evaluationLimitIndex).toBe(3);
     expect(state.selectedElementId).toBe(state.elements[2].id);
-    expect(state.selectedParameterKey).toBe("name");
-    expect(state.isParameterEditMode).toBe(true);
+    expect(state.selectedParameterKey).toBe("x");
+    expect(state.isParameterEditMode).toBe(false);
   });
 
   it("adds new elements inside a group when the divider is directly below the group tail", () => {
@@ -583,8 +583,8 @@ describe("commands", () => {
       selectedElementId: group.id,
       selectedElementIds: [group.id],
       selectionAnchorElementId: group.id,
-      selectedParameterKey: "name",
-      isParameterEditMode: true
+      selectedParameterKey: "printEnabled",
+      isParameterEditMode: false
     });
 
     dispatchCommand("selectElement", { elementId: group.id });
@@ -614,8 +614,8 @@ describe("commands", () => {
       selectedElementId: group.id,
       selectedElementIds: [group.id],
       selectionAnchorElementId: group.id,
-      selectedParameterKey: "name",
-      isParameterEditMode: true
+      selectedParameterKey: "printEnabled",
+      isParameterEditMode: false
     });
 
     dispatchCommand("addFreePoint");
@@ -716,8 +716,8 @@ describe("commands", () => {
     });
     expect(state.evaluationLimitIndex).toBe(3);
     expect(state.selectedElementId).toBe(state.elements[2].id);
-    expect(state.selectedParameterKey).toBe("name");
-    expect(state.isParameterEditMode).toBe(true);
+    expect(state.selectedParameterKey).toBe("condition");
+    expect(state.isParameterEditMode).toBe(false);
   });
 
   it("wraps selected elements in a conditional group and assigns them to then", () => {
@@ -751,8 +751,8 @@ describe("commands", () => {
       selectedElementId: group.id,
       selectedElementIds: [group.id],
       selectionAnchorElementId: group.id,
-      selectedParameterKey: "name",
-      isParameterEditMode: true
+      selectedParameterKey: "condition",
+      isParameterEditMode: false
     });
   });
 
@@ -777,8 +777,8 @@ describe("commands", () => {
     });
     expect(state.evaluationLimitIndex).toBe(3);
     expect(state.selectedElementId).toBe(state.elements[2].id);
-    expect(state.selectedParameterKey).toBe("name");
-    expect(state.isParameterEditMode).toBe(true);
+    expect(state.selectedParameterKey).toBe("variableName");
+    expect(state.isParameterEditMode).toBe(false);
   });
 
   it("wraps selected elements in a for group", () => {
@@ -805,8 +805,8 @@ describe("commands", () => {
       selectedElementId: group.id,
       selectedElementIds: [group.id],
       selectionAnchorElementId: group.id,
-      selectedParameterKey: "name",
-      isParameterEditMode: true
+      selectedParameterKey: "variableName",
+      isParameterEditMode: false
     });
   });
 
@@ -1589,15 +1589,18 @@ describe("commands", () => {
     expect(useCadStore.getState().selectedElementIds).toEqual([sampleElements[3].id]);
   });
 
-  it("adds elements and selects them", () => {
-    dispatchCommand("addFreePoint");
+  it("adds elements, selects them, and leaves text inputs alone", async () => {
+    const focusCanvas = vi.fn();
+    dispatchCommand("addFreePoint", { focusCanvas });
 
     const state = useCadStore.getState();
     expect(state.elements).toHaveLength(sampleElements.length + 1);
     expect(state.elements.at(-1)?.type).toBe("freePoint");
     expect(state.selectedElementId).toBe(state.elements.at(-1)?.id);
-    expect(state.selectedParameterKey).toBe("name");
-    expect(state.isParameterEditMode).toBe(true);
+    expect(state.selectedParameterKey).toBe("x");
+    expect(state.isParameterEditMode).toBe(false);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(focusCanvas).toHaveBeenCalledTimes(1);
   });
 
   it("adds a Bezier curve and selects it", () => {
@@ -2289,7 +2292,7 @@ describe("commands", () => {
         {
           ...sampleElements[0],
           id: "manual-point-4",
-          name: "点5"
+          name: "点E"
         }
       ],
       evaluationLimitIndex: sampleElements.length + 1
@@ -2298,7 +2301,7 @@ describe("commands", () => {
     dispatchCommand("addFreePoint");
 
     const state = useCadStore.getState();
-    expect(state.elements.find((element) => element.id === state.selectedElementId)?.name).toBe("点5 2");
+    expect(state.elements.find((element) => element.id === state.selectedElementId)?.name).toBe("点E 2");
   });
 
   it("renames elements with a unique name", () => {

@@ -375,7 +375,7 @@ export const AppLayout = () => {
       <PaletteSettingsDialog />
       <GroupTemplateLibraryDialog />
       <SelectionColorPickerDialog />
-      <ImageImportDialog focusSelectedParameterInput={commandContext.focusSelectedParameterInput} />
+      <ImageImportDialog />
       <ShortcutSettingsDialog />
       <CommandRibbonSettingsDialog />
     </main>

@@ -169,7 +169,7 @@ describe("AppLayout keyboard handling", () => {
     expect(input.selectionEnd).toBe(input.value.length);
   });
 
-  it("selects the default name after creating an element from a shortcut", async () => {
+  it("returns focus to the canvas after creating an element from a shortcut", async () => {
     const view = render(<AppLayout />);
     const viewport = view.container.querySelector(".canvas-viewport");
     if (!(viewport instanceof HTMLDivElement)) {
@@ -179,20 +179,10 @@ describe("AppLayout keyboard handling", () => {
     viewport.focus();
     fireEvent.keyDown(window, { key: "c" });
 
-    const nameInput = await waitFor(() => {
-      const input = view.container.querySelector(".right-panel .selected-parameter input");
-      expect(input).toHaveFocus();
-      return input;
-    });
-    if (!(nameInput instanceof HTMLInputElement)) {
-      throw new Error("Missing name input");
-    }
-
-    expect(nameInput.selectionStart).toBe(0);
-    expect(nameInput.selectionEnd).toBe(nameInput.value.length);
+    await waitFor(() => expect(viewport).toHaveFocus());
     expect(useCadStore.getState()).toMatchObject({
-      selectedParameterKey: "name",
-      isParameterEditMode: true
+      selectedParameterKey: "startPoint",
+      isParameterEditMode: false
     });
   });
 

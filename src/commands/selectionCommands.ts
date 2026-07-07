@@ -22,7 +22,6 @@ import {
   subtreeIdsForElement,
   visibleOutlineElements
 } from "../model/groups";
-import { getFirstParameterKey } from "../parameters/parameterDefinitions";
 import { elementSupportsDisplayColor } from "../palette/colorApplicability";
 import { isValidPaletteColorId } from "../palette/palette";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
@@ -31,8 +30,8 @@ import type { CadElement, ElementId } from "../types/geometry";
 import type { CommandContext } from "./commandTypes";
 import { getSelectedElement, getSelectedElementIds } from "./commandRuntime";
 import {
-  enterCreatedElementNameEntry,
-  type FocusSelectedParameterInput
+  finishCreatedElementInteraction,
+  getInitialCreatedElementParameterKey
 } from "./nameEntryAfterCreation";
 
 export const toggleSelectedElementsBooleanProperty = (property: "visible" | "enabled") => {
@@ -335,9 +334,7 @@ const hasSelectedAncestor = (
   return false;
 };
 
-export const groupSelectedElements = (
-  focusSelectedParameterInput?: FocusSelectedParameterInput
-) => {
+export const groupSelectedElements = (context?: CommandContext) => {
   const { elements, evaluationLimitIndex } = useCadDocumentStore.getState();
   const selectedIds = new Set(getSelectedElementIds());
   if (selectedIds.size === 0) return;
@@ -385,15 +382,13 @@ export const groupSelectedElements = (
     selectedElementId: group.id,
     selectedElementIds: [group.id],
     selectionAnchorElementId: group.id,
-    selectedParameterKey: "name"
+    selectedParameterKey: getInitialCreatedElementParameterKey(group)
   });
   useCadUiStore.getState().setCommandErrorMessage(null);
-  enterCreatedElementNameEntry(focusSelectedParameterInput);
+  finishCreatedElementInteraction(context);
 };
 
-export const addGroup = (
-  focusSelectedParameterInput?: FocusSelectedParameterInput
-) => {
+export const addGroup = (context?: CommandContext) => {
   const { elements, evaluationLimitIndex } = useCadDocumentStore.getState();
   const placement = creationPlacementForEvaluationLimit(elements, evaluationLimitIndex);
   const { insertionIndex } = placement;
@@ -412,10 +407,10 @@ export const addGroup = (
     selectedElementId: group.id,
     selectedElementIds: [group.id],
     selectionAnchorElementId: group.id,
-    selectedParameterKey: getFirstParameterKey(group)
+    selectedParameterKey: getInitialCreatedElementParameterKey(group)
   });
   useCadUiStore.getState().setCommandErrorMessage(null);
-  enterCreatedElementNameEntry(focusSelectedParameterInput);
+  finishCreatedElementInteraction(context);
 };
 
 export const ungroupSelectedGroup = () => {

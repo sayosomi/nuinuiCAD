@@ -1,6 +1,5 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
-import type { FocusSelectedParameterInput } from "../commands/nameEntryAfterCreation";
 import { commitPendingImageImport } from "../commands/imageCreationCommands";
 import { initialImageScale } from "../geometry/imageScale";
 import type { PendingImageImport } from "../state/cadUiStore";
@@ -14,11 +13,7 @@ const positiveNumber = (value: string) => {
 const formatNumber = (value: number) =>
   Number.isInteger(value) ? `${value}` : `${Math.round(value * 1000) / 1000}`;
 
-type ImageImportDialogProps = {
-  focusSelectedParameterInput?: FocusSelectedParameterInput;
-};
-
-export const ImageImportDialog = ({ focusSelectedParameterInput }: ImageImportDialogProps = {}) => {
+export const ImageImportDialog = () => {
   const pendingImageImport = useCadUiStore((state) => state.pendingImageImport);
   const imageImportError = useCadUiStore((state) => state.imageImportError);
 
@@ -62,7 +57,6 @@ export const ImageImportDialog = ({ focusSelectedParameterInput }: ImageImportDi
             key={pendingImageImport.sourcePath}
             pendingImageImport={pendingImageImport}
             close={close}
-            focusSelectedParameterInput={focusSelectedParameterInput}
           />
         ) : null}
       </section>
@@ -73,13 +67,11 @@ export const ImageImportDialog = ({ focusSelectedParameterInput }: ImageImportDi
 type ImageImportFormProps = {
   pendingImageImport: PendingImageImport;
   close: () => void;
-  focusSelectedParameterInput?: FocusSelectedParameterInput;
 };
 
 const ImageImportForm = ({
   pendingImageImport,
-  close,
-  focusSelectedParameterInput
+  close
 }: ImageImportFormProps) => {
   const [sourceDpiInput, setSourceDpiInput] = useState(formatNumber(pendingImageImport.sourceDpi));
   const [targetPixelsPerMmInput, setTargetPixelsPerMmInput] = useState(
@@ -104,7 +96,7 @@ const ImageImportForm = ({
       naturalHeightPx: pendingImageImport.naturalHeightPx,
       sourceDpi,
       targetPixelsPerMm
-    }, focusSelectedParameterInput);
+    });
     close();
   };
 

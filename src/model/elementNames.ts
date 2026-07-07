@@ -1,5 +1,5 @@
 import { elementTypeLabels } from "../types/geometry";
-import type { CadElement, CadElementType, ElementId } from "../types/geometry";
+import type { CadElement, CadElementType, ElementId, PointAnchor } from "../types/geometry";
 
 const defaultNameBases: Record<CadElementType, string> = {
   group: "グループ",
@@ -37,6 +37,213 @@ const normalizeName = (name: string, fallbackBaseName: string) => {
 };
 
 export const fallbackElementName = (type: CadElementType) => defaultNameBases[type];
+
+const isPointLikeElement = (element: CadElement) =>
+  element.type === "freePoint" ||
+  element.type === "offsetPoint" ||
+  element.type === "polarOffsetPoint" ||
+  element.type === "divisionPoint" ||
+  element.type === "lineDivisionPoint" ||
+  element.type === "intersectionPoint" ||
+  element.type === "lineTangentOffsetPoint";
+
+const lineNamePrefixes = [
+  "直線",
+  "曲線",
+  "円弧線",
+  "三点円弧線",
+  "角R円弧線",
+  "オフセット線",
+  "分割線",
+  "コピー線",
+  "対称コピー線"
+];
+
+const compactName = (name: string) => name.trim().replace(/\s+/g, "");
+
+const stripKnownPrefix = (name: string, prefixes: string[]) => {
+  const compact = compactName(name);
+  const prefix = prefixes.find((item) => compact.startsWith(item) && compact.length > item.length);
+  return prefix ? compact.slice(prefix.length) : compact;
+};
+
+const pointToken = (element: CadElement | undefined) =>
+  element && isPointLikeElement(element)
+    ? stripKnownPrefix(element.name, ["点"])
+    : null;
+
+const lineToken = (element: CadElement | undefined) =>
+  element ? stripKnownPrefix(element.name, lineNamePrefixes) : null;
+
+const elementById = (elements: CadElement[]) =>
+  new Map(elements.map((element) => [element.id, element]));
+
+const anchorToken = (anchor: PointAnchor | undefined, elementsById: Map<ElementId, CadElement>) => {
+  if (!anchor) return null;
+  if (anchor.mode === "reference") return pointToken(elementsById.get(anchor.pointId));
+  if (anchor.mode === "derived") {
+    const source = elementsById.get(anchor.elementId);
+    const sourceToken = lineToken(source);
+    if (!sourceToken) return null;
+    if (anchor.pointKey === "start") return `${sourceToken}始`;
+    if (anchor.pointKey === "end") return `${sourceToken}終`;
+    return sourceToken;
+  }
+  return null;
+};
+
+const isShortToken = (token: string) => /^[A-Za-z0-9]+$/.test(token) && token.length <= 2;
+
+const joinTokens = (first: string | null, second: string | null) => {
+  if (!first || !second) return null;
+  if (first === second) return first;
+  return isShortToken(first) && isShortToken(second) ? `${first}${second}` : `${first}_${second}`;
+};
+
+const linePairToken = (
+  firstLineId: ElementId | undefined,
+  secondLineId: ElementId | undefined,
+  elementsById: Map<ElementId, CadElement>
+) => {
+  const first = lineToken(firstLineId ? elementsById.get(firstLineId) : undefined);
+  const second = lineToken(secondLineId ? elementsById.get(secondLineId) : undefined);
+  if (!first || !second) return null;
+  return first === second ? first : `${first}_${second}`;
+};
+
+const lineListToken = (lineIds: ElementId[] | undefined, elementsById: Map<ElementId, CadElement>) =>
+  lineToken(lineIds?.[0] ? elementsById.get(lineIds[0]) : undefined);
+
+const columnName = (index: number) => {
+  let value = index;
+  let name = "";
+  while (value > 0) {
+    value -= 1;
+    name = String.fromCharCode(65 + (value % 26)) + name;
+    value = Math.floor(value / 26);
+  }
+  return name;
+};
+
+const fallbackCreatedName = (element: CadElement, elements: CadElement[]) =>
+  `${fallbackElementName(element.type)}${elements.filter((item) => item.type === element.type).length + 1}`;
+
+export const createdElementName = ({
+  element,
+  elements,
+  referenceElements = elements
+}: {
+  element: CadElement;
+  elements: CadElement[];
+  referenceElements?: CadElement[];
+}) => {
+  const elementsById = elementById([...elements, ...referenceElements]);
+  const fallbackName = fallbackCreatedName(element, elements);
+  const name = (() => {
+    switch (element.type) {
+      case "freePoint":
+        return `点${columnName(referenceElements.filter(isPointLikeElement).length + 1)}`;
+      case "offsetPoint": {
+        const token = pointToken(elementsById.get(element.fromPoint?.mode === "reference" ? element.fromPoint.pointId : element.fromPointId ?? ""));
+        return token ? `点${token}オフセット` : fallbackName;
+      }
+      case "polarOffsetPoint": {
+        const token = pointToken(elementsById.get(element.fromPoint?.mode === "reference" ? element.fromPoint.pointId : element.fromPointId ?? ""));
+        return token ? `点${token}極座標` : fallbackName;
+      }
+      case "divisionPoint": {
+        const token = joinTokens(anchorToken(element.startPoint, elementsById), anchorToken(element.endPoint, elementsById));
+        return token ? `分点${token}` : fallbackName;
+      }
+      case "lineDivisionPoint": {
+        const token = lineToken(elementsById.get(element.endpoint.lineId));
+        return token ? `${token}分点` : fallbackName;
+      }
+      case "intersectionPoint": {
+        const token = linePairToken(element.line1Id, element.line2Id, elementsById);
+        return token ? `交点${token}` : fallbackName;
+      }
+      case "lineTangentOffsetPoint": {
+        const token = lineToken(elementsById.get(element.baseLineId));
+        return token ? `${token}上オフセット点` : fallbackName;
+      }
+      case "line": {
+        const token = joinTokens(anchorToken(element.startPoint, elementsById), anchorToken(element.endPoint, elementsById));
+        return token ? `直線${token}` : fallbackName;
+      }
+      case "angleLengthLine": {
+        const token = anchorToken(element.startPoint, elementsById);
+        return token ? `${token}方向線` : fallbackName;
+      }
+      case "arcLine": {
+        const token = anchorToken(element.centerPoint, elementsById);
+        return token ? `${token}円弧` : fallbackName;
+      }
+      case "threePointArcLine": {
+        const token = joinTokens(anchorToken(element.point1, elementsById), anchorToken(element.point3, elementsById));
+        return token ? `円弧${token}` : fallbackName;
+      }
+      case "cornerRadiusArcLine": {
+        const token = linePairToken(element.endpoint1.lineId, element.endpoint2.lineId, elementsById);
+        return token ? `${token}角R` : fallbackName;
+      }
+      case "edge": {
+        const token = linePairToken(element.endpoint1.lineId, element.endpoint2.lineId, elementsById);
+        return token ? `${token}エッジ` : fallbackName;
+      }
+      case "extendTrim": {
+        const token = lineToken(elementsById.get(element.endpoint.lineId));
+        return token ? `${token}延長短縮` : fallbackName;
+      }
+      case "bezierCurve": {
+        const token = joinTokens(anchorToken(element.startPoint, elementsById), anchorToken(element.endPoint, elementsById));
+        return token ? `曲線${token}` : fallbackName;
+      }
+      case "offsetLine": {
+        const token = lineListToken(element.baseLineIds, elementsById);
+        return token ? `${token}オフセット` : fallbackName;
+      }
+      case "splitLine": {
+        const token = lineToken(elementsById.get(element.baseLineId));
+        return token ? `${token}分割` : fallbackName;
+      }
+      case "copyLine": {
+        const token = lineListToken(element.baseLineIds, elementsById);
+        return token ? `${token}コピー` : fallbackName;
+      }
+      case "move": {
+        const token = lineListToken(element.baseLineIds, elementsById);
+        return token ? `${token}移動` : fallbackName;
+      }
+      case "symmetricCopyLine": {
+        const token = lineListToken(element.baseLineIds, elementsById);
+        return token ? `${token}対称コピー` : fallbackName;
+      }
+      case "symmetricMove": {
+        const token = lineListToken(element.baseLineIds, elementsById);
+        return token ? `${token}対称移動` : fallbackName;
+      }
+      default:
+        return fallbackName;
+    }
+  })();
+
+  return makeUniqueElementName({
+    elements,
+    elementId: element.id,
+    requestedName: name,
+    fallbackBaseName: fallbackElementName(element.type)
+  });
+};
+
+export const withCreatedElementName = <Element extends CadElement>(
+  element: Element,
+  elements: CadElement[],
+  referenceElements?: CadElement[]
+): Element => ({
+  ...element,
+  name: createdElementName({ element, elements, referenceElements })
+});
 
 export const makeUniqueElementName = ({
   elements,

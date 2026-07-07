@@ -201,27 +201,27 @@ export const selectionCommandDefinitions = {
     label: "選択要素をグループ化",
     palette: { order: 34, keywords: ["group", "folder", "グループ", "まとめる"] },
     shortcuts: [{ keys: "Mod+G" }],
-    run: (context) => groupSelectedElements(context?.focusSelectedParameterInput)
+    run: (context) => groupSelectedElements(context)
   },
   addGroup: {
     id: "addGroup",
     label: "グループを追加",
     palette: { order: 34.1, keywords: ["group", "folder", "empty", "グループ", "フォルダ", "追加", "空"] },
-    run: (context) => addGroup(context?.focusSelectedParameterInput)
+    run: (context) => addGroup(context)
   },
   addConditionalGroup: {
     id: "addConditionalGroup",
     label: "ifブロックを追加",
     palette: { order: 34.2, keywords: ["if", "condition", "conditional", "条件", "分岐", "追加"] },
     shortcuts: [{ keys: "Alt+I" }],
-    run: (context) => addConditionalGroup(context?.focusSelectedParameterInput)
+    run: (context) => addConditionalGroup(context)
   },
   wrapSelectedElementsInConditionalGroup: {
     id: "wrapSelectedElementsInConditionalGroup",
     label: "選択範囲をifで囲む",
     palette: { order: 34.4, keywords: ["if", "wrap", "condition", "条件", "分岐", "囲む"] },
     shortcuts: [{ keys: "Shift+Alt+I" }],
-    run: (context) => wrapSelectedElementsInConditionalGroup(context?.focusSelectedParameterInput)
+    run: (context) => wrapSelectedElementsInConditionalGroup(context)
   },
   addElseBranchToSelectedConditionalGroup: {
     id: "addElseBranchToSelectedConditionalGroup",
@@ -244,14 +244,14 @@ export const selectionCommandDefinitions = {
     label: "forブロックを追加",
     palette: { order: 34.9, keywords: ["for", "loop", "repeat", "繰り返し", "追加"] },
     shortcuts: [{ keys: "Alt+F" }],
-    run: (context) => addForGroup(context?.focusSelectedParameterInput)
+    run: (context) => addForGroup(context)
   },
   wrapSelectedElementsInForGroup: {
     id: "wrapSelectedElementsInForGroup",
     label: "選択範囲をforで囲む",
     palette: { order: 34.95, keywords: ["for", "loop", "wrap", "繰り返し", "囲む"] },
     shortcuts: [{ keys: "Shift+Alt+F" }],
-    run: (context) => wrapSelectedElementsInForGroup(context?.focusSelectedParameterInput)
+    run: (context) => wrapSelectedElementsInForGroup(context)
   },
   toggleSelectedForGroupGenerated: {
     id: "toggleSelectedForGroupGenerated",
