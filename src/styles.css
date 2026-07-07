@@ -1481,7 +1481,52 @@ textarea {
 }
 
 .dsl-highlight-line {
+  display: block;
   min-height: 18.6px;
+  min-width: max-content;
+  padding-right: 12px;
+}
+
+.dsl-highlight-line.dsl-export-selected {
+  background: rgb(15 118 110 / 11%);
+}
+
+.dsl-highlight-line.dsl-export-group-content {
+  background: rgb(37 99 235 / 9%);
+}
+
+.dsl-highlight-line.dsl-export-dependency {
+  background: rgb(180 83 9 / 10%);
+}
+
+.dsl-highlight-line.dsl-export-parent {
+  background: rgb(82 82 91 / 9%);
+}
+
+.dsl-highlight-line.dsl-export-warning-disabled,
+.dsl-highlight-line.dsl-export-warning-invalid,
+.dsl-highlight-line.dsl-export-warning-too-late {
+  box-shadow: inset 3px 0 0 #b45309;
+}
+
+.dsl-line-numbers .dsl-highlight-line.dsl-export-selected {
+  color: #0f766e;
+  font-weight: 700;
+}
+
+.dsl-line-numbers .dsl-highlight-line.dsl-export-group-content {
+  color: #2563eb;
+  font-weight: 700;
+}
+
+.dsl-line-numbers .dsl-highlight-line.dsl-export-dependency {
+  color: #92400e;
+  font-weight: 700;
+}
+
+.dsl-line-numbers .dsl-highlight-line.dsl-export-parent {
+  color: #52525b;
+  font-weight: 700;
 }
 
 .dsl-editor-input {

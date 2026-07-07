@@ -4,6 +4,7 @@ import { defaultDocumentPalette } from "../palette/palette";
 import { DEFAULT_PRINT_LAYOUT } from "../print/printLayout";
 import { sampleElements } from "../sampleData";
 import { DEFAULT_CANVAS_VIEWPORT, DEFAULT_PRINT_PREVIEW_WINDOW, useCadStore } from "../state/useCadStore";
+import type { CadElement, EvaluationResult } from "../types/geometry";
 import { DslPanel } from "./DslPanel";
 
 const resetStore = () => {
@@ -47,6 +48,7 @@ describe("DslPanel", () => {
 
     await waitFor(() => {
       const editor = screen.getByLabelText("DSLソース") as HTMLTextAreaElement;
+      expect(editor.value).toContain("# @dsl-export: selected");
       expect(editor.value).toContain("point 点A");
       expect(editor.value).toContain("point 点B");
       expect(editor.value.indexOf("point 点A")).toBeLessThan(editor.value.indexOf("point 点B"));
@@ -85,9 +87,69 @@ describe("DslPanel", () => {
     const editor = await screen.findByLabelText("DSLソース") as HTMLTextAreaElement;
     fireEvent.keyDown(editor, { key: "E", metaKey: true, shiftKey: true });
 
+    expect(editor.value).toContain("# @dsl-export: dependency");
+    expect(editor.value).toContain("point 点A");
     expect(editor.value).toContain("point 点B");
-    expect(editor.value).not.toContain("point 点A");
-    expect(screen.getByText("選択要素をDSLへ書き出しました。")).toBeInTheDocument();
+    expect(screen.getByText("実選択1件、依存元1件をDSLへ書き出しました。")).toBeInTheDocument();
+  });
+
+  it("surfaces warning counts for pulled dependencies", async () => {
+    const elements: CadElement[] = [
+      {
+        id: "line-ab",
+        name: "AB",
+        type: "line",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "point-a" },
+        endPoint: { mode: "reference", pointId: "point-b" }
+      },
+      {
+        id: "point-a",
+        name: "A",
+        type: "freePoint",
+        visible: true,
+        enabled: false,
+        x: 0,
+        y: 0
+      },
+      {
+        id: "point-b",
+        name: "B",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        x: 10,
+        y: 0
+      }
+    ];
+    const evaluation: EvaluationResult = {
+      computedGeometry: new Map(),
+      computedVariables: new Map(),
+      errors: [{
+        elementId: "point-a",
+        elementName: "A",
+        missingDependencyId: "point-a",
+        missingDependencyName: "A",
+        message: "invalid"
+      }],
+      warnings: []
+    };
+    useCadStore.setState({
+      elements,
+      showDslPanel: true,
+      selectedElementId: "line-ab",
+      selectedElementIds: ["line-ab"],
+      selectionAnchorElementId: "line-ab"
+    });
+
+    render(<DslPanel evaluation={evaluation} />);
+
+    const editor = await screen.findByLabelText("DSLソース") as HTMLTextAreaElement;
+    fireEvent.keyDown(editor, { key: "E", metaKey: true, shiftKey: true });
+
+    expect(editor.value).toContain("warning=disabled,invalid,too-late");
+    expect(screen.getByText(/評価OFF1件、評価エラー1件、順序違い2件/)).toBeInTheDocument();
   });
 
   it("validates from the keyboard without closing", async () => {

@@ -26,4 +26,17 @@ describe("DslEditor", () => {
 
     expect(onSourceChange).toHaveBeenCalledWith("point A = (0, 0)");
   });
+
+  it("marks export annotation comments and their following element lines", () => {
+    render(
+      <DslEditor
+        source={"# @dsl-export: parent 親要素\ngroup front id=g expanded=true"}
+        onSourceChange={() => undefined}
+      />
+    );
+
+    const markedLines = document.querySelectorAll(".dsl-export-parent");
+    expect(markedLines.length).toBeGreaterThanOrEqual(2);
+    expect(document.querySelector(".dsl-line-numbers .dsl-export-parent")).toBeInTheDocument();
+  });
 });

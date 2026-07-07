@@ -4,6 +4,11 @@ import type { CSSProperties, KeyboardEvent, PointerEvent } from "react";
 import { dispatchCommand } from "../commands/commands";
 import type { CommandContext, CommandId } from "../commands/commands";
 import { compileDslToElements } from "../dsl/dslCompiler";
+import {
+  createDslExportSelection,
+  dslExportAnnotationComment,
+  type DslExportSelection
+} from "../dsl/dslDependencyClosure";
 import { serializeElementsToDsl } from "../dsl/dslSerializer";
 import type { DslDiagnostic } from "../dsl/dslTypes";
 import { keyboardCommandForEvent } from "../keyboard/shortcuts";
@@ -12,6 +17,7 @@ import { adjustEvaluationLimitForInsertion } from "../model/evaluationDivider";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
 import type { DslPanelWindow } from "../state/cadUiStore";
+import type { EvaluationResult } from "../types/geometry";
 import { DslEditor } from "./DslEditor";
 
 const defaultSource = [
@@ -68,6 +74,7 @@ type DslPanelDrag = {
 
 type DslPanelProps = {
   commandContext?: CommandContext;
+  evaluation?: EvaluationResult;
 };
 
 const restoreFocusTargetKind = (element: HTMLElement | null): "canvas" | "elementList" | null => {
@@ -77,7 +84,29 @@ const restoreFocusTargetKind = (element: HTMLElement | null): "canvas" | "elemen
   return null;
 };
 
-export const DslPanel = ({ commandContext }: DslPanelProps) => {
+const serializeExportSelectionToDsl = (selection: DslExportSelection) =>
+  selection.elements.map((element) => {
+    const annotation = selection.annotationsByElementId.get(element.id);
+    const body = serializeElementsToDsl([element]);
+    return annotation ? `${dslExportAnnotationComment(annotation)}\n${body}` : body;
+  }).join("\n");
+
+const exportStatus = (selection: DslExportSelection) => {
+  const parts = [
+    `実選択${selection.selectedCount}件`,
+    selection.groupContentCount > 0 ? `グループ内${selection.groupContentCount}件` : null,
+    selection.dependencyCount > 0 ? `依存元${selection.dependencyCount}件` : null,
+    selection.parentCount > 0 ? `親要素${selection.parentCount}件` : null
+  ].filter(Boolean);
+  const warnings = [
+    selection.warningCounts.disabled > 0 ? `評価OFF${selection.warningCounts.disabled}件` : null,
+    selection.warningCounts.invalid > 0 ? `評価エラー${selection.warningCounts.invalid}件` : null,
+    selection.warningCounts["too-late"] > 0 ? `順序違い${selection.warningCounts["too-late"]}件` : null
+  ].filter(Boolean);
+  return `${parts.join("、")}をDSLへ書き出しました。${warnings.length > 0 ? ` 注意: ${warnings.join("、")}。` : ""}`;
+};
+
+export const DslPanel = ({ commandContext, evaluation }: DslPanelProps) => {
   const showDslPanel = useCadUiStore((state) => state.showDslPanel);
   const dslPanelSourceRequest = useCadUiStore((state) => state.dslPanelSourceRequest);
   const dslPanelWindow = useCadUiStore((state) => state.dslPanelWindow);
@@ -109,20 +138,23 @@ export const DslPanel = ({ commandContext }: DslPanelProps) => {
     () => elements.filter((element) => selectedElementIds.includes(element.id)),
     [elements, selectedElementIds]
   );
-  const requestedElements = useMemo(() => {
-    if (!showDslPanel || !dslPanelSourceRequest) return [];
-    const requestedIds = new Set(dslPanelSourceRequest.elementIds);
-    return elements.filter((element) => requestedIds.has(element.id));
-  }, [dslPanelSourceRequest, elements, showDslPanel]);
+  const requestedExport = useMemo(() => {
+    if (!showDslPanel || !dslPanelSourceRequest) return null;
+    return createDslExportSelection({
+      elements,
+      selectedElementIds: dslPanelSourceRequest.elementIds,
+      evaluation
+    });
+  }, [dslPanelSourceRequest, elements, evaluation, showDslPanel]);
   const activeRequestId = dslPanelSourceRequest?.requestId ?? null;
   const hasPendingSourceRequest =
-    requestedElements.length > 0 && sourceState.requestId !== activeRequestId;
+    Boolean(requestedExport && requestedExport.elements.length > 0 && sourceState.requestId !== activeRequestId);
   const source = hasPendingSourceRequest
-    ? serializeElementsToDsl(requestedElements)
+    ? serializeExportSelectionToDsl(requestedExport as DslExportSelection)
     : sourceState.source;
   const visibleDiagnostics = hasPendingSourceRequest ? [] : diagnostics;
   const visibleStatus = hasPendingSourceRequest
-    ? `${requestedElements.length}件の要素をDSLへ書き出しました。`
+    ? exportStatus(requestedExport as DslExportSelection)
     : status;
 
   const insertionIndex = selectedElementIds.length > 0
@@ -218,28 +250,38 @@ export const DslPanel = ({ commandContext }: DslPanelProps) => {
   ]);
 
   const exportSelection = useCallback(() => {
-    const targets = selectedElements.length > 0 ? selectedElements : elements;
+    if (selectedElements.length === 0) {
+      setSourceState({
+        source: serializeElementsToDsl(elements, {
+          visibilityRoles,
+          visibilityProfiles,
+          activeVisibilityProfileId,
+          printLayouts
+        }),
+        requestId: activeRequestId
+      });
+      setDiagnostics([]);
+      setStatus("全要素をDSLへ書き出しました。");
+      return;
+    }
+    const selection = createDslExportSelection({
+      elements,
+      selectedElementIds,
+      evaluation
+    });
     setSourceState({
-      source: serializeElementsToDsl(
-        targets,
-        selectedElements.length > 0
-          ? {}
-          : {
-              visibilityRoles,
-              visibilityProfiles,
-              activeVisibilityProfileId,
-              printLayouts
-            }
-      ),
+      source: serializeExportSelectionToDsl(selection),
       requestId: activeRequestId
     });
     setDiagnostics([]);
-    setStatus(selectedElements.length > 0 ? "選択要素をDSLへ書き出しました。" : "全要素をDSLへ書き出しました。");
+    setStatus(exportStatus(selection));
   }, [
     activeRequestId,
     activeVisibilityProfileId,
     elements,
+    evaluation,
     printLayouts,
+    selectedElementIds,
     selectedElements,
     visibilityProfiles,
     visibilityRoles

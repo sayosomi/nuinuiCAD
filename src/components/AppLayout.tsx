@@ -419,7 +419,7 @@ export const AppLayout = () => {
       ) : null}
       {showDslPanel ? (
         <Suspense fallback={null}>
-          <DslPanel commandContext={commandContext} />
+          <DslPanel commandContext={commandContext} evaluation={evaluation} />
         </Suspense>
       ) : null}
       <ShortcutHelpOverlay
