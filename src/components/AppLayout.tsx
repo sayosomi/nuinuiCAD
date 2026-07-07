@@ -419,13 +419,14 @@ export const AppLayout = () => {
       ) : null}
       {showDslPanel ? (
         <Suspense fallback={null}>
-          <DslPanel />
+          <DslPanel commandContext={commandContext} />
         </Suspense>
       ) : null}
       <ShortcutHelpOverlay
         isParameterEditMode={isParameterEditMode}
         isDependencyJumpMode={isDependencyJumpMode}
         isPickMode={isPickMode}
+        isDslPanelMode={showDslPanel}
       />
       {showPaletteSettings ? (
         <Suspense fallback={null}>

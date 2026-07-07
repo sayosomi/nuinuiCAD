@@ -209,6 +209,75 @@ textarea {
   flex-direction: column;
 }
 
+.visibility-profile-panel {
+  display: grid;
+  gap: 10px;
+}
+
+.visibility-profile-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+}
+
+.visibility-profile-actions,
+.visibility-role-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.visibility-profile-actions {
+  grid-column: 1 / -1;
+}
+
+.visibility-profile-actions button,
+.visibility-add-role-button,
+.visibility-role-toggle,
+.visibility-role-delete {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  border: 1px solid #c8cec2;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #252622;
+  padding: 6px 8px;
+  font: inherit;
+  font-size: 12px;
+}
+
+.visibility-profile-actions svg,
+.visibility-add-role-button svg,
+.visibility-role-toggle svg,
+.visibility-role-delete svg {
+  width: 14px;
+  height: 14px;
+}
+
+.visibility-role-list {
+  display: grid;
+  gap: 6px;
+}
+
+.visibility-role-row input {
+  min-width: 0;
+  flex: 1;
+  border: 1px solid #c8cec2;
+  border-radius: 6px;
+  padding: 6px 8px;
+  font: inherit;
+  font-size: 13px;
+}
+
+.visibility-role-toggle,
+.visibility-role-delete {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+}
+
 .section-header {
   display: flex;
   align-items: center;
@@ -2668,6 +2737,43 @@ textarea {
   display: flex;
   align-items: center;
   gap: 6px;
+}
+
+.group-role-field {
+  grid-column: 1 / -1;
+}
+
+.group-role-options,
+.element-role-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.group-role-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid #c8cec2;
+  border-radius: 6px;
+  background: #ffffff;
+  padding: 4px 7px;
+  color: #393c35;
+  font-size: 12px;
+}
+
+.element-role-chips {
+  margin-top: 2px;
+}
+
+.element-role-chip {
+  border: 1px solid #c9cec3;
+  border-radius: 999px;
+  background: #eef3e8;
+  padding: 1px 6px;
+  color: #4c5944;
+  font-size: 11px;
+  line-height: 1.4;
 }
 
 .parameter-name kbd {

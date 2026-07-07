@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { elementSearchResults } from "../model/elementSearch";
 import {
   descendantIdsForGroup,
@@ -8,6 +9,11 @@ import {
   isGroupElement,
   visibleOutlineElements
 } from "../model/groups";
+import {
+  effectiveVisibleElementIdsForProfile,
+  visibilityProfileById,
+  visibilityRoleNamesById
+} from "../model/visibilityProfiles";
 import {
   isLineLikeElement,
   selectablePointsForElement
@@ -71,6 +77,9 @@ export const useElementListData = ({
   activeLinePickTarget: ActiveLinePickTarget | null;
   activePickCursor: ActivePickCursor | null;
 }) => {
+  const visibilityProfiles = useCadDocumentStore((state) => state.visibilityProfiles);
+  const visibilityRoles = useCadDocumentStore((state) => state.visibilityRoles);
+  const activeVisibilityProfileId = useCadDocumentStore((state) => state.activeVisibilityProfileId);
   const errorElementIds = new Set(evaluation.errors.map((error) => error.elementId));
   const warningElementIds = new Set(evaluation.warnings.map((warning) => warning.elementId));
   const conditionInactiveElementIds = evaluation.conditionInactiveElementIds ?? new Set<ElementId>();
@@ -79,12 +88,21 @@ export const useElementListData = ({
   const elementsById = new Map(elements.map((element) => [element.id, element]));
   const outlineElements = visibleOutlineElements(elements);
   const isSearchActive = elementSearchQuery.trim().length > 0;
+  const roleNamesById = useMemo(
+    () => visibilityRoleNamesById(visibilityRoles),
+    [visibilityRoles]
+  );
   const rawSearchResults = useMemo(
-    () => elementSearchResults(elements, elementSearchQuery),
-    [elements, elementSearchQuery]
+    () => elementSearchResults(elements, elementSearchQuery, roleNamesById),
+    [elements, elementSearchQuery, roleNamesById]
   );
   const groupStates = groupStateByElementId(elements);
-  const effectiveVisibleIds = evaluation.effectiveVisibleElementIds ?? effectiveVisibleElementIds(elements);
+  const baseEffectiveVisibleIds = evaluation.effectiveVisibleElementIds ?? effectiveVisibleElementIds(elements);
+  const profile = visibilityProfileById(visibilityProfiles, activeVisibilityProfileId);
+  const profileVisibleIds = effectiveVisibleElementIdsForProfile({ elements, profile });
+  const effectiveVisibleIds = new Set(
+    [...baseEffectiveVisibleIds].filter((id) => profileVisibleIds.has(id))
+  );
   const effectiveEnabledIds = evaluation.effectiveEnabledElementIds ?? effectiveEnabledElementIds(elements);
   const descendantIdsByGroupId = new Map(
     elements

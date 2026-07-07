@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { sampleElements } from "../sampleData";
 import { defaultDocumentPalette } from "../palette/palette";
 import { DEFAULT_PRINT_LAYOUT } from "../print/printLayout";
+import { defaultVisibilityProfile } from "../model/visibilityProfiles";
 import {
   currentDocumentSnapshot,
   initialCadDocumentState,
@@ -37,6 +38,9 @@ const clearTauriRuntime = () => {
 const loadedSnapshot = (): CadDocumentSnapshot => ({
   elements: [sampleElements[1]],
   palette: defaultDocumentPalette(),
+  visibilityRoles: [],
+  visibilityProfiles: [defaultVisibilityProfile()],
+  activeVisibilityProfileId: defaultVisibilityProfile().id,
   printLayouts: [DEFAULT_PRINT_LAYOUT],
   activePrintLayoutId: DEFAULT_PRINT_LAYOUT.id,
   printLayout: DEFAULT_PRINT_LAYOUT,

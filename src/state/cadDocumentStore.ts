@@ -2,6 +2,13 @@ import { create } from "zustand";
 import { sampleElements } from "../sampleData";
 import { fallbackElementName, makeUniqueElementName } from "../model/elementNames";
 import { normalizedElementFields } from "../model/elementNormalization";
+import {
+  defaultVisibilityProfile,
+  normalizeGroupVisibilityRoleIds,
+  normalizeVisibilityProfiles,
+  normalizeVisibilityRoles,
+  visibilityIdFromName
+} from "../model/visibilityProfiles";
 import { normalizeParameterKey } from "../parameters/parameterDefinitions";
 import type { ParameterKey } from "../parameters/parameterDefinitions";
 import {
@@ -22,12 +29,17 @@ import type {
   DocumentPalette,
   ElementId,
   PaletteColor,
-  PrintLayout
+  PrintLayout,
+  VisibilityProfile,
+  VisibilityRole
 } from "../types/geometry";
 
 export type CadDocumentSnapshot = {
   elements: CadElement[];
   palette: DocumentPalette;
+  visibilityRoles: VisibilityRole[];
+  visibilityProfiles: VisibilityProfile[];
+  activeVisibilityProfileId: string;
   printLayouts: PrintLayout[];
   activePrintLayoutId: string;
   /**
@@ -61,6 +73,14 @@ export type CadDocumentState = CadDocumentSnapshot & {
   updateElement: (id: ElementId, patch: Partial<CadElement>) => void;
   setPrintLayout: (printLayout: PrintLayout) => void;
   updatePrintLayout: (patch: Partial<PrintLayout>) => void;
+  setActiveVisibilityProfileId: (id: string) => void;
+  addVisibilityRole: (name?: string) => void;
+  updateVisibilityRole: (id: string, patch: Partial<VisibilityRole>) => void;
+  deleteVisibilityRole: (id: string) => void;
+  addVisibilityProfile: (name?: string) => void;
+  updateVisibilityProfile: (id: string, patch: Partial<VisibilityProfile>) => void;
+  deleteVisibilityProfile: (id: string) => void;
+  setVisibilityProfileRoleVisible: (profileId: string, roleId: string, visible: boolean) => void;
   setActivePrintLayoutId: (id: string) => void;
   addPrintLayout: () => void;
   duplicatePrintLayout: (id?: string) => void;
@@ -80,6 +100,9 @@ export type CadDocumentState = CadDocumentSnapshot & {
 export const currentDocumentSnapshot = (state: CadDocumentSnapshot): CadDocumentSnapshot => ({
   elements: state.elements,
   palette: state.palette,
+  visibilityRoles: state.visibilityRoles,
+  visibilityProfiles: state.visibilityProfiles,
+  activeVisibilityProfileId: state.activeVisibilityProfileId,
   printLayouts: state.printLayouts,
   activePrintLayoutId: state.activePrintLayoutId,
   printLayout: state.printLayout,
@@ -114,15 +137,47 @@ const normalizedGroupPrintFields = (element: CadElement): CadElement => {
   };
 };
 
+const visibilityRoleId = (name: string, roles: VisibilityRole[]) => {
+  const base = visibilityIdFromName(name, `role-${roles.length + 1}`);
+  const used = new Set(roles.map((role) => role.id));
+  if (!used.has(base)) return base;
+  let index = 2;
+  while (used.has(`${base}-${index}`)) index += 1;
+  return `${base}-${index}`;
+};
+
+const visibilityProfileId = (name: string, profiles: VisibilityProfile[]) => {
+  const base = visibilityIdFromName(name, `profile-${profiles.length + 1}`);
+  const used = new Set(profiles.map((profile) => profile.id));
+  if (!used.has(base)) return base;
+  let index = 2;
+  while (used.has(`${base}-${index}`)) index += 1;
+  return `${base}-${index}`;
+};
+
 const normalizeSnapshot = (snapshot: CadDocumentSnapshot): CadDocumentSnapshot => {
   const palette = normalizeDocumentPalette(snapshot.palette);
-  const elements = elementsWithValidColorIds(snapshot.elements, palette)
+  const rawElements = elementsWithValidColorIds(snapshot.elements, palette)
     .map(normalizedElementFields)
     .map(normalizedGroupPrintFields);
+  const visibilityRoles = normalizeVisibilityRoles(snapshot.visibilityRoles, rawElements);
+  const visibilityProfiles = normalizeVisibilityProfiles({
+    profiles: snapshot.visibilityProfiles,
+    roles: visibilityRoles
+  });
+  const activeVisibilityProfileId = visibilityProfiles.some(
+    (profile) => profile.id === snapshot.activeVisibilityProfileId
+  )
+    ? snapshot.activeVisibilityProfileId
+    : visibilityProfiles[0].id;
+  const elements = rawElements.map((element) =>
+    normalizeGroupVisibilityRoleIds(element, visibilityRoles)
+  );
   const printLayouts = normalizePrintLayouts({
     printLayouts: snapshot.printLayouts,
     legacyPrintLayout: snapshot.printLayout,
-    elements
+    elements,
+    visibilityProfiles
   });
   const activePrintLayoutId = printLayouts.some((layout) => layout.id === snapshot.activePrintLayoutId)
     ? snapshot.activePrintLayoutId
@@ -154,6 +209,9 @@ const normalizeSnapshot = (snapshot: CadDocumentSnapshot): CadDocumentSnapshot =
   return {
     elements,
     palette,
+    visibilityRoles,
+    visibilityProfiles,
+    activeVisibilityProfileId,
     printLayouts,
     activePrintLayoutId,
     printLayout,
@@ -170,6 +228,9 @@ const normalizeSnapshot = (snapshot: CadDocumentSnapshot): CadDocumentSnapshot =
 const snapshotEquals = (a: CadDocumentSnapshot, b: CadDocumentSnapshot) =>
   a.elements === b.elements &&
   a.palette === b.palette &&
+  a.visibilityRoles === b.visibilityRoles &&
+  a.visibilityProfiles === b.visibilityProfiles &&
+  a.activeVisibilityProfileId === b.activeVisibilityProfileId &&
   a.printLayouts === b.printLayouts &&
   a.activePrintLayoutId === b.activePrintLayoutId &&
   a.printLayout === b.printLayout &&
@@ -184,6 +245,9 @@ export const initialCadDocumentState = (): CadDocumentSnapshot &
   Pick<CadDocumentState, "past" | "future" | "currentFilePath" | "dirtySinceSave"> => ({
   elements: sampleElements,
   palette: defaultDocumentPalette(),
+  visibilityRoles: [],
+  visibilityProfiles: [defaultVisibilityProfile()],
+  activeVisibilityProfileId: defaultVisibilityProfile().id,
   printLayout: DEFAULT_PRINT_LAYOUT,
   printLayouts: [DEFAULT_PRINT_LAYOUT],
   activePrintLayoutId: DEFAULT_PRINT_LAYOUT.id,
@@ -311,7 +375,11 @@ export const useCadDocumentStore = create<CadDocumentState>((set) => ({
     useCadDocumentStore.getState().commitDocumentChange({
       printLayouts: useCadDocumentStore.getState().printLayouts.map((layout) =>
         layout.id === useCadDocumentStore.getState().activePrintLayoutId
-          ? normalizePrintLayout(printLayout, useCadDocumentStore.getState().elements)
+          ? normalizePrintLayout(
+              printLayout,
+              useCadDocumentStore.getState().elements,
+              useCadDocumentStore.getState().visibilityProfiles
+            )
           : layout
       )
     }),
@@ -319,6 +387,164 @@ export const useCadDocumentStore = create<CadDocumentState>((set) => ({
     useCadDocumentStore.getState().setPrintLayout({
       ...useCadDocumentStore.getState().printLayout,
       ...patch
+    }),
+  setActiveVisibilityProfileId: (activeVisibilityProfileId) =>
+    useCadDocumentStore.getState().commitDocumentChange({ activeVisibilityProfileId }),
+  addVisibilityRole: (name) =>
+    set((state) => {
+      const before = currentDocumentSnapshot(state);
+      const roleName = name?.trim() || `ロール${state.visibilityRoles.length + 1}`;
+      const role = {
+        id: visibilityRoleId(roleName, state.visibilityRoles),
+        name: roleName
+      };
+      const after = normalizeSnapshot({
+        ...before,
+        visibilityRoles: [...state.visibilityRoles, role]
+      });
+      return {
+        ...after,
+        past: [...state.past, before],
+        future: [],
+        dirtySinceSave: true
+      };
+    }),
+  updateVisibilityRole: (id, patch) =>
+    set((state) => {
+      if (!state.visibilityRoles.some((role) => role.id === id)) return {};
+      const before = currentDocumentSnapshot(state);
+      const after = normalizeSnapshot({
+        ...before,
+        visibilityRoles: state.visibilityRoles.map((role) =>
+          role.id === id ? { ...role, ...patch, id: role.id } : role
+        )
+      });
+      if (snapshotEquals(before, after)) return {};
+      return {
+        ...after,
+        past: [...state.past, before],
+        future: [],
+        dirtySinceSave: true
+      };
+    }),
+  deleteVisibilityRole: (id) =>
+    set((state) => {
+      if (!state.visibilityRoles.some((role) => role.id === id)) return {};
+      const before = currentDocumentSnapshot(state);
+      const after = normalizeSnapshot({
+        ...before,
+        visibilityRoles: state.visibilityRoles.filter((role) => role.id !== id),
+        visibilityProfiles: state.visibilityProfiles.map((profile) => {
+          const roleVisibility = { ...profile.roleVisibility };
+          delete roleVisibility[id];
+          return { ...profile, roleVisibility };
+        }),
+        elements: state.elements.map((element) =>
+          element.type === "group"
+            ? {
+                ...element,
+                visibilityRoleIds: (element.visibilityRoleIds ?? []).filter((roleId) => roleId !== id)
+              }
+            : element
+        )
+      });
+      return {
+        ...after,
+        past: [...state.past, before],
+        future: [],
+        dirtySinceSave: true
+      };
+    }),
+  addVisibilityProfile: (name) =>
+    set((state) => {
+      const before = currentDocumentSnapshot(state);
+      const profileName = name?.trim() || `表示${state.visibilityProfiles.length + 1}`;
+      const profile = {
+        id: visibilityProfileId(profileName, state.visibilityProfiles),
+        name: profileName,
+        defaultRoleVisible: true,
+        roleVisibility: {}
+      };
+      const after = normalizeSnapshot({
+        ...before,
+        visibilityProfiles: [...state.visibilityProfiles, profile],
+        activeVisibilityProfileId: profile.id
+      });
+      return {
+        ...after,
+        past: [...state.past, before],
+        future: [],
+        dirtySinceSave: true
+      };
+    }),
+  updateVisibilityProfile: (id, patch) =>
+    set((state) => {
+      if (!state.visibilityProfiles.some((profile) => profile.id === id)) return {};
+      const before = currentDocumentSnapshot(state);
+      const after = normalizeSnapshot({
+        ...before,
+        visibilityProfiles: state.visibilityProfiles.map((profile) =>
+          profile.id === id ? { ...profile, ...patch, id: profile.id } : profile
+        )
+      });
+      if (snapshotEquals(before, after)) return {};
+      return {
+        ...after,
+        past: [...state.past, before],
+        future: [],
+        dirtySinceSave: true
+      };
+    }),
+  deleteVisibilityProfile: (id) =>
+    set((state) => {
+      if (state.visibilityProfiles.length <= 1) return {};
+      if (!state.visibilityProfiles.some((profile) => profile.id === id)) return {};
+      const before = currentDocumentSnapshot(state);
+      const nextProfiles = state.visibilityProfiles.filter((profile) => profile.id !== id);
+      const after = normalizeSnapshot({
+        ...before,
+        visibilityProfiles: nextProfiles,
+        activeVisibilityProfileId:
+          state.activeVisibilityProfileId === id ? nextProfiles[0].id : state.activeVisibilityProfileId,
+        printLayouts: state.printLayouts.map((layout) =>
+          layout.visibilityProfileId === id
+            ? { ...layout, visibilityProfileId: nextProfiles[0].id }
+            : layout
+        )
+      });
+      return {
+        ...after,
+        past: [...state.past, before],
+        future: [],
+        dirtySinceSave: true
+      };
+    }),
+  setVisibilityProfileRoleVisible: (profileId, roleId, visible) =>
+    set((state) => {
+      if (!state.visibilityProfiles.some((profile) => profile.id === profileId)) return {};
+      if (!state.visibilityRoles.some((role) => role.id === roleId)) return {};
+      const before = currentDocumentSnapshot(state);
+      const after = normalizeSnapshot({
+        ...before,
+        visibilityProfiles: state.visibilityProfiles.map((profile) =>
+          profile.id === profileId
+            ? {
+                ...profile,
+                roleVisibility: {
+                  ...profile.roleVisibility,
+                  [roleId]: visible
+                }
+              }
+            : profile
+        )
+      });
+      if (snapshotEquals(before, after)) return {};
+      return {
+        ...after,
+        past: [...state.past, before],
+        future: [],
+        dirtySinceSave: true
+      };
     }),
   setActivePrintLayoutId: (activePrintLayoutId) =>
     useCadDocumentStore.getState().commitDocumentChange({ activePrintLayoutId }),

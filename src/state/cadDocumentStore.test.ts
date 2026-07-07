@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { sampleElements } from "../sampleData";
 import { DEFAULT_PRINT_LAYOUT } from "../print/printLayout";
+import { defaultVisibilityProfile } from "../model/visibilityProfiles";
 import { currentDocumentSnapshot, initialCadDocumentState, useCadDocumentStore } from "./cadDocumentStore";
 
 describe("cadDocumentStore file state", () => {
@@ -32,6 +33,9 @@ describe("cadDocumentStore file state", () => {
       {
         elements: [sampleElements[1]],
         palette: useCadDocumentStore.getState().palette,
+        visibilityRoles: [],
+        visibilityProfiles: [defaultVisibilityProfile()],
+        activeVisibilityProfileId: defaultVisibilityProfile().id,
         printLayouts: [DEFAULT_PRINT_LAYOUT],
         activePrintLayoutId: DEFAULT_PRINT_LAYOUT.id,
         printLayout: DEFAULT_PRINT_LAYOUT,

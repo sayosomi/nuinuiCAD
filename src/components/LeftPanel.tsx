@@ -21,6 +21,7 @@ import {
 import { availableNumericVariableReferenceOptions } from "../geometry/variableReferenceOptions";
 import { lineMeasurementLabel, type NumericMeasurementKey } from "../geometry/numericExpressions";
 import { resolvedElementColorMap } from "../palette/elementColors";
+import { visibilityRoleNamesById } from "../model/visibilityProfiles";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
 import type {
@@ -40,6 +41,7 @@ import {
 } from "./ElementListContextMenu";
 import { ElementListRow } from "./ElementListRow";
 import { LeftPanelRibbonDock } from "./LeftPanelRibbonDock";
+import { VisibilityProfilePanel } from "./VisibilityProfilePanel";
 import { elementListNameTextClassName } from "./elementListName";
 import { isImeComposingKeyEvent } from "./keyboardEventGuards";
 import {
@@ -234,6 +236,7 @@ export const LeftPanel = ({
 }: LeftPanelProps) => {
   const elements = useCadDocumentStore((state) => state.elements);
   const palette = useCadDocumentStore((state) => state.palette);
+  const visibilityRoles = useCadDocumentStore((state) => state.visibilityRoles);
   const evaluationLimitIndex = useCadDocumentStore((state) => state.evaluationLimitIndex);
   const selectedElementId = useCadDocumentStore((state) => state.selectedElementId);
   const selectedElementIds = useCadDocumentStore((state) => state.selectedElementIds);
@@ -265,6 +268,10 @@ export const LeftPanel = ({
   const elementColors = useMemo(
     () => resolvedElementColorMap(elements, palette),
     [elements, palette]
+  );
+  const roleNamesById = useMemo(
+    () => visibilityRoleNamesById(visibilityRoles),
+    [visibilityRoles]
   );
   const generatedRowsByForGroupId = new Map<ElementId, ForGroupGeneratedRow[]>();
   for (const row of evaluation.forGroupGeneratedRows ?? []) {
@@ -721,6 +728,8 @@ export const LeftPanel = ({
         </p>
       </header>
 
+      <VisibilityProfilePanel />
+
       <section className="panel-section element-list-section">
         <div className="section-header">
           <div>
@@ -898,6 +907,11 @@ export const LeftPanel = ({
                 elementColor={elementColors.get(element.id) ?? "#31322f"}
                 showColorAccentForAllRows={showElementListColorAccents}
                 showPrintControls={showPrintLayout}
+                roleNames={
+                  element.type === "group"
+                    ? (element.visibilityRoleIds ?? []).map((roleId) => roleNamesById.get(roleId) ?? roleId)
+                    : []
+                }
                 onSelectElement={selectElement}
                 onOpenContextMenu={openElementContextMenu}
                 onHandlePointerDown={startElementPointerDrag}

@@ -15,10 +15,15 @@ const keywords = new Set([
   "on",
   "point",
   "polar",
+  "printLayout",
+  "profile",
+  "role",
   "split",
   "tangentOffset",
   "text",
   "through",
+  "activeProfile",
+  "activeView",
   "var"
 ]);
 

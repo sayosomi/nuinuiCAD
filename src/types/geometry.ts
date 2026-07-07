@@ -23,6 +23,18 @@ export type DocumentPalette = {
   defaultColorId: string;
 };
 
+export type VisibilityRole = {
+  id: string;
+  name: string;
+};
+
+export type VisibilityProfile = {
+  id: string;
+  name: string;
+  defaultRoleVisible: boolean;
+  roleVisibility: Record<string, boolean>;
+};
+
 export type PaperSizeId = "a4" | "a3" | "b5" | "b4" | "letter" | "legal";
 
 export type PrintLayoutOutputKind = "pdf" | "svg";
@@ -40,6 +52,7 @@ export type PrintLayout = {
   id: string;
   name: string;
   outputKind: PrintLayoutOutputKind;
+  visibilityProfileId?: string;
   paperSizeId: PaperSizeId;
   orientation: "portrait" | "landscape";
   columns: NumericValue;
@@ -312,6 +325,7 @@ export type GroupElement = CadElementBase & {
   expanded: boolean;
   printEnabled?: boolean;
   printAnchor?: PointAnchor;
+  visibilityRoleIds?: string[];
 };
 
 export type ConditionalGroupElement = CadElementBase & {

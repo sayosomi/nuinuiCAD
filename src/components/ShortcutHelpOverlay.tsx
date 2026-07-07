@@ -8,13 +8,16 @@ type ShortcutHelpOverlayProps = {
   isParameterEditMode: boolean;
   isDependencyJumpMode: boolean;
   isPickMode?: boolean;
+  isDslPanelMode?: boolean;
 };
 
 const modeLabel = ({
   isParameterEditMode,
   isDependencyJumpMode,
-  isPickMode = false
+  isPickMode = false,
+  isDslPanelMode = false
 }: ShortcutHelpOverlayProps) => {
+  if (isDslPanelMode) return "DSLパネル";
   if (isPickMode) return "構成リスト選択";
   if (isDependencyJumpMode) return "親子要素ジャンプ";
   if (isParameterEditMode) return "パラメーター編集";
@@ -24,7 +27,8 @@ const modeLabel = ({
 export const ShortcutHelpOverlay = ({
   isParameterEditMode,
   isDependencyJumpMode,
-  isPickMode = false
+  isPickMode = false,
+  isDslPanelMode = false
 }: ShortcutHelpOverlayProps) => {
   const elements = useCadDocumentStore((state) => state.elements);
   const selectedElementId = useCadDocumentStore((state) => state.selectedElementId);
@@ -38,6 +42,7 @@ export const ShortcutHelpOverlay = ({
     isParameterEditMode,
     isDependencyJumpMode,
     isPickMode,
+    isDslPanelMode,
     selectedElement,
     selectedParameterKey
   });
@@ -72,7 +77,7 @@ export const ShortcutHelpOverlay = ({
         <div className="shortcut-overlay-header">
           <div>
             <h2>ショートカット</h2>
-            <p>{modeLabel({ isParameterEditMode, isDependencyJumpMode, isPickMode })}</p>
+            <p>{modeLabel({ isParameterEditMode, isDependencyJumpMode, isPickMode, isDslPanelMode })}</p>
           </div>
           <button type="button" onClick={() => dispatchCommand("toggleShortcutHelp")}>
             閉じる

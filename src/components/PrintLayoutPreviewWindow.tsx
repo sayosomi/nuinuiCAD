@@ -24,11 +24,15 @@ const PRINT_PREVIEW_ZOOM_STEP = 1.15;
 const printLayoutCanvasForLayout = ({
   layout,
   elements,
-  evaluation
+  evaluation,
+  visibilityProfiles,
+  activeVisibilityProfileId
 }: {
   layout: ReturnType<typeof useCadDocumentStore.getState>["printLayout"];
   elements: ReturnType<typeof useCadDocumentStore.getState>["elements"];
   evaluation: EvaluationResult;
+  visibilityProfiles: ReturnType<typeof useCadDocumentStore.getState>["visibilityProfiles"];
+  activeVisibilityProfileId: string;
 }) => {
   const resolvedLayout = resolvePrintLayout({ layout, elements, evaluation });
   const isSvgLayout = resolvedLayout.outputKind === "svg";
@@ -43,7 +47,13 @@ const printLayoutCanvasForLayout = ({
     paper,
     printCanvas,
     canvas,
-    items: printableItemsForLayout({ elements, evaluation, layout })
+    items: printableItemsForLayout({
+      elements,
+      evaluation,
+      layout,
+      visibilityProfiles,
+      activeVisibilityProfileId
+    })
   };
 };
 
@@ -116,6 +126,8 @@ export const PrintLayoutPreviewWindow = ({
   const elements = useCadDocumentStore((state) => state.elements);
   const printLayouts = useCadDocumentStore((state) => state.printLayouts);
   const activePrintLayoutId = useCadDocumentStore((state) => state.activePrintLayoutId);
+  const visibilityProfiles = useCadDocumentStore((state) => state.visibilityProfiles);
+  const activeVisibilityProfileId = useCadDocumentStore((state) => state.activeVisibilityProfileId);
   const printPreviewWindow = useCadUiStore((state) => state.printPreviewWindow);
   const updatePrintPreviewWindow = useCadUiStore((state) => state.updatePrintPreviewWindow);
   const setShowPrintPreviewWindow = useCadUiStore((state) => state.setShowPrintPreviewWindow);
@@ -129,9 +141,15 @@ export const PrintLayoutPreviewWindow = ({
   const model = useMemo(
     () =>
       selectedLayout
-        ? printLayoutCanvasForLayout({ layout: selectedLayout, elements, evaluation })
+        ? printLayoutCanvasForLayout({
+            layout: selectedLayout,
+            elements,
+            evaluation,
+            visibilityProfiles,
+            activeVisibilityProfileId
+          })
         : null,
-    [elements, evaluation, selectedLayout]
+    [activeVisibilityProfileId, elements, evaluation, selectedLayout, visibilityProfiles]
   );
   const pageStepX = model ? Math.max(model.paper.widthMm - model.resolvedLayout.overlapMm, 1) : 1;
   const pageStepY = model ? Math.max(model.paper.heightMm - model.resolvedLayout.overlapMm, 1) : 1;

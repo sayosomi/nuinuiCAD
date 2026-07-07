@@ -136,6 +136,9 @@ export type CommandId =
   | "openGroupTemplateInsertion"
   | "closeGroupTemplateLibrary"
   | "openDslPanel"
+  | "exportDslSelection"
+  | "validateDslPanel"
+  | "applyDslPanel"
   | "closeDslPanel"
   | "startTemplateInsertion"
   | "cancelTemplateInsertion"
@@ -184,6 +187,10 @@ export type CommandContext = {
   focusCanvas?: () => void;
   focusElementList?: () => void;
   focusElementSearch?: () => void;
+  exportDslSelection?: () => void;
+  validateDslPanel?: () => void;
+  applyDslPanel?: () => void;
+  closeDslPanel?: () => void;
   focusSelectedParameterInput?: () => void;
   getCanvasViewportRect?: () => DOMRect | null;
   parameterDirectKey?: string;

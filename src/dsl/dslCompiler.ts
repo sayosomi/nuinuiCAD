@@ -3,10 +3,13 @@ import { createCadElementId } from "../model/cadIds";
 import { createCadElement } from "../model/elementFactory";
 import { findParameterDefinition } from "../parameters/parameterDefinitions";
 import { setParameterValue } from "../parameters/parameterAccess";
+import { normalizePrintLayout } from "../print/printLayout";
 import type {
   CadElement,
   CadElementType,
-  ElementId
+  ElementId,
+  VisibilityProfile,
+  VisibilityRole
 } from "../types/geometry";
 import { parseDsl } from "./dslParser";
 import {
@@ -21,10 +24,16 @@ import type { CompileDslContext, CompileDslResult, DslAttribute, DslDiagnostic, 
 const attr = (attrs: DslAttribute[], key: string) =>
   attrs.find((item) => item.key === key)?.value;
 
+const isElementDslStatement = (statement: DslStatement) =>
+  statement.kind !== "role" &&
+  statement.kind !== "view" &&
+  statement.kind !== "activeView" &&
+  statement.kind !== "printLayout";
+
 const statementType = (statement: DslStatement): CadElementType => {
   if (statement.kind === "element") return statement.type ?? "group";
   if (statement.kind === "variable") return "variable";
-  return statement.kind;
+  return statement.kind as CadElementType;
 };
 
 const diagnostic = (line: number, message: string): DslDiagnostic => ({
@@ -56,6 +65,14 @@ const splitRecords = (value: string) => {
     : trimmed;
   return content.split(";").map((item) => item.trim()).filter(Boolean);
 };
+
+const roleIdByToken = (roles: VisibilityRole[], token: string) =>
+  roles.find((role) => role.id === token || role.name === token)?.id ?? token;
+
+const profileIdByToken = (profiles: VisibilityProfile[], token: string) =>
+  profiles.find((profile) => profile.id === token || profile.name === token)?.id ?? token;
+
+const outputKind = (value: string) => value === "svg" ? "svg" : "pdf";
 
 const normalizeExpression = (source: string, elements: CadElement[]) =>
   makeNumericExpression(normalizeNumericExpressionInput(source, elements));
@@ -113,7 +130,8 @@ const applyCommonAttributes = (
   index: NameIndex,
   line: number,
   diagnostics: DslDiagnostic[],
-  elementsForExpressions: CadElement[]
+  elementsForExpressions: CadElement[],
+  visibilityRoles: VisibilityRole[] = []
 ) => {
   let next = element;
   const numeric = (source: string) => normalizeExpression(source, elementsForExpressions);
@@ -132,6 +150,15 @@ const applyCommonAttributes = (
     }
     if (key === "color") {
       next = { ...next, colorId: value };
+      continue;
+    }
+    if (key === "roles" && next.type === "group") {
+      next = {
+        ...next,
+        visibilityRoleIds: splitList(value).map((roleToken) =>
+          roleIdByToken(visibilityRoles, roleToken)
+        )
+      };
       continue;
     }
     if (next.type === "bezierCurve" && key === "intermediates") {
@@ -186,7 +213,8 @@ const applyStatement = (
   statement: DslStatement,
   index: NameIndex,
   diagnostics: DslDiagnostic[],
-  elementsForExpressions: CadElement[]
+  elementsForExpressions: CadElement[],
+  visibilityRoles: VisibilityRole[] = []
 ) => {
   const numeric = (source: string) => normalizeExpression(source, elementsForExpressions);
   const anchor = (source: string) => resolveAnchor(source, index, statement.line, diagnostics, numeric);
@@ -240,9 +268,122 @@ const applyStatement = (
   }
 
   return withPlacementMode(
-    applyCommonAttributes(next, statement.attrs, index, statement.line, diagnostics, elementsForExpressions),
+    applyCommonAttributes(
+      next,
+      statement.attrs,
+      index,
+      statement.line,
+      diagnostics,
+      elementsForExpressions,
+      visibilityRoles
+    ),
     statement.attrs
   );
+};
+
+const applyVisibilitySettings = ({
+  statements,
+  context,
+  diagnostics
+}: {
+  statements: DslStatement[];
+  context: CompileDslContext;
+  diagnostics: DslDiagnostic[];
+}) => {
+  let visibilityRoles = [...(context.visibilityRoles ?? [])];
+  let visibilityProfiles = [...(context.visibilityProfiles ?? [])];
+  let activeVisibilityProfileId = context.activeVisibilityProfileId;
+  let printLayouts = context.printLayouts?.map((layout) => ({ ...layout })) ?? undefined;
+
+  const upsertRole = (statement: Extract<DslStatement, { kind: "role" }>) => {
+    const id = attr(statement.attrs, "id") ?? statement.name;
+    const name = attr(statement.attrs, "name") ?? statement.name;
+    const existing = visibilityRoles.find((role) => role.id === id || role.name === statement.name);
+    if (existing) {
+      visibilityRoles = visibilityRoles.map((role) =>
+        role.id === existing.id ? { ...role, name } : role
+      );
+      return;
+    }
+    visibilityRoles = [...visibilityRoles, { id, name }];
+  };
+
+  const upsertProfile = (statement: Extract<DslStatement, { kind: "view" }>) => {
+    const id = attr(statement.attrs, "id") ?? statement.name;
+    const name = attr(statement.attrs, "name") ?? statement.name;
+    const existing = visibilityProfiles.find((profile) => profile.id === id || profile.name === statement.name);
+    const defaultAttr = attr(statement.attrs, "default") ?? attr(statement.attrs, "defaultRoleVisible");
+    const defaultRoleVisible =
+      defaultAttr === undefined
+        ? existing?.defaultRoleVisible ?? true
+        : booleanValue(defaultAttr) ?? true;
+    const roleVisibility = { ...(existing?.roleVisibility ?? {}) };
+
+    for (const { key, value } of statement.attrs) {
+      if (key === "id" || key === "name" || key === "default" || key === "defaultRoleVisible") continue;
+      const roleId = roleIdByToken(visibilityRoles, key);
+      if (!visibilityRoles.some((role) => role.id === roleId)) {
+        diagnostics.push(diagnostic(statement.line, `未定義の表示ロールです: ${key}`));
+        continue;
+      }
+      const parsed = booleanValue(value);
+      if (parsed === null) {
+        diagnostics.push(diagnostic(statement.line, `${key} は true/false で指定してください。`));
+        continue;
+      }
+      roleVisibility[roleId] = parsed;
+    }
+
+    const profile = { id, name, defaultRoleVisible, roleVisibility };
+    visibilityProfiles = existing
+      ? visibilityProfiles.map((item) => item.id === existing.id ? { ...profile, id: existing.id } : item)
+      : [...visibilityProfiles, profile];
+  };
+
+  for (const statement of statements) {
+    if (statement.kind === "role") upsertRole(statement);
+  }
+  for (const statement of statements) {
+    if (statement.kind === "view") upsertProfile(statement);
+  }
+  for (const statement of statements) {
+    if (statement.kind === "activeView") {
+      const profileId = profileIdByToken(visibilityProfiles, statement.name);
+      if (visibilityProfiles.some((profile) => profile.id === profileId)) {
+        activeVisibilityProfileId = profileId;
+      } else {
+        diagnostics.push(diagnostic(statement.line, `未定義の表示プロファイルです: ${statement.name}`));
+      }
+    }
+    if (statement.kind === "printLayout" && printLayouts) {
+      const profileToken = attr(statement.attrs, "visibilityView") ?? attr(statement.attrs, "visibilityProfile");
+      const profileId = profileToken ? profileIdByToken(visibilityProfiles, profileToken) : undefined;
+      if (profileToken && !visibilityProfiles.some((profile) => profile.id === profileId)) {
+        diagnostics.push(diagnostic(statement.line, `未定義の表示プロファイルです: ${profileToken}`));
+        continue;
+      }
+      const existing = printLayouts.find((layout) => layout.id === statement.name || layout.name === statement.name);
+      const nextLayout = normalizePrintLayout({
+        ...(existing ?? {}),
+        id: existing?.id ?? attr(statement.attrs, "id") ?? statement.name,
+        name: attr(statement.attrs, "name") ?? existing?.name ?? statement.name,
+        outputKind: attr(statement.attrs, "output")
+          ? outputKind(attr(statement.attrs, "output") ?? "pdf")
+          : existing?.outputKind,
+        visibilityProfileId: profileId ?? existing?.visibilityProfileId
+      }, context.elements, visibilityProfiles);
+      printLayouts = existing
+        ? printLayouts.map((layout) => layout.id === existing.id ? nextLayout : layout)
+        : [...printLayouts, nextLayout];
+    }
+  }
+
+  return {
+    visibilityRoles,
+    visibilityProfiles,
+    activeVisibilityProfileId,
+    printLayouts
+  };
 };
 
 export const compileDslToElements = (source: string, context: CompileDslContext): CompileDslResult => {
@@ -252,15 +393,25 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
       elements: context.elements,
       selectedElementId: null,
       selectedElementIds: [],
+      visibilityRoles: context.visibilityRoles,
+      visibilityProfiles: context.visibilityProfiles,
+      activeVisibilityProfileId: context.activeVisibilityProfileId,
+      printLayouts: context.printLayouts,
       diagnostics: parsed.diagnostics,
       changedCount: 0
     };
   }
 
   const diagnostics: DslDiagnostic[] = [...parsed.diagnostics];
+  const visibilitySettings = applyVisibilitySettings({
+    statements: parsed.statements,
+    context,
+    diagnostics
+  });
   const documentMode = context.mode === "document";
   const existing = documentMode ? [] : context.elements;
-  const statementsWithIds = parsed.statements.map((statement) => {
+  const elementStatements = parsed.statements.filter(isElementDslStatement);
+  const statementsWithIds = elementStatements.map((statement) => {
     const type = statementType(statement);
     return {
       statement,
@@ -287,7 +438,14 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
     const id = createdIds.get(statement) ?? createCadElement(type, existing).id;
     const current = existing.find((element) => element.id === id);
     const base = current ?? createCadElement(type, [...existing, ...insertions], { createId: () => id });
-    const compiled = applyStatement(base, statement, index, diagnostics, elementsForExpressions);
+    const compiled = applyStatement(
+      base,
+      statement,
+      index,
+      diagnostics,
+      elementsForExpressions,
+      visibilitySettings.visibilityRoles
+    );
     if (current) {
       updates.set(id, compiled);
     } else {
@@ -310,6 +468,7 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
     elements,
     selectedElementId: selectedElementIds[0] ?? null,
     selectedElementIds,
+    ...visibilitySettings,
     diagnostics,
     changedCount: selectedElementIds.length
   };

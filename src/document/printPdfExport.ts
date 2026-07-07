@@ -68,7 +68,9 @@ export const exportPrintPdf = async (evaluation: EvaluationResult | undefined) =
   const items = printableItemsForLayout({
     elements: snapshot.elements,
     evaluation,
-    layout: snapshot.printLayout
+    layout: snapshot.printLayout,
+    visibilityProfiles: snapshot.visibilityProfiles,
+    activeVisibilityProfileId: snapshot.activeVisibilityProfileId
   });
   const input: ExportPrintPdfInput = {
     path: ensurePdfFileName(path),

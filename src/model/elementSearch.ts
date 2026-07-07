@@ -33,7 +33,8 @@ const parentGroupNamesForElement = (
 
 export const elementSearchResults = (
   elements: CadElement[],
-  query: string
+  query: string,
+  roleNamesById: Map<string, string> = new Map()
 ): ElementSearchResult[] => {
   const tokens = searchTokens(query);
   if (tokens.length === 0) return [];
@@ -42,6 +43,9 @@ export const elementSearchResults = (
 
   return elements.flatMap((element, index) => {
     const parentGroupNames = parentGroupNamesForElement(element, elementsById);
+    const roleNames = element.type === "group"
+      ? (element.visibilityRoleIds ?? []).map((roleId) => roleNamesById.get(roleId) ?? roleId)
+      : [];
     const searchableText = normalizeSearchText(
       [
         `${index + 1}`,
@@ -49,7 +53,8 @@ export const elementSearchResults = (
         element.name,
         element.type,
         elementTypeLabels[element.type],
-        ...parentGroupNames
+        ...parentGroupNames,
+        ...roleNames
       ].join(" ")
     );
 

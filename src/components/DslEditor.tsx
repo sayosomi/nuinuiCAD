@@ -1,13 +1,15 @@
 import { useMemo, useRef } from "react";
+import type { RefObject } from "react";
 import type { UIEvent } from "react";
 import { highlightDslSource } from "../dsl/dslHighlight";
 
 type DslEditorProps = {
   source: string;
   onSourceChange: (source: string) => void;
+  textareaRef?: RefObject<HTMLTextAreaElement | null>;
 };
 
-export const DslEditor = ({ source, onSourceChange }: DslEditorProps) => {
+export const DslEditor = ({ source, onSourceChange, textareaRef }: DslEditorProps) => {
   const highlightRef = useRef<HTMLPreElement | null>(null);
   const gutterRef = useRef<HTMLDivElement | null>(null);
   const lines = useMemo(() => highlightDslSource(source), [source]);
@@ -44,6 +46,7 @@ export const DslEditor = ({ source, onSourceChange }: DslEditorProps) => {
           ))}
         </pre>
         <textarea
+          ref={textareaRef}
           className="dsl-editor-input"
           value={source}
           spellCheck={false}

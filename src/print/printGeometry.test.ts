@@ -219,4 +219,68 @@ describe("printGeometry", () => {
       })
     ]);
   });
+
+  it("filters printable geometry with the layout visibility profile", () => {
+    const roleElements: CadElement[] = [
+      ...elements,
+      {
+        id: "allowance-group",
+        name: "縫い代",
+        type: "group",
+        visible: true,
+        enabled: true,
+        expanded: true,
+        parentGroupId: "print-group",
+        visibilityRoleIds: ["seam"]
+      },
+      {
+        id: "allowance-end",
+        name: "縫い代端",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        parentGroupId: "allowance-group",
+        x: 20,
+        y: 10
+      },
+      {
+        id: "allowance-line",
+        name: "縫い代線",
+        type: "line",
+        visible: true,
+        enabled: true,
+        parentGroupId: "allowance-group",
+        startPoint: { mode: "reference", pointId: "origin" },
+        endPoint: { mode: "reference", pointId: "allowance-end" }
+      }
+    ];
+    const visibilityProfiles = [
+      {
+        id: "draft",
+        name: "通常",
+        defaultRoleVisible: false,
+        roleVisibility: { seam: false }
+      },
+      {
+        id: "print",
+        name: "印刷",
+        defaultRoleVisible: false,
+        roleVisibility: { seam: true }
+      }
+    ];
+
+    expect(printablePathsForLayout({
+      elements: roleElements,
+      evaluation: evaluateElements(roleElements),
+      layout: layout({ visibilityProfileId: "draft" }),
+      visibilityProfiles
+    }).map((path) => path.elementId)).toEqual(["printed-line"]);
+
+    expect(printablePathsForLayout({
+      elements: roleElements,
+      evaluation: evaluateElements(roleElements),
+      layout: layout({ visibilityProfileId: "print" }),
+      visibilityProfiles
+    }).map((path) => path.elementId)).toEqual(["printed-line", "allowance-line"]);
+  });
 });

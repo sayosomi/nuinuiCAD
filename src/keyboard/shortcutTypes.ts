@@ -1,6 +1,13 @@
 import type { CommandContext, CommandId } from "../commands/commands";
 
-export type ShortcutScope = "global" | "modeInvariant" | "normal" | "parameter" | "dependencyJump" | "pick";
+export type ShortcutScope =
+  | "global"
+  | "modeInvariant"
+  | "normal"
+  | "parameter"
+  | "dependencyJump"
+  | "pick"
+  | "dsl";
 
 export type ShortcutModifier = boolean | "any";
 

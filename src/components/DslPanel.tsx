@@ -1,10 +1,12 @@
 import { Check, FileInput, Play, X } from "lucide-react";
-import { useMemo, useRef, useState } from "react";
-import type { CSSProperties, PointerEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { CSSProperties, KeyboardEvent, PointerEvent } from "react";
 import { dispatchCommand } from "../commands/commands";
+import type { CommandContext, CommandId } from "../commands/commands";
 import { compileDslToElements } from "../dsl/dslCompiler";
 import { serializeElementsToDsl } from "../dsl/dslSerializer";
 import type { DslDiagnostic } from "../dsl/dslTypes";
+import { keyboardCommandForEvent } from "../keyboard/shortcuts";
 import { loadLayoutSettings, saveLayoutSettings } from "../layout/layoutSettingsStorage";
 import { adjustEvaluationLimitForInsertion } from "../model/evaluationDivider";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
@@ -25,6 +27,12 @@ const diagnosticText = (diagnostic: DslDiagnostic) =>
 
 const INTERACTIVE_HEADER_SELECTOR = "button, select, input, textarea, [contenteditable='true']";
 const PANEL_VIEWPORT_MARGIN = 8;
+const dslPanelCommandIds = new Set<CommandId>([
+  "exportDslSelection",
+  "validateDslPanel",
+  "applyDslPanel",
+  "closeDslPanel"
+]);
 
 const isInteractiveHeaderTarget = (target: EventTarget | null) =>
   target instanceof HTMLElement && Boolean(target.closest(INTERACTIVE_HEADER_SELECTOR));
@@ -58,16 +66,37 @@ type DslPanelDrag = {
   panelSize: { width: number; height: number };
 };
 
-export const DslPanel = () => {
+type DslPanelProps = {
+  commandContext?: CommandContext;
+};
+
+const restoreFocusTargetKind = (element: HTMLElement | null): "canvas" | "elementList" | null => {
+  if (!element) return null;
+  if (element.closest("[data-canvas-viewport='true']")) return "canvas";
+  if (element.closest("[data-element-list='true'], [data-element-list-row='true']")) return "elementList";
+  return null;
+};
+
+export const DslPanel = ({ commandContext }: DslPanelProps) => {
   const showDslPanel = useCadUiStore((state) => state.showDslPanel);
   const dslPanelSourceRequest = useCadUiStore((state) => state.dslPanelSourceRequest);
   const dslPanelWindow = useCadUiStore((state) => state.dslPanelWindow);
   const setDslPanelWindow = useCadUiStore((state) => state.setDslPanelWindow);
+  const shortcutSettings = useCadUiStore((state) => state.shortcutSettings);
   const elements = useCadDocumentStore((state) => state.elements);
+  const visibilityRoles = useCadDocumentStore((state) => state.visibilityRoles);
+  const visibilityProfiles = useCadDocumentStore((state) => state.visibilityProfiles);
+  const activeVisibilityProfileId = useCadDocumentStore((state) => state.activeVisibilityProfileId);
+  const printLayouts = useCadDocumentStore((state) => state.printLayouts);
   const selectedElementIds = useCadDocumentStore((state) => state.selectedElementIds);
   const evaluationLimitIndex = useCadDocumentStore((state) => state.evaluationLimitIndex);
   const commitDocumentChange = useCadDocumentStore((state) => state.commitDocumentChange);
   const panelRef = useRef<HTMLElement | null>(null);
+  const editorRef = useRef<HTMLTextAreaElement | null>(null);
+  const returnFocusRef = useRef<{
+    element: HTMLElement | null;
+    kind: "canvas" | "elementList" | null;
+  } | null>(null);
   const [drag, setDrag] = useState<DslPanelDrag | null>(null);
   const [sourceState, setSourceState] = useState<{ source: string; requestId: number | null }>({
     source: defaultSource,
@@ -96,8 +125,6 @@ export const DslPanel = () => {
     ? `${requestedElements.length}件の要素をDSLへ書き出しました。`
     : status;
 
-  if (!showDslPanel) return null;
-
   const insertionIndex = selectedElementIds.length > 0
     ? Math.max(
         ...elements
@@ -106,10 +133,34 @@ export const DslPanel = () => {
       ) + 1
     : elements.length;
 
-  const validate = () => {
+  const restoreFocus = useCallback(() => {
+    const target = returnFocusRef.current;
+    if (target?.element?.isConnected) {
+      target.element.focus();
+      return;
+    }
+    if (target?.kind === "elementList") {
+      commandContext?.focusElementList?.();
+      return;
+    }
+    if (target?.kind === "canvas") {
+      commandContext?.focusCanvas?.();
+    }
+  }, [commandContext]);
+
+  const closePanel = useCallback(() => {
+    useCadUiStore.getState().setShowDslPanel(false);
+    restoreFocus();
+  }, [restoreFocus]);
+
+  const validate = useCallback(() => {
     setSourceState({ source, requestId: activeRequestId });
     const result = compileDslToElements(source, {
       elements,
+      visibilityRoles,
+      visibilityProfiles,
+      activeVisibilityProfileId,
+      printLayouts,
       insertionIndex,
       selectedElementIds
     });
@@ -117,14 +168,28 @@ export const DslPanel = () => {
     const errorCount = result.diagnostics.filter((item) => item.severity === "error").length;
     setStatus(errorCount === 0 ? `${result.changedCount}件の要素を適用できます。` : `${errorCount}件のエラーがあります。`);
     return result;
-  };
+  }, [
+    activeRequestId,
+    activeVisibilityProfileId,
+    elements,
+    insertionIndex,
+    printLayouts,
+    selectedElementIds,
+    source,
+    visibilityProfiles,
+    visibilityRoles
+  ]);
 
-  const apply = () => {
+  const apply = useCallback(() => {
     const result = validate();
     if (result.diagnostics.some((item) => item.severity === "error")) return;
     const insertedCount = Math.max(result.elements.length - elements.length, 0);
     commitDocumentChange({
       elements: result.elements,
+      visibilityRoles: result.visibilityRoles ?? visibilityRoles,
+      visibilityProfiles: result.visibilityProfiles ?? visibilityProfiles,
+      activeVisibilityProfileId: result.activeVisibilityProfileId ?? activeVisibilityProfileId,
+      printLayouts: result.printLayouts ?? printLayouts,
       selectedElementId: result.selectedElementId,
       selectedElementIds: result.selectedElementIds,
       selectionAnchorElementId: result.selectedElementId,
@@ -138,16 +203,83 @@ export const DslPanel = () => {
         : evaluationLimitIndex
     });
     setStatus(`${result.changedCount}件の要素を適用しました。`);
-  };
+    closePanel();
+  }, [
+    activeVisibilityProfileId,
+    closePanel,
+    commitDocumentChange,
+    elements,
+    evaluationLimitIndex,
+    insertionIndex,
+    printLayouts,
+    validate,
+    visibilityProfiles,
+    visibilityRoles
+  ]);
 
-  const exportSelection = () => {
+  const exportSelection = useCallback(() => {
     const targets = selectedElements.length > 0 ? selectedElements : elements;
     setSourceState({
-      source: serializeElementsToDsl(targets),
+      source: serializeElementsToDsl(
+        targets,
+        selectedElements.length > 0
+          ? {}
+          : {
+              visibilityRoles,
+              visibilityProfiles,
+              activeVisibilityProfileId,
+              printLayouts
+            }
+      ),
       requestId: activeRequestId
     });
     setDiagnostics([]);
     setStatus(selectedElements.length > 0 ? "選択要素をDSLへ書き出しました。" : "全要素をDSLへ書き出しました。");
+  }, [
+    activeRequestId,
+    activeVisibilityProfileId,
+    elements,
+    printLayouts,
+    selectedElements,
+    visibilityProfiles,
+    visibilityRoles
+  ]);
+
+  const dslCommandContext = useMemo<CommandContext>(() => ({
+    ...commandContext,
+    exportDslSelection: exportSelection,
+    validateDslPanel: validate,
+    applyDslPanel: apply,
+    closeDslPanel: closePanel
+  }), [apply, closePanel, commandContext, exportSelection, validate]);
+
+  useEffect(() => {
+    if (!showDslPanel) return;
+    const activeElement = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    if (!panelRef.current?.contains(activeElement)) {
+      returnFocusRef.current = {
+        element: activeElement,
+        kind: restoreFocusTargetKind(activeElement)
+      };
+    }
+    requestAnimationFrame(() => editorRef.current?.focus());
+  }, [showDslPanel]);
+
+  if (!showDslPanel) return null;
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+    const keyboardCommand = keyboardCommandForEvent(event.nativeEvent, {
+      settings: shortcutSettings,
+      isDslPanelMode: true,
+      allowEditableCommandIds: dslPanelCommandIds
+    });
+    if (!keyboardCommand || !dslPanelCommandIds.has(keyboardCommand.commandId)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    dispatchCommand(keyboardCommand.commandId, {
+      ...dslCommandContext,
+      ...keyboardCommand.context
+    });
   };
 
   const startDrag = (event: PointerEvent<HTMLDivElement>) => {
@@ -210,6 +342,7 @@ export const DslPanel = () => {
       className={`dsl-panel ${dslPanelWindow ? "is-positioned" : ""}`}
       style={panelStyle}
       aria-label="DSLパネル"
+      onKeyDownCapture={handleKeyDown}
     >
       <div
         className={`dsl-panel-header ${drag ? "is-dragging" : ""}`}
@@ -222,27 +355,28 @@ export const DslPanel = () => {
           <span>DSL</span>
           <h2>テキスト作図</h2>
         </div>
-        <button type="button" onClick={() => dispatchCommand("closeDslPanel")} aria-label="DSLパネルを閉じる">
+        <button type="button" onClick={() => dispatchCommand("closeDslPanel", dslCommandContext)} aria-label="DSLパネルを閉じる">
           <X size={16} aria-hidden="true" />
         </button>
       </div>
 
       <div className="dsl-panel-toolbar">
-        <button type="button" onClick={exportSelection}>
+        <button type="button" onClick={() => dispatchCommand("exportDslSelection", dslCommandContext)}>
           <FileInput size={15} aria-hidden="true" />
           選択を書き出し
         </button>
-        <button type="button" onClick={validate}>
+        <button type="button" onClick={() => dispatchCommand("validateDslPanel", dslCommandContext)}>
           <Check size={15} aria-hidden="true" />
           検証
         </button>
-        <button type="button" className="primary-action" onClick={apply}>
+        <button type="button" className="primary-action" onClick={() => dispatchCommand("applyDslPanel", dslCommandContext)}>
           <Play size={15} aria-hidden="true" />
           適用
         </button>
       </div>
 
       <DslEditor
+        textareaRef={editorRef}
         source={source}
         onSourceChange={(nextSource) => {
           setSourceState({ source: nextSource, requestId: activeRequestId });

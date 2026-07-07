@@ -52,6 +52,9 @@ describe("shortcuts", () => {
       "saveDocumentAs"
     );
     expect(commandIdForKeyboardEvent(keyboardEvent("f", { metaKey: true }))).toBe("focusElementSearch");
+    expect(commandIdForKeyboardEvent(keyboardEvent("d", { metaKey: true, shiftKey: true }))).toBe(
+      "openDslPanel"
+    );
     expect(commandIdForKeyboardEvent(keyboardEvent("p"))).toBeNull();
     expect(commandIdForKeyboardEvent(keyboardEvent("o"))).toBeNull();
     expect(commandIdForKeyboardEvent(keyboardEvent("l"))).toBeNull();
@@ -404,6 +407,46 @@ describe("shortcuts", () => {
     }
   });
 
+  it("maps DSL panel shortcuts only when editable targets are explicitly allowed", () => {
+    const textarea = document.createElement("textarea");
+    const allowDslCommands = new Set([
+      "exportDslSelection",
+      "validateDslPanel",
+      "applyDslPanel",
+      "closeDslPanel"
+    ] as const);
+
+    expect(
+      commandIdForKeyboardEvent(keyboardEventFrom("Enter", textarea, { metaKey: true }), {
+        isDslPanelMode: true
+      })
+    ).toBeNull();
+    expect(
+      commandIdForKeyboardEvent(keyboardEventFrom("Enter", textarea, { metaKey: true }), {
+        isDslPanelMode: true,
+        allowEditableCommandIds: allowDslCommands
+      })
+    ).toBe("applyDslPanel");
+    expect(
+      commandIdForKeyboardEvent(keyboardEventFrom("Enter", textarea, { metaKey: true, shiftKey: true }), {
+        isDslPanelMode: true,
+        allowEditableCommandIds: allowDslCommands
+      })
+    ).toBe("validateDslPanel");
+    expect(
+      commandIdForKeyboardEvent(keyboardEventFrom("Escape", textarea), {
+        isDslPanelMode: true,
+        allowEditableCommandIds: allowDslCommands
+      })
+    ).toBe("closeDslPanel");
+    expect(
+      commandIdForKeyboardEvent(keyboardEventFrom("a", textarea, { metaKey: true }), {
+        isDslPanelMode: true,
+        allowEditableCommandIds: allowDslCommands
+      })
+    ).toBeNull();
+  });
+
   it("ignores events from editable form targets", () => {
     const textarea = document.createElement("textarea");
     const select = document.createElement("select");
@@ -572,6 +615,20 @@ describe("shortcuts", () => {
     expect(ids).not.toContain("addFreePoint");
     expect(ids).not.toContain("exitParameterEditMode");
     expect(ids).not.toContain("selectNextParameter");
+  });
+
+  it("shows DSL panel shortcuts in DSL mode help", () => {
+    const shortcuts = shortcutHelpItems({ isDslPanelMode: true });
+
+    expect(shortcuts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ commandId: "exportDslSelection", keys: "Mod+Shift+e" }),
+        expect.objectContaining({ commandId: "validateDslPanel", keys: "Mod+Shift+Enter" }),
+        expect.objectContaining({ commandId: "applyDslPanel", keys: "Mod+Enter" }),
+        expect.objectContaining({ commandId: "closeDslPanel", keys: "Escape" })
+      ])
+    );
+    expect(shortcuts.map((shortcut) => shortcut.commandId)).not.toContain("selectNextElement");
   });
 
   it("hides normal mode shortcuts while editing parameters", () => {

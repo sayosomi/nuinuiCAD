@@ -36,15 +36,19 @@ export const effectiveShortcutBindings = (
 const scopesForMode = ({
   isParameterEditMode = false,
   isDependencyJumpMode = false,
-  isPickMode = false
+  isPickMode = false,
+  isDslPanelMode = false
 }: {
   isParameterEditMode?: boolean;
   isDependencyJumpMode?: boolean;
   isPickMode?: boolean;
+  isDslPanelMode?: boolean;
 }): ShortcutScope[] => [
   "global",
   "modeInvariant",
-  ...(isPickMode
+  ...(isDslPanelMode
+    ? (["dsl"] as ShortcutScope[])
+    : isPickMode
     ? (["pick"] as ShortcutScope[])
     : isParameterEditMode
       ? (["parameter"] as ShortcutScope[])
@@ -59,6 +63,7 @@ export const shortcutBindingsForMode = (
     isParameterEditMode?: boolean;
     isDependencyJumpMode?: boolean;
     isPickMode?: boolean;
+    isDslPanelMode?: boolean;
   } = {}
 ) => {
   const activeScopes = new Set(scopesForMode(options));
@@ -141,6 +146,7 @@ export const shortcutHelpItemsForSettings = ({
   isParameterEditMode = false,
   isDependencyJumpMode = false,
   isPickMode = false,
+  isDslPanelMode = false,
   selectedElement = null,
   selectedParameterKey = null
 }: {
@@ -148,9 +154,17 @@ export const shortcutHelpItemsForSettings = ({
   isParameterEditMode?: boolean;
   isDependencyJumpMode?: boolean;
   isPickMode?: boolean;
+  isDslPanelMode?: boolean;
   selectedElement?: CadElement | null;
   selectedParameterKey?: string | null;
 } = {}): ShortcutHelpItem[] => {
+  if (isDslPanelMode) {
+    return shortcutBindingsForMode(settings, { isDslPanelMode: true })
+      .filter((item) => item.scope === "dsl")
+      .filter((item) => item.chords.length > 0)
+      .map(helpItem);
+  }
+
   if (isPickMode) {
     return shortcutBindingsForMode(settings, { isPickMode: true })
       .filter((item) => item.chords.length > 0)
@@ -206,7 +220,8 @@ const modeScopes: ShortcutScope[][] = [
   ["global", "modeInvariant", "normal"],
   ["global", "modeInvariant", "parameter"],
   ["global", "modeInvariant", "dependencyJump"],
-  ["global", "modeInvariant", "pick"]
+  ["global", "modeInvariant", "pick"],
+  ["global", "modeInvariant", "dsl"]
 ];
 
 export const shortcutConflicts = (

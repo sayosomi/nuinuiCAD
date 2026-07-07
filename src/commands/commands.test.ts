@@ -3,6 +3,7 @@ import { waitFor } from "@testing-library/react";
 import { dispatchCommand, filterCommandPaletteItems } from "./commands";
 import { defaultDocumentPalette } from "../palette/palette";
 import { DEFAULT_PRINT_LAYOUT } from "../print/printLayout";
+import { defaultVisibilityProfile } from "../model/visibilityProfiles";
 import { sampleElements } from "../sampleData";
 import {
   DEFAULT_CANVAS_VIEWPORT,
@@ -18,6 +19,9 @@ describe("commands", () => {
     useCadStore.setState({
       elements: sampleElements,
       palette: defaultDocumentPalette(),
+      visibilityRoles: [],
+      visibilityProfiles: [defaultVisibilityProfile()],
+      activeVisibilityProfileId: defaultVisibilityProfile().id,
       printLayouts: [DEFAULT_PRINT_LAYOUT],
       activePrintLayoutId: DEFAULT_PRINT_LAYOUT.id,
       printLayout: DEFAULT_PRINT_LAYOUT,
@@ -1173,6 +1177,9 @@ describe("commands", () => {
     const snapshot = {
       elements: state.elements,
       palette: state.palette,
+      visibilityRoles: state.visibilityRoles,
+      visibilityProfiles: state.visibilityProfiles,
+      activeVisibilityProfileId: state.activeVisibilityProfileId,
       printLayouts: state.printLayouts,
       activePrintLayoutId: state.activePrintLayoutId,
       printLayout: state.printLayout,
@@ -1422,6 +1429,9 @@ describe("commands", () => {
     const snapshot = {
       elements: state.elements,
       palette: state.palette,
+      visibilityRoles: state.visibilityRoles,
+      visibilityProfiles: state.visibilityProfiles,
+      activeVisibilityProfileId: state.activeVisibilityProfileId,
       printLayouts: state.printLayouts,
       activePrintLayoutId: state.activePrintLayoutId,
       printLayout: state.printLayout,
@@ -1864,6 +1874,25 @@ describe("commands", () => {
 
     dispatchCommand("closeDslPanel");
     expect(useCadStore.getState().showDslPanel).toBe(false);
+  });
+
+  it("opens the DSL panel from the current selection when ids are not provided", () => {
+    useCadStore.setState({
+      showCommandPalette: true,
+      selectedElementId: "point-b",
+      selectedElementIds: ["point-b", "point-a"],
+      selectionAnchorElementId: "point-b"
+    });
+
+    dispatchCommand("openDslPanel");
+
+    expect(useCadStore.getState()).toMatchObject({
+      showDslPanel: true,
+      showCommandPalette: false,
+      dslPanelSourceRequest: {
+        elementIds: ["point-b", "point-a"]
+      }
+    });
   });
 
   it("enters element list mode and focuses the element list", () => {

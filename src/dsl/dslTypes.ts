@@ -1,4 +1,11 @@
-import type { CadElement, CadElementType, ElementId } from "../types/geometry";
+import type {
+  CadElement,
+  CadElementType,
+  ElementId,
+  PrintLayout,
+  VisibilityProfile,
+  VisibilityRole
+} from "../types/geometry";
 
 export type DslDiagnostic = {
   severity: "error" | "warning";
@@ -13,6 +20,30 @@ export type DslAttribute = {
 };
 
 export type DslStatement =
+  | {
+      kind: "role";
+      line: number;
+      name: string;
+      attrs: DslAttribute[];
+    }
+  | {
+      kind: "view";
+      line: number;
+      name: string;
+      attrs: DslAttribute[];
+    }
+  | {
+      kind: "activeView";
+      line: number;
+      name: string;
+      attrs: DslAttribute[];
+    }
+  | {
+      kind: "printLayout";
+      line: number;
+      name: string;
+      attrs: DslAttribute[];
+    }
   | {
       kind: "variable";
       line: number;
@@ -92,6 +123,10 @@ export type ParseDslResult = {
 
 export type CompileDslContext = {
   elements: CadElement[];
+  visibilityRoles?: VisibilityRole[];
+  visibilityProfiles?: VisibilityProfile[];
+  activeVisibilityProfileId?: string;
+  printLayouts?: PrintLayout[];
   insertionIndex?: number;
   mode?: "edit" | "document";
   selectedElementIds?: ElementId[];
@@ -101,12 +136,20 @@ export type CompileDslResult = {
   elements: CadElement[];
   selectedElementId: ElementId | null;
   selectedElementIds: ElementId[];
+  visibilityRoles?: VisibilityRole[];
+  visibilityProfiles?: VisibilityProfile[];
+  activeVisibilityProfileId?: string;
+  printLayouts?: PrintLayout[];
   diagnostics: DslDiagnostic[];
   changedCount: number;
 };
 
 export type SerializeDslOptions = {
   includeIds?: boolean;
+  visibilityRoles?: VisibilityRole[];
+  visibilityProfiles?: VisibilityProfile[];
+  activeVisibilityProfileId?: string;
+  printLayouts?: PrintLayout[];
 };
 
 export type DslTokenKind =

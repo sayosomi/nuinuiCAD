@@ -1,5 +1,10 @@
 import type { CadDocumentSnapshot } from "../state/cadDocumentStore";
 import { normalizedElementFields } from "../model/elementNormalization";
+import {
+  normalizeGroupVisibilityRoleIds,
+  normalizeVisibilityProfiles,
+  normalizeVisibilityRoles
+} from "../model/visibilityProfiles";
 import { normalizeDocumentPalette } from "../palette/palette";
 import { normalizePrintLayouts } from "../print/printLayout";
 
@@ -25,11 +30,25 @@ const parseDocumentObject = (value: unknown): CadDocumentSnapshot => {
     throw new Error("ドキュメントのelementsが不正です。");
   }
 
-  const elements = (value.elements as CadDocumentSnapshot["elements"]).map(normalizedElementFields);
+  const rawElements = (value.elements as CadDocumentSnapshot["elements"]).map(normalizedElementFields);
+  const visibilityRoles = normalizeVisibilityRoles(value.visibilityRoles, rawElements);
+  const visibilityProfiles = normalizeVisibilityProfiles({
+    profiles: value.visibilityProfiles,
+    roles: visibilityRoles
+  });
+  const activeVisibilityProfileId =
+    typeof value.activeVisibilityProfileId === "string" &&
+    visibilityProfiles.some((profile) => profile.id === value.activeVisibilityProfileId)
+      ? value.activeVisibilityProfileId
+      : visibilityProfiles[0].id;
+  const elements = rawElements.map((element) =>
+    normalizeGroupVisibilityRoleIds(element, visibilityRoles)
+  );
   const printLayouts = normalizePrintLayouts({
     printLayouts: value.printLayouts,
     legacyPrintLayout: value.printLayout,
-    elements
+    elements,
+    visibilityProfiles
   });
   const activePrintLayoutId =
     typeof value.activePrintLayoutId === "string" &&
@@ -42,6 +61,9 @@ const parseDocumentObject = (value: unknown): CadDocumentSnapshot => {
   return {
     elements,
     palette: normalizeDocumentPalette(value.palette),
+    visibilityRoles,
+    visibilityProfiles,
+    activeVisibilityProfileId,
     printLayouts,
     activePrintLayoutId,
     printLayout,

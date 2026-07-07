@@ -53,6 +53,100 @@ describe("DslPanel", () => {
     });
   });
 
+  it("focuses the editor on open and returns focus to the previous element list target on Escape", async () => {
+    const previousTarget = document.createElement("div");
+    previousTarget.tabIndex = -1;
+    previousTarget.dataset.elementList = "true";
+    document.body.appendChild(previousTarget);
+    previousTarget.focus();
+    useCadStore.setState({ showDslPanel: true });
+
+    render(<DslPanel />);
+
+    const editor = await screen.findByLabelText("DSLソース");
+    await waitFor(() => expect(editor).toHaveFocus());
+
+    fireEvent.keyDown(editor, { key: "Escape" });
+
+    expect(useCadStore.getState().showDslPanel).toBe(false);
+    expect(previousTarget).toHaveFocus();
+  });
+
+  it("exports the current selection from the keyboard", async () => {
+    useCadStore.setState({
+      showDslPanel: true,
+      selectedElementId: "point-b",
+      selectedElementIds: ["point-b"],
+      selectionAnchorElementId: "point-b"
+    });
+
+    render(<DslPanel />);
+
+    const editor = await screen.findByLabelText("DSLソース") as HTMLTextAreaElement;
+    fireEvent.keyDown(editor, { key: "E", metaKey: true, shiftKey: true });
+
+    expect(editor.value).toContain("point 点B");
+    expect(editor.value).not.toContain("point 点A");
+    expect(screen.getByText("選択要素をDSLへ書き出しました。")).toBeInTheDocument();
+  });
+
+  it("validates from the keyboard without closing", async () => {
+    useCadStore.setState({ showDslPanel: true });
+
+    render(<DslPanel />);
+
+    const editor = await screen.findByLabelText("DSLソース") as HTMLTextAreaElement;
+    fireEvent.change(editor, { target: { value: "nonsense" } });
+    fireEvent.keyDown(editor, { key: "Enter", metaKey: true, shiftKey: true });
+
+    expect(useCadStore.getState().showDslPanel).toBe(true);
+    expect(screen.getByLabelText("DSL診断")).toBeInTheDocument();
+  });
+
+  it("keeps the panel open when keyboard apply finds errors", async () => {
+    useCadStore.setState({ showDslPanel: true });
+
+    render(<DslPanel />);
+
+    const editor = await screen.findByLabelText("DSLソース") as HTMLTextAreaElement;
+    fireEvent.change(editor, { target: { value: "nonsense" } });
+    fireEvent.keyDown(editor, { key: "Enter", metaKey: true });
+
+    expect(useCadStore.getState().showDslPanel).toBe(true);
+    expect(screen.getByLabelText("DSL診断")).toBeInTheDocument();
+  });
+
+  it("applies valid DSL from the keyboard, closes, and returns focus", async () => {
+    const previousTarget = document.createElement("div");
+    previousTarget.tabIndex = -1;
+    previousTarget.dataset.canvasViewport = "true";
+    document.body.appendChild(previousTarget);
+    previousTarget.focus();
+    useCadStore.setState({ showDslPanel: true });
+
+    render(<DslPanel />);
+
+    const editor = await screen.findByLabelText("DSLソース") as HTMLTextAreaElement;
+    await waitFor(() => expect(editor).toHaveFocus());
+    fireEvent.change(editor, { target: { value: "point K = (10, 20)" } });
+    fireEvent.keyDown(editor, { key: "Enter", metaKey: true });
+
+    expect(useCadStore.getState().showDslPanel).toBe(false);
+    expect(useCadStore.getState().elements.some((element) => element.name === "K")).toBe(true);
+    expect(previousTarget).toHaveFocus();
+  });
+
+  it("does not intercept ordinary text editing shortcuts in the DSL editor", async () => {
+    useCadStore.setState({ showDslPanel: true });
+
+    render(<DslPanel />);
+
+    const editor = await screen.findByLabelText("DSLソース") as HTMLTextAreaElement;
+    fireEvent.keyDown(editor, { key: "a", metaKey: true });
+
+    expect(useCadStore.getState().showDslPanel).toBe(true);
+  });
+
   it("moves the panel by dragging the header and saves its position", async () => {
     Object.defineProperty(window, "innerWidth", { configurable: true, value: 1000 });
     Object.defineProperty(window, "innerHeight", { configurable: true, value: 800 });

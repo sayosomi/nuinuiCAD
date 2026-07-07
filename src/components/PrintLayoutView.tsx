@@ -365,6 +365,8 @@ const placementName = (
 export const PrintLayoutCanvas = ({ evaluation, canvasFocusRef }: PrintLayoutCanvasProps) => {
   const elements = useCadDocumentStore((state) => state.elements);
   const layout = useCadDocumentStore((state) => state.printLayout);
+  const visibilityProfiles = useCadDocumentStore((state) => state.visibilityProfiles);
+  const activeVisibilityProfileId = useCadDocumentStore((state) => state.activeVisibilityProfileId);
   const updatePrintLayout = useCadDocumentStore((state) => state.updatePrintLayout);
   const selectedPrintPlacementId = useCadUiStore((state) => state.selectedPrintPlacementId);
   const setSelectedPrintPlacementId = useCadUiStore((state) => state.setSelectedPrintPlacementId);
@@ -384,8 +386,14 @@ export const PrintLayoutCanvas = ({ evaluation, canvasFocusRef }: PrintLayoutCan
     ? { widthMm: resolvedLayout.svgCanvasWidthMm, heightMm: resolvedLayout.svgCanvasHeightMm }
     : printCanvas;
   const printableItems = useMemo(
-    () => printableItemsForLayout({ elements, evaluation, layout }),
-    [elements, evaluation, layout]
+    () => printableItemsForLayout({
+      elements,
+      evaluation,
+      layout,
+      visibilityProfiles,
+      activeVisibilityProfileId
+    }),
+    [activeVisibilityProfileId, elements, evaluation, layout, visibilityProfiles]
   );
   const groupNames = useMemo(
     () => new Map(elements.filter((element) => element.type === "group").map((element) => [element.id, element.name])),
@@ -660,6 +668,8 @@ export const PrintLayoutPanel = ({ evaluation }: { evaluation: EvaluationResult 
   const layout = useCadDocumentStore((state) => state.printLayout);
   const printLayouts = useCadDocumentStore((state) => state.printLayouts);
   const activePrintLayoutId = useCadDocumentStore((state) => state.activePrintLayoutId);
+  const visibilityProfiles = useCadDocumentStore((state) => state.visibilityProfiles);
+  const activeVisibilityProfileId = useCadDocumentStore((state) => state.activeVisibilityProfileId);
   const updatePrintLayout = useCadDocumentStore((state) => state.updatePrintLayout);
   const setActivePrintLayoutId = useCadDocumentStore((state) => state.setActivePrintLayoutId);
   const addPrintLayout = useCadDocumentStore((state) => state.addPrintLayout);
@@ -943,6 +953,19 @@ export const PrintLayoutPanel = ({ evaluation }: { evaluation: EvaluationResult 
             >
               <option value="pdf">PDF</option>
               <option value="svg">SVG</option>
+            </select>
+          </label>
+          <label className="print-select-field">
+            <span>表示プロファイル</span>
+            <select
+              value={layout.visibilityProfileId ?? activeVisibilityProfileId}
+              onChange={(event) => updatePrintLayout({ visibilityProfileId: event.target.value })}
+            >
+              {visibilityProfiles.map((profile) => (
+                <option key={profile.id} value={profile.id}>
+                  {profile.name}
+                </option>
+              ))}
             </select>
           </label>
           {isSvgLayout ? null : (

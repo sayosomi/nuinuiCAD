@@ -6,7 +6,8 @@ import type {
   NumericValue,
   PaperSizeId,
   PrintLayout,
-  PrintLayoutPlacement
+  PrintLayoutPlacement,
+  VisibilityProfile
 } from "../types/geometry";
 import { evaluateNumericValue, isNumericExpression, makeNumericExpression } from "../geometry/numericExpressions";
 
@@ -70,6 +71,7 @@ export const DEFAULT_PRINT_LAYOUT: PrintLayout = {
   id: "print-layout-1",
   name: "",
   outputKind: "pdf",
+  visibilityProfileId: undefined,
   paperSizeId: "a4",
   orientation: "portrait",
   columns: 2,
@@ -152,7 +154,8 @@ const normalizeNumericVariable = (value: unknown): NumericVariable | null => {
 
 export const normalizePrintLayout = (
   value: unknown,
-  elements: CadElement[]
+  elements: CadElement[],
+  visibilityProfiles: VisibilityProfile[] = []
 ): PrintLayout => {
   const groupIds = new Set(
     elements.filter((element) => element.type === "group").map((element) => element.id)
@@ -164,6 +167,11 @@ export const normalizePrintLayout = (
     : DEFAULT_PRINT_LAYOUT.id;
   const name = typeof value.name === "string" ? value.name : "";
   const outputKind = value.outputKind === "svg" ? "svg" : "pdf";
+  const visibilityProfileId =
+    typeof value.visibilityProfileId === "string" &&
+    visibilityProfiles.some((profile) => profile.id === value.visibilityProfileId)
+      ? value.visibilityProfileId
+      : undefined;
   const paperSizeId = PAPER_SIZES.some((paperSize) => paperSize.id === value.paperSizeId)
     ? value.paperSizeId as PaperSizeId
     : DEFAULT_PRINT_LAYOUT.paperSizeId;
@@ -183,6 +191,7 @@ export const normalizePrintLayout = (
     id,
     name,
     outputKind,
+    visibilityProfileId,
     paperSizeId,
     orientation,
     columns: normalizeNumericValue(value.columns, DEFAULT_PRINT_LAYOUT.columns),
@@ -210,11 +219,13 @@ const uniquePrintLayoutName = (baseName: string, layouts: PrintLayout[]) => {
 export const normalizePrintLayouts = ({
   printLayouts,
   legacyPrintLayout,
-  elements
+  elements,
+  visibilityProfiles = []
 }: {
   printLayouts: unknown;
   legacyPrintLayout: unknown;
   elements: CadElement[];
+  visibilityProfiles?: VisibilityProfile[];
 }) => {
   const source = Array.isArray(printLayouts) && printLayouts.length > 0
     ? printLayouts
@@ -223,7 +234,7 @@ export const normalizePrintLayouts = ({
   const usedIds = new Set<string>();
 
   for (const item of source) {
-    const layout = normalizePrintLayout(item, elements);
+    const layout = normalizePrintLayout(item, elements, visibilityProfiles);
     const id = layout.id.trim().length > 0 && !usedIds.has(layout.id)
       ? layout.id
       : nextPrintLayoutId(normalized);

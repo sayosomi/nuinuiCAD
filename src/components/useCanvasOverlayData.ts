@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import type { CanvasViewport } from "../state/cadUiStore";
+import { useCadDocumentStore } from "../state/cadDocumentStore";
 import type {
   CadElement,
   ComputedArcLine,
@@ -13,6 +14,10 @@ import type {
   EvaluationResult
 } from "../types/geometry";
 import { effectiveVisibleElementIds } from "../model/groups";
+import {
+  effectiveVisibleElementIdsForProfile,
+  visibilityProfileById
+} from "../model/visibilityProfiles";
 import { imageWorldCorners } from "../geometry/imageGeometry";
 import { isValidPickedPointAnchorForTarget } from "../model/forGroupGeneratedReferences";
 import {
@@ -73,9 +78,16 @@ export const useCanvasOverlayData = ({
   canvasViewport: CanvasViewport;
   documentPath: string | null;
 }): CanvasOverlayData => {
+  const visibilityProfiles = useCadDocumentStore((state) => state.visibilityProfiles);
+  const activeVisibilityProfileId = useCadDocumentStore((state) => state.activeVisibilityProfileId);
   const visibleElementIds = useMemo(
-    () => evaluation.effectiveVisibleElementIds ?? effectiveVisibleElementIds(elements),
-    [elements, evaluation.effectiveVisibleElementIds]
+    () => {
+      const baseVisibleIds = evaluation.effectiveVisibleElementIds ?? effectiveVisibleElementIds(elements);
+      const profile = visibilityProfileById(visibilityProfiles, activeVisibilityProfileId);
+      const profileVisibleIds = effectiveVisibleElementIdsForProfile({ elements, profile });
+      return new Set([...baseVisibleIds].filter((id) => profileVisibleIds.has(id)));
+    },
+    [activeVisibilityProfileId, elements, evaluation.effectiveVisibleElementIds, visibilityProfiles]
   );
   const geometries = useMemo(
     () => Array.from(evaluation.computedGeometry.values()),

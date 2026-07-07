@@ -134,6 +134,7 @@ type ElementListRowProps = {
   elementColor: string;
   showColorAccentForAllRows: boolean;
   showPrintControls: boolean;
+  roleNames: string[];
   onSelectElement: (elementId: ElementId, event: MouseEvent<HTMLElement>) => void;
   onOpenContextMenu: (elementId: ElementId, event: MouseEvent<HTMLElement>) => void;
   onHandlePointerDown: (event: PointerEvent<HTMLButtonElement>, element: CadElement) => void;
@@ -175,6 +176,7 @@ export const ElementListRow = ({
   elementColor,
   showColorAccentForAllRows,
   showPrintControls,
+  roleNames,
   onSelectElement,
   onOpenContextMenu,
   onHandlePointerDown
@@ -335,6 +337,13 @@ export const ElementListRow = ({
         <small className="group-mask-label">{searchParentGroupNames.join(" / ")}</small>
       ) : null}
       {commentPreview ? <small className="group-mask-label">{commentPreview}</small> : null}
+      {roleNames.length > 0 ? (
+        <span className="element-role-chips" aria-label="表示ロール">
+          {roleNames.map((roleName) => (
+            <small className="element-role-chip" key={roleName}>{roleName}</small>
+          ))}
+        </span>
+      ) : null}
       {hiddenByGroup ? <small className="group-mask-label">親で非表示</small> : null}
       {disabledByGroup ? <small className="group-mask-label">親で評価OFF</small> : null}
       {conditionInactive ? <small className="group-mask-label">条件OFF</small> : null}

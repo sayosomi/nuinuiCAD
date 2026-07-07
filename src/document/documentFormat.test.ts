@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { defaultDocumentPalette } from "../palette/palette";
 import { DEFAULT_PRINT_LAYOUT } from "../print/printLayout";
 import { sampleElements } from "../sampleData";
+import { defaultVisibilityProfile } from "../model/visibilityProfiles";
 import type { CadDocumentSnapshot } from "../state/cadDocumentStore";
 import {
   CAD_DOCUMENT_APP_ID,
@@ -15,6 +16,9 @@ import {
 const snapshot: CadDocumentSnapshot = {
   elements: sampleElements,
   palette: defaultDocumentPalette(),
+  visibilityRoles: [],
+  visibilityProfiles: [defaultVisibilityProfile()],
+  activeVisibilityProfileId: defaultVisibilityProfile().id,
   printLayouts: [DEFAULT_PRINT_LAYOUT],
   activePrintLayoutId: DEFAULT_PRINT_LAYOUT.id,
   printLayout: DEFAULT_PRINT_LAYOUT,

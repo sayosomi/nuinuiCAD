@@ -82,6 +82,8 @@ export const keyboardCommandForEvent = (
     isParameterEditMode?: boolean;
     isDependencyJumpMode?: boolean;
     isPickMode?: boolean;
+    isDslPanelMode?: boolean;
+    allowEditableCommandIds?: ReadonlySet<CommandId>;
   } = {}
 ): KeyboardCommand | null => {
   const settings = options.settings ?? defaultShortcutSettings();
@@ -102,7 +104,11 @@ export const keyboardCommandForEvent = (
     }
     return null;
   }
-  if (shortcut.commandId !== "focusElementSearch" && shouldIgnoreKeyboardEvent(event)) return null;
+  if (
+    shortcut.commandId !== "focusElementSearch" &&
+    !options.allowEditableCommandIds?.has(shortcut.commandId) &&
+    shouldIgnoreKeyboardEvent(event)
+  ) return null;
   return {
     commandId: shortcut.commandId,
     context: shortcut.context?.(event)
@@ -116,6 +122,8 @@ export const commandIdForKeyboardEvent = (
     isParameterEditMode?: boolean;
     isDependencyJumpMode?: boolean;
     isPickMode?: boolean;
+    isDslPanelMode?: boolean;
+    allowEditableCommandIds?: ReadonlySet<CommandId>;
   } = {}
 ): CommandId | null => {
   return keyboardCommandForEvent(event, options)?.commandId ?? null;
@@ -127,6 +135,7 @@ export const shortcutHelpItems = (
     isParameterEditMode?: boolean;
     isDependencyJumpMode?: boolean;
     isPickMode?: boolean;
+    isDslPanelMode?: boolean;
     selectedElement?: CadElement | null;
     selectedParameterKey?: string | null;
   } = {}

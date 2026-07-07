@@ -2,6 +2,10 @@ import { evaluateNumericValue } from "../geometry/numericExpressions";
 import { parseForGroupGeneratedElementId } from "../model/forGroupGeneratedReferences";
 import { descendantIdsForGroup } from "../model/groups";
 import { resolveDerivedPoint } from "../model/pointAnchors";
+import {
+  effectiveVisibleElementIdsForProfile,
+  visibilityProfileById
+} from "../model/visibilityProfiles";
 import type {
   CadElement,
   ComputedArcLine,
@@ -12,7 +16,8 @@ import type {
   ElementId,
   EvaluationResult,
   PointAnchor,
-  PrintLayout
+  PrintLayout,
+  VisibilityProfile
 } from "../types/geometry";
 import { printCanvasSizeMm, resolvePrintLayout } from "./printLayout";
 import type { ResolvedPrintLayout, ResolvedPrintLayoutPlacement } from "./printLayout";
@@ -295,15 +300,25 @@ const textForGeometry = ({
 export const printableItemsForLayout = ({
   elements,
   evaluation,
-  layout
+  layout,
+  visibilityProfiles = [],
+  activeVisibilityProfileId
 }: {
   elements: CadElement[];
   evaluation: EvaluationResult;
   layout: PrintLayout;
+  visibilityProfiles?: VisibilityProfile[];
+  activeVisibilityProfileId?: string | null;
 }): PrintableItems => {
   const geometries = Array.from(evaluation.computedGeometry.values());
   const resolvedLayout = resolvePrintLayout({ layout, elements, evaluation });
-  const visibleIds = evaluation.effectiveVisibleElementIds ?? new Set(elements.map((element) => element.id));
+  const baseVisibleIds = evaluation.effectiveVisibleElementIds ?? new Set(elements.map((element) => element.id));
+  const profile = visibilityProfileById(
+    visibilityProfiles,
+    layout.visibilityProfileId ?? activeVisibilityProfileId
+  );
+  const profileVisibleIds = effectiveVisibleElementIdsForProfile({ elements, profile });
+  const visibleIds = new Set([...baseVisibleIds].filter((id) => profileVisibleIds.has(id)));
   const enabledIds = evaluation.effectiveEnabledElementIds ?? new Set(elements.map((element) => element.id));
   const groupsById = new Map(printableGroups(elements).map((group) => [group.id, group]));
   const items: PrintableItems = { paths: [], texts: [] };
@@ -347,12 +362,22 @@ export const printableItemsForLayout = ({
 export const printablePathsForLayout = ({
   elements,
   evaluation,
-  layout
+  layout,
+  visibilityProfiles,
+  activeVisibilityProfileId
 }: {
   elements: CadElement[];
   evaluation: EvaluationResult;
   layout: PrintLayout;
-}) => printableItemsForLayout({ elements, evaluation, layout }).paths;
+  visibilityProfiles?: VisibilityProfile[];
+  activeVisibilityProfileId?: string | null;
+}) => printableItemsForLayout({
+  elements,
+  evaluation,
+  layout,
+  visibilityProfiles,
+  activeVisibilityProfileId
+}).paths;
 
 export const defaultPlacementForGroup = (
   groupId: ElementId,

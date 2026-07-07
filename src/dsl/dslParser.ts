@@ -107,7 +107,7 @@ const elementStatement = (
   attrs: [attrItem("type", type), ...attrs]
 });
 
-const commonAttrPattern = /^(id|name|visible|enabled|color|parent|branch)=/;
+const commonAttrPattern = /^(id|name|visible|enabled|color|parent|branch|roles)=/;
 
 const expressionAndAttrs = (source: string) => {
   const terms = splitTerms(source);
@@ -148,6 +148,22 @@ const parseLine = (rawLine: string, line: number): { statement?: DslStatement; d
     const expression = parsedExpression.expression;
     if (!expression) return { diagnostics: [diagnostic(line, "変数には `=` の後に式が必要です。")] };
     return { statement: { kind: "variable", line, name, expression, attrs: [...attrsFromTerms(terms.slice(2)), ...parsedExpression.attrs] }, diagnostics: [] };
+  }
+
+  if (keyword === "role") {
+    return { statement: { kind: "role", line, name, attrs: attrsFromTerms(terms.slice(2)) }, diagnostics: [] };
+  }
+
+  if (keyword === "view" || keyword === "profile") {
+    return { statement: { kind: "view", line, name, attrs: attrsFromTerms(terms.slice(2)) }, diagnostics: [] };
+  }
+
+  if (keyword === "activeView" || keyword === "activeProfile") {
+    return { statement: { kind: "activeView", line, name, attrs: attrsFromTerms(terms.slice(2)) }, diagnostics: [] };
+  }
+
+  if (keyword === "printLayout") {
+    return { statement: { kind: "printLayout", line, name, attrs: attrsFromTerms(terms.slice(2)) }, diagnostics: [] };
   }
 
   if (keyword === "point") {

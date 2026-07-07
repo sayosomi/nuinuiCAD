@@ -43,7 +43,10 @@ const baseAttrs = (element: CadElement, options: SerializeDslOptions) => [
   ...(element.enabled ? [] : ["enabled=false"]),
   ...(element.colorId ? [`color=${element.colorId}`] : []),
   ...(element.parentGroupId ? [`parent=${element.parentGroupId}`] : []),
-  ...(element.conditionalBranch ? [`branch=${element.conditionalBranch}`] : [])
+  ...(element.conditionalBranch ? [`branch=${element.conditionalBranch}`] : []),
+  ...(element.type === "group" && element.visibilityRoleIds?.length
+    ? [`roles=[${element.visibilityRoleIds.join(",")}]`]
+    : [])
 ];
 
 const elementLine = (element: CadElement, options: SerializeDslOptions, attrs: string[] = []) =>
@@ -58,7 +61,9 @@ const elementLine = (element: CadElement, options: SerializeDslOptions, attrs: s
 export const serializeElementsToDsl = (
   elements: CadElement[],
   options: SerializeDslOptions = {}
-) => elements.map((element) => {
+) => [
+  ...visibilitySettingsDsl(options),
+  ...elements.map((element) => {
   const attrs = baseAttrs(element, options);
   switch (element.type) {
     case "group":
@@ -290,4 +295,42 @@ export const serializeElementsToDsl = (
         `mirrorX=${element.mirrorX}`
       ]);
   }
-}).join("\n");
+  })
+].join("\n");
+
+const visibilitySettingsDsl = (options: SerializeDslOptions) => {
+  const roles = options.visibilityRoles ?? [];
+  const profiles = options.visibilityProfiles ?? [];
+  const printLayouts = options.printLayouts ?? [];
+  const lines: string[] = [];
+
+  for (const role of roles) {
+    lines.push(["role", role.id, `name=${quote(role.name)}`].join(" "));
+  }
+  for (const profile of profiles) {
+    const roleAttrs = roles.map((role) =>
+      `${role.id}=${profile.roleVisibility[role.id] ?? profile.defaultRoleVisible}`
+    );
+    lines.push([
+      "view",
+      profile.name || profile.id,
+      ...(profile.id === profile.name ? [] : [`id=${profile.id}`]),
+      `default=${profile.defaultRoleVisible}`,
+      ...roleAttrs
+    ].join(" "));
+  }
+  if (options.activeVisibilityProfileId) {
+    lines.push(["activeView", options.activeVisibilityProfileId].join(" "));
+  }
+  for (const layout of printLayouts) {
+    if (!layout.visibilityProfileId) continue;
+    lines.push([
+      "printLayout",
+      layout.name.trim() || layout.id,
+      `id=${layout.id}`,
+      `output=${layout.outputKind}`,
+      `visibilityView=${layout.visibilityProfileId}`
+    ].join(" "));
+  }
+  return lines.length > 0 ? [...lines, ""] : [];
+};

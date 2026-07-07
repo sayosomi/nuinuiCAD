@@ -66,7 +66,9 @@ export const exportPrintSvg = async (evaluation: EvaluationResult | undefined) =
   const items = printableItemsForLayout({
     elements: snapshot.elements,
     evaluation,
-    layout: snapshot.printLayout
+    layout: snapshot.printLayout,
+    visibilityProfiles: snapshot.visibilityProfiles,
+    activeVisibilityProfileId: snapshot.activeVisibilityProfileId
   });
   const input: ExportPrintSvgInput = {
     path: ensureSvgFileName(path),

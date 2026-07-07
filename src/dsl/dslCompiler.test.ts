@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { DEFAULT_PRINT_LAYOUT } from "../print/printLayout";
 import { compileDslToElements } from "./dslCompiler";
 import { serializeElementsToDsl } from "./dslSerializer";
 
@@ -219,5 +220,63 @@ describe("DSL compiler", () => {
     expect(source).toContain("line offsetAB = offset");
     expect(source).toContain("curve curveAB =");
     expect(source).toContain("intermediates=[");
+  });
+
+  it("compiles and serializes visibility roles and profiles", () => {
+    const result = compileDslToElements(
+      [
+        "role seam name=\"縫い代\"",
+        "role notch name=\"ノッチ\"",
+        "view 通常 default=false seam=false notch=false",
+        "view 印刷 default=false seam=true notch=true",
+        "activeView 通常",
+        "group 前身頃",
+        "group 前身頃縫い代 parent=前身頃 roles=[seam]",
+        "printLayout A4 output=pdf visibilityView=印刷"
+      ].join("\n"),
+      {
+        elements: [],
+        visibilityRoles: [],
+        visibilityProfiles: [],
+        activeVisibilityProfileId: "",
+        printLayouts: [{ ...DEFAULT_PRINT_LAYOUT, id: "a4", name: "A4" }]
+      }
+    );
+
+    expect(result.diagnostics).toEqual([]);
+    expect(result.visibilityRoles).toEqual([
+      { id: "seam", name: "縫い代" },
+      { id: "notch", name: "ノッチ" }
+    ]);
+    expect(result.visibilityProfiles).toEqual([
+      {
+        id: "通常",
+        name: "通常",
+        defaultRoleVisible: false,
+        roleVisibility: { seam: false, notch: false }
+      },
+      {
+        id: "印刷",
+        name: "印刷",
+        defaultRoleVisible: false,
+        roleVisibility: { seam: true, notch: true }
+      }
+    ]);
+    expect(result.activeVisibilityProfileId).toBe("通常");
+    expect(result.elements[1]).toMatchObject({
+      type: "group",
+      visibilityRoleIds: ["seam"]
+    });
+    expect(result.printLayouts?.[0]).toMatchObject({
+      id: "a4",
+      visibilityProfileId: "印刷"
+    });
+
+    expect(serializeElementsToDsl(result.elements, {
+      visibilityRoles: result.visibilityRoles,
+      visibilityProfiles: result.visibilityProfiles,
+      activeVisibilityProfileId: result.activeVisibilityProfileId,
+      printLayouts: result.printLayouts
+    })).toContain("group 前身頃縫い代");
   });
 });

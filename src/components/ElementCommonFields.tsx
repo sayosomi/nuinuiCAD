@@ -26,6 +26,7 @@ export const ElementCommonFields = ({
   const renameElement = useCadDocumentStore((state) => state.renameElement);
   const selectedParameterKey = useCadDocumentStore((state) => state.selectedParameterKey);
   const setSelectedParameterKey = useCadDocumentStore((state) => state.setSelectedParameterKey);
+  const visibilityRoles = useCadDocumentStore((state) => state.visibilityRoles);
   const commonEditorProps = { element, elements, evaluation, isParameterEditMode, registerParameterControl };
   const elementEditorProps = { element, isParameterEditMode, registerParameterControl };
 
@@ -84,6 +85,35 @@ export const ElementCommonFields = ({
 
       {element.type === "group" && (
         <>
+          <div className="parameter-field group-role-field">
+            <span className="parameter-name">表示ロール</span>
+            {visibilityRoles.length === 0 ? (
+              <p className="empty-state">表示ロールはありません。</p>
+            ) : (
+              <div className="group-role-options">
+                {visibilityRoles.map((role) => {
+                  const checked = (element.visibilityRoleIds ?? []).includes(role.id);
+                  return (
+                    <label key={role.id} className="group-role-option">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={(event) => {
+                          const current = element.visibilityRoleIds ?? [];
+                          updateElement(element.id, {
+                            visibilityRoleIds: event.target.checked
+                              ? [...current, role.id]
+                              : current.filter((roleId) => roleId !== role.id)
+                          } as Partial<CadElement>);
+                        }}
+                      />
+                      <span>{role.name}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+          </div>
           <BooleanParameterEditor
             {...elementEditorProps}
             parameterKey="printEnabled"

@@ -176,6 +176,9 @@ export const DrawingCanvas = ({
       snapshot: {
         elements: state.elements,
         palette: state.palette,
+        visibilityRoles: state.visibilityRoles,
+        visibilityProfiles: state.visibilityProfiles,
+        activeVisibilityProfileId: state.activeVisibilityProfileId,
         printLayouts: state.printLayouts,
         activePrintLayoutId: state.activePrintLayoutId,
         printLayout: state.printLayout,
@@ -687,6 +690,7 @@ export const DrawingCanvas = ({
         ].filter(Boolean).join(" ")}
         ref={canvasFocusRef}
         tabIndex={-1}
+        data-canvas-viewport="true"
         onWheel={handleWheel}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
