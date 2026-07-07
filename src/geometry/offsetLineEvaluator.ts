@@ -46,7 +46,8 @@ export const evaluateOffsetLineElement = (element: CadElement, context: ElementE
           baseLineIds: element.baseLineIds,
           baseGeometries,
           offset: element.side === "right" ? offset : -offset,
-          closed: element.closed
+          closed: element.closed,
+          suppressTrimWarnings: element.suppressTrimWarnings
         });
         if (result.error) {
           errors.push(geometryError(element, result.error));

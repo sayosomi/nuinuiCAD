@@ -103,7 +103,8 @@ export const buildOffsetLineGeometry = ({
   baseLineIds,
   baseGeometries,
   offset,
-  closed
+  closed,
+  suppressTrimWarnings
 }: {
   elementId: ElementId;
   name: string;
@@ -111,6 +112,7 @@ export const buildOffsetLineGeometry = ({
   baseGeometries: ComputedGeometry[];
   offset: number;
   closed: boolean;
+  suppressTrimWarnings?: boolean;
 }): { geometry?: ComputedOffsetLine; error?: string; warnings?: string[] } => {
   const sourceSegmentGroups = baseGeometries
     .map(sourceSegmentsForGeometry)
@@ -139,7 +141,7 @@ export const buildOffsetLineGeometry = ({
     }
     if (segment.kind === "bezier") {
       const result = offsetBezierSegmentGroups(segment, offset);
-      if (result.trimmed && warnings.length === 0) {
+      if (result.trimmed && !suppressTrimWarnings && warnings.length === 0) {
         warnings.push(
           `${name} はオフセット量が曲線の曲率半径を超える箇所があるため、一部区間をトリムしました。オフセット量を下げると全体を作図できます。`
         );

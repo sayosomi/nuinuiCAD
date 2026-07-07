@@ -69,6 +69,10 @@ pub(crate) fn evaluate_offset_line(
             .get("closed")
             .and_then(Value::as_bool)
             .unwrap_or(false),
+        element
+            .get("suppressTrimWarnings")
+            .and_then(Value::as_bool)
+            .unwrap_or(false),
     );
     if let Some(error) = result.error {
         state.errors.push(geometry_error(element, error));

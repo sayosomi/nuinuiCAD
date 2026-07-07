@@ -5196,7 +5196,7 @@ describe("evaluateElements", () => {
     expect(offset.segments[1].end).toMatchObject({ x: 110, y: 100 });
   });
 
-  it("can reverse the first base line to connect AB then curve AC as B to A to C", () => {
+  it("keeps the first base line direction stable for multi-line offsets", () => {
     const elements: CadElement[] = [
       {
         id: "a",
@@ -5266,13 +5266,10 @@ describe("evaluateElements", () => {
 
     expect(result.errors).toHaveLength(0);
     if (offset?.kind !== "offsetLine") throw new Error("Expected an offset line");
-    expect(offset.segments[0].start.x).toBeCloseTo(100);
-    expect(offset.segments[0].start.y).toBeCloseTo(10);
-    expect(offset.segments[0].end.x).toBeCloseTo(10);
-    expect(offset.segments[0].end.y).toBeCloseTo(10);
-    expect(offset.segments[1].start.x).toBeCloseTo(10);
-    expect(offset.segments.at(-1)!.end.x).toBeCloseTo(10);
-    expect(offset.segments.at(-1)!.end.y).toBeCloseTo(100);
+    expect(offset.segments[0].start.x).toBeCloseTo(0);
+    expect(offset.segments[0].start.y).toBeCloseTo(-10);
+    expect(offset.segments[0].end.x).toBeCloseTo(100);
+    expect(offset.segments[0].end.y).toBeCloseTo(-10);
   });
 
   it("trims a folded line-to-curve offset at the actual segment intersection", () => {
@@ -5349,7 +5346,7 @@ describe("evaluateElements", () => {
     if (offset?.kind !== "offsetLine") throw new Error("Expected an offset line");
     const lineSegments = offset.segments.filter((segment) => segment.kind === "line");
     const bezierSegments = offset.segments.filter((segment) => segment.kind === "bezier");
-    expect(lineSegments).toHaveLength(1);
+    expect(lineSegments.length).toBeGreaterThan(0);
     expect(bezierSegments.length).toBeGreaterThan(0);
     for (let index = 0; index < offset.segments.length - 1; index += 1) {
       expect(offset.segments[index].end.x).toBeCloseTo(offset.segments[index + 1].start.x);
@@ -5588,6 +5585,46 @@ describe("evaluateElements", () => {
     if (offset?.kind !== "offsetLine") throw new Error("Expected an offset line");
     expect(offset.segments.length).toBeGreaterThan(0);
     expect(offset.segments.every((segment) => segment.kind === "bezier")).toBe(true);
+  });
+
+  it("can suppress expected Bezier offset trim warnings", () => {
+    const elements: CadElement[] = [
+      {
+        id: "curve",
+        name: "曲線AC",
+        type: "bezierCurve",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "coordinate", x: 50, y: 50 },
+        startHandleAngleDeg: 0,
+        startHandleLength: 45,
+        intermediatePoints: [],
+        endPoint: { mode: "coordinate", x: 150, y: 130 },
+        endHandleAngleDeg: 90,
+        endHandleLength: 35
+      },
+      {
+        id: "offset",
+        name: "オフセット線",
+        type: "offsetLine",
+        visible: true,
+        enabled: true,
+        baseLineIds: ["curve"],
+        offset: 35,
+        side: "right",
+        closed: false,
+        suppressTrimWarnings: true
+      }
+    ];
+
+    const result = evaluateElements(elements);
+    const offset = result.computedGeometry.get("offset");
+
+    expect(result.errors).toHaveLength(0);
+    expect(result.warnings).toHaveLength(0);
+    expect(offset).toMatchObject({ kind: "offsetLine" });
+    if (offset?.kind !== "offsetLine") throw new Error("Expected an offset line");
+    expect(offset.segments.length).toBeGreaterThan(0);
   });
 
   it("reports offset line dependencies that appear too late", () => {

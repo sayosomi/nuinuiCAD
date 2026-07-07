@@ -309,12 +309,7 @@ fn orient_source_groups(groups: &[Vec<SourceSegment>], closed: bool) -> Vec<Vec<
         return groups.to_vec();
     }
     let forward = orient_source_groups_for_initial_orientation(groups, 0, closed);
-    let reversed = orient_source_groups_for_initial_orientation(groups, 1, closed);
-    if forward.1 <= reversed.1 {
-        forward.0
-    } else {
-        reversed.0
-    }
+    forward.0
 }
 
 pub(crate) fn connect_source_segment_groups(

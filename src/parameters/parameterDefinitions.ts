@@ -476,7 +476,8 @@ export const getParameterDefinitions = (element: CadElement): ParameterDefinitio
           kind: "choice",
           choiceOptions: ["right", "left"]
         },
-        { key: "closed", directKey: "c", label: "閉じる", kind: "boolean" }
+        { key: "closed", directKey: "c", label: "閉じる", kind: "boolean" },
+        { key: "suppressTrimWarnings", directKey: "w", label: "トリム警告を表示しない", kind: "boolean" }
       ];
     case "copyLine":
     case "move":

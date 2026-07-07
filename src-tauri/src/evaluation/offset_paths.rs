@@ -149,6 +149,7 @@ pub(crate) fn build_offset_line_geometry(
     base_geometries: &[Value],
     offset: f64,
     closed: bool,
+    suppress_trim_warnings: bool,
 ) -> OffsetBuildResult {
     let source_segment_groups = base_geometries
         .iter()
@@ -191,7 +192,7 @@ pub(crate) fn build_offset_line_geometry(
             }
             SourceSegment::Bezier { .. } => {
                 let result = offset_bezier_segment_groups(segment, offset);
-                if result.trimmed && warnings.is_empty() {
+                if result.trimmed && !suppress_trim_warnings && warnings.is_empty() {
                     warnings.push(format!(
                         "{name} はオフセット量が曲線の曲率半径を超える箇所があるため、一部区間をトリムしました。オフセット量を下げると全体を作図できます。"
                     ));

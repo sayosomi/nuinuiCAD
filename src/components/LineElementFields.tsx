@@ -375,6 +375,12 @@ export const LineElementFields = ({
             label="閉じる"
             checked={element.closed}
           />
+          <BooleanParameterEditor
+            {...elementEditorProps}
+            parameterKey="suppressTrimWarnings"
+            label="トリム警告を表示しない"
+            checked={Boolean(element.suppressTrimWarnings)}
+          />
         </>
       );
 

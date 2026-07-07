@@ -210,8 +210,7 @@ const orientSourceGroups = (groups: SourceSegment[][], closed: boolean) => {
   if (groups.length <= 1) return groups;
 
   const forwardInitial = orientSourceGroupsForInitialOrientation(groups, 0, closed);
-  const reversedInitial = orientSourceGroupsForInitialOrientation(groups, 1, closed);
-  return forwardInitial.cost <= reversedInitial.cost ? forwardInitial.groups : reversedInitial.groups;
+  return forwardInitial.groups;
 };
 
 export const connectSourceSegmentGroups = (groups: SourceSegment[][], closed: boolean) => {

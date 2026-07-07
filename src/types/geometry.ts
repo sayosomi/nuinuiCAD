@@ -244,6 +244,7 @@ export type OffsetLineElement = CadElementBase & {
   offset: NumericValue;
   side: OffsetLineSide;
   closed: boolean;
+  suppressTrimWarnings?: boolean;
 };
 
 export type SplitLineElement = CadElementBase & {

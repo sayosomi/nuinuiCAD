@@ -413,7 +413,8 @@ export const createCadElement = (
         baseLineIds: lineLikeElements[0] ? [lineLikeElements[0].id] : [],
         offset: 10,
         side: "right",
-        closed: false
+        closed: false,
+        suppressTrimWarnings: false
       };
     }
     case "splitLine": {
