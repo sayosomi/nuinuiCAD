@@ -2,7 +2,9 @@
 
 nuinuiCAD DSL は、GUIで要素を1つずつ作る代わりに、テキストで作図要素を追加・編集するための記法です。
 
-DSLは独立した保存形式ではありません。適用すると通常のCAD要素に変換されるので、適用後はこれまで通りGUIで選択、編集、移動、削除できます。
+現在の主な用途は、選択範囲を書き出して編集し、同じ `id=...` の既存要素へパッチ適用することです。適用すると通常のCAD要素に変換されるので、適用後はこれまで通りGUIで選択、編集、移動、削除できます。
+
+将来的にはDSLファイルだけから作図内容を再構築する単体インポート・エクスポートにも対応する方針です。そのため、DSLは既存GUI要素型に対応する構文を優先して拡張しています。
 
 ## 開き方
 
@@ -23,6 +25,7 @@ DSLパネルでは次の操作ができます。
 - 要素は上から順に作られます。後の行から前の行を参照できます。
 - `id=...` が既存要素と一致すると、その要素を更新します。
 - `id=...` がない行は、同じ名前と同じ種類の既存要素があれば更新し、なければ新規作成します。
+- 選択範囲の書き出しは、選択外の依存元を含まないことがあります。DSL単体で再構築したい場合は、将来追加される全体DSLエクスポートを使います。
 
 ## 例
 
@@ -61,6 +64,32 @@ point B = offset A dx=30 dy=-120
 point C = polar A angle=-45 distance=80
 ```
 
+2点間の分点:
+
+```text
+point D = between A B ratio=0.5
+point E = between A B distance=30
+```
+
+線・曲線上の分点:
+
+```text
+point F = on AB.start ratio=0.25
+point G = on neckline.end distance=20
+```
+
+線・曲線の交点:
+
+```text
+point X = intersection AB neckline index=0 extensions=false
+```
+
+線・曲線の接線方向から作る点:
+
+```text
+point H = tangentOffset armhole base=A angle=90 distance=12
+```
+
 ## 線
 
 2点を結ぶ線:
@@ -75,11 +104,53 @@ line AB = A -> B
 line shoulder = from A angle=-12 length=130
 ```
 
+既存線・曲線の分割:
+
+```text
+line lower = split armhole at=F
+```
+
+線・曲線の端点を指定点へ延長・短縮:
+
+```text
+line adjusted = extend shoulder.end to=G
+```
+
+線・曲線のオフセット:
+
+```text
+line seam = offset [AB,armhole,BC] distance=10 side=left closed=false
+```
+
+Bezier曲線:
+
+```text
+curve armhole = A -> B startAngle=-90 startLength=35 endAngle=180 endLength=45
+```
+
+中間点を含める場合:
+
+```text
+curve armhole = A -> B startAngle=-90 startLength=35 endAngle=180 endLength=45 intermediates=[C:45:20:25]
+```
+
 ## 円弧とテキスト
 
 ```text
 arc neckline center=A radius=90 start=180 end=270
 text label = "前身頃" at=A size=5
+```
+
+3点円弧:
+
+```text
+arc neckline = through A B C start=180 end=270
+```
+
+角R円弧:
+
+```text
+arc corner = corner shoulder.end side.start radius=10 index=0
 ```
 
 ## 変数と式

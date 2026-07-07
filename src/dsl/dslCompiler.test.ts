@@ -77,6 +77,117 @@ describe("DSL compiler", () => {
     });
   });
 
+  it("creates drafting point constructions from natural DSL syntax", () => {
+    const result = compileDslToElements(
+      [
+        "point A = (0, 0)",
+        "point B = (100, 0)",
+        "line AB = A -> B",
+        "line vertical = from A angle=90 length=100",
+        "point mid = between A B ratio=0.5",
+        "point onLine = on AB.start distance=25",
+        "point cross = intersection AB vertical index=0 extensions=true",
+        "point tangent = tangentOffset AB base=A angle=90 distance=10"
+      ].join("\n"),
+      { elements: [] }
+    );
+
+    expect(result.diagnostics).toEqual([]);
+    expect(result.elements.map((element) => element.type)).toEqual([
+      "freePoint",
+      "freePoint",
+      "line",
+      "angleLengthLine",
+      "divisionPoint",
+      "lineDivisionPoint",
+      "intersectionPoint",
+      "lineTangentOffsetPoint"
+    ]);
+    expect(result.elements[4]).toMatchObject({ type: "divisionPoint", placementMode: "ratio", ratio: 0.5 });
+    expect(result.elements[5]).toMatchObject({ type: "lineDivisionPoint", placementMode: "distance", distance: 25 });
+    expect(result.elements[6]).toMatchObject({ type: "intersectionPoint", intersectionIndex: 0, useExtensions: true });
+    expect(result.elements[7]).toMatchObject({ type: "lineTangentOffsetPoint", tangentAngleDeg: 90, distance: 10 });
+  });
+
+  it("creates line and curve operations from natural DSL syntax", () => {
+    const result = compileDslToElements(
+      [
+        "point A = (0, 0)",
+        "point B = (100, 0)",
+        "point C = (50, 0)",
+        "line AB = A -> B",
+        "curve curveAB = A -> B startAngle=0 startLength=25 endAngle=180 endLength=25 intermediates=[C:45:10:20:mid-1]",
+        "line splitAB = split AB at=C",
+        "line extended = extend AB.end to=C",
+        "line offsetAB = offset [AB,curveAB] distance=10 side=left closed=false"
+      ].join("\n"),
+      { elements: [] }
+    );
+
+    expect(result.diagnostics).toEqual([]);
+    expect(result.elements[4]).toMatchObject({
+      type: "bezierCurve",
+      startHandleAngleDeg: 0,
+      startHandleLength: 25,
+      endHandleAngleDeg: 180,
+      endHandleLength: 25,
+      intermediatePoints: [
+        expect.objectContaining({
+          id: "mid-1",
+          handleAngleDeg: 45,
+          incomingHandleLength: 10,
+          outgoingHandleLength: 20
+        })
+      ]
+    });
+    expect(result.elements[5]).toMatchObject({ type: "splitLine", baseLineId: result.elements[3].id });
+    expect(result.elements[6]).toMatchObject({ type: "extendTrim", endpoint: { lineId: result.elements[3].id, endpointKey: "end" } });
+    expect(result.elements[7]).toMatchObject({
+      type: "offsetLine",
+      baseLineIds: [result.elements[3].id, result.elements[4].id],
+      offset: 10,
+      side: "left",
+      closed: false
+    });
+  });
+
+  it("creates advanced arc constructions from natural DSL syntax", () => {
+    const result = compileDslToElements(
+      [
+        "point A = (0, 0)",
+        "point B = (50, 50)",
+        "point C = (100, 0)",
+        "line AB = A -> B",
+        "line BC = B -> C",
+        "arc throughArc = through A B C start=0 end=180",
+        "arc cornerArc = corner AB.end BC.start radius=10 index=0"
+      ].join("\n"),
+      { elements: [] }
+    );
+
+    expect(result.diagnostics).toEqual([]);
+    expect(result.elements[5]).toMatchObject({ type: "threePointArcLine", startAngleDeg: 0, endAngleDeg: 180 });
+    expect(result.elements[6]).toMatchObject({
+      type: "cornerRadiusArcLine",
+      endpoint1: { lineId: result.elements[3].id, endpointKey: "end" },
+      endpoint2: { lineId: result.elements[4].id, endpointKey: "start" },
+      radius: 10,
+      intersectionIndex: 0
+    });
+  });
+
+  it("can compile a standalone DSL document without existing elements", () => {
+    const existing = compileDslToElements("point old = (10, 10)", { elements: [] }).elements;
+    const result = compileDslToElements("point A = (0, 0)\npoint B = offset A dx=10 dy=0", {
+      elements: existing,
+      mode: "document"
+    });
+
+    expect(result.diagnostics).toEqual([]);
+    expect(result.elements).toHaveLength(2);
+    expect(result.elements.map((element) => element.name)).toEqual(["A", "B"]);
+  });
+
   it("serializes selected elements into editable DSL with ids", () => {
     const result = compileDslToElements("point A = (0, 0)\npoint B = (10, 0)\nline AB = A -> B", {
       elements: []
@@ -85,5 +196,28 @@ describe("DSL compiler", () => {
 
     expect(source).toContain(`point A = (0, 0) id=${result.elements[0].id}`);
     expect(source).toContain(`line AB = ${result.elements[0].id} -> ${result.elements[1].id}`);
+  });
+
+  it("serializes advanced GUI elements with natural DSL syntax", () => {
+    const result = compileDslToElements(
+      [
+        "point A = (0, 0)",
+        "point B = (100, 0)",
+        "point C = (50, 0)",
+        "line AB = A -> B",
+        "point mid = between A B ratio=0.5",
+        "line splitAB = split AB at=C",
+        "line offsetAB = offset [AB] distance=10 side=left closed=false",
+        "curve curveAB = A -> B startAngle=0 startLength=25 endAngle=180 endLength=25 intermediates=[C:45:10:20:mid-1]"
+      ].join("\n"),
+      { elements: [] }
+    );
+    const source = serializeElementsToDsl(result.elements);
+
+    expect(source).toContain("point mid = between");
+    expect(source).toContain("line splitAB = split");
+    expect(source).toContain("line offsetAB = offset");
+    expect(source).toContain("curve curveAB =");
+    expect(source).toContain("intermediates=[");
   });
 });

@@ -1,4 +1,5 @@
 import { makeNumericExpression, normalizeNumericExpressionInput } from "../geometry/numericExpressions";
+import { createCadElementId } from "../model/cadIds";
 import { createCadElement } from "../model/elementFactory";
 import { findParameterDefinition } from "../parameters/parameterDefinitions";
 import { setParameterValue } from "../parameters/parameterAccess";
@@ -48,8 +49,63 @@ const splitList = (value: string) => {
   return content.split(",").map((item) => item.trim()).filter(Boolean);
 };
 
+const splitRecords = (value: string) => {
+  const trimmed = value.trim();
+  const content = trimmed.startsWith("[") && trimmed.endsWith("]")
+    ? trimmed.slice(1, -1)
+    : trimmed;
+  return content.split(";").map((item) => item.trim()).filter(Boolean);
+};
+
 const normalizeExpression = (source: string, elements: CadElement[]) =>
   makeNumericExpression(normalizeNumericExpressionInput(source, elements));
+
+const parameterAlias = (element: CadElement, key: string) => {
+  if (key === "index") return "intersectionIndex";
+  if (key === "extensions") return "useExtensions";
+  if (key === "distance" && (element.type === "divisionPoint" || element.type === "lineDivisionPoint")) {
+    return "distance";
+  }
+  if (element.type === "lineTangentOffsetPoint" && key === "angle") return "tangentAngleDeg";
+  if (element.type === "bezierCurve") {
+    if (key === "startAngle") return "startHandleAngleDeg";
+    if (key === "startLength") return "startHandleLength";
+    if (key === "endAngle") return "endHandleAngleDeg";
+    if (key === "endLength") return "endHandleLength";
+  }
+  if (element.type === "threePointArcLine") {
+    if (key === "start") return "startAngleDeg";
+    if (key === "end") return "endAngleDeg";
+  }
+  if (element.type === "cornerRadiusArcLine" && key === "index") return "intersectionIndex";
+  return key;
+};
+
+const withPlacementMode = (element: CadElement, attrs: DslAttribute[]): CadElement => {
+  if (element.type !== "divisionPoint" && element.type !== "lineDivisionPoint") return element;
+  if (attrs.some((item) => item.key === "distance")) return { ...element, placementMode: "distance" };
+  if (attrs.some((item) => item.key === "ratio")) return { ...element, placementMode: "ratio" };
+  return element;
+};
+
+const parseIntermediatePoints = (
+  value: string,
+  index: NameIndex,
+  line: number,
+  diagnostics: DslDiagnostic[],
+  numeric: (source: string) => ReturnType<typeof normalizeExpression>
+): Extract<CadElement, { type: "bezierCurve" }>["intermediatePoints"] =>
+  splitRecords(value).map((record) => {
+    const parts = record.split(":").map((item) => item.trim());
+    const [pointToken, angle = "0", incoming = "30", outgoing = "30", id] = parts;
+    return {
+      id: id || createCadElementId("bezierCurve"),
+      point: resolveAnchor(pointToken || "none", index, line, diagnostics, numeric),
+      handleAngleDeg: numeric(angle),
+      incomingHandleLength: numeric(incoming),
+      outgoingHandleLength: numeric(outgoing)
+    };
+  });
 
 const applyCommonAttributes = (
   element: CadElement,
@@ -64,7 +120,8 @@ const applyCommonAttributes = (
   const skip = new Set(["id", "type", "angle", "at", "center", "end", "size", "start"]);
 
   for (const { key, value } of attrs) {
-    if (skip.has(key)) continue;
+    const parameterKey = parameterAlias(next, key);
+    if (skip.has(key) && parameterKey === key) continue;
     if (key === "parent") {
       next = { ...next, parentGroupId: resolveId(value, index, line, diagnostics) };
       continue;
@@ -77,42 +134,49 @@ const applyCommonAttributes = (
       next = { ...next, colorId: value };
       continue;
     }
+    if (next.type === "bezierCurve" && key === "intermediates") {
+      next = {
+        ...next,
+        intermediatePoints: parseIntermediatePoints(value, index, line, diagnostics, numeric)
+      };
+      continue;
+    }
 
-    const definition = findParameterDefinition(next, key);
+    const definition = findParameterDefinition(next, parameterKey);
     if (definition?.kind === "boolean") {
       const parsed = booleanValue(value);
-      if (parsed === null) diagnostics.push(diagnostic(line, `${key} は true/false で指定してください。`));
-      next = setParameterValue(next, key, parsed ?? false);
+      if (parsed === null) diagnostics.push(diagnostic(line, `${parameterKey} は true/false で指定してください。`));
+      next = setParameterValue(next, parameterKey, parsed ?? false);
       continue;
     }
     if (definition?.kind === "number") {
-      next = setParameterValue(next, key, numeric(value));
+      next = setParameterValue(next, parameterKey, numeric(value));
       continue;
     }
     if (definition?.kind === "reference") {
-      next = setParameterValue(next, key, value === "none" ? null : resolveAnchor(value, index, line, diagnostics, numeric));
+      next = setParameterValue(next, parameterKey, value === "none" ? null : resolveAnchor(value, index, line, diagnostics, numeric));
       continue;
     }
     if (definition?.kind === "lineEndpointReference") {
-      next = setParameterValue(next, key, resolveEndpoint(value, index, line, diagnostics));
+      next = setParameterValue(next, parameterKey, resolveEndpoint(value, index, line, diagnostics));
       continue;
     }
     if (definition?.kind === "lineReference") {
-      next = setParameterValue(next, key, resolveId(value, index, line, diagnostics));
+      next = setParameterValue(next, parameterKey, resolveId(value, index, line, diagnostics));
       continue;
     }
     if (definition?.kind === "lineReferenceList") {
-      next = setParameterValue(next, key, splitList(value).map((item) => resolveId(item, index, line, diagnostics)));
+      next = setParameterValue(next, parameterKey, splitList(value).map((item) => resolveId(item, index, line, diagnostics)));
       continue;
     }
     if (definition?.kind === "choice" || definition?.kind === "text" || definition?.kind === "color") {
-      next = setParameterValue(next, key, value);
+      next = setParameterValue(next, parameterKey, value);
       continue;
     }
 
     const parsedBoolean = booleanValue(value);
     const rawValue = parsedBoolean ?? (/^-?\d+(\.\d+)?$/.test(value) ? numeric(value) : value);
-    next = { ...next, [key]: rawValue } as CadElement;
+    next = { ...next, [parameterKey]: rawValue } as CadElement;
   }
   return next;
 };
@@ -175,7 +239,10 @@ const applyStatement = (
     };
   }
 
-  return applyCommonAttributes(next, statement.attrs, index, statement.line, diagnostics, elementsForExpressions);
+  return withPlacementMode(
+    applyCommonAttributes(next, statement.attrs, index, statement.line, diagnostics, elementsForExpressions),
+    statement.attrs
+  );
 };
 
 export const compileDslToElements = (source: string, context: CompileDslContext): CompileDslResult => {
@@ -191,7 +258,8 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
   }
 
   const diagnostics: DslDiagnostic[] = [...parsed.diagnostics];
-  const existing = context.elements;
+  const documentMode = context.mode === "document";
+  const existing = documentMode ? [] : context.elements;
   const statementsWithIds = parsed.statements.map((statement) => {
     const type = statementType(statement);
     return {
@@ -227,7 +295,9 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
     }
   }
 
-  const insertionIndex = Math.min(Math.max(context.insertionIndex ?? existing.length, 0), existing.length);
+  const insertionIndex = documentMode
+    ? 0
+    : Math.min(Math.max(context.insertionIndex ?? existing.length, 0), existing.length);
   const updatedExisting = existing.map((element) => updates.get(element.id) ?? element);
   const elements = [
     ...updatedExisting.slice(0, insertionIndex),

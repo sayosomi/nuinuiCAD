@@ -22,6 +22,21 @@ const anchor = (value: PointAnchor | null | undefined) => {
 const endpoint = (value: LineEndpointReference) =>
   `${value.lineId}.${value.endpointKey}`;
 
+const intermediatePoints = (element: Extract<CadElement, { type: "bezierCurve" }>) =>
+  element.intermediatePoints.length === 0
+    ? []
+    : [
+        `intermediates=[${
+          element.intermediatePoints.map((point) => [
+            anchor(point.point),
+            numeric(point.handleAngleDeg),
+            numeric(point.incomingHandleLength),
+            numeric(point.outgoingHandleLength),
+            point.id
+          ].join(":")).join(";")
+        }]`
+      ];
+
 const baseAttrs = (element: CadElement, options: SerializeDslOptions) => [
   ...(options.includeIds === false ? [] : [`id=${element.id}`]),
   ...(element.visible ? [] : ["visible=false"]),
@@ -108,41 +123,66 @@ export const serializeElementsToDsl = (
         ...attrs
       ].join(" ");
     case "divisionPoint":
-      return elementLine(element, options, [
-        `startPoint=${anchor(element.startPoint)}`,
-        `endPoint=${anchor(element.endPoint)}`,
-        `placementMode=${element.placementMode}`,
-        `distance=${numeric(element.distance)}`,
-        `ratio=${numeric(element.ratio)}`
-      ]);
+      return [
+        "point",
+        element.name || element.id,
+        "=",
+        "between",
+        anchor(element.startPoint),
+        anchor(element.endPoint),
+        element.placementMode === "distance"
+          ? `distance=${numeric(element.distance)}`
+          : `ratio=${numeric(element.ratio)}`,
+        ...attrs
+      ].join(" ");
     case "lineDivisionPoint":
-      return elementLine(element, options, [
-        `endpoint=${endpoint(element.endpoint)}`,
-        `placementMode=${element.placementMode}`,
-        `distance=${numeric(element.distance)}`,
-        `ratio=${numeric(element.ratio)}`
-      ]);
+      return [
+        "point",
+        element.name || element.id,
+        "=",
+        "on",
+        endpoint(element.endpoint),
+        element.placementMode === "distance"
+          ? `distance=${numeric(element.distance)}`
+          : `ratio=${numeric(element.ratio)}`,
+        ...attrs
+      ].join(" ");
     case "intersectionPoint":
-      return elementLine(element, options, [
-        `line1Id=${element.line1Id}`,
-        `line2Id=${element.line2Id}`,
-        `intersectionIndex=${numeric(element.intersectionIndex)}`,
-        `useExtensions=${element.useExtensions}`
-      ]);
+      return [
+        "point",
+        element.name || element.id,
+        "=",
+        "intersection",
+        element.line1Id,
+        element.line2Id,
+        `index=${numeric(element.intersectionIndex)}`,
+        `extensions=${element.useExtensions}`,
+        ...attrs
+      ].join(" ");
     case "lineTangentOffsetPoint":
-      return elementLine(element, options, [
-        `baseLineId=${element.baseLineId}`,
-        `basePoint=${anchor(element.basePoint)}`,
-        `tangentAngleDeg=${numeric(element.tangentAngleDeg)}`,
-        `distance=${numeric(element.distance)}`
-      ]);
+      return [
+        "point",
+        element.name || element.id,
+        "=",
+        "tangentOffset",
+        element.baseLineId,
+        `base=${anchor(element.basePoint)}`,
+        `angle=${numeric(element.tangentAngleDeg)}`,
+        `distance=${numeric(element.distance)}`,
+        ...attrs
+      ].join(" ");
     case "cornerRadiusArcLine":
-      return elementLine(element, options, [
-        `endpoint1=${endpoint(element.endpoint1)}`,
-        `endpoint2=${endpoint(element.endpoint2)}`,
+      return [
+        "arc",
+        element.name || element.id,
+        "=",
+        "corner",
+        endpoint(element.endpoint1),
+        endpoint(element.endpoint2),
         `radius=${numeric(element.radius)}`,
-        `intersectionIndex=${numeric(element.intersectionIndex)}`
-      ]);
+        `index=${numeric(element.intersectionIndex)}`,
+        ...attrs
+      ].join(" ");
     case "edge":
       return elementLine(element, options, [
         `endpoint1=${endpoint(element.endpoint1)}`,
@@ -150,31 +190,52 @@ export const serializeElementsToDsl = (
         `intersectionIndex=${numeric(element.intersectionIndex)}`
       ]);
     case "extendTrim":
-      return elementLine(element, options, [
-        `endpoint=${endpoint(element.endpoint)}`,
-        `point=${anchor(element.point)}`
-      ]);
+      return [
+        "line",
+        element.name || element.id,
+        "=",
+        "extend",
+        endpoint(element.endpoint),
+        `to=${anchor(element.point)}`,
+        ...attrs
+      ].join(" ");
     case "bezierCurve":
-      return elementLine(element, options, [
-        `startPoint=${anchor(element.startPoint)}`,
-        `startHandleAngleDeg=${numeric(element.startHandleAngleDeg)}`,
-        `startHandleLength=${numeric(element.startHandleLength)}`,
-        `endPoint=${anchor(element.endPoint)}`,
-        `endHandleAngleDeg=${numeric(element.endHandleAngleDeg)}`,
-        `endHandleLength=${numeric(element.endHandleLength)}`
-      ]);
+      return [
+        "curve",
+        element.name || element.id,
+        "=",
+        anchor(element.startPoint),
+        "->",
+        anchor(element.endPoint),
+        `startAngle=${numeric(element.startHandleAngleDeg)}`,
+        `startLength=${numeric(element.startHandleLength)}`,
+        `endAngle=${numeric(element.endHandleAngleDeg)}`,
+        `endLength=${numeric(element.endHandleLength)}`,
+        ...intermediatePoints(element),
+        ...attrs
+      ].join(" ");
     case "offsetLine":
-      return elementLine(element, options, [
-        `baseLineIds=[${element.baseLineIds.join(",")}]`,
-        `offset=${numeric(element.offset)}`,
+      return [
+        "line",
+        element.name || element.id,
+        "=",
+        "offset",
+        `[${element.baseLineIds.join(",")}]`,
+        `distance=${numeric(element.offset)}`,
         `side=${element.side}`,
-        `closed=${element.closed}`
-      ]);
+        `closed=${element.closed}`,
+        ...attrs
+      ].join(" ");
     case "splitLine":
-      return elementLine(element, options, [
-        `baseLineId=${element.baseLineId}`,
-        `splitPoint=${anchor(element.splitPoint)}`
-      ]);
+      return [
+        "line",
+        element.name || element.id,
+        "=",
+        "split",
+        element.baseLineId,
+        `at=${anchor(element.splitPoint)}`,
+        ...attrs
+      ].join(" ");
     case "copyLine":
     case "move":
       return elementLine(element, options, [
@@ -193,13 +254,18 @@ export const serializeElementsToDsl = (
         `baseLineIds=[${element.baseLineIds.join(",")}]`
       ]);
     case "threePointArcLine":
-      return elementLine(element, options, [
-        `point1=${anchor(element.point1)}`,
-        `point2=${anchor(element.point2)}`,
-        `point3=${anchor(element.point3)}`,
-        `startAngleDeg=${numeric(element.startAngleDeg)}`,
-        `endAngleDeg=${numeric(element.endAngleDeg)}`
-      ]);
+      return [
+        "arc",
+        element.name || element.id,
+        "=",
+        "through",
+        anchor(element.point1),
+        anchor(element.point2),
+        anchor(element.point3),
+        `start=${numeric(element.startAngleDeg)}`,
+        `end=${numeric(element.endAngleDeg)}`,
+        ...attrs
+      ].join(" ");
     case "conditionalGroup":
       return elementLine(element, options, [
         `condition=${numeric(element.condition)}`,

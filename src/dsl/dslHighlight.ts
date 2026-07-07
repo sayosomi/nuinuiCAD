@@ -1,6 +1,26 @@
 import type { DslHighlightLine, DslHighlightToken, DslTokenKind } from "./dslTypes";
 
-const keywords = new Set(["arc", "element", "from", "group", "line", "offset", "point", "polar", "text", "var"]);
+const keywords = new Set([
+  "arc",
+  "between",
+  "corner",
+  "curve",
+  "element",
+  "extend",
+  "from",
+  "group",
+  "intersection",
+  "line",
+  "offset",
+  "on",
+  "point",
+  "polar",
+  "split",
+  "tangentOffset",
+  "text",
+  "through",
+  "var"
+]);
 
 const elementTypes = new Set([
   "angleLengthLine",

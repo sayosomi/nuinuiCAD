@@ -92,6 +92,21 @@ const attrsFromTerms = (terms: string[]) =>
 const attrValue = (attrs: DslAttribute[], key: string) =>
   attrs.find((attr) => attr.key === key)?.value;
 
+const attrItem = (key: string, value: string): DslAttribute => ({ key, value });
+
+const elementStatement = (
+  line: number,
+  name: string,
+  type: CadElementType,
+  attrs: DslAttribute[]
+): DslStatement => ({
+  kind: "element",
+  line,
+  name,
+  type,
+  attrs: [attrItem("type", type), ...attrs]
+});
+
 const commonAttrPattern = /^(id|name|visible|enabled|color|parent|branch)=/;
 
 const expressionAndAttrs = (source: string) => {
@@ -149,12 +164,55 @@ const parseLine = (rawLine: string, line: number): { statement?: DslStatement; d
     if (right[0] === "polar" && right[1]) {
       return { statement: { kind: "polarOffsetPoint", line, name, from: right[1], attrs }, diagnostics: [] };
     }
+    if (right[0] === "between" && right[1] && right[2]) {
+      return {
+        statement: elementStatement(line, name, "divisionPoint", [
+          attrItem("startPoint", right[1]),
+          attrItem("endPoint", right[2]),
+          ...attrs
+        ]),
+        diagnostics: []
+      };
+    }
+    if (right[0] === "on" && right[1]) {
+      return {
+        statement: elementStatement(line, name, "lineDivisionPoint", [
+          attrItem("endpoint", right[1]),
+          ...attrs
+        ]),
+        diagnostics: []
+      };
+    }
+    if (right[0] === "intersection" && right[1] && right[2]) {
+      return {
+        statement: elementStatement(line, name, "intersectionPoint", [
+          attrItem("line1Id", right[1]),
+          attrItem("line2Id", right[2]),
+          ...attrs
+        ]),
+        diagnostics: []
+      };
+    }
+    if (right[0] === "tangentOffset" && right[1]) {
+      const base = attrValue(attrs, "base") ?? attrValue(attrs, "basePoint");
+      return {
+        statement: elementStatement(line, name, "lineTangentOffsetPoint", [
+          attrItem("baseLineId", right[1]),
+          ...(base ? [attrItem("basePoint", base)] : []),
+          ...attrs.filter((attr) => attr.key !== "base")
+        ]),
+        diagnostics: []
+      };
+    }
     return { diagnostics: [diagnostic(line, "点は `(x, y)`, `offset 基準点`, `polar 基準点` のいずれかで指定してください。")] };
   }
 
   if (keyword === "line") {
     const arrowIndex = terms.indexOf("->");
     const attrs = attrsFromTerms(terms.slice(2));
+    const equalsIndex = terms.indexOf("=");
+    const right = equalsIndex >= 0 ? terms.slice(equalsIndex + 1) : terms.slice(2);
+    const rightAttrs = attrsFromTerms(right);
     if (arrowIndex > 2 && terms[arrowIndex + 1]) {
       return {
         statement: { kind: "line", line, name, start: terms[arrowIndex - 1], end: terms[arrowIndex + 1], attrs },
@@ -168,11 +226,86 @@ const parseLine = (rawLine: string, line: number): { statement?: DslStatement; d
         diagnostics: []
       };
     }
+    if (right[0] === "split" && right[1]) {
+      const at = attrValue(rightAttrs, "at") ?? attrValue(rightAttrs, "point") ?? right[2];
+      if (!at) return { diagnostics: [diagnostic(line, "分割線には `at=点` が必要です。")] };
+      return {
+        statement: elementStatement(line, name, "splitLine", [
+          attrItem("baseLineId", right[1]),
+          attrItem("splitPoint", at),
+          ...rightAttrs.filter((attr) => attr.key !== "at" && attr.key !== "point")
+        ]),
+        diagnostics: []
+      };
+    }
+    if (right[0] === "extend" && right[1]) {
+      const point = attrValue(rightAttrs, "to") ?? attrValue(rightAttrs, "point") ?? right[2];
+      if (!point) return { diagnostics: [diagnostic(line, "延長短縮線には `to=点` が必要です。")] };
+      return {
+        statement: elementStatement(line, name, "extendTrim", [
+          attrItem("endpoint", right[1]),
+          attrItem("point", point),
+          ...rightAttrs.filter((attr) => attr.key !== "to" && attr.key !== "point")
+        ]),
+        diagnostics: []
+      };
+    }
+    if (right[0] === "offset" && right[1]) {
+      const distance = attrValue(rightAttrs, "distance") ?? attrValue(rightAttrs, "offset") ?? "0";
+      return {
+        statement: elementStatement(line, name, "offsetLine", [
+          attrItem("baseLineIds", right[1]),
+          attrItem("offset", distance),
+          ...rightAttrs.filter((attr) => attr.key !== "distance" && attr.key !== "offset")
+        ]),
+        diagnostics: []
+      };
+    }
     return { diagnostics: [diagnostic(line, "線は `line L = A -> B` または `line L = from A angle=... length=...` で指定してください。")] };
+  }
+
+  if (keyword === "curve") {
+    const arrowIndex = terms.indexOf("->");
+    const attrs = attrsFromTerms(terms.slice(2));
+    if (arrowIndex > 2 && terms[arrowIndex + 1]) {
+      return {
+        statement: elementStatement(line, name, "bezierCurve", [
+          attrItem("startPoint", terms[arrowIndex - 1]),
+          attrItem("endPoint", terms[arrowIndex + 1]),
+          ...attrs
+        ]),
+        diagnostics: []
+      };
+    }
+    return { diagnostics: [diagnostic(line, "曲線は `curve C = A -> B ...` で指定してください。")] };
   }
 
   if (keyword === "arc") {
     const attrs = attrsFromTerms(terms.slice(2));
+    const equalsIndex = terms.indexOf("=");
+    const right = equalsIndex >= 0 ? terms.slice(equalsIndex + 1) : terms.slice(2);
+    const rightAttrs = attrsFromTerms(right);
+    if (right[0] === "through" && right[1] && right[2] && right[3]) {
+      return {
+        statement: elementStatement(line, name, "threePointArcLine", [
+          attrItem("point1", right[1]),
+          attrItem("point2", right[2]),
+          attrItem("point3", right[3]),
+          ...rightAttrs
+        ]),
+        diagnostics: []
+      };
+    }
+    if (right[0] === "corner" && right[1] && right[2]) {
+      return {
+        statement: elementStatement(line, name, "cornerRadiusArcLine", [
+          attrItem("endpoint1", right[1]),
+          attrItem("endpoint2", right[2]),
+          ...rightAttrs
+        ]),
+        diagnostics: []
+      };
+    }
     const center = attrValue(attrs, "center");
     if (!center) return { diagnostics: [diagnostic(line, "円弧には `center=点` が必要です。")] };
     return { statement: { kind: "arcLine", line, name, center, attrs }, diagnostics: [] };

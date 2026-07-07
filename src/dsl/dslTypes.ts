@@ -93,6 +93,7 @@ export type ParseDslResult = {
 export type CompileDslContext = {
   elements: CadElement[];
   insertionIndex?: number;
+  mode?: "edit" | "document";
   selectedElementIds?: ElementId[];
 };
 
