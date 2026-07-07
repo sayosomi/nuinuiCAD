@@ -14,6 +14,7 @@ import { keyChordEquals } from "../keyboard/shortcutChords";
 import { saveShortcutSettings } from "../keyboard/shortcutSettingsStorage";
 import type { KeyChord, ShortcutSettings } from "../keyboard/shortcuts";
 import { useCadUiStore } from "../state/cadUiStore";
+import { selectTextInputValue } from "./textInputSelection";
 
 const scopeLabels = {
   global: "全体",
@@ -67,6 +68,7 @@ const ShortcutSettingsDialogContent = ({
   const [searchChord, setSearchChord] = useState<KeyChord | null>(null);
   const [isRecordingSearchChord, setIsRecordingSearchChord] = useState(false);
   const [recordingBindingId, setRecordingBindingId] = useState<string | null>(null);
+  const queryInputRef = useRef<HTMLInputElement>(null);
   const saveQueueRef = useRef(Promise.resolve());
   const saveSequenceRef = useRef(0);
   const bindings = useMemo(() => effectiveShortcutBindings(draftSettings), [draftSettings]);
@@ -86,6 +88,13 @@ const ShortcutSettingsDialogContent = ({
     });
   }, [bindingById, query, searchChord]);
   const conflicts = useMemo(() => shortcutConflicts(draftSettings), [draftSettings]);
+
+  useEffect(() => {
+    requestAnimationFrame(() => {
+      queryInputRef.current?.focus();
+      selectTextInputValue(queryInputRef.current);
+    });
+  }, []);
 
   const persistSettings = useCallback((nextSettings: ShortcutSettings) => {
     const nextConflicts = shortcutConflicts(nextSettings);
@@ -211,6 +220,7 @@ const ShortcutSettingsDialogContent = ({
 
         <div className="shortcut-settings-toolbar">
           <input
+            ref={queryInputRef}
             value={query}
             placeholder="コマンドを検索"
             aria-label="ショートカット設定を検索"

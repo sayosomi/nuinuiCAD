@@ -38,6 +38,14 @@ beforeEach(() => {
 });
 
 describe("ShortcutSettingsDialog", () => {
+  it("focuses the command search field when opened", async () => {
+    render(<ShortcutSettingsDialog />);
+
+    await waitFor(() =>
+      expect(screen.getByLabelText("ショートカット設定を検索")).toHaveFocus()
+    );
+  });
+
   it("filters commands by recorded shortcut key", () => {
     render(<ShortcutSettingsDialog />);
 

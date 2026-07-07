@@ -4,6 +4,7 @@ import {
   filterCommandPaletteItems,
   type CommandContext
 } from "../commands/commands";
+import { effectiveShortcutBindings, keyChordListLabel } from "../keyboard/shortcuts";
 import { useCadUiStore } from "../state/cadUiStore";
 import { isImeComposingKeyEvent } from "./keyboardEventGuards";
 import { selectTextInputValue } from "./textInputSelection";
@@ -14,10 +15,26 @@ type CommandPaletteProps = {
 
 export const CommandPalette = ({ commandContext }: CommandPaletteProps) => {
   const showCommandPalette = useCadUiStore((state) => state.showCommandPalette);
+  const shortcutSettings = useCadUiStore((state) => state.shortcutSettings);
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const items = useMemo(() => filterCommandPaletteItems(query, commandContext), [query, commandContext]);
+  const shortcutLabelByCommandId = useMemo(() => {
+    const labelsByCommandId = new Map<string, Set<string>>();
+    for (const binding of effectiveShortcutBindings(shortcutSettings)) {
+      if (binding.chords.length === 0) continue;
+      const labels = labelsByCommandId.get(binding.commandId) ?? new Set<string>();
+      labels.add(keyChordListLabel(binding.chords));
+      labelsByCommandId.set(binding.commandId, labels);
+    }
+    return new Map(
+      [...labelsByCommandId.entries()].map(([commandId, labels]) => [
+        commandId,
+        [...labels].join(" / ")
+      ])
+    );
+  }, [shortcutSettings]);
   const clampedSelectedIndex = Math.min(selectedIndex, Math.max(items.length - 1, 0));
   const selectedItem = items[clampedSelectedIndex] ?? null;
 
@@ -95,23 +112,26 @@ export const CommandPalette = ({ commandContext }: CommandPaletteProps) => {
           {items.length === 0 ? (
             <p className="command-palette-empty">該当するコマンドはありません。</p>
           ) : (
-            items.map((item, index) => (
-              <button
-                key={item.commandId}
-                type="button"
-                className={`command-palette-item ${index === clampedSelectedIndex ? "selected" : ""}`}
-                role="option"
-                aria-selected={index === clampedSelectedIndex}
-                onMouseEnter={() => setSelectedIndex(index)}
-                onClick={() => {
-                  dispatchCommand(item.commandId, commandContext);
-                  dispatchCommand("closeCommandPalette");
-                }}
-              >
-                <span>{item.label}</span>
-                <kbd>{item.commandId}</kbd>
-              </button>
-            ))
+            items.map((item, index) => {
+              const shortcutLabel = shortcutLabelByCommandId.get(item.commandId);
+              return (
+                <button
+                  key={item.commandId}
+                  type="button"
+                  className={`command-palette-item ${index === clampedSelectedIndex ? "selected" : ""}`}
+                  role="option"
+                  aria-selected={index === clampedSelectedIndex}
+                  onMouseEnter={() => setSelectedIndex(index)}
+                  onClick={() => {
+                    dispatchCommand(item.commandId, commandContext);
+                    dispatchCommand("closeCommandPalette");
+                  }}
+                >
+                  <span>{item.label}</span>
+                  {shortcutLabel ? <kbd>{shortcutLabel}</kbd> : null}
+                </button>
+              );
+            })
           )}
         </div>
       </section>
