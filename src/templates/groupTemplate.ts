@@ -1,6 +1,5 @@
 import { isNumericExpression } from "../geometry/numericExpressions";
 import { tokenize, type Token } from "../geometry/numericExpressionParser";
-import { selectedIndexes } from "../model/documentSelection";
 import { getDirectParentIds } from "../model/dependencies";
 import { createCadElementId } from "../model/cadIds";
 import { remapElementReferences } from "../model/elementDuplication";
@@ -9,6 +8,7 @@ import { isGroupElement, subtreeIdsForElement } from "../model/groups";
 import { isLineLikeElement, isPointLikeElement } from "../commands/commandRuntime";
 import type {
   CadElement,
+  ConditionalBranch,
   ElementId,
   NumericValue,
   PointAnchor
@@ -238,12 +238,16 @@ export const instantiateGroupTemplate = ({
   elements,
   template,
   inputValues,
-  insertionIndex
+  insertionIndex,
+  parentGroupId,
+  conditionalBranch
 }: {
   elements: CadElement[];
   template: GroupTemplate;
   inputValues: TemplateInstantiationInputValues;
   insertionIndex?: number;
+  parentGroupId?: ElementId;
+  conditionalBranch?: ConditionalBranch;
 }): TemplateInstantiationChange => {
   const targetIndex = Math.min(Math.max(insertionIndex ?? elements.length, 0), elements.length);
   const idMap = new Map<ElementId, ElementId>();
@@ -282,16 +286,23 @@ export const instantiateGroupTemplate = ({
     const copiedId = idMap.get(original.id);
     if (!copiedId) continue;
     const baseName = original.name.trim() || fallbackElementName(original.type);
+    const mappedParentGroupId = original.parentGroupId ? idMap.get(original.parentGroupId) : undefined;
+    const isRoot = original.id === template.rootGroupId;
+    const nextParentGroupId = mappedParentGroupId ?? (isRoot ? parentGroupId : undefined);
+    const nextConditionalBranch = isRoot
+      ? conditionalBranch
+      : original.conditionalBranch;
     let copied = {
       ...structuredClone(original),
       id: copiedId,
-      parentGroupId: original.parentGroupId ? idMap.get(original.parentGroupId) : undefined,
+      parentGroupId: nextParentGroupId,
+      conditionalBranch: nextConditionalBranch,
       name: makeUniqueElementName({
         elements: [...elements, ...inserted],
         elementId: copiedId,
         requestedName: baseName,
         fallbackBaseName: fallbackElementName(original.type),
-        parentGroupId: original.parentGroupId ? idMap.get(original.parentGroupId) : undefined
+        parentGroupId: nextParentGroupId
       })
     } as CadElement;
     copied = applyPointInputAnchorReplacements(copied, pointInputReplacements);
@@ -322,10 +333,4 @@ export const instantiateGroupTemplate = ({
     insertionIndex: targetIndex,
     insertedCount: inserted.length
   };
-};
-
-export const insertionIndexAfterSelection = (elements: CadElement[], selectedIds: ElementId[]) => {
-  const ids = selectedIds.flatMap((id) => subtreeIdsForElement(elements, id));
-  const indexes = selectedIndexes(elements, ids);
-  return (indexes.at(-1) ?? elements.length - 1) + 1;
 };

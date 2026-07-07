@@ -294,4 +294,66 @@ describe("group templates", () => {
       endPoint: { mode: "derived", elementId: "bodice-line", pointKey: "end" }
     });
   });
+
+  it("places the inserted template root inside the target parent group", () => {
+    const template = createTemplateFromGroup({
+      elements,
+      groupId: "sleeve",
+      numericVariableElementIds: []
+    });
+    const change = instantiateGroupTemplate({
+      elements,
+      template,
+      inputValues: {
+        "point:bodice-point": "bodice-point",
+        "line:bodice-line": "bodice-line"
+      },
+      insertionIndex: elements.length,
+      parentGroupId: "outer"
+    });
+    const inserted = change.elements.slice(elements.length);
+    const insertedGroup = inserted.find((element) => element.type === "group");
+    const insertedChild = inserted.find((element) => element.type === "offsetPoint");
+
+    expect(insertedGroup).toMatchObject({
+      type: "group",
+      parentGroupId: "outer"
+    });
+    expect(insertedChild).toMatchObject({
+      type: "offsetPoint",
+      parentGroupId: insertedGroup?.id
+    });
+  });
+
+  it("places the inserted template root in the target conditional branch", () => {
+    const template = createTemplateFromGroup({
+      elements,
+      groupId: "sleeve",
+      numericVariableElementIds: []
+    });
+    const change = instantiateGroupTemplate({
+      elements,
+      template,
+      inputValues: {
+        "point:bodice-point": "bodice-point",
+        "line:bodice-line": "bodice-line"
+      },
+      insertionIndex: elements.length,
+      parentGroupId: "if",
+      conditionalBranch: "else"
+    });
+    const inserted = change.elements.slice(elements.length);
+    const insertedGroup = inserted.find((element) => element.type === "group");
+    const insertedChild = inserted.find((element) => element.type === "line");
+
+    expect(insertedGroup).toMatchObject({
+      type: "group",
+      parentGroupId: "if",
+      conditionalBranch: "else"
+    });
+    expect(insertedChild).toMatchObject({
+      type: "line",
+      parentGroupId: insertedGroup?.id
+    });
+  });
 });

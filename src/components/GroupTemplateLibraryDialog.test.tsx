@@ -97,9 +97,18 @@ describe("GroupTemplateLibraryDialog", () => {
   });
 
   it("shows insertion-focused template details and starts insertion", async () => {
+    const lastElement = sampleElements[sampleElements.length - 1];
+    useCadStore.setState({
+      evaluationLimitIndex: 2,
+      selectedElementId: lastElement.id,
+      selectedElementIds: [lastElement.id],
+      selectionAnchorElementId: lastElement.id
+    });
+
     render(<GroupTemplateLibraryDialog />);
 
     expect(await screen.findByRole("heading", { name: "テンプレートを挿入" })).toBeInTheDocument();
+    expect(screen.getByText(`${library.templates.length}件 / 挿入位置 3`)).toBeInTheDocument();
     expect(screen.getByText("袖テンプレート")).toBeInTheDocument();
     expect(screen.getByText("0要素 / 点1 / 線1 / 数値1")).toBeInTheDocument();
     expect(screen.getByText("基準点")).toBeInTheDocument();
@@ -111,6 +120,7 @@ describe("GroupTemplateLibraryDialog", () => {
     await waitFor(() => {
       expect(useCadStore.getState().activeTemplateInsertion?.template.id).toBe("template-sleeve");
     });
+    expect(useCadStore.getState().activeTemplateInsertion?.insertionIndex).toBe(2);
     expect(useCadStore.getState().showGroupTemplateLibrary).toBe(false);
   });
 

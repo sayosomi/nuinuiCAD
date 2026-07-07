@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { Download, Search, Upload } from "lucide-react";
 import { dispatchCommand } from "../commands/commands";
+import { creationPlacementForEvaluationLimit } from "../model/elementCreationPlacement";
 import { isGroupElement, subtreeIdsForElement } from "../model/groups";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
 import {
   candidateNumericTemplateInputs,
   createTemplateFromGroup,
-  insertionIndexAfterSelection,
   type GroupTemplate,
   type GroupTemplateLibrary
 } from "../templates/groupTemplate";
@@ -46,8 +46,8 @@ export const GroupTemplateLibraryDialog = () => {
   const showGroupTemplateLibrary = useCadUiStore((state) => state.showGroupTemplateLibrary);
   const groupTemplateLibraryMode = useCadUiStore((state) => state.groupTemplateLibraryMode);
   const elements = useCadDocumentStore((state) => state.elements);
+  const evaluationLimitIndex = useCadDocumentStore((state) => state.evaluationLimitIndex);
   const selectedElementId = useCadDocumentStore((state) => state.selectedElementId);
-  const selectedElementIds = useCadDocumentStore((state) => state.selectedElementIds);
   const [library, setLibrary] = useState<GroupTemplateLibrary>({ version: 1, templates: [] });
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [templateName, setTemplateName] = useState("");
@@ -56,7 +56,7 @@ export const GroupTemplateLibraryDialog = () => {
   const [status, setStatus] = useState<string | null>(null);
   const group = selectedGroup(elements, selectedElementId);
   const saveTemplateName = templateName.trim() || (group?.name ? `${group.name} テンプレート` : "");
-  const insertionIndex = insertionIndexAfterSelection(elements, selectedElementIds);
+  const insertionIndex = creationPlacementForEvaluationLimit(elements, evaluationLimitIndex).insertionIndex;
 
   const templateElements = useMemo(
     () => group ? elements.filter((element) => subtreeIdsForElement(elements, group.id).includes(element.id)) : [],

@@ -5,11 +5,14 @@ import {
   numericValueExpression,
   type NumericMeasurementKey
 } from "../geometry/numericExpressions";
+import {
+  creationPlacementForEvaluationLimit
+} from "../model/elementCreationPlacement";
 import { adjustEvaluationLimitForInsertion } from "../model/evaluationDivider";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
 import type { ElementId, NumericValue, PointAnchor } from "../types/geometry";
-import { instantiateGroupTemplate, insertionIndexAfterSelection, type GroupTemplate } from "./groupTemplate";
+import { instantiateGroupTemplate, type GroupTemplate } from "./groupTemplate";
 import {
   defaultTemplateInputValues,
   firstIncompleteTemplateInput,
@@ -79,13 +82,16 @@ export const startTemplateInsertion = ({ template, insertionIndex }: {
   template: GroupTemplate;
   insertionIndex?: number;
 }) => {
-  const { elements, selectedElementIds } = useCadDocumentStore.getState();
+  const { elements, evaluationLimitIndex } = useCadDocumentStore.getState();
+  const placement = creationPlacementForEvaluationLimit(elements, insertionIndex ?? evaluationLimitIndex);
   const inputValues = defaultTemplateInputValues(template);
   const insertion: ActiveTemplateInsertion = {
     template,
     inputValues,
     currentInputId: template.inputs[0]?.id ?? null,
-    insertionIndex: insertionIndex ?? insertionIndexAfterSelection(elements, selectedElementIds),
+    insertionIndex: placement.insertionIndex,
+    parentGroupId: placement.parentGroupId,
+    conditionalBranch: placement.conditionalBranch,
     error: null
   };
   useCadUiStore.setState({
@@ -262,7 +268,9 @@ export const confirmTemplateInsertion = () => {
       elements,
       template: insertion.template,
       inputValues: insertion.inputValues,
-      insertionIndex: insertion.insertionIndex
+      insertionIndex: insertion.insertionIndex,
+      parentGroupId: insertion.parentGroupId,
+      conditionalBranch: insertion.conditionalBranch
     });
     useCadDocumentStore.getState().commitDocumentChange({
       ...change,
