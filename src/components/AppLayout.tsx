@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, PointerEvent } from "react";
 import { dispatchCommand } from "../commands/commands";
 import { loadCommandRibbonSettings } from "../commandRibbons/commandRibbonSettings";
@@ -15,21 +15,57 @@ import {
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
 import { CommandPalette } from "./CommandPalette";
-import { CommandRibbonSettingsDialog } from "./CommandRibbonSettingsDialog";
-import { DslPanel } from "./DslPanel";
 import { DrawingCanvas } from "./DrawingCanvas";
-import { GroupTemplateLibraryDialog } from "./GroupTemplateLibraryDialog";
-import { ImageImportDialog } from "./ImageImportDialog";
 import { LeftPanel, RightPanel } from "./LeftPanel";
-import { PaletteSettingsDialog } from "./PalettePanel";
-import { PrintLayoutCanvas, PrintLayoutPanel } from "./PrintLayoutView";
-import { PrintLayoutPreviewWindow } from "./PrintLayoutPreviewWindow";
-import { SelectionColorPickerDialog } from "./SelectionColorPickerDialog";
 import { ShortcutHelpOverlay } from "./ShortcutHelpOverlay";
-import { ShortcutSettingsDialog } from "./ShortcutSettingsDialog";
-import { TemplateInsertionPanel } from "./TemplateInsertionPanel";
 import { registerTauriMenuCommandListener } from "../commands/tauriMenuEvents";
 import { selectTextInputValue } from "./textInputSelection";
+
+const DslPanel = lazy(() =>
+  import("./DslPanel").then((module) => ({ default: module.DslPanel }))
+);
+const GroupTemplateLibraryDialog = lazy(() =>
+  import("./GroupTemplateLibraryDialog").then((module) => ({
+    default: module.GroupTemplateLibraryDialog
+  }))
+);
+const ImageImportDialog = lazy(() =>
+  import("./ImageImportDialog").then((module) => ({ default: module.ImageImportDialog }))
+);
+const PaletteSettingsDialog = lazy(() =>
+  import("./PalettePanel").then((module) => ({ default: module.PaletteSettingsDialog }))
+);
+const PrintLayoutCanvas = lazy(() =>
+  import("./PrintLayoutView").then((module) => ({ default: module.PrintLayoutCanvas }))
+);
+const PrintLayoutPanel = lazy(() =>
+  import("./PrintLayoutView").then((module) => ({ default: module.PrintLayoutPanel }))
+);
+const PrintLayoutPreviewWindow = lazy(() =>
+  import("./PrintLayoutPreviewWindow").then((module) => ({
+    default: module.PrintLayoutPreviewWindow
+  }))
+);
+const ShortcutSettingsDialog = lazy(() =>
+  import("./ShortcutSettingsDialog").then((module) => ({
+    default: module.ShortcutSettingsDialog
+  }))
+);
+const CommandRibbonSettingsDialog = lazy(() =>
+  import("./CommandRibbonSettingsDialog").then((module) => ({
+    default: module.CommandRibbonSettingsDialog
+  }))
+);
+const SelectionColorPickerDialog = lazy(() =>
+  import("./SelectionColorPickerDialog").then((module) => ({
+    default: module.SelectionColorPickerDialog
+  }))
+);
+const TemplateInsertionPanel = lazy(() =>
+  import("./TemplateInsertionPanel").then((module) => ({
+    default: module.TemplateInsertionPanel
+  }))
+);
 
 const saveLeftPanelWidth = (leftPanelWidth: number) => {
   void loadLayoutSettings()
@@ -48,6 +84,13 @@ export const AppLayout = () => {
   const showPrintLayout = useCadUiStore((state) => state.showPrintLayout);
   const showPrintPreviewWindow = useCadUiStore((state) => state.showPrintPreviewWindow);
   const showDslPanel = useCadUiStore((state) => state.showDslPanel);
+  const showPaletteSettings = useCadUiStore((state) => state.showPaletteSettings);
+  const showGroupTemplateLibrary = useCadUiStore((state) => state.showGroupTemplateLibrary);
+  const showShortcutSettings = useCadUiStore((state) => state.showShortcutSettings);
+  const showCommandRibbonSettings = useCadUiStore((state) => state.showCommandRibbonSettings);
+  const showSelectionColorPicker = useCadUiStore((state) => state.showSelectionColorPicker);
+  const pendingImageImport = useCadUiStore((state) => state.pendingImageImport);
+  const imageImportError = useCadUiStore((state) => state.imageImportError);
   const setPrintPreviewWindow = useCadUiStore((state) => state.setPrintPreviewWindow);
   const setDslPanelWindow = useCadUiStore((state) => state.setDslPanelWindow);
   const activeTemplateInsertion = useCadUiStore((state) => state.activeTemplateInsertion);
@@ -336,10 +379,10 @@ export const AppLayout = () => {
         }}
       />
       {showPrintLayout ? (
-        <>
+        <Suspense fallback={null}>
           <PrintLayoutCanvas evaluation={evaluation} canvasFocusRef={canvasFocusRef} />
           <PrintLayoutPanel evaluation={evaluation} />
-        </>
+        </Suspense>
       ) : (
         <>
           <div className="canvas-workspace" ref={canvasWorkspaceRef}>
@@ -351,10 +394,12 @@ export const AppLayout = () => {
               leftPanelDockRef={commandRibbonDockRef}
             />
             {showPrintPreviewWindow ? (
-              <PrintLayoutPreviewWindow
-                evaluation={evaluation}
-                workspaceRef={canvasWorkspaceRef}
-              />
+              <Suspense fallback={null}>
+                <PrintLayoutPreviewWindow
+                  evaluation={evaluation}
+                  workspaceRef={canvasWorkspaceRef}
+                />
+              </Suspense>
             ) : null}
           </div>
           <RightPanel
@@ -367,19 +412,51 @@ export const AppLayout = () => {
         </>
       )}
       <CommandPalette commandContext={commandContext} />
-      {activeTemplateInsertion ? <TemplateInsertionPanel /> : null}
-      {showDslPanel ? <DslPanel /> : null}
+      {activeTemplateInsertion ? (
+        <Suspense fallback={null}>
+          <TemplateInsertionPanel />
+        </Suspense>
+      ) : null}
+      {showDslPanel ? (
+        <Suspense fallback={null}>
+          <DslPanel />
+        </Suspense>
+      ) : null}
       <ShortcutHelpOverlay
         isParameterEditMode={isParameterEditMode}
         isDependencyJumpMode={isDependencyJumpMode}
         isPickMode={isPickMode}
       />
-      <PaletteSettingsDialog />
-      <GroupTemplateLibraryDialog />
-      <SelectionColorPickerDialog />
-      <ImageImportDialog />
-      <ShortcutSettingsDialog />
-      <CommandRibbonSettingsDialog />
+      {showPaletteSettings ? (
+        <Suspense fallback={null}>
+          <PaletteSettingsDialog />
+        </Suspense>
+      ) : null}
+      {showGroupTemplateLibrary ? (
+        <Suspense fallback={null}>
+          <GroupTemplateLibraryDialog />
+        </Suspense>
+      ) : null}
+      {showSelectionColorPicker ? (
+        <Suspense fallback={null}>
+          <SelectionColorPickerDialog />
+        </Suspense>
+      ) : null}
+      {pendingImageImport || imageImportError ? (
+        <Suspense fallback={null}>
+          <ImageImportDialog />
+        </Suspense>
+      ) : null}
+      {showShortcutSettings ? (
+        <Suspense fallback={null}>
+          <ShortcutSettingsDialog />
+        </Suspense>
+      ) : null}
+      {showCommandRibbonSettings ? (
+        <Suspense fallback={null}>
+          <CommandRibbonSettingsDialog />
+        </Suspense>
+      ) : null}
     </main>
   );
 };

@@ -273,10 +273,10 @@ describe("AppLayout left panel resizing", () => {
 
     fireEvent.click(within(controls).getByRole("button", { name: "印刷" }));
 
-    const preview = view.getByLabelText("印刷プレビュー");
+    const preview = await view.findByLabelText("印刷プレビュー");
     expect(preview).toBeInTheDocument();
 
-    const zoomInButton = view.getByRole("button", { name: "印刷プレビューを拡大" });
+    const zoomInButton = await view.findByRole("button", { name: "印刷プレビューを拡大" });
     fireEvent.pointerDown(zoomInButton, { button: 0, pointerId: 4, clientX: 24, clientY: 24 });
     fireEvent.click(zoomInButton);
     expect(useCadStore.getState().printPreviewWindow.zoom).toBeGreaterThan(
@@ -325,7 +325,7 @@ describe("AppLayout left panel resizing", () => {
     const view = render(<AppLayout />);
     fireEvent.click(within(view.getByLabelText("キャンバス表示設定")).getByRole("button", { name: "印刷" }));
 
-    expect(view.getByLabelText("印刷プレビュー")).toBeInTheDocument();
+    expect(await view.findByLabelText("印刷プレビュー")).toBeInTheDocument();
     expect(view.getByText("印刷レイアウトはありません。")).toBeInTheDocument();
     expect(view.getByLabelText("プレビューする印刷レイアウト")).toBeDisabled();
     await waitFor(() =>
@@ -340,17 +340,27 @@ describe("AppLayout left panel resizing", () => {
     useCadStore.setState({
       printLayouts: [{ ...DEFAULT_PRINT_LAYOUT }, activeLayout],
       activePrintLayoutId: activeLayout.id,
-      printLayout: activeLayout,
-      printPreviewWindow: {
-        ...DEFAULT_PRINT_PREVIEW_WINDOW,
-        layoutId: "deleted-layout"
-      }
+      printLayout: activeLayout
     });
+    window.localStorage.setItem(
+      "nuinuiCAD.layoutSettings.v1",
+      JSON.stringify({
+        version: 1,
+        leftPanelWidth: 320,
+        printPreviewWindow: {
+          ...DEFAULT_PRINT_PREVIEW_WINDOW,
+          layoutId: "deleted-layout"
+        }
+      })
+    );
 
     const view = render(<AppLayout />);
+    await waitFor(() =>
+      expect(useCadStore.getState().printPreviewWindow.layoutId).toBe("deleted-layout")
+    );
     fireEvent.click(within(view.getByLabelText("キャンバス表示設定")).getByRole("button", { name: "印刷" }));
 
-    expect(view.getByLabelText("身頃の印刷プレビュー")).toBeInTheDocument();
+    expect(await view.findByLabelText("身頃の印刷プレビュー")).toBeInTheDocument();
     await waitFor(() =>
       expect(useCadStore.getState().printPreviewWindow.layoutId).toBe(activeLayout.id)
     );
@@ -376,7 +386,7 @@ describe("AppLayout left panel resizing", () => {
 
     const view = render(<AppLayout />);
     fireEvent.click(within(view.getByLabelText("キャンバス表示設定")).getByRole("button", { name: "印刷" }));
-    expect(view.getByLabelText("前身頃の印刷プレビュー")).toBeInTheDocument();
+    expect(await view.findByLabelText("前身頃の印刷プレビュー")).toBeInTheDocument();
 
     act(() => {
       useCadStore.setState({
@@ -384,7 +394,7 @@ describe("AppLayout left panel resizing", () => {
         printLayout: secondLayout
       });
     });
-    expect(view.getByLabelText("袖の印刷プレビュー")).toBeInTheDocument();
+    await waitFor(() => expect(view.getByLabelText("袖の印刷プレビュー")).toBeInTheDocument());
 
     fireEvent.change(view.getByLabelText("プレビューする印刷レイアウト"), {
       target: { value: firstLayout.id }
@@ -403,7 +413,7 @@ describe("AppLayout left panel resizing", () => {
     fireEvent.click(within(view.getByLabelText("キャンバス表示設定")).getByRole("button", { name: "印刷" }));
 
     const initialWindow = useCadStore.getState().printPreviewWindow;
-    const zoomOutButton = view.getByRole("button", { name: "印刷プレビューを縮小" });
+    const zoomOutButton = await view.findByRole("button", { name: "印刷プレビューを縮小" });
     fireEvent.pointerDown(zoomOutButton, { button: 0, pointerId: 5, clientX: 20, clientY: 20 });
     fireEvent.pointerMove(view.getByLabelText("プレビューする印刷レイアウト").closest(".print-preview-titlebar") as HTMLElement, {
       pointerId: 5,
