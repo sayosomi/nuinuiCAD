@@ -1,7 +1,11 @@
 use serde_json::{json, Value};
 use std::collections::HashMap;
 
-use super::bezier_path::{approximate_segment_length, cubic_point_at};
+use super::bezier_math::{
+    cubic_point, distance, interpolate, refine_bezier_projection, split_bezier_like, value_point,
+    Point,
+};
+use super::bezier_path::approximate_segment_length;
 use super::errors::{dependency_error, geometry_error};
 use super::math::{arc_tangent_angles, normalize_degrees};
 use super::point_anchor::{anchor_reference_element_id, computed_point, point_anchor_or_error};
@@ -12,12 +16,6 @@ use super::types::{
 const TOLERANCE_MM: f64 = 0.001;
 const EPSILON: f64 = 1e-9;
 const CURVE_STEPS: usize = 32;
-
-#[derive(Clone, Copy)]
-struct Point {
-    x: f64,
-    y: f64,
-}
 
 struct Projection {
     raw_t: f64,
@@ -34,11 +32,6 @@ struct SampleHit {
     point: Point,
 }
 
-struct BezierProjection {
-    local_t: f64,
-    distance_from_line: f64,
-}
-
 struct SplitResult {
     near: Value,
     far: Value,
@@ -50,13 +43,6 @@ enum SplitGeometryResult {
     NotOnLine,
 }
 
-fn value_point(value: &Value) -> Option<Point> {
-    Some(Point {
-        x: value.get("x")?.as_f64()?,
-        y: value.get("y")?.as_f64()?,
-    })
-}
-
 fn split_point_value(split_point: &ComputedPoint, point: Point) -> Value {
     computed_point(
         split_point.element_id.clone(),
@@ -64,17 +50,6 @@ fn split_point_value(split_point: &ComputedPoint, point: Point) -> Value {
         point.x,
         point.y,
     )
-}
-
-fn distance(a: Point, b: Point) -> f64 {
-    (b.x - a.x).hypot(b.y - a.y)
-}
-
-fn interpolate(start: Point, end: Point, t: f64) -> Point {
-    Point {
-        x: start.x + (end.x - start.x) * t,
-        y: start.y + (end.y - start.y) * t,
-    }
 }
 
 fn angle_from_to(start: Point, end: Point) -> Value {
@@ -321,104 +296,6 @@ fn split_arc_geometry(
             sweep_angle_deg - progress,
         ),
     })
-}
-
-fn cubic_point(segment: &Value, t: f64) -> Option<Point> {
-    cubic_point_at(segment, t).map(|point| Point {
-        x: point.x,
-        y: point.y,
-    })
-}
-
-fn cubic_derivative(segment: &Value, t: f64) -> Option<Point> {
-    let start = segment.get("start").and_then(value_point)?;
-    let control1 = segment.get("control1").and_then(value_point)?;
-    let control2 = segment.get("control2").and_then(value_point)?;
-    let end = segment.get("end").and_then(value_point)?;
-    let inverse = 1.0 - t;
-    Some(Point {
-        x: 3.0 * inverse * inverse * (control1.x - start.x)
-            + 6.0 * inverse * t * (control2.x - control1.x)
-            + 3.0 * t * t * (end.x - control2.x),
-        y: 3.0 * inverse * inverse * (control1.y - start.y)
-            + 6.0 * inverse * t * (control2.y - control1.y)
-            + 3.0 * t * t * (end.y - control2.y),
-    })
-}
-
-fn cubic_second_derivative(segment: &Value, t: f64) -> Option<Point> {
-    let start = segment.get("start").and_then(value_point)?;
-    let control1 = segment.get("control1").and_then(value_point)?;
-    let control2 = segment.get("control2").and_then(value_point)?;
-    let end = segment.get("end").and_then(value_point)?;
-    Some(Point {
-        x: 6.0 * (1.0 - t) * (control2.x - 2.0 * control1.x + start.x)
-            + 6.0 * t * (end.x - 2.0 * control2.x + control1.x),
-        y: 6.0 * (1.0 - t) * (control2.y - 2.0 * control1.y + start.y)
-            + 6.0 * t * (end.y - 2.0 * control2.y + control1.y),
-    })
-}
-
-fn dot(a: Point, b: Point) -> f64 {
-    a.x * b.x + a.y * b.y
-}
-
-fn refine_bezier_projection(
-    segment: &Value,
-    point: Point,
-    initial_t: f64,
-) -> Option<BezierProjection> {
-    let mut t = initial_t.clamp(0.0, 1.0);
-    for _ in 0..20 {
-        let current = cubic_point(segment, t)?;
-        let first = cubic_derivative(segment, t)?;
-        let second = cubic_second_derivative(segment, t)?;
-        let residual = Point {
-            x: current.x - point.x,
-            y: current.y - point.y,
-        };
-        let denominator = dot(first, first) + dot(residual, second);
-        if denominator.abs() <= EPSILON {
-            break;
-        }
-
-        let next_t = (t - dot(residual, first) / denominator).clamp(0.0, 1.0);
-        if (next_t - t).abs() <= EPSILON {
-            t = next_t;
-            break;
-        }
-        t = next_t;
-    }
-
-    let projected = cubic_point(segment, t)?;
-    Some(BezierProjection {
-        local_t: t,
-        distance_from_line: distance(point, projected),
-    })
-}
-
-fn split_bezier_like(segment: &Value, t: f64) -> Option<(Point, Value, Value)> {
-    let start = segment.get("start").and_then(value_point)?;
-    let control1 = segment.get("control1").and_then(value_point)?;
-    let control2 = segment.get("control2").and_then(value_point)?;
-    let end = segment.get("end").and_then(value_point)?;
-    let p01 = interpolate(start, control1, t);
-    let p12 = interpolate(control1, control2, t);
-    let p23 = interpolate(control2, end, t);
-    let p012 = interpolate(p01, p12, t);
-    let p123 = interpolate(p12, p23, t);
-    let p0123 = interpolate(p012, p123, t);
-    Some((
-        p0123,
-        json!({
-            "control1": { "x": p01.x, "y": p01.y },
-            "control2": { "x": p012.x, "y": p012.y }
-        }),
-        json!({
-            "control1": { "x": p123.x, "y": p123.y },
-            "control2": { "x": p23.x, "y": p23.y }
-        }),
-    ))
 }
 
 struct SampleSegment {

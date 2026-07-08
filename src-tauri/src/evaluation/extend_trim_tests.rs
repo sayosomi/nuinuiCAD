@@ -151,6 +151,155 @@ fn extend_trim_moves_bezier_endpoint_on_tangent() {
 }
 
 #[test]
+fn extend_trim_shortens_bezier_to_division_point_on_body() {
+    let result = evaluate_document_input(EvaluationInput {
+        elements: vec![
+            free_point("start", "始点", 0.0, 0.0),
+            free_point("end", "終点", 100.0, 0.0),
+            arch_curve("curve", "曲線", "start", "end"),
+            element(json!({
+                "id": "division",
+                "name": "線上分点",
+                "type": "lineDivisionPoint",
+                "visible": true,
+                "enabled": true,
+                "endpoint": { "lineId": "curve", "endpointKey": "start" },
+                "placementMode": "distance",
+                "distance": 40,
+                "ratio": 0.5
+            })),
+            element(json!({
+                "id": "extend",
+                "name": "延長短縮",
+                "type": "extendTrim",
+                "visible": true,
+                "enabled": true,
+                "endpoint": { "lineId": "curve", "endpointKey": "end" },
+                "point": { "mode": "reference", "pointId": "division" }
+            })),
+        ],
+        evaluation_limit_index: None,
+    });
+
+    assert!(result.errors.is_empty());
+    let division = geometry(&result, "division");
+    let curve = geometry(&result, "curve");
+    let segments = curve["segments"].as_array().unwrap();
+    let moved_end = &segments.last().unwrap()["end"];
+    // The division point is on the analytic curve, so the endpoint lands on it exactly.
+    assert_close(
+        moved_end["x"].as_f64().unwrap(),
+        division["x"].as_f64().unwrap(),
+    );
+    assert_close(
+        moved_end["y"].as_f64().unwrap(),
+        division["y"].as_f64().unwrap(),
+    );
+    assert_close(segments[0]["start"]["x"].as_f64().unwrap(), 0.0);
+    assert!(curve["length"].as_f64().unwrap() < 100.0);
+}
+
+#[test]
+fn extend_trim_shortens_bezier_to_intersection_point_on_body() {
+    let result = evaluate_document_input(EvaluationInput {
+        elements: vec![
+            free_point("start", "始点", 0.0, 0.0),
+            free_point("end", "終点", 100.0, 0.0),
+            free_point("c", "C", 70.0, -50.0),
+            free_point("d", "D", 70.0, 50.0),
+            arch_curve("curve", "曲線", "start", "end"),
+            line("vline", "縦線", "c", "d"),
+            element(json!({
+                "id": "intersection",
+                "name": "交点",
+                "type": "intersectionPoint",
+                "visible": true,
+                "enabled": true,
+                "line1Id": "vline",
+                "line2Id": "curve",
+                "intersectionIndex": 0,
+                "useExtensions": false
+            })),
+            element(json!({
+                "id": "extend",
+                "name": "延長短縮",
+                "type": "extendTrim",
+                "visible": true,
+                "enabled": true,
+                "endpoint": { "lineId": "curve", "endpointKey": "end" },
+                "point": { "mode": "reference", "pointId": "intersection" }
+            })),
+        ],
+        evaluation_limit_index: None,
+    });
+
+    assert!(result.errors.is_empty());
+    let intersection = geometry(&result, "intersection");
+    let curve = geometry(&result, "curve");
+    let moved_end = &curve["segments"].as_array().unwrap().last().unwrap()["end"];
+    assert_close(
+        moved_end["x"].as_f64().unwrap(),
+        intersection["x"].as_f64().unwrap(),
+    );
+    assert_close(
+        moved_end["y"].as_f64().unwrap(),
+        intersection["y"].as_f64().unwrap(),
+    );
+}
+
+#[test]
+fn extend_trim_shortens_arc_to_division_point_on_circle() {
+    let result = evaluate_document_input(EvaluationInput {
+        elements: vec![
+            free_point("center", "中心", 0.0, 0.0),
+            element(json!({
+                "id": "arc",
+                "name": "円弧",
+                "type": "arcLine",
+                "visible": true,
+                "enabled": true,
+                "centerPoint": { "mode": "reference", "pointId": "center" },
+                "radius": 10,
+                "startAngleDeg": 0,
+                "endAngleDeg": 90
+            })),
+            element(json!({
+                "id": "division",
+                "name": "線上分点",
+                "type": "lineDivisionPoint",
+                "visible": true,
+                "enabled": true,
+                "endpoint": { "lineId": "arc", "endpointKey": "start" },
+                "placementMode": "distance",
+                "distance": 5,
+                "ratio": 0.5
+            })),
+            element(json!({
+                "id": "extend",
+                "name": "延長短縮",
+                "type": "extendTrim",
+                "visible": true,
+                "enabled": true,
+                "endpoint": { "lineId": "arc", "endpointKey": "end" },
+                "point": { "mode": "reference", "pointId": "division" }
+            })),
+        ],
+        evaluation_limit_index: None,
+    });
+
+    assert!(result.errors.is_empty());
+    let division = geometry(&result, "division");
+    let dx = division["x"].as_f64().unwrap();
+    let dy = division["y"].as_f64().unwrap();
+    // The division point lies exactly on the circle (radius 10), not on a chord.
+    assert_close((dx * dx + dy * dy).sqrt(), 10.0);
+    // The arc end is trimmed onto it.
+    let arc = geometry(&result, "arc");
+    assert_close(arc["end"]["x"].as_f64().unwrap(), dx);
+    assert_close(arc["end"]["y"].as_f64().unwrap(), dy);
+}
+
+#[test]
 fn extend_trim_moves_open_offset_line_and_rejects_closed_offset_line() {
     let result = evaluate_document_input(EvaluationInput {
         elements: vec![

@@ -1,5 +1,6 @@
 use serde_json::Value;
 
+use super::bezier_math::{cubic_derivative, project_point_onto_curve, Point as BezierPoint};
 use super::bezier_path;
 use super::math::{normalize_degrees, CIRCLE_EPSILON};
 
@@ -259,6 +260,38 @@ fn segments_for_geometry(geometry: &Value) -> Option<Vec<PathSegment>> {
     }
 }
 
+// Move a point located by the 32-step arc-length walk onto the *true* geometry:
+// the analytic cubic for Béziers, the exact circle for arcs. Lines and offset
+// polylines are their own geometry, so they are returned unchanged.
+fn snap_onto_geometry(geometry: &Value, point: PathPoint) -> Option<PathPoint> {
+    match geometry.get("kind").and_then(Value::as_str)? {
+        "bezierCurve" => {
+            let segments = geometry.get("segments")?.as_array()?;
+            let projection = project_point_onto_curve(
+                segments,
+                BezierPoint {
+                    x: point.x,
+                    y: point.y,
+                },
+            )?;
+            Some(PathPoint {
+                x: projection.point.x,
+                y: projection.point.y,
+            })
+        }
+        "arcLine" => {
+            let center = geometry.get("center").and_then(value_point)?;
+            let radius = geometry.get("radius")?.as_f64()?.max(0.0);
+            let direction = unit_vector(center, point)?;
+            Some(PathPoint {
+                x: center.x + direction.x * radius,
+                y: center.y + direction.y * radius,
+            })
+        }
+        _ => None,
+    }
+}
+
 pub(crate) fn geometry_length(geometry: &Value) -> Option<f64> {
     geometry.get("length")?.as_f64()
 }
@@ -292,31 +325,38 @@ pub(crate) fn point_at_distance_from_endpoint(
     let start_direction = unit_vector(segments.first()?.start, segments.first()?.end)?;
     let end_direction = unit_vector(segments.last()?.start, segments.last()?.end)?;
 
-    let point = if distance_from_endpoint < 0.0 {
-        extend_from(start_point, start_direction, distance_from_endpoint)
-    } else if distance_from_endpoint > total_length {
-        extend_from(
+    // Beyond either endpoint the point extends straight along the endpoint
+    // tangent — intentionally off-curve, so no snapping.
+    if distance_from_endpoint < 0.0 {
+        let point = extend_from(start_point, start_direction, distance_from_endpoint);
+        return Some((point.x, point.y));
+    }
+    if distance_from_endpoint > total_length {
+        let point = extend_from(
             end_point,
             end_direction,
             distance_from_endpoint - total_length,
-        )
-    } else {
-        let mut remaining = distance_from_endpoint;
-        for segment in &segments {
-            if remaining <= segment.length {
-                let t = if segment.length <= CIRCLE_EPSILON {
-                    0.0
-                } else {
-                    remaining / segment.length
-                };
-                let point = interpolate(segment.start, segment.end, t);
-                return Some((point.x, point.y));
-            }
-            remaining -= segment.length;
-        }
-        end_point
-    };
+        );
+        return Some((point.x, point.y));
+    }
 
+    let mut remaining = distance_from_endpoint;
+    let mut chord_point = end_point;
+    for segment in &segments {
+        if remaining <= segment.length {
+            let t = if segment.length <= CIRCLE_EPSILON {
+                0.0
+            } else {
+                remaining / segment.length
+            };
+            chord_point = interpolate(segment.start, segment.end, t);
+            break;
+        }
+        remaining -= segment.length;
+    }
+
+    // Place the in-range point on the true geometry, not the sampled chord.
+    let point = snap_onto_geometry(geometry, chord_point).unwrap_or(chord_point);
     Some((point.x, point.y))
 }
 
@@ -331,6 +371,50 @@ pub(crate) fn tangent_at_point_on_geometry(
     };
     if let Some(tangent) = bezier_endpoint_tangent_on_geometry(geometry, point, tolerance) {
         return Some(tangent);
+    }
+
+    // Analytic tangent on the true geometry for Béziers and arcs.
+    match geometry.get("kind").and_then(Value::as_str) {
+        Some("bezierCurve") => {
+            let segments = geometry.get("segments")?.as_array()?;
+            let projection = project_point_onto_curve(
+                segments,
+                BezierPoint {
+                    x: point.x,
+                    y: point.y,
+                },
+            )?;
+            if projection.distance > tolerance {
+                return None;
+            }
+            let derivative =
+                cubic_derivative(&segments[projection.segment_index], projection.local_t)?;
+            return Some((
+                angle_from_direction(PathPoint {
+                    x: derivative.x,
+                    y: derivative.y,
+                }),
+                projection.distance,
+            ));
+        }
+        Some("arcLine") => {
+            let center = geometry.get("center").and_then(value_point)?;
+            let radius = geometry.get("radius")?.as_f64()?.max(0.0);
+            let sweep_angle_deg = geometry.get("sweepAngleDeg")?.as_f64()?;
+            let radial = unit_vector(center, point)?;
+            let distance_from_line = (distance(center, point) - radius).abs();
+            if distance_from_line > tolerance {
+                return None;
+            }
+            // Forward tangent = radial rotated 90° in the sweep direction.
+            let sign = if sweep_angle_deg >= 0.0 { 1.0 } else { -1.0 };
+            let tangent = PathPoint {
+                x: -radial.y * sign,
+                y: radial.x * sign,
+            };
+            return Some((angle_from_direction(tangent), distance_from_line));
+        }
+        _ => {}
     }
 
     let segments = segments_for_geometry(geometry)?;

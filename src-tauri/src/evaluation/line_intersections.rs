@@ -1,5 +1,6 @@
 use serde_json::Value;
 
+use super::bezier_math::cubic_derivative as bm_cubic_derivative;
 use super::bezier_path::{self, cubic_point_at};
 
 const ARC_STEPS: f64 = 64.0;
@@ -7,6 +8,7 @@ const CURVE_STEPS: usize = 64;
 const EXTENSION_LENGTH: f64 = 1_000_000.0;
 const EPSILON: f64 = 1e-9;
 const DEDUPE_EPSILON: f64 = 1e-5;
+const BEZIER_INTERSECTION_TOLERANCE: f64 = 1e-6;
 
 #[derive(Clone, Copy)]
 struct Point {
@@ -514,6 +516,69 @@ fn cubic_point(segment: &Value, t: f64) -> Option<Point> {
     })
 }
 
+fn cubic_derivative(segment: &Value, t: f64) -> Option<Point> {
+    bm_cubic_derivative(segment, t).map(|point| Point {
+        x: point.x,
+        y: point.y,
+    })
+}
+
+// Refine a Bézier↔Bézier crossing with 2D Newton solving A(t) = B(u), seeded
+// from the rough polyline crossing. Returns None when it cannot converge
+// (e.g. near-tangent curves), leaving the rough crossing in place.
+fn refine_bezier_bezier_intersection(
+    a: &IntersectionSegment,
+    b: &IntersectionSegment,
+) -> Option<(Point, f64, f64)> {
+    let SegmentPrimitive::Bezier {
+        segment: seg_a,
+        t_start: a_start,
+        t_end: a_end,
+    } = &a.primitive
+    else {
+        return None;
+    };
+    let SegmentPrimitive::Bezier {
+        segment: seg_b,
+        t_start: b_start,
+        t_end: b_end,
+    } = &b.primitive
+    else {
+        return None;
+    };
+
+    let mut t_a = (a_start + a_end) / 2.0;
+    let mut t_b = (b_start + b_end) / 2.0;
+
+    for _ in 0..40 {
+        let pa = cubic_point(seg_a, t_a)?;
+        let pb = cubic_point(seg_b, t_b)?;
+        let fx = pa.x - pb.x;
+        let fy = pa.y - pb.y;
+        if fx.hypot(fy) <= EPSILON {
+            break;
+        }
+        let da = cubic_derivative(seg_a, t_a)?;
+        let db = cubic_derivative(seg_b, t_b)?;
+        // Jacobian J = [[da.x, -db.x], [da.y, -db.y]]; solve J·d = -F.
+        let det = db.x * da.y - da.x * db.y;
+        if det.abs() <= EPSILON {
+            return None;
+        }
+        let dt_a = (db.y * fx - db.x * fy) / det;
+        let dt_b = (da.y * fx - da.x * fy) / det;
+        t_a = (t_a + dt_a).clamp(0.0, 1.0);
+        t_b = (t_b + dt_b).clamp(0.0, 1.0);
+    }
+
+    let pa = cubic_point(seg_a, t_a)?;
+    let pb = cubic_point(seg_b, t_b)?;
+    if (pa.x - pb.x).hypot(pa.y - pb.y) > BEZIER_INTERSECTION_TOLERANCE {
+        return None;
+    }
+    Some((pa, t_a, t_b))
+}
+
 fn refine_bezier_line_intersection(
     bezier: &IntersectionSegment,
     line: &IntersectionSegment,
@@ -598,6 +663,18 @@ fn refine_intersection(
     b: &IntersectionSegment,
     intersection: SegmentIntersection,
 ) -> SegmentIntersection {
+    if matches!(a.primitive, SegmentPrimitive::Bezier { .. })
+        && matches!(b.primitive, SegmentPrimitive::Bezier { .. })
+    {
+        if let Some((point, a_t, b_t)) = refine_bezier_bezier_intersection(a, b) {
+            return SegmentIntersection {
+                point,
+                line1_distance: distance_at_segment_t(a, a_t),
+                line2_distance: distance_at_segment_t(b, b_t),
+                overlap: false,
+            };
+        }
+    }
     if matches!(a.primitive, SegmentPrimitive::Bezier { .. }) {
         if let Some((point, bezier_t, line_t)) = refine_bezier_line_intersection(a, b) {
             return SegmentIntersection {

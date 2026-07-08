@@ -134,12 +134,18 @@ come from command and shortcut metadata in the application.
 Use Vite, React, TypeScript, SVG/Canvas rendering, Zustand where shared state
 is useful, and Tauri v2 for the desktop application shell.
 
-The app should continue to work as a browser/Vite app for tests and frontend
-development, while also being packaged as a Tauri desktop app for local macOS
-use. Browser and test environments should use the TypeScript reference
-evaluator. Tauri production should use Rust evaluation through the evaluation
-engine adapter by default. Tauri development may run shadow evaluation to keep
-Rust output checked against the TypeScript reference.
+The Tauri desktop app is the only maintained product target. Web/browser
+deployment of the app is discontinued and must not be treated as a shipped
+target when making product or architecture decisions. The Vite/browser
+environment is kept only as a local dev and test harness (fast iteration, unit
+tests, the TypeScript reference evaluator) and must not gate or block
+Tauri-only behavior.
+
+Tauri production should use Rust evaluation through the evaluation engine
+adapter by default. Tauri development may run shadow evaluation to keep Rust
+output checked against the TypeScript reference; the TypeScript evaluator
+remains the browser/test reference and compatibility fallback, not a product
+target in its own right.
 
 The macOS app is for local use only and is not distributed to other users.
 Do not add or require Apple notarization for normal builds; notarization

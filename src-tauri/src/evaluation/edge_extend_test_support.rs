@@ -27,6 +27,30 @@ pub(super) fn assert_close(actual: f64, expected: f64) {
     );
 }
 
+pub(super) fn assert_close_within(actual: f64, expected: f64, tolerance: f64) {
+    assert!(
+        (actual - expected).abs() < tolerance,
+        "expected {actual} to be within {tolerance} of {expected}"
+    );
+}
+
+pub(super) fn arch_curve(id: &str, name: &str, start_id: &str, end_id: &str) -> Value {
+    element(json!({
+        "id": id,
+        "name": name,
+        "type": "bezierCurve",
+        "visible": true,
+        "enabled": true,
+        "startPoint": { "mode": "reference", "pointId": start_id },
+        "startHandleAngleDeg": 90,
+        "startHandleLength": 40,
+        "intermediatePoints": [],
+        "endPoint": { "mode": "reference", "pointId": end_id },
+        "endHandleAngleDeg": 270,
+        "endHandleLength": 40
+    }))
+}
+
 pub(super) fn free_point(id: &str, name: &str, x: f64, y: f64) -> Value {
     element(json!({
         "id": id,

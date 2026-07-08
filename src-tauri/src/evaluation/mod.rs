@@ -1,6 +1,7 @@
 #[cfg(test)]
 mod bezier_curve_tests;
 mod bezier_evaluator;
+mod bezier_math;
 mod bezier_path;
 mod corner_radius_evaluator;
 mod corner_radius_path;

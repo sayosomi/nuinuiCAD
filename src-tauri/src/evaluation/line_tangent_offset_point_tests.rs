@@ -162,10 +162,13 @@ fn evaluates_line_tangent_offset_point_on_arc_line() {
         evaluation_limit_index: None,
     });
 
+    // The tangent at the arc start (angle 0°) is the analytic tangent (0, 1),
+    // so offsetting 10 along it lands exactly at (10, 10). (The old expectation
+    // encoded the 32-step chord tangent, ~5.6° off the true tangent.)
     let offset = point(&result, "offset");
     assert!(result.errors.is_empty());
-    assert!((offset["x"].as_f64().unwrap() - 9.019_828_596_704_393).abs() < 1e-9);
-    assert!((offset["y"].as_f64().unwrap() - 9.951_847_266_721_97).abs() < 1e-9);
+    assert!((offset["x"].as_f64().unwrap() - 10.0).abs() < 1e-9);
+    assert!((offset["y"].as_f64().unwrap() - 10.0).abs() < 1e-9);
 }
 
 #[test]
