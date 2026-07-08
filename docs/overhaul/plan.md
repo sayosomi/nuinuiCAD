@@ -1,0 +1,198 @@
+# 抜本改善計画: DSLテキストを正とするUI・保存形式の刷新
+
+Status: 承認済み(2026-07-09)。実装はPhase単位で個別のcoding agentに分担する。
+各Phaseの実装タスクは `docs/overhaul/tasks/` 参照。
+
+## Context
+
+唯一のユーザーへのヒヤリングで確定した方針。旧形式との互換は不要(一回限りの
+インポータのみ用意)。
+
+**現状の問題**:
+
+* 保存JSON(`.nuinui.json` schemaVersion 5)に選択状態などのUI状態が混在し、
+  `printLayout` 互換ミラー等の冗長性がある。
+* DSLテキストは双方向変換できるのに保存されず、フローティングパネルで
+  「書き出し→編集→適用」の往復が必要。Undo履歴も文書とDSLで二系統に分裂。
+* UIでは「要素追加後に何度も余計なクリックが必要」「作成時に選択中の要素が
+  勝手に基準にされ、それベースで命名される」のが最大の不満。
+* 構成リスト(LeftPanel)は非仮想化で大規模文書に弱い。
+
+## 確定した設計判断(ユーザー合意済み)
+
+1. **保存形式 = DSLテキスト1ファイル**(拡張子 `.nui`)。パレット・表示
+   プロファイル・印刷レイアウトも全てDSL文で表現。JSON形式は廃止。
+2. **メモリ上のコンパイル済み要素モデルが実行時表現**(描画・評価は従来速度)。
+   テキストが正・永続。Canvas操作は「該当1行だけの外科的書き換え」に変換
+   (他の行・コメント・空行・順序は不変)。ドラッグ中はモデルのみ更新、確定時に
+   1行書き戻し=1 Undoステップ。**Undo履歴はテキストベースの一本に統合**。
+3. **左ペイン = CodeMirror 6ベースのDSLエディタが構成リストを置換**。
+   1行=1要素、カーソル行⇄Canvas選択の双方向同期、グループは折りたたみ。
+4. **右ペイン = 読み取り専用インスペクタ**(依存・計測値・診断)。パラメータ
+   項目を選ぶとDSL該当行・該当属性へカーソルジャンプ。フォーム型パラメータ
+   編集UIは廃止。
+5. **作図フローは両方**: (a) AutoCAD風コマンドライン(必須参照を順にプロンプト。
+   選択中要素は「Enterで採用できる候補」としてのみ提示——勝手に基準にしない)、
+   (b) DSL行を補完付きで直接タイプ。
+6. **命名**: 作成フローに名前入力ステップ(自動候補+Enter採用/タイプで上書き/
+   スキップで**無名要素**)。DSLは無名文を許可。無名要素が参照されたら自動昇格
+   (文脈的な名前を付与し同一Undoステップで行パッチ)。グループスコープ名・
+   リネーム安全伝播・**IDの永続化廃止**(実行時IDのみ、パース時に照合割当)。
+7. グループ構文は**ブレース `{ }`** ブロック(インデントは見た目のみ)。
+8. 旧 `.nuinui.json` → `.nui` の一回限りインポータコマンドを用意。
+
+AGENTS.md の不変条件は全Phaseで維持: キーボードファースト、決定論的評価、
+明示的依存エラー、Rust-first評価、`evaluate_document(input)` 境界安定、
+mm単位、Y-up。
+
+## 検証済みの前提事実
+
+* DSLは行指向(1文=1行、`DslStatement.line` あり)。現行は `parent=` / `id=`
+  属性でフラット(`src/dsl/dslSerializer.ts:40,45`)。
+* `commitDocumentChange` 呼び出し元は非テスト13ファイル(commands群・DslPanel・
+  templates)。ブリッジで署名を維持すれば書き換え不要。
+* 名前空間解決(`resolveElementName`、`A.B.C` 修飾名)は
+  `src/model/elementNames.ts` に既存。
+* IDはセッションランダム生成(`src/model/cadIds.ts`)で、永続以外にセッション間
+  安定性を要求する箇所はない。
+* Rust側 `src-tauri/src/document_file.rs` は内容非依存の文字列read/write。
+  本計画でRust変更は原則不要。
+* ドラッグは既に `previewDocumentChange`(履歴なし)/ `commitDocumentChange`
+  (1ステップ)分離済み。
+
+## アーキテクチャ要点
+
+### 正準状態とデータフロー
+
+```
+sourceText (正準・永続)
+   │ parse + compile
+   ▼
+CompiledDocument (派生・実行時)          previewElements (ドラッグ中のみ)
+   elements / palette / roles /
+   profiles / printLayouts /
+   evaluationLimitIndex /
+   statementMap(要素ID→行範囲+属性スパン) /
+   diagnostics
+   │
+   ▼
+描画・評価(Rust evaluate_document)・ヒットテスト
+```
+
+変更入口は3つ:
+
+1. `commitText(nextText, origin)` — エディタ・ファイル・インポータ。
+   履歴push → 再パース → ID照合 → 再コンパイル。
+2. `commitDocumentChange(change)` — **ブリッジ**。現行署名を維持し、モデル差分を
+   オブジェクト同一性で検出 → 変更された文だけ再シリアライズして行スプライス →
+   再パース+照合。既存コマンド群は無変更で動く。
+3. `previewDocumentChange(change)` — `previewElements` のみ設定(履歴・テキスト
+   非関与)。描画・評価は `previewElements ?? doc.elements` を読む。
+
+### ID照合(statementReconciler)
+
+パースごとに実行時IDを再割当てするのではなく、直前のコンパイル結果と照合して
+可能な限りIDを継承する:
+
+1. 文テキスト配列のLCS差分 — 不変領域はID直接継承(1行編集なら n−1 文が
+   O(n) で解決)。
+2. 残余を「名前空間パス+名前+型」で(無名要素は「名前空間+型+相対順序」で)
+   マッチ。
+3. 残りは新規ID / 消滅。
+
+これにより選択・Undo・評価キャッシュ・Rustペイロードは実行時IDのまま全て
+無変更で動く。
+
+### Undo統合
+
+履歴 = テキストスナップショット `{text, selectionIds, cursorLine}` の
+past/future、上限200(1000要素×80字≒80KB/枚なので十分軽い。rope不要)。
+CodeMirror自体の履歴は「未コミットのタイピングバースト内」のみ有効で、
+コミット境界でフェンスする。**ストア履歴が唯一の正**。
+
+## Phase構成と依存関係
+
+```
+Phase 0  文書完全表現のDSL文法(挙動変更なし)
+  │
+Phase 1a 純粋モジュール: statementReconciler / textPatch(アプリ非接続)
+  │
+Phase 1b 影テキスト維持 + dev等価assert(正準はまだJSONスナップショット)
+  │
+Phase 1c 正準反転: sourceTextが正・統合Undo・選択状態のUIストア移動
+  │
+Phase 1d `.nui` 保存/読込 + レガシーインポータ(JSON保存廃止)
+  │
+  ├── Phase 2  CodeMirror 6 左ペイン(構成リスト置換)
+  │      │
+  │      ├── Phase 3  読み取り専用インスペクタ + フォーム編集廃止
+  │      │
+  │      └── Phase 4  コマンドライン作図 + DSL補完(DslPanel削除)
+  │             (Phase 3と4は相互独立、並行可。ともにPhase 2に依存)
+  │
+Phase 5  ハードクリーンアップ(Phase 2・3・4すべての完了後)
+```
+
+* 0 → 1a → 1b → 1c → 1d は厳密な直列。
+* Phase 2 は 1d 完了後(`.nui` が正になってからエディタを常設化する)。
+  技術的には 1c 後でも可能だが、保存形式とUIの整合を保つため 1d 後とする。
+* Phase 3 と Phase 4 は Phase 2 の成果物(SourceEditorPane・カーソル同期・
+  statementMapベースのジャンプ)に依存するが、相互には独立。並行実装可。
+* Phase 5 は全Phase完了後の互換コード削除とリネーム伝播。
+
+## Phase 1 分割の根拠
+
+元計画のPhase 1(テキスト正準ストア+形式切替+Undo統合を一括)は最高リスク
+だったため、以下の原理で4分割した:
+
+* **1a**: 新規純粋モジュールのみ。アプリに接続しないため挙動変更ゼロ。
+  テストだけで品質を確定できる。
+* **1b(影モード)**: 正準はJSONスナップショットのまま、全コミットで影の
+  DSLテキストを並行維持し、devビルドで「影テキストを再コンパイル≡現モデル」を
+  assertする。行パッチのバグが**文書破損ではなくdev警告**として顕在化する
+  安全網。ユーザー可視の挙動変更なし。
+* **1c**: 影で実証済みの機構の正準を反転するだけ。同時にUndo統合と選択状態の
+  移動を行う(新履歴が選択を運ぶため、選択移動を先行させると「Undoで選択が
+  戻らない」一時的な退行が生じる。よって1cに同梱するのが最も安全)。
+  保存形式は変えない(保存時に `doc` からJSONスナップショットを生成)。
+* **1d**: ファイル形式の切替のみ。ストアは触らない。
+
+## 横断リスクと防衛
+
+1. **ブリッジの忠実性が要**: `textPatch` の誤スプライス=テキストとモデルの
+   乖離。防衛=1bの影assert+毎コミット再コンパイル検証+ランダムコマンド列の
+   プロパティテスト。
+2. **ID非永続下の参照安定**: 削除済み名への参照は生トークンのままシリアライズ
+   +明示的依存診断(AGENTS.mdルール)。シリアライズは絶対にクラッシュさせない。
+3. **「ファイル全体を再シリアライズ」の誘惑を禁止**: コメント・空行保存は
+   行スプライスであることの構造的帰結。全体再シリアライズを行うコードパスは
+   レビューで却下する。
+4. **キーボードファースト回帰面**: 削除パネルのショートカットは新挙動への
+   対応表を維持し、ユーザーのショートカット設定が穏当に劣化するようにする。
+
+## 主な削除対象(最終形)
+
+* `LeftPanel.tsx` + `ElementListRow` / `useElementListData` 等リスト系(~2000行)
+* `DslPanel.tsx` + ローカル履歴、`DslEditor.tsx`(textarea実装)
+* `ElementEditor.tsx`、全 `*ElementFields.tsx`、`ParameterEditors` 系、
+  `ExpressionInsertTray`(~2500行)
+* パラメータ編集モード(値編集コマンド)。パラメータへのキーボード到達は
+  インスペクタ行ナビゲーション+カーソルジャンプが代替
+* `documentFormat.ts` の保存経路、`documentMigration.ts`(既に死んでいる)、
+  スナップショットの `printLayout` ミラーと `selected*` フィールド
+* `id=` / `parent=` / `branch=` のDSL互換(Phase 5)
+
+**`src/parameters/parameterDefinitions.ts` は縮小して存続**: ラベル(インスペクタ・
+プロンプト)、値種別(レシピ生成・DSL属性コンパイル)、`stepLevels`(数値ステップ
+コマンド)、`choiceOptions`(補完)。`directKey` と編集モード配管は削除。
+
+## 検証(全Phase共通)
+
+* `npm test` / `npm run build` / `npm run lint`
+* 評価・ペイロード・Rust適格性に触れたら `npm run test:parity`
+* Rust変更時のみ `cargo fmt --check` / `cargo test` / `cargo clippy`
+  (本計画では原則Rust変更なし)
+* Phase 1c以降: 実アプリで「新規作成→作図→保存→再起動→読込→Undo/Redo→
+  Canvasドラッグ→テキスト直編集」のエンドツーエンド動線を毎回確認
+* Phase 2でmacOS日本語IME手動チェック
+* 最終Phaseで `npm run desktop:build`(notarization警告は想定内)
