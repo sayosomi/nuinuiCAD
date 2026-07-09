@@ -5,7 +5,9 @@ import type {
   ElementId,
   LineEndpointReference,
   NumericValue,
-  PointAnchor
+  PointAnchor,
+  VisibilityProfile,
+  VisibilityRole
 } from "../types/geometry";
 import { formatNumericValueForDsl, shortestDslTokensById } from "./dslExpressionFormat";
 import type { SerializeDslOptions } from "./dslTypes";
@@ -85,7 +87,11 @@ export const documentDslRefs = (elements: CadElement[]): DslSerializerRefs => {
     },
     endpoint: (value, source) => `${token(value.lineId, source)}.${value.endpointKey}`,
     numeric,
-    name: (element) => formatDslName(element.name || element.id),
+    // 無名要素は名前トークンを一切出力しない(空文字列)。ID
+    // フォールバックは「参照される側」(token関数)のみの役割で、
+    // 「文自身の名前」には適用しない — さもないと無名要素が
+    // 「IDという名前を持つ要素」として再パースされてしまう。
+    name: (element) => (element.name.trim() ? formatDslName(element.name) : ""),
     baseAttrs: commonBaseAttrs,
     includeRecordIds: false
   };
@@ -146,7 +152,7 @@ const elementLine = (
     `type=${element.type}`,
     ...refs.baseAttrs(element),
     ...attrs
-  ].join(" ");
+  ].filter(Boolean).join(" ");
 
 export const serializeElementStatement = (
   element: CadElement,
@@ -173,7 +179,7 @@ export const serializeElementStatement = (
         `expanded=${element.expanded}`,
         ...(element.printEnabled ? ["printEnabled=true"] : []),
         ...(defaultPrintAnchor ? [] : [`printAnchor=${anchor(element.printAnchor)}`])
-      ].join(" ");
+      ].filter(Boolean).join(" ");
     }
     case "variable":
       return [
@@ -184,9 +190,9 @@ export const serializeElementStatement = (
         ...variableModeAttrs(element, refs),
         ...(element.scope === "group" ? ["scope=group"] : []),
         ...attrs
-      ].join(" ");
+      ].filter(Boolean).join(" ");
     case "freePoint":
-      return ["point", name, "=", `(${numeric(element.x)}, ${numeric(element.y)})`, ...attrs].join(" ");
+      return ["point", name, "=", `(${numeric(element.x)}, ${numeric(element.y)})`, ...attrs].filter(Boolean).join(" ");
     case "offsetPoint":
       return [
         "point",
@@ -197,7 +203,7 @@ export const serializeElementStatement = (
         `dx=${numeric(element.dx)}`,
         `dy=${numeric(element.dy)}`,
         ...attrs
-      ].join(" ");
+      ].filter(Boolean).join(" ");
     case "polarOffsetPoint":
       return [
         "point",
@@ -208,9 +214,9 @@ export const serializeElementStatement = (
         `angle=${numeric(element.angleDeg)}`,
         `distance=${numeric(element.distance)}`,
         ...attrs
-      ].join(" ");
+      ].filter(Boolean).join(" ");
     case "line":
-      return ["line", name, "=", anchor(element.startPoint), "->", anchor(element.endPoint), ...attrs].join(" ");
+      return ["line", name, "=", anchor(element.startPoint), "->", anchor(element.endPoint), ...attrs].filter(Boolean).join(" ");
     case "angleLengthLine":
       return [
         "line",
@@ -221,7 +227,7 @@ export const serializeElementStatement = (
         `angle=${numeric(element.angleDeg)}`,
         `length=${numeric(element.length)}`,
         ...attrs
-      ].join(" ");
+      ].filter(Boolean).join(" ");
     case "arcLine":
       return [
         "arc",
@@ -231,7 +237,7 @@ export const serializeElementStatement = (
         `start=${numeric(element.startAngleDeg)}`,
         `end=${numeric(element.endAngleDeg)}`,
         ...attrs
-      ].join(" ");
+      ].filter(Boolean).join(" ");
     case "text":
       return [
         "text",
@@ -241,7 +247,7 @@ export const serializeElementStatement = (
         `at=${anchor(element.anchor)}`,
         `size=${numeric(element.fontSize)}`,
         ...attrs
-      ].join(" ");
+      ].filter(Boolean).join(" ");
     case "divisionPoint":
       return [
         "point",
@@ -254,7 +260,7 @@ export const serializeElementStatement = (
           ? `distance=${numeric(element.distance)}`
           : `ratio=${numeric(element.ratio)}`,
         ...attrs
-      ].join(" ");
+      ].filter(Boolean).join(" ");
     case "lineDivisionPoint":
       return [
         "point",
@@ -266,7 +272,7 @@ export const serializeElementStatement = (
           ? `distance=${numeric(element.distance)}`
           : `ratio=${numeric(element.ratio)}`,
         ...attrs
-      ].join(" ");
+      ].filter(Boolean).join(" ");
     case "intersectionPoint":
       return [
         "point",
@@ -278,7 +284,7 @@ export const serializeElementStatement = (
         `index=${numeric(element.intersectionIndex)}`,
         `extensions=${element.useExtensions}`,
         ...attrs
-      ].join(" ");
+      ].filter(Boolean).join(" ");
     case "lineTangentOffsetPoint":
       return [
         "point",
@@ -290,7 +296,7 @@ export const serializeElementStatement = (
         `angle=${numeric(element.tangentAngleDeg)}`,
         `distance=${numeric(element.distance)}`,
         ...attrs
-      ].join(" ");
+      ].filter(Boolean).join(" ");
     case "cornerRadiusArcLine":
       return [
         "arc",
@@ -302,7 +308,7 @@ export const serializeElementStatement = (
         `radius=${numeric(element.radius)}`,
         `index=${numeric(element.intersectionIndex)}`,
         ...attrs
-      ].join(" ");
+      ].filter(Boolean).join(" ");
     case "edge":
       return elementLine(element, refs, [
         ...localVariableAttrs(element, refs),
@@ -319,7 +325,7 @@ export const serializeElementStatement = (
         endpoint(element.endpoint),
         `to=${anchor(element.point)}`,
         ...attrs
-      ].join(" ");
+      ].filter(Boolean).join(" ");
     case "bezierCurve":
       return [
         "curve",
@@ -334,7 +340,7 @@ export const serializeElementStatement = (
         `endLength=${numeric(element.endHandleLength)}`,
         ...intermediatePoints(element, refs),
         ...attrs
-      ].join(" ");
+      ].filter(Boolean).join(" ");
     case "offsetLine":
       return [
         "line",
@@ -346,7 +352,7 @@ export const serializeElementStatement = (
         `side=${element.side}`,
         `closed=${element.closed}`,
         ...attrs
-      ].join(" ");
+      ].filter(Boolean).join(" ");
     case "splitLine":
       return [
         "line",
@@ -356,7 +362,7 @@ export const serializeElementStatement = (
         token(element.baseLineId),
         `at=${anchor(element.splitPoint)}`,
         ...attrs
-      ].join(" ");
+      ].filter(Boolean).join(" ");
     case "copyLine":
     case "move":
       return elementLine(element, refs, [
@@ -388,7 +394,7 @@ export const serializeElementStatement = (
         `start=${numeric(element.startAngleDeg)}`,
         `end=${numeric(element.endAngleDeg)}`,
         ...attrs
-      ].join(" ");
+      ].filter(Boolean).join(" ");
     case "conditionalGroup":
       return elementLine(element, refs, [
         ...localVariableAttrs(element, refs),
@@ -429,14 +435,16 @@ export const serializeElementsToDsl = (
   ].join("\n");
 };
 
-const visibilitySettingsDsl = (options: SerializeDslOptions) => {
-  const roles = options.visibilityRoles ?? [];
-  const profiles = options.visibilityProfiles ?? [];
-  const printLayouts = options.printLayouts ?? [];
+// role/view/activeView 行の生成。フラット出力(visibilitySettingsDsl)と
+// 文書グラマー(dslDocument.ts)の両方から共有される。
+export const serializeVisibilitySettingsLines = (
+  roles: VisibilityRole[],
+  profiles: VisibilityProfile[],
+  activeProfileId: string | undefined
+): string[] => {
   const lines: string[] = [];
-
   for (const role of roles) {
-    lines.push(["role", formatDslName(role.id), `name=${quoteDslString(role.name)}`].join(" "));
+    lines.push(["role", formatDslName(role.id), `name=${quoteDslString(role.name)}`].filter(Boolean).join(" "));
   }
   for (const profile of profiles) {
     const roleAttrs = roles.map((role) =>
@@ -448,11 +456,23 @@ const visibilitySettingsDsl = (options: SerializeDslOptions) => {
       ...(profile.id === profile.name ? [] : [`id=${formatDslName(profile.id)}`]),
       `default=${profile.defaultRoleVisible}`,
       ...roleAttrs
-    ].join(" "));
+    ].filter(Boolean).join(" "));
   }
-  if (options.activeVisibilityProfileId) {
-    lines.push(["activeView", formatDslName(options.activeVisibilityProfileId)].join(" "));
+  if (activeProfileId) {
+    lines.push(["activeView", formatDslName(activeProfileId)].filter(Boolean).join(" "));
   }
+  return lines;
+};
+
+const visibilitySettingsDsl = (options: SerializeDslOptions) => {
+  const printLayouts = options.printLayouts ?? [];
+  const lines: string[] = [
+    ...serializeVisibilitySettingsLines(
+      options.visibilityRoles ?? [],
+      options.visibilityProfiles ?? [],
+      options.activeVisibilityProfileId
+    )
+  ];
   for (const layout of printLayouts) {
     if (!layout.visibilityProfileId) continue;
     lines.push([
@@ -461,7 +481,7 @@ const visibilitySettingsDsl = (options: SerializeDslOptions) => {
       `id=${formatDslName(layout.id)}`,
       `output=${layout.outputKind}`,
       `visibilityView=${layout.visibilityProfileId}`
-    ].join(" "));
+    ].filter(Boolean).join(" "));
   }
   return lines.length > 0 ? [...lines, ""] : [];
 };
