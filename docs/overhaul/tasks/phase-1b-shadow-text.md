@@ -36,6 +36,14 @@
   1000要素で問題が出たら計測結果を報告し、投機的最適化はしない)。
 * prodビルドでは等価assert(再コンパイル)を実行しない。行パッチ自体は
   prod でも実行してよい(次Phaseへの地均し)。
+* **`expanded` / `elseExpanded`(グループ折りたたみUI状態)は現状互換のまま**。
+  これらは `GroupElement` / `ConditionalGroupElement` / `ForGroupElement`
+  (`src/types/geometry.ts`)のモデルフィールドとして existing のとおり残し、
+  DSLへも現行どおりシリアライズする(`src/dsl/dslSerializer.ts` の
+  `commonBaseAttrs`)。保存形式・UI状態の位置は本Phaseでは動かさない方針
+  (ユーザー確定、2026-07-09)。影テキストの等価assertはこの現状挙動を前提に
+  成立させること — `expanded` を文書モデルから追い出す設計変更は
+  Phase 1c の担当(`phase-1c-text-canonical.md` の該当セクション参照)。
 
 ## Phase開始時点の前提
 
