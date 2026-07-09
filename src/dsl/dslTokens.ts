@@ -1,3 +1,50 @@
+export const DSL_INDENT = "  ";
+
+export type DslTerm = {
+  text: string;
+  start: number;
+  end: number;
+};
+
+export const splitDslTerms = (line: string): DslTerm[] => {
+  const terms: DslTerm[] = [];
+  let current = "";
+  let start = -1;
+  let quote: string | null = null;
+  let depth = 0;
+
+  const flush = (endIndex: number) => {
+    if (current.trim()) terms.push({ text: current, start, end: endIndex });
+    current = "";
+    start = -1;
+  };
+
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index];
+    if ((char === "\"" || char === "'") && line[index - 1] !== "\\") {
+      quote = quote === char ? null : quote ?? char;
+      if (start < 0) start = index;
+      current += char;
+      continue;
+    }
+    if (!quote && (char === "(" || char === "[")) depth += 1;
+    if (!quote && (char === ")" || char === "]")) depth -= 1;
+    if (!quote && depth === 0 && (char === "{" || char === "}")) {
+      flush(index);
+      terms.push({ text: char, start: index, end: index + 1 });
+      continue;
+    }
+    if (!quote && depth === 0 && /\s/.test(char)) {
+      flush(index);
+      continue;
+    }
+    if (start < 0) start = index;
+    current += char;
+  }
+  flush(line.length);
+  return terms;
+};
+
 export const quoteDslString = (value: string) =>
   `"${value.replace(/\\/g, "\\\\").replace(/"/g, "\\\"")}"`;
 
