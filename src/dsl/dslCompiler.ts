@@ -30,7 +30,7 @@ import { splitDslList, splitDslRecords, unquoteDslString } from "./dslTokens";
 const attr = (attrs: DslAttribute[], key: string) =>
   attrs.find((item) => item.key === key)?.value;
 
-const statementType = (statement: DslStatement): CadElementType => {
+export const statementTypeOf = (statement: DslStatement): CadElementType => {
   if (statement.kind === "element") return statement.type ?? "group";
   if (statement.kind === "variable") return "variable";
   return statement.kind as CadElementType;
@@ -405,11 +405,13 @@ const applyPaletteStatements = ({
 const applyVisibilitySettings = ({
   statements,
   context,
-  diagnostics
+  diagnostics,
+  printLayoutIdsByStatementIndex
 }: {
   statements: DslStatement[];
   context: CompileDslContext;
   diagnostics: DslDiagnostic[];
+  printLayoutIdsByStatementIndex?: Map<number, string>;
 }) => {
   let visibilityRoles = [...(context.visibilityRoles ?? [])];
   let visibilityProfiles = [...(context.visibilityProfiles ?? [])];
@@ -467,7 +469,8 @@ const applyVisibilitySettings = ({
   for (const statement of statements) {
     if (statement.kind === "view") upsertProfile(statement);
   }
-  for (const statement of statements) {
+  for (let statementIndex = 0; statementIndex < statements.length; statementIndex += 1) {
+    const statement = statements[statementIndex];
     if (statement.kind === "activeView") {
       const profileId = profileIdByToken(visibilityProfiles, statement.name);
       if (visibilityProfiles.some((profile) => profile.id === profileId)) {
@@ -496,6 +499,7 @@ const applyVisibilitySettings = ({
       printLayouts = existing
         ? printLayouts.map((layout) => layout.id === existing.id ? nextLayout : layout)
         : [...printLayouts, nextLayout];
+      printLayoutIdsByStatementIndex?.set(statementIndex, nextLayout.id);
     }
   }
 
@@ -516,7 +520,8 @@ const buildBlockPrintLayouts = ({
   elements,
   nameIndex,
   visibilityProfiles,
-  diagnostics
+  diagnostics,
+  printLayoutIdsByStatementIndex
 }: {
   statements: DslStatement[];
   layouts: PrintLayout[] | undefined;
@@ -524,6 +529,7 @@ const buildBlockPrintLayouts = ({
   nameIndex: NameIndex;
   visibilityProfiles: VisibilityProfile[];
   diagnostics: DslDiagnostic[];
+  printLayoutIdsByStatementIndex?: Map<number, string>;
 }): PrintLayout[] | undefined => {
   const blockStatements = statements
     .map((statement, index) => ({ statement, index }))
@@ -625,12 +631,13 @@ const buildBlockPrintLayouts = ({
     next = existing
       ? next.map((item) => (item.id === existing.id ? layout : item))
       : [...next, layout];
+    printLayoutIdsByStatementIndex?.set(index, layout.id);
   }
   return next;
 };
 
 export const compileDslToElements = (source: string, context: CompileDslContext): CompileDslResult => {
-  const parsed = parseDsl(source);
+  const parsed = context.preparsed ?? parseDsl(source);
   if (parsed.diagnostics.some((item) => item.severity === "error")) {
     return {
       elements: context.elements,
@@ -648,21 +655,27 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
   }
 
   const diagnostics: DslDiagnostic[] = [...parsed.diagnostics];
+  const printLayoutIdsByStatementIndex = new Map<number, string>();
   const visibilitySettings = applyVisibilitySettings({
     statements: parsed.statements,
     context,
-    diagnostics
+    diagnostics,
+    printLayoutIdsByStatementIndex
   });
   const documentMode = context.mode === "document";
   const existing = documentMode ? [] : context.elements;
+  const statementIndexOf = new Map<DslStatement, number>(
+    parsed.statements.map((statement, index) => [statement, index])
+  );
   const elementStatements = parsed.statements.filter(isElementDslStatement);
   const statementsWithIds = elementStatements.map((statement) => {
-    const type = statementType(statement);
+    const type = statementTypeOf(statement);
     return {
       statement,
       type,
       id:
         attr(statement.attrs, "id") ??
+        context.assignedElementIds?.get(statementIndexOf.get(statement) ?? -1) ??
         (statement.name
           ? existing.find((element) => element.name === statement.name && element.type === type)?.id
           : undefined)
@@ -683,7 +696,7 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
     if (!parentId) return null;
     return {
       parentId,
-      ...(statementType(parentStatement) === "conditionalGroup"
+      ...(statementTypeOf(parentStatement) === "conditionalGroup"
         ? { branch: statement.enclosing.branch }
         : {})
     };
@@ -780,7 +793,8 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
     elements,
     nameIndex: createNameIndex(elements),
     visibilityProfiles: visibilitySettings.visibilityProfiles,
-    diagnostics
+    diagnostics,
+    printLayoutIdsByStatementIndex
   });
 
   let activePrintLayoutId = context.activePrintLayoutId;
@@ -808,6 +822,12 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
     }
   }
 
+  const elementIdsByStatementIndex = new Map<number, ElementId>();
+  for (const [statement, id] of createdIds) {
+    const index = statementIndexOf.get(statement);
+    if (index !== undefined) elementIdsByStatementIndex.set(index, id);
+  }
+
   return {
     elements,
     selectedElementId: selectedElementIds[0] ?? null,
@@ -820,6 +840,8 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
     activePrintLayoutId,
     evaluationLimitIndex,
     diagnostics,
-    changedCount: selectedElementIds.length
+    changedCount: selectedElementIds.length,
+    elementIdsByStatementIndex,
+    printLayoutIdsByStatementIndex
   };
 };

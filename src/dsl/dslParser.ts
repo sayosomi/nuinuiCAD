@@ -7,7 +7,7 @@ import type {
   DslStatementBase,
   ParseDslResult
 } from "./dslTypes";
-import { splitDslTerms, unquoteDslString, type DslTerm } from "./dslTokens";
+import { splitDslComment, splitDslTerms, unquoteDslString, type DslTerm } from "./dslTokens";
 
 const elementTypes = new Set<CadElementType>([
   "group",
@@ -56,18 +56,6 @@ const nonElementKinds = new Set<DslStatement["kind"]>([
 
 export const isElementDslStatement = (statement: DslStatement) =>
   !nonElementKinds.has(statement.kind);
-
-const stripComment = (line: string) => {
-  let quote: string | null = null;
-  for (let index = 0; index < line.length; index += 1) {
-    const char = line[index];
-    if ((char === "\"" || char === "'") && line[index - 1] !== "\\") {
-      quote = quote === char ? null : quote ?? char;
-    }
-    if (char === "#" && !quote) return line.slice(0, index);
-  }
-  return line;
-};
 
 const termSpan = (term: DslTerm): DslSpan => ({ start: term.start, end: term.end });
 
@@ -174,7 +162,7 @@ const expressionAfterEquals = (
 type ParsedLine = { statement?: DslStatement; diagnostics: DslDiagnostic[] };
 
 const parseLine = (rawLine: string, line: number): ParsedLine => {
-  const code = stripComment(rawLine);
+  const code = splitDslComment(rawLine).code;
   const allTerms = splitDslTerms(code);
   if (allTerms.length === 0) return { diagnostics: [] };
 

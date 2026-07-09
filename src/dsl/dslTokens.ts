@@ -122,6 +122,25 @@ export const splitDslRecords = (value: string) => {
   return parts;
 };
 
+// 行をコード部と行末コメント部に分割する(引用符内の `#` はコメント扱いしない)。
+// comment は `#` 以降と直前の空白を含む生文字列。コメントが無ければ ""。
+// 常に code + comment === line が成り立つ(コード部の文字オフセットは不変)。
+export const splitDslComment = (line: string): { code: string; comment: string } => {
+  let quote: string | null = null;
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index];
+    if ((char === "\"" || char === "'") && line[index - 1] !== "\\") {
+      quote = quote === char ? null : quote ?? char;
+    }
+    if (char === "#" && !quote) {
+      let codeEnd = index;
+      while (codeEnd > 0 && /\s/.test(line[codeEnd - 1])) codeEnd -= 1;
+      return { code: line.slice(0, codeEnd), comment: line.slice(codeEnd) };
+    }
+  }
+  return { code: line, comment: "" };
+};
+
 export const lastIndexOfDslOutsideQuotes = (value: string, needle: string) => {
   let quote: string | null = null;
   let lastIndex = -1;

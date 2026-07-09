@@ -7,6 +7,7 @@ import type {
   DocumentPalette,
   ElementId,
   NumericVariable,
+  PaletteColor,
   PrintLayout,
   VisibilityProfile,
   VisibilityRole
@@ -20,7 +21,7 @@ import {
   serializeVisibilitySettingsLines,
   type DslSerializerRefs
 } from "./dslSerializer";
-import type { DslDiagnostic } from "./dslTypes";
+import type { DslDiagnostic, DslEnclosing, DslStatement } from "./dslTypes";
 import { DSL_INDENT, formatDslName, quoteDslString } from "./dslTokens";
 
 // `nui 1` を先頭に持つ、文書全体を無損失に表すDSLテキストへの変換ファサード。
@@ -47,6 +48,63 @@ export type ParseDslDocumentResult = {
   diagnostics: DslDiagnostic[];
 };
 
+// ==== StatementMap(文⇄行対応) ====
+
+export type LineRange = {
+  /** 1-based・両端含む。 */
+  startLine: number;
+  endLine: number;
+};
+
+export type StatementInfo = {
+  statementIndex: number;
+  kind: DslStatement["kind"];
+  /** 文自身の行(1-based)。 */
+  line: number;
+  /** ブロックを開く文は開き行〜対応する `}` 行。それ以外は line..line。 */
+  range: LineRange;
+  /** conditionalGroup ブロックの `} else {` 行(あれば)。 */
+  elseLine?: number;
+  /** 正準インデント深さ(ブロックスタック深さ)。 */
+  indentDepth: number;
+  enclosing: DslEnclosing | null;
+};
+
+export type StatementMap = {
+  /** パース結果の全文と並行(index一致)。 */
+  statements: StatementInfo[];
+  byElementId: Map<ElementId, StatementInfo>;
+  elementIdByStatementIndex: Map<number, ElementId>;
+  /**
+   * 非要素文のキー: `color:<id>` / `role:<id>` / `view:<id>` / `printLayout:<id>` /
+   * `version` / `atStop` / `activeView` / `activePrintLayout`。
+   * active系は最後の出現(コンパイラのlast-winsに一致)、version/atStopは最初の出現。
+   */
+  byKey: Map<string, StatementInfo>;
+  /** 各セクションが存在する場合の最終行(セクション新設時の挿入アンカー)。 */
+  sectionEnds: {
+    version?: number;
+    palette?: number;
+    visibility?: number;
+    printLayouts?: number;
+  };
+};
+
+export type CompiledDslDocument = {
+  document: DslDocumentData | null;
+  statements: DslStatement[];
+  /** エラー診断がある場合は null。 */
+  statementMap: StatementMap | null;
+  /** 改行正規化済みソースの行配列。 */
+  sourceLines: string[];
+  diagnostics: DslDiagnostic[];
+};
+
+export type CompileDslDocumentOptions = {
+  /** 文index(全文配列基準)→ 継承させる実行時要素ID(statementReconciler の出力)。 */
+  assignedElementIds?: ReadonlyMap<number, ElementId>;
+};
+
 const DSL_VERSION = 1;
 
 const versionDiagnostic = (line: number, message: string): DslDiagnostic => ({
@@ -58,16 +116,17 @@ const versionDiagnostic = (line: number, message: string): DslDiagnostic => ({
 
 // ==== パレット ====
 
-const serializePaletteLines = (palette: DocumentPalette): string[] =>
-  palette.colors.map((color) =>
-    [
-      "color",
-      formatDslName(color.id),
-      quoteDslString(color.hex),
-      `name=${quoteDslString(color.name)}`,
-      ...(color.id === palette.defaultColorId ? ["default"] : [])
-    ].join(" ")
-  );
+export const serializePaletteColorLine = (color: PaletteColor, defaultColorId: string): string =>
+  [
+    "color",
+    formatDslName(color.id),
+    quoteDslString(color.hex),
+    `name=${quoteDslString(color.name)}`,
+    ...(color.id === defaultColorId ? ["default"] : [])
+  ].join(" ");
+
+export const serializePaletteLines = (palette: DocumentPalette): string[] =>
+  palette.colors.map((color) => serializePaletteColorLine(color, palette.defaultColorId));
 
 // ==== 印刷レイアウト ====
 
@@ -134,9 +193,18 @@ const printLayoutBlockLines = (
 
 const PRINT_LAYOUT_PROMOTED_NAME_BASE = "レイアウト";
 
-const serializePrintLayoutSection = (data: DslDocumentData): string[] => {
+export type PrintLayoutSectionPlan = {
+  /** レイアウトごとのブロック行(ヘッダ行〜閉じ `}` 行、無名アクティブの名前昇格適用済み)。 */
+  blocks: Array<{ layoutId: string; lines: string[] }>;
+  /** アクティブが先頭の場合は null(省略)。 */
+  activePrintLayoutLine: string | null;
+};
+
+// printLayoutセクションの構造化プラン。全体シリアライズ(serializeDocumentToDsl)と
+// 行パッチ(src/document/textPatch.ts)が同一の名前昇格ロジックを共有する。
+export const planPrintLayoutSection = (data: DslDocumentData): PrintLayoutSectionPlan => {
   const { printLayouts, activePrintLayoutId, elements, visibilityProfiles } = data;
-  if (printLayouts.length === 0) return [];
+  if (printLayouts.length === 0) return { blocks: [], activePrintLayoutLine: null };
 
   const activeLayout = printLayouts.find((layout) => layout.id === activePrintLayoutId);
   const activeIsFirst = printLayouts[0]?.id === activePrintLayoutId;
@@ -149,15 +217,23 @@ const serializePrintLayoutSection = (data: DslDocumentData): string[] => {
     promotedName = `${PRINT_LAYOUT_PROMOTED_NAME_BASE}${index}`;
   }
 
-  const lines: string[] = [];
-  for (const layout of printLayouts) {
+  const blocks = printLayouts.map((layout) => {
     const displayName = activeLayout && layout.id === activeLayout.id && promotedName ? promotedName : layout.name;
-    lines.push(...printLayoutBlockLines(layout, displayName, elements, visibilityProfiles));
-  }
-  if (activeLayout && !activeIsFirst) {
-    lines.push(`activePrintLayout ${formatDslName(promotedName ?? activeLayout.name)}`);
-  }
-  return lines;
+    return { layoutId: layout.id, lines: printLayoutBlockLines(layout, displayName, elements, visibilityProfiles) };
+  });
+  const activePrintLayoutLine =
+    activeLayout && !activeIsFirst
+      ? `activePrintLayout ${formatDslName(promotedName ?? activeLayout.name)}`
+      : null;
+  return { blocks, activePrintLayoutLine };
+};
+
+const serializePrintLayoutSection = (data: DslDocumentData): string[] => {
+  const plan = planPrintLayoutSection(data);
+  return [
+    ...plan.blocks.flatMap((block) => block.lines),
+    ...(plan.activePrintLayoutLine ? [plan.activePrintLayoutLine] : [])
+  ];
 };
 
 // ==== 要素ツリー(ブレースブロック + @stop) ====
@@ -171,26 +247,46 @@ type BlockFrame = {
 const containerKind = (type: CadElementType): BlockFrame["kind"] | null =>
   type === "group" || type === "conditionalGroup" || type === "forGroup" ? type : null;
 
-const serializeElementTree = (
+export type ElementTreeLine = {
+  /** インデント・末尾 `{` 込みの完全な行テキスト。 */
+  text: string;
+  /** 正準インデント深さ(blockEnd/blockElse は開き文と同じ深さ)。 */
+  depth: number;
+  role: "statement" | "blockEnd" | "blockElse" | "atStop";
+  /** statement 行はその要素、blockEnd / blockElse 行は対応する開き要素のID。 */
+  elementId?: ElementId;
+  /** parent=/branch= フォールバックで出力されたトップレベル文。 */
+  fallback?: boolean;
+};
+
+// 要素配列の正準ブロック構造を行レコード列として構築する。全体シリアライズと
+// 行パッチ(src/document/textPatch.ts)がこの単一の構造計算を共有することで、
+// パッチ結果が常にシリアライザ産テキストと構造的に一致する。
+export const layoutElementTree = (
   elements: CadElement[],
   refs: DslSerializerRefs,
   evaluationLimitIndex: number
-): string[] => {
-  const lines: string[] = [];
+): ElementTreeLine[] => {
+  const lines: ElementTreeLine[] = [];
   const stack: BlockFrame[] = [];
   const limit = Math.max(0, Math.min(evaluationLimitIndex, elements.length));
   let emitted = 0;
 
   const closeTo = (depth: number) => {
     while (stack.length > depth) {
-      lines.push(`${DSL_INDENT.repeat(stack.length - 1)}}`);
-      stack.pop();
+      const frame = stack.pop()!;
+      lines.push({
+        text: `${DSL_INDENT.repeat(stack.length)}}`,
+        depth: stack.length,
+        role: "blockEnd",
+        elementId: frame.elementId
+      });
     }
   };
 
   for (const element of elements) {
     if (emitted === limit) {
-      lines.push(`${DSL_INDENT.repeat(stack.length)}@stop`);
+      lines.push({ text: `${DSL_INDENT.repeat(stack.length)}@stop`, depth: stack.length, role: "atStop" });
     }
 
     const parentId = element.parentGroupId;
@@ -214,20 +310,34 @@ const serializeElementTree = (
       closeTo(0);
       const parentToken = formatDslName(refs.token(parentId!, element));
       const branchSuffix = element.conditionalBranch === "else" ? " branch=else" : "";
-      lines.push(`${serializeElementStatement(element, refs)} parent=${parentToken}${branchSuffix}`);
+      lines.push({
+        text: `${serializeElementStatement(element, refs)} parent=${parentToken}${branchSuffix}`,
+        depth: 0,
+        role: "statement",
+        elementId: element.id,
+        fallback: true
+      });
     } else {
       closeTo(targetIdx + 1);
       if (targetIdx >= 0) {
         const top = stack[targetIdx];
         if (top.kind === "conditionalGroup" && top.branch === "then" && desiredBranch === "else") {
-          lines.push(`${DSL_INDENT.repeat(targetIdx)}} else {`);
+          lines.push({
+            text: `${DSL_INDENT.repeat(targetIdx)}} else {`,
+            depth: targetIdx,
+            role: "blockElse",
+            elementId: top.elementId
+          });
           top.branch = "else";
         }
       }
       const kind = containerKind(element.type);
-      lines.push(
-        `${DSL_INDENT.repeat(stack.length)}${serializeElementStatement(element, refs)}${kind ? " {" : ""}`
-      );
+      lines.push({
+        text: `${DSL_INDENT.repeat(stack.length)}${serializeElementStatement(element, refs)}${kind ? " {" : ""}`,
+        depth: stack.length,
+        role: "statement",
+        elementId: element.id
+      });
       if (kind) stack.push({ elementId: element.id, kind, branch: "then" });
     }
 
@@ -237,6 +347,12 @@ const serializeElementTree = (
   closeTo(0);
   return lines;
 };
+
+const serializeElementTree = (
+  elements: CadElement[],
+  refs: DslSerializerRefs,
+  evaluationLimitIndex: number
+): string[] => layoutElementTree(elements, refs, evaluationLimitIndex).map((line) => line.text);
 
 // ==== ファサード ====
 
@@ -258,13 +374,10 @@ export const serializeDocumentToDsl = (
     .join("\n\n");
 };
 
-export const parseDslDocument = (source: string): ParseDslDocumentResult => {
-  const normalized = source.replace(/\r\n/g, "\n");
-  const parsed = parseDsl(normalized);
-
+const versionDiagnostics = (statements: DslStatement[]): DslDiagnostic[] => {
   const diagnostics: DslDiagnostic[] = [];
-  const versionStatements = parsed.statements.filter((statement) => statement.kind === "version");
-  const firstStatement = parsed.statements[0];
+  const versionStatements = statements.filter((statement) => statement.kind === "version");
+  const firstStatement = statements[0];
 
   if (!firstStatement) {
     diagnostics.push(versionDiagnostic(1, "文書が空です。先頭に `nui 1` が必要です。"));
@@ -283,12 +396,157 @@ export const parseDslDocument = (source: string): ParseDslDocumentResult => {
   for (const extra of versionStatements.slice(1)) {
     diagnostics.push(versionDiagnostic(extra.line, "`nui` は文書の先頭に1つだけ書けます。"));
   }
+  return diagnostics;
+};
 
-  const compiled = compileDslToElements(normalized, { elements: [], mode: "document" });
+const attrValueOf = (statement: DslStatement, key: string) =>
+  statement.attrs.find((item) => item.key === key)?.value;
+
+const buildStatementMap = (
+  statements: DslStatement[],
+  lastLine: number,
+  elementIdByStatementIndex: Map<number, ElementId>,
+  printLayoutIdsByStatementIndex: Map<number, string> | undefined
+): StatementMap => {
+  const infos: StatementInfo[] = [];
+  const stack: StatementInfo[] = [];
+  const byKey = new Map<string, StatementInfo>();
+  const setFirst = (key: string, info: StatementInfo) => {
+    if (!byKey.has(key)) byKey.set(key, info);
+  };
+
+  statements.forEach((statement, statementIndex) => {
+    if (statement.kind === "blockEnd") {
+      const info: StatementInfo = {
+        statementIndex,
+        kind: statement.kind,
+        line: statement.line,
+        range: { startLine: statement.line, endLine: statement.line },
+        indentDepth: Math.max(0, stack.length - 1),
+        enclosing: statement.enclosing
+      };
+      const top = stack.pop();
+      if (top) top.range.endLine = statement.line;
+      infos.push(info);
+      return;
+    }
+    if (statement.kind === "blockElse") {
+      const info: StatementInfo = {
+        statementIndex,
+        kind: statement.kind,
+        line: statement.line,
+        range: { startLine: statement.line, endLine: statement.line },
+        indentDepth: Math.max(0, stack.length - 1),
+        enclosing: statement.enclosing
+      };
+      const top = stack.at(-1);
+      if (top) top.elseLine = statement.line;
+      infos.push(info);
+      return;
+    }
+
+    const info: StatementInfo = {
+      statementIndex,
+      kind: statement.kind,
+      line: statement.line,
+      range: { startLine: statement.line, endLine: statement.line },
+      indentDepth: stack.length,
+      enclosing: statement.enclosing
+    };
+    infos.push(info);
+    if (statement.opensBlock) stack.push(info);
+
+    switch (statement.kind) {
+      case "color":
+        byKey.set(`color:${statement.name}`, info);
+        break;
+      case "role":
+        byKey.set(`role:${attrValueOf(statement, "id") ?? statement.name}`, info);
+        break;
+      case "view":
+        byKey.set(`view:${attrValueOf(statement, "id") ?? statement.name}`, info);
+        break;
+      case "printLayout": {
+        const layoutId = printLayoutIdsByStatementIndex?.get(statementIndex) ?? statement.name;
+        if (layoutId) byKey.set(`printLayout:${layoutId}`, info);
+        break;
+      }
+      case "version":
+        setFirst("version", info);
+        break;
+      case "atStop":
+        setFirst("atStop", info);
+        break;
+      case "activeView":
+        byKey.set("activeView", info);
+        break;
+      case "activePrintLayout":
+        byKey.set("activePrintLayout", info);
+        break;
+      default:
+        break;
+    }
+  });
+
+  // 未閉鎖ブロックはエラー診断付きでここへは来ない前提だが、防御的に文末で閉じる。
+  for (const open of stack) open.range.endLine = lastLine;
+
+  const byElementId = new Map<ElementId, StatementInfo>();
+  for (const [statementIndex, elementId] of elementIdByStatementIndex) {
+    const info = infos[statementIndex];
+    if (info) byElementId.set(elementId, info);
+  }
+
+  const sectionEnds: StatementMap["sectionEnds"] = {};
+  for (const info of infos) {
+    const statement = statements[info.statementIndex];
+    if (statement.kind === "version") {
+      sectionEnds.version = Math.max(sectionEnds.version ?? 0, info.line);
+    } else if (statement.kind === "color") {
+      sectionEnds.palette = Math.max(sectionEnds.palette ?? 0, info.line);
+    } else if (statement.kind === "role" || statement.kind === "view" || statement.kind === "activeView") {
+      sectionEnds.visibility = Math.max(sectionEnds.visibility ?? 0, info.line);
+    } else if (statement.kind === "printLayout" || statement.kind === "activePrintLayout") {
+      sectionEnds.printLayouts = Math.max(sectionEnds.printLayouts ?? 0, info.range.endLine);
+    }
+  }
+
+  return {
+    statements: infos,
+    byElementId,
+    elementIdByStatementIndex,
+    byKey,
+    sectionEnds
+  };
+};
+
+// 文書全体を1回のパースでコンパイルし、文⇄行対応(StatementMap)と診断を返す。
+// statementReconciler の照合結果は options.assignedElementIds で注入できる。
+export const compileDslDocument = (
+  source: string,
+  options: CompileDslDocumentOptions = {}
+): CompiledDslDocument => {
+  const normalized = source.replace(/\r\n/g, "\n");
+  const sourceLines = normalized.split("\n");
+  const parsed = parseDsl(normalized);
+  const diagnostics = versionDiagnostics(parsed.statements);
+
+  const compiled = compileDslToElements(normalized, {
+    elements: [],
+    mode: "document",
+    preparsed: parsed,
+    assignedElementIds: options.assignedElementIds
+  });
   const allDiagnostics = [...diagnostics, ...compiled.diagnostics];
 
   if (allDiagnostics.some((item) => item.severity === "error")) {
-    return { document: null, diagnostics: allDiagnostics };
+    return {
+      document: null,
+      statements: parsed.statements,
+      statementMap: null,
+      sourceLines,
+      diagnostics: allDiagnostics
+    };
   }
 
   const visibilityProfiles = compiled.visibilityProfiles?.length
@@ -308,5 +566,17 @@ export const parseDslDocument = (source: string): ParseDslDocumentResult => {
     evaluationLimitIndex: compiled.evaluationLimitIndex ?? compiled.elements.length
   };
 
-  return { document, diagnostics: allDiagnostics };
+  const statementMap = buildStatementMap(
+    parsed.statements,
+    sourceLines.length,
+    compiled.elementIdsByStatementIndex ?? new Map(),
+    compiled.printLayoutIdsByStatementIndex
+  );
+
+  return { document, statements: parsed.statements, statementMap, sourceLines, diagnostics: allDiagnostics };
+};
+
+export const parseDslDocument = (source: string): ParseDslDocumentResult => {
+  const compiled = compileDslDocument(source);
+  return { document: compiled.document, diagnostics: compiled.diagnostics };
 };

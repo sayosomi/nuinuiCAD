@@ -1,102 +1,20 @@
 import { describe, expect, it } from "vitest";
 import { defaultDocumentPalette } from "../palette/palette";
-import { defaultVisibilityProfile } from "../model/visibilityProfiles";
 import { createDefaultPrintLayout } from "../print/printLayout";
-import type { CadElement, ElementId, PointAnchor } from "../types/geometry";
+import type { CadElement } from "../types/geometry";
 import { compileDslToElements } from "./dslCompiler";
-import { parseDslDocument, serializeDocumentToDsl, type DslDocumentData } from "./dslDocument";
+import {
+  compileDslDocument,
+  parseDslDocument,
+  serializeDocumentToDsl,
+  type DslDocumentData
+} from "./dslDocument";
+import {
+  emptyDocument,
+  expectSemanticallyEqualDocuments,
+  roundTrip
+} from "./dslDocumentTestUtils";
 import sampleFixture from "./__fixtures__/sample.nui?raw";
-
-const emptyDocument = (): DslDocumentData => ({
-  elements: [],
-  palette: defaultDocumentPalette(),
-  visibilityRoles: [],
-  visibilityProfiles: [defaultVisibilityProfile()],
-  activeVisibilityProfileId: defaultVisibilityProfile().id,
-  printLayouts: [],
-  activePrintLayoutId: "",
-  evaluationLimitIndex: 0
-});
-
-// 意味的等価比較: IDは再割当てされ得るため無視し、参照はすべて「参照先の
-// 文書内インデックス」へ正規化してから比較する。conditionalBranch は
-// 実際に conditionalGroup の子である場合のみ意味を持つため、それ以外は
-// 無視する。
-const normalizeForComparison = (elements: CadElement[]) => {
-  const indexById = new Map(elements.map((element, index) => [element.id, index]));
-  const parentIsConditionalGroup = (id: ElementId | undefined) =>
-    id !== undefined && elements.find((element) => element.id === id)?.type === "conditionalGroup";
-  const remapId = (id: ElementId | undefined) => (id === undefined ? undefined : indexById.get(id) ?? `unknown:${id}`);
-  const remapAnchor = (anchor: PointAnchor | null | undefined) => {
-    if (!anchor) return anchor;
-    if (anchor.mode === "reference") return { mode: "reference", pointId: remapId(anchor.pointId) };
-    if (anchor.mode === "derived") return { mode: "derived", elementId: remapId(anchor.elementId), pointKey: anchor.pointKey };
-    return anchor;
-  };
-  const remapEndpoint = (endpoint: { lineId: ElementId; endpointKey: string } | undefined) =>
-    endpoint ? { lineId: remapId(endpoint.lineId), endpointKey: endpoint.endpointKey } : endpoint;
-
-  return elements.map((element) => {
-    const rest: Record<string, unknown> = { ...element };
-    delete rest.id;
-    delete rest.numericParameterSteps;
-    // fromPointId は offsetPoint/polarOffsetPoint の廃止予定の補助フィールドで、
-    // 生成時の暫定候補が入るだけで評価にもDSL往復にも使われない。
-    delete rest.fromPointId;
-    if ("parentGroupId" in rest) rest.parentGroupId = remapId(element.parentGroupId);
-    if ("conditionalBranch" in rest) {
-      rest.conditionalBranch = parentIsConditionalGroup(element.parentGroupId) ? element.conditionalBranch : undefined;
-    }
-    for (const key of ["startPoint", "endPoint", "centerPoint", "fromPoint", "basePoint", "splitPoint", "point", "point1", "point2", "point3", "axisPoint1", "axisPoint2", "anchor", "originPoint"]) {
-      if (key in rest) rest[key] = remapAnchor(rest[key] as PointAnchor | null | undefined);
-    }
-    for (const key of ["endpoint", "endpoint1", "endpoint2"]) {
-      if (key in rest) rest[key] = remapEndpoint(rest[key] as { lineId: ElementId; endpointKey: string } | undefined);
-    }
-    for (const key of ["line1Id", "line2Id", "baseLineId", "lineId"]) {
-      if (key in rest) rest[key] = remapId(rest[key] as ElementId | undefined);
-    }
-    for (const key of ["baseLineIds"]) {
-      if (key in rest) rest[key] = (rest[key] as ElementId[]).map((id) => remapId(id));
-    }
-    if ("intermediatePoints" in rest) {
-      rest.intermediatePoints = (rest.intermediatePoints as Array<Record<string, unknown>>).map((point) => ({
-        ...point,
-        id: undefined,
-        point: remapAnchor(point.point as PointAnchor)
-      }));
-    }
-    return rest;
-  });
-};
-
-const expectSemanticallyEqualDocuments = (a: DslDocumentData, b: DslDocumentData) => {
-  expect(normalizeForComparison(a.elements)).toEqual(normalizeForComparison(b.elements));
-  expect(a.palette).toEqual(b.palette);
-  expect(a.visibilityRoles).toEqual(b.visibilityRoles);
-  expect(a.visibilityProfiles).toEqual(b.visibilityProfiles);
-  expect(a.evaluationLimitIndex).toBe(b.evaluationLimitIndex);
-  expect(a.printLayouts.length).toBe(b.printLayouts.length);
-};
-
-const roundTrip = (source: string) => {
-  const first = compileDslToElements(source, { elements: [], mode: "document" });
-  expect(first.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
-  const document: DslDocumentData = {
-    elements: first.elements,
-    palette: first.palette ?? defaultDocumentPalette(),
-    visibilityRoles: first.visibilityRoles ?? [],
-    visibilityProfiles: first.visibilityProfiles?.length ? first.visibilityProfiles : [defaultVisibilityProfile()],
-    activeVisibilityProfileId: first.activeVisibilityProfileId ?? defaultVisibilityProfile().id,
-    printLayouts: first.printLayouts ?? [],
-    activePrintLayoutId: first.activePrintLayoutId ?? first.printLayouts?.[0]?.id ?? "",
-    evaluationLimitIndex: first.evaluationLimitIndex ?? first.elements.length
-  };
-  const text = serializeDocumentToDsl(document);
-  const parsed = parseDslDocument(text);
-  expect(parsed.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
-  return { document, text, parsed: parsed.document! };
-};
 
 describe("dslDocument round-trip matrix", () => {
   it("round-trips freePoint via coordinate literal", () => {
@@ -525,6 +443,92 @@ describe("dslDocument version handling", () => {
     const parsed = parseDslDocument(["# comment before header is not allowed to precede nui", "nui 1", "point A = (0, 0)"].join("\n"));
     // comments do not produce statements, so nui 1 is still the first statement
     expect(parsed.document).not.toBeNull();
+  });
+});
+
+describe("compileDslDocument facade", () => {
+  it("matches parseDslDocument output (wrapper equivalence, IDs are per-parse)", () => {
+    const compiled = compileDslDocument(sampleFixture);
+    const parsed = parseDslDocument(sampleFixture);
+    expectSemanticallyEqualDocuments(parsed.document!, compiled.document!);
+    expect(parsed.document!.printLayouts.map((layout) => layout.name)).toEqual(
+      compiled.document!.printLayouts.map((layout) => layout.name)
+    );
+    expect(parsed.diagnostics).toEqual(compiled.diagnostics);
+  });
+
+  it("returns a null statementMap alongside error diagnostics", () => {
+    const compiled = compileDslDocument("point A = (0, 0)");
+    expect(compiled.document).toBeNull();
+    expect(compiled.statementMap).toBeNull();
+    expect(compiled.statements.length).toBeGreaterThan(0);
+    expect(compiled.sourceLines).toEqual(["point A = (0, 0)"]);
+  });
+
+  it("builds statement line ranges, else lines, and indent depths for the sample fixture", () => {
+    const compiled = compileDslDocument(sampleFixture);
+    expect(compiled.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
+    const map = compiled.statementMap!;
+    const document = compiled.document!;
+
+    const infoOf = (name: string) => {
+      const element = document.elements.find((item) => item.name === name);
+      expect(element, name).toBeDefined();
+      const info = map.byElementId.get(element!.id);
+      expect(info, name).toBeDefined();
+      return info!;
+    };
+
+    expect(infoOf("前身頃")).toMatchObject({ line: 18, range: { startLine: 18, endLine: 32 }, indentDepth: 0 });
+    expect(infoOf("見返し")).toMatchObject({
+      line: 23,
+      range: { startLine: 23, endLine: 27 },
+      elseLine: 25,
+      indentDepth: 1
+    });
+    expect(infoOf("C")).toMatchObject({ line: 24, indentDepth: 2 });
+    expect(infoOf("D")).toMatchObject({ line: 26, indentDepth: 2 });
+    expect(infoOf("繰返し")).toMatchObject({ range: { startLine: 29, endLine: 31 }, indentDepth: 1 });
+    expect(infoOf("after")).toMatchObject({ line: 38, range: { startLine: 38, endLine: 38 }, indentDepth: 0 });
+
+    // 全要素がstatementMapに載る(無名要素含む)。
+    expect(map.byElementId.size).toBe(document.elements.length);
+    const unnamed = document.elements.find((item) => item.name === "" && item.type === "freePoint");
+    expect(map.byElementId.get(unnamed!.id)).toMatchObject({ line: 34 });
+  });
+
+  it("keys non-element statements and records section ends for the sample fixture", () => {
+    const compiled = compileDslDocument(sampleFixture);
+    const map = compiled.statementMap!;
+
+    expect(map.byKey.get("version")).toMatchObject({ line: 1 });
+    expect(map.byKey.get("color:pattern-black")).toMatchObject({ line: 3 });
+    expect(map.byKey.get("color:cut-red")).toMatchObject({ line: 4 });
+    expect(map.byKey.get("role:seam")).toMatchObject({ line: 6 });
+    expect(map.byKey.get("view:通常")).toMatchObject({ line: 7 });
+    expect(map.byKey.get("view:印刷")).toMatchObject({ line: 8 });
+    expect(map.byKey.get("activeView")).toMatchObject({ line: 9 });
+    expect(map.byKey.get("printLayout:A4")).toMatchObject({ range: { startLine: 11, endLine: 14 } });
+    expect(map.byKey.get("atStop")).toMatchObject({ line: 36 });
+
+    expect(map.sectionEnds).toEqual({ version: 1, palette: 4, visibility: 9, printLayouts: 14 });
+  });
+
+  it("injects assignedElementIds while letting explicit id= win", () => {
+    const source = ["nui 1", "", "point A = (0, 0)", "point B = (1, 1) id=pinned-b"].join("\n");
+    const baseline = compileDslDocument(source);
+    expect(baseline.document!.elements.map((item) => item.name)).toEqual(["A", "B"]);
+
+    // 文index: 0=version, 1=A, 2=B
+    const compiled = compileDslDocument(source, {
+      assignedElementIds: new Map([
+        [1, "assigned-a"],
+        [2, "assigned-b-ignored"]
+      ])
+    });
+    expect(compiled.document!.elements.map((item) => item.id)).toEqual(["assigned-a", "pinned-b"]);
+    expect(compiled.statementMap!.elementIdByStatementIndex.get(1)).toBe("assigned-a");
+    expect(compiled.statementMap!.elementIdByStatementIndex.get(2)).toBe("pinned-b");
   });
 });
 

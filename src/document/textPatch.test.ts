@@ -1,0 +1,561 @@
+import { describe, expect, it } from "vitest";
+import { compileDslDocument, type DslDocumentData } from "../dsl/dslDocument";
+import { expectSemanticallyEqualDocuments } from "../dsl/dslDocumentTestUtils";
+import type { CadElement } from "../types/geometry";
+import { applyLineSplices, buildTextPatch, diffDocuments, type LineSplice } from "./textPatch";
+
+const elementByName = (document: DslDocumentData, name: string): CadElement => {
+  const element = document.elements.find((item) => item.name === name);
+  expect(element, `element ${name}`).toBeDefined();
+  return element!;
+};
+
+// 小さなDSL片から挿入用の要素オブジェクトを作る(IDは新規=挿入として扱われる)。
+const makeElement = (statement: string, overrides: Partial<CadElement> = {}): CadElement => {
+  const compiled = compileDslDocument(`nui 1\n${statement}`);
+  expect(compiled.document).not.toBeNull();
+  return { ...compiled.document!.elements[0], ...overrides } as CadElement;
+};
+
+const applyChange = (
+  oldSource: string,
+  mutate: (document: DslDocumentData) => DslDocumentData
+) => {
+  const old = compileDslDocument(oldSource);
+  expect(old.statementMap, "old source must compile").not.toBeNull();
+  const newDocument = mutate(old.document!);
+  const splices = buildTextPatch({ old, newDocument });
+  const patched = applyLineSplices(oldSource, splices);
+  const reparsed = compileDslDocument(patched);
+  expect(
+    reparsed.diagnostics.filter((item) => item.severity === "error"),
+    `patched text must reparse:\n${patched}`
+  ).toEqual([]);
+  expectSemanticallyEqualDocuments(reparsed.document!, newDocument);
+  return { old, newDocument, splices, patched, reparsed };
+};
+
+// スプライスが指定行(1-based)に一切触れていないこと。
+const expectLinesUntouched = (splices: LineSplice[], lines: number[]) => {
+  for (const line of lines) {
+    expect(
+      splices.some((splice) => splice.startLine <= line && line <= splice.endLine),
+      `line ${line} should be untouched`
+    ).toBe(false);
+  }
+};
+
+const BASE_SOURCE = [
+  "nui 1",
+  "",
+  "# パレット注釈",
+  "color main \"#112233\" name=\"本体\" default",
+  "",
+  "role seam name=\"縫い代\"",
+  "view 通常 default=true seam=false",
+  "activeView 通常",
+  "",
+  "# 本体",
+  "group G {",
+  "  point A = (0, 0)  # Aの注釈",
+  "  point B = (1, 1)",
+  "  # グループ末尾コメント",
+  "}",
+  "point C = (2, 2)"
+].join("\n");
+
+describe("applyLineSplices", () => {
+  it("挿入・置換・削除を旧座標で適用する", () => {
+    const text = ["l1", "l2", "l3", "l4"].join("\n");
+    const patched = applyLineSplices(text, [
+      { startLine: 2, endLine: 2, replacementLines: ["L2"] },
+      { startLine: 3, endLine: 3, replacementLines: [] },
+      { startLine: 5, endLine: 4, replacementLines: ["l5"] }
+    ]);
+    expect(patched).toBe(["l1", "L2", "l4", "l5"].join("\n"));
+  });
+
+  it("重複するスプライスを拒否する", () => {
+    expect(() =>
+      applyLineSplices("a\nb\nc", [
+        { startLine: 1, endLine: 2, replacementLines: [] },
+        { startLine: 2, endLine: 3, replacementLines: [] }
+      ])
+    ).toThrow();
+  });
+
+  it("未ソートのスプライスを拒否する", () => {
+    expect(() =>
+      applyLineSplices("a\nb\nc", [
+        { startLine: 3, endLine: 3, replacementLines: [] },
+        { startLine: 1, endLine: 1, replacementLines: [] }
+      ])
+    ).toThrow();
+  });
+
+  it("文書外の行範囲を拒否する", () => {
+    expect(() => applyLineSplices("a\nb", [{ startLine: 4, endLine: 4, replacementLines: [] }])).toThrow();
+  });
+});
+
+describe("textPatch 要素の更新", () => {
+  it("属性編集は該当1行のみを置換し、隣接行と行末コメントを保存する", () => {
+    const { splices, patched } = applyChange(BASE_SOURCE, (document) => ({
+      ...document,
+      elements: document.elements.map((element) =>
+        element.name === "B" ? ({ ...element, locked: true } as CadElement) : element
+      )
+    }));
+    expect(splices).toHaveLength(1);
+    expect(splices[0]).toMatchObject({ startLine: 13, endLine: 13 });
+    expect(patched).toContain("locked=true");
+    expect(patched).toContain("point A = (0, 0)  # Aの注釈");
+    expect(patched).toContain("# グループ末尾コメント");
+    expect(patched).toContain("# 本体");
+  });
+
+  it("更新行の行末コメントは書き換え後も保存される", () => {
+    const { patched } = applyChange(BASE_SOURCE, (document) => ({
+      ...document,
+      elements: document.elements.map((element) =>
+        element.name === "A" ? ({ ...element, locked: true } as CadElement) : element
+      )
+    }));
+    expect(patched).toContain("locked=true  # Aの注釈");
+  });
+
+  it("コンテナの属性編集は開き行の末尾 `{` を保つ", () => {
+    const { patched } = applyChange(BASE_SOURCE, (document) => ({
+      ...document,
+      elements: document.elements.map((element) =>
+        element.name === "G" ? ({ ...element, locked: true } as CadElement) : element
+      )
+    }));
+    const groupLine = patched.split("\n").find((line) => line.startsWith("group G"));
+    expect(groupLine).toContain("locked=true");
+    expect(groupLine!.endsWith("{")).toBe(true);
+  });
+});
+
+describe("textPatch 要素の挿入", () => {
+  it("グループ内への挿入は閉じ `}` の直前に入る", () => {
+    const { old, patched } = applyChange(BASE_SOURCE, (document) => {
+      const group = elementByName(document, "G");
+      const inserted = makeElement("point Z = (9, 9)", { parentGroupId: group.id });
+      const elements = [...document.elements];
+      const bIndex = elements.findIndex((element) => element.name === "B");
+      elements.splice(bIndex + 1, 0, inserted);
+      return { ...document, elements, evaluationLimitIndex: elements.length };
+    });
+    expect(old.sourceLines).toHaveLength(16);
+    const lines = patched.split("\n");
+    const zIndex = lines.findIndex((line) => line.includes("point Z"));
+    expect(lines[zIndex]).toBe("  point Z = (9, 9)");
+    expect(lines[zIndex + 1]).toBe("}");
+    expect(lines[zIndex - 1]).toBe("  # グループ末尾コメント");
+  });
+
+  it("トップレベル末尾への挿入", () => {
+    const { patched } = applyChange(BASE_SOURCE, (document) => ({
+      ...document,
+      elements: [...document.elements, makeElement("point Z = (9, 9)")],
+      evaluationLimitIndex: document.elements.length + 1
+    }));
+    const lines = patched.split("\n");
+    expect(lines.at(-1)).toBe("point Z = (9, 9)");
+  });
+
+  it("else枝への初回挿入は `} else {` 行を生成する", () => {
+    const source = ["nui 1", "if 分岐 condition=1 {", "  point T = (0, 0)", "}"].join("\n");
+    const { patched } = applyChange(source, (document) => {
+      const conditional = elementByName(document, "分岐");
+      const inserted = makeElement("point E = (5, 5)", {
+        parentGroupId: conditional.id,
+        conditionalBranch: "else"
+      });
+      return {
+        ...document,
+        elements: [...document.elements, inserted],
+        evaluationLimitIndex: document.elements.length + 1
+      };
+    });
+    expect(patched).toContain("} else {");
+    expect(patched).toContain("  point E = (5, 5)");
+  });
+
+  it("サブツリー(グループごと)の挿入は1回の挿入runで入る", () => {
+    const { patched, splices } = applyChange(BASE_SOURCE, (document) => {
+      const group = makeElement("group H {\n  point HP = (7, 7)\n}");
+      const child = makeElement("point HP = (7, 7)", { parentGroupId: group.id });
+      return {
+        ...document,
+        elements: [...document.elements, group, child],
+        evaluationLimitIndex: document.elements.length + 2
+      };
+    });
+    expect(splices).toHaveLength(1);
+    expect(patched.split("\n").some((line) => line.startsWith("group H") && line.endsWith("{"))).toBe(true);
+    expect(patched).toContain("  point HP = (7, 7)");
+  });
+
+  it("要素セクションが空の文書への挿入はセクションを新設する", () => {
+    const source = ["nui 1", "", "color main \"#112233\" name=\"本体\" default"].join("\n");
+    const { patched } = applyChange(source, (document) => ({
+      ...document,
+      elements: [makeElement("point Z = (9, 9)")],
+      evaluationLimitIndex: 1
+    }));
+    expect(patched.split("\n")).toEqual([
+      "nui 1",
+      "",
+      "color main \"#112233\" name=\"本体\" default",
+      "",
+      "point Z = (9, 9)"
+    ]);
+  });
+});
+
+describe("textPatch 要素の削除", () => {
+  it("末端要素の削除は該当行のみ", () => {
+    const { splices, patched } = applyChange(BASE_SOURCE, (document) => ({
+      ...document,
+      elements: document.elements.filter((element) => element.name !== "C"),
+      evaluationLimitIndex: document.evaluationLimitIndex - 1
+    }));
+    expect(splices).toHaveLength(1);
+    expect(patched).not.toContain("point C");
+    expect(patched).toContain("# グループ末尾コメント");
+  });
+
+  it("サブツリーごとの削除はブロック全範囲(内側コメント含む)を除去する", () => {
+    const { patched } = applyChange(BASE_SOURCE, (document) => {
+      const group = elementByName(document, "G");
+      const removed = new Set(
+        document.elements
+          .filter((element) => element.id === group.id || element.parentGroupId === group.id)
+          .map((element) => element.id)
+      );
+      return {
+        ...document,
+        elements: document.elements.filter((element) => !removed.has(element.id)),
+        evaluationLimitIndex: document.elements.length - removed.size
+      };
+    });
+    expect(patched).not.toContain("group G");
+    expect(patched).not.toContain("# Aの注釈");
+    expect(patched).not.toContain("# グループ末尾コメント");
+    expect(patched).toContain("# 本体");
+    expect(patched).toContain("point C = (2, 2)");
+  });
+
+  it("ungroup(メンバー保持)は開き/閉じ行を除去しメンバーをデデント、内側コメントは保存する", () => {
+    const { patched } = applyChange(BASE_SOURCE, (document) => {
+      const group = elementByName(document, "G");
+      return {
+        ...document,
+        elements: document.elements
+          .filter((element) => element.id !== group.id)
+          .map((element) =>
+            element.parentGroupId === group.id
+              ? ({ ...element, parentGroupId: undefined } as CadElement)
+              : element
+          ),
+        evaluationLimitIndex: document.evaluationLimitIndex - 1
+      };
+    });
+    expect(patched).not.toContain("group G");
+    const lines = patched.split("\n");
+    expect(lines).toContain("point A = (0, 0)  # Aの注釈");
+    expect(lines).toContain("point B = (1, 1)");
+    expect(lines).toContain("  # グループ末尾コメント");
+    expect(lines).not.toContain("}");
+  });
+
+  it("else枝の最後のメンバー削除は `} else {` 行も除去する", () => {
+    const source = [
+      "nui 1",
+      "if 分岐 condition=1 {",
+      "  point T = (0, 0)",
+      "} else {",
+      "  point E = (5, 5)",
+      "}"
+    ].join("\n");
+    const { patched } = applyChange(source, (document) => ({
+      ...document,
+      elements: document.elements.filter((element) => element.name !== "E"),
+      evaluationLimitIndex: document.evaluationLimitIndex - 1
+    }));
+    expect(patched).not.toContain("} else {");
+    expect(patched).toContain("  point T = (0, 0)");
+  });
+});
+
+describe("textPatch 要素の移動・親変更", () => {
+  it("同一スコープ内の並べ替えは削除+挿入で表現される", () => {
+    const source = ["nui 1", "point A = (0, 0)", "point B = (1, 1)", "point C = (2, 2)"].join("\n");
+    const { patched } = applyChange(source, (document) => {
+      const [a, b, c] = document.elements;
+      return { ...document, elements: [a, c, b] };
+    });
+    const lines = patched.split("\n");
+    expect(lines.indexOf("point C = (2, 2)")).toBeLessThan(lines.indexOf("point B = (1, 1)"));
+  });
+
+  it("グループへの親変更(indent)は移動先ブロック内に入る", () => {
+    const { patched } = applyChange(BASE_SOURCE, (document) => {
+      const group = elementByName(document, "G");
+      const c = elementByName(document, "C");
+      const others = document.elements.filter((element) => element.id !== c.id);
+      const bIndex = others.findIndex((element) => element.name === "B");
+      const moved = { ...c, parentGroupId: group.id } as CadElement;
+      return {
+        ...document,
+        elements: [...others.slice(0, bIndex + 1), moved, ...others.slice(bIndex + 1)]
+      };
+    });
+    const lines = patched.split("\n");
+    const cIndex = lines.findIndex((line) => line.includes("point C"));
+    expect(lines[cIndex].startsWith("  ")).toBe(true);
+    const closeIndex = lines.findIndex((line, index) => index > cIndex && line === "}");
+    expect(closeIndex).toBeGreaterThan(cIndex);
+  });
+
+  it("非連続な親子順序は parent= フォールバックで表現される", () => {
+    const source = ["nui 1", "group G {", "  point A = (0, 0)", "}", "point C = (2, 2)"].join("\n");
+    const { patched } = applyChange(source, (document) => {
+      const group = elementByName(document, "G");
+      const inserted = makeElement("point B = (1, 1)", { parentGroupId: group.id });
+      // C(トップレベル)の後ろに、Gを親とするBを置く=ブロック表現不能。
+      return { ...document, elements: [...document.elements, inserted] };
+    });
+    expect(patched).toContain("parent=G");
+  });
+});
+
+describe("textPatch リネーム伝播", () => {
+  it("参照元のリネームで参照行が書き換わり、無関係行は不変", () => {
+    const source = [
+      "nui 1",
+      "# 注釈",
+      "point A = (0, 0)",
+      "point B = offset A dx=1 dy=2",
+      "point C = (5, 5)"
+    ].join("\n");
+    const { splices, patched } = applyChange(source, (document) => ({
+      ...document,
+      elements: document.elements.map((element) =>
+        element.name === "A" ? ({ ...element, name: "A2" } as CadElement) : element
+      )
+    }));
+    expect(patched).toContain("point A2 = (0, 0)");
+    expect(patched).toContain("offset A2 ");
+    expectLinesUntouched(splices, [1, 2, 5]);
+  });
+
+  it("配置済みグループのリネームで printLayout ブロックが書き換わる", () => {
+    const source = [
+      "nui 1",
+      "printLayout A4 output=pdf paper=a4 orientation=portrait columns=2 rows=2 overlap=10 scale=1 canvas=(410, 584) {",
+      "  place 前身頃 at=(0, 0) angle=0 mirrorX=false",
+      "}",
+      "",
+      "group 前身頃 {",
+      "  point A = (0, 0)",
+      "}"
+    ].join("\n");
+    const { patched } = applyChange(source, (document) => ({
+      ...document,
+      elements: document.elements.map((element) =>
+        element.name === "前身頃" ? ({ ...element, name: "後身頃" } as CadElement) : element
+      )
+    }));
+    expect(patched).toContain("place 後身頃 ");
+    expect(patched.split("\n").some((line) => line.startsWith("group 後身頃") && line.endsWith("{"))).toBe(true);
+  });
+});
+
+describe("textPatch 非要素セクション", () => {
+  it("色の追加・編集・default移動・削除", () => {
+    const source = [
+      "nui 1",
+      "",
+      "color main \"#112233\" name=\"本体\" default",
+      "color sub \"#445566\" name=\"サブ\"",
+      "color gone \"#778899\" name=\"消える\"",
+      "",
+      "point A = (0, 0)"
+    ].join("\n");
+    const { patched, splices } = applyChange(source, (document) => ({
+      ...document,
+      palette: {
+        colors: [
+          { id: "main", name: "本体", hex: "#000000" },
+          { id: "sub", name: "サブ", hex: "#445566" },
+          { id: "added", name: "追加", hex: "#abcdef" }
+        ],
+        defaultColorId: "sub"
+      }
+    }));
+    expect(patched).toContain("color main \"#000000\" name=\"本体\"");
+    expect(patched).toContain("color sub \"#445566\" name=\"サブ\" default");
+    expect(patched).toContain("color added \"#abcdef\" name=\"追加\"");
+    expect(patched).not.toContain("gone");
+    expectLinesUntouched(splices, [1, 2, 7]);
+  });
+
+  it("ロール追加は各view行を個別に書き換え、行間コメントを保存する", () => {
+    const source = [
+      "nui 1",
+      "role seam name=\"縫い代\"",
+      "view 通常 default=true seam=false",
+      "# ビュー間コメント",
+      "view 印刷 default=true seam=true",
+      "activeView 通常",
+      "point A = (0, 0)"
+    ].join("\n");
+    const { patched } = applyChange(source, (document) => ({
+      ...document,
+      visibilityRoles: [...document.visibilityRoles, { id: "guide", name: "ガイド" }],
+      visibilityProfiles: document.visibilityProfiles.map((profile) => ({
+        ...profile,
+        roleVisibility: { ...profile.roleVisibility, guide: profile.defaultRoleVisible }
+      }))
+    }));
+    expect(patched).toContain("role guide name=\"ガイド\"");
+    expect(patched).toContain("# ビュー間コメント");
+    expect(patched).toContain("view 通常 default=true seam=false guide=true");
+    expect(patched).toContain("view 印刷 default=true seam=true guide=true");
+  });
+
+  it("activeView の切替はその行だけを書き換える", () => {
+    const source = [
+      "nui 1",
+      "role seam name=\"縫い代\"",
+      "view 通常 default=true seam=false",
+      "view 印刷 default=true seam=true",
+      "activeView 通常",
+      "point A = (0, 0)"
+    ].join("\n");
+    const { patched, splices, newDocument } = applyChange(source, (document) => ({
+      ...document,
+      activeVisibilityProfileId: document.visibilityProfiles.find((profile) => profile.name === "印刷")!.id
+    }));
+    expect(newDocument.activeVisibilityProfileId).toBe("印刷");
+    expect(splices).toHaveLength(1);
+    expect(splices[0]).toMatchObject({ startLine: 5, endLine: 5 });
+    expect(patched).toContain("activeView 印刷");
+  });
+
+  it("printLayout の属性変更はブロック単位で置換される", () => {
+    const source = [
+      "nui 1",
+      "printLayout A4 output=pdf paper=a4 orientation=portrait columns=2 rows=2 overlap=10 scale=1 canvas=(410, 584) {",
+      "  layoutVar margin = 15",
+      "  place G at=(0, margin) angle=0 mirrorX=false",
+      "}",
+      "group G {",
+      "  point A = (0, 0)",
+      "}"
+    ].join("\n");
+    const { patched } = applyChange(source, (document) => ({
+      ...document,
+      printLayouts: document.printLayouts.map((layout) => ({ ...layout, columns: 5 }))
+    }));
+    expect(patched).toContain("columns=5");
+    expect(patched).toContain("layoutVar margin = 15");
+    expect(patched).toContain("place G ");
+  });
+
+  it("printLayout の追加と activePrintLayout の切替", () => {
+    const source = [
+      "nui 1",
+      "printLayout 一枚目 output=pdf paper=a4 orientation=portrait columns=2 rows=2 overlap=10 scale=1 canvas=(410, 584) {",
+      "}",
+      "point A = (0, 0)"
+    ].join("\n");
+    const { patched } = applyChange(source, (document) => {
+      const added = {
+        ...document.printLayouts[0],
+        id: "二枚目",
+        name: "二枚目",
+        placements: [],
+        numericVariables: []
+      };
+      return {
+        ...document,
+        printLayouts: [...document.printLayouts, added],
+        activePrintLayoutId: "二枚目"
+      };
+    });
+    expect(patched).toContain("printLayout 二枚目 ");
+    expect(patched).toContain("activePrintLayout 二枚目");
+  });
+
+  it("@stop の移動は削除+挿入", () => {
+    const source = ["nui 1", "point A = (0, 0)", "@stop", "point B = (1, 1)", "point C = (2, 2)"].join("\n");
+    const { patched } = applyChange(source, (document) => ({
+      ...document,
+      evaluationLimitIndex: 2
+    }));
+    const lines = patched.split("\n");
+    expect(lines.indexOf("@stop")).toBe(3);
+    expect(lines.filter((line) => line === "@stop")).toHaveLength(1);
+  });
+
+  it("全評価になったら @stop 行は除去される", () => {
+    const source = ["nui 1", "point A = (0, 0)", "@stop", "point B = (1, 1)"].join("\n");
+    const { patched } = applyChange(source, (document) => ({
+      ...document,
+      evaluationLimitIndex: 2
+    }));
+    expect(patched).not.toContain("@stop");
+  });
+});
+
+describe("diffDocuments", () => {
+  it("update / insert / delete / move と非要素フラグを要約する", () => {
+    const old = compileDslDocument(BASE_SOURCE);
+    const document = old.document!;
+    const group = elementByName(document, "G");
+    const inserted = makeElement("point Z = (9, 9)");
+    const next: DslDocumentData = {
+      ...document,
+      elements: [
+        ...document.elements
+          .filter((element) => element.name !== "C")
+          .map((element) =>
+            element.name === "B" ? ({ ...element, locked: true } as CadElement) : element
+          ),
+        inserted
+      ],
+      activeVisibilityProfileId: document.activeVisibilityProfileId,
+      evaluationLimitIndex: document.evaluationLimitIndex
+    };
+    const diff = diffDocuments(document, next);
+    const kinds = new Map(diff.elements.map((change) => [change.id, change.kind]));
+    expect(kinds.get(elementByName(document, "B").id)).toBe("update");
+    expect(kinds.get(elementByName(document, "C").id)).toBe("delete");
+    expect(kinds.get(inserted.id)).toBe("insert");
+    expect(kinds.has(group.id)).toBe(false);
+    expect(diff.palette).toBe(false);
+    expect(diff.visibility).toBe(false);
+  });
+
+  it("ungroup を membersKept 付きの delete として要約する", () => {
+    const old = compileDslDocument(BASE_SOURCE);
+    const document = old.document!;
+    const group = elementByName(document, "G");
+    const next: DslDocumentData = {
+      ...document,
+      elements: document.elements
+        .filter((element) => element.id !== group.id)
+        .map((element) =>
+          element.parentGroupId === group.id
+            ? ({ ...element, parentGroupId: undefined } as CadElement)
+            : element
+        )
+    };
+    const diff = diffDocuments(document, next);
+    expect(diff.elements).toContainEqual({ kind: "delete", id: group.id, membersKept: true });
+  });
+});

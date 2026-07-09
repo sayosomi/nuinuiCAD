@@ -435,34 +435,37 @@ export const serializeElementsToDsl = (
   ].join("\n");
 };
 
-// role/view/activeView 行の生成。フラット出力(visibilitySettingsDsl)と
-// 文書グラマー(dslDocument.ts)の両方から共有される。
+// role/view/activeView の行単位シリアライザ。フラット出力
+// (visibilitySettingsDsl)・文書グラマー(dslDocument.ts)・行パッチ
+// (src/document/textPatch.ts)から共有される。
+export const serializeRoleLine = (role: VisibilityRole): string =>
+  ["role", formatDslName(role.id), `name=${quoteDslString(role.name)}`].filter(Boolean).join(" ");
+
+export const serializeViewLine = (profile: VisibilityProfile, roles: VisibilityRole[]): string => {
+  const roleAttrs = roles.map((role) =>
+    `${role.id}=${profile.roleVisibility[role.id] ?? profile.defaultRoleVisible}`
+  );
+  return [
+    "view",
+    formatDslName(profile.name || profile.id),
+    ...(profile.id === profile.name ? [] : [`id=${formatDslName(profile.id)}`]),
+    `default=${profile.defaultRoleVisible}`,
+    ...roleAttrs
+  ].filter(Boolean).join(" ");
+};
+
+export const serializeActiveViewLine = (activeProfileId: string): string =>
+  ["activeView", formatDslName(activeProfileId)].filter(Boolean).join(" ");
+
 export const serializeVisibilitySettingsLines = (
   roles: VisibilityRole[],
   profiles: VisibilityProfile[],
   activeProfileId: string | undefined
-): string[] => {
-  const lines: string[] = [];
-  for (const role of roles) {
-    lines.push(["role", formatDslName(role.id), `name=${quoteDslString(role.name)}`].filter(Boolean).join(" "));
-  }
-  for (const profile of profiles) {
-    const roleAttrs = roles.map((role) =>
-      `${role.id}=${profile.roleVisibility[role.id] ?? profile.defaultRoleVisible}`
-    );
-    lines.push([
-      "view",
-      formatDslName(profile.name || profile.id),
-      ...(profile.id === profile.name ? [] : [`id=${formatDslName(profile.id)}`]),
-      `default=${profile.defaultRoleVisible}`,
-      ...roleAttrs
-    ].filter(Boolean).join(" "));
-  }
-  if (activeProfileId) {
-    lines.push(["activeView", formatDslName(activeProfileId)].filter(Boolean).join(" "));
-  }
-  return lines;
-};
+): string[] => [
+  ...roles.map(serializeRoleLine),
+  ...profiles.map((profile) => serializeViewLine(profile, roles)),
+  ...(activeProfileId ? [serializeActiveViewLine(activeProfileId)] : [])
+];
 
 const visibilitySettingsDsl = (options: SerializeDslOptions) => {
   const printLayouts = options.printLayouts ?? [];

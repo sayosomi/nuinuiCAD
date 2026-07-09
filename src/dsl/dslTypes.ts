@@ -84,6 +84,13 @@ export type CompileDslContext = {
   insertionIndex?: number;
   mode?: "edit" | "document";
   selectedElementIds?: ElementId[];
+  /** `source` を事前パースした結果。指定時はコンパイラ内部の parseDsl を省略する(同一ソース前提)。 */
+  preparsed?: ParseDslResult;
+  /**
+   * 文index(全文配列基準)→ 割当済み実行時要素ID。statementReconciler の照合結果を
+   * 再コンパイルへ引き渡すための注入口。`id=` 属性 > 本マップ > 新規生成 の優先順。
+   */
+  assignedElementIds?: ReadonlyMap<number, ElementId>;
 };
 
 export type CompileDslResult = {
@@ -99,6 +106,10 @@ export type CompileDslResult = {
   evaluationLimitIndex?: number;
   diagnostics: DslDiagnostic[];
   changedCount: number;
+  /** 文index(全文配列基準)→ コンパイルされた要素のID。パースエラーの早期returnでは付与されない。 */
+  elementIdsByStatementIndex?: Map<number, ElementId>;
+  /** printLayout文のindex(全文配列基準)→ 解決後の PrintLayout.id。 */
+  printLayoutIdsByStatementIndex?: Map<number, string>;
 };
 
 export type SerializeDslOptions = {
