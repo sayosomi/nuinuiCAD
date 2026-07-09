@@ -11,7 +11,7 @@ import type {
   VisibilityProfile,
   VisibilityRole
 } from "../types/geometry";
-import { parseDsl } from "./dslParser";
+import { isElementDslStatement, parseDsl } from "./dslParser";
 import {
   createNameIndex,
   resolveAnchor,
@@ -24,12 +24,6 @@ import { splitDslList, splitDslRecords, unquoteDslString } from "./dslTokens";
 
 const attr = (attrs: DslAttribute[], key: string) =>
   attrs.find((item) => item.key === key)?.value;
-
-const isElementDslStatement = (statement: DslStatement) =>
-  statement.kind !== "role" &&
-  statement.kind !== "view" &&
-  statement.kind !== "activeView" &&
-  statement.kind !== "printLayout";
 
 const statementType = (statement: DslStatement): CadElementType => {
   if (statement.kind === "element") return statement.type ?? "group";

@@ -1,6 +1,13 @@
 import type { CadElementType } from "../types/geometry";
-import type { DslAttribute, DslDiagnostic, DslStatement, ParseDslResult } from "./dslTypes";
-import { unquoteDslString } from "./dslTokens";
+import type {
+  DslAttribute,
+  DslDiagnostic,
+  DslSpan,
+  DslStatement,
+  DslStatementBase,
+  ParseDslResult
+} from "./dslTypes";
+import { splitDslTerms, unquoteDslString, type DslTerm } from "./dslTokens";
 
 const elementTypes = new Set<CadElementType>([
   "group",
@@ -32,6 +39,24 @@ const elementTypes = new Set<CadElementType>([
   "text"
 ]);
 
+const nonElementKinds = new Set<DslStatement["kind"]>([
+  "role",
+  "view",
+  "activeView",
+  "printLayout",
+  "version",
+  "color",
+  "atStop",
+  "activePrintLayout",
+  "place",
+  "layoutVar",
+  "blockEnd",
+  "blockElse"
+]);
+
+export const isElementDslStatement = (statement: DslStatement) =>
+  !nonElementKinds.has(statement.kind);
+
 const stripComment = (line: string) => {
   let quote: string | null = null;
   for (let index = 0; index < line.length; index += 1) {
@@ -44,70 +69,69 @@ const stripComment = (line: string) => {
   return line;
 };
 
-const splitTerms = (line: string) => {
-  const terms: string[] = [];
-  let current = "";
-  let quote: string | null = null;
-  let depth = 0;
-  for (let index = 0; index < line.length; index += 1) {
-    const char = line[index];
-    if ((char === "\"" || char === "'") && line[index - 1] !== "\\") {
-      quote = quote === char ? null : quote ?? char;
-      current += char;
-      continue;
-    }
-    if (!quote && (char === "(" || char === "[" || char === "{")) depth += 1;
-    if (!quote && (char === ")" || char === "]" || char === "}")) depth -= 1;
-    if (!quote && depth === 0 && /\s/.test(char)) {
-      if (current.trim()) terms.push(current.trim());
-      current = "";
-      continue;
-    }
-    current += char;
-  }
-  if (current.trim()) terms.push(current.trim());
-  return terms;
+const termSpan = (term: DslTerm): DslSpan => ({ start: term.start, end: term.end });
+
+const isAttrTerm = (term: DslTerm) => {
+  const first = term.text[0];
+  if (first === "\"" || first === "'") return false;
+  return term.text.indexOf("=") > 0;
 };
 
-const attrsFromTerms = (terms: string[]) =>
+const attrsFromTerms = (terms: DslTerm[]) =>
   terms.flatMap((term): DslAttribute[] => {
-    const equalsIndex = term.indexOf("=");
+    const equalsIndex = term.text.indexOf("=");
     if (equalsIndex <= 0) return [];
     return [{
-      key: term.slice(0, equalsIndex).trim(),
-      value: unquoteDslString(term.slice(equalsIndex + 1))
+      key: term.text.slice(0, equalsIndex).trim(),
+      value: unquoteDslString(term.text.slice(equalsIndex + 1)),
+      keyStart: term.start,
+      valueStart: term.start + equalsIndex + 1,
+      valueEnd: term.end
     }];
   });
 
 const attrValue = (attrs: DslAttribute[], key: string) =>
   attrs.find((attr) => attr.key === key)?.value;
 
-const attrItem = (key: string, value: string): DslAttribute => ({ key, value });
+const syntheticAttr = (key: string, value: string, span: DslSpan): DslAttribute => ({
+  key,
+  value,
+  keyStart: span.start,
+  valueStart: span.start,
+  valueEnd: span.end
+});
+
+const termAttr = (key: string, term: DslTerm): DslAttribute =>
+  syntheticAttr(key, term.text, termSpan(term));
+
+const statementBase = (
+  line: number,
+  keyword: DslTerm,
+  name: DslTerm | null,
+  opensBlock: boolean
+): DslStatementBase => ({
+  line,
+  name: name ? unquoteDslString(name.text) : "",
+  nameSpan: name ? termSpan(name) : null,
+  keywordSpan: termSpan(keyword),
+  opensBlock,
+  payloadSpans: {},
+  enclosing: null,
+  attrs: []
+});
 
 const elementStatement = (
-  line: number,
-  name: string,
+  base: DslStatementBase,
   type: CadElementType,
   attrs: DslAttribute[]
 ): DslStatement => ({
+  ...base,
   kind: "element",
-  line,
-  name,
   type,
-  attrs: [attrItem("type", type), ...attrs]
+  attrs: [syntheticAttr("type", type, base.keywordSpan), ...attrs]
 });
 
 const commonAttrPattern = /^(id|name|visible|enabled|color|parent|branch|roles)=/;
-
-const expressionAndAttrs = (source: string) => {
-  const terms = splitTerms(source);
-  const attrStart = terms.findIndex((term) => commonAttrPattern.test(term));
-  if (attrStart < 0) return { expression: source.trim(), attrs: [] };
-  return {
-    expression: terms.slice(0, attrStart).join(" ").trim(),
-    attrs: attrsFromTerms(terms.slice(attrStart))
-  };
-};
 
 const diagnostic = (line: number, message: string): DslDiagnostic => ({
   severity: "error",
@@ -116,96 +140,291 @@ const diagnostic = (line: number, message: string): DslDiagnostic => ({
   message
 });
 
-const expressionAfterEquals = (raw: string) => {
-  const equalsIndex = raw.indexOf("=");
-  return equalsIndex < 0 ? "" : raw.slice(equalsIndex + 1).trim();
+const parseCoordinate = (term: DslTerm) => {
+  const match = term.text.match(/^\((.*),(.*)\)$/);
+  if (!match) return null;
+  const xRaw = match[1];
+  const yRaw = match[2];
+  const x = xRaw.trim();
+  const y = yRaw.trim();
+  const xStart = term.start + 1 + (xRaw.length - xRaw.trimStart().length);
+  const yStart = term.start + 2 + xRaw.length + (yRaw.length - yRaw.trimStart().length);
+  return {
+    x,
+    y,
+    xSpan: { start: xStart, end: xStart + x.length },
+    ySpan: { start: yStart, end: yStart + y.length }
+  };
 };
 
-const parseCoordinate = (value: string) => {
-  const match = value.trim().match(/^\((.*),(.*)\)$/);
-  return match ? { x: match[1].trim(), y: match[2].trim() } : null;
+const expressionAfterEquals = (
+  terms: DslTerm[],
+  code: string
+): { expression: string; span: DslSpan } | null => {
+  const equalsIndex = terms.findIndex((term) => term.text === "=");
+  const after = equalsIndex >= 0 ? terms.slice(equalsIndex + 1) : [];
+  const attrStart = after.findIndex((term) => commonAttrPattern.test(term.text));
+  const expressionTerms = attrStart >= 0 ? after.slice(0, attrStart) : after;
+  if (expressionTerms.length === 0) return null;
+  const span = { start: expressionTerms[0].start, end: expressionTerms.at(-1)!.end };
+  return { expression: code.slice(span.start, span.end), span };
 };
 
-const parseLine = (rawLine: string, line: number): { statement?: DslStatement; diagnostics: DslDiagnostic[] } => {
-  const raw = stripComment(rawLine).trim();
-  if (!raw) return { diagnostics: [] };
-  const terms = splitTerms(raw);
-  const [keyword, rawName] = terms;
-  if (!keyword || !rawName) return { diagnostics: [diagnostic(line, "文はキーワードと名前から始めてください。")] };
-  const name = unquoteDslString(rawName);
+type ParsedLine = { statement?: DslStatement; diagnostics: DslDiagnostic[] };
 
-  if (keyword === "var") {
-    const parsedExpression = expressionAndAttrs(expressionAfterEquals(raw));
-    const expression = parsedExpression.expression;
-    if (!expression) return { diagnostics: [diagnostic(line, "変数には `=` の後に式が必要です。")] };
-    return { statement: { kind: "variable", line, name, expression, attrs: [...attrsFromTerms(terms.slice(2)), ...parsedExpression.attrs] }, diagnostics: [] };
+const parseLine = (rawLine: string, line: number): ParsedLine => {
+  const code = stripComment(rawLine);
+  const allTerms = splitDslTerms(code);
+  if (allTerms.length === 0) return { diagnostics: [] };
+
+  if (allTerms[0].text === "}") {
+    if (allTerms.length === 1) {
+      return { statement: { ...statementBase(line, allTerms[0], null, false), kind: "blockEnd" }, diagnostics: [] };
+    }
+    if (allTerms.length === 3 && allTerms[1].text === "else" && allTerms[2].text === "{") {
+      return { statement: { ...statementBase(line, allTerms[0], null, true), kind: "blockElse" }, diagnostics: [] };
+    }
+    return { diagnostics: [diagnostic(line, "「}」の行は「}」単独か「} else {」の形で書いてください。")] };
+  }
+  if (allTerms[0].text === "{") {
+    return { diagnostics: [diagnostic(line, "「{」はブロックを開く文の行末に書いてください。")] };
+  }
+  if (allTerms[0].text === "else") {
+    return { diagnostics: [diagnostic(line, "「} else {」は1行で書いてください。")] };
   }
 
-  if (keyword === "role") {
-    return { statement: { kind: "role", line, name, attrs: attrsFromTerms(terms.slice(2)) }, diagnostics: [] };
+  let opensBlock = false;
+  let body = allTerms;
+  if (body.at(-1)?.text === "{") {
+    opensBlock = true;
+    body = body.slice(0, -1);
+  }
+  if (body.length === 0) {
+    return { diagnostics: [diagnostic(line, "「{」はブロックを開く文の行末に書いてください。")] };
+  }
+  if (body.some((term) => term.text === "{" || term.text === "}")) {
+    return { diagnostics: [diagnostic(line, "「{」「}」は行頭・行末以外に書けません。")] };
   }
 
-  if (keyword === "view" || keyword === "profile") {
-    return { statement: { kind: "view", line, name, attrs: attrsFromTerms(terms.slice(2)) }, diagnostics: [] };
+  const keyword = body[0];
+
+  if (keyword.text === "@stop") {
+    if (opensBlock || body.length > 1) {
+      return { diagnostics: [diagnostic(line, "@stop は単独の行に書いてください。")] };
+    }
+    return { statement: { ...statementBase(line, keyword, null, false), kind: "atStop" }, diagnostics: [] };
   }
 
-  if (keyword === "activeView" || keyword === "activeProfile") {
-    return { statement: { kind: "activeView", line, name, attrs: attrsFromTerms(terms.slice(2)) }, diagnostics: [] };
+  if (keyword.text === "nui") {
+    const rest = body.slice(1);
+    const base = statementBase(line, keyword, null, opensBlock);
+    if (rest.length > 0) {
+      base.payloadSpans.value = { start: rest[0].start, end: rest.at(-1)!.end };
+    }
+    return {
+      statement: { ...base, kind: "version", value: rest.map((term) => term.text).join(" ") },
+      diagnostics: []
+    };
   }
 
-  if (keyword === "printLayout") {
-    return { statement: { kind: "printLayout", line, name, attrs: attrsFromTerms(terms.slice(2)) }, diagnostics: [] };
+  if (keyword.text === "for") {
+    const positional: DslTerm[] = [];
+    let restIndex = 1;
+    while (restIndex < body.length && positional.length < 2) {
+      const term = body[restIndex];
+      if (term.text === "=" || isAttrTerm(term)) break;
+      positional.push(term);
+      restIndex += 1;
+    }
+    if (positional.length === 0) {
+      return { diagnostics: [diagnostic(line, "for には変数名が必要です: for 名前 i start=0 count=5 step=1 {")] };
+    }
+    if (!opensBlock) {
+      return { diagnostics: [diagnostic(line, "for にはブロックが必要です(行末に「{」)。")] };
+    }
+    const nameTerm = positional.length === 2 ? positional[0] : null;
+    const variableTerm = positional.at(-1)!;
+    const base = statementBase(line, keyword, nameTerm, opensBlock);
+    base.payloadSpans.variableName = termSpan(variableTerm);
+    return {
+      statement: elementStatement(base, "forGroup", [
+        syntheticAttr("variableName", unquoteDslString(variableTerm.text), termSpan(variableTerm)),
+        ...attrsFromTerms(body.slice(restIndex))
+      ]),
+      diagnostics: []
+    };
   }
 
-  if (keyword === "point") {
-    const equalsIndex = terms.indexOf("=");
-    const right = equalsIndex >= 0 ? terms.slice(equalsIndex + 1) : terms.slice(2);
+  if (keyword.text === "place") {
+    const groupTerm = body[1];
+    if (!groupTerm || groupTerm.text === "=" || isAttrTerm(groupTerm)) {
+      return { diagnostics: [diagnostic(line, "place には配置するグループの参照が必要です。")] };
+    }
+    const base = statementBase(line, keyword, null, opensBlock);
+    base.payloadSpans.group = termSpan(groupTerm);
+    return {
+      statement: { ...base, kind: "place", group: groupTerm.text, attrs: attrsFromTerms(body.slice(2)) },
+      diagnostics: []
+    };
+  }
+
+  const nameCandidate = body[1];
+  const nameTerm =
+    nameCandidate && nameCandidate.text !== "=" && !isAttrTerm(nameCandidate) ? nameCandidate : null;
+  const rest = nameTerm ? body.slice(2) : body.slice(1);
+  const base = statementBase(line, keyword, nameTerm, opensBlock);
+
+  if (!nameTerm && ["role", "view", "profile", "activeView", "activeProfile", "activePrintLayout", "color", "layoutVar"].includes(keyword.text)) {
+    return { diagnostics: [diagnostic(line, "文はキーワードと名前から始めてください。")] };
+  }
+
+  if (keyword.text === "var") {
+    const parsed = expressionAfterEquals(rest, code);
+    if (!parsed) {
+      return { diagnostics: [diagnostic(line, "変数には `=` の後に式が必要です。")] };
+    }
+    base.payloadSpans.expression = parsed.span;
+    return {
+      statement: { ...base, kind: "variable", expression: parsed.expression, attrs: attrsFromTerms(rest) },
+      diagnostics: []
+    };
+  }
+
+  if (keyword.text === "layoutVar") {
+    const equalsIndex = rest.findIndex((term) => term.text === "=");
+    const after = equalsIndex >= 0 ? rest.slice(equalsIndex + 1) : [];
+    if (after.length === 0) {
+      return { diagnostics: [diagnostic(line, "layoutVar には `=` の後に式が必要です。")] };
+    }
+    const span = { start: after[0].start, end: after.at(-1)!.end };
+    base.payloadSpans.expression = span;
+    return {
+      statement: { ...base, kind: "layoutVar", expression: code.slice(span.start, span.end), attrs: [] },
+      diagnostics: []
+    };
+  }
+
+  if (keyword.text === "role") {
+    return { statement: { ...base, kind: "role", attrs: attrsFromTerms(rest) }, diagnostics: [] };
+  }
+
+  if (keyword.text === "view" || keyword.text === "profile") {
+    return { statement: { ...base, kind: "view", attrs: attrsFromTerms(rest) }, diagnostics: [] };
+  }
+
+  if (keyword.text === "activeView" || keyword.text === "activeProfile") {
+    return { statement: { ...base, kind: "activeView", attrs: attrsFromTerms(rest) }, diagnostics: [] };
+  }
+
+  if (keyword.text === "activePrintLayout") {
+    return { statement: { ...base, kind: "activePrintLayout", attrs: attrsFromTerms(rest) }, diagnostics: [] };
+  }
+
+  if (keyword.text === "printLayout") {
+    return { statement: { ...base, kind: "printLayout", attrs: attrsFromTerms(rest) }, diagnostics: [] };
+  }
+
+  if (keyword.text === "color") {
+    let hexTerm: DslTerm | null = null;
+    let unknownTerm: DslTerm | null = null;
+    let isDefault = false;
+    const attrTerms: DslTerm[] = [];
+    for (const term of rest) {
+      if (term.text === "default") {
+        isDefault = true;
+        continue;
+      }
+      if (isAttrTerm(term)) {
+        attrTerms.push(term);
+        continue;
+      }
+      if (!hexTerm) {
+        hexTerm = term;
+        continue;
+      }
+      unknownTerm = term;
+    }
+    const hex = hexTerm ? unquoteDslString(hexTerm.text) : "";
+    if (!/^#[0-9a-fA-F]{6}$/.test(hex)) {
+      return { diagnostics: [diagnostic(line, "色は `color <ID> \"#rrggbb\"` の形式で指定してください。")] };
+    }
+    if (unknownTerm) {
+      return { diagnostics: [diagnostic(line, `color文に不明なトークンがあります: ${unknownTerm.text}`)] };
+    }
+    base.payloadSpans.hex = termSpan(hexTerm!);
+    return {
+      statement: { ...base, kind: "color", hex, isDefault, attrs: attrsFromTerms(attrTerms) },
+      diagnostics: []
+    };
+  }
+
+  if (keyword.text === "if") {
+    if (!opensBlock) {
+      return { diagnostics: [diagnostic(line, "if にはブロックが必要です(行末に「{」)。")] };
+    }
+    const attrs = attrsFromTerms(rest);
+    if (!attrValue(attrs, "condition")) {
+      return { diagnostics: [diagnostic(line, "if には `condition=式` が必要です。")] };
+    }
+    return { statement: elementStatement(base, "conditionalGroup", attrs), diagnostics: [] };
+  }
+
+  if (keyword.text === "point") {
+    const equalsIndex = rest.findIndex((term) => term.text === "=");
+    const right = equalsIndex >= 0 ? rest.slice(equalsIndex + 1) : rest;
     const attrs = attrsFromTerms(right);
     const coordinate = right[0] ? parseCoordinate(right[0]) : null;
     if (coordinate) {
-      return { statement: { kind: "freePoint", line, name, x: coordinate.x, y: coordinate.y, attrs }, diagnostics: [] };
-    }
-    if (right[0] === "offset" && right[1]) {
-      return { statement: { kind: "offsetPoint", line, name, from: right[1], attrs }, diagnostics: [] };
-    }
-    if (right[0] === "polar" && right[1]) {
-      return { statement: { kind: "polarOffsetPoint", line, name, from: right[1], attrs }, diagnostics: [] };
-    }
-    if (right[0] === "between" && right[1] && right[2]) {
+      base.payloadSpans.x = coordinate.xSpan;
+      base.payloadSpans.y = coordinate.ySpan;
       return {
-        statement: elementStatement(line, name, "divisionPoint", [
-          attrItem("startPoint", right[1]),
-          attrItem("endPoint", right[2]),
+        statement: { ...base, kind: "freePoint", x: coordinate.x, y: coordinate.y, attrs },
+        diagnostics: []
+      };
+    }
+    if (right[0]?.text === "offset" && right[1]) {
+      base.payloadSpans.from = termSpan(right[1]);
+      return { statement: { ...base, kind: "offsetPoint", from: right[1].text, attrs }, diagnostics: [] };
+    }
+    if (right[0]?.text === "polar" && right[1]) {
+      base.payloadSpans.from = termSpan(right[1]);
+      return { statement: { ...base, kind: "polarOffsetPoint", from: right[1].text, attrs }, diagnostics: [] };
+    }
+    if (right[0]?.text === "between" && right[1] && right[2]) {
+      return {
+        statement: elementStatement(base, "divisionPoint", [
+          termAttr("startPoint", right[1]),
+          termAttr("endPoint", right[2]),
           ...attrs
         ]),
         diagnostics: []
       };
     }
-    if (right[0] === "on" && right[1]) {
+    if (right[0]?.text === "on" && right[1]) {
       return {
-        statement: elementStatement(line, name, "lineDivisionPoint", [
-          attrItem("endpoint", right[1]),
+        statement: elementStatement(base, "lineDivisionPoint", [
+          termAttr("endpoint", right[1]),
           ...attrs
         ]),
         diagnostics: []
       };
     }
-    if (right[0] === "intersection" && right[1] && right[2]) {
+    if (right[0]?.text === "intersection" && right[1] && right[2]) {
       return {
-        statement: elementStatement(line, name, "intersectionPoint", [
-          attrItem("line1Id", right[1]),
-          attrItem("line2Id", right[2]),
+        statement: elementStatement(base, "intersectionPoint", [
+          termAttr("line1Id", right[1]),
+          termAttr("line2Id", right[2]),
           ...attrs
         ]),
         diagnostics: []
       };
     }
-    if (right[0] === "tangentOffset" && right[1]) {
-      const base = attrValue(attrs, "base") ?? attrValue(attrs, "basePoint");
+    if (right[0]?.text === "tangentOffset" && right[1]) {
+      const baseAttr = attrs.find((attr) => attr.key === "base") ?? attrs.find((attr) => attr.key === "basePoint");
       return {
-        statement: elementStatement(line, name, "lineTangentOffsetPoint", [
-          attrItem("baseLineId", right[1]),
-          ...(base ? [attrItem("basePoint", base)] : []),
+        statement: elementStatement(base, "lineTangentOffsetPoint", [
+          termAttr("baseLineId", right[1]),
+          ...(baseAttr ? [{ ...baseAttr, key: "basePoint" }] : []),
           ...attrs.filter((attr) => attr.key !== "base")
         ]),
         diagnostics: []
@@ -214,55 +433,77 @@ const parseLine = (rawLine: string, line: number): { statement?: DslStatement; d
     return { diagnostics: [diagnostic(line, "点は `(x, y)`, `offset 基準点`, `polar 基準点` のいずれかで指定してください。")] };
   }
 
-  if (keyword === "line") {
-    const arrowIndex = terms.indexOf("->");
-    const attrs = attrsFromTerms(terms.slice(2));
-    const equalsIndex = terms.indexOf("=");
-    const right = equalsIndex >= 0 ? terms.slice(equalsIndex + 1) : terms.slice(2);
+  if (keyword.text === "line") {
+    const attrs = attrsFromTerms(rest);
+    const equalsIndex = rest.findIndex((term) => term.text === "=");
+    const right = equalsIndex >= 0 ? rest.slice(equalsIndex + 1) : rest;
     const rightAttrs = attrsFromTerms(right);
-    if (arrowIndex > 2 && terms[arrowIndex + 1]) {
+    const arrowIndex = right.findIndex((term) => term.text === "->");
+    if (arrowIndex >= 1 && right[arrowIndex + 1]) {
+      base.payloadSpans.start = termSpan(right[arrowIndex - 1]);
+      base.payloadSpans.end = termSpan(right[arrowIndex + 1]);
       return {
-        statement: { kind: "line", line, name, start: terms[arrowIndex - 1], end: terms[arrowIndex + 1], attrs },
+        statement: {
+          ...base,
+          kind: "line",
+          start: right[arrowIndex - 1].text,
+          end: right[arrowIndex + 1].text,
+          attrs
+        },
         diagnostics: []
       };
     }
-    const fromIndex = terms.indexOf("from");
-    if (fromIndex >= 0 && terms[fromIndex + 1]) {
+    const fromIndex = right.findIndex((term) => term.text === "from");
+    if (fromIndex >= 0 && right[fromIndex + 1]) {
+      base.payloadSpans.start = termSpan(right[fromIndex + 1]);
       return {
-        statement: { kind: "angleLengthLine", line, name, start: terms[fromIndex + 1], attrs },
+        statement: { ...base, kind: "angleLengthLine", start: right[fromIndex + 1].text, attrs },
         diagnostics: []
       };
     }
-    if (right[0] === "split" && right[1]) {
-      const at = attrValue(rightAttrs, "at") ?? attrValue(rightAttrs, "point") ?? right[2];
-      if (!at) return { diagnostics: [diagnostic(line, "分割線には `at=点` が必要です。")] };
+    if (right[0]?.text === "split" && right[1]) {
+      const atAttr = rightAttrs.find((attr) => attr.key === "at") ?? rightAttrs.find((attr) => attr.key === "point");
+      const splitPoint = atAttr
+        ? { ...atAttr, key: "splitPoint" }
+        : right[2]
+          ? termAttr("splitPoint", right[2])
+          : null;
+      if (!splitPoint) return { diagnostics: [diagnostic(line, "分割線には `at=点` が必要です。")] };
       return {
-        statement: elementStatement(line, name, "splitLine", [
-          attrItem("baseLineId", right[1]),
-          attrItem("splitPoint", at),
+        statement: elementStatement(base, "splitLine", [
+          termAttr("baseLineId", right[1]),
+          splitPoint,
           ...rightAttrs.filter((attr) => attr.key !== "at" && attr.key !== "point")
         ]),
         diagnostics: []
       };
     }
-    if (right[0] === "extend" && right[1]) {
-      const point = attrValue(rightAttrs, "to") ?? attrValue(rightAttrs, "point") ?? right[2];
+    if (right[0]?.text === "extend" && right[1]) {
+      const toAttr = rightAttrs.find((attr) => attr.key === "to") ?? rightAttrs.find((attr) => attr.key === "point");
+      const point = toAttr
+        ? { ...toAttr, key: "point" }
+        : right[2]
+          ? termAttr("point", right[2])
+          : null;
       if (!point) return { diagnostics: [diagnostic(line, "延長短縮線には `to=点` が必要です。")] };
       return {
-        statement: elementStatement(line, name, "extendTrim", [
-          attrItem("endpoint", right[1]),
-          attrItem("point", point),
+        statement: elementStatement(base, "extendTrim", [
+          termAttr("endpoint", right[1]),
+          point,
           ...rightAttrs.filter((attr) => attr.key !== "to" && attr.key !== "point")
         ]),
         diagnostics: []
       };
     }
-    if (right[0] === "offset" && right[1]) {
-      const distance = attrValue(rightAttrs, "distance") ?? attrValue(rightAttrs, "offset") ?? "0";
+    if (right[0]?.text === "offset" && right[1]) {
+      const distanceAttr =
+        rightAttrs.find((attr) => attr.key === "distance") ?? rightAttrs.find((attr) => attr.key === "offset");
       return {
-        statement: elementStatement(line, name, "offsetLine", [
-          attrItem("baseLineIds", right[1]),
-          attrItem("offset", distance),
+        statement: elementStatement(base, "offsetLine", [
+          termAttr("baseLineIds", right[1]),
+          distanceAttr
+            ? { ...distanceAttr, key: "offset" }
+            : syntheticAttr("offset", "0", termSpan(right[1])),
           ...rightAttrs.filter((attr) => attr.key !== "distance" && attr.key !== "offset")
         ]),
         diagnostics: []
@@ -271,14 +512,16 @@ const parseLine = (rawLine: string, line: number): { statement?: DslStatement; d
     return { diagnostics: [diagnostic(line, "線は `line L = A -> B` または `line L = from A angle=... length=...` で指定してください。")] };
   }
 
-  if (keyword === "curve") {
-    const arrowIndex = terms.indexOf("->");
-    const attrs = attrsFromTerms(terms.slice(2));
-    if (arrowIndex > 2 && terms[arrowIndex + 1]) {
+  if (keyword.text === "curve") {
+    const attrs = attrsFromTerms(rest);
+    const equalsIndex = rest.findIndex((term) => term.text === "=");
+    const right = equalsIndex >= 0 ? rest.slice(equalsIndex + 1) : rest;
+    const arrowIndex = right.findIndex((term) => term.text === "->");
+    if (arrowIndex >= 1 && right[arrowIndex + 1]) {
       return {
-        statement: elementStatement(line, name, "bezierCurve", [
-          attrItem("startPoint", terms[arrowIndex - 1]),
-          attrItem("endPoint", terms[arrowIndex + 1]),
+        statement: elementStatement(base, "bezierCurve", [
+          termAttr("startPoint", right[arrowIndex - 1]),
+          termAttr("endPoint", right[arrowIndex + 1]),
           ...attrs
         ]),
         diagnostics: []
@@ -287,71 +530,166 @@ const parseLine = (rawLine: string, line: number): { statement?: DslStatement; d
     return { diagnostics: [diagnostic(line, "曲線は `curve C = A -> B ...` で指定してください。")] };
   }
 
-  if (keyword === "arc") {
-    const attrs = attrsFromTerms(terms.slice(2));
-    const equalsIndex = terms.indexOf("=");
-    const right = equalsIndex >= 0 ? terms.slice(equalsIndex + 1) : terms.slice(2);
+  if (keyword.text === "arc") {
+    const attrs = attrsFromTerms(rest);
+    const equalsIndex = rest.findIndex((term) => term.text === "=");
+    const right = equalsIndex >= 0 ? rest.slice(equalsIndex + 1) : rest;
     const rightAttrs = attrsFromTerms(right);
-    if (right[0] === "through" && right[1] && right[2] && right[3]) {
+    if (right[0]?.text === "through" && right[1] && right[2] && right[3]) {
       return {
-        statement: elementStatement(line, name, "threePointArcLine", [
-          attrItem("point1", right[1]),
-          attrItem("point2", right[2]),
-          attrItem("point3", right[3]),
+        statement: elementStatement(base, "threePointArcLine", [
+          termAttr("point1", right[1]),
+          termAttr("point2", right[2]),
+          termAttr("point3", right[3]),
           ...rightAttrs
         ]),
         diagnostics: []
       };
     }
-    if (right[0] === "corner" && right[1] && right[2]) {
+    if (right[0]?.text === "corner" && right[1] && right[2]) {
       return {
-        statement: elementStatement(line, name, "cornerRadiusArcLine", [
-          attrItem("endpoint1", right[1]),
-          attrItem("endpoint2", right[2]),
+        statement: elementStatement(base, "cornerRadiusArcLine", [
+          termAttr("endpoint1", right[1]),
+          termAttr("endpoint2", right[2]),
           ...rightAttrs
         ]),
         diagnostics: []
       };
     }
-    const center = attrValue(attrs, "center");
-    if (!center) return { diagnostics: [diagnostic(line, "円弧には `center=点` が必要です。")] };
-    return { statement: { kind: "arcLine", line, name, center, attrs }, diagnostics: [] };
+    const centerAttr = attrs.find((attr) => attr.key === "center");
+    if (!centerAttr) return { diagnostics: [diagnostic(line, "円弧には `center=点` が必要です。")] };
+    base.payloadSpans.center = { start: centerAttr.valueStart, end: centerAttr.valueEnd };
+    return { statement: { ...base, kind: "arcLine", center: centerAttr.value, attrs }, diagnostics: [] };
   }
 
-  if (keyword === "text") {
-    const equalsIndex = raw.indexOf("=");
-    const afterEquals = equalsIndex >= 0 ? raw.slice(equalsIndex + 1).trim() : "";
-    const textMatch = afterEquals.match(/^("[^"]*"|'[^']*')/);
-    if (!textMatch) return { diagnostics: [diagnostic(line, "テキストは `text label = \"文字\" at 点` で指定してください。")] };
-    const rest = splitTerms(afterEquals.slice(textMatch[0].length).trim());
+  if (keyword.text === "text") {
+    const equalsIndex = rest.findIndex((term) => term.text === "=");
+    const literal = equalsIndex >= 0 ? rest[equalsIndex + 1] : undefined;
+    if (!literal || (literal.text[0] !== "\"" && literal.text[0] !== "'")) {
+      return { diagnostics: [diagnostic(line, "テキストは `text label = \"文字\" at 点` で指定してください。")] };
+    }
+    base.payloadSpans.text = termSpan(literal);
     return {
-      statement: { kind: "text", line, name, text: unquoteDslString(textMatch[0]), attrs: attrsFromTerms(rest) },
+      statement: {
+        ...base,
+        kind: "text",
+        text: unquoteDslString(literal.text),
+        attrs: attrsFromTerms(rest.slice(equalsIndex + 2))
+      },
       diagnostics: []
     };
   }
 
-  if (keyword === "group") {
-    return { statement: { kind: "group", line, name, attrs: attrsFromTerms(terms.slice(2)) }, diagnostics: [] };
+  if (keyword.text === "group") {
+    return { statement: { ...base, kind: "group", attrs: attrsFromTerms(rest) }, diagnostics: [] };
   }
 
-  if (keyword === "element") {
-    const attrs = attrsFromTerms(terms.slice(2));
+  if (keyword.text === "element") {
+    const attrs = attrsFromTerms(rest);
     const type = attrValue(attrs, "type");
+    const valid = Boolean(type && elementTypes.has(type as CadElementType));
     return {
       statement: {
+        ...base,
         kind: "element",
-        line,
-        name,
-        type: type && elementTypes.has(type as CadElementType) ? type as CadElementType : null,
+        type: valid ? type as CadElementType : null,
         attrs
       },
-      diagnostics: type && elementTypes.has(type as CadElementType)
-        ? []
-        : [diagnostic(line, "element文には有効な `type=` が必要です。")]
+      diagnostics: valid ? [] : [diagnostic(line, "element文には有効な `type=` が必要です。")]
     };
   }
 
-  return { diagnostics: [diagnostic(line, `未対応のDSLキーワードです: ${keyword}`)] };
+  return { diagnostics: [diagnostic(line, `未対応のDSLキーワードです: ${keyword.text}`)] };
+};
+
+type BlockFrame = {
+  statementIndex: number;
+  kind: "group" | "conditionalGroup" | "forGroup" | "printLayout";
+  branch: "then" | "else";
+  line: number;
+};
+
+const blockFrameKind = (statement: DslStatement): BlockFrame["kind"] | null => {
+  if (statement.kind === "group") return "group";
+  if (statement.kind === "printLayout") return "printLayout";
+  if (statement.kind === "element") {
+    if (statement.type === "group") return "group";
+    if (statement.type === "conditionalGroup") return "conditionalGroup";
+    if (statement.type === "forGroup") return "forGroup";
+  }
+  return null;
+};
+
+const applyBlockStructure = (statements: DslStatement[], diagnostics: DslDiagnostic[]) => {
+  const stack: BlockFrame[] = [];
+  const enclosingOf = () => {
+    const top = stack.at(-1);
+    return top ? { statementIndex: top.statementIndex, branch: top.branch } : null;
+  };
+
+  statements.forEach((statement, index) => {
+    statement.enclosing = enclosingOf();
+    if (statement.kind === "blockElse") {
+      const top = stack.at(-1);
+      if (!top || top.kind !== "conditionalGroup" || top.branch !== "then") {
+        diagnostics.push(diagnostic(statement.line, "「} else {」は if ブロックの then 部の直後にのみ書けます。"));
+        return;
+      }
+      top.branch = "else";
+      return;
+    }
+    if (statement.kind === "blockEnd") {
+      if (stack.length === 0) {
+        diagnostics.push(diagnostic(statement.line, "対応するブロックの開きがない「}」です。"));
+        return;
+      }
+      stack.pop();
+      return;
+    }
+    const top = stack.at(-1);
+    if (top?.kind === "printLayout" && statement.kind !== "place" && statement.kind !== "layoutVar") {
+      diagnostics.push(diagnostic(statement.line, "printLayout ブロック内には place と layoutVar のみ書けます。"));
+    }
+    if ((statement.kind === "place" || statement.kind === "layoutVar") && top?.kind !== "printLayout") {
+      diagnostics.push(diagnostic(statement.line, `${statement.kind} は printLayout ブロック内にのみ書けます。`));
+    }
+    if (statement.opensBlock) {
+      const frameKind = blockFrameKind(statement);
+      if (!frameKind) {
+        diagnostics.push(diagnostic(statement.line, "この文はブロックを開けません。"));
+        return;
+      }
+      stack.push({ statementIndex: index, kind: frameKind, branch: "then", line: statement.line });
+    }
+  });
+
+  for (const frame of stack) {
+    diagnostics.push(diagnostic(frame.line, "ブロックが閉じられていません。「}」で閉じてください。"));
+  }
+};
+
+const reportDuplicateNames = (statements: DslStatement[], diagnostics: DslDiagnostic[]) => {
+  const seen = new Map<string, { line: number; hasBareName: boolean; ids: Set<string> }>();
+  for (const statement of statements) {
+    if (!isElementDslStatement(statement) || !statement.name) continue;
+    const scope = statement.enclosing
+      ? `block:${statement.enclosing.statementIndex}`
+      : `parent:${attrValue(statement.attrs, "parent") ?? ""}`;
+    const key = `${scope} ${statement.name}`;
+    const id = attrValue(statement.attrs, "id");
+    const entry = seen.get(key);
+    if (!entry) {
+      seen.set(key, { line: statement.line, hasBareName: !id, ids: new Set(id ? [id] : []) });
+      continue;
+    }
+    if (!id || entry.hasBareName) {
+      diagnostics.push(
+        diagnostic(statement.line, `同名の要素が同じスコープにあります: ${statement.name}(行 ${entry.line} と重複)`)
+      );
+    }
+    entry.hasBareName ||= !id;
+    if (id) entry.ids.add(id);
+  }
 };
 
 export const parseDsl = (source: string): ParseDslResult => {
@@ -362,5 +700,10 @@ export const parseDsl = (source: string): ParseDslResult => {
     if (parsed.statement) statements.push(parsed.statement);
     diagnostics.push(...parsed.diagnostics);
   });
+  applyBlockStructure(statements, diagnostics);
+  reportDuplicateNames(statements, diagnostics);
+  for (const extra of statements.filter((statement) => statement.kind === "atStop").slice(1)) {
+    diagnostics.push(diagnostic(extra.line, "@stop は文書に1つだけ書けます。"));
+  }
   return { statements, diagnostics };
 };
