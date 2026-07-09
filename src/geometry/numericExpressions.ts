@@ -302,6 +302,11 @@ export const normalizeNumericExpressionInput = (
       `$1${element.id}.`
     );
     expression = expression.replace(quotedNamePattern(token, "\\."), `${element.id}.`);
+    expression = expression.replace(
+      new RegExp(`(^|[^@])${escapeRegExp(token)}:(?=\\w)`, "g"),
+      `$1${element.id}:`
+    );
+    expression = expression.replace(quotedNamePattern(token, ":"), `${element.id}:`);
     expression = expression.replace(quotedNamePattern(token), element.id);
     expression = expression.replace(
       new RegExp(`(^|[(,]\\s*)${escapeRegExp(token)}(?=\\s*[,)])`, "g"),
