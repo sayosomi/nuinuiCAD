@@ -1,6 +1,7 @@
 import type {
   CadElement,
   CadElementType,
+  DocumentPalette,
   ElementId,
   PrintLayout,
   VisibilityProfile,
@@ -78,6 +79,8 @@ export type CompileDslContext = {
   visibilityProfiles?: VisibilityProfile[];
   activeVisibilityProfileId?: string;
   printLayouts?: PrintLayout[];
+  palette?: DocumentPalette;
+  activePrintLayoutId?: string;
   insertionIndex?: number;
   mode?: "edit" | "document";
   selectedElementIds?: ElementId[];
@@ -91,6 +94,9 @@ export type CompileDslResult = {
   visibilityProfiles?: VisibilityProfile[];
   activeVisibilityProfileId?: string;
   printLayouts?: PrintLayout[];
+  palette?: DocumentPalette;
+  activePrintLayoutId?: string;
+  evaluationLimitIndex?: number;
   diagnostics: DslDiagnostic[];
   changedCount: number;
 };

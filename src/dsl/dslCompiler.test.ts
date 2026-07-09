@@ -369,3 +369,234 @@ describe("DSL compiler", () => {
     })).toContain("group 前身頃縫い代");
   });
 });
+describe("DSL compiler blocks", () => {
+  it("assigns parentGroupId from group blocks", () => {
+    const result = compileDslToElements(
+      [
+        "group 前身頃 {",
+        "  point A = (0, 0)",
+        "  group 襟 {",
+        "    point B = (1, 1)",
+        "  }",
+        "}"
+      ].join("\n"),
+      { elements: [] }
+    );
+
+    expect(result.diagnostics).toEqual([]);
+    const [outer, pointA, inner, pointB] = result.elements;
+    expect(result.elements.map((element) => element.type)).toEqual([
+      "group",
+      "freePoint",
+      "group",
+      "freePoint"
+    ]);
+    expect(pointA.parentGroupId).toBe(outer.id);
+    expect(inner.parentGroupId).toBe(outer.id);
+    expect(pointB.parentGroupId).toBe(inner.id);
+  });
+
+  it("assigns conditionalBranch from if/else blocks", () => {
+    const result = compileDslToElements(
+      [
+        "if 分岐 condition=1 {",
+        "  point A = (0, 0)",
+        "} else {",
+        "  point B = (1, 1)",
+        "}"
+      ].join("\n"),
+      { elements: [] }
+    );
+
+    expect(result.diagnostics).toEqual([]);
+    const [conditional, pointA, pointB] = result.elements;
+    expect(conditional.type).toBe("conditionalGroup");
+    expect(pointA).toMatchObject({ parentGroupId: conditional.id, conditionalBranch: "then" });
+    expect(pointB).toMatchObject({ parentGroupId: conditional.id, conditionalBranch: "else" });
+  });
+
+  it("compiles for blocks to forGroup with children", () => {
+    const result = compileDslToElements(
+      [
+        "for 繰返し i start=0 count=3 step=1 {",
+        "  point P = (i * 10, 0)",
+        "}"
+      ].join("\n"),
+      { elements: [] }
+    );
+
+    expect(result.diagnostics).toEqual([]);
+    const [forGroup, point] = result.elements;
+    expect(forGroup).toMatchObject({ type: "forGroup", variableName: "i", start: 0, count: 3, step: 1 });
+    expect(point.parentGroupId).toBe(forGroup.id);
+  });
+
+  it("prefers block structure over parent= attributes with a warning", () => {
+    const result = compileDslToElements(
+      [
+        "group 前身頃 {",
+        "  point A = (0, 0) parent=どこか",
+        "}"
+      ].join("\n"),
+      { elements: [] }
+    );
+
+    const warnings = result.diagnostics.filter((item) => item.severity === "warning");
+    expect(warnings.some((item) => item.message.includes("parent="))).toBe(true);
+    expect(result.elements[1].parentGroupId).toBe(result.elements[0].id);
+  });
+
+  it("keeps unnamed elements unnamed and always inserts them", () => {
+    const initial = compileDslToElements("point = (0, 0)", { elements: [] });
+    expect(initial.elements).toHaveLength(1);
+    expect(initial.elements[0].name).toBe("");
+
+    const second = compileDslToElements("point = (5, 5)", { elements: initial.elements });
+    expect(second.elements).toHaveLength(2);
+  });
+});
+
+describe("DSL compiler document settings", () => {
+  it("builds a palette from color statements", () => {
+    const result = compileDslToElements(
+      [
+        "color main \"#112233\" name=\"本体\"",
+        "color accent \"#445566\" default",
+        "point A = (0, 0)"
+      ].join("\n"),
+      { elements: [], mode: "document" }
+    );
+
+    expect(result.diagnostics).toEqual([]);
+    expect(result.palette).toEqual({
+      colors: [
+        { id: "main", name: "本体", hex: "#112233" },
+        { id: "accent", name: "accent", hex: "#445566" }
+      ],
+      defaultColorId: "accent"
+    });
+  });
+
+  it("rejects multiple default colors", () => {
+    const result = compileDslToElements(
+      ["color a \"#112233\" default", "color b \"#445566\" default"].join("\n"),
+      { elements: [], mode: "document" }
+    );
+    expect(result.diagnostics.some((item) => item.message.includes("default"))).toBe(true);
+  });
+
+  it("builds full print layouts from blocks", () => {
+    const result = compileDslToElements(
+      [
+        "group 前身頃 {",
+        "  point A = (0, 0)",
+        "}",
+        "printLayout 型紙A output=svg paper=a3 orientation=landscape columns=3 rows=4 overlap=15 scale=0.5 canvas=(500, 700) {",
+        "  layoutVar 余白 = 20",
+        "  place 前身頃 at=(10, @余白) angle=90 mirrorX=true",
+        "}"
+      ].join("\n"),
+      { elements: [], mode: "document" }
+    );
+
+    expect(result.diagnostics).toEqual([]);
+    expect(result.printLayouts).toHaveLength(1);
+    const layout = result.printLayouts![0];
+    expect(layout).toMatchObject({
+      name: "型紙A",
+      outputKind: "svg",
+      paperSizeId: "a3",
+      orientation: "landscape",
+      columns: 3,
+      rows: 4,
+      overlapMm: 15,
+      scale: 0.5,
+      svgCanvasWidthMm: 500,
+      svgCanvasHeightMm: 700
+    });
+    expect(layout.numericVariables).toHaveLength(1);
+    expect(layout.numericVariables![0]).toMatchObject({ name: "余白", value: 20 });
+    expect(layout.placements).toHaveLength(1);
+    const placement = layout.placements[0];
+    expect(placement.groupId).toBe(result.elements[0].id);
+    expect(placement.x).toBe(10);
+    expect(placement.y).toEqual({ kind: "expression", expression: "@print-variable-1" });
+    expect(placement.mirrorX).toBe(true);
+    expect(placement.angleDeg).toBe(90);
+  });
+
+  it("reports unresolved place references", () => {
+    const result = compileDslToElements(
+      ["printLayout 型紙A {", "  place 存在しない at=(0, 0)", "}"].join("\n"),
+      { elements: [], mode: "document" }
+    );
+    expect(result.diagnostics.some((item) => item.message.includes("参照先が見つかりません"))).toBe(true);
+  });
+
+  it("resolves activePrintLayout by name", () => {
+    const result = compileDslToElements(
+      [
+        "printLayout 型紙A output=pdf {",
+        "}",
+        "printLayout 型紙B output=pdf {",
+        "}",
+        "activePrintLayout 型紙B"
+      ].join("\n"),
+      { elements: [], mode: "document" }
+    );
+
+    expect(result.diagnostics).toEqual([]);
+    expect(result.printLayouts).toHaveLength(2);
+    expect(result.activePrintLayoutId).toBe(result.printLayouts![1].id);
+  });
+
+  it("reports unknown activePrintLayout names", () => {
+    const result = compileDslToElements("activePrintLayout 未定義", { elements: [], mode: "document" });
+    expect(result.diagnostics.some((item) => item.message.includes("未定義の印刷レイアウト"))).toBe(true);
+  });
+
+  it("computes evaluationLimitIndex from @stop in document mode", () => {
+    const result = compileDslToElements(
+      ["point A = (0, 0)", "point B = (1, 1)", "@stop", "point C = (2, 2)"].join("\n"),
+      { elements: [], mode: "document" }
+    );
+
+    expect(result.diagnostics).toEqual([]);
+    expect(result.evaluationLimitIndex).toBe(2);
+    expect(result.elements).toHaveLength(3);
+  });
+
+  it("warns and ignores @stop in edit mode", () => {
+    const result = compileDslToElements(
+      ["point A = (0, 0)", "@stop"].join("\n"),
+      { elements: [] }
+    );
+    expect(result.evaluationLimitIndex).toBeUndefined();
+    expect(result.diagnostics.some((item) => item.severity === "warning" && item.message.includes("@stop"))).toBe(true);
+  });
+
+  it("ignores the nui version statement during compilation", () => {
+    const result = compileDslToElements(
+      ["nui 1", "point A = (0, 0)"].join("\n"),
+      { elements: [] }
+    );
+    expect(result.diagnostics).toEqual([]);
+    expect(result.elements).toHaveLength(1);
+  });
+
+  it("warns on parent= attributes in document mode but not edit mode", () => {
+    const source = [
+      "group 前身頃 id=g1",
+      "point A = (0, 0) parent=g1"
+    ].join("\n");
+
+    const editResult = compileDslToElements(source, { elements: [] });
+    expect(editResult.diagnostics).toEqual([]);
+
+    const documentResult = compileDslToElements(source, { elements: [], mode: "document" });
+    const warnings = documentResult.diagnostics.filter((item) => item.severity === "warning");
+    expect(warnings.some((item) => item.message.includes("parent="))).toBe(true);
+    expect(documentResult.diagnostics.some((item) => item.severity === "error")).toBe(false);
+    expect(documentResult.elements[1].parentGroupId).toBe(documentResult.elements[0].id);
+  });
+});

@@ -3,11 +3,16 @@ import { createCadElementId } from "../model/cadIds";
 import { createCadElement } from "../model/elementFactory";
 import { findParameterDefinition } from "../parameters/parameterDefinitions";
 import { setParameterValue } from "../parameters/parameterAccess";
-import { normalizePrintLayout } from "../print/printLayout";
+import { nextPrintLayoutId, normalizePrintLayout } from "../print/printLayout";
 import type {
   CadElement,
   CadElementType,
+  DocumentPalette,
   ElementId,
+  NumericVariable,
+  PaletteColor,
+  PrintLayout,
+  PrintLayoutPlacement,
   VisibilityProfile,
   VisibilityRole
 } from "../types/geometry";
@@ -38,12 +43,26 @@ const diagnostic = (line: number, message: string): DslDiagnostic => ({
   message
 });
 
+const warning = (line: number, message: string): DslDiagnostic => ({
+  severity: "warning",
+  line,
+  column: 1,
+  message
+});
+
 const booleanValue = (value: string) =>
   ["true", "1", "yes", "on"].includes(value.toLowerCase())
     ? true
     : ["false", "0", "no", "off"].includes(value.toLowerCase())
       ? false
       : null;
+
+const coordinatePair = (value: string) => {
+  const match = value.trim().match(/^\((.*),(.*)\)$/);
+  return match ? { x: match[1].trim(), y: match[2].trim() } : null;
+};
+
+const paperSizeIds = new Set(["a4", "a3", "b5", "b4", "letter", "legal"]);
 
 const roleIdByToken = (roles: VisibilityRole[], token: string) => {
   const normalized = unquoteDslString(token);
@@ -270,6 +289,54 @@ const applyStatement = (
   );
 };
 
+const applyPaletteStatements = ({
+  statements,
+  context,
+  diagnostics
+}: {
+  statements: DslStatement[];
+  context: CompileDslContext;
+  diagnostics: DslDiagnostic[];
+}): DocumentPalette | undefined => {
+  const colorStatements = statements.filter(
+    (statement): statement is Extract<DslStatement, { kind: "color" }> => statement.kind === "color"
+  );
+  if (colorStatements.length === 0) return context.palette;
+
+  const colors: PaletteColor[] = context.palette ? [...context.palette.colors] : [];
+  let defaultColorId = context.palette?.defaultColorId;
+  let defaultCount = 0;
+  for (const statement of colorStatements) {
+    const id = statement.name;
+    const existing = colors.find((color) => color.id === id);
+    const nextColor: PaletteColor = {
+      id,
+      name: attr(statement.attrs, "name") ?? existing?.name ?? id,
+      hex: statement.hex
+    };
+    const existingIndex = colors.findIndex((color) => color.id === id);
+    if (existingIndex >= 0) {
+      colors[existingIndex] = nextColor;
+    } else {
+      colors.push(nextColor);
+    }
+    if (statement.isDefault) {
+      defaultCount += 1;
+      if (defaultCount > 1) {
+        diagnostics.push(diagnostic(statement.line, "default は1つの色にのみ指定できます。"));
+      }
+      defaultColorId = id;
+    }
+  }
+  return {
+    colors,
+    defaultColorId:
+      defaultColorId && colors.some((color) => color.id === defaultColorId)
+        ? defaultColorId
+        : colors[0]?.id ?? ""
+  };
+};
+
 const applyVisibilitySettings = ({
   statements,
   context,
@@ -344,7 +411,7 @@ const applyVisibilitySettings = ({
         diagnostics.push(diagnostic(statement.line, `未定義の表示プロファイルです: ${statement.name}`));
       }
     }
-    if (statement.kind === "printLayout" && printLayouts) {
+    if (statement.kind === "printLayout" && !statement.opensBlock && printLayouts) {
       const profileToken = attr(statement.attrs, "visibilityView") ?? attr(statement.attrs, "visibilityProfile");
       const profileId = profileToken ? profileIdByToken(visibilityProfiles, profileToken) : undefined;
       if (profileToken && !visibilityProfiles.some((profile) => profile.id === profileId)) {
@@ -367,12 +434,134 @@ const applyVisibilitySettings = ({
     }
   }
 
+  const palette = applyPaletteStatements({ statements, context, diagnostics });
+
   return {
     visibilityRoles,
     visibilityProfiles,
     activeVisibilityProfileId,
-    printLayouts
+    printLayouts,
+    palette
   };
+};
+
+const buildBlockPrintLayouts = ({
+  statements,
+  layouts,
+  elements,
+  nameIndex,
+  visibilityProfiles,
+  diagnostics
+}: {
+  statements: DslStatement[];
+  layouts: PrintLayout[] | undefined;
+  elements: CadElement[];
+  nameIndex: NameIndex;
+  visibilityProfiles: VisibilityProfile[];
+  diagnostics: DslDiagnostic[];
+}): PrintLayout[] | undefined => {
+  const blockStatements = statements
+    .map((statement, index) => ({ statement, index }))
+    .filter((item) => item.statement.kind === "printLayout" && item.statement.opensBlock);
+  if (blockStatements.length === 0) return layouts;
+
+  let next = layouts ? [...layouts] : [];
+  for (const { statement, index } of blockStatements) {
+    if (statement.kind !== "printLayout") continue;
+    const members = statements.filter(
+      (member) =>
+        (member.kind === "place" || member.kind === "layoutVar") &&
+        member.enclosing?.statementIndex === index
+    );
+    const numericVariables: NumericVariable[] = [];
+    const placements: PrintLayoutPlacement[] = [];
+    const numeric = (source: string) =>
+      makeNumericExpression(normalizeNumericExpressionInput(source, elements, numericVariables));
+
+    for (const member of members) {
+      if (member.kind === "layoutVar") {
+        numericVariables.push({
+          id: `print-variable-${numericVariables.length + 1}`,
+          name: member.name,
+          value: numeric(member.expression)
+        });
+        continue;
+      }
+      if (member.kind !== "place") continue;
+      const groupId = resolveId(member.group, nameIndex, member.line, diagnostics);
+      const target = nameIndex.elementsById.get(groupId);
+      if (target && target.type !== "group") {
+        diagnostics.push(diagnostic(member.line, `place の参照先はグループではありません: ${member.group}`));
+      }
+      const at = attr(member.attrs, "at");
+      const pair = at ? coordinatePair(at) : null;
+      if (at && !pair) {
+        diagnostics.push(diagnostic(member.line, "place の位置は `at=(x, y)` で指定してください。"));
+      }
+      placements.push({
+        id: `placement-${placements.length + 1}`,
+        groupId,
+        x: pair ? numeric(pair.x) : 0,
+        y: pair ? numeric(pair.y) : 0,
+        angleDeg: numeric(attr(member.attrs, "angle") ?? attr(member.attrs, "angleDeg") ?? "0"),
+        mirrorX: booleanValue(attr(member.attrs, "mirrorX") ?? "false") ?? false
+      });
+    }
+
+    const profileToken =
+      attr(statement.attrs, "view") ??
+      attr(statement.attrs, "visibilityView") ??
+      attr(statement.attrs, "visibilityProfile");
+    const profileId = profileToken ? profileIdByToken(visibilityProfiles, profileToken) : undefined;
+    if (profileToken && !visibilityProfiles.some((profile) => profile.id === profileId)) {
+      diagnostics.push(diagnostic(statement.line, `未定義の表示プロファイルです: ${profileToken}`));
+    }
+    const paper = attr(statement.attrs, "paper") ?? attr(statement.attrs, "paperSizeId");
+    if (paper && !paperSizeIds.has(paper)) {
+      diagnostics.push(diagnostic(statement.line, `未対応の用紙サイズです: ${paper}`));
+    }
+    const orientation = attr(statement.attrs, "orientation");
+    if (orientation && orientation !== "portrait" && orientation !== "landscape") {
+      diagnostics.push(diagnostic(statement.line, "orientation は portrait / landscape で指定してください。"));
+    }
+    const output = attr(statement.attrs, "output");
+    if (output && output !== "pdf" && output !== "svg") {
+      diagnostics.push(diagnostic(statement.line, "output は pdf / svg で指定してください。"));
+    }
+    const canvas = attr(statement.attrs, "canvas");
+    const canvasPair = canvas ? coordinatePair(canvas) : null;
+    if (canvas && !canvasPair) {
+      diagnostics.push(diagnostic(statement.line, "canvas は `canvas=(幅, 高さ)` で指定してください。"));
+    }
+
+    const existing = statement.name
+      ? next.find((layout) => layout.name === statement.name || layout.id === statement.name)
+      : undefined;
+    const columns = attr(statement.attrs, "columns");
+    const rows = attr(statement.attrs, "rows");
+    const overlap = attr(statement.attrs, "overlap") ?? attr(statement.attrs, "overlapMm");
+    const scale = attr(statement.attrs, "scale");
+    const layout = normalizePrintLayout({
+      id: existing?.id ?? attr(statement.attrs, "id") ?? (statement.name || nextPrintLayoutId(next)),
+      name: attr(statement.attrs, "name") ?? statement.name,
+      outputKind: output ? outputKind(output) : existing?.outputKind,
+      visibilityProfileId: profileId ?? existing?.visibilityProfileId,
+      paperSizeId: paper ?? existing?.paperSizeId,
+      orientation: orientation ?? existing?.orientation,
+      columns: columns === undefined ? existing?.columns : numeric(columns),
+      rows: rows === undefined ? existing?.rows : numeric(rows),
+      overlapMm: overlap === undefined ? existing?.overlapMm : numeric(overlap),
+      scale: scale === undefined ? existing?.scale : numeric(scale),
+      svgCanvasWidthMm: canvasPair ? numeric(canvasPair.x) : existing?.svgCanvasWidthMm,
+      svgCanvasHeightMm: canvasPair ? numeric(canvasPair.y) : existing?.svgCanvasHeightMm,
+      numericVariables,
+      placements
+    }, elements, visibilityProfiles);
+    next = existing
+      ? next.map((item) => (item.id === existing.id ? layout : item))
+      : [...next, layout];
+  }
+  return next;
 };
 
 export const compileDslToElements = (source: string, context: CompileDslContext): CompileDslResult => {
@@ -386,6 +575,8 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
       visibilityProfiles: context.visibilityProfiles,
       activeVisibilityProfileId: context.activeVisibilityProfileId,
       printLayouts: context.printLayouts,
+      palette: context.palette,
+      activePrintLayoutId: context.activePrintLayoutId,
       diagnostics: parsed.diagnostics,
       changedCount: 0
     };
@@ -405,7 +596,11 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
     return {
       statement,
       type,
-      id: attr(statement.attrs, "id") ?? existing.find((element) => element.name === statement.name && element.type === type)?.id
+      id:
+        attr(statement.attrs, "id") ??
+        (statement.name
+          ? existing.find((element) => element.name === statement.name && element.type === type)?.id
+          : undefined)
     };
   });
   const createdIds = new Map<DslStatement, ElementId>();
@@ -413,17 +608,46 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
     createdIds.set(item.statement, item.id ?? createCadElement(item.type, existing).id);
   }
 
+  const blockContextOf = (
+    statement: DslStatement
+  ): { parentId: ElementId; branch?: "then" | "else" } | null => {
+    if (!statement.enclosing) return null;
+    const parentStatement = parsed.statements[statement.enclosing.statementIndex];
+    if (!parentStatement || !isElementDslStatement(parentStatement)) return null;
+    const parentId = createdIds.get(parentStatement);
+    if (!parentId) return null;
+    return {
+      parentId,
+      ...(statementType(parentStatement) === "conditionalGroup"
+        ? { branch: statement.enclosing.branch }
+        : {})
+    };
+  };
+
+  const withBlockContext = (element: CadElement, statement: DslStatement): CadElement => {
+    const block = blockContextOf(statement);
+    if (!block) return element;
+    return {
+      ...element,
+      parentGroupId: block.parentId,
+      ...(block.branch ? { conditionalBranch: block.branch } : {})
+    };
+  };
+
   let placeholderElements = statementsWithIds.map(({ statement, type }) => ({
     ...createCadElement(type, existing, { createId: () => createdIds.get(statement) ?? "" }),
     name: statement.name
   }));
   const preliminaryIndex = createNameIndex([...existing, ...placeholderElements]);
   placeholderElements = placeholderElements.map((element, index) => {
-    const parentToken = attr(statementsWithIds[index].statement.attrs, "parent");
+    const statement = statementsWithIds[index].statement;
+    const block = blockContextOf(statement);
+    if (block) return withBlockContext(element, statement);
+    const parentToken = attr(statement.attrs, "parent");
     return parentToken
       ? {
           ...element,
-          parentGroupId: resolveId(parentToken, preliminaryIndex, statementsWithIds[index].statement.line, diagnostics, element)
+          parentGroupId: resolveId(parentToken, preliminaryIndex, statement.line, diagnostics, element)
         }
       : element;
   });
@@ -436,19 +660,41 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
     if (statement.kind === "element" && !statement.type) continue;
     const id = createdIds.get(statement) ?? createCadElement(type, existing).id;
     const current = existing.find((element) => element.id === id);
-    const base = current ?? createCadElement(type, [...existing, ...insertions], { createId: () => id });
-    const compiled = applyStatement(
-      base,
-      statement,
-      index,
-      diagnostics,
-      elementsForExpressions,
-      visibilitySettings.visibilityRoles
+    const base = withBlockContext(
+      current ?? createCadElement(type, [...existing, ...insertions], { createId: () => id }),
+      statement
+    );
+    let effectiveStatement = statement;
+    if (blockContextOf(statement) && attr(statement.attrs, "parent")) {
+      diagnostics.push(warning(statement.line, "ブロック内の parent= 属性は無視されます。"));
+      effectiveStatement = { ...statement, attrs: statement.attrs.filter((item) => item.key !== "parent") };
+    }
+    const compiled = withBlockContext(
+      applyStatement(
+        base,
+        effectiveStatement,
+        index,
+        diagnostics,
+        elementsForExpressions,
+        visibilitySettings.visibilityRoles
+      ),
+      statement
     );
     if (current) {
       updates.set(id, compiled);
     } else {
       insertions.push(compiled);
+    }
+  }
+
+  if (documentMode) {
+    for (const statement of elementStatements) {
+      if (attr(statement.attrs, "parent") && !blockContextOf(statement)) {
+        diagnostics.push(warning(statement.line, "parent= 属性は非推奨です。ブレースブロックで構造を書いてください。"));
+      }
+      if (attr(statement.attrs, "branch")) {
+        diagnostics.push(warning(statement.line, "branch= 属性は非推奨です。「} else {」ブロックで書いてください。"));
+      }
     }
   }
 
@@ -463,11 +709,51 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
   ];
   const selectedElementIds = [...updates.keys(), ...insertions.map((element) => element.id)];
 
+  const printLayouts = buildBlockPrintLayouts({
+    statements: parsed.statements,
+    layouts: visibilitySettings.printLayouts ?? (documentMode ? [] : undefined),
+    elements,
+    nameIndex: createNameIndex(elements),
+    visibilityProfiles: visibilitySettings.visibilityProfiles,
+    diagnostics
+  });
+
+  let activePrintLayoutId = context.activePrintLayoutId;
+  for (const statement of parsed.statements) {
+    if (statement.kind !== "activePrintLayout") continue;
+    const target =
+      printLayouts?.find((layout) => layout.name === statement.name) ??
+      printLayouts?.find((layout) => layout.id === statement.name);
+    if (!target) {
+      diagnostics.push(diagnostic(statement.line, `未定義の印刷レイアウトです: ${statement.name}`));
+    } else {
+      activePrintLayoutId = target.id;
+    }
+  }
+
+  let evaluationLimitIndex: number | undefined;
+  const atStopIndex = parsed.statements.findIndex((statement) => statement.kind === "atStop");
+  if (atStopIndex >= 0) {
+    if (documentMode) {
+      evaluationLimitIndex = parsed.statements
+        .slice(0, atStopIndex)
+        .filter(isElementDslStatement).length;
+    } else {
+      diagnostics.push(warning(parsed.statements[atStopIndex].line, "@stop は文書全体の適用でのみ有効なため無視されます。"));
+    }
+  }
+
   return {
     elements,
     selectedElementId: selectedElementIds[0] ?? null,
     selectedElementIds,
-    ...visibilitySettings,
+    visibilityRoles: visibilitySettings.visibilityRoles,
+    visibilityProfiles: visibilitySettings.visibilityProfiles,
+    activeVisibilityProfileId: visibilitySettings.activeVisibilityProfileId,
+    palette: visibilitySettings.palette,
+    printLayouts,
+    activePrintLayoutId,
+    evaluationLimitIndex,
     diagnostics,
     changedCount: selectedElementIds.length
   };
