@@ -1,18 +1,29 @@
 import type { DslHighlightLine, DslHighlightToken, DslTokenKind } from "./dslTypes";
 
 const keywords = new Set([
+  "activePrintLayout",
+  "activeProfile",
+  "activeView",
   "arc",
   "between",
+  "color",
   "corner",
   "curve",
+  "default",
   "element",
+  "else",
   "extend",
+  "for",
   "from",
   "group",
+  "if",
   "intersection",
+  "layoutVar",
   "line",
+  "nui",
   "offset",
   "on",
+  "place",
   "point",
   "polar",
   "printLayout",
@@ -22,10 +33,10 @@ const keywords = new Set([
   "tangentOffset",
   "text",
   "through",
-  "activeProfile",
-  "activeView",
   "var"
 ]);
+
+const stopKeyword = "@stop";
 
 const elementTypes = new Set([
   "angleLengthLine",
@@ -58,7 +69,7 @@ const elementTypes = new Set([
 ]);
 
 const tokenPattern =
-  /("[^"]*(?:"|$)|'[^']*(?:'|$)|[A-Za-z_][\w:-]*(?==)|-?\d+(?:\.\d+)?|->|==|!=|>=|<=|[=()[\],*/+-]|@[A-Za-z_][\w:-]*|[A-Za-z_][\w:-]*(?:\.[A-Za-z_][\w:-]*)?)/g;
+  /("[^"]*(?:"|$)|'[^']*(?:'|$)|[A-Za-z_][\w:-]*(?==)|-?\d+(?:\.\d+)?|->|==|!=|>=|<=|[={}()[\],*/+-]|@[A-Za-z_][\w:-]*|[A-Za-z_][\w:-]*(?:\.[A-Za-z_][\w:-]*)?)/g;
 
 const commentIndex = (line: string) => {
   let quote: string | null = null;
@@ -74,6 +85,7 @@ const commentIndex = (line: string) => {
 
 const classify = (text: string): DslTokenKind => {
   if (text.startsWith("\"") || text.startsWith("'")) return "string";
+  if (text === stopKeyword) return "keyword";
   if (/^[A-Za-z_][\w:-]*(?=$)/.test(text) && keywords.has(text)) return "keyword";
   if (/^[A-Za-z_][\w:-]*(?=$)/.test(text) && elementTypes.has(text)) return "elementType";
   if (/^[A-Za-z_][\w:-]*$/.test(text)) return "reference";

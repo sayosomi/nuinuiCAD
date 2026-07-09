@@ -29,4 +29,30 @@ describe("DSL highlighting", () => {
     expect(() => highlightDslSource("text label = \"unterminated\npoint A = (0,")).not.toThrow();
     expect(highlightDslSource("text label = \"unterminated")).toHaveLength(1);
   });
+
+  it("classifies block braces and new document keywords", () => {
+    expect(tokenKinds("group G {")).toEqual(["keyword", "plain", "reference", "plain", "operator"]);
+    expect(tokenKinds("}")).toEqual(["operator"]);
+    expect(tokenKinds("} else {")).toEqual(["operator", "plain", "keyword", "plain", "operator"]);
+    expect(tokenKinds("if B condition=1 {")).toEqual(
+      expect.arrayContaining(["keyword", "reference", "attributeKey", "number", "operator"])
+    );
+    expect(tokenKinds("for i start=0 count=3 {")).toEqual(
+      expect.arrayContaining(["keyword", "attributeKey", "attributeKey"])
+    );
+  });
+
+  it("classifies @stop as a keyword, not a reference", () => {
+    expect(tokenKinds("@stop")).toEqual(["keyword"]);
+  });
+
+  it("classifies nui, color, place, layoutVar, activePrintLayout, default", () => {
+    expect(tokenKinds("nui 1")[0]).toBe("keyword");
+    expect(tokenKinds("color main \"#ff0000\" default")).toEqual(
+      expect.arrayContaining(["keyword", "string", "keyword"])
+    );
+    expect(tokenKinds("place G at=(0,0)")[0]).toBe("keyword");
+    expect(tokenKinds("layoutVar margin = 20")[0]).toBe("keyword");
+    expect(tokenKinds("activePrintLayout A4")[0]).toBe("keyword");
+  });
 });
