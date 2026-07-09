@@ -131,7 +131,8 @@ const elementStatement = (
   attrs: [syntheticAttr("type", type, base.keywordSpan), ...attrs]
 });
 
-const commonAttrPattern = /^(id|name|visible|enabled|color|parent|branch|roles)=/;
+// 式の打ち切り判定: `key=値` 形の属性トークン(`==` などの比較演算子は除外)。
+const expressionAttrPattern = /^[A-Za-z_][A-Za-z0-9_]*=(?!=)/;
 
 const diagnostic = (line: number, message: string): DslDiagnostic => ({
   severity: "error",
@@ -163,7 +164,7 @@ const expressionAfterEquals = (
 ): { expression: string; span: DslSpan } | null => {
   const equalsIndex = terms.findIndex((term) => term.text === "=");
   const after = equalsIndex >= 0 ? terms.slice(equalsIndex + 1) : [];
-  const attrStart = after.findIndex((term) => commonAttrPattern.test(term.text));
+  const attrStart = after.findIndex((term) => expressionAttrPattern.test(term.text));
   const expressionTerms = attrStart >= 0 ? after.slice(0, attrStart) : after;
   if (expressionTerms.length === 0) return null;
   const span = { start: expressionTerms[0].start, end: expressionTerms.at(-1)!.end };

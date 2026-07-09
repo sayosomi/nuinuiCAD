@@ -7,7 +7,7 @@ import type { CadElement, ElementId, NumericValue, NumericVariable } from "../ty
 // formatNumericExpressionForDisplay と違い、プロパティキーは英語のまま出力し、
 // 解決できないIDは生トークンのまま残す(絶対に例外を投げない)。
 
-const shortestTokenById = (elements: CadElement[], currentElement?: CadElement) => {
+export const shortestDslTokensById = (elements: CadElement[], currentElement?: CadElement) => {
   const tokenById = new Map<ElementId, string>();
   for (const { token, element } of elementNameTokensForContext({ elements, currentElement })) {
     const existing = tokenById.get(element.id);
@@ -24,7 +24,7 @@ export const formatNumericValueForDsl = (
 ): string => {
   if (!isNumericExpression(value)) return `${value}`;
 
-  const tokenById = shortestTokenById(elements, currentElement);
+  const tokenById = shortestDslTokensById(elements, currentElement);
   const elementsById = new Map(elements.map((element) => [element.id, element]));
   const localVariableNameCounts = new Map<string, number>();
   for (const variable of localVariables) {

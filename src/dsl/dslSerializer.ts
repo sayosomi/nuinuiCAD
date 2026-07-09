@@ -1,81 +1,196 @@
 import { numericValueExpression } from "../geometry/numericExpressions";
+import { resolveElementName } from "../model/elementNames";
 import type {
   CadElement,
+  ElementId,
   LineEndpointReference,
   NumericValue,
   PointAnchor
 } from "../types/geometry";
+import { formatNumericValueForDsl, shortestDslTokensById } from "./dslExpressionFormat";
 import type { SerializeDslOptions } from "./dslTypes";
 import { formatDslName, quoteDslString } from "./dslTokens";
 
-const numeric = (value: NumericValue) => numericValueExpression(value);
-const elementName = (element: CadElement) => formatDslName(element.name || element.id);
-
-const anchor = (value: PointAnchor | null | undefined) => {
-  if (!value) return "none";
-  if (value.mode === "reference") return value.pointId;
-  if (value.mode === "derived") return `${value.elementId}.${value.pointKey}`;
-  return `(${numeric(value.x)}, ${numeric(value.y)})`;
+// 要素→DSL文の変換は、参照の書き方(生ID or 解決可能な名前トークン)を
+// DslSerializerRefs として注入する。serializeElementsToDsl(DslPanelの
+// フラットな書き出し形式)は従来どおり生ID参照で、バイト互換を維持する。
+export type DslSerializerRefs = {
+  token: (id: ElementId, source: CadElement) => string;
+  anchor: (value: PointAnchor | null | undefined, source: CadElement) => string;
+  endpoint: (value: LineEndpointReference, source: CadElement) => string;
+  numeric: (value: NumericValue, source: CadElement) => string;
+  name: (element: CadElement) => string;
+  baseAttrs: (element: CadElement) => string[];
+  includeRecordIds: boolean;
 };
 
-const endpoint = (value: LineEndpointReference) =>
-  `${value.lineId}.${value.endpointKey}`;
-
-const intermediatePoints = (element: Extract<CadElement, { type: "bezierCurve" }>) =>
-  element.intermediatePoints.length === 0
-    ? []
-    : [
-        `intermediates=[${
-          element.intermediatePoints.map((point) => [
-            anchor(point.point),
-            numeric(point.handleAngleDeg),
-            numeric(point.incomingHandleLength),
-            numeric(point.outgoingHandleLength),
-            point.id
-          ].join(":")).join(";")
-        }]`
-      ];
-
-const baseAttrs = (element: CadElement, options: SerializeDslOptions) => [
-  ...(options.includeIds === false ? [] : [`id=${element.id}`]),
+const commonBaseAttrs = (element: CadElement) => [
   ...(element.locked ? ["locked=true"] : []),
   ...(element.visible ? [] : ["visible=false"]),
   ...(element.enabled ? [] : ["enabled=false"]),
   ...(element.colorId ? [`color=${element.colorId}`] : []),
-  ...(element.parentGroupId ? [`parent=${element.parentGroupId}`] : []),
-  ...(element.conditionalBranch ? [`branch=${element.conditionalBranch}`] : []),
   ...(element.type === "group" && element.visibilityRoleIds?.length
     ? [`roles=[${element.visibilityRoleIds.join(",")}]`]
     : [])
 ];
 
-const elementLine = (element: CadElement, options: SerializeDslOptions, attrs: string[] = []) =>
+const flatAnchor = (value: PointAnchor | null | undefined) => {
+  if (!value) return "none";
+  if (value.mode === "reference") return value.pointId;
+  if (value.mode === "derived") return `${value.elementId}.${value.pointKey}`;
+  return `(${numericValueExpression(value.x)}, ${numericValueExpression(value.y)})`;
+};
+
+const flatRefs = (options: SerializeDslOptions): DslSerializerRefs => ({
+  token: (id) => id,
+  anchor: (value) => flatAnchor(value),
+  endpoint: (value) => `${value.lineId}.${value.endpointKey}`,
+  numeric: (value) => numericValueExpression(value),
+  name: (element) => formatDslName(element.name || element.id),
+  baseAttrs: (element) => [
+    ...(options.includeIds === false ? [] : [`id=${element.id}`]),
+    ...commonBaseAttrs(element),
+    ...(element.parentGroupId ? [`parent=${element.parentGroupId}`] : []),
+    ...(element.conditionalBranch ? [`branch=${element.conditionalBranch}`] : [])
+  ],
+  includeRecordIds: true
+});
+
+// 文書グラマー用: 参照を解決可能な名前トークンで書き、id= / parent= /
+// branch= を出力しない(構造は後続のブロックシリアライザが担う)。
+// 参照先が無名・消滅している場合は生IDトークンのまま出力し、決して例外を
+// 投げない(再パース時に明示的な依存診断になる)。
+export const documentDslRefs = (elements: CadElement[]): DslSerializerRefs => {
+  const rootTokens = shortestDslTokensById(elements);
+  const elementsById = new Map(elements.map((element) => [element.id, element]));
+  const token = (id: ElementId, source: CadElement) => {
+    const target = elementsById.get(id);
+    if (!target || !target.name.trim()) return id;
+    const resolution = resolveElementName({ token: target.name, elements, currentElement: source });
+    if (resolution.status === "resolved" && resolution.element.id === id) {
+      return formatDslName(target.name);
+    }
+    const qualified = rootTokens.get(id);
+    return qualified ? formatDslName(qualified) : id;
+  };
+  const numeric = (value: NumericValue, source: CadElement) =>
+    formatNumericValueForDsl(value, elements, source.numericVariables ?? [], source);
+  return {
+    token,
+    anchor: (value, source) => {
+      if (!value) return "none";
+      if (value.mode === "reference") return token(value.pointId, source);
+      if (value.mode === "derived") return `${token(value.elementId, source)}.${value.pointKey}`;
+      return `(${numeric(value.x, source)}, ${numeric(value.y, source)})`;
+    },
+    endpoint: (value, source) => `${token(value.lineId, source)}.${value.endpointKey}`,
+    numeric,
+    name: (element) => formatDslName(element.name || element.id),
+    baseAttrs: commonBaseAttrs,
+    includeRecordIds: false
+  };
+};
+
+const intermediatePoints = (
+  element: Extract<CadElement, { type: "bezierCurve" }>,
+  refs: DslSerializerRefs
+) =>
+  element.intermediatePoints.length === 0
+    ? []
+    : [
+        `intermediates=[${
+          element.intermediatePoints.map((point) => [
+            refs.anchor(point.point, element),
+            refs.numeric(point.handleAngleDeg, element),
+            refs.numeric(point.incomingHandleLength, element),
+            refs.numeric(point.outgoingHandleLength, element),
+            ...(refs.includeRecordIds ? [point.id] : [])
+          ].join(":")).join(";")
+        }]`
+      ];
+
+const localVariableAttrs = (element: CadElement, refs: DslSerializerRefs) => {
+  if (!element.numericVariables?.length) return [];
+  return [
+    `vars=[${element.numericVariables.map((variable) =>
+      `${formatDslName(variable.name)}:${refs.numeric(variable.value, element)}`
+    ).join(";")}]`
+  ];
+};
+
+const variableModeAttrs = (
+  element: Extract<CadElement, { type: "variable" }>,
+  refs: DslSerializerRefs
+) => {
+  if (element.valueMode === "expression") return [];
+  const points = element.valueMode === "pointLineDistance"
+    ? [
+        `point=${refs.anchor(element.point, element)}`,
+        `line=${refs.token(element.lineId, element)}`
+      ]
+    : [
+        `point1=${refs.anchor(element.point1, element)}`,
+        `point2=${refs.anchor(element.point2, element)}`
+      ];
+  return [`mode=${element.valueMode}`, ...points];
+};
+
+const elementLine = (
+  element: CadElement,
+  refs: DslSerializerRefs,
+  attrs: string[] = []
+) =>
   [
     "element",
-    elementName(element),
+    refs.name(element),
     `type=${element.type}`,
-    ...baseAttrs(element, options),
+    ...refs.baseAttrs(element),
     ...attrs
   ].join(" ");
 
-export const serializeElementsToDsl = (
-  elements: CadElement[],
-  options: SerializeDslOptions = {}
-) => [
-  ...visibilitySettingsDsl(options),
-  ...elements.map((element) => {
-  const attrs = baseAttrs(element, options);
+export const serializeElementStatement = (
+  element: CadElement,
+  refs: DslSerializerRefs
+): string => {
+  const attrs = [...refs.baseAttrs(element), ...localVariableAttrs(element, refs)];
+  const name = refs.name(element);
+  const anchor = (value: PointAnchor | null | undefined) => refs.anchor(value, element);
+  const endpoint = (value: LineEndpointReference) => refs.endpoint(value, element);
+  const numeric = (value: NumericValue) => refs.numeric(value, element);
+  const token = (id: ElementId) => refs.token(id, element);
+
   switch (element.type) {
-    case "group":
-      return ["group", elementName(element), ...attrs, `expanded=${element.expanded}`].join(" ");
+    case "group": {
+      const defaultPrintAnchor =
+        !element.printAnchor ||
+        (element.printAnchor.mode === "coordinate" &&
+          element.printAnchor.x === 0 &&
+          element.printAnchor.y === 0);
+      return [
+        "group",
+        name,
+        ...attrs,
+        `expanded=${element.expanded}`,
+        ...(element.printEnabled ? ["printEnabled=true"] : []),
+        ...(defaultPrintAnchor ? [] : [`printAnchor=${anchor(element.printAnchor)}`])
+      ].join(" ");
+    }
     case "variable":
-      return ["var", elementName(element), "=", numeric(element.expression), ...attrs].join(" ");
+      return [
+        "var",
+        name,
+        "=",
+        numeric(element.expression),
+        ...variableModeAttrs(element, refs),
+        ...(element.scope === "group" ? ["scope=group"] : []),
+        ...attrs
+      ].join(" ");
     case "freePoint":
-      return ["point", elementName(element), "=", `(${numeric(element.x)}, ${numeric(element.y)})`, ...attrs].join(" ");
+      return ["point", name, "=", `(${numeric(element.x)}, ${numeric(element.y)})`, ...attrs].join(" ");
     case "offsetPoint":
       return [
         "point",
-        elementName(element),
+        name,
         "=",
         "offset",
         anchor(element.fromPoint),
@@ -86,7 +201,7 @@ export const serializeElementsToDsl = (
     case "polarOffsetPoint":
       return [
         "point",
-        elementName(element),
+        name,
         "=",
         "polar",
         anchor(element.fromPoint),
@@ -95,11 +210,11 @@ export const serializeElementsToDsl = (
         ...attrs
       ].join(" ");
     case "line":
-      return ["line", elementName(element), "=", anchor(element.startPoint), "->", anchor(element.endPoint), ...attrs].join(" ");
+      return ["line", name, "=", anchor(element.startPoint), "->", anchor(element.endPoint), ...attrs].join(" ");
     case "angleLengthLine":
       return [
         "line",
-        elementName(element),
+        name,
         "=",
         "from",
         anchor(element.startPoint),
@@ -110,7 +225,7 @@ export const serializeElementsToDsl = (
     case "arcLine":
       return [
         "arc",
-        elementName(element),
+        name,
         `center=${anchor(element.centerPoint)}`,
         `radius=${numeric(element.radius)}`,
         `start=${numeric(element.startAngleDeg)}`,
@@ -120,7 +235,7 @@ export const serializeElementsToDsl = (
     case "text":
       return [
         "text",
-        elementName(element),
+        name,
         "=",
         quoteDslString(element.text),
         `at=${anchor(element.anchor)}`,
@@ -130,7 +245,7 @@ export const serializeElementsToDsl = (
     case "divisionPoint":
       return [
         "point",
-        elementName(element),
+        name,
         "=",
         "between",
         anchor(element.startPoint),
@@ -143,7 +258,7 @@ export const serializeElementsToDsl = (
     case "lineDivisionPoint":
       return [
         "point",
-        elementName(element),
+        name,
         "=",
         "on",
         endpoint(element.endpoint),
@@ -155,11 +270,11 @@ export const serializeElementsToDsl = (
     case "intersectionPoint":
       return [
         "point",
-        elementName(element),
+        name,
         "=",
         "intersection",
-        element.line1Id,
-        element.line2Id,
+        token(element.line1Id),
+        token(element.line2Id),
         `index=${numeric(element.intersectionIndex)}`,
         `extensions=${element.useExtensions}`,
         ...attrs
@@ -167,10 +282,10 @@ export const serializeElementsToDsl = (
     case "lineTangentOffsetPoint":
       return [
         "point",
-        elementName(element),
+        name,
         "=",
         "tangentOffset",
-        element.baseLineId,
+        token(element.baseLineId),
         `base=${anchor(element.basePoint)}`,
         `angle=${numeric(element.tangentAngleDeg)}`,
         `distance=${numeric(element.distance)}`,
@@ -179,7 +294,7 @@ export const serializeElementsToDsl = (
     case "cornerRadiusArcLine":
       return [
         "arc",
-        elementName(element),
+        name,
         "=",
         "corner",
         endpoint(element.endpoint1),
@@ -189,7 +304,8 @@ export const serializeElementsToDsl = (
         ...attrs
       ].join(" ");
     case "edge":
-      return elementLine(element, options, [
+      return elementLine(element, refs, [
+        ...localVariableAttrs(element, refs),
         `endpoint1=${endpoint(element.endpoint1)}`,
         `endpoint2=${endpoint(element.endpoint2)}`,
         `intersectionIndex=${numeric(element.intersectionIndex)}`
@@ -197,7 +313,7 @@ export const serializeElementsToDsl = (
     case "extendTrim":
       return [
         "line",
-        elementName(element),
+        name,
         "=",
         "extend",
         endpoint(element.endpoint),
@@ -207,7 +323,7 @@ export const serializeElementsToDsl = (
     case "bezierCurve":
       return [
         "curve",
-        elementName(element),
+        name,
         "=",
         anchor(element.startPoint),
         "->",
@@ -216,16 +332,16 @@ export const serializeElementsToDsl = (
         `startLength=${numeric(element.startHandleLength)}`,
         `endAngle=${numeric(element.endHandleAngleDeg)}`,
         `endLength=${numeric(element.endHandleLength)}`,
-        ...intermediatePoints(element),
+        ...intermediatePoints(element, refs),
         ...attrs
       ].join(" ");
     case "offsetLine":
       return [
         "line",
-        elementName(element),
+        name,
         "=",
         "offset",
-        `[${element.baseLineIds.join(",")}]`,
+        `[${element.baseLineIds.map(token).join(",")}]`,
         `distance=${numeric(element.offset)}`,
         `side=${element.side}`,
         `closed=${element.closed}`,
@@ -234,34 +350,36 @@ export const serializeElementsToDsl = (
     case "splitLine":
       return [
         "line",
-        elementName(element),
+        name,
         "=",
         "split",
-        element.baseLineId,
+        token(element.baseLineId),
         `at=${anchor(element.splitPoint)}`,
         ...attrs
       ].join(" ");
     case "copyLine":
     case "move":
-      return elementLine(element, options, [
+      return elementLine(element, refs, [
+        ...localVariableAttrs(element, refs),
         `startPoint=${anchor(element.startPoint)}`,
         `endPoint=${anchor(element.endPoint)}`,
         `scale=${numeric(element.scale)}`,
         `angleDeg=${numeric(element.angleDeg)}`,
         `mirrorX=${element.mirrorX}`,
-        `baseLineIds=[${element.baseLineIds.join(",")}]`
+        `baseLineIds=[${element.baseLineIds.map(token).join(",")}]`
       ]);
     case "symmetricCopyLine":
     case "symmetricMove":
-      return elementLine(element, options, [
+      return elementLine(element, refs, [
+        ...localVariableAttrs(element, refs),
         `axisPoint1=${anchor(element.axisPoint1)}`,
         `axisPoint2=${anchor(element.axisPoint2)}`,
-        `baseLineIds=[${element.baseLineIds.join(",")}]`
+        `baseLineIds=[${element.baseLineIds.map(token).join(",")}]`
       ]);
     case "threePointArcLine":
       return [
         "arc",
-        elementName(element),
+        name,
         "=",
         "through",
         anchor(element.point1),
@@ -272,13 +390,15 @@ export const serializeElementsToDsl = (
         ...attrs
       ].join(" ");
     case "conditionalGroup":
-      return elementLine(element, options, [
+      return elementLine(element, refs, [
+        ...localVariableAttrs(element, refs),
         `condition=${numeric(element.condition)}`,
         `expanded=${element.expanded}`,
         `elseExpanded=${element.elseExpanded}`
       ]);
     case "forGroup":
-      return elementLine(element, options, [
+      return elementLine(element, refs, [
+        ...localVariableAttrs(element, refs),
         `variableName=${element.variableName}`,
         `start=${numeric(element.start)}`,
         `count=${numeric(element.count)}`,
@@ -287,7 +407,8 @@ export const serializeElementsToDsl = (
         `showGenerated=${element.showGenerated}`
       ]);
     case "image":
-      return elementLine(element, options, [
+      return elementLine(element, refs, [
+        ...localVariableAttrs(element, refs),
         `sourcePath=${quoteDslString(element.sourcePath)}`,
         `originPoint=${anchor(element.originPoint)}`,
         `scale=${numeric(element.scale)}`,
@@ -295,8 +416,18 @@ export const serializeElementsToDsl = (
         `mirrorX=${element.mirrorX}`
       ]);
   }
-  })
-].join("\n");
+};
+
+export const serializeElementsToDsl = (
+  elements: CadElement[],
+  options: SerializeDslOptions = {}
+) => {
+  const refs = flatRefs(options);
+  return [
+    ...visibilitySettingsDsl(options),
+    ...elements.map((element) => serializeElementStatement(element, refs))
+  ].join("\n");
+};
 
 const visibilitySettingsDsl = (options: SerializeDslOptions) => {
   const roles = options.visibilityRoles ?? [];

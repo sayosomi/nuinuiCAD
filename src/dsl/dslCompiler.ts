@@ -107,6 +107,28 @@ const withPlacementMode = (element: CadElement, attrs: DslAttribute[]): CadEleme
   return element;
 };
 
+const splitByColonOutsideQuotes = (value: string) => {
+  const parts: string[] = [];
+  let current = "";
+  let quote: string | null = null;
+  for (let index = 0; index < value.length; index += 1) {
+    const char = value[index];
+    if ((char === "\"" || char === "'") && value[index - 1] !== "\\") {
+      quote = quote === char ? null : quote ?? char;
+      current += char;
+      continue;
+    }
+    if (!quote && char === ":") {
+      parts.push(current);
+      current = "";
+      continue;
+    }
+    current += char;
+  }
+  parts.push(current);
+  return parts;
+};
+
 const parseIntermediatePoints = (
   value: string,
   index: NameIndex,
@@ -116,7 +138,7 @@ const parseIntermediatePoints = (
   currentElement?: CadElement
 ): Extract<CadElement, { type: "bezierCurve" }>["intermediatePoints"] =>
   splitDslRecords(value).map((record) => {
-    const parts = record.split(":").map((item) => item.trim());
+    const parts = splitByColonOutsideQuotes(record).map((item) => item.trim());
     const [pointToken, angle = "0", incoming = "30", outgoing = "30", id] = parts;
     return {
       id: id || createCadElementId("bezierCurve"),
@@ -162,6 +184,49 @@ const applyCommonAttributes = (
           roleIdByToken(visibilityRoles, roleToken)
         )
       };
+      continue;
+    }
+    if (key === "vars") {
+      const variables: NumericVariable[] = [];
+      splitDslRecords(value).forEach((record, recordIndex) => {
+        const fields = splitByColonOutsideQuotes(record);
+        const variableName = unquoteDslString((fields[0] ?? "").trim());
+        const expressionSource = fields.slice(1).join(":").trim();
+        variables.push({
+          id: `local-variable-${recordIndex + 1}`,
+          name: variableName,
+          value: makeNumericExpression(
+            normalizeNumericExpressionInput(expressionSource || "0", elementsForExpressions, variables, next)
+          )
+        });
+      });
+      next = { ...next, numericVariables: variables };
+      continue;
+    }
+    if (
+      next.type === "variable" &&
+      (key === "mode" || key === "point1" || key === "point2" || key === "point" || key === "line")
+    ) {
+      if (key === "mode") {
+        if (
+          value === "expression" ||
+          value === "pointDistance" ||
+          value === "pointAngle" ||
+          value === "pointLineDistance"
+        ) {
+          next = { ...next, valueMode: value };
+        } else {
+          diagnostics.push(diagnostic(line, "mode は expression / pointDistance / pointAngle / pointLineDistance で指定してください。"));
+        }
+      } else if (key === "point1") {
+        next = { ...next, point1: resolveAnchor(value, index, line, diagnostics, numeric, next) };
+      } else if (key === "point2") {
+        next = { ...next, point2: resolveAnchor(value, index, line, diagnostics, numeric, next) };
+      } else if (key === "point") {
+        next = { ...next, point: resolveAnchor(value, index, line, diagnostics, numeric, next) };
+      } else {
+        next = { ...next, lineId: resolveId(value, index, line, diagnostics, next) };
+      }
       continue;
     }
     if (next.type === "bezierCurve" && key === "intermediates") {

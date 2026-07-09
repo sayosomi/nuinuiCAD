@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { compileDslToElements } from "./dslCompiler";
-import { serializeElementsToDsl } from "./dslSerializer";
+import { documentDslRefs, serializeElementStatement, serializeElementsToDsl } from "./dslSerializer";
 
 // 決定論的なIDを明示して要素を組み立て、フラット出力のバイト列を固定する。
 // serializer共通化リファクタで既存出力(DslPanelの書き出し形式)が
@@ -112,5 +112,104 @@ describe("serializeElementsToDsl flat output", () => {
       point B = offset p1 dx=10 dy=-(bust / 4)
       point C = polar p1 angle=-45 distance=80"
     `);
+  });
+});
+
+describe("serializeElementStatement with documentDslRefs", () => {
+  const statementByName = (name: string) => {
+    const elements = buildElements();
+    const refs = documentDslRefs(elements);
+    const element = elements.find((item) => item.name === name);
+    expect(element).toBeDefined();
+    return serializeElementStatement(element!, refs);
+  };
+
+  it("writes name-based references without id/parent attributes", () => {
+    expect(statementByName("AB")).toBe("line AB = A -> B");
+    expect(statementByName("B")).toBe("point B = offset A dx=10 dy=-(bust / 4)");
+    expect(statementByName("inGroup")).toBe("point inGroup = (1, 1)");
+    expect(statementByName("X")).toBe("point X = intersection AB shoulder index=0 extensions=false");
+    expect(statementByName("seam")).toBe("line seam = offset [AB,shoulder] distance=10 side=left closed=false");
+  });
+
+  it("drops persistent record ids from bezier intermediates", () => {
+    expect(statementByName("neckline")).toBe(
+      "curve neckline = A -> B startAngle=-90 startLength=35 endAngle=180 endLength=45 intermediates=[C:45:20:25]"
+    );
+  });
+
+  it("keeps dangling references as raw id tokens without throwing", () => {
+    const elements = buildElements();
+    const refs = documentDslRefs(elements);
+    const line = elements.find((item) => item.name === "AB");
+    expect(line).toBeDefined();
+    const dangling = {
+      ...line!,
+      startPoint: { mode: "reference", pointId: "freePoint-gone" }
+    } as typeof line & object;
+    expect(serializeElementStatement(dangling as never, refs)).toBe("line AB = freePoint-gone -> B");
+  });
+});
+
+describe("extended lossless attributes", () => {
+  it("round-trips element local variables through vars=", () => {
+    const first = compileDslToElements(
+      "point P = (0, 0) id=p1 vars=[高さ:10;幅:@高さ * 2]",
+      { elements: [] }
+    );
+    expect(first.diagnostics).toEqual([]);
+    const element = first.elements[0];
+    expect(element.numericVariables).toHaveLength(2);
+    expect(element.numericVariables![0]).toMatchObject({ name: "高さ", value: 10 });
+    expect(element.numericVariables![1].name).toBe("幅");
+
+    const serialized = serializeElementsToDsl(first.elements);
+    expect(serialized).toBe("point P = (0, 0) id=p1 vars=[高さ:10;幅:@local-variable-1 * 2]");
+
+    const second = compileDslToElements(serialized, { elements: [] });
+    expect(second.diagnostics).toEqual([]);
+    expect(second.elements[0].numericVariables).toEqual(element.numericVariables);
+  });
+
+  it("round-trips group printEnabled and printAnchor", () => {
+    const first = compileDslToElements(
+      "group G id=g1 expanded=true printEnabled=true printAnchor=(10, 20)",
+      { elements: [] }
+    );
+    expect(first.diagnostics).toEqual([]);
+    const serialized = serializeElementsToDsl(first.elements);
+    expect(serialized).toBe("group G id=g1 expanded=true printEnabled=true printAnchor=(10, 20)");
+  });
+
+  it("round-trips variable scope and non-expression modes", () => {
+    const first = compileDslToElements(
+      [
+        "point A = (0, 0) id=p1",
+        "point B = (10, 0) id=p2",
+        "var 距離 = 0 mode=pointDistance point1=A point2=B scope=group id=v1"
+      ].join("\n"),
+      { elements: [] }
+    );
+    expect(first.diagnostics).toEqual([]);
+    const variable = first.elements[2];
+    expect(variable).toMatchObject({
+      type: "variable",
+      valueMode: "pointDistance",
+      scope: "group",
+      point1: { mode: "reference", pointId: "p1" },
+      point2: { mode: "reference", pointId: "p2" }
+    });
+
+    const serialized = serializeElementsToDsl(first.elements);
+    expect(serialized.split("\n")[2]).toBe(
+      "var 距離 = 0 mode=pointDistance point1=p1 point2=p2 scope=group id=v1"
+    );
+
+    const second = compileDslToElements(serialized, { elements: [] });
+    expect(second.diagnostics).toEqual([]);
+    expect(second.elements[2]).toMatchObject({
+      valueMode: "pointDistance",
+      scope: "group"
+    });
   });
 });
