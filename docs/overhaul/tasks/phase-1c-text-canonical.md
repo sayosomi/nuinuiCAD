@@ -2,6 +2,25 @@
 
 > 全体計画: `docs/overhaul/plan.md` を必ず先に読むこと。AGENTS.md の規則に従うこと。
 
+> **実装分割(2026-07-10、ユーザー承認済み)**: 本Phaseは以下の4タスクへ
+> 直列分割して実装する。本ファイルはPhase全体の要件を定める**親文書**として
+> 残り、個別の実装指示は各タスクファイルが正となる。
+>
+> 1. [phase-1c-1-fold-state.md](phase-1c-1-fold-state.md) —
+>    `expanded`/`elseExpanded` の文書モデル外出し(foldトグルのUndo対象外化は
+>    承認済みの挙動変更)
+> 2. [phase-1c-2-preview-elements.md](phase-1c-2-preview-elements.md) —
+>    previewElements分離
+> 3. [phase-1c-3-canonical-inversion.md](phase-1c-3-canonical-inversion.md) —
+>    正準反転コア(sourceText正準・commitText・統合Undo。selectionは暫定的に
+>    docストア残置)
+> 4. [phase-1c-4-selection-ui-store.md](phase-1c-4-selection-ui-store.md) —
+>    selectionのcadUiStore移動+Phase 1c手動E2Eチェックリスト
+>
+> 分割根拠: 1c-3で新履歴(TextSnapshot)が先にselectionを運び、undo/redoは
+> selectionの現在の格納場所へ書き戻すため、selection移動(1c-4)を後置しても
+> 「Undoで選択が戻らない」退行はどの時点でも生じない。
+
 ## 目的
 
 Phase 1b で実戦検証済みの影テキストを**正準**に反転する。以後、
