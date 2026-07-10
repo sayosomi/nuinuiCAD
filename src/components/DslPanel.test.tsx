@@ -269,6 +269,91 @@ describe("DslPanel", () => {
     expect(editor.value).toBe("point Custom = (1, 2)");
   });
 
+  it("does not change the editor when Cmd+Z is pressed before any edit", async () => {
+    useCadStore.setState({
+      showDslPanel: true,
+      dslPanelSourceRequest: {
+        requestId: 1,
+        elementIds: ["point-b"]
+      }
+    });
+
+    render(<DslPanel />);
+
+    const editor = await screen.findByLabelText("DSLソース") as HTMLTextAreaElement;
+    await waitFor(() => expect(editor.value).toContain("point 点B"));
+    const displayedBeforeUndo = editor.value;
+
+    fireEvent.keyDown(editor, { key: "z", metaKey: true });
+
+    expect(editor.value).toBe(displayedBeforeUndo);
+  });
+
+  it("undoes the first edit of an auto-loaded selection back to the loaded text, not the placeholder", async () => {
+    useCadStore.setState({
+      showDslPanel: true,
+      dslPanelSourceRequest: {
+        requestId: 1,
+        elementIds: ["point-b"]
+      }
+    });
+
+    render(<DslPanel />);
+
+    const editor = await screen.findByLabelText("DSLソース") as HTMLTextAreaElement;
+    await waitFor(() => expect(editor.value).toContain("point 点B"));
+    const loadedSource = editor.value;
+    const editedSource = `${loadedSource}\n# edited`;
+    fireEvent.change(editor, { target: { value: editedSource } });
+    expect(editor.value).toBe(editedSource);
+
+    fireEvent.keyDown(editor, { key: "z", metaKey: true });
+
+    expect(editor.value).toBe(loadedSource);
+    expect(editor.value).not.toContain("var bust = 840");
+
+    fireEvent.keyDown(editor, { key: "z", metaKey: true, shiftKey: true });
+
+    expect(editor.value).toBe(editedSource);
+  });
+
+  it("resets local undo history when a new source request supersedes the current draft", async () => {
+    useCadStore.setState({
+      showDslPanel: true,
+      dslPanelSourceRequest: {
+        requestId: 1,
+        elementIds: ["point-b"]
+      }
+    });
+
+    render(<DslPanel />);
+
+    const editor = await screen.findByLabelText("DSLソース") as HTMLTextAreaElement;
+    await waitFor(() => expect(editor.value).toContain("point 点B"));
+    const firstRequestLoadedSource = editor.value;
+    fireEvent.change(editor, { target: { value: `${firstRequestLoadedSource}\n# edited request 1` } });
+
+    // Simulates re-opening the panel on a different selection (e.g. via the
+    // element list context menu) while the panel stays mounted.
+    useCadStore.setState({
+      dslPanelSourceRequest: {
+        requestId: 2,
+        elementIds: ["point-a"]
+      }
+    });
+
+    await waitFor(() => {
+      expect(editor.value).toContain("point 点A");
+      expect(editor.value).not.toContain("edited request 1");
+    });
+    const secondRequestLoadedSource = editor.value;
+
+    fireEvent.keyDown(editor, { key: "z", metaKey: true });
+
+    expect(editor.value).toBe(secondRequestLoadedSource);
+    expect(editor.value).not.toContain("edited request 1");
+  });
+
   it("applies valid DSL from the keyboard, closes, and returns focus", async () => {
     const previousTarget = document.createElement("div");
     previousTarget.tabIndex = -1;
@@ -287,6 +372,10 @@ describe("DslPanel", () => {
     expect(useCadStore.getState().showDslPanel).toBe(false);
     expect(useCadStore.getState().elements.some((element) => element.name === "K")).toBe(true);
     expect(previousTarget).toHaveFocus();
+
+    expect(useCadStore.getState().past).toHaveLength(1);
+    useCadStore.getState().undo();
+    expect(useCadStore.getState().elements.some((element) => element.name === "K")).toBe(false);
   });
 
   it("does not intercept ordinary text editing shortcuts in the DSL editor", async () => {

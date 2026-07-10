@@ -230,19 +230,21 @@ export const DslPanel = ({ commandContext, evaluation }: DslPanelProps) => {
     options: { recordHistory?: boolean } = {}
   ) => {
     const recordHistory = options.recordHistory ?? true;
-    setSourceState((current) => {
-      if (current.source === nextSource && current.requestId === requestId) return current;
-      if (recordHistory && current.source !== nextSource) {
-        setSourceHistory((history) => ({
-          past: [...history.past, current.source],
-          future: []
-        }));
-      }
-      return { source: nextSource, requestId };
-    });
+    const previousSource = source;
+    if (recordHistory && previousSource !== nextSource) {
+      setSourceHistory((history) => ({
+        past: [...history.past, previousSource],
+        future: []
+      }));
+    }
+    setSourceState((current) =>
+      current.source === nextSource && current.requestId === requestId
+        ? current
+        : { source: nextSource, requestId }
+    );
     setDiagnostics([]);
     setStatus(null);
-  }, []);
+  }, [source]);
 
   const undoSource = useCallback(() => {
     setSourceHistory((history) => {
@@ -428,6 +430,15 @@ export const DslPanel = ({ commandContext, evaluation }: DslPanelProps) => {
     if (!hasPendingSourceRequest) return;
     selectDslName("currentOrNext", source, 0);
   }, [hasPendingSourceRequest, selectDslName, source]);
+
+  const seenRequestIdRef = useRef<number | null | undefined>(undefined);
+  useEffect(() => {
+    const incomingRequestId = dslPanelSourceRequest?.requestId ?? null;
+    if (seenRequestIdRef.current === incomingRequestId) return;
+    seenRequestIdRef.current = incomingRequestId;
+    // A new request supersedes the draft; its undo history must not leak in.
+    setSourceHistory({ past: [], future: [] });
+  }, [dslPanelSourceRequest?.requestId]);
 
   if (!showDslPanel) return null;
 
