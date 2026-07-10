@@ -3,7 +3,7 @@ use serde_json::{json, Value};
 use super::super::bezier_math::Point as BmPoint;
 use super::super::point_anchor::computed_point;
 use super::super::split_line_evaluator::{
-    best_sample_hit, split_offset_segment, SampleKind, SampleSegment,
+    best_sample_hit, refine_offset_sample_hit, split_offset_segment, SampleKind, SampleSegment,
 };
 use super::super::types::Point as ComputedPoint;
 use super::line::reversed_angle;
@@ -342,26 +342,29 @@ pub(super) fn move_offset_endpoint(
         y: target.y,
     };
     let target_bm = to_bm_point(target_point);
-    let (hit, total_length) = best_sample_hit(target_bm, &sample_segments);
+    let (hit, _total_length) = best_sample_hit(target_bm, &sample_segments);
 
-    if let Some(hit) = &hit {
-        if hit.distance_from_line <= TOLERANCE_MM {
-            let interior = if endpoint_key == "end" {
-                hit.distance_from_start > EPSILON
-            } else {
-                hit.distance_from_start < total_length - EPSILON
-            };
-            if interior {
-                return truncate_offset_at_body(
-                    line,
-                    endpoint_key,
-                    segments,
-                    hit.segment_index,
-                    hit.local_t,
-                    hit.point,
-                );
+    if let Some(hit) = hit {
+        if let Some(refined_hit) = refine_offset_sample_hit(target_bm, segments, &hit) {
+            if refined_hit.distance_from_line <= TOLERANCE_MM {
+                let interior = if endpoint_key == "end" {
+                    refined_hit.segment_index > 0 || refined_hit.local_t > EPSILON
+                } else {
+                    refined_hit.segment_index + 1 < segments.len()
+                        || refined_hit.local_t < 1.0 - EPSILON
+                };
+                if interior {
+                    return truncate_offset_at_body(
+                        line,
+                        endpoint_key,
+                        segments,
+                        refined_hit.segment_index,
+                        refined_hit.local_t,
+                        refined_hit.point,
+                    );
+                }
+                return zero_length_error(name);
             }
-            return zero_length_error(name);
         }
     }
 

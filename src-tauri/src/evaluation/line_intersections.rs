@@ -2,7 +2,6 @@ use serde_json::Value;
 
 use super::bezier_math::cubic_derivative as bm_cubic_derivative;
 use super::bezier_path::{self, cubic_point_at};
-use super::math::normalize_degrees;
 
 const ARC_STEPS: f64 = 64.0;
 const CURVE_STEPS: usize = 64;
@@ -570,6 +569,12 @@ fn projection_t(point: Point, start: Point, end: Point) -> Option<f64> {
     Some(((point.x - start.x) * vector.x + (point.y - start.y) * vector.y) / length_squared)
 }
 
+fn chord_seed(segment: &IntersectionSegment, start: f64, end: f64, rough_point: Point) -> f64 {
+    projection_t(rough_point, segment.start, segment.end)
+        .map(|chord_t| (start + (end - start) * chord_t).clamp(start, end))
+        .unwrap_or((start + end) / 2.0)
+}
+
 fn signed_distance_to_line(point: Point, line: &IntersectionSegment) -> f64 {
     cross(
         Point {
@@ -597,12 +602,13 @@ fn cubic_derivative(segment: &Value, t: f64) -> Option<Point> {
     })
 }
 
-// Refine a Bézier↔Bézier crossing with 2D Newton solving A(t) = B(u), seeded
-// from the rough polyline crossing. Returns None when it cannot converge
-// (e.g. near-tangent curves), leaving the rough crossing in place.
+// Refine a Bézier↔Bézier crossing with a damped Newton solve confined to the
+// two seed chords' local ranges. A rough crossing is only a candidate and is
+// never returned when the analytic solve cannot establish a root.
 fn refine_bezier_bezier_intersection(
     a: &IntersectionSegment,
     b: &IntersectionSegment,
+    rough_point: Point,
 ) -> Option<(Point, f64, f64)> {
     let SegmentPrimitive::Bezier {
         segment: seg_a,
@@ -621,44 +627,73 @@ fn refine_bezier_bezier_intersection(
         return None;
     };
 
-    let mut t_a = (a_start + a_end) / 2.0;
-    let mut t_b = (b_start + b_end) / 2.0;
+    let solve = |mut t_a: f64, mut t_b: f64| -> Option<(Point, f64, f64)> {
+        for _ in 0..40 {
+            let pa = cubic_point(seg_a, t_a)?;
+            let pb = cubic_point(seg_b, t_b)?;
+            let fx = pa.x - pb.x;
+            let fy = pa.y - pb.y;
+            let residual = fx.hypot(fy);
+            if !residual.is_finite() {
+                return None;
+            }
+            if residual <= EPSILON {
+                break;
+            }
+            let da = cubic_derivative(seg_a, t_a)?;
+            let db = cubic_derivative(seg_b, t_b)?;
+            let det = db.x * da.y - da.x * db.y;
+            if !det.is_finite() || det.abs() <= EPSILON {
+                return None;
+            }
+            let dt_a = (db.y * fx - db.x * fy) / det;
+            let dt_b = (da.y * fx - da.x * fy) / det;
+            if !dt_a.is_finite() || !dt_b.is_finite() {
+                return None;
+            }
 
-    for _ in 0..40 {
+            let mut damping = 1.0;
+            let mut accepted = false;
+            while damping >= 1.0 / 1024.0 {
+                let next_a = t_a + damping * dt_a;
+                let next_b = t_b + damping * dt_b;
+                if next_a < *a_start - EPSILON
+                    || next_a > *a_end + EPSILON
+                    || next_b < *b_start - EPSILON
+                    || next_b > *b_end + EPSILON
+                {
+                    damping /= 2.0;
+                    continue;
+                }
+                let next_pa = cubic_point(seg_a, next_a)?;
+                let next_pb = cubic_point(seg_b, next_b)?;
+                if (next_pa.x - next_pb.x).hypot(next_pa.y - next_pb.y) < residual {
+                    t_a = next_a;
+                    t_b = next_b;
+                    accepted = true;
+                    break;
+                }
+                damping /= 2.0;
+            }
+            if !accepted {
+                return None;
+            }
+        }
+
         let pa = cubic_point(seg_a, t_a)?;
         let pb = cubic_point(seg_b, t_b)?;
-        let fx = pa.x - pb.x;
-        let fy = pa.y - pb.y;
-        if !fx.is_finite() || !fy.is_finite() {
-            return None;
-        }
-        if fx.hypot(fy) <= EPSILON {
-            break;
-        }
-        let da = cubic_derivative(seg_a, t_a)?;
-        let db = cubic_derivative(seg_b, t_b)?;
-        // Jacobian J = [[da.x, -db.x], [da.y, -db.y]]; solve J·d = -F.
-        let det = db.x * da.y - da.x * db.y;
-        if !det.is_finite() || det.abs() <= EPSILON {
-            return None;
-        }
-        let dt_a = (db.y * fx - db.x * fy) / det;
-        let dt_b = (da.y * fx - da.x * fy) / det;
-        if !dt_a.is_finite() || !dt_b.is_finite() {
-            return None;
-        }
-        t_a = (t_a + dt_a).clamp(0.0, 1.0);
-        t_b = (t_b + dt_b).clamp(0.0, 1.0);
-    }
+        let residual = (pa.x - pb.x).hypot(pa.y - pb.y);
+        (residual.is_finite() && residual <= INTERSECTION_TOLERANCE).then_some((pa, t_a, t_b))
+    };
 
-    let pa = cubic_point(seg_a, t_a)?;
-    let pb = cubic_point(seg_b, t_b)?;
-    if !(pa.x - pb.x).hypot(pa.y - pb.y).is_finite()
-        || (pa.x - pb.x).hypot(pa.y - pb.y) > INTERSECTION_TOLERANCE
-    {
-        return None;
-    }
-    Some((pa, t_a, t_b))
+    let rough_a = chord_seed(a, *a_start, *a_end, rough_point);
+    let rough_b = chord_seed(b, *b_start, *b_end, rough_point);
+    let middle_a = (a_start + a_end) / 2.0;
+    let middle_b = (b_start + b_end) / 2.0;
+    solve(rough_a, rough_b)
+        .or_else(|| solve(middle_a, middle_b))
+        .or_else(|| solve(rough_a, middle_b))
+        .or_else(|| solve(middle_a, rough_b))
 }
 
 fn refine_bezier_line_intersection(
@@ -778,25 +813,35 @@ fn quadratic_roots(a: f64, b: f64, c: f64) -> Vec<f64> {
     ]
 }
 
-// Sweep fraction u such that start_angle_deg + sweep_angle_deg * u ≡ angle_deg
-// (mod 360), following the same signed-progress convention as
-// `split_line_evaluator::signed_arc_progress` (positive sweep walks forward
-// through increasing angle, negative sweep walks backward) so u is only in
-// [0, 1] when angle_deg actually lies within this arc's own sweep direction.
-fn sweep_fraction_for_angle(
+// Return the representative of an angle that belongs to this particular seed
+// chord. Full circles have both u=0 and u=1 at their seam, so unwrap around
+// the chord's local range rather than choosing a global modulo fraction.
+fn sweep_fraction_for_angle_in_range(
     start_angle_deg: f64,
     sweep_angle_deg: f64,
     angle_deg: f64,
+    u_start: f64,
+    u_end: f64,
 ) -> Option<f64> {
     if sweep_angle_deg.abs() <= EPSILON {
         return None;
     }
-    let progress_deg = if sweep_angle_deg >= 0.0 {
-        normalize_degrees(angle_deg - start_angle_deg)
-    } else {
-        -normalize_degrees(start_angle_deg - angle_deg)
-    };
-    Some(progress_deg / sweep_angle_deg)
+    let midpoint = (u_start + u_end) / 2.0;
+    let center_turn =
+        ((start_angle_deg + sweep_angle_deg * midpoint - angle_deg) / 360.0).floor() as i64;
+    let mut best: Option<f64> = None;
+    for turn in (center_turn - 2)..=(center_turn + 2) {
+        let u = (angle_deg + 360.0 * turn as f64 - start_angle_deg) / sweep_angle_deg;
+        if u < u_start - EPSILON || u > u_end + EPSILON {
+            continue;
+        }
+        if best.as_ref().map_or(true, |current| {
+            (u - midpoint).abs() < (*current - midpoint).abs()
+        }) {
+            best = Some(u);
+        }
+    }
+    best.map(|u| u.clamp(u_start, u_end))
 }
 
 // Analytic circle-vs-infinite-line intersection, seeded from the rough
@@ -851,23 +896,21 @@ fn refine_arc_line_intersection(
             y: line.start.y + d.y * line_t,
         };
         let angle_deg = (point.y - center.y).atan2(point.x - center.x).to_degrees();
-        let Some(u) = sweep_fraction_for_angle(start_angle_deg, sweep_angle_deg, angle_deg) else {
+        let Some(u) = sweep_fraction_for_angle_in_range(
+            start_angle_deg,
+            sweep_angle_deg,
+            angle_deg,
+            u_start,
+            u_end,
+        ) else {
             continue;
         };
-        if u < u_start - EPSILON || u > u_end + EPSILON {
-            continue;
-        }
         let dist_to_rough = (point.x - rough_point.x).hypot(point.y - rough_point.y);
         if best
             .as_ref()
             .map_or(true, |existing| dist_to_rough < existing.3)
         {
-            best = Some((
-                point,
-                line_t.clamp(0.0, 1.0),
-                u.clamp(u_start, u_end),
-                dist_to_rough,
-            ));
+            best = Some((point, line_t.clamp(0.0, 1.0), u, dist_to_rough));
         }
     }
 
@@ -957,34 +1000,27 @@ fn refine_arc_arc_intersection(
         let angle_a_deg = (point.y - center_a.y)
             .atan2(point.x - center_a.x)
             .to_degrees();
-        let Some(u_a) = sweep_fraction_for_angle(start_a, sweep_a, angle_a_deg) else {
+        let Some(u_a) =
+            sweep_fraction_for_angle_in_range(start_a, sweep_a, angle_a_deg, u_start_a, u_end_a)
+        else {
             continue;
         };
-        if u_a < u_start_a - EPSILON || u_a > u_end_a + EPSILON {
-            continue;
-        }
 
         let angle_b_deg = (point.y - center_b.y)
             .atan2(point.x - center_b.x)
             .to_degrees();
-        let Some(u_b) = sweep_fraction_for_angle(start_b, sweep_b, angle_b_deg) else {
+        let Some(u_b) =
+            sweep_fraction_for_angle_in_range(start_b, sweep_b, angle_b_deg, u_start_b, u_end_b)
+        else {
             continue;
         };
-        if u_b < u_start_b - EPSILON || u_b > u_end_b + EPSILON {
-            continue;
-        }
 
         let dist_to_rough = (point.x - rough_point.x).hypot(point.y - rough_point.y);
         if best
             .as_ref()
             .map_or(true, |existing| dist_to_rough < existing.3)
         {
-            best = Some((
-                point,
-                u_a.clamp(u_start_a, u_end_a),
-                u_b.clamp(u_start_b, u_end_b),
-                dist_to_rough,
-            ));
+            best = Some((point, u_a, u_b, dist_to_rough));
         }
     }
 
@@ -1027,6 +1063,7 @@ fn arc_derivative_at_u(radius: f64, start_angle_deg: f64, sweep_angle_deg: f64, 
 fn refine_bezier_arc_intersection(
     bezier: &IntersectionSegment,
     arc: &IntersectionSegment,
+    rough_point: Point,
 ) -> Option<(Point, f64, f64)> {
     let SegmentPrimitive::Bezier {
         segment,
@@ -1048,154 +1085,238 @@ fn refine_bezier_arc_intersection(
         return None;
     };
 
-    let mut t = (t_start + t_end) / 2.0;
-    let mut u = (u_start + u_end) / 2.0;
+    let solve = |mut t: f64, mut u: f64| -> Option<(Point, f64, f64)> {
+        for _ in 0..40 {
+            let pt = cubic_point(segment, t)?;
+            let pu = arc_point_at_u(center, radius, start_angle_deg, sweep_angle_deg, u);
+            let fx = pt.x - pu.x;
+            let fy = pt.y - pu.y;
+            let residual = fx.hypot(fy);
+            if !residual.is_finite() {
+                return None;
+            }
+            if residual <= EPSILON {
+                break;
+            }
+            let dt_vec = cubic_derivative(segment, t)?;
+            let arc_deriv = arc_derivative_at_u(radius, start_angle_deg, sweep_angle_deg, u);
+            let neg_arc_deriv = Point {
+                x: -arc_deriv.x,
+                y: -arc_deriv.y,
+            };
+            let det = neg_arc_deriv.x * dt_vec.y - dt_vec.x * neg_arc_deriv.y;
+            if !det.is_finite() || det.abs() <= EPSILON {
+                return None;
+            }
+            let step_t = (neg_arc_deriv.y * fx - neg_arc_deriv.x * fy) / det;
+            let step_u = (dt_vec.y * fx - dt_vec.x * fy) / det;
+            if !step_t.is_finite() || !step_u.is_finite() {
+                return None;
+            }
 
-    for _ in 0..40 {
+            let mut damping = 1.0;
+            let mut accepted = false;
+            while damping >= 1.0 / 1024.0 {
+                let next_t = t + damping * step_t;
+                let next_u = u + damping * step_u;
+                if next_t < *t_start - EPSILON
+                    || next_t > *t_end + EPSILON
+                    || next_u < u_start - EPSILON
+                    || next_u > u_end + EPSILON
+                {
+                    damping /= 2.0;
+                    continue;
+                }
+                let next_pt = cubic_point(segment, next_t)?;
+                let next_pu =
+                    arc_point_at_u(center, radius, start_angle_deg, sweep_angle_deg, next_u);
+                if (next_pt.x - next_pu.x).hypot(next_pt.y - next_pu.y) < residual {
+                    t = next_t;
+                    u = next_u;
+                    accepted = true;
+                    break;
+                }
+                damping /= 2.0;
+            }
+            if !accepted {
+                return None;
+            }
+        }
+
         let pt = cubic_point(segment, t)?;
         let pu = arc_point_at_u(center, radius, start_angle_deg, sweep_angle_deg, u);
-        let fx = pt.x - pu.x;
-        let fy = pt.y - pu.y;
-        if !fx.is_finite() || !fy.is_finite() {
-            return None;
-        }
-        if fx.hypot(fy) <= EPSILON {
-            break;
-        }
-        let dt_vec = cubic_derivative(segment, t)?;
-        let arc_deriv = arc_derivative_at_u(radius, start_angle_deg, sweep_angle_deg, u);
-        // Jacobian J = [[dt_vec.x, -arc_deriv.x], [dt_vec.y, -arc_deriv.y]];
-        // solve J·d = -F using the same Cramer's-rule layout as
-        // refine_bezier_bezier_intersection (with "db" there playing the
-        // role of "-arc_deriv" here).
-        let neg_arc_deriv = Point {
-            x: -arc_deriv.x,
-            y: -arc_deriv.y,
-        };
-        let det = neg_arc_deriv.x * dt_vec.y - dt_vec.x * neg_arc_deriv.y;
-        if !det.is_finite() || det.abs() <= EPSILON {
-            return None;
-        }
-        let step_t = (neg_arc_deriv.y * fx - neg_arc_deriv.x * fy) / det;
-        let step_u = (dt_vec.y * fx - dt_vec.x * fy) / det;
-        if !step_t.is_finite() || !step_u.is_finite() {
-            return None;
-        }
-        t = (t + step_t).clamp(0.0, 1.0);
-        u = (u + step_u).clamp(0.0, 1.0);
-    }
+        let residual = (pt.x - pu.x).hypot(pt.y - pu.y);
+        (residual.is_finite() && residual <= INTERSECTION_TOLERANCE).then_some((pt, t, u))
+    };
 
-    let pt = cubic_point(segment, t)?;
-    let pu = arc_point_at_u(center, radius, start_angle_deg, sweep_angle_deg, u);
-    let residual = (pt.x - pu.x).hypot(pt.y - pu.y);
-    if !residual.is_finite() || residual > INTERSECTION_TOLERANCE {
-        return None;
-    }
-    if t < *t_start - EPSILON || t > *t_end + EPSILON {
-        return None;
-    }
-    if u < u_start - EPSILON || u > u_end + EPSILON {
-        return None;
-    }
-    Some((pt, t.clamp(*t_start, *t_end), u.clamp(u_start, u_end)))
+    let bisect_circle_root = || -> Option<(Point, f64, f64)> {
+        let circle_residual = |t: f64| -> Option<f64> {
+            let point = cubic_point(segment, t)?;
+            Some((point.x - center.x).powi(2) + (point.y - center.y).powi(2) - radius.powi(2))
+        };
+        let mut low = *t_start;
+        let mut high = *t_end;
+        let mut low_value = circle_residual(low)?;
+        let high_value = circle_residual(high)?;
+        if !low_value.is_finite() || !high_value.is_finite() {
+            return None;
+        }
+        if low_value.abs() > EPSILON
+            && high_value.abs() > EPSILON
+            && low_value.signum() == high_value.signum()
+        {
+            return None;
+        }
+        for _ in 0..80 {
+            let mid = (low + high) / 2.0;
+            let mid_value = circle_residual(mid)?;
+            if mid_value.abs() <= EPSILON {
+                low = mid;
+                high = mid;
+                break;
+            }
+            if low_value.signum() == mid_value.signum() {
+                low = mid;
+                low_value = mid_value;
+            } else {
+                high = mid;
+            }
+        }
+        let bezier_t = (low + high) / 2.0;
+        let point = cubic_point(segment, bezier_t)?;
+        let angle_deg = (point.y - center.y).atan2(point.x - center.x).to_degrees();
+        let arc_u = sweep_fraction_for_angle_in_range(
+            start_angle_deg,
+            sweep_angle_deg,
+            angle_deg,
+            u_start,
+            u_end,
+        )?;
+        let arc_point = arc_point_at_u(center, radius, start_angle_deg, sweep_angle_deg, arc_u);
+        ((point.x - arc_point.x).hypot(point.y - arc_point.y) <= INTERSECTION_TOLERANCE)
+            .then_some((point, bezier_t, arc_u))
+    };
+
+    let rough_t = chord_seed(bezier, *t_start, *t_end, rough_point);
+    let rough_u = chord_seed(arc, u_start, u_end, rough_point);
+    let middle_t = (t_start + t_end) / 2.0;
+    let middle_u = (u_start + u_end) / 2.0;
+    solve(rough_t, rough_u)
+        .or_else(|| solve(middle_t, middle_u))
+        .or_else(|| solve(rough_t, middle_u))
+        .or_else(|| solve(middle_t, rough_u))
+        .or_else(bisect_circle_root)
 }
 
 fn refine_intersection(
     a: &IntersectionSegment,
     b: &IntersectionSegment,
     intersection: SegmentIntersection,
-) -> SegmentIntersection {
+) -> Option<SegmentIntersection> {
     if matches!(a.primitive, SegmentPrimitive::Bezier { .. })
         && matches!(b.primitive, SegmentPrimitive::Bezier { .. })
     {
-        if let Some((point, a_t, b_t)) = refine_bezier_bezier_intersection(a, b) {
-            return SegmentIntersection {
+        if let Some((point, a_t, b_t)) = refine_bezier_bezier_intersection(a, b, intersection.point)
+        {
+            return Some(SegmentIntersection {
                 point,
                 line1_distance: distance_at_segment_t(a, a_t),
                 line2_distance: distance_at_segment_t(b, b_t),
                 overlap: false,
-            };
+            });
         }
+        return None;
     }
     if matches!(a.primitive, SegmentPrimitive::Arc { .. })
         && matches!(b.primitive, SegmentPrimitive::Arc { .. })
     {
         if let Some((point, u_a, u_b)) = refine_arc_arc_intersection(a, b, intersection.point) {
-            return SegmentIntersection {
+            return Some(SegmentIntersection {
                 point,
                 line1_distance: distance_at_arc_u(a, u_a),
                 line2_distance: distance_at_arc_u(b, u_b),
                 overlap: false,
-            };
+            });
         }
+        return None;
     }
     if matches!(a.primitive, SegmentPrimitive::Bezier { .. })
         && matches!(b.primitive, SegmentPrimitive::Arc { .. })
     {
-        if let Some((point, bezier_t, arc_u)) = refine_bezier_arc_intersection(a, b) {
-            return SegmentIntersection {
+        if let Some((point, bezier_t, arc_u)) =
+            refine_bezier_arc_intersection(a, b, intersection.point)
+        {
+            return Some(SegmentIntersection {
                 point,
                 line1_distance: distance_at_segment_t(a, bezier_t),
                 line2_distance: distance_at_arc_u(b, arc_u),
                 overlap: false,
-            };
+            });
         }
+        return None;
     }
     if matches!(a.primitive, SegmentPrimitive::Arc { .. })
         && matches!(b.primitive, SegmentPrimitive::Bezier { .. })
     {
-        if let Some((point, bezier_t, arc_u)) = refine_bezier_arc_intersection(b, a) {
-            return SegmentIntersection {
+        if let Some((point, bezier_t, arc_u)) =
+            refine_bezier_arc_intersection(b, a, intersection.point)
+        {
+            return Some(SegmentIntersection {
                 point,
                 line1_distance: distance_at_arc_u(a, arc_u),
                 line2_distance: distance_at_segment_t(b, bezier_t),
                 overlap: false,
-            };
+            });
         }
+        return None;
     }
     if matches!(a.primitive, SegmentPrimitive::Bezier { .. }) {
         if let Some((point, bezier_t, line_t)) = refine_bezier_line_intersection(a, b) {
-            return SegmentIntersection {
+            return Some(SegmentIntersection {
                 point,
                 line1_distance: distance_at_segment_t(a, bezier_t),
                 line2_distance: b.start_distance + (b.end_distance - b.start_distance) * line_t,
                 overlap: false,
-            };
+            });
         }
+        return None;
     }
     if matches!(b.primitive, SegmentPrimitive::Bezier { .. }) {
         if let Some((point, bezier_t, line_t)) = refine_bezier_line_intersection(b, a) {
-            return SegmentIntersection {
+            return Some(SegmentIntersection {
                 point,
                 line1_distance: a.start_distance + (a.end_distance - a.start_distance) * line_t,
                 line2_distance: distance_at_segment_t(b, bezier_t),
                 overlap: false,
-            };
+            });
         }
+        return None;
     }
     if matches!(a.primitive, SegmentPrimitive::Arc { .. }) {
         if let Some((point, arc_u, line_t)) = refine_arc_line_intersection(a, b, intersection.point)
         {
-            return SegmentIntersection {
+            return Some(SegmentIntersection {
                 point,
                 line1_distance: distance_at_arc_u(a, arc_u),
                 line2_distance: b.start_distance + (b.end_distance - b.start_distance) * line_t,
                 overlap: false,
-            };
+            });
         }
+        return None;
     }
     if matches!(b.primitive, SegmentPrimitive::Arc { .. }) {
         if let Some((point, arc_u, line_t)) = refine_arc_line_intersection(b, a, intersection.point)
         {
-            return SegmentIntersection {
+            return Some(SegmentIntersection {
                 point,
                 line1_distance: a.start_distance + (a.end_distance - a.start_distance) * line_t,
                 line2_distance: distance_at_arc_u(b, arc_u),
                 overlap: false,
-            };
+            });
         }
+        return None;
     }
-    intersection
+    Some(intersection)
 }
 
 fn same_point(a: &LineIntersection, b: &LineIntersection) -> bool {
@@ -1222,7 +1343,9 @@ pub(crate) fn find_line_intersections(
             let Some(intersection) = segment_intersection(segment1, segment2) else {
                 continue;
             };
-            let intersection = refine_intersection(segment1, segment2, intersection);
+            let Some(intersection) = refine_intersection(segment1, segment2, intersection) else {
+                continue;
+            };
             if intersection.overlap {
                 return Some(LineIntersectionResult {
                     intersections,

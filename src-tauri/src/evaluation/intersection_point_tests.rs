@@ -530,7 +530,7 @@ fn refines_near_tangent_circle_and_circle_intersection_stably() {
     let result =
         line_intersections::find_line_intersections(&a, &b, false).expect("expected a result");
     assert!(result.error.is_none());
-    assert!(!result.intersections.is_empty());
+    assert_eq!(result.intersections.len(), 2);
     for item in &result.intersections {
         // Every reported point must sit on both circles to within tolerance.
         assert!((item.x.hypot(item.y) - 50.0).abs() < 1e-6);
@@ -601,6 +601,96 @@ fn refines_bezier_and_circle_intersection_with_negative_sweep() {
     assert_eq!(result.intersections.len(), 1);
     assert!((result.intersections[0].y - 50.0).abs() < 1e-6);
     assert!(result.intersections[0].x.abs() < 1e-6);
+}
+
+#[test]
+fn keeps_near_full_positive_and_negative_arc_intersections_exact() {
+    let curve = vertical_bezier_value();
+    for (start_angle_deg, sweep_angle_deg) in [(1.0, 358.0), (359.0, -358.0)] {
+        let arc = arc_line_value(50.0, start_angle_deg, sweep_angle_deg);
+        let result = line_intersections::find_line_intersections(&curve, &arc, false)
+            .expect("expected a result");
+        assert!(result.error.is_none());
+        assert_eq!(result.intersections.len(), 2);
+        for item in result.intersections {
+            assert!((item.x.hypot(item.y) - 50.0).abs() < 1e-6);
+            assert!(item.x.abs() < 1e-6);
+        }
+    }
+}
+
+#[test]
+fn keeps_a_full_circle_seam_in_its_local_seed_chord() {
+    let angle_deg = 17.0_f64;
+    let angle_rad = angle_deg.to_radians();
+    let radial = (angle_rad.cos(), angle_rad.sin());
+    let tangent = (-radial.1, radial.0);
+    let contact = (radial.0 * 50.0, radial.1 * 50.0);
+    let line = json!({
+        "kind": "line", "elementId": "seam-tangent", "name": "seam-tangent",
+        "start": { "x": contact.0 - tangent.0 * 100.0, "y": contact.1 - tangent.1 * 100.0 },
+        "end": { "x": contact.0 + tangent.0 * 100.0, "y": contact.1 + tangent.1 * 100.0 },
+        "length": 200.0
+    });
+    let result = line_intersections::find_line_intersections(
+        &arc_line_value(50.0, angle_deg, 360.0),
+        &line,
+        false,
+    )
+    .expect("expected a result");
+    assert!(result.error.is_none());
+    assert_eq!(result.intersections.len(), 1);
+    assert!((result.intersections[0].x - contact.0).abs() < 1e-6);
+    assert!((result.intersections[0].y - contact.1).abs() < 1e-6);
+}
+
+#[test]
+fn keeps_all_three_local_roots_of_a_multi_root_bezier_pair() {
+    let wavy = json!({
+        "kind": "bezierCurve", "elementId": "wavy", "name": "wavy", "segments": [{
+            "start": { "x": 0.0, "y": -10.0 },
+            "control1": { "x": 100.0 / 3.0, "y": 30.0 },
+            "control2": { "x": 200.0 / 3.0, "y": -30.0 },
+            "end": { "x": 100.0, "y": 10.0 }
+        }]
+    });
+    let axis = json!({
+        "kind": "bezierCurve", "elementId": "axis", "name": "axis", "segments": [{
+            "start": { "x": -10.0, "y": 0.0 },
+            "control1": { "x": 30.0, "y": 0.0 },
+            "control2": { "x": 70.0, "y": 0.0 },
+            "end": { "x": 110.0, "y": 0.0 }
+        }]
+    });
+    let result = line_intersections::find_line_intersections(&wavy, &axis, false)
+        .expect("expected a result");
+    assert!(result.error.is_none());
+    assert_eq!(result.intersections.len(), 3);
+    assert!(result
+        .intersections
+        .windows(2)
+        .all(|pair| pair[0].x < pair[1].x));
+    assert!(result.intersections.iter().all(|item| item.y.abs() < 1e-6));
+}
+
+#[test]
+fn discards_bezier_arc_rough_candidate_when_no_exact_root_exists() {
+    let inside = json!({
+        "kind": "bezierCurve", "elementId": "inside", "name": "inside", "segments": [{
+            "start": { "x": 49.997, "y": -1.0 },
+            "control1": { "x": 49.997, "y": 0.0 },
+            "control2": { "x": 49.997, "y": 1.0 },
+            "end": { "x": 49.997, "y": 2.0 }
+        }]
+    });
+    let result = line_intersections::find_line_intersections(
+        &inside,
+        &arc_line_value(50.0, 0.0, 1.0),
+        false,
+    )
+    .expect("expected a result");
+    assert!(result.error.is_none());
+    assert!(result.intersections.is_empty());
 }
 
 fn offset_line_value(segments: Vec<Value>, closed: bool) -> Value {

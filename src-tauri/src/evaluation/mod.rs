@@ -44,6 +44,7 @@ mod offset_line_evaluator;
 #[cfg(test)]
 mod offset_line_tests;
 mod offset_paths;
+mod offset_projection;
 mod offset_source_segments;
 mod offset_types;
 #[cfg(test)]

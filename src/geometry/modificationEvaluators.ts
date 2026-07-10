@@ -41,7 +41,7 @@ import {
   splitBezierLike,
   type CurveProjection
 } from "./bezierMath";
-import { bestSampleHit, splitOffsetSegment } from "./splitLineEvaluator";
+import { bestSampleHit, refineOffsetSampleHit, splitOffsetSegment } from "./splitLineEvaluator";
 
 type Point = { x: number; y: number };
 
@@ -453,7 +453,7 @@ const moveOffsetEndpoint = (
     return { error: `${line.name} は端点方向を決められないため、変更できません。` };
   }
 
-  const { hit, totalLength } = bestSampleHit(
+  const { hit } = bestSampleHit(
     target,
     line.segments.map((segment) => ({
       length: segment.length,
@@ -466,11 +466,14 @@ const moveOffsetEndpoint = (
     }))
   );
 
-  if (hit && hit.distanceFromLine <= TOLERANCE_MM) {
+  const refinedHit = hit ? refineOffsetSampleHit(target, line.segments, hit) : null;
+  if (refinedHit && refinedHit.distanceFromLine <= TOLERANCE_MM) {
     const interior =
-      endpointKey === "end" ? hit.distanceFromStart > EPSILON : hit.distanceFromStart < totalLength - EPSILON;
+      endpointKey === "end"
+        ? refinedHit.segmentIndex > 0 || refinedHit.localT > EPSILON
+        : refinedHit.segmentIndex < line.segments.length - 1 || refinedHit.localT < 1 - EPSILON;
     if (interior) {
-      return truncateOffsetAtBody(line, endpointKey, hit);
+      return truncateOffsetAtBody(line, endpointKey, refinedHit);
     }
     return offsetZeroLengthError(line.name);
   }

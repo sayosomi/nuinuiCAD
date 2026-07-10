@@ -7,7 +7,6 @@ import type {
 } from "../types/geometry";
 import type { LineLikeGeometry } from "./linePaths";
 import { cubicDerivativeAt, cubicPointAt } from "./bezierMath";
-import { normalizeDegrees } from "./evaluateGeometryPrimitives";
 
 type Point = { x: number; y: number };
 
@@ -397,50 +396,81 @@ const signedDistanceToLine = (point: Point, line: IntersectionSegment) =>
     { x: line.end.x - line.start.x, y: line.end.y - line.start.y }
   );
 
-// Refine a Bezier<->Bezier crossing with 2D Newton solving A(t) = B(u),
-// seeded from each side's own chord midpoint. Ported from Rust's
-// refine_bezier_bezier_intersection (line_intersections.rs), including its
-// defensive conditions: singular/non-finite Jacobian, non-finite step, a
-// 40-iteration cap, and a final residual tolerance. Returns null when it
-// cannot converge (e.g. near-tangent curves), leaving the rough polyline
-// crossing in place.
+const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
+
+const chordSeed = (segment: IntersectionSegment, start: number, end: number, roughPoint: Point) => {
+  const chordT = projectionT(roughPoint, segment.start, segment.end);
+  return chordT === null ? (start + end) / 2 : clamp(start + (end - start) * chordT, start, end);
+};
+
+// Refine a Bezier<->Bezier crossing with a damped 2D Newton solve confined to
+// the two seed chords' own parameter ranges. A rough crossing only proves that
+// these chords are candidates; it must never be returned as geometry when the
+// analytic solve cannot establish an exact root.
 const refineBezierBezierIntersection = (
   a: IntersectionSegment,
-  b: IntersectionSegment
+  b: IntersectionSegment,
+  roughPoint: Point
 ): { point: Point; aT: number; bT: number } | null => {
   if (a.primitive.kind !== "bezier" || b.primitive.kind !== "bezier") return null;
 
   const segmentA = a.primitive.segment;
   const segmentB = b.primitive.segment;
-  let tA = (a.primitive.tStart + a.primitive.tEnd) / 2;
-  let tB = (b.primitive.tStart + b.primitive.tEnd) / 2;
+  const { tStart: aStart, tEnd: aEnd } = a.primitive;
+  const { tStart: bStart, tEnd: bEnd } = b.primitive;
+  const solve = (initialA: number, initialB: number) => {
+    let tA = initialA;
+    let tB = initialB;
+    for (let index = 0; index < 40; index += 1) {
+      const pa = cubicPointAt(segmentA, tA);
+      const pb = cubicPointAt(segmentB, tB);
+      const fx = pa.x - pb.x;
+      const fy = pa.y - pb.y;
+      const residual = Math.hypot(fx, fy);
+      if (!Number.isFinite(residual)) return null;
+      if (residual <= EPSILON) break;
 
-  for (let index = 0; index < 40; index += 1) {
+      const da = cubicDerivativeAt(segmentA, tA);
+      const db = cubicDerivativeAt(segmentB, tB);
+      const det = db.x * da.y - da.x * db.y;
+      if (!Number.isFinite(det) || Math.abs(det) <= EPSILON) return null;
+      const dtA = (db.y * fx - db.x * fy) / det;
+      const dtB = (da.y * fx - da.x * fy) / det;
+      if (!Number.isFinite(dtA) || !Number.isFinite(dtB)) return null;
+
+      let accepted = false;
+      for (let damping = 1; damping >= 1 / 1024; damping /= 2) {
+        const nextA = tA + damping * dtA;
+        const nextB = tB + damping * dtB;
+        if (
+          nextA < aStart - EPSILON || nextA > aEnd + EPSILON ||
+          nextB < bStart - EPSILON || nextB > bEnd + EPSILON
+        ) continue;
+        const nextPA = cubicPointAt(segmentA, nextA);
+        const nextPB = cubicPointAt(segmentB, nextB);
+        if (Math.hypot(nextPA.x - nextPB.x, nextPA.y - nextPB.y) < residual) {
+          tA = nextA;
+          tB = nextB;
+          accepted = true;
+          break;
+        }
+      }
+      if (!accepted) return null;
+    }
+
     const pa = cubicPointAt(segmentA, tA);
     const pb = cubicPointAt(segmentB, tB);
-    const fx = pa.x - pb.x;
-    const fy = pa.y - pb.y;
-    if (!Number.isFinite(fx) || !Number.isFinite(fy)) return null;
-    if (Math.hypot(fx, fy) <= EPSILON) break;
+    const residual = Math.hypot(pa.x - pb.x, pa.y - pb.y);
+    return Number.isFinite(residual) && residual <= INTERSECTION_TOLERANCE
+      ? { point: pa, aT: tA, bT: tB }
+      : null;
+  };
 
-    const da = cubicDerivativeAt(segmentA, tA);
-    const db = cubicDerivativeAt(segmentB, tB);
-    // Jacobian J = [[da.x, -db.x], [da.y, -db.y]]; solve J*d = -F.
-    const det = db.x * da.y - da.x * db.y;
-    if (!Number.isFinite(det) || Math.abs(det) <= EPSILON) return null;
-    const dtA = (db.y * fx - db.x * fy) / det;
-    const dtB = (da.y * fx - da.x * fy) / det;
-    if (!Number.isFinite(dtA) || !Number.isFinite(dtB)) return null;
-    tA = Math.min(Math.max(tA + dtA, 0), 1);
-    tB = Math.min(Math.max(tB + dtB, 0), 1);
-  }
-
-  const pa = cubicPointAt(segmentA, tA);
-  const pb = cubicPointAt(segmentB, tB);
-  const residual = Math.hypot(pa.x - pb.x, pa.y - pb.y);
-  if (!Number.isFinite(residual) || residual > INTERSECTION_TOLERANCE) return null;
-
-  return { point: pa, aT: tA, bT: tB };
+  const roughA = chordSeed(a, aStart, aEnd, roughPoint);
+  const roughB = chordSeed(b, bStart, bEnd, roughPoint);
+  const middleA = (aStart + aEnd) / 2;
+  const middleB = (bStart + bEnd) / 2;
+  return solve(roughA, roughB) ?? solve(middleA, middleB) ?? solve(roughA, middleB) ?? solve(middleA, roughB);
 };
 
 const refineBezierLineIntersection = (
@@ -520,18 +550,26 @@ const quadraticRoots = (a: number, b: number, c: number): number[] => {
   return [(-b - sqrtDiscriminant) / (2 * a), (-b + sqrtDiscriminant) / (2 * a)];
 };
 
-// Sweep fraction u such that startAngleDeg + sweepAngleDeg * u === angleDeg
-// (mod 360), following the same signed-progress convention as split-line's
-// arc division (positive sweep walks forward through increasing angle,
-// negative sweep walks backward) so u is only in [0, 1] when angleDeg
-// actually lies within this arc's own sweep direction.
-const sweepFractionForAngle = (startAngleDeg: number, sweepAngleDeg: number, angleDeg: number): number | null => {
+// Return the representative of an angle that belongs to this particular seed
+// chord. Full circles have both u=0 and u=1 at their seam, so a global modulo
+// fraction is insufficient; unwrap around the chord's local range instead.
+const sweepFractionForAngleInRange = (
+  startAngleDeg: number,
+  sweepAngleDeg: number,
+  angleDeg: number,
+  uStart: number,
+  uEnd: number
+): number | null => {
   if (Math.abs(sweepAngleDeg) <= EPSILON) return null;
-  const progressDeg =
-    sweepAngleDeg >= 0
-      ? normalizeDegrees(angleDeg - startAngleDeg)
-      : -normalizeDegrees(startAngleDeg - angleDeg);
-  return progressDeg / sweepAngleDeg;
+  const midpoint = (uStart + uEnd) / 2;
+  const centerTurn = Math.floor((startAngleDeg + sweepAngleDeg * midpoint - angleDeg) / 360);
+  let best: number | null = null;
+  for (let turn = centerTurn - 2; turn <= centerTurn + 2; turn += 1) {
+    const u = (angleDeg + 360 * turn - startAngleDeg) / sweepAngleDeg;
+    if (u < uStart - EPSILON || u > uEnd + EPSILON) continue;
+    if (best === null || Math.abs(u - midpoint) < Math.abs(best - midpoint)) best = u;
+  }
+  return best === null ? null : clamp(best, uStart, uEnd);
 };
 
 // Analytic circle-vs-infinite-line intersection, seeded from the rough
@@ -562,14 +600,14 @@ const refineArcLineIntersection = (
     if (lineT < -EPSILON || lineT > 1 + EPSILON) continue;
     const point = { x: line.start.x + d.x * lineT, y: line.start.y + d.y * lineT };
     const angleDeg = (Math.atan2(point.y - center.y, point.x - center.x) * 180) / Math.PI;
-    const u = sweepFractionForAngle(startAngleDeg, sweepAngleDeg, angleDeg);
-    if (u === null || u < uStart - EPSILON || u > uEnd + EPSILON) continue;
+    const u = sweepFractionForAngleInRange(startAngleDeg, sweepAngleDeg, angleDeg, uStart, uEnd);
+    if (u === null) continue;
     const distToRough = Math.hypot(point.x - roughPoint.x, point.y - roughPoint.y);
     if (!best || distToRough < best.distToRough) {
       best = {
         point,
         lineT: Math.min(Math.max(lineT, 0), 1),
-        u: Math.min(Math.max(u, uStart), uEnd),
+        u,
         distToRough
       };
     }
@@ -622,19 +660,31 @@ const refineArcArcIntersection = (
   let best: { point: Point; uA: number; uB: number; distToRough: number } | null = null;
   for (const point of circleCircleIntersections(primitiveA.center, primitiveA.radius, primitiveB.center, primitiveB.radius)) {
     const angleADeg = (Math.atan2(point.y - primitiveA.center.y, point.x - primitiveA.center.x) * 180) / Math.PI;
-    const uA = sweepFractionForAngle(primitiveA.startAngleDeg, primitiveA.sweepAngleDeg, angleADeg);
-    if (uA === null || uA < primitiveA.uStart - EPSILON || uA > primitiveA.uEnd + EPSILON) continue;
+    const uA = sweepFractionForAngleInRange(
+      primitiveA.startAngleDeg,
+      primitiveA.sweepAngleDeg,
+      angleADeg,
+      primitiveA.uStart,
+      primitiveA.uEnd
+    );
+    if (uA === null) continue;
 
     const angleBDeg = (Math.atan2(point.y - primitiveB.center.y, point.x - primitiveB.center.x) * 180) / Math.PI;
-    const uB = sweepFractionForAngle(primitiveB.startAngleDeg, primitiveB.sweepAngleDeg, angleBDeg);
-    if (uB === null || uB < primitiveB.uStart - EPSILON || uB > primitiveB.uEnd + EPSILON) continue;
+    const uB = sweepFractionForAngleInRange(
+      primitiveB.startAngleDeg,
+      primitiveB.sweepAngleDeg,
+      angleBDeg,
+      primitiveB.uStart,
+      primitiveB.uEnd
+    );
+    if (uB === null) continue;
 
     const distToRough = Math.hypot(point.x - roughPoint.x, point.y - roughPoint.y);
     if (!best || distToRough < best.distToRough) {
       best = {
         point,
-        uA: Math.min(Math.max(uA, primitiveA.uStart), primitiveA.uEnd),
-        uB: Math.min(Math.max(uB, primitiveB.uStart), primitiveB.uEnd),
+        uA,
+        uB,
         distToRough
       };
     }
@@ -673,7 +723,8 @@ const isFinitePoint = (point: Point) => Number.isFinite(point.x) && Number.isFin
 // neighboring chord.
 const refineBezierArcIntersection = (
   bezier: IntersectionSegment,
-  arc: IntersectionSegment
+  arc: IntersectionSegment,
+  roughPoint: Point
 ): { point: Point; bezierT: number; arcU: number } | null => {
   if (bezier.primitive.kind !== "bezier") return null;
   if (arc.primitive.kind !== "arc") return null;
@@ -681,54 +732,111 @@ const refineBezierArcIntersection = (
   const { segment, tStart, tEnd } = bezier.primitive;
   const { center, radius, startAngleDeg, sweepAngleDeg, uStart, uEnd } = arc.primitive;
 
-  let t = (tStart + tEnd) / 2;
-  let u = (uStart + uEnd) / 2;
+  const solve = (initialT: number, initialU: number) => {
+    let t = initialT;
+    let u = initialU;
+    for (let index = 0; index < 40; index += 1) {
+      const pt = cubicPointAt(segment, t);
+      const pu = arcPointAtU(center, radius, startAngleDeg, sweepAngleDeg, u);
+      const fx = pt.x - pu.x;
+      const fy = pt.y - pu.y;
+      const residual = Math.hypot(fx, fy);
+      if (!Number.isFinite(residual)) return null;
+      if (residual <= EPSILON) break;
 
-  for (let index = 0; index < 40; index += 1) {
+      const dt = cubicDerivativeAt(segment, t);
+      const arcDeriv = arcDerivativeAtU(radius, startAngleDeg, sweepAngleDeg, u);
+      const negArcDeriv = { x: -arcDeriv.x, y: -arcDeriv.y };
+      const det = negArcDeriv.x * dt.y - dt.x * negArcDeriv.y;
+      if (!Number.isFinite(det) || Math.abs(det) <= EPSILON) return null;
+      const stepT = (negArcDeriv.y * fx - negArcDeriv.x * fy) / det;
+      const stepU = (dt.y * fx - dt.x * fy) / det;
+      if (!Number.isFinite(stepT) || !Number.isFinite(stepU)) return null;
+
+      let accepted = false;
+      for (let damping = 1; damping >= 1 / 1024; damping /= 2) {
+        const nextT = t + damping * stepT;
+        const nextU = u + damping * stepU;
+        if (nextT < tStart - EPSILON || nextT > tEnd + EPSILON || nextU < uStart - EPSILON || nextU > uEnd + EPSILON) continue;
+        const nextPt = cubicPointAt(segment, nextT);
+        const nextPu = arcPointAtU(center, radius, startAngleDeg, sweepAngleDeg, nextU);
+        if (Math.hypot(nextPt.x - nextPu.x, nextPt.y - nextPu.y) < residual) {
+          t = nextT;
+          u = nextU;
+          accepted = true;
+          break;
+        }
+      }
+      if (!accepted) return null;
+    }
+
     const pt = cubicPointAt(segment, t);
     const pu = arcPointAtU(center, radius, startAngleDeg, sweepAngleDeg, u);
-    const fx = pt.x - pu.x;
-    const fy = pt.y - pu.y;
-    if (!Number.isFinite(fx) || !Number.isFinite(fy)) return null;
-    if (Math.hypot(fx, fy) <= EPSILON) break;
-
-    const dt = cubicDerivativeAt(segment, t);
-    const arcDeriv = arcDerivativeAtU(radius, startAngleDeg, sweepAngleDeg, u);
-    // Jacobian J = [[dt.x, -arcDeriv.x], [dt.y, -arcDeriv.y]]; solve
-    // J*d = -F using the same Cramer's-rule layout as the bezier x bezier
-    // Newton solver (with "db" there playing the role of "-arcDeriv" here).
-    const negArcDeriv = { x: -arcDeriv.x, y: -arcDeriv.y };
-    const det = negArcDeriv.x * dt.y - dt.x * negArcDeriv.y;
-    if (!Number.isFinite(det) || Math.abs(det) <= EPSILON) return null;
-    const stepT = (negArcDeriv.y * fx - negArcDeriv.x * fy) / det;
-    const stepU = (dt.y * fx - dt.x * fy) / det;
-    if (!Number.isFinite(stepT) || !Number.isFinite(stepU)) return null;
-    t = Math.min(Math.max(t + stepT, 0), 1);
-    u = Math.min(Math.max(u + stepU, 0), 1);
-  }
-
-  const pt = cubicPointAt(segment, t);
-  const pu = arcPointAtU(center, radius, startAngleDeg, sweepAngleDeg, u);
-  if (!isFinitePoint(pt) || !isFinitePoint(pu)) return null;
-  const residual = Math.hypot(pt.x - pu.x, pt.y - pu.y);
-  if (residual > INTERSECTION_TOLERANCE) return null;
-  if (t < tStart - EPSILON || t > tEnd + EPSILON) return null;
-  if (u < uStart - EPSILON || u > uEnd + EPSILON) return null;
-
-  return {
-    point: pt,
-    bezierT: Math.min(Math.max(t, tStart), tEnd),
-    arcU: Math.min(Math.max(u, uStart), uEnd)
+    const residual = Math.hypot(pt.x - pu.x, pt.y - pu.y);
+    return isFinitePoint(pt) && isFinitePoint(pu) && residual <= INTERSECTION_TOLERANCE
+      ? { point: pt, bezierT: t, arcU: u }
+      : null;
   };
+
+  const bisectCircleRoot = () => {
+    const circleResidual = (t: number) => {
+      const point = cubicPointAt(segment, t);
+      return (point.x - center.x) ** 2 + (point.y - center.y) ** 2 - radius ** 2;
+    };
+    let low = tStart;
+    let high = tEnd;
+    let lowValue = circleResidual(low);
+    const highValue = circleResidual(high);
+    if (!Number.isFinite(lowValue) || !Number.isFinite(highValue)) return null;
+    if (Math.abs(lowValue) > EPSILON && Math.abs(highValue) > EPSILON && Math.sign(lowValue) === Math.sign(highValue)) {
+      return null;
+    }
+    for (let index = 0; index < 80; index += 1) {
+      const mid = (low + high) / 2;
+      const midValue = circleResidual(mid);
+      if (Math.abs(midValue) <= EPSILON) {
+        low = mid;
+        high = mid;
+        break;
+      }
+      if (Math.sign(lowValue) === Math.sign(midValue)) {
+        low = mid;
+        lowValue = midValue;
+      } else {
+        high = mid;
+      }
+    }
+    const bezierT = (low + high) / 2;
+    const point = cubicPointAt(segment, bezierT);
+    const angleDeg = (Math.atan2(point.y - center.y, point.x - center.x) * 180) / Math.PI;
+    const arcU = sweepFractionForAngleInRange(startAngleDeg, sweepAngleDeg, angleDeg, uStart, uEnd);
+    if (arcU === null) return null;
+    const arcPoint = arcPointAtU(center, radius, startAngleDeg, sweepAngleDeg, arcU);
+    return Math.hypot(point.x - arcPoint.x, point.y - arcPoint.y) <= INTERSECTION_TOLERANCE
+      ? { point, bezierT, arcU }
+      : null;
+  };
+
+  const roughT = chordSeed(bezier, tStart, tEnd, roughPoint);
+  const roughU = chordSeed(arc, uStart, uEnd, roughPoint);
+  const middleT = (tStart + tEnd) / 2;
+  const middleU = (uStart + uEnd) / 2;
+  return (
+    solve(roughT, roughU) ??
+    solve(middleT, middleU) ??
+    solve(roughT, middleU) ??
+    solve(middleT, roughU) ??
+    bisectCircleRoot()
+  );
 };
 
 const refineIntersection = (
   a: IntersectionSegment,
   b: IntersectionSegment,
   intersection: { point: Point; line1Distance: number; line2Distance: number; overlap: boolean }
-) => {
+): { point: Point; line1Distance: number; line2Distance: number; overlap: boolean } | null => {
   if (a.primitive.kind === "bezier" && b.primitive.kind === "bezier") {
-    const refined = refineBezierBezierIntersection(a, b);
+    const refined = refineBezierBezierIntersection(a, b, intersection.point);
     if (refined) {
       return {
         point: refined.point,
@@ -737,6 +845,7 @@ const refineIntersection = (
         overlap: false
       };
     }
+    return null;
   }
   if (a.primitive.kind === "arc" && b.primitive.kind === "arc") {
     const refined = refineArcArcIntersection(a, b, intersection.point);
@@ -748,9 +857,10 @@ const refineIntersection = (
         overlap: false
       };
     }
+    return null;
   }
   if (a.primitive.kind === "bezier" && b.primitive.kind === "arc") {
-    const refined = refineBezierArcIntersection(a, b);
+    const refined = refineBezierArcIntersection(a, b, intersection.point);
     if (refined) {
       return {
         point: refined.point,
@@ -759,9 +869,10 @@ const refineIntersection = (
         overlap: false
       };
     }
+    return null;
   }
   if (a.primitive.kind === "arc" && b.primitive.kind === "bezier") {
-    const refined = refineBezierArcIntersection(b, a);
+    const refined = refineBezierArcIntersection(b, a, intersection.point);
     if (refined) {
       return {
         point: refined.point,
@@ -770,6 +881,7 @@ const refineIntersection = (
         overlap: false
       };
     }
+    return null;
   }
   if (a.primitive.kind === "bezier") {
     const refined = refineBezierLineIntersection(a, b);
@@ -781,6 +893,7 @@ const refineIntersection = (
         overlap: false
       };
     }
+    return null;
   }
   if (b.primitive.kind === "bezier") {
     const refined = refineBezierLineIntersection(b, a);
@@ -792,6 +905,7 @@ const refineIntersection = (
         overlap: false
       };
     }
+    return null;
   }
   if (a.primitive.kind === "arc") {
     const refined = refineArcLineIntersection(a, b, intersection.point);
@@ -803,6 +917,7 @@ const refineIntersection = (
         overlap: false
       };
     }
+    return null;
   }
   if (b.primitive.kind === "arc") {
     const refined = refineArcLineIntersection(b, a, intersection.point);
@@ -814,6 +929,7 @@ const refineIntersection = (
         overlap: false
       };
     }
+    return null;
   }
   return intersection;
 };
@@ -841,6 +957,7 @@ export const findLineIntersections = (
       const roughIntersection = segmentIntersection(segment1, segment2);
       if (!roughIntersection) continue;
       const intersection = refineIntersection(segment1, segment2, roughIntersection);
+      if (!intersection) continue;
       if (intersection.overlap) {
         return {
           intersections,

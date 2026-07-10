@@ -225,7 +225,7 @@ describe("findLineIntersections", () => {
     const result = findLineIntersections(a, b, { useExtensions: false });
 
     expect(result.error).toBeUndefined();
-    expect(result.intersections.length).toBeGreaterThan(0);
+    expect(result.intersections).toHaveLength(2);
     for (const item of result.intersections) {
       expect(Math.hypot(item.x, item.y)).toBeCloseTo(50, 6);
       expect(Math.hypot(item.x - d, item.y)).toBeCloseTo(50, 6);
@@ -304,6 +304,106 @@ describe("findLineIntersections", () => {
     expect(result.intersections).toHaveLength(1);
     expect(result.intersections[0].x).toBeCloseTo(0, 6);
     expect(result.intersections[0].y).toBeCloseTo(25, 6);
+  });
+
+  it.each([
+    [1, 358],
+    [359, -358]
+  ])("keeps a near-full %i degree arc intersection exact", (startAngleDeg, sweepAngleDeg) => {
+    const result = findLineIntersections(verticalBezier(), circleArc(50, startAngleDeg, sweepAngleDeg), {
+      useExtensions: false
+    });
+
+    expect(result.error).toBeUndefined();
+    expect(result.intersections).toHaveLength(2);
+    for (const item of result.intersections) {
+      expect(Math.hypot(item.x, item.y)).toBeCloseTo(50, 6);
+      expect(item.x).toBeCloseTo(0, 6);
+    }
+  });
+
+  it("keeps the full-circle seam in the seed chord that owns it", () => {
+    const angleDeg = 17;
+    const angleRad = (angleDeg * Math.PI) / 180;
+    const radial = { x: Math.cos(angleRad), y: Math.sin(angleRad) };
+    const tangent = { x: -radial.y, y: radial.x };
+    const contact = { x: radial.x * 50, y: radial.y * 50 };
+    const line: ComputedLine = {
+      ...horizontalLine(0),
+      elementId: "seam-tangent",
+      start: point(contact.x - tangent.x * 100, contact.y - tangent.y * 100),
+      end: point(contact.x + tangent.x * 100, contact.y + tangent.y * 100)
+    };
+
+    const result = findLineIntersections(circleArc(50, angleDeg, 360), line, { useExtensions: false });
+
+    expect(result.error).toBeUndefined();
+    expect(result.intersections).toHaveLength(1);
+    expect(result.intersections[0].x).toBeCloseTo(contact.x, 6);
+    expect(result.intersections[0].y).toBeCloseTo(contact.y, 6);
+  });
+
+  it("keeps all three local roots of a multi-root bezier pair", () => {
+    const wavy: ComputedBezierCurve = {
+      ...verticalBezier(),
+      elementId: "wavy",
+      segments: [
+        {
+          startPointId: null,
+          endPointId: null,
+          start: point(0, -10),
+          control1: { x: 100 / 3, y: 30 },
+          control2: { x: 200 / 3, y: -30 },
+          end: point(100, 10)
+        }
+      ]
+    };
+    const axis: ComputedBezierCurve = {
+      ...verticalBezier(),
+      elementId: "axis",
+      segments: [
+        {
+          startPointId: null,
+          endPointId: null,
+          start: point(-10, 0),
+          control1: { x: 30, y: 0 },
+          control2: { x: 70, y: 0 },
+          end: point(110, 0)
+        }
+      ]
+    };
+
+    const result = findLineIntersections(wavy, axis, { useExtensions: false });
+
+    expect(result.error).toBeUndefined();
+    expect(result.intersections).toHaveLength(3);
+    expect(result.intersections.map((item) => item.x)).toEqual([...result.intersections.map((item) => item.x)].sort((a, b) => a - b));
+    for (const item of result.intersections) expect(item.y).toBeCloseTo(0, 6);
+  });
+
+  it("discards a bezier x arc rough candidate when Newton cannot establish a root", () => {
+    // The 1-degree arc's sole chord is slightly inside the circle. This
+    // Bezier crosses that chord while remaining strictly inside the circle,
+    // so there is no analytic intersection to return.
+    const inside: ComputedBezierCurve = {
+      ...verticalBezier(),
+      elementId: "inside",
+      segments: [
+        {
+          startPointId: null,
+          endPointId: null,
+          start: point(49.997, -1),
+          control1: { x: 49.997, y: 0 },
+          control2: { x: 49.997, y: 1 },
+          end: point(49.997, 2)
+        }
+      ]
+    };
+
+    const result = findLineIntersections(inside, circleArc(50, 0, 1), { useExtensions: false });
+
+    expect(result.error).toBeUndefined();
+    expect(result.intersections).toHaveLength(0);
   });
 
   const horizontalBezierCurve = (): ComputedBezierCurve => ({

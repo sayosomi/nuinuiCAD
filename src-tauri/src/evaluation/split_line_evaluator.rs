@@ -8,6 +8,7 @@ use super::bezier_math::{
 use super::bezier_path::approximate_segment_length;
 use super::errors::{dependency_error, geometry_error};
 use super::math::{arc_tangent_angles, normalize_degrees};
+use super::offset_projection::project_point_onto_offset_segment;
 use super::point_anchor::{anchor_reference_element_id, computed_point, point_anchor_or_error};
 use super::types::{
     element_id, element_name, insert_geometry, EvaluationState, Point as ComputedPoint,
@@ -24,6 +25,7 @@ struct Projection {
     distance: f64,
 }
 
+#[derive(Clone, Copy)]
 pub(crate) struct SampleHit {
     pub(crate) segment_index: usize,
     pub(crate) local_t: f64,
@@ -375,6 +377,22 @@ pub(crate) fn best_sample_hit(
     (best, total_length)
 }
 
+pub(crate) fn refine_offset_sample_hit(
+    point: Point,
+    segments: &[Value],
+    hit: &SampleHit,
+) -> Option<SampleHit> {
+    let segment = segments.get(hit.segment_index)?;
+    let refined = project_point_onto_offset_segment(point, segment, hit.local_t)?;
+    Some(SampleHit {
+        segment_index: hit.segment_index,
+        local_t: refined.local_t,
+        distance_from_start: hit.distance_from_start,
+        distance_from_line: refined.distance,
+        point: refined.point,
+    })
+}
+
 fn bezier_segment_with_points(original: &Value, start: Value, end: Value) -> Value {
     let mut next = original.clone();
     next["start"] = start;
@@ -688,7 +706,17 @@ fn split_offset_line_geometry(
     let Some(hit) = hit else {
         return SplitGeometryResult::NotOnLine;
     };
-    if hit.distance_from_line > TOLERANCE_MM {
+    let Some(refined_hit) = refine_offset_sample_hit(
+        Point {
+            x: split_point.x,
+            y: split_point.y,
+        },
+        segments,
+        &hit,
+    ) else {
+        return SplitGeometryResult::NotOnLine;
+    };
+    if refined_hit.distance_from_line > TOLERANCE_MM {
         return SplitGeometryResult::NotOnLine;
     }
     if hit.distance_from_start <= TOLERANCE_MM
@@ -696,18 +724,20 @@ fn split_offset_line_geometry(
     {
         return SplitGeometryResult::Endpoint;
     }
-    let Some((left, right)) =
-        split_offset_segment(&segments[hit.segment_index], hit.local_t, hit.point)
-    else {
+    let Some((left, right)) = split_offset_segment(
+        &segments[refined_hit.segment_index],
+        refined_hit.local_t,
+        refined_hit.point,
+    ) else {
         return SplitGeometryResult::NotOnLine;
     };
-    let near_segments = segments[..hit.segment_index]
+    let near_segments = segments[..refined_hit.segment_index]
         .iter()
         .cloned()
         .chain(std::iter::once(left))
         .collect::<Vec<_>>();
     let far_segments = std::iter::once(right)
-        .chain(segments[hit.segment_index + 1..].iter().cloned())
+        .chain(segments[refined_hit.segment_index + 1..].iter().cloned())
         .collect::<Vec<_>>();
     let mut near = line.clone();
     near["closed"] = json!(false);

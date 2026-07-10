@@ -3,6 +3,7 @@ use serde_json::Value;
 use super::bezier_math::{cubic_derivative, project_point_onto_curve, Point as BezierPoint};
 use super::bezier_path;
 use super::math::{normalize_degrees, CIRCLE_EPSILON};
+use super::offset_projection::project_point_onto_offset_line;
 
 const CURVE_PATH_STEPS: f64 = 32.0;
 
@@ -261,8 +262,8 @@ fn segments_for_geometry(geometry: &Value) -> Option<Vec<PathSegment>> {
 }
 
 // Move a point located by the 32-step arc-length walk onto the *true* geometry:
-// the analytic cubic for Béziers, the exact circle for arcs. Lines and offset
-// polylines are their own geometry, so they are returned unchanged.
+// the analytic cubic for Béziers, the exact circle for arcs, and the analytic
+// primitives contained by offset lines.
 fn snap_onto_geometry(geometry: &Value, point: PathPoint) -> Option<PathPoint> {
     match geometry.get("kind").and_then(Value::as_str)? {
         "bezierCurve" => {
@@ -286,6 +287,20 @@ fn snap_onto_geometry(geometry: &Value, point: PathPoint) -> Option<PathPoint> {
             Some(PathPoint {
                 x: center.x + direction.x * radius,
                 y: center.y + direction.y * radius,
+            })
+        }
+        "offsetLine" => {
+            let segments = geometry.get("segments")?.as_array()?;
+            let projection = project_point_onto_offset_line(
+                BezierPoint {
+                    x: point.x,
+                    y: point.y,
+                },
+                segments,
+            )?;
+            Some(PathPoint {
+                x: projection.point.x,
+                y: projection.point.y,
             })
         }
         _ => None,

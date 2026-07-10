@@ -17,6 +17,7 @@ import type { ElementEvaluationContext } from "./elementEvaluatorTypes";
 import { isLineLikeGeometry } from "./linePaths";
 import { arcTangentAngles, lineTangentAngles } from "./lineMeasurements";
 import { cubicPointAt, distance, interpolate, refineBezierProjection, splitBezierLike, type Point } from "./bezierMath";
+import { projectPointOntoOffsetSegment } from "./offsetSegmentProjection";
 
 const TOLERANCE_MM = 0.001;
 const EPSILON = 1e-9;
@@ -240,6 +241,23 @@ export const bestSampleHit = (
   return { hit: best, totalLength };
 };
 
+export const refineOffsetSampleHit = (
+  point: Point,
+  segments: ComputedOffsetLineSegment[],
+  hit: SampleHit
+): SampleHit | null => {
+  const segment = segments[hit.segmentIndex];
+  if (!segment) return null;
+  const refined = projectPointOntoOffsetSegment(point, segment, hit.localT);
+  if (!refined) return null;
+  return {
+    ...hit,
+    localT: refined.localT,
+    point: refined.point,
+    distanceFromLine: refined.distance
+  };
+};
+
 const computedBezierSegment = (segment: ComputedBezierSegment, start: ComputedPoint, end: ComputedPoint): ComputedBezierSegment => ({
   ...segment,
   start,
@@ -372,14 +390,20 @@ const splitOffsetLineGeometry = (
             : arcPoint(segment.center, segment.radius, segment.startAngleDeg + segment.sweepAngleDeg * t)
     }))
   );
-  if (!hit || hit.distanceFromLine > TOLERANCE_MM) return null;
+  if (!hit) return null;
+  const refinedHit = refineOffsetSampleHit(splitPoint, line.segments, hit);
+  if (!refinedHit || refinedHit.distanceFromLine > TOLERANCE_MM) return null;
   if (hit.distanceFromStart <= TOLERANCE_MM || hit.distanceFromStart >= totalLength - TOLERANCE_MM) {
     return "endpoint" as const;
   }
 
-  const [left, right] = splitOffsetSegment(line.segments[hit.segmentIndex], hit.localT, hit.point);
-  const nearSegments = [...line.segments.slice(0, hit.segmentIndex), left];
-  const farSegments = [right, ...line.segments.slice(hit.segmentIndex + 1)];
+  const [left, right] = splitOffsetSegment(
+    line.segments[refinedHit.segmentIndex],
+    refinedHit.localT,
+    refinedHit.point
+  );
+  const nearSegments = [...line.segments.slice(0, refinedHit.segmentIndex), left];
+  const farSegments = [right, ...line.segments.slice(refinedHit.segmentIndex + 1)];
   return {
     near: {
       ...line,

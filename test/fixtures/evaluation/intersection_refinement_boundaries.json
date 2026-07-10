@@ -1,0 +1,49 @@
+{
+  "elements": [
+    { "id": "center", "name": "中心", "type": "freePoint", "visible": true, "enabled": true, "x": 0, "y": 0 },
+    { "id": "curve-start", "name": "曲線始点", "type": "freePoint", "visible": true, "enabled": true, "x": 0, "y": -100 },
+    { "id": "curve-end", "name": "曲線終点", "type": "freePoint", "visible": true, "enabled": true, "x": 0, "y": 100 },
+    {
+      "id": "vertical-curve", "name": "垂直曲線", "type": "bezierCurve", "visible": true, "enabled": true,
+      "startPoint": { "mode": "reference", "pointId": "curve-start" },
+      "startHandleAngleDeg": 90, "startHandleLength": 33, "intermediatePoints": [],
+      "endPoint": { "mode": "reference", "pointId": "curve-end" },
+      "endHandleAngleDeg": 270, "endHandleLength": 33
+    },
+    {
+      "id": "near-full-arc", "name": "ほぼ完全円", "type": "arcLine", "visible": true, "enabled": true,
+      "centerPoint": { "mode": "reference", "pointId": "center" }, "radius": 50,
+      "startAngleDeg": 1, "endAngleDeg": 359
+    },
+    {
+      "id": "positive-358", "name": "+358交点", "type": "intersectionPoint", "visible": true, "enabled": true,
+      "line1Id": "vertical-curve", "line2Id": "near-full-arc", "intersectionIndex": 0, "useExtensions": false
+    },
+    { "id": "axis-a", "name": "対称軸A", "type": "freePoint", "visible": true, "enabled": true, "x": 0, "y": 0 },
+    { "id": "axis-b", "name": "対称軸B", "type": "freePoint", "visible": true, "enabled": true, "x": 100, "y": 0 },
+    {
+      "id": "mirror", "name": "対称移動", "type": "symmetricMove", "visible": true, "enabled": true,
+      "axisPoint1": { "mode": "reference", "pointId": "axis-a" },
+      "axisPoint2": { "mode": "reference", "pointId": "axis-b" },
+      "baseLineIds": ["near-full-arc"]
+    },
+    {
+      "id": "negative-358", "name": "-358交点", "type": "intersectionPoint", "visible": true, "enabled": true,
+      "line1Id": "vertical-curve", "line2Id": "near-full-arc", "intersectionIndex": 0, "useExtensions": false
+    },
+    {
+      "id": "full-circle", "name": "完全円", "type": "arcLine", "visible": true, "enabled": true,
+      "centerPoint": { "mode": "reference", "pointId": "center" }, "radius": 50,
+      "startAngleDeg": 17, "endAngleDeg": 377
+    },
+    { "id": "seam-contact", "name": "境界接点", "type": "polarOffsetPoint", "visible": true, "enabled": true, "fromPoint": { "mode": "reference", "pointId": "center" }, "angleDeg": 17, "distance": 50 },
+    {
+      "id": "seam-tangent", "name": "境界接線", "type": "angleLengthLine", "visible": true, "enabled": true,
+      "startPoint": { "mode": "reference", "pointId": "seam-contact" }, "angleDeg": 107, "length": 100
+    },
+    {
+      "id": "full-circle-seam", "name": "完全円境界交点", "type": "intersectionPoint", "visible": true, "enabled": true,
+      "line1Id": "full-circle", "line2Id": "seam-tangent", "intersectionIndex": 0, "useExtensions": false
+    }
+  ]
+}
