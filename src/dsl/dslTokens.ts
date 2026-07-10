@@ -46,7 +46,12 @@ export const splitDslTerms = (line: string): DslTerm[] => {
 };
 
 export const quoteDslString = (value: string) =>
-  `"${value.replace(/\\/g, "\\\\").replace(/"/g, "\\\"")}"`;
+  `"${value
+    .replace(/\\/g, "\\\\")
+    .replace(/\n/g, "\\n")
+    .replace(/\r/g, "\\r")
+    .replace(/\t/g, "\\t")
+    .replace(/"/g, "\\\"")}"`;
 
 export const unquoteDslString = (value: string) => {
   const trimmed = value.trim();
@@ -56,11 +61,24 @@ export const unquoteDslString = (value: string) => {
   for (let index = 1; index < trimmed.length - 1; index += 1) {
     if (trimmed[index] === quote && trimmed[index - 1] !== "\\") return trimmed;
   }
-  return trimmed
-    .slice(1, -1)
-    .replace(/\\\\/g, "\\")
-    .replace(/\\"/g, "\"")
-    .replace(/\\'/g, "'");
+  const source = trimmed.slice(1, -1);
+  let result = "";
+  for (let index = 0; index < source.length; index += 1) {
+    const char = source[index];
+    if (char !== "\\" || index === source.length - 1) {
+      result += char;
+      continue;
+    }
+    index += 1;
+    const escaped = source[index];
+    result +=
+      escaped === "n" ? "\n" :
+      escaped === "r" ? "\r" :
+      escaped === "t" ? "\t" :
+      escaped === "\\" || escaped === "\"" || escaped === "'" ? escaped :
+      `\\${escaped}`;
+  }
+  return result;
 };
 
 const bareIdentifierPattern = /^[^\s"'#=()[\]{},;:]+$/;

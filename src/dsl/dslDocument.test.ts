@@ -159,6 +159,15 @@ describe("dslDocument round-trip matrix", () => {
     expectSemanticallyEqualDocuments(document, { ...document, elements: parsed.elements });
   });
 
+  it("round-trips text containing a newline as an escaped single DSL line", () => {
+    const { text, parsed } = roundTrip(["point A = (0, 0)", "text label = \"一行目\\n二行目\" at=A size=4"].join("\n"));
+    expect(text).toContain('text label = "一行目\\n二行目" at=A size=4');
+    expect(parsed.elements.find((element) => element.name === "label")).toMatchObject({
+      type: "text",
+      text: "一行目\n二行目"
+    });
+  });
+
   it("round-trips variable with expression mode and with pointDistance mode", () => {
     const { document, parsed } = roundTrip(
       [

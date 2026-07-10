@@ -1,5 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { splitDslTerms } from "./dslTokens";
+import { quoteDslString, splitDslTerms, unquoteDslString } from "./dslTokens";
+
+describe("DSL string escaping", () => {
+  it("round-trips newlines and other escaped control characters", () => {
+    const value = "first\\second\nthird\rfourth\tfifth\"sixth";
+    expect(quoteDslString(value)).toBe('"first\\\\second\\nthird\\rfourth\\tfifth\\"sixth"');
+    expect(unquoteDslString(quoteDslString(value))).toBe(value);
+  });
+
+  it("does not strip quotes from a qualified reference with quoted segments", () => {
+    expect(unquoteDslString('"Outer name"::"Inner name"')).toBe('"Outer name"::"Inner name"');
+  });
+});
 
 describe("splitDslTerms", () => {
   it("splits whitespace-separated terms with spans", () => {

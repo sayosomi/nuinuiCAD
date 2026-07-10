@@ -37,6 +37,17 @@ describe("DSL compiler", () => {
     });
   });
 
+  it("keeps an unanchored text element unanchored when applying serialized DSL", () => {
+    const initial = compileDslToElements('text label = "一行目\\n二行目" at=none size=3', { elements: [] });
+
+    expect(initial.diagnostics).toEqual([]);
+    expect(initial.elements[0]).toMatchObject({
+      type: "text",
+      text: "一行目\n二行目",
+      anchor: null
+    });
+  });
+
   it("updates existing elements by stable id", () => {
     const initial = compileDslToElements("point A = (0, 0)", { elements: [] });
     const point = initial.elements[0];

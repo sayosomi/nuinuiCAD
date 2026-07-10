@@ -343,7 +343,7 @@ const applyStatement = (
     next = {
       ...next,
       text: statement.text,
-      anchor: at ? anchor(at) : next.anchor,
+      anchor: at === "none" ? null : at ? anchor(at) : next.anchor,
       fontSize: numeric(attr(statement.attrs, "size") ?? attr(statement.attrs, "fontSize") ?? "3")
     };
   }
