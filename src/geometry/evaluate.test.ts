@@ -2134,6 +2134,293 @@ describe("evaluateElements", () => {
     expect(offset.segments.at(-1)?.end).toMatchObject({ x: 140, y: -10 });
   });
 
+  it("shortens a bezier curve to a division point on its body, preserving the retained shape", () => {
+    const archCurve = (): CadElement => ({
+      id: "curve",
+      name: "曲線",
+      type: "bezierCurve",
+      visible: true,
+      enabled: true,
+      startPoint: { mode: "reference", pointId: "start" },
+      startHandleAngleDeg: 90,
+      startHandleLength: 40,
+      intermediatePoints: [],
+      endPoint: { mode: "reference", pointId: "end" },
+      endHandleAngleDeg: 270,
+      endHandleLength: 40
+    });
+
+    const originalResult = evaluateElements([
+      { id: "start", name: "始点", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
+      { id: "end", name: "終点", type: "freePoint", visible: true, enabled: true, x: 100, y: 0 },
+      archCurve()
+    ]);
+    const originalCurve = originalResult.computedGeometry.get("curve");
+    if (originalCurve?.kind !== "bezierCurve") throw new Error("Expected a Bezier curve");
+    const originalSegment = originalCurve.segments[0];
+
+    const result = evaluateElements([
+      { id: "start", name: "始点", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
+      { id: "end", name: "終点", type: "freePoint", visible: true, enabled: true, x: 100, y: 0 },
+      archCurve(),
+      {
+        id: "division",
+        name: "線上分点",
+        type: "lineDivisionPoint",
+        visible: true,
+        enabled: true,
+        endpoint: { lineId: "curve", endpointKey: "start" },
+        placementMode: "distance",
+        distance: 40,
+        ratio: 0.5
+      },
+      {
+        id: "extend",
+        name: "延長短縮",
+        type: "extendTrim",
+        visible: true,
+        enabled: true,
+        endpoint: { lineId: "curve", endpointKey: "end" },
+        point: { mode: "reference", pointId: "division" }
+      }
+    ]);
+
+    expect(result.errors).toHaveLength(0);
+    const division = result.computedGeometry.get("division");
+    const curve = result.computedGeometry.get("curve");
+    if (division?.kind !== "point") throw new Error("Expected a point");
+    if (curve?.kind !== "bezierCurve") throw new Error("Expected a Bezier curve");
+    const segment = curve.segments[0];
+    expect(segment.end.x).toBeCloseTo(division.x);
+    expect(segment.end.y).toBeCloseTo(division.y);
+    expect(segment.start).toMatchObject({ x: 0, y: 0 });
+    expect(curve.length).toBeLessThan(100);
+
+    // Regression: the truncated segment must be a true de Casteljau sub-curve --
+    // BOTH control points shift, not just the one on the trimmed side.
+    const control1Moved =
+      Math.abs(segment.control1.x - originalSegment.control1.x) > 1e-6 ||
+      Math.abs(segment.control1.y - originalSegment.control1.y) > 1e-6;
+    expect(control1Moved).toBe(true);
+    expect(segment.control2).not.toMatchObject(originalSegment.control2);
+    expect(segment.end).not.toMatchObject(originalSegment.end);
+  });
+
+  it("shortens a bezier curve's start to a division point on its body", () => {
+    const result = evaluateElements([
+      { id: "start", name: "始点", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
+      { id: "end", name: "終点", type: "freePoint", visible: true, enabled: true, x: 100, y: 0 },
+      {
+        id: "curve",
+        name: "曲線",
+        type: "bezierCurve",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "start" },
+        startHandleAngleDeg: 90,
+        startHandleLength: 40,
+        intermediatePoints: [],
+        endPoint: { mode: "reference", pointId: "end" },
+        endHandleAngleDeg: 270,
+        endHandleLength: 40
+      },
+      {
+        id: "division",
+        name: "線上分点",
+        type: "lineDivisionPoint",
+        visible: true,
+        enabled: true,
+        endpoint: { lineId: "curve", endpointKey: "start" },
+        placementMode: "distance",
+        distance: 60,
+        ratio: 0.5
+      },
+      {
+        id: "extend",
+        name: "延長短縮",
+        type: "extendTrim",
+        visible: true,
+        enabled: true,
+        endpoint: { lineId: "curve", endpointKey: "start" },
+        point: { mode: "reference", pointId: "division" }
+      }
+    ]);
+
+    expect(result.errors).toHaveLength(0);
+    const division = result.computedGeometry.get("division");
+    const curve = result.computedGeometry.get("curve");
+    if (division?.kind !== "point") throw new Error("Expected a point");
+    if (curve?.kind !== "bezierCurve") throw new Error("Expected a Bezier curve");
+    const segment = curve.segments[0];
+    expect(segment.start.x).toBeCloseTo(division.x);
+    expect(segment.start.y).toBeCloseTo(division.y);
+    expect(segment.end).toMatchObject({ x: 100, y: 0 });
+    expect(curve.length).toBeLessThan(100);
+  });
+
+  it("reports the zero-length error instead of the angle-line error when a bezier endpoint is trimmed onto its own opposite anchor", () => {
+    const result = evaluateElements([
+      { id: "start", name: "始点", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
+      { id: "end", name: "終点", type: "freePoint", visible: true, enabled: true, x: 100, y: 0 },
+      {
+        id: "curve",
+        name: "曲線",
+        type: "bezierCurve",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "start" },
+        startHandleAngleDeg: 90,
+        startHandleLength: 40,
+        intermediatePoints: [],
+        endPoint: { mode: "reference", pointId: "end" },
+        endHandleAngleDeg: 270,
+        endHandleLength: 40
+      },
+      {
+        id: "extend",
+        name: "延長短縮",
+        type: "extendTrim",
+        visible: true,
+        enabled: true,
+        endpoint: { lineId: "curve", endpointKey: "end" },
+        point: { mode: "reference", pointId: "start" }
+      }
+    ]);
+
+    expect(result.errors.length).toBeGreaterThan(0);
+    expect(result.errors[0].message).toContain("長さが0になるため");
+  });
+
+  const offsetBezierElements = (): CadElement[] => [
+    { id: "start", name: "始点", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
+    { id: "end", name: "終点", type: "freePoint", visible: true, enabled: true, x: 100, y: 0 },
+    {
+      id: "curve",
+      name: "曲線",
+      type: "bezierCurve",
+      visible: true,
+      enabled: true,
+      startPoint: { mode: "reference", pointId: "start" },
+      startHandleAngleDeg: 90,
+      startHandleLength: 40,
+      intermediatePoints: [],
+      endPoint: { mode: "reference", pointId: "end" },
+      endHandleAngleDeg: 270,
+      endHandleLength: 40
+    },
+    {
+      id: "offset",
+      name: "オフセット",
+      type: "offsetLine",
+      visible: true,
+      enabled: true,
+      baseLineIds: ["curve"],
+      offset: 10,
+      side: "right",
+      closed: false
+    }
+  ];
+
+  const cubicPointAtSegment = (
+    segment: { start: { x: number; y: number }; control1: { x: number; y: number }; control2: { x: number; y: number }; end: { x: number; y: number } },
+    t: number
+  ) => {
+    const inverse = 1 - t;
+    const a = inverse * inverse * inverse;
+    const b = 3 * inverse * inverse * t;
+    const c = 3 * inverse * t * t;
+    const d = t * t * t;
+    return {
+      x: a * segment.start.x + b * segment.control1.x + c * segment.control2.x + d * segment.end.x,
+      y: a * segment.start.y + b * segment.control1.y + c * segment.control2.y + d * segment.end.y
+    };
+  };
+
+  it("shortens an offset bezier chain at an on-body point, keeping untouched segments byte-identical", () => {
+    // Offsetting a bezier curve adaptively fits many small analytic bezier
+    // sub-segments. Trimming inside one of them must truncate only that
+    // segment and leave every other segment untouched -- previously the
+    // whole offset line was flattened into an all-"line" polyline.
+    const baseline = evaluateElements(offsetBezierElements());
+    const originalOffset = baseline.computedGeometry.get("offset");
+    if (originalOffset?.kind !== "offsetLine") throw new Error("Expected an offset line");
+    const originalSegments = originalOffset.segments;
+    expect(originalSegments.length).toBeGreaterThan(2);
+    expect(originalSegments.every((segment) => segment.kind === "bezier")).toBe(true);
+
+    const mid = Math.floor(originalSegments.length / 2);
+    const midSegment = originalSegments[mid];
+    if (midSegment.kind !== "bezier") throw new Error("Expected a bezier segment");
+    const target = cubicPointAtSegment(midSegment, 0.5);
+
+    const result = evaluateElements([
+      ...offsetBezierElements(),
+      { id: "target", name: "目標", type: "freePoint", visible: true, enabled: true, x: target.x, y: target.y },
+      {
+        id: "extend",
+        name: "延長短縮",
+        type: "extendTrim",
+        visible: true,
+        enabled: true,
+        endpoint: { lineId: "offset", endpointKey: "start" },
+        point: { mode: "reference", pointId: "target" }
+      }
+    ]);
+
+    expect(result.errors).toHaveLength(0);
+    const offset = result.computedGeometry.get("offset");
+    if (offset?.kind !== "offsetLine") throw new Error("Expected an offset line");
+    expect(offset.segments).toHaveLength(originalSegments.length - mid);
+    expect(offset.segments[0].kind).toBe("bezier");
+    expect(offset.segments[0].start.x).toBeCloseTo(target.x);
+    expect(offset.segments[0].start.y).toBeCloseTo(target.y);
+    expect(offset.segments[0].end).toMatchObject({ x: midSegment.end.x, y: midSegment.end.y });
+    for (let index = 1; index < offset.segments.length; index += 1) {
+      expect(offset.segments[index]).toEqual(originalSegments[mid + index]);
+    }
+    expect(offset.length).toBeLessThan(originalOffset.length);
+  });
+
+  it("extends an offset bezier endpoint by appending a line segment along the analytic tangent", () => {
+    const probe = evaluateElements(offsetBezierElements());
+    const probeOffset = probe.computedGeometry.get("offset");
+    if (probeOffset?.kind !== "offsetLine") throw new Error("Expected an offset line");
+    if (!probeOffset.end || probeOffset.endTangentAngleDeg === null) {
+      throw new Error("Expected offset endpoint tangent metadata");
+    }
+    const angleRad = (probeOffset.endTangentAngleDeg * Math.PI) / 180;
+    const targetX = probeOffset.end.x + Math.cos(angleRad) * 20;
+    const targetY = probeOffset.end.y + Math.sin(angleRad) * 20;
+    const originalSegments = probeOffset.segments;
+
+    const result = evaluateElements([
+      ...offsetBezierElements(),
+      { id: "target", name: "目標", type: "freePoint", visible: true, enabled: true, x: targetX, y: targetY },
+      {
+        id: "extend",
+        name: "延長短縮",
+        type: "extendTrim",
+        visible: true,
+        enabled: true,
+        endpoint: { lineId: "offset", endpointKey: "end" },
+        point: { mode: "reference", pointId: "target" }
+      }
+    ]);
+
+    expect(result.errors).toHaveLength(0);
+    const offset = result.computedGeometry.get("offset");
+    if (offset?.kind !== "offsetLine") throw new Error("Expected an offset line");
+    expect(offset.segments).toHaveLength(originalSegments.length + 1);
+    for (let index = 0; index < originalSegments.length; index += 1) {
+      expect(offset.segments[index]).toEqual(originalSegments[index]);
+    }
+    const appended = offset.segments.at(-1);
+    if (appended?.kind !== "line") throw new Error("Expected an appended line segment");
+    expect(appended.end.x).toBeCloseTo(targetX);
+    expect(appended.end.y).toBeCloseTo(targetY);
+    expect(offset.length).toBeGreaterThan(probeOffset.length);
+  });
+
   it("reports a division point distance error when the endpoints overlap", () => {
     const result = evaluateElements([
       validElements[0],

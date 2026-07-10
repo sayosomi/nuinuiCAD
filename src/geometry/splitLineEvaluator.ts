@@ -16,8 +16,7 @@ import { dependencyError, geometryError, getPointAnchorOrError } from "./evaluat
 import type { ElementEvaluationContext } from "./elementEvaluatorTypes";
 import { isLineLikeGeometry } from "./linePaths";
 import { arcTangentAngles, lineTangentAngles } from "./lineMeasurements";
-
-type Point = { x: number; y: number };
+import { cubicPointAt, distance, interpolate, refineBezierProjection, splitBezierLike, type Point } from "./bezierMath";
 
 const TOLERANCE_MM = 0.001;
 const EPSILON = 1e-9;
@@ -29,13 +28,6 @@ const computedPoint = (elementId: ElementId, name: string, point: Point): Comput
   name,
   x: point.x,
   y: point.y
-});
-
-const distance = (a: Point, b: Point) => Math.hypot(b.x - a.x, b.y - a.y);
-
-const interpolate = (start: Point, end: Point, t: number): Point => ({
-  x: start.x + (end.x - start.x) * t,
-  y: start.y + (end.y - start.y) * t
 });
 
 const computedLine = ({
@@ -204,88 +196,7 @@ const splitArcGeometry = (
   };
 };
 
-const cubicPointAt = (segment: { start: Point; control1: Point; control2: Point; end: Point }, t: number): Point => {
-  const inverse = 1 - t;
-  const a = inverse * inverse * inverse;
-  const b = 3 * inverse * inverse * t;
-  const c = 3 * inverse * t * t;
-  const d = t * t * t;
-  return {
-    x: a * segment.start.x + b * segment.control1.x + c * segment.control2.x + d * segment.end.x,
-    y: a * segment.start.y + b * segment.control1.y + c * segment.control2.y + d * segment.end.y
-  };
-};
-
-const cubicDerivativeAt = (segment: { start: Point; control1: Point; control2: Point; end: Point }, t: number): Point => {
-  const inverse = 1 - t;
-  return {
-    x:
-      3 * inverse * inverse * (segment.control1.x - segment.start.x) +
-      6 * inverse * t * (segment.control2.x - segment.control1.x) +
-      3 * t * t * (segment.end.x - segment.control2.x),
-    y:
-      3 * inverse * inverse * (segment.control1.y - segment.start.y) +
-      6 * inverse * t * (segment.control2.y - segment.control1.y) +
-      3 * t * t * (segment.end.y - segment.control2.y)
-  };
-};
-
-const cubicSecondDerivativeAt = (segment: { start: Point; control1: Point; control2: Point; end: Point }, t: number): Point => ({
-  x:
-    6 * (1 - t) * (segment.control2.x - 2 * segment.control1.x + segment.start.x) +
-    6 * t * (segment.end.x - 2 * segment.control2.x + segment.control1.x),
-  y:
-    6 * (1 - t) * (segment.control2.y - 2 * segment.control1.y + segment.start.y) +
-    6 * t * (segment.end.y - 2 * segment.control2.y + segment.control1.y)
-});
-
-const dot = (a: Point, b: Point) => a.x * b.x + a.y * b.y;
-
-const refineBezierProjection = (
-  segment: { start: Point; control1: Point; control2: Point; end: Point },
-  point: Point,
-  initialT: number
-) => {
-  let t = Math.min(Math.max(initialT, 0), 1);
-
-  for (let index = 0; index < 20; index += 1) {
-    const current = cubicPointAt(segment, t);
-    const first = cubicDerivativeAt(segment, t);
-    const second = cubicSecondDerivativeAt(segment, t);
-    const residual = { x: current.x - point.x, y: current.y - point.y };
-    const denominator = dot(first, first) + dot(residual, second);
-    if (Math.abs(denominator) <= EPSILON) break;
-
-    const nextT = Math.min(Math.max(t - dot(residual, first) / denominator, 0), 1);
-    if (Math.abs(nextT - t) <= EPSILON) {
-      t = nextT;
-      break;
-    }
-    t = nextT;
-  }
-
-  const projected = cubicPointAt(segment, t);
-  return {
-    localT: t,
-    distanceFromLine: distance(point, projected)
-  };
-};
-
-const splitBezierLike = <T extends { start: Point; control1: Point; control2: Point; end: Point }>(segment: T, t: number) => {
-  const p01 = interpolate(segment.start, segment.control1, t);
-  const p12 = interpolate(segment.control1, segment.control2, t);
-  const p23 = interpolate(segment.control2, segment.end, t);
-  const p012 = interpolate(p01, p12, t);
-  const p123 = interpolate(p12, p23, t);
-  const p0123 = interpolate(p012, p123, t);
-  return {
-    point: p0123,
-    left: { ...segment, control1: p01, control2: p012, end: p0123 },
-    right: { ...segment, start: p0123, control1: p123, control2: p23 }
-  };
-};
-
-type SampleHit = {
+export type SampleHit = {
   segmentIndex: number;
   localT: number;
   distanceFromStart: number;
@@ -293,7 +204,7 @@ type SampleHit = {
   point: Point;
 };
 
-const bestSampleHit = (
+export const bestSampleHit = (
   splitPoint: Point,
   segments: Array<{ length: number; pointAt: (t: number) => Point }>
 ): { hit: SampleHit | null; totalLength: number } => {
@@ -397,7 +308,7 @@ const offsetSegmentLength = (segment: ComputedOffsetLineSegment) =>
         })
       : Math.max(segment.radius, 0) * Math.abs(degreesToRadians(segment.sweepAngleDeg));
 
-const splitOffsetSegment = (segment: ComputedOffsetLineSegment, t: number, splitPoint: Point): [ComputedOffsetLineSegment, ComputedOffsetLineSegment] => {
+export const splitOffsetSegment = (segment: ComputedOffsetLineSegment, t: number, splitPoint: Point): [ComputedOffsetLineSegment, ComputedOffsetLineSegment] => {
   if (segment.kind === "line") {
     return [
       { ...segment, end: computedPoint(segment.end.elementId, segment.end.name, splitPoint), length: distance(segment.start, splitPoint) },

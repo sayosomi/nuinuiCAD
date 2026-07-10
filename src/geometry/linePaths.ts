@@ -6,6 +6,7 @@ import type {
   ComputedOffsetLine,
   ComputedOffsetLineSegment
 } from "../types/geometry";
+import { projectPointOntoCurve } from "./bezierMath";
 
 type Point = { x: number; y: number };
 
@@ -248,6 +249,23 @@ const segmentsForLineLikeGeometry = (geometry: LineLikeGeometry): PathSegment[] 
   return offsetSegments(geometry);
 };
 
+// Snap a chord-sampled path point onto the true analytic geometry: the exact
+// cubic for Beziers, the exact circle for arcs. Lines and offset polylines are
+// their own geometry, so there is nothing to snap onto.
+const snapOntoGeometry = (geometry: LineLikeGeometry, point: Point): Point | null => {
+  if (geometry.kind === "bezierCurve") {
+    const projection = projectPointOntoCurve(geometry.segments, point);
+    return projection ? projection.point : null;
+  }
+  if (geometry.kind === "arcLine") {
+    const direction = unitVector(geometry.center, point);
+    if (!direction) return null;
+    const radius = Math.max(geometry.radius, 0);
+    return { x: geometry.center.x + direction.x * radius, y: geometry.center.y + direction.y * radius };
+  }
+  return null;
+};
+
 export const pointAtDistanceFromEndpoint = (
   geometry: LineLikeGeometry,
   endpointKey: "start" | "end",
@@ -271,6 +289,8 @@ export const pointAtDistanceFromEndpoint = (
   const endDirection = unitVector(segments.at(-1)!.start, segments.at(-1)!.end);
   if (!startDirection || !endDirection) return null;
 
+  // Beyond either endpoint the point extends straight along the endpoint
+  // tangent -- intentionally off-curve, so no snapping.
   if (distanceFromEndpoint < 0) {
     return extendFrom(startPoint, startDirection, distanceFromEndpoint);
   }
@@ -280,14 +300,17 @@ export const pointAtDistanceFromEndpoint = (
   }
 
   let remaining = distanceFromEndpoint;
+  let chordPoint = endPoint;
   for (const segment of segments) {
     if (remaining <= segment.length) {
-      return interpolate(segment.start, segment.end, segment.length <= EPSILON ? 0 : remaining / segment.length);
+      chordPoint = interpolate(segment.start, segment.end, segment.length <= EPSILON ? 0 : remaining / segment.length);
+      break;
     }
     remaining -= segment.length;
   }
 
-  return endPoint;
+  // Place the in-range point on the true geometry, not the sampled chord.
+  return snapOntoGeometry(geometry, chordPoint) ?? chordPoint;
 };
 
 export const tangentAtPointOnLineLikeGeometry = (

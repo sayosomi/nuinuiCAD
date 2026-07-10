@@ -1811,6 +1811,26 @@ describe("commands", () => {
     expect(state.past).toHaveLength(1);
   });
 
+  it("adds an extend/trim falling back to the most recently created point, not the first", () => {
+    useCadStore.setState({
+      selectedElementId: null,
+      selectedElementIds: [],
+      selectionAnchorElementId: null
+    });
+
+    dispatchCommand("addExtendTrim");
+
+    const state = useCadStore.getState();
+    const extendTrim = state.elements.at(-1);
+    expect(extendTrim).toMatchObject({
+      type: "extendTrim",
+      endpoint: { lineId: "line-ab", endpointKey: "start" },
+      point: { mode: "reference", pointId: "point-c" }
+    });
+    expect(state.selectedElementId).toBe(extendTrim?.id);
+    expect(state.past).toHaveLength(1);
+  });
+
   it("adds a move modification from selected line-like elements and points", () => {
     useCadStore.setState({
       selectedElementId: "line-bc",

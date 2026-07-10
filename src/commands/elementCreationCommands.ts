@@ -291,7 +291,10 @@ export const addExtendTrim = (context?: CommandContext) => {
   const selectedLine = referenceElements.find((element) => selectedIds.has(element.id) && isLineLikeElement(element));
   const fallbackLine = selectedLine ?? referenceElements.find(isLineLikeElement);
   const selectedPoint = referenceElements.find((element) => selectedIds.has(element.id) && isPointLikeElement(element));
-  const fallbackPoint = selectedPoint ?? referenceElements.find(isPointLikeElement);
+  // Fall back to the most recently created point (closest to the insertion
+  // point), not the document's first point -- an arbitrary early point made
+  // extend/trim targets easy to pick by mistake.
+  const fallbackPoint = selectedPoint ?? [...referenceElements].reverse().find(isPointLikeElement);
   const element = createElement("extendTrim", elements, referenceElements);
   if (element.type !== "extendTrim") return;
   const extendTrim: CadElement = {

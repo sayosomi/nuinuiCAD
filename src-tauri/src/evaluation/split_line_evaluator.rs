@@ -24,12 +24,12 @@ struct Projection {
     distance: f64,
 }
 
-struct SampleHit {
-    segment_index: usize,
-    local_t: f64,
-    distance_from_start: f64,
-    distance_from_line: f64,
-    point: Point,
+pub(crate) struct SampleHit {
+    pub(crate) segment_index: usize,
+    pub(crate) local_t: f64,
+    pub(crate) distance_from_start: f64,
+    pub(crate) distance_from_line: f64,
+    pub(crate) point: Point,
 }
 
 struct SplitResult {
@@ -298,13 +298,13 @@ fn split_arc_geometry(
     })
 }
 
-struct SampleSegment {
-    length: f64,
-    segment: Value,
-    kind: SampleKind,
+pub(crate) struct SampleSegment {
+    pub(crate) length: f64,
+    pub(crate) segment: Value,
+    pub(crate) kind: SampleKind,
 }
 
-enum SampleKind {
+pub(crate) enum SampleKind {
     Line,
     Bezier,
     Arc,
@@ -332,7 +332,10 @@ fn sample_point(segment: &SampleSegment, t: f64) -> Option<Point> {
     }
 }
 
-fn best_sample_hit(split_point: Point, segments: &[SampleSegment]) -> (Option<SampleHit>, f64) {
+pub(crate) fn best_sample_hit(
+    split_point: Point,
+    segments: &[SampleSegment],
+) -> (Option<SampleHit>, f64) {
     let mut total_length = 0.0;
     let mut best: Option<SampleHit> = None;
     for (segment_index, segment) in segments.iter().enumerate() {
@@ -519,7 +522,11 @@ fn offset_segment_length(segment: &Value) -> f64 {
     }
 }
 
-fn split_offset_segment(segment: &Value, t: f64, split_point: Point) -> Option<(Value, Value)> {
+pub(crate) fn split_offset_segment(
+    segment: &Value,
+    t: f64,
+    split_point: Point,
+) -> Option<(Value, Value)> {
     match segment.get("kind").and_then(Value::as_str)? {
         "line" => {
             let start = segment.get("start").and_then(value_point)?;

@@ -1,115 +1,128 @@
 use serde_json::{json, Value};
 
+use super::super::bezier_math::Point as BmPoint;
 use super::super::point_anchor::computed_point;
-use super::super::types::Point as ComputedPoint;
-use super::arc::arc_point;
-use super::bezier::cubic_point;
-use super::line::reversed_angle;
-use super::primitives::{
-    angle_from_to, distance, interpolate, line_distance, value_point, PathSample, Point, EPSILON,
-    TOLERANCE_MM,
+use super::super::split_line_evaluator::{
+    best_sample_hit, split_offset_segment, SampleKind, SampleSegment,
 };
+use super::super::types::Point as ComputedPoint;
+use super::line::reversed_angle;
+use super::primitives::{angle_from_to, value_point, Point, EPSILON, TOLERANCE_MM};
 use super::EndpointMoveResult;
 
-const CURVE_STEPS: usize = 64;
-const ARC_STEPS: f64 = 64.0;
+fn to_bm_point(point: Point) -> BmPoint {
+    BmPoint {
+        x: point.x,
+        y: point.y,
+    }
+}
 
-fn offset_segment_points(segment: &Value) -> Option<Vec<Point>> {
+fn segment_length(segment: &Value) -> f64 {
+    segment.get("length").and_then(Value::as_f64).unwrap_or(0.0)
+}
+
+fn to_sample_segments(segments: &[Value]) -> Option<Vec<SampleSegment>> {
+    segments
+        .iter()
+        .map(|segment| {
+            Some(SampleSegment {
+                length: segment.get("length").and_then(Value::as_f64)?,
+                segment: segment.clone(),
+                kind: match segment.get("kind").and_then(Value::as_str)? {
+                    "line" => SampleKind::Line,
+                    "bezier" => SampleKind::Bezier,
+                    "arc" => SampleKind::Arc,
+                    _ => return None,
+                },
+            })
+        })
+        .collect()
+}
+
+fn normalize_direction(start: Point, end: Point) -> Option<Point> {
+    let dx = end.x - start.x;
+    let dy = end.y - start.y;
+    let length = dx.hypot(dy);
+    (length > EPSILON).then(|| Point {
+        x: dx / length,
+        y: dy / length,
+    })
+}
+
+fn arc_tangent_direction(angle_deg: f64, sweep_angle_deg: f64) -> Point {
+    let angle_rad = angle_deg.to_radians();
+    let sign = if sweep_angle_deg >= 0.0 { 1.0 } else { -1.0 };
+    Point {
+        x: -angle_rad.sin() * sign,
+        y: angle_rad.cos() * sign,
+    }
+}
+
+// Analytic forward tangent direction at a segment's start/end, used (unlike a
+// chord-sampled approach) so extension checks and appended extension segments
+// stay exact for bezier/arc offset sub-segments.
+fn segment_start_forward(segment: &Value) -> Option<Point> {
     match segment.get("kind")?.as_str()? {
-        "line" => Some(vec![
-            segment.get("start").and_then(value_point)?,
-            segment.get("end").and_then(value_point)?,
-        ]),
-        "bezier" => Some(
-            (0..=CURVE_STEPS)
-                .filter_map(|index| cubic_point(segment, index as f64 / CURVE_STEPS as f64))
-                .collect(),
-        ),
+        "line" => {
+            let start = segment.get("start").and_then(value_point)?;
+            let end = segment.get("end").and_then(value_point)?;
+            normalize_direction(start, end)
+        }
+        "bezier" => {
+            let start = segment.get("start").and_then(value_point)?;
+            let control1 = segment.get("control1").and_then(value_point)?;
+            let control2 = segment.get("control2").and_then(value_point)?;
+            let end = segment.get("end").and_then(value_point)?;
+            normalize_direction(start, control1)
+                .or_else(|| normalize_direction(start, control2))
+                .or_else(|| normalize_direction(start, end))
+        }
         "arc" => {
-            let center = segment.get("center").and_then(value_point)?;
-            let radius = segment.get("radius")?.as_f64()?.max(0.0);
             let start_angle_deg = segment.get("startAngleDeg")?.as_f64()?;
             let sweep_angle_deg = segment.get("sweepAngleDeg")?.as_f64()?;
-            let step_count = ((sweep_angle_deg.abs() / 360.0) * ARC_STEPS)
-                .ceil()
-                .max(1.0) as usize;
-            Some(
-                (0..=step_count)
-                    .map(|index| {
-                        arc_point(
-                            center,
-                            radius,
-                            start_angle_deg + (sweep_angle_deg * index as f64) / step_count as f64,
-                        )
-                    })
-                    .collect(),
-            )
+            Some(arc_tangent_direction(start_angle_deg, sweep_angle_deg))
         }
         _ => None,
     }
 }
 
-fn offset_points(line: &Value) -> Option<Vec<Point>> {
-    line.get("segments")?
-        .as_array()?
-        .iter()
-        .enumerate()
-        .try_fold(Vec::new(), |mut output, (index, segment)| {
-            let points = offset_segment_points(segment)?;
-            if index == 0 {
-                output.extend(points);
-            } else {
-                output.extend(points.into_iter().skip(1));
-            }
-            Some(output)
-        })
-}
-
-fn path_samples(points: &[Point]) -> Vec<PathSample> {
-    let mut samples = Vec::new();
-    let mut accumulated = 0.0;
-    for (index, point) in points.iter().enumerate() {
-        if index > 0 {
-            accumulated += distance(points[index - 1], *point);
+fn segment_end_forward(segment: &Value) -> Option<Point> {
+    match segment.get("kind")?.as_str()? {
+        "line" => {
+            let start = segment.get("start").and_then(value_point)?;
+            let end = segment.get("end").and_then(value_point)?;
+            normalize_direction(start, end)
         }
-        samples.push(PathSample {
-            point: *point,
-            distance: accumulated,
-        });
+        "bezier" => {
+            let start = segment.get("start").and_then(value_point)?;
+            let control1 = segment.get("control1").and_then(value_point)?;
+            let control2 = segment.get("control2").and_then(value_point)?;
+            let end = segment.get("end").and_then(value_point)?;
+            normalize_direction(control2, end)
+                .or_else(|| normalize_direction(control1, end))
+                .or_else(|| normalize_direction(start, end))
+        }
+        "arc" => {
+            let start_angle_deg = segment.get("startAngleDeg")?.as_f64()?;
+            let sweep_angle_deg = segment.get("sweepAngleDeg")?.as_f64()?;
+            Some(arc_tangent_direction(
+                start_angle_deg + sweep_angle_deg,
+                sweep_angle_deg,
+            ))
+        }
+        _ => None,
     }
-    samples
 }
 
-fn nearest_distance_on_path(samples: &[PathSample], target: Point) -> Option<(f64, f64)> {
-    let mut best: Option<(f64, f64)> = None;
-    for pair in samples.windows(2) {
-        let current = &pair[0];
-        let next = &pair[1];
-        let vector = Point {
-            x: next.point.x - current.point.x,
-            y: next.point.y - current.point.y,
-        };
-        let length_squared = vector.x * vector.x + vector.y * vector.y;
-        if length_squared <= EPSILON {
-            continue;
-        }
-        let raw_t = ((target.x - current.point.x) * vector.x
-            + (target.y - current.point.y) * vector.y)
-            / length_squared;
-        let t = raw_t.clamp(0.0, 1.0);
-        let projected = interpolate(current.point, next.point, t);
-        let point_distance = distance(projected, target);
-        let path_distance = current.distance + (next.distance - current.distance) * t;
-        if best.map_or(true, |(_, best_point_distance)| {
-            point_distance < best_point_distance
-        }) {
-            best = Some((path_distance, point_distance));
-        }
-    }
-    best
+fn segment_endpoint(segment: &Value, key: &str) -> Option<Point> {
+    segment.get(key).and_then(value_point)
 }
 
-fn offset_line_endpoint_measurements(segments: &[Value]) -> (Value, Value, Value, Value) {
+fn direction_angle(direction: Point) -> Value {
+    angle_from_to(Point { x: 0.0, y: 0.0 }, direction)
+}
+
+fn endpoint_metadata(segments: &[Value]) -> (Value, Value, Value, Value) {
     let start = segments
         .first()
         .and_then(|segment| segment.get("start"))
@@ -122,50 +135,25 @@ fn offset_line_endpoint_measurements(segments: &[Value]) -> (Value, Value, Value
         .unwrap_or(Value::Null);
     let start_tangent = segments
         .first()
-        .and_then(|segment| {
-            Some(angle_from_to(
-                value_point(segment.get("start")?)?,
-                value_point(segment.get("end")?)?,
-            ))
-        })
+        .and_then(segment_start_forward)
+        .map(direction_angle)
         .unwrap_or(Value::Null);
     let end_tangent = segments
         .last()
-        .and_then(|segment| {
-            Some(reversed_angle(&angle_from_to(
-                value_point(segment.get("start")?)?,
-                value_point(segment.get("end")?)?,
-            )))
-        })
+        .and_then(segment_end_forward)
+        .map(|direction| reversed_angle(&direction_angle(direction)))
         .unwrap_or(Value::Null);
     (start, end, start_tangent, end_tangent)
 }
 
-fn polyline_geometry(line: &Value, points: &[Point]) -> Option<Value> {
-    let element_id = line.get("elementId")?.as_str()?;
-    let name = line.get("name")?.as_str()?;
-    let segments = points
-        .windows(2)
-        .enumerate()
-        .filter_map(|(index, pair)| {
-            let start = pair[0];
-            let end = pair[1];
-            let length = distance(start, end);
-            (length > EPSILON).then(|| {
-                json!({
-                    "kind": "line",
-                    "start": computed_point(format!("{element_id}:segment-{index}:start"), format!("{name}.区間{}始点", index + 1), start.x, start.y),
-                    "end": computed_point(format!("{element_id}:segment-{index}:end"), format!("{name}.区間{}終点", index + 1), end.x, end.y),
-                    "length": length
-                })
-            })
-        })
-        .collect::<Vec<_>>();
+fn analytic_geometry(line: &Value, segments: Vec<Value>) -> Option<Value> {
     if segments.is_empty() {
         return None;
     }
-    let (start, end, start_tangent_angle_deg, end_tangent_angle_deg) =
-        offset_line_endpoint_measurements(&segments);
+    let element_id = line.get("elementId")?.as_str()?;
+    let name = line.get("name")?.as_str()?;
+    let (start, end, start_tangent_angle_deg, end_tangent_angle_deg) = endpoint_metadata(&segments);
+    let length = segments.iter().map(segment_length).sum::<f64>();
     Some(json!({
         "kind": "offsetLine",
         "elementId": element_id,
@@ -175,25 +163,151 @@ fn polyline_geometry(line: &Value, points: &[Point]) -> Option<Value> {
         "end": end,
         "segments": segments,
         "closed": false,
-        "length": segments.iter().map(|segment| segment.get("length").and_then(Value::as_f64).unwrap_or(0.0)).sum::<f64>(),
+        "length": length,
         "startTangentAngleDeg": start_tangent_angle_deg,
         "endTangentAngleDeg": end_tangent_angle_deg
     }))
 }
 
-fn tangent_line_distance(samples: &[PathSample], endpoint_key: &str, target: Point) -> Option<f64> {
-    if samples.len() < 2 {
-        return None;
+fn zero_length_error(name: &str) -> EndpointMoveResult {
+    EndpointMoveResult::Error(format!(
+        "{name} の端点移動後の長さが0になるため、変更できません。"
+    ))
+}
+
+// Truncate the offset line at an on-body point, keeping the retained side's
+// other segments -- including analytic bezier/arc sub-segments -- untouched.
+fn truncate_offset_at_body(
+    line: &Value,
+    endpoint_key: &str,
+    segments: &[Value],
+    segment_index: usize,
+    local_t: f64,
+    hit_point: BmPoint,
+) -> EndpointMoveResult {
+    let name = line.get("name").and_then(Value::as_str).unwrap_or_default();
+    let element_id = line
+        .get("elementId")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let Some((mut left, mut right)) =
+        split_offset_segment(&segments[segment_index], local_t, hit_point)
+    else {
+        return EndpointMoveResult::Error(format!("{name} の端点を変更できません。"));
+    };
+
+    if endpoint_key == "end" {
+        left["end"] = computed_point(
+            format!("{element_id}:end"),
+            format!("{name}.終点"),
+            hit_point.x,
+            hit_point.y,
+        );
+        let mut out: Vec<Value> = segments[..segment_index].to_vec();
+        out.push(left);
+        let geometry = analytic_geometry(line, out);
+        return geometry.map_or_else(|| zero_length_error(name), EndpointMoveResult::Geometry);
     }
+
+    right["start"] = computed_point(
+        format!("{element_id}:start"),
+        format!("{name}.始点"),
+        hit_point.x,
+        hit_point.y,
+    );
+    let mut out: Vec<Value> = vec![right];
+    out.extend(segments[segment_index + 1..].iter().cloned());
+    let geometry = analytic_geometry(line, out);
+    geometry.map_or_else(|| zero_length_error(name), EndpointMoveResult::Geometry)
+}
+
+// Extend by appending a straight segment along the terminal segment's
+// analytic tangent direction, leaving every existing segment untouched.
+fn extend_offset_along_tangent(
+    line: &Value,
+    endpoint_key: &str,
+    segments: &[Value],
+    target: Point,
+) -> EndpointMoveResult {
+    let name = line.get("name").and_then(Value::as_str).unwrap_or_default();
+    let element_id = line
+        .get("elementId")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+
     if endpoint_key == "start" {
-        line_distance(target, samples[0].point, samples[1].point)
-    } else {
-        line_distance(
-            target,
-            samples[samples.len() - 2].point,
-            samples[samples.len() - 1].point,
-        )
+        let Some(first) = segments.first() else {
+            return EndpointMoveResult::Error(format!(
+                "{name} は端点方向を決められないため、変更できません。"
+            ));
+        };
+        let Some(anchor) = segment_endpoint(first, "start") else {
+            return EndpointMoveResult::Error(format!(
+                "{name} は端点方向を決められないため、変更できません。"
+            ));
+        };
+        if first.get("kind").and_then(Value::as_str) == Some("line") {
+            let mut updated = first.clone();
+            updated["start"] = computed_point(
+                format!("{element_id}:start"),
+                format!("{name}.始点"),
+                target.x,
+                target.y,
+            );
+            let end = segment_endpoint(first, "end").unwrap_or(anchor);
+            updated["length"] = json!((target.x - end.x).hypot(target.y - end.y));
+            let mut out = vec![updated];
+            out.extend(segments[1..].iter().cloned());
+            let geometry = analytic_geometry(line, out);
+            return geometry.map_or_else(|| zero_length_error(name), EndpointMoveResult::Geometry);
+        }
+        let extension = json!({
+            "kind": "line",
+            "start": computed_point(format!("{element_id}:start"), format!("{name}.始点"), target.x, target.y),
+            "end": computed_point(format!("{element_id}:extension:start"), format!("{name}.延長始点"), anchor.x, anchor.y),
+            "length": (target.x - anchor.x).hypot(target.y - anchor.y)
+        });
+        let mut out = vec![extension];
+        out.extend(segments.iter().cloned());
+        let geometry = analytic_geometry(line, out);
+        return geometry.map_or_else(|| zero_length_error(name), EndpointMoveResult::Geometry);
     }
+
+    let Some(last) = segments.last() else {
+        return EndpointMoveResult::Error(format!(
+            "{name} は端点方向を決められないため、変更できません。"
+        ));
+    };
+    let Some(anchor) = segment_endpoint(last, "end") else {
+        return EndpointMoveResult::Error(format!(
+            "{name} は端点方向を決められないため、変更できません。"
+        ));
+    };
+    if last.get("kind").and_then(Value::as_str) == Some("line") {
+        let mut updated = last.clone();
+        updated["end"] = computed_point(
+            format!("{element_id}:end"),
+            format!("{name}.終点"),
+            target.x,
+            target.y,
+        );
+        let start = segment_endpoint(last, "start").unwrap_or(anchor);
+        updated["length"] = json!((target.x - start.x).hypot(target.y - start.y));
+        let mut out: Vec<Value> = segments[..segments.len() - 1].to_vec();
+        out.push(updated);
+        let geometry = analytic_geometry(line, out);
+        return geometry.map_or_else(|| zero_length_error(name), EndpointMoveResult::Geometry);
+    }
+    let extension = json!({
+        "kind": "line",
+        "start": computed_point(format!("{element_id}:extension:end"), format!("{name}.延長終点"), anchor.x, anchor.y),
+        "end": computed_point(format!("{element_id}:end"), format!("{name}.終点"), target.x, target.y),
+        "length": (target.x - anchor.x).hypot(target.y - anchor.y)
+    });
+    let mut out = segments.to_vec();
+    out.push(extension);
+    let geometry = analytic_geometry(line, out);
+    geometry.map_or_else(|| zero_length_error(name), EndpointMoveResult::Geometry)
 }
 
 pub(super) fn move_offset_endpoint(
@@ -207,57 +321,78 @@ pub(super) fn move_offset_endpoint(
             "{name} は閉じた線のため、端点を変更できません。"
         ));
     }
-    let Some(points) = offset_points(line) else {
+    let Some(segments) = line.get("segments").and_then(Value::as_array) else {
         return EndpointMoveResult::Error(format!(
             "{name} は端点方向を決められないため、変更できません。"
         ));
     };
-    let samples = path_samples(&points);
-    if samples.len() < 2 {
+    if segments.is_empty() {
         return EndpointMoveResult::Error(format!(
             "{name} は端点方向を決められないため、変更できません。"
         ));
     }
+    let Some(sample_segments) = to_sample_segments(segments) else {
+        return EndpointMoveResult::Error(format!(
+            "{name} は端点方向を決められないため、変更できません。"
+        ));
+    };
+
     let target_point = Point {
         x: target.x,
         y: target.y,
     };
-    let total = samples.last().map(|sample| sample.distance).unwrap_or(0.0);
-    if let Some((nearest_distance, point_distance)) =
-        nearest_distance_on_path(&samples, target_point)
-    {
-        if point_distance <= TOLERANCE_MM {
-            let trim_distance = nearest_distance.clamp(0.0, total);
-            let retained = if endpoint_key == "start" {
-                std::iter::once(target_point)
-                    .chain(
-                        samples
-                            .iter()
-                            .filter(|sample| sample.distance > trim_distance + EPSILON)
-                            .map(|sample| sample.point),
-                    )
-                    .collect::<Vec<_>>()
+    let target_bm = to_bm_point(target_point);
+    let (hit, total_length) = best_sample_hit(target_bm, &sample_segments);
+
+    if let Some(hit) = &hit {
+        if hit.distance_from_line <= TOLERANCE_MM {
+            let interior = if endpoint_key == "end" {
+                hit.distance_from_start > EPSILON
             } else {
-                samples
-                    .iter()
-                    .filter(|sample| sample.distance < trim_distance - EPSILON)
-                    .map(|sample| sample.point)
-                    .chain(std::iter::once(target_point))
-                    .collect::<Vec<_>>()
+                hit.distance_from_start < total_length - EPSILON
             };
-            return polyline_geometry(line, &retained).map_or_else(
-                || {
-                    EndpointMoveResult::Error(format!(
-                        "{name} の端点移動後の長さが0になるため、変更できません。"
-                    ))
-                },
-                EndpointMoveResult::Geometry,
-            );
+            if interior {
+                return truncate_offset_at_body(
+                    line,
+                    endpoint_key,
+                    segments,
+                    hit.segment_index,
+                    hit.local_t,
+                    hit.point,
+                );
+            }
+            return zero_length_error(name);
         }
     }
-    if tangent_line_distance(&samples, endpoint_key, target_point)
-        .map_or(true, |value| value > TOLERANCE_MM)
-    {
+
+    let terminal = if endpoint_key == "start" {
+        segments.first()
+    } else {
+        segments.last()
+    };
+    let Some(terminal) = terminal else {
+        return EndpointMoveResult::Error(format!(
+            "{name} は端点方向を決められないため、変更できません。"
+        ));
+    };
+    let forward = if endpoint_key == "start" {
+        segment_start_forward(terminal)
+    } else {
+        segment_end_forward(terminal)
+    };
+    let anchor = if endpoint_key == "start" {
+        segment_endpoint(terminal, "start")
+    } else {
+        segment_endpoint(terminal, "end")
+    };
+    let (Some(forward), Some(anchor)) = (forward, anchor) else {
+        return EndpointMoveResult::Error(format!(
+            "{name} は端点方向を決められないため、変更できません。"
+        ));
+    };
+    let tangent_distance =
+        ((target_point.x - anchor.x) * forward.y - (target_point.y - anchor.y) * forward.x).abs();
+    if tangent_distance > TOLERANCE_MM {
         return EndpointMoveResult::Error(format!(
             "{name} の{}は、指定点が線上または端点接線の延長上にないため移動できません。",
             if endpoint_key == "start" {
@@ -267,22 +402,6 @@ pub(super) fn move_offset_endpoint(
             }
         ));
     }
-    let retained = if endpoint_key == "start" {
-        std::iter::once(target_point)
-            .chain(points)
-            .collect::<Vec<_>>()
-    } else {
-        points
-            .into_iter()
-            .chain(std::iter::once(target_point))
-            .collect::<Vec<_>>()
-    };
-    polyline_geometry(line, &retained).map_or_else(
-        || {
-            EndpointMoveResult::Error(format!(
-                "{name} の端点移動後の長さが0になるため、変更できません。"
-            ))
-        },
-        EndpointMoveResult::Geometry,
-    )
+
+    extend_offset_along_tangent(line, endpoint_key, segments, target_point)
 }

@@ -11,11 +11,6 @@ pub(super) struct Point {
     pub(super) y: f64,
 }
 
-pub(super) struct PathSample {
-    pub(super) point: Point,
-    pub(super) distance: f64,
-}
-
 pub(super) fn value_point(value: &Value) -> Option<Point> {
     Some(Point {
         x: value.get("x")?.as_f64()?,
@@ -25,13 +20,6 @@ pub(super) fn value_point(value: &Value) -> Option<Point> {
 
 pub(super) fn distance(a: Point, b: Point) -> f64 {
     (b.x - a.x).hypot(b.y - a.y)
-}
-
-pub(super) fn interpolate(start: Point, end: Point, t: f64) -> Point {
-    Point {
-        x: start.x + (end.x - start.x) * t,
-        y: start.y + (end.y - start.y) * t,
-    }
 }
 
 pub(super) fn line_distance(point: Point, start: Point, end: Point) -> Option<f64> {

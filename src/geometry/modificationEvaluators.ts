@@ -18,7 +18,13 @@ import {
   normalizeDegrees,
   radiansToDegrees
 } from "./evaluateGeometryPrimitives";
-import { arcTangentAngles, lineTangentAngles, offsetLineEndpointMeasurements } from "./lineMeasurements";
+import {
+  arcTangentAngles,
+  lineTangentAngles,
+  offsetLineEndpointMeasurements,
+  offsetSegmentEndForwardAngle,
+  offsetSegmentStartForwardAngle
+} from "./lineMeasurements";
 import { findLineIntersections } from "./lineIntersections";
 import { isLineLikeGeometry, type LineLikeGeometry } from "./linePaths";
 import {
@@ -28,6 +34,14 @@ import {
   numericError
 } from "./evaluationContext";
 import type { ElementEvaluationContext } from "./elementEvaluatorTypes";
+import {
+  cubicPointAt,
+  distance as bmDistance,
+  projectPointOntoCurve,
+  splitBezierLike,
+  type CurveProjection
+} from "./bezierMath";
+import { bestSampleHit, splitOffsetSegment } from "./splitLineEvaluator";
 
 type Point = { x: number; y: number };
 
@@ -37,8 +51,6 @@ type EndpointMoveResult =
 
 const EPSILON = 1e-9;
 const TOLERANCE_MM = 0.001;
-const CURVE_STEPS = 64;
-const ARC_STEPS = 64;
 
 const computedPoint = (elementId: ElementId, name: string, point: Point): ComputedPoint => ({
   kind: "point",
@@ -171,6 +183,93 @@ const pointOnAngleLine = (point: Point, origin: Point, angleDeg: number) => {
   return Math.abs((point.x - origin.x) * direction.y - (point.y - origin.y) * direction.x);
 };
 
+const angleBetween = (start: Point, end: Point): number | null => {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  if (Math.hypot(dx, dy) <= EPSILON) return null;
+  return normalizeDegrees(radiansToDegrees(Math.atan2(dy, dx)));
+};
+
+// Shorten the curve by truncating it at an on-body point (de Casteljau split),
+// keeping start->split when moving the end, or split->end when moving the start.
+const truncateBezierAtBody = (
+  curve: ComputedBezierCurve,
+  endpointKey: LineEndpointReference["endpointKey"],
+  hit: CurveProjection,
+  targetPointId: ElementId | null
+): EndpointMoveResult => {
+  const original = curve.segments[hit.segmentIndex];
+  const split = splitBezierLike(original, hit.localT);
+
+  if (endpointKey === "end") {
+    const truncated: ComputedBezierSegment = {
+      ...original,
+      endPointId: targetPointId,
+      control1: split.left.control1,
+      control2: split.left.control2,
+      end: computedPoint(`${curve.elementId}:end`, `${curve.name}.終点`, split.point)
+    };
+    const segments = [...curve.segments.slice(0, hit.segmentIndex), truncated];
+    const length = segments.reduce((sum, segment) => sum + approximateBezierSegmentLength(segment), 0);
+    if (length <= EPSILON) {
+      return { error: `${curve.name} の端点移動後の長さが0になるため、変更できません。` };
+    }
+    const endHandleAngle = angleBetween(split.left.control2, split.point) ?? curve.endHandleAngleDeg;
+    const geometry: ComputedBezierCurve = {
+      ...curve,
+      endPointId: targetPointId,
+      segments,
+      length,
+      endHandleAngleDeg: endHandleAngle,
+      endHandleLength: bmDistance(split.left.control2, split.point),
+      endTangentAngleDeg: normalizeDegrees(endHandleAngle + 180),
+      intermediatePointIds: curve.intermediatePointIds.slice(0, hit.segmentIndex)
+    };
+    if (hit.segmentIndex === 0) {
+      // The truncated segment is also the first segment, so the curve's own
+      // start handle (segments[0].control1) shrank along with it.
+      const startHandleAngle = angleBetween(original.start, split.left.control1) ?? curve.startHandleAngleDeg;
+      geometry.startHandleAngleDeg = startHandleAngle;
+      geometry.startHandleLength = bmDistance(original.start, split.left.control1);
+      geometry.startTangentAngleDeg = normalizeDegrees(startHandleAngle);
+    }
+    return { geometry };
+  }
+
+  const truncated: ComputedBezierSegment = {
+    ...original,
+    startPointId: targetPointId,
+    control1: split.right.control1,
+    control2: split.right.control2,
+    start: computedPoint(`${curve.elementId}:start`, `${curve.name}.始点`, split.point)
+  };
+  const segments = [truncated, ...curve.segments.slice(hit.segmentIndex + 1)];
+  const length = segments.reduce((sum, segment) => sum + approximateBezierSegmentLength(segment), 0);
+  if (length <= EPSILON) {
+    return { error: `${curve.name} の端点移動後の長さが0になるため、変更できません。` };
+  }
+  const startHandleAngle = angleBetween(split.point, split.right.control1) ?? curve.startHandleAngleDeg;
+  const geometry: ComputedBezierCurve = {
+    ...curve,
+    startPointId: targetPointId,
+    segments,
+    length,
+    startHandleAngleDeg: startHandleAngle,
+    startHandleLength: bmDistance(split.point, split.right.control1),
+    startTangentAngleDeg: normalizeDegrees(startHandleAngle),
+    intermediatePointIds: curve.intermediatePointIds.slice(hit.segmentIndex)
+  };
+  if (hit.segmentIndex === curve.segments.length - 1) {
+    // The truncated segment is also the last segment, so the curve's own end
+    // handle (segments[last].control2) shrank along with it.
+    const endHandleAngle = angleBetween(split.right.control2, original.end) ?? curve.endHandleAngleDeg;
+    geometry.endHandleAngleDeg = endHandleAngle;
+    geometry.endHandleLength = bmDistance(split.right.control2, original.end);
+    geometry.endTangentAngleDeg = normalizeDegrees(endHandleAngle + 180);
+  }
+  return { geometry };
+};
+
 const moveBezierEndpoint = (
   curve: ComputedBezierCurve,
   endpointKey: LineEndpointReference["endpointKey"],
@@ -181,6 +280,20 @@ const moveBezierEndpoint = (
   const last = curve.segments.at(-1);
   if (!first || !last) {
     return { error: `${curve.name} は区間がないため、端点を変更できません。` };
+  }
+
+  // On the curve body: shorten by truncating at the point.
+  const hit = projectPointOntoCurve(curve.segments, target);
+  if (hit && hit.distance <= TOLERANCE_MM) {
+    const globalT = hit.segmentIndex + hit.localT;
+    const interior =
+      endpointKey === "end" ? globalT > EPSILON : globalT < curve.segments.length - EPSILON;
+    if (interior) {
+      return truncateBezierAtBody(curve, endpointKey, hit, targetPointId);
+    }
+    // On the curve body but at (or past) the opposite endpoint: the move
+    // would collapse the curve to zero length.
+    return { error: `${curve.name} の端点移動後の長さが0になるため、変更できません。` };
   }
 
   const sourcePoint = endpointKey === "start" ? first.start : last.end;
@@ -229,106 +342,10 @@ const moveBezierEndpoint = (
   };
 };
 
-type PathSample = {
-  point: Point;
-  distance: number;
-};
-
-const cubicPointAt = (
-  segment: { start: Point; control1: Point; control2: Point; end: Point },
-  t: number
-): Point => {
-  const inverse = 1 - t;
-  const a = inverse * inverse * inverse;
-  const b = 3 * inverse * inverse * t;
-  const c = 3 * inverse * t * t;
-  const d = t * t * t;
-  return {
-    x: a * segment.start.x + b * segment.control1.x + c * segment.control2.x + d * segment.end.x,
-    y: a * segment.start.y + b * segment.control1.y + c * segment.control2.y + d * segment.end.y
-  };
-};
-
-const offsetSegmentPoints = (segment: ComputedOffsetLineSegment) => {
-  if (segment.kind === "line") return [segment.start, segment.end];
-  if (segment.kind === "bezier") {
-    return Array.from({ length: CURVE_STEPS + 1 }, (_, index) =>
-      cubicPointAt(segment, index / CURVE_STEPS)
-    );
-  }
-  const stepCount = Math.max(1, Math.ceil((Math.abs(segment.sweepAngleDeg) / 360) * ARC_STEPS));
-  return Array.from({ length: stepCount + 1 }, (_, index) =>
-    arcPoint(
-      segment.center,
-      Math.max(segment.radius, 0),
-      segment.startAngleDeg + (segment.sweepAngleDeg * index) / stepCount
-    )
-  );
-};
-
-const offsetPoints = (line: ComputedOffsetLine) =>
-  line.segments.flatMap((segment, index) => {
-    const points = offsetSegmentPoints(segment);
-    return index === 0 ? points : points.slice(1);
-  });
-
-const pathSamples = (points: Point[]): PathSample[] => {
-  const samples: PathSample[] = [];
-  let accumulated = 0;
-  points.forEach((point, index) => {
-    if (index > 0) accumulated += distance(points[index - 1], point);
-    samples.push({ point, distance: accumulated });
-  });
-  return samples;
-};
-
-const nearestDistanceOnPath = (samples: PathSample[], target: Point) => {
-  let best: { distance: number; pointDistance: number; point: Point } | null = null;
-
-  for (let index = 0; index < samples.length - 1; index += 1) {
-    const current = samples[index];
-    const next = samples[index + 1];
-    const vector = { x: next.point.x - current.point.x, y: next.point.y - current.point.y };
-    const lengthSquared = vector.x * vector.x + vector.y * vector.y;
-    if (lengthSquared <= EPSILON) continue;
-    const rawT =
-      ((target.x - current.point.x) * vector.x + (target.y - current.point.y) * vector.y) /
-      lengthSquared;
-    const t = Math.min(1, Math.max(0, rawT));
-    const projected = interpolate(current.point, next.point, t);
-    const pointDistance = distance(projected, target);
-    if (!best || pointDistance < best.pointDistance) {
-      best = {
-        distance: current.distance + (next.distance - current.distance) * t,
-        pointDistance,
-        point: projected
-      };
-    }
-  }
-
-  return best;
-};
-
-const polylineGeometry = ({
-  line,
-  points
-}: {
-  line: ComputedOffsetLine;
-  points: Point[];
-}): ComputedOffsetLine | null => {
-  const segments = points.slice(0, -1).flatMap((start, index): ComputedOffsetLineSegment[] => {
-    const end = points[index + 1];
-    const length = distance(start, end);
-    if (length <= EPSILON) return [];
-    return [
-      {
-        kind: "line",
-        start: computedPoint(`${line.elementId}:segment-${index}:start`, `${line.name}.区間${index + 1}始点`, start),
-        end: computedPoint(`${line.elementId}:segment-${index}:end`, `${line.name}.区間${index + 1}終点`, end),
-        length
-      }
-    ];
-  });
+const analyticOffsetGeometry = (
+  line: ComputedOffsetLine,
+  segments: ComputedOffsetLineSegment[]
+): ComputedOffsetLine | null => {
   if (segments.length === 0) return null;
   return {
     ...line,
@@ -339,19 +356,89 @@ const polylineGeometry = ({
   };
 };
 
-const tangentLineDistance = (
-  samples: PathSample[],
+const offsetZeroLengthError = (name: string): EndpointMoveResult => ({
+  error: `${name} の端点移動後の長さが0になるため、変更できません。`
+});
+
+// Truncate the offset line at an on-body point (analytic de Casteljau split
+// for bezier sub-segments, sweep split for arcs), keeping every other segment
+// -- including untouched bezier/arc sub-segments -- byte-for-byte unchanged.
+const truncateOffsetAtBody = (
+  line: ComputedOffsetLine,
+  endpointKey: LineEndpointReference["endpointKey"],
+  hit: { segmentIndex: number; localT: number; point: Point }
+): EndpointMoveResult => {
+  const [left, right] = splitOffsetSegment(line.segments[hit.segmentIndex], hit.localT, hit.point);
+
+  if (endpointKey === "end") {
+    const truncated: ComputedOffsetLineSegment = {
+      ...left,
+      end: computedPoint(`${line.elementId}:end`, `${line.name}.終点`, hit.point)
+    };
+    const segments = [...line.segments.slice(0, hit.segmentIndex), truncated];
+    const geometry = analyticOffsetGeometry(line, segments);
+    return geometry ? { geometry } : offsetZeroLengthError(line.name);
+  }
+
+  const truncated: ComputedOffsetLineSegment = {
+    ...right,
+    start: computedPoint(`${line.elementId}:start`, `${line.name}.始点`, hit.point)
+  };
+  const segments = [truncated, ...line.segments.slice(hit.segmentIndex + 1)];
+  const geometry = analyticOffsetGeometry(line, segments);
+  return geometry ? { geometry } : offsetZeroLengthError(line.name);
+};
+
+// Extend by moving the terminal segment's own endpoint when it is a line, or
+// by appending a new straight segment along the analytic endpoint tangent
+// when the terminal segment is a bezier/arc sub-segment -- leaving every
+// existing segment untouched either way.
+const extendOffsetAlongTangent = (
+  line: ComputedOffsetLine,
   endpointKey: LineEndpointReference["endpointKey"],
   target: Point
-) => {
-  if (samples.length < 2) return null;
-  const first = samples[0];
-  const second = samples[1];
-  const last = samples.at(-1)!;
-  const beforeLast = samples.at(-2)!;
-  return endpointKey === "start"
-    ? lineDistance(target, first.point, second.point)
-    : lineDistance(target, beforeLast.point, last.point);
+): EndpointMoveResult => {
+  if (endpointKey === "start") {
+    const first = line.segments[0];
+    if (first.kind === "line") {
+      const updated: ComputedOffsetLineSegment = {
+        ...first,
+        start: computedPoint(`${line.elementId}:start`, `${line.name}.始点`, target),
+        length: distance(target, first.end)
+      };
+      const geometry = analyticOffsetGeometry(line, [updated, ...line.segments.slice(1)]);
+      return geometry ? { geometry } : offsetZeroLengthError(line.name);
+    }
+    const anchor = first.start;
+    const extension: ComputedOffsetLineSegment = {
+      kind: "line",
+      start: computedPoint(`${line.elementId}:start`, `${line.name}.始点`, target),
+      end: computedPoint(`${line.elementId}:extension:start`, `${line.name}.延長始点`, anchor),
+      length: distance(target, anchor)
+    };
+    const geometry = analyticOffsetGeometry(line, [extension, ...line.segments]);
+    return geometry ? { geometry } : offsetZeroLengthError(line.name);
+  }
+
+  const last = line.segments.at(-1)!;
+  if (last.kind === "line") {
+    const updated: ComputedOffsetLineSegment = {
+      ...last,
+      end: computedPoint(`${line.elementId}:end`, `${line.name}.終点`, target),
+      length: distance(last.start, target)
+    };
+    const geometry = analyticOffsetGeometry(line, [...line.segments.slice(0, -1), updated]);
+    return geometry ? { geometry } : offsetZeroLengthError(line.name);
+  }
+  const anchor = last.end;
+  const extension: ComputedOffsetLineSegment = {
+    kind: "line",
+    start: computedPoint(`${line.elementId}:extension:end`, `${line.name}.延長終点`, anchor),
+    end: computedPoint(`${line.elementId}:end`, `${line.name}.終点`, target),
+    length: distance(anchor, target)
+  };
+  const geometry = analyticOffsetGeometry(line, [...line.segments, extension]);
+  return geometry ? { geometry } : offsetZeroLengthError(line.name);
 };
 
 const moveOffsetEndpoint = (
@@ -362,37 +449,49 @@ const moveOffsetEndpoint = (
   if (line.closed) {
     return { error: `${line.name} は閉じた線のため、端点を変更できません。` };
   }
-  const points = offsetPoints(line);
-  const samples = pathSamples(points);
-  if (samples.length < 2) {
+  if (line.segments.length === 0) {
     return { error: `${line.name} は端点方向を決められないため、変更できません。` };
   }
 
-  const nearest = nearestDistanceOnPath(samples, target);
-  const total = samples.at(-1)!.distance;
-  if (nearest && nearest.pointDistance <= TOLERANCE_MM) {
-    const trimDistance = Math.min(Math.max(nearest.distance, 0), total);
-    const retained =
-      endpointKey === "start"
-        ? [target, ...samples.filter((sample) => sample.distance > trimDistance + EPSILON).map((sample) => sample.point)]
-        : [...samples.filter((sample) => sample.distance < trimDistance - EPSILON).map((sample) => sample.point), target];
-    const geometry = polylineGeometry({ line, points: retained });
-    return geometry
-      ? { geometry }
-      : { error: `${line.name} の端点移動後の長さが0になるため、変更できません。` };
+  const { hit, totalLength } = bestSampleHit(
+    target,
+    line.segments.map((segment) => ({
+      length: segment.length,
+      pointAt: (t: number) =>
+        segment.kind === "line"
+          ? interpolate(segment.start, segment.end, t)
+          : segment.kind === "bezier"
+            ? cubicPointAt(segment, t)
+            : arcPoint(segment.center, Math.max(segment.radius, 0), segment.startAngleDeg + segment.sweepAngleDeg * t)
+    }))
+  );
+
+  if (hit && hit.distanceFromLine <= TOLERANCE_MM) {
+    const interior =
+      endpointKey === "end" ? hit.distanceFromStart > EPSILON : hit.distanceFromStart < totalLength - EPSILON;
+    if (interior) {
+      return truncateOffsetAtBody(line, endpointKey, hit);
+    }
+    return offsetZeroLengthError(line.name);
   }
 
-  const tangentDistance = tangentLineDistance(samples, endpointKey, target);
-  if (tangentDistance === null || tangentDistance > TOLERANCE_MM) {
+  const terminal = endpointKey === "start" ? line.segments[0] : line.segments.at(-1)!;
+  const forwardAngle =
+    endpointKey === "start" ? offsetSegmentStartForwardAngle(terminal) : offsetSegmentEndForwardAngle(terminal);
+  if (forwardAngle === null) {
+    return { error: `${line.name} は端点方向を決められないため、変更できません。` };
+  }
+  const anchor = endpointKey === "start" ? terminal.start : terminal.end;
+  const forwardRad = degreesToRadians(forwardAngle);
+  const forward = { x: Math.cos(forwardRad), y: Math.sin(forwardRad) };
+  const tangentDistance = Math.abs((target.x - anchor.x) * forward.y - (target.y - anchor.y) * forward.x);
+  if (tangentDistance > TOLERANCE_MM) {
     return {
       error: `${line.name} の${endpointKey === "start" ? "始点" : "終点"}は、指定点が線上または端点接線の延長上にないため移動できません。`
     };
   }
-  const retained = endpointKey === "start" ? [target, ...points] : [...points, target];
-  const geometry = polylineGeometry({ line, points: retained });
-  return geometry
-    ? { geometry }
-    : { error: `${line.name} の端点移動後の長さが0になるため、変更できません。` };
+
+  return extendOffsetAlongTangent(line, endpointKey, target);
 };
 
 const moveEndpoint = (

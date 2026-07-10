@@ -4,7 +4,7 @@ use super::super::bezier_math::{
     distance as bm_distance, project_point_onto_curve, split_bezier_like,
     value_point as bm_value_point, CurveProjection, Point as BmPoint,
 };
-use super::super::bezier_path::{approximate_segment_length, cubic_point_at};
+use super::super::bezier_path::approximate_segment_length;
 use super::super::math::normalize_degrees;
 use super::super::point_anchor::computed_point;
 use super::super::types::Point as ComputedPoint;
@@ -75,6 +75,7 @@ fn truncate_bezier_at_body(
         let control2 = left_patch.get("control2").and_then(bm_value_point);
         let mut truncated = original.clone();
         truncated["endPointId"] = target_point_id.clone();
+        truncated["control1"] = left_patch["control1"].clone();
         truncated["control2"] = left_patch["control2"].clone();
         truncated["end"] = computed_point(
             format!("{element_id}:end"),
@@ -109,6 +110,24 @@ fn truncate_bezier_at_body(
         geometry["endHandleLength"] = json!(end_handle_length);
         geometry["endTangentAngleDeg"] = json!(normalize_degrees(end_handle_angle + 180.0));
         geometry["intermediatePointIds"] = json!(kept);
+        if hit.segment_index == 0 {
+            // The truncated segment is also the first segment, so the curve's
+            // own start handle (segments[0].control1) shrank along with it.
+            let start_point = original.get("start").and_then(bm_value_point);
+            let control1 = left_patch.get("control1").and_then(bm_value_point);
+            if let (Some(start_point), Some(control1)) = (start_point, control1) {
+                let start_fallback = curve
+                    .get("startHandleAngleDeg")
+                    .and_then(Value::as_f64)
+                    .unwrap_or(0.0);
+                let start_handle_angle =
+                    angle_between(start_point, control1).unwrap_or(start_fallback);
+                let start_handle_length = bm_distance(start_point, control1);
+                geometry["startHandleAngleDeg"] = json!(start_handle_angle);
+                geometry["startHandleLength"] = json!(start_handle_length);
+                geometry["startTangentAngleDeg"] = json!(normalize_degrees(start_handle_angle));
+            }
+        }
         return EndpointMoveResult::Geometry(geometry);
     }
 
@@ -116,6 +135,7 @@ fn truncate_bezier_at_body(
     let mut truncated = original.clone();
     truncated["startPointId"] = target_point_id.clone();
     truncated["control1"] = right_patch["control1"].clone();
+    truncated["control2"] = right_patch["control2"].clone();
     truncated["start"] = computed_point(
         format!("{element_id}:start"),
         format!("{name}.始点"),
@@ -149,6 +169,23 @@ fn truncate_bezier_at_body(
     geometry["startHandleLength"] = json!(start_handle_length);
     geometry["startTangentAngleDeg"] = json!(normalize_degrees(start_handle_angle));
     geometry["intermediatePointIds"] = json!(kept);
+    if hit.segment_index == segments.len() - 1 {
+        // The truncated segment is also the last segment, so the curve's own
+        // end handle (segments[last].control2) shrank along with it.
+        let end_point = original.get("end").and_then(bm_value_point);
+        let control2 = right_patch.get("control2").and_then(bm_value_point);
+        if let (Some(end_point), Some(control2)) = (end_point, control2) {
+            let end_fallback = curve
+                .get("endHandleAngleDeg")
+                .and_then(Value::as_f64)
+                .unwrap_or(0.0);
+            let end_handle_angle = angle_between(control2, end_point).unwrap_or(end_fallback);
+            let end_handle_length = bm_distance(control2, end_point);
+            geometry["endHandleAngleDeg"] = json!(end_handle_angle);
+            geometry["endHandleLength"] = json!(end_handle_length);
+            geometry["endTangentAngleDeg"] = json!(normalize_degrees(end_handle_angle + 180.0));
+        }
+    }
     EndpointMoveResult::Geometry(geometry)
 }
 
@@ -194,6 +231,11 @@ pub(super) fn move_bezier_endpoint(
             if interior {
                 return truncate_bezier_at_body(curve, endpoint_key, &hit, target_point_id);
             }
+            // On the curve body but at (or past) the opposite endpoint: the
+            // move would collapse the curve to zero length.
+            return EndpointMoveResult::Error(format!(
+                "{name} の端点移動後の長さが0になるため、変更できません。"
+            ));
         }
     }
 
@@ -305,11 +347,4 @@ pub(super) fn move_bezier_endpoint(
     geometry["segments"] = json!(segments);
     geometry["length"] = json!(length);
     EndpointMoveResult::Geometry(geometry)
-}
-
-pub(super) fn cubic_point(segment: &Value, t: f64) -> Option<Point> {
-    cubic_point_at(segment, t).map(|point| Point {
-        x: point.x,
-        y: point.y,
-    })
 }
