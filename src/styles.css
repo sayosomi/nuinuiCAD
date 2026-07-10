@@ -200,6 +200,26 @@ textarea {
   white-space: nowrap;
 }
 
+.document-diagnostics {
+  margin: 6px 0 0;
+  max-height: 96px;
+  overflow: auto;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.document-diagnostics p {
+  margin: 2px 0;
+}
+
+.document-diagnostics .error {
+  color: #a13b35;
+}
+
+.document-diagnostics .warning {
+  color: #71510b;
+}
+
 .app-title p,
 .section-subtitle,
 .empty-state {

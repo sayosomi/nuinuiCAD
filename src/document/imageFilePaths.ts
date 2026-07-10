@@ -1,5 +1,5 @@
-import type { CadDocumentSnapshot } from "../state/cadDocumentStore";
-import type { CadElement } from "../types/geometry";
+import { parseDsl } from "../dsl/dslParser";
+import { quoteDslString } from "../dsl/dslTokens";
 
 const separatorPattern = /[\\/]+/;
 
@@ -62,22 +62,35 @@ export const imagePathForDocument = (
   nextDocumentPath: string | null
 ) => relativeImagePath(resolveImagePath(sourcePath, currentDocumentPath), nextDocumentPath);
 
-export const snapshotWithImagePathsForSave = (
-  snapshot: CadDocumentSnapshot,
+/**
+ * Save As時に、解釈できたimage文のsourcePath属性だけを書き換える。
+ * 構文エラーを含む文書でも、他の行は逐語のまま残す。
+ */
+export const rebaseImageSourcePathsInText = (
+  sourceText: string,
   currentDocumentPath: string | null,
   nextDocumentPath: string
-): CadDocumentSnapshot => ({
-  ...snapshot,
-  elements: snapshot.elements.map((element): CadElement =>
-    element.type === "image"
-      ? {
-          ...element,
-          sourcePath: imagePathForDocument(
-            element.sourcePath,
-            currentDocumentPath,
-            nextDocumentPath
-          )
-        }
-      : element
-  )
-});
+) => {
+  if (currentDocumentPath === nextDocumentPath) return sourceText;
+  const newline = sourceText.includes("\r\n") ? "\r\n" : "\n";
+  const lines = sourceText.split(/\r?\n/);
+  const statements = parseDsl(sourceText).statements;
+
+  for (const statement of statements) {
+    if (statement.kind !== "element" || statement.type !== "image") continue;
+    const sourcePath = statement.attrs.find((attribute) => attribute.key === "sourcePath");
+    if (!sourcePath) continue;
+    const nextPath = imagePathForDocument(
+      sourcePath.value,
+      currentDocumentPath,
+      nextDocumentPath
+    );
+    if (nextPath === sourcePath.value) continue;
+    const lineIndex = statement.line - 1;
+    const line = lines[lineIndex];
+    if (line === undefined) continue;
+    lines[lineIndex] = `${line.slice(0, sourcePath.valueStart)}${quoteDslString(nextPath)}${line.slice(sourcePath.valueEnd)}`;
+  }
+
+  return lines.join(newline);
+};

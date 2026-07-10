@@ -426,6 +426,12 @@ export const serializeElementStatement = (
         ...localVariableAttrs(element, refs),
         `sourcePath=${quoteDslString(element.sourcePath)}`,
         `originPoint=${anchor(element.originPoint)}`,
+        ...(refs.includeRecordIds ? [] : [
+          `naturalWidthPx=${element.naturalWidthPx}`,
+          `naturalHeightPx=${element.naturalHeightPx}`,
+          `sourceDpi=${element.sourceDpi}`,
+          `targetPixelsPerMm=${element.targetPixelsPerMm}`
+        ]),
         `scale=${numeric(element.scale)}`,
         `angleDeg=${numeric(element.angleDeg)}`,
         `mirrorX=${element.mirrorX}`

@@ -1,4 +1,10 @@
-import { newDocument, openDocument, saveDocument, saveDocumentAs } from "../document/documentFile";
+import {
+  importLegacyDocument,
+  newDocument,
+  openDocument,
+  saveDocument,
+  saveDocumentAs
+} from "../document/documentFile";
 import { exportPrintPdf } from "../document/printPdfExport";
 import { exportPrintSvg } from "../document/printSvgExport";
 import type { Command, CommandId } from "./commandTypes";
@@ -6,6 +12,7 @@ import type { Command, CommandId } from "./commandTypes";
 const runFileCommand = (operation: () => Promise<void>) => {
   void operation().catch((error: unknown) => {
     console.error("Document file command failed.", error);
+    window.alert(error instanceof Error ? error.message : String(error));
   });
 };
 
@@ -23,6 +30,12 @@ export const documentCommandDefinitions = {
     palette: { order: 30, keywords: ["open", "file", "document", "開く", "ファイル"] },
     shortcuts: [{ keys: "Mod+O" }],
     run: () => runFileCommand(openDocument)
+  },
+  importLegacyDocument: {
+    id: "importLegacyDocument",
+    label: "旧形式(.nuinui.json)をインポート",
+    palette: { order: 30.5, keywords: ["import", "legacy", "json", "旧形式", "インポート"] },
+    run: () => runFileCommand(importLegacyDocument)
   },
   saveDocument: {
     id: "saveDocument",

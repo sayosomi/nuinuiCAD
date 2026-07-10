@@ -5,21 +5,21 @@ describe("printSvgExport", () => {
   it("uses the pattern file name and print layout name for the default SVG file name", () => {
     expect(defaultPrintSvgFileName({
       layoutName: "袖のみ",
-      documentPath: "/tmp/pattern.nuinui.json"
+      documentPath: "/tmp/pattern.nui"
     })).toBe("pattern_袖のみ.svg");
   });
 
   it("uses the pattern file directory for the default SVG path", () => {
     expect(defaultPrintSvgPath({
       layoutName: "袖のみ",
-      documentPath: "/tmp/basic bodice.nuinui.json"
+      documentPath: "/tmp/basic bodice.nui"
     })).toBe("/tmp/basic bodice_袖のみ.svg");
   });
 
   it("falls back to layout when the print layout name is blank", () => {
     expect(defaultPrintSvgFileName({
       layoutName: " ",
-      documentPath: "/tmp/basic bodice.nuinui.json"
+      documentPath: "/tmp/basic bodice.nui"
     })).toBe("basic bodice_layout.svg");
   });
 

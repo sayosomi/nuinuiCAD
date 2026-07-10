@@ -1,4 +1,4 @@
-import { fileNameFromPath } from "./documentFormat";
+import { fileNameFromPath } from "./nuiFormat";
 
 type PrintExportFileNameInput = {
   layoutName: string;
@@ -17,7 +17,7 @@ const sanitizeExportBaseName = (name: string, fallback: string) => {
 const documentBaseName = (documentPath: string | null) => {
   if (!documentPath) return "pattern";
   return sanitizeExportBaseName(
-    fileNameFromPath(documentPath).replace(/\.nuinui\.json$/i, ""),
+    fileNameFromPath(documentPath).replace(/\.nui$/i, ""),
     "pattern"
   );
 };

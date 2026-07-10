@@ -35,7 +35,10 @@ export type ModelBridgeResult =
   | { status: "rejected"; reason: string }
   | { status: "failed"; reason: string };
 
-const normalizedText = (text: string) => text.replace(/\r\n/g, "\n");
+// sourceTextは保存対象そのもの。改行やBOMをここで正規化しない。
+const normalizedText = (text: string) => text;
+
+const compileLines = (text: string) => text.replace(/\r\n/g, "\n").split("\n");
 
 export const isLastGoodDslDocument = (
   compiled: CompiledDslDocument
@@ -65,7 +68,7 @@ export const compileCanonicalText = (
     oldLines: current.doc.sourceLines,
     oldElementIds: current.doc.statementMap.elementIdByStatementIndex,
     newStatements: parsed.statements,
-    newLines: sourceText.split("\n")
+    newLines: compileLines(sourceText)
   }, {
     createId: (type) => createdElementIds.shift() ?? createCadElementId(type)
   });

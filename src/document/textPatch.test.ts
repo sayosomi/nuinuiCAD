@@ -96,6 +96,14 @@ describe("applyLineSplices", () => {
   it("文書外の行範囲を拒否する", () => {
     expect(() => applyLineSplices("a\nb", [{ startLine: 4, endLine: 4, replacementLines: [] }])).toThrow();
   });
+
+  it("CRLF文書の行スプライスで改行様式を保つ", () => {
+    expect(applyLineSplices("a\r\nb\r\n", [{
+      startLine: 2,
+      endLine: 2,
+      replacementLines: ["B"]
+    }])).toBe("a\r\nB\r\n");
+  });
 });
 
 describe("textPatch 要素の更新", () => {

@@ -7,11 +7,9 @@ import type { CadDocumentSnapshot } from "../state/cadDocumentStore";
 import {
   CAD_DOCUMENT_APP_ID,
   CAD_DOCUMENT_SCHEMA_VERSION,
-  ensureCadDocumentFileName,
-  fileNameFromPath,
-  parseCadDocumentFile,
-  serializeCadDocumentFile
+  parseCadDocumentFile
 } from "./documentFormat";
+import { ensureNuiDocumentFileName, fileNameFromPath } from "./nuiFormat";
 
 const snapshot: CadDocumentSnapshot = {
   elements: sampleElements,
@@ -29,21 +27,20 @@ const snapshot: CadDocumentSnapshot = {
   selectedParameterKey: "name"
 };
 
-describe("documentFormat", () => {
-  it("serializes and parses a nuinuiCAD document file", () => {
-    const content = serializeCadDocumentFile(snapshot, "2026-06-29T00:00:00.000Z");
-    const parsedFile = JSON.parse(content);
+const legacyFileContent = (document: CadDocumentSnapshot = snapshot) => JSON.stringify({
+  app: CAD_DOCUMENT_APP_ID,
+  schemaVersion: CAD_DOCUMENT_SCHEMA_VERSION,
+  savedAt: "2026-06-29T00:00:00.000Z",
+  document
+});
 
-    expect(parsedFile).toMatchObject({
-      app: CAD_DOCUMENT_APP_ID,
-      schemaVersion: CAD_DOCUMENT_SCHEMA_VERSION,
-      savedAt: "2026-06-29T00:00:00.000Z"
-    });
-    expect(parseCadDocumentFile(content)).toEqual(snapshot);
+describe("documentFormat", () => {
+  it("parses a legacy nuinuiCAD document file for the importer", () => {
+    expect(parseCadDocumentFile(legacyFileContent())).toEqual(snapshot);
   });
 
   it("silently ignores legacy JSON fold fields", () => {
-    const content = serializeCadDocumentFile({
+    const content = legacyFileContent({
       ...snapshot,
       elements: [{
         id: "group",
@@ -83,10 +80,10 @@ describe("documentFormat", () => {
   });
 
   it("normalizes document file names and extracts basenames", () => {
-    expect(ensureCadDocumentFileName("/tmp/pattern")).toBe("/tmp/pattern.nuinui.json");
-    expect(ensureCadDocumentFileName("/tmp/pattern.nuinui.json")).toBe("/tmp/pattern.nuinui.json");
-    expect(fileNameFromPath("/tmp/pattern.nuinui.json")).toBe("pattern.nuinui.json");
-    expect(fileNameFromPath("C:\\tmp\\pattern.nuinui.json")).toBe("pattern.nuinui.json");
+    expect(ensureNuiDocumentFileName("/tmp/pattern")).toBe("/tmp/pattern.nui");
+    expect(ensureNuiDocumentFileName("/tmp/pattern.nui")).toBe("/tmp/pattern.nui");
+    expect(fileNameFromPath("/tmp/pattern.nui")).toBe("pattern.nui");
+    expect(fileNameFromPath("C:\\tmp\\pattern.nui")).toBe("pattern.nui");
     expect(fileNameFromPath(null)).toBe("未保存");
   });
 

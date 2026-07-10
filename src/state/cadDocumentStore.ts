@@ -80,6 +80,8 @@ export type CadDocumentState = {
   past: TextSnapshot[];
   future: TextSnapshot[];
   currentFilePath: string | null;
+  /** sourceText at the last successful save/load; null means an unsaved import. */
+  savedSourceText: string | null;
   dirtySinceSave: boolean;
   commitText: (nextText: string, origin: CommitTextOrigin) => void;
   previewDocumentChange: (change: Partial<CadDocumentSnapshot>) => void;
@@ -111,6 +113,10 @@ export type CadDocumentState = {
   setDefaultColorId: (id: string) => void;
   renameElement: (id: ElementId, requestedName: string) => void;
   replaceDocument: (snapshot: CadDocumentSnapshot, filePath: string | null) => void;
+  replaceTextDocument: (
+    sourceText: string,
+    options: { currentFilePath: string | null; dirtySinceSave: boolean }
+  ) => void;
   markDocumentSaved: (filePath: string) => void;
   undo: () => void;
   redo: () => void;
@@ -179,6 +185,9 @@ const textSnapshot = (
 
 const appendPast = (past: TextSnapshot[], snapshot: TextSnapshot) =>
   [...past, snapshot].slice(-HISTORY_LIMIT);
+
+const dirtyForText = (state: Pick<CadDocumentState, "savedSourceText">, text: string) =>
+  state.savedSourceText !== text;
 
 const canonicalFields = (value: CanonicalDocumentValue) => {
   const document = value.doc.document;
@@ -294,7 +303,7 @@ const modelCommit = (
     previewElements: null,
     past: appendPast(state.past, textSnapshot(current, previousSelection)),
     future: [],
-    dirtySinceSave: true
+    dirtySinceSave: dirtyForText(current, value.sourceText)
   };
 };
 
@@ -309,6 +318,17 @@ const initialSnapshot = (): DslDocumentData => ({
   evaluationLimitIndex: sampleElements.length
 });
 
+const emptyFileSnapshot = (): DslDocumentData => ({
+  elements: [],
+  palette: defaultDocumentPalette(),
+  visibilityRoles: [],
+  visibilityProfiles: [defaultVisibilityProfile()],
+  activeVisibilityProfileId: defaultVisibilityProfile().id,
+  printLayouts: [],
+  activePrintLayoutId: "",
+  evaluationLimitIndex: 0
+});
+
 export const initialCadDocumentState = (): Omit<CadDocumentState, keyof CadDocumentActions> => {
   const snapshot = initialSnapshot();
   const canonical = regenerateCanonicalFromModel(snapshot);
@@ -318,6 +338,7 @@ export const initialCadDocumentState = (): Omit<CadDocumentState, keyof CadDocum
     past: [],
     future: [],
     currentFilePath: null,
+    savedSourceText: canonical.sourceText,
     dirtySinceSave: false
   };
 };
@@ -351,6 +372,7 @@ type CadDocumentActions = Pick<
   | "setDefaultColorId"
   | "renameElement"
   | "replaceDocument"
+  | "replaceTextDocument"
   | "markDocumentSaved"
   | "undo"
   | "redo"
@@ -384,17 +406,16 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
   ...initialCadDocumentState(),
   commitText: (nextText) =>
     set((state) => {
-      const normalized = nextText.replace(/\r\n/g, "\n");
-      if (normalized === state.sourceText) return { previewElements: null };
+      if (nextText === state.sourceText) return { previewElements: null };
       const previousSelection = useCadUiStore.getState();
-      const result = compileCanonicalText(state, normalized);
+      const result = compileCanonicalText(state, nextText);
       useCadUiStore.getState().reconcileSelectionWithElements(result.doc.document.elements);
       return {
         ...canonicalFields(result),
         previewElements: null,
         past: appendPast(state.past, textSnapshot(state, previousSelection)),
         future: [],
-        dirtySinceSave: true
+        dirtySinceSave: dirtyForText(state, result.sourceText)
       };
     }),
   previewDocumentChange: (change) =>
@@ -608,6 +629,7 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
           past: [],
           future: [],
           currentFilePath,
+          savedSourceText: canonical.sourceText,
           dirtySinceSave: false
         };
       } catch (error) {
@@ -615,7 +637,32 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
         return { previewElements: null };
       }
     }),
-  markDocumentSaved: (currentFilePath) => set({ currentFilePath, dirtySinceSave: false }),
+  replaceTextDocument: (sourceText, options) =>
+    set(() => {
+      const baseline = regenerateCanonicalFromModel(emptyFileSnapshot());
+      const compiled = compileCanonicalText(baseline, sourceText);
+      useCadUiStore.getState().applySelection(compiled.doc.document.elements, {
+        selectedElementId: null,
+        selectedElementIds: [],
+        selectionAnchorElementId: null,
+        selectedParameterKey: null
+      });
+      return {
+        ...canonicalFields(compiled),
+        previewElements: null,
+        past: [],
+        future: [],
+        currentFilePath: options.currentFilePath,
+        savedSourceText: options.dirtySinceSave ? null : compiled.sourceText,
+        dirtySinceSave: options.dirtySinceSave
+      };
+    }),
+  markDocumentSaved: (currentFilePath) =>
+    set((state) => ({
+      currentFilePath,
+      savedSourceText: state.sourceText,
+      dirtySinceSave: false
+    })),
   undo: () =>
     set((state) => {
       const previous = state.past.at(-1);
@@ -636,7 +683,7 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
         previewElements: null,
         past: state.past.slice(0, -1),
         future: [textSnapshot(state, previousSelection), ...state.future],
-        dirtySinceSave: true
+        dirtySinceSave: dirtyForText(state, restored.sourceText)
       };
     }),
   redo: () =>
@@ -659,7 +706,7 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
         previewElements: null,
         past: appendPast(state.past, textSnapshot(state, previousSelection)),
         future: state.future.slice(1),
-        dirtySinceSave: true
+        dirtySinceSave: dirtyForText(state, restored.sourceText)
       };
     })
 }));

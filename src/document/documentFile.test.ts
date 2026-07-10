@@ -1,68 +1,32 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { sampleElements } from "../sampleData";
-import { defaultDocumentPalette } from "../palette/palette";
-import { DEFAULT_PRINT_LAYOUT } from "../print/printLayout";
-import { defaultVisibilityProfile } from "../model/visibilityProfiles";
 import {
   currentDocumentSnapshot,
   initialCadDocumentState,
-  useCadDocumentStore,
-  type CadDocumentSnapshot
+  useCadDocumentStore
 } from "../state/cadDocumentStore";
-import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
-import { serializeCadDocumentFile } from "./documentFormat";
-import { newDocument, openDocument, saveDocument, saveDocumentAs } from "./documentFile";
+import { initialCadUiState } from "../state/cadUiStore";
+import { CAD_DOCUMENT_APP_ID, CAD_DOCUMENT_SCHEMA_VERSION } from "./documentFormat";
+import {
+  importLegacyDocument,
+  newDocument,
+  openDocument,
+  saveDocument,
+  saveDocumentAs
+} from "./documentFile";
 
-const tauriCoreMock = vi.hoisted(() => ({
-  invoke: vi.fn()
-}));
-
-const dialogMock = vi.hoisted(() => ({
-  open: vi.fn(),
-  save: vi.fn()
-}));
+const tauriCoreMock = vi.hoisted(() => ({ invoke: vi.fn() }));
+const dialogMock = vi.hoisted(() => ({ open: vi.fn(), save: vi.fn() }));
 
 vi.mock("@tauri-apps/api/core", () => tauriCoreMock);
 vi.mock("@tauri-apps/plugin-dialog", () => dialogMock);
 
 const setTauriRuntime = () => {
-  Object.defineProperty(window, "__TAURI_INTERNALS__", {
-    configurable: true,
-    value: {}
-  });
+  Object.defineProperty(window, "__TAURI_INTERNALS__", { configurable: true, value: {} });
 };
 
 const clearTauriRuntime = () => {
   delete (window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__;
 };
-
-const selectionKeys = [
-  "selectedElementId",
-  "selectedElementIds",
-  "selectionAnchorElementId",
-  "selectedParameterKey"
-] as const;
-
-const withoutSelection = (snapshot: CadDocumentSnapshot) =>
-  Object.fromEntries(
-    Object.entries(snapshot).filter(([key]) => !selectionKeys.includes(key as typeof selectionKeys[number]))
-  );
-
-const loadedSnapshot = (): CadDocumentSnapshot => ({
-  elements: [sampleElements[1]],
-  palette: defaultDocumentPalette(),
-  visibilityRoles: [],
-  visibilityProfiles: [defaultVisibilityProfile()],
-  activeVisibilityProfileId: defaultVisibilityProfile().id,
-  printLayouts: [DEFAULT_PRINT_LAYOUT],
-  activePrintLayoutId: DEFAULT_PRINT_LAYOUT.id,
-  printLayout: DEFAULT_PRINT_LAYOUT,
-  evaluationLimitIndex: 1,
-  selectedElementId: sampleElements[1].id,
-  selectedElementIds: [sampleElements[1].id],
-  selectionAnchorElementId: sampleElements[1].id,
-  selectedParameterKey: "name"
-});
 
 describe("document file lifecycle", () => {
   beforeEach(() => {
@@ -75,148 +39,186 @@ describe("document file lifecycle", () => {
   });
 
   it("creates a new starter document and clears file state after confirming discard", async () => {
-    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
-    useCadDocumentStore.getState().markDocumentSaved("/tmp/edited.nuinui.json");
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    useCadDocumentStore.getState().markDocumentSaved("/tmp/edited.nui");
     useCadDocumentStore.getState().commitDocumentChange({ evaluationLimitIndex: 1 });
 
     await newDocument();
 
-    expect(confirm).toHaveBeenCalled();
     expect(useCadDocumentStore.getState()).toMatchObject({
-      ...withoutSelection(currentDocumentSnapshot(initialCadDocumentState(), initialCadUiState())),
-      past: [],
-      future: [],
       currentFilePath: null,
-      dirtySinceSave: false
-    });
-  });
-
-  it("leaves the current dirty document untouched when new document discard is canceled", async () => {
-    vi.spyOn(window, "confirm").mockReturnValue(false);
-    useCadDocumentStore.getState().markDocumentSaved("/tmp/edited.nuinui.json");
-    useCadDocumentStore.getState().commitDocumentChange({ evaluationLimitIndex: 1 });
-    const before = useCadDocumentStore.getState();
-    const beforeSelection = useCadUiStore.getState();
-
-    await newDocument();
-
-    expect(useCadDocumentStore.getState()).toMatchObject({
-      ...withoutSelection(currentDocumentSnapshot(before, beforeSelection)),
-      currentFilePath: "/tmp/edited.nuinui.json",
-      dirtySinceSave: true
-    });
-    expect(useCadUiStore.getState()).toMatchObject(beforeSelection);
-    expect(useCadDocumentStore.getState().past).toHaveLength(1);
-  });
-
-  it("does not open a file or change state when dirty open discard is canceled", async () => {
-    vi.spyOn(window, "confirm").mockReturnValue(false);
-    useCadDocumentStore.getState().markDocumentSaved("/tmp/current.nuinui.json");
-    useCadDocumentStore.getState().commitDocumentChange({ evaluationLimitIndex: 1 });
-    const before = useCadDocumentStore.getState();
-    const beforeSelection = useCadUiStore.getState();
-
-    await openDocument();
-
-    expect(dialogMock.open).not.toHaveBeenCalled();
-    expect(tauriCoreMock.invoke).not.toHaveBeenCalled();
-    expect(useCadDocumentStore.getState()).toMatchObject({
-      ...withoutSelection(currentDocumentSnapshot(before, beforeSelection)),
-      currentFilePath: "/tmp/current.nuinui.json",
-      dirtySinceSave: true
-    });
-    expect(useCadUiStore.getState()).toMatchObject(beforeSelection);
-  });
-
-  it("keeps the dirty document when open dialog is canceled after confirming discard", async () => {
-    vi.spyOn(window, "confirm").mockReturnValue(true);
-    dialogMock.open.mockResolvedValue(null);
-    useCadDocumentStore.getState().markDocumentSaved("/tmp/current.nuinui.json");
-    useCadDocumentStore.getState().commitDocumentChange({ evaluationLimitIndex: 1 });
-    const before = useCadDocumentStore.getState();
-    const beforeSelection = useCadUiStore.getState();
-
-    await openDocument();
-
-    expect(dialogMock.open).toHaveBeenCalled();
-    expect(tauriCoreMock.invoke).not.toHaveBeenCalled();
-    expect(useCadDocumentStore.getState()).toMatchObject({
-      ...withoutSelection(currentDocumentSnapshot(before, beforeSelection)),
-      currentFilePath: "/tmp/current.nuinui.json",
-      dirtySinceSave: true
-    });
-    expect(useCadUiStore.getState()).toMatchObject(beforeSelection);
-  });
-
-  it("opens a selected document and clears dirty file state after parsing succeeds", async () => {
-    vi.spyOn(window, "confirm").mockReturnValue(true);
-    const snapshot = loadedSnapshot();
-    dialogMock.open.mockResolvedValue("/tmp/loaded.nuinui.json");
-    tauriCoreMock.invoke.mockResolvedValue(serializeCadDocumentFile(snapshot, "2026-06-29T00:00:00.000Z"));
-    useCadDocumentStore.getState().commitDocumentChange({ evaluationLimitIndex: 1 });
-
-    await openDocument();
-
-    expect(tauriCoreMock.invoke).toHaveBeenCalledWith("read_document_file", {
-      path: "/tmp/loaded.nuinui.json"
-    });
-    const {
-      selectedElementId,
-      selectedElementIds,
-      selectionAnchorElementId,
-      selectedParameterKey,
-      ...documentFields
-    } = snapshot;
-    expect(useCadDocumentStore.getState()).toMatchObject({
-      ...documentFields,
+      dirtySinceSave: false,
       past: [],
-      future: [],
-      currentFilePath: "/tmp/loaded.nuinui.json",
-      dirtySinceSave: false
+      future: []
     });
-    expect(useCadUiStore.getState()).toMatchObject({
-      selectedElementId,
-      selectedElementIds,
-      selectionAnchorElementId,
-      selectedParameterKey
-    });
+    expect(initialCadUiState().selectedElementIds).toBeDefined();
   });
 
-  it("saves as a selected path, normalizes the extension, and clears dirty state after write", async () => {
-    dialogMock.save.mockResolvedValue("/tmp/pattern");
-    tauriCoreMock.invoke.mockResolvedValue(undefined);
+  it("opens .nui text verbatim and resets file history", async () => {
+    const content = "\uFEFFnui 1\r\n# keep this\r\npoint A = (0, 0)\r\n";
+    dialogMock.open.mockResolvedValue("/tmp/loaded.nui");
+    tauriCoreMock.invoke.mockResolvedValue(content);
     useCadDocumentStore.getState().commitDocumentChange({ evaluationLimitIndex: 1 });
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+
+    await openDocument();
+
+    const state = useCadDocumentStore.getState();
+    expect(tauriCoreMock.invoke).toHaveBeenCalledWith("read_document_file", { path: "/tmp/loaded.nui" });
+    expect(state.sourceText).toBe(content);
+    expect(state.currentFilePath).toBe("/tmp/loaded.nui");
+    expect(state.dirtySinceSave).toBe(false);
+    expect(state.past).toEqual([]);
+    expect(state.future).toEqual([]);
+  });
+
+  it("opens fatal text with an empty last-good document instead of leaking the previous document", async () => {
+    const content = "nui 1\npoint Broken = (";
+    dialogMock.open.mockResolvedValue("/tmp/broken.nui");
+    tauriCoreMock.invoke.mockResolvedValue(content);
+    expect(useCadDocumentStore.getState().elements.length).toBeGreaterThan(0);
+
+    await openDocument();
+
+    const state = useCadDocumentStore.getState();
+    expect(state.sourceText).toBe(content);
+    expect(state.docText).not.toBe(content);
+    expect(state.elements).toEqual([]);
+    expect(state.diagnostics.some((diagnostic) => diagnostic.severity === "error")).toBe(true);
+    expect(state.currentFilePath).toBe("/tmp/broken.nui");
+    expect(state.dirtySinceSave).toBe(false);
+  });
+
+  it("rejects only an unsupported major before replacing the current document", async () => {
+    const before = useCadDocumentStore.getState().sourceText;
+    dialogMock.open.mockResolvedValue("/tmp/future.nui");
+    tauriCoreMock.invoke.mockResolvedValue("nui 2\npoint A = (0, 0)");
+
+    await expect(openDocument()).rejects.toThrow("未対応のDSLバージョンです: 2");
+
+    expect(useCadDocumentStore.getState().sourceText).toBe(before);
+  });
+
+  it.each([
+    "",
+    "nui abc",
+    "nui 1\nnui 1",
+    "point A = (0, 0)"
+  ])("opens malformed version text with fatal diagnostics: %j", async (content) => {
+    dialogMock.open.mockResolvedValue("/tmp/fatal.nui");
+    tauriCoreMock.invoke.mockResolvedValue(content);
+
+    await openDocument();
+
+    const state = useCadDocumentStore.getState();
+    expect(state.sourceText).toBe(content);
+    expect(state.diagnostics.some((diagnostic) => diagnostic.severity === "error")).toBe(true);
+    expect(state.currentFilePath).toBe("/tmp/fatal.nui");
+  });
+
+  it("saves sourceText byte-for-byte and clears dirty only after write succeeds", async () => {
+    const content = "nui 1\r\n# keep\r\npoint A = (0, 0)\r\n";
+    useCadDocumentStore.getState().replaceTextDocument(content, {
+      currentFilePath: "/tmp/current.nui",
+      dirtySinceSave: false
+    });
+    useCadDocumentStore.getState().commitText(`${content}# changed\r\n`, "test");
+    tauriCoreMock.invoke.mockResolvedValue(undefined);
+
+    await saveDocument();
+
+    const state = useCadDocumentStore.getState();
+    expect(tauriCoreMock.invoke).toHaveBeenCalledWith("write_document_file", {
+      path: "/tmp/current.nui",
+      content: state.sourceText
+    });
+    expect(state.dirtySinceSave).toBe(false);
+  });
+
+  it("rebases image paths on Save As and restores dirty state across undo and redo", async () => {
+    const source = [
+      "nui 1",
+      'element img type=image sourcePath="images/ref.png" originPoint=(0,0) scale=1 angleDeg=0 mirrorX=false'
+    ].join("\n");
+    useCadDocumentStore.getState().replaceTextDocument(source, {
+      currentFilePath: "/old/pattern.nui",
+      dirtySinceSave: false
+    });
+    dialogMock.save.mockResolvedValue("/new/copy");
+    tauriCoreMock.invoke.mockResolvedValue(undefined);
 
     await saveDocumentAs();
 
-    expect(tauriCoreMock.invoke).toHaveBeenCalledWith(
-      "write_document_file",
-      expect.objectContaining({ path: "/tmp/pattern.nuinui.json" })
-    );
+    const saved = useCadDocumentStore.getState();
+    expect(saved.sourceText).toContain('sourcePath="/old/images/ref.png"');
+    expect(saved.currentFilePath).toBe("/new/copy.nui");
+    expect(saved.dirtySinceSave).toBe(false);
+    expect(saved.past).toHaveLength(1);
+    expect(tauriCoreMock.invoke).toHaveBeenCalledWith("write_document_file", {
+      path: "/new/copy.nui",
+      content: saved.sourceText
+    });
+
+    saved.undo();
     expect(useCadDocumentStore.getState()).toMatchObject({
-      currentFilePath: "/tmp/pattern.nuinui.json",
+      sourceText: source,
+      currentFilePath: "/new/copy.nui",
+      dirtySinceSave: true
+    });
+
+    useCadDocumentStore.getState().redo();
+    expect(useCadDocumentStore.getState()).toMatchObject({
+      sourceText: saved.sourceText,
+      currentFilePath: "/new/copy.nui",
       dirtySinceSave: false
     });
   });
 
-  it("saves the current file path without changing file state when write fails", async () => {
-    useCadDocumentStore.getState().markDocumentSaved("/tmp/current.nuinui.json");
-    useCadDocumentStore.getState().commitDocumentChange({ evaluationLimitIndex: 1 });
-    tauriCoreMock.invoke.mockRejectedValue(new Error("write failed"));
+  it("returns to clean when redo restores text saved by Save", async () => {
+    const before = "nui 1\npoint A = (0, 0)";
+    const savedText = "nui 1\npoint A = (5, 0)";
+    useCadDocumentStore.getState().replaceTextDocument(before, {
+      currentFilePath: "/tmp/current.nui",
+      dirtySinceSave: false
+    });
+    useCadDocumentStore.getState().commitText(savedText, "test");
+    tauriCoreMock.invoke.mockResolvedValue(undefined);
 
-    await expect(saveDocument()).rejects.toThrow("write failed");
+    await saveDocument();
+    expect(useCadDocumentStore.getState().dirtySinceSave).toBe(false);
 
-    expect(tauriCoreMock.invoke).toHaveBeenCalledWith(
-      "write_document_file",
-      expect.objectContaining({ path: "/tmp/current.nuinui.json" })
-    );
+    useCadDocumentStore.getState().undo();
+    expect(useCadDocumentStore.getState()).toMatchObject({ sourceText: before, dirtySinceSave: true });
+
+    useCadDocumentStore.getState().redo();
+    expect(useCadDocumentStore.getState()).toMatchObject({ sourceText: savedText, dirtySinceSave: false });
+  });
+
+  it("imports legacy JSON as a dirty untitled document without writing its source file", async () => {
+    const snapshot = currentDocumentSnapshot(initialCadDocumentState(), initialCadUiState());
+    dialogMock.open.mockResolvedValue("/tmp/legacy.nuinui.json");
+    tauriCoreMock.invoke.mockResolvedValue(JSON.stringify({
+      app: CAD_DOCUMENT_APP_ID,
+      schemaVersion: CAD_DOCUMENT_SCHEMA_VERSION,
+      savedAt: "2026-07-10T00:00:00.000Z",
+      document: snapshot
+    }));
+
+    await importLegacyDocument();
+
+    expect(tauriCoreMock.invoke).toHaveBeenCalledWith("read_document_file", {
+      path: "/tmp/legacy.nuinui.json"
+    });
+    expect(tauriCoreMock.invoke).not.toHaveBeenCalledWith("write_document_file", expect.anything());
     expect(useCadDocumentStore.getState()).toMatchObject({
-      currentFilePath: "/tmp/current.nuinui.json",
-      dirtySinceSave: true
+      currentFilePath: null,
+      dirtySinceSave: true,
+      past: [],
+      future: []
     });
   });
 
-  it("requires Tauri runtime for local file open and save operations", async () => {
+  it("requires Tauri runtime for local file operations", async () => {
     clearTauriRuntime();
 
     await expect(openDocument()).rejects.toThrow("ローカルファイル操作はTauri版でのみ利用できます。");

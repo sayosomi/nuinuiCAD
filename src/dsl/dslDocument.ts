@@ -113,7 +113,7 @@ export type CompileDslDocumentOptions = {
   preparsed?: ParseDslResult;
 };
 
-const DSL_VERSION = 1;
+export const DSL_VERSION = 1;
 
 const versionDiagnostic = (line: number, message: string): DslDiagnostic => ({
   severity: "error",
@@ -405,8 +405,14 @@ export const serializeDocumentToDsl = (
     .join("\n\n");
 };
 
-const versionDiagnostics = (statements: DslStatement[]): DslDiagnostic[] => {
+type VersionValidation = {
+  diagnostics: DslDiagnostic[];
+  unsupportedMajor: number | null;
+};
+
+const validateVersionStatements = (statements: DslStatement[]): VersionValidation => {
   const diagnostics: DslDiagnostic[] = [];
+  let unsupportedMajor: number | null = null;
   const versionStatements = statements.filter((statement) => statement.kind === "version");
   const firstStatement = statements[0];
 
@@ -419,6 +425,7 @@ const versionDiagnostics = (statements: DslStatement[]): DslDiagnostic[] => {
     if (!Number.isInteger(value) || value <= 0) {
       diagnostics.push(versionDiagnostic(firstStatement.line, `不正なDSLバージョンです: ${firstStatement.value}`));
     } else if (value !== DSL_VERSION) {
+      unsupportedMajor = value;
       diagnostics.push(
         versionDiagnostic(firstStatement.line, `未対応のDSLバージョンです: ${value}(対応: ${DSL_VERSION})`)
       );
@@ -427,8 +434,15 @@ const versionDiagnostics = (statements: DslStatement[]): DslDiagnostic[] => {
   for (const extra of versionStatements.slice(1)) {
     diagnostics.push(versionDiagnostic(extra.line, "`nui` は文書の先頭に1つだけ書けます。"));
   }
-  return diagnostics;
+  return { diagnostics, unsupportedMajor };
 };
+
+/**
+ * ファイル読込境界用。コンパイラと同じversion検証を使い、先頭の有効な
+ * version指令が現在未対応のmajorかだけを返す。
+ */
+export const unsupportedDslMajorVersion = (source: string): number | null =>
+  validateVersionStatements(parseDsl(source).statements).unsupportedMajor;
 
 const attrValueOf = (statement: DslStatement, key: string) =>
   statement.attrs.find((item) => item.key === key)?.value;
@@ -560,7 +574,7 @@ export const compileDslDocument = (
   const normalized = source.replace(/\r\n/g, "\n");
   const sourceLines = normalized.split("\n");
   const parsed = options.preparsed ?? parseDsl(normalized);
-  const diagnostics = versionDiagnostics(parsed.statements);
+  const diagnostics = validateVersionStatements(parsed.statements).diagnostics;
 
   const compiled = compileDslToElements(normalized, {
     elements: [],

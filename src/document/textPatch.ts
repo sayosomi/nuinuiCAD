@@ -723,7 +723,10 @@ export const buildTextPatch = (input: TextPatchInput): LineSplice[] => {
 };
 
 export const applyLineSplices = (text: string, splices: readonly LineSplice[]): string => {
-  const lines = text.replace(/\r\n/g, "\n").split("\n");
+  // 無編集のsourceTextはdocumentFileが直接保存する。モデル編集でここを通る場合も
+  // 既存の改行様式を保ち、行スプライスの責務を広げない。
+  const newline = text.includes("\r\n") ? "\r\n" : "\n";
+  const lines = text.split(/\r?\n/);
   let previousEnd = 0;
   let previousStart = 0;
   for (const splice of splices) {
@@ -745,5 +748,5 @@ export const applyLineSplices = (text: string, splices: readonly LineSplice[]): 
     const splice = splices[index];
     lines.splice(splice.startLine - 1, splice.endLine - splice.startLine + 1, ...splice.replacementLines);
   }
-  return lines.join("\n");
+  return lines.join(newline);
 };

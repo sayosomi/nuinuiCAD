@@ -258,6 +258,21 @@ const applyCommonAttributes = (
       };
       continue;
     }
+    if (
+      next.type === "image" &&
+      (key === "naturalWidthPx" ||
+        key === "naturalHeightPx" ||
+        key === "sourceDpi" ||
+        key === "targetPixelsPerMm")
+    ) {
+      const parsed = Number(value);
+      if (!Number.isFinite(parsed) || parsed <= 0) {
+        diagnostics.push(diagnostic(line, `${key} は正の数で指定してください。`));
+      } else {
+        next = { ...next, [key]: parsed } as CadElement;
+      }
+      continue;
+    }
 
     const definition = findParameterDefinition(next, parameterKey);
     if (definition?.kind === "boolean") {

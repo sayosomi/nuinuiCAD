@@ -1,31 +1,36 @@
 import { invoke } from "@tauri-apps/api/core";
 import { open, save } from "@tauri-apps/plugin-dialog";
-import {
-  CAD_DOCUMENT_EXTENSION,
-  ensureCadDocumentFileName,
-  parseCadDocumentFile,
-  serializeCadDocumentFile
-} from "./documentFormat";
-import {
-  currentDocumentSnapshot,
-  initialCadDocumentState,
-  useCadDocumentStore,
-  type CadDocumentSnapshot
-} from "../state/cadDocumentStore";
-import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import { isTauriRuntime } from "../geometry/evaluationEngine";
 import { defaultDocumentPalette } from "../palette/palette";
 import { loadPaletteTemplateSettings } from "../palette/paletteSettingsStorage";
-import { snapshotWithImagePathsForSave } from "./imageFilePaths";
+import {
+  currentDocumentSnapshot,
+  initialCadDocumentState,
+  useCadDocumentStore
+} from "../state/cadDocumentStore";
+import { initialCadUiState } from "../state/cadUiStore";
+import { LEGACY_CAD_DOCUMENT_EXTENSION } from "./documentFormat";
+import { rebaseImageSourcePathsInText } from "./imageFilePaths";
+import { importLegacyCadDocument } from "./legacyImport";
+import {
+  ensureNuiDocumentFileName,
+  NUI_DOCUMENT_EXTENSION
+} from "./nuiFormat";
+import { unsupportedNuiMajorVersion } from "./nuiVersion";
 
 type DocumentFileFilter = {
   name: string;
   extensions: string[];
 };
 
-const documentFilter: DocumentFileFilter = {
+const nuiDocumentFilter: DocumentFileFilter = {
   name: "nuinuiCAD document",
-  extensions: [CAD_DOCUMENT_EXTENSION]
+  extensions: [NUI_DOCUMENT_EXTENSION]
+};
+
+const legacyDocumentFilter: DocumentFileFilter = {
+  name: "nuinuiCAD legacy document",
+  extensions: [LEGACY_CAD_DOCUMENT_EXTENSION]
 };
 
 const invokeWriteDocumentFile = (path: string, content: string) =>
@@ -34,17 +39,14 @@ const invokeWriteDocumentFile = (path: string, content: string) =>
 const invokeReadDocumentFile = (path: string) =>
   invoke<string>("read_document_file", { path });
 
-const openDocumentDialog = () =>
-  open({
-    filters: [documentFilter],
-    multiple: false
-  });
+const openNuiDocumentDialog = () =>
+  open({ filters: [nuiDocumentFilter], multiple: false });
+
+const openLegacyDocumentDialog = () =>
+  open({ filters: [legacyDocumentFilter], multiple: false });
 
 const saveDocumentDialog = (defaultPath: string) =>
-  save({
-    filters: [documentFilter],
-    defaultPath
-  });
+  save({ filters: [nuiDocumentFilter], defaultPath });
 
 const selectedPath = (value: string | string[] | null) =>
   Array.isArray(value) ? value[0] ?? null : value;
@@ -76,35 +78,25 @@ export const newDocument = async () => {
   );
 };
 
-export const writeDocumentSnapshotToPath = async (
-  snapshot: CadDocumentSnapshot,
-  path: string,
-  currentFilePath: string | null = null
-) => {
-  const normalizedPath = ensureCadDocumentFileName(path);
-  await invokeWriteDocumentFile(
-    normalizedPath,
-    serializeCadDocumentFile(
-      snapshotWithImagePathsForSave(snapshot, currentFilePath, normalizedPath)
-    )
-  );
-  return normalizedPath;
-};
-
 export const saveDocumentAs = async () => {
   assertTauriFileRuntime();
   const state = useCadDocumentStore.getState();
   const path = selectedPath(
-    await saveDocumentDialog(state.currentFilePath ?? `pattern.${CAD_DOCUMENT_EXTENSION}`)
+    await saveDocumentDialog(state.currentFilePath ?? `pattern.${NUI_DOCUMENT_EXTENSION}`)
   );
   if (!path) return;
 
-  const savedPath = await writeDocumentSnapshotToPath(
-    currentDocumentSnapshot(state, useCadUiStore.getState()),
-    path,
-    state.currentFilePath
+  const normalizedPath = ensureNuiDocumentFileName(path);
+  const nextText = rebaseImageSourcePathsInText(
+    state.sourceText,
+    state.currentFilePath,
+    normalizedPath
   );
-  useCadDocumentStore.getState().markDocumentSaved(savedPath);
+  await invokeWriteDocumentFile(normalizedPath, nextText);
+  if (nextText !== state.sourceText) {
+    useCadDocumentStore.getState().commitText(nextText, "file");
+  }
+  useCadDocumentStore.getState().markDocumentSaved(normalizedPath);
 };
 
 export const saveDocument = async () => {
@@ -115,24 +107,38 @@ export const saveDocument = async () => {
     return;
   }
 
-  const savedPath = await writeDocumentSnapshotToPath(
-    currentDocumentSnapshot(state, useCadUiStore.getState()),
-    state.currentFilePath,
-    state.currentFilePath
-  );
-  useCadDocumentStore.getState().markDocumentSaved(savedPath);
+  await invokeWriteDocumentFile(state.currentFilePath, state.sourceText);
+  useCadDocumentStore.getState().markDocumentSaved(state.currentFilePath);
 };
 
 export const openDocument = async () => {
   assertTauriFileRuntime();
   if (!confirmDiscardUnsavedChanges("開き")) return;
 
-  const path = selectedPath(
-    await openDocumentDialog()
-  );
+  const path = selectedPath(await openNuiDocumentDialog());
   if (!path) return;
 
   const content = await invokeReadDocumentFile(path);
-  const document = parseCadDocumentFile(content);
-  useCadDocumentStore.getState().replaceDocument(document, path);
+  const unsupportedMajor = unsupportedNuiMajorVersion(content);
+  if (unsupportedMajor !== null) {
+    throw new Error(`未対応のDSLバージョンです: ${unsupportedMajor}(対応: 1)`);
+  }
+  useCadDocumentStore.getState().replaceTextDocument(content, {
+    currentFilePath: path,
+    dirtySinceSave: false
+  });
+};
+
+export const importLegacyDocument = async () => {
+  assertTauriFileRuntime();
+  if (!confirmDiscardUnsavedChanges("旧形式ドキュメントをインポートし")) return;
+
+  const path = selectedPath(await openLegacyDocumentDialog());
+  if (!path) return;
+
+  const sourceText = importLegacyCadDocument(await invokeReadDocumentFile(path), path);
+  useCadDocumentStore.getState().replaceTextDocument(sourceText, {
+    currentFilePath: null,
+    dirtySinceSave: true
+  });
 };

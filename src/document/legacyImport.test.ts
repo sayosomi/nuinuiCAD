@@ -1,0 +1,133 @@
+import { describe, expect, it } from "vitest";
+import { compileDslDocument } from "../dsl/dslDocument";
+import { expectSemanticallyEqualDocuments } from "../dsl/dslDocumentTestUtils";
+import { compileDslToElements } from "../dsl/dslCompiler";
+import { defaultVisibilityProfile } from "../model/visibilityProfiles";
+import { defaultDocumentPalette } from "../palette/palette";
+import { DEFAULT_PRINT_LAYOUT } from "../print/printLayout";
+import { currentDocumentSnapshot, initialCadDocumentState } from "../state/cadDocumentStore";
+import { initialCadUiState } from "../state/cadUiStore";
+import type { CadElement } from "../types/geometry";
+import { CAD_DOCUMENT_APP_ID, CAD_DOCUMENT_SCHEMA_VERSION } from "./documentFormat";
+import { importLegacyCadDocument } from "./legacyImport";
+
+const legacyContent = () => {
+  const base = currentDocumentSnapshot(initialCadDocumentState(), initialCadUiState());
+  const unnamed = {
+    ...base.elements[0],
+    name: "",
+    numericParameterSteps: { x: 5 }
+  } as CadElement;
+  const image: CadElement = {
+    id: "legacy-image",
+    name: "",
+    type: "image",
+    visible: true,
+    enabled: true,
+    sourcePath: "assets/reference.png",
+    originPoint: { mode: "coordinate", x: 0, y: 0 },
+    naturalWidthPx: 1200,
+    naturalHeightPx: 800,
+    sourceDpi: 300,
+    targetPixelsPerMm: 300 / 25.4,
+    scale: 1,
+    angleDeg: 0,
+    mirrorX: false,
+    numericParameterSteps: { scale: 0.1 }
+  };
+  return JSON.stringify({
+    app: CAD_DOCUMENT_APP_ID,
+    schemaVersion: CAD_DOCUMENT_SCHEMA_VERSION,
+    savedAt: "2026-07-10T00:00:00.000Z",
+    document: {
+      ...base,
+      elements: [unnamed, ...base.elements.slice(1), image],
+      selectedElementId: "legacy-image",
+      selectedElementIds: ["legacy-image"],
+      selectionAnchorElementId: "legacy-image",
+      selectedParameterKey: "scale"
+    }
+  });
+};
+
+describe("legacy JSON import", () => {
+  it("creates deterministic .nui text, assigns names, drops legacy UI steps, and preserves image resolution", () => {
+    const content = legacyContent();
+    const first = importLegacyCadDocument(content, "/legacy/pattern.nuinui.json");
+    const second = importLegacyCadDocument(content, "/legacy/pattern.nuinui.json");
+    const compiled = compileDslDocument(first);
+
+    expect(first).toBe(second);
+    expect(first).not.toContain("steps=");
+    expect(first).not.toContain("selectedElementId");
+    expect(first).not.toContain("printLayout\":");
+    expect(first).toContain('sourcePath="/legacy/assets/reference.png"');
+    expect(compiled.document).not.toBeNull();
+    expect(compiled.document!.elements.every((element) => element.name.trim().length > 0)).toBe(true);
+    expect(compiled.document!.elements.find((element) => element.type === "image")).toMatchObject({
+      naturalWidthPx: 1200,
+      naturalHeightPx: 800,
+      sourceDpi: 300
+    });
+  });
+
+  it("preserves every current element type semantically through legacy JSON conversion", () => {
+    const elements = compileDslToElements([
+      "group G id=g1",
+      "var V = 840 id=v1",
+      "point A = (0, 0) id=p1",
+      "point B = offset A dx=10 dy=5 id=p2",
+      "point C = polar A angle=45 distance=30 id=p3",
+      "line AB = A -> B id=l1",
+      "line L = from A angle=0 length=100 id=l2",
+      "arc Arc center=A radius=30 start=0 end=90 id=a1",
+      "point D = between A B ratio=0.5 id=p4",
+      "point E = on AB.end distance=10 id=p5",
+      "point X = intersection AB L index=0 extensions=false id=p6",
+      "point T = tangentOffset Arc base=A angle=0 distance=5 id=p7",
+      "arc Corner = corner AB.end L.start radius=5 index=0 id=a2",
+      "element Edge type=edge endpoint1=AB.start endpoint2=L.end intersectionIndex=0 id=e1",
+      "line Trim = extend L.end to=E id=l3",
+      "curve Curve = A -> B startAngle=0 startLength=10 endAngle=180 endLength=10 id=c1",
+      "line Offset = offset [AB] distance=3 side=left closed=false id=l4",
+      "line Split = split Arc at=D id=l5",
+      "element Copy type=copyLine startPoint=A endPoint=B scale=1 angleDeg=0 mirrorX=false baseLineIds=[AB] id=e2",
+      "element SymCopy type=symmetricCopyLine axisPoint1=A axisPoint2=B baseLineIds=[AB] id=e3",
+      "element Move type=move startPoint=A endPoint=B scale=1 angleDeg=0 mirrorX=false baseLineIds=[AB] id=e4",
+      "element SymMove type=symmetricMove axisPoint1=A axisPoint2=B baseLineIds=[AB] id=e5",
+      "arc Three = through A B C start=0 end=180 id=a3",
+      "element If type=conditionalGroup condition=1 id=e6",
+      "element For type=forGroup variableName=i start=0 count=2 step=1 showGenerated=false id=e7",
+      "element Img type=image sourcePath=\"asset.png\" originPoint=A naturalWidthPx=120 naturalHeightPx=80 sourceDpi=300 targetPixelsPerMm=11.811023622047244 scale=1 angleDeg=0 mirrorX=false id=e8",
+      "text Label = \"label\" at=A size=3 id=t1"
+    ].join("\n"), { elements: [] }).elements;
+    const legacyDocument = {
+      elements,
+      palette: defaultDocumentPalette(),
+      visibilityRoles: [],
+      visibilityProfiles: [defaultVisibilityProfile()],
+      activeVisibilityProfileId: defaultVisibilityProfile().id,
+      printLayouts: [DEFAULT_PRINT_LAYOUT],
+      activePrintLayoutId: DEFAULT_PRINT_LAYOUT.id,
+      evaluationLimitIndex: elements.length
+    };
+    const content = JSON.stringify({
+      app: CAD_DOCUMENT_APP_ID,
+      schemaVersion: CAD_DOCUMENT_SCHEMA_VERSION,
+      savedAt: "2026-07-10T00:00:00.000Z",
+      document: { ...legacyDocument, printLayout: DEFAULT_PRINT_LAYOUT }
+    });
+    const expected = {
+      ...legacyDocument,
+      elements: elements.map((element) => element.type === "image"
+        ? { ...element, sourcePath: "/legacy/asset.png" }
+        : element)
+    };
+
+    const imported = compileDslDocument(importLegacyCadDocument(content, "/legacy/all.nuinui.json"));
+
+    expect(imported.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(imported.document).not.toBeNull();
+    expectSemanticallyEqualDocuments(expected, imported.document!);
+  });
+});

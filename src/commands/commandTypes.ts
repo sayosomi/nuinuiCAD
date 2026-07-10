@@ -14,6 +14,7 @@ export type { BezierHandleRole };
 export type CommandId =
   | "newDocument"
   | "openDocument"
+  | "importLegacyDocument"
   | "saveDocument"
   | "saveDocumentAs"
   | "exportPrintSvg"

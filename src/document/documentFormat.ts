@@ -39,14 +39,7 @@ export const docToLegacySnapshot = (
 
 export const CAD_DOCUMENT_APP_ID = "nuinuiCAD";
 export const CAD_DOCUMENT_SCHEMA_VERSION = 5;
-export const CAD_DOCUMENT_EXTENSION = "nuinui.json";
-
-export type CadDocumentFile = {
-  schemaVersion: typeof CAD_DOCUMENT_SCHEMA_VERSION;
-  app: typeof CAD_DOCUMENT_APP_ID;
-  savedAt: string;
-  document: CadDocumentSnapshot;
-};
+export const LEGACY_CAD_DOCUMENT_EXTENSION = "nuinui.json";
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -126,21 +119,6 @@ const parseDocumentObject = (value: unknown): CadDocumentSnapshot => {
   };
 };
 
-export const cadDocumentFileFromSnapshot = (
-  document: CadDocumentSnapshot,
-  savedAt = new Date().toISOString()
-): CadDocumentFile => ({
-  schemaVersion: CAD_DOCUMENT_SCHEMA_VERSION,
-  app: CAD_DOCUMENT_APP_ID,
-  savedAt,
-  document
-});
-
-export const serializeCadDocumentFile = (
-  document: CadDocumentSnapshot,
-  savedAt?: string
-) => `${JSON.stringify(cadDocumentFileFromSnapshot(document, savedAt), null, 2)}\n`;
-
 export const parseCadDocumentFile = (content: string): CadDocumentSnapshot => {
   let parsed: unknown;
   try {
@@ -163,13 +141,4 @@ export const parseCadDocumentFile = (content: string): CadDocumentSnapshot => {
   }
 
   return parseDocumentObject(parsed.document);
-};
-
-export const ensureCadDocumentFileName = (path: string) =>
-  path.endsWith(`.${CAD_DOCUMENT_EXTENSION}`) ? path : `${path}.${CAD_DOCUMENT_EXTENSION}`;
-
-export const fileNameFromPath = (path: string | null) => {
-  if (!path) return "未保存";
-  const normalized = path.replace(/\\/g, "/");
-  return normalized.split("/").pop() || path;
 };

@@ -3,7 +3,7 @@ import type { CSSProperties, KeyboardEvent, MouseEvent, PointerEvent, RefObject 
 import { ChevronsDown, Eye, Search, X } from "lucide-react";
 import { dispatchCommand } from "../commands/commands";
 import type { CommandContext } from "../commands/commands";
-import { fileNameFromPath } from "../document/documentFormat";
+import { fileNameFromPath } from "../document/nuiFormat";
 import {
   isPointElement,
   referenceAnchor
@@ -40,6 +40,7 @@ import {
   ElementListContextMenu,
   type ElementListContextMenuState
 } from "./ElementListContextMenu";
+import { DocumentDiagnostics } from "./DocumentDiagnostics";
 import { ElementListRow } from "./ElementListRow";
 import { LeftPanelRibbonDock } from "./LeftPanelRibbonDock";
 import { elementListNameTextClassName } from "./elementListName";
@@ -739,6 +740,7 @@ export const LeftPanel = ({
           <span>{fileNameFromPath(currentFilePath)}</span>
           {dirtySinceSave ? <span className="document-dirty">未保存の変更</span> : null}
         </p>
+        <DocumentDiagnostics />
       </header>
 
       <section className="panel-section element-list-section">

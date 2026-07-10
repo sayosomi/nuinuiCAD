@@ -5,21 +5,21 @@ describe("printPdfExport", () => {
   it("uses the pattern file name and print layout name for the default PDF file name", () => {
     expect(defaultPrintPdfFileName({
       layoutName: "袖のみ",
-      documentPath: "/tmp/pattern.nuinui.json"
+      documentPath: "/tmp/pattern.nui"
     })).toBe("pattern_袖のみ.pdf");
   });
 
   it("uses the pattern file directory for the default PDF path", () => {
     expect(defaultPrintPdfPath({
       layoutName: "袖のみ",
-      documentPath: "/tmp/basic bodice.nuinui.json"
+      documentPath: "/tmp/basic bodice.nui"
     })).toBe("/tmp/basic bodice_袖のみ.pdf");
   });
 
   it("falls back to layout when the print layout name is blank", () => {
     expect(defaultPrintPdfFileName({
       layoutName: " ",
-      documentPath: "/tmp/basic bodice.nuinui.json"
+      documentPath: "/tmp/basic bodice.nui"
     })).toBe("basic bodice_layout.pdf");
   });
 
