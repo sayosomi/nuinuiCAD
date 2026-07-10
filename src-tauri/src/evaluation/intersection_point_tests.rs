@@ -135,8 +135,10 @@ fn evaluates_intersection_point_between_arc_and_line() {
 
     let intersection = point(&result, "intersection");
     assert!(result.errors.is_empty());
-    assert!((intersection["x"].as_f64().unwrap() - 51f64.sqrt()).abs() < 1.0);
-    assert!((intersection["y"].as_f64().unwrap() - 7.0).abs() < 0.2);
+    // Analytic circle-vs-line precision (was +/-1.0 / +/-0.2 chord-sampling
+    // tolerance before arc intersections were refined analytically).
+    assert!((intersection["x"].as_f64().unwrap() - 51f64.sqrt()).abs() < 1e-6);
+    assert!((intersection["y"].as_f64().unwrap() - 7.0).abs() < 1e-9);
 }
 
 #[test]
@@ -165,8 +167,10 @@ fn selects_intersection_point_by_index() {
 
     let intersection = point(&result, "intersection");
     assert!(result.errors.is_empty());
-    assert!((intersection["x"].as_f64().unwrap() + 51f64.sqrt()).abs() < 1.0);
-    assert!((intersection["y"].as_f64().unwrap() - 7.0).abs() < 0.2);
+    // Analytic circle-vs-line precision (see comment in the sibling test
+    // above for the tolerance that was previously required).
+    assert!((intersection["x"].as_f64().unwrap() + 51f64.sqrt()).abs() < 1e-6);
+    assert!((intersection["y"].as_f64().unwrap() - 7.0).abs() < 1e-9);
 }
 
 #[test]
@@ -345,4 +349,421 @@ fn uses_offset_bezier_endpoint_tangents_for_extension_intersections() {
     assert!(extended.error.is_none());
     assert!((extended.intersections[0].x - 10.0).abs() < 1e-9);
     assert!(extended.intersections[0].y.abs() < 1e-9);
+}
+
+fn arc_line_value_at(
+    center_x: f64,
+    center_y: f64,
+    radius: f64,
+    start_angle_deg: f64,
+    sweep_angle_deg: f64,
+) -> Value {
+    let start_rad = start_angle_deg.to_radians();
+    let end_rad = (start_angle_deg + sweep_angle_deg).to_radians();
+    json!({
+        "kind": "arcLine",
+        "elementId": "circle",
+        "name": "circle",
+        "center": { "kind": "point", "elementId": "", "name": "", "x": center_x, "y": center_y },
+        "start": { "kind": "point", "elementId": "", "name": "", "x": center_x + radius * start_rad.cos(), "y": center_y + radius * start_rad.sin() },
+        "end": { "kind": "point", "elementId": "", "name": "", "x": center_x + radius * end_rad.cos(), "y": center_y + radius * end_rad.sin() },
+        "radius": radius,
+        "startAngleDeg": start_angle_deg,
+        "endAngleDeg": start_angle_deg + sweep_angle_deg,
+        "startTangentAngleDeg": 0.0,
+        "endTangentAngleDeg": 0.0,
+        "sweepAngleDeg": sweep_angle_deg,
+        "length": radius.max(0.0) * sweep_angle_deg.to_radians().abs()
+    })
+}
+
+fn arc_line_value(radius: f64, start_angle_deg: f64, sweep_angle_deg: f64) -> Value {
+    arc_line_value_at(0.0, 0.0, radius, start_angle_deg, sweep_angle_deg)
+}
+
+fn horizontal_line_value(y: f64) -> Value {
+    json!({
+        "kind": "line",
+        "elementId": "horizontal-line",
+        "name": "水平線",
+        "start": { "kind": "point", "elementId": "", "name": "", "x": -200.0, "y": y },
+        "end": { "kind": "point", "elementId": "", "name": "", "x": 200.0, "y": y },
+        "length": 400.0,
+        "startAngleDeg": 0.0,
+        "endAngleDeg": 180.0,
+        "startTangentAngleDeg": 0.0,
+        "endTangentAngleDeg": 180.0
+    })
+}
+
+#[test]
+fn refines_circle_and_line_intersection_to_analytic_precision() {
+    // Radius-50 circle x line y=30 crosses at exactly (+/-40, 30). The old
+    // 64-chord-per-360-degree sampling was off by ~0.1mm here; this asserts
+    // the new analytic refinement lands within 1e-6.
+    let circle = arc_line_value(50.0, 0.0, 360.0);
+    let line = horizontal_line_value(30.0);
+
+    let result = line_intersections::find_line_intersections(&circle, &line, false)
+        .expect("expected a result");
+    assert!(result.error.is_none());
+    assert_eq!(result.intersections.len(), 2);
+
+    let mut xs: Vec<f64> = result.intersections.iter().map(|item| item.x).collect();
+    xs.sort_by(|a, b| a.total_cmp(b));
+    assert!((xs[0] - (-40.0)).abs() < 1e-6, "got {xs:?}");
+    assert!((xs[1] - 40.0).abs() < 1e-6, "got {xs:?}");
+    for item in &result.intersections {
+        assert!((item.y - 30.0).abs() < 1e-9);
+    }
+}
+
+#[test]
+fn excludes_circle_line_root_outside_the_arc_sweep_range() {
+    // A quarter-circle from -45 to 45 degrees only covers the right-hand side
+    // of the circle. The line y=30 intersects the *full* circle at x=+/-40,
+    // but only x=+40 (angle ~36.87 degrees) falls inside this arc's sweep --
+    // x=-40 (angle ~143.13 degrees) is mathematically on the circle yet
+    // outside the swept range and must be excluded.
+    let arc = arc_line_value(50.0, -45.0, 90.0);
+    let line = horizontal_line_value(30.0);
+
+    let result =
+        line_intersections::find_line_intersections(&arc, &line, false).expect("expected a result");
+    assert!(result.error.is_none());
+    assert_eq!(result.intersections.len(), 1);
+    assert!((result.intersections[0].x - 40.0).abs() < 1e-6);
+}
+
+#[test]
+fn refines_circle_and_line_intersection_with_negative_sweep() {
+    // Same quarter-circle as above but swept backward (45 down to -45
+    // degrees): still only x=+40 should be found, confirming negative sweep
+    // is handled without sign errors in the sweep-fraction inversion.
+    let arc = arc_line_value(50.0, 45.0, -90.0);
+    let line = horizontal_line_value(30.0);
+
+    let result =
+        line_intersections::find_line_intersections(&arc, &line, false).expect("expected a result");
+    assert!(result.error.is_none());
+    assert_eq!(result.intersections.len(), 1);
+    assert!((result.intersections[0].x - 40.0).abs() < 1e-6);
+}
+
+#[test]
+fn refines_tangent_line_to_circle_intersection() {
+    // y=50 is tangent to a radius-50 circle centered at the origin: a single
+    // double root at (0, 50).
+    let circle = arc_line_value(50.0, 0.0, 360.0);
+    let line = horizontal_line_value(50.0);
+
+    let result = line_intersections::find_line_intersections(&circle, &line, false)
+        .expect("expected a result");
+    assert!(result.error.is_none());
+    assert_eq!(result.intersections.len(), 1);
+    assert!((result.intersections[0].x).abs() < 1e-6);
+    assert!((result.intersections[0].y - 50.0).abs() < 1e-9);
+}
+
+#[test]
+fn refines_circle_and_circle_intersection_to_analytic_precision() {
+    // Circle A: center (0,0) r=50. Circle B: center (60,0) r=50. Analytic
+    // solution crosses at exactly (30, +/-40).
+    let a = arc_line_value_at(0.0, 0.0, 50.0, 0.0, 360.0);
+    let b = arc_line_value_at(60.0, 0.0, 50.0, 0.0, 360.0);
+
+    let result =
+        line_intersections::find_line_intersections(&a, &b, false).expect("expected a result");
+    assert!(result.error.is_none());
+    assert_eq!(result.intersections.len(), 2);
+    let mut ys: Vec<f64> = result.intersections.iter().map(|item| item.y).collect();
+    ys.sort_by(|left, right| left.total_cmp(right));
+    assert!((ys[0] - (-40.0)).abs() < 1e-6, "got {ys:?}");
+    assert!((ys[1] - 40.0).abs() < 1e-6, "got {ys:?}");
+    for item in &result.intersections {
+        assert!((item.x - 30.0).abs() < 1e-6);
+    }
+}
+
+#[test]
+fn excludes_circle_circle_root_outside_the_arc_sweep_range() {
+    // Same two circles as above, but circle A is only a quarter-arc from -10
+    // to 100 degrees. Relative to A's center (0,0), (30,40) sits at ~53.13
+    // degrees (inside the sweep) while (30,-40) sits at ~-53.13 degrees
+    // (outside), so only the first point should survive.
+    let a = arc_line_value_at(0.0, 0.0, 50.0, -10.0, 110.0);
+    let b = arc_line_value_at(60.0, 0.0, 50.0, 0.0, 360.0);
+
+    let result =
+        line_intersections::find_line_intersections(&a, &b, false).expect("expected a result");
+    assert!(result.error.is_none());
+    assert_eq!(result.intersections.len(), 1);
+    assert!((result.intersections[0].y - 40.0).abs() < 1e-6);
+}
+
+#[test]
+fn refines_circle_and_circle_intersection_with_negative_sweep() {
+    let a = arc_line_value_at(0.0, 0.0, 50.0, 100.0, -110.0);
+    let b = arc_line_value_at(60.0, 0.0, 50.0, 0.0, 360.0);
+
+    let result =
+        line_intersections::find_line_intersections(&a, &b, false).expect("expected a result");
+    assert!(result.error.is_none());
+    assert_eq!(result.intersections.len(), 1);
+    assert!((result.intersections[0].y - 40.0).abs() < 1e-6);
+}
+
+#[test]
+fn refines_near_tangent_circle_and_circle_intersection_stably() {
+    // Centers 99.99 apart (both radius 50, so 0.01mm short of exactly
+    // externally tangent): true single-point tangency isn't reliably seedable
+    // through the 64-chord rough-crossing pass (a smooth external tangency's
+    // chord approximation bulges inward on both sides and generally never
+    // actually crosses), but a hair short of tangent still gives two genuine,
+    // very-close-together crossings for the seed to find. This exercises the
+    // quadratic solver right at the edge of its near-zero-discriminant branch
+    // without depending on exact tangency being seedable.
+    let d = 99.99;
+    let a = arc_line_value_at(0.0, 0.0, 50.0, 0.0, 360.0);
+    let b = arc_line_value_at(d, 0.0, 50.0, 0.0, 360.0);
+
+    let result =
+        line_intersections::find_line_intersections(&a, &b, false).expect("expected a result");
+    assert!(result.error.is_none());
+    assert!(!result.intersections.is_empty());
+    for item in &result.intersections {
+        // Every reported point must sit on both circles to within tolerance.
+        assert!((item.x.hypot(item.y) - 50.0).abs() < 1e-6);
+        assert!(((item.x - d).hypot(item.y) - 50.0).abs() < 1e-6);
+    }
+}
+
+fn vertical_bezier_value() -> Value {
+    // A cubic whose control points are all on x=0 stays exactly on x=0 for
+    // every t, crossing a radius-50 circle centered at the origin at exactly
+    // (0, -50) and (0, 50).
+    json!({
+        "kind": "bezierCurve",
+        "elementId": "curve",
+        "name": "曲線",
+        "segments": [{
+            "start": { "x": 0.0, "y": -100.0 },
+            "control1": { "x": 0.0, "y": -33.0 },
+            "control2": { "x": 0.0, "y": 33.0 },
+            "end": { "x": 0.0, "y": 100.0 }
+        }]
+    })
+}
+
+#[test]
+fn refines_bezier_and_circle_intersection_to_analytic_precision() {
+    let curve = vertical_bezier_value();
+    let circle = arc_line_value(50.0, 0.0, 360.0);
+
+    let result = line_intersections::find_line_intersections(&curve, &circle, false)
+        .expect("expected a result");
+    assert!(result.error.is_none());
+    assert_eq!(result.intersections.len(), 2);
+    let mut ys: Vec<f64> = result.intersections.iter().map(|item| item.y).collect();
+    ys.sort_by(|left, right| left.total_cmp(right));
+    assert!((ys[0] - (-50.0)).abs() < 1e-6, "got {ys:?}");
+    assert!((ys[1] - 50.0).abs() < 1e-6, "got {ys:?}");
+    for item in &result.intersections {
+        assert!(item.x.abs() < 1e-6);
+    }
+}
+
+#[test]
+fn excludes_bezier_circle_root_outside_the_arc_sweep_range() {
+    // Only the right-hand quarter circle (-45..45 degrees) is present. The
+    // vertical bezier crosses the *full* circle at (0,-50) and (0,50), but
+    // neither of those points (at 90 and -90 degrees) lies inside this arc's
+    // sweep, so no intersections should be reported at all.
+    let curve = vertical_bezier_value();
+    let arc = arc_line_value(50.0, -45.0, 90.0);
+
+    let result = line_intersections::find_line_intersections(&curve, &arc, false)
+        .expect("expected a result");
+    assert!(result.error.is_none());
+    assert!(result.intersections.is_empty());
+}
+
+#[test]
+fn refines_bezier_and_circle_intersection_with_negative_sweep() {
+    // Arc swept backward from 135 down to 45 degrees covers exactly (0,50)
+    // (90 degrees) and excludes (0,-50) (-90 degrees, outside this sweep).
+    let curve = vertical_bezier_value();
+    let arc = arc_line_value(50.0, 135.0, -90.0);
+
+    let result = line_intersections::find_line_intersections(&curve, &arc, false)
+        .expect("expected a result");
+    assert!(result.error.is_none());
+    assert_eq!(result.intersections.len(), 1);
+    assert!((result.intersections[0].y - 50.0).abs() < 1e-6);
+    assert!(result.intersections[0].x.abs() < 1e-6);
+}
+
+fn offset_line_value(segments: Vec<Value>, closed: bool) -> Value {
+    json!({
+        "kind": "offsetLine",
+        "elementId": "offset",
+        "name": "オフセット",
+        "baseLineIds": [],
+        "start": segments.first().and_then(|segment| segment.get("start")).cloned().unwrap_or(Value::Null),
+        "end": segments.last().and_then(|segment| segment.get("end")).cloned().unwrap_or(Value::Null),
+        "segments": segments,
+        "closed": closed,
+        "length": 0,
+        "startTangentAngleDeg": null,
+        "endTangentAngleDeg": null
+    })
+}
+
+fn bezier_segment_value(
+    start: (f64, f64),
+    control1: (f64, f64),
+    control2: (f64, f64),
+    end: (f64, f64),
+) -> Value {
+    json!({
+        "kind": "bezier",
+        "start": { "kind": "point", "elementId": "", "name": "", "x": start.0, "y": start.1 },
+        "control1": { "x": control1.0, "y": control1.1 },
+        "control2": { "x": control2.0, "y": control2.1 },
+        "end": { "kind": "point", "elementId": "", "name": "", "x": end.0, "y": end.1 },
+        "length": (end.1 - start.1).hypot(end.0 - start.0)
+    })
+}
+
+fn line_segment_value(start: (f64, f64), end: (f64, f64)) -> Value {
+    json!({
+        "kind": "line",
+        "start": { "kind": "point", "elementId": "", "name": "", "x": start.0, "y": start.1 },
+        "end": { "kind": "point", "elementId": "", "name": "", "x": end.0, "y": end.1 },
+        "length": (end.1 - start.1).hypot(end.0 - start.0)
+    })
+}
+
+fn arc_segment_value(
+    center: (f64, f64),
+    radius: f64,
+    start_angle_deg: f64,
+    sweep_angle_deg: f64,
+) -> Value {
+    let start_rad = start_angle_deg.to_radians();
+    let end_rad = (start_angle_deg + sweep_angle_deg).to_radians();
+    json!({
+        "kind": "arc",
+        "center": { "kind": "point", "elementId": "", "name": "", "x": center.0, "y": center.1 },
+        "start": { "kind": "point", "elementId": "", "name": "", "x": center.0 + radius * start_rad.cos(), "y": center.1 + radius * start_rad.sin() },
+        "end": { "kind": "point", "elementId": "", "name": "", "x": center.0 + radius * end_rad.cos(), "y": center.1 + radius * end_rad.sin() },
+        "radius": radius,
+        "startAngleDeg": start_angle_deg,
+        "sweepAngleDeg": sweep_angle_deg,
+        "length": radius.max(0.0) * sweep_angle_deg.to_radians().abs()
+    })
+}
+
+#[test]
+fn refines_offset_line_bezier_segment_against_a_bezier_curve() {
+    // The offset line's single "bezier" sub-segment is the same vertical
+    // curve used elsewhere in this file (x=0 for all t). Before the offset
+    // segment dispatch was rewritten to preserve analytic primitives, this
+    // would have flattened to an approximate polyline and never reached
+    // bezier x bezier Newton refinement at all.
+    let offset = offset_line_value(
+        vec![bezier_segment_value(
+            (0.0, -100.0),
+            (0.0, -33.0),
+            (0.0, 33.0),
+            (0.0, 100.0),
+        )],
+        false,
+    );
+    let horizontal = json!({
+        "kind": "bezierCurve",
+        "elementId": "horizontal",
+        "name": "horizontal",
+        "segments": [bezier_segment_value((-50.0, 25.0), (-16.0, 25.0), (16.0, 25.0), (50.0, 25.0))]
+    });
+
+    let result = line_intersections::find_line_intersections(&offset, &horizontal, false)
+        .expect("expected a result");
+    assert!(result.error.is_none());
+    assert_eq!(result.intersections.len(), 1);
+    assert!(result.intersections[0].x.abs() < 1e-6);
+    assert!((result.intersections[0].y - 25.0).abs() < 1e-6);
+}
+
+#[test]
+fn refines_offset_line_straight_segment_against_a_bezier_curve() {
+    // The offset line's single "line" sub-segment is a genuine straight
+    // segment (offset of a straight base line), which should be treated as
+    // an exact Line primitive and refined against the bezier via the
+    // existing bisection path -- previously offsetLine sub-segments were
+    // never marked "exact" so this refinement never fired.
+    let offset = offset_line_value(vec![line_segment_value((0.0, -100.0), (0.0, 100.0))], false);
+    let horizontal = json!({
+        "kind": "bezierCurve",
+        "elementId": "horizontal",
+        "name": "horizontal",
+        "segments": [bezier_segment_value((-50.0, 25.0), (-16.0, 25.0), (16.0, 25.0), (50.0, 25.0))]
+    });
+
+    let result = line_intersections::find_line_intersections(&offset, &horizontal, false)
+        .expect("expected a result");
+    assert!(result.error.is_none());
+    assert_eq!(result.intersections.len(), 1);
+    assert!(result.intersections[0].x.abs() < 1e-6);
+    assert!((result.intersections[0].y - 25.0).abs() < 1e-6);
+}
+
+#[test]
+fn refines_offset_line_arc_segment_against_a_line() {
+    let offset = offset_line_value(vec![arc_segment_value((0.0, 0.0), 50.0, 0.0, 360.0)], false);
+    let line = horizontal_line_value(30.0);
+
+    let result = line_intersections::find_line_intersections(&offset, &line, false)
+        .expect("expected a result");
+    assert!(result.error.is_none());
+    assert_eq!(result.intersections.len(), 2);
+    let mut xs: Vec<f64> = result.intersections.iter().map(|item| item.x).collect();
+    xs.sort_by(|left, right| left.total_cmp(right));
+    assert!((xs[0] - (-40.0)).abs() < 1e-6, "got {xs:?}");
+    assert!((xs[1] - 40.0).abs() < 1e-6, "got {xs:?}");
+}
+
+#[test]
+fn finds_intersections_against_a_closed_offset_line() {
+    // Regression test: Rust's path_segments_for_line used to early-return an
+    // empty segment list for closed offset lines, so a closed offset line
+    // never reported any intersections at all (TS always did). A closed
+    // square-ish offset line (four straight sub-segments) crossed by a
+    // vertical line through its interior should report two crossings.
+    let offset = offset_line_value(
+        vec![
+            line_segment_value((-50.0, -50.0), (50.0, -50.0)),
+            line_segment_value((50.0, -50.0), (50.0, 50.0)),
+            line_segment_value((50.0, 50.0), (-50.0, 50.0)),
+            line_segment_value((-50.0, 50.0), (-50.0, -50.0)),
+        ],
+        true,
+    );
+    let vertical = json!({
+        "kind": "line",
+        "elementId": "vertical-line",
+        "name": "垂直線",
+        "start": { "kind": "point", "elementId": "", "name": "", "x": 0.0, "y": -200.0 },
+        "end": { "kind": "point", "elementId": "", "name": "", "x": 0.0, "y": 200.0 },
+        "length": 400.0
+    });
+
+    let result = line_intersections::find_line_intersections(&offset, &vertical, false)
+        .expect("expected a result");
+    assert!(result.error.is_none());
+    assert_eq!(result.intersections.len(), 2);
+    let mut ys: Vec<f64> = result.intersections.iter().map(|item| item.y).collect();
+    ys.sort_by(|left, right| left.total_cmp(right));
+    assert!((ys[0] - (-50.0)).abs() < 1e-6, "got {ys:?}");
+    assert!((ys[1] - 50.0).abs() < 1e-6, "got {ys:?}");
 }

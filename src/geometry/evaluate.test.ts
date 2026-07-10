@@ -4366,8 +4366,11 @@ describe("evaluateElements", () => {
     if (arc?.kind !== "point" || curve?.kind !== "point" || offset?.kind !== "point") {
       throw new Error("Expected points");
     }
-    expect(arc.x).toBeCloseTo(Math.sqrt(51), 0);
-    expect(arc.y).toBeCloseTo(7, 1);
+    // Analytic circle-vs-line precision (was toBeCloseTo(..., 0)/(..., 1)
+    // chord-sampling tolerance before arc intersections were refined
+    // analytically).
+    expect(arc.x).toBeCloseTo(Math.sqrt(51), 6);
+    expect(arc.y).toBeCloseTo(7, 9);
     expect(curve.x).toBeCloseTo(50);
     expect(curve.y).toBeCloseTo(0);
     expect(offset.x).toBeCloseTo(50);
@@ -4415,8 +4418,10 @@ describe("evaluateElements", () => {
     const point = result.computedGeometry.get("intersection");
     expect(result.errors).toHaveLength(0);
     if (point?.kind !== "point") throw new Error("Expected a point");
-    expect(point.x).toBeCloseTo(-Math.sqrt(51), 0);
-    expect(point.y).toBeCloseTo(7, 1);
+    // Analytic circle-vs-line precision (see the sibling test above for the
+    // tolerance that was previously required).
+    expect(point.x).toBeCloseTo(-Math.sqrt(51), 6);
+    expect(point.y).toBeCloseTo(7, 9);
   });
 
   it("reports intersection point dependency and geometry errors", () => {

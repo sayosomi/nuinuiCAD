@@ -1,0 +1,204 @@
+{
+  "elements": [
+    {
+      "id": "c1",
+      "name": "C1",
+      "type": "freePoint",
+      "visible": true,
+      "enabled": true,
+      "x": 0,
+      "y": -100
+    },
+    {
+      "id": "c2",
+      "name": "C2",
+      "type": "freePoint",
+      "visible": true,
+      "enabled": true,
+      "x": 0,
+      "y": 100
+    },
+    {
+      "id": "curve",
+      "name": "曲線",
+      "type": "bezierCurve",
+      "visible": true,
+      "enabled": true,
+      "startPoint": { "mode": "reference", "pointId": "c1" },
+      "startHandleAngleDeg": 90,
+      "startHandleLength": 33,
+      "intermediatePoints": [],
+      "endPoint": { "mode": "reference", "pointId": "c2" },
+      "endHandleAngleDeg": 270,
+      "endHandleLength": 33
+    },
+    {
+      "id": "offset",
+      "name": "オフセット",
+      "type": "offsetLine",
+      "visible": true,
+      "enabled": true,
+      "baseLineIds": ["curve"],
+      "offset": 10,
+      "side": "right",
+      "closed": false
+    },
+    {
+      "id": "p1",
+      "name": "P1",
+      "type": "freePoint",
+      "visible": true,
+      "enabled": true,
+      "x": -200,
+      "y": 30
+    },
+    {
+      "id": "p2",
+      "name": "P2",
+      "type": "freePoint",
+      "visible": true,
+      "enabled": true,
+      "x": 200,
+      "y": 30
+    },
+    {
+      "id": "horizontal",
+      "name": "水平線",
+      "type": "line",
+      "visible": true,
+      "enabled": true,
+      "startPoint": { "mode": "reference", "pointId": "p1" },
+      "endPoint": { "mode": "reference", "pointId": "p2" }
+    },
+    {
+      "id": "h1",
+      "name": "H1",
+      "type": "freePoint",
+      "visible": true,
+      "enabled": true,
+      "x": -50,
+      "y": 25
+    },
+    {
+      "id": "h2",
+      "name": "H2",
+      "type": "freePoint",
+      "visible": true,
+      "enabled": true,
+      "x": 50,
+      "y": 25
+    },
+    {
+      "id": "horizontal-curve",
+      "name": "水平曲線",
+      "type": "bezierCurve",
+      "visible": true,
+      "enabled": true,
+      "startPoint": { "mode": "reference", "pointId": "h1" },
+      "startHandleAngleDeg": 0,
+      "startHandleLength": 34,
+      "intermediatePoints": [],
+      "endPoint": { "mode": "reference", "pointId": "h2" },
+      "endHandleAngleDeg": 180,
+      "endHandleLength": 34
+    },
+    {
+      "id": "offset-line-intersection",
+      "name": "オフセット×直線交点",
+      "type": "intersectionPoint",
+      "visible": true,
+      "enabled": true,
+      "line1Id": "offset",
+      "line2Id": "horizontal",
+      "intersectionIndex": 0,
+      "useExtensions": false
+    },
+    {
+      "id": "offset-curve-intersection",
+      "name": "オフセット×曲線交点",
+      "type": "intersectionPoint",
+      "visible": true,
+      "enabled": true,
+      "line1Id": "offset",
+      "line2Id": "horizontal-curve",
+      "intersectionIndex": 0,
+      "useExtensions": false
+    },
+    {
+      "id": "a",
+      "name": "A",
+      "type": "freePoint",
+      "visible": true,
+      "enabled": true,
+      "x": -50,
+      "y": -50
+    },
+    {
+      "id": "b",
+      "name": "B",
+      "type": "freePoint",
+      "visible": true,
+      "enabled": true,
+      "x": 50,
+      "y": -50
+    },
+    {
+      "id": "ab",
+      "name": "AB",
+      "type": "line",
+      "visible": true,
+      "enabled": true,
+      "startPoint": { "mode": "reference", "pointId": "a" },
+      "endPoint": { "mode": "reference", "pointId": "b" }
+    },
+    {
+      "id": "closed-offset",
+      "name": "閉オフセット",
+      "type": "offsetLine",
+      "visible": true,
+      "enabled": true,
+      "baseLineIds": ["ab"],
+      "offset": 10,
+      "side": "right",
+      "closed": true
+    },
+    {
+      "id": "v1",
+      "name": "V1",
+      "type": "freePoint",
+      "visible": true,
+      "enabled": true,
+      "x": 0,
+      "y": -200
+    },
+    {
+      "id": "v2",
+      "name": "V2",
+      "type": "freePoint",
+      "visible": true,
+      "enabled": true,
+      "x": 0,
+      "y": 200
+    },
+    {
+      "id": "vertical",
+      "name": "垂直線",
+      "type": "line",
+      "visible": true,
+      "enabled": true,
+      "startPoint": { "mode": "reference", "pointId": "v1" },
+      "endPoint": { "mode": "reference", "pointId": "v2" }
+    },
+    {
+      "id": "closed-offset-intersection",
+      "name": "閉オフセット×垂直線交点",
+      "type": "intersectionPoint",
+      "visible": true,
+      "enabled": true,
+      "line1Id": "closed-offset",
+      "line2Id": "vertical",
+      "intersectionIndex": 0,
+      "useExtensions": false
+    }
+  ]
+}
