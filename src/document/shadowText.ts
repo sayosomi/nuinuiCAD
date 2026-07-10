@@ -105,7 +105,10 @@ const compileWithZippedIds = (text: string, elements: readonly CadElement[]): Sh
     };
   }
 
-  const compiled = compileDslDocument(normalized, { assignedElementIds });
+  const compiled = compileDslDocument(normalized, {
+    assignedElementIds,
+    preparsed: preParsed
+  });
   if (!compiled.document || !compiled.statementMap) {
     return { ok: false, reason: "影テキストの再コンパイルに失敗しました(診断エラーあり)。" };
   }

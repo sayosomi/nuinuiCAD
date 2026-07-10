@@ -185,6 +185,20 @@ const applyCommonAttributes = (
       next = { ...next, colorId: value };
       continue;
     }
+    if (key === "steps") {
+      const numericParameterSteps: Record<string, number> = {};
+      for (const record of splitDslRecords(value)) {
+        const [parameterKey, rawStep] = splitByColonOutsideQuotes(record);
+        const step = Number(rawStep);
+        if (parameterKey?.trim() && Number.isFinite(step) && step > 0) {
+          numericParameterSteps[parameterKey.trim()] = step;
+        } else {
+          diagnostics.push(diagnostic(line, "steps は parameter:positiveNumber の一覧で指定してください。"));
+        }
+      }
+      next = { ...next, numericParameterSteps };
+      continue;
+    }
     if (key === "roles" && next.type === "group") {
       next = {
         ...next,

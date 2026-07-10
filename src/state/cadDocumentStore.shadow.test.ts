@@ -1,9 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { compileDslDocument, serializeDocumentToDsl } from "../dsl/dslDocument";
-import { parseDsl } from "../dsl/dslParser";
 import { DEFAULT_PRINT_LAYOUT } from "../print/printLayout";
 import type { CadElement } from "../types/geometry";
-import { snapshotToDslData, zipAssignedElementIds } from "../document/shadowText";
+import { snapshotToDslData } from "../document/shadowText";
 import {
   currentDocumentSnapshot,
   initialCadDocumentState,
@@ -37,18 +36,9 @@ const expectNoShadowWarnings = () => {
 // なるため、ここでは使わない。
 const expectShadowConsistent = () => {
   const state = useCadDocumentStore.getState();
-  expect(state.shadowCompiled.document).not.toBeNull();
+  expect(state.doc.document).not.toBeNull();
   const afterDoc = snapshotToDslData(currentDocumentSnapshot(state));
-  expect(serializeDocumentToDsl(state.shadowCompiled.document!)).toBe(serializeDocumentToDsl(afterDoc));
-};
-
-// 影テキストへノイズ(コメント等)を手動注入したうえで、要素IDを
-// state.elements と同じ順序でzipし直す(実際のIDと矛盾した影を作らないため)。
-const recompileWithZippedIds = (text: string, elements: CadElement[]) => {
-  const parsed = parseDsl(text);
-  const assignedElementIds = zipAssignedElementIds(parsed.statements, elements);
-  expect(assignedElementIds, "zip must succeed").not.toBeNull();
-  return compileDslDocument(text, { assignedElementIds: assignedElementIds! });
+  expect(serializeDocumentToDsl(state.doc.document)).toBe(serializeDocumentToDsl(afterDoc));
 };
 
 const seedFromSource = (source: string) => {
@@ -85,8 +75,8 @@ describe("cadDocumentStore 影テキスト: 初期状態", () => {
 describe("cadDocumentStore 影テキスト: previewDocumentChange", () => {
   it("previewDocumentChangeは影テキスト・影コンパイル結果を一切変更しない", () => {
     const before = useCadDocumentStore.getState();
-    const shadowTextBefore = before.shadowText;
-    const shadowCompiledBefore = before.shadowCompiled;
+    const sourceTextBefore = before.sourceText;
+    const docBefore = before.doc;
 
     useCadDocumentStore.getState().previewDocumentChange({
       elements: before.elements.map((element) => ({ ...element, locked: true }) as CadElement)
@@ -95,8 +85,8 @@ describe("cadDocumentStore 影テキスト: previewDocumentChange", () => {
     const after = useCadDocumentStore.getState();
     expect(after.elements).toBe(before.elements);
     expect(after.previewElements).not.toBeNull();
-    expect(after.shadowText).toBe(shadowTextBefore);
-    expect(after.shadowCompiled).toBe(shadowCompiledBefore);
+    expect(after.sourceText).toBe(sourceTextBefore);
+    expect(after.doc).toBe(docBefore);
     expectNoShadowWarnings();
   });
 });
@@ -105,7 +95,7 @@ describe("cadDocumentStore 影テキスト: 代表的なコミット経路", () 
   it("updateElementで影が更新され警告が出ない", () => {
     const id = useCadDocumentStore.getState().elements[0].id;
     useCadDocumentStore.getState().updateElement(id, { locked: true });
-    expect(useCadDocumentStore.getState().shadowText).toContain("locked=true");
+    expect(useCadDocumentStore.getState().sourceText).toContain("locked=true");
     expectShadowConsistent();
     expectNoShadowWarnings();
   });
@@ -192,23 +182,21 @@ describe("cadDocumentStore 影テキスト: コメント・空行の保存", () 
     seedFromSource(["nui 1", "point A = (0, 0)", "point B = (1, 1)"].join("\n"));
     const state = useCadDocumentStore.getState();
 
-    // 影テキストへ手動でコメント・空行を注入する(要素IDは実モデルとzipし直す)。
-    const withNoise = state.shadowText.replace(
+    // 正準テキストへコメント・空行を注入する。commitTextがIDを照合する。
+    const withNoise = state.sourceText.replace(
       "point A = (0, 0)",
       ["", "# 注釈行", "point A = (0, 0)"].join("\n")
     );
-    const recompiled = recompileWithZippedIds(withNoise, state.elements);
-    expect(recompiled.document).not.toBeNull();
-    useCadDocumentStore.setState({ shadowText: withNoise, shadowCompiled: recompiled });
+    useCadDocumentStore.getState().commitText(withNoise, "test");
 
     const targetId = state.elements.find((element) => element.name === "B")!.id;
     useCadDocumentStore.getState().updateElement(targetId, { locked: true });
 
-    const { shadowText } = useCadDocumentStore.getState();
+    const { sourceText } = useCadDocumentStore.getState();
     // 注入した空行・コメント・直後の行が連続したまま(バイト単位で不変)
     // 保存されていること。絶対行番号ではなく部分文字列として検証する
     // (palette等の前置セクションの有無で絶対位置は変わり得るため)。
-    expect(shadowText).toContain(["", "# 注釈行", "point A = (0, 0)"].join("\n"));
+    expect(sourceText).toContain(["", "# 注釈行", "point A = (0, 0)"].join("\n"));
     expectShadowConsistent();
     expectNoShadowWarnings();
   });
@@ -218,11 +206,11 @@ describe("cadDocumentStore 影テキスト: undo/redo/replaceDocument の全体�
   it("undoは影を巻き戻し先のモデルへ全体再生成する", () => {
     const id = useCadDocumentStore.getState().elements[0].id;
     useCadDocumentStore.getState().updateElement(id, { locked: true });
-    expect(useCadDocumentStore.getState().shadowText).toContain("locked=true");
+    expect(useCadDocumentStore.getState().sourceText).toContain("locked=true");
 
     useCadDocumentStore.getState().undo();
 
-    expect(useCadDocumentStore.getState().shadowText).not.toContain("locked=true");
+    expect(useCadDocumentStore.getState().sourceText).not.toContain("locked=true");
     expectShadowConsistent();
     expectNoShadowWarnings();
   });
@@ -233,7 +221,7 @@ describe("cadDocumentStore 影テキスト: undo/redo/replaceDocument の全体�
     useCadDocumentStore.getState().undo();
     useCadDocumentStore.getState().redo();
 
-    expect(useCadDocumentStore.getState().shadowText).toContain("locked=true");
+    expect(useCadDocumentStore.getState().sourceText).toContain("locked=true");
     expectShadowConsistent();
     expectNoShadowWarnings();
   });
@@ -253,7 +241,7 @@ describe("cadDocumentStore 影テキスト: undo/redo/replaceDocument の全体�
       "/tmp/loaded.nuinui.json"
     );
 
-    expect(useCadDocumentStore.getState().shadowText).toContain("point X = (7, 7)");
+    expect(useCadDocumentStore.getState().sourceText).toContain("point X = (7, 7)");
     expectShadowConsistent();
     expectNoShadowWarnings();
   });

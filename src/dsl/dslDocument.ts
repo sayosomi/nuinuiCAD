@@ -26,7 +26,7 @@ import {
   serializeVisibilitySettingsLines,
   type DslSerializerRefs
 } from "./dslSerializer";
-import type { DslDiagnostic, DslEnclosing, DslStatement } from "./dslTypes";
+import type { DslDiagnostic, DslEnclosing, DslStatement, ParseDslResult } from "./dslTypes";
 import { formatDslReferencePath, formatDslReferenceToken } from "./dslReferenceTokens";
 import { DSL_INDENT, formatDslName, quoteDslString } from "./dslTokens";
 
@@ -109,6 +109,8 @@ export type CompiledDslDocument = {
 export type CompileDslDocumentOptions = {
   /** 文index(全文配列基準)→ 継承させる実行時要素ID(statementReconciler の出力)。 */
   assignedElementIds?: ReadonlyMap<number, ElementId>;
+  /** 同じsourceを事前parseした結果。指定時はdocument compile内の再parseを省く。 */
+  preparsed?: ParseDslResult;
 };
 
 const DSL_VERSION = 1;
@@ -166,6 +168,8 @@ const printLayoutBlockLines = (
     : undefined;
   const numeric = (value: Parameters<typeof formatNumericValueForDsl>[0], localVars: NumericVariable[] = []) =>
     formatNumericValueForDsl(value, elements, localVars, undefined, nameContext);
+  const layoutNumeric = (value: Parameters<typeof formatNumericValueForDsl>[0]) =>
+    numeric(value, layout.numericVariables ?? []);
 
   const header = [
     "printLayout",
@@ -174,11 +178,11 @@ const printLayoutBlockLines = (
     ...(profileName ? [`view=${formatDslName(profileName)}`] : []),
     `paper=${layout.paperSizeId}`,
     `orientation=${layout.orientation}`,
-    `columns=${numeric(layout.columns)}`,
-    `rows=${numeric(layout.rows)}`,
-    `overlap=${numeric(layout.overlapMm)}`,
-    `scale=${numeric(layout.scale)}`,
-    `canvas=(${numeric(layout.svgCanvasWidthMm)}, ${numeric(layout.svgCanvasHeightMm)})`,
+    `columns=${layoutNumeric(layout.columns)}`,
+    `rows=${layoutNumeric(layout.rows)}`,
+    `overlap=${layoutNumeric(layout.overlapMm)}`,
+    `scale=${layoutNumeric(layout.scale)}`,
+    `canvas=(${layoutNumeric(layout.svgCanvasWidthMm)}, ${layoutNumeric(layout.svgCanvasHeightMm)})`,
     "{"
   ].join(" ");
 
@@ -555,7 +559,7 @@ export const compileDslDocument = (
 ): CompiledDslDocument => {
   const normalized = source.replace(/\r\n/g, "\n");
   const sourceLines = normalized.split("\n");
-  const parsed = parseDsl(normalized);
+  const parsed = options.preparsed ?? parseDsl(normalized);
   const diagnostics = versionDiagnostics(parsed.statements);
 
   const compiled = compileDslToElements(normalized, {

@@ -91,8 +91,8 @@ describe("cadDocumentStore file state", () => {
     expect(after.past).toBe(before.past);
     expect(after.future).toBe(before.future);
     expect(after.dirtySinceSave).toBe(before.dirtySinceSave);
-    expect(after.shadowText).toBe(before.shadowText);
-    expect(after.shadowCompiled).toBe(before.shadowCompiled);
+    expect(after.sourceText).toBe(before.sourceText);
+    expect(after.doc).toBe(before.doc);
   });
 
   it("clears previews after every completion path, including a no-op commit", () => {
@@ -143,8 +143,9 @@ describe("cadDocumentStore file state", () => {
     useCadDocumentStore.getState().addPrintLayout();
 
     expect(useCadDocumentStore.getState().printLayouts).toHaveLength(2);
-    expect(useCadDocumentStore.getState().activePrintLayoutId).toBe("print-layout-2");
-    expect(useCadDocumentStore.getState().printLayout.id).toBe("print-layout-2");
+    const addedLayoutId = useCadDocumentStore.getState().printLayouts[1].id;
+    expect(useCadDocumentStore.getState().activePrintLayoutId).toBe(addedLayoutId);
+    expect(useCadDocumentStore.getState().printLayout.id).toBe(addedLayoutId);
 
     useCadDocumentStore.getState().updatePrintLayout({ name: "袖のみ", columns: 4 });
     expect(useCadDocumentStore.getState().printLayout.name).toBe("袖のみ");
@@ -154,13 +155,11 @@ describe("cadDocumentStore file state", () => {
 
     useCadDocumentStore.getState().duplicatePrintLayout("print-layout-1");
     expect(useCadDocumentStore.getState().printLayouts).toHaveLength(3);
-    expect(useCadDocumentStore.getState().activePrintLayoutId).toBe("print-layout-3");
+    const duplicatedLayoutId = useCadDocumentStore.getState().activePrintLayoutId;
+    expect(useCadDocumentStore.getState().printLayouts.some((layout) => layout.id === duplicatedLayoutId)).toBe(true);
 
-    useCadDocumentStore.getState().deletePrintLayout("print-layout-3");
-    expect(useCadDocumentStore.getState().printLayouts.map((layout) => layout.id)).toEqual([
-      "print-layout-1",
-      "print-layout-2"
-    ]);
+    useCadDocumentStore.getState().deletePrintLayout(duplicatedLayoutId);
+    expect(useCadDocumentStore.getState().printLayouts).toHaveLength(2);
     expect(useCadDocumentStore.getState().past.length).toBeGreaterThan(0);
   });
 

@@ -1,9 +1,8 @@
 import fc from "fast-check";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { compileDslDocument, serializeDocumentToDsl, type DslDocumentData } from "../dsl/dslDocument";
-import { parseDsl } from "../dsl/dslParser";
 import { applyRandomOp, generateDocumentSource, type RandomOp } from "../document/documentTestGenerators";
-import { snapshotToDslData, zipAssignedElementIds } from "../document/shadowText";
+import { snapshotToDslData } from "../document/shadowText";
 import { DEFAULT_PRINT_LAYOUT } from "../print/printLayout";
 import {
   currentDocumentSnapshot,
@@ -89,15 +88,8 @@ describe("cadDocumentStore 影テキスト: ランダム操作プロパティテ
         expect(initialCompiled.document, `must compile:\n${generated.source}`).not.toBeNull();
         seedFromDocument(initialCompiled.document!);
 
-        // 影テキストをノイズ入りの手書きソースへ差し替える(要素IDは
-        // 正規化後のモデルへ位置対応でzipし直す)。
-        const seededElements = useCadDocumentStore.getState().elements;
-        const parsedNoisy = parseDsl(generated.source);
-        const assignedElementIds = zipAssignedElementIds(parsedNoisy.statements, seededElements);
-        expect(assignedElementIds, "zip must succeed against normalized elements").not.toBeNull();
-        const noisyCompiled = compileDslDocument(generated.source, { assignedElementIds: assignedElementIds! });
-        expect(noisyCompiled.document).not.toBeNull();
-        useCadDocumentStore.setState({ shadowText: generated.source, shadowCompiled: noisyCompiled });
+        // ノイズ入りの手書きソースを正準入口から適用する。
+        useCadDocumentStore.getState().commitText(generated.source, "test");
 
         let document: DslDocumentData = snapshotToDslData(currentDocumentSnapshot(useCadDocumentStore.getState()));
         for (const op of ops) {
@@ -116,12 +108,12 @@ describe("cadDocumentStore 影テキスト: ランダム操作プロパティテ
         }
 
         const finalState = useCadDocumentStore.getState();
-        expect(finalState.shadowCompiled.document).not.toBeNull();
-        expect(serializeDocumentToDsl(finalState.shadowCompiled.document!)).toBe(
+        expect(finalState.doc.document).not.toBeNull();
+        expect(serializeDocumentToDsl(finalState.doc.document)).toBe(
           serializeDocumentToDsl(snapshotToDslData(currentDocumentSnapshot(finalState)))
         );
         for (const noiseLine of generated.noiseLines) {
-          expect(finalState.shadowText).toContain(noiseLine);
+          expect(finalState.sourceText).toContain(noiseLine);
         }
         expect(consoleErrorSpy).not.toHaveBeenCalled();
       }),

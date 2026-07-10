@@ -24,9 +24,23 @@ export const assertShadowEquivalent = (afterDoc: DslDocumentData, shadowDocument
   const actual = serializeDocumentToDsl(shadowDocument);
   if (expected === actual) return true;
 
+  const expectedLines = expected.split("\n");
+  const actualLines = actual.split("\n");
+  const firstDifference = Array.from(
+    { length: Math.max(expectedLines.length, actualLines.length) },
+    (_, index) => index
+  ).find((index) => expectedLines[index] !== actualLines[index]);
+
   console.error("[shadowText] 影テキストとモデルの意味的等価assertに失敗しました。全体再生成します。", {
     expectedPreview: expected.split("\n").slice(0, 10).join("\n"),
-    actualPreview: actual.split("\n").slice(0, 10).join("\n")
+    actualPreview: actual.split("\n").slice(0, 10).join("\n"),
+    firstDifference: firstDifference === undefined
+      ? null
+      : {
+          line: firstDifference + 1,
+          expected: expectedLines[firstDifference],
+          actual: actualLines[firstDifference]
+        }
   });
   return false;
 };

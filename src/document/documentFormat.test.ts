@@ -175,4 +175,32 @@ describe("documentFormat", () => {
       }
     ]);
   });
+
+  it("preserves representable dangling print references at the JSON boundary", () => {
+    const danglingLayout = {
+      ...DEFAULT_PRINT_LAYOUT,
+      visibilityProfileId: "missing-profile",
+      placements: [{
+        id: "dangling-placement",
+        groupId: "missing-group",
+        x: 1,
+        y: 2,
+        angleDeg: 0,
+        mirrorX: false
+      }]
+    };
+    const parsed = parseCadDocumentFile(JSON.stringify({
+      app: CAD_DOCUMENT_APP_ID,
+      schemaVersion: CAD_DOCUMENT_SCHEMA_VERSION,
+      savedAt: "2026-07-10T00:00:00.000Z",
+      document: {
+        ...snapshot,
+        printLayouts: [danglingLayout],
+        printLayout: danglingLayout
+      }
+    }));
+
+    expect(parsed.printLayouts[0].visibilityProfileId).toBe("missing-profile");
+    expect(parsed.printLayouts[0].placements).toEqual(danglingLayout.placements);
+  });
 });

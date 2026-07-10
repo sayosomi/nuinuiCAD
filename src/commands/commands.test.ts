@@ -60,6 +60,7 @@ describe("commands", () => {
       showSelectionColorPicker: false,
       showPrintLayout: false,
       showPrintPreviewWindow: false,
+      groupFoldById: new Map(),
       commandErrorMessage: null,
       shortcutSettings: { version: 1, overrides: [] },
       shortcutSettingsLoading: false,
@@ -715,7 +716,7 @@ describe("commands", () => {
       past: [],
       future: []
     });
-    const shadowText = useCadStore.getState().shadowText;
+    const sourceText = useCadStore.getState().sourceText;
 
     dispatchCommand("toggleGroupExpanded");
 
@@ -724,7 +725,7 @@ describe("commands", () => {
     expect(state.past).toEqual([]);
     expect(state.future).toEqual([]);
     expect(state.dirtySinceSave).toBe(false);
-    expect(state.shadowText).toBe(shadowText);
+    expect(state.sourceText).toBe(sourceText);
   });
 
   it("adds a new empty group inside the current expanded group", () => {
@@ -2295,10 +2296,15 @@ describe("commands", () => {
   });
 
   it("creates a new document from a command", async () => {
+    const current = useCadStore.getState();
     useCadStore.setState({
       currentFilePath: "/tmp/edited.nuinui.json",
       dirtySinceSave: true,
-      past: [useCadStore.getState()],
+      past: [{
+        text: current.sourceText,
+        selectionElementIds: current.selectedElementIds,
+        cursorLine: null
+      }],
       evaluationLimitIndex: 1
     });
     vi.spyOn(window, "confirm").mockReturnValue(true);
@@ -3029,7 +3035,8 @@ describe("commands", () => {
       startPoint: { mode: "reference", pointId: "point-c" },
       endPoint: { mode: "reference", pointId: "point-b" }
     });
-    expect(useCadStore.getState().past).toHaveLength(2);
+    // The second pick was already point-b, so the canonical text does not change.
+    expect(useCadStore.getState().past).toHaveLength(1);
   });
 
   it("picks endpoint references in sequence", () => {

@@ -49,7 +49,10 @@ export const formatNumericValueForDsl = (
       const variableElement = elementsById.get(variableId);
       if (variableElement?.type === "variable") {
         const token = tokenById.get(variableId);
-        if (token) return `@${token}`;
+        // A print/local variable with the same name has lookup precedence.
+        // Keep the global runtime ID in that case so the round-trip cannot
+        // silently retarget the expression to the local variable.
+        if (token && !localVariableNameCounts.has(token)) return `@${token}`;
       }
       return match;
     })

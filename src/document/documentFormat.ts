@@ -1,4 +1,4 @@
-import type { CadDocumentSnapshot } from "../state/cadDocumentStore";
+import type { DslDocumentData } from "../dsl/dslDocument";
 import { normalizedElementFields } from "../model/elementNormalization";
 import {
   normalizeGroupVisibilityRoleIds,
@@ -6,7 +6,36 @@ import {
   normalizeVisibilityRoles
 } from "../model/visibilityProfiles";
 import { normalizeDocumentPalette } from "../palette/palette";
-import { normalizePrintLayouts } from "../print/printLayout";
+import { DEFAULT_PRINT_LAYOUT, normalizePrintLayouts } from "../print/printLayout";
+import type { ParameterKey } from "../parameters/parameterDefinitions";
+import type { ElementId, PrintLayout } from "../types/geometry";
+
+export type CadDocumentSelectionSnapshot = {
+  selectedElementId: ElementId | null;
+  selectedElementIds: ElementId[];
+  selectionAnchorElementId: ElementId | null;
+  selectedParameterKey: ParameterKey | null;
+};
+
+/** Phase 1c compatibility shape used only at the legacy JSON boundary. */
+export type CadDocumentSnapshot = DslDocumentData & CadDocumentSelectionSnapshot & {
+  printLayout: PrintLayout;
+};
+
+export const docToLegacySnapshot = (
+  document: DslDocumentData,
+  selection: CadDocumentSelectionSnapshot
+): CadDocumentSnapshot => {
+  const printLayout =
+    document.printLayouts.find((layout) => layout.id === document.activePrintLayoutId) ??
+    document.printLayouts[0] ??
+    DEFAULT_PRINT_LAYOUT;
+  return {
+    ...document,
+    printLayout,
+    ...selection
+  };
+};
 
 export const CAD_DOCUMENT_APP_ID = "nuinuiCAD";
 export const CAD_DOCUMENT_SCHEMA_VERSION = 5;
@@ -60,7 +89,8 @@ const parseDocumentObject = (value: unknown): CadDocumentSnapshot => {
     printLayouts: value.printLayouts,
     legacyPrintLayout: value.printLayout,
     elements,
-    visibilityProfiles
+    visibilityProfiles,
+    preserveDanglingReferences: true
   });
   const activePrintLayoutId =
     typeof value.activePrintLayoutId === "string" &&

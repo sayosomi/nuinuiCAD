@@ -225,12 +225,14 @@ export const normalizePrintLayouts = ({
   printLayouts,
   legacyPrintLayout,
   elements,
-  visibilityProfiles = []
+  visibilityProfiles = [],
+  preserveDanglingReferences = false
 }: {
   printLayouts: unknown;
   legacyPrintLayout: unknown;
   elements: CadElement[];
   visibilityProfiles?: VisibilityProfile[];
+  preserveDanglingReferences?: boolean;
 }) => {
   const source = Array.isArray(printLayouts) && printLayouts.length > 0
     ? printLayouts
@@ -239,7 +241,9 @@ export const normalizePrintLayouts = ({
   const usedIds = new Set<string>();
 
   for (const item of source) {
-    const layout = normalizePrintLayout(item, elements, visibilityProfiles);
+    const layout = normalizePrintLayout(item, elements, visibilityProfiles, {
+      preserveDanglingReferences
+    });
     const id = layout.id.trim().length > 0 && !usedIds.has(layout.id)
       ? layout.id
       : nextPrintLayoutId(normalized);

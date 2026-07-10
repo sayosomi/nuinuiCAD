@@ -32,11 +32,16 @@ export type DslSerializerRefs = {
   includeRecordIds: boolean;
 };
 
-const commonBaseAttrs = (element: CadElement) => [
+const commonBaseAttrs = (element: CadElement, includeParameterSteps = false) => [
   ...(element.locked ? ["locked=true"] : []),
   ...(element.visible ? [] : ["visible=false"]),
   ...(element.enabled ? [] : ["enabled=false"]),
   ...(element.colorId ? [`color=${element.colorId}`] : []),
+  ...(includeParameterSteps && element.numericParameterSteps && Object.keys(element.numericParameterSteps).length > 0
+    ? [`steps=[${Object.entries(element.numericParameterSteps)
+        .map(([key, value]) => `${key}:${value}`)
+        .join(";")}]`]
+    : []),
   ...(element.type === "group" && element.visibilityRoleIds?.length
     ? [`roles=[${element.visibilityRoleIds.join(",")}]`]
     : [])
@@ -100,7 +105,7 @@ export const documentDslRefs = (elements: CadElement[]): DslSerializerRefs => {
     // 「文自身の名前」には適用しない — さもないと無名要素が
     // 「IDという名前を持つ要素」として再パースされてしまう。
     name: (element) => (element.name.trim() ? formatDslName(element.name) : ""),
-    baseAttrs: commonBaseAttrs,
+    baseAttrs: (element) => commonBaseAttrs(element, true),
     includeRecordIds: false
   };
 };
