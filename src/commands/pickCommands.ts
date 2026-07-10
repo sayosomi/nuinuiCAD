@@ -35,7 +35,8 @@ import { getSelectedElement, isLineLikeElement, selectedParameterDefinition } fr
 export const applyNumericExpressionReference = (context?: CommandContext) => {
   const numericExpression = context?.numericExpression;
   if (!numericExpression) return;
-  const { elements, selectedElementId, selectedParameterKey } = useCadDocumentStore.getState();
+  const { elements } = useCadDocumentStore.getState();
+  const { selectedElementId, selectedParameterKey } = useCadUiStore.getState();
   const targetElementId = context.elementId ?? selectedElementId;
   const targetElement = targetElementId
     ? elements.find((element) => element.id === targetElementId) ?? null
@@ -67,7 +68,8 @@ const isNumericValue = (value: unknown): value is NumericValue =>
     (value as { kind?: unknown }).kind === "expression");
 
 const numericExpressionTarget = (context?: CommandContext) => {
-  const { elements, selectedElementId, selectedParameterKey } = useCadDocumentStore.getState();
+  const { elements } = useCadDocumentStore.getState();
+  const { selectedElementId, selectedParameterKey } = useCadUiStore.getState();
   const targetElementId = context?.elementId ?? selectedElementId;
   const targetElement = targetElementId
     ? elements.find((element) => element.id === targetElementId) ?? null
@@ -609,7 +611,8 @@ export const startPointPick = (
     pickFlow?: "lineEndpointPair" | "lineAndPoint" | "endpointPair" | "endpointAndPoint";
   }
 ) => {
-  const { elements, selectedElementId } = useCadDocumentStore.getState();
+  const { elements } = useCadDocumentStore.getState();
+  const { selectedElementId } = useCadUiStore.getState();
   const targetElementId = context?.elementId ?? selectedElementId;
   const selectedElement = targetElementId
     ? elements.find((element) => element.id === targetElementId) ?? null
@@ -637,7 +640,8 @@ export const startPointPick = (
 };
 
 export const startLineEndpointPairPick = (context?: Pick<CommandContext, "elementId">) => {
-  const { elements, selectedElementId } = useCadDocumentStore.getState();
+  const { elements } = useCadDocumentStore.getState();
+  const { selectedElementId } = useCadUiStore.getState();
   const targetElementId = context?.elementId ?? selectedElementId;
   const targetElement = targetElementId
     ? elements.find((element) => element.id === targetElementId) ?? null
@@ -655,7 +659,8 @@ export const startLineEndpointPairPick = (context?: Pick<CommandContext, "elemen
 export const startEndpointPairPick = (
   context?: Pick<CommandContext, "elementId" | "parameterKey" | "nextParameterKey">
 ) => {
-  const { elements, selectedElementId } = useCadDocumentStore.getState();
+  const { elements } = useCadDocumentStore.getState();
+  const { selectedElementId } = useCadUiStore.getState();
   const targetElementId = context?.elementId ?? selectedElementId;
   const targetElement = targetElementId
     ? elements.find((element) => element.id === targetElementId) ?? null
@@ -677,7 +682,8 @@ export const startEndpointPairPick = (
 export const startEndpointAndPointPick = (
   context?: Pick<CommandContext, "elementId" | "parameterKey" | "nextParameterKey">
 ) => {
-  const { elements, selectedElementId } = useCadDocumentStore.getState();
+  const { elements } = useCadDocumentStore.getState();
+  const { selectedElementId } = useCadUiStore.getState();
   const targetElementId = context?.elementId ?? selectedElementId;
   const targetElement = targetElementId
     ? elements.find((element) => element.id === targetElementId) ?? null
@@ -847,7 +853,8 @@ export const startLinePick = (
     pickFlow?: "lineAndPoint";
   }
 ) => {
-  const { elements, selectedElementId } = useCadDocumentStore.getState();
+  const { elements } = useCadDocumentStore.getState();
+  const { selectedElementId } = useCadUiStore.getState();
   const targetElementId = context?.elementId ?? selectedElementId;
   const selectedElement = targetElementId
     ? elements.find((element) => element.id === targetElementId) ?? null
@@ -874,7 +881,8 @@ export const startLinePick = (
 export const startLineAndPointPick = (
   context?: Pick<CommandContext, "elementId" | "parameterKey" | "nextParameterKey">
 ) => {
-  const { elements, selectedElementId } = useCadDocumentStore.getState();
+  const { elements } = useCadDocumentStore.getState();
+  const { selectedElementId } = useCadUiStore.getState();
   const targetElementId = context?.elementId ?? selectedElementId;
   const targetElement = targetElementId
     ? elements.find((element) => element.id === targetElementId) ?? null

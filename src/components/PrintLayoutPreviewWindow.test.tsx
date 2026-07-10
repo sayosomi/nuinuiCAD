@@ -92,10 +92,6 @@ const renderPreview = (layout: PrintLayout) => {
     activePrintLayoutId: layout.id,
     printLayout: layout,
     evaluationLimitIndex: elements.length,
-    selectedElementId: elements[0].id,
-    selectedElementIds: [elements[0].id],
-    selectionAnchorElementId: elements[0].id,
-    selectedParameterKey: "name",
     past: [],
     future: [],
     currentFilePath: null,
@@ -103,6 +99,10 @@ const renderPreview = (layout: PrintLayout) => {
   });
   useCadUiStore.setState({
     ...initialCadUiState(),
+    selectedElementId: elements[0].id,
+    selectedElementIds: [elements[0].id],
+    selectionAnchorElementId: elements[0].id,
+    selectedParameterKey: "name",
     printPreviewWindow: {
       ...initialCadUiState().printPreviewWindow,
       layoutId: layout.id

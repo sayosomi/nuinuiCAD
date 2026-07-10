@@ -27,8 +27,8 @@ export const TextElementFields = ({
   registerParameterControl
 }: CommonEditorProps) => {
   const updateElement = useCadDocumentStore((state) => state.updateElement);
-  const selectedParameterKey = useCadDocumentStore((state) => state.selectedParameterKey);
-  const setSelectedParameterKey = useCadDocumentStore((state) => state.setSelectedParameterKey);
+  const selectedParameterKey = useCadUiStore((state) => state.selectedParameterKey);
+  const setSelectedParameterKey = useCadUiStore((state) => state.setSelectedParameterKey);
   const activeExpressionInsertTarget = useCadUiStore((state) => state.activeExpressionInsertTarget);
   const setExpressionInsertInputTarget = useCadUiStore((state) => state.setExpressionInsertInputTarget);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);

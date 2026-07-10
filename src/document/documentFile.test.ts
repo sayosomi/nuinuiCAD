@@ -9,6 +9,7 @@ import {
   useCadDocumentStore,
   type CadDocumentSnapshot
 } from "../state/cadDocumentStore";
+import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import { serializeCadDocumentFile } from "./documentFormat";
 import { newDocument, openDocument, saveDocument, saveDocumentAs } from "./documentFile";
 
@@ -34,6 +35,18 @@ const setTauriRuntime = () => {
 const clearTauriRuntime = () => {
   delete (window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__;
 };
+
+const selectionKeys = [
+  "selectedElementId",
+  "selectedElementIds",
+  "selectionAnchorElementId",
+  "selectedParameterKey"
+] as const;
+
+const withoutSelection = (snapshot: CadDocumentSnapshot) =>
+  Object.fromEntries(
+    Object.entries(snapshot).filter(([key]) => !selectionKeys.includes(key as typeof selectionKeys[number]))
+  );
 
 const loadedSnapshot = (): CadDocumentSnapshot => ({
   elements: [sampleElements[1]],
@@ -70,7 +83,7 @@ describe("document file lifecycle", () => {
 
     expect(confirm).toHaveBeenCalled();
     expect(useCadDocumentStore.getState()).toMatchObject({
-      ...currentDocumentSnapshot(initialCadDocumentState()),
+      ...withoutSelection(currentDocumentSnapshot(initialCadDocumentState(), initialCadUiState())),
       past: [],
       future: [],
       currentFilePath: null,
@@ -83,14 +96,16 @@ describe("document file lifecycle", () => {
     useCadDocumentStore.getState().markDocumentSaved("/tmp/edited.nuinui.json");
     useCadDocumentStore.getState().commitDocumentChange({ evaluationLimitIndex: 1 });
     const before = useCadDocumentStore.getState();
+    const beforeSelection = useCadUiStore.getState();
 
     await newDocument();
 
     expect(useCadDocumentStore.getState()).toMatchObject({
-      ...currentDocumentSnapshot(before),
+      ...withoutSelection(currentDocumentSnapshot(before, beforeSelection)),
       currentFilePath: "/tmp/edited.nuinui.json",
       dirtySinceSave: true
     });
+    expect(useCadUiStore.getState()).toMatchObject(beforeSelection);
     expect(useCadDocumentStore.getState().past).toHaveLength(1);
   });
 
@@ -99,16 +114,18 @@ describe("document file lifecycle", () => {
     useCadDocumentStore.getState().markDocumentSaved("/tmp/current.nuinui.json");
     useCadDocumentStore.getState().commitDocumentChange({ evaluationLimitIndex: 1 });
     const before = useCadDocumentStore.getState();
+    const beforeSelection = useCadUiStore.getState();
 
     await openDocument();
 
     expect(dialogMock.open).not.toHaveBeenCalled();
     expect(tauriCoreMock.invoke).not.toHaveBeenCalled();
     expect(useCadDocumentStore.getState()).toMatchObject({
-      ...currentDocumentSnapshot(before),
+      ...withoutSelection(currentDocumentSnapshot(before, beforeSelection)),
       currentFilePath: "/tmp/current.nuinui.json",
       dirtySinceSave: true
     });
+    expect(useCadUiStore.getState()).toMatchObject(beforeSelection);
   });
 
   it("keeps the dirty document when open dialog is canceled after confirming discard", async () => {
@@ -117,16 +134,18 @@ describe("document file lifecycle", () => {
     useCadDocumentStore.getState().markDocumentSaved("/tmp/current.nuinui.json");
     useCadDocumentStore.getState().commitDocumentChange({ evaluationLimitIndex: 1 });
     const before = useCadDocumentStore.getState();
+    const beforeSelection = useCadUiStore.getState();
 
     await openDocument();
 
     expect(dialogMock.open).toHaveBeenCalled();
     expect(tauriCoreMock.invoke).not.toHaveBeenCalled();
     expect(useCadDocumentStore.getState()).toMatchObject({
-      ...currentDocumentSnapshot(before),
+      ...withoutSelection(currentDocumentSnapshot(before, beforeSelection)),
       currentFilePath: "/tmp/current.nuinui.json",
       dirtySinceSave: true
     });
+    expect(useCadUiStore.getState()).toMatchObject(beforeSelection);
   });
 
   it("opens a selected document and clears dirty file state after parsing succeeds", async () => {
@@ -141,12 +160,25 @@ describe("document file lifecycle", () => {
     expect(tauriCoreMock.invoke).toHaveBeenCalledWith("read_document_file", {
       path: "/tmp/loaded.nuinui.json"
     });
+    const {
+      selectedElementId,
+      selectedElementIds,
+      selectionAnchorElementId,
+      selectedParameterKey,
+      ...documentFields
+    } = snapshot;
     expect(useCadDocumentStore.getState()).toMatchObject({
-      ...snapshot,
+      ...documentFields,
       past: [],
       future: [],
       currentFilePath: "/tmp/loaded.nuinui.json",
       dirtySinceSave: false
+    });
+    expect(useCadUiStore.getState()).toMatchObject({
+      selectedElementId,
+      selectedElementIds,
+      selectionAnchorElementId,
+      selectedParameterKey
     });
   });
 

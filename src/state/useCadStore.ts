@@ -59,34 +59,35 @@ const splitState = (partial: Partial<CadState>) => {
 };
 
 const facadeActions = {
-  setSelectedElementId: (id: Parameters<CadDocumentState["setSelectedElementId"]>[0]) => {
-    useCadDocumentStore.getState().setSelectedElementId(id);
+  setSelectedElementId: (id: Parameters<CadUiState["setSelectedElementId"]>[0]) => {
+    useCadUiStore.getState().setSelectedElementId(id);
     useCadUiStore.getState().clearPickMode();
     useCadUiStore.getState().setSelectedDependencyJumpIndex(0);
   },
   setSelectedElementIds: (
-    ids: Parameters<CadDocumentState["setSelectedElementIds"]>[0],
-    primaryId?: Parameters<CadDocumentState["setSelectedElementIds"]>[1]
+    ids: Parameters<CadUiState["setSelectedElementIds"]>[0],
+    primaryId?: Parameters<CadUiState["setSelectedElementIds"]>[1]
   ) => {
-    useCadDocumentStore.getState().setSelectedElementIds(ids, primaryId);
+    useCadUiStore.getState().setSelectedElementIds(ids, primaryId);
     useCadUiStore.getState().clearPickMode();
     useCadUiStore.getState().setSelectedDependencyJumpIndex(0);
   },
   setSelectedElementRange: (
-    anchorId: Parameters<CadDocumentState["setSelectedElementRange"]>[0],
-    targetId: Parameters<CadDocumentState["setSelectedElementRange"]>[1]
+    anchorId: Parameters<CadUiState["setSelectedElementRange"]>[0],
+    targetId: Parameters<CadUiState["setSelectedElementRange"]>[1]
   ) => {
-    useCadDocumentStore.getState().setSelectedElementRange(anchorId, targetId);
+    useCadUiStore.getState().setSelectedElementRange(anchorId, targetId);
     useCadUiStore.getState().clearPickMode();
     useCadUiStore.getState().setSelectedDependencyJumpIndex(0);
   },
   setParameterEditMode: (isParameterEditMode: boolean) => {
-    const { elements, selectedElementId } = useCadDocumentStore.getState();
+    const { elements } = useCadDocumentStore.getState();
+    const { selectedElementId } = useCadUiStore.getState();
     const selectedElement = elements.find((element) => element.id === selectedElementId);
     useCadUiStore.getState().setParameterEditMode(selectedElement ? isParameterEditMode : false);
   },
-  setSelectedParameterKey: (selectedParameterKey: Parameters<CadDocumentState["setSelectedParameterKey"]>[0]) =>
-    useCadDocumentStore.getState().setSelectedParameterKey(selectedParameterKey)
+  setSelectedParameterKey: (selectedParameterKey: Parameters<CadUiState["setSelectedParameterKey"]>[0]) =>
+    useCadUiStore.getState().setSelectedParameterKey(selectedParameterKey)
 };
 
 const mergedState = (): CadState => ({
@@ -135,4 +136,4 @@ export const useCadStore = Object.assign(useCadStoreHook, {
 }) satisfies CadStoreFacade;
 
 export const cadDocumentSnapshotFromCurrentState = () =>
-  currentDocumentSnapshot(useCadDocumentStore.getState());
+  currentDocumentSnapshot(useCadDocumentStore.getState(), useCadUiStore.getState());

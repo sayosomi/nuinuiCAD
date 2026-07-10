@@ -1,10 +1,12 @@
 import { elementIdsInDocumentOrder } from "../model/documentSelection";
 import { findParameterDefinition } from "../parameters/parameterDefinitions";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
+import { useCadUiStore } from "../state/cadUiStore";
 import type { CadElement } from "../types/geometry";
 
 export const getSelectedElementIds = () => {
-  const { elements, selectedElementId, selectedElementIds } = useCadDocumentStore.getState();
+  const { elements } = useCadDocumentStore.getState();
+  const { selectedElementId, selectedElementIds } = useCadUiStore.getState();
   if (selectedElementId && !selectedElementIds.includes(selectedElementId)) {
     return [selectedElementId];
   }
@@ -15,7 +17,8 @@ export const getSelectedElementIds = () => {
 };
 
 export const getSelectedElement = () => {
-  const { elements, selectedElementId } = useCadDocumentStore.getState();
+  const { elements } = useCadDocumentStore.getState();
+  const { selectedElementId } = useCadUiStore.getState();
   return selectedElementId ? elements.find((element) => element.id === selectedElementId) ?? null : null;
 };
 
@@ -41,7 +44,8 @@ export const isPointLikeElement = (element: CadElement) =>
   element.type === "lineTangentOffsetPoint";
 
 export const updateSelectedElement = (updater: (element: CadElement) => CadElement) => {
-  const { elements, selectedElementId } = useCadDocumentStore.getState();
+  const { elements } = useCadDocumentStore.getState();
+  const { selectedElementId } = useCadUiStore.getState();
   if (!selectedElementId) return;
 
   useCadDocumentStore.getState().commitDocumentChange({
@@ -52,6 +56,6 @@ export const updateSelectedElement = (updater: (element: CadElement) => CadEleme
 export const selectedParameterDefinition = () => {
   const selectedElement = getSelectedElement();
   if (!selectedElement) return null;
-  const { selectedParameterKey } = useCadDocumentStore.getState();
+  const { selectedParameterKey } = useCadUiStore.getState();
   return findParameterDefinition(selectedElement, selectedParameterKey);
 };

@@ -2,6 +2,7 @@ import type { FocusEvent, KeyboardEvent, MouseEvent } from "react";
 import type { ParameterKey } from "../parameters/parameterDefinitions";
 import { setParameterValue } from "../parameters/parameterAccess";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
+import { useCadUiStore } from "../state/cadUiStore";
 import type { CadElement, EvaluationResult } from "../types/geometry";
 import { selectTextInputValue } from "./textInputSelection";
 
@@ -36,8 +37,8 @@ export const useParameterEditor = ({
   registerParameterControl
 }: Pick<CommonEditorProps, "element" | "isParameterEditMode" | "registerParameterControl">) => {
   const updateElement = useCadDocumentStore((state) => state.updateElement);
-  const selectedParameterKey = useCadDocumentStore((state) => state.selectedParameterKey);
-  const setSelectedParameterKey = useCadDocumentStore((state) => state.setSelectedParameterKey);
+  const selectedParameterKey = useCadUiStore((state) => state.selectedParameterKey);
+  const setSelectedParameterKey = useCadUiStore((state) => state.setSelectedParameterKey);
   const selectParameter = (key: ParameterKey) => setSelectedParameterKey(key);
   const parameterFieldClass = (key: ParameterKey) =>
     `parameter-field ${

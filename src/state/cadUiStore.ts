@@ -1,10 +1,13 @@
 import { create } from "zustand";
 import type { CommandRibbonSettings } from "../commandRibbons/commandRibbonSettings";
+import type { CadDocumentSelectionSnapshot } from "../document/documentFormat";
 import type { NumericMeasurementKey } from "../geometry/numericExpressionTypes";
 import type { ShortcutSettings } from "../keyboard/shortcutTypes";
-import type { ParameterKey } from "../parameters/parameterDefinitions";
+import { normalizeParameterKey, type ParameterKey } from "../parameters/parameterDefinitions";
+import { sampleElements } from "../sampleData";
+import { useCadDocumentStore } from "./cadDocumentStore";
 import type { ActiveTemplateInsertion } from "../templates/templateInsertionMode";
-import type { ElementId, PointAnchor } from "../types/geometry";
+import type { CadElement, ElementId, PointAnchor } from "../types/geometry";
 import type { GroupFoldState } from "../model/groups";
 
 export type MeasurementInsertMode = "distance" | "angle" | "lineDistance";
@@ -143,7 +146,40 @@ export const DEFAULT_REFERENCE_HELPER_POSITION: ReferenceHelperPosition = {
 
 export const DEFAULT_DSL_PANEL_WINDOW: DslPanelWindow | null = null;
 
-export type CadUiState = {
+const uniqueElementIds = (ids: ElementId[]) => Array.from(new Set(ids));
+
+const currentDocumentElements = () => useCadDocumentStore.getState().elements;
+
+const normalizedSelection = (
+  elements: CadElement[],
+  selection: CadDocumentSelectionSnapshot
+): CadDocumentSelectionSnapshot => {
+  const existingIds = new Set(elements.map((element) => element.id));
+  const selectedElementIds = uniqueElementIds(selection.selectedElementIds).filter((id) => existingIds.has(id));
+  const selectedElementId =
+    selection.selectedElementId && existingIds.has(selection.selectedElementId)
+      ? selection.selectedElementId
+      : selectedElementIds[0] ?? elements[0]?.id ?? null;
+  const normalizedIds =
+    selectedElementId && !selectedElementIds.includes(selectedElementId)
+      ? [...selectedElementIds, selectedElementId]
+      : selectedElementIds;
+  const selectionAnchorElementId =
+    selection.selectionAnchorElementId && existingIds.has(selection.selectionAnchorElementId)
+      ? selection.selectionAnchorElementId
+      : selectedElementId;
+  const selectedElement = elements.find((element) => element.id === selectedElementId);
+  return {
+    selectedElementId,
+    selectedElementIds: normalizedIds,
+    selectionAnchorElementId,
+    selectedParameterKey: selectedElement
+      ? normalizeParameterKey(selectedElement, selection.selectedParameterKey)
+      : null
+  };
+};
+
+export type CadUiState = CadDocumentSelectionSnapshot & {
   groupFoldById: ReadonlyMap<ElementId, GroupFoldState>;
   isParameterEditMode: boolean;
   showElementInfoPanel: boolean;
@@ -263,6 +299,12 @@ export type CadUiState = {
   toggleGroupExpanded: (id: ElementId) => void;
   toggleElseExpanded: (id: ElementId) => void;
   pruneGroupFold: (existingIds: ReadonlySet<ElementId>) => void;
+  setSelectedElementId: (id: ElementId | null) => void;
+  setSelectedElementIds: (ids: ElementId[], primaryId?: ElementId | null) => void;
+  setSelectedElementRange: (anchorId: ElementId, targetId: ElementId) => void;
+  setSelectedParameterKey: (selectedParameterKey: ParameterKey | null) => void;
+  applySelection: (elements: CadElement[], selection: CadDocumentSelectionSnapshot) => void;
+  reconcileSelectionWithElements: (elements: CadElement[]) => void;
 };
 
 export const initialCadUiState = (): Omit<
@@ -325,7 +367,17 @@ export const initialCadUiState = (): Omit<
   | "toggleGroupExpanded"
   | "toggleElseExpanded"
   | "pruneGroupFold"
+  | "setSelectedElementId"
+  | "setSelectedElementIds"
+  | "setSelectedElementRange"
+  | "setSelectedParameterKey"
+  | "applySelection"
+  | "reconcileSelectionWithElements"
 > => ({
+  selectedElementId: sampleElements[0]?.id ?? null,
+  selectedElementIds: sampleElements[0] ? [sampleElements[0].id] : [],
+  selectionAnchorElementId: sampleElements[0]?.id ?? null,
+  selectedParameterKey: sampleElements[0] ? normalizeParameterKey(sampleElements[0], null) : null,
   groupFoldById: new Map(),
   isParameterEditMode: false,
   showElementInfoPanel: true,
@@ -607,5 +659,49 @@ export const useCadUiStore = create<CadUiState>((set) => ({
         [...state.groupFoldById].filter(([id]) => existingIds.has(id))
       );
       return groupFoldById.size === state.groupFoldById.size ? {} : { groupFoldById };
-    })
+    }),
+  applySelection: (elements, selection) => set(() => normalizedSelection(elements, selection)),
+  reconcileSelectionWithElements: (elements) =>
+    set((state) => normalizedSelection(elements, {
+      selectedElementId: state.selectedElementId,
+      selectedElementIds: state.selectedElementIds,
+      selectionAnchorElementId: state.selectionAnchorElementId,
+      selectedParameterKey: state.selectedParameterKey
+    })),
+  setSelectedElementId: (selectedElementId) =>
+    set(() => normalizedSelection(currentDocumentElements(), {
+      selectedElementId,
+      selectedElementIds: selectedElementId ? [selectedElementId] : [],
+      selectionAnchorElementId: selectedElementId,
+      selectedParameterKey: useCadUiStore.getState().selectedParameterKey
+    })),
+  setSelectedElementIds: (selectedElementIds, primaryId) =>
+    set(() => normalizedSelection(currentDocumentElements(), {
+      selectedElementId: primaryId ?? selectedElementIds[0] ?? null,
+      selectedElementIds,
+      selectionAnchorElementId: primaryId ?? selectedElementIds[0] ?? null,
+      selectedParameterKey: useCadUiStore.getState().selectedParameterKey
+    })),
+  setSelectedElementRange: (anchorId, targetId) =>
+    set(() => {
+      const elements = currentDocumentElements();
+      const anchorIndex = elements.findIndex((element) => element.id === anchorId);
+      const targetIndex = elements.findIndex((element) => element.id === targetId);
+      if (anchorIndex < 0 || targetIndex < 0) return {};
+      const start = Math.min(anchorIndex, targetIndex);
+      const end = Math.max(anchorIndex, targetIndex);
+      return normalizedSelection(elements, {
+        selectedElementId: targetId,
+        selectedElementIds: elements.slice(start, end + 1).map((element) => element.id),
+        selectionAnchorElementId: anchorId,
+        selectedParameterKey: useCadUiStore.getState().selectedParameterKey
+      });
+    }),
+  setSelectedParameterKey: (selectedParameterKey) =>
+    set((state) => normalizedSelection(currentDocumentElements(), {
+      selectedElementId: state.selectedElementId,
+      selectedElementIds: state.selectedElementIds,
+      selectionAnchorElementId: state.selectionAnchorElementId,
+      selectedParameterKey
+    }))
 }));

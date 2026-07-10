@@ -10,6 +10,7 @@ import {
   useCadDocumentStore,
   type CadDocumentSnapshot
 } from "./cadDocumentStore";
+import { useCadUiStore } from "./cadUiStore";
 
 // Phase 1b: ランダムなストア操作列後、影テキストが常にモデルと意味的等価で
 // あり(equivalence assertが一度も発火しない)、かつ手置きノイズ行が
@@ -91,7 +92,7 @@ describe("cadDocumentStore 影テキスト: ランダム操作プロパティテ
         // ノイズ入りの手書きソースを正準入口から適用する。
         useCadDocumentStore.getState().commitText(generated.source, "test");
 
-        let document: DslDocumentData = snapshotToDslData(currentDocumentSnapshot(useCadDocumentStore.getState()));
+        let document: DslDocumentData = snapshotToDslData(currentDocumentSnapshot(useCadDocumentStore.getState(), useCadUiStore.getState()));
         for (const op of ops) {
           const applied = applyRandomOp(document, op);
           document = applied.document;
@@ -104,13 +105,13 @@ describe("cadDocumentStore 影テキスト: ランダム操作プロパティテ
             evaluationLimitIndex: document.evaluationLimitIndex
           });
           // 次イテレーションはストアが正規化した後の実モデルを基準に進める。
-          document = snapshotToDslData(currentDocumentSnapshot(useCadDocumentStore.getState()));
+          document = snapshotToDslData(currentDocumentSnapshot(useCadDocumentStore.getState(), useCadUiStore.getState()));
         }
 
         const finalState = useCadDocumentStore.getState();
         expect(finalState.doc.document).not.toBeNull();
         expect(serializeDocumentToDsl(finalState.doc.document)).toBe(
-          serializeDocumentToDsl(snapshotToDslData(currentDocumentSnapshot(finalState)))
+          serializeDocumentToDsl(snapshotToDslData(currentDocumentSnapshot(finalState, useCadUiStore.getState())))
         );
         for (const noiseLine of generated.noiseLines) {
           expect(finalState.sourceText).toContain(noiseLine);

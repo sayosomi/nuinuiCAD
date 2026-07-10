@@ -139,7 +139,7 @@ export const AppLayout = () => {
     },
     getCanvasViewportRect: () => canvasFocusRef.current?.getBoundingClientRect() ?? null,
     focusSelectedParameterInput: () => {
-      const selectedKey = useCadDocumentStore.getState().selectedParameterKey;
+      const selectedKey = useCadUiStore.getState().selectedParameterKey;
       if (!selectedKey) return;
       const input = parameterInputRefs.current.get(selectedKey);
       input?.focus();

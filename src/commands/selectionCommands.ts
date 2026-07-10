@@ -129,7 +129,8 @@ export const applyDisplayColorToSelection = (colorId: string | undefined) => {
 };
 
 export const selectedDependencyJumpTargets = () => {
-  const { elements, selectedElementId } = useCadDocumentStore.getState();
+  const { elements } = useCadDocumentStore.getState();
+  const { selectedElementId } = useCadUiStore.getState();
   const dependencyIndex = createDependencyIndex(elements);
   const selectedElement = selectedElementId
     ? dependencyIndex.elementsById.get(selectedElementId) ?? null
@@ -164,7 +165,8 @@ const blockedDestructiveChange = (
 };
 
 export const selectElementByOffset = (offset: number) => {
-  const { elements, selectedElementId } = useCadDocumentStore.getState();
+  const { elements } = useCadDocumentStore.getState();
+  const { selectedElementId } = useCadUiStore.getState();
   const nextElementId = elementIdByOffset(
     visibleOutlineElements(elements, useCadUiStore.getState().groupFoldById),
     selectedElementId,
@@ -172,43 +174,46 @@ export const selectElementByOffset = (offset: number) => {
   );
   if (!nextElementId) return;
 
-  useCadDocumentStore.getState().setSelectedElementId(nextElementId);
+  useCadUiStore.getState().setSelectedElementId(nextElementId);
   clearTransientSelectionUi();
   updateDependencyJumpModeAfterSelectionChange();
 };
 
 export const selectAllElements = () => {
-  const { elements, selectedElementId } = useCadDocumentStore.getState();
+  const { elements } = useCadDocumentStore.getState();
+  const { selectedElementId } = useCadUiStore.getState();
   const allElementIds = elements.map((element) => element.id);
   const primaryId =
     selectedElementId && allElementIds.includes(selectedElementId)
       ? selectedElementId
       : allElementIds[0] ?? null;
 
-  useCadDocumentStore.getState().setSelectedElementIds(allElementIds, primaryId);
+  useCadUiStore.getState().setSelectedElementIds(allElementIds, primaryId);
   clearTransientSelectionUi();
   updateDependencyJumpModeAfterSelectionChange();
 };
 
 export const extendSelectionByOffset = (offset: number) => {
-  const { elements, selectedElementId, selectionAnchorElementId } = useCadDocumentStore.getState();
+  const { elements } = useCadDocumentStore.getState();
+  const { selectedElementId, selectionAnchorElementId } = useCadUiStore.getState();
   const visibleElements = visibleOutlineElements(elements, useCadUiStore.getState().groupFoldById);
   const nextElementId = elementIdByOffset(visibleElements, selectedElementId, offset);
   if (!nextElementId) return;
 
   const anchorId = selectionAnchorElementId ?? selectedElementId ?? elements[0]?.id ?? nextElementId;
-  useCadDocumentStore.getState().setSelectedElementRange(anchorId, nextElementId);
+  useCadUiStore.getState().setSelectedElementRange(anchorId, nextElementId);
   clearTransientSelectionUi();
   updateDependencyJumpModeAfterSelectionChange();
 };
 
 export const selectElement = (elementId: ElementId, selectionMode: CommandContext["selectionMode"] = "replace") => {
-  const { elements, selectedElementIds, selectionAnchorElementId } = useCadDocumentStore.getState();
+  const { elements } = useCadDocumentStore.getState();
+  const { selectedElementIds, selectionAnchorElementId } = useCadUiStore.getState();
   const element = elements.find((item) => item.id === elementId);
   if (!element) return;
 
   if (selectionMode === "range") {
-    useCadDocumentStore.getState().setSelectedElementRange(selectionAnchorElementId ?? elementId, elementId);
+    useCadUiStore.getState().setSelectedElementRange(selectionAnchorElementId ?? elementId, elementId);
     clearTransientSelectionUi();
     updateDependencyJumpModeAfterSelectionChange();
     return;
@@ -217,7 +222,7 @@ export const selectElement = (elementId: ElementId, selectionMode: CommandContex
   if (selectionMode === "toggle") {
     const selection = toggleSelectionIds(elements, selectedElementIds, elementId);
     if (!selection) return;
-    useCadDocumentStore.getState().setSelectedElementIds(
+    useCadUiStore.getState().setSelectedElementIds(
       selection.selectedElementIds,
       selection.selectedElementId
     );
@@ -226,7 +231,7 @@ export const selectElement = (elementId: ElementId, selectionMode: CommandContex
     return;
   }
 
-  useCadDocumentStore.getState().setSelectedElementId(elementId);
+  useCadUiStore.getState().setSelectedElementId(elementId);
   clearTransientSelectionUi();
   updateDependencyJumpModeAfterSelectionChange();
 };
@@ -255,8 +260,8 @@ export const moveElementsToInsertionIndexWithParent = (
   insertionIndex: number,
   targetParentGroupId?: ElementId | null
 ) => {
-  const { elements, evaluationLimitIndex, selectedElementId, selectionAnchorElementId } =
-    useCadDocumentStore.getState();
+  const { elements, evaluationLimitIndex } = useCadDocumentStore.getState();
+  const { selectedElementId, selectionAnchorElementId } = useCadUiStore.getState();
   const elementsById = new Map(elements.map((element) => [element.id, element]));
   const movingRootIds = new Set(
     elements
@@ -335,7 +340,8 @@ export const moveElementToInsertionIndex = (
   insertionIndex: number,
   targetParentGroupId?: ElementId | null
 ) => {
-  const { elements, selectedElementIds } = useCadDocumentStore.getState();
+  const { elements } = useCadDocumentStore.getState();
+  const { selectedElementIds } = useCadUiStore.getState();
   const elementIds = selectedElementIds.includes(elementId) ? selectedElementIds : [elementId];
   if (selectedElementIds.includes(elementId) || elements.some((element) => element.id === elementId)) {
     moveElementsToInsertionIndexWithParent(elementIds, insertionIndex, targetParentGroupId);
@@ -354,7 +360,8 @@ export const moveEvaluationDividerByOffset = (offset: number) => {
 };
 
 export const moveEvaluationDividerToSelectedElement = () => {
-  const { elements, selectedElementId } = useCadDocumentStore.getState();
+  const { elements } = useCadDocumentStore.getState();
+  const { selectedElementId } = useCadUiStore.getState();
   const selectedIndex = elements.findIndex((element) => element.id === selectedElementId);
   if (selectedIndex < 0) return;
   setEvaluationLimitIndex(selectedIndex + 1);
@@ -513,7 +520,8 @@ export const ungroupSelectedGroup = () => {
 };
 
 export const toggleGroupExpanded = (elementId?: ElementId) => {
-  const { elements, selectedElementId } = useCadDocumentStore.getState();
+  const { elements } = useCadDocumentStore.getState();
+  const { selectedElementId } = useCadUiStore.getState();
   const targetId = elementId ?? selectedElementId ?? undefined;
   const target = targetId ? elements.find((element) => element.id === targetId) : null;
   if (!target || !isGroupElement(target)) return;
@@ -605,7 +613,7 @@ export const jumpToSelectedDependencyTarget = () => {
   const target = targets[Math.min(Math.max(selectedDependencyJumpIndex, 0), targets.length - 1)];
   if (!target) return;
 
-  useCadDocumentStore.getState().setSelectedElementId(target.id);
+  useCadUiStore.getState().setSelectedElementId(target.id);
   clearTransientSelectionUi();
   const nextTargets = selectedDependencyJumpTargets();
   useCadUiStore.setState({

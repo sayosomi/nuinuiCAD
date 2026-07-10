@@ -9,6 +9,7 @@ import {
   useCadDocumentStore,
   type CadDocumentSnapshot
 } from "./cadDocumentStore";
+import { useCadUiStore } from "./cadUiStore";
 
 // Phase 1b: 影テキスト維持機構のストア統合テスト。
 // 「コンソールに影assert警告が出ないこと」を明示的にアサートすることで、
@@ -37,7 +38,7 @@ const expectNoShadowWarnings = () => {
 const expectShadowConsistent = () => {
   const state = useCadDocumentStore.getState();
   expect(state.doc.document).not.toBeNull();
-  const afterDoc = snapshotToDslData(currentDocumentSnapshot(state));
+  const afterDoc = snapshotToDslData(currentDocumentSnapshot(state, useCadUiStore.getState()));
   expect(serializeDocumentToDsl(state.doc.document)).toBe(serializeDocumentToDsl(afterDoc));
 };
 
@@ -231,7 +232,7 @@ describe("cadDocumentStore 影テキスト: undo/redo/replaceDocument の全体�
     const doc = compiled.document!;
     useCadDocumentStore.getState().replaceDocument(
       {
-        ...currentDocumentSnapshot(useCadDocumentStore.getState()),
+        ...currentDocumentSnapshot(useCadDocumentStore.getState(), useCadUiStore.getState()),
         elements: doc.elements,
         evaluationLimitIndex: doc.evaluationLimitIndex,
         selectedElementId: doc.elements[0].id,

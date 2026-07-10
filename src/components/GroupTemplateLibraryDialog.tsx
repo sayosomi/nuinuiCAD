@@ -47,7 +47,7 @@ export const GroupTemplateLibraryDialog = () => {
   const groupTemplateLibraryMode = useCadUiStore((state) => state.groupTemplateLibraryMode);
   const elements = useCadDocumentStore((state) => state.elements);
   const evaluationLimitIndex = useCadDocumentStore((state) => state.evaluationLimitIndex);
-  const selectedElementId = useCadDocumentStore((state) => state.selectedElementId);
+  const selectedElementId = useCadUiStore((state) => state.selectedElementId);
   const [library, setLibrary] = useState<GroupTemplateLibrary>({ version: 1, templates: [] });
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [templateName, setTemplateName] = useState("");

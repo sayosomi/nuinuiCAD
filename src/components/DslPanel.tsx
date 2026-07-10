@@ -152,7 +152,7 @@ export const DslPanel = ({ commandContext, evaluation }: DslPanelProps) => {
   const visibilityProfiles = useCadDocumentStore((state) => state.visibilityProfiles);
   const activeVisibilityProfileId = useCadDocumentStore((state) => state.activeVisibilityProfileId);
   const printLayouts = useCadDocumentStore((state) => state.printLayouts);
-  const selectedElementIds = useCadDocumentStore((state) => state.selectedElementIds);
+  const selectedElementIds = useCadUiStore((state) => state.selectedElementIds);
   const evaluationLimitIndex = useCadDocumentStore((state) => state.evaluationLimitIndex);
   const commitDocumentChange = useCadDocumentStore((state) => state.commitDocumentChange);
   const panelRef = useRef<HTMLElement | null>(null);

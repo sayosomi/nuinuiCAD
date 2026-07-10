@@ -48,8 +48,8 @@ export const RightPanel = ({
 }: RightPanelProps) => {
   const rightPanelRef = useRef<HTMLElement | null>(null);
   const elements = useCadDocumentStore(effectiveElements);
-  const selectedElementId = useCadDocumentStore((state) => state.selectedElementId);
-  const selectedParameterKey = useCadDocumentStore((state) => state.selectedParameterKey);
+  const selectedElementId = useCadUiStore((state) => state.selectedElementId);
+  const selectedParameterKey = useCadUiStore((state) => state.selectedParameterKey);
   const selectedDependencyJumpIndex = useCadUiStore((state) => state.selectedDependencyJumpIndex);
   const activeExpressionInsertTarget = useCadUiStore((state) => state.activeExpressionInsertTarget);
   const expressionInsertInputTarget = useCadUiStore((state) => state.expressionInsertInputTarget);

@@ -17,6 +17,7 @@ import {
   supportsNumericVariables
 } from "../parameters/parameterAccess";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
+import { useCadUiStore } from "../state/cadUiStore";
 import type { CadElement, LineEndpointReference, NumericValue, PointAnchor } from "../types/geometry";
 import type { CommandContext } from "./commandTypes";
 import {
@@ -41,7 +42,8 @@ const parentPointAnchorParameterKey = (parameterKey: string | null | undefined) 
 };
 
 const pointAnchorParameterTarget = (context?: CommandContext) => {
-  const { elements, selectedElementId, selectedParameterKey } = useCadDocumentStore.getState();
+  const { elements } = useCadDocumentStore.getState();
+  const { selectedElementId, selectedParameterKey } = useCadUiStore.getState();
   const elementId = context?.elementId ?? selectedElementId;
   const element = elementId ? elements.find((item) => item.id === elementId) ?? null : null;
   if (!element) return null;
@@ -71,11 +73,11 @@ export const selectParameterByOffset = (offset: number) => {
   if (!selectedElement) return;
 
   const definitions = getParameterDefinitions(selectedElement);
-  const { selectedParameterKey } = useCadDocumentStore.getState();
+  const { selectedParameterKey } = useCadUiStore.getState();
   const index = definitions.findIndex((definition) => definition.key === selectedParameterKey);
   const currentIndex = index < 0 ? 0 : index;
   const nextIndex = (currentIndex + offset + definitions.length) % definitions.length;
-  useCadDocumentStore.setState({ selectedParameterKey: definitions[nextIndex].key });
+  useCadUiStore.setState({ selectedParameterKey: definitions[nextIndex].key });
 };
 
 const stepForContext = (context?: CommandContext) => context?.stepMultiplier ?? 1;
@@ -203,7 +205,7 @@ export const applyParameterDirectKey = (
   if (definition.kind === "choice") {
     const nextValue = nextChoiceValue(selectedElement, definition);
     if (nextValue === null) {
-      useCadDocumentStore.setState({ selectedParameterKey: definition.key });
+      useCadUiStore.setState({ selectedParameterKey: definition.key });
       return;
     }
     useCadDocumentStore.getState().commitDocumentChange({
@@ -218,12 +220,12 @@ export const applyParameterDirectKey = (
   }
 
   if (definition.kind === "color") {
-    useCadDocumentStore.setState({ selectedParameterKey: definition.key });
+    useCadUiStore.setState({ selectedParameterKey: definition.key });
     cycleColorParameter(1);
     return;
   }
 
-  useCadDocumentStore.setState({ selectedParameterKey: definition.key });
+  useCadUiStore.setState({ selectedParameterKey: definition.key });
   focusSelectedParameterInput?.();
 };
 
@@ -323,7 +325,7 @@ export const addNumericVariable = () => {
       numericVariables: [...(element.numericVariables ?? []), variable]
     };
   });
-  useCadDocumentStore.setState({ selectedParameterKey: `variable:${variable.id}:value` });
+  useCadUiStore.setState({ selectedParameterKey: `variable:${variable.id}:value` });
 };
 
 export const deleteNumericVariable = (variableId: string | undefined) => {
@@ -367,7 +369,7 @@ export const addBezierIntermediatePoint = () => {
       intermediatePoints: [...element.intermediatePoints, intermediatePoint]
     };
   });
-  useCadDocumentStore.setState({ selectedParameterKey: `intermediate:${intermediatePoint.id}:point` });
+  useCadUiStore.setState({ selectedParameterKey: `intermediate:${intermediatePoint.id}:point` });
 };
 
 export const deleteBezierIntermediatePoint = (intermediatePointId: string | undefined) => {
@@ -403,7 +405,7 @@ export const setSelectedPointAnchorMode = (
   if (!target) return false;
   if (mode === "coordinate" && !target.definition.allowCoordinate) return false;
   if (target.anchor?.mode === mode) {
-    useCadDocumentStore.setState({
+    useCadUiStore.setState({
       selectedParameterKey: mode === "coordinate" ? `${target.parameterKey}:x` : target.parameterKey
     });
     return true;

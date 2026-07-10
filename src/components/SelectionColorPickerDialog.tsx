@@ -8,8 +8,8 @@ export const SelectionColorPickerDialog = () => {
   const showSelectionColorPicker = useCadUiStore((state) => state.showSelectionColorPicker);
   const elements = useCadDocumentStore((state) => state.elements);
   const palette = useCadDocumentStore((state) => state.palette);
-  const selectedElementIds = useCadDocumentStore((state) => state.selectedElementIds);
-  const selectedElementId = useCadDocumentStore((state) => state.selectedElementId);
+  const selectedElementIds = useCadUiStore((state) => state.selectedElementIds);
+  const selectedElementId = useCadUiStore((state) => state.selectedElementId);
 
   if (!showSelectionColorPicker) return null;
 

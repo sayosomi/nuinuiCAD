@@ -26,8 +26,8 @@ export const ElementCommonFields = ({
 }: CommonEditorProps) => {
   const updateElement = useCadDocumentStore((state) => state.updateElement);
   const renameElement = useCadDocumentStore((state) => state.renameElement);
-  const selectedParameterKey = useCadDocumentStore((state) => state.selectedParameterKey);
-  const setSelectedParameterKey = useCadDocumentStore((state) => state.setSelectedParameterKey);
+  const selectedParameterKey = useCadUiStore((state) => state.selectedParameterKey);
+  const setSelectedParameterKey = useCadUiStore((state) => state.setSelectedParameterKey);
   const visibilityRoles = useCadDocumentStore((state) => state.visibilityRoles);
   const groupFoldById = useCadUiStore((state) => state.groupFoldById);
   const toggleGroupExpanded = useCadUiStore((state) => state.toggleGroupExpanded);

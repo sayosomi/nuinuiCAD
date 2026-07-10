@@ -12,6 +12,7 @@ import {
   useCadDocumentStore,
   type CadDocumentSnapshot
 } from "../state/cadDocumentStore";
+import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import { isTauriRuntime } from "../geometry/evaluationEngine";
 import { defaultDocumentPalette } from "../palette/palette";
 import { loadPaletteTemplateSettings } from "../palette/paletteSettingsStorage";
@@ -68,7 +69,7 @@ export const newDocument = async () => {
     .catch(() => defaultDocumentPalette());
   useCadDocumentStore.getState().replaceDocument(
     {
-      ...currentDocumentSnapshot(initialDocument),
+      ...currentDocumentSnapshot(initialDocument, initialCadUiState()),
       palette
     },
     null
@@ -99,7 +100,7 @@ export const saveDocumentAs = async () => {
   if (!path) return;
 
   const savedPath = await writeDocumentSnapshotToPath(
-    currentDocumentSnapshot(state),
+    currentDocumentSnapshot(state, useCadUiStore.getState()),
     path,
     state.currentFilePath
   );
@@ -115,7 +116,7 @@ export const saveDocument = async () => {
   }
 
   const savedPath = await writeDocumentSnapshotToPath(
-    currentDocumentSnapshot(state),
+    currentDocumentSnapshot(state, useCadUiStore.getState()),
     state.currentFilePath,
     state.currentFilePath
   );

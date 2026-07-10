@@ -31,8 +31,8 @@ export const ShortcutHelpOverlay = ({
   isDslPanelMode = false
 }: ShortcutHelpOverlayProps) => {
   const elements = useCadDocumentStore((state) => state.elements);
-  const selectedElementId = useCadDocumentStore((state) => state.selectedElementId);
-  const selectedParameterKey = useCadDocumentStore((state) => state.selectedParameterKey);
+  const selectedElementId = useCadUiStore((state) => state.selectedElementId);
+  const selectedParameterKey = useCadUiStore((state) => state.selectedParameterKey);
   const showShortcutHelp = useCadUiStore((state) => state.showShortcutHelp);
   const shortcutSettings = useCadUiStore((state) => state.shortcutSettings);
   const setShowShortcutHelp = useCadUiStore((state) => state.setShowShortcutHelp);

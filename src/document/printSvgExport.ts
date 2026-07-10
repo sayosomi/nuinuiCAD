@@ -4,6 +4,7 @@ import { isTauriRuntime } from "../geometry/evaluationEngine";
 import { printableItemsForLayout } from "../print/printGeometry";
 import { resolvePrintLayout } from "../print/printLayout";
 import { currentDocumentSnapshot, useCadDocumentStore } from "../state/cadDocumentStore";
+import { useCadUiStore } from "../state/cadUiStore";
 import { defaultPrintExportFileName, defaultPrintExportPath } from "./printExportFileName";
 import type { EvaluationResult } from "../types/geometry";
 
@@ -51,7 +52,7 @@ export const exportPrintSvg = async (evaluation: EvaluationResult | undefined) =
   }
 
   const state = useCadDocumentStore.getState();
-  const snapshot = currentDocumentSnapshot(state);
+  const snapshot = currentDocumentSnapshot(state, useCadUiStore.getState());
   const resolvedLayout = resolvePrintLayout({
     layout: snapshot.printLayout,
     elements: snapshot.elements,

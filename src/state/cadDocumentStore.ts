@@ -16,7 +16,6 @@ import {
 import { assertReconcileSane, assertShadowEquivalent, shadowAssertEnabled } from "../document/shadowTextAssert";
 import { fallbackElementName, makeUniqueElementName } from "../model/elementNames";
 import { defaultVisibilityProfile, visibilityIdFromName } from "../model/visibilityProfiles";
-import { normalizeParameterKey, type ParameterKey } from "../parameters/parameterDefinitions";
 import {
   createPaletteColor,
   defaultDocumentPalette,
@@ -50,7 +49,7 @@ export type TextSnapshot = {
 
 export type CommitTextOrigin = "file" | "test" | "bridge-internal";
 
-export type CadDocumentState = CadDocumentSelectionSnapshot & {
+export type CadDocumentState = {
   /** The only canonical document value. */
   sourceText: string;
   /** Last successful compile; never null. */
@@ -82,10 +81,6 @@ export type CadDocumentState = CadDocumentSelectionSnapshot & {
   future: TextSnapshot[];
   currentFilePath: string | null;
   dirtySinceSave: boolean;
-  setSelectedElementId: (id: ElementId | null) => void;
-  setSelectedElementIds: (ids: ElementId[], primaryId?: ElementId | null) => void;
-  setSelectedElementRange: (anchorId: ElementId, targetId: ElementId) => void;
-  setSelectedParameterKey: (selectedParameterKey: ParameterKey | null) => void;
   commitText: (nextText: string, origin: CommitTextOrigin) => void;
   previewDocumentChange: (change: Partial<CadDocumentSnapshot>) => void;
   commitDocumentChange: (change: Partial<CadDocumentSnapshot>) => void;
@@ -122,7 +117,6 @@ export type CadDocumentState = CadDocumentSelectionSnapshot & {
 };
 
 const HISTORY_LIMIT = 200;
-const uniqueElementIds = (ids: ElementId[]) => Array.from(new Set(ids));
 type DocumentCompatibilityView = Pick<
   CadDocumentState,
   | "elements"
@@ -162,51 +156,24 @@ export const effectiveElements = (
   state: Pick<CadDocumentState, "elements" | "previewElements">
 ) => state.previewElements ?? state.elements;
 
-const selectionOf = (state: CadDocumentSelectionSnapshot): CadDocumentSelectionSnapshot => ({
-  selectedElementId: state.selectedElementId,
-  selectedElementIds: state.selectedElementIds,
-  selectionAnchorElementId: state.selectionAnchorElementId,
-  selectedParameterKey: state.selectedParameterKey
+export const currentDocumentSnapshot = (
+  state: DocumentCompatibilityView,
+  selection: CadDocumentSelectionSnapshot
+): CadDocumentSnapshot => docToLegacySnapshot(documentOf(state), {
+  selectedElementId: selection.selectedElementId,
+  selectedElementIds: selection.selectedElementIds,
+  selectionAnchorElementId: selection.selectionAnchorElementId,
+  selectedParameterKey: selection.selectedParameterKey
 });
 
-export const currentDocumentSnapshot = (
-  state: DocumentCompatibilityView & CadDocumentSelectionSnapshot
-): CadDocumentSnapshot => docToLegacySnapshot(documentOf(state), selectionOf(state));
-
-const normalizedSelection = (
-  elements: CadElement[],
+const textSnapshot = (
+  state: Pick<CadDocumentState, "sourceText" | "doc">,
   selection: CadDocumentSelectionSnapshot
-): CadDocumentSelectionSnapshot => {
-  const existingIds = new Set(elements.map((element) => element.id));
-  const selectedElementIds = uniqueElementIds(selection.selectedElementIds).filter((id) => existingIds.has(id));
-  const selectedElementId =
-    selection.selectedElementId && existingIds.has(selection.selectedElementId)
-      ? selection.selectedElementId
-      : selectedElementIds[0] ?? elements[0]?.id ?? null;
-  const normalizedIds =
-    selectedElementId && !selectedElementIds.includes(selectedElementId)
-      ? [...selectedElementIds, selectedElementId]
-      : selectedElementIds;
-  const selectionAnchorElementId =
-    selection.selectionAnchorElementId && existingIds.has(selection.selectionAnchorElementId)
-      ? selection.selectionAnchorElementId
-      : selectedElementId;
-  const selectedElement = elements.find((element) => element.id === selectedElementId);
-  return {
-    selectedElementId,
-    selectedElementIds: normalizedIds,
-    selectionAnchorElementId,
-    selectedParameterKey: selectedElement
-      ? normalizeParameterKey(selectedElement, selection.selectedParameterKey)
-      : null
-  };
-};
-
-const textSnapshot = (state: CadDocumentState): TextSnapshot => ({
+): TextSnapshot => ({
   text: state.sourceText,
-  selectionElementIds: state.selectedElementIds,
-  cursorLine: state.selectedElementId
-    ? state.doc.statementMap.byElementId.get(state.selectedElementId)?.range.startLine ?? null
+  selectionElementIds: selection.selectedElementIds,
+  cursorLine: selection.selectedElementId
+    ? state.doc.statementMap.byElementId.get(selection.selectedElementId)?.range.startLine ?? null
     : null
 });
 
@@ -236,17 +203,17 @@ const canonicalFields = (value: CanonicalDocumentValue) => {
 };
 
 const selectionFromChange = (
-  state: CadDocumentState,
+  current: CadDocumentSelectionSnapshot,
   change: Partial<CadDocumentSnapshot>
 ): CadDocumentSelectionSnapshot => ({
-  selectedElementId: change.selectedElementId === undefined ? state.selectedElementId : change.selectedElementId,
-  selectedElementIds: change.selectedElementIds ?? state.selectedElementIds,
+  selectedElementId: change.selectedElementId === undefined ? current.selectedElementId : change.selectedElementId,
+  selectedElementIds: change.selectedElementIds ?? current.selectedElementIds,
   selectionAnchorElementId:
     change.selectionAnchorElementId === undefined
-      ? state.selectionAnchorElementId
+      ? current.selectionAnchorElementId
       : change.selectionAnchorElementId,
   selectedParameterKey:
-    change.selectedParameterKey === undefined ? state.selectedParameterKey : change.selectedParameterKey
+    change.selectedParameterKey === undefined ? current.selectedParameterKey : change.selectedParameterKey
 });
 
 const documentFromChange = (
@@ -270,6 +237,7 @@ const modelCommit = (
   state: CadDocumentState,
   change: Partial<CadDocumentSnapshot>
 ): Partial<CadDocumentState> => {
+  const previousSelection = useCadUiStore.getState();
   let current = state;
   if (!compatibilityViewMatchesDoc(state)) {
     // Legacy tests and transitional facade callers may seed the derived view directly.
@@ -278,7 +246,7 @@ const modelCommit = (
     current = { ...state, ...canonicalFields(rebased) };
   }
   const afterDocument = documentFromChange(current, change);
-  const requestedSelection = selectionFromChange(state, change);
+  const requestedSelection = selectionFromChange(previousSelection, change);
   const result = commitModelBridge(current, afterDocument);
 
   if (result.status === "rejected") {
@@ -286,9 +254,9 @@ const modelCommit = (
     return { previewElements: null };
   }
   if (result.status === "noop") {
+    useCadUiStore.getState().applySelection(documentOf(current).elements, requestedSelection);
     return {
       ...canonicalFields(current),
-      ...normalizedSelection(documentOf(current).elements, requestedSelection),
       previewElements: null
     };
   }
@@ -320,17 +288,17 @@ const modelCommit = (
     assertReconcileSane(current.doc, value.sourceText, afterDocument);
   }
 
+  useCadUiStore.getState().applySelection(value.doc.document.elements, requestedSelection);
   return {
     ...canonicalFields(value),
-    ...normalizedSelection(value.doc.document.elements, requestedSelection),
     previewElements: null,
-    past: appendPast(state.past, textSnapshot(current)),
+    past: appendPast(state.past, textSnapshot(current, previousSelection)),
     future: [],
     dirtySinceSave: true
   };
 };
 
-const initialSnapshot = (): CadDocumentSnapshot => ({
+const initialSnapshot = (): DslDocumentData => ({
   elements: sampleElements,
   palette: defaultDocumentPalette(),
   visibilityRoles: [],
@@ -338,12 +306,7 @@ const initialSnapshot = (): CadDocumentSnapshot => ({
   activeVisibilityProfileId: defaultVisibilityProfile().id,
   printLayouts: [DEFAULT_PRINT_LAYOUT],
   activePrintLayoutId: DEFAULT_PRINT_LAYOUT.id,
-  printLayout: DEFAULT_PRINT_LAYOUT,
-  evaluationLimitIndex: sampleElements.length,
-  selectedElementId: sampleElements[0]?.id ?? null,
-  selectedElementIds: sampleElements[0] ? [sampleElements[0].id] : [],
-  selectionAnchorElementId: sampleElements[0]?.id ?? null,
-  selectedParameterKey: sampleElements[0] ? normalizeParameterKey(sampleElements[0], null) : null
+  evaluationLimitIndex: sampleElements.length
 });
 
 export const initialCadDocumentState = (): Omit<CadDocumentState, keyof CadDocumentActions> => {
@@ -351,7 +314,6 @@ export const initialCadDocumentState = (): Omit<CadDocumentState, keyof CadDocum
   const canonical = regenerateCanonicalFromModel(snapshot);
   return {
     ...canonicalFields(canonical),
-    ...normalizedSelection(canonical.doc.document.elements, snapshot),
     previewElements: null,
     past: [],
     future: [],
@@ -362,10 +324,6 @@ export const initialCadDocumentState = (): Omit<CadDocumentState, keyof CadDocum
 
 type CadDocumentActions = Pick<
   CadDocumentState,
-  | "setSelectedElementId"
-  | "setSelectedElementIds"
-  | "setSelectedElementRange"
-  | "setSelectedParameterKey"
   | "commitText"
   | "previewDocumentChange"
   | "commitDocumentChange"
@@ -424,50 +382,17 @@ const elementWithoutColorId = (element: CadElement): CadElement => {
 
 export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
   ...initialCadDocumentState(),
-  setSelectedElementId: (selectedElementId) =>
-    set((state) => normalizedSelection(documentOf(state).elements, {
-      selectedElementId,
-      selectedElementIds: selectedElementId ? [selectedElementId] : [],
-      selectionAnchorElementId: selectedElementId,
-      selectedParameterKey: state.selectedParameterKey
-    })),
-  setSelectedElementIds: (selectedElementIds, primaryId) =>
-    set((state) => normalizedSelection(documentOf(state).elements, {
-      selectedElementId: primaryId ?? selectedElementIds[0] ?? null,
-      selectedElementIds,
-      selectionAnchorElementId: primaryId ?? selectedElementIds[0] ?? null,
-      selectedParameterKey: state.selectedParameterKey
-    })),
-  setSelectedElementRange: (anchorId, targetId) =>
-    set((state) => {
-      const elements = documentOf(state).elements;
-      const anchorIndex = elements.findIndex((element) => element.id === anchorId);
-      const targetIndex = elements.findIndex((element) => element.id === targetId);
-      if (anchorIndex < 0 || targetIndex < 0) return {};
-      const start = Math.min(anchorIndex, targetIndex);
-      const end = Math.max(anchorIndex, targetIndex);
-      return normalizedSelection(elements, {
-        selectedElementId: targetId,
-        selectedElementIds: elements.slice(start, end + 1).map((element) => element.id),
-        selectionAnchorElementId: anchorId,
-        selectedParameterKey: state.selectedParameterKey
-      });
-    }),
-  setSelectedParameterKey: (selectedParameterKey) =>
-    set((state) => normalizedSelection(documentOf(state).elements, {
-      ...selectionOf(state),
-      selectedParameterKey
-    })),
   commitText: (nextText) =>
     set((state) => {
       const normalized = nextText.replace(/\r\n/g, "\n");
       if (normalized === state.sourceText) return { previewElements: null };
+      const previousSelection = useCadUiStore.getState();
       const result = compileCanonicalText(state, normalized);
+      useCadUiStore.getState().reconcileSelectionWithElements(result.doc.document.elements);
       return {
         ...canonicalFields(result),
-        ...normalizedSelection(result.doc.document.elements, selectionOf(state)),
         previewElements: null,
-        past: appendPast(state.past, textSnapshot(state)),
+        past: appendPast(state.past, textSnapshot(state, previousSelection)),
         future: [],
         dirtySinceSave: true
       };
@@ -676,9 +601,9 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
     set(() => {
       try {
         const canonical = regenerateCanonicalFromModel(snapshot);
+        useCadUiStore.getState().applySelection(canonical.doc.document.elements, snapshot);
         return {
           ...canonicalFields(canonical),
-          ...normalizedSelection(canonical.doc.document.elements, snapshot),
           previewElements: null,
           past: [],
           future: [],
@@ -695,22 +620,22 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
     set((state) => {
       const previous = state.past.at(-1);
       if (!previous) return { previewElements: null };
+      const previousSelection = useCadUiStore.getState();
       const currentIds = new Set(state.doc.document.elements.map((element) => element.id));
       const restored = compileCanonicalText(state, previous.text, {
         createdElementIds: previous.selectionElementIds.filter((id) => !currentIds.has(id))
       });
-      const selection = normalizedSelection(restored.doc.document.elements, {
+      useCadUiStore.getState().applySelection(restored.doc.document.elements, {
         selectedElementId: previous.selectionElementIds[0] ?? null,
         selectedElementIds: previous.selectionElementIds,
         selectionAnchorElementId: previous.selectionElementIds[0] ?? null,
-        selectedParameterKey: state.selectedParameterKey
+        selectedParameterKey: previousSelection.selectedParameterKey
       });
       return {
         ...canonicalFields(restored),
-        ...selection,
         previewElements: null,
         past: state.past.slice(0, -1),
-        future: [textSnapshot(state), ...state.future],
+        future: [textSnapshot(state, previousSelection), ...state.future],
         dirtySinceSave: true
       };
     }),
@@ -718,21 +643,21 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
     set((state) => {
       const next = state.future[0];
       if (!next) return { previewElements: null };
+      const previousSelection = useCadUiStore.getState();
       const currentIds = new Set(state.doc.document.elements.map((element) => element.id));
       const restored = compileCanonicalText(state, next.text, {
         createdElementIds: next.selectionElementIds.filter((id) => !currentIds.has(id))
       });
-      const selection = normalizedSelection(restored.doc.document.elements, {
+      useCadUiStore.getState().applySelection(restored.doc.document.elements, {
         selectedElementId: next.selectionElementIds[0] ?? null,
         selectedElementIds: next.selectionElementIds,
         selectionAnchorElementId: next.selectionElementIds[0] ?? null,
-        selectedParameterKey: state.selectedParameterKey
+        selectedParameterKey: previousSelection.selectedParameterKey
       });
       return {
         ...canonicalFields(restored),
-        ...selection,
         previewElements: null,
-        past: appendPast(state.past, textSnapshot(state)),
+        past: appendPast(state.past, textSnapshot(state, previousSelection)),
         future: state.future.slice(1),
         dirtySinceSave: true
       };
@@ -742,4 +667,5 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
 useCadDocumentStore.subscribe((state, previous) => {
   if (state.doc.document.elements === previous.doc.document.elements) return;
   useCadUiStore.getState().pruneGroupFold(new Set(state.doc.document.elements.map((element) => element.id)));
+  useCadUiStore.getState().reconcileSelectionWithElements(state.doc.document.elements);
 });

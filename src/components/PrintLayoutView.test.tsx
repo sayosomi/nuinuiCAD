@@ -53,16 +53,18 @@ describe("PrintLayoutPanel", () => {
       activePrintLayoutId: DEFAULT_PRINT_LAYOUT.id,
       printLayout: DEFAULT_PRINT_LAYOUT,
       evaluationLimitIndex: elements.length,
-      selectedElementId: elements[0].id,
-      selectedElementIds: [elements[0].id],
-      selectionAnchorElementId: elements[0].id,
-      selectedParameterKey: "name",
       past: [],
       future: [],
       currentFilePath: null,
       dirtySinceSave: false
     });
-    useCadUiStore.setState(initialCadUiState());
+    useCadUiStore.setState({
+      ...initialCadUiState(),
+      selectedElementId: elements[0].id,
+      selectedElementIds: [elements[0].id],
+      selectionAnchorElementId: elements[0].id,
+      selectedParameterKey: "name"
+    });
   });
 
   it("filters printable groups by name", () => {

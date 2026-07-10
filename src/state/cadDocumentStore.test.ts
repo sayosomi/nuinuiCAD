@@ -8,6 +8,7 @@ import {
   initialCadDocumentState,
   useCadDocumentStore
 } from "./cadDocumentStore";
+import { useCadUiStore } from "./cadUiStore";
 
 describe("cadDocumentStore file state", () => {
   beforeEach(() => {
@@ -56,22 +57,24 @@ describe("cadDocumentStore file state", () => {
     expect(useCadDocumentStore.getState()).toMatchObject({
       elements: [sampleElements[1]],
       evaluationLimitIndex: 1,
-      selectedElementId: sampleElements[1].id,
-      selectedElementIds: [sampleElements[1].id],
-      selectionAnchorElementId: sampleElements[1].id,
-      selectedParameterKey: "name",
       past: [],
       future: [],
       currentFilePath: "/tmp/loaded.nuinui.json",
       dirtySinceSave: false
+    });
+    expect(useCadUiStore.getState()).toMatchObject({
+      selectedElementId: sampleElements[1].id,
+      selectedElementIds: [sampleElements[1].id],
+      selectionAnchorElementId: sampleElements[1].id,
+      selectedParameterKey: "name"
     });
   });
 
   it("does not include file state in document snapshots", () => {
     useCadDocumentStore.getState().markDocumentSaved("/tmp/pattern.nuinui.json");
 
-    expect(currentDocumentSnapshot(useCadDocumentStore.getState())).not.toHaveProperty("currentFilePath");
-    expect(currentDocumentSnapshot(useCadDocumentStore.getState())).not.toHaveProperty("dirtySinceSave");
+    expect(currentDocumentSnapshot(useCadDocumentStore.getState(), useCadUiStore.getState())).not.toHaveProperty("currentFilePath");
+    expect(currentDocumentSnapshot(useCadDocumentStore.getState(), useCadUiStore.getState())).not.toHaveProperty("dirtySinceSave");
   });
 
   it("keeps drag previews outside the committed document, history, and shadow text", () => {
@@ -122,7 +125,7 @@ describe("cadDocumentStore file state", () => {
 
     preview();
     useCadDocumentStore.getState().replaceDocument(
-      currentDocumentSnapshot(useCadDocumentStore.getState()),
+      currentDocumentSnapshot(useCadDocumentStore.getState(), useCadUiStore.getState()),
       null
     );
     expectPreviewCleared();

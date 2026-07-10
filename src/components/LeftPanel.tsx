@@ -238,8 +238,8 @@ export const LeftPanel = ({
   const palette = useCadDocumentStore((state) => state.palette);
   const visibilityRoles = useCadDocumentStore((state) => state.visibilityRoles);
   const evaluationLimitIndex = useCadDocumentStore((state) => state.evaluationLimitIndex);
-  const selectedElementId = useCadDocumentStore((state) => state.selectedElementId);
-  const selectedElementIds = useCadDocumentStore((state) => state.selectedElementIds);
+  const selectedElementId = useCadUiStore((state) => state.selectedElementId);
+  const selectedElementIds = useCadUiStore((state) => state.selectedElementIds);
   const currentFilePath = useCadDocumentStore((state) => state.currentFilePath);
   const dirtySinceSave = useCadDocumentStore((state) => state.dirtySinceSave);
   const elementSearchQuery = useCadUiStore((state) => state.elementSearchQuery);

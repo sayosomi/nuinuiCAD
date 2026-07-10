@@ -247,7 +247,7 @@ export const viewModeCommandDefinitions = {
     },
     shortcuts: [{ keys: "Mod+Shift+D", label: "選択をDSLで開く" }],
     run: (context) => {
-      const selectedElementIds = useCadDocumentStore.getState().selectedElementIds;
+      const selectedElementIds = useCadUiStore.getState().selectedElementIds;
       const requestedElementIds = context?.dslElementIds ?? (
         selectedElementIds.length > 0 ? selectedElementIds : null
       );
@@ -418,8 +418,8 @@ export const viewModeCommandDefinitions = {
         isParameterEditMode: true,
         isDependencyJumpMode: false
       });
-      useCadDocumentStore.getState().setSelectedParameterKey(
-        normalizeParameterKey(selectedElement, useCadDocumentStore.getState().selectedParameterKey)
+      useCadUiStore.getState().setSelectedParameterKey(
+        normalizeParameterKey(selectedElement, useCadUiStore.getState().selectedParameterKey)
       );
     }
   },

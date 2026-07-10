@@ -112,8 +112,8 @@ export const DrawingCanvas = ({
     useState<LinePickCandidateMenu | null>(null);
   const elements = useCadDocumentStore(effectiveElements);
   const palette = useCadDocumentStore((state) => state.palette);
-  const selectedElementId = useCadDocumentStore((state) => state.selectedElementId);
-  const selectedElementIds = useCadDocumentStore((state) => state.selectedElementIds);
+  const selectedElementId = useCadUiStore((state) => state.selectedElementId);
+  const selectedElementIds = useCadUiStore((state) => state.selectedElementIds);
   const currentFilePath = useCadDocumentStore((state) => state.currentFilePath);
   const canvasViewport = useCadUiStore((state) => state.canvasViewport);
   const panCanvasViewport = useCadUiStore((state) => state.panCanvasViewport);
@@ -172,6 +172,7 @@ export const DrawingCanvas = ({
   };
   const currentDocumentDragSnapshot = () => {
     const state = useCadDocumentStore.getState();
+    const selection = useCadUiStore.getState();
     return {
       snapshot: {
         elements: state.elements,
@@ -183,10 +184,10 @@ export const DrawingCanvas = ({
         activePrintLayoutId: state.activePrintLayoutId,
         printLayout: state.printLayout,
         evaluationLimitIndex: state.evaluationLimitIndex,
-        selectedElementId: state.selectedElementId,
-        selectedElementIds: state.selectedElementIds,
-        selectionAnchorElementId: state.selectionAnchorElementId,
-        selectedParameterKey: state.selectedParameterKey
+        selectedElementId: selection.selectedElementId,
+        selectedElementIds: selection.selectedElementIds,
+        selectionAnchorElementId: selection.selectionAnchorElementId,
+        selectedParameterKey: selection.selectedParameterKey
       },
       baseEvaluation: reusableDragEvaluation(state.elements)
     };
