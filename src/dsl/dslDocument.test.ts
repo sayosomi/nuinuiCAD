@@ -68,6 +68,64 @@ describe("dslDocument round-trip matrix", () => {
     expectSemanticallyEqualDocuments(document, { ...document, elements: parsed.elements });
   });
 
+  it("quotes multi-token numeric attributes while keeping expression values intact", () => {
+    const source = [
+      "nui 1",
+      "point A = (0, 0)",
+      "point B = (100, 0)",
+      "line AB = A -> B",
+      "point Polar = polar A angle=0 distance=1",
+      "line Length = from A angle=0 length=1",
+      "arc Arc center=A radius=1 start=0 end=90",
+      "point Tail = tangentOffset AB base=A angle=0 distance=1",
+      "if 条件 condition=1 {",
+      "  point ConditionalPoint = (0, 0)",
+      "}"
+    ].join("\n");
+    const initialResult = compileDslDocument(source);
+    expect(initialResult.diagnostics).toEqual([]);
+    expect(initialResult.document).not.toBeNull();
+    const initial = initialResult.document!;
+    const baseLine = initial.elements.find((element) => element.name === "AB" && element.type === "line")!;
+    const expression = (value: string) => ({ kind: "expression" as const, expression: value });
+    const elements = initial.elements.map((element) => {
+      if (element.name === "Polar" && element.type === "polarOffsetPoint") {
+        return { ...element, angleDeg: expression("1 + 2"), distance: expression("sqrt(9) + 1") };
+      }
+      if (element.name === "Length" && element.type === "angleLengthLine") {
+        return { ...element, length: expression("- (2 * 3)") };
+      }
+      if (element.name === "Arc" && element.type === "arcLine") {
+        return { ...element, radius: expression("10 / 2"), endAngleDeg: expression("45 + 45") };
+      }
+      if (element.name === "Tail" && element.type === "lineTangentOffsetPoint") {
+        return { ...element, distance: expression(`- (${baseLine.id}.length / 5)`) };
+      }
+      if (element.type === "conditionalGroup") {
+        return { ...element, condition: expression(`${baseLine.id}.length > 0 && 2 > 1`) };
+      }
+      return element;
+    });
+    const document = { ...initial, elements };
+    const serialized = serializeDocumentToDsl(document);
+    const compiled = compileDslDocument(serialized);
+
+    expect(serialized).toContain('angle="1 + 2"');
+    expect(serialized).toContain('distance="sqrt(9) + 1"');
+    expect(serialized).toContain('length="- (2 * 3)"');
+    expect(serialized).toContain('radius="10 / 2"');
+    expect(serialized).toContain('condition="AB.length > 0 && 2 > 1"');
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    const compiledTail = compiled.document!.elements.find((element) => element.name === "Tail");
+    const compiledCondition = compiled.document!.elements.find((element) => element.type === "conditionalGroup");
+    expect(compiledTail).toMatchObject({
+      distance: { kind: "expression", expression: expect.stringContaining(" / 5)") }
+    });
+    expect(compiledCondition).toMatchObject({
+      condition: { kind: "expression", expression: expect.stringContaining("&& 2 > 1") }
+    });
+  });
+
   it("round-trips line via -> and angleLengthLine via from/angle/length", () => {
     const { document, parsed } = roundTrip(
       ["point A = (0, 0)", "point B = (100, 0)", "line AB = A -> B", "line shoulder = from A angle=-12 length=130"].join("\n")

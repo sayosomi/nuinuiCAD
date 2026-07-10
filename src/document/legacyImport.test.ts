@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { compileDslDocument } from "../dsl/dslDocument";
 import { expectSemanticallyEqualDocuments } from "../dsl/dslDocumentTestUtils";
 import { compileDslToElements } from "../dsl/dslCompiler";
+import { evaluateElements } from "../geometry/evaluate";
 import { defaultVisibilityProfile } from "../model/visibilityProfiles";
 import { defaultDocumentPalette } from "../palette/palette";
 import { DEFAULT_PRINT_LAYOUT } from "../print/printLayout";
@@ -10,6 +11,7 @@ import { initialCadUiState } from "../state/cadUiStore";
 import type { CadElement } from "../types/geometry";
 import { CAD_DOCUMENT_APP_ID, CAD_DOCUMENT_SCHEMA_VERSION } from "./documentFormat";
 import { importLegacyCadDocument } from "./legacyImport";
+import qualifiedNegativeExpressionFixture from "./__fixtures__/legacy-qualified-negative-expression.nuinui.json?raw";
 
 const legacyContent = () => {
   const base = currentDocumentSnapshot(initialCadDocumentState(), initialCadUiState());
@@ -51,6 +53,55 @@ const legacyContent = () => {
 };
 
 describe("legacy JSON import", () => {
+  it("quotes negative qualified expressions in numeric attributes without truncating them", () => {
+    const importedText = importLegacyCadDocument(
+      qualifiedNegativeExpressionFixture,
+      "/legacy/qualified-negative-expression.nuinui.json"
+    );
+    const compiled = compileDslDocument(importedText);
+
+    expect(importedText).toContain('distance="- (@notch-height / 5)"');
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(compiled.document).not.toBeNull();
+
+    const tail = compiled.document!.elements.find((element) => element.name === "しっぽ");
+    expect(tail).toMatchObject({
+      type: "lineTangentOffsetPoint",
+      distance: { kind: "expression" }
+    });
+    expect(evaluateElements(compiled.document!.elements).errors).toEqual([]);
+  });
+
+  it("preserves legacy local-variable IDs referenced by the owning variable expression", () => {
+    const elements = compileDslToElements([
+      "point A = (0, 0) id=point-a",
+      "point B = (100, 0) id=point-b",
+      "line AB = A -> B id=line-ab",
+      "var 比率 = 0 id=ratio point1=A point2=B vars=[前:20;後ろ:30]"
+    ].join("\n"), { elements: [] }).elements.map((element) =>
+      element.type === "variable"
+        ? {
+            ...element,
+            expression: { kind: "expression" as const, expression: "@legacy-front / (@legacy-front + @legacy-back)" },
+            numericVariables: [
+              { id: "legacy-front", name: "前", value: 20 },
+              { id: "legacy-back", name: "後ろ", value: 30 }
+            ]
+          }
+        : element
+    );
+    const content = JSON.stringify({
+      app: CAD_DOCUMENT_APP_ID,
+      schemaVersion: CAD_DOCUMENT_SCHEMA_VERSION,
+      document: { elements, evaluationLimitIndex: elements.length }
+    });
+    const imported = compileDslDocument(importLegacyCadDocument(content, "/legacy/local-ids.nuinui.json"));
+
+    expect(imported.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(imported.document).not.toBeNull();
+    expect(evaluateElements(imported.document!.elements).errors).toEqual([]);
+  });
+
   it("creates deterministic .nui text, assigns names, drops legacy UI steps, and preserves image resolution", () => {
     const content = legacyContent();
     const first = importLegacyCadDocument(content, "/legacy/pattern.nuinui.json");

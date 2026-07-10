@@ -595,7 +595,7 @@ describe("DSL compiler document settings", () => {
     expect(result.elements).toHaveLength(1);
   });
 
-  it("warns on parent= attributes in document mode but not edit mode", () => {
+  it("accepts parent= attributes in document and edit modes", () => {
     const source = [
       "group 前身頃 id=g1",
       "point A = (0, 0) parent=g1"
@@ -605,9 +605,7 @@ describe("DSL compiler document settings", () => {
     expect(editResult.diagnostics).toEqual([]);
 
     const documentResult = compileDslToElements(source, { elements: [], mode: "document" });
-    const warnings = documentResult.diagnostics.filter((item) => item.severity === "warning");
-    expect(warnings.some((item) => item.message.includes("parent="))).toBe(true);
-    expect(documentResult.diagnostics.some((item) => item.severity === "error")).toBe(false);
+    expect(documentResult.diagnostics).toEqual([]);
     expect(documentResult.elements[1].parentGroupId).toBe(documentResult.elements[0].id);
   });
 });

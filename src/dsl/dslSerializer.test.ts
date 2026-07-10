@@ -79,7 +79,7 @@ describe("serializeElementsToDsl flat output", () => {
       element smv type=symmetricMove id=e5 axisPoint1=p1 axisPoint2=p2 baseLineIds=[l1]
       element cond type=conditionalGroup id=e6 condition=1
       element rep type=forGroup id=e7 variableName=i start=0 count=5 step=1 showGenerated=false
-      element img type=image id=e8 sourcePath="assets/ref.png" originPoint=p1 scale=1 angleDeg=0 mirrorX=false
+      element img type=image id=e8 sourcePath="assets/ref.png" originPoint=p1 naturalWidthPx=1 naturalHeightPx=1 sourceDpi=300 targetPixelsPerMm=11.811023622047244 scale=1 angleDeg=0 mirrorX=false
       point hidden = (5, 5) id=p8 visible=false enabled=false color=main"
     `);
   });
@@ -164,7 +164,7 @@ describe("extended lossless attributes", () => {
     expect(element.numericVariables![1].name).toBe("幅");
 
     const serialized = serializeElementsToDsl(first.elements);
-    expect(serialized).toBe("point P = (0, 0) id=p1 vars=[高さ:10;幅:@local-variable-1 * 2]");
+    expect(serialized).toBe("point P = (0, 0) id=p1 vars=[高さ:10;幅:@local-variable-1 * 2] varIds=[local-variable-1,local-variable-2]");
 
     const second = compileDslToElements(serialized, { elements: [] });
     expect(second.diagnostics).toEqual([]);

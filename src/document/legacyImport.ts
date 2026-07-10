@@ -48,5 +48,7 @@ export const importLegacyCadDocument = (content: string, legacyPath: string): st
     activePrintLayoutId: legacy.activePrintLayoutId,
     evaluationLimitIndex: legacy.evaluationLimitIndex
   };
-  return serializeDocumentToDsl(document);
+  // 旧JSONは親子グループが文書順に連続しているとは限らない。ブロックへ
+  // 再配置すると評価順が変わるため、ID/parent 属性で元の順序をそのまま保つ。
+  return serializeDocumentToDsl(document, { preserveElementOrder: true });
 };

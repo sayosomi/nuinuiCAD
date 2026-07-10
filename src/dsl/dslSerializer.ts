@@ -17,7 +17,7 @@ import type {
 import { formatNumericValueForDsl } from "./dslExpressionFormat";
 import { formatDslReferencePath, formatDslReferenceToken } from "./dslReferenceTokens";
 import type { SerializeDslOptions } from "./dslTypes";
-import { formatDslName, quoteDslString } from "./dslTokens";
+import { formatDslName, quoteDslString, splitDslTerms } from "./dslTokens";
 
 // 要素→DSL文の変換は、参照の書き方(生ID or 解決可能な名前トークン)を
 // DslSerializerRefs として注入する。serializeElementsToDsl(DslPanelの
@@ -27,10 +27,16 @@ export type DslSerializerRefs = {
   anchor: (value: PointAnchor | null | undefined, source: CadElement) => string;
   endpoint: (value: LineEndpointReference, source: CadElement) => string;
   numeric: (value: NumericValue, source: CadElement) => string;
+  numericAttribute: (value: NumericValue, source: CadElement) => string;
   name: (element: CadElement) => string;
   baseAttrs: (element: CadElement) => string[];
   includeRecordIds: boolean;
 };
+
+// 属性は空白で区切られるため、`distance=- (@height / 5)` のような
+// 複数トークンの式は値を引用しないと `distance=-` だけが読まれてしまう。
+const numericAttributeValue = (value: string) =>
+  splitDslTerms(value).length === 1 ? value : quoteDslString(value);
 
 const commonBaseAttrs = (element: CadElement, includeParameterSteps = false) => [
   ...(element.locked ? ["locked=true"] : []),
@@ -54,11 +60,12 @@ const flatAnchor = (value: PointAnchor | null | undefined) => {
   return `(${numericValueExpression(value.x)}, ${numericValueExpression(value.y)})`;
 };
 
-const flatRefs = (options: SerializeDslOptions): DslSerializerRefs => ({
+export const flatRefs = (options: SerializeDslOptions): DslSerializerRefs => ({
   token: (id) => id,
   anchor: (value) => flatAnchor(value),
   endpoint: (value) => `${value.lineId}.${value.endpointKey}`,
   numeric: (value) => numericValueExpression(value),
+  numericAttribute: (value) => numericAttributeValue(numericValueExpression(value)),
   name: (element) => formatDslName(element.name || element.id),
   baseAttrs: (element) => [
     ...(options.includeIds === false ? [] : [`id=${element.id}`]),
@@ -100,6 +107,7 @@ export const documentDslRefs = (elements: CadElement[]): DslSerializerRefs => {
     },
     endpoint: (value, source) => `${token(value.lineId, source)}.${value.endpointKey}`,
     numeric,
+    numericAttribute: (value, source) => numericAttributeValue(numeric(value, source)),
     // 無名要素は名前トークンを一切出力しない(空文字列)。ID
     // フォールバックは「参照される側」(token関数)のみの役割で、
     // 「文自身の名前」には適用しない — さもないと無名要素が
@@ -133,7 +141,8 @@ const localVariableAttrs = (element: CadElement, refs: DslSerializerRefs) => {
   return [
     `vars=[${element.numericVariables.map((variable) =>
       `${formatDslName(variable.name)}:${refs.numeric(variable.value, element)}`
-    ).join(";")}]`
+    ).join(";")}]`,
+    ...(refs.includeRecordIds ? [`varIds=[${element.numericVariables.map((variable) => variable.id).join(",")}]`] : [])
   ];
 };
 
@@ -176,6 +185,7 @@ export const serializeElementStatement = (
   const anchor = (value: PointAnchor | null | undefined) => refs.anchor(value, element);
   const endpoint = (value: LineEndpointReference) => refs.endpoint(value, element);
   const numeric = (value: NumericValue) => refs.numeric(value, element);
+  const numericAttribute = (value: NumericValue) => refs.numericAttribute(value, element);
   const token = (id: ElementId) => refs.token(id, element);
 
   switch (element.type) {
@@ -212,8 +222,8 @@ export const serializeElementStatement = (
         "=",
         "offset",
         anchor(pointAnchorForElement(element)),
-        `dx=${numeric(element.dx)}`,
-        `dy=${numeric(element.dy)}`,
+        `dx=${numericAttribute(element.dx)}`,
+        `dy=${numericAttribute(element.dy)}`,
         ...attrs
       ].filter(Boolean).join(" ");
     case "polarOffsetPoint":
@@ -223,8 +233,8 @@ export const serializeElementStatement = (
         "=",
         "polar",
         anchor(pointAnchorForElement(element)),
-        `angle=${numeric(element.angleDeg)}`,
-        `distance=${numeric(element.distance)}`,
+        `angle=${numericAttribute(element.angleDeg)}`,
+        `distance=${numericAttribute(element.distance)}`,
         ...attrs
       ].filter(Boolean).join(" ");
     case "line":
@@ -236,8 +246,8 @@ export const serializeElementStatement = (
         "=",
         "from",
         anchor(element.startPoint),
-        `angle=${numeric(element.angleDeg)}`,
-        `length=${numeric(element.length)}`,
+        `angle=${numericAttribute(element.angleDeg)}`,
+        `length=${numericAttribute(element.length)}`,
         ...attrs
       ].filter(Boolean).join(" ");
     case "arcLine":
@@ -245,9 +255,9 @@ export const serializeElementStatement = (
         "arc",
         name,
         `center=${anchor(element.centerPoint)}`,
-        `radius=${numeric(element.radius)}`,
-        `start=${numeric(element.startAngleDeg)}`,
-        `end=${numeric(element.endAngleDeg)}`,
+        `radius=${numericAttribute(element.radius)}`,
+        `start=${numericAttribute(element.startAngleDeg)}`,
+        `end=${numericAttribute(element.endAngleDeg)}`,
         ...attrs
       ].filter(Boolean).join(" ");
     case "text":
@@ -257,7 +267,7 @@ export const serializeElementStatement = (
         "=",
         quoteDslString(element.text),
         `at=${anchor(element.anchor)}`,
-        `size=${numeric(element.fontSize)}`,
+        `size=${numericAttribute(element.fontSize)}`,
         ...attrs
       ].filter(Boolean).join(" ");
     case "divisionPoint":
@@ -269,8 +279,8 @@ export const serializeElementStatement = (
         anchor(element.startPoint),
         anchor(element.endPoint),
         element.placementMode === "distance"
-          ? `distance=${numeric(element.distance)}`
-          : `ratio=${numeric(element.ratio)}`,
+          ? `distance=${numericAttribute(element.distance)}`
+          : `ratio=${numericAttribute(element.ratio)}`,
         ...attrs
       ].filter(Boolean).join(" ");
     case "lineDivisionPoint":
@@ -281,8 +291,8 @@ export const serializeElementStatement = (
         "on",
         endpoint(element.endpoint),
         element.placementMode === "distance"
-          ? `distance=${numeric(element.distance)}`
-          : `ratio=${numeric(element.ratio)}`,
+          ? `distance=${numericAttribute(element.distance)}`
+          : `ratio=${numericAttribute(element.ratio)}`,
         ...attrs
       ].filter(Boolean).join(" ");
     case "intersectionPoint":
@@ -293,7 +303,7 @@ export const serializeElementStatement = (
         "intersection",
         token(element.line1Id),
         token(element.line2Id),
-        `index=${numeric(element.intersectionIndex)}`,
+        `index=${numericAttribute(element.intersectionIndex)}`,
         `extensions=${element.useExtensions}`,
         ...attrs
       ].filter(Boolean).join(" ");
@@ -305,8 +315,8 @@ export const serializeElementStatement = (
         "tangentOffset",
         token(element.baseLineId),
         `base=${anchor(element.basePoint)}`,
-        `angle=${numeric(element.tangentAngleDeg)}`,
-        `distance=${numeric(element.distance)}`,
+        `angle=${numericAttribute(element.tangentAngleDeg)}`,
+        `distance=${numericAttribute(element.distance)}`,
         ...attrs
       ].filter(Boolean).join(" ");
     case "cornerRadiusArcLine":
@@ -317,8 +327,8 @@ export const serializeElementStatement = (
         "corner",
         endpoint(element.endpoint1),
         endpoint(element.endpoint2),
-        `radius=${numeric(element.radius)}`,
-        `index=${numeric(element.intersectionIndex)}`,
+        `radius=${numericAttribute(element.radius)}`,
+        `index=${numericAttribute(element.intersectionIndex)}`,
         ...attrs
       ].filter(Boolean).join(" ");
     case "edge":
@@ -326,7 +336,7 @@ export const serializeElementStatement = (
         ...localVariableAttrs(element, refs),
         `endpoint1=${endpoint(element.endpoint1)}`,
         `endpoint2=${endpoint(element.endpoint2)}`,
-        `intersectionIndex=${numeric(element.intersectionIndex)}`
+        `intersectionIndex=${numericAttribute(element.intersectionIndex)}`
       ]);
     case "extendTrim":
       return [
@@ -346,10 +356,10 @@ export const serializeElementStatement = (
         anchor(element.startPoint),
         "->",
         anchor(element.endPoint),
-        `startAngle=${numeric(element.startHandleAngleDeg)}`,
-        `startLength=${numeric(element.startHandleLength)}`,
-        `endAngle=${numeric(element.endHandleAngleDeg)}`,
-        `endLength=${numeric(element.endHandleLength)}`,
+        `startAngle=${numericAttribute(element.startHandleAngleDeg)}`,
+        `startLength=${numericAttribute(element.startHandleLength)}`,
+        `endAngle=${numericAttribute(element.endHandleAngleDeg)}`,
+        `endLength=${numericAttribute(element.endHandleLength)}`,
         ...intermediatePoints(element, refs),
         ...attrs
       ].filter(Boolean).join(" ");
@@ -360,7 +370,7 @@ export const serializeElementStatement = (
         "=",
         "offset",
         `[${element.baseLineIds.map(token).join(",")}]`,
-        `distance=${numeric(element.offset)}`,
+        `distance=${numericAttribute(element.offset)}`,
         `side=${element.side}`,
         `closed=${element.closed}`,
         ...attrs
@@ -381,8 +391,8 @@ export const serializeElementStatement = (
         ...localVariableAttrs(element, refs),
         `startPoint=${anchor(element.startPoint)}`,
         `endPoint=${anchor(element.endPoint)}`,
-        `scale=${numeric(element.scale)}`,
-        `angleDeg=${numeric(element.angleDeg)}`,
+        `scale=${numericAttribute(element.scale)}`,
+        `angleDeg=${numericAttribute(element.angleDeg)}`,
         `mirrorX=${element.mirrorX}`,
         `baseLineIds=[${element.baseLineIds.map(token).join(",")}]`
       ]);
@@ -403,22 +413,22 @@ export const serializeElementStatement = (
         anchor(element.point1),
         anchor(element.point2),
         anchor(element.point3),
-        `start=${numeric(element.startAngleDeg)}`,
-        `end=${numeric(element.endAngleDeg)}`,
+        `start=${numericAttribute(element.startAngleDeg)}`,
+        `end=${numericAttribute(element.endAngleDeg)}`,
         ...attrs
       ].filter(Boolean).join(" ");
     case "conditionalGroup":
       return elementLine(element, refs, [
         ...localVariableAttrs(element, refs),
-        `condition=${numeric(element.condition)}`,
+        `condition=${numericAttribute(element.condition)}`,
       ]);
     case "forGroup":
       return elementLine(element, refs, [
         ...localVariableAttrs(element, refs),
         `variableName=${element.variableName}`,
-        `start=${numeric(element.start)}`,
-        `count=${numeric(element.count)}`,
-        `step=${numeric(element.step)}`,
+        `start=${numericAttribute(element.start)}`,
+        `count=${numericAttribute(element.count)}`,
+        `step=${numericAttribute(element.step)}`,
         `showGenerated=${element.showGenerated}`
       ]);
     case "image":
@@ -426,14 +436,14 @@ export const serializeElementStatement = (
         ...localVariableAttrs(element, refs),
         `sourcePath=${quoteDslString(element.sourcePath)}`,
         `originPoint=${anchor(element.originPoint)}`,
-        ...(refs.includeRecordIds ? [] : [
+        ...[
           `naturalWidthPx=${element.naturalWidthPx}`,
           `naturalHeightPx=${element.naturalHeightPx}`,
           `sourceDpi=${element.sourceDpi}`,
           `targetPixelsPerMm=${element.targetPixelsPerMm}`
-        ]),
-        `scale=${numeric(element.scale)}`,
-        `angleDeg=${numeric(element.angleDeg)}`,
+        ],
+        `scale=${numericAttribute(element.scale)}`,
+        `angleDeg=${numericAttribute(element.angleDeg)}`,
         `mirrorX=${element.mirrorX}`
       ]);
   }

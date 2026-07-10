@@ -10,6 +10,7 @@ import type {
   CadElementType,
   DocumentPalette,
   ElementId,
+  NumericValue,
   NumericVariable,
   PaletteColor,
   PrintLayout,
@@ -135,6 +136,19 @@ const splitByColonOutsideQuotes = (value: string) => {
   return parts;
 };
 
+const remapLocalVariableReferences = (
+  value: NumericValue,
+  idMap: Map<string, string>
+): NumericValue => {
+  if (typeof value !== "object" || value === null || value.kind !== "expression") return value;
+  return {
+    ...value,
+    expression: value.expression.replace(/@([^\s()+*/.<>!=&|]+)/g, (match, id: string) =>
+      idMap.has(id) ? `@${idMap.get(id)}` : match
+    )
+  };
+};
+
 const parseIntermediatePoints = (
   value: string,
   index: NameIndex,
@@ -223,6 +237,24 @@ const applyCommonAttributes = (
         });
       });
       next = { ...next, numericVariables: variables };
+      continue;
+    }
+    if (key === "varIds") {
+      const ids = splitDslList(value);
+      const variables = next.numericVariables ?? [];
+      if (ids.length !== variables.length || ids.some((id) => !id.trim())) {
+        diagnostics.push(warning(line, "varIds は vars と同じ数の空でないIDを指定してください。"));
+        continue;
+      }
+      const idMap = new Map(variables.map((variable, index) => [variable.id, ids[index]]));
+      next = {
+        ...next,
+        numericVariables: variables.map((variable, index) => ({
+          ...variable,
+          id: ids[index],
+          value: remapLocalVariableReferences(variable.value, idMap)
+        }))
+      };
       continue;
     }
     if (
@@ -806,16 +838,6 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
     }
   }
 
-  if (documentMode) {
-    for (const statement of elementStatements) {
-      if (attr(statement.attrs, "parent") && !blockContextOf(statement)) {
-        diagnostics.push(warning(statement.line, "parent= 属性は非推奨です。ブレースブロックで構造を書いてください。"));
-      }
-      if (attr(statement.attrs, "branch")) {
-        diagnostics.push(warning(statement.line, "branch= 属性は非推奨です。「} else {」ブロックで書いてください。"));
-      }
-    }
-  }
   for (const statement of elementStatements) {
     if (attr(statement.attrs, "expanded")) {
       diagnostics.push(warning(statement.line, "expanded= 属性は非推奨です。折りたたみ状態は保存されません。"));

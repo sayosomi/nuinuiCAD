@@ -22,6 +22,7 @@ import { formatNumericValueForDsl } from "./dslExpressionFormat";
 import { parseDsl } from "./dslParser";
 import {
   documentDslRefs,
+  flatRefs,
   serializeElementStatement,
   serializeVisibilitySettingsLines,
   type DslSerializerRefs
@@ -47,6 +48,8 @@ export type DslDocumentData = {
 
 export type SerializeDslDocumentOptions = {
   headerComment?: string;
+  /** Keep the supplied element order and legacy ID references instead of nesting blocks. */
+  preserveElementOrder?: boolean;
 };
 
 export type ParseDslDocumentResult = {
@@ -391,13 +394,15 @@ export const serializeDocumentToDsl = (
   data: DslDocumentData,
   options: SerializeDslDocumentOptions = {}
 ): string => {
-  const refs = documentDslRefs(data.elements);
+  const refs = options.preserveElementOrder ? flatRefs({}) : documentDslRefs(data.elements);
   const sections: string[][] = [
     [`nui ${DSL_VERSION}`, ...(options.headerComment ? [`# ${options.headerComment}`] : [])],
     serializePaletteLines(data.palette),
     serializeVisibilitySettingsLines(data.visibilityRoles, data.visibilityProfiles, data.activeVisibilityProfileId),
     serializePrintLayoutSection(data),
-    serializeElementTree(data.elements, refs, data.evaluationLimitIndex)
+    options.preserveElementOrder
+      ? data.elements.map((element) => serializeElementStatement(element, refs))
+      : serializeElementTree(data.elements, refs, data.evaluationLimitIndex)
   ];
   return sections
     .filter((section) => section.length > 0)
