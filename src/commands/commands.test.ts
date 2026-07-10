@@ -417,13 +417,13 @@ describe("commands", () => {
           type: "group",
           visible: true,
           enabled: true,
-          expanded: true
         },
         { ...sampleElements[0], parentGroupId: "group-1" },
         sampleElements[1]
       ],
       evaluationLimitIndex: 2
     });
+    useCadStore.setState({ groupFoldById: new Map([["group-1", { expanded: true }]]) });
 
     dispatchCommand("addFreePoint");
 
@@ -444,7 +444,6 @@ describe("commands", () => {
           type: "group",
           visible: true,
           enabled: true,
-          expanded: true
         },
         { ...sampleElements[0], parentGroupId: "group-1" },
         { ...sampleElements[1], parentGroupId: "group-1" },
@@ -452,6 +451,7 @@ describe("commands", () => {
       ],
       evaluationLimitIndex: 2
     });
+    useCadStore.setState({ groupFoldById: new Map([["group-1", { expanded: true }]]) });
 
     dispatchCommand("addFreePoint");
 
@@ -473,7 +473,6 @@ describe("commands", () => {
           type: "group",
           visible: true,
           enabled: true,
-          expanded: false
         },
         { ...sampleElements[0], parentGroupId: "group-1" },
         sampleElements[1]
@@ -497,7 +496,6 @@ describe("commands", () => {
         type: "group",
         visible: true,
         enabled: true,
-        expanded: true
       },
       { ...sampleElements[0], parentGroupId: "group-1" },
       sampleElements[1]
@@ -506,6 +504,7 @@ describe("commands", () => {
       elements,
       evaluationLimitIndex: 2
     });
+    useCadStore.setState({ groupFoldById: new Map([["group-1", { expanded: true }]]) });
 
     dispatchCommand("addConditionalGroup");
 
@@ -519,6 +518,7 @@ describe("commands", () => {
       elements,
       evaluationLimitIndex: 2
     });
+    useCadStore.setState({ groupFoldById: new Map([["group-1", { expanded: true }]]) });
 
     dispatchCommand("addForGroup");
 
@@ -539,14 +539,13 @@ describe("commands", () => {
           visible: true,
           enabled: true,
           condition: 1,
-          expanded: true,
-          elseExpanded: true
         },
         { ...sampleElements[0], parentGroupId: "if", conditionalBranch: "else" },
         sampleElements[1]
       ],
       evaluationLimitIndex: 2
     });
+    useCadStore.setState({ groupFoldById: new Map([["if", { expanded: true }]]) });
 
     dispatchCommand("addFreePoint");
 
@@ -581,7 +580,7 @@ describe("commands", () => {
 
     const grouped = useCadStore.getState().elements;
     const group = grouped[1];
-    expect(group).toMatchObject({ type: "group", expanded: false });
+    expect(group).toMatchObject({ type: "group" });
     expect(grouped[2]).toMatchObject({ id: sampleElements[1].id, parentGroupId: group.id });
     expect(grouped[3]).toMatchObject({ id: sampleElements[2].id, parentGroupId: group.id });
     expect(useCadStore.getState()).toMatchObject({
@@ -608,7 +607,6 @@ describe("commands", () => {
       type: "group",
       visible: true,
       enabled: true,
-      expanded: true
     };
     useCadStore.setState({
       elements: [
@@ -648,7 +646,6 @@ describe("commands", () => {
       visible: true,
       enabled: true,
       locked: true,
-      expanded: true
     };
     useCadStore.setState({
       elements: [group, ...sampleElements],
@@ -668,7 +665,7 @@ describe("commands", () => {
     expect(useCadStore.getState().commandErrorMessage).toContain("ロック");
   });
 
-  it("adds an expanded empty group and creates following elements inside it", () => {
+  it("adds a collapsed empty group and leaves following elements at the root", () => {
     useCadStore.setState({
       evaluationLimitIndex: 2,
       selectedElementId: sampleElements[0].id,
@@ -680,7 +677,8 @@ describe("commands", () => {
 
     const groupState = useCadStore.getState();
     const group = groupState.elements[2];
-    expect(group).toMatchObject({ type: "group", expanded: true });
+    expect(group).toMatchObject({ type: "group" });
+    expect(useCadStore.getState().groupFoldById.get(group.id)?.expanded ?? false).toBe(false);
     expect(groupState).toMatchObject({
       evaluationLimitIndex: 3,
       selectedElementId: group.id,
@@ -693,11 +691,39 @@ describe("commands", () => {
     dispatchCommand("addFreePoint");
 
     const pointState = useCadStore.getState();
-    expect(pointState.elements[3]).toMatchObject({
-      type: "freePoint",
-      parentGroupId: group.id
-    });
+    expect(pointState.elements[3]).toMatchObject({ type: "freePoint" });
+    expect(pointState.elements[3].parentGroupId).toBeUndefined();
     expect(pointState.evaluationLimitIndex).toBe(4);
+  });
+
+  it("toggles group folding without changing document history, dirty state, or shadow text", () => {
+    const group: CadElement = {
+      id: "group-fold",
+      name: "身頃",
+      type: "group",
+      visible: true,
+      enabled: true
+    };
+    useCadStore.setState({
+      elements: [group],
+      evaluationLimitIndex: 1,
+      selectedElementId: group.id,
+      selectedElementIds: [group.id],
+      selectionAnchorElementId: group.id,
+      dirtySinceSave: false,
+      past: [],
+      future: []
+    });
+    const shadowText = useCadStore.getState().shadowText;
+
+    dispatchCommand("toggleGroupExpanded");
+
+    const state = useCadStore.getState();
+    expect(state.groupFoldById.get(group.id)?.expanded).toBe(true);
+    expect(state.past).toEqual([]);
+    expect(state.future).toEqual([]);
+    expect(state.dirtySinceSave).toBe(false);
+    expect(state.shadowText).toBe(shadowText);
   });
 
   it("adds a new empty group inside the current expanded group", () => {
@@ -709,7 +735,6 @@ describe("commands", () => {
           type: "group",
           visible: true,
           enabled: true,
-          expanded: true
         },
         { ...sampleElements[0], parentGroupId: "group-1" },
         sampleElements[1]
@@ -719,6 +744,7 @@ describe("commands", () => {
       selectedElementIds: [sampleElements[0].id],
       selectionAnchorElementId: sampleElements[0].id
     });
+    useCadStore.setState({ groupFoldById: new Map([["group-1", { expanded: true }]]) });
 
     dispatchCommand("addGroup");
 
@@ -727,7 +753,6 @@ describe("commands", () => {
     expect(nestedGroup).toMatchObject({
       type: "group",
       parentGroupId: "group-1",
-      expanded: true
     });
     expect(groupState.evaluationLimitIndex).toBe(3);
 
@@ -735,7 +760,7 @@ describe("commands", () => {
 
     expect(useCadStore.getState().elements[3]).toMatchObject({
       type: "freePoint",
-      parentGroupId: nestedGroup.id
+      parentGroupId: "group-1"
     });
   });
 
@@ -748,7 +773,6 @@ describe("commands", () => {
           type: "group",
           visible: true,
           enabled: true,
-          expanded: true
         },
         { ...sampleElements[0], parentGroupId: "group-1" },
         sampleElements[1]
@@ -783,8 +807,6 @@ describe("commands", () => {
     expect(state.elements[2]).toMatchObject({
       type: "conditionalGroup",
       condition: 1,
-      expanded: false,
-      elseExpanded: true
     });
     expect(state.evaluationLimitIndex).toBe(3);
     expect(state.selectedElementId).toBe(state.elements[2].id);
@@ -806,8 +828,6 @@ describe("commands", () => {
     expect(group).toMatchObject({
       type: "conditionalGroup",
       condition: 1,
-      expanded: false,
-      elseExpanded: true
     });
     expect(state.elements[2]).toMatchObject({
       id: sampleElements[1].id,
@@ -844,7 +864,6 @@ describe("commands", () => {
       start: 0,
       count: 3,
       step: 1,
-      expanded: false,
       showGenerated: false
     });
     expect(state.evaluationLimitIndex).toBe(3);
@@ -864,7 +883,7 @@ describe("commands", () => {
 
     const state = useCadStore.getState();
     const group = state.elements[1];
-    expect(group).toMatchObject({ type: "forGroup", count: 3, expanded: false });
+    expect(group).toMatchObject({ type: "forGroup", count: 3 });
     expect(state.elements[2]).toMatchObject({
       id: sampleElements[1].id,
       parentGroupId: group.id
@@ -896,7 +915,6 @@ describe("commands", () => {
           start: 0,
           count: 3,
           step: 1,
-          expanded: true,
           showGenerated: false
         }
       ],
@@ -921,8 +939,6 @@ describe("commands", () => {
           visible: true,
           enabled: true,
           condition: 1,
-          expanded: true,
-          elseExpanded: false
         },
         { ...sampleElements[1], parentGroupId: "if", conditionalBranch: "then" }
       ],
@@ -934,7 +950,8 @@ describe("commands", () => {
     dispatchCommand("addElseBranchToSelectedConditionalGroup");
 
     const state = useCadStore.getState();
-    expect(state.elements[1]).toMatchObject({ type: "conditionalGroup", elseExpanded: true });
+    expect(state.elements[1]).toMatchObject({ type: "conditionalGroup" });
+    expect(useCadStore.getState().groupFoldById.get("if")?.elseExpanded).toBe(true);
     expect(state.elements[2]).toMatchObject({ conditionalBranch: "else" });
   });
 
@@ -948,7 +965,6 @@ describe("commands", () => {
           type: "group",
           visible: true,
           enabled: true,
-          expanded: true
         },
         { ...sampleElements[1], parentGroupId: "group-1" },
         { ...sampleElements[2], parentGroupId: "group-1" },
@@ -979,7 +995,6 @@ describe("commands", () => {
           type: "group",
           visible: true,
           enabled: true,
-          expanded: true
         },
         { ...sampleElements[0], parentGroupId: "group-1" },
         sampleElements[1],
@@ -1024,7 +1039,6 @@ describe("commands", () => {
           type: "group",
           visible: true,
           enabled: true,
-          expanded: true
         },
         {
           id: "group-2",
@@ -1032,7 +1046,6 @@ describe("commands", () => {
           type: "group",
           visible: true,
           enabled: true,
-          expanded: true,
           parentGroupId: "group-1"
         },
         sampleElements[0]
@@ -1585,7 +1598,6 @@ describe("commands", () => {
       type: "group",
       visible: true,
       enabled: true,
-      expanded: true,
       printEnabled: false
     };
     useCadStore.setState({
@@ -1689,7 +1701,6 @@ describe("commands", () => {
       visible: true,
       enabled: true,
       locked: true,
-      expanded: true
     };
     useCadStore.setState({
       elements: [
@@ -3180,7 +3191,6 @@ describe("commands", () => {
         start: 0,
         count: 3,
         step: 1,
-        expanded: true,
         showGenerated: true
       },
       {
@@ -3235,7 +3245,6 @@ describe("commands", () => {
         start: 0,
         count: 3,
         step: 1,
-        expanded: true,
         showGenerated: true
       },
       {
@@ -3327,7 +3336,6 @@ describe("commands", () => {
         start: 0,
         count: 3,
         step: 1,
-        expanded: true,
         showGenerated: true
       },
       {
@@ -3593,7 +3601,6 @@ describe("commands", () => {
         start: 0,
         count: 3,
         step: 1,
-        expanded: true,
         showGenerated: true
       },
       {
@@ -3657,7 +3664,6 @@ describe("commands", () => {
         start: 0,
         count: 3,
         step: 1,
-        expanded: true,
         showGenerated: true
       },
       {

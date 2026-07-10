@@ -347,7 +347,6 @@ describe("LeftPanel numeric input dragging", () => {
       start: 0,
       count: 3,
       step: 1,
-      expanded: true,
       showGenerated: false
     };
     useCadStore.setState({
@@ -567,7 +566,6 @@ describe("LeftPanel numeric input dragging", () => {
       start: 0,
       count: 3,
       step: 2,
-      expanded: true,
       showGenerated: false
     });
     renderRightPanel();
@@ -589,8 +587,6 @@ describe("LeftPanel numeric input dragging", () => {
       visible: true,
       enabled: true,
       condition: 0,
-      expanded: true,
-      elseExpanded: true
     });
     renderRightPanel();
 
@@ -1002,8 +998,6 @@ describe("LeftPanel numeric input dragging", () => {
       visible: true,
       enabled: true,
       condition: { kind: "expression", expression: "line-ab.length > 0" },
-      expanded: true,
-      elseExpanded: false
     };
     useCadStore.setState({
       elements: [...sampleElements, conditionalGroup],
@@ -1058,8 +1052,6 @@ describe("LeftPanel numeric input dragging", () => {
       visible: true,
       enabled: true,
       condition: 0,
-      expanded: true,
-      elseExpanded: false
     };
     useCadStore.setState({
       elements: [...sampleElements, conditionalGroup],
@@ -1981,7 +1973,6 @@ describe("LeftPanel element list dragging", () => {
       type: "group",
       visible: true,
       enabled: true,
-      expanded: true,
       printEnabled: false
     };
     useCadStore.setState({
@@ -2012,7 +2003,6 @@ describe("LeftPanel element list dragging", () => {
       type: "group",
       visible: true,
       enabled: true,
-      expanded: true,
       printEnabled: false
     };
     useCadStore.setState({
@@ -2039,7 +2029,6 @@ describe("LeftPanel element list dragging", () => {
       type: "group",
       visible: true,
       enabled: true,
-      expanded: true,
       printEnabled: false
     };
     useCadStore.setState({
@@ -2050,6 +2039,7 @@ describe("LeftPanel element list dragging", () => {
       evaluationLimitIndex: 2,
       showPrintLayout: true
     });
+    useCadStore.setState({ groupFoldById: new Map([[group.id, { expanded: true }]]) });
     renderLeftPanel();
 
     fireEvent.click(screen.getByRole("button", { name: "前身頃を印刷する" }));
@@ -2176,7 +2166,6 @@ describe("LeftPanel element list dragging", () => {
       type: "group",
       visible: true,
       enabled: true,
-      expanded: true,
       printEnabled: false
     };
     useCadStore.setState({
@@ -2187,6 +2176,7 @@ describe("LeftPanel element list dragging", () => {
       evaluationLimitIndex: 1,
       showPrintLayout: true
     });
+    useCadStore.setState({ groupFoldById: new Map([[group.id, { expanded: true }]]) });
     renderLeftPanel();
 
     fireEvent.contextMenu(screen.getByText("前身頃").closest("[data-element-list-row='true']")!, {
@@ -2295,7 +2285,6 @@ describe("LeftPanel element list dragging", () => {
       type: "group",
       visible: true,
       enabled: true,
-      expanded: true
     };
     const variable: CadElement = {
       id: "base-variable",
@@ -2391,7 +2380,6 @@ describe("LeftPanel element list dragging", () => {
         start: 0,
         count: 3,
         step: 1,
-        expanded: true,
         showGenerated: true
       },
       {
@@ -2409,6 +2397,7 @@ describe("LeftPanel element list dragging", () => {
       elements,
       evaluationLimitIndex: elements.length
     });
+    useCadStore.setState({ groupFoldById: new Map([["loop", { expanded: true }]]) });
 
     renderLeftPanel(evaluateElements(elements));
 
@@ -2433,7 +2422,6 @@ describe("LeftPanel element list dragging", () => {
         start: 0,
         count: 1,
         step: 1,
-        expanded: true,
         showGenerated: true
       },
       {
@@ -2451,6 +2439,7 @@ describe("LeftPanel element list dragging", () => {
       elements,
       evaluationLimitIndex: elements.length
     });
+    useCadStore.setState({ groupFoldById: new Map([["loop", { expanded: true }]]) });
 
     renderLeftPanel(evaluateElements(elements));
 
@@ -2472,7 +2461,6 @@ describe("LeftPanel element list dragging", () => {
         start: 0,
         count: 2,
         step: 1,
-        expanded: true,
         showGenerated: true
       },
       {
@@ -2591,7 +2579,6 @@ describe("LeftPanel element list dragging", () => {
           type: "group",
           visible: true,
           enabled: true,
-          expanded: false
         },
         { ...sampleElements[0], parentGroupId: "group-1" },
         sampleElements[1]
@@ -2600,6 +2587,7 @@ describe("LeftPanel element list dragging", () => {
       selectedElementIds: ["group-1"],
       selectionAnchorElementId: "group-1"
     });
+    useCadStore.setState({ groupFoldById: new Map([["group-1", { expanded: true }]]) });
 
     renderLeftPanel();
 
@@ -2641,7 +2629,6 @@ describe("LeftPanel element list dragging", () => {
           type: "group",
           visible: true,
           enabled: true,
-          expanded: true
         },
         { ...sampleElements[0], parentGroupId: "group-1" },
         { ...sampleElements[1], parentGroupId: "group-1" }
@@ -2650,6 +2637,7 @@ describe("LeftPanel element list dragging", () => {
       selectedElementIds: ["group-1"],
       selectionAnchorElementId: "group-1"
     });
+    useCadStore.setState({ groupFoldById: new Map([["group-1", { expanded: true }]]) });
 
     renderLeftPanel();
 
@@ -2676,7 +2664,6 @@ describe("LeftPanel element list dragging", () => {
           type: "group",
           visible: true,
           enabled: true,
-          expanded: true
         },
         { ...sampleElements[0], parentGroupId: "group-1" }
       ],
@@ -2684,12 +2671,13 @@ describe("LeftPanel element list dragging", () => {
       selectedElementIds: ["group-1"],
       selectionAnchorElementId: "group-1"
     });
+    useCadStore.setState({ groupFoldById: new Map([["group-1", { expanded: true }]]) });
 
     renderLeftPanel();
 
     fireEvent.click(screen.getByRole("button", { name: /身頃を折り畳む/ }));
 
-    expect(useCadStore.getState().elements[0]).toMatchObject({ expanded: false });
+    expect(useCadStore.getState().groupFoldById.get("group-1")?.expanded).toBe(false);
     expect(screen.queryByText("点A")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /身頃を展開/ })).toBeInTheDocument();
   });
@@ -2746,7 +2734,6 @@ describe("LeftPanel element list dragging", () => {
           type: "group",
           visible: true,
           enabled: true,
-          expanded: true
         },
         { ...sampleElements[0], parentGroupId: "group-1" },
         sampleElements[1],
@@ -2782,7 +2769,6 @@ describe("LeftPanel element list dragging", () => {
           type: "group",
           visible: true,
           enabled: true,
-          expanded: true
         },
         { ...sampleElements[0], parentGroupId: "group-1" },
         { ...sampleElements[1], parentGroupId: "group-1" },
@@ -2792,6 +2778,7 @@ describe("LeftPanel element list dragging", () => {
       selectedElementIds: [sampleElements[0].id],
       selectionAnchorElementId: sampleElements[0].id
     });
+    useCadStore.setState({ groupFoldById: new Map([["group-1", { expanded: true }]]) });
     renderLeftPanel();
     mockElementListRowRects();
     const handle = screen.getByLabelText("点Aを並び替え");

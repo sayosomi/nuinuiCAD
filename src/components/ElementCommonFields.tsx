@@ -3,6 +3,8 @@ import { elementSupportsDisplayColor } from "../palette/colorApplicability";
 import { supportsNumericVariables } from "../parameters/parameterAccess";
 import type { ParameterKey } from "../parameters/parameterDefinitions";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
+import { useCadUiStore } from "../state/cadUiStore";
+import { isElseExpanded, isGroupExpanded } from "../model/groups";
 import type { CadElement } from "../types/geometry";
 import {
   BooleanParameterEditor,
@@ -27,6 +29,9 @@ export const ElementCommonFields = ({
   const selectedParameterKey = useCadDocumentStore((state) => state.selectedParameterKey);
   const setSelectedParameterKey = useCadDocumentStore((state) => state.setSelectedParameterKey);
   const visibilityRoles = useCadDocumentStore((state) => state.visibilityRoles);
+  const groupFoldById = useCadUiStore((state) => state.groupFoldById);
+  const toggleGroupExpanded = useCadUiStore((state) => state.toggleGroupExpanded);
+  const toggleElseExpanded = useCadUiStore((state) => state.toggleElseExpanded);
   const commonEditorProps = { element, elements, evaluation, isParameterEditMode, registerParameterControl };
   const elementEditorProps = { element, isParameterEditMode, registerParameterControl };
 
@@ -133,12 +138,10 @@ export const ElementCommonFields = ({
             anchor={element.printAnchor ?? { mode: "coordinate", x: 0, y: 0 }}
             allowCoordinate
           />
-          <BooleanParameterEditor
-            {...elementEditorProps}
-            parameterKey="expanded"
-            label="展開する"
-            checked={element.expanded}
-          />
+          <label className="parameter-field">
+            <span>展開する</span>
+            <input type="checkbox" checked={isGroupExpanded(element.id, groupFoldById)} onChange={() => toggleGroupExpanded(element.id)} />
+          </label>
         </>
       )}
       {element.type === "conditionalGroup" && (
@@ -152,18 +155,14 @@ export const ElementCommonFields = ({
             enableExpressionInsert
             showStepControl={false}
           />
-          <BooleanParameterEditor
-            {...elementEditorProps}
-            parameterKey="expanded"
-            label="thenを展開する"
-            checked={element.expanded}
-          />
-          <BooleanParameterEditor
-            {...elementEditorProps}
-            parameterKey="elseExpanded"
-            label="elseを展開する"
-            checked={element.elseExpanded}
-          />
+          <label className="parameter-field">
+            <span>thenを展開する</span>
+            <input type="checkbox" checked={isGroupExpanded(element.id, groupFoldById)} onChange={() => toggleGroupExpanded(element.id)} />
+          </label>
+          <label className="parameter-field">
+            <span>elseを展開する</span>
+            <input type="checkbox" checked={isElseExpanded(element.id, groupFoldById)} onChange={() => toggleElseExpanded(element.id)} />
+          </label>
         </>
       )}
 

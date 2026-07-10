@@ -24,7 +24,6 @@ const group: CadElement = {
   type: "group",
   visible: true,
   enabled: true,
-  expanded: true,
   printEnabled: true,
   printAnchor: { mode: "coordinate", x: 0, y: 0 }
 };

@@ -60,7 +60,6 @@ export const createCadElement = (
         type,
         visible: true,
         enabled: true,
-        expanded: false,
         printEnabled: false,
         printAnchor: { mode: "coordinate", x: 0, y: 0 }
       };
@@ -75,8 +74,6 @@ export const createCadElement = (
         visible: true,
         enabled: true,
         condition: 1,
-        expanded: false,
-        elseExpanded: true
       };
     }
     case "forGroup": {
@@ -92,7 +89,6 @@ export const createCadElement = (
         start: 0,
         count: 3,
         step: 1,
-        expanded: false,
         showGenerated: false
       };
     }

@@ -184,7 +184,6 @@ export const serializeElementStatement = (
         "group",
         name,
         ...attrs,
-        `expanded=${element.expanded}`,
         ...(element.printEnabled ? ["printEnabled=true"] : []),
         ...(defaultPrintAnchor ? [] : [`printAnchor=${anchor(element.printAnchor)}`])
       ].filter(Boolean).join(" ");
@@ -407,8 +406,6 @@ export const serializeElementStatement = (
       return elementLine(element, refs, [
         ...localVariableAttrs(element, refs),
         `condition=${numeric(element.condition)}`,
-        `expanded=${element.expanded}`,
-        `elseExpanded=${element.elseExpanded}`
       ]);
     case "forGroup":
       return elementLine(element, refs, [
@@ -417,7 +414,6 @@ export const serializeElementStatement = (
         `start=${numeric(element.start)}`,
         `count=${numeric(element.count)}`,
         `step=${numeric(element.step)}`,
-        `expanded=${element.expanded}`,
         `showGenerated=${element.showGenerated}`
       ]);
     case "image":

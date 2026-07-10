@@ -97,7 +97,6 @@ export const getParameterDefinitions = (element: CadElement): ParameterDefinitio
           label: "印刷基準点",
           allowCoordinate: true
         }),
-        { key: "expanded", directKey: "x", label: "展開", kind: "boolean" }
       ];
     case "conditionalGroup":
       return [
@@ -109,8 +108,6 @@ export const getParameterDefinitions = (element: CadElement): ParameterDefinitio
           kind: "number",
           emptyInputDefaultValue: 1
         },
-        { key: "expanded", directKey: "x", label: "then展開", kind: "boolean" },
-        { key: "elseExpanded", directKey: "e", label: "else展開", kind: "boolean" }
       ];
     case "forGroup":
       return [
@@ -125,7 +122,6 @@ export const getParameterDefinitions = (element: CadElement): ParameterDefinitio
           kind: "number",
           emptyInputDefaultValue: 1
         },
-        { key: "expanded", directKey: "x", label: "展開", kind: "boolean" },
         { key: "showGenerated", directKey: "g", label: "生成結果を表示", kind: "boolean" }
       ];
     case "variable":

@@ -18,7 +18,6 @@ const group = (
   type: "group",
   visible: true,
   enabled: true,
-  expanded: true,
   ...patch
 });
 

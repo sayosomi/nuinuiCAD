@@ -28,7 +28,6 @@ describe("elementSupportsDisplayColor", () => {
       type: "group",
       visible: true,
       enabled: true,
-      expanded: true
     };
 
     expect(elementSupportsDisplayColor(point)).toBe(true);

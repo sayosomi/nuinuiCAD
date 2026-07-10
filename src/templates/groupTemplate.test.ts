@@ -30,7 +30,6 @@ const elements: CadElement[] = [
     type: "group",
     visible: true,
     enabled: true,
-    expanded: true
   },
   {
     id: "sleeve-length",
@@ -169,7 +168,6 @@ describe("group templates", () => {
         type: "group",
         visible: true,
         enabled: true,
-        expanded: true
       },
       {
         id: "scale",

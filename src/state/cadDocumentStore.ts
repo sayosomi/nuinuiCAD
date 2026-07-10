@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { useCadUiStore } from "./cadUiStore";
 import { sampleElements } from "../sampleData";
 import { fallbackElementName, makeUniqueElementName } from "../model/elementNames";
 import { normalizedElementFields } from "../model/elementNormalization";
@@ -749,3 +750,8 @@ export const useCadDocumentStore = create<CadDocumentState>((set) => ({
       };
     })
 }));
+
+useCadDocumentStore.subscribe((state, previous) => {
+  if (state.elements === previous.elements) return;
+  useCadUiStore.getState().pruneGroupFold(new Set(state.elements.map((element) => element.id)));
+});

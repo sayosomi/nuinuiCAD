@@ -17,7 +17,6 @@ const elements: CadElement[] = [
     start: 0,
     count: 3,
     step: 1,
-    expanded: true,
     showGenerated: true
   },
   {

@@ -7,6 +7,8 @@ import {
 import { ParameterName } from "./ParameterName";
 import type { CommonEditorProps } from "./parameterEditorShared";
 import { useParameterEditor } from "./parameterEditorShared";
+import { useCadUiStore } from "../state/cadUiStore";
+import { isGroupExpanded } from "../model/groups";
 
 export const ForGroupElementFields = ({
   element,
@@ -19,6 +21,8 @@ export const ForGroupElementFields = ({
   const elementEditorProps = { element, isParameterEditMode, registerParameterControl };
   const { controlProps, parameterFieldClass, selectParameter, updateParameterValue } =
     useParameterEditor(elementEditorProps);
+  const groupFoldById = useCadUiStore((state) => state.groupFoldById);
+  const toggleGroupExpanded = useCadUiStore((state) => state.toggleGroupExpanded);
 
   if (element.type !== "forGroup") return null;
 
@@ -62,12 +66,10 @@ export const ForGroupElementFields = ({
         value: element.step,
         ariaLabel: "ステップ"
       })}
-      <BooleanParameterEditor
-        {...elementEditorProps}
-        parameterKey="expanded"
-        label="展開する"
-        checked={element.expanded}
-      />
+      <label className="parameter-field">
+        <span>展開する</span>
+        <input type="checkbox" checked={isGroupExpanded(element.id, groupFoldById)} onChange={() => toggleGroupExpanded(element.id)} />
+      </label>
       <BooleanParameterEditor
         {...elementEditorProps}
         parameterKey="showGenerated"

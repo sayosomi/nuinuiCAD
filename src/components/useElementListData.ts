@@ -39,7 +39,8 @@ import type {
   ActiveLinePickTarget,
   ActiveNumericReferencePickTarget,
   ActivePickCursor,
-  ActivePointPickTarget
+  ActivePointPickTarget,
+  CadUiState
 } from "../state/cadUiStore";
 
 const isComputedLine = (geometry: ComputedGeometry | undefined): geometry is ComputedLine =>
@@ -65,7 +66,8 @@ export const useElementListData = ({
   activePointPickTarget,
   activeNumericReferencePickTarget,
   activeLinePickTarget,
-  activePickCursor
+  activePickCursor,
+  groupFoldById
 }: {
   elements: CadElement[];
   evaluation: EvaluationResult;
@@ -76,6 +78,7 @@ export const useElementListData = ({
   activeNumericReferencePickTarget: ActiveNumericReferencePickTarget | null;
   activeLinePickTarget: ActiveLinePickTarget | null;
   activePickCursor: ActivePickCursor | null;
+  groupFoldById: CadUiState["groupFoldById"];
 }) => {
   const visibilityProfiles = useCadDocumentStore((state) => state.visibilityProfiles);
   const visibilityRoles = useCadDocumentStore((state) => state.visibilityRoles);
@@ -86,7 +89,7 @@ export const useElementListData = ({
   const evaluatedElementIds =
     evaluation.evaluatedElementIds ?? new Set(elements.map((element) => element.id));
   const elementsById = new Map(elements.map((element) => [element.id, element]));
-  const outlineElements = visibleOutlineElements(elements);
+  const outlineElements = visibleOutlineElements(elements, groupFoldById);
   const isSearchActive = elementSearchQuery.trim().length > 0;
   const roleNamesById = useMemo(
     () => visibilityRoleNamesById(visibilityRoles),
@@ -96,7 +99,7 @@ export const useElementListData = ({
     () => elementSearchResults(elements, elementSearchQuery, roleNamesById),
     [elements, elementSearchQuery, roleNamesById]
   );
-  const groupStates = groupStateByElementId(elements);
+  const groupStates = groupStateByElementId(elements, groupFoldById);
   const baseEffectiveVisibleIds = evaluation.effectiveVisibleElementIds ?? effectiveVisibleElementIds(elements);
   const profile = visibilityProfileById(visibilityProfiles, activeVisibilityProfileId);
   const profileVisibleIds = effectiveVisibleElementIdsForProfile({ elements, profile });

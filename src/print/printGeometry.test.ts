@@ -10,7 +10,6 @@ const elements: CadElement[] = [
     type: "group",
     visible: true,
     enabled: true,
-    expanded: true,
     printEnabled: true,
     printAnchor: { mode: "reference", pointId: "origin" }
   },
@@ -88,7 +87,6 @@ const elements: CadElement[] = [
     type: "group",
     visible: true,
     enabled: true,
-    expanded: true,
     printEnabled: false,
     printAnchor: { mode: "coordinate", x: 0, y: 0 }
   }
@@ -229,7 +227,6 @@ describe("printGeometry", () => {
         type: "group",
         visible: true,
         enabled: true,
-        expanded: true,
         parentGroupId: "print-group",
         visibilityRoleIds: ["seam"]
       },

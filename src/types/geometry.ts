@@ -323,7 +323,6 @@ export type TextElement = CadElementBase & {
 
 export type GroupElement = CadElementBase & {
   type: "group";
-  expanded: boolean;
   printEnabled?: boolean;
   printAnchor?: PointAnchor;
   visibilityRoleIds?: string[];
@@ -332,8 +331,6 @@ export type GroupElement = CadElementBase & {
 export type ConditionalGroupElement = CadElementBase & {
   type: "conditionalGroup";
   condition: NumericValue;
-  expanded: boolean;
-  elseExpanded: boolean;
 };
 
 export type ForGroupElement = CadElementBase & {
@@ -342,7 +339,6 @@ export type ForGroupElement = CadElementBase & {
   start: NumericValue;
   count: NumericValue;
   step: NumericValue;
-  expanded: boolean;
   showGenerated: boolean;
 };
 

@@ -8,6 +8,15 @@ import type {
 
 export type GroupLikeElement = GroupElement | ConditionalGroupElement | ForGroupElement;
 
+export type GroupFoldState = { expanded?: boolean; elseExpanded?: boolean };
+export type GroupFoldById = ReadonlyMap<ElementId, GroupFoldState>;
+
+export const isGroupExpanded = (id: ElementId, groupFoldById?: GroupFoldById) =>
+  groupFoldById?.get(id)?.expanded ?? false;
+
+export const isElseExpanded = (id: ElementId, groupFoldById?: GroupFoldById) =>
+  groupFoldById?.get(id)?.elseExpanded ?? true;
+
 export const isGroupElement = (element: CadElement): element is GroupLikeElement =>
   element.type === "group" || element.type === "conditionalGroup" || element.type === "forGroup";
 
@@ -27,7 +36,7 @@ export type ElementGroupState = {
   isCollapsedByGroup: boolean;
 };
 
-export const groupStateByElementId = (elements: CadElement[]) => {
+export const groupStateByElementId = (elements: CadElement[], groupFoldById?: GroupFoldById) => {
   const byId = new Map(elements.map((element) => [element.id, element]));
   const cache = new Map<ElementId, ElementGroupState>();
 
@@ -66,10 +75,10 @@ export const groupStateByElementId = (elements: CadElement[]) => {
 
     const collapsedByParent =
       parentState.isCollapsedByGroup ||
-      !parent.expanded ||
+      !isGroupExpanded(parent.id, groupFoldById) ||
       (isConditionalGroupElement(parent) &&
         element.conditionalBranch === "else" &&
-        !parent.elseExpanded);
+        !isElseExpanded(parent.id, groupFoldById));
     const state: ElementGroupState = {
       depth: parentState.depth + 1,
       ancestorGroupIds: [...parentState.ancestorGroupIds, parent.id],
@@ -125,8 +134,8 @@ export const subtreeIdsForElement = (elements: CadElement[], elementId: ElementI
     : [element.id];
 };
 
-export const visibleOutlineElements = (elements: CadElement[]) => {
-  const states = groupStateByElementId(elements);
+export const visibleOutlineElements = (elements: CadElement[], groupFoldById?: GroupFoldById) => {
+  const states = groupStateByElementId(elements, groupFoldById);
   return elements.filter((element) => !states.get(element.id)?.isCollapsedByGroup);
 };
 

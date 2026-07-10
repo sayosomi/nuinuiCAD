@@ -165,7 +165,11 @@ const blockedDestructiveChange = (
 
 export const selectElementByOffset = (offset: number) => {
   const { elements, selectedElementId } = useCadDocumentStore.getState();
-  const nextElementId = elementIdByOffset(visibleOutlineElements(elements), selectedElementId, offset);
+  const nextElementId = elementIdByOffset(
+    visibleOutlineElements(elements, useCadUiStore.getState().groupFoldById),
+    selectedElementId,
+    offset
+  );
   if (!nextElementId) return;
 
   useCadDocumentStore.getState().setSelectedElementId(nextElementId);
@@ -188,7 +192,7 @@ export const selectAllElements = () => {
 
 export const extendSelectionByOffset = (offset: number) => {
   const { elements, selectedElementId, selectionAnchorElementId } = useCadDocumentStore.getState();
-  const visibleElements = visibleOutlineElements(elements);
+  const visibleElements = visibleOutlineElements(elements, useCadUiStore.getState().groupFoldById);
   const nextElementId = elementIdByOffset(visibleElements, selectedElementId, offset);
   if (!nextElementId) return;
 
@@ -431,10 +435,14 @@ export const groupSelectedElements = (context?: CommandContext) => {
 
 export const addGroup = (context?: CommandContext) => {
   const { elements, evaluationLimitIndex } = useCadDocumentStore.getState();
-  const placement = creationPlacementForEvaluationLimit(elements, evaluationLimitIndex);
+  const placement = creationPlacementForEvaluationLimit(
+    elements,
+    evaluationLimitIndex,
+    useCadUiStore.getState().groupFoldById
+  );
   const { insertionIndex } = placement;
   const group = applyCreationPlacement(
-    { ...createCadElement("group", elements), expanded: true },
+    createCadElement("group", elements),
     placement
   );
 
@@ -509,13 +517,7 @@ export const toggleGroupExpanded = (elementId?: ElementId) => {
   const targetId = elementId ?? selectedElementId ?? undefined;
   const target = targetId ? elements.find((element) => element.id === targetId) : null;
   if (!target || !isGroupElement(target)) return;
-  const expanded = target.expanded;
-
-  useCadDocumentStore.getState().commitDocumentChange({
-    elements: elements.map((element) =>
-      element.id === target.id ? { ...element, expanded: !expanded } : element
-    )
-  });
+  useCadUiStore.getState().toggleGroupExpanded(target.id);
 };
 
 export const indentSelectedElements = () => {
@@ -563,12 +565,11 @@ export const outdentSelectedElements = () => {
     elements: elements.map((element) =>
       selectedTopLevelIds.has(element.id)
         ? { ...element, parentGroupId: firstParent.parentGroupId }
-        : element.id === firstParent.id && isGroupElement(element) && !element.expanded
-          ? { ...element, expanded: true }
-          : element
+        : element
     ),
     selectionAnchorElementId: selectedTopLevel[0].id
   });
+  useCadUiStore.getState().setGroupFold(firstParent.id, { expanded: true });
 };
 
 export const selectParentGroup = () => {

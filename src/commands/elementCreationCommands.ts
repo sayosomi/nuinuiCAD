@@ -6,6 +6,7 @@ import {
 import { withCreatedElementName } from "../model/elementNames";
 import { derivedAnchor, referenceAnchor } from "../model/pointAnchors";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
+import { useCadUiStore } from "../state/cadUiStore";
 import type { CadElement, CadElementType } from "../types/geometry";
 import type { CommandContext } from "./commandTypes";
 import { getSelectedElementIds, isLineLikeElement, isPointLikeElement } from "./commandRuntime";
@@ -18,7 +19,11 @@ const creationContext = () => {
   const { elements, evaluationLimitIndex } = useCadDocumentStore.getState();
   return {
     elements,
-    ...creationPlacementForEvaluationLimit(elements, evaluationLimitIndex)
+    ...creationPlacementForEvaluationLimit(
+      elements,
+      evaluationLimitIndex,
+      useCadUiStore.getState().groupFoldById
+    )
   };
 };
 
@@ -31,7 +36,11 @@ const commitCreatedElement = (
   insertionIndex: number,
   context?: CommandContext
 ) => {
-  const placement = creationPlacementForEvaluationLimit(elements, insertionIndex);
+  const placement = creationPlacementForEvaluationLimit(
+    elements,
+    insertionIndex,
+    useCadUiStore.getState().groupFoldById
+  );
   const placedElement = withCreatedElementName(
     applyCreationPlacement(element, placement),
     elements,

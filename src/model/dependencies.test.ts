@@ -137,8 +137,6 @@ describe("dependencies", () => {
       visible: true,
       enabled: true,
       condition: { kind: "expression", expression: "ab.length >= 100 || bc.length >= 100" },
-      expanded: true,
-      elseExpanded: true
     };
 
     expect(getDirectParentIds(group)).toEqual(["ab", "bc"]);

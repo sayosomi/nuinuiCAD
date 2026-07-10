@@ -3,6 +3,8 @@ import { sampleElements } from "../sampleData";
 import type { CadElement } from "../types/geometry";
 import { creationPlacementForEvaluationLimit } from "./elementCreationPlacement";
 
+const openFolds = (...ids: string[]) => new Map(ids.map((id) => [id, { expanded: true }]));
+
 describe("element creation placement", () => {
   it("uses the root when the evaluation divider is not after a group subtree", () => {
     const placement = creationPlacementForEvaluationLimit(sampleElements, 2);
@@ -20,13 +22,12 @@ describe("element creation placement", () => {
         type: "group",
         visible: true,
         enabled: true,
-        expanded: true
       },
       { ...sampleElements[0], parentGroupId: "group" },
       sampleElements[1]
     ];
 
-    const placement = creationPlacementForEvaluationLimit(elements, 2);
+    const placement = creationPlacementForEvaluationLimit(elements, 2, openFolds("group"));
 
     expect(placement).toMatchObject({
       insertionIndex: 2,
@@ -42,14 +43,13 @@ describe("element creation placement", () => {
         type: "group",
         visible: true,
         enabled: true,
-        expanded: true
       },
       { ...sampleElements[0], parentGroupId: "group" },
       { ...sampleElements[1], parentGroupId: "group" },
       sampleElements[2]
     ];
 
-    const placement = creationPlacementForEvaluationLimit(elements, 2);
+    const placement = creationPlacementForEvaluationLimit(elements, 2, openFolds("group"));
 
     expect(placement).toMatchObject({
       insertionIndex: 2,
@@ -65,13 +65,12 @@ describe("element creation placement", () => {
         type: "group",
         visible: true,
         enabled: true,
-        expanded: true
       },
       { ...sampleElements[0], parentGroupId: "group" },
       sampleElements[1]
     ];
 
-    const placement = creationPlacementForEvaluationLimit(elements, 1);
+    const placement = creationPlacementForEvaluationLimit(elements, 1, openFolds("group"));
 
     expect(placement.parentGroupId).toBe("group");
   });
@@ -84,12 +83,11 @@ describe("element creation placement", () => {
         type: "group",
         visible: true,
         enabled: true,
-        expanded: true
       },
       sampleElements[0]
     ];
 
-    const placement = creationPlacementForEvaluationLimit(elements, 1);
+    const placement = creationPlacementForEvaluationLimit(elements, 1, openFolds("group"));
 
     expect(placement.parentGroupId).toBe("group");
   });
@@ -102,7 +100,6 @@ describe("element creation placement", () => {
         type: "group",
         visible: true,
         enabled: true,
-        expanded: false
       },
       { ...sampleElements[0], parentGroupId: "group" },
       sampleElements[1]
@@ -122,7 +119,6 @@ describe("element creation placement", () => {
         type: "group",
         visible: true,
         enabled: true,
-        expanded: true
       },
       {
         id: "inner",
@@ -130,13 +126,12 @@ describe("element creation placement", () => {
         type: "group",
         visible: true,
         enabled: true,
-        expanded: false,
         parentGroupId: "outer"
       },
       { ...sampleElements[0], parentGroupId: "inner" }
     ];
 
-    const placement = creationPlacementForEvaluationLimit(elements, 3);
+    const placement = creationPlacementForEvaluationLimit(elements, 3, openFolds("outer"));
 
     expect(placement.parentGroupId).toBe("outer");
   });
@@ -149,7 +144,6 @@ describe("element creation placement", () => {
         type: "group",
         visible: true,
         enabled: true,
-        expanded: true
       },
       {
         id: "inner",
@@ -157,14 +151,13 @@ describe("element creation placement", () => {
         type: "group",
         visible: true,
         enabled: true,
-        expanded: false,
         parentGroupId: "outer"
       },
       { ...sampleElements[0], parentGroupId: "inner" },
       { ...sampleElements[1], parentGroupId: "outer" }
     ];
 
-    const placement = creationPlacementForEvaluationLimit(elements, 2);
+    const placement = creationPlacementForEvaluationLimit(elements, 2, openFolds("outer"));
 
     expect(placement.parentGroupId).toBe("outer");
   });
@@ -177,7 +170,6 @@ describe("element creation placement", () => {
         type: "group",
         visible: true,
         enabled: true,
-        expanded: true
       },
       {
         id: "inner",
@@ -185,12 +177,11 @@ describe("element creation placement", () => {
         type: "group",
         visible: true,
         enabled: true,
-        expanded: true,
         parentGroupId: "outer"
       }
     ];
 
-    const placement = creationPlacementForEvaluationLimit(elements, 2);
+    const placement = creationPlacementForEvaluationLimit(elements, 2, openFolds("outer", "inner"));
 
     expect(placement.parentGroupId).toBe("inner");
   });
@@ -204,14 +195,12 @@ describe("element creation placement", () => {
         visible: true,
         enabled: true,
         condition: 1,
-        expanded: true,
-        elseExpanded: true
       },
       { ...sampleElements[0], parentGroupId: "if", conditionalBranch: "then" },
       { ...sampleElements[1], parentGroupId: "if", conditionalBranch: "else" }
     ];
 
-    const placement = creationPlacementForEvaluationLimit(elements, 3);
+    const placement = creationPlacementForEvaluationLimit(elements, 3, openFolds("if"));
 
     expect(placement).toMatchObject({
       parentGroupId: "if",
@@ -231,13 +220,12 @@ describe("element creation placement", () => {
         start: 0,
         count: 3,
         step: 1,
-        expanded: true,
         showGenerated: false
       },
       { ...sampleElements[0], parentGroupId: "loop" }
     ];
 
-    const placement = creationPlacementForEvaluationLimit(elements, 2);
+    const placement = creationPlacementForEvaluationLimit(elements, 2, openFolds("loop"));
 
     expect(placement.parentGroupId).toBe("loop");
   });

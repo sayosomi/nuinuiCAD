@@ -83,7 +83,11 @@ export const startTemplateInsertion = ({ template, insertionIndex }: {
   insertionIndex?: number;
 }) => {
   const { elements, evaluationLimitIndex } = useCadDocumentStore.getState();
-  const placement = creationPlacementForEvaluationLimit(elements, insertionIndex ?? evaluationLimitIndex);
+  const placement = creationPlacementForEvaluationLimit(
+    elements,
+    insertionIndex ?? evaluationLimitIndex,
+    useCadUiStore.getState().groupFoldById
+  );
   const inputValues = defaultTemplateInputValues(template);
   const insertion: ActiveTemplateInsertion = {
     template,

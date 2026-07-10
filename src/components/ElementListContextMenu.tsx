@@ -3,6 +3,8 @@ import { dispatchCommand, type CommandContext, type CommandId } from "../command
 import { isForGroupElement, isGroupElement } from "../model/groups";
 import { elementSupportsDisplayColor } from "../palette/colorApplicability";
 import type { CadElement, ElementId } from "../types/geometry";
+import { useCadUiStore } from "../state/cadUiStore";
+import { isGroupExpanded } from "../model/groups";
 
 export type ElementListContextMenuState = {
   elementId: ElementId;
@@ -53,13 +55,15 @@ const menuItemsForElement = ({
   element,
   selectedElements,
   showPrintControls,
-  targetEvaluationLimitIndex
+  targetEvaluationLimitIndex,
+  groupFoldById
 }: {
   commandContext: CommandContext;
   element: CadElement;
   selectedElements: CadElement[];
   showPrintControls: boolean;
   targetEvaluationLimitIndex: number;
+  groupFoldById: ReturnType<typeof useCadUiStore.getState>["groupFoldById"];
 }): MenuItem[] => {
   const selectedCount = selectedElements.length;
   const hasColorTarget = selectedElements.some(elementSupportsDisplayColor);
@@ -112,7 +116,7 @@ const menuItemsForElement = ({
     items.push({
       kind: "command",
       commandId: "toggleGroupExpanded",
-      label: element.expanded ? "折り畳む" : "展開する",
+      label: isGroupExpanded(element.id, groupFoldById) ? "折り畳む" : "展開する",
       context: { elementId: element.id }
     });
   }
@@ -180,6 +184,7 @@ export const ElementListContextMenu = ({
   y,
   onClose
 }: ElementListContextMenuProps) => {
+  const groupFoldById = useCadUiStore((state) => state.groupFoldById);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const [position, setPosition] = useState({ x, y });
   const items = useMemo(
@@ -189,9 +194,10 @@ export const ElementListContextMenu = ({
         element,
         selectedElements,
         showPrintControls,
-        targetEvaluationLimitIndex
+        targetEvaluationLimitIndex,
+        groupFoldById
       }),
-    [commandContext, element, selectedElements, showPrintControls, targetEvaluationLimitIndex]
+    [commandContext, element, selectedElements, showPrintControls, targetEvaluationLimitIndex, groupFoldById]
   );
 
   useLayoutEffect(() => {

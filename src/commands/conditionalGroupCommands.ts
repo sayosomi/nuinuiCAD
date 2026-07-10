@@ -6,6 +6,7 @@ import {
 import { adjustEvaluationLimitForInsertion } from "../model/evaluationDivider";
 import { isConditionalGroupElement } from "../model/groups";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
+import { useCadUiStore } from "../state/cadUiStore";
 import type { CadElement, ElementId } from "../types/geometry";
 import type { CommandContext } from "./commandTypes";
 import { getSelectedElement, getSelectedElementIds } from "./commandRuntime";
@@ -31,7 +32,11 @@ export const addConditionalGroup = (
   context?: CommandContext
 ) => {
   const { elements, evaluationLimitIndex } = useCadDocumentStore.getState();
-  const placement = creationPlacementForEvaluationLimit(elements, evaluationLimitIndex);
+  const placement = creationPlacementForEvaluationLimit(
+    elements,
+    evaluationLimitIndex,
+    useCadUiStore.getState().groupFoldById
+  );
   const { insertionIndex } = placement;
   const group = applyCreationPlacement(createCadElement("conditionalGroup", elements), placement);
 
@@ -103,7 +108,7 @@ export const addElseBranchToSelectedConditionalGroup = () => {
   const selectedIds = new Set(getSelectedElementIds());
   const selected = getSelectedElement();
   if (selected && isConditionalGroupElement(selected)) {
-    useCadDocumentStore.getState().updateElement(selected.id, { elseExpanded: true });
+    useCadUiStore.getState().setGroupFold(selected.id, { elseExpanded: true });
     return;
   }
 
@@ -121,13 +126,12 @@ export const addElseBranchToSelectedConditionalGroup = () => {
 
   useCadDocumentStore.getState().commitDocumentChange({
     elements: elements.map((element) =>
-      element.id === parent.id
-        ? { ...element, elseExpanded: true }
-        : selectedIds.has(element.id)
+      selectedIds.has(element.id)
           ? { ...element, conditionalBranch: "else" as const }
           : element
     )
   });
+  useCadUiStore.getState().setGroupFold(parent.id, { elseExpanded: true });
 };
 
 export const deleteElseBranchFromSelectedConditionalGroup = () => {
@@ -138,9 +142,8 @@ export const deleteElseBranchFromSelectedConditionalGroup = () => {
     elements: elements.map((element) =>
       element.parentGroupId === selected.id && element.conditionalBranch === "else"
         ? { ...element, conditionalBranch: "then" as const }
-        : element.id === selected.id
-          ? { ...element, elseExpanded: false }
-          : element
+        : element
     )
   });
+  useCadUiStore.getState().setGroupFold(selected.id, { elseExpanded: false });
 };

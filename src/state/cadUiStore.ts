@@ -5,6 +5,7 @@ import type { ShortcutSettings } from "../keyboard/shortcutTypes";
 import type { ParameterKey } from "../parameters/parameterDefinitions";
 import type { ActiveTemplateInsertion } from "../templates/templateInsertionMode";
 import type { ElementId, PointAnchor } from "../types/geometry";
+import type { GroupFoldState } from "../model/groups";
 
 export type MeasurementInsertMode = "distance" | "angle" | "lineDistance";
 export type MeasurementPointSlot = "point1" | "point2";
@@ -143,6 +144,7 @@ export const DEFAULT_REFERENCE_HELPER_POSITION: ReferenceHelperPosition = {
 export const DEFAULT_DSL_PANEL_WINDOW: DslPanelWindow | null = null;
 
 export type CadUiState = {
+  groupFoldById: ReadonlyMap<ElementId, GroupFoldState>;
   isParameterEditMode: boolean;
   showElementInfoPanel: boolean;
   isDependencyJumpMode: boolean;
@@ -257,6 +259,10 @@ export type CadUiState = {
   updatePrintPreviewWindow: (patch: Partial<PrintPreviewWindow>) => void;
   setReferenceHelperPosition: (referenceHelperPosition: ReferenceHelperPosition) => void;
   setDslPanelWindow: (dslPanelWindow: DslPanelWindow | null) => void;
+  setGroupFold: (id: ElementId, patch: GroupFoldState) => void;
+  toggleGroupExpanded: (id: ElementId) => void;
+  toggleElseExpanded: (id: ElementId) => void;
+  pruneGroupFold: (existingIds: ReadonlySet<ElementId>) => void;
 };
 
 export const initialCadUiState = (): Omit<
@@ -315,7 +321,12 @@ export const initialCadUiState = (): Omit<
   | "updatePrintPreviewWindow"
   | "setReferenceHelperPosition"
   | "setDslPanelWindow"
+  | "setGroupFold"
+  | "toggleGroupExpanded"
+  | "toggleElseExpanded"
+  | "pruneGroupFold"
 > => ({
+  groupFoldById: new Map(),
   isParameterEditMode: false,
   showElementInfoPanel: true,
   isDependencyJumpMode: false,
@@ -566,5 +577,35 @@ export const useCadUiStore = create<CadUiState>((set) => ({
       dslPanelWindow: dslPanelWindow
         ? normalizeDslPanelWindow(dslPanelWindow)
         : null
+    }),
+  setGroupFold: (id, patch) =>
+    set((state) => {
+      const previous = state.groupFoldById.get(id) ?? {};
+      const next = { ...previous, ...patch };
+      if (previous.expanded === next.expanded && previous.elseExpanded === next.elseExpanded) return {};
+      const groupFoldById = new Map(state.groupFoldById);
+      groupFoldById.set(id, next);
+      return { groupFoldById };
+    }),
+  toggleGroupExpanded: (id) =>
+    set((state) => {
+      const previous = state.groupFoldById.get(id) ?? {};
+      const groupFoldById = new Map(state.groupFoldById);
+      groupFoldById.set(id, { ...previous, expanded: !(previous.expanded ?? false) });
+      return { groupFoldById };
+    }),
+  toggleElseExpanded: (id) =>
+    set((state) => {
+      const previous = state.groupFoldById.get(id) ?? {};
+      const groupFoldById = new Map(state.groupFoldById);
+      groupFoldById.set(id, { ...previous, elseExpanded: !(previous.elseExpanded ?? true) });
+      return { groupFoldById };
+    }),
+  pruneGroupFold: (existingIds) =>
+    set((state) => {
+      const groupFoldById = new Map(
+        [...state.groupFoldById].filter(([id]) => existingIds.has(id))
+      );
+      return groupFoldById.size === state.groupFoldById.size ? {} : { groupFoldById };
     })
 }));

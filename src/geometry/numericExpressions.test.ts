@@ -75,7 +75,6 @@ describe("normalizeNumericExpressionInput", () => {
         type: "group",
         visible: true,
         enabled: true,
-        expanded: true,
         printEnabled: false,
         printAnchor: { mode: "coordinate", x: 0, y: 0 }
       },
@@ -85,7 +84,6 @@ describe("normalizeNumericExpressionInput", () => {
         type: "group",
         visible: true,
         enabled: true,
-        expanded: true,
         printEnabled: false,
         printAnchor: { mode: "coordinate", x: 0, y: 0 }
       },
@@ -323,7 +321,6 @@ describe("normalizeNumericExpressionInput", () => {
         type: "group",
         visible: true,
         enabled: true,
-        expanded: true,
         printEnabled: false,
         printAnchor: { mode: "coordinate", x: 0, y: 0 }
       },
@@ -394,7 +391,6 @@ describe("normalizeNumericExpressionInput", () => {
         type: "group",
         visible: true,
         enabled: true,
-        expanded: true,
         printEnabled: false,
         printAnchor: { mode: "coordinate", x: 0, y: 0 }
       },

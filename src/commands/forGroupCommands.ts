@@ -6,6 +6,7 @@ import {
 import { adjustEvaluationLimitForInsertion } from "../model/evaluationDivider";
 import { isForGroupElement } from "../model/groups";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
+import { useCadUiStore } from "../state/cadUiStore";
 import type { CadElement, ElementId } from "../types/geometry";
 import type { CommandContext } from "./commandTypes";
 import { getSelectedElement, getSelectedElementIds } from "./commandRuntime";
@@ -29,7 +30,11 @@ const hasSelectedAncestor = (
 
 export const addForGroup = (context?: CommandContext) => {
   const { elements, evaluationLimitIndex } = useCadDocumentStore.getState();
-  const placement = creationPlacementForEvaluationLimit(elements, evaluationLimitIndex);
+  const placement = creationPlacementForEvaluationLimit(
+    elements,
+    evaluationLimitIndex,
+    useCadUiStore.getState().groupFoldById
+  );
   const { insertionIndex } = placement;
   const group = applyCreationPlacement(createCadElement("forGroup", elements), placement);
 

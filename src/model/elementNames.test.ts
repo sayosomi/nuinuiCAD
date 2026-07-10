@@ -71,7 +71,6 @@ describe("elementNames", () => {
         type: "group",
         visible: true,
         enabled: true,
-        expanded: true,
         printEnabled: false,
         printAnchor: { mode: "coordinate", x: 0, y: 0 }
       },
@@ -247,7 +246,6 @@ describe("elementNames", () => {
         type: "group",
         visible: true,
         enabled: true,
-        expanded: true,
         printEnabled: false,
         printAnchor: { mode: "coordinate", x: 0, y: 0 }
       },

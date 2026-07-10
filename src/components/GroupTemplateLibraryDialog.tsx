@@ -56,7 +56,11 @@ export const GroupTemplateLibraryDialog = () => {
   const [status, setStatus] = useState<string | null>(null);
   const group = selectedGroup(elements, selectedElementId);
   const saveTemplateName = templateName.trim() || (group?.name ? `${group.name} テンプレート` : "");
-  const insertionIndex = creationPlacementForEvaluationLimit(elements, evaluationLimitIndex).insertionIndex;
+  const insertionIndex = creationPlacementForEvaluationLimit(
+    elements,
+    evaluationLimitIndex,
+    useCadUiStore.getState().groupFoldById
+  ).insertionIndex;
 
   const templateElements = useMemo(
     () => group ? elements.filter((element) => subtreeIdsForElement(elements, group.id).includes(element.id)) : [],

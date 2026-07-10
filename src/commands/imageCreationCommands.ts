@@ -77,7 +77,11 @@ const creationContext = () => {
   const { elements, evaluationLimitIndex } = useCadDocumentStore.getState();
   return {
     elements,
-    ...creationPlacementForEvaluationLimit(elements, evaluationLimitIndex)
+    ...creationPlacementForEvaluationLimit(
+      elements,
+      evaluationLimitIndex,
+      useCadUiStore.getState().groupFoldById
+    )
   };
 };
 
@@ -86,7 +90,14 @@ const commitCreatedImage = (
   elements: CadElement[],
   insertionIndex: number
 ) => {
-  const placedElement = applyCreationPlacement(element, creationPlacementForEvaluationLimit(elements, insertionIndex));
+  const placedElement = applyCreationPlacement(
+    element,
+    creationPlacementForEvaluationLimit(
+      elements,
+      insertionIndex,
+      useCadUiStore.getState().groupFoldById
+    )
+  );
   useCadDocumentStore.getState().commitDocumentChange({
     elements: [
       ...elements.slice(0, insertionIndex),
@@ -118,7 +129,11 @@ export const commitPendingImageImport = ({
   targetPixelsPerMm: number;
 }) => {
   const { elements, insertionIndex, referenceElements } = creationContext();
-  const placement = creationPlacementForEvaluationLimit(elements, insertionIndex);
+  const placement = creationPlacementForEvaluationLimit(
+    elements,
+    insertionIndex,
+    useCadUiStore.getState().groupFoldById
+  );
   const element = createCadElement("image", elements, { referenceElements });
   if (element.type !== "image") return;
 

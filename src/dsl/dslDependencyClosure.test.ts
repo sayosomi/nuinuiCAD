@@ -35,7 +35,6 @@ const group = (id: string, patch: Partial<CadElement> = {}): CadElement => ({
   type: "group",
   visible: true,
   enabled: true,
-  expanded: true,
   ...patch
 } as CadElement);
 

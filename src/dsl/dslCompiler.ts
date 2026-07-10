@@ -173,6 +173,7 @@ const applyCommonAttributes = (
   const skip = new Set(["id", "type", "angle", "at", "center", "end", "size", "start"]);
 
   for (const { key, value } of attrs) {
+    if (key === "expanded" || key === "elseExpanded") continue;
     const parameterKey = parameterAlias(next, key);
     if (skip.has(key) && parameterKey === key) continue;
     if (key === "parent") continue;
@@ -784,6 +785,14 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
       if (attr(statement.attrs, "branch")) {
         diagnostics.push(warning(statement.line, "branch= 属性は非推奨です。「} else {」ブロックで書いてください。"));
       }
+    }
+  }
+  for (const statement of elementStatements) {
+    if (attr(statement.attrs, "expanded")) {
+      diagnostics.push(warning(statement.line, "expanded= 属性は非推奨です。折りたたみ状態は保存されません。"));
+    }
+    if (attr(statement.attrs, "elseExpanded")) {
+      diagnostics.push(warning(statement.line, "elseExpanded= 属性は非推奨です。折りたたみ状態は保存されません。"));
     }
   }
 

@@ -196,7 +196,6 @@ describe("evaluateElements", () => {
         type: "group",
         visible: false,
         enabled: true,
-        expanded: true
       },
       { ...validElements[0], parentGroupId: "group", visible: true }
     ]);
@@ -214,7 +213,6 @@ describe("evaluateElements", () => {
         type: "group",
         visible: true,
         enabled: false,
-        expanded: true
       },
       { ...validElements[0], parentGroupId: "group", enabled: true },
       {
@@ -247,8 +245,6 @@ describe("evaluateElements", () => {
         visible: true,
         enabled: true,
         condition: 1,
-        expanded: true,
-        elseExpanded: true
       },
       { ...validElements[0], id: "then-point", name: "then点", parentGroupId: "if", conditionalBranch: "then" },
       { ...validElements[0], id: "else-point", name: "else点", parentGroupId: "if", conditionalBranch: "else" }
@@ -271,8 +267,6 @@ describe("evaluateElements", () => {
         visible: true,
         enabled: true,
         condition: 0,
-        expanded: true,
-        elseExpanded: true
       },
       { ...validElements[0], id: "then-point", name: "then点", parentGroupId: "if", conditionalBranch: "then" },
       { ...validElements[0], id: "else-point", name: "else点", parentGroupId: "if", conditionalBranch: "else" }
@@ -313,8 +307,6 @@ describe("evaluateElements", () => {
         visible: true,
         enabled: true,
         condition: makeNumericExpression("ab.length >= 100 || ac.length >= 100"),
-        expanded: true,
-        elseExpanded: true
       },
       { ...validElements[0], id: "then-point", name: "then点", parentGroupId: "if", conditionalBranch: "then" },
       { ...validElements[0], id: "else-point", name: "else点", parentGroupId: "if", conditionalBranch: "else" }
@@ -336,8 +328,6 @@ describe("evaluateElements", () => {
         visible: true,
         enabled: true,
         condition: makeNumericExpression("ab.length > 0 && ab.length + 10 <= 10"),
-        expanded: true,
-        elseExpanded: true
       },
       { ...validElements[0], id: "then-point", name: "then点", parentGroupId: "if", conditionalBranch: "then" },
       { ...validElements[0], id: "else-point", name: "else点", parentGroupId: "if", conditionalBranch: "else" }
@@ -359,8 +349,6 @@ describe("evaluateElements", () => {
         visible: true,
         enabled: true,
         condition: makeNumericExpression("ab.length = 0"),
-        expanded: true,
-        elseExpanded: true
       },
       { ...validElements[0], id: "then-point", name: "then点", parentGroupId: "if", conditionalBranch: "then" }
     ]);
@@ -384,7 +372,6 @@ describe("evaluateElements", () => {
         start: 0,
         count: 3,
         step: 2,
-        expanded: true,
         showGenerated: true
       },
       {
@@ -432,7 +419,6 @@ describe("evaluateElements", () => {
         start: 1,
         count: 2,
         step: 1,
-        expanded: true,
         showGenerated: false
       },
       {
@@ -506,7 +492,6 @@ describe("evaluateElements", () => {
         start: 1,
         count: 2,
         step: 1,
-        expanded: true,
         showGenerated: true
       },
       {
@@ -597,7 +582,6 @@ describe("evaluateElements", () => {
         start: 0,
         count: 1.5,
         step: 1,
-        expanded: true,
         showGenerated: false
       }
     ]);
@@ -617,8 +601,6 @@ describe("evaluateElements", () => {
         visible: true,
         enabled: true,
         condition: 0,
-        expanded: true,
-        elseExpanded: true
       },
       { ...validElements[0], id: "then-point", name: "then点", parentGroupId: "if", conditionalBranch: "then" },
       {
@@ -651,8 +633,6 @@ describe("evaluateElements", () => {
         visible: true,
         enabled: true,
         condition: makeNumericExpression("missing.length"),
-        expanded: true,
-        elseExpanded: true
       },
       { ...validElements[0], id: "then-point", name: "then点", parentGroupId: "if", conditionalBranch: "then" }
     ]);
@@ -860,7 +840,6 @@ describe("evaluateElements", () => {
         type: "group",
         visible: true,
         enabled: true,
-        expanded: true
       },
       {
         id: "a",
@@ -886,7 +865,6 @@ describe("evaluateElements", () => {
         type: "group",
         visible: true,
         enabled: true,
-        expanded: true
       },
       {
         id: "local",
@@ -910,7 +888,6 @@ describe("evaluateElements", () => {
         parentGroupId: "group",
         visible: true,
         enabled: true,
-        expanded: true
       },
       {
         id: "a",

@@ -199,7 +199,6 @@ describe("duplicateElements", () => {
         type: "group",
         visible: true,
         enabled: true,
-        expanded: true
       },
       {
         id: "point-a",

@@ -38,7 +38,6 @@ describe("elementSearchResults", () => {
         type: "group",
         visible: true,
         enabled: true,
-        expanded: false
       },
       { ...sampleElements[0], parentGroupId: "group-front" }
     ];

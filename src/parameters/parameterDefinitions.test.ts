@@ -27,8 +27,6 @@ describe("parameterDefinitions", () => {
       visible: true,
       enabled: true,
       condition: 1,
-      expanded: true,
-      elseExpanded: true
     };
     const divisionPoint: CadElement = {
       id: "division",
@@ -74,7 +72,6 @@ describe("parameterDefinitions", () => {
       start: 0,
       count: 3,
       step: 1,
-      expanded: true,
       showGenerated: false
     };
 
@@ -90,10 +87,10 @@ describe("parameterDefinitions", () => {
           kind: "number",
           emptyInputDefaultValue: 1
         }),
-        expect.objectContaining({ key: "expanded", directKey: "x", label: "展開", kind: "boolean" }),
         expect.objectContaining({ key: "showGenerated", directKey: "g", label: "生成結果を表示", kind: "boolean" })
       ])
     );
+    expect(getParameterDefinitions(group).some((definition) => definition.key === "expanded")).toBe(false);
   });
 
   it("defines local numeric variable parameters for variable elements", () => {

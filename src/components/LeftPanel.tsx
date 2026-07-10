@@ -11,6 +11,7 @@ import {
 import {
   descendantIdsForGroup,
   isConditionalGroupElement,
+  isGroupExpanded,
   isForGroupElement,
   isGroupElement
 } from "../model/groups";
@@ -251,6 +252,7 @@ export const LeftPanel = ({
   const activeNumericReferencePickTarget = useCadUiStore((state) => state.activeNumericReferencePickTarget);
   const activeLinePickTarget = useCadUiStore((state) => state.activeLinePickTarget);
   const activePickCursor = useCadUiStore((state) => state.activePickCursor);
+  const groupFoldById = useCadUiStore((state) => state.groupFoldById);
   const setElementSearchQuery = useCadUiStore((state) => state.setElementSearchQuery);
   const setElementSearchCursorId = useCadUiStore((state) => state.setElementSearchCursorId);
   const setElementSearchPickableOnly = useCadUiStore((state) => state.setElementSearchPickableOnly);
@@ -327,7 +329,8 @@ export const LeftPanel = ({
     activePointPickTarget,
     activeNumericReferencePickTarget,
     activeLinePickTarget,
-    activePickCursor
+    activePickCursor,
+    groupFoldById
   });
   const generatedSearchRows = isSearchActive
     ? Array.from(generatedRowsByForGroupId.values())
@@ -825,7 +828,7 @@ export const LeftPanel = ({
             const insertForTemplateDivider =
               !isSearchActive &&
               forParent &&
-              forParent.expanded &&
+              isGroupExpanded(forParent.id, groupFoldById) &&
               firstVisibleChildForGroupId(forParent.id) === element.id;
             const insertElseDivider =
               !isSearchActive &&
@@ -929,7 +932,7 @@ export const LeftPanel = ({
             if (
               forGeneratedAfterElement &&
               forGeneratedAfterElement.showGenerated &&
-              forGeneratedAfterElement.expanded
+              isGroupExpanded(forGeneratedAfterElement.id, groupFoldById)
             ) {
               const generatedRows = generatedRowsByForGroupId.get(forGeneratedAfterElement.id) ?? [];
               const generatedDepth =

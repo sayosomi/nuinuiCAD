@@ -42,6 +42,22 @@ describe("documentFormat", () => {
     expect(parseCadDocumentFile(content)).toEqual(snapshot);
   });
 
+  it("silently ignores legacy JSON fold fields", () => {
+    const content = serializeCadDocumentFile({
+      ...snapshot,
+      elements: [{
+        id: "group",
+        name: "身頃",
+        type: "group",
+        visible: true,
+        enabled: true,
+        expanded: true
+      } as unknown as CadDocumentSnapshot["elements"][number]]
+    });
+
+    expect(parseCadDocumentFile(content).elements[0]).not.toHaveProperty("expanded");
+  });
+
   it("rejects malformed or unsupported files without returning a document", () => {
     expect(() => parseCadDocumentFile("{")).toThrow("JSONとして読み込めません");
     expect(() => parseCadDocumentFile(JSON.stringify({ app: "other", schemaVersion: 1 }))).toThrow(

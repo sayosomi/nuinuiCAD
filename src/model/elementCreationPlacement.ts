@@ -1,8 +1,10 @@
 import type { CadElement, ConditionalBranch, ElementId } from "../types/geometry";
+import type { GroupFoldById } from "./groups";
 import { clampEvaluationLimitIndex, evaluatedElements } from "./evaluationDivider";
 import {
   descendantIdsForGroup,
   groupStateByElementId,
+  isGroupExpanded,
   isConditionalGroupElement,
   isGroupElement
 } from "./groups";
@@ -52,15 +54,16 @@ const branchForConditionalGroupInsertion = (
 
 export const creationPlacementForEvaluationLimit = (
   elements: CadElement[],
-  evaluationLimitIndex: number | undefined
+  evaluationLimitIndex: number | undefined,
+  groupFoldById?: GroupFoldById
 ): ElementCreationPlacement => {
   const insertionIndex = clampEvaluationLimitIndex(elements, evaluationLimitIndex);
-  const groupStates = groupStateByElementId(elements);
+  const groupStates = groupStateByElementId(elements, groupFoldById);
   const targetGroup = elements
     .map((element, index) => ({ element, index, depth: groupStates.get(element.id)?.depth ?? 0 }))
     .filter(({ element, index }) => (
       isGroupElement(element) &&
-      element.expanded &&
+      isGroupExpanded(element.id, groupFoldById) &&
       groupContainsInsertionIndex(elements, element.id, index, insertionIndex)
     ))
     .sort((a, b) => b.depth - a.depth)[0]?.element;

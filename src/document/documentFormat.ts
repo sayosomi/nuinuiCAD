@@ -22,6 +22,16 @@ export type CadDocumentFile = {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === "object" && !Array.isArray(value);
 
+const withoutLegacyGroupFold = (element: CadDocumentSnapshot["elements"][number]) => {
+  const current = { ...element } as typeof element & {
+    expanded?: unknown;
+    elseExpanded?: unknown;
+  };
+  delete current.expanded;
+  delete current.elseExpanded;
+  return current as CadDocumentSnapshot["elements"][number];
+};
+
 const parseDocumentObject = (value: unknown): CadDocumentSnapshot => {
   if (!isRecord(value)) {
     throw new Error("ドキュメント本体が見つかりません。");
@@ -30,7 +40,9 @@ const parseDocumentObject = (value: unknown): CadDocumentSnapshot => {
     throw new Error("ドキュメントのelementsが不正です。");
   }
 
-  const rawElements = (value.elements as CadDocumentSnapshot["elements"]).map(normalizedElementFields);
+  const rawElements = (value.elements as CadDocumentSnapshot["elements"])
+    .map(withoutLegacyGroupFold)
+    .map(normalizedElementFields);
   const visibilityRoles = normalizeVisibilityRoles(value.visibilityRoles, rawElements);
   const visibilityProfiles = normalizeVisibilityProfiles({
     profiles: value.visibilityProfiles,

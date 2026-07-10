@@ -8,7 +8,7 @@ import { documentDslRefs, serializeElementStatement, serializeElementsToDsl } fr
 const buildElements = () => {
   const result = compileDslToElements(
     [
-      "group 前身頃 id=g1 expanded=true",
+      "group 前身頃 id=g1",
       "var bust = 840 id=v1",
       "point A = (0, 0) id=p1",
       "point inGroup = (1, 1) id=p9 parent=g1",
@@ -33,8 +33,8 @@ const buildElements = () => {
       "element sym type=symmetricCopyLine axisPoint1=A axisPoint2=B baseLineIds=[AB] id=e3",
       "element mv type=move startPoint=A endPoint=B scale=1 angleDeg=0 mirrorX=false baseLineIds=[AB] id=e4",
       "element smv type=symmetricMove axisPoint1=A axisPoint2=B baseLineIds=[AB] id=e5",
-      "element cond type=conditionalGroup condition=1 expanded=true elseExpanded=false id=e6",
-      "element rep type=forGroup variableName=i start=0 count=5 step=1 expanded=true showGenerated=false id=e7",
+      "element cond type=conditionalGroup condition=1 id=e6",
+      "element rep type=forGroup variableName=i start=0 count=5 step=1 showGenerated=false id=e7",
       "element img type=image sourcePath=\"assets/ref.png\" originPoint=A scale=1 angleDeg=0 mirrorX=false id=e8",
       "point hidden = (5, 5) id=p8 visible=false enabled=false color=main"
     ].join("\n"),
@@ -52,7 +52,7 @@ describe("serializeElementsToDsl flat output", () => {
   it("keeps the flat id-based output byte-stable", () => {
     const elements = buildElements();
     expect(serializeElementsToDsl(elements)).toMatchInlineSnapshot(`
-      "group 前身頃 id=g1 expanded=true
+      "group 前身頃 id=g1
       var bust = 840 id=v1
       point A = (0, 0) id=p1
       point inGroup = (1, 1) id=p9 parent=g1
@@ -77,8 +77,8 @@ describe("serializeElementsToDsl flat output", () => {
       element sym type=symmetricCopyLine id=e3 axisPoint1=p1 axisPoint2=p2 baseLineIds=[l1]
       element mv type=move id=e4 startPoint=p1 endPoint=p2 scale=1 angleDeg=0 mirrorX=false baseLineIds=[l1]
       element smv type=symmetricMove id=e5 axisPoint1=p1 axisPoint2=p2 baseLineIds=[l1]
-      element cond type=conditionalGroup id=e6 condition=1 expanded=true elseExpanded=false
-      element rep type=forGroup id=e7 variableName=i start=0 count=5 step=1 expanded=true showGenerated=false
+      element cond type=conditionalGroup id=e6 condition=1
+      element rep type=forGroup id=e7 variableName=i start=0 count=5 step=1 showGenerated=false
       element img type=image id=e8 sourcePath="assets/ref.png" originPoint=p1 scale=1 angleDeg=0 mirrorX=false
       point hidden = (5, 5) id=p8 visible=false enabled=false color=main"
     `);
@@ -98,14 +98,14 @@ describe("serializeElementsToDsl flat output", () => {
       view 完成 default=true 外周=true
       activeView 完成
 
-      group 前身頃 id=g1 expanded=true"
+      group 前身頃 id=g1"
     `);
   });
 
   it("serializes without ids when includeIds is false", () => {
     const elements = buildElements();
     expect(serializeElementsToDsl(elements.slice(0, 6), { includeIds: false })).toMatchInlineSnapshot(`
-      "group 前身頃 expanded=true
+      "group 前身頃
       var bust = 840
       point A = (0, 0)
       point inGroup = (1, 1) parent=g1
@@ -173,12 +173,26 @@ describe("extended lossless attributes", () => {
 
   it("round-trips group printEnabled and printAnchor", () => {
     const first = compileDslToElements(
-      "group G id=g1 expanded=true printEnabled=true printAnchor=(10, 20)",
+      "group G id=g1 printEnabled=true printAnchor=(10, 20)",
       { elements: [] }
     );
     expect(first.diagnostics).toEqual([]);
     const serialized = serializeElementsToDsl(first.elements);
-    expect(serialized).toBe("group G id=g1 expanded=true printEnabled=true printAnchor=(10, 20)");
+    expect(serialized).toBe("group G id=g1 printEnabled=true printAnchor=(10, 20)");
+  });
+
+  it("accepts legacy fold attributes as deprecation warnings without preserving them", () => {
+    const result = compileDslToElements("group G id=g1 expanded=true\nelement C type=conditionalGroup id=c1 condition=1 elseExpanded=false", {
+      elements: [],
+      mode: "document"
+    });
+
+    expect(result.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
+    expect(result.diagnostics.map((item) => item.message)).toEqual([
+      expect.stringContaining("expanded= 属性は非推奨"),
+      expect.stringContaining("elseExpanded= 属性は非推奨")
+    ]);
+    expect(serializeElementsToDsl(result.elements)).not.toContain("expanded=");
   });
 
   it("round-trips variable scope and non-expression modes", () => {

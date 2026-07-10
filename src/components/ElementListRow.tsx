@@ -24,6 +24,8 @@ import type {
 import { elementCategoryLabels, elementTypeCategories, elementTypeLabels } from "../types/geometry";
 import { elementListNameTextClassName } from "./elementListName";
 import { ElementStatusIcon } from "./ElementStatusIcon";
+import { useCadUiStore } from "../state/cadUiStore";
+import { isGroupExpanded } from "../model/groups";
 
 const forGroupLabel = (element: CadElement) => {
   if (!isForGroupElement(element)) return element.name;
@@ -64,12 +66,12 @@ const GroupFolderIcon = ({ className = "", expanded }: { className?: string; exp
 
 const elementNameIconClassName = (kind: string) => `element-name-icon element-name-icon-${kind}`;
 
-const ElementNameIcon = ({ element }: { element: CadElement }) => {
+const ElementNameIcon = ({ element, groupExpanded }: { element: CadElement; groupExpanded: boolean }) => {
   if (isGroupElement(element)) {
     return (
       <GroupFolderIcon
         className="element-name-icon element-name-icon-group"
-        expanded={element.expanded}
+        expanded={groupExpanded}
       />
     );
   }
@@ -192,6 +194,8 @@ export const ElementListRow = ({
   onOpenContextMenu,
   onHandlePointerDown
 }: ElementListRowProps) => {
+  const groupFoldById = useCadUiStore((state) => state.groupFoldById);
+  const groupExpanded = isGroupExpanded(element.id, groupFoldById);
   const supportsDisplayColor = elementSupportsDisplayColor(element);
   const isSelected = selectedElementIdSet.has(element.id);
   const hasStateBackground =
@@ -279,13 +283,13 @@ export const ElementListRow = ({
       <button
         type="button"
         className="element-expand-button"
-        aria-label={`${element.name}を${element.expanded ? "折り畳む" : "展開"} `}
+        aria-label={`${element.name}を${groupExpanded ? "折り畳む" : "展開"} `}
         onClick={(event) => {
           event.stopPropagation();
           dispatchCommand("toggleGroupExpanded", { elementId: element.id });
         }}
       >
-        {element.expanded ? "▾" : "▸"}
+        {groupExpanded ? "▾" : "▸"}
       </button>
     ) : null}
     <span className="element-index">{index + 1}</span>
@@ -352,7 +356,7 @@ export const ElementListRow = ({
     <span className="element-name">
       {hasError || hasWarning ? "⚠ " : ""}
       <span className="element-name-primary">
-        <ElementNameIcon element={element} />
+        <ElementNameIcon element={element} groupExpanded={groupExpanded} />
         <span
           className={elementListNameTextClassName(elementListDisplayName(element))}
           title={elementListDisplayName(element)}
@@ -379,7 +383,7 @@ export const ElementListRow = ({
     <span className="element-type">
       {isGroupElement(element) && groupIssues ? (
         <span className="element-group-summary">
-          <GroupFolderIcon expanded={element.expanded} />
+          <GroupFolderIcon expanded={groupExpanded} />
           <span>
             {element.type === "forGroup"
               ? `繰り返し / ${numericValueExpression(element.count)}回`
