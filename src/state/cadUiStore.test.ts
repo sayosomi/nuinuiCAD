@@ -40,4 +40,15 @@ describe("cadUiStore group fold state", () => {
 
     expect(useCadUiStore.getState().groupFoldById.has(element.id)).toBe(false);
   });
+
+  it("does not prune fold state while updating a drag preview", () => {
+    const element = useCadDocumentStore.getState().elements[0];
+    useCadUiStore.getState().setGroupFold(element.id, { expanded: true });
+
+    useCadDocumentStore.getState().previewDocumentChange({
+      elements: useCadDocumentStore.getState().elements.filter((item) => item.id !== element.id)
+    });
+
+    expect(useCadUiStore.getState().groupFoldById.has(element.id)).toBe(true);
+  });
 });

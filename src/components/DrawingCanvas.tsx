@@ -12,7 +12,7 @@ import { numericReferenceGeometrySupportsProperty } from "../geometry/numericRef
 import { getParameterValue } from "../parameters/parameterAccess";
 import { resolvedElementColorMap } from "../palette/elementColors";
 import type { BezierHandleRole as CommandBezierHandleRole } from "../commands/commands";
-import { useCadDocumentStore } from "../state/cadDocumentStore";
+import { effectiveElements, useCadDocumentStore } from "../state/cadDocumentStore";
 import type { CadDocumentSnapshot } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
 import type {
@@ -110,7 +110,7 @@ export const DrawingCanvas = ({
     useState<PointPickCandidateMenu | null>(null);
   const [linePickCandidateMenu, setLinePickCandidateMenu] =
     useState<LinePickCandidateMenu | null>(null);
-  const elements = useCadDocumentStore((state) => state.elements);
+  const elements = useCadDocumentStore(effectiveElements);
   const palette = useCadDocumentStore((state) => state.palette);
   const selectedElementId = useCadDocumentStore((state) => state.selectedElementId);
   const selectedElementIds = useCadDocumentStore((state) => state.selectedElementIds);

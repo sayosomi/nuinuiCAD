@@ -12,7 +12,7 @@ import {
   loadLayoutSettings,
   saveLayoutSettings
 } from "../layout/layoutSettingsStorage";
-import { useCadDocumentStore } from "../state/cadDocumentStore";
+import { effectiveElements, useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
 import { CommandPalette } from "./CommandPalette";
 import { DrawingCanvas } from "./DrawingCanvas";
@@ -81,7 +81,7 @@ const saveLeftPanelWidth = (leftPanelWidth: number) => {
 };
 
 export const AppLayout = () => {
-  const elements = useCadDocumentStore((state) => state.elements);
+  const elements = useCadDocumentStore(effectiveElements);
   const evaluationLimitIndex = useCadDocumentStore((state) => state.evaluationLimitIndex);
   const isParameterEditMode = useCadUiStore((state) => state.isParameterEditMode);
   const isDependencyJumpMode = useCadUiStore((state) => state.isDependencyJumpMode);

@@ -29,7 +29,7 @@ import {
   printCanvasSizeMm,
   resolvePrintLayout
 } from "../print/printLayout";
-import { useCadDocumentStore } from "../state/cadDocumentStore";
+import { effectiveElements, useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
 import {
   loadLayoutSettings,
@@ -363,7 +363,7 @@ const placementName = (
 ) => groupNames.get(placement.groupId) ?? placement.groupId;
 
 export const PrintLayoutCanvas = ({ evaluation, canvasFocusRef }: PrintLayoutCanvasProps) => {
-  const elements = useCadDocumentStore((state) => state.elements);
+  const elements = useCadDocumentStore(effectiveElements);
   const layout = useCadDocumentStore((state) => state.printLayout);
   const visibilityProfiles = useCadDocumentStore((state) => state.visibilityProfiles);
   const activeVisibilityProfileId = useCadDocumentStore((state) => state.activeVisibilityProfileId);
@@ -664,7 +664,7 @@ export const PrintLayoutCanvas = ({ evaluation, canvasFocusRef }: PrintLayoutCan
 };
 
 export const PrintLayoutPanel = ({ evaluation }: { evaluation: EvaluationResult }) => {
-  const elements = useCadDocumentStore((state) => state.elements);
+  const elements = useCadDocumentStore(effectiveElements);
   const layout = useCadDocumentStore((state) => state.printLayout);
   const printLayouts = useCadDocumentStore((state) => state.printLayouts);
   const activePrintLayoutId = useCadDocumentStore((state) => state.activePrintLayoutId);

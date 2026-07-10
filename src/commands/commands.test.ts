@@ -12,6 +12,7 @@ import {
   MIN_CANVAS_ZOOM,
   useCadStore
 } from "../state/useCadStore";
+import { effectiveElements } from "../state/cadDocumentStore";
 import type { CadElement } from "../types/geometry";
 
 describe("commands", () => {
@@ -1287,7 +1288,8 @@ describe("commands", () => {
       baseElements: snapshot.elements
     });
 
-    expect(useCadStore.getState().elements[0]).toMatchObject({ x: 65, y: -40 });
+    expect(useCadStore.getState().elements[0]).toMatchObject({ x: 50, y: -50 });
+    expect(effectiveElements(useCadStore.getState())[0]).toMatchObject({ x: 65, y: -40 });
     expect(useCadStore.getState().past).toHaveLength(0);
 
     dispatchCommand("movePointElementByDelta", {
@@ -1541,10 +1543,14 @@ describe("commands", () => {
       baseElements: snapshot.elements
     });
 
-    let curve = useCadStore.getState().elements.find((element) => element.id === "curve-ac");
+    let curve = effectiveElements(useCadStore.getState()).find((element) => element.id === "curve-ac");
     expect(curve).toMatchObject({ type: "bezierCurve" });
     if (curve?.type !== "bezierCurve") throw new Error("Expected a Bezier curve");
     expect(curve.startHandleLength).toBeCloseTo(68.00735254367721);
+    expect(useCadStore.getState().elements.find((element) => element.id === "curve-ac")).toMatchObject({
+      type: "bezierCurve",
+      startHandleLength: 45
+    });
     expect(useCadStore.getState().past).toHaveLength(0);
 
     dispatchCommand("moveBezierHandleByDelta", {

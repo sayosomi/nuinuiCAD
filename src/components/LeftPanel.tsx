@@ -23,7 +23,7 @@ import { availableNumericVariableReferenceOptions } from "../geometry/variableRe
 import { lineMeasurementLabel, type NumericMeasurementKey } from "../geometry/numericExpressions";
 import { resolvedElementColorMap } from "../palette/elementColors";
 import { visibilityRoleNamesById } from "../model/visibilityProfiles";
-import { useCadDocumentStore } from "../state/cadDocumentStore";
+import { effectiveElements, useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
 import type {
   CadElement,
@@ -234,7 +234,7 @@ export const LeftPanel = ({
   elementListFocusRef,
   elementSearchInputRef
 }: LeftPanelProps) => {
-  const elements = useCadDocumentStore((state) => state.elements);
+  const elements = useCadDocumentStore(effectiveElements);
   const palette = useCadDocumentStore((state) => state.palette);
   const visibilityRoles = useCadDocumentStore((state) => state.visibilityRoles);
   const evaluationLimitIndex = useCadDocumentStore((state) => state.evaluationLimitIndex);

@@ -7,7 +7,7 @@ import {
   loadLayoutSettings,
   saveLayoutSettings
 } from "../layout/layoutSettingsStorage";
-import { useCadDocumentStore } from "../state/cadDocumentStore";
+import { effectiveElements, useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
 import type { PrintPreviewWindow as PrintPreviewWindowState } from "../state/cadUiStore";
 import type { EvaluationResult, PrintLayout } from "../types/geometry";
@@ -123,7 +123,7 @@ export const PrintLayoutPreviewWindow = ({
   evaluation,
   workspaceRef
 }: PrintLayoutPreviewWindowProps) => {
-  const elements = useCadDocumentStore((state) => state.elements);
+  const elements = useCadDocumentStore(effectiveElements);
   const printLayouts = useCadDocumentStore((state) => state.printLayouts);
   const activePrintLayoutId = useCadDocumentStore((state) => state.activePrintLayoutId);
   const visibilityProfiles = useCadDocumentStore((state) => state.visibilityProfiles);

@@ -2,7 +2,12 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { sampleElements } from "../sampleData";
 import { DEFAULT_PRINT_LAYOUT } from "../print/printLayout";
 import { defaultVisibilityProfile } from "../model/visibilityProfiles";
-import { currentDocumentSnapshot, initialCadDocumentState, useCadDocumentStore } from "./cadDocumentStore";
+import {
+  currentDocumentSnapshot,
+  effectiveElements,
+  initialCadDocumentState,
+  useCadDocumentStore
+} from "./cadDocumentStore";
 
 describe("cadDocumentStore file state", () => {
   beforeEach(() => {
@@ -67,6 +72,60 @@ describe("cadDocumentStore file state", () => {
 
     expect(currentDocumentSnapshot(useCadDocumentStore.getState())).not.toHaveProperty("currentFilePath");
     expect(currentDocumentSnapshot(useCadDocumentStore.getState())).not.toHaveProperty("dirtySinceSave");
+  });
+
+  it("keeps drag previews outside the committed document, history, and shadow text", () => {
+    const before = useCadDocumentStore.getState();
+    const previewElements = before.elements.map((element) =>
+      element.id === before.elements[0].id
+        ? ({ ...element, locked: true } as typeof element)
+        : element
+    );
+
+    useCadDocumentStore.getState().previewDocumentChange({ elements: previewElements });
+
+    const after = useCadDocumentStore.getState();
+    expect(after.elements).toBe(before.elements);
+    expect(after.previewElements).toBe(previewElements);
+    expect(effectiveElements(after)).toBe(previewElements);
+    expect(after.past).toBe(before.past);
+    expect(after.future).toBe(before.future);
+    expect(after.dirtySinceSave).toBe(before.dirtySinceSave);
+    expect(after.shadowText).toBe(before.shadowText);
+    expect(after.shadowCompiled).toBe(before.shadowCompiled);
+  });
+
+  it("clears previews after every completion path, including a no-op commit", () => {
+    const preview = () =>
+      useCadDocumentStore.getState().previewDocumentChange({
+        elements: useCadDocumentStore.getState().elements.map((element) => ({ ...element }))
+      });
+    const expectPreviewCleared = () =>
+      expect(useCadDocumentStore.getState().previewElements).toBeNull();
+
+    preview();
+    useCadDocumentStore.getState().commitDocumentChange({});
+    expectPreviewCleared();
+    expect(useCadDocumentStore.getState().past).toHaveLength(0);
+
+    preview();
+    useCadDocumentStore.getState().commitDocumentChange({ evaluationLimitIndex: 1 });
+    expectPreviewCleared();
+
+    preview();
+    useCadDocumentStore.getState().undo();
+    expectPreviewCleared();
+
+    preview();
+    useCadDocumentStore.getState().redo();
+    expectPreviewCleared();
+
+    preview();
+    useCadDocumentStore.getState().replaceDocument(
+      currentDocumentSnapshot(useCadDocumentStore.getState()),
+      null
+    );
+    expectPreviewCleared();
   });
 
   it("tracks palette edits in document history", () => {

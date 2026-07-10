@@ -4,7 +4,7 @@ import { numericValueExpression } from "../geometry/numericExpressions";
 import type { EvaluationEngineState } from "../geometry/useEvaluationEngine";
 import { findParameterDefinition } from "../parameters/parameterDefinitions";
 import { getParameterValue } from "../parameters/parameterAccess";
-import { useCadDocumentStore } from "../state/cadDocumentStore";
+import { effectiveElements, useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
 import type { NumericValue } from "../types/geometry";
 import type { EvaluationResult } from "../types/geometry";
@@ -47,7 +47,7 @@ export const RightPanel = ({
   registerParameterControl
 }: RightPanelProps) => {
   const rightPanelRef = useRef<HTMLElement | null>(null);
-  const elements = useCadDocumentStore((state) => state.elements);
+  const elements = useCadDocumentStore(effectiveElements);
   const selectedElementId = useCadDocumentStore((state) => state.selectedElementId);
   const selectedParameterKey = useCadDocumentStore((state) => state.selectedParameterKey);
   const selectedDependencyJumpIndex = useCadUiStore((state) => state.selectedDependencyJumpIndex);

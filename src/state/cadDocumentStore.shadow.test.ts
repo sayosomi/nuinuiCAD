@@ -93,6 +93,8 @@ describe("cadDocumentStore 影テキスト: previewDocumentChange", () => {
     });
 
     const after = useCadDocumentStore.getState();
+    expect(after.elements).toBe(before.elements);
+    expect(after.previewElements).not.toBeNull();
     expect(after.shadowText).toBe(shadowTextBefore);
     expect(after.shadowCompiled).toBe(shadowCompiledBefore);
     expectNoShadowWarnings();

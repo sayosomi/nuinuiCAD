@@ -59,6 +59,8 @@ export type CadDocumentSnapshot = {
 };
 
 export type CadDocumentState = CadDocumentSnapshot & {
+  /** Canvas drag-only geometry. It never participates in history, saving, or shadow text. */
+  previewElements: CadElement[] | null;
   past: CadDocumentSnapshot[];
   future: CadDocumentSnapshot[];
   currentFilePath: string | null;
@@ -108,6 +110,11 @@ export type CadDocumentState = CadDocumentSnapshot & {
   undo: () => void;
   redo: () => void;
 };
+
+/** Geometry consumed by rendering and evaluation while a canvas drag is active. */
+export const effectiveElements = (
+  state: Pick<CadDocumentState, "elements" | "previewElements">
+) => state.previewElements ?? state.elements;
 
 export const currentDocumentSnapshot = (state: CadDocumentSnapshot): CadDocumentSnapshot => ({
   elements: state.elements,
@@ -273,7 +280,10 @@ const withShadowCommit = (
   before: CadDocumentSnapshot,
   after: CadDocumentSnapshot
 ): CadDocumentSnapshot &
-  Pick<CadDocumentState, "past" | "future" | "dirtySinceSave" | "shadowText" | "shadowCompiled"> => {
+  Pick<
+    CadDocumentState,
+    "previewElements" | "past" | "future" | "dirtySinceSave" | "shadowText" | "shadowCompiled"
+  > => {
   const afterDoc = snapshotToDslData(after);
   const prevShadow: ShadowState = { text: state.shadowText, compiled: state.shadowCompiled };
   let next = advanceShadow(prevShadow, afterDoc, {
@@ -293,6 +303,7 @@ const withShadowCommit = (
 
   return {
     ...after,
+    previewElements: null,
     past: [...state.past, before],
     future: [],
     dirtySinceSave: true,
@@ -301,8 +312,23 @@ const withShadowCommit = (
   };
 };
 
+const commitSnapshotChange = (
+  state: CadDocumentState,
+  change: Partial<CadDocumentSnapshot>
+) => {
+  const before = currentDocumentSnapshot(state);
+  const requested = { ...before, ...change };
+  if (snapshotEquals(before, requested)) return { previewElements: null };
+
+  const after = normalizeSnapshot(requested);
+  return snapshotEquals(before, after) ? { previewElements: null } : withShadowCommit(state, before, after);
+};
+
 export const initialCadDocumentState = (): CadDocumentSnapshot &
-  Pick<CadDocumentState, "past" | "future" | "currentFilePath" | "dirtySinceSave" | "shadowText" | "shadowCompiled"> => {
+  Pick<
+    CadDocumentState,
+    "previewElements" | "past" | "future" | "currentFilePath" | "dirtySinceSave" | "shadowText" | "shadowCompiled"
+  > => {
   const snapshot: CadDocumentSnapshot = {
     elements: sampleElements,
     palette: defaultDocumentPalette(),
@@ -321,6 +347,7 @@ export const initialCadDocumentState = (): CadDocumentSnapshot &
   const shadow = regenerateShadow(snapshotToDslData(snapshot));
   return {
     ...snapshot,
+    previewElements: null,
     past: [],
     future: [],
     currentFilePath: null,
@@ -393,22 +420,10 @@ export const useCadDocumentStore = create<CadDocumentState>((set) => ({
       };
     }),
   previewDocumentChange: (change) =>
-    set((state) => normalizeSnapshot({ ...currentDocumentSnapshot(state), ...change })),
-  commitDocumentChange: (change) =>
-    set((state) => {
-      const before = currentDocumentSnapshot(state);
-      const after = normalizeSnapshot({ ...before, ...change });
-      if (snapshotEquals(before, after)) return {};
-
-      return withShadowCommit(state, before, after);
-    }),
-  commitDocumentChangeFromSnapshot: (before, change) =>
-    set((state) => {
-      const after = normalizeSnapshot({ ...before, ...change });
-      if (snapshotEquals(before, after)) return {};
-
-      return withShadowCommit(state, before, after);
-    }),
+    set(() => (change.elements === undefined ? {} : { previewElements: change.elements })),
+  commitDocumentChange: (change) => set((state) => commitSnapshotChange(state, change)),
+  commitDocumentChangeFromSnapshot: (_before, change) =>
+    set((state) => commitSnapshotChange(state, change)),
   setElements: (elements) => useCadDocumentStore.getState().commitDocumentChange({ elements }),
   updateElement: (id, patch) =>
     set((state) => {
@@ -706,6 +721,7 @@ export const useCadDocumentStore = create<CadDocumentState>((set) => ({
       const shadow = regenerateShadow(snapshotToDslData(normalized));
       return {
         ...normalized,
+        previewElements: null,
         past: [],
         future: [],
         currentFilePath,
@@ -722,11 +738,12 @@ export const useCadDocumentStore = create<CadDocumentState>((set) => ({
   undo: () =>
     set((state) => {
       const previous = state.past.at(-1);
-      if (!previous) return {};
+      if (!previous) return { previewElements: null };
 
       const shadow = regenerateShadow(snapshotToDslData(previous));
       return {
         ...previous,
+        previewElements: null,
         past: state.past.slice(0, -1),
         future: [currentDocumentSnapshot(state), ...state.future],
         dirtySinceSave: true,
@@ -737,11 +754,12 @@ export const useCadDocumentStore = create<CadDocumentState>((set) => ({
   redo: () =>
     set((state) => {
       const next = state.future[0];
-      if (!next) return {};
+      if (!next) return { previewElements: null };
 
       const shadow = regenerateShadow(snapshotToDslData(next));
       return {
         ...next,
+        previewElements: null,
         past: [...state.past, currentDocumentSnapshot(state)],
         future: state.future.slice(1),
         dirtySinceSave: true,
