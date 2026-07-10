@@ -42,6 +42,16 @@ const ROOT_NAMESPACE = "__root__";
 
 const namespaceKey = (parentGroupId: ElementId | undefined) => parentGroupId ?? ROOT_NAMESPACE;
 
+export type ElementNameToken = { token: string; element: CadElement };
+
+export type ElementNameContext = {
+  elements: CadElement[];
+  elementsById: Map<ElementId, CadElement>;
+  childrenByNamespace: Map<string, Map<string, CadElement[]>>;
+  qualifiedNameById: Map<ElementId, string>;
+  tokensByNamespaceKey: Map<string, ElementNameToken[]>;
+};
+
 const parentGroupIdForElement = (
   elementsById: Map<ElementId, CadElement>,
   elementId: ElementId | undefined
@@ -85,6 +95,63 @@ export type ElementNameResolution =
   | { status: "missing" }
   | { status: "ambiguous"; name: string; elements: CadElement[] };
 
+const elementById = (elements: CadElement[]) =>
+  new Map(elements.map((element) => [element.id, element]));
+
+const buildChildrenByNamespace = (elements: CadElement[]) => {
+  const childrenByNamespace = new Map<string, Map<string, CadElement[]>>();
+  for (const element of elements) {
+    const name = element.name.trim();
+    if (!name) continue;
+    const key = namespaceKey(element.parentGroupId);
+    const names = childrenByNamespace.get(key) ?? new Map<string, CadElement[]>();
+    names.set(name, [...(names.get(name) ?? []), element]);
+    childrenByNamespace.set(key, names);
+  }
+  return childrenByNamespace;
+};
+
+const buildQualifiedNameById = (
+  elements: CadElement[],
+  elementsById: Map<ElementId, CadElement>
+) => {
+  const qualifiedNameById = new Map<ElementId, string>();
+  const pathNamesById = new Map<ElementId, string[]>();
+  const visiting = new Set<ElementId>();
+
+  const pathNames = (element: CadElement): string[] => {
+    const cached = pathNamesById.get(element.id);
+    if (cached) return cached;
+    if (visiting.has(element.id)) return [element.name].filter(Boolean);
+    visiting.add(element.id);
+    const parent = element.parentGroupId ? elementsById.get(element.parentGroupId) : undefined;
+    const value = [...(parent ? pathNames(parent) : []), element.name].filter(Boolean);
+    visiting.delete(element.id);
+    pathNamesById.set(element.id, value);
+    return value;
+  };
+
+  const qualifiedName = (element: CadElement): string => {
+    const value = pathNames(element).join("::") || element.id;
+    qualifiedNameById.set(element.id, value);
+    return value;
+  };
+
+  for (const element of elements) qualifiedName(element);
+  return qualifiedNameById;
+};
+
+export const createElementNameContext = (elements: CadElement[]): ElementNameContext => {
+  const elementsById = elementById(elements);
+  return {
+    elements,
+    elementsById,
+    childrenByNamespace: buildChildrenByNamespace(elements),
+    qualifiedNameById: buildQualifiedNameById(elements, elementsById),
+    tokensByNamespaceKey: new Map()
+  };
+};
+
 const elementsNamedInNamespace = (
   elements: CadElement[],
   namespaceId: ElementId | undefined,
@@ -97,9 +164,12 @@ const elementsNamedInNamespace = (
 const resolveNameSegmentInNamespace = (
   elements: CadElement[],
   namespaceId: ElementId | undefined,
-  name: string
+  name: string,
+  context?: ElementNameContext
 ): ElementNameResolution => {
-  const matches = elementsNamedInNamespace(elements, namespaceId, name);
+  const matches =
+    context?.childrenByNamespace.get(namespaceKey(namespaceId))?.get(name) ??
+    elementsNamedInNamespace(elements, namespaceId, name);
   if (matches.length === 1) return { status: "resolved", element: matches[0] };
   if (matches.length > 1) return { status: "ambiguous", name, elements: matches };
   return { status: "missing" };
@@ -108,13 +178,14 @@ const resolveNameSegmentInNamespace = (
 const resolveQualifiedNameFromNamespace = (
   parts: string[],
   namespaceId: ElementId | undefined,
-  elements: CadElement[]
+  elements: CadElement[],
+  context?: ElementNameContext
 ): ElementNameResolution => {
   let currentNamespaceId = namespaceId;
   let resolved: CadElement | null = null;
 
   for (const [index, part] of parts.entries()) {
-    const resolution = resolveNameSegmentInNamespace(elements, currentNamespaceId, part);
+    const resolution = resolveNameSegmentInNamespace(elements, currentNamespaceId, part, context);
     if (resolution.status !== "resolved") return resolution;
     resolved = resolution.element;
     if (index < parts.length - 1) {
@@ -128,15 +199,17 @@ const resolveQualifiedNameFromNamespace = (
 export const resolveElementName = ({
   token,
   elements,
-  currentElement
+  currentElement,
+  context
 }: {
   token: string;
   elements: CadElement[];
   currentElement?: CadElement;
+  context?: ElementNameContext;
 }): ElementNameResolution => {
   const trimmedToken = token.trim();
   if (!trimmedToken) return { status: "missing" };
-  const elementsById = elementById(elements);
+  const elementsById = context?.elementsById ?? elementById(elements);
   const directElement = elementsById.get(trimmedToken);
   if (directElement) return { status: "resolved", element: directElement };
 
@@ -153,14 +226,14 @@ export const resolveElementName = ({
       ? [undefined]
       : namespaceChainForElement(currentElement, elementsById);
     for (const namespaceId of namespaces) {
-      const resolution = resolveQualifiedNameFromNamespace(parts, namespaceId, elements);
+      const resolution = resolveQualifiedNameFromNamespace(parts, namespaceId, elements, context);
       if (resolution.status === "resolved" || resolution.status === "ambiguous") return resolution;
     }
     return { status: "missing" };
   }
 
   for (const namespaceId of namespaceChainForElement(currentElement, elementsById)) {
-    const resolution = resolveNameSegmentInNamespace(elements, namespaceId, parts[0]);
+    const resolution = resolveNameSegmentInNamespace(elements, namespaceId, parts[0], context);
     if (resolution.status === "resolved" || resolution.status === "ambiguous") return resolution;
   }
   return { status: "missing" };
@@ -168,32 +241,45 @@ export const resolveElementName = ({
 
 export const elementQualifiedName = (
   element: CadElement,
-  elements: CadElement[]
+  elements: CadElement[],
+  context?: ElementNameContext
 ) => {
-  const elementsById = elementById(elements);
+  const contextValue = context;
+  const cached = contextValue?.qualifiedNameById.get(element.id);
+  if (cached !== undefined) return cached;
+  const elementsById = contextValue?.elementsById ?? elementById(elements);
   const groupNames = groupPathForElement(element, elementsById).map((group) => group.name);
   return [...groupNames, element.name].filter(Boolean).join("::") || element.id;
 };
 
 export const elementNameTokensForContext = ({
   elements,
-  currentElement
+  currentElement,
+  context
 }: {
   elements: CadElement[];
   currentElement?: CadElement;
+  context?: ElementNameContext;
 }) => {
-  const tokens: Array<{ token: string; element: CadElement }> = [];
-  for (const element of elements) {
+  const contextValue = context ?? createElementNameContext(elements);
+  const cacheKey = namespaceKey(currentElement?.parentGroupId);
+  const cached = contextValue.tokensByNamespaceKey.get(cacheKey);
+  if (cached) return cached;
+
+  const tokens: ElementNameToken[] = [];
+  for (const element of contextValue.elements) {
     if (!element.name.trim()) continue;
-    const candidates = new Set([element.name, elementQualifiedName(element, elements)]);
+    const candidates = new Set([element.name, elementQualifiedName(element, elements, contextValue)]);
     for (const token of candidates) {
-      const resolution = resolveElementName({ token, elements, currentElement });
+      const resolution = resolveElementName({ token, elements, currentElement, context: contextValue });
       if (resolution.status === "resolved" && resolution.element.id === element.id) {
         tokens.push({ token, element });
       }
     }
   }
-  return tokens.sort((a, b) => b.token.length - a.token.length);
+  const sortedTokens = tokens.sort((a, b) => b.token.length - a.token.length);
+  contextValue.tokensByNamespaceKey.set(cacheKey, sortedTokens);
+  return sortedTokens;
 };
 
 const isPointLikeElement = (element: CadElement) =>
@@ -232,9 +318,6 @@ const pointToken = (element: CadElement | undefined) =>
 
 const lineToken = (element: CadElement | undefined) =>
   element ? stripKnownPrefix(element.name, lineNamePrefixes) : null;
-
-const elementById = (elements: CadElement[]) =>
-  new Map(elements.map((element) => [element.id, element]));
 
 const anchorToken = (anchor: PointAnchor | undefined, elementsById: Map<ElementId, CadElement>) => {
   if (!anchor) return null;

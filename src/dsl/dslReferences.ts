@@ -1,5 +1,5 @@
 import { derivedAnchor, referenceAnchor } from "../model/pointAnchors";
-import { resolveElementName } from "../model/elementNames";
+import { createElementNameContext, resolveElementName, type ElementNameContext } from "../model/elementNames";
 import type {
   CadElement,
   ElementId,
@@ -14,6 +14,7 @@ export type NameIndex = {
   elements: CadElement[];
   elementsById: Map<ElementId, CadElement>;
   idsByName: Map<string, ElementId[]>;
+  nameContext: ElementNameContext;
 };
 
 export const createNameIndex = (elements: CadElement[]): NameIndex => {
@@ -22,10 +23,12 @@ export const createNameIndex = (elements: CadElement[]): NameIndex => {
     if (!element.name.trim()) continue;
     idsByName.set(element.name, [...(idsByName.get(element.name) ?? []), element.id]);
   }
+  const nameContext = createElementNameContext(elements);
   return {
     elements,
-    elementsById: new Map(elements.map((element) => [element.id, element])),
-    idsByName
+    elementsById: nameContext.elementsById,
+    idsByName,
+    nameContext
   };
 };
 
@@ -47,7 +50,8 @@ export const resolveId = (
   const resolution = resolveElementName({
     token: resolvedToken,
     elements: index.elements,
-    currentElement
+    currentElement,
+    context: index.nameContext
   });
   if (resolution.status === "resolved") return resolution.element.id;
   if (resolution.status === "ambiguous") {

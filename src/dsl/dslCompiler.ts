@@ -1,6 +1,7 @@
 import { makeNumericExpression, normalizeNumericExpressionInput } from "../geometry/numericExpressions";
 import { createCadElementId } from "../model/cadIds";
 import { createCadElement } from "../model/elementFactory";
+import type { ElementNameContext } from "../model/elementNames";
 import { findParameterDefinition } from "../parameters/parameterDefinitions";
 import { setParameterValue } from "../parameters/parameterAccess";
 import { nextPrintLayoutId, normalizePrintLayout } from "../print/printLayout";
@@ -76,8 +77,13 @@ const profileIdByToken = (profiles: VisibilityProfile[], token: string) => {
 
 const outputKind = (value: string) => value === "svg" ? "svg" : "pdf";
 
-const normalizeExpression = (source: string, elements: CadElement[], currentElement?: CadElement) =>
-  makeNumericExpression(normalizeNumericExpressionInput(source, elements, [], currentElement));
+const normalizeExpression = (
+  source: string,
+  elements: CadElement[],
+  currentElement?: CadElement,
+  nameContext?: ElementNameContext
+) =>
+  makeNumericExpression(normalizeNumericExpressionInput(source, elements, [], currentElement, nameContext));
 
 const parameterAlias = (element: CadElement, key: string) => {
   if (key === "index") return "intersectionIndex";
@@ -156,13 +162,14 @@ const applyCommonAttributes = (
   line: number,
   diagnostics: DslDiagnostic[],
   elementsForExpressions: CadElement[],
+  nameContext: ElementNameContext,
   visibilityRoles: VisibilityRole[] = []
 ) => {
   const parentAttr = attr(attrs, "parent");
   let next = parentAttr
     ? { ...element, parentGroupId: resolveId(parentAttr, index, line, diagnostics, element) }
     : element;
-  const numeric = (source: string) => normalizeExpression(source, elementsForExpressions, next);
+  const numeric = (source: string) => normalizeExpression(source, elementsForExpressions, next, nameContext);
   const skip = new Set(["id", "type", "angle", "at", "center", "end", "size", "start"]);
 
   for (const { key, value } of attrs) {
@@ -196,7 +203,7 @@ const applyCommonAttributes = (
           id: `local-variable-${recordIndex + 1}`,
           name: variableName,
           value: makeNumericExpression(
-            normalizeNumericExpressionInput(expressionSource || "0", elementsForExpressions, variables, next)
+            normalizeNumericExpressionInput(expressionSource || "0", elementsForExpressions, variables, next, nameContext)
           )
         });
       });
@@ -282,6 +289,7 @@ const applyStatement = (
   index: NameIndex,
   diagnostics: DslDiagnostic[],
   elementsForExpressions: CadElement[],
+  nameContext: ElementNameContext,
   visibilityRoles: VisibilityRole[] = []
 ) => {
   const parentAttr = attr(statement.attrs, "parent");
@@ -290,7 +298,7 @@ const applyStatement = (
     name: attr(statement.attrs, "name") ?? statement.name,
     ...(parentAttr ? { parentGroupId: resolveId(parentAttr, index, statement.line, diagnostics, element) } : {})
   };
-  const numeric = (source: string) => normalizeExpression(source, elementsForExpressions, next);
+  const numeric = (source: string) => normalizeExpression(source, elementsForExpressions, next, nameContext);
   const anchor = (source: string) => resolveAnchor(source, index, statement.line, diagnostics, numeric, next);
 
   if (statement.kind === "variable" && next.type === "variable") {
@@ -348,6 +356,7 @@ const applyStatement = (
       statement.line,
       diagnostics,
       elementsForExpressions,
+      nameContext,
       visibilityRoles
     ),
     statement.attrs
@@ -547,7 +556,9 @@ const buildBlockPrintLayouts = ({
     const numericVariables: NumericVariable[] = [];
     const placements: PrintLayoutPlacement[] = [];
     const numeric = (source: string) =>
-      makeNumericExpression(normalizeNumericExpressionInput(source, elements, numericVariables));
+      makeNumericExpression(
+        normalizeNumericExpressionInput(source, elements, numericVariables, undefined, nameIndex.nameContext)
+      );
 
     for (const member of members) {
       if (member.kind === "layoutVar") {
@@ -754,6 +765,7 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
         index,
         diagnostics,
         elementsForExpressions,
+        index.nameContext,
         visibilitySettings.visibilityRoles
       ),
       statement

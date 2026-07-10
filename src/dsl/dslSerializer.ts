@@ -1,5 +1,6 @@
 import { numericValueExpression } from "../geometry/numericExpressions";
-import { resolveElementName } from "../model/elementNames";
+import { createElementNameContext, resolveElementName } from "../model/elementNames";
+import { pointAnchorForElement } from "../model/pointAnchors";
 import type {
   CadElement,
   ElementId,
@@ -63,12 +64,13 @@ const flatRefs = (options: SerializeDslOptions): DslSerializerRefs => ({
 // 参照先が無名・消滅している場合は生IDトークンのまま出力し、決して例外を
 // 投げない(再パース時に明示的な依存診断になる)。
 export const documentDslRefs = (elements: CadElement[]): DslSerializerRefs => {
-  const rootTokens = shortestDslTokensById(elements);
-  const elementsById = new Map(elements.map((element) => [element.id, element]));
+  const nameContext = createElementNameContext(elements);
+  const rootTokens = shortestDslTokensById(elements, undefined, nameContext);
+  const elementsById = nameContext.elementsById;
   const token = (id: ElementId, source: CadElement) => {
     const target = elementsById.get(id);
     if (!target || !target.name.trim()) return id;
-    const resolution = resolveElementName({ token: target.name, elements, currentElement: source });
+    const resolution = resolveElementName({ token: target.name, elements, currentElement: source, context: nameContext });
     if (resolution.status === "resolved" && resolution.element.id === id) {
       return formatDslName(target.name);
     }
@@ -76,7 +78,7 @@ export const documentDslRefs = (elements: CadElement[]): DslSerializerRefs => {
     return qualified ? formatDslName(qualified) : id;
   };
   const numeric = (value: NumericValue, source: CadElement) =>
-    formatNumericValueForDsl(value, elements, source.numericVariables ?? [], source);
+    formatNumericValueForDsl(value, elements, source.numericVariables ?? [], source, nameContext);
   return {
     token,
     anchor: (value, source) => {
@@ -199,7 +201,7 @@ export const serializeElementStatement = (
         name,
         "=",
         "offset",
-        anchor(element.fromPoint),
+        anchor(pointAnchorForElement(element)),
         `dx=${numeric(element.dx)}`,
         `dy=${numeric(element.dy)}`,
         ...attrs
@@ -210,7 +212,7 @@ export const serializeElementStatement = (
         name,
         "=",
         "polar",
-        anchor(element.fromPoint),
+        anchor(pointAnchorForElement(element)),
         `angle=${numeric(element.angleDeg)}`,
         `distance=${numeric(element.distance)}`,
         ...attrs

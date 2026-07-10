@@ -1,5 +1,5 @@
 import { defaultDocumentPalette } from "../palette/palette";
-import { resolveElementName } from "../model/elementNames";
+import { createElementNameContext, resolveElementName, type ElementNameContext } from "../model/elementNames";
 import { DEFAULT_VISIBILITY_PROFILE_ID, defaultVisibilityProfile } from "../model/visibilityProfiles";
 import type {
   CadElement,
@@ -130,14 +130,19 @@ export const serializePaletteLines = (palette: DocumentPalette): string[] =>
 
 // ==== 印刷レイアウト ====
 
-const resolveGroupToken = (elements: CadElement[], groupId: ElementId): string => {
-  const target = elements.find((element) => element.id === groupId);
+const resolveGroupToken = (
+  elements: CadElement[],
+  groupId: ElementId,
+  context: ElementNameContext,
+  rootTokens: Map<ElementId, string>
+): string => {
+  const target = context.elementsById.get(groupId);
   if (!target || !target.name.trim()) return groupId;
-  const resolution = resolveElementName({ token: target.name, elements });
+  const resolution = resolveElementName({ token: target.name, elements, context });
   if (resolution.status === "resolved" && resolution.element.id === groupId) {
     return formatDslName(target.name);
   }
-  const qualified = shortestDslTokensById(elements).get(groupId);
+  const qualified = rootTokens.get(groupId);
   return qualified ? formatDslName(qualified) : groupId;
 };
 
@@ -145,6 +150,8 @@ const printLayoutBlockLines = (
   layout: PrintLayout,
   displayName: string,
   elements: CadElement[],
+  nameContext: ElementNameContext,
+  rootTokens: Map<ElementId, string>,
   visibilityProfiles: VisibilityProfile[]
 ): string[] => {
   const profileName = layout.visibilityProfileId
@@ -152,7 +159,7 @@ const printLayoutBlockLines = (
       layout.visibilityProfileId
     : undefined;
   const numeric = (value: Parameters<typeof formatNumericValueForDsl>[0], localVars: NumericVariable[] = []) =>
-    formatNumericValueForDsl(value, elements, localVars);
+    formatNumericValueForDsl(value, elements, localVars, undefined, nameContext);
 
   const header = [
     "printLayout",
@@ -180,7 +187,7 @@ const printLayoutBlockLines = (
     memberLines.push(
       [
         `${DSL_INDENT}place`,
-        resolveGroupToken(elements, placement.groupId),
+        resolveGroupToken(elements, placement.groupId, nameContext, rootTokens),
         `at=(${numeric(placement.x, localVars)}, ${numeric(placement.y, localVars)})`,
         `angle=${numeric(placement.angleDeg, localVars)}`,
         `mirrorX=${placement.mirrorX}`
@@ -205,6 +212,8 @@ export type PrintLayoutSectionPlan = {
 export const planPrintLayoutSection = (data: DslDocumentData): PrintLayoutSectionPlan => {
   const { printLayouts, activePrintLayoutId, elements, visibilityProfiles } = data;
   if (printLayouts.length === 0) return { blocks: [], activePrintLayoutLine: null };
+  const nameContext = createElementNameContext(elements);
+  const rootTokens = shortestDslTokensById(elements, undefined, nameContext);
 
   const activeLayout = printLayouts.find((layout) => layout.id === activePrintLayoutId);
   const activeIsFirst = printLayouts[0]?.id === activePrintLayoutId;
@@ -219,7 +228,10 @@ export const planPrintLayoutSection = (data: DslDocumentData): PrintLayoutSectio
 
   const blocks = printLayouts.map((layout) => {
     const displayName = activeLayout && layout.id === activeLayout.id && promotedName ? promotedName : layout.name;
-    return { layoutId: layout.id, lines: printLayoutBlockLines(layout, displayName, elements, visibilityProfiles) };
+    return {
+      layoutId: layout.id,
+      lines: printLayoutBlockLines(layout, displayName, elements, nameContext, rootTokens, visibilityProfiles)
+    };
   });
   const activePrintLayoutLine =
     activeLayout && !activeIsFirst

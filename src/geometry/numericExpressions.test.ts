@@ -1,4 +1,6 @@
+import fc from "fast-check";
 import { describe, expect, it } from "vitest";
+import { createElementNameContext } from "../model/elementNames";
 import {
   addToNumericValue,
   formatNumericExpressionForDisplay,
@@ -310,6 +312,157 @@ describe("normalizeNumericExpressionInput", () => {
 
     expect(normalizeNumericExpressionInput("distance(点A, 点B) + 点線距離(点B, 直線AB)", elements)).toBe(
       "distance(point-a, point-b) + 点線距離(point-b, line-ab)"
+    );
+  });
+
+  it("keeps fixed normalization cases equivalent with and without a prebuilt name context", () => {
+    const elements: CadElement[] = [
+      {
+        id: "front",
+        name: "前身頃",
+        type: "group",
+        visible: true,
+        enabled: true,
+        expanded: true,
+        printEnabled: false,
+        printAnchor: { mode: "coordinate", x: 0, y: 0 }
+      },
+      {
+        id: "line-front",
+        name: "脇線",
+        type: "line",
+        visible: true,
+        enabled: true,
+        parentGroupId: "front",
+        numericVariables: [{ id: "local-width", name: "寸法", value: 30 }],
+        startPoint: { mode: "reference", pointId: "point-a" },
+        endPoint: { mode: "reference", pointId: "point-b" }
+      },
+      {
+        id: "curve-front",
+        name: "曲線",
+        type: "bezierCurve",
+        visible: true,
+        enabled: true,
+        parentGroupId: "front",
+        startPoint: { mode: "reference", pointId: "point-a" },
+        startHandleAngleDeg: 0,
+        startHandleLength: 20,
+        intermediatePoints: [],
+        endPoint: { mode: "reference", pointId: "point-b" },
+        endHandleAngleDeg: 0,
+        endHandleLength: 20
+      },
+      {
+        id: "variable-front",
+        name: "基準寸法",
+        type: "variable",
+        visible: true,
+        enabled: true,
+        scope: "global",
+        valueMode: "expression",
+        expression: 20,
+        point1: { mode: "reference", pointId: "point-a" },
+        point2: { mode: "reference", pointId: "point-b" },
+        point: { mode: "reference", pointId: "point-a" },
+        lineId: "line-front"
+      }
+    ];
+    const context = createElementNameContext(elements);
+    const current = elements[1];
+    const locals = current.numericVariables ?? [];
+
+    for (const source of [
+      "脇線.長さ + @寸法",
+      "@脇線.寸法 + @基準寸法",
+      "distance(\"前身頃::脇線\":start, 前身頃::脇線:end)",
+      "曲線.始点ハンドル長 + 曲線.終点ハンドル長",
+      "42",
+      "unrelated + 1"
+    ]) {
+      expect(normalizeNumericExpressionInput(source, elements, locals, current, context)).toBe(
+        normalizeNumericExpressionInput(source, elements, locals, current)
+      );
+    }
+  });
+
+  it("keeps generated normalization inputs equivalent with and without a prebuilt name context", () => {
+    const elements: CadElement[] = [
+      {
+        id: "group-front",
+        name: "前身頃",
+        type: "group",
+        visible: true,
+        enabled: true,
+        expanded: true,
+        printEnabled: false,
+        printAnchor: { mode: "coordinate", x: 0, y: 0 }
+      },
+      {
+        id: "point-a",
+        name: "点A",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        parentGroupId: "group-front",
+        x: 0,
+        y: 0
+      },
+      {
+        id: "point-b",
+        name: "点B",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        parentGroupId: "group-front",
+        x: 10,
+        y: 0
+      },
+      {
+        id: "line-ab",
+        name: "脇線",
+        type: "line",
+        visible: true,
+        enabled: true,
+        parentGroupId: "group-front",
+        numericVariables: [{ id: "local-width", name: "寸法", value: 30 }],
+        startPoint: { mode: "reference", pointId: "point-a" },
+        endPoint: { mode: "reference", pointId: "point-b" }
+      },
+      {
+        id: "variable-base",
+        name: "基準寸法",
+        type: "variable",
+        visible: true,
+        enabled: true,
+        scope: "global",
+        valueMode: "expression",
+        expression: 20,
+        point1: { mode: "reference", pointId: "point-a" },
+        point2: { mode: "reference", pointId: "point-b" },
+        point: { mode: "reference", pointId: "point-a" },
+        lineId: "line-ab"
+      }
+    ];
+    const current = elements[3];
+    const context = createElementNameContext(elements);
+    const locals = current.numericVariables ?? [];
+    const fragments = [
+      "脇線", "前身頃::脇線", "\"前身頃::脇線\"", "点A", "点B",
+      ".長さ", ".length", ":start", ":end", "@寸法", "@脇線.寸法", "@基準寸法",
+      "distance(", "点線距離(", ", ", ") + ", " + ", " - ", " * 2", "42", " "
+    ];
+
+    fc.assert(
+      fc.property(
+        fc.array(fc.constantFrom(...fragments), { minLength: 1, maxLength: 12 }).map((parts) => parts.join("")),
+        (source) => {
+          expect(normalizeNumericExpressionInput(source, elements, locals, current, context)).toBe(
+            normalizeNumericExpressionInput(source, elements, locals, current)
+          );
+        }
+      ),
+      { numRuns: 100 }
     );
   });
 

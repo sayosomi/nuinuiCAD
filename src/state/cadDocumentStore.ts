@@ -2,6 +2,9 @@ import { create } from "zustand";
 import { sampleElements } from "../sampleData";
 import { fallbackElementName, makeUniqueElementName } from "../model/elementNames";
 import { normalizedElementFields } from "../model/elementNormalization";
+import type { CompiledDslDocument, DslDocumentData } from "../dsl/dslDocument";
+import { advanceShadow, safeGenerateShadowFromModel, snapshotToDslData, type ShadowState } from "../document/shadowText";
+import { assertReconcileSane, assertShadowEquivalent, shadowAssertEnabled } from "../document/shadowTextAssert";
 import {
   defaultVisibilityProfile,
   normalizeGroupVisibilityRoleIds,
@@ -59,6 +62,14 @@ export type CadDocumentState = CadDocumentSnapshot & {
   future: CadDocumentSnapshot[];
   currentFilePath: string | null;
   dirtySinceSave: boolean;
+  /**
+   * Phase 1b: observation-only shadow DSL text/compile result, kept in
+   * parallel with the canonical JSON snapshot. Never read for canonical
+   * behavior (evaluation, persistence, undo, selection) — see
+   * docs/overhaul/tasks/phase-1b-shadow-text.md.
+   */
+  shadowText: string;
+  shadowCompiled: CompiledDslDocument;
   setSelectedElementId: (id: ElementId | null) => void;
   setSelectedElementIds: (ids: ElementId[], primaryId?: ElementId | null) => void;
   setSelectedElementRange: (anchorId: ElementId, targetId: ElementId) => void;
@@ -241,26 +252,82 @@ const snapshotEquals = (a: CadDocumentSnapshot, b: CadDocumentSnapshot) =>
   a.selectionAnchorElementId === b.selectionAnchorElementId &&
   a.selectedParameterKey === b.selectedParameterKey;
 
+// generateShadowFromModel は参照先が存在しない文書(AGENTS.mdの依存関係
+// エラー方針上、正当にあり得る状態)で例外を投げ得る。正準操作
+// (初期化・ファイル読込・undo/redo・等価assert失敗時の自己修復)を
+// 絶対にクラッシュさせないよう、常にこの防御ラッパー経由で呼ぶ。
+const regenerateShadow = (afterDoc: DslDocumentData): ShadowState =>
+  safeGenerateShadowFromModel(afterDoc, (reason) => {
+    if (shadowAssertEnabled) {
+      console.error(`[shadowText] 全体再生成に失敗しました。影を最小状態にフォールバックします: ${reason}`);
+    }
+  });
+
+// Phase 1b: 全ての履歴pushコミット(past/futureを更新するコミット)の末尾を
+// 通す funnel。影テキストの維持はここに一本化し、呼び出し元
+// (commitDocumentChange / updateElement / renameElement / 各種可視性・
+// パレット・印刷レイアウト操作)は一切変更しない。
+const withShadowCommit = (
+  state: Pick<CadDocumentState, "past" | "shadowText" | "shadowCompiled">,
+  before: CadDocumentSnapshot,
+  after: CadDocumentSnapshot
+): CadDocumentSnapshot &
+  Pick<CadDocumentState, "past" | "future" | "dirtySinceSave" | "shadowText" | "shadowCompiled"> => {
+  const afterDoc = snapshotToDslData(after);
+  const prevShadow: ShadowState = { text: state.shadowText, compiled: state.shadowCompiled };
+  let next = advanceShadow(prevShadow, afterDoc, {
+    onSelfHeal: (reason) => {
+      if (shadowAssertEnabled) {
+        console.error(`[shadowText] 行パッチ後の影テキストが不整合です。全体再生成します: ${reason}`);
+      }
+    }
+  });
+
+  if (shadowAssertEnabled) {
+    if (!assertShadowEquivalent(afterDoc, next.compiled.document)) {
+      next = regenerateShadow(afterDoc);
+    }
+    assertReconcileSane(state.shadowCompiled, next.text, afterDoc);
+  }
+
+  return {
+    ...after,
+    past: [...state.past, before],
+    future: [],
+    dirtySinceSave: true,
+    shadowText: next.text,
+    shadowCompiled: next.compiled
+  };
+};
+
 export const initialCadDocumentState = (): CadDocumentSnapshot &
-  Pick<CadDocumentState, "past" | "future" | "currentFilePath" | "dirtySinceSave"> => ({
-  elements: sampleElements,
-  palette: defaultDocumentPalette(),
-  visibilityRoles: [],
-  visibilityProfiles: [defaultVisibilityProfile()],
-  activeVisibilityProfileId: defaultVisibilityProfile().id,
-  printLayout: DEFAULT_PRINT_LAYOUT,
-  printLayouts: [DEFAULT_PRINT_LAYOUT],
-  activePrintLayoutId: DEFAULT_PRINT_LAYOUT.id,
-  evaluationLimitIndex: sampleElements.length,
-  selectedElementId: sampleElements[0]?.id ?? null,
-  selectedElementIds: sampleElements[0] ? [sampleElements[0].id] : [],
-  selectionAnchorElementId: sampleElements[0]?.id ?? null,
-  selectedParameterKey: sampleElements[0] ? normalizeParameterKey(sampleElements[0], null) : null,
-  past: [],
-  future: [],
-  currentFilePath: null,
-  dirtySinceSave: false
-});
+  Pick<CadDocumentState, "past" | "future" | "currentFilePath" | "dirtySinceSave" | "shadowText" | "shadowCompiled"> => {
+  const snapshot: CadDocumentSnapshot = {
+    elements: sampleElements,
+    palette: defaultDocumentPalette(),
+    visibilityRoles: [],
+    visibilityProfiles: [defaultVisibilityProfile()],
+    activeVisibilityProfileId: defaultVisibilityProfile().id,
+    printLayout: DEFAULT_PRINT_LAYOUT,
+    printLayouts: [DEFAULT_PRINT_LAYOUT],
+    activePrintLayoutId: DEFAULT_PRINT_LAYOUT.id,
+    evaluationLimitIndex: sampleElements.length,
+    selectedElementId: sampleElements[0]?.id ?? null,
+    selectedElementIds: sampleElements[0] ? [sampleElements[0].id] : [],
+    selectionAnchorElementId: sampleElements[0]?.id ?? null,
+    selectedParameterKey: sampleElements[0] ? normalizeParameterKey(sampleElements[0], null) : null
+  };
+  const shadow = regenerateShadow(snapshotToDslData(snapshot));
+  return {
+    ...snapshot,
+    past: [],
+    future: [],
+    currentFilePath: null,
+    dirtySinceSave: false,
+    shadowText: shadow.text,
+    shadowCompiled: shadow.compiled
+  };
+};
 
 export const useCadDocumentStore = create<CadDocumentState>((set) => ({
   ...initialCadDocumentState(),
@@ -332,24 +399,14 @@ export const useCadDocumentStore = create<CadDocumentState>((set) => ({
       const after = normalizeSnapshot({ ...before, ...change });
       if (snapshotEquals(before, after)) return {};
 
-      return {
-        ...after,
-        past: [...state.past, before],
-        future: [],
-        dirtySinceSave: true
-      };
+      return withShadowCommit(state, before, after);
     }),
   commitDocumentChangeFromSnapshot: (before, change) =>
     set((state) => {
       const after = normalizeSnapshot({ ...before, ...change });
       if (snapshotEquals(before, after)) return {};
 
-      return {
-        ...after,
-        past: [...state.past, before],
-        future: [],
-        dirtySinceSave: true
-      };
+      return withShadowCommit(state, before, after);
     }),
   setElements: (elements) => useCadDocumentStore.getState().commitDocumentChange({ elements }),
   updateElement: (id, patch) =>
@@ -364,12 +421,7 @@ export const useCadDocumentStore = create<CadDocumentState>((set) => ({
         )
       });
 
-      return {
-        ...after,
-        past: [...state.past, before],
-        future: [],
-        dirtySinceSave: true
-      };
+      return withShadowCommit(state, before, after);
     }),
   setPrintLayout: (printLayout) =>
     useCadDocumentStore.getState().commitDocumentChange({
@@ -402,12 +454,7 @@ export const useCadDocumentStore = create<CadDocumentState>((set) => ({
         ...before,
         visibilityRoles: [...state.visibilityRoles, role]
       });
-      return {
-        ...after,
-        past: [...state.past, before],
-        future: [],
-        dirtySinceSave: true
-      };
+      return withShadowCommit(state, before, after);
     }),
   updateVisibilityRole: (id, patch) =>
     set((state) => {
@@ -420,12 +467,7 @@ export const useCadDocumentStore = create<CadDocumentState>((set) => ({
         )
       });
       if (snapshotEquals(before, after)) return {};
-      return {
-        ...after,
-        past: [...state.past, before],
-        future: [],
-        dirtySinceSave: true
-      };
+      return withShadowCommit(state, before, after);
     }),
   deleteVisibilityRole: (id) =>
     set((state) => {
@@ -448,12 +490,7 @@ export const useCadDocumentStore = create<CadDocumentState>((set) => ({
             : element
         )
       });
-      return {
-        ...after,
-        past: [...state.past, before],
-        future: [],
-        dirtySinceSave: true
-      };
+      return withShadowCommit(state, before, after);
     }),
   addVisibilityProfile: (name) =>
     set((state) => {
@@ -470,12 +507,7 @@ export const useCadDocumentStore = create<CadDocumentState>((set) => ({
         visibilityProfiles: [...state.visibilityProfiles, profile],
         activeVisibilityProfileId: profile.id
       });
-      return {
-        ...after,
-        past: [...state.past, before],
-        future: [],
-        dirtySinceSave: true
-      };
+      return withShadowCommit(state, before, after);
     }),
   updateVisibilityProfile: (id, patch) =>
     set((state) => {
@@ -488,12 +520,7 @@ export const useCadDocumentStore = create<CadDocumentState>((set) => ({
         )
       });
       if (snapshotEquals(before, after)) return {};
-      return {
-        ...after,
-        past: [...state.past, before],
-        future: [],
-        dirtySinceSave: true
-      };
+      return withShadowCommit(state, before, after);
     }),
   deleteVisibilityProfile: (id) =>
     set((state) => {
@@ -512,12 +539,7 @@ export const useCadDocumentStore = create<CadDocumentState>((set) => ({
             : layout
         )
       });
-      return {
-        ...after,
-        past: [...state.past, before],
-        future: [],
-        dirtySinceSave: true
-      };
+      return withShadowCommit(state, before, after);
     }),
   setVisibilityProfileRoleVisible: (profileId, roleId, visible) =>
     set((state) => {
@@ -539,12 +561,7 @@ export const useCadDocumentStore = create<CadDocumentState>((set) => ({
         )
       });
       if (snapshotEquals(before, after)) return {};
-      return {
-        ...after,
-        past: [...state.past, before],
-        future: [],
-        dirtySinceSave: true
-      };
+      return withShadowCommit(state, before, after);
     }),
   setActivePrintLayoutId: (activePrintLayoutId) =>
     useCadDocumentStore.getState().commitDocumentChange({ activePrintLayoutId }),
@@ -557,12 +574,7 @@ export const useCadDocumentStore = create<CadDocumentState>((set) => ({
         printLayouts: [...state.printLayouts, layout],
         activePrintLayoutId: layout.id
       });
-      return {
-        ...after,
-        past: [...state.past, before],
-        future: [],
-        dirtySinceSave: true
-      };
+      return withShadowCommit(state, before, after);
     }),
   duplicatePrintLayout: (id) =>
     set((state) => {
@@ -583,12 +595,7 @@ export const useCadDocumentStore = create<CadDocumentState>((set) => ({
         printLayouts: [...state.printLayouts, copy],
         activePrintLayoutId: copy.id
       });
-      return {
-        ...after,
-        past: [...state.past, before],
-        future: [],
-        dirtySinceSave: true
-      };
+      return withShadowCommit(state, before, after);
     }),
   deletePrintLayout: (id) =>
     set((state) => {
@@ -602,12 +609,7 @@ export const useCadDocumentStore = create<CadDocumentState>((set) => ({
         activePrintLayoutId:
           state.activePrintLayoutId === id ? nextLayouts[0].id : state.activePrintLayoutId
       });
-      return {
-        ...after,
-        past: [...state.past, before],
-        future: [],
-        dirtySinceSave: true
-      };
+      return withShadowCommit(state, before, after);
     }),
   setPalette: (palette) =>
     useCadDocumentStore.getState().commitDocumentChange({
@@ -627,12 +629,7 @@ export const useCadDocumentStore = create<CadDocumentState>((set) => ({
         }
       });
       if (snapshotEquals(before, after)) return {};
-      return {
-        ...after,
-        past: [...state.past, before],
-        future: [],
-        dirtySinceSave: true
-      };
+      return withShadowCommit(state, before, after);
     }),
   addPaletteColor: () =>
     set((state) => {
@@ -644,12 +641,7 @@ export const useCadDocumentStore = create<CadDocumentState>((set) => ({
           colors: [...state.palette.colors, createPaletteColor(state.palette.colors)]
         }
       });
-      return {
-        ...after,
-        past: [...state.past, before],
-        future: [],
-        dirtySinceSave: true
-      };
+      return withShadowCommit(state, before, after);
     }),
   deletePaletteColor: (id) =>
     set((state) => {
@@ -667,12 +659,7 @@ export const useCadDocumentStore = create<CadDocumentState>((set) => ({
         }
       });
       if (snapshotEquals(before, after)) return {};
-      return {
-        ...after,
-        past: [...state.past, before],
-        future: [],
-        dirtySinceSave: true
-      };
+      return withShadowCommit(state, before, after);
     }),
   setDefaultColorId: (id) =>
     set((state) => {
@@ -685,12 +672,7 @@ export const useCadDocumentStore = create<CadDocumentState>((set) => ({
           defaultColorId: id
         }
       });
-      return {
-        ...after,
-        past: [...state.past, before],
-        future: [],
-        dirtySinceSave: true
-      };
+      return withShadowCommit(state, before, after);
     }),
   renameElement: (id, requestedName) =>
     set((state) => {
@@ -715,21 +697,22 @@ export const useCadDocumentStore = create<CadDocumentState>((set) => ({
         )
       });
 
-      return {
-        ...after,
-        past: [...state.past, before],
-        future: [],
-        dirtySinceSave: true
-      };
+      return withShadowCommit(state, before, after);
     }),
   replaceDocument: (snapshot, currentFilePath) =>
-    set(() => ({
-      ...normalizeSnapshot(snapshot),
-      past: [],
-      future: [],
-      currentFilePath,
-      dirtySinceSave: false
-    })),
+    set(() => {
+      const normalized = normalizeSnapshot(snapshot);
+      const shadow = regenerateShadow(snapshotToDslData(normalized));
+      return {
+        ...normalized,
+        past: [],
+        future: [],
+        currentFilePath,
+        dirtySinceSave: false,
+        shadowText: shadow.text,
+        shadowCompiled: shadow.compiled
+      };
+    }),
   markDocumentSaved: (currentFilePath) =>
     set({
       currentFilePath,
@@ -740,11 +723,14 @@ export const useCadDocumentStore = create<CadDocumentState>((set) => ({
       const previous = state.past.at(-1);
       if (!previous) return {};
 
+      const shadow = regenerateShadow(snapshotToDslData(previous));
       return {
         ...previous,
         past: state.past.slice(0, -1),
         future: [currentDocumentSnapshot(state), ...state.future],
-        dirtySinceSave: true
+        dirtySinceSave: true,
+        shadowText: shadow.text,
+        shadowCompiled: shadow.compiled
       };
     }),
   redo: () =>
@@ -752,11 +738,14 @@ export const useCadDocumentStore = create<CadDocumentState>((set) => ({
       const next = state.future[0];
       if (!next) return {};
 
+      const shadow = regenerateShadow(snapshotToDslData(next));
       return {
         ...next,
         past: [...state.past, currentDocumentSnapshot(state)],
         future: state.future.slice(1),
-        dirtySinceSave: true
+        dirtySinceSave: true,
+        shadowText: shadow.text,
+        shadowCompiled: shadow.compiled
       };
     })
 }));

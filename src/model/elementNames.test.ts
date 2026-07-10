@@ -1,9 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  createElementNameContext,
   createdElementName,
+  elementNameTokensForContext,
+  elementQualifiedName,
   fallbackElementName,
   formatReferenceOptionLabel,
-  makeUniqueElementName
+  makeUniqueElementName,
+  resolveElementName
 } from "./elementNames";
 import type { CadElement } from "../types/geometry";
 
@@ -213,5 +217,72 @@ describe("elementNames", () => {
         }
       })
     ).toBe("交点A_B");
+  });
+
+  it("keeps name resolution context equivalent to the compatibility path", () => {
+    const nestedElements: CadElement[] = [
+      {
+        id: "child",
+        name: "袖線",
+        type: "line",
+        visible: true,
+        enabled: true,
+        parentGroupId: "parent",
+        startPoint: { mode: "reference", pointId: "point-a" },
+        endPoint: { mode: "reference", pointId: "point-b" }
+      },
+      {
+        id: "point-a",
+        name: "点A",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        parentGroupId: "parent",
+        x: 0,
+        y: 0
+      },
+      {
+        id: "parent",
+        name: "前身頃",
+        type: "group",
+        visible: true,
+        enabled: true,
+        expanded: true,
+        printEnabled: false,
+        printAnchor: { mode: "coordinate", x: 0, y: 0 }
+      },
+      {
+        id: "point-b",
+        name: "点B",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        parentGroupId: "parent",
+        x: 10,
+        y: 0
+      }
+    ];
+    const context = createElementNameContext(nestedElements);
+    const child = nestedElements[0];
+
+    expect(elementQualifiedName(child, nestedElements, context)).toBe(
+      elementQualifiedName(child, nestedElements)
+    );
+    expect(elementQualifiedName(child, nestedElements, context)).toBe("前身頃::袖線");
+
+    for (const token of ["袖線", "前身頃::袖線", "child", "::前身頃::袖線"]) {
+      const slow = resolveElementName({ token, elements: nestedElements, currentElement: child });
+      const fast = resolveElementName({ token, elements: nestedElements, currentElement: child, context });
+      expect({ ...fast, element: fast.status === "resolved" ? fast.element.id : undefined }).toEqual({
+        ...slow,
+        element: slow.status === "resolved" ? slow.element.id : undefined
+      });
+    }
+
+    const tokenSummary = (items: ReturnType<typeof elementNameTokensForContext>) =>
+      items.map(({ token, element }) => [token, element.id]);
+    expect(
+      tokenSummary(elementNameTokensForContext({ elements: nestedElements, currentElement: child, context }))
+    ).toEqual(tokenSummary(elementNameTokensForContext({ elements: nestedElements, currentElement: child })));
   });
 });

@@ -11,6 +11,7 @@ import type {
 import type { PointAnchor } from "../types/geometry";
 import { derivedPointLabel, resolveDerivedPoint } from "../model/pointAnchors";
 import { elementNameTokensForContext, elementQualifiedName } from "../model/elementNames";
+import type { ElementNameContext } from "../model/elementNames";
 import { getParameterValue } from "../parameters/parameterAccess";
 import { Parser, tokenize } from "./numericExpressionParser";
 import type { NumericExpressionMeasurementFunctionName } from "./numericExpressionParser";
@@ -204,7 +205,8 @@ export const normalizeNumericExpressionInput = (
   input: string,
   elements: CadElement[],
   localVariables: NumericVariable[] = [],
-  currentElement?: CadElement
+  currentElement?: CadElement,
+  context?: ElementNameContext
 ) => {
   let expression = input.trim();
   const variables = [...localVariables].sort((a, b) => b.name.length - a.name.length);
@@ -212,24 +214,26 @@ export const normalizeNumericExpressionInput = (
   for (const variable of localVariables) {
     localVariableNameCounts.set(variable.name, (localVariableNameCounts.get(variable.name) ?? 0) + 1);
   }
-  const measurableElements = elements
-    .filter(
-      (element) =>
-        element.type === "line" ||
-        element.type === "angleLengthLine" ||
-        element.type === "arcLine" ||
-        element.type === "threePointArcLine" ||
-        element.type === "cornerRadiusArcLine" ||
-        element.type === "bezierCurve" ||
-        element.type === "offsetLine" ||
-        element.type === "copyLine" ||
-        element.type === "symmetricCopyLine"
-    )
-    .sort((a, b) => b.name.length - a.name.length);
-  const nameTokens = elementNameTokensForContext({ elements, currentElement });
+  const measurableElementIds = new Set(
+    elements
+      .filter(
+        (element) =>
+          element.type === "line" ||
+          element.type === "angleLengthLine" ||
+          element.type === "arcLine" ||
+          element.type === "threePointArcLine" ||
+          element.type === "cornerRadiusArcLine" ||
+          element.type === "bezierCurve" ||
+          element.type === "offsetLine" ||
+          element.type === "copyLine" ||
+          element.type === "symmetricCopyLine"
+      )
+      .map((element) => element.id)
+  );
+  const nameTokens = elementNameTokensForContext({ elements, currentElement, context });
   const variableElementTokens = nameTokens.filter(({ element }) => element.type === "variable");
   const measurableElementTokens = nameTokens.filter(({ element }) =>
-    measurableElements.some((candidate) => candidate.id === element.id)
+    measurableElementIds.has(element.id)
   );
 
   if (currentElement) {
@@ -239,8 +243,10 @@ export const normalizeNumericExpressionInput = (
     );
     for (const variable of qualifiedVariables) {
       if (currentElement && (localVariableNameCounts.get(variable.name) ?? 0) > 1) continue;
+      const token = `${currentElement.name}.${variable.name}`;
+      if (!expression.includes(token)) continue;
       expression = expression.replace(
-        new RegExp(`@${escapeRegExp(`${currentElement.name}.${variable.name}`)}(?=$|[\\s()+*/<>=!&|-])`, "g"),
+        new RegExp(`@${escapeRegExp(token)}(?=$|[\\s()+*/<>=!&|-])`, "g"),
         `@${variable.id}`
       );
     }
@@ -248,6 +254,7 @@ export const normalizeNumericExpressionInput = (
 
   for (const variable of variables) {
     if (currentElement && (localVariableNameCounts.get(variable.name) ?? 0) > 1) continue;
+    if (!expression.includes(variable.name)) continue;
     expression = expression.replace(
       new RegExp(`@${escapeRegExp(variable.name)}(?=$|[\\s()+*/<>=!&|-])`, "g"),
       `@${variable.id}`
@@ -255,6 +262,7 @@ export const normalizeNumericExpressionInput = (
   }
 
   for (const { token, element: variable } of variableElementTokens) {
+    if (!expression.includes(token)) continue;
     expression = expression.replace(
       new RegExp(`@${escapeRegExp(token)}(?=$|[\\s()+*/<>=!&|-])`, "g"),
       `@${variable.id}`
@@ -262,7 +270,9 @@ export const normalizeNumericExpressionInput = (
   }
 
   for (const { token, element } of measurableElementTokens) {
+    if (!expression.includes(token)) continue;
     for (const [property, label] of Object.entries(propertyLabels)) {
+      if (!expression.includes(label)) continue;
       if (
         (element.type === "line" ||
           element.type === "angleLengthLine" ||
@@ -297,6 +307,7 @@ export const normalizeNumericExpressionInput = (
   }
 
   for (const { token, element } of nameTokens) {
+    if (!expression.includes(token)) continue;
     expression = expression.replace(
       new RegExp(`(^|[^@])${escapeRegExp(token)}\\.`, "g"),
       `$1${element.id}.`

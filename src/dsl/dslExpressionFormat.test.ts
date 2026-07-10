@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { normalizeNumericExpressionInput } from "../geometry/numericExpressions";
+import { createElementNameContext } from "../model/elementNames";
 import type { NumericVariable } from "../types/geometry";
 import { compileDslToElements } from "./dslCompiler";
 import { formatNumericValueForDsl } from "./dslExpressionFormat";
@@ -88,5 +89,22 @@ describe("formatNumericValueForDsl", () => {
     expect(
       formatNumericValueForDsl({ kind: "expression", expression: "@print-variable-1 + 1" }, elements, locals)
     ).toBe("@print-variable-1 + 1");
+  });
+
+  it("keeps formatting equivalent with and without a prebuilt name context", () => {
+    const context = createElementNameContext(elements);
+    const locals: NumericVariable[] = [{ id: "print-variable-1", name: "余白", value: 20 }];
+
+    for (const value of [
+      { kind: "expression" as const, expression: "@v1 / 4" },
+      { kind: "expression" as const, expression: "distance(p1, l1) + l1.length" },
+      { kind: "expression" as const, expression: "distance(p2, p3)" },
+      { kind: "expression" as const, expression: "@print-variable-1 * 2" },
+      42
+    ]) {
+      expect(formatNumericValueForDsl(value, elements, locals, undefined, context)).toBe(
+        formatNumericValueForDsl(value, elements, locals)
+      );
+    }
   });
 });

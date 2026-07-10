@@ -137,6 +137,11 @@ Phase 1c で行うこと:
 * Phase 0 / 1a / 1b 完了済み。影テキスト機構が全経路で警告ゼロで動いている。
 * DSLパネルの適用は `commitDocumentChange` 経由なのでブリッジで自然に動くが、
   パネル独自のローカルテキスト履歴はそのまま残してよい(削除はPhase 4)。
+* Phase 1c着手前に、dangling reference(削除済み参照)が文書全体の
+  compile失敗(`document=null`)にならないよう、要素レベルの依存診断へ降格する
+  前提を確認すること。Phase 1bの `safeGenerateShadowFromModel` は影テキストを
+  最小文書へ後退させる安全弁としては成立するが、Phase 1cでは
+  `sourceText` が正準になるため同じ後退は文書喪失になり得る。
 
 ## 完了条件
 
