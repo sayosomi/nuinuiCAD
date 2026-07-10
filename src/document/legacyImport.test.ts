@@ -71,6 +71,75 @@ describe("legacy JSON import", () => {
     });
   });
 
+  it("keeps the first existing duplicate name and renames later siblings without merging their children", () => {
+    const group = (id: string, name: string, parentGroupId?: string) => ({
+      id,
+      name,
+      type: "group" as const,
+      visible: true,
+      enabled: true,
+      parentGroupId,
+      printEnabled: false,
+      printAnchor: { mode: "coordinate" as const, x: 0, y: 0 }
+    }) as CadElement;
+    const point = (id: string, parentGroupId: string) => ({
+      id,
+      name: "頂点",
+      type: "freePoint" as const,
+      visible: true,
+      enabled: true,
+      parentGroupId,
+      x: 0,
+      y: 0
+    }) as CadElement;
+    const outer = group("outer", "本体");
+    const first = group("notch-1", "凸ノッチ", outer.id);
+    const second = group("notch-2", "凸ノッチ", outer.id);
+    const layout = {
+      ...DEFAULT_PRINT_LAYOUT,
+      placements: [{
+        id: "placed-second-notch",
+        groupId: second.id,
+        x: 0,
+        y: 0,
+        angleDeg: 0,
+        mirrorX: false
+      }]
+    };
+    const document = {
+      elements: [outer, first, point("first-tip", first.id), second, point("second-tip", second.id)],
+      palette: defaultDocumentPalette(),
+      visibilityRoles: [],
+      visibilityProfiles: [defaultVisibilityProfile()],
+      activeVisibilityProfileId: defaultVisibilityProfile().id,
+      printLayouts: [layout],
+      activePrintLayoutId: layout.id,
+      printLayout: layout,
+      evaluationLimitIndex: 5,
+      selectedElementId: null,
+      selectedElementIds: [],
+      selectionAnchorElementId: null,
+      selectedParameterKey: null
+    };
+    const content = JSON.stringify({
+      app: CAD_DOCUMENT_APP_ID,
+      schemaVersion: CAD_DOCUMENT_SCHEMA_VERSION,
+      savedAt: "2026-07-11T00:00:00.000Z",
+      document
+    });
+
+    const imported = compileDslDocument(importLegacyCadDocument(content, "/legacy/duplicate-names.nuinui.json"));
+
+    expect(imported.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(imported.document).not.toBeNull();
+    const importedGroups = imported.document!.elements.filter((element) => element.type === "group");
+    expect(importedGroups.map((element) => element.name)).toEqual(["本体", "凸ノッチ", "凸ノッチ 2"]);
+    const secondNotch = importedGroups.find((element) => element.name === "凸ノッチ 2");
+    expect(secondNotch).toBeDefined();
+    expect(imported.document!.elements.filter((element) => element.name === "頂点")).toHaveLength(2);
+    expect(imported.document!.printLayouts[0].placements[0].groupId).toBe(secondNotch?.id);
+  });
+
   it("preserves every current element type semantically through legacy JSON conversion", () => {
     const elements = compileDslToElements([
       "group G id=g1",

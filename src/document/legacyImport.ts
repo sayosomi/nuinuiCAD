@@ -11,29 +11,28 @@ const withoutLegacyUiFields = (element: CadElement): CadElement => {
 };
 
 const importedElements = (elements: CadElement[], legacyPath: string): CadElement[] => {
-  const named = elements.map(withoutLegacyUiFields);
+  const imported: CadElement[] = [];
 
-  for (let index = 0; index < named.length; index += 1) {
-    const element = named[index];
-    const name = element.name.trim()
-      ? element.name
-      : makeUniqueElementName({
-          elements: named,
-          elementId: element.id,
-          requestedName: "",
-          fallbackBaseName: fallbackElementName(element.type),
-          parentGroupId: element.parentGroupId
-        });
+  for (const rawElement of elements) {
+    const element = withoutLegacyUiFields(rawElement);
+    // 旧JSONはIDで参照するため、同一スコープの重複名を許していた。DSLでは
+    // 一意名が必要なので、文書順で先出名を維持し、後出だけを連番改名する。
+    const name = makeUniqueElementName({
+      elements: imported,
+      requestedName: element.name,
+      fallbackBaseName: fallbackElementName(element.type),
+      parentGroupId: element.parentGroupId
+    });
     const withName = name === element.name ? element : { ...element, name } as CadElement;
-    named[index] = withName.type === "image"
+    imported.push(withName.type === "image"
       ? {
           ...withName,
           sourcePath: imagePathForDocument(withName.sourcePath, legacyPath, null)
         }
-      : withName;
+      : withName);
   }
 
-  return named;
+  return imported;
 };
 
 /** Converts a legacy JSON file into a fresh, unsaved .nui document text. */
