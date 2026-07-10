@@ -1,5 +1,5 @@
 import { derivedAnchor, referenceAnchor } from "../model/pointAnchors";
-import { createElementNameContext, resolveElementName, type ElementNameContext } from "../model/elementNames";
+import { createElementNameContext, resolveElementNamePath, type ElementNameContext } from "../model/elementNames";
 import type {
   CadElement,
   ElementId,
@@ -8,7 +8,8 @@ import type {
   PointAnchor
 } from "../types/geometry";
 import type { DslDiagnostic } from "./dslTypes";
-import { lastIndexOfDslOutsideQuotes, unquoteDslString } from "./dslTokens";
+import { formatDslReferenceToken, parseDslReferenceToken } from "./dslReferenceTokens";
+import { lastIndexOfDslOutsideQuotes } from "./dslTokens";
 
 export type NameIndex = {
   elements: CadElement[];
@@ -33,7 +34,7 @@ export const createNameIndex = (elements: CadElement[]): NameIndex => {
 };
 
 const diagnostic = (line: number, message: string): DslDiagnostic => ({
-  severity: "error",
+  severity: "warning",
   line,
   column: 1,
   message
@@ -46,20 +47,21 @@ export const resolveId = (
   diagnostics: DslDiagnostic[],
   currentElement?: CadElement
 ) => {
-  const resolvedToken = unquoteDslString(token);
-  const resolution = resolveElementName({
-    token: resolvedToken,
+  const path = parseDslReferenceToken(token);
+  const unresolvedToken = formatDslReferenceToken(token);
+  const resolution = resolveElementNamePath({
+    path: { absolute: path.absolute, parts: path.segments },
     elements: index.elements,
     currentElement,
     context: index.nameContext
   });
   if (resolution.status === "resolved") return resolution.element.id;
   if (resolution.status === "ambiguous") {
-    diagnostics.push(diagnostic(line, `参照名が曖昧です: ${resolvedToken}`));
-    return resolvedToken;
+    diagnostics.push(diagnostic(line, `参照名が曖昧です: ${unresolvedToken}`));
+    return unresolvedToken;
   }
-  diagnostics.push(diagnostic(line, `参照先が見つかりません: ${resolvedToken}`));
-  return resolvedToken;
+  diagnostics.push(diagnostic(line, `参照先が見つかりません: ${unresolvedToken}`));
+  return unresolvedToken;
 };
 
 const coordinateAnchor = (value: string, numeric: (source: string) => NumericValue): PointAnchor | null => {

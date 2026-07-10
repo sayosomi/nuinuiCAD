@@ -143,6 +143,36 @@ Phase 1c で行うこと:
   最小文書へ後退させる安全弁としては成立するが、Phase 1cでは
   `sourceText` が正準になるため同じ後退は文書喪失になり得る。
 
+## Phase 1c開始前のdangling reference引き継ぎ(2026-07-10)
+
+前提対応として、未解決・曖昧な参照はcompile warningへ降格済みであり、
+compiler/serializer内では生参照トークンを保持する。qualified referenceは
+namespace segment単位でquoteし、anchor/endpoint suffixを構造として維持する。
+一方、以下は本Phaseで扱う境界として残る。
+
+* `cadDocumentStore.normalizeSnapshot` の防衛正規化は未変更。モデル差分ブリッジを
+  通すと、`elementsWithValidColorIds` が未知colorIdを除去し、
+  `normalizeVisibilityProfiles` が未知roleVisibilityキーを除去し、
+  `normalizePrintLayouts` が未知groupのplacementと未知visibilityProfileIdを除去し、
+  activeVisibilityProfileId / activePrintLayoutIdが既存先頭項目へ置換され得る。
+  `normalizeGroupVisibilityRoleIds` も未知role IDを除去し得るが、現状は
+  `normalizeVisibilityRoles` が要素上の未知IDを先に実体化する経路がある。
+  `commitText` を正準入口にする際は、sourceTextのdangling情報をこの正規化へ
+  往復させて失わないよう、compiler派生docと防衛フィルタの責務を分離すること。
+* mode、boolean、paper、orientation、output、canvas、at等の非参照値不正は
+  引き続きfatal diagnosticであり、`document=null`になる。Phase 1cの
+  `commitText` は、この場合に直前の正常なcompiled documentを保持しつつ、
+  編集中sourceTextとfatal診断を表示できる設計にすること。参照warningと同じ
+  経路へ一括降格しない。
+* Rust適格性とRust evaluatorは前提対応では未変更。dangling参照を含む文書は
+  `canUseRustEvaluationForElements` により文書全体がTS evaluatorへフォールバック
+  する既存挙動を維持している。大規模文書での性能注意として計測対象にするが、
+  Rust側でdependency errorを扱う変更はfocused fixtureとparity確認を伴う別タスク
+  とし、Phase 1c本体へ混ぜない。
+* `safeGenerateShadowFromModel` は削除せず、予期しないparser/serializer/compiler
+  failureに対する最終防衛線として残っている。danglingだけでは最小文書
+  `nui 1` へ後退しないことがテストで固定済み。
+
 ## 完了条件
 
 * 正準反転後、既存テストが全て通る(モデル結果の後方互換をフィクスチャで確認)。

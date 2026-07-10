@@ -53,6 +53,9 @@ export const unquoteDslString = (value: string) => {
   if (trimmed.length < 2) return trimmed;
   const quote = trimmed[0];
   if ((quote !== "\"" && quote !== "'") || trimmed.at(-1) !== quote) return trimmed;
+  for (let index = 1; index < trimmed.length - 1; index += 1) {
+    if (trimmed[index] === quote && trimmed[index - 1] !== "\\") return trimmed;
+  }
   return trimmed
     .slice(1, -1)
     .replace(/\\\\/g, "\\")

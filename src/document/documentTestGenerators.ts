@@ -115,6 +115,7 @@ export type RandomOp = {
     | "rename"
     | "insert"
     | "deleteLeaf"
+    | "deleteReferencedTarget"
     | "deleteSubtree"
     | "ungroup"
     | "move"
@@ -303,6 +304,22 @@ export const applyRandomOp = (document: DslDocumentData, op: RandomOp): AppliedO
         document: { ...document, elements, evaluationLimitIndex: elements.length },
         insertedIds: [],
         description: `deleteLeaf ${target.name}`
+      };
+    }
+
+    case "deleteReferencedTarget": {
+      const target = pick(
+        document.elements.filter((element) =>
+          !isContainer(element) && referenced.has(element.id)
+        ),
+        op.a
+      );
+      if (!target) return fallbackUpdate();
+      const elements = document.elements.filter((element) => element.id !== target.id);
+      return {
+        document: { ...document, elements, evaluationLimitIndex: elements.length },
+        insertedIds: [],
+        description: `deleteReferencedTarget ${target.name || target.id}`
       };
     }
 

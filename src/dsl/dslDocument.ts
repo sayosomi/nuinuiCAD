@@ -1,5 +1,10 @@
 import { defaultDocumentPalette } from "../palette/palette";
-import { createElementNameContext, resolveElementName, type ElementNameContext } from "../model/elementNames";
+import {
+  createElementNameContext,
+  elementQualifiedNameParts,
+  resolveElementName,
+  type ElementNameContext
+} from "../model/elementNames";
 import { DEFAULT_VISIBILITY_PROFILE_ID, defaultVisibilityProfile } from "../model/visibilityProfiles";
 import type {
   CadElement,
@@ -13,7 +18,7 @@ import type {
   VisibilityRole
 } from "../types/geometry";
 import { compileDslToElements } from "./dslCompiler";
-import { formatNumericValueForDsl, shortestDslTokensById } from "./dslExpressionFormat";
+import { formatNumericValueForDsl } from "./dslExpressionFormat";
 import { parseDsl } from "./dslParser";
 import {
   documentDslRefs,
@@ -22,6 +27,7 @@ import {
   type DslSerializerRefs
 } from "./dslSerializer";
 import type { DslDiagnostic, DslEnclosing, DslStatement } from "./dslTypes";
+import { formatDslReferencePath, formatDslReferenceToken } from "./dslReferenceTokens";
 import { DSL_INDENT, formatDslName, quoteDslString } from "./dslTokens";
 
 // `nui 1` を先頭に持つ、文書全体を無損失に表すDSLテキストへの変換ファサード。
@@ -133,17 +139,18 @@ export const serializePaletteLines = (palette: DocumentPalette): string[] =>
 const resolveGroupToken = (
   elements: CadElement[],
   groupId: ElementId,
-  context: ElementNameContext,
-  rootTokens: Map<ElementId, string>
+  context: ElementNameContext
 ): string => {
   const target = context.elementsById.get(groupId);
-  if (!target || !target.name.trim()) return groupId;
+  if (!target || !target.name.trim()) return formatDslReferenceToken(groupId);
   const resolution = resolveElementName({ token: target.name, elements, context });
   if (resolution.status === "resolved" && resolution.element.id === groupId) {
     return formatDslName(target.name);
   }
-  const qualified = rootTokens.get(groupId);
-  return qualified ? formatDslName(qualified) : groupId;
+  return formatDslReferencePath({
+    absolute: false,
+    segments: elementQualifiedNameParts(target, elements, context)
+  });
 };
 
 const printLayoutBlockLines = (
@@ -151,7 +158,6 @@ const printLayoutBlockLines = (
   displayName: string,
   elements: CadElement[],
   nameContext: ElementNameContext,
-  rootTokens: Map<ElementId, string>,
   visibilityProfiles: VisibilityProfile[]
 ): string[] => {
   const profileName = layout.visibilityProfileId
@@ -187,7 +193,7 @@ const printLayoutBlockLines = (
     memberLines.push(
       [
         `${DSL_INDENT}place`,
-        resolveGroupToken(elements, placement.groupId, nameContext, rootTokens),
+        resolveGroupToken(elements, placement.groupId, nameContext),
         `at=(${numeric(placement.x, localVars)}, ${numeric(placement.y, localVars)})`,
         `angle=${numeric(placement.angleDeg, localVars)}`,
         `mirrorX=${placement.mirrorX}`
@@ -211,9 +217,15 @@ export type PrintLayoutSectionPlan = {
 // 行パッチ(src/document/textPatch.ts)が同一の名前昇格ロジックを共有する。
 export const planPrintLayoutSection = (data: DslDocumentData): PrintLayoutSectionPlan => {
   const { printLayouts, activePrintLayoutId, elements, visibilityProfiles } = data;
-  if (printLayouts.length === 0) return { blocks: [], activePrintLayoutLine: null };
+  if (printLayouts.length === 0) {
+    return {
+      blocks: [],
+      activePrintLayoutLine: activePrintLayoutId
+        ? `activePrintLayout ${formatDslName(activePrintLayoutId)}`
+        : null
+    };
+  }
   const nameContext = createElementNameContext(elements);
-  const rootTokens = shortestDslTokensById(elements, undefined, nameContext);
 
   const activeLayout = printLayouts.find((layout) => layout.id === activePrintLayoutId);
   const activeIsFirst = printLayouts[0]?.id === activePrintLayoutId;
@@ -230,12 +242,15 @@ export const planPrintLayoutSection = (data: DslDocumentData): PrintLayoutSectio
     const displayName = activeLayout && layout.id === activeLayout.id && promotedName ? promotedName : layout.name;
     return {
       layoutId: layout.id,
-      lines: printLayoutBlockLines(layout, displayName, elements, nameContext, rootTokens, visibilityProfiles)
+      lines: printLayoutBlockLines(layout, displayName, elements, nameContext, visibilityProfiles)
     };
   });
-  const activePrintLayoutLine =
-    activeLayout && !activeIsFirst
+  const activePrintLayoutLine = activeLayout
+    ? !activeIsFirst
       ? `activePrintLayout ${formatDslName(promotedName ?? activeLayout.name)}`
+      : null
+    : activePrintLayoutId
+      ? `activePrintLayout ${formatDslName(activePrintLayoutId)}`
       : null;
   return { blocks, activePrintLayoutLine };
 };
@@ -320,7 +335,7 @@ export const layoutElementTree = (
 
     if (fallback) {
       closeTo(0);
-      const parentToken = formatDslName(refs.token(parentId!, element));
+      const parentToken = refs.token(parentId!, element);
       const branchSuffix = element.conditionalBranch === "else" ? " branch=else" : "";
       lines.push({
         text: `${serializeElementStatement(element, refs)} parent=${parentToken}${branchSuffix}`,

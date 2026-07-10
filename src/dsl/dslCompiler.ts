@@ -455,8 +455,7 @@ const applyVisibilitySettings = ({
       if (key === "id" || key === "name" || key === "default" || key === "defaultRoleVisible") continue;
       const roleId = roleIdByToken(visibilityRoles, key);
       if (!visibilityRoles.some((role) => role.id === roleId)) {
-        diagnostics.push(diagnostic(statement.line, `未定義の表示ロールです: ${key}`));
-        continue;
+        diagnostics.push(warning(statement.line, `未定義の表示ロールです: ${key}`));
       }
       const parsed = booleanValue(value);
       if (parsed === null) {
@@ -485,15 +484,15 @@ const applyVisibilitySettings = ({
       if (visibilityProfiles.some((profile) => profile.id === profileId)) {
         activeVisibilityProfileId = profileId;
       } else {
-        diagnostics.push(diagnostic(statement.line, `未定義の表示プロファイルです: ${statement.name}`));
+        diagnostics.push(warning(statement.line, `未定義の表示プロファイルです: ${statement.name}`));
+        activeVisibilityProfileId = profileId;
       }
     }
     if (statement.kind === "printLayout" && !statement.opensBlock && printLayouts) {
       const profileToken = attr(statement.attrs, "visibilityView") ?? attr(statement.attrs, "visibilityProfile");
       const profileId = profileToken ? profileIdByToken(visibilityProfiles, profileToken) : undefined;
       if (profileToken && !visibilityProfiles.some((profile) => profile.id === profileId)) {
-        diagnostics.push(diagnostic(statement.line, `未定義の表示プロファイルです: ${profileToken}`));
-        continue;
+        diagnostics.push(warning(statement.line, `未定義の表示プロファイルです: ${profileToken}`));
       }
       const existing = printLayouts.find((layout) => layout.id === statement.name || layout.name === statement.name);
       const nextLayout = normalizePrintLayout({
@@ -504,7 +503,7 @@ const applyVisibilitySettings = ({
           ? outputKind(attr(statement.attrs, "output") ?? "pdf")
           : existing?.outputKind,
         visibilityProfileId: profileId ?? existing?.visibilityProfileId
-      }, context.elements, visibilityProfiles);
+      }, context.elements, visibilityProfiles, { preserveDanglingReferences: true });
       printLayouts = existing
         ? printLayouts.map((layout) => layout.id === existing.id ? nextLayout : layout)
         : [...printLayouts, nextLayout];
@@ -596,7 +595,7 @@ const buildBlockPrintLayouts = ({
       attr(statement.attrs, "visibilityProfile");
     const profileId = profileToken ? profileIdByToken(visibilityProfiles, profileToken) : undefined;
     if (profileToken && !visibilityProfiles.some((profile) => profile.id === profileId)) {
-      diagnostics.push(diagnostic(statement.line, `未定義の表示プロファイルです: ${profileToken}`));
+      diagnostics.push(warning(statement.line, `未定義の表示プロファイルです: ${profileToken}`));
     }
     const paper = attr(statement.attrs, "paper") ?? attr(statement.attrs, "paperSizeId");
     if (paper && !paperSizeIds.has(paper)) {
@@ -638,7 +637,7 @@ const buildBlockPrintLayouts = ({
       svgCanvasHeightMm: canvasPair ? numeric(canvasPair.y) : existing?.svgCanvasHeightMm,
       numericVariables,
       placements
-    }, elements, visibilityProfiles);
+    }, elements, visibilityProfiles, { preserveDanglingReferences: true });
     next = existing
       ? next.map((item) => (item.id === existing.id ? layout : item))
       : [...next, layout];
@@ -816,7 +815,8 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
       printLayouts?.find((layout) => layout.name === statement.name) ??
       printLayouts?.find((layout) => layout.id === statement.name);
     if (!target) {
-      diagnostics.push(diagnostic(statement.line, `未定義の印刷レイアウトです: ${statement.name}`));
+      diagnostics.push(warning(statement.line, `未定義の印刷レイアウトです: ${statement.name}`));
+      activePrintLayoutId = statement.name;
     } else {
       activePrintLayoutId = target.id;
     }

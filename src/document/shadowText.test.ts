@@ -129,7 +129,7 @@ describe("advanceShadow 自己修復", () => {
     expect(onSelfHeal).toHaveBeenCalled();
   });
 
-  it("全体再生成自体が失敗する場合(dangling reference)は直前の影を維持しユーザー操作を止めない", () => {
+  it("dangling referenceを含む更新でも自己修復へ後退せず影を進める", () => {
     const source = ["nui 1", "point A = (0, 0)"].join("\n");
     const prev = seedShadow(source);
     const danglingElement: CadElement = {
@@ -148,14 +148,17 @@ describe("advanceShadow 自己修復", () => {
     };
     const onSelfHeal = vi.fn();
     const next = advanceShadow(prev, afterDoc, { onSelfHeal });
-    // クラッシュせず、何らかの ShadowState を返す(直前の影を最低限維持)。
-    expect(next).toBeDefined();
-    expect(onSelfHeal).toHaveBeenCalled();
+    expect(next.compiled.document).not.toBeNull();
+    expect(next.text).toContain("does-not-exist");
+    expect(next.compiled.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ severity: "warning", message: expect.stringContaining("does-not-exist") })
+    ]));
+    expect(onSelfHeal).not.toHaveBeenCalled();
   });
 });
 
 describe("safeGenerateShadowFromModel", () => {
-  it("参照先が存在しない文書でも例外を投げず最小状態へ後退する", () => {
+  it("参照先が存在しない文書でも最小状態へ後退せず生トークンを保持する", () => {
     const danglingElement: CadElement = {
       id: "dangling",
       name: "B",
@@ -179,7 +182,12 @@ describe("safeGenerateShadowFromModel", () => {
     const onFailure = vi.fn();
     const shadow = safeGenerateShadowFromModel(afterDoc, onFailure);
     expect(shadow.compiled.document).not.toBeNull();
-    expect(onFailure).toHaveBeenCalledOnce();
+    expect(shadow.text).not.toBe("nui 1");
+    expect(shadow.text).toContain("does-not-exist");
+    expect(shadow.compiled.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ severity: "warning", message: expect.stringContaining("does-not-exist") })
+    ]));
+    expect(onFailure).not.toHaveBeenCalled();
   });
 
   it("正常な文書では例外なくgenerateShadowFromModelと同じ結果になる", () => {

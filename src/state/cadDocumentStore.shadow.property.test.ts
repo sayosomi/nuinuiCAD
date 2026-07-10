@@ -55,6 +55,7 @@ const randomOpArbitrary: fc.Arbitrary<RandomOp> = fc.record({
     "rename",
     "insert",
     "deleteLeaf",
+    "deleteReferencedTarget",
     "deleteSubtree",
     "ungroup",
     "move",

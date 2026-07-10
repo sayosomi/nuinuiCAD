@@ -124,14 +124,10 @@ const compileWithZippedIds = (text: string, elements: readonly CadElement[]): Sh
 // 全体再生成(モデル→シリアライズ→zip→コンパイル)。初期状態・
 // replaceDocument・undo/redo・自己修復のみで使う正当な経路。
 //
-// 参照先が存在しない要素(dangling dependency)を含む文書は、DSLとしては
-// 「参照先が見つかりません」という compile エラーになり得る。AGENTS.md の
-// 依存関係エラー方針により、そのような文書はモデルとして正当にあり得る
-// (評価エラーとして表示されるべき状態であり、禁止された状態ではない)。
-// そのため、それ以外の原因(シリアライザ/パーサ自体の設計バグ)による
-// 失敗と区別せず、ここでは常に例外を投げる。呼び出し側(ストアの
-// 正準操作の直前)で `safeGenerateShadowFromModel` を使い、影の維持が
-// 正準操作をクラッシュさせないようにする。
+// Dangling dependencies are recoverable warnings and must pass this path while
+// retaining their source tokens. A failure here therefore indicates an
+// unexpected serializer/parser/compiler invariant break; the safe wrapper is
+// retained as the final defense for that class of failure.
 export const generateShadowFromModel = (afterDoc: DslDocumentData): ShadowState => {
   const text = serializeDocumentToDsl(afterDoc);
   const result = compileWithZippedIds(text, afterDoc.elements);
@@ -143,11 +139,9 @@ export const generateShadowFromModel = (afterDoc: DslDocumentData): ShadowState 
 
 const MINIMAL_SHADOW_TEXT = "nui 1";
 
-// generateShadowFromModel の防御版。初期化・ファイル読込・undo/redoは
-// ユーザー操作の根幹であり、影の維持(観測専用)が理由でこれらを
-// クラッシュさせてはならない。失敗時は最小の空文書へ後退し、次のコミットで
-// self-healを狙う(影は一時的にモデルと乖離するが、それはdev/testの
-// 等価assertが検出し全体再生成し直す設計になっている)。
+// generateShadowFromModel の最終防衛版。予期しない parser/serializer/compiler
+// 失敗が初期化・ファイル読込・undo/redoを止めないよう、最小文書へ後退する。
+// Dangling reference は通常経路で成功するため、このfallback理由にはならない。
 export const safeGenerateShadowFromModel = (
   afterDoc: DslDocumentData,
   onFailure?: (reason: string) => void

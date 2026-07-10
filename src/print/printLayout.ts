@@ -108,12 +108,13 @@ const normalizeNumericValue = (value: unknown, fallback: NumericValue): NumericV
 
 const normalizePlacement = (
   value: unknown,
-  groupIds: Set<ElementId>
+  groupIds: Set<ElementId>,
+  preserveDanglingReferences: boolean
 ): PrintLayoutPlacement | null => {
   if (!isRecord(value) || typeof value.id !== "string" || typeof value.groupId !== "string") {
     return null;
   }
-  if (!groupIds.has(value.groupId)) return null;
+  if (!preserveDanglingReferences && !groupIds.has(value.groupId)) return null;
   return {
     id: value.id,
     groupId: value.groupId,
@@ -155,7 +156,8 @@ const normalizeNumericVariable = (value: unknown): NumericVariable | null => {
 export const normalizePrintLayout = (
   value: unknown,
   elements: CadElement[],
-  visibilityProfiles: VisibilityProfile[] = []
+  visibilityProfiles: VisibilityProfile[] = [],
+  options: { preserveDanglingReferences?: boolean } = {}
 ): PrintLayout => {
   const groupIds = new Set(
     elements.filter((element) => element.type === "group").map((element) => element.id)
@@ -169,7 +171,8 @@ export const normalizePrintLayout = (
   const outputKind = value.outputKind === "svg" ? "svg" : "pdf";
   const visibilityProfileId =
     typeof value.visibilityProfileId === "string" &&
-    visibilityProfiles.some((profile) => profile.id === value.visibilityProfileId)
+    (options.preserveDanglingReferences ||
+      visibilityProfiles.some((profile) => profile.id === value.visibilityProfileId))
       ? value.visibilityProfileId
       : undefined;
   const paperSizeId = PAPER_SIZES.some((paperSize) => paperSize.id === value.paperSizeId)
@@ -178,7 +181,9 @@ export const normalizePrintLayout = (
   const orientation = value.orientation === "landscape" ? "landscape" : "portrait";
   const placements = Array.isArray(value.placements)
     ? value.placements
-        .map((placement) => normalizePlacement(placement, groupIds))
+        .map((placement) =>
+          normalizePlacement(placement, groupIds, options.preserveDanglingReferences === true)
+        )
         .filter((placement): placement is PrintLayoutPlacement => Boolean(placement))
     : [];
   const numericVariables = Array.isArray(value.numericVariables)

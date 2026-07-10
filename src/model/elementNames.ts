@@ -95,6 +95,11 @@ export type ElementNameResolution =
   | { status: "missing" }
   | { status: "ambiguous"; name: string; elements: CadElement[] };
 
+export type ElementNamePath = {
+  absolute: boolean;
+  parts: string[];
+};
+
 const elementById = (elements: CadElement[]) =>
   new Map(elements.map((element) => [element.id, element]));
 
@@ -196,33 +201,27 @@ const resolveQualifiedNameFromNamespace = (
   return resolved ? { status: "resolved", element: resolved } : { status: "missing" };
 };
 
-export const resolveElementName = ({
-  token,
+export const resolveElementNamePath = ({
+  path,
   elements,
   currentElement,
   context
 }: {
-  token: string;
+  path: ElementNamePath;
   elements: CadElement[];
   currentElement?: CadElement;
   context?: ElementNameContext;
 }): ElementNameResolution => {
-  const trimmedToken = token.trim();
-  if (!trimmedToken) return { status: "missing" };
+  const parts = path.parts.map((part) => part.trim()).filter(Boolean);
+  if (parts.length === 0) return { status: "missing" };
   const elementsById = context?.elementsById ?? elementById(elements);
-  const directElement = elementsById.get(trimmedToken);
+  const directElement = !path.absolute && parts.length === 1
+    ? elementsById.get(parts[0])
+    : undefined;
   if (directElement) return { status: "resolved", element: directElement };
 
-  const absolute = trimmedToken.startsWith("::");
-  const parts = trimmedToken
-    .replace(/^::/, "")
-    .split("::")
-    .map((part) => part.trim())
-    .filter(Boolean);
-  if (parts.length === 0) return { status: "missing" };
-
-  if (absolute || parts.length > 1) {
-    const namespaces = absolute
+  if (path.absolute || parts.length > 1) {
+    const namespaces = path.absolute
       ? [undefined]
       : namespaceChainForElement(currentElement, elementsById);
     for (const namespaceId of namespaces) {
@@ -239,6 +238,39 @@ export const resolveElementName = ({
   return { status: "missing" };
 };
 
+export const resolveElementName = ({
+  token,
+  elements,
+  currentElement,
+  context
+}: {
+  token: string;
+  elements: CadElement[];
+  currentElement?: CadElement;
+  context?: ElementNameContext;
+}): ElementNameResolution => {
+  const trimmedToken = token.trim();
+  return resolveElementNamePath({
+    path: {
+      absolute: trimmedToken.startsWith("::"),
+      parts: trimmedToken.replace(/^::/, "").split("::")
+    },
+    elements,
+    currentElement,
+    context
+  });
+};
+
+export const elementQualifiedNameParts = (
+  element: CadElement,
+  elements: CadElement[],
+  context?: ElementNameContext
+) => {
+  const elementsById = context?.elementsById ?? elementById(elements);
+  return [...groupPathForElement(element, elementsById).map((group) => group.name), element.name]
+    .filter(Boolean);
+};
+
 export const elementQualifiedName = (
   element: CadElement,
   elements: CadElement[],
@@ -247,9 +279,7 @@ export const elementQualifiedName = (
   const contextValue = context;
   const cached = contextValue?.qualifiedNameById.get(element.id);
   if (cached !== undefined) return cached;
-  const elementsById = contextValue?.elementsById ?? elementById(elements);
-  const groupNames = groupPathForElement(element, elementsById).map((group) => group.name);
-  return [...groupNames, element.name].filter(Boolean).join("::") || element.id;
+  return elementQualifiedNameParts(element, elements, contextValue).join("::") || element.id;
 };
 
 export const elementNameTokensForContext = ({

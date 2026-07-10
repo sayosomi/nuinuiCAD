@@ -1,5 +1,9 @@
 import { numericValueExpression } from "../geometry/numericExpressions";
-import { createElementNameContext, resolveElementName } from "../model/elementNames";
+import {
+  createElementNameContext,
+  elementQualifiedNameParts,
+  resolveElementName
+} from "../model/elementNames";
 import { pointAnchorForElement } from "../model/pointAnchors";
 import type {
   CadElement,
@@ -10,7 +14,8 @@ import type {
   VisibilityProfile,
   VisibilityRole
 } from "../types/geometry";
-import { formatNumericValueForDsl, shortestDslTokensById } from "./dslExpressionFormat";
+import { formatNumericValueForDsl } from "./dslExpressionFormat";
+import { formatDslReferencePath, formatDslReferenceToken } from "./dslReferenceTokens";
 import type { SerializeDslOptions } from "./dslTypes";
 import { formatDslName, quoteDslString } from "./dslTokens";
 
@@ -65,17 +70,18 @@ const flatRefs = (options: SerializeDslOptions): DslSerializerRefs => ({
 // 投げない(再パース時に明示的な依存診断になる)。
 export const documentDslRefs = (elements: CadElement[]): DslSerializerRefs => {
   const nameContext = createElementNameContext(elements);
-  const rootTokens = shortestDslTokensById(elements, undefined, nameContext);
   const elementsById = nameContext.elementsById;
   const token = (id: ElementId, source: CadElement) => {
     const target = elementsById.get(id);
-    if (!target || !target.name.trim()) return id;
+    if (!target || !target.name.trim()) return formatDslReferenceToken(id);
     const resolution = resolveElementName({ token: target.name, elements, currentElement: source, context: nameContext });
     if (resolution.status === "resolved" && resolution.element.id === id) {
       return formatDslName(target.name);
     }
-    const qualified = rootTokens.get(id);
-    return qualified ? formatDslName(qualified) : id;
+    return formatDslReferencePath({
+      absolute: false,
+      segments: elementQualifiedNameParts(target, elements, nameContext)
+    });
   };
   const numeric = (value: NumericValue, source: CadElement) =>
     formatNumericValueForDsl(value, elements, source.numericVariables ?? [], source, nameContext);
@@ -444,9 +450,15 @@ export const serializeRoleLine = (role: VisibilityRole): string =>
   ["role", formatDslName(role.id), `name=${quoteDslString(role.name)}`].filter(Boolean).join(" ");
 
 export const serializeViewLine = (profile: VisibilityProfile, roles: VisibilityRole[]): string => {
-  const roleAttrs = roles.map((role) =>
-    `${role.id}=${profile.roleVisibility[role.id] ?? profile.defaultRoleVisible}`
-  );
+  const knownRoleIds = new Set(roles.map((role) => role.id));
+  const roleAttrs = [
+    ...roles.map((role) =>
+      `${role.id}=${profile.roleVisibility[role.id] ?? profile.defaultRoleVisible}`
+    ),
+    ...Object.entries(profile.roleVisibility)
+      .filter(([roleId]) => !knownRoleIds.has(roleId))
+      .map(([roleId, visible]) => `${roleId}=${visible}`)
+  ];
   return [
     "view",
     formatDslName(profile.name || profile.id),
