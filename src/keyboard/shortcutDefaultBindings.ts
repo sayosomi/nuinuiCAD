@@ -148,6 +148,23 @@ const defaultBindings: ShortcutBinding[] = [
   binding("dsl", "validateDslPanel", [ch("Enter", { mod: true, shift: true })]),
   binding("dsl", "applyDslPanel", [ch("Enter", { mod: true })]),
   binding("dsl", "closeDslPanel", [ch("Escape")]),
+  // Source Editor replacements for the former focusable element-list commands.
+  // `[` / `]` stay available for DSL text; Mod variants are the intentional Phase 2e migration.
+  binding("sourceEditor", "moveSelectedElementUp", [ch("ArrowUp", { mod: true }), ch("ArrowUp", { alt: true })], {
+    label: "選択要素を上へ移動"
+  }),
+  binding("sourceEditor", "moveSelectedElementDown", [ch("ArrowDown", { mod: true }), ch("ArrowDown", { alt: true })], {
+    label: "選択要素を下へ移動"
+  }),
+  binding("sourceEditor", "moveEvaluationDividerUp", [ch("ArrowUp", { alt: true, shift: true })]),
+  binding("sourceEditor", "moveEvaluationDividerDown", [ch("ArrowDown", { alt: true, shift: true })]),
+  binding("sourceEditor", "moveEvaluationDividerToEnd", [ch("End", { alt: true, shift: true })]),
+  binding("sourceEditor", "outdentSelectedElements", [ch("[", { mod: true })], {
+    label: "選択要素をアウトデント (Source Editor: Mod+[)"
+  }),
+  binding("sourceEditor", "indentSelectedElements", [ch("]", { mod: true })], {
+    label: "選択要素をインデント (Source Editor: Mod+])"
+  }),
   binding("normal", "openShortcutSettings", [], { label: "ショートカット設定" })
 ];
 

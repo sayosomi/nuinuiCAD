@@ -70,6 +70,11 @@ export const shortcutBindingsForMode = (
   return effectiveShortcutBindings(settings).filter((item) => activeScopes.has(item.scope));
 };
 
+/** Source of truth for structural shortcuts that may run while CodeMirror owns focus. */
+export const sourceEditorShortcutBindings = (
+  settings: ShortcutSettings = defaultShortcutSettings()
+) => effectiveShortcutBindings(settings).filter((item) => item.scope === "sourceEditor");
+
 export const bindingMatchesEvent = (binding: EffectiveShortcutBinding, event: KeyboardEvent) =>
   binding.chords.some((chord) => {
     const matcher = binding.defaultChords.some((defaultChord) => keyChordEquals(defaultChord, chord))

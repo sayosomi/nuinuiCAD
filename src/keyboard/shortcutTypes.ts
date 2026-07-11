@@ -7,7 +7,9 @@ export type ShortcutScope =
   | "parameter"
   | "dependencyJump"
   | "pick"
-  | "dsl";
+  | "dsl"
+  /** CodeMirror-only structural commands; normal text keys remain editor-owned. */
+  | "sourceEditor";
 
 export type ShortcutModifier = boolean | "any";
 

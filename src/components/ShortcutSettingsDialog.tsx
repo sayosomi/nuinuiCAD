@@ -23,7 +23,8 @@ const scopeLabels = {
   parameter: "パラメーター編集",
   dependencyJump: "親子ジャンプ",
   pick: "構成リスト選択",
-  dsl: "DSLパネル"
+  dsl: "DSLパネル",
+  sourceEditor: "Source Editor"
 };
 
 const sameChords = (left: KeyChord[], right: KeyChord[]) =>

@@ -27,6 +27,7 @@ export const SourceSearchPanel = ({ handle, isOpen, onClose }: SourceSearchPanel
   const setElementSearchQuery = useCadUiStore((state) => state.setElementSearchQuery);
   const setElementSearchCursorId = useCadUiStore((state) => state.setElementSearchCursorId);
   const elementSearchPickableOnly = useCadUiStore((state) => state.elementSearchPickableOnly);
+  const setElementSearchPickableOnly = useCadUiStore((state) => state.setElementSearchPickableOnly);
   const isPickActive = useCadUiStore((state) => Boolean(
     state.activePointPickTarget || state.activeNumericReferencePickTarget || state.activeLinePickTarget
   ));
@@ -115,6 +116,16 @@ export const SourceSearchPanel = ({ handle, isOpen, onClose }: SourceSearchPanel
             onChange={(event) => setElementSearchQuery(event.target.value)}
             onKeyDown={onKeyDown}
           />
+          {isPickActive ? (
+            <label className="search-pickable-toggle">
+              <input
+                type="checkbox"
+                checked={elementSearchPickableOnly}
+                onChange={(event) => setElementSearchPickableOnly(event.target.checked)}
+              />
+              選択可能のみ
+            </label>
+          ) : null}
           <ul className="source-search-results">
             {results.slice(Math.max(0, results.findIndex((result) => result.element.id === activeCursorId) - 50), Math.max(100, results.findIndex((result) => result.element.id === activeCursorId) + 50)).map((result) => (
               <li key={result.element.id}>

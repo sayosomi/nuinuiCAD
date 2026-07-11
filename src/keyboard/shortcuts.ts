@@ -26,6 +26,7 @@ export {
   configurableShortcutBindings,
   defaultShortcutSettings,
   effectiveShortcutBindings,
+  sourceEditorShortcutBindings,
   shortcutConflicts
 } from "./shortcutRegistry";
 export {

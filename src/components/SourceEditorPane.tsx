@@ -4,6 +4,7 @@ import { SourceEditorController } from "../editor/sourceEditorController";
 import type { SourceEditorHandle, SourceEvaluationPublication } from "../editor/sourceEditorTypes";
 import type { CommandContext } from "../commands/commands";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
+import { useCadUiStore } from "../state/cadUiStore";
 import { fileNameFromPath } from "../document/nuiFormat";
 import { DocumentDiagnostics } from "./DocumentDiagnostics";
 import { SourceRibbonDock } from "./SourceRibbonDock";
@@ -36,6 +37,7 @@ export const SourceEditorPane = forwardRef<SourceEditorHandle, SourceEditorPaneP
   const [isLastGoodEvaluation, setIsLastGoodEvaluation] = useState(false);
   const currentFilePath = useCadDocumentStore((state) => state.currentFilePath);
   const dirtySinceSave = useCadDocumentStore((state) => state.dirtySinceSave);
+  const commandErrorMessage = useCadUiStore((state) => state.commandErrorMessage);
   const dockRef = useRef<HTMLDivElement | null>(null);
   const fallbackCanvasFocusRef = useRef<HTMLDivElement | null>(null);
 
@@ -92,6 +94,7 @@ export const SourceEditorPane = forwardRef<SourceEditorHandle, SourceEditorPaneP
           {isLastGoodEvaluation ? <span className="document-stale-evaluation">評価: last-good</span> : null}
         </p>
         <DocumentDiagnostics />
+        {commandErrorMessage ? <p className="command-error-message" role="alert">{commandErrorMessage}</p> : null}
       </header>
       <SourceSearchPanel
         handle={controllerRef.current}

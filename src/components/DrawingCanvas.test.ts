@@ -1,12 +1,13 @@
-import { fireEvent, render } from "@testing-library/react";
+import { act, fireEvent, render, waitFor } from "@testing-library/react";
 import { createElement, createRef } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { registerSourceEditSession } from "../editor/sourceEditSession";
 import type { SourceEditSession } from "../editor/sourceEditSession";
 import { evaluateElements } from "../geometry/evaluate";
+import type { EvaluationEngineState } from "../geometry/useEvaluationEngine";
 import { defaultDocumentPalette } from "../palette/palette";
 import { sampleElements } from "../sampleData";
-import { DEFAULT_CANVAS_VIEWPORT, DEFAULT_PRINT_PREVIEW_WINDOW, useCadStore } from "../state/useCadStore";
+import { DEFAULT_CANVAS_VIEWPORT, DEFAULT_PRINT_PREVIEW_WINDOW, useCadDocumentStore, useCadStore } from "../state/useCadStore";
 import { DrawingCanvas } from "./DrawingCanvas";
 import { hitTestCanvasGeometry } from "./DrawingCanvasHitTest";
 import type {
@@ -144,6 +145,18 @@ const renderDrawingCanvas = () => {
   }
   return { ...view, viewport };
 };
+
+const referenceEvaluationState = (revision: number): EvaluationEngineState => ({
+  evaluation: evaluateElements(useCadStore.getState().elements),
+  evaluationRevision: revision,
+  evaluationRequestRevision: revision,
+  mode: "reference",
+  source: "reference",
+  status: "idle",
+  rustEligible: false,
+  isStale: false,
+  error: null
+});
 
 const dragPoint = (
   viewport: HTMLElement,
@@ -1016,6 +1029,52 @@ describe("DrawingCanvas point dragging", () => {
     });
 
     expect(viewport).not.toHaveClass("is-point-dragging");
+  });
+
+  it("finishes a released dirty click only after the matching evaluation arrives", async () => {
+    useCadDocumentStore.getState().commitText("nui 1\npoint A = (0, 0)\npoint B = (100, 0)", "test");
+    const beforeRevision = useCadDocumentStore.getState().compiledDocumentRevision;
+    const staleEvaluation = referenceEvaluationState(beforeRevision);
+    const canvasFocusRef = createRef<HTMLDivElement>();
+    const view = render(createElement(DrawingCanvas, {
+      evaluation: staleEvaluation.evaluation,
+      evaluationState: staleEvaluation,
+      canvasFocusRef,
+      leftPanelDockRef: createRef<HTMLDivElement>()
+    }));
+    const viewport = view.container.querySelector<HTMLDivElement>(".canvas-viewport")!;
+    const unregister = registerSourceEditSession({
+      hasPendingText: () => true,
+      isComposing: () => false,
+      flush: () => {
+        useCadDocumentStore.getState().commitText("nui 1\npoint A = (0, 0)\npoint B = (100, 0) locked=true", "editor");
+        return "flushed";
+      }
+    });
+
+    try {
+      fireEvent.pointerDown(viewport, { button: 0, buttons: 1, clientX: 350, clientY: 200, pointerId: 1 });
+      fireEvent.pointerUp(viewport, { button: 0, buttons: 0, clientX: 350, clientY: 200, pointerId: 1 });
+      expect(useCadStore.getState().selectedElementId).not.toBe("point-b");
+
+      const currentRevision = useCadDocumentStore.getState().compiledDocumentRevision;
+      const pointBId = useCadDocumentStore.getState().elements.find((element) => element.name === "B")?.id;
+      expect(pointBId).toBeDefined();
+      await act(async () => {
+        const fresh = referenceEvaluationState(currentRevision);
+        view.rerender(createElement(DrawingCanvas, {
+          evaluation: fresh.evaluation,
+          evaluationState: fresh,
+          canvasFocusRef,
+          leftPanelDockRef: createRef<HTMLDivElement>()
+        }));
+      });
+
+      await waitFor(() => expect(useCadStore.getState().selectedElementId).toBe(pointBId));
+      expect(document.activeElement).toBe(viewport);
+    } finally {
+      unregister();
+    }
   });
 
   it("flushes pending editor text on pointerdown but not on pointermove alone", () => {

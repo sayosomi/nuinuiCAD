@@ -42,6 +42,17 @@
 * 予算超過時はprofileしてPhase 2追加処理を修正する。Web WorkerやRust DSL compilerへの
   移行は本Stageで導入しない。
 
+## Source Editor shortcut移行
+
+CodeMirrorで通常のDSL文字入力を妨げないため、旧要素リスト専用の単独`[` / `]`は
+Source Editor内では次へ変更する。command IDは変えず、shortcut registryを唯一の正とする。
+
+| 操作 | 旧要素リスト | Source Editor |
+| --- | --- | --- |
+| 選択要素を移動 | Mod/Alt+Arrow | Mod/Alt+Arrow |
+| 評価区切りを移動 | Shift+Alt+Arrow / End | Shift+Alt+Arrow / End |
+| インデント/アウトデント | `]` / `[` | Mod+`]` / Mod+`[` |
+
 ## 必須自動テスト
 
 * Phase 2a〜2dの全統合テスト。
@@ -80,4 +91,3 @@ macOS Tauriで以下を確認し、結果をタスク報告へ記録する。
 * Source EditorとLeftPanelを完成状態で併存させること。
 * 性能予算未達を「CMが仮想化するから」と未計測で受け入れること。
 * Phase 3/4/5の削除・補完・inspector変更を同梱すること。
-

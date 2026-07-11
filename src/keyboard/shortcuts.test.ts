@@ -5,6 +5,7 @@ import {
   isSourceEditorKeyboardTarget,
   keyboardCommandForEvent,
   keyChordMatchesSearch,
+  sourceEditorShortcutBindings,
   shortcutConflicts,
   shortcutHelpItems,
   type ShortcutSettings
@@ -110,6 +111,20 @@ describe("shortcuts", () => {
     expect(commandIdForKeyboardEvent(keyboardEvent("ArrowUp", { shiftKey: true }))).toBe(
       "extendSelectionToPreviousElement"
     );
+  });
+
+  it("registers Source Editor structural shortcuts without reserving bare brackets", () => {
+    const bindings = sourceEditorShortcutBindings();
+    expect(bindings.find((binding) => binding.commandId === "indentSelectedElements")?.chords).toEqual([
+      { key: "]", mod: true, alt: false, shift: false }
+    ]);
+    expect(bindings.find((binding) => binding.commandId === "outdentSelectedElements")?.chords).toEqual([
+      { key: "[", mod: true, alt: false, shift: false }
+    ]);
+    expect(bindings.map((binding) => binding.commandId)).toEqual(expect.arrayContaining([
+      "moveSelectedElementUp",
+      "moveEvaluationDividerDown"
+    ]));
   });
 
   it("uses user shortcut overrides", () => {

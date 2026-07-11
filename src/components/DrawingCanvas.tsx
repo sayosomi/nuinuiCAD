@@ -3,7 +3,7 @@ import type {
   RefObject,
   WheelEvent as ReactWheelEvent
 } from "react";
-import { useEffect, useMemo, useReducer, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { dispatchCommand } from "../commands/commands";
 import type { CommandContext } from "../commands/commands";
 import type { EvaluationEngineState } from "../geometry/useEvaluationEngine";
@@ -48,6 +48,18 @@ import type {
   PointPickCandidate,
   PointPickCandidateMenu
 } from "./DrawingCanvasTypes";
+import {
+  beginPendingCanvasPointer,
+  cancelPendingCanvasPointer,
+  initialPendingCanvasPointerState,
+  movePendingCanvasPointer,
+  pendingCanvasPointerDistance,
+  releasePendingCanvasPointer,
+  resolvePendingCanvasPointer,
+  retargetPendingCanvasPointer,
+  type PendingCanvasPointerIntent,
+  type PendingCanvasPointerTransition
+} from "./pendingCanvasPointer";
 
 type DrawingCanvasProps = {
   evaluation: EvaluationResult;
@@ -87,6 +99,8 @@ type PolarLockKeys = {
 const WHEEL_ZOOM_BASE = 1.1;
 const BEZIER_HANDLE_HIT_RADIUS_PX = 9;
 const POINT_PICK_CANDIDATE_RADIUS_PX = 10;
+const DEFERRED_DRAG_THRESHOLD_PX = 3;
+const DEFERRED_POINTER_TIMEOUT_MS = 5000;
 
 const isRejectedDocumentMutation = (result: unknown) =>
   typeof result === "object" && result !== null && "status" in result && result.status === "rejected";
@@ -102,6 +116,9 @@ export const DrawingCanvas = ({
   const panDragRef = useRef<{ pointerId: number; lastX: number; lastY: number } | null>(null);
   const pointDragRef = useRef<PointDragState | null>(null);
   const bezierHandleDragRef = useRef<BezierHandleDragState | null>(null);
+  const pendingPointerStateRef = useRef(initialPendingCanvasPointerState());
+  const pendingPointerCaptureTargetsRef = useRef(new Map<number, HTMLDivElement>());
+  const [pendingPointerState, setPendingPointerState] = useState(initialPendingCanvasPointerState);
   const axisLockKeysRef = useRef<AxisLockKeys>({ x: false, y: false });
   const polarLockKeysRef = useRef<PolarLockKeys>({ angle: false, distance: false });
   const [viewportSize, setViewportSize] = useState<ViewportSize>({ width: 0, height: 0 });
@@ -161,7 +178,7 @@ export const DrawingCanvas = ({
     canvasViewport,
     documentPath: currentFilePath
   });
-  const reusableDragEvaluation = (snapshotElements: typeof elements) => {
+  const reusableDragEvaluation = useCallback((snapshotElements: typeof elements) => {
     if (evaluationState?.isStale) return undefined;
     if ((evaluation.evaluationLimitIndex ?? snapshotElements.length) !== snapshotElements.length) {
       return undefined;
@@ -173,8 +190,8 @@ export const DrawingCanvas = ({
       return undefined;
     }
     return evaluation;
-  };
-  const currentDocumentDragSnapshot = () => {
+  }, [evaluation, evaluationState?.isStale]);
+  const currentDocumentDragSnapshot = useCallback(() => {
     const state = useCadDocumentStore.getState();
     const selection = useCadUiStore.getState();
     return {
@@ -195,7 +212,7 @@ export const DrawingCanvas = ({
       },
       baseEvaluation: reusableDragEvaluation(state.elements)
     };
-  };
+  }, [reusableDragEvaluation]);
 
   useEffect(() => {
     const viewport = canvasFocusRef.current;
@@ -324,7 +341,7 @@ export const DrawingCanvas = ({
     zoomCanvasViewportAt(Math.pow(WHEEL_ZOOM_BASE, -event.deltaY / 100), anchor);
   };
 
-  const applyMeasurementCandidate = (candidate: LineMeasurementCandidate) => {
+  const applyMeasurementCandidate = useCallback((candidate: LineMeasurementCandidate) => {
     const property = activeNumericReferencePickTarget?.property ?? candidate.property;
     const expression = `${candidate.line.elementId}.${property}`;
     if (activeNumericReferencePickTarget) {
@@ -340,20 +357,20 @@ export const DrawingCanvas = ({
       });
     }
     setMeasurementCandidateMenu(null);
-  };
-  const applyLinePickCandidate = (candidate: LinePickCandidate) => {
+  }, [activeNumericReferencePickTarget, measurementCandidateMenu]);
+  const applyLinePickCandidate = useCallback((candidate: LinePickCandidate) => {
     dispatchCommand("applyPickedLine", {
       pickedLineId: candidate.line.elementId
     });
     setLinePickCandidateMenu(null);
-  };
-  const applyPointPickCandidate = (candidate: PointPickCandidate) => {
+  }, []);
+  const applyPointPickCandidate = useCallback((candidate: PointPickCandidate) => {
     dispatchCommand("applyPickedPoint", {
       pickedPointAnchor: candidate.anchor
     });
     setPointPickCandidateMenu(null);
-  };
-  const linePickCandidatesAt = (screen: ScreenPoint) => {
+  }, []);
+  const linePickCandidatesAt = useCallback((screen: ScreenPoint) => {
     const activeTarget = activeLinePickTarget;
     if (!activeTarget) return [];
 
@@ -381,8 +398,8 @@ export const DrawingCanvas = ({
       uniqueCandidates.set(normalizedLineId, { line: candidate.line });
     }
     return Array.from(uniqueCandidates.values());
-  };
-  const numericReferenceCandidatesAt = (screen: ScreenPoint) => {
+  }, [activeLinePickTarget, elements, overlayNumericReferenceCandidates]);
+  const numericReferenceCandidatesAt = useCallback((screen: ScreenPoint) => {
     const activeTarget = activeNumericReferencePickTarget;
     if (!activeTarget) return [];
 
@@ -393,7 +410,300 @@ export const DrawingCanvas = ({
       uniqueCandidates.set(line.elementId, { line });
     }
     return Array.from(uniqueCandidates.values());
+  }, [activeNumericReferencePickTarget, overlayNumericReferenceCandidates]);
+
+  const releasePendingPointerCapture = useCallback((pointerId: number) => {
+    const target = pendingPointerCaptureTargetsRef.current.get(pointerId);
+    if (target?.hasPointerCapture(pointerId)) target.releasePointerCapture(pointerId);
+    pendingPointerCaptureTargetsRef.current.delete(pointerId);
+  }, []);
+
+  const applyPendingPointerTransition = useCallback((transition: PendingCanvasPointerTransition) => {
+    pendingPointerStateRef.current = transition.state;
+    setPendingPointerState(transition.state);
+    if (transition.releasePointerId !== undefined) releasePendingPointerCapture(transition.releasePointerId);
+    return transition.resolve;
+  }, [releasePendingPointerCapture]);
+
+  const selectionModeFor = (intent: PendingCanvasPointerIntent) =>
+    intent.modifiers.metaKey || intent.modifiers.ctrlKey
+      ? "toggle" as const
+      : intent.modifiers.shiftKey
+        ? "range" as const
+        : "replace" as const;
+
+  /**
+   * Resolves an intent only against the current render.  The original pointer
+   * carries coordinates and modifiers, never an old hit-test result.
+   */
+  const resolvePrimaryPointerIntent = useCallback((intent: PendingCanvasPointerIntent, viewport: HTMLDivElement) => {
+    if (intent.button !== 0 || viewportSize.width <= 0 || viewportSize.height <= 0) return;
+    const rect = viewport.getBoundingClientRect();
+    const screen = {
+      x: intent.latest.clientX - rect.left - viewport.clientLeft,
+      y: intent.latest.clientY - rect.top - viewport.clientTop
+    };
+    const movement = pendingCanvasPointerDistance(intent);
+    const releaseAfterResolution = () => {
+      if (!intent.pointerReleased) return;
+      releasePendingPointerCapture(intent.pointerId);
+    };
+    const beginCapture = () => {
+      if (intent.pointerReleased) return;
+      viewport.setPointerCapture(intent.pointerId);
+      pendingPointerCaptureTargetsRef.current.set(intent.pointerId, viewport);
+    };
+    const focusCanvas = () => viewport.focus();
+    const handle = hitTestBezierHandle(screen, selectedBezierHandles, BEZIER_HANDLE_HIT_RADIUS_PX);
+
+    if (activeLinePickTarget) {
+      const candidates = linePickCandidatesAt(screen);
+      focusCanvas();
+      if (candidates.length === 1) applyLinePickCandidate(candidates[0]);
+      else if (candidates.length > 1) setLinePickCandidateMenu({ screen, candidates });
+      else setLinePickCandidateMenu(null);
+      setMeasurementCandidateMenu(null);
+      setPointPickCandidateMenu(null);
+      releaseAfterResolution();
+      return;
+    }
+    if (activePointPickTarget) {
+      const candidates = hitTestPointPickCandidates(screen, overlayPointPickCandidates, POINT_PICK_CANDIDATE_RADIUS_PX);
+      focusCanvas();
+      if (candidates.length === 1) applyPointPickCandidate(candidates[0]);
+      else if (candidates.length > 1) setPointPickCandidateMenu({ screen, candidates });
+      else setPointPickCandidateMenu(null);
+      releaseAfterResolution();
+      return;
+    }
+    if (activeNumericReferencePickTarget) {
+      const candidates = numericReferenceCandidatesAt(screen);
+      focusCanvas();
+      if (candidates.length === 1) {
+        applyMeasurementCandidate({ line: candidates[0].line, property: activeNumericReferencePickTarget.property });
+      } else if (candidates.length > 1) {
+        setMeasurementCandidateMenu({
+          screen,
+          candidates: candidates.map((candidate) => ({ line: candidate.line, property: activeNumericReferencePickTarget.property })),
+          targetElementId: activeNumericReferencePickTarget.elementId,
+          targetParameterKey: activeNumericReferencePickTarget.parameterKey
+        });
+      } else {
+        setMeasurementCandidateMenu(null);
+      }
+      setPointPickCandidateMenu(null);
+      setLinePickCandidateMenu(null);
+      releaseAfterResolution();
+      return;
+    }
+
+    setPointPickCandidateMenu(null);
+    setLinePickCandidateMenu(null);
+    setMeasurementCandidateMenu(null);
+    if (handle) {
+      focusCanvas();
+      dispatchCommand("selectElement", { elementId: handle.curveId, selectionMode: selectionModeFor(intent) });
+      const dragSnapshot = currentDocumentDragSnapshot();
+      if (intent.pointerReleased) {
+        if (movement >= DEFERRED_DRAG_THRESHOLD_PX) {
+          dispatchCommand("moveBezierHandleByDelta", {
+            elementId: handle.curveId,
+            bezierHandleRole: handle.role,
+            intermediatePointId: handle.intermediatePointId,
+            dx: (intent.latest.clientX - intent.start.clientX) / canvasViewport.zoom,
+            dy: -(intent.latest.clientY - intent.start.clientY) / canvasViewport.zoom,
+            angleLocked: polarLockKeysRef.current.angle,
+            distanceLocked: polarLockKeysRef.current.distance,
+            commitMode: "commit",
+            baseElements: dragSnapshot.snapshot.elements,
+            baseEvaluation: dragSnapshot.baseEvaluation,
+            historySnapshot: dragSnapshot.snapshot
+          });
+        }
+        return;
+      }
+      beginCapture();
+      bezierHandleDragRef.current = {
+        pointerId: intent.pointerId,
+        elementId: handle.curveId,
+        role: handle.role,
+        intermediatePointId: handle.intermediatePointId,
+        startClientX: intent.start.clientX,
+        startClientY: intent.start.clientY,
+        zoom: canvasViewport.zoom,
+        ...dragSnapshot
+      };
+      setIsBezierHandleDragging(true);
+      return;
+    }
+
+    const elementId = hitTestCanvasGeometry({
+      screen,
+      lines: overlayLines,
+      arcs: overlayArcs,
+      curves: overlayCurves,
+      offsetLines: overlayOffsetLines,
+      images: overlayImages,
+      texts: overlayTexts,
+      points: overlayPoints
+    });
+    if (!elementId) {
+      focusCanvas();
+      releaseAfterResolution();
+      return;
+    }
+
+    focusCanvas();
+    dispatchCommand("selectElement", { elementId, selectionMode: selectionModeFor(intent) });
+    if (!overlayPoints.some(({ point }) => point.elementId === elementId)) {
+      releaseAfterResolution();
+      return;
+    }
+    const dragSnapshot = currentDocumentDragSnapshot();
+    if (intent.pointerReleased) {
+      if (movement >= DEFERRED_DRAG_THRESHOLD_PX) {
+        const worldDelta = constrainedWorldDelta({
+          screenDx: intent.latest.clientX - intent.start.clientX,
+          screenDy: intent.latest.clientY - intent.start.clientY,
+          zoom: canvasViewport.zoom,
+          axisLockKeys: axisLockKeysRef.current
+        });
+        dispatchCommand("movePointElementByDelta", {
+          elementId,
+          dx: worldDelta.dx,
+          dy: worldDelta.dy,
+          angleLocked: polarLockKeysRef.current.angle,
+          distanceLocked: polarLockKeysRef.current.distance,
+          commitMode: "commit",
+          baseElements: dragSnapshot.snapshot.elements,
+          baseEvaluation: dragSnapshot.baseEvaluation,
+          historySnapshot: dragSnapshot.snapshot
+        });
+      }
+      return;
+    }
+    beginCapture();
+    pointDragRef.current = {
+      pointerId: intent.pointerId,
+      elementId,
+      startClientX: intent.start.clientX,
+      startClientY: intent.start.clientY,
+      zoom: canvasViewport.zoom,
+      ...dragSnapshot
+    };
+    setIsPointDragging(true);
+  }, [
+    activeLinePickTarget,
+    activeNumericReferencePickTarget,
+    activePointPickTarget,
+    applyLinePickCandidate,
+    applyMeasurementCandidate,
+    applyPointPickCandidate,
+    canvasViewport.zoom,
+    currentDocumentDragSnapshot,
+    linePickCandidatesAt,
+    numericReferenceCandidatesAt,
+    overlayArcs,
+    overlayCurves,
+    overlayImages,
+    overlayLines,
+    overlayOffsetLines,
+    overlayPointPickCandidates,
+    overlayPoints,
+    overlayTexts,
+    releasePendingPointerCapture,
+    selectedBezierHandles,
+    viewportSize.height,
+    viewportSize.width
+  ]);
+
+  const staleTargetHintAt = (event: ReactPointerEvent<HTMLDivElement>): ElementId | null => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const screen = {
+      x: event.clientX - rect.left - event.currentTarget.clientLeft,
+      y: event.clientY - rect.top - event.currentTarget.clientTop
+    };
+    const handle = hitTestBezierHandle(screen, selectedBezierHandles, BEZIER_HANDLE_HIT_RADIUS_PX);
+    if (handle) return handle.curveId;
+    return hitTestCanvasGeometry({
+      screen,
+      lines: overlayLines,
+      arcs: overlayArcs,
+      curves: overlayCurves,
+      offsetLines: overlayOffsetLines,
+      images: overlayImages,
+      texts: overlayTexts,
+      points: overlayPoints
+    });
   };
+
+  const terminalPendingPointer = useCallback((message: string) => {
+    const transition = cancelPendingCanvasPointer(pendingPointerStateRef.current);
+    applyPendingPointerTransition(transition);
+    useCadUiStore.getState().setCommandErrorMessage(message);
+  }, [applyPendingPointerTransition]);
+
+  useEffect(() => {
+    if (pendingPointerState.kind !== "waiting") return;
+    const intent = pendingPointerState.intent;
+    const documentState = useCadDocumentStore.getState();
+    if (documentState.docText !== documentState.sourceText) {
+      terminalPendingPointer("DSLの構文エラーを修復してからキャンバス操作を実行してください。");
+      return;
+    }
+    if (
+      documentState.sourceRevision !== intent.sourceRevision ||
+      documentState.compiledDocumentRevision !== intent.compiledDocumentRevision
+    ) {
+      applyPendingPointerTransition(retargetPendingCanvasPointer(
+        pendingPointerStateRef.current,
+        documentState.sourceRevision,
+        documentState.compiledDocumentRevision
+      ));
+      return;
+    }
+    if (
+      evaluationState?.evaluationRevision === documentState.compiledDocumentRevision &&
+      evaluationState.status === "failed"
+    ) {
+      terminalPendingPointer("評価に失敗したためキャンバス操作を続行できませんでした。");
+      return;
+    }
+    if (
+      evaluationState &&
+      (evaluationState.isStale || evaluationState.evaluationRevision !== documentState.compiledDocumentRevision)
+    ) return;
+    if (intent.staleTargetHint && !documentState.elements.some((element) => element.id === intent.staleTargetHint)) {
+      terminalPendingPointer("操作対象が更新中に削除されたためキャンバス操作を取り消しました。");
+      return;
+    }
+    const resolved = applyPendingPointerTransition(resolvePendingCanvasPointer(pendingPointerStateRef.current));
+    const viewport = canvasFocusRef.current;
+    if (resolved && viewport) resolvePrimaryPointerIntent(resolved, viewport);
+  }, [
+    applyPendingPointerTransition,
+    canvasFocusRef,
+    evaluationState,
+    pendingPointerState,
+    resolvePrimaryPointerIntent,
+    terminalPendingPointer
+  ]);
+
+  useEffect(() => {
+    if (pendingPointerState.kind !== "waiting") return;
+    const pointerId = pendingPointerState.intent.pointerId;
+    const timeout = window.setTimeout(() => {
+      if (pendingPointerStateRef.current.kind !== "waiting" || pendingPointerStateRef.current.intent.pointerId !== pointerId) return;
+      terminalPendingPointer("評価の待機がタイムアウトしたためキャンバス操作を取り消しました。");
+    }, Math.max(0, pendingPointerState.intent.deadlineAt - Date.now()));
+    return () => window.clearTimeout(timeout);
+  }, [pendingPointerState, terminalPendingPointer]);
+
+  useEffect(() => () => {
+    const transition = cancelPendingCanvasPointer(pendingPointerStateRef.current);
+    if (transition.releasePointerId !== undefined) releasePendingPointerCapture(transition.releasePointerId);
+    pendingPointerStateRef.current = transition.state;
+  }, [releasePendingPointerCapture]);
 
   const stopPanning = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (panDragRef.current?.pointerId === event.pointerId) {
@@ -464,154 +774,34 @@ export const DrawingCanvas = ({
 
   const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     const flushResult = sourceEditSession.flush("canvas-pointerdown");
-    if (flushResult !== "clean") {
-      if (flushResult === "blocked-composition") {
-        useCadUiStore.getState().setCommandErrorMessage(
-          "日本語入力の確定中はキャンバス操作を開始できません。入力を確定してから再操作してください。"
-        );
-      }
-      // React's canvas/evaluation closures still represent the pre-flush document.
-      // Do not manufacture a patch or retain drag state from that stale interaction.
-      pointDragRef.current = null;
-      bezierHandleDragRef.current = null;
-      panDragRef.current = null;
-      setIsPointDragging(false);
-      setIsBezierHandleDragging(false);
-      setIsPanning(false);
+    if (flushResult === "blocked-composition") {
+      useCadUiStore.getState().setCommandErrorMessage(
+        "日本語入力の確定中はキャンバス操作を開始できません。入力を確定してから再操作してください。"
+      );
       return;
     }
     if (event.button === 0) {
-      if (viewportSize.width <= 0 || viewportSize.height <= 0) return;
-      const rect = event.currentTarget.getBoundingClientRect();
-      const screen = {
-        x: event.clientX - rect.left - event.currentTarget.clientLeft,
-        y: event.clientY - rect.top - event.currentTarget.clientTop
-      };
-      const handle = hitTestBezierHandle(
-        screen,
-        selectedBezierHandles,
-        BEZIER_HANDLE_HIT_RADIUS_PX
-      );
-      if (activeLinePickTarget) {
-        const candidates = linePickCandidatesAt(screen);
-        event.preventDefault();
-        event.currentTarget.focus();
-        if (candidates.length === 1) {
-          applyLinePickCandidate(candidates[0]);
-          setMeasurementCandidateMenu(null);
-          setPointPickCandidateMenu(null);
-          return;
-        }
-        if (candidates.length > 1) {
-          setLinePickCandidateMenu({ screen, candidates });
-          setMeasurementCandidateMenu(null);
-          setPointPickCandidateMenu(null);
-          return;
-        }
-        setLinePickCandidateMenu(null);
-        setMeasurementCandidateMenu(null);
-        setPointPickCandidateMenu(null);
-        return;
-      }
-      if (activePointPickTarget) {
-        const candidates = hitTestPointPickCandidates(
-          screen,
-          overlayPointPickCandidates,
-          POINT_PICK_CANDIDATE_RADIUS_PX
-        );
-        event.preventDefault();
-        event.currentTarget.focus();
-        if (candidates.length === 1) {
-          dispatchCommand("applyPickedPoint", { pickedPointAnchor: candidates[0].anchor });
-          setPointPickCandidateMenu(null);
-          return;
-        }
-        if (candidates.length > 1) {
-          setPointPickCandidateMenu({ screen, candidates });
-          return;
-        }
-        setPointPickCandidateMenu(null);
-        return;
-      }
-      setPointPickCandidateMenu(null);
-      setLinePickCandidateMenu(null);
-      if (activeNumericReferencePickTarget) {
-        const candidates = numericReferenceCandidatesAt(screen);
-        event.preventDefault();
-        event.currentTarget.focus();
-        if (candidates.length === 1) {
-          applyMeasurementCandidate({
-            line: candidates[0].line,
-            property: activeNumericReferencePickTarget.property
-          });
-          return;
-        }
-        if (candidates.length > 1) {
-          setMeasurementCandidateMenu({
-            screen,
-            candidates: candidates.map((candidate) => ({
-              line: candidate.line,
-              property: activeNumericReferencePickTarget.property
-            })),
-            targetElementId: activeNumericReferencePickTarget.elementId,
-            targetParameterKey: activeNumericReferencePickTarget.parameterKey
-          });
-        } else {
-          setMeasurementCandidateMenu(null);
-        }
-        return;
-      }
-      if (handle) {
-        event.preventDefault();
-        event.currentTarget.focus();
-        setMeasurementCandidateMenu(null);
-        dispatchCommand("selectElement", { elementId: handle.curveId, selectionMode: "replace" });
-
-        event.currentTarget.setPointerCapture(event.pointerId);
-        const dragSnapshot = currentDocumentDragSnapshot();
-        bezierHandleDragRef.current = {
-          pointerId: event.pointerId,
-          elementId: handle.curveId,
-          role: handle.role,
-          intermediatePointId: handle.intermediatePointId,
-          startClientX: event.clientX,
-          startClientY: event.clientY,
-          zoom: canvasViewport.zoom,
-          ...dragSnapshot
-        };
-        setIsBezierHandleDragging(true);
-        return;
-      }
-      setMeasurementCandidateMenu(null);
-      setLinePickCandidateMenu(null);
-      const elementId = hitTestCanvasGeometry({
-        screen,
-        lines: overlayLines,
-        arcs: overlayArcs,
-        curves: overlayCurves,
-        offsetLines: overlayOffsetLines,
-        images: overlayImages,
-        texts: overlayTexts,
-        points: overlayPoints
-      });
-      if (!elementId) return;
-
-      event.preventDefault();
-      event.currentTarget.focus();
-      dispatchCommand("selectElement", { elementId, selectionMode: "replace" });
-      if (!overlayPoints.some(({ point }) => point.elementId === elementId)) return;
-
-      event.currentTarget.setPointerCapture(event.pointerId);
-      const dragSnapshot = currentDocumentDragSnapshot();
-      pointDragRef.current = {
+      const documentState = useCadDocumentStore.getState();
+      const intent = {
         pointerId: event.pointerId,
-        elementId,
-        startClientX: event.clientX,
-        startClientY: event.clientY,
-        zoom: canvasViewport.zoom,
-        ...dragSnapshot
+        button: event.button,
+        start: { clientX: event.clientX, clientY: event.clientY },
+        latest: { clientX: event.clientX, clientY: event.clientY },
+        modifiers: { metaKey: event.metaKey, ctrlKey: event.ctrlKey, shiftKey: event.shiftKey },
+        sourceRevision: documentState.sourceRevision,
+        compiledDocumentRevision: documentState.compiledDocumentRevision,
+        deadlineAt: Date.now() + DEFERRED_POINTER_TIMEOUT_MS,
+        // This hint is only an invalidation guard. Resolution below always reruns hit testing.
+        staleTargetHint: flushResult === "flushed" ? staleTargetHintAt(event) : null
       };
-      setIsPointDragging(true);
+      if (flushResult === "flushed") {
+        event.preventDefault();
+        event.currentTarget.setPointerCapture(event.pointerId);
+        pendingPointerCaptureTargetsRef.current.set(event.pointerId, event.currentTarget);
+        applyPendingPointerTransition(beginPendingCanvasPointer(pendingPointerStateRef.current, intent));
+        return;
+      }
+      resolvePrimaryPointerIntent({ ...intent, pointerReleased: false }, event.currentTarget);
       return;
     }
 
@@ -628,6 +818,14 @@ export const DrawingCanvas = ({
   };
 
   const handlePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (pendingPointerStateRef.current.kind === "waiting") {
+      applyPendingPointerTransition(movePendingCanvasPointer(
+        pendingPointerStateRef.current,
+        event.pointerId,
+        { clientX: event.clientX, clientY: event.clientY }
+      ));
+      return;
+    }
     const bezierHandleDrag = bezierHandleDragRef.current;
     if (bezierHandleDrag?.pointerId === event.pointerId) {
       if ((event.buttons & 1) === 0) {
@@ -731,11 +929,23 @@ export const DrawingCanvas = ({
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={(event) => {
+          if (pendingPointerStateRef.current.kind === "waiting") {
+            applyPendingPointerTransition(releasePendingCanvasPointer(
+              pendingPointerStateRef.current,
+              event.pointerId,
+              { clientX: event.clientX, clientY: event.clientY }
+            ));
+            return;
+          }
           stopBezierHandleDragging(event);
           stopPointDragging(event);
           stopPanning(event);
         }}
         onPointerCancel={(event) => {
+          if (pendingPointerStateRef.current.kind === "waiting") {
+            applyPendingPointerTransition(cancelPendingCanvasPointer(pendingPointerStateRef.current, event.pointerId));
+            return;
+          }
           stopBezierHandleDragging(event);
           stopPointDragging(event);
           stopPanning(event);

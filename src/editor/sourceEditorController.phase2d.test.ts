@@ -7,7 +7,10 @@ import type { PositionedDiagnostic } from "./sourceEditorDiagnostics";
 import type { AtStopRange } from "./statementRangeIndex";
 import type { EvaluationResult } from "../types/geometry";
 
-vi.mock("../commands/commands", () => ({ dispatchCommand: vi.fn() }));
+vi.mock("../commands/commands", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../commands/commands")>()),
+  dispatchCommand: vi.fn()
+}));
 import { dispatchCommand } from "../commands/commands";
 
 type ControllerInternals = {

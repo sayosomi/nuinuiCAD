@@ -5,6 +5,8 @@ import { defaultKeymap, history, redo, redoDepth, undo, undoDepth } from "@codem
 import { EditorView, keymap, lineNumbers, type KeyBinding, type ViewUpdate } from "@codemirror/view";
 import { forceLinting } from "@codemirror/lint";
 import { dispatchCommand } from "../commands/commands";
+import { sourceEditorShortcutBindings } from "../keyboard/shortcutRegistry";
+import type { KeyChord } from "../keyboard/shortcutTypes";
 import { pickCandidates } from "../model/pickCandidates";
 import type { ElementId, EvaluationResult } from "../types/geometry";
 import { useCadDocumentStore, type CadDocumentState } from "../state/cadDocumentStore";
@@ -55,6 +57,17 @@ const resetOrigin = Annotation.define<"reset">();
 const canvasCursorOrigin = Annotation.define<"canvas-cursor">();
 const foldProjectionOrigin = Annotation.define<"fold-projection">();
 
+const codeMirrorKeyForChord = (chord: KeyChord): string | null => {
+  if (chord.mod === "any" || chord.alt === "any" || chord.shift === "any") return null;
+  const prefixes = [
+    ...(chord.mod ? ["Mod"] : []),
+    ...(chord.alt ? ["Alt"] : []),
+    ...(chord.shift ? ["Shift"] : [])
+  ];
+  const key = chord.key === " " ? "Space" : chord.key;
+  return [...prefixes, key].join("-");
+};
+
 export class SourceEditorController implements SourceEditorHandle {
   private readonly store: SourceStore;
   private readonly unsubscribe: () => void;
@@ -62,6 +75,7 @@ export class SourceEditorController implements SourceEditorHandle {
   private readonly unsubscribeUi: () => void;
   private readonly unregisterSession: () => void;
   private readonly historyCompartment = new Compartment();
+  private readonly sourceEditorShortcutCompartment = new Compartment();
   private readonly options: SourceEditorControllerOptions;
   private protocol: SourceUpdateProtocolState;
   private format: SourceTextFormat;
@@ -136,6 +150,7 @@ export class SourceEditorController implements SourceEditorHandle {
           }),
           search(),
           this.historyCompartment.of(history()),
+          this.sourceEditorShortcutCompartment.of(keymap.of(this.sourceEditorShortcutKeymap())),
           keymap.of([
             { key: "Mod-z", run: () => this.runUndo() },
             { key: "Mod-y", run: () => this.runRedo() },
@@ -207,6 +222,12 @@ export class SourceEditorController implements SourceEditorHandle {
         next.activeLinePickTarget !== previous.activeLinePickTarget;
       if (selectionChanged) this.pendingSelectionSync = true;
       if (foldChanged) this.pendingFoldProjection = true;
+      if (next.shortcutSettings !== previous.shortcutSettings) {
+        this.view.dispatch({
+          effects: this.sourceEditorShortcutCompartment.reconfigure(keymap.of(this.sourceEditorShortcutKeymap())),
+          annotations: Transaction.addToHistory.of(false)
+        });
+      }
       if (decorationChanged) this.requestDecorationRefresh();
       this.applyPendingUiSync();
     });
@@ -425,6 +446,29 @@ export class SourceEditorController implements SourceEditorHandle {
     this.unsubscribeUi();
     this.view.destroy();
   };
+
+  /**
+   * Structural editor commands come from the shared shortcut registry rather
+   * than a second handwritten key list. They deliberately yield to IME and
+   * pick navigation, while normal text keys remain CodeMirror's responsibility.
+   */
+  private sourceEditorShortcutKeymap(): KeyBinding[] {
+    return sourceEditorShortcutBindings(this.uiStore.getState().shortcutSettings).flatMap((binding) =>
+      binding.chords.flatMap((chord) => {
+        const key = codeMirrorKeyForChord(chord);
+        if (!key) return [];
+        return [{
+          key,
+          run: () => {
+            if (this.protocol.composing) return true;
+            const ui = this.uiStore.getState();
+            if (ui.activePointPickTarget || ui.activeNumericReferencePickTarget || ui.activeLinePickTarget) return false;
+            return dispatchCommand(binding.commandId) !== false;
+          }
+        } satisfies KeyBinding];
+      })
+    );
+  }
 
   private handleViewUpdate(update: ViewUpdate) {
     if (this.destroyed) return;
