@@ -13,6 +13,7 @@ import { getParameterValue } from "../parameters/parameterAccess";
 import { resolvedElementColorMap } from "../palette/elementColors";
 import type { BezierHandleRole as CommandBezierHandleRole } from "../commands/commands";
 import { effectiveElements, useCadDocumentStore } from "../state/cadDocumentStore";
+import { sourceEditSession } from "../editor/sourceEditSession";
 import type { CadDocumentSnapshot } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
 import type {
@@ -86,6 +87,9 @@ type PolarLockKeys = {
 const WHEEL_ZOOM_BASE = 1.1;
 const BEZIER_HANDLE_HIT_RADIUS_PX = 9;
 const POINT_PICK_CANDIDATE_RADIUS_PX = 10;
+
+const isRejectedDocumentMutation = (result: unknown) =>
+  typeof result === "object" && result !== null && "status" in result && result.status === "rejected";
 
 export const DrawingCanvas = ({
   evaluation,
@@ -459,6 +463,23 @@ export const DrawingCanvas = ({
   };
 
   const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const flushResult = sourceEditSession.flush("canvas-pointerdown");
+    if (flushResult !== "clean") {
+      if (flushResult === "blocked-composition") {
+        useCadUiStore.getState().setCommandErrorMessage(
+          "日本語入力の確定中はキャンバス操作を開始できません。入力を確定してから再操作してください。"
+        );
+      }
+      // React's canvas/evaluation closures still represent the pre-flush document.
+      // Do not manufacture a patch or retain drag state from that stale interaction.
+      pointDragRef.current = null;
+      bezierHandleDragRef.current = null;
+      panDragRef.current = null;
+      setIsPointDragging(false);
+      setIsBezierHandleDragging(false);
+      setIsPanning(false);
+      return;
+    }
     if (event.button === 0) {
       if (viewportSize.width <= 0 || viewportSize.height <= 0) return;
       const rect = event.currentTarget.getBoundingClientRect();
@@ -615,7 +636,7 @@ export const DrawingCanvas = ({
       }
 
       event.preventDefault();
-      dispatchCommand("moveBezierHandleByDelta", {
+      const result = dispatchCommand("moveBezierHandleByDelta", {
         elementId: bezierHandleDrag.elementId,
         bezierHandleRole: bezierHandleDrag.role,
         intermediatePointId: bezierHandleDrag.intermediatePointId,
@@ -627,6 +648,13 @@ export const DrawingCanvas = ({
         baseElements: bezierHandleDrag.snapshot.elements,
         baseEvaluation: bezierHandleDrag.baseEvaluation
       });
+      if (isRejectedDocumentMutation(result)) {
+        if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+          event.currentTarget.releasePointerCapture(event.pointerId);
+        }
+        bezierHandleDragRef.current = null;
+        setIsBezierHandleDragging(false);
+      }
       return;
     }
 
@@ -647,7 +675,7 @@ export const DrawingCanvas = ({
         axisLockKeys: axisLockKeysRef.current
       });
 
-      dispatchCommand("movePointElementByDelta", {
+      const result = dispatchCommand("movePointElementByDelta", {
         elementId: pointDrag.elementId,
         dx: worldDelta.dx,
         dy: worldDelta.dy,
@@ -657,6 +685,13 @@ export const DrawingCanvas = ({
         baseElements: pointDrag.snapshot.elements,
         baseEvaluation: pointDrag.baseEvaluation
       });
+      if (isRejectedDocumentMutation(result)) {
+        if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+          event.currentTarget.releasePointerCapture(event.pointerId);
+        }
+        pointDragRef.current = null;
+        setIsPointDragging(false);
+      }
       return;
     }
 

@@ -30,6 +30,7 @@ import {
 import { sampleElements } from "../sampleData";
 import type { LineSplice } from "../document/textPatch";
 import type { SourceUpdate } from "../editor/sourceEditorTypes";
+import { sourceEditSession } from "../editor/sourceEditSession";
 import type {
   CadElement,
   DocumentPalette,
@@ -48,6 +49,10 @@ export type TextSnapshot = {
   selectionElementIds: ElementId[];
   cursorLine: number | null;
 };
+
+export type DocumentMutationResult =
+  | { status: "applied" | "noop" }
+  | { status: "rejected"; reason: "pending-text" | "composition" | "invalid-change" };
 
 export type CommitTextOrigin = "editor" | "file" | "test" | "bridge-internal";
 
@@ -90,12 +95,12 @@ export type CadDocumentState = {
   savedSourceText: string | null;
   dirtySinceSave: boolean;
   commitText: (nextText: string, origin: CommitTextOrigin) => void;
-  previewDocumentChange: (change: Partial<CadDocumentSnapshot>) => void;
-  commitDocumentChange: (change: Partial<CadDocumentSnapshot>) => void;
+  previewDocumentChange: (change: Partial<CadDocumentSnapshot>) => DocumentMutationResult;
+  commitDocumentChange: (change: Partial<CadDocumentSnapshot>) => DocumentMutationResult;
   commitDocumentChangeFromSnapshot: (
     before: CadDocumentSnapshot,
     change: Partial<CadDocumentSnapshot>
-  ) => void;
+  ) => DocumentMutationResult;
   setElements: (elements: CadElement[]) => void;
   updateElement: (id: ElementId, patch: Partial<CadElement>) => void;
   setPrintLayout: (printLayout: PrintLayout) => void;
@@ -123,7 +128,7 @@ export type CadDocumentState = {
     sourceText: string,
     options: { currentFilePath: string | null; dirtySinceSave: boolean }
   ) => void;
-  markDocumentSaved: (filePath: string) => void;
+  markDocumentSaved: (filePath: string, savedSourceText: string) => void;
   undo: () => void;
   redo: () => void;
 };
@@ -179,14 +184,12 @@ export const currentDocumentSnapshot = (
 });
 
 const textSnapshot = (
-  state: Pick<CadDocumentState, "sourceText" | "doc">,
-  selection: CadDocumentSelectionSnapshot
+  state: Pick<CadDocumentState, "sourceText">,
+  selection: CadDocumentSelectionSnapshot & { sourceCursorLine: number | null }
 ): TextSnapshot => ({
   text: state.sourceText,
   selectionElementIds: selection.selectedElementIds,
-  cursorLine: selection.selectedElementId
-    ? state.doc.statementMap.byElementId.get(selection.selectedElementId)?.range.startLine ?? null
-    : null
+  cursorLine: selection.sourceCursorLine
 });
 
 const appendPast = (past: TextSnapshot[], snapshot: TextSnapshot) =>
@@ -264,7 +267,7 @@ const documentFromChange = (
 const modelCommit = (
   state: CadDocumentState,
   change: Partial<CadDocumentSnapshot>
-): Partial<CadDocumentState> => {
+): { state: Partial<CadDocumentState>; result: DocumentMutationResult } => {
   const previousSelection = useCadUiStore.getState();
   let current = state;
   let rebased = false;
@@ -281,13 +284,18 @@ const modelCommit = (
 
   if (result.status === "rejected") {
     console.error(`[canonicalDocument] ${result.reason}`);
-    return { previewElements: null };
+    useCadUiStore.getState().clearPickMode();
+    useCadUiStore.getState().setCommandErrorMessage("現在のDSLテキストにはこの操作を適用できません。");
+    return { state: { previewElements: null }, result: { status: "rejected", reason: "invalid-change" } };
   }
   if (result.status === "noop") {
     useCadUiStore.getState().applySelection(documentOf(current).elements, requestedSelection);
     return {
-      ...canonicalFields(current),
-      previewElements: null
+      state: {
+        ...canonicalFields(current),
+        previewElements: null
+      },
+      result: { status: "noop" }
     };
   }
 
@@ -303,7 +311,9 @@ const modelCommit = (
       value = regenerateCanonicalFromModel(afterDocument);
     } catch (error) {
       console.error(`[canonicalDocument] 全体再生成にも失敗したため変更を破棄します: ${String(error)}`);
-      return { previewElements: null };
+      useCadUiStore.getState().clearPickMode();
+      useCadUiStore.getState().setCommandErrorMessage("現在のDSLテキストにはこの操作を適用できません。");
+      return { state: { previewElements: null }, result: { status: "rejected", reason: "invalid-change" } };
     }
   } else {
     value = result.value;
@@ -317,7 +327,9 @@ const modelCommit = (
         value = regenerateCanonicalFromModel(afterDocument);
       } catch (error) {
         console.error(`[canonicalDocument] 等価assert後の全体再生成に失敗したため変更を破棄します: ${String(error)}`);
-        return { previewElements: null };
+        useCadUiStore.getState().clearPickMode();
+        useCadUiStore.getState().setCommandErrorMessage("現在のDSLテキストにはこの操作を適用できません。");
+        return { state: { previewElements: null }, result: { status: "rejected", reason: "invalid-change" } };
       }
     }
     assertReconcileSane(current.doc, value.sourceText, afterDocument);
@@ -325,12 +337,15 @@ const modelCommit = (
 
   useCadUiStore.getState().applySelection(value.doc.document.elements, requestedSelection);
   return {
-    ...canonicalFields(value),
-    previewElements: null,
-    past: appendPast(state.past, textSnapshot(current, previousSelection)),
-    future: [],
-    dirtySinceSave: dirtyForText(current, value.sourceText),
-    ...sourceUpdateFields(state, rebased ? "reset" : updateKind, splices)
+    state: {
+      ...canonicalFields(value),
+      previewElements: null,
+      past: appendPast(state.past, textSnapshot(current, previousSelection)),
+      future: [],
+      dirtySinceSave: dirtyForText(current, value.sourceText),
+      ...sourceUpdateFields(state, rebased ? "reset" : updateKind, splices)
+    },
+    result: { status: "applied" }
   };
 };
 
@@ -431,9 +446,45 @@ const elementWithoutColorId = (element: CadElement): CadElement => {
   return rest as CadElement;
 };
 
+const rejectDocumentMutation = (
+  reason: Extract<DocumentMutationResult, { status: "rejected" }>["reason"]
+): DocumentMutationResult => {
+  const ui = useCadUiStore.getState();
+  ui.clearPickMode();
+  ui.setCommandErrorMessage(
+    reason === "composition"
+      ? "日本語入力の確定中は文書を変更できません。入力を確定してから再操作してください。"
+      : reason === "pending-text"
+        ? "DSL入力を確定しました。最新の文書で操作をもう一度実行してください。"
+        : "現在のDSLテキストにはこの操作を適用できません。"
+  );
+  return { status: "rejected", reason };
+};
+
+const guardDocumentMutation = (): DocumentMutationResult | null => {
+  if (sourceEditSession.isComposing()) return rejectDocumentMutation("composition");
+  if (!sourceEditSession.hasPendingText()) return null;
+  const flushResult = sourceEditSession.flush("model-mutation");
+  return rejectDocumentMutation(flushResult === "blocked-composition" ? "composition" : "pending-text");
+};
+
+const rejectExternalDocumentReset = () => {
+  if (!sourceEditSession.isComposing()) return false;
+  useCadUiStore.getState().setCommandErrorMessage(
+    "日本語入力の確定中は文書を置き換えられません。入力を確定してから再操作してください。"
+  );
+  return true;
+};
+
 export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
   ...initialCadDocumentState(),
-  commitText: (nextText, origin) =>
+  commitText: (nextText, origin) => {
+    if (sourceEditSession.isComposing()) {
+      useCadUiStore.getState().setCommandErrorMessage(
+        "日本語入力の確定中はDSL入力をcommitできません。入力を確定してから再操作してください。"
+      );
+      return;
+    }
     set((state) => {
       if (nextText === state.sourceText) return { previewElements: null };
       const previousSelection = useCadUiStore.getState();
@@ -447,11 +498,46 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
         dirtySinceSave: dirtyForText(state, result.sourceText),
         ...sourceUpdateFields(state, origin === "editor" ? "editor" : "reset")
       };
-    }),
-  previewDocumentChange: (change) =>
-    set(() => (change.elements === undefined ? {} : { previewElements: change.elements })),
-  commitDocumentChange: (change) => set((state) => modelCommit(state, change)),
-  commitDocumentChangeFromSnapshot: (_before, change) => set((state) => modelCommit(state, change)),
+    });
+  },
+  previewDocumentChange: (change) => {
+    const guarded = guardDocumentMutation();
+    if (guarded) {
+      set({ previewElements: null });
+      return guarded;
+    }
+    if (change.elements === undefined) return { status: "noop" };
+    set({ previewElements: change.elements });
+    return { status: "applied" };
+  },
+  commitDocumentChange: (change) => {
+    const guarded = guardDocumentMutation();
+    if (guarded) {
+      set({ previewElements: null });
+      return guarded;
+    }
+    let result: DocumentMutationResult = { status: "noop" };
+    set((state) => {
+      const outcome = modelCommit(state, change);
+      result = outcome.result;
+      return outcome.state;
+    });
+    return result;
+  },
+  commitDocumentChangeFromSnapshot: (_before, change) => {
+    const guarded = guardDocumentMutation();
+    if (guarded) {
+      set({ previewElements: null });
+      return guarded;
+    }
+    let result: DocumentMutationResult = { status: "noop" };
+    set((state) => {
+      const outcome = modelCommit(state, change);
+      result = outcome.result;
+      return outcome.state;
+    });
+    return result;
+  },
   setElements: (elements) => get().commitDocumentChange({ elements }),
   updateElement: (id, patch) => {
     const elements = documentOf(get()).elements;
@@ -648,11 +734,13 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
       elements: document.elements.map((item) => item.id === id ? { ...item, name } : item)
     });
   },
-  replaceDocument: (snapshot, currentFilePath) =>
+  replaceDocument: (snapshot, currentFilePath) => {
+    if (rejectExternalDocumentReset()) return;
     set((state) => {
       try {
         const canonical = regenerateCanonicalFromModel(snapshot);
         useCadUiStore.getState().applySelection(canonical.doc.document.elements, snapshot);
+        useCadUiStore.getState().setSourceCursorLine(null);
         return {
           ...canonicalFields(canonical),
           previewElements: null,
@@ -667,8 +755,10 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
         console.error(`[canonicalDocument] 文書読込の正準化に失敗したため現在の文書を維持します: ${String(error)}`);
         return { previewElements: null };
       }
-    }),
-  replaceTextDocument: (sourceText, options) =>
+    });
+  },
+  replaceTextDocument: (sourceText, options) => {
+    if (rejectExternalDocumentReset()) return;
     set((state) => {
       const baseline = regenerateCanonicalFromModel(emptyFileSnapshot());
       const compiled = compileCanonicalText(baseline, sourceText);
@@ -678,6 +768,7 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
         selectionAnchorElementId: null,
         selectedParameterKey: null
       });
+      useCadUiStore.getState().setSourceCursorLine(null);
       return {
         ...canonicalFields(compiled),
         previewElements: null,
@@ -688,14 +779,24 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
         dirtySinceSave: options.dirtySinceSave,
         ...sourceUpdateFields(state, "reset")
       };
-    }),
-  markDocumentSaved: (currentFilePath) =>
+    });
+  },
+  markDocumentSaved: (currentFilePath, savedSourceText) =>
     set((state) => ({
       currentFilePath,
-      savedSourceText: state.sourceText,
-      dirtySinceSave: false
+      savedSourceText,
+      dirtySinceSave: state.sourceText !== savedSourceText
     })),
-  undo: () =>
+  undo: () => {
+    if (sourceEditSession.isComposing()) {
+      useCadUiStore.getState().setCommandErrorMessage(
+        "日本語入力の確定中はUndoできません。入力を確定してから再操作してください。"
+      );
+      return;
+    }
+    if (sourceEditSession.hasPendingText()) {
+      sourceEditSession.flush("command");
+    }
     set((state) => {
       const previous = state.past.at(-1);
       if (!previous) return { previewElements: null };
@@ -710,6 +811,7 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
         selectionAnchorElementId: previous.selectionElementIds[0] ?? null,
         selectedParameterKey: previousSelection.selectedParameterKey
       });
+      useCadUiStore.getState().setSourceCursorLine(previous.cursorLine);
       return {
         ...canonicalFields(restored),
         previewElements: null,
@@ -718,8 +820,18 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
         dirtySinceSave: dirtyForText(state, restored.sourceText),
         ...sourceUpdateFields(state, "reset")
       };
-    }),
-  redo: () =>
+    });
+  },
+  redo: () => {
+    if (sourceEditSession.isComposing()) {
+      useCadUiStore.getState().setCommandErrorMessage(
+        "日本語入力の確定中はRedoできません。入力を確定してから再操作してください。"
+      );
+      return;
+    }
+    if (sourceEditSession.hasPendingText()) {
+      sourceEditSession.flush("command");
+    }
     set((state) => {
       const next = state.future[0];
       if (!next) return { previewElements: null };
@@ -734,6 +846,7 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
         selectionAnchorElementId: next.selectionElementIds[0] ?? null,
         selectedParameterKey: previousSelection.selectedParameterKey
       });
+      useCadUiStore.getState().setSourceCursorLine(next.cursorLine);
       return {
         ...canonicalFields(restored),
         previewElements: null,
@@ -742,7 +855,8 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
         dirtySinceSave: dirtyForText(state, restored.sourceText),
         ...sourceUpdateFields(state, "reset")
       };
-    })
+    });
+  }
 }));
 
 useCadDocumentStore.subscribe((state, previous) => {

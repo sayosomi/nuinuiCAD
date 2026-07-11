@@ -1,5 +1,6 @@
 import type { BezierHandleRole } from "../model/elementDragTransforms";
 import type { CadDocumentSnapshot } from "../state/cadDocumentStore";
+import type { DocumentMutationResult } from "../state/cadDocumentStore";
 import type {
   MeasurementInsertMode,
   MeasurementPointSlot
@@ -252,5 +253,5 @@ export type Command = {
     keys: string;
     label?: string;
   }[];
-  run: (context?: CommandContext) => void;
+  run: (context?: CommandContext) => void | boolean | DocumentMutationResult;
 };

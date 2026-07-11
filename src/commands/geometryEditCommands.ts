@@ -35,18 +35,16 @@ export const movePointElementByDelta = ({
   if (!nextElements) return;
 
   if (commitMode === "preview") {
-    useCadDocumentStore.getState().previewDocumentChange({ elements: nextElements });
-    return;
+    return useCadDocumentStore.getState().previewDocumentChange({ elements: nextElements });
   }
 
   if (historySnapshot) {
-    useCadDocumentStore.getState().commitDocumentChangeFromSnapshot(historySnapshot, {
+    return useCadDocumentStore.getState().commitDocumentChangeFromSnapshot(historySnapshot, {
       elements: nextElements
     });
-    return;
   }
 
-  useCadDocumentStore.getState().commitDocumentChange({ elements: nextElements });
+  return useCadDocumentStore.getState().commitDocumentChange({ elements: nextElements });
 };
 
 export const moveBezierHandleByDelta = ({
@@ -83,16 +81,14 @@ export const moveBezierHandleByDelta = ({
   if (!nextElements) return;
 
   if (commitMode === "preview") {
-    useCadDocumentStore.getState().previewDocumentChange({ elements: nextElements });
-    return;
+    return useCadDocumentStore.getState().previewDocumentChange({ elements: nextElements });
   }
 
   if (historySnapshot) {
-    useCadDocumentStore.getState().commitDocumentChangeFromSnapshot(historySnapshot, {
+    return useCadDocumentStore.getState().commitDocumentChangeFromSnapshot(historySnapshot, {
       elements: nextElements
     });
-    return;
   }
 
-  useCadDocumentStore.getState().commitDocumentChange({ elements: nextElements });
+  return useCadDocumentStore.getState().commitDocumentChange({ elements: nextElements });
 };

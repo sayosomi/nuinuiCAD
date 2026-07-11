@@ -149,7 +149,10 @@ describe("unsaved changes guard", () => {
     setTauriRuntime();
     dialogMock.message.mockResolvedValue("保存して閉じる");
     documentFileMock.saveDocument.mockImplementation(async () => {
-      useCadDocumentStore.getState().markDocumentSaved("/tmp/pattern.nuinui.json");
+      useCadDocumentStore.getState().markDocumentSaved(
+        "/tmp/pattern.nuinui.json",
+        useCadDocumentStore.getState().sourceText
+      );
     });
     useCadDocumentStore.getState().commitDocumentChange({ evaluationLimitIndex: 1 });
 

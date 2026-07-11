@@ -1,6 +1,8 @@
 import { message } from "@tauri-apps/plugin-dialog";
 import { isTauriRuntime } from "../geometry/evaluationEngine";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
+import { useCadUiStore } from "../state/cadUiStore";
+import { sourceEditSession } from "../editor/sourceEditSession";
 import { saveDocument } from "./documentFile";
 
 const CLOSE_DIALOG_SAVE = "保存して閉じる";
@@ -11,6 +13,11 @@ const shouldSaveAndClose = (choice: string) => choice === CLOSE_DIALOG_SAVE || c
 const shouldDiscardAndClose = (choice: string) => choice === CLOSE_DIALOG_DISCARD || choice === "No";
 
 export const handleBeforeUnloadWithUnsavedChanges = (event: BeforeUnloadEvent) => {
+  if (sourceEditSession.flush("unsaved-guard") === "blocked-composition") {
+    event.preventDefault();
+    event.returnValue = "";
+    return "";
+  }
   if (!useCadDocumentStore.getState().dirtySinceSave) return;
 
   event.preventDefault();
@@ -30,6 +37,13 @@ export const registerUnsavedChangesGuard = () => {
         const currentWindow = getCurrentWindow();
 
         return currentWindow.onCloseRequested(async (event) => {
+          if (sourceEditSession.flush("unsaved-guard") === "blocked-composition") {
+            event.preventDefault();
+            useCadUiStore.getState().setCommandErrorMessage(
+              "日本語入力の確定中は閉じられません。入力を確定してから再操作してください。"
+            );
+            return;
+          }
           if (!useCadDocumentStore.getState().dirtySinceSave) return;
 
           event.preventDefault();

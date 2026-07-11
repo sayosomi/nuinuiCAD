@@ -24,7 +24,7 @@ describe("SourceEditorPane", () => {
     screen.unmount();
   });
 
-  it("queues external updates during composition and drains after compositionend", () => {
+  it("rejects external model mutations during composition and leaves no stale preview", () => {
     useCadDocumentStore.getState().commitText("nui 1\npoint A = (0, 0)", "test");
     const ref = createRef<SourceEditorHandle>();
     const screen = render(<SourceEditorPane ref={ref} />);
@@ -35,11 +35,13 @@ describe("SourceEditorPane", () => {
     const changed = useCadDocumentStore.getState().elements.map((element) =>
       element.name === "A" ? ({ ...element, locked: true } as CadElement) : element
     );
-    useCadDocumentStore.getState().commitDocumentChange({ elements: changed });
+    const result = useCadDocumentStore.getState().commitDocumentChange({ elements: changed });
     expect(ref.current?.getText()).toBe("nui 1\npoint A = (0, 0)");
+    expect(result).toEqual({ status: "rejected", reason: "composition" });
+    expect(useCadDocumentStore.getState().previewElements).toBeNull();
 
     fireEvent.compositionEnd(content!);
-    expect(ref.current?.getText()).toBe("nui 1\npoint A = (0, 0) locked=true");
+    expect(ref.current?.getText()).toBe("nui 1\npoint A = (0, 0)");
     screen.unmount();
   });
 

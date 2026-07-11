@@ -6,6 +6,7 @@ import type { ShortcutSettings } from "../keyboard/shortcutTypes";
 import { normalizeParameterKey, type ParameterKey } from "../parameters/parameterDefinitions";
 import { sampleElements } from "../sampleData";
 import { useCadDocumentStore } from "./cadDocumentStore";
+import { sourceEditSession } from "../editor/sourceEditSession";
 import type { ActiveTemplateInsertion } from "../templates/templateInsertionMode";
 import type { CadElement, ElementId, PointAnchor } from "../types/geometry";
 import type { GroupFoldState } from "../model/groups";
@@ -180,6 +181,8 @@ const normalizedSelection = (
 };
 
 export type CadUiState = CadDocumentSelectionSnapshot & {
+  /** Primary DSL editor cursor; intentionally independent from Canvas selection. */
+  sourceCursorLine: number | null;
   groupFoldById: ReadonlyMap<ElementId, GroupFoldState>;
   isParameterEditMode: boolean;
   showElementInfoPanel: boolean;
@@ -303,6 +306,7 @@ export type CadUiState = CadDocumentSelectionSnapshot & {
   setSelectedElementIds: (ids: ElementId[], primaryId?: ElementId | null) => void;
   setSelectedElementRange: (anchorId: ElementId, targetId: ElementId) => void;
   setSelectedParameterKey: (selectedParameterKey: ParameterKey | null) => void;
+  setSourceCursorLine: (sourceCursorLine: number | null) => void;
   applySelection: (elements: CadElement[], selection: CadDocumentSelectionSnapshot) => void;
   reconcileSelectionWithElements: (elements: CadElement[]) => void;
 };
@@ -371,6 +375,7 @@ export const initialCadUiState = (): Omit<
   | "setSelectedElementIds"
   | "setSelectedElementRange"
   | "setSelectedParameterKey"
+  | "setSourceCursorLine"
   | "applySelection"
   | "reconcileSelectionWithElements"
 > => ({
@@ -378,6 +383,7 @@ export const initialCadUiState = (): Omit<
   selectedElementIds: sampleElements[0] ? [sampleElements[0].id] : [],
   selectionAnchorElementId: sampleElements[0]?.id ?? null,
   selectedParameterKey: sampleElements[0] ? normalizeParameterKey(sampleElements[0], null) : null,
+  sourceCursorLine: null,
   groupFoldById: new Map(),
   isParameterEditMode: false,
   showElementInfoPanel: true,
@@ -703,5 +709,9 @@ export const useCadUiStore = create<CadUiState>((set) => ({
       selectedElementIds: state.selectedElementIds,
       selectionAnchorElementId: state.selectionAnchorElementId,
       selectedParameterKey
-    }))
+    })),
+  setSourceCursorLine: (sourceCursorLine) => {
+    if (sourceEditSession.isComposing()) return;
+    set({ sourceCursorLine });
+  }
 }));

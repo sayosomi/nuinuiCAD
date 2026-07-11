@@ -8,7 +8,8 @@ import {
   initialCadDocumentState,
   useCadDocumentStore
 } from "../state/cadDocumentStore";
-import { initialCadUiState } from "../state/cadUiStore";
+import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
+import { sourceEditSession } from "../editor/sourceEditSession";
 import { LEGACY_CAD_DOCUMENT_EXTENSION } from "./documentFormat";
 import { rebaseImageSourcePathsInText } from "./imageFilePaths";
 import { importLegacyCadDocument } from "./legacyImport";
@@ -57,7 +58,17 @@ const assertTauriFileRuntime = () => {
   }
 };
 
+const flushSourceEditForFileOperation = () => {
+  const result = sourceEditSession.flush("save");
+  if (result !== "blocked-composition") return true;
+  useCadUiStore.getState().setCommandErrorMessage(
+    "日本語入力の確定中はファイル操作を実行できません。入力を確定してから再操作してください。"
+  );
+  return false;
+};
+
 export const confirmDiscardUnsavedChanges = (actionLabel: string) => {
+  if (!flushSourceEditForFileOperation()) return false;
   if (!useCadDocumentStore.getState().dirtySinceSave) return true;
   return window.confirm(`未保存の変更を破棄して${actionLabel}ますか？`);
 };
@@ -69,6 +80,7 @@ export const newDocument = async () => {
   const palette = await loadPaletteTemplateSettings()
     .then((settings) => settings.palette)
     .catch(() => defaultDocumentPalette());
+  if (!flushSourceEditForFileOperation()) return;
   useCadDocumentStore.getState().replaceDocument(
     {
       ...currentDocumentSnapshot(initialDocument, initialCadUiState()),
@@ -80,27 +92,32 @@ export const newDocument = async () => {
 
 export const saveDocumentAs = async () => {
   assertTauriFileRuntime();
+  if (!flushSourceEditForFileOperation()) return;
   const state = useCadDocumentStore.getState();
   const path = selectedPath(
     await saveDocumentDialog(state.currentFilePath ?? `pattern.${NUI_DOCUMENT_EXTENSION}`)
   );
   if (!path) return;
 
+  if (!flushSourceEditForFileOperation()) return;
+  const latestState = useCadDocumentStore.getState();
+
   const normalizedPath = ensureNuiDocumentFileName(path);
   const nextText = rebaseImageSourcePathsInText(
-    state.sourceText,
-    state.currentFilePath,
+    latestState.sourceText,
+    latestState.currentFilePath,
     normalizedPath
   );
   await invokeWriteDocumentFile(normalizedPath, nextText);
-  if (nextText !== state.sourceText) {
+  if (nextText !== latestState.sourceText) {
     useCadDocumentStore.getState().commitText(nextText, "file");
   }
-  useCadDocumentStore.getState().markDocumentSaved(normalizedPath);
+  useCadDocumentStore.getState().markDocumentSaved(normalizedPath, nextText);
 };
 
 export const saveDocument = async () => {
   assertTauriFileRuntime();
+  if (!flushSourceEditForFileOperation()) return;
   const state = useCadDocumentStore.getState();
   if (!state.currentFilePath) {
     await saveDocumentAs();
@@ -108,7 +125,7 @@ export const saveDocument = async () => {
   }
 
   await invokeWriteDocumentFile(state.currentFilePath, state.sourceText);
-  useCadDocumentStore.getState().markDocumentSaved(state.currentFilePath);
+  useCadDocumentStore.getState().markDocumentSaved(state.currentFilePath, state.sourceText);
 };
 
 export const openDocument = async () => {
@@ -123,6 +140,7 @@ export const openDocument = async () => {
   if (unsupportedMajor !== null) {
     throw new Error(`未対応のDSLバージョンです: ${unsupportedMajor}(対応: 1)`);
   }
+  if (!flushSourceEditForFileOperation()) return;
   useCadDocumentStore.getState().replaceTextDocument(content, {
     currentFilePath: path,
     dirtySinceSave: false
@@ -137,6 +155,7 @@ export const importLegacyDocument = async () => {
   if (!path) return;
 
   const sourceText = importLegacyCadDocument(await invokeReadDocumentFile(path), path);
+  if (!flushSourceEditForFileOperation()) return;
   useCadDocumentStore.getState().replaceTextDocument(sourceText, {
     currentFilePath: null,
     dirtySinceSave: true

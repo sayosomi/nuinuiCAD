@@ -175,10 +175,16 @@ describe("cadDocumentStore canonical text", () => {
       useCadDocumentStore.getState().commitText(`nui 1\npoint A = (${index}, 0)`, "test");
     }
     expect(useCadDocumentStore.getState().past).toHaveLength(200);
-    useCadDocumentStore.getState().markDocumentSaved("/tmp/pattern.nuinui.json");
+    useCadDocumentStore.getState().markDocumentSaved(
+      "/tmp/pattern.nuinui.json",
+      useCadDocumentStore.getState().sourceText
+    );
     useCadDocumentStore.getState().undo();
     expect(useCadDocumentStore.getState().dirtySinceSave).toBe(true);
-    useCadDocumentStore.getState().markDocumentSaved("/tmp/pattern.nuinui.json");
+    useCadDocumentStore.getState().markDocumentSaved(
+      "/tmp/pattern.nuinui.json",
+      useCadDocumentStore.getState().sourceText
+    );
     useCadDocumentStore.getState().redo();
     expect(useCadDocumentStore.getState().dirtySinceSave).toBe(true);
   });

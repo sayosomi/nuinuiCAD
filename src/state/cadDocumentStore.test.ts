@@ -16,17 +16,26 @@ describe("cadDocumentStore file state", () => {
   });
 
   it("marks committed edits, undo, and redo as dirty", () => {
-    useCadDocumentStore.getState().markDocumentSaved("/tmp/pattern.nuinui.json");
+    useCadDocumentStore.getState().markDocumentSaved(
+      "/tmp/pattern.nuinui.json",
+      useCadDocumentStore.getState().sourceText
+    );
     expect(useCadDocumentStore.getState().dirtySinceSave).toBe(false);
 
     useCadDocumentStore.getState().commitDocumentChange({ evaluationLimitIndex: 1 });
     expect(useCadDocumentStore.getState().dirtySinceSave).toBe(true);
 
-    useCadDocumentStore.getState().markDocumentSaved("/tmp/pattern.nuinui.json");
+    useCadDocumentStore.getState().markDocumentSaved(
+      "/tmp/pattern.nuinui.json",
+      useCadDocumentStore.getState().sourceText
+    );
     useCadDocumentStore.getState().undo();
     expect(useCadDocumentStore.getState().dirtySinceSave).toBe(true);
 
-    useCadDocumentStore.getState().markDocumentSaved("/tmp/pattern.nuinui.json");
+    useCadDocumentStore.getState().markDocumentSaved(
+      "/tmp/pattern.nuinui.json",
+      useCadDocumentStore.getState().sourceText
+    );
     useCadDocumentStore.getState().redo();
     expect(useCadDocumentStore.getState().dirtySinceSave).toBe(true);
   });
@@ -71,7 +80,10 @@ describe("cadDocumentStore file state", () => {
   });
 
   it("does not include file state in document snapshots", () => {
-    useCadDocumentStore.getState().markDocumentSaved("/tmp/pattern.nuinui.json");
+    useCadDocumentStore.getState().markDocumentSaved(
+      "/tmp/pattern.nuinui.json",
+      useCadDocumentStore.getState().sourceText
+    );
 
     expect(currentDocumentSnapshot(useCadDocumentStore.getState(), useCadUiStore.getState())).not.toHaveProperty("currentFilePath");
     expect(currentDocumentSnapshot(useCadDocumentStore.getState(), useCadUiStore.getState())).not.toHaveProperty("dirtySinceSave");

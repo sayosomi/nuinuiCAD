@@ -5,6 +5,7 @@ import {
   useCadDocumentStore
 } from "../state/cadDocumentStore";
 import { initialCadUiState } from "../state/cadUiStore";
+import { registerSourceEditSession } from "../editor/sourceEditSession";
 import { CAD_DOCUMENT_APP_ID, CAD_DOCUMENT_SCHEMA_VERSION } from "./documentFormat";
 import {
   importLegacyDocument,
@@ -40,7 +41,7 @@ describe("document file lifecycle", () => {
 
   it("creates a new starter document and clears file state after confirming discard", async () => {
     vi.spyOn(window, "confirm").mockReturnValue(true);
-    useCadDocumentStore.getState().markDocumentSaved("/tmp/edited.nui");
+    useCadDocumentStore.getState().markDocumentSaved("/tmp/edited.nui", useCadDocumentStore.getState().sourceText);
     useCadDocumentStore.getState().commitDocumentChange({ evaluationLimitIndex: 1 });
 
     await newDocument();
@@ -135,6 +136,40 @@ describe("document file lifecycle", () => {
     expect(state.dirtySinceSave).toBe(false);
   });
 
+  it("flushes pending editor text and rereads state before saving", async () => {
+    const flushedText = "nui 1\npoint A = (9, 0)";
+    useCadDocumentStore.getState().replaceTextDocument("nui 1\npoint A = (0, 0)", {
+      currentFilePath: "/tmp/current.nui",
+      dirtySinceSave: false
+    });
+    let pending = true;
+    const unregister = registerSourceEditSession({
+      hasPendingText: () => pending,
+      isComposing: () => false,
+      flush: () => {
+        pending = false;
+        useCadDocumentStore.getState().commitText(flushedText, "editor");
+        return "flushed";
+      }
+    });
+    tauriCoreMock.invoke.mockResolvedValue(undefined);
+
+    try {
+      await saveDocument();
+    } finally {
+      unregister();
+    }
+
+    expect(tauriCoreMock.invoke).toHaveBeenCalledWith("write_document_file", {
+      path: "/tmp/current.nui",
+      content: flushedText
+    });
+    expect(useCadDocumentStore.getState()).toMatchObject({
+      sourceText: flushedText,
+      dirtySinceSave: false
+    });
+  });
+
   it("rebases image paths on Save As and restores dirty state across undo and redo", async () => {
     const source = [
       "nui 1",
@@ -192,6 +227,30 @@ describe("document file lifecycle", () => {
 
     useCadDocumentStore.getState().redo();
     expect(useCadDocumentStore.getState()).toMatchObject({ sourceText: savedText, dirtySinceSave: false });
+  });
+
+  it("keeps the document dirty when it changes while a save write is in flight", async () => {
+    const savedText = "nui 1\npoint A = (5, 0)";
+    const laterText = "nui 1\npoint A = (6, 0)";
+    useCadDocumentStore.getState().replaceTextDocument(savedText, {
+      currentFilePath: "/tmp/current.nui",
+      dirtySinceSave: true
+    });
+    tauriCoreMock.invoke.mockImplementation(async () => {
+      useCadDocumentStore.getState().commitText(laterText, "test");
+    });
+
+    await saveDocument();
+
+    expect(tauriCoreMock.invoke).toHaveBeenCalledWith("write_document_file", {
+      path: "/tmp/current.nui",
+      content: savedText
+    });
+    expect(useCadDocumentStore.getState()).toMatchObject({
+      sourceText: laterText,
+      savedSourceText: savedText,
+      dirtySinceSave: true
+    });
   });
 
   it("imports legacy JSON as a dirty untitled document without writing its source file", async () => {

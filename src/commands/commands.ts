@@ -7,6 +7,8 @@ import { selectionCommandDefinitions } from "./selectionCommandDefinitions";
 import { templateCommandDefinitions } from "./templateCommandDefinitions";
 import { viewModeCommandDefinitions } from "./viewModeCommandDefinitions";
 import type { Command, CommandContext, CommandId } from "./commandTypes";
+import { sourceEditSession } from "../editor/sourceEditSession";
+import { useCadUiStore } from "../state/cadUiStore";
 export type { BezierHandleRole, Command, CommandContext, CommandId } from "./commandTypes";
 
 export const commands: Record<CommandId, Command> = {
@@ -20,7 +22,13 @@ export const commands: Record<CommandId, Command> = {
 };
 
 export const dispatchCommand = (commandId: CommandId, context?: CommandContext) => {
-  commands[commandId].run(context);
+  if (context?.commitMode !== "preview" && sourceEditSession.flush("command") === "blocked-composition") {
+    useCadUiStore.getState().setCommandErrorMessage(
+      "日本語入力の確定中はコマンドを実行できません。入力を確定してから再操作してください。"
+    );
+    return false;
+  }
+  return commands[commandId].run(context);
 };
 
 export type { CommandPaletteItem } from "./commandPalette";
