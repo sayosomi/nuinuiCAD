@@ -14,7 +14,10 @@ phase-0-dsl-grammar
                  1c-1-fold-state → 1c-2-preview-elements
                    → 1c-3-canonical-inversion → 1c-4-selection-ui-store
                  └─ phase-1d-nui-format
-                      └─ phase-2-codemirror-pane
+                      └─ phase-2(親文書: phase-2-codemirror-pane。実装は5分割の直列)
+                           2a-codemirror-foundation → 2b-editor-sync-undo
+                             → 2c-selection-fold → 2d-diagnostics-keyboard-features
+                             → 2e-left-panel-cutover
                            ├─ phase-3-inspector      ┐ 並行可
                            └─ phase-4-command-line   ┘
                                 └─ phase-5-cleanup(3と4の両方の完了後)
@@ -31,7 +34,12 @@ phase-0-dsl-grammar
 | [phase-1c-3-canonical-inversion.md](phase-1c-3-canonical-inversion.md) | 正準反転コア: sourceTextが正・commitText・統合Undo | 1c-2 |
 | [phase-1c-4-selection-ui-store.md](phase-1c-4-selection-ui-store.md) | selectionのcadUiStore移動+Phase 1c手動E2E | 1c-3 |
 | [phase-1d-nui-format.md](phase-1d-nui-format.md) | `.nui` 保存/読込+レガシーインポータ | 1c-4 |
-| [phase-2-codemirror-pane.md](phase-2-codemirror-pane.md) | CodeMirror 6 左ペイン(構成リスト置換) | 1d |
+| [phase-2-codemirror-pane.md](phase-2-codemirror-pane.md) | **親文書**: CodeMirror 6 左ペイン。実装は下記2a〜2eへ分割(2026-07-11) | 1d |
+| [phase-2a-codemirror-foundation.md](phase-2a-codemirror-foundation.md) | CMアダプタ・source update protocol・性能baseline | 1d |
+| [phase-2b-editor-sync-undo.md](phase-2b-editor-sync-undo.md) | 未commit buffer・中央flush・CM/store Undo統合 | 2a |
+| [phase-2c-selection-fold.md](phase-2c-selection-fold.md) | cursor/Canvas選択同期・複数選択・fold | 2b |
+| [phase-2d-diagnostics-keyboard-features.md](phase-2d-diagnostics-keyboard-features.md) | dirty diagnostics・評価decorations・keyboard・旧機能移行 | 2c |
+| [phase-2e-left-panel-cutover.md](phase-2e-left-panel-cutover.md) | AppLayout切替・LeftPanel削除・性能/E2E | 2d |
 | [phase-3-inspector.md](phase-3-inspector.md) | 読み取り専用インスペクタ+フォーム編集廃止 | 2 |
 | [phase-4-command-line.md](phase-4-command-line.md) | コマンドライン作図+DSL補完(DslPanel削除) | 2 |
 | [phase-5-cleanup.md](phase-5-cleanup.md) | 互換コード削除・リネーム伝播・ドキュメント更新 | 3 + 4 |

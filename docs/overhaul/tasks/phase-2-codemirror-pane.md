@@ -2,96 +2,64 @@
 
 > 全体計画: `docs/overhaul/plan.md` を必ず先に読むこと。AGENTS.md の規則に従うこと。
 
+> **実装分割(2026-07-11)**: 本Phaseは以下の5タスクへ直列分割する。本ファイルは
+> Phase全体の要件と依存順を定める**親文書**であり、実装時は担当する子タスク
+> 文書を正とする。
+>
+> 1. [phase-2a-codemirror-foundation.md](phase-2a-codemirror-foundation.md) —
+>    CodeMirror依存・アダプタ境界・source update protocol・性能baseline
+> 2. [phase-2b-editor-sync-undo.md](phase-2b-editor-sync-undo.md) —
+>    未commit buffer・中央flush不変条件・store/CM Undo統合
+> 3. [phase-2c-selection-fold.md](phase-2c-selection-fold.md) —
+>    cursor/Canvas選択同期・複数選択・group/else fold
+> 4. [phase-2d-diagnostics-keyboard-features.md](phase-2d-diagnostics-keyboard-features.md) —
+>    dirty diagnostics・評価decorations・keyboard scope・LeftPanel機能移行
+> 5. [phase-2e-left-panel-cutover.md](phase-2e-left-panel-cutover.md) —
+>    AppLayout切替・旧リスト削除・1000行性能・手動E2E
+
 ## 目的
 
-左ペインの構成リスト(LeftPanel)を CodeMirror 6 ベースの常設DSLエディタに
-置き換える。テキスト自体が構成ビューになる: 1行=1要素、カーソル行⇄Canvas選択の
-双方向同期、グループブロックの折りたたみ、診断波線、要素状態(エラー/無効/
-非表示)の行デコレーション。
+左ペインの構成リストをCodeMirror 6ベースの常設DSLエディタへ置き換える。
+`sourceText`を正準としたまま、タイピング中だけCM bufferが先行できるようにし、
+Canvas操作・Undo・selection・fold・diagnosticsを一つの編集体験へ統合する。
 
-## 変更対象
+## Phase全体の確定判断
 
-* **依存追加**: `@codemirror/state` `view` `language` `autocomplete` `lint`
-  `commands` `search`(~150KB min+gz。ユーザー合意済み。これ以外のUI依存を
-  足さない)。
-* 新規 `src/components/SourceEditorPane.tsx` — CMのReactラッパ。CMのimportは
-  `src/editor/` とこのファイルに限定し、他コンポーネントへ漏らさない。
-* 新規 `src/editor/cmLanguage.ts` — 既存 `dslHighlight.ts` トークナイザの
-  StreamLanguage風ラップ(Lezer文法は書かない)。ブロック情報(パース済み文)
-  駆動の `foldService`。
-* 新規 `src/editor/cmDecorations.ts` — `doc.diagnostics` を lint ソースへ、
-  評価結果から行デコレーション(エラー=ガター赤、disabled=淡色、hidden=
-  マーカー。既存 `ElementStatusIcon` のセマンティクスを踏襲)。ビューポート
-  限定で計算。
-* 新規 `src/editor/cmSelectionSync.ts` — 双方向同期:
-  * カーソル行 → `statementMap` 逆引き → 要素選択(`cadUiStore`)。
-  * Canvas/検索からの選択 → 該当行へスクロール+カーソル。
-  * 複数選択 = 複数カーソル/行レンジ。エコーループ抑制。
-* `src/components/AppLayout.tsx` — LeftPanel を SourceEditorPane に差し替え。
-  リボンドックはスリムなストリップとして移設(キャンバス縁 or 左ペイン下端)。
-* `src/keyboard/` — エディタフォーカス時のモードスコープ追加。
-  Esc → Canvasフォーカス。フォーム入力除外の原則(エディタ内では通常のタイプ・
-  編集キーが最優先)を維持。
-* **削除**: `LeftPanel.tsx`、`ElementListRow.tsx`、`useElementListData.ts`、
-  `elementListPointerDrag` / `elementListName` 等リスト専用ヘルパと
-  そのテスト。要素検索は既存の検索機構(`elementSearch.ts` 系)を
-  エディタ検索/選択ジャンプに接続して代替。
+* store履歴が唯一の文書履歴。CM履歴は未commit typing burst内だけ利用し、commit、
+  store Undo/Redo、文書resetの各境界で**実際にclear**する。`isolateHistory`だけを
+  履歴clearの代用にしない。
+* model patchはdirtyな旧`sourceText`を基準に実行しない。UI側のflushに加えて、
+  store action側がdirty patchを拒否する中央防衛を持つ。
+* source updateはvanilla Zustandの同期subscriberで全revisionを順に処理する。
+  composition中はローカルqueueへ積み、revision gapは全文resetへfallbackする。
+* dirty中のsyntax diagnosticsはCM bufferを再parseして作る。last-good compiler/evaluation
+  diagnosticsはchangesでmapし、staleであることを表示する。
+* foldの正はPhase 2中も`cadUiStore.groupFoldById`。CM fold stateはそのprojectionであり、
+  独立した第二の正にしない。
+* **元仕様からの明示的変更**: 「複数Canvas選択=複数CM cursor/range」は採用しない。
+  primary elementだけを実cursor、secondary selectionを非編集の行decorationにする。
+  Canvas選択だけで意図せず複数行同時編集されることを防ぐ。
+* mixed LF/CRLFを行単位で完全保存するcodecは作らない。未編集ファイルとuniform
+  LF/CRLFは保存し、mixed改行は最初のCMテキストcommitでLFへ正規化する。Canvas等の
+  model patchだけではmixed改行を全文正規化しない。BOMは通常の先頭文字として保持し、
+  特別な除去・隠蔽をしない。
 
-## Undo統合ルール(重要)
+## 共通不変条件
 
-* CM自体の履歴は「未コミットのタイピングバースト内」のみ有効。
-  アイドル ~300ms / blur / コマンド実行 / 保存 / Canvas操作を境界として
-  `commitText` し、境界でCM履歴をフェンス(リセット)する。
-* **ストア履歴が唯一の正**。ストアUndo/RedoはCMバッファを置換する。
-* 外部パッチ(Canvas編集・コマンドによる行スプライス)は、全文置換ではなく
-  正確な `changes` 範囲のCMトランザクションとして適用し、カーソル・
-  スクロール位置を保つ。
+* 文書順=評価順=表示順。CM関連import・型は`src/editor/`と
+  `SourceEditorPane.tsx`の外へ漏らさない。
+* composition中はcommit、外部patch、cursor jump、fold projectionを行わない。
+* 通常のmodel patchは正確なCM `changes`で反映し、全文置換しない。全文resetを
+  許すのはfile/new document/store Undo/Redo/revision gapだけ。
+* Phase 2完了時にはLeftPanelを併存させない。DslPanel、右インスペクタ、parameter
+  編集、DSL補完、コマンドラインはPhase 3/4/5の範囲なので触らない。
+* 各子タスクは`npm test` / `npm run build` / `npm run lint`をgreenにして着地する。
 
-## 守るべき不変条件
+## Phase完了条件
 
-* キーボードファースト: リストで可能だった操作(選択移動・検索・可視/有効
-  トグル・削除・複製・評価リミット移動)は全てエディタ+コマンドで可能なこと。
-  旧コマンドIDは可能な限り新挙動へ再配線する(対応表をタスク報告に含める)。
-* 文書順=評価順=表示順(テキストの行順がそのまま全て)。
-* 1000行規模でスクロール・編集・デコレーションが滑らか(CMの仮想描画に任せ、
-  デコレーション計算をビューポート外に広げない)。
-* 日本語IMEでの入力が安全(composition中にプログラム的なカーソル移動・
-  バッファ置換をしない)。
-* CMのimportはアダプタ層(`src/editor/` + `SourceEditorPane.tsx`)に隔離。
-
-## Phase開始時点の前提
-
-* Phase 1d 完了済み: `sourceText` 正準・統合Undo・`.nui` 保存・
-  `statementMap`(行範囲+属性スパン)・選択状態は `cadUiStore`。
-* DslPanel(フローティング)はまだ存在してよい(削除はPhase 4)。
-
-## 完了条件
-
-* 左ペインが常設エディタになり、LeftPanel系ファイルが削除されている。
-* カーソル⇄選択の双方向同期・折りたたみ・診断波線・状態デコレーションが動作。
-* タイピング→コミット境界→ストアUndo の履歴動作が仕様どおり
-  (バースト内はCM、境界後はストア)。
-* `npm test` / `npm run build` / `npm run lint` 成功。
-* 手動確認(macOS): 日本語IMEで要素名・テキスト要素の入力、1000行文書の
-  スクロール、折りたたみ跨ぎの選択同期。確認項目をタスク報告に記録。
-
-## 必須テスト
-
-* 選択同期の両方向(単一・複数・折りたたみ内要素・無名要素)。
-* コミット境界のUndoフェンス(バースト内タイプ→境界→ストアUndoで
-  バースト全体が1ステップで戻る等、境界仕様の明文化とテスト)。
-* 外部パッチ適用でカーソル・スクロールが保持されること。
-* デコレーション: エラー/無効/非表示要素の行が正しくマークされること。
-* キーボード: エディタフォーカス時のショートカットスコープ、Escでの
-  フォーカス遷移、グローバルショートカットとの非干渉。
-
-## やってはいけないこと
-
-* CM関連import・型をアダプタ層の外(コマンド・ストア・他コンポーネント)へ
-  漏らすこと。
-* Lezer文法の新規作成(StreamLanguageラップで足りる。不足が実証されたら
-  報告のみ)。
-* 二重履歴(CM履歴とストア履歴の競合)を許すこと。
-* インスペクタ(右ペイン)・DslPanel・コマンドライン作図への着手
-  (Phase 3/4)。
-* リスト機能の「とりあえず両方残す」— LeftPanelは本Phaseで削除しきる。
+* 常設SourceEditorPaneがLeftPanelを完全に置換している。
+* typing、commit、CM Undo、store Undo/Redoを何度跨いでも古いCM履歴へ到達しない。
+* cursor/Canvas選択、複数選択、fold、diagnostics、評価状態、検索、pick、既存commandが
+  Source Editor上で動く。
+* 500〜1000行でtyping、scroll、外部1行patchが性能予算内に収まる。
+* macOS日本語IMEとTauri実アプリE2Eを完了している。
