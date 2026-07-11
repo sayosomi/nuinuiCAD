@@ -70,6 +70,30 @@ describe("cadDocumentStore editor mutation boundary", () => {
     expect(useCadUiStore.getState().sourceCursorLine).toBeNull();
   });
 
+  it("flushes a pending burst before performing a direct store undo", () => {
+    useCadDocumentStore.getState().commitText("nui 1\npoint A = (0, 0)", "test");
+    const baseline = useCadDocumentStore.getState().sourceText;
+
+    const flushedText = "nui 1\npoint A = (0, 0)\npoint B = (1, 1)";
+    const flush = vi.fn(() => {
+      useCadDocumentStore.getState().commitText(flushedText, "editor");
+      return "flushed" as const;
+    });
+    unregister = registerSourceEditSession({
+      hasPendingText: () => true,
+      isComposing: () => false,
+      flush
+    });
+
+    useCadDocumentStore.getState().undo();
+
+    expect(flush).toHaveBeenCalledWith("command");
+    // The burst is flushed and committed first, then a single undo step removes
+    // exactly that burst -- not some pre-flush, never-committed intermediate state.
+    expect(useCadDocumentStore.getState().sourceText).toBe(baseline);
+    expect(useCadDocumentStore.getState().future[0]?.text).toBe(flushedText);
+  });
+
   it("stores and restores the explicit source cursor snapshot", () => {
     useCadUiStore.getState().setSourceCursorLine(3);
     useCadDocumentStore.getState().commitText("nui 1\npoint A = (3, 0)", "test");

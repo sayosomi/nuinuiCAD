@@ -1,6 +1,8 @@
 import { fireEvent, render } from "@testing-library/react";
 import { createElement, createRef } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { registerSourceEditSession } from "../editor/sourceEditSession";
+import type { SourceEditSession } from "../editor/sourceEditSession";
 import { evaluateElements } from "../geometry/evaluate";
 import { defaultDocumentPalette } from "../palette/palette";
 import { sampleElements } from "../sampleData";
@@ -1014,5 +1016,65 @@ describe("DrawingCanvas point dragging", () => {
     });
 
     expect(viewport).not.toHaveClass("is-point-dragging");
+  });
+
+  it("flushes pending editor text on pointerdown but not on pointermove alone", () => {
+    const flush = vi.fn<SourceEditSession["flush"]>(() => "clean");
+    const unregister = registerSourceEditSession({
+      hasPendingText: () => false,
+      isComposing: () => false,
+      flush
+    });
+
+    try {
+      const { viewport } = renderDrawingCanvas();
+
+      fireEvent.pointerMove(viewport, {
+        buttons: 0,
+        clientX: 300,
+        clientY: 250,
+        pointerId: 1
+      });
+      expect(flush).not.toHaveBeenCalled();
+
+      fireEvent.pointerDown(viewport, {
+        button: 0,
+        buttons: 1,
+        clientX: 300,
+        clientY: 250,
+        pointerId: 1
+      });
+      // pointerdown always flushes first, via the Canvas boundary itself; a nested
+      // dispatchCommand("selectElement", ...) call may flush again too (idempotent
+      // since the session is already clean) -- both are pointerdown-triggered, not
+      // pointermove-triggered, which is the behavior under test here.
+      expect(flush.mock.calls[0]?.[0]).toBe("canvas-pointerdown");
+      const callsAfterPointerDown = flush.mock.calls.length;
+      expect(callsAfterPointerDown).toBeGreaterThan(0);
+
+      // A preview-mode drag pointermove must not flush at all (commitMode "preview"
+      // bypasses dispatchCommand's own flush call, and the Canvas boundary itself
+      // only flushes on pointerdown).
+      fireEvent.pointerMove(viewport, {
+        buttons: 1,
+        clientX: 320,
+        clientY: 260,
+        pointerId: 1
+      });
+      expect(flush.mock.calls.length).toBe(callsAfterPointerDown);
+
+      // pointerup finalizes the drag as a commit-mode dispatchCommand call, which is
+      // an independent, expected flush boundary (not the pointermove behavior under
+      // test here).
+      fireEvent.pointerUp(viewport, {
+        buttons: 0,
+        clientX: 320,
+        clientY: 260,
+        pointerId: 1
+      });
+      expect(flush.mock.calls.length).toBeGreaterThanOrEqual(callsAfterPointerDown);
+    } finally {
+      unregister();
+    }
   });
 });

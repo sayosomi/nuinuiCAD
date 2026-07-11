@@ -337,7 +337,7 @@ export const DslPanel = ({ commandContext, evaluation }: DslPanelProps) => {
     const result = validate();
     if (result.diagnostics.some((item) => item.severity === "error")) return;
     const insertedCount = Math.max(result.elements.length - elements.length, 0);
-    commitDocumentChange({
+    const mutationResult = commitDocumentChange({
       elements: result.elements,
       visibilityRoles: result.visibilityRoles ?? visibilityRoles,
       visibilityProfiles: result.visibilityProfiles ?? visibilityProfiles,
@@ -355,6 +355,12 @@ export const DslPanel = ({ commandContext, evaluation }: DslPanelProps) => {
           })
         : evaluationLimitIndex
     });
+    if (mutationResult.status === "rejected") {
+      // The store already surfaces a user-facing error message for the reject reason;
+      // avoid duplicating it here and do not report success or close the panel.
+      setStatus("適用できませんでした。文書の状態を確認してもう一度お試しください。");
+      return;
+    }
     setStatus(`${result.changedCount}件の要素を適用しました。`);
     closePanel();
   }, [

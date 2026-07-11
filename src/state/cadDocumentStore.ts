@@ -94,7 +94,11 @@ export type CadDocumentState = {
   /** sourceText at the last successful save/load; null means an unsaved import. */
   savedSourceText: string | null;
   dirtySinceSave: boolean;
-  commitText: (nextText: string, origin: CommitTextOrigin) => void;
+  commitText: (
+    nextText: string,
+    origin: CommitTextOrigin,
+    options?: { cursorLineAtBurstStart: number | null }
+  ) => void;
   previewDocumentChange: (change: Partial<CadDocumentSnapshot>) => DocumentMutationResult;
   commitDocumentChange: (change: Partial<CadDocumentSnapshot>) => DocumentMutationResult;
   commitDocumentChangeFromSnapshot: (
@@ -478,7 +482,7 @@ const rejectExternalDocumentReset = () => {
 
 export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
   ...initialCadDocumentState(),
-  commitText: (nextText, origin) => {
+  commitText: (nextText, origin, options) => {
     if (sourceEditSession.isComposing()) {
       useCadUiStore.getState().setCommandErrorMessage(
         "日本語入力の確定中はDSL入力をcommitできません。入力を確定してから再操作してください。"
@@ -490,10 +494,17 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
       const previousSelection = useCadUiStore.getState();
       const result = compileCanonicalText(state, nextText);
       useCadUiStore.getState().reconcileSelectionWithElements(result.doc.document.elements);
+      // A typing burst can move the cursor before it commits; the snapshot must
+      // pair the pre-burst text with the pre-burst cursor line, not wherever the
+      // cursor ended up after the burst.
+      const snapshotCursorLine = options ? options.cursorLineAtBurstStart : previousSelection.sourceCursorLine;
       return {
         ...canonicalFields(result),
         previewElements: null,
-        past: appendPast(state.past, textSnapshot(state, previousSelection)),
+        past: appendPast(
+          state.past,
+          textSnapshot(state, { ...previousSelection, sourceCursorLine: snapshotCursorLine })
+        ),
         future: [],
         dirtySinceSave: dirtyForText(state, result.sourceText),
         ...sourceUpdateFields(state, origin === "editor" ? "editor" : "reset")

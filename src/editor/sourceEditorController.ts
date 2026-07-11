@@ -1,4 +1,4 @@
-import { Annotation, Compartment, EditorSelection, EditorState, Transaction } from "@codemirror/state";
+import { Annotation, Compartment, EditorSelection, EditorState, Text, Transaction } from "@codemirror/state";
 import { history, redo, redoDepth, undo, undoDepth } from "@codemirror/commands";
 import { EditorView, keymap, lineNumbers } from "@codemirror/view";
 import { useCadDocumentStore, type CadDocumentState } from "../state/cadDocumentStore";
@@ -35,8 +35,10 @@ export class SourceEditorController implements SourceEditorHandle {
   private protocol: SourceUpdateProtocolState;
   private format: SourceTextFormat;
   private committedLogicalText: string;
+  private committedDoc: Text;
   private commitTimer: number | null = null;
   private flushAfterComposition = false;
+  private burstStartCursorLine: number | null = null;
   private destroyed = false;
   private view: EditorView;
 
@@ -45,6 +47,7 @@ export class SourceEditorController implements SourceEditorHandle {
     const initial = store.getState();
     this.format = sourceTextFormat(initial.sourceText);
     this.committedLogicalText = normalizeSourceTextForEditor(initial.sourceText);
+    this.committedDoc = Text.of(this.committedLogicalText.split("\n"));
     this.protocol = createSourceUpdateProtocol(initial.sourceRevision);
     this.view = new EditorView({
       parent,
@@ -103,7 +106,11 @@ export class SourceEditorController implements SourceEditorHandle {
 
   getText = () => serializeEditorText(this.view.state.doc.toString(), this.format);
 
-  hasPendingText = () => this.view.state.doc.toString() !== this.committedLogicalText;
+  /**
+   * Uses CM6's structural Text.eq instead of toString() so a fresh full-string
+   * allocation is not made on every check (e.g. on every preview pointermove).
+   */
+  hasPendingText = () => !this.view.state.doc.eq(this.committedDoc);
 
   flush = (reason: FlushReason): SourceEditFlushResult => {
     if (this.destroyed || !this.hasPendingText()) return "clean";
@@ -113,7 +120,9 @@ export class SourceEditorController implements SourceEditorHandle {
     }
     this.cancelCommitTimer();
     const nextText = this.getText();
-    this.store.getState().commitText(nextText, "editor");
+    const cursorLineAtBurstStart = this.burstStartCursorLine;
+    this.burstStartCursorLine = null;
+    this.store.getState().commitText(nextText, "editor", { cursorLineAtBurstStart });
     // A no-op source commit does not produce a source revision, but still closes the local burst.
     this.syncCommittedText(this.store.getState().sourceText);
     this.clearCmHistory();
@@ -122,8 +131,26 @@ export class SourceEditorController implements SourceEditorHandle {
 
   destroy = () => {
     if (this.destroyed) return;
+    // IME composition state is tied to a live, focused, attached DOM node: once
+    // view.destroy() detaches it, there is no JS-level way to recover the
+    // in-progress input. The app-level close guards (unsavedChangesGuard) already
+    // refuse to close/unmount while composing, so this path should not be
+    // reachable in practice; if it is, fail loudly in dev instead of silently
+    // losing the composition.
+    if (this.protocol.composing) {
+      if (import.meta.env.DEV) {
+        console.error(
+          "SourceEditorController destroyed while an IME composition was active; " +
+            "the in-progress input could not be recovered."
+        );
+      }
+    } else if (this.hasPendingText()) {
+      this.cancelCommitTimer();
+      const nextText = this.getText();
+      const cursorLineAtBurstStart = this.burstStartCursorLine;
+      this.store.getState().commitText(nextText, "editor", { cursorLineAtBurstStart });
+    }
     this.destroyed = true;
-    this.cancelCommitTimer();
     this.unregisterSession();
     this.unsubscribe();
     this.view.destroy();
@@ -135,8 +162,13 @@ export class SourceEditorController implements SourceEditorHandle {
       transaction.annotation(modelPatchOrigin) || transaction.annotation(resetOrigin)
     );
     if (update.docChanged && !isExternal && !this.protocol.composing) {
+      const wasPendingBeforeThisUpdate = !update.startState.doc.eq(this.committedDoc);
+      if (!wasPendingBeforeThisUpdate) {
+        this.burstStartCursorLine = useCadUiStore.getState().sourceCursorLine;
+      }
       if (this.hasPendingText()) this.scheduleCommit();
       else {
+        this.burstStartCursorLine = null;
         this.cancelCommitTimer();
         this.clearCmHistory();
       }
@@ -222,6 +254,7 @@ export class SourceEditorController implements SourceEditorHandle {
 
   private reset(sourceText: string) {
     this.cancelCommitTimer();
+    this.burstStartCursorLine = null;
     this.syncCommittedText(sourceText);
     const cursorLine = useCadUiStore.getState().sourceCursorLine;
     const cursorOffset = cursorLine === null
@@ -238,6 +271,7 @@ export class SourceEditorController implements SourceEditorHandle {
   private syncCommittedText(sourceText: string) {
     this.format = sourceTextFormat(sourceText);
     this.committedLogicalText = normalizeSourceTextForEditor(sourceText);
+    this.committedDoc = Text.of(this.committedLogicalText.split("\n"));
   }
 
   private publishCursorLine() {
@@ -272,4 +306,5 @@ type ViewUpdateLike = {
   docChanged: boolean;
   selectionSet: boolean;
   transactions: readonly Transaction[];
+  startState: { doc: Text };
 };

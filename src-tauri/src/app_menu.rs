@@ -106,8 +106,15 @@ const NATIVE_EDIT_ITEMS: &[MenuSpec] = &[
 ];
 
 const EDIT_ITEMS: &[MenuSpec] = &[
-    cmd("undo", "元に戻す", Some("CmdOrCtrl+Z")),
-    cmd("redo", "やり直す", Some("CmdOrCtrl+Y")),
+    // No accelerator: the native menu key equivalent intercepts Cmd/Ctrl+Z and
+    // Cmd/Ctrl+Y before the webview's own keydown/beforeinput handling ever sees
+    // them, which defeats the CodeMirror-focused, dirty-buffer-aware Undo/Redo
+    // routing in SourceEditorController. Keyboard Undo/Redo is handled entirely at
+    // the webview level (CM's own keymap when the source editor is focused,
+    // src/keyboard/shortcutDefaultBindings.ts's Mod+Z/Mod+Y binding otherwise).
+    // Clicking these menu items still works via the normal command dispatch path.
+    cmd("undo", "元に戻す", None),
+    cmd("redo", "やり直す", None),
     SEP,
     cmd(
         "duplicateSelectedElement",
@@ -403,6 +410,28 @@ mod tests {
     #[test]
     fn cad_action_menu_does_not_use_the_standard_edit_title() {
         assert_eq!(CAD_ACTION_MENU_TITLE, "操作");
+    }
+
+    #[test]
+    fn undo_and_redo_have_no_native_accelerator() {
+        // A native menu accelerator intercepts Cmd/Ctrl+Z and Cmd/Ctrl+Y before the
+        // webview's own keydown/beforeinput handling, which breaks the CM-focused,
+        // dirty-buffer-aware Undo/Redo routing in SourceEditorController. Keyboard
+        // Undo/Redo must reach the webview unclaimed; only the menu click path
+        // should route through the command dispatcher.
+        for id in ["undo", "redo"] {
+            let item = EDIT_ITEMS
+                .iter()
+                .find_map(|spec| match spec {
+                    MenuSpec::Command(command) if command.id == id => Some(command),
+                    _ => None,
+                })
+                .unwrap_or_else(|| panic!("expected a `{id}` command in EDIT_ITEMS"));
+            assert_eq!(
+                item.accelerator, None,
+                "`{id}` must not have an accelerator"
+            );
+        }
     }
 
     #[cfg(target_os = "macos")]

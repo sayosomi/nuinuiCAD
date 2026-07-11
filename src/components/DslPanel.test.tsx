@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { registerSourceEditSession } from "../editor/sourceEditSession";
 import { defaultDocumentPalette } from "../palette/palette";
 import { DEFAULT_PRINT_LAYOUT } from "../print/printLayout";
 import { sampleElements } from "../sampleData";
@@ -33,7 +34,10 @@ const resetStore = () => {
 };
 
 describe("DslPanel", () => {
+  let unregisterSourceEditSession = () => {};
+
   beforeEach(() => resetStore());
+  afterEach(() => unregisterSourceEditSession());
 
   it("loads requested element ids into the editor in document order", async () => {
     useCadStore.setState({
@@ -376,6 +380,30 @@ describe("DslPanel", () => {
     expect(useCadStore.getState().past).toHaveLength(1);
     useCadStore.getState().undo();
     expect(useCadStore.getState().elements.some((element) => element.name === "K")).toBe(false);
+  });
+
+  it("does not report success or close the panel when the store rejects the apply", async () => {
+    // isComposing stays false so dispatchCommand's own top-level flush gate lets the
+    // apply command run; hasPendingText staying true makes commitDocumentChange's own
+    // guard reject it once apply actually calls it, exercising apply()'s own handling
+    // of a DocumentMutationResult reject (not the earlier, coarser composition gate).
+    unregisterSourceEditSession = registerSourceEditSession({
+      hasPendingText: () => true,
+      isComposing: () => false,
+      flush: () => "flushed"
+    });
+    useCadStore.setState({ showDslPanel: true });
+
+    render(<DslPanel />);
+
+    const editor = await screen.findByLabelText("DSLソース") as HTMLTextAreaElement;
+    await waitFor(() => expect(editor).toHaveFocus());
+    fireEvent.change(editor, { target: { value: "point K = (10, 20)" } });
+    fireEvent.keyDown(editor, { key: "Enter", metaKey: true });
+
+    expect(useCadStore.getState().showDslPanel).toBe(true);
+    expect(useCadStore.getState().elements.some((element) => element.name === "K")).toBe(false);
+    expect(screen.getByText(/適用できませんでした/)).toBeInTheDocument();
   });
 
   it("does not intercept ordinary text editing shortcuts in the DSL editor", async () => {
