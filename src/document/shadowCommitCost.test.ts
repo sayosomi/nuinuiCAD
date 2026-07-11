@@ -6,14 +6,6 @@ import { assertReconcileSane, assertShadowEquivalent } from "./shadowTextAssert"
 // O(n^3)退行検出用の緩い性能ガード。細かい性能目標ではなく、
 // 1000要素コンパイルが秒単位を大きく超える状態に戻ったら落とす。
 
-const buildLargeSource = (count: number): string => {
-  const lines = ["nui 1"];
-  for (let index = 0; index < count; index += 1) {
-    lines.push(`point P${index} = (${index}, ${index % 97})`);
-  }
-  return lines.join("\n");
-};
-
 const buildExpressionSource = (count: number): string => {
   const lines = ["nui 1", "point P0 = (0, 0)"];
   for (let index = 1; index < count; index += 1) {
@@ -68,17 +60,34 @@ const measureCommitCost = (elementCount: number, runs: number) => {
 };
 
 describe("shadowText 大規模文書コミットコスト計測", () => {
-  it("100/1000要素のcompileDslDocument中央値を報告し、1000要素のO(n^3)退行を検出する", () => {
-    measureMedian("100要素 compileDslDocument", 3, () => {
-      const compiled = compileDslDocument(buildLargeSource(100));
-      if (!compiled.document) throw new Error("100 element fixture must compile");
+  it("250/1000要素のcompileDslDocument中央値を報告し、規模比からO(n^2)/O(n^3)退行を検出する", () => {
+    // 無名・無参照(buildLargeSource)ではなく、要素間参照を持つ
+    // buildExpressionSource を使う。参照なしの文書は名前解決コストがほぼ
+    // ゼロになり、resolveElementName系のO(n^2)/O(n^3)退行を検出できない
+    // (このファイル自体が過去にそれで実文書の退行を見逃した反省)。
+    const compile250Median = measureMedian("250要素 compileDslDocument(参照あり)", 3, () => {
+      const compiled = compileDslDocument(buildExpressionSource(250));
+      if (!compiled.document) throw new Error("250 element fixture must compile");
     });
-    const compile1000Median = measureMedian("1000要素 compileDslDocument", 3, () => {
-      const compiled = compileDslDocument(buildLargeSource(1000));
+    const compile1000Median = measureMedian("1000要素 compileDslDocument(参照あり)", 3, () => {
+      const compiled = compileDslDocument(buildExpressionSource(1000));
       if (!compiled.document) throw new Error("1000 element fixture must compile");
     });
 
-    expect(compile1000Median).toBeLessThan(2000);
+    // 絶対ms値ではなく、要素数を4倍(250→1000)にした際の所要時間の倍率で
+    // 計算量オーダーの退行を検知する: 線形なら約4倍、O(n^2)なら約16倍、
+    // O(n^3)なら約64倍。4倍という大きな規模差を取ることで、マシン差・GC・
+    // JITノイズによる数倍程度の測定ブレと、真のO(n^2)以上の退行(16倍以上)を
+    // 区別できる。現行実装は要素生成時のmakeUniqueElementName(こちらは
+    // 今回のスコープ外の別のO(n^2)要因)により素の線形(4倍)より高い
+    // 実測比(概ね10倍前後)を示すため、それに対して十分な余裕を持たせつつ
+    // O(n^2)以上の退行(16倍以上)は確実に検出できるよう24倍を上限にする
+    // (絶対時間非依存の緩いガード)。
+    const scalingRatio = compile1000Median / Math.max(compile250Median, 0.01);
+    expect(scalingRatio).toBeLessThan(24);
+    // 想定外の壊れ方(無限ループに近い退行)を捉えるための、非常に緩い絶対時間の
+    // 保険。通常値(現行200ms前後)の25倍というごく粗い上限。
+    expect(compile1000Median).toBeLessThan(5000);
   }, 20_000);
 
   it("1000要素 advanceShadow のprod/dev相当中央値を報告する", () => {

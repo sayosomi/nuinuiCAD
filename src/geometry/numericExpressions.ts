@@ -11,7 +11,7 @@ import type {
 import type { PointAnchor } from "../types/geometry";
 import { derivedPointLabel, resolveDerivedPoint } from "../model/pointAnchors";
 import { elementNameTokensForContext, elementQualifiedName } from "../model/elementNames";
-import type { ElementNameContext } from "../model/elementNames";
+import type { ElementNameContext, ElementNameToken } from "../model/elementNames";
 import { getParameterValue } from "../parameters/parameterAccess";
 import { Parser, tokenize } from "./numericExpressionParser";
 import type { NumericExpressionMeasurementFunctionName } from "./numericExpressionParser";
@@ -198,8 +198,87 @@ export const formatNumericExpressionForDisplay = (
 };
 
 const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+// パターン文字列→コンパイル済みRegExpのプロセス内キャッシュ。normalizeNumericExpressionInput
+// はトークン(要素名・変数名)毎に正規表現を組み立てるため、文書内で繰り返し出現する
+// トークンほど再構築コストが効いてくる。globalフラグ付き正規表現は String.replace が
+// 呼び出し毎に内部でlastIndexを0にリセットしてから走査するため(仕様上の挙動)、
+// 同一RegExpインスタンスを複数回のreplaceに使い回しても副作用は無い(test/execの
+// ような手動lastIndex管理をここでは一切行わない)。
+const regexCache = new Map<string, RegExp>();
+const cachedRegExp = (pattern: string, flags = "g"): RegExp => {
+  const key = `${flags} ${pattern}`;
+  const existing = regexCache.get(key);
+  if (existing) return existing;
+  const regex = new RegExp(pattern, flags);
+  regexCache.set(key, regex);
+  return regex;
+};
+
 const quotedNamePattern = (name: string, suffix = "(?=$|[\\s()+*/<>=!&|,-])") =>
-  new RegExp(`(["'])${escapeRegExp(name)}\\1${suffix}`, "g");
+  cachedRegExp(`(["'])${escapeRegExp(name)}\\1${suffix}`);
+
+const MEASURABLE_ELEMENT_TYPES = new Set<CadElement["type"]>([
+  "line",
+  "angleLengthLine",
+  "arcLine",
+  "threePointArcLine",
+  "cornerRadiusArcLine",
+  "bezierCurve",
+  "offsetLine",
+  "copyLine",
+  "symmetricCopyLine"
+]);
+
+// ==== context単位キャッシュ(Phase 1c-3後の性能退行対応) ====
+//
+// normalizeNumericExpressionInput は1要素につき数値フィールドの数だけ
+// 呼ばれる(1文書で数千回)。measurableElementIds・トークン絞り込みは
+// 呼び出し毎の入力(elements/context)が同一文書内では不変なので、
+// ElementNameContext単位・elementNameTokensForContextの返す配列単位で
+// キャッシュする。contextなし呼び出し(互換経路)は毎回新規contextが
+// 作られるためキャッシュは効かず、従来どおりの結果を返す(挙動不変)。
+
+const measurableIdsCache = new WeakMap<ElementNameContext, Set<ElementId>>();
+
+const measurableElementIdsFor = (elements: CadElement[], context?: ElementNameContext): Set<ElementId> => {
+  const compute = (source: CadElement[]) =>
+    new Set(
+      source.filter((element) => MEASURABLE_ELEMENT_TYPES.has(element.type)).map((element) => element.id)
+    );
+  if (!context) return compute(elements);
+  const cached = measurableIdsCache.get(context);
+  if (cached) return cached;
+  // elementNameTokensForContext と同様、context指定時はcontext.elementsを
+  // 権威データとして使う(呼び出し元のelements引数は互換経路専用)。
+  const computed = compute(context.elements);
+  measurableIdsCache.set(context, computed);
+  return computed;
+};
+
+type FilteredNameTokens = {
+  variableElementTokens: ElementNameToken[];
+  measurableElementTokens: ElementNameToken[];
+};
+
+// elementNameTokensForContext はnamespace毎に同一配列インスタンスを返すため
+// (ElementNameContext.tokensByNamespaceKeyでキャッシュ済み)、その配列参照を
+// キーにすれば絞り込み結果も自然にnamespace単位でキャッシュされる。
+const filteredNameTokensCache = new WeakMap<readonly ElementNameToken[], FilteredNameTokens>();
+
+const filteredNameTokensFor = (
+  nameTokens: readonly ElementNameToken[],
+  measurableElementIds: Set<ElementId>
+): FilteredNameTokens => {
+  const cached = filteredNameTokensCache.get(nameTokens);
+  if (cached) return cached;
+  const computed: FilteredNameTokens = {
+    variableElementTokens: nameTokens.filter(({ element }) => element.type === "variable"),
+    measurableElementTokens: nameTokens.filter(({ element }) => measurableElementIds.has(element.id))
+  };
+  filteredNameTokensCache.set(nameTokens, computed);
+  return computed;
+};
 
 export const normalizeNumericExpressionInput = (
   input: string,
@@ -214,26 +293,11 @@ export const normalizeNumericExpressionInput = (
   for (const variable of localVariables) {
     localVariableNameCounts.set(variable.name, (localVariableNameCounts.get(variable.name) ?? 0) + 1);
   }
-  const measurableElementIds = new Set(
-    elements
-      .filter(
-        (element) =>
-          element.type === "line" ||
-          element.type === "angleLengthLine" ||
-          element.type === "arcLine" ||
-          element.type === "threePointArcLine" ||
-          element.type === "cornerRadiusArcLine" ||
-          element.type === "bezierCurve" ||
-          element.type === "offsetLine" ||
-          element.type === "copyLine" ||
-          element.type === "symmetricCopyLine"
-      )
-      .map((element) => element.id)
-  );
+  const measurableElementIds = measurableElementIdsFor(elements, context);
   const nameTokens = elementNameTokensForContext({ elements, currentElement, context });
-  const variableElementTokens = nameTokens.filter(({ element }) => element.type === "variable");
-  const measurableElementTokens = nameTokens.filter(({ element }) =>
-    measurableElementIds.has(element.id)
+  const { variableElementTokens, measurableElementTokens } = filteredNameTokensFor(
+    nameTokens,
+    measurableElementIds
   );
 
   if (currentElement) {
@@ -246,7 +310,7 @@ export const normalizeNumericExpressionInput = (
       const token = `${currentElement.name}.${variable.name}`;
       if (!expression.includes(token)) continue;
       expression = expression.replace(
-        new RegExp(`@${escapeRegExp(token)}(?=$|[\\s()+*/<>=!&|-])`, "g"),
+        cachedRegExp(`@${escapeRegExp(token)}(?=$|[\\s()+*/<>=!&|-])`),
         `@${variable.id}`
       );
     }
@@ -256,7 +320,7 @@ export const normalizeNumericExpressionInput = (
     if (currentElement && (localVariableNameCounts.get(variable.name) ?? 0) > 1) continue;
     if (!expression.includes(variable.name)) continue;
     expression = expression.replace(
-      new RegExp(`@${escapeRegExp(variable.name)}(?=$|[\\s()+*/<>=!&|-])`, "g"),
+      cachedRegExp(`@${escapeRegExp(variable.name)}(?=$|[\\s()+*/<>=!&|-])`),
       `@${variable.id}`
     );
   }
@@ -264,7 +328,7 @@ export const normalizeNumericExpressionInput = (
   for (const { token, element: variable } of variableElementTokens) {
     if (!expression.includes(token)) continue;
     expression = expression.replace(
-      new RegExp(`@${escapeRegExp(token)}(?=$|[\\s()+*/<>=!&|-])`, "g"),
+      cachedRegExp(`@${escapeRegExp(token)}(?=$|[\\s()+*/<>=!&|-])`),
       `@${variable.id}`
     );
   }
@@ -296,7 +360,7 @@ export const normalizeNumericExpressionInput = (
         property !== "endTangentAngleDeg"
       ) continue;
       expression = expression.replace(
-        new RegExp(`${escapeRegExp(token)}\\.${escapeRegExp(label)}(?=$|[\\s()+*/<>=!&|-])`, "g"),
+        cachedRegExp(`${escapeRegExp(token)}\\.${escapeRegExp(label)}(?=$|[\\s()+*/<>=!&|-])`),
         `${element.id}.${property}`
       );
       expression = expression.replace(
@@ -309,18 +373,18 @@ export const normalizeNumericExpressionInput = (
   for (const { token, element } of nameTokens) {
     if (!expression.includes(token)) continue;
     expression = expression.replace(
-      new RegExp(`(^|[^@])${escapeRegExp(token)}\\.`, "g"),
+      cachedRegExp(`(^|[^@])${escapeRegExp(token)}\\.`),
       `$1${element.id}.`
     );
     expression = expression.replace(quotedNamePattern(token, "\\."), `${element.id}.`);
     expression = expression.replace(
-      new RegExp(`(^|[^@])${escapeRegExp(token)}:(?=\\w)`, "g"),
+      cachedRegExp(`(^|[^@])${escapeRegExp(token)}:(?=\\w)`),
       `$1${element.id}:`
     );
     expression = expression.replace(quotedNamePattern(token, ":"), `${element.id}:`);
     expression = expression.replace(quotedNamePattern(token), element.id);
     expression = expression.replace(
-      new RegExp(`(^|[(,]\\s*)${escapeRegExp(token)}(?=\\s*[,)])`, "g"),
+      cachedRegExp(`(^|[(,]\\s*)${escapeRegExp(token)}(?=\\s*[,)])`),
       `$1${element.id}`
     );
   }

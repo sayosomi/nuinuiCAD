@@ -13,7 +13,8 @@ import {
   serializeActiveViewLine,
   serializeElementStatement,
   serializeRoleLine,
-  serializeViewLine
+  serializeViewLine,
+  type DslSerializerRefs
 } from "../dsl/dslSerializer";
 import { splitDslComment } from "../dsl/dslTokens";
 import type { CadElement, ElementId } from "../types/geometry";
@@ -97,7 +98,66 @@ const longestIncreasingIndexes = (values: readonly number[]): Set<number> => {
 
 // ==== diffDocuments(要素・非要素差分の要約。Phase 1b のログ/assert 用) ====
 
-const elementUpdateSet = (oldDoc: DslDocumentData, newDoc: DslDocumentData): Set<ElementId> => {
+// 全要素の(id, name, parentGroupId)三つ組が新旧で完全一致するか。一致する場合、
+// 文書全体の名前解決結果(namespace所属・曖昧性判定・修飾名)は新旧で不変になる
+// (documentDslRefsのtoken()はtargetのname/祖先chainのparentGroupIdのみに依存し、
+// 配列順序には依存しない)。これが成り立つとき、オブジェクト同一(=自身のどの
+// フィールドも変わっていない)要素の描画テキストは、他要素の改名・移動による
+// 参照トークンの変化を含めて絶対に変わらないことが保証できる。挿入・削除・
+// 改名・親付け替えのいずれかがあれば必ずfalseになり、下の呼び出し元は
+// 各要素毎の全量serialize比較(従来どおりの正確な判定)にフォールバックする。
+const namesAndParentsUnchanged = (oldDoc: DslDocumentData, newDoc: DslDocumentData): boolean => {
+  if (oldDoc.elements.length !== newDoc.elements.length) return false;
+  const oldById = new Map(oldDoc.elements.map((element) => [element.id, element]));
+  for (const element of newDoc.elements) {
+    const oldElement = oldById.get(element.id);
+    if (!oldElement) return false;
+    if (oldElement.name !== element.name || oldElement.parentGroupId !== element.parentGroupId) return false;
+  }
+  return true;
+};
+
+const elementUpdateSet = (
+  oldDoc: DslDocumentData,
+  newDoc: DslDocumentData,
+  precomputedRefsNew?: DslSerializerRefs
+): Set<ElementId> => {
+  const oldById = new Map(oldDoc.elements.map((element) => [element.id, element]));
+  const updates = new Set<ElementId>();
+
+  if (namesAndParentsUnchanged(oldDoc, newDoc)) {
+    // 高速経路: 名前解決グラフが不変なので、オブジェクト同一の要素は
+    // serializeせずスキップできる(証明は上記コメント参照)。identityが
+    // 変わった要素は無条件でupdate扱い(従来と同じ、serialize不要)。
+    for (const element of newDoc.elements) {
+      const oldElement = oldById.get(element.id);
+      if (oldElement && oldElement !== element) updates.add(element.id);
+    }
+    return updates;
+  }
+
+  const refsOld = documentDslRefs(oldDoc.elements);
+  const refsNew = precomputedRefsNew ?? documentDslRefs(newDoc.elements);
+  for (const element of newDoc.elements) {
+    const oldElement = oldById.get(element.id);
+    if (!oldElement) continue;
+    if (
+      oldElement !== element ||
+      serializeElementStatement(oldElement, refsOld) !== serializeElementStatement(element, refsNew)
+    ) {
+      updates.add(element.id);
+    }
+  }
+  return updates;
+};
+
+// テスト専用: 高速経路を使わない従来の全量serialize比較(挙動の基準として
+// textPatch.test.tsの差分テストから直接呼ばれる)。elementUpdateSetの
+// 高速経路と結果が常に一致することの検証にのみ使う。
+export const elementUpdateSetFullComparisonForTesting = (
+  oldDoc: DslDocumentData,
+  newDoc: DslDocumentData
+): Set<ElementId> => {
   const refsOld = documentDslRefs(oldDoc.elements);
   const refsNew = documentDslRefs(newDoc.elements);
   const oldById = new Map(oldDoc.elements.map((element) => [element.id, element]));
@@ -114,6 +174,8 @@ const elementUpdateSet = (oldDoc: DslDocumentData, newDoc: DslDocumentData): Set
   }
   return updates;
 };
+
+export const elementUpdateSetForTesting = elementUpdateSet;
 
 export const diffDocuments = (oldDoc: DslDocumentData, newDoc: DslDocumentData): DocumentDiff => {
   const oldById = new Map(oldDoc.elements.map((element) => [element.id, element]));
@@ -217,7 +279,7 @@ const patchElements = (input: TextPatchInput, ops: PatchOps) => {
   const refsNew = documentDslRefs(newDocument.elements);
   const layout = layoutElementTree(newDocument.elements, refsNew, newDocument.evaluationLimitIndex);
   const newById = new Map(newDocument.elements.map((element) => [element.id, element]));
-  const updates = elementUpdateSet(oldDocument, newDocument);
+  const updates = elementUpdateSet(oldDocument, newDocument, refsNew);
 
   // 旧テキストの「要素系」行(要素文・そのブロック枠・@stop)。
   type OldElemLine = {

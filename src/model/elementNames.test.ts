@@ -283,4 +283,93 @@ describe("elementNames", () => {
       tokenSummary(elementNameTokensForContext({ elements: nestedElements, currentElement: child, context }))
     ).toEqual(tokenSummary(elementNameTokensForContext({ elements: nestedElements, currentElement: child })));
   });
+
+  it("resolves misses during namespace-chain walking identically with and without context", () => {
+    // 深いグループネストと、各段の名前空間でミスが起きる(=祖先まで
+    // 遡らないと解決できない/どこにも無い)トークンを混在させる。
+    // resolveNameSegmentInNamespaceのcontext有無フォールバック差分が
+    // ここで露呈する(高速経路がミス時に線形スキャンへ落ちなくなった)。
+    const nestedElements: CadElement[] = [
+      {
+        id: "outer",
+        name: "外側",
+        type: "group",
+        visible: true,
+        enabled: true,
+        printEnabled: false,
+        printAnchor: { mode: "coordinate", x: 0, y: 0 }
+      },
+      {
+        id: "outer-point",
+        name: "外側点",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        parentGroupId: "outer",
+        x: 0,
+        y: 0
+      },
+      {
+        id: "inner",
+        name: "内側",
+        type: "group",
+        visible: true,
+        enabled: true,
+        parentGroupId: "outer",
+        printEnabled: false,
+        printAnchor: { mode: "coordinate", x: 0, y: 0 }
+      },
+      {
+        id: "inner-point-dup-a",
+        name: "重複点",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        parentGroupId: "inner",
+        x: 0,
+        y: 0
+      },
+      {
+        id: "inner-point-dup-b",
+        name: "重複点",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        parentGroupId: "inner",
+        x: 1,
+        y: 0
+      },
+      {
+        id: "leaf",
+        name: "葉",
+        type: "freePoint",
+        visible: true,
+        enabled: true,
+        parentGroupId: "inner",
+        x: 2,
+        y: 0
+      }
+    ];
+    const context = createElementNameContext(nestedElements);
+    const leaf = nestedElements.find((element) => element.id === "leaf")!;
+
+    const tokens = [
+      "外側点", // innerでミス→outerで解決
+      "重複点", // innerで曖昧
+      "存在しない名前", // どの名前空間にも無い(全段ミス)
+      "内側", // innerの親自身の名前(outerでのみ解決)
+      "外側::内側::葉"
+    ];
+
+    for (const token of tokens) {
+      const withContext = resolveElementName({ token, elements: nestedElements, currentElement: leaf, context });
+      const withoutContext = resolveElementName({ token, elements: nestedElements, currentElement: leaf });
+      const normalize = (result: typeof withContext) => ({
+        ...result,
+        element: result.status === "resolved" ? result.element.id : undefined,
+        elements: result.status === "ambiguous" ? result.elements.map((element) => element.id).sort() : undefined
+      });
+      expect(normalize(withContext)).toEqual(normalize(withoutContext));
+    }
+  });
 });

@@ -172,9 +172,14 @@ const resolveNameSegmentInNamespace = (
   name: string,
   context?: ElementNameContext
 ): ElementNameResolution => {
-  const matches =
-    context?.childrenByNamespace.get(namespaceKey(namespaceId))?.get(name) ??
-    elementsNamedInNamespace(elements, namespaceId, name);
+  // context指定時はchildrenByNamespaceのみを信頼する。この索引はミスも
+  // 含めて正しい結果を返すため(buildChildrenByNamespaceがelementsNamedInNamespace
+  // と同じ条件で構築済み)、ミス時に全要素へフォールバックすると名前解決の
+  // 呼び出し毎コストがO(n)化する(namespaceチェーンを辿る過程でミスは
+  // 正常系として頻発するため実質O(n^2))。contextなしの互換経路のみ線形スキャン。
+  const matches = context
+    ? context.childrenByNamespace.get(namespaceKey(namespaceId))?.get(name) ?? []
+    : elementsNamedInNamespace(elements, namespaceId, name);
   if (matches.length === 1) return { status: "resolved", element: matches[0] };
   if (matches.length > 1) return { status: "ambiguous", name, elements: matches };
   return { status: "missing" };

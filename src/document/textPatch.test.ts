@@ -2,7 +2,14 @@ import { describe, expect, it } from "vitest";
 import { compileDslDocument, type DslDocumentData } from "../dsl/dslDocument";
 import { expectSemanticallyEqualDocuments } from "../dsl/dslDocumentTestUtils";
 import type { CadElement } from "../types/geometry";
-import { applyLineSplices, buildTextPatch, diffDocuments, type LineSplice } from "./textPatch";
+import {
+  applyLineSplices,
+  buildTextPatch,
+  diffDocuments,
+  elementUpdateSetForTesting,
+  elementUpdateSetFullComparisonForTesting,
+  type LineSplice
+} from "./textPatch";
 
 const elementByName = (document: DslDocumentData, name: string): CadElement => {
   const element = document.elements.find((item) => item.name === name);
@@ -565,5 +572,190 @@ describe("diffDocuments", () => {
     };
     const diff = diffDocuments(document, next);
     expect(diff.elements).toContainEqual({ kind: "delete", id: group.id, membersKept: true });
+  });
+});
+
+// elementUpdateSet の高速経路(namesAndParentsUnchanged による全量serializeスキップ)が
+// 常に「従来どおり全要素をserializeして比較する」実装と同じ結果を返すことの
+// 差分テスト(性能修正Step 3)。rename・祖先rename・グループ移動・サブツリー移動・
+// 無名⇄命名・dangling参照の各シナリオで高速経路のゲート判定(namesAndParentsUnchanged)
+// が正しくfull比較へフォールバックすること、および変化なしシナリオで高速経路自体が
+// full比較と一致することを検証する。
+describe("elementUpdateSet 高速経路とfull比較の等価性", () => {
+  const NESTED_SOURCE = [
+    "nui 1",
+    "group Outer {",
+    "  group Inner {",
+    "    point P1 = (0, 0)",
+    "    point P2 = offset P1 dx=1 dy=1",
+    "  }",
+    "  point Q = (5, 5)",
+    "}",
+    "point R = offset Q dx=2 dy=2",
+    "point Ghost = offset R dx=3 dy=3"
+  ].join("\n");
+
+  const expectFastMatchesFull = (oldDoc: DslDocumentData, newDoc: DslDocumentData) => {
+    const fast = elementUpdateSetForTesting(oldDoc, newDoc);
+    const full = elementUpdateSetFullComparisonForTesting(oldDoc, newDoc);
+    expect([...fast].sort()).toEqual([...full].sort());
+    return fast;
+  };
+
+  it("純粋な属性編集(改名・移動なし)は高速経路でもfullと一致する", () => {
+    const document = compileDslDocument(NESTED_SOURCE).document!;
+    const next: DslDocumentData = {
+      ...document,
+      elements: document.elements.map((element) =>
+        element.name === "P2" ? ({ ...element, locked: true } as CadElement) : element
+      )
+    };
+    const updates = expectFastMatchesFull(document, next);
+    expect(updates.has(elementByName(document, "P2").id)).toBe(true);
+    expect(updates.has(elementByName(document, "P1").id)).toBe(false);
+  });
+
+  it("葉要素のリネームはfullへフォールバックし、参照元も一致する", () => {
+    const document = compileDslDocument(NESTED_SOURCE).document!;
+    const next: DslDocumentData = {
+      ...document,
+      elements: document.elements.map((element) =>
+        element.name === "P1" ? ({ ...element, name: "P1x" } as CadElement) : element
+      )
+    };
+    const updates = expectFastMatchesFull(document, next);
+    expect(updates.has(elementByName(document, "P2").id)).toBe(true);
+  });
+
+  it("祖先(グループ)のリネームはfullへフォールバックする", () => {
+    const document = compileDslDocument(NESTED_SOURCE).document!;
+    const next: DslDocumentData = {
+      ...document,
+      elements: document.elements.map((element) =>
+        element.name === "Inner" ? ({ ...element, name: "InnerX" } as CadElement) : element
+      )
+    };
+    expectFastMatchesFull(document, next);
+  });
+
+  it("葉要素の親変更(既存グループ間の移動)はfullへフォールバックする", () => {
+    const document = compileDslDocument(NESTED_SOURCE).document!;
+    const inner = elementByName(document, "Inner");
+    const q = elementByName(document, "Q");
+    const next: DslDocumentData = {
+      ...document,
+      elements: document.elements.map((element) =>
+        element.id === q.id ? ({ ...element, parentGroupId: inner.id } as CadElement) : element
+      )
+    };
+    expectFastMatchesFull(document, next);
+  });
+
+  it("サブツリーごとの移動(祖先の親替え、子は同じ親IDのまま)はfullへフォールバックする", () => {
+    const document = compileDslDocument(NESTED_SOURCE).document!;
+    const inner = elementByName(document, "Inner");
+    const next: DslDocumentData = {
+      ...document,
+      elements: document.elements.map((element) =>
+        element.id === inner.id ? ({ ...element, parentGroupId: undefined } as CadElement) : element
+      )
+    };
+    expectFastMatchesFull(document, next);
+  });
+
+  it("無名化はfullへフォールバックする", () => {
+    const document = compileDslDocument(NESTED_SOURCE).document!;
+    const next: DslDocumentData = {
+      ...document,
+      elements: document.elements.map((element) =>
+        element.name === "Q" ? ({ ...element, name: "" } as CadElement) : element
+      )
+    };
+    expectFastMatchesFull(document, next);
+  });
+
+  it("命名化(無名→命名)はfullへフォールバックする", () => {
+    const document = compileDslDocument(NESTED_SOURCE).document!;
+    const unnamed: DslDocumentData = {
+      ...document,
+      elements: document.elements.map((element) =>
+        element.name === "Q" ? ({ ...element, name: "" } as CadElement) : element
+      )
+    };
+    const next: DslDocumentData = {
+      ...unnamed,
+      elements: unnamed.elements.map((element) =>
+        element.id === elementByName(document, "Q").id ? ({ ...element, name: "Q2" } as CadElement) : element
+      )
+    };
+    expectFastMatchesFull(unnamed, next);
+  });
+
+  it("dangling参照が残ったままの無関係編集は高速経路が有効なまま一致する", () => {
+    const withDangling = compileDslDocument(NESTED_SOURCE).document!;
+    const ghost = elementByName(withDangling, "Ghost");
+    // "存在しないID" を直接参照させ、danglingを固定する。
+    const danglingDoc: DslDocumentData = {
+      ...withDangling,
+      elements: withDangling.elements.map((element) =>
+        element.id === ghost.id
+          ? ({
+              ...element,
+              fromPoint: { mode: "reference", pointId: "does-not-exist" }
+            } as CadElement)
+          : element
+      )
+    };
+    const next: DslDocumentData = {
+      ...danglingDoc,
+      elements: danglingDoc.elements.map((element) =>
+        element.name === "P2" ? ({ ...element, locked: true } as CadElement) : element
+      )
+    };
+    const updates = expectFastMatchesFull(danglingDoc, next);
+    expect(updates.has(ghost.id)).toBe(false);
+  });
+
+  it("dangling参照の復旧(参照先IDの新規挿入)はfullへフォールバックする", () => {
+    const withDangling = compileDslDocument(NESTED_SOURCE).document!;
+    const ghost = elementByName(withDangling, "Ghost");
+    const danglingDoc: DslDocumentData = {
+      ...withDangling,
+      elements: withDangling.elements.map((element) =>
+        element.id === ghost.id
+          ? ({
+              ...element,
+              fromPoint: { mode: "reference", pointId: "recovered-point" }
+            } as CadElement)
+          : element
+      )
+    };
+    const recovered = makeElement("point Recovered = (9, 9)", { id: "recovered-point" });
+    const next: DslDocumentData = {
+      ...danglingDoc,
+      elements: [...danglingDoc.elements, recovered]
+    };
+    expectFastMatchesFull(danglingDoc, next);
+  });
+
+  it("挿入と削除が同時発生(要素数不変)してもfullへフォールバックする", () => {
+    const document = compileDslDocument(NESTED_SOURCE).document!;
+    const ghost = elementByName(document, "Ghost");
+    const inserted = makeElement("point New = (7, 7)");
+    const next: DslDocumentData = {
+      ...document,
+      elements: [...document.elements.filter((element) => element.id !== ghost.id), inserted]
+    };
+    expectFastMatchesFull(document, next);
+  });
+
+  it("改名・移動のない並べ替えのみは高速経路のままfullと一致する", () => {
+    const document = compileDslDocument(NESTED_SOURCE).document!;
+    const [outer, inner, p1, p2, q, r, ghost] = document.elements;
+    const next: DslDocumentData = {
+      ...document,
+      elements: [outer, inner, p2, p1, q, ghost, r]
+    };
+    expectFastMatchesFull(document, next);
   });
 });
