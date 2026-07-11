@@ -1,0 +1,127 @@
+import { useEffect, useMemo, useState } from "react";
+import type { KeyboardEvent } from "react";
+import { elementSearchResults } from "../model/elementSearch";
+import { visibilityRoleNamesById } from "../model/visibilityProfiles";
+import { effectiveElements, useCadDocumentStore } from "../state/cadDocumentStore";
+import { useCadUiStore } from "../state/cadUiStore";
+import type { SourceEditorHandle } from "../editor/sourceEditorTypes";
+import type { ElementId } from "../types/geometry";
+
+type SourceSearchPanelProps = {
+  handle: SourceEditorHandle | null;
+  isOpen: boolean;
+  onClose: () => void;
+};
+
+/**
+ * Plain React, no `@codemirror/*` import. Reuses elementSearchResults (the same
+ * matching logic useElementListData/LeftPanel already use) for name/ID/type/role
+ * search, and delegates to the handle's plain openTextSearch/closeTextSearch for
+ * CodeMirror's own text search — this component never touches CM itself.
+ */
+export const SourceSearchPanel = ({ handle, isOpen, onClose }: SourceSearchPanelProps) => {
+  const elements = useCadDocumentStore(effectiveElements);
+  const visibilityRoles = useCadDocumentStore((state) => state.visibilityRoles);
+  const query = useCadUiStore((state) => state.elementSearchQuery);
+  const cursorId = useCadUiStore((state) => state.elementSearchCursorId);
+  const setElementSearchQuery = useCadUiStore((state) => state.setElementSearchQuery);
+  const setElementSearchCursorId = useCadUiStore((state) => state.setElementSearchCursorId);
+  const [mode, setMode] = useState<"element" | "text">("element");
+
+  const roleNamesById = useMemo(() => visibilityRoleNamesById(visibilityRoles), [visibilityRoles]);
+  const results = useMemo(
+    () => (mode === "element" ? elementSearchResults(elements, query, roleNamesById) : []),
+    [mode, elements, query, roleNamesById]
+  );
+  const activeCursorId = results.some((result) => result.element.id === cursorId)
+    ? cursorId
+    : results[0]?.element.id ?? null;
+
+  useEffect(() => {
+    if (mode === "text") handle?.openTextSearch();
+    else handle?.closeTextSearch();
+  }, [mode, handle]);
+
+  if (!isOpen) return null;
+
+  const moveCursor = (offset: 1 | -1) => {
+    if (results.length === 0) return;
+    const currentIndex = activeCursorId ? results.findIndex((result) => result.element.id === activeCursorId) : -1;
+    const nextIndex = currentIndex < 0 ? (offset > 0 ? 0 : results.length - 1) : (currentIndex + offset + results.length) % results.length;
+    setElementSearchCursorId(results[nextIndex].element.id);
+  };
+
+  const applyResult = (elementId: ElementId) => {
+    handle?.jumpToElement(elementId);
+  };
+
+  const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      moveCursor(1);
+      return;
+    }
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      moveCursor(-1);
+      return;
+    }
+    if (event.key === "Enter") {
+      if (event.nativeEvent.isComposing) return;
+      event.preventDefault();
+      if (activeCursorId) applyResult(activeCursorId);
+      return;
+    }
+    if (event.key === "Escape") {
+      event.preventDefault();
+      if (query) {
+        setElementSearchQuery("");
+        return;
+      }
+      onClose();
+    }
+  };
+
+  return (
+    <div className="source-search-panel" role="search" aria-label="Source Editor検索">
+      <div className="source-search-panel-tabs">
+        <button type="button" className={mode === "element" ? "is-active" : ""} onClick={() => setMode("element")}>
+          要素検索
+        </button>
+        <button type="button" className={mode === "text" ? "is-active" : ""} onClick={() => setMode("text")}>
+          テキスト検索
+        </button>
+        <button type="button" aria-label="検索を閉じる" onClick={onClose}>
+          ×
+        </button>
+      </div>
+      {mode === "element" ? (
+        <>
+          <input
+            autoFocus
+            value={query}
+            placeholder="名前 / ID / 型 / 番号で検索"
+            aria-label="要素を検索"
+            onChange={(event) => setElementSearchQuery(event.target.value)}
+            onKeyDown={onKeyDown}
+          />
+          <ul className="source-search-results">
+            {results.map((result) => (
+              <li key={result.element.id}>
+                <button
+                  type="button"
+                  className={result.element.id === activeCursorId ? "is-cursor" : ""}
+                  onClick={() => applyResult(result.element.id)}
+                >
+                  {result.element.name || result.element.id}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : (
+        <p className="source-search-text-hint">CodeMirrorのテキスト検索を表示しています。</p>
+      )}
+    </div>
+  );
+};

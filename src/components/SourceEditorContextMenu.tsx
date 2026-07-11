@@ -1,69 +1,65 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { dispatchCommand, type CommandContext } from "../commands/commands";
 import { menuItemsForElement } from "../commands/elementContextMenuItems";
-import type { CadElement, ElementId } from "../types/geometry";
+import { effectiveElements, useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
+import type { ElementId } from "../types/geometry";
 
-export type ElementListContextMenuState = {
+export type SourceEditorContextMenuState = {
   elementId: ElementId;
   x: number;
   y: number;
 };
 
-type ElementListContextMenuProps = {
+type SourceEditorContextMenuProps = {
   commandContext: CommandContext;
-  element: CadElement;
-  selectedElements: CadElement[];
-  showPrintControls: boolean;
-  targetEvaluationLimitIndex: number;
-  x: number;
-  y: number;
+  state: SourceEditorContextMenuState;
   onClose: () => void;
 };
 
 const viewportPadding = 8;
 
-export const ElementListContextMenu = ({
-  commandContext,
-  element,
-  selectedElements,
-  showPrintControls,
-  targetEvaluationLimitIndex,
-  x,
-  y,
-  onClose
-}: ElementListContextMenuProps) => {
-  const groupFoldById = useCadUiStore((state) => state.groupFoldById);
+/**
+ * Plain React, no `@codemirror/*` import. Mirrors ElementListContextMenu's rendering
+ * and dismissal behavior but is driven by a plain {elementId, x, y} resolved by the
+ * controller's own contextmenu handler (src/editor/), not by touching CM here.
+ */
+export const SourceEditorContextMenu = ({ commandContext, state, onClose }: SourceEditorContextMenuProps) => {
+  const elements = useCadDocumentStore(effectiveElements);
+  const selectedElementIds = useCadUiStore((ui) => ui.selectedElementIds);
+  const showPrintLayout = useCadUiStore((ui) => ui.showPrintLayout);
+  const groupFoldById = useCadUiStore((ui) => ui.groupFoldById);
   const menuRef = useRef<HTMLDivElement | null>(null);
-  const [position, setPosition] = useState({ x, y });
-  const items = useMemo(
-    () =>
-      menuItemsForElement({
-        commandContext,
-        element,
-        selectedElements,
-        showPrintControls,
-        targetEvaluationLimitIndex,
-        groupFoldById
-      }),
-    [commandContext, element, selectedElements, showPrintControls, targetEvaluationLimitIndex, groupFoldById]
-  );
+  const [position, setPosition] = useState({ x: state.x, y: state.y });
+
+  const element = elements.find((item) => item.id === state.elementId) ?? null;
+  const selectedElementIdSet = useMemo(() => new Set(selectedElementIds), [selectedElementIds]);
+  const targetEvaluationLimitIndex = element ? elements.findIndex((item) => item.id === element.id) + 1 : 0;
+
+  const items = useMemo(() => {
+    if (!element) return [];
+    const selectedElements = selectedElementIdSet.has(element.id)
+      ? elements.filter((item) => selectedElementIdSet.has(item.id))
+      : [element];
+    return menuItemsForElement({
+      commandContext,
+      element,
+      selectedElements,
+      showPrintControls: showPrintLayout,
+      targetEvaluationLimitIndex,
+      groupFoldById
+    });
+  }, [commandContext, element, elements, selectedElementIdSet, showPrintLayout, targetEvaluationLimitIndex, groupFoldById]);
 
   useLayoutEffect(() => {
     const menu = menuRef.current;
     if (!menu) return;
     const rect = menu.getBoundingClientRect();
     setPosition({
-      x: Math.max(
-        viewportPadding,
-        Math.min(x, window.innerWidth - rect.width - viewportPadding)
-      ),
-      y: Math.max(
-        viewportPadding,
-        Math.min(y, window.innerHeight - rect.height - viewportPadding)
-      )
+      x: Math.max(viewportPadding, Math.min(state.x, window.innerWidth - rect.width - viewportPadding)),
+      y: Math.max(viewportPadding, Math.min(state.y, window.innerHeight - rect.height - viewportPadding))
     });
-  }, [x, y, items]);
+  }, [state.x, state.y, items]);
 
   useEffect(() => {
     menuRef.current?.querySelector<HTMLButtonElement>("button")?.focus();
@@ -91,10 +87,12 @@ export const ElementListContextMenu = ({
     };
   }, [onClose]);
 
+  if (!element) return null;
+
   return (
     <div
       ref={menuRef}
-      className="element-list-context-menu"
+      className="element-list-context-menu source-editor-context-menu"
       style={{ left: position.x, top: position.y }}
       role="menu"
       aria-label={`${element.name}の操作`}

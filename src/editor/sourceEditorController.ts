@@ -1,8 +1,12 @@
 import { codeFolding, foldGutter, foldService } from "@codemirror/language";
+import { openSearchPanel, closeSearchPanel, search, searchKeymap } from "@codemirror/search";
 import { Annotation, Compartment, EditorSelection, EditorState, Text, Transaction } from "@codemirror/state";
-import { history, redo, redoDepth, undo, undoDepth } from "@codemirror/commands";
-import { EditorView, keymap, lineNumbers, type ViewUpdate } from "@codemirror/view";
+import { defaultKeymap, history, redo, redoDepth, undo, undoDepth } from "@codemirror/commands";
+import { EditorView, keymap, lineNumbers, type KeyBinding, type ViewUpdate } from "@codemirror/view";
+import { forceLinting } from "@codemirror/lint";
 import { dispatchCommand } from "../commands/commands";
+import { pickCandidates } from "../model/pickCandidates";
+import type { ElementId, EvaluationResult } from "../types/geometry";
 import { useCadDocumentStore, type CadDocumentState } from "../state/cadDocumentStore";
 import { useCadUiStore, type CadUiState } from "../state/cadUiStore";
 import { dslCmLanguageExtension } from "./cmLanguage";
@@ -18,10 +22,21 @@ import {
   type SourceUpdateProtocolState
 } from "./sourceUpdateProtocol";
 import { normalizeSourceTextForEditor, serializeEditorText, sourceTextFormat } from "./sourceTextFormat";
-import type { SourceEditorHandle, SourceTextFormat } from "./sourceEditorTypes";
-import { elementIdAtCursor, createStatementRangeIndex, mapStatementRangeIndex, type StatementRangeIndex } from "./statementRangeIndex";
+import type { SourceEditorControllerOptions, SourceEditorHandle, SourceTextFormat } from "./sourceEditorTypes";
+import {
+  elementIdAtCursor,
+  createAtStopRange,
+  createStatementRangeIndex,
+  mapAtStopRange,
+  mapStatementRangeIndex,
+  type AtStopRange,
+  type StatementRangeIndex
+} from "./statementRangeIndex";
 import { foldProjectionTransaction, foldTargetAtLine, foldTargets } from "./sourceEditorFolding";
 import { secondarySelectionEffect, sourceEditorSelectionExtension } from "./sourceEditorSelection";
+import { createDiagnosticsExtension } from "./sourceEditorDiagnosticsExtension";
+import { mapPositionedDiagnostics, toStaleDiagnostics, type PositionedDiagnostic } from "./sourceEditorDiagnostics";
+import { createEvaluationExtension, evaluationChanged } from "./sourceEditorEvaluationExtension";
 
 type SourceStore = {
   getState: () => CadDocumentState;
@@ -46,6 +61,7 @@ export class SourceEditorController implements SourceEditorHandle {
   private readonly unsubscribeUi: () => void;
   private readonly unregisterSession: () => void;
   private readonly historyCompartment = new Compartment();
+  private readonly options: SourceEditorControllerOptions;
   private protocol: SourceUpdateProtocolState;
   private format: SourceTextFormat;
   private committedLogicalText: string;
@@ -54,6 +70,10 @@ export class SourceEditorController implements SourceEditorHandle {
   private flushAfterComposition = false;
   private burstStartCursorLine: number | null = null;
   private statementRanges: StatementRangeIndex = new Map();
+  private atStopRange: AtStopRange | null = null;
+  private staleDiagnosticBaseline: PositionedDiagnostic[] = [];
+  private pendingEvaluation: { evaluation: EvaluationResult; sourceRevision: number } | null = null;
+  private appliedEvaluation: EvaluationResult | null = null;
   private pendingSelectionSync = false;
   private pendingFoldProjection = false;
   private applyingUiSync = false;
@@ -64,10 +84,12 @@ export class SourceEditorController implements SourceEditorHandle {
   constructor(
     parent: HTMLElement,
     store: SourceStore = useCadDocumentStore,
-    uiStore: UiStore = useCadUiStore
+    uiStore: UiStore = useCadUiStore,
+    options: SourceEditorControllerOptions = {}
   ) {
     this.store = store;
     this.uiStore = uiStore;
+    this.options = options;
     const initial = store.getState();
     this.format = sourceTextFormat(initial.sourceText);
     this.committedLogicalText = normalizeSourceTextForEditor(initial.sourceText);
@@ -95,16 +117,40 @@ export class SourceEditorController implements SourceEditorHandle {
               mousedown: (_view, line, event) => this.handleFoldGutterMouseDown(line.from, event as MouseEvent)
             }
           }),
+          createDiagnosticsExtension({
+            isComposing: () => this.protocol.composing,
+            hasPendingText: () => this.hasPendingText(),
+            committedDiagnostics: () => this.store.getState().diagnostics,
+            staleBaseline: () => this.staleDiagnosticBaseline
+          }),
+          createEvaluationExtension({
+            statementRanges: () => this.statementRanges,
+            elements: () => this.store.getState().elements,
+            evaluation: () => this.appliedEvaluation,
+            groupFoldById: () => this.uiStore.getState().groupFoldById,
+            atStopRange: () => this.atStopRange,
+            pickCandidates: () => this.currentPickCandidates(),
+            pickCursorElementId: () => this.uiStore.getState().activePickCursor?.elementId ?? null
+          }),
+          search(),
           this.historyCompartment.of(history()),
           keymap.of([
             { key: "Mod-z", run: () => this.runUndo() },
             { key: "Mod-y", run: () => this.runRedo() },
             { key: "Mod-Shift-z", run: () => this.runRedo() },
+            { key: "Mod-s", run: () => this.runSave() },
+            { key: "Enter", run: () => this.runPickApply() },
             { key: "Ctrl-Shift-[", mac: "Mod-Alt-[", run: () => this.changeFoldAtCursor("fold") },
             { key: "Ctrl-Shift-]", mac: "Mod-Alt-]", run: () => this.changeFoldAtCursor("unfold") },
             { key: "Ctrl-Alt-[", run: () => this.changeAllFolds(false) },
-            { key: "Ctrl-Alt-]", run: () => this.changeAllFolds(true) }
-          ]),
+            { key: "Ctrl-Alt-]", run: () => this.changeAllFolds(true) },
+            ...searchKeymap,
+            { key: "Escape", run: () => this.runEscape() },
+            ...defaultKeymap
+          ] satisfies KeyBinding[]),
+          EditorView.domEventHandlers({
+            contextmenu: (event, view) => this.handleContextMenu(event as MouseEvent, view)
+          }),
           EditorView.updateListener.of((update) => this.handleViewUpdate(update)),
           EditorView.domEventHandlers({
             compositionstart: () => {
@@ -168,6 +214,127 @@ export class SourceEditorController implements SourceEditorHandle {
    */
   hasPendingText = () => !this.view.state.doc.eq(this.committedDoc);
 
+  /**
+   * `sourceRevision` must match the revision the evaluation was computed against, and
+   * CM must have already caught up to it, before the result is used for decorations.
+   * Otherwise it is held pending and re-checked on every subsequent source update, so
+   * a lagging evaluation call never paints over text it wasn't computed for.
+   */
+  setEvaluation = (evaluation: EvaluationResult, sourceRevision: number) => {
+    this.pendingEvaluation = { evaluation, sourceRevision };
+    this.tryApplyPendingEvaluation();
+  };
+
+  jumpToElement = (elementId: ElementId) => {
+    const range = this.statementRanges.get(elementId);
+    if (!range) return;
+    this.view.dispatch({
+      selection: EditorSelection.cursor(range.from),
+      scrollIntoView: true,
+      annotations: [canvasCursorOrigin.of("canvas-cursor"), Transaction.addToHistory.of(false)]
+    });
+    this.uiStore.getState().setSelectedElementId(elementId);
+  };
+
+  openTextSearch = () => {
+    openSearchPanel(this.view);
+  };
+
+  closeTextSearch = () => {
+    closeSearchPanel(this.view);
+  };
+
+  focusSearch = () => this.view.focus();
+
+  private tryApplyPendingEvaluation() {
+    if (this.destroyed || !this.pendingEvaluation) return;
+    if (this.pendingEvaluation.sourceRevision !== this.store.getState().sourceRevision) return;
+    if (!this.sourceIsApplied()) return;
+    this.appliedEvaluation = this.pendingEvaluation.evaluation;
+    this.pendingEvaluation = null;
+    this.view.dispatch({ effects: evaluationChanged.of(null) });
+  }
+
+  private currentPickCandidates() {
+    const ui = this.uiStore.getState();
+    const evaluation = this.appliedEvaluation;
+    if (!evaluation) return [];
+    return pickCandidates(this.store.getState().elements, evaluation, {
+      activePointPickTarget: ui.activePointPickTarget,
+      activeNumericReferencePickTarget: ui.activeNumericReferencePickTarget,
+      activeLinePickTarget: ui.activeLinePickTarget
+    });
+  }
+
+  private runSave() {
+    this.flush("save");
+    dispatchCommand("saveDocument");
+    return true;
+  }
+
+  private runPickApply() {
+    const ui = this.uiStore.getState();
+    const pickTarget = ui.activePointPickTarget ?? ui.activeNumericReferencePickTarget ?? ui.activeLinePickTarget;
+    if (!pickTarget) return false;
+    const cursorId = ui.activePickCursor?.elementId ?? null;
+    if (!cursorId) return false;
+    const candidates = this.currentPickCandidates();
+    const candidate = candidates.find((item) => item.elementId === cursorId);
+    const option = candidate?.options[ui.activePickCursor?.optionIndex ?? 0];
+    if (!option) return false;
+    if (option.kind === "point") dispatchCommand("applyPickedPoint", { pickedPointAnchor: option.anchor });
+    else if (option.kind === "line") dispatchCommand("applyPickedLine", { pickedLineId: option.lineId });
+    else if (option.kind === "numericReference" || option.kind === "variableReference") {
+      dispatchCommand("applyPickedNumericReference", { numericReferenceExpression: option.expression });
+    }
+    return true;
+  }
+
+  /**
+   * Escape never assumes IME composition is intercepted upstream: it checks the
+   * controller's own composing flag first. `searchKeymap`'s own Escape binding
+   * (registered ahead of this entry) already consumes the key when CM's search panel
+   * is open, so this only runs when that panel is closed.
+   */
+  private runEscape() {
+    if (this.protocol.composing) return false;
+    if (this.options.isSourceSearchOpen?.()) {
+      this.options.closeSourceSearch?.();
+      return true;
+    }
+    const ui = this.uiStore.getState();
+    if (ui.activePointPickTarget) {
+      dispatchCommand("cancelPointPick");
+      return true;
+    }
+    if (ui.activeNumericReferencePickTarget) {
+      dispatchCommand("cancelNumericReferencePick");
+      return true;
+    }
+    if (ui.activeLinePickTarget) {
+      dispatchCommand("cancelLinePick");
+      return true;
+    }
+    if (ui.activeTemplateInsertion) {
+      dispatchCommand("cancelTemplateInsertion");
+      return true;
+    }
+    this.flush("command");
+    this.options.onRequestCanvasFocus?.();
+    return true;
+  }
+
+  private handleContextMenu(event: MouseEvent, view: EditorView) {
+    const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
+    if (pos === null) return false;
+    const lineFrom = view.state.doc.lineAt(pos).from;
+    const elementId = elementIdAtCursor(this.statementRanges, lineFrom);
+    if (!elementId || !this.options.onRequestContextMenu) return false;
+    event.preventDefault();
+    this.options.onRequestContextMenu(elementId, event.clientX, event.clientY);
+    return true;
+  }
+
   flush = (reason: FlushReason): SourceEditFlushResult => {
     if (this.destroyed || !this.hasPendingText()) return "clean";
     if (this.protocol.composing) {
@@ -218,7 +385,11 @@ export class SourceEditorController implements SourceEditorHandle {
     const isExternal = update.transactions.some((transaction) =>
       transaction.annotation(modelPatchOrigin) || transaction.annotation(resetOrigin)
     );
-    if (update.docChanged) this.statementRanges = mapStatementRangeIndex(this.statementRanges, update.changes);
+    if (update.docChanged) {
+      this.statementRanges = mapStatementRangeIndex(this.statementRanges, update.changes);
+      this.atStopRange = mapAtStopRange(this.atStopRange, update.changes);
+      this.staleDiagnosticBaseline = mapPositionedDiagnostics(this.staleDiagnosticBaseline, update.changes);
+    }
     if (update.docChanged && !isExternal && !this.protocol.composing) {
       const wasPendingBeforeThisUpdate = !update.startState.doc.eq(this.committedDoc);
       if (!wasPendingBeforeThisUpdate) {
@@ -333,6 +504,10 @@ export class SourceEditorController implements SourceEditorHandle {
     this.cancelCommitTimer();
     this.burstStartCursorLine = null;
     this.syncCommittedText(sourceText);
+    // Clear before the doc-replace transaction dispatches, so no intermediate frame
+    // shows the previous document's evaluation decorations over the new text.
+    this.pendingEvaluation = null;
+    this.appliedEvaluation = null;
     const cursorLine = useCadUiStore.getState().sourceCursorLine;
     const cursorOffset = cursorLine === null
       ? null
@@ -340,6 +515,7 @@ export class SourceEditorController implements SourceEditorHandle {
     this.view.dispatch({
       changes: { from: 0, to: this.view.state.doc.length, insert: this.committedLogicalText },
       ...(cursorOffset === null ? {} : { selection: EditorSelection.cursor(cursorOffset) }),
+      effects: [evaluationChanged.of(null)],
       annotations: [resetOrigin.of("reset"), Transaction.addToHistory.of(false)]
     });
     this.clearCmHistory();
@@ -355,12 +531,19 @@ export class SourceEditorController implements SourceEditorHandle {
     this.pendingSelectionSync = true;
     this.pendingFoldProjection = true;
     this.applyPendingUiSync();
+    this.tryApplyPendingEvaluation();
+    // Diagnostics may need to switch between the dirty layered view and the clean
+    // store-diagnostics view even when this update carried no CM doc change (e.g. a
+    // no-op text commit that only cleared history).
+    forceLinting(this.view);
   }
 
   private refreshStatementRanges() {
     const state = this.store.getState();
     if (state.docText !== state.sourceText) return;
     this.statementRanges = createStatementRangeIndex(this.view.state.doc, state.doc.statementMap);
+    this.atStopRange = createAtStopRange(this.view.state.doc, state.doc.statementMap);
+    this.staleDiagnosticBaseline = toStaleDiagnostics(this.view.state.doc, state.diagnostics);
   }
 
   private sourceIsApplied() {
