@@ -9,7 +9,7 @@ import { saveCommandRibbonSettings } from "../commandRibbons/commandRibbonSettin
 import { useCadUiStore } from "../state/cadUiStore";
 import { CommandRibbonView } from "./CommandRibbonView";
 
-type LeftPanelRibbonDockProps = {
+type SourceRibbonDockProps = {
   canvasFocusRef: RefObject<HTMLDivElement | null>;
   commandContext: CommandContext;
   dockRef: RefObject<HTMLDivElement | null>;
@@ -49,12 +49,12 @@ const floatingPositionForClientPoint = (
   y: Math.max(FLOATING_RIBBON_MARGIN, Math.round(clientY - canvasRect.top))
 });
 
-export const LeftPanelRibbonDock = ({
+export const SourceRibbonDock = ({
   canvasFocusRef,
   commandContext,
   dockRef,
   isSearchActive
-}: LeftPanelRibbonDockProps) => {
+}: SourceRibbonDockProps) => {
   const settings = useCadUiStore((state) => state.commandRibbonSettings);
   const setCommandRibbonSettings = useCadUiStore((state) => state.setCommandRibbonSettings);
   const settingsRef = useRef<CommandRibbonSettings | null>(null);
@@ -72,6 +72,8 @@ export const LeftPanelRibbonDock = ({
     settingsRef.current = settings;
   }, [settings]);
 
+  // "leftPanelBottom" is a persisted settings value; renaming it would orphan saved
+  // ribbon layouts, so the legacy name stays until a deliberate settings migration.
   const dockedRibbons = settings?.ribbons.filter((ribbon) => ribbon.dock === "leftPanelBottom") ?? [];
 
   const startDrag = (event: ReactPointerEvent<HTMLButtonElement>, ribbon: CommandRibbon) => {
@@ -137,7 +139,7 @@ export const LeftPanelRibbonDock = ({
   };
 
   return (
-    <div className="left-panel-ribbon-dock" aria-label="左ペインのコマンドリボン" ref={dockRef}>
+    <div className="source-ribbon-dock" aria-label="Source Editorのコマンドリボン" ref={dockRef}>
       {dockedRibbons.map((ribbon) => (
         <CommandRibbonView
           key={ribbon.id}

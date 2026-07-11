@@ -20,9 +20,9 @@ type SourceEditorContextMenuProps = {
 const viewportPadding = 8;
 
 /**
- * Plain React, no `@codemirror/*` import. Mirrors ElementListContextMenu's rendering
- * and dismissal behavior but is driven by a plain {elementId, x, y} resolved by the
- * controller's own contextmenu handler (src/editor/), not by touching CM here.
+ * Plain React, no `@codemirror/*` import. Driven by a plain {elementId, x, y}
+ * resolved by the controller's own contextmenu handler (src/editor/), not by
+ * touching CM here.
  */
 export const SourceEditorContextMenu = ({ commandContext, state, onClose }: SourceEditorContextMenuProps) => {
   const elements = useCadDocumentStore(effectiveElements);
@@ -92,7 +92,7 @@ export const SourceEditorContextMenu = ({ commandContext, state, onClose }: Sour
   return (
     <div
       ref={menuRef}
-      className="element-list-context-menu source-editor-context-menu"
+      className="source-editor-context-menu"
       style={{ left: position.x, top: position.y }}
       role="menu"
       aria-label={`${element.name}の操作`}
@@ -100,7 +100,7 @@ export const SourceEditorContextMenu = ({ commandContext, state, onClose }: Sour
     >
       {items.map((item, index) =>
         item.kind === "separator" ? (
-          <div key={`separator-${index}`} className="element-list-context-menu-separator" role="separator" />
+          <div key={`separator-${index}`} className="source-editor-context-menu-separator" role="separator" />
         ) : (
           <button
             key={`${item.commandId}-${index}`}

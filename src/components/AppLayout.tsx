@@ -16,8 +16,10 @@ import { effectiveElements, useCadDocumentStore } from "../state/cadDocumentStor
 import { useCadUiStore } from "../state/cadUiStore";
 import { CommandPalette } from "./CommandPalette";
 import { DrawingCanvas } from "./DrawingCanvas";
-import { LeftPanel, RightPanel } from "./LeftPanel";
+import { RightPanel } from "./RightPanel";
 import { ShortcutHelpOverlay } from "./ShortcutHelpOverlay";
+import { SourceEditorPane } from "./SourceEditorPane";
+import type { SourceEditorHandle } from "../editor/sourceEditorTypes";
 import { registerTauriMenuCommandListener } from "../commands/tauriMenuEvents";
 import { selectTextInputValue } from "./textInputSelection";
 
@@ -113,15 +115,26 @@ export const AppLayout = () => {
   const canvasFocusRef = useRef<HTMLDivElement>(null);
   const canvasWorkspaceRef = useRef<HTMLDivElement>(null);
   const commandRibbonDockRef = useRef<HTMLDivElement>(null);
-  const elementListFocusRef = useRef<HTMLDivElement>(null);
-  const elementSearchInputRef = useRef<HTMLInputElement>(null);
+  const sourceEditorRef = useRef<SourceEditorHandle>(null);
   const parameterInputRefs = useRef(new Map<string, HTMLElement>());
   const [leftPanelWidth, setLeftPanelWidth] = useState(DEFAULT_LEFT_PANEL_WIDTH);
   const [isResizingLeftPanel, setIsResizingLeftPanel] = useState(false);
   const leftPanelResizeStartRef = useRef<{ clientX: number; width: number } | null>(null);
   const evaluationOptions = useMemo(() => ({ evaluationLimitIndex }), [evaluationLimitIndex]);
   const evaluationState = useEvaluationEngine(elements, evaluationOptions, compiledDocumentRevision);
-  const { evaluation } = evaluationState;
+  const { evaluation, evaluationRevision, evaluationRequestRevision } = evaluationState;
+
+  useEffect(() => {
+    // Publish with the revisions the engine captured when this evaluation request
+    // started. Never substitute the store's current compiledDocumentRevision here:
+    // async Rust results may arrive after the document advanced, and stamping the
+    // current revision would mislabel a stale result as fresh.
+    sourceEditorRef.current?.setEvaluation({
+      evaluation,
+      compiledDocumentRevision: evaluationRevision,
+      evaluationRequestRevision
+    });
+  }, [evaluation, evaluationRevision, evaluationRequestRevision]);
   const registerParameterControl = (key: string, element: HTMLElement | null) => {
     if (element) {
       parameterInputRefs.current.set(key, element);
@@ -131,13 +144,9 @@ export const AppLayout = () => {
   };
   const commandContext = useMemo(() => ({
     focusCanvas: () => canvasFocusRef.current?.focus(),
-    focusElementList: () => elementListFocusRef.current?.focus(),
-    focusElementSearch: () => {
-      requestAnimationFrame(() => {
-        elementSearchInputRef.current?.focus();
-        elementSearchInputRef.current?.select();
-      });
-    },
+    // The legacy element-list commands keep their IDs but now land on the Source Editor.
+    focusElementList: () => sourceEditorRef.current?.focus(),
+    focusElementSearch: () => sourceEditorRef.current?.focusSearch(),
     getCanvasViewportRect: () => canvasFocusRef.current?.getBoundingClientRect() ?? null,
     focusSelectedParameterInput: () => {
       const selectedKey = useCadUiStore.getState().selectedParameterKey;
@@ -353,13 +362,11 @@ export const AppLayout = () => {
       style={{ "--left-panel-width": `${leftPanelWidth}px` } as CSSProperties}
       onFocusCapture={(event) => selectTextInputValue(event.target)}
     >
-      <LeftPanel
+      <SourceEditorPane
+        ref={sourceEditorRef}
         canvasFocusRef={canvasFocusRef}
         commandContext={commandContext}
         commandRibbonDockRef={commandRibbonDockRef}
-        evaluation={evaluation}
-        elementListFocusRef={elementListFocusRef}
-        elementSearchInputRef={elementSearchInputRef}
       />
       <div
         className="left-panel-resize-handle"

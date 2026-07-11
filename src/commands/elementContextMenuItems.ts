@@ -26,7 +26,7 @@ const lockedLabel = (element: CadElement) => (element.locked ? "ロック解除"
 const printLabel = (element: CadElement) =>
   element.type === "group" && element.printEnabled === true ? "印刷しない" : "印刷する";
 
-/** Shared by ElementListContextMenu (LeftPanel) and SourceEditorContextMenu (Phase 2d). */
+/** Builds the per-element command menu shown by SourceEditorContextMenu. */
 export const menuItemsForElement = ({
   commandContext,
   element,

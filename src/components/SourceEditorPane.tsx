@@ -6,7 +6,7 @@ import type { CommandContext } from "../commands/commands";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { fileNameFromPath } from "../document/nuiFormat";
 import { DocumentDiagnostics } from "./DocumentDiagnostics";
-import { LeftPanelRibbonDock } from "./LeftPanelRibbonDock";
+import { SourceRibbonDock } from "./SourceRibbonDock";
 import { SourceEditorContextMenu, type SourceEditorContextMenuState } from "./SourceEditorContextMenu";
 import { SourceSearchPanel } from "./SourceSearchPanel";
 import { dispatchCommand } from "../commands/commands";
@@ -15,14 +15,16 @@ import type { ElementId } from "../types/geometry";
 type SourceEditorPaneProps = {
   commandContext?: CommandContext;
   canvasFocusRef?: RefObject<HTMLDivElement | null>;
+  /** Dock element ref shared with CommandRibbonOverlay's drop-to-dock hit test. */
+  commandRibbonDockRef?: RefObject<HTMLDivElement | null>;
 };
 
 /**
- * Phase 2d feature-complete pane, still not mounted by AppLayout in production
- * (that cutover, plus LeftPanel removal, is Phase 2e).
+ * The permanent left pane: the DSL source editor that replaced the legacy
+ * element-list LeftPanel in Phase 2e.
  */
 export const SourceEditorPane = forwardRef<SourceEditorHandle, SourceEditorPaneProps>(function SourceEditorPane(
-  { commandContext = {}, canvasFocusRef },
+  { commandContext = {}, canvasFocusRef, commandRibbonDockRef },
   ref
 ) {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -104,10 +106,10 @@ export const SourceEditorPane = forwardRef<SourceEditorHandle, SourceEditorPaneP
           onClose={() => setContextMenuState(null)}
         />
       ) : null}
-      <LeftPanelRibbonDock
+      <SourceRibbonDock
         canvasFocusRef={canvasFocusRef ?? fallbackCanvasFocusRef}
         commandContext={commandContext}
-        dockRef={dockRef}
+        dockRef={commandRibbonDockRef ?? dockRef}
         isSearchActive={isSearchOpen}
       />
     </div>

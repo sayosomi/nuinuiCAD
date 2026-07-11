@@ -98,6 +98,58 @@ describe("SourceEditorController commit and history boundaries", () => {
     controller.destroy();
   });
 
+  it("never reaches pre-commit CM history across typing, model patch, and store undo/redo cycles", () => {
+    useCadDocumentStore.getState().commitText("nui 1\npoint A = (0, 0)\npoint B = (1, 1)", "test");
+    const parent = document.createElement("div");
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+    const append = (text: string) => internals.view.dispatch({
+      changes: { from: internals.view.state.doc.length, insert: text }
+    });
+    const cmDepthIsZero = () => {
+      expect(undoDepth(internals.view.state as never)).toBe(0);
+      expect(redoDepth(internals.view.state as never)).toBe(0);
+    };
+
+    for (const cycle of [1, 2, 3]) {
+      // typing burst → commit
+      append(`\n# cycle ${cycle}`);
+      vi.advanceTimersByTime(300);
+      const committed = useCadDocumentStore.getState().sourceText;
+      expect(committed).toContain(`# cycle ${cycle}`);
+      cmDepthIsZero();
+
+      // Canvas-equivalent model patch on the clean editor
+      const patched = useCadDocumentStore.getState().elements.map((element) =>
+        element.name === "A" ? { ...element, locked: cycle % 2 === 1 } : element
+      );
+      const result = useCadDocumentStore.getState().commitDocumentChange({ elements: patched });
+      expect(result).toEqual({ status: "applied" });
+      const afterPatch = useCadDocumentStore.getState().sourceText;
+      expect(internals.view.state.doc.toString()).toBe(afterPatch);
+      cmDepthIsZero();
+
+      // store undo removes the patch, redo restores it; CM history stays fenced
+      useCadDocumentStore.getState().undo();
+      expect(useCadDocumentStore.getState().sourceText).toBe(committed);
+      expect(internals.view.state.doc.toString()).toBe(committed);
+      cmDepthIsZero();
+      useCadDocumentStore.getState().redo();
+      expect(useCadDocumentStore.getState().sourceText).toBe(afterPatch);
+      expect(internals.view.state.doc.toString()).toBe(afterPatch);
+      cmDepthIsZero();
+
+      // a fresh dirty burst: CM undo restores exactly the last committed text,
+      // never anything from before the commit boundary
+      append("\n# transient");
+      expect(internals.runUndo()).toBe(true);
+      expect(internals.view.state.doc.toString()).toBe(afterPatch);
+      expect(useCadDocumentStore.getState().sourceText).toBe(afterPatch);
+      cmDepthIsZero();
+    }
+    controller.destroy();
+  });
+
   it("does not commit a scheduled burst while composing, and resumes after compositionend", () => {
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);

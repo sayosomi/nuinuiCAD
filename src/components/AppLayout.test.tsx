@@ -82,6 +82,11 @@ beforeEach(() => {
   resetStore();
   window.localStorage.clear();
 
+  // jsdom's Range lacks the client-rect APIs CodeMirror's measure phase calls.
+  Object.defineProperty(Range.prototype, "getClientRects", {
+    configurable: true,
+    value: () => []
+  });
   Object.defineProperty(HTMLElement.prototype, "clientWidth", {
     configurable: true,
     value: 500
@@ -662,7 +667,7 @@ describe("AppLayout command ribbon", () => {
 
   it("docks a floating command ribbon when dragging it onto the left-panel ribbon dock", async () => {
     const view = render(<AppLayout />);
-    const dock = await view.findByLabelText("左ペインのコマンドリボン");
+    const dock = await view.findByLabelText("Source Editorのコマンドリボン");
     dock.getBoundingClientRect = () => ({
       x: 0,
       y: 330,

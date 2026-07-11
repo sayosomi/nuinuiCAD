@@ -14,10 +14,10 @@ type SourceSearchPanelProps = {
 };
 
 /**
- * Plain React, no `@codemirror/*` import. Reuses elementSearchResults (the same
- * matching logic useElementListData/LeftPanel already use) for name/ID/type/role
- * search, and delegates to the handle's plain openTextSearch/closeTextSearch for
- * CodeMirror's own text search — this component never touches CM itself.
+ * Plain React, no `@codemirror/*` import. Reuses elementSearchResults for
+ * name/ID/type/role search, and delegates to the handle's plain
+ * openTextSearch/closeTextSearch for CodeMirror's own text search — this
+ * component never touches CM itself.
  */
 export const SourceSearchPanel = ({ handle, isOpen, onClose }: SourceSearchPanelProps) => {
   const elements = useCadDocumentStore(effectiveElements);
