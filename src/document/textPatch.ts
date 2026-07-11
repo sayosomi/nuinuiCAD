@@ -785,9 +785,11 @@ export const buildTextPatch = (input: TextPatchInput): LineSplice[] => {
 };
 
 export const applyLineSplices = (text: string, splices: readonly LineSplice[]): string => {
-  // 無編集のsourceTextはdocumentFileが直接保存する。モデル編集でここを通る場合も
-  // 既存の改行様式を保ち、行スプライスの責務を広げない。
-  const newline = text.includes("\r\n") ? "\r\n" : "\n";
+  // 無編集のsourceTextはdocumentFileが直接保存する。ここでは行単位codecを
+  // 導入せず、未変更の文字列断片を再結合しない。これによりmixed改行文書でも
+  // モデルパッチに触れない行の改行は保持される。
+  const separators = [...text.matchAll(/\r?\n/g)].map((match) => match[0]);
+  const newline = separators.length > 0 && separators.every((value) => value === "\r\n") ? "\r\n" : "\n";
   const lines = text.split(/\r?\n/);
   let previousEnd = 0;
   let previousStart = 0;
@@ -806,9 +808,44 @@ export const applyLineSplices = (text: string, splices: readonly LineSplice[]): 
     previousStart = splice.startLine;
     previousEnd = Math.max(previousEnd, splice.endLine);
   }
+  const starts = [0];
+  const separatorLengths: number[] = [];
+  for (const match of text.matchAll(/\r?\n/g)) {
+    starts.push((match.index ?? 0) + match[0].length);
+    separatorLengths.push(match[0].length);
+  }
+  let patched = text;
   for (let index = splices.length - 1; index >= 0; index -= 1) {
     const splice = splices[index];
-    lines.splice(splice.startLine - 1, splice.endLine - splice.startLine + 1, ...splice.replacementLines);
+    const startIndex = splice.startLine - 1;
+    const deletesLines = splice.endLine >= splice.startLine;
+    const replacement = splice.replacementLines.join(newline);
+    let from: number;
+    let to: number;
+    let insert: string;
+
+    if (!deletesLines) {
+      from = startIndex < lines.length ? starts[startIndex] : text.length;
+      to = from;
+      insert = splice.replacementLines.length > 0
+        ? startIndex < lines.length
+          ? `${replacement}${newline}`
+          : `${lines.length > 0 ? newline : ""}${replacement}`
+        : "";
+    } else if (splice.endLine < lines.length) {
+      from = starts[startIndex];
+      to = starts[splice.endLine];
+      insert = splice.replacementLines.length > 0 ? `${replacement}${newline}` : "";
+    } else if (startIndex === 0) {
+      from = 0;
+      to = text.length;
+      insert = replacement;
+    } else {
+      from = starts[startIndex] - separatorLengths[startIndex - 1];
+      to = text.length;
+      insert = splice.replacementLines.length > 0 ? `${newline}${replacement}` : "";
+    }
+    patched = `${patched.slice(0, from)}${insert}${patched.slice(to)}`;
   }
-  return lines.join(newline);
+  return patched;
 };

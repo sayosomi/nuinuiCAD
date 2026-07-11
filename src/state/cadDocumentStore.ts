@@ -28,6 +28,8 @@ import {
   normalizePrintLayout
 } from "../print/printLayout";
 import { sampleElements } from "../sampleData";
+import type { LineSplice } from "../document/textPatch";
+import type { SourceUpdate } from "../editor/sourceEditorTypes";
 import type {
   CadElement,
   DocumentPalette,
@@ -47,11 +49,15 @@ export type TextSnapshot = {
   cursorLine: number | null;
 };
 
-export type CommitTextOrigin = "file" | "test" | "bridge-internal";
+export type CommitTextOrigin = "editor" | "file" | "test" | "bridge-internal";
 
 export type CadDocumentState = {
   /** The only canonical document value. */
   sourceText: string;
+  /** Monotonic notification sequence for source editor adapters. */
+  sourceRevision: number;
+  /** Metadata for the latest source revision. Subscribers receive every transition synchronously. */
+  sourceUpdate: SourceUpdate;
   /** Last successful compile; never null. */
   doc: LastGoodDslDocument;
   /** Text represented by doc. A mismatch means sourceText currently has fatal diagnostics. */
@@ -211,6 +217,19 @@ const canonicalFields = (value: CanonicalDocumentValue) => {
   };
 };
 
+const sourceUpdateFields = (
+  state: Pick<CadDocumentState, "sourceRevision">,
+  kind: SourceUpdate["kind"],
+  splices: readonly LineSplice[] = []
+) => {
+  const revision = state.sourceRevision + 1;
+  const sourceUpdate: SourceUpdate =
+    kind === "model-patch"
+      ? { revision, kind, splices }
+      : { revision, kind };
+  return { sourceRevision: revision, sourceUpdate };
+};
+
 const selectionFromChange = (
   current: CadDocumentSelectionSnapshot,
   change: Partial<CadDocumentSnapshot>
@@ -248,11 +267,13 @@ const modelCommit = (
 ): Partial<CadDocumentState> => {
   const previousSelection = useCadUiStore.getState();
   let current = state;
+  let rebased = false;
   if (!compatibilityViewMatchesDoc(state)) {
     // Legacy tests and transitional facade callers may seed the derived view directly.
     // Rebase that setup into canonical text before creating the real history entry.
-    const rebased = regenerateCanonicalFromModel(documentOf(state));
-    current = { ...state, ...canonicalFields(rebased) };
+    const regenerated = regenerateCanonicalFromModel(documentOf(state));
+    current = { ...state, ...canonicalFields(regenerated) };
+    rebased = true;
   }
   const afterDocument = documentFromChange(current, change);
   const requestedSelection = selectionFromChange(previousSelection, change);
@@ -271,7 +292,10 @@ const modelCommit = (
   }
 
   let value: CanonicalDocumentValue;
+  let updateKind: SourceUpdate["kind"] = "model-patch";
+  let splices: readonly LineSplice[] = [];
   if (result.status === "failed") {
+    updateKind = "reset";
     if (shadowAssertEnabled) {
       console.error(`[canonicalDocument] 行パッチを適用できないため全体再生成します: ${result.reason}`);
     }
@@ -283,10 +307,12 @@ const modelCommit = (
     }
   } else {
     value = result.value;
+    splices = result.splices;
   }
 
   if (shadowAssertEnabled) {
     if (!assertShadowEquivalent(afterDocument, value.doc.document)) {
+      updateKind = "reset";
       try {
         value = regenerateCanonicalFromModel(afterDocument);
       } catch (error) {
@@ -303,7 +329,8 @@ const modelCommit = (
     previewElements: null,
     past: appendPast(state.past, textSnapshot(current, previousSelection)),
     future: [],
-    dirtySinceSave: dirtyForText(current, value.sourceText)
+    dirtySinceSave: dirtyForText(current, value.sourceText),
+    ...sourceUpdateFields(state, rebased ? "reset" : updateKind, splices)
   };
 };
 
@@ -334,6 +361,8 @@ export const initialCadDocumentState = (): Omit<CadDocumentState, keyof CadDocum
   const canonical = regenerateCanonicalFromModel(snapshot);
   return {
     ...canonicalFields(canonical),
+    sourceRevision: 0,
+    sourceUpdate: { revision: 0, kind: "reset" },
     previewElements: null,
     past: [],
     future: [],
@@ -404,7 +433,7 @@ const elementWithoutColorId = (element: CadElement): CadElement => {
 
 export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
   ...initialCadDocumentState(),
-  commitText: (nextText) =>
+  commitText: (nextText, origin) =>
     set((state) => {
       if (nextText === state.sourceText) return { previewElements: null };
       const previousSelection = useCadUiStore.getState();
@@ -415,7 +444,8 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
         previewElements: null,
         past: appendPast(state.past, textSnapshot(state, previousSelection)),
         future: [],
-        dirtySinceSave: dirtyForText(state, result.sourceText)
+        dirtySinceSave: dirtyForText(state, result.sourceText),
+        ...sourceUpdateFields(state, origin === "editor" ? "editor" : "reset")
       };
     }),
   previewDocumentChange: (change) =>
@@ -619,7 +649,7 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
     });
   },
   replaceDocument: (snapshot, currentFilePath) =>
-    set(() => {
+    set((state) => {
       try {
         const canonical = regenerateCanonicalFromModel(snapshot);
         useCadUiStore.getState().applySelection(canonical.doc.document.elements, snapshot);
@@ -630,7 +660,8 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
           future: [],
           currentFilePath,
           savedSourceText: canonical.sourceText,
-          dirtySinceSave: false
+          dirtySinceSave: false,
+          ...sourceUpdateFields(state, "reset")
         };
       } catch (error) {
         console.error(`[canonicalDocument] 文書読込の正準化に失敗したため現在の文書を維持します: ${String(error)}`);
@@ -638,7 +669,7 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
       }
     }),
   replaceTextDocument: (sourceText, options) =>
-    set(() => {
+    set((state) => {
       const baseline = regenerateCanonicalFromModel(emptyFileSnapshot());
       const compiled = compileCanonicalText(baseline, sourceText);
       useCadUiStore.getState().applySelection(compiled.doc.document.elements, {
@@ -654,7 +685,8 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
         future: [],
         currentFilePath: options.currentFilePath,
         savedSourceText: options.dirtySinceSave ? null : compiled.sourceText,
-        dirtySinceSave: options.dirtySinceSave
+        dirtySinceSave: options.dirtySinceSave,
+        ...sourceUpdateFields(state, "reset")
       };
     }),
   markDocumentSaved: (currentFilePath) =>
@@ -683,7 +715,8 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
         previewElements: null,
         past: state.past.slice(0, -1),
         future: [textSnapshot(state, previousSelection), ...state.future],
-        dirtySinceSave: dirtyForText(state, restored.sourceText)
+        dirtySinceSave: dirtyForText(state, restored.sourceText),
+        ...sourceUpdateFields(state, "reset")
       };
     }),
   redo: () =>
@@ -706,7 +739,8 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
         previewElements: null,
         past: appendPast(state.past, textSnapshot(state, previousSelection)),
         future: state.future.slice(1),
-        dirtySinceSave: dirtyForText(state, restored.sourceText)
+        dirtySinceSave: dirtyForText(state, restored.sourceText),
+        ...sourceUpdateFields(state, "reset")
       };
     })
 }));

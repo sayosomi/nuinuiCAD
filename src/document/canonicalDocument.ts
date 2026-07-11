@@ -9,7 +9,7 @@ import { parseDsl } from "../dsl/dslParser";
 import type { DslDiagnostic } from "../dsl/dslTypes";
 import { createCadElementId } from "../model/cadIds";
 import type { ElementId } from "../types/geometry";
-import { applyLineSplices, buildTextPatch } from "./textPatch";
+import { applyLineSplices, buildTextPatch, type LineSplice } from "./textPatch";
 import { reconcileStatements } from "./statementReconciler";
 import { zipAssignedElementIds } from "./shadowText";
 
@@ -30,7 +30,7 @@ export type TextCompileResult = CanonicalDocumentValue & {
 };
 
 export type ModelBridgeResult =
-  | { status: "committed"; value: CanonicalDocumentValue }
+  | { status: "committed"; value: CanonicalDocumentValue; splices: LineSplice[] }
   | { status: "noop" }
   | { status: "rejected"; reason: string }
   | { status: "failed"; reason: string };
@@ -137,10 +137,12 @@ export const commitModelBridge = (
   }
 
   let patchedText: string;
+  let splices: LineSplice[];
   try {
+    splices = buildTextPatch({ old: current.doc, newDocument: afterDocument });
     patchedText = applyLineSplices(
       current.sourceText,
-      buildTextPatch({ old: current.doc, newDocument: afterDocument })
+      splices
     );
   } catch (error) {
     return {
@@ -160,7 +162,8 @@ export const commitModelBridge = (
       doc: compiled.doc,
       docText: patchedText,
       diagnostics: compiled.doc.diagnostics
-    }
+    },
+    splices
   };
 };
 

@@ -111,6 +111,14 @@ describe("applyLineSplices", () => {
       replacementLines: ["B"]
     }])).toBe("a\r\nB\r\n");
   });
+
+  it("mixed改行のモデルパッチは無関係な行の改行を再正規化しない", () => {
+    expect(applyLineSplices("a\nb\r\nc\r\n", [{
+      startLine: 2,
+      endLine: 2,
+      replacementLines: ["B"]
+    }])).toBe("a\nB\nc\r\n");
+  });
 });
 
 describe("textPatch 要素の更新", () => {
