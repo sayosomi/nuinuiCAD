@@ -50,7 +50,12 @@ export const beginPendingCanvasPointer = (
   intent: Omit<PendingCanvasPointerIntent, "pointerReleased">
 ): PendingCanvasPointerTransition => ({
   state: { kind: "waiting", intent: { ...intent, pointerReleased: false } },
-  ...(state.kind === "waiting" ? { releasePointerId: state.intent.pointerId } : {})
+  // A released intent gave up its capture at pointerup; instructing another
+  // release here could revoke a capture the replacing gesture just acquired
+  // when the replacement reuses the same pointer id.
+  ...(state.kind === "waiting" && !state.intent.pointerReleased
+    ? { releasePointerId: state.intent.pointerId }
+    : {})
 });
 
 export const movePendingCanvasPointer = (
@@ -122,3 +127,35 @@ export const cancelPendingCanvasPointer = (
 
 export const pendingCanvasPointerDistance = (intent: PendingCanvasPointerIntent) =>
   Math.hypot(intent.latest.clientX - intent.start.clientX, intent.latest.clientY - intent.start.clientY);
+
+export type PointerCaptureTarget = {
+  setPointerCapture: (pointerId: number) => void;
+  releasePointerCapture: (pointerId: number) => void;
+  hasPointerCapture: (pointerId: number) => boolean;
+};
+
+/**
+ * Owns the DOM pointer captures acquired for canvas gestures: pending intents
+ * and the point/Bezier-handle drags begun by intent resolution.  Those
+ * gestures must take every capture through `capture` and end through
+ * `release`, so a tracked entry always names the gesture currently owning that
+ * pointer's capture and no entry outlives its gesture.  Pan captures are
+ * managed directly by the pan handlers and never enter the ledger.
+ */
+export const createCanvasPointerCaptureLedger = () => {
+  const targets = new Map<number, PointerCaptureTarget>();
+  return {
+    capture: (target: PointerCaptureTarget, pointerId: number) => {
+      target.setPointerCapture(pointerId);
+      targets.set(pointerId, target);
+    },
+    release: (pointerId: number) => {
+      const target = targets.get(pointerId);
+      if (target?.hasPointerCapture(pointerId)) target.releasePointerCapture(pointerId);
+      targets.delete(pointerId);
+    },
+    trackedPointerIds: () => Array.from(targets.keys())
+  };
+};
+
+export type CanvasPointerCaptureLedger = ReturnType<typeof createCanvasPointerCaptureLedger>;

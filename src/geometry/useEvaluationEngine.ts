@@ -30,6 +30,22 @@ export type EvaluationEngineState = {
   error: unknown | null;
 };
 
+/**
+ * Whether the rendered evaluation corresponds to the given compiled document
+ * revision, i.e. hit testing that render is safe.  A first Rust evaluation
+ * renders an empty placeholder under the current revision while the request is
+ * in flight, so "evaluating" only counts as current when a fresh reference
+ * evaluation is on screen (parity shadow mode).
+ */
+export const evaluationStateIsCurrentFor = (
+  state: EvaluationEngineState | undefined,
+  compiledDocumentRevision: number
+): boolean => {
+  if (!state) return true;
+  if (state.isStale || state.evaluationRevision !== compiledDocumentRevision) return false;
+  return state.status !== "evaluating" || state.source === "reference";
+};
+
 type AsyncEvaluationState = {
   requestKey: string;
   evaluationRevision: number;

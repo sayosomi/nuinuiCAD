@@ -1,6 +1,6 @@
 import { act, fireEvent, render, waitFor } from "@testing-library/react";
 import { createElement, createRef } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { registerSourceEditSession } from "../editor/sourceEditSession";
 import type { SourceEditSession } from "../editor/sourceEditSession";
 import { evaluateElements } from "../geometry/evaluate";
@@ -8,6 +8,7 @@ import type { EvaluationEngineState } from "../geometry/useEvaluationEngine";
 import { defaultDocumentPalette } from "../palette/palette";
 import { sampleElements } from "../sampleData";
 import { DEFAULT_CANVAS_VIEWPORT, DEFAULT_PRINT_PREVIEW_WINDOW, useCadDocumentStore, useCadStore } from "../state/useCadStore";
+import { useCadUiStore } from "../state/cadUiStore";
 import { DrawingCanvas } from "./DrawingCanvas";
 import { hitTestCanvasGeometry } from "./DrawingCanvasHitTest";
 import type {
@@ -1135,5 +1136,295 @@ describe("DrawingCanvas point dragging", () => {
     } finally {
       unregister();
     }
+  });
+});
+
+describe("DrawingCanvas pending pointer intents", () => {
+  // World (0, 0) renders at screen (250, 200) with the 500x400 test viewport.
+  const twoPointText = "nui 1\npoint A = (0, 0)\npoint B = (100, 0)";
+  const twoPointFlushText = `${twoPointText}\npoint C = (0, 60)`;
+
+  let unregisterSession: (() => void) | null = null;
+
+  afterEach(() => {
+    unregisterSession?.();
+    unregisterSession = null;
+    vi.useRealTimers();
+  });
+
+  const setPointerCaptureSpy = () => vi.mocked(HTMLElement.prototype.setPointerCapture);
+  const releasePointerCaptureSpy = () => vi.mocked(HTMLElement.prototype.releasePointerCapture);
+  const lastCaptureOpIsAcquire = () => {
+    const setOrders = setPointerCaptureSpy().mock.invocationCallOrder;
+    const releaseOrders = releasePointerCaptureSpy().mock.invocationCallOrder;
+    return Math.max(0, ...setOrders) > Math.max(0, ...releaseOrders);
+  };
+
+  const idByName = (name: string) => {
+    const id = useCadDocumentStore.getState().elements.find((element) => element.name === name)?.id;
+    if (!id) throw new Error(`Missing element ${name}`);
+    return id;
+  };
+
+  const pointByName = (name: string) => {
+    const element = useCadDocumentStore.getState().elements.find((item) => item.name === name);
+    if (!element || element.type !== "freePoint") throw new Error(`Missing free point ${name}`);
+    return element;
+  };
+
+  const renderPendingCanvas = ({
+    initialText,
+    flushText,
+    debouncedCommitText
+  }: {
+    initialText: string;
+    /** Committed by the fake session's first flush; later flushes return "clean". */
+    flushText?: string;
+    /** Committed before render, as if the editor's debounced commit already ran. */
+    debouncedCommitText?: string;
+  }) => {
+    useCadDocumentStore.getState().commitText(initialText, "test");
+    const staleState = referenceEvaluationState(useCadDocumentStore.getState().compiledDocumentRevision);
+    if (debouncedCommitText) useCadDocumentStore.getState().commitText(debouncedCommitText, "editor");
+    const canvasFocusRef = createRef<HTMLDivElement>();
+    const leftPanelDockRef = createRef<HTMLDivElement>();
+    const propsFor = (state: EvaluationEngineState) => ({
+      evaluation: state.evaluation,
+      evaluationState: state,
+      canvasFocusRef,
+      leftPanelDockRef
+    });
+    const view = render(createElement(DrawingCanvas, propsFor(staleState)));
+    const viewport = view.container.querySelector<HTMLDivElement>(".canvas-viewport");
+    if (!viewport) throw new Error("Missing canvas viewport");
+
+    let pendingFlushText = flushText ?? null;
+    unregisterSession = registerSourceEditSession({
+      hasPendingText: () => pendingFlushText !== null,
+      isComposing: () => false,
+      flush: () => {
+        if (pendingFlushText === null) return "clean";
+        const text = pendingFlushText;
+        pendingFlushText = null;
+        useCadDocumentStore.getState().commitText(text, "editor");
+        return "flushed";
+      }
+    });
+
+    const deliverEvaluationState = async (overrides?: Partial<EvaluationEngineState>) => {
+      await act(async () => {
+        view.rerender(createElement(DrawingCanvas, propsFor({
+          ...referenceEvaluationState(useCadDocumentStore.getState().compiledDocumentRevision),
+          ...overrides
+        })));
+      });
+    };
+
+    return { view, viewport, deliverEvaluationState };
+  };
+
+  it("moves the pressed point by the drag delta even when the drop position is blank", async () => {
+    const { viewport, deliverEvaluationState } = renderPendingCanvas({
+      initialText: twoPointText,
+      flushText: twoPointFlushText
+    });
+
+    fireEvent.pointerDown(viewport, { button: 0, buttons: 1, clientX: 350, clientY: 200, pointerId: 1 });
+    fireEvent.pointerMove(viewport, { buttons: 1, clientX: 380, clientY: 210, pointerId: 1 });
+    fireEvent.pointerMove(viewport, { buttons: 1, clientX: 400, clientY: 190, pointerId: 1 });
+    fireEvent.pointerUp(viewport, { buttons: 0, clientX: 400, clientY: 190, pointerId: 1 });
+    expect(pointByName("B")).toMatchObject({ x: 100, y: 0 });
+
+    await deliverEvaluationState();
+    await waitFor(() => expect(pointByName("B")).toMatchObject({ x: 150, y: 10 }));
+    expect(useCadStore.getState().selectedElementId).toBe(idByName("B"));
+
+    // A later evaluation update must not re-apply the resolved intent.
+    await deliverEvaluationState();
+    expect(pointByName("B")).toMatchObject({ x: 150, y: 10 });
+  });
+
+  it("drags the point grabbed at the press position, not the element under the drop position", async () => {
+    const { viewport, deliverEvaluationState } = renderPendingCanvas({
+      initialText: "nui 1\npoint P = (0, 0)\npoint Q = (50, 0)",
+      flushText: "nui 1\npoint P = (0, 0)\npoint Q = (50, 0)\npoint R = (0, 60)"
+    });
+
+    fireEvent.pointerDown(viewport, { button: 0, buttons: 1, clientX: 250, clientY: 200, pointerId: 1 });
+    fireEvent.pointerMove(viewport, { buttons: 1, clientX: 300, clientY: 195, pointerId: 1 });
+    fireEvent.pointerUp(viewport, { buttons: 0, clientX: 300, clientY: 195, pointerId: 1 });
+
+    await deliverEvaluationState();
+    await waitFor(() => expect(pointByName("P")).toMatchObject({ x: 50, y: 5 }));
+    expect(pointByName("Q")).toMatchObject({ x: 50, y: 0 });
+    expect(useCadStore.getState().selectedElementId).toBe(idByName("P"));
+  });
+
+  it("continues a held drag from the press target when the evaluation arrives before pointerup", async () => {
+    const { viewport, deliverEvaluationState } = renderPendingCanvas({
+      initialText: twoPointText,
+      flushText: twoPointFlushText
+    });
+
+    fireEvent.pointerDown(viewport, { button: 0, buttons: 1, clientX: 350, clientY: 200, pointerId: 1 });
+    fireEvent.pointerMove(viewport, { buttons: 1, clientX: 370, clientY: 200, pointerId: 1 });
+    expect(useCadStore.getState().selectedElementId).not.toBe(idByName("B"));
+
+    await deliverEvaluationState();
+    await waitFor(() => expect(viewport).toHaveClass("is-point-dragging"));
+    expect(useCadStore.getState().selectedElementId).toBe(idByName("B"));
+    expect(lastCaptureOpIsAcquire()).toBe(true);
+
+    // The pointerup lands outside the 500x400 viewport; the capture acquired at
+    // resolution keeps routing it to the canvas gesture.
+    const releaseCallsBeforeUp = releasePointerCaptureSpy().mock.calls.length;
+    fireEvent.pointerMove(viewport, { buttons: 1, clientX: 400, clientY: 190, pointerId: 1 });
+    expect(releasePointerCaptureSpy().mock.calls.length).toBe(releaseCallsBeforeUp);
+    fireEvent.pointerUp(viewport, { buttons: 0, clientX: 600, clientY: 150, pointerId: 1 });
+
+    expect(pointByName("B")).toMatchObject({ x: 350, y: 50 });
+    expect(viewport).not.toHaveClass("is-point-dragging");
+    expect(releasePointerCaptureSpy()).toHaveBeenCalledWith(1);
+  });
+
+  it("defers a click when the pointerdown flush is clean but the evaluation is stale", async () => {
+    const { viewport, deliverEvaluationState } = renderPendingCanvas({
+      initialText: twoPointText,
+      debouncedCommitText: twoPointFlushText
+    });
+
+    fireEvent.pointerDown(viewport, { button: 0, buttons: 1, clientX: 350, clientY: 200, pointerId: 1 });
+    fireEvent.pointerUp(viewport, { buttons: 0, clientX: 350, clientY: 200, pointerId: 1 });
+    expect(useCadStore.getState().selectedElementId).not.toBe(idByName("B"));
+
+    await deliverEvaluationState();
+    await waitFor(() => expect(useCadStore.getState().selectedElementId).toBe(idByName("B")));
+  });
+
+  it("replaces a waiting intent with the next gesture and keeps the reused pointer capture", async () => {
+    const { viewport, deliverEvaluationState } = renderPendingCanvas({
+      initialText: twoPointText,
+      flushText: twoPointFlushText
+    });
+    const bId = idByName("B");
+    const selectionLog: (string | null)[] = [];
+    const unsubscribe = useCadUiStore.subscribe((state) => {
+      selectionLog.push(state.selectedElementId);
+    });
+
+    try {
+      fireEvent.pointerDown(viewport, { button: 0, buttons: 1, clientX: 350, clientY: 200, pointerId: 1 });
+      fireEvent.pointerUp(viewport, { buttons: 0, clientX: 350, clientY: 200, pointerId: 1 });
+
+      fireEvent.pointerDown(viewport, { button: 0, buttons: 1, clientX: 250, clientY: 200, pointerId: 1 });
+      // The same pointer id replaced the waiting intent; the capture acquired by
+      // the new gesture must survive the old intent's cleanup.
+      expect(lastCaptureOpIsAcquire()).toBe(true);
+      fireEvent.pointerUp(viewport, { buttons: 0, clientX: 250, clientY: 200, pointerId: 1 });
+
+      await deliverEvaluationState();
+      await waitFor(() => expect(useCadStore.getState().selectedElementId).toBe(idByName("A")));
+      // The replaced click on B never resolves later.
+      expect(selectionLog).not.toContain(bId);
+      await deliverEvaluationState();
+      expect(useCadStore.getState().selectedElementId).toBe(idByName("A"));
+    } finally {
+      unsubscribe();
+    }
+  });
+
+  it("cancels a waiting intent on pointercancel and never executes it", async () => {
+    const { viewport, deliverEvaluationState } = renderPendingCanvas({
+      initialText: twoPointText,
+      flushText: twoPointFlushText
+    });
+    const bId = idByName("B");
+
+    fireEvent.pointerDown(viewport, { button: 0, buttons: 1, clientX: 350, clientY: 200, pointerId: 1 });
+    const releaseCallsBeforeCancel = releasePointerCaptureSpy().mock.calls.length;
+    fireEvent.pointerCancel(viewport, { pointerId: 1 });
+    expect(releasePointerCaptureSpy().mock.calls.length).toBe(releaseCallsBeforeCancel + 1);
+
+    await deliverEvaluationState();
+    expect(useCadStore.getState().selectedElementId).not.toBe(bId);
+    expect(pointByName("B")).toMatchObject({ x: 100, y: 0 });
+  });
+
+  it("cancels a waiting intent after the deadline instead of keeping it forever", async () => {
+    vi.useFakeTimers();
+    const { viewport, deliverEvaluationState } = renderPendingCanvas({
+      initialText: twoPointText,
+      flushText: twoPointFlushText
+    });
+    const bId = idByName("B");
+
+    fireEvent.pointerDown(viewport, { button: 0, buttons: 1, clientX: 350, clientY: 200, pointerId: 1 });
+    act(() => {
+      vi.advanceTimersByTime(5001);
+    });
+    expect(useCadUiStore.getState().commandErrorMessage).toContain("タイムアウト");
+
+    vi.useRealTimers();
+    await deliverEvaluationState();
+    expect(useCadStore.getState().selectedElementId).not.toBe(bId);
+  });
+
+  it("cancels immediately when the flushed text has fatal diagnostics", () => {
+    const { viewport } = renderPendingCanvas({
+      initialText: twoPointText,
+      flushText: `${twoPointText}\npoint`
+    });
+    const bId = idByName("B");
+
+    fireEvent.pointerDown(viewport, { button: 0, buttons: 1, clientX: 350, clientY: 200, pointerId: 1 });
+
+    expect(useCadUiStore.getState().commandErrorMessage).toContain("構文エラー");
+    expect(useCadStore.getState().selectedElementId).not.toBe(bId);
+  });
+
+  it("cancels when the matching evaluation fails, without resolving on a later success", async () => {
+    const { viewport, deliverEvaluationState } = renderPendingCanvas({
+      initialText: twoPointText,
+      flushText: twoPointFlushText
+    });
+    const bId = idByName("B");
+
+    fireEvent.pointerDown(viewport, { button: 0, buttons: 1, clientX: 350, clientY: 200, pointerId: 1 });
+    fireEvent.pointerUp(viewport, { buttons: 0, clientX: 350, clientY: 200, pointerId: 1 });
+
+    await deliverEvaluationState({ status: "failed", error: new Error("evaluation failed") });
+    expect(useCadUiStore.getState().commandErrorMessage).toContain("評価に失敗");
+
+    await deliverEvaluationState();
+    expect(useCadStore.getState().selectedElementId).not.toBe(bId);
+  });
+
+  it("cancels when the pressed target was deleted by the flushed document", async () => {
+    const { viewport, deliverEvaluationState } = renderPendingCanvas({
+      initialText: twoPointText,
+      flushText: "nui 1\npoint A = (0, 0)"
+    });
+    const bId = idByName("B");
+
+    fireEvent.pointerDown(viewport, { button: 0, buttons: 1, clientX: 350, clientY: 200, pointerId: 1 });
+    fireEvent.pointerUp(viewport, { buttons: 0, clientX: 350, clientY: 200, pointerId: 1 });
+
+    await deliverEvaluationState();
+    expect(useCadUiStore.getState().commandErrorMessage).toContain("削除");
+    expect(useCadStore.getState().selectedElementId).not.toBe(bId);
+  });
+
+  it("releases the waiting capture on unmount", () => {
+    const { view, viewport } = renderPendingCanvas({
+      initialText: twoPointText,
+      flushText: twoPointFlushText
+    });
+
+    fireEvent.pointerDown(viewport, { button: 0, buttons: 1, clientX: 350, clientY: 200, pointerId: 1 });
+    const releaseCallsBeforeUnmount = releasePointerCaptureSpy().mock.calls.length;
+    view.unmount();
+
+    expect(releasePointerCaptureSpy().mock.calls.length).toBe(releaseCallsBeforeUnmount + 1);
+    expect(releasePointerCaptureSpy()).toHaveBeenCalledWith(1);
   });
 });

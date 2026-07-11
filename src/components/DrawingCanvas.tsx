@@ -51,6 +51,7 @@ import type {
 import {
   beginPendingCanvasPointer,
   cancelPendingCanvasPointer,
+  createCanvasPointerCaptureLedger,
   initialPendingCanvasPointerState,
   movePendingCanvasPointer,
   pendingCanvasPointerDistance,
@@ -60,6 +61,7 @@ import {
   type PendingCanvasPointerIntent,
   type PendingCanvasPointerTransition
 } from "./pendingCanvasPointer";
+import { evaluationStateIsCurrentFor } from "../geometry/useEvaluationEngine";
 
 type DrawingCanvasProps = {
   evaluation: EvaluationResult;
@@ -117,7 +119,7 @@ export const DrawingCanvas = ({
   const pointDragRef = useRef<PointDragState | null>(null);
   const bezierHandleDragRef = useRef<BezierHandleDragState | null>(null);
   const pendingPointerStateRef = useRef(initialPendingCanvasPointerState());
-  const pendingPointerCaptureTargetsRef = useRef(new Map<number, HTMLDivElement>());
+  const [captureLedger] = useState(createCanvasPointerCaptureLedger);
   const [pendingPointerState, setPendingPointerState] = useState(initialPendingCanvasPointerState);
   const axisLockKeysRef = useRef<AxisLockKeys>({ x: false, y: false });
   const polarLockKeysRef = useRef<PolarLockKeys>({ angle: false, distance: false });
@@ -412,18 +414,12 @@ export const DrawingCanvas = ({
     return Array.from(uniqueCandidates.values());
   }, [activeNumericReferencePickTarget, overlayNumericReferenceCandidates]);
 
-  const releasePendingPointerCapture = useCallback((pointerId: number) => {
-    const target = pendingPointerCaptureTargetsRef.current.get(pointerId);
-    if (target?.hasPointerCapture(pointerId)) target.releasePointerCapture(pointerId);
-    pendingPointerCaptureTargetsRef.current.delete(pointerId);
-  }, []);
-
   const applyPendingPointerTransition = useCallback((transition: PendingCanvasPointerTransition) => {
     pendingPointerStateRef.current = transition.state;
     setPendingPointerState(transition.state);
-    if (transition.releasePointerId !== undefined) releasePendingPointerCapture(transition.releasePointerId);
+    if (transition.releasePointerId !== undefined) captureLedger.release(transition.releasePointerId);
     return transition.resolve;
-  }, [releasePendingPointerCapture]);
+  }, [captureLedger]);
 
   const selectionModeFor = (intent: PendingCanvasPointerIntent) =>
     intent.modifiers.metaKey || intent.modifiers.ctrlKey
@@ -434,24 +430,23 @@ export const DrawingCanvas = ({
 
   /**
    * Resolves an intent only against the current render.  The original pointer
-   * carries coordinates and modifiers, never an old hit-test result.
+   * carries coordinates and modifiers, never an old hit-test result.  The
+   * gesture target is always identified at the pointerdown position
+   * (intent.start); intent.latest contributes only the drag delta, so a drag
+   * moves the element grabbed at the press position even when the drop
+   * position is blank or covers a different element.
    */
   const resolvePrimaryPointerIntent = useCallback((intent: PendingCanvasPointerIntent, viewport: HTMLDivElement) => {
     if (intent.button !== 0 || viewportSize.width <= 0 || viewportSize.height <= 0) return;
     const rect = viewport.getBoundingClientRect();
     const screen = {
-      x: intent.latest.clientX - rect.left - viewport.clientLeft,
-      y: intent.latest.clientY - rect.top - viewport.clientTop
+      x: intent.start.clientX - rect.left - viewport.clientLeft,
+      y: intent.start.clientY - rect.top - viewport.clientTop
     };
     const movement = pendingCanvasPointerDistance(intent);
-    const releaseAfterResolution = () => {
-      if (!intent.pointerReleased) return;
-      releasePendingPointerCapture(intent.pointerId);
-    };
     const beginCapture = () => {
       if (intent.pointerReleased) return;
-      viewport.setPointerCapture(intent.pointerId);
-      pendingPointerCaptureTargetsRef.current.set(intent.pointerId, viewport);
+      captureLedger.capture(viewport, intent.pointerId);
     };
     const focusCanvas = () => viewport.focus();
     const handle = hitTestBezierHandle(screen, selectedBezierHandles, BEZIER_HANDLE_HIT_RADIUS_PX);
@@ -464,7 +459,6 @@ export const DrawingCanvas = ({
       else setLinePickCandidateMenu(null);
       setMeasurementCandidateMenu(null);
       setPointPickCandidateMenu(null);
-      releaseAfterResolution();
       return;
     }
     if (activePointPickTarget) {
@@ -473,7 +467,6 @@ export const DrawingCanvas = ({
       if (candidates.length === 1) applyPointPickCandidate(candidates[0]);
       else if (candidates.length > 1) setPointPickCandidateMenu({ screen, candidates });
       else setPointPickCandidateMenu(null);
-      releaseAfterResolution();
       return;
     }
     if (activeNumericReferencePickTarget) {
@@ -493,7 +486,6 @@ export const DrawingCanvas = ({
       }
       setPointPickCandidateMenu(null);
       setLinePickCandidateMenu(null);
-      releaseAfterResolution();
       return;
     }
 
@@ -549,14 +541,12 @@ export const DrawingCanvas = ({
     });
     if (!elementId) {
       focusCanvas();
-      releaseAfterResolution();
       return;
     }
 
     focusCanvas();
     dispatchCommand("selectElement", { elementId, selectionMode: selectionModeFor(intent) });
     if (!overlayPoints.some(({ point }) => point.elementId === elementId)) {
-      releaseAfterResolution();
       return;
     }
     const dragSnapshot = currentDocumentDragSnapshot();
@@ -600,6 +590,7 @@ export const DrawingCanvas = ({
     applyMeasurementCandidate,
     applyPointPickCandidate,
     canvasViewport.zoom,
+    captureLedger,
     currentDocumentDragSnapshot,
     linePickCandidatesAt,
     numericReferenceCandidatesAt,
@@ -611,7 +602,6 @@ export const DrawingCanvas = ({
     overlayPointPickCandidates,
     overlayPoints,
     overlayTexts,
-    releasePendingPointerCapture,
     selectedBezierHandles,
     viewportSize.height,
     viewportSize.width
@@ -669,10 +659,7 @@ export const DrawingCanvas = ({
       terminalPendingPointer("評価に失敗したためキャンバス操作を続行できませんでした。");
       return;
     }
-    if (
-      evaluationState &&
-      (evaluationState.isStale || evaluationState.evaluationRevision !== documentState.compiledDocumentRevision)
-    ) return;
+    if (!evaluationStateIsCurrentFor(evaluationState, documentState.compiledDocumentRevision)) return;
     if (intent.staleTargetHint && !documentState.elements.some((element) => element.id === intent.staleTargetHint)) {
       terminalPendingPointer("操作対象が更新中に削除されたためキャンバス操作を取り消しました。");
       return;
@@ -701,9 +688,9 @@ export const DrawingCanvas = ({
 
   useEffect(() => () => {
     const transition = cancelPendingCanvasPointer(pendingPointerStateRef.current);
-    if (transition.releasePointerId !== undefined) releasePendingPointerCapture(transition.releasePointerId);
+    if (transition.releasePointerId !== undefined) captureLedger.release(transition.releasePointerId);
     pendingPointerStateRef.current = transition.state;
-  }, [releasePendingPointerCapture]);
+  }, [captureLedger]);
 
   const stopPanning = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (panDragRef.current?.pointerId === event.pointerId) {
@@ -717,9 +704,7 @@ export const DrawingCanvas = ({
     const drag = pointDragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
 
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId);
-    }
+    captureLedger.release(event.pointerId);
 
     const screenDx = event.clientX - drag.startClientX;
     const screenDy = event.clientY - drag.startClientY;
@@ -750,9 +735,7 @@ export const DrawingCanvas = ({
     const drag = bezierHandleDragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
 
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId);
-    }
+    captureLedger.release(event.pointerId);
 
     dispatchCommand("moveBezierHandleByDelta", {
       elementId: drag.elementId,
@@ -782,6 +765,16 @@ export const DrawingCanvas = ({
     }
     if (event.button === 0) {
       const documentState = useCadDocumentStore.getState();
+      // Immediate hit testing is only allowed against a render that reflects
+      // the current document. A pointerdown flush, a stale or in-flight
+      // evaluation (e.g. the editor's own debounced commit already flushed),
+      // or an earlier intent still waiting all defer this gesture to the
+      // resolution effect; a new gesture replaces any waiting intent so the
+      // older intent can never resolve after it.
+      const deferToFreshEvaluation =
+        flushResult === "flushed" ||
+        pendingPointerStateRef.current.kind === "waiting" ||
+        !evaluationStateIsCurrentFor(evaluationState, documentState.compiledDocumentRevision);
       const intent = {
         pointerId: event.pointerId,
         button: event.button,
@@ -792,13 +785,15 @@ export const DrawingCanvas = ({
         compiledDocumentRevision: documentState.compiledDocumentRevision,
         deadlineAt: Date.now() + DEFERRED_POINTER_TIMEOUT_MS,
         // This hint is only an invalidation guard. Resolution below always reruns hit testing.
-        staleTargetHint: flushResult === "flushed" ? staleTargetHintAt(event) : null
+        staleTargetHint: deferToFreshEvaluation ? staleTargetHintAt(event) : null
       };
-      if (flushResult === "flushed") {
+      if (deferToFreshEvaluation) {
         event.preventDefault();
-        event.currentTarget.setPointerCapture(event.pointerId);
-        pendingPointerCaptureTargetsRef.current.set(event.pointerId, event.currentTarget);
+        // Transition first so a replaced intent releases its own capture
+        // before this gesture acquires one; the ledger entry then belongs to
+        // the new gesture even when the pointer id is reused.
         applyPendingPointerTransition(beginPendingCanvasPointer(pendingPointerStateRef.current, intent));
+        captureLedger.capture(event.currentTarget, event.pointerId);
         return;
       }
       resolvePrimaryPointerIntent({ ...intent, pointerReleased: false }, event.currentTarget);
@@ -847,9 +842,7 @@ export const DrawingCanvas = ({
         baseEvaluation: bezierHandleDrag.baseEvaluation
       });
       if (isRejectedDocumentMutation(result)) {
-        if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-          event.currentTarget.releasePointerCapture(event.pointerId);
-        }
+        captureLedger.release(event.pointerId);
         bezierHandleDragRef.current = null;
         setIsBezierHandleDragging(false);
       }
@@ -884,9 +877,7 @@ export const DrawingCanvas = ({
         baseEvaluation: pointDrag.baseEvaluation
       });
       if (isRejectedDocumentMutation(result)) {
-        if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-          event.currentTarget.releasePointerCapture(event.pointerId);
-        }
+        captureLedger.release(event.pointerId);
         pointDragRef.current = null;
         setIsPointDragging(false);
       }

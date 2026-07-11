@@ -1,5 +1,6 @@
 import { act, fireEvent, render, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { EditorView } from "@codemirror/view";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import { AppLayout } from "./AppLayout";
@@ -92,6 +93,83 @@ describe("AppLayout Source Editor production integration", () => {
     const checkbox = await view.findByLabelText("選択可能のみ");
     fireEvent.click(checkbox);
     expect(useCadUiStore.getState().elementSearchPickableOnly).toBe(true);
+  });
+
+  it("applies a dirty drag through the real editor flush and the fresh evaluation", async () => {
+    const view = render(<AppLayout />);
+    const viewport = view.container.querySelector<HTMLDivElement>(".canvas-viewport")!;
+    const cmView = EditorView.findFromDOM(view.container.querySelector<HTMLElement>(".cm-editor")!)!;
+
+    // Uncommitted editor text at gesture time: the canvas must defer to the
+    // real flush and resolve against the freshly evaluated document.
+    act(() => {
+      cmView.dispatch({ changes: { from: cmView.state.doc.length, insert: "\npoint C = (0, 60)" } });
+    });
+
+    fireEvent.pointerDown(viewport, { button: 0, buttons: 1, clientX: 350, clientY: 200, pointerId: 1 });
+    fireEvent.pointerMove(viewport, { buttons: 1, clientX: 400, clientY: 190, pointerId: 1 });
+    fireEvent.pointerUp(viewport, { buttons: 0, clientX: 400, clientY: 190, pointerId: 1 });
+
+    await waitFor(() => {
+      const pointB = useCadDocumentStore.getState().elements.find((element) => element.name === "B");
+      expect(pointB).toMatchObject({ x: 150, y: 10 });
+    });
+    expect(useCadUiStore.getState().selectedElementId).toBe(pointId("B"));
+    expect(useCadDocumentStore.getState().sourceText).toContain("point C");
+    const pointC = useCadDocumentStore.getState().elements.find((element) => element.name === "C");
+    expect(pointC).toMatchObject({ x: 0, y: 60 });
+  });
+
+  it("rejects canvas gestures during IME composition and recovers after compositionend", async () => {
+    const view = render(<AppLayout />);
+    const viewport = view.container.querySelector<HTMLDivElement>(".canvas-viewport")!;
+    const content = view.container.querySelector<HTMLElement>(".cm-content")!;
+    const cmView = EditorView.findFromDOM(view.container.querySelector<HTMLElement>(".cm-editor")!)!;
+
+    fireEvent.compositionStart(content);
+    act(() => {
+      cmView.dispatch({ changes: { from: cmView.state.doc.length, insert: "\npoint 未確定 = (0, 60)" } });
+    });
+
+    fireEvent.pointerDown(viewport, { button: 0, buttons: 1, clientX: 350, clientY: 200, pointerId: 1 });
+    expect(view.getByRole("alert")).toHaveTextContent("日本語入力の確定中");
+    expect(useCadUiStore.getState().selectedElementId).not.toBe(pointId("B"));
+
+    fireEvent.compositionEnd(content);
+    fireEvent.pointerDown(viewport, { button: 0, buttons: 1, clientX: 350, clientY: 200, pointerId: 2 });
+    fireEvent.pointerUp(viewport, { buttons: 0, clientX: 350, clientY: 200, pointerId: 2 });
+
+    await waitFor(() => expect(useCadUiStore.getState().selectedElementId).toBe(pointId("B")));
+    expect(useCadDocumentStore.getState().sourceText).toContain("未確定");
+  });
+
+  it("applies a pick candidate from search Enter through the real controller", async () => {
+    useCadDocumentStore.getState().commitText([
+      "nui 1",
+      "point A = (0, 0)",
+      "point B = (100, 0)",
+      "point C = (0, -50)",
+      "line AB = A -> B"
+    ].join("\n"), "test");
+    const view = render(<AppLayout />);
+    const lineId = useCadDocumentStore.getState().elements.find((element) => element.name === "AB")!.id;
+    const pointC = pointId("C");
+    act(() => {
+      useCadUiStore.getState().setActivePointPickTarget({ elementId: lineId, parameterKey: "startPoint" });
+    });
+
+    const viewport = view.container.querySelector<HTMLDivElement>(".canvas-viewport")!;
+    viewport.focus();
+    fireEvent.keyDown(window, { key: "f", metaKey: true });
+    const input = await view.findByLabelText("要素を検索");
+    fireEvent.change(input, { target: { value: "C" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    await waitFor(() => {
+      const lineElement = useCadDocumentStore.getState().elements.find((element) => element.name === "AB");
+      expect(lineElement).toMatchObject({ startPoint: { mode: "reference", pointId: pointC } });
+    });
+    expect(useCadUiStore.getState().activePointPickTarget).toBeNull();
   });
 
 });

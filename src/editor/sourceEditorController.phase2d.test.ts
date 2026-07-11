@@ -416,3 +416,93 @@ describe("SourceEditorController Mod-S save", () => {
     controller.destroy();
   });
 });
+
+describe("SourceEditorController structural shortcuts", () => {
+  beforeEach(() => {
+    useCadDocumentStore.setState(initialCadDocumentState());
+    useCadUiStore.setState(initialCadUiState());
+    Object.defineProperty(Range.prototype, "getClientRects", { configurable: true, value: () => [] });
+    vi.mocked(dispatchCommand).mockClear();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  const dispatchedCommandIds = () =>
+    vi.mocked(dispatchCommand).mock.calls.map((call) => call[0] as string);
+
+  const buildController = () => {
+    const parent = document.createElement("div");
+    const controller = new SourceEditorController(parent);
+    const content = parent.querySelector<HTMLElement>(".cm-content");
+    if (!content) throw new Error("Missing CodeMirror content");
+    return { controller, content };
+  };
+
+  it("dispatches structural commands from real CodeMirror keydown", () => {
+    const { controller, content } = buildController();
+
+    // jsdom is not detected as macOS, so CodeMirror's Mod prefix is Ctrl here.
+    fireEvent.keyDown(content, { key: "ArrowUp", ctrlKey: true });
+    fireEvent.keyDown(content, { key: "ArrowDown", altKey: true });
+    fireEvent.keyDown(content, { key: "ArrowUp", altKey: true, shiftKey: true });
+    fireEvent.keyDown(content, { key: "ArrowDown", altKey: true, shiftKey: true });
+    fireEvent.keyDown(content, { key: "End", altKey: true, shiftKey: true });
+    fireEvent.keyDown(content, { key: "]", ctrlKey: true });
+    fireEvent.keyDown(content, { key: "[", ctrlKey: true });
+
+    expect(dispatchedCommandIds()).toEqual(expect.arrayContaining([
+      "moveSelectedElementUp",
+      "moveSelectedElementDown",
+      "moveEvaluationDividerUp",
+      "moveEvaluationDividerDown",
+      "moveEvaluationDividerToEnd",
+      "indentSelectedElements",
+      "outdentSelectedElements"
+    ]));
+
+    // Bare brackets stay ordinary DSL text input.
+    fireEvent.keyDown(content, { key: "[" });
+    fireEvent.keyDown(content, { key: "]" });
+    expect(dispatchedCommandIds().filter((id) => id === "outdentSelectedElements")).toHaveLength(1);
+    expect(dispatchedCommandIds().filter((id) => id === "indentSelectedElements")).toHaveLength(1);
+
+    controller.destroy();
+  });
+
+  it("swallows structural shortcuts during composition and recovers after compositionend", async () => {
+    const { controller, content } = buildController();
+
+    fireEvent.compositionStart(content);
+    fireEvent.keyDown(content, { key: "ArrowUp", ctrlKey: true });
+    fireEvent.keyDown(content, { key: "]", ctrlKey: true });
+    expect(dispatchedCommandIds()).not.toContain("moveSelectedElementUp");
+    expect(dispatchedCommandIds()).not.toContain("indentSelectedElements");
+
+    fireEvent.compositionEnd(content);
+    // jsdom reports a WebKit navigator.vendor, so CodeMirror applies its
+    // Safari IME guard: the first key event within 100ms of compositionend is
+    // dropped. Real typing arrives later than that; emulate it here.
+    await new Promise((resolve) => setTimeout(resolve, 110));
+    fireEvent.keyDown(content, { key: "ArrowUp", ctrlKey: true });
+    expect(dispatchedCommandIds()).toContain("moveSelectedElementUp");
+
+    controller.destroy();
+  });
+
+  it("yields structural shortcuts to pick navigation while a pick target is active", () => {
+    const { controller, content } = buildController();
+    useCadUiStore.getState().setActivePointPickTarget({
+      elementId: "target-element",
+      parameterKey: "startPoint" as never
+    });
+
+    fireEvent.keyDown(content, { key: "]", ctrlKey: true });
+    fireEvent.keyDown(content, { key: "ArrowUp", ctrlKey: true });
+    expect(dispatchedCommandIds()).not.toContain("indentSelectedElements");
+    expect(dispatchedCommandIds()).not.toContain("moveSelectedElementUp");
+
+    controller.destroy();
+  });
+});
