@@ -1,12 +1,15 @@
 import { act, fireEvent, render, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { dispatchCommand } from "../commands/commands";
+import type { SourceEditorHandle } from "../editor/sourceEditorTypes";
 import { defaultDocumentPalette } from "../palette/palette";
 import { DEFAULT_PRINT_LAYOUT } from "../print/printLayout";
 import { sampleElements } from "../sampleData";
 import { DEFAULT_DSL_PANEL_WINDOW } from "../state/cadUiStore";
 import { DEFAULT_CANVAS_VIEWPORT, DEFAULT_PRINT_PREVIEW_WINDOW, useCadStore } from "../state/useCadStore";
 import { AppLayout } from "./AppLayout";
+import { SourceEditorContextMenu } from "./SourceEditorContextMenu";
+import { SourceSearchPanel } from "./SourceSearchPanel";
 
 const resetStore = () => {
   useCadStore.setState({
@@ -230,6 +233,102 @@ describe("AppLayout keyboard handling", () => {
 
     expect(useCadStore.getState().elements[0].visible).toBe(false);
     expect(useCadStore.getState().past).toHaveLength(1);
+  });
+});
+
+describe("AppLayout keyboard capture exclusion for the Source Editor UI", () => {
+  const makeSourceEditorHandle = (): SourceEditorHandle => ({
+    focus: vi.fn(),
+    getText: vi.fn(() => ""),
+    setEvaluation: vi.fn(),
+    jumpToElement: vi.fn(),
+    applyPickCandidate: vi.fn(() => true),
+    pickCandidateElementIds: vi.fn(() => []),
+    openTextSearch: vi.fn(),
+    closeTextSearch: vi.fn(),
+    focusSearch: vi.fn()
+  });
+
+  // Mirrors the DOM shape SourceEditorPane.tsx actually produces: SourceSearchPanel and
+  // SourceEditorContextMenu are siblings of the CodeMirror container, not descendants, so
+  // the exclusion marker must live on their shared outer wrapper for AppLayout to skip them.
+  const createSourceEditorScope = () => {
+    const scope = document.createElement("div");
+    scope.setAttribute("data-source-editor-scope", "true");
+    document.body.appendChild(scope);
+    return scope;
+  };
+
+  it("lets the source search input handle Escape locally instead of cancelling an active point pick", () => {
+    render(<AppLayout />);
+    const pickTarget = { elementId: sampleElements[3].id, parameterKey: "startPoint" as never };
+    act(() => {
+      useCadStore.setState({ activePointPickTarget: pickTarget, elementSearchQuery: "Alp" });
+    });
+    const onClose = vi.fn();
+    const scope = createSourceEditorScope();
+    render(<SourceSearchPanel handle={makeSourceEditorHandle()} isOpen onClose={onClose} />, {
+      container: scope
+    });
+    const input = within(scope).getByLabelText("要素を検索") as HTMLInputElement;
+    input.focus();
+
+    fireEvent.keyDown(input, { key: "Escape" });
+    expect(useCadStore.getState().elementSearchQuery).toBe("");
+    expect(useCadStore.getState().activePointPickTarget).toEqual(pickTarget);
+
+    fireEvent.keyDown(input, { key: "Escape" });
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(useCadStore.getState().activePointPickTarget).toEqual(pickTarget);
+  });
+
+  it("keeps Mod+F and Arrow keys local to the source search input instead of activating AppLayout's global navigation", () => {
+    render(<AppLayout />);
+    const initialSelectedId = useCadStore.getState().selectedElementId;
+    const scope = createSourceEditorScope();
+    render(<SourceSearchPanel handle={makeSourceEditorHandle()} isOpen onClose={vi.fn()} />, {
+      container: scope
+    });
+    const input = within(scope).getByLabelText("要素を検索") as HTMLInputElement;
+    input.focus();
+
+    fireEvent.keyDown(input, { key: "f", metaKey: true });
+    expect(document.activeElement).toBe(input);
+
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    fireEvent.keyDown(input, { key: "ArrowUp" });
+    expect(useCadStore.getState().selectedElementId).toBe(initialSelectedId);
+  });
+
+  it("does not let AppLayout double-handle Escape when the Source Editor context menu is open", () => {
+    render(<AppLayout />);
+    // Production code never lets a pick target and an open context menu coexist
+    // (sourceEditorController.ts suppresses the menu while a pick is active), but this
+    // covers the exclusion boundary defensively regardless of that separate guard.
+    const pickTarget = { elementId: sampleElements[3].id, parameterKey: "startPoint" as never };
+    act(() => {
+      useCadStore.setState({ activePointPickTarget: pickTarget });
+    });
+    const onClose = vi.fn();
+    const scope = createSourceEditorScope();
+    render(
+      <SourceEditorContextMenu
+        commandContext={{}}
+        state={{ elementId: sampleElements[3].id, x: 10, y: 10 }}
+        onClose={onClose}
+      />,
+      { container: scope }
+    );
+    const menu = within(scope).getByRole("menu");
+
+    fireEvent.keyDown(menu, { key: "Escape" });
+
+    // onClose alone can't distinguish fixed from buggy behavior: AppLayout's listener
+    // never calls stopPropagation, so the menu's own Escape handler still runs and closes
+    // it either way. Only an unchanged pick target proves AppLayout's window-capture
+    // listener bailed out instead of also cancelling the pick via its Escape branch.
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(useCadStore.getState().activePointPickTarget).toEqual(pickTarget);
   });
 });
 

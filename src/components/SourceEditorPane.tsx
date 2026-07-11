@@ -70,7 +70,7 @@ export const SourceEditorPane = forwardRef<SourceEditorHandle, SourceEditorPaneP
   }), []);
 
   return (
-    <div className="source-editor-pane-wrapper">
+    <div className="source-editor-pane-wrapper" data-source-editor-scope="true">
       <header className="source-editor-header">
         <div className="source-editor-header-actions">
           <button type="button" className="palette-open-button" onClick={() => dispatchCommand("openPaletteSettings")}>

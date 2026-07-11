@@ -286,8 +286,9 @@ export const AppLayout = () => {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      // SourceEditor owns editing keys and its IME/pick Escape ordering. This branch
-      // intentionally precedes every global pick cancellation below.
+      // The whole Source Editor UI region (CodeMirror, its search panel, its context
+      // menu, its ribbon dock) owns editing keys and its own IME/pick Escape ordering.
+      // This branch intentionally precedes every global pick cancellation below.
       if (isSourceEditorKeyboardTarget(event)) return;
       if (useCadUiStore.getState().showShortcutSettings) return;
       if (useCadUiStore.getState().showPaletteSettings) return;

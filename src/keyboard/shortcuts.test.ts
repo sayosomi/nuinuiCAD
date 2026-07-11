@@ -28,13 +28,36 @@ describe("shortcuts", () => {
   });
 
   it("recognizes CodeMirror descendants as an app-capture exclusion scope", () => {
+    const scope = document.createElement("div");
+    scope.setAttribute("data-source-editor-scope", "true");
     const pane = document.createElement("div");
     pane.className = "source-editor-pane";
     const content = document.createElement("div");
     pane.appendChild(content);
-    document.body.appendChild(pane);
+    scope.appendChild(pane);
+    document.body.appendChild(scope);
     expect(isSourceEditorKeyboardTarget(keyboardEventFrom("Escape", content))).toBe(true);
-    pane.remove();
+    scope.remove();
+  });
+
+  it("recognizes Source Editor UI siblings of the CodeMirror container as an app-capture exclusion scope", () => {
+    const scope = document.createElement("div");
+    scope.setAttribute("data-source-editor-scope", "true");
+    const pane = document.createElement("div");
+    pane.className = "source-editor-pane";
+    const searchInput = document.createElement("input");
+    scope.appendChild(pane);
+    scope.appendChild(searchInput);
+    document.body.appendChild(scope);
+    expect(isSourceEditorKeyboardTarget(keyboardEventFrom("Escape", searchInput))).toBe(true);
+    scope.remove();
+  });
+
+  it("does not treat elements outside the Source Editor scope as an app-capture exclusion", () => {
+    const input = document.createElement("input");
+    document.body.appendChild(input);
+    expect(isSourceEditorKeyboardTarget(keyboardEventFrom("Escape", input))).toBe(false);
+    input.remove();
   });
 
   it("maps keys to commands", () => {
