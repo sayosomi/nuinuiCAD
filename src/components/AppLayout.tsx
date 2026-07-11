@@ -5,7 +5,7 @@ import { loadCommandRibbonSettings } from "../commandRibbons/commandRibbonSettin
 import { registerUnsavedChangesGuard } from "../document/unsavedChangesGuard";
 import { useEvaluationEngine } from "../geometry/useEvaluationEngine";
 import { loadShortcutSettings } from "../keyboard/shortcutSettingsStorage";
-import { keyboardCommandForEvent } from "../keyboard/shortcuts";
+import { isSourceEditorKeyboardTarget, keyboardCommandForEvent } from "../keyboard/shortcuts";
 import {
   DEFAULT_LEFT_PANEL_WIDTH,
   clampLeftPanelWidth,
@@ -83,6 +83,7 @@ const saveLeftPanelWidth = (leftPanelWidth: number) => {
 export const AppLayout = () => {
   const elements = useCadDocumentStore(effectiveElements);
   const evaluationLimitIndex = useCadDocumentStore((state) => state.evaluationLimitIndex);
+  const compiledDocumentRevision = useCadDocumentStore((state) => state.compiledDocumentRevision);
   const isParameterEditMode = useCadUiStore((state) => state.isParameterEditMode);
   const isDependencyJumpMode = useCadUiStore((state) => state.isDependencyJumpMode);
   const shortcutSettings = useCadUiStore((state) => state.shortcutSettings);
@@ -119,7 +120,7 @@ export const AppLayout = () => {
   const [isResizingLeftPanel, setIsResizingLeftPanel] = useState(false);
   const leftPanelResizeStartRef = useRef<{ clientX: number; width: number } | null>(null);
   const evaluationOptions = useMemo(() => ({ evaluationLimitIndex }), [evaluationLimitIndex]);
-  const evaluationState = useEvaluationEngine(elements, evaluationOptions);
+  const evaluationState = useEvaluationEngine(elements, evaluationOptions, compiledDocumentRevision);
   const { evaluation } = evaluationState;
   const registerParameterControl = (key: string, element: HTMLElement | null) => {
     if (element) {
@@ -285,6 +286,9 @@ export const AppLayout = () => {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      // SourceEditor owns editing keys and its IME/pick Escape ordering. This branch
+      // intentionally precedes every global pick cancellation below.
+      if (isSourceEditorKeyboardTarget(event)) return;
       if (useCadUiStore.getState().showShortcutSettings) return;
       if (useCadUiStore.getState().showPaletteSettings) return;
       if (useCadUiStore.getState().showGroupTemplateLibrary) return;

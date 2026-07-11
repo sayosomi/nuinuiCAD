@@ -1,7 +1,7 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import type { RefObject } from "react";
 import { SourceEditorController } from "../editor/sourceEditorController";
-import type { SourceEditorHandle } from "../editor/sourceEditorTypes";
+import type { SourceEditorHandle, SourceEvaluationPublication } from "../editor/sourceEditorTypes";
 import type { CommandContext } from "../commands/commands";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { fileNameFromPath } from "../document/nuiFormat";
@@ -31,6 +31,7 @@ export const SourceEditorPane = forwardRef<SourceEditorHandle, SourceEditorPaneP
   const isSearchOpenRef = useRef(isSearchOpen);
   isSearchOpenRef.current = isSearchOpen;
   const [contextMenuState, setContextMenuState] = useState<SourceEditorContextMenuState | null>(null);
+  const [isLastGoodEvaluation, setIsLastGoodEvaluation] = useState(false);
   const currentFilePath = useCadDocumentStore((state) => state.currentFilePath);
   const dirtySinceSave = useCadDocumentStore((state) => state.dirtySinceSave);
   const dockRef = useRef<HTMLDivElement | null>(null);
@@ -42,7 +43,8 @@ export const SourceEditorPane = forwardRef<SourceEditorHandle, SourceEditorPaneP
       onRequestCanvasFocus: () => (canvasFocusRef ?? fallbackCanvasFocusRef).current?.focus(),
       onRequestContextMenu: (elementId: ElementId, x: number, y: number) => setContextMenuState({ elementId, x, y }),
       isSourceSearchOpen: () => isSearchOpenRef.current,
-      closeSourceSearch: () => setIsSearchOpen(false)
+      closeSourceSearch: () => setIsSearchOpen(false),
+      onEvaluationPresentationChange: ({ isLastGood }) => setIsLastGoodEvaluation(isLastGood)
     });
     controllerRef.current = controller;
     return () => {
@@ -55,8 +57,10 @@ export const SourceEditorPane = forwardRef<SourceEditorHandle, SourceEditorPaneP
   useImperativeHandle(ref, () => ({
     focus: () => controllerRef.current?.focus(),
     getText: () => controllerRef.current?.getText() ?? "",
-    setEvaluation: (evaluation, sourceRevision) => controllerRef.current?.setEvaluation(evaluation, sourceRevision),
+    setEvaluation: (publication: SourceEvaluationPublication) => controllerRef.current?.setEvaluation(publication),
     jumpToElement: (elementId) => controllerRef.current?.jumpToElement(elementId),
+    applyPickCandidate: (elementId) => controllerRef.current?.applyPickCandidate(elementId) ?? false,
+    pickCandidateElementIds: () => controllerRef.current?.pickCandidateElementIds() ?? [],
     openTextSearch: () => controllerRef.current?.openTextSearch(),
     closeTextSearch: () => controllerRef.current?.closeTextSearch(),
     focusSearch: () => {
@@ -83,6 +87,7 @@ export const SourceEditorPane = forwardRef<SourceEditorHandle, SourceEditorPaneP
         <p className="document-status" title={currentFilePath ?? "未保存"}>
           <span>{fileNameFromPath(currentFilePath)}</span>
           {dirtySinceSave ? <span className="document-dirty">未保存の変更</span> : null}
+          {isLastGoodEvaluation ? <span className="document-stale-evaluation">評価: last-good</span> : null}
         </p>
         <DocumentDiagnostics />
       </header>

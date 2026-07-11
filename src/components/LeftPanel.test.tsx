@@ -26,6 +26,8 @@ const evaluationEngineState = (
   overrides: Partial<EvaluationEngineState> = {}
 ): EvaluationEngineState => ({
   evaluation: emptyEvaluation,
+  evaluationRevision: 0,
+  evaluationRequestRevision: 0,
   mode: "rust",
   source: "rust",
   status: "ready",

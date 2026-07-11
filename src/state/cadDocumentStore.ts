@@ -67,6 +67,9 @@ export type CadDocumentState = {
   doc: LastGoodDslDocument;
   /** Text represented by doc. A mismatch means sourceText currently has fatal diagnostics. */
   docText: string;
+  /** Monotonic identity of the last-good compiled document. It is independent from
+   * sourceRevision and remains stable while fatal sourceText keeps the prior document. */
+  compiledDocumentRevision: number;
   /** Diagnostics for sourceText, including fatal diagnostics while doc remains last-good. */
   diagnostics: DslDiagnostic[];
   /** @deprecated Derived compatibility views. sourceText remains canonical. */
@@ -237,6 +240,19 @@ const sourceUpdateFields = (
   return { sourceRevision: revision, sourceUpdate };
 };
 
+const canonicalRevisionFields = (
+  state: Pick<CadDocumentState, "sourceRevision" | "compiledDocumentRevision" | "doc">,
+  value: Pick<CanonicalDocumentValue, "sourceText" | "docText" | "doc">,
+  kind: SourceUpdate["kind"],
+  splices: readonly LineSplice[] = []
+) => {
+  const update = sourceUpdateFields(state, kind, splices);
+  return {
+    ...update,
+    compiledDocumentRevision: value.doc === state.doc ? state.compiledDocumentRevision : state.compiledDocumentRevision + 1
+  };
+};
+
 const selectionFromChange = (
   current: CadDocumentSelectionSnapshot,
   change: Partial<CadDocumentSnapshot>
@@ -350,7 +366,7 @@ const modelCommit = (
       past: appendPast(state.past, textSnapshot(current, previousSelection)),
       future: [],
       dirtySinceSave: dirtyForText(current, value.sourceText),
-      ...sourceUpdateFields(state, rebased ? "reset" : updateKind, splices)
+      ...canonicalRevisionFields(state, value, rebased ? "reset" : updateKind, splices)
     },
     result: { status: "applied" },
     selection: { elements: value.doc.document.elements, snapshot: requestedSelection }
@@ -386,6 +402,7 @@ export const initialCadDocumentState = (): Omit<CadDocumentState, keyof CadDocum
     ...canonicalFields(canonical),
     sourceRevision: 0,
     sourceUpdate: { revision: 0, kind: "reset" },
+    compiledDocumentRevision: 0,
     previewElements: null,
     past: [],
     future: [],
@@ -512,7 +529,7 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
         ),
         future: [],
         dirtySinceSave: dirtyForText(state, result.sourceText),
-        ...sourceUpdateFields(state, origin === "editor" ? "editor" : "reset")
+        ...canonicalRevisionFields(state, result, origin === "editor" ? "editor" : "reset")
       };
     });
     if (selectionElements) useCadUiStore.getState().reconcileSelectionWithElements(selectionElements);
@@ -772,7 +789,7 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
           currentFilePath,
           savedSourceText: canonical.sourceText,
           dirtySinceSave: false,
-          ...sourceUpdateFields(state, "reset")
+          ...canonicalRevisionFields(state, canonical, "reset")
         };
       } catch (error) {
         console.error(`[canonicalDocument] 文書読込の正準化に失敗したため現在の文書を維持します: ${String(error)}`);
@@ -805,7 +822,7 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
         currentFilePath: options.currentFilePath,
         savedSourceText: options.dirtySinceSave ? null : compiled.sourceText,
         dirtySinceSave: options.dirtySinceSave,
-        ...sourceUpdateFields(state, "reset")
+        ...canonicalRevisionFields(state, compiled, "reset")
       };
     });
     if (selectionElements) {
@@ -853,7 +870,7 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
         past: state.past.slice(0, -1),
         future: [textSnapshot(state, previousSelection), ...state.future],
         dirtySinceSave: dirtyForText(state, restored.sourceText),
-        ...sourceUpdateFields(state, "reset")
+        ...canonicalRevisionFields(state, restored, "reset")
       };
     });
     if (selectionResult.value) {
@@ -895,7 +912,7 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
         past: appendPast(state.past, textSnapshot(state, previousSelection)),
         future: state.future.slice(1),
         dirtySinceSave: dirtyForText(state, restored.sourceText),
-        ...sourceUpdateFields(state, "reset")
+        ...canonicalRevisionFields(state, restored, "reset")
       };
     });
     if (selectionResult.value) {

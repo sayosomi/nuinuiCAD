@@ -72,13 +72,14 @@ afterEach(() => {
 describe("useEvaluationEngine", () => {
   it("returns the reference evaluation in browser mode", () => {
     const { result } = renderHook(() =>
-      useEvaluationEngine(elements, { evaluationLimitIndex: elements.length })
+      useEvaluationEngine(elements, { evaluationLimitIndex: elements.length }, 41)
     );
 
     expect(result.current.mode).toBe("reference");
     expect(result.current.source).toBe("reference");
     expect(result.current.status).toBe("idle");
     expect(result.current.evaluation.computedGeometry.size).toBe(3);
+    expect(result.current.evaluationRevision).toBe(41);
     expect(invokeMock).not.toHaveBeenCalled();
   });
 
@@ -151,9 +152,9 @@ describe("useEvaluationEngine", () => {
     invokeMock.mockResolvedValueOnce(evaluateElementsReferencePayload(elements));
 
     const { result, rerender } = renderHook(
-      ({ nextElements }: { nextElements: CadElement[] }) =>
-        useEvaluationEngine(nextElements, { evaluationLimitIndex: nextElements.length }),
-      { initialProps: { nextElements: elements } }
+      ({ nextElements, revision }: { nextElements: CadElement[]; revision: number }) =>
+        useEvaluationEngine(nextElements, { evaluationLimitIndex: nextElements.length }, revision),
+      { initialProps: { nextElements: elements, revision: 7 } }
     );
 
     await waitFor(() => expect(result.current.status).toBe("ready"));
@@ -171,13 +172,15 @@ describe("useEvaluationEngine", () => {
           x: 0,
           y: 50
         }
-      ]
+      ],
+      revision: 8
     });
 
     expect(result.current.status).toBe("evaluating");
     expect(result.current.source).toBe("rust");
     expect(result.current.isStale).toBe(true);
     expect(result.current.evaluation.computedGeometry.size).toBe(3);
+    expect(result.current.evaluationRevision).toBe(7);
   });
 
   it("falls back to the TypeScript reference evaluation when Rust evaluation fails", async () => {

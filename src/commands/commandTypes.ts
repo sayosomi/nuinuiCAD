@@ -86,6 +86,7 @@ export type CommandId =
   | "toggleElementEnabled"
   | "toggleElementLocked"
   | "toggleGroupPrintEnabled"
+  | "toggleSelectedGroupPrintEnabled"
   | "toggleSelectedElementVisibility"
   | "toggleSelectedElementEnabled"
   | "toggleSelectedElementLocked"

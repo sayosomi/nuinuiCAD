@@ -22,7 +22,7 @@ import {
   type SourceUpdateProtocolState
 } from "./sourceUpdateProtocol";
 import { normalizeSourceTextForEditor, serializeEditorText, sourceTextFormat } from "./sourceTextFormat";
-import type { SourceEditorControllerOptions, SourceEditorHandle, SourceTextFormat } from "./sourceEditorTypes";
+import type { SourceEditorControllerOptions, SourceEditorHandle, SourceEvaluationPublication, SourceTextFormat } from "./sourceEditorTypes";
 import {
   elementIdAtCursor,
   createAtStopRange,
@@ -36,7 +36,8 @@ import { foldProjectionTransaction, foldTargetAtLine, foldTargets } from "./sour
 import { secondarySelectionEffect, sourceEditorSelectionExtension } from "./sourceEditorSelection";
 import { createDiagnosticsExtension } from "./sourceEditorDiagnosticsExtension";
 import { mapPositionedDiagnostics, toStaleDiagnostics, type PositionedDiagnostic } from "./sourceEditorDiagnostics";
-import { createEvaluationExtension, evaluationChanged } from "./sourceEditorEvaluationExtension";
+import { createEvaluationExtension, evaluationChanged, type EvaluationGutterAction } from "./sourceEditorEvaluationExtension";
+import { createEvaluationDecorationIndex, type EvaluationDecorationIndex } from "./sourceEditorEvaluationIndex";
 
 type SourceStore = {
   getState: () => CadDocumentState;
@@ -72,8 +73,11 @@ export class SourceEditorController implements SourceEditorHandle {
   private statementRanges: StatementRangeIndex = new Map();
   private atStopRange: AtStopRange | null = null;
   private staleDiagnosticBaseline: PositionedDiagnostic[] = [];
-  private pendingEvaluation: { evaluation: EvaluationResult; sourceRevision: number } | null = null;
-  private appliedEvaluation: EvaluationResult | null = null;
+  /** At most two newest compiled-document revisions are retained; older results can never become current. */
+  private pendingEvaluations = new Map<number, { evaluation: EvaluationResult; evaluationRequestRevision: number }>();
+  private appliedEvaluation: { evaluation: EvaluationResult; compiledDocumentRevision: number; evaluationRequestRevision: number } | null = null;
+  private decorationIndex: EvaluationDecorationIndex = { statuses: [], statusByLineFrom: new Map(), generatedWidgets: [], pickLines: [] };
+  private pendingDecorationRefresh = false;
   private pendingSelectionSync = false;
   private pendingFoldProjection = false;
   private applyingUiSync = false;
@@ -124,13 +128,11 @@ export class SourceEditorController implements SourceEditorHandle {
             staleBaseline: () => this.staleDiagnosticBaseline
           }),
           createEvaluationExtension({
-            statementRanges: () => this.statementRanges,
-            elements: () => this.store.getState().elements,
-            evaluation: () => this.appliedEvaluation,
-            groupFoldById: () => this.uiStore.getState().groupFoldById,
+            index: () => this.decorationIndex,
             atStopRange: () => this.atStopRange,
-            pickCandidates: () => this.currentPickCandidates(),
-            pickCursorElementId: () => this.uiStore.getState().activePickCursor?.elementId ?? null
+            pickCursorElementId: () => this.uiStore.getState().activePickCursor?.elementId ?? null,
+            isLastGood: () => this.isShowingLastGoodEvaluation(),
+            onGutterAction: (action, lineFrom) => this.handleEvaluationGutterAction(action, lineFrom)
           }),
           search(),
           this.historyCompartment.of(history()),
@@ -140,6 +142,10 @@ export class SourceEditorController implements SourceEditorHandle {
             { key: "Mod-Shift-z", run: () => this.runRedo() },
             { key: "Mod-s", run: () => this.runSave() },
             { key: "Enter", run: () => this.runPickApply() },
+            { key: "ArrowDown", run: () => this.runPickNavigation("selectNextPickCandidate") },
+            { key: "ArrowUp", run: () => this.runPickNavigation("selectPreviousPickCandidate") },
+            { key: "ArrowRight", run: () => this.runPickNavigation("selectNextPickOption") },
+            { key: "ArrowLeft", run: () => this.runPickNavigation("selectPreviousPickOption") },
             { key: "Ctrl-Shift-[", mac: "Mod-Alt-[", run: () => this.changeFoldAtCursor("fold") },
             { key: "Ctrl-Shift-]", mac: "Mod-Alt-]", run: () => this.changeFoldAtCursor("unfold") },
             { key: "Ctrl-Alt-[", run: () => this.changeAllFolds(false) },
@@ -194,11 +200,18 @@ export class SourceEditorController implements SourceEditorHandle {
         next.selectedElementId !== previous.selectedElementId ||
         next.selectedElementIds !== previous.selectedElementIds;
       const foldChanged = next.groupFoldById !== previous.groupFoldById;
+      const decorationChanged = foldChanged ||
+        next.activePickCursor !== previous.activePickCursor ||
+        next.activePointPickTarget !== previous.activePointPickTarget ||
+        next.activeNumericReferencePickTarget !== previous.activeNumericReferencePickTarget ||
+        next.activeLinePickTarget !== previous.activeLinePickTarget;
       if (selectionChanged) this.pendingSelectionSync = true;
       if (foldChanged) this.pendingFoldProjection = true;
+      if (decorationChanged) this.requestDecorationRefresh();
       this.applyPendingUiSync();
     });
     this.refreshStatementRanges();
+    this.refreshDecorationIndex();
     this.pendingSelectionSync = true;
     this.pendingFoldProjection = true;
     this.applyPendingUiSync();
@@ -214,14 +227,22 @@ export class SourceEditorController implements SourceEditorHandle {
    */
   hasPendingText = () => !this.view.state.doc.eq(this.committedDoc);
 
-  /**
-   * `sourceRevision` must match the revision the evaluation was computed against, and
-   * CM must have already caught up to it, before the result is used for decorations.
-   * Otherwise it is held pending and re-checked on every subsequent source update, so
-   * a lagging evaluation call never paints over text it wasn't computed for.
-   */
-  setEvaluation = (evaluation: EvaluationResult, sourceRevision: number) => {
-    this.pendingEvaluation = { evaluation, sourceRevision };
+  /** Results are keyed by the compiled document revision captured at request start.
+   * Keep at most the two newest future revisions; lower revisions are permanently stale. */
+  setEvaluation = (publication: SourceEvaluationPublication) => {
+    const current = this.store.getState().compiledDocumentRevision;
+    if (publication.compiledDocumentRevision < current) return;
+    if (this.appliedEvaluation?.compiledDocumentRevision === publication.compiledDocumentRevision &&
+      this.appliedEvaluation.evaluationRequestRevision >= publication.evaluationRequestRevision) return;
+    const pending = this.pendingEvaluations.get(publication.compiledDocumentRevision);
+    if (pending && pending.evaluationRequestRevision >= publication.evaluationRequestRevision) return;
+    this.pendingEvaluations.set(publication.compiledDocumentRevision, {
+      evaluation: publication.evaluation,
+      evaluationRequestRevision: publication.evaluationRequestRevision
+    });
+    for (const revision of [...this.pendingEvaluations.keys()].sort((left, right) => left - right)) {
+      if (revision < current || this.pendingEvaluations.size > 2) this.pendingEvaluations.delete(revision);
+    }
     this.tryApplyPendingEvaluation();
   };
 
@@ -236,6 +257,16 @@ export class SourceEditorController implements SourceEditorHandle {
     this.uiStore.getState().setSelectedElementId(elementId);
   };
 
+  pickCandidateElementIds = () => this.decorationIndex.pickLines.map((line) => line.elementId);
+
+  applyPickCandidate = (elementId: ElementId) => {
+    if (this.protocol.composing || this.flush("command") === "blocked-composition") return false;
+    const candidate = this.currentPickCandidates().find((item) => item.elementId === elementId);
+    if (!candidate) return false;
+    this.uiStore.getState().setActivePickCursor({ elementId: candidate.elementId, optionIndex: 0 });
+    return dispatchCommand("applySelectedPickCandidate") !== false;
+  };
+
   openTextSearch = () => {
     openSearchPanel(this.view);
   };
@@ -247,17 +278,26 @@ export class SourceEditorController implements SourceEditorHandle {
   focusSearch = () => this.view.focus();
 
   private tryApplyPendingEvaluation() {
-    if (this.destroyed || !this.pendingEvaluation) return;
-    if (this.pendingEvaluation.sourceRevision !== this.store.getState().sourceRevision) return;
+    if (this.destroyed) return;
+    const state = this.store.getState();
+    const pending = this.pendingEvaluations.get(state.compiledDocumentRevision);
+    if (!pending) return;
     if (!this.sourceIsApplied()) return;
-    this.appliedEvaluation = this.pendingEvaluation.evaluation;
-    this.pendingEvaluation = null;
-    this.view.dispatch({ effects: evaluationChanged.of(null) });
+    if (this.appliedEvaluation?.compiledDocumentRevision === state.compiledDocumentRevision &&
+      this.appliedEvaluation.evaluationRequestRevision >= pending.evaluationRequestRevision) return;
+    this.appliedEvaluation = {
+      evaluation: pending.evaluation,
+      compiledDocumentRevision: state.compiledDocumentRevision,
+      evaluationRequestRevision: pending.evaluationRequestRevision
+    };
+    this.pendingEvaluations.delete(state.compiledDocumentRevision);
+    this.options.onEvaluationPresentationChange?.({ isLastGood: this.isShowingLastGoodEvaluation() });
+    this.refreshDecorationIndex();
   }
 
   private currentPickCandidates() {
     const ui = this.uiStore.getState();
-    const evaluation = this.appliedEvaluation;
+    const evaluation = this.appliedEvaluation?.evaluation;
     if (!evaluation) return [];
     return pickCandidates(this.store.getState().elements, evaluation, {
       activePointPickTarget: ui.activePointPickTarget,
@@ -267,26 +307,25 @@ export class SourceEditorController implements SourceEditorHandle {
   }
 
   private runSave() {
-    this.flush("save");
+    if (this.flush("save") === "blocked-composition") return true;
     dispatchCommand("saveDocument");
     return true;
   }
 
   private runPickApply() {
+    if (this.protocol.composing || this.flush("command") === "blocked-composition") return true;
     const ui = this.uiStore.getState();
-    const pickTarget = ui.activePointPickTarget ?? ui.activeNumericReferencePickTarget ?? ui.activeLinePickTarget;
-    if (!pickTarget) return false;
-    const cursorId = ui.activePickCursor?.elementId ?? null;
-    if (!cursorId) return false;
-    const candidates = this.currentPickCandidates();
-    const candidate = candidates.find((item) => item.elementId === cursorId);
-    const option = candidate?.options[ui.activePickCursor?.optionIndex ?? 0];
-    if (!option) return false;
-    if (option.kind === "point") dispatchCommand("applyPickedPoint", { pickedPointAnchor: option.anchor });
-    else if (option.kind === "line") dispatchCommand("applyPickedLine", { pickedLineId: option.lineId });
-    else if (option.kind === "numericReference" || option.kind === "variableReference") {
-      dispatchCommand("applyPickedNumericReference", { numericReferenceExpression: option.expression });
-    }
+    if (!(ui.activePointPickTarget || ui.activeNumericReferencePickTarget || ui.activeLinePickTarget)) return false;
+    const cursor = ui.activePickCursor;
+    if (!cursor || !this.currentPickCandidates().some((candidate) => candidate.elementId === cursor.elementId)) return false;
+    return dispatchCommand("applySelectedPickCandidate") !== false;
+  }
+
+  private runPickNavigation(commandId: "selectNextPickCandidate" | "selectPreviousPickCandidate" | "selectNextPickOption" | "selectPreviousPickOption") {
+    if (this.protocol.composing) return true;
+    const ui = this.uiStore.getState();
+    if (!(ui.activePointPickTarget || ui.activeNumericReferencePickTarget || ui.activeLinePickTarget)) return false;
+    dispatchCommand(commandId);
     return true;
   }
 
@@ -325,12 +364,19 @@ export class SourceEditorController implements SourceEditorHandle {
   }
 
   private handleContextMenu(event: MouseEvent, view: EditorView) {
+    const ui = this.uiStore.getState();
+    if (this.protocol.composing || ui.activePointPickTarget || ui.activeNumericReferencePickTarget || ui.activeLinePickTarget) return false;
     const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
     if (pos === null) return false;
     const lineFrom = view.state.doc.lineAt(pos).from;
+    if (this.flush("command") === "blocked-composition") return true;
     const elementId = elementIdAtCursor(this.statementRanges, lineFrom);
-    if (!elementId || !this.options.onRequestContextMenu) return false;
+    if (!elementId || !this.store.getState().elements.some((element) => element.id === elementId) || !this.options.onRequestContextMenu) return false;
     event.preventDefault();
+    if (this.uiStore.getState().selectedElementId !== elementId) {
+      if (dispatchCommand("selectElement", { elementId }) === false) return true;
+      if (!this.store.getState().elements.some((element) => element.id === elementId)) return true;
+    }
     this.options.onRequestContextMenu(elementId, event.clientX, event.clientY);
     return true;
   }
@@ -389,6 +435,7 @@ export class SourceEditorController implements SourceEditorHandle {
       this.statementRanges = mapStatementRangeIndex(this.statementRanges, update.changes);
       this.atStopRange = mapAtStopRange(this.atStopRange, update.changes);
       this.staleDiagnosticBaseline = mapPositionedDiagnostics(this.staleDiagnosticBaseline, update.changes);
+      this.requestDecorationRefresh();
     }
     if (update.docChanged && !isExternal && !this.protocol.composing) {
       const wasPendingBeforeThisUpdate = !update.startState.doc.eq(this.committedDoc);
@@ -467,6 +514,10 @@ export class SourceEditorController implements SourceEditorHandle {
     const result = endSourceComposition(this.protocol, this.store.getState().sourceRevision);
     this.protocol = result.state;
     for (const action of result.actions) this.apply(action);
+    if (this.pendingDecorationRefresh) {
+      this.pendingDecorationRefresh = false;
+      this.refreshDecorationIndex();
+    }
     this.applyPendingUiSync();
   }
 
@@ -506,8 +557,9 @@ export class SourceEditorController implements SourceEditorHandle {
     this.syncCommittedText(sourceText);
     // Clear before the doc-replace transaction dispatches, so no intermediate frame
     // shows the previous document's evaluation decorations over the new text.
-    this.pendingEvaluation = null;
+    this.pendingEvaluations.clear();
     this.appliedEvaluation = null;
+    this.options.onEvaluationPresentationChange?.({ isLastGood: false });
     const cursorLine = useCadUiStore.getState().sourceCursorLine;
     const cursorOffset = cursorLine === null
       ? null
@@ -528,6 +580,8 @@ export class SourceEditorController implements SourceEditorHandle {
    */
   private afterSourceUpdate() {
     this.refreshStatementRanges();
+    this.reconcileEvaluationForSource();
+    this.refreshDecorationIndex();
     this.pendingSelectionSync = true;
     this.pendingFoldProjection = true;
     this.applyPendingUiSync();
@@ -544,6 +598,66 @@ export class SourceEditorController implements SourceEditorHandle {
     this.statementRanges = createStatementRangeIndex(this.view.state.doc, state.doc.statementMap);
     this.atStopRange = createAtStopRange(this.view.state.doc, state.doc.statementMap);
     this.staleDiagnosticBaseline = toStaleDiagnostics(this.view.state.doc, state.diagnostics);
+  }
+
+  private reconcileEvaluationForSource() {
+    const state = this.store.getState();
+    for (const revision of this.pendingEvaluations.keys()) {
+      if (revision < state.compiledDocumentRevision) this.pendingEvaluations.delete(revision);
+    }
+    if (state.docText === state.sourceText && this.appliedEvaluation?.compiledDocumentRevision !== state.compiledDocumentRevision) {
+      this.appliedEvaluation = null;
+    }
+    this.options.onEvaluationPresentationChange?.({ isLastGood: this.isShowingLastGoodEvaluation() });
+  }
+
+  private isShowingLastGoodEvaluation() {
+    const state = this.store.getState();
+    return Boolean(this.appliedEvaluation && state.docText !== state.sourceText && this.appliedEvaluation.compiledDocumentRevision === state.compiledDocumentRevision);
+  }
+
+  private refreshDecorationIndex() {
+    const state = this.store.getState();
+    this.decorationIndex = createEvaluationDecorationIndex({
+      ranges: this.statementRanges,
+      elements: state.elements,
+      evaluation: this.appliedEvaluation?.evaluation ?? null,
+      groupFoldById: this.uiStore.getState().groupFoldById,
+      palette: state.palette,
+      visibilityProfiles: state.visibilityProfiles,
+      activeVisibilityProfileId: state.activeVisibilityProfileId,
+      pickCandidates: this.currentPickCandidates()
+    });
+    if (!this.destroyed && !this.protocol.composing) this.view.dispatch({ effects: evaluationChanged.of(null) });
+    else this.pendingDecorationRefresh = true;
+  }
+
+  private requestDecorationRefresh() {
+    if (this.protocol.composing) {
+      this.pendingDecorationRefresh = true;
+      return;
+    }
+    this.refreshDecorationIndex();
+  }
+
+  private handleEvaluationGutterAction(action: EvaluationGutterAction, lineFrom: number) {
+    if (this.protocol.composing || this.flush("command") === "blocked-composition") return false;
+    if (action === "stop") {
+      if (!this.atStopRange || this.atStopRange.from !== lineFrom) return false;
+      const preceding = [...this.statementRanges.values()].filter((range) => range.to < lineFrom).at(-1);
+      const index = preceding ? this.store.getState().elements.findIndex((element) => element.id === preceding.elementId) + 1 : 0;
+      return dispatchCommand("setEvaluationLimitIndex", { evaluationLimitIndex: index }) !== false;
+    }
+    const elementId = elementIdAtCursor(this.statementRanges, lineFrom);
+    if (!elementId || !this.store.getState().elements.some((element) => element.id === elementId)) return false;
+    const commandId = action === "visibility"
+      ? "toggleElementVisibility"
+      : action === "enabled"
+        ? "toggleElementEnabled"
+        : action === "locked"
+          ? "toggleElementLocked"
+          : "toggleGroupPrintEnabled";
+    return dispatchCommand(commandId, { elementId }) !== false;
   }
 
   private sourceIsApplied() {

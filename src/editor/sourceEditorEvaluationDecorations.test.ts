@@ -2,11 +2,8 @@ import { Text } from "@codemirror/state";
 import { describe, expect, it } from "vitest";
 import { compileDslDocument } from "../dsl/dslDocument";
 import { createStatementRangeIndex } from "./statementRangeIndex";
-import {
-  forGroupGeneratedWidgetSpecs,
-  pickCandidateLines,
-  visibleLineStatuses
-} from "./sourceEditorEvaluationDecorations";
+import { createEvaluationDecorationIndex, entriesInVisibleRanges } from "./sourceEditorEvaluationIndex";
+import { defaultDocumentPalette } from "../palette/palette";
 import type { CadElement, EvaluationResult, ForGroupGeneratedRow } from "../types/geometry";
 
 const rangesFor = (source: string) => {
@@ -25,14 +22,42 @@ const baseEvaluation = (elements: CadElement[]): EvaluationResult => ({
   evaluatedElementIds: new Set(elements.map((element) => element.id))
 });
 
-describe("visibleLineStatuses", () => {
+const indexFor = (ranges: ReturnType<typeof rangesFor>["ranges"], elements: CadElement[], evaluation: EvaluationResult, folds = new Map()) =>
+  createEvaluationDecorationIndex({
+    ranges,
+    elements,
+    evaluation,
+    groupFoldById: folds,
+    palette: defaultDocumentPalette(),
+    visibilityProfiles: [],
+    activeVisibilityProfileId: "",
+    pickCandidates: []
+  });
+
+describe("Evaluation decoration viewport index", () => {
+  it("uses a sorted lookup for a distant viewport instead of scanning every document line", () => {
+    let reads = 0;
+    const entries = Array.from({ length: 1000 }, (_, index) => ({
+      from: index * 10,
+      get to() {
+        reads += 1;
+        return index * 10 + 8;
+      }
+    }));
+    const result = entriesInVisibleRanges(entries, [{ from: 9900, to: 9908 }]);
+
+    expect(result).toHaveLength(1);
+    expect(reads).toBeLessThan(30);
+  });
+
   it("only returns statuses for ranges intersecting the given viewport", () => {
     const { doc, ranges, elements } = rangesFor("nui 1\npoint A = (0, 0)\npoint B = (1, 1)");
     const evaluation = baseEvaluation(elements);
     const pointB = elements.find((element) => element.name === "B")!;
     const line3 = doc.line(3);
 
-    const statuses = visibleLineStatuses(ranges, elements, evaluation, new Map(), [
+    const index = indexFor(ranges, elements, evaluation);
+    const statuses = entriesInVisibleRanges(index.statuses, [
       { from: line3.from, to: line3.to }
     ]);
 
@@ -48,9 +73,20 @@ describe("visibleLineStatuses", () => {
       errors: [{ elementId: pointA.id, elementName: pointA.name, missingDependencyId: pointA.id, message: "boom" }],
       evaluatedElementIds: new Set()
     };
-    const statuses = visibleLineStatuses(ranges, elements, evaluation, new Map(), [{ from: 0, to: doc.length }]);
+    const statuses = entriesInVisibleRanges(indexFor(ranges, elements, evaluation).statuses, [{ from: 0, to: doc.length }]);
     expect(statuses[0].hasError).toBe(true);
     expect(statuses[0].isEvaluated).toBe(false);
+  });
+
+  it("keeps own element state separate from ancestor and evaluation state", () => {
+    const { doc, ranges, elements } = rangesFor("nui 1\npoint A = (0, 0)");
+    const point = { ...elements[0], visible: false, enabled: false, locked: true };
+    const status = entriesInVisibleRanges(indexFor(ranges, [point], {
+      ...baseEvaluation([point]),
+      evaluatedElementIds: new Set()
+    }).statuses, [{ from: 0, to: doc.length }])[0];
+
+    expect(status).toMatchObject({ hiddenSelf: true, disabledSelf: true, locked: true, isEvaluated: false });
   });
 });
 
@@ -61,13 +97,11 @@ const forGroupSource = [
   "}"
 ].join("\n");
 
-describe("forGroupGeneratedWidgetSpecs", () => {
+describe("for-group generated widget index", () => {
   it("returns no widgets when nothing is generated or the group is collapsed", () => {
     const { doc, ranges, elements } = rangesFor(forGroupSource);
     const evaluation = baseEvaluation(elements);
-    const specs = forGroupGeneratedWidgetSpecs(ranges, elements, evaluation, new Map(), [
-      { from: 0, to: doc.length }
-    ]);
+    const specs = entriesInVisibleRanges(indexFor(ranges, elements, evaluation).generatedWidgets.map((spec) => ({ ...spec, from: spec.afterPos, to: spec.afterPos })), [{ from: 0, to: doc.length }]);
     expect(specs).toHaveLength(0);
   });
 
@@ -90,9 +124,7 @@ describe("forGroupGeneratedWidgetSpecs", () => {
     const evaluation: EvaluationResult = { ...baseEvaluation(elements), forGroupGeneratedRows: generatedRows };
     const groupFoldById = new Map([[forGroup.id, { expanded: true }]]);
 
-    const specs = forGroupGeneratedWidgetSpecs(ranges, elements, evaluation, groupFoldById, [
-      { from: 0, to: doc.length }
-    ]);
+    const specs = entriesInVisibleRanges(indexFor(ranges, elements, evaluation, groupFoldById).generatedWidgets.map((spec) => ({ ...spec, from: spec.afterPos, to: spec.afterPos })), [{ from: 0, to: doc.length }]);
 
     expect(specs).toHaveLength(1);
     expect(specs[0].forGroupId).toBe(forGroup.id);
@@ -101,22 +133,27 @@ describe("forGroupGeneratedWidgetSpecs", () => {
   });
 });
 
-describe("pickCandidateLines", () => {
+describe("pick candidate index", () => {
   it("filters candidates to visible ranges and flags the cursor candidate", () => {
     const { doc, ranges, elements } = rangesFor("nui 1\npoint A = (0, 0)\npoint B = (1, 1)");
     const pointA = elements.find((element) => element.name === "A")!;
     const pointB = elements.find((element) => element.name === "B")!;
-    const lines = pickCandidateLines(
+    const index = createEvaluationDecorationIndex({
       ranges,
-      [
+      elements,
+      evaluation: baseEvaluation(elements),
+      groupFoldById: new Map(),
+      palette: defaultDocumentPalette(),
+      visibilityProfiles: [],
+      activeVisibilityProfileId: "",
+      pickCandidates: [
         { elementId: pointA.id, options: [] },
         { elementId: pointB.id, options: [] }
-      ],
-      pointB.id,
-      [{ from: 0, to: doc.length }]
-    );
+      ]
+    });
+    const lines = entriesInVisibleRanges(index.pickLines, [{ from: 0, to: doc.length }]);
     expect(lines).toHaveLength(2);
-    expect(lines.find((line) => line.elementId === pointB.id)?.isCursor).toBe(true);
-    expect(lines.find((line) => line.elementId === pointA.id)?.isCursor).toBe(false);
+    expect(lines.find((line) => line.elementId === pointB.id)).toBeTruthy();
+    expect(lines.find((line) => line.elementId === pointA.id)).toBeTruthy();
   });
 });

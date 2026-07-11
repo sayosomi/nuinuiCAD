@@ -18,6 +18,10 @@ export type EvaluationStatus = "idle" | "evaluating" | "ready" | "failed";
 
 export type EvaluationEngineState = {
   evaluation: EvaluationResult;
+  /** Revision of the compiled document used to start this evaluation request. */
+  evaluationRevision: number;
+  /** Monotonic request identity; distinguishes retries/results for the same document. */
+  evaluationRequestRevision: number;
   mode: EvaluationEngineMode;
   source: EvaluationSource;
   status: EvaluationStatus;
@@ -28,15 +32,35 @@ export type EvaluationEngineState = {
 
 type AsyncEvaluationState = {
   requestKey: string;
+  evaluationRevision: number;
+  evaluationRequestRevision: number;
   evaluation: EvaluationResult;
   source: Exclude<EvaluationSource, "reference">;
   status: Extract<EvaluationStatus, "ready" | "failed">;
   error: unknown | null;
 };
 
+let nextEvaluationRequestRevision = 1;
+const evaluationRequestRevisionByKey = new Map<string, number>();
+const MAX_REQUEST_IDENTITIES = 256;
+
+const requestRevisionFor = (key: string) => {
+  const existing = evaluationRequestRevisionByKey.get(key);
+  if (existing !== undefined) return existing;
+  const revision = nextEvaluationRequestRevision;
+  nextEvaluationRequestRevision += 1;
+  evaluationRequestRevisionByKey.set(key, revision);
+  if (evaluationRequestRevisionByKey.size > MAX_REQUEST_IDENTITIES) {
+    const oldest = evaluationRequestRevisionByKey.keys().next().value;
+    if (oldest !== undefined) evaluationRequestRevisionByKey.delete(oldest);
+  }
+  return revision;
+};
+
 export const useEvaluationEngine = (
   elements: CadElement[],
-  options: EvaluateElementsOptions
+  options: EvaluateElementsOptions,
+  evaluationRevision = 0
 ): EvaluationEngineState => {
   const evaluationLimitIndex = options.evaluationLimitIndex;
   const evaluationOptions = useMemo(
@@ -50,6 +74,10 @@ export const useEvaluationEngine = (
   const requestKey = useMemo(
     () => JSON.stringify({ elements, evaluationLimitIndex }),
     [elements, evaluationLimitIndex]
+  );
+  const evaluationRequestRevision = useMemo(
+    () => requestRevisionFor(`${evaluationRevision}:${requestKey}`),
+    [evaluationRevision, requestKey]
   );
   const needsReferenceEvaluation = !tauriRuntime || engineMode !== "rust" || !rustEligible;
   const referenceEvaluation = useMemo(
@@ -73,6 +101,8 @@ export const useEvaluationEngine = (
         if (cancelled) return;
         setAsyncEvaluation({
           requestKey,
+          evaluationRevision,
+          evaluationRequestRevision,
           evaluation: nextEvaluation,
           source: "rust",
           status: "ready",
@@ -96,6 +126,8 @@ export const useEvaluationEngine = (
             engineMode === "rust"
               ? {
                   requestKey,
+                  evaluationRevision,
+                  evaluationRequestRevision,
                   evaluation: evaluateElementsReference(elements, evaluationOptions),
                   source: "fallback",
                   status: "failed",
@@ -103,6 +135,8 @@ export const useEvaluationEngine = (
                 }
               : {
                   requestKey,
+                  evaluationRevision,
+                  evaluationRequestRevision,
                   evaluation: referenceEvaluation ?? evaluateElementsReference(elements, evaluationOptions),
                   source: "fallback",
                   status: "failed",
@@ -119,6 +153,8 @@ export const useEvaluationEngine = (
     elements,
     engineMode,
     evaluationOptions,
+    evaluationRevision,
+    evaluationRequestRevision,
     parityMode,
     referenceEvaluation,
     requestKey,
@@ -129,6 +165,8 @@ export const useEvaluationEngine = (
   if (engineMode === "reference" || !rustEligible || !tauriRuntime) {
     return {
       evaluation: referenceEvaluation ?? emptyEvaluation,
+      evaluationRevision,
+      evaluationRequestRevision,
       mode: engineMode,
       source: "reference",
       status: "idle",
@@ -142,6 +180,8 @@ export const useEvaluationEngine = (
     const isCurrentAsyncEvaluation = asyncEvaluation?.requestKey === requestKey;
     return {
       evaluation: referenceEvaluation ?? emptyEvaluation,
+      evaluationRevision,
+      evaluationRequestRevision,
       mode: engineMode,
       source: "reference",
       status: isCurrentAsyncEvaluation ? asyncEvaluation.status : "evaluating",
@@ -155,6 +195,8 @@ export const useEvaluationEngine = (
     const isCurrentAsyncEvaluation = asyncEvaluation.requestKey === requestKey;
     return {
       evaluation: asyncEvaluation.evaluation,
+      evaluationRevision: asyncEvaluation.evaluationRevision,
+      evaluationRequestRevision: asyncEvaluation.evaluationRequestRevision,
       mode: engineMode,
       source: asyncEvaluation.source,
       status: isCurrentAsyncEvaluation ? asyncEvaluation.status : "evaluating",
@@ -166,6 +208,8 @@ export const useEvaluationEngine = (
 
   return {
     evaluation: emptyEvaluation,
+    evaluationRevision,
+    evaluationRequestRevision,
     mode: engineMode,
     source: "rust",
     status: "evaluating",

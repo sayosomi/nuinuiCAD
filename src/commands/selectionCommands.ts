@@ -107,6 +107,19 @@ export const toggleGroupPrintEnabled = (elementId: ElementId | undefined) => {
   });
 };
 
+export const toggleSelectedGroupPrintEnabled = () => {
+  const { elements } = useCadDocumentStore.getState();
+  const selected = new Set(getSelectedElementIds());
+  if (selected.size === 0) return;
+  useCadDocumentStore.getState().commitDocumentChange({
+    elements: elements.map((element) =>
+      selected.has(element.id) && element.type === "group"
+        ? { ...element, printEnabled: element.printEnabled !== true }
+        : element
+    )
+  });
+};
+
 const elementWithoutColorId = (element: CadElement): CadElement => {
   const rest = { ...element };
   delete rest.colorId;

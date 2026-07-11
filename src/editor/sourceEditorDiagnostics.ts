@@ -19,7 +19,7 @@ export type PositionedDiagnostic = {
  * summing lengths rather than indexing directly.
  */
 export const diagnosticColumnSpan = (lineText: string, column: number): { from: number; to: number } => {
-  const targetOffset = Math.max(0, column - 1);
+  const targetOffset = Math.min(lineText.length, Math.max(0, column - 1));
   let offset = 0;
   for (const token of highlightDslLine(lineText)) {
     const tokenEnd = offset + token.text.length;

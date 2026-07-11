@@ -22,11 +22,13 @@ type ControllerInternals = {
     };
     dispatch: (spec: unknown) => void;
   };
-  appliedEvaluation: EvaluationResult | null;
-  pendingEvaluation: { evaluation: EvaluationResult; sourceRevision: number } | null;
+  appliedEvaluation: { evaluation: EvaluationResult; compiledDocumentRevision: number; evaluationRequestRevision: number } | null;
+  pendingEvaluations: Map<number, { evaluation: EvaluationResult; evaluationRequestRevision: number }>;
   atStopRange: AtStopRange | null;
   staleDiagnosticBaseline: PositionedDiagnostic[];
   runEscape: () => boolean;
+  handleEvaluationGutterAction: (action: "stop" | "visibility" | "enabled" | "locked" | "print", lineFrom: number) => boolean;
+  runPickApply: () => boolean;
 };
 
 const emptyEvaluation: EvaluationResult = {
@@ -55,9 +57,9 @@ describe("SourceEditorController evaluation revision gating", () => {
     const internals = controller as unknown as ControllerInternals;
     const currentRevision = useCadDocumentStore.getState().sourceRevision;
 
-    controller.setEvaluation(emptyEvaluation, currentRevision - 1);
+    controller.setEvaluation({ evaluation: emptyEvaluation, compiledDocumentRevision: currentRevision - 1, evaluationRequestRevision: 1 });
     expect(internals.appliedEvaluation).toBeNull();
-    expect(internals.pendingEvaluation).not.toBeNull();
+    expect(internals.pendingEvaluations).toHaveLength(0);
 
     controller.destroy();
   });
@@ -68,9 +70,9 @@ describe("SourceEditorController evaluation revision gating", () => {
     const internals = controller as unknown as ControllerInternals;
     const currentRevision = useCadDocumentStore.getState().sourceRevision;
 
-    controller.setEvaluation(emptyEvaluation, currentRevision);
-    expect(internals.appliedEvaluation).toBe(emptyEvaluation);
-    expect(internals.pendingEvaluation).toBeNull();
+    controller.setEvaluation({ evaluation: emptyEvaluation, compiledDocumentRevision: currentRevision, evaluationRequestRevision: 1 });
+    expect(internals.appliedEvaluation?.evaluation).toBe(emptyEvaluation);
+    expect(internals.pendingEvaluations).toHaveLength(0);
 
     controller.destroy();
   });
@@ -82,13 +84,13 @@ describe("SourceEditorController evaluation revision gating", () => {
     const currentRevision = useCadDocumentStore.getState().sourceRevision;
     const nextEvaluation: EvaluationResult = { ...emptyEvaluation, warnings: [] };
 
-    controller.setEvaluation(nextEvaluation, currentRevision + 1);
+    controller.setEvaluation({ evaluation: nextEvaluation, compiledDocumentRevision: currentRevision + 1, evaluationRequestRevision: 2 });
     expect(internals.appliedEvaluation).toBeNull();
 
     internals.view.dispatch({ changes: { from: internals.view.state.doc.length, insert: "\n# edit" } });
     vi.advanceTimersByTime(300);
     expect(useCadDocumentStore.getState().sourceRevision).toBe(currentRevision + 1);
-    expect(internals.appliedEvaluation).toBe(nextEvaluation);
+    expect(internals.appliedEvaluation?.evaluation).toBe(nextEvaluation);
 
     controller.destroy();
   });
@@ -99,16 +101,52 @@ describe("SourceEditorController evaluation revision gating", () => {
     const internals = controller as unknown as ControllerInternals;
     const currentRevision = useCadDocumentStore.getState().sourceRevision;
 
-    controller.setEvaluation(emptyEvaluation, currentRevision);
-    expect(internals.appliedEvaluation).toBe(emptyEvaluation);
+    controller.setEvaluation({ evaluation: emptyEvaluation, compiledDocumentRevision: currentRevision, evaluationRequestRevision: 1 });
+    expect(internals.appliedEvaluation?.evaluation).toBe(emptyEvaluation);
 
     useCadDocumentStore.getState().replaceTextDocument("nui 1\n# reset", {
       currentFilePath: null,
       dirtySinceSave: false
     });
     expect(internals.appliedEvaluation).toBeNull();
-    expect(internals.pendingEvaluation).toBeNull();
+    expect(internals.pendingEvaluations).toHaveLength(0);
 
+    controller.destroy();
+  });
+
+  it("keeps only the two newest future results and never lets an older result replace them", () => {
+    const parent = document.createElement("div");
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+    const revision = useCadDocumentStore.getState().compiledDocumentRevision;
+    const futureOne = { ...emptyEvaluation, warnings: [] };
+    const futureTwo = { ...emptyEvaluation, errors: [] };
+    const futureThree = { ...emptyEvaluation, computedVariables: new Map() };
+
+    controller.setEvaluation({ evaluation: futureOne, compiledDocumentRevision: revision + 1, evaluationRequestRevision: 1 });
+    controller.setEvaluation({ evaluation: futureTwo, compiledDocumentRevision: revision + 2, evaluationRequestRevision: 2 });
+    controller.setEvaluation({ evaluation: futureThree, compiledDocumentRevision: revision + 3, evaluationRequestRevision: 3 });
+    expect([...internals.pendingEvaluations.keys()]).toEqual([revision + 2, revision + 3]);
+
+    useCadDocumentStore.getState().commitText(`${useCadDocumentStore.getState().sourceText}\n# next`, "editor");
+    controller.setEvaluation({ evaluation: emptyEvaluation, compiledDocumentRevision: revision, evaluationRequestRevision: 0 });
+    expect([...internals.pendingEvaluations.keys()]).toEqual([revision + 2, revision + 3]);
+    expect(internals.appliedEvaluation).toBeNull();
+    controller.destroy();
+  });
+
+  it("rejects a late result from an older request for the same compiled document", () => {
+    const parent = document.createElement("div");
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+    const revision = useCadDocumentStore.getState().compiledDocumentRevision;
+    const newer = { ...emptyEvaluation, warnings: [] };
+
+    controller.setEvaluation({ evaluation: newer, compiledDocumentRevision: revision, evaluationRequestRevision: 2 });
+    controller.setEvaluation({ evaluation: emptyEvaluation, compiledDocumentRevision: revision, evaluationRequestRevision: 1 });
+    expect(internals.appliedEvaluation?.evaluation).toBe(newer);
+    expect(internals.appliedEvaluation?.evaluationRequestRevision).toBe(2);
+    expect(internals.pendingEvaluations.size).toBe(0);
     controller.destroy();
   });
 });
@@ -164,6 +202,46 @@ describe("SourceEditorController @stop mapping", () => {
     });
     expect(internals.atStopRange).toBeNull();
 
+    controller.destroy();
+  });
+
+  it("invalidates @stop when any part of its token changes", () => {
+    useCadDocumentStore.getState().commitText("nui 1\npoint A = (0, 0)\n@stop", "test");
+    const parent = document.createElement("div");
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+    const stopRange = internals.atStopRange!;
+
+    internals.view.dispatch({ changes: { from: stopRange.from + 1, to: stopRange.from + 2, insert: "x" } });
+    expect(internals.atStopRange).toBeNull();
+    controller.destroy();
+  });
+
+  it("uses only the mapped @stop position to dispatch its current evaluation limit", () => {
+    useCadDocumentStore.getState().commitText("nui 1\npoint A = (0, 0)\n@stop\npoint B = (1, 1)", "test");
+    const parent = document.createElement("div");
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+
+    expect(internals.handleEvaluationGutterAction("stop", internals.atStopRange!.from)).toBe(true);
+    expect(dispatchCommand).toHaveBeenCalledWith("setEvaluationLimitIndex", { evaluationLimitIndex: 1 });
+    controller.destroy();
+  });
+
+  it("routes state gutter actions through existing element commands", () => {
+    useCadDocumentStore.getState().commitText("nui 1\npoint A = (0, 0)", "test");
+    const parent = document.createElement("div");
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+    const point = useCadDocumentStore.getState().elements[0];
+    const lineFrom = internals.view.state.doc.line(2).from;
+
+    expect(internals.handleEvaluationGutterAction("visibility", lineFrom)).toBe(true);
+    expect(internals.handleEvaluationGutterAction("enabled", lineFrom)).toBe(true);
+    expect(internals.handleEvaluationGutterAction("locked", lineFrom)).toBe(true);
+    expect(dispatchCommand).toHaveBeenCalledWith("toggleElementVisibility", { elementId: point.id });
+    expect(dispatchCommand).toHaveBeenCalledWith("toggleElementEnabled", { elementId: point.id });
+    expect(dispatchCommand).toHaveBeenCalledWith("toggleElementLocked", { elementId: point.id });
     controller.destroy();
   });
 });
@@ -260,6 +338,46 @@ describe("SourceEditorController Escape priority chain", () => {
     expect(dispatchCommand).not.toHaveBeenCalled();
     expect(onRequestCanvasFocus).toHaveBeenCalledTimes(1);
 
+    controller.destroy();
+  });
+});
+
+describe("SourceEditorController flushed pick safety", () => {
+  beforeEach(() => {
+    useCadDocumentStore.setState(initialCadDocumentState());
+    useCadUiStore.setState(initialCadUiState());
+    vi.useFakeTimers();
+    vi.mocked(dispatchCommand).mockClear();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
+
+  it("flushes dirty text then cancels a search pick that no longer resolves", () => {
+    const parent = document.createElement("div");
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+    internals.view.dispatch({ changes: { from: internals.view.state.doc.length, insert: "\n# pending" } });
+
+    expect(controller.applyPickCandidate("removed-element")).toBe(false);
+    expect(useCadDocumentStore.getState().sourceText).toContain("# pending");
+    expect(dispatchCommand).not.toHaveBeenCalled();
+    controller.destroy();
+  });
+
+  it("does not apply a pre-flush pick cursor when it cannot be resolved afterwards", () => {
+    const parent = document.createElement("div");
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+    useCadUiStore.getState().setActivePointPickTarget({ elementId: "missing", parameterKey: "startPoint" as never });
+    useCadUiStore.getState().setActivePickCursor({ elementId: "removed-element", optionIndex: 0 });
+    internals.view.dispatch({ changes: { from: internals.view.state.doc.length, insert: "\n# pending" } });
+
+    expect(internals.runPickApply()).toBe(false);
+    expect(useCadDocumentStore.getState().sourceText).toContain("# pending");
+    expect(dispatchCommand).not.toHaveBeenCalled();
     controller.destroy();
   });
 });

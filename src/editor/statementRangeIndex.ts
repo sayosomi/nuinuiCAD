@@ -109,7 +109,10 @@ export const createAtStopRange = (doc: Text, statementMap: StatementMap): AtStop
  */
 export const mapAtStopRange = (range: AtStopRange | null, changes: ChangeDesc): AtStopRange | null => {
   if (!range) return null;
-  if (changes.touchesRange(range.from, range.to) === "cover") return null;
+  // Unlike element statements, @stop has no runtime identity to retain through an
+  // in-place edit. Any touch can change or remove the directive, so wait for a
+  // successful compile rather than leaving a marker on an unrelated line.
+  if (changes.touchesRange(range.from, range.to) !== false) return null;
   const from = changes.mapPos(range.from, 1, MapMode.TrackAfter);
   const to = changes.mapPos(range.to, -1, MapMode.TrackBefore);
   return from === null || to === null || to < from ? null : { from, to };

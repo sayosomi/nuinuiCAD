@@ -10,6 +10,8 @@ const makeHandle = (): SourceEditorHandle => ({
   getText: vi.fn(() => ""),
   setEvaluation: vi.fn(),
   jumpToElement: vi.fn(),
+  applyPickCandidate: vi.fn(() => true),
+  pickCandidateElementIds: vi.fn(() => []),
   openTextSearch: vi.fn(),
   closeTextSearch: vi.fn(),
   focusSearch: vi.fn()
@@ -53,6 +55,14 @@ describe("SourceSearchPanel", () => {
     expect(handle.openTextSearch).toHaveBeenCalledTimes(1);
 
     fireEvent.click(screen.getByRole("button", { name: "要素検索" }));
+    expect(handle.closeTextSearch).toHaveBeenCalled();
+  });
+
+  it("closes CodeMirror text search when the Source panel closes", () => {
+    const handle = makeHandle();
+    const { rerender } = render(<SourceSearchPanel handle={handle} isOpen onClose={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "テキスト検索" }));
+    rerender(<SourceSearchPanel handle={handle} isOpen={false} onClose={vi.fn()} />);
     expect(handle.closeTextSearch).toHaveBeenCalled();
   });
 

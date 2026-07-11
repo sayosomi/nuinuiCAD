@@ -48,4 +48,20 @@ describe("cadDocumentStore source updates", () => {
     useCadDocumentStore.getState().undo();
     expect(useCadDocumentStore.getState().sourceUpdate.kind).toBe("reset");
   });
+
+  it("keeps compiledDocumentRevision independent from sourceRevision while fatal text retains last-good doc", () => {
+    useCadDocumentStore.getState().commitText("nui 1\npoint A = (0, 0)", "editor");
+    const valid = useCadDocumentStore.getState();
+    const compiledRevision = valid.compiledDocumentRevision;
+    const sourceRevision = valid.sourceRevision;
+
+    useCadDocumentStore.getState().commitText("nui 1\npoint A = (", "editor");
+    const fatal = useCadDocumentStore.getState();
+    expect(fatal.sourceRevision).toBe(sourceRevision + 1);
+    expect(fatal.compiledDocumentRevision).toBe(compiledRevision);
+    expect(fatal.docText).toBe(valid.sourceText);
+
+    useCadDocumentStore.getState().commitText("nui 1\npoint B = (1, 1)", "editor");
+    expect(useCadDocumentStore.getState().compiledDocumentRevision).toBe(compiledRevision + 1);
+  });
 });

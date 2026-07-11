@@ -41,6 +41,7 @@ import {
   toggleElementBooleanProperty,
   toggleElementLocked,
   toggleGroupPrintEnabled,
+  toggleSelectedGroupPrintEnabled,
   toggleGroupExpanded,
   toggleSelectedElementsLocked,
   toggleSelectedElementsBooleanProperty,
@@ -332,6 +333,12 @@ export const selectionCommandDefinitions = {
     id: "toggleGroupPrintEnabled",
     label: "グループの印刷する/しないを切替",
     run: (context) => toggleGroupPrintEnabled(context?.elementId)
+  },
+  toggleSelectedGroupPrintEnabled: {
+    id: "toggleSelectedGroupPrintEnabled",
+    label: "選択グループの印刷する/しないを切替",
+    palette: { order: 41.75, keywords: ["print", "印刷", "group", "グループ"] },
+    run: () => toggleSelectedGroupPrintEnabled()
   },
   toggleSelectedElementVisibility: {
     id: "toggleSelectedElementVisibility",

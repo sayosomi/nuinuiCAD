@@ -17,7 +17,7 @@ describe("diagnosticColumnSpan", () => {
 
   it("falls back to the line end when no token boundary matches", () => {
     const span = diagnosticColumnSpan("point A = (0, 0)", 999);
-    expect(span).toEqual({ from: 998, to: 16 });
+    expect(span).toEqual({ from: 16, to: 16 });
   });
 });
 

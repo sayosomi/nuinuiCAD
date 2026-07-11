@@ -26,21 +26,30 @@ export const SourceSearchPanel = ({ handle, isOpen, onClose }: SourceSearchPanel
   const cursorId = useCadUiStore((state) => state.elementSearchCursorId);
   const setElementSearchQuery = useCadUiStore((state) => state.setElementSearchQuery);
   const setElementSearchCursorId = useCadUiStore((state) => state.setElementSearchCursorId);
+  const elementSearchPickableOnly = useCadUiStore((state) => state.elementSearchPickableOnly);
+  const isPickActive = useCadUiStore((state) => Boolean(
+    state.activePointPickTarget || state.activeNumericReferencePickTarget || state.activeLinePickTarget
+  ));
   const [mode, setMode] = useState<"element" | "text">("element");
 
   const roleNamesById = useMemo(() => visibilityRoleNamesById(visibilityRoles), [visibilityRoles]);
   const results = useMemo(
-    () => (mode === "element" ? elementSearchResults(elements, query, roleNamesById) : []),
-    [mode, elements, query, roleNamesById]
+    () => {
+      if (mode !== "element" || !query.trim()) return [];
+      const pickable = new Set(handle?.pickCandidateElementIds() ?? []);
+      return elementSearchResults(elements, query, roleNamesById)
+        .filter((result) => !elementSearchPickableOnly || pickable.has(result.element.id));
+    },
+    [mode, elements, query, roleNamesById, elementSearchPickableOnly, handle]
   );
   const activeCursorId = results.some((result) => result.element.id === cursorId)
     ? cursorId
     : results[0]?.element.id ?? null;
 
   useEffect(() => {
-    if (mode === "text") handle?.openTextSearch();
+    if (isOpen && mode === "text") handle?.openTextSearch();
     else handle?.closeTextSearch();
-  }, [mode, handle]);
+  }, [mode, handle, isOpen]);
 
   if (!isOpen) return null;
 
@@ -52,7 +61,8 @@ export const SourceSearchPanel = ({ handle, isOpen, onClose }: SourceSearchPanel
   };
 
   const applyResult = (elementId: ElementId) => {
-    handle?.jumpToElement(elementId);
+    if (isPickActive) handle?.applyPickCandidate(elementId);
+    else handle?.jumpToElement(elementId);
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
@@ -106,7 +116,7 @@ export const SourceSearchPanel = ({ handle, isOpen, onClose }: SourceSearchPanel
             onKeyDown={onKeyDown}
           />
           <ul className="source-search-results">
-            {results.map((result) => (
+            {results.slice(Math.max(0, results.findIndex((result) => result.element.id === activeCursorId) - 50), Math.max(100, results.findIndex((result) => result.element.id === activeCursorId) + 50)).map((result) => (
               <li key={result.element.id}>
                 <button
                   type="button"

@@ -75,6 +75,11 @@ export const shouldIgnoreKeyboardEvent = (event: KeyboardEvent) => {
   );
 };
 
+/** App-level capture must leave CodeMirror's editor scope untouched so its IME,
+ * search, undo, and pick keymaps run before global canvas commands. */
+export const isSourceEditorKeyboardTarget = (event: KeyboardEvent) =>
+  event.target instanceof HTMLElement && Boolean(event.target.closest(".source-editor-pane"));
+
 export const keyboardCommandForEvent = (
   event: KeyboardEvent,
   options: {

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { sampleElements } from "../sampleData";
 import {
   commandIdForKeyboardEvent,
+  isSourceEditorKeyboardTarget,
   keyboardCommandForEvent,
   keyChordMatchesSearch,
   shortcutConflicts,
@@ -24,6 +25,16 @@ describe("shortcuts", () => {
   ): ShortcutSettings => ({
     version: 1,
     overrides
+  });
+
+  it("recognizes CodeMirror descendants as an app-capture exclusion scope", () => {
+    const pane = document.createElement("div");
+    pane.className = "source-editor-pane";
+    const content = document.createElement("div");
+    pane.appendChild(content);
+    document.body.appendChild(pane);
+    expect(isSourceEditorKeyboardTarget(keyboardEventFrom("Escape", content))).toBe(true);
+    pane.remove();
   });
 
   it("maps keys to commands", () => {
