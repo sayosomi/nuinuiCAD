@@ -29,6 +29,20 @@ textarea {
   font: inherit;
 }
 
+.source-editor-pane {
+  min-height: 0;
+  font-family: var(--dsl-code-font);
+}
+
+.source-editor-pane .cm-editor {
+  height: 100%;
+}
+
+.source-editor-pane .cm-secondary-selection {
+  background: color-mix(in srgb, #0f766e 16%, transparent);
+  box-shadow: inset 3px 0 #0f766e;
+}
+
 button {
   border: 1px solid #b9bdb2;
   border-radius: 6px;

@@ -1,4 +1,5 @@
 import { undoDepth, redoDepth } from "@codemirror/commands";
+import { foldedRanges } from "@codemirror/language";
 import { fireEvent } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
@@ -6,9 +7,16 @@ import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import { SourceEditorController } from "./sourceEditorController";
 
 type ControllerInternals = {
-  view: { state: { doc: { length: number }; selection: { main: { head: number } } }; dispatch: (spec: unknown) => void };
+  view: {
+    state: {
+      doc: { length: number; line: (number: number) => { from: number }; lineAt: (position: number) => { from: number } };
+      selection: { main: { head: number }; ranges: readonly unknown[] };
+    };
+    dispatch: (spec: unknown) => void;
+  };
   runUndo: () => boolean;
   runRedo: () => boolean;
+  handleFoldGutterMouseDown: (lineFrom: number, event: MouseEvent) => boolean;
 };
 
 describe("SourceEditorController commit and history boundaries", () => {
@@ -247,6 +255,119 @@ describe("SourceEditorController commit and history boundaries", () => {
 
     useCadDocumentStore.getState().redo();
     expect(useCadDocumentStore.getState().sourceText).toBe(afterBurstText);
+    controller.destroy();
+  });
+
+  it("keeps Canvas multiple selection as one cursor plus secondary line decoration", () => {
+    useCadDocumentStore.getState().commitText(
+      "nui 1\npoint A = (0, 0)\npoint B = (1, 1)",
+      "test"
+    );
+    const parent = document.createElement("div");
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+    const [pointA, pointB] = useCadDocumentStore.getState().elements;
+
+    useCadUiStore.getState().setSelectedElementIds([pointA.id, pointB.id], pointA.id);
+
+    expect(internals.view.state.selection.ranges).toHaveLength(1);
+    expect(internals.view.state.selection.main.head).toBe(internals.view.state.doc.line(2).from);
+    expect(parent.querySelectorAll(".cm-secondary-selection")).toHaveLength(1);
+
+    internals.view.dispatch({ changes: { from: internals.view.state.selection.main.head, insert: "# " } });
+    expect((internals.view.state.doc as unknown as { toString: () => string }).toString()).toContain("# point A");
+    expect((internals.view.state.doc as unknown as { toString: () => string }).toString()).toContain("point B = (1, 1)");
+    controller.destroy();
+  });
+
+  it("uses mapped ranges for unnamed elements after a fatal editor commit", () => {
+    useCadDocumentStore.getState().commitText("nui 1\npoint A = (0, 0)\npoint = (1, 1)", "test");
+    const parent = document.createElement("div");
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+    const unnamed = useCadDocumentStore.getState().elements.find((element) => element.name === "")!;
+
+    internals.view.dispatch({ changes: { from: 0, insert: "# dirty\n" } });
+    internals.view.dispatch({ changes: { from: 8, to: 9, insert: "x" } });
+    vi.advanceTimersByTime(300);
+    expect(useCadDocumentStore.getState().docText).not.toBe(useCadDocumentStore.getState().sourceText);
+
+    useCadUiStore.getState().setSelectedElementId(unnamed.id);
+    expect(internals.view.state.selection.main.head).toBe(internals.view.state.doc.line(4).from);
+    controller.destroy();
+  });
+
+  it("defers Canvas cursor and fold projection until composition ends", () => {
+    useCadDocumentStore.getState().commitText("nui 1\ngroup G {\n  point A = (0, 0)\n}\npoint B = (1, 1)", "test");
+    const parent = document.createElement("div");
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+    const content = parent.querySelector(".cm-content")!;
+    const [group, pointA, pointB] = useCadDocumentStore.getState().elements;
+
+    useCadUiStore.getState().setSelectedElementId(pointA.id);
+    fireEvent.compositionStart(content);
+    useCadUiStore.getState().setSelectedElementId(pointB.id);
+    useCadUiStore.getState().setGroupFold(group.id, { expanded: false });
+
+    expect(internals.view.state.selection.main.head).toBe(internals.view.state.doc.line(3).from);
+    expect(foldedRanges(internals.view.state as never).size).toBe(0);
+
+    fireEvent.compositionEnd(content);
+    expect(internals.view.state.selection.main.head).toBe(internals.view.state.doc.line(5).from);
+    expect(foldedRanges(internals.view.state as never).size).toBeGreaterThan(0);
+    controller.destroy();
+  });
+
+  it("uses dirty mapped fold positions rather than stale statement line numbers", () => {
+    useCadDocumentStore.getState().commitText("nui 1\ngroup G {\n  point A = (0, 0)\n}", "test");
+    const parent = document.createElement("div");
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+    const group = useCadDocumentStore.getState().elements.find((element) => element.name === "G")!;
+
+    internals.view.dispatch({ changes: { from: 0, insert: "# dirty\n" } });
+    const handled = internals.handleFoldGutterMouseDown(internals.view.state.doc.line(3).from, new MouseEvent("mousedown"));
+
+    expect(handled).toBe(true);
+    expect(useCadUiStore.getState().groupFoldById.get(group.id)?.expanded).toBe(true);
+    expect(foldedRanges(internals.view.state as never).size).toBe(0);
+    controller.destroy();
+  });
+
+  it("projects nested group and else folds from cadUiStore, expanding ancestors before an external jump", () => {
+    useCadDocumentStore.getState().commitText([
+      "nui 1",
+      "group Outer {",
+      "  if Branch condition=1 {",
+      "    point Then = (0, 0)",
+      "  } else {",
+      "    group Inner {",
+      "      point Else = (1, 1)",
+      "    }",
+      "  }",
+      "}"
+    ].join("\n"), "test");
+    const parent = document.createElement("div");
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+    const elements = useCadDocumentStore.getState().elements;
+    const outer = elements.find((element) => element.name === "Outer")!;
+    const branch = elements.find((element) => element.name === "Branch")!;
+    const inner = elements.find((element) => element.name === "Inner")!;
+    const elsePoint = elements.find((element) => element.name === "Else")!;
+
+    useCadUiStore.getState().setGroupFold(branch.id, { elseExpanded: false });
+    useCadUiStore.getState().setSelectedElementId(elsePoint.id);
+
+    expect(useCadUiStore.getState().groupFoldById.get(outer.id)?.expanded).toBe(true);
+    expect(useCadUiStore.getState().groupFoldById.get(branch.id)).toMatchObject({ expanded: true, elseExpanded: true });
+    expect(useCadUiStore.getState().groupFoldById.get(inner.id)?.expanded).toBe(true);
+    expect(internals.view.state.selection.main.head).toBe(internals.view.state.doc.line(7).from);
+
+    internals.handleFoldGutterMouseDown(internals.view.state.doc.line(6).from, new MouseEvent("mousedown"));
+    expect(useCadUiStore.getState().groupFoldById.get(inner.id)?.expanded).toBe(false);
+    expect(foldedRanges(internals.view.state as never).size).toBeGreaterThan(0);
     controller.destroy();
   });
 });

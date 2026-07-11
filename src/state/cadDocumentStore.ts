@@ -271,7 +271,11 @@ const documentFromChange = (
 const modelCommit = (
   state: CadDocumentState,
   change: Partial<CadDocumentSnapshot>
-): { state: Partial<CadDocumentState>; result: DocumentMutationResult } => {
+): {
+  state: Partial<CadDocumentState>;
+  result: DocumentMutationResult;
+  selection?: { elements: CadElement[]; snapshot: CadDocumentSelectionSnapshot };
+} => {
   const previousSelection = useCadUiStore.getState();
   let current = state;
   let rebased = false;
@@ -293,13 +297,13 @@ const modelCommit = (
     return { state: { previewElements: null }, result: { status: "rejected", reason: "invalid-change" } };
   }
   if (result.status === "noop") {
-    useCadUiStore.getState().applySelection(documentOf(current).elements, requestedSelection);
     return {
       state: {
         ...canonicalFields(current),
         previewElements: null
       },
-      result: { status: "noop" }
+      result: { status: "noop" },
+      selection: { elements: documentOf(current).elements, snapshot: requestedSelection }
     };
   }
 
@@ -339,7 +343,6 @@ const modelCommit = (
     assertReconcileSane(current.doc, value.sourceText, afterDocument);
   }
 
-  useCadUiStore.getState().applySelection(value.doc.document.elements, requestedSelection);
   return {
     state: {
       ...canonicalFields(value),
@@ -349,7 +352,8 @@ const modelCommit = (
       dirtySinceSave: dirtyForText(current, value.sourceText),
       ...sourceUpdateFields(state, rebased ? "reset" : updateKind, splices)
     },
-    result: { status: "applied" }
+    result: { status: "applied" },
+    selection: { elements: value.doc.document.elements, snapshot: requestedSelection }
   };
 };
 
@@ -489,11 +493,12 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
       );
       return;
     }
+    let selectionElements: CadElement[] | null = null;
     set((state) => {
       if (nextText === state.sourceText) return { previewElements: null };
       const previousSelection = useCadUiStore.getState();
       const result = compileCanonicalText(state, nextText);
-      useCadUiStore.getState().reconcileSelectionWithElements(result.doc.document.elements);
+      selectionElements = result.doc.document.elements;
       // A typing burst can move the cursor before it commits; the snapshot must
       // pair the pre-burst text with the pre-burst cursor line, not wherever the
       // cursor ended up after the burst.
@@ -510,6 +515,7 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
         ...sourceUpdateFields(state, origin === "editor" ? "editor" : "reset")
       };
     });
+    if (selectionElements) useCadUiStore.getState().reconcileSelectionWithElements(selectionElements);
   },
   previewDocumentChange: (change) => {
     const guarded = guardDocumentMutation();
@@ -528,11 +534,14 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
       return guarded;
     }
     let result: DocumentMutationResult = { status: "noop" };
+    let selection: { elements: CadElement[]; snapshot: CadDocumentSelectionSnapshot } | undefined;
     set((state) => {
       const outcome = modelCommit(state, change);
       result = outcome.result;
+      selection = outcome.selection;
       return outcome.state;
     });
+    if (selection) useCadUiStore.getState().applySelection(selection.elements, selection.snapshot);
     return result;
   },
   commitDocumentChangeFromSnapshot: (_before, change) => {
@@ -542,11 +551,14 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
       return guarded;
     }
     let result: DocumentMutationResult = { status: "noop" };
+    let selection: { elements: CadElement[]; snapshot: CadDocumentSelectionSnapshot } | undefined;
     set((state) => {
       const outcome = modelCommit(state, change);
       result = outcome.result;
+      selection = outcome.selection;
       return outcome.state;
     });
+    if (selection) useCadUiStore.getState().applySelection(selection.elements, selection.snapshot);
     return result;
   },
   setElements: (elements) => get().commitDocumentChange({ elements }),
@@ -747,11 +759,11 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
   },
   replaceDocument: (snapshot, currentFilePath) => {
     if (rejectExternalDocumentReset()) return;
+    let selectionElements: CadElement[] | null = null;
     set((state) => {
       try {
         const canonical = regenerateCanonicalFromModel(snapshot);
-        useCadUiStore.getState().applySelection(canonical.doc.document.elements, snapshot);
-        useCadUiStore.getState().setSourceCursorLine(null);
+        selectionElements = canonical.doc.document.elements;
         return {
           ...canonicalFields(canonical),
           previewElements: null,
@@ -767,19 +779,24 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
         return { previewElements: null };
       }
     });
+    if (selectionElements) {
+      useCadUiStore.getState().applySelection(selectionElements, snapshot);
+      useCadUiStore.getState().setSourceCursorLine(null);
+    }
   },
   replaceTextDocument: (sourceText, options) => {
     if (rejectExternalDocumentReset()) return;
+    let selectionElements: CadElement[] | null = null;
+    const emptySelection: CadDocumentSelectionSnapshot = {
+      selectedElementId: null,
+      selectedElementIds: [],
+      selectionAnchorElementId: null,
+      selectedParameterKey: null
+    };
     set((state) => {
       const baseline = regenerateCanonicalFromModel(emptyFileSnapshot());
       const compiled = compileCanonicalText(baseline, sourceText);
-      useCadUiStore.getState().applySelection(compiled.doc.document.elements, {
-        selectedElementId: null,
-        selectedElementIds: [],
-        selectionAnchorElementId: null,
-        selectedParameterKey: null
-      });
-      useCadUiStore.getState().setSourceCursorLine(null);
+      selectionElements = compiled.doc.document.elements;
       return {
         ...canonicalFields(compiled),
         previewElements: null,
@@ -791,6 +808,10 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
         ...sourceUpdateFields(state, "reset")
       };
     });
+    if (selectionElements) {
+      useCadUiStore.getState().applySelection(selectionElements, emptySelection);
+      useCadUiStore.getState().setSourceCursorLine(null);
+    }
   },
   markDocumentSaved: (currentFilePath, savedSourceText) =>
     set((state) => ({
@@ -808,6 +829,9 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
     if (sourceEditSession.hasPendingText()) {
       sourceEditSession.flush("command");
     }
+    const selectionResult: {
+      value: { elements: CadElement[]; snapshot: CadDocumentSelectionSnapshot; cursorLine: number | null } | null;
+    } = { value: null };
     set((state) => {
       const previous = state.past.at(-1);
       if (!previous) return { previewElements: null };
@@ -816,13 +840,13 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
       const restored = compileCanonicalText(state, previous.text, {
         createdElementIds: previous.selectionElementIds.filter((id) => !currentIds.has(id))
       });
-      useCadUiStore.getState().applySelection(restored.doc.document.elements, {
+      const restoredSelection: CadDocumentSelectionSnapshot = {
         selectedElementId: previous.selectionElementIds[0] ?? null,
         selectedElementIds: previous.selectionElementIds,
         selectionAnchorElementId: previous.selectionElementIds[0] ?? null,
         selectedParameterKey: previousSelection.selectedParameterKey
-      });
-      useCadUiStore.getState().setSourceCursorLine(previous.cursorLine);
+      };
+      selectionResult.value = { elements: restored.doc.document.elements, snapshot: restoredSelection, cursorLine: previous.cursorLine };
       return {
         ...canonicalFields(restored),
         previewElements: null,
@@ -832,6 +856,10 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
         ...sourceUpdateFields(state, "reset")
       };
     });
+    if (selectionResult.value) {
+      useCadUiStore.getState().applySelection(selectionResult.value.elements, selectionResult.value.snapshot);
+      useCadUiStore.getState().setSourceCursorLine(selectionResult.value.cursorLine);
+    }
   },
   redo: () => {
     if (sourceEditSession.isComposing()) {
@@ -843,6 +871,9 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
     if (sourceEditSession.hasPendingText()) {
       sourceEditSession.flush("command");
     }
+    const selectionResult: {
+      value: { elements: CadElement[]; snapshot: CadDocumentSelectionSnapshot; cursorLine: number | null } | null;
+    } = { value: null };
     set((state) => {
       const next = state.future[0];
       if (!next) return { previewElements: null };
@@ -851,13 +882,13 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
       const restored = compileCanonicalText(state, next.text, {
         createdElementIds: next.selectionElementIds.filter((id) => !currentIds.has(id))
       });
-      useCadUiStore.getState().applySelection(restored.doc.document.elements, {
+      const restoredSelection: CadDocumentSelectionSnapshot = {
         selectedElementId: next.selectionElementIds[0] ?? null,
         selectedElementIds: next.selectionElementIds,
         selectionAnchorElementId: next.selectionElementIds[0] ?? null,
         selectedParameterKey: previousSelection.selectedParameterKey
-      });
-      useCadUiStore.getState().setSourceCursorLine(next.cursorLine);
+      };
+      selectionResult.value = { elements: restored.doc.document.elements, snapshot: restoredSelection, cursorLine: next.cursorLine };
       return {
         ...canonicalFields(restored),
         previewElements: null,
@@ -867,6 +898,10 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
         ...sourceUpdateFields(state, "reset")
       };
     });
+    if (selectionResult.value) {
+      useCadUiStore.getState().applySelection(selectionResult.value.elements, selectionResult.value.snapshot);
+      useCadUiStore.getState().setSourceCursorLine(selectionResult.value.cursorLine);
+    }
   }
 }));
 
