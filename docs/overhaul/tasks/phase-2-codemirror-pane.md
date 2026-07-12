@@ -16,6 +16,12 @@
 >    dirty diagnostics・評価decorations・keyboard scope・LeftPanel機能移行
 > 5. [phase-2e-left-panel-cutover.md](phase-2e-left-panel-cutover.md) —
 >    AppLayout切替・旧リスト削除・1000行性能・手動E2E
+>
+> **補遺(2026-07-12)**: Phase 2e完了後、実アプリ検証に基づくpolish(dirty時
+> Canvas操作の保留・patch highlight・編集可能Line Lens・値span選択/Tab移動等)
+> を追加した。現在のEditor仕様は
+> [phase-2-post-cutover-editor-polish.md](phase-2-post-cutover-editor-polish.md)
+> を参照。
 
 ## 目的
 

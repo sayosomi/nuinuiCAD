@@ -91,3 +91,12 @@ macOS Tauriで以下を確認し、結果をタスク報告へ記録する。
 * Source EditorとLeftPanelを完成状態で併存させること。
 * 性能予算未達を「CMが仮想化するから」と未計測で受け入れること。
 * Phase 3/4/5の削除・補完・inspector変更を同梱すること。
+
+## Phase 2e完了後のpolish(履歴)
+
+本タスクの完了コミット(`a08d447`)以降、cutover起因の退行修正と操作性polish
+(pending Canvas pointer intent、patch highlight、編集可能Line Lens、値spanの
+click選択とTab移動など)を追加で実装した。これらは本タスクの当初計画には
+含まれない後付けであり、現在仕様の記録は
+[phase-2-post-cutover-editor-polish.md](phase-2-post-cutover-editor-polish.md)
+を参照すること。

@@ -143,6 +143,13 @@ Phase 5  ハードクリーンアップ(Phase 2・3・4すべての完了後)
   技術的には 1c 後でも可能だが、保存形式とUIの整合を保つため 1d 後とする。
 * Phase 3 と Phase 4 は Phase 2 の成果物(SourceEditorPane・カーソル同期・
   statementMapベースのジャンプ)に依存するが、相互には独立。並行実装可。
+  Phase 2e完了後に追加したEditor polish(値span選択・Tab移動・編集可能
+  Line Lens・dirty時Canvas操作の保留など)は
+  `tasks/phase-2-post-cutover-editor-polish.md` に記録済みで、Phase 3/4は
+  そこにある共通基盤を再利用する(重複実装しない)。
+* Phase 3の実装は `tasks/phase-3-inspector.md` を親文書として4子タスクへ
+  分割した(2026-07-12): 3a ジャンプAPI → (3b 数値ステップ ∥ 3c
+  InspectorPanel) → 3d フォーム編集削除cutover。
 * Phase 5 は全Phase完了後の互換コード削除とリネーム伝播。
 
 ## Phase 1 分割の根拠

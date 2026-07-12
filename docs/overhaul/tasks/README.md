@@ -18,8 +18,12 @@ phase-0-dsl-grammar
                            2a-codemirror-foundation → 2b-editor-sync-undo
                              → 2c-selection-fold → 2d-diagnostics-keyboard-features
                              → 2e-left-panel-cutover
-                           ├─ phase-3-inspector      ┐ 並行可
-                           └─ phase-4-command-line   ┘
+                             (→ post-cutover-editor-polish: 記録文書)
+                           ├─ phase-3(親文書: phase-3-inspector。実装は4分割)┐
+                           │    3a-value-span-jump-api                        │並行可
+                           │      → (3b-numeric-step-command ∥ 3c-inspector-panel)
+                           │      → 3d-form-editor-removal                    │
+                           └─ phase-4-command-line                            ┘
                                 └─ phase-5-cleanup(3と4の両方の完了後)
 ```
 
@@ -40,7 +44,12 @@ phase-0-dsl-grammar
 | [phase-2c-selection-fold.md](phase-2c-selection-fold.md) | cursor/Canvas選択同期・複数選択・fold | 2b |
 | [phase-2d-diagnostics-keyboard-features.md](phase-2d-diagnostics-keyboard-features.md) | dirty diagnostics・評価decorations・keyboard・旧機能移行 | 2c |
 | [phase-2e-left-panel-cutover.md](phase-2e-left-panel-cutover.md) | AppLayout切替・LeftPanel削除・性能/E2E | 2d |
-| [phase-3-inspector.md](phase-3-inspector.md) | 読み取り専用インスペクタ+フォーム編集廃止 | 2 |
+| [phase-2-post-cutover-editor-polish.md](phase-2-post-cutover-editor-polish.md) | **記録文書**: Phase 2e完了後のEditor polish棚卸し(2026-07-12)。Phase 3/4はここを現在仕様の正とする | 2e(完了済み) |
+| [phase-3-inspector.md](phase-3-inspector.md) | **親文書**: 読み取り専用インスペクタ+フォーム編集廃止。実装は下記3a〜3dへ分割(2026-07-12) | 2 |
+| [phase-3a-value-span-jump-api.md](phase-3a-value-span-jump-api.md) | パラメータ→値spanジャンプAPI(ラベル付き値span・keyマッピング・handle拡張) | 2 |
+| [phase-3b-numeric-step-command.md](phase-3b-numeric-step-command.md) | エディタネイティブ数値ステップコマンド(Alt+→/←、stepLevels) | 3a |
+| [phase-3c-inspector-panel.md](phase-3c-inspector-panel.md) | 読み取り専用InspectorPanel(行ナビ・Enterジャンプ・旧UIと一時併存) | 3a(3bと並行可) |
+| [phase-3d-form-editor-removal.md](phase-3d-form-editor-removal.md) | フォーム編集・パラメータ編集モード削除cutover・廃止ID対応表 | 3b + 3c |
 | [phase-4-command-line.md](phase-4-command-line.md) | コマンドライン作図+DSL補完(DslPanel削除) | 2 |
 | [phase-5-cleanup.md](phase-5-cleanup.md) | 互換コード削除・リネーム伝播・ドキュメント更新 | 3 + 4 |
 
