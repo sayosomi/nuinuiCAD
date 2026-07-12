@@ -59,6 +59,7 @@ import {
 } from "./statementRangeIndex";
 import { foldProjectionTransaction, foldTargetAtLine, foldTargets } from "./sourceEditorFolding";
 import { secondarySelectionEffect, sourceEditorSelectionExtension } from "./sourceEditorSelection";
+import { patchHighlightPayloadForChanges, setPatchHighlight, sourceEditorPatchHighlightExtension } from "./sourceEditorPatchHighlight";
 import { createDiagnosticsExtension } from "./sourceEditorDiagnosticsExtension";
 import { mapPositionedDiagnostics, toStaleDiagnostics, type PositionedDiagnostic } from "./sourceEditorDiagnostics";
 import { createEvaluationExtension, evaluationChanged, type EvaluationGutterAction } from "./sourceEditorEvaluationExtension";
@@ -159,6 +160,7 @@ export class SourceEditorController implements SourceEditorHandle {
           dslCmLanguageExtension,
           sourceEditorLineLens,
           sourceEditorSelectionExtension,
+          sourceEditorPatchHighlightExtension,
           codeFolding(),
           foldService.of((state, lineStart) => {
             const target = foldTargetAtLine(this.statementRanges, this.store.getState().elements, lineStart);
@@ -630,6 +632,7 @@ export class SourceEditorController implements SourceEditorHandle {
       this.view.dispatch({
         changes,
         ...(mappedSelection ? { selection: mappedSelection } : {}),
+        effects: [setPatchHighlight.of(patchHighlightPayloadForChanges(this.view.state.doc, changeSet))],
         annotations: [modelPatchOrigin.of("model-patch"), Transaction.addToHistory.of(false)]
       });
       if (!viewport.hadFocus) this.deferredExternalCursor = viewport;
@@ -667,7 +670,7 @@ export class SourceEditorController implements SourceEditorHandle {
     this.view.dispatch({
       changes: { from: 0, to: this.view.state.doc.length, insert: this.committedLogicalText },
       ...(cursorOffset === null ? {} : { selection: EditorSelection.cursor(cursorOffset) }),
-      effects: [evaluationChanged.of(null)],
+      effects: [evaluationChanged.of(null), setPatchHighlight.of(null)],
       annotations: [resetOrigin.of("reset"), Transaction.addToHistory.of(false)]
     });
     this.clearCmHistory();

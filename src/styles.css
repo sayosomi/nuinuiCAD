@@ -119,6 +119,36 @@ textarea {
   cursor: text;
 }
 
+.cm-source-line-lens-content .cm-source-lens-patch-highlight {
+  background: color-mix(in srgb, #b8860b 40%, transparent);
+  border-radius: 2px;
+}
+
+.cm-source-line-lens-content.is-patch-highlight-line {
+  background: color-mix(in srgb, #b8860b 16%, transparent);
+}
+
+/* Zero-width, same rationale as .cm-patch-highlight-deletion-marker in the
+   main editor: must not shift surrounding lens text. */
+.cm-source-line-lens-content .cm-source-lens-patch-deletion-marker {
+  position: relative;
+  display: inline-block;
+  width: 0;
+  height: 0.9em;
+  vertical-align: text-bottom;
+}
+
+.cm-source-line-lens-content .cm-source-lens-patch-deletion-marker::after {
+  content: "";
+  position: absolute;
+  left: -1px;
+  top: 0;
+  width: 2px;
+  height: 100%;
+  background: #b8860b;
+  border-radius: 1px;
+}
+
 .cm-source-line-lens-measure {
   position: fixed;
   top: -10000px;
@@ -140,6 +170,38 @@ textarea {
 .source-editor-pane .cm-secondary-selection {
   background: color-mix(in srgb, #0f766e 16%, transparent);
   box-shadow: inset 3px 0 #0f766e;
+}
+
+.source-editor-pane .cm-patch-highlight-range {
+  background: color-mix(in srgb, #b8860b 40%, transparent);
+  border-radius: 2px;
+}
+
+.source-editor-pane .cm-patch-highlight-line {
+  background: color-mix(in srgb, #b8860b 16%, transparent);
+  box-shadow: inset 3px 0 #b8860b;
+}
+
+/* Zero-width by design: a deletion marker must never shift surrounding text,
+   line wrapping, or horizontal scroll extent. The visible bar is drawn by an
+   absolutely-positioned ::after so it takes no layout space of its own. */
+.source-editor-pane .cm-patch-highlight-deletion-marker {
+  position: relative;
+  display: inline-block;
+  width: 0;
+  height: 0.9em;
+  vertical-align: text-bottom;
+}
+
+.source-editor-pane .cm-patch-highlight-deletion-marker::after {
+  content: "";
+  position: absolute;
+  left: -1px;
+  top: 0;
+  width: 2px;
+  height: 100%;
+  background: #b8860b;
+  border-radius: 1px;
 }
 
 .source-editor-pane-wrapper {

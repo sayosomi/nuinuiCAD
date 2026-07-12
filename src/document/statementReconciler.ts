@@ -54,14 +54,14 @@ export type ReconcileResult = {
   stageByNewStatementIndex: Map<number, ReconcileStage>;
 };
 
-type DiffHunk = {
+export type DiffHunk = {
   oldStart: number;
   oldEnd: number;
   newStart: number;
   newEnd: number;
 };
 
-type DiffResult = {
+export type DiffResult = {
   pairs: Array<[number, number]>;
   hunks: DiffHunk[];
 };
@@ -70,7 +70,7 @@ type DiffResult = {
 // 中央全体を1つの置換ハンクとして扱い、キー系段階(2〜5)に解決を委ねる。
 const LCS_AREA_LIMIT = 250_000;
 
-const diffTexts = (oldTexts: readonly string[], newTexts: readonly string[]): DiffResult => {
+export const diffTexts = (oldTexts: readonly string[], newTexts: readonly string[]): DiffResult => {
   const n = oldTexts.length;
   const m = newTexts.length;
   let prefix = 0;
