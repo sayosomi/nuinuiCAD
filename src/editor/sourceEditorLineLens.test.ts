@@ -1,3 +1,4 @@
+import { undoDepth, redoDepth } from "@codemirror/commands";
 import { EditorSelection } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { fireEvent } from "@testing-library/react";
@@ -171,6 +172,99 @@ describe("SourceEditor selected-line lens", () => {
 
     const lensMarker = lens.querySelector<HTMLElement>(".cm-patch-highlight-deletion-marker");
     expect(lensMarker).not.toBeNull();
+    controller.destroy();
+  });
+
+  const openLens = async () => {
+    const parent = document.createElement("div");
+    const controller = new SourceEditorController(parent);
+    const view = EditorView.findFromDOM(parent.querySelector<HTMLElement>(".cm-editor")!)!;
+    const lens = parent.querySelector<HTMLElement>(".cm-source-line-lens")!;
+    const measure = parent.querySelector<HTMLElement>(".cm-source-line-lens-measure")!;
+    Object.defineProperty(view.contentDOM, "clientWidth", { configurable: true, value: 800 });
+    Object.defineProperty(view.scrollDOM, "clientWidth", { configurable: true, value: 72 });
+    Object.defineProperty(view.dom.querySelector(".cm-gutters-before")!, "offsetWidth", { configurable: true, value: 24 });
+    Object.defineProperty(measure, "scrollWidth", { configurable: true, value: 480 });
+
+    const longLine = view.state.doc.line(2);
+    view.dispatch({ selection: EditorSelection.cursor(longLine.from + 6) });
+    await settleLens();
+    expect(lens).toHaveClass("is-visible");
+    const lensView = EditorView.findFromDOM(lens.querySelector<HTMLElement>(".cm-editor")!)!;
+    return { controller, view, longLine, lensView };
+  };
+
+  // handleValueClick is registered as a real CM domEventHandlers entry on the lens's own
+  // contentDOM (there is no direct method handle on the ViewPlugin instance the way the
+  // main SourceEditorController exposes its private methods to tests), so it must be
+  // exercised through a real DOM mouseup dispatch rather than a direct method call.
+  const clickLens = (lensView: EditorView, init?: MouseEventInit) =>
+    fireEvent.mouseUp(lensView.contentDOM, { button: 0, ...init });
+
+  it("selects the whole value under a plain click inside the lens and projects it outward", async () => {
+    const { controller, view, longLine, lensView } = await openLens();
+    const lensText = lensView.state.doc.toString();
+    const valueStart = lensText.indexOf("120");
+
+    lensView.dispatch({ selection: EditorSelection.cursor(valueStart + 1) });
+    clickLens(lensView);
+
+    const lensSelection = lensView.state.selection.main;
+    expect(lensText.slice(lensSelection.from, lensSelection.to)).toBe("120");
+    expect(view.state.selection.main.from).toBe(longLine.from + valueStart);
+    expect(view.state.selection.main.to).toBe(longLine.from + valueStart + 3);
+    controller.destroy();
+  });
+
+  it("leaves a normal cursor on a click at a non-value position in the lens", async () => {
+    const { controller, lensView } = await openLens();
+    const lensText = lensView.state.doc.toString();
+    const namePos = lensText.indexOf("長い基準点");
+
+    lensView.dispatch({ selection: EditorSelection.cursor(namePos) });
+    clickLens(lensView);
+
+    expect(lensView.state.selection.main.empty).toBe(true);
+    expect(lensView.state.selection.main.head).toBe(namePos);
+    controller.destroy();
+  });
+
+  it("does not override a drag-created range selection in the lens", async () => {
+    const { controller, lensView } = await openLens();
+    const lensText = lensView.state.doc.toString();
+    const valueStart = lensText.indexOf("120");
+
+    lensView.dispatch({ selection: EditorSelection.range(valueStart - 2, valueStart + 1) });
+    clickLens(lensView);
+
+    expect(lensView.state.selection.main.from).toBe(valueStart - 2);
+    expect(lensView.state.selection.main.to).toBe(valueStart + 1);
+    controller.destroy();
+  });
+
+  it("does not select a value on a Mod-click inside the lens", async () => {
+    const { controller, lensView } = await openLens();
+    const lensText = lensView.state.doc.toString();
+    const valueStart = lensText.indexOf("120");
+
+    lensView.dispatch({ selection: EditorSelection.cursor(valueStart + 1) });
+    clickLens(lensView, { metaKey: true });
+
+    expect(lensView.state.selection.main.empty).toBe(true);
+    controller.destroy();
+  });
+
+  it("does not add the lens value-selection dispatch to the main view's CM undo history", async () => {
+    const { controller, view, lensView } = await openLens();
+    const lensText = lensView.state.doc.toString();
+    const valueStart = lensText.indexOf("120");
+
+    lensView.dispatch({ selection: EditorSelection.cursor(valueStart + 1) });
+    clickLens(lensView);
+
+    expect(lensView.state.selection.main.empty).toBe(false);
+    expect(undoDepth(view.state as never)).toBe(0);
+    expect(redoDepth(view.state as never)).toBe(0);
     controller.destroy();
   });
 });

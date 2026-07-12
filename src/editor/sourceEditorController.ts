@@ -64,6 +64,7 @@ import { createDiagnosticsExtension } from "./sourceEditorDiagnosticsExtension";
 import { mapPositionedDiagnostics, toStaleDiagnostics, type PositionedDiagnostic } from "./sourceEditorDiagnostics";
 import { createEvaluationExtension, evaluationChanged, type EvaluationGutterAction } from "./sourceEditorEvaluationExtension";
 import { createEvaluationDecorationIndex, type EvaluationDecorationIndex } from "./sourceEditorEvaluationIndex";
+import { dslLineValueSpans, findDslValueSpanAt } from "../dsl/dslValueSpans";
 
 type SourceStore = {
   getState: () => CadDocumentState;
@@ -212,7 +213,8 @@ export class SourceEditorController implements SourceEditorHandle {
             ...defaultKeymap
           ] satisfies KeyBinding[]),
           EditorView.domEventHandlers({
-            contextmenu: (event, view) => this.handleContextMenu(event as MouseEvent, view)
+            contextmenu: (event, view) => this.handleContextMenu(event as MouseEvent, view),
+            mouseup: (event, view) => this.handleValueClick(event as MouseEvent, view)
           }),
           EditorView.updateListener.of((update) => this.handleViewUpdate(update)),
           EditorView.domEventHandlers({
@@ -451,6 +453,32 @@ export class SourceEditorController implements SourceEditorHandle {
       if (!this.store.getState().elements.some((element) => element.id === elementId)) return true;
     }
     this.options.onRequestContextMenu(elementId, event.clientX, event.clientY);
+    return true;
+  }
+
+  /**
+   * Selects the whole editable value under a plain click that ended without a drag.
+   * Runs on `mouseup` so CodeMirror's own pointer handling (drag-select, Mod-click
+   * multi-selection) has already resolved `view.state.selection`; this only acts when
+   * that outcome is a single collapsed cursor with no modifier keys held, otherwise it
+   * defers entirely. Re-derives spans from the live buffer's line text on every call
+   * (via dslLineValueSpans), so it is correct while dirty or while the document is
+   * fatal without needing any statement-range mapping of its own.
+   */
+  private handleValueClick(event: MouseEvent, view: EditorView) {
+    if (event.button !== 0) return false;
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return false;
+    if (this.protocol.composing) return false;
+    const selection = view.state.selection;
+    if (selection.ranges.length !== 1 || !selection.main.empty) return false;
+    const pos = selection.main.head;
+    const line = view.state.doc.lineAt(pos);
+    const span = findDslValueSpanAt(dslLineValueSpans(line.text), pos - line.from);
+    if (!span) return false;
+    view.dispatch({
+      selection: EditorSelection.single(line.from + span.start, line.from + span.end),
+      annotations: Transaction.addToHistory.of(false)
+    });
     return true;
   }
 

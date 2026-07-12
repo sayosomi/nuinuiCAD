@@ -1,6 +1,7 @@
 import { defaultKeymap } from "@codemirror/commands";
 import { EditorSelection, EditorState, Transaction } from "@codemirror/state";
 import { EditorView, ViewPlugin, keymap, type KeyBinding, type ViewUpdate } from "@codemirror/view";
+import { dslLineValueSpans, findDslValueSpanAt } from "../dsl/dslValueSpans";
 import { dslCmLanguageExtension } from "./cmLanguage";
 import {
   patchHighlightField,
@@ -117,7 +118,10 @@ class SourceEditorLineLens {
           sourceEditorPatchHighlightExtension,
           EditorView.lineWrapping,
           keymap.of([...this.options.sourceKeymap(), ...defaultKeymap]),
-          EditorView.updateListener.of((update) => this.handleLensUpdate(update))
+          EditorView.updateListener.of((update) => this.handleLensUpdate(update)),
+          EditorView.domEventHandlers({
+            mouseup: (event, view) => this.handleValueClick(event as MouseEvent, view)
+          })
         ]
       })
     });
@@ -178,6 +182,26 @@ class SourceEditorLineLens {
     } finally {
       this.dispatchingLensUpdate = false;
     }
+  }
+
+  /**
+   * Mirrors the main editor's click-to-select-value handler (sourceEditorController.ts),
+   * but against the lens's own document, which is already exactly the projected line's
+   * text at offset 0 — no line.from translation is needed here. A selection-only dispatch
+   * on lensView is picked up by handleLensUpdate and projected outward automatically.
+   */
+  private handleValueClick(event: MouseEvent, view: EditorView) {
+    if (event.button !== 0) return false;
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return false;
+    const selection = view.state.selection;
+    if (selection.ranges.length !== 1 || !selection.main.empty) return false;
+    const span = findDslValueSpanAt(dslLineValueSpans(view.state.doc.toString()), selection.main.head);
+    if (!span) return false;
+    view.dispatch({
+      selection: EditorSelection.single(span.start, span.end),
+      annotations: Transaction.addToHistory.of(false)
+    });
+    return true;
   }
 
   private queueRender() {

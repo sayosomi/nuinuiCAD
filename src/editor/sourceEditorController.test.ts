@@ -1,5 +1,6 @@
 import { undoDepth, redoDepth } from "@codemirror/commands";
 import { foldedRanges } from "@codemirror/language";
+import { EditorSelection } from "@codemirror/state";
 import { fireEvent } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
@@ -9,14 +10,20 @@ import { SourceEditorController } from "./sourceEditorController";
 type ControllerInternals = {
   view: {
     state: {
-      doc: { length: number; line: (number: number) => { from: number }; lineAt: (position: number) => { from: number } };
-      selection: { main: { head: number }; ranges: readonly unknown[] };
+      doc: {
+        length: number;
+        line: (number: number) => { from: number; to: number; text: string };
+        lineAt: (position: number) => { from: number; to: number; text: string };
+        toString: () => string;
+      };
+      selection: { main: { head: number; from: number; to: number; empty: boolean }; ranges: readonly unknown[] };
     };
     dispatch: (spec: unknown) => void;
   };
   runUndo: () => boolean;
   runRedo: () => boolean;
   handleFoldGutterMouseDown: (lineFrom: number, event: MouseEvent) => boolean;
+  handleValueClick: (event: MouseEvent, view: ControllerInternals["view"]) => boolean;
 };
 
 describe("SourceEditorController commit and history boundaries", () => {
@@ -420,6 +427,160 @@ describe("SourceEditorController commit and history boundaries", () => {
     internals.handleFoldGutterMouseDown(internals.view.state.doc.line(6).from, new MouseEvent("mousedown"));
     expect(useCadUiStore.getState().groupFoldById.get(inner.id)?.expanded).toBe(false);
     expect(foldedRanges(internals.view.state as never).size).toBeGreaterThan(0);
+    controller.destroy();
+  });
+});
+
+describe("SourceEditorController value-span click selection", () => {
+  beforeEach(() => {
+    useCadDocumentStore.setState(initialCadDocumentState());
+    useCadUiStore.setState(initialCadUiState());
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  const clickEvent = (init?: MouseEventInit) => new MouseEvent("mouseup", { button: 0, ...init });
+
+  const clickAt = (internals: ControllerInternals, pos: number, init?: MouseEventInit) => {
+    internals.view.dispatch({ selection: EditorSelection.cursor(pos) });
+    return internals.handleValueClick(clickEvent(init), internals.view);
+  };
+
+  it("selects the whole value under a plain click ending without movement", () => {
+    useCadDocumentStore.getState().commitText("nui 1\npoint A = (0, 0) length=120", "test");
+    const parent = document.createElement("div");
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+    const text = internals.view.state.doc.toString();
+    const valueStart = text.lastIndexOf("120");
+
+    const handled = clickAt(internals, valueStart + 1);
+
+    expect(handled).toBe(true);
+    const selection = internals.view.state.selection.main;
+    expect(text.slice(selection.from, selection.to)).toBe("120");
+    controller.destroy();
+  });
+
+  it("leaves a normal cursor on a click at a non-value position (element name)", () => {
+    useCadDocumentStore.getState().commitText("nui 1\npoint A = (0, 0) length=120", "test");
+    const parent = document.createElement("div");
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+    const text = internals.view.state.doc.toString();
+    const namePos = text.lastIndexOf("point A") + "point ".length;
+
+    const handled = clickAt(internals, namePos);
+
+    expect(handled).toBe(false);
+    expect(internals.view.state.selection.main.empty).toBe(true);
+    expect(internals.view.state.selection.main.head).toBe(namePos);
+    controller.destroy();
+  });
+
+  it("does not override a drag-created range selection", () => {
+    useCadDocumentStore.getState().commitText("nui 1\npoint A = (0, 0) length=120", "test");
+    const parent = document.createElement("div");
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+    const text = internals.view.state.doc.toString();
+    const valueStart = text.lastIndexOf("120");
+    const dragFrom = valueStart - 4;
+    const dragTo = valueStart + 1;
+
+    internals.view.dispatch({ selection: EditorSelection.range(dragFrom, dragTo) });
+    const handled = internals.handleValueClick(clickEvent(), internals.view);
+
+    expect(handled).toBe(false);
+    expect(internals.view.state.selection.main.from).toBe(dragFrom);
+    expect(internals.view.state.selection.main.to).toBe(dragTo);
+    controller.destroy();
+  });
+
+  // This editor never enables CM's `allowMultipleSelections` (dispatching a multi-range
+  // selection collapses to one range), so Mod-click on content never produces a real
+  // multi-range CM selection to preserve. The guard that matters in practice is that a
+  // modifier-held click must not be hijacked into a value selection at all.
+  it("does not select a value on a Mod-click even when the resulting selection is a single collapsed cursor", () => {
+    useCadDocumentStore.getState().commitText("nui 1\npoint A = (0, 0) length=120", "test");
+    const parent = document.createElement("div");
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+    const text = internals.view.state.doc.toString();
+    const valueStart = text.lastIndexOf("120");
+
+    const handled = clickAt(internals, valueStart + 1, { metaKey: true });
+
+    expect(handled).toBe(false);
+    expect(internals.view.state.selection.main.empty).toBe(true);
+    controller.destroy();
+  });
+
+  it("selects against the live dirty buffer, not a stale last-good value", () => {
+    useCadDocumentStore.getState().commitText("nui 1\npoint A = (0, 0) length=120", "test");
+    const parent = document.createElement("div");
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+    internals.view.dispatch({ changes: { from: internals.view.state.doc.length, insert: "0" } });
+    const text = internals.view.state.doc.toString();
+    expect(text.endsWith("length=1200")).toBe(true);
+
+    const handled = clickAt(internals, text.length - 1);
+
+    expect(handled).toBe(true);
+    const selection = internals.view.state.selection.main;
+    expect(text.slice(selection.from, selection.to)).toBe("1200");
+    controller.destroy();
+  });
+
+  it("falls through to a normal click when the clicked line fails to parse (fatal-safe)", () => {
+    useCadDocumentStore.getState().commitText("nui 1\npoint A = (0, 0) length=120", "test");
+    const parent = document.createElement("div");
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+    // Append a stray "{" mid-line: no longer a valid statement, so no value spans exist.
+    internals.view.dispatch({ changes: { from: internals.view.state.doc.length, insert: " {" } });
+    const text = internals.view.state.doc.toString();
+    const pos = text.lastIndexOf("120") + 1;
+
+    const handled = clickAt(internals, pos);
+
+    expect(handled).toBe(false);
+    expect(internals.view.state.selection.main.empty).toBe(true);
+    expect(internals.view.state.selection.main.head).toBe(pos);
+    controller.destroy();
+  });
+
+  it("treats the value span as half-open: a click right after the value keeps a normal cursor", () => {
+    useCadDocumentStore.getState().commitText("nui 1\npoint A = (0, 0) length=120", "test");
+    const parent = document.createElement("div");
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+    const text = internals.view.state.doc.toString();
+    const afterValue = text.lastIndexOf("120") + "120".length;
+
+    const handled = clickAt(internals, afterValue);
+
+    expect(handled).toBe(false);
+    expect(internals.view.state.selection.main.empty).toBe(true);
+    controller.destroy();
+  });
+
+  it("does not add the value-selection dispatch to CM undo history", () => {
+    useCadDocumentStore.getState().commitText("nui 1\npoint A = (0, 0) length=120", "test");
+    const parent = document.createElement("div");
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+    const text = internals.view.state.doc.toString();
+    const valueStart = text.lastIndexOf("120");
+
+    const handled = clickAt(internals, valueStart + 1);
+
+    expect(handled).toBe(true);
+    expect(undoDepth(internals.view.state as never)).toBe(0);
+    expect(redoDepth(internals.view.state as never)).toBe(0);
     controller.destroy();
   });
 });
