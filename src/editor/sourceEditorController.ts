@@ -823,6 +823,10 @@ export class SourceEditorController implements SourceEditorHandle {
 
   private projectPrimaryCursor() {
     if (this.publishingCanvasSelection) return;
+    // A Canvas selection always supersedes any deferred cursor snapshot left over from
+    // an earlier unfocused model patch; otherwise a later focus() would restore the
+    // stale snapshot over the cursor this projection is about to place.
+    this.deferredExternalCursor = null;
     const primaryId = this.uiStore.getState().selectedElementId;
     const range = primaryId ? this.statementRanges.get(primaryId) : undefined;
     if (!range || this.view.state.selection.main.head === range.from) return;

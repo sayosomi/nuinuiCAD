@@ -173,3 +173,151 @@ describe("AppLayout Source Editor production integration", () => {
   });
 
 });
+
+describe("Canvas selection focuses the Source Editor", () => {
+  const focusSource = [
+    "nui 1",
+    "point A = (0, 0)",
+    "point B = (100, 0)",
+    "line AB = A -> B"
+  ].join("\n");
+
+  // worldToScreen with the default {panX:0, panY:0, zoom:1} viewport and the
+  // 500x400 stubbed .canvas-viewport maps A(0,0)->(250,200), B(100,0)->(350,200),
+  // and the AB midpoint (50,0)->(300,200): 50px from either point, so it hits the
+  // line segment (6px tolerance) rather than either point (8px tolerance).
+  const B_SCREEN = { clientX: 350, clientY: 200 };
+  const AB_MIDPOINT_SCREEN = { clientX: 300, clientY: 200 };
+  const BLANK_SCREEN = { clientX: 100, clientY: 350 };
+
+  const setUp = () => {
+    useCadDocumentStore.getState().commitText(focusSource, "test");
+    const view = render(<AppLayout />);
+    const viewport = view.container.querySelector<HTMLDivElement>(".canvas-viewport")!;
+    const content = view.container.querySelector<HTMLElement>(".cm-content")!;
+    const cmView = EditorView.findFromDOM(view.container.querySelector<HTMLElement>(".cm-editor")!)!;
+    const elementId = (name: string) =>
+      useCadDocumentStore.getState().elements.find((element) => element.name === name)!.id;
+    return { view, viewport, content, cmView, elementId };
+  };
+
+  it("keeps Canvas focus while a simple click settles, then focuses the editor on pointerup", async () => {
+    const { viewport, content } = setUp();
+
+    fireEvent.pointerDown(viewport, { button: 0, buttons: 1, pointerId: 1, ...AB_MIDPOINT_SCREEN });
+    expect(document.activeElement).not.toBe(content);
+
+    fireEvent.pointerUp(viewport, { buttons: 0, pointerId: 1, ...AB_MIDPOINT_SCREEN });
+    await waitFor(() => expect(document.activeElement).toBe(content));
+    expect(useCadUiStore.getState().sourceCursorLine).toBe(4);
+  });
+
+  it("keeps Canvas focus through a point drag and focuses the editor only after the move commits", async () => {
+    const { viewport, content, elementId } = setUp();
+
+    fireEvent.pointerDown(viewport, { button: 0, buttons: 1, pointerId: 1, ...B_SCREEN });
+    expect(useCadUiStore.getState().selectedElementId).toBe(elementId("B"));
+    expect(document.activeElement).toBe(viewport);
+
+    fireEvent.pointerMove(viewport, { buttons: 1, pointerId: 1, clientX: 380, clientY: 190 });
+    expect(document.activeElement).toBe(viewport);
+
+    fireEvent.pointerUp(viewport, { buttons: 0, pointerId: 1, clientX: 380, clientY: 190 });
+    await waitFor(() => expect(document.activeElement).toBe(content));
+    // Cursor placement after this focus() goes through restoreDeferredExternalCursor
+    // (the drag ran while the editor was unfocused), which re-reads the DOM selection
+    // through CodeMirror's DOM observer; jsdom's Range/getClientRects support is too
+    // limited to assert an exact offset here, so this only checks the focus handoff.
+  });
+
+  it("does not move focus for a blank click", () => {
+    const { viewport, content } = setUp();
+    const previouslySelected = useCadUiStore.getState().selectedElementId;
+
+    fireEvent.pointerDown(viewport, { button: 0, buttons: 1, pointerId: 1, ...BLANK_SCREEN });
+    fireEvent.pointerUp(viewport, { buttons: 0, pointerId: 1, ...BLANK_SCREEN });
+
+    expect(useCadUiStore.getState().selectedElementId).toBe(previouslySelected);
+    expect(document.activeElement).not.toBe(content);
+  });
+
+  it("discards the focus reservation on pointer cancel instead of moving focus", () => {
+    const { viewport, content } = setUp();
+
+    fireEvent.pointerDown(viewport, { button: 0, buttons: 1, pointerId: 1, ...B_SCREEN });
+    fireEvent.pointerCancel(viewport, { pointerId: 1, ...B_SCREEN });
+
+    expect(document.activeElement).not.toBe(content);
+  });
+
+  it("focuses the editor once a click resolves after evaluation catches up", async () => {
+    const { viewport, content, cmView, elementId } = setUp();
+
+    // Uncommitted editor text at gesture time defers resolution to the resolution
+    // effect, which runs after the pointer has already been released.
+    act(() => {
+      cmView.dispatch({ changes: { from: cmView.state.doc.length, insert: "\npoint C = (0, -60)" } });
+    });
+
+    fireEvent.pointerDown(viewport, { button: 0, buttons: 1, pointerId: 1, ...B_SCREEN });
+    fireEvent.pointerUp(viewport, { buttons: 0, pointerId: 1, ...B_SCREEN });
+
+    await waitFor(() => expect(useCadUiStore.getState().selectedElementId).toBe(elementId("B")));
+    await waitFor(() => expect(document.activeElement).toBe(content));
+  });
+
+  it("moves focus back to the editor when re-clicking the already-selected element", async () => {
+    const { viewport, content } = setUp();
+
+    fireEvent.pointerDown(viewport, { button: 0, buttons: 1, pointerId: 1, ...AB_MIDPOINT_SCREEN });
+    fireEvent.pointerUp(viewport, { buttons: 0, pointerId: 1, ...AB_MIDPOINT_SCREEN });
+    await waitFor(() => expect(document.activeElement).toBe(content));
+
+    act(() => content.blur());
+    expect(document.activeElement).not.toBe(content);
+
+    fireEvent.pointerDown(viewport, { button: 0, buttons: 1, pointerId: 2, ...AB_MIDPOINT_SCREEN });
+    fireEvent.pointerUp(viewport, { buttons: 0, pointerId: 2, ...AB_MIDPOINT_SCREEN });
+    await waitFor(() => expect(document.activeElement).toBe(content));
+  });
+
+  it("does not restore a stale deferred cursor snapshot once Canvas re-selects the same element", async () => {
+    const { viewport, content, cmView, elementId } = setUp();
+
+    // Select B, then nudge the CM cursor a couple columns into B's own line
+    // without changing the primary selection (still within B's statement range).
+    fireEvent.pointerDown(viewport, { button: 0, buttons: 1, pointerId: 1, ...B_SCREEN });
+    fireEvent.pointerUp(viewport, { buttons: 0, pointerId: 1, ...B_SCREEN });
+    await waitFor(() => expect(document.activeElement).toBe(content));
+    const projectedHead = cmView.state.selection.main.head;
+    act(() => {
+      cmView.dispatch({ selection: { anchor: projectedHead + 2 } });
+    });
+
+    // Blur, then mutate B while unfocused so a deferred-cursor snapshot is
+    // captured at the nudged (wrong) position.
+    act(() => content.blur());
+    act(() => {
+      const elements = useCadDocumentStore.getState().elements.map((element) =>
+        element.id === elementId("B") ? { ...element, locked: true } : element
+      );
+      useCadDocumentStore.getState().commitDocumentChange({ elements });
+    });
+
+    // Select a different element, then re-select B via Canvas: this is a real
+    // primary-selection change back to B, so projectPrimaryCursor must run and
+    // clear the stale deferred snapshot before the editor is focused again.
+    fireEvent.pointerDown(viewport, { button: 0, buttons: 1, pointerId: 2, ...AB_MIDPOINT_SCREEN });
+    fireEvent.pointerUp(viewport, { buttons: 0, pointerId: 2, ...AB_MIDPOINT_SCREEN });
+    await waitFor(() => expect(document.activeElement).toBe(content));
+
+    fireEvent.pointerDown(viewport, { button: 0, buttons: 1, pointerId: 3, ...B_SCREEN });
+    fireEvent.pointerUp(viewport, { buttons: 0, pointerId: 3, ...B_SCREEN });
+    await waitFor(() => expect(document.activeElement).toBe(content));
+
+    // No drag ran here, so this final focus() never hits restoreDeferredExternalCursor's
+    // DOM-selection re-read; the cursor should sit exactly at B's fresh projection.
+    expect(useCadUiStore.getState().sourceCursorLine).toBe(3);
+    expect(cmView.state.selection.main.head).toBe(cmView.state.doc.line(3).from);
+  });
+});

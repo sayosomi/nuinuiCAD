@@ -118,6 +118,7 @@ export const DrawingCanvas = ({
   const panDragRef = useRef<{ pointerId: number; lastX: number; lastY: number } | null>(null);
   const pointDragRef = useRef<PointDragState | null>(null);
   const bezierHandleDragRef = useRef<BezierHandleDragState | null>(null);
+  const pendingEditorFocusRef = useRef<{ pointerId: number } | null>(null);
   const pendingPointerStateRef = useRef(initialPendingCanvasPointerState());
   const [captureLedger] = useState(createCanvasPointerCaptureLedger);
   const [pendingPointerState, setPendingPointerState] = useState(initialPendingCanvasPointerState);
@@ -428,6 +429,30 @@ export const DrawingCanvas = ({
         ? "range" as const
         : "replace" as const;
 
+  // Normal Canvas selection reserves a Source Editor focus handoff for once the
+  // gesture settles. Reference picking, blank clicks, and panning never call this,
+  // so they never move focus off the canvas.
+  const scheduleEditorFocus = useCallback((pointerId: number, pointerReleased: boolean) => {
+    if (pointerReleased) {
+      pendingEditorFocusRef.current = null;
+      commandContext.focusElementList?.();
+      return;
+    }
+    pendingEditorFocusRef.current = { pointerId };
+  }, [commandContext]);
+
+  const resolveEditorFocusReservation = useCallback((pointerId: number) => {
+    if (pendingEditorFocusRef.current?.pointerId !== pointerId) return;
+    pendingEditorFocusRef.current = null;
+    commandContext.focusElementList?.();
+  }, [commandContext]);
+
+  const discardEditorFocusReservation = useCallback((pointerId: number) => {
+    if (pendingEditorFocusRef.current?.pointerId === pointerId) {
+      pendingEditorFocusRef.current = null;
+    }
+  }, []);
+
   /**
    * Resolves an intent only against the current render.  The original pointer
    * carries coordinates and modifiers, never an old hit-test result.  The
@@ -512,8 +537,10 @@ export const DrawingCanvas = ({
             historySnapshot: dragSnapshot.snapshot
           });
         }
+        scheduleEditorFocus(intent.pointerId, true);
         return;
       }
+      scheduleEditorFocus(intent.pointerId, false);
       beginCapture();
       bezierHandleDragRef.current = {
         pointerId: intent.pointerId,
@@ -547,6 +574,7 @@ export const DrawingCanvas = ({
     focusCanvas();
     dispatchCommand("selectElement", { elementId, selectionMode: selectionModeFor(intent) });
     if (!overlayPoints.some(({ point }) => point.elementId === elementId)) {
+      scheduleEditorFocus(intent.pointerId, intent.pointerReleased);
       return;
     }
     const dragSnapshot = currentDocumentDragSnapshot();
@@ -570,8 +598,10 @@ export const DrawingCanvas = ({
           historySnapshot: dragSnapshot.snapshot
         });
       }
+      scheduleEditorFocus(intent.pointerId, true);
       return;
     }
+    scheduleEditorFocus(intent.pointerId, false);
     beginCapture();
     pointDragRef.current = {
       pointerId: intent.pointerId,
@@ -602,6 +632,7 @@ export const DrawingCanvas = ({
     overlayPointPickCandidates,
     overlayPoints,
     overlayTexts,
+    scheduleEditorFocus,
     selectedBezierHandles,
     viewportSize.height,
     viewportSize.width
@@ -931,15 +962,18 @@ export const DrawingCanvas = ({
           stopBezierHandleDragging(event);
           stopPointDragging(event);
           stopPanning(event);
+          resolveEditorFocusReservation(event.pointerId);
         }}
         onPointerCancel={(event) => {
           if (pendingPointerStateRef.current.kind === "waiting") {
             applyPendingPointerTransition(cancelPendingCanvasPointer(pendingPointerStateRef.current, event.pointerId));
+            discardEditorFocusReservation(event.pointerId);
             return;
           }
           stopBezierHandleDragging(event);
           stopPointDragging(event);
           stopPanning(event);
+          discardEditorFocusReservation(event.pointerId);
         }}
         onAuxClick={(event) => event.preventDefault()}
       >
