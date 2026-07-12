@@ -148,12 +148,12 @@ describe("AppLayout Source Editor production integration", () => {
       "nui 1",
       "point A = (0, 0)",
       "point B = (100, 0)",
-      "point C = (0, -50)",
+      "point 選択候補 = (0, -50)",
       "line AB = A -> B"
     ].join("\n"), "test");
     const view = render(<AppLayout />);
     const lineId = useCadDocumentStore.getState().elements.find((element) => element.name === "AB")!.id;
-    const pointC = pointId("C");
+    const pickCandidate = pointId("選択候補");
     act(() => {
       useCadUiStore.getState().setActivePointPickTarget({ elementId: lineId, parameterKey: "startPoint" });
     });
@@ -162,12 +162,13 @@ describe("AppLayout Source Editor production integration", () => {
     viewport.focus();
     fireEvent.keyDown(window, { key: "f", metaKey: true });
     const input = await view.findByLabelText("要素を検索");
-    fireEvent.change(input, { target: { value: "C" } });
+    fireEvent.change(input, { target: { value: "選択候補" } });
+    await view.findByRole("button", { name: "選択候補" });
     fireEvent.keyDown(input, { key: "Enter" });
 
     await waitFor(() => {
       const lineElement = useCadDocumentStore.getState().elements.find((element) => element.name === "AB");
-      expect(lineElement).toMatchObject({ startPoint: { mode: "reference", pointId: pointC } });
+      expect(lineElement).toMatchObject({ startPoint: { mode: "reference", pointId: pickCandidate } });
     });
     expect(useCadUiStore.getState().activePointPickTarget).toBeNull();
   });
