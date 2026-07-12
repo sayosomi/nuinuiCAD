@@ -558,7 +558,7 @@ describe("AppLayout left panel resizing", () => {
     }
     const handle = view.getByRole("separator", { name: "左パネル幅を変更" });
 
-    fireEvent.pointerDown(handle, { button: 0, clientX: 320, pointerId: 1 });
+    fireEvent.pointerDown(handle, { button: 0, clientX: 420, pointerId: 1 });
     await waitFor(() => expect(shell).toHaveClass("is-resizing-left-panel"));
     fireEvent.pointerMove(window, { clientX: 500, pointerId: 1 });
     fireEvent.pointerUp(window, { clientX: 500, pointerId: 1 });
@@ -593,13 +593,13 @@ describe("AppLayout left panel resizing", () => {
     await waitFor(() =>
       expect(JSON.parse(window.localStorage.getItem("nuinuiCAD.layoutSettings.v1") ?? "{}")).toEqual({
         version: 1,
-        leftPanelWidth: 320,
+        leftPanelWidth: 420,
         collapsedPrintPanelSections: ["variables"],
         printPreviewWindow: DEFAULT_PRINT_PREVIEW_WINDOW,
         dslPanelWindow: DEFAULT_DSL_PANEL_WINDOW
       })
     );
-    expect(shell.style.getPropertyValue("--left-panel-width")).toBe("320px");
+    expect(shell.style.getPropertyValue("--left-panel-width")).toBe("420px");
   });
 });
 

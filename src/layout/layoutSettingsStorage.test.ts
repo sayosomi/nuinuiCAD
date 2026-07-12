@@ -136,6 +136,10 @@ describe("layoutSettingsStorage", () => {
     });
   });
 
+  it("upgrades an earlier 320px editor width to the new readable minimum", () => {
+    expect(normalizeLayoutSettings({ version: 1, leftPanelWidth: 320 }).leftPanelWidth).toBe(360);
+  });
+
   it("falls back to defaults for broken browser storage", async () => {
     window.localStorage.setItem("nuinuiCAD.layoutSettings.v1", "{not-json");
 

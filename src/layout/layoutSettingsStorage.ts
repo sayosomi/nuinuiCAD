@@ -13,9 +13,9 @@ import {
 } from "../state/cadUiStore";
 import type { DslPanelWindow, PrintPreviewWindow } from "../state/cadUiStore";
 
-export const DEFAULT_LEFT_PANEL_WIDTH = 320;
-export const MIN_LEFT_PANEL_WIDTH = 320;
-export const MAX_LEFT_PANEL_WIDTH = 640;
+export const DEFAULT_LEFT_PANEL_WIDTH = 420;
+export const MIN_LEFT_PANEL_WIDTH = 360;
+export const MAX_LEFT_PANEL_WIDTH = 720;
 
 const STORAGE_KEY = "nuinuiCAD.layoutSettings.v1";
 export const PRINT_PANEL_SECTION_IDS = ["output", "variables", "groups", "placements"] as const;

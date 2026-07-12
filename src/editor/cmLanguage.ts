@@ -1,4 +1,4 @@
-import { defaultHighlightStyle, StreamLanguage, syntaxHighlighting } from "@codemirror/language";
+import { HighlightStyle, StreamLanguage, syntaxHighlighting } from "@codemirror/language";
 import type { StringStream } from "@codemirror/language";
 import { tags } from "@lezer/highlight";
 import { highlightDslLine } from "../dsl/dslHighlight";
@@ -47,4 +47,15 @@ export const dslCmLanguage = StreamLanguage.define<StreamState>({
   }
 });
 
-export const dslCmLanguageExtension = [dslCmLanguage, syntaxHighlighting(defaultHighlightStyle)];
+const dslHighlightStyle = HighlightStyle.define([
+  { tag: tags.propertyName, color: "#586a63" },
+  { tag: tags.comment, color: "#8a8d84", fontStyle: "italic" },
+  { tag: tags.typeName, color: "#0f766e", fontWeight: "600" },
+  { tag: tags.keyword, color: "#7c5a1f", fontWeight: "600" },
+  { tag: tags.number, color: "#9a4f2e" },
+  { tag: tags.operator, color: "#5c625b" },
+  { tag: tags.variableName, color: "#2e514a" },
+  { tag: tags.string, color: "#8b4a5d" }
+]);
+
+export const dslCmLanguageExtension = [dslCmLanguage, syntaxHighlighting(dslHighlightStyle)];

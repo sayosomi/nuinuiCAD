@@ -1,8 +1,23 @@
 import { codeFolding, foldGutter, foldService } from "@codemirror/language";
 import { openSearchPanel, closeSearchPanel, search, searchKeymap } from "@codemirror/search";
-import { Annotation, Compartment, EditorSelection, EditorState, Text, Transaction } from "@codemirror/state";
+import {
+  Annotation,
+  Compartment,
+  EditorSelection,
+  EditorState,
+  Text,
+  Transaction
+} from "@codemirror/state";
 import { defaultKeymap, history, redo, redoDepth, undo, undoDepth } from "@codemirror/commands";
-import { EditorView, keymap, lineNumbers, type KeyBinding, type ViewUpdate } from "@codemirror/view";
+import {
+  EditorView,
+  highlightActiveLine,
+  highlightActiveLineGutter,
+  keymap,
+  lineNumbers,
+  type KeyBinding,
+  type ViewUpdate
+} from "@codemirror/view";
 import { forceLinting } from "@codemirror/lint";
 import { dispatchCommand } from "../commands/commands";
 import { sourceEditorShortcutBindings } from "../keyboard/shortcutRegistry";
@@ -12,6 +27,14 @@ import type { ElementId, EvaluationResult } from "../types/geometry";
 import { useCadDocumentStore, type CadDocumentState } from "../state/cadDocumentStore";
 import { useCadUiStore, type CadUiState } from "../state/cadUiStore";
 import { dslCmLanguageExtension } from "./cmLanguage";
+import { sourceEditorLineLens } from "./sourceEditorLineLens";
+import {
+  captureSourceEditorViewport,
+  cursorAtSnapshotLocation,
+  restoreSourceEditorViewport,
+  selectionAfterModelPatch,
+  type SourceEditorViewportSnapshot
+} from "./sourceEditorViewportStability";
 import { lineSplicesToSourceTextChanges } from "./lineSpliceChanges";
 import { registerSourceEditSession, type FlushReason, type SourceEditFlushResult } from "./sourceEditSession";
 import {
@@ -56,6 +79,12 @@ const modelPatchOrigin = Annotation.define<"model-patch">();
 const resetOrigin = Annotation.define<"reset">();
 const canvasCursorOrigin = Annotation.define<"canvas-cursor">();
 const foldProjectionOrigin = Annotation.define<"fold-projection">();
+const emptyDecorationIndex = (): EvaluationDecorationIndex => ({
+  statuses: [],
+  statusByLineFrom: new Map(),
+  generatedWidgets: [],
+  pickLines: []
+});
 
 const codeMirrorKeyForChord = (chord: KeyChord): string | null => {
   if (chord.mod === "any" || chord.alt === "any" || chord.shift === "any") return null;
@@ -90,9 +119,11 @@ export class SourceEditorController implements SourceEditorHandle {
   /** At most two newest compiled-document revisions are retained; older results can never become current. */
   private pendingEvaluations = new Map<number, { evaluation: EvaluationResult; evaluationRequestRevision: number }>();
   private appliedEvaluation: { evaluation: EvaluationResult; compiledDocumentRevision: number; evaluationRequestRevision: number } | null = null;
-  private decorationIndex: EvaluationDecorationIndex = { statuses: [], statusByLineFrom: new Map(), generatedWidgets: [], pickLines: [] };
+  private decorationIndex: EvaluationDecorationIndex = emptyDecorationIndex();
   private pendingDecorationRefresh = false;
   private pendingSelectionSync = false;
+  private pendingPrimaryCursorProjection = false;
+  private deferredExternalCursor: SourceEditorViewportSnapshot | null = null;
   private pendingFoldProjection = false;
   private applyingUiSync = false;
   private publishingCanvasSelection = false;
@@ -123,7 +154,10 @@ export class SourceEditorController implements SourceEditorHandle {
               mousedown: (_view, line, event) => this.handleSelectionGutterMouseDown(line.from, event as MouseEvent)
             }
           }),
+          highlightActiveLine(),
+          highlightActiveLineGutter(),
           dslCmLanguageExtension,
+          sourceEditorLineLens,
           sourceEditorSelectionExtension,
           codeFolding(),
           foldService.of((state, lineStart) => {
@@ -192,6 +226,10 @@ export class SourceEditorController implements SourceEditorHandle {
             blur: () => {
               this.flush("blur");
               return false;
+            },
+            focus: () => {
+              this.restoreDeferredExternalCursor();
+              return false;
             }
           })
         ]
@@ -211,16 +249,21 @@ export class SourceEditorController implements SourceEditorHandle {
       });
     });
     this.unsubscribeUi = uiStore.subscribe((next, previous) => {
-      const selectionChanged =
-        next.selectedElementId !== previous.selectedElementId ||
-        next.selectedElementIds !== previous.selectedElementIds;
+      const primarySelectionChanged = next.selectedElementId !== previous.selectedElementId;
+      const selectionChanged = primarySelectionChanged || next.selectedElementIds !== previous.selectedElementIds;
       const foldChanged = next.groupFoldById !== previous.groupFoldById;
       const decorationChanged = foldChanged ||
         next.activePickCursor !== previous.activePickCursor ||
         next.activePointPickTarget !== previous.activePointPickTarget ||
         next.activeNumericReferencePickTarget !== previous.activeNumericReferencePickTarget ||
         next.activeLinePickTarget !== previous.activeLinePickTarget;
-      if (selectionChanged) this.pendingSelectionSync = true;
+      if (selectionChanged) {
+        this.pendingSelectionSync = true;
+        // Canvas selection should move the source cursor once. A model patch for
+        // the already-selected element must only refresh decorations, otherwise
+        // its scrollIntoView call visibly snaps the editor on every drag update.
+        this.pendingPrimaryCursorProjection ||= primarySelectionChanged && !this.publishingCanvasSelection;
+      }
       if (foldChanged) this.pendingFoldProjection = true;
       if (next.shortcutSettings !== previous.shortcutSettings) {
         this.view.dispatch({
@@ -234,6 +277,7 @@ export class SourceEditorController implements SourceEditorHandle {
     this.refreshStatementRanges();
     this.refreshDecorationIndex();
     this.pendingSelectionSync = true;
+    this.pendingPrimaryCursorProjection = true;
     this.pendingFoldProjection = true;
     this.applyPendingUiSync();
   }
@@ -575,10 +619,21 @@ export class SourceEditorController implements SourceEditorHandle {
     }
     if (action.kind === "apply-model-patch") {
       const changes = lineSplicesToSourceTextChanges(this.view.state.doc.toString(), action.update.splices);
+      const changeSet = this.view.state.changes(changes);
+      const viewport = captureSourceEditorViewport(
+        this.view,
+        this.uiStore.getState().selectedElementId
+      );
+      const mappedSelection = viewport.hadFocus
+        ? selectionAfterModelPatch(this.view, changeSet)
+        : null;
       this.view.dispatch({
         changes,
+        ...(mappedSelection ? { selection: mappedSelection } : {}),
         annotations: [modelPatchOrigin.of("model-patch"), Transaction.addToHistory.of(false)]
       });
+      if (!viewport.hadFocus) this.deferredExternalCursor = viewport;
+      restoreSourceEditorViewport(this.view, viewport);
       this.syncCommittedText(this.store.getState().sourceText);
       this.clearCmHistory();
       this.afterSourceUpdate();
@@ -603,6 +658,7 @@ export class SourceEditorController implements SourceEditorHandle {
     // shows the previous document's evaluation decorations over the new text.
     this.pendingEvaluations.clear();
     this.appliedEvaluation = null;
+    this.decorationIndex = emptyDecorationIndex();
     this.options.onEvaluationPresentationChange?.({ isLastGood: false });
     const cursorLine = useCadUiStore.getState().sourceCursorLine;
     const cursorOffset = cursorLine === null
@@ -615,6 +671,17 @@ export class SourceEditorController implements SourceEditorHandle {
       annotations: [resetOrigin.of("reset"), Transaction.addToHistory.of(false)]
     });
     this.clearCmHistory();
+  }
+
+  private restoreDeferredExternalCursor() {
+    const snapshot = this.deferredExternalCursor;
+    if (!snapshot) return;
+    this.deferredExternalCursor = null;
+    if (snapshot.primaryElementId !== this.uiStore.getState().selectedElementId) return;
+    this.view.dispatch({
+      selection: cursorAtSnapshotLocation(this.view, snapshot),
+      annotations: Transaction.addToHistory.of(false)
+    });
   }
 
   /**
@@ -649,9 +716,13 @@ export class SourceEditorController implements SourceEditorHandle {
     for (const revision of this.pendingEvaluations.keys()) {
       if (revision < state.compiledDocumentRevision) this.pendingEvaluations.delete(revision);
     }
-    if (state.docText === state.sourceText && this.appliedEvaluation?.compiledDocumentRevision !== state.compiledDocumentRevision) {
-      this.appliedEvaluation = null;
-    }
+    // A Canvas model patch advances the compiled-document revision before its
+    // asynchronous evaluation result returns. Keep the previous evaluation in
+    // that interval so every element line keeps its gutter, line class, and
+    // generated-row widget instead of disappearing for one render frame.
+    // refreshDecorationIndex rebuilds positions and model-owned state from the
+    // current document, while evaluation-owned state is atomically replaced by
+    // tryApplyPendingEvaluation once the matching result arrives.
     this.options.onEvaluationPresentationChange?.({ isLastGood: this.isShowingLastGoodEvaluation() });
   }
 
@@ -723,7 +794,10 @@ export class SourceEditorController implements SourceEditorHandle {
         this.pendingSelectionSync = false;
         this.expandSelectionAncestors();
         this.updateSecondarySelection();
-        this.projectPrimaryCursor();
+        if (this.pendingPrimaryCursorProjection) {
+          this.pendingPrimaryCursorProjection = false;
+          this.projectPrimaryCursor();
+        }
       }
       if (this.pendingFoldProjection) {
         this.pendingFoldProjection = false;

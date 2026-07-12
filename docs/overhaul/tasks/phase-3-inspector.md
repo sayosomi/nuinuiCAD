@@ -28,7 +28,7 @@ DSL」: パラメータ項目を選ぶとエディタの該当行・該当属性
   ジャンプAPI(CM `dispatch({selection})` + フォーカス)。アダプタ層の
   公開APIとして追加し、CM型は漏らさない。
 * **数値微調整の代替**: エディタネイティブの数値トークンステップコマンド
-  (`Alt+↑/↓`: カーソル下の数値トークンを `parameterDefinitions.ts` の
+  (`Alt+→/←`: カーソル下の数値トークンを `parameterDefinitions.ts` の
   `stepLevels` に従って増減し、1コミット=1 Undoステップ)。
 * `src/components/RightPanel.tsx` — InspectorPanel 構成へ書き換え。
 * `src/parameters/parameterDefinitions.ts` — 縮小: ラベル・値種別・

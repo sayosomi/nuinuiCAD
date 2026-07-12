@@ -1,11 +1,12 @@
-import { RangeSetBuilder, StateEffect, type Extension } from "@codemirror/state";
-import { Decoration, EditorView, gutter, GutterMarker, ViewPlugin, WidgetType, type DecorationSet, type ViewUpdate } from "@codemirror/view";
+import { RangeSetBuilder, type Extension } from "@codemirror/state";
+import { Decoration, EditorView, gutter, GutterMarker, ViewPlugin, type DecorationSet, type ViewUpdate } from "@codemirror/view";
 import type { ElementId } from "../types/geometry";
-import { entriesInVisibleRanges, type EvaluationDecorationIndex, type IndexedGeneratedWidget, type IndexedLineStatus } from "./sourceEditorEvaluationIndex";
+import { entriesInVisibleRanges, type EvaluationDecorationIndex, type IndexedLineStatus } from "./sourceEditorEvaluationIndex";
+import { evaluationChanged } from "./sourceEditorEvaluationEffects";
+import { sourceEditorGeneratedRowsExtension } from "./sourceEditorGeneratedRowsExtension";
 import type { AtStopRange } from "./statementRangeIndex";
 
-/** Refreshes only decoration projections; it never changes editor text, selection, or history. */
-export const evaluationChanged = StateEffect.define<null>();
+export { evaluationChanged } from "./sourceEditorEvaluationEffects";
 
 export type EvaluationGutterAction = "visibility" | "enabled" | "locked" | "print" | "stop";
 
@@ -16,30 +17,6 @@ export type EvaluationExtensionSource = {
   isLastGood: () => boolean;
   onGutterAction: (action: EvaluationGutterAction, lineFrom: number) => boolean;
 };
-
-const rowsKey = (rows: IndexedGeneratedWidget["rows"]) => rows.map((row) =>
-  `${row.generatedElementId}\u0000${row.variableName}\u0000${row.variableValue}\u0000${row.elementName}`
-).join("\u0001");
-
-class GeneratedRowsWidget extends WidgetType {
-  constructor(private readonly spec: IndexedGeneratedWidget) { super(); }
-  eq(other: GeneratedRowsWidget) {
-    return other.spec.forGroupId === this.spec.forGroupId && rowsKey(other.spec.rows) === rowsKey(this.spec.rows);
-  }
-  toDOM() {
-    const container = document.createElement("div");
-    container.className = "cm-generated-rows-widget";
-    container.contentEditable = "false";
-    for (const row of this.spec.rows) {
-      const line = document.createElement("div");
-      line.className = "cm-generated-row";
-      line.textContent = `${row.variableName}=${row.variableValue} → ${row.elementName}`;
-      container.appendChild(line);
-    }
-    return container;
-  }
-  ignoreEvent() { return true; }
-}
 
 class StatusGutterMarker extends GutterMarker {
   constructor(private readonly className: string, private readonly label: string) { super(); }
@@ -87,7 +64,6 @@ export class EvaluationViewPluginValue {
     const visible = this.view.visibleRanges;
     this.statuses = entriesInVisibleRanges(index.statuses, visible);
     const pickLines = entriesInVisibleRanges(index.pickLines, visible);
-    const widgetSpecs = entriesInVisibleRanges(index.generatedWidgets.map((spec) => ({ ...spec, from: spec.afterPos, to: spec.afterPos })), visible);
     const atStop = this.source.atStopRange();
     const stopVisible = atStop && visible.some((range) => atStop.from >= range.from && atStop.from <= range.to);
     const entries: { pos: number; decoration: Decoration }[] = [];
@@ -100,7 +76,6 @@ export class EvaluationViewPluginValue {
     });
     for (const line of pickLines) entries.push({ pos: line.from, decoration: Decoration.line({ class: line.elementId === this.source.pickCursorElementId() ? "cm-pick-cursor" : "cm-pick-candidate" }) });
     if (stopVisible && atStop) entries.push({ pos: atStop.from, decoration: Decoration.line({ class: "cm-at-stop-line" }) });
-    for (const spec of widgetSpecs) entries.push({ pos: spec.afterPos, decoration: Decoration.widget({ widget: new GeneratedRowsWidget(spec), side: 1, block: true }) });
     entries.sort((left, right) => left.pos - right.pos);
     const builder = new RangeSetBuilder<Decoration>();
     for (const entry of entries) builder.add(entry.pos, entry.pos, entry.decoration);
@@ -108,23 +83,164 @@ export class EvaluationViewPluginValue {
   }
 }
 
-const stateGutter = (
-  source: EvaluationExtensionSource,
-  action: Exclude<EvaluationGutterAction, "stop">,
-  className: string,
-  label: (status: IndexedLineStatus) => string,
-  visible: (status: IndexedLineStatus) => boolean
-) => gutter({
-  class: className,
+const stateSummaryLabel = (status: IndexedLineStatus) => [
+  status.hiddenSelf ? "非表示" : "表示",
+  status.disabledSelf ? "評価しない" : "評価する",
+  status.locked ? "ロック中" : "編集可能",
+  status.printEnabled ? "印刷する" : "印刷しない"
+].join(" / ");
+
+class ElementStateMarker extends GutterMarker {
+  constructor(
+    private readonly status: IndexedLineStatus,
+    private readonly lineFrom: number
+  ) { super(); }
+
+  toDOM() {
+    const root = document.createElement("span");
+    root.className = [
+      "cm-element-state-marker",
+      this.status.hiddenSelf ? "is-hidden" : "",
+      this.status.disabledSelf ? "is-disabled" : "",
+      this.status.locked ? "is-locked" : "",
+      this.status.printEnabled ? "is-print-enabled" : ""
+    ].filter(Boolean).join(" ");
+    root.title = stateSummaryLabel(this.status);
+    root.dataset.sourceStateRailLine = String(this.lineFrom);
+    root.addEventListener("mousedown", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      root.dispatchEvent(new CustomEvent("source-editor-open-state-rail", {
+        bubbles: true,
+        detail: { lineFrom: this.lineFrom }
+      }));
+    });
+    return root;
+  }
+}
+
+type StateRailAction = Exclude<EvaluationGutterAction, "stop">;
+
+const stateRailActions = (status: IndexedLineStatus): Array<[StateRailAction, string, string]> => [
+  ["visibility", status.hiddenSelf ? "表示する" : "非表示にする", "◉"],
+  ["enabled", status.disabledSelf ? "評価する" : "評価しない", "▶"],
+  ["locked", status.locked ? "ロック解除" : "ロック", "⌑"],
+  ["print", status.printEnabled ? "印刷しない" : "印刷する", "🖶"]
+];
+
+class ElementStateRail {
+  private readonly root = document.createElement("div");
+  private openLineFrom: number | null = null;
+
+  constructor(private view: EditorView, private readonly source: EvaluationExtensionSource) {
+    this.root.className = "cm-element-state-rail";
+    this.root.setAttribute("role", "toolbar");
+    this.root.setAttribute("aria-label", "行の状態操作");
+    this.root.hidden = true;
+    this.view.dom.appendChild(this.root);
+    this.view.dom.addEventListener("source-editor-open-state-rail", this.onOpen as EventListener);
+    document.addEventListener("pointerdown", this.onDocumentPointerDown, true);
+    document.addEventListener("keydown", this.onDocumentKeyDown, true);
+  }
+
+  update(update: ViewUpdate) {
+    this.view = update.view;
+    const evaluationChangedInUpdate = update.transactions.some((transaction) =>
+      transaction.effects.some((effect) => effect.is(evaluationChanged))
+    );
+    if (this.openLineFrom !== null && (update.docChanged || update.viewportChanged || update.geometryChanged || evaluationChangedInUpdate)) {
+      this.render();
+    }
+  }
+
+  destroy() {
+    this.view.dom.removeEventListener("source-editor-open-state-rail", this.onOpen as EventListener);
+    document.removeEventListener("pointerdown", this.onDocumentPointerDown, true);
+    document.removeEventListener("keydown", this.onDocumentKeyDown, true);
+    this.root.remove();
+  }
+
+  private readonly onOpen = (event: CustomEvent<{ lineFrom: number }>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    this.openLineFrom = event.detail.lineFrom;
+    this.render();
+  };
+
+  private readonly onDocumentPointerDown = (event: PointerEvent) => {
+    const target = event.target instanceof Node ? event.target : null;
+    if (!target || this.root.contains(target)) return;
+    if (target instanceof Element && target.closest("[data-source-state-rail-line]")) return;
+    this.close();
+  };
+
+  private readonly onDocumentKeyDown = (event: KeyboardEvent) => {
+    if (event.key !== "Escape" || this.openLineFrom === null) return;
+    event.preventDefault();
+    this.close();
+  };
+
+  private close() {
+    this.openLineFrom = null;
+    this.root.hidden = true;
+    this.root.replaceChildren();
+  }
+
+  private render() {
+    if (this.openLineFrom === null) return;
+    const status = this.source.index().statusByLineFrom.get(this.openLineFrom);
+    const anchor = this.view.dom.querySelector<HTMLElement>(`[data-source-state-rail-line="${this.openLineFrom}"]`);
+    if (!status || !anchor) {
+      this.close();
+      return;
+    }
+    const editorRect = this.view.dom.getBoundingClientRect();
+    const anchorRect = anchor.getBoundingClientRect();
+    this.root.style.left = `${Math.max(0, anchorRect.right - editorRect.left + 5)}px`;
+    this.root.style.top = `${Math.max(0, anchorRect.top - editorRect.top - 4)}px`;
+    this.root.replaceChildren();
+    for (const [action, label, icon] of stateRailActions(status)) {
+      if (action === "visibility" && !status.canToggleVisibility) continue;
+      if (action === "print" && !status.canTogglePrint) continue;
+      const button = document.createElement("button");
+      button.type = "button";
+      button.setAttribute("aria-label", label);
+      button.title = label;
+      button.textContent = icon;
+      button.addEventListener("mousedown", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+      });
+      button.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        this.source.onGutterAction(action, this.openLineFrom!);
+      });
+      this.root.appendChild(button);
+    }
+    this.root.hidden = false;
+  }
+}
+
+const elementStateGutter = (source: EvaluationExtensionSource) => gutter({
+  class: "cm-element-state-gutter",
   lineMarker: (view, line) => {
     const status = source.index().statusByLineFrom.get(line.from);
-    return status && visible(status) ? marker(`${className}-marker`, label(status)) : null;
+    if (!status) return null;
+    return new ElementStateMarker(status, line.from);
   },
-  domEventHandlers: { mousedown: (_view, line, event) => source.onGutterAction(action, line.from) && (event.preventDefault(), true) }
+  lineMarkerChange: (update) => update.docChanged || update.transactions.some((transaction) =>
+    transaction.effects.some((effect) => effect.is(evaluationChanged))
+  )
 });
 
 export const createEvaluationExtension = (source: EvaluationExtensionSource): Extension => {
   const evaluationViewPlugin = ViewPlugin.define<EvaluationViewPluginValue>((view) => new EvaluationViewPluginValue(view, source), { decorations: (value) => value.decorations });
+  const elementStateRail = ViewPlugin.fromClass(
+    class extends ElementStateRail {
+      constructor(view: EditorView) { super(view, source); }
+    }
+  );
   const statusGutter = gutter({
     class: "cm-status-gutter",
     lineMarker: (view, line) => {
@@ -140,10 +256,9 @@ export const createEvaluationExtension = (source: EvaluationExtensionSource): Ex
   });
   return [
     evaluationViewPlugin,
+    sourceEditorGeneratedRowsExtension(source),
+    elementStateRail,
     statusGutter,
-    stateGutter(source, "visibility", "cm-visibility-gutter", (status) => status.hiddenSelf ? "表示する" : "非表示にする", (status) => status.canToggleVisibility),
-    stateGutter(source, "enabled", "cm-enabled-gutter", (status) => status.disabledSelf ? "評価する" : "評価しない", () => true),
-    stateGutter(source, "locked", "cm-locked-gutter", (status) => status.locked ? "ロック解除" : "ロック", () => true),
-    stateGutter(source, "print", "cm-print-gutter", (status) => status.printEnabled ? "印刷しない" : "印刷する", (status) => status.canTogglePrint)
+    elementStateGutter(source)
   ];
 };

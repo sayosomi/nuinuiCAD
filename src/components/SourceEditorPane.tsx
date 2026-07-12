@@ -1,5 +1,6 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import type { RefObject } from "react";
+import { Layers3, Palette } from "lucide-react";
 import { SourceEditorController } from "../editor/sourceEditorController";
 import type { SourceEditorHandle, SourceEvaluationPublication } from "../editor/sourceEditorTypes";
 import type { CommandContext } from "../commands/commands";
@@ -78,14 +79,16 @@ export const SourceEditorPane = forwardRef<SourceEditorHandle, SourceEditorPaneP
       <header className="source-editor-header">
         <div className="source-editor-header-actions">
           <button type="button" className="palette-open-button" onClick={() => dispatchCommand("openPaletteSettings")}>
-            パレット
+            <Palette size={15} aria-hidden="true" />
+            <span className="source-editor-icon-button-label">パレット</span>
           </button>
           <button
             type="button"
             className="visibility-profile-open-button"
             onClick={() => dispatchCommand("openVisibilityProfileSettings")}
           >
-            表示プロファイル
+            <Layers3 size={15} aria-hidden="true" />
+            <span className="source-editor-icon-button-label">表示プロファイル</span>
           </button>
         </div>
         <p className="document-status" title={currentFilePath ?? "未保存"}>

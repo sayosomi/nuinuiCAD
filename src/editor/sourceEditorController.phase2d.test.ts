@@ -6,6 +6,7 @@ import { SourceEditorController } from "./sourceEditorController";
 import type { PositionedDiagnostic } from "./sourceEditorDiagnostics";
 import type { AtStopRange } from "./statementRangeIndex";
 import type { EvaluationResult } from "../types/geometry";
+import { evaluateElements } from "../geometry/evaluate";
 
 vi.mock("../commands/commands", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../commands/commands")>()),
@@ -27,6 +28,10 @@ type ControllerInternals = {
   };
   appliedEvaluation: { evaluation: EvaluationResult; compiledDocumentRevision: number; evaluationRequestRevision: number } | null;
   pendingEvaluations: Map<number, { evaluation: EvaluationResult; evaluationRequestRevision: number }>;
+  decorationIndex: {
+    statuses: readonly { elementId: string; locked: boolean }[];
+    generatedWidgets: readonly unknown[];
+  };
   atStopRange: AtStopRange | null;
   staleDiagnosticBaseline: PositionedDiagnostic[];
   runEscape: () => boolean;
@@ -117,6 +122,36 @@ describe("SourceEditorController evaluation revision gating", () => {
     controller.destroy();
   });
 
+  it("removes generated-row widgets before a document reset transaction", () => {
+    useCadDocumentStore.getState().commitText([
+      "nui 1",
+      "for 繰返し i start=0 count=2 step=1 showGenerated=true {",
+      "  point P = (i, 0)",
+      "}"
+    ].join("\n"), "test");
+    const parent = document.createElement("div");
+    document.body.appendChild(parent);
+    const controller = new SourceEditorController(parent);
+    const before = useCadDocumentStore.getState();
+    const group = before.elements.find((element) => element.type === "forGroup")!;
+    useCadUiStore.getState().setGroupFold(group.id, { expanded: true });
+    controller.setEvaluation({
+      evaluation: evaluateElements(before.elements),
+      compiledDocumentRevision: before.compiledDocumentRevision,
+      evaluationRequestRevision: 1
+    });
+    expect(parent.querySelectorAll(".cm-generated-rows-widget")).toHaveLength(1);
+
+    useCadDocumentStore.getState().replaceTextDocument("nui 1\npoint X = (0, 0)", {
+      currentFilePath: null,
+      dirtySinceSave: false
+    });
+    expect(parent.querySelectorAll(".cm-generated-rows-widget")).toHaveLength(0);
+
+    controller.destroy();
+    parent.remove();
+  });
+
   it("keeps only the two newest future results and never lets an older result replace them", () => {
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
@@ -151,6 +186,84 @@ describe("SourceEditorController evaluation revision gating", () => {
     expect(internals.appliedEvaluation?.evaluationRequestRevision).toBe(2);
     expect(internals.pendingEvaluations.size).toBe(0);
     controller.destroy();
+  });
+
+  it("keeps all element decorations while a Canvas model patch awaits its fresh evaluation", () => {
+    useCadDocumentStore.getState().commitText("nui 1\npoint A = (0, 0)\npoint B = (1, 1)", "test");
+    const parent = document.createElement("div");
+    document.body.appendChild(parent);
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+    const before = useCadDocumentStore.getState();
+    const initialEvaluation = evaluateElements(before.elements);
+
+    controller.setEvaluation({
+      evaluation: initialEvaluation,
+      compiledDocumentRevision: before.compiledDocumentRevision,
+      evaluationRequestRevision: 1
+    });
+    const beforeIds = internals.decorationIndex.statuses.map((status) => status.elementId);
+    expect(beforeIds).toHaveLength(2);
+
+    const updatedElements = before.elements.map((element) =>
+      element.name === "B" ? { ...element, locked: true } : element
+    );
+    expect(useCadDocumentStore.getState().commitDocumentChange({ elements: updatedElements }).status).toBe("applied");
+
+    // This assertion runs after the synchronous CM model-patch reflection but
+    // before any new evaluation is published. The prior evaluation must remain
+    // as the stable presentation instead of clearing every element decoration.
+    expect(internals.appliedEvaluation?.evaluation).toBe(initialEvaluation);
+    expect(internals.decorationIndex.statuses.map((status) => status.elementId)).toEqual(beforeIds);
+    expect(internals.decorationIndex.statuses.find((status) => status.elementId === updatedElements[1].id)?.locked).toBe(true);
+    expect(parent.querySelectorAll(".cm-eval-line").length).toBeGreaterThan(0);
+
+    const current = useCadDocumentStore.getState();
+    const freshEvaluation = evaluateElements(current.elements);
+    controller.setEvaluation({
+      evaluation: freshEvaluation,
+      compiledDocumentRevision: current.compiledDocumentRevision,
+      evaluationRequestRevision: 2
+    });
+    expect(internals.appliedEvaluation?.evaluation).toBe(freshEvaluation);
+    expect(internals.decorationIndex.statuses.map((status) => status.elementId)).toEqual(beforeIds);
+
+    controller.destroy();
+    parent.remove();
+  });
+
+  it("keeps generated-row widgets mounted while a Canvas model patch awaits its fresh evaluation", () => {
+    useCadDocumentStore.getState().commitText([
+      "nui 1",
+      "for 繰返し i start=0 count=2 step=1 showGenerated=true {",
+      "  point P = (i, 0)",
+      "}"
+    ].join("\n"), "test");
+    const parent = document.createElement("div");
+    document.body.appendChild(parent);
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+    const before = useCadDocumentStore.getState();
+    const group = before.elements.find((element) => element.type === "forGroup")!;
+    const child = before.elements.find((element) => element.parentGroupId === group.id)!;
+    useCadUiStore.getState().setGroupFold(group.id, { expanded: true });
+    controller.setEvaluation({
+      evaluation: evaluateElements(before.elements),
+      compiledDocumentRevision: before.compiledDocumentRevision,
+      evaluationRequestRevision: 1
+    });
+    expect(internals.decorationIndex.generatedWidgets).toHaveLength(1);
+    expect(parent.querySelectorAll(".cm-generated-rows-widget")).toHaveLength(1);
+
+    const updatedElements = before.elements.map((element) =>
+      element.id === child.id ? { ...element, locked: true } : element
+    );
+    expect(useCadDocumentStore.getState().commitDocumentChange({ elements: updatedElements }).status).toBe("applied");
+    expect(internals.decorationIndex.generatedWidgets).toHaveLength(1);
+    expect(parent.querySelectorAll(".cm-generated-rows-widget")).toHaveLength(1);
+
+    controller.destroy();
+    parent.remove();
   });
 });
 
