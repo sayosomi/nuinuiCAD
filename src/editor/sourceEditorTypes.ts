@@ -42,6 +42,8 @@ export type SourceEditorHandle = {
   setEvaluation: (publication: SourceEvaluationPublication) => void;
   /** Moves the primary cursor to an element's statement range and scrolls it into view. */
   jumpToElement: (elementId: ElementId) => void;
+  /** Selects a parameter's current DSL value and focuses the editor. Returns false on fallback. */
+  jumpToParameterValue: (elementId: ElementId, parameterKey: string) => boolean;
   /** Re-resolves a search result after any required flush before applying it as a pick. */
   applyPickCandidate: (elementId: ElementId) => boolean;
   pickCandidateElementIds: () => readonly ElementId[];

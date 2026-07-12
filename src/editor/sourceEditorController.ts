@@ -65,6 +65,7 @@ import { mapPositionedDiagnostics, toStaleDiagnostics, type PositionedDiagnostic
 import { createEvaluationExtension, evaluationChanged, type EvaluationGutterAction } from "./sourceEditorEvaluationExtension";
 import { createEvaluationDecorationIndex, type EvaluationDecorationIndex } from "./sourceEditorEvaluationIndex";
 import { adjacentDslValueSpan, dslLineValueSpans, findDslValueSpanAt, type DslValueSpanDirection } from "../dsl/dslValueSpans";
+import { resolveParameterValueSpan } from "../dsl/dslParameterSpans";
 
 type SourceStore = {
   getState: () => CadDocumentState;
@@ -332,6 +333,37 @@ export class SourceEditorController implements SourceEditorHandle {
       annotations: [canvasCursorOrigin.of("canvas-cursor"), Transaction.addToHistory.of(false)]
     });
     this.uiStore.getState().setSelectedElementId(elementId);
+  };
+
+  jumpToParameterValue = (elementId: ElementId, parameterKey: string): boolean => {
+    if (this.protocol.composing) return false;
+    const range = this.statementRanges.get(elementId);
+    const element = this.store.getState().elements.find((candidate) => candidate.id === elementId);
+    if (!range || !element) return false;
+    const line = this.view.state.doc.lineAt(range.from);
+    const target = resolveParameterValueSpan(line.text, element, parameterKey);
+    if (!target) {
+      this.jumpToElement(elementId);
+      this.view.focus();
+      return false;
+    }
+    // Store selection subscriptions project Canvas selection to line starts. Publish
+    // this external selection under the existing loop guard before selecting the span.
+    this.deferredExternalCursor = null;
+    this.pendingPrimaryCursorProjection = false;
+    this.publishingCanvasSelection = true;
+    try {
+      this.uiStore.getState().setSelectedElementId(elementId);
+    } finally {
+      this.publishingCanvasSelection = false;
+    }
+    this.view.dispatch({
+      selection: EditorSelection.single(line.from + target.start, line.from + target.end),
+      scrollIntoView: true,
+      annotations: [canvasCursorOrigin.of("canvas-cursor"), Transaction.addToHistory.of(false)]
+    });
+    this.view.focus();
+    return true;
   };
 
   pickCandidateElementIds = () => this.decorationIndex.pickLines.map((line) => line.elementId);

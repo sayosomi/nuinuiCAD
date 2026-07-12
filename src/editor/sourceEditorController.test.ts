@@ -43,6 +43,34 @@ describe("SourceEditorController commit and history boundaries", () => {
     vi.useRealTimers();
   });
 
+  it("selects a parameter value without letting selection sync project it back to the line start", () => {
+    useCadDocumentStore.getState().commitText("nui 1\npoint A = (12, 34)", "test");
+    const parent = document.createElement("div");
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+    const element = useCadDocumentStore.getState().elements.find((item) => item.name === "A")!;
+    const undoBefore = undoDepth(internals.view.state as never);
+
+    expect(controller.jumpToParameterValue(element.id, "y")).toBe(true);
+    const selection = internals.view.state.selection.main;
+    expect(internals.view.state.doc.toString().slice(selection.from, selection.to)).toBe("34");
+    expect(useCadUiStore.getState().selectedElementId).toBe(element.id);
+    expect(undoDepth(internals.view.state as never)).toBe(undoBefore);
+    controller.destroy();
+  });
+
+  it("falls back to the element line for a parameter omitted by DSL defaults", () => {
+    useCadDocumentStore.getState().commitText("nui 1\ngroup G {\n}", "test");
+    const parent = document.createElement("div");
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+    const element = useCadDocumentStore.getState().elements.find((item) => item.name === "G")!;
+
+    expect(controller.jumpToParameterValue(element.id, "printEnabled")).toBe(false);
+    expect(internals.view.state.selection.main.head).toBe(internals.view.state.doc.line(2).from);
+    controller.destroy();
+  });
+
   it("clears CM history after an editor commit, store undo/redo, and reset", () => {
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
