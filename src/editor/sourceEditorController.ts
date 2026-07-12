@@ -128,6 +128,7 @@ export class SourceEditorController implements SourceEditorHandle {
   private pendingFoldProjection = false;
   private applyingUiSync = false;
   private publishingCanvasSelection = false;
+  private lineLensFocused = false;
   private destroyed = false;
   private view: EditorView;
 
@@ -158,7 +159,12 @@ export class SourceEditorController implements SourceEditorHandle {
           highlightActiveLine(),
           highlightActiveLineGutter(),
           dslCmLanguageExtension,
-          sourceEditorLineLens,
+          sourceEditorLineLens({
+            sourceKeymap: () => this.lineLensKeymap(),
+            onFocusChange: (focused) => {
+              this.lineLensFocused = focused;
+            }
+          }),
           sourceEditorSelectionExtension,
           sourceEditorPatchHighlightExtension,
           codeFolding(),
@@ -516,6 +522,32 @@ export class SourceEditorController implements SourceEditorHandle {
     );
   }
 
+  /** The line lens owns text input, but editor-wide commands must keep acting
+   * on the primary document and its history. */
+  private lineLensKeymap(): KeyBinding[] {
+    return [
+      { key: "Mod-z", run: () => this.runUndo() },
+      { key: "Mod-y", run: () => this.runRedo() },
+      { key: "Mod-Shift-z", run: () => this.runRedo() },
+      { key: "Mod-s", run: () => this.runSave() },
+      { key: "Mod-f", run: () => {
+        openSearchPanel(this.view);
+        return true;
+      } },
+      { key: "Enter", run: () => this.runPickApply() },
+      { key: "ArrowDown", run: () => this.runPickNavigation("selectNextPickCandidate") },
+      { key: "ArrowUp", run: () => this.runPickNavigation("selectPreviousPickCandidate") },
+      { key: "ArrowRight", run: () => this.runPickNavigation("selectNextPickOption") },
+      { key: "ArrowLeft", run: () => this.runPickNavigation("selectPreviousPickOption") },
+      { key: "Ctrl-Shift-[", mac: "Mod-Alt-[", run: () => this.changeFoldAtCursor("fold") },
+      { key: "Ctrl-Shift-]", mac: "Mod-Alt-]", run: () => this.changeFoldAtCursor("unfold") },
+      { key: "Ctrl-Alt-[", run: () => this.changeAllFolds(false) },
+      { key: "Ctrl-Alt-]", run: () => this.changeAllFolds(true) },
+      { key: "Escape", run: () => this.runEscape() },
+      ...this.sourceEditorShortcutKeymap()
+    ];
+  }
+
   private handleViewUpdate(update: ViewUpdate) {
     if (this.destroyed) return;
     const isExternal = update.transactions.some((transaction) =>
@@ -624,7 +656,8 @@ export class SourceEditorController implements SourceEditorHandle {
       const changeSet = this.view.state.changes(changes);
       const viewport = captureSourceEditorViewport(
         this.view,
-        this.uiStore.getState().selectedElementId
+        this.uiStore.getState().selectedElementId,
+        this.hasSourceFocus()
       );
       const mappedSelection = viewport.hadFocus
         ? selectionAfterModelPatch(this.view, changeSet)
@@ -780,6 +813,10 @@ export class SourceEditorController implements SourceEditorHandle {
 
   private sourceIsApplied() {
     return this.protocol.appliedRevision === this.store.getState().sourceRevision;
+  }
+
+  private hasSourceFocus() {
+    return this.view.hasFocus || this.lineLensFocused;
   }
 
   private applyPendingUiSync() {

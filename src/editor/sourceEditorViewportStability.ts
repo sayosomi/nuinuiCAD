@@ -13,13 +13,14 @@ export type SourceEditorViewportSnapshot = {
 
 export const captureSourceEditorViewport = (
   view: EditorView,
-  primaryElementId: ElementId | null
+  primaryElementId: ElementId | null,
+  hadFocus = view.hasFocus
 ): SourceEditorViewportSnapshot => {
   const line = view.state.doc.lineAt(view.state.selection.main.head);
   return {
     scrollTop: view.scrollDOM.scrollTop,
     scrollLeft: view.scrollDOM.scrollLeft,
-    hadFocus: view.hasFocus,
+    hadFocus,
     primaryElementId,
     cursorLine: line.number,
     cursorColumn: view.state.selection.main.head - line.from

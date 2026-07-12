@@ -14,6 +14,8 @@ const source = [
   "point B = (1, 1)"
 ].join("\n");
 
+const settleLens = () => new Promise((resolve) => window.setTimeout(resolve, 20));
+
 describe("SourceEditor selected-line lens", () => {
   beforeEach(() => {
     useCadDocumentStore.setState(initialCadDocumentState());
@@ -27,7 +29,7 @@ describe("SourceEditor selected-line lens", () => {
 
   afterEach(() => vi.restoreAllMocks());
 
-  it("shows only for an overflowing selected line and moves the real cursor from a lens token", () => {
+  it("shows only for an overflowing selected line and moves the real cursor from a lens token", async () => {
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
     const view = EditorView.findFromDOM(parent.querySelector<HTMLElement>(".cm-editor")!)!;
@@ -37,18 +39,22 @@ describe("SourceEditor selected-line lens", () => {
     Object.defineProperty(view.scrollDOM, "clientWidth", { configurable: true, value: 72 });
     Object.defineProperty(view.dom.querySelector(".cm-gutters-before")!, "offsetWidth", { configurable: true, value: 24 });
     Object.defineProperty(measure, "scrollWidth", { configurable: true, value: 480 });
+    vi.spyOn(view, "coordsAtPos").mockReturnValue({ left: 24, right: 24, top: 84, bottom: 104 });
 
     const longLine = view.state.doc.line(2);
     view.dispatch({ selection: EditorSelection.cursor(longLine.from + 6) });
+    await settleLens();
 
     expect(lens).toHaveClass("is-visible");
-    const token = lens.querySelector<HTMLElement>("[data-source-lens-from]");
-    expect(token).not.toBeNull();
-    fireEvent.mouseDown(token!);
+    expect(lens.style.top).toBe("84px");
+    expect(lens.style.left).toBe("24px");
+    const lensView = EditorView.findFromDOM(lens.querySelector<HTMLElement>(".cm-editor")!)!;
+    lensView.dispatch({ selection: EditorSelection.cursor(0) });
     expect(view.state.selection.main.head).toBe(longLine.from);
 
     Object.defineProperty(measure, "scrollWidth", { configurable: true, value: 12 });
     view.dispatch({ selection: EditorSelection.cursor(view.state.doc.line(3).from) });
+    await settleLens();
     expect(lens).not.toHaveClass("is-visible");
     controller.destroy();
   });
@@ -82,7 +88,7 @@ describe("SourceEditor selected-line lens", () => {
     controller.destroy();
   });
 
-  it("highlights the changed sub-span in the lens after a Canvas-equivalent model patch on the overflowing line", () => {
+  it("edits the owning source document through the lens, including a newline", async () => {
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
     const view = EditorView.findFromDOM(parent.querySelector<HTMLElement>(".cm-editor")!)!;
@@ -95,22 +101,20 @@ describe("SourceEditor selected-line lens", () => {
 
     const longLine = view.state.doc.line(2);
     view.dispatch({ selection: EditorSelection.cursor(longLine.from + 6) });
+    await settleLens();
     expect(lens).toHaveClass("is-visible");
-    expect(lens.querySelectorAll(".cm-source-lens-patch-highlight")).toHaveLength(0);
+    const lensView = EditorView.findFromDOM(lens.querySelector<HTMLElement>(".cm-editor")!)!;
+    const xStart = lensView.state.doc.toString().indexOf("120");
+    lensView.dispatch({ changes: { from: xStart, to: xStart + 3, insert: "999" } });
+    expect(view.state.doc.line(2).text).toContain("(999, -45)");
 
-    const elements = useCadDocumentStore.getState().elements;
-    const target = elements.find((element) => element.name === "長い基準点");
-    expect(target?.type).toBe("freePoint");
-    const changed = elements.map((element) => (element.id === target!.id && element.type === "freePoint" ? { ...element, x: 999 } : element));
-    expect(useCadDocumentStore.getState().commitDocumentChange({ elements: changed })).toEqual({ status: "applied" });
-    expect(useCadDocumentStore.getState().sourceUpdate.kind).toBe("model-patch");
-
-    expect(lens).toHaveClass("is-visible");
-    expect(lens.querySelectorAll(".cm-source-lens-patch-highlight").length).toBeGreaterThan(0);
+    lensView.dispatch({ changes: { from: lensView.state.doc.length, to: lensView.state.doc.length, insert: "\n# lens edit" } });
+    expect(view.state.doc.toString()).toContain("# lens edit");
+    await settleLens();
     controller.destroy();
   });
 
-  it("highlights the resulting last line in the lens when a deletion collapses onto it", () => {
+  it("highlights changed text and deletion markers in the editable lens after a model patch", async () => {
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
     const view = EditorView.findFromDOM(parent.querySelector<HTMLElement>(".cm-editor")!)!;
@@ -130,13 +134,14 @@ describe("SourceEditor selected-line lens", () => {
 
     const longLine = view.state.doc.line(view.state.doc.lines);
     view.dispatch({ selection: EditorSelection.cursor(longLine.from + 6) });
+    await settleLens();
 
     expect(lens).toHaveClass("is-visible");
-    expect(lens.querySelector(".cm-source-line-lens-content")).toHaveClass("is-patch-highlight-line");
+    expect(lens.querySelector(".cm-patch-highlight-line")).not.toBeNull();
     controller.destroy();
   });
 
-  it("renders a within-line deletion marker at the same position in both the main editor and the lens", () => {
+  it("renders a within-line deletion marker in both the main editor and the lens", async () => {
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
     const view = EditorView.findFromDOM(parent.querySelector<HTMLElement>(".cm-editor")!)!;
@@ -150,25 +155,22 @@ describe("SourceEditor selected-line lens", () => {
     const longLine = view.state.doc.line(2);
     const markerPos = longLine.from + 5;
     view.dispatch({ selection: EditorSelection.cursor(longLine.from + 6) });
+    await settleLens();
     expect(lens).toHaveClass("is-visible");
     expect(parent.querySelector(".cm-patch-highlight-deletion-marker")).toBeNull();
-    expect(lens.querySelector(".cm-source-lens-patch-deletion-marker")).toBeNull();
+    expect(lens.querySelector(".cm-patch-highlight-deletion-marker")).toBeNull();
 
-    // The lens only re-renders on docChanged/selectionSet/geometryChanged/focusChanged
-    // (see sourceEditorLineLens.ts update()); pair the effect with a same-line
-    // selection nudge so it actually re-reads the field, matching how the real
-    // controller always pairs this effect with a genuine doc change.
     view.dispatch({
       selection: EditorSelection.cursor(longLine.from + 7),
       effects: [setPatchHighlight.of({ marks: [], deletionPoints: [], deletionMarkers: [markerPos] })]
     });
+    await settleLens();
 
     const mainMarker = parent.querySelector(".cm-patch-highlight-deletion-marker");
     expect(mainMarker).not.toBeNull();
 
-    const lensMarker = lens.querySelector<HTMLElement>(".cm-source-lens-patch-deletion-marker");
+    const lensMarker = lens.querySelector<HTMLElement>(".cm-patch-highlight-deletion-marker");
     expect(lensMarker).not.toBeNull();
-    expect(Number(lensMarker!.dataset.sourceLensFrom)).toBe(markerPos);
     controller.destroy();
   });
 });

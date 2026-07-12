@@ -1,9 +1,35 @@
-import { EditorSelection } from "@codemirror/state";
-import { EditorView, ViewPlugin, type ViewUpdate } from "@codemirror/view";
-import { highlightDslLine } from "../dsl/dslHighlight";
-import { patchHighlightField } from "./sourceEditorPatchHighlight";
+import { defaultKeymap } from "@codemirror/commands";
+import { EditorSelection, EditorState, Transaction } from "@codemirror/state";
+import { EditorView, ViewPlugin, keymap, type KeyBinding, type ViewUpdate } from "@codemirror/view";
+import { dslCmLanguageExtension } from "./cmLanguage";
+import {
+  patchHighlightField,
+  setPatchHighlight,
+  sourceEditorPatchHighlightExtension,
+  type PatchHighlightPayload
+} from "./sourceEditorPatchHighlight";
 
 type HighlightRange = { from: number; to: number };
+type LensRenderState = {
+  lineFrom: number;
+  lineText: string;
+  sourceAnchor: number;
+  sourceHead: number;
+  patchHighlight: PatchHighlightPayload;
+};
+
+type MeasuredLensRender = LensRenderState & {
+  gutterWidth: number;
+  availableWidth: number;
+  top: number;
+  isVisible: boolean;
+};
+
+export type SourceEditorLineLensOptions = {
+  /** Key bindings that operate on the owning source editor rather than the projection. */
+  sourceKeymap: () => readonly KeyBinding[];
+  onFocusChange: (focused: boolean) => void;
+};
 
 /** Clips marks to the line, sorts, and merges overlapping/adjacent ranges so
  * token splitting below never sees out-of-order or overlapping boundaries.
@@ -22,9 +48,7 @@ export const lineLocalHighlightRanges = (marks: readonly HighlightRange[], lineF
   return merged;
 };
 
-/** Splits a token's text at every highlight boundary that falls inside it. A
- * token may need more than one split when multiple merged ranges intersect it.
- * Exported for tests. */
+/** Retained as a focused pure helper for line-level patch highlighting tests. */
 export const splitTokenByHighlights = (text: string, tokenFrom: number, ranges: readonly HighlightRange[]) => {
   const tokenTo = tokenFrom + text.length;
   const segments: { text: string; from: number; highlighted: boolean }[] = [];
@@ -42,28 +66,61 @@ export const splitTokenByHighlights = (text: string, tokenFrom: number, ranges: 
   return segments;
 };
 
+const linePatchHighlight = (
+  payload: PatchHighlightPayload,
+  line: { from: number; to: number },
+  documentLength: number
+): PatchHighlightPayload => {
+  if (!payload) return null;
+  const belongsToLine = (position: number) => {
+    const clamped = Math.min(Math.max(position, 0), documentLength);
+    return clamped >= line.from && clamped <= line.to;
+  };
+  const localPosition = (position: number) => Math.min(Math.max(position, 0), documentLength) - line.from;
+  return {
+    marks: lineLocalHighlightRanges(payload.marks, line.from, line.to).map((range) => ({
+      from: range.from - line.from,
+      to: range.to - line.from
+    })),
+    deletionPoints: payload.deletionPoints.filter(belongsToLine).map(localPosition),
+    deletionMarkers: payload.deletionMarkers.filter(belongsToLine).map(localPosition)
+  };
+};
+
 /**
- * A read-only, floating projection of the selected source line. Keeping it in
- * the editor view (rather than React state) means it follows CM selections and
- * model patches without introducing a second source of truth.
+ * An editable, floating projection of the selected source line. The nested
+ * CodeMirror instance is only an input surface: every edit is immediately
+ * dispatched to the owning editor, which remains the sole source of truth.
  */
 class SourceEditorLineLens {
   private readonly lens = document.createElement("div");
-  private readonly content = document.createElement("div");
   private readonly measure = document.createElement("span");
+  private readonly lensView: EditorView;
   private resizeObserver: ResizeObserver | null = null;
   private renderedKey: string | null = null;
+  private lensLineFrom: number | null = null;
+  private dispatchingLensUpdate = false;
+  private renderQueued = false;
+  private destroyed = false;
 
-  constructor(private view: EditorView) {
+  constructor(private view: EditorView, private readonly options: SourceEditorLineLensOptions) {
     this.lens.className = "cm-source-line-lens";
-    this.lens.setAttribute("aria-label", "選択行の全文");
+    this.lens.setAttribute("aria-label", "選択行を編集");
     this.lens.setAttribute("aria-hidden", "true");
-    this.content.className = "cm-source-line-lens-content";
     this.measure.className = "cm-source-line-lens-measure";
-    this.lens.appendChild(this.content);
-    this.view.dom.appendChild(this.lens);
-    this.view.dom.appendChild(this.measure);
-    this.lens.addEventListener("mousedown", this.onMouseDown);
+    this.view.dom.append(this.lens, this.measure);
+    this.lensView = new EditorView({
+      parent: this.lens,
+      state: EditorState.create({
+        extensions: [
+          dslCmLanguageExtension,
+          sourceEditorPatchHighlightExtension,
+          EditorView.lineWrapping,
+          keymap.of([...this.options.sourceKeymap(), ...defaultKeymap]),
+          EditorView.updateListener.of((update) => this.handleLensUpdate(update))
+        ]
+      })
+    });
     if (typeof ResizeObserver !== "undefined") {
       this.resizeObserver = new ResizeObserver(() => this.render());
       this.resizeObserver.observe(this.view.contentDOM);
@@ -73,89 +130,149 @@ class SourceEditorLineLens {
 
   update(update: ViewUpdate) {
     this.view = update.view;
-    if (update.docChanged || update.selectionSet || update.geometryChanged || update.focusChanged) {
+    if (this.dispatchingLensUpdate) {
+      this.queueRender();
+      return;
+    }
+    if (update.docChanged || update.selectionSet || update.geometryChanged || update.viewportChanged || update.focusChanged) {
       this.render();
     }
   }
 
   destroy() {
+    this.destroyed = true;
     this.resizeObserver?.disconnect();
-    this.lens.removeEventListener("mousedown", this.onMouseDown);
+    this.options.onFocusChange(false);
+    this.lensView.destroy();
     this.lens.remove();
     this.measure.remove();
   }
 
-  private readonly onMouseDown = (event: MouseEvent) => {
-    const target = event.target instanceof HTMLElement ? event.target.closest<HTMLElement>("[data-source-lens-from]") : null;
-    if (!target) return;
-    const from = Number(target.dataset.sourceLensFrom);
-    if (!Number.isInteger(from)) return;
-    event.preventDefault();
-    this.view.dispatch({ selection: EditorSelection.cursor(from) });
-    this.view.focus();
-  };
+  private handleLensUpdate(update: ViewUpdate) {
+    if (update.focusChanged) this.options.onFocusChange(update.view.hasFocus);
+    if (this.dispatchingLensUpdate || (!update.docChanged && !update.selectionSet)) return;
+    const lineFrom = this.lensLineFrom;
+    if (lineFrom === null) return;
+
+    const selection = EditorSelection.create(update.state.selection.ranges.map((range) =>
+      EditorSelection.range(lineFrom + range.anchor, lineFrom + range.head)
+    ), update.state.selection.mainIndex);
+    this.dispatchingLensUpdate = true;
+    try {
+      if (update.docChanged) {
+        const changes: { from: number; to: number; insert: string }[] = [];
+        update.changes.iterChanges((fromA, toA, _fromB, _toB, inserted) => {
+          changes.push({ from: lineFrom + fromA, to: lineFrom + toA, insert: inserted.toString() });
+        });
+        this.view.dispatch({
+          changes,
+          selection,
+          annotations: Transaction.userEvent.of("input.lens")
+        });
+      } else {
+        this.view.dispatch({
+          selection,
+          annotations: Transaction.userEvent.of("select.lens")
+        });
+      }
+    } finally {
+      this.dispatchingLensUpdate = false;
+    }
+  }
+
+  private queueRender() {
+    if (this.renderQueued || this.destroyed) return;
+    this.renderQueued = true;
+    queueMicrotask(() => {
+      this.renderQueued = false;
+      if (!this.destroyed) this.render();
+    });
+  }
 
   private render() {
     const line = this.view.state.doc.lineAt(this.view.state.selection.main.head);
-    const gutterWidth = this.view.dom.querySelector<HTMLElement>(".cm-gutters-before")?.offsetWidth ?? 0;
-    const availableWidth = Math.max(0, this.view.scrollDOM.clientWidth - gutterWidth);
     this.measure.textContent = line.text;
-    const isOverflowing = availableWidth > 0 && this.measure.scrollWidth > availableWidth + 1;
-    // Gutters are sticky while the content scrolls horizontally. Align the
-    // floating lens to their fixed width, not to contentDOM's moving rect.
-    const left = gutterWidth;
-
     const patchHighlight = this.view.state.field(patchHighlightField, false) ?? null;
-    const highlightRanges = patchHighlight ? lineLocalHighlightRanges(patchHighlight.marks, line.from, line.to) : [];
-    const deletionHighlighted = patchHighlight
-      ? patchHighlight.deletionPoints.some((point) => {
-        const clamped = Math.min(Math.max(point, 0), this.view.state.doc.length);
-        return this.view.state.doc.lineAt(clamped).from === line.from;
-      })
-      : false;
-    const deletionMarkerPositions = patchHighlight
-      ? [...new Set(patchHighlight.deletionMarkers.filter((pos) => pos >= line.from && pos <= line.to))].sort((left, right) => left - right)
-      : [];
-    const highlightKey = `${highlightRanges.map((range) => `${range.from}-${range.to}`).join(",")}|${deletionHighlighted}|${deletionMarkerPositions.join(",")}`;
+    const sourceSelection = this.view.state.selection.main;
+    const renderState: LensRenderState = {
+      lineFrom: line.from,
+      lineText: line.text,
+      sourceAnchor: Math.min(Math.max(sourceSelection.anchor - line.from, 0), line.text.length),
+      sourceHead: Math.min(Math.max(sourceSelection.head - line.from, 0), line.text.length),
+      patchHighlight: linePatchHighlight(patchHighlight, line, this.view.state.doc.length)
+    };
+    this.view.requestMeasure({
+      key: this,
+      read: (view) => this.measureRender(view, renderState),
+      write: (measured) => this.applyRender(measured)
+    });
+  }
 
-    const key = `${line.from}:${line.text}\u0000${availableWidth}:${left}:${isOverflowing}:${highlightKey}`;
+  private measureRender(view: EditorView, state: LensRenderState): MeasuredLensRender {
+    const gutterWidth = view.dom.querySelector<HTMLElement>(".cm-gutters-before")?.offsetWidth ?? 0;
+    const availableWidth = Math.max(0, view.scrollDOM.clientWidth - gutterWidth);
+    const rootRect = view.dom.getBoundingClientRect();
+    const scrollRect = view.scrollDOM.getBoundingClientRect();
+    const coords = view.coordsAtPos(state.lineFrom);
+    const fallbackTop = view.lineBlockAt(state.lineFrom).top - view.scrollDOM.scrollTop + (scrollRect.top - rootRect.top);
+    const top = coords ? coords.top - rootRect.top : fallbackTop;
+    const isOverflowing = availableWidth > 0 && this.measure.scrollWidth > availableWidth + 1;
+    const isInViewport = !coords || scrollRect.height === 0 || (coords.bottom > scrollRect.top && coords.top < scrollRect.bottom);
+    return { ...state, gutterWidth, availableWidth, top, isVisible: isOverflowing && isInViewport };
+  }
+
+  private applyRender(measured: MeasuredLensRender) {
+    if (this.destroyed) return;
+    const selectedLine = this.view.state.doc.lineAt(this.view.state.selection.main.head);
+    if (selectedLine.from !== measured.lineFrom || selectedLine.text !== measured.lineText) {
+      this.render();
+      return;
+    }
+    const key = [
+      measured.lineFrom,
+      measured.lineText,
+      measured.sourceAnchor,
+      measured.sourceHead,
+      measured.availableWidth,
+      measured.gutterWidth,
+      measured.top,
+      measured.isVisible,
+      JSON.stringify(measured.patchHighlight)
+    ].join("\u0000");
     if (key === this.renderedKey) return;
     this.renderedKey = key;
-    this.lens.style.left = `${left}px`;
-    this.lens.classList.toggle("is-visible", isOverflowing);
-    this.lens.setAttribute("aria-hidden", String(!isOverflowing));
-    this.content.classList.toggle("is-patch-highlight-line", deletionHighlighted);
-    if (!isOverflowing) {
-      this.content.replaceChildren();
+    this.lens.style.left = `${measured.gutterWidth}px`;
+    this.lens.style.top = `${measured.top}px`;
+    this.lens.style.width = `${measured.availableWidth}px`;
+    this.lens.classList.toggle("is-visible", measured.isVisible);
+    this.lens.setAttribute("aria-hidden", String(!measured.isVisible));
+    if (!measured.isVisible) {
+      this.lensLineFrom = null;
       return;
     }
 
-    this.content.replaceChildren();
-    let offset = line.from;
-    let markerIndex = 0;
-    const flushMarkersAt = (position: number) => {
-      while (markerIndex < deletionMarkerPositions.length && deletionMarkerPositions[markerIndex] === position) {
-        const marker = document.createElement("span");
-        marker.className = "cm-source-lens-patch-deletion-marker";
-        marker.dataset.sourceLensFrom = String(position);
-        this.content.appendChild(marker);
-        markerIndex += 1;
-      }
-    };
-    for (const token of highlightDslLine(line.text)) {
-      flushMarkersAt(offset);
-      const tokenClass = token.kind === "plain" ? "cm-source-lens-plain" : `tok-${token.kind}`;
-      for (const segment of splitTokenByHighlights(token.text, offset, highlightRanges)) {
-        const span = document.createElement("span");
-        span.className = segment.highlighted ? `${tokenClass} cm-source-lens-patch-highlight` : tokenClass;
-        span.dataset.sourceLensFrom = String(segment.from);
-        span.textContent = segment.text;
-        this.content.appendChild(span);
-      }
-      offset += token.text.length;
+    this.lensLineFrom = measured.lineFrom;
+    const lensText = this.lensView.state.doc.toString();
+    const lensSelection = this.lensView.state.selection.main;
+    const needsDocument = lensText !== measured.lineText;
+    const needsSelection = lensSelection.anchor !== measured.sourceAnchor || lensSelection.head !== measured.sourceHead;
+    this.dispatchingLensUpdate = true;
+    try {
+      this.lensView.dispatch({
+        ...(needsDocument ? { changes: { from: 0, to: this.lensView.state.doc.length, insert: measured.lineText } } : {}),
+        ...(needsSelection ? { selection: EditorSelection.range(measured.sourceAnchor, measured.sourceHead) } : {}),
+        effects: setPatchHighlight.of(measured.patchHighlight),
+        annotations: Transaction.addToHistory.of(false)
+      });
+    } finally {
+      this.dispatchingLensUpdate = false;
     }
-    flushMarkersAt(offset);
   }
 }
 
-export const sourceEditorLineLens = ViewPlugin.fromClass(SourceEditorLineLens);
+export const sourceEditorLineLens = (options: SourceEditorLineLensOptions) =>
+  ViewPlugin.fromClass(class extends SourceEditorLineLens {
+    constructor(view: EditorView) {
+      super(view, options);
+    }
+  });

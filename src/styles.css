@@ -81,14 +81,9 @@ textarea {
 .cm-source-line-lens {
   position: absolute;
   z-index: 4;
-  top: 0;
-  right: 0;
   display: block;
-  max-height: min(42vh, 360px);
-  overflow: auto;
   border: 1px solid #9fc2b3;
-  border-top: 0;
-  border-radius: 0 0 8px 8px;
+  border-radius: 7px;
   background: rgb(251 250 246 / 97%);
   box-shadow: 0 10px 24px rgb(39 52 45 / 17%);
   color: #2f332f;
@@ -109,44 +104,19 @@ textarea {
   transition-delay: 0s;
 }
 
-.cm-source-line-lens-content {
-  padding: 8px 12px 10px;
-  overflow-wrap: anywhere;
-  white-space: pre-wrap;
+.cm-source-line-lens .cm-editor {
+  height: auto;
+  background: transparent;
 }
 
-.cm-source-line-lens-content span {
-  cursor: text;
+.cm-source-line-lens .cm-scroller {
+  max-height: min(42vh, 360px);
+  overflow: auto;
 }
 
-.cm-source-line-lens-content .cm-source-lens-patch-highlight {
-  background: color-mix(in srgb, #b8860b 40%, transparent);
-  border-radius: 2px;
-}
-
-.cm-source-line-lens-content.is-patch-highlight-line {
-  background: color-mix(in srgb, #b8860b 16%, transparent);
-}
-
-/* Zero-width, same rationale as .cm-patch-highlight-deletion-marker in the
-   main editor: must not shift surrounding lens text. */
-.cm-source-line-lens-content .cm-source-lens-patch-deletion-marker {
-  position: relative;
-  display: inline-block;
-  width: 0;
-  height: 0.9em;
-  vertical-align: text-bottom;
-}
-
-.cm-source-line-lens-content .cm-source-lens-patch-deletion-marker::after {
-  content: "";
-  position: absolute;
-  left: -1px;
-  top: 0;
-  width: 2px;
-  height: 100%;
-  background: #b8860b;
-  border-radius: 1px;
+.cm-source-line-lens .cm-content {
+  min-height: 0;
+  padding: 6px 10px 8px;
 }
 
 .cm-source-line-lens-measure {
@@ -157,15 +127,6 @@ textarea {
   visibility: hidden;
   white-space: pre;
 }
-
-.cm-source-line-lens .tok-attributeKey { color: #586a63; }
-.cm-source-line-lens .tok-comment { color: #8a8d84; font-style: italic; }
-.cm-source-line-lens .tok-elementType { color: #0f766e; font-weight: 600; }
-.cm-source-line-lens .tok-keyword { color: #7c5a1f; font-weight: 600; }
-.cm-source-line-lens .tok-number { color: #9a4f2e; }
-.cm-source-line-lens .tok-operator { color: #5c625b; }
-.cm-source-line-lens .tok-reference { color: #2e514a; }
-.cm-source-line-lens .tok-string { color: #8b4a5d; }
 
 .source-editor-pane .cm-secondary-selection {
   background: color-mix(in srgb, #0f766e 16%, transparent);
