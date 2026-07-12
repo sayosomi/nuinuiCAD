@@ -373,6 +373,7 @@ export const serializeElementStatement = (
         `distance=${numericAttribute(element.offset)}`,
         `side=${element.side}`,
         `closed=${element.closed}`,
+        ...(element.suppressTrimWarnings ? ["suppressTrimWarnings=true"] : []),
         ...attrs
       ].filter(Boolean).join(" ");
     case "splitLine":
