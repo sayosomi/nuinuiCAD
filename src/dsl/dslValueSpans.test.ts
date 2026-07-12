@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dslLineValueSpans, findDslValueSpanAt } from "./dslValueSpans";
+import { adjacentDslValueSpan, dslLineValueSpans, findDslValueSpanAt } from "./dslValueSpans";
 import { parseDsl } from "./dslParser";
 
 const textOf = (source: string, span: { start: number; end: number }) => source.slice(span.start, span.end);
@@ -107,6 +107,75 @@ describe("dslLineValueSpans", () => {
     const source = "point A = (0, 10) length=120 # trailing comment";
     const spans = dslLineValueSpans(source);
     expect(spans.map((span) => textOf(source, span))).toEqual(["0", "10", "120"]);
+  });
+
+  it("excludes non-element (palette/view/print/directive) statements even with real values", () => {
+    expect(dslLineValueSpans("nui 1")).toEqual([]);
+    expect(dslLineValueSpans("role R enabled=true")).toEqual([]);
+    expect(dslLineValueSpans("view V zoom=2")).toEqual([]);
+    expect(dslLineValueSpans("color X \"#336699\"")).toEqual([]);
+    expect(dslLineValueSpans("printLayout P scale=2")).toEqual([]);
+  });
+});
+
+describe("adjacentDslValueSpan", () => {
+  it("cycles point X/Y forward and backward, matching the spec's worked example", () => {
+    const source = "point A = (0, 10)";
+    const spans = dslLineValueSpans(source);
+    const [x, y] = spans;
+
+    expect(adjacentDslValueSpan(spans, x.start, "next")).toEqual(y);
+    expect(adjacentDslValueSpan(spans, y.start, "next")).toEqual(x);
+    expect(adjacentDslValueSpan(spans, y.start, "previous")).toEqual(x);
+    expect(adjacentDslValueSpan(spans, x.start, "previous")).toEqual(y);
+  });
+
+  it("walks a mixed payload/attribute line in source order", () => {
+    const source = "line AB = A -> B color=red locked=false";
+    const spans = dslLineValueSpans(source);
+    expect(spans.map((span) => textOf(source, span))).toEqual(["A", "B", "red", "false"]);
+
+    let current = spans[0].start;
+    const order: string[] = [];
+    for (let step = 0; step < spans.length + 1; step += 1) {
+      const next = adjacentDslValueSpan(spans, current, "next")!;
+      order.push(textOf(source, next));
+      current = next.start;
+    }
+    expect(order).toEqual(["B", "red", "false", "A", "B"]);
+  });
+
+  it("resolves from a caret inside a value, an exact-match selection, and a caret outside every value", () => {
+    const source = "point A = (0, 10) length=120";
+    const spans = dslLineValueSpans(source);
+    const [x, y, length] = spans;
+
+    // Caret inside "10" (not at its start).
+    expect(adjacentDslValueSpan(spans, y.start + 1, "next")).toEqual(length);
+    // Selection exactly matching "10" (selection.from === span.start).
+    expect(adjacentDslValueSpan(spans, y.start, "next")).toEqual(length);
+    // Caret before any value (start of line).
+    expect(adjacentDslValueSpan(spans, 0, "next")).toEqual(x);
+    expect(adjacentDslValueSpan(spans, 0, "previous")).toEqual(length);
+    // Caret between two values (right after "0", before the comma).
+    const between = x.end;
+    expect(adjacentDslValueSpan(spans, between, "next")).toEqual(y);
+    expect(adjacentDslValueSpan(spans, between, "previous")).toEqual(x);
+    // Caret after the last value (end of line).
+    expect(adjacentDslValueSpan(spans, source.length, "next")).toEqual(x);
+    expect(adjacentDslValueSpan(spans, source.length, "previous")).toEqual(length);
+  });
+
+  it("cycles to itself when there is only one editable value", () => {
+    const spans = dslLineValueSpans("group G scale=2");
+    expect(spans).toHaveLength(1);
+    expect(adjacentDslValueSpan(spans, spans[0].start, "next")).toEqual(spans[0]);
+    expect(adjacentDslValueSpan(spans, spans[0].start, "previous")).toEqual(spans[0]);
+  });
+
+  it("returns null for an empty span list", () => {
+    expect(adjacentDslValueSpan([], 0, "next")).toBeNull();
+    expect(adjacentDslValueSpan([], 0, "previous")).toBeNull();
   });
 });
 

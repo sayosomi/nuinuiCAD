@@ -24,6 +24,7 @@ type ControllerInternals = {
   runRedo: () => boolean;
   handleFoldGutterMouseDown: (lineFrom: number, event: MouseEvent) => boolean;
   handleValueClick: (event: MouseEvent, view: ControllerInternals["view"]) => boolean;
+  navigateValueSpan: (direction: "next" | "previous") => boolean;
 };
 
 describe("SourceEditorController commit and history boundaries", () => {
@@ -581,6 +582,203 @@ describe("SourceEditorController value-span click selection", () => {
     expect(handled).toBe(true);
     expect(undoDepth(internals.view.state as never)).toBe(0);
     expect(redoDepth(internals.view.state as never)).toBe(0);
+    controller.destroy();
+  });
+
+  it("does not select a value on a non-element (directive) line like nui", () => {
+    useCadDocumentStore.getState().commitText("nui 1\npoint A = (0, 0) length=120", "test");
+    const parent = document.createElement("div");
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+    const text = internals.view.state.doc.toString();
+    const valuePos = text.indexOf("nui 1") + "nui ".length;
+
+    const handled = clickAt(internals, valuePos);
+
+    expect(handled).toBe(false);
+    expect(internals.view.state.selection.main.empty).toBe(true);
+    controller.destroy();
+  });
+});
+
+describe("SourceEditorController Tab/Shift-Tab value-span navigation", () => {
+  beforeEach(() => {
+    useCadDocumentStore.setState(initialCadDocumentState());
+    useCadUiStore.setState(initialCadUiState());
+    Object.defineProperty(Range.prototype, "getClientRects", { configurable: true, value: () => [] });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("moves between point X/Y in source order and cycles at both ends", () => {
+    useCadDocumentStore.getState().commitText("nui 1\npoint A = (0, 10)", "test");
+    const parent = document.createElement("div");
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+    const text = internals.view.state.doc.toString();
+    const xStart = text.lastIndexOf("(") + 1;
+    const selected = () => {
+      const main = internals.view.state.selection.main;
+      return text.slice(main.from, main.to);
+    };
+
+    internals.view.dispatch({ selection: EditorSelection.cursor(xStart) });
+    expect(internals.navigateValueSpan("next")).toBe(true);
+    expect(selected()).toBe("10");
+    expect(internals.navigateValueSpan("next")).toBe(true);
+    expect(selected()).toBe("0");
+    expect(internals.navigateValueSpan("previous")).toBe(true);
+    expect(selected()).toBe("10");
+    controller.destroy();
+  });
+
+  it("does not change the document, CM undo history, or Canvas selection", () => {
+    useCadDocumentStore.getState().commitText("nui 1\npoint A = (0, 10)", "test");
+    const parent = document.createElement("div");
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+    const text = internals.view.state.doc.toString();
+    const xStart = text.lastIndexOf("(") + 1;
+    internals.view.dispatch({ selection: EditorSelection.cursor(xStart) });
+    const before = {
+      sourceText: useCadDocumentStore.getState().sourceText,
+      revision: useCadDocumentStore.getState().compiledDocumentRevision,
+      selectedElementId: useCadUiStore.getState().selectedElementId
+    };
+
+    expect(internals.navigateValueSpan("next")).toBe(true);
+
+    expect(internals.view.state.doc.toString()).toBe(text);
+    expect(undoDepth(internals.view.state as never)).toBe(0);
+    expect(redoDepth(internals.view.state as never)).toBe(0);
+    expect(useCadDocumentStore.getState().sourceText).toBe(before.sourceText);
+    expect(useCadDocumentStore.getState().compiledDocumentRevision).toBe(before.revision);
+    expect(useCadUiStore.getState().selectedElementId).toBe(before.selectedElementId);
+    controller.destroy();
+  });
+
+  it("falls through when the selection spans more than one line", () => {
+    useCadDocumentStore.getState().commitText("nui 1\npoint A = (0, 10)\npoint B = (1, 1)", "test");
+    const parent = document.createElement("div");
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+    const lineTwo = internals.view.state.doc.line(2);
+    const lineThree = internals.view.state.doc.line(3);
+    internals.view.dispatch({ selection: EditorSelection.range(lineTwo.from, lineThree.to) });
+
+    expect(internals.navigateValueSpan("next")).toBe(false);
+    controller.destroy();
+  });
+
+  it("keeps navigating against the live dirty buffer, not a stale value", () => {
+    useCadDocumentStore.getState().commitText("nui 1\npoint A = (0, 0) length=120", "test");
+    const parent = document.createElement("div");
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+    // Uncommitted edit: "length=120" becomes "length=1200" — one character longer than
+    // the store's last-good parse still knows about.
+    internals.view.dispatch({ changes: { from: internals.view.state.doc.length, insert: "0" } });
+    const text = internals.view.state.doc.toString();
+    expect(text.endsWith("length=1200")).toBe(true);
+    const firstZero = text.indexOf("(0, 0)") + 1;
+    internals.view.dispatch({ selection: EditorSelection.cursor(firstZero) });
+
+    // Wrapping backward from the first coordinate should land on the whole dirty,
+    // now-4-character value — a stale 3-character "120" span would clip it short.
+    expect(internals.navigateValueSpan("previous")).toBe(true);
+
+    const main = internals.view.state.selection.main;
+    expect(text.slice(main.from, main.to)).toBe("1200");
+    controller.destroy();
+  });
+
+  const buildController = () => {
+    const parent = document.createElement("div");
+    const controller = new SourceEditorController(parent);
+    const content = parent.querySelector<HTMLElement>(".cm-content");
+    if (!content) throw new Error("Missing CodeMirror content");
+    return { controller, content, parent };
+  };
+
+  it("moves the real selection on a real Tab keydown", () => {
+    useCadDocumentStore.getState().commitText("nui 1\npoint A = (0, 10)", "test");
+    const { controller, content } = buildController();
+    const text = controller.getText();
+    const xStart = text.lastIndexOf("(") + 1;
+    const internals = controller as unknown as ControllerInternals;
+    internals.view.dispatch({ selection: EditorSelection.cursor(xStart) });
+
+    fireEvent.keyDown(content, { key: "Tab" });
+
+    const main = internals.view.state.selection.main;
+    expect(text.slice(main.from, main.to)).toBe("10");
+    controller.destroy();
+  });
+
+  it("falls through (leaves selection and document untouched) when the line has no values", () => {
+    // This app registers no other Tab/Shift-Tab binding (defaultKeymap itself doesn't
+    // bind bare Tab — only Mod-]/Mod-[ and the separate, unused indentWithTab preset
+    // do), so "falls through" here is observed as our handler declining without
+    // producing any side effect, leaving Tab as an ordinary, currently-unclaimed key.
+    useCadDocumentStore.getState().commitText("nui 1\n# just a comment", "test");
+    const { controller, content } = buildController();
+    const internals = controller as unknown as ControllerInternals;
+    const commentLine = internals.view.state.doc.line(2);
+    internals.view.dispatch({ selection: EditorSelection.cursor(commentLine.from) });
+    const before = internals.view.state.doc.toString();
+
+    fireEvent.keyDown(content, { key: "Tab" });
+
+    expect(internals.view.state.doc.toString()).toBe(before);
+    expect(internals.view.state.selection.main.empty).toBe(true);
+    expect(internals.view.state.selection.main.from).toBe(commentLine.from);
+    controller.destroy();
+  });
+
+  it("does not navigate a value while the search panel's own input has focus", () => {
+    useCadDocumentStore.getState().commitText("nui 1\npoint A = (0, 10)", "test");
+    const { controller, parent } = buildController();
+    const internals = controller as unknown as ControllerInternals;
+    const text = internals.view.state.doc.toString();
+    const xStart = text.lastIndexOf("(") + 1;
+    internals.view.dispatch({ selection: EditorSelection.cursor(xStart) });
+
+    controller.openTextSearch();
+    const searchInput = parent.querySelector<HTMLInputElement>(".cm-panels [main-field]");
+    expect(searchInput).not.toBeNull();
+    fireEvent.keyDown(searchInput!, { key: "Tab" });
+
+    const main = internals.view.state.selection.main;
+    expect(main.empty).toBe(true);
+    expect(main.from).toBe(xStart);
+    controller.destroy();
+  });
+
+  it("consumes Tab during composition (no value-jump, no default indent) and recovers after compositionend", async () => {
+    useCadDocumentStore.getState().commitText("nui 1\npoint A = (0, 10)", "test");
+    const { controller, content } = buildController();
+    const internals = controller as unknown as ControllerInternals;
+    const text = internals.view.state.doc.toString();
+    const xStart = text.lastIndexOf("(") + 1;
+    internals.view.dispatch({ selection: EditorSelection.cursor(xStart) });
+
+    fireEvent.compositionStart(content);
+    fireEvent.keyDown(content, { key: "Tab" });
+
+    expect(internals.view.state.doc.toString()).toBe(text);
+    expect(internals.view.state.selection.main.empty).toBe(true);
+    expect(internals.view.state.selection.main.from).toBe(xStart);
+
+    fireEvent.compositionEnd(content);
+    // jsdom reports a WebKit navigator.vendor, so CodeMirror applies its Safari IME
+    // guard: the first key event within 100ms of compositionend is dropped.
+    await new Promise((resolve) => setTimeout(resolve, 110));
+    fireEvent.keyDown(content, { key: "Tab" });
+
+    const main = internals.view.state.selection.main;
+    expect(text.slice(main.from, main.to)).toBe("10");
     controller.destroy();
   });
 });

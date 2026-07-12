@@ -269,6 +269,158 @@ describe("SourceEditor selected-line lens", () => {
   });
 });
 
+describe("SourceEditor selected-line lens Tab/Shift-Tab value navigation", () => {
+  const multiValueSource = [
+    "nui 1",
+    "point A = (5, 9)",
+    "point B = (1, 1)",
+    "line AB = A -> B color=red locked=false",
+    "# nothing to see here for tab fallthrough testing"
+  ].join("\n");
+
+  beforeEach(() => {
+    useCadDocumentStore.setState(initialCadDocumentState());
+    useCadUiStore.setState(initialCadUiState());
+    useCadDocumentStore.getState().commitText(multiValueSource, "test");
+    Object.defineProperty(Range.prototype, "getClientRects", {
+      configurable: true,
+      value: () => []
+    });
+  });
+
+  afterEach(() => vi.restoreAllMocks());
+
+  const openLensOnLine = async (lineNumber: number) => {
+    const parent = document.createElement("div");
+    const controller = new SourceEditorController(parent);
+    const view = EditorView.findFromDOM(parent.querySelector<HTMLElement>(".cm-editor")!)!;
+    const lens = parent.querySelector<HTMLElement>(".cm-source-line-lens")!;
+    const measure = parent.querySelector<HTMLElement>(".cm-source-line-lens-measure")!;
+    Object.defineProperty(view.contentDOM, "clientWidth", { configurable: true, value: 800 });
+    Object.defineProperty(view.scrollDOM, "clientWidth", { configurable: true, value: 72 });
+    Object.defineProperty(view.dom.querySelector(".cm-gutters-before")!, "offsetWidth", { configurable: true, value: 24 });
+    Object.defineProperty(measure, "scrollWidth", { configurable: true, value: 480 });
+
+    const line = view.state.doc.line(lineNumber);
+    view.dispatch({ selection: EditorSelection.cursor(line.from) });
+    await settleLens();
+    expect(lens).toHaveClass("is-visible");
+    const lensView = EditorView.findFromDOM(lens.querySelector<HTMLElement>(".cm-editor")!)!;
+    return { controller, view, lens, measure, line, lensView };
+  };
+
+  it("moves between coordinate values and cycles at both ends", async () => {
+    const { controller, lensView } = await openLensOnLine(2);
+    const lensText = lensView.state.doc.toString();
+    const xStart = lensText.indexOf("5");
+    lensView.dispatch({ selection: EditorSelection.cursor(xStart) });
+    const selected = () => {
+      const main = lensView.state.selection.main;
+      return lensText.slice(main.from, main.to);
+    };
+
+    fireEvent.keyDown(lensView.contentDOM, { key: "Tab" });
+    expect(selected()).toBe("9");
+    fireEvent.keyDown(lensView.contentDOM, { key: "Tab" });
+    expect(selected()).toBe("5");
+    fireEvent.keyDown(lensView.contentDOM, { key: "Tab", shiftKey: true });
+    expect(selected()).toBe("9");
+    controller.destroy();
+  });
+
+  it("walks reference and attribute values in source order", async () => {
+    const { controller, lensView } = await openLensOnLine(4);
+    const lensText = lensView.state.doc.toString();
+    lensView.dispatch({ selection: EditorSelection.cursor(lensText.indexOf("A ->")) });
+    const selected = () => {
+      const main = lensView.state.selection.main;
+      return lensText.slice(main.from, main.to);
+    };
+
+    const order: string[] = [];
+    for (let step = 0; step < 5; step += 1) {
+      fireEvent.keyDown(lensView.contentDOM, { key: "Tab" });
+      order.push(selected());
+    }
+    expect(order).toEqual(["B", "red", "false", "A", "B"]);
+    controller.destroy();
+  });
+
+  it("propagates the lens selection outward without touching the document, undo history, or store", async () => {
+    const { controller, view, line, lensView } = await openLensOnLine(2);
+    const lensText = lensView.state.doc.toString();
+    const yStart = lensText.indexOf("9");
+    lensView.dispatch({ selection: EditorSelection.cursor(yStart) });
+    const before = {
+      sourceText: useCadDocumentStore.getState().sourceText,
+      revision: useCadDocumentStore.getState().compiledDocumentRevision,
+      selectedElementId: useCadUiStore.getState().selectedElementId
+    };
+
+    fireEvent.keyDown(lensView.contentDOM, { key: "Tab" });
+
+    expect(view.state.selection.main.from).toBe(line.from + lensText.indexOf("5"));
+    expect(view.state.selection.main.to).toBe(line.from + lensText.indexOf("5") + 1);
+    expect(useCadDocumentStore.getState().sourceText).toBe(before.sourceText);
+    expect(useCadDocumentStore.getState().compiledDocumentRevision).toBe(before.revision);
+    expect(useCadUiStore.getState().selectedElementId).toBe(before.selectedElementId);
+    expect(undoDepth(view.state as never)).toBe(0);
+    expect(redoDepth(view.state as never)).toBe(0);
+    controller.destroy();
+  });
+
+  it("falls through without crashing on a line with no editable values", async () => {
+    const { controller, lensView } = await openLensOnLine(5);
+    lensView.dispatch({ selection: EditorSelection.cursor(0) });
+
+    fireEvent.keyDown(lensView.contentDOM, { key: "Tab" });
+
+    expect(lensView.state.selection.main.empty).toBe(true);
+    expect(lensView.state.selection.main.from).toBe(0);
+    controller.destroy();
+  });
+
+  it("consumes Tab during composition inside the lens and recovers after compositionend", async () => {
+    const { controller, view, lensView } = await openLensOnLine(2);
+    const lensText = lensView.state.doc.toString();
+    const xStart = lensText.indexOf("5");
+    lensView.dispatch({ selection: EditorSelection.cursor(xStart) });
+    const mainBefore = view.state.doc.toString();
+    const lensBefore = lensView.state.doc.toString();
+
+    fireEvent.compositionStart(lensView.contentDOM);
+    fireEvent.keyDown(lensView.contentDOM, { key: "Tab" });
+
+    expect(lensView.state.doc.toString()).toBe(lensBefore);
+    expect(lensView.state.selection.main.empty).toBe(true);
+    expect(lensView.state.selection.main.from).toBe(xStart);
+    expect(view.state.doc.toString()).toBe(mainBefore);
+
+    fireEvent.compositionEnd(lensView.contentDOM);
+    await new Promise((resolve) => setTimeout(resolve, 110));
+    fireEvent.keyDown(lensView.contentDOM, { key: "Tab" });
+
+    const main = lensView.state.selection.main;
+    expect(lensText.slice(main.from, main.to)).toBe("9");
+    controller.destroy();
+  });
+
+  it("does not regress lens open/close visibility toggling after a Tab move", async () => {
+    const { controller, view, lens, measure, lensView } = await openLensOnLine(2);
+    const lensText = lensView.state.doc.toString();
+    lensView.dispatch({ selection: EditorSelection.cursor(lensText.indexOf("5")) });
+    fireEvent.keyDown(lensView.contentDOM, { key: "Tab" });
+    expect(lens).toHaveClass("is-visible");
+
+    Object.defineProperty(measure, "scrollWidth", { configurable: true, value: 12 });
+    view.dispatch({ selection: EditorSelection.cursor(view.state.doc.line(3).from) });
+    await settleLens();
+
+    expect(lens).not.toHaveClass("is-visible");
+    controller.destroy();
+  });
+});
+
 describe("Line lens highlight range helpers", () => {
   it("clips, sorts, and merges overlapping/adjacent marks to the line bounds", () => {
     const merged = lineLocalHighlightRanges(

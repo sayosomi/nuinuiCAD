@@ -64,7 +64,7 @@ import { createDiagnosticsExtension } from "./sourceEditorDiagnosticsExtension";
 import { mapPositionedDiagnostics, toStaleDiagnostics, type PositionedDiagnostic } from "./sourceEditorDiagnostics";
 import { createEvaluationExtension, evaluationChanged, type EvaluationGutterAction } from "./sourceEditorEvaluationExtension";
 import { createEvaluationDecorationIndex, type EvaluationDecorationIndex } from "./sourceEditorEvaluationIndex";
-import { dslLineValueSpans, findDslValueSpanAt } from "../dsl/dslValueSpans";
+import { adjacentDslValueSpan, dslLineValueSpans, findDslValueSpanAt, type DslValueSpanDirection } from "../dsl/dslValueSpans";
 
 type SourceStore = {
   getState: () => CadDocumentState;
@@ -210,6 +210,8 @@ export class SourceEditorController implements SourceEditorHandle {
             { key: "Ctrl-Alt-]", run: () => this.changeAllFolds(true) },
             ...searchKeymap,
             { key: "Escape", run: () => this.runEscape() },
+            { key: "Tab", run: () => this.navigateValueSpan("next") },
+            { key: "Shift-Tab", run: () => this.navigateValueSpan("previous") },
             ...defaultKeymap
           ] satisfies KeyBinding[]),
           EditorView.domEventHandlers({
@@ -482,6 +484,57 @@ export class SourceEditorController implements SourceEditorHandle {
     return true;
   }
 
+  /**
+   * Tab/Shift-Tab cycles the selection between editable value spans within the current
+   * statement (always one line — see dslParser.ts). Reuses dslLineValueSpans/
+   * adjacentDslValueSpan, the exact same span source handleValueClick uses, so click and
+   * Tab always agree on what's a value and what isn't. During IME composition the key is
+   * fully consumed (no value-jump, no fallthrough to defaultKeymap's indentMore/indentLess
+   * either, since letting that mutate the document mid-composition is unsafe); when there
+   * are no spans or the selection crosses lines, this falls through so Tab keeps its
+   * ordinary indent behavior.
+   */
+  private navigateValueSpan(direction: DslValueSpanDirection): boolean {
+    if (this.protocol.composing) return true;
+    const main = this.view.state.selection.main;
+    const lineFrom = this.view.state.doc.lineAt(main.from);
+    if (this.view.state.doc.lineAt(main.to).number !== lineFrom.number) return false;
+    const spans = dslLineValueSpans(lineFrom.text);
+    if (spans.length === 0) return false;
+    const target = adjacentDslValueSpan(spans, main.from - lineFrom.from, direction);
+    if (!target) return false;
+    this.view.dispatch({
+      selection: EditorSelection.single(lineFrom.from + target.start, lineFrom.from + target.end),
+      annotations: Transaction.addToHistory.of(false)
+    });
+    return true;
+  }
+
+  /**
+   * Line Lens counterpart of navigateValueSpan: the lens's own document is already
+   * exactly the projected line's text at offset 0, so no line.from translation is
+   * needed, and a selection-only dispatch on `view` (the lens's EditorView, passed in by
+   * CodeMirror since this keymap entry lives inside the lens's own extensions) is picked
+   * up by the lens's existing handleLensUpdate and projected outward to the main editor
+   * automatically. `view.compositionStarted` is CodeMirror's own per-view IME flag: the
+   * outer controller's `this.protocol.composing` is driven by compositionstart/end on the
+   * main editor's contentDOM only, a separate DOM subtree from the lens's, so it would
+   * never reflect composition happening inside the lens.
+   */
+  private navigateLensValueSpan(view: EditorView, direction: DslValueSpanDirection): boolean {
+    if (view.compositionStarted) return true;
+    if (view.state.doc.lines > 1) return false;
+    const spans = dslLineValueSpans(view.state.doc.toString());
+    if (spans.length === 0) return false;
+    const target = adjacentDslValueSpan(spans, view.state.selection.main.from, direction);
+    if (!target) return false;
+    view.dispatch({
+      selection: EditorSelection.single(target.start, target.end),
+      annotations: Transaction.addToHistory.of(false)
+    });
+    return true;
+  }
+
   flush = (reason: FlushReason): SourceEditFlushResult => {
     if (this.destroyed || !this.hasPendingText()) return "clean";
     if (this.protocol.composing) {
@@ -572,6 +625,8 @@ export class SourceEditorController implements SourceEditorHandle {
       { key: "Ctrl-Alt-[", run: () => this.changeAllFolds(false) },
       { key: "Ctrl-Alt-]", run: () => this.changeAllFolds(true) },
       { key: "Escape", run: () => this.runEscape() },
+      { key: "Tab", run: (view) => this.navigateLensValueSpan(view, "next") },
+      { key: "Shift-Tab", run: (view) => this.navigateLensValueSpan(view, "previous") },
       ...this.sourceEditorShortcutKeymap()
     ];
   }
