@@ -24,7 +24,6 @@ const snapshot: CadDocumentSnapshot = {
   selectedElementId: sampleElements[0].id,
   selectedElementIds: [sampleElements[0].id],
   selectionAnchorElementId: sampleElements[0].id,
-  selectedParameterKey: "name"
 };
 
 const legacyFileContent = (document: CadDocumentSnapshot = snapshot) => JSON.stringify({

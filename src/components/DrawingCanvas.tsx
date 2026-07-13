@@ -210,8 +210,7 @@ export const DrawingCanvas = ({
         evaluationLimitIndex: state.evaluationLimitIndex,
         selectedElementId: selection.selectedElementId,
         selectedElementIds: selection.selectedElementIds,
-        selectionAnchorElementId: selection.selectionAnchorElementId,
-        selectedParameterKey: selection.selectedParameterKey
+        selectionAnchorElementId: selection.selectionAnchorElementId
       },
       baseEvaluation: reusableDragEvaluation(state.elements)
     };

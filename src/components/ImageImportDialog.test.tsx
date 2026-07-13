@@ -13,21 +13,15 @@ const resetStore = () => {
     selectedElementId: sampleElements[0].id,
     selectedElementIds: [sampleElements[0].id],
     selectionAnchorElementId: sampleElements[0].id,
-    selectedParameterKey: "name",
     past: [],
     future: [],
     currentFilePath: null,
     dirtySinceSave: false,
-    isParameterEditMode: false,
-    showElementInfoPanel: true,
-    isDependencyJumpMode: false,
     activePointPickTarget: null,
     activeNumericReferencePickTarget: null,
     activeLinePickTarget: null,
-    activeExpressionInsertTarget: null,
     activeMeasurementInsertTarget: null,
     activePickCursor: null,
-    selectedDependencyJumpIndex: 0,
     elementSearchQuery: "",
     elementSearchCursorId: null,
     elementSearchPickableOnly: false,
@@ -84,8 +78,6 @@ describe("ImageImportDialog", () => {
     });
     expect(image && image.type === "image" ? image.scale : null).toBeCloseTo(72.009 / 254);
     expect(state.selectedElementId).toBe(image?.id);
-    expect(state.selectedParameterKey).toBe("originPoint");
-    expect(state.isParameterEditMode).toBe(false);
     expect(state.pendingImageImport).toBeNull();
   });
 

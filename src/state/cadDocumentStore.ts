@@ -188,8 +188,7 @@ export const currentDocumentSnapshot = (
 ): CadDocumentSnapshot => docToLegacySnapshot(documentOf(state), {
   selectedElementId: selection.selectedElementId,
   selectedElementIds: selection.selectedElementIds,
-  selectionAnchorElementId: selection.selectionAnchorElementId,
-  selectedParameterKey: selection.selectedParameterKey
+  selectionAnchorElementId: selection.selectionAnchorElementId
 });
 
 const textSnapshot = (
@@ -264,9 +263,7 @@ const selectionFromChange = (
   selectionAnchorElementId:
     change.selectionAnchorElementId === undefined
       ? current.selectionAnchorElementId
-      : change.selectionAnchorElementId,
-  selectedParameterKey:
-    change.selectedParameterKey === undefined ? current.selectedParameterKey : change.selectedParameterKey
+      : change.selectionAnchorElementId
 });
 
 const documentFromChange = (
@@ -819,8 +816,7 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
     const emptySelection: CadDocumentSelectionSnapshot = {
       selectedElementId: null,
       selectedElementIds: [],
-      selectionAnchorElementId: null,
-      selectedParameterKey: null
+      selectionAnchorElementId: null
     };
     set((state) => {
       const baseline = regenerateCanonicalFromModel(emptyFileSnapshot());
@@ -872,8 +868,7 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
       const restoredSelection: CadDocumentSelectionSnapshot = {
         selectedElementId: previous.selectionElementIds[0] ?? null,
         selectedElementIds: previous.selectionElementIds,
-        selectionAnchorElementId: previous.selectionElementIds[0] ?? null,
-        selectedParameterKey: previousSelection.selectedParameterKey
+        selectionAnchorElementId: previous.selectionElementIds[0] ?? null
       };
       selectionResult.value = { elements: restored.doc.document.elements, snapshot: restoredSelection, cursorLine: previous.cursorLine };
       return {
@@ -914,8 +909,7 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
       const restoredSelection: CadDocumentSelectionSnapshot = {
         selectedElementId: next.selectionElementIds[0] ?? null,
         selectedElementIds: next.selectionElementIds,
-        selectionAnchorElementId: next.selectionElementIds[0] ?? null,
-        selectedParameterKey: previousSelection.selectedParameterKey
+        selectionAnchorElementId: next.selectionElementIds[0] ?? null
       };
       selectionResult.value = { elements: restored.doc.document.elements, snapshot: restoredSelection, cursorLine: next.cursorLine };
       return {

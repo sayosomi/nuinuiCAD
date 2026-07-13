@@ -1,9 +1,7 @@
 import {
   applyNumericExpressionReference,
-  closeExpressionInsertTray,
   insertSelectedMeasurement,
   insertNumericExpressionSnippet,
-  openExpressionInsertTray,
   applyPickedLine,
   applyPickedNumericReference,
   applyPickedPoint,
@@ -25,7 +23,6 @@ import {
   startMeasurementPointPick,
   startNumericReferenceInsertPick,
   startNumericReferencePick,
-  toggleExpressionInsertTray,
   startPointPick
 } from "./pickCommands";
 import type { Command, CommandId } from "./commandTypes";
@@ -40,22 +37,6 @@ export const pickCommandDefinitions = {
     id: "insertNumericExpressionSnippet",
     label: "数値式へ挿入",
     run: (context) => insertNumericExpressionSnippet(context)
-  },
-  toggleExpressionInsertTray: {
-    id: "toggleExpressionInsertTray",
-    label: "式の挿入候補を開閉",
-    run: (context) => toggleExpressionInsertTray(context)
-  },
-  openExpressionInsertTray: {
-    id: "openExpressionInsertTray",
-    label: "参照ヘルパーを開く",
-    palette: { order: 17, keywords: ["reference", "helper", "expression", "参照", "ヘルパー", "式"] },
-    run: (context) => openExpressionInsertTray(context)
-  },
-  closeExpressionInsertTray: {
-    id: "closeExpressionInsertTray",
-    label: "式の挿入候補を閉じる",
-    run: () => closeExpressionInsertTray()
   },
   setMeasurementInsertMode: {
     id: "setMeasurementInsertMode",
@@ -86,7 +67,7 @@ export const pickCommandDefinitions = {
     id: "startNumericReferencePick",
     label: "数値選択モードに入る",
     palette: { order: 16, keywords: ["number", "reference", "measurement", "数値", "参照", "選択"] },
-    run: () => startNumericReferencePick()
+    run: (context) => startNumericReferencePick(context)
   },
   startNumericReferenceInsertPick: {
     id: "startNumericReferenceInsertPick",

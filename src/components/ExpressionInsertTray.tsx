@@ -25,7 +25,7 @@ type ExpressionInsertTrayProps = {
   parameterKey: ParameterKey;
   focusInput: () => void;
   getInputTarget: () => InsertTargetInput;
-  onClose?: () => void;
+  onClose: () => void;
 };
 
 const relationLabels: Record<NumericReferenceCandidate["relation"] | "all", string> = {
@@ -152,13 +152,7 @@ export const ExpressionInsertTray = ({
     requestAnimationFrame(focusInput);
   };
 
-  const close = () => {
-    if (onClose) {
-      onClose();
-      return;
-    }
-    dispatchCommand("closeExpressionInsertTray");
-  };
+  const close = () => onClose();
 
   const startLegacyLinePick = () => {
     const target = getInputTarget();

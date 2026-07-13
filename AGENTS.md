@@ -119,12 +119,12 @@ can grow to hundreds or thousands of elements, so references should use scalable
 selection UI such as canvas picking, searchable construction lists,
 command-driven candidate selection, or keyboard navigation.
 
-Selected element parameters must remain operable by keyboard through explicit
-parameter edit mode. When adding a parameter, define it in the centralized
-parameter definition table with a stable key, label, direct key, and value kind.
-Numeric parameters should support per-parameter keyboard step sizes, defaulting
-to 1 mm unless the parameter needs domain-specific levels such as ratios or
-angles.
+Selected element parameters must remain operable by keyboard through Inspector
+row navigation and Source Editor value-span editing. When adding a parameter,
+define it in the centralized parameter definition table with a stable key,
+label, and value kind. Numeric parameters should support per-parameter keyboard
+step sizes in the Source Editor, defaulting to 1 mm unless the parameter needs
+domain-specific levels such as ratios or angles.
 
 Do not maintain a hand-written shortcut list in this file. Shortcut help should
 come from command and shortcut metadata in the application.

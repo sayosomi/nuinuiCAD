@@ -1,5 +1,4 @@
 import type { CommandId } from "../commands/commands";
-import type { CadElement } from "../types/geometry";
 import {
   bindingMatchesEvent,
   defaultShortcutSettings,
@@ -41,9 +40,6 @@ const eventTargetTagName = (event: KeyboardEvent) => {
   const target = event.target;
   return target instanceof HTMLElement ? target.tagName.toLowerCase() : null;
 };
-
-const noModifier = (event: KeyboardEvent) =>
-  !event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey;
 
 const isElementListTarget = (event: KeyboardEvent) => {
   const target = event.target;
@@ -87,8 +83,7 @@ export const keyboardCommandForEvent = (
   event: KeyboardEvent,
   options: {
     settings?: ShortcutSettings;
-    isParameterEditMode?: boolean;
-    isDependencyJumpMode?: boolean;
+    isInspectorFocused?: boolean;
     isPickMode?: boolean;
     isDslPanelMode?: boolean;
     allowEditableCommandIds?: ReadonlySet<CommandId>;
@@ -98,20 +93,7 @@ export const keyboardCommandForEvent = (
   const shortcut = shortcutBindingsForMode(settings, options).find((definition) =>
     bindingMatchesEvent(definition, event)
   );
-  if (!shortcut) {
-    if (
-      options.isParameterEditMode &&
-      /^[a-z0-9]$/i.test(event.key) &&
-      noModifier(event) &&
-      !shouldIgnoreKeyboardEvent(event)
-    ) {
-      return {
-        commandId: "selectParameterByKey",
-        context: { parameterDirectKey: event.key.toLowerCase() }
-      };
-    }
-    return null;
-  }
+  if (!shortcut) return null;
   if (
     shortcut.commandId !== "focusElementSearch" &&
     !options.allowEditableCommandIds?.has(shortcut.commandId) &&
@@ -127,8 +109,7 @@ export const commandIdForKeyboardEvent = (
   event: KeyboardEvent,
   options: {
     settings?: ShortcutSettings;
-    isParameterEditMode?: boolean;
-    isDependencyJumpMode?: boolean;
+    isInspectorFocused?: boolean;
     isPickMode?: boolean;
     isDslPanelMode?: boolean;
     allowEditableCommandIds?: ReadonlySet<CommandId>;
@@ -140,11 +121,8 @@ export const commandIdForKeyboardEvent = (
 export const shortcutHelpItems = (
   options: {
     settings?: ShortcutSettings;
-    isParameterEditMode?: boolean;
-    isDependencyJumpMode?: boolean;
+    isInspectorFocused?: boolean;
     isPickMode?: boolean;
     isDslPanelMode?: boolean;
-    selectedElement?: CadElement | null;
-    selectedParameterKey?: string | null;
   } = {}
 ): ShortcutHelpItem[] => shortcutHelpItemsForSettings(options);

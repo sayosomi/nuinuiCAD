@@ -7,14 +7,12 @@ import {
 } from "../model/visibilityProfiles";
 import { normalizeDocumentPalette } from "../palette/palette";
 import { DEFAULT_PRINT_LAYOUT, normalizePrintLayouts } from "../print/printLayout";
-import type { ParameterKey } from "../parameters/parameterDefinitions";
 import type { ElementId, PrintLayout } from "../types/geometry";
 
 export type CadDocumentSelectionSnapshot = {
   selectedElementId: ElementId | null;
   selectedElementIds: ElementId[];
   selectionAnchorElementId: ElementId | null;
-  selectedParameterKey: ParameterKey | null;
 };
 
 /** Phase 1c compatibility shape used only at the legacy JSON boundary. */
@@ -112,10 +110,7 @@ const parseDocumentObject = (value: unknown): CadDocumentSnapshot => {
       ? value.selectedElementIds.filter((id): id is string => typeof id === "string")
       : [],
     selectionAnchorElementId:
-      typeof value.selectionAnchorElementId === "string" ? value.selectionAnchorElementId : null,
-    selectedParameterKey: (
-      typeof value.selectedParameterKey === "string" ? value.selectedParameterKey : null
-    ) as CadDocumentSnapshot["selectedParameterKey"]
+      typeof value.selectionAnchorElementId === "string" ? value.selectionAnchorElementId : null
   };
 };
 

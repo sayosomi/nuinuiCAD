@@ -20,8 +20,7 @@ const scopeLabels = {
   global: "全体",
   modeInvariant: "全モード",
   normal: "通常",
-  parameter: "パラメーター編集",
-  dependencyJump: "親子ジャンプ",
+  inspector: "インスペクタ",
   pick: "構成リスト選択",
   dsl: "DSLパネル",
   sourceEditor: "Source Editor"

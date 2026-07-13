@@ -12,10 +12,7 @@ import { makeUniqueElementName } from "../model/elementNames";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
 import type { CadElement } from "../types/geometry";
-import {
-  finishCreatedElementInteraction,
-  getInitialCreatedElementParameterKey
-} from "./nameEntryAfterCreation";
+import { finishCreatedElementInteraction } from "./nameEntryAfterCreation";
 
 type ImageMetadata = {
   widthPx: number;
@@ -107,8 +104,7 @@ const commitCreatedImage = (
     evaluationLimitIndex: insertionIndex + 1,
     selectedElementId: placedElement.id,
     selectedElementIds: [placedElement.id],
-    selectionAnchorElementId: placedElement.id,
-    selectedParameterKey: getInitialCreatedElementParameterKey(placedElement)
+    selectionAnchorElementId: placedElement.id
   });
   finishCreatedElementInteraction();
 };

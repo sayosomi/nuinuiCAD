@@ -1,50 +1,38 @@
 import { useEffect } from "react";
 import { dispatchCommand } from "../commands/commands";
 import { shortcutHelpItems } from "../keyboard/shortcuts";
-import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
 
 type ShortcutHelpOverlayProps = {
-  isParameterEditMode: boolean;
-  isDependencyJumpMode: boolean;
+  isInspectorFocused: boolean;
   isPickMode?: boolean;
   isDslPanelMode?: boolean;
 };
 
 const modeLabel = ({
-  isParameterEditMode,
-  isDependencyJumpMode,
+  isInspectorFocused,
   isPickMode = false,
   isDslPanelMode = false
 }: ShortcutHelpOverlayProps) => {
   if (isDslPanelMode) return "DSLパネル";
   if (isPickMode) return "構成リスト選択";
-  if (isDependencyJumpMode) return "親子要素ジャンプ";
-  if (isParameterEditMode) return "パラメーター編集";
+  if (isInspectorFocused) return "インスペクタ";
   return "通常";
 };
 
 export const ShortcutHelpOverlay = ({
-  isParameterEditMode,
-  isDependencyJumpMode,
+  isInspectorFocused,
   isPickMode = false,
   isDslPanelMode = false
 }: ShortcutHelpOverlayProps) => {
-  const elements = useCadDocumentStore((state) => state.elements);
-  const selectedElementId = useCadUiStore((state) => state.selectedElementId);
-  const selectedParameterKey = useCadUiStore((state) => state.selectedParameterKey);
   const showShortcutHelp = useCadUiStore((state) => state.showShortcutHelp);
   const shortcutSettings = useCadUiStore((state) => state.shortcutSettings);
   const setShowShortcutHelp = useCadUiStore((state) => state.setShowShortcutHelp);
-  const selectedElement = elements.find((element) => element.id === selectedElementId) ?? null;
   const shortcuts = shortcutHelpItems({
     settings: shortcutSettings,
-    isParameterEditMode,
-    isDependencyJumpMode,
+    isInspectorFocused,
     isPickMode,
-    isDslPanelMode,
-    selectedElement,
-    selectedParameterKey
+    isDslPanelMode
   });
 
   useEffect(() => {
@@ -77,7 +65,7 @@ export const ShortcutHelpOverlay = ({
         <div className="shortcut-overlay-header">
           <div>
             <h2>ショートカット</h2>
-            <p>{modeLabel({ isParameterEditMode, isDependencyJumpMode, isPickMode, isDslPanelMode })}</p>
+            <p>{modeLabel({ isInspectorFocused, isPickMode, isDslPanelMode })}</p>
           </div>
           <button type="button" onClick={() => dispatchCommand("toggleShortcutHelp")}>
             閉じる

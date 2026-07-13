@@ -1,5 +1,4 @@
 import { elementIdsInDocumentOrder } from "../model/documentSelection";
-import { findParameterDefinition } from "../parameters/parameterDefinitions";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
 import type { CadElement } from "../types/geometry";
@@ -51,11 +50,4 @@ export const updateSelectedElement = (updater: (element: CadElement) => CadEleme
   useCadDocumentStore.getState().commitDocumentChange({
     elements: elements.map((element) => (element.id === selectedElementId ? updater(element) : element))
   });
-};
-
-export const selectedParameterDefinition = () => {
-  const selectedElement = getSelectedElement();
-  if (!selectedElement) return null;
-  const { selectedParameterKey } = useCadUiStore.getState();
-  return findParameterDefinition(selectedElement, selectedParameterKey);
 };

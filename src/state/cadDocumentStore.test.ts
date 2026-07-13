@@ -58,7 +58,6 @@ describe("cadDocumentStore file state", () => {
         selectedElementId: "missing",
         selectedElementIds: ["missing"],
         selectionAnchorElementId: "missing",
-        selectedParameterKey: "x"
       },
       "/tmp/loaded.nuinui.json"
     );
@@ -75,7 +74,6 @@ describe("cadDocumentStore file state", () => {
       selectedElementId: sampleElements[1].id,
       selectedElementIds: [sampleElements[1].id],
       selectionAnchorElementId: sampleElements[1].id,
-      selectedParameterKey: "name"
     });
   });
 

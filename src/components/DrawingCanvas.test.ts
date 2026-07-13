@@ -82,17 +82,11 @@ const resetStore = () => {
     selectedElementId: sampleElements[0].id,
     selectedElementIds: [sampleElements[0].id],
     selectionAnchorElementId: sampleElements[0].id,
-    isParameterEditMode: false,
-    selectedParameterKey: "name",
-    showElementInfoPanel: true,
-    isDependencyJumpMode: false,
     activePointPickTarget: null,
     activeNumericReferencePickTarget: null,
     activeLinePickTarget: null,
-    activeExpressionInsertTarget: null,
     activeMeasurementInsertTarget: null,
     activePickCursor: null,
-    selectedDependencyJumpIndex: 0,
     elementSearchQuery: "",
     elementSearchCursorId: null,
     elementSearchPickableOnly: false,
@@ -592,7 +586,6 @@ describe("DrawingCanvas point dragging", () => {
     useCadStore.setState({
       selectedElementId: "point-a",
       selectedElementIds: ["point-a"],
-      selectedParameterKey: "x"
     });
     const { viewport } = renderDrawingCanvas();
 
@@ -612,7 +605,6 @@ describe("DrawingCanvas point dragging", () => {
     useCadStore.setState({
       selectedElementId: "point-a",
       selectedElementIds: ["point-a"],
-      selectedParameterKey: "x",
       activeNumericReferencePickTarget: {
         elementId: "point-a",
         parameterKey: "x",
@@ -654,7 +646,6 @@ describe("DrawingCanvas point dragging", () => {
       elements,
       selectedElementId: "self-line",
       selectedElementIds: ["self-line"],
-      selectedParameterKey: "name",
       activeNumericReferencePickTarget: {
         elementId: "self-line",
         parameterKey: "name",
@@ -698,7 +689,6 @@ describe("DrawingCanvas point dragging", () => {
       elements,
       selectedElementId: "self-line",
       selectedElementIds: ["self-line"],
-      selectedParameterKey: "startPoint",
       activePointPickTarget: {
         elementId: "self-line",
         parameterKey: "startPoint"
@@ -741,7 +731,6 @@ describe("DrawingCanvas point dragging", () => {
       ],
       selectedElementId: "offset-line",
       selectedElementIds: ["offset-line"],
-      selectedParameterKey: "baseLineIds",
       activeLinePickTarget: {
         elementId: "offset-line",
         parameterKey: "baseLineIds"
@@ -797,7 +786,6 @@ describe("DrawingCanvas point dragging", () => {
       ],
       selectedElementId: "offset-line",
       selectedElementIds: ["offset-line"],
-      selectedParameterKey: "baseLineIds",
       activeLinePickTarget: {
         elementId: "offset-line",
         parameterKey: "baseLineIds"

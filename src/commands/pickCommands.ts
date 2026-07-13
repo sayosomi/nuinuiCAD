@@ -30,20 +30,19 @@ import { TEMPLATE_INSERTION_NUMERIC_TARGET_ID } from "../templates/templateInser
 import type { ElementId } from "../types/geometry";
 import type { NumericValue } from "../types/geometry";
 import type { CommandContext } from "./commandTypes";
-import { getSelectedElement, isLineLikeElement, selectedParameterDefinition } from "./commandRuntime";
+import { isLineLikeElement } from "./commandRuntime";
 
 export const applyNumericExpressionReference = (context?: CommandContext) => {
   const numericExpression = context?.numericExpression;
   if (!numericExpression) return;
   const { elements } = useCadDocumentStore.getState();
-  const { selectedElementId, selectedParameterKey } = useCadUiStore.getState();
-  const targetElementId = context.elementId ?? selectedElementId;
+  const targetElementId = context?.elementId;
   const targetElement = targetElementId
     ? elements.find((element) => element.id === targetElementId) ?? null
     : null;
   if (!targetElement) return;
 
-  const key = context.parameterKey ?? selectedParameterKey;
+  const key = context?.parameterKey ?? null;
   const definition = findParameterDefinition(targetElement, key);
   if (definition?.kind !== "number") return;
 
@@ -55,8 +54,7 @@ export const applyNumericExpressionReference = (context?: CommandContext) => {
     ),
     selectedElementId: targetElement.id,
     selectedElementIds: [targetElement.id],
-    selectionAnchorElementId: targetElement.id,
-    selectedParameterKey: definition.key
+    selectionAnchorElementId: targetElement.id
   });
 };
 
@@ -69,14 +67,13 @@ const isNumericValue = (value: unknown): value is NumericValue =>
 
 const numericExpressionTarget = (context?: CommandContext) => {
   const { elements } = useCadDocumentStore.getState();
-  const { selectedElementId, selectedParameterKey } = useCadUiStore.getState();
-  const targetElementId = context?.elementId ?? selectedElementId;
+  const targetElementId = context?.elementId;
   const targetElement = targetElementId
     ? elements.find((element) => element.id === targetElementId) ?? null
     : null;
   if (!targetElement) return null;
 
-  const key = context?.parameterKey ?? selectedParameterKey;
+  const key = context?.parameterKey ?? null;
   const definition = findParameterDefinition(targetElement, key);
   if (definition?.kind !== "number" && !(targetElement.type === "text" && definition?.key === "text")) {
     return null;
@@ -153,15 +150,7 @@ export const insertNumericExpressionSnippet = (context?: CommandContext) => {
       ),
       selectedElementId: target.targetElement.id,
       selectedElementIds: [target.targetElement.id],
-      selectionAnchorElementId: target.targetElement.id,
-      selectedParameterKey: target.definition.key
-    });
-    useCadUiStore.getState().setExpressionInsertInputTarget({
-      elementId: target.targetElement.id,
-      parameterKey: target.definition.key,
-      displayedExpression: nextDisplayText,
-      selectionStart: nextDisplayText.length,
-      selectionEnd: nextDisplayText.length
+      selectionAnchorElementId: target.targetElement.id
     });
     return;
   }
@@ -192,52 +181,7 @@ export const insertNumericExpressionSnippet = (context?: CommandContext) => {
     ),
     selectedElementId: target.targetElement.id,
     selectedElementIds: [target.targetElement.id],
-    selectionAnchorElementId: target.targetElement.id,
-    selectedParameterKey: target.definition.key
-  });
-  useCadUiStore.getState().setExpressionInsertInputTarget({
-    elementId: target.targetElement.id,
-    parameterKey: target.definition.key,
-    displayedExpression: nextDisplayExpression,
-    selectionStart: null,
-    selectionEnd: null
-  });
-};
-
-export const toggleExpressionInsertTray = (context?: CommandContext) => {
-  const target = numericExpressionTarget(context);
-  if (!target) return;
-
-  const current = useCadUiStore.getState().activeExpressionInsertTarget;
-  const nextTarget = {
-    elementId: target.targetElement.id,
-    parameterKey: target.definition.key
-  };
-  useCadUiStore.getState().setActiveExpressionInsertTarget(
-    current?.elementId === nextTarget.elementId && current.parameterKey === nextTarget.parameterKey
-      ? null
-      : nextTarget
-  );
-};
-
-export const openExpressionInsertTray = (context?: CommandContext) => {
-  const target = numericExpressionTarget(context);
-  if (!target) return;
-
-  useCadUiStore.getState().setActiveExpressionInsertTarget({
-    elementId: target.targetElement.id,
-    parameterKey: target.definition.key
-  });
-};
-
-export const closeExpressionInsertTray = () => {
-  useCadUiStore.setState({
-    activeExpressionInsertTarget: null,
-    expressionInsertInputTarget: null,
-    activeMeasurementInsertTarget: null,
-    activePointPickTarget: null,
-    activeLinePickTarget: null,
-    activePickCursor: null
+    selectionAnchorElementId: target.targetElement.id
   });
 };
 
@@ -338,10 +282,6 @@ export const startMeasurementFunctionInsert = (context?: CommandContext) => {
     lineId: null
   };
   useCadUiStore.setState({
-    activeExpressionInsertTarget: {
-      elementId: target.elementId,
-      parameterKey: target.parameterKey
-    },
     activeMeasurementInsertTarget: nextTarget,
     activeNumericReferencePickTarget: null,
     activeLinePickTarget: null,
@@ -420,10 +360,11 @@ export const insertSelectedMeasurement = (context?: CommandContext) => {
   });
 };
 
-export const startNumericReferencePick = () => {
-  const selectedElement = getSelectedElement();
-  const definition = selectedParameterDefinition();
-  if (!selectedElement || definition?.kind !== "number") return;
+export const startNumericReferencePick = (context?: CommandContext) => {
+  const explicitTarget = numericExpressionTarget(context);
+  const selectedElement = explicitTarget?.targetElement;
+  const definition = explicitTarget?.definition;
+  if (!selectedElement || definition?.kind !== "number") return false;
 
   useCadUiStore.setState({
     activePointPickTarget: null,
@@ -435,6 +376,7 @@ export const startNumericReferencePick = () => {
       property: "length"
     }
   });
+  return true;
 };
 
 export const startNumericReferenceInsertPick = (context?: CommandContext) => {
@@ -612,16 +554,15 @@ export const startPointPick = (
   }
 ) => {
   const { elements } = useCadDocumentStore.getState();
-  const { selectedElementId } = useCadUiStore.getState();
-  const targetElementId = context?.elementId ?? selectedElementId;
+  const targetElementId = context?.elementId;
   const selectedElement = targetElementId
     ? elements.find((element) => element.id === targetElementId) ?? null
-    : getSelectedElement();
+    : null;
   const definition = context?.parameterKey
     ? selectedElement
       ? findParameterDefinition(selectedElement, context.parameterKey)
       : null
-    : selectedParameterDefinition();
+    : null;
   if (
     !selectedElement ||
     (definition?.kind !== "reference" && definition?.kind !== "lineEndpointReference")
@@ -641,8 +582,7 @@ export const startPointPick = (
 
 export const startLineEndpointPairPick = (context?: Pick<CommandContext, "elementId">) => {
   const { elements } = useCadDocumentStore.getState();
-  const { selectedElementId } = useCadUiStore.getState();
-  const targetElementId = context?.elementId ?? selectedElementId;
+  const targetElementId = context?.elementId;
   const targetElement = targetElementId
     ? elements.find((element) => element.id === targetElementId) ?? null
     : null;
@@ -779,8 +719,7 @@ export const applyPickedPoint = (context?: Pick<CommandContext, "pickedPointId" 
       ),
       selectedElementId: activePointPickTarget.elementId,
       selectedElementIds: [activePointPickTarget.elementId],
-      selectionAnchorElementId: activePointPickTarget.elementId,
-      selectedParameterKey: activePointPickTarget.parameterKey
+      selectionAnchorElementId: activePointPickTarget.elementId
     });
     if (activePointPickTarget.nextParameterKey) {
       const nextDefinition = findParameterDefinition(targetElement, activePointPickTarget.nextParameterKey);
@@ -827,8 +766,7 @@ export const applyPickedPoint = (context?: Pick<CommandContext, "pickedPointId" 
     ),
     selectedElementId: activePointPickTarget.elementId,
     selectedElementIds: [activePointPickTarget.elementId],
-    selectionAnchorElementId: activePointPickTarget.elementId,
-    selectedParameterKey: activePointPickTarget.parameterKey
+    selectionAnchorElementId: activePointPickTarget.elementId
   });
   if (activePointPickTarget.nextParameterKey) {
     const nextDefinition = findParameterDefinition(targetElement, activePointPickTarget.nextParameterKey);
@@ -858,12 +796,12 @@ export const startLinePick = (
   const targetElementId = context?.elementId ?? selectedElementId;
   const selectedElement = targetElementId
     ? elements.find((element) => element.id === targetElementId) ?? null
-    : getSelectedElement();
+    : null;
   const definition = context?.parameterKey
     ? selectedElement
       ? findParameterDefinition(selectedElement, context.parameterKey)
       : null
-    : selectedParameterDefinition();
+    : null;
   if (!selectedElement || (definition?.kind !== "lineReferenceList" && definition?.kind !== "lineReference")) return;
 
   useCadUiStore.setState({
@@ -966,8 +904,7 @@ export const applyPickedLine = (context?: Pick<CommandContext, "pickedLineId">) 
       ),
       selectedElementId: targetElement.id,
       selectedElementIds: [targetElement.id],
-      selectionAnchorElementId: targetElement.id,
-      selectedParameterKey: activeLinePickTarget.parameterKey
+      selectionAnchorElementId: targetElement.id
     });
     if (activeLinePickTarget.nextPointParameterKey) {
       const nextDefinition = findParameterDefinition(targetElement, activeLinePickTarget.nextPointParameterKey);
@@ -1001,8 +938,7 @@ export const applyPickedLine = (context?: Pick<CommandContext, "pickedLineId">) 
     ),
     selectedElementId: targetElement.id,
     selectedElementIds: [targetElement.id],
-    selectionAnchorElementId: targetElement.id,
-    selectedParameterKey: activeLinePickTarget.parameterKey
+    selectionAnchorElementId: targetElement.id
   });
 };
 

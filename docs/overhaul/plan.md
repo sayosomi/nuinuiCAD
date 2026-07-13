@@ -186,10 +186,11 @@ Phase 5  ハードクリーンアップ(Phase 2・3・4すべての完了後)
 
 * `LeftPanel.tsx` + `ElementListRow` / `useElementListData` 等リスト系(~2000行)
 * `DslPanel.tsx` + ローカル履歴、`DslEditor.tsx`(textarea実装)
-* `ElementEditor.tsx`、全 `*ElementFields.tsx`、`ParameterEditors` 系、
-  `ExpressionInsertTray`(~2500行)
-* パラメータ編集モード(値編集コマンド)。パラメータへのキーボード到達は
-  インスペクタ行ナビゲーション+カーソルジャンプが代替
+* `ElementEditor.tsx`、全 `*ElementFields.tsx`、`ParameterEditors` 系。
+  `ExpressionInsertTray` はテンプレート挿入専用ヘルパーとして残し、RightPanel
+  とフォーム編集用の状態・commandからは切り離す
+* パラメータ編集モード(値編集コマンド)とdependency jump互換。パラメータへの
+  キーボード到達はInspector行ナビゲーション+Source Editor値spanジャンプが代替
 * `documentFormat.ts` の保存経路、`documentMigration.ts`(既に死んでいる)、
   スナップショットの `printLayout` ミラーと `selected*` フィールド
 * `id=` / `parent=` / `branch=` のDSL互換(Phase 5)

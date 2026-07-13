@@ -10,10 +10,7 @@ import { useCadUiStore } from "../state/cadUiStore";
 import type { CadElement, ElementId } from "../types/geometry";
 import type { CommandContext } from "./commandTypes";
 import { getSelectedElement, getSelectedElementIds } from "./commandRuntime";
-import {
-  finishCreatedElementInteraction,
-  getInitialCreatedElementParameterKey
-} from "./nameEntryAfterCreation";
+import { finishCreatedElementInteraction } from "./nameEntryAfterCreation";
 
 const hasSelectedAncestor = (
   element: CadElement,
@@ -49,8 +46,7 @@ export const addConditionalGroup = (
     evaluationLimitIndex: insertionIndex + 1,
     selectedElementId: group.id,
     selectedElementIds: [group.id],
-    selectionAnchorElementId: group.id,
-    selectedParameterKey: getInitialCreatedElementParameterKey(group)
+    selectionAnchorElementId: group.id
   });
   finishCreatedElementInteraction(context);
 };
@@ -97,8 +93,7 @@ export const wrapSelectedElementsInConditionalGroup = (
     }),
     selectedElementId: group.id,
     selectedElementIds: [group.id],
-    selectionAnchorElementId: group.id,
-    selectedParameterKey: getInitialCreatedElementParameterKey(group)
+    selectionAnchorElementId: group.id
   });
   finishCreatedElementInteraction(context);
 };

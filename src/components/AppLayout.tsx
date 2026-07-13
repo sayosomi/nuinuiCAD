@@ -84,16 +84,14 @@ const saveLeftPanelWidth = (leftPanelWidth: number) => {
 };
 
 const inspectorNavigationCommandIds = new Set([
-  "enterParameterEditMode",
-  "enterDependencyJumpMode",
-  "selectNextParameter",
-  "selectPreviousParameter",
-  "activateSelectedParameter",
-  "exitParameterEditMode",
-  "selectNextDependencyJumpTarget",
-  "selectPreviousDependencyJumpTarget",
-  "jumpToSelectedDependencyTarget",
-  "exitDependencyJumpMode",
+  "focusInspectorParameterRows",
+  "focusInspectorDependencyRows",
+  "selectNextInspectorRow",
+  "selectPreviousInspectorRow",
+  "activateInspectorRow",
+  "startInspectorParameterPick",
+  "exitInspector",
+  "toggleInspectorPanel",
   "toggleShortcutHelp"
 ]);
 
@@ -101,8 +99,6 @@ export const AppLayout = () => {
   const elements = useCadDocumentStore(effectiveElements);
   const evaluationLimitIndex = useCadDocumentStore((state) => state.evaluationLimitIndex);
   const compiledDocumentRevision = useCadDocumentStore((state) => state.compiledDocumentRevision);
-  const isParameterEditMode = useCadUiStore((state) => state.isParameterEditMode);
-  const isDependencyJumpMode = useCadUiStore((state) => state.isDependencyJumpMode);
   const shortcutSettings = useCadUiStore((state) => state.shortcutSettings);
   const showPrintLayout = useCadUiStore((state) => state.showPrintLayout);
   const showPrintPreviewWindow = useCadUiStore((state) => state.showPrintPreviewWindow);
@@ -127,13 +123,15 @@ export const AppLayout = () => {
       Boolean(state.activeLinePickTarget) ||
       Boolean(state.activeTemplateInsertion)
   );
+  const isInspectorFocused = typeof document !== "undefined" &&
+    document.activeElement instanceof HTMLElement &&
+    Boolean(document.activeElement.closest(".inspector-navigation"));
   const canvasFocusRef = useRef<HTMLDivElement>(null);
   const canvasWorkspaceRef = useRef<HTMLDivElement>(null);
   const commandRibbonDockRef = useRef<HTMLDivElement>(null);
   const sourceEditorRef = useRef<SourceEditorHandle>(null);
   const inspectorRef = useRef<InspectorPanelHandle>(null);
   const inspectorReturnFocusRef = useRef<"canvas" | "editor">("canvas");
-  const parameterInputRefs = useRef(new Map<string, HTMLElement>());
   const [leftPanelWidth, setLeftPanelWidth] = useState(DEFAULT_LEFT_PANEL_WIDTH);
   const [isResizingLeftPanel, setIsResizingLeftPanel] = useState(false);
   const leftPanelResizeStartRef = useRef<{ clientX: number; width: number } | null>(null);
@@ -152,28 +150,12 @@ export const AppLayout = () => {
       evaluationRequestRevision
     });
   }, [evaluation, evaluationRevision, evaluationRequestRevision]);
-  const registerParameterControl = (key: string, element: HTMLElement | null) => {
-    if (element) {
-      parameterInputRefs.current.set(key, element);
-    } else {
-      parameterInputRefs.current.delete(key);
-    }
-  };
   const commandContext = useMemo(() => ({
     focusCanvas: () => canvasFocusRef.current?.focus(),
     // The legacy element-list commands keep their IDs but now land on the Source Editor.
     focusElementList: () => sourceEditorRef.current?.focus(),
     focusElementSearch: () => sourceEditorRef.current?.focusSearch(),
     getCanvasViewportRect: () => canvasFocusRef.current?.getBoundingClientRect() ?? null,
-    focusSelectedParameterInput: () => {
-      const selectedKey = useCadUiStore.getState().selectedParameterKey;
-      if (!selectedKey) return;
-      const input = parameterInputRefs.current.get(selectedKey);
-      input?.focus();
-      if (input instanceof HTMLInputElement || input instanceof HTMLTextAreaElement) {
-        input.select();
-      }
-    },
     focusInspectorParameterRows: () => {
       const active = document.activeElement;
       inspectorReturnFocusRef.current = active instanceof HTMLElement && active.closest("[data-source-editor-scope='true']")
@@ -188,9 +170,9 @@ export const AppLayout = () => {
         : "canvas";
       inspectorRef.current?.focusDependencyRows();
     },
-    moveInspectorParameterRow: (direction: -1 | 1) => inspectorRef.current?.moveParameterRow(direction) ?? false,
-    moveInspectorDependencyRow: (direction: -1 | 1) => inspectorRef.current?.moveDependencyRow(direction) ?? false,
+    moveInspectorRow: (direction: -1 | 1) => inspectorRef.current?.moveRow(direction) ?? false,
     activateInspectorRow: () => inspectorRef.current?.activateRow() ?? false,
+    startInspectorParameterPick: () => inspectorRef.current?.startParameterPick() ?? false,
     inspectorHasFocus: () => inspectorRef.current?.isFocused() ?? false,
     exitInspector: () => {
       if (inspectorReturnFocusRef.current === "editor") sourceEditorRef.current?.focus();
@@ -347,8 +329,7 @@ export const AppLayout = () => {
       if (useCadUiStore.getState().pendingImageImport || useCadUiStore.getState().imageImportError) return;
       const keyboardCommand = keyboardCommandForEvent(event, {
         settings: useCadUiStore.getState().shortcutSettings,
-        isParameterEditMode: useCadUiStore.getState().isParameterEditMode,
-        isDependencyJumpMode: useCadUiStore.getState().isDependencyJumpMode,
+        isInspectorFocused: commandContext.inspectorHasFocus?.() ?? false,
         isPickMode: Boolean(
           useCadUiStore.getState().activePointPickTarget ||
             useCadUiStore.getState().activeNumericReferencePickTarget ||
@@ -471,9 +452,6 @@ export const AppLayout = () => {
           <RightPanel
             evaluation={evaluation}
             evaluationState={evaluationState}
-            isParameterEditMode={isParameterEditMode}
-            isDependencyJumpMode={isDependencyJumpMode}
-            registerParameterControl={registerParameterControl}
             inspectorRef={inspectorRef}
             sourceEditorRef={sourceEditorRef}
             onExitInspector={() => commandContext.exitInspector?.()}
@@ -492,8 +470,7 @@ export const AppLayout = () => {
         </Suspense>
       ) : null}
       <ShortcutHelpOverlay
-        isParameterEditMode={isParameterEditMode}
-        isDependencyJumpMode={isDependencyJumpMode}
+        isInspectorFocused={isInspectorFocused}
         isPickMode={isPickMode}
         isDslPanelMode={showDslPanel}
       />

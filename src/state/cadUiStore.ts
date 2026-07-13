@@ -3,7 +3,7 @@ import type { CommandRibbonSettings } from "../commandRibbons/commandRibbonSetti
 import type { CadDocumentSelectionSnapshot } from "../document/documentFormat";
 import type { NumericMeasurementKey } from "../geometry/numericExpressionTypes";
 import type { ShortcutSettings } from "../keyboard/shortcutTypes";
-import { normalizeParameterKey, type ParameterKey } from "../parameters/parameterDefinitions";
+import type { ParameterKey } from "../parameters/parameterDefinitions";
 import { sampleElements } from "../sampleData";
 import { useCadDocumentStore } from "./cadDocumentStore";
 import { sourceEditSession } from "../editor/sourceEditSession";
@@ -39,19 +39,6 @@ export type ActiveLinePickTarget = {
   measurementSlot?: "line";
   nextPointParameterKey?: ParameterKey;
   pickFlow?: "lineAndPoint";
-};
-
-export type ActiveExpressionInsertTarget = {
-  elementId: ElementId;
-  parameterKey: ParameterKey;
-};
-
-export type ExpressionInsertInputTarget = {
-  elementId: ElementId;
-  parameterKey: ParameterKey;
-  displayedExpression: string;
-  selectionStart: number | null;
-  selectionEnd: number | null;
 };
 
 export type ActiveMeasurementInsertTarget = {
@@ -169,14 +156,10 @@ const normalizedSelection = (
     selection.selectionAnchorElementId && existingIds.has(selection.selectionAnchorElementId)
       ? selection.selectionAnchorElementId
       : selectedElementId;
-  const selectedElement = elements.find((element) => element.id === selectedElementId);
   return {
     selectedElementId,
     selectedElementIds: normalizedIds,
-    selectionAnchorElementId,
-    selectedParameterKey: selectedElement
-      ? normalizeParameterKey(selectedElement, selection.selectedParameterKey)
-      : null
+    selectionAnchorElementId
   };
 };
 
@@ -184,18 +167,13 @@ export type CadUiState = CadDocumentSelectionSnapshot & {
   /** Primary DSL editor cursor; intentionally independent from Canvas selection. */
   sourceCursorLine: number | null;
   groupFoldById: ReadonlyMap<ElementId, GroupFoldState>;
-  isParameterEditMode: boolean;
-  showElementInfoPanel: boolean;
-  isDependencyJumpMode: boolean;
+  isInspectorExpanded: boolean;
   activePointPickTarget: ActivePointPickTarget | null;
   activeNumericReferencePickTarget: ActiveNumericReferencePickTarget | null;
   activeLinePickTarget: ActiveLinePickTarget | null;
-  activeExpressionInsertTarget: ActiveExpressionInsertTarget | null;
-  expressionInsertInputTarget: ExpressionInsertInputTarget | null;
   activeMeasurementInsertTarget: ActiveMeasurementInsertTarget | null;
   activeTemplateInsertion: ActiveTemplateInsertion | null;
   activePickCursor: ActivePickCursor | null;
-  selectedDependencyJumpIndex: number;
   elementSearchQuery: string;
   elementSearchCursorId: ElementId | null;
   elementSearchPickableOnly: boolean;
@@ -230,27 +208,18 @@ export type CadUiState = CadDocumentSelectionSnapshot & {
   printPreviewWindow: PrintPreviewWindow;
   referenceHelperPosition: ReferenceHelperPosition | null;
   dslPanelWindow: DslPanelWindow | null;
-  setParameterEditMode: (isParameterEditMode: boolean) => void;
-  setShowElementInfoPanel: (showElementInfoPanel: boolean) => void;
-  setDependencyJumpMode: (isDependencyJumpMode: boolean) => void;
+  setInspectorExpanded: (isInspectorExpanded: boolean) => void;
   setActivePointPickTarget: (activePointPickTarget: ActivePointPickTarget | null) => void;
   setActiveNumericReferencePickTarget: (
     activeNumericReferencePickTarget: ActiveNumericReferencePickTarget | null
   ) => void;
   setActiveLinePickTarget: (activeLinePickTarget: ActiveLinePickTarget | null) => void;
-  setActiveExpressionInsertTarget: (
-    activeExpressionInsertTarget: ActiveExpressionInsertTarget | null
-  ) => void;
-  setExpressionInsertInputTarget: (
-    expressionInsertInputTarget: ExpressionInsertInputTarget | null
-  ) => void;
   setActiveMeasurementInsertTarget: (
     activeMeasurementInsertTarget: ActiveMeasurementInsertTarget | null
   ) => void;
   setActiveTemplateInsertion: (activeTemplateInsertion: ActiveTemplateInsertion | null) => void;
   setActivePickCursor: (activePickCursor: ActivePickCursor | null) => void;
   clearPickMode: () => void;
-  setSelectedDependencyJumpIndex: (selectedDependencyJumpIndex: number) => void;
   setElementSearchQuery: (elementSearchQuery: string) => void;
   setElementSearchCursorId: (elementSearchCursorId: ElementId | null) => void;
   setElementSearchPickableOnly: (elementSearchPickableOnly: boolean) => void;
@@ -305,7 +274,6 @@ export type CadUiState = CadDocumentSelectionSnapshot & {
   setSelectedElementId: (id: ElementId | null) => void;
   setSelectedElementIds: (ids: ElementId[], primaryId?: ElementId | null) => void;
   setSelectedElementRange: (anchorId: ElementId, targetId: ElementId) => void;
-  setSelectedParameterKey: (selectedParameterKey: ParameterKey | null) => void;
   setSourceCursorLine: (sourceCursorLine: number | null) => void;
   applySelection: (elements: CadElement[], selection: CadDocumentSelectionSnapshot) => void;
   reconcileSelectionWithElements: (elements: CadElement[]) => void;
@@ -313,19 +281,14 @@ export type CadUiState = CadDocumentSelectionSnapshot & {
 
 export const initialCadUiState = (): Omit<
   CadUiState,
-  | "setParameterEditMode"
-  | "setShowElementInfoPanel"
-  | "setDependencyJumpMode"
+  | "setInspectorExpanded"
   | "setActivePointPickTarget"
   | "setActiveNumericReferencePickTarget"
   | "setActiveLinePickTarget"
-  | "setActiveExpressionInsertTarget"
-  | "setExpressionInsertInputTarget"
   | "setActiveMeasurementInsertTarget"
   | "setActiveTemplateInsertion"
   | "setActivePickCursor"
   | "clearPickMode"
-  | "setSelectedDependencyJumpIndex"
   | "setElementSearchQuery"
   | "setElementSearchCursorId"
   | "setElementSearchPickableOnly"
@@ -374,7 +337,6 @@ export const initialCadUiState = (): Omit<
   | "setSelectedElementId"
   | "setSelectedElementIds"
   | "setSelectedElementRange"
-  | "setSelectedParameterKey"
   | "setSourceCursorLine"
   | "applySelection"
   | "reconcileSelectionWithElements"
@@ -382,21 +344,15 @@ export const initialCadUiState = (): Omit<
   selectedElementId: sampleElements[0]?.id ?? null,
   selectedElementIds: sampleElements[0] ? [sampleElements[0].id] : [],
   selectionAnchorElementId: sampleElements[0]?.id ?? null,
-  selectedParameterKey: sampleElements[0] ? normalizeParameterKey(sampleElements[0], null) : null,
   sourceCursorLine: null,
   groupFoldById: new Map(),
-  isParameterEditMode: false,
-  showElementInfoPanel: true,
-  isDependencyJumpMode: false,
+  isInspectorExpanded: true,
   activePointPickTarget: null,
   activeNumericReferencePickTarget: null,
   activeLinePickTarget: null,
-  activeExpressionInsertTarget: null,
-  expressionInsertInputTarget: null,
   activeMeasurementInsertTarget: null,
   activeTemplateInsertion: null,
   activePickCursor: null,
-  selectedDependencyJumpIndex: 0,
   elementSearchQuery: "",
   elementSearchCursorId: null,
   elementSearchPickableOnly: false,
@@ -488,37 +444,13 @@ const zoomViewportAt = (
 
 export const useCadUiStore = create<CadUiState>((set) => ({
   ...initialCadUiState(),
-  setParameterEditMode: (isParameterEditMode) => set({ isParameterEditMode }),
-  setShowElementInfoPanel: (showElementInfoPanel) =>
-    set((state) => ({
-      showElementInfoPanel,
-      isDependencyJumpMode: showElementInfoPanel ? state.isDependencyJumpMode : false
-    })),
-  setDependencyJumpMode: (isDependencyJumpMode) =>
-    set((state) => ({
-      isDependencyJumpMode,
-      activePointPickTarget: null,
-      activeNumericReferencePickTarget: null,
-      activeLinePickTarget: null,
-      activePickCursor: null,
-      isParameterEditMode: isDependencyJumpMode ? false : state.isParameterEditMode,
-      showElementInfoPanel: isDependencyJumpMode ? true : state.showElementInfoPanel
-    })),
+  setInspectorExpanded: (isInspectorExpanded) => set({ isInspectorExpanded }),
   setActivePointPickTarget: (activePointPickTarget) =>
     set({ activePointPickTarget, activePickCursor: null }),
   setActiveNumericReferencePickTarget: (activeNumericReferencePickTarget) =>
     set({ activeNumericReferencePickTarget, activePickCursor: null }),
   setActiveLinePickTarget: (activeLinePickTarget) =>
     set({ activeLinePickTarget, activePickCursor: null }),
-  setActiveExpressionInsertTarget: (activeExpressionInsertTarget) =>
-    set((state) => ({
-      activeExpressionInsertTarget,
-      activeMeasurementInsertTarget: activeExpressionInsertTarget
-        ? state.activeMeasurementInsertTarget
-        : null
-    })),
-  setExpressionInsertInputTarget: (expressionInsertInputTarget) =>
-    set({ expressionInsertInputTarget }),
   setActiveMeasurementInsertTarget: (activeMeasurementInsertTarget) =>
     set({ activeMeasurementInsertTarget }),
   setActiveTemplateInsertion: (activeTemplateInsertion) =>
@@ -532,8 +464,6 @@ export const useCadUiStore = create<CadUiState>((set) => ({
       activeTemplateInsertion: null,
       activePickCursor: null
     }),
-  setSelectedDependencyJumpIndex: (selectedDependencyJumpIndex) =>
-    set({ selectedDependencyJumpIndex }),
   setElementSearchQuery: (elementSearchQuery) =>
     set({ elementSearchQuery, elementSearchCursorId: null }),
   setElementSearchCursorId: (elementSearchCursorId) => set({ elementSearchCursorId }),
@@ -671,22 +601,19 @@ export const useCadUiStore = create<CadUiState>((set) => ({
     set((state) => normalizedSelection(elements, {
       selectedElementId: state.selectedElementId,
       selectedElementIds: state.selectedElementIds,
-      selectionAnchorElementId: state.selectionAnchorElementId,
-      selectedParameterKey: state.selectedParameterKey
+      selectionAnchorElementId: state.selectionAnchorElementId
     })),
   setSelectedElementId: (selectedElementId) =>
     set(() => normalizedSelection(currentDocumentElements(), {
       selectedElementId,
       selectedElementIds: selectedElementId ? [selectedElementId] : [],
-      selectionAnchorElementId: selectedElementId,
-      selectedParameterKey: useCadUiStore.getState().selectedParameterKey
+      selectionAnchorElementId: selectedElementId
     })),
   setSelectedElementIds: (selectedElementIds, primaryId) =>
     set(() => normalizedSelection(currentDocumentElements(), {
       selectedElementId: primaryId ?? selectedElementIds[0] ?? null,
       selectedElementIds,
-      selectionAnchorElementId: primaryId ?? selectedElementIds[0] ?? null,
-      selectedParameterKey: useCadUiStore.getState().selectedParameterKey
+      selectionAnchorElementId: primaryId ?? selectedElementIds[0] ?? null
     })),
   setSelectedElementRange: (anchorId, targetId) =>
     set(() => {
@@ -699,17 +626,9 @@ export const useCadUiStore = create<CadUiState>((set) => ({
       return normalizedSelection(elements, {
         selectedElementId: targetId,
         selectedElementIds: elements.slice(start, end + 1).map((element) => element.id),
-        selectionAnchorElementId: anchorId,
-        selectedParameterKey: useCadUiStore.getState().selectedParameterKey
+        selectionAnchorElementId: anchorId
       });
     }),
-  setSelectedParameterKey: (selectedParameterKey) =>
-    set((state) => normalizedSelection(currentDocumentElements(), {
-      selectedElementId: state.selectedElementId,
-      selectedElementIds: state.selectedElementIds,
-      selectionAnchorElementId: state.selectionAnchorElementId,
-      selectedParameterKey
-    })),
   setSourceCursorLine: (sourceCursorLine) => {
     if (sourceEditSession.isComposing()) return;
     set({ sourceCursorLine });

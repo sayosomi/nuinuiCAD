@@ -1,4 +1,3 @@
-import { createDependencyIndex, getDependencyJumpTargets } from "../model/dependencies";
 import {
   elementIdByOffset,
   toggleSelectionIds
@@ -33,10 +32,7 @@ import { useCadUiStore } from "../state/cadUiStore";
 import type { CadElement, ElementId } from "../types/geometry";
 import type { CommandContext } from "./commandTypes";
 import { getSelectedElement, getSelectedElementIds } from "./commandRuntime";
-import {
-  finishCreatedElementInteraction,
-  getInitialCreatedElementParameterKey
-} from "./nameEntryAfterCreation";
+import { finishCreatedElementInteraction } from "./nameEntryAfterCreation";
 
 export const toggleSelectedElementsBooleanProperty = (property: "visible" | "enabled") => {
   const { elements } = useCadDocumentStore.getState();
@@ -141,30 +137,8 @@ export const applyDisplayColorToSelection = (colorId: string | undefined) => {
   });
 };
 
-export const selectedDependencyJumpTargets = () => {
-  const { elements } = useCadDocumentStore.getState();
-  const { selectedElementId } = useCadUiStore.getState();
-  const dependencyIndex = createDependencyIndex(elements);
-  const selectedElement = selectedElementId
-    ? dependencyIndex.elementsById.get(selectedElementId) ?? null
-    : null;
-  return getDependencyJumpTargets(selectedElement, elements, dependencyIndex);
-};
-
-const updateDependencyJumpModeAfterSelectionChange = () => {
-  const { isDependencyJumpMode } = useCadUiStore.getState();
-  if (!isDependencyJumpMode) return;
-
-  const targets = selectedDependencyJumpTargets();
-  useCadUiStore.setState({
-    isDependencyJumpMode: targets.length > 0,
-    selectedDependencyJumpIndex: 0
-  });
-};
-
 const clearTransientSelectionUi = () => {
   useCadUiStore.getState().clearPickMode();
-  useCadUiStore.getState().setSelectedDependencyJumpIndex(0);
 };
 
 const blockedDestructiveChange = (
@@ -189,7 +163,6 @@ export const selectElementByOffset = (offset: number) => {
 
   useCadUiStore.getState().setSelectedElementId(nextElementId);
   clearTransientSelectionUi();
-  updateDependencyJumpModeAfterSelectionChange();
 };
 
 export const selectAllElements = () => {
@@ -203,7 +176,6 @@ export const selectAllElements = () => {
 
   useCadUiStore.getState().setSelectedElementIds(allElementIds, primaryId);
   clearTransientSelectionUi();
-  updateDependencyJumpModeAfterSelectionChange();
 };
 
 export const extendSelectionByOffset = (offset: number) => {
@@ -216,7 +188,6 @@ export const extendSelectionByOffset = (offset: number) => {
   const anchorId = selectionAnchorElementId ?? selectedElementId ?? elements[0]?.id ?? nextElementId;
   useCadUiStore.getState().setSelectedElementRange(anchorId, nextElementId);
   clearTransientSelectionUi();
-  updateDependencyJumpModeAfterSelectionChange();
 };
 
 export const selectElement = (elementId: ElementId, selectionMode: CommandContext["selectionMode"] = "replace") => {
@@ -228,7 +199,6 @@ export const selectElement = (elementId: ElementId, selectionMode: CommandContex
   if (selectionMode === "range") {
     useCadUiStore.getState().setSelectedElementRange(selectionAnchorElementId ?? elementId, elementId);
     clearTransientSelectionUi();
-    updateDependencyJumpModeAfterSelectionChange();
     return;
   }
 
@@ -240,13 +210,11 @@ export const selectElement = (elementId: ElementId, selectionMode: CommandContex
       selection.selectedElementId
     );
     clearTransientSelectionUi();
-    updateDependencyJumpModeAfterSelectionChange();
     return;
   }
 
   useCadUiStore.getState().setSelectedElementId(elementId);
   clearTransientSelectionUi();
-  updateDependencyJumpModeAfterSelectionChange();
 };
 
 export const moveElementsToInsertionIndex = (elementIds: ElementId[], insertionIndex: number) => {
@@ -446,8 +414,7 @@ export const groupSelectedElements = (context?: CommandContext) => {
     }),
     selectedElementId: group.id,
     selectedElementIds: [group.id],
-    selectionAnchorElementId: group.id,
-    selectedParameterKey: getInitialCreatedElementParameterKey(group)
+    selectionAnchorElementId: group.id
   });
   useCadUiStore.getState().setCommandErrorMessage(null);
   finishCreatedElementInteraction(context);
@@ -475,8 +442,7 @@ export const addGroup = (context?: CommandContext) => {
     evaluationLimitIndex: insertionIndex + 1,
     selectedElementId: group.id,
     selectedElementIds: [group.id],
-    selectionAnchorElementId: group.id,
-    selectedParameterKey: getInitialCreatedElementParameterKey(group)
+    selectionAnchorElementId: group.id
   });
   useCadUiStore.getState().setCommandErrorMessage(null);
   finishCreatedElementInteraction(context);
@@ -597,40 +563,4 @@ export const selectParentGroup = () => {
   const selected = getSelectedElement();
   if (!selected?.parentGroupId) return;
   selectElement(selected.parentGroupId);
-};
-
-export const selectDependencyJumpTargetByOffset = (offset: number) => {
-  const targets = selectedDependencyJumpTargets();
-  if (targets.length === 0) {
-    useCadUiStore.setState({ isDependencyJumpMode: false, selectedDependencyJumpIndex: 0 });
-    return;
-  }
-
-  const { selectedDependencyJumpIndex } = useCadUiStore.getState();
-  const currentIndex =
-    selectedDependencyJumpIndex >= 0 && selectedDependencyJumpIndex < targets.length
-      ? selectedDependencyJumpIndex
-      : 0;
-  const nextIndex = (currentIndex + offset + targets.length) % targets.length;
-  useCadUiStore.setState({ selectedDependencyJumpIndex: nextIndex });
-};
-
-export const jumpToSelectedDependencyTarget = () => {
-  const targets = selectedDependencyJumpTargets();
-  if (targets.length === 0) {
-    useCadUiStore.setState({ isDependencyJumpMode: false, selectedDependencyJumpIndex: 0 });
-    return;
-  }
-
-  const { selectedDependencyJumpIndex } = useCadUiStore.getState();
-  const target = targets[Math.min(Math.max(selectedDependencyJumpIndex, 0), targets.length - 1)];
-  if (!target) return;
-
-  useCadUiStore.getState().setSelectedElementId(target.id);
-  clearTransientSelectionUi();
-  const nextTargets = selectedDependencyJumpTargets();
-  useCadUiStore.setState({
-    isDependencyJumpMode: nextTargets.length > 0,
-    selectedDependencyJumpIndex: 0
-  });
 };

@@ -13,7 +13,6 @@ import type { CadUiState } from "./cadUiStore";
 
 export type {
   ActiveLinePickTarget,
-  ActiveExpressionInsertTarget,
   ActiveNumericReferencePickTarget,
   ActivePickCursor,
   ActivePointPickTarget,
@@ -35,7 +34,6 @@ export type { CadDocumentSnapshot, CadDocumentState } from "./cadDocumentStore";
 export { currentDocumentSnapshot, useCadDocumentStore } from "./cadDocumentStore";
 
 export type CadHistorySnapshot = CadDocumentSnapshot & {
-  isParameterEditMode?: boolean;
 };
 
 export type CadState = CadDocumentState & CadUiState;
@@ -62,7 +60,6 @@ const facadeActions = {
   setSelectedElementId: (id: Parameters<CadUiState["setSelectedElementId"]>[0]) => {
     useCadUiStore.getState().setSelectedElementId(id);
     useCadUiStore.getState().clearPickMode();
-    useCadUiStore.getState().setSelectedDependencyJumpIndex(0);
   },
   setSelectedElementIds: (
     ids: Parameters<CadUiState["setSelectedElementIds"]>[0],
@@ -70,7 +67,6 @@ const facadeActions = {
   ) => {
     useCadUiStore.getState().setSelectedElementIds(ids, primaryId);
     useCadUiStore.getState().clearPickMode();
-    useCadUiStore.getState().setSelectedDependencyJumpIndex(0);
   },
   setSelectedElementRange: (
     anchorId: Parameters<CadUiState["setSelectedElementRange"]>[0],
@@ -78,16 +74,7 @@ const facadeActions = {
   ) => {
     useCadUiStore.getState().setSelectedElementRange(anchorId, targetId);
     useCadUiStore.getState().clearPickMode();
-    useCadUiStore.getState().setSelectedDependencyJumpIndex(0);
   },
-  setParameterEditMode: (isParameterEditMode: boolean) => {
-    const { elements } = useCadDocumentStore.getState();
-    const { selectedElementId } = useCadUiStore.getState();
-    const selectedElement = elements.find((element) => element.id === selectedElementId);
-    useCadUiStore.getState().setParameterEditMode(selectedElement ? isParameterEditMode : false);
-  },
-  setSelectedParameterKey: (selectedParameterKey: Parameters<CadUiState["setSelectedParameterKey"]>[0]) =>
-    useCadUiStore.getState().setSelectedParameterKey(selectedParameterKey)
 };
 
 const mergedState = (): CadState => ({

@@ -44,7 +44,6 @@ const seedFromDocument = (doc: DslDocumentData) => {
     selectedElementId: doc.elements[0]?.id ?? null,
     selectedElementIds: doc.elements[0] ? [doc.elements[0].id] : [],
     selectionAnchorElementId: doc.elements[0]?.id ?? null,
-    selectedParameterKey: null
   };
   useCadDocumentStore.getState().replaceDocument(snapshot, null);
 };

@@ -102,7 +102,6 @@ const renderPreview = (layout: PrintLayout) => {
     selectedElementId: elements[0].id,
     selectedElementIds: [elements[0].id],
     selectionAnchorElementId: elements[0].id,
-    selectedParameterKey: "name",
     printPreviewWindow: {
       ...initialCadUiState().printPreviewWindow,
       layoutId: layout.id

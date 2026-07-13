@@ -24,10 +24,6 @@ const isElementListTarget = (event: KeyboardEvent) => {
 const elementListAltArrowMatch = (event: KeyboardEvent, chord: KeyChord) =>
   keyChordMatchesEvent(chord, event) && (!chord.alt || isElementListTarget(event));
 
-const arrowStepContext = (event: KeyboardEvent) => ({
-  stepMultiplier: event.shiftKey ? 10 : event.altKey ? 0.1 : 1
-});
-
 const commandLabel = (commandId: CommandId, fallback?: string) =>
   fallback ?? commands[commandId].shortcuts?.[0]?.label ?? commands[commandId].label;
 
@@ -59,9 +55,9 @@ const defaultBindings: ShortcutBinding[] = [
     label: "選択をDSLで開く"
   }),
   binding("global", "enterElementListMode", [ch("g")]),
-  binding("global", "enterParameterEditMode", [ch("e")]),
-  binding("global", "enterDependencyJumpMode", [ch("j")]),
-  binding("modeInvariant", "toggleElementInfoPanel", [ch("i")]),
+  binding("global", "focusInspectorParameterRows", [ch("e")]),
+  binding("global", "focusInspectorDependencyRows", [ch("j")]),
+  binding("modeInvariant", "toggleInspectorPanel", [ch("i")]),
   binding("modeInvariant", "toggleShortcutHelp", [ch("?", { shift: "any" })]),
   binding("normal", "groupSelectedElements", [ch("g", { mod: true })]),
   binding("normal", "addConditionalGroup", [ch("i", { alt: true })]),
@@ -108,7 +104,7 @@ const defaultBindings: ShortcutBinding[] = [
   binding("normal", "toggleSelectedElementVisibility", [ch("v")]),
   binding("normal", "toggleSelectedElementEnabled", [ch("a")]),
   binding("normal", "duplicateSelectedElement", [ch("d", { mod: true })]),
-  binding("normal", "enterParameterEditMode", [ch("Enter")]),
+  binding("normal", "focusInspectorParameterRows", [ch("Enter")]),
   binding("normal", "zoomInCanvas", [ch("+"), ch("=")]),
   binding("normal", "zoomOutCanvas", [ch("-")]),
   binding("normal", "resetCanvasView", [ch("0")]),
@@ -117,33 +113,19 @@ const defaultBindings: ShortcutBinding[] = [
   binding("normal", "addCornerRadiusArcLine", [ch("r", { shift: true })]),
   binding("normal", "addOffsetLine", [ch("o", { shift: true })]),
   binding("normal", "addCopyLine", [ch("c", { shift: true })]),
-  binding("dependencyJump", "exitDependencyJumpMode", [ch("Escape")]),
-  binding("dependencyJump", "jumpToSelectedDependencyTarget", [ch("Enter")]),
-  binding("dependencyJump", "selectNextDependencyJumpTarget", [ch("ArrowDown")]),
-  binding("dependencyJump", "selectPreviousDependencyJumpTarget", [ch("ArrowUp")]),
-  binding("dependencyJump", "selectPreviousElement", [ch("ArrowUp", { shift: true })]),
-  binding("dependencyJump", "selectNextElement", [ch("ArrowDown", { shift: true })]),
   binding("pick", "selectPreviousPickCandidate", [ch("ArrowUp")]),
   binding("pick", "selectNextPickCandidate", [ch("ArrowDown")]),
   binding("pick", "selectPreviousPickOption", [ch("ArrowLeft")]),
   binding("pick", "selectNextPickOption", [ch("ArrowRight")]),
   binding("pick", "applySelectedPickCandidate", [ch("Enter")]),
-  binding("parameter", "exitParameterEditMode", [ch("Escape")]),
-  binding("parameter", "activateSelectedParameter", [ch("Enter")]),
-  binding("parameter", "selectNextParameter", [ch("ArrowDown")]),
-  binding("parameter", "selectPreviousParameter", [ch("ArrowUp")]),
-  binding("parameter", "selectPreviousElement", [ch("ArrowUp", { shift: true })]),
-  binding("parameter", "selectNextElement", [ch("ArrowDown", { shift: true })]),
-  binding("parameter", "deleteSelectedElement", [ch("Delete"), ch("Backspace")]),
-  binding("parameter", "incrementSelectedParameter", [ch("ArrowRight", { shift: "any", alt: "any" })], {
-    context: arrowStepContext
-  }),
-  binding("parameter", "decrementSelectedParameter", [ch("ArrowLeft", { shift: "any", alt: "any" })], {
-    context: arrowStepContext
-  }),
-  binding("parameter", "decreaseSelectedParameterStep", [ch("[")]),
-  binding("parameter", "increaseSelectedParameterStep", [ch("]")]),
-  binding("parameter", "toggleSelectedParameterValue", [ch(" ")]),
+  binding("inspector", "exitInspector", [ch("Escape")]),
+  binding("inspector", "activateInspectorRow", [ch("Enter")]),
+  binding("inspector", "selectNextInspectorRow", [ch("ArrowDown")]),
+  binding("inspector", "selectPreviousInspectorRow", [ch("ArrowUp")]),
+  binding("inspector", "startInspectorParameterPick", [ch("p")]),
+  binding("inspector", "selectPreviousElement", [ch("ArrowUp", { shift: true })]),
+  binding("inspector", "selectNextElement", [ch("ArrowDown", { shift: true })]),
+  binding("inspector", "deleteSelectedElement", [ch("Delete"), ch("Backspace")]),
   binding("dsl", "exportDslSelection", [ch("e", { mod: true, shift: true })]),
   binding("dsl", "validateDslPanel", [ch("Enter", { mod: true, shift: true })]),
   binding("dsl", "applyDslPanel", [ch("Enter", { mod: true })]),
@@ -197,9 +179,6 @@ const contextRequiredCommandIds = new Set<CommandId>([
   "deleteNumericVariable",
   "deleteBezierNumericVariable",
   "deleteBezierIntermediatePoint",
-  "selectParameterByKey",
-  "toggleBooleanParameterByDirectKey",
-  "focusSelectedParameterInput",
   "closeCommandPalette",
   "exportDslSelection",
   "validateDslPanel",

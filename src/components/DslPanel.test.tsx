@@ -19,7 +19,6 @@ const resetStore = () => {
     selectedElementId: sampleElements[0].id,
     selectedElementIds: [sampleElements[0].id],
     selectionAnchorElementId: sampleElements[0].id,
-    selectedParameterKey: "name",
     showDslPanel: false,
     dslPanelSourceRequest: null,
     canvasViewport: DEFAULT_CANVAS_VIEWPORT,

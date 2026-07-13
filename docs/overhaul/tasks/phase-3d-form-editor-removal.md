@@ -1,199 +1,100 @@
-# Phase 3d: フォーム型パラメータ編集の廃止(cutover)
+# Phase 3d: フォーム型パラメータ編集の廃止とInspector完全移行
 
 > 親文書: [phase-3-inspector.md](phase-3-inspector.md)。
-> 着手前に `docs/overhaul/plan.md` →
+> 着手前に `AGENTS.md` → `docs/overhaul/plan.md` →
 > [phase-2-post-cutover-editor-polish.md](phase-2-post-cutover-editor-polish.md) →
-> 3a/3b/3cの各文書の順で読むこと。AGENTS.md の規則に従うこと。
-> **3bと3cの両方の完了後に着手。** Phase 3の最終段。
-
-## Context
-
-3cまでで右ペインは「読み取り専用インスペクタ+旧フォーム編集の併存」状態に
-ある。値変更の代替経路(ジャンプ→テキスト編集、数値ステップコマンド)は
-3a/3bで成立済み。本タスクでフォーム編集UIとパラメータ編集モードを削除し、
-「見るのは右ペイン、書くのはDSL」の最終形へcutoverする。
-
-Phase 2eのcutoverと同じ原則: 途中commitでは旧UIが残ってよいが、タスク完了時に
-feature flagや二重UIを残さない。
+> 3a/3b/3cの各文書を読むこと。**3bと3cの両方の完了後に着手する。**
 
 ## 目的
 
-* `RightPanel.tsx` をInspectorPanel構成のみへ書き換える。
-* フォーム編集系コンポーネントとそのテストを削除する。
-* `parameterDefinitions.ts` を縮小する(`directKey` と編集モード配管を削除、
-  `label`・`kind`・`stepLevels`・`choiceOptions` 等の宣言情報は残す)。
-* パラメータ値編集コマンドとパラメータ編集モードを削除し、ナビゲーション系を
-  インスペクタ行フォーカス/カーソルジャンプへ再配線する。
-* 廃止command IDの対応表(旧ID→新挙動)をタスク報告に含める。
+右ペインを読み取り専用の `InspectorPanel` のみにし、フォーム型編集UI、旧
+parameter edit mode、direct key、dependency jump互換を除去する。文書を書き換える
+経路はSource Editorの値span編集と `stepSourceValueForward` /
+`stepSourceValueBackward` に限定する。Inspectorは値を書き換えず、行の選択、値span
+へのジャンプ、参照pickの開始だけを担う。
 
-## 開始時点の前提
+`ExpressionInsertTray` は削除しない。テンプレート挿入専用ヘルパーとして残し、
+RightPanel・フォーム用state・open/close/toggle commandから切り離す。
 
-* 3a(ジャンプAPI)・3b(数値ステップ)・3c(InspectorPanel併存)完了。
-* キーボードでの値変更は「インスペクタ行→Enter→タイプ」と
-  「エディタ内 Alt+→/←」の2経路が既に動いている。
+## 完成後の操作
 
-## 変更対象ファイル
+* `e` はInspectorのパラメーター行、`j` は依存行へフォーカスする。
+* Inspector内の ↑/↓ は現在の区分内で行を移動し、`activeRowKey` を唯一の行選択
+  stateとする。旧 `selectedDependencyJumpIndex` は使わない。
+* `Enter` は選択行に対応するSource Editor値spanへジャンプする。`Esc` は
+  直前のCanvasまたはSource Editorへ戻る。
+* 参照可能な行は `P` と行内ボタンで `startInspectorParameterPick` を開始する。
+  commandには必ず `{ elementId, parameterKey }` を渡し、point / line / numeric
+  referenceの既存pick commandへ振り分ける。非対象行は安全なno-opとする。
+* `i` は `toggleInspectorPanel` へ付け替える。数値の増減はSource Editor内の
+  Alt+→/←だけで行い、フォーム用の左右矢印、`[`/`]`、Space bindingは削除する。
 
-削除(参照の全数確認後。`rg` で残存参照ゼロを確認すること):
+## 実装変更
 
-* `src/components/ElementEditor.tsx`
-* `src/components/ElementSpecificFields.tsx` と全 `*ElementFields.tsx`
-* `src/components/ParameterEditors.tsx` / `NumericParameterEditor.tsx` /
-  `PointParameterEditors.tsx` / `ChoiceAndReferenceParameterEditors.tsx` /
-  `ColorParameterEditor`(実ファイル名を確認)
-* `src/components/ExpressionInsertTray.tsx`
-* `src/components/parameterEditorShared.tsx` / `ParameterName.tsx`
-  (他所から参照が残る場合は残置し報告)
-* 上記の専用テスト・専用CSS
+* `RightPanel` から `ElementEditor` とフォーム用 `ExpressionInsertTray` を外し、
+  編集input、入力ref配線、フォーム専用CSSとテストを削除する。
+* フォーム編集コンポーネントと、不要になった `parameterEditorShared` の部分を
+  削除する。Inspector表示で実利用される共有表示部品だけは残す。
+* `InspectorPanel` のhandleを「parameter行へ移動」「dependency行へ移動」「現在の
+  区分で前後移動」「行を有効化」「参照pick開始」「終了」に整理する。
+* command registryに `focusInspectorParameterRows`、`focusInspectorDependencyRows`、
+  `selectNextInspectorRow`、`selectPreviousInspectorRow`、`activateInspectorRow`、
+  `exitInspector`、`startInspectorParameterPick`、`toggleInspectorPanel` を追加する。
+  旧IDはregistry・palette・default binding・`CommandId` 型に残さない。
+* keyboard scopeを `parameter` / `dependencyJump` から `inspector` に置換する。
+  `e`、`j`、通常時Enter、Inspector内のEnter/Esc/↑/↓、`P`、`i` の既定bindingを
+  新IDへ付け替える。
+* `cadUiStore` から `isParameterEditMode`、`selectedParameterKey`、
+  `isDependencyJumpMode`、`selectedDependencyJumpIndex`、フォーム用expression insert
+  target/input targetを削除する。`showElementInfoPanel` は
+  `isInspectorExpanded` へ狭く改名する。
+* `parameterDefinitions.ts` から `directKey` と検索・テストを除去する。作成command群が
+  設定していた `selectedParameterKey` も除去する。
+* テンプレート側はローカル表示stateを正とする。helperを閉じる際はテンプレート用の
+  計測・pick stateだけを取消し、`activeMeasurementInsertTarget`、計測挿入、数値参照
+  挿入、既存pick commandはテンプレート用途として維持する。
 
-書き換え:
+## 保存済みshortcutの移行
 
-* `src/components/RightPanel.tsx`(+test)— InspectorPanel構成のみへ。
-* `src/parameters/parameterDefinitions.ts` — `directKey` フィールドと
-  `findParameterByDirectKey` 等の編集モード専用ヘルパを削除。
-* `src/commands/parameterCommands.ts` / `parameterCommandDefinitions.ts` /
-  `commandTypes.ts` — 値編集コマンド削除、ナビゲーション再配線。
-* `src/keyboard/shortcutDefaultBindings.ts` / `shortcuts.ts` —
-  `parameter` scope(編集モード)のバインディングテーブル削除・整理。
-* `src/state/cadUiStore.ts` — `isParameterEditMode` /
-  `selectedParameterKey` / expression insert系など、本タスクで死ぬ配管の削除
-  (このタスクが殺すstateはこのタスクで消す。元から死んでいた無関係stateの
-  大掃除はPhase 5)。**3cから残る`selectedDependencyJumpIndex`も、旧dependency
-  jump経路の参照全数確認後に専用配管・専用テストとともに削除対象とする。**
-* `src/components/AppLayout.tsx` — `registerParameterControl` /
-  parameter mode props等の除去。
-* `src/components/DrawingCanvas.tsx` — 削除コンポーネント由来のprops/参照が
-  あれば追随(pick関連は下記確認事項に従う)。
+対応表は [phase-3d-command-id-map.md](phase-3d-command-id-map.md) を唯一の正とする。
+設定はcommand IDでなく `bindingId` を保存しているため、読込時に同表の旧binding
+ID→新binding ID対応を適用する。新IDの既存overrideを最優先し、複数の旧bindingが同じ
+新bindingへ移る場合は保存順で重複しないchordを併合する。代替先のない廃止ID、未知ID、
+不正recordだけを安全に除去する。
 
-## 実装手順
-
-1. **削除対象の依存マップ作成**: 各削除ファイルへの参照を `rg` で全数列挙し、
-   「削除」「InspectorPanel/コマンドへ再配線」「残置(理由)」に分類してから
-   着手する。特にpick開始コマンド(下記確認事項)の扱いを先に確定する。
-2. **コマンド整理**: 値編集系(`incrementSelectedParameter` /
-   `decrementSelectedParameter` / `increaseSelectedParameterStep` /
-   `decreaseSelectedParameterStep` / `toggleSelectedParameterValue` /
-   `activateSelectedParameter` / `focusSelectedParameterInput` /
-   `toggleBooleanParameterByDirectKey` 等)を削除。
-   `enterParameterEditMode` / `selectNextParameter` / `selectPreviousParameter`
-   / `selectParameterByKey` はインスペクタ行フォーカス/ジャンプへ再配線
-   するか廃止し、対応表に記録する。
-3. **ユーザーshortcut設定の保護**: 廃止IDは登録から外す。保存済み
-   `shortcutSettings` に廃止IDが残っていても読み込み・設定UIが壊れないことを
-   テストで保証する。
-4. **UI cutover**: RightPanelからElementEditor/ExpressionInsertTrayを外し、
-   ファイル削除。CSSの死んだクラスも同時に削除。
-5. **`parameterDefinitions.ts` 縮小**: `directKey` 削除。`kind` / `label` /
-   `stepLevels` / `choiceOptions` / `emptyInputDefaultValue` 等、3b(数値
-   ステップ)・インスペクタ表示・Phase 4のレシピと補完が使う宣言情報は残す。
-6. **旧テストの置換**: フォーム編集のテストを、インスペクタ経由・数値
-   ステップ経由の等価シナリオへ置換してから削除する(カバレッジの穴を
-   作らない)。
-
-## 公開API・型
-
-* 削除・変更されるcommand IDの完全な対応表(旧ID→新挙動/廃止)を
-  タスク報告に含める。これが本タスクの主要な「公開API変更」。
-* `ParameterDefinition` 型から `directKey` が消える。他フィールドの意味は
-  不変。
-
-## 状態とデータフロー
-
-* 文書変更経路は「エディタでのテキスト編集」と「数値ステップコマンド」のみに
-  なる。フォーム→`updateElement` 系の経路が消えることで、model patchの
-  発生源はCanvas操作・コマンド・エディタ編集に統一される。
-* `cadUiStore` からパラメータ編集モード関連stateが消える。インスペクタ行
-  フォーカスstate(3c)が唯一の「パラメータ位置」概念になる。
+移行または除去後の正規化済み設定はlocalStorageとTauri設定に書き戻す。書戻しに失敗
+しても、読込済み設定の利用は継続する。
 
 ## 守るべき不変条件
 
-全Phase 3子タスク共通:
-
-* `sourceText` が唯一の文書上の正。
+* `sourceText` が唯一の文書上の正。Inspectorは直接値を書き換えない。
+* `dslLineValueSpans` 系が編集可能な値の唯一の定義であり、Inspector専用の値span解析を
+  作らない。
+* selection-only操作はUndo履歴へ追加しない。dirty bufferでは現在のCMテキストを基準に
+  し、IME composition中にjump・patch・数値変更を実行しない。
 * CodeMirror型・importを `src/editor/` と `SourceEditorPane.tsx` の外へ漏らさない。
-* selection-only操作はUndo履歴へ追加しない。
-* dirty bufferでは現在のCMテキストを基準にする。
-* IME composition中にjump・patch・数値変更を実行しない。
-* `dslLineValueSpans` 系が「編集可能な値」の唯一の定義。Inspector専用の
-  値span解析を作らない。
-* main editorとLine Lensで意味論を重複実装しない。
-* Phase 4(autocomplete・コマンドライン・DslPanel削除)に触れない。
-  **DslPanelは本タスクの削除対象ではない**(フォーム編集とは別系統)。
-* Phase 5のハードクリーンアップを先取りしない(削除は本タスクが殺した配管に
-  限る)。
+* Phase 4には触れない。Phase 5まで全面的なAGENTS.md更新や無関係な互換コードの大掃除を
+  先取りしない。
 
-本タスク固有:
+## 必須テスト・検証
 
-* キーボードファースト: cutover後も「要素選択→パラメータへ到達→値変更」が
-  マウスなしで完結すること(3c+3bの経路)。
-* 削除は参照全数確認とテスト置換を伴うこと。「消したら通らなくなったテストを
-  消す」で済ませない。
+* registry、palette、shortcut dialog、default bindings、`CommandId` 型から旧IDが消え、
+  旧IDのdispatchが未登録として安全に失敗すること。
+* 旧shortcut overrideの移行、新ID優先、複数旧bindingの併合、廃止・未知IDの除去、
+  移行結果の永続化をlocalStorageとTauri invoke境界で検証する。
+* Inspectorの `e` / `j` / Enter / Esc / ↑↓ / `P`、Canvas・Source Editorへの復帰、
+  point・line・numeric referenceのpick開始、非対象行のno-opを検証する。
+* 既存fixtureで全27要素型についてInspector行→Source Editor値spanジャンプ→編集commit、
+  および対象数値でAlt+←/→ステップを検証する。
+* テンプレート挿入で参照helper、数値参照、測定挿入、閉じる・取消しが維持され、
+  RightPanelに編集input・フォームhelperがないことを検証する。
+* `src` とテストコードに削除済みファイル、旧ID、旧stateへの参照が残らないことを静的
+  確認する（対応表文書は除外）。`npm test`、`npm run build`、`npm run lint` を実行する。
+* macOS TauriでInspector→ジャンプ編集→数値ステップ→保存・再起動・読込、日本語IME編集を
+  手動確認する。
 
-## 必須自動テスト
+## 引き継ぎ
 
-* 廃止コマンドIDがdispatchされても安全(未登録として無害、または明示の
-  no-op+警告)。
-* 保存済みshortcut設定に廃止IDが含まれていても読み込みが壊れない。
-* インスペクタ+数値ステップだけで全パラメータ種別の値変更が成立する
-  E2E的テスト(全27要素型を通す行列は3aのfixtureを再利用)。
-* RightPanelに編集用input類が存在しないこと。
-* `rg` 相当の静的確認: 削除ファイル・削除コマンドIDへの参照ゼロ
-  (テストコード内の文字列参照も含む)。
-
-## 手動確認
-
-macOS Tauri実機で:
-
-* 新規作成→作図→インスペクタでパラメータ確認→ジャンプ編集→数値ステップ→
-  保存→再起動→読込、の一連が完走する。
-* 日本語IMEでの名前・テキスト要素編集(ジャンプ後の置換入力)。
-* ショートカット設定ダイアログに廃止コマンドが現れない。
-* Undo/Redoがフォーム時代と同等以上に自然(値変更1操作=1ステップ)。
-
-## 明示的な対象外
-
-* DslPanel・コマンドライン作図・DSL補完(Phase 4)。
-* `parameterDefinitions.ts` の全削除(縮小のみ。Phase 4が依存)。
-* 死んだ旧stateの網羅的な大掃除・リネーム伝播(Phase 5)。
-* Source Editor本体の機能追加。
-
-## 完了条件
-
-* 右ペインが読み取り専用インスペクタのみになり、フォーム編集系ファイルが
-  削除されている。
-* 全27要素型でジャンプ→編集→commitループと数値ステップが成立
-  (Phase 3全体の完了条件)。
-* `npm test` / `npm run build` / `npm run lint` 成功。
-* 廃止command ID対応表が報告に含まれている。
-
-## 確認事項(実装時に確定して報告)
-
-* **pick開始経路**: `startPointPick` / `startNumericReferencePick` /
-  `startLinePick` の現在の**唯一のUI入口は削除対象のフォームエディタ群**
-  (`PointParameterEditors` / `NumericParameterEditor` /
-  `ChoiceAndReferenceParameterEditors`)にある。Source Editor側にはpickの
-  候補navigation/applyはあるが開始UIがない。フォーム削除でこれらのpickが
-  到達不能にならないよう、代替の開始経路(候補: インスペクタの参照系
-  パラメータ行からのコマンド起動、エディタcontext menu、コマンドパレット)を
-  **削除前に**確定すること。「インスペクタは読み取り専用(文書変更はジャンプ先
-  編集と数値ステップのみ)」との整合は、pick開始自体は文書を変更しない
-  (適用はpickコマンド側)ことを踏まえて親文書の不変条件の解釈を確定し、
-  必要なら親文書を更新する。
-* `ParameterName.tsx` / `parameterEditorShared.tsx` の残置要否(Inspector
-  表示で再利用するなら削除しない)。
-* `ExpressionInsertTray` が担っていた計測値挿入(`insertSelectedMeasurement`
-  等)の扱い: 廃止して対応表に載せるか、Phase 4のコマンドライン/補完へ
-  明示的に先送りするかを確定する。
-* `dependencyJump` mode(3cの確認事項で併存を選んだ場合)の最終形。特に
-  `selectedDependencyJumpIndex` の全参照を監査し、Inspector navigationの正である
-  `activeRowKey`へ統一済みで旧経路が不要なら、state・専用配管・専用テストを完全削除する。
-
-## 次タスクへの引き継ぎ
-
-* Phase 4(コマンドライン+DSL補完)は縮小後の `parameterDefinitions.ts` を
-  レシピ・補完データとして使う。縮小時に消したフィールドがPhase 4計画の
-  前提と矛盾しないか、`phase-4-command-line.md` を確認して報告する。
-* Phase 5は本タスクの「残置(理由)」リストを引き継いでハードクリーン
-  アップの対象にする。
-* 3cからの明示的引継ぎ: `selectedDependencyJumpIndex` は旧dependency jump互換のため
-  残置されている。3dで旧経路の参照がゼロになった時点で削除する。
+Phase 5でAGENTS.mdを全面更新する。3dでは本タスクと矛盾する「explicit parameter edit
+mode / direct key」規則だけを、Inspector行ナビゲーション・Source Editor値span編集・
+Source Editor数値ステップを正とする最小置換にとどめる。

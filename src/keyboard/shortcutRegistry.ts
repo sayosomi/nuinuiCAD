@@ -1,7 +1,3 @@
-import type { CommandId } from "../commands/commands";
-import { findParameterDefinition, getParameterDefinitions } from "../parameters/parameterDefinitions";
-import type { ParameterValueKind } from "../parameters/parameterDefinitions";
-import type { CadElement } from "../types/geometry";
 import { keyChordEquals, keyChordId, keyChordListLabel, keyChordMatchesEvent } from "./shortcutChords";
 import {
   configurableShortcutBindings,
@@ -34,13 +30,11 @@ export const effectiveShortcutBindings = (
 };
 
 const scopesForMode = ({
-  isParameterEditMode = false,
-  isDependencyJumpMode = false,
+  isInspectorFocused = false,
   isPickMode = false,
   isDslPanelMode = false
 }: {
-  isParameterEditMode?: boolean;
-  isDependencyJumpMode?: boolean;
+  isInspectorFocused?: boolean;
   isPickMode?: boolean;
   isDslPanelMode?: boolean;
 }): ShortcutScope[] => [
@@ -50,18 +44,15 @@ const scopesForMode = ({
     ? (["dsl"] as ShortcutScope[])
     : isPickMode
     ? (["pick"] as ShortcutScope[])
-    : isParameterEditMode
-      ? (["parameter"] as ShortcutScope[])
-      : isDependencyJumpMode
-        ? (["dependencyJump"] as ShortcutScope[])
-        : (["normal"] as ShortcutScope[]))
+    : isInspectorFocused
+      ? (["inspector"] as ShortcutScope[])
+      : (["normal"] as ShortcutScope[]))
 ];
 
 export const shortcutBindingsForMode = (
   settings: ShortcutSettings = defaultShortcutSettings(),
   options: {
-    isParameterEditMode?: boolean;
-    isDependencyJumpMode?: boolean;
+    isInspectorFocused?: boolean;
     isPickMode?: boolean;
     isDslPanelMode?: boolean;
   } = {}
@@ -90,78 +81,16 @@ const helpItem = (shortcut: EffectiveShortcutBinding): ShortcutHelpItem => ({
   keys: keyChordListLabel(shortcut.chords)
 });
 
-const parameterShortcut = (
-  settings: ShortcutSettings,
-  commandId: CommandId
-): EffectiveShortcutBinding => {
-  const shortcut = effectiveShortcutBindings(settings).find(
-    (definition) => definition.scope === "parameter" && definition.commandId === commandId
-  );
-  if (!shortcut) {
-    throw new Error(`Missing parameter shortcut definition: ${commandId}`);
-  }
-  return shortcut;
-};
-
-const parameterValueShortcutItems = (
-  settings: ShortcutSettings,
-  kind: ParameterValueKind
-): ShortcutHelpItem[] => {
-  const increment = parameterShortcut(settings, "incrementSelectedParameter");
-  const decrement = parameterShortcut(settings, "decrementSelectedParameter");
-  const toggle = parameterShortcut(settings, "toggleSelectedParameterValue");
-  const increaseStep = parameterShortcut(settings, "increaseSelectedParameterStep");
-  const decreaseStep = parameterShortcut(settings, "decreaseSelectedParameterStep");
-
-  return {
-    text: [],
-    number: [
-      helpItem(increment),
-      helpItem(decrement),
-      helpItem(decreaseStep),
-      helpItem(increaseStep)
-    ],
-    boolean: [helpItem(toggle)],
-    lineReference: [
-      { ...helpItem(increment), id: "cycleSelectedLineReferenceForward", label: "線候補を次へ" },
-      { ...helpItem(decrement), id: "cycleSelectedLineReferenceBackward", label: "線候補を前へ" }
-    ],
-    lineReferenceList: [],
-    color: [
-      { ...helpItem(increment), id: "cycleSelectedColorForward", label: "色を次へ" },
-      { ...helpItem(decrement), id: "cycleSelectedColorBackward", label: "色を前へ" }
-    ],
-    lineEndpointReference: [
-      { ...helpItem(increment), id: "cycleSelectedLineEndpointForward", label: "端点候補を次へ" },
-      { ...helpItem(decrement), id: "cycleSelectedLineEndpointBackward", label: "端点候補を前へ" }
-    ],
-    choice: [
-      { ...helpItem(increment), id: "cycleSelectedChoiceForward", label: "候補を次へ" },
-      { ...helpItem(decrement), id: "cycleSelectedChoiceBackward", label: "候補を前へ" }
-    ],
-    reference: [
-      { ...helpItem(increment), id: "cycleSelectedReferenceForward", label: "参照候補を次へ" },
-      { ...helpItem(decrement), id: "cycleSelectedReferenceBackward", label: "参照候補を前へ" }
-    ]
-  }[kind];
-};
-
 export const shortcutHelpItemsForSettings = ({
   settings = defaultShortcutSettings(),
-  isParameterEditMode = false,
-  isDependencyJumpMode = false,
+  isInspectorFocused = false,
   isPickMode = false,
-  isDslPanelMode = false,
-  selectedElement = null,
-  selectedParameterKey = null
+  isDslPanelMode = false
 }: {
   settings?: ShortcutSettings;
-  isParameterEditMode?: boolean;
-  isDependencyJumpMode?: boolean;
+  isInspectorFocused?: boolean;
   isPickMode?: boolean;
   isDslPanelMode?: boolean;
-  selectedElement?: CadElement | null;
-  selectedParameterKey?: string | null;
 } = {}): ShortcutHelpItem[] => {
   if (isDslPanelMode) {
     return shortcutBindingsForMode(settings, { isDslPanelMode: true })
@@ -176,55 +105,14 @@ export const shortcutHelpItemsForSettings = ({
       .map(helpItem);
   }
 
-  if (!isParameterEditMode) {
-    return shortcutBindingsForMode(settings, {
-      isDependencyJumpMode,
-      isPickMode
-    })
-      .filter((item) => item.chords.length > 0)
-      .map(helpItem);
-  }
-
-  const items = shortcutBindingsForMode(settings, { isParameterEditMode: true })
+  return shortcutBindingsForMode(settings, { isInspectorFocused, isPickMode })
     .filter((item) => item.chords.length > 0)
-    .filter((item) => item.commandId !== "incrementSelectedParameter")
-    .filter((item) => item.commandId !== "decrementSelectedParameter")
-    .filter((item) => item.commandId !== "increaseSelectedParameterStep")
-    .filter((item) => item.commandId !== "decreaseSelectedParameterStep")
-    .filter((item) => item.commandId !== "toggleSelectedParameterValue")
     .map(helpItem);
-
-  if (!selectedElement) {
-    return items;
-  }
-
-  const selectedParameter = findParameterDefinition(selectedElement, selectedParameterKey);
-  if (selectedParameter) {
-    items.push(...parameterValueShortcutItems(settings, selectedParameter.kind));
-    if (selectedParameter.kind === "reference" && selectedParameter.allowCoordinate) {
-      items.push(helpItem(parameterShortcut(settings, "toggleSelectedParameterValue")));
-    }
-  }
-
-  const directKeys = getParameterDefinitions(selectedElement)
-    .map((definition) => definition.directKey)
-    .join(" / ");
-  if (directKeys) {
-    items.push({
-      id: "parameter.selectParameterByKey",
-      commandId: "selectParameterByKey",
-      label: "パラメーターを直接選択",
-      keys: directKeys
-    });
-  }
-
-  return items;
 };
 
 const modeScopes: ShortcutScope[][] = [
   ["global", "modeInvariant", "normal"],
-  ["global", "modeInvariant", "parameter"],
-  ["global", "modeInvariant", "dependencyJump"],
+  ["global", "modeInvariant", "inspector"],
   ["global", "modeInvariant", "pick"],
   ["global", "modeInvariant", "dsl"],
   ["sourceEditor"]

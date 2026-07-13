@@ -54,9 +54,6 @@ export type CommandId =
   | "moveBezierHandleByDelta"
   | "applyNumericExpressionReference"
   | "insertNumericExpressionSnippet"
-  | "toggleExpressionInsertTray"
-  | "openExpressionInsertTray"
-  | "closeExpressionInsertTray"
   | "setMeasurementInsertMode"
   | "startMeasurementFunctionInsert"
   | "startMeasurementPointPick"
@@ -164,31 +161,14 @@ export type CommandId =
   | "focusElementSearch"
   | "enterElementListMode"
   | "toggleShortcutHelp"
-  | "toggleElementInfoPanel"
-  | "enterDependencyJumpMode"
-  | "exitDependencyJumpMode"
-  | "selectNextDependencyJumpTarget"
-  | "selectPreviousDependencyJumpTarget"
-  | "jumpToSelectedDependencyTarget"
-  | "enterParameterEditMode"
-  | "exitParameterEditMode"
-  | "selectNextParameter"
-  | "selectPreviousParameter"
-  | "selectParameterByKey"
-  | "incrementSelectedParameter"
-  | "decrementSelectedParameter"
-  | "increaseSelectedParameterStep"
-  | "decreaseSelectedParameterStep"
-  | "cycleSelectedReferenceForward"
-  | "cycleSelectedReferenceBackward"
-  | "toggleSelectedParameterValue"
-  | "toggleSelectedPointAnchorMode"
-  | "setSelectedPointAnchorReferenceMode"
-  | "setSelectedPointAnchorCoordinateMode"
-  | "toggleSelectedBooleanParameter"
-  | "toggleBooleanParameterByDirectKey"
-  | "activateSelectedParameter"
-  | "focusSelectedParameterInput"
+  | "toggleInspectorPanel"
+  | "focusInspectorParameterRows"
+  | "focusInspectorDependencyRows"
+  | "exitInspector"
+  | "selectNextInspectorRow"
+  | "selectPreviousInspectorRow"
+  | "activateInspectorRow"
+  | "startInspectorParameterPick"
   | "stepSourceValueForward"
   | "stepSourceValueBackward";
 
@@ -200,18 +180,15 @@ export type CommandContext = {
   validateDslPanel?: () => void;
   applyDslPanel?: () => void;
   closeDslPanel?: () => void;
-  focusSelectedParameterInput?: () => void;
   focusInspectorParameterRows?: () => void;
   focusInspectorDependencyRows?: () => void;
-  moveInspectorParameterRow?: (direction: -1 | 1) => boolean;
-  moveInspectorDependencyRow?: (direction: -1 | 1) => boolean;
+  moveInspectorRow?: (direction: -1 | 1) => boolean;
   activateInspectorRow?: () => boolean;
+  startInspectorParameterPick?: () => boolean;
   /** The Inspector owns the only DOM-focus check for command delegation. */
   inspectorHasFocus?: () => boolean;
   exitInspector?: () => void;
   getCanvasViewportRect?: () => DOMRect | null;
-  parameterDirectKey?: string;
-  stepMultiplier?: number;
   elementId?: ElementId;
   insertionIndex?: number;
   targetParentGroupId?: ElementId | null;

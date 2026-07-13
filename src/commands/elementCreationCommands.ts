@@ -10,10 +10,7 @@ import { useCadUiStore } from "../state/cadUiStore";
 import type { CadElement, CadElementType } from "../types/geometry";
 import type { CommandContext } from "./commandTypes";
 import { getSelectedElementIds, isLineLikeElement, isPointLikeElement } from "./commandRuntime";
-import {
-  finishCreatedElementInteraction,
-  getInitialCreatedElementParameterKey
-} from "./nameEntryAfterCreation";
+import { finishCreatedElementInteraction } from "./nameEntryAfterCreation";
 
 const creationContext = () => {
   const { elements, evaluationLimitIndex } = useCadDocumentStore.getState();
@@ -55,8 +52,7 @@ const commitCreatedElement = (
     evaluationLimitIndex: insertionIndex + 1,
     selectedElementId: placedElement.id,
     selectedElementIds: [placedElement.id],
-    selectionAnchorElementId: placedElement.id,
-    selectedParameterKey: getInitialCreatedElementParameterKey(placedElement)
+    selectionAnchorElementId: placedElement.id
   });
   finishCreatedElementInteraction(context);
 };

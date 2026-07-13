@@ -163,7 +163,16 @@ export const TemplateInsertionPanel = () => {
                 selectionStart: inputSelectionRef.current.start,
                 selectionEnd: inputSelectionRef.current.end
               })}
-              onClose={() => setShowExpressionTray(false)}
+              onClose={() => {
+                setShowExpressionTray(false);
+                useCadUiStore.setState({
+                  activeMeasurementInsertTarget: null,
+                  activePointPickTarget: null,
+                  activeNumericReferencePickTarget: null,
+                  activeLinePickTarget: null,
+                  activePickCursor: null
+                });
+              }}
             />
           ) : null}
         </div>

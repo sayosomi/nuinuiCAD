@@ -63,7 +63,6 @@ describe("PrintLayoutPanel", () => {
       selectedElementId: elements[0].id,
       selectedElementIds: [elements[0].id],
       selectionAnchorElementId: elements[0].id,
-      selectedParameterKey: "name"
     });
   });
 

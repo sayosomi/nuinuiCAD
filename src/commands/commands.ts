@@ -1,7 +1,6 @@
 import { filterCommandPaletteItems as filterPaletteItems } from "./commandPalette";
 import { creationCommandDefinitions } from "./creationCommandDefinitions";
 import { documentCommandDefinitions } from "./documentCommandDefinitions";
-import { parameterCommandDefinitions } from "./parameterCommandDefinitions";
 import { pickCommandDefinitions } from "./pickCommandDefinitions";
 import { selectionCommandDefinitions } from "./selectionCommandDefinitions";
 import { templateCommandDefinitions } from "./templateCommandDefinitions";
@@ -19,12 +18,12 @@ export const commands: Record<CommandId, Command> = {
   ...pickCommandDefinitions,
   ...creationCommandDefinitions,
   ...templateCommandDefinitions,
-  ...parameterCommandDefinitions,
   ...sourceEditorCommandDefinitions
 };
 
 export const dispatchCommand = (commandId: CommandId, context?: CommandContext) => {
   const command = commands[commandId];
+  if (!command) return false;
   if (command.flushPolicy !== "editor-owned" &&
     context?.commitMode !== "preview" && sourceEditSession.flush("command") === "blocked-composition") {
     useCadUiStore.getState().setCommandErrorMessage(

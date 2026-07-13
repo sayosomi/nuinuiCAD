@@ -100,7 +100,6 @@ export const startTemplateInsertion = ({ template, insertionIndex }: {
   };
   useCadUiStore.setState({
     showGroupTemplateLibrary: false,
-    activeExpressionInsertTarget: null,
     activeMeasurementInsertTarget: null,
     activeNumericReferencePickTarget: null
   });
