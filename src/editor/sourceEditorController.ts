@@ -27,7 +27,7 @@ import type { ElementId, EvaluationResult } from "../types/geometry";
 import { useCadDocumentStore, type CadDocumentState } from "../state/cadDocumentStore";
 import { useCadUiStore, type CadUiState } from "../state/cadUiStore";
 import { dslCmLanguageExtension } from "./cmLanguage";
-import { reconfigureSourceEditorLineLensKeymap, sourceEditorLineLens } from "./sourceEditorLineLens";
+import { focusSourceEditorLineLens, reconfigureSourceEditorLineLensKeymap, sourceEditorLineLens } from "./sourceEditorLineLens";
 import {
   captureSourceEditorViewport,
   cursorAtSnapshotLocation,
@@ -143,6 +143,7 @@ export class SourceEditorController implements SourceEditorHandle {
   private activeValueStepGesture: SourceEditorValueStepGesture | null = null;
   /** Set by the DOM observer, then consumed by the registry keymap's command dispatch. */
   private pendingKeyboardValueStep: SourceEditorValueStepGesture | null = null;
+  private pendingMainLensFocus: { lineFrom: number; clientX: number; clientY: number } | null = null;
   private destroyed = false;
   private view: EditorView;
 
@@ -233,6 +234,7 @@ export class SourceEditorController implements SourceEditorHandle {
             ...defaultKeymap
           ] satisfies KeyBinding[]),
           EditorView.domEventHandlers({
+            mousedown: (event, view) => this.handleMainEditorMouseDown(event as MouseEvent, view),
             contextmenu: (event, view) => this.handleContextMenu(event as MouseEvent, view),
             mouseup: (event, view) => this.handleValueClick(event as MouseEvent, view)
           }),
@@ -381,6 +383,11 @@ export class SourceEditorController implements SourceEditorHandle {
     this.view.dispatch({
       selection: EditorSelection.single(line.from + target.start, line.from + target.end),
       scrollIntoView: true,
+      effects: focusSourceEditorLineLens.of({
+        lineFrom: line.from,
+        sourceAnchor: target.start,
+        sourceHead: target.end
+      }),
       annotations: [canvasCursorOrigin.of("canvas-cursor"), Transaction.addToHistory.of(false)]
     });
     this.view.focus();
@@ -606,6 +613,43 @@ export class SourceEditorController implements SourceEditorHandle {
     return true;
   }
 
+  private handleMainEditorMouseDown(event: MouseEvent, view: EditorView) {
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || this.protocol.composing) return false;
+    const position = view.posAtCoords({ x: event.clientX, y: event.clientY });
+    if (position === null) return false;
+    this.pendingMainLensFocus = {
+      lineFrom: view.state.doc.lineAt(position).from,
+      clientX: event.clientX,
+      clientY: event.clientY
+    };
+    view.contentDOM.ownerDocument.removeEventListener("mouseup", this.handlePendingMainLensFocus);
+    view.contentDOM.ownerDocument.addEventListener("mouseup", this.handlePendingMainLensFocus, { once: true });
+    return false;
+  }
+
+  private handlePendingMainLensFocus = (event: MouseEvent) => {
+    const pending = this.pendingMainLensFocus;
+    this.pendingMainLensFocus = null;
+    if (!pending || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    if (Math.max(Math.abs(event.clientX - pending.clientX), Math.abs(event.clientY - pending.clientY)) >= 10) return;
+    queueMicrotask(() => {
+      if (this.destroyed || this.protocol.composing) return;
+      const selection = this.view.state.selection;
+      if (selection.ranges.length !== 1) return;
+      const firstLine = this.view.state.doc.lineAt(selection.main.from);
+      const lastLine = this.view.state.doc.lineAt(selection.main.to);
+      if (firstLine.from !== pending.lineFrom || lastLine.from !== pending.lineFrom) return;
+      this.view.dispatch({
+        effects: focusSourceEditorLineLens.of({
+          lineFrom: firstLine.from,
+          sourceAnchor: selection.main.anchor - firstLine.from,
+          sourceHead: selection.main.head - firstLine.from
+        }),
+        annotations: Transaction.addToHistory.of(false)
+      });
+    });
+  };
+
   /**
    * Selects the whole editable value under a plain click that ended without a drag.
    * Runs on `mouseup` so CodeMirror's own pointer handling (drag-select, Mod-click
@@ -728,6 +772,7 @@ export class SourceEditorController implements SourceEditorHandle {
       this.store.getState().commitText(nextText, "editor", { cursorLineAtBurstStart });
     }
     this.destroyed = true;
+    this.view.contentDOM.ownerDocument.removeEventListener("mouseup", this.handlePendingMainLensFocus);
     this.unregisterSession();
     this.unsubscribe();
     this.unsubscribeUi();

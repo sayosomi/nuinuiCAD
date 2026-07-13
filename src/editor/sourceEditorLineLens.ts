@@ -26,6 +26,8 @@ type MeasuredLensRender = LensRenderState & {
   isVisible: boolean;
 };
 
+type SourceEditorLineLensFocusRequest = Pick<LensRenderState, "lineFrom" | "sourceAnchor" | "sourceHead">;
+
 export type SourceEditorLineLensOptions = {
   /** Key bindings that operate on the owning source editor rather than the projection. */
   sourceKeymap: () => readonly KeyBinding[];
@@ -39,6 +41,9 @@ export type SourceEditorLineLensOptions = {
 
 /** Reconfigures the nested editor when the owning Source Editor shortcut registry changes. */
 export const reconfigureSourceEditorLineLensKeymap = StateEffect.define<readonly KeyBinding[]>();
+
+/** Requests focus for the editable projection after it has confirmed that it is visible. */
+export const focusSourceEditorLineLens = StateEffect.define<SourceEditorLineLensFocusRequest>();
 
 /** Clips marks to the line, sorts, and merges overlapping/adjacent ranges so
  * token splitting below never sees out-of-order or overlapping boundaries.
@@ -109,6 +114,7 @@ class SourceEditorLineLens {
   private resizeObserver: ResizeObserver | null = null;
   private renderedKey: string | null = null;
   private lensLineFrom: number | null = null;
+  private focusRequest: SourceEditorLineLensFocusRequest | null = null;
   private dispatchingLensUpdate = false;
   private renderQueued = false;
   private destroyed = false;
@@ -152,20 +158,27 @@ class SourceEditorLineLens {
 
   update(update: ViewUpdate) {
     this.view = update.view;
+    let focusRequested = false;
     for (const transaction of update.transactions) {
       for (const effect of transaction.effects) {
-        if (!effect.is(reconfigureSourceEditorLineLensKeymap)) continue;
-        this.lensView.dispatch({
-          effects: this.sourceKeymapCompartment.reconfigure(keymap.of([...effect.value, ...defaultKeymap])),
-          annotations: Transaction.addToHistory.of(false)
-        });
+        if (effect.is(reconfigureSourceEditorLineLensKeymap)) {
+          this.lensView.dispatch({
+            effects: this.sourceKeymapCompartment.reconfigure(keymap.of([...effect.value, ...defaultKeymap])),
+            annotations: Transaction.addToHistory.of(false)
+          });
+          continue;
+        }
+        if (effect.is(focusSourceEditorLineLens)) {
+          this.focusRequest = effect.value;
+          focusRequested = true;
+        }
       }
     }
     if (this.dispatchingLensUpdate) {
       this.queueRender();
       return;
     }
-    if (update.docChanged || update.selectionSet || update.geometryChanged || update.viewportChanged || update.focusChanged) {
+    if (focusRequested || update.docChanged || update.selectionSet || update.geometryChanged || update.viewportChanged || update.focusChanged) {
       this.render();
     }
   }
@@ -275,6 +288,12 @@ class SourceEditorLineLens {
   private applyRender(measured: MeasuredLensRender) {
     if (this.destroyed) return;
     const selectedLine = this.view.state.doc.lineAt(this.view.state.selection.main.head);
+    const sourceSelection = this.view.state.selection.main;
+    const currentFocusRequest = this.focusRequest;
+    const focusRequestMatchesSelection = currentFocusRequest?.lineFrom === selectedLine.from &&
+      currentFocusRequest.sourceAnchor === sourceSelection.anchor - selectedLine.from &&
+      currentFocusRequest.sourceHead === sourceSelection.head - selectedLine.from;
+    if (currentFocusRequest && !focusRequestMatchesSelection) this.focusRequest = null;
     if (selectedLine.from !== measured.lineFrom || selectedLine.text !== measured.lineText) {
       this.render();
       return;
@@ -290,7 +309,9 @@ class SourceEditorLineLens {
       measured.isVisible,
       JSON.stringify(measured.patchHighlight)
     ].join("\u0000");
-    if (key === this.renderedKey) return;
+    const shouldFocusLens = focusRequestMatchesSelection && currentFocusRequest?.lineFrom === measured.lineFrom &&
+      currentFocusRequest.sourceAnchor === measured.sourceAnchor && currentFocusRequest.sourceHead === measured.sourceHead;
+    if (key === this.renderedKey && !shouldFocusLens) return;
     this.renderedKey = key;
     this.lens.style.left = `${measured.gutterWidth}px`;
     this.lens.style.top = `${measured.top}px`;
@@ -299,6 +320,7 @@ class SourceEditorLineLens {
     this.lens.setAttribute("aria-hidden", String(!measured.isVisible));
     if (!measured.isVisible) {
       this.lensLineFrom = null;
+      if (shouldFocusLens) this.focusRequest = null;
       return;
     }
 
@@ -317,6 +339,10 @@ class SourceEditorLineLens {
       });
     } finally {
       this.dispatchingLensUpdate = false;
+    }
+    if (shouldFocusLens) {
+      this.focusRequest = null;
+      this.lensView.focus();
     }
   }
 }

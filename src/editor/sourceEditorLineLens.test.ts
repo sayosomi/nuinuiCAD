@@ -65,6 +65,56 @@ describe("SourceEditor selected-line lens", () => {
     controller.destroy();
   });
 
+  it("hands an Inspector-style parameter jump to the visible lens and keeps its edits projected", async () => {
+    const parent = document.createElement("div");
+    document.body.append(parent);
+    const controller = new SourceEditorController(parent);
+    const view = EditorView.findFromDOM(parent.querySelector<HTMLElement>(".cm-editor")!)!;
+    const lens = parent.querySelector<HTMLElement>(".cm-source-line-lens")!;
+    const measure = parent.querySelector<HTMLElement>(".cm-source-line-lens-measure")!;
+    Object.defineProperty(view.contentDOM, "clientWidth", { configurable: true, value: 800 });
+    Object.defineProperty(view.scrollDOM, "clientWidth", { configurable: true, value: 72 });
+    Object.defineProperty(view.dom.querySelector(".cm-gutters-before")!, "offsetWidth", { configurable: true, value: 24 });
+    Object.defineProperty(measure, "scrollWidth", { configurable: true, value: 480 });
+    const element = useCadDocumentStore.getState().elements.find((candidate) => candidate.name === "長い基準点")!;
+
+    expect(controller.jumpToParameterValue(element.id, "x")).toBe(true);
+    await settleLens();
+
+    expect(lens).toHaveClass("is-visible");
+    const lensView = EditorView.findFromDOM(lens.querySelector<HTMLElement>(".cm-editor")!)!;
+    const selected = lensView.state.selection.main;
+    expect(lensView.state.doc.toString().slice(selected.from, selected.to)).toBe("120");
+    expect(lensView.hasFocus).toBe(true);
+
+    lensView.dispatch({ changes: { from: selected.from, to: selected.to, insert: "121" } });
+    expect(view.state.doc.line(2).text).toContain("(121, -45)");
+    controller.destroy();
+    parent.remove();
+  });
+
+  it("keeps focus in the main editor when an Inspector-style jump does not open the lens", async () => {
+    const parent = document.createElement("div");
+    document.body.append(parent);
+    const controller = new SourceEditorController(parent);
+    const view = EditorView.findFromDOM(parent.querySelector<HTMLElement>(".cm-editor")!)!;
+    const lens = parent.querySelector<HTMLElement>(".cm-source-line-lens")!;
+    const measure = parent.querySelector<HTMLElement>(".cm-source-line-lens-measure")!;
+    Object.defineProperty(view.contentDOM, "clientWidth", { configurable: true, value: 800 });
+    Object.defineProperty(view.scrollDOM, "clientWidth", { configurable: true, value: 72 });
+    Object.defineProperty(view.dom.querySelector(".cm-gutters-before")!, "offsetWidth", { configurable: true, value: 24 });
+    Object.defineProperty(measure, "scrollWidth", { configurable: true, value: 12 });
+    const element = useCadDocumentStore.getState().elements.find((candidate) => candidate.name === "B")!;
+
+    expect(controller.jumpToParameterValue(element.id, "x")).toBe(true);
+    await settleLens();
+
+    expect(lens).not.toHaveClass("is-visible");
+    expect(view.hasFocus).toBe(true);
+    controller.destroy();
+    parent.remove();
+  });
+
   it("defers cursor restoration until focus returns after a Canvas-equivalent model patch", () => {
     useCadDocumentStore.getState().commitText("nui 1\npoint A = (120, -45)\npoint B = (1, 1)", "test");
     const parent = document.createElement("div");
