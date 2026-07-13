@@ -369,6 +369,24 @@ describe("SourceEditor selected-line lens Tab/Shift-Tab value navigation", () =>
     controller.destroy();
   });
 
+  it("projects lens selection synchronously before an editor-native value command reads main selection", async () => {
+    const { controller, view, line, lensView } = await openLensOnLine(2);
+    const xStart = lensView.state.doc.toString().indexOf("5");
+
+    lensView.dispatch({ selection: EditorSelection.cursor(xStart) });
+    expect(view.state.selection.main.head).toBe(line.from + xStart);
+
+    fireEvent.keyDown(lensView.contentDOM, { key: "ArrowRight", altKey: true });
+    expect(useCadDocumentStore.getState().sourceText).toContain("point A = (6, 9)");
+    await settleLens();
+    expect(lensView.state.doc.toString()).toContain("point A = (6, 9)");
+    expect(lensView.state.doc.toString().slice(
+      lensView.state.selection.main.from,
+      lensView.state.selection.main.to
+    )).toBe("6");
+    controller.destroy();
+  });
+
   it("falls through without crashing on a line with no editable values", async () => {
     const { controller, lensView } = await openLensOnLine(5);
     lensView.dispatch({ selection: EditorSelection.cursor(0) });
@@ -402,6 +420,20 @@ describe("SourceEditor selected-line lens Tab/Shift-Tab value navigation", () =>
 
     const main = lensView.state.selection.main;
     expect(lensText.slice(main.from, main.to)).toBe("9");
+    controller.destroy();
+  });
+
+  it("consumes editor-native value commands during lens IME composition", async () => {
+    const { controller, view, lensView } = await openLensOnLine(2);
+    const xStart = lensView.state.doc.toString().indexOf("5");
+    lensView.dispatch({ selection: EditorSelection.cursor(xStart) });
+    const before = view.state.doc.toString();
+
+    fireEvent.compositionStart(lensView.contentDOM);
+    fireEvent.keyDown(lensView.contentDOM, { key: "ArrowRight", altKey: true });
+
+    expect(view.state.doc.toString()).toBe(before);
+    fireEvent.compositionEnd(lensView.contentDOM);
     controller.destroy();
   });
 

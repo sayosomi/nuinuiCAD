@@ -113,7 +113,7 @@ describe("shortcuts", () => {
     );
   });
 
-  it("registers Source Editor structural shortcuts without reserving bare brackets", () => {
+  it("registers Source Editor structural and value shortcuts without reserving bare brackets", () => {
     const bindings = sourceEditorShortcutBindings();
     expect(bindings.find((binding) => binding.commandId === "indentSelectedElements")?.chords).toEqual([
       { key: "]", mod: true, alt: false, shift: false }
@@ -123,8 +123,16 @@ describe("shortcuts", () => {
     ]);
     expect(bindings.map((binding) => binding.commandId)).toEqual(expect.arrayContaining([
       "moveSelectedElementUp",
-      "moveEvaluationDividerDown"
+      "moveEvaluationDividerDown",
+      "stepSourceValueForward",
+      "stepSourceValueBackward"
     ]));
+    expect(bindings.find((binding) => binding.commandId === "stepSourceValueForward")?.chords).toEqual([
+      { key: "ArrowRight", mod: false, alt: true, shift: false }
+    ]);
+    expect(bindings.find((binding) => binding.commandId === "stepSourceValueBackward")?.chords).toEqual([
+      { key: "ArrowLeft", mod: false, alt: true, shift: false }
+    ]);
   });
 
   it("uses user shortcut overrides", () => {
@@ -172,6 +180,29 @@ describe("shortcuts", () => {
         })
       ])
     );
+  });
+
+  it("detects conflicting Source Editor shortcut overrides", () => {
+    const settings = settingsWithOverrides([
+      {
+        bindingId: "sourceEditor.stepSourceValueForward",
+        chords: [{ key: "ArrowRight", mod: false, alt: true, shift: false }]
+      },
+      {
+        bindingId: "sourceEditor.stepSourceValueBackward",
+        chords: [{ key: "ArrowRight", mod: false, alt: true, shift: false }]
+      }
+    ]);
+
+    expect(shortcutConflicts(settings)).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        scope: "sourceEditor",
+        bindingIds: expect.arrayContaining([
+          "sourceEditor.stepSourceValueForward",
+          "sourceEditor.stepSourceValueBackward"
+        ])
+      })
+    ]));
   });
 
   it("matches shortcut search keys with wildcard modifiers", () => {

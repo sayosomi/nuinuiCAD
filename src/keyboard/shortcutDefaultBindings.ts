@@ -165,6 +165,12 @@ const defaultBindings: ShortcutBinding[] = [
   binding("sourceEditor", "indentSelectedElements", [ch("]", { mod: true })], {
     label: "選択要素をインデント (Source Editor: Mod+])"
   }),
+  binding("sourceEditor", "stepSourceValueForward", [ch("ArrowRight", { alt: true })], {
+    label: "Source Editorの値を次へ (Alt+→)"
+  }),
+  binding("sourceEditor", "stepSourceValueBackward", [ch("ArrowLeft", { alt: true })], {
+    label: "Source Editorの値を前へ (Alt+←)"
+  }),
   binding("normal", "openShortcutSettings", [], { label: "ショートカット設定" })
 ];
 

@@ -188,7 +188,9 @@ export type CommandId =
   | "toggleSelectedBooleanParameter"
   | "toggleBooleanParameterByDirectKey"
   | "activateSelectedParameter"
-  | "focusSelectedParameterInput";
+  | "focusSelectedParameterInput"
+  | "stepSourceValueForward"
+  | "stepSourceValueBackward";
 
 export type CommandContext = {
   focusCanvas?: () => void;
@@ -254,5 +256,7 @@ export type Command = {
     keys: string;
     label?: string;
   }[];
+  /** Most commands flush pending editor text before running. Editor-native text commands own that boundary. */
+  flushPolicy?: "before-run" | "editor-owned";
   run: (context?: CommandContext) => void | boolean | DocumentMutationResult;
 };

@@ -1,0 +1,80 @@
+import { describe, expect, it } from "vitest";
+import { compileDslToElements } from "./dslCompiler";
+import { resolveDslValueStep, stepDslNumericLiteral } from "./dslValueStep";
+import type { CadElement } from "../types/geometry";
+
+const compileElement = (source: string) => compileDslToElements(source, { elements: [] }).elements.at(-1)!;
+
+const stepAt = (
+  source: string,
+  element: CadElement,
+  token: string,
+  direction: 1 | -1,
+  committedLineText = source
+) => {
+  const start = source.indexOf(token);
+  expect(start).toBeGreaterThanOrEqual(0);
+  return resolveDslValueStep(source, element, { start, end: start }, direction, { committedLineText });
+};
+
+describe("stepDslNumericLiteral", () => {
+  it("uses fixed decimal arithmetic and normalizes signs and zero", () => {
+    expect(stepDslNumericLiteral("0.1", 0.2, 1)).toBe("0.3");
+    expect(stepDslNumericLiteral("-0.1", 0.1, 1)).toBe("0");
+    expect(stepDslNumericLiteral("+1.50", 0.25, -1)).toBe("1.25");
+    expect(stepDslNumericLiteral("-1", 10, 1)).toBe("9");
+  });
+
+  it("rejects expressions, units, and exponent syntax", () => {
+    for (const value of ["a + 1", "10mm", "1e3", '"1"']) {
+      expect(stepDslNumericLiteral(value, 1, 1)).toBeNull();
+    }
+  });
+});
+
+describe("resolveDslValueStep", () => {
+  it("uses the 3a target resolver for normal, dirty coordinate, and configured numeric values", () => {
+    const pointSource = "point A = (0.1, 2)";
+    const point = { ...compileElement(pointSource), numericParameterSteps: { x: 0.2 } };
+    expect(stepAt(pointSource, point, "0.1", 1)).toMatchObject({ parameterKey: "x", insert: "0.3" });
+
+    const committed = "line L = A -> B";
+    const line = compileElement(committed);
+    const dirty = "line L = (1, 2) -> B";
+    expect(stepAt(dirty, line, "1", 1, committed)).toMatchObject({ parameterKey: "startPoint:x", insert: "2" });
+  });
+
+  it("uses the current configured ratio and angle step without adding level switching", () => {
+    const divisionSource = "point M = between A B ratio=0.25";
+    const division = { ...compileElement(divisionSource), numericParameterSteps: { ratio: 0.01 } };
+    expect(stepAt(divisionSource, division, "0.25", 1)).toMatchObject({ parameterKey: "ratio", insert: "0.26" });
+
+    const arcSource = "arc Arc center=A radius=10 start=15 end=90";
+    const arc = { ...compileElement(arcSource), numericParameterSteps: { startAngleDeg: 15 } };
+    expect(stepAt(arcSource, arc, "start=15".slice(-2), 1)).toMatchObject({ parameterKey: "startAngleDeg", insert: "30" });
+  });
+
+  it("toggles booleans and cycles choices, but leaves other parameter kinds untouched", () => {
+    const booleanSource = "point A = (0, 0) locked=true";
+    const point = compileElement(booleanSource);
+    expect(stepAt(booleanSource, point, "true", 1)).toMatchObject({ parameterKey: "locked", insert: "false" });
+
+    const choiceSource = "var V = 1 scope=global";
+    const variable = compileElement(choiceSource);
+    expect(stepAt(choiceSource, variable, "global", 1)).toMatchObject({ parameterKey: "scope", insert: "group" });
+    expect(stepAt(choiceSource, variable, "global", -1)).toMatchObject({ parameterKey: "scope", insert: "group" });
+
+    const textSource = 'text Label = "true" at=A size=4';
+    const text = compileElement(textSource);
+    expect(stepAt(textSource, text, "true", 1)).toBeNull();
+  });
+
+  it("accepts a caret or exact target selection, never a partial selection", () => {
+    const source = "point A = (12, 0)";
+    const point = compileElement(source);
+    const start = source.indexOf("12");
+    expect(resolveDslValueStep(source, point, { start, end: start + 2 }, 1)).toMatchObject({ insert: "13" });
+    expect(resolveDslValueStep(source, point, { start, end: start + 1 }, 1)).toBeNull();
+    expect(resolveDslValueStep(source, point, { start: start + 2, end: start + 2 }, 1)).toBeNull();
+  });
+});
