@@ -115,6 +115,7 @@ const defaultBindings: ShortcutBinding[] = [
   binding("pick", "selectPreviousPickOption", [ch("ArrowLeft")]),
   binding("pick", "selectNextPickOption", [ch("ArrowRight")]),
   binding("pick", "applySelectedPickCandidate", [ch("Enter")]),
+  binding("pick", "finishLinePick", [ch("Enter", { mod: true })]),
   binding("dsl", "exportDslSelection", [ch("e", { mod: true, shift: true })]),
   binding("dsl", "validateDslPanel", [ch("Enter", { mod: true, shift: true })]),
   binding("dsl", "applyDslPanel", [ch("Enter", { mod: true })]),

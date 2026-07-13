@@ -949,11 +949,7 @@ export const cancelLinePick = () => {
 
 export const finishLinePick = () => {
   const { activeLinePickTarget } = useCadUiStore.getState();
-  if (!activeLinePickTarget) return;
-  if (activeLinePickTarget.draftLineIds === undefined) {
-    useCadUiStore.getState().setActiveLinePickTarget(null);
-    return;
-  }
+  if (!activeLinePickTarget || activeLinePickTarget.draftLineIds === undefined) return;
   const { elements } = useCadDocumentStore.getState();
   const targetElement = elements.find((element) => element.id === activeLinePickTarget.elementId);
   if (!targetElement) return;

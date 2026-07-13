@@ -43,4 +43,15 @@ describe("Phase 3d Inspector command registry", () => {
     expect(bindings.find((binding) => binding.commandId === "stepSourceValueBackward")?.chords)
       .toContainEqual({ key: "ArrowLeft", mod: false, alt: true, shift: false });
   });
+
+  it("uses Mod+Enter to finish only a pick session while Enter keeps applying candidates", () => {
+    expect(commandIdForKeyboardEvent(
+      new KeyboardEvent("keydown", { key: "Enter", metaKey: true }),
+      { isPickMode: true }
+    )).toBe("finishLinePick");
+    expect(commandIdForKeyboardEvent(
+      new KeyboardEvent("keydown", { key: "Enter" }),
+      { isPickMode: true }
+    )).toBe("applySelectedPickCandidate");
+  });
 });

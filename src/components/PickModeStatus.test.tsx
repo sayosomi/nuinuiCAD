@@ -46,6 +46,7 @@ describe("PickModeStatus", () => {
     render(<PickModeStatus />);
 
     expect(screen.getByLabelText("選択済み 5 件")).toBeInTheDocument();
+    expect(screen.getByTitle("⌘Enter / Ctrl+Enter で選択を完了")).toHaveTextContent("⌘↵");
     for (const name of ["線1", "線2", "線3", "線4"]) {
       expect(screen.getByText(name)).toBeInTheDocument();
     }

@@ -895,6 +895,23 @@ describe("DrawingCanvas point dragging", () => {
     expect(useCadStore.getState().past).toHaveLength(0);
   });
 
+  it("does not finish a single-line pick without a draft selection", () => {
+    useCadStore.setState({
+      activeLinePickTarget: {
+        elementId: "line-ab",
+        parameterKey: "startPoint"
+      }
+    });
+
+    dispatchCommand("finishLinePick");
+
+    expect(useCadStore.getState().activeLinePickTarget).toEqual({
+      elementId: "line-ab",
+      parameterKey: "startPoint"
+    });
+    expect(useCadStore.getState().past).toHaveLength(0);
+  });
+
   it("selects and moves a point with a left-button drag", () => {
     const { viewport } = renderDrawingCanvas();
 

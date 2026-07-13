@@ -55,6 +55,7 @@ export const PickModeStatus = () => {
       <button type="button" onClick={finish}>
         {isLineList ? "選択を完了" : "選択を終了"}
       </button>
+      {isLineList ? <kbd title="⌘Enter / Ctrl+Enter で選択を完了">⌘↵</kbd> : null}
       <kbd>Esc</kbd>
     </aside>
   );
