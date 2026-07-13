@@ -57,4 +57,20 @@ describe("dispatchCommand editor flush boundary", () => {
     expect(result).toBe(false);
     expect(useCadDocumentStore.getState().sourceText).toBe(before);
   });
+
+  it("leaves the flush boundary to editor-native value commands only", () => {
+    const flush = vi.fn(() => "flushed" as const);
+    const stepValue = vi.fn(() => true);
+    unregister = registerSourceEditSession({
+      hasPendingText: () => true,
+      isComposing: () => false,
+      flush,
+      stepValue
+    });
+
+    expect(dispatchCommand("stepSourceValueForward")).toBe(true);
+
+    expect(flush).not.toHaveBeenCalled();
+    expect(stepValue).toHaveBeenCalledWith(1);
+  });
 });

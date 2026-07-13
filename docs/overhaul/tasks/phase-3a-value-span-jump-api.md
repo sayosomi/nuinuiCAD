@@ -90,9 +90,12 @@ UIの変更はしない。このタスク完了時点でアプリの見た目・
   * `DslLabeledValueSpan = { start: number; end: number; source: "payload" | "attr"; key: string }`
   * `dslLineLabeledValueSpans(lineText: string): DslLabeledValueSpan[]`
 * `src/dsl/dslParameterSpans.ts`:
-  * `resolveParameterValueSpan(lineText: string, element: CadElement, parameterKey: string): DslLabeledValueSpan | null`
-    (内部でマッピング+ラベル付きspanを使う。CadElement全体でなく必要最小の
-    型に絞ってよい)
+  * `resolveParameterValueSpan(lineText, element, parameterKey, context?)` — parameterKeyから
+    値spanを解決する。`context.committedLineText` はdirty時のdynamic record対応を
+    証明するためだけに使い、証明できない場合は`null`を返す。
+  * `resolveParameterTargetAt(lineText, element, selection, context?)` — caretまたは
+    selectionから最も具体的なparameter spanとparameterKeyを解決する。3bはこれを
+    使い、独自のparameter mapping/span包含判定を持たない。
 * `src/editor/sourceEditorTypes.ts`:
   * `SourceEditorHandle.jumpToParameterValue(elementId: ElementId, parameterKey: string): boolean`
 
@@ -107,6 +110,9 @@ UIの変更はしない。このタスク完了時点でアプリの見た目・
   (`setSelectedElementId`)まで。**文書テキストは一切変更しない。**
 * dirty buffer中: committed textではなく現在のCM行テキストを基準に解決する
   (`dslLineValueSpans` 系が行単独reparseなのでそのまま成立する)。
+  dynamic record(`vars` / `intermediates`)は、live行とcommitted要素の対応を
+  一意に証明できる場合だけ解決する。削除・並替え・重複・空fieldで別recordを
+  推測してはならず、解決不能時は`null`→行頭fallbackとする。
 
 ## 守るべき不変条件
 
@@ -129,6 +135,9 @@ UIの変更はしない。このタスク完了時点でアプリの見た目・
   (click/Tab/Line Lensの挙動保証)。
 * ジャンプは該当パラメータの**値span全体**を選択する(行頭でも値の先頭
   cursorでもなく)。
+* `name` は既存のvalue span集合へ加えず、parameter resolverだけがname tokenを
+  選択する。Phase 3aでは通常のテキスト編集導線に限定し、参照のリネーム伝播は
+  絶対に行わない。
 * 解決失敗は例外ではなくfallback(行頭ジャンプ)+ `false`。
 
 ## 必須自動テスト
@@ -143,6 +152,9 @@ UIの変更はしない。このタスク完了時点でアプリの見た目・
 * controller層: dirty bufferで編集後の行に対して正しく解決すること/
   composing中はno-opで `false` /解決失敗時のfallback/ジャンプがCM undo
   depthとstore履歴を汚さないこと。
+* dynamic record: vars/intermediatesの削除・並替え・重複・空fieldは誤選択せず
+  `null`へ落ちること。caret/selection→最具体parameter spanの逆引きも、座標子span
+  を含めてforward mappingと同じ意味論であること。
 * 既存 `dslValueSpans.test.ts`・click/Tab・Line Lens関連テストが**無変更で**
   greenのままであること。
 
@@ -175,8 +187,12 @@ UIの変更はしない。このタスク完了時点でアプリの見た目・
 
 ## 次タスクへの引き継ぎ
 
-* 3b(数値ステップ)は本タスクの `resolveParameterValueSpan` とラベル付きspanを
-  使ってstep対象と `stepLevels` を特定する。
+* 3b(数値ステップ)は本タスクの `resolveParameterTargetAt` とラベル付きspanを
+  使ってstep対象と `stepLevels` を特定する。3b側でparameter mapping/span解析を
+  追加しない。
 * 3c(インスペクタ)はEnterジャンプを `jumpToParameterValue` に接続する。
 * 行列テストのfixture(全要素型のserialize済み1行サンプル)は3b/3cでも
   再利用できるよう、単一のtest utilにまとめておくこと。
+* Phase 5では安全なリネーム伝播を別途設計・実装する。最終形でInspectorの名前行を
+  この単純なテキスト編集導線のまま残すか、安全なリネームcommandへ再配線するかは、
+  Phase 5で判断する。本タスクはその判断を先取りしない。

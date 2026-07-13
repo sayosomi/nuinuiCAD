@@ -65,6 +65,8 @@ import { mapPositionedDiagnostics, toStaleDiagnostics, type PositionedDiagnostic
 import { createEvaluationExtension, evaluationChanged, type EvaluationGutterAction } from "./sourceEditorEvaluationExtension";
 import { createEvaluationDecorationIndex, type EvaluationDecorationIndex } from "./sourceEditorEvaluationIndex";
 import { adjacentDslValueSpan, dslLineValueSpans, findDslValueSpanAt, type DslValueSpanDirection } from "../dsl/dslValueSpans";
+import { resolveParameterValueSpan } from "../dsl/dslParameterSpans";
+import { resolveDslValueStep, type DslValueStepDirection } from "../dsl/dslValueStep";
 
 type SourceStore = {
   getState: () => CadDocumentState;
@@ -250,7 +252,8 @@ export class SourceEditorController implements SourceEditorHandle {
     this.unregisterSession = registerSourceEditSession({
       hasPendingText: () => this.hasPendingText(),
       isComposing: () => this.protocol.composing,
-      flush: (reason) => this.flush(reason)
+      flush: (reason) => this.flush(reason),
+      stepValue: (direction) => this.stepSourceValue(direction)
     });
     this.unsubscribe = store.subscribe((next, previous) => {
       if (next.sourceRevision === previous.sourceRevision) return;
@@ -333,6 +336,75 @@ export class SourceEditorController implements SourceEditorHandle {
     });
     this.uiStore.getState().setSelectedElementId(elementId);
   };
+
+  jumpToParameterValue = (elementId: ElementId, parameterKey: string): boolean => {
+    if (this.protocol.composing) return false;
+    const range = this.statementRanges.get(elementId);
+    const element = this.store.getState().elements.find((candidate) => candidate.id === elementId);
+    if (!range || !element) return false;
+    const line = this.view.state.doc.lineAt(range.from);
+    const committedLineText = range.statement.line <= this.committedDoc.lines
+      ? this.committedDoc.line(range.statement.line).text
+      : undefined;
+    const target = resolveParameterValueSpan(line.text, element, parameterKey, { committedLineText });
+    if (!target) {
+      this.jumpToElement(elementId);
+      this.view.focus();
+      return false;
+    }
+    // Store selection subscriptions project Canvas selection to line starts. Publish
+    // this external selection under the existing loop guard before selecting the span.
+    this.deferredExternalCursor = null;
+    this.pendingPrimaryCursorProjection = false;
+    this.publishingCanvasSelection = true;
+    try {
+      this.uiStore.getState().setSelectedElementId(elementId);
+    } finally {
+      this.publishingCanvasSelection = false;
+    }
+    this.view.dispatch({
+      selection: EditorSelection.single(line.from + target.start, line.from + target.end),
+      scrollIntoView: true,
+      annotations: [canvasCursorOrigin.of("canvas-cursor"), Transaction.addToHistory.of(false)]
+    });
+    this.view.focus();
+    return true;
+  };
+
+  /** Changes one proven value in the live source line, then creates exactly one store commit. */
+  private stepSourceValue(direction: DslValueStepDirection) {
+    if (this.protocol.composing) return false;
+    const ui = this.uiStore.getState();
+    if (ui.activePointPickTarget || ui.activeNumericReferencePickTarget || ui.activeLinePickTarget || ui.activeTemplateInsertion) return false;
+    const selection = this.view.state.selection;
+    if (selection.ranges.length !== 1) return false;
+    const main = selection.main;
+    const line = this.view.state.doc.lineAt(main.from);
+    if (this.view.state.doc.lineAt(main.to).number !== line.number) return false;
+    const elementId = elementIdAtCursor(this.statementRanges, main.from);
+    const range = elementId ? this.statementRanges.get(elementId) : null;
+    const element = elementId
+      ? this.store.getState().elements.find((candidate) => candidate.id === elementId)
+      : undefined;
+    if (!range || !element) return false;
+    const committedLineText = range.statement.line <= this.committedDoc.lines
+      ? this.committedDoc.line(range.statement.line).text
+      : undefined;
+    const change = resolveDslValueStep(
+      line.text,
+      element,
+      { start: main.from - line.from, end: main.to - line.from },
+      direction,
+      { committedLineText }
+    );
+    if (!change) return false;
+    this.view.dispatch({
+      changes: { from: line.from + change.from, to: line.from + change.to, insert: change.insert },
+      selection: EditorSelection.single(line.from + change.selection.start, line.from + change.selection.end),
+      annotations: Transaction.userEvent.of("input.stepValue")
+    });
+    return this.flush("command") !== "blocked-composition";
+  }
 
   pickCandidateElementIds = () => this.decorationIndex.pickLines.map((line) => line.elementId);
 
@@ -592,8 +664,8 @@ export class SourceEditorController implements SourceEditorHandle {
         if (!key) return [];
         return [{
           key,
-          run: () => {
-            if (this.protocol.composing) return true;
+          run: (view) => {
+            if (this.protocol.composing || view.compositionStarted) return true;
             const ui = this.uiStore.getState();
             if (ui.activePointPickTarget || ui.activeNumericReferencePickTarget || ui.activeLinePickTarget) return false;
             return dispatchCommand(binding.commandId) !== false;

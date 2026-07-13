@@ -226,7 +226,8 @@ const modeScopes: ShortcutScope[][] = [
   ["global", "modeInvariant", "parameter"],
   ["global", "modeInvariant", "dependencyJump"],
   ["global", "modeInvariant", "pick"],
-  ["global", "modeInvariant", "dsl"]
+  ["global", "modeInvariant", "dsl"],
+  ["sourceEditor"]
 ];
 
 export const shortcutConflicts = (

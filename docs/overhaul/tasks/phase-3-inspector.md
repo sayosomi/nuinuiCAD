@@ -16,7 +16,7 @@
 >    パラメータ→値spanジャンプAPI(ラベル付き値span・parameterKeyマッピング・
 >    `SourceEditorHandle` 拡張。UI変更なし)
 > 2. [phase-3b-numeric-step-command.md](phase-3b-numeric-step-command.md) —
->    エディタネイティブ数値ステップコマンド(`Alt+→/←`、stepLevels、
+>    エディタネイティブ値ステップコマンド(`Alt+→/←`、数値/boolean/choice、
 >    1操作=1 Undoステップ)
 > 3. [phase-3c-inspector-panel.md](phase-3c-inspector-panel.md) —
 >    読み取り専用InspectorPanel(行ナビ・Enterジャンプ・旧編集UIと一時併存)
@@ -43,7 +43,8 @@ DSL」: パラメータ項目を選ぶとエディタの該当行・該当属性
 * parameterKeyとDSL attr名は同一ではない(例: `arcLine.startAngleDeg` →
   `start=`)。マッピングの正は `dslSerializer.ts` の出力形とし、全要素型の
   行列テストで乖離を検出する。
-* 数値微調整は `Alt+→/←` を現行割当の正とする。既存のSource Editor
+* 値の微調整・切替は `Alt+→/←` を現行割当の正とする。数値は現在のstep、
+  booleanは反転、choiceは定義順に循環する。既存のSource Editor
   structural shortcut(Mod/Alt+`↑`/`↓`、Shift+Alt+`↑`/`↓`/End、Mod+`[`/`]`)
   およびTab/Shift+Tabの値span移動とは衝突しない。割当変更時もshortcut
   registryを唯一の正とする。
@@ -89,7 +90,7 @@ DSL」: パラメータ項目を選ぶとエディタの該当行・該当属性
   されている。
 * 全要素型(現在27種。`elementTypeLabels` が正)で、インスペクタのパラメータ
   行からジャンプ→編集→コミットのループが成立。
-* 数値ステップコマンドが `stepLevels` を尊重して動作。
+* 値ステップコマンドが現在の数値step・boolean・choiceを正しく扱う。
 * 廃止command ID対応表が報告されている。
 * `npm test` / `npm run build` / `npm run lint` 成功。
 

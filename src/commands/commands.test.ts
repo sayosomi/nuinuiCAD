@@ -2234,6 +2234,9 @@ describe("commands", () => {
     expect(filterCommandPaletteItems("point").map((item) => item.commandId)).toEqual(
       expect.arrayContaining(["addFreePoint", "addOffsetPoint", "addPolarOffsetPoint"])
     );
+    expect(filterCommandPaletteItems("step").map((item) => item.commandId)).toEqual(
+      expect.arrayContaining(["stepSourceValueForward", "stepSourceValueBackward"])
+    );
     expect(filterCommandPaletteItems("点").map((item) => item.commandId)).toEqual(
       expect.arrayContaining(["addFreePoint", "addOffsetPoint", "addPolarOffsetPoint"])
     );

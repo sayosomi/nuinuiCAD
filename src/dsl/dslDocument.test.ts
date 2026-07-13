@@ -177,17 +177,18 @@ describe("dslDocument round-trip matrix", () => {
   });
 
   it("round-trips offsetLine, splitLine", () => {
-    const { document, parsed } = roundTrip(
+    const { text, document, parsed } = roundTrip(
       [
         "point A = (0, 0)",
         "point B = (100, 0)",
         "point C = (50, 0)",
         "line AB = A -> B",
-        "line seam = offset [AB] distance=10 side=left closed=false",
+        "line seam = offset [AB] distance=10 side=left closed=false suppressTrimWarnings=true",
         "line lower = split AB at=C"
       ].join("\n")
     );
     expectSemanticallyEqualDocuments(document, { ...document, elements: parsed.elements });
+    expect(text).toContain("suppressTrimWarnings=true");
   });
 
   it("round-trips copyLine, symmetricCopyLine, move, symmetricMove via generic element syntax", () => {

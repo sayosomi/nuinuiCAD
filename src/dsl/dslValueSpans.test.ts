@@ -1,10 +1,20 @@
 import { describe, expect, it } from "vitest";
-import { adjacentDslValueSpan, dslLineValueSpans, findDslValueSpanAt } from "./dslValueSpans";
+import { adjacentDslValueSpan, dslLineLabeledValueSpans, dslLineValueSpans, findDslValueSpanAt } from "./dslValueSpans";
 import { parseDsl } from "./dslParser";
 
 const textOf = (source: string, span: { start: number; end: number }) => source.slice(span.start, span.end);
 
 describe("dslLineValueSpans", () => {
+  it("keeps the legacy projection while exposing payload and attribute labels", () => {
+    const source = "point A = (0, 10) visible=false";
+    const labeled = dslLineLabeledValueSpans(source);
+    expect(labeled).toEqual([
+      { start: 11, end: 12, source: "payload", key: "x" },
+      { start: 14, end: 16, source: "payload", key: "y" },
+      { start: 26, end: 31, source: "attr", key: "visible" }
+    ]);
+    expect(labeled.map(({ start, end }) => ({ start, end }))).toEqual(dslLineValueSpans(source));
+  });
   it("selects point X and Y coordinates independently", () => {
     const source = "point A = (0, 10)";
     const spans = dslLineValueSpans(source);

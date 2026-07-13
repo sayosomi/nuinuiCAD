@@ -3,11 +3,22 @@ import type { DslSpan, DslStatement } from "./dslTypes";
 
 export type DslValueSpan = DslSpan;
 
+export type DslLabeledValueSpan = DslSpan & {
+  source: "payload" | "attr";
+  /** Parser semantic key. Some legacy DSL spellings are normalized by the parser. */
+  key: string;
+};
+
 const spanKey = (span: DslSpan) => `${span.start}:${span.end}`;
 
-const candidateSpans = (statement: DslStatement): DslSpan[] => [
-  ...Object.values(statement.payloadSpans),
-  ...statement.attrs.map((attr): DslSpan => ({ start: attr.valueStart, end: attr.valueEnd }))
+const candidateSpans = (statement: DslStatement): DslLabeledValueSpan[] => [
+  ...Object.entries(statement.payloadSpans).map(([key, span]) => ({ ...span, source: "payload" as const, key })),
+  ...statement.attrs.map((attr): DslLabeledValueSpan => ({
+    start: attr.valueStart,
+    end: attr.valueEnd,
+    source: "attr",
+    key: attr.key
+  }))
 ];
 
 /**
@@ -29,16 +40,23 @@ const candidateSpans = (statement: DslStatement): DslSpan[] => [
  * determination both click-selection and Tab-navigation rely on for "is this line's
  * value clickable/tabbable at all."
  */
-export const dslLineValueSpans = (lineText: string): DslValueSpan[] => {
+/** Parses a live source line under the same safety rules used for editable spans. */
+export const dslLineElementStatement = (lineText: string): DslStatement | null => {
   const probe = parseDsl(lineText);
   const opensBlock = probe.statements.length === 1 && probe.statements[0].opensBlock;
   const { statements, diagnostics } = opensBlock ? parseDsl(`${lineText}\n}`) : probe;
   const statement = statements.find((candidate) => candidate.line === 1);
-  if (!statement || !isElementDslStatement(statement)) return [];
-  if (diagnostics.some((diagnostic) => diagnostic.severity === "error" && diagnostic.line === 1)) return [];
+  if (!statement || !isElementDslStatement(statement)) return null;
+  if (diagnostics.some((diagnostic) => diagnostic.severity === "error" && diagnostic.line === 1)) return null;
+  return statement;
+};
+
+export const dslLineLabeledValueSpans = (lineText: string): DslLabeledValueSpan[] => {
+  const statement = dslLineElementStatement(lineText);
+  if (!statement) return [];
   const keyword = spanKey(statement.keywordSpan);
   const seen = new Set<string>();
-  const spans: DslValueSpan[] = [];
+  const spans: DslLabeledValueSpan[] = [];
   for (const span of candidateSpans(statement)) {
     const key = spanKey(span);
     if (key === keyword || seen.has(key)) continue;
@@ -47,6 +65,10 @@ export const dslLineValueSpans = (lineText: string): DslValueSpan[] => {
   }
   return spans.sort((a, b) => a.start - b.start);
 };
+
+/** Backwards-compatible projection used by click selection, Tab navigation, and Line Lens. */
+export const dslLineValueSpans = (lineText: string): DslValueSpan[] =>
+  dslLineLabeledValueSpans(lineText).map(({ start, end }) => ({ start, end }));
 
 /** Half-open [start, end): the position right after a value is not part of it. */
 export const findDslValueSpanAt = (spans: readonly DslValueSpan[], offset: number): DslValueSpan | null =>
