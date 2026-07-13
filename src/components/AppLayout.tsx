@@ -20,6 +20,7 @@ import { RightPanel } from "./RightPanel";
 import { ShortcutHelpOverlay } from "./ShortcutHelpOverlay";
 import { SourceEditorPane } from "./SourceEditorPane";
 import type { SourceEditorHandle } from "../editor/sourceEditorTypes";
+import type { InspectorPanelHandle } from "./InspectorPanel";
 import { registerTauriMenuCommandListener } from "../commands/tauriMenuEvents";
 import { selectTextInputValue } from "./textInputSelection";
 
@@ -82,6 +83,17 @@ const saveLeftPanelWidth = (leftPanelWidth: number) => {
     });
 };
 
+const inspectorNavigationCommandIds = new Set([
+  "selectNextParameter",
+  "selectPreviousParameter",
+  "activateSelectedParameter",
+  "exitParameterEditMode",
+  "selectNextDependencyJumpTarget",
+  "selectPreviousDependencyJumpTarget",
+  "jumpToSelectedDependencyTarget",
+  "exitDependencyJumpMode"
+]);
+
 export const AppLayout = () => {
   const elements = useCadDocumentStore(effectiveElements);
   const evaluationLimitIndex = useCadDocumentStore((state) => state.evaluationLimitIndex);
@@ -116,6 +128,8 @@ export const AppLayout = () => {
   const canvasWorkspaceRef = useRef<HTMLDivElement>(null);
   const commandRibbonDockRef = useRef<HTMLDivElement>(null);
   const sourceEditorRef = useRef<SourceEditorHandle>(null);
+  const inspectorRef = useRef<InspectorPanelHandle>(null);
+  const inspectorReturnFocusRef = useRef<"canvas" | "editor">("canvas");
   const parameterInputRefs = useRef(new Map<string, HTMLElement>());
   const [leftPanelWidth, setLeftPanelWidth] = useState(DEFAULT_LEFT_PANEL_WIDTH);
   const [isResizingLeftPanel, setIsResizingLeftPanel] = useState(false);
@@ -156,6 +170,28 @@ export const AppLayout = () => {
       if (input instanceof HTMLInputElement || input instanceof HTMLTextAreaElement) {
         input.select();
       }
+    },
+    focusInspectorParameterRows: () => {
+      const active = document.activeElement;
+      inspectorReturnFocusRef.current = active instanceof HTMLElement && active.closest("[data-source-editor-scope='true']")
+        ? "editor"
+        : "canvas";
+      inspectorRef.current?.focusParameterRows();
+    },
+    focusInspectorDependencyRows: () => {
+      const active = document.activeElement;
+      inspectorReturnFocusRef.current = active instanceof HTMLElement && active.closest("[data-source-editor-scope='true']")
+        ? "editor"
+        : "canvas";
+      inspectorRef.current?.focusDependencyRows();
+    },
+    moveInspectorParameterRow: (direction: -1 | 1) => inspectorRef.current?.moveParameterRow(direction) ?? false,
+    moveInspectorDependencyRow: (direction: -1 | 1) => inspectorRef.current?.moveDependencyRow(direction) ?? false,
+    activateInspectorRow: () => inspectorRef.current?.activateRow() ?? false,
+    inspectorHasFocus: () => inspectorRef.current?.isFocused() ?? false,
+    exitInspector: () => {
+      if (inspectorReturnFocusRef.current === "editor") sourceEditorRef.current?.focus();
+      else canvasFocusRef.current?.focus();
     },
     evaluation
   }), [evaluation]);
@@ -339,6 +375,13 @@ export const AppLayout = () => {
       }
       if (!keyboardCommand) return;
       if (
+        commandContext.inspectorHasFocus?.() &&
+        !inspectorNavigationCommandIds.has(keyboardCommand.commandId)
+      ) {
+        event.preventDefault();
+        return;
+      }
+      if (
         useCadUiStore.getState().showShortcutHelp &&
         keyboardCommand.commandId !== "toggleShortcutHelp"
       ) {
@@ -428,6 +471,9 @@ export const AppLayout = () => {
             isParameterEditMode={isParameterEditMode}
             isDependencyJumpMode={isDependencyJumpMode}
             registerParameterControl={registerParameterControl}
+            inspectorRef={inspectorRef}
+            sourceEditorRef={sourceEditorRef}
+            onExitInspector={() => commandContext.exitInspector?.()}
           />
         </>
       )}

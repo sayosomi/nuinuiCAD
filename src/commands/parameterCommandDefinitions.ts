@@ -44,13 +44,19 @@ export const parameterCommandDefinitions = {
     id: "selectNextParameter",
     label: "次のパラメーターを選択",
     shortcuts: [{ keys: "ArrowDown" }],
-    run: () => selectParameterByOffset(1)
+    run: (context) => {
+      if (context?.inspectorHasFocus?.()) return context.moveInspectorParameterRow?.(1) ?? false;
+      return selectParameterByOffset(1);
+    }
   },
   selectPreviousParameter: {
     id: "selectPreviousParameter",
     label: "前のパラメーターを選択",
     shortcuts: [{ keys: "ArrowUp" }],
-    run: () => selectParameterByOffset(-1)
+    run: (context) => {
+      if (context?.inspectorHasFocus?.()) return context.moveInspectorParameterRow?.(-1) ?? false;
+      return selectParameterByOffset(-1);
+    }
   },
   selectParameterByKey: {
     id: "selectParameterByKey",
@@ -61,8 +67,10 @@ export const parameterCommandDefinitions = {
         label: "名前キーでパラメーターを選択"
       }
     ],
-    run: (context) =>
-      applyParameterDirectKey(context?.parameterDirectKey, context?.focusSelectedParameterInput)
+    run: (context) => {
+      if (context?.inspectorHasFocus?.()) return false;
+      return applyParameterDirectKey(context?.parameterDirectKey, context?.focusSelectedParameterInput);
+    }
   },
   incrementSelectedParameter: {
     id: "incrementSelectedParameter",
@@ -134,7 +142,10 @@ export const parameterCommandDefinitions = {
     id: "activateSelectedParameter",
     label: "選択パラメーターを実行",
     shortcuts: [{ keys: "Enter" }],
-    run: (context) => activateSelectedParameter(context)
+    run: (context) => {
+      if (context?.inspectorHasFocus?.()) return context.activateInspectorRow?.() ?? false;
+      return activateSelectedParameter(context);
+    }
   },
   focusSelectedParameterInput: {
     id: "focusSelectedParameterInput",

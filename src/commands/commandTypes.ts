@@ -201,6 +201,14 @@ export type CommandContext = {
   applyDslPanel?: () => void;
   closeDslPanel?: () => void;
   focusSelectedParameterInput?: () => void;
+  focusInspectorParameterRows?: () => void;
+  focusInspectorDependencyRows?: () => void;
+  moveInspectorParameterRow?: (direction: -1 | 1) => boolean;
+  moveInspectorDependencyRow?: (direction: -1 | 1) => boolean;
+  activateInspectorRow?: () => boolean;
+  /** The Inspector owns the only DOM-focus check for command delegation. */
+  inspectorHasFocus?: () => boolean;
+  exitInspector?: () => void;
   getCanvasViewportRect?: () => DOMRect | null;
   parameterDirectKey?: string;
   stepMultiplier?: number;

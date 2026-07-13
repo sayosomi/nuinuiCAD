@@ -58,7 +58,8 @@ feature flagや二重UIを残さない。
 * `src/state/cadUiStore.ts` — `isParameterEditMode` /
   `selectedParameterKey` / expression insert系など、本タスクで死ぬ配管の削除
   (このタスクが殺すstateはこのタスクで消す。元から死んでいた無関係stateの
-  大掃除はPhase 5)。
+  大掃除はPhase 5)。**3cから残る`selectedDependencyJumpIndex`も、旧dependency
+  jump経路の参照全数確認後に専用配管・専用テストとともに削除対象とする。**
 * `src/components/AppLayout.tsx` — `registerParameterControl` /
   parameter mode props等の除去。
 * `src/components/DrawingCanvas.tsx` — 削除コンポーネント由来のprops/参照が
@@ -183,7 +184,9 @@ macOS Tauri実機で:
 * `ExpressionInsertTray` が担っていた計測値挿入(`insertSelectedMeasurement`
   等)の扱い: 廃止して対応表に載せるか、Phase 4のコマンドライン/補完へ
   明示的に先送りするかを確定する。
-* `dependencyJump` mode(3cの確認事項で併存を選んだ場合)の最終形。
+* `dependencyJump` mode(3cの確認事項で併存を選んだ場合)の最終形。特に
+  `selectedDependencyJumpIndex` の全参照を監査し、Inspector navigationの正である
+  `activeRowKey`へ統一済みで旧経路が不要なら、state・専用配管・専用テストを完全削除する。
 
 ## 次タスクへの引き継ぎ
 
@@ -192,3 +195,5 @@ macOS Tauri実機で:
   前提と矛盾しないか、`phase-4-command-line.md` を確認して報告する。
 * Phase 5は本タスクの「残置(理由)」リストを引き継いでハードクリーン
   アップの対象にする。
+* 3cからの明示的引継ぎ: `selectedDependencyJumpIndex` は旧dependency jump互換のため
+  残置されている。3dで旧経路の参照がゼロになった時点で削除する。

@@ -368,7 +368,7 @@ export const viewModeCommandDefinitions = {
     label: "親子要素ジャンプモードに入る",
     palette: { order: 45, keywords: ["dependency", "parent", "child", "親子", "ジャンプ"] },
     shortcuts: [{ keys: "j", label: "親子ジャンプモードに入る" }],
-    run: () => {
+    run: (context) => {
       cancelPointPick();
       cancelNumericReferencePick();
       cancelLinePick();
@@ -380,47 +380,63 @@ export const viewModeCommandDefinitions = {
         isDependencyJumpMode: true,
         selectedDependencyJumpIndex: 0
       });
+      context?.focusInspectorDependencyRows?.();
     }
   },
   exitDependencyJumpMode: {
     id: "exitDependencyJumpMode",
     label: "親子要素ジャンプモードを終了",
     shortcuts: [{ keys: "Escape" }],
-    run: () => useCadUiStore.setState({ isDependencyJumpMode: false, selectedDependencyJumpIndex: 0 })
+    run: (context) => {
+      const inspectorFocused = context?.inspectorHasFocus?.() ?? false;
+      useCadUiStore.setState({ isDependencyJumpMode: false, selectedDependencyJumpIndex: 0 });
+      if (inspectorFocused) context?.exitInspector?.();
+    }
   },
   selectNextDependencyJumpTarget: {
     id: "selectNextDependencyJumpTarget",
     label: "次の親子要素を選択",
     shortcuts: [{ keys: "ArrowDown" }],
-    run: () => selectDependencyJumpTargetByOffset(1)
+    run: (context) => {
+      if (context?.inspectorHasFocus?.()) return context.moveInspectorDependencyRow?.(1) ?? false;
+      return selectDependencyJumpTargetByOffset(1);
+    }
   },
   selectPreviousDependencyJumpTarget: {
     id: "selectPreviousDependencyJumpTarget",
     label: "前の親子要素を選択",
     shortcuts: [{ keys: "ArrowUp" }],
-    run: () => selectDependencyJumpTargetByOffset(-1)
+    run: (context) => {
+      if (context?.inspectorHasFocus?.()) return context.moveInspectorDependencyRow?.(-1) ?? false;
+      return selectDependencyJumpTargetByOffset(-1);
+    }
   },
   jumpToSelectedDependencyTarget: {
     id: "jumpToSelectedDependencyTarget",
     label: "選択中の親子要素へジャンプ",
     shortcuts: [{ keys: "Enter" }],
-    run: () => jumpToSelectedDependencyTarget()
+    run: (context) => {
+      if (context?.inspectorHasFocus?.()) return context.activateInspectorRow?.() ?? false;
+      return jumpToSelectedDependencyTarget();
+    }
   },
   enterParameterEditMode: {
     id: "enterParameterEditMode",
     label: "パラメーター編集モードに入る",
     palette: { order: 46, keywords: ["parameter", "edit", "パラメーター", "編集"] },
     shortcuts: [{ keys: "e", label: "要素設定モードに入る" }, { keys: "Enter" }],
-    run: () => {
+    run: (context) => {
       const selectedElement = getSelectedElement();
       if (!selectedElement) return;
       useCadUiStore.setState({
+        showElementInfoPanel: true,
         isParameterEditMode: true,
         isDependencyJumpMode: false
       });
       useCadUiStore.getState().setSelectedParameterKey(
         normalizeParameterKey(selectedElement, useCadUiStore.getState().selectedParameterKey)
       );
+      context?.focusInspectorParameterRows?.();
     }
   },
   exitParameterEditMode: {
@@ -428,6 +444,10 @@ export const viewModeCommandDefinitions = {
     label: "パラメーター編集モードを終了",
     palette: { order: 47, keywords: ["parameter", "edit", "escape", "パラメーター", "終了"] },
     shortcuts: [{ keys: "Escape" }],
-    run: () => useCadUiStore.getState().setParameterEditMode(false)
+    run: (context) => {
+      const inspectorFocused = context?.inspectorHasFocus?.() ?? false;
+      useCadUiStore.getState().setParameterEditMode(false);
+      if (inspectorFocused) context?.exitInspector?.();
+    }
   }
 } satisfies Partial<Record<CommandId, Command>>;

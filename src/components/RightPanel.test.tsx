@@ -1,6 +1,9 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { createRef } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RightPanel } from "./RightPanel";
+import type { InspectorPanelHandle } from "./InspectorPanel";
+import type { SourceEditorHandle } from "../editor/sourceEditorTypes";
 import { PaletteSettingsDialog } from "./PalettePanel";
 import { SelectionColorPickerDialog } from "./SelectionColorPickerDialog";
 import { ShortcutHelpOverlay } from "./ShortcutHelpOverlay";
@@ -98,15 +101,22 @@ const renderRightPanel = (
     isDependencyJumpMode?: boolean;
   } = {}
 ) =>
-  render(
+  {
+    const inspectorRef = createRef<InspectorPanelHandle>();
+    const sourceEditorRef = createRef<SourceEditorHandle>();
+    return render(
     <RightPanel
       evaluation={evaluation}
       evaluationState={engineState}
       isParameterEditMode={options.isParameterEditMode ?? false}
       isDependencyJumpMode={options.isDependencyJumpMode ?? false}
       registerParameterControl={() => undefined}
+      inspectorRef={inspectorRef}
+      sourceEditorRef={sourceEditorRef}
+      onExitInspector={() => undefined}
     />
-  );
+    );
+  };
 
 
 const renderShortcutHelpOverlay = (
@@ -251,12 +261,12 @@ describe("RightPanel numeric input dragging", () => {
 
     renderRightPanel();
 
-    expect(screen.getByText("変数名")).toBeInTheDocument();
-    expect(screen.getByText("開始")).toBeInTheDocument();
-    expect(screen.getByText("回数")).toBeInTheDocument();
-    expect(screen.getByText("ステップ")).toBeInTheDocument();
-    expect(screen.getByText("展開する")).toBeInTheDocument();
-    expect(screen.getByText("生成結果を表示")).toBeInTheDocument();
+    expect(within(document.querySelector(".editor-grid")!).getByText("変数名")).toBeInTheDocument();
+    expect(within(document.querySelector(".editor-grid")!).getByText("開始")).toBeInTheDocument();
+    expect(within(document.querySelector(".editor-grid")!).getByText("回数")).toBeInTheDocument();
+    expect(within(document.querySelector(".editor-grid")!).getByText("ステップ")).toBeInTheDocument();
+    expect(within(document.querySelector(".editor-grid")!).getByText("展開する")).toBeInTheDocument();
+    expect(within(document.querySelector(".editor-grid")!).getByText("生成結果を表示")).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("プリーツ繰り返し の変数名"), {
       target: { value: "n" }
@@ -1520,6 +1530,8 @@ describe("Palette and element color editing", () => {
   });
 
   it("opens palette editing from the selected element color field", () => {
+    const inspectorRef = createRef<InspectorPanelHandle>();
+    const sourceEditorRef = createRef<SourceEditorHandle>();
     render(
       <>
         <RightPanel
@@ -1527,6 +1539,9 @@ describe("Palette and element color editing", () => {
           isParameterEditMode={false}
           isDependencyJumpMode={false}
           registerParameterControl={() => undefined}
+          inspectorRef={inspectorRef}
+          sourceEditorRef={sourceEditorRef}
+          onExitInspector={() => undefined}
         />
         <PaletteSettingsDialog />
       </>

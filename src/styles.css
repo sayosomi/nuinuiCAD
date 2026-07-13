@@ -777,6 +777,95 @@ textarea {
   color: #73320d;
 }
 
+.inspector-panel {
+  min-height: 0;
+}
+
+.inspector-navigation {
+  display: grid;
+  gap: 10px;
+  max-height: min(48vh, 560px);
+  overflow: auto;
+  outline: none;
+}
+
+.inspector-navigation:focus-visible {
+  box-shadow: inset 0 0 0 2px #0f766e;
+}
+
+.inspector-status-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.inspector-status {
+  border: 1px solid #c9cec3;
+  border-radius: 999px;
+  padding: 2px 7px;
+  color: #4b5148;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.inspector-status.エラー {
+  border-color: #e69a88;
+  background: #fff2ee;
+  color: #8b291a;
+}
+
+.inspector-status.警告,
+.inspector-status.条件外 {
+  border-color: #d7c38b;
+  background: #fff9e8;
+  color: #71510b;
+}
+
+.inspector-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  cursor: pointer;
+  border: 1px solid #d7d9d2;
+  border-radius: 5px;
+  padding: 7px 8px;
+}
+
+.inspector-row:hover,
+.inspector-row.is-active {
+  border-color: #6fa89d;
+  background: #edf8f5;
+}
+
+.inspector-row-main {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.inspector-row small {
+  color: #666a61;
+  overflow-wrap: anywhere;
+}
+
+.inspector-diagnostic {
+  margin: 0;
+  border-radius: 4px;
+  padding: 6px 7px;
+  font-size: 12px;
+}
+
+.inspector-diagnostic.error {
+  background: #fff2ee;
+  color: #8b291a;
+}
+
+.inspector-diagnostic.warning {
+  background: #fff9e8;
+  color: #71510b;
+}
+
 .button-row {
   display: flex;
   flex-wrap: wrap;

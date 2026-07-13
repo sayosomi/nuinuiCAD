@@ -196,6 +196,35 @@ describe("AppLayout keyboard handling", () => {
     });
   });
 
+  it("keeps Enter after Inspector focus movement out of the legacy parameter form", async () => {
+    const view = render(<AppLayout />);
+    const viewport = view.container.querySelector(".canvas-viewport");
+    if (!(viewport instanceof HTMLDivElement)) throw new Error("Missing canvas viewport");
+    const line = sampleElements.find((element) => element.id === "line-ab");
+    if (!line) throw new Error("Missing line fixture");
+
+    act(() => {
+      useCadStore.setState({
+        selectedElementId: line.id,
+        selectedElementIds: [line.id],
+        selectionAnchorElementId: line.id,
+        selectedParameterKey: "startPoint",
+        showElementInfoPanel: false
+      });
+    });
+    viewport.focus();
+    fireEvent.keyDown(window, { key: "e" });
+
+    const inspector = await view.findByRole("listbox", { name: "インスペクタ行" });
+    await waitFor(() => expect(inspector).toHaveFocus());
+    fireEvent.keyDown(window, { key: "Enter" });
+
+    await waitFor(() =>
+      expect(document.activeElement?.closest("[data-source-editor-scope='true']")).toBeTruthy()
+    );
+    expect(useCadStore.getState().activePointPickTarget).toBeNull();
+  });
+
   it("toggles evaluation with a from the focused canvas", () => {
     const view = render(<AppLayout />);
     const viewport = view.container.querySelector(".canvas-viewport");

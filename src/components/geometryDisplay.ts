@@ -7,6 +7,7 @@ import {
 import type {
   ComputedArcLine,
   ComputedBezierCurve,
+  ComputedGeometry,
   ComputedLine,
   ComputedOffsetLine,
   ComputedPoint,
@@ -132,3 +133,18 @@ export const offsetLineInfoRows = (line: ComputedOffsetLine) => [
   { label: "長さ", value: formatMillimeters(line.length) },
   ...(line.closed ? [{ label: "閉じる", value: "はい" }] : [])
 ];
+
+/** Existing measurement formatting collected behind one read-only presentation entry point. */
+export const geometryInfoRows = (
+  geometry: ComputedGeometry | undefined,
+  variable: ComputedVariable | undefined
+) => {
+  if (variable) return variableInfoRows(variable);
+  if (!geometry) return [];
+  if (geometry.kind === "point") return pointCoordinateRows(geometry);
+  if (geometry.kind === "line") return lineInfoRows(geometry);
+  if (geometry.kind === "arcLine") return arcLineInfoRows(geometry);
+  if (geometry.kind === "bezierCurve") return bezierCurveInfoRows(geometry);
+  if (geometry.kind === "offsetLine") return offsetLineInfoRows(geometry);
+  return [];
+};

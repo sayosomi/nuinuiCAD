@@ -1,41 +1,22 @@
 import {
-  effectiveEnabledElementIds,
-  effectiveVisibleElementIds,
-  groupStateByElementId,
   isForGroupElement,
   isGroupExpanded,
   visibleOutlineElements,
   type GroupFoldById
 } from "../model/groups";
-import type { PickCandidate } from "../model/pickCandidates";
 import {
-  effectiveVisibleElementIdsForProfile,
-  visibilityProfileById
-} from "../model/visibilityProfiles";
-import { resolvedElementColorMap } from "../palette/elementColors";
+  createElementPresentationStatusIndex,
+  type ElementPresentationStatus
+} from "../model/elementPresentationStatus";
+import type { PickCandidate } from "../model/pickCandidates";
 import type { CadElement, DocumentPalette, ElementId, EvaluationResult, ForGroupGeneratedRow, VisibilityProfile } from "../types/geometry";
 import type { StatementRange, StatementRangeIndex } from "./statementRangeIndex";
 
 export type VisibleRange = { from: number; to: number };
 
-export type IndexedLineStatus = {
-  elementId: ElementId;
+export type IndexedLineStatus = ElementPresentationStatus & {
   from: number;
   to: number;
-  hasError: boolean;
-  hasWarning: boolean;
-  hiddenSelf: boolean;
-  hiddenByGroup: boolean;
-  hiddenByProfile: boolean;
-  disabledSelf: boolean;
-  disabledByGroup: boolean;
-  conditionInactive: boolean;
-  isEvaluated: boolean;
-  locked: boolean;
-  printEnabled: boolean;
-  canToggleVisibility: boolean;
-  canTogglePrint: boolean;
-  color: string;
 };
 
 export type IndexedGeneratedWidget = {
@@ -83,27 +64,6 @@ const groupedRows = (rows: readonly ForGroupGeneratedRow[] | undefined) => {
   return byOwner;
 };
 
-const groupIssueIds = (elements: readonly CadElement[], evaluation: EvaluationResult) => {
-  const errorIds = new Set(evaluation.errors.map((item) => item.elementId));
-  const warningIds = new Set(evaluation.warnings.map((item) => item.elementId));
-  const byId = new Map(elements.map((item) => [item.id, item]));
-  for (const sourceId of [...errorIds]) {
-    let current = byId.get(sourceId);
-    while (current?.parentGroupId) {
-      errorIds.add(current.parentGroupId);
-      current = byId.get(current.parentGroupId);
-    }
-  }
-  for (const sourceId of [...warningIds]) {
-    let current = byId.get(sourceId);
-    while (current?.parentGroupId) {
-      warningIds.add(current.parentGroupId);
-      current = byId.get(current.parentGroupId);
-    }
-  }
-  return { errorIds, warningIds };
-};
-
 /** Builds document-wide immutable lookup data only when source/evaluation/UI state changes.
  * Scrolling reads it through entriesInVisibleRanges and never scans the whole document. */
 export const createEvaluationDecorationIndex = ({
@@ -126,39 +86,23 @@ export const createEvaluationDecorationIndex = ({
   pickCandidates: readonly PickCandidate[];
 }): EvaluationDecorationIndex => {
   if (!evaluation) return { statuses: [], statusByLineFrom: new Map(), generatedWidgets: [], pickLines: [] };
+  const statusesByElementId = createElementPresentationStatusIndex({
+    elements,
+    evaluation,
+    groupFoldById,
+    palette,
+    visibilityProfiles,
+    activeVisibilityProfileId
+  });
   const byId = new Map(elements.map((element) => [element.id, element]));
-  const groupStates = groupStateByElementId([...elements], groupFoldById);
-  const profile = visibilityProfileById([...visibilityProfiles], activeVisibilityProfileId);
-  const profileVisible = effectiveVisibleElementIdsForProfile({ elements: [...elements], profile });
-  const baseVisible = evaluation.effectiveVisibleElementIds ?? effectiveVisibleElementIds([...elements]);
-  const enabled = evaluation.effectiveEnabledElementIds ?? effectiveEnabledElementIds([...elements]);
-  const conditionInactive = evaluation.conditionInactiveElementIds ?? new Set<ElementId>();
-  const evaluated = evaluation.evaluatedElementIds ?? new Set(elements.map((element) => element.id));
-  const colors = resolvedElementColorMap([...elements], palette);
-  const { errorIds, warningIds } = groupIssueIds(elements, evaluation);
   const statuses: IndexedLineStatus[] = [];
   for (const range of [...ranges.values()].sort((left, right) => left.from - right.from)) {
-    const element = byId.get(range.elementId);
-    if (!element) continue;
-    const groupState = groupStates.get(element.id);
+    const status = statusesByElementId.get(range.elementId);
+    if (!status) continue;
     statuses.push({
-      elementId: element.id,
       from: range.from,
       to: range.to,
-      hasError: errorIds.has(element.id),
-      hasWarning: warningIds.has(element.id),
-      hiddenSelf: !element.visible,
-      hiddenByGroup: Boolean(groupState?.hiddenByGroupId),
-      hiddenByProfile: element.visible && !groupState?.hiddenByGroupId && !profileVisible.has(element.id),
-      disabledSelf: !element.enabled,
-      disabledByGroup: Boolean(groupState?.disabledByGroupId),
-      conditionInactive: conditionInactive.has(element.id),
-      isEvaluated: evaluated.has(element.id) && enabled.has(element.id) && baseVisible.has(element.id),
-      locked: Boolean(element.locked),
-      printEnabled: element.type === "group" && element.printEnabled === true,
-      canToggleVisibility: element.type !== "variable",
-      canTogglePrint: element.type === "group",
-      color: colors.get(element.id) ?? "#31322f"
+      ...status
     });
   }
   const visibleOutline = visibleOutlineElements([...elements], groupFoldById);

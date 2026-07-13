@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import type { RefObject } from "react";
 import { dispatchCommand } from "../commands/commands";
 import { numericValueExpression } from "../geometry/numericExpressions";
 import type { EvaluationEngineState } from "../geometry/useEvaluationEngine";
@@ -9,8 +10,9 @@ import { useCadUiStore } from "../state/cadUiStore";
 import type { NumericValue } from "../types/geometry";
 import type { EvaluationResult } from "../types/geometry";
 import { ElementEditor } from "./ElementEditor";
-import { ElementInfoPanel } from "./ElementInfoPanel";
 import { ExpressionInsertTray } from "./ExpressionInsertTray";
+import { InspectorPanel, type InspectorPanelHandle } from "./InspectorPanel";
+import type { SourceEditorHandle } from "../editor/sourceEditorTypes";
 
 type RightPanelProps = {
   evaluation: EvaluationResult;
@@ -18,9 +20,20 @@ type RightPanelProps = {
   isParameterEditMode: boolean;
   isDependencyJumpMode: boolean;
   registerParameterControl: (key: string, element: HTMLElement | null) => void;
+  inspectorRef: RefObject<InspectorPanelHandle | null>;
+  sourceEditorRef: RefObject<SourceEditorHandle | null>;
+  onExitInspector: () => void;
 };
 
-const evaluationEngineLabel = (state: EvaluationEngineState) => {
+const isNumericValue = (value: unknown): value is NumericValue =>
+  typeof value === "number" ||
+  (typeof value === "object" &&
+    value !== null &&
+    "kind" in value &&
+    (value as { kind?: unknown }).kind === "expression");
+
+const evaluationEngineLabel = (state: EvaluationEngineState | undefined) => {
+  if (!state || state.mode === "reference") return null;
   if (state.mode === "parity" || state.mode === "shadow") {
     if (state.status === "evaluating") return "parity / Rust評価中";
     if (state.status === "failed") return "parity / Rust失敗";
@@ -32,25 +45,20 @@ const evaluationEngineLabel = (state: EvaluationEngineState) => {
   return null;
 };
 
-const isNumericValue = (value: unknown): value is NumericValue =>
-  typeof value === "number" ||
-  (typeof value === "object" &&
-    value !== null &&
-    "kind" in value &&
-    (value as { kind?: unknown }).kind === "expression");
-
 export const RightPanel = ({
   evaluation,
   evaluationState,
   isParameterEditMode,
   isDependencyJumpMode,
-  registerParameterControl
+  registerParameterControl,
+  inspectorRef,
+  sourceEditorRef,
+  onExitInspector
 }: RightPanelProps) => {
   const rightPanelRef = useRef<HTMLElement | null>(null);
   const elements = useCadDocumentStore(effectiveElements);
   const selectedElementId = useCadUiStore((state) => state.selectedElementId);
   const selectedParameterKey = useCadUiStore((state) => state.selectedParameterKey);
-  const selectedDependencyJumpIndex = useCadUiStore((state) => state.selectedDependencyJumpIndex);
   const activeExpressionInsertTarget = useCadUiStore((state) => state.activeExpressionInsertTarget);
   const expressionInsertInputTarget = useCadUiStore((state) => state.expressionInsertInputTarget);
   const selectedElement = elements.find((element) => element.id === selectedElementId) ?? null;
@@ -78,10 +86,6 @@ export const RightPanel = ({
   const shortcutHint = isParameterEditMode || isDependencyJumpMode
     ? "Esc で終了 / ? でショートカット"
     : "? でショートカット";
-  const engineLabel = evaluationState && evaluationState.mode !== "reference"
-    ? evaluationEngineLabel(evaluationState)
-    : null;
-
   useEffect(() => {
     if (!isParameterEditMode || !selectedElementId || !selectedParameterKey) return undefined;
 
@@ -149,18 +153,16 @@ export const RightPanel = ({
         />
       ) : null}
 
-      <ElementInfoPanel
+      <InspectorPanel
+        ref={inspectorRef}
         element={selectedElement}
         elements={elements}
         evaluation={evaluation}
-        evaluationEngineLabel={engineLabel}
+        evaluationEngineLabel={evaluationEngineLabel(evaluationState)}
         isEvaluationFallback={evaluationState?.source === "fallback"}
         isEvaluationStale={evaluationState?.isStale}
-        isDependencyJumpMode={isDependencyJumpMode}
-        selectedDependencyJumpIndex={selectedDependencyJumpIndex}
-        setSelectedElementId={(id) => {
-          if (id) dispatchCommand("selectElement", { elementId: id });
-        }}
+        sourceEditorRef={sourceEditorRef}
+        onExit={onExitInspector}
       />
 
       <section className="panel-section">

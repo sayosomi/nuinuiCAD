@@ -36,6 +36,18 @@ Escでエディタ/キャンバスへ復帰。**インスペクタは読み取�
   (`getParameterDefinitions` + `getParameterValue`)を読み取り専用で使う。
 * 旧 `ElementEditor` / パラメータ編集モードはこのタスク中は現状のまま動き続ける。
 
+## dependency jump移行方針(3cで確定)
+
+* Inspector navigationの正は、InspectorPanelが保持する **`activeRowKey`** とする。
+  dependency jumpとparameter navigationで別々の行ナビ状態機械は作らない。
+* `selectedDependencyJumpIndex` はInspector navigationの正ではない。ただし3c中に
+  旧dependency jump経路が参照する間は互換入口として残し、削除しない。
+* 旧command ID (`enterDependencyJumpMode` / 次・前・Enter / Escape) は、Inspectorが
+  focus中なら単一のInspector handleへ委譲する。Inspector外では3c互換の旧経路を
+  保持する。
+* 3dで旧dependency jump経路の参照を全数確認し、不要になった時点で
+  `selectedDependencyJumpIndex`、専用配管、専用テストを完全削除する。
+
 ## 変更対象ファイル
 
 * 新規 `src/components/InspectorPanel.tsx`(+ `InspectorPanel.test.tsx`)。
@@ -43,8 +55,8 @@ Escでエディタ/キャンバスへ復帰。**インスペクタは読み取�
   `InspectorPanel` を差し込む(ElementEditor/ExpressionInsertTrayは触らない)。
 * `src/components/ElementInfoPanel.tsx` — InspectorPanelへ吸収する場合は
   参照を置換して削除してよい(表示ロジックの二重化を残さない)。
-* `src/state/cadUiStore.ts` — インスペクタ行フォーカスstate(選択中行の
-  index/key)が必要なら追加。
+* `src/state/cadUiStore.ts` — `selectedDependencyJumpIndex` は旧経路の互換stateとして
+  残す。Inspectorのactive rowをここへ重複保持しない。
 * `src/commands/` / `src/keyboard/` — インスペクタ行ナビ・Enterジャンプ・
   Esc復帰をコマンドとして登録(既存 `dependencyJump` scopeとの関係は
   下記確認事項)。
@@ -67,11 +79,13 @@ Escでエディタ/キャンバスへ復帰。**インスペクタは読み取�
    5. パラメータ一覧: `getParameterDefinitions` の順にラベル+現在値
       (+式のときは式テキスト)。読み取り専用。行のEnter/クリックで
       `jumpToParameterValue(elementId, definition.key)`。
-2. **キーボードナビ**: インスペクタにフォーカスがある間、`↑`/`↓` で行移動、
+2. **キーボードナビ**: 新しいshortcutは作らず、既存
+   `enterParameterEditMode` / `enterDependencyJumpMode` をInspectorへの入口として
+   再利用する。インスペクタにフォーカスがある間、`↑`/`↓` で行移動、
    `Enter` でその行のジャンプ、`Esc` でSource Editor(またはキャンバス)へ
-   復帰。旧パラメータ編集モードの「キーボードでパラメータへ到達する」役割を
-   代替するのが狙い。フォーカス管理はDOMフォーカス+`cadUiStore` のどちらを
-   正にするか実装時に確定し、テストで固定する。
+   復帰。行の正はローカル`activeRowKey`、Inspector focus判定はhandleの単一境界と
+   し、各commandがDOM queryを重複してはならない。旧パラメータ編集モードの
+   「キーボードでパラメータへ到達する」役割を代替するのが狙い。
 3. **RightPanel差し替え**: `ElementInfoPanel` 使用箇所をInspectorPanelへ。
    ElementEditor/ExpressionInsertTray/ショートカットヒントは現状維持。
 4. **ジャンプ動作**: パラメータ行Enter→エディタへフォーカスが移り該当値spanが
@@ -89,8 +103,8 @@ Escでエディタ/キャンバスへ復帰。**インスペクタは読み取�
 ## 状態とデータフロー
 
 * 読み取り: `cadDocumentStore`(elements・diagnostics)、evaluation
-  (AppLayoutから渡る現行のprops経路)、`cadUiStore`(選択・行フォーカス)。
-* 書き込み: `cadUiStore` の選択/行フォーカスと、handle経由のジャンプ
+  (AppLayoutから渡る現行のprops経路)、`cadUiStore`(要素選択・旧dependency jump互換state)。
+* 書き込み: 要素選択と、InspectorPanelローカルの`activeRowKey`、handle経由のジャンプ
   (selection-only)のみ。**文書(sourceText)には一切書かない。**
 * ジャンプはdirty bufferでも3aの規則で現在CMテキスト基準に解決される。
 
@@ -116,12 +130,15 @@ Escでエディタ/キャンバスへ復帰。**インスペクタは読み取�
 * 100要素超の文書でも成立するUI(スクロール・検索性・キーボード到達性)。
   巨大な静的リストで参照を選ばせない(AGENTS.md)。
 * 旧ElementEditor系の挙動を変えない(併存のまま)。
+* SourceEditorControllerからAppLayout固有のInspector handleへ逆向きの配線は追加しない。
+  Editorはregistry経由のcommand発火までに留め、focus処理はAppLayout側に閉じる。
 
 ## 必須自動テスト
 
 * パラメータ行→Enter→該当値spanが全選択されエディタにフォーカスが移ること
   (数値・式・参照・選択肢・色・真偽の各種別で)。
 * 行ナビゲーション(↑↓・端の挙動)・Esc復帰。
+* Inspectorへのfocus移動直後のEnterが旧フォーム編集・pick開始へfallthroughしないこと。
 * 依存関係行のジャンプと種別表示(欠落・未解決・エラー保持)。
 * 状態バッジがエラー/無効/非表示/ロックを正しく反映。
 * インスペクタ内に `input` / `textarea` / `select` /
@@ -159,15 +176,16 @@ Escでエディタ/キャンバスへ復帰。**インスペクタは読み取�
   `src/model/` のpure helperへ抽出して両者が使う、(b) Inspector側で
   elements+evaluationから同等判定を実装する、のどちらかを選ぶ。(a)を推奨
   (意味論の重複実装禁止)が、editor側リファクタは最小に留めること。
-* **dependencyJump modeとの関係**: 既存 `dependencyJump` scope(`j` で入る
-  親子ジャンプモード)はElementInfoPanelの選択表示と結合している。
-  インスペクタ行ナビへ吸収するか併存させるかを実装時に確定し、吸収する場合は
-  廃止command IDを対応表に載せる(削除自体は3dでもよい)。
-* インスペクタへのフォーカス移動の入口(ショートカット/コマンド。旧
-  `enterParameterEditMode`(`e`)の再利用は3dの対応表と整合させる)。
+* **dependencyJump modeとの関係**: 上記移行方針どおり、旧IDはInspector handleへ
+  委譲する互換入口とし、`selectedDependencyJumpIndex` の削除は3dへ送る。
+* Inspectorへのフォーカス移動は新規Mod+Alt+Iを追加せず、既存
+  `enterParameterEditMode`(`e` / normal `Enter`)と`enterDependencyJumpMode`(`j`)を
+  再利用する。
 
 ## 次タスクへの引き継ぎ
 
 * 3dはRightPanelからElementEditor/ExpressionInsertTrayを外し、InspectorPanel
   構成のみへ書き換える。本タスクで残した併存UI・stateの一覧を報告に含め、
   3dの削除対象の照合に使えるようにすること。
+* 3dは旧dependency jump経路を全数監査し、参照が消えた時点で
+  `selectedDependencyJumpIndex` と専用配管・テストを削除すること。
