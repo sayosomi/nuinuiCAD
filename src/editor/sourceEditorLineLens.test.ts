@@ -413,6 +413,26 @@ describe("SourceEditor selected-line lens Tab/Shift-Tab value navigation", () =>
     controller.destroy();
   });
 
+  it("steps an expression literal through the Lens while preserving its quoted expression", async () => {
+    const expressionSource = [
+      "nui 1",
+      "var 変数1 = 13 + 1",
+      "point A = (0, 0)",
+      'point B = offset A dx="@変数1 * 2" dy=0 steps=[dx:0.25]'
+    ].join("\n");
+    useCadDocumentStore.getState().commitText(expressionSource, "test");
+    const { controller, lensView } = await openLensOnLine(4);
+    const two = lensView.state.doc.toString().indexOf("* 2") + 2;
+    lensView.dispatch({ selection: EditorSelection.cursor(two) });
+
+    pressLensStep(lensView);
+
+    expect(useCadDocumentStore.getState().sourceText).toContain('dx="@変数1 * 2.25"');
+    await settleLens();
+    expect(lensView.state.doc.toString().slice(lensView.state.selection.main.from, lensView.state.selection.main.to)).toBe("2.25");
+    controller.destroy();
+  });
+
   it("steps a Lens end-of-line value through every repeat without falling through", async () => {
     const offsetSource = [
       "nui 1",

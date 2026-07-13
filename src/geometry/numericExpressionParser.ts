@@ -8,7 +8,9 @@ type ArithmeticOperator = "+" | "-" | "*" | "/";
 type ComparisonOperator = ">" | ">=" | "<" | "<=" | "==" | "!=";
 type LogicalOperator = "&&" | "||";
 
-export type Token =
+type TokenSpan = { start: number; end: number };
+
+export type Token = TokenSpan & (
   | { type: "number"; value: number }
   | { type: "reference"; elementId: ElementId; property: string }
   | { type: "element"; elementId: ElementId }
@@ -19,7 +21,8 @@ export type Token =
   | { type: "logicalOperator"; value: LogicalOperator }
   | { type: "comma" }
   | { type: "leftParen" }
-  | { type: "rightParen" };
+  | { type: "rightParen" }
+);
 
 const functionNames = new Map<string, NumericExpressionFunctionName>([
   ["distance", "distance"],
@@ -45,48 +48,68 @@ export const tokenize = (expression: string): Token[] => {
       continue;
     }
     if (char === "(") {
-      tokens.push({ type: "leftParen" });
+      tokens.push({ type: "leftParen", start: index, end: index + 1 });
       index += 1;
       continue;
     }
     if (char === ")") {
-      tokens.push({ type: "rightParen" });
+      tokens.push({ type: "rightParen", start: index, end: index + 1 });
       index += 1;
       continue;
     }
     if (char === ",") {
-      tokens.push({ type: "comma" });
+      tokens.push({ type: "comma", start: index, end: index + 1 });
       index += 1;
       continue;
     }
     if (char === "+" || char === "-" || char === "*" || char === "/") {
-      tokens.push({ type: "operator", value: char });
+      tokens.push({ type: "operator", value: char, start: index, end: index + 1 });
       index += 1;
       continue;
     }
     const logicalMatch = expression.slice(index).match(/^(&&|\|\|)/);
     if (logicalMatch) {
-      tokens.push({ type: "logicalOperator", value: logicalMatch[0] as LogicalOperator });
+      tokens.push({
+        type: "logicalOperator",
+        value: logicalMatch[0] as LogicalOperator,
+        start: index,
+        end: index + logicalMatch[0].length
+      });
       index += logicalMatch[0].length;
       continue;
     }
     const comparisonMatch = expression.slice(index).match(/^(>=|<=|==|!=|>|<)/);
     if (comparisonMatch) {
-      tokens.push({ type: "comparisonOperator", value: comparisonMatch[0] as ComparisonOperator });
+      tokens.push({
+        type: "comparisonOperator",
+        value: comparisonMatch[0] as ComparisonOperator,
+        start: index,
+        end: index + comparisonMatch[0].length
+      });
       index += comparisonMatch[0].length;
       continue;
     }
 
     const numberMatch = expression.slice(index).match(/^\d+(?:\.\d+)?|^\.\d+/);
     if (numberMatch) {
-      tokens.push({ type: "number", value: Number(numberMatch[0]) });
+      tokens.push({
+        type: "number",
+        value: Number(numberMatch[0]),
+        start: index,
+        end: index + numberMatch[0].length
+      });
       index += numberMatch[0].length;
       continue;
     }
 
     const localVariableMatch = expression.slice(index).match(/^@([^\s()+*/.<>!=&|]+)/);
     if (localVariableMatch) {
-      tokens.push({ type: "localVariable", variableId: localVariableMatch[1] });
+      tokens.push({
+        type: "localVariable",
+        variableId: localVariableMatch[1],
+        start: index,
+        end: index + localVariableMatch[0].length
+      });
       index += localVariableMatch[0].length;
       continue;
     }
@@ -94,7 +117,7 @@ export const tokenize = (expression: string): Token[] => {
     const functionMatch = expression.slice(index).match(/^([^\s(),+*/.<>!=&|]+)\s*(?=\()/);
     const functionName = functionMatch ? functionNames.get(functionMatch[1]) : undefined;
     if (functionMatch && functionName) {
-      tokens.push({ type: "function", name: functionName });
+      tokens.push({ type: "function", name: functionName, start: index, end: index + functionMatch[1].length });
       index += functionMatch[1].length;
       continue;
     }
@@ -110,7 +133,9 @@ export const tokenize = (expression: string): Token[] => {
       tokens.push({
         type: "reference",
         elementId: referenceMatch[1],
-        property
+        property,
+        start: index,
+        end: index + referenceMatch[0].length
       });
       index += referenceMatch[0].length;
       continue;
@@ -118,14 +143,14 @@ export const tokenize = (expression: string): Token[] => {
 
     const constantMatch = piMatch(expression, index);
     if (constantMatch) {
-      tokens.push({ type: "number", value: Math.PI });
+      tokens.push({ type: "number", value: Math.PI, start: index, end: index + constantMatch[0].length });
       index += constantMatch[0].length;
       continue;
     }
 
     const elementMatch = expression.slice(index).match(/^([^\s(),+*/<>!=&|]+)/);
     if (elementMatch) {
-      tokens.push({ type: "element", elementId: elementMatch[1] });
+      tokens.push({ type: "element", elementId: elementMatch[1], start: index, end: index + elementMatch[0].length });
       index += elementMatch[0].length;
       continue;
     }

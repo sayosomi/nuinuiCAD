@@ -4,6 +4,7 @@ import {
   getNumericParameterStep
 } from "../parameters/parameterDefinitions";
 import type { CadElement } from "../types/geometry";
+import { findNumericExpressionLiteralSpanAt } from "../geometry/numericExpressionLiteralSpan";
 import { resolveParameterTargetAt, type DslParameterSpanContext } from "./dslParameterSpans";
 import type { DslSpan } from "./dslTypes";
 
@@ -90,6 +91,15 @@ const choiceAfterStep = (
   return options[(index + direction + options.length) % options.length] ?? null;
 };
 
+const quotedExpressionSpan = (lineText: string, span: DslSpan): DslSpan | null => {
+  const quote = lineText[span.start];
+  if ((quote !== "\"" && quote !== "'") || lineText[span.end - 1] !== quote) return span;
+  const inner = { start: span.start + 1, end: span.end - 1 };
+  // Unescaping would invalidate offsets. Numeric-expression serialization does
+  // not require escapes, so leave ambiguous source safely untouched.
+  return lineText.slice(inner.start, inner.end).includes("\\") ? null : inner;
+};
+
 /**
  * Resolves and rewrites one editor-native value without parsing parameter mappings
  * independently. Parameter/span semantics are owned by resolveParameterTargetAt.
@@ -103,19 +113,38 @@ export const resolveDslValueStep = (
 ): DslValueStepResult | null => {
   const target = resolveParameterTargetAt(lineText, element, selection, context);
   if (!target) return null;
-  if (selection.start !== selection.end &&
-    (selection.start !== target.start || selection.end !== target.end)) return null;
 
   const value = lineText.slice(target.start, target.end);
   const definition = findParameterDefinition(element, target.parameterKey);
-  let insert: string | null = null;
   if (!definition || definition.kind === "number") {
-    insert = stepDslNumericLiteral(
-      value,
+    const expressionSpan = quotedExpressionSpan(lineText, target);
+    if (!expressionSpan) return null;
+    const literal = findNumericExpressionLiteralSpanAt(
+      lineText.slice(expressionSpan.start, expressionSpan.end),
+      { start: selection.start - expressionSpan.start, end: selection.end - expressionSpan.start }
+    );
+    if (!literal) return null;
+    const from = expressionSpan.start + literal.start;
+    const to = expressionSpan.start + literal.end;
+    const literalValue = lineText.slice(from, to);
+    const insert = stepDslNumericLiteral(
+      literalValue,
       definition ? getNumericParameterStep(element, definition.key) : defaultNumericParameterStep,
       direction
     );
-  } else if (definition.kind === "boolean") {
+    if (insert === null || insert === literalValue) return null;
+    return {
+      parameterKey: target.parameterKey,
+      from,
+      to,
+      insert,
+      selection: { start: from, end: from + insert.length }
+    };
+  }
+  if (selection.start !== selection.end &&
+    (selection.start !== target.start || selection.end !== target.end)) return null;
+  let insert: string | null = null;
+  if (definition.kind === "boolean") {
     insert = value === "true" ? "false" : value === "false" ? "true" : null;
   } else if (definition.kind === "choice" && definition.choiceOptions) {
     insert = choiceAfterStep(value, definition.choiceOptions, direction);

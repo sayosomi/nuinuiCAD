@@ -100,6 +100,35 @@ describe("SourceEditor editor-native value step commands", () => {
     parent.remove();
   });
 
+  it("steps one quoted expression literal with the parameter step and keeps repeat Undo semantics", () => {
+    const expressionSource = [
+      "nui 1",
+      "var 変数1 = 13 + 1",
+      "point A = (0, 0)",
+      'point B = offset A dx="@変数1 * 2" dy=0 steps=[dx:0.25]'
+    ].join("\n");
+    const { controller, parent, view } = openEditor(expressionSource);
+    const two = view.state.doc.toString().indexOf("* 2") + 2;
+    view.dispatch({ selection: EditorSelection.cursor(two) });
+    const before = useCadDocumentStore.getState();
+
+    fireEvent.keyDown(view.contentDOM, stepEvent(1));
+    fireEvent.keyDown(view.contentDOM, stepEvent(1, true));
+
+    expect(view.state.doc.toString()).toContain('dx="@変数1 * 2.5"');
+    expect(useCadDocumentStore.getState().sourceText).toBe(before.sourceText);
+    expect(useCadDocumentStore.getState().past).toHaveLength(before.past.length);
+    fireEvent.keyUp(view.contentDOM, stepEvent(1));
+
+    expect(useCadDocumentStore.getState().sourceText).toContain('dx="@変数1 * 2.5"');
+    expect(view.state.doc.toString().slice(view.state.selection.main.from, view.state.selection.main.to)).toBe("2.5");
+    expect(useCadDocumentStore.getState().past).toHaveLength(before.past.length + 1);
+    useCadDocumentStore.getState().undo();
+    expect(useCadDocumentStore.getState().sourceText).toBe(expressionSource);
+    controller.destroy();
+    parent.remove();
+  });
+
   it("steps an end-of-line value and consumes every repeat without moving to the next line", () => {
     const offsetSource = [
       "nui 1",

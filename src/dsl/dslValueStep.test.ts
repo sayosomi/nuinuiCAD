@@ -58,6 +58,55 @@ describe("resolveDslValueStep", () => {
     expect(stepAt(arcSource, arc, "start=15".slice(-2), 1)).toMatchObject({ parameterKey: "startAngleDeg", insert: "30" });
   });
 
+  it("steps only the selected numeric literal inside expressions, including quoted expressions", () => {
+    const variableSource = "var 変数1 = 13 + 1";
+    const variable = compileElement(variableSource);
+    expect(stepAt(variableSource, variable, "13", 1)).toMatchObject({
+      parameterKey: "expression", from: variableSource.indexOf("13"), to: variableSource.indexOf("13") + 2, insert: "14"
+    });
+    const trailingOne = variableSource.lastIndexOf("1");
+    expect(resolveDslValueStep(variableSource, variable, { start: trailingOne, end: trailingOne }, 1)).toMatchObject({
+      parameterKey: "expression", from: variableSource.lastIndexOf("1"), to: variableSource.length, insert: "2"
+    });
+
+    const offsetSource = 'point B = offset A dx="@変数1 * 2" dy=0';
+    const offset = { ...compileElement(offsetSource), numericParameterSteps: { dx: 0.25 } };
+    expect(stepAt(offsetSource, offset, "2", 1)).toMatchObject({
+      parameterKey: "dx", from: offsetSource.lastIndexOf("2"), to: offsetSource.lastIndexOf("2") + 1, insert: "2.25"
+    });
+  });
+
+  it("uses the default step for synthetic coordinates and preserves signed literal selection", () => {
+    const committed = "line L = A -> B";
+    const line = compileElement(committed);
+    const dirty = "line L = (-0.5 + 1, 2) -> B";
+    const start = dirty.indexOf("-0.5");
+    expect(resolveDslValueStep(dirty, line, { start, end: start }, 1, { committedLineText: committed })).toMatchObject({
+      parameterKey: "startPoint:x", from: start, to: start + 4, insert: "0.5",
+      selection: { start, end: start + 3 }
+    });
+  });
+
+  it("rejects expression-wide and partial selections, terminal carets before another token, and non-literals", () => {
+    const source = "point B = offset A dx=12+3 dy=0";
+    const element = compileElement(source);
+    const expressionStart = source.indexOf("12+3");
+    expect(resolveDslValueStep(source, element, { start: expressionStart, end: expressionStart + 4 }, 1)).toBeNull();
+    expect(resolveDslValueStep(source, element, { start: expressionStart, end: expressionStart + 1 }, 1)).toBeNull();
+    expect(resolveDslValueStep(source, element, { start: expressionStart + 2, end: expressionStart + 2 }, 1)).toBeNull();
+
+    for (const expression of ["1e3", "10mm", "version 2", "@value1"]) {
+      const live = `point B = offset A dx=${expression} dy=0`;
+      const start = live.indexOf(expression);
+      expect(resolveDslValueStep(live, element, { start, end: start }, 1)).toBeNull();
+    }
+
+    const textSource = 'text Label = "version 2" at=A size=4';
+    const text = compileElement(textSource);
+    const textStart = textSource.indexOf("2");
+    expect(resolveDslValueStep(textSource, text, { start: textStart, end: textStart }, 1)).toBeNull();
+  });
+
   it("toggles booleans and cycles choices, but leaves other parameter kinds untouched", () => {
     const booleanSource = "point A = (0, 0) locked=true";
     const point = compileElement(booleanSource);
