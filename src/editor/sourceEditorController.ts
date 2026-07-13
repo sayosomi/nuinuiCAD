@@ -341,7 +341,10 @@ export class SourceEditorController implements SourceEditorHandle {
     const element = this.store.getState().elements.find((candidate) => candidate.id === elementId);
     if (!range || !element) return false;
     const line = this.view.state.doc.lineAt(range.from);
-    const target = resolveParameterValueSpan(line.text, element, parameterKey);
+    const committedLineText = range.statement.line <= this.committedDoc.lines
+      ? this.committedDoc.line(range.statement.line).text
+      : undefined;
+    const target = resolveParameterValueSpan(line.text, element, parameterKey, { committedLineText });
     if (!target) {
       this.jumpToElement(elementId);
       this.view.focus();
