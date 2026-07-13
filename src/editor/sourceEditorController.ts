@@ -20,7 +20,7 @@ import {
 } from "@codemirror/view";
 import { forceLinting } from "@codemirror/lint";
 import { dispatchCommand } from "../commands/commands";
-import { sourceEditorShortcutBindings } from "../keyboard/shortcutRegistry";
+import { bindingMatchesEvent, sourceEditorShortcutBindings } from "../keyboard/shortcutRegistry";
 import type { KeyChord } from "../keyboard/shortcutTypes";
 import { pickCandidates } from "../model/pickCandidates";
 import type { ElementId, EvaluationResult } from "../types/geometry";
@@ -67,6 +67,13 @@ import { createEvaluationDecorationIndex, type EvaluationDecorationIndex } from 
 import { adjacentDslValueSpan, dslLineValueSpans, findDslValueSpanAt, type DslValueSpanDirection } from "../dsl/dslValueSpans";
 import { resolveParameterValueSpan } from "../dsl/dslParameterSpans";
 import { resolveDslValueStep, type DslValueStepDirection } from "../dsl/dslValueStep";
+import {
+  sameValueStepGesture,
+  valueStepDirectionForCommand,
+  valueStepGestureEndsOnKeyup,
+  valueStepGestureForKeyboardEvent,
+  type SourceEditorValueStepGesture
+} from "./sourceEditorValueStepGesture";
 
 type SourceStore = {
   getState: () => CadDocumentState;
@@ -132,6 +139,10 @@ export class SourceEditorController implements SourceEditorHandle {
   private applyingUiSync = false;
   private publishingCanvasSelection = false;
   private lineLensFocused = false;
+  /** A physical registry shortcut held down across browser key-repeat events. */
+  private activeValueStepGesture: SourceEditorValueStepGesture | null = null;
+  /** Set by the DOM observer, then consumed by the registry keymap's command dispatch. */
+  private pendingKeyboardValueStep: SourceEditorValueStepGesture | null = null;
   private destroyed = false;
   private view: EditorView;
 
@@ -166,7 +177,12 @@ export class SourceEditorController implements SourceEditorHandle {
             sourceKeymap: () => this.lineLensKeymap(),
             onFocusChange: (focused) => {
               this.lineLensFocused = focused;
-            }
+            },
+            onKeydown: (event, view) => this.observeValueStepKeydown(event, view),
+            onKeyup: (event) => this.observeValueStepKeyup(event),
+            onCompositionStart: () => this.beginComposition(),
+            onCompositionEnd: () => this.endComposition(),
+            onBlur: () => this.flush("blur")
           }),
           sourceEditorSelectionExtension,
           sourceEditorPatchHighlightExtension,
@@ -220,21 +236,18 @@ export class SourceEditorController implements SourceEditorHandle {
             contextmenu: (event, view) => this.handleContextMenu(event as MouseEvent, view),
             mouseup: (event, view) => this.handleValueClick(event as MouseEvent, view)
           }),
+          EditorView.domEventObservers({
+            keydown: (event, view) => this.observeValueStepKeydown(event as KeyboardEvent, view),
+            keyup: (event) => this.observeValueStepKeyup(event as KeyboardEvent)
+          }),
           EditorView.updateListener.of((update) => this.handleViewUpdate(update)),
           EditorView.domEventHandlers({
             compositionstart: () => {
-              this.protocol = beginSourceComposition(this.protocol);
+              this.beginComposition();
               return false;
             },
             compositionend: () => {
-              this.drainCompositionQueue();
-              this.publishCursorLine();
-              if (this.flushAfterComposition) {
-                this.flushAfterComposition = false;
-                this.flush("blur");
-              } else if (this.hasPendingText()) {
-                this.scheduleCommit();
-              }
+              this.endComposition();
               return false;
             },
             blur: () => {
@@ -374,7 +387,7 @@ export class SourceEditorController implements SourceEditorHandle {
     return true;
   };
 
-  /** Changes one proven value in the live source line, then creates exactly one store commit. */
+  /** Changes one proven value in the live source line. Keyboard repeats commit on keyup. */
   private stepSourceValue(direction: DslValueStepDirection) {
     if (this.protocol.composing) return false;
     const ui = this.uiStore.getState();
@@ -400,13 +413,73 @@ export class SourceEditorController implements SourceEditorHandle {
       direction,
       { committedLineText }
     );
-    if (!change) return false;
+    if (!change) {
+      if (this.activeValueStepGesture) this.flush("command");
+      return false;
+    }
     this.view.dispatch({
       changes: { from: line.from + change.from, to: line.from + change.to, insert: change.insert },
       selection: EditorSelection.single(line.from + change.selection.start, line.from + change.selection.end),
       annotations: Transaction.userEvent.of("input.stepValue")
     });
+    const keyboardGesture = this.pendingKeyboardValueStep;
+    this.pendingKeyboardValueStep = null;
+    if (keyboardGesture && keyboardGesture.direction === direction && this.activeValueStepGesture) {
+      this.cancelCommitTimer();
+      // The store history remains untouched until keyup, while effectiveElements
+      // still receives this valid projection so Canvas and evaluation keep pace.
+      this.store.getState().setSourceEditorPreviewText(this.getText());
+      return true;
+    }
     return this.flush("command") !== "blocked-composition";
+  }
+
+  private observeValueStepKeydown(event: KeyboardEvent, view: EditorView) {
+    if (this.destroyed || this.protocol.composing || view.compositionStarted) return;
+    const ui = this.uiStore.getState();
+    if (ui.activePointPickTarget || ui.activeNumericReferencePickTarget || ui.activeLinePickTarget || ui.activeTemplateInsertion) return;
+    const binding = sourceEditorShortcutBindings(ui.shortcutSettings).find((candidate) => {
+      const direction = valueStepDirectionForCommand(candidate.commandId);
+      return direction !== null && bindingMatchesEvent(candidate, event) &&
+        candidate.chords.some((chord) => codeMirrorKeyForChord(chord) !== null);
+    });
+    if (!binding) {
+      if (!event.repeat && this.activeValueStepGesture) this.flush("command");
+      return;
+    }
+    const direction = valueStepDirectionForCommand(binding.commandId);
+    if (!direction) return;
+    const candidate = valueStepGestureForKeyboardEvent(direction, event);
+    if (this.activeValueStepGesture &&
+      (!event.repeat || !sameValueStepGesture(this.activeValueStepGesture, candidate))) {
+      this.flush("command");
+    }
+    this.activeValueStepGesture = candidate;
+    this.pendingKeyboardValueStep = candidate;
+    this.cancelCommitTimer();
+  }
+
+  private observeValueStepKeyup(event: KeyboardEvent) {
+    const gesture = this.activeValueStepGesture;
+    if (!gesture || !valueStepGestureEndsOnKeyup(gesture, event)) return;
+    this.pendingKeyboardValueStep = null;
+    this.flush("command");
+  }
+
+  private beginComposition() {
+    if (this.activeValueStepGesture) this.flush("command");
+    this.protocol = beginSourceComposition(this.protocol);
+  }
+
+  private endComposition() {
+    this.drainCompositionQueue();
+    this.publishCursorLine();
+    if (this.flushAfterComposition) {
+      this.flushAfterComposition = false;
+      this.flush("blur");
+    } else if (this.hasPendingText()) {
+      this.scheduleCommit();
+    }
   }
 
   pickCandidateElementIds = () => this.decorationIndex.pickLines.map((line) => line.elementId);
@@ -611,7 +684,13 @@ export class SourceEditorController implements SourceEditorHandle {
   }
 
   flush = (reason: FlushReason): SourceEditFlushResult => {
-    if (this.destroyed || !this.hasPendingText()) return "clean";
+    if (this.destroyed) return "clean";
+    this.activeValueStepGesture = null;
+    this.pendingKeyboardValueStep = null;
+    if (!this.hasPendingText()) {
+      this.store.getState().setSourceEditorPreviewText(null);
+      return "clean";
+    }
     if (this.protocol.composing) {
       this.flushAfterComposition ||= reason === "blur";
       return "blocked-composition";
@@ -722,7 +801,8 @@ export class SourceEditorController implements SourceEditorHandle {
       if (!wasPendingBeforeThisUpdate) {
         this.burstStartCursorLine = useCadUiStore.getState().sourceCursorLine;
       }
-      if (this.hasPendingText()) this.scheduleCommit();
+      if (this.hasPendingText() && this.activeValueStepGesture) this.cancelCommitTimer();
+      else if (this.hasPendingText()) this.scheduleCommit();
       else {
         this.burstStartCursorLine = null;
         this.cancelCommitTimer();
@@ -748,6 +828,7 @@ export class SourceEditorController implements SourceEditorHandle {
 
   private runUndo() {
     if (this.protocol.composing) return true;
+    if (this.activeValueStepGesture) this.flush("command");
     if (!this.hasPendingText()) {
       this.store.getState().undo();
       return true;
@@ -762,6 +843,7 @@ export class SourceEditorController implements SourceEditorHandle {
 
   private runRedo() {
     if (this.protocol.composing) return true;
+    if (this.activeValueStepGesture) this.flush("command");
     if (!this.hasPendingText()) {
       this.store.getState().redo();
       return true;

@@ -110,6 +110,22 @@ describe("cadDocumentStore file state", () => {
     expect(after.doc).toBe(before.doc);
   });
 
+  it("projects valid source-editor preview text without changing canonical text or history", () => {
+    const source = "nui 1\npoint A = (12, 0)";
+    useCadDocumentStore.getState().commitText(source, "test");
+    const before = useCadDocumentStore.getState();
+
+    useCadDocumentStore.getState().setSourceEditorPreviewText("nui 1\npoint A = (15, 0)");
+
+    const during = useCadDocumentStore.getState();
+    expect(during.sourceText).toBe(source);
+    expect(during.compiledDocumentRevision).toBe(before.compiledDocumentRevision);
+    expect(during.past).toBe(before.past);
+    expect(effectiveElements(during).find((element) => element.name === "A")).toMatchObject({ x: 15 });
+    useCadDocumentStore.getState().setSourceEditorPreviewText(null);
+    expect(useCadDocumentStore.getState().previewElements).toBeNull();
+  });
+
   it("clears previews after every completion path, including a no-op commit", () => {
     const preview = () =>
       useCadDocumentStore.getState().previewDocumentChange({

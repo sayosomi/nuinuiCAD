@@ -30,6 +30,11 @@ export type SourceEditorLineLensOptions = {
   /** Key bindings that operate on the owning source editor rather than the projection. */
   sourceKeymap: () => readonly KeyBinding[];
   onFocusChange: (focused: boolean) => void;
+  onKeydown: (event: KeyboardEvent, view: EditorView) => void;
+  onKeyup: (event: KeyboardEvent, view: EditorView) => void;
+  onCompositionStart: () => void;
+  onCompositionEnd: () => void;
+  onBlur: () => void;
 };
 
 /** Reconfigures the nested editor when the owning Source Editor shortcut registry changes. */
@@ -125,6 +130,15 @@ class SourceEditorLineLens {
           EditorView.updateListener.of((update) => this.handleLensUpdate(update)),
           EditorView.domEventHandlers({
             mouseup: (event, view) => this.handleValueClick(event as MouseEvent, view)
+          }),
+          // Observers run before CM's keymap even when it consumes the event, so
+          // the owning controller can delimit a registry-dispatched repeat gesture.
+          EditorView.domEventObservers({
+            keydown: (event, view) => this.options.onKeydown(event as KeyboardEvent, view),
+            keyup: (event, view) => this.options.onKeyup(event as KeyboardEvent, view),
+            compositionstart: () => this.options.onCompositionStart(),
+            compositionend: () => this.options.onCompositionEnd(),
+            blur: () => this.options.onBlur()
           })
         ]
       })

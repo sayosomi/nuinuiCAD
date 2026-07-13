@@ -102,6 +102,8 @@ export type CadDocumentState = {
     origin: CommitTextOrigin,
     options?: { cursorLineAtBurstStart: number | null }
   ) => void;
+  /** Ephemeral valid DSL projection used while a source-editor gesture is still uncommitted. */
+  setSourceEditorPreviewText: (sourceText: string | null) => void;
   previewDocumentChange: (change: Partial<CadDocumentSnapshot>) => DocumentMutationResult;
   commitDocumentChange: (change: Partial<CadDocumentSnapshot>) => DocumentMutationResult;
   commitDocumentChangeFromSnapshot: (
@@ -415,6 +417,7 @@ export const initialCadDocumentState = (): Omit<CadDocumentState, keyof CadDocum
 type CadDocumentActions = Pick<
   CadDocumentState,
   | "commitText"
+  | "setSourceEditorPreviewText"
   | "previewDocumentChange"
   | "commitDocumentChange"
   | "commitDocumentChangeFromSnapshot"
@@ -533,6 +536,15 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
       };
     });
     if (selectionElements) useCadUiStore.getState().reconcileSelectionWithElements(selectionElements);
+  },
+  setSourceEditorPreviewText: (sourceText) => {
+    set((state) => {
+      if (sourceText === null || sourceText === state.sourceText) return { previewElements: null };
+      const result = compileCanonicalText(state, sourceText);
+      // Preserve the last-good canonical document for invalid live text, matching
+      // the normal editor behavior. Value stepping itself always produces valid DSL.
+      return { previewElements: result.docText === result.sourceText ? result.doc.document.elements : null };
+    });
   },
   previewDocumentChange: (change) => {
     const guarded = guardDocumentMutation();

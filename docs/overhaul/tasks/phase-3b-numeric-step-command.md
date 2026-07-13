@@ -22,7 +22,8 @@ Source Editorネイティブに用意する。これがないまま3dを実施�
 Source Editor(およびLine Lens)で `Alt+→` / `Alt+←` により、カーソル位置
 (または選択中)の値spanを変更する。数値リテラルは現在の
 `getNumericParameterStep`で増減し、booleanは反転、choiceは
-`choiceOptions`順に左右へ循環する。1操作=1 store Undoステップ。
+`choiceOptions`順に左右へ循環する。単発キーは1操作=1 store Undoステップ、
+同一物理キーのkey-repeatはkeyupまでを1操作としてまとめる。
 
 `Alt+→/←` は現行割当の正であり、既存のSource Editor structural shortcut
 (Mod/Alt+`↑`/`↓`、Shift+Alt+`↑`/`↓`/End、Mod+`[`/`]`)およびTab/Shift+Tabの
@@ -46,9 +47,13 @@ Source Editor(およびLine Lens)で `Alt+→` / `Alt+←` により、カーソ
 * `src/commands/commandTypes.ts` / コマンド定義ファイル — 新command ID追加。
 * `src/keyboard/shortcutDefaultBindings.ts` — `sourceEditor` scopeへ
   `Alt+ArrowRight` / `Alt+ArrowLeft` を追加。
-* `src/editor/sourceEditorController.ts` — コマンド実行本体(バッファ書換+
-  即時commit)。lens keymapへの転送は既存 `sourceEditorShortcutKeymap()` 経由で
-  自動に乗ること。
+* `src/editor/sourceEditorController.ts` — コマンド実行本体とregistry shortcutの
+  DOM keydown/keyup observerによるrepeat境界。lens keymapへの転送は既存
+  `sourceEditorShortcutKeymap()` 経由で自動に乗ること。
+* `src/editor/sourceEditorValueStepGesture.ts` — 物理キーと必須modifierを保持する
+  pureなrepeat gesture境界helper。
+* `src/state/cadDocumentStore.ts` — 未commitの有効DSLを履歴なしで
+  `effectiveElements` に投影するSource Editor preview API。
 * `src/editor/sourceEditorController.test.ts`(または新規テストファイル)。
 * `src/keyboard/shortcuts.test.ts` — バインディングと非衝突の検証。
 
@@ -70,8 +75,12 @@ Source Editor(およびLine Lens)で `Alt+→` / `Alt+←` により、カーソ
    bindingを追加せず、設定対象は`sourceEditor` scopeだけとする。
 4. **controller実行**: composing中は消費してno-op。pick対象がactiveな間は
    fall through(既存structural shortcutと同じゲート)。対象解決は**現在の
-   CM行テキスト**基準。書き換えは1つのCM changes dispatchで行い、直後に
-   `flush("command")` して**1 store commit=1 Undoステップ**にする。通常の
+   CM行テキスト**基準。書き換えは1つのCM changes dispatchで行う。registry由来の
+   物理keydownはCodeMirrorの`domEventObservers`で識別し、`KeyboardEvent.repeat`と
+   keyupをcommit境界にする。長押し中は履歴を増やさず、有効DSLを
+   `setSourceEditorPreviewText`で投影してCanvasと評価表示を各repeatで追従させる。
+   keyup（または必要modifierのkeyup）だけが`flush("command")`する。palette実行は
+   従来どおり即時commitし、タイマーはgesture境界に使わない。通常の
    `dispatchCommand`の事前flushは新commandだけ明示的に抑止し、他commandの
    既存挙動は変えない。
    dispatchには実ユーザー操作としての `Transaction.userEvent` を与え、
@@ -95,8 +104,9 @@ Source Editor(およびLine Lens)で `Alt+→` / `Alt+←` により、カーソ
 
 * 入力: CM live doc(dirtyならdirtyテキストが基準)、`statementRangeIndex`
   (行→element)、`parameterDefinitions`(stepLevels)。
-* 出力: CM changes dispatch → 即時 `flush("command")` → `commitText` →
-  store履歴1ステップ+re-evaluate。store Undo 1回で元の値へ戻る。
+* 出力: CM changes dispatch → （物理キー中は履歴なしpreview→各回Canvas/evaluate）→
+  keyup時 `flush("command")` → `commitText` → store履歴1ステップ。store Undo
+  1回で長押し開始前の値へ戻る。paletteは即時 `flush("command")`。
 * flushが `"blocked-composition"` を返す状況は先頭のcomposing guardで
   到達不能にする。
 
@@ -120,7 +130,8 @@ Source Editor(およびLine Lens)で `Alt+→` / `Alt+←` により、カーソ
 
 * number / boolean / choice以外を**絶対に書き換えない**(式 `(a+b)`・参照・
   単位付き・文字列等は非破壊)。
-* 1操作=1 store Undoステップ。CM burst履歴に中間状態を残さない。
+* 単発=1、同一物理キーのrepeat列=1 store Undoステップ。keyup後の再押下は別step。
+  CM burst履歴に中間状態を残さない。
 * 旧 `incrementSelectedParameter` 系のcommand ID・`parameter` scopeには
   触れない(削除は3d)。
 
@@ -130,13 +141,15 @@ Source Editor(およびLine Lens)で `Alt+→` / `Alt+←` により、カーソ
   ratio/angleのconfigured step、浮動小数誤差なし(例: 0.1+0.2問題)。
 * pure: boolean反転、choice循環、式・参照・文字列・色・keyword上では「対象外」。
 * controller: `Alt+→/←` で該当値のみ変わり、store Undo 1回で完全に戻る。
+  `KeyboardEvent.repeat`の連続変更はkeyUpまでcanonical `sourceText`/historyを変えず、
+  `effectiveElements`（Canvas/evaluationの入力）は毎回更新されること。
   CM undo depthに残骸がない。
 * controller: composing中はno-op。pick中はコマンドが走らない。
 * 3aの`resolveParameterTargetAt`経由でParameterDefinitionを引き、定義が
   引けない数値spanは既定1となること。
 * binding: `Alt+→/←` が `sourceEditor` scopeに登録され、既存binding
   (Tab/Shift+Tab、Mod/Alt+↑↓、Shift+Alt+系、Mod+[/])と衝突しない。
-* Line Lens内カーソルからの実行。
+* Line Lens内カーソルからの実行とrepeat/keyup境界。
 
 ## 手動確認
 

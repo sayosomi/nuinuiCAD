@@ -4,7 +4,7 @@ import { EditorView } from "@codemirror/view";
 import { fireEvent } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { dispatchCommand } from "../commands/commands";
-import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
+import { effectiveElements, initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import { SourceEditorController } from "./sourceEditorController";
 
@@ -25,14 +25,23 @@ const selectToken = (view: EditorView, token: string) => {
   view.dispatch({ selection: EditorSelection.cursor(position) });
 };
 
-const pressStep = (view: EditorView, direction: 1 | -1) =>
-  fireEvent.keyDown(view.contentDOM, {
-    key: direction > 0 ? "ArrowRight" : "ArrowLeft",
-    altKey: true
-  });
+const stepEvent = (direction: 1 | -1, repeat = false) => ({
+  key: direction > 0 ? "ArrowRight" : "ArrowLeft",
+  code: direction > 0 ? "ArrowRight" : "ArrowLeft",
+  altKey: true,
+  repeat
+});
 
-const pressShiftAltStep = (view: EditorView) =>
-  fireEvent.keyDown(view.contentDOM, { key: "ArrowRight", altKey: true, shiftKey: true });
+const pressStep = (view: EditorView, direction: 1 | -1) => {
+  fireEvent.keyDown(view.contentDOM, stepEvent(direction));
+  fireEvent.keyUp(view.contentDOM, stepEvent(direction));
+};
+
+const pressShiftAltStep = (view: EditorView) => {
+  const event = { key: "ArrowRight", code: "ArrowRight", altKey: true, shiftKey: true };
+  fireEvent.keyDown(view.contentDOM, event);
+  fireEvent.keyUp(view.contentDOM, event);
+};
 
 describe("SourceEditor editor-native value step commands", () => {
   beforeEach(() => {
@@ -56,6 +65,37 @@ describe("SourceEditor editor-native value step commands", () => {
     expect(undoDepth(view.state)).toBe(0);
     useCadDocumentStore.getState().undo();
     expect(useCadDocumentStore.getState().sourceText).toBe(source);
+    controller.destroy();
+    parent.remove();
+  });
+
+  it("keeps Canvas/evaluation input live through a held repeat but creates one Undo step on keyup", () => {
+    const { controller, parent, view } = openEditor();
+    selectToken(view, "12");
+    const before = useCadDocumentStore.getState();
+
+    fireEvent.keyDown(view.contentDOM, stepEvent(1));
+    fireEvent.keyDown(view.contentDOM, stepEvent(1, true));
+    fireEvent.keyDown(view.contentDOM, stepEvent(1, true));
+
+    const during = useCadDocumentStore.getState();
+    expect(during.sourceText).toBe(before.sourceText);
+    expect(during.past).toHaveLength(before.past.length);
+    const previewPoint = during.previewElements?.find((element) => element.name === "A");
+    expect(previewPoint?.type).toBe("freePoint");
+    expect((previewPoint as { x?: number })?.x).toBe(15);
+    expect(effectiveElements(during).find((element) => element.name === "A")).toMatchObject({ x: 15 });
+
+    fireEvent.keyUp(view.contentDOM, stepEvent(1));
+    expect(useCadDocumentStore.getState().sourceText).toContain("(15, 0)");
+    expect(useCadDocumentStore.getState().previewElements).toBeNull();
+    expect(useCadDocumentStore.getState().past).toHaveLength(before.past.length + 1);
+    useCadDocumentStore.getState().undo();
+    expect(useCadDocumentStore.getState().sourceText).toBe(source);
+
+    selectToken(view, "12");
+    pressStep(view, 1);
+    expect(useCadDocumentStore.getState().past).toHaveLength(before.past.length + 1);
     controller.destroy();
     parent.remove();
   });
@@ -103,6 +143,26 @@ describe("SourceEditor editor-native value step commands", () => {
 
     expect(useCadDocumentStore.getState().sourceText).toContain("(13, 0)");
     expect(useCadDocumentStore.getState().sourceText).toContain("# pending");
+    expect(useCadDocumentStore.getState().past).toHaveLength(pastBefore + 1);
+    useCadDocumentStore.getState().undo();
+    expect(useCadDocumentStore.getState().sourceText).toBe(source);
+    controller.destroy();
+    parent.remove();
+  });
+
+  it("commits a dirty burst and held step together at a central flush boundary", () => {
+    const { controller, parent, view } = openEditor();
+    view.dispatch({ changes: { from: view.state.doc.length, insert: "\n# pending" } });
+    selectToken(view, "12");
+    const pastBefore = useCadDocumentStore.getState().past.length;
+
+    fireEvent.keyDown(view.contentDOM, stepEvent(1));
+    fireEvent.keyDown(view.contentDOM, stepEvent(1, true));
+    fireEvent.blur(view.contentDOM);
+
+    expect(useCadDocumentStore.getState().sourceText).toContain("(14, 0)");
+    expect(useCadDocumentStore.getState().sourceText).toContain("# pending");
+    expect(useCadDocumentStore.getState().previewElements).toBeNull();
     expect(useCadDocumentStore.getState().past).toHaveLength(pastBefore + 1);
     useCadDocumentStore.getState().undo();
     expect(useCadDocumentStore.getState().sourceText).toBe(source);

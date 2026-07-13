@@ -16,6 +16,11 @@ const source = [
 ].join("\n");
 
 const settleLens = () => new Promise((resolve) => window.setTimeout(resolve, 20));
+const stepEvent = (repeat = false) => ({ key: "ArrowRight", code: "ArrowRight", altKey: true, repeat });
+const pressLensStep = (view: EditorView) => {
+  fireEvent.keyDown(view.contentDOM, stepEvent());
+  fireEvent.keyUp(view.contentDOM, stepEvent());
+};
 
 describe("SourceEditor selected-line lens", () => {
   beforeEach(() => {
@@ -376,7 +381,7 @@ describe("SourceEditor selected-line lens Tab/Shift-Tab value navigation", () =>
     lensView.dispatch({ selection: EditorSelection.cursor(xStart) });
     expect(view.state.selection.main.head).toBe(line.from + xStart);
 
-    fireEvent.keyDown(lensView.contentDOM, { key: "ArrowRight", altKey: true });
+    pressLensStep(lensView);
     expect(useCadDocumentStore.getState().sourceText).toContain("point A = (6, 9)");
     await settleLens();
     expect(lensView.state.doc.toString()).toContain("point A = (6, 9)");
@@ -384,6 +389,27 @@ describe("SourceEditor selected-line lens Tab/Shift-Tab value navigation", () =>
       lensView.state.selection.main.from,
       lensView.state.selection.main.to
     )).toBe("6");
+    controller.destroy();
+  });
+
+  it("uses the same keyup Undo boundary while a Lens repeat previews each value", async () => {
+    const { controller, view, lensView } = await openLensOnLine(2);
+    const xStart = lensView.state.doc.toString().indexOf("5");
+    lensView.dispatch({ selection: EditorSelection.cursor(xStart) });
+    const pastBefore = useCadDocumentStore.getState().past.length;
+
+    fireEvent.keyDown(lensView.contentDOM, stepEvent());
+    fireEvent.keyDown(lensView.contentDOM, stepEvent(true));
+    expect(view.state.doc.toString()).toContain("point A = (7, 9)");
+    expect(useCadDocumentStore.getState().sourceText).toContain("point A = (5, 9)");
+    expect(useCadDocumentStore.getState().previewElements?.find((element) => element.name === "A")).toMatchObject({ x: 7 });
+    expect(useCadDocumentStore.getState().past).toHaveLength(pastBefore);
+
+    fireEvent.keyUp(lensView.contentDOM, stepEvent());
+    expect(useCadDocumentStore.getState().sourceText).toContain("point A = (7, 9)");
+    expect(useCadDocumentStore.getState().past).toHaveLength(pastBefore + 1);
+    useCadDocumentStore.getState().undo();
+    expect(useCadDocumentStore.getState().sourceText).toContain("point A = (5, 9)");
     controller.destroy();
   });
 
@@ -399,10 +425,11 @@ describe("SourceEditor selected-line lens Tab/Shift-Tab value navigation", () =>
       }]
     });
 
-    fireEvent.keyDown(lensView.contentDOM, { key: "ArrowRight", altKey: true });
+    pressLensStep(lensView);
     expect(view.state.doc.toString()).toContain("point A = (5, 9)");
     lensView.dispatch({ selection: EditorSelection.cursor(xStart) });
-    fireEvent.keyDown(lensView.contentDOM, { key: "ArrowRight", altKey: true, shiftKey: true });
+    fireEvent.keyDown(lensView.contentDOM, { key: "ArrowRight", code: "ArrowRight", altKey: true, shiftKey: true });
+    fireEvent.keyUp(lensView.contentDOM, { key: "ArrowRight", code: "ArrowRight", altKey: true, shiftKey: true });
     expect(useCadDocumentStore.getState().sourceText).toContain("point A = (6, 9)");
     controller.destroy();
   });
