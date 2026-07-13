@@ -1,13 +1,4 @@
-import {
-  forwardRef,
-  useCallback,
-  useEffect,
-  useImperativeHandle,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useMemo } from "react";
 import type { RefObject } from "react";
 import { dispatchCommand } from "../commands/commands";
 import {
@@ -27,23 +18,11 @@ import { elementTypeLabels } from "../types/geometry";
 import { geometryInfoRows } from "./geometryDisplay";
 import {
   dependencyInspectorPresentation,
-  moveInspectorRowKey,
   parameterInspectorRows,
-  reconcileInspectorActiveRowKey,
   type InspectorDependencyRow,
-  type InspectorRow,
+  type InspectorParameterRow,
   type InspectorUnresolvedDependencyRow,
 } from "./inspectorPresentation";
-
-export type InspectorPanelHandle = {
-  focusParameterRows: () => void;
-  focusDependencyRows: () => void;
-  moveRow: (direction: -1 | 1) => boolean;
-  activateRow: () => boolean;
-  startParameterPick: () => boolean;
-  exit: () => void;
-  isFocused: () => boolean;
-};
 
 const statusLabels = (status: ElementPresentationStatus) =>
   [
@@ -63,37 +42,23 @@ const relatedCountBadge = (count: number) => (
   </span>
 );
 
-export const InspectorPanel = forwardRef<
-  InspectorPanelHandle,
-  {
-    element: CadElement | null;
-    elements: CadElement[];
-    evaluation: EvaluationResult;
-    evaluationEngineLabel?: string | null;
-    isEvaluationFallback?: boolean;
-    isEvaluationStale?: boolean;
-    sourceEditorRef: RefObject<SourceEditorHandle | null>;
-    onExit: () => void;
-  }
->(function InspectorPanel(
-  {
-    element,
-    elements,
-    evaluation,
-    evaluationEngineLabel,
-    isEvaluationFallback = false,
-    isEvaluationStale = false,
-    sourceEditorRef,
-    onExit,
-  },
-  ref,
-) {
-  const rootRef = useRef<HTMLDivElement | null>(null);
-  const rowRefs = useRef(new Map<string, HTMLElement>());
-  const pendingFocusRef = useRef(false);
-  const selectedElementIdRef = useRef(element?.id ?? null);
-  const [activeRowKey, setActiveRowKey] = useState<string | null>(null);
-  const activeRowKeyRef = useRef<string | null>(null);
+export const InspectorPanel = ({
+  element,
+  elements,
+  evaluation,
+  evaluationEngineLabel,
+  isEvaluationFallback = false,
+  isEvaluationStale = false,
+  sourceEditorRef,
+}: {
+  element: CadElement | null;
+  elements: CadElement[];
+  evaluation: EvaluationResult;
+  evaluationEngineLabel?: string | null;
+  isEvaluationFallback?: boolean;
+  isEvaluationStale?: boolean;
+  sourceEditorRef: RefObject<SourceEditorHandle | null>;
+}) => {
   const groupFoldById = useCadUiStore((state) => state.groupFoldById);
   const isInspectorExpanded = useCadUiStore(
     (state) => state.isInspectorExpanded,
@@ -148,14 +113,6 @@ export const InspectorPanel = forwardRef<
         : null,
     [dependencySummary, element, evaluation],
   );
-  const dependencyRows = useMemo(
-    () => dependencyPresentation?.rows ?? [],
-    [dependencyPresentation],
-  );
-  const allRows = useMemo<InspectorRow[]>(
-    () => [...dependencyRows, ...parameterRows],
-    [dependencyRows, parameterRows],
-  );
   const parseIssues = useMemo(() => {
     if (!element || isLastGood) return [];
     const line = doc.statementMap.byElementId.get(element.id)?.line;
@@ -167,169 +124,60 @@ export const InspectorPanel = forwardRef<
         evaluation.computedVariables.get(element.id),
       )
     : [];
-  const setActiveRow = useCallback((key: string | null) => {
-    activeRowKeyRef.current = key;
-    setActiveRowKey(key);
-  }, []);
-
-  useLayoutEffect(() => {
-    const selectedElementChanged =
-      selectedElementIdRef.current !== (element?.id ?? null);
-    selectedElementIdRef.current = element?.id ?? null;
-    const next = selectedElementChanged
-      ? reconcileInspectorActiveRowKey(
-          null,
-          allRows,
-          activeRowKeyRef.current?.startsWith("dependency:")
-            ? "dependency"
-            : "parameter",
-        )
-      : reconcileInspectorActiveRowKey(activeRowKeyRef.current, allRows);
-    if (next !== activeRowKeyRef.current) setActiveRow(next);
-  }, [allRows, element?.id, setActiveRow]);
-  useEffect(() => {
-    if (!activeRowKey) return;
-    const row = rowRefs.current.get(activeRowKey);
-    row?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
-  }, [activeRowKey]);
-  useEffect(() => {
-    if (!isInspectorExpanded || !pendingFocusRef.current || !rootRef.current)
-      return;
-    rootRef.current.focus();
-    pendingFocusRef.current = false;
-  }, [activeRowKey, isInspectorExpanded]);
-
-  const focusRows = useCallback(
-    (rows: readonly InspectorRow[]) => {
-      setActiveRow(rows[0]?.key ?? allRows[0]?.key ?? null);
-      pendingFocusRef.current = true;
-      if (rootRef.current) {
-        rootRef.current.focus();
-        pendingFocusRef.current = false;
-      }
-    },
-    [allRows, setActiveRow],
-  );
-  const moveRows = useCallback(
-    (rows: readonly InspectorRow[], direction: -1 | 1) => {
-      const nextKey = moveInspectorRowKey(
-        rows,
-        activeRowKeyRef.current,
-        direction,
-      );
-      if (!nextKey) return false;
-      setActiveRow(nextKey);
-      return true;
-    },
-    [setActiveRow],
-  );
-  const activate = useCallback(
-    (
-      row = allRows.find((item) => item.key === activeRowKeyRef.current),
-    ): boolean => {
-      if (!row || !element) return false;
-      if (row.kind === "parameter") {
-        return (
-          sourceEditorRef.current?.jumpToParameterValue(
-            element.id,
-            row.parameterKey,
-          ) ?? false
-        );
-      }
-      // Selection may flush dirty source text. Do not move the editor cursor if IME blocked
-      // that command or the row's target disappeared during the flush.
-      if (
-        dispatchCommand("selectElement", { elementId: row.elementId }) === false
-      )
-        return false;
-      if (
-        !useCadDocumentStore
-          .getState()
-          .elements.some((candidate) => candidate.id === row.elementId)
-      )
-        return false;
-      // Dependency navigation deliberately keeps Inspector DOM focus, enabling continued ↑/↓ traversal.
-      sourceEditorRef.current?.jumpToElement(row.elementId);
-      return true;
-    },
-    [allRows, element, sourceEditorRef],
-  );
-  const startParameterPick = useCallback(
-    (
-      row = allRows.find((item) => item.key === activeRowKeyRef.current),
-    ): boolean => {
-      if (!element || !row || row.kind !== "parameter") return false;
-      const definition = findParameterDefinition(element, row.parameterKey);
-      if (!definition) return false;
-      const context = { elementId: element.id, parameterKey: definition.key };
-      if (
-        definition.kind === "reference" ||
-        definition.kind === "lineEndpointReference"
-      ) {
-        return dispatchCommand("startPointPick", context) !== false;
-      }
-      if (
-        definition.kind === "lineReference" ||
-        definition.kind === "lineReferenceList"
-      ) {
-        return dispatchCommand("startLinePick", context) !== false;
-      }
-      if (definition.kind === "number")
-        return dispatchCommand("startNumericReferencePick", context) !== false;
+  const jumpToParameter = (row: InspectorParameterRow) => {
+    if (!element) return false;
+    return (
+      sourceEditorRef.current?.jumpToParameterValue(
+        element.id,
+        row.parameterKey,
+      ) ?? false
+    );
+  };
+  const jumpToDependency = (row: InspectorDependencyRow) => {
+    // Selection may flush dirty source text. Do not move the editor cursor if IME blocked
+    // that command or the row's target disappeared during the flush.
+    if (
+      dispatchCommand("selectElement", { elementId: row.elementId }) === false
+    )
       return false;
-    },
-    [allRows, element],
-  );
-
-  const activeRows = activeRowKeyRef.current?.startsWith("dependency:")
-    ? dependencyRows
-    : parameterRows;
-
-  useImperativeHandle(
-    ref,
-    () => ({
-      focusParameterRows: () => focusRows(parameterRows),
-      focusDependencyRows: () => focusRows(dependencyRows),
-      moveRow: (direction) => moveRows(activeRows, direction),
-      activateRow: () => activate(),
-      startParameterPick: () => startParameterPick(),
-      exit: onExit,
-      isFocused: () =>
-        Boolean(rootRef.current?.contains(document.activeElement)),
-    }),
-    [
-      activate,
-      activeRows,
-      dependencyRows,
-      focusRows,
-      moveRows,
-      onExit,
-      parameterRows,
-      startParameterPick,
-    ],
-  );
-
-  const activeId = activeRowKey
-    ? `inspector-row-${activeRowKey.replace(/[^a-zA-Z0-9_-]/g, "-")}`
-    : undefined;
+    if (
+      !useCadDocumentStore
+        .getState()
+        .elements.some((candidate) => candidate.id === row.elementId)
+    )
+      return false;
+    sourceEditorRef.current?.jumpToElement(row.elementId);
+    return true;
+  };
+  const startParameterPick = (row: InspectorParameterRow): boolean => {
+    if (!element) return false;
+    const definition = findParameterDefinition(element, row.parameterKey);
+    if (!definition) return false;
+    const context = { elementId: element.id, parameterKey: definition.key };
+    if (
+      definition.kind === "reference" ||
+      definition.kind === "lineEndpointReference"
+    ) {
+      return dispatchCommand("startPointPick", context) !== false;
+    }
+    if (
+      definition.kind === "lineReference" ||
+      definition.kind === "lineReferenceList"
+    ) {
+      return dispatchCommand("startLinePick", context) !== false;
+    }
+    if (definition.kind === "number")
+      return dispatchCommand("startNumericReferencePick", context) !== false;
+    return false;
+  };
   const evaluationLabel = isLastGood
     ? "評価: last-good"
     : evaluationEngineLabel;
   const renderDependencyRow = (row: InspectorDependencyRow) => (
     <div
       key={row.key}
-      id={`inspector-row-${row.key.replace(/[^a-zA-Z0-9_-]/g, "-")}`}
-      ref={(node) => {
-        if (node) rowRefs.current.set(row.key, node);
-        else rowRefs.current.delete(row.key);
-      }}
-      role="option"
-      aria-selected={row.key === activeRowKey}
-      className={`inspector-row ${row.key === activeRowKey ? "is-active" : ""}`}
-      onClick={() => {
-        setActiveRow(row.key);
-        activate(row);
-      }}
+      className="inspector-row"
+      onClick={() => jumpToDependency(row)}
     >
       <span className="inspector-row-main">
         <span>
@@ -409,14 +257,7 @@ export const InspectorPanel = forwardRef<
       ) : !element ? (
         <p className="empty-state">要素を選択してください。</p>
       ) : (
-        <div
-          ref={rootRef}
-          className="inspector-navigation"
-          tabIndex={0}
-          role="listbox"
-          aria-label="インスペクタ行"
-          aria-activedescendant={activeId}
-        >
+        <div className="inspector-content">
           {status ? (
             <div className="inspector-status-badges">
               {statusLabels(status).map((label) => (
@@ -486,18 +327,8 @@ export const InspectorPanel = forwardRef<
               {parameterRows.map((row) => (
                 <div
                   key={row.key}
-                  id={`inspector-row-${row.key.replace(/[^a-zA-Z0-9_-]/g, "-")}`}
-                  ref={(node) => {
-                    if (node) rowRefs.current.set(row.key, node);
-                    else rowRefs.current.delete(row.key);
-                  }}
-                  role="option"
-                  aria-selected={row.key === activeRowKey}
-                  className={`inspector-row ${row.key === activeRowKey ? "is-active" : ""}`}
-                  onClick={() => {
-                    setActiveRow(row.key);
-                    activate(row);
-                  }}
+                  className="inspector-row"
+                  onClick={() => jumpToParameter(row)}
                 >
                   <span className="inspector-row-main">
                     <span>{row.label}</span>
@@ -520,7 +351,6 @@ export const InspectorPanel = forwardRef<
                         aria-label={`${row.label}を選択`}
                         onClick={(event) => {
                           event.stopPropagation();
-                          setActiveRow(row.key);
                           startParameterPick(row);
                         }}
                       >
@@ -536,4 +366,4 @@ export const InspectorPanel = forwardRef<
       )}
     </section>
   );
-});
+};

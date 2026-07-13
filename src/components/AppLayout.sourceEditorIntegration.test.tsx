@@ -213,6 +213,25 @@ describe("Canvas selection focuses the Source Editor", () => {
     expect(useCadUiStore.getState().sourceCursorLine).toBe(4);
   });
 
+  it("supports Canvas selection -> editor focus -> Tab/Shift-Tab -> Alt+Arrow editing", async () => {
+    const { viewport, content, cmView } = setUp();
+
+    fireEvent.pointerDown(viewport, { button: 0, buttons: 1, pointerId: 1, ...B_SCREEN });
+    fireEvent.pointerUp(viewport, { buttons: 0, pointerId: 1, ...B_SCREEN });
+    await waitFor(() => expect(document.activeElement).toBe(content));
+
+    fireEvent.keyDown(content, { key: "Tab" });
+    expect(cmView.state.sliceDoc(cmView.state.selection.main.from, cmView.state.selection.main.to)).toBe("100");
+    fireEvent.keyDown(content, { key: "Tab" });
+    expect(cmView.state.sliceDoc(cmView.state.selection.main.from, cmView.state.selection.main.to)).toBe("0");
+    fireEvent.keyDown(content, { key: "Tab", shiftKey: true });
+    expect(cmView.state.sliceDoc(cmView.state.selection.main.from, cmView.state.selection.main.to)).toBe("100");
+
+    fireEvent.keyDown(content, { key: "ArrowRight", altKey: true });
+    fireEvent.keyUp(content, { key: "ArrowRight", altKey: true });
+    await waitFor(() => expect(useCadDocumentStore.getState().sourceText).toContain("point B = (101, 0)"));
+  });
+
   it("keeps Canvas focus through a point drag and focuses the editor only after the move commits", async () => {
     const { viewport, content, elementId } = setUp();
 

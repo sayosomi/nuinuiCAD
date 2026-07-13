@@ -45,7 +45,6 @@ export const menuItemsForElement = ({
   const selectedCount = selectedElements.length;
   const hasColorTarget = selectedElements.some(elementSupportsDisplayColor);
   const items: MenuItem[] = [
-    { kind: "command", commandId: "focusInspectorParameterRows", label: "パラメーターを表示" },
     {
       kind: "command",
       commandId: "openDslPanel",

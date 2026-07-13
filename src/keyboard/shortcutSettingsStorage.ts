@@ -6,31 +6,36 @@ import type { KeyChord, ShortcutOverride, ShortcutSettings } from "./shortcutTyp
 
 const STORAGE_KEY = "nuinuiCAD.shortcutSettings.v1";
 
-/**
- * Phase 3d replaced the parameter-form and dependency-jump scopes with the
- * Inspector scope. Settings store binding IDs (rather than command IDs), so
- * keep this translation at the persistence boundary only.
+/** Settings store binding IDs rather than command IDs, so the few durable
+ * replacements stay isolated at the persistence boundary. Inspector navigation
+ * bindings are deliberately not mapped: the mouse-only Inspector has no
+ * replacement keyboard scope or command.
  */
 const legacyBindingIdMap: Readonly<Record<string, string>> = {
   "modeInvariant.toggleElementInfoPanel": "modeInvariant.toggleInspectorPanel",
   "normal.toggleElementInfoPanel": "normal.toggleInspectorPanel",
-  "global.enterParameterEditMode": "global.focusInspectorParameterRows",
-  "normal.enterParameterEditMode": "normal.focusInspectorParameterRows",
-  "global.enterDependencyJumpMode": "global.focusInspectorDependencyRows",
-  "normal.enterDependencyJumpMode": "normal.focusInspectorDependencyRows",
-  "parameter.exitParameterEditMode": "inspector.exitInspector",
-  "dependencyJump.exitDependencyJumpMode": "inspector.exitInspector",
-  "parameter.selectNextParameter": "inspector.selectNextInspectorRow",
-  "dependencyJump.selectNextDependencyJumpTarget": "inspector.selectNextInspectorRow",
-  "parameter.selectPreviousParameter": "inspector.selectPreviousInspectorRow",
-  "dependencyJump.selectPreviousDependencyJumpTarget": "inspector.selectPreviousInspectorRow",
-  "parameter.activateSelectedParameter": "inspector.activateInspectorRow",
-  "dependencyJump.jumpToSelectedDependencyTarget": "inspector.activateInspectorRow",
   "parameter.incrementSelectedParameter": "sourceEditor.stepSourceValueForward",
   "parameter.decrementSelectedParameter": "sourceEditor.stepSourceValueBackward"
 };
 
 const retiredCommandIds = new Set([
+  "enterParameterEditMode",
+  "enterDependencyJumpMode",
+  "exitParameterEditMode",
+  "exitDependencyJumpMode",
+  "selectNextParameter",
+  "selectPreviousParameter",
+  "selectNextDependencyJumpTarget",
+  "selectPreviousDependencyJumpTarget",
+  "activateSelectedParameter",
+  "jumpToSelectedDependencyTarget",
+  "focusInspectorParameterRows",
+  "focusInspectorDependencyRows",
+  "exitInspector",
+  "selectNextInspectorRow",
+  "selectPreviousInspectorRow",
+  "activateInspectorRow",
+  "startInspectorParameterPick",
   "selectParameterByKey",
   "focusSelectedParameterInput",
   "increaseSelectedParameterStep",

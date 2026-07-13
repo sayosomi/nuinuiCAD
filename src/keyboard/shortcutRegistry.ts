@@ -30,11 +30,9 @@ export const effectiveShortcutBindings = (
 };
 
 const scopesForMode = ({
-  isInspectorFocused = false,
   isPickMode = false,
   isDslPanelMode = false
 }: {
-  isInspectorFocused?: boolean;
   isPickMode?: boolean;
   isDslPanelMode?: boolean;
 }): ShortcutScope[] => [
@@ -44,15 +42,12 @@ const scopesForMode = ({
     ? (["dsl"] as ShortcutScope[])
     : isPickMode
     ? (["pick"] as ShortcutScope[])
-    : isInspectorFocused
-      ? (["inspector"] as ShortcutScope[])
-      : (["normal"] as ShortcutScope[]))
+    : (["normal"] as ShortcutScope[]))
 ];
 
 export const shortcutBindingsForMode = (
   settings: ShortcutSettings = defaultShortcutSettings(),
   options: {
-    isInspectorFocused?: boolean;
     isPickMode?: boolean;
     isDslPanelMode?: boolean;
   } = {}
@@ -83,12 +78,10 @@ const helpItem = (shortcut: EffectiveShortcutBinding): ShortcutHelpItem => ({
 
 export const shortcutHelpItemsForSettings = ({
   settings = defaultShortcutSettings(),
-  isInspectorFocused = false,
   isPickMode = false,
   isDslPanelMode = false
 }: {
   settings?: ShortcutSettings;
-  isInspectorFocused?: boolean;
   isPickMode?: boolean;
   isDslPanelMode?: boolean;
 } = {}): ShortcutHelpItem[] => {
@@ -105,14 +98,13 @@ export const shortcutHelpItemsForSettings = ({
       .map(helpItem);
   }
 
-  return shortcutBindingsForMode(settings, { isInspectorFocused, isPickMode })
+  return shortcutBindingsForMode(settings, { isPickMode })
     .filter((item) => item.chords.length > 0)
     .map(helpItem);
 };
 
 const modeScopes: ShortcutScope[][] = [
   ["global", "modeInvariant", "normal"],
-  ["global", "modeInvariant", "inspector"],
   ["global", "modeInvariant", "pick"],
   ["global", "modeInvariant", "dsl"],
   ["sourceEditor"]

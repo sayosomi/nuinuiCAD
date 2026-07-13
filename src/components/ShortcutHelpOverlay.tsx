@@ -4,24 +4,20 @@ import { shortcutHelpItems } from "../keyboard/shortcuts";
 import { useCadUiStore } from "../state/cadUiStore";
 
 type ShortcutHelpOverlayProps = {
-  isInspectorFocused: boolean;
   isPickMode?: boolean;
   isDslPanelMode?: boolean;
 };
 
 const modeLabel = ({
-  isInspectorFocused,
   isPickMode = false,
   isDslPanelMode = false
 }: ShortcutHelpOverlayProps) => {
   if (isDslPanelMode) return "DSLパネル";
   if (isPickMode) return "構成リスト選択";
-  if (isInspectorFocused) return "インスペクタ";
   return "通常";
 };
 
 export const ShortcutHelpOverlay = ({
-  isInspectorFocused,
   isPickMode = false,
   isDslPanelMode = false
 }: ShortcutHelpOverlayProps) => {
@@ -30,7 +26,6 @@ export const ShortcutHelpOverlay = ({
   const setShowShortcutHelp = useCadUiStore((state) => state.setShowShortcutHelp);
   const shortcuts = shortcutHelpItems({
     settings: shortcutSettings,
-    isInspectorFocused,
     isPickMode,
     isDslPanelMode
   });
@@ -65,7 +60,7 @@ export const ShortcutHelpOverlay = ({
         <div className="shortcut-overlay-header">
           <div>
             <h2>ショートカット</h2>
-            <p>{modeLabel({ isInspectorFocused, isPickMode, isDslPanelMode })}</p>
+            <p>{modeLabel({ isPickMode, isDslPanelMode })}</p>
           </div>
           <button type="button" onClick={() => dispatchCommand("toggleShortcutHelp")}>
             閉じる

@@ -20,7 +20,6 @@ import { RightPanel } from "./RightPanel";
 import { ShortcutHelpOverlay } from "./ShortcutHelpOverlay";
 import { SourceEditorPane } from "./SourceEditorPane";
 import type { SourceEditorHandle } from "../editor/sourceEditorTypes";
-import type { InspectorPanelHandle } from "./InspectorPanel";
 import { registerTauriMenuCommandListener } from "../commands/tauriMenuEvents";
 import { selectTextInputValue } from "./textInputSelection";
 
@@ -83,18 +82,6 @@ const saveLeftPanelWidth = (leftPanelWidth: number) => {
     });
 };
 
-const inspectorNavigationCommandIds = new Set([
-  "focusInspectorParameterRows",
-  "focusInspectorDependencyRows",
-  "selectNextInspectorRow",
-  "selectPreviousInspectorRow",
-  "activateInspectorRow",
-  "startInspectorParameterPick",
-  "exitInspector",
-  "toggleInspectorPanel",
-  "toggleShortcutHelp"
-]);
-
 export const AppLayout = () => {
   const elements = useCadDocumentStore(effectiveElements);
   const evaluationLimitIndex = useCadDocumentStore((state) => state.evaluationLimitIndex);
@@ -123,15 +110,10 @@ export const AppLayout = () => {
       Boolean(state.activeLinePickTarget) ||
       Boolean(state.activeTemplateInsertion)
   );
-  const isInspectorFocused = typeof document !== "undefined" &&
-    document.activeElement instanceof HTMLElement &&
-    Boolean(document.activeElement.closest(".inspector-navigation"));
   const canvasFocusRef = useRef<HTMLDivElement>(null);
   const canvasWorkspaceRef = useRef<HTMLDivElement>(null);
   const commandRibbonDockRef = useRef<HTMLDivElement>(null);
   const sourceEditorRef = useRef<SourceEditorHandle>(null);
-  const inspectorRef = useRef<InspectorPanelHandle>(null);
-  const inspectorReturnFocusRef = useRef<"canvas" | "editor">("canvas");
   const [leftPanelWidth, setLeftPanelWidth] = useState(DEFAULT_LEFT_PANEL_WIDTH);
   const [isResizingLeftPanel, setIsResizingLeftPanel] = useState(false);
   const leftPanelResizeStartRef = useRef<{ clientX: number; width: number } | null>(null);
@@ -156,28 +138,6 @@ export const AppLayout = () => {
     focusElementList: () => sourceEditorRef.current?.focus(),
     focusElementSearch: () => sourceEditorRef.current?.focusSearch(),
     getCanvasViewportRect: () => canvasFocusRef.current?.getBoundingClientRect() ?? null,
-    focusInspectorParameterRows: () => {
-      const active = document.activeElement;
-      inspectorReturnFocusRef.current = active instanceof HTMLElement && active.closest("[data-source-editor-scope='true']")
-        ? "editor"
-        : "canvas";
-      inspectorRef.current?.focusParameterRows();
-    },
-    focusInspectorDependencyRows: () => {
-      const active = document.activeElement;
-      inspectorReturnFocusRef.current = active instanceof HTMLElement && active.closest("[data-source-editor-scope='true']")
-        ? "editor"
-        : "canvas";
-      inspectorRef.current?.focusDependencyRows();
-    },
-    moveInspectorRow: (direction: -1 | 1) => inspectorRef.current?.moveRow(direction) ?? false,
-    activateInspectorRow: () => inspectorRef.current?.activateRow() ?? false,
-    startInspectorParameterPick: () => inspectorRef.current?.startParameterPick() ?? false,
-    inspectorHasFocus: () => inspectorRef.current?.isFocused() ?? false,
-    exitInspector: () => {
-      if (inspectorReturnFocusRef.current === "editor") sourceEditorRef.current?.focus();
-      else canvasFocusRef.current?.focus();
-    },
     evaluation
   }), [evaluation]);
 
@@ -329,7 +289,6 @@ export const AppLayout = () => {
       if (useCadUiStore.getState().pendingImageImport || useCadUiStore.getState().imageImportError) return;
       const keyboardCommand = keyboardCommandForEvent(event, {
         settings: useCadUiStore.getState().shortcutSettings,
-        isInspectorFocused: commandContext.inspectorHasFocus?.() ?? false,
         isPickMode: Boolean(
           useCadUiStore.getState().activePointPickTarget ||
             useCadUiStore.getState().activeNumericReferencePickTarget ||
@@ -358,13 +317,6 @@ export const AppLayout = () => {
         return;
       }
       if (!keyboardCommand) return;
-      if (
-        commandContext.inspectorHasFocus?.() &&
-        !inspectorNavigationCommandIds.has(keyboardCommand.commandId)
-      ) {
-        event.preventDefault();
-        return;
-      }
       if (
         useCadUiStore.getState().showShortcutHelp &&
         keyboardCommand.commandId !== "toggleShortcutHelp"
@@ -452,9 +404,7 @@ export const AppLayout = () => {
           <RightPanel
             evaluation={evaluation}
             evaluationState={evaluationState}
-            inspectorRef={inspectorRef}
             sourceEditorRef={sourceEditorRef}
-            onExitInspector={() => commandContext.exitInspector?.()}
           />
         </>
       )}
@@ -470,7 +420,6 @@ export const AppLayout = () => {
         </Suspense>
       ) : null}
       <ShortcutHelpOverlay
-        isInspectorFocused={isInspectorFocused}
         isPickMode={isPickMode}
         isDslPanelMode={showDslPanel}
       />

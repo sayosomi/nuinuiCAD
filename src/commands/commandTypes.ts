@@ -162,13 +162,6 @@ export type CommandId =
   | "enterElementListMode"
   | "toggleShortcutHelp"
   | "toggleInspectorPanel"
-  | "focusInspectorParameterRows"
-  | "focusInspectorDependencyRows"
-  | "exitInspector"
-  | "selectNextInspectorRow"
-  | "selectPreviousInspectorRow"
-  | "activateInspectorRow"
-  | "startInspectorParameterPick"
   | "stepSourceValueForward"
   | "stepSourceValueBackward";
 
@@ -180,14 +173,6 @@ export type CommandContext = {
   validateDslPanel?: () => void;
   applyDslPanel?: () => void;
   closeDslPanel?: () => void;
-  focusInspectorParameterRows?: () => void;
-  focusInspectorDependencyRows?: () => void;
-  moveInspectorRow?: (direction: -1 | 1) => boolean;
-  activateInspectorRow?: () => boolean;
-  startInspectorParameterPick?: () => boolean;
-  /** The Inspector owns the only DOM-focus check for command delegation. */
-  inspectorHasFocus?: () => boolean;
-  exitInspector?: () => void;
   getCanvasViewportRect?: () => DOMRect | null;
   elementId?: ElementId;
   insertionIndex?: number;

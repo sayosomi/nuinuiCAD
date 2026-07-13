@@ -4,7 +4,6 @@ export type ShortcutScope =
   | "global"
   | "modeInvariant"
   | "normal"
-  | "inspector"
   | "pick"
   | "dsl"
   /** CodeMirror-only structural commands; normal text keys remain editor-owned. */

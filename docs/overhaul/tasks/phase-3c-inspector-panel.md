@@ -6,6 +6,10 @@
 > [phase-3a-value-span-jump-api.md](phase-3a-value-span-jump-api.md) →
 > 本文書の順で読むこと。AGENTS.md の規則に従うこと。
 > 3a完了後に着手。3b(数値ステップ)とは並行実装可(変更ファイルが交差しない)。
+>
+> **3d最終仕様**: 本文書のfocus handle・行ナビ・旧command委譲は
+> 3cの一時的な着地状態。3dでInspectorはマウス専用となり、行クリック、
+> 行内pickボタン、RightPanel表示のみが残る。現行仕様は3d文書を正とする。
 
 ## Context
 

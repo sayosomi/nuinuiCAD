@@ -1,6 +1,5 @@
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
-import { cancelLinePick, cancelNumericReferencePick, cancelPointPick } from "./pickCommands";
 import type { Command, CommandContext, CommandId } from "./commandTypes";
 
 const canvasZoomAnchor = (context?: CommandContext) => {
@@ -345,61 +344,5 @@ export const viewModeCommandDefinitions = {
       const { isInspectorExpanded } = useCadUiStore.getState();
       useCadUiStore.getState().setInspectorExpanded(!isInspectorExpanded);
     }
-  },
-  focusInspectorDependencyRows: {
-    id: "focusInspectorDependencyRows",
-    label: "インスペクタの親子要素へフォーカス",
-    palette: { order: 45, keywords: ["dependency", "parent", "child", "inspector", "親子", "ジャンプ"] },
-    shortcuts: [{ keys: "j", label: "親子要素へ移動" }],
-    run: (context) => {
-      cancelPointPick();
-      cancelNumericReferencePick();
-      cancelLinePick();
-      useCadUiStore.getState().setInspectorExpanded(true);
-      context?.focusInspectorDependencyRows?.();
-    }
-  },
-  focusInspectorParameterRows: {
-    id: "focusInspectorParameterRows",
-    label: "インスペクタのパラメーターへフォーカス",
-    palette: { order: 46, keywords: ["parameter", "inspector", "パラメーター", "インスペクタ"] },
-    shortcuts: [{ keys: "e", label: "パラメーターへ移動" }, { keys: "Enter" }],
-    run: (context) => {
-      cancelPointPick();
-      cancelNumericReferencePick();
-      cancelLinePick();
-      useCadUiStore.getState().setInspectorExpanded(true);
-      context?.focusInspectorParameterRows?.();
-    }
-  },
-  exitInspector: {
-    id: "exitInspector",
-    label: "インスペクタを終了",
-    shortcuts: [{ keys: "Escape" }],
-    run: (context) => context?.exitInspector?.()
-  },
-  selectNextInspectorRow: {
-    id: "selectNextInspectorRow",
-    label: "インスペクタの次の行へ",
-    shortcuts: [{ keys: "ArrowDown" }],
-    run: (context) => context?.moveInspectorRow?.(1) ?? false
-  },
-  selectPreviousInspectorRow: {
-    id: "selectPreviousInspectorRow",
-    label: "インスペクタの前の行へ",
-    shortcuts: [{ keys: "ArrowUp" }],
-    run: (context) => context?.moveInspectorRow?.(-1) ?? false
-  },
-  activateInspectorRow: {
-    id: "activateInspectorRow",
-    label: "インスペクタの選択行を開く",
-    shortcuts: [{ keys: "Enter" }],
-    run: (context) => context?.activateInspectorRow?.() ?? false
-  },
-  startInspectorParameterPick: {
-    id: "startInspectorParameterPick",
-    label: "選択パラメーターの参照選択を開始",
-    shortcuts: [{ keys: "P" }],
-    run: (context) => context?.startInspectorParameterPick?.() ?? false
   }
 } satisfies Partial<Record<CommandId, Command>>;

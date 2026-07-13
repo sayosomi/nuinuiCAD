@@ -179,8 +179,9 @@ Phase 5  ハードクリーンアップ(Phase 2・3・4すべての完了後)
 3. **「ファイル全体を再シリアライズ」の誘惑を禁止**: コメント・空行保存は
    行スプライスであることの構造的帰結。全体再シリアライズを行うコードパスは
    レビューで却下する。
-4. **キーボードファースト回帰面**: 削除パネルのショートカットは新挙動への
-   対応表を維持し、ユーザーのショートカット設定が穏当に劣化するようにする。
+4. **キーボードファースト回帰面**: Canvas選択→Source Editor focus
+   →Tab/Shift+Tab値span移動→直接入力またはAlt+←/→を回帰テストする。
+   Inspector専用の旧bindingは代替先なしで安全に正規化除去する。
 
 ## 主な削除対象(最終形)
 
@@ -189,8 +190,8 @@ Phase 5  ハードクリーンアップ(Phase 2・3・4すべての完了後)
 * `ElementEditor.tsx`、全 `*ElementFields.tsx`、`ParameterEditors` 系。
   `ExpressionInsertTray` はテンプレート挿入専用ヘルパーとして残し、RightPanel
   とフォーム編集用の状態・commandからは切り離す
-* パラメータ編集モード(値編集コマンド)とdependency jump互換。パラメータへの
-  キーボード到達はInspector行ナビゲーション+Source Editor値spanジャンプが代替
+* パラメータ編集モード(値編集コマンド)、dependency jump互換、
+  Inspector行ナビゲーション。キーボード編集はSource Editorの値span経路が代替
 * `documentFormat.ts` の保存経路、`documentMigration.ts`(既に死んでいる)、
   スナップショットの `printLayout` ミラーと `selected*` フィールド
 * `id=` / `parent=` / `branch=` のDSL互換(Phase 5)

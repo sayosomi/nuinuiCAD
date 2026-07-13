@@ -19,9 +19,9 @@
 >    エディタネイティブ値ステップコマンド(`Alt+→/←`、数値/boolean/choice、
 >    1操作=1 Undoステップ)
 > 3. [phase-3c-inspector-panel.md](phase-3c-inspector-panel.md) —
->    読み取り専用InspectorPanel(行ナビ・Enterジャンプ・旧編集UIと一時併存)
+>    読み取り専用InspectorPanel(3cでは行ナビ・Enterジャンプ・旧編集UIと一時併存)
 > 4. [phase-3d-form-editor-removal.md](phase-3d-form-editor-removal.md) —
->    フォーム編集・パラメータ編集モードの削除cutover・廃止command ID対応表
+>    フォーム編集・パラメータ編集モードの削除cutover・Inspectorマウス専用化・廃止command ID対応表
 >
 > 依存順: **3a → (3b ∥ 3c) → 3d**。3bと3cは変更ファイルが交差しないため
 > 並行実装可。3dは3bと3cの両方の完了後。各子タスクはアプリが完全に動作する
@@ -30,7 +30,7 @@
 ## 目的
 
 右ペインを読み取り専用インスペクタに再構築する。「見るのは右ペイン、書くのは
-DSL」: パラメータ項目を選ぶとエディタの該当行・該当属性の値spanへカーソル
+DSL」: マウスでパラメータ行をクリックするとエディタの該当行・該当属性の値spanへカーソル
 ジャンプする。フォーム型のパラメータ編集UI(ElementEditor と *ElementFields
 群)とパラメータ編集モードの値編集を廃止し、値変更の経路を「ジャンプ先での
 テキスト編集」と「数値ステップコマンド」に統一する。
@@ -63,8 +63,9 @@ DSL」: パラメータ項目を選ぶとエディタの該当行・該当属性
 * IME composition中にjump・patch・数値変更を実行しない。
 * `dslLineValueSpans` 系が「編集可能な値」の唯一の定義。
 * main editorとLine Lensで意味論を重複実装しない。
-* キーボードファースト: 「要素選択→パラメータへ到達→値変更」がマウスなしで
-  完結する状態を、どの子タスクの着地時点でも壊さない。
+* キーボードファースト: 「Canvas要素選択→Source Editorへの自動focus
+  →Tab/Shift+Tabで値span移動→直接入力またはAlt+←/→」を正とする。
+  Inspector自体はキーボードfocusや行ナビを持たない。
 * インスペクタは読み取り専用。文書を変更するのはジャンプ先でのテキスト編集と
   数値ステップコマンドのみ。
 * 依存関係表示は明示的(欠落・無効・後方参照の種別を区別。AGENTS.mdルール)。
@@ -89,7 +90,7 @@ DSL」: パラメータ項目を選ぶとエディタの該当行・該当属性
 * 右ペインが読み取り専用インスペクタになり、フォーム編集系ファイルが削除
   されている。
 * 全要素型(現在27種。`elementTypeLabels` が正)で、インスペクタのパラメータ
-  行からジャンプ→編集→コミットのループが成立。
+  行クリックからジャンプ→編集→コミットのループが成立。
 * 値ステップコマンドが現在の数値step・boolean・choiceを正しく扱う。
 * 廃止command ID対応表が報告されている。
 * `npm test` / `npm run build` / `npm run lint` 成功。
@@ -100,5 +101,5 @@ DSL」: パラメータ項目を選ぶとエディタの該当行・該当属性
   / `startLinePick` の現在の唯一のUI入口は削除対象のフォームエディタ群にある。
   代替経路を削除前に確定する(詳細は3d文書)。
 * 数値ステップの倍率修飾/段階切替の扱い(3bで確定)。
-* `dependencyJump` modeのインスペクタ行ナビへの吸収可否(3cで確定)。
+* `dependencyJump` modeとInspector専用キーボードscopeは3dで廃止。依存行はマウスクリックで移動する。
 * `ExpressionInsertTray` の計測値挿入ワークフローの扱い(3dで確定)。

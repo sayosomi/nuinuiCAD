@@ -9,7 +9,6 @@ export type InspectorIssue = { severity: "error" | "warning"; message: string };
 
 export type InspectorParameterRow = {
   key: string;
-  kind: "parameter";
   parameterKey: string;
   label: string;
   value: string;
@@ -17,8 +16,6 @@ export type InspectorParameterRow = {
 
 export type InspectorDependencyRow = {
   key: string;
-  kind: "dependency";
-  relation: "parent" | "child";
   elementId: ElementId;
   label: string;
   detail: string;
@@ -26,17 +23,12 @@ export type InspectorDependencyRow = {
   issues: readonly InspectorIssue[];
 };
 
-export type InspectorRow = InspectorParameterRow | InspectorDependencyRow;
-
 export type InspectorUnresolvedDependencyRow = {
   key: string;
   id: ElementId;
   relatedCount: number;
   issues: readonly InspectorIssue[];
 };
-
-export const inspectorRowKindForKey = (key: string | null): InspectorRow["kind"] | null =>
-  key?.startsWith("parameter:") ? "parameter" : key?.startsWith("dependency:") ? "dependency" : null;
 
 export const displayInspectorValue = (value: unknown): string => {
   if (typeof value === "number" || (typeof value === "object" && value !== null && "kind" in value)) {
@@ -66,7 +58,6 @@ export const evaluationIssuesForElement = (elementId: ElementId, evaluation: Eva
 export const parameterInspectorRows = (element: CadElement): InspectorParameterRow[] =>
   getParameterDefinitions(element).map((definition) => ({
     key: `parameter:${definition.key}`,
-    kind: "parameter",
     parameterKey: definition.key,
     label: definition.label,
     value: displayInspectorValue(getParameterValue(element, definition.key))
@@ -102,8 +93,6 @@ export const dependencyInspectorPresentation = (
     }
     parentRows.push({
       key: `dependency:parent:${parent.element.id}`,
-      kind: "dependency",
-      relation: "parent",
       elementId: parent.element.id,
       label: parent.element.name,
       detail: `親・${elementTypeLabels[parent.element.type]}`,
@@ -113,8 +102,6 @@ export const dependencyInspectorPresentation = (
   }
   const childRows = summary.children.map((child) => ({
     key: `dependency:child:${child.element.id}`,
-    kind: "dependency" as const,
-    relation: "child" as const,
     elementId: child.element.id,
     label: child.element.name,
     detail: `子・${elementTypeLabels[child.element.type]}`,
@@ -133,27 +120,4 @@ export const dependencyInspectorPresentation = (
     rows: [...parentRows, ...childRows],
     ownIssues
   };
-};
-
-/** Keeps one active row across element changes and dynamic row churn without crossing sections. */
-export const reconcileInspectorActiveRowKey = (
-  activeRowKey: string | null,
-  rows: readonly InspectorRow[],
-  fallbackKind: InspectorRow["kind"] = "parameter"
-): string | null => {
-  if (activeRowKey && rows.some((row) => row.key === activeRowKey)) return activeRowKey;
-  const preferredKind = inspectorRowKindForKey(activeRowKey) ?? fallbackKind;
-  return rows.find((row) => row.kind === preferredKind)?.key ?? rows[0]?.key ?? null;
-};
-
-/** An invalidated active row normalizes to the first row; it never consumes an extra arrow step. */
-export const moveInspectorRowKey = (
-  rows: readonly InspectorRow[],
-  activeRowKey: string | null,
-  direction: -1 | 1
-): string | null => {
-  if (rows.length === 0) return null;
-  const currentIndex = rows.findIndex((row) => row.key === activeRowKey);
-  if (currentIndex < 0) return rows[0]!.key;
-  return rows[Math.min(Math.max(currentIndex + direction, 0), rows.length - 1)]!.key;
 };

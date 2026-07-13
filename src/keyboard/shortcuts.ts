@@ -83,7 +83,6 @@ export const keyboardCommandForEvent = (
   event: KeyboardEvent,
   options: {
     settings?: ShortcutSettings;
-    isInspectorFocused?: boolean;
     isPickMode?: boolean;
     isDslPanelMode?: boolean;
     allowEditableCommandIds?: ReadonlySet<CommandId>;
@@ -109,7 +108,6 @@ export const commandIdForKeyboardEvent = (
   event: KeyboardEvent,
   options: {
     settings?: ShortcutSettings;
-    isInspectorFocused?: boolean;
     isPickMode?: boolean;
     isDslPanelMode?: boolean;
     allowEditableCommandIds?: ReadonlySet<CommandId>;
@@ -121,7 +119,6 @@ export const commandIdForKeyboardEvent = (
 export const shortcutHelpItems = (
   options: {
     settings?: ShortcutSettings;
-    isInspectorFocused?: boolean;
     isPickMode?: boolean;
     isDslPanelMode?: boolean;
   } = {}

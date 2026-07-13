@@ -8,15 +8,13 @@ import {
 } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
 import type { EvaluationResult } from "../types/geometry";
-import { InspectorPanel, type InspectorPanelHandle } from "./InspectorPanel";
+import { InspectorPanel } from "./InspectorPanel";
 import type { SourceEditorHandle } from "../editor/sourceEditorTypes";
 
 type RightPanelProps = {
   evaluation: EvaluationResult;
   evaluationState?: EvaluationEngineState;
-  inspectorRef: RefObject<InspectorPanelHandle | null>;
   sourceEditorRef: RefObject<SourceEditorHandle | null>;
-  onExitInspector: () => void;
 };
 
 const evaluationEngineLabel = (state: EvaluationEngineState | undefined) => {
@@ -36,9 +34,7 @@ const evaluationEngineLabel = (state: EvaluationEngineState | undefined) => {
 export const RightPanel = ({
   evaluation,
   evaluationState,
-  inspectorRef,
   sourceEditorRef,
-  onExitInspector,
 }: RightPanelProps) => {
   const rightPanelRef = useRef<HTMLElement | null>(null);
   const elements = useCadDocumentStore(effectiveElements);
@@ -50,7 +46,6 @@ export const RightPanel = ({
     <aside className="right-panel" ref={rightPanelRef}>
       <div className="right-panel-scroll">
         <InspectorPanel
-          ref={inspectorRef}
           element={selectedElement}
           elements={elements}
           evaluation={evaluation}
@@ -58,7 +53,6 @@ export const RightPanel = ({
           isEvaluationFallback={evaluationState?.source === "fallback"}
           isEvaluationStale={evaluationState?.isStale}
           sourceEditorRef={sourceEditorRef}
-          onExit={onExitInspector}
         />
       </div>
       <footer className="panel-section right-panel-footer">

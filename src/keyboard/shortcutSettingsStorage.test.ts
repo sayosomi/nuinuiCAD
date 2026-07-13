@@ -17,7 +17,7 @@ afterEach(() => {
 });
 
 describe("shortcutSettingsStorage", () => {
-  it("migrates legacy Inspector bindings and merges their unique chords in saved order", () => {
+  it("removes legacy and current Inspector navigation bindings without a replacement", () => {
     expect(
       normalizeShortcutSettings({
         version: 1,
@@ -26,17 +26,14 @@ describe("shortcutSettingsStorage", () => {
           {
             bindingId: "dependencyJump.selectNextDependencyJumpTarget",
             chords: [chord("b"), chord("c")]
-          }
+          },
+          { bindingId: "global.focusInspectorParameterRows", chords: [chord("e")] },
+          { bindingId: "inspector.startInspectorParameterPick", chords: [chord("p")] }
         ]
       })
     ).toEqual({
       version: 1,
-      overrides: [
-        {
-          bindingId: "inspector.selectNextInspectorRow",
-          chords: [chord("a"), chord("b"), chord("c")]
-        }
-      ]
+      overrides: []
     });
   });
 
@@ -74,6 +71,7 @@ describe("shortcutSettingsStorage", () => {
         version: 1,
         overrides: [
           { bindingId: "parameter.toggleSelectedParameterValue", chords: [chord(" ")] },
+          { bindingId: "global.focusInspectorParameterRows", chords: [chord("e")] },
           { bindingId: "normal.noLongerExists", chords: [chord("x")] },
           { bindingId: "normal.addFreePoint", chords: [chord("p")] }
         ]

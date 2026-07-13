@@ -48,8 +48,8 @@ phase-0-dsl-grammar
 | [phase-3-inspector.md](phase-3-inspector.md) | **親文書**: 読み取り専用インスペクタ+フォーム編集廃止。実装は下記3a〜3dへ分割(2026-07-12) | 2 |
 | [phase-3a-value-span-jump-api.md](phase-3a-value-span-jump-api.md) | パラメータ→値spanジャンプAPI(ラベル付き値span・keyマッピング・handle拡張) | 2 |
 | [phase-3b-numeric-step-command.md](phase-3b-numeric-step-command.md) | エディタネイティブ数値ステップコマンド(Alt+→/←、stepLevels) | 3a |
-| [phase-3c-inspector-panel.md](phase-3c-inspector-panel.md) | 読み取り専用InspectorPanel(行ナビ・Enterジャンプ・旧UIと一時併存) | 3a(3bと並行可) |
-| [phase-3d-form-editor-removal.md](phase-3d-form-editor-removal.md) | フォーム編集・旧編集モード削除、Inspector完全移行、shortcut移行 | 3b + 3c |
+| [phase-3c-inspector-panel.md](phase-3c-inspector-panel.md) | 読み取り専用InspectorPanel(3cでは行ナビ・Enterジャンプ・旧UIと一時併存、3dでマウス専用化) | 3a(3bと並行可) |
+| [phase-3d-form-editor-removal.md](phase-3d-form-editor-removal.md) | フォーム編集・旧編集モード削除、Inspectorマウス専用化、廃止shortcut除去 | 3b + 3c |
 | [phase-3d-command-id-map.md](phase-3d-command-id-map.md) | 3dの旧command ID→新command ID／廃止、および保存済みshortcut移行表 | 3d |
 | [phase-4-command-line.md](phase-4-command-line.md) | コマンドライン作図+DSL補完(DslPanel削除) | 2 |
 | [phase-5-cleanup.md](phase-5-cleanup.md) | 互換コード削除・リネーム伝播・ドキュメント更新 | 3 + 4 |
