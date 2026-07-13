@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import type { CadElement } from "../types/geometry";
+import { dispatchCommand } from "../commands/commands";
 import { SourceEditorController } from "./sourceEditorController";
 
 type ControllerInternals = {
@@ -116,6 +117,98 @@ describe("SourceEditorController commit and history boundaries", () => {
     expect(controller.jumpToParameterValue(element.id, "printEnabled")).toBe(false);
     expect(internals.view.state.selection.main.head).toBe(internals.view.state.doc.line(2).from);
     controller.destroy();
+  });
+
+  it("starts the matching Canvas picker from a complete selected parameter value", () => {
+    useCadDocumentStore.getState().commitText([
+      "nui 1",
+      "point A = (0, 0)",
+      "point B = offset A dx=10 dy=20",
+      "line AB = A -> B",
+      "point Cross = intersection AB AB index=0 extensions=false",
+      "line Seam = offset [AB] distance=10 side=left closed=false"
+    ].join("\n"), "test");
+    const parent = document.createElement("div");
+    document.body.append(parent);
+    const controller = new SourceEditorController(parent);
+    const byName = (name: string) => useCadDocumentStore.getState().elements.find((element) => element.name === name)!;
+
+    const point = byName("B");
+    expect(controller.jumpToParameterValue(point.id, "fromPoint")).toBe(true);
+    expect(dispatchCommand("startCanvasPickFromSourceSelection")).toBe(true);
+    expect(useCadUiStore.getState().activePointPickTarget).toEqual({
+      elementId: point.id,
+      parameterKey: "fromPoint"
+    });
+
+    useCadUiStore.setState({ activePointPickTarget: null });
+    expect(controller.jumpToParameterValue(point.id, "dx")).toBe(true);
+    expect(dispatchCommand("startCanvasPickFromSourceSelection")).toBe(true);
+    expect(useCadUiStore.getState().activeNumericReferencePickTarget).toMatchObject({
+      elementId: point.id,
+      parameterKey: "dx",
+      mode: "replace"
+    });
+
+    useCadUiStore.setState({ activeNumericReferencePickTarget: null });
+    const cross = byName("Cross");
+    expect(controller.jumpToParameterValue(cross.id, "line1Id")).toBe(true);
+    expect(dispatchCommand("startCanvasPickFromSourceSelection")).toBe(true);
+    expect(useCadUiStore.getState().activeLinePickTarget).toMatchObject({
+      elementId: cross.id,
+      parameterKey: "line1Id"
+    });
+
+    useCadUiStore.setState({ activeLinePickTarget: null });
+    const seam = byName("Seam");
+    expect(controller.jumpToParameterValue(seam.id, "baseLineIds")).toBe(true);
+    expect(dispatchCommand("startCanvasPickFromSourceSelection")).toBe(true);
+    expect(useCadUiStore.getState().activeLinePickTarget).toMatchObject({
+      elementId: seam.id,
+      parameterKey: "baseLineIds",
+      draftLineIds: [byName("AB").id]
+    });
+
+    controller.destroy();
+    parent.remove();
+  });
+
+  it("rejects unsupported, partial, multiline, invalid, or already-active Source Editor selections", () => {
+    useCadDocumentStore.getState().commitText([
+      "nui 1",
+      "point A = (0, 0)",
+      "point B = offset A dx=10 dy=20"
+    ].join("\n"), "test");
+    const parent = document.createElement("div");
+    document.body.append(parent);
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+    const point = useCadDocumentStore.getState().elements.find((element) => element.name === "B")!;
+
+    expect(controller.jumpToParameterValue(point.id, "name")).toBe(true);
+    expect(dispatchCommand("startCanvasPickFromSourceSelection")).toBe(false);
+
+    expect(controller.jumpToParameterValue(point.id, "dx")).toBe(true);
+    const selected = internals.view.state.selection.main;
+    internals.view.dispatch({ selection: EditorSelection.single(selected.from, selected.to - 1) });
+    expect(dispatchCommand("startCanvasPickFromSourceSelection")).toBe(false);
+
+    internals.view.dispatch({ selection: EditorSelection.single(0, selected.to) });
+    expect(dispatchCommand("startCanvasPickFromSourceSelection")).toBe(false);
+
+    expect(controller.jumpToParameterValue(point.id, "dx")).toBe(true);
+    useCadUiStore.setState({ activePointPickTarget: { elementId: point.id, parameterKey: "fromPoint" } });
+    expect(dispatchCommand("startCanvasPickFromSourceSelection")).toBe(false);
+    expect(useCadUiStore.getState().activePointPickTarget).toEqual({ elementId: point.id, parameterKey: "fromPoint" });
+
+    useCadUiStore.setState({ activePointPickTarget: null });
+    const valueLine = internals.view.state.doc.lineAt(internals.view.state.selection.main.from);
+    internals.view.dispatch({ changes: { from: valueLine.from, to: valueLine.to, insert: "point B = impossible" } });
+    expect(dispatchCommand("startCanvasPickFromSourceSelection")).toBe(false);
+    expect(useCadUiStore.getState().activeNumericReferencePickTarget).toBeNull();
+
+    controller.destroy();
+    parent.remove();
   });
 
   it("clears CM history after an editor commit, store undo/redo, and reset", () => {

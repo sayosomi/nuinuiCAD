@@ -93,6 +93,34 @@ describe("SourceEditor selected-line lens", () => {
     parent.remove();
   });
 
+  it("starts the matching Canvas picker from a value selected in the visible lens", async () => {
+    const parent = document.createElement("div");
+    document.body.append(parent);
+    const controller = new SourceEditorController(parent);
+    const view = EditorView.findFromDOM(parent.querySelector<HTMLElement>(".cm-editor")!)!;
+    const lens = parent.querySelector<HTMLElement>(".cm-source-line-lens")!;
+    const measure = parent.querySelector<HTMLElement>(".cm-source-line-lens-measure")!;
+    Object.defineProperty(view.contentDOM, "clientWidth", { configurable: true, value: 800 });
+    Object.defineProperty(view.scrollDOM, "clientWidth", { configurable: true, value: 72 });
+    Object.defineProperty(view.dom.querySelector(".cm-gutters-before")!, "offsetWidth", { configurable: true, value: 24 });
+    Object.defineProperty(measure, "scrollWidth", { configurable: true, value: 480 });
+    const element = useCadDocumentStore.getState().elements.find((candidate) => candidate.name === "長い基準点")!;
+
+    expect(controller.jumpToParameterValue(element.id, "x")).toBe(true);
+    await settleLens();
+    const lensView = EditorView.findFromDOM(lens.querySelector<HTMLElement>(".cm-editor")!)!;
+
+    fireEvent.keyDown(lensView.contentDOM, { key: "p", code: "KeyP", ctrlKey: true, shiftKey: true });
+    expect(useCadUiStore.getState().activeNumericReferencePickTarget).toMatchObject({
+      elementId: element.id,
+      parameterKey: "x",
+      mode: "replace"
+    });
+
+    controller.destroy();
+    parent.remove();
+  });
+
   it("keeps focus in the main editor when an Inspector-style jump does not open the lens", async () => {
     const parent = document.createElement("div");
     document.body.append(parent);

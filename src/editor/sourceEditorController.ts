@@ -66,6 +66,7 @@ import { createEvaluationExtension, evaluationChanged, type EvaluationGutterActi
 import { createEvaluationDecorationIndex, type EvaluationDecorationIndex } from "./sourceEditorEvaluationIndex";
 import { adjacentDslValueSpan, dslLineValueSpans, findDslValueSpanAt, type DslValueSpanDirection } from "../dsl/dslValueSpans";
 import { resolveParameterValueSpan } from "../dsl/dslParameterSpans";
+import { resolveSourceEditorPickSelection } from "./sourceEditorPickSelection";
 import { resolveDslValueStep, type DslValueStepDirection } from "../dsl/dslValueStep";
 import {
   sameValueStepGesture,
@@ -268,7 +269,8 @@ export class SourceEditorController implements SourceEditorHandle {
       hasPendingText: () => this.hasPendingText(),
       isComposing: () => this.protocol.composing,
       flush: (reason) => this.flush(reason),
-      stepValue: (direction) => this.stepSourceValue(direction)
+      stepValue: (direction) => this.stepSourceValue(direction),
+      startPickFromSelection: () => this.startPickFromSelection()
     });
     this.unsubscribe = store.subscribe((next, previous) => {
       if (next.sourceRevision === previous.sourceRevision) return;
@@ -439,6 +441,48 @@ export class SourceEditorController implements SourceEditorHandle {
       return true;
     }
     return this.flush("command") !== "blocked-composition";
+  }
+
+  /**
+   * Resolves only an exact, complete parameter-value selection before delegating
+   * to the same point/line/numeric pick commands the Inspector uses. The outer
+   * command flushes first, so this always runs against the current committed DSL.
+   */
+  private startPickFromSelection(): boolean {
+    if (this.protocol.composing) return false;
+    const ui = this.uiStore.getState();
+    if (
+      ui.activePointPickTarget ||
+      ui.activeNumericReferencePickTarget ||
+      ui.activeLinePickTarget ||
+      ui.activeTemplateInsertion
+    ) return false;
+
+    const selection = this.view.state.selection;
+    if (selection.ranges.length !== 1 || selection.main.empty) return false;
+    const main = selection.main;
+    const line = this.view.state.doc.lineAt(main.from);
+    if (this.view.state.doc.lineAt(main.to).number !== line.number) return false;
+
+    const elementId = elementIdAtCursor(this.statementRanges, main.from);
+    const range = elementId ? this.statementRanges.get(elementId) : null;
+    const element = elementId
+      ? this.store.getState().elements.find((candidate) => candidate.id === elementId)
+      : undefined;
+    if (!range || !element) return false;
+
+    const committedLineText = range.statement.line <= this.committedDoc.lines
+      ? this.committedDoc.line(range.statement.line).text
+      : undefined;
+    const target = resolveSourceEditorPickSelection({
+      lineText: line.text,
+      selection: { start: main.from - line.from, end: main.to - line.from },
+      element,
+      committedLineText,
+    });
+    if (!target) return false;
+
+    return dispatchCommand(target.commandId, { elementId: element.id, parameterKey: target.parameterKey }) !== false;
   }
 
   private observeValueStepKeydown(event: KeyboardEvent, view: EditorView) {

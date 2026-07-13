@@ -65,4 +65,15 @@ describe("CommandPalette", () => {
     expect(within(saveOption).getByText("Mod+Alt+k")).toBeInTheDocument();
     expect(within(saveOption).queryByText("Mod+s")).not.toBeInTheDocument();
   });
+
+  it("lists the Source Editor Canvas-pick command and its configured shortcut", () => {
+    render(<CommandPalette commandContext={{}} />);
+
+    fireEvent.change(screen.getByLabelText("コマンドを検索"), {
+      target: { value: "Canvasで選択" }
+    });
+
+    const option = screen.getByRole("option", { name: /選択中の値をCanvasで選択Mod\+Shift\+p/ });
+    expect(within(option).getByText("Mod+Shift+p")).toBeInTheDocument();
+  });
 });

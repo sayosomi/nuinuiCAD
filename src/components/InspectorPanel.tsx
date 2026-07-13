@@ -23,7 +23,7 @@ import {
   type InspectorParameterRow,
   type InspectorUnresolvedDependencyRow,
 } from "./inspectorPresentation";
-import { inspectorPickCommandId } from "./inspectorPick";
+import { parameterPickCommandId } from "../commands/parameterPickCommand";
 
 const statusLabels = (status: ElementPresentationStatus) =>
   [
@@ -159,7 +159,7 @@ export const InspectorPanel = ({
     if (!element) return false;
     const definition = findParameterDefinition(element, row.parameterKey);
     if (!definition) return false;
-    const commandId = inspectorPickCommandId(definition.kind);
+    const commandId = parameterPickCommandId(definition.kind);
     if (!commandId) return false;
     const context = { elementId: element.id, parameterKey: definition.key };
     return dispatchCommand(commandId, context) !== false;
@@ -334,7 +334,7 @@ export const InspectorPanel = ({
                       row.parameterKey,
                     );
                     const pickCommandId = definition
-                      ? inspectorPickCommandId(definition.kind)
+                      ? parameterPickCommandId(definition.kind)
                       : null;
                     const isPicking =
                       activePointPickTarget?.elementId === element.id &&

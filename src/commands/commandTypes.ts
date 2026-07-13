@@ -164,7 +164,8 @@ export type CommandId =
   | "toggleShortcutHelp"
   | "toggleInspectorPanel"
   | "stepSourceValueForward"
-  | "stepSourceValueBackward";
+  | "stepSourceValueBackward"
+  | "startCanvasPickFromSourceSelection";
 
 export type CommandContext = {
   focusCanvas?: () => void;

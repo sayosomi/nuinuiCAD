@@ -1,14 +1,14 @@
 import type { ParameterValueKind } from "../parameters/parameterDefinitions";
 
-export type InspectorPickCommandId =
+export type ParameterPickCommandId =
   | "startPointPick"
   | "startLinePick"
   | "startNumericReferencePick";
 
-/** Maps a read-only Inspector row to an existing Canvas-pick command. */
-export const inspectorPickCommandId = (
+/** Maps an editable parameter kind to the existing Canvas-pick command. */
+export const parameterPickCommandId = (
   kind: ParameterValueKind,
-): InspectorPickCommandId | null => {
+): ParameterPickCommandId | null => {
   if (kind === "reference" || kind === "lineEndpointReference") {
     return "startPointPick";
   }

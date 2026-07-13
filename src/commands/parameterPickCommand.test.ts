@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { inspectorPickCommandId } from "./inspectorPick";
+import { parameterPickCommandId } from "./parameterPickCommand";
 
-describe("inspectorPickCommandId", () => {
+describe("parameterPickCommandId", () => {
   it.each([
     ["reference", "startPointPick"],
     ["lineEndpointReference", "startPointPick"],
@@ -9,13 +9,13 @@ describe("inspectorPickCommandId", () => {
     ["lineReferenceList", "startLinePick"],
     ["number", "startNumericReferencePick"],
   ] as const)("maps %s to the existing %s Canvas-pick command", (kind, commandId) => {
-    expect(inspectorPickCommandId(kind)).toBe(commandId);
+    expect(parameterPickCommandId(kind)).toBe(commandId);
   });
 
   it.each(["text", "boolean", "color", "choice"] as const)(
-    "does not expose a pick button for %s parameters",
+    "does not expose a Canvas picker for %s parameters",
     (kind) => {
-      expect(inspectorPickCommandId(kind)).toBeNull();
+      expect(parameterPickCommandId(kind)).toBeNull();
     },
   );
 });

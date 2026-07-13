@@ -143,6 +143,9 @@ const defaultBindings: ShortcutBinding[] = [
   binding("sourceEditor", "stepSourceValueBackward", [ch("ArrowLeft", { alt: true })], {
     label: "Source Editorの値を前へ (Alt+←)"
   }),
+  binding("sourceEditor", "startCanvasPickFromSourceSelection", [ch("p", { mod: true, shift: true })], {
+    label: "選択中の値をCanvasで選択"
+  }),
   binding("normal", "openShortcutSettings", [], { label: "ショートカット設定" })
 ];
 
@@ -159,6 +162,7 @@ const contextRequiredCommandIds = new Set<CommandId>([
   "startMeasurementLinePick",
   "insertSelectedMeasurement",
   "startNumericReferencePick",
+  "startCanvasPickFromSourceSelection",
   "applyPickedNumericReference",
   "startPointPick",
   "applyPickedPoint",

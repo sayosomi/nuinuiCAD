@@ -18,6 +18,8 @@ export type SourceEditSession = {
   flush: (reason: FlushReason) => SourceEditFlushResult;
   /** Editor-native value commands resolve and commit against the current CM buffer. */
   stepValue?: (direction: 1 | -1) => boolean;
+  /** Starts the matching Canvas picker for the current complete parameter-value selection. */
+  startPickFromSelection?: () => boolean;
 };
 
 let activeSession: SourceEditSession | null = null;
@@ -33,5 +35,6 @@ export const sourceEditSession = {
   hasPendingText: () => activeSession?.hasPendingText() ?? false,
   isComposing: () => activeSession?.isComposing() ?? false,
   flush: (reason: FlushReason): SourceEditFlushResult => activeSession?.flush(reason) ?? "clean",
-  stepValue: (direction: 1 | -1) => activeSession?.stepValue?.(direction) ?? false
+  stepValue: (direction: 1 | -1) => activeSession?.stepValue?.(direction) ?? false,
+  startPickFromSelection: () => activeSession?.startPickFromSelection?.() ?? false
 };
