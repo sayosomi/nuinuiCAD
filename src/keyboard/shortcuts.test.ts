@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { sampleElements } from "../sampleData";
 import {
   commandIdForKeyboardEvent,
+  configurableShortcutBindings,
   isSourceEditorKeyboardTarget,
   keyboardCommandForEvent,
   keyChordMatchesSearch,
@@ -132,6 +133,17 @@ describe("shortcuts", () => {
     ]);
     expect(bindings.find((binding) => binding.commandId === "stepSourceValueBackward")?.chords).toEqual([
       { key: "ArrowLeft", mod: false, alt: true, shift: false }
+    ]);
+  });
+
+  it("keeps editor-native value commands out of normal-mode shortcut bindings", () => {
+    const bindings = configurableShortcutBindings.filter((binding) =>
+      binding.commandId === "stepSourceValueForward" || binding.commandId === "stepSourceValueBackward"
+    );
+
+    expect(bindings.map((binding) => binding.id)).toEqual([
+      "sourceEditor.stepSourceValueForward",
+      "sourceEditor.stepSourceValueBackward"
     ]);
   });
 

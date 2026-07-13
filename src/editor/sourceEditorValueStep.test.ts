@@ -31,6 +31,9 @@ const pressStep = (view: EditorView, direction: 1 | -1) =>
     altKey: true
   });
 
+const pressShiftAltStep = (view: EditorView) =>
+  fireEvent.keyDown(view.contentDOM, { key: "ArrowRight", altKey: true, shiftKey: true });
+
 describe("SourceEditor editor-native value step commands", () => {
   beforeEach(() => {
     useCadDocumentStore.setState(initialCadDocumentState());
@@ -70,6 +73,26 @@ describe("SourceEditor editor-native value step commands", () => {
     parent.remove();
   });
 
+  it("uses Source Editor shortcut overrides after the editor is already mounted", () => {
+    const { controller, parent, view } = openEditor();
+    selectToken(view, "12");
+    useCadUiStore.getState().setShortcutSettings({
+      version: 1,
+      overrides: [{
+        bindingId: "sourceEditor.stepSourceValueForward",
+        chords: [{ key: "ArrowRight", mod: false, alt: true, shift: true }]
+      }]
+    });
+
+    pressStep(view, 1);
+    expect(useCadDocumentStore.getState().sourceText).toContain("(12, 0)");
+    selectToken(view, "12");
+    pressShiftAltStep(view);
+    expect(useCadDocumentStore.getState().sourceText).toContain("(13, 0)");
+    controller.destroy();
+    parent.remove();
+  });
+
   it("does not pre-flush a dirty burst before the command-owned commit", () => {
     const { controller, parent, view } = openEditor();
     view.dispatch({ changes: { from: view.state.doc.length, insert: "\n# pending" } });
@@ -105,6 +128,38 @@ describe("SourceEditor editor-native value step commands", () => {
     selectToken(view, "0");
     pressStep(view, 1);
     expect(useCadDocumentStore.getState().sourceText).not.toContain("(12, 1)");
+    controller.destroy();
+    parent.remove();
+  });
+
+  it("does not step while any editor pick or template insertion is active", () => {
+    const { controller, parent, view } = openEditor();
+    const activatePickModes = [
+      () => useCadUiStore.getState().setActivePointPickTarget({
+        elementId: "missing",
+        parameterKey: "startPoint" as never
+      }),
+      () => useCadUiStore.getState().setActiveNumericReferencePickTarget({
+        elementId: "missing",
+        parameterKey: "x" as never,
+        mode: "replace",
+        property: "distance" as never
+      }),
+      () => useCadUiStore.getState().setActiveLinePickTarget({
+        elementId: "missing",
+        parameterKey: "baseLineId" as never
+      }),
+      () => useCadUiStore.getState().setActiveTemplateInsertion({} as never)
+    ];
+
+    for (const activatePickMode of activatePickModes) {
+      useCadUiStore.getState().clearPickMode();
+      selectToken(view, "12");
+      activatePickMode();
+      const before = view.state.doc.toString();
+      pressStep(view, 1);
+      expect(view.state.doc.toString()).toBe(before);
+    }
     controller.destroy();
     parent.remove();
   });

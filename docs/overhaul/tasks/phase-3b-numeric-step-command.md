@@ -66,7 +66,8 @@ Source Editor(およびLine Lens)で `Alt+→` / `Alt+←` により、カーソ
    コマンド定義へ追加し、
    `sourceEditor` scopeのregistryへ `Alt+→/←` で登録する。既存の
    structural shortcut群と同じ経路(registry→controllerのcompartment)に乗せ、
-   **手書きの第二キーマップを作らない**。
+   **手書きの第二キーマップを作らない**。palette掲載のために空の`normal`
+   bindingを追加せず、設定対象は`sourceEditor` scopeだけとする。
 4. **controller実行**: composing中は消費してno-op。pick対象がactiveな間は
    fall through(既存structural shortcutと同じゲート)。対象解決は**現在の
    CM行テキスト**基準。書き換えは1つのCM changes dispatchで行い、直後に
@@ -80,7 +81,8 @@ Source Editor(およびLine Lens)で `Alt+→` / `Alt+←` により、カーソ
 6. **Line Lens**: lens内カーソルでも同じコマンドが動くこと(lens keymapは
    registry scopeを転送済み。lensのselection更新は既存adapterが同じ同期call
    stackでmainへ投影することをテストで固定し、値解決・書換えはmain docで一度
-   だけ行う。lens IMEは`view.compositionStarted`で消費する)。
+   だけ行う。shortcut設定変更時もmain editorと同時にregistry由来keymapへ
+   再構成する。lens IMEは`view.compositionStarted`で消費する)。
 
 ## 公開API・型
 

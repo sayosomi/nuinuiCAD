@@ -1,5 +1,5 @@
 import { defaultKeymap } from "@codemirror/commands";
-import { EditorSelection, EditorState, Transaction } from "@codemirror/state";
+import { Compartment, EditorSelection, EditorState, StateEffect, Transaction } from "@codemirror/state";
 import { EditorView, ViewPlugin, keymap, type KeyBinding, type ViewUpdate } from "@codemirror/view";
 import { dslLineValueSpans, findDslValueSpanAt } from "../dsl/dslValueSpans";
 import { dslCmLanguageExtension } from "./cmLanguage";
@@ -31,6 +31,9 @@ export type SourceEditorLineLensOptions = {
   sourceKeymap: () => readonly KeyBinding[];
   onFocusChange: (focused: boolean) => void;
 };
+
+/** Reconfigures the nested editor when the owning Source Editor shortcut registry changes. */
+export const reconfigureSourceEditorLineLensKeymap = StateEffect.define<readonly KeyBinding[]>();
 
 /** Clips marks to the line, sorts, and merges overlapping/adjacent ranges so
  * token splitting below never sees out-of-order or overlapping boundaries.
@@ -97,6 +100,7 @@ class SourceEditorLineLens {
   private readonly lens = document.createElement("div");
   private readonly measure = document.createElement("span");
   private readonly lensView: EditorView;
+  private readonly sourceKeymapCompartment = new Compartment();
   private resizeObserver: ResizeObserver | null = null;
   private renderedKey: string | null = null;
   private lensLineFrom: number | null = null;
@@ -117,7 +121,7 @@ class SourceEditorLineLens {
           dslCmLanguageExtension,
           sourceEditorPatchHighlightExtension,
           EditorView.lineWrapping,
-          keymap.of([...this.options.sourceKeymap(), ...defaultKeymap]),
+          this.sourceKeymapCompartment.of(keymap.of([...this.options.sourceKeymap(), ...defaultKeymap])),
           EditorView.updateListener.of((update) => this.handleLensUpdate(update)),
           EditorView.domEventHandlers({
             mouseup: (event, view) => this.handleValueClick(event as MouseEvent, view)
@@ -134,6 +138,15 @@ class SourceEditorLineLens {
 
   update(update: ViewUpdate) {
     this.view = update.view;
+    for (const transaction of update.transactions) {
+      for (const effect of transaction.effects) {
+        if (!effect.is(reconfigureSourceEditorLineLensKeymap)) continue;
+        this.lensView.dispatch({
+          effects: this.sourceKeymapCompartment.reconfigure(keymap.of([...effect.value, ...defaultKeymap])),
+          annotations: Transaction.addToHistory.of(false)
+        });
+      }
+    }
     if (this.dispatchingLensUpdate) {
       this.queueRender();
       return;

@@ -58,7 +58,7 @@ describe("dispatchCommand editor flush boundary", () => {
     expect(useCadDocumentStore.getState().sourceText).toBe(before);
   });
 
-  it("leaves the flush boundary to editor-native value commands only", () => {
+  it("leaves the flush boundary to both editor-native value commands only", () => {
     const flush = vi.fn(() => "flushed" as const);
     const stepValue = vi.fn(() => true);
     unregister = registerSourceEditSession({
@@ -72,5 +72,9 @@ describe("dispatchCommand editor flush boundary", () => {
 
     expect(flush).not.toHaveBeenCalled();
     expect(stepValue).toHaveBeenCalledWith(1);
+
+    expect(dispatchCommand("stepSourceValueBackward")).toBe(true);
+    expect(flush).not.toHaveBeenCalled();
+    expect(stepValue).toHaveBeenLastCalledWith(-1);
   });
 });

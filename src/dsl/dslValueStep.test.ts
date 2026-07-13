@@ -20,9 +20,13 @@ const stepAt = (
 describe("stepDslNumericLiteral", () => {
   it("uses fixed decimal arithmetic and normalizes signs and zero", () => {
     expect(stepDslNumericLiteral("0.1", 0.2, 1)).toBe("0.3");
+    expect(stepDslNumericLiteral(".2", 0.1, 1)).toBe("0.3");
     expect(stepDslNumericLiteral("-0.1", 0.1, 1)).toBe("0");
     expect(stepDslNumericLiteral("+1.50", 0.25, -1)).toBe("1.25");
     expect(stepDslNumericLiteral("-1", 10, 1)).toBe("9");
+    expect(stepDslNumericLiteral("9", 1, 1)).toBe("10");
+    expect(stepDslNumericLiteral("0", 10, -1)).toBe("-10");
+    expect(stepDslNumericLiteral("0", 100, 1)).toBe("100");
   });
 
   it("rejects expressions, units, and exponent syntax", () => {
@@ -58,15 +62,29 @@ describe("resolveDslValueStep", () => {
     const booleanSource = "point A = (0, 0) locked=true";
     const point = compileElement(booleanSource);
     expect(stepAt(booleanSource, point, "true", 1)).toMatchObject({ parameterKey: "locked", insert: "false" });
+    expect(stepAt(booleanSource, point, "true", -1)).toMatchObject({ parameterKey: "locked", insert: "false" });
 
     const choiceSource = "var V = 1 scope=global";
     const variable = compileElement(choiceSource);
     expect(stepAt(choiceSource, variable, "global", 1)).toMatchObject({ parameterKey: "scope", insert: "group" });
     expect(stepAt(choiceSource, variable, "global", -1)).toMatchObject({ parameterKey: "scope", insert: "group" });
+    const wrappedChoiceSource = "var V = 1 scope=group";
+    const wrappedVariable = compileElement(wrappedChoiceSource);
+    expect(stepAt(wrappedChoiceSource, wrappedVariable, "group", 1)).toMatchObject({ parameterKey: "scope", insert: "global" });
+    expect(stepAt(wrappedChoiceSource, wrappedVariable, "group", -1)).toMatchObject({ parameterKey: "scope", insert: "global" });
 
     const textSource = 'text Label = "true" at=A size=4';
     const text = compileElement(textSource);
     expect(stepAt(textSource, text, "true", 1)).toBeNull();
+
+    const lineSource = "line L = A -> B";
+    const line = compileElement(lineSource);
+    expect(stepAt(lineSource, line, "A", 1)).toBeNull();
+    expect(stepAt(lineSource, line, "line", 1)).toBeNull();
+
+    const coloredLineSource = "line L = A -> B color=red";
+    const coloredLine = compileElement(coloredLineSource);
+    expect(stepAt(coloredLineSource, coloredLine, "red", 1)).toBeNull();
   });
 
   it("accepts a caret or exact target selection, never a partial selection", () => {

@@ -209,8 +209,13 @@ const contextRequiredCommandIds = new Set<CommandId>([
 ]);
 
 const defaultBindingIds = new Set(defaultBindings.map((item) => item.id));
+const sourceEditorCommandIds = new Set(
+  defaultBindings
+    .filter((item) => item.scope === "sourceEditor")
+    .map((item) => item.commandId)
+);
 const paletteBindings: ShortcutBinding[] = paletteCommandIds
-  .filter((commandId) => !contextRequiredCommandIds.has(commandId))
+  .filter((commandId) => !contextRequiredCommandIds.has(commandId) && !sourceEditorCommandIds.has(commandId))
   .map((commandId) => binding("normal", commandId, []))
   .filter((item) => !defaultBindingIds.has(item.id));
 

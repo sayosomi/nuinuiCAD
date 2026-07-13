@@ -27,7 +27,7 @@ import type { ElementId, EvaluationResult } from "../types/geometry";
 import { useCadDocumentStore, type CadDocumentState } from "../state/cadDocumentStore";
 import { useCadUiStore, type CadUiState } from "../state/cadUiStore";
 import { dslCmLanguageExtension } from "./cmLanguage";
-import { sourceEditorLineLens } from "./sourceEditorLineLens";
+import { reconfigureSourceEditorLineLensKeymap, sourceEditorLineLens } from "./sourceEditorLineLens";
 import {
   captureSourceEditorViewport,
   cursorAtSnapshotLocation,
@@ -282,7 +282,10 @@ export class SourceEditorController implements SourceEditorHandle {
       if (foldChanged) this.pendingFoldProjection = true;
       if (next.shortcutSettings !== previous.shortcutSettings) {
         this.view.dispatch({
-          effects: this.sourceEditorShortcutCompartment.reconfigure(keymap.of(this.sourceEditorShortcutKeymap())),
+          effects: [
+            this.sourceEditorShortcutCompartment.reconfigure(keymap.of(this.sourceEditorShortcutKeymap())),
+            reconfigureSourceEditorLineLensKeymap.of(this.lineLensKeymap())
+          ],
           annotations: Transaction.addToHistory.of(false)
         });
       }

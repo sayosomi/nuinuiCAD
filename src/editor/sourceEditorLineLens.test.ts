@@ -387,6 +387,26 @@ describe("SourceEditor selected-line lens Tab/Shift-Tab value navigation", () =>
     controller.destroy();
   });
 
+  it("refreshes an open lens with Source Editor shortcut overrides", async () => {
+    const { controller, view, lensView } = await openLensOnLine(2);
+    const xStart = lensView.state.doc.toString().indexOf("5");
+    lensView.dispatch({ selection: EditorSelection.cursor(xStart) });
+    useCadUiStore.getState().setShortcutSettings({
+      version: 1,
+      overrides: [{
+        bindingId: "sourceEditor.stepSourceValueForward",
+        chords: [{ key: "ArrowRight", mod: false, alt: true, shift: true }]
+      }]
+    });
+
+    fireEvent.keyDown(lensView.contentDOM, { key: "ArrowRight", altKey: true });
+    expect(view.state.doc.toString()).toContain("point A = (5, 9)");
+    lensView.dispatch({ selection: EditorSelection.cursor(xStart) });
+    fireEvent.keyDown(lensView.contentDOM, { key: "ArrowRight", altKey: true, shiftKey: true });
+    expect(useCadDocumentStore.getState().sourceText).toContain("point A = (6, 9)");
+    controller.destroy();
+  });
+
   it("falls through without crashing on a line with no editable values", async () => {
     const { controller, lensView } = await openLensOnLine(5);
     lensView.dispatch({ selection: EditorSelection.cursor(0) });
