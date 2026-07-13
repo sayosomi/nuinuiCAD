@@ -1,10 +1,14 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { createRef } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SourceEditorHandle } from "../editor/sourceEditorTypes";
+import { registerSourceEditSession } from "../editor/sourceEditSession";
 import { evaluateElements } from "../geometry/evaluate";
+import { createCadElement } from "../model/elementFactory";
+import { sampleElements } from "../sampleData";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
+import type { CadElement, CadElementType } from "../types/geometry";
 import { InspectorPanel } from "./InspectorPanel";
 
 const source = [
@@ -27,13 +31,11 @@ const makeHandle = (): SourceEditorHandle => ({
   focusSearch: vi.fn()
 });
 
-const renderInspector = (elementName: string) => {
-  const elements = useCadDocumentStore.getState().elements;
-  const element = elements.find((candidate) => candidate.name === elementName)!;
+const renderInspectorElement = (element: CadElement, elements: CadElement[]) => {
   const handle = makeHandle();
   const sourceEditorRef = createRef<SourceEditorHandle>();
   sourceEditorRef.current = handle;
-  render(
+  const view = render(
     <InspectorPanel
       element={element}
       elements={elements}
@@ -41,7 +43,22 @@ const renderInspector = (elementName: string) => {
       sourceEditorRef={sourceEditorRef}
     />
   );
-  return { element, elements, handle };
+  return { element, handle, unmount: view.unmount };
+};
+
+const renderInspector = (elementName: string) => {
+  const elements = useCadDocumentStore.getState().elements;
+  const element = elements.find((candidate) => candidate.name === elementName)!;
+  return { elements, ...renderInspectorElement(element, elements) };
+};
+
+const renderFactoryInspector = (type: CadElementType) => {
+  const element = createCadElement(type, sampleElements, {
+    createId: () => `inspector-${type}`,
+  });
+  const elements = [...sampleElements, element];
+  useCadDocumentStore.setState({ elements });
+  return renderInspectorElement(element, elements);
 };
 
 describe("InspectorPanel mouse-only actions", () => {
@@ -83,5 +100,67 @@ describe("InspectorPanel mouse-only actions", () => {
       parameterKey: "dx"
     });
     expect(handle.jumpToParameterValue).not.toHaveBeenCalled();
+  });
+
+  it("keeps explicit Canvas-pick buttons for every supported parameter kind", () => {
+    const cases: Array<{
+      type: CadElementType;
+      buttonName: string;
+      target: "point" | "line" | "numeric";
+      parameterKey: string;
+    }> = [
+      { type: "offsetPoint", buttonName: "基準点を選択", target: "point", parameterKey: "fromPoint" },
+      { type: "lineDivisionPoint", buttonName: "端点を選択", target: "point", parameterKey: "endpoint" },
+      { type: "intersectionPoint", buttonName: "線1を選択", target: "line", parameterKey: "line1Id" },
+      { type: "offsetLine", buttonName: "基準線を選択", target: "line", parameterKey: "baseLineIds" },
+      { type: "freePoint", buttonName: "xを選択", target: "numeric", parameterKey: "x" },
+    ];
+
+    for (const testCase of cases) {
+      const { element, handle, unmount } = renderFactoryInspector(testCase.type);
+      fireEvent.click(screen.getByRole("button", { name: testCase.buttonName }));
+
+      const target = testCase.target === "point"
+        ? useCadUiStore.getState().activePointPickTarget
+        : testCase.target === "line"
+          ? useCadUiStore.getState().activeLinePickTarget
+          : useCadUiStore.getState().activeNumericReferencePickTarget;
+      expect(target).toMatchObject({
+        elementId: element.id,
+        parameterKey: testCase.parameterKey,
+      });
+      expect(handle.jumpToParameterValue).not.toHaveBeenCalled();
+
+      useCadUiStore.setState({
+        activePointPickTarget: null,
+        activeLinePickTarget: null,
+        activeNumericReferencePickTarget: null,
+      });
+      unmount();
+    }
+  });
+
+  it("does not render a pick button for non-pickable parameters", () => {
+    renderInspector("B");
+    const nameRow = screen.getByText("名前").closest(".inspector-row");
+    if (!(nameRow instanceof HTMLElement)) throw new Error("Missing name row");
+    expect(within(nameRow).queryByRole("button")).not.toBeInTheDocument();
+  });
+
+  it("keeps the existing IME composition guard when a pick button is clicked", () => {
+    const unregister = registerSourceEditSession({
+      hasPendingText: () => true,
+      isComposing: () => true,
+      flush: () => "blocked-composition",
+    });
+    try {
+      const { handle } = renderInspector("B");
+      fireEvent.click(screen.getByRole("button", { name: "基準点を選択" }));
+
+      expect(useCadUiStore.getState().activePointPickTarget).toBeNull();
+      expect(handle.jumpToParameterValue).not.toHaveBeenCalled();
+    } finally {
+      unregister();
+    }
   });
 });

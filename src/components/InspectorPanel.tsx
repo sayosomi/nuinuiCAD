@@ -23,6 +23,7 @@ import {
   type InspectorParameterRow,
   type InspectorUnresolvedDependencyRow,
 } from "./inspectorPresentation";
+import { inspectorPickCommandId } from "./inspectorPick";
 
 const statusLabels = (status: ElementPresentationStatus) =>
   [
@@ -153,22 +154,10 @@ export const InspectorPanel = ({
     if (!element) return false;
     const definition = findParameterDefinition(element, row.parameterKey);
     if (!definition) return false;
+    const commandId = inspectorPickCommandId(definition.kind);
+    if (!commandId) return false;
     const context = { elementId: element.id, parameterKey: definition.key };
-    if (
-      definition.kind === "reference" ||
-      definition.kind === "lineEndpointReference"
-    ) {
-      return dispatchCommand("startPointPick", context) !== false;
-    }
-    if (
-      definition.kind === "lineReference" ||
-      definition.kind === "lineReferenceList"
-    ) {
-      return dispatchCommand("startLinePick", context) !== false;
-    }
-    if (definition.kind === "number")
-      return dispatchCommand("startNumericReferencePick", context) !== false;
-    return false;
+    return dispatchCommand(commandId, context) !== false;
   };
   const evaluationLabel = isLastGood
     ? "評価: last-good"
@@ -339,22 +328,21 @@ export const InspectorPanel = ({
                       element,
                       row.parameterKey,
                     );
-                    const pickable =
-                      definition?.kind === "reference" ||
-                      definition?.kind === "lineEndpointReference" ||
-                      definition?.kind === "lineReference" ||
-                      definition?.kind === "lineReferenceList" ||
-                      definition?.kind === "number";
-                    return pickable ? (
+                    const pickCommandId = definition
+                      ? inspectorPickCommandId(definition.kind)
+                      : null;
+                    return pickCommandId ? (
                       <button
                         type="button"
+                        className="inspector-pick-button"
                         aria-label={`${row.label}を選択`}
+                        title={`${row.label}をCanvasで選択`}
                         onClick={(event) => {
                           event.stopPropagation();
                           startParameterPick(row);
                         }}
                       >
-                        P
+                        ⌖
                       </button>
                     ) : null;
                   })()}
