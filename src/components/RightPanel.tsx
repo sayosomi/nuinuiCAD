@@ -105,67 +105,69 @@ export const RightPanel = ({
 
   return (
     <aside className="right-panel" ref={rightPanelRef}>
-      {selectedElement ? (
-        <ElementEditor
+      <div className="right-panel-scroll">
+        {selectedElement ? (
+          <ElementEditor
+            element={selectedElement}
+            elements={elements}
+            evaluation={evaluation}
+            isParameterEditMode={isParameterEditMode}
+            registerParameterControl={registerParameterControl}
+          />
+        ) : (
+          <section className="panel-section">
+            <div className="section-header">
+              <h2>要素設定</h2>
+            </div>
+            <p className="empty-state">要素を選択してください。</p>
+          </section>
+        )}
+
+        {expressionInsertElement && activeExpressionInsertTarget && (
+          expressionInsertParameter?.kind === "number" ||
+          (expressionInsertElement.type === "text" && expressionInsertParameter?.key === "text")
+        ) ? (
+          <ExpressionInsertTray
+            element={expressionInsertElement}
+            elements={elements}
+            evaluation={evaluation}
+            parameterKey={expressionInsertParameter.key}
+            focusInput={() => {
+              const selector = activeExpressionInsertTarget.parameterKey === "text"
+                ? `textarea[data-text-element-id="${activeExpressionInsertTarget.elementId}"][data-text-parameter-key="${activeExpressionInsertTarget.parameterKey}"]`
+                : `input[data-numeric-element-id="${activeExpressionInsertTarget.elementId}"][data-numeric-parameter-key="${activeExpressionInsertTarget.parameterKey}"]`;
+              document.querySelector<HTMLInputElement | HTMLTextAreaElement>(selector)?.focus();
+            }}
+            getInputTarget={() => ({
+              displayedExpression,
+              selectionStart:
+                expressionInsertInputTarget?.elementId === activeExpressionInsertTarget.elementId &&
+                expressionInsertInputTarget.parameterKey === activeExpressionInsertTarget.parameterKey
+                  ? expressionInsertInputTarget.selectionStart
+                  : null,
+              selectionEnd:
+                expressionInsertInputTarget?.elementId === activeExpressionInsertTarget.elementId &&
+                expressionInsertInputTarget.parameterKey === activeExpressionInsertTarget.parameterKey
+                  ? expressionInsertInputTarget.selectionEnd
+                  : null
+            })}
+          />
+        ) : null}
+
+        <InspectorPanel
+          ref={inspectorRef}
           element={selectedElement}
           elements={elements}
           evaluation={evaluation}
-          isParameterEditMode={isParameterEditMode}
-          registerParameterControl={registerParameterControl}
+          evaluationEngineLabel={evaluationEngineLabel(evaluationState)}
+          isEvaluationFallback={evaluationState?.source === "fallback"}
+          isEvaluationStale={evaluationState?.isStale}
+          sourceEditorRef={sourceEditorRef}
+          onExit={onExitInspector}
         />
-      ) : (
-        <section className="panel-section">
-          <div className="section-header">
-            <h2>要素設定</h2>
-          </div>
-          <p className="empty-state">要素を選択してください。</p>
-        </section>
-      )}
+      </div>
 
-      {expressionInsertElement && activeExpressionInsertTarget && (
-        expressionInsertParameter?.kind === "number" ||
-        (expressionInsertElement.type === "text" && expressionInsertParameter?.key === "text")
-      ) ? (
-        <ExpressionInsertTray
-          element={expressionInsertElement}
-          elements={elements}
-          evaluation={evaluation}
-          parameterKey={expressionInsertParameter.key}
-          focusInput={() => {
-            const selector = activeExpressionInsertTarget.parameterKey === "text"
-              ? `textarea[data-text-element-id="${activeExpressionInsertTarget.elementId}"][data-text-parameter-key="${activeExpressionInsertTarget.parameterKey}"]`
-              : `input[data-numeric-element-id="${activeExpressionInsertTarget.elementId}"][data-numeric-parameter-key="${activeExpressionInsertTarget.parameterKey}"]`;
-            document.querySelector<HTMLInputElement | HTMLTextAreaElement>(selector)?.focus();
-          }}
-          getInputTarget={() => ({
-            displayedExpression,
-            selectionStart:
-              expressionInsertInputTarget?.elementId === activeExpressionInsertTarget.elementId &&
-              expressionInsertInputTarget.parameterKey === activeExpressionInsertTarget.parameterKey
-                ? expressionInsertInputTarget.selectionStart
-                : null,
-            selectionEnd:
-              expressionInsertInputTarget?.elementId === activeExpressionInsertTarget.elementId &&
-              expressionInsertInputTarget.parameterKey === activeExpressionInsertTarget.parameterKey
-                ? expressionInsertInputTarget.selectionEnd
-                : null
-          })}
-        />
-      ) : null}
-
-      <InspectorPanel
-        ref={inspectorRef}
-        element={selectedElement}
-        elements={elements}
-        evaluation={evaluation}
-        evaluationEngineLabel={evaluationEngineLabel(evaluationState)}
-        isEvaluationFallback={evaluationState?.source === "fallback"}
-        isEvaluationStale={evaluationState?.isStale}
-        sourceEditorRef={sourceEditorRef}
-        onExit={onExitInspector}
-      />
-
-      <section className="panel-section">
+      <footer className="panel-section right-panel-footer">
         <div className="section-header">
           <h2>ショートカット</h2>
           <button
@@ -177,7 +179,7 @@ export const RightPanel = ({
           </button>
         </div>
         <p className="empty-state">{shortcutHint}</p>
-      </section>
+      </footer>
     </aside>
   );
 };

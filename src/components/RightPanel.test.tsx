@@ -1626,6 +1626,18 @@ describe("Shortcut help display", () => {
     expect(screen.queryByText("選択要素を削除")).not.toBeInTheDocument();
   });
 
+  it("keeps the shortcut footer outside the single scrolling content region", () => {
+    const { container } = renderRightPanel();
+    const panel = container.querySelector<HTMLElement>(".right-panel");
+    const scrollRegion = container.querySelector<HTMLElement>(".right-panel-scroll");
+    const footer = container.querySelector<HTMLElement>(".right-panel-footer");
+
+    expect(panel).toContainElement(scrollRegion);
+    expect(panel).toContainElement(footer);
+    expect(scrollRegion).toContainElement(screen.getByRole("region", { name: "インスペクタ" }));
+    expect(scrollRegion).not.toContainElement(footer);
+  });
+
   it("shows shortcuts in an overlay when enabled", () => {
     useCadStore.setState({ showShortcutHelp: true });
     renderShortcutHelpOverlay();

@@ -511,15 +511,107 @@ textarea {
 }
 
 .right-panel {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  container-name: right-panel;
+  container-type: inline-size;
   gap: 14px;
-  min-height: 100vh;
-  max-height: 100vh;
-  overflow: auto;
+  min-width: 0;
+  min-height: 0;
+  height: 100vh;
+  overflow: hidden;
+  box-sizing: border-box;
   background: #f8f7f2;
   padding: 18px;
   border-left: 1px solid #d2d4cd;
+}
+
+.right-panel-scroll {
+  display: grid;
+  align-content: start;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  gap: 14px;
+  padding-right: 2px;
+}
+
+.right-panel-footer {
+  min-width: 0;
+}
+
+@container right-panel (max-width: 360px) {
+  .right-panel .section-header {
+    align-items: flex-start;
+  }
+
+  .right-panel .section-header > div,
+  .right-panel .section-subtitle,
+  .right-panel .evaluation-engine-status {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .right-panel .evaluation-engine-status {
+    max-width: 42%;
+    text-align: right;
+    white-space: normal;
+  }
+
+  .right-panel .editor-grid,
+  .right-panel .element-info-grid,
+  .right-panel .point-anchor-coordinate-grid,
+  .right-panel .curve-point-group,
+  .right-panel .local-variable-group,
+  .right-panel .variable-choice-grid,
+  .right-panel .measurement-mode-grid,
+  .right-panel .measurement-pick-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .right-panel .numeric-parameter-header,
+  .right-panel .numeric-parameter-footer,
+  .right-panel .point-anchor-header {
+    align-items: stretch;
+    grid-template-columns: minmax(0, 1fr);
+    flex-direction: column;
+  }
+
+  .right-panel .numeric-parameter-actions,
+  .right-panel .point-anchor-actions {
+    justify-content: flex-start;
+  }
+
+  .right-panel .choice-parameter-editor,
+  .right-panel .parameter-step,
+  .right-panel .compact-numeric-input-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .right-panel .choice-parameter-editor .point-anchor-mode {
+    justify-self: start;
+  }
+
+  .right-panel .variable-choice-card strong,
+  .right-panel .variable-choice-card small,
+  .right-panel .measurement-mode-grid strong,
+  .right-panel .measurement-mode-grid small {
+    overflow: visible;
+    overflow-wrap: anywhere;
+    text-overflow: clip;
+    white-space: normal;
+  }
+
+  .right-panel .inspector-row,
+  .right-panel .dependency-row,
+  .right-panel .dependency-row-with-issues .dependency-row-main {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .right-panel .inspector-row {
+    flex-direction: column;
+  }
 }
 
 .app-title h1,
@@ -779,13 +871,13 @@ textarea {
 
 .inspector-panel {
   min-height: 0;
+  min-width: 0;
 }
 
 .inspector-navigation {
   display: grid;
   gap: 10px;
-  max-height: min(48vh, 560px);
-  overflow: auto;
+  min-width: 0;
   outline: none;
 }
 
@@ -825,6 +917,7 @@ textarea {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
+  min-width: 0;
   gap: 8px;
   cursor: pointer;
   border: 1px solid #d7d9d2;
@@ -842,6 +935,7 @@ textarea {
   display: grid;
   gap: 2px;
   min-width: 0;
+  flex: 1 1 0;
 }
 
 .inspector-row small {
@@ -864,6 +958,12 @@ textarea {
 .inspector-diagnostic.warning {
   background: #fff9e8;
   color: #71510b;
+}
+
+.inspector-diagnostic,
+.dependency-issue,
+.dependency-row.unresolved {
+  overflow-wrap: anywhere;
 }
 
 .button-row {
