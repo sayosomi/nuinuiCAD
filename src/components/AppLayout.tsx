@@ -84,6 +84,8 @@ const saveLeftPanelWidth = (leftPanelWidth: number) => {
 };
 
 const inspectorNavigationCommandIds = new Set([
+  "enterParameterEditMode",
+  "enterDependencyJumpMode",
   "selectNextParameter",
   "selectPreviousParameter",
   "activateSelectedParameter",
@@ -91,7 +93,8 @@ const inspectorNavigationCommandIds = new Set([
   "selectNextDependencyJumpTarget",
   "selectPreviousDependencyJumpTarget",
   "jumpToSelectedDependencyTarget",
-  "exitDependencyJumpMode"
+  "exitDependencyJumpMode",
+  "toggleShortcutHelp"
 ]);
 
 export const AppLayout = () => {

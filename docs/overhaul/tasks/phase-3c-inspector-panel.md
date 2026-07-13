@@ -86,6 +86,16 @@ Escでエディタ/キャンバスへ復帰。**インスペクタは読み取�
    復帰。行の正はローカル`activeRowKey`、Inspector focus判定はhandleの単一境界と
    し、各commandがDOM queryを重複してはならない。旧パラメータ編集モードの
    「キーボードでパラメータへ到達する」役割を代替するのが狙い。
+   * `e` / normal `Enter` はparameter行の先頭へ、`j` はjump可能なdependency行の
+     先頭へフォーカスを移す。Inspector内でも`e`/`j`で両区分を切り替えられる。
+   * **parameter行のEnter**は`jumpToParameterValue`を呼び、値spanを全選択して
+     Source EditorへDOM focusをhandoffする。続くタイプ入力はDSL編集になる。
+   * **dependency行のEnter**は対象要素を選択し、Source Editorの対象statement行へ
+     cursorだけを移す。**DOM focusはInspectorに維持**するため、続けて`↑`/`↓`で
+     dependency行を巡回できる。この非対称性は意図した仕様である。
+   * `Esc`はInspectorに入る直前のSource EditorまたはCanvasへ戻る。`↑`/`↓`は端で
+     clampし、active rowが要素変更やdynamic parameter/依存行の増減で消えた場合は
+     同じ区分の先頭へ決定論的にfallbackする。
 3. **RightPanel差し替え**: `ElementInfoPanel` 使用箇所をInspectorPanelへ。
    ElementEditor/ExpressionInsertTray/ショートカットヒントは現状維持。
 4. **ジャンプ動作**: パラメータ行Enter→エディタへフォーカスが移り該当値spanが
@@ -105,7 +115,8 @@ Escでエディタ/キャンバスへ復帰。**インスペクタは読み取�
 * 読み取り: `cadDocumentStore`(elements・diagnostics)、evaluation
   (AppLayoutから渡る現行のprops経路)、`cadUiStore`(要素選択・旧dependency jump互換state)。
 * 書き込み: 要素選択と、InspectorPanelローカルの`activeRowKey`、handle経由のジャンプ
-  (selection-only)のみ。**文書(sourceText)には一切書かない。**
+  (selection-only)のみ。`selectedParameterKey` / `selectedDependencyJumpIndex`を
+  Inspector navigationの正として書き換えない。**文書(sourceText)には一切書かない。**
 * ジャンプはdirty bufferでも3aの規則で現在CMテキスト基準に解決される。
 
 ## 守るべき不変条件
@@ -138,6 +149,9 @@ Escでエディタ/キャンバスへ復帰。**インスペクタは読み取�
 * パラメータ行→Enter→該当値spanが全選択されエディタにフォーカスが移ること
   (数値・式・参照・選択肢・色・真偽の各種別で)。
 * 行ナビゲーション(↑↓・端の挙動)・Esc復帰。
+* dependency行EnterがSource Editorのcursorを移してもInspector DOM focusを保持し、
+  続く↑↓でdependency行を巡回できること。parameter行Enterは対照的にSource Editorへ
+  focus handoffすること。
 * Inspectorへのfocus移動直後のEnterが旧フォーム編集・pick開始へfallthroughしないこと。
 * 依存関係行のジャンプと種別表示(欠落・未解決・エラー保持)。
 * 状態バッジがエラー/無効/非表示/ロックを正しく反映。

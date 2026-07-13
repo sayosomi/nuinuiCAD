@@ -225,6 +225,49 @@ describe("AppLayout keyboard handling", () => {
     expect(useCadStore.getState().activePointPickTarget).toBeNull();
   });
 
+  it("cancels an active point pick before e hands focus to the Inspector", async () => {
+    const view = render(<AppLayout />);
+    const viewport = view.container.querySelector(".canvas-viewport");
+    const line = sampleElements.find((element) => element.id === "line-ab");
+    if (!(viewport instanceof HTMLDivElement) || !line) throw new Error("Missing fixture");
+    useCadStore.setState({
+      selectedElementId: line.id,
+      selectedElementIds: [line.id],
+      activePointPickTarget: { elementId: line.id, parameterKey: "startPoint" }
+    });
+
+    viewport.focus();
+    fireEvent.keyDown(window, { key: "e" });
+
+    await waitFor(() => expect(view.getByRole("listbox", { name: "インスペクタ行" })).toHaveFocus());
+    expect(useCadStore.getState().activePointPickTarget).toBeNull();
+  });
+
+  it("keeps Inspector focus after dependency Enter and allows shortcut help from the Inspector", async () => {
+    const view = render(<AppLayout />);
+    const viewport = view.container.querySelector(".canvas-viewport");
+    const line = sampleElements.find((element) => element.id === "line-ab");
+    if (!(viewport instanceof HTMLDivElement) || !line) throw new Error("Missing fixture");
+    useCadStore.setState({ selectedElementId: line.id, selectedElementIds: [line.id] });
+
+    viewport.focus();
+    fireEvent.keyDown(window, { key: "j" });
+    const inspector = await view.findByRole("listbox", { name: "インスペクタ行" });
+    await waitFor(() => expect(inspector).toHaveFocus());
+    fireEvent.keyDown(window, { key: "e" });
+    expect(inspector).toHaveAttribute("aria-activedescendant", "inspector-row-parameter-name");
+    fireEvent.keyDown(window, { key: "j" });
+    expect(inspector).toHaveAttribute("aria-activedescendant", "inspector-row-dependency-parent-point-a");
+    fireEvent.keyDown(window, { key: "Enter" });
+    expect(inspector).toHaveFocus();
+    await waitFor(() => expect(useCadStore.getState().sourceCursorLine).toBe(
+      useCadStore.getState().doc.statementMap.byElementId.get("point-a")?.line
+    ));
+
+    fireEvent.keyDown(window, { key: "?", shiftKey: true });
+    expect(useCadStore.getState().showShortcutHelp).toBe(true);
+  });
+
   it("toggles evaluation with a from the focused canvas", () => {
     const view = render(<AppLayout />);
     const viewport = view.container.querySelector(".canvas-viewport");

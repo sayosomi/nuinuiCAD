@@ -428,6 +428,11 @@ export const viewModeCommandDefinitions = {
     run: (context) => {
       const selectedElement = getSelectedElement();
       if (!selectedElement) return;
+      // Inspector navigation cannot safely coexist with a legacy canvas pick. Match
+      // dependency navigation and make e/Enter a deterministic Inspector handoff.
+      cancelPointPick();
+      cancelNumericReferencePick();
+      cancelLinePick();
       useCadUiStore.setState({
         showElementInfoPanel: true,
         isParameterEditMode: true,
