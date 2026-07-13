@@ -22,6 +22,8 @@ import { SourceEditorPane } from "./SourceEditorPane";
 import type { SourceEditorHandle } from "../editor/sourceEditorTypes";
 import { registerTauriMenuCommandListener } from "../commands/tauriMenuEvents";
 import { selectTextInputValue } from "./textInputSelection";
+import { PickModeStatus } from "./PickModeStatus";
+import { findParameterDefinition } from "../parameters/parameterDefinitions";
 
 const DslPanel = lazy(() =>
   import("./DslPanel").then((module) => ({ default: module.DslPanel }))
@@ -103,6 +105,7 @@ export const AppLayout = () => {
   const setPrintPreviewWindow = useCadUiStore((state) => state.setPrintPreviewWindow);
   const setDslPanelWindow = useCadUiStore((state) => state.setDslPanelWindow);
   const activeTemplateInsertion = useCadUiStore((state) => state.activeTemplateInsertion);
+  const activeLinePickTarget = useCadUiStore((state) => state.activeLinePickTarget);
   const isPickMode = useCadUiStore(
     (state) =>
       Boolean(state.activePointPickTarget) ||
@@ -111,6 +114,7 @@ export const AppLayout = () => {
       Boolean(state.activeTemplateInsertion)
   );
   const canvasFocusRef = useRef<HTMLDivElement>(null);
+  const appShellRef = useRef<HTMLElement>(null);
   const canvasWorkspaceRef = useRef<HTMLDivElement>(null);
   const commandRibbonDockRef = useRef<HTMLDivElement>(null);
   const sourceEditorRef = useRef<SourceEditorHandle>(null);
@@ -120,6 +124,28 @@ export const AppLayout = () => {
   const evaluationOptions = useMemo(() => ({ evaluationLimitIndex }), [evaluationLimitIndex]);
   const evaluationState = useEvaluationEngine(elements, evaluationOptions, compiledDocumentRevision);
   const { evaluation, evaluationRevision, evaluationRequestRevision } = evaluationState;
+  const isMultiLinePicking = Boolean(
+    activeLinePickTarget &&
+      elements.find((element) => element.id === activeLinePickTarget.elementId) &&
+      findParameterDefinition(
+        elements.find((element) => element.id === activeLinePickTarget.elementId)!,
+        activeLinePickTarget.parameterKey
+      )?.kind === "lineReferenceList"
+  );
+
+  useEffect(() => {
+    if (isMultiLinePicking) canvasFocusRef.current?.focus();
+  }, [isMultiLinePicking]);
+
+  useEffect(() => {
+    const shell = appShellRef.current;
+    if (!shell) return;
+    const disabledRegions = shell.querySelectorAll<HTMLElement>(
+      ".source-editor-pane-wrapper, .right-panel, .left-panel-resize-handle"
+    );
+    disabledRegions.forEach((region) => region.toggleAttribute("inert", isMultiLinePicking));
+    return () => disabledRegions.forEach((region) => region.removeAttribute("inert"));
+  }, [isMultiLinePicking]);
 
   useEffect(() => {
     // Publish with the revisions the engine captured when this evaluation request
@@ -337,9 +363,20 @@ export const AppLayout = () => {
 
   return (
     <main
-      className={`app-shell ${isResizingLeftPanel ? "is-resizing-left-panel" : ""}`}
+      ref={appShellRef}
+      className={`app-shell ${isResizingLeftPanel ? "is-resizing-left-panel" : ""} ${isPickMode ? "is-pick-mode" : ""} ${isMultiLinePicking ? "is-multi-line-picking" : ""}`}
       style={{ "--left-panel-width": `${leftPanelWidth}px` } as CSSProperties}
       onFocusCapture={(event) => selectTextInputValue(event.target)}
+      onKeyDownCapture={(event) => {
+        if (
+          isMultiLinePicking &&
+          event.target instanceof HTMLElement &&
+          !event.target.closest(".canvas-workspace, .pick-mode-status")
+        ) {
+          event.preventDefault();
+          event.stopPropagation();
+        }
+      }}
     >
       <SourceEditorPane
         ref={sourceEditorRef}
@@ -409,6 +446,7 @@ export const AppLayout = () => {
         </>
       )}
       <CommandPalette commandContext={commandContext} />
+      <PickModeStatus />
       {activeTemplateInsertion ? (
         <Suspense fallback={null}>
           <TemplateInsertionPanel />

@@ -8,8 +8,8 @@ import { dispatchCommand } from "../commands/commands";
 import type { CommandContext } from "../commands/commands";
 import type { EvaluationEngineState } from "../geometry/useEvaluationEngine";
 import { generatedElementIdForTargetForGroup } from "../model/forGroupGeneratedReferences";
-import { numericReferenceGeometrySupportsProperty } from "../geometry/numericReferenceProperties";
-import { getParameterValue } from "../parameters/parameterAccess";
+import { numericReferencePropertiesForGeometry } from "../geometry/numericReferenceProperties";
+import { pickSourcePrecedesTarget } from "../model/pickCandidates";
 import { resolvedElementColorMap } from "../palette/elementColors";
 import type { BezierHandleRole as CommandBezierHandleRole } from "../commands/commands";
 import { effectiveElements, useCadDocumentStore } from "../state/cadDocumentStore";
@@ -149,6 +149,10 @@ export const DrawingCanvas = ({
   const activeNumericReferencePickTarget = useCadUiStore((state) => state.activeNumericReferencePickTarget);
   const activeLinePickTarget = useCadUiStore((state) => state.activeLinePickTarget);
   const selectedElementIdSet = useMemo(() => new Set(selectedElementIds), [selectedElementIds]);
+  const draftLinePickElementIds = useMemo(
+    () => new Set(activeLinePickTarget?.draftLineIds ?? []),
+    [activeLinePickTarget?.draftLineIds]
+  );
   const [imageRenderVersion, scheduleImageRender] = useReducer((version: number) => version + 1, 0);
   const elementColors = useMemo(
     () => resolvedElementColorMap(elements, palette),
@@ -170,8 +174,7 @@ export const DrawingCanvas = ({
     overlayTexts,
     overlayPointPickCandidates,
     overlayNumericReferenceCandidates,
-    selectedBezierHandles,
-    isLineEndpointPointPick
+    selectedBezierHandles
   } = useCanvasOverlayData({
     evaluation,
     elements,
@@ -376,15 +379,6 @@ export const DrawingCanvas = ({
     const activeTarget = activeLinePickTarget;
     if (!activeTarget) return [];
 
-    const targetElement = elements.find((element) => element.id === activeTarget.elementId);
-    const parameterValue = targetElement
-      ? getParameterValue(targetElement, activeTarget.parameterKey)
-      : null;
-    const pickedBaseLineIds = new Set<ElementId>(
-      Array.isArray(parameterValue)
-        ? (parameterValue as unknown[]).filter((id): id is ElementId => typeof id === "string")
-        : []
-    );
     const uniqueCandidates = new Map<ElementId, LinePickCandidate>();
     for (const candidate of hitTestLineMeasurementCandidates({
       screen,
@@ -396,7 +390,7 @@ export const DrawingCanvas = ({
         pickedElementId: candidate.line.elementId
       });
       if (!normalizedLineId || normalizedLineId === activeTarget.elementId) continue;
-      if (pickedBaseLineIds.has(normalizedLineId)) continue;
+      if (!pickSourcePrecedesTarget(elements, activeTarget.elementId, normalizedLineId)) continue;
       uniqueCandidates.set(normalizedLineId, { line: candidate.line });
     }
     return Array.from(uniqueCandidates.values());
@@ -405,14 +399,16 @@ export const DrawingCanvas = ({
     const activeTarget = activeNumericReferencePickTarget;
     if (!activeTarget) return [];
 
-    const uniqueCandidates = new Map<ElementId, LinePickCandidate>();
+    const uniqueCandidates = new Map<string, LineMeasurementCandidate>();
     for (const line of hitTestLineCandidates({ screen, lines: overlayNumericReferenceCandidates })) {
       if (line.elementId === activeTarget.elementId) continue;
-      if (!numericReferenceGeometrySupportsProperty(line, activeTarget.property)) continue;
-      uniqueCandidates.set(line.elementId, { line });
+      if (!pickSourcePrecedesTarget(elements, activeTarget.elementId, line.elementId)) continue;
+      for (const property of numericReferencePropertiesForGeometry(line)) {
+        uniqueCandidates.set(`${line.elementId}:${property}`, { line, property });
+      }
     }
     return Array.from(uniqueCandidates.values());
-  }, [activeNumericReferencePickTarget, overlayNumericReferenceCandidates]);
+  }, [activeNumericReferencePickTarget, elements, overlayNumericReferenceCandidates]);
 
   const applyPendingPointerTransition = useCallback((transition: PendingCanvasPointerTransition) => {
     pendingPointerStateRef.current = transition.state;
@@ -496,12 +492,10 @@ export const DrawingCanvas = ({
     if (activeNumericReferencePickTarget) {
       const candidates = numericReferenceCandidatesAt(screen);
       focusCanvas();
-      if (candidates.length === 1) {
-        applyMeasurementCandidate({ line: candidates[0].line, property: activeNumericReferencePickTarget.property });
-      } else if (candidates.length > 1) {
+      if (candidates.length > 0) {
         setMeasurementCandidateMenu({
           screen,
-          candidates: candidates.map((candidate) => ({ line: candidate.line, property: activeNumericReferencePickTarget.property })),
+          candidates,
           targetElementId: activeNumericReferencePickTarget.elementId,
           targetParameterKey: activeNumericReferencePickTarget.parameterKey
         });
@@ -616,7 +610,6 @@ export const DrawingCanvas = ({
     activeNumericReferencePickTarget,
     activePointPickTarget,
     applyLinePickCandidate,
-    applyMeasurementCandidate,
     applyPointPickCandidate,
     canvasViewport.zoom,
     captureLedger,
@@ -988,6 +981,7 @@ export const DrawingCanvas = ({
           selectedBezierHandles={selectedBezierHandles}
           overlayPointPickCandidates={overlayPointPickCandidates}
           selectedElementIdSet={selectedElementIdSet}
+          draftLinePickElementIds={draftLinePickElementIds}
           selectedElementId={selectedElementId}
           elementColors={elementColors}
           showCanvasElementNames={showCanvasElementNames}
@@ -1027,23 +1021,6 @@ export const DrawingCanvas = ({
             印刷
           </button>
         </div>
-        {activePointPickTarget ? (
-          <div className="point-pick-canvas-banner">
-            {isLineEndpointPointPick
-              ? "端点選択中: canvas または構成リストの線端点を選択"
-              : `${activePointPickTarget.parameterKey === "startPoint" ? "始点" : activePointPickTarget.parameterKey === "endPoint" ? "終点" : "点"}選択中: canvas または構成リストの点を選択`}
-          </div>
-        ) : null}
-        {activeNumericReferencePickTarget ? (
-          <div className="numeric-reference-canvas-banner">
-            数値選択中: 線または曲線を選択
-          </div>
-        ) : null}
-        {activeLinePickTarget ? (
-          <div className="line-pick-canvas-banner">
-            線選択中: canvas または構成リストの線を選択
-          </div>
-        ) : null}
         <CanvasCandidateMenus
           measurementCandidateMenu={measurementCandidateMenu}
           pointPickCandidateMenu={pointPickCandidateMenu}

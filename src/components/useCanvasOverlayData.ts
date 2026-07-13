@@ -24,6 +24,7 @@ import {
   selectablePointsForGeometry
 } from "../model/pointAnchors";
 import { findParameterDefinition } from "../parameters/parameterDefinitions";
+import { pickSourcePrecedesTarget } from "../model/pickCandidates";
 import type { ActivePointPickTarget } from "../state/cadUiStore";
 import {
   sampleArcLineScreenPoints,
@@ -195,6 +196,15 @@ export const useCanvasOverlayData = ({
     const elementsById = new Map(elements.map((element) => [element.id, element]));
     return geometries
       .filter((geometry) => visibleElementIds.has(geometry.elementId))
+      .filter(
+        (geometry) =>
+          !activePointPickTarget ||
+          pickSourcePrecedesTarget(
+            elements,
+            activePointPickTarget.elementId,
+            geometry.elementId
+          )
+      )
       .flatMap((geometry) =>
         selectablePointsForGeometry(geometry, elementsById)
           .filter((candidate) =>

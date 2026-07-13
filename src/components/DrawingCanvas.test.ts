@@ -2,6 +2,7 @@ import { act, fireEvent, render, waitFor } from "@testing-library/react";
 import { createElement, createRef } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { registerSourceEditSession } from "../editor/sourceEditSession";
+import { dispatchCommand } from "../commands/commands";
 import type { SourceEditSession } from "../editor/sourceEditSession";
 import { evaluateElements } from "../geometry/evaluate";
 import type { EvaluationEngineState } from "../geometry/useEvaluationEngine";
@@ -603,16 +604,20 @@ describe("DrawingCanvas point dragging", () => {
 
   it("applies a picked numeric reference while numeric reference picking is active", () => {
     useCadStore.setState({
-      selectedElementId: "point-a",
-      selectedElementIds: ["point-a"],
+      elements: [
+        ...sampleElements,
+        { id: "target-point", name: "参照先", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 }
+      ],
+      selectedElementId: "target-point",
+      selectedElementIds: ["target-point"],
       activeNumericReferencePickTarget: {
-        elementId: "point-a",
+        elementId: "target-point",
         parameterKey: "x",
         mode: "replace",
         property: "length"
       }
     });
-    const { viewport } = renderDrawingCanvas();
+    const { viewport, getByRole } = renderDrawingCanvas();
 
     expect(viewport).toHaveClass("is-numeric-reference-picking");
 
@@ -624,8 +629,11 @@ describe("DrawingCanvas point dragging", () => {
       pointerId: 1
     });
 
+    expect(useCadStore.getState().activeNumericReferencePickTarget).not.toBeNull();
+    expect(getByRole("menu", { name: "数値参照候補" })).toBeInTheDocument();
+    fireEvent.click(getByRole("menuitem", { name: /直線AB.*長さ/ }));
     expect(useCadStore.getState().activeNumericReferencePickTarget).toBeNull();
-    expect(useCadStore.getState().elements[0]).toMatchObject({
+    expect(useCadStore.getState().elements.at(-1)).toMatchObject({
       x: { kind: "expression", expression: "line-ab.length" }
     });
   });
@@ -736,7 +744,7 @@ describe("DrawingCanvas point dragging", () => {
         parameterKey: "baseLineIds"
       }
     });
-    const { viewport } = renderDrawingCanvas();
+    const { viewport, container } = renderDrawingCanvas();
 
     expect(viewport).toHaveClass("is-line-picking");
 
@@ -750,8 +758,35 @@ describe("DrawingCanvas point dragging", () => {
 
     expect(useCadStore.getState().activeLinePickTarget).toEqual({
       elementId: "offset-line",
-      parameterKey: "baseLineIds"
+      parameterKey: "baseLineIds",
+      draftLineIds: ["line-ab"]
     });
+    const draftLine = container.querySelector(".overlay-draft-line-pick");
+    expect(draftLine).toBeInTheDocument();
+    expect(draftLine).toHaveAttribute("data-line-pick-candidate", "true");
+    expect(container.querySelector(".overlay-draft-line-pick-marker")).toBeInTheDocument();
+    fireEvent.pointerDown(viewport, {
+      button: 0,
+      buttons: 1,
+      clientX: 350,
+      clientY: 250,
+      pointerId: 1
+    });
+    expect(useCadStore.getState().activeLinePickTarget).toMatchObject({ draftLineIds: [] });
+    expect(container.querySelector(".overlay-draft-line-pick")).toBeNull();
+    expect(container.querySelector(".overlay-draft-line-pick-marker")).toBeNull();
+    fireEvent.pointerDown(viewport, {
+      button: 0,
+      buttons: 1,
+      clientX: 350,
+      clientY: 250,
+      pointerId: 1
+    });
+    expect(useCadStore.getState().elements.at(-1)).toMatchObject({
+      type: "offsetLine",
+      baseLineIds: []
+    });
+    dispatchCommand("finishLinePick");
     expect(useCadStore.getState().elements.at(-1)).toMatchObject({
       type: "offsetLine",
       baseLineIds: ["line-ab"]
@@ -805,14 +840,59 @@ describe("DrawingCanvas point dragging", () => {
 
     fireEvent.click(getByRole("menuitem", { name: "直線AB重ね" }));
 
+    expect(useCadStore.getState().activeLinePickTarget).toEqual({
+      elementId: "offset-line",
+      parameterKey: "baseLineIds",
+      draftLineIds: ["line-ab-copy"]
+    });
+    expect(useCadStore.getState().elements.at(-1)).toMatchObject({
+      type: "offsetLine",
+      baseLineIds: []
+    });
+    dispatchCommand("finishLinePick");
     expect(useCadStore.getState().elements.at(-1)).toMatchObject({
       type: "offsetLine",
       baseLineIds: ["line-ab-copy"]
     });
-    expect(useCadStore.getState().activeLinePickTarget).toEqual({
-      elementId: "offset-line",
-      parameterKey: "baseLineIds"
+  });
+
+  it("discards draft base-line picks when cancelled", () => {
+    useCadStore.setState({
+      elements: [
+        ...sampleElements,
+        {
+          id: "offset-line",
+          name: "オフセット線",
+          type: "offsetLine",
+          visible: true,
+          enabled: true,
+          numericVariables: [],
+          baseLineIds: [],
+          offset: 10,
+          side: "right",
+          closed: false
+        }
+      ],
+      activeLinePickTarget: {
+        elementId: "offset-line",
+        parameterKey: "baseLineIds",
+        draftLineIds: []
+      }
     });
+    const { viewport } = renderDrawingCanvas();
+
+    fireEvent.pointerDown(viewport, {
+      button: 0,
+      buttons: 1,
+      clientX: 350,
+      clientY: 250,
+      pointerId: 1
+    });
+    dispatchCommand("cancelLinePick");
+
+    expect(useCadStore.getState().activeLinePickTarget).toBeNull();
+    expect(useCadStore.getState().elements.at(-1)).toMatchObject({ baseLineIds: [] });
+    expect(useCadStore.getState().past).toHaveLength(0);
   });
 
   it("selects and moves a point with a left-button drag", () => {

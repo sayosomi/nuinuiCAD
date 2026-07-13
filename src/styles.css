@@ -479,6 +479,26 @@ textarea {
   overflow: hidden;
 }
 
+.app-shell.is-pick-mode::after {
+  position: fixed;
+  z-index: 35;
+  inset: 0;
+  pointer-events: none;
+  border: 5px solid #0f766e;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 45%);
+  content: "";
+}
+
+.app-shell.is-pick-mode .source-editor-pane-wrapper,
+.app-shell.is-pick-mode .right-panel {
+  filter: saturate(0.72);
+  opacity: 0.86;
+}
+
+.app-shell.is-pick-mode .canvas-viewport {
+  box-shadow: inset 0 0 0 5px #0f766e;
+}
+
 .app-shell.is-resizing-left-panel {
   cursor: col-resize;
   user-select: none;
@@ -925,6 +945,18 @@ textarea {
   background: #edf8f5;
 }
 
+/* Keep the pick action beside its parameter even in the narrow Inspector container. */
+.right-panel .inspector-row.inspector-parameter-row {
+  flex-direction: row;
+  align-items: stretch;
+  overflow: hidden;
+  padding: 0 0 0 8px;
+}
+
+.inspector-parameter-row .inspector-row-main {
+  padding: 7px 0;
+}
+
 .inspector-row-main {
   display: grid;
   gap: 2px;
@@ -938,10 +970,39 @@ textarea {
 }
 
 .inspector-pick-button {
-  flex: 0 0 auto;
-  padding: 2px 6px;
-  font-size: 12px;
+  align-self: stretch;
+  flex: 0 0 48px;
+  margin: 0;
+  border: 0;
+  border-left: 1px solid #d7d9d2;
+  border-radius: 0;
+  background: #f7f8f5;
+  color: #5c6359;
+  padding: 4px;
+  font-size: 11px;
+  font-weight: 600;
   line-height: 1.2;
+}
+
+.inspector-row:hover .inspector-pick-button {
+  border-left-color: #a8cec4;
+  background: #e3f1ec;
+  color: #17645b;
+}
+
+.inspector-pick-button:hover {
+  background: #d6ebe4 !important;
+  color: #0f4f49;
+}
+
+.inspector-pick-button:focus-visible {
+  outline-offset: -3px;
+}
+
+.inspector-pick-button.is-active {
+  border-left-color: #0f766e;
+  background: #d8eee7;
+  color: #0f4f49;
 }
 
 .inspector-diagnostic {
@@ -3920,15 +3981,102 @@ textarea {
 }
 
 .canvas-viewport.is-point-picking {
-  cursor: pointer;
+  cursor: crosshair;
 }
 
 .canvas-viewport.is-numeric-reference-picking {
-  cursor: pointer;
+  cursor: crosshair;
 }
 
 .canvas-viewport.is-line-picking {
-  cursor: pointer;
+  cursor: crosshair;
+}
+
+.app-shell.is-multi-line-picking .source-editor-pane,
+.app-shell.is-multi-line-picking .right-panel,
+.app-shell.is-multi-line-picking .left-panel-resize-handle {
+  pointer-events: none;
+  user-select: none;
+}
+
+.pick-mode-status {
+  position: fixed;
+  z-index: 41;
+  top: 10px;
+  left: 50%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: min(920px, calc(100vw - 44px));
+  border: 1px solid #075e57;
+  border-radius: 9px;
+  background: #0f766e;
+  box-shadow: 0 9px 24px rgb(7 94 87 / 32%);
+  color: #ffffff;
+  padding: 8px 12px;
+  transform: translateX(-50%);
+}
+
+.pick-mode-status-title {
+  flex: 0 0 auto;
+  border: 1px solid rgb(255 255 255 / 38%);
+  border-radius: 4px;
+  background: rgb(0 0 0 / 13%);
+  padding: 4px 6px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.pick-mode-status-copy {
+  display: grid;
+  min-width: 0;
+  gap: 1px;
+}
+
+.pick-mode-status-copy small {
+  color: rgb(255 255 255 / 82%);
+}
+
+.pick-mode-status-selection {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.pick-mode-status-chip {
+  max-width: 110px;
+  overflow: hidden;
+  border: 1px solid rgb(255 255 255 / 30%);
+  border-radius: 999px;
+  background: rgb(0 0 0 / 13%);
+  padding: 1px 6px;
+  text-overflow: ellipsis;
+}
+
+.pick-mode-status kbd {
+  border: 1px solid rgb(255 255 255 / 28%);
+  border-radius: 4px;
+  color: rgb(255 255 255 / 82%);
+  font-size: 11px;
+  padding: 2px 4px;
+}
+
+.pick-mode-status button {
+  margin-left: auto;
+  border-color: transparent;
+  background: #ffffff;
+  color: #0b5f58;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.pick-mode-status button:hover {
+  background: #dff3ec;
 }
 
 .canvas-viewport.is-point-dragging,
@@ -3976,6 +4124,28 @@ textarea {
 .drawing-overlay [data-line-pick-candidate="true"] {
   stroke: rgb(15 118 110 / 34%);
   stroke-width: 13;
+}
+
+.drawing-overlay .overlay-draft-line-pick {
+  stroke: #0f766e;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 8;
+  filter: drop-shadow(0 0 3px rgb(15 118 110 / 62%));
+}
+
+.drawing-overlay .overlay-draft-line-pick-marker circle {
+  fill: #0f766e;
+  stroke: #ffffff;
+  stroke-width: 2;
+}
+
+.drawing-overlay .overlay-draft-line-pick-marker path {
+  fill: none;
+  stroke: #ffffff;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
 }
 
 .drawing-overlay .overlay-bezier-handle-line {

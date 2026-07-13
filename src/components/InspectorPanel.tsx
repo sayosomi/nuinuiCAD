@@ -64,6 +64,11 @@ export const InspectorPanel = ({
   const isInspectorExpanded = useCadUiStore(
     (state) => state.isInspectorExpanded,
   );
+  const activePointPickTarget = useCadUiStore((state) => state.activePointPickTarget);
+  const activeNumericReferencePickTarget = useCadUiStore(
+    (state) => state.activeNumericReferencePickTarget,
+  );
+  const activeLinePickTarget = useCadUiStore((state) => state.activeLinePickTarget);
   const palette = useCadDocumentStore((state) => state.palette);
   const profiles = useCadDocumentStore((state) => state.visibilityProfiles);
   const activeProfileId = useCadDocumentStore(
@@ -316,7 +321,7 @@ export const InspectorPanel = ({
               {parameterRows.map((row) => (
                 <div
                   key={row.key}
-                  className="inspector-row"
+                  className="inspector-row inspector-parameter-row"
                   onClick={() => jumpToParameter(row)}
                 >
                   <span className="inspector-row-main">
@@ -331,18 +336,25 @@ export const InspectorPanel = ({
                     const pickCommandId = definition
                       ? inspectorPickCommandId(definition.kind)
                       : null;
+                    const isPicking =
+                      activePointPickTarget?.elementId === element.id &&
+                        activePointPickTarget.parameterKey === row.parameterKey ||
+                      activeNumericReferencePickTarget?.elementId === element.id &&
+                        activeNumericReferencePickTarget.parameterKey === row.parameterKey ||
+                      activeLinePickTarget?.elementId === element.id &&
+                        activeLinePickTarget.parameterKey === row.parameterKey;
                     return pickCommandId ? (
                       <button
                         type="button"
-                        className="inspector-pick-button"
-                        aria-label={`${row.label}を選択`}
+                        className={`inspector-pick-button ${isPicking ? "is-active" : ""}`}
+                        aria-label={`${row.label}を${isPicking ? "選択中" : "選択"}`}
                         title={`${row.label}をCanvasで選択`}
                         onClick={(event) => {
                           event.stopPropagation();
                           startParameterPick(row);
                         }}
                       >
-                        ⌖
+                        {isPicking ? "選択中" : "選択"}
                       </button>
                     ) : null;
                   })()}

@@ -36,6 +36,8 @@ export type ActiveNumericReferencePickTarget = {
 export type ActiveLinePickTarget = {
   elementId: ElementId;
   parameterKey: ParameterKey;
+  /** Present only while editing a lineReferenceList; changes remain uncommitted until finish. */
+  draftLineIds?: ElementId[];
   measurementSlot?: "line";
   nextPointParameterKey?: ParameterKey;
   pickFlow?: "lineAndPoint";

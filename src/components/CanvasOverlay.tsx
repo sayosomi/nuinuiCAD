@@ -23,6 +23,7 @@ type CanvasOverlayProps = {
   selectedBezierHandles: BezierHandleOverlay[];
   overlayPointPickCandidates: PointPickCandidate[];
   selectedElementIdSet: Set<ElementId>;
+  draftLinePickElementIds: Set<ElementId>;
   selectedElementId: ElementId | null;
   elementColors: Map<ElementId, string>;
   showCanvasElementNames: boolean;
@@ -43,6 +44,7 @@ export const CanvasOverlay = ({
   selectedBezierHandles,
   overlayPointPickCandidates,
   selectedElementIdSet,
+  draftLinePickElementIds,
   selectedElementId,
   elementColors,
   showCanvasElementNames,
@@ -85,6 +87,23 @@ export const CanvasOverlay = ({
             isPrimarySelected ? 0.55 : 0.38
           )})`
         };
+  const lineOverlayClass = (elementId: ElementId) =>
+    [
+      selectedElementIdSet.has(elementId) ? "overlay-selected-line" : "",
+      draftLinePickElementIds.has(elementId) ? "overlay-draft-line-pick" : ""
+    ].filter(Boolean).join(" ");
+  const draftLinePickMarker = (
+    elementId: ElementId,
+    center: { x: number; y: number }
+  ) =>
+    draftLinePickElementIds.has(elementId) ? (
+      <g className="overlay-draft-line-pick-marker">
+        <circle cx={center.x} cy={center.y} r={9} />
+        <path d={`M ${center.x - 4} ${center.y} L ${center.x - 1} ${center.y + 3} L ${center.x + 5} ${center.y - 4}`} />
+      </g>
+    ) : null;
+  const centerOf = (points: readonly { x: number; y: number }[]) =>
+    points[Math.floor(points.length / 2)] ?? { x: 0, y: 0 };
 
   return (
   <svg
@@ -93,47 +112,55 @@ export const CanvasOverlay = ({
     aria-hidden="true"
   >
     {overlayLines.map(({ line, start, end }) => (
-      <line
-        key={line.elementId}
-        x1={start.x}
-        y1={start.y}
-        x2={end.x}
-        y2={end.y}
-        className={selectedElementIdSet.has(line.elementId) ? "overlay-selected-line" : ""}
-        style={selectedElementIdSet.has(line.elementId) ? selectedLineStyle(line.elementId) : undefined}
-        data-numeric-reference-candidate={isNumericReferencePickActive ? "true" : undefined}
-        data-line-pick-candidate={isLinePickActive ? "true" : undefined}
-      />
+      <g key={line.elementId}>
+        <line
+          x1={start.x}
+          y1={start.y}
+          x2={end.x}
+          y2={end.y}
+          className={lineOverlayClass(line.elementId)}
+          style={selectedElementIdSet.has(line.elementId) ? selectedLineStyle(line.elementId) : undefined}
+          data-numeric-reference-candidate={isNumericReferencePickActive ? "true" : undefined}
+          data-line-pick-candidate={isLinePickActive ? "true" : undefined}
+        />
+        {draftLinePickMarker(line.elementId, { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 })}
+      </g>
     ))}
     {overlayCurves.map(({ curve, points }) => (
-      <polyline
-        key={curve.elementId}
-        points={points.map((point) => `${point.x},${point.y}`).join(" ")}
-        className={selectedElementIdSet.has(curve.elementId) ? "overlay-selected-line" : ""}
-        style={selectedElementIdSet.has(curve.elementId) ? selectedLineStyle(curve.elementId) : undefined}
-        data-numeric-reference-candidate={isNumericReferencePickActive ? "true" : undefined}
-        data-line-pick-candidate={isLinePickActive ? "true" : undefined}
-      />
+      <g key={curve.elementId}>
+        <polyline
+          points={points.map((point) => `${point.x},${point.y}`).join(" ")}
+          className={lineOverlayClass(curve.elementId)}
+          style={selectedElementIdSet.has(curve.elementId) ? selectedLineStyle(curve.elementId) : undefined}
+          data-numeric-reference-candidate={isNumericReferencePickActive ? "true" : undefined}
+          data-line-pick-candidate={isLinePickActive ? "true" : undefined}
+        />
+        {draftLinePickMarker(curve.elementId, centerOf(points))}
+      </g>
     ))}
     {overlayArcs.map(({ arc, points }) => (
-      <polyline
-        key={arc.elementId}
-        points={points.map((point) => `${point.x},${point.y}`).join(" ")}
-        className={selectedElementIdSet.has(arc.elementId) ? "overlay-selected-line" : ""}
-        style={selectedElementIdSet.has(arc.elementId) ? selectedLineStyle(arc.elementId) : undefined}
-        data-numeric-reference-candidate={isNumericReferencePickActive ? "true" : undefined}
-        data-line-pick-candidate={isLinePickActive ? "true" : undefined}
-      />
+      <g key={arc.elementId}>
+        <polyline
+          points={points.map((point) => `${point.x},${point.y}`).join(" ")}
+          className={lineOverlayClass(arc.elementId)}
+          style={selectedElementIdSet.has(arc.elementId) ? selectedLineStyle(arc.elementId) : undefined}
+          data-numeric-reference-candidate={isNumericReferencePickActive ? "true" : undefined}
+          data-line-pick-candidate={isLinePickActive ? "true" : undefined}
+        />
+        {draftLinePickMarker(arc.elementId, centerOf(points))}
+      </g>
     ))}
     {overlayOffsetLines.map(({ line, points }) => (
-      <polyline
-        key={line.elementId}
-        points={points.map((point) => `${point.x},${point.y}`).join(" ")}
-        className={selectedElementIdSet.has(line.elementId) ? "overlay-selected-line" : ""}
-        style={selectedElementIdSet.has(line.elementId) ? selectedLineStyle(line.elementId) : undefined}
-        data-numeric-reference-candidate={isNumericReferencePickActive ? "true" : undefined}
-        data-line-pick-candidate={isLinePickActive ? "true" : undefined}
-      />
+      <g key={line.elementId}>
+        <polyline
+          points={points.map((point) => `${point.x},${point.y}`).join(" ")}
+          className={lineOverlayClass(line.elementId)}
+          style={selectedElementIdSet.has(line.elementId) ? selectedLineStyle(line.elementId) : undefined}
+          data-numeric-reference-candidate={isNumericReferencePickActive ? "true" : undefined}
+          data-line-pick-candidate={isLinePickActive ? "true" : undefined}
+        />
+        {draftLinePickMarker(line.elementId, centerOf(points))}
+      </g>
     ))}
     {selectedBezierHandles.map((handle) => (
       <g key={handle.id} className="overlay-bezier-handle">

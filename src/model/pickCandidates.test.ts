@@ -116,6 +116,31 @@ const evaluation: EvaluationResult = {
 };
 
 describe("pickCandidates", () => {
+  it("excludes later and unevaluated geometry from numeric candidates", () => {
+    const laterLine: CadElement = {
+      id: "later-line",
+      name: "後の線",
+      type: "line",
+      visible: true,
+      enabled: true,
+      startPoint: { mode: "coordinate", x: 0, y: 0 },
+      endPoint: { mode: "coordinate", x: 10, y: 0 }
+    };
+    const candidates = pickCandidates([...elements, laterLine], evaluation, {
+      activePointPickTarget: null,
+      activeLinePickTarget: null,
+      activeNumericReferencePickTarget: {
+        elementId: "target",
+        parameterKey: "dx",
+        mode: "replace",
+        property: "length"
+      }
+    });
+
+    expect(candidates.map((candidate) => candidate.elementId)).not.toContain("later-line");
+    expect(candidates.map((candidate) => candidate.elementId)).toContain("line");
+  });
+
   it("offers Bezier handle numeric references only for Bezier geometry", () => {
     const candidates = pickCandidates(elements, evaluation, {
       activePointPickTarget: null,

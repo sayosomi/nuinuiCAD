@@ -78,6 +78,7 @@ export type CommandId =
   | "startLinePick"
   | "startLineAndPointPick"
   | "applyPickedLine"
+  | "finishLinePick"
   | "cancelLinePick"
   | "toggleElementVisibility"
   | "toggleElementEnabled"

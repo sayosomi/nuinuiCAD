@@ -22,7 +22,10 @@ import {
   referenceAnchor,
   selectablePointsForElement
 } from "./pointAnchors";
-import { isValidPickedPointAnchorForTarget } from "./forGroupGeneratedReferences";
+import {
+  isValidPickedPointAnchorForTarget,
+  parseForGroupGeneratedElementId
+} from "./forGroupGeneratedReferences";
 import type {
   ActiveLinePickTarget,
   ActiveNumericReferencePickTarget,
@@ -64,6 +67,19 @@ type PickTargets = {
   activeLinePickTarget: ActiveLinePickTarget | null;
 };
 
+/** A construction may only pick geometry that is available earlier in document order. */
+export const pickSourcePrecedesTarget = (
+  elements: CadElement[],
+  targetElementId: ElementId,
+  sourceElementId: ElementId
+) => {
+  const generated = parseForGroupGeneratedElementId(sourceElementId);
+  const normalizedSourceId = generated?.templateElementId ?? sourceElementId;
+  const targetIndex = elements.findIndex((element) => element.id === targetElementId);
+  const sourceIndex = elements.findIndex((element) => element.id === normalizedSourceId);
+  return targetIndex >= 0 && sourceIndex >= 0 && sourceIndex < targetIndex;
+};
+
 const numericReferenceGeometry = (
   geometry: ComputedGeometry | undefined
 ): NumericReferenceGeometry | null =>
@@ -101,6 +117,9 @@ const pointCandidates = (
     });
 
   return elements
+    .filter((element) =>
+      pickSourcePrecedesTarget(elements, activePointPickTarget.elementId, element.id)
+    )
     .map((element) => {
       const selectablePoints = selectablePointsForElement(
         element,
@@ -109,7 +128,12 @@ const pointCandidates = (
       ).filter((point) => isValidPointCandidate(point.anchor));
       const options: PickOption[] = [];
 
-      if (!isLineEndpointPointPick && isPointElement(element) && isValidPointCandidate(referenceAnchor(element.id))) {
+      if (
+        !isLineEndpointPointPick &&
+        isPointElement(element) &&
+        evaluation.computedGeometry.has(element.id) &&
+        isValidPointCandidate(referenceAnchor(element.id))
+      ) {
         options.push({
           kind: "point",
           label: element.name,
@@ -132,12 +156,13 @@ const pointCandidates = (
 
 const lineCandidates = (
   elements: CadElement[],
+  evaluation: EvaluationResult,
   activeLinePickTarget: ActiveLinePickTarget
 ): PickCandidate[] => {
   const targetElement = elements.find((element) => element.id === activeLinePickTarget.elementId);
-  const parameterValue = targetElement
+  const parameterValue = activeLinePickTarget.draftLineIds ?? (targetElement
     ? getParameterValue(targetElement, activeLinePickTarget.parameterKey)
-    : null;
+    : null);
   const selectedLineIds = new Set<ElementId>(
     Array.isArray(parameterValue)
       ? (parameterValue as unknown[]).filter((id): id is ElementId => typeof id === "string")
@@ -148,8 +173,9 @@ const lineCandidates = (
     .filter(
       (element) =>
         isLineLikeElement(element) &&
-        element.id !== activeLinePickTarget.elementId &&
-        !selectedLineIds.has(element.id)
+        pickSourcePrecedesTarget(elements, activeLinePickTarget.elementId, element.id) &&
+        evaluation.computedGeometry.has(element.id) &&
+        (activeLinePickTarget.draftLineIds !== undefined || !selectedLineIds.has(element.id))
     )
     .map((element) => ({
       elementId: element.id,
@@ -164,6 +190,13 @@ const numericReferenceCandidates = (
 ): PickCandidate[] => {
   const targetElement = elements.find((element) => element.id === activeNumericReferencePickTarget.elementId);
   return elements
+    .filter((element) =>
+      pickSourcePrecedesTarget(
+        elements,
+        activeNumericReferencePickTarget.elementId,
+        element.id
+      )
+    )
     .map((element) => {
       const geometry = numericReferenceGeometry(evaluation.computedGeometry.get(element.id));
       const property = activeNumericReferencePickTarget.property;
@@ -212,7 +245,7 @@ export const pickCandidates = (
     return pointCandidates(elements, evaluation, targets.activePointPickTarget);
   }
   if (targets.activeLinePickTarget) {
-    return lineCandidates(elements, targets.activeLinePickTarget);
+    return lineCandidates(elements, evaluation, targets.activeLinePickTarget);
   }
   if (targets.activeNumericReferencePickTarget) {
     return numericReferenceCandidates(elements, evaluation, targets.activeNumericReferencePickTarget);

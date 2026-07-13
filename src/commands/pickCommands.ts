@@ -804,12 +804,20 @@ export const startLinePick = (
     : null;
   if (!selectedElement || (definition?.kind !== "lineReferenceList" && definition?.kind !== "lineReference")) return;
 
+  const currentValue = getParameterValue(selectedElement, definition.key);
+  const draftLineIds = definition.kind === "lineReferenceList"
+    ? Array.isArray(currentValue)
+      ? (currentValue as unknown[]).filter((id): id is ElementId => typeof id === "string")
+      : []
+    : undefined;
+
   useCadUiStore.setState({
     activePointPickTarget: null,
     activeNumericReferencePickTarget: null,
     activeLinePickTarget: {
       elementId: selectedElement.id,
       parameterKey: definition.key,
+      ...(draftLineIds ? { draftLineIds } : {}),
       ...(context?.nextParameterKey ? { nextPointParameterKey: context.nextParameterKey } : {}),
       ...(context?.pickFlow ? { pickFlow: context.pickFlow } : {})
     }
@@ -925,23 +933,39 @@ export const applyPickedLine = (context?: Pick<CommandContext, "pickedLineId">) 
     return;
   }
 
-  if (!currentLineIds || currentLineIds.includes(normalizedPickedLineId)) return;
+  if (!currentLineIds) return;
+  const draftLineIds = activeLinePickTarget.draftLineIds ?? currentLineIds;
+  useCadUiStore.getState().setActiveLinePickTarget({
+    ...activeLinePickTarget,
+    draftLineIds: draftLineIds.includes(normalizedPickedLineId)
+      ? draftLineIds.filter((id) => id !== normalizedPickedLineId)
+      : [...draftLineIds, normalizedPickedLineId]
+  });
+};
 
+export const cancelLinePick = () => {
+  useCadUiStore.getState().setActiveLinePickTarget(null);
+};
+
+export const finishLinePick = () => {
+  const { activeLinePickTarget } = useCadUiStore.getState();
+  if (!activeLinePickTarget) return;
+  if (activeLinePickTarget.draftLineIds === undefined) {
+    useCadUiStore.getState().setActiveLinePickTarget(null);
+    return;
+  }
+  const { elements } = useCadDocumentStore.getState();
+  const targetElement = elements.find((element) => element.id === activeLinePickTarget.elementId);
+  if (!targetElement) return;
   useCadDocumentStore.getState().commitDocumentChange({
     elements: elements.map((element) =>
       element.id === targetElement.id
-        ? setParameterValue(targetElement, activeLinePickTarget.parameterKey, [
-            ...currentLineIds,
-            normalizedPickedLineId
-          ])
+        ? setParameterValue(targetElement, activeLinePickTarget.parameterKey, activeLinePickTarget.draftLineIds!)
         : element
     ),
     selectedElementId: targetElement.id,
     selectedElementIds: [targetElement.id],
     selectionAnchorElementId: targetElement.id
   });
-};
-
-export const cancelLinePick = () => {
   useCadUiStore.getState().setActiveLinePickTarget(null);
 };
