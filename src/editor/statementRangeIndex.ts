@@ -51,7 +51,11 @@ export const mapStatementRangeIndex = (
   for (const [elementId, range] of ranges) {
     if (changes.touchesRange(range.from, range.to) === "cover") continue;
     const from = changes.mapPos(range.from, 1, MapMode.TrackAfter);
-    const to = changes.mapPos(range.to, -1, MapMode.TrackBefore);
+    // A value at the statement's final character is still part of that
+    // statement. TrackBefore would drop the whole range when that value is
+    // replaced, so map the end after its replacement while the start keeps the
+    // stricter identity guard below.
+    const to = changes.mapPos(range.to, 1, MapMode.Simple);
     if (from === null || to === null || to < from) continue;
     const mapFoldRange = (foldRange: { from: number; to: number } | undefined) => {
       if (!foldRange || changes.touchesRange(foldRange.from, foldRange.to) === "cover") return undefined;

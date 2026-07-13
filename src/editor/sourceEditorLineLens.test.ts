@@ -413,6 +413,31 @@ describe("SourceEditor selected-line lens Tab/Shift-Tab value navigation", () =>
     controller.destroy();
   });
 
+  it("steps a Lens end-of-line value through every repeat without falling through", async () => {
+    const offsetSource = [
+      "nui 1",
+      "point 点A = (0, 0)",
+      "point 点B = offset 点A dx=130 dy=12",
+      "point 次 = (1, 1)"
+    ].join("\n");
+    useCadDocumentStore.getState().commitText(offsetSource, "test");
+    const { controller, view, lensView } = await openLensOnLine(3);
+    lensView.dispatch({ selection: EditorSelection.cursor(lensView.state.doc.length) });
+
+    expect(fireEvent.keyDown(lensView.contentDOM, stepEvent())).toBe(false);
+    expect(fireEvent.keyDown(lensView.contentDOM, stepEvent(true))).toBe(false);
+    expect(fireEvent.keyDown(lensView.contentDOM, stepEvent(true))).toBe(false);
+    expect(view.state.doc.line(3).text).toContain("dy=15");
+    expect(view.state.doc.lineAt(view.state.selection.main.head).number).toBe(3);
+    expect(view.state.doc.toString().slice(view.state.selection.main.from, view.state.selection.main.to)).toBe("15");
+
+    fireEvent.keyUp(lensView.contentDOM, stepEvent());
+    await settleLens();
+    expect(useCadDocumentStore.getState().sourceText).toContain("dy=15");
+    expect(lensView.state.doc.toString()).toContain("dy=15");
+    controller.destroy();
+  });
+
   it("refreshes an open lens with Source Editor shortcut overrides", async () => {
     const { controller, view, lensView } = await openLensOnLine(2);
     const xStart = lensView.state.doc.toString().indexOf("5");

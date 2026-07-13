@@ -269,10 +269,17 @@ export const resolveParameterTargetAt = (
     return target ? [target] : [];
   });
   const exact = targets.filter((target) => target.start === selection.start && target.end === selection.end);
-  const containing = selection.start === selection.end
+  const collapsed = selection.start === selection.end;
+  const containing = collapsed
     ? targets.filter((target) => target.start <= selection.start && selection.start < target.end)
     : targets.filter((target) => target.start <= selection.start && selection.end <= target.end);
-  const candidates = exact.length > 0 ? exact : containing;
+  // A caret immediately after a value is a useful editing position, but it must
+  // never steal precedence from another target that normally contains that same
+  // position (for example, at a following value's start).
+  const terminal = collapsed && containing.length === 0
+    ? targets.filter((target) => target.end === selection.start)
+    : [];
+  const candidates = exact.length > 0 ? exact : containing.length > 0 ? containing : terminal;
   if (candidates.length === 0) return null;
   const shortestLength = Math.min(...candidates.map((target) => target.end - target.start));
   const mostSpecific = candidates.filter((target) => target.end - target.start === shortestLength);

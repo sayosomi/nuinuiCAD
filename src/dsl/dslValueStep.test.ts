@@ -87,12 +87,29 @@ describe("resolveDslValueStep", () => {
     expect(stepAt(coloredLineSource, coloredLine, "red", 1)).toBeNull();
   });
 
-  it("accepts a caret or exact target selection, never a partial selection", () => {
+  it("accepts a caret at a target start or end, and exact target selection, never a partial selection", () => {
     const source = "point A = (12, 0)";
     const point = compileElement(source);
     const start = source.indexOf("12");
     expect(resolveDslValueStep(source, point, { start, end: start + 2 }, 1)).toMatchObject({ insert: "13" });
     expect(resolveDslValueStep(source, point, { start, end: start + 1 }, 1)).toBeNull();
-    expect(resolveDslValueStep(source, point, { start: start + 2, end: start + 2 }, 1)).toBeNull();
+    expect(resolveDslValueStep(source, point, { start: start + 2, end: start + 2 }, 1)).toMatchObject({ insert: "13" });
+  });
+
+  it("keeps the updated literal selected across digit, sign, and decimal changes", () => {
+    const cases: Array<{ source: string; direction: 1 | -1; expected: string }> = [
+      { source: "point B = offset A dx=130 dy=9", direction: 1, expected: "10" },
+      { source: "point B = offset A dx=130 dy=99", direction: 1, expected: "100" },
+      { source: "point B = offset A dx=130 dy=10", direction: -1, expected: "9" },
+      { source: "point B = offset A dx=130 dy=-1", direction: -1, expected: "-2" },
+      { source: "point B = offset A dx=130 dy=-0.5", direction: 1, expected: "0.5" }
+    ];
+    for (const { source, direction, expected } of cases) {
+      const element = compileElement(source);
+      const start = source.lastIndexOf("dy=") + 3;
+      const result = resolveDslValueStep(source, element, { start: source.length, end: source.length }, direction);
+      expect(result).toMatchObject({ parameterKey: "dy", insert: expected });
+      expect(result?.selection).toEqual({ start, end: start + expected.length });
+    }
   });
 });

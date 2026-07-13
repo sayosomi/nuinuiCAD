@@ -36,4 +36,20 @@ describe("statementRangeIndex", () => {
 
     expect(mapStatementRangeIndex(original, changes).has(pointB.id)).toBe(false);
   });
+
+  it("keeps a statement identity when replacing a value at its final character", () => {
+    const source = "nui 1\npoint A = offset B dx=130 dy=9";
+    const result = compiled(source);
+    const doc = Text.of(source.split("\n"));
+    const pointA = result.document!.elements.find((element) => element.name === "A")!;
+    const original = createStatementRangeIndex(doc, result.statementMap!);
+    const range = original.get(pointA.id)!;
+    const valueStart = source.lastIndexOf("9");
+    const changes = ChangeSet.of({ from: valueStart, to: valueStart + 1, insert: "10" }, doc.length);
+    const mapped = mapStatementRangeIndex(original, changes);
+
+    expect(elementIdAtCursor(mapped, valueStart)).toBe(pointA.id);
+    expect(elementIdAtCursor(mapped, valueStart + 1)).toBe(pointA.id);
+    expect(mapped.get(pointA.id)?.to).toBe(range.to + 1);
+  });
 });

@@ -148,9 +148,13 @@ describe("resolveParameterValueSpan", () => {
     const x = resolveParameterValueSpan(source, element, "startPoint:x")!;
     const y = resolveParameterValueSpan(source, element, "startPoint:y")!;
     expect(resolveParameterTargetAt(source, element, { start: x.start + 1, end: x.start + 1 })?.parameterKey).toBe("startPoint:x");
+    // x.end is a terminal boundary for x, but it is normally contained by
+    // the parent coordinate span and must not take precedence over it.
+    expect(resolveParameterTargetAt(source, element, { start: x.end, end: x.end })?.parameterKey).toBe("startPoint");
     expect(resolveParameterTargetAt(source, element, x)?.parameterKey).toBe("startPoint:x");
     expect(resolveParameterTargetAt(source, element, parent)?.parameterKey).toBe("startPoint");
     expect(resolveParameterTargetAt(source, element, { start: y.start + 1, end: y.start + 1 })?.parameterKey).toBe("startPoint:y");
+    expect(resolveParameterTargetAt(source, element, { start: y.end, end: y.end })?.parameterKey).toBe("startPoint");
   });
 
   it("resolves dirty reference anchors to live coordinate children", () => {
