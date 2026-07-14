@@ -347,8 +347,7 @@ export const DrawingCanvas = ({
   };
 
   const applyMeasurementCandidate = useCallback((candidate: LineMeasurementCandidate) => {
-    const property = activeNumericReferencePickTarget?.property ?? candidate.property;
-    const expression = `${candidate.line.elementId}.${property}`;
+    const expression = `${candidate.line.elementId}.${candidate.property}`;
     if (activeNumericReferencePickTarget) {
       dispatchCommand("applyPickedNumericReference", {
         numericReferenceExpression: expression

@@ -638,6 +638,39 @@ describe("DrawingCanvas point dragging", () => {
     });
   });
 
+  it("uses the clicked candidate's property instead of the pick target's stale property", () => {
+    useCadStore.setState({
+      elements: [
+        ...sampleElements,
+        { id: "target-point", name: "参照先", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 }
+      ],
+      selectedElementId: "target-point",
+      selectedElementIds: ["target-point"],
+      activeNumericReferencePickTarget: {
+        elementId: "target-point",
+        parameterKey: "x",
+        mode: "replace",
+        property: "length"
+      }
+    });
+    const { viewport, getByRole } = renderDrawingCanvas();
+
+    fireEvent.pointerDown(viewport, {
+      button: 0,
+      buttons: 1,
+      clientX: 350,
+      clientY: 250,
+      pointerId: 1
+    });
+
+    expect(getByRole("menu", { name: "数値参照候補" })).toBeInTheDocument();
+    fireEvent.click(getByRole("menuitem", { name: /直線AB.*始接線角度/ }));
+    expect(useCadStore.getState().activeNumericReferencePickTarget).toBeNull();
+    expect(useCadStore.getState().elements.at(-1)).toMatchObject({
+      x: { kind: "expression", expression: "line-ab.startTangentAngleDeg" }
+    });
+  });
+
   it("does not offer the target line itself while numeric reference picking on the canvas", () => {
     const elements: CadElement[] = [
       {
