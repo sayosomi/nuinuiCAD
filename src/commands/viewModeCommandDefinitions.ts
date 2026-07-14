@@ -230,58 +230,6 @@ export const viewModeCommandDefinitions = {
     label: "グループテンプレートを閉じる",
     run: () => useCadUiStore.getState().setShowGroupTemplateLibrary(false)
   },
-  openDslPanel: {
-    id: "openDslPanel",
-    label: "DSLパネル",
-    palette: {
-      order: 46.6,
-      keywords: ["dsl", "script", "text", "作図", "テキスト", "スクリプト"]
-    },
-    shortcuts: [{ keys: "Mod+Shift+D", label: "選択をDSLで開く" }],
-    run: (context) => {
-      const selectedElementIds = useCadUiStore.getState().selectedElementIds;
-      const requestedElementIds = context?.dslElementIds ?? (
-        selectedElementIds.length > 0 ? selectedElementIds : null
-      );
-      useCadUiStore.setState({
-        showDslPanel: true,
-        dslPanelSourceRequest: requestedElementIds
-          ? { requestId: Date.now(), elementIds: requestedElementIds }
-          : useCadUiStore.getState().dslPanelSourceRequest,
-        showCommandPalette: false
-      });
-    }
-  },
-  exportDslSelection: {
-    id: "exportDslSelection",
-    label: "選択をDSLへ書き出し",
-    shortcuts: [{ keys: "Mod+Shift+E" }],
-    run: (context) => context?.exportDslSelection?.()
-  },
-  validateDslPanel: {
-    id: "validateDslPanel",
-    label: "DSLを検証",
-    shortcuts: [{ keys: "Mod+Shift+Enter" }],
-    run: (context) => context?.validateDslPanel?.()
-  },
-  applyDslPanel: {
-    id: "applyDslPanel",
-    label: "DSLを適用",
-    shortcuts: [{ keys: "Mod+Enter", label: "検証して適用" }],
-    run: (context) => context?.applyDslPanel?.()
-  },
-  closeDslPanel: {
-    id: "closeDslPanel",
-    label: "DSLパネルを閉じる",
-    shortcuts: [{ keys: "Escape" }],
-    run: (context) => {
-      if (context?.closeDslPanel) {
-        context.closeDslPanel();
-        return;
-      }
-      useCadUiStore.getState().setShowDslPanel(false);
-    }
-  },
   openCommandRibbonSettings: {
     id: "openCommandRibbonSettings",
     label: "コマンドリボンを編集",

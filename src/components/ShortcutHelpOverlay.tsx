@@ -5,30 +5,20 @@ import { useCadUiStore } from "../state/cadUiStore";
 
 type ShortcutHelpOverlayProps = {
   isPickMode?: boolean;
-  isDslPanelMode?: boolean;
 };
 
-const modeLabel = ({
-  isPickMode = false,
-  isDslPanelMode = false
-}: ShortcutHelpOverlayProps) => {
-  if (isDslPanelMode) return "DSLパネル";
+const modeLabel = ({ isPickMode = false }: ShortcutHelpOverlayProps) => {
   if (isPickMode) return "構成リスト選択";
   return "通常";
 };
 
 export const ShortcutHelpOverlay = ({
-  isPickMode = false,
-  isDslPanelMode = false
+  isPickMode = false
 }: ShortcutHelpOverlayProps) => {
   const showShortcutHelp = useCadUiStore((state) => state.showShortcutHelp);
   const shortcutSettings = useCadUiStore((state) => state.shortcutSettings);
   const setShowShortcutHelp = useCadUiStore((state) => state.setShowShortcutHelp);
-  const shortcuts = shortcutHelpItems({
-    settings: shortcutSettings,
-    isPickMode,
-    isDslPanelMode
-  });
+  const shortcuts = shortcutHelpItems({ settings: shortcutSettings, isPickMode });
 
   useEffect(() => {
     if (!showShortcutHelp) return;
@@ -60,7 +50,7 @@ export const ShortcutHelpOverlay = ({
         <div className="shortcut-overlay-header">
           <div>
             <h2>ショートカット</h2>
-            <p>{modeLabel({ isPickMode, isDslPanelMode })}</p>
+            <p>{modeLabel({ isPickMode })}</p>
           </div>
           <button type="button" onClick={() => dispatchCommand("toggleShortcutHelp")}>
             閉じる

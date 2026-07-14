@@ -44,15 +44,7 @@ export const menuItemsForElement = ({
 }): MenuItem[] => {
   const selectedCount = selectedElements.length;
   const hasColorTarget = selectedElements.some(elementSupportsDisplayColor);
-  const items: MenuItem[] = [
-    {
-      kind: "command",
-      commandId: "openDslPanel",
-      label: selectedCount > 1 ? `DSLで編集 (${selectedCount}件)` : "DSLで編集",
-      context: { dslElementIds: selectedElements.map((item) => item.id) }
-    },
-    { kind: "separator" }
-  ];
+  const items: MenuItem[] = [];
 
   if (element.type !== "variable") {
     items.push({

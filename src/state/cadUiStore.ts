@@ -89,18 +89,6 @@ export type ReferenceHelperPosition = {
   y: number;
 };
 
-export type DslPanelWindow = {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-};
-
-export type DslPanelSourceRequest = {
-  requestId: number;
-  elementIds: ElementId[];
-};
-
 export type PendingImageImport = {
   sourcePath: string;
   displayName: string;
@@ -124,10 +112,6 @@ export const MIN_PRINT_PREVIEW_ZOOM = 0.15;
 export const MAX_PRINT_PREVIEW_ZOOM = 4;
 export const MIN_PRINT_PREVIEW_WIDTH = 260;
 export const MIN_PRINT_PREVIEW_HEIGHT = 180;
-export const DEFAULT_DSL_PANEL_WIDTH = 520;
-export const DEFAULT_DSL_PANEL_HEIGHT = 640;
-export const MIN_DSL_PANEL_WIDTH = 360;
-export const MIN_DSL_PANEL_HEIGHT = 260;
 
 export const DEFAULT_PRINT_PREVIEW_WINDOW: PrintPreviewWindow = {
   x: 24,
@@ -142,8 +126,6 @@ export const DEFAULT_REFERENCE_HELPER_POSITION: ReferenceHelperPosition = {
   x: 24,
   y: 72
 };
-
-export const DEFAULT_DSL_PANEL_WINDOW: DslPanelWindow | null = null;
 
 const uniqueElementIds = (ids: ElementId[]) => Array.from(new Set(ids));
 
@@ -198,8 +180,6 @@ export type CadUiState = CadDocumentSelectionSnapshot & {
   showVisibilityProfileSettings: boolean;
   showGroupTemplateLibrary: boolean;
   groupTemplateLibraryMode: "manage" | "insert";
-  showDslPanel: boolean;
-  dslPanelSourceRequest: DslPanelSourceRequest | null;
   showCommandRibbonSettings: boolean;
   showSelectionColorPicker: boolean;
   showPrintLayout: boolean;
@@ -219,7 +199,6 @@ export type CadUiState = CadDocumentSelectionSnapshot & {
   printCanvasViewport: CanvasViewport;
   printPreviewWindow: PrintPreviewWindow;
   referenceHelperPosition: ReferenceHelperPosition | null;
-  dslPanelWindow: DslPanelWindow | null;
   setInspectorExpanded: (isInspectorExpanded: boolean) => void;
   setActivePointPickTarget: (activePointPickTarget: ActivePointPickTarget | null) => void;
   setActiveNumericReferencePickTarget: (
@@ -251,8 +230,6 @@ export type CadUiState = CadDocumentSelectionSnapshot & {
   setShowVisibilityProfileSettings: (showVisibilityProfileSettings: boolean) => void;
   setShowGroupTemplateLibrary: (showGroupTemplateLibrary: boolean) => void;
   setGroupTemplateLibraryMode: (groupTemplateLibraryMode: "manage" | "insert") => void;
-  setShowDslPanel: (showDslPanel: boolean) => void;
-  setDslPanelSourceRequest: (dslPanelSourceRequest: DslPanelSourceRequest | null) => void;
   setShowCommandRibbonSettings: (showCommandRibbonSettings: boolean) => void;
   setShowSelectionColorPicker: (showSelectionColorPicker: boolean) => void;
   setShowPrintLayout: (showPrintLayout: boolean) => void;
@@ -285,7 +262,6 @@ export type CadUiState = CadDocumentSelectionSnapshot & {
   setPrintPreviewWindow: (printPreviewWindow: PrintPreviewWindow) => void;
   updatePrintPreviewWindow: (patch: Partial<PrintPreviewWindow>) => void;
   setReferenceHelperPosition: (referenceHelperPosition: ReferenceHelperPosition) => void;
-  setDslPanelWindow: (dslPanelWindow: DslPanelWindow | null) => void;
   setGroupFold: (id: ElementId, patch: GroupFoldState) => void;
   toggleGroupExpanded: (id: ElementId) => void;
   toggleElseExpanded: (id: ElementId) => void;
@@ -322,8 +298,6 @@ export const initialCadUiState = (): Omit<
   | "setShowVisibilityProfileSettings"
   | "setShowGroupTemplateLibrary"
   | "setGroupTemplateLibraryMode"
-  | "setShowDslPanel"
-  | "setDslPanelSourceRequest"
   | "setShowCommandRibbonSettings"
   | "setShowSelectionColorPicker"
   | "setShowPrintLayout"
@@ -350,7 +324,6 @@ export const initialCadUiState = (): Omit<
   | "setPrintPreviewWindow"
   | "updatePrintPreviewWindow"
   | "setReferenceHelperPosition"
-  | "setDslPanelWindow"
   | "setGroupFold"
   | "toggleGroupExpanded"
   | "toggleElseExpanded"
@@ -387,8 +360,6 @@ export const initialCadUiState = (): Omit<
   showVisibilityProfileSettings: false,
   showGroupTemplateLibrary: false,
   groupTemplateLibraryMode: "manage",
-  showDslPanel: false,
-  dslPanelSourceRequest: null,
   showCommandRibbonSettings: false,
   showSelectionColorPicker: false,
   showPrintLayout: false,
@@ -408,7 +379,6 @@ export const initialCadUiState = (): Omit<
   printCanvasViewport: DEFAULT_CANVAS_VIEWPORT,
   printPreviewWindow: DEFAULT_PRINT_PREVIEW_WINDOW,
   referenceHelperPosition: null,
-  dslPanelWindow: DEFAULT_DSL_PANEL_WINDOW
 });
 
 const clampCanvasZoom = (zoom: number) =>
@@ -424,19 +394,6 @@ export const normalizePrintPreviewWindow = (window: PrintPreviewWindow): PrintPr
   height: Math.max(Math.round(window.height), MIN_PRINT_PREVIEW_HEIGHT),
   zoom: clampPrintPreviewZoom(window.zoom),
   layoutId: window.layoutId
-});
-
-export const normalizeDslPanelWindow = (window: DslPanelWindow): DslPanelWindow => ({
-  x: Number.isFinite(window.x) ? Math.round(window.x) : 20,
-  y: Number.isFinite(window.y) ? Math.round(window.y) : 68,
-  width: Math.max(
-    Number.isFinite(window.width) ? Math.round(window.width) : DEFAULT_DSL_PANEL_WIDTH,
-    MIN_DSL_PANEL_WIDTH
-  ),
-  height: Math.max(
-    Number.isFinite(window.height) ? Math.round(window.height) : DEFAULT_DSL_PANEL_HEIGHT,
-    MIN_DSL_PANEL_HEIGHT
-  )
 });
 
 const zoomViewportAt = (
@@ -526,8 +483,6 @@ export const useCadUiStore = create<CadUiState>((set, get) => ({
     set({ showGroupTemplateLibrary }),
   setGroupTemplateLibraryMode: (groupTemplateLibraryMode) =>
     set({ groupTemplateLibraryMode }),
-  setShowDslPanel: (showDslPanel) => set({ showDslPanel }),
-  setDslPanelSourceRequest: (dslPanelSourceRequest) => set({ dslPanelSourceRequest }),
   setShowCommandRibbonSettings: (showCommandRibbonSettings) =>
     set({ showCommandRibbonSettings }),
   setShowSelectionColorPicker: (showSelectionColorPicker) => set({ showSelectionColorPicker }),
@@ -603,12 +558,6 @@ export const useCadUiStore = create<CadUiState>((set, get) => ({
         x: Math.round(referenceHelperPosition.x),
         y: Math.round(referenceHelperPosition.y)
       }
-    }),
-  setDslPanelWindow: (dslPanelWindow) =>
-    set({
-      dslPanelWindow: dslPanelWindow
-        ? normalizeDslPanelWindow(dslPanelWindow)
-        : null
     }),
   setGroupFold: (id, patch) =>
     set((state) => {

@@ -1,10 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import {
-  DEFAULT_DSL_PANEL_HEIGHT,
-  DEFAULT_DSL_PANEL_WIDTH,
-  DEFAULT_DSL_PANEL_WINDOW,
-  DEFAULT_PRINT_PREVIEW_WINDOW
-} from "../state/cadUiStore";
+import { DEFAULT_PRINT_PREVIEW_WINDOW } from "../state/cadUiStore";
 import {
   DEFAULT_LEFT_PANEL_WIDTH,
   MAX_LEFT_PANEL_WIDTH,
@@ -24,12 +19,11 @@ describe("layoutSettingsStorage", () => {
       version: 1,
       leftPanelWidth: DEFAULT_LEFT_PANEL_WIDTH,
       collapsedPrintPanelSections: ["variables"],
-      printPreviewWindow: DEFAULT_PRINT_PREVIEW_WINDOW,
-      dslPanelWindow: DEFAULT_DSL_PANEL_WINDOW
+      printPreviewWindow: DEFAULT_PRINT_PREVIEW_WINDOW
     });
   });
 
-  it("saves and loads layout settings from browser storage", async () => {
+  it("saves and loads current layout settings from browser storage", async () => {
     await saveLayoutSettings({
       version: 1,
       leftPanelWidth: 480,
@@ -41,8 +35,7 @@ describe("layoutSettingsStorage", () => {
         height: 260,
         zoom: 0.8,
         layoutId: "print-layout-2"
-      },
-      dslPanelWindow: { x: 320, y: 80, width: 560, height: 500 }
+      }
     });
 
     await expect(loadLayoutSettings()).resolves.toEqual({
@@ -56,9 +49,31 @@ describe("layoutSettingsStorage", () => {
         height: 260,
         zoom: 0.8,
         layoutId: "print-layout-2"
-      },
-      dslPanelWindow: { x: 320, y: 80, width: 560, height: 500 }
+      }
     });
+  });
+
+  it("ignores a saved DslPanel window as an unknown layout key", async () => {
+    const legacySettings = {
+      version: 1,
+      leftPanelWidth: 420,
+      dslPanelWindow: { x: 300, y: 88, width: 120, height: 90 }
+    };
+
+    expect(normalizeLayoutSettings(legacySettings)).toEqual({
+      version: 1,
+      leftPanelWidth: 420,
+      collapsedPrintPanelSections: ["variables"],
+      printPreviewWindow: DEFAULT_PRINT_PREVIEW_WINDOW
+    });
+    expect(normalizeLayoutSettings(legacySettings)).not.toHaveProperty("dslPanelWindow");
+
+    window.localStorage.setItem("nuinuiCAD.layoutSettings.v1", JSON.stringify(legacySettings));
+    const loaded = await loadLayoutSettings();
+    await saveLayoutSettings(loaded);
+    expect(JSON.parse(window.localStorage.getItem("nuinuiCAD.layoutSettings.v1") ?? "")).not.toHaveProperty(
+      "dslPanelWindow"
+    );
   });
 
   it("normalizes broken and out-of-range layout settings", () => {
@@ -66,15 +81,13 @@ describe("layoutSettingsStorage", () => {
       version: 1,
       leftPanelWidth: MIN_LEFT_PANEL_WIDTH,
       collapsedPrintPanelSections: ["variables"],
-      printPreviewWindow: DEFAULT_PRINT_PREVIEW_WINDOW,
-      dslPanelWindow: DEFAULT_DSL_PANEL_WINDOW
+      printPreviewWindow: DEFAULT_PRINT_PREVIEW_WINDOW
     });
     expect(normalizeLayoutSettings({ version: 1, leftPanelWidth: 900 })).toEqual({
       version: 1,
       leftPanelWidth: MAX_LEFT_PANEL_WIDTH,
       collapsedPrintPanelSections: ["variables"],
-      printPreviewWindow: DEFAULT_PRINT_PREVIEW_WINDOW,
-      dslPanelWindow: DEFAULT_DSL_PANEL_WINDOW
+      printPreviewWindow: DEFAULT_PRINT_PREVIEW_WINDOW
     });
     expect(
       normalizeLayoutSettings({
@@ -86,8 +99,7 @@ describe("layoutSettingsStorage", () => {
       version: 1,
       leftPanelWidth: 420,
       collapsedPrintPanelSections: ["output", "placements"],
-      printPreviewWindow: DEFAULT_PRINT_PREVIEW_WINDOW,
-      dslPanelWindow: DEFAULT_DSL_PANEL_WINDOW
+      printPreviewWindow: DEFAULT_PRINT_PREVIEW_WINDOW
     });
     expect(
       normalizeLayoutSettings({
@@ -100,12 +112,6 @@ describe("layoutSettingsStorage", () => {
           height: 90,
           zoom: 12,
           layoutId: "print-layout-2"
-        },
-        dslPanelWindow: {
-          x: 300.3,
-          y: 88.6,
-          width: 120,
-          height: 90
         }
       })
     ).toEqual({
@@ -119,20 +125,13 @@ describe("layoutSettingsStorage", () => {
         height: 180,
         zoom: 4,
         layoutId: "print-layout-2"
-      },
-      dslPanelWindow: {
-        x: 300,
-        y: 89,
-        width: 360,
-        height: 260
       }
     });
     expect(normalizeLayoutSettings("{not-json")).toEqual({
       version: 1,
       leftPanelWidth: DEFAULT_LEFT_PANEL_WIDTH,
       collapsedPrintPanelSections: ["variables"],
-      printPreviewWindow: DEFAULT_PRINT_PREVIEW_WINDOW,
-      dslPanelWindow: DEFAULT_DSL_PANEL_WINDOW
+      printPreviewWindow: DEFAULT_PRINT_PREVIEW_WINDOW
     });
   });
 
@@ -147,26 +146,7 @@ describe("layoutSettingsStorage", () => {
       version: 1,
       leftPanelWidth: DEFAULT_LEFT_PANEL_WIDTH,
       collapsedPrintPanelSections: ["variables"],
-      printPreviewWindow: DEFAULT_PRINT_PREVIEW_WINDOW,
-      dslPanelWindow: DEFAULT_DSL_PANEL_WINDOW
-    });
-  });
-
-  it("upgrades older DSL panel window settings without size", () => {
-    expect(
-      normalizeLayoutSettings({
-        version: 1,
-        leftPanelWidth: 420,
-        dslPanelWindow: {
-          x: 300,
-          y: 88
-        }
-      }).dslPanelWindow
-    ).toEqual({
-      x: 300,
-      y: 88,
-      width: DEFAULT_DSL_PANEL_WIDTH,
-      height: DEFAULT_DSL_PANEL_HEIGHT
+      printPreviewWindow: DEFAULT_PRINT_PREVIEW_WINDOW
     });
   });
 });

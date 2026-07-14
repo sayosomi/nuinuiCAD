@@ -1,17 +1,12 @@
 import { invoke } from "@tauri-apps/api/core";
 import { isTauriRuntime } from "../geometry/evaluationEngine";
 import {
-  DEFAULT_DSL_PANEL_HEIGHT,
-  DEFAULT_DSL_PANEL_WIDTH,
-  DEFAULT_DSL_PANEL_WINDOW,
   DEFAULT_PRINT_PREVIEW_WINDOW,
-  MIN_DSL_PANEL_HEIGHT,
-  MIN_DSL_PANEL_WIDTH,
   MIN_PRINT_PREVIEW_HEIGHT,
   MIN_PRINT_PREVIEW_WIDTH,
   clampPrintPreviewZoom
 } from "../state/cadUiStore";
-import type { DslPanelWindow, PrintPreviewWindow } from "../state/cadUiStore";
+import type { PrintPreviewWindow } from "../state/cadUiStore";
 
 export const DEFAULT_LEFT_PANEL_WIDTH = 420;
 export const MIN_LEFT_PANEL_WIDTH = 360;
@@ -27,7 +22,6 @@ export type LayoutSettings = {
   leftPanelWidth: number;
   collapsedPrintPanelSections: PrintPanelSectionId[];
   printPreviewWindow: PrintPreviewWindow;
-  dslPanelWindow: DslPanelWindow | null;
 };
 
 const isObject = (value: unknown): value is Record<string, unknown> =>
@@ -57,28 +51,11 @@ const normalizePrintPreviewWindowSettings = (value: unknown): PrintPreviewWindow
   };
 };
 
-const normalizeDslPanelWindowSettings = (value: unknown): DslPanelWindow | null => {
-  if (!isObject(value)) return DEFAULT_DSL_PANEL_WINDOW;
-  return {
-    x: Math.round(finiteNumber(value.x, 20)),
-    y: Math.round(finiteNumber(value.y, 68)),
-    width: Math.max(
-      Math.round(finiteNumber(value.width, DEFAULT_DSL_PANEL_WIDTH)),
-      MIN_DSL_PANEL_WIDTH
-    ),
-    height: Math.max(
-      Math.round(finiteNumber(value.height, DEFAULT_DSL_PANEL_HEIGHT)),
-      MIN_DSL_PANEL_HEIGHT
-    )
-  };
-};
-
 export const defaultLayoutSettings = (): LayoutSettings => ({
   version: 1,
   leftPanelWidth: DEFAULT_LEFT_PANEL_WIDTH,
   collapsedPrintPanelSections: ["variables"],
-  printPreviewWindow: DEFAULT_PRINT_PREVIEW_WINDOW,
-  dslPanelWindow: DEFAULT_DSL_PANEL_WINDOW
+  printPreviewWindow: DEFAULT_PRINT_PREVIEW_WINDOW
 });
 
 export const normalizeLayoutSettings = (value: unknown): LayoutSettings => {
@@ -96,8 +73,7 @@ export const normalizeLayoutSettings = (value: unknown): LayoutSettings => {
     version: 1,
     leftPanelWidth: clampLeftPanelWidth(value.leftPanelWidth),
     collapsedPrintPanelSections,
-    printPreviewWindow: normalizePrintPreviewWindowSettings(value.printPreviewWindow),
-    dslPanelWindow: normalizeDslPanelWindowSettings(value.dslPanelWindow)
+    printPreviewWindow: normalizePrintPreviewWindowSettings(value.printPreviewWindow)
   };
 };
 

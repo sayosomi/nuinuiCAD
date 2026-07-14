@@ -21,7 +21,6 @@ const scopeLabels = {
   modeInvariant: "全モード",
   normal: "通常",
   pick: "構成リスト選択",
-  dsl: "DSLパネル",
   sourceEditor: "Source Editor"
 };
 

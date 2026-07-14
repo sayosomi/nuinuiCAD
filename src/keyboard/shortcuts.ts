@@ -87,7 +87,6 @@ export const keyboardCommandForEvent = (
   options: {
     settings?: ShortcutSettings;
     isPickMode?: boolean;
-    isDslPanelMode?: boolean;
     allowEditableCommandIds?: ReadonlySet<CommandId>;
     allowModifiedEditableCommandIds?: ReadonlySet<CommandId>;
   } = {}
@@ -118,7 +117,6 @@ export const commandIdForKeyboardEvent = (
   options: {
     settings?: ShortcutSettings;
     isPickMode?: boolean;
-    isDslPanelMode?: boolean;
     allowEditableCommandIds?: ReadonlySet<CommandId>;
     allowModifiedEditableCommandIds?: ReadonlySet<CommandId>;
   } = {}
@@ -130,6 +128,5 @@ export const shortcutHelpItems = (
   options: {
     settings?: ShortcutSettings;
     isPickMode?: boolean;
-    isDslPanelMode?: boolean;
   } = {}
 ): ShortcutHelpItem[] => shortcutHelpItemsForSettings(options);

@@ -140,11 +140,6 @@ export type CommandId =
   | "openGroupTemplateLibrary"
   | "openGroupTemplateInsertion"
   | "closeGroupTemplateLibrary"
-  | "openDslPanel"
-  | "exportDslSelection"
-  | "validateDslPanel"
-  | "applyDslPanel"
-  | "closeDslPanel"
   | "startTemplateInsertion"
   | "cancelTemplateInsertion"
   | "selectNextTemplateInsertionInput"
@@ -179,10 +174,6 @@ export type CommandContext = {
   clearPendingCanvasPointerIntent?: () => void;
   /** Cancels the deferred Canvas-to-Source-Editor focus handoff before replacement. */
   clearSourceEditorFocusReservation?: () => void;
-  exportDslSelection?: () => void;
-  validateDslPanel?: () => void;
-  applyDslPanel?: () => void;
-  closeDslPanel?: () => void;
   getCanvasViewportRect?: () => DOMRect | null;
   elementId?: ElementId;
   insertionIndex?: number;
@@ -221,7 +212,6 @@ export type CommandContext = {
   templateInputId?: string;
   numericValue?: NumericValue;
   colorId?: string;
-  dslElementIds?: ElementId[];
 };
 
 export type Command = {

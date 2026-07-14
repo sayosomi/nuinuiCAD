@@ -42,6 +42,11 @@ const legacyBindingIdMap: Readonly<Record<string, string>> = {
 };
 
 const retiredCommandIds = new Set([
+  "openDslPanel",
+  "exportDslSelection",
+  "validateDslPanel",
+  "applyDslPanel",
+  "closeDslPanel",
   "enterParameterEditMode",
   "enterDependencyJumpMode",
   "exitParameterEditMode",

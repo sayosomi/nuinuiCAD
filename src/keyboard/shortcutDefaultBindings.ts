@@ -51,9 +51,6 @@ const defaultBindings: ShortcutBinding[] = [
   binding("global", "focusElementSearch", [ch("f", { mod: true })]),
   binding("global", "undo", [ch("z", { mod: true })]),
   binding("global", "redo", [ch("y", { mod: true })]),
-  binding("global", "openDslPanel", [ch("d", { mod: true, shift: true })], {
-    label: "選択をDSLで開く"
-  }),
   binding("global", "enterElementListMode", [ch("g")]),
   binding("modeInvariant", "toggleInspectorPanel", [ch("i")]),
   binding("modeInvariant", "toggleShortcutHelp", [ch("?", { shift: "any" })]),
@@ -116,10 +113,6 @@ const defaultBindings: ShortcutBinding[] = [
   binding("pick", "selectNextPickOption", [ch("ArrowRight")]),
   binding("pick", "applySelectedPickCandidate", [ch("Enter")]),
   binding("pick", "finishLinePick", [ch("Enter", { mod: true })]),
-  binding("dsl", "exportDslSelection", [ch("e", { mod: true, shift: true })]),
-  binding("dsl", "validateDslPanel", [ch("Enter", { mod: true, shift: true })]),
-  binding("dsl", "applyDslPanel", [ch("Enter", { mod: true })]),
-  binding("dsl", "closeDslPanel", [ch("Escape")]),
   // Source Editor replacements for the former focusable element-list commands.
   // `[` / `]` stay available for DSL text; Mod variants are the intentional Phase 2e migration.
   binding("sourceEditor", "moveSelectedElementUp", [ch("ArrowUp", { mod: true }), ch("ArrowUp", { alt: true })], {
@@ -174,10 +167,6 @@ const contextRequiredCommandIds = new Set<CommandId>([
   "deleteBezierNumericVariable",
   "deleteBezierIntermediatePoint",
   "closeCommandPalette",
-  "exportDslSelection",
-  "validateDslPanel",
-  "applyDslPanel",
-  "closeDslPanel",
   "closeShortcutSettings"
 ]);
 

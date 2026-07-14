@@ -38,6 +38,23 @@ describe("shortcutSettingsStorage", () => {
     });
   });
 
+  it("removes every retired DslPanel binding without a replacement", () => {
+    expect(normalizeShortcutSettings({
+      version: 1,
+      overrides: [
+        { bindingId: "global.openDslPanel", chords: [chord("d")] },
+        { bindingId: "dsl.exportDslSelection", chords: [chord("e")] },
+        { bindingId: "dsl.validateDslPanel", chords: [chord("v")] },
+        { bindingId: "dsl.applyDslPanel", chords: [chord("a")] },
+        { bindingId: "dsl.closeDslPanel", chords: [chord("Escape")] },
+        { bindingId: "normal.addFreePoint", chords: [chord("p")] }
+      ]
+    })).toEqual({
+      version: 1,
+      overrides: [{ bindingId: "normal.addFreePoint", chords: [chord("p")] }]
+    });
+  });
+
   it("keeps an explicit replacement binding ahead of legacy overrides", () => {
     expect(
       normalizeShortcutSettings({
@@ -102,6 +119,7 @@ describe("shortcutSettingsStorage", () => {
         version: 1,
         overrides: [
           { bindingId: "parameter.toggleSelectedParameterValue", chords: [chord(" ")] },
+          { bindingId: "global.openDslPanel", chords: [chord("d")] },
           { bindingId: "global.focusInspectorParameterRows", chords: [chord("e")] },
           { bindingId: "normal.noLongerExists", chords: [chord("x")] },
           { bindingId: "normal.addFreePoint", chords: [chord("p")] }

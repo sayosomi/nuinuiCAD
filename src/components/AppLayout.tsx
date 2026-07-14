@@ -38,9 +38,6 @@ import { COMMAND_LINE_PICK_TARGET_ID } from "../commands/commandLinePickRouting"
 
 const commandLineCreationCommandIds = new Set(legacyCreationCommandIds);
 
-const DslPanel = lazy(() =>
-  import("./DslPanel").then((module) => ({ default: module.DslPanel }))
-);
 const GroupTemplateLibraryDialog = lazy(() =>
   import("./GroupTemplateLibraryDialog").then((module) => ({
     default: module.GroupTemplateLibraryDialog
@@ -104,7 +101,6 @@ export const AppLayout = () => {
   const shortcutSettings = useCadUiStore((state) => state.shortcutSettings);
   const showPrintLayout = useCadUiStore((state) => state.showPrintLayout);
   const showPrintPreviewWindow = useCadUiStore((state) => state.showPrintPreviewWindow);
-  const showDslPanel = useCadUiStore((state) => state.showDslPanel);
   const showPaletteSettings = useCadUiStore((state) => state.showPaletteSettings);
   const showVisibilityProfileSettings = useCadUiStore(
     (state) => state.showVisibilityProfileSettings
@@ -116,7 +112,6 @@ export const AppLayout = () => {
   const pendingImageImport = useCadUiStore((state) => state.pendingImageImport);
   const imageImportError = useCadUiStore((state) => state.imageImportError);
   const setPrintPreviewWindow = useCadUiStore((state) => state.setPrintPreviewWindow);
-  const setDslPanelWindow = useCadUiStore((state) => state.setDslPanelWindow);
   const activeTemplateInsertion = useCadUiStore((state) => state.activeTemplateInsertion);
   const activeLinePickTarget = useCadUiStore((state) => state.activeLinePickTarget);
   const commandLineSession = useCadUiStore((state) => state.commandLineSession);
@@ -184,7 +179,6 @@ export const AppLayout = () => {
         if (!cancelled) {
           setLeftPanelWidth(settings.leftPanelWidth);
           setPrintPreviewWindow(settings.printPreviewWindow);
-          setDslPanelWindow(settings.dslPanelWindow);
         }
       })
       .catch((error: unknown) => {
@@ -193,7 +187,7 @@ export const AppLayout = () => {
     return () => {
       cancelled = true;
     };
-  }, [setDslPanelWindow, setPrintPreviewWindow]);
+  }, [setPrintPreviewWindow]);
 
   useEffect(() => {
     return registerUnsavedChangesGuard();
@@ -320,7 +314,6 @@ export const AppLayout = () => {
       if (useCadUiStore.getState().showShortcutSettings) return;
       if (useCadUiStore.getState().showPaletteSettings) return;
       if (useCadUiStore.getState().showGroupTemplateLibrary) return;
-      if (useCadUiStore.getState().showDslPanel) return;
       if (useCadUiStore.getState().showCommandRibbonSettings) return;
       if (useCadUiStore.getState().showSelectionColorPicker) return;
       if (useCadUiStore.getState().pendingImageImport || useCadUiStore.getState().imageImportError) return;
@@ -489,15 +482,7 @@ export const AppLayout = () => {
           <TemplateInsertionPanel />
         </Suspense>
       ) : null}
-      {showDslPanel ? (
-        <Suspense fallback={null}>
-          <DslPanel commandContext={commandContext} evaluation={evaluation} />
-        </Suspense>
-      ) : null}
-      <ShortcutHelpOverlay
-        isPickMode={isPickMode}
-        isDslPanelMode={showDslPanel}
-      />
+      <ShortcutHelpOverlay isPickMode={isPickMode} />
       {showPaletteSettings ? (
         <Suspense fallback={null}>
           <PaletteSettingsDialog />
