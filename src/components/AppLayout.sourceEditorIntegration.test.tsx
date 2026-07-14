@@ -77,6 +77,34 @@ describe("AppLayout Source Editor production integration", () => {
     expect(document.activeElement?.closest("[inert]")).toBeNull();
   });
 
+  it("replaces a line-list pick session through a modified normal creation shortcut without accepting plain typing", async () => {
+    useCadUiStore.setState({
+      shortcutSettings: {
+        version: 1,
+        overrides: [{
+          bindingId: "normal.addLine",
+          chords: [{ key: "l", mod: true, alt: false, shift: false }]
+        }]
+      }
+    });
+    const view = render(<AppLayout />);
+    act(() => { startCommandLineCreation("offsetLine"); });
+    const input = view.getByPlaceholderText("候補名を入力") as HTMLInputElement;
+    const sourcePane = view.container.querySelector<HTMLElement>(".source-editor-pane-wrapper")!;
+
+    act(() => { fireEvent.keyDown(input, { key: "x" }); });
+    expect(useCadUiStore.getState().commandLineSession?.recipe.type).toBe("offsetLine");
+
+    act(() => { fireEvent.keyDown(input, { key: "l", metaKey: true }); });
+    await waitFor(() => expect(useCadUiStore.getState().commandLineSession?.recipe.type).toBe("line"));
+    expect(useCadUiStore.getState().activeLinePickTarget).toBeNull();
+    expect(useCadUiStore.getState().activePointPickTarget).toMatchObject({
+      elementId: "__command-line__",
+      parameterKey: "startPoint"
+    });
+    expect(sourcePane).not.toHaveAttribute("inert");
+  });
+
   it("confirms from the real bar and returns focus to the existing Source Editor selection path", async () => {
     const view = render(<AppLayout />);
     act(() => { startCommandLineCreation("variable"); });

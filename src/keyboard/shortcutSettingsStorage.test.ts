@@ -4,6 +4,7 @@ const { tauriCoreMock } = vi.hoisted(() => ({ tauriCoreMock: { invoke: vi.fn() }
 vi.mock("@tauri-apps/api/core", () => tauriCoreMock);
 
 import { loadShortcutSettings, normalizeShortcutSettings } from "./shortcutSettingsStorage";
+import { legacyCreationCommandRecipeMap } from "../commands/legacyCreationRecipes";
 
 const chord = (key: string) => ({ key, mod: false, alt: false, shift: false });
 
@@ -61,6 +62,36 @@ describe("shortcutSettingsStorage", () => {
     ).toEqual({
       version: 1,
       overrides: [{ bindingId: "normal.toggleInspectorPanel", chords: [chord("i")] }]
+    });
+  });
+
+  it("migrates every removed temporary creation binding through the existing replacement rules", () => {
+    const commandIds = Object.keys(legacyCreationCommandRecipeMap);
+    expect(normalizeShortcutSettings({
+      version: 1,
+      overrides: commandIds.map((commandId, index) => ({
+        bindingId: `normal.commandLine${commandId[0].toUpperCase()}${commandId.slice(1)}`,
+        chords: [chord(String.fromCharCode(97 + index))]
+      }))
+    })).toEqual({
+      version: 1,
+      overrides: commandIds.map((commandId, index) => ({
+        bindingId: `normal.${commandId}`,
+        chords: [chord(String.fromCharCode(97 + index))]
+      }))
+    });
+  });
+
+  it("keeps a current creation binding over its temporary predecessor", () => {
+    expect(normalizeShortcutSettings({
+      version: 1,
+      overrides: [
+        { bindingId: "normal.commandLineAddLine", chords: [chord("x")] },
+        { bindingId: "normal.addLine", chords: [chord("l")] }
+      ]
+    })).toEqual({
+      version: 1,
+      overrides: [{ bindingId: "normal.addLine", chords: [chord("l")] }]
     });
   });
 

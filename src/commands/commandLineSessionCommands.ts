@@ -19,7 +19,11 @@ import {
   skipCurrentStep,
   startSession
 } from "./commandLineSession";
-import { creationRecipeForType, emitCreationRecipe } from "./creationRecipes";
+import {
+  creationRecipeForType,
+  emitCreationRecipe,
+  type CreationRecipe
+} from "./creationRecipes";
 import { COMMAND_LINE_PICK_TARGET_ID } from "./commandLinePickRouting";
 import { clearCommandLineGhostPreview, syncCommandLineGhostPreview } from "./commandLineGhostPreview";
 import { promoteDirectlyReferencedUnnamedElements } from "./commandLineUnnamedPromotion";
@@ -37,11 +41,6 @@ const clearStaleSession = () => {
   clearCommandLineGhostPreview();
   ui.clearPickMode();
   ui.setCommandErrorMessage(staleError);
-};
-
-const recipeForCommandLineType = (type: CadElementType) => {
-  const recipe = creationRecipeForType(type);
-  return recipe;
 };
 
 const setSessionAndSyncPickTarget = (session: CommandLineSession) => {
@@ -101,10 +100,13 @@ export const syncCommandLinePickTarget = (session = useCadUiStore.getState().com
 };
 
 /**
- * Begins or replaces a command-line creation session.  The temporary callers
- * use the same virtual-target pick infrastructure as template insertion.
+ * Begins or replaces a command-line creation session through the same
+ * virtual-target pick infrastructure used by template insertion.
  */
-export const startCommandLineCreation = (type: CadElementType, context?: CommandContext) => {
+export const startCommandLineCreationForRecipe = (
+  recipe: CreationRecipe,
+  context?: CommandContext
+) => {
   if (commandLineCompositionIsActive()) {
     useCadUiStore.getState().setCommandErrorMessage(compositionError);
     return false;
@@ -113,9 +115,6 @@ export const startCommandLineCreation = (type: CadElementType, context?: Command
     useCadUiStore.getState().setCommandErrorMessage(compositionError);
     return false;
   }
-  const recipe = recipeForCommandLineType(type);
-  if (!recipe) return false;
-
   const document = useCadDocumentStore.getState();
   const cursorElementId = context?.currentCursorElementId?.() ?? null;
   const cursorStatementIndex = cursorElementId
@@ -149,6 +148,16 @@ export const startCommandLineCreation = (type: CadElementType, context?: Command
   syncCommandLinePickTarget();
   useCadUiStore.getState().setCommandErrorMessage(null);
   return true;
+};
+
+/**
+ * Type-based start helper retained for focused command-line tests and callers
+ * that already own an element type. Command cutover must resolve normal
+ * command IDs through creationRecipeForLegacyCommand instead.
+ */
+export const startCommandLineCreation = (type: CadElementType, context?: CommandContext) => {
+  const recipe = creationRecipeForType(type);
+  return recipe ? startCommandLineCreationForRecipe(recipe, context) : false;
 };
 
 /** Cancels the session and all pick state through the established unified path. */

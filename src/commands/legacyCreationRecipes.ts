@@ -1,4 +1,5 @@
 import type { CadElementType } from "../types/geometry";
+import type { CommandId } from "./commandTypes";
 import { creationRecipeForType, type CreationRecipe } from "./creationRecipes";
 
 /**
@@ -33,6 +34,11 @@ export const legacyCreationCommandRecipeMap = {
   type: CadElementType;
   recipeKind: "specialized" | "fallback";
 }>>;
+
+/** Normal command IDs whose recipes are the command-line creation cutover source. */
+export const legacyCreationCommandIds = Object.keys(
+  legacyCreationCommandRecipeMap
+) as CommandId[];
 
 /** Returns the command-line recipe for a legacy creation command, if it has one. */
 export const creationRecipeForLegacyCommand = (commandId: string): CreationRecipe | null => {

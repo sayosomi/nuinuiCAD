@@ -32,7 +32,7 @@ import { useCadUiStore } from "../state/cadUiStore";
 import type { CadElement, ElementId } from "../types/geometry";
 import type { CommandContext } from "./commandTypes";
 import { getSelectedElement, getSelectedElementIds } from "./commandRuntime";
-import { finishCreatedElementInteraction } from "./nameEntryAfterCreation";
+import { focusCanvasAfterCreation } from "./postCreationFocus";
 
 export const toggleSelectedElementsBooleanProperty = (property: "visible" | "enabled") => {
   const { elements } = useCadDocumentStore.getState();
@@ -417,7 +417,7 @@ export const groupSelectedElements = (context?: CommandContext) => {
     selectionAnchorElementId: group.id
   });
   useCadUiStore.getState().setCommandErrorMessage(null);
-  finishCreatedElementInteraction(context);
+  focusCanvasAfterCreation(context);
 };
 
 export const addGroup = (context?: CommandContext) => {
@@ -445,7 +445,7 @@ export const addGroup = (context?: CommandContext) => {
     selectionAnchorElementId: group.id
   });
   useCadUiStore.getState().setCommandErrorMessage(null);
-  finishCreatedElementInteraction(context);
+  focusCanvasAfterCreation(context);
 };
 
 export const ungroupSelectedGroup = () => {

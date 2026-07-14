@@ -10,7 +10,7 @@ import { useCadUiStore } from "../state/cadUiStore";
 import type { CadElement, ElementId } from "../types/geometry";
 import type { CommandContext } from "./commandTypes";
 import { getSelectedElement, getSelectedElementIds } from "./commandRuntime";
-import { finishCreatedElementInteraction } from "./nameEntryAfterCreation";
+import { focusCanvasAfterCreation } from "./postCreationFocus";
 
 const hasSelectedAncestor = (
   element: CadElement,
@@ -46,7 +46,7 @@ export const addForGroup = (context?: CommandContext) => {
     selectedElementIds: [group.id],
     selectionAnchorElementId: group.id
   });
-  finishCreatedElementInteraction(context);
+  focusCanvasAfterCreation(context);
 };
 
 export const wrapSelectedElementsInForGroup = (context?: CommandContext) => {
@@ -91,7 +91,7 @@ export const wrapSelectedElementsInForGroup = (context?: CommandContext) => {
     selectedElementIds: [group.id],
     selectionAnchorElementId: group.id
   });
-  finishCreatedElementInteraction(context);
+  focusCanvasAfterCreation(context);
 };
 
 export const toggleSelectedForGroupGenerated = () => {

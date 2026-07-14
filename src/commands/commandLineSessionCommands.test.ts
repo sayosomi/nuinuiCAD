@@ -71,10 +71,10 @@ describe("command-line session commands", () => {
     expect(focusElementList).toHaveBeenCalledOnce();
   });
 
-  it("keeps every pre-cutover creation command available through a distinct temporary command-line id", () => {
+  it("removes every temporary creation command after cutover", () => {
     for (const commandId of Object.keys(legacyCreationCommandRecipeMap)) {
       const temporaryId = `commandLine${commandId[0].toUpperCase()}${commandId.slice(1)}`;
-      expect(commandLineCommandDefinitions).toHaveProperty(temporaryId);
+      expect(commandLineCommandDefinitions).not.toHaveProperty(temporaryId);
     }
   });
 

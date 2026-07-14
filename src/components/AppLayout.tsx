@@ -33,7 +33,10 @@ import type { DrawingCanvasHandle } from "./DrawingCanvas";
 import { isImeComposingKeyEvent } from "./keyboardEventGuards";
 import { isCommandLineInputComposing } from "../commands/commandLineInputComposition";
 import { currentStep } from "../commands/commandLineSession";
+import { creationRecipeForLegacyCommand, legacyCreationCommandIds } from "../commands/legacyCreationRecipes";
 import { COMMAND_LINE_PICK_TARGET_ID } from "../commands/commandLinePickRouting";
+
+const commandLineCreationCommandIds = new Set(legacyCreationCommandIds);
 
 const DslPanel = lazy(() =>
   import("./DslPanel").then((module) => ({ default: module.DslPanel }))
@@ -321,15 +324,28 @@ export const AppLayout = () => {
       if (useCadUiStore.getState().showCommandRibbonSettings) return;
       if (useCadUiStore.getState().showSelectionColorPicker) return;
       if (useCadUiStore.getState().pendingImageImport || useCadUiStore.getState().imageImportError) return;
-      const keyboardCommand = keyboardCommandForEvent(event, {
+      const keyboardOptions = {
         settings: useCadUiStore.getState().shortcutSettings,
         isPickMode: Boolean(
           useCadUiStore.getState().activePointPickTarget ||
             useCadUiStore.getState().activeNumericReferencePickTarget ||
             useCadUiStore.getState().activeLinePickTarget ||
             useCadUiStore.getState().activeTemplateInsertion
-        )
-      });
+        ),
+        allowModifiedEditableCommandIds: commandLineCreationCommandIds
+      };
+      const keyboardCommand = keyboardCommandForEvent(event, keyboardOptions) ??
+        (useCadUiStore.getState().commandLineSession
+          ? (() => {
+              const normalCommand = keyboardCommandForEvent(event, {
+                ...keyboardOptions,
+                isPickMode: false
+              });
+              return normalCommand && creationRecipeForLegacyCommand(normalCommand.commandId)
+                ? normalCommand
+                : null;
+            })()
+          : null);
       if (useCadUiStore.getState().commandLineSession && event.key === "Escape") {
         event.preventDefault();
         dispatchCommand("cancelCommandLineSession");

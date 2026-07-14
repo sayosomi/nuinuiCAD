@@ -1,5 +1,7 @@
 import type { CommandContext } from "./commandTypes";
-export const finishCreatedElementInteraction = (
+
+/** Schedules the Canvas focus handoff used by non-command-line creation flows. */
+export const focusCanvasAfterCreation = (
   context?: Pick<CommandContext, "focusCanvas">
 ) => {
   if (!context?.focusCanvas) return;

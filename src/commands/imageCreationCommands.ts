@@ -12,7 +12,7 @@ import { makeUniqueElementName } from "../model/elementNames";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
 import type { CadElement } from "../types/geometry";
-import { finishCreatedElementInteraction } from "./nameEntryAfterCreation";
+import { focusCanvasAfterCreation } from "./postCreationFocus";
 
 type ImageMetadata = {
   widthPx: number;
@@ -106,7 +106,7 @@ const commitCreatedImage = (
     selectedElementIds: [placedElement.id],
     selectionAnchorElementId: placedElement.id
   });
-  finishCreatedElementInteraction();
+  focusCanvasAfterCreation();
 };
 
 export const commitPendingImageImport = ({

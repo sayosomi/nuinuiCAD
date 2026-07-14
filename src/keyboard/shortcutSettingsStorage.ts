@@ -15,7 +15,30 @@ const legacyBindingIdMap: Readonly<Record<string, string>> = {
   "modeInvariant.toggleElementInfoPanel": "modeInvariant.toggleInspectorPanel",
   "normal.toggleElementInfoPanel": "normal.toggleInspectorPanel",
   "parameter.incrementSelectedParameter": "sourceEditor.stepSourceValueForward",
-  "parameter.decrementSelectedParameter": "sourceEditor.stepSourceValueBackward"
+  "parameter.decrementSelectedParameter": "sourceEditor.stepSourceValueBackward",
+  "normal.commandLineAddFreePoint": "normal.addFreePoint",
+  "normal.commandLineAddOffsetPoint": "normal.addOffsetPoint",
+  "normal.commandLineAddPolarOffsetPoint": "normal.addPolarOffsetPoint",
+  "normal.commandLineAddDivisionPoint": "normal.addDivisionPoint",
+  "normal.commandLineAddLineDivisionPoint": "normal.addLineDivisionPoint",
+  "normal.commandLineAddIntersectionPoint": "normal.addIntersectionPoint",
+  "normal.commandLineAddLineTangentOffsetPoint": "normal.addLineTangentOffsetPoint",
+  "normal.commandLineAddLine": "normal.addLine",
+  "normal.commandLineAddAngleLengthLine": "normal.addAngleLengthLine",
+  "normal.commandLineAddArcLine": "normal.addArcLine",
+  "normal.commandLineAddThreePointArcLine": "normal.addThreePointArcLine",
+  "normal.commandLineAddCornerRadiusArcLine": "normal.addCornerRadiusArcLine",
+  "normal.commandLineAddEdge": "normal.addEdge",
+  "normal.commandLineAddExtendTrim": "normal.addExtendTrim",
+  "normal.commandLineAddBezierCurve": "normal.addBezierCurve",
+  "normal.commandLineAddOffsetLine": "normal.addOffsetLine",
+  "normal.commandLineAddCopyLine": "normal.addCopyLine",
+  "normal.commandLineAddSymmetricCopyLine": "normal.addSymmetricCopyLine",
+  "normal.commandLineAddMove": "normal.addMove",
+  "normal.commandLineAddSymmetricMove": "normal.addSymmetricMove",
+  "normal.commandLineAddSplitLine": "normal.addSplitLine",
+  "normal.commandLineAddVariable": "normal.addVariable",
+  "normal.commandLineAddText": "normal.addText"
 };
 
 const retiredCommandIds = new Set([
