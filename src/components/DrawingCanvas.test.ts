@@ -3,6 +3,8 @@ import { createElement, createRef } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { registerSourceEditSession } from "../editor/sourceEditSession";
 import { dispatchCommand } from "../commands/commands";
+import { creationRecipeForType } from "../commands/creationRecipes";
+import { startSession } from "../commands/commandLineSession";
 import type { SourceEditSession } from "../editor/sourceEditSession";
 import { evaluateElements } from "../geometry/evaluate";
 import type { EvaluationEngineState } from "../geometry/useEvaluationEngine";
@@ -79,6 +81,8 @@ const bezierCurve = (
 const resetStore = () => {
   useCadStore.setState({
     elements: sampleElements,
+    previewElements: null,
+    previewEvaluationLimitIndex: null,
     palette: defaultDocumentPalette(),
     selectedElementId: sampleElements[0].id,
     selectedElementIds: [sampleElements[0].id],
@@ -88,6 +92,7 @@ const resetStore = () => {
     activeLinePickTarget: null,
     activeMeasurementInsertTarget: null,
     activePickCursor: null,
+    commandLineSession: null,
     elementSearchQuery: "",
     elementSearchCursorId: null,
     elementSearchPickableOnly: false,
@@ -345,6 +350,40 @@ describe("DrawingCanvas rendering", () => {
 
     expect(container.querySelectorAll(".overlay-draggable-point")).toHaveLength(1);
     expect(useCadStore.getState().showCanvasPoints).toBe(false);
+  });
+});
+
+describe("DrawingCanvas command-line ghost isolation", () => {
+  it("renders a ghost without allowing it to become a normal selection or drag target", () => {
+    const document = useCadDocumentStore.getState();
+    const selectedBefore = useCadUiStore.getState().selectedElementId;
+    useCadDocumentStore.getState().previewDocumentChange({
+      elements: [
+        ...document.elements,
+        {
+          id: "command-line-ghost",
+          name: "",
+          type: "freePoint",
+          visible: true,
+          enabled: true,
+          x: 100,
+          y: 0
+        }
+      ],
+      evaluationLimitIndex: document.evaluationLimitIndex + 1
+    });
+    useCadUiStore.getState().setCommandLineSession(startSession(creationRecipeForType("freePoint")!, {
+      insertionIndex: document.elements.length,
+      revision: document.sourceRevision,
+      elements: document.elements
+    }));
+
+    const { viewport } = renderDrawingCanvas();
+    fireEvent.pointerDown(viewport, { button: 0, buttons: 1, clientX: 350, clientY: 200, pointerId: 9 });
+    fireEvent.pointerUp(viewport, { button: 0, buttons: 0, clientX: 350, clientY: 200, pointerId: 9 });
+
+    expect(useCadUiStore.getState().selectedElementId).toBe(selectedBefore);
+    expect(useCadDocumentStore.getState().elements).toBe(document.elements);
   });
 });
 

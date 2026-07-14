@@ -21,6 +21,7 @@ import {
 } from "./commandLineSession";
 import { creationRecipeForType, emitCreationRecipe } from "./creationRecipes";
 import { COMMAND_LINE_PICK_TARGET_ID } from "./commandLinePickRouting";
+import { clearCommandLineGhostPreview, syncCommandLineGhostPreview } from "./commandLineGhostPreview";
 import { promoteDirectlyReferencedUnnamedElements } from "./commandLineUnnamedPromotion";
 import type { CommandContext } from "./commandTypes";
 
@@ -33,6 +34,7 @@ const commandLineCompositionIsActive = () =>
 
 const clearStaleSession = () => {
   const ui = useCadUiStore.getState();
+  clearCommandLineGhostPreview();
   ui.clearPickMode();
   ui.setCommandErrorMessage(staleError);
 };
@@ -45,6 +47,7 @@ const recipeForCommandLineType = (type: CadElementType) => {
 const setSessionAndSyncPickTarget = (session: CommandLineSession) => {
   useCadUiStore.getState().setCommandLineSession(session);
   syncCommandLinePickTarget(session);
+  syncCommandLineGhostPreview(session);
 };
 
 /**
@@ -136,6 +139,7 @@ export const startCommandLineCreation = (type: CadElementType, context?: Command
     insertionIndex,
     useCadUiStore.getState().groupFoldById
   );
+  clearCommandLineGhostPreview();
   useCadUiStore.getState().startCommandLineSession(startSession(recipe, {
     insertionIndex,
     revision: document.sourceRevision,
@@ -151,6 +155,7 @@ export const startCommandLineCreation = (type: CadElementType, context?: Command
 export const cancelCommandLineSession = () => {
   if (commandLineCompositionIsActive()) return false;
   if (!useCadUiStore.getState().commandLineSession) return false;
+  clearCommandLineGhostPreview();
   useCadUiStore.getState().clearPickMode();
   return true;
 };
@@ -264,6 +269,9 @@ export const confirmCommandLineSession = (context?: CommandContext) => {
     referenceElements: placement.referenceElements
   });
   const element = applyCreationPlacement(emitted, placement);
+  // The final materialization owns the canonical document; clear the ephemeral
+  // candidate first so a rejected bridge call cannot leave a stale ghost.
+  clearCommandLineGhostPreview();
   const result = document.commitDocumentChange({
     elements: [
       ...promotion.elements.slice(0, session.insertionIndex),
@@ -276,11 +284,13 @@ export const confirmCommandLineSession = (context?: CommandContext) => {
   });
   if (result.status !== "applied") {
     const ui = useCadUiStore.getState();
+    clearCommandLineGhostPreview();
     ui.clearPickMode();
     ui.setCommandErrorMessage(commitError);
     return false;
   }
 
+  clearCommandLineGhostPreview();
   useCadUiStore.getState().clearPickMode();
   const focusSourceEditor = () => context?.focusElementList?.();
   if (typeof requestAnimationFrame === "function") requestAnimationFrame(focusSourceEditor);

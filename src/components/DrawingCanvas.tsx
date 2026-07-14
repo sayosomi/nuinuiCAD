@@ -145,6 +145,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
   const [linePickCandidateMenu, setLinePickCandidateMenu] =
     useState<LinePickCandidateMenu | null>(null);
   const elements = useCadDocumentStore(effectiveElements);
+  const documentElements = useCadDocumentStore((state) => state.elements);
   const palette = useCadDocumentStore((state) => state.palette);
   const selectedElementId = useCadUiStore((state) => state.selectedElementId);
   const selectedElementIds = useCadUiStore((state) => state.selectedElementIds);
@@ -159,6 +160,11 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
   const activeNumericReferencePickTarget = useCadUiStore((state) => state.activeNumericReferencePickTarget);
   const activeLinePickTarget = useCadUiStore((state) => state.activeLinePickTarget);
   const commandLineSession = useCadUiStore((state) => state.commandLineSession);
+  const previewElementIds = useMemo(() => {
+    const documentElementIds = new Set(documentElements.map((element) => element.id));
+    return new Set(elements.filter((element) => !documentElementIds.has(element.id)).map((element) => element.id));
+  }, [documentElements, elements]);
+  const hasCommandLineGhost = Boolean(commandLineSession && previewElementIds.size > 0);
   const groupFoldById = useCadUiStore((state) => state.groupFoldById);
   const commandLinePickParentGroupId = useMemo(
     () => commandLineSession
@@ -200,10 +206,39 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     activePointPickTarget,
     commandLineSession,
     commandLinePickParentGroupId,
+    excludedInteractionElementIds: previewElementIds,
     viewportSize,
     canvasViewport,
     documentPath: currentFilePath
   });
+  const interactiveOverlayLines = useMemo(
+    () => overlayLines.filter(({ line }) => !previewElementIds.has(line.elementId)),
+    [overlayLines, previewElementIds]
+  );
+  const interactiveOverlayPoints = useMemo(
+    () => overlayPoints.filter(({ point }) => !previewElementIds.has(point.elementId)),
+    [overlayPoints, previewElementIds]
+  );
+  const interactiveOverlayArcs = useMemo(
+    () => overlayArcs.filter(({ arc }) => !previewElementIds.has(arc.elementId)),
+    [overlayArcs, previewElementIds]
+  );
+  const interactiveOverlayCurves = useMemo(
+    () => overlayCurves.filter(({ curve }) => !previewElementIds.has(curve.elementId)),
+    [overlayCurves, previewElementIds]
+  );
+  const interactiveOverlayOffsetLines = useMemo(
+    () => overlayOffsetLines.filter(({ line }) => !previewElementIds.has(line.elementId)),
+    [overlayOffsetLines, previewElementIds]
+  );
+  const interactiveOverlayImages = useMemo(
+    () => overlayImages.filter(({ image }) => !previewElementIds.has(image.elementId)),
+    [overlayImages, previewElementIds]
+  );
+  const interactiveOverlayTexts = useMemo(
+    () => overlayTexts.filter(({ text }) => !previewElementIds.has(text.elementId)),
+    [overlayTexts, previewElementIds]
+  );
   const reusableDragEvaluation = useCallback((snapshotElements: typeof elements) => {
     if (evaluationState?.isStale) return undefined;
     if ((evaluation.evaluationLimitIndex ?? snapshotElements.length) !== snapshotElements.length) {
@@ -425,6 +460,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     const ids = new Set<ElementId>();
     if (!activeLinePickTarget && !activeNumericReferencePickTarget) return ids;
     for (const { line } of overlayNumericReferenceCandidates) {
+      if (previewElementIds.has(line.elementId)) continue;
       if (activeNumericReferencePickTarget
         ? isPickableForNumericReference(line.elementId)
         : pickableLineIdForLinePick(line.elementId) !== null) {
@@ -437,6 +473,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     activeNumericReferencePickTarget,
     isPickableForNumericReference,
     overlayNumericReferenceCandidates,
+    previewElementIds,
     pickableLineIdForLinePick
   ]);
   const linePickCandidatesAt = useCallback((screen: ScreenPoint) => {
@@ -445,26 +482,29 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     const uniqueCandidates = new Map<ElementId, LinePickCandidate>();
     for (const candidate of hitTestLineMeasurementCandidates({
       screen,
-      lines: overlayNumericReferenceCandidates
+      lines: overlayNumericReferenceCandidates.filter(({ line }) => !previewElementIds.has(line.elementId))
     })) {
       const normalizedLineId = pickableLineIdForLinePick(candidate.line.elementId);
       if (!normalizedLineId) continue;
       uniqueCandidates.set(normalizedLineId, { line: candidate.line });
     }
     return Array.from(uniqueCandidates.values());
-  }, [activeLinePickTarget, overlayNumericReferenceCandidates, pickableLineIdForLinePick]);
+  }, [activeLinePickTarget, overlayNumericReferenceCandidates, pickableLineIdForLinePick, previewElementIds]);
   const numericReferenceCandidatesAt = useCallback((screen: ScreenPoint) => {
     if (!activeNumericReferencePickTarget) return [];
 
     const uniqueCandidates = new Map<string, LineMeasurementCandidate>();
-    for (const line of hitTestLineCandidates({ screen, lines: overlayNumericReferenceCandidates })) {
+    for (const line of hitTestLineCandidates({
+      screen,
+      lines: overlayNumericReferenceCandidates.filter(({ line: candidate }) => !previewElementIds.has(candidate.elementId))
+    })) {
       if (!isPickableForNumericReference(line.elementId)) continue;
       for (const property of numericReferencePropertiesForGeometry(line)) {
         uniqueCandidates.set(`${line.elementId}:${property}`, { line, property });
       }
     }
     return Array.from(uniqueCandidates.values());
-  }, [activeNumericReferencePickTarget, isPickableForNumericReference, overlayNumericReferenceCandidates]);
+  }, [activeNumericReferencePickTarget, isPickableForNumericReference, overlayNumericReferenceCandidates, previewElementIds]);
 
   const applyPendingPointerTransition = useCallback((transition: PendingCanvasPointerTransition) => {
     pendingPointerStateRef.current = transition.state;
@@ -575,6 +615,10 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     setPointPickCandidateMenu(null);
     setLinePickCandidateMenu(null);
     setMeasurementCandidateMenu(null);
+    if (hasCommandLineGhost) {
+      focusCanvas();
+      return;
+    }
     if (handle) {
       focusCanvas();
       dispatchCommand("selectElement", { elementId: handle.curveId, selectionMode: selectionModeFor(intent) });
@@ -616,13 +660,13 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
 
     const elementId = hitTestCanvasGeometry({
       screen,
-      lines: overlayLines,
-      arcs: overlayArcs,
-      curves: overlayCurves,
-      offsetLines: overlayOffsetLines,
-      images: overlayImages,
-      texts: overlayTexts,
-      points: overlayPoints
+      lines: interactiveOverlayLines,
+      arcs: interactiveOverlayArcs,
+      curves: interactiveOverlayCurves,
+      offsetLines: interactiveOverlayOffsetLines,
+      images: interactiveOverlayImages,
+      texts: interactiveOverlayTexts,
+      points: interactiveOverlayPoints
     });
     if (!elementId) {
       focusCanvas();
@@ -631,7 +675,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
 
     focusCanvas();
     dispatchCommand("selectElement", { elementId, selectionMode: selectionModeFor(intent) });
-    if (!overlayPoints.some(({ point }) => point.elementId === elementId)) {
+    if (!interactiveOverlayPoints.some(({ point }) => point.elementId === elementId)) {
       scheduleEditorFocus(intent.pointerId, intent.pointerReleased);
       return;
     }
@@ -679,16 +723,17 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     canvasViewport.zoom,
     captureLedger,
     currentDocumentDragSnapshot,
+    hasCommandLineGhost,
     linePickCandidatesAt,
     numericReferenceCandidatesAt,
-    overlayArcs,
-    overlayCurves,
-    overlayImages,
-    overlayLines,
-    overlayOffsetLines,
+    interactiveOverlayArcs,
+    interactiveOverlayCurves,
+    interactiveOverlayImages,
+    interactiveOverlayLines,
+    interactiveOverlayOffsetLines,
     overlayPointPickCandidates,
-    overlayPoints,
-    overlayTexts,
+    interactiveOverlayPoints,
+    interactiveOverlayTexts,
     scheduleEditorFocus,
     selectedBezierHandles,
     viewportSize.height,
@@ -705,13 +750,13 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     if (handle) return handle.curveId;
     return hitTestCanvasGeometry({
       screen,
-      lines: overlayLines,
-      arcs: overlayArcs,
-      curves: overlayCurves,
-      offsetLines: overlayOffsetLines,
-      images: overlayImages,
-      texts: overlayTexts,
-      points: overlayPoints
+      lines: interactiveOverlayLines,
+      arcs: interactiveOverlayArcs,
+      curves: interactiveOverlayCurves,
+      offsetLines: interactiveOverlayOffsetLines,
+      images: interactiveOverlayImages,
+      texts: interactiveOverlayTexts,
+      points: interactiveOverlayPoints
     });
   };
 

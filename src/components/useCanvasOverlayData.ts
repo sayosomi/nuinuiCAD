@@ -74,6 +74,7 @@ export const useCanvasOverlayData = ({
   activePointPickTarget,
   commandLineSession,
   commandLinePickParentGroupId,
+  excludedInteractionElementIds,
   viewportSize,
   canvasViewport,
   documentPath
@@ -84,6 +85,7 @@ export const useCanvasOverlayData = ({
   activePointPickTarget: ActivePointPickTarget | null;
   commandLineSession: CommandLineSession | null;
   commandLinePickParentGroupId?: ElementId;
+  excludedInteractionElementIds?: ReadonlySet<ElementId>;
   viewportSize: ViewportSize;
   canvasViewport: CanvasViewport;
   documentPath: string | null;
@@ -213,6 +215,7 @@ export const useCanvasOverlayData = ({
   const overlayPointPickCandidates = useMemo(() => {
     const elementsById = new Map(elements.map((element) => [element.id, element]));
     return geometries
+      .filter((geometry) => !excludedInteractionElementIds?.has(geometry.elementId))
       .filter((geometry) => visibleElementIds.has(geometry.elementId))
       .filter(
         (geometry) =>
@@ -245,6 +248,7 @@ export const useCanvasOverlayData = ({
     activePointPickTarget,
     canvasViewport,
     elements,
+    excludedInteractionElementIds,
     geometries,
     isLineEndpointPointPick,
     pointPickTargetIds,

@@ -464,7 +464,7 @@ const zoomViewportAt = (
   };
 };
 
-export const useCadUiStore = create<CadUiState>((set) => ({
+export const useCadUiStore = create<CadUiState>((set, get) => ({
   ...initialCadUiState(),
   setInspectorExpanded: (isInspectorExpanded) => set({ isInspectorExpanded }),
   setActivePointPickTarget: (activePointPickTarget) =>
@@ -477,8 +477,14 @@ export const useCadUiStore = create<CadUiState>((set) => ({
     set({ activeMeasurementInsertTarget }),
   setActiveTemplateInsertion: (activeTemplateInsertion) =>
     set({ activeTemplateInsertion, activePickCursor: null }),
-  setCommandLineSession: (commandLineSession) => set({ commandLineSession }),
-  startCommandLineSession: (commandLineSession) =>
+  setCommandLineSession: (commandLineSession) => {
+    if (commandLineSession === null && get().commandLineSession) {
+      useCadDocumentStore.getState().clearPreviewDocumentChange();
+    }
+    set({ commandLineSession });
+  },
+  startCommandLineSession: (commandLineSession) => {
+    if (get().commandLineSession) useCadDocumentStore.getState().clearPreviewDocumentChange();
     set({
       activePointPickTarget: null,
       activeNumericReferencePickTarget: null,
@@ -487,9 +493,11 @@ export const useCadUiStore = create<CadUiState>((set) => ({
       activeTemplateInsertion: null,
       activePickCursor: null,
       commandLineSession
-    }),
+    });
+  },
   setActivePickCursor: (activePickCursor) => set({ activePickCursor }),
-  clearPickMode: () =>
+  clearPickMode: () => {
+    if (get().commandLineSession) useCadDocumentStore.getState().clearPreviewDocumentChange();
     set({
       activePointPickTarget: null,
       activeNumericReferencePickTarget: null,
@@ -498,7 +506,8 @@ export const useCadUiStore = create<CadUiState>((set) => ({
       activeTemplateInsertion: null,
       activePickCursor: null,
       commandLineSession: null
-    }),
+    });
+  },
   setElementSearchQuery: (elementSearchQuery) =>
     set({ elementSearchQuery, elementSearchCursorId: null }),
   setElementSearchCursorId: (elementSearchCursorId) => set({ elementSearchCursorId }),

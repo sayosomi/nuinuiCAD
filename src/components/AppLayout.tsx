@@ -12,7 +12,11 @@ import {
   loadLayoutSettings,
   saveLayoutSettings
 } from "../layout/layoutSettingsStorage";
-import { effectiveElements, useCadDocumentStore } from "../state/cadDocumentStore";
+import {
+  effectiveElements,
+  effectiveEvaluationLimitIndex,
+  useCadDocumentStore
+} from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
 import { CommandPalette } from "./CommandPalette";
 import { DrawingCanvas } from "./DrawingCanvas";
@@ -92,7 +96,7 @@ const saveLeftPanelWidth = (leftPanelWidth: number) => {
 
 export const AppLayout = () => {
   const elements = useCadDocumentStore(effectiveElements);
-  const evaluationLimitIndex = useCadDocumentStore((state) => state.evaluationLimitIndex);
+  const evaluationLimitIndex = useCadDocumentStore(effectiveEvaluationLimitIndex);
   const compiledDocumentRevision = useCadDocumentStore((state) => state.compiledDocumentRevision);
   const shortcutSettings = useCadUiStore((state) => state.shortcutSettings);
   const showPrintLayout = useCadUiStore((state) => state.showPrintLayout);

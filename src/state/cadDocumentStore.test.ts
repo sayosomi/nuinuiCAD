@@ -5,6 +5,7 @@ import { defaultVisibilityProfile } from "../model/visibilityProfiles";
 import {
   currentDocumentSnapshot,
   effectiveElements,
+  effectiveEvaluationLimitIndex,
   initialCadDocumentState,
   useCadDocumentStore
 } from "./cadDocumentStore";
@@ -106,6 +107,21 @@ describe("cadDocumentStore file state", () => {
     expect(after.dirtySinceSave).toBe(before.dirtySinceSave);
     expect(after.sourceText).toBe(before.sourceText);
     expect(after.doc).toBe(before.doc);
+    expect(effectiveEvaluationLimitIndex(after)).toBe(before.evaluationLimitIndex);
+  });
+
+  it("uses a preview evaluation divider only when the preview caller supplies one", () => {
+    const state = useCadDocumentStore.getState();
+    useCadDocumentStore.getState().previewDocumentChange({
+      elements: state.elements,
+      evaluationLimitIndex: 1
+    });
+
+    expect(effectiveEvaluationLimitIndex(useCadDocumentStore.getState())).toBe(1);
+    useCadDocumentStore.getState().clearPreviewDocumentChange();
+    expect(useCadDocumentStore.getState().previewElements).toBeNull();
+    expect(useCadDocumentStore.getState().previewEvaluationLimitIndex).toBeNull();
+    expect(effectiveEvaluationLimitIndex(useCadDocumentStore.getState())).toBe(state.evaluationLimitIndex);
   });
 
   it("projects valid source-editor preview text without changing canonical text or history", () => {

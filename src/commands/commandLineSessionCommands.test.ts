@@ -204,12 +204,15 @@ describe("command-line session commands", () => {
   });
 
   it("cancels immediately when an external revision makes the session stale", () => {
-    expect(startCommandLineCreation("variable")).toBe(true);
+    expect(startCommandLineCreation("freePoint")).toBe(true);
+    submitCommandLineInput("12");
+    expect(useCadDocumentStore.getState().previewElements).not.toBeNull();
     useCadDocumentStore.getState().commitText("nui 1\npoint A = (0, 0)", "test");
 
     expect(cancelStaleCommandLineSession()).toBe(true);
     expect(useCadUiStore.getState().commandLineSession).toBeNull();
     expect(useCadUiStore.getState().commandErrorMessage).toContain("変更されたため");
+    expect(useCadDocumentStore.getState().previewElements).toBeNull();
   });
 
   it("replaces only ephemeral canvas/session state and refuses re-entry during composition", () => {
@@ -228,6 +231,7 @@ describe("command-line session commands", () => {
     expect(calls).toEqual(["pointer", "focus", "pointer", "focus"]);
     expect(useCadUiStore.getState().commandLineSession).toMatchObject({ recipe: { type: "variable" }, args: {} });
     expect(useCadDocumentStore.getState().past).toHaveLength(pastBefore);
+    expect(useCadDocumentStore.getState().previewElements).toBeNull();
 
     unregister = registerSourceEditSession({
       hasPendingText: () => true,
@@ -257,12 +261,16 @@ describe("command-line session commands", () => {
   });
 
   it("cancels the session and every integrated pick target together", () => {
-    expect(startCommandLineCreation("variable")).toBe(true);
+    expect(startCommandLineCreation("freePoint")).toBe(true);
+    expect(submitCommandLineInput("12")).toBe(true);
+    expect(useCadDocumentStore.getState().previewElements).not.toBeNull();
     useCadUiStore.getState().setActivePointPickTarget({ elementId: "pick" as never, parameterKey: "value" as never });
 
     expect(cancelCommandLineSession()).toBe(true);
     expect(useCadUiStore.getState().commandLineSession).toBeNull();
     expect(useCadUiStore.getState().activePointPickTarget).toBeNull();
+    expect(useCadDocumentStore.getState().previewElements).toBeNull();
+    expect(useCadDocumentStore.getState().previewEvaluationLimitIndex).toBeNull();
   });
 
   it("does not commit when confirmation flush is blocked by composition", () => {

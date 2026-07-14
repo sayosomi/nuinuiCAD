@@ -91,6 +91,8 @@ export type CadDocumentState = {
   /** @deprecated Derived compatibility views. sourceText remains canonical. */
   evaluationLimitIndex: number;
   previewElements: CadElement[] | null;
+  /** Evaluation divider paired with previewElements when a preview changes insertion order. */
+  previewEvaluationLimitIndex: number | null;
   past: TextSnapshot[];
   future: TextSnapshot[];
   currentFilePath: string | null;
@@ -105,6 +107,7 @@ export type CadDocumentState = {
   /** Ephemeral valid DSL projection used while a source-editor gesture is still uncommitted. */
   setSourceEditorPreviewText: (sourceText: string | null) => void;
   previewDocumentChange: (change: Partial<CadDocumentSnapshot>) => DocumentMutationResult;
+  clearPreviewDocumentChange: () => void;
   commitDocumentChange: (change: Partial<CadDocumentSnapshot>) => DocumentMutationResult;
   commitDocumentChangeFromSnapshot: (
     before: CadDocumentSnapshot,
@@ -181,6 +184,16 @@ const compatibilityViewMatchesDoc = (state: CadDocumentState) => {
 export const effectiveElements = (
   state: Pick<CadDocumentState, "elements" | "previewElements">
 ) => state.previewElements ?? state.elements;
+
+/** Keeps preview-only insertion/removal evaluation semantics out of canonical document state. */
+export const effectiveEvaluationLimitIndex = (
+  state: Pick<CadDocumentState, "evaluationLimitIndex" | "previewEvaluationLimitIndex">
+) => state.previewEvaluationLimitIndex ?? state.evaluationLimitIndex;
+
+const clearedPreviewState = () => ({
+  previewElements: null,
+  previewEvaluationLimitIndex: null
+});
 
 export const currentDocumentSnapshot = (
   state: DocumentCompatibilityView,
@@ -309,13 +322,13 @@ const modelCommit = (
     console.error(`[canonicalDocument] ${result.reason}`);
     useCadUiStore.getState().clearPickMode();
     useCadUiStore.getState().setCommandErrorMessage("現在のDSLテキストにはこの操作を適用できません。");
-    return { state: { previewElements: null }, result: { status: "rejected", reason: "invalid-change" } };
+    return { state: clearedPreviewState(), result: { status: "rejected", reason: "invalid-change" } };
   }
   if (result.status === "noop") {
     return {
       state: {
         ...canonicalFields(current),
-        previewElements: null
+        ...clearedPreviewState()
       },
       result: { status: "noop" },
       selection: { elements: documentOf(current).elements, snapshot: requestedSelection }
@@ -336,7 +349,7 @@ const modelCommit = (
       console.error(`[canonicalDocument] 全体再生成にも失敗したため変更を破棄します: ${String(error)}`);
       useCadUiStore.getState().clearPickMode();
       useCadUiStore.getState().setCommandErrorMessage("現在のDSLテキストにはこの操作を適用できません。");
-      return { state: { previewElements: null }, result: { status: "rejected", reason: "invalid-change" } };
+      return { state: clearedPreviewState(), result: { status: "rejected", reason: "invalid-change" } };
     }
   } else {
     value = result.value;
@@ -352,7 +365,7 @@ const modelCommit = (
         console.error(`[canonicalDocument] 等価assert後の全体再生成に失敗したため変更を破棄します: ${String(error)}`);
         useCadUiStore.getState().clearPickMode();
         useCadUiStore.getState().setCommandErrorMessage("現在のDSLテキストにはこの操作を適用できません。");
-        return { state: { previewElements: null }, result: { status: "rejected", reason: "invalid-change" } };
+      return { state: clearedPreviewState(), result: { status: "rejected", reason: "invalid-change" } };
       }
     }
     assertReconcileSane(current.doc, value.sourceText, afterDocument);
@@ -361,7 +374,7 @@ const modelCommit = (
   return {
     state: {
       ...canonicalFields(value),
-      previewElements: null,
+      ...clearedPreviewState(),
       past: appendPast(state.past, textSnapshot(current, previousSelection)),
       future: [],
       dirtySinceSave: dirtyForText(current, value.sourceText),
@@ -402,7 +415,7 @@ export const initialCadDocumentState = (): Omit<CadDocumentState, keyof CadDocum
     sourceRevision: 0,
     sourceUpdate: { revision: 0, kind: "reset" },
     compiledDocumentRevision: 0,
-    previewElements: null,
+    ...clearedPreviewState(),
     past: [],
     future: [],
     currentFilePath: null,
@@ -416,6 +429,7 @@ type CadDocumentActions = Pick<
   | "commitText"
   | "setSourceEditorPreviewText"
   | "previewDocumentChange"
+  | "clearPreviewDocumentChange"
   | "commitDocumentChange"
   | "commitDocumentChangeFromSnapshot"
   | "setElements"
@@ -512,7 +526,7 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
     }
     let selectionElements: CadElement[] | null = null;
     set((state) => {
-      if (nextText === state.sourceText) return { previewElements: null };
+      if (nextText === state.sourceText) return clearedPreviewState();
       const previousSelection = useCadUiStore.getState();
       const result = compileCanonicalText(state, nextText);
       selectionElements = result.doc.document.elements;
@@ -522,7 +536,7 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
       const snapshotCursorLine = options ? options.cursorLineAtBurstStart : previousSelection.sourceCursorLine;
       return {
         ...canonicalFields(result),
-        previewElements: null,
+        ...clearedPreviewState(),
         past: appendPast(
           state.past,
           textSnapshot(state, { ...previousSelection, sourceCursorLine: snapshotCursorLine })
@@ -536,27 +550,33 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
   },
   setSourceEditorPreviewText: (sourceText) => {
     set((state) => {
-      if (sourceText === null || sourceText === state.sourceText) return { previewElements: null };
+      if (sourceText === null || sourceText === state.sourceText) return clearedPreviewState();
       const result = compileCanonicalText(state, sourceText);
       // Preserve the last-good canonical document for invalid live text, matching
       // the normal editor behavior. Value stepping itself always produces valid DSL.
-      return { previewElements: result.docText === result.sourceText ? result.doc.document.elements : null };
+      return result.docText === result.sourceText
+        ? { previewElements: result.doc.document.elements, previewEvaluationLimitIndex: null }
+        : clearedPreviewState();
     });
   },
   previewDocumentChange: (change) => {
     const guarded = guardDocumentMutation();
     if (guarded) {
-      set({ previewElements: null });
+      set(clearedPreviewState());
       return guarded;
     }
     if (change.elements === undefined) return { status: "noop" };
-    set({ previewElements: change.elements });
+    set({
+      previewElements: change.elements,
+      previewEvaluationLimitIndex: change.evaluationLimitIndex ?? null
+    });
     return { status: "applied" };
   },
+  clearPreviewDocumentChange: () => set(clearedPreviewState()),
   commitDocumentChange: (change) => {
     const guarded = guardDocumentMutation();
     if (guarded) {
-      set({ previewElements: null });
+      set(clearedPreviewState());
       return guarded;
     }
     let result: DocumentMutationResult = { status: "noop" };
@@ -573,7 +593,7 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
   commitDocumentChangeFromSnapshot: (_before, change) => {
     const guarded = guardDocumentMutation();
     if (guarded) {
-      set({ previewElements: null });
+      set(clearedPreviewState());
       return guarded;
     }
     let result: DocumentMutationResult = { status: "noop" };
@@ -792,7 +812,7 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
         selectionElements = canonical.doc.document.elements;
         return {
           ...canonicalFields(canonical),
-          previewElements: null,
+          ...clearedPreviewState(),
           past: [],
           future: [],
           currentFilePath,
@@ -802,7 +822,7 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
         };
       } catch (error) {
         console.error(`[canonicalDocument] 文書読込の正準化に失敗したため現在の文書を維持します: ${String(error)}`);
-        return { previewElements: null };
+        return clearedPreviewState();
       }
     });
     if (selectionElements) {
@@ -824,7 +844,7 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
       selectionElements = compiled.doc.document.elements;
       return {
         ...canonicalFields(compiled),
-        previewElements: null,
+        ...clearedPreviewState(),
         past: [],
         future: [],
         currentFilePath: options.currentFilePath,
@@ -859,7 +879,7 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
     } = { value: null };
     set((state) => {
       const previous = state.past.at(-1);
-      if (!previous) return { previewElements: null };
+      if (!previous) return clearedPreviewState();
       const previousSelection = useCadUiStore.getState();
       const currentIds = new Set(state.doc.document.elements.map((element) => element.id));
       const restored = compileCanonicalText(state, previous.text, {
@@ -873,7 +893,7 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
       selectionResult.value = { elements: restored.doc.document.elements, snapshot: restoredSelection, cursorLine: previous.cursorLine };
       return {
         ...canonicalFields(restored),
-        previewElements: null,
+        ...clearedPreviewState(),
         past: state.past.slice(0, -1),
         future: [textSnapshot(state, previousSelection), ...state.future],
         dirtySinceSave: dirtyForText(state, restored.sourceText),
@@ -900,7 +920,7 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
     } = { value: null };
     set((state) => {
       const next = state.future[0];
-      if (!next) return { previewElements: null };
+      if (!next) return clearedPreviewState();
       const previousSelection = useCadUiStore.getState();
       const currentIds = new Set(state.doc.document.elements.map((element) => element.id));
       const restored = compileCanonicalText(state, next.text, {
@@ -914,7 +934,7 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
       selectionResult.value = { elements: restored.doc.document.elements, snapshot: restoredSelection, cursorLine: next.cursorLine };
       return {
         ...canonicalFields(restored),
-        previewElements: null,
+        ...clearedPreviewState(),
         past: appendPast(state.past, textSnapshot(state, previousSelection)),
         future: state.future.slice(1),
         dirtySinceSave: dirtyForText(state, restored.sourceText),
