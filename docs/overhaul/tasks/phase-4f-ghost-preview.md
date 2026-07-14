@@ -13,7 +13,7 @@
 
 ## Goal
 
-参照・数値ステップが充填されるたびに、4a-1 emitで組み立てた部分要素を
+参照・数値ステップが充填されるたびに、4a-1 `emitCreationRecipe` で組み立てた部分要素を
 `insertionIndex` に挿入したelements配列で `previewDocumentChange` を発行し、
 評価が成立すればゴースト表示、しなければ非表示にする。キャンセル・確定・
 staleで必ず消える。
@@ -21,7 +21,9 @@ staleで必ず消える。
 ## Scope
 
 * セッションの充填フック(4dで集約済みの地点)にプレビュー更新を追加:
-  1. 現在の `args` でemit(名前なしのまま)。
+  1. 現在の `args` と、現在の `elements`・挿入位置より前の
+     `referenceElements` から作る `CreationEmitContext` で
+     `emitCreationRecipe` を呼ぶ(名前なしのまま)。
   2. 必須参照がまだ空のステップが要素の評価に必要な場合はプレビューを
      出さない(判定は「評価してエラー・欠落依存になるか」で行い、
      ステップkindからの独自推定ロジックを作り込まない)。
@@ -46,7 +48,7 @@ staleで必ず消える。
 * `src/state/cadDocumentStore.ts` `previewDocumentChange` — 履歴・テキスト
   非関与のプレビュー経路(plan.mdの変更入口3)。
 * 描画側の `previewElements ?? doc.elements` フォールバック(既存)。
-* 4a-1 `emit` / 4bセッション状態。
+* 4a-1 `emitCreationRecipe` / `CreationEmitContext` / 4bセッション状態。
 * `src/geometry/evaluate.ts`(TS参照評価)— プレビュー成立判定に使う場合は
   ドラッグプレビューが現在使っている評価経路と同じものを使うこと
   (新しい評価呼び出しパターンを作らない)。

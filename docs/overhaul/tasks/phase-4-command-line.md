@@ -57,10 +57,10 @@
   で既存の `pickCandidates` 候補生成と `applyPickedPoint/Line/NumericReference`
   受理経路を共有し、テンプレート方式と同様に受理側でセッションへ横取り
   ルーティングする。候補生成・受理判定の別実装を作らない。
-* **emitは要素モデル+dslSerializer**: レシピの `emit` は手書きのDSL文字列
-  組み立てではなく、`createCadElement`+`setParameterValue` で `CadElement` を
-  構築し、挿入時に `dslSerializer` で1文シリアライズする。文法の正は
-  serializerに一本化する。
+* **要素生成はモデル+dslSerializer**: レシピは静的な宣言データに保ち、
+  `emitCreationRecipe(recipe, args, context)` が
+  `createCadElement`+`setParameterValue` で `CadElement` を構築する。挿入時に
+  `dslSerializer` で1文シリアライズし、文法の正はserializerに一本化する。
 * **確定コミットは `commitDocumentChange` ブリッジ経由**: 当初スケッチの
   「`commitText` スプライスを直接書く」は採用しない。`insertionIndex` に
   1要素挿入したelements配列をブリッジへ渡せば、行スプライス・コメント/
@@ -136,14 +136,20 @@
   type CreationRecipe = {
     type: CadElementType;
     steps: Array<
-      | { kind: "point"; key: string; prompt: string; allowCoordinate?: true }
-      | { kind: "line"; key: string; prompt: string }
-      | { kind: "endpoint"; key: string; prompt: string }
-      | { kind: "number"; key: string; prompt: string; default?: string }
+      | { kind: "point"; key: ParameterKey; prompt: string }
+      | { kind: "line"; key: ParameterKey; prompt: string }
+      | { kind: "endpoint"; key: ParameterKey; prompt: string }
+      | { kind: "lineList"; key: ParameterKey; prompt: string }
+      | { kind: "number"; key: ParameterKey; prompt: string; default?: string }
       | { kind: "name"; autoSuggest: true }  // Enter=候補採用/タイプ=上書き/スキップ=無名
     >;
-    emit: (args) => string; // DSL文1行
   };
+  type CreationEmitContext = {
+    elements: CadElement[];
+    referenceElements: CadElement[];
+    createId?: () => ElementId;
+  };
+  emitCreationRecipe(recipe, args, context): CadElement;
   ```
 
   `parameterDefinitions.ts` の値種別・ラベルと突き合わせるテストを付け、

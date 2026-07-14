@@ -7,7 +7,7 @@
 
 Phase 4のコマンドライン作図は「作成コマンド→必須参照・数値を順にプロンプト
 →名前ステップ→確定」のセッションで動く。そのセッションが消費する宣言的
-データ(要素型ごとのステップ列と、引数から要素モデルを組み立てるemit)の
+データ(要素型ごとのステップ列と、引数から要素モデルを組み立てる共通生成関数)の
 **共通基盤**を先に純粋モジュールとして確定する。本タスクはアプリに一切
 接続しない: 挙動変更ゼロで、テストだけで品質を確定できる(Phase 1aと同じ
 原理)。
@@ -20,7 +20,7 @@ Phase 4のコマンドライン作図は「作成コマンド→必須参照・�
 ## Goal
 
 `src/commands/creationRecipes.ts`(+テスト)を新設し、代表型の専用レシピ・
-汎用フォールバック生成・emit・整合テストの仕組みを、4a-2と4bがそのまま
+汎用フォールバック生成・要素生成・整合テストの仕組みを、4a-2と4bがそのまま
 拡張・消費できる安定APIとして確定する。
 
 ## Scope
@@ -38,8 +38,17 @@ Phase 4のコマンドライン作図は「作成コマンド→必須参照・�
   type CreationRecipe = {
     type: CadElementType;
     steps: CreationStep[];
-    emit: (args: CreationArgs) => CadElement;
   };
+  type CreationEmitContext = {
+    elements: CadElement[];
+    referenceElements: CadElement[];
+    createId?: () => ElementId;
+  };
+  emitCreationRecipe(
+    recipe: CreationRecipe,
+    args: CreationArgs,
+    context: CreationEmitContext,
+  ): CadElement;
   ```
 
   `CreationArgs` はステップkey→値(`PointAnchor` / lineEndpoint参照 /
@@ -53,8 +62,9 @@ Phase 4のコマンドライン作図は「作成コマンド→必須参照・�
 * 汎用フォールバックレシピ生成: 任意の `CadElementType` について
   `getParameterDefinitions` の必須参照・数値kindからステップ列を機械生成する
   `fallbackCreationRecipe(type)`。
-* `emit` は `createCadElement(type, elements, { referenceElements })` で
-  デフォルト要素を作り、`setParameterValue` で引数を反映して返す。
+* `emitCreationRecipe` は `createCadElement(type, elements, { referenceElements,
+  createId })` でデフォルト要素を作り、`setParameterValue` で引数を反映して
+  返す。レシピ自身は文書・ID生成器を持たない静的な宣言データとする。
   **DSL文字列を手で組み立てない**(シリアライズは挿入側=4cの責務)。
   名前引数が無い場合は無名要素(name空)のまま返す。
 * レシピ検索 `creationRecipeForType(type)`(専用→フォールバックの順)と、
@@ -94,7 +104,9 @@ Phase 4のコマンドライン作図は「作成コマンド→必須参照・�
   決定的generatorを注入できる経路を保つ)。
 * promptは `parameterDefinitions` のラベルを既定とし、レシピ側での上書きは
   文言のみ(keyやkindを変えない)。
-* 必須参照ステップを省略したemitは例外を投げず、参照が空の要素を返す
+* 必須参照ステップを省略した `emitCreationRecipe` は例外を投げず、factoryが
+  暗黙に有効な参照を設定した場合だけ、各parameterの既存の正規な未指定表現へ
+  戻した要素を返す
   (妥当性はセッション側=完了判定の責務。偽のデフォルト参照で埋めない)。
 * 公開APIは本タスクで凍結: 4a-2はレシピの**追加のみ**を行い、型・関数
   シグネチャの変更を必要としないこと。変更が必要になった場合は4a-2側で
@@ -105,7 +117,7 @@ Phase 4のコマンドライン作図は「作成コマンド→必須参照・�
 * `variable` のような参照を持たない型(number+nameのみのレシピ)。
 * `offsetLine.baseLineIds` のような複数線(lineList)ステップ。
 * `bezierCurve` の中間点など、コマンドラインで聞かない属性(作成後に
-  ジャンプ編集で足す前提)がemitのデフォルト値として妥当なこと。
+  ジャンプ編集で足す前提)が `emitCreationRecipe` のデフォルト値として妥当なこと。
 * フォールバック生成で `choice` / `boolean` / `text` kindに遭遇した場合:
   ステップ化せずデフォルト値のままにする(コマンドラインで聞くのは
   参照・数値・名前のみ。それ以外はジャンプ編集で直す)。
@@ -117,13 +129,14 @@ Phase 4のコマンドライン作図は「作成コマンド→必須参照・�
   あること。乖離時にどのレシピのどのkeyかが分かるメッセージで落とすこと。
   登録レシピを列挙して自動で回る形にする(4a-2の追加分が無条件で対象に
   入る)。
-* **emitゴールデンテスト**: 代表6型それぞれについて、引数→emit要素を
+* **emitゴールデンテスト**: 代表6型それぞれについて、引数→`emitCreationRecipe`
+  要素を
   `dslSerializer` で1文シリアライズした文字列のゴールデン比較。
-* **serializer往復テスト**: emit要素のシリアライズ結果を `dslParser` →
+* **serializer往復テスト**: `emitCreationRecipe` 要素のシリアライズ結果を `dslParser` →
   コンパイルで読み戻し、同値の要素になること(名前あり/無名の両方)。
 * フォールバック生成: レシピ対象外定数を除く全 `CadElementType` について
   ステップ列が生成でき、必須参照kindが漏れないこと。
-* 名前引数あり/なし(無名)のemit挙動。
+* 名前引数あり/なし(無名)の `emitCreationRecipe` 挙動。
 
 ## Manual verification
 
@@ -146,6 +159,8 @@ Phase 4のコマンドライン作図は「作成コマンド→必須参照・�
   禁止)。整合テスト・往復テストは自動列挙なので、4a-2はレシピ追加と
   ゴールデン追加だけでよい。
 * 4b(セッション状態機械)は `CreationRecipe` / `CreationStep` 型と
-  ステップ意味論をそのまま消費する。ステップ順序はレシピ配列順が正。
-* emitが返すのは**無名でありうる `CadElement`**。シリアライズと挿入は4c、
+  `CreationArgs` のみを消費し、文書コンテキストを保持しない。ステップ順序は
+  レシピ配列順が正。
+* `emitCreationRecipe` が返すのは**無名でありうる `CadElement`**。4c/4fが
+  確定・プレビュー時に `CreationEmitContext` を渡し、シリアライズと挿入は4c、
   参照先無名要素の昇格は4eの責務。

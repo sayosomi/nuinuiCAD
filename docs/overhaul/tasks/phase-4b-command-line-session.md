@@ -51,6 +51,9 @@
 * `cadUiStore` に `commandLineSession: CommandLineSession | null` と
   setter(既存pick target群と同じ流儀)を追加。`clearPickMode` 相当の一括
   クリア(既存の全pickクリア処理)にセッションも含める。
+* セッションは `CreationRecipe` と `CreationArgs` のみを保持し、
+  `CreationEmitContext`・要素生成は保持しない。文書文脈は確定/プレビュー時の
+  呼び出し側(4c/4f)が渡す。
 * **再入=置換の意味論**(親文書の確定判断): `startSession` は既存
   セッションの有無を問わず常に新しいセッションを返す純粋関数とする
   (「既存があれば拒否/マージ」の分岐を持たない)。storeレイヤの
@@ -145,7 +148,8 @@
 ## Handoff to next task
 
 * 4cは `startSession` / `fillCurrentStep` / `skipCurrentStep` /
-  `sessionCanConfirm` をUIとコマンドから呼び、確定時にemit→シリアライズ→
+  `sessionCanConfirm` をUIとコマンドから呼び、確定時に
+  `emitCreationRecipe(recipe, args, CreationEmitContext)`→シリアライズ→
   行スプライスを実装する。
 * 4dは参照ステップ(`point` / `endpoint` / `line` / `lineList`)進入時の
   pick target設定と、受理値の `fillCurrentStep` ルーティングを実装する。

@@ -55,7 +55,9 @@
   1. `sourceEditSession.flush("command-line-confirm")` を通す
      (`"blocked-composition"` なら実行しない)。
   2. staleチェック(`sessionIsStale`)。staleなら明示エラーでキャンセル。
-  3. 4a-1 emitで `CadElement` を構築し、既存の
+  3. 4a-1 `emitCreationRecipe(session.recipe, session.args, context)` で
+     `CadElement` を構築する。`context` は現在の `elements`、挿入位置より前の
+     `referenceElements`、必要時のID生成器から作る。既存の
      `commitDocumentChange`(ブリッジ)へ「`insertionIndex` に1要素挿入した
      elements配列+選択」を渡す。**手書きのcommitTextスプライスを
      実装しない**(行スプライス・コメント保存・1 Undoはブリッジの既存保証)。
