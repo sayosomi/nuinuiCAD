@@ -12,6 +12,8 @@ import {
   selectPickCandidateByOffset
 } from "./pickCommands";
 import {
+  confirmCommandLineSession,
+  skipCommandLineStep,
   startCommandLineCreation,
   startCommandLineNumericReferencePick
 } from "./commandLineSessionCommands";
@@ -121,7 +123,7 @@ describe("command-line pick routing", () => {
         variableName: "i", start: 0, count: 2, step: 1, showGenerated: true
       },
       {
-        id: "point-template", name: "点テンプレート", type: "freePoint", visible: true, enabled: true,
+        id: "point-template", name: "", type: "freePoint", visible: true, enabled: true,
         parentGroupId: "loop", x: 0, y: 0
       },
       {
@@ -140,5 +142,9 @@ describe("command-line pick routing", () => {
     });
     applyPickedPoint({ pickedPointAnchor: referenceAnchor("point-template@loop:1") });
     expect(useCadUiStore.getState().commandLineSession?.args.startPoint).toEqual(referenceAnchor("point-template"));
+    applyPickedPoint({ pickedPointAnchor: { mode: "coordinate", x: 20, y: 0 } });
+    expect(skipCommandLineStep()).toBe(true);
+    expect(confirmCommandLineSession()).toBe(true);
+    expect(useCadDocumentStore.getState().elements.find((element) => element.id === "point-template")?.name).toBe("点");
   });
 });

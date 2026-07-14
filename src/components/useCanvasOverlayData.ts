@@ -28,7 +28,6 @@ import { pickSourcePrecedesTarget } from "../model/pickCandidates";
 import type { ActivePointPickTarget } from "../state/cadUiStore";
 import type { CommandLineSession } from "../commands/commandLineSession";
 import {
-  commandLinePickAllowsElement,
   commandLinePointPickTargetIds,
   commandLineStepForPickTarget
 } from "../commands/commandLinePickRouting";
@@ -223,13 +222,7 @@ export const useCanvasOverlayData = ({
             activePointPickTarget.elementId,
             geometry.elementId,
             activePointPickTarget.insertionIndex
-          ) &&
-          commandLinePickAllowsElement({
-            elements,
-            sourceElementId: geometry.elementId,
-            target: activePointPickTarget,
-            session: commandLineSession
-          })
+          )
       )
       .flatMap((geometry) =>
         selectablePointsForGeometry(geometry, elementsById)
@@ -251,7 +244,6 @@ export const useCanvasOverlayData = ({
   }, [
     activePointPickTarget,
     canvasViewport,
-    commandLineSession,
     elements,
     geometries,
     isLineEndpointPointPick,

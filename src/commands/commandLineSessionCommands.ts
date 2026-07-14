@@ -21,6 +21,7 @@ import {
 } from "./commandLineSession";
 import { creationRecipeForType, emitCreationRecipe } from "./creationRecipes";
 import { COMMAND_LINE_PICK_TARGET_ID } from "./commandLinePickRouting";
+import { promoteDirectlyReferencedUnnamedElements } from "./commandLineUnnamedPromotion";
 import type { CommandContext } from "./commandTypes";
 
 const compositionError = "日本語入力の確定中はコマンドを実行できません。入力を確定してから再操作してください。";
@@ -250,23 +251,24 @@ export const confirmCommandLineSession = (context?: CommandContext) => {
   if (!sessionCanConfirm(session)) return false;
 
   const document = useCadDocumentStore.getState();
+  const promotion = promoteDirectlyReferencedUnnamedElements(session, document.elements);
   // Keep the start-time index authoritative: this placement call derives only
   // its parent/reference context and never chooses a new insertion position.
   const placement = creationPlacementForEvaluationLimit(
-    document.elements,
+    promotion.elements,
     session.insertionIndex,
     useCadUiStore.getState().groupFoldById
   );
   const emitted = emitCreationRecipe(session.recipe, session.args, {
-    elements: document.elements,
+    elements: promotion.elements,
     referenceElements: placement.referenceElements
   });
   const element = applyCreationPlacement(emitted, placement);
   const result = document.commitDocumentChange({
     elements: [
-      ...document.elements.slice(0, session.insertionIndex),
+      ...promotion.elements.slice(0, session.insertionIndex),
       element,
-      ...document.elements.slice(session.insertionIndex)
+      ...promotion.elements.slice(session.insertionIndex)
     ],
     selectedElementId: element.id,
     selectedElementIds: [element.id],

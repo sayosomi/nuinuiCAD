@@ -34,7 +34,6 @@ import type {
 } from "../state/cadUiStore";
 import type { CommandLineSession } from "../commands/commandLineSession";
 import {
-  commandLinePickAllowsElement,
   commandLinePointPickTargetIds,
   commandLineStepForPickTarget
 } from "../commands/commandLinePickRouting";
@@ -148,12 +147,7 @@ const pointCandidates = (
         activePointPickTarget.elementId,
         element.id,
         activePointPickTarget.insertionIndex
-      ) && commandLinePickAllowsElement({
-        elements,
-        sourceElementId: element.id,
-        target: activePointPickTarget,
-        session: commandLineSession
-      })
+      )
     )
     .map((element) => {
       const selectablePoints = selectablePointsForElement(
@@ -192,8 +186,7 @@ const pointCandidates = (
 const lineCandidates = (
   elements: CadElement[],
   evaluation: EvaluationResult,
-  activeLinePickTarget: ActiveLinePickTarget,
-  commandLineSession?: CommandLineSession | null
+  activeLinePickTarget: ActiveLinePickTarget
 ): PickCandidate[] => {
   const targetElement = elements.find((element) => element.id === activeLinePickTarget.elementId);
   const parameterValue = activeLinePickTarget.draftLineIds ?? (targetElement
@@ -215,12 +208,6 @@ const lineCandidates = (
           element.id,
           activeLinePickTarget.insertionIndex
         ) &&
-        commandLinePickAllowsElement({
-          elements,
-          sourceElementId: element.id,
-          target: activeLinePickTarget,
-          session: commandLineSession
-        }) &&
         evaluation.computedGeometry.has(element.id) &&
         (activeLinePickTarget.draftLineIds !== undefined || !selectedLineIds.has(element.id))
     )
@@ -233,8 +220,7 @@ const lineCandidates = (
 const numericReferenceCandidates = (
   elements: CadElement[],
   evaluation: EvaluationResult,
-  activeNumericReferencePickTarget: ActiveNumericReferencePickTarget,
-  commandLineSession?: CommandLineSession | null
+  activeNumericReferencePickTarget: ActiveNumericReferencePickTarget
 ): PickCandidate[] => {
   const targetElement = elements.find((element) => element.id === activeNumericReferencePickTarget.elementId);
   return elements
@@ -244,12 +230,7 @@ const numericReferenceCandidates = (
         activeNumericReferencePickTarget.elementId,
         element.id,
         activeNumericReferencePickTarget.insertionIndex
-      ) && commandLinePickAllowsElement({
-        elements,
-        sourceElementId: element.id,
-        target: activeNumericReferencePickTarget,
-        session: commandLineSession
-      })
+      )
     )
     .map((element) => {
       const geometry = numericReferenceGeometry(evaluation.computedGeometry.get(element.id));
@@ -305,14 +286,13 @@ export const pickCandidates = (
     );
   }
   if (targets.activeLinePickTarget) {
-    return lineCandidates(elements, evaluation, targets.activeLinePickTarget, targets.commandLineSession);
+    return lineCandidates(elements, evaluation, targets.activeLinePickTarget);
   }
   if (targets.activeNumericReferencePickTarget) {
     return numericReferenceCandidates(
       elements,
       evaluation,
-      targets.activeNumericReferencePickTarget,
-      targets.commandLineSession
+      targets.activeNumericReferencePickTarget
     );
   }
   return [];

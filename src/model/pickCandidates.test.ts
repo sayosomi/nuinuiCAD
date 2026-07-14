@@ -133,7 +133,7 @@ const virtualCommandLineSession = (type: "line" | "lineDivisionPoint", insertion
   });
 
 describe("pickCandidates", () => {
-  it("excludes unnamed sources only for the command-line virtual target", () => {
+  it("includes unnamed sources for command-line and existing virtual pick targets", () => {
     const unnamedLine: CadElement = {
       id: "unnamed-line",
       name: "",
@@ -181,7 +181,7 @@ describe("pickCandidates", () => {
       }
     });
 
-    expect(commandLineCandidates.map((candidate) => candidate.elementId)).not.toContain("unnamed-line");
+    expect(commandLineCandidates.map((candidate) => candidate.elementId)).toContain("unnamed-line");
     expect(templateCandidates.map((candidate) => candidate.elementId)).toContain("unnamed-line");
   });
 

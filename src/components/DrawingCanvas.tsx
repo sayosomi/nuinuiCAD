@@ -12,7 +12,6 @@ import { creationPlacementForEvaluationLimit } from "../model/elementCreationPla
 import { numericReferencePropertiesForGeometry } from "../geometry/numericReferenceProperties";
 import { pickSourcePrecedesTarget } from "../model/pickCandidates";
 import {
-  commandLinePickAllowsElement,
   commandLinePickNormalizationTargetId
 } from "../commands/commandLinePickRouting";
 import { resolvedElementColorMap } from "../palette/elementColors";
@@ -412,12 +411,6 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     });
     if (!normalizedLineId || normalizedLineId === activeTarget.elementId) return null;
     if (!pickSourcePrecedesTarget(elements, activeTarget.elementId, normalizedLineId, activeTarget.insertionIndex)) return null;
-    if (!commandLinePickAllowsElement({
-      elements,
-      sourceElementId: lineElementId,
-      target: activeTarget,
-      session: commandLineSession
-    })) return null;
     return normalizedLineId;
   }, [activeLinePickTarget, commandLinePickParentGroupId, commandLineSession, elements]);
   const isPickableForNumericReference = useCallback((lineElementId: ElementId) => {
@@ -425,15 +418,9 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     if (!activeTarget) return false;
     return (
       lineElementId !== activeTarget.elementId &&
-      pickSourcePrecedesTarget(elements, activeTarget.elementId, lineElementId, activeTarget.insertionIndex) &&
-      commandLinePickAllowsElement({
-        elements,
-        sourceElementId: lineElementId,
-        target: activeTarget,
-        session: commandLineSession
-      })
+      pickSourcePrecedesTarget(elements, activeTarget.elementId, lineElementId, activeTarget.insertionIndex)
     );
-  }, [activeNumericReferencePickTarget, commandLineSession, elements]);
+  }, [activeNumericReferencePickTarget, elements]);
   const pickCandidateLineIds = useMemo(() => {
     const ids = new Set<ElementId>();
     if (!activeLinePickTarget && !activeNumericReferencePickTarget) return ids;

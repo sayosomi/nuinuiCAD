@@ -1,7 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { compileDslDocument } from "../dsl/dslDocument";
 import { registerSourceEditSession } from "../editor/sourceEditSession";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
+import { referenceAnchor } from "../model/pointAnchors";
+import { applyPickedPoint } from "./pickCommands";
 import {
   cancelCommandLineSession,
   cancelStaleCommandLineSession,
@@ -85,6 +88,107 @@ describe("command-line session commands", () => {
     expect(session.args).not.toHaveProperty("name");
     expect(confirmCommandLineSession()).toBe(true);
     expect(useCadDocumentStore.getState().elements[0]).toMatchObject({ type: "variable", name: "" });
+  });
+
+  it("promotes directly picked unnamed sources and inserts the new element in one undo entry", () => {
+    const source = [
+      "nui 1",
+      "# このコメントは変えない",
+      "point = (0, 0)",
+      "point B = (10, 0)",
+      "point = (20, 0)"
+    ].join("\n");
+    useCadDocumentStore.getState().commitText(source, "test");
+    const documentBefore = useCadDocumentStore.getState();
+    const unnamed = documentBefore.elements.filter((element) => element.name === "");
+    const pointB = documentBefore.elements.find((element) => element.name === "B")!;
+    const pastBefore = documentBefore.past.length;
+
+    expect(startCommandLineCreation("line")).toBe(true);
+    applyPickedPoint({ pickedPointAnchor: referenceAnchor(unnamed[0].id) });
+    applyPickedPoint({ pickedPointAnchor: referenceAnchor(pointB.id) });
+    expect(skipCommandLineStep()).toBe(true);
+    expect(confirmCommandLineSession()).toBe(true);
+
+    const document = useCadDocumentStore.getState();
+    const promoted = document.elements.find((element) => element.id === unnamed[0].id)!;
+    const inserted = document.elements.find((element) => element.type === "line")!;
+    expect(document.past).toHaveLength(pastBefore + 1);
+    expect(promoted.name).toBe("点");
+    expect(document.elements.find((element) => element.id === unnamed[1].id)?.name).toBe("");
+    expect(inserted.startPoint).toEqual(referenceAnchor(promoted.id));
+    expect(document.sourceText).toContain("# このコメントは変えない");
+    expect(document.sourceText).toContain("point 点 = (0, 0)");
+    expect(document.sourceText).toContain("line = 点 -> B");
+    expect(document.sourceText).not.toContain(promoted.id);
+
+    const reloaded = compileDslDocument(document.sourceText);
+    const reloadedPromoted = reloaded.document?.elements.find((element) => element.name === "点");
+    const reloadedLine = reloaded.document?.elements.find((element) => element.type === "line");
+    expect(reloaded.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(reloadedLine?.startPoint).toEqual(referenceAnchor(reloadedPromoted!.id));
+
+    useCadDocumentStore.getState().undo();
+    expect(useCadDocumentStore.getState().sourceText).toBe(source);
+    expect(useCadDocumentStore.getState().elements.find((element) => element.id === unnamed[0].id)?.name).toBe("");
+  });
+
+  it("uses the promoted group-scoped name when serializing a root-level reference", () => {
+    const source = [
+      "nui 1",
+      "group G {",
+      "  point = (0, 0)",
+      "}",
+      "point B = (10, 0)"
+    ].join("\n");
+    useCadDocumentStore.getState().commitText(source, "test");
+    const unnamed = useCadDocumentStore.getState().elements.find((element) => element.name === "")!;
+    const pointB = useCadDocumentStore.getState().elements.find((element) => element.name === "B")!;
+
+    expect(startCommandLineCreation("line")).toBe(true);
+    applyPickedPoint({ pickedPointAnchor: referenceAnchor(unnamed.id) });
+    applyPickedPoint({ pickedPointAnchor: referenceAnchor(pointB.id) });
+    expect(skipCommandLineStep()).toBe(true);
+    expect(confirmCommandLineSession()).toBe(true);
+
+    expect(useCadDocumentStore.getState().elements.find((element) => element.id === unnamed.id)?.name).toBe("点");
+    expect(useCadDocumentStore.getState().sourceText).toContain("line = G::点 -> B");
+  });
+
+  it("leaves no provisional promotion behind when a stale session is rejected", () => {
+    const source = ["nui 1", "point = (0, 0)", "point B = (10, 0)"].join("\n");
+    useCadDocumentStore.getState().commitText(source, "test");
+    const [unnamed] = useCadDocumentStore.getState().elements.filter((element) => element.name === "");
+    const pointB = useCadDocumentStore.getState().elements.find((element) => element.name === "B")!;
+
+    expect(startCommandLineCreation("line")).toBe(true);
+    applyPickedPoint({ pickedPointAnchor: referenceAnchor(unnamed.id) });
+    applyPickedPoint({ pickedPointAnchor: referenceAnchor(pointB.id) });
+    expect(skipCommandLineStep()).toBe(true);
+    useCadDocumentStore.getState().commitText(`${source}\npoint C = (20, 0)`, "test");
+
+    expect(confirmCommandLineSession()).toBe(false);
+    expect(useCadDocumentStore.getState().sourceText).toBe(`${source}\npoint C = (20, 0)`);
+    expect(useCadDocumentStore.getState().elements.find((element) => element.id === unnamed.id)?.name).toBe("");
+  });
+
+  it("leaves no provisional promotion behind when the final commit is rejected", () => {
+    const source = ["nui 1", "point = (0, 0)", "point B = (10, 0)"].join("\n");
+    useCadDocumentStore.getState().commitText(source, "test");
+    const [unnamed] = useCadDocumentStore.getState().elements.filter((element) => element.name === "");
+    const pointB = useCadDocumentStore.getState().elements.find((element) => element.name === "B")!;
+
+    expect(startCommandLineCreation("line")).toBe(true);
+    applyPickedPoint({ pickedPointAnchor: referenceAnchor(unnamed.id) });
+    applyPickedPoint({ pickedPointAnchor: referenceAnchor(pointB.id) });
+    expect(skipCommandLineStep()).toBe(true);
+    useCadDocumentStore.setState({
+      commitDocumentChange: () => ({ status: "rejected", reason: "invalid-change" })
+    });
+
+    expect(confirmCommandLineSession()).toBe(false);
+    expect(useCadDocumentStore.getState().sourceText).toBe(source);
+    expect(useCadDocumentStore.getState().elements.find((element) => element.id === unnamed.id)?.name).toBe("");
   });
 
   it("uses the Source Editor cursor element index once and never follows later state", () => {

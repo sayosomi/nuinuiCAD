@@ -1,4 +1,3 @@
-import { parseForGroupGeneratedElementId } from "../model/forGroupGeneratedReferences";
 import { currentStep, type CommandLineSession } from "./commandLineSession";
 import type { CadElement, ElementId } from "../types/geometry";
 
@@ -30,29 +29,6 @@ export const isCommandLinePickTarget = (
   target: PickTargetIdentity | null | undefined,
   session: CommandLineSession | null | undefined
 ) => commandLineStepForPickTarget(target, session) !== null;
-
-/**
- * Command-line references must serialize through names until Phase 4e can
- * promote unnamed sources in the final document change.  Other pick users
- * intentionally retain their existing candidate set and order.
- * TODO(phase-4e): remove this gate together with same-commit name promotion.
- */
-export const commandLinePickAllowsElement = ({
-  elements,
-  sourceElementId,
-  target,
-  session
-}: {
-  elements: CadElement[];
-  sourceElementId: ElementId;
-  target: PickTargetIdentity | null | undefined;
-  session: CommandLineSession | null | undefined;
-}) => {
-  if (!isCommandLinePickTarget(target, session)) return true;
-  const generated = parseForGroupGeneratedElementId(sourceElementId);
-  const sourceId = generated?.templateElementId ?? sourceElementId;
-  return Boolean(elements.find((element) => element.id === sourceId)?.name.trim());
-};
 
 /**
  * Existing forGroup reference helpers require an element that lives in the
