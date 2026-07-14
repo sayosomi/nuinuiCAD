@@ -324,6 +324,7 @@ export const AppLayout = () => {
       if (useCadUiStore.getState().showCommandRibbonSettings) return;
       if (useCadUiStore.getState().showSelectionColorPicker) return;
       if (useCadUiStore.getState().pendingImageImport || useCadUiStore.getState().imageImportError) return;
+      const commandLineSession = useCadUiStore.getState().commandLineSession;
       const keyboardOptions = {
         settings: useCadUiStore.getState().shortcutSettings,
         isPickMode: Boolean(
@@ -332,10 +333,12 @@ export const AppLayout = () => {
             useCadUiStore.getState().activeLinePickTarget ||
             useCadUiStore.getState().activeTemplateInsertion
         ),
-        allowModifiedEditableCommandIds: commandLineCreationCommandIds
+        allowModifiedEditableCommandIds: commandLineSession
+          ? commandLineCreationCommandIds
+          : undefined
       };
       const keyboardCommand = keyboardCommandForEvent(event, keyboardOptions) ??
-        (useCadUiStore.getState().commandLineSession
+        (commandLineSession
           ? (() => {
               const normalCommand = keyboardCommandForEvent(event, {
                 ...keyboardOptions,

@@ -62,6 +62,9 @@ const isEditableKeyboardTarget = (event: KeyboardEvent) => {
   );
 };
 
+const isCommandLineBarInputTarget = (event: KeyboardEvent) =>
+  event.target instanceof HTMLInputElement && Boolean(event.target.closest(".command-line-bar"));
+
 export const shouldIgnoreKeyboardEvent = (event: KeyboardEvent) => {
   if (isEditableKeyboardTarget(event)) return true;
 
@@ -96,7 +99,7 @@ export const keyboardCommandForEvent = (
   if (!shortcut) return null;
   const allowsModifiedEditableShortcut =
     Boolean(options.allowModifiedEditableCommandIds?.has(shortcut.commandId)) &&
-    isEditableKeyboardTarget(event) &&
+    isCommandLineBarInputTarget(event) &&
     (event.metaKey || event.ctrlKey);
   if (
     shortcut.commandId !== "focusElementSearch" &&

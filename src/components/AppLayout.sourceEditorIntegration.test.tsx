@@ -105,6 +105,48 @@ describe("AppLayout Source Editor production integration", () => {
     expect(sourcePane).not.toHaveAttribute("inert");
   });
 
+  it("leaves a modified creation shortcut to the Command Palette input even while a session exists", async () => {
+    useCadUiStore.setState({
+      shortcutSettings: {
+        version: 1,
+        overrides: [{
+          bindingId: "normal.addLine",
+          chords: [{ key: "c", mod: true, alt: false, shift: false }]
+        }]
+      }
+    });
+    const view = render(<AppLayout />);
+    act(() => { startCommandLineCreation("variable"); });
+    act(() => { useCadUiStore.getState().setShowCommandPalette(true); });
+    const input = view.getByRole("textbox", { name: "コマンドを検索" });
+
+    const event = fireEvent.keyDown(input, { key: "c", metaKey: true });
+
+    expect(event).toBe(true);
+    expect(useCadUiStore.getState().commandLineSession?.recipe.type).toBe("variable");
+    expect(useCadUiStore.getState().showCommandPalette).toBe(true);
+  });
+
+  it("leaves a modified creation shortcut to the Command Palette input when no session exists", () => {
+    useCadUiStore.setState({
+      shortcutSettings: {
+        version: 1,
+        overrides: [{
+          bindingId: "normal.addLine",
+          chords: [{ key: "c", mod: true, alt: false, shift: false }]
+        }]
+      },
+      showCommandPalette: true
+    });
+    const view = render(<AppLayout />);
+    const input = view.getByRole("textbox", { name: "コマンドを検索" });
+
+    const event = fireEvent.keyDown(input, { key: "c", metaKey: true });
+
+    expect(event).toBe(true);
+    expect(useCadUiStore.getState().commandLineSession).toBeNull();
+  });
+
   it("confirms from the real bar and returns focus to the existing Source Editor selection path", async () => {
     const view = render(<AppLayout />);
     act(() => { startCommandLineCreation("variable"); });
