@@ -38,13 +38,15 @@
   `fillCurrentStep(session, value)` / `skipCurrentStep(session)`(スキップ可は
   nameとdefault付きnumberのみ)/ `retreatStep(session)`(1つ戻る。引数は
   破棄)/ `sessionCanConfirm(session)` / `currentStep(session)`。
-* stale判定: `sessionIsStale(session, currentRevision)`。**staleなセッションは
-  遷移せず明示エラーでキャンセルする方針**(親文書の確定判断)。判定に使う
-  リビジョンは `cadDocumentStore` の既存の単調な文書リビジョン(なければ
-  `sourceText` 同一性)を正とし、新しいリビジョン機構を発明しない。
+* stale判定: `sessionIsStale(session, currentRevision)`。4bはこの純粋判定だけを
+  提供し、実際のキャンセル・storeクリア・ユーザー向けエラー表示は4c以降が担う。
+  判定に使う
+  リビジョンは `cadDocumentStore.sourceRevision` の既存の単調な文書リビジョンを
+  正とし、新しいリビジョン機構を発明しない。
 * nameステップの候補生成: `withCreatedElementName` / `makeUniqueElementName`
-  (`src/model/elementNames.ts`、名前空間対応)を使い、挿入位置のスコープで
-  一意な候補を出す。
+  (`src/model/elementNames.ts`、名前空間対応)を使い、既存のplacement結果、または
+  `insertionIndex` と `elements` から既存placement APIで決まるスコープで一意な
+  候補を出す。4b専用の`parentGroupId`入力は作らない。
 * `insertionIndex` の決定ヘルパ(純粋): カーソル行の文index(あれば)→
   `creationPlacementForEvaluationLimit` フォールバック。カーソル行の解決は
   呼び出し側(4c)が `statementRangeIndex` で行い、ここは選択ロジックのみ。
@@ -110,7 +112,7 @@
   呼ぶ → no-op(例外にしない)。
 * default付きnumberステップのスキップはdefault値の採用として `args` に入る。
 * 同名要素が挿入位置スコープに既にある場合のnameSuggestion一意性。
-* 開始直後にstale(開始処理と外部コミットの競合)→ 最初の遷移で検出し
+* 開始直後にstale(開始処理と外部コミットの競合)→ 4cが最初の遷移前に検出し、
   キャンセルできること。
 * セッション進行中(引数充填済み・pick draftあり)の `startSession` →
   前セッションの引数・draftが一切残らない完全な初期状態になる。同じ
@@ -119,8 +121,8 @@
 ## Tests
 
 * 各遷移のテーブルテスト(充填・スキップ・戻り・キャンセル・完了判定)。
-* stale検出: 開始時リビジョンと異なるリビジョンでの遷移要求が
-  キャンセル+エラー文言を返すこと。
+* stale検出: 開始時リビジョンと異なるリビジョンを
+  `sessionIsStale` が検出できること。キャンセル+エラー文言は4cのテストで扱う。
 * nameSuggestionの名前空間スコープ一意性(トップレベル/グループ内)。
 * `insertionIndex` 決定ヘルパ: カーソル行あり/なし/非element行の各分岐。
 * storeレイヤ: セッション開始setterが既存セッション・全pick target・

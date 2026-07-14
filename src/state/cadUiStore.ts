@@ -7,6 +7,7 @@ import type { ParameterKey } from "../parameters/parameterDefinitions";
 import { sampleElements } from "../sampleData";
 import { useCadDocumentStore } from "./cadDocumentStore";
 import { sourceEditSession } from "../editor/sourceEditSession";
+import type { CommandLineSession } from "../commands/commandLineSession";
 import type { ActiveTemplateInsertion } from "../templates/templateInsertionMode";
 import type { CadElement, ElementId, PointAnchor } from "../types/geometry";
 import type { GroupFoldState } from "../model/groups";
@@ -183,6 +184,7 @@ export type CadUiState = CadDocumentSelectionSnapshot & {
   activeLinePickTarget: ActiveLinePickTarget | null;
   activeMeasurementInsertTarget: ActiveMeasurementInsertTarget | null;
   activeTemplateInsertion: ActiveTemplateInsertion | null;
+  commandLineSession: CommandLineSession | null;
   activePickCursor: ActivePickCursor | null;
   elementSearchQuery: string;
   elementSearchCursorId: ElementId | null;
@@ -228,6 +230,13 @@ export type CadUiState = CadDocumentSelectionSnapshot & {
     activeMeasurementInsertTarget: ActiveMeasurementInsertTarget | null
   ) => void;
   setActiveTemplateInsertion: (activeTemplateInsertion: ActiveTemplateInsertion | null) => void;
+  setCommandLineSession: (commandLineSession: CommandLineSession | null) => void;
+  /**
+   * Replaces a creation session and all in-store pick state atomically. The 4c
+   * command layer must first clear pending Canvas pointer intent and pending
+   * Source Editor focus reservations, which live outside this store.
+   */
+  startCommandLineSession: (commandLineSession: CommandLineSession) => void;
   setActivePickCursor: (activePickCursor: ActivePickCursor | null) => void;
   clearPickMode: () => void;
   setElementSearchQuery: (elementSearchQuery: string) => void;
@@ -297,6 +306,8 @@ export const initialCadUiState = (): Omit<
   | "setActiveLinePickTarget"
   | "setActiveMeasurementInsertTarget"
   | "setActiveTemplateInsertion"
+  | "setCommandLineSession"
+  | "startCommandLineSession"
   | "setActivePickCursor"
   | "clearPickMode"
   | "setElementSearchQuery"
@@ -362,6 +373,7 @@ export const initialCadUiState = (): Omit<
   activeLinePickTarget: null,
   activeMeasurementInsertTarget: null,
   activeTemplateInsertion: null,
+  commandLineSession: null,
   activePickCursor: null,
   elementSearchQuery: "",
   elementSearchCursorId: null,
@@ -465,14 +477,27 @@ export const useCadUiStore = create<CadUiState>((set) => ({
     set({ activeMeasurementInsertTarget }),
   setActiveTemplateInsertion: (activeTemplateInsertion) =>
     set({ activeTemplateInsertion, activePickCursor: null }),
+  setCommandLineSession: (commandLineSession) => set({ commandLineSession }),
+  startCommandLineSession: (commandLineSession) =>
+    set({
+      activePointPickTarget: null,
+      activeNumericReferencePickTarget: null,
+      activeLinePickTarget: null,
+      activeMeasurementInsertTarget: null,
+      activeTemplateInsertion: null,
+      activePickCursor: null,
+      commandLineSession
+    }),
   setActivePickCursor: (activePickCursor) => set({ activePickCursor }),
   clearPickMode: () =>
     set({
       activePointPickTarget: null,
       activeNumericReferencePickTarget: null,
       activeLinePickTarget: null,
+      activeMeasurementInsertTarget: null,
       activeTemplateInsertion: null,
-      activePickCursor: null
+      activePickCursor: null,
+      commandLineSession: null
     }),
   setElementSearchQuery: (elementSearchQuery) =>
     set({ elementSearchQuery, elementSearchCursorId: null }),

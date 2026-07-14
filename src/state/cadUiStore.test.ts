@@ -1,10 +1,23 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { initialCadUiState, useCadUiStore } from "./cadUiStore";
 import { isElseExpanded, isGroupExpanded } from "../model/groups";
-import { useCadDocumentStore } from "./cadDocumentStore";
+import { initialCadDocumentState, useCadDocumentStore } from "./cadDocumentStore";
+import { startSession } from "../commands/commandLineSession";
+import type { CreationRecipe } from "../commands/creationRecipes";
+
+const commandLineRecipe: CreationRecipe = {
+  type: "line",
+  steps: [
+    { kind: "lineList", key: "baseLineIds", prompt: "基準線" },
+    { kind: "name", autoSuggest: true }
+  ]
+};
 
 describe("cadUiStore group fold state", () => {
-  beforeEach(() => useCadUiStore.setState(initialCadUiState()));
+  beforeEach(() => {
+    useCadUiStore.setState(initialCadUiState());
+    useCadDocumentStore.setState(initialCadDocumentState());
+  });
 
   it("uses the legacy visual defaults for unregistered ids and supports set/toggle", () => {
     const store = useCadUiStore.getState();
@@ -50,5 +63,83 @@ describe("cadUiStore group fold state", () => {
     });
 
     expect(useCadUiStore.getState().groupFoldById.has(element.id)).toBe(true);
+  });
+
+  it("atomically replaces a command-line session and all in-store pick state", () => {
+    const oldSession = startSession(commandLineRecipe, {
+      insertionIndex: 0,
+      revision: 3,
+      elements: useCadDocumentStore.getState().elements
+    });
+    const nextSession = startSession(commandLineRecipe, {
+      insertionIndex: 1,
+      revision: 4,
+      elements: useCadDocumentStore.getState().elements
+    });
+    const documentBefore = useCadDocumentStore.getState();
+    useCadUiStore.setState({
+      commandLineSession: oldSession,
+      activePointPickTarget: { elementId: "point", parameterKey: "startPoint" as never },
+      activeNumericReferencePickTarget: {
+        elementId: "numeric",
+        parameterKey: "offset" as never,
+        mode: "replace",
+        property: "length"
+      },
+      activeLinePickTarget: {
+        elementId: "line",
+        parameterKey: "baseLineIds" as never,
+        draftLineIds: ["line-a"]
+      },
+      activeMeasurementInsertTarget: {
+        elementId: "measurement",
+        parameterKey: "offset" as never,
+        mode: "distance",
+        point1Anchor: null,
+        point2Anchor: null,
+        lineId: null,
+        displayedExpression: "",
+        selectionStart: null,
+        selectionEnd: null
+      },
+      activeTemplateInsertion: {} as never,
+      activePickCursor: { elementId: "line-a", optionIndex: 0 }
+    });
+    const observed: Array<ReturnType<typeof useCadUiStore.getState>> = [];
+    const unsubscribe = useCadUiStore.subscribe((state) => observed.push(state));
+
+    useCadUiStore.getState().startCommandLineSession(nextSession);
+    unsubscribe();
+
+    expect(observed).toHaveLength(1);
+    expect(observed[0]).toMatchObject({
+      commandLineSession: nextSession,
+      activePointPickTarget: null,
+      activeNumericReferencePickTarget: null,
+      activeLinePickTarget: null,
+      activeMeasurementInsertTarget: null,
+      activeTemplateInsertion: null,
+      activePickCursor: null
+    });
+    expect(useCadUiStore.getState().activeLinePickTarget).toBeNull();
+    expect(useCadDocumentStore.getState()).toMatchObject({
+      elements: documentBefore.elements,
+      sourceText: documentBefore.sourceText,
+      past: documentBefore.past,
+      future: documentBefore.future
+    });
+  });
+
+  it("clears a command-line session together with pick mode", () => {
+    const session = startSession(commandLineRecipe, {
+      insertionIndex: 0,
+      revision: 0,
+      elements: useCadDocumentStore.getState().elements
+    });
+    useCadUiStore.setState({ commandLineSession: session });
+
+    useCadUiStore.getState().clearPickMode();
+
+    expect(useCadUiStore.getState().commandLineSession).toBeNull();
   });
 });
