@@ -16,6 +16,7 @@ import { effectiveElements, useCadDocumentStore } from "../state/cadDocumentStor
 import { useCadUiStore } from "../state/cadUiStore";
 import { CommandPalette } from "./CommandPalette";
 import { DrawingCanvas } from "./DrawingCanvas";
+import { CommandLineBar } from "./CommandLineBar";
 import { RightPanel } from "./RightPanel";
 import { ShortcutHelpOverlay } from "./ShortcutHelpOverlay";
 import { SourceEditorPane } from "./SourceEditorPane";
@@ -24,6 +25,7 @@ import { registerTauriMenuCommandListener } from "../commands/tauriMenuEvents";
 import { selectTextInputValue } from "./textInputSelection";
 import { PickModeStatus } from "./PickModeStatus";
 import { findParameterDefinition } from "../parameters/parameterDefinitions";
+import type { DrawingCanvasHandle } from "./DrawingCanvas";
 
 const DslPanel = lazy(() =>
   import("./DslPanel").then((module) => ({ default: module.DslPanel }))
@@ -118,6 +120,7 @@ export const AppLayout = () => {
   const canvasWorkspaceRef = useRef<HTMLDivElement>(null);
   const commandRibbonDockRef = useRef<HTMLDivElement>(null);
   const sourceEditorRef = useRef<SourceEditorHandle>(null);
+  const drawingCanvasRef = useRef<DrawingCanvasHandle>(null);
   const [leftPanelWidth, setLeftPanelWidth] = useState(DEFAULT_LEFT_PANEL_WIDTH);
   const [isResizingLeftPanel, setIsResizingLeftPanel] = useState(false);
   const leftPanelResizeStartRef = useRef<{ clientX: number; width: number } | null>(null);
@@ -163,6 +166,9 @@ export const AppLayout = () => {
     // The legacy element-list commands keep their IDs but now land on the Source Editor.
     focusElementList: () => sourceEditorRef.current?.focus(),
     focusElementSearch: () => sourceEditorRef.current?.focusSearch(),
+    currentCursorElementId: () => sourceEditorRef.current?.currentCursorElementId?.() ?? null,
+    clearPendingCanvasPointerIntent: () => drawingCanvasRef.current?.clearPendingCanvasPointerIntent(),
+    clearSourceEditorFocusReservation: () => drawingCanvasRef.current?.clearEditorFocusReservation(),
     getCanvasViewportRect: () => canvasFocusRef.current?.getBoundingClientRect() ?? null,
     evaluation
   }), [evaluation]);
@@ -322,6 +328,11 @@ export const AppLayout = () => {
             useCadUiStore.getState().activeTemplateInsertion
         )
       });
+      if (useCadUiStore.getState().commandLineSession && event.key === "Escape") {
+        event.preventDefault();
+        dispatchCommand("cancelCommandLineSession");
+        return;
+      }
       if (useCadUiStore.getState().activeTemplateInsertion && event.key === "Escape") {
         event.preventDefault();
         dispatchCommand("cancelTemplateInsertion");
@@ -423,12 +434,14 @@ export const AppLayout = () => {
         <>
           <div className="canvas-workspace" ref={canvasWorkspaceRef}>
             <DrawingCanvas
+              ref={drawingCanvasRef}
               evaluation={evaluation}
               evaluationState={evaluationState}
               canvasFocusRef={canvasFocusRef}
               commandContext={commandContext}
               leftPanelDockRef={commandRibbonDockRef}
             />
+            <CommandLineBar />
             {showPrintPreviewWindow ? (
               <Suspense fallback={null}>
                 <PrintLayoutPreviewWindow

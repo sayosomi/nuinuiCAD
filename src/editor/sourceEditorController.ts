@@ -319,6 +319,9 @@ export class SourceEditorController implements SourceEditorHandle {
 
   focus = () => this.view.focus();
 
+  currentCursorElementId = () =>
+    elementIdAtCursor(this.statementRanges, this.view.state.selection.main.head);
+
   getText = () => serializeEditorText(this.view.state.doc.toString(), this.format);
 
   /**
@@ -618,6 +621,10 @@ export class SourceEditorController implements SourceEditorHandle {
       return true;
     }
     const ui = this.uiStore.getState();
+    if (ui.commandLineSession) {
+      dispatchCommand("cancelCommandLineSession");
+      return true;
+    }
     if (ui.activePointPickTarget) {
       dispatchCommand("cancelPointPick");
       return true;

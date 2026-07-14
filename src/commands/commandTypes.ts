@@ -91,8 +91,10 @@ export type CommandId =
   | "duplicateSelectedElement"
   | "deleteSelectedElement"
   | "addFreePoint"
+  | "commandLineAddFreePoint"
   | "addText"
   | "addVariable"
+  | "commandLineAddVariable"
   | "addOffsetPoint"
   | "addPolarOffsetPoint"
   | "addDivisionPoint"
@@ -165,12 +167,20 @@ export type CommandId =
   | "toggleInspectorPanel"
   | "stepSourceValueForward"
   | "stepSourceValueBackward"
-  | "startCanvasPickFromSourceSelection";
+  | "startCanvasPickFromSourceSelection"
+  | "cancelCommandLineSession"
+  | "confirmCommandLineSession";
 
 export type CommandContext = {
   focusCanvas?: () => void;
   focusElementList?: () => void;
   focusElementSearch?: () => void;
+  /** Current element statement under the Source Editor cursor, without exposing CodeMirror state. */
+  currentCursorElementId?: () => ElementId | null;
+  /** Canvas-only ephemeral state cleared before a creation-session replacement. */
+  clearPendingCanvasPointerIntent?: () => void;
+  /** Cancels the deferred Canvas-to-Source-Editor focus handoff before replacement. */
+  clearSourceEditorFocusReservation?: () => void;
   exportDslSelection?: () => void;
   validateDslPanel?: () => void;
   applyDslPanel?: () => void;

@@ -35,6 +35,8 @@ export type SourceTextFormat = {
 
 export type SourceEditorHandle = {
   focus: () => void;
+  /** Element statement under the primary cursor, resolved through the current range index. */
+  currentCursorElementId?: () => ElementId | null;
   /** Current editor text serialized with its uniform source line ending, when one exists. */
   getText: () => string;
   /** Publishes a result together with the compiled-document revision captured when its

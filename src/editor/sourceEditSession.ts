@@ -5,6 +5,7 @@
 export type FlushReason =
   | "blur"
   | "command"
+  | "command-line-confirm"
   | "canvas-pointerdown"
   | "model-mutation"
   | "save"

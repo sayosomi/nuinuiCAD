@@ -61,6 +61,7 @@ export const SourceEditorPane = forwardRef<SourceEditorHandle, SourceEditorPaneP
 
   useImperativeHandle(ref, () => ({
     focus: () => controllerRef.current?.focus(),
+    currentCursorElementId: () => controllerRef.current?.currentCursorElementId() ?? null,
     getText: () => controllerRef.current?.getText() ?? "",
     setEvaluation: (publication: SourceEvaluationPublication) => controllerRef.current?.setEvaluation(publication),
     jumpToElement: (elementId) => controllerRef.current?.jumpToElement(elementId),

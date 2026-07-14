@@ -3,7 +3,7 @@ import type {
   RefObject,
   WheelEvent as ReactWheelEvent
 } from "react";
-import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useReducer, useRef, useState } from "react";
 import { dispatchCommand } from "../commands/commands";
 import type { CommandContext } from "../commands/commands";
 import type { EvaluationEngineState } from "../geometry/useEvaluationEngine";
@@ -71,6 +71,12 @@ type DrawingCanvasProps = {
   leftPanelDockRef: RefObject<HTMLDivElement | null>;
 };
 
+/** Narrow command-facing boundary for Canvas state that must not survive creation-session re-entry. */
+export type DrawingCanvasHandle = {
+  clearPendingCanvasPointerIntent: () => void;
+  clearEditorFocusReservation: () => void;
+};
+
 type PointDragState = {
   pointerId: number;
   elementId: ElementId;
@@ -107,13 +113,13 @@ const DEFERRED_POINTER_TIMEOUT_MS = 5000;
 const isRejectedDocumentMutation = (result: unknown) =>
   typeof result === "object" && result !== null && "status" in result && result.status === "rejected";
 
-export const DrawingCanvas = ({
+export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>(function DrawingCanvas({
   evaluation,
   evaluationState,
   canvasFocusRef,
   commandContext = {},
   leftPanelDockRef
-}: DrawingCanvasProps) => {
+}, ref) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const panDragRef = useRef<{ pointerId: number; lastX: number; lastY: number } | null>(null);
   const pointDragRef = useRef<PointDragState | null>(null);
@@ -478,6 +484,15 @@ export const DrawingCanvas = ({
       pendingEditorFocusRef.current = null;
     }
   }, []);
+
+  useImperativeHandle(ref, () => ({
+    clearPendingCanvasPointerIntent: () => {
+      applyPendingPointerTransition(cancelPendingCanvasPointer(pendingPointerStateRef.current));
+    },
+    clearEditorFocusReservation: () => {
+      pendingEditorFocusRef.current = null;
+    }
+  }), [applyPendingPointerTransition]);
 
   /**
    * Resolves an intent only against the current render.  The original pointer
@@ -1070,4 +1085,4 @@ export const DrawingCanvas = ({
       </div>
     </section>
   );
-};
+});

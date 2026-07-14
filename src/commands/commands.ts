@@ -1,5 +1,6 @@
 import { filterCommandPaletteItems as filterPaletteItems } from "./commandPalette";
 import { creationCommandDefinitions } from "./creationCommandDefinitions";
+import { commandLineCommandDefinitions } from "./commandLineCommandDefinitions";
 import { documentCommandDefinitions } from "./documentCommandDefinitions";
 import { pickCommandDefinitions } from "./pickCommandDefinitions";
 import { selectionCommandDefinitions } from "./selectionCommandDefinitions";
@@ -17,6 +18,7 @@ export const commands: Record<CommandId, Command> = {
   ...selectionCommandDefinitions,
   ...pickCommandDefinitions,
   ...creationCommandDefinitions,
+  ...commandLineCommandDefinitions,
   ...templateCommandDefinitions,
   ...sourceEditorCommandDefinitions
 };
