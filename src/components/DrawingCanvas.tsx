@@ -374,40 +374,72 @@ export const DrawingCanvas = ({
     });
     setPointPickCandidateMenu(null);
   }, []);
-  const linePickCandidatesAt = useCallback((screen: ScreenPoint) => {
+  /** Resolves a drawn overlay line to the id a line pick would apply, or null when
+   * the line is not pickable for the active line-pick target. */
+  const pickableLineIdForLinePick = useCallback((lineElementId: ElementId) => {
     const activeTarget = activeLinePickTarget;
-    if (!activeTarget) return [];
+    if (!activeTarget) return null;
+    const normalizedLineId = generatedElementIdForTargetForGroup({
+      elements,
+      targetElementId: activeTarget.elementId,
+      pickedElementId: lineElementId
+    });
+    if (!normalizedLineId || normalizedLineId === activeTarget.elementId) return null;
+    if (!pickSourcePrecedesTarget(elements, activeTarget.elementId, normalizedLineId, activeTarget.insertionIndex)) return null;
+    return normalizedLineId;
+  }, [activeLinePickTarget, elements]);
+  const isPickableForNumericReference = useCallback((lineElementId: ElementId) => {
+    const activeTarget = activeNumericReferencePickTarget;
+    if (!activeTarget) return false;
+    return (
+      lineElementId !== activeTarget.elementId &&
+      pickSourcePrecedesTarget(elements, activeTarget.elementId, lineElementId, activeTarget.insertionIndex)
+    );
+  }, [activeNumericReferencePickTarget, elements]);
+  const pickCandidateLineIds = useMemo(() => {
+    const ids = new Set<ElementId>();
+    if (!activeLinePickTarget && !activeNumericReferencePickTarget) return ids;
+    for (const { line } of overlayNumericReferenceCandidates) {
+      if (activeNumericReferencePickTarget
+        ? isPickableForNumericReference(line.elementId)
+        : pickableLineIdForLinePick(line.elementId) !== null) {
+        ids.add(line.elementId);
+      }
+    }
+    return ids;
+  }, [
+    activeLinePickTarget,
+    activeNumericReferencePickTarget,
+    isPickableForNumericReference,
+    overlayNumericReferenceCandidates,
+    pickableLineIdForLinePick
+  ]);
+  const linePickCandidatesAt = useCallback((screen: ScreenPoint) => {
+    if (!activeLinePickTarget) return [];
 
     const uniqueCandidates = new Map<ElementId, LinePickCandidate>();
     for (const candidate of hitTestLineMeasurementCandidates({
       screen,
       lines: overlayNumericReferenceCandidates
     })) {
-      const normalizedLineId = generatedElementIdForTargetForGroup({
-        elements,
-        targetElementId: activeTarget.elementId,
-        pickedElementId: candidate.line.elementId
-      });
-      if (!normalizedLineId || normalizedLineId === activeTarget.elementId) continue;
-      if (!pickSourcePrecedesTarget(elements, activeTarget.elementId, normalizedLineId)) continue;
+      const normalizedLineId = pickableLineIdForLinePick(candidate.line.elementId);
+      if (!normalizedLineId) continue;
       uniqueCandidates.set(normalizedLineId, { line: candidate.line });
     }
     return Array.from(uniqueCandidates.values());
-  }, [activeLinePickTarget, elements, overlayNumericReferenceCandidates]);
+  }, [activeLinePickTarget, overlayNumericReferenceCandidates, pickableLineIdForLinePick]);
   const numericReferenceCandidatesAt = useCallback((screen: ScreenPoint) => {
-    const activeTarget = activeNumericReferencePickTarget;
-    if (!activeTarget) return [];
+    if (!activeNumericReferencePickTarget) return [];
 
     const uniqueCandidates = new Map<string, LineMeasurementCandidate>();
     for (const line of hitTestLineCandidates({ screen, lines: overlayNumericReferenceCandidates })) {
-      if (line.elementId === activeTarget.elementId) continue;
-      if (!pickSourcePrecedesTarget(elements, activeTarget.elementId, line.elementId)) continue;
+      if (!isPickableForNumericReference(line.elementId)) continue;
       for (const property of numericReferencePropertiesForGeometry(line)) {
         uniqueCandidates.set(`${line.elementId}:${property}`, { line, property });
       }
     }
     return Array.from(uniqueCandidates.values());
-  }, [activeNumericReferencePickTarget, elements, overlayNumericReferenceCandidates]);
+  }, [activeNumericReferencePickTarget, isPickableForNumericReference, overlayNumericReferenceCandidates]);
 
   const applyPendingPointerTransition = useCallback((transition: PendingCanvasPointerTransition) => {
     pendingPointerStateRef.current = transition.state;
@@ -981,6 +1013,7 @@ export const DrawingCanvas = ({
           overlayPointPickCandidates={overlayPointPickCandidates}
           selectedElementIdSet={selectedElementIdSet}
           draftLinePickElementIds={draftLinePickElementIds}
+          pickCandidateLineIds={pickCandidateLineIds}
           selectedElementId={selectedElementId}
           elementColors={elementColors}
           showCanvasElementNames={showCanvasElementNames}

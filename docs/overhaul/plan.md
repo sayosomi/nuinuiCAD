@@ -150,6 +150,15 @@ Phase 5  ハードクリーンアップ(Phase 2・3・4すべての完了後)
 * Phase 3の実装は `tasks/phase-3-inspector.md` を親文書として4子タスクへ
   分割した(2026-07-12): 3a ジャンプAPI → (3b 数値ステップ ∥ 3c
   InspectorPanel) → 3d フォーム編集削除cutover。
+* Phase 4の実装は `tasks/phase-4-command-line.md` を親文書として10子タスクへ
+  分割した(2026-07-14): コマンドライン系は 4a-1 レシピ基盤 →
+  4b セッション → 4c バー+挿入 → 4d ピック連携 → 4e 無名昇格 →
+  4f ゴーストプレビュー → 4g 作成コマンドcutover の直列。
+  4a-2 レシピ全数カバレッジは4a-1後に4b〜4fと並行可で、4gの前提条件。
+  4h DSL補完と 4i DslPanel削除は独立の並行レーン。ピック連携は
+  テンプレート挿入で実証済みの「仮想target+insertionIndex」機構を共有し、
+  確定コミットは `commitDocumentChange` ブリッジ経由(詳細は親文書の
+  確定判断)。
 * Phase 5 は全Phase完了後の互換コード削除とリネーム伝播。
 
 ## Phase 1 分割の根拠

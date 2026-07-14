@@ -23,8 +23,16 @@ phase-0-dsl-grammar
                            │    3a-value-span-jump-api                        │並行可
                            │      → (3b-numeric-step-command ∥ 3c-inspector-panel)
                            │      → 3d-form-editor-removal                    │
-                           └─ phase-4-command-line                            ┘
-                                └─ phase-5-cleanup(3と4の両方の完了後)
+                           └─ phase-4(親文書: phase-4-command-line。実装は10分割)┘
+                                ├─ 4a-1-creation-recipe-core
+                                │    ├─ 4a-2-creation-recipe-coverage(4b〜4fと並行可)
+                                │    └─ 4b-command-line-session
+                                │         → 4c-command-line-bar → 4d-pick-routing
+                                │         → 4e-unnamed-promotion → 4f-ghost-preview
+                                │         → 4g-creation-cutover(4e+4f+4a-2の後)
+                                ├─ 4h-dsl-autocomplete(4a-1〜4g・4iと独立並行可)
+                                ├─ 4i-dsl-panel-removal(4a-1〜4g・4hと独立並行可)
+                                └─ phase-5-cleanup(3と4(=4g+4h+4i)の完了後)
 ```
 
 | タスク | 内容 | 依存 |
@@ -51,8 +59,18 @@ phase-0-dsl-grammar
 | [phase-3c-inspector-panel.md](phase-3c-inspector-panel.md) | 読み取り専用InspectorPanel(3cでは行ナビ・Enterジャンプ・旧UIと一時併存、3dでマウス専用化) | 3a(3bと並行可) |
 | [phase-3d-form-editor-removal.md](phase-3d-form-editor-removal.md) | フォーム編集・旧編集モード削除、Inspectorマウス専用化、廃止shortcut除去 | 3b + 3c |
 | [phase-3d-command-id-map.md](phase-3d-command-id-map.md) | 3dの旧command ID→新command ID／廃止、および保存済みshortcut移行表 | 3d |
-| [phase-4-command-line.md](phase-4-command-line.md) | コマンドライン作図+DSL補完(DslPanel削除) | 2 |
-| [phase-5-cleanup.md](phase-5-cleanup.md) | 互換コード削除・リネーム伝播・ドキュメント更新 | 3 + 4 |
+| [phase-4-command-line.md](phase-4-command-line.md) | **親文書**: コマンドライン作図+DSL補完(DslPanel削除)。実装は下記4a-1〜4iへ分割(2026-07-14) | 2 |
+| [phase-4a-1-creation-recipe-core.md](phase-4a-1-creation-recipe-core.md) | レシピ共通基盤(代表6型+フォールバック生成+安定API。アプリ非接続) | 2 |
+| [phase-4a-2-creation-recipe-coverage.md](phase-4a-2-creation-recipe-coverage.md) | 全作成経路の棚卸し+残り全型のレシピ充足+旧command ID対応表 | 4a-1(4b〜4fと並行可) |
+| [phase-4b-command-line-session.md](phase-4b-command-line-session.md) | セッション状態機械(純粋遷移+cadUiStore状態。UIなし) | 4a-1 |
+| [phase-4c-command-line-bar.md](phase-4c-command-line-bar.md) | CommandLineBar+セッションコマンド+挿入確定(参照ステップなしレシピ解放) | 4b |
+| [phase-4d-command-line-pick-routing.md](phase-4d-command-line-pick-routing.md) | ピック・名前タイプ充填のセッション連携(参照ステップありレシピ解放) | 4c |
+| [phase-4e-unnamed-promotion.md](phase-4e-unnamed-promotion.md) | 無名要素の自動昇格(命名+同一Undo行パッチ) | 4d |
+| [phase-4f-ghost-preview.md](phase-4f-ghost-preview.md) | セッション中のゴーストプレビュー(previewDocumentChange) | 4d(4eと直列推奨) |
+| [phase-4g-creation-cutover.md](phase-4g-creation-cutover.md) | 作成コマンドのセッション起動cutover+旧即時挿入削除 | 4e + 4f + 4a-2 |
+| [phase-4h-dsl-autocomplete.md](phase-4h-dsl-autocomplete.md) | エディタ内DSL文脈補完(cmAutocomplete) | 2(4a-1〜4g・4iと独立) |
+| [phase-4i-dsl-panel-removal.md](phase-4i-dsl-panel-removal.md) | DslPanel/DslEditor削除 | 2(4a-1〜4g・4hと独立) |
+| [phase-5-cleanup.md](phase-5-cleanup.md) | 互換コード削除・リネーム伝播・ドキュメント更新 | 3 + 4(4g+4h+4i) |
 
 ## 各エージェントへの共通指示
 

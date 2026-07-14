@@ -8,8 +8,11 @@ export const PickModeStatus = () => {
   const pointTarget = useCadUiStore((state) => state.activePointPickTarget);
   const numericTarget = useCadUiStore((state) => state.activeNumericReferencePickTarget);
   const lineTarget = useCadUiStore((state) => state.activeLinePickTarget);
+  // Template insertion drives its picks against a virtual target and owns the
+  // status/cancel UI through TemplateInsertionPanel.
+  const isTemplateInsertion = useCadUiStore((state) => Boolean(state.activeTemplateInsertion));
   const target = pointTarget ?? numericTarget ?? lineTarget;
-  if (!target) return null;
+  if (!target || isTemplateInsertion) return null;
 
   const element = elements.find((candidate) => candidate.id === target.elementId);
   const definition = element

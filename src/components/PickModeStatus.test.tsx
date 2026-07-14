@@ -53,4 +53,33 @@ describe("PickModeStatus", () => {
     expect(screen.queryByText("線5")).not.toBeInTheDocument();
     expect(screen.getByText("+1")).toBeInTheDocument();
   });
+
+  it("stays hidden while template insertion drives its own virtual-target picks", () => {
+    useCadUiStore.setState({
+      activeTemplateInsertion: {
+        template: {
+          id: "template",
+          name: "袖",
+          rootGroupId: "group",
+          elements: [],
+          inputs: [{ id: "point:p", kind: "point", label: "基準点", sourceElementId: "p" }],
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z"
+        },
+        inputValues: { "point:p": "" },
+        currentInputId: "point:p",
+        insertionIndex: 0,
+        error: null
+      },
+      activePointPickTarget: {
+        elementId: "__template-insertion-pick__",
+        parameterKey: "point:p",
+        insertionIndex: 0
+      }
+    });
+
+    render(<PickModeStatus />);
+
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
 });

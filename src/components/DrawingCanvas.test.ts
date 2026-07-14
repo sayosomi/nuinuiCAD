@@ -671,6 +671,76 @@ describe("DrawingCanvas point dragging", () => {
     });
   });
 
+  it("inserts the clicked candidate's property into the displayed expression in insert mode", () => {
+    useCadStore.setState({
+      elements: [
+        ...sampleElements,
+        { id: "target-point", name: "参照先", type: "freePoint", visible: true, enabled: true, x: 10, y: 0 }
+      ],
+      selectedElementId: "target-point",
+      selectedElementIds: ["target-point"],
+      activeNumericReferencePickTarget: {
+        elementId: "target-point",
+        parameterKey: "x",
+        mode: "insert",
+        property: "length",
+        displayedExpression: "10",
+        selectionStart: null,
+        selectionEnd: null
+      }
+    });
+    const { viewport, getByRole } = renderDrawingCanvas();
+
+    fireEvent.pointerDown(viewport, {
+      button: 0,
+      buttons: 1,
+      clientX: 350,
+      clientY: 250,
+      pointerId: 1
+    });
+
+    fireEvent.click(getByRole("menuitem", { name: /直線AB.*始接線角度/ }));
+    expect(useCadStore.getState().activeNumericReferencePickTarget).toBeNull();
+    expect(useCadStore.getState().elements.at(-1)).toMatchObject({
+      x: { kind: "expression", expression: "10 + line-ab.startTangentAngleDeg" }
+    });
+  });
+
+  it("highlights only lines the numeric pick would accept", () => {
+    const target: CadElement = {
+      id: "target-point",
+      name: "参照先",
+      type: "freePoint",
+      visible: true,
+      enabled: true,
+      x: 0,
+      y: 0
+    };
+    const pickTarget = {
+      elementId: "target-point",
+      parameterKey: "x",
+      mode: "replace",
+      property: "length"
+    } as const;
+
+    useCadStore.setState({
+      elements: [...sampleElements, target],
+      activeNumericReferencePickTarget: pickTarget
+    });
+    const { container, unmount } = renderDrawingCanvas();
+    expect(
+      container.querySelectorAll('[data-numeric-reference-candidate="true"]').length
+    ).toBeGreaterThan(0);
+    unmount();
+
+    useCadStore.setState({
+      elements: [target, ...sampleElements],
+      activeNumericReferencePickTarget: pickTarget
+    });
+    const { container: laterContainer } = renderDrawingCanvas();
+    expect(laterContainer.querySelector('[data-numeric-reference-candidate="true"]')).toBeNull();
+  });
+
   it("does not offer the target line itself while numeric reference picking on the canvas", () => {
     const elements: CadElement[] = [
       {

@@ -141,6 +141,48 @@ describe("pickCandidates", () => {
     expect(candidates.map((candidate) => candidate.elementId)).toContain("line");
   });
 
+  it("offers candidates to a virtual target through its insertion index", () => {
+    const virtualNumeric = (insertionIndex?: number) =>
+      pickCandidates(elements, evaluation, {
+        activePointPickTarget: null,
+        activeLinePickTarget: null,
+        activeNumericReferencePickTarget: {
+          elementId: "__template-insertion-numeric__",
+          parameterKey: "sleeve",
+          ...(insertionIndex === undefined ? {} : { insertionIndex }),
+          mode: "insert",
+          property: "length"
+        }
+      });
+
+    expect(virtualNumeric(elements.length).map((candidate) => candidate.elementId))
+      .toEqual(["line", "curve"]);
+    expect(virtualNumeric(2).map((candidate) => candidate.elementId)).toEqual(["line"]);
+    expect(virtualNumeric(undefined)).toEqual([]);
+
+    const pointCandidates = pickCandidates(elements, evaluation, {
+      activePointPickTarget: {
+        elementId: "__template-insertion-pick__",
+        parameterKey: "point:p",
+        insertionIndex: elements.length
+      },
+      activeLinePickTarget: null,
+      activeNumericReferencePickTarget: null
+    });
+    expect(pointCandidates.map((candidate) => candidate.elementId)).toContain("a");
+
+    const lineCandidates = pickCandidates(elements, evaluation, {
+      activePointPickTarget: null,
+      activeLinePickTarget: {
+        elementId: "__template-insertion-pick__",
+        parameterKey: "line:l",
+        insertionIndex: elements.length
+      },
+      activeNumericReferencePickTarget: null
+    });
+    expect(lineCandidates.map((candidate) => candidate.elementId)).toEqual(["line", "curve"]);
+  });
+
   it("offers Bezier handle numeric references only for Bezier geometry", () => {
     const candidates = pickCandidates(elements, evaluation, {
       activePointPickTarget: null,

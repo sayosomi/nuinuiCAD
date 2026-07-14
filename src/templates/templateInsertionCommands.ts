@@ -39,7 +39,8 @@ const setPickTargetForTemplateInput = (insertion: ActiveTemplateInsertion | null
       activeLinePickTarget: null,
       activePointPickTarget: {
         elementId: TEMPLATE_INSERTION_PICK_TARGET_ID,
-        parameterKey: input.id
+        parameterKey: input.id,
+        insertionIndex: insertion.insertionIndex
       },
       activePickCursor: null
     });
@@ -51,7 +52,8 @@ const setPickTargetForTemplateInput = (insertion: ActiveTemplateInsertion | null
       activePointPickTarget: null,
       activeLinePickTarget: {
         elementId: TEMPLATE_INSERTION_PICK_TARGET_ID,
-        parameterKey: input.id
+        parameterKey: input.id,
+        insertionIndex: insertion.insertionIndex
       },
       activePickCursor: null
     });
@@ -242,6 +244,7 @@ export const startTemplateNumericReferenceInsertPick = ({
     activeNumericReferencePickTarget: {
       elementId: TEMPLATE_INSERTION_NUMERIC_TARGET_ID,
       parameterKey: inputId,
+      insertionIndex: insertion.insertionIndex,
       mode: "insert",
       property,
       displayedExpression,

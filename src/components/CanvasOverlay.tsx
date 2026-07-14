@@ -24,6 +24,8 @@ type CanvasOverlayProps = {
   overlayPointPickCandidates: PointPickCandidate[];
   selectedElementIdSet: Set<ElementId>;
   draftLinePickElementIds: Set<ElementId>;
+  /** Overlay lines that the active line/numeric pick would actually accept. */
+  pickCandidateLineIds: Set<ElementId>;
   selectedElementId: ElementId | null;
   elementColors: Map<ElementId, string>;
   showCanvasElementNames: boolean;
@@ -45,6 +47,7 @@ export const CanvasOverlay = ({
   overlayPointPickCandidates,
   selectedElementIdSet,
   draftLinePickElementIds,
+  pickCandidateLineIds,
   selectedElementId,
   elementColors,
   showCanvasElementNames,
@@ -104,6 +107,12 @@ export const CanvasOverlay = ({
     ) : null;
   const centerOf = (points: readonly { x: number; y: number }[]) =>
     points[Math.floor(points.length / 2)] ?? { x: 0, y: 0 };
+  const pickCandidateAttributes = (elementId: ElementId) => ({
+    "data-numeric-reference-candidate":
+      isNumericReferencePickActive && pickCandidateLineIds.has(elementId) ? "true" : undefined,
+    "data-line-pick-candidate":
+      isLinePickActive && pickCandidateLineIds.has(elementId) ? "true" : undefined
+  });
 
   return (
   <svg
@@ -120,8 +129,7 @@ export const CanvasOverlay = ({
           y2={end.y}
           className={lineOverlayClass(line.elementId)}
           style={selectedElementIdSet.has(line.elementId) ? selectedLineStyle(line.elementId) : undefined}
-          data-numeric-reference-candidate={isNumericReferencePickActive ? "true" : undefined}
-          data-line-pick-candidate={isLinePickActive ? "true" : undefined}
+          {...pickCandidateAttributes(line.elementId)}
         />
         {draftLinePickMarker(line.elementId, { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 })}
       </g>
@@ -132,8 +140,7 @@ export const CanvasOverlay = ({
           points={points.map((point) => `${point.x},${point.y}`).join(" ")}
           className={lineOverlayClass(curve.elementId)}
           style={selectedElementIdSet.has(curve.elementId) ? selectedLineStyle(curve.elementId) : undefined}
-          data-numeric-reference-candidate={isNumericReferencePickActive ? "true" : undefined}
-          data-line-pick-candidate={isLinePickActive ? "true" : undefined}
+          {...pickCandidateAttributes(curve.elementId)}
         />
         {draftLinePickMarker(curve.elementId, centerOf(points))}
       </g>
@@ -144,8 +151,7 @@ export const CanvasOverlay = ({
           points={points.map((point) => `${point.x},${point.y}`).join(" ")}
           className={lineOverlayClass(arc.elementId)}
           style={selectedElementIdSet.has(arc.elementId) ? selectedLineStyle(arc.elementId) : undefined}
-          data-numeric-reference-candidate={isNumericReferencePickActive ? "true" : undefined}
-          data-line-pick-candidate={isLinePickActive ? "true" : undefined}
+          {...pickCandidateAttributes(arc.elementId)}
         />
         {draftLinePickMarker(arc.elementId, centerOf(points))}
       </g>
@@ -156,8 +162,7 @@ export const CanvasOverlay = ({
           points={points.map((point) => `${point.x},${point.y}`).join(" ")}
           className={lineOverlayClass(line.elementId)}
           style={selectedElementIdSet.has(line.elementId) ? selectedLineStyle(line.elementId) : undefined}
-          data-numeric-reference-candidate={isNumericReferencePickActive ? "true" : undefined}
-          data-line-pick-candidate={isLinePickActive ? "true" : undefined}
+          {...pickCandidateAttributes(line.elementId)}
         />
         {draftLinePickMarker(line.elementId, centerOf(points))}
       </g>

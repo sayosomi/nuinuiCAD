@@ -202,7 +202,8 @@ export const useCanvasOverlayData = ({
           pickSourcePrecedesTarget(
             elements,
             activePointPickTarget.elementId,
-            geometry.elementId
+            geometry.elementId,
+            activePointPickTarget.insertionIndex
           )
       )
       .flatMap((geometry) =>

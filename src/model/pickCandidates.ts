@@ -67,15 +67,20 @@ type PickTargets = {
   activeLinePickTarget: ActiveLinePickTarget | null;
 };
 
-/** A construction may only pick geometry that is available earlier in document order. */
+/** A construction may only pick geometry that is available earlier in document
+ * order. Virtual targets that are not in the document yet (template insertion,
+ * future command-line creation) pass their planned document position as
+ * `targetInsertionIndex`; without it an unknown target has no candidates. */
 export const pickSourcePrecedesTarget = (
   elements: CadElement[],
   targetElementId: ElementId,
-  sourceElementId: ElementId
+  sourceElementId: ElementId,
+  targetInsertionIndex?: number
 ) => {
   const generated = parseForGroupGeneratedElementId(sourceElementId);
   const normalizedSourceId = generated?.templateElementId ?? sourceElementId;
-  const targetIndex = elements.findIndex((element) => element.id === targetElementId);
+  const foundTargetIndex = elements.findIndex((element) => element.id === targetElementId);
+  const targetIndex = foundTargetIndex >= 0 ? foundTargetIndex : targetInsertionIndex ?? -1;
   const sourceIndex = elements.findIndex((element) => element.id === normalizedSourceId);
   return targetIndex >= 0 && sourceIndex >= 0 && sourceIndex < targetIndex;
 };
@@ -118,7 +123,12 @@ const pointCandidates = (
 
   return elements
     .filter((element) =>
-      pickSourcePrecedesTarget(elements, activePointPickTarget.elementId, element.id)
+      pickSourcePrecedesTarget(
+        elements,
+        activePointPickTarget.elementId,
+        element.id,
+        activePointPickTarget.insertionIndex
+      )
     )
     .map((element) => {
       const selectablePoints = selectablePointsForElement(
@@ -173,7 +183,12 @@ const lineCandidates = (
     .filter(
       (element) =>
         isLineLikeElement(element) &&
-        pickSourcePrecedesTarget(elements, activeLinePickTarget.elementId, element.id) &&
+        pickSourcePrecedesTarget(
+          elements,
+          activeLinePickTarget.elementId,
+          element.id,
+          activeLinePickTarget.insertionIndex
+        ) &&
         evaluation.computedGeometry.has(element.id) &&
         (activeLinePickTarget.draftLineIds !== undefined || !selectedLineIds.has(element.id))
     )
@@ -194,7 +209,8 @@ const numericReferenceCandidates = (
       pickSourcePrecedesTarget(
         elements,
         activeNumericReferencePickTarget.elementId,
-        element.id
+        element.id,
+        activeNumericReferencePickTarget.insertionIndex
       )
     )
     .map((element) => {

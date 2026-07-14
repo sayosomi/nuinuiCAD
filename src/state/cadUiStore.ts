@@ -18,6 +18,10 @@ export type MeasurementPickSlot = MeasurementPointSlot | "line";
 export type ActivePointPickTarget = {
   elementId: ElementId;
   parameterKey: ParameterKey;
+  /** Document index the picked reference will be inserted at when `elementId`
+   * is a virtual target that is not in the document yet (template insertion,
+   * future command-line creation). Candidates must precede this index. */
+  insertionIndex?: number;
   measurementSlot?: MeasurementPointSlot;
   nextParameterKey?: ParameterKey;
   pickFlow?: "lineEndpointPair" | "lineAndPoint" | "endpointPair" | "endpointAndPoint";
@@ -26,6 +30,8 @@ export type ActivePointPickTarget = {
 export type ActiveNumericReferencePickTarget = {
   elementId: ElementId;
   parameterKey: ParameterKey;
+  /** See ActivePointPickTarget.insertionIndex. */
+  insertionIndex?: number;
   mode: "replace" | "insert";
   property: NumericMeasurementKey;
   displayedExpression?: string;
@@ -36,6 +42,8 @@ export type ActiveNumericReferencePickTarget = {
 export type ActiveLinePickTarget = {
   elementId: ElementId;
   parameterKey: ParameterKey;
+  /** See ActivePointPickTarget.insertionIndex. */
+  insertionIndex?: number;
   /** Present only while editing a lineReferenceList; changes remain uncommitted until finish. */
   draftLineIds?: ElementId[];
   measurementSlot?: "line";
