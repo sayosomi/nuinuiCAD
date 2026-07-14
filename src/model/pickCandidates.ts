@@ -35,7 +35,7 @@ import type {
 import type { CommandLineSession } from "../commands/commandLineSession";
 import {
   commandLinePickAllowsElement,
-  commandLinePickNormalizationTargetId,
+  commandLinePointPickTargetIds,
   commandLineStepForPickTarget
 } from "../commands/commandLinePickRouting";
 
@@ -126,17 +126,17 @@ const pointCandidates = (
   const commandLineStep = commandLineStepForPickTarget(activePointPickTarget, commandLineSession);
   const isLineEndpointPointPick = commandLineStep?.kind === "endpoint" ||
     targetDefinition?.kind === "lineEndpointReference";
-  const normalizationTargetId = commandLinePickNormalizationTargetId(
-    activePointPickTarget,
-    commandLineSession,
-    commandLinePickParentGroupId,
+  const pointPickTargetIds = commandLinePointPickTargetIds({
+    target: activePointPickTarget,
+    session: commandLineSession,
+    parentGroupId: commandLinePickParentGroupId,
     elements
-  );
+  });
   const elementsById = new Map(elements.map((element) => [element.id, element]));
   const isValidPointCandidate = (anchor: PointAnchor) =>
     isValidPickedPointAnchorForTarget({
       elements,
-      targetElementId: normalizationTargetId,
+      ...pointPickTargetIds,
       anchor,
       allowLineEndpoint: isLineEndpointPointPick
     });

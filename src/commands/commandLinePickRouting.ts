@@ -72,3 +72,34 @@ export const commandLinePickNormalizationTargetId = (
   // without inventing target metadata or a second normalization algorithm.
   return elements?.find((element) => element.parentGroupId === parentGroupId)?.id ?? parentGroupId;
 };
+
+/**
+ * Keep virtual-target identity separate from the concrete element borrowed
+ * solely for forGroup normalization.  Consumers must pass both values to the
+ * shared candidate/acceptance predicate so the borrowed child is not treated
+ * as the target itself.
+ */
+export const commandLinePointPickTargetIds = ({
+  target,
+  session,
+  parentGroupId,
+  elements
+}: {
+  target: PickTargetIdentity;
+  session: CommandLineSession | null | undefined;
+  parentGroupId: ElementId | undefined;
+  elements: CadElement[];
+}) => {
+  const normalizationTargetElementId = commandLinePickNormalizationTargetId(
+    target,
+    session,
+    parentGroupId,
+    elements
+  );
+  return {
+    targetElementId: target.elementId,
+    ...(normalizationTargetElementId === target.elementId
+      ? {}
+      : { normalizationTargetElementId })
+  };
+};

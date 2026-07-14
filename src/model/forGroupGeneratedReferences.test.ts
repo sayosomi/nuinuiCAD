@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { CadElement } from "../types/geometry";
 import {
   generatedElementIdForTargetForGroup,
+  isValidPickedPointAnchorForTarget,
   parseForGroupGeneratedElementId,
   pickedPointAnchorForTargetForGroup
 } from "./forGroupGeneratedReferences";
@@ -90,5 +91,36 @@ describe("forGroupGeneratedReferences", () => {
       })
     ).toEqual({ mode: "reference", pointId: "point-template" });
   });
-});
 
+  it("keeps a virtual target separate from the child borrowed for forGroup normalization", () => {
+    expect(
+      isValidPickedPointAnchorForTarget({
+        elements,
+        targetElementId: "__command-line__",
+        normalizationTargetElementId: "point-template",
+        anchor: { mode: "reference", pointId: "point-template" },
+        allowLineEndpoint: false
+      })
+    ).toBe(true);
+    expect(
+      isValidPickedPointAnchorForTarget({
+        elements,
+        targetElementId: "__command-line__",
+        normalizationTargetElementId: "point-template",
+        anchor: { mode: "reference", pointId: "point-template@loop:1" },
+        allowLineEndpoint: false
+      })
+    ).toBe(true);
+  });
+
+  it("still rejects a normal target's own point anchor", () => {
+    expect(
+      isValidPickedPointAnchorForTarget({
+        elements,
+        targetElementId: "target",
+        anchor: { mode: "reference", pointId: "target" },
+        allowLineEndpoint: false
+      })
+    ).toBe(false);
+  });
+});

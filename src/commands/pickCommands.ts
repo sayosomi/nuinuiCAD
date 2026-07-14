@@ -9,6 +9,7 @@ import {
 } from "../geometry/numericExpressions";
 import {
   generatedElementIdForTargetForGroup,
+  isValidPickedPointAnchorForTarget,
   lineEndpointReferenceForPickedAnchor,
   pickedPointAnchorReferencesTarget,
   pickedPointAnchorForTargetForGroup
@@ -33,6 +34,7 @@ import type { NumericValue } from "../types/geometry";
 import type { CommandContext } from "./commandTypes";
 import {
   commandLinePickNormalizationTargetId,
+  commandLinePointPickTargetIds,
   commandLineStepForPickTarget
 } from "./commandLinePickRouting";
 import {
@@ -688,12 +690,20 @@ export const applyPickedPoint = (context?: Pick<CommandContext, "pickedPointId" 
           useCadUiStore.getState().groupFoldById
         ).parentGroupId
       : undefined;
-    const normalizationTargetId = commandLinePickNormalizationTargetId(
-      activePointPickTarget,
-      commandLineSession,
+    const pointPickTargetIds = commandLinePointPickTargetIds({
+      target: activePointPickTarget,
+      session: commandLineSession,
       parentGroupId,
       elements
-    );
+    });
+    if (!isValidPickedPointAnchorForTarget({
+      elements,
+      ...pointPickTargetIds,
+      anchor,
+      allowLineEndpoint: commandLineStep.kind === "endpoint"
+    })) return;
+    const normalizationTargetId = pointPickTargetIds.normalizationTargetElementId ??
+      pointPickTargetIds.targetElementId;
     const pickedAnchor = pickedPointAnchorForTargetForGroup({
       elements,
       targetElementId: normalizationTargetId,

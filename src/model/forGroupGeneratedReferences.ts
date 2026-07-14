@@ -150,20 +150,35 @@ export const pickedPointAnchorReferencesTarget = ({
 export const isValidPickedPointAnchorForTarget = ({
   elements,
   targetElementId,
+  normalizationTargetElementId,
   anchor,
   allowLineEndpoint
 }: {
   elements: CadElement[];
   targetElementId: ElementId;
+  /**
+   * A real element used only to resolve forGroup ancestry for a virtual
+   * target.  It must never become the target used by self-reference checks.
+   */
+  normalizationTargetElementId?: ElementId;
   anchor: PointAnchor;
   allowLineEndpoint: boolean;
 }) => {
+  const normalizationTargetId = normalizationTargetElementId ?? targetElementId;
   if (allowLineEndpoint) {
-    const endpoint = lineEndpointReferenceForPickedAnchor({ elements, targetElementId, anchor });
+    const endpoint = lineEndpointReferenceForPickedAnchor({
+      elements,
+      targetElementId: normalizationTargetId,
+      anchor
+    });
     return Boolean(endpoint && endpoint.lineId !== targetElementId);
   }
 
-  const normalized = pickedPointAnchorForTargetForGroup({ elements, targetElementId, anchor });
+  const normalized = pickedPointAnchorForTargetForGroup({
+    elements,
+    targetElementId: normalizationTargetId,
+    anchor
+  });
   if (!normalized || normalized.mode === "coordinate") return Boolean(normalized);
   if (normalized.mode === "reference") {
     if (normalized.pointId === targetElementId) return false;

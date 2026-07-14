@@ -117,6 +117,21 @@ const evaluation: EvaluationResult = {
   warnings: []
 };
 
+const group = (id: string): CadElement => ({
+  id,
+  name: id,
+  type: "group",
+  visible: true,
+  enabled: true
+});
+
+const virtualCommandLineSession = (type: "line" | "lineDivisionPoint", insertionIndex: number) =>
+  startSession(creationRecipeForType(type)!, {
+    insertionIndex,
+    revision: 1,
+    elements: []
+  });
+
 describe("pickCandidates", () => {
   it("excludes unnamed sources only for the command-line virtual target", () => {
     const unnamedLine: CadElement = {
@@ -235,6 +250,78 @@ describe("pickCandidates", () => {
       activeNumericReferencePickTarget: null
     });
     expect(lineCandidates.map((candidate) => candidate.elementId)).toEqual(["line", "curve"]);
+  });
+
+  it("keeps the first direct child of a normal planned group in command-line point candidates", () => {
+    const groupedElements: CadElement[] = [
+      group("parent"),
+      {
+        id: "first-point", name: "先頭点", type: "freePoint", visible: true, enabled: true,
+        parentGroupId: "parent", x: 0, y: 0
+      }
+    ];
+    const groupedEvaluation: EvaluationResult = {
+      ...evaluation,
+      computedGeometry: new Map([["first-point", point("first-point", 0, 0)]])
+    };
+    const candidates = pickCandidates(groupedElements, groupedEvaluation, {
+      activePointPickTarget: {
+        elementId: "__command-line__",
+        parameterKey: "startPoint",
+        insertionIndex: groupedElements.length
+      },
+      activeLinePickTarget: null,
+      activeNumericReferencePickTarget: null,
+      commandLineSession: virtualCommandLineSession("line", groupedElements.length),
+      commandLinePickParentGroupId: "parent"
+    });
+
+    expect(candidates).toContainEqual(expect.objectContaining({ elementId: "first-point" }));
+  });
+
+  it("keeps the first direct child of a normal planned group in endpoint candidates", () => {
+    const groupedElements: CadElement[] = [
+      group("parent"),
+      {
+        id: "first-line", name: "先頭線", type: "line", visible: true, enabled: true,
+        parentGroupId: "parent",
+        startPoint: { mode: "coordinate", x: 0, y: 0 },
+        endPoint: { mode: "coordinate", x: 10, y: 0 }
+      }
+    ];
+    const groupedEvaluation: EvaluationResult = {
+      ...evaluation,
+      computedGeometry: new Map([[
+        "first-line",
+        {
+          kind: "line",
+          elementId: "first-line",
+          name: "先頭線",
+          startPointId: null,
+          endPointId: null,
+          start: point("first-line:start", 0, 0),
+          end: point("first-line:end", 10, 0),
+          length: 10,
+          startAngleDeg: 0,
+          endAngleDeg: 180,
+          startTangentAngleDeg: 0,
+          endTangentAngleDeg: 180
+        }
+      ]])
+    };
+    const candidates = pickCandidates(groupedElements, groupedEvaluation, {
+      activePointPickTarget: {
+        elementId: "__command-line__",
+        parameterKey: "endpoint",
+        insertionIndex: groupedElements.length
+      },
+      activeLinePickTarget: null,
+      activeNumericReferencePickTarget: null,
+      commandLineSession: virtualCommandLineSession("lineDivisionPoint", groupedElements.length),
+      commandLinePickParentGroupId: "parent"
+    });
+
+    expect(candidates).toContainEqual(expect.objectContaining({ elementId: "first-line" }));
   });
 
   it("offers Bezier handle numeric references only for Bezier geometry", () => {

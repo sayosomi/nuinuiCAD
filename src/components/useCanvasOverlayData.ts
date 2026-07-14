@@ -29,7 +29,7 @@ import type { ActivePointPickTarget } from "../state/cadUiStore";
 import type { CommandLineSession } from "../commands/commandLineSession";
 import {
   commandLinePickAllowsElement,
-  commandLinePickNormalizationTargetId,
+  commandLinePointPickTargetIds,
   commandLineStepForPickTarget
 } from "../commands/commandLinePickRouting";
 import {
@@ -120,13 +120,13 @@ export const useCanvasOverlayData = ({
   const commandLineStep = commandLineStepForPickTarget(activePointPickTarget, commandLineSession);
   const isLineEndpointPointPick = commandLineStep?.kind === "endpoint" ||
     activePointPickTargetDefinition?.kind === "lineEndpointReference";
-  const normalizationTargetId = activePointPickTarget
-    ? commandLinePickNormalizationTargetId(
-        activePointPickTarget,
-        commandLineSession,
-        commandLinePickParentGroupId,
+  const pointPickTargetIds = activePointPickTarget
+    ? commandLinePointPickTargetIds({
+        target: activePointPickTarget,
+        session: commandLineSession,
+        parentGroupId: commandLinePickParentGroupId,
         elements
-      )
+      })
     : null;
   const overlayLines = useMemo(
     () =>
@@ -237,7 +237,7 @@ export const useCanvasOverlayData = ({
             !activePointPickTarget ||
             isValidPickedPointAnchorForTarget({
               elements,
-              targetElementId: normalizationTargetId ?? activePointPickTarget.elementId,
+              ...(pointPickTargetIds ?? { targetElementId: activePointPickTarget.elementId }),
               anchor: candidate.anchor,
               allowLineEndpoint: isLineEndpointPointPick
             })
@@ -255,7 +255,7 @@ export const useCanvasOverlayData = ({
     elements,
     geometries,
     isLineEndpointPointPick,
-    normalizationTargetId,
+    pointPickTargetIds,
     viewportSize,
     visibleElementIds
   ]);

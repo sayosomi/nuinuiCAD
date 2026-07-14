@@ -77,6 +77,38 @@ describe("CommandLineBar", () => {
     expect(useCadUiStore.getState().commandLineSession?.args.endPoint).toEqual({ mode: "reference", pointId: pointA.id });
   });
 
+  it("keeps a planned group's first child in the shared name candidates and pick cursor", () => {
+    useCadDocumentStore.setState({
+      elements: [
+        { id: "parent", name: "グループ", type: "group", visible: true, enabled: true },
+        {
+          id: "first-point", name: "先頭点", type: "freePoint", visible: true, enabled: true,
+          parentGroupId: "parent", x: 0, y: 0
+        },
+        {
+          id: "inside", name: "内側", type: "offsetPoint", visible: true, enabled: true,
+          parentGroupId: "parent", fromPointId: "first-point", dx: 10, dy: 0
+        }
+      ],
+      evaluationLimitIndex: 3
+    });
+    useCadUiStore.getState().setGroupFold("parent", { expanded: true });
+    render(<CommandLineBar />);
+
+    act(() => { startCommandLineCreation("line", { currentCursorElementId: () => "inside" }); });
+    const input = screen.getByRole<HTMLInputElement>("textbox");
+    const form = input.closest("form")!;
+    expect(screen.getByRole("listbox", { name: "参照候補" })).toHaveTextContent("先頭点");
+
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    expect(useCadUiStore.getState().activePickCursor).toMatchObject({ elementId: "first-point" });
+    fireEvent.submit(form);
+    expect(useCadUiStore.getState().commandLineSession?.args.startPoint).toEqual({
+      mode: "reference",
+      pointId: "first-point"
+    });
+  });
+
   it("confirms from the real completed-bar Enter path and hands focus back through its command context", () => {
     const focusElementList = vi.fn();
     vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
