@@ -15,7 +15,10 @@ import type {
   PointAnchor
 } from "../types/geometry";
 
-/** A single prompt in a declarative CAD element creation recipe. */
+/**
+ * A single prompt in a declarative CAD element creation recipe. Prompts default
+ * to parameter-definition labels, while specialized recipes may override wording.
+ */
 export type CreationStep =
   | { kind: "point"; key: ParameterKey; prompt: string }
   | { kind: "endpoint"; key: ParameterKey; prompt: string }

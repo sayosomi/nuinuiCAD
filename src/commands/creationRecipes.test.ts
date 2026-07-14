@@ -3,6 +3,7 @@ import { createCadElement } from "../model/elementFactory";
 import { referenceAnchor } from "../model/pointAnchors";
 import { getParameterDefinitions } from "../parameters/parameterDefinitions";
 import { compileDslToElements } from "../dsl/dslCompiler";
+import { normalizeForComparison } from "../dsl/dslDocumentTestUtils";
 import { parseDsl } from "../dsl/dslParser";
 import { documentDslRefs, serializeElementStatement, serializeElementsToDsl } from "../dsl/dslSerializer";
 import { elementTypeLabels, type CadElementType } from "../types/geometry";
@@ -90,7 +91,7 @@ describe("creationRecipes", () => {
         expect(step.kind, `${recipe.type}.${step.key} has the wrong step kind`).toBe(
           stepKindForParameterKind[definition!.kind as keyof typeof stepKindForParameterKind]
         );
-        expect(step.prompt, `${recipe.type}.${step.key} must use the default prompt`).toBe(definition!.label);
+        expect(step.prompt.trim(), `${recipe.type}.${step.key} must have a prompt`).not.toBe("");
       }
     }
   });
@@ -130,9 +131,9 @@ describe("creationRecipes", () => {
         expect(compiled.diagnostics, `${recipe.type} named=${includeName}`).toEqual([]);
         const reloaded = compiled.elements.at(-1);
         expect(reloaded).toBeDefined();
-        const expected: Partial<typeof element> = { ...element };
-        delete expected.id;
-        expect(reloaded).toMatchObject(expected);
+        expect(normalizeForComparison([...context.elements, reloaded!])).toEqual(
+          normalizeForComparison([...context.elements, element])
+        );
       }
     }
   });
