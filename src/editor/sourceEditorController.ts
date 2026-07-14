@@ -28,6 +28,7 @@ import type { ElementId, EvaluationResult } from "../types/geometry";
 import { useCadDocumentStore, type CadDocumentState } from "../state/cadDocumentStore";
 import { useCadUiStore, type CadUiState } from "../state/cadUiStore";
 import { dslCmLanguageExtension } from "./cmLanguage";
+import { dslAutocompleteExtension } from "./cmAutocomplete";
 import { focusSourceEditorLineLens, reconfigureSourceEditorLineLensKeymap, sourceEditorLineLens } from "./sourceEditorLineLens";
 import {
   captureSourceEditorViewport,
@@ -176,6 +177,11 @@ export class SourceEditorController implements SourceEditorHandle {
           highlightActiveLine(),
           highlightActiveLineGutter(),
           dslCmLanguageExtension,
+          dslAutocompleteExtension({
+            elements: () => this.store.getState().elements,
+            statementRanges: () => this.statementRanges,
+            isComposing: () => this.protocol.composing
+          }),
           sourceEditorLineLens({
             sourceKeymap: () => this.lineLensKeymap(),
             onFocusChange: (focused) => {

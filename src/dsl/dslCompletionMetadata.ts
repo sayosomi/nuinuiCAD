@@ -1,0 +1,85 @@
+import { createCadElement } from "../model/elementFactory";
+import { getParameterDefinitions, type ParameterDefinition } from "../parameters/parameterDefinitions";
+import { setParameterValue } from "../parameters/parameterAccess";
+import type { CadElement, CadElementType, LineEndpointReference } from "../types/geometry";
+import { resolveParameterValueSpan } from "./dslParameterSpans";
+import { documentDslRefs, serializeElementStatement } from "./dslSerializer";
+import { isElementDslStatement } from "./dslParser";
+import type { DslStatement } from "./dslTypes";
+
+export type DslCompletionParameter = {
+  definition: ParameterDefinition;
+  source: "name" | "payload" | "attr";
+  key: string;
+};
+
+export type DslCompletionElementMetadata = {
+  parameters: readonly DslCompletionParameter[];
+  attributes: readonly DslCompletionParameter[];
+};
+
+const cache = new Map<CadElementType, DslCompletionElementMetadata>();
+
+const sampleValue = (definition: ParameterDefinition): unknown => {
+  switch (definition.kind) {
+    case "boolean":
+      return definition.key === "visible" || definition.key === "enabled" ? false : true;
+    case "number":
+      return 1;
+    case "reference":
+      return "Reference";
+    case "lineEndpointReference":
+      return { lineId: "ReferenceLine", endpointKey: "start" } satisfies LineEndpointReference;
+    case "lineReference":
+      return "ReferenceLine";
+    case "lineReferenceList":
+      return ["ReferenceLine"];
+    case "color":
+      return "accent";
+    case "choice":
+      return definition.choiceOptions?.at(-1) ?? "";
+    case "text":
+      return definition.key === "name" ? undefined : "sample";
+  }
+};
+
+const populatedTemplate = (type: CadElementType) => {
+  let element = createCadElement(type, [], { createId: () => `completion-${type}` });
+  for (const definition of getParameterDefinitions(element)) {
+    const value = sampleValue(definition);
+    if (value !== undefined) element = setParameterValue(element, definition.key, value);
+  }
+  return element;
+};
+
+const metadataFor = (element: CadElement): DslCompletionElementMetadata => {
+  const definitions = getParameterDefinitions(element);
+  const variants = definitions
+    .filter((definition) => definition.kind === "choice" && (definition.choiceOptions?.length ?? 0) > 1)
+    .flatMap((definition) => definition.choiceOptions!.map((value) => setParameterValue(element, definition.key, value)));
+  const samples = [element, ...variants];
+  const parameters = new Map<string, DslCompletionParameter>();
+  for (const sample of samples) {
+    const line = serializeElementStatement(sample, documentDslRefs([sample]));
+    for (const definition of definitions) {
+      const span = resolveParameterValueSpan(line, sample, definition.key, { committedLineText: line });
+      if (!span) continue;
+      parameters.set(`${definition.key}:${span.source}:${span.key}`, { definition, source: span.source, key: span.key });
+    }
+  }
+  const all = [...parameters.values()];
+  return { parameters: all, attributes: all.filter((parameter) => parameter.source === "attr") };
+};
+
+export const dslCompletionMetadataForType = (type: CadElementType): DslCompletionElementMetadata => {
+  const existing = cache.get(type);
+  if (existing) return existing;
+  const metadata = metadataFor(populatedTemplate(type));
+  cache.set(type, metadata);
+  return metadata;
+};
+
+export const dslStatementElementType = (statement: DslStatement): CadElementType | null => {
+  if (!isElementDslStatement(statement)) return null;
+  return statement.kind === "element" ? statement.type : statement.kind as CadElementType;
+};

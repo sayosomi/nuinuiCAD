@@ -75,7 +75,7 @@ const groupPathForElement = (
 };
 
 const namespaceChainForElement = (
-  element: CadElement | undefined,
+  element: Pick<CadElement, "parentGroupId"> | undefined,
   elementsById: Map<ElementId, CadElement>
 ) => {
   const chain: Array<ElementId | undefined> = [];
@@ -214,7 +214,7 @@ export const resolveElementNamePath = ({
 }: {
   path: ElementNamePath;
   elements: CadElement[];
-  currentElement?: CadElement;
+  currentElement?: Pick<CadElement, "parentGroupId">;
   context?: ElementNameContext;
 }): ElementNameResolution => {
   const parts = path.parts.map((part) => part.trim()).filter(Boolean);
@@ -251,7 +251,7 @@ export const resolveElementName = ({
 }: {
   token: string;
   elements: CadElement[];
-  currentElement?: CadElement;
+  currentElement?: Pick<CadElement, "parentGroupId">;
   context?: ElementNameContext;
 }): ElementNameResolution => {
   const trimmedToken = token.trim();
@@ -293,7 +293,7 @@ export const elementNameTokensForContext = ({
   context
 }: {
   elements: CadElement[];
-  currentElement?: CadElement;
+  currentElement?: Pick<CadElement, "parentGroupId">;
   context?: ElementNameContext;
 }) => {
   const contextValue = context ?? createElementNameContext(elements);

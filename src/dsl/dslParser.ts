@@ -39,6 +39,49 @@ const elementTypes = new Set<CadElementType>([
   "text"
 ]);
 
+/**
+ * Statement-leading spellings accepted by this parser. Keeping these constants
+ * next to the dispatch below makes the parser, rather than an editor-side
+ * keyword list, the source of truth for completion.
+ */
+export const dslStatementKeywords = {
+  atStop: "@stop",
+  version: "nui",
+  for: "for",
+  place: "place",
+  variable: "var",
+  layoutVariable: "layoutVar",
+  role: "role",
+  view: "view",
+  profile: "profile",
+  activeView: "activeView",
+  activeProfile: "activeProfile",
+  activePrintLayout: "activePrintLayout",
+  printLayout: "printLayout",
+  color: "color",
+  conditional: "if",
+  point: "point",
+  line: "line",
+  curve: "curve",
+  arc: "arc",
+  text: "text",
+  group: "group",
+  genericElement: "element"
+} as const;
+
+export const dslStatementKeywordCompletions = Object.values(dslStatementKeywords);
+
+const nameRequiredStatementKeywords = new Set<string>([
+  dslStatementKeywords.role,
+  dslStatementKeywords.view,
+  dslStatementKeywords.profile,
+  dslStatementKeywords.activeView,
+  dslStatementKeywords.activeProfile,
+  dslStatementKeywords.activePrintLayout,
+  dslStatementKeywords.color,
+  dslStatementKeywords.layoutVariable
+]);
+
 const nonElementKinds = new Set<DslStatement["kind"]>([
   "role",
   "view",
@@ -197,14 +240,14 @@ const parseLine = (rawLine: string, line: number): ParsedLine => {
 
   const keyword = body[0];
 
-  if (keyword.text === "@stop") {
+  if (keyword.text === dslStatementKeywords.atStop) {
     if (opensBlock || body.length > 1) {
       return { diagnostics: [diagnostic(line, "@stop は単独の行に書いてください。")] };
     }
     return { statement: { ...statementBase(line, keyword, null, false), kind: "atStop" }, diagnostics: [] };
   }
 
-  if (keyword.text === "nui") {
+  if (keyword.text === dslStatementKeywords.version) {
     const rest = body.slice(1);
     const base = statementBase(line, keyword, null, opensBlock);
     if (rest.length > 0) {
@@ -216,7 +259,7 @@ const parseLine = (rawLine: string, line: number): ParsedLine => {
     };
   }
 
-  if (keyword.text === "for") {
+  if (keyword.text === dslStatementKeywords.for) {
     const positional: DslTerm[] = [];
     let restIndex = 1;
     while (restIndex < body.length && positional.length < 2) {
@@ -244,7 +287,7 @@ const parseLine = (rawLine: string, line: number): ParsedLine => {
     };
   }
 
-  if (keyword.text === "place") {
+  if (keyword.text === dslStatementKeywords.place) {
     const groupTerm = body[1];
     if (!groupTerm || groupTerm.text === "=" || isAttrTerm(groupTerm)) {
       return { diagnostics: [diagnostic(line, "place には配置するグループの参照が必要です。")] };
@@ -263,11 +306,11 @@ const parseLine = (rawLine: string, line: number): ParsedLine => {
   const rest = nameTerm ? body.slice(2) : body.slice(1);
   const base = statementBase(line, keyword, nameTerm, opensBlock);
 
-  if (!nameTerm && ["role", "view", "profile", "activeView", "activeProfile", "activePrintLayout", "color", "layoutVar"].includes(keyword.text)) {
+  if (!nameTerm && nameRequiredStatementKeywords.has(keyword.text)) {
     return { diagnostics: [diagnostic(line, "文はキーワードと名前から始めてください。")] };
   }
 
-  if (keyword.text === "var") {
+  if (keyword.text === dslStatementKeywords.variable) {
     const parsed = expressionAfterEquals(rest, code);
     if (!parsed) {
       return { diagnostics: [diagnostic(line, "変数には `=` の後に式が必要です。")] };
@@ -279,7 +322,7 @@ const parseLine = (rawLine: string, line: number): ParsedLine => {
     };
   }
 
-  if (keyword.text === "layoutVar") {
+  if (keyword.text === dslStatementKeywords.layoutVariable) {
     const equalsIndex = rest.findIndex((term) => term.text === "=");
     const after = equalsIndex >= 0 ? rest.slice(equalsIndex + 1) : [];
     if (after.length === 0) {
@@ -293,27 +336,27 @@ const parseLine = (rawLine: string, line: number): ParsedLine => {
     };
   }
 
-  if (keyword.text === "role") {
+  if (keyword.text === dslStatementKeywords.role) {
     return { statement: { ...base, kind: "role", attrs: attrsFromTerms(rest) }, diagnostics: [] };
   }
 
-  if (keyword.text === "view" || keyword.text === "profile") {
+  if (keyword.text === dslStatementKeywords.view || keyword.text === dslStatementKeywords.profile) {
     return { statement: { ...base, kind: "view", attrs: attrsFromTerms(rest) }, diagnostics: [] };
   }
 
-  if (keyword.text === "activeView" || keyword.text === "activeProfile") {
+  if (keyword.text === dslStatementKeywords.activeView || keyword.text === dslStatementKeywords.activeProfile) {
     return { statement: { ...base, kind: "activeView", attrs: attrsFromTerms(rest) }, diagnostics: [] };
   }
 
-  if (keyword.text === "activePrintLayout") {
+  if (keyword.text === dslStatementKeywords.activePrintLayout) {
     return { statement: { ...base, kind: "activePrintLayout", attrs: attrsFromTerms(rest) }, diagnostics: [] };
   }
 
-  if (keyword.text === "printLayout") {
+  if (keyword.text === dslStatementKeywords.printLayout) {
     return { statement: { ...base, kind: "printLayout", attrs: attrsFromTerms(rest) }, diagnostics: [] };
   }
 
-  if (keyword.text === "color") {
+  if (keyword.text === dslStatementKeywords.color) {
     let hexTerm: DslTerm | null = null;
     let unknownTerm: DslTerm | null = null;
     let isDefault = false;
@@ -347,7 +390,7 @@ const parseLine = (rawLine: string, line: number): ParsedLine => {
     };
   }
 
-  if (keyword.text === "if") {
+  if (keyword.text === dslStatementKeywords.conditional) {
     if (!opensBlock) {
       return { diagnostics: [diagnostic(line, "if にはブロックが必要です(行末に「{」)。")] };
     }
@@ -358,7 +401,7 @@ const parseLine = (rawLine: string, line: number): ParsedLine => {
     return { statement: elementStatement(base, "conditionalGroup", attrs), diagnostics: [] };
   }
 
-  if (keyword.text === "point") {
+  if (keyword.text === dslStatementKeywords.point) {
     const equalsIndex = rest.findIndex((term) => term.text === "=");
     const right = equalsIndex >= 0 ? rest.slice(equalsIndex + 1) : rest;
     const attrs = attrsFromTerms(right);
@@ -422,7 +465,7 @@ const parseLine = (rawLine: string, line: number): ParsedLine => {
     return { diagnostics: [diagnostic(line, "点は `(x, y)`, `offset 基準点`, `polar 基準点` のいずれかで指定してください。")] };
   }
 
-  if (keyword.text === "line") {
+  if (keyword.text === dslStatementKeywords.line) {
     const attrs = attrsFromTerms(rest);
     const equalsIndex = rest.findIndex((term) => term.text === "=");
     const right = equalsIndex >= 0 ? rest.slice(equalsIndex + 1) : rest;
@@ -501,7 +544,7 @@ const parseLine = (rawLine: string, line: number): ParsedLine => {
     return { diagnostics: [diagnostic(line, "線は `line L = A -> B` または `line L = from A angle=... length=...` で指定してください。")] };
   }
 
-  if (keyword.text === "curve") {
+  if (keyword.text === dslStatementKeywords.curve) {
     const attrs = attrsFromTerms(rest);
     const equalsIndex = rest.findIndex((term) => term.text === "=");
     const right = equalsIndex >= 0 ? rest.slice(equalsIndex + 1) : rest;
@@ -519,7 +562,7 @@ const parseLine = (rawLine: string, line: number): ParsedLine => {
     return { diagnostics: [diagnostic(line, "曲線は `curve C = A -> B ...` で指定してください。")] };
   }
 
-  if (keyword.text === "arc") {
+  if (keyword.text === dslStatementKeywords.arc) {
     const attrs = attrsFromTerms(rest);
     const equalsIndex = rest.findIndex((term) => term.text === "=");
     const right = equalsIndex >= 0 ? rest.slice(equalsIndex + 1) : rest;
@@ -551,7 +594,7 @@ const parseLine = (rawLine: string, line: number): ParsedLine => {
     return { statement: { ...base, kind: "arcLine", center: centerAttr.value, attrs }, diagnostics: [] };
   }
 
-  if (keyword.text === "text") {
+  if (keyword.text === dslStatementKeywords.text) {
     const equalsIndex = rest.findIndex((term) => term.text === "=");
     const literal = equalsIndex >= 0 ? rest[equalsIndex + 1] : undefined;
     if (!literal || (literal.text[0] !== "\"" && literal.text[0] !== "'")) {
@@ -569,11 +612,11 @@ const parseLine = (rawLine: string, line: number): ParsedLine => {
     };
   }
 
-  if (keyword.text === "group") {
+  if (keyword.text === dslStatementKeywords.group) {
     return { statement: { ...base, kind: "group", attrs: attrsFromTerms(rest) }, diagnostics: [] };
   }
 
-  if (keyword.text === "element") {
+  if (keyword.text === dslStatementKeywords.genericElement) {
     const attrs = attrsFromTerms(rest);
     const type = attrValue(attrs, "type");
     const valid = Boolean(type && elementTypes.has(type as CadElementType));
@@ -696,3 +739,32 @@ export const parseDsl = (source: string): ParseDslResult => {
   }
   return { statements, diagnostics };
 };
+
+/**
+ * Returns the parser-owned lexical group scope immediately before `line`.
+ * Completion uses this against the live editor buffer, including blank lines,
+ * instead of projecting scope from a previous compiled document.
+ */
+export const dslScopeBeforeParsedLine = (parsed: ParseDslResult, line: number) => {
+  const stack: BlockFrame[] = [];
+  for (const [statementIndex, statement] of parsed.statements.entries()) {
+    if (statement.line >= line) break;
+    if (statement.kind === "blockElse") {
+      const top = stack.at(-1);
+      if (top?.kind === "conditionalGroup" && top.branch === "then") top.branch = "else";
+      continue;
+    }
+    if (statement.kind === "blockEnd") {
+      stack.pop();
+      continue;
+    }
+    if (!statement.opensBlock) continue;
+    const kind = blockFrameKind(statement);
+    if (kind) stack.push({ statementIndex, kind, branch: "then", line: statement.line });
+  }
+  const top = stack.at(-1);
+  return top ? { statementIndex: top.statementIndex, branch: top.branch } : null;
+};
+
+export const dslScopeBeforeLine = (source: string, line: number) =>
+  dslScopeBeforeParsedLine(parseDsl(source), line);
