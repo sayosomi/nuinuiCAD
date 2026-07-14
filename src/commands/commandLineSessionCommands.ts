@@ -9,15 +9,20 @@ import type { CadElementType } from "../types/geometry";
 import { sourceEditSession } from "../editor/sourceEditSession";
 import { isCommandLineInputComposing } from "./commandLineInputComposition";
 import {
+  beginStepEdit,
+  cancelStepEdit,
+  commitStepEdit,
   type CommandLineSession,
   currentStep,
   fillCurrentStep,
   insertionIndexForCommandLineSession,
+  isEditingCommandLineStep,
   retreatStep,
   sessionCanConfirm,
   sessionIsStale,
   skipCurrentStep,
-  startSession
+  startSession,
+  withCommandLineSessionError
 } from "./commandLineSession";
 import {
   creationRecipeForType,
@@ -32,6 +37,7 @@ import type { CommandContext } from "./commandTypes";
 const compositionError = "日本語入力の確定中はコマンドを実行できません。入力を確定してから再操作してください。";
 const staleError = "ドキュメントが変更されたため、コマンドライン作成をキャンセルしました。もう一度開始してください。";
 const commitError = "コマンドライン作成を文書へ反映できませんでした。もう一度開始してください。";
+const editValidationError = "編集値をプレビューできません。値または参照を確認してください。";
 
 const commandLineCompositionIsActive = () =>
   sourceEditSession.isComposing() || isCommandLineInputComposing();
@@ -83,10 +89,13 @@ export const syncCommandLinePickTarget = (session = useCadUiStore.getState().com
     return;
   }
   if (step?.kind === "lineList") {
+    const draftLineIds = isEditingCommandLineStep(session!) && Array.isArray(session!.editingDraft)
+      ? [...session!.editingDraft]
+      : [];
     useCadUiStore.setState({
       activePointPickTarget: null,
       activeNumericReferencePickTarget: null,
-      activeLinePickTarget: target ? { ...target, draftLineIds: [] } : null,
+      activeLinePickTarget: target ? { ...target, draftLineIds } : null,
       activePickCursor: null
     });
     return;
@@ -186,11 +195,55 @@ const updateSession = (updater: (session: CommandLineSession) => CommandLineSess
 };
 
 /**
+ * Validates an edit draft through the same ghost path as normal creation
+ * before copying it into confirmed args. A rejected draft remains isolated in
+ * the session so the user can correct it or abandon the edit safely.
+ */
+const confirmEditingDraft = (draftSession: CommandLineSession) => {
+  const ui = useCadUiStore.getState();
+  ui.setCommandLineSession(draftSession);
+  syncCommandLinePickTarget(draftSession);
+  if (!syncCommandLineGhostPreview(draftSession)) {
+    ui.setCommandLineSession(withCommandLineSessionError(draftSession, editValidationError));
+    return false;
+  }
+  setSessionAndSyncPickTarget(commitStepEdit(draftSession));
+  return true;
+};
+
+/**
  * The sole session-argument fill path. Phase 4f will attach partial preview
  * updates here, after the value has been accepted but before final commit.
  */
-export const fillCommandLineCurrentStep = (value: Parameters<typeof fillCurrentStep>[1]) =>
-  updateSession((session) => fillCurrentStep(session, value));
+export const fillCommandLineCurrentStep = (value: Parameters<typeof fillCurrentStep>[1]) => {
+  const session = useCadUiStore.getState().commandLineSession;
+  if (!session || cancelStaleCommandLineSession()) return false;
+  const next = fillCurrentStep(session, value);
+  if (next === session) return false;
+  return isEditingCommandLineStep(session)
+    ? confirmEditingDraft(next)
+    : (setSessionAndSyncPickTarget(next), true);
+};
+
+/** Opens one completed recipe row for isolated revision. */
+export const startCommandLineStepEdit = (stepIndex: number) => {
+  const session = useCadUiStore.getState().commandLineSession;
+  if (!session || cancelStaleCommandLineSession()) return false;
+  const next = beginStepEdit(session, stepIndex);
+  if (next === session) return false;
+  setSessionAndSyncPickTarget(next);
+  return true;
+};
+
+/** Drops the isolated draft and restores the completed-session summary. */
+export const cancelCommandLineStepEdit = () => {
+  const session = useCadUiStore.getState().commandLineSession;
+  if (!session || cancelStaleCommandLineSession()) return false;
+  const next = cancelStepEdit(session);
+  if (next === session) return false;
+  setSessionAndSyncPickTarget(next);
+  return true;
+};
 
 /** Starts a normal shared numeric-reference pick for the current number prompt. */
 export const startCommandLineNumericReferencePick = () => {
@@ -227,10 +280,7 @@ export const submitCommandLineInput = (input: string, context?: CommandContext) 
   }
   if (step.kind !== "number") return false;
   if (input === "") {
-    const skipped = skipCurrentStep(session);
-    if (skipped === session) return false;
-    setSessionAndSyncPickTarget(skipped);
-    return true;
+    return skipCommandLineStep();
   }
   return fillCommandLineCurrentStep(makeNumericExpression(input));
 };
@@ -241,6 +291,7 @@ export const skipCommandLineStep = () => {
   if (!session || cancelStaleCommandLineSession()) return false;
   const next = skipCurrentStep(session);
   if (next === session) return false;
+  if (isEditingCommandLineStep(session)) return confirmEditingDraft(next);
   setSessionAndSyncPickTarget(next);
   return true;
 };

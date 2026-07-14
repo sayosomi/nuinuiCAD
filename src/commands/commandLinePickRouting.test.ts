@@ -12,10 +12,13 @@ import {
   selectPickCandidateByOffset
 } from "./pickCommands";
 import {
+  cancelCommandLineStepEdit,
   confirmCommandLineSession,
   skipCommandLineStep,
   startCommandLineCreation,
-  startCommandLineNumericReferencePick
+  startCommandLineStepEdit,
+  startCommandLineNumericReferencePick,
+  submitCommandLineInput
 } from "./commandLineSessionCommands";
 import { COMMAND_LINE_PICK_TARGET_ID } from "./commandLinePickRouting";
 
@@ -114,6 +117,79 @@ describe("command-line pick routing", () => {
     expect(useCadUiStore.getState().activePickCursor).toBeNull();
     expect(useCadDocumentStore.getState().sourceText).toBe(beforeText);
     expect(useCadDocumentStore.getState().past).toHaveLength(beforePast);
+  });
+
+  it("keeps completed progress isolated while every pick route edits a step", () => {
+    const pointA = byName("A");
+    const pointB = byName("B");
+    const line = byName("AB");
+
+    expect(startCommandLineCreation("line")).toBe(true);
+    applyPickedPoint({ pickedPointAnchor: referenceAnchor(pointA.id) });
+    applyPickedPoint({ pickedPointAnchor: referenceAnchor(pointB.id) });
+    expect(skipCommandLineStep()).toBe(true);
+    const completedLine = useCadUiStore.getState().commandLineSession!;
+
+    expect(startCommandLineStepEdit(0)).toBe(true);
+    selectPickCandidateByOffset(1);
+    applySelectedPickCandidate();
+    expect(useCadUiStore.getState().commandLineSession).toMatchObject({
+      currentStepIndex: completedLine.currentStepIndex,
+      editingStepIndex: null,
+      args: { endPoint: referenceAnchor(pointB.id) }
+    });
+    expect(startCommandLineStepEdit(1)).toBe(true);
+    applyPickedPoint({ pickedPointAnchor: referenceAnchor(pointB.id) });
+    expect(useCadUiStore.getState().commandLineSession).toMatchObject({
+      currentStepIndex: completedLine.currentStepIndex,
+      editingStepIndex: null,
+      args: { startPoint: referenceAnchor(pointA.id), endPoint: referenceAnchor(pointB.id) }
+    });
+
+    expect(startCommandLineCreation("lineDivisionPoint")).toBe(true);
+    applyPickedPoint({ pickedPointAnchor: derivedAnchor(line.id, "start") });
+    expect(submitCommandLineInput("0.5")).toBe(true);
+    expect(skipCommandLineStep()).toBe(true);
+    const completedDivision = useCadUiStore.getState().commandLineSession!;
+    expect(startCommandLineStepEdit(1)).toBe(true);
+    expect(startCommandLineNumericReferencePick()).toBe(true);
+    applyPickedNumericReference({ numericReferenceExpression: `${line.id}.length` });
+    expect(useCadUiStore.getState().commandLineSession).toMatchObject({
+      currentStepIndex: completedDivision.currentStepIndex,
+      editingStepIndex: null,
+      args: {
+        endpoint: { lineId: line.id, endpointKey: "start" },
+        ratio: { kind: "expression", expression: `${line.id}.length` }
+      }
+    });
+    expect(startCommandLineStepEdit(1)).toBe(true);
+    expect(skipCommandLineStep()).toBe(true);
+    expect(useCadUiStore.getState().commandLineSession).toMatchObject({
+      currentStepIndex: completedDivision.currentStepIndex,
+      editingStepIndex: null,
+      args: { endpoint: { lineId: line.id, endpointKey: "start" }, ratio: 1 }
+    });
+
+    expect(startCommandLineCreation("offsetLine")).toBe(true);
+    applyPickedLine({ pickedLineId: line.id });
+    finishLinePick();
+    expect(submitCommandLineInput("5")).toBe(true);
+    expect(skipCommandLineStep()).toBe(true);
+    const completedOffset = useCadUiStore.getState().commandLineSession!;
+    expect(startCommandLineStepEdit(0)).toBe(true);
+    expect(useCadUiStore.getState().commandLineSession?.editingDraft).not.toBe(
+      completedOffset.args.baseLineIds
+    );
+    expect(useCadUiStore.getState().activeLinePickTarget?.draftLineIds).toEqual([line.id]);
+    applyPickedLine({ pickedLineId: line.id });
+    expect(useCadUiStore.getState().activeLinePickTarget?.draftLineIds).toEqual([]);
+    expect(useCadUiStore.getState().commandLineSession?.args.baseLineIds).toEqual([line.id]);
+    expect(cancelCommandLineStepEdit()).toBe(true);
+    expect(useCadUiStore.getState().commandLineSession).toMatchObject({
+      currentStepIndex: completedOffset.currentStepIndex,
+      editingStepIndex: null,
+      args: { baseLineIds: [line.id] }
+    });
   });
 
   it("normalizes generated forGroup references with the planned parent group and no target metadata", () => {

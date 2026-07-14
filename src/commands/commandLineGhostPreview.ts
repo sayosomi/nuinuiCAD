@@ -10,7 +10,7 @@ import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
 import type { CadElement } from "../types/geometry";
 import { emitCreationRecipe } from "./creationRecipes";
-import type { CommandLineSession } from "./commandLineSession";
+import { effectiveCommandLineArgs, type CommandLineSession } from "./commandLineSession";
 
 const hasOwn = (value: object, key: string) => Object.prototype.hasOwnProperty.call(value, key);
 
@@ -39,7 +39,7 @@ export const commandLineGhostPreview = ({
     groupFoldById
   );
   const emitted = applyCreationPlacement(
-    emitCreationRecipe(session.recipe, session.args, {
+    emitCreationRecipe(session.recipe, effectiveCommandLineArgs(session), {
       elements,
       referenceElements: placement.referenceElements
     }),
@@ -48,7 +48,7 @@ export const commandLineGhostPreview = ({
 
   const hasMissingRequiredInput = session.recipe.steps.some((step) => {
     if (step.kind === "name") return false;
-    if (hasOwn(session.args, step.key)) return false;
+    if (hasOwn(effectiveCommandLineArgs(session), step.key)) return false;
     // A recipe default becomes usable only after skipCurrentStep writes it to
     // args. Never substitute the factory's default for an unanswered prompt.
     if (step.kind === "number") return step.default !== undefined;

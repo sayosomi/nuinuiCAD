@@ -160,6 +160,55 @@ describe("CommandLineBar", () => {
     expect(focusElementList).toHaveBeenCalledOnce();
   });
 
+  it("edits a completed row in place, hides normal back, and restores row focus after commit or cancel", async () => {
+    render(<CommandLineBar />);
+    act(() => { startCommandLineCreation("variable"); });
+    const input = screen.getByRole<HTMLInputElement>("textbox");
+    const form = input.closest("form")!;
+    fireEvent.change(input, { target: { value: "12" } });
+    fireEvent.submit(form);
+    fireEvent.change(input, { target: { value: "変数 A" } });
+    fireEvent.submit(form);
+
+    const expressionRow = screen.getByRole("button", { name: "式を編集" });
+    fireEvent.click(expressionRow);
+    const editingInput = screen.getByRole<HTMLInputElement>("textbox");
+    await waitFor(() => expect(editingInput).toHaveFocus());
+    expect(editingInput).toHaveValue("12");
+    expect(screen.getAllByText("編集中：式")).toHaveLength(2);
+    expect(screen.queryByRole("button", { name: "戻る" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "編集をやめる" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "編集をやめる" }));
+    await waitFor(() => expect(expressionRow).toHaveFocus());
+    expect(useCadUiStore.getState().commandLineSession?.args.expression).toBe(12);
+
+    fireEvent.click(expressionRow);
+    fireEvent.change(screen.getByRole<HTMLInputElement>("textbox"), { target: { value: "24" } });
+    fireEvent.submit(form);
+    await waitFor(() => expect(expressionRow).toHaveFocus());
+    expect(useCadUiStore.getState().commandLineSession?.args.expression).toBe(24);
+  });
+
+  it("returns focus to create when skipping an edited name removes its progress row", async () => {
+    render(<CommandLineBar />);
+    act(() => { startCommandLineCreation("variable"); });
+    const input = screen.getByRole<HTMLInputElement>("textbox");
+    const form = input.closest("form")!;
+    fireEvent.change(input, { target: { value: "12" } });
+    fireEvent.submit(form);
+    fireEvent.change(input, { target: { value: "変数 A" } });
+    fireEvent.submit(form);
+
+    fireEvent.click(screen.getByRole("button", { name: "名前を編集" }));
+    fireEvent.click(screen.getByRole("button", { name: "スキップ" }));
+
+    const create = screen.getByRole("button", { name: "作成（Enter）" });
+    await waitFor(() => expect(create).toHaveFocus());
+    expect(screen.queryByRole("button", { name: "名前を編集" })).not.toBeInTheDocument();
+    expect(useCadUiStore.getState().commandLineSession?.args).not.toHaveProperty("name");
+  });
+
   it("keeps the displayed input and session through bar IME events, then resumes after compositionend", () => {
     render(<CommandLineBar />);
     act(() => { startCommandLineCreation("variable"); });

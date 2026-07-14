@@ -6,11 +6,13 @@ import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import { referenceAnchor } from "../model/pointAnchors";
 import { applyPickedPoint } from "./pickCommands";
 import {
+  cancelCommandLineStepEdit,
   cancelCommandLineSession,
   cancelStaleCommandLineSession,
   confirmCommandLineSession,
   skipCommandLineStep,
   startCommandLineCreation,
+  startCommandLineStepEdit,
   submitCommandLineInput
 } from "./commandLineSessionCommands";
 import { commandLineCommandDefinitions } from "./commandLineCommandDefinitions";
@@ -88,6 +90,70 @@ describe("command-line session commands", () => {
     expect(session.args).not.toHaveProperty("name");
     expect(confirmCommandLineSession()).toBe(true);
     expect(useCadDocumentStore.getState().elements[0]).toMatchObject({ type: "variable", name: "" });
+  });
+
+  it("commits an edited value through the ghost validation path without rewinding later args", () => {
+    expect(startCommandLineCreation("variable")).toBe(true);
+    expect(submitCommandLineInput("3")).toBe(true);
+    expect(submitCommandLineInput("変数 A")).toBe(true);
+    const completed = useCadUiStore.getState().commandLineSession!;
+
+    expect(startCommandLineStepEdit(0)).toBe(true);
+    expect(submitCommandLineInput("12")).toBe(true);
+
+    expect(useCadUiStore.getState().commandLineSession).toMatchObject({
+      currentStepIndex: completed.currentStepIndex,
+      editingStepIndex: null,
+      args: {
+        expression: 12,
+        name: "変数 A"
+      }
+    });
+
+    expect(startCommandLineStepEdit(1)).toBe(true);
+    expect(submitCommandLineInput("変数 B")).toBe(true);
+    expect(useCadUiStore.getState().commandLineSession).toMatchObject({
+      currentStepIndex: completed.currentStepIndex,
+      editingStepIndex: null,
+      args: { expression: 12, name: "変数 B" }
+    });
+  });
+
+  it("keeps an invalid edit draft and confirmed args when preview validation fails", () => {
+    expect(startCommandLineCreation("variable")).toBe(true);
+    submitCommandLineInput("3");
+    submitCommandLineInput("変数 A");
+    expect(startCommandLineStepEdit(0)).toBe(true);
+
+    expect(submitCommandLineInput("(")).toBe(false);
+
+    expect(useCadUiStore.getState().commandLineSession).toMatchObject({
+      currentStepIndex: 2,
+      editingStepIndex: 0,
+      editingDraft: { kind: "expression", expression: "(" },
+      args: {
+        expression: 3,
+        name: "変数 A"
+      }
+    });
+    expect(useCadUiStore.getState().commandLineSession?.error).toContain("プレビュー");
+  });
+
+  it("abandons an edit draft without changing the completed session", () => {
+    expect(startCommandLineCreation("variable")).toBe(true);
+    submitCommandLineInput("3");
+    submitCommandLineInput("変数 A");
+    const completed = useCadUiStore.getState().commandLineSession!;
+    expect(startCommandLineStepEdit(0)).toBe(true);
+    expect(submitCommandLineInput("12")).toBe(true);
+
+    // Start a second edit and discard it; the first confirmed value remains.
+    expect(startCommandLineStepEdit(0)).toBe(true);
+    expect(cancelCommandLineStepEdit()).toBe(true);
+    expect(useCadUiStore.getState().commandLineSession?.args).toEqual({
+      expression: 12,
+      name: completed.args.name
+    });
   });
 
   it("promotes directly picked unnamed sources and inserts the new element in one undo entry", () => {

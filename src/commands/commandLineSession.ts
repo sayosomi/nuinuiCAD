@@ -20,6 +20,10 @@ export type CommandLineSession = {
   recipe: CreationRecipe;
   args: CreationArgs;
   currentStepIndex: number;
+  /** The completed recipe step being revised without mutating `args`. */
+  editingStepIndex: number | null;
+  /** `null` is an explicit optional-name removal while editing. */
+  editingDraft: CommandLineStepValue | null;
   insertionIndex: number;
   startedAtRevision: number;
   nameSuggestion: string;
@@ -37,6 +41,9 @@ export type StartCommandLineSessionOptions = {
 export type CommandLineStepValue = CreationArgumentValue | string;
 
 const hasOwn = (value: object, key: string) => Object.prototype.hasOwnProperty.call(value, key);
+
+const cloneStepValue = (value: CommandLineStepValue | null) =>
+  Array.isArray(value) ? [...value] : value;
 
 const nameSuggestionFor = (recipe: CreationRecipe, options: StartCommandLineSessionOptions) => {
   const placement = options.placement ?? creationPlacementForEvaluationLimit(
@@ -63,15 +70,73 @@ export const startSession = (
   recipe,
   args: {},
   currentStepIndex: 0,
+  editingStepIndex: null,
+  editingDraft: null,
   insertionIndex: options.insertionIndex,
   startedAtRevision: options.revision,
   nameSuggestion: nameSuggestionFor(recipe, options),
   error: null
 });
 
-/** Returns the prompt currently awaiting input, or null once the recipe is complete. */
+const stepIndexFor = (session: CommandLineSession) =>
+  session.editingStepIndex ?? session.currentStepIndex;
+
+const keyForStep = (step: CreationStep) => step.kind === "name" ? "name" : step.key;
+
+/** Returns the prompt currently awaiting input, including a dedicated edit target when active. */
 export const currentStep = (session: CommandLineSession | null): CreationStep | null =>
-  session?.recipe.steps[session.currentStepIndex] ?? null;
+  session?.recipe.steps[stepIndexFor(session)] ?? null;
+
+export const isEditingCommandLineStep = (session: CommandLineSession) =>
+  session.editingStepIndex !== null;
+
+/** Resolves the draft over confirmed args for preview/validation only. */
+export const effectiveCommandLineArgs = (session: CommandLineSession): CreationArgs => {
+  if (!isEditingCommandLineStep(session)) return session.args;
+  const step = currentStep(session);
+  if (!step) return session.args;
+  const key = keyForStep(step);
+  if (session.editingDraft === null && step.kind === "name") {
+    const args = { ...session.args };
+    delete args.name;
+    return args;
+  }
+  return { ...session.args, [key]: session.editingDraft as CreationArgumentValue };
+};
+
+/** Begins editing one already-completed recipe step without changing confirmed args. */
+export const beginStepEdit = (session: CommandLineSession, stepIndex: number): CommandLineSession => {
+  if (isEditingCommandLineStep(session) || !sessionCanConfirm(session)) return session;
+  const step = session.recipe.steps[stepIndex];
+  if (!step) return session;
+  const key = keyForStep(step);
+  if (!hasOwn(session.args, key)) return session;
+  const draft = session.args[key as keyof CreationArgs];
+  if (draft === undefined) return session;
+  return { ...session, editingStepIndex: stepIndex, editingDraft: cloneStepValue(draft), error: null };
+};
+
+export const setEditingDraft = (
+  session: CommandLineSession,
+  draft: CommandLineStepValue | null
+): CommandLineSession => isEditingCommandLineStep(session)
+  ? { ...session, editingDraft: cloneStepValue(draft), error: null }
+  : session;
+
+/** Applies a validated edit draft and returns to the completed recipe summary. */
+export const commitStepEdit = (session: CommandLineSession): CommandLineSession => {
+  if (!isEditingCommandLineStep(session)) return session;
+  const args = effectiveCommandLineArgs(session);
+  return { ...session, args, editingStepIndex: null, editingDraft: null, error: null };
+};
+
+export const cancelStepEdit = (session: CommandLineSession): CommandLineSession =>
+  isEditingCommandLineStep(session)
+    ? { ...session, editingStepIndex: null, editingDraft: null, error: null }
+    : session;
+
+export const withCommandLineSessionError = (session: CommandLineSession, error: string) =>
+  ({ ...session, error });
 
 /** Records one explicit value for the current step and advances exactly one step. */
 export const fillCurrentStep = (
@@ -80,6 +145,7 @@ export const fillCurrentStep = (
 ): CommandLineSession => {
   const step = currentStep(session);
   if (!step) return session;
+  if (isEditingCommandLineStep(session)) return setEditingDraft(session, value);
   const args: CreationArgs = step.kind === "name"
     ? { ...session.args, name: value as string }
     : { ...session.args, [step.key]: value as CreationArgumentValue };
@@ -99,11 +165,13 @@ export const skipCurrentStep = (session: CommandLineSession): CommandLineSession
   const step = currentStep(session);
   if (!step) return session;
   if (step.kind === "name") {
+    if (isEditingCommandLineStep(session)) return setEditingDraft(session, null);
     const args = { ...session.args };
     delete args.name;
     return { ...session, args, currentStepIndex: session.currentStepIndex + 1, error: null };
   }
   if (step.kind !== "number" || step.default === undefined) return session;
+  if (isEditingCommandLineStep(session)) return setEditingDraft(session, makeNumericExpression(step.default));
   return {
     ...session,
     args: { ...session.args, [step.key]: makeNumericExpression(step.default) },
@@ -117,6 +185,7 @@ export const skipCurrentStep = (session: CommandLineSession): CommandLineSession
  * confirmed value, preventing stale arguments from leaking into a re-entry.
  */
 export const retreatStep = (session: CommandLineSession): CommandLineSession => {
+  if (isEditingCommandLineStep(session)) return session;
   if (session.currentStepIndex <= 0) return session;
   const currentStepIndex = session.currentStepIndex - 1;
   const discardedKeys = new Set(
@@ -133,6 +202,7 @@ export const retreatStep = (session: CommandLineSession): CommandLineSession => 
  * existence, and runtime value-shape validation remain evaluator concerns.
  */
 export const sessionCanConfirm = (session: CommandLineSession) =>
+  !isEditingCommandLineStep(session) &&
   session.currentStepIndex >= session.recipe.steps.length &&
   session.recipe.steps.every((step) => step.kind === "name" || hasOwn(session.args, step.key));
 

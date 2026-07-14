@@ -19,6 +19,8 @@ describe("completedCommandLineSteps", () => {
         name: "分点"
       },
       currentStepIndex: 3,
+      editingStepIndex: null,
+      editingDraft: null,
       insertionIndex: 0,
       startedAtRevision: 1,
       nameSuggestion: "分点",
@@ -26,9 +28,9 @@ describe("completedCommandLineSteps", () => {
     } satisfies CommandLineSession;
 
     expect(completedCommandLineSteps(session, [])).toEqual([
-      { key: "endpoint", label: "端点", value: "missing-line・終点" },
-      { key: "ratio", label: "割合", value: "rise / 2" },
-      { key: "name", label: "名前", value: "分点" }
+      { stepIndex: 0, key: "endpoint", label: "端点", value: "missing-line・終点" },
+      { stepIndex: 1, key: "ratio", label: "割合", value: "rise / 2" },
+      { stepIndex: 2, key: "name", label: "名前", value: "分点" }
     ]);
   });
 });

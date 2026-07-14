@@ -5,11 +5,17 @@ import { sampleElements } from "../sampleData";
 import type { CadElement } from "../types/geometry";
 import type { CreationRecipe } from "./creationRecipes";
 import {
+  beginStepEdit,
+  cancelStepEdit,
+  commitStepEdit,
   currentStep,
+  effectiveCommandLineArgs,
   fillCurrentStep,
   insertionIndexForCommandLineSession,
+  isEditingCommandLineStep,
   retreatStep,
   sessionCanConfirm,
+  setEditingDraft,
   sessionIsStale,
   skipCurrentStep,
   startSession
@@ -93,6 +99,54 @@ describe("commandLineSession", () => {
     expect(retreatedAgain.args).toEqual({ startPoint: referenceAnchor("point-a") });
     const initial = start();
     expect(retreatStep(initial)).toBe(initial);
+  });
+
+  it("keeps an edited draft isolated until it is committed", () => {
+    const complete = fillCurrentStep(
+      fillCurrentStep(
+        fillCurrentStep(start(), referenceAnchor("point-a")),
+        8
+      ),
+      "Line A"
+    );
+    const editing = beginStepEdit(complete, 1);
+    const drafted = setEditingDraft(editing, 24);
+
+    expect(isEditingCommandLineStep(drafted)).toBe(true);
+    expect(currentStep(drafted)).toMatchObject({ kind: "number", key: "offset" });
+    expect(drafted.currentStepIndex).toBe(recipe.steps.length);
+    expect(drafted.args).toEqual(complete.args);
+    expect(effectiveCommandLineArgs(drafted)).toEqual({
+      startPoint: referenceAnchor("point-a"),
+      offset: 24,
+      name: "Line A"
+    });
+    expect(retreatStep(drafted)).toBe(drafted);
+
+    const committed = commitStepEdit(drafted);
+    expect(committed).toMatchObject({
+      currentStepIndex: recipe.steps.length,
+      editingStepIndex: null,
+      editingDraft: null,
+      args: { startPoint: referenceAnchor("point-a"), offset: 24, name: "Line A" }
+    });
+  });
+
+  it("cancels an edit without changing the confirmed argument list", () => {
+    const complete = fillCurrentStep(
+      fillCurrentStep(
+        fillCurrentStep(start(), referenceAnchor("point-a")),
+        8
+      ),
+      "Line A"
+    );
+    const drafted = setEditingDraft(beginStepEdit(complete, 0), referenceAnchor("point-b"));
+    const cancelled = cancelStepEdit(drafted);
+
+    expect(cancelled.args).toEqual(complete.args);
+    expect(cancelled.currentStepIndex).toBe(recipe.steps.length);
+    expect(cancelled.editingStepIndex).toBeNull();
+    expect(cancelled.editingDraft).toBeNull();
   });
 
   it("uses source revisions only for pure stale detection", () => {

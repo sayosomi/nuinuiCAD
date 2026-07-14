@@ -1,11 +1,12 @@
 import { numericValueExpression } from "../geometry/numericExpressions";
 import { elementQualifiedName } from "../model/elementNames";
 import { derivedPointLabel } from "../model/pointAnchors";
-import type { CommandLineSession } from "../commands/commandLineSession";
+import { isEditingCommandLineStep, type CommandLineSession } from "../commands/commandLineSession";
 import type { CreationArgumentValue, CreationStep } from "../commands/creationRecipes";
 import type { CadElement, ElementId, LineEndpointReference, NumericValue, PointAnchor } from "../types/geometry";
 
 export type CompletedCommandLineStep = {
+  stepIndex: number;
   key: string;
   label: string;
   value: string;
@@ -42,13 +43,25 @@ const labelForStep = (step: CreationStep) => step.kind === "name" ? "名前" : s
 export const completedCommandLineSteps = (
   session: CommandLineSession,
   elements: CadElement[]
-): CompletedCommandLineStep[] => session.recipe.steps.flatMap((step) => {
+): CompletedCommandLineStep[] => session.recipe.steps.flatMap((step, stepIndex) => {
   const key = step.kind === "name" ? "name" : step.key;
   if (!hasOwn(session.args, key)) return [];
   const value = session.args[key as keyof typeof session.args];
   if (value === undefined) return [];
-  return [{ key, label: labelForStep(step), value: valueForStep(step, value, elements) }];
+  return [{ stepIndex, key, label: labelForStep(step), value: valueForStep(step, value, elements) }];
 });
 
 export const commandLineStepLabel = (step: CreationStep | null) =>
   !step ? "入力完了" : labelForStep(step);
+
+/** Supplies editable text only for the input kinds that accept direct typing. */
+export const commandLineEditingInputValue = (
+  session: CommandLineSession,
+  step: CreationStep | null
+) => {
+  if (!step || !isEditingCommandLineStep(session)) return "";
+  if (step.kind === "name") return session.editingDraft === null ? "" : String(session.editingDraft);
+  return step.kind === "number" && session.editingDraft !== null
+    ? numericValueExpression(session.editingDraft as NumericValue)
+    : "";
+};
