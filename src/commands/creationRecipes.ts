@@ -96,7 +96,7 @@ const stepFor = (type: CadElementType, key: ParameterKey) => {
   return step;
 };
 
-/** The only specialized recipes introduced by Phase 4a-1. */
+/** Specialized command-line flows whose step order differs from the generic fallback. */
 export const creationRecipes: readonly CreationRecipe[] = [
   {
     type: "freePoint",
@@ -135,6 +135,71 @@ export const creationRecipes: readonly CreationRecipe[] = [
   {
     type: "variable",
     steps: [stepFor("variable", "expression"), nameStep]
+  },
+  {
+    type: "divisionPoint",
+    steps: [
+      stepFor("divisionPoint", "startPoint"),
+      stepFor("divisionPoint", "endPoint"),
+      stepFor("divisionPoint", "ratio"),
+      nameStep
+    ]
+  },
+  {
+    type: "lineDivisionPoint",
+    steps: [stepFor("lineDivisionPoint", "endpoint"), stepFor("lineDivisionPoint", "ratio"), nameStep]
+  },
+  {
+    type: "angleLengthLine",
+    // Do not include startPoint:x/y: this flow always asks for a point reference.
+    // The frozen emitter retains the empty-document coordinate default until Phase 4f
+    // rejects incomplete preview arguments.
+    steps: [
+      stepFor("angleLengthLine", "startPoint"),
+      stepFor("angleLengthLine", "angleDeg"),
+      stepFor("angleLengthLine", "length"),
+      nameStep
+    ]
+  },
+  {
+    type: "copyLine",
+    steps: [
+      stepFor("copyLine", "baseLineIds"),
+      stepFor("copyLine", "startPoint"),
+      stepFor("copyLine", "endPoint"),
+      stepFor("copyLine", "scale"),
+      stepFor("copyLine", "angleDeg"),
+      nameStep
+    ]
+  },
+  {
+    type: "symmetricCopyLine",
+    steps: [
+      stepFor("symmetricCopyLine", "baseLineIds"),
+      stepFor("symmetricCopyLine", "axisPoint1"),
+      stepFor("symmetricCopyLine", "axisPoint2"),
+      nameStep
+    ]
+  },
+  {
+    type: "move",
+    steps: [
+      stepFor("move", "baseLineIds"),
+      stepFor("move", "startPoint"),
+      stepFor("move", "endPoint"),
+      stepFor("move", "scale"),
+      stepFor("move", "angleDeg"),
+      nameStep
+    ]
+  },
+  {
+    type: "symmetricMove",
+    steps: [
+      stepFor("symmetricMove", "baseLineIds"),
+      stepFor("symmetricMove", "axisPoint1"),
+      stepFor("symmetricMove", "axisPoint2"),
+      nameStep
+    ]
   }
 ];
 

@@ -7,6 +7,7 @@ import { normalizeForComparison } from "../dsl/dslDocumentTestUtils";
 import { parseDsl } from "../dsl/dslParser";
 import { documentDslRefs, serializeElementStatement, serializeElementsToDsl } from "../dsl/dslSerializer";
 import { elementTypeLabels, type CadElementType } from "../types/geometry";
+import { creationCommandDefinitions } from "./creationCommandDefinitions";
 import {
   creationRecipeExcludedTypes,
   creationRecipeForType,
@@ -16,6 +17,10 @@ import {
   type CreationArgs,
   type CreationRecipe
 } from "./creationRecipes";
+import {
+  creationRecipeForLegacyCommand,
+  legacyCreationCommandRecipeMap
+} from "./legacyCreationRecipes";
 
 const sourceElements = () => {
   const result = compileDslToElements(
@@ -64,20 +69,45 @@ const stepKindForParameterKind = {
   number: "number"
 } as const;
 
+const legacyCreationRecipes = () =>
+  Object.entries(legacyCreationCommandRecipeMap).map(([commandId, entry]) => {
+    const recipe = creationRecipeForLegacyCommand(commandId);
+    if (!recipe) throw new Error(`旧作成commandにレシピがありません: ${commandId}`);
+    if (recipe.type !== entry.type) throw new Error(`旧作成commandの型が不一致です: ${commandId}`);
+    return recipe;
+  });
+
+const nonElementCreationCommandIds = new Set([
+  "addImage",
+  "addNumericVariable",
+  "deleteNumericVariable",
+  "addBezierNumericVariable",
+  "deleteBezierNumericVariable",
+  "addBezierIntermediatePoint",
+  "deleteBezierIntermediatePoint"
+]);
+
 describe("creationRecipes", () => {
-  it("registers only the six Phase 4a-1 specialized recipes", () => {
+  it("registers every specialized recipe required by the legacy creation commands", () => {
     expect(creationRecipes.map((recipe) => recipe.type)).toEqual([
       "freePoint",
       "line",
       "arcLine",
       "bezierCurve",
       "offsetLine",
-      "variable"
+      "variable",
+      "divisionPoint",
+      "lineDivisionPoint",
+      "angleLengthLine",
+      "copyLine",
+      "symmetricCopyLine",
+      "move",
+      "symmetricMove"
     ]);
   });
 
-  it("keeps every registered step aligned with its parameter definition", () => {
-    for (const recipe of creationRecipes) {
+  it("keeps every legacy creation recipe step aligned with its parameter definition", () => {
+    for (const recipe of legacyCreationRecipes()) {
       const { element } = emittedFor(recipe);
       const definitions = getParameterDefinitions(element);
       const nameSteps = recipe.steps.filter((step) => step.kind === "name");
@@ -96,30 +126,46 @@ describe("creationRecipes", () => {
     }
   });
 
-  it("covers every step kind, with fallback fixtures for endpoint and line", () => {
-    const fixtures = [fallbackCreationRecipe("lineDivisionPoint"), fallbackCreationRecipe("intersectionPoint")];
-    const kinds = new Set([...creationRecipes, ...fixtures].flatMap((recipe) => recipe.steps.map((step) => step.kind)));
+  it("covers every step kind through the legacy creation recipes", () => {
+    const kinds = new Set(legacyCreationRecipes().flatMap((recipe) => recipe.steps.map((step) => step.kind)));
     expect(kinds).toEqual(new Set(["point", "endpoint", "line", "lineList", "number", "name"]));
   });
 
-  it("serializes every registered recipe to the golden DSL statement", () => {
-    const statements = Object.fromEntries(creationRecipes.map((recipe) => {
+  it("serializes every legacy creation recipe to the golden DSL statement", () => {
+    const statements = Object.fromEntries(legacyCreationRecipes().map((recipe) => {
       const { context, element } = emittedFor(recipe);
       return [recipe.type, serializeElementStatement(element, documentDslRefs([...context.elements, element]))];
     }));
 
     expect(statements).toEqual({
       freePoint: "point 作成freePoint = (12, 12)",
+      variable: "var 作成variable = 12",
+      text: "text 作成text = \"テキスト\" at=A size=12",
+      offsetPoint: "point 作成offsetPoint = offset A dx=12 dy=12",
+      polarOffsetPoint: "point 作成polarOffsetPoint = polar A angle=12 distance=12",
+      divisionPoint: "point 作成divisionPoint = between A A ratio=12 steps=[ratio:0.01]",
+      lineDivisionPoint: "point 作成lineDivisionPoint = on AB.start ratio=12 steps=[ratio:0.01]",
+      intersectionPoint: "point 作成intersectionPoint = intersection AB AB index=12 extensions=true",
+      lineTangentOffsetPoint: "point 作成lineTangentOffsetPoint = tangentOffset AB base=A angle=12 distance=12",
       line: "line 作成line = A -> A",
+      angleLengthLine: "line 作成angleLengthLine = from A angle=12 length=12",
       arcLine: "arc 作成arcLine center=A radius=12 start=12 end=12",
+      threePointArcLine: "arc 作成threePointArcLine = through A A A start=12 end=12",
+      cornerRadiusArcLine: "arc 作成cornerRadiusArcLine = corner AB.start AB.start radius=12 index=12",
+      edge: "element 作成edge type=edge endpoint1=AB.start endpoint2=AB.start intersectionIndex=12",
+      extendTrim: "line 作成extendTrim = extend AB.start to=A",
       bezierCurve: "curve 作成bezierCurve = A -> A startAngle=12 startLength=12 endAngle=12 endLength=12",
       offsetLine: "line 作成offsetLine = offset [AB] distance=12 side=right closed=false",
-      variable: "var 作成variable = 12"
+      copyLine: "element 作成copyLine type=copyLine startPoint=A endPoint=A scale=12 angleDeg=12 mirrorX=false baseLineIds=[AB]",
+      symmetricCopyLine: "element 作成symmetricCopyLine type=symmetricCopyLine axisPoint1=A axisPoint2=A baseLineIds=[AB]",
+      move: "element 作成move type=move startPoint=A endPoint=A scale=12 angleDeg=12 mirrorX=false baseLineIds=[AB]",
+      symmetricMove: "element 作成symmetricMove type=symmetricMove axisPoint1=A axisPoint2=A baseLineIds=[AB]",
+      splitLine: "line 作成splitLine = split AB at=A"
     });
   });
 
-  it("round-trips named and unnamed emitted elements through the parser and compiler", () => {
-    for (const recipe of creationRecipes) {
+  it("round-trips named and unnamed legacy creation recipes through the parser and compiler", () => {
+    for (const recipe of legacyCreationRecipes()) {
       for (const includeName of [true, false]) {
         const { context, element } = emittedFor(recipe, includeName);
         const source = [
@@ -142,7 +188,8 @@ describe("creationRecipes", () => {
     const context = contextFor();
     const line = emitCreationRecipe(creationRecipeForType("line")!, {}, context);
     const offset = emitCreationRecipe(creationRecipeForType("offsetLine")!, {}, context);
-    const endpoint = emitCreationRecipe(fallbackCreationRecipe("lineDivisionPoint"), {}, context);
+    const endpoint = emitCreationRecipe(creationRecipeForLegacyCommand("addLineDivisionPoint")!, {}, context);
+    const angleLength = emitCreationRecipe(creationRecipeForLegacyCommand("addAngleLengthLine")!, {}, context);
 
     expect(line).toMatchObject({
       id: "recipe-created-id",
@@ -152,6 +199,46 @@ describe("creationRecipes", () => {
     });
     expect(offset).toMatchObject({ name: "", baseLineIds: [] });
     expect(endpoint).toMatchObject({ name: "", endpoint: { lineId: "", endpointKey: "start" } });
+    expect(angleLength).toMatchObject({ name: "", startPoint: referenceAnchor("") });
+  });
+
+  it("keeps angleLengthLine to one start-point prompt and leaves incomplete empty-document previews to Phase 4f", () => {
+    const recipe = creationRecipeForLegacyCommand("addAngleLengthLine")!;
+    expect(recipe.steps.map((step) => step.kind === "name" ? "name" : step.key)).toEqual([
+      "startPoint",
+      "angleDeg",
+      "length",
+      "name"
+    ]);
+
+    const element = emitCreationRecipe(recipe, {}, {
+      elements: [],
+      referenceElements: [],
+      createId: () => "angle-length-empty"
+    });
+    expect(element).toMatchObject({ startPoint: { mode: "coordinate", x: 0, y: 0 } });
+  });
+
+  it("maps every element-creation command to a resolvable recipe without manual cutover mapping", () => {
+    const commandIds = Object.keys(creationCommandDefinitions)
+      .filter((commandId) => !nonElementCreationCommandIds.has(commandId));
+    expect(Object.keys(legacyCreationCommandRecipeMap)).toEqual(commandIds);
+
+    for (const [commandId, entry] of Object.entries(legacyCreationCommandRecipeMap)) {
+      const recipe = creationRecipeForLegacyCommand(commandId);
+      expect(recipe, commandId).not.toBeNull();
+      expect(recipe!.type, commandId).toBe(entry.type);
+      expect(entry.recipeKind, commandId).toBe(
+        creationRecipes.some((specialized) => specialized.type === entry.type) ? "specialized" : "fallback"
+      );
+      if (entry.recipeKind === "fallback") {
+        expect(recipe, commandId).toEqual(fallbackCreationRecipe(entry.type));
+      }
+    }
+    expect(creationRecipeForLegacyCommand("addImage")).toBeNull();
+    expect(creationRecipeForLegacyCommand("addGroup")).toBeNull();
+    expect(creationRecipeForLegacyCommand("addConditionalGroup")).toBeNull();
+    expect(creationRecipeForLegacyCommand("addForGroup")).toBeNull();
   });
 
   it("generates fallbacks for every eligible element type without asking choice, boolean, or text values", () => {
