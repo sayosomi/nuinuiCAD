@@ -3675,10 +3675,11 @@ textarea {
   right: 12px;
   bottom: 12px;
   left: 12px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  display: grid;
+  gap: 8px 12px;
   min-width: 0;
+  container-type: inline-size;
+  container-name: command-line-bar;
   border: 1px solid #245b73;
   border-radius: 8px;
   background: #123c50;
@@ -3688,9 +3689,7 @@ textarea {
 }
 
 .command-line-bar-title,
-.command-line-bar-chip,
-.command-line-bar kbd {
-  flex: 0 0 auto;
+.command-line-bar-step {
   border: 1px solid rgb(255 255 255 / 30%);
   border-radius: 4px;
   padding: 2px 5px;
@@ -3701,40 +3700,56 @@ textarea {
   font-weight: 800;
 }
 
-.command-line-bar-prompt {
-  overflow: hidden;
-  flex: 0 1 auto;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.command-line-bar-meta,
+.command-line-bar-entry-row,
+.command-line-bar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.command-line-bar-meta {
+  flex-wrap: wrap;
+}
+
+.command-line-bar-status {
   font-size: 12px;
+  font-weight: 700;
 }
 
-.command-line-bar-chip {
-  max-width: 130px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.command-line-bar-entry {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
 }
 
-.command-line-bar input {
-  min-width: 150px;
-  flex: 1 1 220px;
-  border: 1px solid #a8c4cf;
-  border-radius: 4px;
-  background: #ffffff;
-  color: #183a49;
-  padding: 5px 7px;
+.command-line-bar-entry label {
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.command-line-bar-help,
+.command-line-bar-complete {
+  margin: 0;
+  color: #d6e9ef;
+  font-size: 12px;
 }
 
 .command-line-bar-input-wrap {
   position: relative;
   min-width: 150px;
-  flex: 1 1 220px;
+  flex: 1 1 280px;
 }
 
-.command-line-bar-input-wrap input {
+.command-line-bar input {
   box-sizing: border-box;
   width: 100%;
+  border: 1px solid #a8c4cf;
+  border-radius: 4px;
+  background: #ffffff;
+  color: #183a49;
+  padding: 5px 7px;
 }
 
 .command-line-suggestions {
@@ -3772,12 +3787,82 @@ textarea {
   background: #d9edf3;
 }
 
-.command-line-bar button {
-  flex: 0 0 auto;
+.command-line-bar-actions button {
   border-color: #b7d5de;
   background: #e8f5f8;
   color: #143e50;
   font-size: 12px;
+}
+
+.command-line-bar-actions {
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+}
+
+.command-line-bar-confirm {
+  border-color: #f3d370 !important;
+  background: #fff1bd !important;
+  font-weight: 800;
+}
+
+.command-line-bar-progress {
+  min-width: 0;
+  color: #f7fbfc;
+  font-size: 12px;
+}
+
+.command-line-bar-progress summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.command-line-bar-progress ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.command-line-bar-progress li {
+  display: flex;
+  max-width: 100%;
+  overflow: hidden;
+  border: 1px solid rgb(255 255 255 / 30%);
+  border-radius: 4px;
+}
+
+.command-line-bar-progress li span {
+  overflow: hidden;
+  padding: 2px 5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.command-line-bar-progress li span:first-child {
+  border-right: 1px solid rgb(255 255 255 / 22%);
+  font-weight: 700;
+}
+
+@container command-line-bar (max-width: 700px) {
+  .command-line-bar-entry-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .command-line-bar-input-wrap {
+    width: 100%;
+    flex: 0 1 auto;
+  }
+
+  .command-line-bar-actions {
+    width: 100%;
+  }
+
+  .command-line-bar-progress ul {
+    flex-direction: column;
+  }
 }
 
 .canvas-viewport {

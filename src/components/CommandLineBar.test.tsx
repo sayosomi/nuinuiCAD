@@ -51,6 +51,34 @@ describe("CommandLineBar", () => {
     expect(useCadUiStore.getState().commandLineSession?.args).not.toHaveProperty("name");
   });
 
+  it("separates the active step from recipe-ordered completed progress", () => {
+    useCadDocumentStore.getState().commitText([
+      "nui 1",
+      "point A = (0, 0)",
+      "point B = (100, 0)",
+      "line 基準線 = A -> B"
+    ].join("\n"), "test");
+    const line = useCadDocumentStore.getState().elements.find((item) => item.name === "基準線")!;
+    render(<CommandLineBar />);
+    act(() => { startCommandLineCreation("lineDivisionPoint"); });
+    act(() => {
+      const session = useCadUiStore.getState().commandLineSession!;
+      useCadUiStore.setState({
+        commandLineSession: {
+          ...session,
+          currentStepIndex: 1,
+          args: { endpoint: { lineId: line.id, endpointKey: "start" } }
+        }
+      });
+    });
+
+    expect(screen.getByText("2 / 3")).toBeInTheDocument();
+    expect(screen.getAllByText("入力中：割合")).toHaveLength(2);
+    expect(screen.getByLabelText("完了済みの入力")).toHaveTextContent("端点");
+    expect(screen.getByLabelText("完了済みの入力")).toHaveTextContent("基準線・始点");
+    expect(screen.queryByText("endpoint", { exact: true })).not.toBeInTheDocument();
+  });
+
   it("accepts only the shared pick candidates for typed names, selected empty Enter, and arrow Enter", () => {
     useCadDocumentStore.getState().commitText([
       "nui 1",
@@ -123,6 +151,9 @@ describe("CommandLineBar", () => {
     fireEvent.change(input, { target: { value: "12" } });
     fireEvent.submit(form);
     fireEvent.click(screen.getByRole("button", { name: "スキップ" }));
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    expect(screen.getByText("入力完了。Enterで作成します。")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "作成（Enter）" })).toHaveFocus();
     fireEvent.submit(form);
 
     expect(useCadUiStore.getState().commandLineSession).toBeNull();
@@ -162,13 +193,14 @@ describe("CommandLineBar", () => {
     fireEvent.submit(form);
     fireEvent.click(screen.getByRole("button", { name: "スキップ" }));
     const completed = useCadUiStore.getState().commandLineSession;
+    const confirmButton = screen.getByRole("button", { name: "作成（Enter）" });
 
-    fireEvent.compositionStart(input);
+    fireEvent.compositionStart(confirmButton);
     fireEvent.submit(form);
     expect(useCadUiStore.getState().commandLineSession).toBe(completed);
     expect(useCadDocumentStore.getState().elements).toHaveLength(0);
 
-    fireEvent.compositionEnd(input);
+    fireEvent.compositionEnd(confirmButton);
     fireEvent.submit(form);
     expect(useCadUiStore.getState().commandLineSession).toBeNull();
     expect(useCadDocumentStore.getState().elements).toHaveLength(1);

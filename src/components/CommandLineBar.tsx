@@ -26,17 +26,7 @@ import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
 import { isImeComposingKeyEvent } from "./keyboardEventGuards";
 import { elementTypeLabels } from "../types/geometry";
-
-const promptFor = (session: NonNullable<ReturnType<typeof useCadUiStore.getState>["commandLineSession"]>) => {
-  const step = currentStep(session);
-  if (!step) return "Enterで作成を確定";
-  if (step.kind === "name") return "名前を入力（空Enterで候補を採用）";
-  if (step.kind === "point" || step.kind === "endpoint" || step.kind === "line") {
-    return `${step.prompt}（クリック / 名前入力 / 空Enterで選択中を採用）`;
-  }
-  if (step.kind === "lineList") return `${step.prompt}（クリック / 名前入力、⌘Enterで完了）`;
-  return step.prompt;
-};
+import { commandLineStepLabel, completedCommandLineSteps } from "./commandLineProgress";
 
 type CommandLineBarProps = {
   commandContext?: CommandContext;
@@ -51,6 +41,16 @@ type NameSuggestion = {
 const isReferenceStep = (kind: CreationStep["kind"] | undefined) =>
   kind === "point" || kind === "endpoint" || kind === "line" || kind === "lineList";
 
+const helpForStep = (step: CreationStep | null) => {
+  if (!step) return "入力完了。Enterで作成します。";
+  if (step.kind === "name") return "空Enterで候補の名前を採用します。";
+  if (step.kind === "point" || step.kind === "endpoint" || step.kind === "line") {
+    return "クリック、名前入力、または空Enterで選択中の候補を採用します。";
+  }
+  if (step.kind === "lineList") return "クリックまたは名前入力で選び、⌘Enterで完了します。";
+  return step.default === undefined ? "値または式を入力します。" : `空Enterで ${step.default} を採用します。`;
+};
+
 export const CommandLineBar = ({ commandContext }: CommandLineBarProps) => {
   const session = useCadUiStore((state) => state.commandLineSession);
   const sourceRevision = useCadDocumentStore((state) => state.sourceRevision);
@@ -58,6 +58,7 @@ export const CommandLineBar = ({ commandContext }: CommandLineBarProps) => {
   const selectedElementId = useCadUiStore((state) => state.selectedElementId);
   const activePickCursor = useCadUiStore((state) => state.activePickCursor);
   const inputRef = useRef<HTMLInputElement>(null);
+  const confirmButtonRef = useRef<HTMLButtonElement>(null);
   const [inputState, setInputState] = useState({ step: "", value: "" });
   const step = currentStep(session);
   const stepKey = step && step.kind !== "name" ? step.key : null;
@@ -86,6 +87,10 @@ export const CommandLineBar = ({ commandContext }: CommandLineBarProps) => {
     if (!query) return suggestions.slice(0, 8);
     return suggestions.filter((item) => item.value.toLocaleLowerCase().includes(query)).slice(0, 8);
   }, [inputValue, suggestions]);
+  const completedSteps = useMemo(
+    () => session ? completedCommandLineSteps(session, elements) : [],
+    [elements, session]
+  );
 
   useLayoutEffect(() => {
     if (session) cancelStaleCommandLineSession();
@@ -93,8 +98,9 @@ export const CommandLineBar = ({ commandContext }: CommandLineBarProps) => {
 
   useEffect(() => {
     if (!session) return;
-    inputRef.current?.focus();
-  }, [session]);
+    if (step) inputRef.current?.focus();
+    else confirmButtonRef.current?.focus();
+  }, [session, step]);
 
   useEffect(() => {
     if (!session) setCommandLineInputComposing(false);
@@ -104,6 +110,8 @@ export const CommandLineBar = ({ commandContext }: CommandLineBarProps) => {
 
   if (!session) return null;
   const canSkip = step?.kind === "name" || (step?.kind === "number" && step.default !== undefined);
+  const stepLabel = commandLineStepLabel(step);
+  const inputHelp = helpForStep(step);
   const placeholder = step?.kind === "name"
     ? session.nameSuggestion
     : step?.kind === "number" && step.default !== undefined
@@ -192,39 +200,66 @@ export const CommandLineBar = ({ commandContext }: CommandLineBarProps) => {
       onCompositionStart={() => setCommandLineInputComposing(true)}
       onCompositionEnd={() => setCommandLineInputComposing(false)}
     >
-      <span className="command-line-bar-title">{elementTypeLabels[session.recipe.type]}</span>
-      <span className="command-line-bar-prompt">{promptFor(session)}</span>
-      {Object.entries(session.args).map(([key, value]) => (
-        <span className="command-line-bar-chip" key={key}>{key}: {typeof value === "object" ? "設定済み" : String(value)}</span>
-      ))}
-      <div className="command-line-bar-input-wrap">
-        <input
-          ref={inputRef}
-          value={inputValue}
-          placeholder={placeholder}
-          aria-label={promptFor(session)}
-          onChange={(event) => setInputValue(event.target.value)}
-        />
-        {isReferenceStep(step?.kind) && visibleSuggestions.length > 0 ? (
-          <ul className="command-line-suggestions" role="listbox" aria-label="参照候補">
-            {visibleSuggestions.map((suggestion) => (
-              <li key={`${suggestion.elementId}:${suggestion.optionIndex}`}>
-                <button type="button" onClick={() => applySuggestion(suggestion)}>{suggestion.value}</button>
-              </li>
-            ))}
-          </ul>
-        ) : null}
+      <div className="command-line-bar-meta">
+        <span className="command-line-bar-title">{elementTypeLabels[session.recipe.type]}</span>
+        <span className="command-line-bar-step">{Math.min(session.currentStepIndex + 1, session.recipe.steps.length)} / {session.recipe.steps.length}</span>
+        <span className="command-line-bar-status" aria-live="polite">{step ? `入力中：${stepLabel}` : stepLabel}</span>
       </div>
-      {step?.kind === "number" ? (
-        <button type="button" onClick={() => startCommandLineNumericReferencePick()}>参照値を選択</button>
-      ) : null}
-      {session.currentStepIndex > 0 ? (
-        <button type="button" onClick={() => retreatCommandLineStep()}>戻る</button>
-      ) : null}
-      {canSkip ? (
-        <button type="button" onClick={() => skipCommandLineStep()}>スキップ</button>
-      ) : null}
-      <kbd>{step?.kind === "lineList" ? "⌘↵ 完了 / Esc" : "Esc"}</kbd>
+      <div className="command-line-bar-entry">
+        {step ? (
+          <>
+            <label htmlFor="command-line-input">入力中：{stepLabel}</label>
+            <span id="command-line-input-help" className="command-line-bar-help">{inputHelp}</span>
+            <div className="command-line-bar-entry-row">
+              <div className="command-line-bar-input-wrap">
+                <input
+                  id="command-line-input"
+                  ref={inputRef}
+                  value={inputValue}
+                  placeholder={placeholder}
+                  aria-label={stepLabel}
+                  aria-describedby="command-line-input-help"
+                  onChange={(event) => setInputValue(event.target.value)}
+                />
+                {isReferenceStep(step.kind) && visibleSuggestions.length > 0 ? (
+                  <ul className="command-line-suggestions" role="listbox" aria-label="参照候補">
+                    {visibleSuggestions.map((suggestion) => (
+                      <li key={`${suggestion.elementId}:${suggestion.optionIndex}`}>
+                        <button type="button" onClick={() => applySuggestion(suggestion)}>{suggestion.value}</button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </div>
+              <div className="command-line-bar-actions">
+                {step.kind === "number" ? (
+                  <button type="button" onClick={() => startCommandLineNumericReferencePick()}>参照値を選択</button>
+                ) : null}
+                {canSkip ? <button type="button" onClick={() => skipCommandLineStep()}>スキップ</button> : null}
+                {session.currentStepIndex > 0 ? <button type="button" onClick={() => retreatCommandLineStep()}>戻る</button> : null}
+                <button type="button" onClick={() => cancelCommandLineSession()}>キャンセル（Esc）</button>
+              </div>
+            </div>
+          </>
+        ) : (
+          <>
+            <p className="command-line-bar-complete">入力完了。Enterで作成します。</p>
+            <div className="command-line-bar-actions">
+              <button ref={confirmButtonRef} className="command-line-bar-confirm" type="submit">作成（Enter）</button>
+              {session.currentStepIndex > 0 ? <button type="button" onClick={() => retreatCommandLineStep()}>戻る</button> : null}
+              <button type="button" onClick={() => cancelCommandLineSession()}>キャンセル（Esc）</button>
+            </div>
+          </>
+        )}
+      </div>
+      <details className="command-line-bar-progress" open={completedSteps.length > 0}>
+        <summary>完了済み {completedSteps.length}項目</summary>
+        <ul aria-label="完了済みの入力">
+          {completedSteps.map((item) => (
+            <li key={item.key}><span>{item.label}</span><span>{item.value}</span></li>
+          ))}
+        </ul>
+      </details>
     </form>
   );
 };
