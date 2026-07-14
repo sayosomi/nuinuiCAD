@@ -22,6 +22,7 @@ import { forceLinting } from "@codemirror/lint";
 import { dispatchCommand } from "../commands/commands";
 import { bindingMatchesEvent, sourceEditorShortcutBindings } from "../keyboard/shortcutRegistry";
 import type { KeyChord } from "../keyboard/shortcutTypes";
+import { creationPlacementForEvaluationLimit } from "../model/elementCreationPlacement";
 import { pickCandidates } from "../model/pickCandidates";
 import type { ElementId, EvaluationResult } from "../types/geometry";
 import { useCadDocumentStore, type CadDocumentState } from "../state/cadDocumentStore";
@@ -581,7 +582,15 @@ export class SourceEditorController implements SourceEditorHandle {
     return pickCandidates(this.store.getState().elements, evaluation, {
       activePointPickTarget: ui.activePointPickTarget,
       activeNumericReferencePickTarget: ui.activeNumericReferencePickTarget,
-      activeLinePickTarget: ui.activeLinePickTarget
+      activeLinePickTarget: ui.activeLinePickTarget,
+      commandLineSession: ui.commandLineSession,
+      commandLinePickParentGroupId: ui.commandLineSession
+        ? creationPlacementForEvaluationLimit(
+            this.store.getState().elements,
+            ui.commandLineSession.insertionIndex,
+            ui.groupFoldById
+          ).parentGroupId
+        : undefined
     });
   }
 

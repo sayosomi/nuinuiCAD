@@ -3,7 +3,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { EditorView } from "@codemirror/view";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
-import { startCommandLineCreation } from "../commands/commandLineSessionCommands";
+import {
+  cancelCommandLineSession,
+  startCommandLineCreation
+} from "../commands/commandLineSessionCommands";
 import { AppLayout } from "./AppLayout";
 
 const source = [
@@ -49,6 +52,31 @@ const pointId = (name: string) => {
 };
 
 describe("AppLayout Source Editor production integration", () => {
+  it("derives line-list inert regions from the virtual target without disabling the command bar", async () => {
+    const view = render(<AppLayout />);
+    const sourcePane = view.container.querySelector<HTMLElement>(".source-editor-pane-wrapper")!;
+    const rightPanel = view.container.querySelector<HTMLElement>(".right-panel")!;
+    const resizeHandle = view.container.querySelector<HTMLElement>(".left-panel-resize-handle")!;
+    const commandBar = () => view.container.querySelector<HTMLElement>(".command-line-bar");
+
+    act(() => { startCommandLineCreation("offsetLine"); });
+    await waitFor(() => expect(useCadUiStore.getState().activeLinePickTarget).toMatchObject({
+      elementId: "__command-line__",
+      draftLineIds: []
+    }));
+    expect(sourcePane).toHaveAttribute("inert");
+    expect(rightPanel).toHaveAttribute("inert");
+    expect(resizeHandle).toHaveAttribute("inert");
+    expect(commandBar()).not.toBeNull();
+    expect(commandBar()).not.toHaveAttribute("inert");
+
+    act(() => { cancelCommandLineSession(); });
+    await waitFor(() => expect(sourcePane).not.toHaveAttribute("inert"));
+    expect(rightPanel).not.toHaveAttribute("inert");
+    expect(resizeHandle).not.toHaveAttribute("inert");
+    expect(document.activeElement?.closest("[inert]")).toBeNull();
+  });
+
   it("confirms from the real bar and returns focus to the existing Source Editor selection path", async () => {
     const view = render(<AppLayout />);
     act(() => { startCommandLineCreation("variable"); });

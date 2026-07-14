@@ -19,7 +19,8 @@ import {
   skipCurrentStep,
   startSession
 } from "./commandLineSession";
-import { creationRecipeForType, emitCreationRecipe, type CreationRecipe } from "./creationRecipes";
+import { creationRecipeForType, emitCreationRecipe } from "./creationRecipes";
+import { COMMAND_LINE_PICK_TARGET_ID } from "./commandLinePickRouting";
 import type { CommandContext } from "./commandTypes";
 
 const compositionError = "日本語入力の確定中はコマンドを実行できません。入力を確定してから再操作してください。";
@@ -35,19 +36,69 @@ const clearStaleSession = () => {
   ui.setCommandErrorMessage(staleError);
 };
 
-const isReferenceFreeRecipe = (recipe: CreationRecipe) =>
-  recipe.steps.every((step) => step.kind === "number" || step.kind === "name");
-
 const recipeForCommandLineType = (type: CadElementType) => {
   const recipe = creationRecipeForType(type);
-  if (!recipe || !isReferenceFreeRecipe(recipe)) return null;
   return recipe;
+};
+
+const setSessionAndSyncPickTarget = (session: CommandLineSession) => {
+  useCadUiStore.getState().setCommandLineSession(session);
+  syncCommandLinePickTarget(session);
+};
+
+/**
+ * Keeps command-line reference prompts on the shared virtual-target pick
+ * infrastructure.  This only writes ephemeral pick state; it never creates a
+ * document mutation while the session is in progress.
+ */
+export const syncCommandLinePickTarget = (session = useCadUiStore.getState().commandLineSession) => {
+  const step = currentStep(session);
+  const target = step && step.kind !== "number" && step.kind !== "name"
+    ? {
+        elementId: COMMAND_LINE_PICK_TARGET_ID,
+        parameterKey: step.key,
+        insertionIndex: session!.insertionIndex
+      }
+    : null;
+
+  if (step?.kind === "point" || step?.kind === "endpoint") {
+    useCadUiStore.setState({
+      activePointPickTarget: target,
+      activeNumericReferencePickTarget: null,
+      activeLinePickTarget: null,
+      activePickCursor: null
+    });
+    return;
+  }
+  if (step?.kind === "line") {
+    useCadUiStore.setState({
+      activePointPickTarget: null,
+      activeNumericReferencePickTarget: null,
+      activeLinePickTarget: target,
+      activePickCursor: null
+    });
+    return;
+  }
+  if (step?.kind === "lineList") {
+    useCadUiStore.setState({
+      activePointPickTarget: null,
+      activeNumericReferencePickTarget: null,
+      activeLinePickTarget: target ? { ...target, draftLineIds: [] } : null,
+      activePickCursor: null
+    });
+    return;
+  }
+  useCadUiStore.setState({
+    activePointPickTarget: null,
+    activeNumericReferencePickTarget: null,
+    activeLinePickTarget: null,
+    activePickCursor: null
+  });
 };
 
 /**
  * Begins or replaces a command-line creation session.  The temporary callers
- * are intentionally limited to reference-free recipes until Phase 4d routes
- * reference prompts through Canvas/source picking.
+ * use the same virtual-target pick infrastructure as template insertion.
  */
 export const startCommandLineCreation = (type: CadElementType, context?: CommandContext) => {
   if (commandLineCompositionIsActive()) {
@@ -90,6 +141,7 @@ export const startCommandLineCreation = (type: CadElementType, context?: Command
     elements: document.elements,
     placement
   }));
+  syncCommandLinePickTarget();
   useCadUiStore.getState().setCommandErrorMessage(null);
   return true;
 };
@@ -114,7 +166,35 @@ const updateSession = (updater: (session: CommandLineSession) => CommandLineSess
   const session = useCadUiStore.getState().commandLineSession;
   if (!session) return false;
   if (cancelStaleCommandLineSession()) return false;
-  useCadUiStore.getState().setCommandLineSession(updater(session));
+  setSessionAndSyncPickTarget(updater(session));
+  return true;
+};
+
+/**
+ * The sole session-argument fill path. Phase 4f will attach partial preview
+ * updates here, after the value has been accepted but before final commit.
+ */
+export const fillCommandLineCurrentStep = (value: Parameters<typeof fillCurrentStep>[1]) =>
+  updateSession((session) => fillCurrentStep(session, value));
+
+/** Starts a normal shared numeric-reference pick for the current number prompt. */
+export const startCommandLineNumericReferencePick = () => {
+  const session = useCadUiStore.getState().commandLineSession;
+  if (!session || cancelStaleCommandLineSession()) return false;
+  const step = currentStep(session);
+  if (step?.kind !== "number") return false;
+  useCadUiStore.setState({
+    activePointPickTarget: null,
+    activeLinePickTarget: null,
+    activeNumericReferencePickTarget: {
+      elementId: COMMAND_LINE_PICK_TARGET_ID,
+      parameterKey: step.key,
+      insertionIndex: session.insertionIndex,
+      mode: "replace",
+      property: "length"
+    },
+    activePickCursor: null
+  });
   return true;
 };
 
@@ -128,16 +208,16 @@ export const submitCommandLineInput = (input: string, context?: CommandContext) 
   if (!step) return confirmCommandLineSession(context);
 
   if (step.kind === "name") {
-    return updateSession((current) => fillCurrentStep(current, input === "" ? current.nameSuggestion : input));
+    return fillCommandLineCurrentStep(input === "" ? session.nameSuggestion : input);
   }
   if (step.kind !== "number") return false;
   if (input === "") {
     const skipped = skipCurrentStep(session);
     if (skipped === session) return false;
-    useCadUiStore.getState().setCommandLineSession(skipped);
+    setSessionAndSyncPickTarget(skipped);
     return true;
   }
-  return updateSession((current) => fillCurrentStep(current, makeNumericExpression(input)));
+  return fillCommandLineCurrentStep(makeNumericExpression(input));
 };
 
 export const skipCommandLineStep = () => {
@@ -146,7 +226,7 @@ export const skipCommandLineStep = () => {
   if (!session || cancelStaleCommandLineSession()) return false;
   const next = skipCurrentStep(session);
   if (next === session) return false;
-  useCadUiStore.getState().setCommandLineSession(next);
+  setSessionAndSyncPickTarget(next);
   return true;
 };
 

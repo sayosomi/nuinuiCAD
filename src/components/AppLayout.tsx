@@ -28,6 +28,8 @@ import { findParameterDefinition } from "../parameters/parameterDefinitions";
 import type { DrawingCanvasHandle } from "./DrawingCanvas";
 import { isImeComposingKeyEvent } from "./keyboardEventGuards";
 import { isCommandLineInputComposing } from "../commands/commandLineInputComposition";
+import { currentStep } from "../commands/commandLineSession";
+import { COMMAND_LINE_PICK_TARGET_ID } from "../commands/commandLinePickRouting";
 
 const DslPanel = lazy(() =>
   import("./DslPanel").then((module) => ({ default: module.DslPanel }))
@@ -110,6 +112,7 @@ export const AppLayout = () => {
   const setDslPanelWindow = useCadUiStore((state) => state.setDslPanelWindow);
   const activeTemplateInsertion = useCadUiStore((state) => state.activeTemplateInsertion);
   const activeLinePickTarget = useCadUiStore((state) => state.activeLinePickTarget);
+  const commandLineSession = useCadUiStore((state) => state.commandLineSession);
   const isPickMode = useCadUiStore(
     (state) =>
       Boolean(state.activePointPickTarget) ||
@@ -129,27 +132,19 @@ export const AppLayout = () => {
   const evaluationOptions = useMemo(() => ({ evaluationLimitIndex }), [evaluationLimitIndex]);
   const evaluationState = useEvaluationEngine(elements, evaluationOptions, compiledDocumentRevision);
   const { evaluation, evaluationRevision, evaluationRequestRevision } = evaluationState;
-  const isMultiLinePicking = Boolean(
-    activeLinePickTarget &&
-      elements.find((element) => element.id === activeLinePickTarget.elementId) &&
-      findParameterDefinition(
-        elements.find((element) => element.id === activeLinePickTarget.elementId)!,
-        activeLinePickTarget.parameterKey
-      )?.kind === "lineReferenceList"
-  );
+  const commandLineStep = currentStep(commandLineSession);
+  const isMultiLinePicking = Boolean(activeLinePickTarget && (
+    (activeLinePickTarget.elementId === COMMAND_LINE_PICK_TARGET_ID &&
+      commandLineStep?.kind === "lineList" &&
+      commandLineStep.key === activeLinePickTarget.parameterKey) ||
+    (() => {
+      const target = elements.find((element) => element.id === activeLinePickTarget.elementId);
+      return target && findParameterDefinition(target, activeLinePickTarget.parameterKey)?.kind === "lineReferenceList";
+    })()
+  ));
 
   useEffect(() => {
     if (isMultiLinePicking) canvasFocusRef.current?.focus();
-  }, [isMultiLinePicking]);
-
-  useEffect(() => {
-    const shell = appShellRef.current;
-    if (!shell) return;
-    const disabledRegions = shell.querySelectorAll<HTMLElement>(
-      ".source-editor-pane-wrapper, .right-panel, .left-panel-resize-handle"
-    );
-    disabledRegions.forEach((region) => region.toggleAttribute("inert", isMultiLinePicking));
-    return () => disabledRegions.forEach((region) => region.removeAttribute("inert"));
   }, [isMultiLinePicking]);
 
   useEffect(() => {
@@ -397,6 +392,7 @@ export const AppLayout = () => {
         canvasFocusRef={canvasFocusRef}
         commandContext={commandContext}
         commandRibbonDockRef={commandRibbonDockRef}
+        inert={isMultiLinePicking}
       />
       <div
         className="left-panel-resize-handle"
@@ -405,6 +401,7 @@ export const AppLayout = () => {
         aria-label="左パネル幅を変更"
         title="ドラッグで左パネル幅を変更 / ダブルクリックでリセット"
         tabIndex={0}
+        inert={isMultiLinePicking || undefined}
         onPointerDown={startLeftPanelResize}
         onDoubleClick={resetLeftPanelWidth}
         onKeyDown={(event) => {
@@ -458,6 +455,7 @@ export const AppLayout = () => {
             evaluation={evaluation}
             evaluationState={evaluationState}
             sourceEditorRef={sourceEditorRef}
+            inert={isMultiLinePicking}
           />
         </>
       )}

@@ -8,6 +8,8 @@ import type {
   EvaluationResult
 } from "../types/geometry";
 import { pickCandidates } from "./pickCandidates";
+import { startSession } from "../commands/commandLineSession";
+import { creationRecipeForType } from "../commands/creationRecipes";
 
 const point = (id: string, x: number, y: number): ComputedPoint => ({
   kind: "point",
@@ -116,6 +118,58 @@ const evaluation: EvaluationResult = {
 };
 
 describe("pickCandidates", () => {
+  it("excludes unnamed sources only for the command-line virtual target", () => {
+    const unnamedLine: CadElement = {
+      id: "unnamed-line",
+      name: "",
+      type: "line",
+      visible: true,
+      enabled: true,
+      startPoint: { mode: "coordinate", x: 0, y: 0 },
+      endPoint: { mode: "coordinate", x: 10, y: 0 }
+    };
+    const withUnnamed = [...elements.slice(0, 2), unnamedLine, ...elements.slice(2)];
+    const withUnnamedEvaluation: EvaluationResult = {
+      ...evaluation,
+      computedGeometry: new Map([
+        ...evaluation.computedGeometry,
+        ["unnamed-line", { ...line, elementId: "unnamed-line", name: "" }]
+      ])
+    };
+    const session = startSession(creationRecipeForType("freePoint")!, {
+      insertionIndex: withUnnamed.length,
+      revision: 1,
+      elements: withUnnamed
+    });
+
+    const commandLineCandidates = pickCandidates(withUnnamed, withUnnamedEvaluation, {
+      activePointPickTarget: null,
+      activeLinePickTarget: null,
+      activeNumericReferencePickTarget: {
+        elementId: "__command-line__",
+        parameterKey: "x",
+        insertionIndex: withUnnamed.length,
+        mode: "replace",
+        property: "length"
+      },
+      commandLineSession: session
+    });
+    const templateCandidates = pickCandidates(withUnnamed, withUnnamedEvaluation, {
+      activePointPickTarget: null,
+      activeLinePickTarget: null,
+      activeNumericReferencePickTarget: {
+        elementId: "__template-insertion-numeric__",
+        parameterKey: "sleeve",
+        insertionIndex: withUnnamed.length,
+        mode: "insert",
+        property: "length"
+      }
+    });
+
+    expect(commandLineCandidates.map((candidate) => candidate.elementId)).not.toContain("unnamed-line");
+    expect(templateCandidates.map((candidate) => candidate.elementId)).toContain("unnamed-line");
+  });
+
   it("excludes later and unevaluated geometry from numeric candidates", () => {
     const laterLine: CadElement = {
       id: "later-line",

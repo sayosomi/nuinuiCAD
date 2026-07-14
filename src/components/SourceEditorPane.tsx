@@ -19,6 +19,7 @@ type SourceEditorPaneProps = {
   canvasFocusRef?: RefObject<HTMLDivElement | null>;
   /** Dock element ref shared with CommandRibbonOverlay's drop-to-dock hit test. */
   commandRibbonDockRef?: RefObject<HTMLDivElement | null>;
+  inert?: boolean;
 };
 
 /**
@@ -26,7 +27,7 @@ type SourceEditorPaneProps = {
  * element-list LeftPanel in Phase 2e.
  */
 export const SourceEditorPane = forwardRef<SourceEditorHandle, SourceEditorPaneProps>(function SourceEditorPane(
-  { commandContext = {}, canvasFocusRef, commandRibbonDockRef },
+  { commandContext = {}, canvasFocusRef, commandRibbonDockRef, inert = false },
   ref
 ) {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -77,7 +78,7 @@ export const SourceEditorPane = forwardRef<SourceEditorHandle, SourceEditorPaneP
   }), []);
 
   return (
-    <div className="source-editor-pane-wrapper" data-source-editor-scope="true">
+    <div className="source-editor-pane-wrapper" data-source-editor-scope="true" inert={inert || undefined}>
       <header className="source-editor-header">
         <div className="source-editor-header-actions">
           <button type="button" className="palette-open-button" onClick={() => dispatchCommand("openPaletteSettings")}>

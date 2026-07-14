@@ -13,6 +13,7 @@ import {
   pickedPointAnchorReferencesTarget,
   pickedPointAnchorForTargetForGroup
 } from "../model/forGroupGeneratedReferences";
+import { creationPlacementForEvaluationLimit } from "../model/elementCreationPlacement";
 import { pickCandidates, selectedPickOption } from "../model/pickCandidates";
 import { referenceAnchor } from "../model/pointAnchors";
 import { findParameterDefinition } from "../parameters/parameterDefinitions";
@@ -30,6 +31,14 @@ import { TEMPLATE_INSERTION_NUMERIC_TARGET_ID } from "../templates/templateInser
 import type { ElementId } from "../types/geometry";
 import type { NumericValue } from "../types/geometry";
 import type { CommandContext } from "./commandTypes";
+import {
+  commandLinePickNormalizationTargetId,
+  commandLineStepForPickTarget
+} from "./commandLinePickRouting";
+import {
+  cancelStaleCommandLineSession,
+  fillCommandLineCurrentStep
+} from "./commandLineSessionCommands";
 import { isLineLikeElement } from "./commandRuntime";
 
 export const applyNumericExpressionReference = (context?: CommandContext) => {
@@ -435,6 +444,15 @@ export const applyPickedNumericReference = (context?: Pick<CommandContext, "nume
   if (!numericExpression) return;
   const { activeNumericReferencePickTarget } = useCadUiStore.getState();
   if (!activeNumericReferencePickTarget) return;
+  const commandLineStep = commandLineStepForPickTarget(
+    activeNumericReferencePickTarget,
+    useCadUiStore.getState().commandLineSession
+  );
+  if (commandLineStep?.kind === "number") {
+    if (cancelStaleCommandLineSession()) return;
+    fillCommandLineCurrentStep(makeNumericExpression(numericExpression));
+    return;
+  }
   if (numericExpression.startsWith(`${activeNumericReferencePickTarget.elementId}.`)) return;
 
   if (activeNumericReferencePickTarget.mode === "insert") {
@@ -460,17 +478,27 @@ export const cancelNumericReferencePick = () => {
   useCadUiStore.getState().setActiveNumericReferencePickTarget(null);
 };
 
-const activePickCandidates = () => {
+export const activePickCandidates = () => {
+  const ui = useCadUiStore.getState();
   const {
     activePointPickTarget,
     activeNumericReferencePickTarget,
     activeLinePickTarget
-  } = useCadUiStore.getState();
+  } = ui;
   const { elements, evaluationLimitIndex } = useCadDocumentStore.getState();
+  const commandLinePickParentGroupId = ui.commandLineSession
+    ? creationPlacementForEvaluationLimit(
+        elements,
+        ui.commandLineSession.insertionIndex,
+        ui.groupFoldById
+      ).parentGroupId
+    : undefined;
   return pickCandidates(elements, evaluateElements(elements, { evaluationLimitIndex }), {
     activePointPickTarget,
     activeNumericReferencePickTarget,
-    activeLinePickTarget
+    activeLinePickTarget,
+    commandLineSession: ui.commandLineSession,
+    commandLinePickParentGroupId
   });
 };
 
@@ -649,6 +677,57 @@ export const applyPickedPoint = (context?: Pick<CommandContext, "pickedPointId" 
   const { activePointPickTarget } = useCadUiStore.getState();
   const { elements } = useCadDocumentStore.getState();
   if (!activePointPickTarget) return;
+  const commandLineSession = useCadUiStore.getState().commandLineSession;
+  const commandLineStep = commandLineStepForPickTarget(activePointPickTarget, commandLineSession);
+  if (commandLineStep?.kind === "point" || commandLineStep?.kind === "endpoint") {
+    if (cancelStaleCommandLineSession()) return;
+    const parentGroupId = commandLineSession
+      ? creationPlacementForEvaluationLimit(
+          elements,
+          commandLineSession.insertionIndex,
+          useCadUiStore.getState().groupFoldById
+        ).parentGroupId
+      : undefined;
+    const normalizationTargetId = commandLinePickNormalizationTargetId(
+      activePointPickTarget,
+      commandLineSession,
+      parentGroupId,
+      elements
+    );
+    const pickedAnchor = pickedPointAnchorForTargetForGroup({
+      elements,
+      targetElementId: normalizationTargetId,
+      anchor
+    });
+    if (!pickedAnchor) return;
+    if (commandLineStep.kind === "endpoint") {
+      const endpoint = lineEndpointReferenceForPickedAnchor({
+        elements,
+        targetElementId: normalizationTargetId,
+        anchor
+      });
+      if (endpoint) fillCommandLineCurrentStep(endpoint);
+      return;
+    }
+    if (pickedAnchor.mode === "reference") {
+      const pointElement = elements.find((element) => element.id === pickedAnchor.pointId);
+      if (
+        !pointElement ||
+        (pointElement.type !== "freePoint" &&
+          pointElement.type !== "offsetPoint" &&
+          pointElement.type !== "polarOffsetPoint" &&
+          pointElement.type !== "divisionPoint" &&
+          pointElement.type !== "lineDivisionPoint" &&
+          pointElement.type !== "intersectionPoint" &&
+          pointElement.type !== "lineTangentOffsetPoint")
+      ) return;
+    }
+    if (pickedAnchor.mode === "derived" && !elements.some((element) => element.id === pickedAnchor.elementId)) {
+      return;
+    }
+    fillCommandLineCurrentStep(pickedAnchor);
+    return;
+  }
   if (activePointPickTarget.measurementSlot) {
     const current = useCadUiStore.getState().activeMeasurementInsertTarget;
     if (!current) return;
@@ -854,6 +933,45 @@ export const applyPickedLine = (context?: Pick<CommandContext, "pickedLineId">) 
   const { activeLinePickTarget } = useCadUiStore.getState();
   const { elements } = useCadDocumentStore.getState();
   if (!activeLinePickTarget) return;
+  const commandLineSession = useCadUiStore.getState().commandLineSession;
+  const commandLineStep = commandLineStepForPickTarget(activeLinePickTarget, commandLineSession);
+  if (commandLineStep?.kind === "line" || commandLineStep?.kind === "lineList") {
+    if (cancelStaleCommandLineSession()) return;
+    const parentGroupId = commandLineSession
+      ? creationPlacementForEvaluationLimit(
+          elements,
+          commandLineSession.insertionIndex,
+          useCadUiStore.getState().groupFoldById
+        ).parentGroupId
+      : undefined;
+    const normalizationTargetId = commandLinePickNormalizationTargetId(
+      activeLinePickTarget,
+      commandLineSession,
+      parentGroupId,
+      elements
+    );
+    const normalizedPickedLineId = generatedElementIdForTargetForGroup({
+      elements,
+      targetElementId: normalizationTargetId,
+      pickedElementId: pickedLineId
+    });
+    const pickedLine = normalizedPickedLineId
+      ? elements.find((element) => element.id === normalizedPickedLineId)
+      : null;
+    if (!normalizedPickedLineId || !pickedLine || !isLineLikeElement(pickedLine)) return;
+    if (commandLineStep.kind === "line") {
+      fillCommandLineCurrentStep(normalizedPickedLineId);
+      return;
+    }
+    const draftLineIds = activeLinePickTarget.draftLineIds ?? [];
+    useCadUiStore.getState().setActiveLinePickTarget({
+      ...activeLinePickTarget,
+      draftLineIds: draftLineIds.includes(normalizedPickedLineId)
+        ? draftLineIds.filter((id) => id !== normalizedPickedLineId)
+        : [...draftLineIds, normalizedPickedLineId]
+    });
+    return;
+  }
   if (activeLinePickTarget.measurementSlot) {
     const pickedLine = elements.find((element) => element.id === pickedLineId);
     const current = useCadUiStore.getState().activeMeasurementInsertTarget;
@@ -950,6 +1068,15 @@ export const cancelLinePick = () => {
 export const finishLinePick = () => {
   const { activeLinePickTarget } = useCadUiStore.getState();
   if (!activeLinePickTarget || activeLinePickTarget.draftLineIds === undefined) return;
+  const commandLineStep = commandLineStepForPickTarget(
+    activeLinePickTarget,
+    useCadUiStore.getState().commandLineSession
+  );
+  if (commandLineStep?.kind === "lineList") {
+    if (cancelStaleCommandLineSession()) return;
+    fillCommandLineCurrentStep(activeLinePickTarget.draftLineIds);
+    return;
+  }
   const { elements } = useCadDocumentStore.getState();
   const targetElement = elements.find((element) => element.id === activeLinePickTarget.elementId);
   if (!targetElement) return;

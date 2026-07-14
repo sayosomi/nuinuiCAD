@@ -8,8 +8,13 @@ import { dispatchCommand } from "../commands/commands";
 import type { CommandContext } from "../commands/commands";
 import type { EvaluationEngineState } from "../geometry/useEvaluationEngine";
 import { generatedElementIdForTargetForGroup } from "../model/forGroupGeneratedReferences";
+import { creationPlacementForEvaluationLimit } from "../model/elementCreationPlacement";
 import { numericReferencePropertiesForGeometry } from "../geometry/numericReferenceProperties";
 import { pickSourcePrecedesTarget } from "../model/pickCandidates";
+import {
+  commandLinePickAllowsElement,
+  commandLinePickNormalizationTargetId
+} from "../commands/commandLinePickRouting";
 import { resolvedElementColorMap } from "../palette/elementColors";
 import type { BezierHandleRole as CommandBezierHandleRole } from "../commands/commands";
 import { effectiveElements, useCadDocumentStore } from "../state/cadDocumentStore";
@@ -154,6 +159,14 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
   const activePointPickTarget = useCadUiStore((state) => state.activePointPickTarget);
   const activeNumericReferencePickTarget = useCadUiStore((state) => state.activeNumericReferencePickTarget);
   const activeLinePickTarget = useCadUiStore((state) => state.activeLinePickTarget);
+  const commandLineSession = useCadUiStore((state) => state.commandLineSession);
+  const groupFoldById = useCadUiStore((state) => state.groupFoldById);
+  const commandLinePickParentGroupId = useMemo(
+    () => commandLineSession
+      ? creationPlacementForEvaluationLimit(elements, commandLineSession.insertionIndex, groupFoldById).parentGroupId
+      : undefined,
+    [commandLineSession, elements, groupFoldById]
+  );
   const selectedElementIdSet = useMemo(() => new Set(selectedElementIds), [selectedElementIds]);
   const draftLinePickElementIds = useMemo(
     () => new Set(activeLinePickTarget?.draftLineIds ?? []),
@@ -186,6 +199,8 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     elements,
     selectedElementId,
     activePointPickTarget,
+    commandLineSession,
+    commandLinePickParentGroupId,
     viewportSize,
     canvasViewport,
     documentPath: currentFilePath
@@ -387,21 +402,38 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     if (!activeTarget) return null;
     const normalizedLineId = generatedElementIdForTargetForGroup({
       elements,
-      targetElementId: activeTarget.elementId,
+      targetElementId: commandLinePickNormalizationTargetId(
+        activeTarget,
+        commandLineSession,
+        commandLinePickParentGroupId,
+        elements
+      ),
       pickedElementId: lineElementId
     });
     if (!normalizedLineId || normalizedLineId === activeTarget.elementId) return null;
     if (!pickSourcePrecedesTarget(elements, activeTarget.elementId, normalizedLineId, activeTarget.insertionIndex)) return null;
+    if (!commandLinePickAllowsElement({
+      elements,
+      sourceElementId: lineElementId,
+      target: activeTarget,
+      session: commandLineSession
+    })) return null;
     return normalizedLineId;
-  }, [activeLinePickTarget, elements]);
+  }, [activeLinePickTarget, commandLinePickParentGroupId, commandLineSession, elements]);
   const isPickableForNumericReference = useCallback((lineElementId: ElementId) => {
     const activeTarget = activeNumericReferencePickTarget;
     if (!activeTarget) return false;
     return (
       lineElementId !== activeTarget.elementId &&
-      pickSourcePrecedesTarget(elements, activeTarget.elementId, lineElementId, activeTarget.insertionIndex)
+      pickSourcePrecedesTarget(elements, activeTarget.elementId, lineElementId, activeTarget.insertionIndex) &&
+      commandLinePickAllowsElement({
+        elements,
+        sourceElementId: lineElementId,
+        target: activeTarget,
+        session: commandLineSession
+      })
     );
-  }, [activeNumericReferencePickTarget, elements]);
+  }, [activeNumericReferencePickTarget, commandLineSession, elements]);
   const pickCandidateLineIds = useMemo(() => {
     const ids = new Set<ElementId>();
     if (!activeLinePickTarget && !activeNumericReferencePickTarget) return ids;

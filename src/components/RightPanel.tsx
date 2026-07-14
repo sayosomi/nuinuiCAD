@@ -15,6 +15,7 @@ type RightPanelProps = {
   evaluation: EvaluationResult;
   evaluationState?: EvaluationEngineState;
   sourceEditorRef: RefObject<SourceEditorHandle | null>;
+  inert?: boolean;
 };
 
 const evaluationEngineLabel = (state: EvaluationEngineState | undefined) => {
@@ -35,6 +36,7 @@ export const RightPanel = ({
   evaluation,
   evaluationState,
   sourceEditorRef,
+  inert = false,
 }: RightPanelProps) => {
   const rightPanelRef = useRef<HTMLElement | null>(null);
   const elements = useCadDocumentStore(effectiveElements);
@@ -43,7 +45,7 @@ export const RightPanel = ({
     elements.find((element) => element.id === selectedElementId) ?? null;
 
   return (
-    <aside className="right-panel" ref={rightPanelRef}>
+    <aside className="right-panel" ref={rightPanelRef} inert={inert || undefined}>
       <div className="right-panel-scroll">
         <InspectorPanel
           element={selectedElement}

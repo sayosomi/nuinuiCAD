@@ -32,6 +32,12 @@ import type {
   ActivePickCursor,
   ActivePointPickTarget
 } from "../state/cadUiStore";
+import type { CommandLineSession } from "../commands/commandLineSession";
+import {
+  commandLinePickAllowsElement,
+  commandLinePickNormalizationTargetId,
+  commandLineStepForPickTarget
+} from "../commands/commandLinePickRouting";
 
 export type PickOption =
   | {
@@ -65,6 +71,10 @@ type PickTargets = {
   activePointPickTarget: ActivePointPickTarget | null;
   activeNumericReferencePickTarget: ActiveNumericReferencePickTarget | null;
   activeLinePickTarget: ActiveLinePickTarget | null;
+  /** Optional context only for the command-line virtual target. Normal targets
+   * deliberately retain their candidate set and ordering unchanged. */
+  commandLineSession?: CommandLineSession | null;
+  commandLinePickParentGroupId?: ElementId;
 };
 
 /** A construction may only pick geometry that is available earlier in document
@@ -103,7 +113,9 @@ const numericReferenceExpression = (
 const pointCandidates = (
   elements: CadElement[],
   evaluation: EvaluationResult,
-  activePointPickTarget: ActivePointPickTarget
+  activePointPickTarget: ActivePointPickTarget,
+  commandLineSession?: CommandLineSession | null,
+  commandLinePickParentGroupId?: ElementId
 ): PickCandidate[] => {
   const targetElement = elements.find((element) => element.id === activePointPickTarget.elementId);
   const targetDefinition = targetElement
@@ -111,12 +123,20 @@ const pointCandidates = (
         (definition) => definition.key === activePointPickTarget.parameterKey
       )
     : null;
-  const isLineEndpointPointPick = targetDefinition?.kind === "lineEndpointReference";
+  const commandLineStep = commandLineStepForPickTarget(activePointPickTarget, commandLineSession);
+  const isLineEndpointPointPick = commandLineStep?.kind === "endpoint" ||
+    targetDefinition?.kind === "lineEndpointReference";
+  const normalizationTargetId = commandLinePickNormalizationTargetId(
+    activePointPickTarget,
+    commandLineSession,
+    commandLinePickParentGroupId,
+    elements
+  );
   const elementsById = new Map(elements.map((element) => [element.id, element]));
   const isValidPointCandidate = (anchor: PointAnchor) =>
     isValidPickedPointAnchorForTarget({
       elements,
-      targetElementId: activePointPickTarget.elementId,
+      targetElementId: normalizationTargetId,
       anchor,
       allowLineEndpoint: isLineEndpointPointPick
     });
@@ -128,7 +148,12 @@ const pointCandidates = (
         activePointPickTarget.elementId,
         element.id,
         activePointPickTarget.insertionIndex
-      )
+      ) && commandLinePickAllowsElement({
+        elements,
+        sourceElementId: element.id,
+        target: activePointPickTarget,
+        session: commandLineSession
+      })
     )
     .map((element) => {
       const selectablePoints = selectablePointsForElement(
@@ -167,7 +192,8 @@ const pointCandidates = (
 const lineCandidates = (
   elements: CadElement[],
   evaluation: EvaluationResult,
-  activeLinePickTarget: ActiveLinePickTarget
+  activeLinePickTarget: ActiveLinePickTarget,
+  commandLineSession?: CommandLineSession | null
 ): PickCandidate[] => {
   const targetElement = elements.find((element) => element.id === activeLinePickTarget.elementId);
   const parameterValue = activeLinePickTarget.draftLineIds ?? (targetElement
@@ -189,6 +215,12 @@ const lineCandidates = (
           element.id,
           activeLinePickTarget.insertionIndex
         ) &&
+        commandLinePickAllowsElement({
+          elements,
+          sourceElementId: element.id,
+          target: activeLinePickTarget,
+          session: commandLineSession
+        }) &&
         evaluation.computedGeometry.has(element.id) &&
         (activeLinePickTarget.draftLineIds !== undefined || !selectedLineIds.has(element.id))
     )
@@ -201,7 +233,8 @@ const lineCandidates = (
 const numericReferenceCandidates = (
   elements: CadElement[],
   evaluation: EvaluationResult,
-  activeNumericReferencePickTarget: ActiveNumericReferencePickTarget
+  activeNumericReferencePickTarget: ActiveNumericReferencePickTarget,
+  commandLineSession?: CommandLineSession | null
 ): PickCandidate[] => {
   const targetElement = elements.find((element) => element.id === activeNumericReferencePickTarget.elementId);
   return elements
@@ -211,7 +244,12 @@ const numericReferenceCandidates = (
         activeNumericReferencePickTarget.elementId,
         element.id,
         activeNumericReferencePickTarget.insertionIndex
-      )
+      ) && commandLinePickAllowsElement({
+        elements,
+        sourceElementId: element.id,
+        target: activeNumericReferencePickTarget,
+        session: commandLineSession
+      })
     )
     .map((element) => {
       const geometry = numericReferenceGeometry(evaluation.computedGeometry.get(element.id));
@@ -258,13 +296,24 @@ export const pickCandidates = (
   targets: PickTargets
 ): PickCandidate[] => {
   if (targets.activePointPickTarget) {
-    return pointCandidates(elements, evaluation, targets.activePointPickTarget);
+    return pointCandidates(
+      elements,
+      evaluation,
+      targets.activePointPickTarget,
+      targets.commandLineSession,
+      targets.commandLinePickParentGroupId
+    );
   }
   if (targets.activeLinePickTarget) {
-    return lineCandidates(elements, evaluation, targets.activeLinePickTarget);
+    return lineCandidates(elements, evaluation, targets.activeLinePickTarget, targets.commandLineSession);
   }
   if (targets.activeNumericReferencePickTarget) {
-    return numericReferenceCandidates(elements, evaluation, targets.activeNumericReferencePickTarget);
+    return numericReferenceCandidates(
+      elements,
+      evaluation,
+      targets.activeNumericReferencePickTarget,
+      targets.commandLineSession
+    );
   }
   return [];
 };

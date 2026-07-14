@@ -26,6 +26,12 @@ import {
 import { findParameterDefinition } from "../parameters/parameterDefinitions";
 import { pickSourcePrecedesTarget } from "../model/pickCandidates";
 import type { ActivePointPickTarget } from "../state/cadUiStore";
+import type { CommandLineSession } from "../commands/commandLineSession";
+import {
+  commandLinePickAllowsElement,
+  commandLinePickNormalizationTargetId,
+  commandLineStepForPickTarget
+} from "../commands/commandLinePickRouting";
 import {
   sampleArcLineScreenPoints,
   sampleBezierCurveScreenPoints,
@@ -67,6 +73,8 @@ export const useCanvasOverlayData = ({
   elements,
   selectedElementId,
   activePointPickTarget,
+  commandLineSession,
+  commandLinePickParentGroupId,
   viewportSize,
   canvasViewport,
   documentPath
@@ -75,6 +83,8 @@ export const useCanvasOverlayData = ({
   elements: CadElement[];
   selectedElementId: ElementId | null;
   activePointPickTarget: ActivePointPickTarget | null;
+  commandLineSession: CommandLineSession | null;
+  commandLinePickParentGroupId?: ElementId;
   viewportSize: ViewportSize;
   canvasViewport: CanvasViewport;
   documentPath: string | null;
@@ -107,8 +117,17 @@ export const useCanvasOverlayData = ({
   const activePointPickTargetDefinition = activePointPickTargetElement && activePointPickTarget
     ? findParameterDefinition(activePointPickTargetElement, activePointPickTarget.parameterKey)
     : null;
-  const isLineEndpointPointPick =
+  const commandLineStep = commandLineStepForPickTarget(activePointPickTarget, commandLineSession);
+  const isLineEndpointPointPick = commandLineStep?.kind === "endpoint" ||
     activePointPickTargetDefinition?.kind === "lineEndpointReference";
+  const normalizationTargetId = activePointPickTarget
+    ? commandLinePickNormalizationTargetId(
+        activePointPickTarget,
+        commandLineSession,
+        commandLinePickParentGroupId,
+        elements
+      )
+    : null;
   const overlayLines = useMemo(
     () =>
       lines
@@ -204,7 +223,13 @@ export const useCanvasOverlayData = ({
             activePointPickTarget.elementId,
             geometry.elementId,
             activePointPickTarget.insertionIndex
-          )
+          ) &&
+          commandLinePickAllowsElement({
+            elements,
+            sourceElementId: geometry.elementId,
+            target: activePointPickTarget,
+            session: commandLineSession
+          })
       )
       .flatMap((geometry) =>
         selectablePointsForGeometry(geometry, elementsById)
@@ -212,7 +237,7 @@ export const useCanvasOverlayData = ({
             !activePointPickTarget ||
             isValidPickedPointAnchorForTarget({
               elements,
-              targetElementId: activePointPickTarget.elementId,
+              targetElementId: normalizationTargetId ?? activePointPickTarget.elementId,
               anchor: candidate.anchor,
               allowLineEndpoint: isLineEndpointPointPick
             })
@@ -226,9 +251,11 @@ export const useCanvasOverlayData = ({
   }, [
     activePointPickTarget,
     canvasViewport,
+    commandLineSession,
     elements,
     geometries,
     isLineEndpointPointPick,
+    normalizationTargetId,
     viewportSize,
     visibleElementIds
   ]);

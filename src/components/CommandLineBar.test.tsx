@@ -51,6 +51,32 @@ describe("CommandLineBar", () => {
     expect(useCadUiStore.getState().commandLineSession?.args).not.toHaveProperty("name");
   });
 
+  it("accepts only the shared pick candidates for typed names, selected empty Enter, and arrow Enter", () => {
+    useCadDocumentStore.getState().commitText([
+      "nui 1",
+      "point A = (0, 0)",
+      "point B = (100, 0)",
+      "point = (200, 0)"
+    ].join("\n"), "test");
+    render(<CommandLineBar />);
+    const pointA = useCadDocumentStore.getState().elements.find((item) => item.name === "A")!;
+    const pointB = useCadDocumentStore.getState().elements.find((item) => item.name === "B")!;
+    useCadUiStore.getState().setSelectedElementId(pointB.id);
+
+    act(() => { startCommandLineCreation("line"); });
+    const input = screen.getByRole<HTMLInputElement>("textbox");
+    const form = input.closest("form")!;
+    expect(screen.getByRole("listbox", { name: "参照候補" })).toHaveTextContent("A");
+    expect(screen.getByRole("listbox", { name: "参照候補" })).not.toHaveTextContent("point-");
+
+    fireEvent.submit(form);
+    expect(useCadUiStore.getState().commandLineSession?.args.startPoint).toEqual({ mode: "reference", pointId: pointB.id });
+
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    fireEvent.submit(form);
+    expect(useCadUiStore.getState().commandLineSession?.args.endPoint).toEqual({ mode: "reference", pointId: pointA.id });
+  });
+
   it("confirms from the real completed-bar Enter path and hands focus back through its command context", () => {
     const focusElementList = vi.fn();
     vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {

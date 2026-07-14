@@ -10,6 +10,8 @@ import {
   startCommandLineCreation,
   submitCommandLineInput
 } from "./commandLineSessionCommands";
+import { commandLineCommandDefinitions } from "./commandLineCommandDefinitions";
+import { legacyCreationCommandRecipeMap } from "./legacyCreationRecipes";
 
 describe("command-line session commands", () => {
   let unregister = () => {};
@@ -64,6 +66,13 @@ describe("command-line session commands", () => {
     expect(useCadUiStore.getState().selectedElementId).toBe(document.elements[0].id);
     expect(useCadUiStore.getState().commandLineSession).toBeNull();
     expect(focusElementList).toHaveBeenCalledOnce();
+  });
+
+  it("keeps every pre-cutover creation command available through a distinct temporary command-line id", () => {
+    for (const commandId of Object.keys(legacyCreationCommandRecipeMap)) {
+      const temporaryId = `commandLine${commandId[0].toUpperCase()}${commandId.slice(1)}`;
+      expect(commandLineCommandDefinitions).toHaveProperty(temporaryId);
+    }
   });
 
   it("makes an unnamed element only through explicit skip", () => {

@@ -4014,6 +4014,52 @@ textarea {
   padding: 5px 7px;
 }
 
+.command-line-bar-input-wrap {
+  position: relative;
+  min-width: 150px;
+  flex: 1 1 220px;
+}
+
+.command-line-bar-input-wrap input {
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.command-line-suggestions {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 5px);
+  left: 0;
+  z-index: 2;
+  max-height: 180px;
+  overflow: auto;
+  margin: 0;
+  padding: 4px;
+  border: 1px solid #7ca7b8;
+  border-radius: 5px;
+  background: #fff;
+  box-shadow: 0 5px 14px rgb(12 51 70 / 30%);
+  list-style: none;
+}
+
+.command-line-suggestions button {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: #143e50;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.command-line-suggestions button:hover,
+.command-line-suggestions button:focus-visible {
+  background: #d9edf3;
+}
+
 .command-line-bar button {
   flex: 0 0 auto;
   border-color: #b7d5de;
