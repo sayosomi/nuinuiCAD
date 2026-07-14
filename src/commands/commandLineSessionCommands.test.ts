@@ -3,6 +3,7 @@ import { registerSourceEditSession } from "../editor/sourceEditSession";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import {
+  cancelCommandLineSession,
   cancelStaleCommandLineSession,
   confirmCommandLineSession,
   skipCommandLineStep,
@@ -14,6 +15,7 @@ describe("command-line session commands", () => {
   let unregister = () => {};
 
   beforeEach(() => {
+    unregister = () => {};
     useCadDocumentStore.setState(initialCadDocumentState());
     useCadUiStore.setState(initialCadUiState());
     useCadDocumentStore.getState().commitText("nui 1", "test");
@@ -125,6 +127,29 @@ describe("command-line session commands", () => {
     })).toBe(false);
     expect(useCadUiStore.getState().commandLineSession).toBe(session);
     expect(calls).not.toContain("unexpected");
+  });
+
+  it("resets a same-command re-entry to its initial session without touching document history", () => {
+    expect(startCommandLineCreation("variable")).toBe(true);
+    submitCommandLineInput("12");
+    const pastBefore = useCadDocumentStore.getState().past.length;
+
+    expect(startCommandLineCreation("variable")).toBe(true);
+    expect(useCadUiStore.getState().commandLineSession).toMatchObject({
+      recipe: { type: "variable" },
+      currentStepIndex: 0,
+      args: {}
+    });
+    expect(useCadDocumentStore.getState().past).toHaveLength(pastBefore);
+  });
+
+  it("cancels the session and every integrated pick target together", () => {
+    expect(startCommandLineCreation("variable")).toBe(true);
+    useCadUiStore.getState().setActivePointPickTarget({ elementId: "pick" as never, parameterKey: "value" as never });
+
+    expect(cancelCommandLineSession()).toBe(true);
+    expect(useCadUiStore.getState().commandLineSession).toBeNull();
+    expect(useCadUiStore.getState().activePointPickTarget).toBeNull();
   });
 
   it("does not commit when confirmation flush is blocked by composition", () => {

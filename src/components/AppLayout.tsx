@@ -26,6 +26,8 @@ import { selectTextInputValue } from "./textInputSelection";
 import { PickModeStatus } from "./PickModeStatus";
 import { findParameterDefinition } from "../parameters/parameterDefinitions";
 import type { DrawingCanvasHandle } from "./DrawingCanvas";
+import { isImeComposingKeyEvent } from "./keyboardEventGuards";
+import { isCommandLineInputComposing } from "../commands/commandLineInputComposition";
 
 const DslPanel = lazy(() =>
   import("./DslPanel").then((module) => ({ default: module.DslPanel }))
@@ -312,6 +314,7 @@ export const AppLayout = () => {
       // menu, its ribbon dock) owns editing keys and its own IME/pick Escape ordering.
       // This branch intentionally precedes every global pick cancellation below.
       if (isSourceEditorKeyboardTarget(event)) return;
+      if (isImeComposingKeyEvent(event) || isCommandLineInputComposing()) return;
       if (useCadUiStore.getState().showShortcutSettings) return;
       if (useCadUiStore.getState().showPaletteSettings) return;
       if (useCadUiStore.getState().showGroupTemplateLibrary) return;
@@ -441,7 +444,7 @@ export const AppLayout = () => {
               commandContext={commandContext}
               leftPanelDockRef={commandRibbonDockRef}
             />
-            <CommandLineBar />
+            <CommandLineBar commandContext={commandContext} />
             {showPrintPreviewWindow ? (
               <Suspense fallback={null}>
                 <PrintLayoutPreviewWindow

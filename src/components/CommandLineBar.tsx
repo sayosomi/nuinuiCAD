@@ -1,4 +1,9 @@
 import { useEffect, useLayoutEffect, useRef } from "react";
+import type { CommandContext } from "../commands/commandTypes";
+import {
+  isCommandLineInputComposing,
+  setCommandLineInputComposing
+} from "../commands/commandLineInputComposition";
 import {
   cancelCommandLineSession,
   cancelStaleCommandLineSession,
@@ -9,6 +14,8 @@ import {
 import { currentStep } from "../commands/commandLineSession";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
+import { isImeComposingKeyEvent } from "./keyboardEventGuards";
+import { elementTypeLabels } from "../types/geometry";
 
 const promptFor = (session: NonNullable<ReturnType<typeof useCadUiStore.getState>["commandLineSession"]>) => {
   const step = currentStep(session);
@@ -17,7 +24,11 @@ const promptFor = (session: NonNullable<ReturnType<typeof useCadUiStore.getState
   return step.prompt;
 };
 
-export const CommandLineBar = () => {
+type CommandLineBarProps = {
+  commandContext?: CommandContext;
+};
+
+export const CommandLineBar = ({ commandContext }: CommandLineBarProps) => {
   const session = useCadUiStore((state) => state.commandLineSession);
   const sourceRevision = useCadDocumentStore((state) => state.sourceRevision);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -34,6 +45,12 @@ export const CommandLineBar = () => {
     inputRef.current.focus();
   }, [session]);
 
+  useEffect(() => {
+    if (!session) setCommandLineInputComposing(false);
+  }, [session]);
+
+  useEffect(() => () => setCommandLineInputComposing(false), []);
+
   if (!session) return null;
   const canSkip = step?.kind === "name" || (step?.kind === "number" && step.default !== undefined);
   const placeholder = step?.kind === "name"
@@ -48,15 +65,19 @@ export const CommandLineBar = () => {
       aria-label="コマンドライン作成"
       onSubmit={(event) => {
         event.preventDefault();
-        submitCommandLineInput(inputRef.current?.value ?? "");
+        if (isCommandLineInputComposing()) return;
+        submitCommandLineInput(inputRef.current?.value ?? "", commandContext);
       }}
       onKeyDown={(event) => {
+        if (isImeComposingKeyEvent(event) || isCommandLineInputComposing()) return;
         if (event.key !== "Escape") return;
         event.preventDefault();
         cancelCommandLineSession();
       }}
+      onCompositionStart={() => setCommandLineInputComposing(true)}
+      onCompositionEnd={() => setCommandLineInputComposing(false)}
     >
-      <span className="command-line-bar-title">{session.recipe.type}</span>
+      <span className="command-line-bar-title">{elementTypeLabels[session.recipe.type]}</span>
       <span className="command-line-bar-prompt">{promptFor(session)}</span>
       {Object.entries(session.args).map(([key, value]) => (
         <span className="command-line-bar-chip" key={key}>{key}: {typeof value === "object" ? "設定済み" : String(value)}</span>

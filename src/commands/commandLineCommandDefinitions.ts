@@ -11,6 +11,7 @@ export const commandLineCommandDefinitions = {
     id: "commandLineAddFreePoint",
     label: "コマンドラインで free point を作成",
     palette: { order: 1.1, keywords: ["command line", "free point", "点", "コマンドライン"] },
+    flushPolicy: "editor-owned",
     run: (context) => startCommandLineCreation("freePoint", context)
   },
   /** @deprecated Temporary Phase 4c ID. Phase 4g absorbs this into addVariable. */
@@ -18,6 +19,7 @@ export const commandLineCommandDefinitions = {
     id: "commandLineAddVariable",
     label: "コマンドラインで変数を作成",
     palette: { order: 21.6, keywords: ["command line", "variable", "変数", "コマンドライン"] },
+    flushPolicy: "editor-owned",
     run: (context) => startCommandLineCreation("variable", context)
   },
   cancelCommandLineSession: {

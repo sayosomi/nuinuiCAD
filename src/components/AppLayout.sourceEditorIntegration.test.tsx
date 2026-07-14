@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { EditorView } from "@codemirror/view";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
+import { startCommandLineCreation } from "../commands/commandLineSessionCommands";
 import { AppLayout } from "./AppLayout";
 
 const source = [
@@ -48,6 +49,47 @@ const pointId = (name: string) => {
 };
 
 describe("AppLayout Source Editor production integration", () => {
+  it("confirms from the real bar and returns focus to the existing Source Editor selection path", async () => {
+    const view = render(<AppLayout />);
+    act(() => { startCommandLineCreation("variable"); });
+    const input = view.getByRole("textbox", { name: "式" }) as HTMLInputElement;
+    const form = input.closest("form")!;
+
+    fireEvent.change(input, { target: { value: "12" } });
+    fireEvent.submit(form);
+    fireEvent.click(view.getByRole("button", { name: "スキップ" }));
+    fireEvent.submit(form);
+
+    await waitFor(() => expect(useCadUiStore.getState().commandLineSession).toBeNull());
+    await waitFor(() => expect(document.activeElement).toBe(view.container.querySelector(".cm-content")));
+    expect(useCadDocumentStore.getState().elements.at(-1)).toMatchObject({ type: "variable" });
+  });
+
+  it("blocks bar IME Enter/Escape and global single-key dispatch, then resumes after compositionend", () => {
+    const view = render(<AppLayout />);
+    act(() => { startCommandLineCreation("variable"); });
+    const input = view.getByRole("textbox", { name: "式" }) as HTMLInputElement;
+    const form = input.closest("form")!;
+    fireEvent.change(input, { target: { value: "未確定" } });
+    const session = useCadUiStore.getState().commandLineSession;
+    const sourceRevision = useCadDocumentStore.getState().sourceRevision;
+
+    fireEvent.compositionStart(input);
+    fireEvent.keyDown(input, { key: "Enter", isComposing: true, keyCode: 229 });
+    fireEvent.keyDown(input, { key: "Escape", isComposing: true, keyCode: 229 });
+    fireEvent.keyDown(input, { key: "x", isComposing: true, keyCode: 229 });
+    expect(useCadUiStore.getState().commandLineSession).toBe(session);
+    expect(input).toHaveValue("未確定");
+
+    fireEvent.compositionEnd(input);
+    fireEvent.keyDown(input, { key: "x" });
+    expect(useCadDocumentStore.getState().sourceRevision).toBe(sourceRevision);
+    expect(useCadUiStore.getState().commandLineSession).toBe(session);
+
+    fireEvent.submit(form);
+    expect(useCadUiStore.getState().commandLineSession).toMatchObject({ currentStepIndex: 1 });
+  });
+
   it("uses the real Canvas and controller for Canvas⇄cursor sync and folded descendants", async () => {
     const view = render(<AppLayout />);
     const viewport = view.container.querySelector<HTMLDivElement>(".canvas-viewport")!;

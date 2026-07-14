@@ -7,6 +7,7 @@ import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
 import type { CadElementType } from "../types/geometry";
 import { sourceEditSession } from "../editor/sourceEditSession";
+import { isCommandLineInputComposing } from "./commandLineInputComposition";
 import {
   type CommandLineSession,
   currentStep,
@@ -23,6 +24,10 @@ import type { CommandContext } from "./commandTypes";
 
 const compositionError = "日本語入力の確定中はコマンドを実行できません。入力を確定してから再操作してください。";
 const staleError = "ドキュメントが変更されたため、コマンドライン作成をキャンセルしました。もう一度開始してください。";
+const commitError = "コマンドライン作成を文書へ反映できませんでした。もう一度開始してください。";
+
+const commandLineCompositionIsActive = () =>
+  sourceEditSession.isComposing() || isCommandLineInputComposing();
 
 const clearStaleSession = () => {
   const ui = useCadUiStore.getState();
@@ -45,7 +50,11 @@ const recipeForCommandLineType = (type: CadElementType) => {
  * reference prompts through Canvas/source picking.
  */
 export const startCommandLineCreation = (type: CadElementType, context?: CommandContext) => {
-  if (sourceEditSession.isComposing()) {
+  if (commandLineCompositionIsActive()) {
+    useCadUiStore.getState().setCommandErrorMessage(compositionError);
+    return false;
+  }
+  if (sourceEditSession.flush("command") === "blocked-composition") {
     useCadUiStore.getState().setCommandErrorMessage(compositionError);
     return false;
   }
@@ -87,6 +96,7 @@ export const startCommandLineCreation = (type: CadElementType, context?: Command
 
 /** Cancels the session and all pick state through the established unified path. */
 export const cancelCommandLineSession = () => {
+  if (commandLineCompositionIsActive()) return false;
   if (!useCadUiStore.getState().commandLineSession) return false;
   useCadUiStore.getState().clearPickMode();
   return true;
@@ -110,6 +120,7 @@ const updateSession = (updater: (session: CommandLineSession) => CommandLineSess
 
 /** Applies the current number/name prompt without creating a second React-side state machine. */
 export const submitCommandLineInput = (input: string, context?: CommandContext) => {
+  if (commandLineCompositionIsActive()) return false;
   const session = useCadUiStore.getState().commandLineSession;
   if (!session) return false;
   if (cancelStaleCommandLineSession()) return false;
@@ -130,6 +141,7 @@ export const submitCommandLineInput = (input: string, context?: CommandContext) 
 };
 
 export const skipCommandLineStep = () => {
+  if (commandLineCompositionIsActive()) return false;
   const session = useCadUiStore.getState().commandLineSession;
   if (!session || cancelStaleCommandLineSession()) return false;
   const next = skipCurrentStep(session);
@@ -138,13 +150,15 @@ export const skipCommandLineStep = () => {
   return true;
 };
 
-export const retreatCommandLineStep = () => updateSession(retreatStep);
+export const retreatCommandLineStep = () =>
+  commandLineCompositionIsActive() ? false : updateSession(retreatStep);
 
 /**
  * Materializes a complete session once.  The document bridge owns line
  * splicing, source preservation, and the single undo entry.
  */
 export const confirmCommandLineSession = (context?: CommandContext) => {
+  if (commandLineCompositionIsActive()) return false;
   const flushResult = sourceEditSession.flush("command-line-confirm");
   if (flushResult === "blocked-composition") {
     useCadUiStore.getState().setCommandErrorMessage(compositionError);
@@ -178,7 +192,12 @@ export const confirmCommandLineSession = (context?: CommandContext) => {
     selectedElementIds: [element.id],
     selectionAnchorElementId: element.id
   });
-  if (result.status !== "applied") return false;
+  if (result.status !== "applied") {
+    const ui = useCadUiStore.getState();
+    ui.clearPickMode();
+    ui.setCommandErrorMessage(commitError);
+    return false;
+  }
 
   useCadUiStore.getState().clearPickMode();
   const focusSourceEditor = () => context?.focusElementList?.();
