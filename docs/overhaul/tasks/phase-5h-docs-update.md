@@ -1,10 +1,10 @@
 # Phase 5h: ドキュメント更新(AGENTS.md / ROADMAP.md / docs/dsl.md / 対応表)
 
 > 親文書: [phase-5-cleanup.md](phase-5-cleanup.md)。着手前に `AGENTS.md` →
-> `docs/overhaul/plan.md` → 親文書 → 5a〜5gの各ハンドバック報告の順で
+> `docs/overhaul/plan.md` → 親文書 → 5a〜5g・5iの各ハンドバック報告の順で
 > 読むこと。
 >
-> **5a〜5gすべての完了後に着手する最終タスク**。完了時にreview境界3
+> **5a〜5g・5iすべての完了後に着手する最終タスク**。完了時にreview境界3
 > (Phase 5全体レビュー)。
 
 ## Context
@@ -38,8 +38,8 @@ AGENTS.md / ROADMAP.md / docs/dsl.md / 対応表 / overhaul文書群が、実装
     エラー・Rust-first・mm・Y-up)は維持。
 * **ROADMAP.md(全面書き換え可)**: 現状は刷新前(選択書き出し→`id=` 適用
   フロー)の記述で完全に古い。overhaul完了後の現状と、backlog
-  (親文書の「Phase 5に含めない事項」+SVG/PDF・タイル印刷等の既存構想)を
-  反映する。
+  (親文書の「Phase 4レビュー残件ほかの取り扱い」のbacklog行+SVG/PDF・
+  タイル印刷等の既存構想)を反映する。
 * **docs/dsl.md**: `id=` / `parent=` / `branch=` の位置づけ(正式文法:
   インポータ出力・同一スコープ重名の逃げ道・レコードID)、
   `expanded=` / `elseExpanded=` の削除、rename伝播の対象参照形式と拒否条件
@@ -60,7 +60,7 @@ AGENTS.md / ROADMAP.md / docs/dsl.md / 対応表 / overhaul文書群が、実装
 
 ## Existing APIs / files to reuse
 
-* 5a〜5gの各ハンドバック報告(変更点の一次情報)。
+* 5a〜5g・5iの各ハンドバック報告(変更点の一次情報)。
 * `docs/overhaul/plan.md` の「主な削除対象」「横断リスクと防衛」— 完了状況の
   突き合わせ元。
 
@@ -73,7 +73,7 @@ AGENTS.md / ROADMAP.md / docs/dsl.md / 対応表 / overhaul文書群が、実装
 
 ## Edge cases
 
-* 5a〜5gで計画から逸脱した実装があった場合: 文書は**実装を正**として記述し、
+* 5a〜5g・5iで計画から逸脱した実装があった場合: 文書は**実装を正**として記述し、
   逸脱一覧を報告する。
 
 ## Tests
@@ -91,9 +91,9 @@ AGENTS.md / ROADMAP.md / docs/dsl.md / 対応表 / overhaul文書群が、実装
 
 ## Dependencies
 
-* 5a〜5gすべて。
+* 5a〜5g・5iすべて。
 
 ## Handoff to next task
 
-* なし(Phase 5完了)。backlog(B-5・B-6・性能テスト拡充・インポータ削除
-  判断)はROADMAP.mdへ引き継がれる。
+* なし(Phase 5完了)。backlog(性能テスト拡充・インポータ削除判断)は
+  ROADMAP.mdへ引き継がれる(B-5は解消済み・B-6は5iで解消)。

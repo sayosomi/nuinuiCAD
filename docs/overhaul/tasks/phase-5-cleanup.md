@@ -4,7 +4,8 @@
 > Phase 2・3・4 すべての完了後に着手する(2026-07-15時点で完了済み。
 > Phase 4レビュー指摘 B-1〜B-4・B-7 は `ff0b736` で修正済み)。
 >
-> **実装分割(2026-07-15)**: 本Phaseは以下の9タスクへ分割する。本ファイルは
+> **実装分割(2026-07-15、5i追加は2026-07-16)**: 本Phaseは以下の10タスクへ
+> 分割する。本ファイルは
 > Phase全体の要件・確定判断・依存順を定める**親文書**であり、実装時は担当する
 > 子タスク文書を正とする。共通要件(検証コマンド・報告様式・AGENTS.md遵守)は
 > 本文書と `tasks/README.md` に置き、子文書には重複記載しない。
@@ -28,10 +29,13 @@
 >    rename参照形式の統合カバレッジ+判明した不足の修正(5d/5eモジュール内限定)
 > 8. [phase-5g-rename-ui.md](phase-5g-rename-ui.md) —
 >    rename UI接続(専用最小プロンプト+コマンド登録)
-> 9. [phase-5h-docs-update.md](phase-5h-docs-update.md) —
+> 9. [phase-5i-midsession-step-edit.md](phase-5i-midsession-step-edit.md) —
+>    コマンドライン途中段階での完了済みステップ編集(B-6解消。
+>    Phase 4挙動不変条件へのユーザー承認済み例外)
+> 10. [phase-5h-docs-update.md](phase-5h-docs-update.md) —
 >    ドキュメント更新(AGENTS.md / ROADMAP.md / docs/dsl.md / 対応表確定。最終)
 >
-> 依存順: **5a ∥ (5b-1 → 5b-2) ∥ 5c ∥ 5d** は相互独立で並行可。
+> 依存順: **5a ∥ (5b-1 → 5b-2) ∥ 5c ∥ 5d ∥ 5i** は相互独立で並行可。
 > rename系は **5d → 5e → (5f ∥ 5g)** の直列+末端並行。
 > **5h は全タスク完了後の最終タスク**。
 > merge順・review境界は後述の専用節を正とする。
@@ -129,13 +133,18 @@ CommandLineBar・セッション状態機械には手を入れない(Phase 4完�
 不変)。選択要素に対しコマンドで起動する小さな名前入力プロンプトを新設する
 (→ 5g)。
 
-### 確定判断: Phase 4レビュー残件 B-5・B-6・性能テスト拡充は本Phaseに含めない
+### 確定判断: Phase 4レビュー残件は本Phaseに含めない(2026-07-16更新)
 
-* **B-5**(バーのnumeric参照ピックが `property: "length"` 固定)と
-  **B-6**(全ステップ完了前は完了済み行チップが無反応)は CommandLineBar /
-  セッションの挙動変更であり、「Phase 4で追加した完了済み値再編集・
-  CommandLineBar・補完・pick routingはPhase 5で挙動変更しない」の申し送りと
-  本文書の「ついで機能追加禁止」に抵触する。→ 後述のbacklogへ。
+* **B-5**(バーのnumeric参照ピックが `property: "length"` 固定)は
+  **解消済み**(2026-07-16ユーザー確認): `要素名.parameterKey` 補完
+  (`8fbedc2`)により全プロパティの参照がタイプ経路で可能になり代替が
+  成立した。pickボタン自体の `property: "length"` 固定は設計内として存続。
+* **B-6**(全ステップ完了前は完了済み行チップが無反応)は、設計を確定して
+  **子タスク5i** [phase-5i-midsession-step-edit.md](phase-5i-midsession-step-edit.md)
+  としてPhase 5へ編入した(2026-07-16、ユーザー指示)。CommandLineBar/
+  セッションの挙動変更だが、「Phase 4追加機能の挙動を変えない」不変条件への
+  **ユーザー承認済みの唯一の例外**として5iのスコープ内に限り許可する。
+  5i以外の子タスクからは従来どおり変更禁止。
 * **性能テスト拡充**(`@variable` / `要素名.parameterKey` / printLayout候補・
   CommandLineBar側候補生成のperf)はテストのみだがPhase 4機能のhardeningで
   あり本Phaseの目的(削除・整理・rename・文書)外。→ backlogへ。代替として
@@ -178,7 +187,8 @@ CommandLineBar・セッション状態機械には手を入れない(Phase 4完�
 * インポータ(`legacyImport.ts`)は削除しない。`id=` / `parent=` /
   `branch=` の受理・コンパイル挙動を変えない。
 * Phase 4で追加した完了済み値再編集・CommandLineBar・補完・pick routingの
-  挙動を変えない。
+  挙動を変えない(**唯一の例外**: 5iのスコープ内で行うB-6解消。他の子タスク
+  からの変更は引き続き禁止)。
 * Source EditorのdirtyなCodeMirror bufferが正。文書を変更する新コマンドは
   必ず `sourceEditSession.flush(reason)` を通し、`"blocked-composition"` なら
   実行しない(post-cutover文書の共通ゲート)。
@@ -204,8 +214,11 @@ CommandLineBar・セッション状態機械には手を入れない(Phase 4完�
 5b-1 legacy-format-dead-code        │
   └─ 5b-2 snapshot-mirror-removal   ├─(相互独立・並行可)
 5c command-keyboard-cleanup         │
-5d rename-analysis ─────────────────┘
-  └─ 5e rename-command-bridge
+5d rename-analysis                  │
+  │                                 │
+5i midsession-step-edit ────────────┘
+  │
+5d → 5e rename-command-bridge
        ├─ 5f rename-coverage   ┐並行可
        └─ 5g rename-ui         ┘
             └─(全タスク完了後)5h docs-update
@@ -213,19 +226,22 @@ CommandLineBar・セッション状態機械には手を入れない(Phase 4完�
 
 | タスク | 依存 | 並行可否 |
 |---|---|---|
-| 5a | なし | 5b-1/5b-2/5c/5dと並行可 |
+| 5a | なし | 5b系/5c/5d/5iと並行可 |
 | 5b-1 | なし | 同上 |
-| 5b-2 | 5b-1 | 5a/5c/5dと並行可 |
-| 5c | なし | 5a/5b系/5dと並行可 |
-| 5d | なし | 5a/5b系/5cと並行可 |
-| 5e | 5d(+5b-2のmerge先行。下記merge順) | — |
-| 5f | 5e | 5gと並行可 |
-| 5g | 5e(+5cのmerge先行。下記merge順) | 5fと並行可 |
-| 5h | 5a〜5gすべて | — |
+| 5b-2 | 5b-1 | 5a/5c/5d/5iと並行可 |
+| 5c | なし | 5a/5b系/5d/5iと並行可 |
+| 5d | なし | 5a/5b系/5c/5iと並行可 |
+| 5e | 5d(+5b-2のmerge先行。下記merge順) | 5iと並行可 |
+| 5f | 5e | 5g/5iと並行可 |
+| 5g | 5e(+5cのmerge先行。下記merge順) | 5f/5iと並行可 |
+| 5i | なし | 全子タスクと並行可(編集ファイル重複なし) |
+| 5h | 5a〜5g・5iすべて | — |
 
 ## merge順(同時進行時の衝突回避)
 
 * 推奨全体順: **5a → 5b-1 → 5b-2 → 5c → 5d → 5e → (5f ∥ 5g) → 5h**。
+  5i は他タスクと編集ファイルが重ならないため任意の時点でmergeしてよい
+  (5hより前であること)。
 * **5b-2 は 5e より先にmergeすること**(両者とも `cadDocumentStore.ts` を
   編集する)。
 * **5c は 5g より先にmergeすること**(両者とも `commandTypes.ts` /
@@ -263,11 +279,12 @@ CommandLineBar・セッション状態機械には手を入れない(Phase 4完�
 | 5e | docs/overhaul/tasks/phase-5e-rename-command-bridge.md を実装して。flush→クリーンコンパイル→5d解析→拒否 or 1回のcommitDocumentChangeの経路のみで実装し、dev検証(パッチ行集合一致・解決先保存)まで含めること。UIは作らない。旧renameElement(自動連番)を置換すること。 |
 | 5f | docs/overhaul/tasks/phase-5f-rename-coverage.md を実装して。全参照形式の統合カバレッジを追加し、判明した不足の修正は5d/5eで追加したrename解析・bridgeモジュールと関連テストに限定すること。他機能へ変更を広げない。 |
 | 5g | docs/overhaul/tasks/phase-5g-rename-ui.md を実装して。専用最小プロンプトとコマンド登録のみで実装し、CommandLineBar・pick routing・補完には一切触れないこと。衝突時はエラー表示+入力継続。 |
+| 5i | docs/overhaul/tasks/phase-5i-midsession-step-edit.md を実装して。既存の隔離draft編集を途中段階へ拡張するのみで、完了段階の既存編集フローのテストを1つも変えずgreenのまま着地すること。他のPhase 4機能には触れない。 |
 | 5h | docs/overhaul/tasks/phase-5h-docs-update.md を実装して。実装は変更せずドキュメントのみ更新し、フルチェック(desktop:build含む)で着地すること。 |
 
 ## 完了条件(Phase全体)
 
-* 5a〜5hの全子タスク完了。grepで `includeIds` / `expanded=`互換 /
+* 5a〜5iの全子タスク完了。grepで `includeIds` / `expanded=`互換 /
   `documentMigration` / `data-element-list` / `focusElementList`(旧名)の
   参照が残っていない(ドキュメント内の歴史的言及と対応表は除く)。
 * リネーム伝播が全参照形式で動作し、必須テスト行列(5f)が固定されている。
@@ -286,16 +303,20 @@ CommandLineBar・セッション状態機械には手を入れない(Phase 4完�
   置換へ逃げない。明示 `id=` 属性として既にテキストに永続しているものは別)。
 * compiled modelだけを見たrename書き換え(必ず中央flush後の正準テキストを
   解析し、実際に同じ対象へ解決される参照だけを行patchする)。
-* B-5・B-6・性能テスト拡充ほか「ついで」の機能追加・挙動変更。本Phaseは
-  削除・整理・リネーム伝播・ドキュメント更新のみ。
+* 性能テスト拡充ほか「ついで」の機能追加・挙動変更。本Phaseは削除・整理・
+  リネーム伝播・B-6解消(5iのみ)・ドキュメント更新のみ
+  (B-5は解消済みのため対応不要。5i以外でのCommandLineBar/セッション変更は
+  禁止)。
 * AGENTS.md の全面書き換え(変更点のみ差分更新。既存の製品原則は維持)。
 * 「ファイル全体を再シリアライズ」するコードパスの追加。
 
-## Phase 5に含めない事項(backlog。着手は別途ユーザー判断)
+## Phase 4レビュー残件ほかの取り扱い(2026-07-16更新)
 
-| 項目 | 内容 | 除外理由 |
+backlog行の着手は別途ユーザー判断。
+
+| 項目 | 内容 | 状態 |
 |---|---|---|
-| B-5 | バーのnumeric参照ピックが `property: "length"` 固定(`commandLineSessionCommands.ts`)。Canvas経路・`要素名.parameterKey` 補完で代替可 | CommandLineBarの挙動変更にあたる |
-| B-6 | 全ステップ完了前は完了済み行チップが無反応(`beginStepEdit` が `sessionCanConfirm` を要求) | セッション状態機械の挙動変更にあたる |
-| 性能テスト拡充 | `@variable` / `要素名.parameterKey` / printLayout候補・CommandLineBar側候補生成のperfカバレッジ | Phase 4機能のhardeningでPhase 5目的外 |
-| レガシーインポータ削除 | ユーザーが不要と明言したら別途 | 従来どおり |
+| B-5 | バーのnumeric参照ピックの `property: "length"` 固定 | **解消済み**(`要素名.parameterKey` 補完 `8fbedc2` による代替成立。2026-07-16確認) |
+| B-6 | 全ステップ完了前の完了済み行チップ無反応 | **Phase 5へ編入済み**: 子タスク [5i](phase-5i-midsession-step-edit.md) として実施 |
+| 性能テスト拡充 | `@variable` / `要素名.parameterKey` / printLayout候補・CommandLineBar側候補生成のperfカバレッジ | backlog(Phase 4機能のhardeningでPhase 5目的外) |
+| レガシーインポータ削除 | ユーザーが不要と明言したら別途 | 従来どおり保留 |
