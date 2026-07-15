@@ -396,6 +396,209 @@ describe("CommandLineBar", () => {
     expect(screen.getByRole("listbox", { name: "変数候補" })).toHaveTextContent("@Width");
   });
 
+  const lineGeometryFixture = (elementId: string) => ({
+    kind: "line" as const,
+    elementId,
+    name: "直線AB",
+    startPointId: null,
+    endPointId: null,
+    start: { kind: "point" as const, elementId: "a", name: "a", x: 0, y: 0 },
+    end: { kind: "point" as const, elementId: "b", name: "b", x: 10, y: 0 },
+    length: 10,
+    startAngleDeg: 0,
+    endAngleDeg: 0,
+    startTangentAngleDeg: 0,
+    endTangentAngleDeg: 0
+  });
+
+  it("shows AB's referenceable parameters after ElementName. and narrows them by prefix", () => {
+    useCadDocumentStore.getState().commitText(
+      ["nui 1", "point A = (0, 0)", "point B = (10, 0)", "line 直線AB = A -> B"].join("\n"),
+      "test"
+    );
+    const abId = useCadDocumentStore.getState().elements.find((element) => element.name === "直線AB")!.id;
+    const evaluation = {
+      computedVariables: new Map(),
+      errors: [],
+      warnings: [],
+      computedGeometry: new Map([[abId, lineGeometryFixture(abId)]]),
+      effectiveEnabledElementIds: new Set([abId])
+    } as never;
+
+    render(<CommandLineBar evaluation={evaluation} />);
+    act(() => { startCommandLineCreation("variable"); });
+    const input = screen.getByRole<HTMLInputElement>("textbox");
+
+    fireEvent.change(input, { target: { value: "直線AB." } });
+    input.setSelectionRange(6, 6);
+    fireEvent.select(input);
+    const listbox = screen.getByRole("listbox", { name: "変数候補" });
+    expect(listbox).toHaveTextContent("length");
+    expect(listbox).toHaveTextContent("startTangentAngleDeg");
+
+    fireEvent.change(input, { target: { value: "直線AB.st" } });
+    input.setSelectionRange(9, 9);
+    fireEvent.select(input);
+    const narrowed = screen.getByRole("listbox", { name: "変数候補" });
+    expect(narrowed).toHaveTextContent("startTangentAngleDeg");
+    expect(narrowed).not.toHaveTextContent("length");
+  });
+
+  it("replaces only the member token on selection, leaving ElementName. untouched", () => {
+    useCadDocumentStore.getState().commitText(
+      ["nui 1", "point A = (0, 0)", "point B = (10, 0)", "line 直線AB = A -> B"].join("\n"),
+      "test"
+    );
+    const abId = useCadDocumentStore.getState().elements.find((element) => element.name === "直線AB")!.id;
+    const evaluation = {
+      computedVariables: new Map(),
+      errors: [],
+      warnings: [],
+      computedGeometry: new Map([[abId, lineGeometryFixture(abId)]]),
+      effectiveEnabledElementIds: new Set([abId])
+    } as never;
+
+    render(<CommandLineBar evaluation={evaluation} />);
+    act(() => { startCommandLineCreation("variable"); });
+    const input = screen.getByRole<HTMLInputElement>("textbox");
+
+    fireEvent.change(input, { target: { value: "10 + 直線AB.le" } });
+    input.setSelectionRange(14, 14);
+    fireEvent.select(input);
+    fireEvent.click(screen.getByRole("option", { name: /length/ }));
+
+    expect(input).toHaveValue("10 + 直線AB.length");
+  });
+
+  it("excludes a disabled/uncomputed element's parameters (evaluation swap)", () => {
+    useCadDocumentStore.getState().commitText(
+      ["nui 1", "point A = (0, 0)", "point B = (10, 0)", "line 直線AB = A -> B"].join("\n"),
+      "test"
+    );
+    const abId = useCadDocumentStore.getState().elements.find((element) => element.name === "直線AB")!.id;
+
+    const { rerender } = render(<CommandLineBar evaluation={{
+      computedVariables: new Map(),
+      errors: [],
+      warnings: [],
+      computedGeometry: new Map(),
+      effectiveEnabledElementIds: new Set()
+    } as never} />);
+    act(() => { startCommandLineCreation("variable"); });
+    const input = screen.getByRole<HTMLInputElement>("textbox");
+    fireEvent.change(input, { target: { value: "直線AB." } });
+    input.setSelectionRange(6, 6);
+    fireEvent.select(input);
+    expect(screen.queryByRole("listbox", { name: "変数候補" })).toBeNull();
+
+    rerender(<CommandLineBar evaluation={{
+      computedVariables: new Map(),
+      errors: [],
+      warnings: [],
+      computedGeometry: new Map([[abId, lineGeometryFixture(abId)]]),
+      effectiveEnabledElementIds: new Set([abId])
+    } as never} />);
+    fireEvent.change(input, { target: { value: "直線AB." } });
+    input.setSelectionRange(6, 6);
+    fireEvent.select(input);
+    expect(screen.getByRole("listbox", { name: "変数候補" })).toHaveTextContent("length");
+  });
+
+  it("never guesses candidates for an ambiguous (duplicate) element name", () => {
+    useCadDocumentStore.getState().commitText(
+      [
+        "nui 1",
+        "point A = (0, 0)",
+        "point B = (10, 0)",
+        "point C = (20, 0)",
+        "line 直線AB = A -> B id=ab-1",
+        "line 直線AB = A -> C id=ab-2"
+      ].join("\n"),
+      "test"
+    );
+    const elements = useCadDocumentStore.getState().elements;
+    const duplicates = elements.filter((element) => element.name === "直線AB");
+    expect(duplicates).toHaveLength(2);
+    const evaluation = {
+      computedVariables: new Map(),
+      errors: [],
+      warnings: [],
+      computedGeometry: new Map(duplicates.map((element) => [element.id, lineGeometryFixture(element.id)])),
+      effectiveEnabledElementIds: new Set(duplicates.map((element) => element.id))
+    } as never;
+
+    render(<CommandLineBar evaluation={evaluation} />);
+    act(() => { startCommandLineCreation("variable"); });
+    const input = screen.getByRole<HTMLInputElement>("textbox");
+
+    fireEvent.change(input, { target: { value: "直線AB." } });
+    input.setSelectionRange(6, 6);
+    fireEvent.select(input);
+    expect(screen.queryByRole("listbox", { name: "変数候補" })).toBeNull();
+  });
+
+  it("coexists with @variable candidates in the same input without interference", () => {
+    useCadDocumentStore.getState().commitText(
+      ["nui 1", "var Width = 10", "point A = (0, 0)", "point B = (10, 0)", "line 直線AB = A -> B"].join("\n"),
+      "test"
+    );
+    const elements = useCadDocumentStore.getState().elements;
+    const abId = elements.find((element) => element.name === "直線AB")!.id;
+    const widthId = elements.find((element) => element.name === "Width")!.id;
+    const evaluation = {
+      computedVariables: new Map([[widthId, { kind: "variable", elementId: widthId, name: "Width", value: 10 }]]),
+      errors: [],
+      warnings: [],
+      computedGeometry: new Map([[abId, lineGeometryFixture(abId)]]),
+      effectiveEnabledElementIds: new Set([abId])
+    } as never;
+
+    render(<CommandLineBar evaluation={evaluation} />);
+    act(() => { startCommandLineCreation("variable"); });
+    const input = screen.getByRole<HTMLInputElement>("textbox");
+
+    fireEvent.change(input, { target: { value: "@Wi" } });
+    input.setSelectionRange(3, 3);
+    fireEvent.select(input);
+    expect(screen.getByRole("listbox", { name: "変数候補" })).toHaveTextContent("@Width");
+
+    fireEvent.change(input, { target: { value: "直線AB." } });
+    input.setSelectionRange(6, 6);
+    fireEvent.select(input);
+    expect(screen.getByRole("listbox", { name: "変数候補" })).toHaveTextContent("length");
+  });
+
+  it("does not open element-parameter candidates during IME composition", () => {
+    useCadDocumentStore.getState().commitText(
+      ["nui 1", "point A = (0, 0)", "point B = (10, 0)", "line 直線AB = A -> B"].join("\n"),
+      "test"
+    );
+    const abId = useCadDocumentStore.getState().elements.find((element) => element.name === "直線AB")!.id;
+    const evaluation = {
+      computedVariables: new Map(),
+      errors: [],
+      warnings: [],
+      computedGeometry: new Map([[abId, lineGeometryFixture(abId)]]),
+      effectiveEnabledElementIds: new Set([abId])
+    } as never;
+
+    render(<CommandLineBar evaluation={evaluation} />);
+    act(() => { startCommandLineCreation("variable"); });
+    const input = screen.getByRole<HTMLInputElement>("textbox");
+
+    fireEvent.compositionStart(input);
+    fireEvent.change(input, { target: { value: "直線AB." } });
+    input.setSelectionRange(6, 6);
+    fireEvent.select(input);
+    expect(screen.queryByRole("listbox", { name: "変数候補" })).toBeNull();
+
+    fireEvent.compositionEnd(input);
+    fireEvent.change(input, { target: { value: "直線AB." } });
+    input.setSelectionRange(6, 6);
+    fireEvent.select(input);
+    expect(screen.getByRole("listbox", { name: "変数候補" })).toHaveTextContent("length");
+  });
+
   it("immediately clears a displayed session when another document revision arrives", async () => {
     render(<CommandLineBar />);
     act(() => { startCommandLineCreation("variable"); });

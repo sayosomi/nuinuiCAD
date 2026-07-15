@@ -11,6 +11,8 @@ import { setPatchHighlight } from "./sourceEditorPatchHighlight";
 import { createDslCompletionSource } from "./cmAutocomplete";
 import { createPrintLayoutRangeIndex, createStatementRangeIndex } from "./statementRangeIndex";
 import { compileDslDocument } from "../dsl/dslDocument";
+import { isElementDslStatement, parseDsl } from "../dsl/dslParser";
+import type { ElementId } from "../types/geometry";
 
 const source = [
   "nui 1",
@@ -703,6 +705,9 @@ describe("Line lens @variable completion", () => {
       printLayoutRanges: () => printLayoutRanges,
       isComposing: () => false,
       computedVariables: () => undefined,
+      computedGeometry: () => undefined,
+      effectiveEnabledElementIds: () => undefined,
+      evaluationErrors: () => undefined,
       documentInput: (context) => lineLensCompletionDocumentInput(view.state.doc, line.from, context.state.doc.toString(), context.pos)
     });
 
@@ -751,6 +756,144 @@ describe("Line lens @variable completion", () => {
 
     lensView.dispatch({ changes: { from: lensView.state.doc.length, to: lensView.state.doc.length, insert: "+@Wi" } });
     fireEvent.compositionStart(lensView.contentDOM);
+    const pos = lensView.state.doc.length;
+    const result = await Promise.resolve(completionSource({
+      state: lensView.state,
+      pos,
+      explicit: true,
+      view: { compositionStarted: true }
+    } as never));
+    expect(result).toBeNull();
+    controller.destroy();
+  });
+});
+
+describe("Line lens element-parameter completion", () => {
+  const docSource = ["nui 1", "point A = (0, 0)", "point B = (10, 0)", "line 直線AB = A -> B", "point P = offset A dx=10"].join("\n");
+
+  // The store's own committed compile assigns element ids independently of
+  // any later compileDslDocument call (ids aren't content-derived, so two
+  // compiles of the identical source produce two different id strings). A
+  // fresh compile used only for statement ranges must reuse the store's real
+  // ids via assignedElementIds - matched to store elements by shared
+  // document order - or `compiled` lookups inside the module under test
+  // would never find a match and every candidate would come back empty.
+  const seedAndOpenLensOnLine = async (lineNumber: number) => {
+    useCadDocumentStore.setState(initialCadDocumentState());
+    useCadUiStore.setState(initialCadUiState());
+    useCadDocumentStore.getState().commitText(docSource, "test");
+    Object.defineProperty(Range.prototype, "getClientRects", { configurable: true, value: () => [] });
+
+    const parent = document.createElement("div");
+    const controller = new SourceEditorController(parent);
+    const view = EditorView.findFromDOM(parent.querySelector<HTMLElement>(".cm-editor")!)!;
+    const lens = parent.querySelector<HTMLElement>(".cm-source-line-lens")!;
+    const measure = parent.querySelector<HTMLElement>(".cm-source-line-lens-measure")!;
+    Object.defineProperty(view.contentDOM, "clientWidth", { configurable: true, value: 800 });
+    Object.defineProperty(view.scrollDOM, "clientWidth", { configurable: true, value: 72 });
+    Object.defineProperty(view.dom.querySelector(".cm-gutters-before")!, "offsetWidth", { configurable: true, value: 24 });
+    Object.defineProperty(measure, "scrollWidth", { configurable: true, value: 480 });
+
+    const line = view.state.doc.line(lineNumber);
+    view.dispatch({ selection: EditorSelection.cursor(line.from + line.length) });
+    await new Promise((resolve) => window.setTimeout(resolve, 20));
+    expect(lens).toHaveClass("is-visible");
+    const lensView = EditorView.findFromDOM(lens.querySelector<HTMLElement>(".cm-editor")!)!;
+
+    const storeElements = useCadDocumentStore.getState().elements;
+    const preParsed = parseDsl(docSource);
+    const assignedElementIds = new Map<number, ElementId>();
+    let elementCursor = 0;
+    preParsed.statements.forEach((statement, index) => {
+      if (isElementDslStatement(statement) && statement.name.trim()) {
+        const matched = storeElements[elementCursor];
+        if (matched) assignedElementIds.set(index, matched.id);
+        elementCursor += 1;
+      }
+    });
+    const compiled = compileDslDocument(docSource, { preparsed: preParsed, assignedElementIds });
+    const statementRanges = createStatementRangeIndex(view.state.doc, compiled.statementMap!);
+    const printLayoutRanges = createPrintLayoutRangeIndex(view.state.doc, compiled.statementMap!);
+    const elementIdByName = new Map(storeElements.map((element) => [element.name, element.id] as const));
+    const abId = elementIdByName.get("直線AB")!;
+
+    const buildCompletionSource = (overrides: {
+      computedGeometry?: Map<ElementId, unknown>;
+      effectiveEnabledElementIds?: Set<ElementId>;
+      isComposing?: () => boolean;
+    } = {}) => createDslCompletionSource({
+      elements: () => useCadDocumentStore.getState().elements,
+      statementRanges: () => statementRanges,
+      printLayouts: () => useCadDocumentStore.getState().printLayouts,
+      printLayoutRanges: () => printLayoutRanges,
+      isComposing: overrides.isComposing ?? (() => false),
+      computedVariables: () => undefined,
+      computedGeometry: () => (overrides.computedGeometry ?? new Map()) as never,
+      effectiveEnabledElementIds: () => overrides.effectiveEnabledElementIds ?? new Set(),
+      evaluationErrors: () => [],
+      documentInput: (context) => lineLensCompletionDocumentInput(view.state.doc, line.from, context.state.doc.toString(), context.pos)
+    });
+
+    return { controller, lensView, abId, buildCompletionSource };
+  };
+
+  const lineGeometryFixture = (elementId: ElementId) => ({
+    kind: "line" as const,
+    elementId,
+    name: "直線AB",
+    startPointId: null,
+    endPointId: null,
+    start: { kind: "point" as const, elementId: "a", name: "a", x: 0, y: 0 },
+    end: { kind: "point" as const, elementId: "b", name: "b", x: 10, y: 0 },
+    length: 10,
+    startAngleDeg: 0,
+    endAngleDeg: 0,
+    startTangentAngleDeg: 0,
+    endTangentAngleDeg: 0
+  });
+
+  it("offers 直線AB's parameters from a dirty, uncommitted lens edit without any compile step", async () => {
+    const { controller, lensView, abId, buildCompletionSource } = await seedAndOpenLensOnLine(5);
+    const completionSource = buildCompletionSource({
+      computedGeometry: new Map([[abId, lineGeometryFixture(abId)]]),
+      effectiveEnabledElementIds: new Set([abId])
+    });
+
+    lensView.dispatch({ changes: { from: lensView.state.doc.length, to: lensView.state.doc.length, insert: "+直線AB." } });
+    const pos = lensView.state.doc.length;
+    const result = await Promise.resolve(completionSource({ state: lensView.state, pos, explicit: true } as never));
+    expect(result).not.toBeNull();
+    expect(result?.options.some((option) => option.label === "length")).toBe(true);
+    controller.destroy();
+  });
+
+  it("stops offering candidates once the lens's own dirty edit renames the target element away from a resolvable token", async () => {
+    // The element-name pool is reconstructed from the live line text on every
+    // call (elementNameTokensForContext / resolveElementName), so once the
+    // typed token no longer matches any live name, candidates disappear -
+    // proving this doesn't silently fall back to a stale compiled name.
+    const { controller, lensView, abId, buildCompletionSource } = await seedAndOpenLensOnLine(5);
+    const completionSource = buildCompletionSource({
+      computedGeometry: new Map([[abId, lineGeometryFixture(abId)]]),
+      effectiveEnabledElementIds: new Set([abId])
+    });
+
+    lensView.dispatch({ changes: { from: lensView.state.doc.length, to: lensView.state.doc.length, insert: "+存在しない要素." } });
+    const pos = lensView.state.doc.length;
+    const result = await Promise.resolve(completionSource({ state: lensView.state, pos, explicit: true } as never));
+    expect(result?.options ?? []).toEqual([]);
+    controller.destroy();
+  });
+
+  it("does not open element-parameter completion while IME composition is in progress in the lens", async () => {
+    const { controller, lensView, abId, buildCompletionSource } = await seedAndOpenLensOnLine(5);
+    const completionSource = buildCompletionSource({
+      computedGeometry: new Map([[abId, lineGeometryFixture(abId)]]),
+      effectiveEnabledElementIds: new Set([abId]),
+      isComposing: () => true
+    });
+
+    lensView.dispatch({ changes: { from: lensView.state.doc.length, to: lensView.state.doc.length, insert: "+直線AB." } });
     const pos = lensView.state.doc.length;
     const result = await Promise.resolve(completionSource({
       state: lensView.state,

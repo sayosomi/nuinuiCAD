@@ -27,7 +27,10 @@ describe("createDslCompletionSource", () => {
       printLayouts: () => [],
       printLayoutRanges: () => new Map(),
       isComposing: () => true,
-      computedVariables: () => undefined
+      computedVariables: () => undefined,
+      computedGeometry: () => undefined,
+      effectiveEnabledElementIds: () => undefined,
+      evaluationErrors: () => undefined
     });
     expect(source({ state, pos: 3, explicit: true } as never)).toBeNull();
   });
@@ -40,7 +43,10 @@ describe("createDslCompletionSource", () => {
       printLayouts: () => [],
       printLayoutRanges: () => new Map(),
       isComposing: () => false,
-      computedVariables: () => undefined
+      computedVariables: () => undefined,
+      computedGeometry: () => undefined,
+      effectiveEnabledElementIds: () => undefined,
+      evaluationErrors: () => undefined
     });
     const result = await Promise.resolve(source({ state, pos: 3, explicit: true } as never));
     expect(result).not.toBeNull();
@@ -62,7 +68,10 @@ describe("createDslCompletionSource", () => {
       printLayouts: () => [],
       printLayoutRanges: () => new Map(),
       isComposing: () => false,
-      computedVariables: () => undefined
+      computedVariables: () => undefined,
+      computedGeometry: () => undefined,
+      effectiveEnabledElementIds: () => undefined,
+      evaluationErrors: () => undefined
     });
     const result = await Promise.resolve(completionSource({ state, pos, explicit: true } as never));
     expect(result).not.toBeNull();
@@ -92,6 +101,9 @@ describe("createDslCompletionSource", () => {
       printLayoutRanges: () => new Map(),
       isComposing: () => false,
       computedVariables: () => undefined,
+      computedGeometry: () => undefined,
+      effectiveEnabledElementIds: () => undefined,
+      evaluationErrors: () => undefined,
       documentInput: () => ({
         source,
         cursorLineNumber: 3,
@@ -127,7 +139,10 @@ describe("createDslCompletionSource", () => {
       printLayouts: () => printLayouts,
       printLayoutRanges: () => printLayoutRanges,
       isComposing: () => false,
-      computedVariables: () => undefined
+      computedVariables: () => undefined,
+      computedGeometry: () => undefined,
+      effectiveEnabledElementIds: () => undefined,
+      evaluationErrors: () => undefined
     });
     const result = await Promise.resolve(completionSource({ state, pos, explicit: true } as never));
     expect(result).not.toBeNull();
@@ -154,12 +169,122 @@ describe("createDslCompletionSource", () => {
       printLayouts: () => printLayouts,
       printLayoutRanges: () => printLayoutRanges,
       isComposing: () => false,
-      computedVariables: () => undefined
+      computedVariables: () => undefined,
+      computedGeometry: () => undefined,
+      effectiveEnabledElementIds: () => undefined,
+      evaluationErrors: () => undefined
     });
     const result = await Promise.resolve(completionSource({ state, pos, explicit: true } as never));
     expect(result).not.toBeNull();
     const labels = result!.options.map((option) => option.label);
     expect(labels).toContain("@GlobalLen");
     expect(labels).not.toContain("@Local");
+  });
+
+  describe("elementParameter (ElementName.parameterKey) completion", () => {
+    const setup = () => {
+      const source = ["nui 1", "point A = (0, 0)", "point B = (10, 0)", "line 直線AB = A -> B", "point P = offset A dx=直線AB."].join("\n");
+      const { elements, ids, statementRanges, printLayouts, printLayoutRanges } = identities(source);
+      const abId = ids.get(4)!;
+      const state = EditorState.create({ doc: source });
+      const computedGeometry = new Map([[abId, {
+        kind: "line" as const,
+        elementId: abId,
+        name: "直線AB",
+        startPointId: null,
+        endPointId: null,
+        start: { kind: "point" as const, elementId: "a", name: "a", x: 0, y: 0 },
+        end: { kind: "point" as const, elementId: "b", name: "b", x: 10, y: 0 },
+        length: 10,
+        startAngleDeg: 0,
+        endAngleDeg: 0,
+        startTangentAngleDeg: 0,
+        endTangentAngleDeg: 0
+      }]]);
+      const pos = source.indexOf("直線AB.") + "直線AB.".length;
+      const completionSource = createDslCompletionSource({
+        elements: () => elements,
+        statementRanges: () => statementRanges,
+        printLayouts: () => printLayouts,
+        printLayoutRanges: () => printLayoutRanges,
+        isComposing: () => false,
+        computedVariables: () => undefined,
+        computedGeometry: () => computedGeometry,
+        effectiveEnabledElementIds: () => new Set([abId]),
+        evaluationErrors: () => []
+      });
+      return { completionSource, state, pos, source };
+    };
+
+    it("lists AB's referenceable parameters right after the dot", async () => {
+      const { completionSource, state, pos } = setup();
+      const result = await Promise.resolve(completionSource({ state, pos, explicit: true } as never));
+      expect(result).not.toBeNull();
+      const labels = result!.options.map((option) => option.label);
+      expect(labels).toContain("length");
+      expect(labels).toContain("startTangentAngleDeg");
+      expect(result!.options.every((option) => option.type === "variable")).toBe(true);
+    });
+
+    it("spans only the member token (from/to exclude the ElementName. prefix)", async () => {
+      const source = ["nui 1", "point A = (0, 0)", "point B = (10, 0)", "line 直線AB = A -> B", "point P = offset A dx=直線AB.le"].join("\n");
+      const { elements, ids, statementRanges, printLayouts, printLayoutRanges } = identities(source);
+      const abId = ids.get(4)!;
+      const state = EditorState.create({ doc: source });
+      const computedGeometry = new Map([[abId, {
+        kind: "line" as const,
+        elementId: abId,
+        name: "直線AB",
+        startPointId: null,
+        endPointId: null,
+        start: { kind: "point" as const, elementId: "a", name: "a", x: 0, y: 0 },
+        end: { kind: "point" as const, elementId: "b", name: "b", x: 10, y: 0 },
+        length: 10,
+        startAngleDeg: 0,
+        endAngleDeg: 0,
+        startTangentAngleDeg: 0,
+        endTangentAngleDeg: 0
+      }]]);
+      const pos = source.indexOf("直線AB.le") + "直線AB.le".length;
+      const completionSource = createDslCompletionSource({
+        elements: () => elements,
+        statementRanges: () => statementRanges,
+        printLayouts: () => printLayouts,
+        printLayoutRanges: () => printLayoutRanges,
+        isComposing: () => false,
+        computedVariables: () => undefined,
+        computedGeometry: () => computedGeometry,
+        effectiveEnabledElementIds: () => new Set([abId]),
+        evaluationErrors: () => []
+      });
+      const result = await Promise.resolve(completionSource({ state, pos, explicit: true } as never));
+      expect(result).not.toBeNull();
+      // The dot immediately precedes `result!.from` - the "直線AB." prefix is
+      // entirely outside [from, to), so picking a completion can never touch it.
+      expect(source[result!.from - 1]).toBe(".");
+      expect(source.slice(result!.from, result!.to)).toBe("le");
+      const lengthOption = result!.options.find((option) => option.label === "length");
+      expect(lengthOption?.apply).toBe("length");
+    });
+
+    it("is suppressed during IME composition, same as the shared top-level guard", async () => {
+      const source = ["nui 1", "point A = (0, 0)", "point B = (10, 0)", "line 直線AB = A -> B", "point P = offset A dx=直線AB."].join("\n");
+      const { elements, ids, statementRanges, printLayouts, printLayoutRanges } = identities(source);
+      const abId = ids.get(4)!;
+      const state = EditorState.create({ doc: source });
+      const pos = source.indexOf("直線AB.") + "直線AB.".length;
+      const completionSource = createDslCompletionSource({
+        elements: () => elements,
+        statementRanges: () => statementRanges,
+        printLayouts: () => printLayouts,
+        printLayoutRanges: () => printLayoutRanges,
+        isComposing: () => true,
+        computedVariables: () => undefined,
+        computedGeometry: () => new Map(),
+        effectiveEnabledElementIds: () => new Set([abId]),
+        evaluationErrors: () => []
+      });
+      expect(await Promise.resolve(completionSource({ state, pos, explicit: true } as never))).toBeNull();
+    });
   });
 });

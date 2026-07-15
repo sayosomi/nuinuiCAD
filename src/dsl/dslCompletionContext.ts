@@ -10,6 +10,7 @@ import { splitDslComment, splitDslTerms } from "./dslTokens";
 import { dslCompletionMetadataForType, dslStatementElementType, type DslCompletionParameter } from "./dslCompletionMetadata";
 import { coordinateComponent, recordField, recordSpans, recordRemainder } from "./dslParameterSpans";
 import { dslVariableTokenEndingAt } from "./dslVariableToken";
+import { dslElementParameterTokenEndingAt } from "./dslElementParameterToken";
 import {
   placeCoordinateAttrKeys,
   placeNumericAttrKeys,
@@ -21,7 +22,26 @@ export type DslCompletionContext =
   | { kind: "keyword"; from: number; to: number; options: readonly string[] }
   | { kind: "attribute"; from: number; to: number; elementType: NonNullable<ReturnType<typeof dslStatementElementType>> }
   | { kind: "parameter"; from: number; to: number; parameter: DslCompletionParameter }
+  | { kind: "elementParameter"; from: number; to: number; elementToken: string }
   | null;
+
+/**
+ * Shared fallback for every `@`-token boundary check below: only attempted
+ * when the `@variable` check already returned null, so `@variable` detection
+ * and its span are completely unchanged. The two token shapes are mutually
+ * exclusive by construction (the `@` grammar's query excludes `.`, so
+ * `@name.` never matches `dslVariableTokenEndingAt`; this grammar requires no
+ * leading `@`), so at most one of the two ever fires for a given cursor
+ * position.
+ */
+const elementParameterCompletionContext = (
+  code: string,
+  pos: number,
+  boundaryStart: number
+): DslCompletionContext => {
+  const token = dslElementParameterTokenEndingAt(code, pos, boundaryStart);
+  return token ? { kind: "elementParameter", from: token.from, to: token.to, elementToken: token.elementToken } : null;
+};
 
 /** Local-variable-list marker: cmAutocomplete.ts routes to the vars=[...] record
  * candidate source (not the top-level @variable source) whenever the returned
@@ -57,7 +77,7 @@ const dslCoordinateLiteralCompletionContext = (
   const subSpan = [xSpan, ySpan].find((candidate) => candidate && pos >= candidate.start && pos <= candidate.end);
   if (!subSpan) return undefined;
   const token = dslVariableTokenEndingAt(code, pos, subSpan.start);
-  if (!token) return null;
+  if (!token) return elementParameterCompletionContext(code, pos, subSpan.start);
   return {
     kind: "parameter",
     from: token.from,
@@ -85,7 +105,7 @@ const dslVarsFieldCompletionContext = (code: string, pos: number, span: DslLabel
   const expressionSpan = recordRemainder(code, record, 1);
   if (!expressionSpan || pos < expressionSpan.start || pos > expressionSpan.end) return null;
   const token = dslVariableTokenEndingAt(code, pos, expressionSpan.start);
-  if (!token) return null;
+  if (!token) return elementParameterCompletionContext(code, pos, expressionSpan.start);
   return {
     kind: "parameter",
     from: token.from,
@@ -114,7 +134,7 @@ const dslIntermediatesFieldCompletionContext = (code: string, pos: number, span:
     const fieldSpan = recordField(code, record, fieldIndex);
     if (!fieldSpan || pos < fieldSpan.start || pos > fieldSpan.end) continue;
     const token = dslVariableTokenEndingAt(code, pos, fieldSpan.start);
-    if (!token) return null;
+    if (!token) return elementParameterCompletionContext(code, pos, fieldSpan.start);
     return {
       kind: "parameter",
       from: token.from,
@@ -156,7 +176,7 @@ const dslPrintLayoutCompletionContextAt = (code: string, pos: number, lineText: 
         to: token.to,
         parameter: { source: "printLayoutBlock", key: "expression", definition: { key: "expression", label: "式", kind: "number" } }
       }
-      : null;
+      : elementParameterCompletionContext(code, pos, span.start);
   }
 
   const numericKeys = statement.kind === "place" ? placeNumericAttrKeys : printLayoutNumericAttrKeys;
@@ -173,7 +193,7 @@ const dslPrintLayoutCompletionContextAt = (code: string, pos: number, lineText: 
         to: token.to,
         parameter: { source: "printLayoutBlock", key: span.key, definition: { key: span.key, label: span.key, kind: "number" } }
       }
-      : null;
+      : elementParameterCompletionContext(code, pos, span.start);
   }
   if (coordinateKeys.includes(span.key)) {
     const parameter: DslCompletionParameter = {
@@ -227,7 +247,9 @@ export const dslCompletionContextAt = (lineText: string, pos: number): DslComple
     const parameter = parameters[0];
     if (parameter.definition.kind === "number") {
       const token = dslVariableTokenEndingAt(code, pos, span.start);
-      return token ? { kind: "parameter", from: token.from, to: token.to, parameter } : null;
+      return token
+        ? { kind: "parameter", from: token.from, to: token.to, parameter }
+        : elementParameterCompletionContext(code, pos, span.start);
     }
     if (parameter.definition.kind === "reference") {
       const coordinateContext = dslCoordinateLiteralCompletionContext(code, pos, span, parameter);

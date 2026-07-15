@@ -25,11 +25,17 @@ import {
 import { elementQualifiedName } from "../model/elementNames";
 import { creationPlacementForEvaluationLimit } from "../model/elementCreationPlacement";
 import { numericVariableReferenceOptionsForPosition } from "../geometry/variableReferenceOptions";
+import { elementParameterReferenceOptionsForPosition } from "../geometry/elementParameterReferenceOptions";
 import {
   filteredNumericVariableSuggestions,
   numericVariableSuggestionMatch,
   replaceNumericVariableSuggestionToken
 } from "./numericVariableSuggestion";
+import {
+  asNumericVariableReferenceOptions,
+  elementParameterSuggestionMatch,
+  filteredElementParameterSuggestions
+} from "./elementParameterSuggestion";
 import { NumericVariableSuggestPopover } from "./NumericVariableSuggestPopover";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
@@ -93,15 +99,51 @@ export const CommandLineBar = ({ commandContext, evaluation }: CommandLineBarPro
   const visibleNumberVariableSuggestions = numberSuggestionMatch
     ? filteredNumericVariableSuggestions(numberVariableOptions, numberSuggestionMatch.query)
     : [];
-  const selectedNumberSuggestionIndex = visibleNumberVariableSuggestions.length === 0
+  const elementParamMatch = step?.kind === "number" && !isCommandLineInputComposing() && !numberSuggestionMatch
+    ? elementParameterSuggestionMatch(inputValue, numberSuggestionSelection.start, numberSuggestionSelection.end)
+    : null;
+  // Not memoized (unlike numberVariableOptions above): the element token
+  // changes on nearly every keystroke while typing the name, so a useMemo
+  // boundary here would rarely hit and isn't worth the dependency-tracking
+  // overhead (also avoids depending on a value derived from a conditional
+  // expression, which the React Compiler can't safely memoize around).
+  const elementParamPlacement = session && step?.kind === "number"
+    ? creationPlacementForEvaluationLimit(elements, session.insertionIndex, groupFoldById)
+    : null;
+  const elementParamOptions = !elementParamPlacement || !elementParamMatch
+    ? []
+    : elementParameterReferenceOptionsForPosition({
+        referenceElements: elementParamPlacement.referenceElements,
+        elementToken: elementParamMatch.elementToken,
+        currentElement: { parentGroupId: elementParamPlacement.parentGroupId },
+        evaluation: {
+          computedGeometry: evaluation?.computedGeometry ?? new Map(),
+          computedVariables: evaluation?.computedVariables ?? new Map(),
+          effectiveEnabledElementIds: evaluation?.effectiveEnabledElementIds,
+          errors: evaluation?.errors ?? []
+        }
+      });
+  const visibleElementParamSuggestions = elementParamMatch
+    ? filteredElementParameterSuggestions(elementParamOptions, elementParamMatch.query)
+    : [];
+  // Merges the two mutually-exclusive suggestion sources (see
+  // dslElementParameterToken.ts for why they can't both match at once) behind
+  // one active concept so keyboard nav, the popover, and apply share one path
+  // without touching CM's own session lifecycle (this file has no CM
+  // involvement) or the @variable code above, which stays unmodified.
+  const activeSuggestionMatch = numberSuggestionMatch ?? elementParamMatch;
+  const activeSuggestionOptions = numberSuggestionMatch
+    ? visibleNumberVariableSuggestions
+    : asNumericVariableReferenceOptions(visibleElementParamSuggestions);
+  const selectedNumberSuggestionIndex = activeSuggestionOptions.length === 0
     ? 0
-    : Math.min(numberSuggestionActiveIndex, visibleNumberVariableSuggestions.length - 1);
-  const applyNumberVariableSuggestion = (option = visibleNumberVariableSuggestions[selectedNumberSuggestionIndex]) => {
-    if (!numberSuggestionMatch || !option) return;
-    const nextValue = replaceNumericVariableSuggestionToken(inputValue, numberSuggestionMatch, option.expression);
+    : Math.min(numberSuggestionActiveIndex, activeSuggestionOptions.length - 1);
+  const applyNumberVariableSuggestion = (option = activeSuggestionOptions[selectedNumberSuggestionIndex]) => {
+    if (!activeSuggestionMatch || !option) return;
+    const nextValue = replaceNumericVariableSuggestionToken(inputValue, activeSuggestionMatch, option.expression);
     setInputValue(nextValue);
     setNumberSuggestionActiveIndex(0);
-    const nextCursor = numberSuggestionMatch.tokenStart + option.expression.length;
+    const nextCursor = activeSuggestionMatch.tokenStart + option.expression.length;
     requestAnimationFrame(() => {
       inputRef.current?.focus();
       inputRef.current?.setSelectionRange(nextCursor, nextCursor);
@@ -221,15 +263,15 @@ export const CommandLineBar = ({ commandContext, evaluation }: CommandLineBarPro
       }}
       onKeyDown={(event) => {
         if (isImeComposingKeyEvent(event) || isCommandLineInputComposing()) return;
-        if (step?.kind === "number" && visibleNumberVariableSuggestions.length > 0) {
+        if (step?.kind === "number" && activeSuggestionOptions.length > 0) {
           if (event.key === "ArrowDown") {
             event.preventDefault();
-            setNumberSuggestionActiveIndex((index) => (index + 1) % visibleNumberVariableSuggestions.length);
+            setNumberSuggestionActiveIndex((index) => (index + 1) % activeSuggestionOptions.length);
             return;
           }
           if (event.key === "ArrowUp") {
             event.preventDefault();
-            setNumberSuggestionActiveIndex((index) => (index - 1 + visibleNumberVariableSuggestions.length) % visibleNumberVariableSuggestions.length);
+            setNumberSuggestionActiveIndex((index) => (index - 1 + activeSuggestionOptions.length) % activeSuggestionOptions.length);
             return;
           }
           if (event.key === "Tab" || event.key === "Enter") {
@@ -314,7 +356,7 @@ export const CommandLineBar = ({ commandContext, evaluation }: CommandLineBarPro
                 ) : null}
                 {step.kind === "number" ? (
                   <NumericVariableSuggestPopover
-                    options={visibleNumberVariableSuggestions}
+                    options={activeSuggestionOptions}
                     activeIndex={selectedNumberSuggestionIndex}
                     onHover={setNumberSuggestionActiveIndex}
                     onApply={applyNumberVariableSuggestion}

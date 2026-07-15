@@ -7,10 +7,12 @@ import { dslReferenceCompletionOptions } from "../dsl/dslCompletionCandidates";
 import { dslVariableCompletionOptions } from "../dsl/dslVariableCompletionCandidates";
 import { dslLocalVariableCompletionOptions } from "../dsl/dslLocalVariableCompletionCandidates";
 import { dslEnclosingPrintLayoutLine, dslPrintLayoutVariableCompletionOptions } from "../dsl/dslPrintLayoutVariableCompletionCandidates";
+import { dslElementParameterCompletionOptions } from "../dsl/dslElementParameterCompletionCandidates";
 import { dslLineElementStatement, dslLinePrintLayoutStatement } from "../dsl/dslValueSpans";
 import { parseDsl } from "../dsl/dslParser";
 import { localNumericVariableReferenceOptions, type NumericVariableReferenceOption } from "../geometry/variableReferenceOptions";
-import type { CadElement, ComputedVariable, ElementId, PrintLayout } from "../types/geometry";
+import type { ElementParameterReferenceOption } from "../geometry/elementParameterReferenceOptions";
+import type { CadElement, ComputedGeometry, ComputedVariable, DependencyError, ElementId, PrintLayout } from "../types/geometry";
 import type { PrintLayoutRangeIndex, StatementRangeIndex } from "./statementRangeIndex";
 
 export type DslAutocompleteDocumentInput = {
@@ -31,6 +33,12 @@ type DslAutocompleteOptions = {
    * the Tier B "still cross-references an unedited compiled element" enrichment
    * in dslVariableCompletionOptions — never as a blanket live-buffer fallback. */
   computedVariables: () => Map<ElementId, ComputedVariable> | undefined;
+  /** Last-applied evaluation's computedGeometry/effectiveEnabledElementIds/errors,
+   * used the same Tier B way as computedVariables above but for
+   * dslElementParameterCompletionOptions's disabled/invalid gating. */
+  computedGeometry: () => Map<ElementId, ComputedGeometry> | undefined;
+  effectiveEnabledElementIds: () => Set<ElementId> | undefined;
+  evaluationErrors: () => DependencyError[] | undefined;
   /** Defaults to deriving everything from the CompletionContext's own state (Main
    * Editor). Line Lens supplies its mirrored line's live text against the REAL
    * document's line number/source, since candidate generation needs real
@@ -82,6 +90,14 @@ const currentLiveElement = (lineText: string, elementId: ElementId | undefined, 
 const asVariableCompletions = (options: readonly NumericVariableReferenceOption[]): Completion[] =>
   options.map((option) => ({ label: option.displayExpression, apply: option.expression, detail: option.detail, type: "variable" }));
 
+/** Independent of asVariableCompletions/NumericVariableReferenceOption on
+ * purpose: the element-parameter pure layer has its own candidate type and
+ * must not depend on the @variable-specific one. `apply`/`from`/`to` only
+ * ever cover the member-token span (never the `ElementName.` prefix), so
+ * `option.path` alone is the correct insertion text. */
+const asElementParameterCompletions = (options: readonly ElementParameterReferenceOption[]): Completion[] =>
+  options.map((option) => ({ label: option.label, apply: option.path, detail: option.detail, type: "variable" }));
+
 export const createDslCompletionSource = (options: DslAutocompleteOptions): CompletionSource => (context) => {
   if (options.isComposing() || context.view?.compositionStarted) return null;
   const input = (options.documentInput ?? defaultDocumentInput)(context);
@@ -97,6 +113,18 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
       .map((parameter) => parameter.key)
       .filter((key, index, all) => all.indexOf(key) === index)
       .map((key) => ({ label: key, apply: `${key}=`, type: "property" }));
+  } else if (completionContext.kind === "elementParameter") {
+    completions = asElementParameterCompletions(dslElementParameterCompletionOptions({
+      source: input.source,
+      cursorLine: input.cursorLineNumber,
+      statementElementIds: statementElementIdsByLiveLine(input.doc, options.statementRanges()),
+      elements: options.elements(),
+      elementToken: completionContext.elementToken,
+      computedGeometry: options.computedGeometry() ?? new Map(),
+      computedVariables: options.computedVariables(),
+      effectiveEnabledElementIds: options.effectiveEnabledElementIds(),
+      errors: options.evaluationErrors() ?? []
+    }));
   } else if (completionContext.parameter.definition.kind === "choice") {
     completions = (completionContext.parameter.definition.choiceOptions ?? []).map((label) => ({ label, type: "enum" }));
   } else if (completionContext.parameter.key === dslVarsAttributeParameterKey) {

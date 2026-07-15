@@ -8,7 +8,9 @@ import type {
 } from "../types/geometry";
 import {
   computedNumericReferenceValue,
-  numericReferenceCandidates
+  computedPathsForGeometry,
+  numericReferenceCandidates,
+  parameterPathsForElement
 } from "./numericReferencePaths";
 
 const point = (id: string, x: number, y: number): ComputedPoint => ({
@@ -133,5 +135,14 @@ describe("numericReferencePaths", () => {
     expect(expressions).toContain("curve.endHandleLength");
     expect(expressions).toContain("curve.intermediatePoints[1].x");
     expect(expressions).toContain("curve.intermediatePoints[1].y");
+  });
+
+  it("exports computedPathsForGeometry/parameterPathsForElement matching what numericReferenceCandidates already uses internally (regression for the export-only change)", () => {
+    expect(computedPathsForGeometry(curveGeometry)).toEqual(
+      expect.arrayContaining(["length", "startHandleAngleDeg", "startHandleLength", "endHandleAngleDeg", "endHandleLength"])
+    );
+    expect(parameterPathsForElement(elements[2])).toEqual(
+      expect.arrayContaining(["params.dx", "params.dy"])
+    );
   });
 });

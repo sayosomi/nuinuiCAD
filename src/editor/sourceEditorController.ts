@@ -187,7 +187,10 @@ export class SourceEditorController implements SourceEditorHandle {
             printLayouts: () => this.store.getState().printLayouts,
             printLayoutRanges: () => this.printLayoutRanges,
             isComposing: () => this.protocol.composing,
-            computedVariables: () => this.appliedEvaluation?.evaluation.computedVariables
+            computedVariables: () => this.appliedEvaluation?.evaluation.computedVariables,
+            computedGeometry: () => this.appliedEvaluation?.evaluation.computedGeometry,
+            effectiveEnabledElementIds: () => this.appliedEvaluation?.evaluation.effectiveEnabledElementIds,
+            evaluationErrors: () => this.appliedEvaluation?.evaluation.errors
           }),
           sourceEditorLineLens({
             sourceKeymap: () => this.lineLensKeymap(),
@@ -204,7 +207,10 @@ export class SourceEditorController implements SourceEditorHandle {
             printLayouts: () => this.store.getState().printLayouts,
             printLayoutRanges: () => this.printLayoutRanges,
             isComposing: () => this.protocol.composing,
-            computedVariables: () => this.appliedEvaluation?.evaluation.computedVariables
+            computedVariables: () => this.appliedEvaluation?.evaluation.computedVariables,
+            computedGeometry: () => this.appliedEvaluation?.evaluation.computedGeometry,
+            effectiveEnabledElementIds: () => this.appliedEvaluation?.evaluation.effectiveEnabledElementIds,
+            evaluationErrors: () => this.appliedEvaluation?.evaluation.errors
           }),
           sourceEditorSelectionExtension,
           sourceEditorPatchHighlightExtension,

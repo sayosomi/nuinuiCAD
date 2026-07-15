@@ -36,7 +36,7 @@ type ResolveContext = {
 const formatNumber = (value: number) =>
   Number.isInteger(value) ? `${value}` : value.toFixed(3).replace(/\.?0+$/, "");
 
-const formatValue = (value: number, path: string) =>
+export const formatValue = (value: number, path: string) =>
   path.toLowerCase().includes("angle") || path.toLowerCase().endsWith("deg")
     ? `${formatNumber(value)}°`
     : path.endsWith(".x") || path.endsWith(".y")
@@ -190,7 +190,7 @@ export const numericReferenceValueForPath = (
     : computedNumericReferenceValue(context.evaluation.computedGeometry.get(element.id), path);
 };
 
-const computedPathsForGeometry = (geometry: ComputedGeometry | undefined) => {
+export const computedPathsForGeometry = (geometry: ComputedGeometry | undefined) => {
   if (!geometry) return [];
   if (geometry.kind === "point") return ["x", "y"];
   if (geometry.kind === "line") {
@@ -252,7 +252,7 @@ const computedPathsForGeometry = (geometry: ComputedGeometry | undefined) => {
   return [];
 };
 
-const parameterPathsForElement = (element: CadElement) =>
+export const parameterPathsForElement = (element: CadElement) =>
   getParameterDefinitions(element).flatMap((definition) => {
     if (definition.kind === "number") return [`params.${definition.key}`];
     if (definition.kind === "reference") return [`params.${definition.key}.x`, `params.${definition.key}.y`];

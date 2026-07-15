@@ -177,6 +177,68 @@ describe("dslCompletionContextAt", () => {
     });
   });
 
+  describe("elementParameter (ElementName.parameterKey) narrowing", () => {
+    it("falls back to an elementParameter context for a number-kind field once the @ check finds nothing", () => {
+      const line = "point P = offset A dx=10+直線AB.st";
+      const context = dslCompletionContextAt(line, at(line, "直線AB.st"));
+      expect(context).toMatchObject({
+        kind: "elementParameter",
+        from: line.indexOf(".st") + 1,
+        to: at(line, "直線AB.st"),
+        elementToken: "直線AB"
+      });
+    });
+
+    it("prefers the @ context over elementParameter when both could plausibly apply", () => {
+      // "@Wi" alone never contains a dot, so this only demonstrates that the
+      // existing @ branch still runs first/unmodified - not a real conflict.
+      const line = "point P = offset A dx=10+@Wi";
+      const context = dslCompletionContextAt(line, at(line, "@Wi"));
+      expect(context?.kind).toBe("parameter");
+    });
+
+    it("does not trigger for a decimal literal (10.5), only for a non-numeric elementToken", () => {
+      const line = "point P = offset A dx=10.5";
+      expect(dslCompletionContextAt(line, at(line, "10.5"))).toBeNull();
+    });
+
+    it("offers elementParameter narrowing inside a coordinate literal's x/y sub-span", () => {
+      const line = "line L = A -> (直線AB.startPoint.x, 10)";
+      const context = dslCompletionContextAt(line, at(line, "直線AB.startPoint.x"));
+      expect(context).toMatchObject({
+        kind: "elementParameter",
+        elementToken: "直線AB"
+      });
+    });
+
+    it("offers elementParameter narrowing inside a vars=[...] record expression field", () => {
+      const line = "point P = (0, 0) vars=[Width:直線AB.length]";
+      const context = dslCompletionContextAt(line, at(line, "直線AB.length"));
+      expect(context).toMatchObject({
+        kind: "elementParameter",
+        elementToken: "直線AB"
+      });
+    });
+
+    it("offers elementParameter narrowing inside an intermediates=[...] numeric field", () => {
+      const line = "curve C = A -> B intermediates=[pt1:直線AB.startTangentAngleDeg:5:5:id1]";
+      const context = dslCompletionContextAt(line, at(line, "直線AB.startTangentAngleDeg"));
+      expect(context).toMatchObject({
+        kind: "elementParameter",
+        elementToken: "直線AB"
+      });
+    });
+
+    it("offers elementParameter narrowing for place/printLayout numeric attribute values", () => {
+      const line = "place Group1 at=(10, 20) angle=直線AB.startAngleDeg";
+      const context = dslCompletionContextAt(line, at(line, "直線AB.startAngleDeg"));
+      expect(context).toMatchObject({
+        kind: "elementParameter",
+        elementToken: "直線AB"
+      });
+    });
+  });
+
   describe("intermediates=[...] field-position discrimination", () => {
     const line = "curve C = A -> B intermediates=[@pt:15+@Wi:5:5:id1]";
 

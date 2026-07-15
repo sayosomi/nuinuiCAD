@@ -5,7 +5,7 @@ import { dslLineValueSpans, findDslValueSpanAt } from "../dsl/dslValueSpans";
 import { dslCmLanguageExtension } from "./cmLanguage";
 import { dslAutocompleteExtension, type DslAutocompleteDocumentInput } from "./cmAutocomplete";
 import type { PrintLayoutRangeIndex, StatementRangeIndex } from "./statementRangeIndex";
-import type { CadElement, ComputedVariable, ElementId, PrintLayout } from "../types/geometry";
+import type { CadElement, ComputedGeometry, ComputedVariable, DependencyError, ElementId, PrintLayout } from "../types/geometry";
 import {
   patchHighlightField,
   setPatchHighlight,
@@ -48,6 +48,9 @@ export type SourceEditorLineLensOptions = {
   printLayoutRanges: () => PrintLayoutRangeIndex;
   isComposing: () => boolean;
   computedVariables: () => Map<ElementId, ComputedVariable> | undefined;
+  computedGeometry: () => Map<ElementId, ComputedGeometry> | undefined;
+  effectiveEnabledElementIds: () => Set<ElementId> | undefined;
+  evaluationErrors: () => DependencyError[] | undefined;
 };
 
 /**
@@ -165,6 +168,9 @@ class SourceEditorLineLens {
             printLayoutRanges: this.options.printLayoutRanges,
             isComposing: this.options.isComposing,
             computedVariables: this.options.computedVariables,
+            computedGeometry: this.options.computedGeometry,
+            effectiveEnabledElementIds: this.options.effectiveEnabledElementIds,
+            evaluationErrors: this.options.evaluationErrors,
             documentInput: (context) => lineLensCompletionDocumentInput(
               this.view.state.doc,
               this.lensLineFrom,

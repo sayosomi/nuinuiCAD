@@ -389,3 +389,118 @@ describe("PrintLayoutPanel", () => {
     expect(scaleInput).toHaveValue("1");
   });
 });
+
+describe("PrintLayoutPanel element-parameter completion", () => {
+  const point = (id: string, name: string, x: number, y: number): CadElement => ({
+    id,
+    name,
+    type: "freePoint",
+    visible: true,
+    enabled: true,
+    x,
+    y
+  });
+
+  const lineElements: CadElement[] = [
+    {
+      id: "scale-var",
+      name: "倍率",
+      type: "variable",
+      visible: true,
+      enabled: true,
+      scope: "global",
+      valueMode: "expression",
+      expression: 1.5,
+      point1: { mode: "coordinate", x: 0, y: 0 },
+      point2: { mode: "coordinate", x: 0, y: 0 },
+      point: { mode: "coordinate", x: 0, y: 0 },
+      lineId: ""
+    },
+    point("pt-a", "点A", 0, 0),
+    point("pt-b", "点B", 10, 0),
+    {
+      id: "line-ab",
+      name: "直線AB",
+      type: "line",
+      visible: true,
+      enabled: true,
+      startPoint: { mode: "reference", pointId: "pt-a" },
+      endPoint: { mode: "reference", pointId: "pt-b" }
+    }
+  ];
+
+  const renderWithLine = () => {
+    useCadDocumentStore.setState({
+      elements: lineElements,
+      palette: defaultDocumentPalette(),
+      printLayouts: [DEFAULT_PRINT_LAYOUT],
+      activePrintLayoutId: DEFAULT_PRINT_LAYOUT.id,
+      printLayout: DEFAULT_PRINT_LAYOUT,
+      evaluationLimitIndex: lineElements.length,
+      past: [],
+      future: [],
+      currentFilePath: null,
+      dirtySinceSave: false
+    });
+    useCadUiStore.setState({
+      ...initialCadUiState(),
+      selectedElementId: lineElements[0].id,
+      selectedElementIds: [lineElements[0].id],
+      selectionAnchorElementId: lineElements[0].id
+    });
+    render(<PrintLayoutPanel evaluation={evaluateElements(lineElements)} />);
+  };
+
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
+  it("shows 直線AB's referenceable parameters after ElementName. and narrows them by prefix", () => {
+    renderWithLine();
+    const scaleInput = screen.getByLabelText("拡大率");
+
+    fireEvent.change(scaleInput, { target: { value: "直線AB.", selectionStart: 6, selectionEnd: 6 } });
+    const listbox = screen.getByRole("listbox", { name: "変数候補" });
+    expect(listbox).toHaveTextContent("length");
+    expect(listbox).toHaveTextContent("startTangentAngleDeg");
+
+    fireEvent.change(scaleInput, { target: { value: "直線AB.st", selectionStart: 9, selectionEnd: 9 } });
+    const narrowed = screen.getByRole("listbox", { name: "変数候補" });
+    expect(narrowed).toHaveTextContent("startTangentAngleDeg");
+    expect(narrowed).not.toHaveTextContent("length");
+  });
+
+  it("replaces only the member token on selection, leaving ElementName. untouched", async () => {
+    renderWithLine();
+    const scaleInput = screen.getByLabelText("拡大率");
+
+    fireEvent.change(scaleInput, { target: { value: "直線AB.le", selectionStart: 9, selectionEnd: 9 } });
+    fireEvent.click(screen.getByRole("option", { name: /length/ }));
+
+    await waitFor(() => expect(scaleInput).toHaveValue("直線AB.length"));
+  });
+
+  it("does not open element-parameter candidates during IME composition (regression for the pre-existing gap)", () => {
+    renderWithLine();
+    const scaleInput = screen.getByLabelText("拡大率");
+
+    fireEvent.compositionStart(scaleInput);
+    fireEvent.change(scaleInput, { target: { value: "直線AB.", selectionStart: 6, selectionEnd: 6 } });
+    expect(screen.queryByRole("listbox", { name: "変数候補" })).toBeNull();
+
+    fireEvent.compositionEnd(scaleInput);
+    fireEvent.change(scaleInput, { target: { value: "直線AB.", selectionStart: 6, selectionEnd: 6 } });
+    expect(screen.getByRole("listbox", { name: "変数候補" })).toHaveTextContent("length");
+  });
+
+  it("coexists with @variable candidates in the same input without interference", () => {
+    renderWithLine();
+    const scaleInput = screen.getByLabelText("拡大率");
+
+    fireEvent.change(scaleInput, { target: { value: "@", selectionStart: 1, selectionEnd: 1 } });
+    expect(screen.getByRole("listbox", { name: "変数候補" })).toHaveTextContent("@倍率");
+
+    fireEvent.change(scaleInput, { target: { value: "直線AB.", selectionStart: 6, selectionEnd: 6 } });
+    expect(screen.getByRole("listbox", { name: "変数候補" })).toHaveTextContent("length");
+  });
+});

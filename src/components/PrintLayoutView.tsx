@@ -21,6 +21,12 @@ import {
   numericVariableSuggestionMatch,
   replaceNumericVariableSuggestionToken
 } from "./numericVariableSuggestion";
+import {
+  asNumericVariableReferenceOptions,
+  elementParameterSuggestionMatch,
+  filteredElementParameterSuggestions
+} from "./elementParameterSuggestion";
+import { elementParameterReferenceOptionsForPosition } from "../geometry/elementParameterReferenceOptions";
 import { defaultPlacementForGroup, printableGroups, printableItemsForLayout } from "../print/printGeometry";
 import {
   DEFAULT_PRINT_LAYOUT,
@@ -130,6 +136,7 @@ const PrintNumberInput = ({
   defaultValue,
   elements,
   printVariables,
+  evaluation,
   step,
   min,
   onChange
@@ -140,6 +147,7 @@ const PrintNumberInput = ({
   defaultValue: NumericValue;
   elements: ReturnType<typeof useCadDocumentStore.getState>["elements"];
   printVariables: NumericVariable[];
+  evaluation: EvaluationResult;
   step: number;
   min?: number;
   onChange: (value: NumericValue) => void;
@@ -148,6 +156,11 @@ const PrintNumberInput = ({
   const [draft, setDraft] = useState<string | null>(null);
   const [inputSelection, setInputSelection] = useState<PrintNumberInputSelection>({ start: null, end: null });
   const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(0);
+  // Pre-existing gap fixed alongside this feature: this input never tracked
+  // IME composition state at all (only the Enter-key isImeComposingKeyEvent
+  // guard existed), so the new element-parameter suggestion source would
+  // otherwise be the second IME-unsafe source in this same component.
+  const [isComposing, setIsComposing] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const globalVariables = elements
     .filter((element) => element.type === "variable" && element.scope === "global")
@@ -165,18 +178,47 @@ const PrintNumberInput = ({
     () => printVariableReferenceOptions({ printVariables, elements }),
     [elements, printVariables]
   );
-  const suggestionMatch = numericVariableSuggestionMatch(
-    inputValue,
-    inputSelection.start,
-    inputSelection.end
-  );
+  const suggestionMatch = !isComposing
+    ? numericVariableSuggestionMatch(inputValue, inputSelection.start, inputSelection.end)
+    : null;
   const visibleSuggestions = suggestionMatch
     ? filteredNumericVariableSuggestions(variableOptions, suggestionMatch.query)
     : [];
+  // Print layout numeric expressions never pass a currentElement (see
+  // cmAutocomplete.ts's own comment on this), so element-parameter candidates
+  // here are always global/root-scoped and unsliced by document position -
+  // matching the existing @variable behavior for this surface.
+  const elementParamMatch = !isComposing && !suggestionMatch
+    ? elementParameterSuggestionMatch(inputValue, inputSelection.start, inputSelection.end)
+    : null;
+  // Not memoized: the element token changes on nearly every keystroke while
+  // typing the name, so a useMemo boundary here would rarely hit (also avoids
+  // depending on a value derived from a conditional expression, which the
+  // React Compiler can't safely memoize around).
+  const elementParamOptions = !elementParamMatch
+    ? []
+    : elementParameterReferenceOptionsForPosition({
+        referenceElements: elements,
+        elementToken: elementParamMatch.elementToken,
+        currentElement: undefined,
+        evaluation: {
+          computedGeometry: evaluation.computedGeometry,
+          computedVariables: evaluation.computedVariables,
+          effectiveEnabledElementIds: evaluation.effectiveEnabledElementIds,
+          errors: evaluation.errors
+        }
+      });
+  const visibleElementParamSuggestions = elementParamMatch
+    ? filteredElementParameterSuggestions(elementParamOptions, elementParamMatch.query)
+    : [];
+  const activeSuggestionMatch = suggestionMatch ?? elementParamMatch;
+  const activeSuggestions = suggestionMatch
+    ? visibleSuggestions
+    : asNumericVariableReferenceOptions(visibleElementParamSuggestions);
   const selectedSuggestionIndex =
-    visibleSuggestions.length === 0
+    activeSuggestions.length === 0
       ? 0
-      : Math.min(activeSuggestionIndex, visibleSuggestions.length - 1);
+      : Math.min(activeSuggestionIndex, activeSuggestions.length - 1);
   const commitValue = (nextValue: NumericValue) => {
     if (typeof nextValue === "number" && !Number.isFinite(nextValue)) return;
     onChange(clampNumericValue(nextValue, min));
@@ -184,16 +226,16 @@ const PrintNumberInput = ({
   const updateSelection = (input: HTMLInputElement) => {
     setInputSelection({ start: input.selectionStart, end: input.selectionEnd });
   };
-  const applyVariableSuggestion = (option = visibleSuggestions[selectedSuggestionIndex]) => {
-    if (!suggestionMatch || !option) return;
-    const nextInput = replaceNumericVariableSuggestionToken(inputValue, suggestionMatch, option.expression);
+  const applyVariableSuggestion = (option = activeSuggestions[selectedSuggestionIndex]) => {
+    if (!activeSuggestionMatch || !option) return;
+    const nextInput = replaceNumericVariableSuggestionToken(inputValue, activeSuggestionMatch, option.expression);
     setDraft(nextInput);
     commitValue({
       kind: "expression",
       expression: normalizeNumericExpressionInput(nextInput, elements, availableVariables)
     } satisfies NumericExpression);
     setActiveSuggestionIndex(0);
-    const nextCursor = suggestionMatch.tokenStart + option.expression.length;
+    const nextCursor = activeSuggestionMatch.tokenStart + option.expression.length;
     requestAnimationFrame(() => {
       inputRef.current?.focus();
       inputRef.current?.setSelectionRange(nextCursor, nextCursor);
@@ -227,16 +269,16 @@ const PrintNumberInput = ({
         onSelect={(event) => updateSelection(event.currentTarget)}
         onKeyUp={(event) => updateSelection(event.currentTarget)}
         onKeyDown={(event) => {
-          if (visibleSuggestions.length > 0) {
+          if (activeSuggestions.length > 0) {
             if (event.key === "ArrowDown") {
               event.preventDefault();
-              setActiveSuggestionIndex((index) => (index + 1) % visibleSuggestions.length);
+              setActiveSuggestionIndex((index) => (index + 1) % activeSuggestions.length);
               return;
             }
             if (event.key === "ArrowUp") {
               event.preventDefault();
               setActiveSuggestionIndex(
-                (index) => (index - 1 + visibleSuggestions.length) % visibleSuggestions.length
+                (index) => (index - 1 + activeSuggestions.length) % activeSuggestions.length
               );
               return;
             }
@@ -268,6 +310,8 @@ const PrintNumberInput = ({
             event.currentTarget.blur();
           }
         }}
+        onCompositionStart={() => setIsComposing(true)}
+        onCompositionEnd={() => setIsComposing(false)}
         onBlur={() => {
           setDraft(null);
           setInputSelection({ start: null, end: null });
@@ -304,7 +348,7 @@ const PrintNumberInput = ({
         }}
       />
       <NumericVariableSuggestPopover
-        options={visibleSuggestions}
+        options={activeSuggestions}
         activeIndex={selectedSuggestionIndex}
         onHover={setActiveSuggestionIndex}
         onApply={applyVariableSuggestion}
@@ -991,16 +1035,16 @@ export const PrintLayoutPanel = ({ evaluation }: { evaluation: EvaluationResult 
               <option value="landscape">横</option>
             </select>
           </label>
-          <PrintNumberInput label="横枚数" value={layout.columns} resolvedValue={resolvedLayout.columns} defaultValue={DEFAULT_PRINT_LAYOUT.columns} elements={elements} printVariables={printVariables} min={1} step={1} onChange={(columns) => updatePrintLayout({ columns })} />
-          <PrintNumberInput label="縦枚数" value={layout.rows} resolvedValue={resolvedLayout.rows} defaultValue={DEFAULT_PRINT_LAYOUT.rows} elements={elements} printVariables={printVariables} min={1} step={1} onChange={(rows) => updatePrintLayout({ rows })} />
-          <PrintNumberInput label="重複 mm" value={layout.overlapMm} resolvedValue={resolvedLayout.overlapMm} defaultValue={DEFAULT_PRINT_LAYOUT.overlapMm} elements={elements} printVariables={printVariables} min={0} step={1} onChange={(overlapMm) => updatePrintLayout({ overlapMm })} />
+          <PrintNumberInput label="横枚数" value={layout.columns} resolvedValue={resolvedLayout.columns} defaultValue={DEFAULT_PRINT_LAYOUT.columns} elements={elements} printVariables={printVariables} evaluation={evaluation} min={1} step={1} onChange={(columns) => updatePrintLayout({ columns })} />
+          <PrintNumberInput label="縦枚数" value={layout.rows} resolvedValue={resolvedLayout.rows} defaultValue={DEFAULT_PRINT_LAYOUT.rows} elements={elements} printVariables={printVariables} evaluation={evaluation} min={1} step={1} onChange={(rows) => updatePrintLayout({ rows })} />
+          <PrintNumberInput label="重複 mm" value={layout.overlapMm} resolvedValue={resolvedLayout.overlapMm} defaultValue={DEFAULT_PRINT_LAYOUT.overlapMm} elements={elements} printVariables={printVariables} evaluation={evaluation} min={0} step={1} onChange={(overlapMm) => updatePrintLayout({ overlapMm })} />
             </>
           )}
-          <PrintNumberInput label="拡大率" value={layout.scale} resolvedValue={resolvedLayout.scale} defaultValue={DEFAULT_PRINT_LAYOUT.scale} elements={elements} printVariables={printVariables} min={0.01} step={0.1} onChange={(scale) => updatePrintLayout({ scale })} />
+          <PrintNumberInput label="拡大率" value={layout.scale} resolvedValue={resolvedLayout.scale} defaultValue={DEFAULT_PRINT_LAYOUT.scale} elements={elements} printVariables={printVariables} evaluation={evaluation} min={0.01} step={0.1} onChange={(scale) => updatePrintLayout({ scale })} />
           {isSvgLayout ? (
             <>
-              <PrintNumberInput label="SVG幅 mm" value={layout.svgCanvasWidthMm} resolvedValue={resolvedLayout.svgCanvasWidthMm} defaultValue={DEFAULT_PRINT_LAYOUT.svgCanvasWidthMm} elements={elements} printVariables={printVariables} min={1} step={1} onChange={(svgCanvasWidthMm) => updatePrintLayout({ svgCanvasWidthMm })} />
-              <PrintNumberInput label="SVG高さ mm" value={layout.svgCanvasHeightMm} resolvedValue={resolvedLayout.svgCanvasHeightMm} defaultValue={DEFAULT_PRINT_LAYOUT.svgCanvasHeightMm} elements={elements} printVariables={printVariables} min={1} step={1} onChange={(svgCanvasHeightMm) => updatePrintLayout({ svgCanvasHeightMm })} />
+              <PrintNumberInput label="SVG幅 mm" value={layout.svgCanvasWidthMm} resolvedValue={resolvedLayout.svgCanvasWidthMm} defaultValue={DEFAULT_PRINT_LAYOUT.svgCanvasWidthMm} elements={elements} printVariables={printVariables} evaluation={evaluation} min={1} step={1} onChange={(svgCanvasWidthMm) => updatePrintLayout({ svgCanvasWidthMm })} />
+              <PrintNumberInput label="SVG高さ mm" value={layout.svgCanvasHeightMm} resolvedValue={resolvedLayout.svgCanvasHeightMm} defaultValue={DEFAULT_PRINT_LAYOUT.svgCanvasHeightMm} elements={elements} printVariables={printVariables} evaluation={evaluation} min={1} step={1} onChange={(svgCanvasHeightMm) => updatePrintLayout({ svgCanvasHeightMm })} />
             </>
           ) : null}
         </div>
@@ -1042,6 +1086,7 @@ export const PrintLayoutPanel = ({ evaluation }: { evaluation: EvaluationResult 
                   defaultValue={30}
                   elements={elements}
                   printVariables={printVariables}
+                  evaluation={evaluation}
                   step={1}
                   onChange={(value) => updatePrintVariable(variable.id, { value })}
                 />
@@ -1177,9 +1222,9 @@ export const PrintLayoutPanel = ({ evaluation }: { evaluation: EvaluationResult 
               </select>
             </label>
             <div className="print-settings-grid">
-              <PrintNumberInput label="x mm" value={selectedPlacement.x} resolvedValue={selectedResolvedPlacement?.x ?? 0} defaultValue={Math.round(canvas.widthMm / 2)} elements={elements} printVariables={printVariables} step={1} onChange={(x) => updatePlacement(selectedPlacement.id, { x })} />
-              <PrintNumberInput label="y mm" value={selectedPlacement.y} resolvedValue={selectedResolvedPlacement?.y ?? 0} defaultValue={Math.round(canvas.heightMm / 2)} elements={elements} printVariables={printVariables} step={1} onChange={(y) => updatePlacement(selectedPlacement.id, { y })} />
-              <PrintNumberInput label="角度" value={selectedPlacement.angleDeg} resolvedValue={selectedResolvedPlacement?.angleDeg ?? 0} defaultValue={0} elements={elements} printVariables={printVariables} step={1} onChange={(angleDeg) => updatePlacement(selectedPlacement.id, { angleDeg })} />
+              <PrintNumberInput label="x mm" value={selectedPlacement.x} resolvedValue={selectedResolvedPlacement?.x ?? 0} defaultValue={Math.round(canvas.widthMm / 2)} elements={elements} printVariables={printVariables} evaluation={evaluation} step={1} onChange={(x) => updatePlacement(selectedPlacement.id, { x })} />
+              <PrintNumberInput label="y mm" value={selectedPlacement.y} resolvedValue={selectedResolvedPlacement?.y ?? 0} defaultValue={Math.round(canvas.heightMm / 2)} elements={elements} printVariables={printVariables} evaluation={evaluation} step={1} onChange={(y) => updatePlacement(selectedPlacement.id, { y })} />
+              <PrintNumberInput label="角度" value={selectedPlacement.angleDeg} resolvedValue={selectedResolvedPlacement?.angleDeg ?? 0} defaultValue={0} elements={elements} printVariables={printVariables} evaluation={evaluation} step={1} onChange={(angleDeg) => updatePlacement(selectedPlacement.id, { angleDeg })} />
               <label className="print-checkbox-field">
                 <input
                   type="checkbox"
