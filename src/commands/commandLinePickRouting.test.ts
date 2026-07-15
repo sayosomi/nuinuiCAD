@@ -83,6 +83,17 @@ describe("command-line pick routing", () => {
     expect(startCommandLineCreation("angleLengthLine")).toBe(true);
     applyPickedPoint({ pickedPointAnchor: referenceAnchor(pointA.id) });
     expect(startCommandLineNumericReferencePick()).toBe(true);
+    expect(useCadUiStore.getState().activeNumericReferencePickTarget).toMatchObject({
+      parameterKey: "angleDeg",
+      property: "startTangentAngleDeg"
+    });
+    applyPickedNumericReference({ numericReferenceExpression: `${line.id}.length` });
+
+    expect(startCommandLineNumericReferencePick()).toBe(true);
+    expect(useCadUiStore.getState().activeNumericReferencePickTarget).toMatchObject({
+      parameterKey: "length",
+      property: "length"
+    });
     applyPickedNumericReference({ numericReferenceExpression: `${line.id}.length` });
     expect(useCadUiStore.getState().commandLineSession?.args.angleDeg).toEqual({
       kind: "expression",

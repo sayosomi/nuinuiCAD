@@ -1,5 +1,8 @@
 import { evaluateElements } from "../geometry/evaluate";
-import { numericReferencePickProperties } from "../geometry/numericReferenceProperties";
+import {
+  initialNumericReferencePickProperty,
+  numericReferencePickProperties
+} from "../geometry/numericReferenceProperties";
 import { insertNumericExpressionSnippet as insertSnippetIntoExpression } from "../geometry/numericExpressionInsertion";
 import {
   makeNumericExpression,
@@ -384,7 +387,7 @@ export const startNumericReferencePick = (context?: CommandContext) => {
       elementId: selectedElement.id,
       parameterKey: definition.key,
       mode: "replace",
-      property: "length"
+      property: initialNumericReferencePickProperty(definition.stepLevels)
     }
   });
   return true;

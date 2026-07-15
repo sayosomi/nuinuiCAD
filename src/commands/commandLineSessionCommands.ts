@@ -1,5 +1,6 @@
 import { makeNumericExpression } from "../geometry/numericExpressions";
 import { numericExpressionSyntaxIsValid } from "../geometry/numericExpressionParser";
+import { initialNumericReferencePickProperty } from "../geometry/numericReferenceProperties";
 import {
   applyCreationPlacement,
   creationPlacementForEvaluationLimit
@@ -282,7 +283,7 @@ export const startCommandLineNumericReferencePick = () => {
       parameterKey: step.key,
       insertionIndex: session.insertionIndex,
       mode: "replace",
-      property: "length"
+      property: initialNumericReferencePickProperty(step.stepLevels)
     },
     activePickCursor: null
   });

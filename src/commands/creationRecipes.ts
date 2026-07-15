@@ -24,7 +24,7 @@ export type CreationStep =
   | { kind: "endpoint"; key: ParameterKey; prompt: string }
   | { kind: "line"; key: ParameterKey; prompt: string }
   | { kind: "lineList"; key: ParameterKey; prompt: string }
-  | { kind: "number"; key: ParameterKey; prompt: string; default?: string }
+  | { kind: "number"; key: ParameterKey; prompt: string; default?: string; stepLevels?: readonly number[] }
   | { kind: "name"; autoSuggest: true };
 
 export type CreationArgumentValue =
@@ -86,7 +86,8 @@ const creationStepForDefinition = (
     ...base,
     ...(definition.emptyInputDefaultValue === undefined
       ? {}
-      : { default: String(definition.emptyInputDefaultValue) })
+      : { default: String(definition.emptyInputDefaultValue) }),
+    ...(definition.stepLevels === undefined ? {} : { stepLevels: definition.stepLevels })
   };
 };
 

@@ -1,3 +1,4 @@
+import { angleNumericParameterStepLevels } from "../parameters/parameterDefinitions";
 import type {
   CadElement,
   ComputedArcLine,
@@ -87,3 +88,16 @@ export const numericReferenceGeometrySupportsProperty = (
   geometry: NumericReferenceGeometry,
   property: NumericMeasurementKey
 ) => numericReferencePropertiesForGeometry(geometry).includes(property);
+
+/**
+ * Default measurement to start a numeric-reference pick on, before the user
+ * cycles through `numericReferencePickProperties` (Left/Right). Angle-shaped
+ * target parameters (recognized by their `stepLevels`) start on an angle
+ * instead of always defaulting to length. "length" and "startTangentAngleDeg"
+ * are both supported by every NumericReferenceGeometry kind (see
+ * numericReferencePropertiesForGeometry above), so either default is always a
+ * valid starting candidate regardless of what geometry the user picks.
+ */
+export const initialNumericReferencePickProperty = (
+  stepLevels?: readonly number[]
+): NumericMeasurementKey => (stepLevels === angleNumericParameterStepLevels ? "startTangentAngleDeg" : "length");

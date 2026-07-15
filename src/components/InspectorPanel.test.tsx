@@ -97,9 +97,27 @@ describe("InspectorPanel mouse-only actions", () => {
     expect(useCadUiStore.getState().activePointPickTarget).toBeNull();
     expect(useCadUiStore.getState().activeNumericReferencePickTarget).toMatchObject({
       elementId: element.id,
-      parameterKey: "dx"
+      parameterKey: "dx",
+      property: "length"
     });
     expect(handle.jumpToParameterValue).not.toHaveBeenCalled();
+  });
+
+  it("starts an angle-shaped parameter's pick on an angle measurement instead of length", () => {
+    const { element } = renderFactoryInspector("angleLengthLine");
+    fireEvent.click(screen.getByRole("button", { name: "角度を選択" }));
+    expect(useCadUiStore.getState().activeNumericReferencePickTarget).toMatchObject({
+      elementId: element.id,
+      parameterKey: "angleDeg",
+      property: "startTangentAngleDeg"
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "長さを選択" }));
+    expect(useCadUiStore.getState().activeNumericReferencePickTarget).toMatchObject({
+      elementId: element.id,
+      parameterKey: "length",
+      property: "length"
+    });
   });
 
   it("keeps explicit Canvas-pick buttons for every supported parameter kind", () => {

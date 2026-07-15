@@ -8,6 +8,11 @@ import type {
   ComputedPoint
 } from "../types/geometry";
 import {
+  angleNumericParameterStepLevels,
+  ratioNumericParameterStepLevels
+} from "../parameters/parameterDefinitions";
+import {
+  initialNumericReferencePickProperty,
   numericReferenceGeometrySupportsProperty,
   numericReferencePickProperties,
   numericReferencePropertiesForElement,
@@ -165,5 +170,23 @@ describe("numericReferenceProperties", () => {
       "endHandleAngleDeg",
       "endHandleLength"
     ]);
+  });
+
+  it("starts an angle-shaped target parameter on an angle measurement instead of length", () => {
+    expect(initialNumericReferencePickProperty(angleNumericParameterStepLevels)).toBe("startTangentAngleDeg");
+  });
+
+  it("keeps length as the default for non-angle target parameters", () => {
+    expect(initialNumericReferencePickProperty(ratioNumericParameterStepLevels)).toBe("length");
+    expect(initialNumericReferencePickProperty(undefined)).toBe("length");
+  });
+
+  it("chooses a default that every NumericReferenceGeometry kind actually supports", () => {
+    for (const geometry of [line, arc, curve, offsetLine]) {
+      expect(numericReferenceGeometrySupportsProperty(geometry, initialNumericReferencePickProperty(undefined))).toBe(true);
+      expect(
+        numericReferenceGeometrySupportsProperty(geometry, initialNumericReferencePickProperty(angleNumericParameterStepLevels))
+      ).toBe(true);
+    }
   });
 });
