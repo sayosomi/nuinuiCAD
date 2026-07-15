@@ -62,6 +62,7 @@ export type SourceEditorHandle = {
  */
 export type SourceEditorControllerOptions = {
   onRequestCanvasFocus?: () => void;
+  onRequestElementSearch?: () => void;
   onRequestContextMenu?: (elementId: ElementId, clientX: number, clientY: number) => void;
   isSourceSearchOpen?: () => boolean;
   closeSourceSearch?: () => void;

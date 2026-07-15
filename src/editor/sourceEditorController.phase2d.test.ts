@@ -558,10 +558,10 @@ describe("SourceEditorController structural shortcuts", () => {
 
     // jsdom is not detected as macOS, so CodeMirror's Mod prefix is Ctrl here.
     fireEvent.keyDown(content, { key: "ArrowUp", ctrlKey: true });
-    fireEvent.keyDown(content, { key: "ArrowDown", altKey: true });
-    fireEvent.keyDown(content, { key: "ArrowUp", altKey: true, shiftKey: true });
-    fireEvent.keyDown(content, { key: "ArrowDown", altKey: true, shiftKey: true });
-    fireEvent.keyDown(content, { key: "End", altKey: true, shiftKey: true });
+    fireEvent.keyDown(content, { key: "ArrowDown", ctrlKey: true, altKey: true });
+    fireEvent.keyDown(content, { key: "ArrowUp", ctrlKey: true, altKey: true, shiftKey: true });
+    fireEvent.keyDown(content, { key: "ArrowDown", ctrlKey: true, altKey: true, shiftKey: true });
+    fireEvent.keyDown(content, { key: "End", ctrlKey: true, altKey: true, shiftKey: true });
     fireEvent.keyDown(content, { key: "]", ctrlKey: true });
     fireEvent.keyDown(content, { key: "[", ctrlKey: true });
 
@@ -616,6 +616,39 @@ describe("SourceEditorController structural shortcuts", () => {
     expect(dispatchedCommandIds()).not.toContain("indentSelectedElements");
     expect(dispatchedCommandIds()).not.toContain("moveSelectedElementUp");
 
+    controller.destroy();
+  });
+
+  it("leaves Shift+C to normal text input and CodeMirror-owned Mod+Shift+K", () => {
+    useCadDocumentStore.getState().commitText("nui 1\npoint A = (0, 0)\npoint B = (1, 1)", "test");
+    const { controller, content } = buildController();
+    const shiftedC = new KeyboardEvent("keydown", { key: "C", shiftKey: true, bubbles: true, cancelable: true });
+    content.dispatchEvent(shiftedC);
+    expect(shiftedC.defaultPrevented).toBe(false);
+    expect(dispatchedCommandIds()).toEqual([]);
+
+    // This key is deliberately not in the app registry: CodeMirror keeps its
+    // standard current-line deletion meaning.
+    const deleteLine = new KeyboardEvent("keydown", {
+      key: "k", ctrlKey: true, shiftKey: true, bubbles: true, cancelable: true
+    });
+    fireEvent(content, deleteLine);
+    expect(deleteLine.defaultPrevented).toBe(true);
+    expect(dispatchedCommandIds()).toEqual([]);
+    controller.destroy();
+  });
+
+  it("consumes an unavailable app-exclusive key but lets an unavailable editor transaction fall through", () => {
+    const { controller } = buildController();
+    vi.mocked(dispatchCommand).mockReturnValue(false);
+    const internals = controller as unknown as {
+      view: unknown;
+      sourceEditorShortcutKeymap: () => readonly { key: string; run: (view: unknown) => boolean }[];
+    };
+    const bindings = internals.sourceEditorShortcutKeymap();
+
+    expect(bindings.find((binding) => binding.key === "Mod-ArrowUp")?.run(internals.view)).toBe(true);
+    expect(bindings.find((binding) => binding.key === "Mod-Alt-ArrowRight")?.run(internals.view)).toBe(false);
     controller.destroy();
   });
 });

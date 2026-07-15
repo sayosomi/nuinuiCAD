@@ -48,7 +48,7 @@ describe("CommandPalette", () => {
         version: 1,
         overrides: [
           {
-            bindingId: "global.saveDocument",
+            bindingId: "crossFocus.saveDocument",
             chords: [{ key: "k", mod: true, alt: true, shift: false }]
           }
         ]

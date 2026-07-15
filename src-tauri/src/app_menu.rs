@@ -16,7 +16,6 @@ type AppSubmenuBuilder<'a> = SubmenuBuilder<'a, Wry, AppHandle<Wry>>;
 struct CommandSpec {
     id: &'static str,
     label: &'static str,
-    accelerator: Option<&'static str>,
 }
 
 #[derive(Clone, Copy)]
@@ -54,12 +53,11 @@ enum MenuSpec {
     Separator,
 }
 
-const fn cmd(id: &'static str, label: &'static str, accelerator: Option<&'static str>) -> MenuSpec {
-    MenuSpec::Command(CommandSpec {
-        id,
-        label,
-        accelerator,
-    })
+/// App command accelerators are handled by the WebView shortcut dispatcher so
+/// user overrides and focus-aware routing always use the same execution path.
+/// Native role items remain responsible for their platform-standard keys.
+const fn cmd(id: &'static str, label: &'static str) -> MenuSpec {
+    MenuSpec::Command(CommandSpec { id, label })
 }
 
 const fn native(item: NativeSpec) -> MenuSpec {
@@ -67,6 +65,7 @@ const fn native(item: NativeSpec) -> MenuSpec {
 }
 
 const SEP: MenuSpec = MenuSpec::Separator;
+const APP_COMMAND_ACCELERATOR: Option<&str> = None;
 const CAD_ACTION_MENU_TITLE: &str = "操作";
 #[cfg(target_os = "macos")]
 const NATIVE_EDIT_MENU_TITLE: &str = "編集";
@@ -83,18 +82,14 @@ const APP_ITEMS: &[MenuSpec] = &[
 ];
 
 const FILE_ITEMS: &[MenuSpec] = &[
-    cmd("newDocument", "新規ドキュメント", Some("CmdOrCtrl+N")),
-    cmd("openDocument", "開く...", Some("CmdOrCtrl+O")),
+    cmd("newDocument", "新規ドキュメント"),
+    cmd("openDocument", "開く..."),
     SEP,
-    cmd("saveDocument", "保存", Some("CmdOrCtrl+S")),
-    cmd(
-        "saveDocumentAs",
-        "名前を付けて保存...",
-        Some("CmdOrCtrl+Shift+S"),
-    ),
+    cmd("saveDocument", "保存"),
+    cmd("saveDocumentAs", "名前を付けて保存..."),
     SEP,
-    cmd("exportPrintSvg", "SVGを書き出す...", None),
-    cmd("exportPrintPdf", "印刷用PDFを書き出す...", None),
+    cmd("exportPrintSvg", "SVGを書き出す..."),
+    cmd("exportPrintPdf", "印刷用PDFを書き出す..."),
 ];
 
 #[cfg(target_os = "macos")]
@@ -106,163 +101,99 @@ const NATIVE_EDIT_ITEMS: &[MenuSpec] = &[
 ];
 
 const EDIT_ITEMS: &[MenuSpec] = &[
-    // No accelerator: the native menu key equivalent intercepts Cmd/Ctrl+Z and
-    // Cmd/Ctrl+Y before the webview's own keydown/beforeinput handling ever sees
-    // them, which defeats the CodeMirror-focused, dirty-buffer-aware Undo/Redo
-    // routing in SourceEditorController. Keyboard Undo/Redo is handled entirely at
-    // the webview level (CM's own keymap when the source editor is focused,
-    // src/keyboard/shortcutDefaultBindings.ts's Mod+Z/Mod+Y binding otherwise).
-    // Clicking these menu items still works via the normal command dispatch path.
-    cmd("undo", "元に戻す", None),
-    cmd("redo", "やり直す", None),
+    // Keyboard command dispatch belongs to the WebView, including focus-aware
+    // Undo/Redo routing. These items retain only their click dispatch path.
+    cmd("undo", "元に戻す"),
+    cmd("redo", "やり直す"),
     SEP,
-    cmd(
-        "duplicateSelectedElement",
-        "選択要素を複製",
-        Some("CmdOrCtrl+D"),
-    ),
-    cmd("deleteSelectedElement", "選択要素を削除", None),
+    cmd("duplicateSelectedElement", "選択要素を複製"),
+    cmd("deleteSelectedElement", "選択要素を削除"),
     SEP,
-    cmd("toggleSelectedElementVisibility", "表示/非表示を切替", None),
-    cmd(
-        "toggleSelectedElementEnabled",
-        "評価する/しないを切替",
-        None,
-    ),
+    cmd("toggleSelectedElementVisibility", "表示/非表示を切替"),
+    cmd("toggleSelectedElementEnabled", "評価する/しないを切替"),
     SEP,
-    cmd(
-        "groupSelectedElements",
-        "選択要素をグループ化",
-        Some("CmdOrCtrl+G"),
-    ),
-    cmd("addConditionalGroup", "ifブロックを追加", Some("Alt+I")),
+    cmd("groupSelectedElements", "選択要素をグループ化"),
+    cmd("addConditionalGroup", "ifブロックを追加"),
     cmd(
         "wrapSelectedElementsInConditionalGroup",
         "選択範囲をifで囲む",
-        Some("Shift+Alt+I"),
     ),
-    cmd(
-        "addElseBranchToSelectedConditionalGroup",
-        "else枝を追加",
-        None,
-    ),
+    cmd("addElseBranchToSelectedConditionalGroup", "else枝を追加"),
     cmd(
         "deleteElseBranchFromSelectedConditionalGroup",
         "else枝を削除",
-        None,
     ),
-    cmd(
-        "ungroupSelectedGroup",
-        "選択グループを解除",
-        Some("CmdOrCtrl+Shift+G"),
-    ),
-    cmd("indentSelectedElements", "選択要素をインデント", None),
-    cmd("outdentSelectedElements", "選択要素をアウトデント", None),
+    cmd("ungroupSelectedGroup", "選択グループを解除"),
+    cmd("indentSelectedElements", "選択要素をインデント"),
+    cmd("outdentSelectedElements", "選択要素をアウトデント"),
 ];
 
 const DRAW_ITEMS: &[MenuSpec] = &[
-    cmd("addFreePoint", "free point を追加", None),
-    cmd("addOffsetPoint", "offset point を追加", None),
-    cmd("addPolarOffsetPoint", "polar offset point を追加", None),
-    cmd("addDivisionPoint", "点間分点を追加", None),
-    cmd("addLineDivisionPoint", "線上分点を追加", None),
-    cmd("addIntersectionPoint", "交点を追加", None),
-    cmd("addLineTangentOffsetPoint", "線上オフセット点を追加", None),
+    cmd("addFreePoint", "free point を追加"),
+    cmd("addOffsetPoint", "offset point を追加"),
+    cmd("addPolarOffsetPoint", "polar offset point を追加"),
+    cmd("addDivisionPoint", "点間分点を追加"),
+    cmd("addLineDivisionPoint", "線上分点を追加"),
+    cmd("addIntersectionPoint", "交点を追加"),
+    cmd("addLineTangentOffsetPoint", "線上オフセット点を追加"),
     SEP,
-    cmd("addLine", "line を追加", None),
-    cmd("addAngleLengthLine", "角度距離線を追加", None),
-    cmd("addArcLine", "円弧線を追加", None),
-    cmd("addThreePointArcLine", "三点円弧線を追加", None),
-    cmd("addCornerRadiusArcLine", "角R円弧線を追加", Some("Shift+R")),
-    cmd("addBezierCurve", "Bezier curve を追加", None),
+    cmd("addLine", "line を追加"),
+    cmd("addAngleLengthLine", "角度距離線を追加"),
+    cmd("addArcLine", "円弧線を追加"),
+    cmd("addThreePointArcLine", "三点円弧線を追加"),
+    cmd("addCornerRadiusArcLine", "角R円弧線を追加"),
+    cmd("addBezierCurve", "Bezier curve を追加"),
     SEP,
-    cmd("addEdge", "エッジを追加", None),
-    cmd("addExtendTrim", "延長短縮を追加", None),
-    cmd("addOffsetLine", "オフセット線を追加", Some("Shift+O")),
-    cmd("addSplitLine", "分割線を追加", None),
-    cmd("addCopyLine", "コピー線を追加", Some("Shift+C")),
-    cmd("addSymmetricCopyLine", "対称コピー線を追加", None),
-    cmd("addMove", "移動を追加", None),
-    cmd("addSymmetricMove", "対称移動を追加", None),
+    cmd("addEdge", "エッジを追加"),
+    cmd("addExtendTrim", "延長短縮を追加"),
+    cmd("addOffsetLine", "オフセット線を追加"),
+    cmd("addSplitLine", "分割線を追加"),
+    cmd("addCopyLine", "コピー線を追加"),
+    cmd("addSymmetricCopyLine", "対称コピー線を追加"),
+    cmd("addMove", "移動を追加"),
+    cmd("addSymmetricMove", "対称移動を追加"),
     SEP,
-    cmd("addText", "テキストを追加", None),
+    cmd("addText", "テキストを追加"),
     SEP,
-    cmd("addVariable", "変数を追加", None),
-    cmd("addNumericVariable", "要素内変数を追加", None),
-    cmd("addBezierIntermediatePoint", "曲線の中間点を追加", None),
+    cmd("addVariable", "変数を追加"),
+    cmd("addNumericVariable", "要素内変数を追加"),
+    cmd("addBezierIntermediatePoint", "曲線の中間点を追加"),
 ];
 
 const VIEW_ITEMS: &[MenuSpec] = &[
-    cmd("zoomInCanvas", "キャンバスを拡大", None),
-    cmd("zoomOutCanvas", "キャンバスを縮小", None),
-    cmd("resetCanvasView", "キャンバス表示をリセット", None),
+    cmd("zoomInCanvas", "キャンバスを拡大"),
+    cmd("zoomOutCanvas", "キャンバスを縮小"),
+    cmd("resetCanvasView", "キャンバス表示をリセット"),
     SEP,
-    cmd("openPrintLayout", "印刷レイアウトを開く", None),
-    cmd("closePrintLayout", "CAD編集に戻る", None),
+    cmd("openPrintLayout", "印刷レイアウトを開く"),
+    cmd("closePrintLayout", "CAD編集に戻る"),
     SEP,
-    cmd("toggleElementInfoPanel", "要素詳細を表示/非表示", None),
-    cmd("openCommandPalette", "コマンドパレットを開く", None),
-    cmd(
-        "toggleShortcutHelp",
-        "ショートカット一覧を表示/非表示",
-        None,
-    ),
-    cmd("openShortcutSettings", "ショートカット設定を開く", None),
+    cmd("toggleElementInfoPanel", "要素詳細を表示/非表示"),
+    cmd("openCommandPalette", "コマンドパレットを開く"),
+    cmd("toggleShortcutHelp", "ショートカット一覧を表示/非表示"),
+    cmd("openShortcutSettings", "ショートカット設定を開く"),
 ];
 
 const NAVIGATE_ITEMS: &[MenuSpec] = &[
-    cmd("focusCanvas", "キャンバスへフォーカス", None),
-    cmd("focusElementList", "要素リストへフォーカス", None),
-    cmd(
-        "focusElementSearch",
-        "要素検索へフォーカス",
-        Some("CmdOrCtrl+F"),
-    ),
+    cmd("focusCanvas", "キャンバスへフォーカス"),
+    cmd("focusElementList", "要素リストへフォーカス"),
+    cmd("focusElementSearch", "要素検索へフォーカス"),
     SEP,
-    cmd("selectPreviousElement", "前の要素を選択", None),
-    cmd("selectNextElement", "次の要素を選択", None),
-    cmd("selectParentGroup", "親グループを選択", None),
-    cmd(
-        "enterParameterEditMode",
-        "パラメーター編集モードに入る",
-        None,
-    ),
-    cmd(
-        "enterDependencyJumpMode",
-        "親子要素ジャンプモードに入る",
-        None,
-    ),
+    cmd("selectPreviousElement", "前の要素を選択"),
+    cmd("selectNextElement", "次の要素を選択"),
+    cmd("selectParentGroup", "親グループを選択"),
+    cmd("enterParameterEditMode", "パラメーター編集モードに入る"),
+    cmd("enterDependencyJumpMode", "親子要素ジャンプモードに入る"),
     SEP,
-    cmd(
-        "moveSelectedElementUp",
-        "選択要素を上へ",
-        Some("CmdOrCtrl+Up"),
-    ),
-    cmd(
-        "moveSelectedElementDown",
-        "選択要素を下へ",
-        Some("CmdOrCtrl+Down"),
-    ),
-    cmd(
-        "moveEvaluationDividerUp",
-        "評価区切り線を上へ",
-        Some("Shift+Alt+Up"),
-    ),
-    cmd(
-        "moveEvaluationDividerDown",
-        "評価区切り線を下へ",
-        Some("Shift+Alt+Down"),
-    ),
+    cmd("moveSelectedElementUp", "選択要素を上へ"),
+    cmd("moveSelectedElementDown", "選択要素を下へ"),
+    cmd("moveEvaluationDividerUp", "評価区切り線を上へ"),
+    cmd("moveEvaluationDividerDown", "評価区切り線を下へ"),
     cmd(
         "moveEvaluationDividerToSelectedElement",
         "評価区切り線を選択要素の下へ",
-        None,
     ),
-    cmd(
-        "moveEvaluationDividerToEnd",
-        "評価区切り線を末尾へ",
-        Some("Shift+Alt+End"),
-    ),
+    cmd("moveEvaluationDividerToEnd", "評価区切り線を末尾へ"),
 ];
 
 #[cfg(target_os = "macos")]
@@ -289,7 +220,7 @@ fn command_item(app: &AppHandle<Wry>, spec: CommandSpec) -> tauri::Result<AppMen
         command_menu_id(spec.id),
         spec.label,
         true,
-        spec.accelerator,
+        APP_COMMAND_ACCELERATOR,
     )
 }
 
@@ -384,7 +315,10 @@ pub fn build_app_menu(app: &AppHandle<Wry>) -> tauri::Result<AppMenu> {
 
 #[cfg(test)]
 mod tests {
-    use super::{command_id_from_menu_id, MenuSpec, NativeSpec, CAD_ACTION_MENU_TITLE, EDIT_ITEMS};
+    use super::{
+        command_id_from_menu_id, MenuSpec, NativeSpec, APP_COMMAND_ACCELERATOR,
+        CAD_ACTION_MENU_TITLE, DRAW_ITEMS, EDIT_ITEMS, FILE_ITEMS, NAVIGATE_ITEMS, VIEW_ITEMS,
+    };
     #[cfg(target_os = "macos")]
     use super::{NATIVE_EDIT_ITEMS, NATIVE_EDIT_MENU_TITLE};
 
@@ -413,24 +347,24 @@ mod tests {
     }
 
     #[test]
-    fn undo_and_redo_have_no_native_accelerator() {
-        // A native menu accelerator intercepts Cmd/Ctrl+Z and Cmd/Ctrl+Y before the
-        // webview's own keydown/beforeinput handling, which breaks the CM-focused,
-        // dirty-buffer-aware Undo/Redo routing in SourceEditorController. Keyboard
-        // Undo/Redo must reach the webview unclaimed; only the menu click path
-        // should route through the command dispatcher.
-        for id in ["undo", "redo"] {
-            let item = EDIT_ITEMS
-                .iter()
-                .find_map(|spec| match spec {
-                    MenuSpec::Command(command) if command.id == id => Some(command),
-                    _ => None,
-                })
-                .unwrap_or_else(|| panic!("expected a `{id}` command in EDIT_ITEMS"));
-            assert_eq!(
-                item.accelerator, None,
-                "`{id}` must not have an accelerator"
-            );
+    fn application_commands_have_no_native_accelerators() {
+        assert_eq!(APP_COMMAND_ACCELERATOR, None);
+
+        for items in [
+            FILE_ITEMS,
+            EDIT_ITEMS,
+            DRAW_ITEMS,
+            VIEW_ITEMS,
+            NAVIGATE_ITEMS,
+        ] {
+            for item in items {
+                if let MenuSpec::Command(command) = item {
+                    assert!(
+                        !command.id.is_empty() && !command.label.is_empty(),
+                        "application command menu items must use a command specification"
+                    );
+                }
+            }
         }
     }
 

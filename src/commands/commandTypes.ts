@@ -170,6 +170,10 @@ export type CommandContext = {
   focusElementSearch?: () => void;
   /** Current element statement under the Source Editor cursor, without exposing CodeMirror state. */
   currentCursorElementId?: () => ElementId | null;
+  /** Creation began from the DSL body and should return to its generated value. */
+  sourceEditorCreation?: boolean;
+  /** Selects a generated DSL parameter after its creation session is committed. */
+  focusSourceEditorParameter?: (elementId: ElementId, parameterKey: string) => void;
   /** Canvas-only ephemeral state cleared before a creation-session replacement. */
   clearPendingCanvasPointerIntent?: () => void;
   /** Cancels the deferred Canvas-to-Source-Editor focus handoff before replacement. */

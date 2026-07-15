@@ -52,7 +52,7 @@ describe("ShortcutSettingsDialog", () => {
     fireEvent.click(screen.getByRole("button", { name: "キーで検索" }));
     fireEvent.keyDown(window, { key: "s", metaKey: true });
 
-    expect(screen.getByText("全体 / saveDocument")).toBeInTheDocument();
+    expect(screen.getByText("フォーカス横断 / saveDocument")).toBeInTheDocument();
     expect(screen.queryByText("free point を追加")).not.toBeInTheDocument();
     expect(screen.getByLabelText("検索中のショートカットキー")).toHaveTextContent("Mod+s");
   });

@@ -1,12 +1,17 @@
 import type { CommandContext, CommandId } from "../commands/commands";
 
 export type ShortcutScope =
-  | "global"
-  | "modeInvariant"
+  /** Commands intentionally available across Canvas and text-input focus. */
+  | "crossFocus"
   | "normal"
   | "pick"
-  /** CodeMirror-only structural commands; normal text keys remain editor-owned. */
-  | "sourceEditor";
+  /** DSL body and line-lens commands. */
+  | "sourceEditor"
+  /** Reserved for the currently active dialog; no configurable bindings yet. */
+  | "modal";
+
+/** Who owns a key while CodeMirror has focus. */
+export type ShortcutOwner = "appExclusive" | "editorTransaction";
 
 export type ShortcutModifier = boolean | "any";
 
@@ -20,6 +25,8 @@ export type KeyChord = {
 export type ShortcutSettings = {
   version: 1;
   overrides: ShortcutOverride[];
+  /** Saved but inactive settings that could not be migrated automatically. */
+  unresolvedOverrides?: UnresolvedShortcutOverride[];
 };
 
 export type ShortcutOverride = {
@@ -27,10 +34,16 @@ export type ShortcutOverride = {
   chords: KeyChord[];
 };
 
+export type UnresolvedShortcutOverride = ShortcutOverride & {
+  reason: string;
+};
+
 export type ShortcutConflict = {
   scope: ShortcutScope;
   chord: KeyChord;
   bindingIds: string[];
+  kind?: "duplicate" | "sourceEditorModifier" | "codeMirrorOwnership";
+  message?: string;
 };
 
 export type ShortcutBinding = {
@@ -39,6 +52,9 @@ export type ShortcutBinding = {
   scope: ShortcutScope;
   label: string;
   defaultChords: KeyChord[];
+  /** App-exclusive bindings consume a matching key even when unavailable.
+   * Editor transactions fall through to CodeMirror when inapplicable. */
+  owner?: ShortcutOwner;
   configurable?: boolean;
   context?: (event: KeyboardEvent) => CommandContext;
   defaultChordMatches?: (event: KeyboardEvent, chord: KeyChord) => boolean;

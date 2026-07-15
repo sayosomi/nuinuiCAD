@@ -18,11 +18,13 @@ export type {
   ShortcutConflict,
   ShortcutHelpItem,
   ShortcutOverride,
+  UnresolvedShortcutOverride,
   ShortcutScope,
   ShortcutSettings
 } from "./shortcutTypes";
 export {
   configurableShortcutBindings,
+  crossFocusShortcutBindings,
   defaultShortcutSettings,
   effectiveShortcutBindings,
   sourceEditorShortcutBindings,
@@ -82,11 +84,20 @@ export const shouldIgnoreKeyboardEvent = (event: KeyboardEvent) => {
 export const isSourceEditorKeyboardTarget = (event: KeyboardEvent) =>
   event.target instanceof HTMLElement && Boolean(event.target.closest("[data-source-editor-scope='true']"));
 
+/** The CodeMirror document and its line lens own their normal editing keys. */
+export const isSourceEditorDslKeyboardTarget = (event: KeyboardEvent) =>
+  event.target instanceof HTMLElement && Boolean(event.target.closest(".cm-editor, .cm-source-line-lens"));
+
+/** React's element-search field is an input surface, not CodeMirror's document. */
+export const isSourceEditorSearchKeyboardTarget = (event: KeyboardEvent) =>
+  event.target instanceof HTMLElement && Boolean(event.target.closest("[data-source-editor-search='true']"));
+
 export const keyboardCommandForEvent = (
   event: KeyboardEvent,
   options: {
     settings?: ShortcutSettings;
     isPickMode?: boolean;
+    scopes?: readonly import("./shortcutTypes").ShortcutScope[];
     allowEditableCommandIds?: ReadonlySet<CommandId>;
     allowModifiedEditableCommandIds?: ReadonlySet<CommandId>;
   } = {}
@@ -101,7 +112,7 @@ export const keyboardCommandForEvent = (
     isCommandLineBarInputTarget(event) &&
     (event.metaKey || event.ctrlKey);
   if (
-    shortcut.commandId !== "focusElementSearch" &&
+    shortcut.scope !== "crossFocus" &&
     !options.allowEditableCommandIds?.has(shortcut.commandId) &&
     shouldIgnoreKeyboardEvent(event) &&
     !allowsModifiedEditableShortcut

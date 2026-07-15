@@ -367,8 +367,8 @@ describe("Canvas selection focuses the Source Editor", () => {
     fireEvent.keyDown(content, { key: "Tab", shiftKey: true });
     expect(cmView.state.sliceDoc(cmView.state.selection.main.from, cmView.state.selection.main.to)).toBe("100");
 
-    fireEvent.keyDown(content, { key: "ArrowRight", altKey: true });
-    fireEvent.keyUp(content, { key: "ArrowRight", altKey: true });
+    fireEvent.keyDown(content, { key: "ArrowRight", ctrlKey: true, altKey: true });
+    fireEvent.keyUp(content, { key: "ArrowRight", ctrlKey: true, altKey: true });
     await waitFor(() => expect(useCadDocumentStore.getState().sourceText).toContain("point B = (101, 0)"));
   });
 

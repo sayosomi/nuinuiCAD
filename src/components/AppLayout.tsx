@@ -5,7 +5,12 @@ import { loadCommandRibbonSettings } from "../commandRibbons/commandRibbonSettin
 import { registerUnsavedChangesGuard } from "../document/unsavedChangesGuard";
 import { useEvaluationEngine } from "../geometry/useEvaluationEngine";
 import { loadShortcutSettings } from "../keyboard/shortcutSettingsStorage";
-import { isSourceEditorKeyboardTarget, keyboardCommandForEvent } from "../keyboard/shortcuts";
+import {
+  isSourceEditorDslKeyboardTarget,
+  isSourceEditorKeyboardTarget,
+  isSourceEditorSearchKeyboardTarget,
+  keyboardCommandForEvent
+} from "../keyboard/shortcuts";
 import {
   DEFAULT_LEFT_PANEL_WIDTH,
   clampLeftPanelWidth,
@@ -35,6 +40,7 @@ import { isCommandLineInputComposing } from "../commands/commandLineInputComposi
 import { currentStep } from "../commands/commandLineSession";
 import { creationRecipeForLegacyCommand, legacyCreationCommandIds } from "../commands/legacyCreationRecipes";
 import { COMMAND_LINE_PICK_TARGET_ID } from "../commands/commandLinePickRouting";
+import type { ElementId } from "../types/geometry";
 
 const commandLineCreationCommandIds = new Set(legacyCreationCommandIds);
 
@@ -166,6 +172,9 @@ export const AppLayout = () => {
     focusElementList: () => sourceEditorRef.current?.focus(),
     focusElementSearch: () => sourceEditorRef.current?.focusSearch(),
     currentCursorElementId: () => sourceEditorRef.current?.currentCursorElementId?.() ?? null,
+    focusSourceEditorParameter: (elementId: ElementId, parameterKey: string) => {
+      sourceEditorRef.current?.jumpToParameterValue(elementId, parameterKey);
+    },
     clearPendingCanvasPointerIntent: () => drawingCanvasRef.current?.clearPendingCanvasPointerIntent(),
     clearSourceEditorFocusReservation: () => drawingCanvasRef.current?.clearEditorFocusReservation(),
     getCanvasViewportRect: () => canvasFocusRef.current?.getBoundingClientRect() ?? null,
@@ -306,10 +315,11 @@ export const AppLayout = () => {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      // The whole Source Editor UI region (CodeMirror, its search panel, its context
-      // menu, its ribbon dock) owns editing keys and its own IME/pick Escape ordering.
-      // This branch intentionally precedes every global pick cancellation below.
-      if (isSourceEditorKeyboardTarget(event)) return;
+      const isSourceEditorTarget = isSourceEditorKeyboardTarget(event);
+      // DSL and the lens are handled by CodeMirror. The React element-search field
+      // admits only cross-focus commands; menus/docks keep their own keyboard UI.
+      if (isSourceEditorTarget && isSourceEditorDslKeyboardTarget(event)) return;
+      if (isSourceEditorTarget && !isSourceEditorSearchKeyboardTarget(event)) return;
       if (isImeComposingKeyEvent(event) || isCommandLineInputComposing()) return;
       if (useCadUiStore.getState().showShortcutSettings) return;
       if (useCadUiStore.getState().showPaletteSettings) return;
@@ -328,7 +338,8 @@ export const AppLayout = () => {
         ),
         allowModifiedEditableCommandIds: commandLineSession
           ? commandLineCreationCommandIds
-          : undefined
+          : undefined,
+        scopes: isSourceEditorTarget ? (["crossFocus"] as const) : undefined
       };
       const keyboardCommand = keyboardCommandForEvent(event, keyboardOptions) ??
         (commandLineSession

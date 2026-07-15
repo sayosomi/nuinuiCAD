@@ -18,9 +18,8 @@ afterEach(() => {
 });
 
 describe("shortcutSettingsStorage", () => {
-  it("removes legacy and current Inspector navigation bindings without a replacement", () => {
-    expect(
-      normalizeShortcutSettings({
+  it("keeps legacy and current Inspector navigation bindings visible when they have no replacement", () => {
+    const settings = normalizeShortcutSettings({
         version: 1,
         overrides: [
           { bindingId: "parameter.selectNextParameter", chords: [chord("a"), chord("b")] },
@@ -31,15 +30,18 @@ describe("shortcutSettingsStorage", () => {
           { bindingId: "global.focusInspectorParameterRows", chords: [chord("e")] },
           { bindingId: "inspector.startInspectorParameterPick", chords: [chord("p")] }
         ]
-      })
-    ).toEqual({
-      version: 1,
-      overrides: []
     });
+    expect(settings.overrides).toEqual([]);
+    expect(settings.unresolvedOverrides?.map((item) => item.bindingId)).toEqual([
+      "parameter.selectNextParameter",
+      "dependencyJump.selectNextDependencyJumpTarget",
+      "global.focusInspectorParameterRows",
+      "inspector.startInspectorParameterPick"
+    ]);
   });
 
-  it("removes every retired DslPanel binding without a replacement", () => {
-    expect(normalizeShortcutSettings({
+  it("keeps retired DslPanel bindings visible when they have no replacement", () => {
+    const settings = normalizeShortcutSettings({
       version: 1,
       overrides: [
         { bindingId: "global.openDslPanel", chords: [chord("d")] },
@@ -49,25 +51,30 @@ describe("shortcutSettingsStorage", () => {
         { bindingId: "dsl.closeDslPanel", chords: [chord("Escape")] },
         { bindingId: "normal.addFreePoint", chords: [chord("p")] }
       ]
-    })).toEqual({
-      version: 1,
-      overrides: [{ bindingId: "normal.addFreePoint", chords: [chord("p")] }]
     });
+    expect(settings.overrides).toEqual([{ bindingId: "normal.addFreePoint", chords: [chord("p")] }]);
+    expect(settings.unresolvedOverrides?.map((item) => item.bindingId)).toEqual([
+      "global.openDslPanel",
+      "dsl.exportDslSelection",
+      "dsl.validateDslPanel",
+      "dsl.applyDslPanel",
+      "dsl.closeDslPanel"
+    ]);
   });
 
-  it("keeps an explicit replacement binding ahead of legacy overrides", () => {
-    expect(
-      normalizeShortcutSettings({
+  it("does not silently migrate Source Editor overrides without Mod", () => {
+    const settings = normalizeShortcutSettings({
         version: 1,
         overrides: [
           { bindingId: "parameter.incrementSelectedParameter", chords: [chord("x")] },
           { bindingId: "sourceEditor.stepSourceValueForward", chords: [chord("y")] }
         ]
-      })
-    ).toEqual({
-      version: 1,
-      overrides: [{ bindingId: "sourceEditor.stepSourceValueForward", chords: [chord("y")] }]
     });
+    expect(settings.overrides).toEqual([]);
+    expect(settings.unresolvedOverrides?.map((item) => item.bindingId)).toEqual([
+      "sourceEditor.stepSourceValueForward",
+      "parameter.incrementSelectedParameter"
+    ]);
   });
 
   it("migrates palette-created normal bindings as well as their default-scope bindings", () => {
@@ -112,7 +119,7 @@ describe("shortcutSettingsStorage", () => {
     });
   });
 
-  it("removes retired and unknown bindings and writes normalized browser settings back", async () => {
+  it("keeps retired and unknown bindings in normalized browser settings", async () => {
     window.localStorage.setItem(
       "nuinuiCAD.shortcutSettings.v1",
       JSON.stringify({
@@ -127,14 +134,15 @@ describe("shortcutSettingsStorage", () => {
       })
     );
 
-    await expect(loadShortcutSettings()).resolves.toEqual({
-      version: 1,
-      overrides: [{ bindingId: "normal.addFreePoint", chords: [chord("p")] }]
-    });
-    expect(JSON.parse(window.localStorage.getItem("nuinuiCAD.shortcutSettings.v1") ?? "")).toEqual({
-      version: 1,
-      overrides: [{ bindingId: "normal.addFreePoint", chords: [chord("p")] }]
-    });
+    const settings = await loadShortcutSettings();
+    expect(settings.overrides).toEqual([{ bindingId: "normal.addFreePoint", chords: [chord("p")] }]);
+    expect(settings.unresolvedOverrides?.map((item) => item.bindingId)).toEqual([
+      "parameter.toggleSelectedParameterValue",
+      "global.openDslPanel",
+      "global.focusInspectorParameterRows",
+      "normal.noLongerExists"
+    ]);
+    expect(JSON.parse(window.localStorage.getItem("nuinuiCAD.shortcutSettings.v1") ?? "")).toEqual(settings);
   });
 
   it("writes normalized Tauri settings back without waiting for a failed write", async () => {
@@ -146,17 +154,19 @@ describe("shortcutSettingsStorage", () => {
       })
       .mockRejectedValueOnce(new Error("write failed"));
 
-    await expect(loadShortcutSettings()).resolves.toEqual({
-      version: 1,
-      overrides: [{ bindingId: "sourceEditor.stepSourceValueBackward", chords: [chord("x")] }]
-    });
+    const settings = await loadShortcutSettings();
+    expect(settings.overrides).toEqual([]);
+    expect(settings.unresolvedOverrides).toEqual([{
+      bindingId: "parameter.decrementSelectedParameter",
+      chords: [chord("x")],
+      reason: "移行先のSource EditorアプリショートカットにはModキーが必要です。"
+    }]);
     expect(tauriCoreMock.invoke).toHaveBeenNthCalledWith(1, "load_shortcut_settings");
     expect(tauriCoreMock.invoke).toHaveBeenNthCalledWith(2, "save_shortcut_settings", {
       input: {
         version: 1,
-        overrides: [
-          { bindingId: "sourceEditor.stepSourceValueBackward", chords: [chord("x")] }
-        ]
+        overrides: [],
+        unresolvedOverrides: settings.unresolvedOverrides
       }
     });
   });

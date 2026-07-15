@@ -17,11 +17,11 @@ import { useCadUiStore } from "../state/cadUiStore";
 import { selectTextInputValue } from "./textInputSelection";
 
 const scopeLabels = {
-  global: "全体",
-  modeInvariant: "全モード",
+  crossFocus: "フォーカス横断",
   normal: "通常",
   pick: "構成リスト選択",
-  sourceEditor: "Source Editor"
+  sourceEditor: "Source Editor",
+  modal: "モーダル"
 };
 
 const sameChords = (left: KeyChord[], right: KeyChord[]) =>
@@ -38,7 +38,7 @@ const settingWithBindingChords = (
   if (!sameChords(chords, binding.defaultChords)) {
     overrides.push({ bindingId, chords });
   }
-  return { version: 1, overrides };
+  return { ...settings, overrides };
 };
 
 const commandFilterText = (binding: (typeof configurableShortcutBindings)[number]) =>
@@ -103,7 +103,7 @@ const ShortcutSettingsDialogContent = ({
 
     if (nextConflicts.length > 0) {
       setShortcutSettingsLoading(false);
-      setShortcutSettingsError("同じモード内で同じキーが複数のコマンドに割り当てられています。");
+      setShortcutSettingsError(nextConflicts[0]?.message ?? "同時に有効な範囲で同じキーが複数のコマンドに割り当てられています。");
       return;
     }
 
@@ -246,6 +246,11 @@ const ShortcutSettingsDialogContent = ({
           {shortcutSettingsError ? (
             <p className="shortcut-settings-error" role="alert">
               {shortcutSettingsError}
+            </p>
+          ) : null}
+          {draftSettings.unresolvedOverrides?.length ? (
+            <p className="shortcut-settings-error" role="alert">
+              {draftSettings.unresolvedOverrides.length}件の以前のショートカット設定を自動移行できませんでした。設定は保持されています。
             </p>
           ) : null}
           {conflicts.length > 0 ? (

@@ -47,6 +47,10 @@ export const SourceEditorPane = forwardRef<SourceEditorHandle, SourceEditorPaneP
     if (!containerRef.current) return;
     const controller = new SourceEditorController(containerRef.current, undefined, undefined, {
       onRequestCanvasFocus: () => (canvasFocusRef ?? fallbackCanvasFocusRef).current?.focus(),
+      onRequestElementSearch: () => {
+        setIsSearchOpen(true);
+        controllerRef.current?.focusSearch();
+      },
       onRequestContextMenu: (elementId: ElementId, x: number, y: number) => setContextMenuState({ elementId, x, y }),
       isSourceSearchOpen: () => isSearchOpenRef.current,
       closeSourceSearch: () => setIsSearchOpen(false),

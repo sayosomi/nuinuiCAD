@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { isTauriRuntime } from "../geometry/evaluationEngine";
 import { configurableShortcutBindings, defaultShortcutSettings } from "./shortcutRegistry";
 import { keyChordId } from "./shortcutChords";
-import type { KeyChord, ShortcutOverride, ShortcutSettings } from "./shortcutTypes";
+import type { KeyChord, ShortcutOverride, ShortcutSettings, UnresolvedShortcutOverride } from "./shortcutTypes";
 
 const STORAGE_KEY = "nuinuiCAD.shortcutSettings.v1";
 
@@ -12,6 +12,18 @@ const STORAGE_KEY = "nuinuiCAD.shortcutSettings.v1";
  * replacement keyboard scope or command.
  */
 const legacyBindingIdMap: Readonly<Record<string, string>> = {
+  "global.newDocument": "crossFocus.newDocument",
+  "global.openDocument": "crossFocus.openDocument",
+  "global.saveDocument": "crossFocus.saveDocument",
+  "global.saveDocumentAs": "crossFocus.saveDocumentAs",
+  "global.openCommandPalette": "crossFocus.openCommandPalette",
+  "global.focusElementSearch": "crossFocus.focusElementSearch",
+  "global.undo": "normal.undo",
+  "global.redo": "normal.redo",
+  "global.enterElementListMode": "normal.enterElementListMode",
+  "modeInvariant.toggleInspectorPanel": "normal.toggleInspectorPanel",
+  "modeInvariant.toggleShortcutHelp": "crossFocus.toggleShortcutHelp",
+  "normal.openShortcutSettings": "crossFocus.openShortcutSettings",
   "modeInvariant.toggleElementInfoPanel": "modeInvariant.toggleInspectorPanel",
   "normal.toggleElementInfoPanel": "normal.toggleInspectorPanel",
   "parameter.incrementSelectedParameter": "sourceEditor.stepSourceValueForward",
@@ -115,11 +127,25 @@ const normalizeShortcutSettingsWithStatus = (value: unknown) => {
   }
 
   const parsedOverrides = value.overrides.map(parseOverride);
+  const unresolved: UnresolvedShortcutOverride[] = Array.isArray(value.unresolvedOverrides)
+    ? value.unresolvedOverrides.map(parseOverride).flatMap((override) =>
+      override ? [{ ...override, reason: "以前の設定を自動移行できませんでした。" }] : []
+    )
+    : [];
   const validBindingIds = new Set(configurableShortcutBindings.map((binding) => binding.id));
+  const bindingById = new Map(configurableShortcutBindings.map((binding) => [binding.id, binding]));
   const explicitOverrides = new Map<string, { override: ShortcutOverride; index: number }>();
 
   parsedOverrides.forEach((override, index) => {
     if (!override || legacyBindingIdMap[override.bindingId]) return;
+    const binding = bindingById.get(override.bindingId);
+    if (binding?.scope === "sourceEditor" && override.chords.some((chord) => chord.mod !== true)) {
+      unresolved.push({
+        ...override,
+        reason: "Source EditorのアプリショートカットにはModキーが必要です。"
+      });
+      return;
+    }
     if (
       !retiredCommandIds.has(commandIdForBinding(override.bindingId)) &&
       validBindingIds.has(override.bindingId)
@@ -142,6 +168,15 @@ const normalizeShortcutSettingsWithStatus = (value: unknown) => {
       // bindings only contribute when no replacement override exists.
       if (explicitOverrides.has(targetBindingId)) return;
 
+      const target = bindingById.get(targetBindingId);
+      if (target?.scope === "sourceEditor" && override.chords.some((chord) => chord.mod !== true)) {
+        unresolved.push({
+          ...override,
+          reason: "移行先のSource EditorアプリショートカットにはModキーが必要です。"
+        });
+        return;
+      }
+
       const current = migratedOverrides.get(targetBindingId) ?? {
         bindingId: targetBindingId,
         chords: []
@@ -160,10 +195,11 @@ const normalizeShortcutSettingsWithStatus = (value: unknown) => {
       return;
     }
 
-    if (
-      retiredCommandIds.has(commandIdForBinding(override.bindingId)) ||
-      !validBindingIds.has(override.bindingId)
-    ) {
+    if (retiredCommandIds.has(commandIdForBinding(override.bindingId)) || !validBindingIds.has(override.bindingId)) {
+      unresolved.push({
+        ...override,
+        reason: "対応するショートカット項目がなく、自動移行できませんでした。"
+      });
       return;
     }
 
@@ -171,7 +207,9 @@ const normalizeShortcutSettingsWithStatus = (value: unknown) => {
     if (explicit?.index === index) overrides.push(explicit.override);
   });
 
-  const settings: ShortcutSettings = { version: 1, overrides };
+  const settings: ShortcutSettings = unresolved.length > 0
+    ? { version: 1, overrides, unresolvedOverrides: unresolved }
+    : { version: 1, overrides };
   return { settings, changed: JSON.stringify(value) !== JSON.stringify(settings) };
 };
 

@@ -8,7 +8,7 @@ import {
   Text,
   Transaction
 } from "@codemirror/state";
-import { defaultKeymap, history, redo, redoDepth, undo, undoDepth } from "@codemirror/commands";
+import { defaultKeymap, deleteLine, history, redo, redoDepth, undo, undoDepth } from "@codemirror/commands";
 import {
   EditorView,
   highlightActiveLine,
@@ -20,7 +20,11 @@ import {
 } from "@codemirror/view";
 import { forceLinting } from "@codemirror/lint";
 import { dispatchCommand } from "../commands/commands";
-import { bindingMatchesEvent, sourceEditorShortcutBindings } from "../keyboard/shortcutRegistry";
+import {
+  bindingMatchesEvent,
+  crossFocusShortcutBindings,
+  sourceEditorShortcutBindings
+} from "../keyboard/shortcutRegistry";
 import type { KeyChord } from "../keyboard/shortcutTypes";
 import { creationPlacementForEvaluationLimit } from "../model/elementCreationPlacement";
 import { pickCandidates } from "../model/pickCandidates";
@@ -239,12 +243,11 @@ export class SourceEditorController implements SourceEditorHandle {
           }),
           search(),
           this.historyCompartment.of(history()),
-          this.sourceEditorShortcutCompartment.of(keymap.of(this.sourceEditorShortcutKeymap())),
+          this.sourceEditorShortcutCompartment.of(keymap.of(this.editorShortcutBindings())),
           keymap.of([
             { key: "Mod-z", run: () => this.runUndo() },
             { key: "Mod-y", run: () => this.runRedo() },
             { key: "Mod-Shift-z", run: () => this.runRedo() },
-            { key: "Mod-s", run: () => this.runSave() },
             { key: "Enter", run: () => this.runPickApply() },
             { key: "ArrowDown", run: () => this.runPickNavigation("selectNextPickCandidate") },
             { key: "ArrowUp", run: () => this.runPickNavigation("selectPreviousPickCandidate") },
@@ -326,7 +329,7 @@ export class SourceEditorController implements SourceEditorHandle {
       if (next.shortcutSettings !== previous.shortcutSettings) {
         this.view.dispatch({
           effects: [
-            this.sourceEditorShortcutCompartment.reconfigure(keymap.of(this.sourceEditorShortcutKeymap())),
+            this.sourceEditorShortcutCompartment.reconfigure(keymap.of(this.editorShortcutBindings())),
             reconfigureSourceEditorLineLensKeymap.of(this.lineLensKeymap())
           ],
           annotations: Transaction.addToHistory.of(false)
@@ -864,11 +867,8 @@ export class SourceEditorController implements SourceEditorHandle {
     this.view.destroy();
   };
 
-  /**
-   * Structural editor commands come from the shared shortcut registry rather
-   * than a second handwritten key list. They deliberately yield to IME and
-   * pick navigation, while normal text keys remain CodeMirror's responsibility.
-   */
+  /** CodeMirror-owned keys never enter this registry. An editor transaction may
+   * decline and fall through; an app-exclusive match always consumes its key. */
   private sourceEditorShortcutKeymap(): KeyBinding[] {
     return sourceEditorShortcutBindings(this.uiStore.getState().shortcutSettings).flatMap((binding) =>
       binding.chords.flatMap((chord) => {
@@ -880,11 +880,63 @@ export class SourceEditorController implements SourceEditorHandle {
             if (this.protocol.composing || view.compositionStarted) return true;
             const ui = this.uiStore.getState();
             if (ui.activePointPickTarget || ui.activeNumericReferencePickTarget || ui.activeLinePickTarget) return false;
-            return dispatchCommand(binding.commandId) !== false;
+            const handled = dispatchCommand(binding.commandId, {
+              currentCursorElementId: this.currentCursorElementId,
+              sourceEditorCreation: true
+            }) !== false;
+            return binding.owner === "editorTransaction" ? handled : true;
           }
         } satisfies KeyBinding];
       })
     );
+  }
+
+  private crossFocusShortcutKeymap(): KeyBinding[] {
+    return crossFocusShortcutBindings(this.uiStore.getState().shortcutSettings).flatMap((binding) =>
+      binding.chords.flatMap((chord) => {
+        const key = codeMirrorKeyForChord(chord);
+        if (!key) return [];
+        return [{
+          key,
+          run: (view) => {
+            if (this.protocol.composing || view.compositionStarted) return true;
+            if (binding.commandId === "saveDocument") this.runSave();
+            else if (binding.commandId === "focusElementSearch") this.options.onRequestElementSearch?.();
+            else dispatchCommand(binding.commandId);
+            return true;
+          },
+          // CodeMirror's matcher treats an extra Shift as compatible with
+          // `Mod-k`. Preserve its standard Shift-Mod-k delete-line command
+          // instead of opening the app palette.
+          ...(binding.commandId === "openCommandPalette"
+            ? { shift: () => deleteLine(this.view) }
+            : {})
+        } satisfies KeyBinding];
+      })
+    );
+  }
+
+  private editorShortcutKeymap(): KeyBinding[] {
+    // `Mod-k` opens the app palette, but `Mod-Shift-k` remains CodeMirror's
+    // current-line deletion. CM treats the extra Shift as compatible with the
+    // shorter binding, so reserve the exact owned chord ahead of cross-focus.
+    return [
+      { key: "Shift-Mod-k", run: () => deleteLine(this.view) },
+      ...this.crossFocusShortcutKeymap(),
+      ...this.sourceEditorShortcutKeymap()
+    ];
+  }
+
+  private editorShortcutBindings(): KeyBinding[] {
+    return [
+      {
+        any: (view, event) =>
+          event.shiftKey && (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k"
+            ? deleteLine(view)
+            : false
+      },
+      ...this.editorShortcutKeymap()
+    ];
   }
 
   /** The line lens owns text input, but editor-wide commands must keep acting
@@ -894,7 +946,8 @@ export class SourceEditorController implements SourceEditorHandle {
       { key: "Mod-z", run: () => this.runUndo() },
       { key: "Mod-y", run: () => this.runRedo() },
       { key: "Mod-Shift-z", run: () => this.runRedo() },
-      { key: "Mod-s", run: () => this.runSave() },
+      { key: "Shift-Mod-k", run: () => deleteLine(this.view) },
+      ...this.crossFocusShortcutKeymap(),
       { key: "Mod-f", run: () => {
         openSearchPanel(this.view);
         return true;
@@ -959,11 +1012,8 @@ export class SourceEditorController implements SourceEditorHandle {
 
   private runUndo() {
     if (this.protocol.composing) return true;
+    if (this.cancelActivePickForHistory()) return true;
     if (this.activeValueStepGesture) this.flush("command");
-    if (!this.hasPendingText()) {
-      this.store.getState().undo();
-      return true;
-    }
     const handled = undo(this.view);
     if (!this.hasPendingText()) {
       this.cancelCommitTimer();
@@ -974,12 +1024,22 @@ export class SourceEditorController implements SourceEditorHandle {
 
   private runRedo() {
     if (this.protocol.composing) return true;
+    if (this.cancelActivePickForHistory()) return true;
     if (this.activeValueStepGesture) this.flush("command");
-    if (!this.hasPendingText()) {
-      this.store.getState().redo();
-      return true;
-    }
     return redo(this.view);
+  }
+
+  /** A command/pick session captures insertion state. Never mutate its source buffer
+   * through CodeMirror history while it remains active. Cmd/Ctrl+Z/Y first cancel the
+   * session and are consumed; a later press can edit text normally. */
+  private cancelActivePickForHistory() {
+    const ui = this.uiStore.getState();
+    if (ui.commandLineSession) return dispatchCommand("cancelCommandLineSession") !== false;
+    if (ui.activePointPickTarget) return dispatchCommand("cancelPointPick") !== false;
+    if (ui.activeNumericReferencePickTarget) return dispatchCommand("cancelNumericReferencePick") !== false;
+    if (ui.activeLinePickTarget) return dispatchCommand("cancelLinePick") !== false;
+    if (ui.activeTemplateInsertion) return dispatchCommand("cancelTemplateInsertion") !== false;
+    return false;
   }
 
   private scheduleCommit() {

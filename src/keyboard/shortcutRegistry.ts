@@ -34,8 +34,7 @@ const scopesForMode = ({
 }: {
   isPickMode?: boolean;
 }): ShortcutScope[] => [
-  "global",
-  "modeInvariant",
+  "crossFocus",
   ...(isPickMode
     ? (["pick"] as ShortcutScope[])
     : (["normal"] as ShortcutScope[]))
@@ -45,9 +44,10 @@ export const shortcutBindingsForMode = (
   settings: ShortcutSettings = defaultShortcutSettings(),
   options: {
     isPickMode?: boolean;
+    scopes?: readonly ShortcutScope[];
   } = {}
 ) => {
-  const activeScopes = new Set(scopesForMode(options));
+  const activeScopes = new Set(options.scopes ?? scopesForMode(options));
   return effectiveShortcutBindings(settings).filter((item) => activeScopes.has(item.scope));
 };
 
@@ -56,6 +56,10 @@ export const sourceEditorShortcutBindings = (
   settings: ShortcutSettings = defaultShortcutSettings()
 ) => effectiveShortcutBindings(settings).filter((item) => item.scope === "sourceEditor");
 
+export const crossFocusShortcutBindings = (
+  settings: ShortcutSettings = defaultShortcutSettings()
+) => effectiveShortcutBindings(settings).filter((item) => item.scope === "crossFocus");
+
 export const bindingMatchesEvent = (binding: EffectiveShortcutBinding, event: KeyboardEvent) =>
   binding.chords.some((chord) => {
     const matcher = binding.defaultChords.some((defaultChord) => keyChordEquals(defaultChord, chord))
@@ -63,6 +67,11 @@ export const bindingMatchesEvent = (binding: EffectiveShortcutBinding, event: Ke
       : undefined;
     return matcher ? matcher(event, chord) : keyChordMatchesEvent(chord, event);
   });
+
+const isSourceEditorChord = (chord: KeyChord) => chord.mod === true;
+
+const isCodeMirrorDeleteLineChord = (chord: KeyChord) =>
+  chord.key.toLowerCase() === "k" && chord.mod === true && chord.shift === true && !chord.alt;
 
 const helpItem = (shortcut: EffectiveShortcutBinding): ShortcutHelpItem => ({
   id: shortcut.id,
@@ -90,9 +99,10 @@ export const shortcutHelpItemsForSettings = ({
 };
 
 const modeScopes: ShortcutScope[][] = [
-  ["global", "modeInvariant", "normal"],
-  ["global", "modeInvariant", "pick"],
-  ["sourceEditor"]
+  ["crossFocus", "normal"],
+  ["crossFocus", "pick"],
+  ["crossFocus", "sourceEditor"],
+  ["modal"]
 ];
 
 export const shortcutConflicts = (
@@ -100,6 +110,29 @@ export const shortcutConflicts = (
 ): ShortcutConflict[] => {
   const bindings = effectiveShortcutBindings(settings).filter((item) => item.chords.length > 0);
   const conflicts: ShortcutConflict[] = [];
+
+  for (const binding of bindings.filter((item) => item.scope === "sourceEditor" || item.scope === "crossFocus")) {
+    for (const chord of binding.chords) {
+      if (binding.scope === "sourceEditor" && !isSourceEditorChord(chord)) {
+        conflicts.push({
+          scope: "sourceEditor",
+          chord,
+          bindingIds: [binding.id],
+          kind: "sourceEditorModifier",
+          message: "Source EditorのアプリショートカットにはModキーが必要です。"
+        });
+      }
+      if (binding.owner !== "editorTransaction" && isCodeMirrorDeleteLineChord(chord)) {
+        conflicts.push({
+          scope: "sourceEditor",
+          chord,
+          bindingIds: [binding.id],
+          kind: "codeMirrorOwnership",
+          message: "Mod+Shift+KはCodeMirrorの「現在行を削除」です。意味の異なるアプリ操作には登録できません。"
+        });
+      }
+    }
+  }
 
   for (const scopes of modeScopes) {
     const candidates = bindings.filter((bindingItem) => scopes.includes(bindingItem.scope));
@@ -119,7 +152,8 @@ export const shortcutConflicts = (
         conflicts.push({
           scope: scopes.at(-1) ?? "normal",
           chord: item.chord,
-          bindingIds: uniqueBindingIds
+          bindingIds: uniqueBindingIds,
+          kind: "duplicate"
         });
       }
     }

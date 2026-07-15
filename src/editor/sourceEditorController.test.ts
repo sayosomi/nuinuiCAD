@@ -7,6 +7,7 @@ import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocume
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import type { CadElement } from "../types/geometry";
 import { dispatchCommand } from "../commands/commands";
+import { startCommandLineCreation } from "../commands/commandLineSessionCommands";
 import { SourceEditorController } from "./sourceEditorController";
 
 type ControllerInternals = {
@@ -271,6 +272,23 @@ describe("SourceEditorController commit and history boundaries", () => {
 
     useCadDocumentStore.getState().undo();
     expect(useCadDocumentStore.getState().sourceText).toBe(baseline);
+    controller.destroy();
+  });
+
+  it("cancels an active source creation before CodeMirror undo changes text", () => {
+    const parent = document.createElement("div");
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+    const baseline = internals.view.state.doc.toString();
+    expect(startCommandLineCreation("freePoint", { sourceEditorCreation: true })).toBe(true);
+    internals.view.dispatch({ changes: { from: internals.view.state.doc.length, insert: "\n# pending" } });
+
+    expect(internals.runUndo()).toBe(true);
+    expect(useCadUiStore.getState().commandLineSession).toBeNull();
+    expect(internals.view.state.doc.toString()).toBe(`${baseline}\n# pending`);
+
+    expect(internals.runUndo()).toBe(true);
+    expect(internals.view.state.doc.toString()).toBe(baseline);
     controller.destroy();
   });
 

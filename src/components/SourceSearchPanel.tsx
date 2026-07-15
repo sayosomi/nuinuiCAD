@@ -94,7 +94,7 @@ export const SourceSearchPanel = ({ handle, isOpen, onClose }: SourceSearchPanel
   };
 
   return (
-    <div className="source-search-panel" role="search" aria-label="Source Editor検索">
+    <div className="source-search-panel" data-source-editor-search="true" role="search" aria-label="Source Editor検索">
       <div className="source-search-panel-tabs">
         <button type="button" className={mode === "element" ? "is-active" : ""} onClick={() => setMode("element")}>
           要素検索
