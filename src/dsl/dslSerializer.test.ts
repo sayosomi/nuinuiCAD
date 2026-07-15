@@ -102,17 +102,6 @@ describe("serializeElementsToDsl flat output", () => {
     `);
   });
 
-  it("serializes without ids when includeIds is false", () => {
-    const elements = buildElements();
-    expect(serializeElementsToDsl(elements.slice(0, 6), { includeIds: false })).toMatchInlineSnapshot(`
-      "group 前身頃
-      var bust = 840
-      point A = (0, 0)
-      point inGroup = (1, 1) parent=g1
-      point B = offset p1 dx=10 dy=-(bust / 4)
-      point C = polar p1 angle=-45 distance=80"
-    `);
-  });
 });
 
 describe("serializeElementStatement with documentDslRefs", () => {
@@ -181,18 +170,17 @@ describe("extended lossless attributes", () => {
     expect(serialized).toBe("group G id=g1 printEnabled=true printAnchor=(10, 20)");
   });
 
-  it("accepts legacy fold attributes as deprecation warnings without preserving them", () => {
-    const result = compileDslToElements("group G id=g1 expanded=true\nelement C type=conditionalGroup id=c1 condition=1 elseExpanded=false", {
+  it("treats former fold attributes like unknown attributes without diagnostics or serializer output", () => {
+    const result = compileDslToElements("group G id=g1 expanded=true futureFlag=true\nelement C type=conditionalGroup id=c1 condition=1 elseExpanded=false futureValue=keep", {
       elements: [],
       mode: "document"
     });
 
-    expect(result.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
-    expect(result.diagnostics.map((item) => item.message)).toEqual([
-      expect.stringContaining("expanded= 属性は非推奨"),
-      expect.stringContaining("elseExpanded= 属性は非推奨")
-    ]);
+    expect(result.diagnostics).toEqual([]);
+    expect(result.elements[0]).toMatchObject({ expanded: true, futureFlag: true });
+    expect(result.elements[1]).toMatchObject({ elseExpanded: false, futureValue: "keep" });
     expect(serializeElementsToDsl(result.elements)).not.toContain("expanded=");
+    expect(serializeElementsToDsl(result.elements)).not.toContain("elseExpanded=");
   });
 
   it("round-trips variable scope and non-expression modes", () => {

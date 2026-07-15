@@ -113,7 +113,6 @@ export type CompileDslResult = {
 };
 
 export type SerializeDslOptions = {
-  includeIds?: boolean;
   visibilityRoles?: VisibilityRole[];
   visibilityProfiles?: VisibilityProfile[];
   activeVisibilityProfileId?: string;

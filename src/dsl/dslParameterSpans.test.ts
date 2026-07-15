@@ -104,7 +104,7 @@ describe("resolveParameterValueSpan", () => {
       .map((element) => element.name));
     expect(evaluatedNames).toEqual(new Set(["EvalA", "EvalB", "EvalAB"]));
 
-    const serializedFixture = serializeElementsToDsl(compiledFixture.elements, { includeIds: true });
+    const serializedFixture = serializeElementsToDsl(compiledFixture.elements);
     expect(compileDslToElements(serializedFixture, { elements: [] }).diagnostics).toEqual([]);
 
     const refs = documentDslRefs(compiledFixture.elements);

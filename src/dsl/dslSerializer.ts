@@ -62,7 +62,7 @@ const flatAnchor = (value: PointAnchor | null | undefined) => {
   return `(${numericValueExpression(value.x)}, ${numericValueExpression(value.y)})`;
 };
 
-export const flatRefs = (options: SerializeDslOptions): DslSerializerRefs => ({
+export const flatRefs = (): DslSerializerRefs => ({
   token: (id) => id,
   anchor: (value) => flatAnchor(value),
   endpoint: (value) => `${value.lineId}.${value.endpointKey}`,
@@ -70,7 +70,7 @@ export const flatRefs = (options: SerializeDslOptions): DslSerializerRefs => ({
   numericAttribute: (value) => numericAttributeValue(numericValueExpression(value)),
   name: (element) => formatDslName(element.name || element.id),
   baseAttrs: (element) => [
-    ...(options.includeIds === false ? [] : [`id=${element.id}`]),
+    `id=${element.id}`,
     ...commonBaseAttrs(element),
     ...(element.parentGroupId ? [`parent=${element.parentGroupId}`] : []),
     ...(element.conditionalBranch ? [`branch=${element.conditionalBranch}`] : [])
@@ -456,7 +456,7 @@ export const serializeElementsToDsl = (
   elements: CadElement[],
   options: SerializeDslOptions = {}
 ) => {
-  const refs = flatRefs(options);
+  const refs = flatRefs();
   return [
     ...visibilitySettingsDsl(options),
     ...elements.map((element) => serializeElementStatement(element, refs))

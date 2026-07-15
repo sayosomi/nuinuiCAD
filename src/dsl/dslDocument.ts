@@ -394,7 +394,7 @@ export const serializeDocumentToDsl = (
   data: DslDocumentData,
   options: SerializeDslDocumentOptions = {}
 ): string => {
-  const refs = options.preserveElementOrder ? flatRefs({}) : documentDslRefs(data.elements);
+  const refs = options.preserveElementOrder ? flatRefs() : documentDslRefs(data.elements);
   const sections: string[][] = [
     [`nui ${DSL_VERSION}`, ...(options.headerComment ? [`# ${options.headerComment}`] : [])],
     serializePaletteLines(data.palette),
