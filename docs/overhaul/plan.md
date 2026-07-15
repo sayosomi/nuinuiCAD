@@ -160,6 +160,18 @@ Phase 5  ハードクリーンアップ(Phase 2・3・4すべての完了後)
   確定コミットは `commitDocumentChange` ブリッジ経由(詳細は親文書の
   確定判断)。
 * Phase 5 は全Phase完了後の互換コード削除とリネーム伝播。
+* Phase 5の実装は `tasks/phase-5-cleanup.md` を親文書として9子タスクへ
+  分割した(2026-07-16): クリーンアップ系は 5a DSL互換縮小 ∥
+  (5b-1 レガシー形式デッドコード → 5b-2 スナップショットミラー削除) ∥
+  5c command/keyboard掃除 が相互独立・並行可。リネーム系は
+  5d 参照解析(純粋) → 5e コマンドcore(bridge/Undo) →
+  (5f 参照形式カバレッジ ∥ 5g UI接続) の直列+末端並行。
+  5h ドキュメント更新は全タスク完了後の最終。merge順(5b-2は5eより先、
+  5cは5gより先)とreview境界(5d後・5e後・5h後)は親文書を正とする。
+  調査で崩れた当初前提(下記「主な削除対象」の注記、cadUiStoreの死に状態は
+  4iで削除済み、rename伝播はブリッジの再シリアライズ追従で大半成立済み等)の
+  詳細は親文書「Phase全体の確定判断」を参照。旧command ID対応の確定版は
+  `docs/overhaul/command-id-map.md` に集約した。
 
 ## Phase 1 分割の根拠
 
@@ -203,7 +215,12 @@ Phase 5  ハードクリーンアップ(Phase 2・3・4すべての完了後)
   Inspector行ナビゲーション。キーボード編集はSource Editorの値span経路が代替
 * `documentFormat.ts` の保存経路、`documentMigration.ts`(既に死んでいる)、
   スナップショットの `printLayout` ミラーと `selected*` フィールド
-* `id=` / `parent=` / `branch=` のDSL互換(Phase 5)
+* ~~`id=` / `parent=` / `branch=` のDSL互換(Phase 5)~~ —
+  **2026-07-16撤回**: レガシーインポータ出力が3属性で元の評価順を保持し、
+  明示 `id=` は同一スコープ重名の正式な逃げ道・レコードIDとして現役のため、
+  正式文法として存続させる。Phase 5で削除するのはテスト専用
+  `SerializeDslOptions.includeIds` と `expanded=`/`elseExpanded=` 互換のみ
+  (詳細は `tasks/phase-5-cleanup.md` 前提修正1)
 
 **`src/parameters/parameterDefinitions.ts` は縮小して存続**: ラベル(インスペクタ・
 プロンプト)、値種別(レシピ生成・DSL属性コンパイル)、`stepLevels`(数値ステップ
