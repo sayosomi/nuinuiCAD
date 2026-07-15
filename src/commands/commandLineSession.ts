@@ -28,6 +28,8 @@ export type CommandLineSession = {
   startedAtRevision: number;
   nameSuggestion: string;
   error: string | null;
+  /** Keeps the completion handoff local to a creation begun from the DSL editor. */
+  sourceEditorCreation?: boolean;
 };
 
 export type StartCommandLineSessionOptions = {
@@ -36,6 +38,7 @@ export type StartCommandLineSessionOptions = {
   elements: CadElement[];
   /** Existing creation-placement data when the caller has already resolved it. */
   placement?: Pick<ElementCreationPlacement, "insertionIndex" | "parentGroupId">;
+  sourceEditorCreation?: boolean;
 };
 
 export type CommandLineStepValue = CreationArgumentValue | string;
@@ -75,7 +78,8 @@ export const startSession = (
   insertionIndex: options.insertionIndex,
   startedAtRevision: options.revision,
   nameSuggestion: nameSuggestionFor(recipe, options),
-  error: null
+  error: null,
+  sourceEditorCreation: options.sourceEditorCreation ?? false
 });
 
 const stepIndexFor = (session: CommandLineSession) =>

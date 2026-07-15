@@ -154,7 +154,8 @@ export const startCommandLineCreationForRecipe = (
     insertionIndex,
     revision: document.sourceRevision,
     elements: document.elements,
-    placement
+    placement,
+    sourceEditorCreation: context?.sourceEditorCreation
   }));
   syncCommandLinePickTarget();
   useCadUiStore.getState().setCommandErrorMessage(null);
@@ -376,7 +377,14 @@ export const confirmCommandLineSession = (context?: CommandContext) => {
 
   clearCommandLineGhostPreview();
   useCadUiStore.getState().clearPickMode();
-  const focusSourceEditor = () => context?.focusElementList?.();
+  const firstEditableStep = session.recipe.steps.find((step) => step.kind !== "name");
+  const focusSourceEditor = () => {
+    if (session.sourceEditorCreation && firstEditableStep) {
+      context?.focusSourceEditorParameter?.(element.id, firstEditableStep.key);
+      return;
+    }
+    context?.focusElementList?.();
+  };
   if (typeof requestAnimationFrame === "function") requestAnimationFrame(focusSourceEditor);
   else setTimeout(focusSourceEditor, 0);
   return true;

@@ -74,6 +74,18 @@ describe("command-line session commands", () => {
     expect(focusElementList).toHaveBeenCalledOnce();
   });
 
+  it("returns a Source Editor creation to its first generated value", () => {
+    const focusSourceEditorParameter = vi.fn();
+    expect(startCommandLineCreation("freePoint", { sourceEditorCreation: true })).toBe(true);
+    submitCommandLineInput("12");
+    submitCommandLineInput("34");
+    submitCommandLineInput("");
+
+    expect(confirmCommandLineSession({ focusSourceEditorParameter })).toBe(true);
+    const element = useCadDocumentStore.getState().elements[0]!;
+    expect(focusSourceEditorParameter).toHaveBeenCalledWith(element.id, "x");
+  });
+
   it("removes every temporary creation command after cutover", () => {
     for (const commandId of Object.keys(legacyCreationCommandRecipeMap)) {
       const temporaryId = `commandLine${commandId[0].toUpperCase()}${commandId.slice(1)}`;
