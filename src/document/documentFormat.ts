@@ -7,7 +7,7 @@ import {
 } from "../model/visibilityProfiles";
 import { normalizeDocumentPalette } from "../palette/palette";
 import { DEFAULT_PRINT_LAYOUT, normalizePrintLayouts } from "../print/printLayout";
-import type { ElementId, PrintLayout } from "../types/geometry";
+import type { CadElement, ElementId, PrintLayout } from "../types/geometry";
 
 export type CadDocumentSelectionSnapshot = {
   selectedElementId: ElementId | null;
@@ -35,24 +35,24 @@ export const docToLegacySnapshot = (
   };
 };
 
-export const CAD_DOCUMENT_APP_ID = "nuinuiCAD";
-export const CAD_DOCUMENT_SCHEMA_VERSION = 5;
+const CAD_DOCUMENT_APP_ID = "nuinuiCAD";
+const CAD_DOCUMENT_SCHEMA_VERSION = 5;
 export const LEGACY_CAD_DOCUMENT_EXTENSION = "nuinui.json";
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === "object" && !Array.isArray(value);
 
-const withoutLegacyGroupFold = (element: CadDocumentSnapshot["elements"][number]) => {
+const withoutLegacyGroupFold = (element: CadElement): CadElement => {
   const current = { ...element } as typeof element & {
     expanded?: unknown;
     elseExpanded?: unknown;
   };
   delete current.expanded;
   delete current.elseExpanded;
-  return current as CadDocumentSnapshot["elements"][number];
+  return current as CadElement;
 };
 
-const parseDocumentObject = (value: unknown): CadDocumentSnapshot => {
+const parseDocumentObject = (value: unknown): DslDocumentData => {
   if (!isRecord(value)) {
     throw new Error("ドキュメント本体が見つかりません。");
   }
@@ -60,7 +60,7 @@ const parseDocumentObject = (value: unknown): CadDocumentSnapshot => {
     throw new Error("ドキュメントのelementsが不正です。");
   }
 
-  const rawElements = (value.elements as CadDocumentSnapshot["elements"])
+  const rawElements = (value.elements as CadElement[])
     .map(withoutLegacyGroupFold)
     .map(normalizedElementFields);
   const visibilityRoles = normalizeVisibilityRoles(value.visibilityRoles, rawElements);
@@ -88,9 +88,6 @@ const parseDocumentObject = (value: unknown): CadDocumentSnapshot => {
     printLayouts.some((layout) => layout.id === value.activePrintLayoutId)
       ? value.activePrintLayoutId
       : printLayouts[0].id;
-  const printLayout =
-    printLayouts.find((layout) => layout.id === activePrintLayoutId) ?? printLayouts[0];
-
   return {
     elements,
     palette: normalizeDocumentPalette(value.palette),
@@ -99,22 +96,14 @@ const parseDocumentObject = (value: unknown): CadDocumentSnapshot => {
     activeVisibilityProfileId,
     printLayouts,
     activePrintLayoutId,
-    printLayout,
     evaluationLimitIndex:
       typeof value.evaluationLimitIndex === "number"
         ? value.evaluationLimitIndex
-        : value.elements.length,
-    selectedElementId:
-      typeof value.selectedElementId === "string" ? value.selectedElementId : null,
-    selectedElementIds: Array.isArray(value.selectedElementIds)
-      ? value.selectedElementIds.filter((id): id is string => typeof id === "string")
-      : [],
-    selectionAnchorElementId:
-      typeof value.selectionAnchorElementId === "string" ? value.selectionAnchorElementId : null
+        : value.elements.length
   };
 };
 
-export const parseCadDocumentFile = (content: string): CadDocumentSnapshot => {
+export const parseCadDocumentFile = (content: string): DslDocumentData => {
   let parsed: unknown;
   try {
     parsed = JSON.parse(content);

@@ -6,7 +6,6 @@ import {
 } from "../state/cadDocumentStore";
 import { initialCadUiState } from "../state/cadUiStore";
 import { registerSourceEditSession } from "../editor/sourceEditSession";
-import { CAD_DOCUMENT_APP_ID, CAD_DOCUMENT_SCHEMA_VERSION } from "./documentFormat";
 import {
   importLegacyDocument,
   newDocument,
@@ -17,6 +16,8 @@ import {
 
 const tauriCoreMock = vi.hoisted(() => ({ invoke: vi.fn() }));
 const dialogMock = vi.hoisted(() => ({ open: vi.fn(), save: vi.fn() }));
+const LEGACY_APP_ID = "nuinuiCAD";
+const LEGACY_SCHEMA_VERSION = 5;
 
 vi.mock("@tauri-apps/api/core", () => tauriCoreMock);
 vi.mock("@tauri-apps/plugin-dialog", () => dialogMock);
@@ -257,8 +258,8 @@ describe("document file lifecycle", () => {
     const snapshot = currentDocumentSnapshot(initialCadDocumentState(), initialCadUiState());
     dialogMock.open.mockResolvedValue("/tmp/legacy.nuinui.json");
     tauriCoreMock.invoke.mockResolvedValue(JSON.stringify({
-      app: CAD_DOCUMENT_APP_ID,
-      schemaVersion: CAD_DOCUMENT_SCHEMA_VERSION,
+      app: LEGACY_APP_ID,
+      schemaVersion: LEGACY_SCHEMA_VERSION,
       savedAt: "2026-07-10T00:00:00.000Z",
       document: snapshot
     }));

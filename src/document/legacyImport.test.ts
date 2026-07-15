@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { compileDslDocument } from "../dsl/dslDocument";
 import { expectSemanticallyEqualDocuments } from "../dsl/dslDocumentTestUtils";
 import { compileDslToElements } from "../dsl/dslCompiler";
+import { parseDsl } from "../dsl/dslParser";
 import { evaluateElements } from "../geometry/evaluate";
 import { defaultVisibilityProfile } from "../model/visibilityProfiles";
 import { defaultDocumentPalette } from "../palette/palette";
@@ -9,9 +10,11 @@ import { DEFAULT_PRINT_LAYOUT } from "../print/printLayout";
 import { currentDocumentSnapshot, initialCadDocumentState } from "../state/cadDocumentStore";
 import { initialCadUiState } from "../state/cadUiStore";
 import type { CadElement } from "../types/geometry";
-import { CAD_DOCUMENT_APP_ID, CAD_DOCUMENT_SCHEMA_VERSION } from "./documentFormat";
 import { importLegacyCadDocument } from "./legacyImport";
 import qualifiedNegativeExpressionFixture from "./__fixtures__/legacy-qualified-negative-expression.nuinui.json?raw";
+
+const LEGACY_APP_ID = "nuinuiCAD";
+const LEGACY_SCHEMA_VERSION = 5;
 
 const legacyContent = () => {
   const base = currentDocumentSnapshot(initialCadDocumentState(), initialCadUiState());
@@ -38,8 +41,8 @@ const legacyContent = () => {
     numericParameterSteps: { scale: 0.1 }
   };
   return JSON.stringify({
-    app: CAD_DOCUMENT_APP_ID,
-    schemaVersion: CAD_DOCUMENT_SCHEMA_VERSION,
+    app: LEGACY_APP_ID,
+    schemaVersion: LEGACY_SCHEMA_VERSION,
     savedAt: "2026-07-10T00:00:00.000Z",
     document: {
       ...base,
@@ -91,8 +94,8 @@ describe("legacy JSON import", () => {
         : element
     );
     const content = JSON.stringify({
-      app: CAD_DOCUMENT_APP_ID,
-      schemaVersion: CAD_DOCUMENT_SCHEMA_VERSION,
+      app: LEGACY_APP_ID,
+      schemaVersion: LEGACY_SCHEMA_VERSION,
       document: { elements, evaluationLimitIndex: elements.length }
     });
     const imported = compileDslDocument(importLegacyCadDocument(content, "/legacy/local-ids.nuinui.json"));
@@ -173,8 +176,8 @@ describe("legacy JSON import", () => {
       selectedParameterKey: null
     };
     const content = JSON.stringify({
-      app: CAD_DOCUMENT_APP_ID,
-      schemaVersion: CAD_DOCUMENT_SCHEMA_VERSION,
+      app: LEGACY_APP_ID,
+      schemaVersion: LEGACY_SCHEMA_VERSION,
       savedAt: "2026-07-11T00:00:00.000Z",
       document
     });
@@ -189,6 +192,113 @@ describe("legacy JSON import", () => {
     expect(secondNotch).toBeDefined();
     expect(imported.document!.elements.filter((element) => element.name === "頂点")).toHaveLength(2);
     expect(imported.document!.printLayouts[0].placements[0].groupId).toBe(secondNotch?.id);
+  });
+
+  it("preserves order, non-contiguous group membership, image paths, and print layouts together", () => {
+    const group = (id: string, name: string, parentGroupId?: string) => ({
+      id,
+      name,
+      type: "group" as const,
+      visible: true,
+      enabled: true,
+      parentGroupId,
+      printEnabled: false,
+      printAnchor: { mode: "coordinate" as const, x: 0, y: 0 }
+    }) as CadElement;
+    const point = (id: string, name: string, parentGroupId: string) => ({
+      id,
+      name,
+      type: "freePoint" as const,
+      visible: true,
+      enabled: true,
+      parentGroupId,
+      x: 0,
+      y: 0
+    }) as CadElement;
+    const outer = group("outer", "本体");
+    const firstNotch = group("notch-1", "凸ノッチ", outer.id);
+    const secondNotch = group("notch-2", "凸ノッチ", outer.id);
+    const firstLayout = { ...DEFAULT_PRINT_LAYOUT, id: "layout-1", name: "印刷 1" };
+    const secondLayout = {
+      ...DEFAULT_PRINT_LAYOUT,
+      id: "layout-2",
+      name: "印刷 2",
+      placements: [{
+        id: "place-second-notch",
+        groupId: secondNotch.id,
+        x: 12,
+        y: 34,
+        angleDeg: 0,
+        mirrorX: false
+      }]
+    };
+    const document = {
+      elements: [
+        outer,
+        firstNotch,
+        point("first-tip", "先端", firstNotch.id),
+        point("outer-guide", "ガイド", outer.id),
+        secondNotch,
+        point("second-tip", "先端", secondNotch.id),
+        {
+          id: "image",
+          name: "下絵",
+          type: "image" as const,
+          visible: true,
+          enabled: true,
+          sourcePath: "assets/reference.png",
+          originPoint: { mode: "coordinate" as const, x: 0, y: 0 },
+          naturalWidthPx: 1200,
+          naturalHeightPx: 800,
+          sourceDpi: 300,
+          targetPixelsPerMm: 300 / 25.4,
+          scale: 1,
+          angleDeg: 0,
+          mirrorX: false
+        } as CadElement
+      ],
+      palette: defaultDocumentPalette(),
+      visibilityRoles: [],
+      visibilityProfiles: [defaultVisibilityProfile()],
+      activeVisibilityProfileId: defaultVisibilityProfile().id,
+      printLayouts: [firstLayout, secondLayout],
+      activePrintLayoutId: secondLayout.id,
+      evaluationLimitIndex: 7
+    };
+    const importedText = importLegacyCadDocument(JSON.stringify({
+      app: LEGACY_APP_ID,
+      schemaVersion: LEGACY_SCHEMA_VERSION,
+      document: { ...document, printLayout: secondLayout }
+    }), "/legacy/non-contiguous.nuinui.json");
+    const parsed = parseDsl(importedText);
+    const imported = compileDslDocument(importedText);
+
+    expect(parsed.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(imported.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(imported.document).not.toBeNull();
+    expect(imported.document!.elements.map(({ name }) => name)).toEqual([
+      "本体", "凸ノッチ", "先端", "ガイド", "凸ノッチ 2", "先端", "下絵"
+    ]);
+
+    const importedFirstNotch = imported.document!.elements.find((element) => element.name === "凸ノッチ");
+    const importedSecondNotch = imported.document!.elements.find((element) => element.name === "凸ノッチ 2");
+    expect(importedFirstNotch).toMatchObject({ type: "group", parentGroupId: outer.id });
+    expect(importedSecondNotch).toMatchObject({ type: "group", parentGroupId: outer.id });
+    expect(imported.document!.elements.find((element) => element.name === "ガイド")?.parentGroupId).toBe(outer.id);
+    expect(imported.document!.elements.find((element) => element.id === "first-tip")?.parentGroupId).toBe(
+      importedFirstNotch?.id
+    );
+    expect(imported.document!.elements.find((element) => element.id === "second-tip")?.parentGroupId).toBe(
+      importedSecondNotch?.id
+    );
+    expect(imported.document!.elements.find((element) => element.type === "image")).toMatchObject({
+      sourcePath: "/legacy/assets/reference.png"
+    });
+    expect(imported.document!.printLayouts.map((layout) => layout.name)).toEqual(["印刷 1", "印刷 2"]);
+    expect(
+      imported.document!.printLayouts.find((layout) => layout.id === imported.document!.activePrintLayoutId)?.name
+    ).toBe("印刷 2");
+    expect(imported.document!.printLayouts[1].placements[0]?.groupId).toBe(importedSecondNotch?.id);
   });
 
   it("preserves every current element type semantically through legacy JSON conversion", () => {
@@ -232,8 +342,8 @@ describe("legacy JSON import", () => {
       evaluationLimitIndex: elements.length
     };
     const content = JSON.stringify({
-      app: CAD_DOCUMENT_APP_ID,
-      schemaVersion: CAD_DOCUMENT_SCHEMA_VERSION,
+      app: LEGACY_APP_ID,
+      schemaVersion: LEGACY_SCHEMA_VERSION,
       savedAt: "2026-07-10T00:00:00.000Z",
       document: { ...legacyDocument, printLayout: DEFAULT_PRINT_LAYOUT }
     });

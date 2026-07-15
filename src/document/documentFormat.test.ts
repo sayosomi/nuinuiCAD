@@ -3,15 +3,17 @@ import { defaultDocumentPalette } from "../palette/palette";
 import { DEFAULT_PRINT_LAYOUT } from "../print/printLayout";
 import { sampleElements } from "../sampleData";
 import { defaultVisibilityProfile } from "../model/visibilityProfiles";
-import type { CadDocumentSnapshot } from "../state/cadDocumentStore";
-import {
-  CAD_DOCUMENT_APP_ID,
-  CAD_DOCUMENT_SCHEMA_VERSION,
-  parseCadDocumentFile
-} from "./documentFormat";
+import type { DslDocumentData } from "../dsl/dslDocument";
+import type { CadElement } from "../types/geometry";
+import { parseCadDocumentFile } from "./documentFormat";
 import { ensureNuiDocumentFileName, fileNameFromPath } from "./nuiFormat";
 
-const snapshot: CadDocumentSnapshot = {
+const LEGACY_APP_ID = "nuinuiCAD";
+const LEGACY_SCHEMA_VERSION = 5;
+
+type LegacyDocumentFixture = DslDocumentData & { printLayout?: unknown };
+
+const snapshot: LegacyDocumentFixture = {
   elements: sampleElements,
   palette: defaultDocumentPalette(),
   visibilityRoles: [],
@@ -19,16 +21,12 @@ const snapshot: CadDocumentSnapshot = {
   activeVisibilityProfileId: defaultVisibilityProfile().id,
   printLayouts: [DEFAULT_PRINT_LAYOUT],
   activePrintLayoutId: DEFAULT_PRINT_LAYOUT.id,
-  printLayout: DEFAULT_PRINT_LAYOUT,
-  evaluationLimitIndex: sampleElements.length,
-  selectedElementId: sampleElements[0].id,
-  selectedElementIds: [sampleElements[0].id],
-  selectionAnchorElementId: sampleElements[0].id,
+  evaluationLimitIndex: sampleElements.length
 };
 
-const legacyFileContent = (document: CadDocumentSnapshot = snapshot) => JSON.stringify({
-  app: CAD_DOCUMENT_APP_ID,
-  schemaVersion: CAD_DOCUMENT_SCHEMA_VERSION,
+const legacyFileContent = (document: LegacyDocumentFixture = snapshot) => JSON.stringify({
+  app: LEGACY_APP_ID,
+  schemaVersion: LEGACY_SCHEMA_VERSION,
   savedAt: "2026-06-29T00:00:00.000Z",
   document
 });
@@ -48,7 +46,7 @@ describe("documentFormat", () => {
         visible: true,
         enabled: true,
         expanded: true
-      } as unknown as CadDocumentSnapshot["elements"][number]]
+      } as CadElement]
     });
 
     expect(parseCadDocumentFile(content).elements[0]).not.toHaveProperty("expanded");
@@ -60,18 +58,18 @@ describe("documentFormat", () => {
       "nuinuiCADドキュメントではありません"
     );
     expect(() =>
-      parseCadDocumentFile(JSON.stringify({ app: CAD_DOCUMENT_APP_ID, schemaVersion: 2, document: {} }))
+      parseCadDocumentFile(JSON.stringify({ app: LEGACY_APP_ID, schemaVersion: 2, document: {} }))
     ).toThrow("未対応のドキュメント形式です");
     expect(() =>
       parseCadDocumentFile(
-        JSON.stringify({ app: CAD_DOCUMENT_APP_ID, schemaVersion: CAD_DOCUMENT_SCHEMA_VERSION })
+        JSON.stringify({ app: LEGACY_APP_ID, schemaVersion: LEGACY_SCHEMA_VERSION })
       )
     ).toThrow("ドキュメント本体が見つかりません");
     expect(() =>
       parseCadDocumentFile(
         JSON.stringify({
-          app: CAD_DOCUMENT_APP_ID,
-          schemaVersion: CAD_DOCUMENT_SCHEMA_VERSION,
+          app: LEGACY_APP_ID,
+          schemaVersion: LEGACY_SCHEMA_VERSION,
           document: {}
         })
       )
@@ -88,8 +86,8 @@ describe("documentFormat", () => {
 
   it("serializes and parses palette data", () => {
     const content = JSON.stringify({
-      app: CAD_DOCUMENT_APP_ID,
-      schemaVersion: CAD_DOCUMENT_SCHEMA_VERSION,
+      app: LEGACY_APP_ID,
+      schemaVersion: LEGACY_SCHEMA_VERSION,
       savedAt: "2026-06-29T00:00:00.000Z",
       document: {
         ...snapshot,
@@ -112,8 +110,8 @@ describe("documentFormat", () => {
 
   it("normalizes invalid palette data in v3 documents", () => {
     const content = JSON.stringify({
-      app: CAD_DOCUMENT_APP_ID,
-      schemaVersion: CAD_DOCUMENT_SCHEMA_VERSION,
+      app: LEGACY_APP_ID,
+      schemaVersion: LEGACY_SCHEMA_VERSION,
       savedAt: "2026-06-29T00:00:00.000Z",
       document: {
         ...snapshot,
@@ -132,7 +130,7 @@ describe("documentFormat", () => {
 
   it("loads v3 documents with default print layouts", () => {
     const content = JSON.stringify({
-      app: CAD_DOCUMENT_APP_ID,
+      app: LEGACY_APP_ID,
       schemaVersion: 3,
       savedAt: "2026-06-29T00:00:00.000Z",
       document: {
@@ -141,7 +139,6 @@ describe("documentFormat", () => {
       }
     });
 
-    expect(parseCadDocumentFile(content).printLayout).toEqual(DEFAULT_PRINT_LAYOUT);
     expect(parseCadDocumentFile(content).printLayouts).toEqual([DEFAULT_PRINT_LAYOUT]);
   });
 
@@ -153,7 +150,7 @@ describe("documentFormat", () => {
       columns: 3
     };
     const content = JSON.stringify({
-      app: CAD_DOCUMENT_APP_ID,
+      app: LEGACY_APP_ID,
       schemaVersion: 4,
       savedAt: "2026-06-29T00:00:00.000Z",
       document: {
@@ -186,8 +183,8 @@ describe("documentFormat", () => {
       }]
     };
     const parsed = parseCadDocumentFile(JSON.stringify({
-      app: CAD_DOCUMENT_APP_ID,
-      schemaVersion: CAD_DOCUMENT_SCHEMA_VERSION,
+      app: LEGACY_APP_ID,
+      schemaVersion: LEGACY_SCHEMA_VERSION,
       savedAt: "2026-07-10T00:00:00.000Z",
       document: {
         ...snapshot,
