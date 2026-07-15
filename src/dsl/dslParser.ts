@@ -172,7 +172,7 @@ const diagnostic = (line: number, message: string): DslDiagnostic => ({
   message
 });
 
-const parseCoordinate = (term: DslTerm) => {
+export const parseCoordinate = (term: DslTerm) => {
   const match = term.text.match(/^\((.*),(.*)\)$/);
   if (!match) return null;
   const xRaw = match[1];

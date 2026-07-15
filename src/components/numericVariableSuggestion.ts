@@ -1,4 +1,5 @@
 import type { NumericVariableReferenceOption } from "../geometry/variableReferenceOptions";
+import { dslVariableTokenEndingAt } from "../dsl/dslVariableToken";
 
 export type NumericVariableSuggestionMatch = {
   tokenStart: number;
@@ -6,23 +7,14 @@ export type NumericVariableSuggestionMatch = {
   query: string;
 };
 
-const variableQueryPattern = /(?:^|[\s()+*/<>=!&|,-])@([^\s()+*/.<>!=&|]*)$/;
-
 export const numericVariableSuggestionMatch = (
   value: string,
   selectionStart: number | null,
   selectionEnd: number | null
 ): NumericVariableSuggestionMatch | null => {
   if (selectionStart === null || selectionEnd === null || selectionStart !== selectionEnd) return null;
-  const prefix = value.slice(0, selectionStart);
-  const match = prefix.match(variableQueryPattern);
-  if (!match) return null;
-  const query = match[1] ?? "";
-  return {
-    tokenStart: selectionStart - query.length - 1,
-    tokenEnd: selectionStart,
-    query
-  };
+  const match = dslVariableTokenEndingAt(value, selectionStart);
+  return match ? { tokenStart: match.from, tokenEnd: match.to, query: match.query } : null;
 };
 
 export const filteredNumericVariableSuggestions = (

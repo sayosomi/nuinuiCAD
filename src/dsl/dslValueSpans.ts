@@ -51,8 +51,7 @@ export const dslLineElementStatement = (lineText: string): DslStatement | null =
   return statement;
 };
 
-export const dslLineLabeledValueSpans = (lineText: string): DslLabeledValueSpan[] => {
-  const statement = dslLineElementStatement(lineText);
+const labeledValueSpansForStatement = (statement: DslStatement | null): DslLabeledValueSpan[] => {
   if (!statement) return [];
   const keyword = spanKey(statement.keywordSpan);
   const seen = new Set<string>();
@@ -65,6 +64,54 @@ export const dslLineLabeledValueSpans = (lineText: string): DslLabeledValueSpan[
   }
   return spans.sort((a, b) => a.start - b.start);
 };
+
+export const dslLineLabeledValueSpans = (lineText: string): DslLabeledValueSpan[] =>
+  labeledValueSpansForStatement(dslLineElementStatement(lineText));
+
+type DslPrintLayoutBlockStatement = Extract<DslStatement, { kind: "place" | "layoutVar" | "printLayout" }>;
+
+/**
+ * Mirrors dslLineElementStatement for the three printLayout-block-only
+ * statement kinds, which dslLineElementStatement always rejects
+ * (isElementDslStatement is false for them by design — they never produce a
+ * CadElement). `printLayout` opens a block itself, so it reuses the same
+ * synthetic-closing-`}` trick as dslLineElementStatement. `place`/`layoutVar`
+ * instead require an enclosing printLayout block to parse without a spurious
+ * "must be inside printLayout" diagnostic (applyBlockStructure), so they are
+ * reparsed wrapped in a synthetic one-line block. parseDsl parses each source
+ * line independently (source.split(...).forEach), so term/span offsets found
+ * on the wrapped member line are already relative to `lineText` itself — no
+ * coordinate adjustment is needed (locked down by a dedicated span-offset
+ * test in dslValueSpans.test.ts).
+ */
+export const dslLinePrintLayoutStatement = (lineText: string): DslPrintLayoutBlockStatement | null => {
+  const probe = parseDsl(lineText);
+  const probeStatement = probe.statements.find((candidate) => candidate.line === 1);
+  if (!probeStatement) return null;
+
+  if (probeStatement.kind === "printLayout") {
+    const opensBlock = probe.statements.length === 1 && probeStatement.opensBlock;
+    const { statements, diagnostics } = opensBlock ? parseDsl(`${lineText}\n}`) : probe;
+    const statement = statements.find((candidate) => candidate.line === 1);
+    if (!statement || statement.kind !== "printLayout") return null;
+    if (diagnostics.some((diagnostic) => diagnostic.severity === "error" && diagnostic.line === 1)) return null;
+    return statement;
+  }
+
+  if (probeStatement.kind === "place" || probeStatement.kind === "layoutVar") {
+    const { statements, diagnostics } = parseDsl(`printLayout {\n${lineText}\n}`);
+    const statement = statements.find((candidate) => candidate.line === 2);
+    if (!statement || (statement.kind !== "place" && statement.kind !== "layoutVar")) return null;
+    if (diagnostics.some((diagnostic) => diagnostic.severity === "error" && diagnostic.line === 2)) return null;
+    return statement;
+  }
+
+  return null;
+};
+
+/** Sibling to dslLineLabeledValueSpans for the printLayout-block-only kinds. */
+export const dslLinePrintLayoutValueSpans = (lineText: string): DslLabeledValueSpan[] =>
+  labeledValueSpansForStatement(dslLinePrintLayoutStatement(lineText));
 
 /** Backwards-compatible projection used by click selection, Tab navigation, and Line Lens. */
 export const dslLineValueSpans = (lineText: string): DslValueSpan[] =>

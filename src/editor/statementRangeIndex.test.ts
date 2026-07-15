@@ -1,7 +1,13 @@
 import { ChangeSet, Text } from "@codemirror/state";
 import { describe, expect, it } from "vitest";
 import { compileDslDocument } from "../dsl/dslDocument";
-import { createStatementRangeIndex, elementIdAtCursor, mapStatementRangeIndex } from "./statementRangeIndex";
+import {
+  createPrintLayoutRangeIndex,
+  createStatementRangeIndex,
+  elementIdAtCursor,
+  mapPrintLayoutRangeIndex,
+  mapStatementRangeIndex
+} from "./statementRangeIndex";
 
 const compiled = (source: string) => {
   const result = compileDslDocument(source);
@@ -51,5 +57,45 @@ describe("statementRangeIndex", () => {
     expect(elementIdAtCursor(mapped, valueStart)).toBe(pointA.id);
     expect(elementIdAtCursor(mapped, valueStart + 1)).toBe(pointA.id);
     expect(mapped.get(pointA.id)?.to).toBe(range.to + 1);
+  });
+});
+
+describe("printLayoutRangeIndex", () => {
+  const printLayoutSource = ["nui 1", "printLayout Layout1 {", "  layoutVar Width = 10", "}"].join("\n");
+
+  it("builds one entry per printLayout:<id> statementMap key, at the block-opening line", () => {
+    const result = compiled(printLayoutSource);
+    const doc = Text.of(printLayoutSource.split("\n"));
+    const printLayoutId = result.document!.printLayouts[0].id;
+    const index = createPrintLayoutRangeIndex(doc, result.statementMap!);
+
+    expect(index.size).toBe(1);
+    const range = index.get(printLayoutId)!;
+    expect(range).toBeDefined();
+    expect(doc.sliceString(range.from, range.to)).toBe("printLayout Layout1 {");
+  });
+
+  it("tracks an insertion above the block, shifting the line but preserving printLayoutId identity", () => {
+    const result = compiled(printLayoutSource);
+    const doc = Text.of(printLayoutSource.split("\n"));
+    const printLayoutId = result.document!.printLayouts[0].id;
+    const original = createPrintLayoutRangeIndex(doc, result.statementMap!);
+    const changes = ChangeSet.of({ from: 0, insert: "# dirty\n" }, doc.length);
+    const mapped = mapPrintLayoutRangeIndex(original, changes);
+
+    const range = mapped.get(printLayoutId)!;
+    expect(range).toBeDefined();
+    expect(range.from).toBeGreaterThan(original.get(printLayoutId)!.from);
+  });
+
+  it("drops an entry whose block-opening line is fully replaced", () => {
+    const result = compiled(printLayoutSource);
+    const doc = Text.of(printLayoutSource.split("\n"));
+    const printLayoutId = result.document!.printLayouts[0].id;
+    const original = createPrintLayoutRangeIndex(doc, result.statementMap!);
+    const range = original.get(printLayoutId)!;
+    const changes = ChangeSet.of({ from: range.from, to: Math.min(doc.length, range.to + 1), insert: "" }, doc.length);
+
+    expect(mapPrintLayoutRangeIndex(original, changes).has(printLayoutId)).toBe(false);
   });
 });

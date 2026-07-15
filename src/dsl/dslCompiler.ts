@@ -28,6 +28,17 @@ import {
 } from "./dslReferences";
 import type { CompileDslContext, CompileDslResult, DslAttribute, DslDiagnostic, DslStatement } from "./dslTypes";
 import { splitDslList, splitDslRecords, unquoteDslString } from "./dslTokens";
+import {
+  placeAngleAttrKey,
+  placeAngleDegAttrKey,
+  placeAtAttrKey,
+  printLayoutCanvasAttrKey,
+  printLayoutColumnsAttrKey,
+  printLayoutOverlapAttrKey,
+  printLayoutOverlapMmAttrKey,
+  printLayoutRowsAttrKey,
+  printLayoutScaleAttrKey
+} from "./dslPrintLayoutAttributes";
 
 const attr = (attrs: DslAttribute[], key: string) =>
   attrs.find((item) => item.key === key)?.value;
@@ -636,7 +647,7 @@ const buildBlockPrintLayouts = ({
       if (target && target.type !== "group") {
         diagnostics.push(diagnostic(member.line, `place の参照先はグループではありません: ${member.group}`));
       }
-      const at = attr(member.attrs, "at");
+      const at = attr(member.attrs, placeAtAttrKey);
       const pair = at ? coordinatePair(at) : null;
       if (at && !pair) {
         diagnostics.push(diagnostic(member.line, "place の位置は `at=(x, y)` で指定してください。"));
@@ -646,7 +657,7 @@ const buildBlockPrintLayouts = ({
         groupId,
         x: pair ? numeric(pair.x) : 0,
         y: pair ? numeric(pair.y) : 0,
-        angleDeg: numeric(attr(member.attrs, "angle") ?? attr(member.attrs, "angleDeg") ?? "0"),
+        angleDeg: numeric(attr(member.attrs, placeAngleAttrKey) ?? attr(member.attrs, placeAngleDegAttrKey) ?? "0"),
         mirrorX: booleanValue(attr(member.attrs, "mirrorX") ?? "false") ?? false
       });
     }
@@ -671,7 +682,7 @@ const buildBlockPrintLayouts = ({
     if (output && output !== "pdf" && output !== "svg") {
       diagnostics.push(diagnostic(statement.line, "output は pdf / svg で指定してください。"));
     }
-    const canvas = attr(statement.attrs, "canvas");
+    const canvas = attr(statement.attrs, printLayoutCanvasAttrKey);
     const canvasPair = canvas ? coordinatePair(canvas) : null;
     if (canvas && !canvasPair) {
       diagnostics.push(diagnostic(statement.line, "canvas は `canvas=(幅, 高さ)` で指定してください。"));
@@ -680,10 +691,10 @@ const buildBlockPrintLayouts = ({
     const existing = statement.name
       ? next.find((layout) => layout.name === statement.name || layout.id === statement.name)
       : undefined;
-    const columns = attr(statement.attrs, "columns");
-    const rows = attr(statement.attrs, "rows");
-    const overlap = attr(statement.attrs, "overlap") ?? attr(statement.attrs, "overlapMm");
-    const scale = attr(statement.attrs, "scale");
+    const columns = attr(statement.attrs, printLayoutColumnsAttrKey);
+    const rows = attr(statement.attrs, printLayoutRowsAttrKey);
+    const overlap = attr(statement.attrs, printLayoutOverlapAttrKey) ?? attr(statement.attrs, printLayoutOverlapMmAttrKey);
+    const scale = attr(statement.attrs, printLayoutScaleAttrKey);
     const layout = normalizePrintLayout({
       id: existing?.id ?? attr(statement.attrs, "id") ?? (statement.name || nextPrintLayoutId(next)),
       name: attr(statement.attrs, "name") ?? statement.name,

@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { compileDslToElements } from "./dslCompiler";
 import {
+  recordField,
+  recordSpans,
   resolveParameterKeyForValueSpan,
   resolveParameterTargetAt,
   resolveParameterValueSpan
@@ -261,5 +263,34 @@ describe("resolveParameterValueSpan", () => {
   it("returns null when the live line changed to another element type", () => {
     const element = compiled("arc C center=A radius=10 start=0 end=90");
     expect(resolveParameterValueSpan("line C = A -> B", element, "radius")).toBeNull();
+  });
+});
+
+describe("recordField", () => {
+  it("returns each field of a 5-field intermediates=-style record independently, unlike recordRemainder", () => {
+    const source = "curve C = A -> B intermediates=[X: 10: 5: 5: pt1]";
+    const outer = { start: source.indexOf("["), end: source.indexOf("]") + 1 };
+    const records = recordSpans(source, outer)!;
+    expect(records).toHaveLength(1);
+    const record = records[0];
+    expect(source.slice(recordField(source, record, 0)!.start, recordField(source, record, 0)!.end)).toBe("X");
+    expect(source.slice(recordField(source, record, 1)!.start, recordField(source, record, 1)!.end)).toBe("10");
+    expect(source.slice(recordField(source, record, 2)!.start, recordField(source, record, 2)!.end)).toBe("5");
+    expect(source.slice(recordField(source, record, 3)!.start, recordField(source, record, 3)!.end)).toBe("5");
+    expect(source.slice(recordField(source, record, 4)!.start, recordField(source, record, 4)!.end)).toBe("pt1");
+  });
+
+  it("returns null for an out-of-range field index", () => {
+    const source = "curve C = A -> B intermediates=[X: 10: 5: 5: pt1]";
+    const outer = { start: source.indexOf("["), end: source.indexOf("]") + 1 };
+    const record = recordSpans(source, outer)![0];
+    expect(recordField(source, record, 5)).toBeNull();
+  });
+
+  it("returns null for an empty field", () => {
+    const source = "curve C = A -> B intermediates=[X::5:5:pt1]";
+    const outer = { start: source.indexOf("["), end: source.indexOf("]") + 1 };
+    const record = recordSpans(source, outer)![0];
+    expect(recordField(source, record, 1)).toBeNull();
   });
 });

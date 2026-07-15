@@ -9,7 +9,14 @@ import type { DslStatement } from "./dslTypes";
 
 export type DslCompletionParameter = {
   definition: ParameterDefinition;
-  source: "name" | "payload" | "attr";
+  /** "printLayoutBlock" marks a synthetic parameter for `place`/`layoutVar`/
+   * `printLayout` block statements, which have no real CadElement/
+   * ParameterDefinition to derive "payload"/"attr" from. A distinct source
+   * value (rather than reusing `key` as the routing marker, the way
+   * dslVarsAttributeParameterKey does) avoids colliding with ordinary element
+   * attr/payload keys that happen to share the same name (e.g. `angle`,
+   * `scale`, `expression`). */
+  source: "name" | "payload" | "attr" | "printLayoutBlock";
   key: string;
 };
 

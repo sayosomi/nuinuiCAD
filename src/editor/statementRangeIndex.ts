@@ -93,6 +93,47 @@ export const statementRangeAtLine = (ranges: StatementRangeIndex, lineFrom: numb
   return null;
 };
 
+export type PrintLayoutRange = { printLayoutId: string; from: number; to: number };
+export type PrintLayoutRangeIndex = ReadonlyMap<string, PrintLayoutRange>;
+
+/**
+ * Mirrors createStatementRangeIndex for printLayout block-opening lines.
+ * statementMap.byKey entries keyed `printLayout:<id>` never appear in the
+ * element-keyed StatementRangeIndex (printLayout/place/layoutVar produce no
+ * CadElement), so `@variable` completion for printLayout-block attributes
+ * needs this separate live-line -> committed-id index. Only valid while the
+ * matching statementMap is current, same contract as createStatementRangeIndex.
+ */
+export const createPrintLayoutRangeIndex = (doc: Text, statementMap: StatementMap): PrintLayoutRangeIndex => {
+  const ranges = new Map<string, PrintLayoutRange>();
+  for (const [key, info] of statementMap.byKey) {
+    if (!key.startsWith("printLayout:")) continue;
+    if (info.line < 1 || info.line > doc.lines) continue;
+    const printLayoutId = key.slice("printLayout:".length);
+    const line = doc.line(info.line);
+    ranges.set(printLayoutId, { printLayoutId, from: line.from, to: line.to });
+  }
+  return ranges;
+};
+
+/**
+ * Mirrors mapStatementRangeIndex: re-projects each printLayout block-opening
+ * line's last-known-good position through a CM ChangeDesc. No fold ranges are
+ * tracked here (unlike StatementRange) since this index exists only for live
+ * @variable completion identity lookup, not decoration/gutter positioning.
+ */
+export const mapPrintLayoutRangeIndex = (ranges: PrintLayoutRangeIndex, changes: ChangeDesc): PrintLayoutRangeIndex => {
+  const mapped = new Map<string, PrintLayoutRange>();
+  for (const [printLayoutId, range] of ranges) {
+    if (changes.touchesRange(range.from, range.to) === "cover") continue;
+    const from = changes.mapPos(range.from, 1, MapMode.TrackAfter);
+    const to = changes.mapPos(range.to, 1, MapMode.Simple);
+    if (from === null || to === null || to < from) continue;
+    mapped.set(printLayoutId, { printLayoutId, from, to });
+  }
+  return mapped;
+};
+
 export type AtStopRange = { from: number; to: number };
 
 /**

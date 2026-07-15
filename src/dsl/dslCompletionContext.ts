@@ -1,7 +1,21 @@
 import { dslStatementKeywordCompletions } from "./dslParser";
-import { dslLineElementStatement, dslLineLabeledValueSpans } from "./dslValueSpans";
+import {
+  dslLineElementStatement,
+  dslLineLabeledValueSpans,
+  dslLinePrintLayoutStatement,
+  dslLinePrintLayoutValueSpans,
+  type DslLabeledValueSpan
+} from "./dslValueSpans";
 import { splitDslComment, splitDslTerms } from "./dslTokens";
 import { dslCompletionMetadataForType, dslStatementElementType, type DslCompletionParameter } from "./dslCompletionMetadata";
+import { coordinateComponent, recordField, recordSpans, recordRemainder } from "./dslParameterSpans";
+import { dslVariableTokenEndingAt } from "./dslVariableToken";
+import {
+  placeCoordinateAttrKeys,
+  placeNumericAttrKeys,
+  printLayoutCoordinateAttrKeys,
+  printLayoutNumericAttrKeys
+} from "./dslPrintLayoutAttributes";
 
 export type DslCompletionContext =
   | { kind: "keyword"; from: number; to: number; options: readonly string[] }
@@ -9,8 +23,171 @@ export type DslCompletionContext =
   | { kind: "parameter"; from: number; to: number; parameter: DslCompletionParameter }
   | null;
 
+/** Local-variable-list marker: cmAutocomplete.ts routes to the vars=[...] record
+ * candidate source (not the top-level @variable source) whenever the returned
+ * parameter has this key, regardless of element type. */
+export const dslVarsAttributeParameterKey = "vars";
+
+/** intermediates=[...]-list marker: cmAutocomplete.ts routes to the plain
+ * top-level @variable source (never the current element's local vars=, which
+ * dslCompiler.ts's intermediates= evaluation never sees — see
+ * dslIntermediatesFieldCompletionContext below). */
+export const dslIntermediatesAttributeParameterKey = "intermediates";
+
 const termAt = (line: string, pos: number) =>
   splitDslTerms(line).find((term) => pos >= term.start && pos <= term.end) ?? null;
+
+/**
+ * A "reference" kind field may also be authored as a coordinate literal `(x, y)`
+ * (the same form freePoint's own x/y already accept as plain "number" fields).
+ * Returns `undefined` when `pos` isn't inside either sub-span (not a coordinate
+ * literal at all, or cursor elsewhere in it) so the caller falls back to normal
+ * reference-name completion; returns `null` when `pos` is inside a coordinate
+ * sub-span but not right after `@` (no completion makes sense there, and falling
+ * back to point/line-name completion for a numeric position would be wrong).
+ */
+const dslCoordinateLiteralCompletionContext = (
+  code: string,
+  pos: number,
+  span: DslLabeledValueSpan,
+  parameter: DslCompletionParameter
+): DslCompletionContext | undefined => {
+  const xSpan = coordinateComponent(code, span, "x");
+  const ySpan = coordinateComponent(code, span, "y");
+  const subSpan = [xSpan, ySpan].find((candidate) => candidate && pos >= candidate.start && pos <= candidate.end);
+  if (!subSpan) return undefined;
+  const token = dslVariableTokenEndingAt(code, pos, subSpan.start);
+  if (!token) return null;
+  return {
+    kind: "parameter",
+    from: token.from,
+    to: token.to,
+    parameter: {
+      source: parameter.source,
+      key: parameter.key,
+      definition: { key: parameter.definition.key, label: parameter.definition.label, kind: "number" }
+    }
+  };
+};
+
+/**
+ * Locates the cursor's own record inside a live `vars=[name:expr;...]` attribute
+ * and narrows to the `@`-token inside that record's expression field specifically
+ * (never the name field). Uses parameter key `dslVarsAttributeParameterKey` so
+ * cmAutocomplete.ts can route to the local-variable candidate source instead of
+ * the top-level @variable source.
+ */
+const dslVarsFieldCompletionContext = (code: string, pos: number, span: DslLabeledValueSpan): DslCompletionContext => {
+  const records = recordSpans(code, span);
+  if (!records) return null;
+  const record = records.find((item) => pos >= item.start && pos <= item.end);
+  if (!record) return null;
+  const expressionSpan = recordRemainder(code, record, 1);
+  if (!expressionSpan || pos < expressionSpan.start || pos > expressionSpan.end) return null;
+  const token = dslVariableTokenEndingAt(code, pos, expressionSpan.start);
+  if (!token) return null;
+  return {
+    kind: "parameter",
+    from: token.from,
+    to: token.to,
+    parameter: {
+      source: "attr",
+      key: dslVarsAttributeParameterKey,
+      definition: { key: dslVarsAttributeParameterKey, label: "変数", kind: "number" }
+    }
+  };
+};
+
+/**
+ * Locates the cursor's own record inside a live `intermediates=[point:angle:
+ * incoming:outgoing:id;...]` attribute and narrows to the `@`-token inside
+ * fields 1-3 (angle/incoming/outgoing) specifically. Field 0 (point) is a
+ * reference, not a numeric expression; field 4 (id) is a bare identifier —
+ * neither ever offers @variable completion.
+ */
+const dslIntermediatesFieldCompletionContext = (code: string, pos: number, span: DslLabeledValueSpan): DslCompletionContext => {
+  const records = recordSpans(code, span);
+  if (!records) return null;
+  const record = records.find((item) => pos >= item.start && pos <= item.end);
+  if (!record) return null;
+  for (const fieldIndex of [1, 2, 3] as const) {
+    const fieldSpan = recordField(code, record, fieldIndex);
+    if (!fieldSpan || pos < fieldSpan.start || pos > fieldSpan.end) continue;
+    const token = dslVariableTokenEndingAt(code, pos, fieldSpan.start);
+    if (!token) return null;
+    return {
+      kind: "parameter",
+      from: token.from,
+      to: token.to,
+      parameter: {
+        source: "attr",
+        key: dslIntermediatesAttributeParameterKey,
+        definition: { key: dslIntermediatesAttributeParameterKey, label: "中間点", kind: "number" }
+      }
+    };
+  }
+  return null;
+};
+
+/**
+ * `place`/`layoutVar`/`printLayout` have no CadElement/ParameterDefinition to
+ * derive metadata from (dslCompletionMetadataForType is unusable), so the
+ * accepted attribute-key set comes from dslPrintLayoutAttributes.ts — the same
+ * constants dslCompiler.ts's buildBlockPrintLayouts compiles against — rather
+ * than a separate hand-written table that could drift from the compiler.
+ * Attribute-NAME completion (autocompleting `col` -> `columns=`) is out of
+ * scope: it would need dslCompletionMetadataForType's sample-round-trip
+ * machinery, which cannot exist for these non-CadElement kinds. Only
+ * @variable completion inside already-typed attribute VALUES is added.
+ */
+const dslPrintLayoutCompletionContextAt = (code: string, pos: number, lineText: string): DslCompletionContext => {
+  const statement = dslLinePrintLayoutStatement(lineText);
+  if (!statement) return null;
+
+  if (statement.kind === "layoutVar") {
+    const span = dslLinePrintLayoutValueSpans(lineText)
+      .find((item) => item.source === "payload" && item.key === "expression" && pos >= item.start && pos <= item.end);
+    if (!span) return null;
+    const token = dslVariableTokenEndingAt(code, pos, span.start);
+    return token
+      ? {
+        kind: "parameter",
+        from: token.from,
+        to: token.to,
+        parameter: { source: "printLayoutBlock", key: "expression", definition: { key: "expression", label: "式", kind: "number" } }
+      }
+      : null;
+  }
+
+  const numericKeys = statement.kind === "place" ? placeNumericAttrKeys : printLayoutNumericAttrKeys;
+  const coordinateKeys = statement.kind === "place" ? placeCoordinateAttrKeys : printLayoutCoordinateAttrKeys;
+  const span = dslLinePrintLayoutValueSpans(lineText).find((item) => pos >= item.start && pos <= item.end);
+  if (!span || span.source !== "attr") return null;
+
+  if (numericKeys.includes(span.key)) {
+    const token = dslVariableTokenEndingAt(code, pos, span.start);
+    return token
+      ? {
+        kind: "parameter",
+        from: token.from,
+        to: token.to,
+        parameter: { source: "printLayoutBlock", key: span.key, definition: { key: span.key, label: span.key, kind: "number" } }
+      }
+      : null;
+  }
+  if (coordinateKeys.includes(span.key)) {
+    const parameter: DslCompletionParameter = {
+      source: "printLayoutBlock",
+      key: span.key,
+      definition: { key: span.key, label: span.key, kind: "reference" }
+    };
+    // at=/canvas= are always coordinate pairs (dslCompiler.ts rejects any other
+    // form with a diagnostic), so unlike element "reference"-kind fields there
+    // is no non-coordinate fallback to offer — undefined collapses to null.
+    return dslCoordinateLiteralCompletionContext(code, pos, span, parameter) ?? null;
+  }
+  return null;
+};
 
 const lineHeadContext = (code: string, pos: number): DslCompletionContext | null => {
   const terms = splitDslTerms(code);
@@ -35,13 +212,28 @@ export const dslCompletionContextAt = (lineText: string, pos: number): DslComple
 
   const statement = dslLineElementStatement(lineText);
   const elementType = statement ? dslStatementElementType(statement) : null;
-  if (!statement || !elementType) return null;
+  if (!statement || !elementType) return dslPrintLayoutCompletionContextAt(code, pos, lineText);
   const metadata = dslCompletionMetadataForType(elementType);
   const span = dslLineLabeledValueSpans(lineText).find((item) => pos >= item.start && pos <= item.end);
   if (span) {
+    if (span.source === "attr" && span.key === dslVarsAttributeParameterKey) {
+      return dslVarsFieldCompletionContext(code, pos, span);
+    }
+    if (span.source === "attr" && span.key === dslIntermediatesAttributeParameterKey) {
+      return dslIntermediatesFieldCompletionContext(code, pos, span);
+    }
     const parameters = metadata.parameters.filter((parameter) => parameter.source === span.source && parameter.key === span.key);
-    if (parameters.length === 1) return { kind: "parameter", from: span.start, to: pos, parameter: parameters[0] };
-    return null;
+    if (parameters.length !== 1) return null;
+    const parameter = parameters[0];
+    if (parameter.definition.kind === "number") {
+      const token = dslVariableTokenEndingAt(code, pos, span.start);
+      return token ? { kind: "parameter", from: token.from, to: token.to, parameter } : null;
+    }
+    if (parameter.definition.kind === "reference") {
+      const coordinateContext = dslCoordinateLiteralCompletionContext(code, pos, span, parameter);
+      return coordinateContext !== undefined ? coordinateContext : { kind: "parameter", from: span.start, to: pos, parameter };
+    }
+    return { kind: "parameter", from: span.start, to: pos, parameter };
   }
 
   const term = termAt(code, pos);

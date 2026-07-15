@@ -287,6 +287,115 @@ describe("CommandLineBar", () => {
     expect(useCadUiStore.getState().activePointPickTarget).toBeNull();
   });
 
+  it("shows @variable candidates in a number step and narrows them by typed prefix", () => {
+    useCadDocumentStore.getState().commitText(["nui 1", "var Width = 10", "var Height = 20"].join("\n"), "test");
+    render(<CommandLineBar />);
+    act(() => { startCommandLineCreation("variable"); });
+    const input = screen.getByRole<HTMLInputElement>("textbox");
+
+    fireEvent.change(input, { target: { value: "@" } });
+    input.setSelectionRange(1, 1);
+    fireEvent.select(input);
+    expect(screen.getByRole("listbox", { name: "変数候補" })).toHaveTextContent("@Width");
+    expect(screen.getByRole("listbox", { name: "変数候補" })).toHaveTextContent("@Height");
+
+    fireEvent.change(input, { target: { value: "@Wi" } });
+    input.setSelectionRange(3, 3);
+    fireEvent.select(input);
+    const listbox = screen.getByRole("listbox", { name: "変数候補" });
+    expect(listbox).toHaveTextContent("@Width");
+    expect(listbox).not.toHaveTextContent("@Height");
+  });
+
+  it("replaces only the @token range on selection, leaving surrounding text untouched", () => {
+    useCadDocumentStore.getState().commitText(["nui 1", "var Width = 10"].join("\n"), "test");
+    render(<CommandLineBar />);
+    act(() => { startCommandLineCreation("variable"); });
+    const input = screen.getByRole<HTMLInputElement>("textbox");
+
+    fireEvent.change(input, { target: { value: "10 + @Wi" } });
+    input.setSelectionRange(8, 8);
+    fireEvent.select(input);
+    fireEvent.click(screen.getByRole("option", { name: /@Width/ }));
+
+    expect(input).toHaveValue("10 + @Width");
+  });
+
+  it("shows the human-readable @name (not an internal id) after selecting a candidate", () => {
+    useCadDocumentStore.getState().commitText(["nui 1", "var Width = 10"].join("\n"), "test");
+    render(<CommandLineBar />);
+    act(() => { startCommandLineCreation("variable"); });
+    const input = screen.getByRole<HTMLInputElement>("textbox");
+
+    fireEvent.change(input, { target: { value: "@Wi" } });
+    input.setSelectionRange(3, 3);
+    fireEvent.select(input);
+    fireEvent.click(screen.getByRole("option", { name: /@Width/ }));
+
+    expect(input).toHaveValue("@Width");
+    expect(input.value).not.toMatch(/^@[0-9a-f-]{8,}/);
+  });
+
+  it("excludes a variable the evaluator has not computed (e.g. past @stop) from insertion-position candidates", () => {
+    useCadDocumentStore.getState().commitText(["nui 1", "var Width = 10"].join("\n"), "test");
+    const widthId = useCadDocumentStore.getState().elements.find((element) => element.name === "Width")!.id;
+
+    const { rerender } = render(<CommandLineBar evaluation={{ computedVariables: new Map(), errors: [], warnings: [], computedGeometry: new Map() } as never} />);
+    act(() => { startCommandLineCreation("variable"); });
+    const input = screen.getByRole<HTMLInputElement>("textbox");
+    fireEvent.change(input, { target: { value: "@" } });
+    input.setSelectionRange(1, 1);
+    fireEvent.select(input);
+    expect(screen.queryByRole("listbox", { name: "変数候補" })).toBeNull();
+
+    rerender(<CommandLineBar evaluation={{
+      computedVariables: new Map([[widthId, { kind: "variable", elementId: widthId, name: "Width", value: 10 }]]),
+      errors: [],
+      warnings: [],
+      computedGeometry: new Map()
+    } as never} />);
+    fireEvent.change(input, { target: { value: "@" } });
+    input.setSelectionRange(1, 1);
+    fireEvent.select(input);
+    expect(screen.getByRole("listbox", { name: "変数候補" })).toHaveTextContent("@Width");
+  });
+
+  it("never shows @variable candidates for name, element-reference, or lineList steps", () => {
+    useCadDocumentStore.getState().commitText([
+      "nui 1",
+      "var Width = 10",
+      "point A = (0, 0)",
+      "point B = (100, 0)"
+    ].join("\n"), "test");
+    render(<CommandLineBar />);
+    act(() => { startCommandLineCreation("line"); });
+    const input = screen.getByRole<HTMLInputElement>("textbox");
+
+    fireEvent.change(input, { target: { value: "@Wi" } });
+    input.setSelectionRange(3, 3);
+    fireEvent.select(input);
+    expect(screen.queryByRole("listbox", { name: "変数候補" })).toBeNull();
+  });
+
+  it("does not open @variable candidates during IME composition", () => {
+    useCadDocumentStore.getState().commitText(["nui 1", "var Width = 10"].join("\n"), "test");
+    render(<CommandLineBar />);
+    act(() => { startCommandLineCreation("variable"); });
+    const input = screen.getByRole<HTMLInputElement>("textbox");
+
+    fireEvent.compositionStart(input);
+    fireEvent.change(input, { target: { value: "@Wi" } });
+    input.setSelectionRange(3, 3);
+    fireEvent.select(input);
+    expect(screen.queryByRole("listbox", { name: "変数候補" })).toBeNull();
+
+    fireEvent.compositionEnd(input);
+    fireEvent.change(input, { target: { value: "@Wi" } });
+    input.setSelectionRange(3, 3);
+    fireEvent.select(input);
+    expect(screen.getByRole("listbox", { name: "変数候補" })).toHaveTextContent("@Width");
+  });
+
   it("immediately clears a displayed session when another document revision arrives", async () => {
     render(<CommandLineBar />);
     act(() => { startCommandLineCreation("variable"); });

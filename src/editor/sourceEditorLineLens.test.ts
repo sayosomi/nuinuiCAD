@@ -1,13 +1,16 @@
 import { undoDepth, redoDepth } from "@codemirror/commands";
-import { EditorSelection } from "@codemirror/state";
+import { EditorSelection, Text } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { fireEvent } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import { SourceEditorController } from "./sourceEditorController";
-import { lineLocalHighlightRanges, splitTokenByHighlights } from "./sourceEditorLineLens";
+import { lineLocalHighlightRanges, lineLensCompletionDocumentInput, splitTokenByHighlights } from "./sourceEditorLineLens";
 import { setPatchHighlight } from "./sourceEditorPatchHighlight";
+import { createDslCompletionSource } from "./cmAutocomplete";
+import { createPrintLayoutRangeIndex, createStatementRangeIndex } from "./statementRangeIndex";
+import { compileDslDocument } from "../dsl/dslDocument";
 
 const source = [
   "nui 1",
@@ -648,5 +651,114 @@ describe("Line lens highlight range helpers", () => {
     expect(splitTokenByHighlights("hello", 10, [{ from: 100, to: 200 }])).toEqual([
       { text: "hello", from: 10, highlighted: false }
     ]);
+  });
+});
+
+describe("Line lens @variable completion", () => {
+  it("lineLensCompletionDocumentInput resolves the real document's line, not the lens's own line 1", () => {
+    const mainDoc = Text.of(["nui 1", "var Width = 10", "point P = (0, 0)"]);
+    const lineThreeFrom = mainDoc.line(3).from;
+    const input = lineLensCompletionDocumentInput(mainDoc, lineThreeFrom, "point P = offset A dx=@Wi", 26);
+    expect(input).toMatchObject({ cursorLineNumber: 3, lineText: "point P = offset A dx=@Wi", localPos: 26 });
+    expect(input?.source).toBe(mainDoc.toString());
+  });
+
+  it("lineLensCompletionDocumentInput returns null when the lens isn't currently visible/synced", () => {
+    const mainDoc = Text.of(["nui 1", "point P = (0, 0)"]);
+    expect(lineLensCompletionDocumentInput(mainDoc, null, "point P = (0, 0)", 5)).toBeNull();
+  });
+
+  const seedAndOpenLensOnLine = async (source: string, lineNumber: number) => {
+    useCadDocumentStore.setState(initialCadDocumentState());
+    useCadUiStore.setState(initialCadUiState());
+    useCadDocumentStore.getState().commitText(source, "test");
+    Object.defineProperty(Range.prototype, "getClientRects", { configurable: true, value: () => [] });
+
+    const parent = document.createElement("div");
+    const controller = new SourceEditorController(parent);
+    const view = EditorView.findFromDOM(parent.querySelector<HTMLElement>(".cm-editor")!)!;
+    const lens = parent.querySelector<HTMLElement>(".cm-source-line-lens")!;
+    const measure = parent.querySelector<HTMLElement>(".cm-source-line-lens-measure")!;
+    Object.defineProperty(view.contentDOM, "clientWidth", { configurable: true, value: 800 });
+    Object.defineProperty(view.scrollDOM, "clientWidth", { configurable: true, value: 72 });
+    Object.defineProperty(view.dom.querySelector(".cm-gutters-before")!, "offsetWidth", { configurable: true, value: 24 });
+    Object.defineProperty(measure, "scrollWidth", { configurable: true, value: 480 });
+
+    const line = view.state.doc.line(lineNumber);
+    view.dispatch({ selection: EditorSelection.cursor(line.from + line.length) });
+    await new Promise((resolve) => window.setTimeout(resolve, 20));
+    expect(lens).toHaveClass("is-visible");
+    const lensView = EditorView.findFromDOM(lens.querySelector<HTMLElement>(".cm-editor")!)!;
+
+    // Rebuilds the same StatementRangeIndex the controller wires internally, from
+    // the same committed source, so the completion source under test sees real
+    // compiled identities exactly as the running controller would.
+    const compiled = compileDslDocument(source);
+    const statementRanges = createStatementRangeIndex(view.state.doc, compiled.statementMap!);
+    const printLayoutRanges = createPrintLayoutRangeIndex(view.state.doc, compiled.statementMap!);
+    const completionSource = createDslCompletionSource({
+      elements: () => useCadDocumentStore.getState().elements,
+      statementRanges: () => statementRanges,
+      printLayouts: () => useCadDocumentStore.getState().printLayouts,
+      printLayoutRanges: () => printLayoutRanges,
+      isComposing: () => false,
+      computedVariables: () => undefined,
+      documentInput: (context) => lineLensCompletionDocumentInput(view.state.doc, line.from, context.state.doc.toString(), context.pos)
+    });
+
+    return { controller, view, lens, lensView, completionSource };
+  };
+
+  it("offers @Width from a dirty, uncommitted lens edit without any compile step", async () => {
+    const source = ["nui 1", "var Width = 10", "point P = offset A dx=10"].join("\n");
+    const { controller, lensView, completionSource } = await seedAndOpenLensOnLine(source, 3);
+
+    lensView.dispatch({ changes: { from: lensView.state.doc.length, to: lensView.state.doc.length, insert: "+@Wi" } });
+    const pos = lensView.state.doc.length;
+    const result = await Promise.resolve(completionSource({ state: lensView.state, pos, explicit: true } as never));
+    expect(result).not.toBeNull();
+    expect(result?.options.some((option) => option.label === "@Width")).toBe(true);
+    controller.destroy();
+  });
+
+  it("keeps the @token replacement range anchored to `from` while `to` advances as more is typed", async () => {
+    // Candidate FILTERING by the typed prefix is CodeMirror's own job (via
+    // `validFor` against the returned `from`/`to` range) — the pure candidate
+    // layer always returns every currently-valid variable and lets CM narrow
+    // the displayed list client-side. What must track the live, dirty buffer
+    // here is the replacement range itself.
+    const source = ["nui 1", "var Width = 10", "var Height = 20", "point P = offset A dx=10"].join("\n");
+    const { controller, lensView, completionSource } = await seedAndOpenLensOnLine(source, 4);
+
+    lensView.dispatch({ changes: { from: lensView.state.doc.length, to: lensView.state.doc.length, insert: "+@W" } });
+    const atPos = lensView.state.doc.length;
+    const afterW = await Promise.resolve(completionSource({ state: lensView.state, pos: atPos, explicit: true } as never));
+    expect(afterW?.options.map((option) => option.label)).toEqual(expect.arrayContaining(["@Width", "@Height"]));
+    expect(afterW?.to).toBe(atPos);
+    const tokenFrom = afterW!.from;
+
+    lensView.dispatch({ changes: { from: lensView.state.doc.length, to: lensView.state.doc.length, insert: "id" } });
+    const afterWidPos = lensView.state.doc.length;
+    const afterWid = await Promise.resolve(completionSource({ state: lensView.state, pos: afterWidPos, explicit: true } as never));
+    expect(afterWid?.from).toBe(tokenFrom);
+    expect(afterWid?.to).toBe(afterWidPos);
+    controller.destroy();
+  });
+
+  it("does not open completion while IME composition is in progress in the lens", async () => {
+    const source = ["nui 1", "var Width = 10", "point P = offset A dx=10"].join("\n");
+    const { controller, lensView, completionSource } = await seedAndOpenLensOnLine(source, 3);
+
+    lensView.dispatch({ changes: { from: lensView.state.doc.length, to: lensView.state.doc.length, insert: "+@Wi" } });
+    fireEvent.compositionStart(lensView.contentDOM);
+    const pos = lensView.state.doc.length;
+    const result = await Promise.resolve(completionSource({
+      state: lensView.state,
+      pos,
+      explicit: true,
+      view: { compositionStarted: true }
+    } as never));
+    expect(result).toBeNull();
+    controller.destroy();
   });
 });

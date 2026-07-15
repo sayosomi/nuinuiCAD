@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { adjacentDslValueSpan, dslLineLabeledValueSpans, dslLineValueSpans, findDslValueSpanAt } from "./dslValueSpans";
+import {
+  adjacentDslValueSpan,
+  dslLineLabeledValueSpans,
+  dslLinePrintLayoutStatement,
+  dslLinePrintLayoutValueSpans,
+  dslLineValueSpans,
+  findDslValueSpanAt
+} from "./dslValueSpans";
 import { parseDsl } from "./dslParser";
 
 const textOf = (source: string, span: { start: number; end: number }) => source.slice(span.start, span.end);
@@ -215,5 +222,66 @@ describe("findDslValueSpanAt", () => {
 
   it("returns null for an empty span list", () => {
     expect(findDslValueSpanAt([], 3)).toBeNull();
+  });
+});
+
+describe("dslLinePrintLayoutStatement / dslLinePrintLayoutValueSpans", () => {
+  it("recognizes a printLayout block-opening line and rejects an element-statement line", () => {
+    const line = "printLayout Layout1 columns=2 canvas=(210, 297) {";
+    expect(dslLinePrintLayoutStatement(line)?.kind).toBe("printLayout");
+    expect(dslLinePrintLayoutStatement("point A = (0, 0)")).toBeNull();
+  });
+
+  it("recognizes a place member line only via the synthetic enclosing block", () => {
+    const line = "place Group1 at=(10, 20) angle=15";
+    expect(dslLinePrintLayoutStatement(line)?.kind).toBe("place");
+  });
+
+  it("recognizes a layoutVar member line", () => {
+    const line = "layoutVar Margin = 20 + 5";
+    expect(dslLinePrintLayoutStatement(line)?.kind).toBe("layoutVar");
+  });
+
+  it("rejects a place line with a genuine parse error (missing group reference)", () => {
+    expect(dslLinePrintLayoutStatement("place at=(1, 2)")).toBeNull();
+  });
+
+  it("keeps returned span offsets relative to the original lineText, not the synthetic wrapper — place", () => {
+    // The synthetic wrapper prepends a full extra line ("printLayout {\n") before
+    // this text when reparsing place/layoutVar lines. If span offsets ever leaked
+    // through unadjusted from that wrapped coordinate space, they would be off by
+    // "printLayout {\n".length (14) or by an unrelated line-1 offset entirely —
+    // this test fails loudly in either case instead of silently mis-selecting text.
+    const line = "place Group1 at=(10, 20) angle=15";
+    const spans = dslLinePrintLayoutValueSpans(line);
+    const at = spans.find((span) => span.key === "at")!;
+    const angle = spans.find((span) => span.key === "angle")!;
+    expect(line.slice(at.start, at.end)).toBe("(10, 20)");
+    expect(at.start).toBe(line.indexOf("(10, 20)"));
+    expect(at.end).toBe(line.indexOf("(10, 20)") + "(10, 20)".length);
+    expect(line.slice(angle.start, angle.end)).toBe("15");
+    expect(angle.start).toBe(line.indexOf("angle=15") + "angle=".length);
+  });
+
+  it("keeps returned span offsets relative to the original lineText — layoutVar", () => {
+    const line = "layoutVar Margin = 20 + 5";
+    const spans = dslLinePrintLayoutValueSpans(line);
+    const expression = spans.find((span) => span.key === "expression")!;
+    expect(line.slice(expression.start, expression.end)).toBe("20 + 5");
+    expect(expression.start).toBe(line.indexOf("20 + 5"));
+  });
+
+  it("keeps returned span offsets relative to the original lineText — printLayout", () => {
+    // printLayout uses the same synthetic-closing-`}` strategy as
+    // dslLineElementStatement (append, not prepend), so this is the same
+    // no-shift guarantee already relied on elsewhere, re-asserted explicitly here.
+    const line = "printLayout Layout1 columns=2 canvas=(210, 297) {";
+    const spans = dslLinePrintLayoutValueSpans(line);
+    const columns = spans.find((span) => span.key === "columns")!;
+    const canvas = spans.find((span) => span.key === "canvas")!;
+    expect(line.slice(columns.start, columns.end)).toBe("2");
+    expect(columns.start).toBe(line.indexOf("columns=2") + "columns=".length);
+    expect(line.slice(canvas.start, canvas.end)).toBe("(210, 297)");
+    expect(canvas.start).toBe(line.indexOf("(210, 297)"));
   });
 });

@@ -457,7 +457,7 @@ export const AppLayout = () => {
               commandContext={commandContext}
               leftPanelDockRef={commandRibbonDockRef}
             />
-            <CommandLineBar commandContext={commandContext} />
+            <CommandLineBar commandContext={commandContext} evaluation={evaluation} />
             {showPrintPreviewWindow ? (
               <Suspense fallback={null}>
                 <PrintLayoutPreviewWindow

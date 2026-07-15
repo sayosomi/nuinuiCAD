@@ -53,10 +53,13 @@ import type { SourceEditorControllerOptions, SourceEditorHandle, SourceEvaluatio
 import {
   elementIdAtCursor,
   createAtStopRange,
+  createPrintLayoutRangeIndex,
   createStatementRangeIndex,
   mapAtStopRange,
+  mapPrintLayoutRangeIndex,
   mapStatementRangeIndex,
   type AtStopRange,
+  type PrintLayoutRangeIndex,
   type StatementRangeIndex
 } from "./statementRangeIndex";
 import { foldProjectionTransaction, foldTargetAtLine, foldTargets } from "./sourceEditorFolding";
@@ -128,6 +131,7 @@ export class SourceEditorController implements SourceEditorHandle {
   private flushAfterComposition = false;
   private burstStartCursorLine: number | null = null;
   private statementRanges: StatementRangeIndex = new Map();
+  private printLayoutRanges: PrintLayoutRangeIndex = new Map();
   private atStopRange: AtStopRange | null = null;
   private staleDiagnosticBaseline: PositionedDiagnostic[] = [];
   /** At most two newest compiled-document revisions are retained; older results can never become current. */
@@ -180,7 +184,10 @@ export class SourceEditorController implements SourceEditorHandle {
           dslAutocompleteExtension({
             elements: () => this.store.getState().elements,
             statementRanges: () => this.statementRanges,
-            isComposing: () => this.protocol.composing
+            printLayouts: () => this.store.getState().printLayouts,
+            printLayoutRanges: () => this.printLayoutRanges,
+            isComposing: () => this.protocol.composing,
+            computedVariables: () => this.appliedEvaluation?.evaluation.computedVariables
           }),
           sourceEditorLineLens({
             sourceKeymap: () => this.lineLensKeymap(),
@@ -191,7 +198,13 @@ export class SourceEditorController implements SourceEditorHandle {
             onKeyup: (event) => this.observeValueStepKeyup(event),
             onCompositionStart: () => this.beginComposition(),
             onCompositionEnd: () => this.endComposition(),
-            onBlur: () => this.flush("blur")
+            onBlur: () => this.flush("blur"),
+            elements: () => this.store.getState().elements,
+            statementRanges: () => this.statementRanges,
+            printLayouts: () => this.store.getState().printLayouts,
+            printLayoutRanges: () => this.printLayoutRanges,
+            isComposing: () => this.protocol.composing,
+            computedVariables: () => this.appliedEvaluation?.evaluation.computedVariables
           }),
           sourceEditorSelectionExtension,
           sourceEditorPatchHighlightExtension,
@@ -903,6 +916,7 @@ export class SourceEditorController implements SourceEditorHandle {
     );
     if (update.docChanged) {
       this.statementRanges = mapStatementRangeIndex(this.statementRanges, update.changes);
+      this.printLayoutRanges = mapPrintLayoutRangeIndex(this.printLayoutRanges, update.changes);
       this.atStopRange = mapAtStopRange(this.atStopRange, update.changes);
       this.staleDiagnosticBaseline = mapPositionedDiagnostics(this.staleDiagnosticBaseline, update.changes);
       this.requestDecorationRefresh();
@@ -1094,6 +1108,7 @@ export class SourceEditorController implements SourceEditorHandle {
     const state = this.store.getState();
     if (state.docText !== state.sourceText) return;
     this.statementRanges = createStatementRangeIndex(this.view.state.doc, state.doc.statementMap);
+    this.printLayoutRanges = createPrintLayoutRangeIndex(this.view.state.doc, state.doc.statementMap);
     this.atStopRange = createAtStopRange(this.view.state.doc, state.doc.statementMap);
     this.staleDiagnosticBaseline = toStaleDiagnostics(this.view.state.doc, state.diagnostics);
   }

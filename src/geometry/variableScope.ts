@@ -9,7 +9,7 @@ export const isVariableElement = (element: CadElement): element is VariableEleme
   element.type === "variable";
 
 const ancestorGroupIds = (
-  element: CadElement,
+  element: Pick<CadElement, "parentGroupId">,
   elementsById: Map<ElementId, CadElement>
 ) => {
   const ids: ElementId[] = [];
@@ -30,8 +30,8 @@ export const variableIsInScope = ({
   consumer,
   elementsById
 }: {
-  variable: VariableElement;
-  consumer: CadElement;
+  variable: Pick<VariableElement, "scope" | "parentGroupId">;
+  consumer: Pick<CadElement, "parentGroupId">;
   elementsById: Map<ElementId, CadElement>;
 }) => {
   if (variable.scope === "global") return true;

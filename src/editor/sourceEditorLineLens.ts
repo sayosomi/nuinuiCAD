@@ -1,8 +1,11 @@
 import { defaultKeymap } from "@codemirror/commands";
-import { Compartment, EditorSelection, EditorState, StateEffect, Transaction } from "@codemirror/state";
+import { Compartment, EditorSelection, EditorState, StateEffect, Transaction, type Text } from "@codemirror/state";
 import { EditorView, ViewPlugin, keymap, type KeyBinding, type ViewUpdate } from "@codemirror/view";
 import { dslLineValueSpans, findDslValueSpanAt } from "../dsl/dslValueSpans";
 import { dslCmLanguageExtension } from "./cmLanguage";
+import { dslAutocompleteExtension, type DslAutocompleteDocumentInput } from "./cmAutocomplete";
+import type { PrintLayoutRangeIndex, StatementRangeIndex } from "./statementRangeIndex";
+import type { CadElement, ComputedVariable, ElementId, PrintLayout } from "../types/geometry";
 import {
   patchHighlightField,
   setPatchHighlight,
@@ -37,6 +40,31 @@ export type SourceEditorLineLensOptions = {
   onCompositionStart: () => void;
   onCompositionEnd: () => void;
   onBlur: () => void;
+  /** Threaded straight from the owning controller's own dslAutocompleteExtension
+   * wiring so Main Editor and Lens share exactly one CompletionSource. */
+  elements: () => readonly CadElement[];
+  statementRanges: () => StatementRangeIndex;
+  printLayouts: () => readonly PrintLayout[];
+  printLayoutRanges: () => PrintLayoutRangeIndex;
+  isComposing: () => boolean;
+  computedVariables: () => Map<ElementId, ComputedVariable> | undefined;
+};
+
+/**
+ * Translates the lens's own 1-line buffer position into the real document's
+ * completion input. Returns null whenever the lens isn't currently projecting a
+ * synced line (not visible / just hidden), matching the "no completion in that
+ * state" behavior returning null from documentInput already produces.
+ */
+export const lineLensCompletionDocumentInput = (
+  mainDoc: Text,
+  lensLineFrom: number | null,
+  lensDocText: string,
+  localPos: number
+): DslAutocompleteDocumentInput | null => {
+  if (lensLineFrom === null || lensLineFrom > mainDoc.length) return null;
+  const line = mainDoc.lineAt(lensLineFrom);
+  return { source: mainDoc.toString(), cursorLineNumber: line.number, lineText: lensDocText, localPos, doc: mainDoc };
 };
 
 /** Reconfigures the nested editor when the owning Source Editor shortcut registry changes. */
@@ -130,6 +158,20 @@ class SourceEditorLineLens {
       state: EditorState.create({
         extensions: [
           dslCmLanguageExtension,
+          dslAutocompleteExtension({
+            elements: this.options.elements,
+            statementRanges: this.options.statementRanges,
+            printLayouts: this.options.printLayouts,
+            printLayoutRanges: this.options.printLayoutRanges,
+            isComposing: this.options.isComposing,
+            computedVariables: this.options.computedVariables,
+            documentInput: (context) => lineLensCompletionDocumentInput(
+              this.view.state.doc,
+              this.lensLineFrom,
+              context.state.doc.toString(),
+              context.pos
+            )
+          }),
           sourceEditorPatchHighlightExtension,
           EditorView.lineWrapping,
           this.sourceKeymapCompartment.of(keymap.of([...this.options.sourceKeymap(), ...defaultKeymap])),
