@@ -152,9 +152,8 @@ export type CommandId =
   | "closeSelectionColorPicker"
   | "applyDisplayColorToSelection"
   | "focusCanvas"
-  | "focusElementList"
+  | "focusSourceEditor"
   | "focusElementSearch"
-  | "enterElementListMode"
   | "toggleShortcutHelp"
   | "toggleInspectorPanel"
   | "stepSourceValueForward"
@@ -165,7 +164,7 @@ export type CommandId =
 
 export type CommandContext = {
   focusCanvas?: () => void;
-  focusElementList?: () => void;
+  focusSourceEditor?: () => void;
   focusElementSearch?: () => void;
   /** Current element statement under the Source Editor cursor, without exposing CodeMirror state. */
   currentCursorElementId?: () => ElementId | null;

@@ -512,7 +512,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
   const scheduleEditorFocus = useCallback((pointerId: number, pointerReleased: boolean) => {
     if (pointerReleased) {
       pendingEditorFocusRef.current = null;
-      commandContext.focusElementList?.();
+      commandContext.focusSourceEditor?.();
       return;
     }
     pendingEditorFocusRef.current = { pointerId };
@@ -521,7 +521,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
   const resolveEditorFocusReservation = useCallback((pointerId: number) => {
     if (pendingEditorFocusRef.current?.pointerId !== pointerId) return;
     pendingEditorFocusRef.current = null;
-    commandContext.focusElementList?.();
+    commandContext.focusSourceEditor?.();
   }, [commandContext]);
 
   const discardEditorFocusReservation = useCallback((pointerId: number) => {

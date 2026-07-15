@@ -1,6 +1,5 @@
 import { commands, paletteCommandIds, type CommandId } from "../commands/commands";
 import { legacyCreationCommandIds } from "../commands/legacyCreationRecipes";
-import { keyChordMatchesEvent } from "./shortcutChords";
 import type { KeyChord, ShortcutBinding, ShortcutScope } from "./shortcutTypes";
 
 const ch = (
@@ -13,17 +12,6 @@ const ch = (
   shift: false,
   ...modifiers
 });
-
-const isElementListTarget = (event: KeyboardEvent) => {
-  const target = event.target;
-  return (
-    target instanceof HTMLElement &&
-    Boolean(target.closest("[data-element-list='true'], [data-element-list-row='true']"))
-  );
-};
-
-const elementListAltArrowMatch = (event: KeyboardEvent, chord: KeyChord) =>
-  keyChordMatchesEvent(chord, event) && (!chord.alt || isElementListTarget(event));
 
 const commandLabel = (commandId: CommandId, fallback?: string) =>
   fallback ?? commands[commandId].shortcuts?.[0]?.label ?? commands[commandId].label;
@@ -54,7 +42,7 @@ const defaultBindings: ShortcutBinding[] = [
   binding("crossFocus", "focusElementSearch", [ch("f", { mod: true })]),
   binding("normal", "undo", [ch("z", { mod: true })]),
   binding("normal", "redo", [ch("y", { mod: true })]),
-  binding("normal", "enterElementListMode", [ch("g")]),
+  binding("normal", "focusSourceEditor", [ch("g")]),
   binding("normal", "toggleInspectorPanel", [ch("i")]),
   binding("normal", "groupSelectedElements", [ch("g", { mod: true })]),
   binding("normal", "addConditionalGroup", [ch("i", { alt: true })]),
@@ -62,41 +50,19 @@ const defaultBindings: ShortcutBinding[] = [
   binding("normal", "addForGroup", [ch("f", { alt: true })]),
   binding("normal", "wrapSelectedElementsInForGroup", [ch("f", { alt: true, shift: true })]),
   binding("normal", "ungroupSelectedGroup", [ch("g", { mod: true, shift: true })]),
-  binding(
-    "normal",
-    "moveSelectedElementUp",
-    [ch("ArrowUp", { mod: true }), ch("ArrowUp", { alt: true })],
-    { label: "選択要素を上へ移動", defaultChordMatches: elementListAltArrowMatch }
-  ),
-  binding(
-    "normal",
-    "moveSelectedElementDown",
-    [ch("ArrowDown", { mod: true }), ch("ArrowDown", { alt: true })],
-    { label: "選択要素を下へ移動", defaultChordMatches: elementListAltArrowMatch }
-  ),
-  binding("normal", "moveEvaluationDividerUp", [ch("ArrowUp", { alt: true, shift: true })], {
-    defaultChordMatches: elementListAltArrowMatch
-  }),
-  binding("normal", "moveEvaluationDividerDown", [ch("ArrowDown", { alt: true, shift: true })], {
-    defaultChordMatches: elementListAltArrowMatch
-  }),
-  binding("normal", "moveEvaluationDividerToEnd", [ch("End", { alt: true, shift: true })], {
-    defaultChordMatches: elementListAltArrowMatch
-  }),
+  binding("normal", "moveSelectedElementUp", [ch("ArrowUp", { mod: true })], { label: "選択要素を上へ移動" }),
+  binding("normal", "moveSelectedElementDown", [ch("ArrowDown", { mod: true })], { label: "選択要素を下へ移動" }),
+  binding("normal", "moveEvaluationDividerUp", []),
+  binding("normal", "moveEvaluationDividerDown", []),
+  binding("normal", "moveEvaluationDividerToEnd", []),
   binding("normal", "selectPreviousElement", [ch("ArrowUp")]),
   binding("normal", "selectNextElement", [ch("ArrowDown")]),
   binding("normal", "extendSelectionToPreviousElement", [ch("ArrowUp", { shift: true })]),
   binding("normal", "extendSelectionToNextElement", [ch("ArrowDown", { shift: true })]),
   binding("normal", "toggleGroupExpanded", [ch("ArrowRight")]),
   binding("normal", "selectParentGroup", [ch("ArrowLeft")]),
-  binding("normal", "outdentSelectedElements", [ch("[")], {
-    defaultChordMatches: (event, chord) =>
-      keyChordMatchesEvent(chord, event) && isElementListTarget(event)
-  }),
-  binding("normal", "indentSelectedElements", [ch("]")], {
-    defaultChordMatches: (event, chord) =>
-      keyChordMatchesEvent(chord, event) && isElementListTarget(event)
-  }),
+  binding("normal", "outdentSelectedElements", []),
+  binding("normal", "indentSelectedElements", []),
   binding("normal", "deleteSelectedElement", [ch("d"), ch("Delete"), ch("Backspace")]),
   binding("normal", "toggleSelectedElementVisibility", [ch("v")]),
   binding("normal", "toggleSelectedElementEnabled", [ch("a")]),
@@ -115,7 +81,7 @@ const defaultBindings: ShortcutBinding[] = [
   binding("pick", "selectNextPickOption", [ch("ArrowRight")]),
   binding("pick", "applySelectedPickCandidate", [ch("Enter")]),
   binding("pick", "finishLinePick", [ch("Enter", { mod: true })]),
-  // Source Editor replacements for the former focusable element-list commands.
+  // Source Editor structural-edit bindings.
   // `[` / `]` stay available for DSL text; Mod variants are the intentional Phase 2e migration.
   binding("sourceEditor", "moveSelectedElementUp", [ch("ArrowUp", { mod: true }), ch("ArrowUp", { mod: true, alt: true })], {
     label: "選択要素を上へ移動"

@@ -43,14 +43,6 @@ const eventTargetTagName = (event: KeyboardEvent) => {
   return target instanceof HTMLElement ? target.tagName.toLowerCase() : null;
 };
 
-const isElementListTarget = (event: KeyboardEvent) => {
-  const target = event.target;
-  return (
-    target instanceof HTMLElement &&
-    Boolean(target.closest("[data-element-list='true'], [data-element-list-row='true']"))
-  );
-};
-
 const isEditableKeyboardTarget = (event: KeyboardEvent) => {
   const target = event.target;
   if (!(target instanceof HTMLElement)) return false;
@@ -71,10 +63,7 @@ export const shouldIgnoreKeyboardEvent = (event: KeyboardEvent) => {
   if (isEditableKeyboardTarget(event)) return true;
 
   const tagName = eventTargetTagName(event);
-  return (
-    tagName === "button" &&
-    (event.key === " " || (event.key === "Enter" && !isElementListTarget(event)))
-  );
+  return tagName === "button" && (event.key === " " || event.key === "Enter");
 };
 
 /** App-level capture must leave the entire Source Editor UI region untouched (CodeMirror

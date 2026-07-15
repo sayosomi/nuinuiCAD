@@ -253,11 +253,12 @@ export const viewModeCommandDefinitions = {
     palette: { order: 39, keywords: ["focus", "canvas", "キャンバス"] },
     run: (context) => context?.focusCanvas?.()
   },
-  focusElementList: {
-    id: "focusElementList",
-    label: "要素リストへフォーカス",
-    palette: { order: 40, keywords: ["focus", "element list", "構成リスト", "要素リスト"] },
-    run: (context) => context?.focusElementList?.()
+  focusSourceEditor: {
+    id: "focusSourceEditor",
+    label: "Source Editorへフォーカス",
+    palette: { order: 40, keywords: ["focus", "source editor", "dsl", "ソースエディタ"] },
+    shortcuts: [{ keys: "g" }],
+    run: (context) => context?.focusSourceEditor?.()
   },
   focusElementSearch: {
     id: "focusElementSearch",
@@ -265,13 +266,6 @@ export const viewModeCommandDefinitions = {
     palette: { order: 41, keywords: ["focus", "find", "search", "element", "検索", "要素"] },
     shortcuts: [{ keys: "Mod+F", label: "要素検索へ移動" }],
     run: (context) => context?.focusElementSearch?.()
-  },
-  enterElementListMode: {
-    id: "enterElementListMode",
-    label: "構成リストモードに入る",
-    palette: { order: 42, keywords: ["mode", "element list", "構成リスト", "要素リスト"] },
-    shortcuts: [{ keys: "g" }],
-    run: (context) => context?.focusElementList?.()
   },
   toggleShortcutHelp: {
     id: "toggleShortcutHelp",

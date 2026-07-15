@@ -39,7 +39,7 @@ describe("command-line session commands", () => {
   });
 
   it("fills free-point values, adopts the suggested name on empty Enter, and commits once", () => {
-    const focusElementList = vi.fn();
+    const focusSourceEditor = vi.fn();
 
     expect(startCommandLineCreation("freePoint")).toBe(true);
     const started = useCadUiStore.getState().commandLineSession!;
@@ -58,7 +58,7 @@ describe("command-line session commands", () => {
     });
 
     const pastBeforeConfirm = useCadDocumentStore.getState().past.length;
-    expect(confirmCommandLineSession({ focusElementList })).toBe(true);
+    expect(confirmCommandLineSession({ focusSourceEditor })).toBe(true);
 
     const document = useCadDocumentStore.getState();
     expect(document.past).toHaveLength(pastBeforeConfirm + 1);
@@ -71,7 +71,7 @@ describe("command-line session commands", () => {
     });
     expect(useCadUiStore.getState().selectedElementId).toBe(document.elements[0].id);
     expect(useCadUiStore.getState().commandLineSession).toBeNull();
-    expect(focusElementList).toHaveBeenCalledOnce();
+    expect(focusSourceEditor).toHaveBeenCalledOnce();
   });
 
   it("returns a Source Editor creation to its first generated value", () => {

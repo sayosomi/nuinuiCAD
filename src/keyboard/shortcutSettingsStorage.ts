@@ -11,7 +11,7 @@ const STORAGE_KEY = "nuinuiCAD.shortcutSettings.v1";
  * bindings are deliberately not mapped: the mouse-only Inspector has no
  * replacement keyboard scope or command.
  */
-const legacyBindingIdMap: Readonly<Record<string, string>> = {
+export const legacyBindingIdMap: Readonly<Record<string, string>> = {
   "global.newDocument": "crossFocus.newDocument",
   "global.openDocument": "crossFocus.openDocument",
   "global.saveDocument": "crossFocus.saveDocument",
@@ -20,7 +20,9 @@ const legacyBindingIdMap: Readonly<Record<string, string>> = {
   "global.focusElementSearch": "crossFocus.focusElementSearch",
   "global.undo": "normal.undo",
   "global.redo": "normal.redo",
-  "global.enterElementListMode": "normal.enterElementListMode",
+  "global.enterElementListMode": "normal.focusSourceEditor",
+  "normal.focusElementList": "normal.focusSourceEditor",
+  "normal.enterElementListMode": "normal.focusSourceEditor",
   "modeInvariant.toggleInspectorPanel": "normal.toggleInspectorPanel",
   "modeInvariant.toggleShortcutHelp": "crossFocus.toggleShortcutHelp",
   "normal.openShortcutSettings": "crossFocus.openShortcutSettings",
@@ -53,7 +55,7 @@ const legacyBindingIdMap: Readonly<Record<string, string>> = {
   "normal.commandLineAddText": "normal.addText"
 };
 
-const retiredCommandIds = new Set([
+export const retiredCommandIds = [
   "openDslPanel",
   "exportDslSelection",
   "validateDslPanel",
@@ -91,7 +93,9 @@ const retiredCommandIds = new Set([
   "toggleExpressionInsertTray",
   "openExpressionInsertTray",
   "closeExpressionInsertTray"
-]);
+] as const;
+
+const retiredCommandIdSet = new Set<string>(retiredCommandIds);
 
 const commandIdForBinding = (bindingId: string) => bindingId.slice(bindingId.indexOf(".") + 1);
 
@@ -147,7 +151,7 @@ const normalizeShortcutSettingsWithStatus = (value: unknown) => {
       return;
     }
     if (
-      !retiredCommandIds.has(commandIdForBinding(override.bindingId)) &&
+      !retiredCommandIdSet.has(commandIdForBinding(override.bindingId)) &&
       validBindingIds.has(override.bindingId)
     ) {
       // This also preserves the previous effective-settings behaviour for a
@@ -195,7 +199,7 @@ const normalizeShortcutSettingsWithStatus = (value: unknown) => {
       return;
     }
 
-    if (retiredCommandIds.has(commandIdForBinding(override.bindingId)) || !validBindingIds.has(override.bindingId)) {
+    if (retiredCommandIdSet.has(commandIdForBinding(override.bindingId)) || !validBindingIds.has(override.bindingId)) {
       unresolved.push({
         ...override,
         reason: "対応するショートカット項目がなく、自動移行できませんでした。"

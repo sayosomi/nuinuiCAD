@@ -168,8 +168,7 @@ export const AppLayout = () => {
   }, [evaluation, evaluationRevision, evaluationRequestRevision]);
   const commandContext = useMemo(() => ({
     focusCanvas: () => canvasFocusRef.current?.focus(),
-    // The legacy element-list commands keep their IDs but now land on the Source Editor.
-    focusElementList: () => sourceEditorRef.current?.focus(),
+    focusSourceEditor: () => sourceEditorRef.current?.focus(),
     focusElementSearch: () => sourceEditorRef.current?.focusSearch(),
     currentCursorElementId: () => sourceEditorRef.current?.currentCursorElementId?.() ?? null,
     focusSourceEditorParameter: (elementId: ElementId, parameterKey: string) => {

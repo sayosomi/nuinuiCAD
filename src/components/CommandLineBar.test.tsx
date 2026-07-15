@@ -171,12 +171,12 @@ describe("CommandLineBar", () => {
   });
 
   it("confirms from the real completed-bar Enter path and hands focus back through its command context", () => {
-    const focusElementList = vi.fn();
+    const focusSourceEditor = vi.fn();
     vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
       callback(0);
       return 1;
     });
-    render(<CommandLineBar commandContext={{ focusElementList }} />);
+    render(<CommandLineBar commandContext={{ focusSourceEditor }} />);
     act(() => { startCommandLineCreation("variable"); });
     const input = screen.getByRole<HTMLInputElement>("textbox");
     const form = input.closest("form")!;
@@ -190,7 +190,7 @@ describe("CommandLineBar", () => {
     fireEvent.submit(form);
 
     expect(useCadUiStore.getState().commandLineSession).toBeNull();
-    expect(focusElementList).toHaveBeenCalledOnce();
+    expect(focusSourceEditor).toHaveBeenCalledOnce();
   });
 
   it("edits a completed row in place, hides normal back, and restores row focus after commit or cancel", async () => {

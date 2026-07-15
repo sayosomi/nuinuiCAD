@@ -21,59 +21,95 @@
 
 ## 1. 移行(旧binding ID → 新binding ID)
 
-### Phase 3d由来
-
 | 旧 | 新 |
 |---|---|
+| `global.newDocument` | `crossFocus.newDocument` |
+| `global.openDocument` | `crossFocus.openDocument` |
+| `global.saveDocument` | `crossFocus.saveDocument` |
+| `global.saveDocumentAs` | `crossFocus.saveDocumentAs` |
+| `global.openCommandPalette` | `crossFocus.openCommandPalette` |
+| `global.focusElementSearch` | `crossFocus.focusElementSearch` |
+| `global.undo` | `normal.undo` |
+| `global.redo` | `normal.redo` |
+| `global.enterElementListMode` | `normal.focusSourceEditor` |
+| `normal.focusElementList` | `normal.focusSourceEditor` |
+| `normal.enterElementListMode` | `normal.focusSourceEditor` |
+| `modeInvariant.toggleInspectorPanel` | `normal.toggleInspectorPanel` |
+| `modeInvariant.toggleShortcutHelp` | `crossFocus.toggleShortcutHelp` |
+| `normal.openShortcutSettings` | `crossFocus.openShortcutSettings` |
 | `modeInvariant.toggleElementInfoPanel` | `modeInvariant.toggleInspectorPanel` |
 | `normal.toggleElementInfoPanel` | `normal.toggleInspectorPanel` |
 | `parameter.incrementSelectedParameter` | `sourceEditor.stepSourceValueForward` |
 | `parameter.decrementSelectedParameter` | `sourceEditor.stepSourceValueBackward` |
+| `normal.commandLineAddFreePoint` | `normal.addFreePoint` |
+| `normal.commandLineAddOffsetPoint` | `normal.addOffsetPoint` |
+| `normal.commandLineAddPolarOffsetPoint` | `normal.addPolarOffsetPoint` |
+| `normal.commandLineAddDivisionPoint` | `normal.addDivisionPoint` |
+| `normal.commandLineAddLineDivisionPoint` | `normal.addLineDivisionPoint` |
+| `normal.commandLineAddIntersectionPoint` | `normal.addIntersectionPoint` |
+| `normal.commandLineAddLineTangentOffsetPoint` | `normal.addLineTangentOffsetPoint` |
+| `normal.commandLineAddLine` | `normal.addLine` |
+| `normal.commandLineAddAngleLengthLine` | `normal.addAngleLengthLine` |
+| `normal.commandLineAddArcLine` | `normal.addArcLine` |
+| `normal.commandLineAddThreePointArcLine` | `normal.addThreePointArcLine` |
+| `normal.commandLineAddCornerRadiusArcLine` | `normal.addCornerRadiusArcLine` |
+| `normal.commandLineAddEdge` | `normal.addEdge` |
+| `normal.commandLineAddExtendTrim` | `normal.addExtendTrim` |
+| `normal.commandLineAddBezierCurve` | `normal.addBezierCurve` |
+| `normal.commandLineAddOffsetLine` | `normal.addOffsetLine` |
+| `normal.commandLineAddCopyLine` | `normal.addCopyLine` |
+| `normal.commandLineAddSymmetricCopyLine` | `normal.addSymmetricCopyLine` |
+| `normal.commandLineAddMove` | `normal.addMove` |
+| `normal.commandLineAddSymmetricMove` | `normal.addSymmetricMove` |
+| `normal.commandLineAddSplitLine` | `normal.addSplitLine` |
+| `normal.commandLineAddVariable` | `normal.addVariable` |
+| `normal.commandLineAddText` | `normal.addText` |
 
-### Phase 4c〜4g由来(暫定コマンドラインIDの正式ID合流)
-
-`normal.commandLineAdd<X>` → `normal.add<X>`。対象: FreePoint / OffsetPoint /
-PolarOffsetPoint / DivisionPoint / LineDivisionPoint / IntersectionPoint /
-LineTangentOffsetPoint / Line / AngleLengthLine / ArcLine / ThreePointArcLine /
-CornerRadiusArcLine / Edge / ExtendTrim / BezierCurve / OffsetLine / CopyLine /
-SymmetricCopyLine / Move / SymmetricMove / SplitLine / Variable / Text
-(23件。全数は `legacyBindingIdMap` を正とする)。
-
-### Phase 5予定(5cで確定させる)
-
-| 旧 | 新 | 状態 |
-|---|---|---|
-| `focusElementList`(全scopeのbinding) | `focusSourceEditor`(仮。5cで衝突確認のうえ確定) | **予定(5c)** |
-| `enterElementListMode` | 5cで再分類(`focusSourceEditor` へ統合 or リネーム) | **予定(5c)** |
+Phase 5cでは `focusElementList` と `enterElementListMode` を統合し、正常系の
+`focusSourceEditor`（normal scope・既定 `g`・palette表示あり）だけを残した。
+旧3 bindingは上表どおり直接この bindingへ移行する。連鎖解決は行わない。
 
 ## 2. 廃止(retired。保存済みbindingは代替先なしで安全除去)
 
-### Phase 3d由来(パラメータ編集モード・Inspector行ナビ・ExpressionInsertTray)
-
-`enterParameterEditMode` / `exitParameterEditMode` /
-`enterDependencyJumpMode` / `exitDependencyJumpMode` /
-`selectNextParameter` / `selectPreviousParameter` /
-`selectNextDependencyJumpTarget` / `selectPreviousDependencyJumpTarget` /
-`activateSelectedParameter` / `jumpToSelectedDependencyTarget` /
-`selectParameterByKey` / `focusSelectedParameterInput` /
-`increaseSelectedParameterStep` / `decreaseSelectedParameterStep` /
-`cycleSelectedReferenceForward` / `cycleSelectedReferenceBackward` /
-`toggleSelectedParameterValue` / `toggleSelectedPointAnchorMode` /
-`setSelectedPointAnchorReferenceMode` / `setSelectedPointAnchorCoordinateMode` /
-`toggleSelectedBooleanParameter` / `toggleBooleanParameterByDirectKey` /
-`toggleExpressionInsertTray` / `openExpressionInsertTray` /
-`closeExpressionInsertTray` / `focusInspectorParameterRows` /
-`focusInspectorDependencyRows` / `exitInspector` / `selectNextInspectorRow` /
-`selectPreviousInspectorRow` / `activateInspectorRow` /
-`startInspectorParameterPick`
-
-(各IDの廃止理由・代替は
-[tasks/phase-3d-command-id-map.md](tasks/phase-3d-command-id-map.md) の表)
-
-### Phase 4i由来(DslPanel削除)
-
-`openDslPanel` / `exportDslSelection` / `validateDslPanel` / `applyDslPanel` /
-`closeDslPanel`
+| retired command ID |
+|---|
+| `openDslPanel` |
+| `exportDslSelection` |
+| `validateDslPanel` |
+| `applyDslPanel` |
+| `closeDslPanel` |
+| `enterParameterEditMode` |
+| `enterDependencyJumpMode` |
+| `exitParameterEditMode` |
+| `exitDependencyJumpMode` |
+| `selectNextParameter` |
+| `selectPreviousParameter` |
+| `selectNextDependencyJumpTarget` |
+| `selectPreviousDependencyJumpTarget` |
+| `activateSelectedParameter` |
+| `jumpToSelectedDependencyTarget` |
+| `focusInspectorParameterRows` |
+| `focusInspectorDependencyRows` |
+| `exitInspector` |
+| `selectNextInspectorRow` |
+| `selectPreviousInspectorRow` |
+| `activateInspectorRow` |
+| `startInspectorParameterPick` |
+| `selectParameterByKey` |
+| `focusSelectedParameterInput` |
+| `increaseSelectedParameterStep` |
+| `decreaseSelectedParameterStep` |
+| `cycleSelectedReferenceForward` |
+| `cycleSelectedReferenceBackward` |
+| `toggleSelectedParameterValue` |
+| `toggleSelectedPointAnchorMode` |
+| `setSelectedPointAnchorReferenceMode` |
+| `setSelectedPointAnchorCoordinateMode` |
+| `toggleSelectedBooleanParameter` |
+| `toggleBooleanParameterByDirectKey` |
+| `toggleExpressionInsertTray` |
+| `openExpressionInsertTray` |
+| `closeExpressionInsertTray` |
 
 ## 3. ID不変で挙動が変わったもの(移行不要)
 
@@ -88,7 +124,7 @@ SymmetricCopyLine / Move / SymmetricMove / SplitLine / Variable / Text
 
 ## 更新規則
 
-* 5c / 5g の実装完了時に「予定」行を確定へ更新する(5hで最終確認)。
+* 5cは完了済み。5g の実装完了時に、その「予定」行を確定へ更新する(5hで最終確認)。
 * 以後、command IDの廃止・リネームを行うPhaseはこの表へ追記し、
   `legacyBindingIdMap` / `retiredCommandIds` との機械突き合わせテストを
   更新すること。

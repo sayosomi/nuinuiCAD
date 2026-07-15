@@ -89,6 +89,38 @@ describe("shortcutSettingsStorage", () => {
     });
   });
 
+  it("migrates every legacy element-list binding directly to Source Editor focus", () => {
+    expect(normalizeShortcutSettings({
+      version: 1,
+      overrides: [
+        { bindingId: "normal.focusElementList", chords: [chord("f")] },
+        { bindingId: "normal.enterElementListMode", chords: [chord("g")] },
+        { bindingId: "global.enterElementListMode", chords: [chord("h")] }
+      ]
+    })).toEqual({
+      version: 1,
+      overrides: [{
+        bindingId: "normal.focusSourceEditor",
+        chords: [chord("f"), chord("g"), chord("h")]
+      }]
+    });
+  });
+
+  it("keeps a current Source Editor focus override over all legacy replacements", () => {
+    expect(normalizeShortcutSettings({
+      version: 1,
+      overrides: [
+        { bindingId: "normal.focusElementList", chords: [chord("f")] },
+        { bindingId: "normal.enterElementListMode", chords: [chord("g")] },
+        { bindingId: "global.enterElementListMode", chords: [chord("h")] },
+        { bindingId: "normal.focusSourceEditor", chords: [chord("s")] }
+      ]
+    })).toEqual({
+      version: 1,
+      overrides: [{ bindingId: "normal.focusSourceEditor", chords: [chord("s")] }]
+    });
+  });
+
   it("migrates every removed temporary creation binding through the existing replacement rules", () => {
     const commandIds = Object.keys(legacyCreationCommandRecipeMap);
     expect(normalizeShortcutSettings({

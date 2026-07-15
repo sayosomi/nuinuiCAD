@@ -385,7 +385,7 @@ export const confirmCommandLineSession = (context?: CommandContext) => {
       context?.focusSourceEditorParameter?.(element.id, firstEditableStep.key);
       return;
     }
-    context?.focusElementList?.();
+    context?.focusSourceEditor?.();
   };
   if (typeof requestAnimationFrame === "function") requestAnimationFrame(focusSourceEditor);
   else setTimeout(focusSourceEditor, 0);
