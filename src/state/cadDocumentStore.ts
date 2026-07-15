@@ -8,11 +8,6 @@ import {
   type CanonicalDocumentValue,
   type LastGoodDslDocument
 } from "../document/canonicalDocument";
-import {
-  docToLegacySnapshot,
-  type CadDocumentSelectionSnapshot,
-  type CadDocumentSnapshot
-} from "../document/documentFormat";
 import { assertReconcileSane, assertShadowEquivalent, shadowAssertEnabled } from "../document/shadowTextAssert";
 import { fallbackElementName, makeUniqueElementName } from "../model/elementNames";
 import { defaultVisibilityProfile, visibilityIdFromName } from "../model/visibilityProfiles";
@@ -23,6 +18,7 @@ import {
 } from "../palette/palette";
 import {
   DEFAULT_PRINT_LAYOUT,
+  activePrintLayout,
   createDefaultPrintLayout,
   nextPrintLayoutId,
   normalizePrintLayout
@@ -40,9 +36,7 @@ import type {
   VisibilityProfile,
   VisibilityRole
 } from "../types/geometry";
-import { useCadUiStore } from "./cadUiStore";
-
-export type { CadDocumentSnapshot } from "../document/documentFormat";
+import { useCadUiStore, type CadElementSelection } from "./cadUiStore";
 
 export type TextSnapshot = {
   text: string;
@@ -86,8 +80,6 @@ export type CadDocumentState = {
   printLayouts: PrintLayout[];
   /** @deprecated Derived compatibility views. sourceText remains canonical. */
   activePrintLayoutId: string;
-  /** @deprecated Legacy active-layout mirror. */
-  printLayout: PrintLayout;
   /** @deprecated Derived compatibility views. sourceText remains canonical. */
   evaluationLimitIndex: number;
   previewElements: CadElement[] | null;
@@ -106,13 +98,9 @@ export type CadDocumentState = {
   ) => void;
   /** Ephemeral valid DSL projection used while a source-editor gesture is still uncommitted. */
   setSourceEditorPreviewText: (sourceText: string | null) => void;
-  previewDocumentChange: (change: Partial<CadDocumentSnapshot>) => DocumentMutationResult;
+  previewDocumentChange: (change: Partial<DslDocumentData>) => DocumentMutationResult;
   clearPreviewDocumentChange: () => void;
-  commitDocumentChange: (change: Partial<CadDocumentSnapshot>) => DocumentMutationResult;
-  commitDocumentChangeFromSnapshot: (
-    before: CadDocumentSnapshot,
-    change: Partial<CadDocumentSnapshot>
-  ) => DocumentMutationResult;
+  commitDocumentChange: (change: Partial<DslDocumentData>) => DocumentMutationResult;
   setElements: (elements: CadElement[]) => void;
   updateElement: (id: ElementId, patch: Partial<CadElement>) => void;
   setPrintLayout: (printLayout: PrintLayout) => void;
@@ -135,7 +123,7 @@ export type CadDocumentState = {
   deletePaletteColor: (id: string) => void;
   setDefaultColorId: (id: string) => void;
   renameElement: (id: ElementId, requestedName: string) => void;
-  replaceDocument: (snapshot: CadDocumentSnapshot, filePath: string | null) => void;
+  replaceDocument: (document: DslDocumentData, filePath: string | null) => void;
   replaceTextDocument: (
     sourceText: string,
     options: { currentFilePath: string | null; dirtySinceSave: boolean }
@@ -195,18 +183,9 @@ const clearedPreviewState = () => ({
   previewEvaluationLimitIndex: null
 });
 
-export const currentDocumentSnapshot = (
-  state: DocumentCompatibilityView,
-  selection: CadDocumentSelectionSnapshot
-): CadDocumentSnapshot => docToLegacySnapshot(documentOf(state), {
-  selectedElementId: selection.selectedElementId,
-  selectedElementIds: selection.selectedElementIds,
-  selectionAnchorElementId: selection.selectionAnchorElementId
-});
-
 const textSnapshot = (
   state: Pick<CadDocumentState, "sourceText">,
-  selection: CadDocumentSelectionSnapshot & { sourceCursorLine: number | null }
+  selection: CadElementSelection & { sourceCursorLine: number | null }
 ): TextSnapshot => ({
   text: state.sourceText,
   selectionElementIds: selection.selectedElementIds,
@@ -233,10 +212,6 @@ const canonicalFields = (value: CanonicalDocumentValue) => {
     activeVisibilityProfileId: document.activeVisibilityProfileId,
     printLayouts: document.printLayouts,
     activePrintLayoutId: document.activePrintLayoutId,
-    printLayout:
-      document.printLayouts.find((layout) => layout.id === document.activePrintLayoutId) ??
-      document.printLayouts[0] ??
-      DEFAULT_PRINT_LAYOUT,
     evaluationLimitIndex: document.evaluationLimitIndex
   };
 };
@@ -267,21 +242,9 @@ const canonicalRevisionFields = (
   };
 };
 
-const selectionFromChange = (
-  current: CadDocumentSelectionSnapshot,
-  change: Partial<CadDocumentSnapshot>
-): CadDocumentSelectionSnapshot => ({
-  selectedElementId: change.selectedElementId === undefined ? current.selectedElementId : change.selectedElementId,
-  selectedElementIds: change.selectedElementIds ?? current.selectedElementIds,
-  selectionAnchorElementId:
-    change.selectionAnchorElementId === undefined
-      ? current.selectionAnchorElementId
-      : change.selectionAnchorElementId
-});
-
 const documentFromChange = (
   state: CadDocumentState,
-  change: Partial<CadDocumentSnapshot>
+  change: Partial<DslDocumentData>
 ): DslDocumentData => {
   const before = documentOf(state);
   return {
@@ -298,11 +261,10 @@ const documentFromChange = (
 
 const modelCommit = (
   state: CadDocumentState,
-  change: Partial<CadDocumentSnapshot>
+  change: Partial<DslDocumentData>
 ): {
   state: Partial<CadDocumentState>;
   result: DocumentMutationResult;
-  selection?: { elements: CadElement[]; snapshot: CadDocumentSelectionSnapshot };
 } => {
   const previousSelection = useCadUiStore.getState();
   let current = state;
@@ -315,7 +277,6 @@ const modelCommit = (
     rebased = true;
   }
   const afterDocument = documentFromChange(current, change);
-  const requestedSelection = selectionFromChange(previousSelection, change);
   const result = commitModelBridge(current, afterDocument);
 
   if (result.status === "rejected") {
@@ -330,8 +291,7 @@ const modelCommit = (
         ...canonicalFields(current),
         ...clearedPreviewState()
       },
-      result: { status: "noop" },
-      selection: { elements: documentOf(current).elements, snapshot: requestedSelection }
+      result: { status: "noop" }
     };
   }
 
@@ -380,8 +340,7 @@ const modelCommit = (
       dirtySinceSave: dirtyForText(current, value.sourceText),
       ...canonicalRevisionFields(state, value, rebased ? "reset" : updateKind, splices)
     },
-    result: { status: "applied" },
-    selection: { elements: value.doc.document.elements, snapshot: requestedSelection }
+    result: { status: "applied" }
   };
 };
 
@@ -431,7 +390,6 @@ type CadDocumentActions = Pick<
   | "previewDocumentChange"
   | "clearPreviewDocumentChange"
   | "commitDocumentChange"
-  | "commitDocumentChangeFromSnapshot"
   | "setElements"
   | "updateElement"
   | "setPrintLayout"
@@ -580,31 +538,11 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
       return guarded;
     }
     let result: DocumentMutationResult = { status: "noop" };
-    let selection: { elements: CadElement[]; snapshot: CadDocumentSelectionSnapshot } | undefined;
     set((state) => {
       const outcome = modelCommit(state, change);
       result = outcome.result;
-      selection = outcome.selection;
       return outcome.state;
     });
-    if (selection) useCadUiStore.getState().applySelection(selection.elements, selection.snapshot);
-    return result;
-  },
-  commitDocumentChangeFromSnapshot: (_before, change) => {
-    const guarded = guardDocumentMutation();
-    if (guarded) {
-      set(clearedPreviewState());
-      return guarded;
-    }
-    let result: DocumentMutationResult = { status: "noop" };
-    let selection: { elements: CadElement[]; snapshot: CadDocumentSelectionSnapshot } | undefined;
-    set((state) => {
-      const outcome = modelCommit(state, change);
-      result = outcome.result;
-      selection = outcome.selection;
-      return outcome.state;
-    });
-    if (selection) useCadUiStore.getState().applySelection(selection.elements, selection.snapshot);
     return result;
   },
   setElements: (elements) => get().commitDocumentChange({ elements }),
@@ -629,8 +567,7 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
   },
   updatePrintLayout: (patch) => {
     const document = documentOf(get());
-    const layout = document.printLayouts.find((item) => item.id === document.activePrintLayoutId) ??
-      document.printLayouts[0] ?? DEFAULT_PRINT_LAYOUT;
+    const layout = activePrintLayout(document.printLayouts, document.activePrintLayoutId);
     get().setPrintLayout({ ...layout, ...patch });
   },
   setActiveVisibilityProfileId: (activeVisibilityProfileId) =>
@@ -826,14 +763,18 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
       }
     });
     if (selectionElements) {
-      useCadUiStore.getState().applySelection(selectionElements, snapshot);
+      useCadUiStore.getState().applySelection(selectionElements, {
+        selectedElementId: null,
+        selectedElementIds: [],
+        selectionAnchorElementId: null
+      });
       useCadUiStore.getState().setSourceCursorLine(null);
     }
   },
   replaceTextDocument: (sourceText, options) => {
     if (rejectExternalDocumentReset()) return;
     let selectionElements: CadElement[] | null = null;
-    const emptySelection: CadDocumentSelectionSnapshot = {
+    const emptySelection: CadElementSelection = {
       selectedElementId: null,
       selectedElementIds: [],
       selectionAnchorElementId: null
@@ -875,7 +816,7 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
       sourceEditSession.flush("command");
     }
     const selectionResult: {
-      value: { elements: CadElement[]; snapshot: CadDocumentSelectionSnapshot; cursorLine: number | null } | null;
+      value: { elements: CadElement[]; snapshot: CadElementSelection; cursorLine: number | null } | null;
     } = { value: null };
     set((state) => {
       const previous = state.past.at(-1);
@@ -885,7 +826,7 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
       const restored = compileCanonicalText(state, previous.text, {
         createdElementIds: previous.selectionElementIds.filter((id) => !currentIds.has(id))
       });
-      const restoredSelection: CadDocumentSelectionSnapshot = {
+      const restoredSelection: CadElementSelection = {
         selectedElementId: previous.selectionElementIds[0] ?? null,
         selectedElementIds: previous.selectionElementIds,
         selectionAnchorElementId: previous.selectionElementIds[0] ?? null
@@ -916,7 +857,7 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
       sourceEditSession.flush("command");
     }
     const selectionResult: {
-      value: { elements: CadElement[]; snapshot: CadDocumentSelectionSnapshot; cursorLine: number | null } | null;
+      value: { elements: CadElement[]; snapshot: CadElementSelection; cursorLine: number | null } | null;
     } = { value: null };
     set((state) => {
       const next = state.future[0];
@@ -926,7 +867,7 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
       const restored = compileCanonicalText(state, next.text, {
         createdElementIds: next.selectionElementIds.filter((id) => !currentIds.has(id))
       });
-      const restoredSelection: CadDocumentSelectionSnapshot = {
+      const restoredSelection: CadElementSelection = {
         selectedElementId: next.selectionElementIds[0] ?? null,
         selectedElementIds: next.selectionElementIds,
         selectionAnchorElementId: next.selectionElementIds[0] ?? null

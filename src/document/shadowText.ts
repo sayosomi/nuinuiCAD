@@ -19,7 +19,7 @@ import { applyLineSplices, buildTextPatch } from "./textPatch";
 // shadowText — Phase 1b の影テキスト維持機構(docs/overhaul/plan.md /
 // docs/overhaul/tasks/phase-1b-shadow-text.md)。
 //
-// 正準はまだ `CadDocumentSnapshot`(JSON)のまま。ここで維持する `ShadowState`
+// 正準は DSL テキストとその最後に成功したコンパイル結果である。ここで維持する `ShadowState`
 // は観測専用の派生データで、Phase 1a の `textPatch` / 未接続だった
 // `compileDslDocument` を実ユーザー操作の全経路で実戦検証するために存在する。
 //
@@ -36,7 +36,7 @@ export type ShadowState = {
   compiled: CompiledDslDocument;
 };
 
-// ストアの `CadDocumentSnapshot` 全体には依存しない(循環import回避 +
+// ストアの状態全体には依存しない(循環import回避 +
 // 影機構自体の純粋性維持)。読むフィールドだけを構造的に受け取る。
 export type ModelSnapshotForShadow = {
   elements: CadElement[];

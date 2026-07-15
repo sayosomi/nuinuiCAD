@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  currentDocumentSnapshot,
   initialCadDocumentState,
   useCadDocumentStore
 } from "../state/cadDocumentStore";
@@ -255,7 +254,7 @@ describe("document file lifecycle", () => {
   });
 
   it("imports legacy JSON as a dirty untitled document without writing its source file", async () => {
-    const snapshot = currentDocumentSnapshot(initialCadDocumentState(), initialCadUiState());
+    const snapshot = initialCadDocumentState().doc.document;
     dialogMock.open.mockResolvedValue("/tmp/legacy.nuinui.json");
     tauriCoreMock.invoke.mockResolvedValue(JSON.stringify({
       app: LEGACY_APP_ID,

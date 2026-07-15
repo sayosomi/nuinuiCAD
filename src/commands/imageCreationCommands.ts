@@ -13,6 +13,7 @@ import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
 import type { CadElement } from "../types/geometry";
 import { focusCanvasAfterCreation } from "./postCreationFocus";
+import { commitDocumentChangeAndSelect } from "./commitDocumentChangeAndSelect";
 
 type ImageMetadata = {
   widthPx: number;
@@ -95,13 +96,14 @@ const commitCreatedImage = (
       useCadUiStore.getState().groupFoldById
     )
   );
-  useCadDocumentStore.getState().commitDocumentChange({
+  commitDocumentChangeAndSelect({
     elements: [
       ...elements.slice(0, insertionIndex),
       placedElement,
       ...elements.slice(insertionIndex)
     ],
-    evaluationLimitIndex: insertionIndex + 1,
+    evaluationLimitIndex: insertionIndex + 1
+  }, {
     selectedElementId: placedElement.id,
     selectedElementIds: [placedElement.id],
     selectionAnchorElementId: placedElement.id

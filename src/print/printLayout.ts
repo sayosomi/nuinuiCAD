@@ -84,6 +84,15 @@ export const DEFAULT_PRINT_LAYOUT: PrintLayout = {
   placements: []
 };
 
+/** Resolves the active layout while preserving the legacy mirror fallback order. */
+export const activePrintLayout = (
+  printLayouts: readonly PrintLayout[],
+  activePrintLayoutId: string
+): PrintLayout =>
+  printLayouts.find((layout) => layout.id === activePrintLayoutId) ??
+  printLayouts[0] ??
+  DEFAULT_PRINT_LAYOUT;
+
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === "object" && !Array.isArray(value);
 

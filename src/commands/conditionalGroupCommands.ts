@@ -10,6 +10,7 @@ import { useCadUiStore } from "../state/cadUiStore";
 import type { CadElement, ElementId } from "../types/geometry";
 import type { CommandContext } from "./commandTypes";
 import { getSelectedElement, getSelectedElementIds } from "./commandRuntime";
+import { commitDocumentChangeAndSelect } from "./commitDocumentChangeAndSelect";
 import { focusCanvasAfterCreation } from "./postCreationFocus";
 
 const hasSelectedAncestor = (
@@ -37,13 +38,14 @@ export const addConditionalGroup = (
   const { insertionIndex } = placement;
   const group = applyCreationPlacement(createCadElement("conditionalGroup", elements), placement);
 
-  useCadDocumentStore.getState().commitDocumentChange({
+  commitDocumentChangeAndSelect({
     elements: [
       ...elements.slice(0, insertionIndex),
       group,
       ...elements.slice(insertionIndex)
     ],
-    evaluationLimitIndex: insertionIndex + 1,
+    evaluationLimitIndex: insertionIndex + 1
+  }, {
     selectedElementId: group.id,
     selectedElementIds: [group.id],
     selectionAnchorElementId: group.id
@@ -83,14 +85,15 @@ export const wrapSelectedElementsInConditionalGroup = (
     )
   ];
 
-  useCadDocumentStore.getState().commitDocumentChange({
+  commitDocumentChangeAndSelect({
     elements: nextElements,
     evaluationLimitIndex: adjustEvaluationLimitForInsertion({
       elements,
       evaluationLimitIndex,
       insertionIndex: firstIndex,
       insertedCount: 1
-    }),
+    })
+  }, {
     selectedElementId: group.id,
     selectedElementIds: [group.id],
     selectionAnchorElementId: group.id

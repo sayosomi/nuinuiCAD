@@ -24,6 +24,7 @@ import { findParameterDefinition } from "../parameters/parameterDefinitions";
 import { getParameterValue, setParameterValue } from "../parameters/parameterAccess";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
+import { commitDocumentChangeAndSelect } from "./commitDocumentChangeAndSelect";
 import {
   applyTemplatePickedLine,
   applyTemplatePickedPoint,
@@ -60,12 +61,13 @@ export const applyNumericExpressionReference = (context?: CommandContext) => {
   const definition = findParameterDefinition(targetElement, key);
   if (definition?.kind !== "number") return;
 
-  useCadDocumentStore.getState().commitDocumentChange({
+  commitDocumentChangeAndSelect({
     elements: elements.map((element) =>
       element.id === targetElement.id
         ? setParameterValue(element, definition.key, makeNumericExpression(numericExpression))
         : element
-    ),
+    )
+  }, {
     selectedElementId: targetElement.id,
     selectedElementIds: [targetElement.id],
     selectionAnchorElementId: targetElement.id
@@ -156,12 +158,13 @@ export const insertNumericExpressionSnippet = (context?: CommandContext) => {
       selectionEnd: context?.selectionEnd,
       appendMode: "raw"
     });
-    useCadDocumentStore.getState().commitDocumentChange({
+    commitDocumentChangeAndSelect({
       elements: target.elements.map((element) =>
         element.id === target.targetElement.id
           ? setParameterValue(element, target.definition.key, nextDisplayText)
           : element
-      ),
+      )
+    }, {
       selectedElementId: target.targetElement.id,
       selectedElementIds: [target.targetElement.id],
       selectionAnchorElementId: target.targetElement.id
@@ -187,12 +190,13 @@ export const insertNumericExpressionSnippet = (context?: CommandContext) => {
     target.targetElement
   );
 
-  useCadDocumentStore.getState().commitDocumentChange({
+  commitDocumentChangeAndSelect({
     elements: target.elements.map((element) =>
       element.id === target.targetElement.id
         ? setParameterValue(element, target.definition.key, makeNumericExpression(nextExpression))
         : element
-    ),
+    )
+  }, {
     selectedElementId: target.targetElement.id,
     selectedElementIds: [target.targetElement.id],
     selectionAnchorElementId: target.targetElement.id
@@ -803,12 +807,13 @@ export const applyPickedPoint = (context?: Pick<CommandContext, "pickedPointId" 
     });
     if (!endpoint) return;
 
-    useCadDocumentStore.getState().commitDocumentChange({
+    commitDocumentChangeAndSelect({
       elements: elements.map((element) =>
         element.id === activePointPickTarget.elementId
           ? setParameterValue(element, activePointPickTarget.parameterKey, endpoint)
           : element
-      ),
+      )
+    }, {
       selectedElementId: activePointPickTarget.elementId,
       selectedElementIds: [activePointPickTarget.elementId],
       selectionAnchorElementId: activePointPickTarget.elementId
@@ -850,12 +855,13 @@ export const applyPickedPoint = (context?: Pick<CommandContext, "pickedPointId" 
     return;
   }
 
-  useCadDocumentStore.getState().commitDocumentChange({
+  commitDocumentChangeAndSelect({
     elements: elements.map((element) =>
       element.id === activePointPickTarget.elementId
         ? setParameterValue(element, activePointPickTarget.parameterKey, pickedAnchor)
         : element
-    ),
+    )
+  }, {
     selectedElementId: activePointPickTarget.elementId,
     selectedElementIds: [activePointPickTarget.elementId],
     selectionAnchorElementId: activePointPickTarget.elementId
@@ -1035,12 +1041,13 @@ export const applyPickedLine = (context?: Pick<CommandContext, "pickedLineId">) 
   }
 
   if (definition.kind === "lineReference") {
-    useCadDocumentStore.getState().commitDocumentChange({
+    commitDocumentChangeAndSelect({
       elements: elements.map((element) =>
         element.id === targetElement.id
           ? setParameterValue(targetElement, activeLinePickTarget.parameterKey, normalizedPickedLineId)
           : element
-      ),
+      )
+    }, {
       selectedElementId: targetElement.id,
       selectedElementIds: [targetElement.id],
       selectionAnchorElementId: targetElement.id
@@ -1093,12 +1100,13 @@ export const finishLinePick = () => {
   const { elements } = useCadDocumentStore.getState();
   const targetElement = elements.find((element) => element.id === activeLinePickTarget.elementId);
   if (!targetElement) return;
-  useCadDocumentStore.getState().commitDocumentChange({
+  commitDocumentChangeAndSelect({
     elements: elements.map((element) =>
       element.id === targetElement.id
         ? setParameterValue(targetElement, activeLinePickTarget.parameterKey, activeLinePickTarget.draftLineIds!)
         : element
-    ),
+    )
+  }, {
     selectedElementId: targetElement.id,
     selectedElementIds: [targetElement.id],
     selectionAnchorElementId: targetElement.id

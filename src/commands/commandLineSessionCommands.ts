@@ -10,6 +10,7 @@ import { useCadUiStore } from "../state/cadUiStore";
 import type { CadElementType } from "../types/geometry";
 import { sourceEditSession } from "../editor/sourceEditSession";
 import { isCommandLineInputComposing } from "./commandLineInputComposition";
+import { commitDocumentChangeAndSelect } from "./commitDocumentChangeAndSelect";
 import {
   beginStepEdit,
   cancelStepEdit,
@@ -357,12 +358,13 @@ export const confirmCommandLineSession = (context?: CommandContext) => {
   // The final materialization owns the canonical document; clear the ephemeral
   // candidate first so a rejected bridge call cannot leave a stale ghost.
   clearCommandLineGhostPreview();
-  const result = document.commitDocumentChange({
+  const result = commitDocumentChangeAndSelect({
     elements: [
       ...promotion.elements.slice(0, session.insertionIndex),
       element,
       ...promotion.elements.slice(session.insertionIndex)
-    ],
+    ]
+  }, {
     selectedElementId: element.id,
     selectedElementIds: [element.id],
     selectionAnchorElementId: element.id

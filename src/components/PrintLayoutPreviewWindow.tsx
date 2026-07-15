@@ -28,7 +28,7 @@ const printLayoutCanvasForLayout = ({
   visibilityProfiles,
   activeVisibilityProfileId
 }: {
-  layout: ReturnType<typeof useCadDocumentStore.getState>["printLayout"];
+  layout: PrintLayout;
   elements: ReturnType<typeof useCadDocumentStore.getState>["elements"];
   evaluation: EvaluationResult;
   visibilityProfiles: ReturnType<typeof useCadDocumentStore.getState>["visibilityProfiles"];

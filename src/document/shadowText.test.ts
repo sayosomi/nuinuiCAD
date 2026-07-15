@@ -30,20 +30,11 @@ const elementByName = (document: DslDocumentData, name: string): CadElement => {
 };
 
 describe("snapshotToDslData", () => {
-  it("正準スナップショットからDSLDocumentDataフィールドだけを写す", () => {
+  it("DSLDocumentDataフィールドだけを写す", () => {
     const document = compileOrThrow(["nui 1", "point A = (0, 0)"].join("\n"));
-    const snapshot = {
-      ...document,
-      printLayout: document.printLayouts[0] ?? { id: "x" },
-      selectedElementId: null,
-      selectedElementIds: [],
-      selectionAnchorElementId: null,
-      selectedParameterKey: null
-    } as unknown as Parameters<typeof snapshotToDslData>[0] & { printLayout: unknown };
-    const dslData = snapshotToDslData(snapshot);
+    const dslData = snapshotToDslData(document);
     expect(dslData.elements).toBe(document.elements);
-    expect(dslData).not.toHaveProperty("printLayout");
-    expect(dslData).not.toHaveProperty("selectedElementId");
+    expect(dslData).toEqual(document);
   });
 });
 

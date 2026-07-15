@@ -4,11 +4,10 @@ import { isTauriRuntime } from "../geometry/evaluationEngine";
 import { defaultDocumentPalette } from "../palette/palette";
 import { loadPaletteTemplateSettings } from "../palette/paletteSettingsStorage";
 import {
-  currentDocumentSnapshot,
   initialCadDocumentState,
   useCadDocumentStore
 } from "../state/cadDocumentStore";
-import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
+import { useCadUiStore } from "../state/cadUiStore";
 import { sourceEditSession } from "../editor/sourceEditSession";
 import { LEGACY_CAD_DOCUMENT_EXTENSION } from "./documentFormat";
 import { rebaseImageSourcePathsInText } from "./imageFilePaths";
@@ -83,7 +82,7 @@ export const newDocument = async () => {
   if (!flushSourceEditForFileOperation()) return;
   useCadDocumentStore.getState().replaceDocument(
     {
-      ...currentDocumentSnapshot(initialDocument, initialCadUiState()),
+      ...initialDocument.doc.document,
       palette
     },
     null

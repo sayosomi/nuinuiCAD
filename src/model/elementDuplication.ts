@@ -18,6 +18,9 @@ type DuplicateElementsOptions = {
 
 export type DuplicateElementsChange = {
   elements: CadElement[];
+};
+
+export type DuplicateElementsResult = DuplicateElementsChange & {
   selectedElementId: ElementId | null;
   selectedElementIds: ElementId[];
   selectionAnchorElementId: ElementId | null;
@@ -299,7 +302,7 @@ export const duplicateElements = (
   elements: CadElement[],
   elementIds: ElementId[],
   options: DuplicateElementsOptions = {}
-): DuplicateElementsChange | null => {
+): DuplicateElementsResult | null => {
   const selectedIds = new Set(elementIds);
   if (selectedIds.size === 0) return null;
 

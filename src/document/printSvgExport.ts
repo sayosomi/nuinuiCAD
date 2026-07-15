@@ -2,9 +2,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { save } from "@tauri-apps/plugin-dialog";
 import { isTauriRuntime } from "../geometry/evaluationEngine";
 import { printableItemsForLayout } from "../print/printGeometry";
-import { resolvePrintLayout } from "../print/printLayout";
-import { currentDocumentSnapshot, useCadDocumentStore } from "../state/cadDocumentStore";
-import { useCadUiStore } from "../state/cadUiStore";
+import { activePrintLayout, resolvePrintLayout } from "../print/printLayout";
+import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { defaultPrintExportFileName, defaultPrintExportPath } from "./printExportFileName";
 import type { EvaluationResult } from "../types/geometry";
 
@@ -52,24 +51,24 @@ export const exportPrintSvg = async (evaluation: EvaluationResult | undefined) =
   }
 
   const state = useCadDocumentStore.getState();
-  const snapshot = currentDocumentSnapshot(state, useCadUiStore.getState());
+  const layout = activePrintLayout(state.printLayouts, state.activePrintLayoutId);
   const resolvedLayout = resolvePrintLayout({
-    layout: snapshot.printLayout,
-    elements: snapshot.elements,
+    layout,
+    elements: state.elements,
     evaluation
   });
   const path = await exportPrintSvgDialog(defaultPrintSvgPath({
-    layoutName: snapshot.printLayout.name,
+    layoutName: layout.name,
     documentPath: state.currentFilePath
   }));
   if (!path) return;
 
   const items = printableItemsForLayout({
-    elements: snapshot.elements,
+    elements: state.elements,
     evaluation,
-    layout: snapshot.printLayout,
-    visibilityProfiles: snapshot.visibilityProfiles,
-    activeVisibilityProfileId: snapshot.activeVisibilityProfileId
+    layout,
+    visibilityProfiles: state.visibilityProfiles,
+    activeVisibilityProfileId: state.activeVisibilityProfileId
   });
   const input: ExportPrintSvgInput = {
     path: ensureSvgFileName(path),

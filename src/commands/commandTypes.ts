@@ -1,5 +1,4 @@
 import type { BezierHandleRole } from "../model/elementDragTransforms";
-import type { CadDocumentSnapshot } from "../state/cadDocumentStore";
 import type { DocumentMutationResult } from "../state/cadDocumentStore";
 import type {
   MeasurementInsertMode,
@@ -193,7 +192,6 @@ export type CommandContext = {
   commitMode?: "preview" | "commit";
   baseElements?: CadElement[];
   baseEvaluation?: EvaluationResult;
-  historySnapshot?: CadDocumentSnapshot;
   parameterKey?: string;
   numericExpression?: string;
   numericReferenceExpression?: string;

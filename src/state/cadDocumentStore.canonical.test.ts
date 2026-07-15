@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { CadElement } from "../types/geometry";
 import { initialCadDocumentState, useCadDocumentStore } from "./cadDocumentStore";
-import { useCadUiStore } from "./cadUiStore";
 
 const seedText = (text: string) => {
   useCadDocumentStore.getState().commitText(text, "test");
@@ -158,10 +157,7 @@ describe("cadDocumentStore canonical text", () => {
     useCadDocumentStore.getState().previewDocumentChange({
       elements: before.elements.map((element) => ({ ...element }) as CadElement)
     });
-    useCadDocumentStore.getState().commitDocumentChangeFromSnapshot(
-      { ...before, ...useCadUiStore.getState(), elements: [] },
-      { elements: nextElements }
-    );
+    useCadDocumentStore.getState().commitDocumentChange({ elements: nextElements });
     const after = useCadDocumentStore.getState();
     expect(after.elements[0]).toBe(changedA);
     expect(after.elements[1]).toBe(before.elements[1]);

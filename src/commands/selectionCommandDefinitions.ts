@@ -10,6 +10,7 @@ import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
 import { moveBezierHandleByDelta, movePointElementByDelta } from "./geometryEditCommands";
 import { getSelectedElement, getSelectedElementIds } from "./commandRuntime";
+import { commitDocumentChangeAndSelect } from "./commitDocumentChangeAndSelect";
 import {
   addConditionalGroup,
   addElseBranchToSelectedConditionalGroup,
@@ -374,15 +375,15 @@ export const selectionCommandDefinitions = {
       );
       const change = duplicateElements(elements, getSelectedElementIds());
       if (!change) return;
-      useCadDocumentStore.getState().commitDocumentChange({
-        ...change,
+      commitDocumentChangeAndSelect({
+        elements: change.elements,
         evaluationLimitIndex: adjustEvaluationLimitForInsertion({
           elements,
           evaluationLimitIndex,
           insertionIndex: (indexes.at(-1) ?? -1) + 1,
           insertedCount: change.selectedElementIds.length
         })
-      });
+      }, change);
     }
   },
   deleteSelectedElement: {
@@ -411,13 +412,14 @@ export const selectionCommandDefinitions = {
       const index = indexes[0];
       const nextElements = elements.filter((element) => !selectedIds.has(element.id));
       const nextSelectedElementId = nextElements[Math.min(index, nextElements.length - 1)]?.id ?? null;
-      useCadDocumentStore.getState().commitDocumentChange({
+      commitDocumentChangeAndSelect({
         elements: nextElements,
         evaluationLimitIndex: adjustEvaluationLimitForDeletion({
           elements,
           evaluationLimitIndex,
           deletedIds: selectedIds
-        }),
+        })
+      }, {
         selectedElementId: nextSelectedElementId,
         selectedElementIds: nextSelectedElementId ? [nextSelectedElementId] : [],
         selectionAnchorElementId: nextSelectedElementId

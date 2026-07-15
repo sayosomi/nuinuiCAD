@@ -1,7 +1,27 @@
-import { describe, expect, it } from "vitest";
-import { defaultPrintPdfFileName, defaultPrintPdfPath } from "./printPdfExport";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { evaluateElements } from "../geometry/evaluate";
+import { DEFAULT_PRINT_LAYOUT } from "../print/printLayout";
+import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
+import { defaultPrintPdfFileName, defaultPrintPdfPath, exportPrintPdf } from "./printPdfExport";
+
+const tauriCoreMock = vi.hoisted(() => ({ invoke: vi.fn() }));
+const dialogMock = vi.hoisted(() => ({ save: vi.fn() }));
+
+vi.mock("@tauri-apps/api/core", () => tauriCoreMock);
+vi.mock("@tauri-apps/plugin-dialog", () => dialogMock);
+
+const setTauriRuntime = () => {
+  Object.defineProperty(window, "__TAURI_INTERNALS__", { configurable: true, value: {} });
+};
 
 describe("printPdfExport", () => {
+  beforeEach(() => {
+    useCadDocumentStore.setState(initialCadDocumentState());
+    tauriCoreMock.invoke.mockReset();
+    dialogMock.save.mockReset();
+    setTauriRuntime();
+  });
+
   it("uses the pattern file name and print layout name for the default PDF file name", () => {
     expect(defaultPrintPdfFileName({
       layoutName: "袖のみ",
@@ -32,5 +52,22 @@ describe("printPdfExport", () => {
       layoutName: "",
       documentPath: null
     })).toBe("pattern_layout.pdf");
+  });
+
+  it("exports the active layout rather than a legacy layout mirror", async () => {
+    const state = useCadDocumentStore.getState();
+    const first = { ...DEFAULT_PRINT_LAYOUT, id: "first", name: "First", columns: 1 };
+    const active = { ...DEFAULT_PRINT_LAYOUT, id: "active", name: "Active", columns: 3 };
+    state.commitDocumentChange({ printLayouts: [first, active], activePrintLayoutId: active.id });
+    dialogMock.save.mockResolvedValue("/tmp/export");
+
+    await exportPrintPdf(evaluateElements(useCadDocumentStore.getState().elements));
+
+    expect(tauriCoreMock.invoke).toHaveBeenCalledWith("export_print_pdf", expect.objectContaining({
+      input: expect.objectContaining({
+        path: "/tmp/export.pdf",
+        layout: expect.objectContaining({ columns: 3 })
+      })
+    }));
   });
 });

@@ -7,8 +7,7 @@ import { evaluateElements } from "../geometry/evaluate";
 import { defaultVisibilityProfile } from "../model/visibilityProfiles";
 import { defaultDocumentPalette } from "../palette/palette";
 import { DEFAULT_PRINT_LAYOUT } from "../print/printLayout";
-import { currentDocumentSnapshot, initialCadDocumentState } from "../state/cadDocumentStore";
-import { initialCadUiState } from "../state/cadUiStore";
+import { initialCadDocumentState } from "../state/cadDocumentStore";
 import type { CadElement } from "../types/geometry";
 import { importLegacyCadDocument } from "./legacyImport";
 import qualifiedNegativeExpressionFixture from "./__fixtures__/legacy-qualified-negative-expression.nuinui.json?raw";
@@ -17,7 +16,7 @@ const LEGACY_APP_ID = "nuinuiCAD";
 const LEGACY_SCHEMA_VERSION = 5;
 
 const legacyContent = () => {
-  const base = currentDocumentSnapshot(initialCadDocumentState(), initialCadUiState());
+  const base = initialCadDocumentState().doc.document;
   const unnamed = {
     ...base.elements[0],
     name: "",

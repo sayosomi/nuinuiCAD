@@ -13,8 +13,7 @@ export const movePointElementByDelta = ({
   distanceLocked,
   commitMode = "commit",
   baseElements,
-  baseEvaluation,
-  historySnapshot
+  baseEvaluation
 }: CommandContext) => {
   if (!elementId) return;
   if (dx === 0 && dy === 0) {
@@ -38,12 +37,6 @@ export const movePointElementByDelta = ({
     return useCadDocumentStore.getState().previewDocumentChange({ elements: nextElements });
   }
 
-  if (historySnapshot) {
-    return useCadDocumentStore.getState().commitDocumentChangeFromSnapshot(historySnapshot, {
-      elements: nextElements
-    });
-  }
-
   return useCadDocumentStore.getState().commitDocumentChange({ elements: nextElements });
 };
 
@@ -57,8 +50,7 @@ export const moveBezierHandleByDelta = ({
   distanceLocked,
   commitMode = "commit",
   baseElements,
-  baseEvaluation,
-  historySnapshot
+  baseEvaluation
 }: CommandContext) => {
   if (!elementId || !bezierHandleRole) return;
   if (dx === 0 && dy === 0) {
@@ -82,12 +74,6 @@ export const moveBezierHandleByDelta = ({
 
   if (commitMode === "preview") {
     return useCadDocumentStore.getState().previewDocumentChange({ elements: nextElements });
-  }
-
-  if (historySnapshot) {
-    return useCadDocumentStore.getState().commitDocumentChangeFromSnapshot(historySnapshot, {
-      elements: nextElements
-    });
   }
 
   return useCadDocumentStore.getState().commitDocumentChange({ elements: nextElements });

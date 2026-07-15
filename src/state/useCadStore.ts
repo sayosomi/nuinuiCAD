@@ -1,10 +1,9 @@
 import { useSyncExternalStore } from "react";
 import {
-  currentDocumentSnapshot,
   initialCadDocumentState,
   useCadDocumentStore
 } from "./cadDocumentStore";
-import type { CadDocumentSnapshot, CadDocumentState } from "./cadDocumentStore";
+import type { CadDocumentState } from "./cadDocumentStore";
 import {
   initialCadUiState,
   useCadUiStore
@@ -30,11 +29,8 @@ export {
   MIN_PRINT_PREVIEW_ZOOM,
   useCadUiStore
 } from "./cadUiStore";
-export type { CadDocumentSnapshot, CadDocumentState } from "./cadDocumentStore";
-export { currentDocumentSnapshot, useCadDocumentStore } from "./cadDocumentStore";
-
-export type CadHistorySnapshot = CadDocumentSnapshot & {
-};
+export type { CadDocumentState } from "./cadDocumentStore";
+export { useCadDocumentStore } from "./cadDocumentStore";
 
 export type CadState = CadDocumentState & CadUiState;
 
@@ -121,6 +117,3 @@ export const useCadStore = Object.assign(useCadStoreHook, {
   },
   subscribe
 }) satisfies CadStoreFacade;
-
-export const cadDocumentSnapshotFromCurrentState = () =>
-  currentDocumentSnapshot(useCadDocumentStore.getState(), useCadUiStore.getState());

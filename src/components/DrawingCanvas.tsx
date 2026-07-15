@@ -18,9 +18,9 @@ import { resolvedElementColorMap } from "../palette/elementColors";
 import type { BezierHandleRole as CommandBezierHandleRole } from "../commands/commands";
 import { effectiveElements, useCadDocumentStore } from "../state/cadDocumentStore";
 import { sourceEditSession } from "../editor/sourceEditSession";
-import type { CadDocumentSnapshot } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
 import type {
+  CadElement,
   ElementId,
   EvaluationResult
 } from "../types/geometry";
@@ -87,7 +87,7 @@ type PointDragState = {
   startClientX: number;
   startClientY: number;
   zoom: number;
-  snapshot: CadDocumentSnapshot;
+  baseElements: CadElement[];
   baseEvaluation?: EvaluationResult;
 };
 
@@ -99,7 +99,7 @@ type BezierHandleDragState = {
   startClientX: number;
   startClientY: number;
   zoom: number;
-  snapshot: CadDocumentSnapshot;
+  baseElements: CadElement[];
   baseEvaluation?: EvaluationResult;
 };
 
@@ -252,24 +252,10 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     }
     return evaluation;
   }, [evaluation, evaluationState?.isStale]);
-  const currentDocumentDragSnapshot = useCallback(() => {
+  const currentDocumentDragBase = useCallback(() => {
     const state = useCadDocumentStore.getState();
-    const selection = useCadUiStore.getState();
     return {
-      snapshot: {
-        elements: state.elements,
-        palette: state.palette,
-        visibilityRoles: state.visibilityRoles,
-        visibilityProfiles: state.visibilityProfiles,
-        activeVisibilityProfileId: state.activeVisibilityProfileId,
-        printLayouts: state.printLayouts,
-        activePrintLayoutId: state.activePrintLayoutId,
-        printLayout: state.printLayout,
-        evaluationLimitIndex: state.evaluationLimitIndex,
-        selectedElementId: selection.selectedElementId,
-        selectedElementIds: selection.selectedElementIds,
-        selectionAnchorElementId: selection.selectionAnchorElementId
-      },
+      baseElements: state.elements,
       baseEvaluation: reusableDragEvaluation(state.elements)
     };
   }, [reusableDragEvaluation]);
@@ -622,7 +608,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     if (handle) {
       focusCanvas();
       dispatchCommand("selectElement", { elementId: handle.curveId, selectionMode: selectionModeFor(intent) });
-      const dragSnapshot = currentDocumentDragSnapshot();
+      const dragBase = currentDocumentDragBase();
       if (intent.pointerReleased) {
         if (movement >= DEFERRED_DRAG_THRESHOLD_PX) {
           dispatchCommand("moveBezierHandleByDelta", {
@@ -634,9 +620,8 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
             angleLocked: polarLockKeysRef.current.angle,
             distanceLocked: polarLockKeysRef.current.distance,
             commitMode: "commit",
-            baseElements: dragSnapshot.snapshot.elements,
-            baseEvaluation: dragSnapshot.baseEvaluation,
-            historySnapshot: dragSnapshot.snapshot
+            baseElements: dragBase.baseElements,
+            baseEvaluation: dragBase.baseEvaluation
           });
         }
         scheduleEditorFocus(intent.pointerId, true);
@@ -652,7 +637,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
         startClientX: intent.start.clientX,
         startClientY: intent.start.clientY,
         zoom: canvasViewport.zoom,
-        ...dragSnapshot
+        ...dragBase
       };
       setIsBezierHandleDragging(true);
       return;
@@ -679,7 +664,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       scheduleEditorFocus(intent.pointerId, intent.pointerReleased);
       return;
     }
-    const dragSnapshot = currentDocumentDragSnapshot();
+    const dragBase = currentDocumentDragBase();
     if (intent.pointerReleased) {
       if (movement >= DEFERRED_DRAG_THRESHOLD_PX) {
         const worldDelta = constrainedWorldDelta({
@@ -695,9 +680,8 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
           angleLocked: polarLockKeysRef.current.angle,
           distanceLocked: polarLockKeysRef.current.distance,
           commitMode: "commit",
-          baseElements: dragSnapshot.snapshot.elements,
-          baseEvaluation: dragSnapshot.baseEvaluation,
-          historySnapshot: dragSnapshot.snapshot
+          baseElements: dragBase.baseElements,
+          baseEvaluation: dragBase.baseEvaluation
         });
       }
       scheduleEditorFocus(intent.pointerId, true);
@@ -711,7 +695,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       startClientX: intent.start.clientX,
       startClientY: intent.start.clientY,
       zoom: canvasViewport.zoom,
-      ...dragSnapshot
+      ...dragBase
     };
     setIsPointDragging(true);
   }, [
@@ -722,7 +706,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     applyPointPickCandidate,
     canvasViewport.zoom,
     captureLedger,
-    currentDocumentDragSnapshot,
+    currentDocumentDragBase,
     hasCommandLineGhost,
     linePickCandidatesAt,
     numericReferenceCandidatesAt,
@@ -855,9 +839,8 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       angleLocked: polarLockKeysRef.current.angle,
       distanceLocked: polarLockKeysRef.current.distance,
       commitMode: "commit",
-      baseElements: drag.snapshot.elements,
-      baseEvaluation: drag.baseEvaluation,
-      historySnapshot: drag.snapshot
+      baseElements: drag.baseElements,
+      baseEvaluation: drag.baseEvaluation
     });
 
     pointDragRef.current = null;
@@ -879,9 +862,8 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       angleLocked: polarLockKeysRef.current.angle,
       distanceLocked: polarLockKeysRef.current.distance,
       commitMode: "commit",
-      baseElements: drag.snapshot.elements,
-      baseEvaluation: drag.baseEvaluation,
-      historySnapshot: drag.snapshot
+      baseElements: drag.baseElements,
+      baseEvaluation: drag.baseEvaluation
     });
 
     bezierHandleDragRef.current = null;
@@ -971,7 +953,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
         angleLocked: polarLockKeysRef.current.angle,
         distanceLocked: polarLockKeysRef.current.distance,
         commitMode: "preview",
-        baseElements: bezierHandleDrag.snapshot.elements,
+        baseElements: bezierHandleDrag.baseElements,
         baseEvaluation: bezierHandleDrag.baseEvaluation
       });
       if (isRejectedDocumentMutation(result)) {
@@ -1006,7 +988,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
         angleLocked: polarLockKeysRef.current.angle,
         distanceLocked: polarLockKeysRef.current.distance,
         commitMode: "preview",
-        baseElements: pointDrag.snapshot.elements,
+        baseElements: pointDrag.baseElements,
         baseEvaluation: pointDrag.baseEvaluation
       });
       if (isRejectedDocumentMutation(result)) {

@@ -31,6 +31,7 @@ import { defaultPlacementForGroup, printableGroups, printableItemsForLayout } fr
 import {
   DEFAULT_PRINT_LAYOUT,
   PAPER_SIZES,
+  activePrintLayout,
   orientedPaperSize,
   printCanvasSizeMm,
   resolvePrintLayout
@@ -408,7 +409,9 @@ const placementName = (
 
 export const PrintLayoutCanvas = ({ evaluation, canvasFocusRef }: PrintLayoutCanvasProps) => {
   const elements = useCadDocumentStore(effectiveElements);
-  const layout = useCadDocumentStore((state) => state.printLayout);
+  const layout = useCadDocumentStore((state) =>
+    activePrintLayout(state.printLayouts, state.activePrintLayoutId)
+  );
   const visibilityProfiles = useCadDocumentStore((state) => state.visibilityProfiles);
   const activeVisibilityProfileId = useCadDocumentStore((state) => state.activeVisibilityProfileId);
   const updatePrintLayout = useCadDocumentStore((state) => state.updatePrintLayout);
@@ -709,7 +712,9 @@ export const PrintLayoutCanvas = ({ evaluation, canvasFocusRef }: PrintLayoutCan
 
 export const PrintLayoutPanel = ({ evaluation }: { evaluation: EvaluationResult }) => {
   const elements = useCadDocumentStore(effectiveElements);
-  const layout = useCadDocumentStore((state) => state.printLayout);
+  const layout = useCadDocumentStore((state) =>
+    activePrintLayout(state.printLayouts, state.activePrintLayoutId)
+  );
   const printLayouts = useCadDocumentStore((state) => state.printLayouts);
   const activePrintLayoutId = useCadDocumentStore((state) => state.activePrintLayoutId);
   const visibilityProfiles = useCadDocumentStore((state) => state.visibilityProfiles);

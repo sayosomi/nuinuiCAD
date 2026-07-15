@@ -32,6 +32,7 @@ import { useCadUiStore } from "../state/cadUiStore";
 import type { CadElement, ElementId } from "../types/geometry";
 import type { CommandContext } from "./commandTypes";
 import { getSelectedElement, getSelectedElementIds } from "./commandRuntime";
+import { commitDocumentChangeAndSelect } from "./commitDocumentChangeAndSelect";
 import { focusCanvasAfterCreation } from "./postCreationFocus";
 
 export const toggleSelectedElementsBooleanProperty = (property: "visible" | "enabled") => {
@@ -306,14 +307,18 @@ export const moveElementsToInsertionIndexWithParent = (
         : orderedElements;
 
   useCadUiStore.getState().setCommandErrorMessage(null);
-  useCadDocumentStore.getState().commitDocumentChange({
-    ...(change ?? {
-      selectedElementId,
-      selectedElementIds: elementIds,
-      selectionAnchorElementId: selectionAnchorElementId ?? elementIds[0] ?? null
-    }),
-    elements: nextElements
-  });
+  const selection = change ?? {
+    selectedElementId,
+    selectedElementIds: elementIds,
+    selectionAnchorElementId: selectionAnchorElementId ?? elementIds[0] ?? null
+  };
+  commitDocumentChangeAndSelect(
+    {
+      evaluationLimitIndex: change?.evaluationLimitIndex,
+      elements: nextElements
+    },
+    selection
+  );
 };
 
 export const moveElementToInsertionIndex = (
@@ -404,14 +409,15 @@ export const groupSelectedElements = (context?: CommandContext) => {
     )
   ];
 
-  useCadDocumentStore.getState().commitDocumentChange({
+  commitDocumentChangeAndSelect({
     elements: nextElements,
     evaluationLimitIndex: adjustEvaluationLimitForInsertion({
       elements,
       evaluationLimitIndex,
       insertionIndex: firstIndex,
       insertedCount: 1
-    }),
+    })
+  }, {
     selectedElementId: group.id,
     selectedElementIds: [group.id],
     selectionAnchorElementId: group.id
@@ -433,13 +439,14 @@ export const addGroup = (context?: CommandContext) => {
     placement
   );
 
-  useCadDocumentStore.getState().commitDocumentChange({
+  commitDocumentChangeAndSelect({
     elements: [
       ...elements.slice(0, insertionIndex),
       group,
       ...elements.slice(insertionIndex)
     ],
-    evaluationLimitIndex: insertionIndex + 1,
+    evaluationLimitIndex: insertionIndex + 1
+  }, {
     selectedElementId: group.id,
     selectedElementIds: [group.id],
     selectionAnchorElementId: group.id
@@ -485,13 +492,14 @@ export const ungroupSelectedGroup = () => {
     nextElements.some((element) => element.id === id)
   );
 
-  useCadDocumentStore.getState().commitDocumentChange({
+  commitDocumentChangeAndSelect({
     elements: nextElements,
     evaluationLimitIndex: adjustEvaluationLimitForDeletion({
       elements,
       evaluationLimitIndex,
       deletedIds: new Set([selectedElement.id])
-    }),
+    })
+  }, {
     selectedElementId: nextSelectedIds[0] ?? null,
     selectedElementIds: nextSelectedIds,
     selectionAnchorElementId: nextSelectedIds[0] ?? null
@@ -548,12 +556,13 @@ export const outdentSelectedElements = () => {
   if (!firstParent || !isGroupElement(firstParent)) return;
   const selectedTopLevelIds = new Set(selectedTopLevel.map((element) => element.id));
 
-  useCadDocumentStore.getState().commitDocumentChange({
+  commitDocumentChangeAndSelect({
     elements: elements.map((element) =>
       selectedTopLevelIds.has(element.id)
         ? { ...element, parentGroupId: firstParent.parentGroupId }
         : element
-    ),
+    )
+  }, {
     selectionAnchorElementId: selectedTopLevel[0].id
   });
   useCadUiStore.getState().setGroupFold(firstParent.id, { expanded: true });

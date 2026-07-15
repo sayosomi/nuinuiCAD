@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { evaluateElements } from "../geometry/evaluate";
 import type { CadElement, PrintLayout } from "../types/geometry";
-import { DEFAULT_PRINT_LAYOUT, normalizePrintLayout, resolvePrintLayout } from "./printLayout";
+import {
+  activePrintLayout,
+  DEFAULT_PRINT_LAYOUT,
+  normalizePrintLayout,
+  resolvePrintLayout
+} from "./printLayout";
 
 const variable: CadElement = {
   id: "scale-var",
@@ -31,6 +36,15 @@ const group: CadElement = {
 const elements = [variable, group];
 
 describe("printLayout", () => {
+  it("resolves the active layout by id, then the first layout, then the default", () => {
+    const first = { ...DEFAULT_PRINT_LAYOUT, id: "first", name: "First" };
+    const active = { ...DEFAULT_PRINT_LAYOUT, id: "active", name: "Active" };
+
+    expect(activePrintLayout([first, active], active.id)).toBe(active);
+    expect(activePrintLayout([first, active], "missing")).toBe(first);
+    expect(activePrintLayout([], "missing")).toBe(DEFAULT_PRINT_LAYOUT);
+  });
+
   it("normalizes print layout numeric expressions without breaking numeric values", () => {
     const layout = normalizePrintLayout({
       ...DEFAULT_PRINT_LAYOUT,

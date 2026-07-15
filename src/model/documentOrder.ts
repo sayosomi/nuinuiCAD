@@ -5,6 +5,9 @@ import { adjustEvaluationLimitForMove } from "./evaluationDivider";
 export type DocumentOrderChange = {
   elements: CadElement[];
   evaluationLimitIndex?: number;
+};
+
+export type DocumentOrderResult = DocumentOrderChange & {
   selectedElementId: ElementId | null;
   selectedElementIds: ElementId[];
   selectionAnchorElementId: ElementId | null;
@@ -24,7 +27,7 @@ export const moveElementsToInsertionIndex = ({
   selectedElementId: ElementId | null;
   selectionAnchorElementId: ElementId | null;
   evaluationLimitIndex?: number;
-}): DocumentOrderChange | null => {
+}): DocumentOrderResult | null => {
   const movingIds = elementIdsInDocumentOrder(elements, elementIds);
   if (movingIds.length === 0) return null;
 

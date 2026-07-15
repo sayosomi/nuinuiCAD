@@ -6,34 +6,8 @@ import {
   normalizeVisibilityRoles
 } from "../model/visibilityProfiles";
 import { normalizeDocumentPalette } from "../palette/palette";
-import { DEFAULT_PRINT_LAYOUT, normalizePrintLayouts } from "../print/printLayout";
-import type { CadElement, ElementId, PrintLayout } from "../types/geometry";
-
-export type CadDocumentSelectionSnapshot = {
-  selectedElementId: ElementId | null;
-  selectedElementIds: ElementId[];
-  selectionAnchorElementId: ElementId | null;
-};
-
-/** Phase 1c compatibility shape used only at the legacy JSON boundary. */
-export type CadDocumentSnapshot = DslDocumentData & CadDocumentSelectionSnapshot & {
-  printLayout: PrintLayout;
-};
-
-export const docToLegacySnapshot = (
-  document: DslDocumentData,
-  selection: CadDocumentSelectionSnapshot
-): CadDocumentSnapshot => {
-  const printLayout =
-    document.printLayouts.find((layout) => layout.id === document.activePrintLayoutId) ??
-    document.printLayouts[0] ??
-    DEFAULT_PRINT_LAYOUT;
-  return {
-    ...document,
-    printLayout,
-    ...selection
-  };
-};
+import { normalizePrintLayouts } from "../print/printLayout";
+import type { CadElement } from "../types/geometry";
 
 const CAD_DOCUMENT_APP_ID = "nuinuiCAD";
 const CAD_DOCUMENT_SCHEMA_VERSION = 5;

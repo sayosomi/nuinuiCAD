@@ -2,15 +2,11 @@ import fc from "fast-check";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { compileDslDocument, serializeDocumentToDsl, type DslDocumentData } from "../dsl/dslDocument";
 import { applyRandomOp, generateDocumentSource, type RandomOp } from "../document/documentTestGenerators";
-import { snapshotToDslData } from "../document/shadowText";
 import { DEFAULT_PRINT_LAYOUT } from "../print/printLayout";
 import {
-  currentDocumentSnapshot,
   initialCadDocumentState,
-  useCadDocumentStore,
-  type CadDocumentSnapshot
+  useCadDocumentStore
 } from "./cadDocumentStore";
-import { useCadUiStore } from "./cadUiStore";
 
 // Phase 1b: ランダムなストア操作列後、影テキストが常にモデルと意味的等価で
 // あり(equivalence assertが一度も発火しない)、かつ手置きノイズ行が
@@ -31,7 +27,7 @@ afterEach(() => {
 const seedFromDocument = (doc: DslDocumentData) => {
   const printLayouts = doc.printLayouts.length ? doc.printLayouts : [DEFAULT_PRINT_LAYOUT];
   const activePrintLayoutId = doc.activePrintLayoutId || printLayouts[0].id;
-  const snapshot: CadDocumentSnapshot = {
+  const snapshot = {
     elements: doc.elements,
     palette: doc.palette,
     visibilityRoles: doc.visibilityRoles,
@@ -39,11 +35,7 @@ const seedFromDocument = (doc: DslDocumentData) => {
     activeVisibilityProfileId: doc.activeVisibilityProfileId,
     printLayouts,
     activePrintLayoutId,
-    printLayout: printLayouts.find((layout) => layout.id === activePrintLayoutId) ?? printLayouts[0],
-    evaluationLimitIndex: doc.evaluationLimitIndex,
-    selectedElementId: doc.elements[0]?.id ?? null,
-    selectedElementIds: doc.elements[0] ? [doc.elements[0].id] : [],
-    selectionAnchorElementId: doc.elements[0]?.id ?? null,
+    evaluationLimitIndex: doc.evaluationLimitIndex
   };
   useCadDocumentStore.getState().replaceDocument(snapshot, null);
 };
@@ -91,7 +83,7 @@ describe("cadDocumentStore 影テキスト: ランダム操作プロパティテ
         // ノイズ入りの手書きソースを正準入口から適用する。
         useCadDocumentStore.getState().commitText(generated.source, "test");
 
-        let document: DslDocumentData = snapshotToDslData(currentDocumentSnapshot(useCadDocumentStore.getState(), useCadUiStore.getState()));
+        let document: DslDocumentData = useCadDocumentStore.getState().doc.document;
         for (const op of ops) {
           const applied = applyRandomOp(document, op);
           document = applied.document;
@@ -104,13 +96,13 @@ describe("cadDocumentStore 影テキスト: ランダム操作プロパティテ
             evaluationLimitIndex: document.evaluationLimitIndex
           });
           // 次イテレーションはストアが正規化した後の実モデルを基準に進める。
-          document = snapshotToDslData(currentDocumentSnapshot(useCadDocumentStore.getState(), useCadUiStore.getState()));
+          document = useCadDocumentStore.getState().doc.document;
         }
 
         const finalState = useCadDocumentStore.getState();
         expect(finalState.doc.document).not.toBeNull();
         expect(serializeDocumentToDsl(finalState.doc.document)).toBe(
-          serializeDocumentToDsl(snapshotToDslData(currentDocumentSnapshot(finalState, useCadUiStore.getState())))
+          serializeDocumentToDsl(finalState.doc.document)
         );
         for (const noiseLine of generated.noiseLines) {
           expect(finalState.sourceText).toContain(noiseLine);

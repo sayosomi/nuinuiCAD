@@ -1,6 +1,5 @@
 import { create } from "zustand";
 import type { CommandRibbonSettings } from "../commandRibbons/commandRibbonSettings";
-import type { CadDocumentSelectionSnapshot } from "../document/documentFormat";
 import type { NumericMeasurementKey } from "../geometry/numericExpressionTypes";
 import type { ShortcutSettings } from "../keyboard/shortcutTypes";
 import type { ParameterKey } from "../parameters/parameterDefinitions";
@@ -131,10 +130,16 @@ const uniqueElementIds = (ids: ElementId[]) => Array.from(new Set(ids));
 
 const currentDocumentElements = () => useCadDocumentStore.getState().elements;
 
+export type CadElementSelection = {
+  selectedElementId: ElementId | null;
+  selectedElementIds: ElementId[];
+  selectionAnchorElementId: ElementId | null;
+};
+
 const normalizedSelection = (
   elements: CadElement[],
-  selection: CadDocumentSelectionSnapshot
-): CadDocumentSelectionSnapshot => {
+  selection: CadElementSelection
+): CadElementSelection => {
   const existingIds = new Set(elements.map((element) => element.id));
   const selectedElementIds = uniqueElementIds(selection.selectedElementIds).filter((id) => existingIds.has(id));
   const selectedElementId =
@@ -156,7 +161,7 @@ const normalizedSelection = (
   };
 };
 
-export type CadUiState = CadDocumentSelectionSnapshot & {
+export type CadUiState = CadElementSelection & {
   /** Primary DSL editor cursor; intentionally independent from Canvas selection. */
   sourceCursorLine: number | null;
   groupFoldById: ReadonlyMap<ElementId, GroupFoldState>;
@@ -270,7 +275,7 @@ export type CadUiState = CadDocumentSelectionSnapshot & {
   setSelectedElementIds: (ids: ElementId[], primaryId?: ElementId | null) => void;
   setSelectedElementRange: (anchorId: ElementId, targetId: ElementId) => void;
   setSourceCursorLine: (sourceCursorLine: number | null) => void;
-  applySelection: (elements: CadElement[], selection: CadDocumentSelectionSnapshot) => void;
+  applySelection: (elements: CadElement[], selection: CadElementSelection) => void;
   reconcileSelectionWithElements: (elements: CadElement[]) => void;
 };
 

@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { sampleElements } from "../sampleData";
-import { DEFAULT_PRINT_LAYOUT } from "../print/printLayout";
+import { commitDocumentChangeAndSelect } from "../commands/commitDocumentChangeAndSelect";
+import { activePrintLayout, DEFAULT_PRINT_LAYOUT } from "../print/printLayout";
 import { defaultVisibilityProfile } from "../model/visibilityProfiles";
 import {
-  currentDocumentSnapshot,
   effectiveElements,
   effectiveEvaluationLimitIndex,
   initialCadDocumentState,
@@ -41,6 +41,58 @@ describe("cadDocumentStore file state", () => {
     expect(useCadDocumentStore.getState().dirtySinceSave).toBe(true);
   });
 
+  it("applies command selection after commit and preserves it across undo then redo", () => {
+    const before = useCadDocumentStore.getState();
+    const beforeSelection = {
+      selectedElementId: before.elements[1].id,
+      selectedElementIds: [before.elements[1].id],
+      selectionAnchorElementId: before.elements[1].id
+    };
+    useCadUiStore.getState().applySelection(before.elements, beforeSelection);
+
+    const afterSelection = {
+      selectedElementId: before.elements[0].id,
+      selectedElementIds: [before.elements[0].id],
+      selectionAnchorElementId: before.elements[0].id
+    };
+    commitDocumentChangeAndSelect({
+      elements: before.elements.map((element, index) =>
+        index === 0 ? { ...element, locked: true } : element
+      )
+    }, afterSelection);
+
+    expect(useCadDocumentStore.getState().past).toHaveLength(1);
+    expect(useCadUiStore.getState()).toMatchObject(afterSelection);
+
+    useCadDocumentStore.getState().undo();
+    expect(useCadUiStore.getState()).toMatchObject(beforeSelection);
+    useCadDocumentStore.getState().redo();
+    expect(useCadUiStore.getState()).toMatchObject(afterSelection);
+  });
+
+  it("leaves selection unchanged when a command commit is rejected", () => {
+    const state = useCadDocumentStore.getState();
+    const selection = {
+      selectedElementId: state.elements[1].id,
+      selectedElementIds: [state.elements[1].id],
+      selectionAnchorElementId: state.elements[1].id
+    };
+    useCadUiStore.getState().applySelection(state.elements, selection);
+    useCadDocumentStore.getState().commitText("nui 1\npoint A = (", "test");
+
+    const result = commitDocumentChangeAndSelect(
+      { elements: state.elements.map((element) => ({ ...element, locked: true })) },
+      {
+        selectedElementId: state.elements[0].id,
+        selectedElementIds: [state.elements[0].id],
+        selectionAnchorElementId: state.elements[0].id
+      }
+    );
+
+    expect(result.status).toBe("rejected");
+    expect(useCadUiStore.getState()).toMatchObject(selection);
+  });
+
   it("replaces the document, resets history, and normalizes invalid selection", () => {
     useCadDocumentStore.getState().commitDocumentChange({ evaluationLimitIndex: 1 });
     expect(useCadDocumentStore.getState().past).toHaveLength(1);
@@ -54,11 +106,7 @@ describe("cadDocumentStore file state", () => {
         activeVisibilityProfileId: defaultVisibilityProfile().id,
         printLayouts: [DEFAULT_PRINT_LAYOUT],
         activePrintLayoutId: DEFAULT_PRINT_LAYOUT.id,
-        printLayout: DEFAULT_PRINT_LAYOUT,
-        evaluationLimitIndex: 999,
-        selectedElementId: "missing",
-        selectedElementIds: ["missing"],
-        selectionAnchorElementId: "missing",
+        evaluationLimitIndex: 999
       },
       "/tmp/loaded.nuinui.json"
     );
@@ -78,14 +126,14 @@ describe("cadDocumentStore file state", () => {
     });
   });
 
-  it("does not include file state in document snapshots", () => {
+  it("keeps file state outside the compiled document", () => {
     useCadDocumentStore.getState().markDocumentSaved(
       "/tmp/pattern.nuinui.json",
       useCadDocumentStore.getState().sourceText
     );
 
-    expect(currentDocumentSnapshot(useCadDocumentStore.getState(), useCadUiStore.getState())).not.toHaveProperty("currentFilePath");
-    expect(currentDocumentSnapshot(useCadDocumentStore.getState(), useCadUiStore.getState())).not.toHaveProperty("dirtySinceSave");
+    expect(useCadDocumentStore.getState().doc.document).not.toHaveProperty("currentFilePath");
+    expect(useCadDocumentStore.getState().doc.document).not.toHaveProperty("dirtySinceSave");
   });
 
   it("keeps drag previews outside the committed document, history, and shadow text", () => {
@@ -167,7 +215,7 @@ describe("cadDocumentStore file state", () => {
 
     preview();
     useCadDocumentStore.getState().replaceDocument(
-      currentDocumentSnapshot(useCadDocumentStore.getState(), useCadUiStore.getState()),
+      useCadDocumentStore.getState().doc.document,
       null
     );
     expectPreviewCleared();
@@ -190,13 +238,22 @@ describe("cadDocumentStore file state", () => {
     expect(useCadDocumentStore.getState().printLayouts).toHaveLength(2);
     const addedLayoutId = useCadDocumentStore.getState().printLayouts[1].id;
     expect(useCadDocumentStore.getState().activePrintLayoutId).toBe(addedLayoutId);
-    expect(useCadDocumentStore.getState().printLayout.id).toBe(addedLayoutId);
+    expect(activePrintLayout(
+      useCadDocumentStore.getState().printLayouts,
+      useCadDocumentStore.getState().activePrintLayoutId
+    ).id).toBe(addedLayoutId);
 
     useCadDocumentStore.getState().updatePrintLayout({ name: "袖のみ", columns: 4 });
-    expect(useCadDocumentStore.getState().printLayout.name).toBe("袖のみ");
+    expect(activePrintLayout(
+      useCadDocumentStore.getState().printLayouts,
+      useCadDocumentStore.getState().activePrintLayoutId
+    ).name).toBe("袖のみ");
 
     useCadDocumentStore.getState().setActivePrintLayoutId("print-layout-1");
-    expect(useCadDocumentStore.getState().printLayout.id).toBe("print-layout-1");
+    expect(activePrintLayout(
+      useCadDocumentStore.getState().printLayouts,
+      useCadDocumentStore.getState().activePrintLayoutId
+    ).id).toBe("print-layout-1");
 
     useCadDocumentStore.getState().duplicatePrintLayout("print-layout-1");
     expect(useCadDocumentStore.getState().printLayouts).toHaveLength(3);

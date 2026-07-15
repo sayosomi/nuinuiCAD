@@ -1471,6 +1471,29 @@ describe("DrawingCanvas pending pointer intents", () => {
     expect(pointByName("B")).toMatchObject({ x: 150, y: 10 });
   });
 
+  it("keeps drag previews out of the drag base and commits one undoable selection-preserving change", async () => {
+    const { viewport, deliverEvaluationState } = renderPendingCanvas({ initialText: twoPointText });
+    const bId = idByName("B");
+    useCadDocumentStore.setState({ past: [], future: [] });
+
+    fireEvent.pointerDown(viewport, { button: 0, buttons: 1, clientX: 350, clientY: 200, pointerId: 1 });
+    fireEvent.pointerMove(viewport, { buttons: 1, clientX: 380, clientY: 210, pointerId: 1 });
+    fireEvent.pointerMove(viewport, { buttons: 1, clientX: 400, clientY: 190, pointerId: 1 });
+    fireEvent.pointerUp(viewport, { buttons: 0, clientX: 400, clientY: 190, pointerId: 1 });
+
+    await deliverEvaluationState();
+    await waitFor(() => expect(pointByName("B")).toMatchObject({ x: 150, y: 10 }));
+    expect(useCadDocumentStore.getState().past).toHaveLength(1);
+    expect(useCadUiStore.getState().selectedElementId).toBe(bId);
+
+    useCadDocumentStore.getState().undo();
+    expect(pointByName("B")).toMatchObject({ x: 100, y: 0 });
+    expect(useCadUiStore.getState().selectedElementId).toBe(bId);
+    useCadDocumentStore.getState().redo();
+    expect(pointByName("B")).toMatchObject({ x: 150, y: 10 });
+    expect(useCadUiStore.getState().selectedElementId).toBe(bId);
+  });
+
   it("drags the point grabbed at the press position, not the element under the drop position", async () => {
     const { viewport, deliverEvaluationState } = renderPendingCanvas({
       initialText: "nui 1\npoint P = (0, 0)\npoint Q = (50, 0)",

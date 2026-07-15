@@ -2,14 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { compileDslDocument, serializeDocumentToDsl } from "../dsl/dslDocument";
 import { DEFAULT_PRINT_LAYOUT } from "../print/printLayout";
 import type { CadElement } from "../types/geometry";
-import { snapshotToDslData } from "../document/shadowText";
 import {
-  currentDocumentSnapshot,
   initialCadDocumentState,
-  useCadDocumentStore,
-  type CadDocumentSnapshot
+  useCadDocumentStore
 } from "./cadDocumentStore";
-import { useCadUiStore } from "./cadUiStore";
 
 // Phase 1b: 影テキスト維持機構のストア統合テスト。
 // 「コンソールに影assert警告が出ないこと」を明示的にアサートすることで、
@@ -38,7 +34,7 @@ const expectNoShadowWarnings = () => {
 const expectShadowConsistent = () => {
   const state = useCadDocumentStore.getState();
   expect(state.doc.document).not.toBeNull();
-  const afterDoc = snapshotToDslData(currentDocumentSnapshot(state, useCadUiStore.getState()));
+  const afterDoc = state.doc.document;
   expect(serializeDocumentToDsl(state.doc.document)).toBe(serializeDocumentToDsl(afterDoc));
 };
 
@@ -48,7 +44,7 @@ const seedFromSource = (source: string) => {
   const doc = compiled.document!;
   const printLayouts = doc.printLayouts.length ? doc.printLayouts : [DEFAULT_PRINT_LAYOUT];
   const activePrintLayoutId = doc.activePrintLayoutId || printLayouts[0].id;
-  const snapshot: CadDocumentSnapshot = {
+  const snapshot = {
     elements: doc.elements,
     palette: doc.palette,
     visibilityRoles: doc.visibilityRoles,
@@ -56,11 +52,7 @@ const seedFromSource = (source: string) => {
     activeVisibilityProfileId: doc.activeVisibilityProfileId,
     printLayouts,
     activePrintLayoutId,
-    printLayout: printLayouts.find((layout) => layout.id === activePrintLayoutId) ?? printLayouts[0],
-    evaluationLimitIndex: doc.evaluationLimitIndex,
-    selectedElementId: doc.elements[0]?.id ?? null,
-    selectedElementIds: doc.elements[0] ? [doc.elements[0].id] : [],
-    selectionAnchorElementId: doc.elements[0]?.id ?? null,
+    evaluationLimitIndex: doc.evaluationLimitIndex
   };
   useCadDocumentStore.getState().replaceDocument(snapshot, null);
 };
@@ -231,12 +223,9 @@ describe("cadDocumentStore 影テキスト: undo/redo/replaceDocument の全体�
     const doc = compiled.document!;
     useCadDocumentStore.getState().replaceDocument(
       {
-        ...currentDocumentSnapshot(useCadDocumentStore.getState(), useCadUiStore.getState()),
+        ...useCadDocumentStore.getState().doc.document,
         elements: doc.elements,
-        evaluationLimitIndex: doc.evaluationLimitIndex,
-        selectedElementId: doc.elements[0].id,
-        selectedElementIds: [doc.elements[0].id],
-        selectionAnchorElementId: doc.elements[0].id
+        evaluationLimitIndex: doc.evaluationLimitIndex
       },
       "/tmp/loaded.nuinui.json"
     );

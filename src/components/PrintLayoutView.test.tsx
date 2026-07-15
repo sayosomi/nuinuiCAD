@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 import { evaluateElements } from "../geometry/evaluate";
-import { DEFAULT_PRINT_LAYOUT } from "../print/printLayout";
+import { activePrintLayout, DEFAULT_PRINT_LAYOUT } from "../print/printLayout";
 import { defaultDocumentPalette } from "../palette/palette";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
@@ -42,6 +42,10 @@ const elements: CadElement[] = [
 const renderPanel = () => {
   render(<PrintLayoutPanel evaluation={evaluateElements(elements)} />);
 };
+const activeLayout = () => {
+  const state = useCadDocumentStore.getState();
+  return activePrintLayout(state.printLayouts, state.activePrintLayoutId);
+};
 
 describe("PrintLayoutPanel", () => {
   beforeEach(() => {
@@ -51,7 +55,6 @@ describe("PrintLayoutPanel", () => {
       palette: defaultDocumentPalette(),
       printLayouts: [DEFAULT_PRINT_LAYOUT],
       activePrintLayoutId: DEFAULT_PRINT_LAYOUT.id,
-      printLayout: DEFAULT_PRINT_LAYOUT,
       evaluationLimitIndex: elements.length,
       past: [],
       future: [],
@@ -83,7 +86,7 @@ describe("PrintLayoutPanel", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /前身頃/ }));
 
-    expect(useCadDocumentStore.getState().printLayout.placements).toHaveLength(1);
+    expect(activeLayout().placements).toHaveLength(1);
     expect(useCadUiStore.getState().selectedPrintPlacementId).toBe("placement-1");
     expect(screen.getByText("選択配置")).toBeInTheDocument();
     const detail = screen.getByText("選択配置").closest("section");
@@ -100,14 +103,7 @@ describe("PrintLayoutPanel", () => {
           { id: "placement-2", groupId: "back", x: 30, y: 40, angleDeg: 15, mirrorX: true }
         ]
       }],
-      activePrintLayoutId: DEFAULT_PRINT_LAYOUT.id,
-      printLayout: {
-        ...DEFAULT_PRINT_LAYOUT,
-        placements: [
-          { id: "placement-1", groupId: "front", x: 10, y: 20, angleDeg: 0, mirrorX: false },
-          { id: "placement-2", groupId: "back", x: 30, y: 40, angleDeg: 15, mirrorX: true }
-        ]
-      }
+      activePrintLayoutId: DEFAULT_PRINT_LAYOUT.id
     });
     renderPanel();
 
@@ -135,13 +131,7 @@ describe("PrintLayoutPanel", () => {
           { id: "placement-1", groupId: "front", x: 10, y: 20, angleDeg: 15, mirrorX: true }
         ]
       }],
-      activePrintLayoutId: DEFAULT_PRINT_LAYOUT.id,
-      printLayout: {
-        ...DEFAULT_PRINT_LAYOUT,
-        placements: [
-          { id: "placement-1", groupId: "front", x: 10, y: 20, angleDeg: 15, mirrorX: true }
-        ]
-      }
+      activePrintLayoutId: DEFAULT_PRINT_LAYOUT.id
     });
     renderPanel();
 
@@ -149,7 +139,7 @@ describe("PrintLayoutPanel", () => {
     expect(placementSection).not.toBeNull();
     fireEvent.click(within(placementSection!).getByRole("button", { name: "配置を複製" }));
 
-    expect(useCadDocumentStore.getState().printLayout.placements).toEqual([
+    expect(activeLayout().placements).toEqual([
       { id: "placement-1", groupId: "front", x: 10, y: 20, angleDeg: 15, mirrorX: true },
       { id: "placement-2", groupId: "front", x: 10, y: 20, angleDeg: 15, mirrorX: true }
     ]);
@@ -164,13 +154,7 @@ describe("PrintLayoutPanel", () => {
           { id: "placement-1", groupId: "hidden-print", x: 10, y: 20, angleDeg: 0, mirrorX: false }
         ]
       }],
-      activePrintLayoutId: DEFAULT_PRINT_LAYOUT.id,
-      printLayout: {
-        ...DEFAULT_PRINT_LAYOUT,
-        placements: [
-          { id: "placement-1", groupId: "hidden-print", x: 10, y: 20, angleDeg: 0, mirrorX: false }
-        ]
-      }
+      activePrintLayoutId: DEFAULT_PRINT_LAYOUT.id
     });
     renderPanel();
 
@@ -202,7 +186,7 @@ describe("PrintLayoutPanel", () => {
     fireEvent.pointerMove(scaleInput, { pointerId: 1, clientX: 16 });
     fireEvent.pointerUp(scaleInput, { pointerId: 1, clientX: 16 });
 
-    expect(useCadDocumentStore.getState().printLayout.scale).toBe(1.2);
+    expect(activeLayout().scale).toBe(1.2);
   });
 
   it("stores print number inputs as expressions using global variables", () => {
@@ -211,7 +195,7 @@ describe("PrintLayoutPanel", () => {
 
     fireEvent.change(scaleInput, { target: { value: "@倍率" } });
 
-    expect(useCadDocumentStore.getState().printLayout.scale).toEqual({
+    expect(activeLayout().scale).toEqual({
       kind: "expression",
       expression: "@scale-var"
     });
@@ -223,11 +207,7 @@ describe("PrintLayoutPanel", () => {
       printLayouts: [{
         ...DEFAULT_PRINT_LAYOUT,
         numericVariables: [{ id: "print-variable-1", name: "倍率", value: 2 }]
-      }],
-      printLayout: {
-        ...DEFAULT_PRINT_LAYOUT,
-        numericVariables: [{ id: "print-variable-1", name: "倍率", value: 2 }]
-      }
+      }]
     });
     renderPanel();
     const scaleInput = screen.getByLabelText("拡大率");
@@ -242,7 +222,7 @@ describe("PrintLayoutPanel", () => {
     fireEvent.click(globalOption);
 
     await waitFor(() => {
-      expect(useCadDocumentStore.getState().printLayout.scale).toEqual({
+      expect(activeLayout().scale).toEqual({
         kind: "expression",
         expression: "@scale-var"
       });
@@ -275,8 +255,7 @@ describe("PrintLayoutPanel", () => {
 
   it("edits the SVG canvas size for the active print layout", () => {
     useCadDocumentStore.setState({
-      printLayouts: [{ ...DEFAULT_PRINT_LAYOUT, outputKind: "svg" }],
-      printLayout: { ...DEFAULT_PRINT_LAYOUT, outputKind: "svg" }
+      printLayouts: [{ ...DEFAULT_PRINT_LAYOUT, outputKind: "svg" }]
     });
     renderPanel();
 
@@ -287,7 +266,7 @@ describe("PrintLayoutPanel", () => {
       target: { value: "700" }
     });
 
-    expect(useCadDocumentStore.getState().printLayout).toMatchObject({
+    expect(activeLayout()).toMatchObject({
       svgCanvasWidthMm: 500,
       svgCanvasHeightMm: 700
     });
@@ -300,7 +279,7 @@ describe("PrintLayoutPanel", () => {
       target: { value: "svg" }
     });
 
-    expect(useCadDocumentStore.getState().printLayout.outputKind).toBe("svg");
+    expect(activeLayout().outputKind).toBe("svg");
     expect(screen.getByLabelText("SVG幅 mm")).toBeInTheDocument();
     expect(screen.getByLabelText("SVG高さ mm")).toBeInTheDocument();
     expect(screen.queryByLabelText("用紙")).not.toBeInTheDocument();
@@ -328,14 +307,14 @@ describe("PrintLayoutPanel", () => {
     const scaleInput = screen.getByLabelText("拡大率");
     fireEvent.change(scaleInput, { target: { value: "@倍率" } });
 
-    expect(useCadDocumentStore.getState().printLayout.numericVariables).toEqual([
+    expect(activeLayout().numericVariables).toEqual([
       {
         id: "print-variable-1",
         name: "倍率",
         value: 2
       }
     ]);
-    expect(useCadDocumentStore.getState().printLayout.scale).toEqual({
+    expect(activeLayout().scale).toEqual({
       kind: "expression",
       expression: "@print-variable-1"
     });
@@ -347,11 +326,7 @@ describe("PrintLayoutPanel", () => {
       printLayouts: [{
         ...DEFAULT_PRINT_LAYOUT,
         numericVariables: [{ id: "print-variable-1", name: "倍率", value: 2 }]
-      }],
-      printLayout: {
-        ...DEFAULT_PRINT_LAYOUT,
-        numericVariables: [{ id: "print-variable-1", name: "倍率", value: 2 }]
-      }
+      }]
     });
     renderPanel();
     const variableSection = screen.getByRole("heading", { name: "印刷変数" }).closest("section");
@@ -360,7 +335,7 @@ describe("PrintLayoutPanel", () => {
     fireEvent.click(within(variableSection!).getByRole("button", { name: /印刷変数/ }));
     fireEvent.click(within(variableSection!).getByRole("button", { name: "削除" }));
 
-    expect(useCadDocumentStore.getState().printLayout.numericVariables).toEqual([]);
+    expect(activeLayout().numericVariables).toEqual([]);
     expect(within(variableSection!).getByText("印刷変数はありません。")).toBeInTheDocument();
   });
 
@@ -369,23 +344,19 @@ describe("PrintLayoutPanel", () => {
       printLayouts: [{
         ...DEFAULT_PRINT_LAYOUT,
         scale: 2
-      }],
-      printLayout: {
-        ...DEFAULT_PRINT_LAYOUT,
-        scale: 2
-      }
+      }]
     });
     renderPanel();
     const scaleInput = screen.getByLabelText("拡大率");
 
     fireEvent.change(scaleInput, { target: { value: "" } });
 
-    expect(useCadDocumentStore.getState().printLayout.scale).toBe(2);
+    expect(activeLayout().scale).toBe(2);
     expect(scaleInput).toHaveValue("");
 
     fireEvent.keyDown(scaleInput, { key: "Enter" });
 
-    expect(useCadDocumentStore.getState().printLayout.scale).toBe(1);
+    expect(activeLayout().scale).toBe(1);
     expect(scaleInput).toHaveValue("1");
   });
 });
@@ -435,7 +406,6 @@ describe("PrintLayoutPanel element-parameter completion", () => {
       palette: defaultDocumentPalette(),
       printLayouts: [DEFAULT_PRINT_LAYOUT],
       activePrintLayoutId: DEFAULT_PRINT_LAYOUT.id,
-      printLayout: DEFAULT_PRINT_LAYOUT,
       evaluationLimitIndex: lineElements.length,
       past: [],
       future: [],

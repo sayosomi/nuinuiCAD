@@ -11,6 +11,7 @@ import {
 import { adjustEvaluationLimitForInsertion } from "../model/evaluationDivider";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
+import { commitDocumentChangeAndSelect } from "../commands/commitDocumentChangeAndSelect";
 import type { ElementId, NumericValue, PointAnchor } from "../types/geometry";
 import { instantiateGroupTemplate, type GroupTemplate } from "./groupTemplate";
 import {
@@ -278,15 +279,15 @@ export const confirmTemplateInsertion = () => {
       parentGroupId: insertion.parentGroupId,
       conditionalBranch: insertion.conditionalBranch
     });
-    useCadDocumentStore.getState().commitDocumentChange({
-      ...change,
+    commitDocumentChangeAndSelect({
+      elements: change.elements,
       evaluationLimitIndex: adjustEvaluationLimitForInsertion({
         elements,
         evaluationLimitIndex,
         insertionIndex: change.insertionIndex,
         insertedCount: change.insertedCount
       })
-    });
+    }, change);
     cancelTemplateInsertion();
   } catch (error) {
     setActiveTemplateInsertion({

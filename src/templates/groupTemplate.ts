@@ -57,6 +57,9 @@ export type TemplateInstantiationInputValues = Record<
 
 export type TemplateInstantiationChange = {
   elements: CadElement[];
+};
+
+export type TemplateInstantiationResult = TemplateInstantiationChange & {
   selectedElementId: ElementId | null;
   selectedElementIds: ElementId[];
   selectionAnchorElementId: ElementId | null;
@@ -248,7 +251,7 @@ export const instantiateGroupTemplate = ({
   insertionIndex?: number;
   parentGroupId?: ElementId;
   conditionalBranch?: ConditionalBranch;
-}): TemplateInstantiationChange => {
+}): TemplateInstantiationResult => {
   const targetIndex = Math.min(Math.max(insertionIndex ?? elements.length, 0), elements.length);
   const idMap = new Map<ElementId, ElementId>();
   const pointInputReplacements = new Map<ElementId, PointAnchor>();

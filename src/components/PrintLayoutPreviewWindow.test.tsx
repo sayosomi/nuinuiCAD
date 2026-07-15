@@ -90,7 +90,6 @@ const renderPreview = (layout: PrintLayout) => {
     elements,
     printLayouts: [layout],
     activePrintLayoutId: layout.id,
-    printLayout: layout,
     evaluationLimitIndex: elements.length,
     past: [],
     future: [],
