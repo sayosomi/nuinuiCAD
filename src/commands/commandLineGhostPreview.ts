@@ -18,11 +18,25 @@ const isReferenceStep = (kind: CommandLineSession["recipe"]["steps"][number]["ki
   kind === "point" || kind === "endpoint" || kind === "line" || kind === "lineList";
 
 /**
- * Produces a render-only insertion candidate when its explicitly supplied
- * session inputs are sufficient. This intentionally does not promote unnamed
+ * Why the ghost could not (or could) be produced. "not-evaluated" is the
+ * deliberate non-error case: the insertion position itself is outside the
+ * evaluator's reach (after `@stop`, inside a disabled group or an inactive
+ * conditional branch), so no preview exists AND no verdict about the value can
+ * be derived from evaluation. Step-edit confirmation treats only "invalid" and
+ * "missing-input" as rejections.
+ */
+export type CommandLineGhostPreviewStatus =
+  | { kind: "preview"; elements: CadElement[]; evaluationLimitIndex: number }
+  | { kind: "missing-input" }
+  | { kind: "invalid" }
+  | { kind: "not-evaluated" };
+
+/**
+ * Classifies the render-only insertion candidate built from the explicitly
+ * supplied session inputs. This intentionally does not promote unnamed
  * references: promotion belongs exclusively to the final 4e commit path.
  */
-export const commandLineGhostPreview = ({
+export const commandLineGhostPreviewStatus = ({
   session,
   elements,
   evaluationLimitIndex,
@@ -32,7 +46,7 @@ export const commandLineGhostPreview = ({
   elements: CadElement[];
   evaluationLimitIndex: number;
   groupFoldById: GroupFoldById;
-}) => {
+}): CommandLineGhostPreviewStatus => {
   const placement = creationPlacementForEvaluationLimit(
     elements,
     session.insertionIndex,
@@ -57,7 +71,7 @@ export const commandLineGhostPreview = ({
     // it is optional; absent/unknown definitions are deliberately required.
     return findParameterDefinition(emitted, step.key)?.allowNone !== true;
   });
-  if (hasMissingRequiredInput) return null;
+  if (hasMissingRequiredInput) return { kind: "missing-input" };
 
   const previewElements = [
     ...elements.slice(0, session.insertionIndex),
@@ -73,30 +87,58 @@ export const commandLineGhostPreview = ({
   const evaluation = evaluateElements(previewElements, {
     evaluationLimitIndex: previewEvaluationLimitIndex
   });
+  // Errors take precedence: a broken element may be both erroring and missing
+  // from evaluatedElementIds, and that must never read as "outside evaluation".
+  if (evaluation.errors.some((error) => error.elementId === emitted.id)) {
+    return { kind: "invalid" };
+  }
+  // evaluatedElementIds tracks the @stop/limit boundary only; a member of a
+  // disabled group or an inactive conditional branch stays inside that boundary
+  // but is excluded from effectiveEnabledElementIds and computes no geometry —
+  // both are "the evaluator cannot see this position", not a value verdict.
   if (
     !evaluation.evaluatedElementIds?.has(emitted.id) ||
-    evaluation.errors.some((error) => error.elementId === emitted.id)
+    !evaluation.effectiveEnabledElementIds?.has(emitted.id)
   ) {
-    return null;
+    return { kind: "not-evaluated" };
   }
 
-  return { elements: previewElements, evaluationLimitIndex: previewEvaluationLimitIndex };
+  return { kind: "preview", elements: previewElements, evaluationLimitIndex: previewEvaluationLimitIndex };
+};
+
+/** Preview payload when one is producible, otherwise null (rendering-side view of the status). */
+export const commandLineGhostPreview = (
+  input: Parameters<typeof commandLineGhostPreviewStatus>[0]
+) => {
+  const status = commandLineGhostPreviewStatus(input);
+  return status.kind === "preview"
+    ? { elements: status.elements, evaluationLimitIndex: status.evaluationLimitIndex }
+    : null;
 };
 
 /** Refreshes or clears the single established document-preview channel. */
-export const syncCommandLineGhostPreview = (session: CommandLineSession) => {
+export const syncCommandLineGhostPreview = (
+  session: CommandLineSession
+): CommandLineGhostPreviewStatus["kind"] => {
   const document = useCadDocumentStore.getState();
-  const preview = commandLineGhostPreview({
+  const status = commandLineGhostPreviewStatus({
     session,
     elements: document.elements,
     evaluationLimitIndex: document.evaluationLimitIndex,
     groupFoldById: useCadUiStore.getState().groupFoldById
   });
-  if (!preview) {
+  if (status.kind !== "preview") {
     document.clearPreviewDocumentChange();
-    return false;
+    return status.kind;
   }
-  return document.previewDocumentChange(preview).status === "applied";
+  const previewed = document.previewDocumentChange({
+    elements: status.elements,
+    evaluationLimitIndex: status.evaluationLimitIndex
+  }).status === "applied";
+  // A guarded preview channel (e.g. composition) is not a value problem, but it
+  // also is not a confirmed preview; report it as invalid so edit confirmation
+  // stays conservative.
+  return previewed ? "preview" : "invalid";
 };
 
 export const clearCommandLineGhostPreview = () =>

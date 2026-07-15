@@ -3,7 +3,8 @@ import { compileDslDocument } from "../dsl/dslDocument";
 import { referenceAnchor } from "../model/pointAnchors";
 import { creationRecipeForType } from "./creationRecipes";
 import {
-  commandLineGhostPreview
+  commandLineGhostPreview,
+  commandLineGhostPreviewStatus
 } from "./commandLineGhostPreview";
 import { fillCurrentStep, skipCurrentStep, startSession } from "./commandLineSession";
 
@@ -85,5 +86,32 @@ describe("command-line ghost preview", () => {
       evaluationLimitIndex: document.evaluationLimitIndex,
       groupFoldById: new Map()
     })).toBeNull();
+    // Step-edit confirmation depends on this distinction: an out-of-evaluation
+    // position is "not-evaluated", never "invalid".
+    expect(commandLineGhostPreviewStatus({
+      session,
+      elements: document.elements,
+      evaluationLimitIndex: document.evaluationLimitIndex,
+      groupFoldById: new Map()
+    })).toEqual({ kind: "not-evaluated" });
+  });
+
+  it("classifies a broken reference as invalid, not as an unevaluated position", () => {
+    const document = compiled(["nui 1", "point A = (0, 0)"].join("\n"));
+    const recipe = creationRecipeForType("line")!;
+    let session = startSession(recipe, {
+      insertionIndex: document.elements.length,
+      revision: 1,
+      elements: document.elements
+    });
+    session = fillCurrentStep(session, referenceAnchor(document.elements[0].id));
+    session = fillCurrentStep(session, referenceAnchor("missing-point" as never));
+
+    expect(commandLineGhostPreviewStatus({
+      session,
+      elements: document.elements,
+      evaluationLimitIndex: document.evaluationLimitIndex,
+      groupFoldById: new Map()
+    })).toEqual({ kind: "invalid" });
   });
 });

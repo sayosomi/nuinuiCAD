@@ -4,7 +4,8 @@ import { registerSourceEditSession } from "../editor/sourceEditSession";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import { referenceAnchor } from "../model/pointAnchors";
-import { applyPickedPoint } from "./pickCommands";
+import { applyPickedPoint, cancelPointPick } from "./pickCommands";
+import { selectElement } from "./selectionCommands";
 import {
   cancelCommandLineStepEdit,
   cancelCommandLineSession,
@@ -248,11 +249,17 @@ describe("command-line session commands", () => {
     applyPickedPoint({ pickedPointAnchor: referenceAnchor(unnamed.id) });
     applyPickedPoint({ pickedPointAnchor: referenceAnchor(pointB.id) });
     expect(skipCommandLineStep()).toBe(true);
+    // initialCadDocumentState() resets state fields only, never store actions,
+    // so the stub must be restored here or it leaks into every later test.
+    const originalCommitDocumentChange = useCadDocumentStore.getState().commitDocumentChange;
     useCadDocumentStore.setState({
       commitDocumentChange: () => ({ status: "rejected", reason: "invalid-change" })
     });
-
-    expect(confirmCommandLineSession()).toBe(false);
+    try {
+      expect(confirmCommandLineSession()).toBe(false);
+    } finally {
+      useCadDocumentStore.setState({ commitDocumentChange: originalCommitDocumentChange });
+    }
     expect(useCadDocumentStore.getState().sourceText).toBe(source);
     expect(useCadDocumentStore.getState().elements.find((element) => element.id === unnamed.id)?.name).toBe("");
   });
@@ -337,6 +344,117 @@ describe("command-line session commands", () => {
     expect(useCadUiStore.getState().activePointPickTarget).toBeNull();
     expect(useCadDocumentStore.getState().previewElements).toBeNull();
     expect(useCadDocumentStore.getState().previewEvaluationLimitIndex).toBeNull();
+  });
+
+  it("confirms a step edit at a post-@stop insertion position where no ghost can exist", () => {
+    useCadDocumentStore.getState().commitText(
+      ["nui 1", "point A = (0, 0)", "@stop", "point B = (10, 10)", "point C = (20, 20)"].join("\n"),
+      "test"
+    );
+    const cursorElementId = useCadDocumentStore.getState().elements.find((element) => element.name === "C")!.id;
+    expect(startCommandLineCreation("freePoint", { currentCursorElementId: () => cursorElementId })).toBe(true);
+    submitCommandLineInput("1");
+    submitCommandLineInput("2");
+    submitCommandLineInput("");
+    // The insertion position is outside the evaluator's reach, so no ghost exists.
+    expect(useCadDocumentStore.getState().previewElements).toBeNull();
+
+    expect(startCommandLineStepEdit(0)).toBe(true);
+    expect(submitCommandLineInput("5")).toBe(true);
+    expect(useCadUiStore.getState().commandLineSession).toMatchObject({
+      editingStepIndex: null,
+      error: null,
+      args: { x: 5 }
+    });
+
+    const pastBefore = useCadDocumentStore.getState().past.length;
+    expect(confirmCommandLineSession()).toBe(true);
+    expect(useCadDocumentStore.getState().past.length).toBe(pastBefore + 1);
+    expect(useCadDocumentStore.getState().sourceText).toContain("(5, 2)");
+  });
+
+  it("confirms a step edit inside a disabled group where no ghost can exist", () => {
+    useCadDocumentStore.getState().commitText(
+      ["nui 1", "group G enabled=false {", "point A = (0, 0)", "}"].join("\n"),
+      "test"
+    );
+    const group = useCadDocumentStore.getState().elements.find((element) => element.type === "group")!;
+    const cursorElementId = useCadDocumentStore.getState().elements.find((element) => element.name === "A")!.id;
+    // Collapsed groups place new elements at the top level; expand G so the
+    // insertion really lands inside the disabled group.
+    useCadUiStore.getState().setGroupFold(group.id, { expanded: true });
+    expect(startCommandLineCreation("freePoint", { currentCursorElementId: () => cursorElementId })).toBe(true);
+    submitCommandLineInput("1");
+    submitCommandLineInput("2");
+    submitCommandLineInput("");
+    expect(useCadDocumentStore.getState().previewElements).toBeNull();
+
+    expect(startCommandLineStepEdit(1)).toBe(true);
+    expect(submitCommandLineInput("7")).toBe(true);
+    expect(useCadUiStore.getState().commandLineSession).toMatchObject({
+      editingStepIndex: null,
+      error: null,
+      args: { x: 1, y: 7 }
+    });
+  });
+
+  it("still rejects an unparseable edit draft at a position without a ghost", () => {
+    useCadDocumentStore.getState().commitText(
+      ["nui 1", "point A = (0, 0)", "@stop", "point B = (10, 10)", "point C = (20, 20)"].join("\n"),
+      "test"
+    );
+    const cursorElementId = useCadDocumentStore.getState().elements.find((element) => element.name === "C")!.id;
+    expect(startCommandLineCreation("freePoint", { currentCursorElementId: () => cursorElementId })).toBe(true);
+    submitCommandLineInput("1");
+    submitCommandLineInput("2");
+    submitCommandLineInput("");
+    expect(startCommandLineStepEdit(0)).toBe(true);
+
+    expect(submitCommandLineInput("(")).toBe(false);
+
+    expect(useCadUiStore.getState().commandLineSession).toMatchObject({
+      editingStepIndex: 0,
+      editingDraft: { kind: "expression", expression: "(" },
+      args: { x: 1, y: 2 }
+    });
+    expect(useCadUiStore.getState().commandLineSession?.error).toContain("プレビュー");
+  });
+
+  it("keeps measurement-insert progress through selection changes and session cancel, resetting only on session start", () => {
+    useCadDocumentStore.getState().commitText(
+      ["nui 1", "point A = (0, 0)", "point B = (10, 0)"].join("\n"),
+      "test"
+    );
+    const elements = useCadDocumentStore.getState().elements;
+    const measurementTarget = {
+      elementId: elements[0].id,
+      parameterKey: "x" as never,
+      mode: "distance" as const,
+      point1Anchor: referenceAnchor(elements[0].id),
+      point2Anchor: null,
+      lineId: null,
+      displayedExpression: "0",
+      selectionStart: null,
+      selectionEnd: null
+    };
+    useCadUiStore.setState({ activeMeasurementInsertTarget: measurementTarget });
+
+    // Selection changes route through clearTransientSelectionUi → clearPickMode.
+    selectElement(elements[1].id);
+    expect(useCadUiStore.getState().activeMeasurementInsertTarget).toEqual(measurementTarget);
+
+    // Plain pick-mode cancellation never touched the measurement either.
+    cancelPointPick();
+    expect(useCadUiStore.getState().activeMeasurementInsertTarget).toEqual(measurementTarget);
+
+    // Starting a creation session is the one deliberate full replacement.
+    expect(startCommandLineCreation("freePoint")).toBe(true);
+    expect(useCadUiStore.getState().activeMeasurementInsertTarget).toBeNull();
+
+    // Cancelling the session (clearPickMode path) leaves a measurement alone.
+    useCadUiStore.setState({ activeMeasurementInsertTarget: measurementTarget });
+    expect(cancelCommandLineSession()).toBe(true);
+    expect(useCadUiStore.getState().activeMeasurementInsertTarget).toEqual(measurementTarget);
   });
 
   it("does not commit when confirmation flush is blocked by composition", () => {

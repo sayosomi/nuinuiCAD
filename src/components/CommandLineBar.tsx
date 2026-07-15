@@ -209,6 +209,20 @@ export const CommandLineBar = ({ commandContext, evaluation }: CommandLineBarPro
   const canSkip = step?.kind === "name" || (step?.kind === "number" && step.default !== undefined);
   const stepLabel = commandLineStepLabel(step);
   const inputHelp = commandLineStepHelp(step);
+  // Mirrors submitReferenceInput's empty-Enter selection adoption exactly: only
+  // when no typed query and no pick cursor take precedence, and only when the
+  // selected element is in the shared candidate set (never adopted otherwise).
+  const selectedAdoptionName = (() => {
+    if (!isCommandLineReferenceStep(step?.kind) || isCommandLineInputComposing()) return null;
+    if (inputValue.trim() || activePickCursor) return null;
+    const selected = candidates.find((candidate) => candidate.elementId === selectedElementId);
+    if (!selected) return null;
+    const element = elements.find((item) => item.id === selected.elementId);
+    if (!element) return null;
+    const qualifiedName = elementQualifiedName(element, elements);
+    const option = selected.options[0];
+    return selected.options.length === 1 || !option ? qualifiedName : `${qualifiedName} ${option.label}`;
+  })();
   const placeholder = step?.kind === "name"
     ? session.nameSuggestion
     : step?.kind === "number" && step.default !== undefined
@@ -327,6 +341,9 @@ export const CommandLineBar = ({ commandContext, evaluation }: CommandLineBarPro
             <label htmlFor="command-line-input">{isEditing ? "編集中" : "入力中"}：{stepLabel}</label>
             {isEditing && editingStep ? <span className="command-line-bar-current-value">現在値：{editingStep.value}</span> : null}
             <span id="command-line-input-help" className="command-line-bar-help">{inputHelp}</span>
+            {selectedAdoptionName ? (
+              <span className="command-line-bar-adopt">Enterで選択中を採用：{selectedAdoptionName}</span>
+            ) : null}
             <div className="command-line-bar-entry-row">
               <div className="command-line-bar-input-wrap">
                 <input

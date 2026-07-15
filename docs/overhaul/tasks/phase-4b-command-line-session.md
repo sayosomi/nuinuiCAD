@@ -53,6 +53,14 @@
 * `cadUiStore` に `commandLineSession: CommandLineSession | null` と
   setter(既存pick target群と同じ流儀)を追加。`clearPickMode` 相当の一括
   クリア(既存の全pickクリア処理)にセッションも含める。
+* **`activeMeasurementInsertTarget` の扱い(2026-07-15確定)**: セッション
+  開始setter(`startCommandLineSession`)は計測挿入の途中状態も含めて全
+  transient状態を破棄して置換する(再入=完全な新規開始)。一方、共有の
+  `clearPickMode` は計測挿入状態に**触れない**。`clearPickMode` は選択変更
+  (`clearTransientSelectionUi`)やcommit拒否経路からも呼ばれ、これらは
+  進行中の計測を放棄する意図を持たないため(Phase 4d の「既存経路の挙動を
+  変えない」不変条件)。回帰テスト: `cadUiStore.test.ts` /
+  `commandLineSessionCommands.test.ts` の計測維持テスト。
 * セッションは `CreationRecipe` と `CreationArgs` のみを保持し、
   `CreationEmitContext`・要素生成は保持しない。文書文脈は確定/プレビュー時の
   呼び出し側(4c/4f)が渡す。

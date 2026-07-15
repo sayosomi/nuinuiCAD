@@ -3737,6 +3737,13 @@ textarea {
   font-size: 12px;
 }
 
+.command-line-bar-adopt {
+  margin: 0;
+  color: #ffe9a8;
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .command-line-bar-input-wrap {
   position: relative;
   min-width: 150px;

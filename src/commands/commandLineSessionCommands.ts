@@ -1,4 +1,5 @@
 import { makeNumericExpression } from "../geometry/numericExpressions";
+import { numericExpressionSyntaxIsValid } from "../geometry/numericExpressionParser";
 import {
   applyCreationPlacement,
   creationPlacementForEvaluationLimit
@@ -195,15 +196,37 @@ const updateSession = (updater: (session: CommandLineSession) => CommandLineSess
 };
 
 /**
+ * Tier-A shape check for an edit draft at a position the evaluator cannot
+ * reach: typed numbers must at least parse as expressions. Reference drafts
+ * only ever arrive through the shared pick acceptance paths (already validated
+ * against the candidate set) and name drafts are free-form, so both pass.
+ */
+const editingDraftIsParseable = (draftSession: CommandLineSession) => {
+  const step = currentStep(draftSession);
+  if (step?.kind !== "number") return true;
+  const draft = draftSession.editingDraft;
+  if (typeof draft === "number") return Number.isFinite(draft);
+  if (draft === null || typeof draft === "string" || Array.isArray(draft)) return false;
+  return "kind" in draft && draft.kind === "expression" && numericExpressionSyntaxIsValid(draft.expression);
+};
+
+/**
  * Validates an edit draft through the same ghost path as normal creation
- * before copying it into confirmed args. A rejected draft remains isolated in
- * the session so the user can correct it or abandon the edit safely.
+ * before copying it into confirmed args. "not-evaluated" (insertion after
+ * `@stop`, inside a disabled group, or an inactive conditional branch) is not
+ * a rejection: no preview exists there by design, exactly as during initial
+ * fill, so the edit only needs the Tier-A shape check. A rejected draft
+ * remains isolated in the session so the user can correct it or abandon the
+ * edit safely.
  */
 const confirmEditingDraft = (draftSession: CommandLineSession) => {
   const ui = useCadUiStore.getState();
   ui.setCommandLineSession(draftSession);
   syncCommandLinePickTarget(draftSession);
-  if (!syncCommandLineGhostPreview(draftSession)) {
+  const status = syncCommandLineGhostPreview(draftSession);
+  const accepted = status === "preview" ||
+    (status === "not-evaluated" && editingDraftIsParseable(draftSession));
+  if (!accepted) {
     ui.setCommandLineSession(withCommandLineSessionError(draftSession, editValidationError));
     return false;
   }

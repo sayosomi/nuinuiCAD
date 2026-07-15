@@ -20,8 +20,10 @@ import type { SerializeDslOptions } from "./dslTypes";
 import { formatDslName, quoteDslString, splitDslTerms } from "./dslTokens";
 
 // 要素→DSL文の変換は、参照の書き方(生ID or 解決可能な名前トークン)を
-// DslSerializerRefs として注入する。serializeElementsToDsl(DslPanelの
-// フラットな書き出し形式)は従来どおり生ID参照で、バイト互換を維持する。
+// DslSerializerRefs として注入する。正準経路(dslDocument.ts の文書グラマーと
+// textPatch.ts の行パッチ)は名前トークン解決の documentDslRefs を使う。
+// serializeElementsToDsl は生ID参照のフラット書き出しで、現在は決定的な
+// 出力が欲しいテストフィクスチャ・ゴールデン比較専用。
 export type DslSerializerRefs = {
   token: (id: ElementId, source: CadElement) => string;
   anchor: (value: PointAnchor | null | undefined, source: CadElement) => string;

@@ -142,4 +142,31 @@ describe("cadUiStore group fold state", () => {
 
     expect(useCadUiStore.getState().commandLineSession).toBeNull();
   });
+
+  it("keeps an in-progress measurement insert through clearPickMode", () => {
+    const measurementTarget = {
+      elementId: "measurement" as never,
+      parameterKey: "offset" as never,
+      mode: "distance" as const,
+      point1Anchor: { mode: "reference" as const, pointId: "point-a" as never },
+      point2Anchor: null,
+      lineId: null,
+      displayedExpression: "1 + 2",
+      selectionStart: 0,
+      selectionEnd: 5
+    };
+    useCadUiStore.setState({
+      activeMeasurementInsertTarget: measurementTarget,
+      activePointPickTarget: { elementId: "measurement" as never, parameterKey: "offset" as never },
+      activePickCursor: { elementId: "point-a" as never, optionIndex: 0 }
+    });
+
+    // Selection changes (clearTransientSelectionUi) and rejected commits reach
+    // clearPickMode without meaning to abandon the measurement in progress.
+    useCadUiStore.getState().clearPickMode();
+
+    expect(useCadUiStore.getState().activeMeasurementInsertTarget).toEqual(measurementTarget);
+    expect(useCadUiStore.getState().activePointPickTarget).toBeNull();
+    expect(useCadUiStore.getState().activePickCursor).toBeNull();
+  });
 });

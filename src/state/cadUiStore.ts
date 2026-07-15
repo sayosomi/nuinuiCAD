@@ -453,13 +453,17 @@ export const useCadUiStore = create<CadUiState>((set, get) => ({
     });
   },
   setActivePickCursor: (activePickCursor) => set({ activePickCursor }),
+  // activeMeasurementInsertTarget is deliberately NOT cleared here: it is the
+  // Source Editor's accumulated measurement-insert state, and selection changes
+  // (clearTransientSelectionUi) and rejected commits route through this without
+  // meaning to abandon a measurement in progress. Only an explicit creation-
+  // session replacement (startCommandLineSession above) resets it.
   clearPickMode: () => {
     if (get().commandLineSession) useCadDocumentStore.getState().clearPreviewDocumentChange();
     set({
       activePointPickTarget: null,
       activeNumericReferencePickTarget: null,
       activeLinePickTarget: null,
-      activeMeasurementInsertTarget: null,
       activeTemplateInsertion: null,
       activePickCursor: null,
       commandLineSession: null

@@ -322,3 +322,19 @@ export class Parser {
     return token;
   }
 }
+
+/**
+ * Syntax-only validity check: does the expression tokenize and parse without
+ * needing any real computed value? The stub callbacks always return 0 and are
+ * never used to produce a real value, so this never requires evaluation,
+ * computedGeometry, or computedVariables — it only proves operator/paren/token
+ * structure, independent of whether references resolve.
+ */
+export const numericExpressionSyntaxIsValid = (expression: string): boolean => {
+  try {
+    new Parser(tokenize(expression), () => 0, () => 0, () => 0).parse();
+    return true;
+  } catch {
+    return false;
+  }
+};

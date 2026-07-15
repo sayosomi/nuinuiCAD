@@ -105,6 +105,39 @@ describe("CommandLineBar", () => {
     expect(useCadUiStore.getState().commandLineSession?.args.endPoint).toEqual({ mode: "reference", pointId: pointA.id });
   });
 
+  it("shows the adoptable selected candidate's name only while empty Enter would adopt it", () => {
+    useCadDocumentStore.getState().commitText([
+      "nui 1",
+      "point A = (0, 0)",
+      "point B = (100, 0)",
+      "@stop",
+      "point C = (200, 0)"
+    ].join("\n"), "test");
+    render(<CommandLineBar />);
+    const pointB = useCadDocumentStore.getState().elements.find((item) => item.name === "B")!;
+    const pointC = useCadDocumentStore.getState().elements.find((item) => item.name === "C")!;
+    useCadUiStore.getState().setSelectedElementId(pointB.id);
+
+    act(() => { startCommandLineCreation("line"); });
+    expect(screen.getByText("Enterで選択中を採用：B")).toBeInTheDocument();
+
+    // A typed query takes precedence over selection adoption, so the hint goes away.
+    const input = screen.getByRole<HTMLInputElement>("textbox");
+    fireEvent.change(input, { target: { value: "A" } });
+    expect(screen.queryByText(/Enterで選択中を採用/)).not.toBeInTheDocument();
+    fireEvent.change(input, { target: { value: "" } });
+    expect(screen.getByText("Enterで選択中を採用：B")).toBeInTheDocument();
+
+    // An active pick cursor adopts the cursor candidate instead of the selection.
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    expect(screen.queryByText(/Enterで選択中を採用/)).not.toBeInTheDocument();
+    act(() => { useCadUiStore.getState().setActivePickCursor(null); });
+
+    // Outside the shared candidate set (unevaluated, past @stop) nothing is offered.
+    act(() => { useCadUiStore.getState().setSelectedElementId(pointC.id); });
+    expect(screen.queryByText(/Enterで選択中を採用/)).not.toBeInTheDocument();
+  });
+
   it("keeps a planned group's first child in the shared name candidates and pick cursor", () => {
     useCadDocumentStore.setState({
       elements: [

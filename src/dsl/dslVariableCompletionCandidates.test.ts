@@ -79,9 +79,10 @@ describe("dslVariableCompletionOptions", () => {
     expect(insideLabels).toContain("@Inner");
   });
 
-  it("falls back to @id insertion text when two compiled candidates share a name", () => {
+  it("uses the persisted explicit id= token when two same-scope candidates share a name", () => {
     // Distinct explicit ids avoid the parser's same-scope duplicate-bare-name diagnostic
-    // (reportDuplicateNames), which would otherwise fail compilation entirely.
+    // (reportDuplicateNames), which would otherwise fail compilation entirely. The id=
+    // attribute lives in the text itself, so @width-a stays resolvable after reload.
     const duplicateSource = [
       "nui 1",
       "var Width = 10 id=width-a",
@@ -90,9 +91,53 @@ describe("dslVariableCompletionOptions", () => {
     ].join("\n");
     const { elements, ids } = identities(duplicateSource);
     const options = dslVariableCompletionOptions({ source: duplicateSource, cursorLine: 4, statementElementIds: ids, elements });
-    expect(options).toHaveLength(2);
-    expect(options.every((option) => option.displayExpression === "@Width")).toBe(true);
-    expect(options.every((option) => option.expression.startsWith("@") && option.expression !== "@Width")).toBe(true);
+    expect(options.map((option) => option.expression).sort()).toEqual(["@width-a", "@width-b"]);
+    // The label shows the distinguishing token so the two entries are tellable apart.
+    expect(options.map((option) => option.label).sort()).toEqual(["@width-a", "@width-b"]);
+  });
+
+  it("qualifies a duplicated name by its live namespace instead of a runtime element id", () => {
+    const source = [
+      "nui 1",
+      "var Width = 10",
+      "group G {",
+      "var Width = 20",
+      "point P = (0, 0)",
+      "}"
+    ].join("\n");
+    const { elements, ids } = identities(source);
+    const options = dslVariableCompletionOptions({ source, cursorLine: 5, statementElementIds: ids, elements });
+
+    // G's own Width has the unique qualified token; the top-level twin has no
+    // persistable unique token from this position, so it is suppressed rather
+    // than guessed at (the layoutVar completion's established policy).
+    expect(options.map((option) => option.expression)).toEqual(["@G::Width"]);
+    // No candidate ever carries a session-scoped runtime id.
+    const runtimeIds = new Set(elements.map((element) => `@${element.id}`));
+    expect(options.every((option) => !runtimeIds.has(option.expression))).toBe(true);
+  });
+
+  it("keeps a qualified duplicate reference resolvable across an id-regenerating reload", () => {
+    // Simulates 保存→再読込: each compileDslDocument call assigns fresh runtime
+    // ids, so the inserted @G::Width text must re-resolve by name alone.
+    const insertedSource = [
+      "nui 1",
+      "var Width = 10",
+      "group G {",
+      "var Width = 20",
+      "point P = (@G::Width, 0)",
+      "}"
+    ].join("\n");
+    for (let reload = 0; reload < 2; reload += 1) {
+      const compiled = compileDslDocument(insertedSource);
+      expect(compiled.document).not.toBeNull();
+      const groupWidth = compiled.document!.elements.find(
+        (element) => element.type === "variable" && element.name === "Width" && element.parentGroupId
+      )!;
+      const point = compiled.document!.elements.find((element) => element.name === "P")!;
+      const x = (point as { x: { kind: string; expression: string } }).x;
+      expect(x).toMatchObject({ kind: "expression", expression: `@${groupWidth.id}` });
+    }
   });
 
   it("Tier A: offers a brand-new, never-compiled var statement even without a matching computedVariables entry", () => {
