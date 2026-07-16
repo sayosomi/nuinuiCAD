@@ -395,6 +395,34 @@ describe("CommandLineBar", () => {
     expect(input).toHaveFocus();
   });
 
+  it("keeps reference Tab handling inside the reference input while still blocking empty matches there", () => {
+    useCadDocumentStore.getState().commitText(["nui 1", "point A = (0, 0)"].join("\n"), "test");
+    render(<CommandLineBar />);
+    act(() => { startCommandLineCreation("line"); });
+    const input = screen.getByRole<HTMLInputElement>("textbox");
+    const session = useCadUiStore.getState().commandLineSession!;
+    act(() => {
+      useCadUiStore.setState({
+        commandLineSession: {
+          ...session,
+          currentStepIndex: 1,
+          args: { startPoint: { mode: "reference", pointId: useCadDocumentStore.getState().elements[0].id } }
+        }
+      });
+    });
+
+    for (const button of [
+      screen.getByRole("button", { name: "始点を編集" }),
+      screen.getByRole("button", { name: "戻る" }),
+      screen.getByRole("button", { name: "キャンセル（Esc）" })
+    ]) {
+      expect(fireEvent.keyDown(button, { key: "Tab" })).toBe(true);
+    }
+
+    fireEvent.change(input, { target: { value: "存在しない候補" } });
+    expect(fireEvent.keyDown(input, { key: "Tab" })).toBe(false);
+  });
+
   it("does not treat IME Enter, Tab, arrows, Escape, or Mod+Enter as assistant operations", () => {
     useCadDocumentStore.getState().commitText(["nui 1", "point A = (0, 0)"].join("\n"), "test");
     render(<CommandLineBar />);

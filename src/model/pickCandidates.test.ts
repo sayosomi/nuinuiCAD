@@ -10,6 +10,8 @@ import type {
 import { pickCandidates } from "./pickCandidates";
 import { startSession } from "../commands/commandLineSession";
 import { creationRecipeForType } from "../commands/creationRecipes";
+import { evaluateElements } from "../geometry/evaluate";
+import { makeNumericExpression } from "../geometry/numericExpressions";
 
 const point = (id: string, x: number, y: number): ComputedPoint => ({
   kind: "point",
@@ -133,6 +135,86 @@ const virtualCommandLineSession = (type: "line" | "lineDivisionPoint", insertion
   });
 
 describe("pickCandidates", () => {
+  it("returns same-forGroup generated point, endpoint, and line instances in explicit iteration order", () => {
+    const generatedElements: CadElement[] = [
+      {
+        id: "loop", name: "Loop", type: "forGroup", visible: true, enabled: true,
+        variableName: "i", start: 0, count: 3, step: 1, showGenerated: true
+      },
+      {
+        id: "loop-point", name: "Loop point", type: "freePoint", visible: true, enabled: true,
+        parentGroupId: "loop", x: makeNumericExpression("@i * 20"), y: 0
+      },
+      {
+        id: "loop-line", name: "Loop line", type: "line", visible: true, enabled: true,
+        parentGroupId: "loop", startPoint: { mode: "reference", pointId: "loop-point" },
+        endPoint: { mode: "coordinate", x: makeNumericExpression("@i * 20"), y: 10 }
+      },
+      {
+        id: "other-loop", name: "Other", type: "forGroup", visible: true, enabled: true,
+        variableName: "j", start: 0, count: 3, step: 1, showGenerated: true
+      },
+      {
+        id: "other-point", name: "Other point", type: "freePoint", visible: true, enabled: true,
+        parentGroupId: "other-loop", x: 0, y: 0
+      },
+      {
+        id: "endpoint-target", name: "Endpoint target", type: "lineDivisionPoint", visible: true, enabled: true,
+        parentGroupId: "loop", endpoint: { lineId: "loop-line", endpointKey: "start" },
+        placementMode: "ratio", distance: 0, ratio: 0.5
+      },
+      {
+        id: "point-target", name: "Point target", type: "offsetPoint", visible: true, enabled: true,
+        parentGroupId: "loop", fromPoint: { mode: "reference", pointId: "loop-point" }, dx: 5, dy: 0
+      },
+      {
+        id: "line-target", name: "Line target", type: "offsetLine", visible: true, enabled: true,
+        parentGroupId: "loop", baseLineIds: [], offset: 2, side: "right", closed: false
+      },
+      {
+        id: "later", name: "Later", type: "freePoint", visible: true, enabled: true,
+        parentGroupId: "loop", x: 0, y: 0
+      }
+    ];
+    const generatedEvaluation = evaluateElements(generatedElements);
+    const reversedGeometryEvaluation = {
+      ...generatedEvaluation,
+      computedGeometry: new Map([...generatedEvaluation.computedGeometry].reverse())
+    };
+
+    const pointIds = pickCandidates(generatedElements, reversedGeometryEvaluation, {
+      activePointPickTarget: { elementId: "point-target", parameterKey: "fromPoint" },
+      activeLinePickTarget: null,
+      activeNumericReferencePickTarget: null
+    }).filter((candidate) => candidate.referenceElementId === "loop-point");
+    expect(pointIds.map((candidate) => candidate.elementId)).toEqual([
+      "loop-point@loop:0", "loop-point@loop:1", "loop-point@loop:2"
+    ]);
+
+    const endpointCandidates = pickCandidates(generatedElements, generatedEvaluation, {
+      activePointPickTarget: { elementId: "endpoint-target", parameterKey: "endpoint" },
+      activeLinePickTarget: null,
+      activeNumericReferencePickTarget: null
+    }).filter((candidate) => candidate.referenceElementId === "loop-line");
+    expect(endpointCandidates.flatMap((candidate) => candidate.options.map((option) => option.label))).toEqual([
+      "[i=0] Loop line.始点", "[i=0] Loop line.終点",
+      "[i=1] Loop line.始点", "[i=1] Loop line.終点",
+      "[i=2] Loop line.始点", "[i=2] Loop line.終点"
+    ]);
+
+    const lineCandidates = pickCandidates(generatedElements, generatedEvaluation, {
+      activePointPickTarget: null,
+      activeLinePickTarget: { elementId: "line-target", parameterKey: "baseLineIds" },
+      activeNumericReferencePickTarget: null
+    });
+    expect(lineCandidates.filter((candidate) => candidate.referenceElementId === "loop-line")
+      .map((candidate) => candidate.elementId)).toEqual([
+        "loop-line@loop:0", "loop-line@loop:1", "loop-line@loop:2"
+      ]);
+    expect(lineCandidates.map((candidate) => candidate.elementId)).not.toContain("later@loop:0");
+    expect(lineCandidates.map((candidate) => candidate.elementId)).not.toContain("other-point@other-loop:0");
+  });
+
   it("uses referenceElements as the authoritative source pool and preserves enabled fallback semantics", () => {
     const hiddenPoint = { ...elements[0], visible: false } as CadElement;
     const sourceElements = [hiddenPoint, ...elements.slice(1)];

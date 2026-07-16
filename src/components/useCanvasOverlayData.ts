@@ -88,9 +88,26 @@ export const useCanvasOverlayData = ({
       const baseVisibleIds = evaluation.effectiveVisibleElementIds ?? effectiveVisibleElementIds(elements);
       const profile = visibilityProfileById(visibilityProfiles, activeVisibilityProfileId);
       const profileVisibleIds = effectiveVisibleElementIdsForProfile({ elements, profile });
-      return new Set([...baseVisibleIds].filter((id) => profileVisibleIds.has(id)));
+      // The evaluator owns the runtime-instance -> template relationship. A
+      // profile is saved against templates, so apply its decision through that
+      // structured relationship instead of parsing generated ids here.
+      const templateIdByGeneratedId = new Map(
+        (evaluation.forGroupGeneratedRows ?? []).map((row) => [
+          row.generatedElementId,
+          row.templateElementId
+        ])
+      );
+      return new Set([...baseVisibleIds].filter((id) =>
+        profileVisibleIds.has(templateIdByGeneratedId.get(id) ?? id)
+      ));
     },
-    [activeVisibilityProfileId, elements, evaluation.effectiveVisibleElementIds, visibilityProfiles]
+    [
+      activeVisibilityProfileId,
+      elements,
+      evaluation.effectiveVisibleElementIds,
+      evaluation.forGroupGeneratedRows,
+      visibilityProfiles
+    ]
   );
   const geometries = useMemo(
     () => Array.from(evaluation.computedGeometry.values()),

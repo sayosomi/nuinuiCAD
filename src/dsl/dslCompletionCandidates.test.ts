@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { compileDslDocument } from "./dslDocument";
 import { dslReferenceCompletionOptions } from "./dslCompletionCandidates";
+import { evaluateElements } from "../geometry/evaluate";
 
 const identities = (source: string) => {
   const compiled = compileDslDocument(source);
@@ -85,4 +86,29 @@ describe("dslReferenceCompletionOptions", () => {
       Array.from({ length: 8 }, (_, index) => `P${index}`)
     );
   }, 20_000);
+
+  it("uses evaluator-owned forGroup rows to aggregate runtime instances to one saved token", () => {
+    const source = [
+      "nui 1",
+      "for Loop i start=0 count=3 step=1 {",
+      "  point P = (@i * 10, 0)",
+      "  line Target = P -> P",
+      "}"
+    ].join("\n");
+    const { elements, ids } = identities(source);
+    const evaluation = evaluateElements(elements);
+    const options = dslReferenceCompletionOptions({
+      source,
+      cursorLine: 4,
+      kind: "reference",
+      parameterKey: "startPoint",
+      statementElementIds: ids,
+      elements,
+      computedGeometry: evaluation.computedGeometry,
+      forGroupGeneratedRows: evaluation.forGroupGeneratedRows,
+      effectiveEnabledElementIds: evaluation.effectiveEnabledElementIds,
+      errors: evaluation.errors
+    });
+    expect(options.filter((option) => option.label === "P")).toHaveLength(1);
+  });
 });

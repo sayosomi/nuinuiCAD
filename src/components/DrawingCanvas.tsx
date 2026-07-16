@@ -7,13 +7,10 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRe
 import { dispatchCommand } from "../commands/commands";
 import type { CommandContext } from "../commands/commands";
 import type { EvaluationEngineState } from "../geometry/useEvaluationEngine";
-import { generatedElementIdForTargetForGroup } from "../model/forGroupGeneratedReferences";
 import { creationPlacementForEvaluationLimit } from "../model/elementCreationPlacement";
 import { numericReferencePropertiesForGeometry } from "../geometry/numericReferenceProperties";
 import { pickCandidates, pickSourcePrecedesTarget } from "../model/pickCandidates";
-import {
-  commandLinePickNormalizationTargetId
-} from "../commands/commandLinePickRouting";
+import { pickRefForOption, pickRefKey } from "../model/pickReferences";
 import { resolvedElementColorMap } from "../palette/elementColors";
 import type { BezierHandleRole as CommandBezierHandleRole } from "../commands/commands";
 import { effectiveElements, useCadDocumentStore } from "../state/cadDocumentStore";
@@ -189,14 +186,21 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     documentElements,
     evaluation
   ]);
-  const sharedLinePickIds = useMemo(() => new Set(sharedPickCandidates.flatMap((candidate) =>
-    candidate.options.flatMap((option) => option.kind === "line" ? [option.lineId] : [])
+  const sharedLinePickRefKeys = useMemo(() => new Set(sharedPickCandidates.flatMap((candidate) =>
+    candidate.options.flatMap((option) => option.kind === "line"
+      ? [pickRefKey(pickRefForOption(candidate.elementId, option))]
+      : [])
   )), [sharedPickCandidates]);
   const selectedElementIdSet = useMemo(() => new Set(selectedElementIds), [selectedElementIds]);
-  const draftLinePickElementIds = useMemo(
-    () => new Set(activeLinePickTarget?.draftLineIds ?? []),
-    [activeLinePickTarget?.draftLineIds]
-  );
+  const draftLinePickElementIds = useMemo(() => {
+    const draftLineIds = new Set(activeLinePickTarget?.draftLineIds ?? []);
+    return new Set(sharedPickCandidates.flatMap((candidate) =>
+      candidate.options.flatMap((option) => option.kind === "line" &&
+        draftLineIds.has(candidate.referenceElementId ?? option.lineId)
+        ? [option.lineId]
+        : [])
+    ));
+  }, [activeLinePickTarget?.draftLineIds, sharedPickCandidates]);
   const [imageRenderVersion, scheduleImageRender] = useReducer((version: number) => version + 1, 0);
   const elementColors = useMemo(
     () => resolvedElementColorMap(elements, palette),
@@ -438,20 +442,13 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
   const pickableLineIdForLinePick = useCallback((lineElementId: ElementId) => {
     const activeTarget = activeLinePickTarget;
     if (!activeTarget) return null;
-    const normalizedLineId = generatedElementIdForTargetForGroup({
-      elements,
-      targetElementId: commandLinePickNormalizationTargetId(
-        activeTarget,
-        commandLineSession,
-        commandLinePickParentGroupId,
-        elements
-      ),
-      pickedElementId: lineElementId
-    });
-    if (!normalizedLineId || normalizedLineId === activeTarget.elementId) return null;
-    if (!sharedLinePickIds.has(normalizedLineId)) return null;
-    return normalizedLineId;
-  }, [activeLinePickTarget, commandLinePickParentGroupId, commandLineSession, elements, sharedLinePickIds]);
+    const refKey = pickRefKey(pickRefForOption(lineElementId, {
+      kind: "line",
+      label: "",
+      lineId: lineElementId
+    }));
+    return sharedLinePickRefKeys.has(refKey) ? lineElementId : null;
+  }, [activeLinePickTarget, sharedLinePickRefKeys]);
   const isPickableForNumericReference = useCallback((lineElementId: ElementId) => {
     const activeTarget = activeNumericReferencePickTarget;
     if (!activeTarget) return false;
@@ -488,9 +485,9 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       screen,
       lines: overlayNumericReferenceCandidates.filter(({ line }) => !previewElementIds.has(line.elementId))
     })) {
-      const normalizedLineId = pickableLineIdForLinePick(candidate.line.elementId);
-      if (!normalizedLineId) continue;
-      uniqueCandidates.set(normalizedLineId, { line: candidate.line });
+      const lineId = pickableLineIdForLinePick(candidate.line.elementId);
+      if (!lineId) continue;
+      uniqueCandidates.set(lineId, { line: candidate.line });
     }
     return Array.from(uniqueCandidates.values());
   }, [activeLinePickTarget, overlayNumericReferenceCandidates, pickableLineIdForLinePick, previewElementIds]);

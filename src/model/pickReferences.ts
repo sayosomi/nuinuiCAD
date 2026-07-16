@@ -38,15 +38,15 @@ export const pickRefForOption = (
 export const pickRefKey = (ref: PickRef) => {
   switch (ref.kind) {
     case "point:reference":
-      return `point:reference:${ref.candidateElementId}:${ref.pointId}`;
+      return JSON.stringify([ref.kind, ref.candidateElementId, ref.pointId]);
     case "point:derived":
-      return `point:derived:${ref.candidateElementId}:${ref.elementId}:${ref.pointKey}`;
+      return JSON.stringify([ref.kind, ref.candidateElementId, ref.elementId, ref.pointKey]);
     case "line":
-      return `line:${ref.candidateElementId}:${ref.lineId}`;
+      return JSON.stringify([ref.kind, ref.candidateElementId, ref.lineId]);
     case "numericReference":
-      return `numeric:${ref.candidateElementId}:${ref.expression}`;
+      return JSON.stringify([ref.kind, ref.candidateElementId, ref.expression]);
     case "variableReference":
-      return `variable:${ref.candidateElementId}:${ref.expression}`;
+      return JSON.stringify([ref.kind, ref.candidateElementId, ref.expression]);
   }
 };
 

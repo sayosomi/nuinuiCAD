@@ -7,12 +7,14 @@ import { creationRecipeForType } from "../commands/creationRecipes";
 import { startSession } from "../commands/commandLineSession";
 import type { SourceEditSession } from "../editor/sourceEditSession";
 import { evaluateElements } from "../geometry/evaluate";
+import { makeNumericExpression } from "../geometry/numericExpressions";
 import type { EvaluationEngineState } from "../geometry/useEvaluationEngine";
 import { defaultDocumentPalette } from "../palette/palette";
 import { sampleElements } from "../sampleData";
 import { DEFAULT_CANVAS_VIEWPORT, DEFAULT_PRINT_PREVIEW_WINDOW, useCadDocumentStore, useCadStore } from "../state/useCadStore";
 import { useCadUiStore } from "../state/cadUiStore";
 import { DrawingCanvas } from "./DrawingCanvas";
+import { worldToScreen } from "./canvasViewport";
 import { hitTestCanvasGeometry } from "./DrawingCanvasHitTest";
 import type {
   CadElement,
@@ -77,6 +79,38 @@ const bezierCurve = (
   endHandleAngleDeg: 0,
   endHandleLength: 30
 });
+
+const forGroupPickElements = (): CadElement[] => [
+  {
+    id: "loop", name: "Loop", type: "forGroup", visible: true, enabled: true,
+    variableName: "i", start: 0, count: 3, step: 1, showGenerated: true
+  },
+  {
+    id: "loop-point", name: "Loop point", type: "freePoint", visible: true, enabled: true,
+    parentGroupId: "loop", x: makeNumericExpression("@i * 40"), y: 0
+  },
+  {
+    id: "loop-line", name: "Loop line", type: "line", visible: true, enabled: true,
+    parentGroupId: "loop", startPoint: { mode: "reference", pointId: "loop-point" },
+    endPoint: { mode: "coordinate", x: makeNumericExpression("@i * 40"), y: 20 }
+  },
+  {
+    id: "endpoint-target", name: "Endpoint target", type: "lineDivisionPoint", visible: true, enabled: true,
+    parentGroupId: "loop", endpoint: { lineId: "loop-line", endpointKey: "start" },
+    placementMode: "ratio", distance: 0, ratio: 0.5
+  },
+  {
+    id: "point-target", name: "Point target", type: "offsetPoint", visible: true, enabled: true,
+    parentGroupId: "loop", fromPoint: { mode: "reference", pointId: "loop-point" }, dx: 5, dy: 0
+  },
+  {
+    id: "line-target", name: "Line target", type: "offsetLine", visible: true, enabled: true,
+    parentGroupId: "loop", baseLineIds: [], offset: 2, side: "right", closed: false
+  }
+];
+
+const screenFor = (point: { x: number; y: number }) =>
+  worldToScreen(point, { width: 500, height: 400 }, DEFAULT_CANVAS_VIEWPORT);
 
 const resetStore = () => {
   useCadStore.setState({
@@ -860,6 +894,60 @@ describe("DrawingCanvas point dragging", () => {
       parameterKey: "startPoint"
     });
     expect(useCadStore.getState().past).toHaveLength(0);
+  });
+
+  it("shows and accepts each generated forGroup point and endpoint on the Canvas", () => {
+    const elements = forGroupPickElements();
+    useCadStore.setState({
+      elements,
+      selectedElementId: "point-target",
+      selectedElementIds: ["point-target"],
+      activePointPickTarget: { elementId: "point-target", parameterKey: "fromPoint" }
+    });
+    const { viewport, container, unmount } = renderDrawingCanvas();
+
+    // All prior same-instance points and line endpoints remain selectable;
+    // the generated source point itself contributes three of these markers.
+    expect(container.querySelectorAll(".overlay-derived-point-pick-candidate")).toHaveLength(12);
+    const pointScreen = screenFor({ x: 40, y: 0 });
+    fireEvent.pointerDown(viewport, {
+      button: 0, buttons: 1, clientX: pointScreen.x, clientY: pointScreen.y, pointerId: 1
+    });
+    expect(useCadStore.getState().elements.find((element) => element.id === "point-target"))
+      .toMatchObject({ fromPoint: { mode: "reference", pointId: "loop-point" } });
+    unmount();
+
+    useCadStore.setState({
+      elements: forGroupPickElements(),
+      selectedElementId: "endpoint-target",
+      selectedElementIds: ["endpoint-target"],
+      activePointPickTarget: { elementId: "endpoint-target", parameterKey: "endpoint" }
+    });
+    const endpointView = renderDrawingCanvas();
+    expect(endpointView.container.querySelectorAll(".overlay-derived-point-pick-candidate")).toHaveLength(6);
+    const endpointScreen = screenFor({ x: 40, y: 20 });
+    fireEvent.pointerDown(endpointView.viewport, {
+      button: 0, buttons: 1, clientX: endpointScreen.x, clientY: endpointScreen.y, pointerId: 2
+    });
+    expect(useCadStore.getState().elements.find((element) => element.id === "endpoint-target"))
+      .toMatchObject({ endpoint: { lineId: "loop-line", endpointKey: "end" } });
+  });
+
+  it("shows generated forGroup lines in the shared overlay and accepts their hit-test result", () => {
+    useCadStore.setState({
+      elements: forGroupPickElements(),
+      selectedElementId: "line-target",
+      selectedElementIds: ["line-target"],
+      activeLinePickTarget: { elementId: "line-target", parameterKey: "baseLineIds" }
+    });
+    const { viewport, container } = renderDrawingCanvas();
+
+    expect(container.querySelectorAll("[data-line-pick-candidate=\"true\"]")).toHaveLength(3);
+    const lineScreen = screenFor({ x: 40, y: 10 });
+    fireEvent.pointerDown(viewport, {
+      button: 0, buttons: 1, clientX: lineScreen.x, clientY: lineScreen.y, pointerId: 3
+    });
+    expect(useCadStore.getState().activeLinePickTarget).toMatchObject({ draftLineIds: ["loop-line"] });
   });
 
   it("adds a base line while line picking is active", () => {

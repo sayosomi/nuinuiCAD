@@ -35,6 +35,42 @@ describe("referenceSuggestions", () => {
     expect(refs.map((ref) => ref.kind)).toEqual(["point:reference", "point:derived", "line"]);
   });
 
+  it("does not collide when generated ids and intermediate point keys contain delimiters", () => {
+    const first = pickRefForOption("p@loop:0", {
+      kind: "point",
+      label: "first",
+      anchor: { mode: "derived", elementId: "curve", pointKey: "intermediate:a:b" }
+    });
+    const second = pickRefForOption("p@loop", {
+      kind: "point",
+      label: "second",
+      anchor: { mode: "derived", elementId: "0:curve", pointKey: "intermediate:a:b" }
+    });
+
+    expect(pickRefKey(first)).not.toBe(pickRefKey(second));
+  });
+
+  it("aggregates forGroup instances by their persisted DSL token", () => {
+    const elements = [pointElement("template", "Point")];
+    const candidates: PickCandidate[] = [0, 1, 2].map((iterationIndex) => ({
+      elementId: `template@loop:${iterationIndex}`,
+      referenceElementId: "template",
+      options: [{
+        kind: "point",
+        label: `[i=${iterationIndex}] Point`,
+        anchor: { mode: "reference", pointId: `template@loop:${iterationIndex}` }
+      }]
+    }));
+
+    const suggestions = referenceSuggestions({ candidates, elements });
+    expect(suggestions).toHaveLength(1);
+    expect(suggestions[0]).toMatchObject({
+      canonicalToken: "Point",
+      displayLabel: "Point",
+      pickRef: { kind: "point:reference", pointId: "template@loop:0" }
+    });
+  });
+
   it("separates qualified display labels, canonical DSL tokens, and search aliases", () => {
     const elements: CadElement[] = [
       { id: "left", name: "Left", type: "group", visible: true, enabled: true },

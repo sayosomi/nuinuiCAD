@@ -193,6 +193,7 @@ export class SourceEditorController implements SourceEditorHandle {
             isComposing: () => this.protocol.composing,
             computedVariables: () => this.appliedEvaluation?.evaluation.computedVariables,
             computedGeometry: () => this.appliedEvaluation?.evaluation.computedGeometry,
+            forGroupGeneratedRows: () => this.appliedEvaluation?.evaluation.forGroupGeneratedRows,
             effectiveEnabledElementIds: () => this.appliedEvaluation?.evaluation.effectiveEnabledElementIds,
             evaluationErrors: () => this.appliedEvaluation?.evaluation.errors
           }),
@@ -213,6 +214,7 @@ export class SourceEditorController implements SourceEditorHandle {
             isComposing: () => this.protocol.composing,
             computedVariables: () => this.appliedEvaluation?.evaluation.computedVariables,
             computedGeometry: () => this.appliedEvaluation?.evaluation.computedGeometry,
+            forGroupGeneratedRows: () => this.appliedEvaluation?.evaluation.forGroupGeneratedRows,
             effectiveEnabledElementIds: () => this.appliedEvaluation?.evaluation.effectiveEnabledElementIds,
             evaluationErrors: () => this.appliedEvaluation?.evaluation.errors
           }),

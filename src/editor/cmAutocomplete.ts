@@ -12,7 +12,7 @@ import { dslLineElementStatement, dslLinePrintLayoutStatement } from "../dsl/dsl
 import { parseDsl } from "../dsl/dslParser";
 import { localNumericVariableReferenceOptions, type NumericVariableReferenceOption } from "../geometry/variableReferenceOptions";
 import type { ElementParameterReferenceOption } from "../geometry/elementParameterReferenceOptions";
-import type { CadElement, ComputedGeometry, ComputedVariable, DependencyError, ElementId, PrintLayout } from "../types/geometry";
+import type { CadElement, ComputedGeometry, ComputedVariable, DependencyError, ElementId, EvaluationResult, PrintLayout } from "../types/geometry";
 import type { PrintLayoutRangeIndex, StatementRangeIndex } from "./statementRangeIndex";
 
 export type DslAutocompleteDocumentInput = {
@@ -37,6 +37,7 @@ type DslAutocompleteOptions = {
    * used the same Tier B way as computedVariables above but for
    * dslElementParameterCompletionOptions's disabled/invalid gating. */
   computedGeometry: () => Map<ElementId, ComputedGeometry> | undefined;
+  forGroupGeneratedRows?: () => EvaluationResult["forGroupGeneratedRows"] | undefined;
   effectiveEnabledElementIds: () => Set<ElementId> | undefined;
   evaluationErrors: () => DependencyError[] | undefined;
   /** Defaults to deriving everything from the CompletionContext's own state (Main
@@ -210,6 +211,7 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
       statementElementIds: statementElementIdsByLiveLine(input.doc, options.statementRanges()),
       elements: options.elements(),
       computedGeometry: options.computedGeometry(),
+      forGroupGeneratedRows: options.forGroupGeneratedRows?.(),
       effectiveEnabledElementIds: options.effectiveEnabledElementIds(),
       errors: options.evaluationErrors()
     }).map((option) => ({

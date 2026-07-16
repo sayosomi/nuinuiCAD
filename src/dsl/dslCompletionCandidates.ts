@@ -7,7 +7,8 @@ import type {
   CadElement,
   ComputedGeometry,
   DependencyError,
-  ElementId
+  ElementId,
+  EvaluationResult
 } from "../types/geometry";
 import { dslScopeBeforeParsedLine, isElementDslStatement, parseDsl } from "./dslParser";
 import type { ParseDslResult } from "./dslTypes";
@@ -76,6 +77,7 @@ export const dslReferenceCompletionOptions = ({
   statementElementIds,
   elements,
   computedGeometry,
+  forGroupGeneratedRows,
   effectiveEnabledElementIds,
   errors
 }: {
@@ -88,6 +90,7 @@ export const dslReferenceCompletionOptions = ({
   statementElementIds: DslLiveStatementIdentity;
   elements: readonly CadElement[];
   computedGeometry?: Map<ElementId, ComputedGeometry>;
+  forGroupGeneratedRows?: EvaluationResult["forGroupGeneratedRows"];
   effectiveEnabledElementIds?: Set<ElementId>;
   errors?: DependencyError[];
 }): DslReferenceCompletionOption[] => {
@@ -102,6 +105,7 @@ export const dslReferenceCompletionOptions = ({
   const fallbackEvaluation = computedGeometry ? null : evaluateElements([...elements]);
   const evaluation = {
     computedGeometry: computedGeometry ?? fallbackEvaluation!.computedGeometry,
+    forGroupGeneratedRows: forGroupGeneratedRows ?? fallbackEvaluation?.forGroupGeneratedRows,
     computedVariables: new Map(),
     effectiveEnabledElementIds: effectiveEnabledElementIds ?? fallbackEvaluation?.effectiveEnabledElementIds,
     errors: errors ?? fallbackEvaluation?.errors ?? [],

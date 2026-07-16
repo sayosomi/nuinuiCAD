@@ -4,6 +4,7 @@ import type { CadElement } from "../types/geometry";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import {
+  activePickCandidates,
   applyPickedLine,
   applyPickedNumericReference,
   applyPickedPoint,
@@ -319,8 +320,18 @@ describe("command-line pick routing", () => {
       parameterKey: "startPoint",
       insertionIndex: 2
     });
+    expect(activePickCandidates().map((candidate) => candidate.elementId)).toEqual([
+      "point-template@loop:0",
+      "point-template@loop:1"
+    ]);
     applyPickedPoint({ pickedPointAnchor: referenceAnchor("point-template@loop:1") });
     expect(useCadUiStore.getState().commandLineSession?.args.startPoint).toEqual(referenceAnchor("point-template"));
+    expect(startCommandLineStepEdit(0)).toBe(true);
+    expect(activePickCandidates().map((candidate) => candidate.elementId)).toEqual([
+      "point-template@loop:0",
+      "point-template@loop:1"
+    ]);
+    expect(cancelCommandLineStepEdit()).toBe(true);
     applyPickedPoint({ pickedPointAnchor: { mode: "coordinate", x: 20, y: 0 } });
     expect(skipCommandLineStep()).toBe(true);
     expect(confirmCommandLineSession()).toBe(true);

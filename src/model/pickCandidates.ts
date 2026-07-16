@@ -20,12 +20,16 @@ import {
   isLineLikeElement,
   isPointElement,
   referenceAnchor,
-  selectablePointsForElement
+  selectablePointsForGeometry
 } from "./pointAnchors";
 import {
   isValidPickedPointAnchorForTarget,
   parseForGroupGeneratedElementId
 } from "./forGroupGeneratedReferences";
+import {
+  elementsByIdForPickCandidateGeometries,
+  pickCandidateGeometries
+} from "./pickCandidateGeometry";
 import type {
   ActiveLinePickTarget,
   ActiveNumericReferencePickTarget,
@@ -35,6 +39,7 @@ import type {
 import type { CommandLineSession } from "../commands/commandLineSession";
 import {
   commandLinePointPickTargetIds,
+  commandLinePickNormalizationTargetId,
   commandLineStepForPickTarget
 } from "../commands/commandLinePickRouting";
 
@@ -63,6 +68,9 @@ export type PickOption =
 
 export type PickCandidate = {
   elementId: ElementId;
+  /** Document template identity for a runtime forGroup instance. Canvas uses
+   * `elementId`; text completion uses this to aggregate by persisted token. */
+  referenceElementId?: ElementId;
   options: PickOption[];
 };
 
@@ -148,7 +156,20 @@ const pointCandidates = (
     parentGroupId: commandLinePickParentGroupId,
     elements
   });
-  const elementsById = new Map(elements.map((element) => [element.id, element]));
+  const eligibleElements = eligibleReferenceElements(
+    elements,
+    referenceElements,
+    activePointPickTarget.elementId,
+    activePointPickTarget.insertionIndex
+  );
+  const geometryCandidates = pickCandidateGeometries({
+    elements,
+    evaluation,
+    referenceElements: eligibleElements,
+    normalizationTargetElementId:
+      pointPickTargetIds.normalizationTargetElementId ?? activePointPickTarget.elementId
+  });
+  const elementsById = elementsByIdForPickCandidateGeometries(elements, geometryCandidates);
   const isValidPointCandidate = (anchor: PointAnchor) =>
     isValidPickedPointAnchorForTarget({
       elements,
@@ -157,31 +178,25 @@ const pointCandidates = (
       allowLineEndpoint: isLineEndpointPointPick
     });
 
-  return eligibleReferenceElements(
-    elements,
-    referenceElements,
-    activePointPickTarget.elementId,
-    activePointPickTarget.insertionIndex
-  )
-    .filter((element) => isEnabledPickSource(evaluation, element.id))
-    .map((element) => {
-      const selectablePoints = selectablePointsForElement(
-        element,
-        evaluation.computedGeometry,
+  return geometryCandidates
+    .filter((candidate) => isEnabledPickSource(evaluation, candidate.geometry.elementId))
+    .map((candidate) => {
+      const selectablePoints = selectablePointsForGeometry(
+        candidate.geometry,
         elementsById
       ).filter((point) => isValidPointCandidate(point.anchor));
       const options: PickOption[] = [];
 
       if (
         !isLineEndpointPointPick &&
-        isPointElement(element) &&
-        evaluation.computedGeometry.has(element.id) &&
-        isValidPointCandidate(referenceAnchor(element.id))
+        isPointElement(candidate.templateElement) &&
+        candidate.geometry.kind === "point" &&
+        isValidPointCandidate(referenceAnchor(candidate.geometry.elementId))
       ) {
         options.push({
           kind: "point",
-          label: element.name,
-          anchor: referenceAnchor(element.id)
+          label: candidate.geometry.name,
+          anchor: referenceAnchor(candidate.geometry.elementId)
         });
       } else {
         options.push(
@@ -193,7 +208,11 @@ const pointCandidates = (
         );
       }
 
-      return { elementId: element.id, options };
+      return {
+        elementId: candidate.geometry.elementId,
+        ...(candidate.referenceElementId ? { referenceElementId: candidate.referenceElementId } : {}),
+        options
+      };
     })
     .filter((candidate) => candidate.options.length > 0);
 };
@@ -202,7 +221,9 @@ const lineCandidates = (
   elements: CadElement[],
   evaluation: EvaluationResult,
   activeLinePickTarget: ActiveLinePickTarget,
-  referenceElements?: readonly CadElement[]
+  referenceElements?: readonly CadElement[],
+  commandLineSession?: CommandLineSession | null,
+  commandLinePickParentGroupId?: ElementId
 ): PickCandidate[] => {
   const targetElement = elements.find((element) => element.id === activeLinePickTarget.elementId);
   const parameterValue = activeLinePickTarget.draftLineIds ?? (targetElement
@@ -214,22 +235,41 @@ const lineCandidates = (
       : []
   );
 
-  return eligibleReferenceElements(
+  const eligibleElements = eligibleReferenceElements(
     elements,
     referenceElements,
     activeLinePickTarget.elementId,
     activeLinePickTarget.insertionIndex
-  )
+  );
+  const normalizationTargetElementId = commandLinePickNormalizationTargetId(
+    activeLinePickTarget,
+    commandLineSession,
+    commandLinePickParentGroupId,
+    elements
+  );
+  return pickCandidateGeometries({
+    elements,
+    evaluation,
+    referenceElements: eligibleElements,
+    normalizationTargetElementId
+  })
     .filter(
-      (element) =>
-        isLineLikeElement(element) &&
-        isEnabledPickSource(evaluation, element.id) &&
-        evaluation.computedGeometry.has(element.id) &&
-        (activeLinePickTarget.draftLineIds !== undefined || !selectedLineIds.has(element.id))
+      (candidate) =>
+        isLineLikeElement(candidate.templateElement) &&
+        candidate.geometry.kind !== "point" &&
+        candidate.geometry.kind !== "image" &&
+        candidate.geometry.kind !== "text" &&
+        isEnabledPickSource(evaluation, candidate.geometry.elementId) &&
+        (activeLinePickTarget.draftLineIds !== undefined || !selectedLineIds.has(candidate.templateElement.id))
     )
-    .map((element) => ({
-      elementId: element.id,
-      options: [{ kind: "line" as const, label: element.name, lineId: element.id }]
+    .map((candidate) => ({
+      elementId: candidate.geometry.elementId,
+      ...(candidate.referenceElementId ? { referenceElementId: candidate.referenceElementId } : {}),
+      options: [{
+        kind: "line" as const,
+        label: candidate.geometry.name,
+        lineId: candidate.geometry.elementId
+      }]
     }));
 };
 
@@ -307,7 +347,9 @@ export const pickCandidates = (
       elements,
       evaluation,
       targets.activeLinePickTarget,
-      targets.referenceElements
+      targets.referenceElements,
+      targets.commandLineSession,
+      targets.commandLinePickParentGroupId
     );
   }
   if (targets.activeNumericReferencePickTarget) {

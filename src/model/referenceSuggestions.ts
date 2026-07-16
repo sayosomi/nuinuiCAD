@@ -50,38 +50,47 @@ export const referenceSuggestions = ({
   }
   const elementsById = new Map(elements.map((element) => [element.id, element]));
 
-  return candidates.flatMap((candidate) => {
-    const element = elementsById.get(candidate.elementId);
-    const rawTokens = tokensByElementId.get(candidate.elementId) ?? [];
+  const suggestionsByCanonicalToken = new Map<string, ReferenceSuggestion>();
+  for (const candidate of candidates) {
+    const referenceElementId = candidate.referenceElementId ?? candidate.elementId;
+    const element = elementsById.get(referenceElementId);
+    const rawTokens = tokensByElementId.get(referenceElementId) ?? [];
     const canonicalBase = [...rawTokens].sort((left, right) => left.length - right.length)[0];
-    if (!element || !canonicalBase) return [];
+    if (!element || !canonicalBase) continue;
     const qualifiedName = elementQualifiedName(element, elements);
     const formattedBase = formatDslReferenceToken(canonicalBase);
 
-    return candidate.options.flatMap((option) => {
+    for (const option of candidate.options) {
       const presentation = optionPresentation(option);
-      if (!presentation) return [];
+      if (!presentation) continue;
       const pickRef = pickRefForOption(candidate.elementId, option);
       const canonicalToken = `${formattedBase}${presentation.suffix}`;
       const displayLabel = `${qualifiedName}${presentation.labelSuffix}`;
-      return [{
+      const aliases = [
+        element.name,
+        qualifiedName,
+        formattedBase,
+        canonicalToken,
+        displayLabel,
+        ...presentation.aliases,
+        ...presentation.aliases.map((alias) => `${qualifiedName}.${alias}`)
+      ];
+      const existing = suggestionsByCanonicalToken.get(canonicalToken);
+      if (existing) {
+        existing.searchAliases = [...new Set([...existing.searchAliases, ...aliases])];
+        continue;
+      }
+      suggestionsByCanonicalToken.set(canonicalToken, {
         pickRef,
         pickRefKey: pickRefKey(pickRef),
         displayLabel,
         canonicalToken,
-        searchAliases: [
-          element.name,
-          qualifiedName,
-          formattedBase,
-          canonicalToken,
-          displayLabel,
-          ...presentation.aliases,
-          ...presentation.aliases.map((alias) => `${qualifiedName}.${alias}`)
-        ],
+        searchAliases: aliases,
         detail: presentation.detail
-      }];
-    });
-  });
+      });
+    }
+  }
+  return [...suggestionsByCanonicalToken.values()];
 };
 
 const normalized = (value: string) => value.normalize("NFKC").toLocaleLowerCase();

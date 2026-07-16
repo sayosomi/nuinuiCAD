@@ -265,6 +265,9 @@ export const CommandLineBar = ({ commandContext, evaluation }: CommandLineBarPro
     applySuggestion(suggestion);
     return true;
   };
+  const ownsReferenceKeyboardEvent = (target: EventTarget | null) =>
+    target === inputRef.current ||
+    (target instanceof Element && target.closest(".command-line-suggestions") !== null);
 
   return (
     <form
@@ -300,12 +303,18 @@ export const CommandLineBar = ({ commandContext, evaluation }: CommandLineBarPro
             return;
           }
         }
-        if (step?.kind === "lineList" && event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+        const ownsReferenceKeyboard = ownsReferenceKeyboardEvent(event.target);
+        if (
+          ownsReferenceKeyboard &&
+          step?.kind === "lineList" &&
+          event.key === "Enter" &&
+          (event.metaKey || event.ctrlKey)
+        ) {
           event.preventDefault();
           finishLinePick();
           return;
         }
-        if (isCommandLineReferenceStep(step?.kind) && inputValue.trim()) {
+        if (ownsReferenceKeyboard && isCommandLineReferenceStep(step?.kind) && inputValue.trim()) {
           if (event.key === "ArrowDown") {
             event.preventDefault();
             if (visibleSuggestions.length > 0) {
@@ -328,7 +337,7 @@ export const CommandLineBar = ({ commandContext, evaluation }: CommandLineBarPro
             if (suggestion) applySuggestion(suggestion);
             return;
           }
-        } else if (activePickCursor || isCommandLineReferenceStep(step?.kind)) {
+        } else if (ownsReferenceKeyboard && (activePickCursor || isCommandLineReferenceStep(step?.kind))) {
           if (event.key === "ArrowDown") {
             event.preventDefault();
             selectPickCandidateByOffset(1, evaluation);
