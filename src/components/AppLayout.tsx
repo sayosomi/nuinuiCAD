@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, PointerEvent } from "react";
 import { dispatchCommand } from "../commands/commands";
 import { loadCommandRibbonSettings } from "../commandRibbons/commandRibbonSettings";
@@ -86,6 +86,9 @@ const SelectionColorPickerDialog = lazy(() =>
     default: module.SelectionColorPickerDialog
   }))
 );
+const RenameElementDialog = lazy(() =>
+  import("./RenameElementDialog").then((module) => ({ default: module.RenameElementDialog }))
+);
 const TemplateInsertionPanel = lazy(() =>
   import("./TemplateInsertionPanel").then((module) => ({
     default: module.TemplateInsertionPanel
@@ -115,6 +118,7 @@ export const AppLayout = () => {
   const showShortcutSettings = useCadUiStore((state) => state.showShortcutSettings);
   const showCommandRibbonSettings = useCadUiStore((state) => state.showCommandRibbonSettings);
   const showSelectionColorPicker = useCadUiStore((state) => state.showSelectionColorPicker);
+  const renameElementPromptTargetId = useCadUiStore((state) => state.renameElementPromptTargetId);
   const pendingImageImport = useCadUiStore((state) => state.pendingImageImport);
   const imageImportError = useCadUiStore((state) => state.imageImportError);
   const setPrintPreviewWindow = useCadUiStore((state) => state.setPrintPreviewWindow);
@@ -179,6 +183,10 @@ export const AppLayout = () => {
     getCanvasViewportRect: () => canvasFocusRef.current?.getBoundingClientRect() ?? null,
     evaluation
   }), [evaluation]);
+  const handleRenameElementConfirmed = useCallback((elementId: ElementId) => {
+    sourceEditorRef.current?.jumpToElement(elementId);
+    commandContext.focusSourceEditor?.();
+  }, [commandContext]);
 
   useEffect(() => {
     let cancelled = false;
@@ -325,6 +333,7 @@ export const AppLayout = () => {
       if (useCadUiStore.getState().showGroupTemplateLibrary) return;
       if (useCadUiStore.getState().showCommandRibbonSettings) return;
       if (useCadUiStore.getState().showSelectionColorPicker) return;
+      if (useCadUiStore.getState().renameElementPromptTargetId) return;
       if (useCadUiStore.getState().pendingImageImport || useCadUiStore.getState().imageImportError) return;
       const commandLineSession = useCadUiStore.getState().commandLineSession;
       const keyboardOptions = {
@@ -511,6 +520,11 @@ export const AppLayout = () => {
       {showSelectionColorPicker ? (
         <Suspense fallback={null}>
           <SelectionColorPickerDialog />
+        </Suspense>
+      ) : null}
+      {renameElementPromptTargetId ? (
+        <Suspense fallback={null}>
+          <RenameElementDialog onConfirmed={handleRenameElementConfirmed} />
         </Suspense>
       ) : null}
       {pendingImageImport || imageImportError ? (

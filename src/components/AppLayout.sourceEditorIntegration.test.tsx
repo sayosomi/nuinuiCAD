@@ -163,6 +163,32 @@ describe("AppLayout Source Editor production integration", () => {
     expect(useCadDocumentStore.getState().elements.at(-1)).toMatchObject({ type: "variable" });
   });
 
+  it("renames through F2, suppresses the shortcut in the prompt input, and returns to the target line", async () => {
+    const view = render(<AppLayout />);
+    const targetId = pointId("A");
+    act(() => { useCadUiStore.getState().setSelectedElementIds([targetId]); });
+    const historyBefore = useCadDocumentStore.getState().past.length;
+
+    fireEvent.keyDown(window, { key: "F2" });
+    const input = await view.findByRole("textbox", { name: "名前" });
+    expect(input).toHaveValue("A");
+    fireEvent.change(input, { target: { value: "Tentative" } });
+    fireEvent.keyDown(input, { key: "F2" });
+    expect(input).toHaveValue("Tentative");
+    expect(useCadUiStore.getState().renameElementPromptTargetId).toBe(targetId);
+
+    fireEvent.change(input, { target: { value: "Renamed" } });
+    fireEvent.submit(input.closest("form")!);
+
+    await waitFor(() => expect(useCadUiStore.getState().renameElementPromptTargetId).toBeNull());
+    await waitFor(() => expect(document.activeElement).toBe(view.container.querySelector(".cm-content")));
+    expect(useCadUiStore.getState().selectedElementId).toBe(targetId);
+    expect(view.container.querySelector(".cm-content")?.textContent).toContain("point Renamed");
+    expect(useCadDocumentStore.getState().past).toHaveLength(historyBefore + 1);
+    act(() => { useCadDocumentStore.getState().undo(); });
+    expect(useCadDocumentStore.getState().elements.find((element) => element.id === targetId)?.name).toBe("A");
+  });
+
   it("blocks bar IME Enter/Escape and global single-key dispatch, then resumes after compositionend", () => {
     const view = render(<AppLayout />);
     act(() => { startCommandLineCreation("variable"); });

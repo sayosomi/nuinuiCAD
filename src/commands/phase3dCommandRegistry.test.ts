@@ -44,6 +44,8 @@ describe("Phase 3d Inspector command registry", () => {
       .toContainEqual({ key: "ArrowLeft", mod: false, alt: true, shift: false });
     expect(bindings.find((binding) => binding.commandId === "startCanvasPickFromSourceSelection")?.chords)
       .toContainEqual({ key: "p", mod: true, alt: false, shift: true });
+    expect(bindings.find((binding) => binding.commandId === "renameSelectedElement")?.chords)
+      .toContainEqual({ key: "F2", mod: false, alt: false, shift: false });
   });
 
   it("uses Mod+Enter to finish only a pick session while Enter keeps applying candidates", () => {

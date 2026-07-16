@@ -174,6 +174,21 @@ describe("SourceEditorController commit and history boundaries", () => {
     parent.remove();
   });
 
+  it("opens the rename prompt from its explicit F2 function-key binding", () => {
+    useCadDocumentStore.getState().commitText("nui 1\npoint A = (12, 34)", "test");
+    const parent = document.createElement("div");
+    document.body.append(parent);
+    const controller = new SourceEditorController(parent);
+    const element = useCadDocumentStore.getState().elements.find((item) => item.name === "A")!;
+    useCadUiStore.getState().setSelectedElementIds([element.id]);
+
+    fireEvent.keyDown(parent.querySelector(".cm-content")!, { key: "F2" });
+    expect(useCadUiStore.getState().renameElementPromptTargetId).toBe(element.id);
+
+    controller.destroy();
+    parent.remove();
+  });
+
   it("rejects unsupported, partial, multiline, invalid, or already-active Source Editor selections", () => {
     useCadDocumentStore.getState().commitText([
       "nui 1",

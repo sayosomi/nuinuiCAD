@@ -151,6 +151,7 @@ export type CommandId =
   | "openSelectionColorPicker"
   | "closeSelectionColorPicker"
   | "applyDisplayColorToSelection"
+  | "renameSelectedElement"
   | "focusCanvas"
   | "focusSourceEditor"
   | "focusElementSearch"

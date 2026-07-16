@@ -52,6 +52,33 @@ import type { Command, CommandId } from "./commandTypes";
 
 const hasSelection = () => getSelectedElementIds().length > 0;
 
+const selectedRenameTargetId = () => {
+  const selectedIds = getSelectedElementIds();
+  if (selectedIds.length !== 1) return null;
+  const targetId = selectedIds[0];
+  return useCadDocumentStore.getState().elements.some((element) => element.id === targetId)
+    ? targetId
+    : null;
+};
+
+const openRenameSelectedElementPrompt = () => {
+  const targetId = selectedRenameTargetId();
+  if (!targetId) {
+    useCadUiStore.getState().setCommandErrorMessage(
+      getSelectedElementIds().length === 1
+        ? "リネーム対象の要素が見つかりません。もう一度選択してください。"
+        : "リネームする要素を1件だけ選択してください。"
+    );
+    return false;
+  }
+  useCadUiStore.setState({
+    renameElementPromptTargetId: targetId,
+    commandErrorMessage: null,
+    showCommandPalette: false
+  });
+  return true;
+};
+
 const selectedConditionalGroupHasElseBranch = () => {
   const selectedElement = getSelectedElement();
   if (!selectedElement || !isConditionalGroupElement(selectedElement)) return false;
@@ -174,6 +201,18 @@ export const selectionCommandDefinitions = {
     id: "applyDisplayColorToSelection",
     label: "選択範囲へ表示色を適用",
     run: (context) => applyDisplayColorToSelection(context?.colorId)
+  },
+  renameSelectedElement: {
+    id: "renameSelectedElement",
+    label: "選択要素の名前を変更",
+    palette: {
+      order: 26.5,
+      keywords: ["rename", "name", "リネーム", "名前", "変更", "選択要素"],
+      isAvailable: () => Boolean(selectedRenameTargetId())
+    },
+    shortcuts: [{ keys: "F2" }],
+    flushPolicy: "editor-owned",
+    run: () => openRenameSelectedElementPrompt()
   },
   moveEvaluationDividerUp: {
     id: "moveEvaluationDividerUp",

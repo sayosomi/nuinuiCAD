@@ -1136,6 +1136,7 @@ textarea {
 .palette-settings-backdrop,
 .visibility-profile-settings-backdrop,
 .selection-color-picker-backdrop,
+.rename-element-backdrop,
 .template-library-backdrop,
 .image-import-backdrop {
   position: fixed;
@@ -1151,6 +1152,7 @@ textarea {
 .palette-settings,
 .visibility-profile-settings,
 .selection-color-picker,
+.rename-element-dialog,
 .template-library-dialog,
 .image-import-dialog {
   display: grid;
@@ -1168,6 +1170,11 @@ textarea {
 .selection-color-picker {
   grid-template-rows: auto minmax(0, 1fr);
   width: min(420px, 100%);
+}
+
+.rename-element-dialog {
+  grid-template-rows: auto minmax(0, 1fr);
+  width: min(460px, 100%);
 }
 
 .visibility-profile-settings {
@@ -1201,6 +1208,37 @@ textarea {
 .image-import-summary {
   display: grid;
   gap: 10px;
+}
+
+.rename-element-form {
+  display: grid;
+  gap: 10px;
+  min-height: 0;
+  padding: 14px 16px;
+}
+
+.rename-element-form label {
+  display: grid;
+  gap: 5px;
+  color: #4a4d45;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.rename-element-error {
+  margin: 0;
+  border: 1px solid #efb08f;
+  border-radius: 6px;
+  background: #fff7f2;
+  padding: 9px 10px;
+  color: #73320d;
+  font-size: 13px;
+}
+
+.rename-element-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 .image-import-form label {

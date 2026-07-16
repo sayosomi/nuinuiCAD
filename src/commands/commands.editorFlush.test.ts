@@ -77,4 +77,20 @@ describe("dispatchCommand editor flush boundary", () => {
     expect(flush).not.toHaveBeenCalled();
     expect(stepValue).toHaveBeenLastCalledWith(-1);
   });
+
+  it("leaves rename flushing to its confirm-time core instead of opening with a second flush", () => {
+    useCadDocumentStore.getState().commitText("nui 1\npoint A = (0, 0)", "test");
+    const elementId = useCadDocumentStore.getState().elements[0].id;
+    useCadUiStore.getState().setSelectedElementIds([elementId]);
+    const flush = vi.fn(() => "flushed" as const);
+    unregister = registerSourceEditSession({
+      hasPendingText: () => true,
+      isComposing: () => false,
+      flush
+    });
+
+    expect(dispatchCommand("renameSelectedElement")).toBe(true);
+    expect(flush).not.toHaveBeenCalled();
+    expect(useCadUiStore.getState().renameElementPromptTargetId).toBe(elementId);
+  });
 });

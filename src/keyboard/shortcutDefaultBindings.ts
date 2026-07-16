@@ -42,6 +42,7 @@ const defaultBindings: ShortcutBinding[] = [
   binding("crossFocus", "focusElementSearch", [ch("f", { mod: true })]),
   binding("normal", "undo", [ch("z", { mod: true })]),
   binding("normal", "redo", [ch("y", { mod: true })]),
+  binding("normal", "renameSelectedElement", [ch("F2")]),
   binding("normal", "focusSourceEditor", [ch("g")]),
   binding("normal", "toggleInspectorPanel", [ch("i")]),
   binding("normal", "groupSelectedElements", [ch("g", { mod: true })]),
@@ -104,6 +105,12 @@ const defaultBindings: ShortcutBinding[] = [
   }),
   binding("sourceEditor", "stepSourceValueBackward", [ch("ArrowLeft", { alt: true })], {
     label: "Source Editorの値を前へ (Alt+←)",
+    owner: "editorTransaction"
+  }),
+  // F2 is a non-text function key. It is a narrow exception to the Source
+  // Editor's Mod-key policy, and falls through when no single element is selected.
+  binding("sourceEditor", "renameSelectedElement", [ch("F2")], {
+    label: "Source Editor / 選択要素の名前を変更",
     owner: "editorTransaction"
   }),
   binding("sourceEditor", "startCanvasPickFromSourceSelection", [ch("p", { mod: true, shift: true })], {

@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { commandIdForKeyboardEvent, keyboardCommandForEvent, shouldIgnoreKeyboardEvent, shortcutConflicts } from "./shortcuts";
+import {
+  commandIdForKeyboardEvent,
+  keyboardCommandForEvent,
+  shouldIgnoreKeyboardEvent,
+  shortcutConflicts,
+  sourceEditorShortcutBindings
+} from "./shortcuts";
 import type { ShortcutSettings } from "./shortcutTypes";
 
 const eventFor = (key: string, init: KeyboardEventInit = {}) =>
@@ -59,6 +65,31 @@ describe("Source Editor shortcut policy", () => {
       expect.objectContaining({
         bindingIds: ["sourceEditor.addFreePoint"],
         kind: "codeMirrorOwnership"
+      })
+    ]));
+  });
+
+  it("allows only the explicit F2 function-key exception without weakening Source Editor bindings", () => {
+    const renameBinding = sourceEditorShortcutBindings().find(
+      (binding) => binding.commandId === "renameSelectedElement"
+    );
+    expect(renameBinding).toMatchObject({
+      owner: "editorTransaction",
+      chords: [{ key: "F2", mod: false, alt: false, shift: false }]
+    });
+    expect(shortcutConflicts()).toEqual([]);
+
+    const settings: ShortcutSettings = {
+      version: 1,
+      overrides: [{
+        bindingId: "sourceEditor.addBezierCurve",
+        chords: [{ key: "c", mod: false, alt: false, shift: false }]
+      }]
+    };
+    expect(shortcutConflicts(settings)).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        bindingIds: ["sourceEditor.addBezierCurve"],
+        kind: "sourceEditorModifier"
       })
     ]));
   });
