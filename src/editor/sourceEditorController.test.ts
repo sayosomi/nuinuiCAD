@@ -1,6 +1,6 @@
 import { undoDepth, redoDepth } from "@codemirror/commands";
 import { foldedRanges } from "@codemirror/language";
-import { EditorSelection } from "@codemirror/state";
+import { EditorSelection, Transaction } from "@codemirror/state";
 import { fireEvent } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
@@ -263,7 +263,7 @@ describe("SourceEditorController commit and history boundaries", () => {
     controller.destroy();
   });
 
-  it("removes only burst B on CM undo, then removes burst A on store undo, verified by text content", () => {
+  it("uses document Undo/Redo after a local Undo reaches the committed boundary", () => {
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
     const internals = controller as unknown as ControllerInternals;
@@ -284,9 +284,43 @@ describe("SourceEditorController commit and history boundaries", () => {
     internals.runUndo();
     expect(internals.view.state.doc.toString()).toBe(afterA);
     expect(useCadDocumentStore.getState().sourceText).toBe(afterA);
+    expect(undoDepth(internals.view.state as never)).toBe(0);
+    expect(redoDepth(internals.view.state as never)).toBe(0);
 
-    useCadDocumentStore.getState().undo();
+    // The second Cmd/Ctrl+Z is clean-editor document Undo, not a failed
+    // CodeMirror operation. Cmd/Ctrl+Y and Cmd/Ctrl+Shift+Z share runRedo.
+    internals.runUndo();
     expect(useCadDocumentStore.getState().sourceText).toBe(baseline);
+    expect(internals.view.state.doc.toString()).toBe(baseline);
+    internals.runRedo();
+    expect(useCadDocumentStore.getState().sourceText).toBe(afterA);
+    expect(internals.view.state.doc.toString()).toBe(afterA);
+    expect(undoDepth(internals.view.state as never)).toBe(0);
+    expect(redoDepth(internals.view.state as never)).toBe(0);
+    controller.destroy();
+  });
+
+  it("does not fall through to document Undo when a dirty buffer has no local history entry", () => {
+    const parent = document.createElement("div");
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+    const baseline = useCadDocumentStore.getState().sourceText;
+    useCadDocumentStore.getState().commitText(`${baseline}\n# document history`, "test");
+    const committed = useCadDocumentStore.getState().sourceText;
+    const revision = useCadDocumentStore.getState().sourceRevision;
+    const pastLength = useCadDocumentStore.getState().past.length;
+
+    internals.view.dispatch({
+      changes: { from: internals.view.state.doc.length, insert: "\n# uncommitted" },
+      annotations: Transaction.addToHistory.of(false)
+    });
+    expect(undoDepth(internals.view.state as never)).toBe(0);
+
+    expect(internals.runUndo()).toBe(true);
+    expect(internals.view.state.doc.toString()).toBe(`${committed}\n# uncommitted`);
+    expect(useCadDocumentStore.getState().sourceText).toBe(committed);
+    expect(useCadDocumentStore.getState().sourceRevision).toBe(revision);
+    expect(useCadDocumentStore.getState().past).toHaveLength(pastLength);
     controller.destroy();
   });
 

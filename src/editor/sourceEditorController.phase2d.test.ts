@@ -584,6 +584,17 @@ describe("SourceEditorController structural shortcuts", () => {
     controller.destroy();
   });
 
+  it("routes clean-editor Mod+Z, Mod+Y, and Mod+Shift+Z to document history", () => {
+    const { controller, content } = buildController();
+
+    fireEvent.keyDown(content, { key: "z", ctrlKey: true });
+    fireEvent.keyDown(content, { key: "y", ctrlKey: true });
+    fireEvent.keyDown(content, { key: "z", ctrlKey: true, shiftKey: true });
+
+    expect(dispatchedCommandIds()).toEqual(expect.arrayContaining(["undo", "redo", "redo"]));
+    controller.destroy();
+  });
+
   it("swallows structural shortcuts during composition and recovers after compositionend", async () => {
     const { controller, content } = buildController();
 

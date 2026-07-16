@@ -981,19 +981,45 @@ export class SourceEditorController implements SourceEditorHandle {
     if (this.protocol.composing) return true;
     if (this.cancelActivePickForHistory()) return true;
     if (this.activeValueStepGesture) this.flush("command");
-    const handled = undo(this.view);
-    if (!this.hasPendingText()) {
-      this.cancelCommitTimer();
-      this.clearCmHistory();
+    // The editor owns only its uncommitted buffer. Never infer ownership from
+    // CodeMirror's history depth or command result: a stale/local entry must
+    // not prevent a clean editor from reaching the document history, while a
+    // dirty buffer must never be flushed or discarded by document Undo.
+    if (this.hasPendingText()) {
+      undo(this.view);
+      this.finishLocalHistoryAtCommitBoundary();
+      return true;
     }
-    return handled;
+    dispatchCommand("undo");
+    return true;
   }
 
   private runRedo() {
     if (this.protocol.composing) return true;
     if (this.cancelActivePickForHistory()) return true;
     if (this.activeValueStepGesture) this.flush("command");
-    return redo(this.view);
+    if (this.hasPendingText()) {
+      redo(this.view);
+      this.finishLocalHistoryAtCommitBoundary();
+      return true;
+    }
+    dispatchCommand("redo");
+    return true;
+  }
+
+  /** Restores the clean editor boundary after a local Undo/Redo reaches the
+   * committed text. This is deliberately independent from the boolean result
+   * of CodeMirror's command. */
+  private finishLocalHistoryAtCommitBoundary() {
+    if (this.hasPendingText()) return;
+    this.cancelCommitTimer();
+    this.burstStartCursorLine = null;
+    this.activeValueStepGesture = null;
+    this.pendingKeyboardValueStep = null;
+    this.store.getState().setSourceEditorPreviewText(null);
+    this.clearCmHistory();
+    this.requestDecorationRefresh();
+    forceLinting(this.view);
   }
 
   /** A command/pick session captures insertion state. Never mutate its source buffer
