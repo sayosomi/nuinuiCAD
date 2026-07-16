@@ -44,4 +44,14 @@ printLayout ヘッダ / layoutVar / place / @stop)を v2 文法で解析する p
 
 - P7 が設定文 round-trip に使う。C1 が dispatch を配線し、`dslCompiler.ts` の
   `applyVisibilitySettings` / palette / printLayout 適用を新引数名に合わせる。
-- (完了時に追記)
+- `src/dsl/dslSettingsParser.ts` は
+  `parseDslSettingsStatement(logicalText, { opensBlock })` を公開する。結果は
+  `DslSettingsStatement`(kind/name/args/attrs/payloadSpans/opensBlock)と statement
+  スコープの論理 `DslSpan` 診断で、C1 は source map の物理情報を付与して既存
+  `DslStatement` へ写像する。
+- `color` の hex と `place` の group は位置引数として `payloadSpans` に入り、
+  `view` の registry 外キーは role 可視値として `attrs` に保持する。printLayout の
+  `) {` と、次物理行の `{` を示す `opensBlock` option の両方を受理する。
+- 新規parserとテストのみで、既存 `dslParser.ts` / compiler / Rust / 製品コードからは
+  import していない。確定仕様の変更はない。
+- `npm test` / `npm run build` / `npm run lint` を green で確認した。

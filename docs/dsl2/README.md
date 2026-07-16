@@ -23,7 +23,7 @@
 | P1 | [construction registry](tasks/p1-construction-registry.md) | 未接続 | なし | 完了 |
 | P2 | [引数スキャナ](tasks/p2-arg-scanner.md) | 未接続 | なし | 完了 |
 | P3 | [要素/コンテナ call parser](tasks/p3-call-parser.md) | 未接続 | P1, P2 | 完了 |
-| P4 | [設定文 parser](tasks/p4-settings-parser.md) | 未接続 | P1, P2 | 未着手 |
+| P4 | [設定文 parser](tasks/p4-settings-parser.md) | 未接続 | P1, P2 | 完了 |
 | P5 | [registry 駆動 serializer](tasks/p5-element-serializer.md) | 未接続 | P1 | 未着手 |
 | P6 | [compiler 引数適用](tasks/p6-compiler-apply-args.md) | 未接続 | P1, P2 | 未着手 |
 | P7 | [round-trip 行列と v2 golden](tasks/p7-roundtrip-golden.md) | 未接続 | P3, P4, P5, P6 | 未着手 |
