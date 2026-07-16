@@ -14,6 +14,7 @@ import {
   skipCommandLineStep,
   startCommandLineCreation,
   startCommandLineStepEdit,
+  startCommandLineNumericReferencePick,
   submitCommandLineInput
 } from "./commandLineSessionCommands";
 import { commandLineCommandDefinitions } from "./commandLineCommandDefinitions";
@@ -130,6 +131,73 @@ describe("command-line session commands", () => {
       editingStepIndex: null,
       args: { expression: 12, name: "変数 B" }
     });
+  });
+
+  it("keeps missing-input and invalid mid-session edit drafts isolated at the original prompt", () => {
+    expect(startCommandLineCreation("freePoint")).toBe(true);
+    expect(submitCommandLineInput("3")).toBe(true);
+    expect(startCommandLineStepEdit(0)).toBe(true);
+
+    expect(submitCommandLineInput("(")).toBe(false);
+    expect(useCadUiStore.getState().commandLineSession).toMatchObject({
+      currentStepIndex: 1,
+      editingStepIndex: 0,
+      editingDraft: { kind: "expression", expression: "(" },
+      args: { x: 3 }
+    });
+
+    expect(cancelCommandLineStepEdit()).toBe(true);
+    expect(submitCommandLineInput("4")).toBe(true);
+    expect(startCommandLineStepEdit(0)).toBe(true);
+    expect(submitCommandLineInput("(")).toBe(false);
+    expect(useCadUiStore.getState().commandLineSession).toMatchObject({
+      currentStepIndex: 2,
+      editingStepIndex: 0,
+      editingDraft: { kind: "expression", expression: "(" },
+      args: { x: 3, y: 4 }
+    });
+  });
+
+  it("never restores an edited session's saved pick progress after stale cancellation or re-entry", () => {
+    const source = ["nui 1", "point A = (0, 0)", "point B = (10, 0)"].join("\n");
+    useCadDocumentStore.getState().commitText(source, "test");
+    const pointA = useCadDocumentStore.getState().elements.find((element) => element.name === "A")!;
+
+    expect(startCommandLineCreation("line")).toBe(true);
+    applyPickedPoint({ pickedPointAnchor: referenceAnchor(pointA.id) });
+    expect(startCommandLineStepEdit(0)).toBe(true);
+    useCadDocumentStore.getState().commitText(`${source}\npoint C = (20, 0)`, "test");
+
+    expect(cancelStaleCommandLineSession()).toBe(true);
+    expect(useCadUiStore.getState().commandLineSession).toBeNull();
+    expect(useCadUiStore.getState().activePointPickTarget).toBeNull();
+    expect(useCadUiStore.getState().activeLinePickTarget).toBeNull();
+    expect(useCadUiStore.getState().activeNumericReferencePickTarget).toBeNull();
+
+    expect(startCommandLineCreation("line")).toBe(true);
+    applyPickedPoint({ pickedPointAnchor: referenceAnchor(pointA.id) });
+    expect(startCommandLineStepEdit(0)).toBe(true);
+    expect(startCommandLineCreation("freePoint")).toBe(true);
+    expect(useCadUiStore.getState().commandLineSession).toMatchObject({ recipe: { type: "freePoint" }, args: {} });
+    expect(useCadUiStore.getState().activePointPickTarget).toBeNull();
+    expect(useCadUiStore.getState().activeLinePickTarget).toBeNull();
+    expect(useCadUiStore.getState().activeNumericReferencePickTarget).toBeNull();
+  });
+
+  it("restores an active numeric-reference pick after cancelling a mid-session number edit", () => {
+    expect(startCommandLineCreation("freePoint")).toBe(true);
+    expect(submitCommandLineInput("3")).toBe(true);
+    expect(startCommandLineNumericReferencePick()).toBe(true);
+    expect(useCadUiStore.getState().activeNumericReferencePickTarget).toMatchObject({ parameterKey: "y" });
+
+    expect(startCommandLineStepEdit(0)).toBe(true);
+    expect(useCadUiStore.getState().activeNumericReferencePickTarget).toBeNull();
+    expect(cancelCommandLineStepEdit()).toBe(true);
+    expect(useCadUiStore.getState().commandLineSession).toMatchObject({
+      currentStepIndex: 1,
+      args: { x: 3 }
+    });
+    expect(useCadUiStore.getState().activeNumericReferencePickTarget).toMatchObject({ parameterKey: "y" });
   });
 
   it("keeps an invalid edit draft and confirmed args when preview validation fails", () => {

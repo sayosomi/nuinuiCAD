@@ -33,6 +33,10 @@ import {
   type CreationRecipe
 } from "./creationRecipes";
 import { COMMAND_LINE_PICK_TARGET_ID } from "./commandLinePickRouting";
+import {
+  commandLinePickStateForSession,
+  editingReturnPickStateFor
+} from "./commandLineSessionPickState";
 import { clearCommandLineGhostPreview, syncCommandLineGhostPreview } from "./commandLineGhostPreview";
 import { promoteDirectlyReferencedUnnamedElements } from "./commandLineUnnamedPromotion";
 import type { CommandContext } from "./commandTypes";
@@ -52,10 +56,19 @@ const clearStaleSession = () => {
   ui.setCommandErrorMessage(staleError);
 };
 
-const setSessionAndSyncPickTarget = (session: CommandLineSession) => {
-  useCadUiStore.getState().setCommandLineSession(session);
-  syncCommandLinePickTarget(session);
-  syncCommandLineGhostPreview(session);
+/**
+ * Updates session progress and every command-line-owned pick field together so
+ * observers never see a prompt for one step paired with another step's target.
+ */
+const setSessionAndSyncPickTarget = (
+  session: CommandLineSession,
+  restoredPickState: CommandLineSession["editingReturnPickState"] = null
+) => {
+  useCadUiStore.setState({
+    commandLineSession: session,
+    ...commandLinePickStateForSession(session, restoredPickState)
+  });
+  return syncCommandLineGhostPreview(session);
 };
 
 /**
@@ -64,51 +77,7 @@ const setSessionAndSyncPickTarget = (session: CommandLineSession) => {
  * document mutation while the session is in progress.
  */
 export const syncCommandLinePickTarget = (session = useCadUiStore.getState().commandLineSession) => {
-  const step = currentStep(session);
-  const target = step && step.kind !== "number" && step.kind !== "name"
-    ? {
-        elementId: COMMAND_LINE_PICK_TARGET_ID,
-        parameterKey: step.key,
-        insertionIndex: session!.insertionIndex
-      }
-    : null;
-
-  if (step?.kind === "point" || step?.kind === "endpoint") {
-    useCadUiStore.setState({
-      activePointPickTarget: target,
-      activeNumericReferencePickTarget: null,
-      activeLinePickTarget: null,
-      activePickCursor: null
-    });
-    return;
-  }
-  if (step?.kind === "line") {
-    useCadUiStore.setState({
-      activePointPickTarget: null,
-      activeNumericReferencePickTarget: null,
-      activeLinePickTarget: target,
-      activePickCursor: null
-    });
-    return;
-  }
-  if (step?.kind === "lineList") {
-    const draftLineIds = isEditingCommandLineStep(session!) && Array.isArray(session!.editingDraft)
-      ? [...session!.editingDraft]
-      : [];
-    useCadUiStore.setState({
-      activePointPickTarget: null,
-      activeNumericReferencePickTarget: null,
-      activeLinePickTarget: target ? { ...target, draftLineIds } : null,
-      activePickCursor: null
-    });
-    return;
-  }
-  useCadUiStore.setState({
-    activePointPickTarget: null,
-    activeNumericReferencePickTarget: null,
-    activeLinePickTarget: null,
-    activePickCursor: null
-  });
+  useCadUiStore.setState(commandLinePickStateForSession(session));
 };
 
 /**
@@ -223,17 +192,14 @@ const editingDraftIsParseable = (draftSession: CommandLineSession) => {
  * edit safely.
  */
 const confirmEditingDraft = (draftSession: CommandLineSession) => {
-  const ui = useCadUiStore.getState();
-  ui.setCommandLineSession(draftSession);
-  syncCommandLinePickTarget(draftSession);
-  const status = syncCommandLineGhostPreview(draftSession);
+  const status = setSessionAndSyncPickTarget(draftSession);
   const accepted = status === "preview" ||
     (status === "not-evaluated" && editingDraftIsParseable(draftSession));
   if (!accepted) {
-    ui.setCommandLineSession(withCommandLineSessionError(draftSession, editValidationError));
+    setSessionAndSyncPickTarget(withCommandLineSessionError(draftSession, editValidationError));
     return false;
   }
-  setSessionAndSyncPickTarget(commitStepEdit(draftSession));
+  setSessionAndSyncPickTarget(commitStepEdit(draftSession), draftSession.editingReturnPickState);
   return true;
 };
 
@@ -255,7 +221,7 @@ export const fillCommandLineCurrentStep = (value: Parameters<typeof fillCurrentS
 export const startCommandLineStepEdit = (stepIndex: number) => {
   const session = useCadUiStore.getState().commandLineSession;
   if (!session || cancelStaleCommandLineSession()) return false;
-  const next = beginStepEdit(session, stepIndex);
+  const next = beginStepEdit(session, stepIndex, editingReturnPickStateFor(session, useCadUiStore.getState()));
   if (next === session) return false;
   setSessionAndSyncPickTarget(next);
   return true;
@@ -265,9 +231,10 @@ export const startCommandLineStepEdit = (stepIndex: number) => {
 export const cancelCommandLineStepEdit = () => {
   const session = useCadUiStore.getState().commandLineSession;
   if (!session || cancelStaleCommandLineSession()) return false;
+  const restoredPickState = session.editingReturnPickState;
   const next = cancelStepEdit(session);
   if (next === session) return false;
-  setSessionAndSyncPickTarget(next);
+  setSessionAndSyncPickTarget(next, restoredPickState);
   return true;
 };
 

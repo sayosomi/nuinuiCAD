@@ -21,6 +21,7 @@ describe("completedCommandLineSteps", () => {
       currentStepIndex: 3,
       editingStepIndex: null,
       editingDraft: null,
+      editingReturnPickState: null,
       insertionIndex: 0,
       startedAtRevision: 1,
       nameSuggestion: "分点",

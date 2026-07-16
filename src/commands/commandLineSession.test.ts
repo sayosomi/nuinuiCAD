@@ -132,6 +132,31 @@ describe("commandLineSession", () => {
     });
   });
 
+  it("edits an already-completed step mid-session and returns to its recorded prompt", () => {
+    const partial = fillCurrentStep(start(), referenceAnchor("point-a"));
+    const returnPickState = {
+      numericReferencePickActive: false,
+      lineListDraftLineIds: null,
+      activePickCursor: { elementId: "point-a", optionIndex: 0 }
+    };
+
+    const editing = beginStepEdit(partial, 0, returnPickState);
+    expect(editing).toMatchObject({
+      currentStepIndex: 1,
+      editingStepIndex: 0,
+      editingReturnPickState: returnPickState
+    });
+    expect(beginStepEdit(partial, 1)).toBe(partial);
+
+    const committed = commitStepEdit(setEditingDraft(editing, referenceAnchor("point-b")));
+    expect(committed).toMatchObject({
+      currentStepIndex: 1,
+      editingStepIndex: null,
+      editingReturnPickState: null,
+      args: { startPoint: referenceAnchor("point-b") }
+    });
+  });
+
   it("cancels an edit without changing the confirmed argument list", () => {
     const complete = fillCurrentStep(
       fillCurrentStep(

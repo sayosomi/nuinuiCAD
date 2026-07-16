@@ -223,6 +223,36 @@ describe("CommandLineBar", () => {
     expect(useCadUiStore.getState().commandLineSession?.args.expression).toBe(24);
   });
 
+  it("edits completed chips during an unfinished session, keeps a chip switch isolated, and returns focus to the prompt", async () => {
+    render(<CommandLineBar />);
+    act(() => { startCommandLineCreation("freePoint"); });
+    const input = screen.getByRole<HTMLInputElement>("textbox");
+    const form = input.closest("form")!;
+    fireEvent.change(input, { target: { value: "3" } });
+    fireEvent.submit(form);
+    fireEvent.change(input, { target: { value: "4" } });
+    fireEvent.submit(form);
+    expect(useCadUiStore.getState().commandLineSession).toMatchObject({
+      currentStepIndex: 2,
+      args: { x: 3, y: 4 }
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "xを編集" }));
+    fireEvent.change(screen.getByRole<HTMLInputElement>("textbox"), { target: { value: "10" } });
+    fireEvent.click(screen.getByRole("button", { name: "yを編集" }));
+    expect(useCadUiStore.getState().commandLineSession).toMatchObject({ editingStepIndex: 0, args: { x: 3, y: 4 } });
+    expect(screen.getByRole<HTMLInputElement>("textbox")).toHaveValue("10");
+
+    fireEvent.submit(form);
+    await waitFor(() => expect(screen.getByRole<HTMLInputElement>("textbox")).toHaveFocus());
+    expect(useCadUiStore.getState().commandLineSession).toMatchObject({
+      currentStepIndex: 2,
+      editingStepIndex: null,
+      args: { x: 10, y: 4 }
+    });
+    expect(screen.getAllByText("入力中：名前")).toHaveLength(2);
+  });
+
   it("returns focus to create when skipping an edited name removes its progress row", async () => {
     render(<CommandLineBar />);
     act(() => { startCommandLineCreation("variable"); });

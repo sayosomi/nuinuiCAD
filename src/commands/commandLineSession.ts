@@ -4,7 +4,7 @@ import {
   type ElementCreationPlacement
 } from "../model/elementCreationPlacement";
 import { fallbackElementName, makeUniqueElementName } from "../model/elementNames";
-import type { CadElement } from "../types/geometry";
+import type { CadElement, ElementId } from "../types/geometry";
 import type {
   CreationArgumentValue,
   CreationArgs,
@@ -24,6 +24,8 @@ export type CommandLineSession = {
   editingStepIndex: number | null;
   /** `null` is an explicit optional-name removal while editing. */
   editingDraft: CommandLineStepValue | null;
+  /** Transient current-prompt pick progress to restore after an isolated edit. */
+  editingReturnPickState: CommandLineEditingReturnPickState | null;
   insertionIndex: number;
   startedAtRevision: number;
   nameSuggestion: string;
@@ -43,10 +45,35 @@ export type StartCommandLineSessionOptions = {
 
 export type CommandLineStepValue = CreationArgumentValue | string;
 
+/**
+ * The small, non-derivable portion of a current command-line pick that an
+ * isolated step edit temporarily replaces. Point/line target identity is
+ * reconstructed from `currentStepIndex`; only transient user progress lives
+ * here.
+ */
+export type CommandLineEditingReturnPickState = {
+  /** A number prompt had entered its explicit numeric-reference pick mode. */
+  numericReferencePickActive: boolean;
+  /** Unconfirmed multi-line selection owned by the active line-list prompt. */
+  lineListDraftLineIds: ElementId[] | null;
+  /** Candidate cursor owned by the active command-line reference prompt. */
+  activePickCursor: { elementId: ElementId; optionIndex: number } | null;
+};
+
 const hasOwn = (value: object, key: string) => Object.prototype.hasOwnProperty.call(value, key);
 
 const cloneStepValue = (value: CommandLineStepValue | null) =>
   Array.isArray(value) ? [...value] : value;
+
+const cloneEditingReturnPickState = (
+  value: CommandLineEditingReturnPickState | null | undefined
+) => value
+  ? {
+      ...value,
+      lineListDraftLineIds: value.lineListDraftLineIds ? [...value.lineListDraftLineIds] : null,
+      activePickCursor: value.activePickCursor ? { ...value.activePickCursor } : null
+    }
+  : null;
 
 const nameSuggestionFor = (recipe: CreationRecipe, options: StartCommandLineSessionOptions) => {
   const placement = options.placement ?? creationPlacementForEvaluationLimit(
@@ -75,6 +102,7 @@ export const startSession = (
   currentStepIndex: 0,
   editingStepIndex: null,
   editingDraft: null,
+  editingReturnPickState: null,
   insertionIndex: options.insertionIndex,
   startedAtRevision: options.revision,
   nameSuggestion: nameSuggestionFor(recipe, options),
@@ -109,15 +137,25 @@ export const effectiveCommandLineArgs = (session: CommandLineSession): CreationA
 };
 
 /** Begins editing one already-completed recipe step without changing confirmed args. */
-export const beginStepEdit = (session: CommandLineSession, stepIndex: number): CommandLineSession => {
-  if (isEditingCommandLineStep(session) || !sessionCanConfirm(session)) return session;
+export const beginStepEdit = (
+  session: CommandLineSession,
+  stepIndex: number,
+  editingReturnPickState: CommandLineEditingReturnPickState | null = null
+): CommandLineSession => {
+  if (isEditingCommandLineStep(session) || stepIndex < 0 || stepIndex >= session.currentStepIndex) return session;
   const step = session.recipe.steps[stepIndex];
   if (!step) return session;
   const key = keyForStep(step);
   if (!hasOwn(session.args, key)) return session;
   const draft = session.args[key as keyof CreationArgs];
   if (draft === undefined) return session;
-  return { ...session, editingStepIndex: stepIndex, editingDraft: cloneStepValue(draft), error: null };
+  return {
+    ...session,
+    editingStepIndex: stepIndex,
+    editingDraft: cloneStepValue(draft),
+    editingReturnPickState: cloneEditingReturnPickState(editingReturnPickState),
+    error: null
+  };
 };
 
 export const setEditingDraft = (
@@ -131,12 +169,25 @@ export const setEditingDraft = (
 export const commitStepEdit = (session: CommandLineSession): CommandLineSession => {
   if (!isEditingCommandLineStep(session)) return session;
   const args = effectiveCommandLineArgs(session);
-  return { ...session, args, editingStepIndex: null, editingDraft: null, error: null };
+  return {
+    ...session,
+    args,
+    editingStepIndex: null,
+    editingDraft: null,
+    editingReturnPickState: null,
+    error: null
+  };
 };
 
 export const cancelStepEdit = (session: CommandLineSession): CommandLineSession =>
   isEditingCommandLineStep(session)
-    ? { ...session, editingStepIndex: null, editingDraft: null, error: null }
+    ? {
+        ...session,
+        editingStepIndex: null,
+        editingDraft: null,
+        editingReturnPickState: null,
+        error: null
+      }
     : session;
 
 export const withCommandLineSessionError = (session: CommandLineSession, error: string) =>

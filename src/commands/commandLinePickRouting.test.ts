@@ -16,11 +16,13 @@ import {
   confirmCommandLineSession,
   skipCommandLineStep,
   startCommandLineCreation,
+  startCommandLineCreationForRecipe,
   startCommandLineStepEdit,
   startCommandLineNumericReferencePick,
   submitCommandLineInput
 } from "./commandLineSessionCommands";
 import { COMMAND_LINE_PICK_TARGET_ID } from "./commandLinePickRouting";
+import type { CreationRecipe } from "./creationRecipes";
 
 const source = [
   "nui 1",
@@ -33,6 +35,15 @@ const byName = (name: string) => {
   const element = useCadDocumentStore.getState().elements.find((item) => item.name === name);
   if (!element) throw new Error(`Missing ${name}`);
   return element;
+};
+
+const midSessionLineListRecipe: CreationRecipe = {
+  type: "copyLine",
+  steps: [
+    { kind: "point", key: "startPoint", prompt: "始点" },
+    { kind: "lineList", key: "baseLineIds", prompt: "基準線" },
+    { kind: "name", autoSuggest: true }
+  ]
 };
 
 describe("command-line pick routing", () => {
@@ -201,6 +212,84 @@ describe("command-line pick routing", () => {
       editingStepIndex: null,
       args: { baseLineIds: [line.id] }
     });
+  });
+
+  it("atomically switches and restores a mid-session reference pick without changing the document", () => {
+    const pointA = byName("A");
+    const pointB = byName("B");
+    const textBefore = useCadDocumentStore.getState().sourceText;
+    const undoBefore = useCadDocumentStore.getState().past.length;
+
+    expect(startCommandLineCreation("line")).toBe(true);
+    applyPickedPoint({ pickedPointAnchor: referenceAnchor(pointA.id) });
+    useCadUiStore.getState().setActivePickCursor({ elementId: pointB.id, optionIndex: 0 });
+
+    const transitions: Array<{ editingStepIndex: number | null; parameterKey: string | null }> = [];
+    const unsubscribe = useCadUiStore.subscribe((state) => {
+      transitions.push({
+        editingStepIndex: state.commandLineSession?.editingStepIndex ?? null,
+        parameterKey: state.activePointPickTarget?.parameterKey ?? null
+      });
+    });
+    try {
+      expect(startCommandLineStepEdit(0)).toBe(true);
+      expect(transitions).toEqual([{ editingStepIndex: 0, parameterKey: "startPoint" }]);
+      transitions.length = 0;
+
+      expect(cancelCommandLineStepEdit()).toBe(true);
+      expect(transitions).toEqual([{ editingStepIndex: null, parameterKey: "endPoint" }]);
+      expect(useCadUiStore.getState().activePickCursor).toEqual({ elementId: pointB.id, optionIndex: 0 });
+      transitions.length = 0;
+
+      applyPickedPoint({ pickedPointAnchor: referenceAnchor(pointB.id) });
+      expect(transitions).toEqual([
+        { editingStepIndex: null, parameterKey: null }
+      ]);
+      transitions.length = 0;
+      expect(startCommandLineStepEdit(0)).toBe(true);
+      expect(transitions).toEqual([{ editingStepIndex: 0, parameterKey: "startPoint" }]);
+      transitions.length = 0;
+      applyPickedPoint({ pickedPointAnchor: referenceAnchor(pointA.id) });
+      expect(transitions).toEqual([
+        { editingStepIndex: 0, parameterKey: "startPoint" },
+        { editingStepIndex: null, parameterKey: null }
+      ]);
+      expect(useCadUiStore.getState().commandLineSession).toMatchObject({
+        currentStepIndex: 2,
+        args: { startPoint: referenceAnchor(pointA.id), endPoint: referenceAnchor(pointB.id) }
+      });
+    } finally {
+      unsubscribe();
+    }
+
+    expect(useCadDocumentStore.getState().sourceText).toBe(textBefore);
+    expect(useCadDocumentStore.getState().past).toHaveLength(undoBefore);
+  });
+
+  it("restores only an unfinished line-list draft after cancelling a mid-session edit", () => {
+    const pointA = byName("A");
+    const line = byName("AB");
+    expect(startCommandLineCreationForRecipe(midSessionLineListRecipe)).toBe(true);
+    applyPickedPoint({ pickedPointAnchor: referenceAnchor(pointA.id) });
+    applyPickedLine({ pickedLineId: line.id });
+    expect(useCadUiStore.getState().activeLinePickTarget).toMatchObject({
+      parameterKey: "baseLineIds",
+      draftLineIds: [line.id]
+    });
+
+    expect(startCommandLineStepEdit(0)).toBe(true);
+    expect(useCadUiStore.getState().activePointPickTarget?.parameterKey).toBe("startPoint");
+    expect(cancelCommandLineStepEdit()).toBe(true);
+    expect(useCadUiStore.getState().commandLineSession).toMatchObject({
+      currentStepIndex: 1,
+      editingStepIndex: null,
+      args: { startPoint: referenceAnchor(pointA.id) }
+    });
+    expect(useCadUiStore.getState().activeLinePickTarget).toMatchObject({
+      parameterKey: "baseLineIds",
+      draftLineIds: [line.id]
+    });
+    expect(useCadUiStore.getState().commandLineSession?.editingReturnPickState).toBeNull();
   });
 
   it("normalizes generated forGroup references with the planned parent group and no target metadata", () => {

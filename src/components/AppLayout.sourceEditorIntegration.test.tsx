@@ -5,8 +5,14 @@ import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocume
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import {
   cancelCommandLineSession,
-  startCommandLineCreation
+  cancelCommandLineStepEdit,
+  startCommandLineCreation,
+  startCommandLineCreationForRecipe,
+  startCommandLineStepEdit
 } from "../commands/commandLineSessionCommands";
+import { applyPickedPoint } from "../commands/pickCommands";
+import { referenceAnchor } from "../model/pointAnchors";
+import type { CreationRecipe } from "../commands/creationRecipes";
 import { AppLayout } from "./AppLayout";
 
 const source = [
@@ -51,6 +57,15 @@ const pointId = (name: string) => {
   return id;
 };
 
+const midSessionLineListRecipe: CreationRecipe = {
+  type: "copyLine",
+  steps: [
+    { kind: "point", key: "startPoint", prompt: "始点" },
+    { kind: "lineList", key: "baseLineIds", prompt: "基準線" },
+    { kind: "name", autoSuggest: true }
+  ]
+};
+
 describe("AppLayout Source Editor production integration", () => {
   it("derives line-list inert regions from the virtual target without disabling the command bar", async () => {
     const view = render(<AppLayout />);
@@ -74,6 +89,27 @@ describe("AppLayout Source Editor production integration", () => {
     await waitFor(() => expect(sourcePane).not.toHaveAttribute("inert"));
     expect(rightPanel).not.toHaveAttribute("inert");
     expect(resizeHandle).not.toHaveAttribute("inert");
+    expect(document.activeElement?.closest("[inert]")).toBeNull();
+  });
+
+  it("restores line-list inert mode and Canvas focus after cancelling a mid-session chip edit", async () => {
+    const view = render(<AppLayout />);
+    const sourcePane = view.container.querySelector<HTMLElement>(".source-editor-pane-wrapper")!;
+    const canvas = view.container.querySelector<HTMLDivElement>(".canvas-viewport")!;
+
+    act(() => {
+      startCommandLineCreationForRecipe(midSessionLineListRecipe);
+      applyPickedPoint({ pickedPointAnchor: referenceAnchor(pointId("A")) });
+    });
+    await waitFor(() => expect(sourcePane).toHaveAttribute("inert"));
+
+    act(() => { startCommandLineStepEdit(0); });
+    await waitFor(() => expect(sourcePane).not.toHaveAttribute("inert"));
+    expect(view.getByRole("textbox", { name: "始点" })).toHaveFocus();
+
+    act(() => { cancelCommandLineStepEdit(); });
+    await waitFor(() => expect(sourcePane).toHaveAttribute("inert"));
+    await waitFor(() => expect(canvas).toHaveFocus());
     expect(document.activeElement?.closest("[inert]")).toBeNull();
   });
 
