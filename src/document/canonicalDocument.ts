@@ -5,11 +5,12 @@ import {
   type DslDocumentData,
   type StatementMap
 } from "../dsl/dslDocument";
-import { parseDsl } from "../dsl/dslParser";
+import { parseDslSnapshot } from "../dsl/dslParser";
 import type { DslDiagnostic } from "../dsl/dslTypes";
+import type { SourceSnapshot } from "../dsl/logicalStatementSourceMap";
 import { createCadElementId } from "../model/cadIds";
 import type { ElementId } from "../types/geometry";
-import { applyLineSplices, buildTextPatch, type LineSplice } from "./textPatch";
+import { applyLineSplices, buildTextPatch, UnappliedTextPatchError, type LineSplice } from "./textPatch";
 import { reconcileStatements } from "./statementReconciler";
 import { zipAssignedElementIds } from "./shadowText";
 
@@ -33,7 +34,8 @@ export type ModelBridgeResult =
   | { status: "committed"; value: CanonicalDocumentValue; splices: LineSplice[] }
   | { status: "noop" }
   | { status: "rejected"; reason: string }
-  | { status: "failed"; reason: string };
+  | { status: "failed"; reason: string }
+  | { status: "unapplied"; reason: string; diagnostic: DslDiagnostic };
 
 // sourceTextは保存対象そのもの。改行やBOMをここで正規化しない。
 const normalizedText = (text: string) => text;
@@ -61,7 +63,9 @@ export const compileCanonicalText = (
   options: { createdElementIds?: readonly ElementId[] } = {}
 ): TextCompileResult => {
   const sourceText = normalizedText(nextText);
-  const parsed = parseDsl(sourceText);
+  const revision = current.sourceText === sourceText ? current.doc.statementMap.sourceRevision : current.doc.statementMap.sourceRevision + 1;
+  const normalizedSource = sourceText.replace(/\r\n/g, "\n");
+  const parsed = parseDslSnapshot({ normalizedSource, sourceRevision: revision });
   const createdElementIds = [...(options.createdElementIds ?? [])];
   const reconciled = reconcileStatements({
     oldStatements: current.doc.statements,
@@ -74,7 +78,8 @@ export const compileCanonicalText = (
   });
   const compiled = compileDslDocument(sourceText, {
     assignedElementIds: reconciled.assignedIds,
-    preparsed: parsed
+    preparsed: parsed,
+    sourceRevision: revision
   });
 
   if (!isLastGoodDslDocument(compiled)) {
@@ -100,10 +105,11 @@ export const compileCanonicalText = (
 
 const compileZippedModelText = (
   text: string,
-  afterDocument: DslDocumentData
+  afterDocument: DslDocumentData,
+  sourceRevision = 0
 ): { ok: true; doc: LastGoodDslDocument } | { ok: false; reason: string } => {
   const sourceText = normalizedText(text);
-  const parsed = parseDsl(sourceText);
+  const parsed = parseDslSnapshot({ normalizedSource: sourceText.replace(/\r\n/g, "\n"), sourceRevision });
   if (parsed.diagnostics.some((item) => item.severity === "error")) {
     return { ok: false, reason: "モデル差分テキストの構文解析に失敗しました。" };
   }
@@ -113,7 +119,8 @@ const compileZippedModelText = (
   }
   const compiled = compileDslDocument(sourceText, {
     assignedElementIds,
-    preparsed: parsed
+    preparsed: parsed,
+    sourceRevision
   });
   if (!isLastGoodDslDocument(compiled)) {
     return { ok: false, reason: "モデル差分テキストのコンパイルに失敗しました。" };
@@ -130,8 +137,15 @@ const compileZippedModelText = (
 
 export const commitModelBridge = (
   current: CanonicalDocumentValue,
-  afterDocument: DslDocumentData
+  afterDocument: DslDocumentData,
+  snapshot?: SourceSnapshot
 ): ModelBridgeResult => {
+  if (snapshot && (
+    snapshot.sourceRevision !== current.doc.statementMap.sourceRevision ||
+    snapshot.normalizedSource !== current.sourceText.replace(/\r\n/g, "\n")
+  )) {
+    return { status: "rejected", reason: "revision-mismatch" };
+  }
   if (current.docText !== current.sourceText) {
     return { status: "rejected", reason: "fatalな編集中テキストがあるためモデル編集を適用できません。" };
   }
@@ -145,6 +159,13 @@ export const commitModelBridge = (
       splices
     );
   } catch (error) {
+    if (error instanceof UnappliedTextPatchError) {
+      return {
+        status: "unapplied",
+        reason: error.message,
+        diagnostic: { severity: "error", line: 1, column: 1, message: error.message, sourceRevision: current.doc.statementMap.sourceRevision }
+      };
+    }
     return {
       status: "failed",
       reason: error instanceof Error ? error.message : String(error)
@@ -152,7 +173,7 @@ export const commitModelBridge = (
   }
   if (patchedText === current.sourceText) return { status: "noop" };
 
-  const compiled = compileZippedModelText(patchedText, afterDocument);
+  const compiled = compileZippedModelText(patchedText, afterDocument, current.doc.statementMap.sourceRevision + 1);
   if (!compiled.ok) return { status: "failed", reason: compiled.reason };
 
   return {

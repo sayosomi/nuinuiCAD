@@ -8,7 +8,13 @@ import type {
   ParseDslResult
 } from "./dslTypes";
 import { splitDslComment, splitDslTerms, unquoteDslString, type DslTerm } from "./dslTokens";
-import { createLogicalStatementSourceMap } from "./logicalStatementSourceMap";
+import {
+  createLogicalStatementSourceMap,
+  physicalSpanForLogicalRange,
+  physicalSpanForStatement,
+  type LogicalStatement,
+  type SourceSnapshot
+} from "./logicalStatementSourceMap";
 
 const elementTypes = new Set<CadElementType>([
   "group",
@@ -151,7 +157,12 @@ const statementBase = (
   opensBlock,
   payloadSpans: {},
   enclosing: null,
-  attrs: []
+  attrs: [],
+  // parseLine is deliberately source-map agnostic. parseDslSnapshot decorates
+  // this temporary shape before exposing it to callers.
+  sourceRevision: 0,
+  documentRange: { from: 0, to: 0, startLine: line, endLine, sourceRevision: 0 },
+  physicalSpan: { segments: [], sourceRevision: 0 }
 });
 
 const elementStatement = (
@@ -727,11 +738,37 @@ const reportDuplicateNames = (statements: DslStatement[], diagnostics: DslDiagno
   }
 };
 
-export const parseDsl = (source: string): ParseDslResult => {
+const decorateStatement = (statement: DslStatement, logical: LogicalStatement, sourceMap: ReturnType<typeof createLogicalStatementSourceMap>) => {
+  statement.sourceRevision = sourceMap.sourceRevision;
+  statement.documentRange = logical.range;
+  statement.physicalSpan = physicalSpanForStatement(logical);
+  const project = (span: DslSpan) => physicalSpanForLogicalRange(sourceMap, logical, span);
+  // Keep legacy logical spans for parser/serializer compatibility while making
+  // all source projections use the map-owned physical spans.
+  for (const attr of statement.attrs) {
+    const physical = project({ start: attr.valueStart, end: attr.valueEnd });
+    if (physical) Object.assign(attr, { physicalSpan: physical });
+  }
+  Object.assign(statement, {
+    namePhysicalSpan: statement.nameSpan ? project(statement.nameSpan) : null,
+    keywordPhysicalSpan: project(statement.keywordSpan),
+    payloadPhysicalSpans: Object.fromEntries(Object.entries(statement.payloadSpans).map(([key, span]) => [key, project(span)]))
+  });
+  return statement;
+};
+
+const decorateDiagnostic = (
+  item: DslDiagnostic,
+  sourceMap: ReturnType<typeof createLogicalStatementSourceMap>
+): DslDiagnostic => {
+  const logical = sourceMap.statements.find((statement) => statement.range.startLine === item.line);
+  return { ...item, sourceRevision: sourceMap.sourceRevision, ...(logical ? { physicalSpan: physicalSpanForStatement(logical) } : {}) };
+};
+
+export const parseDslSnapshot = (snapshot: SourceSnapshot): ParseDslResult => {
   const statements: DslStatement[] = [];
   const diagnostics: DslDiagnostic[] = [];
-  const normalized = source.replace(/\r\n/g, "\n");
-  const sourceMap = createLogicalStatementSourceMap({ normalizedSource: normalized, sourceRevision: 0 });
+  const sourceMap = createLogicalStatementSourceMap(snapshot);
   for (const line of sourceMap.invalidContinuationLines) {
     diagnostics.push(diagnostic(line, "継続印「\\」の次には空でない通常の文の行が必要です。"));
   }
@@ -747,7 +784,11 @@ export const parseDsl = (source: string): ParseDslResult => {
       logical.range.startLine,
       logical.range.endLine
     );
-    if (parsed.statement) statements.push(parsed.statement);
+    if (parsed.statement) {
+      const statement = decorateStatement(parsed.statement, logical, sourceMap);
+      if (opensOnNextLine) statement.openBraceLine = next.range.startLine;
+      statements.push(statement);
+    }
     diagnostics.push(...parsed.diagnostics);
   }
   applyBlockStructure(statements, diagnostics);
@@ -755,8 +796,12 @@ export const parseDsl = (source: string): ParseDslResult => {
   for (const extra of statements.filter((statement) => statement.kind === "atStop").slice(1)) {
     diagnostics.push(diagnostic(extra.line, "@stop は文書に1つだけ書けます。"));
   }
-  return { statements, diagnostics };
+  return { statements, diagnostics: diagnostics.map((item) => decorateDiagnostic(item, sourceMap)), sourceRevision: snapshot.sourceRevision, sourceMap };
 };
+
+/** Compatibility/test wrapper. Product callers must provide their source snapshot. */
+export const parseDsl = (source: string): ParseDslResult =>
+  parseDslSnapshot({ normalizedSource: source.replace(/\r\n/g, "\n"), sourceRevision: 0 });
 
 /**
  * Returns the parser-owned lexical group scope immediately before `line`.

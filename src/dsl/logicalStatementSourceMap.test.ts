@@ -5,6 +5,7 @@ import {
   logicalOffsetToPhysical,
   physicalSpanForStatement
 } from "./logicalStatementSourceMap";
+import { parseDslSnapshot } from "./dslParser";
 
 describe("logicalStatementSourceMap", () => {
   it("joins a backslash continuation into one logical statement", () => {
@@ -29,5 +30,12 @@ describe("logicalStatementSourceMap", () => {
       .toEqual({ ok: false, reason: "revision-mismatch" });
     expect(assertSourceMapRevision(map, { normalizedSource: "point A = (1, 0)", sourceRevision: 2 }, "value"))
       .toEqual({ ok: false, reason: "revision-mismatch" });
+  });
+
+  it("attaches the source snapshot revision to statements and diagnostics", () => {
+    const parsed = parseDslSnapshot({ normalizedSource: "point A = (0, \\\n  20)", sourceRevision: 31 });
+    expect(parsed.sourceRevision).toBe(31);
+    expect(parsed.statements[0]).toMatchObject({ sourceRevision: 31, documentRange: { startLine: 1, endLine: 2, sourceRevision: 31 } });
+    expect(parsed.statements[0].physicalSpan.sourceRevision).toBe(31);
   });
 });

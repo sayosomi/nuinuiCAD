@@ -1,5 +1,7 @@
 import { isElementDslStatement, parseDsl } from "./dslParser";
 import type { DslSpan, DslStatement } from "./dslTypes";
+import { physicalSpanForStatementRange, singlePhysicalSegment, statementProjectionAt } from "./dslStatementProjection";
+import type { SourceSnapshot } from "./logicalStatementSourceMap";
 
 export type DslValueSpan = DslSpan;
 
@@ -116,6 +118,32 @@ export const dslLinePrintLayoutValueSpans = (lineText: string): DslLabeledValueS
 /** Projection used by click selection and Tab navigation. */
 export const dslLineValueSpans = (lineText: string): DslValueSpan[] =>
   dslLineLabeledValueSpans(lineText).map(({ start, end }) => ({ start, end }));
+
+export type DslDocumentValueSpan = DslLabeledValueSpan & { from: number; to: number };
+
+/** Live-editor projection. Values may be on any physical continuation line;
+ * only contiguous token spans are returned for direct CM selection. */
+export const dslDocumentValueSpansAt = (
+  snapshot: SourceSnapshot,
+  position: number
+): { ok: true; value: DslDocumentValueSpan[] } | { ok: false; reason: "revision-mismatch" } => {
+  const projection = statementProjectionAt(snapshot, position);
+  if (!projection.ok) return projection;
+  if (!projection.value || !isElementDslStatement(projection.value.statement)) return { ok: true, value: [] };
+  if (projection.value.parsed.diagnostics.some((diagnostic) =>
+    diagnostic.severity === "error" &&
+    diagnostic.line >= projection.value!.statement.line &&
+    diagnostic.line <= projection.value!.statement.endLine
+  )) return { ok: true, value: [] };
+  const spans = labeledValueSpansForStatement(projection.value.statement);
+  const projected = spans.flatMap((span) => {
+    const physical = physicalSpanForStatementRange(projection.value!, span);
+    const range = singlePhysicalSegment(snapshot, physical);
+    if (!range.ok) return [];
+    return range.value ? [{ ...span, ...range.value }] : [];
+  });
+  return { ok: true, value: projected.sort((left, right) => left.from - right.from) };
+};
 
 /** Half-open [start, end): the position right after a value is not part of it. */
 export const findDslValueSpanAt = (spans: readonly DslValueSpan[], offset: number): DslValueSpan | null =>

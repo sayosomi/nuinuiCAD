@@ -217,7 +217,8 @@ describe("textPatch 要素の挿入", () => {
       };
     });
     expect(splices).toHaveLength(1);
-    expect(patched.split("\n").some((line) => line.startsWith("group H") && line.endsWith("{"))).toBe(true);
+    expect(patched.split("\n").some((line) => line.startsWith("group H") && !line.endsWith("{"))).toBe(true);
+    expect(patched.split("\n").some((line) => line.trim() === "{")).toBe(true);
     expect(patched).toContain("  point HP = (7, 7)");
   });
 

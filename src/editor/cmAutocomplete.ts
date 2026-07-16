@@ -8,8 +8,8 @@ import { dslVariableCompletionOptions } from "../dsl/dslVariableCompletionCandid
 import { dslLocalVariableCompletionOptions } from "../dsl/dslLocalVariableCompletionCandidates";
 import { dslEnclosingPrintLayoutLine, dslPrintLayoutVariableCompletionOptions } from "../dsl/dslPrintLayoutVariableCompletionCandidates";
 import { dslElementParameterCompletionOptions } from "../dsl/dslElementParameterCompletionCandidates";
-import { dslLineElementStatement, dslLinePrintLayoutStatement } from "../dsl/dslValueSpans";
-import { parseDsl } from "../dsl/dslParser";
+import { dslLinePrintLayoutStatement } from "../dsl/dslValueSpans";
+import { parseDslSnapshot } from "../dsl/dslParser";
 import { localNumericVariableReferenceOptions, type NumericVariableReferenceOption } from "../geometry/variableReferenceOptions";
 import type { ElementParameterReferenceOption } from "../geometry/elementParameterReferenceOptions";
 import type { CadElement, ComputedGeometry, ComputedVariable, DependencyError, ElementId, EvaluationResult, PrintLayout } from "../types/geometry";
@@ -58,8 +58,9 @@ const defaultDocumentInput = (context: CompletionContext): DslAutocompleteDocume
 const statementElementIdsByLiveLine = (doc: Text, ranges: StatementRangeIndex) => {
   const result = new Map<number, ElementId>();
   for (const range of ranges.values()) {
-    const line = doc.lineAt(range.from);
-    if (line.from === range.from) result.set(line.number, range.elementId);
+    const fromLine = doc.lineAt(range.from).number;
+    const toLine = doc.lineAt(range.to).number;
+    for (let line = fromLine; line <= toLine; line += 1) result.set(line, range.elementId);
   }
   return result;
 };
@@ -77,9 +78,10 @@ const printLayoutIdsByLiveLine = (doc: Text, ranges: PrintLayoutRangeIndex): Map
  * matches what the live line currently says it is (same "don't trust a stale
  * cross-reference past a structural edit" guard dslReferenceCompletionOptions
  * already applies elsewhere). */
-const currentLiveElement = (lineText: string, elementId: ElementId | undefined, elements: readonly CadElement[]) => {
+const currentLiveElement = (source: string, position: number, elementId: ElementId | undefined, elements: readonly CadElement[]) => {
   if (!elementId) return undefined;
-  const statement = dslLineElementStatement(lineText);
+  const statement = parseDslSnapshot({ normalizedSource: source, sourceRevision: 0 }).statements
+    .find((candidate) => position >= candidate.documentRange.from && position <= candidate.documentRange.to);
   const liveType = statement ? dslStatementElementType(statement) : null;
   if (!liveType) return undefined;
   return elements.find((element) => element.id === elementId && element.type === liveType);
@@ -147,7 +149,7 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
       computedVariables: options.computedVariables()
     }));
   } else if (completionContext.parameter.source === "printLayoutBlock") {
-    const parsed = parseDsl(input.source);
+    const parsed = parseDslSnapshot({ normalizedSource: input.source, sourceRevision: 0 });
     const block = dslEnclosingPrintLayoutLine(parsed, input.cursorLineNumber);
     if (!block) {
       completions = [];
@@ -182,7 +184,7 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
   } else if (completionContext.parameter.definition.kind === "number") {
     const elements = options.elements();
     const statementElementIds = statementElementIdsByLiveLine(input.doc, options.statementRanges());
-    const currentElement = currentLiveElement(input.lineText, statementElementIds.get(input.cursorLineNumber), elements);
+    const currentElement = currentLiveElement(input.source, input.doc.line(input.cursorLineNumber).from + input.localPos, statementElementIds.get(input.cursorLineNumber), elements);
     const localOptions = currentElement
       ? localNumericVariableReferenceOptions({ element: currentElement, localVariableLimit: currentElement.numericVariables?.length ?? 0 })
       : [];

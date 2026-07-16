@@ -61,6 +61,9 @@ export type TextPatchInput = {
   newDocument: DslDocumentData;
 };
 
+/** A structural patch must never guess where a continuation/comment belongs. */
+export class UnappliedTextPatchError extends Error {}
+
 const CONTAINER_TYPES = new Set(["group", "conditionalGroup", "forGroup"]);
 const isContainer = (element: CadElement) => CONTAINER_TYPES.has(element.type);
 
@@ -277,14 +280,46 @@ const patchElements = (input: TextPatchInput, ops: PatchOps) => {
   const oldDocument = old.document!;
   const statementMap = old.statementMap!;
   const refsNew = documentDslRefs(newDocument.elements);
-  const layout = layoutElementTree(newDocument.elements, refsNew, newDocument.evaluationLimitIndex);
+  const canonicalLayout = layoutElementTree(newDocument.elements, refsNew, newDocument.evaluationLimitIndex);
+  // Existing inline-brace documents are read compatibly. A patch against one
+  // retains that legacy spelling; newly serialized documents use structural
+  // brace rows. This prevents a model patch from manufacturing a second `{`.
+  const layout = canonicalLayout.flatMap((line, index) => {
+    if (line.role !== "blockStart" || !line.elementId) return [line];
+    const info = statementMap.byElementId.get(line.elementId);
+    if (!info || info.openBraceLine) return [line];
+    const header = canonicalLayout[index - 1];
+    if (!header || header.role !== "statement" || header.elementId !== line.elementId) return [line];
+    return [];
+  }).map((line) => {
+    if (line.role !== "statement" || !line.elementId) return line;
+    const info = statementMap.byElementId.get(line.elementId);
+    const next = canonicalLayout.find((candidate) => candidate.role === "blockStart" && candidate.elementId === line.elementId);
+    return info && !info.openBraceLine && next ? { ...line, text: `${line.text} {` } : line;
+  });
   const newById = new Map(newDocument.elements.map((element) => [element.id, element]));
   const updates = elementUpdateSet(oldDocument, newDocument, refsNew);
+
+  for (const elementId of updates) {
+    const info = statementMap.byElementId.get(elementId);
+    if (!info || info.endLine <= info.line) continue;
+    const physicalLines = old.sourceLines.slice(info.line - 1, info.endLine);
+    if (physicalLines.some((line) => /\\\s*(?:\/\/|#|;|$)/.test(line) || splitDslComment(line).comment)) {
+      throw new UnappliedTextPatchError(
+        `要素 ${elementId} の複数行文は継続境界またはコメントを安全に保持できないため未適用です。`
+      );
+    }
+    // Re-serializing only the header would leave orphaned continuation source.
+    // A future local-span patch may opt in only after proving every segment.
+    throw new UnappliedTextPatchError(
+      `要素 ${elementId} の複数行文の構造的更新は未適用です。`
+    );
+  }
 
   // 旧テキストの「要素系」行(要素文・そのブロック枠・@stop)。
   type OldElemLine = {
     line: number;
-    role: "statement" | "blockEnd" | "blockElse" | "atStop";
+    role: "statement" | "blockStart" | "blockEnd" | "blockElse" | "atStop";
     elementId?: ElementId;
     statementIndex: number;
   };
@@ -312,6 +347,7 @@ const patchElements = (input: TextPatchInput, ops: PatchOps) => {
       const id = statementMap.elementIdByStatementIndex.get(info.statementIndex);
       if (id === undefined) continue;
       oldElemLines.push({ line: info.line, role: "statement", elementId: id, statementIndex: info.statementIndex });
+      if (info.openBraceLine) oldElemLines.push({ line: info.openBraceLine, role: "blockStart", elementId: id, statementIndex: info.statementIndex });
     }
   }
 
@@ -321,6 +357,7 @@ const patchElements = (input: TextPatchInput, ops: PatchOps) => {
     const info = line.elementId !== undefined ? statementMap.byElementId.get(line.elementId) : undefined;
     if (!info) return undefined;
     if (line.role === "statement") return info.line;
+    if (line.role === "blockStart") return info.openBraceLine;
     if (line.role === "blockEnd") return info.range.endLine > info.line ? info.range.endLine : undefined;
     return info.elseLine;
   });
@@ -387,7 +424,7 @@ const patchElements = (input: TextPatchInput, ops: PatchOps) => {
       continue;
     }
 
-    // blockEnd / blockElse / atStop はインデント深さが変わったときだけ書き直す。
+    // Structural rows and @stop only change for indentation changes.
     // (blockEnd/blockElse の正準深さは対応する開き文の深さに等しい。)
     const info =
       layoutLine.role === "atStop"
@@ -711,7 +748,10 @@ const patchPrintLayouts = (input: TextPatchInput, ops: PatchOps) => {
     const info = infoById.get(block.layoutId);
     if (!info) continue;
     dropRange(block.layoutId);
-    insertBefore(ops, info.range.startLine, newBlock.lines);
+    const lines = !info.openBraceLine && newBlock.lines[1]?.trim() === "{"
+      ? [`${newBlock.lines[0]} {`, ...newBlock.lines.slice(2)]
+      : newBlock.lines;
+    insertBefore(ops, info.range.startLine, lines);
   }
 
   // 追加レイアウト: 新配列順で、直後の既存レイアウトのブロック先頭の直前へ

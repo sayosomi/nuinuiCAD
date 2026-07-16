@@ -36,6 +36,13 @@ const positionedFromDiagnostic = (
   diagnostic: DslDiagnostic,
   origin: DiagnosticOrigin
 ): PositionedDiagnostic | null => {
+  const physical = diagnostic.physicalSpan;
+  if (physical?.segments.length === 1) {
+    const segment = physical.segments[0];
+    if (segment.from >= 0 && segment.to >= segment.from && segment.to <= doc.length) {
+      return { severity: diagnostic.severity, message: diagnostic.message, from: segment.from, to: Math.max(segment.from, segment.to), origin };
+    }
+  }
   if (diagnostic.line < 1 || diagnostic.line > doc.lines) return null;
   const line = doc.line(diagnostic.line);
   const span = diagnosticColumnSpan(line.text, diagnostic.column);

@@ -7,12 +7,15 @@ import type {
   VisibilityProfile,
   VisibilityRole
 } from "../types/geometry";
+import type { DocumentRange, DslPhysicalSpan, LogicalStatementSourceMap, SourceRevision } from "./logicalStatementSourceMap";
 
 export type DslDiagnostic = {
   severity: "error" | "warning";
   line: number;
   column: number;
   message: string;
+  sourceRevision?: SourceRevision;
+  physicalSpan?: DslPhysicalSpan;
 };
 
 export type DslSpan = {
@@ -26,6 +29,7 @@ export type DslAttribute = {
   keyStart: number;
   valueStart: number;
   valueEnd: number;
+  physicalSpan?: DslPhysicalSpan;
 };
 
 export type DslEnclosing = {
@@ -44,6 +48,15 @@ export type DslStatementBase = {
   payloadSpans: Record<string, DslSpan>;
   enclosing: DslEnclosing | null;
   attrs: DslAttribute[];
+  /** Snapshot identity is mandatory for any projection back to an editor. */
+  sourceRevision: SourceRevision;
+  documentRange: DocumentRange;
+  physicalSpan: DslPhysicalSpan;
+  namePhysicalSpan?: DslPhysicalSpan | null;
+  keywordPhysicalSpan?: DslPhysicalSpan | null;
+  payloadPhysicalSpans?: Record<string, DslPhysicalSpan | null>;
+  /** Structural lines are deliberately separate from the header source. */
+  openBraceLine?: number;
 };
 
 export type DslStatement =
@@ -73,6 +86,8 @@ export type DslStatement =
 export type ParseDslResult = {
   statements: DslStatement[];
   diagnostics: DslDiagnostic[];
+  sourceRevision: SourceRevision;
+  sourceMap: LogicalStatementSourceMap;
 };
 
 export type CompileDslContext = {

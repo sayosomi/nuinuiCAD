@@ -8,7 +8,7 @@ import {
   Text,
   Transaction
 } from "@codemirror/state";
-import { defaultKeymap, deleteLine, history, redo, redoDepth, undo, undoDepth } from "@codemirror/commands";
+import { defaultKeymap, deleteLine, history, isolateHistory, redo, redoDepth, undo, undoDepth } from "@codemirror/commands";
 import {
   EditorView,
   highlightActiveLine,
@@ -27,6 +27,8 @@ import {
 } from "../keyboard/shortcutRegistry";
 import type { KeyChord } from "../keyboard/shortcutTypes";
 import { creationPlacementForEvaluationLimit } from "../model/elementCreationPlacement";
+import { getParameterDefinitions } from "../parameters/parameterDefinitions";
+import { parameterPickCommandId } from "../commands/parameterPickCommand";
 import { pickCandidates } from "../model/pickCandidates";
 import type { ElementId, EvaluationResult } from "../types/geometry";
 import { useCadDocumentStore, type CadDocumentState } from "../state/cadDocumentStore";
@@ -72,9 +74,9 @@ import { createDiagnosticsExtension } from "./sourceEditorDiagnosticsExtension";
 import { mapPositionedDiagnostics, toStaleDiagnostics, type PositionedDiagnostic } from "./sourceEditorDiagnostics";
 import { createEvaluationExtension, evaluationChanged, type EvaluationGutterAction } from "./sourceEditorEvaluationExtension";
 import { createEvaluationDecorationIndex, type EvaluationDecorationIndex } from "./sourceEditorEvaluationIndex";
-import { adjacentDslValueSpan, dslLineValueSpans, findDslValueSpanAt, type DslValueSpanDirection } from "../dsl/dslValueSpans";
+import { dslDocumentValueSpansAt, type DslValueSpanDirection } from "../dsl/dslValueSpans";
 import { resolveParameterValueSpan } from "../dsl/dslParameterSpans";
-import { resolveSourceEditorPickSelection } from "./sourceEditorPickSelection";
+import { logicalTextForProjection, physicalSpanForStatementRange, singlePhysicalSegment, statementProjectionAt } from "../dsl/dslStatementProjection";
 import { resolveDslValueStep, type DslValueStepDirection } from "../dsl/dslValueStep";
 import { splitDslComment, splitDslTerms } from "../dsl/dslTokens";
 import {
@@ -372,12 +374,16 @@ export class SourceEditorController implements SourceEditorHandle {
     const range = this.statementRanges.get(elementId);
     const element = this.store.getState().elements.find((candidate) => candidate.id === elementId);
     if (!range || !element) return false;
-    const line = this.view.state.doc.lineAt(range.from);
-    const committedLineText = range.statement.line <= this.committedDoc.lines
-      ? this.committedDoc.line(range.statement.line).text
-      : undefined;
-    const target = resolveParameterValueSpan(line.text, element, parameterKey, { committedLineText });
-    if (!target) {
+    const snapshot = { normalizedSource: this.view.state.doc.toString(), sourceRevision: this.store.getState().sourceRevision };
+    const projection = statementProjectionAt(snapshot, range.from);
+    if (!projection.ok || !projection.value) return false;
+    const logicalText = logicalTextForProjection(projection.value);
+    const committedSnapshot = { normalizedSource: this.committedDoc.toString(), sourceRevision: range.statement.sourceRevision };
+    const committed = statementProjectionAt(committedSnapshot, range.from);
+    const committedLineText = committed.ok && committed.value ? logicalTextForProjection(committed.value) ?? undefined : undefined;
+    const target = logicalText ? resolveParameterValueSpan(logicalText, element, parameterKey, { committedLineText }) : null;
+    const targetRange = target ? singlePhysicalSegment(snapshot, physicalSpanForStatementRange(projection.value, target)) : { ok: true as const, value: null };
+    if (!targetRange.ok || !targetRange.value) {
       this.jumpToElement(elementId);
       this.view.focus();
       return false;
@@ -393,7 +399,7 @@ export class SourceEditorController implements SourceEditorHandle {
       this.publishingCanvasSelection = false;
     }
     this.view.dispatch({
-      selection: EditorSelection.single(line.from + target.start, line.from + target.end),
+      selection: EditorSelection.single(targetRange.value.from, targetRange.value.to),
       scrollIntoView: true,
       annotations: [canvasCursorOrigin.of("canvas-cursor"), Transaction.addToHistory.of(false)]
     });
@@ -409,31 +415,59 @@ export class SourceEditorController implements SourceEditorHandle {
     const selection = this.view.state.selection;
     if (selection.ranges.length !== 1) return false;
     const main = selection.main;
-    const line = this.view.state.doc.lineAt(main.from);
-    if (this.view.state.doc.lineAt(main.to).number !== line.number) return false;
     const elementId = elementIdAtCursor(this.statementRanges, main.from);
     const range = elementId ? this.statementRanges.get(elementId) : null;
     const element = elementId
       ? this.store.getState().elements.find((candidate) => candidate.id === elementId)
       : undefined;
     if (!range || !element) return false;
-    const committedLineText = range.statement.line <= this.committedDoc.lines
-      ? this.committedDoc.line(range.statement.line).text
-      : undefined;
-    const change = resolveDslValueStep(
-      line.text,
-      element,
-      { start: main.from - line.from, end: main.to - line.from },
-      direction,
-      { committedLineText }
-    );
+    const line = this.view.state.doc.lineAt(main.from);
+    const sameLine = this.view.state.doc.lineAt(main.to).number === line.number;
+    let change: ReturnType<typeof resolveDslValueStep>;
+    let replaceRange: { from: number; to: number } | null = null;
+    let selectionRange: { from: number; to: number } | null = null;
+    if (sameLine) {
+      const committedLineText = range.statement.line <= this.committedDoc.lines
+        ? this.committedDoc.line(range.statement.line).text
+        : undefined;
+      change = resolveDslValueStep(line.text, element, { start: main.from - line.from, end: main.to - line.from }, direction, { committedLineText });
+      if (change) {
+        replaceRange = { from: line.from + change.from, to: line.from + change.to };
+        selectionRange = { from: line.from + change.selection.start, to: line.from + change.selection.end };
+      }
+    } else {
+      const snapshot = { normalizedSource: this.view.state.doc.toString(), sourceRevision: this.store.getState().sourceRevision };
+      const projection = statementProjectionAt(snapshot, main.from);
+      if (!projection.ok || !projection.value) return false;
+      const logicalText = logicalTextForProjection(projection.value);
+      if (!logicalText) return false;
+      const committedSnapshot = { normalizedSource: this.committedDoc.toString(), sourceRevision: range.statement.sourceRevision };
+      const committed = statementProjectionAt(committedSnapshot, range.from);
+      const committedLineText = committed.ok && committed.value ? logicalTextForProjection(committed.value) ?? undefined : undefined;
+      const selectedLogical = getParameterDefinitions(element)
+        .map((definition) => resolveParameterValueSpan(logicalText, element, definition.key, { committedLineText }))
+        .find((candidate) => {
+          const physical = candidate ? singlePhysicalSegment(snapshot, physicalSpanForStatementRange(projection.value!, candidate)) : null;
+          return physical?.ok && physical.value?.from === main.from && physical.value.to === main.to;
+        });
+      if (!selectedLogical) return false;
+      change = resolveDslValueStep(logicalText, element, selectedLogical, direction, { committedLineText });
+      if (change) {
+        const replace = singlePhysicalSegment(snapshot, physicalSpanForStatementRange(projection.value, { start: change.from, end: change.to }));
+        const nextSelection = singlePhysicalSegment(snapshot, physicalSpanForStatementRange(projection.value, change.selection));
+        if (!replace.ok || !nextSelection.ok || !replace.value || !nextSelection.value) return false;
+        replaceRange = replace.value;
+        selectionRange = nextSelection.value;
+      }
+    }
     if (!change) {
       if (this.activeValueStepGesture) this.flush("command");
       return false;
     }
+    if (!replaceRange || !selectionRange) return false;
     this.view.dispatch({
-      changes: { from: line.from + change.from, to: line.from + change.to, insert: change.insert },
-      selection: EditorSelection.single(line.from + change.selection.start, line.from + change.selection.end),
+      changes: { from: replaceRange.from, to: replaceRange.to, insert: change.insert },
+      selection: EditorSelection.single(selectionRange.from, selectionRange.to),
       annotations: Transaction.userEvent.of("input.stepValue")
     });
     const keyboardGesture = this.pendingKeyboardValueStep;
@@ -466,9 +500,6 @@ export class SourceEditorController implements SourceEditorHandle {
     const selection = this.view.state.selection;
     if (selection.ranges.length !== 1 || selection.main.empty) return false;
     const main = selection.main;
-    const line = this.view.state.doc.lineAt(main.from);
-    if (this.view.state.doc.lineAt(main.to).number !== line.number) return false;
-
     const elementId = elementIdAtCursor(this.statementRanges, main.from);
     const range = elementId ? this.statementRanges.get(elementId) : null;
     const element = elementId
@@ -476,18 +507,22 @@ export class SourceEditorController implements SourceEditorHandle {
       : undefined;
     if (!range || !element) return false;
 
-    const committedLineText = range.statement.line <= this.committedDoc.lines
-      ? this.committedDoc.line(range.statement.line).text
-      : undefined;
-    const target = resolveSourceEditorPickSelection({
-      lineText: line.text,
-      selection: { start: main.from - line.from, end: main.to - line.from },
-      element,
-      committedLineText,
-    });
+    const snapshot = { normalizedSource: this.view.state.doc.toString(), sourceRevision: this.store.getState().sourceRevision };
+    const projection = statementProjectionAt(snapshot, main.from);
+    if (!projection.ok || !projection.value) return false;
+    const logicalText = logicalTextForProjection(projection.value);
+    if (!logicalText) return false;
+    const committed = statementProjectionAt({ normalizedSource: this.committedDoc.toString(), sourceRevision: range.statement.sourceRevision }, range.from);
+    const committedLineText = committed.ok && committed.value ? logicalTextForProjection(committed.value) ?? undefined : undefined;
+    const target = getParameterDefinitions(element)
+      .map((definition) => ({ definition, span: resolveParameterValueSpan(logicalText, element, definition.key, { committedLineText }) }))
+      .find(({ span }) => {
+        const physical = span ? singlePhysicalSegment(snapshot, physicalSpanForStatementRange(projection.value!, span)) : null;
+        return physical?.ok && physical.value?.from === main.from && physical.value.to === main.to;
+      });
     if (!target) return false;
-
-    return dispatchCommand(target.commandId, { elementId: element.id, parameterKey: target.parameterKey }) !== false;
+    const commandId = parameterPickCommandId(target.definition.kind);
+    return commandId ? dispatchCommand(commandId, { elementId: element.id, parameterKey: target.definition.key }) !== false : false;
   }
 
   private observeValueStepKeydown(event: KeyboardEvent, view: EditorView) {
@@ -602,9 +637,9 @@ export class SourceEditorController implements SourceEditorHandle {
   }
 
   private runPickApply() {
-    if (this.protocol.composing || this.flush("command") === "blocked-composition") return true;
     const ui = this.uiStore.getState();
     if (!(ui.activePointPickTarget || ui.activeNumericReferencePickTarget || ui.activeLinePickTarget)) return false;
+    if (this.protocol.composing || this.flush("command") === "blocked-composition") return true;
     const cursor = ui.activePickCursor;
     if (!cursor || !this.currentPickCandidates().some((candidate) => candidate.elementId === cursor.elementId)) return false;
     return dispatchCommand("applySelectedPickCandidate") !== false;
@@ -690,11 +725,15 @@ export class SourceEditorController implements SourceEditorHandle {
     const selection = view.state.selection;
     if (selection.ranges.length !== 1 || !selection.main.empty) return false;
     const pos = selection.main.head;
-    const line = view.state.doc.lineAt(pos);
-    const span = findDslValueSpanAt(dslLineValueSpans(line.text), pos - line.from);
+    const result = dslDocumentValueSpansAt(
+      { normalizedSource: view.state.doc.toString(), sourceRevision: this.store.getState().sourceRevision },
+      pos
+    );
+    if (!result.ok) return false;
+    const span = result.value.find((candidate) => pos >= candidate.from && pos < candidate.to);
     if (!span) return false;
     view.dispatch({
-      selection: EditorSelection.single(line.from + span.start, line.from + span.end),
+      selection: EditorSelection.single(span.from, span.to),
       annotations: Transaction.addToHistory.of(false)
     });
     return true;
@@ -713,14 +752,24 @@ export class SourceEditorController implements SourceEditorHandle {
   private navigateValueSpan(direction: DslValueSpanDirection): boolean {
     if (this.protocol.composing) return true;
     const main = this.view.state.selection.main;
-    const lineFrom = this.view.state.doc.lineAt(main.from);
-    if (this.view.state.doc.lineAt(main.to).number !== lineFrom.number) return false;
-    const spans = dslLineValueSpans(lineFrom.text);
+    if (this.view.state.doc.lineAt(main.from).number !== this.view.state.doc.lineAt(main.to).number) return false;
+    const result = dslDocumentValueSpansAt(
+      { normalizedSource: this.view.state.doc.toString(), sourceRevision: this.store.getState().sourceRevision },
+      main.from
+    );
+    if (!result.ok) return false;
+    const spans = result.value;
     if (spans.length === 0) return false;
-    const target = adjacentDslValueSpan(spans, main.from - lineFrom.from, direction);
+    const current = spans.find((span) => main.from >= span.from && main.from < span.to);
+    const index = current ? spans.indexOf(current) : -1;
+    const target = index >= 0
+      ? spans[(index + (direction === "next" ? 1 : spans.length - 1)) % spans.length]
+      : direction === "next"
+        ? spans.find((span) => span.from > main.from) ?? spans[0]
+        : [...spans].reverse().find((span) => span.to <= main.from) ?? spans.at(-1)!;
     if (!target) return false;
     this.view.dispatch({
-      selection: EditorSelection.single(lineFrom.from + target.start, lineFrom.from + target.end),
+      selection: EditorSelection.single(target.from, target.to),
       annotations: Transaction.addToHistory.of(false)
     });
     return true;
@@ -755,7 +804,10 @@ export class SourceEditorController implements SourceEditorHandle {
     view.dispatch({
       changes: { from: line.from + from, to: line.from + to, insert },
       selection: EditorSelection.cursor(line.from + from + insert.length),
-      annotations: Transaction.userEvent.of("input.continuation")
+      annotations: [
+        Transaction.userEvent.of("input.continuation"),
+        isolateHistory.of("full")
+      ]
     });
     return true;
   }
@@ -1088,6 +1140,16 @@ export class SourceEditorController implements SourceEditorHandle {
   private refreshStatementRanges() {
     const state = this.store.getState();
     if (state.docText !== state.sourceText) return;
+    if (
+      state.doc.statementMap.sourceRevision !== state.sourceRevision ||
+      this.view.state.doc.toString() !== normalizeSourceTextForEditor(state.sourceText)
+    ) {
+      // Never project a stale committed statement/span into another CM state.
+      this.statementRanges = new Map();
+      this.printLayoutRanges = new Map();
+      this.atStopRange = null;
+      return;
+    }
     this.statementRanges = createStatementRangeIndex(this.view.state.doc, state.doc.statementMap);
     this.printLayoutRanges = createPrintLayoutRangeIndex(this.view.state.doc, state.doc.statementMap);
     this.atStopRange = createAtStopRange(this.view.state.doc, state.doc.statementMap);

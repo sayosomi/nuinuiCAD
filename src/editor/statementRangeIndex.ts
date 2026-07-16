@@ -10,6 +10,7 @@ export type StatementRange = {
   /** Fold positions are captured from a synchronized CM document and thereafter mapped, never re-derived from stale lines. */
   groupFoldRange?: { from: number; to: number };
   elseFoldRange?: { from: number; to: number };
+  openBraceLineFrom?: number;
   elseLineFrom?: number;
 };
 
@@ -22,18 +23,22 @@ export const createStatementRangeIndex = (doc: Text, statementMap: StatementMap)
     if (statement.line < 1 || statement.line > doc.lines) continue;
     const line = doc.line(statement.line);
     const statementEndLine = statement.endLine <= doc.lines ? doc.line(statement.endLine) : null;
-    const endLine = statement.range.endLine <= doc.lines ? doc.line(statement.range.endLine) : null;
-    const elseLine = statement.elseLine && statement.elseLine <= doc.lines ? doc.line(statement.elseLine) : null;
+    const closeLine = statement.closeBraceLine && statement.closeBraceLine <= doc.lines ? doc.line(statement.closeBraceLine) : null;
+    const openLine = statement.openBraceLine && statement.openBraceLine <= doc.lines ? doc.line(statement.openBraceLine) : null;
+    // Compatibility only for pre-migration inline-brace documents. New syntax
+    // always has openBraceLine and therefore never exposes a header control.
+    const braceLine = openLine ?? (closeLine && statement.range.endLine > statement.endLine ? statementEndLine : null);
+    const elseLine = statement.elseBraceLine && statement.elseBraceLine <= doc.lines ? doc.line(statement.elseBraceLine) : null;
     ranges.set(elementId, {
       elementId,
       statement,
       from: line.from,
       to: statementEndLine?.to ?? line.to,
-      ...(endLine && statementEndLine && endLine.number > statementEndLine.number
-        ? { groupFoldRange: { from: statementEndLine.to, to: endLine.from } }
+      ...(braceLine && closeLine && braceLine.number < closeLine.number
+        ? { openBraceLineFrom: braceLine.from, groupFoldRange: { from: braceLine.to, to: (elseLine ?? closeLine).from } }
         : {}),
-      ...(elseLine && endLine && endLine.number > elseLine.number
-        ? { elseLineFrom: elseLine.from, elseFoldRange: { from: elseLine.to, to: endLine.from } }
+      ...(elseLine && closeLine && elseLine.number < closeLine.number
+        ? { elseLineFrom: elseLine.from, elseFoldRange: { from: elseLine.to, to: closeLine.from } }
         : {})
     });
   }
@@ -72,6 +77,9 @@ export const mapStatementRangeIndex = (
       to,
       groupFoldRange: mapFoldRange(range.groupFoldRange),
       elseFoldRange: mapFoldRange(range.elseFoldRange),
+      openBraceLineFrom: range.openBraceLineFrom === undefined
+        ? undefined
+        : changes.mapPos(range.openBraceLineFrom, 1, MapMode.TrackAfter) ?? undefined,
       elseLineFrom: range.elseLineFrom === undefined
         ? undefined
         : changes.mapPos(range.elseLineFrom, 1, MapMode.TrackAfter) ?? undefined

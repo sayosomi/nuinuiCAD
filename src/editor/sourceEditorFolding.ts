@@ -40,7 +40,7 @@ export const foldTargetAtLine = (
   for (const range of ranges.values()) {
     const element = byId.get(range.elementId);
     if (!element || !isGroupElement(element)) continue;
-    if (range.from === lineFrom && range.groupFoldRange) {
+    if (range.openBraceLineFrom === lineFrom && range.groupFoldRange) {
       return { elementId: element.id, branch: "group", ...range.groupFoldRange };
     }
     if (isConditionalGroupElement(element) && range.elseFoldRange) {

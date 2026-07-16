@@ -54,8 +54,20 @@ export const serializerChangedStatementLines = (
     }
   }
 
-  const beforePlan = planPrintLayoutSection(before.document);
-  const afterPlan = planPrintLayoutSection(afterDocument);
+  const sourceCompatiblePlan = (plan: ReturnType<typeof planPrintLayoutSection>) => ({
+    ...plan,
+    blocks: plan.blocks.map((block) => {
+      const info = before.statementMap.byKey.get(`printLayout:${block.layoutId}`);
+      // A model patch deliberately preserves a legacy inline opening brace.
+      // Compare the same physical shape that buildTextPatch will emit.
+      if (!info?.openBraceLine && block.lines[1]?.trim() === "{") {
+        return { ...block, lines: [`${block.lines[0]} {`, ...block.lines.slice(2)] };
+      }
+      return block;
+    })
+  });
+  const beforePlan = sourceCompatiblePlan(planPrintLayoutSection(before.document));
+  const afterPlan = sourceCompatiblePlan(planPrintLayoutSection(afterDocument));
   const afterBlocks = new Map(afterPlan.blocks.map((block) => [block.layoutId, block]));
   for (const block of beforePlan.blocks) {
     const next = afterBlocks.get(block.layoutId);

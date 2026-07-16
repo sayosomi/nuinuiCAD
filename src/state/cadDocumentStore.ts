@@ -275,12 +275,24 @@ const modelCommit = (
     rebased = true;
   }
   const afterDocument = documentFromChange(current, change);
+  // `current` is the committed snapshot selected by this mutation boundary.
+  // Callers that hold an independently captured snapshot use the optional
+  // source-map guard on commitModelBridge; this store path has already chosen
+  // the current canonical snapshot (including compatibility rebases).
   const result = commitModelBridge(current, afterDocument);
 
   if (result.status === "rejected") {
     console.error(`[canonicalDocument] ${result.reason}`);
     useCadUiStore.getState().clearPickMode();
     useCadUiStore.getState().setCommandErrorMessage("現在のDSLテキストにはこの操作を適用できません。");
+    return { state: clearedPreviewState(), result: { status: "rejected", reason: "invalid-change" } };
+  }
+  if (result.status === "unapplied") {
+    // Fail closed: do not regenerate a whole document or mutate either source
+    // snapshot when a multi-line structural patch cannot preserve layout.
+    console.error(`[canonicalDocument] ${result.reason}`);
+    useCadUiStore.getState().clearPickMode();
+    useCadUiStore.getState().setCommandErrorMessage(result.reason);
     return { state: clearedPreviewState(), result: { status: "rejected", reason: "invalid-change" } };
   }
   if (result.status === "noop") {

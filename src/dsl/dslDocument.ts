@@ -19,7 +19,8 @@ import type {
 } from "../types/geometry";
 import { compileDslToElements } from "./dslCompiler";
 import { formatNumericValueForDsl } from "./dslExpressionFormat";
-import { parseDsl } from "./dslParser";
+import { parseDsl, parseDslSnapshot } from "./dslParser";
+import type { SourceRevision } from "./logicalStatementSourceMap";
 import {
   documentDslRefs,
   flatRefs,
@@ -76,12 +77,18 @@ export type StatementInfo = {
   range: LineRange;
   /** conditionalGroup ブロックの `} else {` 行(あれば)。 */
   elseLine?: number;
+  /** Independent structural source lines. Never inferred from a header. */
+  openBraceLine?: number;
+  elseBraceLine?: number;
+  closeBraceLine?: number;
+  sourceRevision: SourceRevision;
   /** 正準インデント深さ(ブロックスタック深さ)。 */
   indentDepth: number;
   enclosing: DslEnclosing | null;
 };
 
 export type StatementMap = {
+  sourceRevision: SourceRevision;
   /** パース結果の全文と並行(index一致)。 */
   statements: StatementInfo[];
   byElementId: Map<ElementId, StatementInfo>;
@@ -116,6 +123,7 @@ export type CompileDslDocumentOptions = {
   assignedElementIds?: ReadonlyMap<number, ElementId>;
   /** 同じsourceを事前parseした結果。指定時はdocument compile内の再parseを省く。 */
   preparsed?: ParseDslResult;
+  sourceRevision?: SourceRevision;
 };
 
 export const DSL_VERSION = 1;
@@ -187,8 +195,7 @@ const printLayoutBlockLines = (
     `rows=${layoutNumeric(layout.rows)}`,
     `overlap=${layoutNumeric(layout.overlapMm)}`,
     `scale=${layoutNumeric(layout.scale)}`,
-    `canvas=(${layoutNumeric(layout.svgCanvasWidthMm)}, ${layoutNumeric(layout.svgCanvasHeightMm)})`,
-    "{"
+    `canvas=(${layoutNumeric(layout.svgCanvasWidthMm)}, ${layoutNumeric(layout.svgCanvasHeightMm)})`
   ].join(" ");
 
   const localVars = layout.numericVariables ?? [];
@@ -210,7 +217,7 @@ const printLayoutBlockLines = (
     );
   }
 
-  return [header, ...memberLines, "}"];
+  return [header, "{", ...memberLines, "}"];
 };
 
 const PRINT_LAYOUT_PROMOTED_NAME_BASE = "レイアウト";
@@ -284,11 +291,11 @@ const containerKind = (type: CadElementType): BlockFrame["kind"] | null =>
   type === "group" || type === "conditionalGroup" || type === "forGroup" ? type : null;
 
 export type ElementTreeLine = {
-  /** インデント・末尾 `{` 込みの完全な行テキスト。 */
+  /** A complete physical source line. Structural braces are independent lines. */
   text: string;
   /** 正準インデント深さ(blockEnd/blockElse は開き文と同じ深さ)。 */
   depth: number;
-  role: "statement" | "blockEnd" | "blockElse" | "atStop";
+  role: "statement" | "blockStart" | "blockEnd" | "blockElse" | "atStop";
   /** statement 行はその要素、blockEnd / blockElse 行は対応する開き要素のID。 */
   elementId?: ElementId;
   /** parent=/branch= フォールバックで出力されたトップレベル文。 */
@@ -369,12 +376,20 @@ export const layoutElementTree = (
       }
       const kind = containerKind(element.type);
       lines.push({
-        text: `${DSL_INDENT.repeat(stack.length)}${serializeElementStatement(element, refs)}${kind ? " {" : ""}`,
+        text: `${DSL_INDENT.repeat(stack.length)}${serializeElementStatement(element, refs)}`,
         depth: stack.length,
         role: "statement",
         elementId: element.id
       });
-      if (kind) stack.push({ elementId: element.id, kind, branch: "then" });
+      if (kind) {
+        lines.push({
+          text: `${DSL_INDENT.repeat(stack.length)}{`,
+          depth: stack.length,
+          role: "blockStart",
+          elementId: element.id
+        });
+        stack.push({ elementId: element.id, kind, branch: "then" });
+      }
     }
 
     emitted += 1;
@@ -476,10 +491,14 @@ const buildStatementMap = (
         endLine: statement.endLine,
         range: { startLine: statement.line, endLine: statement.line },
         indentDepth: Math.max(0, stack.length - 1),
-        enclosing: statement.enclosing
+        enclosing: statement.enclosing,
+        sourceRevision: statement.sourceRevision
       };
       const top = stack.pop();
-      if (top) top.range.endLine = statement.line;
+      if (top) {
+        top.range.endLine = statement.line;
+        top.closeBraceLine = statement.line;
+      }
       infos.push(info);
       return;
     }
@@ -491,10 +510,14 @@ const buildStatementMap = (
         endLine: statement.endLine,
         range: { startLine: statement.line, endLine: statement.line },
         indentDepth: Math.max(0, stack.length - 1),
-        enclosing: statement.enclosing
+        enclosing: statement.enclosing,
+        sourceRevision: statement.sourceRevision
       };
       const top = stack.at(-1);
-      if (top) top.elseLine = statement.line;
+      if (top) {
+        top.elseLine = statement.line;
+        top.elseBraceLine = statement.line;
+      }
       infos.push(info);
       return;
     }
@@ -506,7 +529,9 @@ const buildStatementMap = (
       endLine: statement.endLine,
       range: { startLine: statement.line, endLine: statement.line },
       indentDepth: stack.length,
-      enclosing: statement.enclosing
+      enclosing: statement.enclosing,
+      sourceRevision: statement.sourceRevision,
+      openBraceLine: statement.openBraceLine
     };
     infos.push(info);
     if (statement.opensBlock) stack.push(info);
@@ -567,6 +592,7 @@ const buildStatementMap = (
   }
 
   return {
+    sourceRevision: statements[0]?.sourceRevision ?? 0,
     statements: infos,
     byElementId,
     elementIdByStatementIndex,
@@ -583,7 +609,7 @@ export const compileDslDocument = (
 ): CompiledDslDocument => {
   const normalized = source.replace(/\r\n/g, "\n");
   const sourceLines = normalized.split("\n");
-  const parsed = options.preparsed ?? parseDsl(normalized);
+  const parsed = options.preparsed ?? parseDslSnapshot({ normalizedSource: normalized, sourceRevision: options.sourceRevision ?? 0 });
   const diagnostics = validateVersionStatements(parsed.statements).diagnostics;
 
   const compiled = compileDslToElements(normalized, {

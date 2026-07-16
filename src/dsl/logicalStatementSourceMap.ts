@@ -167,3 +167,26 @@ export const physicalSpanForStatement = (statement: LogicalStatement): DslPhysic
   segments: statement.segments,
   sourceRevision: statement.range.sourceRevision
 });
+
+/** Projects a logical half-open range into its real physical source segments.
+ * A logical separator introduced for a continuation never becomes editable
+ * source; ranges which include it are represented by the neighbouring
+ * physical segments instead. */
+export const physicalSpanForLogicalRange = (
+  map: LogicalStatementSourceMap,
+  statement: LogicalStatement,
+  range: { start: number; end: number }
+): DslPhysicalSpan | null => {
+  if (statement.range.sourceRevision !== map.sourceRevision || range.start < 0 || range.end < range.start || range.end > statement.logicalText.length) return null;
+  const segments: DslPhysicalSegment[] = [];
+  let logicalStart = 0;
+  for (const segment of statement.segments) {
+    const length = segment.to - segment.from;
+    const logicalEnd = logicalStart + length;
+    const from = Math.max(range.start, logicalStart);
+    const to = Math.min(range.end, logicalEnd);
+    if (to > from) segments.push({ from: segment.from + from - logicalStart, to: segment.from + to - logicalStart });
+    logicalStart = logicalEnd + 1;
+  }
+  return { segments, sourceRevision: map.sourceRevision };
+};
