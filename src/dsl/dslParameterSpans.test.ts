@@ -86,7 +86,20 @@ const expectationsFor = (element: CadElement): Record<string, ExpectedSpan> => {
     case "symmetricCopyLine": return { ...common("SymCopy"), axisPoint1: "A", axisPoint2: "B", baseLineIds: "[AB]" };
     case "move": return { ...common("Move", false), startPoint: "A", endPoint: "B", scale: "2", angleDeg: "10", mirrorX: "false", baseLineIds: "[AB]" };
     case "symmetricMove": return { ...common("SymMove", false), axisPoint1: "A", axisPoint2: "B", baseLineIds: "[AB]" };
-    case "image": return { ...common("Img"), originPoint: "(8, 9)", "originPoint:x": "8", "originPoint:y": "9", scale: "1.25", angleDeg: "15", mirrorX: "true" };
+    case "image": return {
+      ...common("Img"),
+      sourcePath: nullSpan("legacy image source span is not implemented"),
+      originPoint: "(8, 9)",
+      "originPoint:x": "8",
+      "originPoint:y": "9",
+      naturalWidthPx: nullSpan("legacy image metadata span is not implemented"),
+      naturalHeightPx: nullSpan("legacy image metadata span is not implemented"),
+      sourceDpi: nullSpan("legacy image metadata span is not implemented"),
+      targetPixelsPerMm: nullSpan("legacy image metadata span is not implemented"),
+      scale: "1.25",
+      angleDeg: "15",
+      mirrorX: "true",
+    };
     case "text": return { ...common("Label"), text: '"hello"', anchor: "A", fontSize: "4" };
   }
 };

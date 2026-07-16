@@ -130,7 +130,32 @@ export const getParameterDefinitions = (
           kind: "choice",
           choiceOptions: ["global", "group"],
         },
-        { key: "expression", label: "式", kind: "number" },
+        ...(element.valueMode === "expression"
+          ? [{ key: "expression", label: "式", kind: "number" as const }]
+          : element.valueMode === "pointLineDistance"
+            ? [
+                {
+                  key: "point",
+                  label: "点",
+                  kind: "reference" as const,
+                  allowCoordinate: false,
+                },
+                { key: "lineId", label: "線", kind: "lineReference" as const },
+              ]
+            : [
+                {
+                  key: "point1",
+                  label: "点1",
+                  kind: "reference" as const,
+                  allowCoordinate: false,
+                },
+                {
+                  key: "point2",
+                  label: "点2",
+                  kind: "reference" as const,
+                  allowCoordinate: false,
+                },
+              ]),
       ];
     case "text":
       return [
@@ -540,12 +565,17 @@ export const getParameterDefinitions = (
       return [
         ...commonParameters,
         ...numericVariableParameters(element),
+        { key: "sourcePath", label: "画像ファイル", kind: "text" },
         ...pointAnchorParameters({
           anchor: element.originPoint,
           key: "originPoint",
           label: "基準点",
           allowCoordinate: true,
         }),
+        { key: "naturalWidthPx", label: "元画像幅", kind: "number" },
+        { key: "naturalHeightPx", label: "元画像高", kind: "number" },
+        { key: "sourceDpi", label: "元画像DPI", kind: "number" },
+        { key: "targetPixelsPerMm", label: "目標 pixels/mm", kind: "number" },
         {
           key: "scale",
           label: "倍率",

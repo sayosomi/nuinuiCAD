@@ -7,10 +7,12 @@ import {
   clampPrintPreviewZoom
 } from "../state/cadUiStore";
 import type { PrintPreviewWindow } from "../state/cadUiStore";
+import {
+  DEFAULT_LEFT_PANEL_WIDTH,
+  clampStoredLeftPanelWidth
+} from "./leftPanelWidth";
 
-export const DEFAULT_LEFT_PANEL_WIDTH = 420;
-export const MIN_LEFT_PANEL_WIDTH = 360;
-export const MAX_LEFT_PANEL_WIDTH = 720;
+export { DEFAULT_LEFT_PANEL_WIDTH, MAX_LEFT_PANEL_WIDTH, MIN_LEFT_PANEL_WIDTH } from "./leftPanelWidth";
 
 const STORAGE_KEY = "nuinuiCAD.layoutSettings.v1";
 export const PRINT_PANEL_SECTION_IDS = ["output", "variables", "groups", "placements"] as const;
@@ -27,8 +29,7 @@ export type LayoutSettings = {
 const isObject = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === "object" && !Array.isArray(value);
 
-export const clampLeftPanelWidth = (width: number) =>
-  Math.min(Math.max(Math.round(width), MIN_LEFT_PANEL_WIDTH), MAX_LEFT_PANEL_WIDTH);
+export const clampLeftPanelWidth = clampStoredLeftPanelWidth;
 
 const finiteNumber = (value: unknown, fallback: number) =>
   typeof value === "number" && Number.isFinite(value) ? value : fallback;

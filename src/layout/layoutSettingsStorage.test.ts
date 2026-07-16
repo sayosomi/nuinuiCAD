@@ -83,7 +83,7 @@ describe("layoutSettingsStorage", () => {
       collapsedPrintPanelSections: ["variables"],
       printPreviewWindow: DEFAULT_PRINT_PREVIEW_WINDOW
     });
-    expect(normalizeLayoutSettings({ version: 1, leftPanelWidth: 900 })).toEqual({
+    expect(normalizeLayoutSettings({ version: 1, leftPanelWidth: 9999 })).toEqual({
       version: 1,
       leftPanelWidth: MAX_LEFT_PANEL_WIDTH,
       collapsedPrintPanelSections: ["variables"],
