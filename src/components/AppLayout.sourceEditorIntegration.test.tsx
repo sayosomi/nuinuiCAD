@@ -278,6 +278,41 @@ describe("AppLayout Source Editor production integration", () => {
     await waitFor(() => expect(useCadUiStore.getState().commandLineSession).toBeNull());
   });
 
+  it("delegates Escape from the real bar input to the bar exactly once", async () => {
+    const view = render(<AppLayout />);
+    act(() => { startCommandLineCreation("freePoint"); });
+    const xInput = view.getByRole("textbox", { name: "x" }) as HTMLInputElement;
+    fireEvent.change(xInput, { target: { value: "3" } });
+    fireEvent.submit(xInput.closest("form")!);
+    act(() => { startCommandLineStepEdit(0); });
+    const editingXInput = view.getByRole("textbox", { name: "x" });
+    await waitFor(() => expect(editingXInput).toHaveFocus());
+
+    fireEvent.keyDown(editingXInput, { key: "Escape" });
+    await waitFor(() => expect(useCadUiStore.getState().commandLineSession).toMatchObject({
+      currentStepIndex: 1,
+      editingStepIndex: null,
+      args: { x: 3 }
+    }));
+
+    act(() => { cancelCommandLineSession(); startCommandLineCreation("variable"); });
+    const expression = view.getByRole("textbox", { name: "式" }) as HTMLInputElement;
+    fireEvent.change(expression, { target: { value: "3" } });
+    fireEvent.submit(expression.closest("form")!);
+    fireEvent.click(view.getByRole("button", { name: "スキップ" }));
+    fireEvent.click(view.getByRole("button", { name: "式を編集" }));
+    const editingExpression = view.getByRole("textbox", { name: "式" });
+    await waitFor(() => expect(editingExpression).toHaveFocus());
+    fireEvent.keyDown(editingExpression, { key: "Escape" });
+    await waitFor(() => expect(useCadUiStore.getState().commandLineSession).toBeNull());
+
+    act(() => { startCommandLineCreation("variable"); });
+    const normalExpression = view.getByRole("textbox", { name: "式" });
+    await waitFor(() => expect(normalExpression).toHaveFocus());
+    fireEvent.keyDown(normalExpression, { key: "Escape" });
+    await waitFor(() => expect(useCadUiStore.getState().commandLineSession).toBeNull());
+  });
+
   it("uses the real Canvas and controller for Canvas⇄cursor sync and folded descendants", async () => {
     const view = render(<AppLayout />);
     const viewport = view.container.querySelector<HTMLDivElement>(".canvas-viewport")!;

@@ -323,6 +323,15 @@ export const AppLayout = () => {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      // The bar owns every Escape from itself. This capture listener otherwise
+      // runs before the bar's bubble handler and would cancel an edit twice.
+      if (
+        event.key === "Escape" &&
+        event.target instanceof Element &&
+        event.target.closest(".command-line-bar")
+      ) {
+        return;
+      }
       const isSourceEditorTarget = isSourceEditorKeyboardTarget(event);
       // DSL and the lens are handled by CodeMirror. The React element-search field
       // admits only cross-focus commands; menus/docks keep their own keyboard UI.
