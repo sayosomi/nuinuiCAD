@@ -1,7 +1,7 @@
 # 抜本改善計画: DSLテキストを正とするUI・保存形式の刷新
 
-Status: 承認済み(2026-07-09)。実装はPhase単位で個別のcoding agentに分担する。
-各Phaseの実装タスクは `docs/overhaul/tasks/` 参照。
+Status: Phase 0〜5 完了（2026-07-16）。Phase 5h の文書同期・フルチェックを完了し、
+review 境界 3 の全体レビュー待ち。各Phaseの実装記録は `docs/overhaul/tasks/` を参照。
 
 ## Context
 
@@ -175,6 +175,32 @@ Phase 5  ハードクリーンアップ(Phase 2・3・4すべての完了後)
   詳細は親文書「Phase全体の確定判断」を参照。旧command ID対応の確定版は
   `docs/overhaul/command-id-map.md` に集約した。
 
+### Phase 5 完了結果
+
+Phase 5 は、DSL の移行期互換と旧 JSON スナップショット残骸を除去し、
+`renameSelectedElement` による安全な参照伝播を追加した。rename は中央 flush と
+クリーン文書ゲートを通り、全参照 slot の before/after 解決状態が一致する場合だけ
+1 回の statement-level bridge commit を行う。F2 の単一選択ダイアログ、1 Undo、
+Source Editor への行ジャンプが現行仕様である。
+
+Phase 4 review の B-6 も 5i で解消済みである。途中セッションの完了済み step は
+隔離 draft で編集でき、成功・取消後には元の進行 step と pick 状態へ戻る。将来
+step の不足だけによる `missing-input` は編集確定を妨げない一方、編集中 step
+自身の不足・invalid は draft を維持する。途中編集時の Esc は編集だけを取消し、
+それ以外の Esc と `キャンセル（Esc）` ボタンはセッション全体を取消する。
+
+### Phase 5 関連の先行修正
+
+Phase 5 の分割開始前後に、次の関連修正が先行して merge され、各子タスクの
+前提として取り込まれた。
+
+* `c23b3eb` — focus owner ごとの keyboard shortcut scope を導入し、5c / 5g の
+  Source Editor shortcut 境界の基礎にした。
+* `15d94d5` — Source Editor 起点の作図を生成済み値へ戻し、Phase 4 / 5 の
+  command-line 作図・editor handoff の基盤を整えた。
+* `be1ceeb` — angle-shaped parameter の numeric reference pick の既定 property を
+  angle にし、Phase 4 review B-5 の代替経路評価に関係する先行修正とした。
+
 ## Phase 1 分割の根拠
 
 元計画のPhase 1(テキスト正準ストア+形式切替+Undo統合を一括)は最高リスク
@@ -206,7 +232,7 @@ Phase 5  ハードクリーンアップ(Phase 2・3・4すべての完了後)
    →Tab/Shift+Tab値span移動→直接入力またはAlt+←/→を回帰テストする。
    Inspector専用の旧bindingは代替先なしで安全に正規化除去する。
 
-## 主な削除対象(最終形)
+## 主な削除結果(最終形)
 
 * `LeftPanel.tsx` + `ElementListRow` / `useElementListData` 等リスト系(~2000行)
 * `DslPanel.tsx` + ローカル履歴、`DslEditor.tsx`(textarea実装)
@@ -215,12 +241,12 @@ Phase 5  ハードクリーンアップ(Phase 2・3・4すべての完了後)
   とフォーム編集用の状態・commandからは切り離す
 * パラメータ編集モード(値編集コマンド)、dependency jump互換、
   Inspector行ナビゲーション。キーボード編集はSource Editorの値span経路が代替
-* `documentFormat.ts` の保存経路、`documentMigration.ts`(既に死んでいる)、
+* `documentFormat.ts` の保存経路、削除済みの `documentMigration.ts`、
   スナップショットの `printLayout` ミラーと `selected*` フィールド
 * ~~`id=` / `parent=` / `branch=` のDSL互換(Phase 5)~~ —
   **2026-07-16撤回**: レガシーインポータ出力が3属性で元の評価順を保持し、
   明示 `id=` は同一スコープ重名の正式な逃げ道・レコードIDとして現役のため、
-  正式文法として存続させる。Phase 5で削除するのはテスト専用
+  正式文法として存続させる。Phase 5で削除したのはテスト専用だった
   `SerializeDslOptions.includeIds` と `expanded=`/`elseExpanded=` 互換のみ
   (詳細は `tasks/phase-5-cleanup.md` 前提修正1)
 

@@ -50,6 +50,9 @@ When updating behavior, prefer these source files over duplicating details here:
   parity helpers: `src/geometry/`
 * Tauri desktop shell and commands: `src-tauri/`
 * Dependency and document ordering logic: `src/model/`
+* DSL parsing, compilation, serialization, and completion: `src/dsl/`
+* Canonical document persistence, legacy import, and text patches: `src/document/`
+* CodeMirror adapter and source-edit session boundary: `src/editor/`
 * Commands and command palette data: `src/commands/`
 * Keyboard shortcut mapping: `src/keyboard/shortcuts.ts`
 * Editable parameter definitions: `src/parameters/parameterDefinitions.ts`
@@ -126,6 +129,19 @@ label, and value kind. Numeric parameters should support per-parameter keyboard
 step sizes in the Source Editor, defaulting to 1 mm unless the parameter needs
 domain-specific levels such as ratios or angles.
 
+The Inspector is read-only. Parameter changes happen through Source Editor
+value spans (`Alt+←` / `Alt+→` for step changes where available) or the
+command-line creation flow; do not restore form-style parameter editing UI.
+`editorTransaction` is the established narrow Source Editor exception: it owns
+the `Alt+←` / `Alt+→` value-step chords without Mod and the modifier-free F2
+rename chord. Do not broaden this exception to other shortcut owners.
+
+Safe propagated rename is an explicit command-only operation. It must flush
+the Source Editor, reject unsafe name collisions or reference-resolution
+changes, patch only affected statements, and make one rename one Undo step.
+Direct DSL text edits do not trigger rename propagation; normal diagnostics
+remain responsible for dangling references.
+
 Do not maintain a hand-written shortcut list in this file. Shortcut help should
 come from command and shortcut metadata in the application.
 
@@ -157,6 +173,18 @@ model or saved file format, prefer the cleanest durable shape over backward
 compatibility with earlier local drafts. Breaking saved-format changes are
 acceptable unless the user explicitly asks for a migration path or compatibility
 layer.
+
+The persisted document is one `.nui` DSL text file. `sourceText` is the
+canonical, durable state; `.nuinui.json` is accepted only by the explicit
+legacy importer and is never a save target. Keep document edits on the
+central `sourceEditSession`/`commitText` boundary. Canvas and command changes
+must use statement-level text splices through the document bridge: do not add
+whole-file reserialization as a mutation path because comments, blank lines,
+and user layout must remain intact.
+
+Keep CodeMirror types and direct CodeMirror APIs inside `src/editor/` and
+`SourceEditorPane.tsx`. Other components communicate through source-editor
+handles and plain application types.
 
 Prefer Rust for deterministic, CPU-heavy, or platform-adjacent work:
 

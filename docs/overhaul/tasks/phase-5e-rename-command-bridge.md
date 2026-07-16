@@ -18,7 +18,7 @@ callerはテストのみ)の置換。
 
 ## Goal
 
-UIなしで呼べる `renameElementWithPropagation`(名称は実装時に確定)を
+UIなしで呼べる `renameElementWithPropagation` を
 実装し、1リネーム=1 `commitDocumentChange`=1 Undoステップ+dev検証つきで
 テスト固定する。
 
@@ -41,7 +41,7 @@ UIなしで呼べる `renameElementWithPropagation`(名称は実装時に確定)
     実パッチ行の取得は `commitModelBridge` が返すsplice情報を
     devで呼び出し元へ露出する最小限の変更で行う(store公開APIは増やさず、
     既存の `modelCommit` 戻り値/dev hookの慣習に合わせる)。
-  * コミット後テキストの再コンパイルで「対象以外の全参照の解決先・
+  * コミット後テキストの再コンパイルで「全参照 slot の解決先・
     dangling状態が不変」(5dの検証関数を再利用)。
   * 違反時はdev assert(本番では黙って壊さない=コミット自体は解析済みで
     安全側)。
@@ -125,3 +125,19 @@ UIなしで呼べる `renameElementWithPropagation`(名称は実装時に確定)
   フォールバック発動入力(あれば)の報告。
 * 5g へ: コマンドレベル関数のシグネチャとエラー通知経路。`resolution-change`
   の詳細な人間可読化はUI接続時に拡充する対象とする。
+
+## Status / 実装結果（2026-07-16）
+
+**完了（review 境界 2）。** `renameElementWithPropagation` は
+`sourceEditSession.flush("command")`、クリーンな canonical source gate、
+`analyzeRename`、1 回の `commitDocumentChange`、dev/test の bridge assertion を
+順に実行する。旧 store の自動連番 `renameElement` は削除済みである。
+
+same-name rename は bridge 前で成功 no-op となる。拒否時は文書・選択・Undo を
+変えず、既存 dangling を含む文書もクリーン文書ゲートで拒否する。成功時だけ
+対象文と必要な参照文を statement-level patch し、1 Undo に統合する。
+
+## Review 結果・最終申し送り
+
+bridge は `expectedPatchedLines` と実スプライス行、全参照 slot の安定性を dev/test
+で検証する。全体再シリアライズ fallback は rename の正常経路では許可しない。

@@ -36,10 +36,12 @@ B-6(Phase 4全体レビュー、確認済み): `beginStepEdit` が `sessionCanCo
   (`sessionCanConfirm` は要求しない)。現在進行中の未完了ステップは
   チップ編集の対象外(すでにアクティブなプロンプトがある)。
 * 編集確定は既存 `confirmEditingDraft` の分類(`preview` /
-  `not-evaluated` / `invalid` / `missing-input`)をそのまま使う。
+  `not-evaluated` / `invalid` / `missing-input`)を使う。
   途中段階での確定成功時は、**編集開始前に進行中だったステップ**
   (=最初の未充足ステップ)へ復帰し、他の引数はすべて保持する。
-  `invalid` / `missing-input` は既存どおり入力を保持して編集画面に残る。
+  `missing-input` が編集 step 自身または既存の完了済み step に由来する場合、
+  および `invalid` の場合は draft を保持して編集画面に残る。未来 step だけが
+  未入力の `missing-input` は確定を妨げない。
 * 編集の開始・切替・取消・確定の遷移規則は、完了段階の既存編集フローと
   **同一規則**とする(単一draft、チップ切替時の扱いも既存挙動を先に実測して
   ミラーする。途中段階専用の第二の状態機械を作らない)。
@@ -126,3 +128,22 @@ B-6(Phase 4全体レビュー、確認済み): `beginStepEdit` が `sessionCanCo
 
 * 5h へ: 途中編集の確定仕様(本文書の設計判断)を文書側へ反映し、親文書の
   backlog表のB-6行を「解消済み」へ更新すること。
+
+## Status / 実装結果（2026-07-16）
+
+**完了。B-6 は解消済み。** 未完了 step が残るセッションでも、完了済み step の
+chip から隔離 draft 編集を開始できる。成功・取消後は保存済みの進行 step と pick
+状態へ戻り、他の完了済み引数は保持する。
+
+`editingReturnPickState` は再導出できない最小状態だけを保持する：line-list draft、
+numeric reference の property、pick cursor。編集確定では未来 step だけに由来する
+`missing-input` を許容し、編集中 step の不足または invalid は draft を残す。
+
+## Review 結果・最終申し送り
+
+途中編集中の Esc は編集だけを取消する。完了後の step 編集中と通常進行中の Esc は
+セッション全体を取消する。表示中の `キャンセル（Esc）` ボタンは状態にかかわらず
+セッション全体を取消するため、Esc と同一ではない。この実装済みの意味差は parent
+文書と ROADMAP の backlog に記録し、表示文言の変更は本タスクでは行わない。
+`missing-input` 時の ghost/validation 重複計算も性能 backlog として残るが、B-6 の
+編集可否・復帰仕様は解消済みである。

@@ -46,6 +46,9 @@ phase-0-dsl-grammar
                                                     └─ 5h-docs-update(5a〜5g・5i全完了後)
 ```
 
+Phase 5 の実装タスク（5a〜5i）は完了済み。5h は上記完了結果を文書へ同期し、
+review 境界 3 の全体レビューを準備する最終記録タスクである。
+
 | タスク | 内容 | 依存 |
 |---|---|---|
 | [phase-0-dsl-grammar.md](phase-0-dsl-grammar.md) | 文書完全表現のDSL文法(ブロック・無名文・palette/printLayout/`@stop`・トークンスパン) | なし |
@@ -81,17 +84,17 @@ phase-0-dsl-grammar
 | [phase-4g-creation-cutover.md](phase-4g-creation-cutover.md) | 作成コマンドのセッション起動cutover+旧即時挿入削除 | 4e + 4f + 4a-2 |
 | [phase-4h-dsl-autocomplete.md](phase-4h-dsl-autocomplete.md) | エディタ内DSL文脈補完(cmAutocomplete) | 2(4a-1〜4g・4iと独立) |
 | [phase-4i-dsl-panel-removal.md](phase-4i-dsl-panel-removal.md) | DslPanel/DslEditor削除 | 2(4a-1〜4g・4hと独立) |
-| [phase-5-cleanup.md](phase-5-cleanup.md) | **親文書**: 互換コード削除・リネーム伝播・B-6解消・ドキュメント更新。実装は下記5a〜5iへ分割(2026-07-16)。merge順・review境界は親文書を正とする | 3 + 4(4g+4h+4i) |
-| [phase-5a-dsl-compat-reduction.md](phase-5a-dsl-compat-reduction.md) | DSL互換の縮小掃除(`includeIds`+`expanded=`/`elseExpanded=` 削除。`id=`/`parent=`/`branch=` は正式文法として存続) | 5b系・5c・5dと並行可 |
-| [phase-5b-1-legacy-format-dead-code.md](phase-5b-1-legacy-format-dead-code.md) | レガシー形式デッドコード削除(`documentMigration.ts`・`documentFormat.ts` 縮小。インポータ維持+roundtrip確認) | 5a・5c・5dと並行可 |
-| [phase-5b-2-snapshot-mirror-removal.md](phase-5b-2-snapshot-mirror-removal.md) | change/スナップショット型の `selected*`・`printLayout` ミラー削除+読み手の派生化(Undo・Canvas・印刷回帰) | 5b-1(5eより先にmerge) |
-| [phase-5c-command-keyboard-cleanup.md](phase-5c-command-keyboard-cleanup.md) | `data-element-list` matcher削除・`focusElementList` リネーム・retired ID再分類+[確定版対応表](../command-id-map.md)反映 | 5a・5b系・5dと並行可(5gより先にmerge) |
-| [phase-5d-rename-analysis.md](phase-5d-rename-analysis.md) | rename参照解析の純粋モジュール(衝突・捕獲・解決先変化の拒否判定+期待パッチ行集合。アプリ非接続)。**完了時review境界1** | 5a・5b系・5cと並行可 |
-| [phase-5e-rename-command-bridge.md](phase-5e-rename-command-bridge.md) | renameコマンドcore(flush→解析→拒否 or 1 commit+dev検証。UIなし)。**完了時review境界2** | 5d(+5b-2のmerge先行) |
-| [phase-5f-rename-coverage.md](phase-5f-rename-coverage.md) | rename参照形式の統合カバレッジ+不足修正(変更範囲は5d/5eモジュールと関連テスト限定) | 5e(5gと並行可) |
-| [phase-5g-rename-ui.md](phase-5g-rename-ui.md) | rename UI接続(専用最小プロンプト+`renameSelectedElement` 登録) | 5e(+5cのmerge先行。5fと並行可) |
-| [phase-5i-midsession-step-edit.md](phase-5i-midsession-step-edit.md) | コマンドライン途中段階での完了済みステップ編集(B-6解消。Phase 4挙動不変条件へのユーザー承認済み例外) | なし(全子タスクと並行可。5hより先に完了) |
-| [phase-5h-docs-update.md](phase-5h-docs-update.md) | ドキュメント更新(AGENTS.md/ROADMAP.md/docs/dsl.md/対応表確定)。**完了時review境界3(Phase 5全体)** | 5a〜5g・5iすべて |
+| [phase-5-cleanup.md](phase-5-cleanup.md) | **親文書**: 互換コード削除・安全 rename・B-6解消・文書同期の最終記録 | **完了** |
+| [phase-5a-dsl-compat-reduction.md](phase-5a-dsl-compat-reduction.md) | DSL互換縮小（`id=` / `parent=` / `branch=` は正式文法として維持） | **完了** |
+| [phase-5b-1-legacy-format-dead-code.md](phase-5b-1-legacy-format-dead-code.md) | レガシー形式デッドコード削除、インポータ維持 | **完了** |
+| [phase-5b-2-snapshot-mirror-removal.md](phase-5b-2-snapshot-mirror-removal.md) | snapshot の `selected*` / `printLayout` ミラー除去 | **完了** |
+| [phase-5c-command-keyboard-cleanup.md](phase-5c-command-keyboard-cleanup.md) | Source Editor focus への集約、retired ID 再分類、対応表照合 | **完了** |
+| [phase-5d-rename-analysis.md](phase-5d-rename-analysis.md) | rename 参照解析・衝突／捕獲／解決先変化の拒否 | **完了（review 境界 1）** |
+| [phase-5e-rename-command-bridge.md](phase-5e-rename-command-bridge.md) | rename bridge、flush、1 commit、dev 検証 | **完了（review 境界 2）** |
+| [phase-5f-rename-coverage.md](phase-5f-rename-coverage.md) | rename 参照形式の統合カバレッジ | **完了** |
+| [phase-5g-rename-ui.md](phase-5g-rename-ui.md) | rename UI、`renameSelectedElement`、F2 | **完了** |
+| [phase-5i-midsession-step-edit.md](phase-5i-midsession-step-edit.md) | 途中の完了済み step 編集、B-6 解消 | **完了** |
+| [phase-5h-docs-update.md](phase-5h-docs-update.md) | 文書同期、対応表確定、全体レビュー準備 | **完了（review 境界 3）** |
 
 ## 各エージェントへの共通指示
 

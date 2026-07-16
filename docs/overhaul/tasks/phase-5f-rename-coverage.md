@@ -103,3 +103,15 @@
 
 * 5h へ: 確定した拒否条件一覧・カバレッジ行列(docs/dsl.md のrename節と
   AGENTS.mdの記述の材料)。
+
+## Status / 実装結果（2026-07-16）
+
+**完了。** 直接・派生・式内・修飾名・printLayout `place`・group 子孫・無名要素の
+rename、拒否系、Undo、1,000 要素の実行を統合カバレッジへ固定した。解析と bridge
+以外の serializer / text patch / store へ仕様変更を広げていない。
+
+## Review 結果・最終申し送り
+
+`documentDslRefs` が絶対パスを再出力できない入力は、安全でも
+`resolution-change` として拒否する。これは捕獲や解決先変更を許可しないための
+既知の過剰拒否であり、5h 以降も未解決事項として扱う。

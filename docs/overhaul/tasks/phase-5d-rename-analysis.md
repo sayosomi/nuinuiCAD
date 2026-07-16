@@ -131,7 +131,7 @@
 
 * 上記Edge casesの単体テスト+形式分類ごとの列挙テスト。
 * プロパティテスト: 生成文書に対しランダムrename→ `verdict: "ok"` の場合、
-  rename適用後の再コンパイルで「対象以外の全参照の解決先・dangling状態が
+  rename適用後の再コンパイルで「全参照 slot の解決先・dangling状態が
   不変」をassert(検証器自身の自己検証)。
 * `expectedPatchedLines` が `textPatch` の実スプライス行と一致することの
   単体近似テスト(ブリッジ接続そのものは5e)。
@@ -166,3 +166,22 @@
   同一scope重名も現状は保守的に衝突拒否である。
 * 5h へ: 上記の過剰拒否、`RenameReferencePath` 非公開、`occurrences` の
   意味論、明示 `id=` 同一scope重名の保守的拒否をrename仕様として記載する。
+
+## Status / 実装結果（2026-07-16）
+
+**完了（review 境界 1）。** 公開 API は `src/document/renameAnalysis.ts` の
+`analyzeRename`、`validateRenameReferenceStability`、`RenameOccurrence`、
+`RenameAnalysis` を正とする。`RenameReferencePath` は不正確な行全体推測を避ける
+ため公開 API から削除済みである。
+
+安全性検証は rename 対象を例外にせず、catalog 化できた全参照 slot を before/after
+で無条件比較する。`occurrences` は対象または group 子孫へ解決し、かつ owner 文が
+serializer 比較で実際に変わるものだけを返す。printLayout は行対応を証明できる
+場合のみ行単位、それ以外は block 全体を `expectedPatchedLines` とする。
+
+## Review 結果・最終申し送り
+
+同一 scope の明示 `id=` 重名は DSL では受理されても、rename 先としては保守的に
+衝突拒否する。絶対パスを serializer が出力できない既知ケースは
+`resolution-change` 拒否となる。解析を緩めず、Phase 5 全体レビューの
+未解決事項として扱う。

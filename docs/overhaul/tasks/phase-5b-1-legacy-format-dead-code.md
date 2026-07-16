@@ -98,3 +98,14 @@
 
 * 5b-2へ: `documentFormat.ts` に残した `selected*` / `printLayout` ミラー
   関連の型・関数の一覧と、それぞれの現役caller(store/UI/印刷)を申し送る。
+
+## Status / 実装結果（2026-07-16）
+
+**完了。** `src/document/documentMigration.ts` は削除済みで、
+`documentFormat.ts` は legacy JSON の parse/import 面だけを保持する。保存先は
+`.nui` のままで、`.nuinui.json` は `importLegacyCadDocument` を通る入力だけである。
+
+## Review 結果・最終申し送り
+
+legacy import の roundtrip を維持した。選択状態・単数 print layout ミラーの
+in-memory 整理は 5b-2 で完了しており、本タスクの範囲外だった形式変更はない。

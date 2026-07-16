@@ -106,3 +106,15 @@
 * 5h(ドキュメント)へ: docs/dsl.md に「`id=` / `parent=` / `branch=` は
   正式文法(インポータ出力・重名逃げ道)」「`expanded=` 系は削除済み」を
   反映する必要がある旨を申し送る。
+
+## Status / 実装結果（2026-07-16）
+
+**完了。** `SerializeDslOptions.includeIds` は削除され、flat serializer は常に
+`id=` を出力する。`expanded=` / `elseExpanded=` の専用互換・警告も除去済みで、
+折りたたみ状態は DSL 正準文書に含めない。`id=` / `parent=` / `branch=` は
+レガシーインポータと文書文法の現役属性として変更していない。
+
+## Review 結果・最終申し送り
+
+serializer、parameter span、文書 roundtrip の既存テストで正準出力を確認した。
+以後この文書の Scope は実装予定ではなく完了時の境界記録として読むこと。

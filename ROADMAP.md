@@ -1,22 +1,40 @@
 # ROADMAP
 
-## DSL
+## Current product baseline
 
-The current DSL workflow remains selection export, text edit, and patch apply
-back to existing elements by stable `id=...`.
+nuinuiCAD is a Tauri desktop 2D parametric CAD editor for sewing patterns.
+Documents are persisted as one `.nui` DSL text file; `sourceText` is the
+canonical state, while compiled geometry is derived for rendering and
+evaluation. The former `.nuinui.json` format is accepted only by the explicit
+legacy-import command and is not a save format.
 
-Next phases:
+The always-visible Source Editor is the primary text interface. Canvas actions
+and commands preserve comments, blank lines, and ordering by patching only the
+affected statements. The Inspector is read-only; parameter values are edited
+in Source Editor value spans or supplied through keyboard-first command-line
+creation.
 
-1. Cover existing GUI drafting elements with natural DSL syntax and lossless
-   serialization.
-2. Add standalone DSL import/export commands that rebuild a document from DSL
-   source without relying on an existing element list.
+Completed capabilities include DSL completion, command-line creation with
+canvas picking and ghost previews, safe propagated rename, and undo/redo over
+canonical text. `renameSelectedElement` opens the single-selection rename
+dialog with F2; a successful rename updates only the necessary statements and
+creates one Undo step.
 
-Implemented:
+## Backlog
 
-- Dependency-closure export for selected ranges includes selected group content,
-  parent groups, and upstream dependencies while preserving document order.
-
-DSL import must preserve the deterministic document-order evaluator. It should
-report missing, disabled, invalid, or too-late references rather than repairing
-or reordering elements automatically.
+- Expand performance coverage for variable, element-parameter, print-layout,
+  and CommandLineBar candidate generation at large document sizes.
+- Decide whether the legacy `.nuinui.json` importer can be removed after users
+  no longer need local-draft import.
+- Clarify the CommandLineBar cancellation copy: during a mid-session completed
+  step edit, keyboard Esc cancels only that edit and restores the active
+  prompt; the visible `キャンセル（Esc）` button still cancels the entire session.
+- Avoid duplicate command-line ghost/validation work when an isolated edit
+  reports `missing-input`; this is a performance cleanup, not a resolved B-6
+  behavior issue.
+- Reconcile the asymmetric Mod-key treatment between migrated legacy shortcut
+  settings and newly validated Source Editor bindings.
+- Decide whether rename should remain fail-closed for every warning diagnostic
+  in an otherwise compilable document, or expose a narrower safety policy.
+- Continue sewing-pattern features, including SVG/PDF export refinement and
+  tiled A4 printing, while preserving millimeter units and Y-up geometry.

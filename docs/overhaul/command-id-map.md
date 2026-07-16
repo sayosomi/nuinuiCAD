@@ -1,7 +1,7 @@
 # command ID対応表(確定版)
 
 旧command ID → 新ID/最終挙動の統合対応表。Phase 3d・4g・4iで分散していた
-対応を1箇所に集約し、Phase 5の変更を追記する。
+対応を1箇所に集約し、Phase 5完了時点の状態を記録する。
 
 **実装の正はコード**: 保存済みshortcut設定の正規化は
 `src/keyboard/shortcutSettingsStorage.ts` の `legacyBindingIdMap`(移行)と
@@ -120,11 +120,13 @@ Phase 5cでは `focusElementList` と `enterElementListMode` を統合し、正�
 
 | ID | 内容 | 状態 |
 |---|---|---|
-| `renameSelectedElement` | 選択要素のrename(伝播つき)プロンプト起動 | **予定(5g)** |
+| `renameSelectedElement` | 選択要素の安全なrename（伝播つき）プロンプト起動。single selection のみ、既定 F2 | **実装済み** |
 
 ## 更新規則
 
-* 5cは完了済み。5g の実装完了時に、その「予定」行を確定へ更新する(5hで最終確認)。
+* 5c / 5g は完了済み。`renameSelectedElement` は normal と Source Editor に
+  登録され、Source Editor の F2 は `editorTransaction` 所有の function-key
+  binding である。
 * 以後、command IDの廃止・リネームを行うPhaseはこの表へ追記し、
   `legacyBindingIdMap` / `retiredCommandIds` との機械突き合わせテストを
   更新すること。

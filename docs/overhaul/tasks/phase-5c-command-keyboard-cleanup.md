@@ -127,3 +127,16 @@
 
 * 5g へ: `CommandContext` の最終形(リネーム後のfocus関数名)。
 * 5h へ: 対応表の確定内容(ドキュメント整合パスで参照)。
+
+## Status / 実装結果（2026-07-16）
+
+**完了。** dead `data-element-list` matcher は削除され、旧
+`focusElementList` / `enterElementListMode` の保存済み binding は
+`normal.focusSourceEditor` へ移行する。現役・retired・移行集合は
+`shortcutSettingsStorage.ts` と [確定版対応表](../command-id-map.md) の機械照合を
+正とする。
+
+## Review 結果・最終申し送り
+
+未知 command ID は既存 shortcut 設定から安全に無視・除去される。旧 ID は
+履歴的な migration map にのみ残り、現役 `CommandId` や registry には残さない。

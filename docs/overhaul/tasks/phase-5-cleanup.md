@@ -42,6 +42,32 @@
 > 各子タスクはアプリが完全に動作する状態
 > (`npm test` / `npm run build` / `npm run lint` green)で着地する。
 
+> **Status (2026-07-16)**: 5a〜5i の実装は完了。5h は文書同期と Phase 5
+> 全体レビューの準備を行う最終タスクである。以下の要件・調査根拠は残すが、
+> 実装の正は現行コードと各子タスク末尾の実装結果である。
+
+## 実装結果（Phase 5）
+
+* 5a は `includeIds` と `expanded=` / `elseExpanded=` の専用互換を除去し、
+  `id=` / `parent=` / `branch=` を正式文法として維持した。
+* 5b-1 / 5b-2 は `documentMigration.ts` と in-memory snapshot の
+  `selected*` / 単数 `printLayout` ミラーを除去し、旧 JSON は importer 入力だけに
+  縮小した。
+* 5c は旧 element-list shortcut 経路を `focusSourceEditor` へ集約し、移行 map と
+  retired 集合を確定版対応表・機械照合テストの正とした。
+* 5d〜5g は安全な rename を導入した。全参照 slot を before/after で無条件比較し、
+  1 rename = 1 Undo、単一選択ダイアログ、F2、対象行への復帰を実装した。
+* 5i は途中セッションでも完了済み step を隔離 draft で編集可能にし、B-6 を解消した。
+
+## Review 結果と最終申し送り
+
+5d / 5e の API・bridge 境界は契約テストと統合カバレッジで固定済みである。
+5h のフルチェックと文書整合確認後に review 境界 3（Phase 5 全体レビュー）を
+実施する。安全側の `resolution-change` 過剰拒否、CommandLineBar の
+`キャンセル（Esc）` 表示と途中編集 Esc の意味差、`missing-input` 時の重複計算、
+Phase 4 候補生成の性能カバレッジ、shortcut legacy 移行の Mod 判定非対称、warning
+診断を含む文書での rename fail-closed は未解決事項であり、完了扱いにしない。
+
 ## Phase全体の確定判断(2026-07-15。当初のPhase 5スケッチに優先)
 
 当初の本文書は Phase 0 時点のスケッチであり、Phase 1〜4 の実装で前提が複数
@@ -116,8 +142,8 @@ change/スナップショット型として現役。`selected*` フィールド�
 danglingトークンが新名と同綴りで**新たに解決されてしまう捕獲**や、scope
 shadowingによる**解決先の変化**を検出できない。不変条件は:
 
-> **rename対象要素への参照以外は、文書内の全参照の「解決先要素ID」と
-> 「dangling状態」が rename 前後で完全に一致する。一致しないrenameは
+> **文書内の全参照 slot の「解決先要素ID」と「dangling状態」が rename 前後で
+> 完全に一致する。一致しない rename は
 > コミット前に拒否する。**
 
 ### 確定判断: view / role は要素をIDで参照するため rename の影響外
@@ -139,12 +165,9 @@ CommandLineBar・セッション状態機械には手を入れない(Phase 4完�
   **解消済み**(2026-07-16ユーザー確認): `要素名.parameterKey` 補完
   (`8fbedc2`)により全プロパティの参照がタイプ経路で可能になり代替が
   成立した。pickボタン自体の `property: "length"` 固定は設計内として存続。
-* **B-6**(全ステップ完了前は完了済み行チップが無反応)は、設計を確定して
-  **子タスク5i** [phase-5i-midsession-step-edit.md](phase-5i-midsession-step-edit.md)
-  としてPhase 5へ編入した(2026-07-16、ユーザー指示)。CommandLineBar/
-  セッションの挙動変更だが、「Phase 4追加機能の挙動を変えない」不変条件への
-  **ユーザー承認済みの唯一の例外**として5iのスコープ内に限り許可する。
-  5i以外の子タスクからは従来どおり変更禁止。
+* **B-6**(全ステップ完了前は完了済み行チップが無反応)は、5i で**解消済み**。
+  CommandLineBar / セッションの挙動変更は、Phase 4 の不変条件に対する
+  ユーザー承認済みの唯一の例外として 5i のスコープ内で完了した。
 * **性能テスト拡充**(`@variable` / `要素名.parameterKey` / printLayout候補・
   CommandLineBar側候補生成のperf)はテストのみだがPhase 4機能のhardeningで
   あり本Phaseの目的(削除・整理・rename・文書)外。→ backlogへ。代替として
@@ -317,6 +340,10 @@ backlog行の着手は別途ユーザー判断。
 | 項目 | 内容 | 状態 |
 |---|---|---|
 | B-5 | バーのnumeric参照ピックの `property: "length"` 固定 | **解消済み**(`要素名.parameterKey` 補完 `8fbedc2` による代替成立。2026-07-16確認) |
-| B-6 | 全ステップ完了前の完了済み行チップ無反応 | **Phase 5へ編入済み**: 子タスク [5i](phase-5i-midsession-step-edit.md) として実施 |
+| B-6 | 全ステップ完了前の完了済み行チップ無反応 | **解消済み**（[5i](phase-5i-midsession-step-edit.md) で途中編集を実装） |
+| キャンセル表示 | 途中編集時の Esc は編集のみ取消、`キャンセル（Esc）` はセッション全体取消 | backlog（実装済み挙動の表示文言を要判断） |
+| `missing-input` 時の重複計算 | 途中 step 編集の ghost/validation が同じ不足状態を重複計算し得る | backlog（性能整理。B-6 解消とは別） |
 | 性能テスト拡充 | `@variable` / `要素名.parameterKey` / printLayout候補・CommandLineBar側候補生成のperfカバレッジ | backlog(Phase 4機能のhardeningでPhase 5目的外) |
+| shortcut legacy 移行の Mod 判定 | legacy 設定の移行と新規 Source Editor binding の Mod 必須判定が対称ではない | non-blocking backlog（設定互換ポリシーの整理） |
+| warning 診断を含む rename | rename のクリーン文書ゲートは warning を含む診断でも fail-closed になる | non-blocking backlog（安全性を保った理由別ポリシー／表示の検討） |
 | レガシーインポータ削除 | ユーザーが不要と明言したら別途 | 従来どおり保留 |

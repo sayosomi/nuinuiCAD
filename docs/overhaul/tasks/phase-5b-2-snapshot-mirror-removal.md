@@ -112,4 +112,15 @@ change/スナップショット型から `selected*` フィールドと `printLa
 
 * 5e へ: `cadDocumentStore.ts` のchange型の最終形(rename bridgeが使う
   `commitDocumentChange` の引数形)を申し送る。
+
+## Status / 実装結果（2026-07-16）
+
+**完了。** `CadDocumentSelectionSnapshot`、snapshot/change 型の `selected*`、
+および単数 `printLayout` ミラーは除去済み。Undo の選択復元は `TextSnapshot`、
+印刷レイアウトの読み手は `printLayouts` と active ID からの派生を正とする。
+
+## Review 結果・最終申し送り
+
+`.nui` の正準テキスト、Undo/Redo、Canvas preview、SVG/PDF 印刷出力を変更しない
+境界で実施した。rename bridge はこの最終 change 型を使用している。
 * 5h へ: plan.md「主な削除対象」のスナップショット項が完了した旨。

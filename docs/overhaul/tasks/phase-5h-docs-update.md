@@ -4,8 +4,7 @@
 > `docs/overhaul/plan.md` → 親文書 → 5a〜5g・5iの各ハンドバック報告の順で
 > 読むこと。
 >
-> **5a〜5g・5iすべての完了後に着手する最終タスク**。完了時にreview境界3
-> (Phase 5全体レビュー)。
+> **5a〜5g・5iすべて完了済みの最終タスク**。review境界3は Phase 5 全体レビュー。
 
 ## Context
 
@@ -46,8 +45,9 @@ AGENTS.md / ROADMAP.md / docs/dsl.md / 対応表 / overhaul文書群が、実装
   (5fの確定行列を反映)、無名要素と自動昇格の現仕様。
 * **`docs/overhaul/command-id-map.md`**: 5c/5gの結果(リネーム済みID・
   `renameSelectedElement` 追加)を確定反映し、「予定」行が残っていないこと。
-* **`docs/overhaul/plan.md` / `tasks/README.md`**: Phase 5完了の記録
-  (完了日・成果サマリ・逸脱があれば記録)。
+* **`docs/overhaul/plan.md` / `tasks/README.md` / Phase 5 親子文書**:
+  Phase 5完了の記録(完了日・成果サマリ・逸脱があれば記録)。子文書は既存の
+  要件・調査根拠を残し、status / 実装結果 / review結果 / 最終申し送りを追記する。
 * フルチェック実行: `npm test` / `npm run test:parity` / `npm run build` /
   `npm run lint` / `npm run desktop:build`(notarization警告は想定内)。
   親文書「完了条件(Phase全体)」のgrep確認も本タスクで実施して報告する。
@@ -95,5 +95,29 @@ AGENTS.md / ROADMAP.md / docs/dsl.md / 対応表 / overhaul文書群が、実装
 
 ## Handoff to next task
 
-* なし(Phase 5完了)。backlog(性能テスト拡充・インポータ削除判断)は
-  ROADMAP.mdへ引き継がれる(B-5は解消済み・B-6は5iで解消)。
+* Phase 5全体レビューへ: 文書同期、検証結果、コード変更なしの確認、既知の
+  `resolution-change` 過剰拒否、キャンセル表示の意味差、性能カバレッジ backlog を
+  提出する。
+
+## Status / 実装結果（2026-07-16）
+
+**完了。** 本タスクは文書のみを変更した。現行コードを正として、旧 DSL
+パネル／JSON 正準保存／フォーム編集／予定状態の command ID を現役記述から除去し、
+Phase 5 各子文書へ完了結果を追記した。
+
+## Verification / review 境界 3
+
+相対 Markdown link、command ID 対応表、削除済み source の現役参照、Phase 5 の
+依存・完了状態、文書以外の差分なしを確認した。`npm test`、`npm run test:parity`、
+`npm run build`、`npm run lint`、`npm run desktop:build` はすべて成功した。
+
+desktop build の notarization 未設定 warning、Vite の chunk-size warning、BigInt の
+`TOLERATED_TRANSFORM` 表示は成功を妨げなかった。検証失敗はなく、環境要因による
+blocking はない。
+
+## Phase 5 全体レビューへの申し送り
+
+コード修正を要する候補は、絶対パスを serializer が出力できないことによる安全側の
+`resolution-change` 拒否、途中編集 Esc と `キャンセル（Esc）` 表示の意味差、
+`missing-input` 時の ghost/validation 重複計算である。いずれも本タスクでは修正せず、
+ROADMAP と親文書の backlog に残した。

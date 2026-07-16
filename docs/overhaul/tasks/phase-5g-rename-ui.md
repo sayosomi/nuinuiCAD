@@ -24,9 +24,8 @@ CommandLineBar・セッション状態機械には手を入れない)。5eのコ
 ## Scope
 
 * 新規コマンド `renameSelectedElement`(CommandId追加・palette登録・
-  表示名)。default shortcutは既存bindingとの衝突を
-  `shortcutDefaultBindings.ts` で調査して決める(F2相当が空いていれば
-  第一候補。form入力除外の原則に従う)。
+  表示名)。既定 shortcut は normal / Source Editor の F2 とし、
+  form入力除外の原則に従う。
 * 新規最小プロンプトコンポーネント:
   * 既存ダイアログ/ポップオーバー実装(`SelectionColorPickerDialog` 等)の
     パターンを調査し、最も軽い既存様式に合わせる(新しいUIフレームワークや
@@ -79,8 +78,7 @@ CommandLineBar・セッション状態機械には手を入れない)。5eのコ
   明確なエラーで中止。
 * dirty buffer中の起動(5eのflushゲートが処理。UI側で二重flushしない)。
 * 日本語IMEで名前入力→composition確定→Enterの2段階。
-* 空文字・現在名と同一名での確定(no-opとしてUndoを増やさない、または
-  明確な拒否。どちらかに確定してテスト固定)。
+* 空文字は明確に拒否し、現在名と同一名は成功 no-op として Undo を増やさない。
 
 ## Tests
 
@@ -112,3 +110,18 @@ CommandLineBar・セッション状態機械には手を入れない)。5eのコ
 
 * 5h へ: 新command ID(`renameSelectedElement`)とshortcutを対応表・
   ドキュメントへ反映する旨。
+
+## Status / 実装結果（2026-07-16）
+
+**完了。** `renameSelectedElement`（表示名「選択要素の名前を変更」）は palette と
+normal / Source Editor の F2 に登録済みである。単一選択時だけダイアログを開き、
+無名要素にも使用できる。IME 中の Enter は確定せず、拒否時はエラーと入力を保持する。
+
+成功時はダイアログを閉じ、対象要素の Source Editor 行へ jump して focus を戻す。
+same-name は成功 no-op、Esc はダイアログだけを閉じる。ダイアログ中に対象または
+選択が変わった場合は安全に中止する。
+
+## Review 結果・最終申し送り
+
+UI は CommandLineBar の状態機械や pick routing を変更していない。shortcut の
+Source Editor 側 F2 は `editorTransaction` 所有の function-key binding である。
