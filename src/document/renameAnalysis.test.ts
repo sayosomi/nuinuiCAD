@@ -41,6 +41,24 @@ const compileWithInheritedIds = (before: ReturnType<typeof complete>, source: st
   return after as ReturnType<typeof complete>;
 };
 
+const referenceDenseSource = (generatedReferenceCount: number, includeDangling: boolean) => [
+  "nui 1",
+  "point Target = (0, 0)",
+  "group Front {",
+  "  point Shared = (1, 0)",
+  "  point FrontUser = offset Target dx=1 dy=0",
+  "}",
+  "group Back {",
+  "  point Shared = (2, 0)",
+  "  point Qualified = offset Front::Shared dx=1 dy=0",
+  "  point TargetUser = offset Target dx=1 dy=0",
+  ...(includeDangling ? ["  point Dangling = offset Missing dx=1 dy=0"] : []),
+  "}",
+  ...Array.from({ length: generatedReferenceCount }, (_, index) =>
+    `point P${index} = offset Target dx=${index + 1} dy=0`
+  )
+].join("\n");
+
 describe("renameAnalysis", () => {
   it("classifies direct, derived, and expression references to the target", () => {
     const source = [
@@ -148,6 +166,31 @@ describe("renameAnalysis", () => {
       .toMatchObject({ verdict: "rejected", reason: "resolution-change" });
   });
 
+  it("fails closed when the after catalog introduces an unmatched reference slot", () => {
+    const before = complete([
+      "nui 1",
+      "point A = (0, 0) id=a",
+      "point User = offset A dx=1 dy=0 id=user"
+    ].join("\n"));
+    const after = complete([
+      "nui 1",
+      "point A = (0, 0) id=a",
+      "point User = offset A dx=1 dy=0 id=user",
+      "point Added = offset A dx=2 dy=0 id=added"
+    ].join("\n"));
+
+    expect(validateRenameReferenceStability({ before, after }))
+      .toMatchObject({ verdict: "rejected", reason: "analysis-incomplete" });
+
+    const afterWithDifferentKey = complete([
+      "nui 1",
+      "point A = (0, 0) id=a",
+      "point Replaced = offset A dx=1 dy=0 id=replaced"
+    ].join("\n"));
+    expect(validateRenameReferenceStability({ before, after: afterWithDifferentKey }))
+      .toMatchObject({ verdict: "rejected", reason: "analysis-incomplete" });
+  });
+
   it.each(["", "::", "A::B"])("rejects invalid name %j", (newName) => {
     const source = "nui 1\npoint A = (0, 0)";
     const compiled = complete(source);
@@ -155,15 +198,11 @@ describe("renameAnalysis", () => {
       .toMatchObject({ verdict: "rejected", reason: "invalid-name" });
   });
 
-  it("keeps all reference resolutions stable for generated rename cases", () => {
+  it("keeps all reference resolutions stable for dense generated rename cases with shadowing, qualified, and dangling references", () => {
     fc.assert(fc.property(fc.integer({ min: 2, max: 30 }), fc.integer(), (count, seed) => {
-      const source = [
-        "nui 1",
-        ...Array.from({ length: count }, (_, index) => `point P${index} = (${index}, 0)`),
-        "point User = offset P0 dx=1 dy=0"
-      ].join("\n");
+      const source = referenceDenseSource(count, true);
       const compiled = complete(source);
-      const target = compiled.document.elements.find((element) => element.name === "P0")!;
+      const target = compiled.document.elements.find((element) => element.name === "Target")!;
       const newName = `Renamed${Math.abs(seed)}`;
       const analysis = analyzeRename({ sourceText: source, compiled, targetElementId: target.id, newName });
       expect(analysis.verdict).toBe("ok");
@@ -175,14 +214,11 @@ describe("renameAnalysis", () => {
     }), { numRuns: 40 });
   });
 
-  it("handles a 1,000 element rename within a loose pure-module guard", () => {
-    const source = [
-      "nui 1",
-      ...Array.from({ length: 1000 }, (_, index) => `point P${index} = (${index}, 0)`),
-      "point User = offset P0 dx=1 dy=0"
-    ].join("\n");
+  it("handles a clean, reference-dense 1,000 element rename within a loose pure-module guard", () => {
+    const source = referenceDenseSource(992, false);
     const compiled = complete(source);
-    const target = compiled.document.elements.find((element) => element.name === "P0")!;
+    expect(compiled.document.elements).toHaveLength(1000);
+    const target = compiled.document.elements.find((element) => element.name === "Target")!;
     const startedAt = performance.now();
     const analysis = analyzeRename({ sourceText: source, compiled, targetElementId: target.id, newName: "Renamed" });
     const elapsed = performance.now() - startedAt;

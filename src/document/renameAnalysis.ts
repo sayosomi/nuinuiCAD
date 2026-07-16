@@ -118,6 +118,25 @@ export const validateRenameReferenceStability = (
     return { verdict: "rejected", reason: "analysis-incomplete", detail: { message: afterCatalog.message } };
   }
   const afterByKey = new Map(afterCatalog.slots.map((slot) => [slot.key, slot]));
+  if (
+    beforeCatalog.slots.length !== afterCatalog.slots.length ||
+    new Set(beforeCatalog.slots.map((slot) => slot.key)).size !== beforeCatalog.slots.length ||
+    afterByKey.size !== afterCatalog.slots.length
+  ) {
+    return {
+      verdict: "rejected",
+      reason: "analysis-incomplete",
+      detail: { message: "参照スロットの総数またはキー集合を対応付けられません。" }
+    };
+  }
+  const beforeKeys = new Set(beforeCatalog.slots.map((slot) => slot.key));
+  if ([...afterByKey.keys()].some((key) => !beforeKeys.has(key))) {
+    return {
+      verdict: "rejected",
+      reason: "analysis-incomplete",
+      detail: { message: "参照スロットを対応付けられません。" }
+    };
+  }
   const changes: RenameResolutionChange[] = [];
   for (const before of beforeCatalog.slots) {
     const after = afterByKey.get(before.key);
@@ -235,7 +254,8 @@ export const analyzeRename = (input: RenameAnalysisInput): RenameAnalysis => {
     affectedIds.has(slot.state.elementId) &&
     (slot.owner.kind === "element"
       ? changedStatements.changedElementIds.has(slot.owner.elementId)
-      : changedStatements.changedPrintLayoutIds.has(slot.owner.layoutId))
+      : changedStatements.changedPrintLayoutIds.has(slot.owner.layoutId) &&
+        (changedStatements.preciselyChangedPrintLayoutLinesById.get(slot.owner.layoutId)?.has(slot.line) ?? true))
       ? [{
           line: slot.line,
           owner: slot.owner,

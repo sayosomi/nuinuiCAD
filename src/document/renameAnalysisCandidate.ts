@@ -22,6 +22,12 @@ export type SerializerChangedStatements = {
   expectedPatchedLines: number[];
   changedElementIds: Set<ElementId>;
   changedPrintLayoutIds: Set<string>;
+  /**
+   * Present only when the printLayout plan and the source statement range
+   * prove an exact line-for-line correspondence. Callers must retain block
+   * granularity when a layout is absent from this map.
+   */
+  preciselyChangedPrintLayoutLinesById: Map<string, Set<number>>;
 };
 
 // This intentionally does not call buildTextPatch. The expected set is an
@@ -36,6 +42,7 @@ export const serializerChangedStatementLines = (
   const lines = new Set<number>();
   const changedElementIds = new Set<ElementId>();
   const changedPrintLayoutIds = new Set<string>();
+  const preciselyChangedPrintLayoutLinesById = new Map<string, Set<number>>();
 
   for (const element of before.document.elements) {
     const next = afterElementsById.get(element.id);
@@ -57,13 +64,28 @@ export const serializerChangedStatementLines = (
     if (block.lines.join("\n") !== next.lines.join("\n")) {
       changedPrintLayoutIds.add(block.layoutId);
       for (let line = info.range.startLine; line <= info.range.endLine; line += 1) lines.add(line);
+
+      // printLayout is patched as one block. We may nevertheless narrow
+      // occurrence metadata when (and only when) the generated plan has the
+      // exact same number of lines as the source statement range. This is a
+      // structural proof, not a best-effort alignment across comments or
+      // other source-only lines.
+      const rangeLength = info.range.endLine - info.range.startLine + 1;
+      if (rangeLength === block.lines.length && block.lines.length === next.lines.length) {
+        const changedLines = new Set<number>();
+        block.lines.forEach((line, index) => {
+          if (line !== next.lines[index]) changedLines.add(info.range.startLine + index);
+        });
+        preciselyChangedPrintLayoutLinesById.set(block.layoutId, changedLines);
+      }
     }
   }
   return beforePlan.blocks.length === afterPlan.blocks.length
     ? {
         expectedPatchedLines: [...lines].sort((a, b) => a - b),
         changedElementIds,
-        changedPrintLayoutIds
+        changedPrintLayoutIds,
+        preciselyChangedPrintLayoutLinesById
       }
     : null;
 };

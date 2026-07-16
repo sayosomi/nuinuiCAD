@@ -7,7 +7,7 @@ import type { ElementId } from "../types/geometry";
 import { assertRenameBridgeCommit } from "./renameBridgeDevAssert";
 
 const compositionError = "日本語入力の確定中はコマンドを実行できません。入力を確定してから再操作してください。";
-const invalidSourceError = "DSLテキストにエラーがあるため、リネームできません。エラーを修正してから再操作してください。";
+const invalidSourceError = "DSLテキストにエラーまたは未解決参照があるため、リネームできません。エラーを修正してから再操作してください。";
 
 const analysisError = (analysis: RenameAnalysisRejected) => {
   switch (analysis.reason) {
@@ -33,7 +33,7 @@ const hasCleanCanonicalSource = () => {
   const document = useCadDocumentStore.getState();
   return document.docText === document.sourceText &&
     Boolean(document.doc.document && document.doc.statementMap) &&
-    !document.diagnostics.some((diagnostic) => diagnostic.severity === "error");
+    document.diagnostics.length === 0;
 };
 
 /**

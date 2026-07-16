@@ -201,6 +201,54 @@ describe("renameAnalysis contract", () => {
     expect(analysis.occurrences.some((occurrence) => occurrence.line === 10)).toBe(false);
   });
 
+  it("excludes an unchanged raw-id descendant place when print-layout line mapping is exact", () => {
+    const source = [
+      "nui 1",
+      "group Parent {",
+      "  group id=child {",
+      "  }",
+      "}",
+      "printLayout L output=pdf paper=a4 orientation=portrait columns=1 rows=1 overlap=0 scale=1 canvas=(100, 100) {",
+      "  place Parent at=(0, 0) angle=0 mirrorX=false",
+      "  place child at=(20, 0) angle=0 mirrorX=false",
+      "}"
+    ].join("\n");
+    const compiled = complete(source);
+    const target = compiled.document.elements.find((element) => element.name === "Parent")!;
+    const analysis = analyzeRename({ sourceText: source, compiled, targetElementId: target.id, newName: "Renamed" });
+
+    expect(analysis).toMatchObject({ verdict: "ok", expectedPatchedLines: [2, 6, 7, 8, 9] });
+    if (analysis.verdict !== "ok") return;
+    expect(analysis.occurrences).toEqual([
+      expect.objectContaining({ line: 7, referencedElementId: target.id, form: "print-layout-place" })
+    ]);
+  });
+
+  it("keeps block-granularity occurrences when source-only print-layout lines prevent an exact mapping", () => {
+    const source = [
+      "nui 1",
+      "group Parent {",
+      "  group id=child {",
+      "  }",
+      "}",
+      "printLayout L output=pdf paper=a4 orientation=portrait columns=1 rows=1 overlap=0 scale=1 canvas=(100, 100) {",
+      "  place Parent at=(0, 0) angle=0 mirrorX=false",
+      "  # source-only comment prevents a line-for-line plan proof",
+      "  place child at=(20, 0) angle=0 mirrorX=false",
+      "}"
+    ].join("\n");
+    const compiled = complete(source);
+    const target = compiled.document.elements.find((element) => element.name === "Parent")!;
+    const analysis = analyzeRename({ sourceText: source, compiled, targetElementId: target.id, newName: "Renamed" });
+
+    expect(analysis).toMatchObject({ verdict: "ok" });
+    if (analysis.verdict !== "ok") return;
+    expect(analysis.occurrences).toEqual(expect.arrayContaining([
+      expect.objectContaining({ line: 7, referencedElementId: target.id }),
+      expect.objectContaining({ line: 9, referencedElementId: "child" })
+    ]));
+  });
+
   it("exposes reason-specific rejected detail types", () => {
     const source = "nui 1\npoint A = (0, 0)\npoint B = (1, 0)";
     const compiled = complete(source);
