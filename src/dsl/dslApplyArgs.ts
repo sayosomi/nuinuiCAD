@@ -151,8 +151,18 @@ export const applyArgs = (
     if (!definition || definition.special) continue;
     const parameterKey = definition.parameterKey ?? definition.arg;
     const parameter = findParameterDefinition(next, parameterKey);
-    if (!parameter) continue;
     const value = scanned.value;
+    // `color` is a common v2 argument even for legacy element definitions
+    // that intentionally omit it from their Inspector parameter list.
+    if (!parameter) {
+      if (parameterKey === "colorId") next = { ...next, colorId: unquoteDslString(value) } as CadElement;
+      else if (parameterKey === "locked" || parameterKey === "visible" || parameterKey === "enabled") {
+        const parsed = booleanValue(value);
+        if (parsed === null) diagnostics.push(diagnostic(resolvers.line, `${parameterKey} は true/false で指定してください。`));
+        next = { ...next, [parameterKey]: parsed ?? false } as CadElement;
+      }
+      continue;
+    }
     switch (parameter.kind) {
       case "boolean": {
         const parsed = booleanValue(value);
