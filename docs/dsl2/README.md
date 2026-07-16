@@ -21,7 +21,7 @@
 | # | タスク | 種別 | 依存 | 状態 |
 |---|---|---|---|---|
 | P1 | [construction registry](tasks/p1-construction-registry.md) | 未接続 | なし | 完了 |
-| P2 | [引数スキャナ](tasks/p2-arg-scanner.md) | 未接続 | なし | 未着手 |
+| P2 | [引数スキャナ](tasks/p2-arg-scanner.md) | 未接続 | なし | 完了 |
 | P3 | [要素/コンテナ call parser](tasks/p3-call-parser.md) | 未接続 | P1, P2 | 未着手 |
 | P4 | [設定文 parser](tasks/p4-settings-parser.md) | 未接続 | P1, P2 | 未着手 |
 | P5 | [registry 駆動 serializer](tasks/p5-element-serializer.md) | 未接続 | P1 | 未着手 |
