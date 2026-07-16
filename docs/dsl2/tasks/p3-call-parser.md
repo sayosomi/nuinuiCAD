@@ -56,4 +56,13 @@ dispatch 先になる。
 
 - P7 が round-trip の parse 側としてこれを使う。C1 が `dslParser.ts` から dispatch し、
   結果型を `DslStatement` へ写像する。
-- (完了時に追記)
+- `src/dsl/dslCallParser.ts` は `parseDslCallStatement(logicalText, { opensBlock })` を
+  公開する。結果の `DslCallStatement` は raw `ScannedArg`、`attrs`、論理 `DslSpan` の
+  payload/診断を持つため、C1 は source map の行・物理 span を付与して `DslStatement` へ
+  写像するだけでよい。
+- 候補診断用に `dslConstructions.ts` へ read-only の
+  `constructionCandidatesFor(category)` / `categoriesForConstruction(construction)` を追加した。
+  registry の仕様データは増減していない。
+- 未接続の新規モジュール+テストのみであり、既存 `dslParser.ts` / `dslTypes.ts`、compiler、
+  Rust、評価 payload からは import していない。
+- `npm test` / `npm run build` / `npm run lint` の結果は green（P3は Rust/parity 対象外）。

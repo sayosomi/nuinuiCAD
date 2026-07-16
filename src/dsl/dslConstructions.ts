@@ -207,6 +207,16 @@ for (const spec of constructionSpecs) {
 export const constructionFor = (category: string, construction: string): DslConstructionSpec | null =>
   specsByCall.get(`${category}\u0000${construction}`) ?? null;
 
+/** Read-only registry queries for parser diagnostics and completion. */
+export const constructionCandidatesFor = (category: string): readonly DslConstructionSpec[] =>
+  constructionSpecs.filter((spec) => spec.category === category);
+
+/** Categories that define a construction spelling, in registry declaration order. */
+export const categoriesForConstruction = (construction: string): readonly DslConstructionCategory[] =>
+  [...new Set(constructionSpecs
+    .filter((spec) => spec.construction === construction)
+    .map((spec) => spec.category))];
+
 export const constructionForElementType = (type: CadElementType): DslConstructionSpec => {
   const spec = specsByElementType.get(type);
   if (!spec) throw new Error(`Missing DSL construction for element type: ${type}`);
