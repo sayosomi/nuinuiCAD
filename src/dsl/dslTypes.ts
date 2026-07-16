@@ -35,6 +35,8 @@ export type DslEnclosing = {
 
 export type DslStatementBase = {
   line: number;
+  /** Final physical source line belonging to this logical statement. */
+  endLine: number;
   name: string;
   nameSpan: DslSpan | null;
   keywordSpan: DslSpan;

@@ -62,7 +62,7 @@ DSL」: マウスでパラメータ行をクリックするとエディタの該
 * dirty bufferでは現在のCMテキスト(行単独reparse)を基準にする。
 * IME composition中にjump・patch・数値変更を実行しない。
 * `dslLineValueSpans` 系が「編集可能な値」の唯一の定義。
-* main editorとLine Lensで意味論を重複実装しない。
+* main editorと旧選択行投影で意味論を重複実装しない。
 * キーボードファースト: 「Canvas要素選択→Source Editorへの自動focus
   →Tab/Shift+Tabで値span移動→直接入力またはAlt+←/→」を正とする。
   Inspector自体はキーボードfocusや行ナビを持たない。

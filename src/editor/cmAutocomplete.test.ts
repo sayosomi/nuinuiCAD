@@ -169,7 +169,7 @@ describe("createDslCompletionSource", () => {
     expect(options.find((option) => option.label === "@Width")?.apply).toBe("@Width");
   });
 
-  it("honors a documentInput override, proving the Line Lens indirection point works", async () => {
+  it("honors a documentInput override", async () => {
     const source = ["nui 1", "var Width = 10", "point P = offset A dx=10+@Wi"].join("\n");
     const { elements, ids } = identities(source);
     const mainState = EditorState.create({ doc: source });

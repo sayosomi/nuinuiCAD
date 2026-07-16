@@ -33,7 +33,6 @@ import { useCadDocumentStore, type CadDocumentState } from "../state/cadDocument
 import { useCadUiStore, type CadUiState } from "../state/cadUiStore";
 import { dslCmLanguageExtension } from "./cmLanguage";
 import { dslAutocompleteExtension } from "./cmAutocomplete";
-import { focusSourceEditorLineLens, reconfigureSourceEditorLineLensKeymap, sourceEditorLineLens } from "./sourceEditorLineLens";
 import {
   captureSourceEditorViewport,
   cursorAtSnapshotLocation,
@@ -77,6 +76,7 @@ import { adjacentDslValueSpan, dslLineValueSpans, findDslValueSpanAt, type DslVa
 import { resolveParameterValueSpan } from "../dsl/dslParameterSpans";
 import { resolveSourceEditorPickSelection } from "./sourceEditorPickSelection";
 import { resolveDslValueStep, type DslValueStepDirection } from "../dsl/dslValueStep";
+import { splitDslComment, splitDslTerms } from "../dsl/dslTokens";
 import {
   sameValueStepGesture,
   valueStepDirectionForCommand,
@@ -149,12 +149,10 @@ export class SourceEditorController implements SourceEditorHandle {
   private pendingFoldProjection = false;
   private applyingUiSync = false;
   private publishingCanvasSelection = false;
-  private lineLensFocused = false;
   /** A physical registry shortcut held down across browser key-repeat events. */
   private activeValueStepGesture: SourceEditorValueStepGesture | null = null;
   /** Set by the DOM observer, then consumed by the registry keymap's command dispatch. */
   private pendingKeyboardValueStep: SourceEditorValueStepGesture | null = null;
-  private pendingMainLensFocus: { lineFrom: number; clientX: number; clientY: number } | null = null;
   private destroyed = false;
   private view: EditorView;
 
@@ -186,27 +184,6 @@ export class SourceEditorController implements SourceEditorHandle {
           highlightActiveLineGutter(),
           dslCmLanguageExtension,
           dslAutocompleteExtension({
-            elements: () => this.store.getState().elements,
-            statementRanges: () => this.statementRanges,
-            printLayouts: () => this.store.getState().printLayouts,
-            printLayoutRanges: () => this.printLayoutRanges,
-            isComposing: () => this.protocol.composing,
-            computedVariables: () => this.appliedEvaluation?.evaluation.computedVariables,
-            computedGeometry: () => this.appliedEvaluation?.evaluation.computedGeometry,
-            forGroupGeneratedRows: () => this.appliedEvaluation?.evaluation.forGroupGeneratedRows,
-            effectiveEnabledElementIds: () => this.appliedEvaluation?.evaluation.effectiveEnabledElementIds,
-            evaluationErrors: () => this.appliedEvaluation?.evaluation.errors
-          }),
-          sourceEditorLineLens({
-            sourceKeymap: () => this.lineLensKeymap(),
-            onFocusChange: (focused) => {
-              this.lineLensFocused = focused;
-            },
-            onKeydown: (event, view) => this.observeValueStepKeydown(event, view),
-            onKeyup: (event) => this.observeValueStepKeyup(event),
-            onCompositionStart: () => this.beginComposition(),
-            onCompositionEnd: () => this.endComposition(),
-            onBlur: () => this.flush("blur"),
             elements: () => this.store.getState().elements,
             statementRanges: () => this.statementRanges,
             printLayouts: () => this.store.getState().printLayouts,
@@ -251,6 +228,7 @@ export class SourceEditorController implements SourceEditorHandle {
             { key: "Mod-y", run: () => this.runRedo() },
             { key: "Mod-Shift-z", run: () => this.runRedo() },
             { key: "Enter", run: () => this.runPickApply() },
+            { key: "Enter", run: (view) => this.autoContinueAtTermBoundary(view) },
             { key: "ArrowDown", run: () => this.runPickNavigation("selectNextPickCandidate") },
             { key: "ArrowUp", run: () => this.runPickNavigation("selectPreviousPickCandidate") },
             { key: "ArrowRight", run: () => this.runPickNavigation("selectNextPickOption") },
@@ -266,7 +244,6 @@ export class SourceEditorController implements SourceEditorHandle {
             ...defaultKeymap
           ] satisfies KeyBinding[]),
           EditorView.domEventHandlers({
-            mousedown: (event, view) => this.handleMainEditorMouseDown(event as MouseEvent, view),
             contextmenu: (event, view) => this.handleContextMenu(event as MouseEvent, view),
             mouseup: (event, view) => this.handleValueClick(event as MouseEvent, view)
           }),
@@ -331,8 +308,7 @@ export class SourceEditorController implements SourceEditorHandle {
       if (next.shortcutSettings !== previous.shortcutSettings) {
         this.view.dispatch({
           effects: [
-            this.sourceEditorShortcutCompartment.reconfigure(keymap.of(this.editorShortcutBindings())),
-            reconfigureSourceEditorLineLensKeymap.of(this.lineLensKeymap())
+            this.sourceEditorShortcutCompartment.reconfigure(keymap.of(this.editorShortcutBindings()))
           ],
           annotations: Transaction.addToHistory.of(false)
         });
@@ -419,11 +395,6 @@ export class SourceEditorController implements SourceEditorHandle {
     this.view.dispatch({
       selection: EditorSelection.single(line.from + target.start, line.from + target.end),
       scrollIntoView: true,
-      effects: focusSourceEditorLineLens.of({
-        lineFrom: line.from,
-        sourceAnchor: target.start,
-        sourceHead: target.end
-      }),
       annotations: [canvasCursorOrigin.of("canvas-cursor"), Transaction.addToHistory.of(false)]
     });
     this.view.focus();
@@ -703,43 +674,6 @@ export class SourceEditorController implements SourceEditorHandle {
     return true;
   }
 
-  private handleMainEditorMouseDown(event: MouseEvent, view: EditorView) {
-    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || this.protocol.composing) return false;
-    const position = view.posAtCoords({ x: event.clientX, y: event.clientY });
-    if (position === null) return false;
-    this.pendingMainLensFocus = {
-      lineFrom: view.state.doc.lineAt(position).from,
-      clientX: event.clientX,
-      clientY: event.clientY
-    };
-    view.contentDOM.ownerDocument.removeEventListener("mouseup", this.handlePendingMainLensFocus);
-    view.contentDOM.ownerDocument.addEventListener("mouseup", this.handlePendingMainLensFocus, { once: true });
-    return false;
-  }
-
-  private handlePendingMainLensFocus = (event: MouseEvent) => {
-    const pending = this.pendingMainLensFocus;
-    this.pendingMainLensFocus = null;
-    if (!pending || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-    if (Math.max(Math.abs(event.clientX - pending.clientX), Math.abs(event.clientY - pending.clientY)) >= 10) return;
-    queueMicrotask(() => {
-      if (this.destroyed || this.protocol.composing) return;
-      const selection = this.view.state.selection;
-      if (selection.ranges.length !== 1) return;
-      const firstLine = this.view.state.doc.lineAt(selection.main.from);
-      const lastLine = this.view.state.doc.lineAt(selection.main.to);
-      if (firstLine.from !== pending.lineFrom || lastLine.from !== pending.lineFrom) return;
-      this.view.dispatch({
-        effects: focusSourceEditorLineLens.of({
-          lineFrom: firstLine.from,
-          sourceAnchor: selection.main.anchor - firstLine.from,
-          sourceHead: selection.main.head - firstLine.from
-        }),
-        annotations: Transaction.addToHistory.of(false)
-      });
-    });
-  };
-
   /**
    * Selects the whole editable value under a plain click that ended without a drag.
    * Runs on `mouseup` so CodeMirror's own pointer handling (drag-select, Mod-click
@@ -792,27 +726,36 @@ export class SourceEditorController implements SourceEditorHandle {
     return true;
   }
 
-  /**
-   * Line Lens counterpart of navigateValueSpan: the lens's own document is already
-   * exactly the projected line's text at offset 0, so no line.from translation is
-   * needed, and a selection-only dispatch on `view` (the lens's EditorView, passed in by
-   * CodeMirror since this keymap entry lives inside the lens's own extensions) is picked
-   * up by the lens's existing handleLensUpdate and projected outward to the main editor
-   * automatically. `view.compositionStarted` is CodeMirror's own per-view IME flag: the
-   * outer controller's `this.protocol.composing` is driven by compositionstart/end on the
-   * main editor's contentDOM only, a separate DOM subtree from the lens's, so it would
-   * never reflect composition happening inside the lens.
-   */
-  private navigateLensValueSpan(view: EditorView, direction: DslValueSpanDirection): boolean {
-    if (view.compositionStarted) return true;
-    if (view.state.doc.lines > 1) return false;
-    const spans = dslLineValueSpans(view.state.doc.toString());
-    if (spans.length === 0) return false;
-    const target = adjacentDslValueSpan(spans, view.state.selection.main.from, direction);
-    if (!target) return false;
+  /** Inserts a continuation only at a complete top-level term boundary. */
+  private autoContinueAtTermBoundary(view: EditorView): boolean {
+    if (this.protocol.composing || view.compositionStarted) return false;
+    const ui = this.uiStore.getState();
+    if (ui.activePointPickTarget || ui.activeNumericReferencePickTarget || ui.activeLinePickTarget || ui.activeTemplateInsertion) return true;
+    const selection = view.state.selection;
+    if (selection.ranges.length !== 1 || !selection.main.empty) return false;
+    const pos = selection.main.head;
+    const line = view.state.doc.lineAt(pos);
+    const local = pos - line.from;
+    const { code } = splitDslComment(line.text);
+    if (local > code.length) return false;
+    let from = local;
+    let to = local;
+    while (from > 0 && /[ \t]/.test(code[from - 1])) from -= 1;
+    while (to < code.length && /[ \t]/.test(code[to])) to += 1;
+    if (from === to) return false;
+    const terms = splitDslTerms(code);
+    const left = terms.find((term) => term.end === from);
+    const right = terms.find((term) => term.start === to);
+    if (!left || !right || left.text.includes("{") || right.text.includes("}")) return false;
+    const elementId = elementIdAtCursor(this.statementRanges, pos);
+    const statementStart = elementId ? this.statementRanges.get(elementId)?.from : line.from;
+    const baseLine = view.state.doc.lineAt(statementStart ?? line.from);
+    const indentation = baseLine.text.match(/^[ \t]*/)?.[0] ?? "";
+    const insert = ` \\\n${indentation}  `;
     view.dispatch({
-      selection: EditorSelection.single(target.start, target.end),
-      annotations: Transaction.addToHistory.of(false)
+      changes: { from: line.from + from, to: line.from + to, insert },
+      selection: EditorSelection.cursor(line.from + from + insert.length),
+      annotations: Transaction.userEvent.of("input.continuation")
     });
     return true;
   }
@@ -862,7 +805,6 @@ export class SourceEditorController implements SourceEditorHandle {
       this.store.getState().commitText(nextText, "editor", { cursorLineAtBurstStart });
     }
     this.destroyed = true;
-    this.view.contentDOM.ownerDocument.removeEventListener("mouseup", this.handlePendingMainLensFocus);
     this.unregisterSession();
     this.unsubscribe();
     this.unsubscribeUi();
@@ -938,35 +880,6 @@ export class SourceEditorController implements SourceEditorHandle {
             : false
       },
       ...this.editorShortcutKeymap()
-    ];
-  }
-
-  /** The line lens owns text input, but editor-wide commands must keep acting
-   * on the primary document and its history. */
-  private lineLensKeymap(): KeyBinding[] {
-    return [
-      { key: "Mod-z", run: () => this.runUndo() },
-      { key: "Mod-y", run: () => this.runRedo() },
-      { key: "Mod-Shift-z", run: () => this.runRedo() },
-      { key: "Shift-Mod-k", run: () => deleteLine(this.view) },
-      ...this.crossFocusShortcutKeymap(),
-      { key: "Mod-f", run: () => {
-        openSearchPanel(this.view);
-        return true;
-      } },
-      { key: "Enter", run: () => this.runPickApply() },
-      { key: "ArrowDown", run: () => this.runPickNavigation("selectNextPickCandidate") },
-      { key: "ArrowUp", run: () => this.runPickNavigation("selectPreviousPickCandidate") },
-      { key: "ArrowRight", run: () => this.runPickNavigation("selectNextPickOption") },
-      { key: "ArrowLeft", run: () => this.runPickNavigation("selectPreviousPickOption") },
-      { key: "Ctrl-Shift-[", mac: "Mod-Alt-[", run: () => this.changeFoldAtCursor("fold") },
-      { key: "Ctrl-Shift-]", mac: "Mod-Alt-]", run: () => this.changeFoldAtCursor("unfold") },
-      { key: "Ctrl-Alt-[", run: () => this.changeAllFolds(false) },
-      { key: "Ctrl-Alt-]", run: () => this.changeAllFolds(true) },
-      { key: "Escape", run: () => this.runEscape() },
-      { key: "Tab", run: (view) => this.navigateLensValueSpan(view, "next") },
-      { key: "Shift-Tab", run: (view) => this.navigateLensValueSpan(view, "previous") },
-      ...this.sourceEditorShortcutKeymap()
     ];
   }
 
@@ -1250,7 +1163,7 @@ export class SourceEditorController implements SourceEditorHandle {
   }
 
   private hasSourceFocus() {
-    return this.view.hasFocus || this.lineLensFocused;
+    return this.view.hasFocus;
   }
 
   private applyPendingUiSync() {

@@ -113,7 +113,7 @@ export const dslLinePrintLayoutStatement = (lineText: string): DslPrintLayoutBlo
 export const dslLinePrintLayoutValueSpans = (lineText: string): DslLabeledValueSpan[] =>
   labeledValueSpansForStatement(dslLinePrintLayoutStatement(lineText));
 
-/** Backwards-compatible projection used by click selection, Tab navigation, and Line Lens. */
+/** Projection used by click selection and Tab navigation. */
 export const dslLineValueSpans = (lineText: string): DslValueSpan[] =>
   dslLineLabeledValueSpans(lineText).map(({ start, end }) => ({ start, end }));
 

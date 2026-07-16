@@ -136,7 +136,7 @@ Escでエディタ/キャンバスへ復帰。**インスペクタは読み取�
 * `dslLineValueSpans` 系が「編集可能な値」の唯一の定義。**Inspector専用の
   値span解析を作らない**(Inspectorはspanを一切parseしない。ジャンプ先の
   解決はすべてhandleの中)。
-* main editorとLine Lensで意味論を重複実装しない。
+* main editorと旧選択行投影で意味論を重複実装しない。
 * Phase 4に触れない。Phase 5を先取りしない。
 
 本タスク固有:

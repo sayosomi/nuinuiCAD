@@ -19,7 +19,7 @@ Source Editorネイティブに用意する。これがないまま3dを実施�
 
 ## 目的
 
-Source Editor(およびLine Lens)で `Alt+→` / `Alt+←` により、カーソル位置
+Source Editor(および旧選択行投影)で `Alt+→` / `Alt+←` により、カーソル位置
 (または選択中)の値spanを変更する。数値リテラルは現在の
 `getNumericParameterStep`で増減し、booleanは反転、choiceは
 `choiceOptions`順に左右へ循環する。単発キーは1操作=1 store Undoステップ、
@@ -87,7 +87,7 @@ Source Editor(およびLine Lens)で `Alt+→` / `Alt+←` により、カーソ
    patch highlightの消灯規則(次の実ユーザー操作で消える)と整合させる。
 5. **非対象時のフィードバック**: 対象外では文書も`commandErrorMessage`も
    変更せず`false`を返し、通常のOption+左右操作へfall throughする。
-6. **Line Lens**: lens内カーソルでも同じコマンドが動くこと(lens keymapは
+6. **旧選択行投影**: 投影内カーソルでも同じコマンドが動くこと(投影 keymapは
    registry scopeを転送済み。lensのselection更新は既存adapterが同じ同期call
    stackでmainへ投影することをテストで固定し、値解決・書換えはmain docで一度
    だけ行う。shortcut設定変更時もmain editorと同時にregistry由来keymapへ
@@ -123,7 +123,7 @@ Source Editor(およびLine Lens)で `Alt+→` / `Alt+←` により、カーソ
 * IME composition中にjump・patch・数値変更を実行しない。
 * `dslLineValueSpans` 系が「編集可能な値」の唯一の定義。数値ステップ用の
   別span解析を作らない。
-* main editorとLine Lensで意味論を重複実装しない。
+* main editorと旧選択行投影で意味論を重複実装しない。
 * Phase 4に触れない。Phase 5を先取りしない。
 
 本タスク固有:
@@ -149,7 +149,7 @@ Source Editor(およびLine Lens)で `Alt+→` / `Alt+←` により、カーソ
   引けない数値spanは既定1となること。
 * binding: `Alt+→/←` が `sourceEditor` scopeに登録され、既存binding
   (Tab/Shift+Tab、Mod/Alt+↑↓、Shift+Alt+系、Mod+[/])と衝突しない。
-* Line Lens内カーソルからの実行とrepeat/keyup境界。
+* 旧選択行投影内カーソルからの実行とrepeat/keyup境界。
 
 ## 手動確認
 

@@ -15,7 +15,7 @@ Enterを押すと、Source Editorの該当statement行の**該当パラメータ
 する共通基盤なので、UIより先に単独タスクとして実装する。
 
 値spanの抽出はpost-cutover polishで実装済みの `src/dsl/dslValueSpans.ts` が
-唯一の定義(click選択・Tab移動・Line Lensが既に共有)。本タスクはこのモジュール
+唯一の定義(click選択・Tab移動・旧選択行投影が既に共有)。本タスクはこのモジュール
 を**ラベル付きspan**へ拡張し、`SourceEditorHandle` にジャンプAPIを追加する。
 Inspector専用の別解析を作ってはならない。
 
@@ -58,7 +58,7 @@ UIの変更はしない。このタスク完了時点でアプリの見た目・
    除外、重複除去、source順)で `{ start, end, source: "payload" | "attr",
    key: string }` を返す関数を追加する。既存 `dslLineValueSpans` はこの新関数の
    投影(ラベルを落とすだけ)として再実装し、**既存テストを一切変更せずに**
-   greenのまま保つ。click/Tab/Line Lensの挙動は変えない。
+   greenのまま保つ。click/Tab/旧選択行投影の挙動は変えない。
 2. **parameterKey→DSL keyマッピング**: `dslParameterSpans.ts` に
    `(element, parameterKey) → DSL上のkey候補` を返すpure関数を作る。
    * 正は `dslSerializer.ts` の出力形。**parameterKeyとDSL attr名は同一では
@@ -125,14 +125,14 @@ UIの変更はしない。このタスク完了時点でアプリの見た目・
 * IME composition中にjump・patch・数値変更を実行しない。
 * `dslLineValueSpans` 系が「編集可能な値」の唯一の定義。Inspector専用の
   値span解析を作らない。
-* main editorとLine Lensで意味論を重複実装しない。
+* main editorと旧選択行投影で意味論を重複実装しない。
 * Phase 4(autocomplete・コマンドライン・DslPanel削除)に触れない。
 * Phase 5のハードクリーンアップを先取りしない。
 
 本タスク固有:
 
 * 既存の無ラベル `dslLineValueSpans` の返すspan集合・順序を変えない
-  (click/Tab/Line Lensの挙動保証)。
+  (click/Tab/旧選択行投影の挙動保証)。
 * ジャンプは該当パラメータの**値span全体**を選択する(行頭でも値の先頭
   cursorでもなく)。
 * `name` は既存のvalue span集合へ加えず、parameter resolverだけがname tokenを
@@ -155,7 +155,7 @@ UIの変更はしない。このタスク完了時点でアプリの見た目・
 * dynamic record: vars/intermediatesの削除・並替え・重複・空fieldは誤選択せず
   `null`へ落ちること。caret/selection→最具体parameter spanの逆引きも、座標子span
   を含めてforward mappingと同じ意味論であること。
-* 既存 `dslValueSpans.test.ts`・click/Tab・Line Lens関連テストが**無変更で**
+* 既存 `dslValueSpans.test.ts`・click/Tab・旧選択行投影関連テストが**無変更で**
   greenのままであること。
 
 ## 手動確認

@@ -13,6 +13,13 @@ const single = (source: string): DslStatement => {
 };
 
 describe("DSL parser spans", () => {
+  it("parses a continued element as one statement while preserving its physical line range", () => {
+    const parsed = parseDsl("point A = (10, \\\n  20) color=main");
+    expect(parsed.diagnostics).toEqual([]);
+    expect(parsed.statements).toHaveLength(1);
+    expect(parsed.statements[0]).toMatchObject({ line: 1, endLine: 2, kind: "freePoint" });
+  });
+
   it("records keyword, name, and attribute spans", () => {
     const source = "point A = (10, 20) color=main";
     const statement = single(source);
@@ -84,6 +91,19 @@ describe("DSL parser unnamed statements", () => {
 });
 
 describe("DSL parser blocks", () => {
+  it("accepts a multi-line block header followed by its own opening-brace line", () => {
+    const parsed = parseDsl([
+      "group A \\",
+      "  expanded=true",
+      "{",
+      "  point P = (0, 0)",
+      "}"
+    ].join("\n"));
+    expect(parsed.diagnostics).toEqual([]);
+    expect(parsed.statements[0]).toMatchObject({ kind: "group", line: 1, endLine: 2, opensBlock: true });
+    expect(parsed.statements[1]).toMatchObject({ kind: "freePoint" });
+  });
+
   it("assigns enclosing block info to nested statements", () => {
     const parsed = parseDsl([
       "group 前身頃 {",

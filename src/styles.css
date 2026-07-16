@@ -78,56 +78,6 @@ textarea {
   background: #cfe6dc;
 }
 
-.cm-source-line-lens {
-  position: absolute;
-  z-index: 4;
-  display: block;
-  border: 1px solid #9fc2b3;
-  border-radius: 7px;
-  background: rgb(251 250 246 / 97%);
-  box-shadow: 0 10px 24px rgb(39 52 45 / 17%);
-  color: #2f332f;
-  font: inherit;
-  line-height: 1.62;
-  opacity: 0;
-  pointer-events: none;
-  transform: translateY(-4px);
-  visibility: hidden;
-  transition: opacity 120ms ease, transform 120ms ease, visibility 0s linear 120ms;
-}
-
-.cm-source-line-lens.is-visible {
-  opacity: 1;
-  pointer-events: auto;
-  transform: translateY(0);
-  visibility: visible;
-  transition-delay: 0s;
-}
-
-.cm-source-line-lens .cm-editor {
-  height: auto;
-  background: transparent;
-}
-
-.cm-source-line-lens .cm-scroller {
-  max-height: min(42vh, 360px);
-  overflow: auto;
-}
-
-.cm-source-line-lens .cm-content {
-  min-height: 0;
-  padding: 6px 10px 8px;
-}
-
-.cm-source-line-lens-measure {
-  position: fixed;
-  top: -10000px;
-  left: -10000px;
-  display: inline-block;
-  visibility: hidden;
-  white-space: pre;
-}
-
 .source-editor-pane .cm-secondary-selection {
   background: color-mix(in srgb, #0f766e 16%, transparent);
   box-shadow: inset 3px 0 #0f766e;

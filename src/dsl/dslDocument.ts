@@ -70,6 +70,8 @@ export type StatementInfo = {
   kind: DslStatement["kind"];
   /** 文自身の行(1-based)。 */
   line: number;
+  /** 文ヘッダー自身の最終物理行。ブロック全体の終端とは別。 */
+  endLine: number;
   /** ブロックを開く文は開き行〜対応する `}` 行。それ以外は line..line。 */
   range: LineRange;
   /** conditionalGroup ブロックの `} else {` 行(あれば)。 */
@@ -471,6 +473,7 @@ const buildStatementMap = (
         statementIndex,
         kind: statement.kind,
         line: statement.line,
+        endLine: statement.endLine,
         range: { startLine: statement.line, endLine: statement.line },
         indentDepth: Math.max(0, stack.length - 1),
         enclosing: statement.enclosing
@@ -485,6 +488,7 @@ const buildStatementMap = (
         statementIndex,
         kind: statement.kind,
         line: statement.line,
+        endLine: statement.endLine,
         range: { startLine: statement.line, endLine: statement.line },
         indentDepth: Math.max(0, stack.length - 1),
         enclosing: statement.enclosing
@@ -499,6 +503,7 @@ const buildStatementMap = (
       statementIndex,
       kind: statement.kind,
       line: statement.line,
+      endLine: statement.endLine,
       range: { startLine: statement.line, endLine: statement.line },
       indentDepth: stack.length,
       enclosing: statement.enclosing

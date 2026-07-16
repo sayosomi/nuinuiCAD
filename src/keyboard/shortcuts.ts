@@ -73,9 +73,9 @@ export const shouldIgnoreKeyboardEvent = (event: KeyboardEvent) => {
 export const isSourceEditorKeyboardTarget = (event: KeyboardEvent) =>
   event.target instanceof HTMLElement && Boolean(event.target.closest("[data-source-editor-scope='true']"));
 
-/** The CodeMirror document and its line lens own their normal editing keys. */
+/** The CodeMirror document owns its normal editing keys. */
 export const isSourceEditorDslKeyboardTarget = (event: KeyboardEvent) =>
-  event.target instanceof HTMLElement && Boolean(event.target.closest(".cm-editor, .cm-source-line-lens"));
+  event.target instanceof HTMLElement && Boolean(event.target.closest(".cm-editor"));
 
 /** React's element-search field is an input surface, not CodeMirror's document. */
 export const isSourceEditorSearchKeyboardTarget = (event: KeyboardEvent) =>

@@ -38,7 +38,7 @@
 * controller(`sourceEditorController.ts`)への接続: extension追加、
   IME composition中は補完を出さない(既存guardに従う)、明示起動
   (Ctrl+Space等CM標準)+タイプ中の自動起動。
-* Line Lensでの補完は**スコープ外可**(mainのみで完了条件を満たす。
+* 旧選択行投影での補完は**スコープ外可**(mainのみで完了条件を満たす。
   lens対応する場合はmainと同一ソースを使うこと)。
 
 ## Out of Scope

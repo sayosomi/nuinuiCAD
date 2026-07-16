@@ -24,9 +24,9 @@ Phase 3(インスペクタ)が古い前提で重複実装や衝突する割当�
 | `7df14cb` | 保留gestureの解決をpointerdown位置のhit testに固定(最新座標はdrag deltaのみ)。stale/in-flight評価時は常にdefer。pointer capture ledger導入 |
 | `71f35ee` | DocumentDiagnosticsのbadge+popover化。state rail gutter(表示/有効/ロック/印刷トグル、`@stop`評価区切り操作)。generated rows widget。model patch時のviewport/cursor安定化(未フォーカス時はdeferred cursor snapshot) |
 | `c75a058` | Canvas要素選択のgesture確定後にSource Editorへフォーカスhandoff(空クリック・pan・reference pick・pointer cancelでは移動しない) |
-| `23d1570` | Canvas/Commandによるmodel patchのSource Editor/Line Lens内ハイライト(DSL token粒度diff、削除は行内zero-widthマーカー、次の実ユーザー操作まで持続) |
+| `23d1570` | Canvas/Commandによるmodel patchのSource Editor/旧選択行投影内ハイライト(DSL token粒度diff、削除は行内zero-widthマーカー、次の実ユーザー操作まで持続) |
 | `1f5ab6e` | pick検索統合テストの安定化(テストのみ) |
-| `feda986` | 選択行Line Lensの編集可能化(内包CMは入力面のみ、正は常にmain editor) |
+| `feda986` | 選択行旧投影の編集可能化(内包CMは入力面のみ、正は常にmain editor) |
 | `315125f` | 編集可能な値spanのシングルクリック全選択(main+lens)。純粋モジュール `src/dsl/dslValueSpans.ts` 新設 |
 | `4da0731` | Tab/Shift+Tabによる値span循環移動(main+lens、非element文は対象外) |
 
@@ -74,11 +74,11 @@ resolution effect。
   マークする。行全体削除は行ハイライト、行内のみの削除はzero-widthマーカー。
 * ハイライトはtimerではなく「次の実ユーザー操作」(`Transaction.userEvent`を
   持つtransaction)まで持続する。controller自身のhousekeeping dispatchでは
-  消えない。Line Lensにも行ローカル座標へ変換して同じ内容を表示する。
+  消えない。旧選択行投影にも行ローカル座標へ変換して同じ内容を表示する。
 
 ### 編集可能な値spanの抽出(source of truth)
 
-`src/dsl/dslValueSpans.ts` — **クリック選択・Tab移動・Line Lensの3者すべてが
+`src/dsl/dslValueSpans.ts` — **クリック選択・Tab移動・旧選択行投影の3者すべてが
 この一つの定義を使う。**
 
 * `dslLineValueSpans(lineText)`: 1行を単独でreparseし、element文の
@@ -95,7 +95,7 @@ resolution effect。
 * main editor: `mouseup`で、修飾キーなし・単一の空cursorに収束したクリック
   だけを対象に、cursor位置の値spanを全選択する。drag選択・Mod-click複数選択・
   CM undo履歴は乱さない(`addToHistory: false`)。
-* Line Lens: 同じ判定をlens自身のdocument(=投影行そのもの、offset 0起点)で
+* 旧選択行投影: 同じ判定を投影自身のdocument(=投影行そのもの、offset 0起点)で
   行い、selection-only dispatchが既存のlens→main投影で外へ伝わる。
 
 ### Tab/Shift+Tabによる値span循環移動
@@ -103,12 +103,12 @@ resolution effect。
 * main editor: 選択が単一行内にあり、その行に値spanがあるときだけ、隣の値span
   へ選択を移す(循環)。spanが無い行・複数行選択では`false`を返し、Tabは通常の
   indentへfallthroughする。
-* Line Lens: `navigateLensValueSpan`が同じ`dslValueSpans`関数群で動く。lensの
+* 旧選択行投影: 同じ`dslValueSpans`関数群で動く。投影の
   IME判定はCM自身の`view.compositionStarted`(main側`protocol.composing`は
   lensのDOM subtreeを観測しないため)。
 * IME composition中はTabを完全に消費する(値移動もindentもしない)。
 
-### Line Lens(選択行の編集投影)
+### 旧選択行投影
 
 * 長い選択行がviewport幅を超えるときだけ表示される浮動投影で、Phase 2e後に
   **編集可能**になった。内包CodeMirrorは入力面にすぎず、全編集は即座に
@@ -184,7 +184,7 @@ controller keymap(固定):
 | 検索・pick・search panelの解除等 | Escape |
 | text検索 | Mod+F(searchKeymap) |
 
-Line Lensは上記のeditor-wide command一式+Tab/Shift+Tabのlens版を同じ割当で
+旧選択行投影は上記のeditor-wide command一式+Tab/Shift+Tabの投影版を同じ割当で
 提供する。**Tab/Shift+Tabが値移動に使われている**点は、Phase 3以降が新しい
 shortcutを割り当てる際の衝突チェック対象に含めること。
 
@@ -195,7 +195,7 @@ shortcutを割り当てる際の衝突チェック対象に含めること。
   Undo/Redo・structural shortcut・Tab値移動・fold・Escapeは消費して何もしない。
   decoration更新は`pendingDecorationRefresh`で遅延する。compositionend時に
   queueを排出し、必要ならflushする。
-* Line Lens: lens内のcompositionはCM自身の`view.compositionStarted`で判定する。
+* 旧選択行投影: 投影内のcompositionはCM自身の`view.compositionStarted`で判定する。
 * Canvas: composition中のpointerdownはflushが`"blocked-composition"`を返し、
   操作を開始せずcommand errorで「入力を確定してから再操作」と通知する。
 * controllerのdestroyはcomposition中に到達しない設計(app側close guard)。
@@ -215,16 +215,16 @@ shortcutを割り当てる際の衝突チェック対象に含めること。
 * 値span抽出はerror診断のある行に対してspanを返さない(部分parseのspanを
   クリック選択に使わない)。
 
-## Main Source EditorとLine Lensの共通点・相違点
+## Main Source Editorと旧選択行投影の共通点・相違点
 
-| 観点 | Main Source Editor | Line Lens |
+| 観点 | Main Source Editor | 旧選択行投影 |
 | --- | --- | --- |
 | 文書の正 | 正準(store `sourceText`+CM buffer) | 投影のみ。全編集を即mainへdispatch |
 | 値span定義 | `dslValueSpans`(行offsetを`line.from`で変換) | 同じ`dslValueSpans`(doc全体が1行なので変換不要) |
 | 値click選択 | `handleValueClick`(controller) | `handleValueClick`(lens、同一ロジックのview違い) |
 | Tab値移動 | `navigateValueSpan` | `navigateLensValueSpan` |
 | IME判定 | `protocol.composing` | `view.compositionStarted` |
-| keymap | controller keymap+registry scope | mainのeditor-wide commandを転送する`lineLensKeymap`+同registry scope |
+| keymap | controller keymap+registry scope | mainのeditor-wide commandを転送する投影 keymap+同registry scope |
 | patch highlight | `patchHighlightField`本体 | mainのfieldを行ローカルへ変換して表示 |
 | Undo履歴 | CM履歴(burst内)+store履歴 | 自前履歴なし(mainへ委譲) |
 
@@ -255,7 +255,7 @@ span境界・循環順序はすべて`dslValueSpans`に一本化されており�
 * 編集可能な値spanの**別解析**(Inspector専用のattribute span parserを
   作らない。`dslValueSpans`か、必要ならその拡張に一本化する)。
 * 値全体selectionの別実装(click選択と同じselection dispatch経路を使う)。
-* Source EditorとLine Lensの値移動の別実装(Tab移動が既にある)。
+* Source Editorと旧選択行投影の値移動の別実装(Tab移動が既にある)。
 * dirty buffer上での現在span解決の別実装(行単独reparseが既に規範)。
 * selection-only transactionのUndo除外の独自方式。
 * IME composition guardの独自実装。

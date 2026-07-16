@@ -40,10 +40,7 @@ type DslAutocompleteOptions = {
   forGroupGeneratedRows?: () => EvaluationResult["forGroupGeneratedRows"] | undefined;
   effectiveEnabledElementIds: () => Set<ElementId> | undefined;
   evaluationErrors: () => DependencyError[] | undefined;
-  /** Defaults to deriving everything from the CompletionContext's own state (Main
-   * Editor). Line Lens supplies its mirrored line's live text against the REAL
-   * document's line number/source, since candidate generation needs real
-   * statement identity, not the lens's own 1-line buffer coordinates. */
+  /** Defaults to deriving everything from the CompletionContext's own editor state. */
   documentInput?: (context: CompletionContext) => DslAutocompleteDocumentInput | null;
 };
 
@@ -233,8 +230,7 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
   };
 };
 
-/** Context and candidate generation stay CM-free; shared verbatim by the Main
- * Editor and Line Lens via `documentInput`. */
+/** Context and candidate generation stay CM-free for the Source Editor. */
 export const dslAutocompleteExtension = (options: DslAutocompleteOptions): Extension[] => [
   autocompletion({ override: [createDslCompletionSource(options)] }),
   keymap.of(completionKeymap)

@@ -95,7 +95,7 @@ macOS Tauriで以下を確認し、結果をタスク報告へ記録する。
 ## Phase 2e完了後のpolish(履歴)
 
 本タスクの完了コミット(`a08d447`)以降、cutover起因の退行修正と操作性polish
-(pending Canvas pointer intent、patch highlight、編集可能Line Lens、値spanの
+(pending Canvas pointer intent、patch highlight、編集可能旧選択行投影、値spanの
 click選択とTab移動など)を追加で実装した。これらは本タスクの当初計画には
 含まれない後付けであり、現在仕様の記録は
 [phase-2-post-cutover-editor-polish.md](phase-2-post-cutover-editor-polish.md)

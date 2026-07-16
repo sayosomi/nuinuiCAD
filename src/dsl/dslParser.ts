@@ -8,6 +8,7 @@ import type {
   ParseDslResult
 } from "./dslTypes";
 import { splitDslComment, splitDslTerms, unquoteDslString, type DslTerm } from "./dslTokens";
+import { createLogicalStatementSourceMap } from "./logicalStatementSourceMap";
 
 const elementTypes = new Set<CadElementType>([
   "group",
@@ -137,11 +138,13 @@ const termAttr = (key: string, term: DslTerm): DslAttribute =>
 
 const statementBase = (
   line: number,
+  endLine: number,
   keyword: DslTerm,
   name: DslTerm | null,
   opensBlock: boolean
 ): DslStatementBase => ({
   line,
+  endLine,
   name: name ? unquoteDslString(name.text) : "",
   nameSpan: name ? termSpan(name) : null,
   keywordSpan: termSpan(keyword),
@@ -204,17 +207,17 @@ const expressionAfterEquals = (
 
 type ParsedLine = { statement?: DslStatement; diagnostics: DslDiagnostic[] };
 
-const parseLine = (rawLine: string, line: number): ParsedLine => {
+const parseLine = (rawLine: string, line: number, endLine = line): ParsedLine => {
   const code = splitDslComment(rawLine).code;
   const allTerms = splitDslTerms(code);
   if (allTerms.length === 0) return { diagnostics: [] };
 
   if (allTerms[0].text === "}") {
     if (allTerms.length === 1) {
-      return { statement: { ...statementBase(line, allTerms[0], null, false), kind: "blockEnd" }, diagnostics: [] };
+      return { statement: { ...statementBase(line, endLine, allTerms[0], null, false), kind: "blockEnd" }, diagnostics: [] };
     }
     if (allTerms.length === 3 && allTerms[1].text === "else" && allTerms[2].text === "{") {
-      return { statement: { ...statementBase(line, allTerms[0], null, true), kind: "blockElse" }, diagnostics: [] };
+      return { statement: { ...statementBase(line, endLine, allTerms[0], null, true), kind: "blockElse" }, diagnostics: [] };
     }
     return { diagnostics: [diagnostic(line, "「}」の行は「}」単独か「} else {」の形で書いてください。")] };
   }
@@ -244,12 +247,12 @@ const parseLine = (rawLine: string, line: number): ParsedLine => {
     if (opensBlock || body.length > 1) {
       return { diagnostics: [diagnostic(line, "@stop は単独の行に書いてください。")] };
     }
-    return { statement: { ...statementBase(line, keyword, null, false), kind: "atStop" }, diagnostics: [] };
+    return { statement: { ...statementBase(line, endLine, keyword, null, false), kind: "atStop" }, diagnostics: [] };
   }
 
   if (keyword.text === dslStatementKeywords.version) {
     const rest = body.slice(1);
-    const base = statementBase(line, keyword, null, opensBlock);
+    const base = statementBase(line, endLine, keyword, null, opensBlock);
     if (rest.length > 0) {
       base.payloadSpans.value = { start: rest[0].start, end: rest.at(-1)!.end };
     }
@@ -276,7 +279,7 @@ const parseLine = (rawLine: string, line: number): ParsedLine => {
     }
     const nameTerm = positional.length === 2 ? positional[0] : null;
     const variableTerm = positional.at(-1)!;
-    const base = statementBase(line, keyword, nameTerm, opensBlock);
+    const base = statementBase(line, endLine, keyword, nameTerm, opensBlock);
     base.payloadSpans.variableName = termSpan(variableTerm);
     return {
       statement: elementStatement(base, "forGroup", [
@@ -292,7 +295,7 @@ const parseLine = (rawLine: string, line: number): ParsedLine => {
     if (!groupTerm || groupTerm.text === "=" || isAttrTerm(groupTerm)) {
       return { diagnostics: [diagnostic(line, "place には配置するグループの参照が必要です。")] };
     }
-    const base = statementBase(line, keyword, null, opensBlock);
+    const base = statementBase(line, endLine, keyword, null, opensBlock);
     base.payloadSpans.group = termSpan(groupTerm);
     return {
       statement: { ...base, kind: "place", group: groupTerm.text, attrs: attrsFromTerms(body.slice(2)) },
@@ -304,7 +307,7 @@ const parseLine = (rawLine: string, line: number): ParsedLine => {
   const nameTerm =
     nameCandidate && nameCandidate.text !== "=" && !isAttrTerm(nameCandidate) ? nameCandidate : null;
   const rest = nameTerm ? body.slice(2) : body.slice(1);
-  const base = statementBase(line, keyword, nameTerm, opensBlock);
+  const base = statementBase(line, endLine, keyword, nameTerm, opensBlock);
 
   if (!nameTerm && nameRequiredStatementKeywords.has(keyword.text)) {
     return { diagnostics: [diagnostic(line, "文はキーワードと名前から始めてください。")] };
@@ -727,11 +730,26 @@ const reportDuplicateNames = (statements: DslStatement[], diagnostics: DslDiagno
 export const parseDsl = (source: string): ParseDslResult => {
   const statements: DslStatement[] = [];
   const diagnostics: DslDiagnostic[] = [];
-  source.split(/\r?\n/).forEach((line, index) => {
-    const parsed = parseLine(line, index + 1);
+  const normalized = source.replace(/\r\n/g, "\n");
+  const sourceMap = createLogicalStatementSourceMap({ normalizedSource: normalized, sourceRevision: 0 });
+  for (const line of sourceMap.invalidContinuationLines) {
+    diagnostics.push(diagnostic(line, "継続印「\\」の次には空でない通常の文の行が必要です。"));
+  }
+  for (let index = 0; index < sourceMap.statements.length; index += 1) {
+    const logical = sourceMap.statements[index];
+    // A multi-line block header is followed by its own structural opening line.
+    // Legacy inline `{` remains readable while documents transition to this form.
+    const next = sourceMap.statements[index + 1];
+    const opensOnNextLine = logical.structural === null && next?.structural === "open";
+    if (logical.structural === "open") continue;
+    const parsed = parseLine(
+      opensOnNextLine ? `${logical.logicalText} {` : logical.logicalText,
+      logical.range.startLine,
+      logical.range.endLine
+    );
     if (parsed.statement) statements.push(parsed.statement);
     diagnostics.push(...parsed.diagnostics);
-  });
+  }
   applyBlockStructure(statements, diagnostics);
   reportDuplicateNames(statements, diagnostics);
   for (const extra of statements.filter((statement) => statement.kind === "atStop").slice(1)) {

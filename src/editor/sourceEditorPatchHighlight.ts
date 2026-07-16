@@ -151,7 +151,7 @@ const boundaryAt = (tokens: readonly { from: number }[], index: number, textLeng
 
 /**
  * Exported for tests. Diffs oldText against newText at DSL-token granularity
- * (same tokenizer the line lens uses) and returns only what actually
+ * (the DSL tokenizer) and returns only what actually
  * changed: `marks` are new/changed token ranges (in newText coordinates),
  * `deletionPoints` are positions where old tokens were removed with nothing
  * new inserted there. When nothing is shared between old and new, this

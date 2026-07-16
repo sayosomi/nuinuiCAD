@@ -21,15 +21,16 @@ export const createStatementRangeIndex = (doc: Text, statementMap: StatementMap)
   for (const [elementId, statement] of statementMap.byElementId) {
     if (statement.line < 1 || statement.line > doc.lines) continue;
     const line = doc.line(statement.line);
+    const statementEndLine = statement.endLine <= doc.lines ? doc.line(statement.endLine) : null;
     const endLine = statement.range.endLine <= doc.lines ? doc.line(statement.range.endLine) : null;
     const elseLine = statement.elseLine && statement.elseLine <= doc.lines ? doc.line(statement.elseLine) : null;
     ranges.set(elementId, {
       elementId,
       statement,
       from: line.from,
-      to: line.to,
-      ...(endLine && endLine.number > line.number
-        ? { groupFoldRange: { from: line.to, to: endLine.to } }
+      to: statementEndLine?.to ?? line.to,
+      ...(endLine && statementEndLine && endLine.number > statementEndLine.number
+        ? { groupFoldRange: { from: statementEndLine.to, to: endLine.from } }
         : {}),
       ...(elseLine && endLine && endLine.number > elseLine.number
         ? { elseLineFrom: elseLine.from, elseFoldRange: { from: elseLine.to, to: endLine.from } }
