@@ -27,7 +27,7 @@
 | P5 | [registry 駆動 serializer](tasks/p5-element-serializer.md) | 未接続 | P1 | 完了 |
 | P6 | [compiler 引数適用](tasks/p6-compiler-apply-args.md) | 未接続 | P1, P2 | 完了 |
 | P7 | [round-trip 行列と v2 golden](tasks/p7-roundtrip-golden.md) | 未接続 | P3, P4, P5, P6 | 完了 |
-| P8 | [コメントマージ](tasks/p8-comment-merge.md) | 未接続 | P5 | 未着手 |
+| P8 | [コメントマージ](tasks/p8-comment-merge.md) | 未接続 | P5 | 完了 |
 | P9 | [値 span v2 解決](tasks/p9-parameter-spans-v2.md) | 未接続 | P1, P5, P7 | 未着手 |
 | W1 | [reconciler 複数行化](tasks/w1-reconciler-multiline.md) | v1 で配線 | なし | 未着手 |
 | W2 | [textPatch 行群化](tasks/w2-textpatch-rows.md) | v1 で配線 | P8 | 未着手 |

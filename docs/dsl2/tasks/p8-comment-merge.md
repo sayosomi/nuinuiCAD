@@ -54,4 +54,28 @@ statement 差し替え時に旧コメントを新テキストへ決定的に再�
 
 - W2 が textPatch の statement 差し替え経路に組み込む。`oldArgLineByKey` の生成は
   W2 側の責務。
-- (完了時に追記)
+- `src/document/statementCommentMerge.ts` は `mergeStatementComments` を公開する。
+  内部は3分岐: `next.close === null`(短形式へ収束。全行コメントは先頭行群へ、
+  全EOLコメントは1本のEOLへ文書順で連結)/ `oldLines.length <= 1`(旧が1行
+  statementだった。唯一のEOLは新ヘッダ行にのみ付与し、引数・close行は新規生成で
+  コメント無し)/ 一般形(旧・新とも複数行call)。
+- 一般形は「行オーナー」割当(header=index 0、close=最終index、それ以外は
+  `oldArgLineByKey`のkey)で1パスし、各オーナーへ「直前の全行コメント群」と
+  「自身のEOL」を確定させる。`)`直前にあってどのキーにも属さない素の全行コメントは
+  close自身のオーナーとして自然に回収される(close行は必ず走査の最終ownedとして
+  処理されるため、これを取りこぼすと無変更statementでも当該コメントが消える
+  冪等性バグになる — 実装前のPlan agentレビューで発見・修正済み)。
+- 消えたキー(`oldArgLineByKey`にあり`next.args`に無いkey)は旧行indexの昇順で、
+  先頭全行コメント群→(EOLがあれば)全行コメント化したEOL、の順に`)`の前へ退避する。
+  捨てない。
+- `indent`はheader/close行に使う基底インデント。引数行は`indent + DSL_INDENT`
+  (`src/dsl/dslTokens.ts`)。`SerializedStatement.args[].text`はインデント無しの
+  `"key: value"`文字列(P5仕様どおり)であることを前提にしている。
+- `statementCommentMerge.test.ts`で全テスト項目(引数EOL/全行コメント維持、
+  ヘッダ/close EOL維持、`)`直前の素のコメント維持、削除キーの退避、複数削除の
+  相対順序、並び替えを跨いだ再付着、新規キー無コメント、旧===新の完全冪等、
+  無コメント素通り、旧1行→新縦型、縦型→短形式のEOL連結、引用文字列内`#`の非
+  コメント扱い、depth>0のインデント)に加え、`fast-check`によるランダムkey構成
+  (追加/削除/並び替え+コメント配置)での冪等性property testを固定した。
+- `npm test` / `npm run build` / `npm run lint` はgreen。製品コードからのimport
+  なし(未接続方針どおり)。
