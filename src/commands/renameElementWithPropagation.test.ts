@@ -88,6 +88,70 @@ describe("renameElementWithPropagation", () => {
     expect(after).toContain("# unchanged after layout");
   });
 
+  it("treats an already canonical same-name rename as a successful no-op", () => {
+    const source = "nui 1\npoint A = (0, 0)";
+    seed(source);
+    const id = elementId("A");
+    useCadUiStore.getState().setSelectedElementIds([id]);
+    useCadUiStore.getState().setCommandErrorMessage("previous error");
+    const before = useCadDocumentStore.getState();
+    const selectionBefore = useCadUiStore.getState().selectedElementIds;
+
+    expect(renameElementWithPropagation(id, "A")).toBe(true);
+
+    const after = useCadDocumentStore.getState();
+    expect(after.sourceText).toBe(before.sourceText);
+    expect(after.past).toBe(before.past);
+    expect(after.sourceRevision).toBe(before.sourceRevision);
+    expect(after.sourceUpdate).toBe(before.sourceUpdate);
+    expect(useCadUiStore.getState().selectedElementIds).toEqual(selectionBefore);
+    expect(useCadUiStore.getState().commandErrorMessage).toBeNull();
+  });
+
+  it("preserves a noncanonical same-name line without a bridge commit or dev assertion", () => {
+    const source = "nui 1\npoint A = (0,0) # hand-written spacing";
+    seed(source);
+    const id = elementId("A");
+    const before = useCadDocumentStore.getState();
+
+    expect(renameElementWithPropagation(id, "A")).toBe(true);
+
+    const after = useCadDocumentStore.getState();
+    expect(after.sourceText).toBe(source);
+    expect(after.past).toBe(before.past);
+    expect(after.sourceRevision).toBe(before.sourceRevision);
+    expect(after.sourceUpdate).toBe(before.sourceUpdate);
+  });
+
+  it("keeps only the dirty-buffer flush history and revision when its name is unchanged", () => {
+    seed("nui 1\npoint A = (0, 0)");
+    const id = elementId("A");
+    let pending = true;
+    let flushedState: ReturnType<typeof useCadDocumentStore.getState> | null = null;
+    const flushedText = "nui 1\npoint A = (5,5)";
+    unregister = registerSourceEditSession({
+      hasPendingText: () => pending,
+      isComposing: () => false,
+      flush: () => {
+        pending = false;
+        useCadDocumentStore.getState().commitText(flushedText, "editor");
+        flushedState = useCadDocumentStore.getState();
+        return "flushed";
+      }
+    });
+
+    expect(renameElementWithPropagation(id, "A")).toBe(true);
+
+    const after = useCadDocumentStore.getState();
+    expect(flushedState).not.toBeNull();
+    expect(after.sourceText).toBe(flushedText);
+    expect(after.past).toBe(flushedState!.past);
+    expect(after.past).toHaveLength(1);
+    expect(after.sourceRevision).toBe(flushedState!.sourceRevision);
+    expect(after.sourceUpdate).toBe(flushedState!.sourceUpdate);
+    expect(after.sourceUpdate.kind).toBe("editor");
+  });
+
   it("flushes pending text, then analyzes and patches the flushed document", () => {
     seed("nui 1\npoint A = (0, 0)\npoint User = offset A dx=1 dy=0");
     const id = elementId("A");

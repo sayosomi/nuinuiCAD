@@ -61,6 +61,11 @@ export const renameElementWithPropagation = (elementId: ElementId, requestedName
     useCadUiStore.getState().setCommandErrorMessage(analysisError(analysis));
     return false;
   }
+  const target = before.elements.find((element) => element.id === elementId)!;
+  if (analysis.newName === target.name) {
+    useCadUiStore.getState().setCommandErrorMessage(null);
+    return true;
+  }
 
   const result = useCadDocumentStore.getState().commitDocumentChange({
     elements: before.elements.map((element) =>
