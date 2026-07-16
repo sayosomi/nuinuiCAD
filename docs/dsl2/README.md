@@ -25,7 +25,7 @@
 | P3 | [要素/コンテナ call parser](tasks/p3-call-parser.md) | 未接続 | P1, P2 | 完了 |
 | P4 | [設定文 parser](tasks/p4-settings-parser.md) | 未接続 | P1, P2 | 完了 |
 | P5 | [registry 駆動 serializer](tasks/p5-element-serializer.md) | 未接続 | P1 | 完了 |
-| P6 | [compiler 引数適用](tasks/p6-compiler-apply-args.md) | 未接続 | P1, P2 | 未着手 |
+| P6 | [compiler 引数適用](tasks/p6-compiler-apply-args.md) | 未接続 | P1, P2 | 完了 |
 | P7 | [round-trip 行列と v2 golden](tasks/p7-roundtrip-golden.md) | 未接続 | P3, P4, P5, P6 | 未着手 |
 | P8 | [コメントマージ](tasks/p8-comment-merge.md) | 未接続 | P5 | 未着手 |
 | P9 | [値 span v2 解決](tasks/p9-parameter-spans-v2.md) | 未接続 | P1, P5, P7 | 未着手 |

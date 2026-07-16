@@ -60,4 +60,15 @@
 - P7 が round-trip の compile 側に使う。C1 で `dslCompiler.ts` の `applyStatement`
   分岐群と `parameterAlias` を削除しこれに配線する。`id`/`parent`/`branch` の
   受け渡し形は C1 実装者が読む前提で明記しておくこと。
-- (完了時に追記)
+- `src/dsl/dslApplyArgs.ts` は `applyArgs(element, spec, args, resolvers)` を公開する。
+  戻り値はコピーされた `element`、statement スコープの diagnostics、C1 が所有する
+  `metadata` (`id` / raw `parent` token / `branch`)である。ID割当・ブロック親子の優先規則は
+  このモジュールでは適用しない。
+- `DslApplyArgsResolvers` は名前索引、数値式コンテキスト、visibility roles、intermediate ID
+  factoryを受ける。参照解決・数値正規化は差し替え可能で、既定は既存
+  `dslReferences` / `numericExpressions` と同じ挙動である。`vars` と `varIds` はソース順に
+  かかわらず local-variable ID remap 後の結果になる。
+- 全constructionの populated/minimal、special引数、parameter kind、exclusive placement、
+  positional引数、未解決参照warningを `dslApplyArgs.test.ts` で固定した。既存live compiler・
+  parser・serializer・Rust・評価payloadからは未接続である。
+- `npm test` / `npm run build` / `npm run lint` を green で確認した。Rust・parity対象外。
