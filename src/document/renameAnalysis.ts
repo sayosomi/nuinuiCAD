@@ -11,27 +11,46 @@ import {
 import {
   collectRenameReferenceCatalog,
   type RenameReferenceForm,
-  type RenameReferencePath,
   type RenameReferenceState
 } from "./renameReferenceCatalog";
 
-export type { RenameReferenceForm, RenameReferencePath, RenameReferenceState } from "./renameReferenceCatalog";
+export type { RenameReferenceForm, RenameReferenceState } from "./renameReferenceCatalog";
 
 export type RenameOccurrence = {
   line: number;
   owner: { kind: "element"; elementId: ElementId } | { kind: "print-layout"; layoutId: string };
   referencedElementId: ElementId;
   form: RenameReferenceForm;
-  path: RenameReferencePath;
 };
 
 export type RenameResolutionChange = {
   line: number;
+  owner: RenameOccurrence["owner"];
   form: RenameReferenceForm;
-  path: RenameReferencePath;
   before: RenameReferenceState;
   after: RenameReferenceState;
 };
+
+export type RenameInvalidSourceDetail = { message: string };
+export type RenameTargetNotFoundDetail = { targetElementId: ElementId };
+export type RenameInvalidNameDetail = { input: string; message: string };
+export type RenameSameScopeConflictDetail = {
+  targetElementId: ElementId;
+  newName: string;
+  conflictingElementId: ElementId;
+  conflictingElementName: string;
+  conflictingLine: number;
+};
+export type RenameAnalysisIncompleteDetail = { message: string };
+export type RenameResolutionChangeDetail = { changes: RenameResolutionChange[] };
+
+export type RenameAnalysisRejected =
+  | { verdict: "rejected"; reason: "invalid-source"; detail: RenameInvalidSourceDetail }
+  | { verdict: "rejected"; reason: "target-not-found"; detail: RenameTargetNotFoundDetail }
+  | { verdict: "rejected"; reason: "invalid-name"; detail: RenameInvalidNameDetail }
+  | { verdict: "rejected"; reason: "same-scope-conflict"; detail: RenameSameScopeConflictDetail }
+  | { verdict: "rejected"; reason: "analysis-incomplete"; detail: RenameAnalysisIncompleteDetail }
+  | { verdict: "rejected"; reason: "resolution-change"; detail: RenameResolutionChangeDetail };
 
 export type RenameAnalysisInput = {
   sourceText: string;
@@ -48,11 +67,7 @@ export type RenameReferenceStabilityInput = {
 
 export type RenameReferenceStability =
   | { verdict: "ok" }
-  | {
-      verdict: "rejected";
-      reason: "analysis-incomplete" | "resolution-change";
-      detail: { changes?: RenameResolutionChange[]; message?: string };
-    };
+  | Extract<RenameAnalysisRejected, { reason: "analysis-incomplete" | "resolution-change" }>;
 
 export type RenameAnalysis =
   | {
@@ -61,17 +76,7 @@ export type RenameAnalysis =
       occurrences: RenameOccurrence[];
       expectedPatchedLines: number[];
     }
-  | {
-      verdict: "rejected";
-      reason:
-        | "invalid-source"
-        | "target-not-found"
-        | "invalid-name"
-        | "same-scope-conflict"
-        | "analysis-incomplete"
-        | "resolution-change";
-      detail: Record<string, unknown>;
-    };
+  | RenameAnalysisRejected;
 
 const descendantIds = (document: DslDocumentData, rootId: ElementId) => {
   const ids = new Set<ElementId>([rootId]);
@@ -112,11 +117,9 @@ export const validateRenameReferenceStability = (
   if (!afterCatalog.complete) {
     return { verdict: "rejected", reason: "analysis-incomplete", detail: { message: afterCatalog.message } };
   }
-  const affectedIds = descendantIds(input.before.document, input.targetElementId);
   const afterByKey = new Map(afterCatalog.slots.map((slot) => [slot.key, slot]));
   const changes: RenameResolutionChange[] = [];
   for (const before of beforeCatalog.slots) {
-    if (before.state.status === "resolved" && affectedIds.has(before.state.elementId)) continue;
     const after = afterByKey.get(before.key);
     if (!after) {
       return {
@@ -132,8 +135,8 @@ export const validateRenameReferenceStability = (
     ) {
       changes.push({
         line: before.line,
+        owner: before.owner,
         form: before.form,
-        path: before.path,
         before: before.state,
         after: after.state
       });
@@ -173,15 +176,30 @@ export const analyzeRename = (input: RenameAnalysisInput): RenameAnalysis => {
         element.parentGroupId === target.parentGroupId &&
         element.name.trim() === newName
     );
+    if (!conflict) {
+      return {
+        verdict: "rejected",
+        reason: "analysis-incomplete",
+        detail: { message: "同一スコープの衝突要素を特定できません。" }
+      };
+    }
+    const conflictingLine = input.compiled.statementMap.byElementId.get(conflict.id)?.line;
+    if (conflictingLine === undefined) {
+      return {
+        verdict: "rejected",
+        reason: "analysis-incomplete",
+        detail: { message: `衝突要素 ${conflict.id} の行位置を特定できません。` }
+      };
+    }
     return {
       verdict: "rejected",
       reason: "same-scope-conflict",
       detail: {
         targetElementId: target.id,
         newName,
-        conflictingElementId: conflict?.id,
-        conflictingElementName: conflict?.name,
-        conflictingLine: conflict ? input.compiled.statementMap.byElementId.get(conflict.id)?.line : undefined
+        conflictingElementId: conflict.id,
+        conflictingElementName: conflict.name,
+        conflictingLine
       }
     };
   }
@@ -192,8 +210,8 @@ export const analyzeRename = (input: RenameAnalysisInput): RenameAnalysis => {
       element.id === target.id ? { ...element, name: newName } : element
     )
   };
-  const expected = serializerChangedStatementLines(input.compiled, afterDocument);
-  if (!expected) {
+  const changedStatements = serializerChangedStatementLines(input.compiled, afterDocument);
+  if (!changedStatements) {
     return { verdict: "rejected", reason: "analysis-incomplete", detail: { message: "serializer比較の行集合を作れません。" } };
   }
   const candidate = recompileRenameCandidate(input.compiled, input.sourceText, afterDocument);
@@ -206,7 +224,7 @@ export const analyzeRename = (input: RenameAnalysisInput): RenameAnalysis => {
     targetElementId: target.id
   });
   if (stability.verdict === "rejected") {
-    return { verdict: "rejected", reason: stability.reason, detail: stability.detail };
+    return stability;
   }
   const catalog = collectRenameReferenceCatalog(input.compiled);
   if (!catalog.complete) {
@@ -214,15 +232,18 @@ export const analyzeRename = (input: RenameAnalysisInput): RenameAnalysis => {
   }
   const affectedIds = descendantIds(input.compiled.document, target.id);
   const occurrences = catalog.slots.flatMap((slot) =>
-    slot.state.status === "resolved" && affectedIds.has(slot.state.elementId)
+    slot.state.status === "resolved" &&
+    affectedIds.has(slot.state.elementId) &&
+    (slot.owner.kind === "element"
+      ? changedStatements.changedElementIds.has(slot.owner.elementId)
+      : changedStatements.changedPrintLayoutIds.has(slot.owner.layoutId))
       ? [{
           line: slot.line,
           owner: slot.owner,
           referencedElementId: slot.state.elementId,
-          form: slot.form,
-          path: slot.path
+          form: slot.form
         }]
       : []
   );
-  return { verdict: "ok", newName, occurrences, expectedPatchedLines: expected };
+  return { verdict: "ok", newName, occurrences, expectedPatchedLines: changedStatements.expectedPatchedLines };
 };

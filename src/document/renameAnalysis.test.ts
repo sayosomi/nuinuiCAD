@@ -3,8 +3,7 @@ import { describe, expect, it } from "vitest";
 import { compileDslDocument, type CompiledDslDocument, type DslDocumentData } from "../dsl/dslDocument";
 import { parseDsl } from "../dsl/dslParser";
 import { reconcileStatements } from "./statementReconciler";
-import { buildTextPatch } from "./textPatch";
-import { applyLineSplices } from "./textPatch";
+import { applyLineSplices, buildTextPatch } from "./textPatch";
 import { analyzeRename, validateRenameReferenceStability } from "./renameAnalysis";
 
 const complete = (source: string) => {
@@ -89,7 +88,7 @@ describe("renameAnalysis", () => {
     if (analysis.verdict !== "ok") return;
     expect(analysis.occurrences).toEqual(expect.arrayContaining([
       expect.objectContaining({ referencedElementId: group.id, form: "print-layout-place" }),
-      expect.objectContaining({ form: "direct", path: "qualified" })
+      expect.objectContaining({ form: "direct" })
     ]));
     const after = renameDocument(compiled.document, group.id, "H");
     expect(analysis.expectedPatchedLines).toEqual(touchedLines(compiled, after));

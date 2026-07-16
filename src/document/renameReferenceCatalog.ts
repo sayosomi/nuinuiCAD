@@ -11,7 +11,6 @@ import {
 } from "./renameReferenceValues";
 
 export type RenameReferenceForm = "direct" | "derived" | "expression" | "print-layout-place";
-export type RenameReferencePath = "relative" | "qualified" | "absolute" | "runtime-id";
 
 export type RenameReferenceState =
   | { status: "resolved"; elementId: ElementId }
@@ -22,7 +21,6 @@ export type RenameReferenceSlot = {
   line: number;
   owner: { kind: "element"; elementId: ElementId } | { kind: "print-layout"; layoutId: string };
   form: RenameReferenceForm;
-  path: RenameReferencePath;
   state: RenameReferenceState;
 };
 
@@ -30,26 +28,17 @@ export type RenameReferenceCatalog =
   | { complete: true; slots: RenameReferenceSlot[] }
   | { complete: false; message: string };
 
-const pathFor = (lineText: string, id: ElementId): RenameReferencePath => {
-  if (/(^|[\s=(,])::/.test(lineText)) return "absolute";
-  if (lineText.includes("::")) return "qualified";
-  if (lineText.includes(id)) return "runtime-id";
-  return "relative";
-};
-
 const stateFor = (id: ElementId, elementIds: ReadonlySet<ElementId>): RenameReferenceState =>
   elementIds.has(id) ? { status: "resolved", elementId: id } : { status: "dangling", token: id };
 
 const elementSlots = ({
   element,
   line,
-  lineText,
   elementIds,
   hasExplicitParent
 }: {
   element: CadElement;
   line: number;
-  lineText: string;
   elementIds: ReadonlySet<ElementId>;
   hasExplicitParent: boolean;
 }): RenameReferenceSlot[] => {
@@ -75,7 +64,6 @@ const elementSlots = ({
       line,
       owner,
       form,
-      path: pathFor(lineText, id),
       state: stateFor(id, elementIds)
     };
   });
@@ -88,7 +76,6 @@ const elementSlots = ({
       line,
       owner,
       form: "direct",
-      path: pathFor(lineText, element.parentGroupId),
       state: stateFor(element.parentGroupId, elementIds)
     });
   }
@@ -101,7 +88,6 @@ const elementSlots = ({
       line,
       owner,
       form: "expression",
-      path: pathFor(lineText, id),
       state: stateFor(id, elementIds)
     });
   });
@@ -112,7 +98,6 @@ const numericSlots = ({
   values,
   keyPrefix,
   line,
-  lineText,
   owner,
   elementIds,
   localVariableIds
@@ -120,7 +105,6 @@ const numericSlots = ({
   values: NumericValue[];
   keyPrefix: string;
   line: number;
-  lineText: string;
   owner: RenameReferenceSlot["owner"];
   elementIds: ReadonlySet<ElementId>;
   localVariableIds: ReadonlySet<string>;
@@ -130,7 +114,6 @@ const numericSlots = ({
     line,
     owner,
     form: reference.form,
-    path: pathFor(lineText, reference.id),
     state: stateFor(reference.id, elementIds)
   })).concat(
     nestedVariableReferences(value, localVariableIds).map((id, referenceIndex) => ({
@@ -138,7 +121,6 @@ const numericSlots = ({
       line,
       owner,
       form: "expression" as const,
-      path: pathFor(lineText, id),
       state: stateFor(id, elementIds)
     }))
   )
@@ -169,7 +151,6 @@ const layoutSlots = (
     ],
     keyPrefix: `layout:${layout.id}:header`,
     line: info.line,
-    lineText: compiled.sourceLines[info.line - 1] ?? "",
     owner,
     elementIds,
     localVariableIds
@@ -190,7 +171,6 @@ const layoutSlots = (
       values: [variable.value],
       keyPrefix: `layout:${layout.id}:variable:${index}`,
       line: member.line,
-      lineText: compiled.sourceLines[member.line - 1] ?? "",
       owner,
       elementIds,
       localVariableIds
@@ -198,20 +178,17 @@ const layoutSlots = (
   });
   layout.placements.forEach((placement, index) => {
     const member = placeStatements[index];
-    const lineText = compiled.sourceLines[member.line - 1] ?? "";
     slots.push({
       key: `layout:${layout.id}:place:${index}:group`,
       line: member.line,
       owner,
       form: "print-layout-place",
-      path: pathFor(lineText, placement.groupId),
       state: stateFor(placement.groupId, elementIds)
     });
     slots.push(...numericSlots({
       values: [placement.x, placement.y, placement.angleDeg],
       keyPrefix: `layout:${layout.id}:place:${index}`,
       line: member.line,
-      lineText,
       owner,
       elementIds,
       localVariableIds
@@ -237,7 +214,6 @@ export const collectRenameReferenceCatalog = (compiled: CompiledDslDocument): Re
     slots.push(...elementSlots({
       element,
       line: info.line,
-      lineText: compiled.sourceLines[info.line - 1] ?? "",
       elementIds,
       hasExplicitParent: statement.attrs.some((attribute) => attribute.key === "parent")
     }));

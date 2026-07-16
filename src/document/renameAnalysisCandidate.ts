@@ -8,6 +8,7 @@ import { parseDsl } from "../dsl/dslParser";
 import { documentDslRefs, serializeElementStatement } from "../dsl/dslSerializer";
 import { applyLineSplices, buildTextPatch } from "./textPatch";
 import { reconcileStatements } from "./statementReconciler";
+import type { ElementId } from "../types/geometry";
 
 export type CompleteCompiled = CompiledDslDocument & {
   document: DslDocumentData;
@@ -17,16 +18,24 @@ export type CompleteCompiled = CompiledDslDocument & {
 export const completeCompiled = (compiled: CompiledDslDocument): compiled is CompleteCompiled =>
   Boolean(compiled.document && compiled.statementMap);
 
+export type SerializerChangedStatements = {
+  expectedPatchedLines: number[];
+  changedElementIds: Set<ElementId>;
+  changedPrintLayoutIds: Set<string>;
+};
+
 // This intentionally does not call buildTextPatch. The expected set is an
 // independent comparison of existing serializer output in old-text coordinates.
 export const serializerChangedStatementLines = (
   before: CompleteCompiled,
   afterDocument: DslDocumentData
-) => {
+): SerializerChangedStatements | null => {
   const refsBefore = documentDslRefs(before.document.elements);
   const refsAfter = documentDslRefs(afterDocument.elements);
   const afterElementsById = new Map(afterDocument.elements.map((element) => [element.id, element]));
   const lines = new Set<number>();
+  const changedElementIds = new Set<ElementId>();
+  const changedPrintLayoutIds = new Set<string>();
 
   for (const element of before.document.elements) {
     const next = afterElementsById.get(element.id);
@@ -34,6 +43,7 @@ export const serializerChangedStatementLines = (
     if (!next || !info) return null;
     if (serializeElementStatement(element, refsBefore) !== serializeElementStatement(next, refsAfter)) {
       lines.add(info.line);
+      changedElementIds.add(element.id);
     }
   }
 
@@ -45,11 +55,16 @@ export const serializerChangedStatementLines = (
     const info = before.statementMap.byKey.get(`printLayout:${block.layoutId}`);
     if (!next || !info) return null;
     if (block.lines.join("\n") !== next.lines.join("\n")) {
+      changedPrintLayoutIds.add(block.layoutId);
       for (let line = info.range.startLine; line <= info.range.endLine; line += 1) lines.add(line);
     }
   }
   return beforePlan.blocks.length === afterPlan.blocks.length
-    ? [...lines].sort((a, b) => a - b)
+    ? {
+        expectedPatchedLines: [...lines].sort((a, b) => a - b),
+        changedElementIds,
+        changedPrintLayoutIds
+      }
     : null;
 };
 
