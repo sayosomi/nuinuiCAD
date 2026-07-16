@@ -57,4 +57,10 @@ serializer を作る。現行 `dslSerializer.ts` の 27 分岐 switch の置換�
 
 - P7 が round-trip の serialize 側に、P8 が `SerializedStatement` に、P9 が span 解決
   対象テキストに使う。C1 で `dslSerializer.ts` の旧 switch を削除しこれに差し替える。
-- (完了時に追記)
+- `src/dsl/dslSerializeElement.ts` が `SerializedStatement`、block / logical serializer を
+  公開する。P1 registry と既存 `DslSerializerRefs` を使う未接続モジュールであり、既存
+  `dslSerializer.ts`、live parser、compiler、Rust、評価 payload からは import していない。
+- 全 27 要素型に加え、variable の expression / pointDistance / pointAngle /
+  pointLineDistance の 4 construction をテストした。expression はデフォルト時の短形式と、
+  非デフォルト共通属性時の `expression(...)` call 形式を固定している。
+- `npm test` / `npm run build` / `npm run lint` を green で確認した。Rust・parity 対象外。
