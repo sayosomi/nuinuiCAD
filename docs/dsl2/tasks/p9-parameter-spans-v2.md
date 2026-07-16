@@ -54,4 +54,71 @@ v2 論理テキスト上でパラメータ → 値 span を解決する registry
 
 - C1 が `dslParameterSpans.ts` の switch を削除し本実装を最終名で配線する。
   モジュール名の「V2」は C1 で除去(リネーム)する。
-- (完了時に追記)
+- `src/dsl/dslParameterSpansV2.ts` は依存グラフどおり P1(`argNameForParameter`)を
+  引数名⇄parameterKey の唯一の正として使うが、実装の土台には依存グラフ外の
+  P3 `dslCallParser.ts`(`parseDslCallStatement`)を採用した。P9 タスク文書は
+  「P2 スキャナを流用してよい」とのみ書いていたが、P3 は既に完了済みで
+  category/construction/名前/位置引数の解析と registry 突き合わせ済みの
+  `payloadSpans: Record<string, DslSpan>` を提供するため、これを土台にすると
+  P6 `applyArgs` が実際に値を書き込むのと同じ parse 結果を span 解決にも使う
+  ことになり、「ハイライト表示と実際に適用される値が一致する」という正しさが
+  構造的に保証される。P3 も他の P 群と同様に製品コードから import されていない
+  (確認済み)ため未接続方針には反しない。C1 実装者は `dslValueStep.ts` /
+  `dslCompletionMetadata.ts` / `sourceEditorController.ts` /
+  `sourceEditorPickSelection.ts` の import 元切替だけで配線できる。
+- 公開 API は `resolveParameterValueSpanV2` に加え、v1 の
+  `resolveParameterTargetAtV2` / `resolveParameterKeyForValueSpanV2` 相当も
+  同梱した(Alt+←/→・クリック選択が依存する「もっとも具体的な一致」解決)。
+  ロジックは v1 と同型の純粋な集合演算で、C1 の配線を「import 切替+旧ファイル
+  削除」に留めるための追加。
+- `DslParameterValueSpanV2.source` は v1 の `"name" | "payload" | "attr"` 3種
+  から `"name" | "arg"` 2種に簡略化した。v1 の `attr`/`payload` 区別は
+  `key=value` 属性構文と位置糖衣が併存した v1 文法特有のもので、v2 は
+  `key: value` 呼び出しに統一されたため対応概念がない。
+  `dslCompletionMetadata.ts` は現在 `span.source === "attr"` で「属性として
+  補完すべきパラメータ」を絞り込んでいる(v1 の `key=value` 属性構文専用の
+  区別)。C1 でこの import を切り替える際は、この絞り込みが v2 で何を意味す
+  べきか(削除するのか、別の基準に置き換えるのか)を再検討すること。
+- 意図的に解決不能な3種類のキー(P9 テストで固定して検証済み。生成した
+  populated/minimal fixture では非表示になるため一般則の対象外とした):
+  - `placementMode`(divisionPoint / lineDivisionPoint): 選択そのものは
+    テキスト上に存在しない(distance/ratio どちらが書かれているかから推論
+    される)。
+  - `distance` / `ratio` の非アクティブ側: P5 が `shouldSerializeConstructionArg`
+    で `element.placementMode` と一致する側だけを出力するため、非アクティブ側
+    はテキストに存在しない。手書きで両方書かれた場合でも
+    `element.placementMode` を優先し、非アクティブ側は無視するようにした
+    (テストで固定)。
+  - `scope`(variable の pointDistance/pointAngle/pointLineDistance 構成):
+    P1 registry を確認した結果、`scope` は `var/expression` の construction
+    spec にしか登録されておらず、他の3構成の args に含まれない。P5 は
+    これら3構成では `scope` を一切シリアライズしない(registry の既存挙動。
+    P9 では変更していない)。
+  - また、P5 は `locked`/`visible`/`enabled`/`colorId` を型ごとの
+    `getParameterDefinitions` に関わらず `CadElement` の実フィールド値が
+    非デフォルトなら出力する(例: `edge`/`extendTrim`/`move`/`symmetricMove`
+    は colorId を Inspector に公開しないが、色が設定されていれば
+    `color: …` は出力される。`variable` は `visible` を公開しないが、同様に
+    出力されうる)。これは型固有の欠落ではなく P5 の既存仕様なので、P9 の
+    テストではこの4キーを「必ずしも型固有 parameterKey に対応しない共通引数」
+    として区別して扱った。
+- v1 には無かったが P9 で新たに解決可能になったキー(v1 switch の対象外
+  だった、v1 に対する範囲拡大): variable の測定モード
+  (pointDistance/pointAngle/pointLineDistance)の `point1`/`point2`/
+  `point`/`lineId`。image の `sourcePath`/`naturalWidthPx`/`naturalHeightPx`/
+  `sourceDpi`/`targetPixelsPerMm`(P1 の引き継ぎで名指しされていた項目)。
+- テストは P7 の `v2CanonicalElementStatements`(全27要素型 + variable 4
+  construction、populated/minimal)を実際に `parseDslCallStatement` +
+  `applyArgs` で要素化し、双方向で検証する:
+  (1) 解析された `payloadSpans` の各引数名が何らかの parameterKey に
+  対応していること(populated が要求する「出力された全引数が解決できる」網羅)、
+  (2) `getParameterDefinitions` の各キーについて、対応する引数がテキストに
+  存在するときだけ解決できること(minimal が要求する「存在する引数は解決・
+  省略された引数は null」)。vars/intermediates レコードの中身と座標
+  `(x, y)` サブ span の中身は、P5 の `documentDslRefs`(`refs.numeric`/
+  `refs.anchor`)による独立した再シリアライズと突き合わせて検証した。
+  `line` の `startPoint`/`endPoint` が(Inspector の `allowCoordinate` 表示
+  ヒントに関わらず)座標リテラルを実際に受理・シリアライズすることを
+  `dslReferences.ts`/`dslSerializer.ts` で確認したうえで座標サブ span の
+  テストに使った。
+- `npm test` / `npm run build` / `npm run lint` は green。Rust・parity 対象外。
