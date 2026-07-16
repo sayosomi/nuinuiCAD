@@ -1,7 +1,7 @@
 # 抜本改善計画: DSLテキストを正とするUI・保存形式の刷新
 
-Status: Phase 0〜5 完了（2026-07-16）。Phase 5h の文書同期・フルチェックを完了し、
-review 境界 3 の全体レビュー待ち。各Phaseの実装記録は `docs/overhaul/tasks/` を参照。
+Status: Completed / Archived design plan
+Phase 0〜5は完了済み。今後の機能開発はROADMAP.mdおよび個別設計文書で管理する。
 
 ## Context
 

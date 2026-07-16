@@ -229,7 +229,7 @@ export const CanvasOverlay = ({
                 r={isPrimarySelected ? 3.5 : isSelected ? 3.25 : 6}
                 className={`overlay-draggable-point ${
                   isSelected ? "overlay-selected-point" : ""
-                } ${isPointPickActive ? "overlay-point-pick-candidate" : ""}`}
+                }`}
                 style={isSelected ? selectedPointStyle(point.elementId) : undefined}
               />
             </>

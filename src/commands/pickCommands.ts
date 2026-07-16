@@ -18,7 +18,12 @@ import {
   pickedPointAnchorForTargetForGroup
 } from "../model/forGroupGeneratedReferences";
 import { creationPlacementForEvaluationLimit } from "../model/elementCreationPlacement";
-import { pickCandidates, selectedPickOption } from "../model/pickCandidates";
+import {
+  pickCandidates,
+  selectedPickOption,
+  type PickOption
+} from "../model/pickCandidates";
+import { findPickOptionByRef, type PickRef } from "../model/pickReferences";
 import { referenceAnchor } from "../model/pointAnchors";
 import { findParameterDefinition } from "../parameters/parameterDefinitions";
 import { getParameterValue, setParameterValue } from "../parameters/parameterAccess";
@@ -33,7 +38,7 @@ import {
   templateNumericTargetContext
 } from "../templates/templateInsertionCommands";
 import { TEMPLATE_INSERTION_NUMERIC_TARGET_ID } from "../templates/templateInsertionMode";
-import type { ElementId } from "../types/geometry";
+import type { ElementId, EvaluationResult } from "../types/geometry";
 import type { NumericValue } from "../types/geometry";
 import type { CommandContext } from "./commandTypes";
 import {
@@ -487,7 +492,7 @@ export const cancelNumericReferencePick = () => {
   useCadUiStore.getState().setActiveNumericReferencePickTarget(null);
 };
 
-export const activePickCandidates = () => {
+export const activePickCandidates = (currentEvaluation?: EvaluationResult) => {
   const ui = useCadUiStore.getState();
   const {
     activePointPickTarget,
@@ -495,24 +500,45 @@ export const activePickCandidates = () => {
     activeLinePickTarget
   } = ui;
   const { elements, evaluationLimitIndex } = useCadDocumentStore.getState();
-  const commandLinePickParentGroupId = ui.commandLineSession
+  const commandLinePlacement = ui.commandLineSession
     ? creationPlacementForEvaluationLimit(
         elements,
         ui.commandLineSession.insertionIndex,
         ui.groupFoldById
-      ).parentGroupId
-    : undefined;
-  return pickCandidates(elements, evaluateElements(elements, { evaluationLimitIndex }), {
+      )
+    : null;
+  return pickCandidates(elements, currentEvaluation ?? evaluateElements(elements, { evaluationLimitIndex }), {
     activePointPickTarget,
     activeNumericReferencePickTarget,
     activeLinePickTarget,
     commandLineSession: ui.commandLineSession,
-    commandLinePickParentGroupId
+    commandLinePickParentGroupId: commandLinePlacement?.parentGroupId,
+    referenceElements: commandLinePlacement?.referenceElements
   });
 };
 
-export const selectPickCandidateByOffset = (offset: number) => {
-  const candidates = activePickCandidates();
+const applyPickOption = (option: PickOption) => {
+  if (option.kind === "point") {
+    applyPickedPoint({ pickedPointAnchor: option.anchor });
+    return;
+  }
+  if (option.kind === "line") {
+    applyPickedLine({ pickedLineId: option.lineId });
+    return;
+  }
+  applyPickedNumericReference({ numericReferenceExpression: option.expression });
+};
+
+export const applyPickReference = (ref: PickRef, currentEvaluation?: EvaluationResult) => {
+  if (cancelStaleCommandLineSession()) return false;
+  const resolved = findPickOptionByRef(activePickCandidates(currentEvaluation), ref);
+  if (!resolved) return false;
+  applyPickOption(resolved.option);
+  return true;
+};
+
+export const selectPickCandidateByOffset = (offset: number, currentEvaluation?: EvaluationResult) => {
+  const candidates = activePickCandidates(currentEvaluation);
   if (candidates.length === 0) {
     useCadUiStore.getState().setActivePickCursor(null);
     return;
@@ -534,7 +560,7 @@ export const selectPickCandidateByOffset = (offset: number) => {
   });
 };
 
-export const selectPickOptionByOffset = (offset: number) => {
+export const selectPickOptionByOffset = (offset: number, currentEvaluation?: EvaluationResult) => {
   const { activeNumericReferencePickTarget } = useCadUiStore.getState();
   if (activeNumericReferencePickTarget) {
     const currentIndex = numericReferencePickProperties.indexOf(activeNumericReferencePickTarget.property);
@@ -550,7 +576,7 @@ export const selectPickOptionByOffset = (offset: number) => {
     return;
   }
 
-  const candidates = activePickCandidates();
+  const candidates = activePickCandidates(currentEvaluation);
   const selected = selectedPickOption(candidates, useCadUiStore.getState().activePickCursor);
   if (!selected) {
     useCadUiStore.getState().setActivePickCursor(null);
@@ -565,24 +591,12 @@ export const selectPickOptionByOffset = (offset: number) => {
   });
 };
 
-export const applySelectedPickCandidate = () => {
-  const candidates = activePickCandidates();
+export const applySelectedPickCandidate = (currentEvaluation?: EvaluationResult) => {
+  const candidates = activePickCandidates(currentEvaluation);
   const selected = selectedPickOption(candidates, useCadUiStore.getState().activePickCursor);
   if (!selected) return;
 
-  if (selected.option.kind === "point") {
-    applyPickedPoint({ pickedPointAnchor: selected.option.anchor });
-    return;
-  }
-  if (selected.option.kind === "line") {
-    applyPickedLine({ pickedLineId: selected.option.lineId });
-    return;
-  }
-  if (selected.option.kind === "numericReference" || selected.option.kind === "variableReference") {
-    applyPickedNumericReference({
-      numericReferenceExpression: selected.option.expression
-    });
-  }
+  applyPickOption(selected.option);
 };
 
 export const startPointPick = (

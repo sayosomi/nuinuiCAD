@@ -11,6 +11,7 @@ import { dslCompletionMetadataForType, dslStatementElementType, type DslCompleti
 import { coordinateComponent, recordField, recordSpans, recordRemainder } from "./dslParameterSpans";
 import { dslVariableTokenEndingAt } from "./dslVariableToken";
 import { dslElementParameterTokenEndingAt } from "./dslElementParameterToken";
+import { splitDslTopLevelSpans } from "./dslParameterSpanScanner";
 import {
   placeCoordinateAttrKeys,
   placeNumericAttrKeys,
@@ -219,6 +220,23 @@ const lineHeadContext = (code: string, pos: number): DslCompletionContext | null
   return null;
 };
 
+const referenceCompletionSpan = (
+  code: string,
+  pos: number,
+  span: DslLabeledValueSpan,
+  kind: DslCompletionParameter["definition"]["kind"]
+) => {
+  if (kind !== "lineReferenceList" || code[span.start] !== "[" || code[span.end - 1] !== "]") {
+    return { from: span.start, to: pos };
+  }
+  const item = splitDslTopLevelSpans(
+    code,
+    { start: span.start + 1, end: span.end - 1 },
+    ","
+  ).find((candidate) => pos >= candidate.start && pos <= candidate.end);
+  return item ? { from: item.start, to: pos } : { from: pos, to: pos };
+};
+
 /**
  * Resolves only from a freshly reparsed live line. Erroring lines deliberately
  * receive at most line-head keyword completion; no partial DSL parser exists
@@ -255,7 +273,11 @@ export const dslCompletionContextAt = (lineText: string, pos: number): DslComple
       const coordinateContext = dslCoordinateLiteralCompletionContext(code, pos, span, parameter);
       return coordinateContext !== undefined ? coordinateContext : { kind: "parameter", from: span.start, to: pos, parameter };
     }
-    return { kind: "parameter", from: span.start, to: pos, parameter };
+    return {
+      kind: "parameter",
+      ...referenceCompletionSpan(code, pos, span, parameter.definition.kind),
+      parameter
+    };
   }
 
   const term = termAt(code, pos);

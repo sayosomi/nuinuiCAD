@@ -53,6 +53,94 @@ describe("createDslCompletionSource", () => {
     expect(result?.options.map((option) => option.label)).toContain("point");
   });
 
+  it("passes only the shared ranked top eight to CodeMirror without re-filtering", async () => {
+    const source = [
+      "nui 1",
+      ...Array.from({ length: 10 }, (_, index) => `point P${index} = (${index}, 0)`),
+      "line L = P -> P0"
+    ].join("\n");
+    const { elements, statementRanges, printLayouts, printLayoutRanges } = identities(source);
+    const state = EditorState.create({ doc: source });
+    const pos = source.lastIndexOf("P ->") + 1;
+    const completionSource = createDslCompletionSource({
+      elements: () => elements,
+      statementRanges: () => statementRanges,
+      printLayouts: () => printLayouts,
+      printLayoutRanges: () => printLayoutRanges,
+      isComposing: () => false,
+      computedVariables: () => undefined,
+      computedGeometry: () => undefined,
+      effectiveEnabledElementIds: () => undefined,
+      evaluationErrors: () => undefined
+    });
+
+    const result = await Promise.resolve(completionSource({ state, pos, explicit: true } as never));
+    expect(result?.filter).toBe(false);
+    expect(result?.options.map((option) => option.label)).toEqual(
+      Array.from({ length: 8 }, (_, index) => `P${index}`)
+    );
+  });
+
+  it("replaces only the current line-list item and preserves shared candidate order", async () => {
+    const source = [
+      "nui 1",
+      "point A = (0, 0)",
+      "point B = (10, 0)",
+      "line First = A -> B",
+      "line Second = A -> B",
+      "line O = offset [First,Sec] distance=4 side=left"
+    ].join("\n");
+    const { elements, statementRanges, printLayouts, printLayoutRanges } = identities(source);
+    const state = EditorState.create({ doc: source });
+    const tokenStart = source.lastIndexOf("Sec");
+    const pos = tokenStart + 3;
+    const completionSource = createDslCompletionSource({
+      elements: () => elements,
+      statementRanges: () => statementRanges,
+      printLayouts: () => printLayouts,
+      printLayoutRanges: () => printLayoutRanges,
+      isComposing: () => false,
+      computedVariables: () => undefined,
+      computedGeometry: () => undefined,
+      effectiveEnabledElementIds: () => undefined,
+      evaluationErrors: () => undefined
+    });
+
+    const result = await Promise.resolve(completionSource({ state, pos, explicit: true } as never));
+    expect(result?.from).toBe(tokenStart);
+    expect(result?.to).toBe(pos);
+    expect(result?.options.map((option) => option.label)).toEqual(["Second"]);
+  });
+
+  it("does not offer a line already selected in another line-list item", async () => {
+    const source = [
+      "nui 1",
+      "point A = (0, 0)",
+      "point B = (10, 0)",
+      "line First = A -> B",
+      "line Second = A -> B",
+      "line O = offset [First,Fir] distance=4 side=left"
+    ].join("\n");
+    const { elements, statementRanges, printLayouts, printLayoutRanges } = identities(source);
+    const state = EditorState.create({ doc: source });
+    const tokenStart = source.lastIndexOf("Fir");
+    const pos = tokenStart + 3;
+    const completionSource = createDslCompletionSource({
+      elements: () => elements,
+      statementRanges: () => statementRanges,
+      printLayouts: () => printLayouts,
+      printLayoutRanges: () => printLayoutRanges,
+      isComposing: () => false,
+      computedVariables: () => undefined,
+      computedGeometry: () => undefined,
+      effectiveEnabledElementIds: () => undefined,
+      evaluationErrors: () => undefined
+    });
+
+    const result = await Promise.resolve(completionSource({ state, pos, explicit: true } as never));
+    expect(result?.options ?? []).toEqual([]);
+  });
+
   it("offers @name variable completions for a number-kind field with a live @ prefix", async () => {
     const source = ["nui 1", "var Width = 10", "point P = offset A dx=10+@Wi"].join("\n");
     const { elements, ids } = identities(source);

@@ -106,6 +106,7 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
   if (!completionContext) return null;
 
   let completions: Completion[];
+  let preservesSharedReferenceRanking = false;
   if (completionContext.kind === "keyword") {
     completions = completionContext.options.map((label) => ({ label, type: "keyword" }));
   } else if (completionContext.kind === "attribute") {
@@ -196,13 +197,27 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
     });
     completions = asVariableCompletions([...localOptions, ...topLevelOptions]);
   } else {
+    const query = input.lineText.slice(completionContext.from, input.localPos);
+    if (!query.trim()) return null;
+    preservesSharedReferenceRanking = true;
     completions = dslReferenceCompletionOptions({
       source: input.source,
       cursorLine: input.cursorLineNumber,
       kind: completionContext.parameter.definition.kind,
+      parameterKey: completionContext.parameter.key,
+      query,
+      replacementFrom: completionContext.from,
       statementElementIds: statementElementIdsByLiveLine(input.doc, options.statementRanges()),
-      elements: options.elements()
-    }).map((option) => ({ label: option.label, detail: option.detail, type: "variable" }));
+      elements: options.elements(),
+      computedGeometry: options.computedGeometry(),
+      effectiveEnabledElementIds: options.effectiveEnabledElementIds(),
+      errors: options.evaluationErrors()
+    }).map((option) => ({
+      label: option.displayLabel,
+      apply: option.label,
+      detail: option.detail,
+      type: "variable"
+    }));
   }
   if (completions.length === 0 && !context.explicit) return null;
   const base = context.pos - input.localPos;
@@ -210,7 +225,9 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
     from: base + completionContext.from,
     to: base + completionContext.to,
     options: completions,
-    validFor: /^[^\s#]*$/
+    ...(preservesSharedReferenceRanking
+      ? { filter: false as const }
+      : { validFor: /^[^\s#]*$/ })
   };
 };
 

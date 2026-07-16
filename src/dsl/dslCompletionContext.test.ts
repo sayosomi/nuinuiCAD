@@ -29,6 +29,17 @@ describe("dslCompletionContextAt", () => {
     expect(dslCompletionContextAt(attribute, at(attribute, "vis"))).toMatchObject({ kind: "attribute", elementType: "arcLine" });
   });
 
+  it("narrows line-list completion to the current item for safe re-editing", () => {
+    const line = "line O = offset [First,Sec] distance=4 side=left";
+    const context = dslCompletionContextAt(line, at(line, "Sec"));
+    expect(context).toMatchObject({
+      kind: "parameter",
+      from: line.indexOf("Sec"),
+      to: at(line, "Sec"),
+      parameter: { definition: { kind: "lineReferenceList" } }
+    });
+  });
+
   it("keeps group-opening attributes eligible through the shared synthetic-close reparse", () => {
     const line = "group Draft printEnabled=true {";
     expect(dslCompletionContextAt(line, line.indexOf("true") + 2)).toMatchObject({

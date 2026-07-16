@@ -69,17 +69,20 @@ describe("dslReferenceCompletionOptions", () => {
     expect(options).toEqual([]);
   });
 
-  it("records a loose 1000-element candidate-generation guard", () => {
+  it("returns only the stable top eight for a 1000-element document", () => {
     const source = ["nui 1", ...Array.from({ length: 1000 }, (_, index) => `point P${index} = (${index}, 0)`)].join("\n");
     const { elements, ids } = identities(source);
-    const durations = Array.from({ length: 5 }, () => {
-      const started = performance.now();
-      dslReferenceCompletionOptions({ source, cursorLine: 1002, kind: "reference", statementElementIds: ids, elements });
-      return performance.now() - started;
-    }).sort((left, right) => left - right);
-    const median = durations[Math.floor(durations.length / 2)];
-    console.log(`[Phase 4h perf] 1000 element reference candidates: median=${median.toFixed(2)}ms`);
-    expect(Number.isFinite(median)).toBe(true);
-    expect(median).toBeLessThan(1000);
+    const options = dslReferenceCompletionOptions({
+      source,
+      cursorLine: 1002,
+      kind: "reference",
+      query: "P",
+      statementElementIds: ids,
+      elements
+    });
+    expect(options).toHaveLength(8);
+    expect(options.map((option) => option.label)).toEqual(
+      Array.from({ length: 8 }, (_, index) => `P${index}`)
+    );
   }, 20_000);
 });

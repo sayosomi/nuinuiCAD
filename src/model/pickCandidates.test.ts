@@ -133,6 +133,35 @@ const virtualCommandLineSession = (type: "line" | "lineDivisionPoint", insertion
   });
 
 describe("pickCandidates", () => {
+  it("uses referenceElements as the authoritative source pool and preserves enabled fallback semantics", () => {
+    const hiddenPoint = { ...elements[0], visible: false } as CadElement;
+    const sourceElements = [hiddenPoint, ...elements.slice(1)];
+    const target = {
+      activePointPickTarget: {
+        elementId: "target",
+        parameterKey: "fromPoint",
+      },
+      activeLinePickTarget: null,
+      activeNumericReferencePickTarget: null,
+      referenceElements: [hiddenPoint]
+    } as const;
+    const withDiagnostic = {
+      ...evaluation,
+      errors: [{ elementId: "a", message: "non-fatal diagnostic" }] as never
+    };
+
+    expect(pickCandidates(sourceElements, withDiagnostic, target).map((candidate) => candidate.elementId))
+      .toEqual(["a"]);
+    expect(pickCandidates(sourceElements, {
+      ...withDiagnostic,
+      effectiveEnabledElementIds: new Set()
+    }, target)).toEqual([]);
+    expect(pickCandidates(sourceElements, {
+      ...withDiagnostic,
+      effectiveEnabledElementIds: new Set(["a"])
+    }, target).map((candidate) => candidate.elementId)).toEqual(["a"]);
+  });
+
   it("includes unnamed sources for command-line and existing virtual pick targets", () => {
     const unnamedLine: CadElement = {
       id: "unnamed-line",

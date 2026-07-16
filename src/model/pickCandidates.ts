@@ -74,7 +74,23 @@ type PickTargets = {
    * deliberately retain their candidate set and ordering unchanged. */
   commandLineSession?: CommandLineSession | null;
   commandLinePickParentGroupId?: ElementId;
+  /** Creation placement / live DSL scope is authoritative when supplied. */
+  referenceElements?: readonly CadElement[];
 };
+
+const eligibleReferenceElements = (
+  elements: CadElement[],
+  referenceElements: readonly CadElement[] | undefined,
+  targetElementId: ElementId,
+  targetInsertionIndex?: number
+) => referenceElements ?? elements.filter((element) =>
+  pickSourcePrecedesTarget(elements, targetElementId, element.id, targetInsertionIndex)
+);
+
+/** Missing effective-enabled metadata preserves the established computed-
+ * geometry fallback. It is intentionally not a fail-closed condition. */
+const isEnabledPickSource = (evaluation: EvaluationResult, elementId: ElementId) =>
+  evaluation.effectiveEnabledElementIds?.has(elementId) ?? true;
 
 /** A construction may only pick geometry that is available earlier in document
  * order. Virtual targets that are not in the document yet (template insertion,
@@ -114,7 +130,8 @@ const pointCandidates = (
   evaluation: EvaluationResult,
   activePointPickTarget: ActivePointPickTarget,
   commandLineSession?: CommandLineSession | null,
-  commandLinePickParentGroupId?: ElementId
+  commandLinePickParentGroupId?: ElementId,
+  referenceElements?: readonly CadElement[]
 ): PickCandidate[] => {
   const targetElement = elements.find((element) => element.id === activePointPickTarget.elementId);
   const targetDefinition = targetElement
@@ -140,15 +157,13 @@ const pointCandidates = (
       allowLineEndpoint: isLineEndpointPointPick
     });
 
-  return elements
-    .filter((element) =>
-      pickSourcePrecedesTarget(
-        elements,
-        activePointPickTarget.elementId,
-        element.id,
-        activePointPickTarget.insertionIndex
-      )
-    )
+  return eligibleReferenceElements(
+    elements,
+    referenceElements,
+    activePointPickTarget.elementId,
+    activePointPickTarget.insertionIndex
+  )
+    .filter((element) => isEnabledPickSource(evaluation, element.id))
     .map((element) => {
       const selectablePoints = selectablePointsForElement(
         element,
@@ -186,7 +201,8 @@ const pointCandidates = (
 const lineCandidates = (
   elements: CadElement[],
   evaluation: EvaluationResult,
-  activeLinePickTarget: ActiveLinePickTarget
+  activeLinePickTarget: ActiveLinePickTarget,
+  referenceElements?: readonly CadElement[]
 ): PickCandidate[] => {
   const targetElement = elements.find((element) => element.id === activeLinePickTarget.elementId);
   const parameterValue = activeLinePickTarget.draftLineIds ?? (targetElement
@@ -198,16 +214,16 @@ const lineCandidates = (
       : []
   );
 
-  return elements
+  return eligibleReferenceElements(
+    elements,
+    referenceElements,
+    activeLinePickTarget.elementId,
+    activeLinePickTarget.insertionIndex
+  )
     .filter(
       (element) =>
         isLineLikeElement(element) &&
-        pickSourcePrecedesTarget(
-          elements,
-          activeLinePickTarget.elementId,
-          element.id,
-          activeLinePickTarget.insertionIndex
-        ) &&
+        isEnabledPickSource(evaluation, element.id) &&
         evaluation.computedGeometry.has(element.id) &&
         (activeLinePickTarget.draftLineIds !== undefined || !selectedLineIds.has(element.id))
     )
@@ -282,11 +298,17 @@ export const pickCandidates = (
       evaluation,
       targets.activePointPickTarget,
       targets.commandLineSession,
-      targets.commandLinePickParentGroupId
+      targets.commandLinePickParentGroupId,
+      targets.referenceElements
     );
   }
   if (targets.activeLinePickTarget) {
-    return lineCandidates(elements, evaluation, targets.activeLinePickTarget);
+    return lineCandidates(
+      elements,
+      evaluation,
+      targets.activeLinePickTarget,
+      targets.referenceElements
+    );
   }
   if (targets.activeNumericReferencePickTarget) {
     return numericReferenceCandidates(

@@ -8,6 +8,8 @@ import {
   startCommandLineCreation,
   startCommandLineStepEdit
 } from "../commands/commandLineSessionCommands";
+import { activePickCandidates, applyPickReference } from "../commands/pickCommands";
+import { pickRefForOption } from "../model/pickReferences";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import { CommandLineBar } from "./CommandLineBar";
@@ -97,14 +99,16 @@ describe("CommandLineBar", () => {
     act(() => { startCommandLineCreation("line"); });
     const input = screen.getByRole<HTMLInputElement>("textbox");
     const form = input.closest("form")!;
-    expect(screen.getByRole("listbox", { name: "参照候補" })).toHaveTextContent("A");
-    expect(screen.getByRole("listbox", { name: "参照候補" })).not.toHaveTextContent("point-");
+    expect(screen.queryByRole("listbox", { name: "参照候補" })).not.toBeInTheDocument();
+    expect(screen.getByText("Canvasで選択できます")).toBeInTheDocument();
 
     fireEvent.submit(form);
     expect(useCadUiStore.getState().commandLineSession?.args.startPoint).toEqual({ mode: "reference", pointId: pointB.id });
 
-    fireEvent.keyDown(input, { key: "ArrowDown" });
-    fireEvent.submit(form);
+    fireEvent.change(input, { target: { value: "A" } });
+    expect(screen.getByRole("listbox", { name: "参照候補" })).toHaveTextContent("A");
+    expect(screen.getByRole("listbox", { name: "参照候補" })).not.toHaveTextContent("point-");
+    fireEvent.keyDown(input, { key: "Enter" });
     expect(useCadUiStore.getState().commandLineSession?.args.endPoint).toEqual({ mode: "reference", pointId: pointA.id });
   });
 
@@ -162,8 +166,10 @@ describe("CommandLineBar", () => {
     act(() => { startCommandLineCreation("line", { currentCursorElementId: () => "inside" }); });
     const input = screen.getByRole<HTMLInputElement>("textbox");
     const form = input.closest("form")!;
+    fireEvent.change(input, { target: { value: "先頭" } });
     expect(screen.getByRole("listbox", { name: "参照候補" })).toHaveTextContent("先頭点");
 
+    fireEvent.change(input, { target: { value: "" } });
     fireEvent.keyDown(input, { key: "ArrowDown" });
     expect(useCadUiStore.getState().activePickCursor).toMatchObject({ elementId: "first-point" });
     fireEvent.submit(form);
@@ -351,6 +357,81 @@ describe("CommandLineBar", () => {
 
     expect(useCadUiStore.getState().commandLineSession).toBeNull();
     expect(useCadUiStore.getState().activePointPickTarget).toBeNull();
+  });
+
+  it("switches between empty Canvas cycling and non-empty text completion after full deletion", () => {
+    useCadDocumentStore.getState().commitText([
+      "nui 1",
+      "point A = (0, 0)",
+      "point B = (10, 0)"
+    ].join("\n"), "test");
+    render(<CommandLineBar />);
+    act(() => { startCommandLineCreation("line"); });
+    const input = screen.getByRole<HTMLInputElement>("textbox");
+
+    expect(screen.queryByRole("listbox", { name: "参照候補" })).toBeNull();
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    expect(useCadUiStore.getState().activePickCursor).not.toBeNull();
+
+    fireEvent.change(input, { target: { value: "B" } });
+    expect(useCadUiStore.getState().activePickCursor).toBeNull();
+    expect(screen.getByRole("listbox", { name: "参照候補" })).toHaveTextContent("B");
+
+    fireEvent.change(input, { target: { value: "" } });
+    expect(screen.queryByRole("listbox", { name: "参照候補" })).toBeNull();
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    expect(useCadUiStore.getState().activePickCursor).not.toBeNull();
+  });
+
+  it("suppresses Tab focus movement and applies the active text completion", () => {
+    useCadDocumentStore.getState().commitText(["nui 1", "point A = (0, 0)"].join("\n"), "test");
+    render(<CommandLineBar />);
+    act(() => { startCommandLineCreation("line"); });
+    const input = screen.getByRole<HTMLInputElement>("textbox");
+    fireEvent.change(input, { target: { value: "A" } });
+
+    expect(fireEvent.keyDown(input, { key: "Tab" })).toBe(false);
+    expect(useCadUiStore.getState().commandLineSession?.args.startPoint).toMatchObject({ mode: "reference" });
+    expect(input).toHaveFocus();
+  });
+
+  it("does not treat IME Enter, Tab, arrows, Escape, or Mod+Enter as assistant operations", () => {
+    useCadDocumentStore.getState().commitText(["nui 1", "point A = (0, 0)"].join("\n"), "test");
+    render(<CommandLineBar />);
+    act(() => { startCommandLineCreation("line"); });
+    const input = screen.getByRole<HTMLInputElement>("textbox");
+    fireEvent.change(input, { target: { value: "A" } });
+    const session = useCadUiStore.getState().commandLineSession;
+    fireEvent.compositionStart(input);
+
+    for (const init of [
+      { key: "Enter" },
+      { key: "Tab" },
+      { key: "ArrowDown" },
+      { key: "ArrowUp" },
+      { key: "Escape" },
+      { key: "Enter", metaKey: true }
+    ]) {
+      expect(fireEvent.keyDown(input, { ...init, isComposing: true, keyCode: 229 })).toBe(true);
+    }
+    expect(useCadUiStore.getState().commandLineSession).toBe(session);
+    expect(useCadUiStore.getState().activePickCursor).toBeNull();
+
+    fireEvent.compositionEnd(input);
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(useCadUiStore.getState().commandLineSession?.args.startPoint).toMatchObject({ mode: "reference" });
+  });
+
+  it("rejects a stable pick reference after the creation session becomes stale", () => {
+    useCadDocumentStore.getState().commitText(["nui 1", "point A = (0, 0)"].join("\n"), "test");
+    act(() => { startCommandLineCreation("line"); });
+    const candidate = activePickCandidates()[0];
+    const option = candidate.options[0];
+    const ref = pickRefForOption(candidate.elementId, option);
+    useCadDocumentStore.setState((state) => ({ sourceRevision: state.sourceRevision + 1 }));
+
+    expect(applyPickReference(ref)).toBe(false);
+    expect(useCadUiStore.getState().commandLineSession).toBeNull();
   });
 
   it("uses Escape during a mid-session edit to abandon only that edit", async () => {

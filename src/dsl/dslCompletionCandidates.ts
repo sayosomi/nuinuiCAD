@@ -1,15 +1,27 @@
-import { elementNameTokensForContext } from "../model/elementNames";
-import { isLineLikeElement, isPointElement } from "../model/pointAnchors";
-import type { CadElement, ElementId } from "../types/geometry";
-import { formatDslReferenceToken } from "./dslReferenceTokens";
+import { evaluateElements } from "../geometry/evaluate";
+import { resolveElementNamePath } from "../model/elementNames";
+import { pickCandidates } from "../model/pickCandidates";
+import type { PickRef } from "../model/pickReferences";
+import { rankedReferenceSuggestions, referenceSuggestions } from "../model/referenceSuggestions";
+import type {
+  CadElement,
+  ComputedGeometry,
+  DependencyError,
+  ElementId
+} from "../types/geometry";
 import { dslScopeBeforeParsedLine, isElementDslStatement, parseDsl } from "./dslParser";
 import type { ParseDslResult } from "./dslTypes";
 import type { ParameterValueKind } from "../parameters/parameterDefinitions";
 import { dslStatementElementType } from "./dslCompletionMetadata";
+import { splitDslTopLevelSpans } from "./dslParameterSpanScanner";
+import { parseDslReferenceToken } from "./dslReferenceTokens";
+import { dslLineLabeledValueSpans } from "./dslValueSpans";
 
 export type DslReferenceCompletionOption = {
   label: string;
+  displayLabel: string;
   detail: string;
+  pickRef: PickRef;
 };
 
 export type DslLiveStatementIdentity = ReadonlyMap<number, ElementId>;
@@ -58,14 +70,26 @@ export const dslReferenceCompletionOptions = ({
   source,
   cursorLine,
   kind,
+  parameterKey,
+  query,
+  replacementFrom,
   statementElementIds,
-  elements
+  elements,
+  computedGeometry,
+  effectiveEnabledElementIds,
+  errors
 }: {
   source: string;
   cursorLine: number;
   kind: ParameterValueKind;
+  parameterKey?: string;
+  query?: string;
+  replacementFrom?: number;
   statementElementIds: DslLiveStatementIdentity;
   elements: readonly CadElement[];
+  computedGeometry?: Map<ElementId, ComputedGeometry>;
+  effectiveEnabledElementIds?: Set<ElementId>;
+  errors?: DependencyError[];
 }): DslReferenceCompletionOption[] => {
   if (!referenceKind(kind)) return [];
   const parsed = parseDsl(source);
@@ -75,22 +99,71 @@ export const dslReferenceCompletionOptions = ({
   if (scopeStatement && !parentGroupId) return [];
 
   const live = liveElementsBeforeLine(parsed, cursorLine, statementElementIds, elements);
-  const tokens = elementNameTokensForContext({
+  const fallbackEvaluation = computedGeometry ? null : evaluateElements([...elements]);
+  const evaluation = {
+    computedGeometry: computedGeometry ?? fallbackEvaluation!.computedGeometry,
+    computedVariables: new Map(),
+    effectiveEnabledElementIds: effectiveEnabledElementIds ?? fallbackEvaluation?.effectiveEnabledElementIds,
+    errors: errors ?? fallbackEvaluation?.errors ?? [],
+    warnings: []
+  };
+  const targetElementId = statementElementIds.get(cursorLine) ?? "__dsl-reference-completion__";
+  const candidates = pickCandidates([...elements], evaluation, {
+    activePointPickTarget: kind === "reference" || kind === "lineEndpointReference"
+      ? {
+          elementId: targetElementId,
+          parameterKey: parameterKey ?? "__reference__",
+          insertionIndex: live.length
+        }
+      : null,
+    activeLinePickTarget: kind === "lineReference" || kind === "lineReferenceList"
+      ? {
+          elementId: targetElementId,
+          parameterKey: parameterKey ?? "__line__",
+          insertionIndex: live.length,
+          ...(kind === "lineReferenceList" ? { draftLineIds: [] } : {})
+        }
+      : null,
+    activeNumericReferencePickTarget: null,
+    referenceElements: live
+  });
+  const suggestions = referenceSuggestions({
+    candidates,
     elements: live,
     currentElement: { parentGroupId }
   });
-  const options = new Map<string, DslReferenceCompletionOption>();
-  for (const { token, element } of tokens) {
-    const name = formatDslReferenceToken(token);
-    const add = (label: string, detail: string) => options.set(label, { label, detail });
-    if (kind === "reference" && isPointElement(element)) add(name, "point");
-    if (kind === "lineReference" || kind === "lineReferenceList") {
-      if (isLineLikeElement(element)) add(name, kind === "lineReferenceList" ? "line list" : "line");
+  const selectedOtherLineIds = (() => {
+    if (kind !== "lineReferenceList" || replacementFrom === undefined || !parameterKey) return new Set<ElementId>();
+    const lineText = source.split(/\r?\n/)[cursorLine - 1] ?? "";
+    const span = dslLineLabeledValueSpans(lineText).find((item) => item.key === parameterKey);
+    if (!span || lineText[span.start] !== "[" || lineText[span.end - 1] !== "]") return new Set<ElementId>();
+    const ids = new Set<ElementId>();
+    for (const item of splitDslTopLevelSpans(
+      lineText,
+      { start: span.start + 1, end: span.end - 1 },
+      ","
+    )) {
+      if (item.start === replacementFrom) continue;
+      const parsedToken = parseDslReferenceToken(lineText.slice(item.start, item.end));
+      const resolution = resolveElementNamePath({
+        path: { absolute: parsedToken.absolute, parts: parsedToken.segments },
+        elements: live,
+        currentElement: { parentGroupId }
+      });
+      if (resolution.status === "resolved") ids.add(resolution.element.id);
     }
-    if ((kind === "reference" || kind === "lineEndpointReference") && isLineLikeElement(element)) {
-      add(`${name}.start`, "line start");
-      add(`${name}.end`, "line end");
-    }
-  }
-  return [...options.values()].sort((left, right) => left.label.localeCompare(right.label, "ja"));
+    return ids;
+  })();
+  const selectableSuggestions = suggestions.filter((suggestion) =>
+    suggestion.pickRef.kind !== "line" || !selectedOtherLineIds.has(suggestion.pickRef.lineId)
+  );
+  const ranked = query === undefined
+    ? selectableSuggestions
+    : rankedReferenceSuggestions(selectableSuggestions, query, 8);
+  return ranked.map((suggestion) => ({
+    label: suggestion.canonicalToken,
+    displayLabel: suggestion.displayLabel,
+    detail: suggestion.detail,
+    pickRef: suggestion.pickRef
+  }));
 };

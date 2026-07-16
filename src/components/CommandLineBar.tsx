@@ -18,13 +18,18 @@ import {
 import { currentStep, isEditingCommandLineStep } from "../commands/commandLineSession";
 import {
   activePickCandidates,
+  applyPickReference,
   applySelectedPickCandidate,
   finishLinePick,
   selectPickCandidateByOffset,
   selectPickOptionByOffset
 } from "../commands/pickCommands";
-import { elementQualifiedName } from "../model/elementNames";
 import { creationPlacementForEvaluationLimit } from "../model/elementCreationPlacement";
+import {
+  rankedReferenceSuggestions,
+  referenceSuggestions,
+  type ReferenceSuggestion
+} from "../model/referenceSuggestions";
 import { numericVariableReferenceOptionsForPosition } from "../geometry/variableReferenceOptions";
 import { elementParameterReferenceOptionsForPosition } from "../geometry/elementParameterReferenceOptions";
 import {
@@ -54,18 +59,15 @@ type CommandLineBarProps = {
   evaluation?: EvaluationResult;
 };
 
-type NameSuggestion = {
-  value: string;
-  elementId: string;
-  optionIndex: number;
-};
-
 export const CommandLineBar = ({ commandContext, evaluation }: CommandLineBarProps) => {
   const session = useCadUiStore((state) => state.commandLineSession);
   const sourceRevision = useCadDocumentStore((state) => state.sourceRevision);
   const elements = useCadDocumentStore((state) => state.elements);
   const selectedElementId = useCadUiStore((state) => state.selectedElementId);
   const activePickCursor = useCadUiStore((state) => state.activePickCursor);
+  const lineListDraftSignature = useCadUiStore((state) =>
+    state.activeLinePickTarget?.draftLineIds?.join("\0") ?? ""
+  );
   const groupFoldById = useCadUiStore((state) => state.groupFoldById);
   const inputRef = useRef<HTMLInputElement>(null);
   const confirmButtonRef = useRef<HTMLButtonElement>(null);
@@ -75,11 +77,13 @@ export const CommandLineBar = ({ commandContext, evaluation }: CommandLineBarPro
   const [numberSuggestionSelection, setNumberSuggestionSelection] =
     useState<{ start: number | null; end: number | null }>({ start: null, end: null });
   const [numberSuggestionActiveIndex, setNumberSuggestionActiveIndex] = useState(0);
+  const [referenceSuggestionActiveIndex, setReferenceSuggestionActiveIndex] = useState(0);
+  const [referenceInputComposing, setReferenceInputComposing] = useState(false);
   const step = currentStep(session);
   const isEditing = session ? isEditingCommandLineStep(session) : false;
   const stepKey = step && step.kind !== "name" ? step.key : null;
   const stepIdentity = session
-    ? `${session.startedAtRevision}:${session.currentStepIndex}:${session.editingStepIndex ?? "new"}:${stepKey ?? "name"}`
+    ? `${session.startedAtRevision}:${session.currentStepIndex}:${session.editingStepIndex ?? "new"}:${stepKey ?? "name"}:${step?.kind === "lineList" ? lineListDraftSignature : ""}`
     : "";
   const inputValue = inputState.step === stepIdentity
     ? inputState.value
@@ -151,28 +155,34 @@ export const CommandLineBar = ({ commandContext, evaluation }: CommandLineBarPro
       setNumberSuggestionSelection({ start: nextCursor, end: nextCursor });
     });
   };
-  const candidates = useMemo(
-    () => session && isCommandLineReferenceStep(step?.kind) ? activePickCandidates() : [],
-    [session, step?.kind]
+  const referencePlacement = useMemo(
+    () => session && isCommandLineReferenceStep(step?.kind)
+      ? creationPlacementForEvaluationLimit(elements, session.insertionIndex, groupFoldById)
+      : null,
+    [elements, groupFoldById, session, step?.kind]
   );
-  const suggestions = useMemo<NameSuggestion[]>(() => {
+  const candidates = useMemo(
+    () => {
+      void lineListDraftSignature;
+      return session && isCommandLineReferenceStep(step?.kind) ? activePickCandidates(evaluation) : [];
+    },
+    [evaluation, lineListDraftSignature, session, step?.kind]
+  );
+  const suggestions = useMemo<ReferenceSuggestion[]>(() => {
     if (!session || !isCommandLineReferenceStep(step?.kind)) return [];
-    return candidates.flatMap((candidate) => {
-      const element = elements.find((item) => item.id === candidate.elementId);
-      if (!element) return [];
-      const qualifiedName = elementQualifiedName(element, elements);
-      return candidate.options.map((option, optionIndex) => ({
-        value: candidate.options.length === 1 ? qualifiedName : `${qualifiedName} ${option.label}`,
-        elementId: candidate.elementId,
-        optionIndex
-      }));
+    return referenceSuggestions({
+      candidates,
+      elements: referencePlacement?.referenceElements ?? elements,
+      currentElement: { parentGroupId: referencePlacement?.parentGroupId }
     });
-  }, [candidates, elements, session, step?.kind]);
+  }, [candidates, elements, referencePlacement, session, step?.kind]);
   const visibleSuggestions = useMemo(() => {
-    const query = inputValue.trim().toLocaleLowerCase();
-    if (!query) return suggestions.slice(0, 8);
-    return suggestions.filter((item) => item.value.toLocaleLowerCase().includes(query)).slice(0, 8);
-  }, [inputValue, suggestions]);
+    if (referenceInputComposing) return [];
+    return rankedReferenceSuggestions(suggestions, inputValue, 8);
+  }, [inputValue, referenceInputComposing, suggestions]);
+  const selectedReferenceSuggestionIndex = visibleSuggestions.length === 0
+    ? 0
+    : Math.min(referenceSuggestionActiveIndex, visibleSuggestions.length - 1);
   const completedSteps = useMemo(
     () => session ? completedCommandLineSteps(session, elements) : [],
     [elements, session]
@@ -218,11 +228,7 @@ export const CommandLineBar = ({ commandContext, evaluation }: CommandLineBarPro
     if (inputValue.trim() || activePickCursor) return null;
     const selected = candidates.find((candidate) => candidate.elementId === selectedElementId);
     if (!selected) return null;
-    const element = elements.find((item) => item.id === selected.elementId);
-    if (!element) return null;
-    const qualifiedName = elementQualifiedName(element, elements);
-    const option = selected.options[0];
-    return selected.options.length === 1 || !option ? qualifiedName : `${qualifiedName} ${option.label}`;
+    return suggestions.find((suggestion) => suggestion.pickRef.candidateElementId === selected.elementId)?.displayLabel ?? null;
   })();
   const placeholder = step?.kind === "name"
     ? session.nameSuggestion
@@ -232,37 +238,31 @@ export const CommandLineBar = ({ commandContext, evaluation }: CommandLineBarPro
         ? "候補名を入力"
         : "値または式を入力";
 
-  const applySuggestion = (suggestion: NameSuggestion) => {
-    useCadUiStore.getState().setActivePickCursor({
-      elementId: suggestion.elementId,
-      optionIndex: suggestion.optionIndex
-    });
-    applySelectedPickCandidate();
+  const applySuggestion = (suggestion: ReferenceSuggestion) => {
+    applyPickReference(suggestion.pickRef, evaluation);
     setInputValue("");
+    setReferenceSuggestionActiveIndex(0);
   };
 
   const submitReferenceInput = () => {
     if (!step || !isCommandLineReferenceStep(step.kind)) return false;
     const query = inputValue.trim();
     if (query) {
-      const exact = suggestions.find((item) => item.value === query);
-      const uniquePartial = visibleSuggestions.length === 1 ? visibleSuggestions[0] : null;
-      if (!exact && !uniquePartial) return false;
-      applySuggestion(exact ?? uniquePartial!);
+      const suggestion = visibleSuggestions[selectedReferenceSuggestionIndex];
+      if (!suggestion) return false;
+      applySuggestion(suggestion);
       return true;
     }
     if (activePickCursor) {
-      applySelectedPickCandidate();
+      applySelectedPickCandidate(evaluation);
       setInputValue("");
       return true;
     }
     const selected = candidates.find((candidate) => candidate.elementId === selectedElementId);
     if (!selected) return false;
-    applySuggestion({
-      value: "",
-      elementId: selected.elementId,
-      optionIndex: 0
-    });
+    const suggestion = suggestions.find((item) => item.pickRef.candidateElementId === selected.elementId);
+    if (!suggestion) return false;
+    applySuggestion(suggestion);
     return true;
   };
 
@@ -272,12 +272,17 @@ export const CommandLineBar = ({ commandContext, evaluation }: CommandLineBarPro
       aria-label="コマンドライン作成"
       onSubmit={(event) => {
         event.preventDefault();
-        if (isCommandLineInputComposing()) return;
+        if (referenceInputComposing || isCommandLineInputComposing()) return;
         if (submitReferenceInput()) return;
         submitCommandLineInput(inputValue, commandContext);
       }}
       onKeyDown={(event) => {
-        if (isImeComposingKeyEvent(event) || isCommandLineInputComposing()) return;
+        if (
+          referenceInputComposing ||
+          isImeComposingKeyEvent(event) ||
+          event.nativeEvent.isComposing ||
+          isCommandLineInputComposing()
+        ) return;
         if (step?.kind === "number" && activeSuggestionOptions.length > 0) {
           if (event.key === "ArrowDown") {
             event.preventDefault();
@@ -300,25 +305,52 @@ export const CommandLineBar = ({ commandContext, evaluation }: CommandLineBarPro
           finishLinePick();
           return;
         }
-        if (activePickCursor || isCommandLineReferenceStep(step?.kind)) {
+        if (isCommandLineReferenceStep(step?.kind) && inputValue.trim()) {
           if (event.key === "ArrowDown") {
             event.preventDefault();
-            selectPickCandidateByOffset(1);
+            if (visibleSuggestions.length > 0) {
+              setReferenceSuggestionActiveIndex((index) => (index + 1) % visibleSuggestions.length);
+            }
             return;
           }
           if (event.key === "ArrowUp") {
             event.preventDefault();
-            selectPickCandidateByOffset(-1);
+            if (visibleSuggestions.length > 0) {
+              setReferenceSuggestionActiveIndex((index) =>
+                (index - 1 + visibleSuggestions.length) % visibleSuggestions.length
+              );
+            }
+            return;
+          }
+          if (event.key === "Tab" || event.key === "Enter") {
+            event.preventDefault();
+            const suggestion = visibleSuggestions[selectedReferenceSuggestionIndex];
+            if (suggestion) applySuggestion(suggestion);
+            return;
+          }
+        } else if (activePickCursor || isCommandLineReferenceStep(step?.kind)) {
+          if (event.key === "ArrowDown") {
+            event.preventDefault();
+            selectPickCandidateByOffset(1, evaluation);
+            return;
+          }
+          if (event.key === "ArrowUp") {
+            event.preventDefault();
+            selectPickCandidateByOffset(-1, evaluation);
             return;
           }
           if (event.key === "ArrowRight") {
             event.preventDefault();
-            selectPickOptionByOffset(1);
+            selectPickOptionByOffset(1, evaluation);
             return;
           }
           if (event.key === "ArrowLeft") {
             event.preventDefault();
-            selectPickOptionByOffset(-1);
+            selectPickOptionByOffset(-1, evaluation);
+            return;
+          }
+          if (event.key === "Tab") {
+            event.preventDefault();
             return;
           }
         }
@@ -327,8 +359,14 @@ export const CommandLineBar = ({ commandContext, evaluation }: CommandLineBarPro
         event.stopPropagation();
         cancelCommandLineEscape();
       }}
-      onCompositionStart={() => setCommandLineInputComposing(true)}
-      onCompositionEnd={() => setCommandLineInputComposing(false)}
+      onCompositionStart={() => {
+        setReferenceInputComposing(true);
+        setCommandLineInputComposing(true);
+      }}
+      onCompositionEnd={() => {
+        setReferenceInputComposing(false);
+        setCommandLineInputComposing(false);
+      }}
     >
       <div className="command-line-bar-meta">
         <span className="command-line-bar-title">{elementTypeLabels[session.recipe.type]}</span>
@@ -343,6 +381,13 @@ export const CommandLineBar = ({ commandContext, evaluation }: CommandLineBarPro
             <label htmlFor="command-line-input">{isEditing ? "編集中" : "入力中"}：{stepLabel}</label>
             {isEditing && editingStep ? <span className="command-line-bar-current-value">現在値：{editingStep.value}</span> : null}
             <span id="command-line-input-help" className="command-line-bar-help">{inputHelp}</span>
+            {isCommandLineReferenceStep(step.kind) && !inputValue.trim() ? (
+              <span className="command-line-bar-help">
+                Canvasで選択できます{step.kind === "lineList" && lineListDraftSignature
+                  ? `（選択済み ${lineListDraftSignature.split("\0").length}件）`
+                  : ""}
+              </span>
+            ) : null}
             {selectedAdoptionName ? (
               <span className="command-line-bar-adopt">Enterで選択中を採用：{selectedAdoptionName}</span>
             ) : null}
@@ -356,7 +401,12 @@ export const CommandLineBar = ({ commandContext, evaluation }: CommandLineBarPro
                   aria-label={stepLabel}
                   aria-describedby="command-line-input-help"
                   onChange={(event) => {
-                    setInputValue(event.target.value);
+                    const nextValue = event.target.value;
+                    if (isCommandLineReferenceStep(step.kind)) {
+                      if (nextValue.trim()) useCadUiStore.getState().setActivePickCursor(null);
+                      setReferenceSuggestionActiveIndex(0);
+                    }
+                    setInputValue(nextValue);
                     setNumberSuggestionSelection({ start: event.target.selectionStart, end: event.target.selectionEnd });
                     setNumberSuggestionActiveIndex(0);
                   }}
@@ -364,11 +414,19 @@ export const CommandLineBar = ({ commandContext, evaluation }: CommandLineBarPro
                   onSelect={(event) => setNumberSuggestionSelection({ start: event.currentTarget.selectionStart, end: event.currentTarget.selectionEnd })}
                   onKeyUp={(event) => setNumberSuggestionSelection({ start: event.currentTarget.selectionStart, end: event.currentTarget.selectionEnd })}
                 />
-                {isCommandLineReferenceStep(step.kind) && visibleSuggestions.length > 0 ? (
+                {isCommandLineReferenceStep(step.kind) && inputValue.trim() && visibleSuggestions.length > 0 ? (
                   <ul className="command-line-suggestions" role="listbox" aria-label="参照候補">
-                    {visibleSuggestions.map((suggestion) => (
-                      <li key={`${suggestion.elementId}:${suggestion.optionIndex}`}>
-                        <button type="button" onClick={() => applySuggestion(suggestion)}>{suggestion.value}</button>
+                    {visibleSuggestions.map((suggestion, index) => (
+                      <li key={suggestion.pickRefKey}>
+                        <button
+                          type="button"
+                          role="option"
+                          aria-selected={index === selectedReferenceSuggestionIndex}
+                          onMouseEnter={() => setReferenceSuggestionActiveIndex(index)}
+                          onClick={() => applySuggestion(suggestion)}
+                        >
+                          {suggestion.displayLabel}
+                        </button>
                       </li>
                     ))}
                   </ul>

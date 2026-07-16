@@ -115,5 +115,4 @@ export type CanvasOverlayData = {
   overlayPointPickCandidates: PointPickCandidate[];
   overlayNumericReferenceCandidates: CanvasNumericReferenceCandidate[];
   selectedBezierHandles: BezierHandleOverlay[];
-  isLineEndpointPointPick: boolean;
 };

@@ -10,7 +10,7 @@ import type { EvaluationEngineState } from "../geometry/useEvaluationEngine";
 import { generatedElementIdForTargetForGroup } from "../model/forGroupGeneratedReferences";
 import { creationPlacementForEvaluationLimit } from "../model/elementCreationPlacement";
 import { numericReferencePropertiesForGeometry } from "../geometry/numericReferenceProperties";
-import { pickSourcePrecedesTarget } from "../model/pickCandidates";
+import { pickCandidates, pickSourcePrecedesTarget } from "../model/pickCandidates";
 import {
   commandLinePickNormalizationTargetId
 } from "../commands/commandLinePickRouting";
@@ -166,12 +166,32 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
   }, [documentElements, elements]);
   const hasCommandLineGhost = Boolean(commandLineSession && previewElementIds.size > 0);
   const groupFoldById = useCadUiStore((state) => state.groupFoldById);
-  const commandLinePickParentGroupId = useMemo(
+  const commandLinePlacement = useMemo(
     () => commandLineSession
-      ? creationPlacementForEvaluationLimit(elements, commandLineSession.insertionIndex, groupFoldById).parentGroupId
-      : undefined,
-    [commandLineSession, elements, groupFoldById]
+      ? creationPlacementForEvaluationLimit(documentElements, commandLineSession.insertionIndex, groupFoldById)
+      : null,
+    [commandLineSession, documentElements, groupFoldById]
   );
+  const commandLinePickParentGroupId = commandLinePlacement?.parentGroupId;
+  const sharedPickCandidates = useMemo(() => pickCandidates(documentElements, evaluation, {
+    activePointPickTarget,
+    activeNumericReferencePickTarget: null,
+    activeLinePickTarget,
+    commandLineSession,
+    commandLinePickParentGroupId,
+    referenceElements: commandLinePlacement?.referenceElements
+  }), [
+    activeLinePickTarget,
+    activePointPickTarget,
+    commandLinePickParentGroupId,
+    commandLinePlacement?.referenceElements,
+    commandLineSession,
+    documentElements,
+    evaluation
+  ]);
+  const sharedLinePickIds = useMemo(() => new Set(sharedPickCandidates.flatMap((candidate) =>
+    candidate.options.flatMap((option) => option.kind === "line" ? [option.lineId] : [])
+  )), [sharedPickCandidates]);
   const selectedElementIdSet = useMemo(() => new Set(selectedElementIds), [selectedElementIds]);
   const draftLinePickElementIds = useMemo(
     () => new Set(activeLinePickTarget?.draftLineIds ?? []),
@@ -203,9 +223,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     evaluation,
     elements,
     selectedElementId,
-    activePointPickTarget,
-    commandLineSession,
-    commandLinePickParentGroupId,
+    pointPickCandidates: activePointPickTarget ? sharedPickCandidates : [],
     excludedInteractionElementIds: previewElementIds,
     viewportSize,
     canvasViewport,
@@ -431,9 +449,9 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       pickedElementId: lineElementId
     });
     if (!normalizedLineId || normalizedLineId === activeTarget.elementId) return null;
-    if (!pickSourcePrecedesTarget(elements, activeTarget.elementId, normalizedLineId, activeTarget.insertionIndex)) return null;
+    if (!sharedLinePickIds.has(normalizedLineId)) return null;
     return normalizedLineId;
-  }, [activeLinePickTarget, commandLinePickParentGroupId, commandLineSession, elements]);
+  }, [activeLinePickTarget, commandLinePickParentGroupId, commandLineSession, elements, sharedLinePickIds]);
   const isPickableForNumericReference = useCallback((lineElementId: ElementId) => {
     const activeTarget = activeNumericReferencePickTarget;
     if (!activeTarget) return false;

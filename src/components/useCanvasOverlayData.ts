@@ -19,18 +19,13 @@ import {
   visibilityProfileById
 } from "../model/visibilityProfiles";
 import { imageWorldCorners } from "../geometry/imageGeometry";
-import { isValidPickedPointAnchorForTarget } from "../model/forGroupGeneratedReferences";
 import {
   selectablePointsForGeometry
 } from "../model/pointAnchors";
-import { findParameterDefinition } from "../parameters/parameterDefinitions";
-import { pickSourcePrecedesTarget } from "../model/pickCandidates";
-import type { ActivePointPickTarget } from "../state/cadUiStore";
-import type { CommandLineSession } from "../commands/commandLineSession";
 import {
-  commandLinePointPickTargetIds,
-  commandLineStepForPickTarget
-} from "../commands/commandLinePickRouting";
+  type PickCandidate
+} from "../model/pickCandidates";
+import { pickRefForOption, pickRefKey } from "../model/pickReferences";
 import {
   sampleArcLineScreenPoints,
   sampleBezierCurveScreenPoints,
@@ -71,9 +66,7 @@ export const useCanvasOverlayData = ({
   evaluation,
   elements,
   selectedElementId,
-  activePointPickTarget,
-  commandLineSession,
-  commandLinePickParentGroupId,
+  pointPickCandidates,
   excludedInteractionElementIds,
   viewportSize,
   canvasViewport,
@@ -82,9 +75,7 @@ export const useCanvasOverlayData = ({
   evaluation: EvaluationResult;
   elements: CadElement[];
   selectedElementId: ElementId | null;
-  activePointPickTarget: ActivePointPickTarget | null;
-  commandLineSession: CommandLineSession | null;
-  commandLinePickParentGroupId?: ElementId;
+  pointPickCandidates: readonly PickCandidate[];
   excludedInteractionElementIds?: ReadonlySet<ElementId>;
   viewportSize: ViewportSize;
   canvasViewport: CanvasViewport;
@@ -112,23 +103,6 @@ export const useCanvasOverlayData = ({
   const images = useMemo(() => geometries.filter(isImage), [geometries]);
   const texts = useMemo(() => geometries.filter(isText), [geometries]);
   const points = useMemo(() => geometries.filter(isPoint), [geometries]);
-  const activePointPickTargetElement = activePointPickTarget
-    ? elements.find((element) => element.id === activePointPickTarget.elementId)
-    : null;
-  const activePointPickTargetDefinition = activePointPickTargetElement && activePointPickTarget
-    ? findParameterDefinition(activePointPickTargetElement, activePointPickTarget.parameterKey)
-    : null;
-  const commandLineStep = commandLineStepForPickTarget(activePointPickTarget, commandLineSession);
-  const isLineEndpointPointPick = commandLineStep?.kind === "endpoint" ||
-    activePointPickTargetDefinition?.kind === "lineEndpointReference";
-  const pointPickTargetIds = activePointPickTarget
-    ? commandLinePointPickTargetIds({
-        target: activePointPickTarget,
-        session: commandLineSession,
-        parentGroupId: commandLinePickParentGroupId,
-        elements
-      })
-    : null;
   const overlayLines = useMemo(
     () =>
       lines
@@ -214,30 +188,25 @@ export const useCanvasOverlayData = ({
   );
   const overlayPointPickCandidates = useMemo(() => {
     const elementsById = new Map(elements.map((element) => [element.id, element]));
+    const acceptedPickRefs = new Set(pointPickCandidates.flatMap((candidate) =>
+      candidate.options.flatMap((option) =>
+        option.kind === "point" && option.anchor.mode !== "coordinate"
+          ? [pickRefKey(pickRefForOption(candidate.elementId, option))]
+          : []
+      )
+    ));
     return geometries
       .filter((geometry) => !excludedInteractionElementIds?.has(geometry.elementId))
       .filter((geometry) => visibleElementIds.has(geometry.elementId))
-      .filter(
-        (geometry) =>
-          !activePointPickTarget ||
-          pickSourcePrecedesTarget(
-            elements,
-            activePointPickTarget.elementId,
-            geometry.elementId,
-            activePointPickTarget.insertionIndex
-          )
-      )
       .flatMap((geometry) =>
         selectablePointsForGeometry(geometry, elementsById)
-          .filter((candidate) =>
-            !activePointPickTarget ||
-            isValidPickedPointAnchorForTarget({
-              elements,
-              ...(pointPickTargetIds ?? { targetElementId: activePointPickTarget.elementId }),
-              anchor: candidate.anchor,
-              allowLineEndpoint: isLineEndpointPointPick
-            })
-          )
+          .filter((candidate) => candidate.anchor.mode !== "coordinate" && acceptedPickRefs.has(
+            pickRefKey(pickRefForOption(geometry.elementId, {
+              kind: "point",
+              label: candidate.label,
+              anchor: candidate.anchor
+            }))
+          ))
           .map((candidate) => ({
             anchor: candidate.anchor,
             label: candidate.label,
@@ -245,13 +214,11 @@ export const useCanvasOverlayData = ({
           }))
       );
   }, [
-    activePointPickTarget,
     canvasViewport,
     elements,
     excludedInteractionElementIds,
     geometries,
-    isLineEndpointPointPick,
-    pointPickTargetIds,
+    pointPickCandidates,
     viewportSize,
     visibleElementIds
   ]);
@@ -340,7 +307,6 @@ export const useCanvasOverlayData = ({
     overlayTexts,
     overlayPointPickCandidates,
     overlayNumericReferenceCandidates,
-    selectedBezierHandles,
-    isLineEndpointPointPick
+    selectedBezierHandles
   };
 };
