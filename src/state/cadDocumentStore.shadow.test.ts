@@ -6,6 +6,7 @@ import {
   initialCadDocumentState,
   useCadDocumentStore
 } from "./cadDocumentStore";
+import { renameElementWithPropagation } from "../commands/renameElementWithPropagation";
 
 // Phase 1b: 影テキスト維持機構のストア統合テスト。
 // 「コンソールに影assert警告が出ないこと」を明示的にアサートすることで、
@@ -92,9 +93,9 @@ describe("cadDocumentStore 影テキスト: 代表的なコミット経路", () 
     expectNoShadowWarnings();
   });
 
-  it("renameElementで影が更新され警告が出ない", () => {
+  it("rename commandで影が更新され警告が出ない", () => {
     const id = useCadDocumentStore.getState().elements[0].id;
-    useCadDocumentStore.getState().renameElement(id, "改名後");
+    expect(renameElementWithPropagation(id, "改名後")).toBe(true);
     expectShadowConsistent();
     expectNoShadowWarnings();
   });

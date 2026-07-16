@@ -156,8 +156,8 @@ export const analyzeRename = (input: RenameAnalysisInput): RenameAnalysis => {
     return { verdict: "rejected", reason: "target-not-found", detail: { targetElementId: input.targetElementId } };
   }
 
-  // Existing renameElement delegates its requestedName to makeUniqueElementName,
-  // which trims input before collision handling. Keep that established rule here.
+  // The retired store renameElement delegated its requestedName to makeUniqueElementName,
+  // which trimmed input before collision handling. Keep that established rule here.
   const newName = input.newName.trim();
   const nameError = validationError(newName);
   if (nameError) return { verdict: "rejected", reason: "invalid-name", detail: { input: input.newName, message: nameError } };

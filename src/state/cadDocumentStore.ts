@@ -9,7 +9,6 @@ import {
   type LastGoodDslDocument
 } from "../document/canonicalDocument";
 import { assertReconcileSane, assertShadowEquivalent, shadowAssertEnabled } from "../document/shadowTextAssert";
-import { fallbackElementName, makeUniqueElementName } from "../model/elementNames";
 import { defaultVisibilityProfile, visibilityIdFromName } from "../model/visibilityProfiles";
 import {
   createPaletteColor,
@@ -122,7 +121,6 @@ export type CadDocumentState = {
   addPaletteColor: () => void;
   deletePaletteColor: (id: string) => void;
   setDefaultColorId: (id: string) => void;
-  renameElement: (id: ElementId, requestedName: string) => void;
   replaceDocument: (document: DslDocumentData, filePath: string | null) => void;
   replaceTextDocument: (
     sourceText: string,
@@ -411,7 +409,6 @@ type CadDocumentActions = Pick<
   | "addPaletteColor"
   | "deletePaletteColor"
   | "setDefaultColorId"
-  | "renameElement"
   | "replaceDocument"
   | "replaceTextDocument"
   | "markDocumentSaved"
@@ -723,22 +720,6 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
     const palette = documentOf(get()).palette;
     if (!isValidPaletteColorId(palette, id) || palette.defaultColorId === id) return;
     get().commitDocumentChange({ palette: { ...palette, defaultColorId: id } });
-  },
-  renameElement: (id, requestedName) => {
-    const document = documentOf(get());
-    const element = document.elements.find((item) => item.id === id);
-    if (!element) return;
-    const name = makeUniqueElementName({
-      elements: document.elements,
-      elementId: id,
-      requestedName,
-      fallbackBaseName: fallbackElementName(element.type),
-      parentGroupId: element.parentGroupId
-    });
-    if (name === element.name) return;
-    get().commitDocumentChange({
-      elements: document.elements.map((item) => item.id === id ? { ...item, name } : item)
-    });
   },
   replaceDocument: (snapshot, currentFilePath) => {
     if (rejectExternalDocumentReset()) return;
