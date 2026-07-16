@@ -57,4 +57,16 @@ P3〜P6 を束ねて「parse → applyArgs ≡ 元要素」「serialize → pars
   書き換えに使う。P9 も span 解決対象テキストとして正準リテラルを使う。
 - 「v1 sample との要素 deep-equal」テストは C1 で v1 parser が消えると成立しなく
   なるため、C1 で削除(または W5 の凍結 parser 経由に差し替え)することを明記。
-- (完了時に追記)
+- `dslV2RoundTrip.test.ts` は全27型の minimal/populated、P3→P6 の element
+  round-trip、P4の設定文、v1/v2 sample の要素意味等価、代表診断を固定した。
+  `sample.v2.nui` と `v2CanonicalStatements.ts` は C1/P9 のテスト入力として使える。
+- `dslV2Settings.ts` はP4の結果を既存 palette/visibility/print-layout モデルへ適用し、
+  v2 canonical settings を出すP7専用の未接続helperである。live compiler/document/
+  serializer/storeからimportしない。C1は配線時に既存設定適用との責務・診断差を改めて
+  監査し、このhelperを新しい汎用状態管理へ昇格させないこと。
+- P7で、Inspector parameter definitionを持たないlegacy型でも共通 `color` を失わない
+  よう `applyArgs` の未定義common属性フォールバックを補った。文法・CadElement JSON・
+  Rust境界は変更していない。
+- C1では v1 parserが削除されるため、`sample.v2.nui` とv1 sampleの意味等価テストは
+  W5の凍結parser経由へ差し替えるか削除する。コメントマージはP8、値spanはP9の責務で
+  あり、P7 fixtureはそれらを配線しない。
