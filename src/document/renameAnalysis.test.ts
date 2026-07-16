@@ -142,7 +142,7 @@ describe("renameAnalysis", () => {
     const before = complete(beforeSource);
     const local = before.document.elements.find((element) => element.name === "Inner")!;
     const after = compileWithInheritedIds(before, beforeSource.replace("point Inner", "point Outer"));
-    expect(validateRenameReferenceStability({ before, after, targetElementId: local.id }))
+    expect(validateRenameReferenceStability({ before, after }))
       .toMatchObject({ verdict: "rejected", reason: "resolution-change" });
     expect(analyzeRename({ sourceText: beforeSource, compiled: before, targetElementId: local.id, newName: "Outer" }))
       .toMatchObject({ verdict: "rejected", reason: "resolution-change" });
@@ -155,7 +155,7 @@ describe("renameAnalysis", () => {
       .toMatchObject({ verdict: "rejected", reason: "invalid-name" });
   });
 
-  it("keeps non-target reference resolutions stable for generated rename cases", () => {
+  it("keeps all reference resolutions stable for generated rename cases", () => {
     fc.assert(fc.property(fc.integer({ min: 2, max: 30 }), fc.integer(), (count, seed) => {
       const source = [
         "nui 1",
@@ -171,7 +171,7 @@ describe("renameAnalysis", () => {
       const afterDocument = renameDocument(compiled.document, target.id, analysis.newName);
       const patched = applyLineSplices(source, buildTextPatch({ old: compiled, newDocument: afterDocument }));
       const after = compileWithInheritedIds(compiled, patched);
-      expect(validateRenameReferenceStability({ before: compiled, after, targetElementId: target.id })).toEqual({ verdict: "ok" });
+      expect(validateRenameReferenceStability({ before: compiled, after })).toEqual({ verdict: "ok" });
     }), { numRuns: 40 });
   });
 

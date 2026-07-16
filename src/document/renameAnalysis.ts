@@ -62,7 +62,6 @@ export type RenameAnalysisInput = {
 export type RenameReferenceStabilityInput = {
   before: CompiledDslDocument;
   after: CompiledDslDocument;
-  targetElementId: ElementId;
 };
 
 export type RenameReferenceStability =
@@ -103,6 +102,7 @@ const validationError = (name: string) => {
   return null;
 };
 
+/** Compares every before/after reference slot; rename targets receive no exception. */
 export const validateRenameReferenceStability = (
   input: RenameReferenceStabilityInput
 ): RenameReferenceStability => {
@@ -220,8 +220,7 @@ export const analyzeRename = (input: RenameAnalysisInput): RenameAnalysis => {
   }
   const stability = validateRenameReferenceStability({
     before: input.compiled,
-    after: candidate.compiled,
-    targetElementId: target.id
+    after: candidate.compiled
   });
   if (stability.verdict === "rejected") {
     return stability;

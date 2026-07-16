@@ -62,8 +62,8 @@
      (`namespaceKey(parentGroupId)`)内の既存名と衝突
      (`reportDuplicateNames` / `makeUniqueElementName` と同じスコープ規則を
      再利用。独自実装しない)。
-  2. **解決先変化(捕獲含む)**: rename後の文書で、rename対象への参照以外の
-     全参照について「解決先要素ID」と「dangling状態」が前後で一致しない。
+  2. **解決先変化(捕獲含む)**: rename後の文書で、**全参照**について
+     「解決先要素ID」と「dangling状態」が前後で一致しない。
      判定は実際にrename後の文書を**メモリ内で**再シリアライズ+再コンパイル
      (または同等の解決再計算)して参照解決を突き合わせる方式を推奨
      (トークン種別ごとの手書き判定を再発明しない)。ID照合は
@@ -155,5 +155,14 @@
 ## Handoff to next task
 
 * 5e へ: 凍結した公開API・拒否reason一覧・`expectedPatchedLines` の意味論。
-* 5f へ: 解析器が「保守側拒否」にしたケースの一覧(統合カバレッジで
-  実挙動を固定する対象)。
+* 5f へ: `documentDslRefs` は絶対パスを出力できないため、解決先を保存できる
+  正当なrenameでも安全側に `resolution-change` 拒否となるケースがある。
+  rename側で緩めず、過剰拒否として統合テスト化・報告すること。あわせて
+  property/perf fixtureの参照密度を拡充すること。
+* 5f へ: `RenameReferencePath` は行全体の推測が不正確だったため公開APIから
+  削除済み。再導入する場合はparser/token spanに基づく分類を用いること。
+* 5f へ: `occurrences` は「対象またはgroup子孫へ解決し、かつowner文が
+  serializer比較で実際に変わる参照」に限定される。明示 `id=` を持つ
+  同一scope重名も現状は保守的に衝突拒否である。
+* 5h へ: 上記の過剰拒否、`RenameReferencePath` 非公開、`occurrences` の
+  意味論、明示 `id=` 同一scope重名の保守的拒否をrename仕様として記載する。
