@@ -21,7 +21,7 @@ const source = [
 ].join("\n");
 
 const settleLens = () => new Promise((resolve) => window.setTimeout(resolve, 20));
-const stepEvent = (repeat = false) => ({ key: "ArrowRight", code: "ArrowRight", ctrlKey: true, altKey: true, repeat });
+const stepEvent = (repeat = false) => ({ key: "ArrowRight", code: "ArrowRight", altKey: true, repeat });
 const pressLensStep = (view: EditorView) => {
   fireEvent.keyDown(view.contentDOM, stepEvent());
   fireEvent.keyUp(view.contentDOM, stepEvent());
@@ -549,15 +549,15 @@ describe("SourceEditor selected-line lens Tab/Shift-Tab value navigation", () =>
       version: 1,
       overrides: [{
         bindingId: "sourceEditor.stepSourceValueForward",
-        chords: [{ key: "ArrowRight", mod: true, alt: true, shift: true }]
+        chords: [{ key: "ArrowRight", mod: false, alt: true, shift: true }]
       }]
     });
 
     pressLensStep(lensView);
     expect(view.state.doc.toString()).toContain("point A = (5, 9)");
     lensView.dispatch({ selection: EditorSelection.cursor(xStart) });
-    fireEvent.keyDown(lensView.contentDOM, { key: "ArrowRight", code: "ArrowRight", ctrlKey: true, altKey: true, shiftKey: true });
-    fireEvent.keyUp(lensView.contentDOM, { key: "ArrowRight", code: "ArrowRight", ctrlKey: true, altKey: true, shiftKey: true });
+    fireEvent.keyDown(lensView.contentDOM, { key: "ArrowRight", code: "ArrowRight", altKey: true, shiftKey: true });
+    fireEvent.keyUp(lensView.contentDOM, { key: "ArrowRight", code: "ArrowRight", altKey: true, shiftKey: true });
     expect(useCadDocumentStore.getState().sourceText).toContain("point A = (6, 9)");
     controller.destroy();
   });

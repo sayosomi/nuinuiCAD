@@ -68,7 +68,8 @@ export const bindingMatchesEvent = (binding: EffectiveShortcutBinding, event: Ke
     return matcher ? matcher(event, chord) : keyChordMatchesEvent(chord, event);
   });
 
-const isSourceEditorChord = (chord: KeyChord) => chord.mod === true;
+const sourceEditorBindingRequiresMod = (binding: EffectiveShortcutBinding) =>
+  binding.owner !== "editorTransaction";
 
 const isCodeMirrorDeleteLineChord = (chord: KeyChord) =>
   chord.key.toLowerCase() === "k" && chord.mod === true && chord.shift === true && !chord.alt;
@@ -113,7 +114,7 @@ export const shortcutConflicts = (
 
   for (const binding of bindings.filter((item) => item.scope === "sourceEditor" || item.scope === "crossFocus")) {
     for (const chord of binding.chords) {
-      if (binding.scope === "sourceEditor" && !isSourceEditorChord(chord)) {
+      if (binding.scope === "sourceEditor" && sourceEditorBindingRequiresMod(binding) && chord.mod !== true) {
         conflicts.push({
           scope: "sourceEditor",
           chord,

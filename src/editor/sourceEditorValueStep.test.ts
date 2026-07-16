@@ -28,7 +28,6 @@ const selectToken = (view: EditorView, token: string) => {
 const stepEvent = (direction: 1 | -1, repeat = false) => ({
   key: direction > 0 ? "ArrowRight" : "ArrowLeft",
   code: direction > 0 ? "ArrowRight" : "ArrowLeft",
-  ctrlKey: true,
   altKey: true,
   repeat
 });
@@ -39,7 +38,7 @@ const pressStep = (view: EditorView, direction: 1 | -1) => {
 };
 
 const pressShiftAltStep = (view: EditorView) => {
-  const event = { key: "ArrowRight", code: "ArrowRight", ctrlKey: true, altKey: true, shiftKey: true };
+  const event = { key: "ArrowRight", code: "ArrowRight", altKey: true, shiftKey: true };
   fireEvent.keyDown(view.contentDOM, event);
   fireEvent.keyUp(view.contentDOM, event);
 };
@@ -66,6 +65,10 @@ describe("SourceEditor editor-native value step commands", () => {
     expect(undoDepth(view.state)).toBe(0);
     useCadDocumentStore.getState().undo();
     expect(useCadDocumentStore.getState().sourceText).toBe(source);
+
+    selectToken(view, "12");
+    pressStep(view, -1);
+    expect(useCadDocumentStore.getState().sourceText).toContain("(11, 0)");
     controller.destroy();
     parent.remove();
   });
@@ -187,7 +190,7 @@ describe("SourceEditor editor-native value step commands", () => {
       version: 1,
       overrides: [{
         bindingId: "sourceEditor.stepSourceValueForward",
-        chords: [{ key: "ArrowRight", mod: true, alt: true, shift: true }]
+        chords: [{ key: "ArrowRight", mod: false, alt: true, shift: true }]
       }]
     });
 

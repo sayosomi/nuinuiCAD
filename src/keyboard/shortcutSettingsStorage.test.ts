@@ -62,19 +62,18 @@ describe("shortcutSettingsStorage", () => {
     ]);
   });
 
-  it("does not silently migrate Source Editor overrides without Mod", () => {
+  it("accepts Alt-only value-step overrides but keeps app-exclusive Source Editor shortcuts Mod-only", () => {
     const settings = normalizeShortcutSettings({
         version: 1,
         overrides: [
-          { bindingId: "parameter.incrementSelectedParameter", chords: [chord("x")] },
-          { bindingId: "sourceEditor.stepSourceValueForward", chords: [chord("y")] }
+          { bindingId: "sourceEditor.stepSourceValueForward", chords: [{ ...chord("ArrowRight"), alt: true }] },
+          { bindingId: "sourceEditor.addFreePoint", chords: [chord("x")] }
         ]
     });
-    expect(settings.overrides).toEqual([]);
-    expect(settings.unresolvedOverrides?.map((item) => item.bindingId)).toEqual([
-      "sourceEditor.stepSourceValueForward",
-      "parameter.incrementSelectedParameter"
+    expect(settings.overrides).toEqual([
+      { bindingId: "sourceEditor.stepSourceValueForward", chords: [{ ...chord("ArrowRight"), alt: true }] }
     ]);
+    expect(settings.unresolvedOverrides?.map((item) => item.bindingId)).toEqual(["sourceEditor.addFreePoint"]);
   });
 
   it("migrates palette-created normal bindings as well as their default-scope bindings", () => {

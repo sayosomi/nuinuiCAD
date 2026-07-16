@@ -143,7 +143,11 @@ const normalizeShortcutSettingsWithStatus = (value: unknown) => {
   parsedOverrides.forEach((override, index) => {
     if (!override || legacyBindingIdMap[override.bindingId]) return;
     const binding = bindingById.get(override.bindingId);
-    if (binding?.scope === "sourceEditor" && override.chords.some((chord) => chord.mod !== true)) {
+    if (
+      binding?.scope === "sourceEditor" &&
+      binding.owner !== "editorTransaction" &&
+      override.chords.some((chord) => chord.mod !== true)
+    ) {
       unresolved.push({
         ...override,
         reason: "Source EditorのアプリショートカットにはModキーが必要です。"

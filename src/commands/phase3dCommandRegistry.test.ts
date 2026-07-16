@@ -39,9 +39,9 @@ describe("Phase 3d Inspector command registry", () => {
   it("keeps the keyboard-first edit path in Source Editor scope", () => {
     const bindings = sourceEditorShortcutBindings();
     expect(bindings.find((binding) => binding.commandId === "stepSourceValueForward")?.chords)
-      .toContainEqual({ key: "ArrowRight", mod: true, alt: true, shift: false });
+      .toContainEqual({ key: "ArrowRight", mod: false, alt: true, shift: false });
     expect(bindings.find((binding) => binding.commandId === "stepSourceValueBackward")?.chords)
-      .toContainEqual({ key: "ArrowLeft", mod: true, alt: true, shift: false });
+      .toContainEqual({ key: "ArrowLeft", mod: false, alt: true, shift: false });
     expect(bindings.find((binding) => binding.commandId === "startCanvasPickFromSourceSelection")?.chords)
       .toContainEqual({ key: "p", mod: true, alt: false, shift: true });
   });

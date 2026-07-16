@@ -34,6 +34,9 @@ describe("Source Editor shortcut policy", () => {
     expect(shouldIgnoreKeyboardEvent(eventForTarget(button, "Enter"))).toBe(true);
     expect(shouldIgnoreKeyboardEvent(eventForTarget(button, " "))).toBe(true);
     expect(commandIdForKeyboardEvent(eventForTarget(input, "g"))).toBeNull();
+    expect(keyboardCommandForEvent(eventForTarget(input, "ArrowRight", { altKey: true }), {
+      scopes: ["sourceEditor"]
+    })).toBeNull();
 
     button.remove();
     input.remove();
@@ -70,5 +73,25 @@ describe("Source Editor shortcut policy", () => {
 
     expect(shortcutConflicts(settings)).toEqual([]);
     expect(keyboardCommandForEvent(eventFor("c"), { settings })?.commandId).toBe("addBezierCurve");
+  });
+
+  it("keeps Alt-only value stepping scoped to Source Editor while normal overrides still work on Canvas", () => {
+    const settings: ShortcutSettings = {
+      version: 1,
+      overrides: [{
+        bindingId: "normal.moveSelectedElementUp",
+        chords: [{ key: "ArrowUp", alt: true }]
+      }]
+    };
+
+    expect(shortcutConflicts()).toEqual([]);
+    expect(keyboardCommandForEvent(eventFor("ArrowRight", { altKey: true }), {
+      scopes: ["sourceEditor"]
+    })?.commandId).toBe("stepSourceValueForward");
+    expect(keyboardCommandForEvent(eventFor("ArrowLeft", { altKey: true }), {
+      scopes: ["sourceEditor"]
+    })?.commandId).toBe("stepSourceValueBackward");
+    expect(keyboardCommandForEvent(eventFor("ArrowUp", { altKey: true }), { settings })?.commandId)
+      .toBe("moveSelectedElementUp");
   });
 });

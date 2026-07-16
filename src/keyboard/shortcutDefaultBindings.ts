@@ -98,12 +98,12 @@ const defaultBindings: ShortcutBinding[] = [
   binding("sourceEditor", "indentSelectedElements", [ch("]", { mod: true })], {
     label: "選択要素をインデント (Source Editor: Mod+])"
   }),
-  binding("sourceEditor", "stepSourceValueForward", [ch("ArrowRight", { mod: true, alt: true })], {
-    label: "Source Editorの値を次へ (Mod+Alt+→)",
+  binding("sourceEditor", "stepSourceValueForward", [ch("ArrowRight", { alt: true })], {
+    label: "Source Editorの値を次へ (Alt+→)",
     owner: "editorTransaction"
   }),
-  binding("sourceEditor", "stepSourceValueBackward", [ch("ArrowLeft", { mod: true, alt: true })], {
-    label: "Source Editorの値を前へ (Mod+Alt+←)",
+  binding("sourceEditor", "stepSourceValueBackward", [ch("ArrowLeft", { alt: true })], {
+    label: "Source Editorの値を前へ (Alt+←)",
     owner: "editorTransaction"
   }),
   binding("sourceEditor", "startCanvasPickFromSourceSelection", [ch("p", { mod: true, shift: true })], {

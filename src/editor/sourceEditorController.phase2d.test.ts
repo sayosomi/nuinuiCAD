@@ -648,7 +648,7 @@ describe("SourceEditorController structural shortcuts", () => {
     const bindings = internals.sourceEditorShortcutKeymap();
 
     expect(bindings.find((binding) => binding.key === "Mod-ArrowUp")?.run(internals.view)).toBe(true);
-    expect(bindings.find((binding) => binding.key === "Mod-Alt-ArrowRight")?.run(internals.view)).toBe(false);
+    expect(bindings.find((binding) => binding.key === "Alt-ArrowRight")?.run(internals.view)).toBe(false);
     controller.destroy();
   });
 });
