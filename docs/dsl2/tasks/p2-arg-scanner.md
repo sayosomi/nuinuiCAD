@@ -49,4 +49,6 @@
 ## 次タスクへの引き継ぎ
 
 - P3(call parser)と P6(applyArgs)が `ScannedArg` を消費する。
-- (完了時に追記)
+- `scanCallArgs` は `callSpan` を開き `(` の直後から対応する `)` の直前までの半開区間として扱う。`keySpan` はコロンを含まず、`valueSpan` は前後空白を除く。
+- `key: value` のコロン後空白不足は回復的に named 引数として返したうえでエラーにする。空値は次の引数キーまたは call 終端のゼロ幅 span にエラーを付ける。重複キーと registry 文脈での検証は引き続き P3 の責務。
+- 新規スキャナは未接続であり、テスト以外の既存製品コードから import していない。
