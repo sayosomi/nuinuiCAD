@@ -276,9 +276,12 @@ describe("command-line pick routing", () => {
       parameterKey: "baseLineIds",
       draftLineIds: [line.id]
     });
+    const preEditDraftLineIds = useCadUiStore.getState().activeLinePickTarget?.draftLineIds;
+    if (!preEditDraftLineIds) throw new Error("Expected line-list draft");
 
     expect(startCommandLineStepEdit(0)).toBe(true);
     expect(useCadUiStore.getState().activePointPickTarget?.parameterKey).toBe("startPoint");
+    preEditDraftLineIds.push("later-update" as never);
     expect(cancelCommandLineStepEdit()).toBe(true);
     expect(useCadUiStore.getState().commandLineSession).toMatchObject({
       currentStepIndex: 1,

@@ -37,6 +37,7 @@ import { findParameterDefinition } from "../parameters/parameterDefinitions";
 import type { DrawingCanvasHandle } from "./DrawingCanvas";
 import { isImeComposingKeyEvent } from "./keyboardEventGuards";
 import { isCommandLineInputComposing } from "../commands/commandLineInputComposition";
+import { cancelCommandLineEscape } from "../commands/commandLineSessionCommands";
 import { currentStep } from "../commands/commandLineSession";
 import { creationRecipeForLegacyCommand, legacyCreationCommandIds } from "../commands/legacyCreationRecipes";
 import { COMMAND_LINE_PICK_TARGET_ID } from "../commands/commandLinePickRouting";
@@ -363,7 +364,7 @@ export const AppLayout = () => {
           : null);
       if (useCadUiStore.getState().commandLineSession && event.key === "Escape") {
         event.preventDefault();
-        dispatchCommand("cancelCommandLineSession");
+        cancelCommandLineEscape();
         return;
       }
       if (useCadUiStore.getState().activeTemplateInsertion && event.key === "Escape") {

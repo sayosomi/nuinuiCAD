@@ -22,14 +22,66 @@ const isReferenceStep = (kind: CommandLineSession["recipe"]["steps"][number]["ki
  * deliberate non-error case: the insertion position itself is outside the
  * evaluator's reach (after `@stop`, inside a disabled group or an inactive
  * conditional branch), so no preview exists AND no verdict about the value can
- * be derived from evaluation. Step-edit confirmation treats only "invalid" and
- * "missing-input" as rejections.
+ * be derived from evaluation. Isolated step edits additionally inspect which
+ * prompts caused "missing-input", without changing this global classification.
  */
 export type CommandLineGhostPreviewStatus =
   | { kind: "preview"; elements: CadElement[]; evaluationLimitIndex: number }
   | { kind: "missing-input" }
   | { kind: "invalid" }
   | { kind: "not-evaluated" };
+
+type CommandLineGhostPreviewInput = {
+  session: CommandLineSession;
+  elements: CadElement[];
+  evaluationLimitIndex: number;
+  groupFoldById: GroupFoldById;
+};
+
+const emittedCommandLineGhostCandidate = ({
+  session,
+  elements,
+  groupFoldById
+}: CommandLineGhostPreviewInput) => {
+  const placement = creationPlacementForEvaluationLimit(
+    elements,
+    session.insertionIndex,
+    groupFoldById
+  );
+  return {
+    placement,
+    emitted: applyCreationPlacement(
+      emitCreationRecipe(session.recipe, effectiveCommandLineArgs(session), {
+        elements,
+        referenceElements: placement.referenceElements
+      }),
+      placement
+    )
+  };
+};
+
+/**
+ * Identifies unanswered required prompts without manufacturing defaults. The
+ * ghost classifier and isolated step-edit confirmation share this exact test.
+ */
+const missingRequiredStepIndexesFor = (session: CommandLineSession, emitted: CadElement) => {
+  const args = effectiveCommandLineArgs(session);
+  return session.recipe.steps.flatMap((step, index) => {
+    if (step.kind === "name" || hasOwn(args, step.key)) return [];
+    // A recipe default becomes usable only after skipCurrentStep writes it to
+    // args. Never substitute the factory's default for an unanswered prompt.
+    if (step.kind === "number") return step.default !== undefined ? [index] : [];
+    if (!isReferenceStep(step.kind)) return [];
+    // Allow omission only when the element's actual parameter definition says
+    // it is optional; absent/unknown definitions are deliberately required.
+    return findParameterDefinition(emitted, step.key)?.allowNone !== true ? [index] : [];
+  });
+};
+
+export const commandLineMissingRequiredStepIndexes = (input: CommandLineGhostPreviewInput) => {
+  const { emitted } = emittedCommandLineGhostCandidate(input);
+  return missingRequiredStepIndexesFor(input.session, emitted);
+};
 
 /**
  * Classifies the render-only insertion candidate built from the explicitly
@@ -41,37 +93,16 @@ export const commandLineGhostPreviewStatus = ({
   elements,
   evaluationLimitIndex,
   groupFoldById
-}: {
-  session: CommandLineSession;
-  elements: CadElement[];
-  evaluationLimitIndex: number;
-  groupFoldById: GroupFoldById;
-}): CommandLineGhostPreviewStatus => {
-  const placement = creationPlacementForEvaluationLimit(
+}: CommandLineGhostPreviewInput): CommandLineGhostPreviewStatus => {
+  const { emitted } = emittedCommandLineGhostCandidate({
+    session,
     elements,
-    session.insertionIndex,
+    evaluationLimitIndex,
     groupFoldById
-  );
-  const emitted = applyCreationPlacement(
-    emitCreationRecipe(session.recipe, effectiveCommandLineArgs(session), {
-      elements,
-      referenceElements: placement.referenceElements
-    }),
-    placement
-  );
-
-  const hasMissingRequiredInput = session.recipe.steps.some((step) => {
-    if (step.kind === "name") return false;
-    if (hasOwn(effectiveCommandLineArgs(session), step.key)) return false;
-    // A recipe default becomes usable only after skipCurrentStep writes it to
-    // args. Never substitute the factory's default for an unanswered prompt.
-    if (step.kind === "number") return step.default !== undefined;
-    if (!isReferenceStep(step.kind)) return false;
-    // Allow omission only when the element's actual parameter definition says
-    // it is optional; absent/unknown definitions are deliberately required.
-    return findParameterDefinition(emitted, step.key)?.allowNone !== true;
   });
-  if (hasMissingRequiredInput) return { kind: "missing-input" };
+  if (missingRequiredStepIndexesFor(session, emitted).length > 0) {
+    return { kind: "missing-input" };
+  }
 
   const previewElements = [
     ...elements.slice(0, session.insertionIndex),

@@ -1,6 +1,5 @@
 import { makeNumericExpression } from "../geometry/numericExpressions";
 import { numericExpressionSyntaxIsValid } from "../geometry/numericExpressionParser";
-import { initialNumericReferencePickProperty } from "../geometry/numericReferenceProperties";
 import {
   applyCreationPlacement,
   creationPlacementForEvaluationLimit
@@ -17,9 +16,11 @@ import {
   commitStepEdit,
   type CommandLineSession,
   currentStep,
+  effectiveCommandLineArgs,
   fillCurrentStep,
   insertionIndexForCommandLineSession,
   isEditingCommandLineStep,
+  isMidSessionStepEdit,
   retreatStep,
   sessionCanConfirm,
   sessionIsStale,
@@ -32,12 +33,16 @@ import {
   emitCreationRecipe,
   type CreationRecipe
 } from "./creationRecipes";
-import { COMMAND_LINE_PICK_TARGET_ID } from "./commandLinePickRouting";
 import {
+  commandLineNumericReferencePickTargetFor,
   commandLinePickStateForSession,
   editingReturnPickStateFor
 } from "./commandLineSessionPickState";
-import { clearCommandLineGhostPreview, syncCommandLineGhostPreview } from "./commandLineGhostPreview";
+import {
+  clearCommandLineGhostPreview,
+  commandLineMissingRequiredStepIndexes,
+  syncCommandLineGhostPreview
+} from "./commandLineGhostPreview";
 import { promoteDirectlyReferencedUnnamedElements } from "./commandLineUnnamedPromotion";
 import type { CommandContext } from "./commandTypes";
 
@@ -151,6 +156,16 @@ export const cancelCommandLineSession = () => {
   return true;
 };
 
+/** Applies Escape semantics without changing the explicit session-cancel command. */
+export const cancelCommandLineEscape = () => {
+  if (commandLineCompositionIsActive()) return false;
+  const session = useCadUiStore.getState().commandLineSession;
+  if (!session) return false;
+  return isMidSessionStepEdit(session)
+    ? cancelCommandLineStepEdit()
+    : cancelCommandLineSession();
+};
+
 /** Detects a document mutation while a session is displayed and rejects rebase/follow behavior. */
 export const cancelStaleCommandLineSession = () => {
   const session = useCadUiStore.getState().commandLineSession;
@@ -187,14 +202,40 @@ const editingDraftIsParseable = (draftSession: CommandLineSession) => {
  * before copying it into confirmed args. "not-evaluated" (insertion after
  * `@stop`, inside a disabled group, or an inactive conditional branch) is not
  * a rejection: no preview exists there by design, exactly as during initial
- * fill, so the edit only needs the Tier-A shape check. A rejected draft
- * remains isolated in the session so the user can correct it or abandon the
- * edit safely.
+ * fill, so the edit only needs the Tier-A shape check. A global
+ * "missing-input" caused exclusively by future prompts is likewise not an
+ * edit rejection after the draft-overlaid edited prompt is confirmed present.
+ * A rejected draft remains isolated in the session so the user can correct it
+ * or abandon the edit safely.
  */
 const confirmEditingDraft = (draftSession: CommandLineSession) => {
   const status = setSessionAndSyncPickTarget(draftSession);
+  const missingStepIndexes = status === "missing-input"
+    ? commandLineMissingRequiredStepIndexes({
+        session: draftSession,
+        elements: useCadDocumentStore.getState().elements,
+        evaluationLimitIndex: useCadDocumentStore.getState().evaluationLimitIndex,
+        groupFoldById: useCadUiStore.getState().groupFoldById
+      })
+    : [];
+  const editingStep = currentStep(draftSession);
+  const editingArgumentKey = editingStep?.kind === "name" ? "name" : editingStep?.key;
+  // Check the draft-overlaid value itself before forgiving any later prompt.
+  // Name is the lone optional step and may intentionally be removed by skip.
+  const editingStepIsSatisfied = draftSession.editingStepIndex !== null &&
+    editingStep !== null &&
+    (editingStep.kind === "name" || (
+      draftSession.editingDraft !== null &&
+      editingArgumentKey !== undefined &&
+      Object.prototype.hasOwnProperty.call(effectiveCommandLineArgs(draftSession), editingArgumentKey)
+    )) &&
+    !missingStepIndexes.includes(draftSession.editingStepIndex);
+  const onlyFutureStepsAreMissing = editingStepIsSatisfied &&
+    missingStepIndexes.length > 0 &&
+    missingStepIndexes.every((stepIndex) => stepIndex >= draftSession.currentStepIndex);
   const accepted = status === "preview" ||
-    (status === "not-evaluated" && editingDraftIsParseable(draftSession));
+    ((status === "not-evaluated" || (status === "missing-input" && onlyFutureStepsAreMissing)) &&
+      editingDraftIsParseable(draftSession));
   if (!accepted) {
     setSessionAndSyncPickTarget(withCommandLineSessionError(draftSession, editValidationError));
     return false;
@@ -247,13 +288,7 @@ export const startCommandLineNumericReferencePick = () => {
   useCadUiStore.setState({
     activePointPickTarget: null,
     activeLinePickTarget: null,
-    activeNumericReferencePickTarget: {
-      elementId: COMMAND_LINE_PICK_TARGET_ID,
-      parameterKey: step.key,
-      insertionIndex: session.insertionIndex,
-      mode: "replace",
-      property: initialNumericReferencePickProperty(step.stepLevels)
-    },
+    activeNumericReferencePickTarget: commandLineNumericReferencePickTargetFor(session),
     activePickCursor: null
   });
   return true;

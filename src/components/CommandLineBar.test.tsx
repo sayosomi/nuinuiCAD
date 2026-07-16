@@ -4,7 +4,10 @@ import {
   isCommandLineInputComposing,
   setCommandLineInputComposing
 } from "../commands/commandLineInputComposition";
-import { startCommandLineCreation } from "../commands/commandLineSessionCommands";
+import {
+  startCommandLineCreation,
+  startCommandLineStepEdit
+} from "../commands/commandLineSessionCommands";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import { CommandLineBar } from "./CommandLineBar";
@@ -348,6 +351,38 @@ describe("CommandLineBar", () => {
 
     expect(useCadUiStore.getState().commandLineSession).toBeNull();
     expect(useCadUiStore.getState().activePointPickTarget).toBeNull();
+  });
+
+  it("uses Escape during a mid-session edit to abandon only that edit", async () => {
+    render(<CommandLineBar />);
+    act(() => { startCommandLineCreation("freePoint"); });
+    const input = screen.getByRole<HTMLInputElement>("textbox");
+    fireEvent.change(input, { target: { value: "3" } });
+    fireEvent.submit(input.closest("form")!);
+    act(() => { startCommandLineStepEdit(0); });
+
+    fireEvent.keyDown(screen.getByRole<HTMLInputElement>("textbox"), { key: "Escape" });
+
+    expect(useCadUiStore.getState().commandLineSession).toMatchObject({
+      currentStepIndex: 1,
+      editingStepIndex: null,
+      args: { x: 3 }
+    });
+    await waitFor(() => expect(screen.getByRole<HTMLInputElement>("textbox", { name: "y" })).toHaveFocus());
+  });
+
+  it("keeps completed-session edit Escape as a full session cancellation", () => {
+    render(<CommandLineBar />);
+    act(() => { startCommandLineCreation("variable"); });
+    const input = screen.getByRole<HTMLInputElement>("textbox");
+    fireEvent.change(input, { target: { value: "3" } });
+    fireEvent.submit(input.closest("form")!);
+    fireEvent.click(screen.getByRole("button", { name: "スキップ" }));
+    fireEvent.click(screen.getByRole("button", { name: "式を編集" }));
+
+    fireEvent.keyDown(screen.getByRole<HTMLInputElement>("textbox"), { key: "Escape" });
+
+    expect(useCadUiStore.getState().commandLineSession).toBeNull();
   });
 
   it("shows @variable candidates in a number step and narrows them by typed prefix", () => {

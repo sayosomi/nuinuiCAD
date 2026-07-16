@@ -5,6 +5,7 @@ import {
   setCommandLineInputComposing
 } from "../commands/commandLineInputComposition";
 import {
+  cancelCommandLineEscape,
   cancelCommandLineSession,
   cancelCommandLineStepEdit,
   cancelStaleCommandLineSession,
@@ -323,7 +324,8 @@ export const CommandLineBar = ({ commandContext, evaluation }: CommandLineBarPro
         }
         if (event.key !== "Escape") return;
         event.preventDefault();
-        cancelCommandLineSession();
+        event.stopPropagation();
+        cancelCommandLineEscape();
       }}
       onCompositionStart={() => setCommandLineInputComposing(true)}
       onCompositionEnd={() => setCommandLineInputComposing(false)}

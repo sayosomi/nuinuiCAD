@@ -5,7 +5,6 @@ import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocume
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import {
   cancelCommandLineSession,
-  cancelCommandLineStepEdit,
   startCommandLineCreation,
   startCommandLineCreationForRecipe,
   startCommandLineStepEdit
@@ -92,7 +91,7 @@ describe("AppLayout Source Editor production integration", () => {
     expect(document.activeElement?.closest("[inert]")).toBeNull();
   });
 
-  it("restores line-list inert mode and Canvas focus after cancelling a mid-session chip edit", async () => {
+  it("restores line-list inert mode and Canvas focus after global Escape cancels a mid-session chip edit", async () => {
     const view = render(<AppLayout />);
     const sourcePane = view.container.querySelector<HTMLElement>(".source-editor-pane-wrapper")!;
     const canvas = view.container.querySelector<HTMLDivElement>(".canvas-viewport")!;
@@ -107,7 +106,7 @@ describe("AppLayout Source Editor production integration", () => {
     await waitFor(() => expect(sourcePane).not.toHaveAttribute("inert"));
     expect(view.getByRole("textbox", { name: "始点" })).toHaveFocus();
 
-    act(() => { cancelCommandLineStepEdit(); });
+    fireEvent.keyDown(window, { key: "Escape" });
     await waitFor(() => expect(sourcePane).toHaveAttribute("inert"));
     await waitFor(() => expect(canvas).toHaveFocus());
     expect(document.activeElement?.closest("[inert]")).toBeNull();
@@ -248,6 +247,35 @@ describe("AppLayout Source Editor production integration", () => {
 
     fireEvent.submit(form);
     expect(useCadUiStore.getState().commandLineSession).toMatchObject({ currentStepIndex: 1 });
+  });
+
+  it("uses global Escape to cancel only a mid-session edit, but cancels completed and normal sessions", async () => {
+    const view = render(<AppLayout />);
+    act(() => { startCommandLineCreation("freePoint"); });
+    const input = view.getByRole("textbox", { name: "x" }) as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "3" } });
+    fireEvent.submit(input.closest("form")!);
+    act(() => { startCommandLineStepEdit(0); });
+
+    fireEvent.keyDown(window, { key: "Escape" });
+    await waitFor(() => expect(useCadUiStore.getState().commandLineSession).toMatchObject({
+      currentStepIndex: 1,
+      editingStepIndex: null,
+      args: { x: 3 }
+    }));
+
+    act(() => { cancelCommandLineSession(); startCommandLineCreation("variable"); });
+    const expression = view.getByRole("textbox", { name: "式" }) as HTMLInputElement;
+    fireEvent.change(expression, { target: { value: "3" } });
+    fireEvent.submit(expression.closest("form")!);
+    fireEvent.click(view.getByRole("button", { name: "スキップ" }));
+    fireEvent.click(view.getByRole("button", { name: "式を編集" }));
+    fireEvent.keyDown(window, { key: "Escape" });
+    await waitFor(() => expect(useCadUiStore.getState().commandLineSession).toBeNull());
+
+    act(() => { startCommandLineCreation("variable"); });
+    fireEvent.keyDown(window, { key: "Escape" });
+    await waitFor(() => expect(useCadUiStore.getState().commandLineSession).toBeNull());
   });
 
   it("uses the real Canvas and controller for Canvas⇄cursor sync and folded descendants", async () => {

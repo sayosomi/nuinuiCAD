@@ -15,6 +15,22 @@ type CommandLinePickFields = Pick<
   | "activePickCursor"
 >;
 
+/** Builds the one command-line-owned numeric target from derivable prompt data. */
+export const commandLineNumericReferencePickTargetFor = (
+  session: CommandLineSession,
+  restoredProperty?: NonNullable<CommandLineSession["editingReturnPickState"]>["numericReferencePickProperty"]
+) => {
+  const step = currentStep(session);
+  if (step?.kind !== "number") return null;
+  return {
+    elementId: COMMAND_LINE_PICK_TARGET_ID,
+    parameterKey: step.key,
+    insertionIndex: session.insertionIndex,
+    mode: "replace" as const,
+    property: restoredProperty ?? initialNumericReferencePickProperty(step.stepLevels)
+  };
+};
+
 /** Builds the command-line-owned targets for the current prompt. */
 export const commandLinePickStateForSession = (
   session: CommandLineSession | null | undefined,
@@ -49,7 +65,7 @@ export const commandLinePickStateForSession = (
   if (step?.kind === "lineList") {
     const draftLineIds = isEditingCommandLineStep(session!) && Array.isArray(session!.editingDraft)
       ? [...session!.editingDraft]
-      : restoredPickState?.lineListDraftLineIds ?? [];
+      : restoredPickState?.lineListDraftLineIds ? [...restoredPickState.lineListDraftLineIds] : [];
     return {
       activePointPickTarget: null,
       activeNumericReferencePickTarget: null,
@@ -57,17 +73,14 @@ export const commandLinePickStateForSession = (
       activePickCursor
     };
   }
-  if (step?.kind === "number" && restoredPickState?.numericReferencePickActive) {
+  if (step?.kind === "number" && restoredPickState?.numericReferencePickProperty !== null && restoredPickState?.numericReferencePickProperty !== undefined) {
     return {
       activePointPickTarget: null,
       activeLinePickTarget: null,
-      activeNumericReferencePickTarget: {
-        elementId: COMMAND_LINE_PICK_TARGET_ID,
-        parameterKey: step.key,
-        insertionIndex: session!.insertionIndex,
-        mode: "replace",
-        property: initialNumericReferencePickProperty(step.stepLevels)
-      },
+      activeNumericReferencePickTarget: commandLineNumericReferencePickTargetFor(
+        session!,
+        restoredPickState.numericReferencePickProperty
+      ),
       activePickCursor
     };
   }
@@ -91,13 +104,18 @@ export const editingReturnPickStateFor = (
   const lineTargetOwned = ownsCurrentTarget(ui.activeLinePickTarget);
   const numericTargetOwned = ownsCurrentTarget(ui.activeNumericReferencePickTarget);
 
-  return {
-    numericReferencePickActive: step?.kind === "number" && numericTargetOwned,
-    lineListDraftLineIds: step?.kind === "lineList" && lineTargetOwned
-      ? [...(ui.activeLinePickTarget?.draftLineIds ?? [])]
-      : null,
-    activePickCursor: pointTargetOwned || lineTargetOwned || numericTargetOwned
+  const numericReferencePickProperty = step?.kind === "number" && numericTargetOwned
+    ? ui.activeNumericReferencePickTarget?.property ?? null
+    : null;
+  const activeLineDraftLineIds = ui.activeLinePickTarget?.draftLineIds;
+  const lineListDraftLineIds = step?.kind === "lineList" && lineTargetOwned &&
+    activeLineDraftLineIds && activeLineDraftLineIds.length > 0
+    ? [...activeLineDraftLineIds]
+    : null;
+  const activePickCursor = pointTargetOwned || lineTargetOwned || numericTargetOwned
       ? ui.activePickCursor ? { ...ui.activePickCursor } : null
-      : null
-  };
+      : null;
+  return numericReferencePickProperty || lineListDraftLineIds || activePickCursor
+    ? { numericReferencePickProperty, lineListDraftLineIds, activePickCursor }
+    : null;
 };

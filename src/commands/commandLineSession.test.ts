@@ -135,7 +135,7 @@ describe("commandLineSession", () => {
   it("edits an already-completed step mid-session and returns to its recorded prompt", () => {
     const partial = fillCurrentStep(start(), referenceAnchor("point-a"));
     const returnPickState = {
-      numericReferencePickActive: false,
+      numericReferencePickProperty: null,
       lineListDraftLineIds: null,
       activePickCursor: { elementId: "point-a", optionIndex: 0 }
     };

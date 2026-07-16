@@ -13,11 +13,13 @@ import {
   confirmCommandLineSession,
   skipCommandLineStep,
   startCommandLineCreation,
+  startCommandLineCreationForRecipe,
   startCommandLineStepEdit,
   startCommandLineNumericReferencePick,
   submitCommandLineInput
 } from "./commandLineSessionCommands";
 import { commandLineCommandDefinitions } from "./commandLineCommandDefinitions";
+import type { CreationRecipe } from "./creationRecipes";
 import { legacyCreationCommandRecipeMap } from "./legacyCreationRecipes";
 
 describe("command-line session commands", () => {
@@ -133,6 +135,15 @@ describe("command-line session commands", () => {
     });
   });
 
+  it("does not save an empty return-pick state for a completed-session edit", () => {
+    expect(startCommandLineCreation("variable")).toBe(true);
+    expect(submitCommandLineInput("3")).toBe(true);
+    expect(skipCommandLineStep()).toBe(true);
+
+    expect(startCommandLineStepEdit(0)).toBe(true);
+    expect(useCadUiStore.getState().commandLineSession?.editingReturnPickState).toBeNull();
+  });
+
   it("keeps missing-input and invalid mid-session edit drafts isolated at the original prompt", () => {
     expect(startCommandLineCreation("freePoint")).toBe(true);
     expect(submitCommandLineInput("3")).toBe(true);
@@ -155,6 +166,57 @@ describe("command-line session commands", () => {
       editingStepIndex: 0,
       editingDraft: { kind: "expression", expression: "(" },
       args: { x: 3, y: 4 }
+    });
+  });
+
+  it("confirms a line start-point edit and returns to its unanswered end-point prompt", () => {
+    useCadDocumentStore.getState().commitText([
+      "nui 1",
+      "point A = (0, 0)",
+      "point B = (100, 0)"
+    ].join("\n"), "test");
+    const pointA = useCadDocumentStore.getState().elements.find((element) => element.name === "A")!;
+    const pointB = useCadDocumentStore.getState().elements.find((element) => element.name === "B")!;
+
+    expect(startCommandLineCreation("line")).toBe(true);
+    applyPickedPoint({ pickedPointAnchor: referenceAnchor(pointA.id) });
+    expect(startCommandLineStepEdit(0)).toBe(true);
+    applyPickedPoint({ pickedPointAnchor: referenceAnchor(pointB.id) });
+
+    expect(useCadUiStore.getState().commandLineSession).toMatchObject({
+      currentStepIndex: 1,
+      editingStepIndex: null,
+      args: { startPoint: referenceAnchor(pointB.id) }
+    });
+    expect(useCadUiStore.getState().activePointPickTarget).toMatchObject({ parameterKey: "endPoint" });
+  });
+
+  it("confirms an edit when only a later defaulted number remains unanswered", () => {
+    const recipe: CreationRecipe = {
+      type: "angleLengthLine",
+      steps: [
+        { kind: "point", key: "startPoint", prompt: "始点" },
+        { kind: "number", key: "angleDeg", prompt: "角度", default: "0" },
+        { kind: "name", autoSuggest: true }
+      ]
+    };
+    useCadDocumentStore.getState().commitText([
+      "nui 1",
+      "point A = (0, 0)",
+      "point B = (100, 0)"
+    ].join("\n"), "test");
+    const pointA = useCadDocumentStore.getState().elements.find((element) => element.name === "A")!;
+    const pointB = useCadDocumentStore.getState().elements.find((element) => element.name === "B")!;
+
+    expect(startCommandLineCreationForRecipe(recipe)).toBe(true);
+    applyPickedPoint({ pickedPointAnchor: referenceAnchor(pointA.id) });
+    expect(startCommandLineStepEdit(0)).toBe(true);
+    applyPickedPoint({ pickedPointAnchor: referenceAnchor(pointB.id) });
+
+    expect(useCadUiStore.getState().commandLineSession).toMatchObject({
+      currentStepIndex: 1,
+      editingStepIndex: null,
+      args: { startPoint: referenceAnchor(pointB.id) }
     });
   });
 
@@ -189,6 +251,12 @@ describe("command-line session commands", () => {
     expect(submitCommandLineInput("3")).toBe(true);
     expect(startCommandLineNumericReferencePick()).toBe(true);
     expect(useCadUiStore.getState().activeNumericReferencePickTarget).toMatchObject({ parameterKey: "y" });
+    useCadUiStore.setState({
+      activeNumericReferencePickTarget: {
+        ...useCadUiStore.getState().activeNumericReferencePickTarget!,
+        property: "endTangentAngleDeg"
+      }
+    });
 
     expect(startCommandLineStepEdit(0)).toBe(true);
     expect(useCadUiStore.getState().activeNumericReferencePickTarget).toBeNull();
@@ -197,7 +265,10 @@ describe("command-line session commands", () => {
       currentStepIndex: 1,
       args: { x: 3 }
     });
-    expect(useCadUiStore.getState().activeNumericReferencePickTarget).toMatchObject({ parameterKey: "y" });
+    expect(useCadUiStore.getState().activeNumericReferencePickTarget).toMatchObject({
+      parameterKey: "y",
+      property: "endTangentAngleDeg"
+    });
   });
 
   it("keeps an invalid edit draft and confirmed args when preview validation fails", () => {

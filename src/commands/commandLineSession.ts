@@ -1,4 +1,5 @@
 import { makeNumericExpression } from "../geometry/numericExpressions";
+import type { NumericMeasurementKey } from "../geometry/numericExpressionTypes";
 import {
   creationPlacementForEvaluationLimit,
   type ElementCreationPlacement
@@ -52,8 +53,8 @@ export type CommandLineStepValue = CreationArgumentValue | string;
  * here.
  */
 export type CommandLineEditingReturnPickState = {
-  /** A number prompt had entered its explicit numeric-reference pick mode. */
-  numericReferencePickActive: boolean;
+  /** Property selected by an explicit numeric-reference pick, or no active pick. */
+  numericReferencePickProperty: NumericMeasurementKey | null;
   /** Unconfirmed multi-line selection owned by the active line-list prompt. */
   lineListDraftLineIds: ElementId[] | null;
   /** Candidate cursor owned by the active command-line reference prompt. */
@@ -121,6 +122,10 @@ export const currentStep = (session: CommandLineSession | null): CreationStep | 
 
 export const isEditingCommandLineStep = (session: CommandLineSession) =>
   session.editingStepIndex !== null;
+
+/** An edit that must return to an unfinished creation prompt when abandoned. */
+export const isMidSessionStepEdit = (session: CommandLineSession) =>
+  isEditingCommandLineStep(session) && session.currentStepIndex < session.recipe.steps.length;
 
 /** Resolves the draft over confirmed args for preview/validation only. */
 export const effectiveCommandLineArgs = (session: CommandLineSession): CreationArgs => {
