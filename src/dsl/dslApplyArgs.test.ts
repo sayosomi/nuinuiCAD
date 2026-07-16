@@ -117,6 +117,14 @@ describe("DSL v2 compiler argument application", () => {
     expect(group.element).toMatchObject({ visibilityRoleIds: ["seam"] });
   });
 
+  it("applies the common color argument when a legacy type has no Inspector color definition", () => {
+    const edge = sample("edge");
+    expect(findParameterDefinition(edge, "colorId")).toBeUndefined();
+    const result = applyArgs(edge, constructionFor("line", "edge")!, [arg("color", "cut-red")], resolvers);
+    expect(result.diagnostics).toEqual([]);
+    expect(result.element).toMatchObject({ colorId: "cut-red" });
+  });
+
   it("resolves each reference, endpoint, list, choice, text, and coordinate kind", () => {
     const offset = applyArgs(sample("offsetPoint"), constructionFor("point", "offset")!, [
       arg("from", "A"), arg("dx", "@width * 2"), arg("dy", "-5"),

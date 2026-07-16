@@ -70,3 +70,10 @@ P3〜P6 を束ねて「parse → applyArgs ≡ 元要素」「serialize → pars
 - C1では v1 parserが削除されるため、`sample.v2.nui` とv1 sampleの意味等価テストは
   W5の凍結parser経由へ差し替えるか削除する。コメントマージはP8、値spanはP9の責務で
   あり、P7 fixtureはそれらを配線しない。
+- `v2CanonicalStatements.ts` は全27要素型のminimal/populated正準全文を静的に保持する。
+  variable は expression / pointDistance / pointAngle / pointLineDistance の4 constructionを
+  別caseで持つため、P9/C1はP5 serializerを実行せず直接参照できる。fixtureの参照表現は
+  固定のdocument-reference contextであり、flatの id/parent/branch 表現は既存P5試験の責務。
+- `compileDslV2RoundTripDocument` は比較対象の要素・設定・active選択・evaluation limitだけを
+  持つP7専用型を返す。production `DslDocumentData` へ合わせるダミー値や型アサーションは
+  置かない。P4設定適用・printLayout member・@stopを検証するためだけの未接続harnessである。

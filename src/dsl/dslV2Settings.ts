@@ -1,7 +1,5 @@
-import { defaultDocumentPalette } from "../palette/palette";
 import { DEFAULT_PRINT_LAYOUT } from "../print/printLayout";
 import type { CadElement, DocumentPalette, NumericValue, PrintLayout, VisibilityProfile, VisibilityRole } from "../types/geometry";
-import { defaultVisibilityProfile } from "../model/visibilityProfiles";
 import { formatDslName, quoteDslString, unquoteDslString } from "./dslTokens";
 import type { DslSettingsStatement } from "./dslSettingsParser";
 
@@ -12,16 +10,16 @@ export type DslV2Settings = {
   visibilityProfiles: VisibilityProfile[];
   activeVisibilityProfileId: string;
   printLayouts: PrintLayout[];
-  activePrintLayoutId: string;
+  activePrintLayoutId: string | undefined;
 };
 
 export const emptyDslV2Settings = (): DslV2Settings => ({
-  palette: defaultDocumentPalette(),
+  palette: { colors: [], defaultColorId: "" },
   visibilityRoles: [],
-  visibilityProfiles: [defaultVisibilityProfile()],
-  activeVisibilityProfileId: defaultVisibilityProfile().id,
+  visibilityProfiles: [],
+  activeVisibilityProfileId: "",
   printLayouts: [],
-  activePrintLayoutId: "",
+  activePrintLayoutId: undefined,
 });
 
 const args = (statement: DslSettingsStatement) => new Map(statement.args.filter((arg) => arg.key).map((arg) => [arg.key!, arg.value]));
@@ -108,7 +106,7 @@ export const applyDslV2PrintLayout = (
     }
   }
   const layouts = settings.printLayouts.filter((item) => item.id !== layout.id).concat(layout);
-  return { ...settings, printLayouts: layouts, activePrintLayoutId: settings.activePrintLayoutId || layout.id };
+  return { ...settings, printLayouts: layouts };
 };
 
 const numericText = (value: NumericValue) => typeof value === "number" ? `${value}` : value.expression;
