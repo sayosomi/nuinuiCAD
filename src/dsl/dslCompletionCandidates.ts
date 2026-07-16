@@ -159,7 +159,7 @@ export const dslReferenceCompletionOptions = ({
     return ids;
   })();
   const selectableSuggestions = suggestions.filter((suggestion) =>
-    suggestion.pickRef.kind !== "line" || !selectedOtherLineIds.has(suggestion.pickRef.lineId)
+    suggestion.pickRef.kind !== "line" || !selectedOtherLineIds.has(suggestion.referenceElementId)
   );
   const ranked = query === undefined
     ? selectableSuggestions

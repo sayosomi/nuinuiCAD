@@ -2,10 +2,13 @@ import { elementNameTokensForContext, elementQualifiedName } from "./elementName
 import type { PickCandidate, PickOption } from "./pickCandidates";
 import { pickRefForOption, pickRefKey, type PickRef } from "./pickReferences";
 import { formatDslReferenceToken } from "../dsl/dslReferenceTokens";
-import type { CadElement } from "../types/geometry";
+import type { CadElement, ElementId } from "../types/geometry";
 
 export type ReferenceSuggestion = {
   pickRef: PickRef;
+  /** Persisted document element identity. This differs from a runtime
+   * forGroup instance id carried by pickRef. */
+  referenceElementId: ElementId;
   pickRefKey: string;
   displayLabel: string;
   canonicalToken: string;
@@ -82,6 +85,7 @@ export const referenceSuggestions = ({
       }
       suggestionsByCanonicalToken.set(canonicalToken, {
         pickRef,
+        referenceElementId,
         pickRefKey: pickRefKey(pickRef),
         displayLabel,
         canonicalToken,

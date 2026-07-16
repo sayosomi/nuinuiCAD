@@ -111,4 +111,68 @@ describe("dslReferenceCompletionOptions", () => {
     });
     expect(options.filter((option) => option.label === "P")).toHaveLength(1);
   });
+
+  it("removes every runtime instance when another line-list token already selects its template", () => {
+    const source = [
+      "nui 1",
+      "for Loop i start=0 count=3 step=1 {",
+      "  point P = (@i * 10, 0)",
+      "  line L = P -> (@i * 10, 10)",
+      "  line M = P -> (@i * 10, 20)",
+      "  line O = offset [L,L] distance=4 side=left",
+      "}"
+    ].join("\n");
+    const { elements, ids } = identities(source);
+    const evaluation = evaluateElements(elements);
+    const lineText = source.split("\n")[5];
+    const options = dslReferenceCompletionOptions({
+      source,
+      cursorLine: 6,
+      kind: "lineReferenceList",
+      parameterKey: "baseLineIds",
+      replacementFrom: lineText.lastIndexOf("L"),
+      statementElementIds: ids,
+      elements,
+      computedGeometry: evaluation.computedGeometry,
+      forGroupGeneratedRows: evaluation.forGroupGeneratedRows,
+      effectiveEnabledElementIds: evaluation.effectiveEnabledElementIds,
+      errors: evaluation.errors
+    });
+
+    // `L` is represented by three runtime instances, but one persisted token.
+    // It must not be offered for confirmation, so the second slot cannot gain
+    // a duplicate `L` token.
+    expect(options.map((option) => option.label)).toEqual(["M"]);
+  });
+
+  it("keeps the currently edited line-list token replaceable while excluding other selections", () => {
+    const source = [
+      "nui 1",
+      "for Loop i start=0 count=2 step=1 {",
+      "  point P = (@i * 10, 0)",
+      "  line L = P -> (@i * 10, 10)",
+      "  line M = P -> (@i * 10, 20)",
+      "  line O = offset [L,M] distance=4 side=left",
+      "}"
+    ].join("\n");
+    const { elements, ids } = identities(source);
+    const evaluation = evaluateElements(elements);
+    const lineText = source.split("\n")[5];
+    const options = dslReferenceCompletionOptions({
+      source,
+      cursorLine: 6,
+      kind: "lineReferenceList",
+      parameterKey: "baseLineIds",
+      replacementFrom: lineText.indexOf("L"),
+      statementElementIds: ids,
+      elements,
+      computedGeometry: evaluation.computedGeometry,
+      forGroupGeneratedRows: evaluation.forGroupGeneratedRows,
+      effectiveEnabledElementIds: evaluation.effectiveEnabledElementIds,
+      errors: evaluation.errors
+    });
+
+    expect(options.map((option) => option.label)).toContain("L");
+    expect(options.map((option) => option.label)).not.toContain("M");
+  });
 });

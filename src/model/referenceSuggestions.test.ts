@@ -67,6 +67,7 @@ describe("referenceSuggestions", () => {
     expect(suggestions[0]).toMatchObject({
       canonicalToken: "Point",
       displayLabel: "Point",
+      referenceElementId: "template",
       pickRef: { kind: "point:reference", pointId: "template@loop:0" }
     });
   });
