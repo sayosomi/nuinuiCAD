@@ -290,9 +290,11 @@ type BlockFrame = {
 const containerKind = (type: CadElementType): BlockFrame["kind"] | null =>
   type === "group" || type === "conditionalGroup" || type === "forGroup" ? type : null;
 
-export type ElementTreeLine = {
-  /** A complete physical source line. Structural braces are independent lines. */
-  text: string;
+export type ElementTreeRow = {
+  /** この行の(インデント済み)物理行群。v1では常に1要素(複数行呼び出しはC1以降)。 */
+  lines: string[];
+  /** lines と並行。引数キー名(header/close/構造行はnull)。v1では常に[null]。 */
+  argKeys: (string | null)[];
   /** 正準インデント深さ(blockEnd/blockElse は開き文と同じ深さ)。 */
   depth: number;
   role: "statement" | "blockStart" | "blockEnd" | "blockElse" | "atStop";
@@ -309,8 +311,8 @@ export const layoutElementTree = (
   elements: CadElement[],
   refs: DslSerializerRefs,
   evaluationLimitIndex: number
-): ElementTreeLine[] => {
-  const lines: ElementTreeLine[] = [];
+): ElementTreeRow[] => {
+  const lines: ElementTreeRow[] = [];
   const stack: BlockFrame[] = [];
   const limit = Math.max(0, Math.min(evaluationLimitIndex, elements.length));
   let emitted = 0;
@@ -319,7 +321,8 @@ export const layoutElementTree = (
     while (stack.length > depth) {
       const frame = stack.pop()!;
       lines.push({
-        text: `${DSL_INDENT.repeat(stack.length)}}`,
+        lines: [`${DSL_INDENT.repeat(stack.length)}}`],
+        argKeys: [null],
         depth: stack.length,
         role: "blockEnd",
         elementId: frame.elementId
@@ -329,7 +332,12 @@ export const layoutElementTree = (
 
   for (const element of elements) {
     if (emitted === limit) {
-      lines.push({ text: `${DSL_INDENT.repeat(stack.length)}@stop`, depth: stack.length, role: "atStop" });
+      lines.push({
+        lines: [`${DSL_INDENT.repeat(stack.length)}@stop`],
+        argKeys: [null],
+        depth: stack.length,
+        role: "atStop"
+      });
     }
 
     const parentId = element.parentGroupId;
@@ -354,7 +362,8 @@ export const layoutElementTree = (
       const parentToken = refs.token(parentId!, element);
       const branchSuffix = element.conditionalBranch === "else" ? " branch=else" : "";
       lines.push({
-        text: `${serializeElementStatement(element, refs)} parent=${parentToken}${branchSuffix}`,
+        lines: [`${serializeElementStatement(element, refs)} parent=${parentToken}${branchSuffix}`],
+        argKeys: [null],
         depth: 0,
         role: "statement",
         elementId: element.id,
@@ -366,7 +375,8 @@ export const layoutElementTree = (
         const top = stack[targetIdx];
         if (top.kind === "conditionalGroup" && top.branch === "then" && desiredBranch === "else") {
           lines.push({
-            text: `${DSL_INDENT.repeat(targetIdx)}} else {`,
+            lines: [`${DSL_INDENT.repeat(targetIdx)}} else {`],
+            argKeys: [null],
             depth: targetIdx,
             role: "blockElse",
             elementId: top.elementId
@@ -376,14 +386,16 @@ export const layoutElementTree = (
       }
       const kind = containerKind(element.type);
       lines.push({
-        text: `${DSL_INDENT.repeat(stack.length)}${serializeElementStatement(element, refs)}`,
+        lines: [`${DSL_INDENT.repeat(stack.length)}${serializeElementStatement(element, refs)}`],
+        argKeys: [null],
         depth: stack.length,
         role: "statement",
         elementId: element.id
       });
       if (kind) {
         lines.push({
-          text: `${DSL_INDENT.repeat(stack.length)}{`,
+          lines: [`${DSL_INDENT.repeat(stack.length)}{`],
+          argKeys: [null],
           depth: stack.length,
           role: "blockStart",
           elementId: element.id
@@ -403,7 +415,7 @@ const serializeElementTree = (
   elements: CadElement[],
   refs: DslSerializerRefs,
   evaluationLimitIndex: number
-): string[] => layoutElementTree(elements, refs, evaluationLimitIndex).map((line) => line.text);
+): string[] => layoutElementTree(elements, refs, evaluationLimitIndex).flatMap((line) => line.lines);
 
 // ==== ファサード ====
 

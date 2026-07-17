@@ -5,6 +5,7 @@ import type { CadElement } from "../types/geometry";
 import { compileDslToElements } from "./dslCompiler";
 import {
   compileDslDocument,
+  layoutElementTree,
   parseDslDocument,
   serializeDocumentToDsl,
   type DslDocumentData
@@ -14,6 +15,7 @@ import {
   expectSemanticallyEqualDocuments,
   roundTrip
 } from "./dslDocumentTestUtils";
+import { documentDslRefs } from "./dslSerializer";
 import sampleFixture from "./__fixtures__/sample.nui?raw";
 
 describe("dslDocument round-trip matrix", () => {
@@ -435,6 +437,30 @@ describe("dslDocument @stop / evaluationLimitIndex", () => {
     const { document, parsed } = roundTrip(source);
     expect(document.evaluationLimitIndex).toBe(2);
     expect(parsed.evaluationLimitIndex).toBe(2);
+  });
+});
+
+describe("dslDocument layoutElementTree ElementTreeRow shape", () => {
+  it("emits statement/blockStart/blockEnd/atStop rows as single-physical-line v1 rows", () => {
+    const source = ["nui 1", "group G {", "  point A = (0, 0)", "  @stop", "  point B = (1, 1)", "}"].join("\n");
+    const compiled = compileDslDocument(source);
+    const document = compiled.document!;
+    const refs = documentDslRefs(document.elements);
+    const rows = layoutElementTree(document.elements, refs, document.evaluationLimitIndex);
+
+    expect(rows.length).toBeGreaterThan(0);
+    for (const row of rows) {
+      // v1 never produces vertical-call statements, so every row is exactly
+      // one physical line with no argument-level keys.
+      expect(row.lines.length).toBe(1);
+      expect(row.argKeys).toEqual([null]);
+    }
+
+    const roleSequence = rows.map((row) => row.role);
+    expect(roleSequence).toEqual(["statement", "blockStart", "statement", "atStop", "statement", "blockEnd"]);
+    expect(rows.find((row) => row.role === "blockStart")!.lines).toEqual(["{"]);
+    expect(rows.find((row) => row.role === "blockEnd")!.lines).toEqual(["}"]);
+    expect(rows.find((row) => row.role === "atStop")!.lines).toEqual(["  @stop"]);
   });
 });
 

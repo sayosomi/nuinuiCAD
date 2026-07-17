@@ -19,6 +19,8 @@ export type GeneratedDocParams = {
   withLayout: boolean;
   unnamedCount: number;
   noiseEvery: number;
+  /** バックスラッシュ継続(複数物理行)のstatementを1つ混ぜる(W2の回帰網羅用)。 */
+  withContinuation: boolean;
 };
 
 export type GeneratedDoc = {
@@ -48,6 +50,12 @@ export const generateDocumentSource = (params: GeneratedDocParams): GeneratedDoc
   // 参照を1つ入れる(リネーム伝播の運動場)。
   if (params.pointCount >= 2) {
     elementLines.push("point Ref0 = offset P0 dx=5 dy=5");
+  }
+  if (params.withContinuation) {
+    // v1のバックスラッシュ継続(複数物理行statement)を1つ混ぜる。palette側で
+    // 定義済みの"main"色を参照する(パースはcolorIdの存在検証をしない)。
+    elementLines.push("point PC = (5, 5) \\");
+    elementLines.push("  color=main");
   }
   for (let index = 0; index < params.groupCount; index += 1) {
     elementLines.push(`group G${index} {`);
@@ -96,7 +104,15 @@ export const generateDocumentSource = (params: GeneratedDocParams): GeneratedDoc
     if (trimmed === "}") depth -= 1;
     else if (trimmed.startsWith("} else")) depth += 0;
     else if (trimmed.endsWith("{")) depth += 1;
-    if (depth === 0 && index > 0 && params.noiseEvery > 0 && index % params.noiseEvery === 0) {
+    // 継続行の直後にノイズを挟むと継続が壊れる(空行/構造行が継続を打ち切る)ため、
+    // バックスラッシュ継続行の直後は注入対象から外す。
+    if (
+      depth === 0 &&
+      index > 0 &&
+      params.noiseEvery > 0 &&
+      index % params.noiseEvery === 0 &&
+      !trimmed.endsWith("\\")
+    ) {
       const marker = `# noise-${(noiseCounter += 1)}`;
       noiseLines.push(marker);
       withNoise.push(marker);
