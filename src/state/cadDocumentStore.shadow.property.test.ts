@@ -74,7 +74,8 @@ describe("cadDocumentStore 影テキスト: ランダム操作プロパティテ
           withFor: true,
           withLayout: true,
           unnamedCount: 1,
-          noiseEvery: 3
+          noiseEvery: 3,
+          withContinuation: true
         });
         const initialCompiled = compileDslDocument(generated.source);
         expect(initialCompiled.document, `must compile:\n${generated.source}`).not.toBeNull();

@@ -21,7 +21,8 @@ const paramsArb: fc.Arbitrary<GeneratedDocParams> = fc.record({
   withFor: fc.boolean(),
   withLayout: fc.boolean(),
   unnamedCount: fc.integer({ min: 0, max: 2 }),
-  noiseEvery: fc.integer({ min: 2, max: 5 })
+  noiseEvery: fc.integer({ min: 2, max: 5 }),
+  withContinuation: fc.boolean()
 });
 
 const opArb: fc.Arbitrary<RandomOp> = fc.record({

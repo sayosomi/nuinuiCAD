@@ -354,6 +354,113 @@ describe("textPatch 要素の移動・親変更", () => {
     });
     expect(patched).toContain("parent=G");
   });
+
+  it("既存statementを新規groupで包むと、子の内容はgroupヘッダより後ろに来る", () => {
+    // W2の複数行row対応に切り替える際、matched statementの置換をinsertBefore
+    // ベースに一般化しかけたところ、同じアンカー行へ挿入されるrun(新規group
+    // ヘッダ)とstatement自身の内容の相対順序がinsertBeforeの呼び出し順に
+    // 依存してしまい、子の内容がgroupヘッダより前に出てしまう回帰があった
+    // (発見・修正はW2実装時)。ここで固定する。
+    const source = ["nui 1", "point A = (0, 0)", "point B = (1, 1)"].join("\n");
+    const { patched } = applyChange(source, (document) => {
+      const group = makeElement("group G {\n}");
+      return {
+        ...document,
+        elements: [
+          group,
+          ...document.elements.map((element) => ({ ...element, parentGroupId: group.id }) as CadElement)
+        ]
+      };
+    });
+    const lines = patched.split("\n");
+    const groupIndex = lines.findIndex((line) => line.startsWith("group G"));
+    const braceIndex = lines.findIndex((line, index) => index > groupIndex && line.trim() === "{");
+    const aIndex = lines.findIndex((line) => line.includes("point A"));
+    const bIndex = lines.findIndex((line) => line.includes("point B"));
+    expect(groupIndex).toBeGreaterThanOrEqual(0);
+    expect(braceIndex).toBeGreaterThan(groupIndex);
+    expect(aIndex).toBeGreaterThan(braceIndex);
+    expect(bIndex).toBeGreaterThan(aIndex);
+  });
+});
+
+describe("textPatch 複数行statement(バックスラッシュ継続)", () => {
+  const CONTINUATION_SOURCE = [
+    "nui 1",
+    "point A = (0, 0) \\",
+    "  color=main  # 継続コメント",
+    "point B = (1, 1)"
+  ].join("\n");
+
+  it("継続行の内容変更は正準1行へ収束し、継続行のコメントを保存する", () => {
+    const { patched } = applyChange(CONTINUATION_SOURCE, (document) => ({
+      ...document,
+      elements: document.elements.map((element) =>
+        element.name === "A" ? ({ ...element, colorId: "accent" } as CadElement) : element
+      )
+    }));
+    const lines = patched.split("\n");
+    expect(lines).toContain("point A = (0, 0) color=accent  # 継続コメント");
+    expect(lines).not.toContain("  color=main  # 継続コメント");
+    expect(patched).toContain("point B = (1, 1)");
+  });
+
+  it("内容変更のない継続statementの移動(既存groupへのdepth変更)も全範囲を置換する", () => {
+    const source = ["nui 1", "group G {", "}", "point A = (0, 0) \\", "  color=main"].join("\n");
+    const { patched } = applyChange(source, (document) => {
+      const group = elementByName(document, "G");
+      return {
+        ...document,
+        elements: document.elements.map((element) =>
+          element.name === "A" ? ({ ...element, parentGroupId: group.id } as CadElement) : element
+        )
+      };
+    });
+    const lines = patched.split("\n");
+    expect(lines).toContain("  point A = (0, 0) color=main");
+    // 旧・継続行の残骸(トップレベルの"  color=main"単独行)が残っていないこと。
+    expect(lines.filter((line) => line.includes("color=main"))).toHaveLength(1);
+  });
+
+  it("削除された継続statementは継続行を含めて全行が消える", () => {
+    const { patched } = applyChange(CONTINUATION_SOURCE, (document) => ({
+      ...document,
+      elements: document.elements.filter((element) => element.name !== "A"),
+      evaluationLimitIndex: document.evaluationLimitIndex - 1
+    }));
+    expect(patched).not.toContain("point A");
+    expect(patched).not.toContain("color=main");
+    expect(patched).toContain("point B = (1, 1)");
+  });
+
+  it("無変更の継続statementはスプライスが一切触れない", () => {
+    const { splices } = applyChange(CONTINUATION_SOURCE, (document) => ({
+      ...document,
+      elements: document.elements.map((element) =>
+        element.name === "B" ? ({ ...element, locked: true } as CadElement) : element
+      )
+    }));
+    expectLinesUntouched(splices, [2, 3]);
+  });
+
+  it("マッチした継続statementの直後への挿入は継続行の途中に割り込まない", () => {
+    // 挿入runのアンカー("最後にマッチした旧行の直後")がstatementのヘッダ行
+    // だけを見ていると、無変更の複数行文が文書末尾にあるとき、新規要素が
+    // ヘッダ行と継続行の間に挟まってしまい継続が壊れる回帰があった
+    // (property testで発見・修正)。
+    const source = ["nui 1", "point B = (1, 1)", "point A = (0, 0) \\", "  color=main"].join("\n");
+    const { patched } = applyChange(source, (document) => ({
+      ...document,
+      elements: [...document.elements, makeElement("point Z = (9, 9)")],
+      evaluationLimitIndex: document.elements.length + 1
+    }));
+    const reparsed = compileDslDocument(patched);
+    expect(reparsed.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
+    const lines = patched.split("\n");
+    const continuationIndex = lines.findIndex((line) => line.includes("color=main"));
+    const zIndex = lines.findIndex((line) => line.includes("point Z"));
+    expect(zIndex).toBeGreaterThan(continuationIndex);
+  });
 });
 
 describe("textPatch リネーム伝播", () => {

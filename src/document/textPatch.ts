@@ -5,6 +5,7 @@ import {
   serializePaletteLines,
   type CompiledDslDocument,
   type DslDocumentData,
+  type ElementTreeRow,
   type StatementInfo
 } from "../dsl/dslDocument";
 import { isElementDslStatement } from "../dsl/dslParser";
@@ -16,7 +17,9 @@ import {
   serializeViewLine,
   type DslSerializerRefs
 } from "../dsl/dslSerializer";
-import { splitDslComment } from "../dsl/dslTokens";
+import type { SerializedStatement } from "../dsl/dslSerializeElement";
+import { DSL_INDENT, splitDslComment } from "../dsl/dslTokens";
+import { mergeStatementComments } from "./statementCommentMerge";
 import type { CadElement, ElementId } from "../types/geometry";
 
 // textPatch — モデル差分を「行スプライス」列に変換するパッチ生成器
@@ -63,6 +66,20 @@ export type TextPatchInput = {
 
 /** A structural patch must never guess where a continuation/comment belongs. */
 export class UnappliedTextPatchError extends Error {}
+
+// v1の正準シリアライザは常にrow当たり1物理行しか作らない。このv1アダプタ
+// (patchElements内の行合成)はその前提に依存しており、行番号ずれで残りの
+// 物理行を黙って捨てるくらいなら明示的に落ちるべき。C1でP5(複数行を実際に
+// 生成するregistry駆動serializer)へ差し替わったら、この関数と呼び出し元は
+// 本物の複数行row対応へ書き換える。
+const soleCanonicalLine = (row: ElementTreeRow, elementId: ElementId | undefined): string => {
+  if (row.lines.length !== 1) {
+    throw new UnappliedTextPatchError(
+      `要素 ${elementId ?? "?"} の正準行が複数物理行になっています(v1アダプタ未対応。C1で実serializer接続へ置き換える想定)。`
+    );
+  }
+  return row.lines[0];
+};
 
 const CONTAINER_TYPES = new Set(["group", "conditionalGroup", "forGroup"]);
 const isContainer = (element: CadElement) => CONTAINER_TYPES.has(element.type);
@@ -295,30 +312,23 @@ const patchElements = (input: TextPatchInput, ops: PatchOps) => {
     if (line.role !== "statement" || !line.elementId) return line;
     const info = statementMap.byElementId.get(line.elementId);
     const next = canonicalLayout.find((candidate) => candidate.role === "blockStart" && candidate.elementId === line.elementId);
-    return info && !info.openBraceLine && next ? { ...line, text: `${line.text} {` } : line;
+    if (!info || info.openBraceLine || !next) return line;
+    // Attach to the row's last physical line (not index 0) so this stays
+    // correct even if a future serializer ever emits a multi-line row here.
+    const lastIndex = line.lines.length - 1;
+    return {
+      ...line,
+      lines: [...line.lines.slice(0, lastIndex), `${line.lines[lastIndex]} {`]
+    };
   });
   const newById = new Map(newDocument.elements.map((element) => [element.id, element]));
   const updates = elementUpdateSet(oldDocument, newDocument, refsNew);
 
-  for (const elementId of updates) {
-    const info = statementMap.byElementId.get(elementId);
-    if (!info || info.endLine <= info.line) continue;
-    const physicalLines = old.sourceLines.slice(info.line - 1, info.endLine);
-    if (physicalLines.some((line) => /\\\s*(?:\/\/|#|;|$)/.test(line) || splitDslComment(line).comment)) {
-      throw new UnappliedTextPatchError(
-        `要素 ${elementId} の複数行文は継続境界またはコメントを安全に保持できないため未適用です。`
-      );
-    }
-    // Re-serializing only the header would leave orphaned continuation source.
-    // A future local-span patch may opt in only after proving every segment.
-    throw new UnappliedTextPatchError(
-      `要素 ${elementId} の複数行文の構造的更新は未適用です。`
-    );
-  }
-
   // 旧テキストの「要素系」行(要素文・そのブロック枠・@stop)。
   type OldElemLine = {
     line: number;
+    /** 非マッチ削除時に落とす末尾行(既定はline自身)。複数行文のstatement行のみline超え。 */
+    endLine: number;
     role: "statement" | "blockStart" | "blockEnd" | "blockElse" | "atStop";
     elementId?: ElementId;
     statementIndex: number;
@@ -327,7 +337,7 @@ const patchElements = (input: TextPatchInput, ops: PatchOps) => {
   for (const info of statementMap.statements) {
     const statement = old.statements[info.statementIndex];
     if (statement.kind === "atStop") {
-      oldElemLines.push({ line: info.line, role: "atStop", statementIndex: info.statementIndex });
+      oldElemLines.push({ line: info.line, endLine: info.line, role: "atStop", statementIndex: info.statementIndex });
       continue;
     }
     if (statement.kind === "blockEnd" || statement.kind === "blockElse") {
@@ -337,6 +347,7 @@ const patchElements = (input: TextPatchInput, ops: PatchOps) => {
       if (ownerId === undefined) continue; // printLayout ブロックの枠は別セクションで扱う。
       oldElemLines.push({
         line: info.line,
+        endLine: info.line,
         role: statement.kind,
         elementId: ownerId,
         statementIndex: info.statementIndex
@@ -346,12 +357,26 @@ const patchElements = (input: TextPatchInput, ops: PatchOps) => {
     if (isElementDslStatement(statement)) {
       const id = statementMap.elementIdByStatementIndex.get(info.statementIndex);
       if (id === undefined) continue;
-      oldElemLines.push({ line: info.line, role: "statement", elementId: id, statementIndex: info.statementIndex });
-      if (info.openBraceLine) oldElemLines.push({ line: info.openBraceLine, role: "blockStart", elementId: id, statementIndex: info.statementIndex });
+      oldElemLines.push({
+        line: info.line,
+        endLine: info.endLine,
+        role: "statement",
+        elementId: id,
+        statementIndex: info.statementIndex
+      });
+      if (info.openBraceLine) {
+        oldElemLines.push({
+          line: info.openBraceLine,
+          endLine: info.openBraceLine,
+          role: "blockStart",
+          elementId: id,
+          statementIndex: info.statementIndex
+        });
+      }
     }
   }
 
-  // layout行 → 旧行候補。
+  // layout行 → 旧行候補(マッチング・insertBeforeアンカーに使う「先頭」行)。
   const candidates = layout.map((line): number | undefined => {
     if (line.role === "atStop") return statementMap.byKey.get("atStop")?.line;
     const info = line.elementId !== undefined ? statementMap.byElementId.get(line.elementId) : undefined;
@@ -361,6 +386,14 @@ const patchElements = (input: TextPatchInput, ops: PatchOps) => {
     if (line.role === "blockEnd") return info.range.endLine > info.line ? info.range.endLine : undefined;
     return info.elseLine;
   });
+  // 複数行文(statement行のみ)の実際の終端行。「この行より後ろに挿入」の
+  // アンカー計算(lastMatchedOldLine)専用— ヘッダ行だけを見ると、末尾が
+  // マッチした複数行文の継続行の途中に新規runを割り込ませてしまう。
+  const candidateEndLines = layout.map((line, index): number | undefined => {
+    if (line.role !== "statement") return candidates[index];
+    const info = line.elementId !== undefined ? statementMap.byElementId.get(line.elementId) : undefined;
+    return info?.endLine;
+  });
 
   // 旧行番号が狭義増加になる最大部分列だけをマッチとする(順序が壊れた候補=
   // 移動した要素・移動した @stop は自動的に「削除+挿入」へ落ちる)。
@@ -369,14 +402,20 @@ const patchElements = (input: TextPatchInput, ops: PatchOps) => {
     .filter((layoutIndex) => candidates[layoutIndex] !== undefined);
   const keptPositions = longestIncreasingIndexes(withCandidates.map((layoutIndex) => candidates[layoutIndex]!));
   const matchedOldLineByLayout = new Map<number, number>();
+  const matchedOldEndByLayout = new Map<number, number>();
   withCandidates.forEach((layoutIndex, position) => {
-    if (keptPositions.has(position)) matchedOldLineByLayout.set(layoutIndex, candidates[layoutIndex]!);
+    if (keptPositions.has(position)) {
+      matchedOldLineByLayout.set(layoutIndex, candidates[layoutIndex]!);
+      matchedOldEndByLayout.set(layoutIndex, candidateEndLines[layoutIndex] ?? candidates[layoutIndex]!);
+    }
   });
   const matchedOldLines = new Set(matchedOldLineByLayout.values());
 
-  // 非マッチの旧要素系行は削除。
+  // 非マッチの旧要素系行は削除(複数行文はline..endLine全範囲を落とす。
+  // 継続行だけを取り残すと孤立した物理行がそのまま残ってしまう)。
   for (const oldLine of oldElemLines) {
-    if (!matchedOldLines.has(oldLine.line)) setLineOp(ops, oldLine.line, null);
+    if (matchedOldLines.has(oldLine.line)) continue;
+    for (let l = oldLine.line; l <= oldLine.endLine; l += 1) setLineOp(ops, l, null);
   }
 
   // サブツリーごと消えたコンテナは、範囲内のコメント・空行も一緒に削除する
@@ -400,44 +439,13 @@ const patchElements = (input: TextPatchInput, ops: PatchOps) => {
     }
   }
 
-  // マッチ行: 変更があれば正準行(+旧行の行末コメント)へ置換、無ければ不変。
-  for (const [layoutIndex, oldLineNumber] of matchedOldLineByLayout) {
-    const layoutLine = layout[layoutIndex];
-    const rawOldLine = old.sourceLines[oldLineNumber - 1] ?? "";
-    const comment = splitDslComment(rawOldLine).comment;
-
-    if (layoutLine.role === "statement") {
-      const elementId = layoutLine.elementId!;
-      const info = statementMap.byElementId.get(elementId)!;
-      const oldStatement = old.statements[info.statementIndex];
-      const newElement = newById.get(elementId)!;
-      const oldFallback = oldStatement.attrs.some((attr) => attr.key === "parent");
-      const newOpens = !layoutLine.fallback && isContainer(newElement);
-      const structureChanged =
-        info.indentDepth !== layoutLine.depth ||
-        oldFallback !== Boolean(layoutLine.fallback) ||
-        oldStatement.opensBlock !== newOpens;
-      if (updates.has(elementId) || structureChanged) {
-        const replacement = `${layoutLine.text}${comment}`;
-        if (replacement !== rawOldLine) setLineOp(ops, oldLineNumber, replacement);
-      }
-      continue;
-    }
-
-    // Structural rows and @stop only change for indentation changes.
-    // (blockEnd/blockElse の正準深さは対応する開き文の深さに等しい。)
-    const info =
-      layoutLine.role === "atStop"
-        ? statementMap.byKey.get("atStop")!
-        : statementMap.byElementId.get(layoutLine.elementId!)!;
-    if (info.indentDepth !== layoutLine.depth) {
-      const replacement = `${layoutLine.text}${comment}`;
-      if (replacement !== rawOldLine) setLineOp(ops, oldLineNumber, replacement);
-    }
-  }
-
   // 非マッチのlayout行 → 連続runごとに挿入。アンカーは「次のマッチ行の直前」、
   // 無ければ「最後のマッチ行の直後」、マッチが皆無なら要素セクションの新設。
+  // マッチ行の置換処理より先に実行する: 両方とも同じ旧行番号をinsertBeforeの
+  // アンカーに使うことがあり(例: 既存statementを新規groupの子として包む場合、
+  // runが作る `group G {` と、その直後statement自身が持つ行頭コメントが同じ
+  // アンカーへ挿入される)、insertBeforeは呼び出し順で連結されるため、run側を
+  // 先に走らせないと新規コンテナのヘッダより前に子statementの内容が来てしまう。
   const runs: Array<{ start: number; end: number }> = [];
   let runStart = -1;
   layout.forEach((_, layoutIndex) => {
@@ -450,9 +458,10 @@ const patchElements = (input: TextPatchInput, ops: PatchOps) => {
   });
   if (runStart >= 0) runs.push({ start: runStart, end: layout.length });
 
-  const lastMatchedOldLine = Math.max(0, ...matchedOldLineByLayout.values());
+  // 複数行文の継続行の途中へ挿入されないよう、末尾は実際のendLine基準で計算する。
+  const lastMatchedOldLine = Math.max(0, ...matchedOldEndByLayout.values());
   for (const run of runs) {
-    const texts = layout.slice(run.start, run.end).map((line) => line.text);
+    const texts = layout.slice(run.start, run.end).flatMap((line) => line.lines);
     let nextMatched: number | undefined;
     for (let layoutIndex = run.end; layoutIndex < layout.length; layoutIndex += 1) {
       const matched = matchedOldLineByLayout.get(layoutIndex);
@@ -471,6 +480,66 @@ const patchElements = (input: TextPatchInput, ops: PatchOps) => {
       const anchor =
         sectionEnds.printLayouts ?? sectionEnds.visibility ?? sectionEnds.palette ?? sectionEnds.version ?? 0;
       insertBefore(ops, anchor + 1, anchor > 0 ? ["", ...texts] : texts);
+    }
+  }
+
+  // マッチ行: 変更があれば正準行(+旧行の行末コメント)へ置換、無ければ不変。
+  for (const [layoutIndex, oldLineNumber] of matchedOldLineByLayout) {
+    const layoutLine = layout[layoutIndex];
+    const rawOldLine = old.sourceLines[oldLineNumber - 1] ?? "";
+    const comment = splitDslComment(rawOldLine).comment;
+
+    if (layoutLine.role === "statement") {
+      const elementId = layoutLine.elementId!;
+      const info = statementMap.byElementId.get(elementId)!;
+      const oldStatement = old.statements[info.statementIndex];
+      const newElement = newById.get(elementId)!;
+      const oldFallback = oldStatement.attrs.some((attr) => attr.key === "parent");
+      const newOpens = !layoutLine.fallback && isContainer(newElement);
+      const structureChanged =
+        info.indentDepth !== layoutLine.depth ||
+        oldFallback !== Boolean(layoutLine.fallback) ||
+        oldStatement.opensBlock !== newOpens;
+      if (updates.has(elementId) || structureChanged) {
+        const indent = DSL_INDENT.repeat(layoutLine.depth);
+        const bareText = soleCanonicalLine(layoutLine, elementId).slice(indent.length);
+        const oldLines = old.sourceLines.slice(info.line - 1, info.endLine);
+        const next: SerializedStatement = { header: bareText, args: [], close: null };
+        // v1のみの暫定アダプタ: next.close===nullなのでmergeStatementCommentsは
+        // 常にmergeToSingleLine分岐を通り、oldArgLineByKeyは参照されない。C1で
+        // P5(実SerializedStatementを生成するserializer)に差し替わったら、ここで
+        // 本物のoldArgLineByKeyを組む必要がある。
+        const mergedLines = mergeStatementComments({ oldLines, oldArgLineByKey: new Map(), next, indent });
+        const unchanged =
+          mergedLines.length === oldLines.length && mergedLines.every((line, index) => line === oldLines[index]);
+        if (!unchanged) {
+          // The header keeps going through setLineOp (not insertBefore) at
+          // info.line, matching the pre-existing single-line behavior: a run
+          // inserted immediately before this same anchor (e.g. a brand-new
+          // enclosing group's header/`{`, handled above) must always sort
+          // ahead of this statement's own content, and buildSplicesFromOps
+          // only guarantees that ordering (insertsBefore(cursor) before
+          // lineOps(cursor)) when the statement's content is the lineOps
+          // entry, not another insertBefore at the same cursor.
+          const headerLine = mergedLines[mergedLines.length - 1];
+          const leading = mergedLines.slice(0, -1);
+          if (leading.length > 0) insertBefore(ops, info.line, leading);
+          setLineOp(ops, info.line, headerLine);
+          for (let l = info.line + 1; l <= info.endLine; l += 1) setLineOp(ops, l, null);
+        }
+      }
+      continue;
+    }
+
+    // Structural rows and @stop only change for indentation changes.
+    // (blockEnd/blockElse の正準深さは対応する開き文の深さに等しい。)
+    const info =
+      layoutLine.role === "atStop"
+        ? statementMap.byKey.get("atStop")!
+        : statementMap.byElementId.get(layoutLine.elementId!)!;
+    if (info.indentDepth !== layoutLine.depth) {
+      const replacement = `${soleCanonicalLine(layoutLine, layoutLine.elementId)}${comment}`;
+      if (replacement !== rawOldLine) setLineOp(ops, oldLineNumber, replacement);
     }
   }
 };
