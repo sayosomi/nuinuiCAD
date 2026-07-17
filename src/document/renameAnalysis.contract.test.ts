@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { compileDslDocument, type CompiledDslDocument, type DslDocumentData } from "../dsl/dslDocument";
+import { compileDslDocument, serializeDocumentToDsl, type CompiledDslDocument, type DslDocumentData } from "../dsl/dslDocument";
 import { parseDsl } from "../dsl/dslParser";
+import { dslFlatTextForElements, dslTextForElements, emptyDocument } from "../dsl/dslDocumentTestUtils";
 import { getDirectParentIds } from "../model/dependencies";
 import type { RenameAnalysis } from "./renameAnalysis";
 import { analyzeRename } from "./renameAnalysis";
@@ -64,9 +65,17 @@ const rejectedDetailLabel = (analysis: Extract<RenameAnalysis, { verdict: "rejec
   }
 };
 
+const lineOf = (source: string, needle: string): number => {
+  const index = source.split("\n").findIndex((line) => line.includes(needle));
+  expect(index).toBeGreaterThanOrEqual(0);
+  return index + 1;
+};
+
 describe("renameAnalysis contract", () => {
   it("includes an unnamed target statement even when no reference text changes", () => {
-    const source = "nui 1\npoint = (0, 0)";
+    const source = dslTextForElements([
+      { id: "p", name: "", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 }
+    ]);
     const compiled = complete(source);
     const analysis = analyzeRename({
       sourceText: source,
@@ -75,15 +84,27 @@ describe("renameAnalysis contract", () => {
       newName: "Named"
     });
 
-    expect(analysis).toMatchObject({ verdict: "ok", expectedPatchedLines: [2], occurrences: [] });
+    expect(analysis).toMatchObject({
+      verdict: "ok",
+      expectedPatchedLines: [source.split("\n").length],
+      occurrences: []
+    });
   });
 
   it("preserves an explicit id and its reference resolution", () => {
-    const source = [
-      "nui 1",
-      "point A = (0, 0) id=persisted-a",
-      "point User = offset persisted-a dx=1 dy=0"
-    ].join("\n");
+    const source = dslFlatTextForElements([
+      { id: "persisted-a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
+      {
+        id: "user-1",
+        name: "User",
+        type: "offsetPoint",
+        visible: true,
+        enabled: true,
+        fromPoint: { mode: "reference", pointId: "persisted-a" },
+        dx: 1,
+        dy: 0
+      }
+    ]);
     const compiled = complete(source);
     const target = compiled.document.elements.find((element) => element.id === "persisted-a")!;
     const analysis = analyzeRename({ sourceText: source, compiled, targetElementId: target.id, newName: "B" });
@@ -98,14 +119,21 @@ describe("renameAnalysis contract", () => {
   });
 
   it("tracks a qualified reference in another scope", () => {
-    const source = [
-      "nui 1",
-      "point P = (0, 0)",
-      "group G {",
-      "  point P = (1, 0)",
-      "}",
-      "point User = offset G::P dx=1 dy=0"
-    ].join("\n");
+    const source = dslTextForElements([
+      { id: "p1", name: "P", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
+      { id: "g", name: "G", type: "group", visible: true, enabled: true },
+      { id: "p2", name: "P", type: "freePoint", visible: true, enabled: true, x: 1, y: 0, parentGroupId: "g" },
+      {
+        id: "user",
+        name: "User",
+        type: "offsetPoint",
+        visible: true,
+        enabled: true,
+        fromPoint: { mode: "reference", pointId: "p2" },
+        dx: 1,
+        dy: 0
+      }
+    ]);
     const compiled = complete(source);
     const target = compiled.document.elements.find((element) => element.name === "P" && element.parentGroupId)!;
     const analysis = analyzeRename({ sourceText: source, compiled, targetElementId: target.id, newName: "Q" });
@@ -113,7 +141,7 @@ describe("renameAnalysis contract", () => {
     expect(analysis).toMatchObject({ verdict: "ok" });
     if (analysis.verdict !== "ok") return;
     expect(analysis.occurrences).toEqual(expect.arrayContaining([
-      expect.objectContaining({ line: 6, referencedElementId: target.id })
+      expect.objectContaining({ line: lineOf(source, "point User"), referencedElementId: target.id })
     ]));
     const after = recompileWithInheritedIds(compiled, renamedText(source, compiled, target.id, analysis.newName));
     const user = after.document.elements.find((element) => element.name === "User")!;
@@ -121,14 +149,22 @@ describe("renameAnalysis contract", () => {
   });
 
   it("rejects an element rename that lets an inner scope capture its target reference", () => {
-    const source = [
-      "nui 1",
-      "point Target = (0, 0)",
-      "group G {",
-      "  point NewName = (1, 0)",
-      "  point User = offset Target dx=1 dy=0",
-      "}"
-    ].join("\n");
+    const source = dslTextForElements([
+      { id: "target", name: "Target", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
+      { id: "g", name: "G", type: "group", visible: true, enabled: true },
+      { id: "newname", name: "NewName", type: "freePoint", visible: true, enabled: true, x: 1, y: 0, parentGroupId: "g" },
+      {
+        id: "user",
+        name: "User",
+        type: "offsetPoint",
+        visible: true,
+        enabled: true,
+        fromPoint: { mode: "reference", pointId: "target" },
+        dx: 1,
+        dy: 0,
+        parentGroupId: "g"
+      }
+    ]);
     const compiled = complete(source);
     const target = compiled.document.elements.find((element) => element.name === "Target")!;
 
@@ -137,18 +173,24 @@ describe("renameAnalysis contract", () => {
   });
 
   it("rejects a group rename that lets an inner scope capture its descendant reference", () => {
-    const source = [
-      "nui 1",
-      "group Target {",
-      "  point Child = (0, 0)",
-      "}",
-      "group Consumer {",
-      "  group NewName {",
-      "    point Child = (1, 0)",
-      "  }",
-      "  point User = offset Target::Child dx=1 dy=0",
-      "}"
-    ].join("\n");
+    const source = dslTextForElements([
+      { id: "target", name: "Target", type: "group", visible: true, enabled: true },
+      { id: "child1", name: "Child", type: "freePoint", visible: true, enabled: true, x: 0, y: 0, parentGroupId: "target" },
+      { id: "consumer", name: "Consumer", type: "group", visible: true, enabled: true },
+      { id: "newname", name: "NewName", type: "group", visible: true, enabled: true, parentGroupId: "consumer" },
+      { id: "child2", name: "Child", type: "freePoint", visible: true, enabled: true, x: 1, y: 0, parentGroupId: "newname" },
+      {
+        id: "user",
+        name: "User",
+        type: "offsetPoint",
+        visible: true,
+        enabled: true,
+        fromPoint: { mode: "reference", pointId: "child1" },
+        dx: 1,
+        dy: 0,
+        parentGroupId: "consumer"
+      }
+    ]);
     const compiled = complete(source);
     const target = compiled.document.elements.find((element) => element.name === "Target")!;
 
@@ -157,50 +199,79 @@ describe("renameAnalysis contract", () => {
   });
 
   it("does not count a text-invariant descendant reference as an occurrence", () => {
-    const source = [
-      "nui 1",
-      "group G {",
-      "  point P = (0, 0)",
-      "  point S = offset P dx=1 dy=0",
-      "}"
-    ].join("\n");
+    const source = dslTextForElements([
+      { id: "g", name: "G", type: "group", visible: true, enabled: true },
+      { id: "p", name: "P", type: "freePoint", visible: true, enabled: true, x: 0, y: 0, parentGroupId: "g" },
+      {
+        id: "s",
+        name: "S",
+        type: "offsetPoint",
+        visible: true,
+        enabled: true,
+        fromPoint: { mode: "reference", pointId: "p" },
+        dx: 1,
+        dy: 0,
+        parentGroupId: "g"
+      }
+    ]);
     const compiled = complete(source);
     const target = compiled.document.elements.find((element) => element.name === "G")!;
     const analysis = analyzeRename({ sourceText: source, compiled, targetElementId: target.id, newName: "H" });
 
     expect(analysis).toMatchObject({ verdict: "ok" });
     if (analysis.verdict !== "ok") return;
-    expect(analysis.expectedPatchedLines).toContain(2);
-    expect(analysis.expectedPatchedLines).not.toContain(4);
-    expect(analysis.occurrences.some((occurrence) => occurrence.line === 4)).toBe(false);
+    const groupLine = lineOf(source, "group G");
+    const sLine = lineOf(source, "point S");
+    expect(analysis.expectedPatchedLines).toContain(groupLine);
+    expect(analysis.expectedPatchedLines).not.toContain(sLine);
+    expect(analysis.occurrences.some((occurrence) => occurrence.line === sLine)).toBe(false);
   });
 
   it("only includes target-resolving slots from a changed print-layout block", () => {
-    const source = [
-      "nui 1",
-      "group G {",
-      "  point P = (0, 0)",
-      "}",
-      "group X {",
-      "  point P = (1, 0)",
-      "}",
-      "printLayout Layout output=pdf paper=a4 orientation=portrait columns=1 rows=1 overlap=0 scale=1 canvas=(100, 100) {",
-      "  place G at=(0, 0) angle=0 mirrorX=false",
-      "  place X at=(20, 0) angle=0 mirrorX=false",
-      "}"
-    ].join("\n");
+    const elements: DslDocumentData["elements"] = [
+      { id: "g", name: "G", type: "group", visible: true, enabled: true },
+      { id: "gp", name: "P", type: "freePoint", visible: true, enabled: true, x: 0, y: 0, parentGroupId: "g" },
+      { id: "x", name: "X", type: "group", visible: true, enabled: true },
+      { id: "xp", name: "P", type: "freePoint", visible: true, enabled: true, x: 1, y: 0, parentGroupId: "x" }
+    ];
+    const source = serializeDocumentToDsl({
+      ...emptyDocument(),
+      elements,
+      palette: { colors: [], defaultColorId: "" },
+      printLayouts: [{
+        id: "layout",
+        name: "Layout",
+        outputKind: "pdf",
+        paperSizeId: "a4",
+        orientation: "portrait",
+        columns: 1,
+        rows: 1,
+        overlapMm: 0,
+        scale: 1,
+        svgCanvasWidthMm: 100,
+        svgCanvasHeightMm: 100,
+        placements: [
+          { id: "place-g", groupId: "g", x: 0, y: 0, angleDeg: 0, mirrorX: false },
+          { id: "place-x", groupId: "x", x: 20, y: 0, angleDeg: 0, mirrorX: false }
+        ]
+      }],
+      activePrintLayoutId: "layout"
+    });
     const compiled = complete(source);
     const target = compiled.document.elements.find((element) => element.name === "G")!;
     const analysis = analyzeRename({ sourceText: source, compiled, targetElementId: target.id, newName: "H" });
 
     expect(analysis).toMatchObject({ verdict: "ok" });
     if (analysis.verdict !== "ok") return;
+    const placeGLine = lineOf(source, "place G");
+    const placeXLine = lineOf(source, "place X");
     expect(analysis.occurrences).toEqual(expect.arrayContaining([
-      expect.objectContaining({ line: 9, referencedElementId: target.id, form: "print-layout-place" })
+      expect.objectContaining({ line: placeGLine, referencedElementId: target.id, form: "print-layout-place" })
     ]));
-    expect(analysis.occurrences.some((occurrence) => occurrence.line === 10)).toBe(false);
+    expect(analysis.occurrences.some((occurrence) => occurrence.line === placeXLine)).toBe(false);
   });
 
+  // dsl2-cutover: v1-literal
   it("excludes an unchanged raw-id descendant place when print-layout line mapping is exact", () => {
     const source = [
       "nui 1",
@@ -224,6 +295,7 @@ describe("renameAnalysis contract", () => {
     ]);
   });
 
+  // dsl2-cutover: v1-literal
   it("keeps block-granularity occurrences when source-only print-layout lines prevent an exact mapping", () => {
     const source = [
       "nui 1",
@@ -250,7 +322,10 @@ describe("renameAnalysis contract", () => {
   });
 
   it("exposes reason-specific rejected detail types", () => {
-    const source = "nui 1\npoint A = (0, 0)\npoint B = (1, 0)";
+    const source = dslTextForElements([
+      { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
+      { id: "b", name: "B", type: "freePoint", visible: true, enabled: true, x: 1, y: 0 }
+    ]);
     const compiled = complete(source);
     const target = compiled.document.elements.find((element) => element.name === "A")!;
     const analysis = analyzeRename({ sourceText: source, compiled, targetElementId: target.id, newName: "B" });

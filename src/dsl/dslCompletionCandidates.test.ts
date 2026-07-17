@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { compileDslDocument } from "./dslDocument";
+import { compileDslDocument, type DslDocumentData } from "./dslDocument";
+import { dslLinesForElements, dslTextForElements } from "./dslDocumentTestUtils";
 import { dslReferenceCompletionOptions } from "./dslCompletionCandidates";
 import { evaluateElements } from "../geometry/evaluate";
 
@@ -13,21 +14,33 @@ const identities = (source: string) => {
   };
 };
 
+const lineOf = (source: string, needle: string): number => {
+  const index = source.split("\n").findIndex((line) => line.includes(needle));
+  expect(index).toBeGreaterThanOrEqual(0);
+  return index + 1;
+};
+
 describe("dslReferenceCompletionOptions", () => {
   it("uses the live scope and strictly excludes the cursor line and later statements", () => {
-    const source = [
-      "nui 1",
-      "group Outer {",
-      "  point A = (0, 0)",
-      "  line AB = A -> A",
-      "",
-      "}",
-      "point Later = (10, 0)"
-    ].join("\n");
+    const groupLines = dslLinesForElements([
+      { id: "outer", name: "Outer", type: "group", visible: true, enabled: true },
+      { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0, parentGroupId: "outer" },
+      { id: "ab", name: "AB", type: "line", visible: true, enabled: true, startPoint: { mode: "reference", pointId: "a" }, endPoint: { mode: "reference", pointId: "a" }, parentGroupId: "outer" }
+    ]);
+    // カーソルが編集中の空行(未入力statement)にある状態を再現するため、
+    // group閉じ括弧の直前に空行を1つ挿入する。
+    groupLines.splice(groupLines.findIndex((line) => line.trim() === "}"), 0, "");
+    const laterLines = dslLinesForElements([
+      { id: "later", name: "Later", type: "freePoint", visible: true, enabled: true, x: 10, y: 0 }
+    ]);
+    const source = ["nui 1", ...groupLines, ...laterLines].join("\n");
     const { elements, ids } = identities(source);
+    const blankLine = source.split("\n").findIndex((line) => line === "") + 1;
+    const pointALine = lineOf(source, "point A");
+
     const options = dslReferenceCompletionOptions({
       source,
-      cursorLine: 5,
+      cursorLine: blankLine,
       kind: "reference",
       statementElementIds: ids,
       elements
@@ -38,7 +51,7 @@ describe("dslReferenceCompletionOptions", () => {
 
     const currentLineOptions = dslReferenceCompletionOptions({
       source,
-      cursorLine: 3,
+      cursorLine: pointALine,
       kind: "reference",
       statementElementIds: ids,
       elements
@@ -47,39 +60,56 @@ describe("dslReferenceCompletionOptions", () => {
   });
 
   it("uses parameter kinds to keep line endpoints and line lists distinct", () => {
-    const source = ["nui 1", "point A = (0, 0)", "line AB = A -> A", "point Target = (1, 1)"].join("\n");
+    const source = dslTextForElements([
+      { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
+      { id: "ab", name: "AB", type: "line", visible: true, enabled: true, startPoint: { mode: "reference", pointId: "a" }, endPoint: { mode: "reference", pointId: "a" } },
+      { id: "target", name: "Target", type: "freePoint", visible: true, enabled: true, x: 1, y: 1 }
+    ]);
     const { elements, ids } = identities(source);
-    const endpoints = dslReferenceCompletionOptions({ source, cursorLine: 4, kind: "lineEndpointReference", statementElementIds: ids, elements });
-    const lines = dslReferenceCompletionOptions({ source, cursorLine: 4, kind: "lineReferenceList", statementElementIds: ids, elements });
+    const cursorLine = lineOf(source, "point Target");
+    const endpoints = dslReferenceCompletionOptions({ source, cursorLine, kind: "lineEndpointReference", statementElementIds: ids, elements });
+    const lines = dslReferenceCompletionOptions({ source, cursorLine, kind: "lineReferenceList", statementElementIds: ids, elements });
     expect(endpoints.map((option) => option.label)).toEqual(expect.arrayContaining(["AB.start", "AB.end"]));
     expect(endpoints.map((option) => option.label)).not.toContain("AB");
     expect(lines.map((option) => option.label)).toContain("AB");
   });
 
   it("does not fall back to compiled scope when a live dirty group has no stable identity", () => {
-    const committed = identities(["nui 1", "point A = (0, 0)"].join("\n"));
+    const committed = identities(dslTextForElements([
+      { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 }
+    ]));
     const aId = committed.ids.get(2)!;
-    const liveSource = ["group New {", "point A = (0, 0)", "", "}"].join("\n");
+    const liveLines = dslLinesForElements([
+      { id: "new", name: "New", type: "group", visible: true, enabled: true },
+      { id: "a2", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0, parentGroupId: "new" }
+    ]);
+    liveLines.splice(liveLines.findIndex((line) => line.trim() === "}"), 0, "");
+    const liveSource = liveLines.join("\n");
+    const pointALine = lineOf(liveSource, "point A");
+    const cursorLine = liveSource.split("\n").findIndex((line) => line === "") + 1;
     const options = dslReferenceCompletionOptions({
       source: liveSource,
-      cursorLine: 3,
+      cursorLine,
       kind: "reference",
-      statementElementIds: new Map([[2, aId]]),
+      statementElementIds: new Map([[pointALine, aId]]),
       elements: committed.elements
     });
     expect(options).toEqual([]);
   });
 
   it("returns only the stable top eight for a 1000-element document", () => {
-    const source = ["nui 1", ...Array.from({ length: 1000 }, (_, index) => `point P${index} = (${index}, 0)`)].join("\n");
-    const { elements, ids } = identities(source);
+    const elements: DslDocumentData["elements"] = Array.from({ length: 1000 }, (_, index) => ({
+      id: `p${index}`, name: `P${index}`, type: "freePoint", visible: true, enabled: true, x: index, y: 0
+    }));
+    const source = dslTextForElements(elements);
+    const { elements: compiledElements, ids } = identities(source);
     const options = dslReferenceCompletionOptions({
       source,
-      cursorLine: 1002,
+      cursorLine: source.split("\n").length + 1,
       kind: "reference",
       query: "P",
       statementElementIds: ids,
-      elements
+      elements: compiledElements
     });
     expect(options).toHaveLength(8);
     expect(options.map((option) => option.label)).toEqual(
@@ -88,18 +118,16 @@ describe("dslReferenceCompletionOptions", () => {
   }, 20_000);
 
   it("uses evaluator-owned forGroup rows to aggregate runtime instances to one saved token", () => {
-    const source = [
-      "nui 1",
-      "for Loop i start=0 count=3 step=1 {",
-      "  point P = (@i * 10, 0)",
-      "  line Target = P -> P",
-      "}"
-    ].join("\n");
+    const source = dslTextForElements([
+      { id: "loop", name: "Loop", type: "forGroup", visible: true, enabled: true, variableName: "i", start: 0, count: 3, step: 1, showGenerated: true },
+      { id: "p", name: "P", type: "freePoint", visible: true, enabled: true, x: { kind: "expression", expression: "@i * 10" }, y: 0, parentGroupId: "loop" },
+      { id: "target", name: "Target", type: "line", visible: true, enabled: true, startPoint: { mode: "reference", pointId: "p" }, endPoint: { mode: "reference", pointId: "p" }, parentGroupId: "loop" }
+    ]);
     const { elements, ids } = identities(source);
     const evaluation = evaluateElements(elements);
     const options = dslReferenceCompletionOptions({
       source,
-      cursorLine: 4,
+      cursorLine: lineOf(source, "line Target"),
       kind: "reference",
       parameterKey: "startPoint",
       statementElementIds: ids,
@@ -113,21 +141,19 @@ describe("dslReferenceCompletionOptions", () => {
   });
 
   it("removes every runtime instance when another line-list token already selects its template", () => {
-    const source = [
-      "nui 1",
-      "for Loop i start=0 count=3 step=1 {",
-      "  point P = (@i * 10, 0)",
-      "  line L = P -> (@i * 10, 10)",
-      "  line M = P -> (@i * 10, 20)",
-      "  line O = offset [L,L] distance=4 side=left",
-      "}"
-    ].join("\n");
+    const source = dslTextForElements([
+      { id: "loop", name: "Loop", type: "forGroup", visible: true, enabled: true, variableName: "i", start: 0, count: 3, step: 1, showGenerated: true },
+      { id: "p", name: "P", type: "freePoint", visible: true, enabled: true, x: { kind: "expression", expression: "@i * 10" }, y: 0, parentGroupId: "loop" },
+      { id: "l", name: "L", type: "line", visible: true, enabled: true, startPoint: { mode: "reference", pointId: "p" }, endPoint: { mode: "coordinate", x: { kind: "expression", expression: "@i * 10" }, y: 10 }, parentGroupId: "loop" },
+      { id: "m", name: "M", type: "line", visible: true, enabled: true, startPoint: { mode: "reference", pointId: "p" }, endPoint: { mode: "coordinate", x: { kind: "expression", expression: "@i * 10" }, y: 20 }, parentGroupId: "loop" },
+      { id: "o", name: "O", type: "offsetLine", visible: true, enabled: true, baseLineIds: ["l", "l"], offset: 4, side: "left", closed: false, parentGroupId: "loop" }
+    ]);
     const { elements, ids } = identities(source);
     const evaluation = evaluateElements(elements);
-    const lineText = source.split("\n")[5];
+    const lineText = source.split("\n")[lineOf(source, "line O = offset") - 1];
     const options = dslReferenceCompletionOptions({
       source,
-      cursorLine: 6,
+      cursorLine: lineOf(source, "line O = offset"),
       kind: "lineReferenceList",
       parameterKey: "baseLineIds",
       replacementFrom: lineText.lastIndexOf("L"),
@@ -146,21 +172,19 @@ describe("dslReferenceCompletionOptions", () => {
   });
 
   it("keeps the currently edited line-list token replaceable while excluding other selections", () => {
-    const source = [
-      "nui 1",
-      "for Loop i start=0 count=2 step=1 {",
-      "  point P = (@i * 10, 0)",
-      "  line L = P -> (@i * 10, 10)",
-      "  line M = P -> (@i * 10, 20)",
-      "  line O = offset [L,M] distance=4 side=left",
-      "}"
-    ].join("\n");
+    const source = dslTextForElements([
+      { id: "loop", name: "Loop", type: "forGroup", visible: true, enabled: true, variableName: "i", start: 0, count: 2, step: 1, showGenerated: true },
+      { id: "p", name: "P", type: "freePoint", visible: true, enabled: true, x: { kind: "expression", expression: "@i * 10" }, y: 0, parentGroupId: "loop" },
+      { id: "l", name: "L", type: "line", visible: true, enabled: true, startPoint: { mode: "reference", pointId: "p" }, endPoint: { mode: "coordinate", x: { kind: "expression", expression: "@i * 10" }, y: 10 }, parentGroupId: "loop" },
+      { id: "m", name: "M", type: "line", visible: true, enabled: true, startPoint: { mode: "reference", pointId: "p" }, endPoint: { mode: "coordinate", x: { kind: "expression", expression: "@i * 10" }, y: 20 }, parentGroupId: "loop" },
+      { id: "o", name: "O", type: "offsetLine", visible: true, enabled: true, baseLineIds: ["l", "m"], offset: 4, side: "left", closed: false, parentGroupId: "loop" }
+    ]);
     const { elements, ids } = identities(source);
     const evaluation = evaluateElements(elements);
-    const lineText = source.split("\n")[5];
+    const lineText = source.split("\n")[lineOf(source, "line O = offset") - 1];
     const options = dslReferenceCompletionOptions({
       source,
-      cursorLine: 6,
+      cursorLine: lineOf(source, "line O = offset"),
       kind: "lineReferenceList",
       parameterKey: "baseLineIds",
       replacementFrom: lineText.indexOf("L"),

@@ -1,7 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { dslTextForElements } from "../dsl/dslDocumentTestUtils";
 import { registerSourceEditSession } from "../editor/sourceEditSession";
 import { initialCadDocumentState, useCadDocumentStore } from "./cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "./cadUiStore";
+
+const onePointSource = (x = 0, y = 0) => dslTextForElements([
+  { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x, y }
+]);
+
+const twoPointSource = () => dslTextForElements([
+  { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
+  { id: "b", name: "B", type: "freePoint", visible: true, enabled: true, x: 1, y: 1 }
+]);
 
 describe("cadDocumentStore editor mutation boundary", () => {
   let unregister = () => {};
@@ -71,10 +81,10 @@ describe("cadDocumentStore editor mutation boundary", () => {
   });
 
   it("flushes a pending burst before performing a direct store undo", () => {
-    useCadDocumentStore.getState().commitText("nui 1\npoint A = (0, 0)", "test");
+    useCadDocumentStore.getState().commitText(onePointSource(), "test");
     const baseline = useCadDocumentStore.getState().sourceText;
 
-    const flushedText = "nui 1\npoint A = (0, 0)\npoint B = (1, 1)";
+    const flushedText = twoPointSource();
     const flush = vi.fn(() => {
       useCadDocumentStore.getState().commitText(flushedText, "editor");
       return "flushed" as const;
@@ -96,9 +106,9 @@ describe("cadDocumentStore editor mutation boundary", () => {
 
   it("stores and restores the explicit source cursor snapshot", () => {
     useCadUiStore.getState().setSourceCursorLine(3);
-    useCadDocumentStore.getState().commitText("nui 1\npoint A = (3, 0)", "test");
+    useCadDocumentStore.getState().commitText(onePointSource(3, 0), "test");
     useCadUiStore.getState().setSourceCursorLine(2);
-    useCadDocumentStore.getState().commitText("nui 1\npoint A = (4, 0)", "test");
+    useCadDocumentStore.getState().commitText(onePointSource(4, 0), "test");
 
     useCadDocumentStore.getState().undo();
     expect(useCadUiStore.getState().sourceCursorLine).toBe(2);

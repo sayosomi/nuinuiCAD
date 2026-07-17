@@ -32,7 +32,7 @@
 | W1 | [reconciler 複数行化](tasks/w1-reconciler-multiline.md) | v1 で配線 | なし | 完了 |
 | W2 | [textPatch 行群化](tasks/w2-textpatch-rows.md) | v1 で配線 | P8 | 完了 |
 | W3 | [補完の論理文入力化](tasks/w3-completion-projection.md) | v1 で配線 | なし | 完了 |
-| W4 | [エディタ系テストのリテラル間接化](tasks/w4-editor-test-fixtures.md) | v1 で配線 | なし | 未着手 |
+| W4 | [エディタ系テストのリテラル間接化](tasks/w4-editor-test-fixtures.md) | v1 で配線 | なし | 完了 |
 | W5 | [v1 パイプラインの凍結コピー](tasks/w5-legacy-freeze.md) | v1 で配線 | なし | 未着手 |
 | C1 | [コア切替](tasks/c1-core-cutover.md) | 同時切替 | P3–P9, W1–W5 | 未着手 |
 | F1 | [v1 文書の open 時変換](tasks/f1-v1-import.md) | 後続 | C1, W5 | 未着手 |

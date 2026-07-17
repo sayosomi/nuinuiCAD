@@ -2,11 +2,26 @@ import { fireEvent } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
+import { dslTextForElements } from "../dsl/dslDocumentTestUtils";
+import type { DslDocumentData } from "../dsl/dslDocument";
 import { SourceEditorController } from "./sourceEditorController";
 import type { PositionedDiagnostic } from "./sourceEditorDiagnostics";
 import type { AtStopRange } from "./statementRangeIndex";
 import type { EvaluationResult } from "../types/geometry";
 import { evaluateElements } from "../geometry/evaluate";
+
+const forGroupSource = () => dslTextForElements([
+  { id: "loop", name: "繰返し", type: "forGroup", visible: true, enabled: true, variableName: "i", start: 0, count: 2, step: 1, showGenerated: true },
+  { id: "p", name: "P", type: "freePoint", visible: true, enabled: true, x: { kind: "expression", expression: "i" }, y: 0, parentGroupId: "loop" }
+]);
+
+const twoPointSource = () => dslTextForElements([
+  { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
+  { id: "b", name: "B", type: "freePoint", visible: true, enabled: true, x: 1, y: 1 }
+]);
+
+// @stopの直前で評価を打ち切った文書(A有効・B以降は評価対象外)。
+const stoppedSource = (elements: DslDocumentData["elements"]) => dslTextForElements(elements, 1);
 
 vi.mock("../commands/commands", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../commands/commands")>()),
@@ -123,12 +138,7 @@ describe("SourceEditorController evaluation revision gating", () => {
   });
 
   it("removes generated-row widgets before a document reset transaction", () => {
-    useCadDocumentStore.getState().commitText([
-      "nui 1",
-      "for 繰返し i start=0 count=2 step=1 showGenerated=true {",
-      "  point P = (i, 0)",
-      "}"
-    ].join("\n"), "test");
+    useCadDocumentStore.getState().commitText(forGroupSource(), "test");
     const parent = document.createElement("div");
     document.body.appendChild(parent);
     const controller = new SourceEditorController(parent);
@@ -142,7 +152,9 @@ describe("SourceEditorController evaluation revision gating", () => {
     });
     expect(parent.querySelectorAll(".cm-generated-rows-widget")).toHaveLength(1);
 
-    useCadDocumentStore.getState().replaceTextDocument("nui 1\npoint X = (0, 0)", {
+    useCadDocumentStore.getState().replaceTextDocument(dslTextForElements([
+      { id: "x", name: "X", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 }
+    ]), {
       currentFilePath: null,
       dirtySinceSave: false
     });
@@ -189,7 +201,7 @@ describe("SourceEditorController evaluation revision gating", () => {
   });
 
   it("keeps all element decorations while a Canvas model patch awaits its fresh evaluation", () => {
-    useCadDocumentStore.getState().commitText("nui 1\npoint A = (0, 0)\npoint B = (1, 1)", "test");
+    useCadDocumentStore.getState().commitText(twoPointSource(), "test");
     const parent = document.createElement("div");
     document.body.appendChild(parent);
     const controller = new SourceEditorController(parent);
@@ -233,12 +245,7 @@ describe("SourceEditorController evaluation revision gating", () => {
   });
 
   it("keeps generated-row widgets mounted while a Canvas model patch awaits its fresh evaluation", () => {
-    useCadDocumentStore.getState().commitText([
-      "nui 1",
-      "for 繰返し i start=0 count=2 step=1 showGenerated=true {",
-      "  point P = (i, 0)",
-      "}"
-    ].join("\n"), "test");
+    useCadDocumentStore.getState().commitText(forGroupSource(), "test");
     const parent = document.createElement("div");
     document.body.appendChild(parent);
     const controller = new SourceEditorController(parent);
@@ -281,7 +288,10 @@ describe("SourceEditorController @stop mapping", () => {
   });
 
   it("resolves the @stop marker to the committed line when clean", () => {
-    useCadDocumentStore.getState().commitText("nui 1\npoint A = (0, 0)\n@stop\npoint B = (1, 1)", "test");
+    useCadDocumentStore.getState().commitText(stoppedSource([
+      { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
+      { id: "b", name: "B", type: "freePoint", visible: true, enabled: true, x: 1, y: 1 }
+    ]), "test");
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
     const internals = controller as unknown as ControllerInternals;
@@ -293,7 +303,10 @@ describe("SourceEditorController @stop mapping", () => {
   });
 
   it("remaps the @stop range through a dirty edit above it instead of using a stale line number", () => {
-    useCadDocumentStore.getState().commitText("nui 1\npoint A = (0, 0)\n@stop\npoint B = (1, 1)", "test");
+    useCadDocumentStore.getState().commitText(stoppedSource([
+      { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
+      { id: "b", name: "B", type: "freePoint", visible: true, enabled: true, x: 1, y: 1 }
+    ]), "test");
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
     const internals = controller as unknown as ControllerInternals;
@@ -307,7 +320,10 @@ describe("SourceEditorController @stop mapping", () => {
   });
 
   it("hides the @stop marker when an edit fully covers its line, rather than drawing it at a wrong position", () => {
-    useCadDocumentStore.getState().commitText("nui 1\npoint A = (0, 0)\n@stop\npoint B = (1, 1)", "test");
+    useCadDocumentStore.getState().commitText(stoppedSource([
+      { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
+      { id: "b", name: "B", type: "freePoint", visible: true, enabled: true, x: 1, y: 1 }
+    ]), "test");
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
     const internals = controller as unknown as ControllerInternals;
@@ -322,7 +338,13 @@ describe("SourceEditorController @stop mapping", () => {
   });
 
   it("invalidates @stop when any part of its token changes", () => {
-    useCadDocumentStore.getState().commitText("nui 1\npoint A = (0, 0)\n@stop", "test");
+    // @stopは末尾要素の後に何も続かない場合serializer(layoutElementTree)からは
+    // 出力されない(次要素の直前にのみ挿入される仕組みのため)が、@stop自体は
+    // v1/v2間で不変のキーワードなので末尾に直接付与しても構文上問題ない。
+    const source = `${dslTextForElements([
+      { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 }
+    ])}\n@stop`;
+    useCadDocumentStore.getState().commitText(source, "test");
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
     const internals = controller as unknown as ControllerInternals;
@@ -334,7 +356,10 @@ describe("SourceEditorController @stop mapping", () => {
   });
 
   it("uses only the mapped @stop position to dispatch its current evaluation limit", () => {
-    useCadDocumentStore.getState().commitText("nui 1\npoint A = (0, 0)\n@stop\npoint B = (1, 1)", "test");
+    useCadDocumentStore.getState().commitText(stoppedSource([
+      { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
+      { id: "b", name: "B", type: "freePoint", visible: true, enabled: true, x: 1, y: 1 }
+    ]), "test");
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
     const internals = controller as unknown as ControllerInternals;
@@ -345,7 +370,9 @@ describe("SourceEditorController @stop mapping", () => {
   });
 
   it("routes state gutter actions through existing element commands", () => {
-    useCadDocumentStore.getState().commitText("nui 1\npoint A = (0, 0)", "test");
+    useCadDocumentStore.getState().commitText(dslTextForElements([
+      { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 }
+    ]), "test");
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
     const internals = controller as unknown as ControllerInternals;
@@ -631,7 +658,7 @@ describe("SourceEditorController structural shortcuts", () => {
   });
 
   it("leaves Shift+C to normal text input and CodeMirror-owned Mod+Shift+K", () => {
-    useCadDocumentStore.getState().commitText("nui 1\npoint A = (0, 0)\npoint B = (1, 1)", "test");
+    useCadDocumentStore.getState().commitText(twoPointSource(), "test");
     const { controller, content } = buildController();
     const shiftedC = new KeyboardEvent("keydown", { key: "C", shiftKey: true, bubbles: true, cancelable: true });
     content.dispatchEvent(shiftedC);

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { compileDslDocument, type CompiledDslDocument } from "../dsl/dslDocument";
+import { compileDslDocument, type CompiledDslDocument, type DslDocumentData } from "../dsl/dslDocument";
+import { dslTextForElements } from "../dsl/dslDocumentTestUtils";
 import { isElementDslStatement, parseDsl } from "../dsl/dslParser";
 import type { CadElementType } from "../types/geometry";
 import { reconcileStatements, type ReconcileResult } from "./statementReconciler";
@@ -47,11 +48,22 @@ const stageOfName = (compiled: CompiledDslDocument, result: ReconcileResult, nam
   return result.stageByNewStatementIndex.get(statementIndex);
 };
 
+const reconcileElements = (
+  oldElements: DslDocumentData["elements"],
+  newElements: DslDocumentData["elements"]
+) => reconcileSources(dslTextForElements(oldElements), dslTextForElements(newElements));
+
 describe("statementReconciler 仕様表", () => {
   it("属性編集(名前・型・位置不変)は段階2でID変化0", () => {
-    const oldSource = ["nui 1", "point A = (0, 0)", "point B = (1, 1)"].join("\n");
-    const newSource = ["nui 1", "point A = (0, 0)", "point B = (2, 2)"].join("\n");
-    const { old, next, result } = reconcileSources(oldSource, newSource);
+    const oldElements: DslDocumentData["elements"] = [
+      { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
+      { id: "b", name: "B", type: "freePoint", visible: true, enabled: true, x: 1, y: 1 }
+    ];
+    const newElements: DslDocumentData["elements"] = [
+      { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
+      { id: "b", name: "B", type: "freePoint", visible: true, enabled: true, x: 2, y: 2 }
+    ];
+    const { old, next, result } = reconcileElements(oldElements, newElements);
     expect(idByName(next, "A")).toBe(idByName(old, "A"));
     expect(idByName(next, "B")).toBe(idByName(old, "B"));
     expect(result.createdIds.size).toBe(0);
@@ -61,9 +73,15 @@ describe("statementReconciler 仕様表", () => {
   });
 
   it("リネーム(位置・型不変)は段階3でID維持", () => {
-    const oldSource = ["nui 1", "point A = (0, 0)", "point B = (1, 1)"].join("\n");
-    const newSource = ["nui 1", "point A = (0, 0)", "point C = (1, 1)"].join("\n");
-    const { old, next, result } = reconcileSources(oldSource, newSource);
+    const oldElements: DslDocumentData["elements"] = [
+      { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
+      { id: "b", name: "B", type: "freePoint", visible: true, enabled: true, x: 1, y: 1 }
+    ];
+    const newElements: DslDocumentData["elements"] = [
+      { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
+      { id: "b", name: "C", type: "freePoint", visible: true, enabled: true, x: 1, y: 1 }
+    ];
+    const { old, next, result } = reconcileElements(oldElements, newElements);
     expect(idByName(next, "C")).toBe(idByName(old, "B"));
     expect(result.createdIds.size).toBe(0);
     expect(result.vanishedIds).toEqual([]);
@@ -71,9 +89,17 @@ describe("statementReconciler 仕様表", () => {
   });
 
   it("同一スコープ内の行移動(内容不変)は段階2でID変化0", () => {
-    const oldSource = ["nui 1", "point A = (0, 0)", "point B = (1, 1)", "point C = (2, 2)"].join("\n");
-    const newSource = ["nui 1", "point A = (0, 0)", "point C = (2, 2)", "point B = (1, 1)"].join("\n");
-    const { old, next, result } = reconcileSources(oldSource, newSource);
+    const oldElements: DslDocumentData["elements"] = [
+      { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
+      { id: "b", name: "B", type: "freePoint", visible: true, enabled: true, x: 1, y: 1 },
+      { id: "c", name: "C", type: "freePoint", visible: true, enabled: true, x: 2, y: 2 }
+    ];
+    const newElements: DslDocumentData["elements"] = [
+      { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
+      { id: "c", name: "C", type: "freePoint", visible: true, enabled: true, x: 2, y: 2 },
+      { id: "b", name: "B", type: "freePoint", visible: true, enabled: true, x: 1, y: 1 }
+    ];
+    const { old, next, result } = reconcileElements(oldElements, newElements);
     expect(idByName(next, "B")).toBe(idByName(old, "B"));
     expect(idByName(next, "C")).toBe(idByName(old, "C"));
     expect(result.createdIds.size).toBe(0);
@@ -81,9 +107,17 @@ describe("statementReconciler 仕様表", () => {
   });
 
   it("無名要素の属性編集(位置不変)は段階3でID維持", () => {
-    const oldSource = ["nui 1", "point A = (0, 0)", "point = (5, 5)", "point B = (1, 1)"].join("\n");
-    const newSource = ["nui 1", "point A = (0, 0)", "point = (6, 6)", "point B = (1, 1)"].join("\n");
-    const { old, next, result } = reconcileSources(oldSource, newSource);
+    const oldElements: DslDocumentData["elements"] = [
+      { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
+      { id: "u", name: "", type: "freePoint", visible: true, enabled: true, x: 5, y: 5 },
+      { id: "b", name: "B", type: "freePoint", visible: true, enabled: true, x: 1, y: 1 }
+    ];
+    const newElements: DslDocumentData["elements"] = [
+      { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
+      { id: "u", name: "", type: "freePoint", visible: true, enabled: true, x: 6, y: 6 },
+      { id: "b", name: "B", type: "freePoint", visible: true, enabled: true, x: 1, y: 1 }
+    ];
+    const { old, next, result } = reconcileElements(oldElements, newElements);
     const oldUnnamed = old.document!.elements.find((item) => item.name === "")!;
     const newUnnamed = next.document!.elements.find((item) => item.name === "")!;
     expect(newUnnamed.id).toBe(oldUnnamed.id);
@@ -92,9 +126,16 @@ describe("statementReconciler 仕様表", () => {
   });
 
   it("無名要素の挿入は既存ID全継承+新規ID1件のみ", () => {
-    const oldSource = ["nui 1", "point A = (0, 0)", "point B = (1, 1)"].join("\n");
-    const newSource = ["nui 1", "point A = (0, 0)", "point = (9, 9)", "point B = (1, 1)"].join("\n");
-    const { old, next, result } = reconcileSources(oldSource, newSource);
+    const oldElements: DslDocumentData["elements"] = [
+      { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
+      { id: "b", name: "B", type: "freePoint", visible: true, enabled: true, x: 1, y: 1 }
+    ];
+    const newElements: DslDocumentData["elements"] = [
+      { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
+      { id: "u", name: "", type: "freePoint", visible: true, enabled: true, x: 9, y: 9 },
+      { id: "b", name: "B", type: "freePoint", visible: true, enabled: true, x: 1, y: 1 }
+    ];
+    const { old, next, result } = reconcileElements(oldElements, newElements);
     expect(idByName(next, "A")).toBe(idByName(old, "A"));
     expect(idByName(next, "B")).toBe(idByName(old, "B"));
     expect(result.createdIds.size).toBe(1);
@@ -105,9 +146,15 @@ describe("statementReconciler 仕様表", () => {
   });
 
   it("無名要素の命名(昇格)は段階3でID維持", () => {
-    const oldSource = ["nui 1", "point A = (0, 0)", "point = (5, 5)"].join("\n");
-    const newSource = ["nui 1", "point A = (0, 0)", "point named5 = (5, 5)"].join("\n");
-    const { old, next, result } = reconcileSources(oldSource, newSource);
+    const oldElements: DslDocumentData["elements"] = [
+      { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
+      { id: "u", name: "", type: "freePoint", visible: true, enabled: true, x: 5, y: 5 }
+    ];
+    const newElements: DslDocumentData["elements"] = [
+      { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
+      { id: "u", name: "named5", type: "freePoint", visible: true, enabled: true, x: 5, y: 5 }
+    ];
+    const { old, next, result } = reconcileElements(oldElements, newElements);
     const oldUnnamed = old.document!.elements.find((item) => item.name === "")!;
     expect(idByName(next, "named5")).toBe(oldUnnamed.id);
     expect(result.createdIds.size).toBe(0);
@@ -115,23 +162,17 @@ describe("statementReconciler 仕様表", () => {
   });
 
   it("グループ跨ぎの移動(名前・型不変)は段階5でID維持", () => {
-    const oldSource = [
-      "nui 1",
-      "group G1 {",
-      "  point P = (0, 0)",
-      "}",
-      "group G2 {",
-      "}"
-    ].join("\n");
-    const newSource = [
-      "nui 1",
-      "group G1 {",
-      "}",
-      "group G2 {",
-      "  point P = (0, 0)",
-      "}"
-    ].join("\n");
-    const { old, next, result } = reconcileSources(oldSource, newSource);
+    const oldElements: DslDocumentData["elements"] = [
+      { id: "g1", name: "G1", type: "group", visible: true, enabled: true },
+      { id: "p", name: "P", type: "freePoint", visible: true, enabled: true, x: 0, y: 0, parentGroupId: "g1" },
+      { id: "g2", name: "G2", type: "group", visible: true, enabled: true }
+    ];
+    const newElements: DslDocumentData["elements"] = [
+      { id: "g1", name: "G1", type: "group", visible: true, enabled: true },
+      { id: "g2", name: "G2", type: "group", visible: true, enabled: true },
+      { id: "p", name: "P", type: "freePoint", visible: true, enabled: true, x: 0, y: 0, parentGroupId: "g2" }
+    ];
+    const { old, next, result } = reconcileElements(oldElements, newElements);
     expect(idByName(next, "P")).toBe(idByName(old, "P"));
     expect(idByName(next, "G1")).toBe(idByName(old, "G1"));
     expect(idByName(next, "G2")).toBe(idByName(old, "G2"));
@@ -143,23 +184,17 @@ describe("statementReconciler 仕様表", () => {
   });
 
   it("branch切替(then⇄else)は段階5でID維持", () => {
-    const oldSource = [
-      "nui 1",
-      "if 分岐 condition=1 {",
-      "  point C = (10, 10)",
-      "} else {",
-      "  point D = (20, 20)",
-      "}"
-    ].join("\n");
-    const newSource = [
-      "nui 1",
-      "if 分岐 condition=1 {",
-      "} else {",
-      "  point D = (20, 20)",
-      "  point C = (10, 10)",
-      "}"
-    ].join("\n");
-    const { old, next, result } = reconcileSources(oldSource, newSource);
+    const oldElements: DslDocumentData["elements"] = [
+      { id: "cond", name: "分岐", type: "conditionalGroup", visible: true, enabled: true, condition: 1 },
+      { id: "c", name: "C", type: "freePoint", visible: true, enabled: true, x: 10, y: 10, parentGroupId: "cond", conditionalBranch: "then" },
+      { id: "d", name: "D", type: "freePoint", visible: true, enabled: true, x: 20, y: 20, parentGroupId: "cond", conditionalBranch: "else" }
+    ];
+    const newElements: DslDocumentData["elements"] = [
+      { id: "cond", name: "分岐", type: "conditionalGroup", visible: true, enabled: true, condition: 1 },
+      { id: "d", name: "D", type: "freePoint", visible: true, enabled: true, x: 20, y: 20, parentGroupId: "cond", conditionalBranch: "else" },
+      { id: "c", name: "C", type: "freePoint", visible: true, enabled: true, x: 10, y: 10, parentGroupId: "cond", conditionalBranch: "else" }
+    ];
+    const { old, next, result } = reconcileElements(oldElements, newElements);
     expect(idByName(next, "C")).toBe(idByName(old, "C"));
     expect(idByName(next, "D")).toBe(idByName(old, "D"));
     expect(result.createdIds.size).toBe(0);
@@ -169,9 +204,17 @@ describe("statementReconciler 仕様表", () => {
   });
 
   it("グループのリネームは本体が段階3・子は段階1でID変化0", () => {
-    const oldSource = ["nui 1", "group G {", "  point P = (0, 0)", "  point Q = (1, 1)", "}"].join("\n");
-    const newSource = ["nui 1", "group H {", "  point P = (0, 0)", "  point Q = (1, 1)", "}"].join("\n");
-    const { old, next, result } = reconcileSources(oldSource, newSource);
+    const oldElements: DslDocumentData["elements"] = [
+      { id: "g", name: "G", type: "group", visible: true, enabled: true },
+      { id: "p", name: "P", type: "freePoint", visible: true, enabled: true, x: 0, y: 0, parentGroupId: "g" },
+      { id: "q", name: "Q", type: "freePoint", visible: true, enabled: true, x: 1, y: 1, parentGroupId: "g" }
+    ];
+    const newElements: DslDocumentData["elements"] = [
+      { id: "g", name: "H", type: "group", visible: true, enabled: true },
+      { id: "p", name: "P", type: "freePoint", visible: true, enabled: true, x: 0, y: 0, parentGroupId: "g" },
+      { id: "q", name: "Q", type: "freePoint", visible: true, enabled: true, x: 1, y: 1, parentGroupId: "g" }
+    ];
+    const { old, next, result } = reconcileElements(oldElements, newElements);
     expect(idByName(next, "H")).toBe(idByName(old, "G"));
     expect(idByName(next, "P")).toBe(idByName(old, "P"));
     expect(idByName(next, "Q")).toBe(idByName(old, "Q"));
@@ -181,9 +224,17 @@ describe("statementReconciler 仕様表", () => {
   });
 
   it("リネーム+行移動の同時実行は新規ID(許容制約)", () => {
-    const oldSource = ["nui 1", "point A = (0, 0)", "point B = (1, 1)", "point C = (2, 2)"].join("\n");
-    const newSource = ["nui 1", "point A = (0, 0)", "point C = (2, 2)", "point D = (1, 1)"].join("\n");
-    const { old, next, result } = reconcileSources(oldSource, newSource);
+    const oldElements: DslDocumentData["elements"] = [
+      { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
+      { id: "b", name: "B", type: "freePoint", visible: true, enabled: true, x: 1, y: 1 },
+      { id: "c", name: "C", type: "freePoint", visible: true, enabled: true, x: 2, y: 2 }
+    ];
+    const newElements: DslDocumentData["elements"] = [
+      { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
+      { id: "c", name: "C", type: "freePoint", visible: true, enabled: true, x: 2, y: 2 },
+      { id: "b", name: "D", type: "freePoint", visible: true, enabled: true, x: 1, y: 1 }
+    ];
+    const { old, next, result } = reconcileElements(oldElements, newElements);
     expect(idByName(next, "A")).toBe(idByName(old, "A"));
     expect(idByName(next, "C")).toBe(idByName(old, "C"));
     expect(idByName(next, "D")).not.toBe(idByName(old, "B"));
@@ -193,14 +244,34 @@ describe("statementReconciler 仕様表", () => {
   });
 
   it("型の変更は新規ID", () => {
-    const oldSource = ["nui 1", "point A = (0, 0)", "point B = (1, 1)"].join("\n");
-    const newSource = ["nui 1", "point A = (0, 0)", "var B = 42"].join("\n");
-    const { old, next, result } = reconcileSources(oldSource, newSource);
+    const oldElements: DslDocumentData["elements"] = [
+      { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
+      { id: "b", name: "B", type: "freePoint", visible: true, enabled: true, x: 1, y: 1 }
+    ];
+    const newElements: DslDocumentData["elements"] = [
+      { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
+      {
+        id: "b",
+        name: "B",
+        type: "variable",
+        visible: true,
+        enabled: true,
+        scope: "global",
+        valueMode: "expression",
+        expression: 42,
+        point1: { mode: "coordinate", x: 0, y: 0 },
+        point2: { mode: "coordinate", x: 0, y: 0 },
+        point: { mode: "coordinate", x: 0, y: 0 },
+        lineId: ""
+      }
+    ];
+    const { old, next, result } = reconcileElements(oldElements, newElements);
     expect(idByName(next, "B")).not.toBe(idByName(old, "B"));
     expect(result.createdIds.size).toBe(1);
     expect(result.vanishedIds).toEqual([idByName(old, "B")]);
   });
 
+  // dsl2-cutover: v1-literal
   it("コメントのみの行内編集はID変化0", () => {
     const oldSource = ["nui 1", "point A = (0, 0) # 旧コメント", "point B = (1, 1)"].join("\n");
     const newSource = ["nui 1", "point A = (0, 0) # 新コメント", "point B = (1, 1)"].join("\n");
@@ -210,18 +281,35 @@ describe("statementReconciler 仕様表", () => {
   });
 
   it("ネスト無名グループ内の属性編集は blk: キー経由でID維持", () => {
-    const oldSource = ["nui 1", "group {", "  point A = (0, 0)", "  point B = (1, 1)", "}"].join("\n");
-    const newSource = ["nui 1", "group {", "  point A = (0, 0)", "  point B = (3, 3)", "}"].join("\n");
-    const { old, next, result } = reconcileSources(oldSource, newSource);
+    const oldElements: DslDocumentData["elements"] = [
+      { id: "g", name: "", type: "group", visible: true, enabled: true },
+      { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0, parentGroupId: "g" },
+      { id: "b", name: "B", type: "freePoint", visible: true, enabled: true, x: 1, y: 1, parentGroupId: "g" }
+    ];
+    const newElements: DslDocumentData["elements"] = [
+      { id: "g", name: "", type: "group", visible: true, enabled: true },
+      { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0, parentGroupId: "g" },
+      { id: "b", name: "B", type: "freePoint", visible: true, enabled: true, x: 3, y: 3, parentGroupId: "g" }
+    ];
+    const { old, next, result } = reconcileElements(oldElements, newElements);
     expect(idByName(next, "B")).toBe(idByName(old, "B"));
     expect(result.createdIds.size).toBe(0);
     expect(stageOfName(next, result, "B")).toBe(2);
   });
 
   it("全文置換でも名前+型+スコープが一致する要素はID継承する", () => {
-    const oldSource = ["nui 1", "point A = (0, 0)", "point B = (1, 1)", "point C = (2, 2)"].join("\n");
-    const newSource = ["nui 1", "point A = (10, 10)", "point B = (11, 11)", "point C = (12, 12)", "point D = (13, 13)"].join("\n");
-    const { old, next, result } = reconcileSources(oldSource, newSource);
+    const oldElements: DslDocumentData["elements"] = [
+      { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
+      { id: "b", name: "B", type: "freePoint", visible: true, enabled: true, x: 1, y: 1 },
+      { id: "c", name: "C", type: "freePoint", visible: true, enabled: true, x: 2, y: 2 }
+    ];
+    const newElements: DslDocumentData["elements"] = [
+      { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 10, y: 10 },
+      { id: "b", name: "B", type: "freePoint", visible: true, enabled: true, x: 11, y: 11 },
+      { id: "c", name: "C", type: "freePoint", visible: true, enabled: true, x: 12, y: 12 },
+      { id: "d", name: "D", type: "freePoint", visible: true, enabled: true, x: 13, y: 13 }
+    ];
+    const { old, next, result } = reconcileElements(oldElements, newElements);
     expect(idByName(next, "A")).toBe(idByName(old, "A"));
     expect(idByName(next, "B")).toBe(idByName(old, "B"));
     expect(idByName(next, "C")).toBe(idByName(old, "C"));
@@ -230,21 +318,33 @@ describe("statementReconciler 仕様表", () => {
   });
 
   it("削除された要素は vanishedIds に旧文書順で載る", () => {
-    const oldSource = ["nui 1", "point A = (0, 0)", "point B = (1, 1)", "point C = (2, 2)"].join("\n");
-    const newSource = ["nui 1", "point B = (1, 1)"].join("\n");
-    const { old, result } = reconcileSources(oldSource, newSource);
+    const oldElements: DslDocumentData["elements"] = [
+      { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
+      { id: "b", name: "B", type: "freePoint", visible: true, enabled: true, x: 1, y: 1 },
+      { id: "c", name: "C", type: "freePoint", visible: true, enabled: true, x: 2, y: 2 }
+    ];
+    const newElements: DslDocumentData["elements"] = [
+      { id: "b", name: "B", type: "freePoint", visible: true, enabled: true, x: 1, y: 1 }
+    ];
+    const { old, result } = reconcileElements(oldElements, newElements);
     expect(result.vanishedIds).toEqual([idByName(old, "A"), idByName(old, "C")]);
   });
 
   it("旧文書が空なら全て新規ID", () => {
     const oldSource = "nui 1";
-    const newSource = ["nui 1", "point A = (0, 0)", "point B = (1, 1)"].join("\n");
+    const newSource = dslTextForElements([
+      { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
+      { id: "b", name: "B", type: "freePoint", visible: true, enabled: true, x: 1, y: 1 }
+    ]);
     const { result } = reconcileSources(oldSource, newSource);
     expect(result.inheritedCount).toBe(0);
     expect(result.createdIds.size).toBe(2);
   });
 });
 
+// dsl2-cutover: v1-literal
+// このdescribe全体がバックスラッシュ継続statementの複数行検知(全行結合による
+// 段階判定)を主題として検証するため、手書きリテラルのまま残す。
 describe("statementReconciler 複数行statement(バックスラッシュ継続)", () => {
   it("継続行だけの編集は段階1の無変更扱いにならず、IDは継承される", () => {
     const oldSource = [
@@ -342,13 +442,18 @@ describe("statementReconciler 複数行statement(バックスラッシュ継続)
 });
 
 describe("statementReconciler ストレス", () => {
-  const buildLargeSource = (count: number) => {
-    const lines = ["nui 1"];
-    for (let index = 0; index < count; index += 1) {
-      lines.push(`point P${index} = (${index}, ${index % 97})`);
-    }
-    return lines.join("\n");
-  };
+  const buildLargeElements = (count: number): DslDocumentData["elements"] =>
+    Array.from({ length: count }, (_, index) => ({
+      id: `old-${index}`,
+      name: `P${index}`,
+      type: "freePoint" as const,
+      visible: true,
+      enabled: true,
+      x: index,
+      y: index % 97
+    }));
+
+  const buildLargeSource = (count: number) => dslTextForElements(buildLargeElements(count));
 
   const timedReconcile = (oldSource: string, newSource: string) => {
     const normalizedOld = oldSource.replace(/\r\n/g, "\n");
@@ -380,7 +485,8 @@ describe("statementReconciler ストレス", () => {
 
   it("1000文の属性編集1行はID変化0で5ms未満", () => {
     const oldSource = buildLargeSource(1000);
-    const newSource = oldSource.replace("point P500 = (500, 15)", "point P500 = (500, 42)");
+    const p500OldLine = oldSource.split("\n").find((line) => line.startsWith("point P500 "))!;
+    const newSource = oldSource.replace(p500OldLine, "point P500 = (500, 42)");
     expect(newSource).not.toBe(oldSource);
     const { result, medianMs, elementCount } = timedReconcile(oldSource, newSource);
     expect(result.inheritedCount).toBe(elementCount);
@@ -391,7 +497,8 @@ describe("statementReconciler ストレス", () => {
 
   it("1000文のリネーム1件はID変化0で5ms未満", () => {
     const oldSource = buildLargeSource(1000);
-    const newSource = oldSource.replace("point P500 = ", "point Q500renamed = ");
+    const p500OldLine = oldSource.split("\n").find((line) => line.startsWith("point P500 "))!;
+    const newSource = oldSource.replace(p500OldLine, p500OldLine.replace("point P500 =", "point Q500renamed ="));
     expect(newSource).not.toBe(oldSource);
     const { result, medianMs, elementCount } = timedReconcile(oldSource, newSource);
     expect(result.inheritedCount).toBe(elementCount);

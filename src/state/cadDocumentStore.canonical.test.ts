@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { CadElement } from "../types/geometry";
+import { dslTextForElements } from "../dsl/dslDocumentTestUtils";
 import { initialCadDocumentState, useCadDocumentStore } from "./cadDocumentStore";
 
 const seedText = (text: string) => {
@@ -10,13 +11,22 @@ const seedText = (text: string) => {
 const pointId = (name: string) =>
   useCadDocumentStore.getState().elements.find((element) => element.name === name)!.id;
 
+const onePointSource = (x = 0, y = 0) => dslTextForElements([
+  { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x, y }
+]);
+
+const twoPointSource = () => dslTextForElements([
+  { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
+  { id: "b", name: "B", type: "freePoint", visible: true, enabled: true, x: 10, y: 0 }
+]);
+
 describe("cadDocumentStore canonical text", () => {
   beforeEach(() => {
     useCadDocumentStore.setState(initialCadDocumentState());
   });
 
   it("separates valid, warning-only, and fatal text states", () => {
-    const valid = "nui 1\npoint A = (0, 0)";
+    const valid = onePointSource();
     seedText(valid);
     expect(useCadDocumentStore.getState()).toMatchObject({
       sourceText: valid,
@@ -24,7 +34,9 @@ describe("cadDocumentStore canonical text", () => {
       diagnostics: []
     });
 
-    const warning = "nui 1\npoint B = offset Missing dx=1 dy=2";
+    const warning = dslTextForElements([
+      { id: "b", name: "B", type: "offsetPoint", visible: true, enabled: true, fromPoint: { mode: "reference", pointId: "Missing" }, dx: 1, dy: 2 }
+    ]);
     useCadDocumentStore.getState().commitText(warning, "test");
     const warningState = useCadDocumentStore.getState();
     expect(warningState.sourceText).toBe(warning);
@@ -34,6 +46,8 @@ describe("cadDocumentStore canonical text", () => {
     expect(warningState.doc.document.elements).toHaveLength(1);
 
     const lastGoodDoc = warningState.doc;
+    // dsl2-cutover: v1-literal — 意図的な構文エラー(未閉じ括弧)。fatal挙動の
+    // 検証が目的であり、生成経由化は不可。
     const fatal = "nui 1\npoint Broken = (";
     useCadDocumentStore.getState().commitText(fatal, "test");
     const fatalState = useCadDocumentStore.getState();
@@ -44,9 +58,11 @@ describe("cadDocumentStore canonical text", () => {
   });
 
   it("keeps fatal text, rejects model bridge edits, and recovers with one undo", () => {
-    const valid = "nui 1\npoint A = (0, 0)";
+    const valid = onePointSource();
     seedText(valid);
-    useCadDocumentStore.getState().commitText("nui 1\npoint A = (", "test");
+    // dsl2-cutover: v1-literal — 意図的な構文エラー(未閉じ括弧)。
+    const fatalText = "nui 1\npoint A = (";
+    useCadDocumentStore.getState().commitText(fatalText, "test");
     const fatalState = useCadDocumentStore.getState();
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
 
@@ -54,7 +70,7 @@ describe("cadDocumentStore canonical text", () => {
       elements: fatalState.elements.map((element) => ({ ...element, locked: true }) as CadElement)
     });
 
-    expect(useCadDocumentStore.getState().sourceText).toBe("nui 1\npoint A = (");
+    expect(useCadDocumentStore.getState().sourceText).toBe(fatalText);
     expect(useCadDocumentStore.getState().doc).toBe(fatalState.doc);
     expect(useCadDocumentStore.getState().past).toHaveLength(1);
     expect(error).toHaveBeenCalledOnce();
@@ -67,9 +83,12 @@ describe("cadDocumentStore canonical text", () => {
   });
 
   it("unifies text and model commits into one alternating undo history", () => {
-    seedText("nui 1\npoint A = (0, 0)\npoint B = (10, 0)");
+    seedText(twoPointSource());
     useCadDocumentStore.getState().commitText(
-      "nui 1\npoint Renamed = (0, 0)\npoint B = (10, 0)",
+      dslTextForElements([
+        { id: "a", name: "Renamed", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
+        { id: "b", name: "B", type: "freePoint", visible: true, enabled: true, x: 10, y: 0 }
+      ]),
       "test"
     );
     const renamedId = pointId("Renamed");
@@ -90,6 +109,9 @@ describe("cadDocumentStore canonical text", () => {
     expect(useCadDocumentStore.getState().elements.find((element) => element.name === "B")?.locked).toBe(true);
   });
 
+  // dsl2-cutover: v1-literal
+  // コメント・空行・未解決の color= 参照がモデルブリッジ編集後も保持されるかを
+  // 検証する、手書きレイアウトが主題のテスト。
   it("keeps comments and dangling tokens through model bridge edits", () => {
     seedText([
       "nui 1",
@@ -109,38 +131,29 @@ describe("cadDocumentStore canonical text", () => {
   });
 
   it("uses reconciler IDs for rename, line move, and cross-group move", () => {
-    seedText([
-      "nui 1",
-      "group G {",
-      "  point A = (0, 0)",
-      "}",
-      "group H {",
-      "  point B = (10, 0)",
-      "}"
-    ].join("\n"));
+    seedText(dslTextForElements([
+      { id: "g", name: "G", type: "group", visible: true, enabled: true },
+      { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0, parentGroupId: "g" },
+      { id: "h", name: "H", type: "group", visible: true, enabled: true },
+      { id: "b", name: "B", type: "freePoint", visible: true, enabled: true, x: 10, y: 0, parentGroupId: "h" }
+    ]));
     const aId = pointId("A");
     const bId = pointId("B");
 
-    useCadDocumentStore.getState().commitText([
-      "nui 1",
-      "group G {",
-      "  point Renamed = (0, 0)",
-      "}",
-      "group H {",
-      "  point B = (10, 0)",
-      "}"
-    ].join("\n"), "test");
+    useCadDocumentStore.getState().commitText(dslTextForElements([
+      { id: "g", name: "G", type: "group", visible: true, enabled: true },
+      { id: "a", name: "Renamed", type: "freePoint", visible: true, enabled: true, x: 0, y: 0, parentGroupId: "g" },
+      { id: "h", name: "H", type: "group", visible: true, enabled: true },
+      { id: "b", name: "B", type: "freePoint", visible: true, enabled: true, x: 10, y: 0, parentGroupId: "h" }
+    ]), "test");
     expect(pointId("Renamed")).toBe(aId);
 
-    useCadDocumentStore.getState().commitText([
-      "nui 1",
-      "group G {",
-      "}",
-      "group H {",
-      "  point B = (10, 0)",
-      "  point Renamed = (0, 0)",
-      "}"
-    ].join("\n"), "test");
+    useCadDocumentStore.getState().commitText(dslTextForElements([
+      { id: "g", name: "G", type: "group", visible: true, enabled: true },
+      { id: "h", name: "H", type: "group", visible: true, enabled: true },
+      { id: "b", name: "B", type: "freePoint", visible: true, enabled: true, x: 10, y: 0, parentGroupId: "h" },
+      { id: "a", name: "Renamed", type: "freePoint", visible: true, enabled: true, x: 0, y: 0, parentGroupId: "h" }
+    ]), "test");
     expect(pointId("Renamed")).toBe(aId);
     expect(pointId("B")).toBe(bId);
 
@@ -150,7 +163,7 @@ describe("cadDocumentStore canonical text", () => {
   });
 
   it("keeps bridge element object identity and ignores preview/snapshot state", () => {
-    seedText("nui 1\npoint A = (0, 0)\npoint B = (10, 0)");
+    seedText(twoPointSource());
     const before = useCadDocumentStore.getState();
     const changedA = { ...before.elements[0], locked: true } as CadElement;
     const nextElements = [changedA, before.elements[1]];
@@ -166,9 +179,9 @@ describe("cadDocumentStore canonical text", () => {
   });
 
   it("caps text history at 200 and marks undo/redo dirty", () => {
-    seedText("nui 1\npoint A = (0, 0)");
+    seedText(onePointSource());
     for (let index = 1; index <= 205; index += 1) {
-      useCadDocumentStore.getState().commitText(`nui 1\npoint A = (${index}, 0)`, "test");
+      useCadDocumentStore.getState().commitText(onePointSource(index, 0), "test");
     }
     expect(useCadDocumentStore.getState().past).toHaveLength(200);
     useCadDocumentStore.getState().markDocumentSaved(
