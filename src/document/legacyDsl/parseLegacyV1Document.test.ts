@@ -78,3 +78,35 @@ describe("parseLegacyV1Document (v1糖衣形の代表ケース)", () => {
     expect(d?.parentGroupId).toBe(group?.id);
   });
 });
+
+describe("parseLegacyV1Document (回帰)", () => {
+  it("重複名検出のキーはNUL区切りで、スペース結合すると衝突するscope/nameでも偽の重複診断を出さない", () => {
+    // scope="parent:A B" + name="C" と scope="parent:A" + name="B C" は
+    // スペース結合すると同じ文字列("parent:A B C")になり、NUL区切りでなければ
+    // 誤って同名衝突と判定される。
+    const source = [
+      "nui 1",
+      "group A {",
+      "}",
+      'group "A B" {',
+      "}",
+      'point C = (0, 0) parent="A B"',
+      'point "B C" = (1, 1) parent=A'
+    ].join("\n");
+    const result = parseLegacyV1Document(source);
+    const duplicateNameDiagnostics = result.diagnostics.filter((item) =>
+      item.message.includes("同名の要素")
+    );
+    expect(duplicateNameDiagnostics).toEqual([]);
+    expect(result.elements).toHaveLength(4);
+  });
+
+  it("構文エラー1件について、同じparse診断を1回だけ返す", () => {
+    const source = ["nui 1", "foobar X = 1"].join("\n");
+    const result = parseLegacyV1Document(source);
+    const unsupportedKeywordDiagnostics = result.diagnostics.filter((item) =>
+      item.message.includes("未対応のDSLキーワードです")
+    );
+    expect(unsupportedKeywordDiagnostics).toHaveLength(1);
+  });
+});

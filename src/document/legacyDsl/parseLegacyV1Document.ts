@@ -67,7 +67,10 @@ const validateV1VersionStatements = (statements: DslStatement[]): DslDiagnostic[
 export const parseLegacyV1Document = (source: string): ParseLegacyV1DocumentResult => {
   const normalized = source.replace(/\r\n/g, "\n");
   const parsed = parseDslSnapshot({ normalizedSource: normalized, sourceRevision: 0 });
-  const diagnostics = [...validateV1VersionStatements(parsed.statements), ...parsed.diagnostics];
+  // `compileDslToElements` は preparsed 経由で渡した `parsed.diagnostics` を
+  // 自身の戻り値にすでに含めて返す(エラー時の早期returnも通常経路も)ため、
+  // ここでは version診断だけを別枠に持つ。
+  const diagnostics = validateV1VersionStatements(parsed.statements);
 
   const compiled = compileDslToElements(normalized, {
     elements: [],
