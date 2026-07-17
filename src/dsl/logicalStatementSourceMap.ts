@@ -62,6 +62,25 @@ export const logicalOffsetToPhysical = (
   return null;
 };
 
+/** Inverse of logicalOffsetToPhysical: maps a real source position to its
+ * logical offset. Positions that fall outside every physical fragment (a
+ * trailing comment, the continuation backslash itself, or trimmed
+ * continuation-line indentation) have no logical counterpart and return null. */
+export const physicalToLogicalOffset = (
+  map: LogicalStatementSourceMap,
+  statement: LogicalStatement,
+  physicalOffset: number
+): number | null => {
+  if (statement.range.sourceRevision !== map.sourceRevision) return null;
+  let logicalStart = 0;
+  for (const segment of statement.segments) {
+    const length = segment.to - segment.from;
+    if (physicalOffset >= segment.from && physicalOffset <= segment.to) return logicalStart + (physicalOffset - segment.from);
+    logicalStart += length + 1;
+  }
+  return null;
+};
+
 const lineStarts = (source: string) => {
   const starts = [0];
   for (let index = 0; index < source.length; index += 1) if (source[index] === "\n") starts.push(index + 1);

@@ -3,7 +3,8 @@ import {
   assertSourceMapRevision,
   createLogicalStatementSourceMap,
   logicalOffsetToPhysical,
-  physicalSpanForStatement
+  physicalSpanForStatement,
+  physicalToLogicalOffset
 } from "./logicalStatementSourceMap";
 import { parseDslSnapshot } from "./dslParser";
 
@@ -17,6 +18,30 @@ describe("logicalStatementSourceMap", () => {
     expect(physicalSpanForStatement(map.statements[0])).toMatchObject({ sourceRevision: 7 });
     expect(logicalOffsetToPhysical(map, map.statements[0], "point A = (0, 0)".length, -1)).toBe("point A = (0, 0)".length);
     expect(logicalOffsetToPhysical(map, map.statements[0], "point A = (0, 0)".length + 1, 1)).toBe(snapshot.normalizedSource.indexOf("color"));
+  });
+
+  it("maps physical offsets in the first (verbatim) fragment to identical logical offsets", () => {
+    const snapshot = { normalizedSource: "point A = (0, 0) \\\n  color=main", sourceRevision: 7 };
+    const map = createLogicalStatementSourceMap(snapshot);
+    const physicalOffset = snapshot.normalizedSource.indexOf("A");
+    expect(physicalToLogicalOffset(map, map.statements[0], physicalOffset)).toBe(physicalOffset);
+  });
+
+  it("maps physical offsets in a continuation fragment to the joined logical offset", () => {
+    const snapshot = { normalizedSource: "point A = (0, 0) \\\n  color=main", sourceRevision: 7 };
+    const map = createLogicalStatementSourceMap(snapshot);
+    const physicalOffset = snapshot.normalizedSource.indexOf("color");
+    const logicalOffset = map.statements[0].logicalText.indexOf("color");
+    expect(physicalToLogicalOffset(map, map.statements[0], physicalOffset)).toBe(logicalOffset);
+  });
+
+  it("returns null for physical offsets in the fragment gap (backslash/trimmed indentation)", () => {
+    const snapshot = { normalizedSource: "point A = (0, 0) \\\n  color=main", sourceRevision: 7 };
+    const map = createLogicalStatementSourceMap(snapshot);
+    const statement = map.statements[0];
+    const [firstSegment, secondSegment] = statement.segments;
+    expect(firstSegment.to).toBeLessThan(secondSegment.from);
+    expect(physicalToLogicalOffset(map, statement, firstSegment.to + 1)).toBeNull();
   });
 
   it("splits the same physical lines without the continuation marker", () => {

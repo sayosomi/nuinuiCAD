@@ -169,6 +169,61 @@ describe("createDslCompletionSource", () => {
     expect(options.find((option) => option.label === "@Width")?.apply).toBe("@Width");
   });
 
+  it("resolves attribute + @variable completion on a v1 backslash-continuation line via the statement's logical projection", async () => {
+    const source = ["nui 1", "var Width = 10", "point P = offset A \\", "  dx=10+@Wi"].join("\n");
+    const { elements, ids } = identities(source);
+    const state = EditorState.create({ doc: source });
+    const ranges = new Map([...ids].map(([line, elementId]) => [
+      elementId,
+      { elementId, from: state.doc.line(line).from, to: state.doc.line(line).to, statement: {} as never }
+    ]));
+    const pos = source.indexOf("@Wi") + "@Wi".length;
+    const completionSource = createDslCompletionSource({
+      elements: () => elements,
+      statementRanges: () => ranges,
+      printLayouts: () => [],
+      printLayoutRanges: () => new Map(),
+      isComposing: () => false,
+      computedVariables: () => undefined,
+      computedGeometry: () => undefined,
+      effectiveEnabledElementIds: () => undefined,
+      evaluationErrors: () => undefined
+    });
+    const result = await Promise.resolve(completionSource({ state, pos, explicit: true } as never));
+    expect(result).not.toBeNull();
+    const options = result!.options;
+    expect(options.some((option) => option.label === "@Width")).toBe(true);
+    expect(options.every((option) => option.type === "variable")).toBe(true);
+    expect(options.find((option) => option.label === "@Width")?.apply).toBe("@Width");
+    // from/to must be projected back onto the physical continuation line: applying
+    // the replacement at [from, to) should reproduce exactly "@Wi" -> "@Width",
+    // never a shifted or logical-space offset.
+    const applied = source.slice(0, result!.from) + "@Width" + source.slice(result!.to);
+    expect(applied).toBe(source.replace("@Wi", "@Width"));
+  });
+
+  it("falls back to the physical line as a whole unit when the cursor has no enclosing logical statement (blank line)", async () => {
+    const source = ["nui 1", "", "point A = (0, 0)"].join("\n");
+    const state = EditorState.create({ doc: source });
+    const pos = state.doc.line(2).from;
+    const completionSource = createDslCompletionSource({
+      elements: () => [],
+      statementRanges: () => new Map(),
+      printLayouts: () => [],
+      printLayoutRanges: () => new Map(),
+      isComposing: () => false,
+      computedVariables: () => undefined,
+      computedGeometry: () => undefined,
+      effectiveEnabledElementIds: () => undefined,
+      evaluationErrors: () => undefined
+    });
+    const result = await Promise.resolve(completionSource({ state, pos, explicit: true } as never));
+    expect(result).not.toBeNull();
+    expect(result?.options.map((option) => option.label)).toContain("point");
+    expect(result?.from).toBe(pos);
+    expect(result?.to).toBe(pos);
+  });
+
   it("honors a documentInput override", async () => {
     const source = ["nui 1", "var Width = 10", "point P = offset A dx=10+@Wi"].join("\n");
     const { elements, ids } = identities(source);
