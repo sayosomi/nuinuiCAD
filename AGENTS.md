@@ -281,3 +281,10 @@ When adding a new CAD element type, update the complete path for that element:
 Prefer clear errors and simple deterministic construction over automatic
 correction. If a model problem exists, show the user what to move or edit rather
 than hiding the issue.
+
+## Git / GitHub workflow
+
+* In plan mode, only plan Git/GitHub actions; execute them after approval.
+* Start each task by merge-committing the previous PR into `main`, then branch from the latest `origin/main`.
+* Finish by committing, pushing, and opening a draft PR to `main`.
+* Never merge the new draft PR without explicit approval.
