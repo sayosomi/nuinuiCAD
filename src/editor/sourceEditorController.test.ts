@@ -6,9 +6,29 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import type { CadElement } from "../types/geometry";
+import type { DslDocumentData } from "../dsl/dslDocument";
+import { dslTextForElements } from "../dsl/dslDocumentTestUtils";
 import { dispatchCommand } from "../commands/commands";
 import { startCommandLineCreation } from "../commands/commandLineSessionCommands";
 import { SourceEditorController } from "./sourceEditorController";
+
+const freePoint = (id: string, name: string, x: number, y: number): DslDocumentData["elements"][number] => ({
+  id, name, type: "freePoint", visible: true, enabled: true, x, y
+});
+
+const onePointSource = (x = 0, y = 0) => dslTextForElements([freePoint("a", "A", x, y)]);
+
+const twoPointSource = (a: [number, number] = [0, 0], b: [number, number] = [1, 1]) => dslTextForElements([
+  freePoint("a", "A", a[0], a[1]),
+  freePoint("b", "B", b[0], b[1])
+]);
+
+// value-span click/nav tests系: 文書末尾を数値"120"で終わらせる(文末への
+// 文字追記でその場が"1200"に伸びる、という各テストの前提を保つため)。
+const numericValueSource = () => dslTextForElements([
+  freePoint("a", "A", 0, 0),
+  { id: "b", name: "B", type: "offsetPoint", visible: true, enabled: true, fromPoint: { mode: "reference", pointId: "a" }, dx: 0, dy: 120 }
+]);
 
 type ControllerInternals = {
   view: {
@@ -47,7 +67,7 @@ describe("SourceEditorController commit and history boundaries", () => {
   });
 
   it("selects a parameter value without letting selection sync project it back to the line start", () => {
-    useCadDocumentStore.getState().commitText("nui 1\npoint A = (12, 34)\npoint B = (56, 78)", "test");
+    useCadDocumentStore.getState().commitText(twoPointSource([12, 34], [56, 78]), "test");
     const parent = document.createElement("div");
     document.body.append(parent);
     const controller = new SourceEditorController(parent);
@@ -70,12 +90,18 @@ describe("SourceEditorController commit and history boundaries", () => {
   });
 
   it("resolves a dirty intermediate value against its committed statement without selecting another record", () => {
-    useCadDocumentStore.getState().commitText([
-      "nui 1",
-      "point A = (0, 0)",
-      "point B = (100, 0)",
-      "curve C = A -> B startAngle=0 startLength=1 endAngle=2 endLength=3 intermediates=[(4,5):45:6:7]"
-    ].join("\n"), "test");
+    useCadDocumentStore.getState().commitText(dslTextForElements([
+      freePoint("a", "A", 0, 0),
+      freePoint("b", "B", 100, 0),
+      {
+        id: "c", name: "C", type: "bezierCurve", visible: true, enabled: true,
+        startPoint: { mode: "reference", pointId: "a" }, startHandleAngleDeg: 0, startHandleLength: 1,
+        endPoint: { mode: "reference", pointId: "b" }, endHandleAngleDeg: 2, endHandleLength: 3,
+        intermediatePoints: [{
+          id: "pt1", point: { mode: "coordinate", x: 4, y: 5 }, handleAngleDeg: 45, incomingHandleLength: 6, outgoingHandleLength: 7
+        }]
+      }
+    ]), "test");
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
     const internals = controller as unknown as ControllerInternals;
@@ -92,7 +118,7 @@ describe("SourceEditorController commit and history boundaries", () => {
   });
 
   it("does not jump or focus while composing", () => {
-    useCadDocumentStore.getState().commitText("nui 1\npoint A = (12, 34)", "test");
+    useCadDocumentStore.getState().commitText(onePointSource(12, 34), "test");
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
     const internals = controller as unknown as ControllerInternals;
@@ -109,7 +135,9 @@ describe("SourceEditorController commit and history boundaries", () => {
   });
 
   it("falls back to the element line for a parameter omitted by DSL defaults", () => {
-    useCadDocumentStore.getState().commitText("nui 1\ngroup G {\n}", "test");
+    useCadDocumentStore.getState().commitText(dslTextForElements([
+      { id: "g", name: "G", type: "group", visible: true, enabled: true }
+    ]), "test");
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
     const internals = controller as unknown as ControllerInternals;
@@ -121,14 +149,13 @@ describe("SourceEditorController commit and history boundaries", () => {
   });
 
   it("starts the matching Canvas picker from a complete selected parameter value", () => {
-    useCadDocumentStore.getState().commitText([
-      "nui 1",
-      "point A = (0, 0)",
-      "point B = offset A dx=10 dy=20",
-      "line AB = A -> B",
-      "point Cross = intersection AB AB index=0 extensions=false",
-      "line Seam = offset [AB] distance=10 side=left closed=false"
-    ].join("\n"), "test");
+    useCadDocumentStore.getState().commitText(dslTextForElements([
+      freePoint("a", "A", 0, 0),
+      { id: "b", name: "B", type: "offsetPoint", visible: true, enabled: true, fromPoint: { mode: "reference", pointId: "a" }, dx: 10, dy: 20 },
+      { id: "ab", name: "AB", type: "line", visible: true, enabled: true, startPoint: { mode: "reference", pointId: "a" }, endPoint: { mode: "reference", pointId: "b" } },
+      { id: "cross", name: "Cross", type: "intersectionPoint", visible: true, enabled: true, line1Id: "ab", line2Id: "ab", intersectionIndex: 0, useExtensions: false },
+      { id: "seam", name: "Seam", type: "offsetLine", visible: true, enabled: true, baseLineIds: ["ab"], offset: 10, side: "left", closed: false }
+    ]), "test");
     const parent = document.createElement("div");
     document.body.append(parent);
     const controller = new SourceEditorController(parent);
@@ -175,7 +202,7 @@ describe("SourceEditorController commit and history boundaries", () => {
   });
 
   it("opens the rename prompt from its explicit F2 function-key binding", () => {
-    useCadDocumentStore.getState().commitText("nui 1\npoint A = (12, 34)", "test");
+    useCadDocumentStore.getState().commitText(onePointSource(12, 34), "test");
     const parent = document.createElement("div");
     document.body.append(parent);
     const controller = new SourceEditorController(parent);
@@ -190,11 +217,10 @@ describe("SourceEditorController commit and history boundaries", () => {
   });
 
   it("rejects unsupported, partial, multiline, invalid, or already-active Source Editor selections", () => {
-    useCadDocumentStore.getState().commitText([
-      "nui 1",
-      "point A = (0, 0)",
-      "point B = offset A dx=10 dy=20"
-    ].join("\n"), "test");
+    useCadDocumentStore.getState().commitText(dslTextForElements([
+      freePoint("a", "A", 0, 0),
+      { id: "b", name: "B", type: "offsetPoint", visible: true, enabled: true, fromPoint: { mode: "reference", pointId: "a" }, dx: 10, dy: 20 }
+    ]), "test");
     const parent = document.createElement("div");
     document.body.append(parent);
     const controller = new SourceEditorController(parent);
@@ -342,7 +368,7 @@ describe("SourceEditorController commit and history boundaries", () => {
   });
 
   it("never reaches pre-commit CM history across typing, model patch, and store undo/redo cycles", () => {
-    useCadDocumentStore.getState().commitText("nui 1\npoint A = (0, 0)\npoint B = (1, 1)", "test");
+    useCadDocumentStore.getState().commitText(twoPointSource(), "test");
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
     const internals = controller as unknown as ControllerInternals;
@@ -454,7 +480,8 @@ describe("SourceEditorController commit and history boundaries", () => {
   });
 
   it("preserves a CRLF-uniform document through an editor commit round trip", () => {
-    useCadDocumentStore.getState().commitText("nui 1\r\npoint A = (0, 0)", "test");
+    const initial = onePointSource(0, 0).replace(/\n/g, "\r\n");
+    useCadDocumentStore.getState().commitText(initial, "test");
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
     const internals = controller as unknown as ControllerInternals;
@@ -464,14 +491,17 @@ describe("SourceEditorController commit and history boundaries", () => {
     });
     vi.advanceTimersByTime(300);
 
-    const expected = "nui 1\r\npoint A = (0, 0)\r\npoint B = (1, 1)";
+    const expected = `${initial}\r\npoint B = (1, 1)`;
     expect(useCadDocumentStore.getState().sourceText).toBe(expected);
     expect(controller.getText()).toBe(expected);
     controller.destroy();
   });
 
   it("normalizes a mixed-newline document to LF on the first editor commit", () => {
-    useCadDocumentStore.getState().commitText("nui 1\r\npoint A = (0, 0)\npoint B = (1, 1)", "test");
+    const lfSource = twoPointSource();
+    // 先頭改行だけCRLFにし、以降はLFのまま(混在改行の入力を再現する)。
+    const mixed = lfSource.replace("\n", "\r\n");
+    useCadDocumentStore.getState().commitText(mixed, "test");
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
     const internals = controller as unknown as ControllerInternals;
@@ -481,9 +511,7 @@ describe("SourceEditorController commit and history boundaries", () => {
     });
     vi.advanceTimersByTime(300);
 
-    expect(useCadDocumentStore.getState().sourceText).toBe(
-      "nui 1\npoint A = (0, 0)\npoint B = (1, 1)\npoint C = (2, 2)"
-    );
+    expect(useCadDocumentStore.getState().sourceText).toBe(`${lfSource}\npoint C = (2, 2)`);
     controller.destroy();
   });
 
@@ -522,7 +550,8 @@ describe("SourceEditorController commit and history boundaries", () => {
   });
 
   it("pairs an undo snapshot with the cursor line from before the burst, not after", () => {
-    useCadDocumentStore.getState().commitText("nui 1\npoint A = (0, 0)", "test");
+    const baseline = onePointSource(0, 0);
+    useCadDocumentStore.getState().commitText(baseline, "test");
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
     const internals = controller as unknown as ControllerInternals;
@@ -545,7 +574,7 @@ describe("SourceEditorController commit and history boundaries", () => {
     const afterBurstText = useCadDocumentStore.getState().sourceText;
 
     useCadDocumentStore.getState().undo();
-    expect(useCadDocumentStore.getState().sourceText).toBe("nui 1\npoint A = (0, 0)");
+    expect(useCadDocumentStore.getState().sourceText).toBe(baseline);
     expect(useCadUiStore.getState().sourceCursorLine).toBe(2);
 
     useCadDocumentStore.getState().redo();
@@ -576,7 +605,10 @@ describe("SourceEditorController commit and history boundaries", () => {
   });
 
   it("uses mapped ranges for unnamed elements after a fatal editor commit", () => {
-    useCadDocumentStore.getState().commitText("nui 1\npoint A = (0, 0)\npoint = (1, 1)", "test");
+    useCadDocumentStore.getState().commitText(dslTextForElements([
+      freePoint("a", "A", 0, 0),
+      freePoint("u", "", 1, 1)
+    ]), "test");
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
     const internals = controller as unknown as ControllerInternals;
@@ -593,36 +625,51 @@ describe("SourceEditorController commit and history boundaries", () => {
   });
 
   it("defers Canvas cursor and fold projection until composition ends", () => {
-    useCadDocumentStore.getState().commitText("nui 1\ngroup G {\n  point A = (0, 0)\n}\npoint B = (1, 1)", "test");
+    const source = dslTextForElements([
+      { id: "g", name: "G", type: "group", visible: true, enabled: true },
+      { ...freePoint("a", "A", 0, 0), parentGroupId: "g" },
+      freePoint("b", "B", 1, 1)
+    ]);
+    useCadDocumentStore.getState().commitText(source, "test");
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
     const internals = controller as unknown as ControllerInternals;
     const content = parent.querySelector(".cm-content")!;
     const [group, pointA, pointB] = useCadDocumentStore.getState().elements;
+    const lines = source.split("\n");
+    const lineOfA = lines.findIndex((line) => line.includes("point A")) + 1;
+    const lineOfB = lines.findIndex((line) => line.includes("point B")) + 1;
 
     useCadUiStore.getState().setSelectedElementId(pointA.id);
     fireEvent.compositionStart(content);
     useCadUiStore.getState().setSelectedElementId(pointB.id);
     useCadUiStore.getState().setGroupFold(group.id, { expanded: false });
 
-    expect(internals.view.state.selection.main.head).toBe(internals.view.state.doc.line(3).from);
+    expect(internals.view.state.selection.main.head).toBe(internals.view.state.doc.line(lineOfA).from);
     expect(foldedRanges(internals.view.state as never).size).toBe(0);
 
     fireEvent.compositionEnd(content);
-    expect(internals.view.state.selection.main.head).toBe(internals.view.state.doc.line(5).from);
+    expect(internals.view.state.selection.main.head).toBe(internals.view.state.doc.line(lineOfB).from);
     expect(foldedRanges(internals.view.state as never).size).toBeGreaterThan(0);
     controller.destroy();
   });
 
   it("uses dirty mapped fold positions rather than stale statement line numbers", () => {
-    useCadDocumentStore.getState().commitText("nui 1\ngroup G {\n  point A = (0, 0)\n}", "test");
+    const source = dslTextForElements([
+      { id: "g", name: "G", type: "group", visible: true, enabled: true },
+      { ...freePoint("a", "A", 0, 0), parentGroupId: "g" }
+    ]);
+    useCadDocumentStore.getState().commitText(source, "test");
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
     const internals = controller as unknown as ControllerInternals;
     const group = useCadDocumentStore.getState().elements.find((element) => element.name === "G")!;
+    // foldTargetAtLineは開き括弧「{」自体の行を見る(openBraceLineFrom)。
+    // 「group G」ヘッダの次行が「{」、さらに先頭に1行挿入した分+1。
+    const openBraceLineAfterDirtyInsert = source.split("\n").findIndex((line) => line.includes("group G")) + 3;
 
     internals.view.dispatch({ changes: { from: 0, insert: "# dirty\n" } });
-    const handled = internals.handleFoldGutterMouseDown(internals.view.state.doc.line(3).from, new MouseEvent("mousedown"));
+    const handled = internals.handleFoldGutterMouseDown(internals.view.state.doc.line(openBraceLineAfterDirtyInsert).from, new MouseEvent("mousedown"));
 
     expect(handled).toBe(true);
     expect(useCadUiStore.getState().groupFoldById.get(group.id)?.expanded).toBe(true);
@@ -631,18 +678,14 @@ describe("SourceEditorController commit and history boundaries", () => {
   });
 
   it("projects nested group and else folds from cadUiStore, expanding ancestors before an external jump", () => {
-    useCadDocumentStore.getState().commitText([
-      "nui 1",
-      "group Outer {",
-      "  if Branch condition=1 {",
-      "    point Then = (0, 0)",
-      "  } else {",
-      "    group Inner {",
-      "      point Else = (1, 1)",
-      "    }",
-      "  }",
-      "}"
-    ].join("\n"), "test");
+    const source = dslTextForElements([
+      { id: "outer", name: "Outer", type: "group", visible: true, enabled: true },
+      { id: "branch", name: "Branch", type: "conditionalGroup", visible: true, enabled: true, condition: 1, parentGroupId: "outer" },
+      { id: "then", name: "Then", type: "freePoint", visible: true, enabled: true, x: 0, y: 0, parentGroupId: "branch", conditionalBranch: "then" },
+      { id: "inner", name: "Inner", type: "group", visible: true, enabled: true, parentGroupId: "branch", conditionalBranch: "else" },
+      { id: "else", name: "Else", type: "freePoint", visible: true, enabled: true, x: 1, y: 1, parentGroupId: "inner" }
+    ]);
+    useCadDocumentStore.getState().commitText(source, "test");
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
     const internals = controller as unknown as ControllerInternals;
@@ -651,6 +694,11 @@ describe("SourceEditorController commit and history boundaries", () => {
     const branch = elements.find((element) => element.name === "Branch")!;
     const inner = elements.find((element) => element.name === "Inner")!;
     const elsePoint = elements.find((element) => element.name === "Else")!;
+    const lines = source.split("\n");
+    const lineOfElse = lines.findIndex((line) => line.includes("point Else")) + 1;
+    // foldTargetAtLineは開き括弧「{」自体の行を見る(openBraceLineFrom)ため、
+    // 「group Inner」ヘッダの次行を対象にする。
+    const innerOpenBraceLine = lines.findIndex((line) => line.includes("group Inner")) + 2;
 
     useCadUiStore.getState().setGroupFold(branch.id, { elseExpanded: false });
     useCadUiStore.getState().setSelectedElementId(elsePoint.id);
@@ -658,9 +706,9 @@ describe("SourceEditorController commit and history boundaries", () => {
     expect(useCadUiStore.getState().groupFoldById.get(outer.id)?.expanded).toBe(true);
     expect(useCadUiStore.getState().groupFoldById.get(branch.id)).toMatchObject({ expanded: true, elseExpanded: true });
     expect(useCadUiStore.getState().groupFoldById.get(inner.id)?.expanded).toBe(true);
-    expect(internals.view.state.selection.main.head).toBe(internals.view.state.doc.line(7).from);
+    expect(internals.view.state.selection.main.head).toBe(internals.view.state.doc.line(lineOfElse).from);
 
-    internals.handleFoldGutterMouseDown(internals.view.state.doc.line(6).from, new MouseEvent("mousedown"));
+    internals.handleFoldGutterMouseDown(internals.view.state.doc.line(innerOpenBraceLine).from, new MouseEvent("mousedown"));
     expect(useCadUiStore.getState().groupFoldById.get(inner.id)?.expanded).toBe(false);
     expect(foldedRanges(internals.view.state as never).size).toBeGreaterThan(0);
     controller.destroy();
@@ -685,7 +733,7 @@ describe("SourceEditorController value-span click selection", () => {
   };
 
   it("selects the whole value under a plain click ending without movement", () => {
-    useCadDocumentStore.getState().commitText("nui 1\npoint A = (0, 0) length=120", "test");
+    useCadDocumentStore.getState().commitText(numericValueSource(), "test");
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
     const internals = controller as unknown as ControllerInternals;
@@ -701,7 +749,7 @@ describe("SourceEditorController value-span click selection", () => {
   });
 
   it("leaves a normal cursor on a click at a non-value position (element name)", () => {
-    useCadDocumentStore.getState().commitText("nui 1\npoint A = (0, 0) length=120", "test");
+    useCadDocumentStore.getState().commitText(numericValueSource(), "test");
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
     const internals = controller as unknown as ControllerInternals;
@@ -717,7 +765,7 @@ describe("SourceEditorController value-span click selection", () => {
   });
 
   it("does not override a drag-created range selection", () => {
-    useCadDocumentStore.getState().commitText("nui 1\npoint A = (0, 0) length=120", "test");
+    useCadDocumentStore.getState().commitText(numericValueSource(), "test");
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
     const internals = controller as unknown as ControllerInternals;
@@ -740,7 +788,7 @@ describe("SourceEditorController value-span click selection", () => {
   // multi-range CM selection to preserve. The guard that matters in practice is that a
   // modifier-held click must not be hijacked into a value selection at all.
   it("does not select a value on a Mod-click even when the resulting selection is a single collapsed cursor", () => {
-    useCadDocumentStore.getState().commitText("nui 1\npoint A = (0, 0) length=120", "test");
+    useCadDocumentStore.getState().commitText(numericValueSource(), "test");
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
     const internals = controller as unknown as ControllerInternals;
@@ -755,13 +803,13 @@ describe("SourceEditorController value-span click selection", () => {
   });
 
   it("selects against the live dirty buffer, not a stale last-good value", () => {
-    useCadDocumentStore.getState().commitText("nui 1\npoint A = (0, 0) length=120", "test");
+    useCadDocumentStore.getState().commitText(numericValueSource(), "test");
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
     const internals = controller as unknown as ControllerInternals;
     internals.view.dispatch({ changes: { from: internals.view.state.doc.length, insert: "0" } });
     const text = internals.view.state.doc.toString();
-    expect(text.endsWith("length=1200")).toBe(true);
+    expect(text.endsWith("dy=1200")).toBe(true);
 
     const handled = clickAt(internals, text.length - 1);
 
@@ -772,7 +820,7 @@ describe("SourceEditorController value-span click selection", () => {
   });
 
   it("falls through to a normal click when the clicked line fails to parse (fatal-safe)", () => {
-    useCadDocumentStore.getState().commitText("nui 1\npoint A = (0, 0) length=120", "test");
+    useCadDocumentStore.getState().commitText(numericValueSource(), "test");
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
     const internals = controller as unknown as ControllerInternals;
@@ -790,7 +838,7 @@ describe("SourceEditorController value-span click selection", () => {
   });
 
   it("treats the value span as half-open: a click right after the value keeps a normal cursor", () => {
-    useCadDocumentStore.getState().commitText("nui 1\npoint A = (0, 0) length=120", "test");
+    useCadDocumentStore.getState().commitText(numericValueSource(), "test");
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
     const internals = controller as unknown as ControllerInternals;
@@ -805,7 +853,7 @@ describe("SourceEditorController value-span click selection", () => {
   });
 
   it("does not add the value-selection dispatch to CM undo history", () => {
-    useCadDocumentStore.getState().commitText("nui 1\npoint A = (0, 0) length=120", "test");
+    useCadDocumentStore.getState().commitText(numericValueSource(), "test");
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
     const internals = controller as unknown as ControllerInternals;
@@ -821,7 +869,7 @@ describe("SourceEditorController value-span click selection", () => {
   });
 
   it("does not select a value on a non-element (directive) line like nui", () => {
-    useCadDocumentStore.getState().commitText("nui 1\npoint A = (0, 0) length=120", "test");
+    useCadDocumentStore.getState().commitText(numericValueSource(), "test");
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
     const internals = controller as unknown as ControllerInternals;
@@ -848,7 +896,7 @@ describe("SourceEditorController Tab/Shift-Tab value-span navigation", () => {
   });
 
   it("moves between point X/Y in source order and cycles at both ends", () => {
-    useCadDocumentStore.getState().commitText("nui 1\npoint A = (0, 10)", "test");
+    useCadDocumentStore.getState().commitText(onePointSource(0, 10), "test");
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
     const internals = controller as unknown as ControllerInternals;
@@ -870,7 +918,7 @@ describe("SourceEditorController Tab/Shift-Tab value-span navigation", () => {
   });
 
   it("does not change the document, CM undo history, or Canvas selection", () => {
-    useCadDocumentStore.getState().commitText("nui 1\npoint A = (0, 10)", "test");
+    useCadDocumentStore.getState().commitText(onePointSource(0, 10), "test");
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
     const internals = controller as unknown as ControllerInternals;
@@ -895,7 +943,7 @@ describe("SourceEditorController Tab/Shift-Tab value-span navigation", () => {
   });
 
   it("falls through when the selection spans more than one line", () => {
-    useCadDocumentStore.getState().commitText("nui 1\npoint A = (0, 10)\npoint B = (1, 1)", "test");
+    useCadDocumentStore.getState().commitText(twoPointSource([0, 10], [1, 1]), "test");
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
     const internals = controller as unknown as ControllerInternals;
@@ -908,16 +956,24 @@ describe("SourceEditorController Tab/Shift-Tab value-span navigation", () => {
   });
 
   it("keeps navigating against the live dirty buffer, not a stale value", () => {
-    useCadDocumentStore.getState().commitText("nui 1\npoint A = (0, 0) length=120", "test");
+    // navigateValueSpanは「カーソルを含むstatement」内のvalue spanだけを対象に
+    // 巡回する(dslDocumentValueSpansAtがstatementProjectionAtでenclosing
+    // statementに絞り込むため)。そのため直前のnumericValueSource(2文)ではなく、
+    // 同一statement内に3個以上の数値を持つ要素(arc: radius/start/end)を使う。
+    const arcSource = dslTextForElements([
+      freePoint("a", "A", 0, 0),
+      { id: "arc", name: "Arc", type: "arcLine", visible: true, enabled: true, centerPoint: { mode: "coordinate", x: 0, y: 0 }, radius: 0, startAngleDeg: 0, endAngleDeg: 120 }
+    ]);
+    useCadDocumentStore.getState().commitText(arcSource, "test");
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
     const internals = controller as unknown as ControllerInternals;
-    // Uncommitted edit: "length=120" becomes "length=1200" — one character longer than
+    // Uncommitted edit: "end=120" becomes "end=1200" — one character longer than
     // the store's last-good parse still knows about.
     internals.view.dispatch({ changes: { from: internals.view.state.doc.length, insert: "0" } });
     const text = internals.view.state.doc.toString();
-    expect(text.endsWith("length=1200")).toBe(true);
-    const firstZero = text.indexOf("(0, 0)") + 1;
+    expect(text.endsWith("end=1200")).toBe(true);
+    const firstZero = text.lastIndexOf("(0, 0)") + 1;
     internals.view.dispatch({ selection: EditorSelection.cursor(firstZero) });
 
     // Wrapping backward from the first coordinate should land on the whole dirty,
@@ -938,7 +994,7 @@ describe("SourceEditorController Tab/Shift-Tab value-span navigation", () => {
   };
 
   it("moves the real selection on a real Tab keydown", () => {
-    useCadDocumentStore.getState().commitText("nui 1\npoint A = (0, 10)", "test");
+    useCadDocumentStore.getState().commitText(onePointSource(0, 10), "test");
     const { controller, content } = buildController();
     const text = controller.getText();
     const xStart = text.lastIndexOf("(") + 1;
@@ -973,7 +1029,7 @@ describe("SourceEditorController Tab/Shift-Tab value-span navigation", () => {
   });
 
   it("does not navigate a value while the search panel's own input has focus", () => {
-    useCadDocumentStore.getState().commitText("nui 1\npoint A = (0, 10)", "test");
+    useCadDocumentStore.getState().commitText(onePointSource(0, 10), "test");
     const { controller, parent } = buildController();
     const internals = controller as unknown as ControllerInternals;
     const text = internals.view.state.doc.toString();
@@ -992,7 +1048,7 @@ describe("SourceEditorController Tab/Shift-Tab value-span navigation", () => {
   });
 
   it("consumes Tab during composition (no value-jump, no default indent) and recovers after compositionend", async () => {
-    useCadDocumentStore.getState().commitText("nui 1\npoint A = (0, 10)", "test");
+    useCadDocumentStore.getState().commitText(onePointSource(0, 10), "test");
     const { controller, content } = buildController();
     const internals = controller as unknown as ControllerInternals;
     const text = internals.view.state.doc.toString();

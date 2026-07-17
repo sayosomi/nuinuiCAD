@@ -3,7 +3,8 @@ import { defaultDocumentPalette } from "../palette/palette";
 import { defaultVisibilityProfile } from "../model/visibilityProfiles";
 import type { CadElement, ElementId, PointAnchor } from "../types/geometry";
 import { compileDslToElements } from "./dslCompiler";
-import { parseDslDocument, serializeDocumentToDsl, type DslDocumentData } from "./dslDocument";
+import { DSL_VERSION, layoutElementTree, parseDslDocument, serializeDocumentToDsl, type DslDocumentData } from "./dslDocument";
+import { documentDslRefs } from "./dslSerializer";
 
 // dslDocument系テストの共有ヘルパ(テスト専用。アプリ本体からはimportしない)。
 
@@ -78,6 +79,40 @@ export const expectSemanticallyEqualDocuments = (a: DslDocumentData, b: DslDocum
   expect(a.evaluationLimitIndex).toBe(b.evaluationLimitIndex);
   expect(a.printLayouts.length).toBe(b.printLayouts.length);
 };
+
+// 要素配列 → DSL本文行(パレット/可視性/印刷レイアウトの定型セクションを含まない、
+// 要素ツリー部分のみ)。グループ/if/forのブロック構造・インデントは
+// layoutElementTree が処理するため、parentGroupId で紐付いたネスト要素もそのまま渡せる。
+// evaluationLimitIndex省略時は全要素を評価対象とする(@stopなし)。テストが
+// @stopマーカーの位置を検証したい場合のみ明示的に渡す。
+export const dslLinesForElements = (elements: CadElement[], evaluationLimitIndex = elements.length): string[] => {
+  const refs = documentDslRefs(elements);
+  return layoutElementTree(elements, refs, evaluationLimitIndex).flatMap((row) => row.lines);
+};
+
+// 要素配列 → `nui 1` ヘッダ付きのDSL本文全体(パレット/可視性設定なし)。
+// テストが「有効などこかの要素を含む文書」だけを必要とし、v1構文自体は
+// 検証対象でない場合の入力生成に使う。
+export const dslTextForElements = (elements: CadElement[], evaluationLimitIndex = elements.length): string =>
+  [`nui ${DSL_VERSION}`, ...dslLinesForElements(elements, evaluationLimitIndex)].join("\n");
+
+// 要素配列 → `nui 1` ヘッダ付きのDSL本文全体、id=/parent=/branch=を明示出力する
+// flat(非ネスト)モード。id保持の往復(reconciler/rename系のテストが対象
+// element の id を明示的に固定したい場合)に使う。documentDslRefs による
+// 名前解決トークンではなく生IDトークンで参照を書くため、通常の
+// dslTextForElements より非user-facingだが、id= 属性の構文自体を手書きせずに
+// 生成できる。
+export const dslFlatTextForElements = (elements: CadElement[]): string =>
+  serializeDocumentToDsl(
+    {
+      ...emptyDocument(),
+      elements,
+      palette: { colors: [], defaultColorId: "" },
+      visibilityProfiles: [],
+      activeVisibilityProfileId: ""
+    },
+    { preserveElementOrder: true }
+  );
 
 export const roundTrip = (source: string) => {
   const first = compileDslToElements(source, { elements: [], mode: "document" });

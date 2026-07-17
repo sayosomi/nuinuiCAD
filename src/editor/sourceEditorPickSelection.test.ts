@@ -1,12 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { compileDslToElements } from "../dsl/dslCompiler";
+import { dslLinesForElements } from "../dsl/dslDocumentTestUtils";
 import { resolveSourceEditorPickSelection } from "./sourceEditorPickSelection";
 
-const line = "point B = offset A dx=10 dy=20";
+const docLines = dslLinesForElements([
+  { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
+  { id: "b", name: "B", type: "offsetPoint", visible: true, enabled: true, fromPoint: { mode: "reference", pointId: "a" }, dx: 10, dy: 20 }
+]);
+const line = docLines[1];
 
 describe("resolveSourceEditorPickSelection", () => {
   it("requires an exact pickable parameter span", () => {
-    const result = compileDslToElements(["point A = (0, 0)", line].join("\n"), { elements: [] });
+    const result = compileDslToElements(docLines.join("\n"), { elements: [] });
     const element = result.elements.find((candidate) => candidate.name === "B")!;
     const select = (text: string) => {
       const start = line.indexOf(text);

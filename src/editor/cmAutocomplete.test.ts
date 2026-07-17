@@ -1,7 +1,8 @@
 import { EditorState } from "@codemirror/state";
 import { describe, expect, it } from "vitest";
 import { createDslCompletionSource } from "./cmAutocomplete";
-import { compileDslDocument } from "../dsl/dslDocument";
+import { compileDslDocument, type DslDocumentData } from "../dsl/dslDocument";
+import { dslLinesForElements, dslTextForElements } from "../dsl/dslDocumentTestUtils";
 import { createPrintLayoutRangeIndex, createStatementRangeIndex } from "./statementRangeIndex";
 
 const identities = (source: string) => {
@@ -54,11 +55,15 @@ describe("createDslCompletionSource", () => {
   });
 
   it("passes only the shared ranked top eight to CodeMirror without re-filtering", async () => {
-    const source = [
-      "nui 1",
-      ...Array.from({ length: 10 }, (_, index) => `point P${index} = (${index}, 0)`),
-      "line L = P -> P0"
-    ].join("\n");
+    const pointElements: DslDocumentData["elements"] = Array.from({ length: 10 }, (_, index) => ({
+      id: `p${index}`, name: `P${index}`, type: "freePoint", visible: true, enabled: true, x: index, y: 0
+    }));
+    // 末尾のLは意図的にダングリング参照"P"(P0..P9とは別)から始まる — ユーザーが
+    // "P"まで入力し、続く候補一覧をトリガーした状態を再現する。
+    const source = dslTextForElements([
+      ...pointElements,
+      { id: "l", name: "L", type: "line", visible: true, enabled: true, startPoint: { mode: "reference", pointId: "P" }, endPoint: { mode: "reference", pointId: "p0" } }
+    ]);
     const { elements, statementRanges, printLayouts, printLayoutRanges } = identities(source);
     const state = EditorState.create({ doc: source });
     const pos = source.lastIndexOf("P ->") + 1;
@@ -82,14 +87,14 @@ describe("createDslCompletionSource", () => {
   });
 
   it("replaces only the current line-list item and preserves shared candidate order", async () => {
-    const source = [
-      "nui 1",
-      "point A = (0, 0)",
-      "point B = (10, 0)",
-      "line First = A -> B",
-      "line Second = A -> B",
-      "line O = offset [First,Sec] distance=4 side=left"
-    ].join("\n");
+    const source = dslTextForElements([
+      { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
+      { id: "b", name: "B", type: "freePoint", visible: true, enabled: true, x: 10, y: 0 },
+      { id: "first", name: "First", type: "line", visible: true, enabled: true, startPoint: { mode: "reference", pointId: "a" }, endPoint: { mode: "reference", pointId: "b" } },
+      { id: "second", name: "Second", type: "line", visible: true, enabled: true, startPoint: { mode: "reference", pointId: "a" }, endPoint: { mode: "reference", pointId: "b" } },
+      // "Sec"は入力途中のダングリングトークン(Secondの先頭一致)。
+      { id: "o", name: "O", type: "offsetLine", visible: true, enabled: true, baseLineIds: ["first", "Sec"], offset: 4, side: "left", closed: false }
+    ]);
     const { elements, statementRanges, printLayouts, printLayoutRanges } = identities(source);
     const state = EditorState.create({ doc: source });
     const tokenStart = source.lastIndexOf("Sec");
@@ -113,14 +118,14 @@ describe("createDslCompletionSource", () => {
   });
 
   it("does not offer a line already selected in another line-list item", async () => {
-    const source = [
-      "nui 1",
-      "point A = (0, 0)",
-      "point B = (10, 0)",
-      "line First = A -> B",
-      "line Second = A -> B",
-      "line O = offset [First,Fir] distance=4 side=left"
-    ].join("\n");
+    const source = dslTextForElements([
+      { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
+      { id: "b", name: "B", type: "freePoint", visible: true, enabled: true, x: 10, y: 0 },
+      { id: "first", name: "First", type: "line", visible: true, enabled: true, startPoint: { mode: "reference", pointId: "a" }, endPoint: { mode: "reference", pointId: "b" } },
+      { id: "second", name: "Second", type: "line", visible: true, enabled: true, startPoint: { mode: "reference", pointId: "a" }, endPoint: { mode: "reference", pointId: "b" } },
+      // "Fir"は入力途中のダングリングトークン(Firstの先頭一致)。
+      { id: "o", name: "O", type: "offsetLine", visible: true, enabled: true, baseLineIds: ["first", "Fir"], offset: 4, side: "left", closed: false }
+    ]);
     const { elements, statementRanges, printLayouts, printLayoutRanges } = identities(source);
     const state = EditorState.create({ doc: source });
     const tokenStart = source.lastIndexOf("Fir");
@@ -142,7 +147,14 @@ describe("createDslCompletionSource", () => {
   });
 
   it("offers @name variable completions for a number-kind field with a live @ prefix", async () => {
-    const source = ["nui 1", "var Width = 10", "point P = offset A dx=10+@Wi"].join("\n");
+    const source = dslTextForElements([
+      {
+        id: "width", name: "Width", type: "variable", visible: true, enabled: true, scope: "global", valueMode: "expression",
+        expression: 10, point1: { mode: "coordinate", x: 0, y: 0 }, point2: { mode: "coordinate", x: 0, y: 0 }, point: { mode: "coordinate", x: 0, y: 0 }, lineId: ""
+      },
+      // fromPointは未定義"A"へのダングリング参照(この文の意味自体はテスト対象外)。
+      { id: "p", name: "P", type: "offsetPoint", visible: true, enabled: true, fromPoint: { mode: "reference", pointId: "A" }, dx: { kind: "expression", expression: "10+@Wi" }, dy: 0 }
+    ]);
     const { elements, ids } = identities(source);
     const state = EditorState.create({ doc: source });
     const ranges = new Map([...ids].map(([line, elementId]) => [
@@ -169,6 +181,9 @@ describe("createDslCompletionSource", () => {
     expect(options.find((option) => option.label === "@Width")?.apply).toBe("@Width");
   });
 
+  // dsl2-cutover: v1-literal
+  // v1バックスラッシュ継続行そのものが主題(統計射影経由のfrom/to逆射影を検証する)
+  // ため、手書きリテラルのまま残す。
   it("resolves attribute + @variable completion on a v1 backslash-continuation line via the statement's logical projection", async () => {
     const source = ["nui 1", "var Width = 10", "point P = offset A \\", "  dx=10+@Wi"].join("\n");
     const { elements, ids } = identities(source);
@@ -203,7 +218,10 @@ describe("createDslCompletionSource", () => {
   });
 
   it("falls back to the physical line as a whole unit when the cursor has no enclosing logical statement (blank line)", async () => {
-    const source = ["nui 1", "", "point A = (0, 0)"].join("\n");
+    const pointLines = dslLinesForElements([
+      { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 }
+    ]);
+    const source = ["nui 1", "", ...pointLines].join("\n");
     const state = EditorState.create({ doc: source });
     const pos = state.doc.line(2).from;
     const completionSource = createDslCompletionSource({
@@ -225,7 +243,13 @@ describe("createDslCompletionSource", () => {
   });
 
   it("honors a documentInput override", async () => {
-    const source = ["nui 1", "var Width = 10", "point P = offset A dx=10+@Wi"].join("\n");
+    const source = dslTextForElements([
+      {
+        id: "width", name: "Width", type: "variable", visible: true, enabled: true, scope: "global", valueMode: "expression",
+        expression: 10, point1: { mode: "coordinate", x: 0, y: 0 }, point2: { mode: "coordinate", x: 0, y: 0 }, point: { mode: "coordinate", x: 0, y: 0 }, lineId: ""
+      },
+      { id: "p", name: "P", type: "offsetPoint", visible: true, enabled: true, fromPoint: { mode: "reference", pointId: "A" }, dx: { kind: "expression", expression: "10+@Wi" }, dy: 0 }
+    ]);
     const { elements, ids } = identities(source);
     const mainState = EditorState.create({ doc: source });
     const ranges = new Map([...ids].map(([line, elementId]) => [
@@ -235,7 +259,8 @@ describe("createDslCompletionSource", () => {
     // The lens mirrors the whole selected line at its own buffer offset 0 — a
     // different EditorState than the main document, proving the documentInput
     // override, not the CompletionContext's own state, drives candidate lookup.
-    const lensLineText = "point P = offset A dx=10+@Wi";
+    const lensLineText = source.split("\n")[2];
+    const lensPos = lensLineText.indexOf("@Wi") + "@Wi".length;
     const lensState = EditorState.create({ doc: lensLineText });
     const completionSource = createDslCompletionSource({
       elements: () => elements,
@@ -251,15 +276,20 @@ describe("createDslCompletionSource", () => {
         source,
         cursorLineNumber: 3,
         lineText: lensLineText,
-        localPos: lensLineText.length,
+        localPos: lensPos,
         doc: mainState.doc
       })
     });
-    const result = await Promise.resolve(completionSource({ state: lensState, pos: lensLineText.length, explicit: true } as never));
+    const result = await Promise.resolve(completionSource({ state: lensState, pos: lensPos, explicit: true } as never));
     expect(result).not.toBeNull();
     expect(result?.options.some((option) => option.label === "@Width")).toBe(true);
   });
 
+  // dsl2-cutover: v1-literal
+  // printLayoutセクションは常に要素ツリーより前にシリアライズされるため(dslDocument.ts
+  // のserializeDocumentToDsl)、「printLayoutブロックより前の行にトップレベルvarがある」
+  // という行順序関係は生成経由では再現できない(dslVariableCompletionOptionsの
+  // cursorLine=block.line カットオフがこの行順序に依存する)。手書きリテラルのまま残す。
   it("merges block-local layoutVar and global-only top-level candidates for a place/printLayout attribute", async () => {
     const source = [
       "nui 1",
@@ -273,11 +303,11 @@ describe("createDslCompletionSource", () => {
       "  place G at=(0, 0) angle=0+@Ma",
       "}"
     ].join("\n");
-    const { elements, printLayouts, statementRanges, printLayoutRanges } = identities(source);
+    const { elements: compiledElements, printLayouts, statementRanges, printLayoutRanges } = identities(source);
     const state = EditorState.create({ doc: source });
     const pos = source.indexOf("@Ma") + "@Ma".length;
     const completionSource = createDslCompletionSource({
-      elements: () => elements,
+      elements: () => compiledElements,
       statementRanges: () => statementRanges,
       printLayouts: () => printLayouts,
       printLayoutRanges: () => printLayoutRanges,
@@ -296,13 +326,27 @@ describe("createDslCompletionSource", () => {
   });
 
   it("routes intermediates= to plain top-level candidates only, never the current element's own vars=", async () => {
-    const source = [
-      "nui 1",
-      "var GlobalLen = 15",
-      "point A = (0, 0)",
-      "point B = (10, 10)",
-      "curve C = A -> B vars=[Local:5] intermediates=[A:0+@Gl:5:5:pt1]"
-    ].join("\n");
+    const source = dslTextForElements([
+      {
+        id: "globallen", name: "GlobalLen", type: "variable", visible: true, enabled: true, scope: "global", valueMode: "expression",
+        expression: 15, point1: { mode: "coordinate", x: 0, y: 0 }, point2: { mode: "coordinate", x: 0, y: 0 }, point: { mode: "coordinate", x: 0, y: 0 }, lineId: ""
+      },
+      { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
+      { id: "b", name: "B", type: "freePoint", visible: true, enabled: true, x: 10, y: 10 },
+      {
+        id: "c", name: "C", type: "bezierCurve", visible: true, enabled: true,
+        startPoint: { mode: "reference", pointId: "a" }, startHandleAngleDeg: 0, startHandleLength: 0,
+        endPoint: { mode: "reference", pointId: "b" }, endHandleAngleDeg: 0, endHandleLength: 0,
+        intermediatePoints: [{
+          id: "pt1",
+          point: { mode: "reference", pointId: "a" },
+          handleAngleDeg: { kind: "expression", expression: "0+@Gl" },
+          incomingHandleLength: 5,
+          outgoingHandleLength: 5
+        }],
+        numericVariables: [{ id: "local", name: "Local", value: 5 }]
+      }
+    ]);
     const { elements, printLayouts, statementRanges, printLayoutRanges } = identities(source);
     const state = EditorState.create({ doc: source });
     const pos = source.indexOf("@Gl") + "@Gl".length;
@@ -325,8 +369,15 @@ describe("createDslCompletionSource", () => {
   });
 
   describe("elementParameter (ElementName.parameterKey) completion", () => {
+    const buildSource = (dotSuffix: string) => dslTextForElements([
+      { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
+      { id: "b", name: "B", type: "freePoint", visible: true, enabled: true, x: 10, y: 0 },
+      { id: "ab", name: "直線AB", type: "line", visible: true, enabled: true, startPoint: { mode: "reference", pointId: "a" }, endPoint: { mode: "reference", pointId: "b" } },
+      { id: "p", name: "P", type: "offsetPoint", visible: true, enabled: true, fromPoint: { mode: "reference", pointId: "a" }, dx: { kind: "expression", expression: `直線AB.${dotSuffix}` }, dy: 0 }
+    ]);
+
     const setup = () => {
-      const source = ["nui 1", "point A = (0, 0)", "point B = (10, 0)", "line 直線AB = A -> B", "point P = offset A dx=直線AB."].join("\n");
+      const source = buildSource("");
       const { elements, ids, statementRanges, printLayouts, printLayoutRanges } = identities(source);
       const abId = ids.get(4)!;
       const state = EditorState.create({ doc: source });
@@ -370,7 +421,7 @@ describe("createDslCompletionSource", () => {
     });
 
     it("spans only the member token (from/to exclude the ElementName. prefix)", async () => {
-      const source = ["nui 1", "point A = (0, 0)", "point B = (10, 0)", "line 直線AB = A -> B", "point P = offset A dx=直線AB.le"].join("\n");
+      const source = buildSource("le");
       const { elements, ids, statementRanges, printLayouts, printLayoutRanges } = identities(source);
       const abId = ids.get(4)!;
       const state = EditorState.create({ doc: source });
@@ -411,7 +462,7 @@ describe("createDslCompletionSource", () => {
     });
 
     it("is suppressed during IME composition, same as the shared top-level guard", async () => {
-      const source = ["nui 1", "point A = (0, 0)", "point B = (10, 0)", "line 直線AB = A -> B", "point P = offset A dx=直線AB."].join("\n");
+      const source = buildSource("");
       const { elements, ids, statementRanges, printLayouts, printLayoutRanges } = identities(source);
       const abId = ids.get(4)!;
       const state = EditorState.create({ doc: source });

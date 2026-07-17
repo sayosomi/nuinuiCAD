@@ -3,6 +3,7 @@ import { Transaction, type EditorState } from "@codemirror/state";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
+import { dslTextForElements } from "../dsl/dslDocumentTestUtils";
 import { SourceEditorController } from "./sourceEditorController";
 import { patchHighlightField, type PatchHighlightPayload } from "./sourceEditorPatchHighlight";
 
@@ -14,7 +15,10 @@ type ControllerInternals = {
   };
 };
 
-const source = "nui 1\npoint A = (0, 0)\npoint B = (1, 1)";
+const source = dslTextForElements([
+  { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
+  { id: "b", name: "B", type: "freePoint", visible: true, enabled: true, x: 1, y: 1 }
+]);
 
 describe("SourceEditorController patch-change highlight", () => {
   beforeEach(() => {

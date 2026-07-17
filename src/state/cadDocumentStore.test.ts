@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { sampleElements } from "../sampleData";
+import { dslTextForElements } from "../dsl/dslDocumentTestUtils";
 import { commitDocumentChangeAndSelect } from "../commands/commitDocumentChangeAndSelect";
 import { activePrintLayout, DEFAULT_PRINT_LAYOUT } from "../print/printLayout";
 import { defaultVisibilityProfile } from "../model/visibilityProfiles";
@@ -78,6 +79,7 @@ describe("cadDocumentStore file state", () => {
       selectionAnchorElementId: state.elements[1].id
     };
     useCadUiStore.getState().applySelection(state.elements, selection);
+    // dsl2-cutover: v1-literal — 意図的な構文エラー(未閉じ括弧)。
     useCadDocumentStore.getState().commitText("nui 1\npoint A = (", "test");
 
     const result = commitDocumentChangeAndSelect(
@@ -173,11 +175,15 @@ describe("cadDocumentStore file state", () => {
   });
 
   it("projects valid source-editor preview text without changing canonical text or history", () => {
-    const source = "nui 1\npoint A = (12, 0)";
+    const source = dslTextForElements([
+      { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 12, y: 0 }
+    ]);
     useCadDocumentStore.getState().commitText(source, "test");
     const before = useCadDocumentStore.getState();
 
-    useCadDocumentStore.getState().setSourceEditorPreviewText("nui 1\npoint A = (15, 0)");
+    useCadDocumentStore.getState().setSourceEditorPreviewText(dslTextForElements([
+      { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 15, y: 0 }
+    ]));
 
     const during = useCadDocumentStore.getState();
     expect(during.sourceText).toBe(source);

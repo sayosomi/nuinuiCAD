@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { compileDslDocument, serializeDocumentToDsl } from "../dsl/dslDocument";
+import { dslTextForElements } from "../dsl/dslDocumentTestUtils";
 import { DEFAULT_PRINT_LAYOUT } from "../print/printLayout";
 import type { CadElement } from "../types/geometry";
 import {
@@ -7,6 +8,11 @@ import {
   useCadDocumentStore
 } from "./cadDocumentStore";
 import { renameElementWithPropagation } from "../commands/renameElementWithPropagation";
+
+const twoPointSource = () => dslTextForElements([
+  { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
+  { id: "b", name: "B", type: "freePoint", visible: true, enabled: true, x: 1, y: 1 }
+]);
 
 // Phase 1b: 影テキスト維持機構のストア統合テスト。
 // 「コンソールに影assert警告が出ないこと」を明示的にアサートすることで、
@@ -132,9 +138,11 @@ describe("cadDocumentStore 影テキスト: 代表的なコミット経路", () 
   });
 
   it("group化に相当する一括コミット(グループ要素の挿入+親付け替え)で警告が出ない", () => {
-    seedFromSource(["nui 1", "point A = (0, 0)", "point B = (1, 1)"].join("\n"));
+    seedFromSource(twoPointSource());
     const state = useCadDocumentStore.getState();
-    const groupCompiled = compileDslDocument("nui 1\ngroup G {\n}");
+    const groupCompiled = compileDslDocument(dslTextForElements([
+      { id: "g", name: "G", type: "group", visible: true, enabled: true }
+    ]));
     const groupElement = groupCompiled.document!.elements[0];
     const nextElements: CadElement[] = [
       groupElement,
@@ -146,7 +154,11 @@ describe("cadDocumentStore 影テキスト: 代表的なコミット経路", () 
   });
 
   it("ungroup化に相当する一括コミット(グループ要素の削除+親付け替え解除)で警告が出ない", () => {
-    seedFromSource(["nui 1", "group G {", "  point A = (0, 0)", "  point B = (1, 1)", "}"].join("\n"));
+    seedFromSource(dslTextForElements([
+      { id: "g", name: "G", type: "group", visible: true, enabled: true },
+      { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0, parentGroupId: "g" },
+      { id: "b", name: "B", type: "freePoint", visible: true, enabled: true, x: 1, y: 1, parentGroupId: "g" }
+    ]));
     const state = useCadDocumentStore.getState();
     const group = state.elements.find((element) => element.type === "group")!;
     const nextElements = state.elements
@@ -161,9 +173,10 @@ describe("cadDocumentStore 影テキスト: 代表的なコミット経路", () 
 
   it("テンプレート挿入に相当する一括コミット(複数要素の一括追加)で警告が出ない", () => {
     const state = useCadDocumentStore.getState();
-    const inserted = compileDslDocument(
-      ["nui 1", "point T1 = (10, 10)", "point T2 = offset T1 dx=5 dy=5"].join("\n")
-    ).document!.elements;
+    const inserted = compileDslDocument(dslTextForElements([
+      { id: "t1", name: "T1", type: "freePoint", visible: true, enabled: true, x: 10, y: 10 },
+      { id: "t2", name: "T2", type: "offsetPoint", visible: true, enabled: true, fromPoint: { mode: "reference", pointId: "t1" }, dx: 5, dy: 5 }
+    ])).document!.elements;
     useCadDocumentStore.getState().commitDocumentChange({ elements: [...state.elements, ...inserted] });
     expectShadowConsistent();
     expectNoShadowWarnings();
@@ -172,14 +185,13 @@ describe("cadDocumentStore 影テキスト: 代表的なコミット経路", () 
 
 describe("cadDocumentStore 影テキスト: コメント・空行の保存", () => {
   it("手置きのコメント・空行はコミット後もバイト単位で保存される", () => {
-    seedFromSource(["nui 1", "point A = (0, 0)", "point B = (1, 1)"].join("\n"));
+    seedFromSource(twoPointSource());
     const state = useCadDocumentStore.getState();
 
     // 正準テキストへコメント・空行を注入する。commitTextがIDを照合する。
-    const withNoise = state.sourceText.replace(
-      "point A = (0, 0)",
-      ["", "# 注釈行", "point A = (0, 0)"].join("\n")
-    );
+    const aLine = state.sourceText.split("\n").find((line) => line.includes("point A"))!;
+    const noisyALine = ["", "# 注釈行", aLine].join("\n");
+    const withNoise = state.sourceText.replace(aLine, noisyALine);
     useCadDocumentStore.getState().commitText(withNoise, "test");
 
     const targetId = state.elements.find((element) => element.name === "B")!.id;
@@ -189,7 +201,7 @@ describe("cadDocumentStore 影テキスト: コメント・空行の保存", () 
     // 注入した空行・コメント・直後の行が連続したまま(バイト単位で不変)
     // 保存されていること。絶対行番号ではなく部分文字列として検証する
     // (palette等の前置セクションの有無で絶対位置は変わり得るため)。
-    expect(sourceText).toContain(["", "# 注釈行", "point A = (0, 0)"].join("\n"));
+    expect(sourceText).toContain(noisyALine);
     expectShadowConsistent();
     expectNoShadowWarnings();
   });
@@ -220,7 +232,10 @@ describe("cadDocumentStore 影テキスト: undo/redo/replaceDocument の全体�
   });
 
   it("replaceDocumentは影を読み込んだモデルへ全体再生成する", () => {
-    const compiled = compileDslDocument(["nui 1", "point X = (7, 7)"].join("\n"));
+    const xSource = dslTextForElements([
+      { id: "x", name: "X", type: "freePoint", visible: true, enabled: true, x: 7, y: 7 }
+    ]);
+    const compiled = compileDslDocument(xSource);
     const doc = compiled.document!;
     useCadDocumentStore.getState().replaceDocument(
       {
@@ -231,7 +246,7 @@ describe("cadDocumentStore 影テキスト: undo/redo/replaceDocument の全体�
       "/tmp/loaded.nuinui.json"
     );
 
-    expect(useCadDocumentStore.getState().sourceText).toContain("point X = (7, 7)");
+    expect(useCadDocumentStore.getState().sourceText).toContain(xSource.split("\n")[1]);
     expectShadowConsistent();
     expectNoShadowWarnings();
   });
@@ -239,9 +254,11 @@ describe("cadDocumentStore 影テキスト: undo/redo/replaceDocument の全体�
 
 describe("cadDocumentStore 影テキスト: setStateによる影driftからの自己修復", () => {
   it("影を経由しないモデル直書き換え後も、次のコミットはクラッシュせず偽警告も出さない", () => {
-    seedFromSource(["nui 1", "point A = (0, 0)", "point B = (1, 1)"].join("\n"));
+    seedFromSource(twoPointSource());
     const state = useCadDocumentStore.getState();
-    const inserted = compileDslDocument("nui 1\npoint C = (2, 2)").document!.elements[0];
+    const inserted = compileDslDocument(dslTextForElements([
+      { id: "c", name: "C", type: "freePoint", visible: true, enabled: true, x: 2, y: 2 }
+    ])).document!.elements[0];
 
     // 影を経由しない直接書き換え(テストがよくやるパターン)でドリフトさせる。
     useCadDocumentStore.setState({ elements: [...state.elements, inserted] });
@@ -257,7 +274,11 @@ describe("cadDocumentStore 影テキスト: setStateによる影driftからの�
   });
 
   it("行パッチで表現できないほど大きくドリフトしても最終的にクラッシュせず一貫性を取り戻す", () => {
-    seedFromSource(["nui 1", "point A = (0, 0)", "point B = (1, 1)", "point C = (2, 2)"].join("\n"));
+    seedFromSource(dslTextForElements([
+      { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
+      { id: "b", name: "B", type: "freePoint", visible: true, enabled: true, x: 1, y: 1 },
+      { id: "c", name: "C", type: "freePoint", visible: true, enabled: true, x: 2, y: 2 }
+    ]));
     const state = useCadDocumentStore.getState();
 
     // 要素を全消去する極端なドリフト。

@@ -1,3 +1,7 @@
+// dsl2-cutover: v1-literal
+// ファイル全体が対象: v1単一行構文上での数値ステップ入力の文字位置解決
+// そのものが検証対象(W4は生成経由化ではなくマーカー付与のみとする判断。
+// docs/dsl2/tasks/w4-editor-test-fixtures.md 参照)。
 import { describe, expect, it } from "vitest";
 import { compileDslToElements } from "./dslCompiler";
 import { resolveDslValueStep, stepDslNumericLiteral } from "./dslValueStep";
