@@ -137,7 +137,12 @@ export const diffTexts = (oldTexts: readonly string[], newTexts: readonly string
 };
 
 const statementText = (statements: readonly DslStatement[], lines: readonly string[]) =>
-  statements.map((statement) => (lines[statement.line - 1] ?? "").trim());
+  statements.map((statement) =>
+    lines
+      .slice(statement.line - 1, statement.endLine)
+      .map((line) => line.trim())
+      .join(" ")
+  );
 
 export const reconcileStatements = (
   input: ReconcileInput,

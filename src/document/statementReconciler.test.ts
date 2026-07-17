@@ -245,6 +245,102 @@ describe("statementReconciler 仕様表", () => {
   });
 });
 
+describe("statementReconciler 複数行statement(バックスラッシュ継続)", () => {
+  it("継続行だけの編集は段階1の無変更扱いにならず、IDは継承される", () => {
+    const oldSource = [
+      "nui 1",
+      "point A = (0, 0) \\",
+      "  color=main",
+      "point B = (1, 1)"
+    ].join("\n");
+    const newSource = [
+      "nui 1",
+      "point A = (0, 0) \\",
+      "  color=accent",
+      "point B = (1, 1)"
+    ].join("\n");
+    const { old, next, result } = reconcileSources(oldSource, newSource);
+    expect(idByName(next, "A")).toBe(idByName(old, "A"));
+    expect(idByName(next, "B")).toBe(idByName(old, "B"));
+    expect(result.createdIds.size).toBe(0);
+    expect(result.vanishedIds).toEqual([]);
+    // 先頭物理行だけを見ていた旧実装では継続行の変更が検知されず「段階1で無変更」に
+    // なってしまっていた。全行結合により段階1では一致しなくなり、別段階(完全キー
+    // マッチ)でID継承されることを確認する。
+    expect(stageOfName(next, result, "A")).not.toBe(1);
+    expect(stageOfName(next, result, "A")).toBe(2);
+  });
+
+  it("複数行statementが完全不変なら段階1でID継承・変化なし", () => {
+    const oldSource = [
+      "nui 1",
+      "point A = (0, 0) \\",
+      "  color=main",
+      "point B = (1, 1)"
+    ].join("\n");
+    const newSource = [
+      "nui 1",
+      "point A = (0, 0) \\",
+      "  color=main",
+      "point B = (2, 2)"
+    ].join("\n");
+    const { old, next, result } = reconcileSources(oldSource, newSource);
+    expect(idByName(next, "A")).toBe(idByName(old, "A"));
+    expect(idByName(next, "B")).toBe(idByName(old, "B"));
+    expect(result.createdIds.size).toBe(0);
+    expect(result.vanishedIds).toEqual([]);
+    expect(stageOfName(next, result, "A")).toBe(1);
+  });
+
+  it("複数行statementと単一行statementの順序入れ替えでもID対応にずれや重複がない", () => {
+    const oldSource = [
+      "nui 1",
+      "point A = (0, 0) \\",
+      "  color=main",
+      "point B = (1, 1)",
+      "point C = (2, 2)"
+    ].join("\n");
+    const newSource = [
+      "nui 1",
+      "point C = (2, 2)",
+      "point B = (1, 1)",
+      "point A = (0, 0) \\",
+      "  color=main"
+    ].join("\n");
+    const { old, next, result } = reconcileSources(oldSource, newSource);
+    // LCSの有効な選択次第でどのstatementが段階1に残るかは変わり得るため、段階は
+    // 断定せず、名前→ID対応が旧新で一貫していること・新規/消滅がないこと・ID重複が
+    // ないことのみを検証する。
+    expect(idByName(next, "A")).toBe(idByName(old, "A"));
+    expect(idByName(next, "B")).toBe(idByName(old, "B"));
+    expect(idByName(next, "C")).toBe(idByName(old, "C"));
+    expect(result.createdIds.size).toBe(0);
+    expect(result.vanishedIds).toEqual([]);
+    const assignedIdValues = [...result.assignedIds.values()];
+    expect(new Set(assignedIdValues).size).toBe(assignedIdValues.length);
+  });
+
+  it("複数行statementのリネームは単一行と同じID継承規則の回帰(段階は断定しない)", () => {
+    const oldSource = [
+      "nui 1",
+      "point A = (0, 0) \\",
+      "  color=main",
+      "point B = (1, 1)"
+    ].join("\n");
+    const newSource = [
+      "nui 1",
+      "point Arenamed = (0, 0) \\",
+      "  color=main",
+      "point B = (1, 1)"
+    ].join("\n");
+    const { old, next, result } = reconcileSources(oldSource, newSource);
+    expect(idByName(next, "Arenamed")).toBe(idByName(old, "A"));
+    expect(idByName(next, "B")).toBe(idByName(old, "B"));
+    expect(result.createdIds.size).toBe(0);
+    expect(result.vanishedIds).toEqual([]);
+  });
+});
+
 describe("statementReconciler ストレス", () => {
   const buildLargeSource = (count: number) => {
     const lines = ["nui 1"];

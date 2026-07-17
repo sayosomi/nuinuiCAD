@@ -52,4 +52,14 @@ const statementText = (statements, lines) =>
 
 - C1 は reconciler に追加変更なしで縦型 statement を扱えるはず。もし C1 で
   reconciler 由来の ID 揺れが出たら、まず本タスクのテスト網を疑うこと。
-- (完了時に追記)
+- 実施内容: `statementText`(`src/document/statementReconciler.ts`)を
+  `statement.line`〜`statement.endLine` 全行 trim + 単一スペース結合に変更。
+  単一行 statement は `endLine === line` のため既存出力と完全一致し、既存の全
+  テスト(ストレステスト含む)は無変更で green。
+- 逸脱・発見: なし。実装は本文書に記載の diff どおり 1 関数の変更のみで完結した。
+  stage 2〜6 はこの関数の出力にのみ依存するため、他コードの変更は不要だった。
+- 追加した回帰テストでは、複数行 statement の並べ替えケースについて特定 statement
+  が必ず特定の段階になることは断定していない(LCS の有効な選択によって段階1に残る
+  statement が変わり得るため)。代わりに名前→ID対応の一貫性・新規/消滅なし・ID
+  重複なしを検証している。リネームケースも同様に段階を断定せず、単一行のリネーム
+  規則が複数行化後も壊れていないことのみを回帰確認した。
