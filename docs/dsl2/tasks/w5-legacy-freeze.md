@@ -56,4 +56,31 @@ C1 で live の v1 parser/compiler が削除される前に、v1 文書を読む
 
 - C1 へ: live との等価テストの書き換え(上記)。
 - F1 が facade を open 境界へ配線する。F4 が削除条件成立後にディレクトリごと消す。
-- (完了時に追記)
+
+### 実施内容
+
+- `src/document/legacyDsl/` を新設し、`dslParser.ts` / `dslCompiler.ts` /
+  `dslTokens.ts` / `logicalStatementSourceMap.ts` / `dslReferences.ts` /
+  `dslReferenceTokens.ts` / `dslTypes.ts` の7ファイルに加え、`dslCompiler.ts` の
+  import 閉包トレースで発見した `dslPrintLayoutAttributes.ts` を凍結コピーした
+  (計8ファイル)。コピーは本文ロジック・整形を変更せず、先頭の凍結コメントと、
+  ディレクトリが1段深くなった分の外部 import パス調整(`../types/geometry` →
+  `../../types/geometry` 等)のみを許容差分とした。同ディレクトリ内 import
+  (`./dslTypes` 等)はそのまま。他に import 閉包の漏れがないことを確認済み。
+- facade `src/document/legacyDsl/parseLegacyV1Document.ts`(凍結コピーではなく
+  新規実装)を追加。現行 `compileDslDocument`(`src/dsl/dslDocument.ts:618-670`)と
+  同等の薄いオーケストレーションを再実装し、バージョン検証は live の
+  `DSL_VERSION`(C1 で2になる)に依存せず major=1 固定の自己完結ロジックにした。
+- fixture `src/dsl/__fixtures__/sample.v1.nui` を現行 `sample.nui` のバイトコピーで
+  追加。
+- テスト2本を追加:
+  - `parseLegacyV1Document.test.ts` — `sample.v1.nui` での live
+    `compileDslDocument` との等価性(`dslDocumentTestUtils.ts` の
+    `expectSemanticallyEqualDocuments` を使用。C1 後は書き換え必須)、および
+    `element type=` 汎用形・バックスラッシュ継続・`parent=` フォールバックの
+    代表ケース。
+  - `importBoundary.test.ts` — legacyDsl 配下の全実装ファイル(facade を含む、
+    凍結8ファイル+facadeの計9ファイル)のソースを `?raw` import で読み、
+    どの相対 import も live `src/dsl/` を指していないことを検査。
+- `npm test`(1685件 green、W4完了時の1671件から+14)/ `npm run build` /
+  `npm run lint` すべて green。Rust 未変更のため `cargo` 系は未実行(方針どおり)。
