@@ -10,6 +10,14 @@ import { dslEnclosingPrintLayoutLine, dslPrintLayoutVariableCompletionOptions } 
 import { dslElementParameterCompletionOptions } from "../dsl/dslElementParameterCompletionCandidates";
 import { dslLinePrintLayoutStatement } from "../dsl/dslValueSpans";
 import { parseDslSnapshot } from "../dsl/dslParser";
+import {
+  createLogicalStatementSourceMap,
+  logicalOffsetToPhysical,
+  physicalSpanForLogicalRange,
+  physicalToLogicalOffset,
+  type LogicalStatement,
+  type LogicalStatementSourceMap
+} from "../dsl/logicalStatementSourceMap";
 import { localNumericVariableReferenceOptions, type NumericVariableReferenceOption } from "../geometry/variableReferenceOptions";
 import type { ElementParameterReferenceOption } from "../geometry/elementParameterReferenceOptions";
 import type { CadElement, ComputedGeometry, ComputedVariable, DependencyError, ElementId, EvaluationResult, PrintLayout } from "../types/geometry";
@@ -44,14 +52,37 @@ type DslAutocompleteOptions = {
   documentInput?: (context: CompletionContext) => DslAutocompleteDocumentInput | null;
 };
 
-const defaultDocumentInput = (context: CompletionContext): DslAutocompleteDocumentInput => {
+/** A logical-projection pairing kept alongside the document input so the
+ * completion's from/to can later be projected back through the exact same
+ * source map/statement that produced lineText/localPos — never a freshly
+ * rebuilt one, and never mixed with physical-line arithmetic. */
+type LogicalProjection = { map: LogicalStatementSourceMap; statement: LogicalStatement };
+
+/** Builds the default (non-overridden) document input for one completion call.
+ * Prefers the cursor's enclosing statement's logical projection (so
+ * continuation-line completion sees the whole statement, per W3); falls back
+ * to the legacy single physical line as one unit — never a logical lineText
+ * paired with physical localPos or vice versa — whenever the cursor's
+ * statement can't be found or its position can't be projected into logical
+ * text (comments, the continuation backslash, trimmed indentation). */
+const defaultDocumentInput = (context: CompletionContext): { input: DslAutocompleteDocumentInput; projection: LogicalProjection | null } => {
   const line = context.state.doc.lineAt(context.pos);
-  return {
-    source: context.state.doc.toString(),
+  const source = context.state.doc.toString();
+  const physicalInput: DslAutocompleteDocumentInput = {
+    source,
     cursorLineNumber: line.number,
     lineText: line.text,
     localPos: context.pos - line.from,
     doc: context.state.doc
+  };
+  const map = createLogicalStatementSourceMap({ normalizedSource: source, sourceRevision: 0 });
+  const statement = map.statements.find((candidate) => context.pos >= candidate.range.from && context.pos <= candidate.range.to);
+  if (!statement) return { input: physicalInput, projection: null };
+  const localPos = physicalToLogicalOffset(map, statement, context.pos);
+  if (localPos === null) return { input: physicalInput, projection: null };
+  return {
+    input: { ...physicalInput, lineText: statement.logicalText, localPos },
+    projection: { map, statement }
   };
 };
 
@@ -100,7 +131,9 @@ const asElementParameterCompletions = (options: readonly ElementParameterReferen
 
 export const createDslCompletionSource = (options: DslAutocompleteOptions): CompletionSource => (context) => {
   if (options.isComposing() || context.view?.compositionStarted) return null;
-  const input = (options.documentInput ?? defaultDocumentInput)(context);
+  const { input, projection } = options.documentInput
+    ? { input: options.documentInput(context), projection: null }
+    : defaultDocumentInput(context);
   if (!input) return null;
   const completionContext = dslCompletionContextAt(input.lineText, input.localPos);
   if (!completionContext) return null;
@@ -184,7 +217,7 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
   } else if (completionContext.parameter.definition.kind === "number") {
     const elements = options.elements();
     const statementElementIds = statementElementIdsByLiveLine(input.doc, options.statementRanges());
-    const currentElement = currentLiveElement(input.source, input.doc.line(input.cursorLineNumber).from + input.localPos, statementElementIds.get(input.cursorLineNumber), elements);
+    const currentElement = currentLiveElement(input.source, context.pos, statementElementIds.get(input.cursorLineNumber), elements);
     const localOptions = currentElement
       ? localNumericVariableReferenceOptions({ element: currentElement, localVariableLimit: currentElement.numericVariables?.length ?? 0 })
       : [];
@@ -221,10 +254,37 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
     }));
   }
   if (completions.length === 0 && !context.explicit) return null;
-  const base = context.pos - input.localPos;
+  let from: number;
+  let to: number;
+  if (projection && completionContext.from === completionContext.to) {
+    // physicalSpanForLogicalRange only ever emits non-empty segments (its
+    // `to > from` filter is built for real content spans, e.g. P8's comment
+    // re-attachment), so an empty cursor-point range — the common case right
+    // after a trigger character with nothing typed yet — always comes back
+    // with zero segments there. Project the single point instead.
+    const point = logicalOffsetToPhysical(projection.map, projection.statement, completionContext.from);
+    if (point === null) return null;
+    from = point;
+    to = point;
+  } else if (projection) {
+    // The candidates above were already computed against logical text/offsets,
+    // so the replacement range must come back through that same source
+    // map/statement — never physical `base + offset` arithmetic, which would
+    // silently mix logical and physical coordinate spaces on a continuation
+    // statement. A range that can't collapse to one contiguous physical
+    // fragment (crosses a continuation boundary) is fail-closed: no completion.
+    const span = physicalSpanForLogicalRange(projection.map, projection.statement, { start: completionContext.from, end: completionContext.to });
+    if (!span || span.segments.length !== 1) return null;
+    from = span.segments[0].from;
+    to = span.segments[0].to;
+  } else {
+    const base = context.pos - input.localPos;
+    from = base + completionContext.from;
+    to = base + completionContext.to;
+  }
   return {
-    from: base + completionContext.from,
-    to: base + completionContext.to,
+    from,
+    to,
     options: completions,
     ...(preservesSharedReferenceRanking
       ? { filter: false as const }

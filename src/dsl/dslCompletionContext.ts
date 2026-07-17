@@ -238,9 +238,12 @@ const referenceCompletionSpan = (
 };
 
 /**
- * Resolves only from a freshly reparsed live line. Erroring lines deliberately
- * receive at most line-head keyword completion; no partial DSL parser exists
- * alongside the document parser.
+ * Resolves only from freshly reparsed text: `lineText` is a statement's logical
+ * projection (physical lines joined at continuation points) when the caller
+ * could resolve one, or a single physical line otherwise — this function has
+ * no opinion on which, it just scans the string it's given. Erroring
+ * statements deliberately receive at most line-head keyword completion; no
+ * partial DSL parser exists alongside the document parser.
  */
 export const dslCompletionContextAt = (lineText: string, pos: number): DslCompletionContext => {
   const { code, comment } = splitDslComment(lineText);
