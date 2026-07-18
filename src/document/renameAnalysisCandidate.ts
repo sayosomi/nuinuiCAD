@@ -5,7 +5,8 @@ import {
   type DslDocumentData
 } from "../dsl/dslDocument";
 import { parseDsl } from "../dsl/dslParser";
-import { documentDslRefs, serializeElementStatement } from "../dsl/dslSerializer";
+import { documentDslRefs } from "../dsl/dslSerializer";
+import { serializeElementStatementLogical } from "../dsl/dslSerializeElement";
 import { applyLineSplices, buildTextPatch } from "./textPatch";
 import { reconcileStatements } from "./statementReconciler";
 import type { ElementId } from "../types/geometry";
@@ -48,26 +49,18 @@ export const serializerChangedStatementLines = (
     const next = afterElementsById.get(element.id);
     const info = before.statementMap.byElementId.get(element.id);
     if (!next || !info) return null;
-    if (serializeElementStatement(element, refsBefore) !== serializeElementStatement(next, refsAfter)) {
-      lines.add(info.line);
+    if (serializeElementStatementLogical(element, refsBefore) !== serializeElementStatementLogical(next, refsAfter)) {
+      // v2正準出力は縦型callで複数物理行になり得るため、変更statementの
+      // range全体(次行単独`{`を伴っていた場合はそれも含む)を期待パッチ行と
+      // する — buildTextPatch(textPatch.ts の effectiveEndLine)と同じ範囲。
+      const endLine = Math.max(info.endLine, info.openBraceLine ?? 0);
+      for (let line = info.line; line <= endLine; line += 1) lines.add(line);
       changedElementIds.add(element.id);
     }
   }
 
-  const sourceCompatiblePlan = (plan: ReturnType<typeof planPrintLayoutSection>) => ({
-    ...plan,
-    blocks: plan.blocks.map((block) => {
-      const info = before.statementMap.byKey.get(`printLayout:${block.layoutId}`);
-      // A model patch deliberately preserves a legacy inline opening brace.
-      // Compare the same physical shape that buildTextPatch will emit.
-      if (!info?.openBraceLine && block.lines[1]?.trim() === "{") {
-        return { ...block, lines: [`${block.lines[0]} {`, ...block.lines.slice(2)] };
-      }
-      return block;
-    })
-  });
-  const beforePlan = sourceCompatiblePlan(planPrintLayoutSection(before.document));
-  const afterPlan = sourceCompatiblePlan(planPrintLayoutSection(afterDocument));
+  const beforePlan = planPrintLayoutSection(before.document);
+  const afterPlan = planPrintLayoutSection(afterDocument);
   const afterBlocks = new Map(afterPlan.blocks.map((block) => [block.layoutId, block]));
   for (const block of beforePlan.blocks) {
     const next = afterBlocks.get(block.layoutId);

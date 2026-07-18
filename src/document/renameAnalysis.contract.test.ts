@@ -84,9 +84,14 @@ describe("renameAnalysis contract", () => {
       newName: "Named"
     });
 
+    // The unnamed point's construction call spans every physical line after
+    // "nui 2" (a v2 vertical call, unlike v1's always-one-line statement), and
+    // expectedPatchedLines now covers a changed statement's full line range
+    // (renameAnalysisCandidate.ts) rather than just a diffed line.
+    const statementLineCount = source.split("\n").length - 1;
     expect(analysis).toMatchObject({
       verdict: "ok",
-      expectedPatchedLines: [source.split("\n").length],
+      expectedPatchedLines: Array.from({ length: statementLineCount }, (_, index) => index + 2),
       occurrences: []
     });
   });
@@ -271,53 +276,72 @@ describe("renameAnalysis contract", () => {
     expect(analysis.occurrences.some((occurrence) => occurrence.line === placeXLine)).toBe(false);
   });
 
-  // dsl2-cutover: v1-literal
+  // The printLayout header's exact canonical line shape (one arg per physical
+  // line, matching dslDocument.ts's printLayoutBlockLines) is load-bearing
+  // here: serializerChangedStatementLines's "exact mapping" proof requires the
+  // source range's physical line count to equal the generated plan's line
+  // count, so a single-line header would always fall back to block granularity.
+  const printLayoutHeaderLines = [
+    "printLayout L (",
+    "  output: pdf",
+    "  paper: a4",
+    "  orientation: portrait",
+    "  columns: 1",
+    "  rows: 1",
+    "  overlap: 0",
+    "  scale: 1",
+    "  canvas: (100, 100)",
+    ") {"
+  ];
+
   it("excludes an unchanged raw-id descendant place when print-layout line mapping is exact", () => {
     const source = [
-      "nui 1",
+      "nui 2",
       "group Parent {",
-      "  group id=child {",
+      "  group (id: child) {",
       "  }",
       "}",
-      "printLayout L output=pdf paper=a4 orientation=portrait columns=1 rows=1 overlap=0 scale=1 canvas=(100, 100) {",
-      "  place Parent at=(0, 0) angle=0 mirrorX=false",
-      "  place child at=(20, 0) angle=0 mirrorX=false",
+      ...printLayoutHeaderLines,
+      "  place Parent (at: (0, 0) angle: 0 mirrorX: false)",
+      "  place child (at: (20, 0) angle: 0 mirrorX: false)",
       "}"
     ].join("\n");
     const compiled = complete(source);
     const target = compiled.document.elements.find((element) => element.name === "Parent")!;
     const analysis = analyzeRename({ sourceText: source, compiled, targetElementId: target.id, newName: "Renamed" });
 
-    expect(analysis).toMatchObject({ verdict: "ok", expectedPatchedLines: [2, 6, 7, 8, 9] });
+    const placeParentLine = lineOf(source, "place Parent");
+    expect(analysis).toMatchObject({ verdict: "ok" });
     if (analysis.verdict !== "ok") return;
     expect(analysis.occurrences).toEqual([
-      expect.objectContaining({ line: 7, referencedElementId: target.id, form: "print-layout-place" })
+      expect.objectContaining({ line: placeParentLine, referencedElementId: target.id, form: "print-layout-place" })
     ]);
   });
 
-  // dsl2-cutover: v1-literal
   it("keeps block-granularity occurrences when source-only print-layout lines prevent an exact mapping", () => {
     const source = [
-      "nui 1",
+      "nui 2",
       "group Parent {",
-      "  group id=child {",
+      "  group (id: child) {",
       "  }",
       "}",
-      "printLayout L output=pdf paper=a4 orientation=portrait columns=1 rows=1 overlap=0 scale=1 canvas=(100, 100) {",
-      "  place Parent at=(0, 0) angle=0 mirrorX=false",
+      ...printLayoutHeaderLines,
+      "  place Parent (at: (0, 0) angle: 0 mirrorX: false)",
       "  # source-only comment prevents a line-for-line plan proof",
-      "  place child at=(20, 0) angle=0 mirrorX=false",
+      "  place child (at: (20, 0) angle: 0 mirrorX: false)",
       "}"
     ].join("\n");
     const compiled = complete(source);
     const target = compiled.document.elements.find((element) => element.name === "Parent")!;
     const analysis = analyzeRename({ sourceText: source, compiled, targetElementId: target.id, newName: "Renamed" });
 
+    const placeParentLine = lineOf(source, "place Parent");
+    const placeChildLine = lineOf(source, "place child");
     expect(analysis).toMatchObject({ verdict: "ok" });
     if (analysis.verdict !== "ok") return;
     expect(analysis.occurrences).toEqual(expect.arrayContaining([
-      expect.objectContaining({ line: 7, referencedElementId: target.id }),
-      expect.objectContaining({ line: 9, referencedElementId: "child" })
+      expect.objectContaining({ line: placeParentLine, referencedElementId: target.id }),
+      expect.objectContaining({ line: placeChildLine, referencedElementId: "child" })
     ]));
   });
 

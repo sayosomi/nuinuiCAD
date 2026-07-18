@@ -8,7 +8,7 @@ import { effectiveElements, initialCadDocumentState, useCadDocumentStore } from 
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import { SourceEditorController } from "./sourceEditorController";
 
-const source = "nui 1\npoint A = (12, 0) locked=true\nvar V = 1 scope=global";
+const source = "nui 2\npoint A = coordinate(x: 12 y: 0 locked: true)\nvar V = expression(value: 1 scope: global)";
 
 const openEditor = (initialSource = source) => {
   useCadDocumentStore.getState().commitText(initialSource, "test");
@@ -59,7 +59,7 @@ describe("SourceEditor editor-native value step commands", () => {
 
     pressStep(view, 1);
 
-    expect(useCadDocumentStore.getState().sourceText).toContain("(13, 0)");
+    expect(useCadDocumentStore.getState().sourceText).toContain("x: 13");
     expect(view.state.doc.toString().slice(view.state.selection.main.from, view.state.selection.main.to)).toBe("13");
     expect(useCadDocumentStore.getState().past).toHaveLength(pastBefore + 1);
     expect(undoDepth(view.state)).toBe(0);
@@ -68,7 +68,7 @@ describe("SourceEditor editor-native value step commands", () => {
 
     selectToken(view, "12");
     pressStep(view, -1);
-    expect(useCadDocumentStore.getState().sourceText).toContain("(11, 0)");
+    expect(useCadDocumentStore.getState().sourceText).toContain("x: 11");
     controller.destroy();
     parent.remove();
   });
@@ -91,7 +91,7 @@ describe("SourceEditor editor-native value step commands", () => {
     expect(effectiveElements(during).find((element) => element.name === "A")).toMatchObject({ x: 15 });
 
     fireEvent.keyUp(view.contentDOM, stepEvent(1));
-    expect(useCadDocumentStore.getState().sourceText).toContain("(15, 0)");
+    expect(useCadDocumentStore.getState().sourceText).toContain("x: 15");
     expect(useCadDocumentStore.getState().previewElements).toBeNull();
     expect(useCadDocumentStore.getState().past).toHaveLength(before.past.length + 1);
     useCadDocumentStore.getState().undo();
@@ -106,10 +106,10 @@ describe("SourceEditor editor-native value step commands", () => {
 
   it("steps one quoted expression literal with the parameter step and keeps repeat Undo semantics", () => {
     const expressionSource = [
-      "nui 1",
+      "nui 2",
       "var 変数1 = 13 + 1",
-      "point A = (0, 0)",
-      'point B = offset A dx="@変数1 * 2" dy=0 steps=[dx:0.25]'
+      "point A = coordinate(x: 0 y: 0)",
+      'point B = offset(from: A dx: "@変数1 * 2" dy: 0 steps: [dx: 0.25])'
     ].join("\n");
     const { controller, parent, view } = openEditor(expressionSource);
     const two = view.state.doc.toString().indexOf("* 2") + 2;
@@ -119,12 +119,12 @@ describe("SourceEditor editor-native value step commands", () => {
     fireEvent.keyDown(view.contentDOM, stepEvent(1));
     fireEvent.keyDown(view.contentDOM, stepEvent(1, true));
 
-    expect(view.state.doc.toString()).toContain('dx="@変数1 * 2.5"');
+    expect(view.state.doc.toString()).toContain('dx: "@変数1 * 2.5"');
     expect(useCadDocumentStore.getState().sourceText).toBe(before.sourceText);
     expect(useCadDocumentStore.getState().past).toHaveLength(before.past.length);
     fireEvent.keyUp(view.contentDOM, stepEvent(1));
 
-    expect(useCadDocumentStore.getState().sourceText).toContain('dx="@変数1 * 2.5"');
+    expect(useCadDocumentStore.getState().sourceText).toContain('dx: "@変数1 * 2.5"');
     expect(view.state.doc.toString().slice(view.state.selection.main.from, view.state.selection.main.to)).toBe("2.5");
     expect(useCadDocumentStore.getState().past).toHaveLength(before.past.length + 1);
     useCadDocumentStore.getState().undo();
@@ -134,35 +134,42 @@ describe("SourceEditor editor-native value step commands", () => {
   });
 
   it("steps an end-of-line value and consumes every repeat without moving to the next line", () => {
+    // Vertical canonical form puts `dy: 12` on its own physical line, with the
+    // closing `)` as the *next* line — a stronger version of the original
+    // "end of physical line" check now that single-line calls always end in `)`.
     const offsetSource = [
-      "nui 1",
-      "point 点A = (0, 0)",
-      "point 点B = offset 点A dx=130 dy=12",
-      "point 次 = (1, 1)"
+      "nui 2",
+      "point 点A = coordinate(x: 0 y: 0)",
+      "point 点B = offset(",
+      "  from: 点A",
+      "  dx: 130",
+      "  dy: 12",
+      ")",
+      "point 次 = coordinate(x: 1 y: 1)"
     ].join("\n");
     const { controller, parent, view } = openEditor(offsetSource);
-    const line = view.state.doc.line(3);
+    const line = view.state.doc.line(6);
     view.dispatch({ selection: EditorSelection.cursor(line.to) });
     const pastBefore = useCadDocumentStore.getState().past.length;
 
     expect(fireEvent.keyDown(view.contentDOM, stepEvent(1))).toBe(false);
-    expect(view.state.doc.line(3).text).toContain("dy=13");
-    expect(view.state.doc.lineAt(view.state.selection.main.head).number).toBe(3);
+    expect(view.state.doc.line(6).text).toContain("dy: 13");
+    expect(view.state.doc.lineAt(view.state.selection.main.head).number).toBe(6);
     expect(view.state.doc.toString().slice(view.state.selection.main.from, view.state.selection.main.to)).toBe("13");
     fireEvent.keyUp(view.contentDOM, stepEvent(1));
-    expect(useCadDocumentStore.getState().sourceText).toContain("dy=13");
+    expect(useCadDocumentStore.getState().sourceText).toContain("dy: 13");
 
-    const steppedLine = view.state.doc.line(3);
+    const steppedLine = view.state.doc.line(6);
     view.dispatch({ selection: EditorSelection.cursor(steppedLine.to) });
     expect(fireEvent.keyDown(view.contentDOM, stepEvent(1))).toBe(false);
-    expect(view.state.doc.line(3).text).toContain("dy=14");
+    expect(view.state.doc.line(6).text).toContain("dy: 14");
     expect(view.state.doc.toString().slice(view.state.selection.main.from, view.state.selection.main.to)).toBe("14");
     expect(fireEvent.keyDown(view.contentDOM, stepEvent(1, true))).toBe(false);
-    expect(view.state.doc.line(3).text).toContain("dy=15");
+    expect(view.state.doc.line(6).text).toContain("dy: 15");
     expect(view.state.doc.toString().slice(view.state.selection.main.from, view.state.selection.main.to)).toBe("15");
     expect(fireEvent.keyDown(view.contentDOM, stepEvent(1, true))).toBe(false);
-    expect(view.state.doc.line(3).text).toContain("dy=16");
-    expect(view.state.doc.lineAt(view.state.selection.main.head).number).toBe(3);
+    expect(view.state.doc.line(6).text).toContain("dy: 16");
+    expect(view.state.doc.lineAt(view.state.selection.main.head).number).toBe(6);
     expect(view.state.doc.toString().slice(view.state.selection.main.from, view.state.selection.main.to)).toBe("16");
     fireEvent.keyUp(view.contentDOM, stepEvent(1));
     expect(useCadDocumentStore.getState().past).toHaveLength(pastBefore + 2);
@@ -174,11 +181,11 @@ describe("SourceEditor editor-native value step commands", () => {
     const { controller, parent, view } = openEditor();
     selectToken(view, "true");
     pressStep(view, 1);
-    expect(useCadDocumentStore.getState().sourceText).toContain("locked=false");
+    expect(useCadDocumentStore.getState().sourceText).toContain("locked: false");
 
     selectToken(view, "global");
     pressStep(view, 1);
-    expect(useCadDocumentStore.getState().sourceText).toContain("scope=group");
+    expect(useCadDocumentStore.getState().sourceText).toContain("scope: group");
     controller.destroy();
     parent.remove();
   });
@@ -195,10 +202,10 @@ describe("SourceEditor editor-native value step commands", () => {
     });
 
     pressStep(view, 1);
-    expect(useCadDocumentStore.getState().sourceText).toContain("(12, 0)");
+    expect(useCadDocumentStore.getState().sourceText).toContain("x: 12");
     selectToken(view, "12");
     pressShiftAltStep(view);
-    expect(useCadDocumentStore.getState().sourceText).toContain("(13, 0)");
+    expect(useCadDocumentStore.getState().sourceText).toContain("x: 13");
     controller.destroy();
     parent.remove();
   });
@@ -211,7 +218,7 @@ describe("SourceEditor editor-native value step commands", () => {
 
     expect(dispatchCommand("stepSourceValueForward")).toBe(true);
 
-    expect(useCadDocumentStore.getState().sourceText).toContain("(13, 0)");
+    expect(useCadDocumentStore.getState().sourceText).toContain("x: 13");
     expect(useCadDocumentStore.getState().sourceText).toContain("# pending");
     expect(useCadDocumentStore.getState().past).toHaveLength(pastBefore + 1);
     useCadDocumentStore.getState().undo();
@@ -230,7 +237,7 @@ describe("SourceEditor editor-native value step commands", () => {
     fireEvent.keyDown(view.contentDOM, stepEvent(1, true));
     fireEvent.blur(view.contentDOM);
 
-    expect(useCadDocumentStore.getState().sourceText).toContain("(14, 0)");
+    expect(useCadDocumentStore.getState().sourceText).toContain("x: 14");
     expect(useCadDocumentStore.getState().sourceText).toContain("# pending");
     expect(useCadDocumentStore.getState().previewElements).toBeNull();
     expect(useCadDocumentStore.getState().past).toHaveLength(pastBefore + 1);
@@ -257,7 +264,7 @@ describe("SourceEditor editor-native value step commands", () => {
     useCadUiStore.getState().setActivePointPickTarget({ elementId: "missing", parameterKey: "startPoint" as never });
     selectToken(view, "0");
     pressStep(view, 1);
-    expect(useCadDocumentStore.getState().sourceText).not.toContain("(12, 1)");
+    expect(useCadDocumentStore.getState().sourceText).not.toContain("y: 1");
     controller.destroy();
     parent.remove();
   });

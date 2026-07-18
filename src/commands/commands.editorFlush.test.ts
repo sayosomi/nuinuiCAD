@@ -15,7 +15,7 @@ describe("dispatchCommand editor flush boundary", () => {
   afterEach(() => unregister());
 
   it("flushes pending editor text before running the command, applying one patch against the latest model", () => {
-    useCadDocumentStore.getState().commitText("nui 1\npoint A = (0, 0)", "test");
+    useCadDocumentStore.getState().commitText("nui 2\npoint A = coordinate(x: 0 y: 0)", "test");
     const elementId = useCadDocumentStore.getState().elements[0].id;
     useCadUiStore.getState().setSelectedElementIds([elementId]);
 
@@ -24,7 +24,7 @@ describe("dispatchCommand editor flush boundary", () => {
       pending = false;
       // Simulates the editor committing a burst that moved point A right before the
       // command runs; the command must act on this text, not the pre-flush one.
-      useCadDocumentStore.getState().commitText("nui 1\npoint A = (5, 5)", "editor");
+      useCadDocumentStore.getState().commitText("nui 2\npoint A = coordinate(x: 5 y: 5)", "editor");
       return "flushed" as const;
     });
     unregister = registerSourceEditSession({
@@ -79,7 +79,7 @@ describe("dispatchCommand editor flush boundary", () => {
   });
 
   it("leaves rename flushing to its confirm-time core instead of opening with a second flush", () => {
-    useCadDocumentStore.getState().commitText("nui 1\npoint A = (0, 0)", "test");
+    useCadDocumentStore.getState().commitText("nui 2\npoint A = coordinate(x: 0 y: 0)", "test");
     const elementId = useCadDocumentStore.getState().elements[0].id;
     useCadUiStore.getState().setSelectedElementIds([elementId]);
     const flush = vi.fn(() => "flushed" as const);

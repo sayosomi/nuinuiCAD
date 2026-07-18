@@ -20,8 +20,8 @@ import { sourceEditSession } from "./sourceEditSession";
  * profiled and fixed even while these loose guards pass.
  */
 
-const source = (count: number) => ["nui 1", ...Array.from({ length: count }, (_, index) =>
-  `point P${index} = (${index}, ${index + 1})`
+const source = (count: number) => ["nui 2", ...Array.from({ length: count }, (_, index) =>
+  `point P${index} = coordinate(x: ${index} y: ${index + 1})`
 )].join("\n");
 
 const stats = (values: number[]) => {

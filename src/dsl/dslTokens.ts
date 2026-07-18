@@ -81,6 +81,13 @@ export const unquoteDslString = (value: string) => {
   return result;
 };
 
+/** A single character allowed in an unquoted bare DSL name/token - anything
+ * but whitespace and DSL-structural punctuation. User-authored names
+ * (element names, visibility role names, ...) are frequently non-ASCII
+ * (Japanese), so this is deliberately not limited to ASCII identifier
+ * characters. */
+export const isBareDslIdentifierChar = (value: string) => /[^\s"'#=()[\]{},;:]/.test(value);
+
 const bareIdentifierPattern = /^[^\s"'#=()[\]{},;:]+$/;
 
 export const formatDslName = (value: string) =>

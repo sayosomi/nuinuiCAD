@@ -13,14 +13,23 @@ export type DslLabeledValueSpan = DslSpan & {
 
 const spanKey = (span: DslSpan) => `${span.start}:${span.end}`;
 
+// v2 の呼び出し引数は payloadSpans と attrs の双方に同一 span で登録される
+// (registry 駆動の validateArgs が全ての正当な key: value 引数を payloadSpans
+// へ、attrsFromArgs が同じ引数を attrs へ写す)。同一 span の重複時は「後着を
+// 捨てる」dedupe のため、ここで attrs を先に並べて勝たせる。こうすると通常の
+// 引数は "attr"(dslCompletionMetadata.ts の source 正規化・printLayout ブロック
+// 補完・vars/intermediates ルーティングが期待する形)になり、attrs 側に対応
+// エントリを持たない値(layoutVar の expression、var 短形式の value/expression
+// など、dslSettingsParser/dslCallParser が payloadSpans にしか書かない特別枠)は
+// 従来通り "payload" のまま残る。
 const candidateSpans = (statement: DslStatement): DslLabeledValueSpan[] => [
-  ...Object.entries(statement.payloadSpans).map(([key, span]) => ({ ...span, source: "payload" as const, key })),
   ...statement.attrs.map((attr): DslLabeledValueSpan => ({
     start: attr.valueStart,
     end: attr.valueEnd,
     source: "attr",
     key: attr.key
-  }))
+  })),
+  ...Object.entries(statement.payloadSpans).map(([key, span]) => ({ ...span, source: "payload" as const, key }))
 ];
 
 /**
@@ -101,7 +110,12 @@ export const dslLinePrintLayoutStatement = (lineText: string): DslPrintLayoutBlo
   }
 
   if (probeStatement.kind === "place" || probeStatement.kind === "layoutVar") {
-    const { statements, diagnostics } = parseDsl(`printLayout {\n${lineText}\n}`);
+    // v2's printLayout header always requires a call envelope (`printLayout
+    // NAME (...)`, never a bare `printLayout {`), unlike the v1 shape this
+    // synthetic wrapper originally assumed. An empty-but-present `()` plus a
+    // placeholder name keeps this wrapper statement itself diagnostic-free so
+    // it never masks a real diagnostic on the member's own line.
+    const { statements, diagnostics } = parseDsl(`printLayout __synthetic__ () {\n${lineText}\n}`);
     const statement = statements.find((candidate) => candidate.line === 2);
     if (!statement || (statement.kind !== "place" && statement.kind !== "layoutVar")) return null;
     if (diagnostics.some((diagnostic) => diagnostic.severity === "error" && diagnostic.line === 2)) return null;

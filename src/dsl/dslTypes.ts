@@ -59,21 +59,16 @@ export type DslStatementBase = {
   openBraceLine?: number;
 };
 
+// v2: 旧要素 kind(freePoint/offsetPoint/polarOffsetPoint/line/angleLengthLine/
+// arcLine/text の7種)はすべて category/construction を持つ "element" へ統合。
 export type DslStatement =
   | (DslStatementBase & { kind: "role" })
   | (DslStatementBase & { kind: "view" })
   | (DslStatementBase & { kind: "activeView" })
   | (DslStatementBase & { kind: "printLayout" })
   | (DslStatementBase & { kind: "variable"; expression: string })
-  | (DslStatementBase & { kind: "freePoint"; x: string; y: string })
-  | (DslStatementBase & { kind: "offsetPoint"; from: string })
-  | (DslStatementBase & { kind: "polarOffsetPoint"; from: string })
-  | (DslStatementBase & { kind: "line"; start: string; end: string })
-  | (DslStatementBase & { kind: "angleLengthLine"; start: string })
-  | (DslStatementBase & { kind: "arcLine"; center: string })
-  | (DslStatementBase & { kind: "text"; text: string })
   | (DslStatementBase & { kind: "group" })
-  | (DslStatementBase & { kind: "element"; type: CadElementType | null })
+  | (DslStatementBase & { kind: "element"; type: CadElementType | null; category: string; construction: string })
   | (DslStatementBase & { kind: "version"; value: string })
   | (DslStatementBase & { kind: "color"; hex: string; isDefault: boolean })
   | (DslStatementBase & { kind: "atStop" })

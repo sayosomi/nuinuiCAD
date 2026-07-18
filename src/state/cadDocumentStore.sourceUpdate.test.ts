@@ -16,8 +16,13 @@ const lockedA = dslTextForElements([
   { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0, locked: true }
 ]);
 // commitDocumentChangeが発行する差し替え行は、その文単独のシリアライズ結果と
-// 一致するはず(要素の並び全体を書き直すわけではないため)。
-const lockedALine = lockedA.split("\n")[1];
+// 一致するはず(要素の並び全体を書き直すわけではないため)。v2正準形の
+// construction callは複数物理行になるため、statement全体(nuiヘッダ以降の
+// 全行)を切り出す。置き換え元(A単独, ロック前)の行数は置き換え先
+// (locked: true が増えた分)より短いため、範囲(endLine)とreplacementLines
+// は別々の文書から算出する。
+const lockedALines = lockedA.split("\n").slice(1);
+const unlockedALineCount = twoPointSource().split("\n").findIndex((line) => line.startsWith("point B")) - 1;
 
 describe("cadDocumentStore source updates", () => {
   beforeEach(() => {
@@ -56,7 +61,7 @@ describe("cadDocumentStore source updates", () => {
     const update = useCadDocumentStore.getState().sourceUpdate;
     expect(update.kind).toBe("model-patch");
     if (update.kind !== "model-patch") throw new Error("expected model patch");
-    expect(update.splices).toEqual([{ startLine: 2, endLine: 2, replacementLines: [lockedALine] }]);
+    expect(update.splices).toEqual([{ startLine: 2, endLine: 1 + unlockedALineCount, replacementLines: lockedALines }]);
   });
 
   it("uses reset metadata for direct text, document replacement, and history restoration", () => {
@@ -73,9 +78,9 @@ describe("cadDocumentStore source updates", () => {
     const compiledRevision = valid.compiledDocumentRevision;
     const sourceRevision = valid.sourceRevision;
 
-    // dsl2-cutover: v1-literal — 意図的な構文エラー(未閉じ括弧)。fatal挙動の
-    // 検証が目的であり、生成経由化は不可(不正構文を要素配列で表現できない)。
-    useCadDocumentStore.getState().commitText("nui 1\npoint A = (", "editor");
+    // 意図的な構文エラー(未閉じ呼び出し)。fatal挙動の検証が目的であり、
+    // 生成経由化は不可(不正構文を要素配列で表現できない)。
+    useCadDocumentStore.getState().commitText("nui 2\npoint A = coordinate(", "editor");
     const fatal = useCadDocumentStore.getState();
     expect(fatal.sourceRevision).toBe(sourceRevision + 1);
     expect(fatal.compiledDocumentRevision).toBe(compiledRevision);

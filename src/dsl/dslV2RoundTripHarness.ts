@@ -101,5 +101,8 @@ export const compileDslV2RoundTripDocument = (source: string): DslV2RoundTripDoc
   }
   if (frames.length) throw new Error("閉じられていないブロックがあります。");
   for (const frame of printFrames.reverse()) settings = applyDslV2PrintLayout(settings, frame.header, frame.members, elements);
-  return { elements, ...settings, evaluationLimitIndex: evaluationLimitIndex ?? elements.length };
+  // Document-level default (matches compileDslDocument/parseLegacyV1Document):
+  // no explicit `activePrintLayout` statement falls back to the first layout.
+  const activePrintLayoutId = settings.activePrintLayoutId ?? settings.printLayouts[0]?.id;
+  return { elements, ...settings, activePrintLayoutId, evaluationLimitIndex: evaluationLimitIndex ?? elements.length };
 };

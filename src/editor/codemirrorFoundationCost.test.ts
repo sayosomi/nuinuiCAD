@@ -3,8 +3,8 @@ import { describe, expect, it } from "vitest";
 import { compileDslDocument } from "../dsl/dslDocument";
 import { lineSplicesToSourceTextChanges } from "./lineSpliceChanges";
 
-const source = (count: number) => ["nui 1", ...Array.from({ length: count }, (_, index) =>
-  `point P${index} = (${index}, ${index + 1})`
+const source = (count: number) => ["nui 2", ...Array.from({ length: count }, (_, index) =>
+  `point P${index} = coordinate(x: ${index} y: ${index + 1})`
 )].join("\n");
 
 const median = (values: number[]) => {
@@ -43,7 +43,7 @@ describe("CodeMirror Phase 2a performance baseline", () => {
         lineSplicesToSourceTextChanges(text, [{
           startLine: Math.floor((count + 2) / 2),
           endLine: Math.floor((count + 2) / 2),
-          replacementLines: ["point Changed = (1, 2)"]
+          replacementLines: ["point Changed = coordinate(x: 1 y: 2)"]
         }]);
       });
     }

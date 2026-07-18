@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { compileDslToElements } from "./dslCompiler";
-import { documentDslRefs, serializeElementStatement, serializeElementsToDsl } from "./dslSerializer";
+import { documentDslRefs, serializeElementsToDsl } from "./dslSerializer";
+import { serializeElementStatementLogical } from "./dslSerializeElement";
 
 // 決定論的なIDを明示して要素を組み立て、フラット出力のバイト列を固定する。
 // serializer共通化リファクタで既存出力(DslPanelの書き出し形式)が
@@ -8,35 +9,38 @@ import { documentDslRefs, serializeElementStatement, serializeElementsToDsl } fr
 const buildElements = () => {
   const result = compileDslToElements(
     [
-      "group 前身頃 id=g1",
-      "var bust = 840 id=v1",
-      "point A = (0, 0) id=p1",
-      "point inGroup = (1, 1) id=p9 parent=g1",
-      "point B = offset A dx=10 dy=-(bust / 4) id=p2",
-      "point C = polar A angle=-45 distance=80 id=p3",
-      "line AB = A -> B id=l1",
-      "line shoulder = from A angle=-12 length=130 id=l2",
-      "arc armhole center=A radius=120 start=0 end=-90 id=a1",
-      "point D = between A B ratio=0.5 id=p4",
-      "point E = on AB.end distance=20 id=p5",
-      "point X = intersection AB shoulder index=0 extensions=false id=p6",
-      "point H = tangentOffset armhole base=A angle=90 distance=12 id=p7",
-      "arc r = corner AB.end shoulder.start radius=10 index=0 id=a2",
-      "line lower = split armhole at=D id=l3",
-      "line adjusted = extend shoulder.end to=E id=l4",
-      "line seam = offset [AB,shoulder] distance=10 side=left closed=false id=l5",
-      "curve neckline = A -> B startAngle=-90 startLength=35 endAngle=180 endLength=45 intermediates=[C:45:20:25:i1] id=c1",
-      "arc three = through A B C start=180 end=270 id=a3",
-      "text label = \"前中心\" at=A size=4 id=t1",
-      "element edge1 type=edge endpoint1=AB.start endpoint2=shoulder.end intersectionIndex=0 id=e1",
-      "element cp type=copyLine startPoint=A endPoint=B scale=1 angleDeg=0 mirrorX=false baseLineIds=[AB] id=e2",
-      "element sym type=symmetricCopyLine axisPoint1=A axisPoint2=B baseLineIds=[AB] id=e3",
-      "element mv type=move startPoint=A endPoint=B scale=1 angleDeg=0 mirrorX=false baseLineIds=[AB] id=e4",
-      "element smv type=symmetricMove axisPoint1=A axisPoint2=B baseLineIds=[AB] id=e5",
-      "element cond type=conditionalGroup condition=1 id=e6",
-      "element rep type=forGroup variableName=i start=0 count=5 step=1 showGenerated=false id=e7",
-      "element img type=image sourcePath=\"assets/ref.png\" originPoint=A scale=1 angleDeg=0 mirrorX=false id=e8",
-      "point hidden = (5, 5) id=p8 visible=false enabled=false color=main"
+      "group 前身頃 (id: g1) {",
+      "}",
+      "var bust = expression(value: 840 id: v1)",
+      "point A = coordinate(x: 0 y: 0 id: p1)",
+      "point inGroup = coordinate(x: 1 y: 1 id: p9 parent: g1)",
+      "point B = offset(from: A dx: 10 dy: -(bust / 4) id: p2)",
+      "point C = polar(from: A angle: -45 distance: 80 id: p3)",
+      "line AB = segment(start: A end: B id: l1)",
+      "line shoulder = polar(start: A angle: -12 length: 130 id: l2)",
+      "arc armhole = arc(center: A radius: 120 start: 0 end: -90 id: a1)",
+      "point D = between(start: A end: B ratio: 0.5 id: p4)",
+      "point E = onLine(from: AB.end distance: 20 id: p5)",
+      "point X = intersection(line1: AB line2: shoulder index: 0 extensions: false id: p6)",
+      "point H = tangentOffset(line: armhole base: A angle: 90 distance: 12 id: p7)",
+      "arc r = corner(end1: AB.end end2: shoulder.start radius: 10 index: 0 id: a2)",
+      "line lower = split(source: armhole at: D id: l3)",
+      "line adjusted = extend(end: shoulder.end to: E id: l4)",
+      "line seam = offset(sources: [AB, shoulder] distance: 10 side: left closed: false id: l5)",
+      "curve neckline = bezier(start: A end: B startAngle: -90 startLength: 35 endAngle: 180 endLength: 45 intermediates: [C:45:20:25:i1] id: c1)",
+      "arc three = through(point1: A point2: B point3: C start: 180 end: 270 id: a3)",
+      'text label = label(text: "前中心" anchor: A size: 4 id: t1)',
+      "line edge1 = edge(end1: AB.start end2: shoulder.end index: 0 id: e1)",
+      "line cp = copy(startPoint: A endPoint: B scale: 1 angleDeg: 0 mirrorX: false baseLines: [AB] id: e2)",
+      "line sym = mirrorCopy(axis1: A axis2: B baseLines: [AB] id: e3)",
+      "line mv = move(startPoint: A endPoint: B scale: 1 angleDeg: 0 mirrorX: false baseLines: [AB] id: e4)",
+      "line smv = mirrorMove(axis1: A axis2: B baseLines: [AB] id: e5)",
+      "if cond (1 id: e6) {",
+      "}",
+      "for rep (i from: 0 count: 5 step: 1 showGenerated: false id: e7) {",
+      "}",
+      'image img = image(source: "assets/ref.png" origin: A scale: 1 angleDeg: 0 mirrorX: false id: e8)',
+      "point hidden = coordinate(x: 5 y: 5 id: p8 visible: false enabled: false color: main)"
     ].join("\n"),
     { elements: [] }
   );
@@ -52,35 +56,188 @@ describe("serializeElementsToDsl flat output", () => {
   it("keeps the flat id-based output byte-stable", () => {
     const elements = buildElements();
     expect(serializeElementsToDsl(elements)).toMatchInlineSnapshot(`
-      "group 前身頃 id=g1
-      var bust = 840 id=v1
-      point A = (0, 0) id=p1
-      point inGroup = (1, 1) id=p9 parent=g1
-      point B = offset p1 dx=10 dy=-(bust / 4) id=p2
-      point C = polar p1 angle=-45 distance=80 id=p3
-      line AB = p1 -> p2 id=l1
-      line shoulder = from p1 angle=-12 length=130 id=l2
-      arc armhole center=p1 radius=120 start=0 end=-90 id=a1
-      point D = between p1 p2 ratio=0.5 id=p4
-      point E = on l1.end distance=20 id=p5
-      point X = intersection l1 l2 index=0 extensions=false id=p6
-      point H = tangentOffset a1 base=p1 angle=90 distance=12 id=p7
-      arc r = corner l1.end l2.start radius=10 index=0 id=a2
-      line lower = split a1 at=p4 id=l3
-      line adjusted = extend l2.end to=p5 id=l4
-      line seam = offset [l1,l2] distance=10 side=left closed=false id=l5
-      curve neckline = p1 -> p2 startAngle=-90 startLength=35 endAngle=180 endLength=45 intermediates=[p3:45:20:25:i1] id=c1
-      arc three = through p1 p2 p3 start=180 end=270 id=a3
-      text label = "前中心" at=p1 size=4 id=t1
-      element edge1 type=edge id=e1 endpoint1=l1.start endpoint2=l2.end intersectionIndex=0
-      element cp type=copyLine id=e2 startPoint=p1 endPoint=p2 scale=1 angleDeg=0 mirrorX=false baseLineIds=[l1]
-      element sym type=symmetricCopyLine id=e3 axisPoint1=p1 axisPoint2=p2 baseLineIds=[l1]
-      element mv type=move id=e4 startPoint=p1 endPoint=p2 scale=1 angleDeg=0 mirrorX=false baseLineIds=[l1]
-      element smv type=symmetricMove id=e5 axisPoint1=p1 axisPoint2=p2 baseLineIds=[l1]
-      element cond type=conditionalGroup id=e6 condition=1
-      element rep type=forGroup id=e7 variableName=i start=0 count=5 step=1 showGenerated=false
-      element img type=image id=e8 sourcePath="assets/ref.png" originPoint=p1 naturalWidthPx=1 naturalHeightPx=1 sourceDpi=300 targetPixelsPerMm=11.811023622047244 scale=1 angleDeg=0 mirrorX=false
-      point hidden = (5, 5) id=p8 visible=false enabled=false color=main"
+      "group 前身頃 (id: g1)
+      var bust = expression(
+        value: 840
+        scope: global
+        id: v1
+      )
+      point A = coordinate(
+        x: 0
+        y: 0
+        id: p1
+      )
+      point inGroup = coordinate(
+        x: 1
+        y: 1
+        id: p9
+        parent: g1
+      )
+      point B = offset(
+        from: p1
+        dx: 10
+        dy: -(bust / 4)
+        id: p2
+      )
+      point C = polar(
+        from: p1
+        angle: -45
+        distance: 80
+        id: p3
+      )
+      line AB = segment(
+        start: p1
+        end: p2
+        id: l1
+      )
+      line shoulder = polar(
+        start: p1
+        angle: -12
+        length: 130
+        id: l2
+      )
+      arc armhole = arc(
+        center: p1
+        radius: 120
+        start: 0
+        end: -90
+        id: a1
+      )
+      point D = between(
+        start: p1
+        end: p2
+        ratio: 0.5
+        steps: [ratio: 0.01]
+        id: p4
+      )
+      point E = onLine(
+        from: l1.end
+        distance: 20
+        steps: [ratio: 0.01]
+        id: p5
+      )
+      point X = intersection(
+        line1: l1
+        line2: l2
+        index: 0
+        extensions: false
+        id: p6
+      )
+      point H = tangentOffset(
+        line: a1
+        base: p1
+        angle: 90
+        distance: 12
+        id: p7
+      )
+      arc r = corner(
+        end1: l1.end
+        end2: l2.start
+        radius: 10
+        index: 0
+        id: a2
+      )
+      line lower = split(
+        source: a1
+        at: p4
+        id: l3
+      )
+      line adjusted = extend(
+        end: l2.end
+        to: p5
+        id: l4
+      )
+      line seam = offset(
+        sources: [l1, l2]
+        distance: 10
+        side: left
+        closed: false
+        suppressTrimWarnings: false
+        id: l5
+      )
+      curve neckline = bezier(
+        start: p1
+        end: p2
+        startAngle: -90
+        startLength: 35
+        endAngle: 180
+        endLength: 45
+        intermediates: [p3:45:20:25:i1]
+        id: c1
+      )
+      arc three = through(
+        point1: p1
+        point2: p2
+        point3: p3
+        start: 180
+        end: 270
+        id: a3
+      )
+      text label = label(
+        text: "前中心"
+        anchor: p1
+        size: 4
+        id: t1
+      )
+      line edge1 = edge(
+        end1: l1.start
+        end2: l2.end
+        index: 0
+        id: e1
+      )
+      line cp = copy(
+        startPoint: p1
+        endPoint: p2
+        scale: 1
+        angleDeg: 0
+        mirrorX: false
+        baseLines: [l1]
+        id: e2
+      )
+      line sym = mirrorCopy(
+        axis1: p1
+        axis2: p2
+        baseLines: [l1]
+        id: e3
+      )
+      line mv = move(
+        startPoint: p1
+        endPoint: p2
+        scale: 1
+        angleDeg: 0
+        mirrorX: false
+        baseLines: [l1]
+        id: e4
+      )
+      line smv = mirrorMove(
+        axis1: p1
+        axis2: p2
+        baseLines: [l1]
+        id: e5
+      )
+      if cond (1 id: e6)
+      for rep (i from: 0 count: 5 step: 1 showGenerated: false id: e7)
+      image img = image(
+        source: "assets/ref.png"
+        origin: p1
+        naturalWidthPx: 1
+        naturalHeightPx: 1
+        sourceDpi: 300
+        targetPixelsPerMm: 11.811023622047244
+        scale: 1
+        angleDeg: 0
+        mirrorX: false
+        steps: [scale: 0.01]
+        id: e8
+      )
+      point hidden = coordinate(
+        x: 5
+        y: 5
+        visible: false
+        enabled: false
+        color: main
+        id: p8
+      )"
     `);
   });
 
@@ -94,36 +251,36 @@ describe("serializeElementsToDsl flat output", () => {
       activeVisibilityProfileId: "完成"
     });
     expect(output).toMatchInlineSnapshot(`
-      "role 外周 name="外周"
-      view 完成 default=true 外周=true
+      "role 外周 (name: "外周")
+      view 完成 (default: true 外周: true)
       activeView 完成
 
-      group 前身頃 id=g1"
+      group 前身頃 (id: g1)"
     `);
   });
 
 });
 
-describe("serializeElementStatement with documentDslRefs", () => {
+describe("serializeElementStatementLogical with documentDslRefs", () => {
   const statementByName = (name: string) => {
     const elements = buildElements();
     const refs = documentDslRefs(elements);
     const element = elements.find((item) => item.name === name);
     expect(element).toBeDefined();
-    return serializeElementStatement(element!, refs);
+    return serializeElementStatementLogical(element!, refs);
   };
 
   it("writes name-based references without id/parent attributes", () => {
-    expect(statementByName("AB")).toBe("line AB = A -> B");
-    expect(statementByName("B")).toBe("point B = offset A dx=10 dy=-(bust / 4)");
-    expect(statementByName("inGroup")).toBe("point inGroup = (1, 1)");
-    expect(statementByName("X")).toBe("point X = intersection AB shoulder index=0 extensions=false");
-    expect(statementByName("seam")).toBe("line seam = offset [AB,shoulder] distance=10 side=left closed=false");
+    expect(statementByName("AB")).toBe("line AB = segment(start: A end: B)");
+    expect(statementByName("B")).toBe("point B = offset(from: A dx: 10 dy: -(bust / 4))");
+    expect(statementByName("inGroup")).toBe("point inGroup = coordinate(x: 1 y: 1)");
+    expect(statementByName("X")).toBe("point X = intersection(line1: AB line2: shoulder index: 0 extensions: false)");
+    expect(statementByName("seam")).toBe("line seam = offset(sources: [AB, shoulder] distance: 10 side: left closed: false suppressTrimWarnings: false)");
   });
 
   it("drops persistent record ids from bezier intermediates", () => {
     expect(statementByName("neckline")).toBe(
-      "curve neckline = A -> B startAngle=-90 startLength=35 endAngle=180 endLength=45 intermediates=[C:45:20:25]"
+      "curve neckline = bezier(start: A end: B startAngle: -90 startLength: 35 endAngle: 180 endLength: 45 intermediates: [C:45:20:25])"
     );
   });
 
@@ -136,14 +293,14 @@ describe("serializeElementStatement with documentDslRefs", () => {
       ...line!,
       startPoint: { mode: "reference", pointId: "freePoint-gone" }
     } as typeof line & object;
-    expect(serializeElementStatement(dangling as never, refs)).toBe("line AB = freePoint-gone -> B");
+    expect(serializeElementStatementLogical(dangling as never, refs)).toBe("line AB = segment(start: freePoint-gone end: B)");
   });
 });
 
 describe("extended lossless attributes", () => {
-  it("round-trips element local variables through vars=", () => {
+  it("round-trips element local variables through vars:", () => {
     const first = compileDslToElements(
-      "point P = (0, 0) id=p1 vars=[高さ:10;幅:@高さ * 2]",
+      "point P = coordinate(x: 0 y: 0 id: p1 vars: [高さ: 10; 幅: @高さ * 2])",
       { elements: [] }
     );
     expect(first.diagnostics).toEqual([]);
@@ -153,7 +310,17 @@ describe("extended lossless attributes", () => {
     expect(element.numericVariables![1].name).toBe("幅");
 
     const serialized = serializeElementsToDsl(first.elements);
-    expect(serialized).toBe("point P = (0, 0) id=p1 vars=[高さ:10;幅:@local-variable-1 * 2] varIds=[local-variable-1,local-variable-2]");
+    expect(serialized).toBe(
+      [
+        "point P = coordinate(",
+        "  x: 0",
+        "  y: 0",
+        "  vars: [高さ: 10; 幅: @local-variable-1 * 2]",
+        "  varIds: [local-variable-1, local-variable-2]",
+        "  id: p1",
+        ")"
+      ].join("\n")
+    );
 
     const second = compileDslToElements(serialized, { elements: [] });
     expect(second.diagnostics).toEqual([]);
@@ -162,33 +329,28 @@ describe("extended lossless attributes", () => {
 
   it("round-trips group printEnabled and printAnchor", () => {
     const first = compileDslToElements(
-      "group G id=g1 printEnabled=true printAnchor=(10, 20)",
+      "group G (id: g1 printEnabled: true printAnchor: (10, 20)) {\n}",
       { elements: [] }
     );
     expect(first.diagnostics).toEqual([]);
     const serialized = serializeElementsToDsl(first.elements);
-    expect(serialized).toBe("group G id=g1 printEnabled=true printAnchor=(10, 20)");
+    expect(serialized).toBe("group G (printEnabled: true printAnchor: (10, 20) id: g1)");
   });
 
-  it("treats former fold attributes like unknown attributes without diagnostics or serializer output", () => {
-    const result = compileDslToElements("group G id=g1 expanded=true futureFlag=true\nelement C type=conditionalGroup id=c1 condition=1 elseExpanded=false futureValue=keep", {
-      elements: [],
-      mode: "document"
-    });
+  // v1では未知の`key=value`属性が(将来互換のため)診断なしで要素に吸収され、
+  // かつ再出力はされなかった(この挙動自体を検証するテストがここにあった)。
+  // v2はregistry駆動のconstruction引数検証(dslCallParser.ts の validateArgs)
+  // が全ての呼び出しで未知引数を診断エラーにするため、この「未知属性の
+  // サイレント吸収」という機能自体が仕様として廃止されている
+  // (plan.mdの不変条件: 汎用`element type=`エスケープハッチの全廃)。
+  // よってこのテストケースは対応する検証対象を持たないため削除した。
 
-    expect(result.diagnostics).toEqual([]);
-    expect(result.elements[0]).toMatchObject({ expanded: true, futureFlag: true });
-    expect(result.elements[1]).toMatchObject({ elseExpanded: false, futureValue: "keep" });
-    expect(serializeElementsToDsl(result.elements)).not.toContain("expanded=");
-    expect(serializeElementsToDsl(result.elements)).not.toContain("elseExpanded=");
-  });
-
-  it("round-trips variable scope and non-expression modes", () => {
+  it("round-trips non-expression variable modes (measurement constructions have no scope arg)", () => {
     const first = compileDslToElements(
       [
-        "point A = (0, 0) id=p1",
-        "point B = (10, 0) id=p2",
-        "var 距離 = 0 mode=pointDistance point1=A point2=B scope=group id=v1"
+        "point A = coordinate(x: 0 y: 0 id: p1)",
+        "point B = coordinate(x: 10 y: 0 id: p2)",
+        "var 距離 = pointDistance(point1: A point2: B id: v1)"
       ].join("\n"),
       { elements: [] }
     );
@@ -197,21 +359,19 @@ describe("extended lossless attributes", () => {
     expect(variable).toMatchObject({
       type: "variable",
       valueMode: "pointDistance",
-      scope: "group",
       point1: { mode: "reference", pointId: "p1" },
       point2: { mode: "reference", pointId: "p2" }
     });
 
     const serialized = serializeElementsToDsl(first.elements);
-    expect(serialized.split("\n")[2]).toBe(
-      "var 距離 = 0 mode=pointDistance point1=p1 point2=p2 scope=group id=v1"
+    expect(serialized).toContain(
+      ["var 距離 = pointDistance(", "  point1: p1", "  point2: p2", "  id: v1", ")"].join("\n")
     );
 
     const second = compileDslToElements(serialized, { elements: [] });
     expect(second.diagnostics).toEqual([]);
     expect(second.elements[2]).toMatchObject({
-      valueMode: "pointDistance",
-      scope: "group"
+      valueMode: "pointDistance"
     });
   });
 });

@@ -271,10 +271,9 @@ describe("statementReconciler 仕様表", () => {
     expect(result.vanishedIds).toEqual([idByName(old, "B")]);
   });
 
-  // dsl2-cutover: v1-literal
   it("コメントのみの行内編集はID変化0", () => {
-    const oldSource = ["nui 1", "point A = (0, 0) # 旧コメント", "point B = (1, 1)"].join("\n");
-    const newSource = ["nui 1", "point A = (0, 0) # 新コメント", "point B = (1, 1)"].join("\n");
+    const oldSource = ["nui 2", "point A = coordinate(x: 0 y: 0) # 旧コメント", "point B = coordinate(x: 1 y: 1)"].join("\n");
+    const newSource = ["nui 2", "point A = coordinate(x: 0 y: 0) # 新コメント", "point B = coordinate(x: 1 y: 1)"].join("\n");
     const { old, next, result } = reconcileSources(oldSource, newSource);
     expect(idByName(next, "A")).toBe(idByName(old, "A"));
     expect(result.createdIds.size).toBe(0);
@@ -331,7 +330,7 @@ describe("statementReconciler 仕様表", () => {
   });
 
   it("旧文書が空なら全て新規ID", () => {
-    const oldSource = "nui 1";
+    const oldSource = "nui 2";
     const newSource = dslTextForElements([
       { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
       { id: "b", name: "B", type: "freePoint", visible: true, enabled: true, x: 1, y: 1 }
@@ -342,47 +341,59 @@ describe("statementReconciler 仕様表", () => {
   });
 });
 
-// dsl2-cutover: v1-literal
-// このdescribe全体がバックスラッシュ継続statementの複数行検知(全行結合による
-// 段階判定)を主題として検証するため、手書きリテラルのまま残す。
-describe("statementReconciler 複数行statement(バックスラッシュ継続)", () => {
-  it("継続行だけの編集は段階1の無変更扱いにならず、IDは継承される", () => {
+// v2では継続はバックスラッシュではなく未閉`(`/`[`の深さで決まる。このdescribe
+// 全体が「statementの複数物理行検知(全行結合による段階判定)」を主題として
+// 検証するため、正準の縦型call形(手書きリテラル)のまま残す。
+describe("statementReconciler 複数行statement(縦型call)", () => {
+  it("引数行だけの編集は段階1の無変更扱いにならず、IDは継承される", () => {
     const oldSource = [
-      "nui 1",
-      "point A = (0, 0) \\",
-      "  color=main",
-      "point B = (1, 1)"
+      "nui 2",
+      "point A = coordinate(",
+      "  x: 0",
+      "  y: 0",
+      "  color: main",
+      ")",
+      "point B = coordinate(x: 1 y: 1)"
     ].join("\n");
     const newSource = [
-      "nui 1",
-      "point A = (0, 0) \\",
-      "  color=accent",
-      "point B = (1, 1)"
+      "nui 2",
+      "point A = coordinate(",
+      "  x: 0",
+      "  y: 0",
+      "  color: accent",
+      ")",
+      "point B = coordinate(x: 1 y: 1)"
     ].join("\n");
     const { old, next, result } = reconcileSources(oldSource, newSource);
     expect(idByName(next, "A")).toBe(idByName(old, "A"));
     expect(idByName(next, "B")).toBe(idByName(old, "B"));
     expect(result.createdIds.size).toBe(0);
     expect(result.vanishedIds).toEqual([]);
-    // 先頭物理行だけを見ていた旧実装では継続行の変更が検知されず「段階1で無変更」に
-    // なってしまっていた。全行結合により段階1では一致しなくなり、別段階(完全キー
-    // マッチ)でID継承されることを確認する。
+    // 先頭物理行だけを見ていた旧実装では継続行(引数行)の変更が検知されず
+    // 「段階1で無変更」になってしまっていた。全行結合により段階1では一致
+    // しなくなり、別段階(完全キーマッチ)でID継承されることを確認する。
     expect(stageOfName(next, result, "A")).not.toBe(1);
     expect(stageOfName(next, result, "A")).toBe(2);
   });
 
   it("複数行statementが完全不変なら段階1でID継承・変化なし", () => {
     const oldSource = [
-      "nui 1",
-      "point A = (0, 0) \\",
-      "  color=main",
-      "point B = (1, 1)"
+      "nui 2",
+      "point A = coordinate(",
+      "  x: 0",
+      "  y: 0",
+      "  color: main",
+      ")",
+      "point B = coordinate(x: 1 y: 1)"
     ].join("\n");
     const newSource = [
-      "nui 1",
-      "point A = (0, 0) \\",
-      "  color=main",
-      "point B = (2, 2)"
+      "nui 2",
+      "point A = coordinate(",
+      "  x: 0",
+      "  y: 0",
+      "  color: main",
+      ")",
+      "point B = coordinate(x: 2 y: 2)"
     ].join("\n");
     const { old, next, result } = reconcileSources(oldSource, newSource);
     expect(idByName(next, "A")).toBe(idByName(old, "A"));
@@ -394,18 +405,24 @@ describe("statementReconciler 複数行statement(バックスラッシュ継続)
 
   it("複数行statementと単一行statementの順序入れ替えでもID対応にずれや重複がない", () => {
     const oldSource = [
-      "nui 1",
-      "point A = (0, 0) \\",
-      "  color=main",
-      "point B = (1, 1)",
-      "point C = (2, 2)"
+      "nui 2",
+      "point A = coordinate(",
+      "  x: 0",
+      "  y: 0",
+      "  color: main",
+      ")",
+      "point B = coordinate(x: 1 y: 1)",
+      "point C = coordinate(x: 2 y: 2)"
     ].join("\n");
     const newSource = [
-      "nui 1",
-      "point C = (2, 2)",
-      "point B = (1, 1)",
-      "point A = (0, 0) \\",
-      "  color=main"
+      "nui 2",
+      "point C = coordinate(x: 2 y: 2)",
+      "point B = coordinate(x: 1 y: 1)",
+      "point A = coordinate(",
+      "  x: 0",
+      "  y: 0",
+      "  color: main",
+      ")"
     ].join("\n");
     const { old, next, result } = reconcileSources(oldSource, newSource);
     // LCSの有効な選択次第でどのstatementが段階1に残るかは変わり得るため、段階は
@@ -422,16 +439,22 @@ describe("statementReconciler 複数行statement(バックスラッシュ継続)
 
   it("複数行statementのリネームは単一行と同じID継承規則の回帰(段階は断定しない)", () => {
     const oldSource = [
-      "nui 1",
-      "point A = (0, 0) \\",
-      "  color=main",
-      "point B = (1, 1)"
+      "nui 2",
+      "point A = coordinate(",
+      "  x: 0",
+      "  y: 0",
+      "  color: main",
+      ")",
+      "point B = coordinate(x: 1 y: 1)"
     ].join("\n");
     const newSource = [
-      "nui 1",
-      "point Arenamed = (0, 0) \\",
-      "  color=main",
-      "point B = (1, 1)"
+      "nui 2",
+      "point Arenamed = coordinate(",
+      "  x: 0",
+      "  y: 0",
+      "  color: main",
+      ")",
+      "point B = coordinate(x: 1 y: 1)"
     ].join("\n");
     const { old, next, result } = reconcileSources(oldSource, newSource);
     expect(idByName(next, "Arenamed")).toBe(idByName(old, "A"));
@@ -452,8 +475,6 @@ describe("statementReconciler ストレス", () => {
       x: index,
       y: index % 97
     }));
-
-  const buildLargeSource = (count: number) => dslTextForElements(buildLargeElements(count));
 
   const timedReconcile = (oldSource: string, newSource: string) => {
     const normalizedOld = oldSource.replace(/\r\n/g, "\n");
@@ -483,10 +504,16 @@ describe("statementReconciler ストレス", () => {
     return { result, medianMs: durations[1], elementCount: oldElementIds.size };
   };
 
+  // v2の正準出力は縦型callで複数物理行に跨るため、対象statementの1物理行
+  // だけを文字列置換すると残りの引数行が孤立して不正なテキストになる。
+  // 対象要素だけを差し替えた要素配列から生成し直すことで、置換対象以外は
+  // buildLargeSourceと1バイトも変わらない新テキストを安全に作る。
   it("1000文の属性編集1行はID変化0で5ms未満", () => {
-    const oldSource = buildLargeSource(1000);
-    const p500OldLine = oldSource.split("\n").find((line) => line.startsWith("point P500 "))!;
-    const newSource = oldSource.replace(p500OldLine, "point P500 = (500, 42)");
+    const elements = buildLargeElements(1000);
+    const oldSource = dslTextForElements(elements);
+    const newSource = dslTextForElements(
+      elements.map((element) => (element.name === "P500" ? { ...element, x: 500, y: 42 } : element))
+    );
     expect(newSource).not.toBe(oldSource);
     const { result, medianMs, elementCount } = timedReconcile(oldSource, newSource);
     expect(result.inheritedCount).toBe(elementCount);
@@ -496,9 +523,11 @@ describe("statementReconciler ストレス", () => {
   });
 
   it("1000文のリネーム1件はID変化0で5ms未満", () => {
-    const oldSource = buildLargeSource(1000);
-    const p500OldLine = oldSource.split("\n").find((line) => line.startsWith("point P500 "))!;
-    const newSource = oldSource.replace(p500OldLine, p500OldLine.replace("point P500 =", "point Q500renamed ="));
+    const elements = buildLargeElements(1000);
+    const oldSource = dslTextForElements(elements);
+    const newSource = dslTextForElements(
+      elements.map((element) => (element.name === "P500" ? { ...element, name: "Q500renamed" } : element))
+    );
     expect(newSource).not.toBe(oldSource);
     const { result, medianMs, elementCount } = timedReconcile(oldSource, newSource);
     expect(result.inheritedCount).toBe(elementCount);

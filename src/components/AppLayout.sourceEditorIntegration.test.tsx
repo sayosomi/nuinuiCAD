@@ -14,11 +14,20 @@ import { referenceAnchor } from "../model/pointAnchors";
 import type { CreationRecipe } from "../commands/creationRecipes";
 import { AppLayout } from "./AppLayout";
 
+// Written in v2's canonical vertical-call shape (matching dslTextForElements'
+// real output) so any in-place rename/patch in these tests doesn't need to
+// expand a compact statement to canonical shape mid-test.
 const source = [
-  "nui 1",
+  "nui 2",
   "group G {",
-  "  point A = (0, 0)",
-  "  point B = (100, 0)",
+  "  point A = coordinate(",
+  "    x: 0",
+  "    y: 0",
+  "  )",
+  "  point B = coordinate(",
+  "    x: 100",
+  "    y: 0",
+  "  )",
   "}"
 ].join("\n");
 
@@ -34,9 +43,22 @@ beforeEach(() => {
   Object.defineProperty(Range.prototype, "getClientRects", { configurable: true, value: () => [] });
   Object.defineProperty(HTMLElement.prototype, "clientWidth", { configurable: true, value: 500 });
   Object.defineProperty(HTMLElement.prototype, "clientHeight", { configurable: true, value: 400 });
-  HTMLElement.prototype.getBoundingClientRect = vi.fn(() => ({
-    x: 0, y: 0, top: 0, left: 0, right: 500, bottom: 400, width: 500, height: 400, toJSON: () => ({})
-  }));
+  // A `.cm-line` reporting the full 400px viewport height (like every other
+  // stubbed element) misleads CodeMirror's own viewport-height estimate into
+  // thinking only ~1 line fits, which can transiently affect how much of a
+  // patched line's content gets measured/rendered. Give lines a small,
+  // realistic height instead so CM's real (unmodified) viewport logic sees
+  // something plausible.
+  const CM_LINE_HEIGHT_PX = 18;
+  HTMLElement.prototype.getBoundingClientRect = vi.fn(function (this: HTMLElement) {
+    if (this.classList.contains("cm-line")) {
+      return {
+        x: 0, y: 0, top: 0, left: 0, right: 500, bottom: CM_LINE_HEIGHT_PX,
+        width: 500, height: CM_LINE_HEIGHT_PX, toJSON: () => ({})
+      };
+    }
+    return { x: 0, y: 0, top: 0, left: 0, right: 500, bottom: 400, width: 500, height: 400, toJSON: () => ({}) };
+  });
   HTMLElement.prototype.setPointerCapture = vi.fn();
   HTMLElement.prototype.releasePointerCapture = vi.fn();
   HTMLElement.prototype.hasPointerCapture = vi.fn(() => true);
@@ -54,6 +76,20 @@ const pointId = (name: string) => {
   const id = useCadDocumentStore.getState().elements.find((element) => element.name === name)?.id;
   if (!id) throw new Error(`Missing point ${name}`);
   return id;
+};
+
+/**
+ * The real CodeMirror document text, not the rendered `.cm-content` DOM's
+ * `textContent`. CM virtualizes/decorates its DOM, so a partially-rendered
+ * viewport (or a transient decoration artifact) can make `textContent` read
+ * as an incomplete or misleading stand-in for "what the document contains" -
+ * `EditorView.state.doc` is the actual source of truth.
+ */
+const editorDocText = (container: HTMLElement): string => {
+  const editorElement = container.querySelector<HTMLElement>(".cm-editor");
+  const cmView = editorElement ? EditorView.findFromDOM(editorElement) : null;
+  if (!cmView) throw new Error("Missing CodeMirror view");
+  return cmView.state.doc.toString();
 };
 
 const midSessionLineListRecipe: CreationRecipe = {
@@ -218,7 +254,7 @@ describe("AppLayout Source Editor production integration", () => {
     await waitFor(() => expect(useCadUiStore.getState().renameElementPromptTargetId).toBeNull());
     await waitFor(() => expect(document.activeElement).toBe(view.container.querySelector(".cm-content")));
     expect(useCadUiStore.getState().selectedElementId).toBe(targetId);
-    expect(view.container.querySelector(".cm-content")?.textContent).toContain("point Renamed");
+    expect(editorDocText(view.container)).toContain("point Renamed");
     expect(useCadDocumentStore.getState().past).toHaveLength(historyBefore + 1);
     act(() => { useCadDocumentStore.getState().undo(); });
     expect(useCadDocumentStore.getState().elements.find((element) => element.id === targetId)?.name).toBe("A");
@@ -322,15 +358,22 @@ describe("AppLayout Source Editor production integration", () => {
     fireEvent.pointerDown(viewport, { button: 0, buttons: 1, clientX: 350, clientY: 200, pointerId: 1 });
 
     await waitFor(() => expect(useCadUiStore.getState().selectedElementId).toBe(pointId("B")));
-    expect(useCadUiStore.getState().sourceCursorLine).toBe(4);
+    expect(useCadUiStore.getState().sourceCursorLine).toBe(7);
     expect(useCadUiStore.getState().groupFoldById.get(groupId)?.expanded).toBe(true);
 
   });
 
   it("keeps cursor selection through a model patch and exposes command errors in the real pane", async () => {
+    // This test only ever locks B via commitDocumentChange (never renames), so
+    // it doesn't need the shared fixture's canonical vertical shape - using a
+    // compact one keeps it consistent with its own original (pre-C1) size.
+    useCadDocumentStore.getState().commitText(
+      ["nui 2", "group G {", "  point A = coordinate(x: 0 y: 0)", "  point B = coordinate(x: 100 y: 0)", "}"].join("\n"),
+      "test"
+    );
     const view = render(<AppLayout />);
     const pointB = pointId("B");
-    useCadUiStore.getState().setSelectedElementId(pointB);
+    act(() => { useCadUiStore.getState().setSelectedElementId(pointB); });
     await waitFor(() => expect(useCadUiStore.getState().sourceCursorLine).toBe(4));
     const beforeCursorLine = useCadUiStore.getState().sourceCursorLine;
 
@@ -342,7 +385,7 @@ describe("AppLayout Source Editor production integration", () => {
       useCadUiStore.getState().setCommandErrorMessage("統合テストのエラー");
     });
 
-    await waitFor(() => expect(view.container.querySelector(".cm-content")?.textContent).toContain("locked=true"));
+    await waitFor(() => expect(editorDocText(view.container)).toContain("locked: true"));
     expect(useCadUiStore.getState().sourceCursorLine).toBe(beforeCursorLine);
     expect(view.getByRole("alert")).toHaveTextContent("統合テストのエラー");
   });
@@ -368,7 +411,7 @@ describe("AppLayout Source Editor production integration", () => {
     // Uncommitted editor text at gesture time: the canvas must defer to the
     // real flush and resolve against the freshly evaluated document.
     act(() => {
-      cmView.dispatch({ changes: { from: cmView.state.doc.length, insert: "\npoint C = (0, 60)" } });
+      cmView.dispatch({ changes: { from: cmView.state.doc.length, insert: "\npoint C = coordinate(x: 0 y: 60)" } });
     });
 
     fireEvent.pointerDown(viewport, { button: 0, buttons: 1, clientX: 350, clientY: 200, pointerId: 1 });
@@ -393,7 +436,7 @@ describe("AppLayout Source Editor production integration", () => {
 
     fireEvent.compositionStart(content);
     act(() => {
-      cmView.dispatch({ changes: { from: cmView.state.doc.length, insert: "\npoint 未確定 = (0, 60)" } });
+      cmView.dispatch({ changes: { from: cmView.state.doc.length, insert: "\npoint 未確定 = coordinate(x: 0 y: 60)" } });
     });
 
     fireEvent.pointerDown(viewport, { button: 0, buttons: 1, clientX: 350, clientY: 200, pointerId: 1 });
@@ -410,11 +453,11 @@ describe("AppLayout Source Editor production integration", () => {
 
   it("applies a pick candidate from search Enter through the real controller", async () => {
     useCadDocumentStore.getState().commitText([
-      "nui 1",
-      "point A = (0, 0)",
-      "point B = (100, 0)",
-      "point 選択候補 = (0, -50)",
-      "line AB = A -> B"
+      "nui 2",
+      "point A = coordinate(x: 0 y: 0)",
+      "point B = coordinate(x: 100 y: 0)",
+      "point 選択候補 = coordinate(x: 0 y: -50)",
+      "line AB = segment(start: A end: B)"
     ].join("\n"), "test");
     const view = render(<AppLayout />);
     const lineId = useCadDocumentStore.getState().elements.find((element) => element.name === "AB")!.id;
@@ -442,10 +485,10 @@ describe("AppLayout Source Editor production integration", () => {
 
 describe("Canvas selection focuses the Source Editor", () => {
   const focusSource = [
-    "nui 1",
-    "point A = (0, 0)",
-    "point B = (100, 0)",
-    "line AB = A -> B"
+    "nui 2",
+    "point A = coordinate(x: 0 y: 0)",
+    "point B = coordinate(x: 100 y: 0)",
+    "line AB = segment(start: A end: B)"
   ].join("\n");
 
   // worldToScreen with the default {panX:0, panY:0, zoom:1} viewport and the
@@ -494,7 +537,7 @@ describe("Canvas selection focuses the Source Editor", () => {
 
     fireEvent.keyDown(content, { key: "ArrowRight", altKey: true });
     fireEvent.keyUp(content, { key: "ArrowRight", altKey: true });
-    await waitFor(() => expect(useCadDocumentStore.getState().sourceText).toContain("point B = (101, 0)"));
+    await waitFor(() => expect(useCadDocumentStore.getState().sourceText).toContain("x: 101"));
   });
 
   it("keeps Canvas focus through a point drag and focuses the editor only after the move commits", async () => {
@@ -541,7 +584,7 @@ describe("Canvas selection focuses the Source Editor", () => {
     // Uncommitted editor text at gesture time defers resolution to the resolution
     // effect, which runs after the pointer has already been released.
     act(() => {
-      cmView.dispatch({ changes: { from: cmView.state.doc.length, insert: "\npoint C = (0, -60)" } });
+      cmView.dispatch({ changes: { from: cmView.state.doc.length, insert: "\npoint C = coordinate(x: 0 y: -60)" } });
     });
 
     fireEvent.pointerDown(viewport, { button: 0, buttons: 1, pointerId: 1, ...B_SCREEN });

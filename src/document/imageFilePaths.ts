@@ -1,5 +1,6 @@
+import { argNameForParameter } from "../dsl/dslConstructions";
 import { parseDsl } from "../dsl/dslParser";
-import { quoteDslString } from "../dsl/dslTokens";
+import { quoteDslString, unquoteDslString } from "../dsl/dslTokens";
 
 const separatorPattern = /[\\/]+/;
 
@@ -65,6 +66,12 @@ export const imagePathForDocument = (
 /**
  * Save As時に、解釈できたimage文のsourcePath属性だけを書き換える。
  * 構文エラーを含む文書でも、他の行は逐語のまま残す。
+ *
+ * v2のimage文は複数物理行にまたがり得るため(縦型call)、`source:`の値は
+ * statementのヘッダ行(`statement.line`)とは別の物理行にあることがある。
+ * 論理offset(`valueStart`/`valueEnd`)をヘッダ行の文字列へ直接適用すると
+ * 位置がずれるため、parserが付与する`attr.physicalSpan`(実ソース中の絶対
+ * offset)から実際の物理位置を求めて置換する。
  */
 export const rebaseImageSourcePathsInText = (
   sourceText: string,
@@ -72,25 +79,35 @@ export const rebaseImageSourcePathsInText = (
   nextDocumentPath: string
 ) => {
   if (currentDocumentPath === nextDocumentPath) return sourceText;
-  const newline = sourceText.includes("\r\n") ? "\r\n" : "\n";
-  const lines = sourceText.split(/\r?\n/);
+  const usesCrlf = sourceText.includes("\r\n");
+  const normalized = sourceText.replace(/\r\n/g, "\n");
   const statements = parseDsl(sourceText).statements;
 
+  const sourcePathArgName = argNameForParameter("image", "sourcePath");
+
+  const replacements: { from: number; to: number; text: string }[] = [];
   for (const statement of statements) {
     if (statement.kind !== "element" || statement.type !== "image") continue;
-    const sourcePath = statement.attrs.find((attribute) => attribute.key === "sourcePath");
-    if (!sourcePath) continue;
+    const sourcePath = statement.attrs.find((attribute) => attribute.key === sourcePathArgName);
+    const segments = sourcePath?.physicalSpan?.segments;
+    if (!sourcePath || !segments || segments.length !== 1) continue;
+    const currentPath = unquoteDslString(sourcePath.value);
     const nextPath = imagePathForDocument(
-      sourcePath.value,
+      currentPath,
       currentDocumentPath,
       nextDocumentPath
     );
-    if (nextPath === sourcePath.value) continue;
-    const lineIndex = statement.line - 1;
-    const line = lines[lineIndex];
-    if (line === undefined) continue;
-    lines[lineIndex] = `${line.slice(0, sourcePath.valueStart)}${quoteDslString(nextPath)}${line.slice(sourcePath.valueEnd)}`;
+    if (nextPath === currentPath) continue;
+    const [segment] = segments;
+    replacements.push({ from: segment.from, to: segment.to, text: quoteDslString(nextPath) });
   }
+  if (replacements.length === 0) return sourceText;
 
-  return lines.join(newline);
+  // Apply back-to-front so earlier replacements' offsets stay valid.
+  replacements.sort((left, right) => right.from - left.from);
+  let result = normalized;
+  for (const replacement of replacements) {
+    result = `${result.slice(0, replacement.from)}${replacement.text}${result.slice(replacement.to)}`;
+  }
+  return usesCrlf ? result.replace(/\n/g, "\r\n") : result;
 };

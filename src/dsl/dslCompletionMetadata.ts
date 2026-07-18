@@ -3,20 +3,22 @@ import { getParameterDefinitions, type ParameterDefinition } from "../parameters
 import { setParameterValue } from "../parameters/parameterAccess";
 import type { CadElement, CadElementType, LineEndpointReference } from "../types/geometry";
 import { resolveParameterValueSpan } from "./dslParameterSpans";
-import { documentDslRefs, serializeElementStatement } from "./dslSerializer";
+import { documentDslRefs } from "./dslSerializer";
+import { serializeElementStatementLogical } from "./dslSerializeElement";
 import { isElementDslStatement } from "./dslParser";
 import type { DslStatement } from "./dslTypes";
 
 export type DslCompletionParameter = {
   definition: ParameterDefinition;
-  /** "printLayoutBlock" marks a synthetic parameter for `place`/`layoutVar`/
-   * `printLayout` block statements, which have no real CadElement/
-   * ParameterDefinition to derive "payload"/"attr" from. A distinct source
-   * value (rather than reusing `key` as the routing marker, the way
-   * dslVarsAttributeParameterKey does) avoids colliding with ordinary element
-   * attr/payload keys that happen to share the same name (e.g. `angle`,
-   * `scale`, `expression`). */
-  source: "name" | "payload" | "attr" | "printLayoutBlock";
+  /** v2 unifies all element call arguments into `key: value` (no positional/
+   * named split), so every non-name parameter maps to "attr". "printLayoutBlock"
+   * marks a synthetic parameter for `place`/`layoutVar`/`printLayout` block
+   * statements, which have no real CadElement/ParameterDefinition to derive
+   * "attr" from. A distinct source value (rather than reusing `key` as the
+   * routing marker, the way dslVarsAttributeParameterKey does) avoids
+   * colliding with ordinary element attr keys that happen to share the same
+   * name (e.g. `angle`, `scale`, `expression`). */
+  source: "name" | "attr" | "printLayoutBlock";
   key: string;
 };
 
@@ -67,11 +69,12 @@ const metadataFor = (element: CadElement): DslCompletionElementMetadata => {
   const samples = [element, ...variants];
   const parameters = new Map<string, DslCompletionParameter>();
   for (const sample of samples) {
-    const line = serializeElementStatement(sample, documentDslRefs([sample]));
+    const line = serializeElementStatementLogical(sample, documentDslRefs([sample]));
     for (const definition of definitions) {
       const span = resolveParameterValueSpan(line, sample, definition.key, { committedLineText: line });
       if (!span) continue;
-      parameters.set(`${definition.key}:${span.source}:${span.key}`, { definition, source: span.source, key: span.key });
+      const source = span.source === "arg" ? "attr" : span.source;
+      parameters.set(`${definition.key}:${source}:${span.key}`, { definition, source, key: span.key });
     }
   }
   const all = [...parameters.values()];

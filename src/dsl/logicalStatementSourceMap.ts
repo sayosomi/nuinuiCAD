@@ -64,7 +64,7 @@ export const logicalOffsetToPhysical = (
 
 /** Inverse of logicalOffsetToPhysical: maps a real source position to its
  * logical offset. Positions that fall outside every physical fragment (a
- * trailing comment, the continuation backslash itself, or trimmed
+ * trailing comment, a full-line comment inside an open call, or trimmed
  * continuation-line indentation) have no logical counterpart and return null. */
 export const physicalToLogicalOffset = (
   map: LogicalStatementSourceMap,
@@ -95,9 +95,24 @@ const structuralKind = (code: string): LogicalStatement["structural"] => {
   return null;
 };
 
-const isContinuation = (code: string) => {
-  const trimmed = code.trimEnd();
-  return trimmed.endsWith("\\") && !trimmed.endsWith("\\\\");
+/** Net depth-zero-relative change in unclosed `(`/`[` nesting contributed by
+ * a single line's code (quote-aware; `)`/`]` inside a quoted string do not
+ * count). A statement's call envelope continues onto the next physical line
+ * while the running depth across its lines so far is still above zero. */
+const netDepthDelta = (code: string) => {
+  let depth = 0;
+  let quote: string | null = null;
+  for (let index = 0; index < code.length; index += 1) {
+    const char = code[index];
+    if ((char === "\"" || char === "'") && code[index - 1] !== "\\") {
+      quote = quote === char ? null : quote ?? char;
+      continue;
+    }
+    if (quote) continue;
+    if (char === "(" || char === "[") depth += 1;
+    else if (char === ")" || char === "]") depth -= 1;
+  }
+  return depth;
 };
 
 /**
@@ -134,30 +149,41 @@ export const createLogicalStatementSourceMap = (snapshot: SourceSnapshot): Logic
     const segments: DslPhysicalSegment[] = [];
     const continuationLines: number[] = [];
     let cursor = index;
-    let validContinuation = false;
+    let depth = 0;
     while (true) {
       const line = lines[cursor];
       const { code } = splitDslComment(line);
-      const continues = isContinuation(code);
-      const content = continues ? code.trimEnd().slice(0, -1).trimEnd() : code;
-      if (content.trim()) {
-        const leading = content.length - content.trimStart().length;
-        const trailing = content.length - content.trimEnd().length;
+      // A full-line comment inside an otherwise-open call contributes no
+      // code (and no depth change) but still belongs to the statement's
+      // physical line range. A truly blank line is never absorbed here: it
+      // is caught by the blank/structural lookahead below instead, which
+      // reports an unclosed call rather than silently swallowing the line.
+      const isCommentOnlyLine = code.trim() === "" && line.trim() !== "";
+      if (!isCommentOnlyLine && code.trim()) {
+        const leading = code.length - code.trimStart().length;
+        const trailing = code.length - code.trimEnd().length;
         // Preserve the first physical line verbatim so existing line-relative
         // parser spans remain valid for ordinary one-line statements. Only
         // continuation fragments lose their leading indentation.
-        fragments.push(cursor === firstLine ? content : content.trim());
-        segments.push({ from: starts[cursor] + leading, to: starts[cursor] + content.length - trailing });
+        fragments.push(cursor === firstLine ? code.slice(leading, code.length - trailing) : code.trim());
+        segments.push({ from: starts[cursor] + leading, to: starts[cursor] + code.length - trailing });
       }
+      depth += netDepthDelta(code);
+      const continues = depth > 0;
       if (!continues) break;
       const next = cursor + 1;
-      const nextCode = next < lines.length ? splitDslComment(lines[next]).code : "";
-      if (next >= lines.length || !nextCode.trim() || structuralKind(nextCode)) {
+      const nextLine = next < lines.length ? lines[next] : null;
+      const nextIsBlank = nextLine === null || nextLine.trim() === "";
+      const nextCode = nextLine !== null ? splitDslComment(nextLine).code : "";
+      const nextIsStructural = nextLine !== null && structuralKind(nextCode) !== null;
+      if (nextIsBlank || nextIsStructural) {
+        // Containment boundary: a blank line, a structural line, or EOF
+        // terminates an unclosed call as an error scoped to this statement
+        // only, instead of swallowing the rest of the document.
         invalidContinuationLines.push(cursor + 1);
         break;
       }
       continuationLines.push(cursor + 1);
-      validContinuation = true;
       cursor = next;
     }
     index = cursor;
@@ -168,7 +194,6 @@ export const createLogicalStatementSourceMap = (snapshot: SourceSnapshot): Logic
       continuationLines,
       structural: null
     });
-    void validContinuation;
   }
   return { sourceRevision: snapshot.sourceRevision, source, statements, invalidContinuationLines };
 };

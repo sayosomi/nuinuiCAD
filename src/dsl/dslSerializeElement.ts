@@ -99,7 +99,10 @@ const ordinaryArgText = (element: CadElement, parameterKey: string, refs: DslSer
     case "text":
       return quoteDslString(value as string);
     case "boolean":
-      return `${value}`;
+      // 未設定(undefined)は偽として書き出す。CadElementの真偽値フィールドは
+      // 型上optionalな場合があり、生の`${value}`は"undefined"という不正な
+      // トークンを書いてしまう(再パース不能)。
+      return `${Boolean(value)}`;
     case "choice":
       return formatDslName(value as string);
     case "color":
@@ -175,11 +178,18 @@ const containerStatement = (element: CadElement, spec: DslConstructionSpec, refs
   return { header, args: [], close: null };
 };
 
-const isShortExpressionVariable = (element: CadElement, args: readonly { key: string; text: string }[]) =>
+const isShortExpressionVariable = (
+  element: CadElement,
+  args: readonly { key: string; text: string }[],
+  refs: DslSerializerRefs,
+) =>
   element.type === "variable" &&
   element.valueMode === "expression" &&
   element.scope === "global" &&
-  args.length === 0;
+  args.length === 0 &&
+  // 短形式 `var 名 = 式` はnameが必須(dslCallParser.tsの制約)。無名の
+  // expression変数は呼び出し形式 `var = expression(value: 式)` へ回す。
+  refs.name(element) !== "";
 
 export const serializeElementStatementBlock = (
   element: CadElement,
@@ -191,9 +201,9 @@ export const serializeElementStatementBlock = (
   }
 
   const common = commonArgs(element, refs, new Set(spec.args.map((arg) => arg.arg)));
-  if (element.type === "variable" && isShortExpressionVariable(element, common)) {
+  if (element.type === "variable" && isShortExpressionVariable(element, common, refs)) {
     return {
-      header: `var${refs.name(element) ? ` ${refs.name(element)}` : ""} = ${refs.numeric(element.expression, element)}`,
+      header: `var ${refs.name(element)} = ${refs.numeric(element.expression, element)}`,
       args: [],
       close: null,
     };

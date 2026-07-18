@@ -17,6 +17,7 @@ import {
   NUI_DOCUMENT_EXTENSION
 } from "./nuiFormat";
 import { unsupportedNuiMajorVersion } from "./nuiVersion";
+import { DSL_VERSION } from "../dsl/dslDocument";
 
 type DocumentFileFilter = {
   name: string;
@@ -137,7 +138,7 @@ export const openDocument = async () => {
   const content = await invokeReadDocumentFile(path);
   const unsupportedMajor = unsupportedNuiMajorVersion(content);
   if (unsupportedMajor !== null) {
-    throw new Error(`未対応のDSLバージョンです: ${unsupportedMajor}(対応: 1)`);
+    throw new Error(`未対応のDSLバージョンです: ${unsupportedMajor}(対応: ${DSL_VERSION})`);
   }
   if (!flushSourceEditForFileOperation()) return;
   useCadDocumentStore.getState().replaceTextDocument(content, {

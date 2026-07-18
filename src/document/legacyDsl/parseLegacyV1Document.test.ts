@@ -1,33 +1,21 @@
 import { describe, expect, it } from "vitest";
-import { compileDslDocument, type DslDocumentData } from "../../dsl/dslDocument";
-import { expectSemanticallyEqualDocuments } from "../../dsl/dslDocumentTestUtils";
 import { parseLegacyV1Document } from "./parseLegacyV1Document";
 import sampleV1 from "../../dsl/__fixtures__/sample.v1.nui?raw";
 
-// このテストは C1 以前(live `src/dsl/` がまだ v1)の間だけ「凍結側 == live側」を
-// 検証する。C1 で live 側が v2 化したら、この等価性は成り立たなくなるため、
-// 凍結側単独の期待値固定テストへ書き換えること
-// (docs/dsl2/tasks/w5-legacy-freeze.md の引き継ぎ欄参照)。
-describe("parseLegacyV1Document (C1前: liveのv1パースとの等価性)", () => {
-  it("sample.v1.nui を live compileDslDocument と同一の文書として読める", () => {
+// C1後: live `src/dsl/` は v2 専用になり、v1 テキストを受理しない。この凍結
+// facade単独の固定期待値で健全性を検証する(旧「live との等価性」比較は
+// docs/dsl2/tasks/w5-legacy-freeze.md の引き継ぎどおりC1で成立しなくなった)。
+// v1/v2 サンプルの意味等価性そのものは
+// src/dsl/dslV2RoundTrip.test.ts が引き続き検証する。
+describe("parseLegacyV1Document (C1後: 凍結側単独の期待値固定)", () => {
+  it("sample.v1.nui をエラー無く読め、代表的な要素・設定を含む", () => {
     const legacy = parseLegacyV1Document(sampleV1);
     expect(legacy.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
-
-    const live = compileDslDocument(sampleV1);
-    expect(live.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
-    expect(live.document).not.toBeNull();
-
-    const legacyDocument: DslDocumentData = {
-      elements: legacy.elements,
-      palette: legacy.palette,
-      visibilityRoles: legacy.visibilityRoles,
-      visibilityProfiles: legacy.visibilityProfiles,
-      activeVisibilityProfileId: legacy.activeVisibilityProfileId,
-      printLayouts: legacy.printLayouts,
-      activePrintLayoutId: legacy.activePrintLayoutId,
-      evaluationLimitIndex: legacy.evaluationLimitIndex
-    };
-    expectSemanticallyEqualDocuments(legacyDocument, live.document!);
+    expect(legacy.elements.length).toBeGreaterThan(0);
+    expect(legacy.palette.colors.length).toBeGreaterThan(0);
+    expect(legacy.visibilityProfiles.length).toBeGreaterThan(0);
+    expect(legacy.printLayouts.length).toBeGreaterThan(0);
+    expect(legacy.activePrintLayoutId).toBeTruthy();
   });
 });
 

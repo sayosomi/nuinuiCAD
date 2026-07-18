@@ -7,12 +7,12 @@ import { createStatementRangeIndex } from "./statementRangeIndex";
 describe("sourceEditorFolding structural rows", () => {
   it("places controls on independent brace rows and leaves both markers visible", () => {
     const source = [
-      "nui 1",
-      "if Choice condition=1",
+      "nui 2",
+      "if Choice (1)",
       "{",
-      "  point T = (0, 0)",
+      "  point T = coordinate(x: 0 y: 0)",
       "} else {",
-      "  point E = (1, 1)",
+      "  point E = coordinate(x: 1 y: 1)",
       "}"
     ].join("\n");
     const compiled = compileDslDocument(source, { sourceRevision: 4 });

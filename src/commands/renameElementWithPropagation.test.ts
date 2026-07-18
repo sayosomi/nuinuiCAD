@@ -31,16 +31,37 @@ describe("renameElementWithPropagation", () => {
   afterEach(() => unregister());
 
   it("patches only target and direct, derived, and expression reference statements", () => {
+    // Written in v2's canonical vertical-call shape (one arg per physical
+    // line) on purpose: renameElementWithPropagation's dev assertion requires
+    // an in-place line patch, so a source statement that isn't already
+    // canonical (e.g. a compact single-line call) would force the patcher to
+    // insert/remove lines to reach canonical shape on any text change.
     const source = [
-      "nui 1",
+      "nui 2",
       "# keep this comment",
-      "point A = (0, 0)",
-      "point B = (10, 0)",
-      "line L = A -> B # target comment",
+      "point A = coordinate(",
+      "  x: 0",
+      "  y: 0",
+      ")",
+      "point B = coordinate(",
+      "  x: 10",
+      "  y: 0",
+      ")",
+      "line L = segment(",
+      "  start: A",
+      "  end: B",
+      ") # target comment",
       "",
-      "point Derived = offset L.start dx=1 dy=0 # derived comment",
+      "point Derived = offset(",
+      "  from: L.start",
+      "  dx: 1",
+      "  dy: 0",
+      ") # derived comment",
       "var Length = L.length # expression comment",
-      "line Extended = extend L.end to=A",
+      "line Extended = extend(",
+      "  end: L.end",
+      "  to: A",
+      ")",
       "# leave this alone"
     ].join("\n");
     seed(source);
@@ -49,7 +70,7 @@ describe("renameElementWithPropagation", () => {
     expect(renameElementWithPropagation(elementId("L"), "Seam")).toBe(true);
 
     const after = useCadDocumentStore.getState().sourceText;
-    expect(changedLines(before, after)).toEqual([5, 7, 8, 9]);
+    expect(changedLines(before, after)).toEqual([11, 17, 21, 23]);
     expect(after).toContain("# keep this comment\n");
     expect(after).toContain("\n\npoint Derived");
     expect(after).toContain("# leave this alone");
@@ -60,14 +81,27 @@ describe("renameElementWithPropagation", () => {
   });
 
   it("patches a print layout block with a group rename while preserving unrelated lines", () => {
+    // printLayout's own canonical header is always vertical (one arg per
+    // line, per dslDocument.ts's printLayoutBlockLines), unlike place/layoutVar
+    // member lines which stay single-line - matching that shape here for the
+    // same in-place-patch reason as the test above.
     const source = [
-      "nui 1",
+      "nui 2",
       "# unchanged before group",
       "group G {",
       "}",
       "",
-      "printLayout Layout output=pdf paper=a4 orientation=portrait columns=1 rows=1 overlap=0 scale=1 canvas=(100, 100) {",
-      "  place G at=(0, 0) angle=0 mirrorX=false",
+      "printLayout Layout (",
+      "  output: pdf",
+      "  paper: a4",
+      "  orientation: portrait",
+      "  columns: 1",
+      "  rows: 1",
+      "  overlap: 0",
+      "  scale: 1",
+      "  canvas: (100, 100)",
+      ") {",
+      "  place G (at: (0, 0) angle: 0 mirrorX: false)",
       "}",
       "# unchanged after layout"
     ].join("\n");
@@ -79,17 +113,17 @@ describe("renameElementWithPropagation", () => {
     const document = useCadDocumentStore.getState();
     const after = document.sourceText;
     // printLayout is patched as one block, although only its place line changes text.
-    expect(changedLines(before, after)).toEqual([3, 7]);
+    expect(changedLines(before, after)).toEqual([3, 16]);
     expect(document.sourceUpdate).toMatchObject({
       kind: "model-patch",
-      splices: expect.arrayContaining([expect.objectContaining({ startLine: 6, endLine: 8 })])
+      splices: expect.arrayContaining([expect.objectContaining({ startLine: 6, endLine: 17 })])
     });
     expect(after).toContain("# unchanged before group");
     expect(after).toContain("# unchanged after layout");
   });
 
   it("treats an already canonical same-name rename as a successful no-op", () => {
-    const source = "nui 1\npoint A = (0, 0)";
+    const source = "nui 2\npoint A = coordinate(x: 0 y: 0)";
     seed(source);
     const id = elementId("A");
     useCadUiStore.getState().setSelectedElementIds([id]);
@@ -109,7 +143,7 @@ describe("renameElementWithPropagation", () => {
   });
 
   it("preserves a noncanonical same-name line without a bridge commit or dev assertion", () => {
-    const source = "nui 1\npoint A = (0,0) # hand-written spacing";
+    const source = "nui 2\npoint A = coordinate(x: 0 y: 0) # hand-written spacing";
     seed(source);
     const id = elementId("A");
     const before = useCadDocumentStore.getState();
@@ -124,11 +158,11 @@ describe("renameElementWithPropagation", () => {
   });
 
   it("keeps only the dirty-buffer flush history and revision when its name is unchanged", () => {
-    seed("nui 1\npoint A = (0, 0)");
+    seed("nui 2\npoint A = coordinate(x: 0 y: 0)");
     const id = elementId("A");
     let pending = true;
     let flushedState: ReturnType<typeof useCadDocumentStore.getState> | null = null;
-    const flushedText = "nui 1\npoint A = (5,5)";
+    const flushedText = "nui 2\npoint A = coordinate(x: 5 y: 5)";
     unregister = registerSourceEditSession({
       hasPendingText: () => pending,
       isComposing: () => false,
@@ -153,7 +187,7 @@ describe("renameElementWithPropagation", () => {
   });
 
   it("flushes pending text, then analyzes and patches the flushed document", () => {
-    seed("nui 1\npoint A = (0, 0)\npoint User = offset A dx=1 dy=0");
+    seed("nui 2\npoint A = coordinate(\n  x: 0\n  y: 0\n)\npoint User = offset(\n  from: A\n  dx: 1\n  dy: 0\n)");
     const id = elementId("A");
     let pending = true;
     unregister = registerSourceEditSession({
@@ -162,7 +196,7 @@ describe("renameElementWithPropagation", () => {
       flush: () => {
         pending = false;
         useCadDocumentStore.getState().commitText(
-          "nui 1\npoint A = (0, 0)\npoint User = offset A dx=9 dy=0",
+          "nui 2\npoint A = coordinate(\n  x: 0\n  y: 0\n)\npoint User = offset(\n  from: A\n  dx: 9\n  dy: 0\n)",
           "editor"
         );
         return "flushed";
@@ -170,13 +204,14 @@ describe("renameElementWithPropagation", () => {
     });
 
     expect(renameElementWithPropagation(id, "Renamed")).toBe(true);
-    expect(useCadDocumentStore.getState().sourceText).toContain("offset Renamed dx=9");
+    expect(useCadDocumentStore.getState().sourceText).toContain("from: Renamed");
+    expect(useCadDocumentStore.getState().sourceText).toContain("dx: 9");
     // The typing burst and the rename are distinct commits; the rename itself is one entry.
     expect(useCadDocumentStore.getState().past).toHaveLength(2);
   });
 
   it("rejects composition and error-source requests without a rename mutation", () => {
-    seed("nui 1\npoint A = (0, 0)");
+    seed("nui 2\npoint A = coordinate(x: 0 y: 0)");
     const id = elementId("A");
     const compositionBefore = useCadDocumentStore.getState();
     unregister = registerSourceEditSession({
@@ -191,7 +226,7 @@ describe("renameElementWithPropagation", () => {
     expect(useCadUiStore.getState().commandErrorMessage).toContain("日本語入力");
 
     unregister();
-    seed("nui 1\npoint A = (");
+    seed("nui 2\npoint A = coordinate(");
     const errorBefore = useCadDocumentStore.getState();
     expect(renameElementWithPropagation(id, "Broken")).toBe(false);
     expect(useCadDocumentStore.getState().sourceText).toBe(errorBefore.sourceText);
@@ -200,7 +235,7 @@ describe("renameElementWithPropagation", () => {
   });
 
   it("rejects a collision without changing selection or history, then permits a retry", () => {
-    seed("nui 1\npoint A = (0, 0)\npoint B = (1, 0)");
+    seed("nui 2\npoint A = coordinate(\n  x: 0\n  y: 0\n)\npoint B = coordinate(\n  x: 1\n  y: 0\n)");
     const id = elementId("A");
     useCadUiStore.getState().setSelectedElementIds([id]);
     const selectionBefore = useCadUiStore.getState().selectedElementIds;
@@ -210,14 +245,14 @@ describe("renameElementWithPropagation", () => {
     expect(useCadDocumentStore.getState().sourceText).toBe(documentBefore.sourceText);
     expect(useCadDocumentStore.getState().past).toEqual(documentBefore.past);
     expect(useCadUiStore.getState().selectedElementIds).toEqual(selectionBefore);
-    expect(useCadUiStore.getState().commandErrorMessage).toContain("3行目");
+    expect(useCadUiStore.getState().commandErrorMessage).toContain("6行目");
 
     expect(renameElementWithPropagation(id, "Renamed")).toBe(true);
     expect(useCadDocumentStore.getState().elements.find((element) => element.id === id)?.name).toBe("Renamed");
   });
 
   it("uses one rename snapshot, restores text and selection through undo/redo, and stales an active session", () => {
-    const source = "nui 1\npoint A = (0, 0)\npoint User = offset A dx=1 dy=0";
+    const source = "nui 2\npoint A = coordinate(\n  x: 0\n  y: 0\n)\npoint User = offset(\n  from: A\n  dx: 1\n  dy: 0\n)";
     seed(source);
     const id = elementId("A");
     useCadUiStore.getState().setSelectedElementIds([id]);
@@ -241,8 +276,8 @@ describe("renameElementWithPropagation", () => {
 
 describe("assertRenameBridgeCommit", () => {
   it("fails in development for fallback, patch-line, and reference-stability violations", () => {
-    const before = compileDslDocument("nui 1\npoint A = (0, 0)\npoint User = offset A dx=1 dy=0");
-    const after = compileDslDocument("nui 1\npoint A = (0, 0)\npoint User = offset A dx=2 dy=0");
+    const before = compileDslDocument("nui 2\npoint A = coordinate(x: 0 y: 0)\npoint User = offset(from: A dx: 1 dy: 0)");
+    const after = compileDslDocument("nui 2\npoint A = coordinate(x: 0 y: 0)\npoint User = offset(from: A dx: 2 dy: 0)");
     expect(before.document).not.toBeNull();
     expect(after.document).not.toBeNull();
 

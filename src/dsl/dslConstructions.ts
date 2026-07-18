@@ -193,8 +193,13 @@ const constructionSpecs: DslConstructionSpec[] = [
     args: [arg("point"), arg("line", "lineId")],
   },
   { category: "group", construction: "", elementType: "group", args: [arg("printEnabled"), arg("printAnchor"), special("roles", "roles")] },
-  { category: "if", construction: "", elementType: "conditionalGroup", args: [positional("condition")] },
-  { category: "for", construction: "", elementType: "forGroup", args: [positional("variable", "variableName"), required("from", "start"), required("count"), arg("step"), arg("showGenerated")] },
+  { category: "if", construction: "", elementType: "conditionalGroup", args: [{ ...positional("condition"), required: true }] },
+  {
+    category: "for",
+    construction: "",
+    elementType: "forGroup",
+    args: [{ ...positional("variable", "variableName"), required: true }, required("from", "start"), required("count"), arg("step"), arg("showGenerated")],
+  },
 ];
 
 const specsByCall = new Map(constructionSpecs.map((spec) => [`${spec.category}\u0000${spec.construction}`, spec]));

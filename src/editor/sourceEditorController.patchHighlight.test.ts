@@ -62,7 +62,7 @@ describe("SourceEditorController patch-change highlight", () => {
     controller.destroy();
   });
 
-  it("highlights only the changed value, not the whole line, when one of two numeric attributes on a line changes", () => {
+  it("highlights only the changed value, not the whole statement, when one of two numeric attributes changes", () => {
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
     const internals = controller as unknown as ControllerInternals;
@@ -84,11 +84,15 @@ describe("SourceEditorController patch-change highlight", () => {
     const highlightedText = internals.view.state.doc.sliceString(mark.from, mark.to);
     expect(highlightedText).toBe("777");
 
-    // The unchanged y coordinate ("0") must not appear inside any highlighted range.
+    // x and y each sit on their own physical line in v2's canonical vertical
+    // call, so the changed x line's own text must be exactly the mark (no
+    // extra content highlighted alongside it), and the unchanged y line
+    // (unaffected by this edit) must still read "y: 0".
     const line = internals.view.state.doc.lineAt(mark.from);
     const fullLineText = internals.view.state.doc.sliceString(line.from, line.to);
-    expect(fullLineText).not.toBe(highlightedText);
-    expect(fullLineText).toContain("0");
+    expect(fullLineText).toBe("  x: 777");
+    const yLine = internals.view.state.doc.line(line.number + 1);
+    expect(internals.view.state.doc.sliceString(yLine.from, yLine.to)).toBe("  y: 0");
     controller.destroy();
   });
 

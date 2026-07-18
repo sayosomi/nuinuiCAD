@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { compileDslDocument } from "../dsl/dslDocument";
+import { compileDslDocument, type DslDocumentData } from "../dsl/dslDocument";
+import { dslTextForElements } from "../dsl/dslDocumentTestUtils";
 import { analyzeRename, validateRenameReferenceStability } from "../document/renameAnalysis";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
@@ -66,24 +67,64 @@ const expectSuccessfulRename = ({
   return after.sourceText;
 };
 
+// Generator-built (not hand-written): renameElementWithPropagation's dev
+// assertion requires an in-place line patch, which requires every affected
+// statement's source to already be in v2's canonical vertical-call shape -
+// impractical to hand-write for 1000 elements, so this uses the same
+// generator as regular production text (dslTextForElements).
 const denseCleanSource = () => {
   const generatedReferenceCount = 992;
-  return [
-    "nui 1",
-    "point Target = (0, 0)",
-    "group Front {",
-    "  point Shared = (1, 0)",
-    "  point FrontUser = offset Target dx=1 dy=0",
-    "}",
-    "group Back {",
-    "  point Shared = (2, 0)",
-    "  point Qualified = offset Front::Shared dx=1 dy=0",
-    "  point TargetUser = offset Target dx=1 dy=0",
-    "}",
-    ...Array.from({ length: generatedReferenceCount }, (_, index) =>
-      `point P${index} = offset Target dx=${index + 1} dy=0`
-    )
-  ].join("\n");
+  const elements: DslDocumentData["elements"] = [
+    { id: "target", name: "Target", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
+    { id: "front", name: "Front", type: "group", visible: true, enabled: true },
+    { id: "front-shared", name: "Shared", type: "freePoint", visible: true, enabled: true, x: 1, y: 0, parentGroupId: "front" },
+    {
+      id: "front-user",
+      name: "FrontUser",
+      type: "offsetPoint",
+      visible: true,
+      enabled: true,
+      fromPoint: { mode: "reference", pointId: "target" },
+      dx: 1,
+      dy: 0,
+      parentGroupId: "front"
+    },
+    { id: "back", name: "Back", type: "group", visible: true, enabled: true },
+    { id: "back-shared", name: "Shared", type: "freePoint", visible: true, enabled: true, x: 2, y: 0, parentGroupId: "back" },
+    {
+      id: "qualified",
+      name: "Qualified",
+      type: "offsetPoint",
+      visible: true,
+      enabled: true,
+      fromPoint: { mode: "reference", pointId: "front-shared" },
+      dx: 1,
+      dy: 0,
+      parentGroupId: "back"
+    },
+    {
+      id: "target-user",
+      name: "TargetUser",
+      type: "offsetPoint",
+      visible: true,
+      enabled: true,
+      fromPoint: { mode: "reference", pointId: "target" },
+      dx: 1,
+      dy: 0,
+      parentGroupId: "back"
+    },
+    ...Array.from({ length: generatedReferenceCount }, (_, index) => ({
+      id: `p${index}`,
+      name: `P${index}`,
+      type: "offsetPoint" as const,
+      visible: true,
+      enabled: true,
+      fromPoint: { mode: "reference" as const, pointId: "target" },
+      dx: index + 1,
+      dy: 0
+    }))
+  ];
+  return dslTextForElements(elements);
 };
 
 describe("rename propagation reference-form coverage", () => {
@@ -98,87 +139,149 @@ describe("rename propagation reference-form coverage", () => {
   });
 
   it("propagates direct, start/end, point-key, property, and function-argument references", () => {
+    // Canonical v2 vertical-call shape throughout (see the in-place-patch note
+    // in renameElementWithPropagation.test.ts). v1's positional
+    // `distance(L:start, B)` function-call reference syntax is now the named
+    // pointDistance(point1:, point2:) construction.
     const source = [
-      "nui 1",
+      "nui 2",
       "# unchanged comment",
-      "point A = (0, 0)",
-      "point B = (10, 0)",
-      "line L = A -> B # target comment",
+      "point A = coordinate(",
+      "  x: 0",
+      "  y: 0",
+      ")",
+      "point B = coordinate(",
+      "  x: 10",
+      "  y: 0",
+      ")",
+      "line L = segment(",
+      "  start: A",
+      "  end: B",
+      ") # target comment",
       "",
-      "point StartUser = offset L.start dx=1 dy=0",
-      "point EndUser = offset L.end dx=1 dy=0",
-      "point OnUser = on L.end distance=1",
+      "point StartUser = offset(",
+      "  from: L.start",
+      "  dx: 1",
+      "  dy: 0",
+      ")",
+      "point EndUser = offset(",
+      "  from: L.end",
+      "  dx: 1",
+      "  dy: 0",
+      ")",
+      "point OnUser = onLine(",
+      "  from: L.end",
+      "  distance: 1",
+      ")",
       "var Property = L.length",
-      "var Endpoint = distance(L:start, B)",
+      "var Endpoint = pointDistance(",
+      "  point1: L.start",
+      "  point2: B",
+      ")",
       "# untouched tail"
     ].join("\n");
     const after = expectSuccessfulRename({
       source,
       targetName: "L",
       newName: "Seam",
-      changedLineNumbers: [5, 7, 8, 9, 10, 11]
+      changedLineNumbers: [11, 17, 22, 27, 29, 30, 31, 32, 33, 34, 35]
     });
 
     expect(after).toContain("# unchanged comment");
     expect(after).toContain("# untouched tail");
-    expect(after).toContain("distance(Seam:start, B)");
+    expect(after).toContain("point1: Seam.start");
   });
 
   it("propagates a group-scoped @variable reference", () => {
+    // scope: forces var's long construction-call form (short form has no
+    // room for extra attrs), which - like any construction call - is always
+    // canonical-vertical.
     const source = [
-      "nui 1",
+      "nui 2",
       "group G {",
-      "  var Width = 10 scope=group",
-      "  point User = (@Width, 0)",
+      "  var Width = expression(",
+      "    value: 10",
+      "    scope: group",
+      "  )",
+      "  point User = coordinate(",
+      "    x: @Width",
+      "    y: 0",
+      "  )",
       "}"
     ].join("\n");
     const after = expectSuccessfulRename({
       source,
       targetName: "Width",
       newName: "Depth",
-      changedLineNumbers: [3, 4]
+      changedLineNumbers: [3, 8]
     });
 
-    expect(after).toContain("var Depth = 10 scope=group");
-    expect(after).toContain("point User = (@Depth, 0)");
+    expect(after).toContain("var Depth = expression(");
+    expect(after).toContain("x: @Depth");
   });
 
   it("propagates qualified group references and place while leaving role/view records unchanged", () => {
+    // role/view/group(roles:)/place stay single-line canonically (only
+    // printLayout's own header goes vertical), matching serializeDocumentToDsl.
     const source = [
-      "nui 1",
-      "role seam name=\"Seam\"",
-      "view Draft default=true seam=true",
+      "nui 2",
+      "role seam (name: \"Seam\")",
+      "view Draft (default: true seam: true)",
       "activeView Draft",
       "",
-      "group G roles=[seam] {",
-      "  point P = (0, 0)",
+      "group G (roles: [seam]) {",
+      "  point P = coordinate(",
+      "    x: 0",
+      "    y: 0",
+      "  )",
       "}",
       "group Consumer {",
-      "  point User = offset G::P dx=1 dy=0",
+      "  point User = offset(",
+      "    from: G::P",
+      "    dx: 1",
+      "    dy: 0",
+      "  )",
       "}",
-      "printLayout Layout output=pdf paper=a4 orientation=portrait columns=1 rows=1 overlap=0 scale=1 canvas=(100, 100) {",
-      "  place G at=(0, 0) angle=0 mirrorX=false",
+      "printLayout Layout (",
+      "  output: pdf",
+      "  paper: a4",
+      "  orientation: portrait",
+      "  columns: 1",
+      "  rows: 1",
+      "  overlap: 0",
+      "  scale: 1",
+      "  canvas: (100, 100)",
+      ") {",
+      "  place G (at: (0, 0) angle: 0 mirrorX: false)",
       "}"
     ].join("\n");
     const after = expectSuccessfulRename({
       source,
       targetName: "G",
       newName: "Pattern",
-      changedLineNumbers: [6, 10, 13]
+      changedLineNumbers: [6, 14, 29]
     });
 
-    expect(after).toContain("role seam name=\"Seam\"");
-    expect(after).toContain("view Draft default=true seam=true");
+    expect(after).toContain("role seam (name: \"Seam\")");
+    expect(after).toContain("view Draft (default: true seam: true)");
     expect(after).toContain("activeView Draft");
-    expect(after).toContain("offset Pattern::P");
-    expect(after).toContain("place Pattern at=(0, 0)");
+    expect(after).toContain("from: Pattern::P");
+    expect(after).toContain("place Pattern (at: (0, 0) angle: 0 mirrorX: false)");
   });
 
   it("names an explicit-id unnamed element, propagates its raw reference, and reloads cleanly", () => {
     const source = [
-      "nui 1",
-      "point = (0, 0) id=unnamed",
-      "point User = offset unnamed dx=1 dy=0"
+      "nui 2",
+      "point = coordinate(",
+      "  x: 0",
+      "  y: 0",
+      "  id: unnamed",
+      ")",
+      "point User = offset(",
+      "  from: unnamed",
+      "  dx: 1",
+      "  dy: 0",
+      ")"
     ].join("\n");
     seed(source);
     const unnamed = useCadDocumentStore.getState().elements.find((element) => element.name === "")!;
@@ -187,9 +290,12 @@ describe("rename propagation reference-form coverage", () => {
     expect(renameElementWithPropagation(unnamed.id, "Named")).toBe(true);
 
     const after = useCadDocumentStore.getState().sourceText;
-    expect(changedLines(source, after)).toEqual([2, 3]);
-    expect(after).toContain("point Named = (0, 0)");
-    expect(after).toContain("offset Named dx=1 dy=0");
+    // The id: arg only exists to persist a stable identity for the unnamed
+    // element; a first-ever name makes it redundant, so the statement's own
+    // line count shrinks and everything after it shifts up by one line.
+    expect(after).toContain("point Named = coordinate(");
+    expect(after).toContain("from: Named");
+    expect(after).not.toContain("id: unnamed");
     expect(validateRenameReferenceStability({ before: before.doc, after: useCadDocumentStore.getState().doc }))
       .toEqual({ verdict: "ok" });
 
@@ -200,15 +306,15 @@ describe("rename propagation reference-form coverage", () => {
 
   it("rejects an absolute-path rename when serializer output would resolve to a shadowing element", () => {
     const source = [
-      "nui 1",
+      "nui 2",
       "group A {",
-      "  point Target = (0, 0)",
+      "  point Target = coordinate(x: 0 y: 0)",
       "}",
       "group B {",
       "  group A {",
-      "    point Renamed = (1, 0)",
+      "    point Renamed = coordinate(x: 1 y: 0)",
       "  }",
-      "  point User = offset ::A::Target dx=1 dy=0",
+      "  point User = offset(from: ::A::Target dx: 1 dy: 0)",
       "}"
     ].join("\n");
     seed(source);
@@ -219,10 +325,10 @@ describe("rename propagation reference-form coverage", () => {
 
   it("rejects same-scope explicit-id duplicates even though the DSL parser accepts them", () => {
     const source = [
-      "nui 1",
-      "point A = (0, 0) id=a1",
-      "point A = (1, 0) id=a2",
-      "point B = (2, 0) id=b"
+      "nui 2",
+      "point A = coordinate(x: 0 y: 0 id: a1)",
+      "point A = coordinate(x: 1 y: 0 id: a2)",
+      "point B = coordinate(x: 2 y: 0 id: b)"
     ].join("\n");
     expect(compileDslDocument(source).diagnostics).toEqual([]);
     seed(source);
@@ -233,24 +339,24 @@ describe("rename propagation reference-form coverage", () => {
 
   it("rejects a shadowing resolution change and an invalid name without mutation", () => {
     const source = [
-      "nui 1",
-      "point Outer = (0, 0)",
+      "nui 2",
+      "point Outer = coordinate(x: 0 y: 0)",
       "group G {",
-      "  point Inner = (1, 0)",
-      "  point User = offset Outer dx=1 dy=0",
+      "  point Inner = coordinate(x: 1 y: 0)",
+      "  point User = offset(from: Outer dx: 1 dy: 0)",
       "}"
     ].join("\n");
     seed(source);
     expectRejectedWithoutMutation(() => renameElementWithPropagation(elementId("Inner"), "Outer"));
     expect(useCadUiStore.getState().commandErrorMessage).toContain("参照先が変わる");
 
-    seed("nui 1\npoint A = (0, 0)");
+    seed("nui 2\npoint A = coordinate(x: 0 y: 0)");
     expectRejectedWithoutMutation(() => renameElementWithPropagation(elementId("A"), "A::B"));
     expect(useCadUiStore.getState().commandErrorMessage).toContain("`::`");
   });
 
   it("rejects an existing dangling document at the clean-source gate", () => {
-    const source = "nui 1\npoint A = (0, 0)\npoint User = offset Missing dx=1 dy=0";
+    const source = "nui 2\npoint A = coordinate(x: 0 y: 0)\npoint User = offset(from: Missing dx: 1 dy: 0)";
     seed(source);
     expect(useCadDocumentStore.getState().diagnostics).toEqual([
       expect.objectContaining({ severity: "warning", message: expect.stringContaining("参照先が見つかりません") })
@@ -261,7 +367,7 @@ describe("rename propagation reference-form coverage", () => {
   });
 
   it("rejects dangling capture in 5d analysis before bridge execution", () => {
-    const source = "nui 1\npoint A = (0, 0)\npoint User = offset NewName dx=1 dy=0";
+    const source = "nui 2\npoint A = coordinate(x: 0 y: 0)\npoint User = offset(from: NewName dx: 1 dy: 0)";
     const compiled = compileDslDocument(source);
     const target = compiled.document!.elements.find((element) => element.name === "A")!;
 
@@ -281,6 +387,6 @@ describe("rename propagation reference-form coverage", () => {
     const after = useCadDocumentStore.getState();
     expect(elapsed).toBeLessThan(5000);
     expect(validateRenameReferenceStability({ before: before.doc, after: after.doc })).toEqual({ verdict: "ok" });
-    expect(after.sourceText).toContain("point P991 = offset Renamed dx=992 dy=0");
+    expect(after.sourceText).toContain("point P991 = offset(\n  from: Renamed\n  dx: 992\n  dy: 0\n)");
   });
 });

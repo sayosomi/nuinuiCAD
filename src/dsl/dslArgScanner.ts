@@ -1,3 +1,4 @@
+import { isBareDslIdentifierChar } from "./dslTokens";
 import type { DslSpan } from "./dslTypes";
 
 export type ScannedArg = {
@@ -22,8 +23,11 @@ type NamedArgBoundary = {
 };
 
 const isWhitespace = (value: string) => /\s/.test(value);
-const isIdentifierStart = (value: string) => /[A-Za-z_]/.test(value);
-const isIdentifierPart = (value: string) => /[A-Za-z0-9_]/.test(value);
+// Arg keys are frequently user-authored (e.g. view's per-visibility-role args
+// use the role's own name/id as the key), so this matches formatDslName's
+// bare-token character class rather than ASCII identifier rules.
+const isIdentifierStart = isBareDslIdentifierChar;
+const isIdentifierPart = isBareDslIdentifierChar;
 
 const isEscaped = (source: string, index: number) => {
   let backslashCount = 0;
@@ -70,7 +74,10 @@ const namedArgBoundaries = (source: string, callSpan: DslSpan): NamedArgBoundary
 
     let keyEnd = index + 1;
     while (keyEnd < callSpan.end && isIdentifierPart(source[keyEnd])) keyEnd += 1;
-    if (source[keyEnd] !== ":") continue;
+    // `::` は修飾参照(`前身頃::交点`)の区切りであり、key境界の`:`とは別物。
+    // 値トークンの先頭が識別子で始まる修飾参照の場合に誤ってkey境界と
+    // 誤認しないよう、直後がもう1つの`:`なら継続してスキップする。
+    if (source[keyEnd] !== ":" || source[keyEnd + 1] === ":") continue;
 
     const valueStart = keyEnd + 1;
     boundaries.push({

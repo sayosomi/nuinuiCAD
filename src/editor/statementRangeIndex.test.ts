@@ -18,7 +18,7 @@ const compiled = (source: string) => {
 
 describe("statementRangeIndex", () => {
   it("maps runtime-ID ranges through dirty edits without consulting stale statement lines", () => {
-    const source = "nui 1\npoint A = (0, 0)\npoint = (1, 1)";
+    const source = "nui 2\npoint A = coordinate(x: 0 y: 0)\npoint = coordinate(x: 1 y: 1)";
     const result = compiled(source);
     const doc = Text.of(source.split("\n"));
     const unnamedId = result.document!.elements.find((element) => element.name === "")!.id;
@@ -32,7 +32,7 @@ describe("statementRangeIndex", () => {
   });
 
   it("drops a wholly deleted statement instead of retaining a stale line identity", () => {
-    const source = "nui 1\npoint A = (0, 0)\npoint B = (1, 1)";
+    const source = "nui 2\npoint A = coordinate(x: 0 y: 0)\npoint B = coordinate(x: 1 y: 1)";
     const result = compiled(source);
     const doc = Text.of(source.split("\n"));
     const pointB = result.document!.elements.find((element) => element.name === "B")!;
@@ -44,7 +44,7 @@ describe("statementRangeIndex", () => {
   });
 
   it("keeps a statement identity when replacing a value at its final character", () => {
-    const source = "nui 1\npoint A = offset B dx=130 dy=9";
+    const source = "nui 2\npoint B = coordinate(x: 0 y: 0)\npoint A = offset(from: B dx: 130 dy: 9)";
     const result = compiled(source);
     const doc = Text.of(source.split("\n"));
     const pointA = result.document!.elements.find((element) => element.name === "A")!;
@@ -61,7 +61,7 @@ describe("statementRangeIndex", () => {
 });
 
 describe("printLayoutRangeIndex", () => {
-  const printLayoutSource = ["nui 1", "printLayout Layout1 {", "  layoutVar Width = 10", "}"].join("\n");
+  const printLayoutSource = ["nui 2", "printLayout Layout1 () {", "  layoutVar Width = 10", "}"].join("\n");
 
   it("builds one entry per printLayout:<id> statementMap key, at the block-opening line", () => {
     const result = compiled(printLayoutSource);
@@ -72,7 +72,7 @@ describe("printLayoutRangeIndex", () => {
     expect(index.size).toBe(1);
     const range = index.get(printLayoutId)!;
     expect(range).toBeDefined();
-    expect(doc.sliceString(range.from, range.to)).toBe("printLayout Layout1 {");
+    expect(doc.sliceString(range.from, range.to)).toBe("printLayout Layout1 () {");
   });
 
   it("tracks an insertion above the block, shifting the line but preserving printLayoutId identity", () => {

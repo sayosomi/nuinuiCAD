@@ -7,9 +7,24 @@ import { variableIsInScope } from "../geometry/variableScope";
 import type { NumericVariableReferenceOption } from "../geometry/variableReferenceOptions";
 import type { CadElement, ComputedVariable, ElementId, VariableElement } from "../types/geometry";
 
-type DslVariableStatement = Extract<DslStatement, { kind: "variable" }>;
-
 const attrValue = (statement: DslStatement, key: string) => statement.attrs.find((attr) => attr.key === key)?.value;
+
+/**
+ * A `var Name = expr` declaration parses as kind "variable" only in its bare
+ * short form (no extra attrs - dslCallParser.ts's shortVariable branch always
+ * returns `attrs: []`). Reaching for `enabled:`/`scope:`/`id:` forces the long
+ * `var Name = expression(value: ... enabled: ...)` call form, which the parser
+ * classifies as kind "element" (category "var", construction "expression")
+ * like any other construction call. Both shapes are candidates here.
+ */
+type DslVariableStatement = Extract<DslStatement, { kind: "variable" }> | Extract<DslStatement, { kind: "element" }>;
+
+const isVariableCandidateStatement = (statement: DslStatement): statement is DslVariableStatement =>
+  statement.kind === "variable" ||
+  (statement.kind === "element" && statement.category === "var" && statement.construction === "expression");
+
+const variableExpressionText = (statement: DslVariableStatement): string =>
+  statement.kind === "variable" ? statement.expression : attrValue(statement, "value") ?? "";
 
 const disabledAttrValues = new Set(["false", "0", "no", "off"]);
 const isVariableStatementDisabled = (statement: DslStatement) => {
@@ -75,11 +90,11 @@ export const dslVariableCompletionOptions = ({
 
   const eligible = parsed.statements.filter(
     (statement): statement is DslVariableStatement =>
-      statement.kind === "variable" &&
+      isVariableCandidateStatement(statement) &&
       statement.line < cutoffLine &&
       statement.name.trim().length > 0 &&
       !isVariableStatementDisabled(statement) &&
-      isExpressionSyntaxValid(statement.expression)
+      isExpressionSyntaxValid(variableExpressionText(statement))
   );
 
   const filtered = eligible.filter((statement) => {

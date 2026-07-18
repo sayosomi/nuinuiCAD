@@ -296,7 +296,7 @@ describe("SourceEditorController @stop mapping", () => {
     const controller = new SourceEditorController(parent);
     const internals = controller as unknown as ControllerInternals;
 
-    const stopLine = internals.view.state.doc.line(3);
+    const stopLine = internals.view.state.doc.line(6);
     expect(internals.atStopRange).toEqual({ from: stopLine.from, to: stopLine.to });
 
     controller.destroy();

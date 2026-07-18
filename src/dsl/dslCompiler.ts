@@ -1,16 +1,12 @@
 import { makeNumericExpression, normalizeNumericExpressionInput } from "../geometry/numericExpressions";
-import { createCadElementId } from "../model/cadIds";
 import { createCadElement } from "../model/elementFactory";
 import type { ElementNameContext } from "../model/elementNames";
-import { findParameterDefinition } from "../parameters/parameterDefinitions";
-import { setParameterValue } from "../parameters/parameterAccess";
 import { nextPrintLayoutId, normalizePrintLayout } from "../print/printLayout";
 import type {
   CadElement,
   CadElementType,
   DocumentPalette,
   ElementId,
-  NumericValue,
   NumericVariable,
   PaletteColor,
   PrintLayout,
@@ -18,30 +14,32 @@ import type {
   VisibilityProfile,
   VisibilityRole
 } from "../types/geometry";
+import { applyArgs, createDefaultIntermediateId } from "./dslApplyArgs";
+import type { ScannedArg } from "./dslArgScanner";
+import { constructionFor, type DslConstructionSpec } from "./dslConstructions";
 import { isElementDslStatement, parseDsl } from "./dslParser";
-import {
-  createNameIndex,
-  resolveAnchor,
-  resolveEndpoint,
-  resolveId,
-  type NameIndex
-} from "./dslReferences";
+import { createNameIndex, resolveId, type NameIndex } from "./dslReferences";
 import type { CompileDslContext, CompileDslResult, DslAttribute, DslDiagnostic, DslStatement } from "./dslTypes";
-import { splitDslList, splitDslRecords, unquoteDslString } from "./dslTokens";
+import { unquoteDslString } from "./dslTokens";
 import {
   placeAngleAttrKey,
-  placeAngleDegAttrKey,
   placeAtAttrKey,
   printLayoutCanvasAttrKey,
   printLayoutColumnsAttrKey,
   printLayoutOverlapAttrKey,
-  printLayoutOverlapMmAttrKey,
+  printLayoutPaperAttrKey,
   printLayoutRowsAttrKey,
-  printLayoutScaleAttrKey
+  printLayoutScaleAttrKey,
+  printLayoutViewAttrKey
 } from "./dslPrintLayoutAttributes";
 
 const attr = (attrs: DslAttribute[], key: string) =>
   attrs.find((item) => item.key === key)?.value;
+
+// name: 引数の生値は(P2/P3のscanCallArgsが)quoteを含んだ生スライスで返るため、
+// 設定文(color/role/view/printLayout)の name 属性はここで明示的に unquote する
+// (要素側の text kind パラメータは dslApplyArgs.ts 側で既に unquote 済み)。
+const unquoteName = (value: string | undefined) => value === undefined ? undefined : unquoteDslString(value);
 
 export const statementTypeOf = (statement: DslStatement): CadElementType => {
   if (statement.kind === "element") return statement.type ?? "group";
@@ -89,270 +87,20 @@ const profileIdByToken = (profiles: VisibilityProfile[], token: string) => {
 
 const outputKind = (value: string) => value === "svg" ? "svg" : "pdf";
 
-const normalizeExpression = (
-  source: string,
-  elements: CadElement[],
-  currentElement?: CadElement,
-  nameContext?: ElementNameContext
-) =>
-  makeNumericExpression(normalizeNumericExpressionInput(source, elements, [], currentElement, nameContext));
+// P6 applyArgs は ScannedArg[] を要求するが DslStatement は DslAttribute[] を運ぶ。
+// applyArgs は key/value しか参照しないため、span 側は再構成すれば足りる。
+const scannedArgsFromAttrs = (attrs: DslAttribute[]): ScannedArg[] =>
+  attrs.map((item) => ({
+    key: item.key,
+    keySpan: { start: item.keyStart, end: item.keyStart + item.key.length },
+    value: item.value,
+    valueSpan: { start: item.valueStart, end: item.valueEnd }
+  }));
 
-const parameterAlias = (element: CadElement, key: string) => {
-  if (key === "index") return "intersectionIndex";
-  if (key === "extensions") return "useExtensions";
-  if (key === "distance" && (element.type === "divisionPoint" || element.type === "lineDivisionPoint")) {
-    return "distance";
-  }
-  if (element.type === "lineTangentOffsetPoint" && key === "angle") return "tangentAngleDeg";
-  if (element.type === "bezierCurve") {
-    if (key === "startAngle") return "startHandleAngleDeg";
-    if (key === "startLength") return "startHandleLength";
-    if (key === "endAngle") return "endHandleAngleDeg";
-    if (key === "endLength") return "endHandleLength";
-  }
-  if (element.type === "threePointArcLine") {
-    if (key === "start") return "startAngleDeg";
-    if (key === "end") return "endAngleDeg";
-  }
-  if (element.type === "cornerRadiusArcLine" && key === "index") return "intersectionIndex";
-  return key;
-};
-
-const withPlacementMode = (element: CadElement, attrs: DslAttribute[]): CadElement => {
-  if (element.type !== "divisionPoint" && element.type !== "lineDivisionPoint") return element;
-  if (attrs.some((item) => item.key === "distance")) return { ...element, placementMode: "distance" };
-  if (attrs.some((item) => item.key === "ratio")) return { ...element, placementMode: "ratio" };
-  return element;
-};
-
-const splitByColonOutsideQuotes = (value: string) => {
-  const parts: string[] = [];
-  let current = "";
-  let quote: string | null = null;
-  for (let index = 0; index < value.length; index += 1) {
-    const char = value[index];
-    if ((char === "\"" || char === "'") && value[index - 1] !== "\\") {
-      quote = quote === char ? null : quote ?? char;
-      current += char;
-      continue;
-    }
-    if (!quote && char === ":") {
-      parts.push(current);
-      current = "";
-      continue;
-    }
-    current += char;
-  }
-  parts.push(current);
-  return parts;
-};
-
-const remapLocalVariableReferences = (
-  value: NumericValue,
-  idMap: Map<string, string>
-): NumericValue => {
-  if (typeof value !== "object" || value === null || value.kind !== "expression") return value;
-  return {
-    ...value,
-    expression: value.expression.replace(/@([^\s()+*/.<>!=&|]+)/g, (match, id: string) =>
-      idMap.has(id) ? `@${idMap.get(id)}` : match
-    )
-  };
-};
-
-const parseIntermediatePoints = (
-  value: string,
-  index: NameIndex,
-  line: number,
-  diagnostics: DslDiagnostic[],
-  numeric: (source: string) => ReturnType<typeof normalizeExpression>,
-  currentElement?: CadElement
-): Extract<CadElement, { type: "bezierCurve" }>["intermediatePoints"] =>
-  splitDslRecords(value).map((record) => {
-    const parts = splitByColonOutsideQuotes(record).map((item) => item.trim());
-    const [pointToken, angle = "0", incoming = "30", outgoing = "30", id] = parts;
-    return {
-      id: id || createCadElementId("bezierCurve"),
-      point: resolveAnchor(pointToken || "none", index, line, diagnostics, numeric, currentElement),
-      handleAngleDeg: numeric(angle),
-      incomingHandleLength: numeric(incoming),
-      outgoingHandleLength: numeric(outgoing)
-    };
-  });
-
-const applyCommonAttributes = (
-  element: CadElement,
-  attrs: DslAttribute[],
-  index: NameIndex,
-  line: number,
-  diagnostics: DslDiagnostic[],
-  elementsForExpressions: CadElement[],
-  nameContext: ElementNameContext,
-  visibilityRoles: VisibilityRole[] = []
-) => {
-  const parentAttr = attr(attrs, "parent");
-  let next = parentAttr
-    ? { ...element, parentGroupId: resolveId(parentAttr, index, line, diagnostics, element) }
-    : element;
-  const numeric = (source: string) => normalizeExpression(source, elementsForExpressions, next, nameContext);
-  const skip = new Set(["id", "type", "angle", "at", "center", "end", "size", "start"]);
-
-  for (const { key, value } of attrs) {
-    const parameterKey = parameterAlias(next, key);
-    if (skip.has(key) && parameterKey === key) continue;
-    if (key === "parent") continue;
-    if (key === "branch") {
-      next = { ...next, conditionalBranch: value === "else" ? "else" : "then" };
-      continue;
-    }
-    if (key === "color") {
-      next = { ...next, colorId: value };
-      continue;
-    }
-    if (key === "steps") {
-      const numericParameterSteps: Record<string, number> = {};
-      for (const record of splitDslRecords(value)) {
-        const [parameterKey, rawStep] = splitByColonOutsideQuotes(record);
-        const step = Number(rawStep);
-        if (parameterKey?.trim() && Number.isFinite(step) && step > 0) {
-          numericParameterSteps[parameterKey.trim()] = step;
-        } else {
-          diagnostics.push(diagnostic(line, "steps は parameter:positiveNumber の一覧で指定してください。"));
-        }
-      }
-      next = { ...next, numericParameterSteps };
-      continue;
-    }
-    if (key === "roles" && next.type === "group") {
-      next = {
-        ...next,
-        visibilityRoleIds: splitDslList(value).map((roleToken) =>
-          roleIdByToken(visibilityRoles, roleToken)
-        )
-      };
-      continue;
-    }
-    if (key === "vars") {
-      const variables: NumericVariable[] = [];
-      splitDslRecords(value).forEach((record, recordIndex) => {
-        const fields = splitByColonOutsideQuotes(record);
-        const variableName = unquoteDslString((fields[0] ?? "").trim());
-        const expressionSource = fields.slice(1).join(":").trim();
-        variables.push({
-          id: `local-variable-${recordIndex + 1}`,
-          name: variableName,
-          value: makeNumericExpression(
-            normalizeNumericExpressionInput(expressionSource || "0", elementsForExpressions, variables, next, nameContext)
-          )
-        });
-      });
-      next = { ...next, numericVariables: variables };
-      continue;
-    }
-    if (key === "varIds") {
-      const ids = splitDslList(value);
-      const variables = next.numericVariables ?? [];
-      if (ids.length !== variables.length || ids.some((id) => !id.trim())) {
-        diagnostics.push(warning(line, "varIds は vars と同じ数の空でないIDを指定してください。"));
-        continue;
-      }
-      const idMap = new Map(variables.map((variable, index) => [variable.id, ids[index]]));
-      next = {
-        ...next,
-        numericVariables: variables.map((variable, index) => ({
-          ...variable,
-          id: ids[index],
-          value: remapLocalVariableReferences(variable.value, idMap)
-        }))
-      };
-      continue;
-    }
-    if (
-      next.type === "variable" &&
-      (key === "mode" || key === "point1" || key === "point2" || key === "point" || key === "line")
-    ) {
-      if (key === "mode") {
-        if (
-          value === "expression" ||
-          value === "pointDistance" ||
-          value === "pointAngle" ||
-          value === "pointLineDistance"
-        ) {
-          next = { ...next, valueMode: value };
-        } else {
-          diagnostics.push(diagnostic(line, "mode は expression / pointDistance / pointAngle / pointLineDistance で指定してください。"));
-        }
-      } else if (key === "point1") {
-        next = { ...next, point1: resolveAnchor(value, index, line, diagnostics, numeric, next) };
-      } else if (key === "point2") {
-        next = { ...next, point2: resolveAnchor(value, index, line, diagnostics, numeric, next) };
-      } else if (key === "point") {
-        next = { ...next, point: resolveAnchor(value, index, line, diagnostics, numeric, next) };
-      } else {
-        next = { ...next, lineId: resolveId(value, index, line, diagnostics, next) };
-      }
-      continue;
-    }
-    if (next.type === "bezierCurve" && key === "intermediates") {
-      next = {
-        ...next,
-        intermediatePoints: parseIntermediatePoints(value, index, line, diagnostics, numeric, next)
-      };
-      continue;
-    }
-    if (
-      next.type === "image" &&
-      (key === "naturalWidthPx" ||
-        key === "naturalHeightPx" ||
-        key === "sourceDpi" ||
-        key === "targetPixelsPerMm")
-    ) {
-      const parsed = Number(value);
-      if (!Number.isFinite(parsed) || parsed <= 0) {
-        diagnostics.push(diagnostic(line, `${key} は正の数で指定してください。`));
-      } else {
-        next = { ...next, [key]: parsed } as CadElement;
-      }
-      continue;
-    }
-
-    const definition = findParameterDefinition(next, parameterKey);
-    if (definition?.kind === "boolean") {
-      const parsed = booleanValue(value);
-      if (parsed === null) diagnostics.push(diagnostic(line, `${parameterKey} は true/false で指定してください。`));
-      next = setParameterValue(next, parameterKey, parsed ?? false);
-      continue;
-    }
-    if (definition?.kind === "number") {
-      next = setParameterValue(next, parameterKey, numeric(value));
-      continue;
-    }
-    if (definition?.kind === "reference") {
-      next = setParameterValue(next, parameterKey, value === "none" ? null : resolveAnchor(value, index, line, diagnostics, numeric, next));
-      continue;
-    }
-    if (definition?.kind === "lineEndpointReference") {
-      next = setParameterValue(next, parameterKey, resolveEndpoint(value, index, line, diagnostics, next));
-      continue;
-    }
-    if (definition?.kind === "lineReference") {
-      next = setParameterValue(next, parameterKey, resolveId(value, index, line, diagnostics, next));
-      continue;
-    }
-    if (definition?.kind === "lineReferenceList") {
-      next = setParameterValue(next, parameterKey, splitDslList(value).map((item) => resolveId(item, index, line, diagnostics, next)));
-      continue;
-    }
-    if (definition?.kind === "choice" || definition?.kind === "text" || definition?.kind === "color") {
-      next = setParameterValue(next, parameterKey, value);
-      continue;
-    }
-
-    const parsedBoolean = booleanValue(value);
-    const rawValue = parsedBoolean ?? (/^-?\d+(\.\d+)?$/.test(value) ? numeric(value) : value);
-    next = { ...next, [parameterKey]: rawValue } as CadElement;
-  }
-  return next;
+const constructionSpecFor = (statement: DslStatement): DslConstructionSpec | null => {
+  if (statement.kind === "group") return constructionFor("group", "");
+  if (statement.kind === "element" && statement.type) return constructionFor(statement.category, statement.construction);
+  return null;
 };
 
 const applyStatement = (
@@ -363,76 +111,37 @@ const applyStatement = (
   elementsForExpressions: CadElement[],
   nameContext: ElementNameContext,
   visibilityRoles: VisibilityRole[] = []
-) => {
-  const parentAttr = attr(statement.attrs, "parent");
-  let next = {
-    ...element,
-    name: attr(statement.attrs, "name") ?? statement.name,
-    ...(parentAttr ? { parentGroupId: resolveId(parentAttr, index, statement.line, diagnostics, element) } : {})
-  };
-  const numeric = (source: string) => normalizeExpression(source, elementsForExpressions, next, nameContext);
-  const anchor = (source: string) => resolveAnchor(source, index, statement.line, diagnostics, numeric, next);
-
-  if (statement.kind === "variable" && next.type === "variable") {
-    next = { ...next, valueMode: "expression", expression: numeric(statement.expression) };
-  }
-  if (statement.kind === "freePoint" && next.type === "freePoint") {
-    next = { ...next, x: numeric(statement.x), y: numeric(statement.y) };
-  }
-  if (statement.kind === "offsetPoint" && next.type === "offsetPoint") {
-    next = { ...next, fromPoint: anchor(statement.from), dx: numeric(attr(statement.attrs, "dx") ?? "0"), dy: numeric(attr(statement.attrs, "dy") ?? "0") };
-  }
-  if (statement.kind === "polarOffsetPoint" && next.type === "polarOffsetPoint") {
-    next = {
-      ...next,
-      fromPoint: anchor(statement.from),
-      angleDeg: numeric(attr(statement.attrs, "angle") ?? attr(statement.attrs, "angleDeg") ?? "0"),
-      distance: numeric(attr(statement.attrs, "distance") ?? "0")
-    };
-  }
-  if (statement.kind === "line" && next.type === "line") {
-    next = { ...next, startPoint: anchor(statement.start), endPoint: anchor(statement.end) };
-  }
-  if (statement.kind === "angleLengthLine" && next.type === "angleLengthLine") {
-    next = {
-      ...next,
-      startPoint: anchor(statement.start),
-      angleDeg: numeric(attr(statement.attrs, "angle") ?? attr(statement.attrs, "angleDeg") ?? "0"),
-      length: numeric(attr(statement.attrs, "length") ?? "0")
-    };
-  }
-  if (statement.kind === "arcLine" && next.type === "arcLine") {
-    next = {
-      ...next,
-      centerPoint: anchor(statement.center),
-      radius: numeric(attr(statement.attrs, "radius") ?? "0"),
-      startAngleDeg: numeric(attr(statement.attrs, "start") ?? attr(statement.attrs, "startAngleDeg") ?? "0"),
-      endAngleDeg: numeric(attr(statement.attrs, "end") ?? attr(statement.attrs, "endAngleDeg") ?? "90")
-    };
-  }
-  if (statement.kind === "text" && next.type === "text") {
-    const at = attr(statement.attrs, "at") ?? attr(statement.attrs, "anchor");
-    next = {
-      ...next,
-      text: statement.text,
-      anchor: at === "none" ? null : at ? anchor(at) : next.anchor,
-      fontSize: numeric(attr(statement.attrs, "size") ?? attr(statement.attrs, "fontSize") ?? "3")
-    };
+): CadElement => {
+  const named = { ...element, name: statement.name };
+  if (statement.kind === "variable") {
+    if (named.type !== "variable") return named;
+    const expression = makeNumericExpression(
+      normalizeNumericExpressionInput(statement.expression, elementsForExpressions, named.numericVariables ?? [], named, nameContext)
+    );
+    return { ...named, valueMode: "expression", expression };
   }
 
-  return withPlacementMode(
-    applyCommonAttributes(
-      next,
-      statement.attrs,
-      index,
-      statement.line,
-      diagnostics,
-      elementsForExpressions,
-      nameContext,
-      visibilityRoles
-    ),
-    statement.attrs
-  );
+  const spec = constructionSpecFor(statement);
+  if (!spec) return named;
+
+  const result = applyArgs(named, spec, scannedArgsFromAttrs(statement.attrs), {
+    index,
+    line: statement.line,
+    elementsForExpressions,
+    nameContext,
+    visibilityRoles,
+    createIntermediateId: createDefaultIntermediateId
+  });
+  diagnostics.push(...result.diagnostics);
+
+  let next = result.element;
+  if (result.metadata.parent) {
+    next = { ...next, parentGroupId: resolveId(result.metadata.parent, index, statement.line, diagnostics, next) };
+  }
+  if (result.metadata.branch) {
+    next = { ...next, conditionalBranch: result.metadata.branch };
+  }
+  return next;
 };
 
 const applyPaletteStatements = ({
@@ -457,7 +166,7 @@ const applyPaletteStatements = ({
     const existing = colors.find((color) => color.id === id);
     const nextColor: PaletteColor = {
       id,
-      name: attr(statement.attrs, "name") ?? existing?.name ?? id,
+      name: unquoteName(attr(statement.attrs, "name")) ?? existing?.name ?? id,
       hex: statement.hex
     };
     const existingIndex = colors.findIndex((color) => color.id === id);
@@ -501,7 +210,7 @@ const applyVisibilitySettings = ({
 
   const upsertRole = (statement: Extract<DslStatement, { kind: "role" }>) => {
     const id = attr(statement.attrs, "id") ?? statement.name;
-    const name = attr(statement.attrs, "name") ?? statement.name;
+    const name = unquoteName(attr(statement.attrs, "name")) ?? statement.name;
     const existing = visibilityRoles.find((role) => role.id === id || role.name === statement.name);
     if (existing) {
       visibilityRoles = visibilityRoles.map((role) =>
@@ -514,7 +223,7 @@ const applyVisibilitySettings = ({
 
   const upsertProfile = (statement: Extract<DslStatement, { kind: "view" }>) => {
     const id = attr(statement.attrs, "id") ?? statement.name;
-    const name = attr(statement.attrs, "name") ?? statement.name;
+    const name = unquoteName(attr(statement.attrs, "name")) ?? statement.name;
     const existing = visibilityProfiles.find((profile) => profile.id === id || profile.name === statement.name);
     const defaultAttr = attr(statement.attrs, "default") ?? attr(statement.attrs, "defaultRoleVisible");
     const defaultRoleVisible =
@@ -561,7 +270,7 @@ const applyVisibilitySettings = ({
       }
     }
     if (statement.kind === "printLayout" && !statement.opensBlock && printLayouts) {
-      const profileToken = attr(statement.attrs, "visibilityView") ?? attr(statement.attrs, "visibilityProfile");
+      const profileToken = attr(statement.attrs, printLayoutViewAttrKey);
       const profileId = profileToken ? profileIdByToken(visibilityProfiles, profileToken) : undefined;
       if (profileToken && !visibilityProfiles.some((profile) => profile.id === profileId)) {
         diagnostics.push(warning(statement.line, `未定義の表示プロファイルです: ${profileToken}`));
@@ -570,7 +279,7 @@ const applyVisibilitySettings = ({
       const nextLayout = normalizePrintLayout({
         ...(existing ?? {}),
         id: existing?.id ?? attr(statement.attrs, "id") ?? statement.name,
-        name: attr(statement.attrs, "name") ?? existing?.name ?? statement.name,
+        name: unquoteName(attr(statement.attrs, "name")) ?? existing?.name ?? statement.name,
         outputKind: attr(statement.attrs, "output")
           ? outputKind(attr(statement.attrs, "output") ?? "pdf")
           : existing?.outputKind,
@@ -656,20 +365,17 @@ const buildBlockPrintLayouts = ({
         groupId,
         x: pair ? numeric(pair.x) : 0,
         y: pair ? numeric(pair.y) : 0,
-        angleDeg: numeric(attr(member.attrs, placeAngleAttrKey) ?? attr(member.attrs, placeAngleDegAttrKey) ?? "0"),
+        angleDeg: numeric(attr(member.attrs, placeAngleAttrKey) ?? "0"),
         mirrorX: booleanValue(attr(member.attrs, "mirrorX") ?? "false") ?? false
       });
     }
 
-    const profileToken =
-      attr(statement.attrs, "view") ??
-      attr(statement.attrs, "visibilityView") ??
-      attr(statement.attrs, "visibilityProfile");
+    const profileToken = attr(statement.attrs, printLayoutViewAttrKey);
     const profileId = profileToken ? profileIdByToken(visibilityProfiles, profileToken) : undefined;
     if (profileToken && !visibilityProfiles.some((profile) => profile.id === profileId)) {
       diagnostics.push(warning(statement.line, `未定義の表示プロファイルです: ${profileToken}`));
     }
-    const paper = attr(statement.attrs, "paper") ?? attr(statement.attrs, "paperSizeId");
+    const paper = attr(statement.attrs, printLayoutPaperAttrKey);
     if (paper && !paperSizeIds.has(paper)) {
       diagnostics.push(diagnostic(statement.line, `未対応の用紙サイズです: ${paper}`));
     }
@@ -692,11 +398,11 @@ const buildBlockPrintLayouts = ({
       : undefined;
     const columns = attr(statement.attrs, printLayoutColumnsAttrKey);
     const rows = attr(statement.attrs, printLayoutRowsAttrKey);
-    const overlap = attr(statement.attrs, printLayoutOverlapAttrKey) ?? attr(statement.attrs, printLayoutOverlapMmAttrKey);
+    const overlap = attr(statement.attrs, printLayoutOverlapAttrKey);
     const scale = attr(statement.attrs, printLayoutScaleAttrKey);
     const layout = normalizePrintLayout({
       id: existing?.id ?? attr(statement.attrs, "id") ?? (statement.name || nextPrintLayoutId(next)),
-      name: attr(statement.attrs, "name") ?? statement.name,
+      name: unquoteName(attr(statement.attrs, "name")) ?? statement.name,
       outputKind: output ? outputKind(output) : existing?.outputKind,
       visibilityProfileId: profileId ?? existing?.visibilityProfileId,
       paperSizeId: paper ?? existing?.paperSizeId,

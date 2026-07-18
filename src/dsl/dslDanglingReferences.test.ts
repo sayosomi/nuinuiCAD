@@ -18,24 +18,24 @@ const warningMessages = (source: string) =>
     .map((item) => item.message);
 
 const sourceWithAllDanglingKinds = [
-  "nui 1",
-  "view Draft default=true ghost=false",
+  "nui 2",
+  "view Draft (default: true ghost: false)",
   'activeView "Missing View"',
-  'printLayout Sheet output=pdf view="Missing View" paper=a4 orientation=portrait columns=1 rows=1 overlap=0 scale=1 canvas=(210, 297) {',
+  'printLayout Sheet (output: pdf view: "Missing View" paper: a4 orientation: portrait columns: 1 rows: 1 overlap: 0 scale: 1 canvas: (210, 297)) {',
   "  layoutVar margin = 10",
-  '  place "Missing Group" at=(margin, 0) angle=0 mirrorX=false',
+  '  place "Missing Group" (at: (margin, 0) angle: 0 mirrorX: false)',
   "}",
   'activePrintLayout "Missing Layout"',
-  "point A = (0, 0)",
-  "point AnchorUser = offset MissingPoint dx=1 dy=2",
-  'point DotAnchorUser = offset "Missing.Point" dx=1 dy=2',
-  'line DerivedAnchorUser = "Outer group"::"Missing shape#1".pivot -> A',
-  'line EndpointUser = extend "Outer group"::"Missing line#1".end to=A',
-  'line EndpointDotUser = extend "Missing.Line".end to=A',
-  'element NormalRefUser type=intersectionPoint line1Id=MissingLine line2Id="Missing line 2" index=0 extensions=false',
-  'element ListRefUser type=copyLine startPoint=A endPoint=A scale=1 angleDeg=0 mirrorX=false baseLineIds=[MissingLine,"Missing line 2","Outer group"::"Missing#line"]',
-  'var Distance = 0 mode=pointLineDistance point=A line="Missing line 2"',
-  'point ParentUser = (1, 1) parent="Outer group"::"Missing parent#1"',
+  "point A = coordinate(x: 0 y: 0)",
+  "point AnchorUser = offset(from: MissingPoint dx: 1 dy: 2)",
+  'point DotAnchorUser = offset(from: "Missing.Point" dx: 1 dy: 2)',
+  'line DerivedAnchorUser = segment(start: "Outer group"::"Missing shape#1".pivot end: A)',
+  'line EndpointUser = extend(end: "Outer group"::"Missing line#1".end to: A)',
+  'line EndpointDotUser = extend(end: "Missing.Line".end to: A)',
+  'point NormalRefUser = intersection(line1: MissingLine line2: "Missing line 2" index: 0 extensions: false)',
+  'line ListRefUser = copy(startPoint: A endPoint: A scale: 1 angleDeg: 0 mirrorX: false baseLines: [MissingLine, "Missing line 2", "Outer group"::"Missing#line"])',
+  'var Distance = pointLineDistance(point: A line: "Missing line 2")',
+  'point ParentUser = coordinate(x: 1 y: 1 parent: "Outer group"::"Missing parent#1")',
   "var ExpressionUser = MissingMeasure.length + 1"
 ].join("\n");
 
@@ -80,10 +80,10 @@ describe("dangling reference diagnostics and retention", () => {
     const second = compileRecoverable(serialized);
 
     expect(serialized).toContain('"Outer group"::"Missing shape#1".pivot');
-    expect(serialized).toContain('offset "Missing.Point"');
+    expect(serialized).toContain('from: "Missing.Point"');
     expect(serialized).toContain('"Outer group"::"Missing line#1".end');
     expect(serialized).toContain('"Missing.Line".end');
-    expect(serialized).toContain('baseLineIds=[MissingLine,"Missing line 2","Outer group"::"Missing#line"]');
+    expect(serialized).toContain('baseLines: [MissingLine, "Missing line 2", "Outer group"::"Missing#line"]');
     expect(serialized).not.toContain('"Outer group::Missing');
     expect(serializeDocumentToDsl(second.document!)).toBe(serialized);
     expect(second.document!.activeVisibilityProfileId).toBe("Missing View");
@@ -112,9 +112,9 @@ describe("dangling reference diagnostics and retention", () => {
 
 describe("dangling automatic recovery and evaluation", () => {
   const dangling = [
-    "nui 1",
-    "point UsesMissing = offset Missing dx=1 dy=0",
-    "point Downstream = offset UsesMissing dx=1 dy=0"
+    "nui 2",
+    "point UsesMissing = offset(from: Missing dx: 1 dy: 0)",
+    "point Downstream = offset(from: UsesMissing dx: 1 dy: 0)"
   ].join("\n");
 
   it("recovers after adding the target and clears direct and downstream dependency errors", () => {
@@ -126,7 +126,7 @@ describe("dangling automatic recovery and evaluation", () => {
       expect.objectContaining({ missingDependencyId: usesMissingId })
     ]));
 
-    const repaired = dangling.replace("nui 1", "nui 1\npoint Missing = (0, 0)");
+    const repaired = dangling.replace("nui 2", "nui 2\npoint Missing = coordinate(x: 0 y: 0)");
     const after = compileRecoverable(repaired);
     const targetId = after.document!.elements.find((element) => element.name === "Missing")!.id;
     const usesMissing = after.document!.elements.find((element) => element.name === "UsesMissing") as Extract<CadElement, { type: "offsetPoint" }>;
@@ -136,30 +136,30 @@ describe("dangling automatic recovery and evaluation", () => {
   });
 
   it("recovers after renaming an existing target", () => {
-    const before = compileRecoverable(`nui 1\npoint Old = (0, 0)\npoint User = offset Missing dx=1 dy=0`);
-    expect(warningMessages(`nui 1\npoint Old = (0, 0)\npoint User = offset Missing dx=1 dy=0`))
+    const before = compileRecoverable(`nui 2\npoint Old = coordinate(x: 0 y: 0)\npoint User = offset(from: Missing dx: 1 dy: 0)`);
+    expect(warningMessages(`nui 2\npoint Old = coordinate(x: 0 y: 0)\npoint User = offset(from: Missing dx: 1 dy: 0)`))
       .toEqual(expect.arrayContaining([expect.stringContaining("Missing")]));
     expect(evaluateElements(before.document!.elements).errors).not.toEqual([]);
 
-    const after = compileRecoverable(`nui 1\npoint Missing = (0, 0)\npoint User = offset Missing dx=1 dy=0`);
+    const after = compileRecoverable(`nui 2\npoint Missing = coordinate(x: 0 y: 0)\npoint User = offset(from: Missing dx: 1 dy: 0)`);
     expect(after.diagnostics).toEqual([]);
     expect(evaluateElements(after.document!.elements).errors).toEqual([]);
   });
 
   it("resolves a qualified target with quoted special segments after it is added", () => {
     const before = compileRecoverable(
-      'nui 1\npoint User = offset "Outer group"::"Target#point" dx=1 dy=0'
+      'nui 2\npoint User = offset(from: "Outer group"::"Target#point" dx: 1 dy: 0)'
     );
     expect(before.diagnostics).toEqual(expect.arrayContaining([
       expect.objectContaining({ severity: "warning", message: expect.stringContaining('"Outer group"::"Target#point"') })
     ]));
 
     const after = compileRecoverable([
-      "nui 1",
+      "nui 2",
       'group "Outer group" {',
-      '  point "Target#point" = (0, 0)',
+      '  point "Target#point" = coordinate(x: 0 y: 0)',
       "}",
-      'point User = offset "Outer group"::"Target#point" dx=1 dy=0'
+      'point User = offset(from: "Outer group"::"Target#point" dx: 1 dy: 0)'
     ].join("\n"));
     const target = after.document!.elements.find((element) => element.name === "Target#point")!;
     const user = after.document!.elements.find((element) => element.name === "User") as Extract<CadElement, { type: "offsetPoint" }>;
