@@ -62,7 +62,7 @@ describe("legacy JSON import", () => {
     );
     const compiled = compileDslDocument(importedText);
 
-    expect(importedText).toContain('distance="- (@notch-height / 5)"');
+    expect(importedText).toContain("distance: - (@notch-height / 5)");
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     expect(compiled.document).not.toBeNull();
 
@@ -114,7 +114,7 @@ describe("legacy JSON import", () => {
     expect(first).not.toContain("steps=");
     expect(first).not.toContain("selectedElementId");
     expect(first).not.toContain("printLayout\":");
-    expect(first).toContain('sourcePath="/legacy/assets/reference.png"');
+    expect(first).toContain('source: "/legacy/assets/reference.png"');
     expect(compiled.document).not.toBeNull();
     expect(compiled.document!.elements.every((element) => element.name.trim().length > 0)).toBe(true);
     expect(compiled.document!.elements.find((element) => element.type === "image")).toMatchObject({

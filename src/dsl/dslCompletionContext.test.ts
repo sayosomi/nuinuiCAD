@@ -1,7 +1,3 @@
-// dsl2-cutover: v1-literal
-// ファイル全体が対象: v1単一行構文の文字オフセット解析そのものが検証対象
-// (W4は生成経由化ではなくマーカー付与のみとする判断。docs/dsl2/tasks/
-// w4-editor-test-fixtures.md 参照)。
 import { describe, expect, it } from "vitest";
 import { dslCompletionContextAt } from "./dslCompletionContext";
 
@@ -13,28 +9,35 @@ describe("dslCompletionContextAt", () => {
     expect(context).toMatchObject({ kind: "keyword", from: 2, to: 5 });
     expect(context?.kind === "keyword" && context.options).toContain("point");
     expect(dslCompletionContextAt("# point", 7)).toBeNull();
-    expect(dslCompletionContextAt("line L = A ->", 13)).toBeNull();
+    const line = "point P = coordinate(x: 0 y: 0)";
+    expect(dslCompletionContextAt(line, at(line, "="))).toBeNull();
   });
 
-  it("resolves reference, choice, and attribute contexts through live line reparsing", () => {
-    const line = "line L = A -> B";
+  it("resolves reference and choice contexts through live line reparsing", () => {
+    const line = "line L = segment(start: A end: B)";
     expect(dslCompletionContextAt(line, at(line, "A"))).toMatchObject({
       kind: "parameter",
       parameter: { definition: { kind: "reference" } }
     });
 
-    const choice = "line Seam = offset [AB] distance=4 side=left";
+    const choice = "line Seam = offset(sources: [AB] distance: 4 side: left)";
     expect(dslCompletionContextAt(choice, at(choice, "left"))).toMatchObject({
       kind: "parameter",
       parameter: { definition: { kind: "choice" } }
     });
 
-    const attribute = "arc C center=A radius=10 start=0 end=90 vis";
-    expect(dslCompletionContextAt(attribute, at(attribute, "vis"))).toMatchObject({ kind: "attribute", elementType: "arcLine" });
+    // v2's registry-driven validateArgs hard-errors on any trailing token
+    // after a closed call (unlike v1's tolerant `key=value key2=value2`
+    // whitespace list), and `key: value` always consumes the rest of its own
+    // physical line - so there is no longer any parseable statement text in
+    // which a bare/partial trailing attribute NAME (the "attribute"
+    // DslCompletionContext kind) can appear. That kind's cmAutocomplete.ts
+    // wiring (still emitting v1's `key=` insertion text) is dead in v2 and is
+    // left for F2 completion polish rather than redesigned here.
   });
 
   it("narrows line-list completion to the current item for safe re-editing", () => {
-    const line = "line O = offset [First,Sec] distance=4 side=left";
+    const line = "line O = offset(sources: [First, Sec] distance: 4 side: left)";
     const context = dslCompletionContextAt(line, at(line, "Sec"));
     expect(context).toMatchObject({
       kind: "parameter",
@@ -45,7 +48,7 @@ describe("dslCompletionContextAt", () => {
   });
 
   it("keeps group-opening attributes eligible through the shared synthetic-close reparse", () => {
-    const line = "group Draft printEnabled=true {";
+    const line = "group Draft (printEnabled: true) {";
     expect(dslCompletionContextAt(line, line.indexOf("true") + 2)).toMatchObject({
       kind: "parameter",
       parameter: { definition: { kind: "boolean" } }
@@ -54,7 +57,7 @@ describe("dslCompletionContextAt", () => {
 
   describe("number-kind @-token narrowing", () => {
     it("narrows a number-kind value span to just the trailing @token, not the whole expression", () => {
-      const line = "point P = offset A dx=10+@Wi";
+      const line = "point P = offset(from: A dx: 10+@Wi)";
       const context = dslCompletionContextAt(line, at(line, "@Wi"));
       expect(context).toMatchObject({
         kind: "parameter",
@@ -65,20 +68,20 @@ describe("dslCompletionContextAt", () => {
     });
 
     it("returns null for a number-kind span when the cursor isn't right after @", () => {
-      const line = "point P = offset A dx=10";
+      const line = "point P = offset(from: A dx: 10)";
       expect(dslCompletionContextAt(line, at(line, "10"))).toBeNull();
     });
 
     it("preserves text before the @ token outside the returned span", () => {
-      const line = "point P = offset A dx=10+@Wi";
+      const line = "point P = offset(from: A dx: 10+@Wi)";
       const context = dslCompletionContextAt(line, at(line, "@Wi"));
-      expect(context?.kind === "parameter" && line.slice(0, context.from)).toBe("point P = offset A dx=10+");
+      expect(context?.kind === "parameter" && line.slice(0, context.from)).toBe("point P = offset(from: A dx: 10+");
     });
   });
 
   describe("reference-kind coordinate literal x/y sub-spans", () => {
     it("narrows to just the @token inside a coordinate literal's y component", () => {
-      const line = "line L = A -> (10, @Wi)";
+      const line = "line L = segment(start: A end: (10, @Wi))";
       const context = dslCompletionContextAt(line, at(line, "@Wi"));
       expect(context).toMatchObject({
         kind: "parameter",
@@ -89,7 +92,7 @@ describe("dslCompletionContextAt", () => {
     });
 
     it("narrows to just the @token inside a coordinate literal's x component", () => {
-      const line = "line L = A -> (@Wi, 10)";
+      const line = "line L = segment(start: A end: (@Wi, 10))";
       const context = dslCompletionContextAt(line, at(line, "@Wi"));
       expect(context).toMatchObject({
         kind: "parameter",
@@ -100,12 +103,12 @@ describe("dslCompletionContextAt", () => {
     });
 
     it("returns null inside a coordinate sub-span when the cursor isn't right after @ (no point-name fallback)", () => {
-      const line = "line L = A -> (10, 20)";
+      const line = "line L = segment(start: A end: (10, 20))";
       expect(dslCompletionContextAt(line, at(line, "20"))).toBeNull();
     });
 
     it("keeps normal reference-name completion for a non-coordinate reference value", () => {
-      const line = "line L = A -> B";
+      const line = "line L = segment(start: A end: B)";
       expect(dslCompletionContextAt(line, at(line, "A"))).toMatchObject({
         kind: "parameter",
         parameter: { definition: { kind: "reference" } }
@@ -115,7 +118,7 @@ describe("dslCompletionContextAt", () => {
 
   describe("vars=[...] local variable record narrowing", () => {
     it("narrows to the @token inside a later record's expression field", () => {
-      const line = "point P = (0, 0) vars=[Width:10;Height:@Wi]";
+      const line = "point P = coordinate(x: 0 y: 0 vars: [Width: 10; Height: @Wi])";
       const context = dslCompletionContextAt(line, at(line, "@Wi"));
       expect(context).toMatchObject({
         kind: "parameter",
@@ -126,14 +129,14 @@ describe("dslCompletionContextAt", () => {
     });
 
     it("returns null when the cursor is in a record's name field, not its expression", () => {
-      const line = "point P = (0, 0) vars=[Width:10;Height:5]";
+      const line = "point P = coordinate(x: 0 y: 0 vars: [Width: 10; Height: 5])";
       expect(dslCompletionContextAt(line, at(line, "Height"))).toBeNull();
     });
   });
 
   describe("place/layoutVar/printLayout block attributes", () => {
     it("offers number-kind @-completion for place's angle=", () => {
-      const line = "place Group1 at=(10, 20) angle=15+@Wi";
+      const line = "place Group1 (at: (10, 20) angle: 15+@Wi)";
       const context = dslCompletionContextAt(line, at(line, "@Wi"));
       expect(context).toMatchObject({
         kind: "parameter",
@@ -144,7 +147,7 @@ describe("dslCompletionContextAt", () => {
     });
 
     it("offers coordinate sub-span @-completion for place's at=", () => {
-      const line = "place Group1 at=(10, @Wi) angle=15";
+      const line = "place Group1 (at: (10, @Wi) angle: 15)";
       const context = dslCompletionContextAt(line, at(line, "@Wi"));
       expect(context).toMatchObject({
         kind: "parameter",
@@ -155,7 +158,7 @@ describe("dslCompletionContextAt", () => {
     });
 
     it("offers number-kind @-completion for printLayout's columns=/rows=/overlap=/scale=", () => {
-      const line = "printLayout Layout1 columns=2+@Wi {";
+      const line = "printLayout Layout1 (columns: 2+@Wi) {";
       const context = dslCompletionContextAt(line, at(line, "@Wi"));
       expect(context).toMatchObject({
         kind: "parameter",
@@ -165,7 +168,7 @@ describe("dslCompletionContextAt", () => {
     });
 
     it("offers coordinate sub-span @-completion for printLayout's canvas=", () => {
-      const line = "printLayout Layout1 canvas=(210, @Wi) {";
+      const line = "printLayout Layout1 (canvas: (210, @Wi)) {";
       const context = dslCompletionContextAt(line, at(line, "@Wi"));
       expect(context).toMatchObject({
         kind: "parameter",
@@ -185,16 +188,16 @@ describe("dslCompletionContextAt", () => {
     });
 
     it("returns null for an unrelated place/printLayout attribute (mirrorX=, paper=)", () => {
-      const line = "place Group1 at=(0, 0) mirrorX=true";
+      const line = "place Group1 (at: (0, 0) mirrorX: true)";
       expect(dslCompletionContextAt(line, at(line, "true"))).toBeNull();
-      const layoutLine = "printLayout Layout1 paper=a4 {";
+      const layoutLine = "printLayout Layout1 (paper: a4) {";
       expect(dslCompletionContextAt(layoutLine, at(layoutLine, "a4"))).toBeNull();
     });
   });
 
   describe("elementParameter (ElementName.parameterKey) narrowing", () => {
     it("falls back to an elementParameter context for a number-kind field once the @ check finds nothing", () => {
-      const line = "point P = offset A dx=10+直線AB.st";
+      const line = "point P = offset(from: A dx: 10+直線AB.st)";
       const context = dslCompletionContextAt(line, at(line, "直線AB.st"));
       expect(context).toMatchObject({
         kind: "elementParameter",
@@ -207,18 +210,18 @@ describe("dslCompletionContextAt", () => {
     it("prefers the @ context over elementParameter when both could plausibly apply", () => {
       // "@Wi" alone never contains a dot, so this only demonstrates that the
       // existing @ branch still runs first/unmodified - not a real conflict.
-      const line = "point P = offset A dx=10+@Wi";
+      const line = "point P = offset(from: A dx: 10+@Wi)";
       const context = dslCompletionContextAt(line, at(line, "@Wi"));
       expect(context?.kind).toBe("parameter");
     });
 
     it("does not trigger for a decimal literal (10.5), only for a non-numeric elementToken", () => {
-      const line = "point P = offset A dx=10.5";
+      const line = "point P = offset(from: A dx: 10.5)";
       expect(dslCompletionContextAt(line, at(line, "10.5"))).toBeNull();
     });
 
     it("offers elementParameter narrowing inside a coordinate literal's x/y sub-span", () => {
-      const line = "line L = A -> (直線AB.startPoint.x, 10)";
+      const line = "line L = segment(start: A end: (直線AB.startPoint.x, 10))";
       const context = dslCompletionContextAt(line, at(line, "直線AB.startPoint.x"));
       expect(context).toMatchObject({
         kind: "elementParameter",
@@ -227,7 +230,7 @@ describe("dslCompletionContextAt", () => {
     });
 
     it("offers elementParameter narrowing inside a vars=[...] record expression field", () => {
-      const line = "point P = (0, 0) vars=[Width:直線AB.length]";
+      const line = "point P = coordinate(x: 0 y: 0 vars: [Width: 直線AB.length])";
       const context = dslCompletionContextAt(line, at(line, "直線AB.length"));
       expect(context).toMatchObject({
         kind: "elementParameter",
@@ -236,7 +239,7 @@ describe("dslCompletionContextAt", () => {
     });
 
     it("offers elementParameter narrowing inside an intermediates=[...] numeric field", () => {
-      const line = "curve C = A -> B intermediates=[pt1:直線AB.startTangentAngleDeg:5:5:id1]";
+      const line = "curve C = bezier(start: A end: B intermediates: [pt1:直線AB.startTangentAngleDeg:5:5:id1])";
       const context = dslCompletionContextAt(line, at(line, "直線AB.startTangentAngleDeg"));
       expect(context).toMatchObject({
         kind: "elementParameter",
@@ -245,7 +248,7 @@ describe("dslCompletionContextAt", () => {
     });
 
     it("offers elementParameter narrowing for place/printLayout numeric attribute values", () => {
-      const line = "place Group1 at=(10, 20) angle=直線AB.startAngleDeg";
+      const line = "place Group1 (at: (10, 20) angle: 直線AB.startAngleDeg)";
       const context = dslCompletionContextAt(line, at(line, "直線AB.startAngleDeg"));
       expect(context).toMatchObject({
         kind: "elementParameter",
@@ -255,7 +258,7 @@ describe("dslCompletionContextAt", () => {
   });
 
   describe("intermediates=[...] field-position discrimination", () => {
-    const line = "curve C = A -> B intermediates=[@pt:15+@Wi:5:5:id1]";
+    const line = "curve C = bezier(start: A end: B intermediates: [@pt:15+@Wi:5:5:id1])";
 
     it("offers @-completion for the numeric angle field (field 1)", () => {
       const context = dslCompletionContextAt(line, at(line, "@Wi"));
@@ -272,7 +275,7 @@ describe("dslCompletionContextAt", () => {
     });
 
     it("never offers completion inside the id field (field 4)", () => {
-      const idLine = "curve C = A -> B intermediates=[pt1:15:5:5:@id1]";
+      const idLine = "curve C = bezier(start: A end: B intermediates: [pt1:15:5:5:@id1])";
       expect(dslCompletionContextAt(idLine, at(idLine, "@id1"))).toBeNull();
     });
   });

@@ -1,75 +1,22 @@
+import { constructionCandidatesFor } from "./dslConstructions";
+import { dslStatementKeywords } from "./dslParser";
 import type { DslHighlightLine, DslHighlightToken, DslTokenKind } from "./dslTypes";
 
-const keywords = new Set([
-  "activePrintLayout",
-  "activeProfile",
-  "activeView",
-  "arc",
-  "between",
-  "color",
-  "corner",
-  "curve",
-  "default",
-  "element",
-  "else",
-  "extend",
-  "for",
-  "from",
-  "group",
-  "if",
-  "intersection",
-  "layoutVar",
-  "line",
-  "nui",
-  "offset",
-  "on",
-  "place",
-  "point",
-  "polar",
-  "printLayout",
-  "profile",
-  "role",
-  "split",
-  "tangentOffset",
-  "text",
-  "through",
-  "var"
-]);
+// v2: category/construction キーワードは registry(dslParser.ts の
+// dslStatementKeywords、dslConstructions.ts の constructionCandidatesFor)を
+// 唯一の正として import する。本格的な磨き込み(補完の新コンテキスト等)はF2。
+const keywords = new Set<string>(Object.values(dslStatementKeywords));
 
 const stopKeyword = "@stop";
 
-const elementTypes = new Set([
-  "angleLengthLine",
-  "arcLine",
-  "bezierCurve",
-  "conditionalGroup",
-  "copyLine",
-  "cornerRadiusArcLine",
-  "divisionPoint",
-  "edge",
-  "extendTrim",
-  "forGroup",
-  "freePoint",
-  "group",
-  "image",
-  "intersectionPoint",
-  "line",
-  "lineDivisionPoint",
-  "lineTangentOffsetPoint",
-  "move",
-  "offsetLine",
-  "offsetPoint",
-  "polarOffsetPoint",
-  "splitLine",
-  "symmetricCopyLine",
-  "symmetricMove",
-  "text",
-  "threePointArcLine",
-  "variable"
-]);
+// container(group/if/for)は construction: "" なので名前として光らせるものが無い。
+const CONSTRUCTION_CATEGORIES = ["point", "line", "curve", "arc", "text", "image", "var"] as const;
+const constructionNames = new Set(
+  CONSTRUCTION_CATEGORIES.flatMap((category) => constructionCandidatesFor(category).map((spec) => spec.construction))
+);
 
 const tokenPattern =
-  /("[^"]*(?:"|$)|'[^']*(?:'|$)|[A-Za-z_][\w:-]*(?==)|-?\d+(?:\.\d+)?|->|==|!=|>=|<=|[={}()[\],*/+-]|@[A-Za-z_][\w:-]*|[A-Za-z_][\w:-]*(?:\.[A-Za-z_][\w:-]*)?)/g;
+  /("[^"]*(?:"|$)|'[^']*(?:'|$)|[A-Za-z_][\w:-]*(?=:\s)|-?\d+(?:\.\d+)?|==|!=|>=|<=|[={}()[\],;*/+-]|@[A-Za-z_][\w:-]*|[A-Za-z_][\w:-]*(?:\.[A-Za-z_][\w:-]*)?)/g;
 
 const commentIndex = (line: string) => {
   let quote: string | null = null;
@@ -87,7 +34,7 @@ const classify = (text: string): DslTokenKind => {
   if (text.startsWith("\"") || text.startsWith("'")) return "string";
   if (text === stopKeyword) return "keyword";
   if (/^[A-Za-z_][\w:-]*(?=$)/.test(text) && keywords.has(text)) return "keyword";
-  if (/^[A-Za-z_][\w:-]*(?=$)/.test(text) && elementTypes.has(text)) return "elementType";
+  if (/^[A-Za-z_][\w:-]*(?=$)/.test(text) && constructionNames.has(text)) return "elementType";
   if (/^[A-Za-z_][\w:-]*$/.test(text)) return "reference";
   if (/^[A-Za-z_][\w:-]*\.[A-Za-z_][\w:-]*$/.test(text)) return "reference";
   if (/^@[A-Za-z_][\w:-]*$/.test(text)) return "reference";
@@ -117,7 +64,7 @@ export const highlightDslLine = (line: string): DslHighlightToken[] => {
     const start = match.index ?? cursor;
     pushText(tokens, "plain", code.slice(cursor, start));
     const kind =
-      /^[A-Za-z_][\w:-]*$/.test(text) && code[start + text.length] === "="
+      /^[A-Za-z_][\w:-]*$/.test(text) && code[start + text.length] === ":" && code[start + text.length + 1] === " "
         ? "attributeKey"
         : classify(text);
     pushText(tokens, kind, text);

@@ -26,10 +26,10 @@ import { COMMAND_LINE_PICK_TARGET_ID } from "./commandLinePickRouting";
 import type { CreationRecipe } from "./creationRecipes";
 
 const source = [
-  "nui 1",
-  "point A = (0, 0)",
-  "point B = (100, 0)",
-  "line AB = A -> B"
+  "nui 2",
+  "point A = coordinate(x: 0 y: 0)",
+  "point B = coordinate(x: 100 y: 0)",
+  "line AB = segment(start: A end: B)"
 ].join("\n");
 
 const byName = (name: string) => {

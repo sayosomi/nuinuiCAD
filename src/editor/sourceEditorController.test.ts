@@ -564,7 +564,9 @@ describe("SourceEditorController commit and history boundaries", () => {
       changes: { from: beforeLength, insert: insertText },
       selection: { anchor: beforeLength + insertText.length }
     });
-    expect(useCadUiStore.getState().sourceCursorLine).toBe(3);
+    // onePointSource's v2 canonical call spans 5 physical lines (nui + header
+    // + x + y + close), so the appended line is line 6, not v1's line 3.
+    expect(useCadUiStore.getState().sourceCursorLine).toBe(6);
 
     // The cursor keeps moving during the same burst (e.g. arrow-key navigation).
     internals.view.dispatch({ selection: { anchor: 0 } });
@@ -584,7 +586,7 @@ describe("SourceEditorController commit and history boundaries", () => {
 
   it("keeps Canvas multiple selection as one cursor plus secondary line decoration", () => {
     useCadDocumentStore.getState().commitText(
-      "nui 1\npoint A = (0, 0)\npoint B = (1, 1)",
+      "nui 2\npoint A = coordinate(x: 0 y: 0)\npoint B = coordinate(x: 1 y: 1)",
       "test"
     );
     const parent = document.createElement("div");
@@ -600,7 +602,7 @@ describe("SourceEditorController commit and history boundaries", () => {
 
     internals.view.dispatch({ changes: { from: internals.view.state.selection.main.head, insert: "# " } });
     expect((internals.view.state.doc as unknown as { toString: () => string }).toString()).toContain("# point A");
-    expect((internals.view.state.doc as unknown as { toString: () => string }).toString()).toContain("point B = (1, 1)");
+    expect((internals.view.state.doc as unknown as { toString: () => string }).toString()).toContain("point B = coordinate(x: 1 y: 1)");
     controller.destroy();
   });
 
@@ -620,7 +622,9 @@ describe("SourceEditorController commit and history boundaries", () => {
     expect(useCadDocumentStore.getState().docText).not.toBe(useCadDocumentStore.getState().sourceText);
 
     useCadUiStore.getState().setSelectedElementId(unnamed.id);
-    expect(internals.view.state.selection.main.head).toBe(internals.view.state.doc.line(4).from);
+    // The unnamed element's v2 canonical call starts at physical line 6
+    // (nui + A's 4-line call), +1 for the dirty line inserted at doc start.
+    expect(internals.view.state.selection.main.head).toBe(internals.view.state.doc.line(7).from);
     controller.destroy();
   });
 
@@ -664,9 +668,10 @@ describe("SourceEditorController commit and history boundaries", () => {
     const controller = new SourceEditorController(parent);
     const internals = controller as unknown as ControllerInternals;
     const group = useCadDocumentStore.getState().elements.find((element) => element.name === "G")!;
-    // foldTargetAtLineは開き括弧「{」自体の行を見る(openBraceLineFrom)。
-    // 「group G」ヘッダの次行が「{」、さらに先頭に1行挿入した分+1。
-    const openBraceLineAfterDirtyInsert = source.split("\n").findIndex((line) => line.includes("group G")) + 3;
+    // foldTargetAtLineは開き括弧「{」自体の行を見る(openBraceLineFrom)。v2正準形
+    // では「{」はヘッダ行自体の末尾に乗る(次行単独の「{」ではない)ため、
+    // 「group G」ヘッダ行そのもの、さらに先頭に1行挿入した分+1。
+    const openBraceLineAfterDirtyInsert = source.split("\n").findIndex((line) => line.includes("group G")) + 2;
 
     internals.view.dispatch({ changes: { from: 0, insert: "# dirty\n" } });
     const handled = internals.handleFoldGutterMouseDown(internals.view.state.doc.line(openBraceLineAfterDirtyInsert).from, new MouseEvent("mousedown"));
@@ -696,9 +701,9 @@ describe("SourceEditorController commit and history boundaries", () => {
     const elsePoint = elements.find((element) => element.name === "Else")!;
     const lines = source.split("\n");
     const lineOfElse = lines.findIndex((line) => line.includes("point Else")) + 1;
-    // foldTargetAtLineは開き括弧「{」自体の行を見る(openBraceLineFrom)ため、
-    // 「group Inner」ヘッダの次行を対象にする。
-    const innerOpenBraceLine = lines.findIndex((line) => line.includes("group Inner")) + 2;
+    // foldTargetAtLineは開き括弧「{」自体の行を見る(openBraceLineFrom)。v2正準形
+    // では「{」がヘッダ行自体の末尾に乗るため、「group Inner」ヘッダ行そのものを対象にする。
+    const innerOpenBraceLine = lines.findIndex((line) => line.includes("group Inner")) + 1;
 
     useCadUiStore.getState().setGroupFold(branch.id, { elseExpanded: false });
     useCadUiStore.getState().setSelectedElementId(elsePoint.id);
@@ -807,11 +812,15 @@ describe("SourceEditorController value-span click selection", () => {
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
     const internals = controller as unknown as ControllerInternals;
-    internals.view.dispatch({ changes: { from: internals.view.state.doc.length, insert: "0" } });
+    // v2's canonical vertical call ends the statement on its own closing `)`
+    // line, so appending at doc end no longer lands inside the numeric value -
+    // insert right after "120" instead.
+    const valueEnd = internals.view.state.doc.toString().lastIndexOf("120") + "120".length;
+    internals.view.dispatch({ changes: { from: valueEnd, insert: "0" } });
     const text = internals.view.state.doc.toString();
-    expect(text.endsWith("dy=1200")).toBe(true);
+    expect(text).toContain("dy: 1200");
 
-    const handled = clickAt(internals, text.length - 1);
+    const handled = clickAt(internals, text.lastIndexOf("1200") + 1);
 
     expect(handled).toBe(true);
     const selection = internals.view.state.selection.main;
@@ -901,7 +910,10 @@ describe("SourceEditorController Tab/Shift-Tab value-span navigation", () => {
     const controller = new SourceEditorController(parent);
     const internals = controller as unknown as ControllerInternals;
     const text = internals.view.state.doc.toString();
-    const xStart = text.lastIndexOf("(") + 1;
+    // Cursor at the exact start of x's own value span (its v2 canonical form
+    // puts x/y on separate physical lines, so this is no longer right after
+    // the call's opening paren).
+    const xStart = text.indexOf("x: 0") + "x: ".length;
     const selected = () => {
       const main = internals.view.state.selection.main;
       return text.slice(main.from, main.to);
@@ -968,12 +980,18 @@ describe("SourceEditorController Tab/Shift-Tab value-span navigation", () => {
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
     const internals = controller as unknown as ControllerInternals;
-    // Uncommitted edit: "end=120" becomes "end=1200" — one character longer than
-    // the store's last-good parse still knows about.
-    internals.view.dispatch({ changes: { from: internals.view.state.doc.length, insert: "0" } });
+    // Uncommitted edit: "end: 120" becomes "end: 1200" — one character longer
+    // than the store's last-good parse still knows about. v2's canonical
+    // vertical call ends the statement on its own closing `)` line, so the
+    // insert targets right after "120" instead of doc end.
+    const initialText = internals.view.state.doc.toString();
+    const endValueEnd = initialText.lastIndexOf("120") + "120".length;
+    internals.view.dispatch({ changes: { from: endValueEnd, insert: "0" } });
     const text = internals.view.state.doc.toString();
-    expect(text.endsWith("end=1200")).toBe(true);
-    const firstZero = text.lastIndexOf("(0, 0)") + 1;
+    expect(text).toContain("end: 1200");
+    // arc's own "center: (0, 0)" tuple is the first value span in its
+    // enclosing statement.
+    const firstZero = text.indexOf("(0, 0)") + 1;
     internals.view.dispatch({ selection: EditorSelection.cursor(firstZero) });
 
     // Wrapping backward from the first coordinate should land on the whole dirty,
@@ -997,7 +1015,7 @@ describe("SourceEditorController Tab/Shift-Tab value-span navigation", () => {
     useCadDocumentStore.getState().commitText(onePointSource(0, 10), "test");
     const { controller, content } = buildController();
     const text = controller.getText();
-    const xStart = text.lastIndexOf("(") + 1;
+    const xStart = text.indexOf("x: 0") + "x: ".length;
     const internals = controller as unknown as ControllerInternals;
     internals.view.dispatch({ selection: EditorSelection.cursor(xStart) });
 
@@ -1052,7 +1070,7 @@ describe("SourceEditorController Tab/Shift-Tab value-span navigation", () => {
     const { controller, content } = buildController();
     const internals = controller as unknown as ControllerInternals;
     const text = internals.view.state.doc.toString();
-    const xStart = text.lastIndexOf("(") + 1;
+    const xStart = text.indexOf("x: 0") + "x: ".length;
     internals.view.dispatch({ selection: EditorSelection.cursor(xStart) });
 
     fireEvent.compositionStart(content);

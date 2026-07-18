@@ -31,60 +31,72 @@ export type GeneratedDoc = {
 
 export const generateDocumentSource = (params: GeneratedDocParams): GeneratedDoc => {
   const sections: string[][] = [];
-  sections.push(["nui 1"]);
+  sections.push(["nui 2"]);
   sections.push([
-    "color main \"#31322f\" name=\"基本線\" default",
-    "color accent \"#b42318\" name=\"裁断線\""
+    'color main ("#31322f" name: "基本線" default: true)',
+    'color accent ("#b42318" name: "裁断線")'
   ]);
   sections.push([
-    "role seam name=\"縫い代\"",
-    "view 通常 default=true seam=false",
-    "view 印刷 default=true seam=true",
+    'role seam (name: "縫い代")',
+    "view 通常 (default: true seam: false)",
+    "view 印刷 (default: true seam: true)",
     "activeView 通常"
   ]);
 
   const elementLines: string[] = [];
   for (let index = 0; index < params.pointCount; index += 1) {
-    elementLines.push(`point P${index} = (${index * 10}, ${index * 3})`);
+    elementLines.push(`point P${index} = coordinate(x: ${index * 10} y: ${index * 3})`);
   }
   // 参照を1つ入れる(リネーム伝播の運動場)。
   if (params.pointCount >= 2) {
-    elementLines.push("point Ref0 = offset P0 dx=5 dy=5");
+    elementLines.push("point Ref0 = offset(from: P0 dx: 5 dy: 5)");
   }
   if (params.withContinuation) {
-    // v1のバックスラッシュ継続(複数物理行statement)を1つ混ぜる。palette側で
+    // v2の縦型call(未閉`(`による複数物理行statement)を1つ混ぜる。palette側で
     // 定義済みの"main"色を参照する(パースはcolorIdの存在検証をしない)。
-    elementLines.push("point PC = (5, 5) \\");
-    elementLines.push("  color=main");
+    elementLines.push("point PC = coordinate(");
+    elementLines.push("  x: 5");
+    elementLines.push("  y: 5");
+    elementLines.push("  color: main");
+    elementLines.push(")");
   }
   for (let index = 0; index < params.groupCount; index += 1) {
     elementLines.push(`group G${index} {`);
-    elementLines.push(`  point GP${index}a = (${index}, 1)`);
-    elementLines.push(`  point GP${index}b = (${index}, 2)`);
+    elementLines.push(`  point GP${index}a = coordinate(x: ${index} y: 1)`);
+    elementLines.push(`  point GP${index}b = coordinate(x: ${index} y: 2)`);
     elementLines.push("}");
   }
   if (params.withIf) {
-    elementLines.push("if IF0 condition=1 {");
-    elementLines.push("  point IT0 = (100, 1)");
+    elementLines.push("if IF0 (1) {");
+    elementLines.push("  point IT0 = coordinate(x: 100 y: 1)");
     elementLines.push("} else {");
-    elementLines.push("  point IE0 = (100, 2)");
+    elementLines.push("  point IE0 = coordinate(x: 100 y: 2)");
     elementLines.push("}");
   }
   if (params.withFor) {
-    elementLines.push("for F0 i start=0 count=3 step=1 {");
-    elementLines.push("  point FP0 = (i * 10, 0)");
+    elementLines.push("for F0 (i from: 0 count: 3 step: 1) {");
+    elementLines.push("  point FP0 = coordinate(x: i * 10 y: 0)");
     elementLines.push("}");
   }
   for (let index = 0; index < params.unnamedCount; index += 1) {
-    elementLines.push(`point = (${900 + index}, ${index})`);
+    elementLines.push(`point = coordinate(x: ${900 + index} y: ${index})`);
   }
   sections.push(elementLines);
 
   if (params.withLayout && params.groupCount > 0) {
     sections.splice(3, 0, [
-      "printLayout L0 output=pdf paper=a4 orientation=portrait columns=2 rows=2 overlap=10 scale=1 canvas=(410, 584) {",
+      "printLayout L0 (",
+      "  output: pdf",
+      "  paper: a4",
+      "  orientation: portrait",
+      "  columns: 2",
+      "  rows: 2",
+      "  overlap: 10",
+      "  scale: 1",
+      "  canvas: (410, 584)",
+      ") {",
       "  layoutVar margin = 15",
-      "  place G0 at=(0, margin) angle=0 mirrorX=false",
+      "  place G0 (at: (0, margin) angle: 0 mirrorX: false)",
       "}"
     ]);
   }
@@ -93,10 +105,11 @@ export const generateDocumentSource = (params: GeneratedDocParams): GeneratedDoc
     .filter((section) => section.length > 0)
     .flatMap((section, index) => (index === 0 ? section : ["", ...section]));
 
-  // トップレベル(ブロック外)の行間にだけノイズを注入する。
+  // トップレベル(ブロック外・未閉`(`の外)の行間にだけノイズを注入する。
   const noiseLines: string[] = [];
   const withNoise: string[] = [];
   let depth = 0;
+  let parenDepth = 0;
   let noiseCounter = 0;
   rawLines.forEach((line, index) => {
     withNoise.push(line);
@@ -104,14 +117,18 @@ export const generateDocumentSource = (params: GeneratedDocParams): GeneratedDoc
     if (trimmed === "}") depth -= 1;
     else if (trimmed.startsWith("} else")) depth += 0;
     else if (trimmed.endsWith("{")) depth += 1;
-    // 継続行の直後にノイズを挟むと継続が壊れる(空行/構造行が継続を打ち切る)ため、
-    // バックスラッシュ継続行の直後は注入対象から外す。
+    for (const char of trimmed) {
+      if (char === "(" || char === "[") parenDepth += 1;
+      else if (char === ")" || char === "]") parenDepth -= 1;
+    }
+    // 縦型callの引数行の直後に空行を挟むと継続が壊れる(空行/構造行が未閉呼び出しを
+    // 打ち切る)ため、未閉`(`/`[`が残っている間は注入対象から外す。
     if (
       depth === 0 &&
+      parenDepth === 0 &&
       index > 0 &&
       params.noiseEvery > 0 &&
-      index % params.noiseEvery === 0 &&
-      !trimmed.endsWith("\\")
+      index % params.noiseEvery === 0
     ) {
       const marker = `# noise-${(noiseCounter += 1)}`;
       noiseLines.push(marker);
@@ -210,8 +227,8 @@ const descendantIds = (elements: CadElement[], rootId: ElementId): Set<ElementId
 let generatedNameCounter = 0;
 
 const makeFreePoint = (name: string, x: number, y: number): CadElement => {
-  const statement = name ? `point ${name} = (${x}, ${y})` : `point = (${x}, ${y})`;
-  const compiled = compileDslDocument(`nui 1\n${statement}`);
+  const statement = name ? `point ${name} = coordinate(x: ${x} y: ${y})` : `point = coordinate(x: ${x} y: ${y})`;
+  const compiled = compileDslDocument(`nui 2\n${statement}`);
   expect(compiled.document, "generator fragment must compile").not.toBeNull();
   return compiled.document!.elements[0];
 };

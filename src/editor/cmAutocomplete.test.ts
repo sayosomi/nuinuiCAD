@@ -66,7 +66,7 @@ describe("createDslCompletionSource", () => {
     ]);
     const { elements, statementRanges, printLayouts, printLayoutRanges } = identities(source);
     const state = EditorState.create({ doc: source });
-    const pos = source.lastIndexOf("P ->") + 1;
+    const pos = source.indexOf("start: P") + "start: P".length;
     const completionSource = createDslCompletionSource({
       elements: () => elements,
       statementRanges: () => statementRanges,
@@ -181,11 +181,8 @@ describe("createDslCompletionSource", () => {
     expect(options.find((option) => option.label === "@Width")?.apply).toBe("@Width");
   });
 
-  // dsl2-cutover: v1-literal
-  // v1バックスラッシュ継続行そのものが主題(統計射影経由のfrom/to逆射影を検証する)
-  // ため、手書きリテラルのまま残す。
-  it("resolves attribute + @variable completion on a v1 backslash-continuation line via the statement's logical projection", async () => {
-    const source = ["nui 1", "var Width = 10", "point P = offset A \\", "  dx=10+@Wi"].join("\n");
+  it("resolves attribute + @variable completion on a multi-line vertical-call continuation via the statement's logical projection", async () => {
+    const source = ["nui 2", "var Width = 10", "point P = offset(", "  from: A", "  dx: 10+@Wi", "  dy: 0", ")"].join("\n");
     const { elements, ids } = identities(source);
     const state = EditorState.create({ doc: source });
     const ranges = new Map([...ids].map(([line, elementId]) => [
@@ -256,10 +253,13 @@ describe("createDslCompletionSource", () => {
       elementId,
       { elementId, from: mainState.doc.line(line).from, to: mainState.doc.line(line).to, statement: {} as never }
     ]));
-    // The lens mirrors the whole selected line at its own buffer offset 0 — a
-    // different EditorState than the main document, proving the documentInput
-    // override, not the CompletionContext's own state, drives candidate lookup.
-    const lensLineText = source.split("\n")[2];
+    // The lens mirrors the whole statement's logical (row-joined) projection at
+    // its own buffer offset 0 — a different EditorState than the main document,
+    // proving the documentInput override, not the CompletionContext's own
+    // state, drives candidate lookup. P's construction call always spans
+    // multiple physical rows in v2's canonical vertical layout, so the lens
+    // text is the joined logical statement rather than a single physical row.
+    const lensLineText = "point P = offset( from: A dx: 10+@Wi dy: 0 )";
     const lensPos = lensLineText.indexOf("@Wi") + "@Wi".length;
     const lensState = EditorState.create({ doc: lensLineText });
     const completionSource = createDslCompletionSource({
@@ -285,22 +285,21 @@ describe("createDslCompletionSource", () => {
     expect(result?.options.some((option) => option.label === "@Width")).toBe(true);
   });
 
-  // dsl2-cutover: v1-literal
   // printLayoutセクションは常に要素ツリーより前にシリアライズされるため(dslDocument.ts
   // のserializeDocumentToDsl)、「printLayoutブロックより前の行にトップレベルvarがある」
   // という行順序関係は生成経由では再現できない(dslVariableCompletionOptionsの
   // cursorLine=block.line カットオフがこの行順序に依存する)。手書きリテラルのまま残す。
   it("merges block-local layoutVar and global-only top-level candidates for a place/printLayout attribute", async () => {
     const source = [
-      "nui 1",
+      "nui 2",
       "var GlobalW = 100",
       "group G {",
-      "  point A = (0, 0)",
-      "  var GroupW = 50 scope=group",
+      "  point A = coordinate(x: 0 y: 0)",
+      "  var GroupW = expression(value: 50 scope: group)",
       "}",
-      "printLayout Layout1 columns=2 {",
+      "printLayout Layout1 (columns: 2) {",
       "  layoutVar Margin = 20",
-      "  place G at=(0, 0) angle=0+@Ma",
+      "  place G (at: (0, 0) angle: 0+@Ma)",
       "}"
     ].join("\n");
     const { elements: compiledElements, printLayouts, statementRanges, printLayoutRanges } = identities(source);
@@ -378,8 +377,8 @@ describe("createDslCompletionSource", () => {
 
     const setup = () => {
       const source = buildSource("");
-      const { elements, ids, statementRanges, printLayouts, printLayoutRanges } = identities(source);
-      const abId = ids.get(4)!;
+      const { elements, statementRanges, printLayouts, printLayoutRanges } = identities(source);
+      const abId = elements.find((element) => element.type === "line")!.id;
       const state = EditorState.create({ doc: source });
       const computedGeometry = new Map([[abId, {
         kind: "line" as const,
@@ -422,8 +421,8 @@ describe("createDslCompletionSource", () => {
 
     it("spans only the member token (from/to exclude the ElementName. prefix)", async () => {
       const source = buildSource("le");
-      const { elements, ids, statementRanges, printLayouts, printLayoutRanges } = identities(source);
-      const abId = ids.get(4)!;
+      const { elements, statementRanges, printLayouts, printLayoutRanges } = identities(source);
+      const abId = elements.find((element) => element.type === "line")!.id;
       const state = EditorState.create({ doc: source });
       const computedGeometry = new Map([[abId, {
         kind: "line" as const,
@@ -463,8 +462,8 @@ describe("createDslCompletionSource", () => {
 
     it("is suppressed during IME composition, same as the shared top-level guard", async () => {
       const source = buildSource("");
-      const { elements, ids, statementRanges, printLayouts, printLayoutRanges } = identities(source);
-      const abId = ids.get(4)!;
+      const { elements, statementRanges, printLayouts, printLayoutRanges } = identities(source);
+      const abId = elements.find((element) => element.type === "line")!.id;
       const state = EditorState.create({ doc: source });
       const pos = source.indexOf("直線AB.") + "直線AB.".length;
       const completionSource = createDslCompletionSource({

@@ -3,6 +3,7 @@ import {
   planPrintLayoutSection,
   serializePaletteColorLine,
   serializePaletteLines,
+  withFallbackParentArgs,
   type CompiledDslDocument,
   type DslDocumentData,
   type ElementTreeRow,
@@ -12,12 +13,12 @@ import { isElementDslStatement } from "../dsl/dslParser";
 import {
   documentDslRefs,
   serializeActiveViewLine,
-  serializeElementStatement,
   serializeRoleLine,
   serializeViewLine,
   type DslSerializerRefs
 } from "../dsl/dslSerializer";
-import type { SerializedStatement } from "../dsl/dslSerializeElement";
+import { serializeElementStatementBlock, serializeElementStatementLogical } from "../dsl/dslSerializeElement";
+import type { DslStatement } from "../dsl/dslTypes";
 import { DSL_INDENT, splitDslComment } from "../dsl/dslTokens";
 import { mergeStatementComments } from "./statementCommentMerge";
 import type { CadElement, ElementId } from "../types/geometry";
@@ -67,18 +68,46 @@ export type TextPatchInput = {
 /** A structural patch must never guess where a continuation/comment belongs. */
 export class UnappliedTextPatchError extends Error {}
 
-// v1の正準シリアライザは常にrow当たり1物理行しか作らない。このv1アダプタ
-// (patchElements内の行合成)はその前提に依存しており、行番号ずれで残りの
-// 物理行を黙って捨てるくらいなら明示的に落ちるべき。C1でP5(複数行を実際に
-// 生成するregistry駆動serializer)へ差し替わったら、この関数と呼び出し元は
-// 本物の複数行row対応へ書き換える。
+// blockEnd/blockElse/atStop の構造行は必ず単一物理行(layoutElementTreeの
+// 構築が保証)。statement行(要素文)は縦型callで複数物理行になり得るため、
+// この関数は使わず serializeElementStatementBlock + mergeStatementComments で
+// 直接組み立てる(patchElements 内)。
 const soleCanonicalLine = (row: ElementTreeRow, elementId: ElementId | undefined): string => {
   if (row.lines.length !== 1) {
     throw new UnappliedTextPatchError(
-      `要素 ${elementId ?? "?"} の正準行が複数物理行になっています(v1アダプタ未対応。C1で実serializer接続へ置き換える想定)。`
+      `要素 ${elementId ?? "?"} の構造行が複数物理行になっています(想定外)。`
     );
   }
   return row.lines[0];
+};
+
+// 文字オフセット(文書全体基準)→ 1-based行番号。
+const lineNumberAtOffset = (sourceLines: readonly string[], offset: number): number => {
+  let cursor = 0;
+  for (let index = 0; index < sourceLines.length; index += 1) {
+    const lineLength = sourceLines[index].length;
+    if (offset <= cursor + lineLength) return index + 1;
+    cursor += lineLength + 1;
+  }
+  return sourceLines.length;
+};
+
+// mergeStatementComments が要求する oldArgLineByKey: 引数キー→ oldLines
+// (info.line起点のローカル配列)内の0-based行index。旧statementの各attrの
+// 物理span(decorateStatementが既に付与済み)から直接導出する — レンダリング
+// 済みテキストは経由しない。
+const oldArgLineByKeyFor = (
+  oldStatement: DslStatement,
+  sourceLines: readonly string[],
+  firstLine: number
+): Map<string, number> => {
+  const map = new Map<string, number>();
+  for (const attr of oldStatement.attrs) {
+    const offset = attr.physicalSpan?.segments[0]?.from;
+    if (offset === undefined) continue;
+    map.set(attr.key, lineNumberAtOffset(sourceLines, offset) - firstLine);
+  }
+  return map;
 };
 
 const CONTAINER_TYPES = new Set(["group", "conditionalGroup", "forGroup"]);
@@ -163,7 +192,7 @@ const elementUpdateSet = (
     if (!oldElement) continue;
     if (
       oldElement !== element ||
-      serializeElementStatement(oldElement, refsOld) !== serializeElementStatement(element, refsNew)
+      serializeElementStatementLogical(oldElement, refsOld) !== serializeElementStatementLogical(element, refsNew)
     ) {
       updates.add(element.id);
     }
@@ -187,7 +216,7 @@ export const elementUpdateSetFullComparisonForTesting = (
     if (!oldElement) continue;
     if (
       oldElement !== element ||
-      serializeElementStatement(oldElement, refsOld) !== serializeElementStatement(element, refsNew)
+      serializeElementStatementLogical(oldElement, refsOld) !== serializeElementStatementLogical(element, refsNew)
     ) {
       updates.add(element.id);
     }
@@ -297,39 +326,23 @@ const patchElements = (input: TextPatchInput, ops: PatchOps) => {
   const oldDocument = old.document!;
   const statementMap = old.statementMap!;
   const refsNew = documentDslRefs(newDocument.elements);
-  const canonicalLayout = layoutElementTree(newDocument.elements, refsNew, newDocument.evaluationLimitIndex);
-  // Existing inline-brace documents are read compatibly. A patch against one
-  // retains that legacy spelling; newly serialized documents use structural
-  // brace rows. This prevents a model patch from manufacturing a second `{`.
-  const layout = canonicalLayout.flatMap((line, index) => {
-    if (line.role !== "blockStart" || !line.elementId) return [line];
-    const info = statementMap.byElementId.get(line.elementId);
-    if (!info || info.openBraceLine) return [line];
-    const header = canonicalLayout[index - 1];
-    if (!header || header.role !== "statement" || header.elementId !== line.elementId) return [line];
-    return [];
-  }).map((line) => {
-    if (line.role !== "statement" || !line.elementId) return line;
-    const info = statementMap.byElementId.get(line.elementId);
-    const next = canonicalLayout.find((candidate) => candidate.role === "blockStart" && candidate.elementId === line.elementId);
-    if (!info || info.openBraceLine || !next) return line;
-    // Attach to the row's last physical line (not index 0) so this stays
-    // correct even if a future serializer ever emits a multi-line row here.
-    const lastIndex = line.lines.length - 1;
-    return {
-      ...line,
-      lines: [...line.lines.slice(0, lastIndex), `${line.lines[lastIndex]} {`]
-    };
-  });
+  const layout = layoutElementTree(newDocument.elements, refsNew, newDocument.evaluationLimitIndex);
   const newById = new Map(newDocument.elements.map((element) => [element.id, element]));
   const updates = elementUpdateSet(oldDocument, newDocument, refsNew);
+
+  // 文の実際の旧終端行(ヘッダ自身のendLineと、旧文書が次行単独 `{` を
+  // 使っていた場合のopenBraceLineの大きい方)。v2正準出力はヘッダ行自身に
+  // `{` を書くため、次行単独 `{` はこの文が消費する最後の物理行として扱う
+  // (別行として残すと、無変更時にbyte同一性が壊れたり、変更時に取り残されて
+  // 二重 `{` の原因になる)。
+  const effectiveEndLine = (info: StatementInfo) => Math.max(info.endLine, info.openBraceLine ?? 0);
 
   // 旧テキストの「要素系」行(要素文・そのブロック枠・@stop)。
   type OldElemLine = {
     line: number;
-    /** 非マッチ削除時に落とす末尾行(既定はline自身)。複数行文のstatement行のみline超え。 */
+    /** 非マッチ削除時に落とす末尾行(既定はline自身)。複数行文・次行単独`{`を伴うstatement行のみline超え。 */
     endLine: number;
-    role: "statement" | "blockStart" | "blockEnd" | "blockElse" | "atStop";
+    role: "statement" | "blockEnd" | "blockElse" | "atStop";
     elementId?: ElementId;
     statementIndex: number;
   };
@@ -359,20 +372,11 @@ const patchElements = (input: TextPatchInput, ops: PatchOps) => {
       if (id === undefined) continue;
       oldElemLines.push({
         line: info.line,
-        endLine: info.endLine,
+        endLine: effectiveEndLine(info),
         role: "statement",
         elementId: id,
         statementIndex: info.statementIndex
       });
-      if (info.openBraceLine) {
-        oldElemLines.push({
-          line: info.openBraceLine,
-          endLine: info.openBraceLine,
-          role: "blockStart",
-          elementId: id,
-          statementIndex: info.statementIndex
-        });
-      }
     }
   }
 
@@ -382,7 +386,6 @@ const patchElements = (input: TextPatchInput, ops: PatchOps) => {
     const info = line.elementId !== undefined ? statementMap.byElementId.get(line.elementId) : undefined;
     if (!info) return undefined;
     if (line.role === "statement") return info.line;
-    if (line.role === "blockStart") return info.openBraceLine;
     if (line.role === "blockEnd") return info.range.endLine > info.line ? info.range.endLine : undefined;
     return info.elseLine;
   });
@@ -392,7 +395,7 @@ const patchElements = (input: TextPatchInput, ops: PatchOps) => {
   const candidateEndLines = layout.map((line, index): number | undefined => {
     if (line.role !== "statement") return candidates[index];
     const info = line.elementId !== undefined ? statementMap.byElementId.get(line.elementId) : undefined;
-    return info?.endLine;
+    return info ? effectiveEndLine(info) : undefined;
   });
 
   // 旧行番号が狭義増加になる最大部分列だけをマッチとする(順序が壊れた候補=
@@ -439,13 +442,89 @@ const patchElements = (input: TextPatchInput, ops: PatchOps) => {
     }
   }
 
+  // マッチ行: 変更があれば正準行(+旧行の行末コメント)へ置換、無ければ不変。
+  for (const [layoutIndex, oldLineNumber] of matchedOldLineByLayout) {
+    const layoutLine = layout[layoutIndex];
+    const rawOldLine = old.sourceLines[oldLineNumber - 1] ?? "";
+    const comment = splitDslComment(rawOldLine).comment;
+
+    if (layoutLine.role === "statement") {
+      const elementId = layoutLine.elementId!;
+      const info = statementMap.byElementId.get(elementId)!;
+      const oldStatement = old.statements[info.statementIndex];
+      const newElement = newById.get(elementId)!;
+      const oldFallback = oldStatement.attrs.some((attr) => attr.key === "parent");
+      const newOpens = !layoutLine.fallback && isContainer(newElement);
+      const structureChanged =
+        info.indentDepth !== layoutLine.depth ||
+        oldFallback !== Boolean(layoutLine.fallback) ||
+        oldStatement.opensBlock !== newOpens;
+      if (updates.has(elementId) || structureChanged) {
+        const indent = DSL_INDENT.repeat(layoutLine.depth);
+        const endLine = effectiveEndLine(info);
+        const oldLines = old.sourceLines.slice(info.line - 1, endLine);
+        // next はP5の未加工構造化出力(header/args/close)を直接使う。
+        // layoutLine.lines(物理行化・インデント・brace装飾済みの表示用出力)
+        // からは再構築しない — 構造とレンダリングを混ぜない。
+        let next = serializeElementStatementBlock(newElement, refsNew);
+        if (layoutLine.fallback) {
+          const parentToken = refsNew.token(newElement.parentGroupId!, newElement);
+          const branch: "then" | "else" = newElement.conditionalBranch === "else" ? "else" : "then";
+          next = withFallbackParentArgs(next, parentToken, branch);
+        } else if (newOpens) {
+          next = { ...next, header: `${next.header} {` };
+        }
+        const oldArgLineByKey = oldArgLineByKeyFor(oldStatement, old.sourceLines, info.line);
+        const mergedLines = mergeStatementComments({ oldLines, oldArgLineByKey, next, indent });
+        const unchanged =
+          mergedLines.length === oldLines.length && mergedLines.every((line, index) => line === oldLines[index]);
+        if (!unchanged) {
+          // The first line keeps going through setLineOp (not insertBefore) at
+          // info.line, so a run inserted immediately before this same anchor
+          // (e.g. a brand-new enclosing group's header/`{`, handled above)
+          // always sorts ahead of this statement's own content —
+          // buildSplicesFromOps only guarantees that ordering
+          // (insertsBefore(cursor) before lineOps(cursor)) when the
+          // statement's own content is the lineOps entry at that cursor.
+          // Remaining merged lines go through insertBefore(info.line + 1, …)
+          // and every other old physical line in range is cleared, so the
+          // collapsed splice reassembles the full merged content in order
+          // regardless of how the old/new physical line counts compare.
+          const [headerLine, ...rest] = mergedLines;
+          setLineOp(ops, info.line, headerLine);
+          if (rest.length > 0) insertBefore(ops, info.line + 1, rest);
+          for (let l = info.line + 1; l <= endLine; l += 1) setLineOp(ops, l, null);
+        }
+      }
+      continue;
+    }
+
+    // Structural rows and @stop only change for indentation changes.
+    // (blockEnd/blockElse の正準深さは対応する開き文の深さに等しい。)
+    const info =
+      layoutLine.role === "atStop"
+        ? statementMap.byKey.get("atStop")!
+        : statementMap.byElementId.get(layoutLine.elementId!)!;
+    if (info.indentDepth !== layoutLine.depth) {
+      const replacement = `${soleCanonicalLine(layoutLine, layoutLine.elementId)}${comment}`;
+      if (replacement !== rawOldLine) setLineOp(ops, oldLineNumber, replacement);
+    }
+  }
+
   // 非マッチのlayout行 → 連続runごとに挿入。アンカーは「次のマッチ行の直前」、
   // 無ければ「最後のマッチ行の直後」、マッチが皆無なら要素セクションの新設。
-  // マッチ行の置換処理より先に実行する: 両方とも同じ旧行番号をinsertBeforeの
-  // アンカーに使うことがあり(例: 既存statementを新規groupの子として包む場合、
-  // runが作る `group G {` と、その直後statement自身が持つ行頭コメントが同じ
-  // アンカーへ挿入される)、insertBeforeは呼び出し順で連結されるため、run側を
-  // 先に走らせないと新規コンテナのヘッダより前に子statementの内容が来てしまう。
+  // マッチ行の置換処理より後に実行する: 両方とも同じ旧行番号をinsertBeforeの
+  // アンカーに使うことがある。v2の縦型call出力は変更されたマッチ行自身が
+  // `info.line + 1` へ自分の残り引数行をinsertBeforeで追加し得るため(1行から
+  // 複数行へ育つケース)、そのアンカーがrunのアンカー(次のマッチ行の直前、また
+  // は最後のマッチ行の直後)と一致することがある。insertBeforeは呼び出し順で
+  // 連結されるため、マッチ行側を先に走らせないと、そのマッチ行自身の続き引数行
+  // より前に(あるいは新規コンテナの閉じ`}`が、末尾statementの続き引数行の
+  // 途中に)runの内容が割り込んでしまう。マッチ行の`setLineOp(info.line, …)`は
+  // 別行(cursor)への操作であり、run側のinsertBeforeとは衝突しないため、この
+  // 順序変更で「新規コンテナのヘッダより前に子statementの内容が来てしまう」
+  // という当初の懸念(ヘッダ行はinsertBeforeでなくsetLineOpを使うため無関係)は
+  // 発生しない。
   const runs: Array<{ start: number; end: number }> = [];
   let runStart = -1;
   layout.forEach((_, layoutIndex) => {
@@ -480,66 +559,6 @@ const patchElements = (input: TextPatchInput, ops: PatchOps) => {
       const anchor =
         sectionEnds.printLayouts ?? sectionEnds.visibility ?? sectionEnds.palette ?? sectionEnds.version ?? 0;
       insertBefore(ops, anchor + 1, anchor > 0 ? ["", ...texts] : texts);
-    }
-  }
-
-  // マッチ行: 変更があれば正準行(+旧行の行末コメント)へ置換、無ければ不変。
-  for (const [layoutIndex, oldLineNumber] of matchedOldLineByLayout) {
-    const layoutLine = layout[layoutIndex];
-    const rawOldLine = old.sourceLines[oldLineNumber - 1] ?? "";
-    const comment = splitDslComment(rawOldLine).comment;
-
-    if (layoutLine.role === "statement") {
-      const elementId = layoutLine.elementId!;
-      const info = statementMap.byElementId.get(elementId)!;
-      const oldStatement = old.statements[info.statementIndex];
-      const newElement = newById.get(elementId)!;
-      const oldFallback = oldStatement.attrs.some((attr) => attr.key === "parent");
-      const newOpens = !layoutLine.fallback && isContainer(newElement);
-      const structureChanged =
-        info.indentDepth !== layoutLine.depth ||
-        oldFallback !== Boolean(layoutLine.fallback) ||
-        oldStatement.opensBlock !== newOpens;
-      if (updates.has(elementId) || structureChanged) {
-        const indent = DSL_INDENT.repeat(layoutLine.depth);
-        const bareText = soleCanonicalLine(layoutLine, elementId).slice(indent.length);
-        const oldLines = old.sourceLines.slice(info.line - 1, info.endLine);
-        const next: SerializedStatement = { header: bareText, args: [], close: null };
-        // v1のみの暫定アダプタ: next.close===nullなのでmergeStatementCommentsは
-        // 常にmergeToSingleLine分岐を通り、oldArgLineByKeyは参照されない。C1で
-        // P5(実SerializedStatementを生成するserializer)に差し替わったら、ここで
-        // 本物のoldArgLineByKeyを組む必要がある。
-        const mergedLines = mergeStatementComments({ oldLines, oldArgLineByKey: new Map(), next, indent });
-        const unchanged =
-          mergedLines.length === oldLines.length && mergedLines.every((line, index) => line === oldLines[index]);
-        if (!unchanged) {
-          // The header keeps going through setLineOp (not insertBefore) at
-          // info.line, matching the pre-existing single-line behavior: a run
-          // inserted immediately before this same anchor (e.g. a brand-new
-          // enclosing group's header/`{`, handled above) must always sort
-          // ahead of this statement's own content, and buildSplicesFromOps
-          // only guarantees that ordering (insertsBefore(cursor) before
-          // lineOps(cursor)) when the statement's content is the lineOps
-          // entry, not another insertBefore at the same cursor.
-          const headerLine = mergedLines[mergedLines.length - 1];
-          const leading = mergedLines.slice(0, -1);
-          if (leading.length > 0) insertBefore(ops, info.line, leading);
-          setLineOp(ops, info.line, headerLine);
-          for (let l = info.line + 1; l <= info.endLine; l += 1) setLineOp(ops, l, null);
-        }
-      }
-      continue;
-    }
-
-    // Structural rows and @stop only change for indentation changes.
-    // (blockEnd/blockElse の正準深さは対応する開き文の深さに等しい。)
-    const info =
-      layoutLine.role === "atStop"
-        ? statementMap.byKey.get("atStop")!
-        : statementMap.byElementId.get(layoutLine.elementId!)!;
-    if (info.indentDepth !== layoutLine.depth) {
-      const replacement = `${soleCanonicalLine(layoutLine, layoutLine.elementId)}${comment}`;
-      if (replacement !== rawOldLine) setLineOp(ops, oldLineNumber, replacement);
     }
   }
 };
@@ -817,10 +836,7 @@ const patchPrintLayouts = (input: TextPatchInput, ops: PatchOps) => {
     const info = infoById.get(block.layoutId);
     if (!info) continue;
     dropRange(block.layoutId);
-    const lines = !info.openBraceLine && newBlock.lines[1]?.trim() === "{"
-      ? [`${newBlock.lines[0]} {`, ...newBlock.lines.slice(2)]
-      : newBlock.lines;
-    insertBefore(ops, info.range.startLine, lines);
+    insertBefore(ops, info.range.startLine, newBlock.lines);
   }
 
   // 追加レイアウト: 新配列順で、直後の既存レイアウトのブロック先頭の直前へ

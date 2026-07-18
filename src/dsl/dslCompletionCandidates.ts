@@ -13,10 +13,10 @@ import type {
 import { dslScopeBeforeParsedLine, isElementDslStatement, parseDsl } from "./dslParser";
 import type { ParseDslResult } from "./dslTypes";
 import type { ParameterValueKind } from "../parameters/parameterDefinitions";
+import { argNameForParameter } from "./dslConstructions";
 import { dslStatementElementType } from "./dslCompletionMetadata";
 import { splitDslTopLevelSpans } from "./dslParameterSpanScanner";
 import { parseDslReferenceToken } from "./dslReferenceTokens";
-import { dslLineLabeledValueSpans } from "./dslValueSpans";
 
 export type DslReferenceCompletionOption = {
   label: string;
@@ -50,7 +50,7 @@ export const liveElementsBeforeLine = (
 ): CadElement[] => {
   const elementsById = new Map(elements.map((element) => [element.id, element]));
   return parsed.statements.flatMap((statement) => {
-    if (statement.line >= cutoffLine || !isElementDslStatement(statement)) return [];
+    if (statement.endLine >= cutoffLine || !isElementDslStatement(statement)) return [];
     const elementId = statementElementIds.get(statement.line);
     const compiled = elementId ? elementsById.get(elementId) : undefined;
     const type = dslStatementElementType(statement);
@@ -138,9 +138,24 @@ export const dslReferenceCompletionOptions = ({
   });
   const selectedOtherLineIds = (() => {
     if (kind !== "lineReferenceList" || replacementFrom === undefined || !parameterKey) return new Set<ElementId>();
-    const lineText = source.split(/\r?\n/)[cursorLine - 1] ?? "";
-    const span = dslLineLabeledValueSpans(lineText).find((item) => item.key === parameterKey);
-    if (!span || lineText[span.start] !== "[" || lineText[span.end - 1] !== "]") return new Set<ElementId>();
+    const cursorElementType = elements.find((element) => element.id === targetElementId)?.type ?? null;
+    const argName = (cursorElementType && argNameForParameter(cursorElementType, parameterKey)) ?? parameterKey;
+    // A lineReferenceList arg such as `sources: [...]` can sit on its own
+    // continuation line of a multi-line vertical call in v2, so it cannot be
+    // reparsed as a standalone one-line statement the way dslLineLabeledValueSpans
+    // requires. Resolve its physical span from the full-document parse instead.
+    const statement = parsed.statements.find(
+      (item) => isElementDslStatement(item) && cursorLine >= item.line && cursorLine <= item.endLine
+    );
+    const attr = statement?.attrs.find((item) => item.key === argName);
+    const segments = attr?.physicalSpan?.segments;
+    const lines = source.split("\n");
+    const lineText = lines[cursorLine - 1] ?? "";
+    let lineStart = 0;
+    for (let index = 0; index < cursorLine - 1; index += 1) lineStart += lines[index].length + 1;
+    const segment = segments?.length === 1 ? segments[0] : null;
+    const span = segment ? { start: segment.from - lineStart, end: segment.to - lineStart } : null;
+    if (!span || span.start < 0 || span.end > lineText.length || lineText[span.start] !== "[" || lineText[span.end - 1] !== "]") return new Set<ElementId>();
     const ids = new Set<ElementId>();
     for (const item of splitDslTopLevelSpans(
       lineText,

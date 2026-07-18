@@ -94,7 +94,7 @@ describe("cadDocumentStore 影テキスト: 代表的なコミット経路", () 
   it("updateElementで影が更新され警告が出ない", () => {
     const id = useCadDocumentStore.getState().elements[0].id;
     useCadDocumentStore.getState().updateElement(id, { locked: true });
-    expect(useCadDocumentStore.getState().sourceText).toContain("locked=true");
+    expect(useCadDocumentStore.getState().sourceText).toContain("locked: true");
     expectShadowConsistent();
     expectNoShadowWarnings();
   });
@@ -211,11 +211,11 @@ describe("cadDocumentStore 影テキスト: undo/redo/replaceDocument の全体�
   it("undoは影を巻き戻し先のモデルへ全体再生成する", () => {
     const id = useCadDocumentStore.getState().elements[0].id;
     useCadDocumentStore.getState().updateElement(id, { locked: true });
-    expect(useCadDocumentStore.getState().sourceText).toContain("locked=true");
+    expect(useCadDocumentStore.getState().sourceText).toContain("locked: true");
 
     useCadDocumentStore.getState().undo();
 
-    expect(useCadDocumentStore.getState().sourceText).not.toContain("locked=true");
+    expect(useCadDocumentStore.getState().sourceText).not.toContain("locked: true");
     expectShadowConsistent();
     expectNoShadowWarnings();
   });
@@ -226,7 +226,7 @@ describe("cadDocumentStore 影テキスト: undo/redo/replaceDocument の全体�
     useCadDocumentStore.getState().undo();
     useCadDocumentStore.getState().redo();
 
-    expect(useCadDocumentStore.getState().sourceText).toContain("locked=true");
+    expect(useCadDocumentStore.getState().sourceText).toContain("locked: true");
     expectShadowConsistent();
     expectNoShadowWarnings();
   });

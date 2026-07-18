@@ -36,7 +36,7 @@ const lineGeometry = (id: ElementId): ComputedLine => ({
   endTangentAngleDeg: 0
 });
 
-const baseSource = ["nui 1", "point A = (0, 0)", "point B = (10, 0)", "line AB = A -> B", "point Target = (5, 5)"].join("\n");
+const baseSource = ["nui 2", "point A = coordinate(x: 0 y: 0)", "point B = coordinate(x: 10 y: 0)", "line AB = segment(start: A end: B)", "point Target = coordinate(x: 5 y: 5)"].join("\n");
 
 describe("dslElementParameterCompletionOptions", () => {
   it("lists AB's referenceable parameters when identity/type/enabled all agree with the last evaluation", () => {
@@ -77,14 +77,14 @@ describe("dslElementParameterCompletionOptions", () => {
 
   it("excludes a statement declared after the document's @stop marker, even if it would otherwise resolve", () => {
     const source = [
-      "nui 1",
-      "point A = (0, 0)",
-      "point B = (10, 0)",
-      "line AB = A -> B",
+      "nui 2",
+      "point A = coordinate(x: 0 y: 0)",
+      "point B = coordinate(x: 10 y: 0)",
+      "line AB = segment(start: A end: B)",
       "@stop",
-      "point C = (20, 0)",
-      "line CD = B -> C",
-      "point Target = (5, 5)"
+      "point C = coordinate(x: 20 y: 0)",
+      "line CD = segment(start: B end: C)",
+      "point Target = coordinate(x: 5 y: 5)"
     ].join("\n");
     const { elements, ids } = identities(source);
     const cdId = ids.get(7)!;
@@ -107,13 +107,13 @@ describe("dslElementParameterCompletionOptions", () => {
 
   it("excludes a group-scoped element outside the cursor's live group scope", () => {
     const source = [
-      "nui 1",
+      "nui 2",
       "group Outer {",
-      "  point A = (0, 0)",
-      "  point B = (10, 0)",
-      "  line AB = A -> B",
+      "  point A = coordinate(x: 0 y: 0)",
+      "  point B = coordinate(x: 10 y: 0)",
+      "  line AB = segment(start: A end: B)",
       "}",
-      "point Target = (5, 5)"
+      "point Target = coordinate(x: 5 y: 5)"
     ].join("\n");
     const { elements, ids } = identities(source);
     const abId = ids.get(5)!;
@@ -130,7 +130,7 @@ describe("dslElementParameterCompletionOptions", () => {
     });
     expect(outside).toEqual([]);
 
-    const insideSource = [...source.split("\n").slice(0, 5), "  point Target = (5, 5)", "}"].join("\n");
+    const insideSource = [...source.split("\n").slice(0, 5), "  point Target = coordinate(x: 5 y: 5)", "}"].join("\n");
     const inside = dslElementParameterCompletionOptions({
       source: insideSource,
       cursorLine: 6,
@@ -180,12 +180,12 @@ describe("dslElementParameterCompletionOptions", () => {
 
   it("resolves namespace-qualified and Japanese element names", () => {
     const source = [
-      "nui 1",
+      "nui 2",
       "group グループ1 {",
-      "  point A = (0, 0)",
-      "  point B = (10, 0)",
-      "  line 直線AB = A -> B",
-      "  point Target = (5, 5)",
+      "  point A = coordinate(x: 0 y: 0)",
+      "  point B = coordinate(x: 10 y: 0)",
+      "  line 直線AB = segment(start: A end: B)",
+      "  point Target = coordinate(x: 5 y: 5)",
       "}"
     ].join("\n");
     const { elements, ids } = identities(source);
@@ -218,13 +218,13 @@ describe("dslElementParameterCompletionOptions", () => {
 
   it("never guesses for an ambiguous (duplicate) element name", () => {
     const source = [
-      "nui 1",
-      "point A = (0, 0)",
-      "point B = (10, 0)",
-      "line AB = A -> B id=ab-1",
-      "point C = (20, 0)",
-      "line AB = A -> C id=ab-2",
-      "point Target = (5, 5)"
+      "nui 2",
+      "point A = coordinate(x: 0 y: 0)",
+      "point B = coordinate(x: 10 y: 0)",
+      "line AB = segment(start: A end: B id: ab-1)",
+      "point C = coordinate(x: 20 y: 0)",
+      "line AB = segment(start: A end: C id: ab-2)",
+      "point Target = coordinate(x: 5 y: 5)"
     ].join("\n");
     const { elements, ids } = identities(source);
     const firstId = ids.get(4)!;
@@ -252,7 +252,7 @@ describe("dslElementParameterCompletionOptions", () => {
     const computedGeometry = new Map<ElementId, ComputedGeometry>([[abId, lineGeometry(abId)]]);
     // Same line number, but the live text now declares a "point" where the
     // compiled document still has a "line" - dirty, uncommitted structural edit.
-    const dirtySource = ["nui 1", "point A = (0, 0)", "point B = (10, 0)", "point AB = (5, 5)", "point Target = (5, 5)"].join("\n");
+    const dirtySource = ["nui 2", "point A = coordinate(x: 0 y: 0)", "point B = coordinate(x: 10 y: 0)", "point AB = coordinate(x: 5 y: 5)", "point Target = coordinate(x: 5 y: 5)"].join("\n");
     const options = dslElementParameterCompletionOptions({
       source: dirtySource,
       cursorLine: 5,
@@ -274,7 +274,7 @@ describe("dslElementParameterCompletionOptions", () => {
     // add enabled=false - the compiled element (elements array) and the
     // computedGeometry/effectiveEnabledElementIds snapshot both still reflect
     // the previous (enabled) evaluation.
-    const dirtySource = ["nui 1", "point A = (0, 0)", "point B = (10, 0)", "line AB = A -> B enabled=false", "point Target = (5, 5)"].join("\n");
+    const dirtySource = ["nui 2", "point A = coordinate(x: 0 y: 0)", "point B = coordinate(x: 10 y: 0)", "line AB = segment(start: A end: B enabled: false)", "point Target = coordinate(x: 5 y: 5)"].join("\n");
     const options = dslElementParameterCompletionOptions({
       source: dirtySource,
       cursorLine: 5,
@@ -294,7 +294,7 @@ describe("dslElementParameterCompletionOptions", () => {
     const computedGeometry = new Map<ElementId, ComputedGeometry>([[abId, lineGeometry(abId)]]);
     // A dirty edit unrelated to enabled/type (e.g. touching a later line) still
     // leaves AB's own live statement agreeing with the compiled snapshot.
-    const dirtySource = ["nui 1", "point A = (0, 0)", "point B = (10, 0)", "line AB = A -> B", "point Target = (6, 5)"].join("\n");
+    const dirtySource = ["nui 2", "point A = coordinate(x: 0 y: 0)", "point B = coordinate(x: 10 y: 0)", "line AB = segment(start: A end: B)", "point Target = coordinate(x: 6 y: 5)"].join("\n");
     const options = dslElementParameterCompletionOptions({
       source: dirtySource,
       cursorLine: 5,

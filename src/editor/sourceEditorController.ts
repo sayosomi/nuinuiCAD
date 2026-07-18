@@ -76,7 +76,7 @@ import { createEvaluationExtension, evaluationChanged, type EvaluationGutterActi
 import { createEvaluationDecorationIndex, type EvaluationDecorationIndex } from "./sourceEditorEvaluationIndex";
 import { dslDocumentValueSpansAt, type DslValueSpanDirection } from "../dsl/dslValueSpans";
 import { resolveParameterValueSpan } from "../dsl/dslParameterSpans";
-import { logicalTextForProjection, physicalSpanForStatementRange, singlePhysicalSegment, statementProjectionAt } from "../dsl/dslStatementProjection";
+import { logicalOffsetForPhysicalPosition, logicalTextForProjection, physicalSpanForStatementRange, singlePhysicalSegment, statementProjectionAt } from "../dsl/dslStatementProjection";
 import { resolveDslValueStep, type DslValueStepDirection } from "../dsl/dslValueStep";
 import { splitDslComment, splitDslTerms } from "../dsl/dslTokens";
 import {
@@ -422,7 +422,11 @@ export class SourceEditorController implements SourceEditorHandle {
       : undefined;
     if (!range || !element) return false;
     const line = this.view.state.doc.lineAt(main.from);
-    const sameLine = this.view.state.doc.lineAt(main.to).number === line.number;
+    // Gate on whether the *statement* is a single physical line, not whether the
+    // (usually collapsed) selection happens to sit within one line — a collapsed
+    // cursor always has main.from === main.to, so it would otherwise always look
+    // "same line" even while parked on a continuation row of a multi-line call.
+    const sameLine = range.statement.line === range.statement.endLine;
     let change: ReturnType<typeof resolveDslValueStep>;
     let replaceRange: { from: number; to: number } | null = null;
     let selectionRange: { from: number; to: number } | null = null;
@@ -441,17 +445,13 @@ export class SourceEditorController implements SourceEditorHandle {
       if (!projection.ok || !projection.value) return false;
       const logicalText = logicalTextForProjection(projection.value);
       if (!logicalText) return false;
+      const logicalFrom = logicalOffsetForPhysicalPosition(projection.value, main.from);
+      const logicalTo = logicalOffsetForPhysicalPosition(projection.value, main.to);
+      if (logicalFrom === null || logicalTo === null) return false;
       const committedSnapshot = { normalizedSource: this.committedDoc.toString(), sourceRevision: range.statement.sourceRevision };
       const committed = statementProjectionAt(committedSnapshot, range.from);
       const committedLineText = committed.ok && committed.value ? logicalTextForProjection(committed.value) ?? undefined : undefined;
-      const selectedLogical = getParameterDefinitions(element)
-        .map((definition) => resolveParameterValueSpan(logicalText, element, definition.key, { committedLineText }))
-        .find((candidate) => {
-          const physical = candidate ? singlePhysicalSegment(snapshot, physicalSpanForStatementRange(projection.value!, candidate)) : null;
-          return physical?.ok && physical.value?.from === main.from && physical.value.to === main.to;
-        });
-      if (!selectedLogical) return false;
-      change = resolveDslValueStep(logicalText, element, selectedLogical, direction, { committedLineText });
+      change = resolveDslValueStep(logicalText, element, { start: logicalFrom, end: logicalTo }, direction, { committedLineText });
       if (change) {
         const replace = singlePhysicalSegment(snapshot, physicalSpanForStatementRange(projection.value, { start: change.from, end: change.to }));
         const nextSelection = singlePhysicalSegment(snapshot, physicalSpanForStatementRange(projection.value, change.selection));

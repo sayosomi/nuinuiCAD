@@ -1,5 +1,6 @@
+import { argNameForParameter } from "../dsl/dslConstructions";
 import { parseDsl } from "../dsl/dslParser";
-import { quoteDslString } from "../dsl/dslTokens";
+import { quoteDslString, unquoteDslString } from "../dsl/dslTokens";
 
 const separatorPattern = /[\\/]+/;
 
@@ -76,16 +77,19 @@ export const rebaseImageSourcePathsInText = (
   const lines = sourceText.split(/\r?\n/);
   const statements = parseDsl(sourceText).statements;
 
+  const sourcePathArgName = argNameForParameter("image", "sourcePath");
+
   for (const statement of statements) {
     if (statement.kind !== "element" || statement.type !== "image") continue;
-    const sourcePath = statement.attrs.find((attribute) => attribute.key === "sourcePath");
+    const sourcePath = statement.attrs.find((attribute) => attribute.key === sourcePathArgName);
     if (!sourcePath) continue;
+    const currentPath = unquoteDslString(sourcePath.value);
     const nextPath = imagePathForDocument(
-      sourcePath.value,
+      currentPath,
       currentDocumentPath,
       nextDocumentPath
     );
-    if (nextPath === sourcePath.value) continue;
+    if (nextPath === currentPath) continue;
     const lineIndex = statement.line - 1;
     const line = lines[lineIndex];
     if (line === undefined) continue;

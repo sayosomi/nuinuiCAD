@@ -16,29 +16,29 @@ const compileOrThrow = (source: string): DslDocumentData => {
 describe("assertShadowEquivalent", () => {
   it("正準シリアライズが一致すればtrueを返しconsole.errorを呼ばない", () => {
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
-    const afterDoc = compileOrThrow(["nui 1", "point A = (0, 0)"].join("\n"));
+    const afterDoc = compileOrThrow(["nui 2", "point A = coordinate(x: 0 y: 0)"].join("\n"));
     expect(assertShadowEquivalent(afterDoc, afterDoc)).toBe(true);
     expect(spy).not.toHaveBeenCalled();
   });
 
   it("シリアライズが食い違えばfalseを返しconsole.errorで警告する", () => {
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
-    const afterDoc = compileOrThrow(["nui 1", "point A = (0, 0)"].join("\n"));
-    const shadowDoc = compileOrThrow(["nui 1", "point A = (99, 99)"].join("\n"));
+    const afterDoc = compileOrThrow(["nui 2", "point A = coordinate(x: 0 y: 0)"].join("\n"));
+    const shadowDoc = compileOrThrow(["nui 2", "point A = coordinate(x: 99 y: 99)"].join("\n"));
     expect(assertShadowEquivalent(afterDoc, shadowDoc)).toBe(false);
     expect(spy).toHaveBeenCalledOnce();
   });
 
   it("shadowDocumentがnullならfalseを返しconsole.errorで警告する", () => {
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
-    const afterDoc = compileOrThrow(["nui 1", "point A = (0, 0)"].join("\n"));
+    const afterDoc = compileOrThrow(["nui 2", "point A = coordinate(x: 0 y: 0)"].join("\n"));
     expect(assertShadowEquivalent(afterDoc, null)).toBe(false);
     expect(spy).toHaveBeenCalledOnce();
   });
 });
 
 describe("assertReconcileSane", () => {
-  const baseSource = ["nui 1", "point A = (0, 0)", "point B = (1, 1)", "point C = (2, 2)"].join("\n");
+  const baseSource = ["nui 2", "point A = coordinate(x: 0 y: 0)", "point B = coordinate(x: 1 y: 1)", "point C = coordinate(x: 2 y: 2)"].join("\n");
 
   it("リネームのみ(移動なし)はID継承必須: 正常な場合は警告しない", () => {
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
@@ -85,7 +85,7 @@ describe("assertReconcileSane", () => {
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
     const prevCompiled = compileDslDocument(baseSource);
     const prevDoc = prevCompiled.document!;
-    const inserted = compileOrThrow("nui 1\npoint D = (3, 3)").elements[0];
+    const inserted = compileOrThrow("nui 2\npoint D = coordinate(x: 3 y: 3)").elements[0];
     const afterDoc: DslDocumentData = {
       ...prevDoc,
       elements: [...prevDoc.elements.filter((element) => element.name !== "C"), inserted]
@@ -104,7 +104,7 @@ describe("assertReconcileSane", () => {
       sourceLines: [],
       diagnostics: []
     };
-    const afterDoc = compileOrThrow(["nui 1", "point A = (0, 0)"].join("\n"));
+    const afterDoc = compileOrThrow(["nui 2", "point A = coordinate(x: 0 y: 0)"].join("\n"));
     assertReconcileSane(brokenCompiled, serializeDocumentToDsl(afterDoc), afterDoc);
     expect(spy).not.toHaveBeenCalled();
   });

@@ -14,7 +14,7 @@ describe("SourceEditor state rail", () => {
   beforeEach(() => {
     useCadDocumentStore.setState(initialCadDocumentState());
     useCadUiStore.setState(initialCadUiState());
-    useCadDocumentStore.getState().commitText("nui 1\npoint A = (0, 0)\npoint B = (10, 0)", "test");
+    useCadDocumentStore.getState().commitText("nui 2\npoint A = coordinate(x: 0 y: 0)\npoint B = coordinate(x: 10 y: 0)", "test");
     Object.defineProperty(Range.prototype, "getClientRects", { configurable: true, value: () => [] });
     Object.defineProperty(HTMLElement.prototype, "clientWidth", { configurable: true, value: 500 });
     Object.defineProperty(HTMLElement.prototype, "clientHeight", { configurable: true, value: 400 });

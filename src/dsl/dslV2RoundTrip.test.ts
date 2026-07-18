@@ -9,8 +9,8 @@ import type { CadElement, PrintLayout, VariableValueMode } from "../types/geomet
 import { applyArgs, createDefaultIntermediateId, type DslApplyArgsResolvers } from "./dslApplyArgs";
 import { parseDslCallStatement } from "./dslCallParser";
 import { constructionFor } from "./dslConstructions";
-import { compileDslToElements } from "./dslCompiler";
 import { normalizeForComparison } from "./dslDocumentTestUtils";
+import { parseLegacyV1Document } from "../document/legacyDsl/parseLegacyV1Document";
 import { createNameIndex } from "./dslReferences";
 import { documentDslRefs } from "./dslSerializer";
 import { serializeElementStatementLogical } from "./dslSerializeElement";
@@ -18,7 +18,7 @@ import { parseDslSettingsStatement } from "./dslSettingsParser";
 import { applyDslV2PrintLayout, applyDslV2Setting, emptyDslV2Settings, serializeDslV2Settings } from "./dslV2Settings";
 import { compileDslV2RoundTripDocument } from "./dslV2RoundTripHarness";
 import { v2CanonicalElementStatements, v2CanonicalSettingStatements, type V2CanonicalElementStatement } from "./__fixtures__/v2CanonicalStatements";
-import sampleV1 from "./__fixtures__/sample.nui?raw";
+import sampleV1 from "./__fixtures__/sample.v1.nui?raw";
 import sampleV2 from "./__fixtures__/sample.v2.nui?raw";
 
 const refs: CadElement[] = [
@@ -122,7 +122,10 @@ describe("DSL v2 P7 round-trip and golden fixtures", () => {
   });
 
   it("matches the v1 sample's elements, settings, print members, active selections, and @stop", () => {
-    const v1 = compileDslToElements(sampleV1, { elements: [], mode: "document" });
+    // C1: live dslCompiler は v2 専用になったため、v1 側は W5 の凍結 parser
+    // facade(src/document/legacyDsl/)経由で読む(旧 compileDslToElements
+    // 直呼びはもう v1 テキストを受理しない)。
+    const v1 = parseLegacyV1Document(sampleV1);
     const v2 = compileDslV2RoundTripDocument(sampleV2);
     expect(normalizeForComparison(v2.elements)).toEqual(normalizeForComparison(v1.elements));
     expect(v2.palette).toEqual(v1.palette);

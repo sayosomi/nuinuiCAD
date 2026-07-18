@@ -24,10 +24,11 @@ import type { SourceRevision } from "./logicalStatementSourceMap";
 import {
   documentDslRefs,
   flatRefs,
-  serializeElementStatement,
+  serializedStatementLines,
   serializeVisibilitySettingsLines,
   type DslSerializerRefs
 } from "./dslSerializer";
+import { serializeElementStatementBlock, type SerializedStatement } from "./dslSerializeElement";
 import type { DslDiagnostic, DslEnclosing, DslStatement, ParseDslResult } from "./dslTypes";
 import { formatDslReferencePath, formatDslReferenceToken } from "./dslReferenceTokens";
 import { DSL_INDENT, formatDslName, quoteDslString } from "./dslTokens";
@@ -126,7 +127,7 @@ export type CompileDslDocumentOptions = {
   sourceRevision?: SourceRevision;
 };
 
-export const DSL_VERSION = 1;
+export const DSL_VERSION = 2;
 
 const versionDiagnostic = (line: number, message: string): DslDiagnostic => ({
   severity: "error",
@@ -137,14 +138,14 @@ const versionDiagnostic = (line: number, message: string): DslDiagnostic => ({
 
 // ==== パレット ====
 
-export const serializePaletteColorLine = (color: PaletteColor, defaultColorId: string): string =>
-  [
-    "color",
-    formatDslName(color.id),
+export const serializePaletteColorLine = (color: PaletteColor, defaultColorId: string): string => {
+  const args = [
     quoteDslString(color.hex),
-    `name=${quoteDslString(color.name)}`,
-    ...(color.id === defaultColorId ? ["default"] : [])
-  ].join(" ");
+    `name: ${quoteDslString(color.name)}`,
+    ...(color.id === defaultColorId ? ["default: true"] : [])
+  ];
+  return `color ${formatDslName(color.id)} (${args.join(" ")})`;
+};
 
 export const serializePaletteLines = (palette: DocumentPalette): string[] =>
   palette.colors.map((color) => serializePaletteColorLine(color, palette.defaultColorId));
@@ -184,19 +185,17 @@ const printLayoutBlockLines = (
   const layoutNumeric = (value: Parameters<typeof formatNumericValueForDsl>[0]) =>
     numeric(value, layout.numericVariables ?? []);
 
-  const header = [
-    "printLayout",
-    formatDslName(displayName),
-    `output=${layout.outputKind}`,
-    ...(profileName ? [`view=${formatDslName(profileName)}`] : []),
-    `paper=${layout.paperSizeId}`,
-    `orientation=${layout.orientation}`,
-    `columns=${layoutNumeric(layout.columns)}`,
-    `rows=${layoutNumeric(layout.rows)}`,
-    `overlap=${layoutNumeric(layout.overlapMm)}`,
-    `scale=${layoutNumeric(layout.scale)}`,
-    `canvas=(${layoutNumeric(layout.svgCanvasWidthMm)}, ${layoutNumeric(layout.svgCanvasHeightMm)})`
-  ].join(" ");
+  const argLines = [
+    `output: ${layout.outputKind}`,
+    ...(profileName ? [`view: ${formatDslName(profileName)}`] : []),
+    `paper: ${layout.paperSizeId}`,
+    `orientation: ${layout.orientation}`,
+    `columns: ${layoutNumeric(layout.columns)}`,
+    `rows: ${layoutNumeric(layout.rows)}`,
+    `overlap: ${layoutNumeric(layout.overlapMm)}`,
+    `scale: ${layoutNumeric(layout.scale)}`,
+    `canvas: (${layoutNumeric(layout.svgCanvasWidthMm)}, ${layoutNumeric(layout.svgCanvasHeightMm)})`
+  ];
 
   const localVars = layout.numericVariables ?? [];
   const memberLines: string[] = [];
@@ -207,17 +206,17 @@ const printLayoutBlockLines = (
   }
   for (const placement of layout.placements) {
     memberLines.push(
-      [
-        `${DSL_INDENT}place`,
-        resolveGroupToken(elements, placement.groupId, nameContext),
-        `at=(${numeric(placement.x, localVars)}, ${numeric(placement.y, localVars)})`,
-        `angle=${numeric(placement.angleDeg, localVars)}`,
-        `mirrorX=${placement.mirrorX}`
-      ].join(" ")
+      `${DSL_INDENT}place ${resolveGroupToken(elements, placement.groupId, nameContext)} (at: (${numeric(placement.x, localVars)}, ${numeric(placement.y, localVars)}) angle: ${numeric(placement.angleDeg, localVars)} mirrorX: ${placement.mirrorX})`
     );
   }
 
-  return [header, "{", ...memberLines, "}"];
+  return [
+    `printLayout ${formatDslName(displayName)} (`,
+    ...argLines.map((line) => `${DSL_INDENT}${line}`),
+    ") {",
+    ...memberLines,
+    "}"
+  ];
 };
 
 const PRINT_LAYOUT_PROMOTED_NAME_BASE = "レイアウト";
@@ -291,17 +290,62 @@ const containerKind = (type: CadElementType): BlockFrame["kind"] | null =>
   type === "group" || type === "conditionalGroup" || type === "forGroup" ? type : null;
 
 export type ElementTreeRow = {
-  /** この行の(インデント済み)物理行群。v1では常に1要素(複数行呼び出しはC1以降)。 */
+  /** この文の(インデント済み)物理行群。縦型callは header/引数行.../close の複数行。 */
   lines: string[];
-  /** lines と並行。引数キー名(header/close/構造行はnull)。v1では常に[null]。 */
+  /** lines と並行。各行が担う引数キー名(header/close/構造行はnull)。 */
   argKeys: (string | null)[];
   /** 正準インデント深さ(blockEnd/blockElse は開き文と同じ深さ)。 */
   depth: number;
-  role: "statement" | "blockStart" | "blockEnd" | "blockElse" | "atStop";
+  role: "statement" | "blockEnd" | "blockElse" | "atStop";
   /** statement 行はその要素、blockEnd / blockElse 行は対応する開き要素のID。 */
   elementId?: ElementId;
-  /** parent=/branch= フォールバックで出力されたトップレベル文。 */
+  /** parent:/branch: フォールバックで出力されたトップレベル文。 */
   fallback?: boolean;
+};
+
+// container(group/if/for)ヘッダの `{` は独立した blockStart 行を合成せず、
+// ヘッダ自身の最終物理行に直接乗せる(確定仕様1.3: v2正準形はヘッダ行末尾に
+// `{`)。P5 containerStatement は常に1行ヘッダ(close: null)を返すため、
+// その1行の末尾に " {" を足すだけでよい。
+const statementRows = (
+  statement: SerializedStatement,
+  depth: number,
+  appendBrace: boolean
+): { lines: string[]; argKeys: (string | null)[] } => {
+  const indent = DSL_INDENT.repeat(depth);
+  if (!statement.close) {
+    return { lines: [`${indent}${statement.header}${appendBrace ? " {" : ""}`], argKeys: [null] };
+  }
+  const argIndent = `${indent}${DSL_INDENT}`;
+  return {
+    lines: [
+      `${indent}${statement.header}`,
+      ...statement.args.map((arg) => `${argIndent}${arg.text}`),
+      `${indent}${statement.close}${appendBrace ? " {" : ""}`
+    ],
+    argKeys: [null, ...statement.args.map((arg) => arg.key), null]
+  };
+};
+
+// 非連続な親子配置(並べ替え禁止の帰結として通常のブロック表現が不可能な
+// 場合)の過渡期フォールバック用: parent:/branch: を呼び出しの引数として
+// 差し込む(短形式 var のように呼び出し本体を持たない header は
+// expression(...) 呼び出しへ開き直す)。Phase 5で `parent=` パース受理ごと
+// このフォールバック自体を削除する想定。
+export const withFallbackParentArgs = (
+  statement: SerializedStatement,
+  parentToken: string,
+  branch: "then" | "else"
+): SerializedStatement => {
+  const extra = [
+    { key: "parent", text: `parent: ${parentToken}` },
+    ...(branch === "else" ? [{ key: "branch", text: "branch: else" }] : [])
+  ];
+  if (statement.close) return { ...statement, args: [...statement.args, ...extra] };
+  const equalsIndex = statement.header.indexOf("=");
+  const before = statement.header.slice(0, equalsIndex).trimEnd();
+  const value = statement.header.slice(equalsIndex + 1).trim();
+  return { header: `${before} = expression(`, args: [{ key: "value", text: `value: ${value}` }, ...extra], close: ")" };
 };
 
 // 要素配列の正準ブロック構造を行レコード列として構築する。全体シリアライズと
@@ -345,8 +389,8 @@ export const layoutElementTree = (
     const targetIdx = parentId ? stack.findIndex((frame) => frame.elementId === parentId) : -1;
 
     // 非連続な親子配置(並べ替え禁止の帰結として通常のブロック表現が
-    // 不可能な場合)は、過渡期のフォールバックとして parent=/branch=
-    // 属性付きのトップレベル文で無損失に出力する。Phase 1c以降は
+    // 不可能な場合)は、過渡期のフォールバックとして parent:/branch:
+    // 引数付きのトップレベル文で無損失に出力する。Phase 1c以降は
     // テキストが正準になりブレースが構造を強制するため、この分岐へは
     // 到達しなくなる想定(Phase 5で `parent=` パース受理ごと削除)。
     let fallback = Boolean(parentId) && targetIdx === -1;
@@ -360,10 +404,11 @@ export const layoutElementTree = (
     if (fallback) {
       closeTo(0);
       const parentToken = refs.token(parentId!, element);
-      const branchSuffix = element.conditionalBranch === "else" ? " branch=else" : "";
+      const statement = withFallbackParentArgs(serializeElementStatementBlock(element, refs), parentToken, desiredBranch);
+      const rows = statementRows(statement, 0, false);
       lines.push({
-        lines: [`${serializeElementStatement(element, refs)} parent=${parentToken}${branchSuffix}`],
-        argKeys: [null],
+        lines: rows.lines,
+        argKeys: rows.argKeys,
         depth: 0,
         role: "statement",
         elementId: element.id,
@@ -385,21 +430,15 @@ export const layoutElementTree = (
         }
       }
       const kind = containerKind(element.type);
+      const rows = statementRows(serializeElementStatementBlock(element, refs), stack.length, Boolean(kind));
       lines.push({
-        lines: [`${DSL_INDENT.repeat(stack.length)}${serializeElementStatement(element, refs)}`],
-        argKeys: [null],
+        lines: rows.lines,
+        argKeys: rows.argKeys,
         depth: stack.length,
         role: "statement",
         elementId: element.id
       });
       if (kind) {
-        lines.push({
-          lines: [`${DSL_INDENT.repeat(stack.length)}{`],
-          argKeys: [null],
-          depth: stack.length,
-          role: "blockStart",
-          elementId: element.id
-        });
         stack.push({ elementId: element.id, kind, branch: "then" });
       }
     }
@@ -419,6 +458,14 @@ const serializeElementTree = (
 
 // ==== ファサード ====
 
+// preserveElementOrder(フラット出力)専用: group/if/for は v2 文法上
+// 常に `{`/`}` ブロックを要求するため、子を入れ子にせず id=/parent= の
+// フラット属性だけで表現する場合でも、ヘッダ直後に空ブロックを添える。
+const serializedFlatStatementLines = (element: CadElement, statement: SerializedStatement): string[] =>
+  containerKind(element.type)
+    ? [`${statement.header} {`, "}"]
+    : serializedStatementLines(statement, "");
+
 export const serializeDocumentToDsl = (
   data: DslDocumentData,
   options: SerializeDslDocumentOptions = {}
@@ -430,7 +477,7 @@ export const serializeDocumentToDsl = (
     serializeVisibilitySettingsLines(data.visibilityRoles, data.visibilityProfiles, data.activeVisibilityProfileId),
     serializePrintLayoutSection(data),
     options.preserveElementOrder
-      ? data.elements.map((element) => serializeElementStatement(element, refs))
+      ? data.elements.flatMap((element) => serializedFlatStatementLines(element, serializeElementStatementBlock(element, refs)))
       : serializeElementTree(data.elements, refs, data.evaluationLimitIndex)
   ];
   return sections

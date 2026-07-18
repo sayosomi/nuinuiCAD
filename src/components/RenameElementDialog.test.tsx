@@ -6,7 +6,12 @@ import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import { RenameElementDialog } from "./RenameElementDialog";
 
 const seed = () => {
-  useCadDocumentStore.getState().commitText("nui 1\npoint A = (0, 0)\npoint B = (10, 0)", "test");
+  // Written in v2's canonical vertical-call shape: renameElementWithPropagation's
+  // dev assertion requires an in-place line patch (no inserted/removed lines).
+  useCadDocumentStore.getState().commitText(
+    ["nui 2", "point A = coordinate(", "  x: 0", "  y: 0", ")", "point B = coordinate(", "  x: 10", "  y: 0", ")"].join("\n"),
+    "test"
+  );
   useCadDocumentStore.setState({ past: [], future: [], dirtySinceSave: false });
   const targetId = useCadDocumentStore.getState().elements.find((element) => element.name === "A")!.id;
   const otherId = useCadDocumentStore.getState().elements.find((element) => element.name === "B")!.id;

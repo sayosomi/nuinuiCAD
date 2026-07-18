@@ -2,6 +2,7 @@ import { parseDslSnapshot } from "./dslParser";
 import {
   assertSourceMapRevision,
   physicalSpanForLogicalRange,
+  physicalToLogicalOffset,
   type DslPhysicalSpan,
   type SourceMapResult,
   type SourceSnapshot
@@ -44,6 +45,20 @@ export const logicalTextForProjection = (projection: StatementProjection): strin
     candidate.range.from === projection.statement.documentRange.from &&
     candidate.range.to === projection.statement.documentRange.to
   )?.logicalText ?? null;
+
+/** Maps a real source position within the projected statement to its logical
+ * (row-joined) offset, e.g. to translate a CodeMirror cursor on any physical
+ * row of a multi-line statement into a position resolveParameterTargetAt can use. */
+export const logicalOffsetForPhysicalPosition = (
+  projection: StatementProjection,
+  physicalOffset: number
+): number | null => {
+  const logical = projection.parsed.sourceMap.statements.find((candidate) =>
+    candidate.range.from === projection.statement.documentRange.from &&
+    candidate.range.to === projection.statement.documentRange.to
+  );
+  return logical ? physicalToLogicalOffset(projection.parsed.sourceMap, logical, physicalOffset) : null;
+};
 
 /** CodeMirror can directly select a token only when its projection is contiguous. */
 export const singlePhysicalSegment = (

@@ -8,9 +8,16 @@ const identities = (source: string) => {
   const compiled = compileDslDocument(source);
   expect(compiled.document).not.toBeNull();
   expect(compiled.statementMap).not.toBeNull();
+  // 各statementはv2では複数物理行に跨り得るため、statement.line〜endLineの
+  // 全物理行をそのstatementのelementIdへ対応付ける(単一行前提だとcursorLineが
+  // ヘッダ行以外の物理行を指した際にidを引けなくなる)。
+  const ids = new Map<number, string>();
+  for (const [elementId, statement] of compiled.statementMap!.byElementId) {
+    for (let line = statement.line; line <= statement.endLine; line += 1) ids.set(line, elementId);
+  }
   return {
     elements: compiled.document!.elements,
-    ids: new Map([...compiled.statementMap!.byElementId].map(([elementId, statement]) => [statement.line, elementId]))
+    ids
   };
 };
 
@@ -33,7 +40,7 @@ describe("dslReferenceCompletionOptions", () => {
     const laterLines = dslLinesForElements([
       { id: "later", name: "Later", type: "freePoint", visible: true, enabled: true, x: 10, y: 0 }
     ]);
-    const source = ["nui 1", ...groupLines, ...laterLines].join("\n");
+    const source = ["nui 2", ...groupLines, ...laterLines].join("\n");
     const { elements, ids } = identities(source);
     const blankLine = source.split("\n").findIndex((line) => line === "") + 1;
     const pointALine = lineOf(source, "point A");
@@ -150,10 +157,13 @@ describe("dslReferenceCompletionOptions", () => {
     ]);
     const { elements, ids } = identities(source);
     const evaluation = evaluateElements(elements);
-    const lineText = source.split("\n")[lineOf(source, "line O = offset") - 1];
+    // v2の正準出力は縦型callのため、baseLineIdsのトークン列は`sources:`引数行に
+    // あり、ヘッダ行(`line O = offset(`)には現れない。
+    const sourcesLine = lineOf(source, "sources:");
+    const lineText = source.split("\n")[sourcesLine - 1];
     const options = dslReferenceCompletionOptions({
       source,
-      cursorLine: lineOf(source, "line O = offset"),
+      cursorLine: sourcesLine,
       kind: "lineReferenceList",
       parameterKey: "baseLineIds",
       replacementFrom: lineText.lastIndexOf("L"),
@@ -181,10 +191,11 @@ describe("dslReferenceCompletionOptions", () => {
     ]);
     const { elements, ids } = identities(source);
     const evaluation = evaluateElements(elements);
-    const lineText = source.split("\n")[lineOf(source, "line O = offset") - 1];
+    const sourcesLine = lineOf(source, "sources:");
+    const lineText = source.split("\n")[sourcesLine - 1];
     const options = dslReferenceCompletionOptions({
       source,
-      cursorLine: lineOf(source, "line O = offset"),
+      cursorLine: sourcesLine,
       kind: "lineReferenceList",
       parameterKey: "baseLineIds",
       replacementFrom: lineText.indexOf("L"),

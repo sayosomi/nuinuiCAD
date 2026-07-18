@@ -1,309 +1,333 @@
 import { describe, expect, it } from "vitest";
-import { compileDslToElements } from "./dslCompiler";
+import { createCadElement } from "../model/elementFactory";
+import { referenceAnchor } from "../model/pointAnchors";
+import { getParameterDefinitions } from "../parameters/parameterDefinitions";
+import { createElementNameContext } from "../model/elementNames";
+import type { CadElement, VariableValueMode } from "../types/geometry";
+import { applyArgs, createDefaultIntermediateId, type DslApplyArgsResolvers } from "./dslApplyArgs";
+import { parseDslCallStatement } from "./dslCallParser";
+import { argNameForParameter, constructionFor } from "./dslConstructions";
+import { createNameIndex } from "./dslReferences";
+import { documentDslRefs } from "./dslSerializer";
 import {
-  recordField,
-  recordSpans,
   resolveParameterKeyForValueSpan,
   resolveParameterTargetAt,
-  resolveParameterValueSpan
+  resolveParameterValueSpan,
 } from "./dslParameterSpans";
-import { documentDslRefs, serializeElementStatement, serializeElementsToDsl } from "./dslSerializer";
-import { phase3aCanonicalParameterSpanSource, phase3aFixtureElementNameByType } from "./dslParameterSpanFixtures";
-import { getParameterDefinitions } from "../parameters/parameterDefinitions";
-import { elementTypeLabels, type CadElement } from "../types/geometry";
-import { evaluateElements } from "../geometry/evaluate";
+import { v2CanonicalElementStatements, type V2CanonicalElementStatement } from "./__fixtures__/v2CanonicalStatements";
 
-const compiled = (source: string) => {
-  const result = compileDslToElements(source, { elements: [] });
-  expect(result.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
-  return result.elements.at(-1)!;
-};
+const refs: CadElement[] = [
+  { id: "A", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
+  { id: "B", name: "B", type: "freePoint", visible: true, enabled: true, x: 10, y: 0 },
+  { id: "C", name: "C", type: "freePoint", visible: true, enabled: true, x: 20, y: 0 },
+  { id: "AB", name: "AB", type: "line", visible: true, enabled: true, startPoint: referenceAnchor("A"), endPoint: referenceAnchor("B") },
+  { id: "CD", name: "CD", type: "line", visible: true, enabled: true, startPoint: referenceAnchor("B"), endPoint: referenceAnchor("C") },
+];
 
-const selectedText = (
-  source: string,
-  element: ReturnType<typeof compiled>,
-  key: string,
-  committedLineText = source
-) => {
-  const span = resolveParameterValueSpan(source, element, key, { committedLineText });
-  expect(span).not.toBeNull();
-  return source.slice(span!.start, span!.end);
-};
+const variableModeFor = (construction: string): VariableValueMode | null =>
+  construction === "expression" || construction === "pointDistance" || construction === "pointAngle" || construction === "pointLineDistance"
+    ? construction
+    : null;
 
-type ExpectedSpan = string | { nullReason: string };
-const nullSpan = (nullReason: string): ExpectedSpan => ({ nullReason });
-const common = (name: string, includeColor = true) => ({
-  name,
-  ...(includeColor ? { colorId: "accent" } : {}),
-  visible: "false",
-  enabled: "false",
-  locked: "true"
+const resolvers = (elements: CadElement[]): DslApplyArgsResolvers => ({
+  index: createNameIndex([...refs, ...elements]), line: 1, elementsForExpressions: [...refs, ...elements],
+  nameContext: createElementNameContext([...refs, ...elements]), visibilityRoles: [{ id: "seam", name: "縫い代" }], createIntermediateId: createDefaultIntermediateId,
 });
 
-const expectationsFor = (element: CadElement): Record<string, ExpectedSpan> => {
-  switch (element.type) {
-    case "group": return { ...common("G"), printEnabled: "true", printAnchor: "(1, 2)", "printAnchor:x": "1", "printAnchor:y": "2" };
-    case "conditionalGroup": return { ...common("Cond"), condition: "1" };
-    case "forGroup": return { ...common("Loop"), variableName: "i", start: "0", count: "2", step: "1", showGenerated: "true" };
-    case "variable": return { name: "V", enabled: "false", locked: "true", scope: "group", expression: "2" };
-    case "freePoint": return { ...common("A"), x: "0", y: "0" };
-    case "offsetPoint": return { ...common("Off"), fromPoint: "A", dx: "3", dy: "4" };
-    case "polarOffsetPoint": return { ...common("Polar"), fromPoint: "A", angleDeg: "30", distance: "5" };
-    case "divisionPoint": return { ...common("Div"), startPoint: "A", endPoint: "B", placementMode: nullSpan("mode selector"), distance: nullSpan("inactive ratio mode"), ratio: "0.25" };
-    case "lineDivisionPoint": return { ...common("On"), endpoint: "AB.end", placementMode: nullSpan("mode selector"), distance: "10", ratio: nullSpan("inactive distance mode") };
-    case "intersectionPoint": return { ...common("Cross"), line1Id: "AB", line2Id: "CD", intersectionIndex: "0", useExtensions: "true" };
-    case "lineTangentOffsetPoint": return { ...common("Tangent"), baseLineId: "Arc", basePoint: "A", tangentAngleDeg: "10", distance: "2" };
-    case "line": return { ...common("AB"), startPoint: "A", endPoint: "B" };
-    case "angleLengthLine": return { ...common("Angle"), startPoint: "A", angleDeg: "45", length: "30" };
-    case "arcLine": return { ...common("Arc"), centerPoint: "A", radius: "20", startAngleDeg: "0", endAngleDeg: "90" };
-    case "threePointArcLine": return { ...common("Through"), point1: "A", point2: "C", point3: "B", startAngleDeg: "0", endAngleDeg: "180" };
-    case "cornerRadiusArcLine": return { ...common("Corner"), endpoint1: "AB.end", endpoint2: "Angle.start", radius: "5", intersectionIndex: "0" };
-    case "edge": return { ...common("Edge", false), endpoint1: "AB.end", endpoint2: "Angle.start", intersectionIndex: "0" };
-    case "extendTrim": return { ...common("Extend", false), endpoint: "AB.end", point: "C" };
-    case "bezierCurve": {
-      const variable = element.numericVariables![0];
-      const intermediate = element.intermediatePoints[0];
-      return {
-        ...common("Curve"),
-        [`variable:${variable.id}:value`]: "1 + 2",
-        startPoint: "A",
-        startHandleAngleDeg: "0",
-        startHandleLength: "10",
-        [`intermediate:${intermediate.id}:point`]: "(4, 5)",
-        [`intermediate:${intermediate.id}:point:x`]: "4",
-        [`intermediate:${intermediate.id}:point:y`]: "5",
-        [`intermediate:${intermediate.id}:handleAngleDeg`]: "45",
-        [`intermediate:${intermediate.id}:incomingHandleLength`]: "6",
-        [`intermediate:${intermediate.id}:outgoingHandleLength`]: "7",
-        endPoint: "B",
-        endHandleAngleDeg: "180",
-        endHandleLength: "20"
-      };
+const isContainerElementType = (elementType: V2CanonicalElementStatement["elementType"]) =>
+  elementType === "group" || elementType === "conditionalGroup" || elementType === "forGroup";
+
+/** Parses+applies canonical text the same way the production compiler eventually will (C1), so
+ * span resolution is always checked against the element the text actually produces. */
+const applyFixtureText = (fixture: V2CanonicalElementStatement, text: string) => {
+  const parsed = parseDslCallStatement(text, { opensBlock: isContainerElementType(fixture.elementType) });
+  expect(parsed.diagnostics, text).toEqual([]);
+  const statement = parsed.statement!;
+  const spec = constructionFor(statement.category, statement.construction)!;
+  const base = createCadElement(spec.elementType, [], { createId: (kind) => `${kind}-id`, referenceElements: refs });
+  const variableMode = variableModeFor(spec.construction);
+  const prepared = base.type === "variable" && variableMode
+    ? { ...base, name: statement.name, valueMode: variableMode }
+    : { ...base, name: statement.name };
+  const applied = applyArgs(prepared, spec, statement.args, resolvers([]));
+  expect(applied.diagnostics.filter((item) => item.severity === "error"), text).toEqual([]);
+  return { element: applied.element, statement };
+};
+
+/** Special args carry structured records/bookkeeping, not a single parameterKey. */
+const specialArgNames = new Set(["steps", "vars", "varIds", "id", "roles", "parent", "branch", "intermediates"]);
+
+/**
+ * `locked`/`visible`/`enabled`/`color` are universal `CadElement` fields that P5
+ * serializes whenever non-default, regardless of whether a given type's
+ * `getParameterDefinitions` exposes them as an editable parameterKey (e.g. `edge`
+ * omits `colorId`, `variable` omits `visible`, yet both still carry the field and
+ * P5 still writes it out if set). The reverse "every emitted arg is claimed"
+ * check would otherwise flag this pre-existing, type-independent P5 behavior as
+ * a gap; the forward per-type check below still fully covers these keys for the
+ * types that do expose them.
+ */
+const universalArgNames = new Set(["locked", "visible", "enabled", "color"]);
+
+/**
+ * Three parameterKeys are never written to v2 text directly, by construction of
+ * the P1 registry and P5 serializer (not a gap in P9): `placementMode` has no
+ * arg at all; the inactive distance/ratio side is omitted by
+ * `shouldSerializeConstructionArg`; `scope` is only declared on the `expression`
+ * construction spec, so P5 never emits it for measurement-mode variables. All
+ * three are fixed/asserted in dedicated tests below, not in the generic sweep.
+ */
+const isFixedElsewhere = (element: CadElement, key: string) =>
+  key === "placementMode" ||
+  ((element.type === "divisionPoint" || element.type === "lineDivisionPoint") && (key === "distance" || key === "ratio")) ||
+  (element.type === "variable" && key === "scope" && element.valueMode !== "expression");
+
+const baseKeyOf = (key: string) => key.match(/^(.+):(x|y)$/)?.[1] ?? key;
+
+/** Independently decomposes a coordinate-literal `(x, y)` outer span for `:x`/`:y`
+ * sub-keys; a plain key's expected text is just the outer arg's own text. */
+const expectedArgText = (text: string, outer: { start: number; end: number }, parameterKey: string) => {
+  const suffix = parameterKey.match(/^(.+):(x|y)$/);
+  if (!suffix) return text.slice(outer.start, outer.end);
+  const inner = text.slice(outer.start + 1, outer.end - 1);
+  const commaIndex = inner.indexOf(",");
+  return (suffix[2] === "x" ? inner.slice(0, commaIndex) : inner.slice(commaIndex + 1)).trim();
+};
+
+/**
+ * Bidirectional check for one canonical fixture text:
+ *  - every ordinary arg the parser actually found (`payloadSpans`) is claimed by
+ *    some parameterKey (catches P1/P9 mapping gaps — this is the "populated:
+ *    every emitted arg resolves" requirement, and trivially holds for minimal too).
+ *  - every parameterKey resolves iff its arg is present in the text (this is the
+ *    "minimal: present resolves, omitted defaults are null" requirement).
+ */
+const checkFixtureSpans = (fixture: V2CanonicalElementStatement, text: string) => {
+  const { element, statement } = applyFixtureText(fixture, text);
+  const present = new Set(Object.keys(statement.payloadSpans));
+  // P3's short-`var` branch aliases the sole value under both "value" and
+  // "expression" for convenience; only "value" is a real registry arg name.
+  if (statement.shortVariable) present.delete("expression");
+
+  const definitions = getParameterDefinitions(element).filter(
+    (definition) => definition.key !== "name" && !isFixedElsewhere(element, definition.key) &&
+      !definition.key.startsWith("variable:") && !definition.key.startsWith("intermediate:")
+  );
+  const claimedArgNames = new Set(
+    definitions
+      .map((definition) => argNameForParameter(element.type, baseKeyOf(definition.key)))
+      .filter((argName): argName is string => argName !== null)
+  );
+  // distance/ratio are asserted in the dedicated placementMode test below, not here.
+  const exclusivePlacementArgs = element.type === "divisionPoint" || element.type === "lineDivisionPoint"
+    ? new Set(["distance", "ratio"])
+    : new Set<string>();
+  for (const argName of present) {
+    if (specialArgNames.has(argName) || universalArgNames.has(argName) || exclusivePlacementArgs.has(argName)) continue;
+    expect(claimedArgNames.has(argName), `${fixture.key} (${text}): 引数「${argName}」に対応する parameterKey がありません`).toBe(true);
+  }
+
+  for (const definition of getParameterDefinitions(element)) {
+    const key = definition.key;
+    if (key === "name" || isFixedElsewhere(element, key)) continue;
+    if (key.startsWith("variable:") || key.startsWith("intermediate:")) {
+      const span = resolveParameterValueSpan(text, element, key, { committedLineText: text });
+      expect(span, `${fixture.key}: ${key} が解決できません`).not.toBeNull();
+      continue;
     }
-    case "offsetLine": return { ...common("Seam"), baseLineIds: "[AB]", offset: "4", side: "left", closed: "true", suppressTrimWarnings: "true" };
-    case "splitLine": return { ...common("Split"), baseLineId: "AB", splitPoint: "C" };
-    case "copyLine": return { ...common("Copy"), startPoint: "A", endPoint: "B", scale: "1.5", angleDeg: "5", mirrorX: "true", baseLineIds: "[AB]" };
-    case "symmetricCopyLine": return { ...common("SymCopy"), axisPoint1: "A", axisPoint2: "B", baseLineIds: "[AB]" };
-    case "move": return { ...common("Move", false), startPoint: "A", endPoint: "B", scale: "2", angleDeg: "10", mirrorX: "false", baseLineIds: "[AB]" };
-    case "symmetricMove": return { ...common("SymMove", false), axisPoint1: "A", axisPoint2: "B", baseLineIds: "[AB]" };
-    case "image": return {
-      ...common("Img"),
-      sourcePath: nullSpan("legacy image source span is not implemented"),
-      originPoint: "(8, 9)",
-      "originPoint:x": "8",
-      "originPoint:y": "9",
-      naturalWidthPx: nullSpan("legacy image metadata span is not implemented"),
-      naturalHeightPx: nullSpan("legacy image metadata span is not implemented"),
-      sourceDpi: nullSpan("legacy image metadata span is not implemented"),
-      targetPixelsPerMm: nullSpan("legacy image metadata span is not implemented"),
-      scale: "1.25",
-      angleDeg: "15",
-      mirrorX: "true",
-    };
-    case "text": return { ...common("Label"), text: '"hello"', anchor: "A", fontSize: "4" };
+    const argName = argNameForParameter(element.type, baseKeyOf(key));
+    const expectedPresent = argName !== null && present.has(argName);
+    const span = resolveParameterValueSpan(text, element, key, { committedLineText: text });
+    if (expectedPresent) {
+      expect(span, `${fixture.key}: ${key} が解決できません`).not.toBeNull();
+      expect(text.slice(span!.start, span!.end)).toBe(expectedArgText(text, statement.payloadSpans[argName!], key));
+    } else {
+      expect(span, `${fixture.key}: ${key} は null であるべきです`).toBeNull();
+    }
   }
 };
 
-describe("resolveParameterValueSpan", () => {
-  it("covers every current element type against canonical, dependency-valid serializer fixtures", () => {
-    const compiledFixture = compileDslToElements(phase3aCanonicalParameterSpanSource, { elements: [] });
-    expect(compiledFixture.diagnostics).toEqual([]);
-    expect(new Set(compiledFixture.elements.map((element) => element.type))).toEqual(new Set(Object.keys(elementTypeLabels)));
-    const evaluation = evaluateElements(compiledFixture.elements);
-    expect(evaluation.errors).toEqual([]);
-    expect(evaluation.warnings).toEqual([]);
-    const evaluatedNames = new Set(compiledFixture.elements
-      .filter((element) => evaluation.computedGeometry.has(element.id))
-      .map((element) => element.name));
-    expect(evaluatedNames).toEqual(new Set(["EvalA", "EvalB", "EvalAB"]));
+describe("DSL v2 P9 parameter value span resolution", () => {
+  describe("全27要素型 + variable 4 construction の populated/minimal 網羅", () => {
+    for (const fixture of v2CanonicalElementStatements) {
+      it(`resolves ${fixture.key} (populated)`, () => checkFixtureSpans(fixture, fixture.populated));
+      it(`resolves ${fixture.key} (minimal)`, () => checkFixtureSpans(fixture, fixture.minimal));
+    }
+  });
 
-    const serializedFixture = serializeElementsToDsl(compiledFixture.elements);
-    expect(compileDslToElements(serializedFixture, { elements: [] }).diagnostics).toEqual([]);
-
-    const refs = documentDslRefs(compiledFixture.elements);
-    for (const type of Object.keys(elementTypeLabels) as CadElement["type"][]) {
-      const element = compiledFixture.elements.find((candidate) => candidate.type === type && candidate.name === phase3aFixtureElementNameByType[type])!;
-      expect(element).toBeDefined();
-      const line = serializeElementStatement(element, refs);
-      const expected = expectationsFor(element);
-      const definitions = getParameterDefinitions(element);
-      expect(Object.keys(expected).sort()).toEqual(definitions.map((definition) => definition.key).sort());
-      for (const definition of definitions) {
-        const expectation = expected[definition.key]!;
-        const span = resolveParameterValueSpan(line, element, definition.key, { committedLineText: line });
-        if (typeof expectation !== "string") {
-          expect(expectation.nullReason).not.toBe("");
-          expect(span).toBeNull();
-          continue;
-        }
-        expect(span).not.toBeNull();
-        expect(line.slice(span!.start, span!.end), `${element.type}.${definition.key}`).toBe(expectation);
-        expect(resolveParameterKeyForValueSpan(line, element, span!, { committedLineText: line })).toBe(definition.key);
+  it("resolves the element name span for every fixture", () => {
+    for (const fixture of v2CanonicalElementStatements) {
+      for (const text of [fixture.populated, fixture.minimal]) {
+        const { element, statement } = applyFixtureText(fixture, text);
+        const span = resolveParameterValueSpan(text, element, "name", {});
+        expect(span, `${fixture.key}: ${text}`).not.toBeNull();
+        expect(span!.source).toBe("name");
+        expect(span!.start).toBe(statement.nameSpan!.start);
+        expect(span!.end).toBe(statement.nameSpan!.end);
       }
     }
   });
 
-  it("uses serializer spellings while accepting parser-normalized positional and alias attributes", () => {
-    const source = "line lower = split Base at=P";
-    const element = compiled(source);
-    expect(selectedText(source, element, "baseLineId")).toBe("Base");
-    expect(selectedText(source, element, "splitPoint")).toBe("P");
-  });
-
-  it("selects name tokens separately from the legacy value spans", () => {
-    const source = "point \"named point\" = (0, 0)";
-    const element = compiled(source);
-    expect(selectedText(source, element, "name")).toBe('"named point"');
-  });
-
-  it("resolves the most specific parameter for caret and selection without changing legacy spans", () => {
-    const source = "line L = (-(a + 1), 20) -> B";
-    const element = compiled(source);
-    const parent = resolveParameterValueSpan(source, element, "startPoint")!;
-    const x = resolveParameterValueSpan(source, element, "startPoint:x")!;
-    const y = resolveParameterValueSpan(source, element, "startPoint:y")!;
-    expect(resolveParameterTargetAt(source, element, { start: x.start + 1, end: x.start + 1 })?.parameterKey).toBe("startPoint:x");
-    // x.end is a terminal boundary for x, but it is normally contained by
-    // the parent coordinate span and must not take precedence over it.
-    expect(resolveParameterTargetAt(source, element, { start: x.end, end: x.end })?.parameterKey).toBe("startPoint");
-    expect(resolveParameterTargetAt(source, element, x)?.parameterKey).toBe("startPoint:x");
-    expect(resolveParameterTargetAt(source, element, parent)?.parameterKey).toBe("startPoint");
-    expect(resolveParameterTargetAt(source, element, { start: y.start + 1, end: y.start + 1 })?.parameterKey).toBe("startPoint:y");
-    expect(resolveParameterTargetAt(source, element, { start: y.end, end: y.end })?.parameterKey).toBe("startPoint");
-  });
-
-  it("resolves dirty reference anchors to live coordinate children", () => {
-    const committedReference = compiled("line Dirty = A -> B");
-    const dirtyCoordinate = "line Dirty = (1, 2) -> B";
-    const dirtyX = dirtyCoordinate.indexOf("1");
-    const dirtyY = dirtyCoordinate.indexOf("2");
-    expect(resolveParameterTargetAt(dirtyCoordinate, committedReference, { start: dirtyX, end: dirtyX })?.parameterKey).toBe("startPoint:x");
-    expect(resolveParameterTargetAt(dirtyCoordinate, committedReference, { start: dirtyY, end: dirtyY })?.parameterKey).toBe("startPoint:y");
-  });
-
-  it("uses live division mode and rejects duplicate attributes instead of guessing", () => {
-    const committed = "point M = between A B ratio=0.5";
-    const element = compiled(committed);
-    const liveDistance = "point M = between A B distance=25";
-    expect(selectedText(liveDistance, element, "distance", committed)).toBe("25");
-    expect(resolveParameterValueSpan(liveDistance, element, "ratio", { committedLineText: committed })).toBeNull();
-    const both = "point M = between A B distance=25 ratio=0.5";
-    expect(resolveParameterValueSpan(both, element, "distance", { committedLineText: committed })).toBeNull();
-    expect(resolveParameterValueSpan(both, element, "ratio", { committedLineText: committed })).toBeNull();
-    const arc = compiled("arc C center=A radius=10 start=0 end=90");
-    expect(resolveParameterValueSpan("arc C center=A radius=10 radius=20 start=0 end=90", arc, "radius")).toBeNull();
-  });
-
-  it("rejects mixed division mode attrs when either spelling is duplicated", () => {
-    const committed = "point M = between A B ratio=0.5";
-    const element = compiled(committed);
-    for (const source of [
-      "point M = between A B distance=10 distance=20 ratio=0.5",
-      "point M = between A B distance=10 ratio=0.5 ratio=0.75"
-    ]) {
-      expect(resolveParameterValueSpan(source, element, "distance", { committedLineText: committed })).toBeNull();
-      expect(resolveParameterValueSpan(source, element, "ratio", { committedLineText: committed })).toBeNull();
-    }
-    const lineCommitted = "point N = on AB.end ratio=0.5";
-    const lineElement = compiled(lineCommitted);
-    for (const source of [
-      "point N = on AB.end distance=10 distance=20 ratio=0.5",
-      "point N = on AB.end distance=10 ratio=0.5 ratio=0.75"
-    ]) {
-      expect(resolveParameterValueSpan(source, lineElement, "distance", { committedLineText: lineCommitted })).toBeNull();
-      expect(resolveParameterValueSpan(source, lineElement, "ratio", { committedLineText: lineCommitted })).toBeNull();
+  it("resolves numericVariables records with content matching P5's own serialization", () => {
+    for (const fixture of v2CanonicalElementStatements) {
+      for (const text of [fixture.populated, fixture.minimal]) {
+        const { element } = applyFixtureText(fixture, text);
+        for (const variable of element.numericVariables ?? []) {
+          const span = resolveParameterValueSpan(text, element, `variable:${variable.id}:value`, { committedLineText: text });
+          expect(span, `${fixture.key}.${variable.name}`).not.toBeNull();
+          expect(text.slice(span!.start, span!.end)).toBe(documentDslRefs([...refs, element]).numeric(variable.value, element));
+        }
+      }
     }
   });
 
-  it("proves dynamic vars by unique names and never maps a deleted record by index", () => {
-    const committed = "point P = (0, 0) vars=[a:1;b:2]";
-    const element = compiled(committed);
-    const [a, b] = element.numericVariables!;
-    const live = "point P = (0, 0) vars=[b:2]";
-    expect(resolveParameterValueSpan(live, element, `variable:${a.id}:value`, { committedLineText: committed })).toBeNull();
-    expect(selectedText(live, element, `variable:${b.id}:value`, committed)).toBe("2");
-    const duplicate = "point P = (0, 0) vars=[b:2;b:3]";
-    expect(resolveParameterValueSpan(duplicate, element, `variable:${b.id}:value`, { committedLineText: committed })).toBeNull();
+  it("resolves bezierCurve intermediate records with content matching P5's own serialization", () => {
+    const fixture = v2CanonicalElementStatements.find((item) => item.key === "bezierCurve")!;
+    const { element } = applyFixtureText(fixture, fixture.populated);
+    const bezier = element as Extract<CadElement, { type: "bezierCurve" }>;
+    const dslRefs = documentDslRefs([...refs, element]);
+    for (const point of bezier.intermediatePoints) {
+      const expectations: Record<string, string> = {
+        point: dslRefs.anchor(point.point, element),
+        handleAngleDeg: dslRefs.numeric(point.handleAngleDeg, element),
+        incomingHandleLength: dslRefs.numeric(point.incomingHandleLength, element),
+        outgoingHandleLength: dslRefs.numeric(point.outgoingHandleLength, element),
+      };
+      for (const [field, expected] of Object.entries(expectations)) {
+        const span = resolveParameterValueSpan(fixture.populated, element, `intermediate:${point.id}:${field}`, { committedLineText: fixture.populated });
+        expect(span, field).not.toBeNull();
+        expect(fixture.populated.slice(span!.start, span!.end)).toBe(expected);
+      }
+    }
   });
 
-  it("preserves empty dynamic fields and proves intermediates by stable identity or a unique fingerprint", () => {
-    const committed = "curve C = A -> B startAngle=0 startLength=1 endAngle=2 endLength=3 intermediates=[(1,2):10:11:12;(3,4):20:21:22]";
-    const element = compiled(committed) as Extract<CadElement, { type: "bezierCurve" }>;
-    const [first, second] = element.intermediatePoints;
-    const deleted = "curve C = A -> B startAngle=0 startLength=1 endAngle=2 endLength=3 intermediates=[(3,4):20:21:22]";
-    expect(resolveParameterValueSpan(deleted, element, `intermediate:${first.id}:outgoingHandleLength`, { committedLineText: committed })).toBeNull();
-    expect(selectedText(deleted, element, `intermediate:${second.id}:outgoingHandleLength`, committed)).toBe("22");
-    const reordered = "curve C = A -> B startAngle=0 startLength=1 endAngle=2 endLength=3 intermediates=[(3,4):20:21:22;(1,2):10:11:12]";
-    expect(selectedText(reordered, element, `intermediate:${first.id}:outgoingHandleLength`, committed)).toBe("12");
-    const replacement = "curve Replacement = A -> B startAngle=0 startLength=1 endAngle=2 endLength=3 intermediates=[(1,2):10:11:12;(3,4):20:21:22]";
-    expect(resolveParameterValueSpan(replacement, element, `intermediate:${first.id}:outgoingHandleLength`, { committedLineText: committed })).toBeNull();
-    const emptyField = "curve C = A -> B startAngle=0 startLength=1 endAngle=2 endLength=3 intermediates=[(1,2):10::12]";
-    const emptyFieldElement = compiled(emptyField) as Extract<CadElement, { type: "bezierCurve" }>;
-    const emptyIntermediate = emptyFieldElement.intermediatePoints[0];
-    expect(resolveParameterValueSpan(emptyField, emptyFieldElement, `intermediate:${emptyIntermediate.id}:incomingHandleLength`, { committedLineText: emptyField })).toBeNull();
-    expect(selectedText(emptyField, emptyFieldElement, `intermediate:${emptyIntermediate.id}:outgoingHandleLength`, emptyField)).toBe("12");
-    expect(emptyIntermediate.outgoingHandleLength).toBe(12);
-    const ambiguous = "curve C = A -> B startAngle=0 startLength=1 endAngle=2 endLength=3 intermediates=[A:10:1:2;A:10:1:3]";
-    const ambiguousElement = compiled(ambiguous) as Extract<CadElement, { type: "bezierCurve" }>;
-    const ambiguousLive = "curve C = A -> B startAngle=0 startLength=1 endAngle=2 endLength=3 intermediates=[A:10:1:3;A:10:1:2]";
-    expect(resolveParameterValueSpan(ambiguousLive, ambiguousElement, `intermediate:${ambiguousElement.intermediatePoints[0].id}:outgoingHandleLength`, { committedLineText: ambiguous })).toBeNull();
+  describe("placementMode・非アクティブ側・測定variableのscope(DSL上に直接表現されない)", () => {
+    it("fixes placementMode to null and resolves only the active distance/ratio side", () => {
+      for (const fixture of v2CanonicalElementStatements.filter((item) => item.key === "divisionPoint" || item.key === "lineDivisionPoint")) {
+        for (const text of [fixture.populated, fixture.minimal]) {
+          const { element } = applyFixtureText(fixture, text);
+          const mode = (element as { placementMode: "distance" | "ratio" }).placementMode;
+          expect(resolveParameterValueSpan(text, element, "placementMode"), fixture.key).toBeNull();
+          const inactive = mode === "distance" ? "ratio" : "distance";
+          expect(resolveParameterValueSpan(text, element, inactive), `${fixture.key}.${inactive}`).toBeNull();
+          expect(resolveParameterValueSpan(text, element, mode), `${fixture.key}.${mode}`).not.toBeNull();
+        }
+      }
+    });
+
+    it("prefers the element's placementMode over a stray inactive-side argument in hand-edited text", () => {
+      const text = "point p = between(start: A end: B distance: 5 ratio: 0.7)";
+      const parsed = parseDslCallStatement(text);
+      const spec = constructionFor("point", "between")!;
+      const base = createCadElement(spec.elementType, [], { createId: (kind) => `${kind}-id`, referenceElements: refs });
+      const applied = applyArgs({ ...base, name: parsed.statement!.name }, spec, parsed.statement!.args, resolvers([]));
+      const element = { ...applied.element, placementMode: "ratio" as const };
+      expect(resolveParameterValueSpan(text, element, "distance")).toBeNull();
+      const ratioSpan = resolveParameterValueSpan(text, element, "ratio");
+      expect(ratioSpan).not.toBeNull();
+      expect(text.slice(ratioSpan!.start, ratioSpan!.end)).toBe("0.7");
+    });
+
+    it("fixes scope to null for measurement-mode variables and resolves it for expression variables", () => {
+      for (const fixture of v2CanonicalElementStatements.filter((item) => item.elementType === "variable")) {
+        for (const populated of [true, false]) {
+          const text = populated ? fixture.populated : fixture.minimal;
+          const { element } = applyFixtureText(fixture, text);
+          const span = resolveParameterValueSpan(text, element, "scope", {});
+          if (fixture.construction === "expression" && populated) {
+            expect(span, `${fixture.key} populated=${populated}`).not.toBeNull();
+          } else {
+            expect(span, `${fixture.key} populated=${populated}`).toBeNull();
+          }
+        }
+      }
+    });
   });
 
-  it("returns null when the committed intermediate fingerprint collides even if live is unique", () => {
-    const siblingCollision = "curve C = A -> B startAngle=0 startLength=1 endAngle=2 endLength=3 intermediates=[(1,2):10:11:12;(1,2):10:11:22]";
-    const collisionElement = compiled(siblingCollision) as Extract<CadElement, { type: "bezierCurve" }>;
-    const collisionLive = "curve C = A -> B startAngle=0 startLength=1 endAngle=2 endLength=3 intermediates=[(1,2):10:11:22]";
-    expect(resolveParameterValueSpan(
-      collisionLive,
-      collisionElement,
-      `intermediate:${collisionElement.intermediatePoints[0].id}:outgoingHandleLength`,
-      { committedLineText: siblingCollision }
-    )).toBeNull();
+  it("resolves x/y sub-spans for a literal coordinate anchor (line accepts coordinate literals for any reference-kind parameter)", () => {
+    const text = "line L = segment(start: (12, -8) end: (0, 0))";
+    const parsed = parseDslCallStatement(text);
+    const spec = constructionFor("line", "segment")!;
+    const base = createCadElement(spec.elementType, [], { createId: (kind) => `${kind}-id`, referenceElements: refs });
+    const applied = applyArgs({ ...base, name: parsed.statement!.name }, spec, parsed.statement!.args, resolvers([]));
+    const element = applied.element;
+    const keys = getParameterDefinitions(element).map((definition) => definition.key);
+    expect(keys).toContain("startPoint:x");
+    expect(keys).toContain("startPoint:y");
+    const xSpan = resolveParameterValueSpan(text, element, "startPoint:x");
+    const ySpan = resolveParameterValueSpan(text, element, "startPoint:y");
+    expect(xSpan).not.toBeNull();
+    expect(ySpan).not.toBeNull();
+    expect(text.slice(xSpan!.start, xSpan!.end)).toBe("12");
+    expect(text.slice(ySpan!.start, ySpan!.end)).toBe("-8");
   });
 
-  it("matches canonical compiler records with quoted delimiters, parenthesized expressions, and empty fields", () => {
-    const source = "curve C = A -> B startAngle=0 startLength=1 endAngle=2 endLength=3 vars=[\"a:b\":1 + (2 * (3 + 4));empty:;d:4] intermediates=[(4,5):45::7]";
-    const element = compiled(source) as Extract<CadElement, { type: "bezierCurve" }>;
-    const [quoted, empty] = element.numericVariables!;
-    const intermediate = element.intermediatePoints[0];
-    expect(selectedText(source, element, `variable:${quoted.id}:value`)).toBe("1 + (2 * (3 + 4))");
-    expect(resolveParameterValueSpan(source, element, `variable:${empty.id}:value`, { committedLineText: source })).toBeNull();
-    expect(resolveParameterValueSpan(source, element, `intermediate:${intermediate.id}:incomingHandleLength`, { committedLineText: source })).toBeNull();
-    expect(selectedText(source, element, `intermediate:${intermediate.id}:outgoingHandleLength`)).toBe("7");
-    expect(intermediate.outgoingHandleLength).toBe(7);
+  it("resolves x/y sub-spans nested inside a bezierCurve intermediate record", () => {
+    const text = "curve C = bezier(start: A end: B startAngle: 0 startLength: 30 endAngle: 0 endLength: 30 intermediates: [(5, 9):10:15:20])";
+    const parsed = parseDslCallStatement(text);
+    const spec = constructionFor("curve", "bezier")!;
+    const base = createCadElement(spec.elementType, [], { createId: (kind) => `${kind}-id`, referenceElements: refs });
+    const applied = applyArgs({ ...base, name: parsed.statement!.name }, spec, parsed.statement!.args, resolvers([]));
+    const element = applied.element as Extract<CadElement, { type: "bezierCurve" }>;
+    const point = element.intermediatePoints[0];
+    const key = `intermediate:${point.id}:point:x`;
+    expect(getParameterDefinitions(element).map((definition) => definition.key)).toContain(key);
+    const span = resolveParameterValueSpan(text, element, key, { committedLineText: text });
+    expect(span).not.toBeNull();
+    expect(text.slice(span!.start, span!.end)).toBe("5");
   });
 
-  it("returns null when the live line changed to another element type", () => {
-    const element = compiled("arc C center=A radius=10 start=0 end=90");
-    expect(resolveParameterValueSpan("line C = A -> B", element, "radius")).toBeNull();
-  });
-});
-
-describe("recordField", () => {
-  it("returns each field of a 5-field intermediates=-style record independently, unlike recordRemainder", () => {
-    const source = "curve C = A -> B intermediates=[X: 10: 5: 5: pt1]";
-    const outer = { start: source.indexOf("["), end: source.indexOf("]") + 1 };
-    const records = recordSpans(source, outer)!;
-    expect(records).toHaveLength(1);
-    const record = records[0];
-    expect(source.slice(recordField(source, record, 0)!.start, recordField(source, record, 0)!.end)).toBe("X");
-    expect(source.slice(recordField(source, record, 1)!.start, recordField(source, record, 1)!.end)).toBe("10");
-    expect(source.slice(recordField(source, record, 2)!.start, recordField(source, record, 2)!.end)).toBe("5");
-    expect(source.slice(recordField(source, record, 3)!.start, recordField(source, record, 3)!.end)).toBe("5");
-    expect(source.slice(recordField(source, record, 4)!.start, recordField(source, record, 4)!.end)).toBe("pt1");
+  it("resolves spans in reordered, whitespace-padded, non-canonical text", () => {
+    const text = "point   p  =  offset( dy: 5   from: A  dx:  -3 )";
+    const parsed = parseDslCallStatement(text);
+    const spec = constructionFor("point", "offset")!;
+    const base = createCadElement(spec.elementType, [], { createId: (kind) => `${kind}-id`, referenceElements: refs });
+    const applied = applyArgs({ ...base, name: parsed.statement!.name }, spec, parsed.statement!.args, resolvers([]));
+    const element = applied.element;
+    const fromSpan = resolveParameterValueSpan(text, element, "fromPoint");
+    const dxSpan = resolveParameterValueSpan(text, element, "dx");
+    const dySpan = resolveParameterValueSpan(text, element, "dy");
+    expect(text.slice(fromSpan!.start, fromSpan!.end)).toBe("A");
+    expect(text.slice(dxSpan!.start, dxSpan!.end)).toBe("-3");
+    expect(text.slice(dySpan!.start, dySpan!.end)).toBe("5");
   });
 
-  it("returns null for an out-of-range field index", () => {
-    const source = "curve C = A -> B intermediates=[X: 10: 5: 5: pt1]";
-    const outer = { start: source.indexOf("["), end: source.indexOf("]") + 1 };
-    const record = recordSpans(source, outer)![0];
-    expect(recordField(source, record, 5)).toBeNull();
+  it("resolves the var short-form expression span", () => {
+    const text = "var bust = 840";
+    const parsed = parseDslCallStatement(text);
+    expect(parsed.statement!.shortVariable).toBe(true);
+    const spec = constructionFor("var", "expression")!;
+    const base = createCadElement(spec.elementType, [], { createId: (kind) => `${kind}-id`, referenceElements: refs });
+    const prepared = base.type === "variable" ? { ...base, name: parsed.statement!.name, valueMode: "expression" as const } : { ...base, name: parsed.statement!.name };
+    const applied = applyArgs(prepared, spec, parsed.statement!.args, resolvers([]));
+    const span = resolveParameterValueSpan(text, applied.element, "expression");
+    expect(span).not.toBeNull();
+    expect(text.slice(span!.start, span!.end)).toBe("840");
   });
 
-  it("returns null for an empty field", () => {
-    const source = "curve C = A -> B intermediates=[X::5:5:pt1]";
-    const outer = { start: source.indexOf("["), end: source.indexOf("]") + 1 };
-    const record = recordSpans(source, outer)![0];
-    expect(recordField(source, record, 1)).toBeNull();
+  describe("resolveParameterTargetAt / resolveParameterKeyForValueSpan", () => {
+    it("picks the most specific span containing the caret, and the reverse lookup agrees", () => {
+      const text = "point p = offset(from: A dx: 12 dy: -8)";
+      const parsed = parseDslCallStatement(text);
+      const spec = constructionFor("point", "offset")!;
+      const base = createCadElement(spec.elementType, [], { createId: (kind) => `${kind}-id`, referenceElements: refs });
+      const applied = applyArgs({ ...base, name: parsed.statement!.name }, spec, parsed.statement!.args, resolvers([]));
+      const element = applied.element;
+      const dxIndex = text.indexOf("12");
+      const target = resolveParameterTargetAt(text, element, { start: dxIndex + 1, end: dxIndex + 1 });
+      expect(target?.parameterKey).toBe("dx");
+      expect(resolveParameterKeyForValueSpan(text, element, { start: dxIndex, end: dxIndex + 2 })).toBe("dx");
+    });
+
+    it("returns null outside any resolvable span", () => {
+      const text = "point p = offset(from: A dx: 12 dy: -8)";
+      const parsed = parseDslCallStatement(text);
+      const spec = constructionFor("point", "offset")!;
+      const base = createCadElement(spec.elementType, [], { createId: (kind) => `${kind}-id`, referenceElements: refs });
+      const applied = applyArgs({ ...base, name: parsed.statement!.name }, spec, parsed.statement!.args, resolvers([]));
+      const element = applied.element;
+      const parenIndex = text.indexOf("(");
+      expect(resolveParameterTargetAt(text, element, { start: parenIndex, end: parenIndex })).toBeNull();
+    });
   });
 });

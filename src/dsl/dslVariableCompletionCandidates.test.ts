@@ -18,7 +18,7 @@ const computed = (...ids: ElementId[]): Map<ElementId, ComputedVariable> =>
 
 describe("dslVariableCompletionOptions", () => {
   it("excludes a var statement on or after the cursor line (forward reference)", () => {
-    const source = ["nui 1", "var Width = 10", "var Later = 20"].join("\n");
+    const source = ["nui 2", "var Width = 10", "var Later = 20"].join("\n");
     const { elements, ids } = identities(source);
     const labels = dslVariableCompletionOptions({ source, cursorLine: 3, statementElementIds: ids, elements })
       .map((option) => option.label);
@@ -31,7 +31,7 @@ describe("dslVariableCompletionOptions", () => {
   });
 
   it("excludes a var statement after the document's @stop marker even when cursorLine is further down", () => {
-    const source = ["nui 1", "var Width = 10", "@stop", "var AfterStop = 20", "point P = (0, 0)"].join("\n");
+    const source = ["nui 2", "var Width = 10", "@stop", "var AfterStop = 20", "point P = coordinate(x: 0 y: 0)"].join("\n");
     const { elements, ids } = identities(source);
     const labels = dslVariableCompletionOptions({ source, cursorLine: 5, statementElementIds: ids, elements })
       .map((option) => option.label);
@@ -40,7 +40,7 @@ describe("dslVariableCompletionOptions", () => {
   });
 
   it("excludes a disabled (enabled=false) var statement", () => {
-    const source = ["nui 1", "var Width = 10 enabled=false", "var Height = 20", "point P = (0, 0)"].join("\n");
+    const source = ["nui 2", "var Width = expression(value: 10 enabled: false)", "var Height = 20", "point P = coordinate(x: 0 y: 0)"].join("\n");
     const { elements, ids } = identities(source);
     const labels = dslVariableCompletionOptions({ source, cursorLine: 4, statementElementIds: ids, elements })
       .map((option) => option.label);
@@ -49,7 +49,7 @@ describe("dslVariableCompletionOptions", () => {
   });
 
   it("excludes a var statement with a syntactically unparseable expression, live, without evaluating it", () => {
-    const source = ["nui 1", "var Broken = )))", "var Height = 20", "point P = (0, 0)"].join("\n");
+    const source = ["nui 2", "var Broken = )))", "var Height = 20", "point P = coordinate(x: 0 y: 0)"].join("\n");
     const { elements, ids } = identities(source);
     const labels = dslVariableCompletionOptions({ source, cursorLine: 4, statementElementIds: ids, elements })
       .map((option) => option.label);
@@ -59,11 +59,11 @@ describe("dslVariableCompletionOptions", () => {
 
   it("excludes a group-scoped var outside the cursor's live group scope", () => {
     const source = [
-      "nui 1",
+      "nui 2",
       "group Outer {",
-      "  var Inner = 10 scope=group",
+      "  var Inner = expression(value: 10 scope: group)",
       "}",
-      "point Target = (0, 0)"
+      "point Target = coordinate(x: 0 y: 0)"
     ].join("\n");
     const { elements, ids } = identities(source);
     const outsideLabels = dslVariableCompletionOptions({ source, cursorLine: 5, statementElementIds: ids, elements })
@@ -71,7 +71,7 @@ describe("dslVariableCompletionOptions", () => {
     expect(outsideLabels).not.toContain("@Inner");
 
     const insideLabels = dslVariableCompletionOptions({
-      source: [...source.split("\n").slice(0, 3), "  point Target = (0, 0)", "}"].join("\n"),
+      source: [...source.split("\n").slice(0, 3), "  point Target = coordinate(x: 0 y: 0)", "}"].join("\n"),
       cursorLine: 4,
       statementElementIds: ids,
       elements
@@ -81,13 +81,13 @@ describe("dslVariableCompletionOptions", () => {
 
   it("uses the persisted explicit id= token when two same-scope candidates share a name", () => {
     // Distinct explicit ids avoid the parser's same-scope duplicate-bare-name diagnostic
-    // (reportDuplicateNames), which would otherwise fail compilation entirely. The id=
+    // (reportDuplicateNames), which would otherwise fail compilation entirely. The id:
     // attribute lives in the text itself, so @width-a stays resolvable after reload.
     const duplicateSource = [
-      "nui 1",
-      "var Width = 10 id=width-a",
-      "var Width = 20 id=width-b",
-      "point Target = (0, 0)"
+      "nui 2",
+      "var Width = expression(value: 10 id: width-a)",
+      "var Width = expression(value: 20 id: width-b)",
+      "point Target = coordinate(x: 0 y: 0)"
     ].join("\n");
     const { elements, ids } = identities(duplicateSource);
     const options = dslVariableCompletionOptions({ source: duplicateSource, cursorLine: 4, statementElementIds: ids, elements });
@@ -98,11 +98,11 @@ describe("dslVariableCompletionOptions", () => {
 
   it("qualifies a duplicated name by its live namespace instead of a runtime element id", () => {
     const source = [
-      "nui 1",
+      "nui 2",
       "var Width = 10",
       "group G {",
       "var Width = 20",
-      "point P = (0, 0)",
+      "point P = coordinate(x: 0 y: 0)",
       "}"
     ].join("\n");
     const { elements, ids } = identities(source);
@@ -121,11 +121,11 @@ describe("dslVariableCompletionOptions", () => {
     // Simulates 保存→再読込: each compileDslDocument call assigns fresh runtime
     // ids, so the inserted @G::Width text must re-resolve by name alone.
     const insertedSource = [
-      "nui 1",
+      "nui 2",
       "var Width = 10",
       "group G {",
       "var Width = 20",
-      "point P = (@G::Width, 0)",
+      "point P = coordinate(x: @G::Width y: 0)",
       "}"
     ].join("\n");
     for (let reload = 0; reload < 2; reload += 1) {
@@ -141,10 +141,10 @@ describe("dslVariableCompletionOptions", () => {
   });
 
   it("Tier A: offers a brand-new, never-compiled var statement even without a matching computedVariables entry", () => {
-    const compiledSource = ["nui 1", "point Target = (0, 0)"].join("\n");
+    const compiledSource = ["nui 2", "point Target = coordinate(x: 0 y: 0)"].join("\n");
     const { elements, ids } = identities(compiledSource);
     // "var Width" only exists in the live source, never compiled — statementElementIds has no entry for its line.
-    const liveSource = ["nui 1", "var Width = 10", "point Target = (0, 0)"].join("\n");
+    const liveSource = ["nui 2", "var Width = 10", "point Target = coordinate(x: 0 y: 0)"].join("\n");
     const labels = dslVariableCompletionOptions({
       source: liveSource,
       cursorLine: 3,
@@ -156,7 +156,7 @@ describe("dslVariableCompletionOptions", () => {
   });
 
   it("Tier B: excludes a compiled var statement missing from computedVariables (evaluator-invalid/uncomputed)", () => {
-    const source = ["nui 1", "var Width = 10", "point Target = (0, 0)"].join("\n");
+    const source = ["nui 2", "var Width = 10", "point Target = coordinate(x: 0 y: 0)"].join("\n");
     const { elements, ids } = identities(source);
     const widthId = ids.get(2)!;
     const excluded = dslVariableCompletionOptions({

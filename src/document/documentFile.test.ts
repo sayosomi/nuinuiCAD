@@ -56,7 +56,7 @@ describe("document file lifecycle", () => {
   });
 
   it("opens .nui text verbatim and resets file history", async () => {
-    const content = "\uFEFFnui 1\r\n# keep this\r\npoint A = (0, 0)\r\n";
+    const content = "\uFEFFnui 2\r\n# keep this\r\npoint A = coordinate(x: 0 y: 0)\r\n";
     dialogMock.open.mockResolvedValue("/tmp/loaded.nui");
     tauriCoreMock.invoke.mockResolvedValue(content);
     useCadDocumentStore.getState().commitDocumentChange({ evaluationLimitIndex: 1 });
@@ -74,7 +74,7 @@ describe("document file lifecycle", () => {
   });
 
   it("opens fatal text with an empty last-good document instead of leaking the previous document", async () => {
-    const content = "nui 1\npoint Broken = (";
+    const content = "nui 2\npoint Broken = coordinate(";
     dialogMock.open.mockResolvedValue("/tmp/broken.nui");
     tauriCoreMock.invoke.mockResolvedValue(content);
     expect(useCadDocumentStore.getState().elements.length).toBeGreaterThan(0);
@@ -93,9 +93,9 @@ describe("document file lifecycle", () => {
   it("rejects only an unsupported major before replacing the current document", async () => {
     const before = useCadDocumentStore.getState().sourceText;
     dialogMock.open.mockResolvedValue("/tmp/future.nui");
-    tauriCoreMock.invoke.mockResolvedValue("nui 2\npoint A = (0, 0)");
+    tauriCoreMock.invoke.mockResolvedValue("nui 3\npoint A = coordinate(x: 0 y: 0)");
 
-    await expect(openDocument()).rejects.toThrow("未対応のDSLバージョンです: 2");
+    await expect(openDocument()).rejects.toThrow("未対応のDSLバージョンです: 3");
 
     expect(useCadDocumentStore.getState().sourceText).toBe(before);
   });
@@ -103,7 +103,7 @@ describe("document file lifecycle", () => {
   it.each([
     "",
     "nui abc",
-    "nui 1\nnui 1",
+    "nui 2\nnui 2",
     "point A = (0, 0)"
   ])("opens malformed version text with fatal diagnostics: %j", async (content) => {
     dialogMock.open.mockResolvedValue("/tmp/fatal.nui");
@@ -172,8 +172,8 @@ describe("document file lifecycle", () => {
 
   it("rebases image paths on Save As and restores dirty state across undo and redo", async () => {
     const source = [
-      "nui 1",
-      'element img type=image sourcePath="images/ref.png" originPoint=(0,0) scale=1 angleDeg=0 mirrorX=false'
+      "nui 2",
+      'image img = image(source: "images/ref.png" origin: (0, 0) scale: 1 angleDeg: 0 mirrorX: false)'
     ].join("\n");
     useCadDocumentStore.getState().replaceTextDocument(source, {
       currentFilePath: "/old/pattern.nui",
@@ -185,7 +185,7 @@ describe("document file lifecycle", () => {
     await saveDocumentAs();
 
     const saved = useCadDocumentStore.getState();
-    expect(saved.sourceText).toContain('sourcePath="/old/images/ref.png"');
+    expect(saved.sourceText).toContain('source: "/old/images/ref.png"');
     expect(saved.currentFilePath).toBe("/new/copy.nui");
     expect(saved.dirtySinceSave).toBe(false);
     expect(saved.past).toHaveLength(1);

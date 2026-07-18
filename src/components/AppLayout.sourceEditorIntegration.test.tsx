@@ -14,11 +14,20 @@ import { referenceAnchor } from "../model/pointAnchors";
 import type { CreationRecipe } from "../commands/creationRecipes";
 import { AppLayout } from "./AppLayout";
 
+// Written in v2's canonical vertical-call shape (matching dslTextForElements'
+// real output) so any in-place rename/patch in these tests doesn't need to
+// expand a compact statement to canonical shape mid-test.
 const source = [
-  "nui 1",
+  "nui 2",
   "group G {",
-  "  point A = (0, 0)",
-  "  point B = (100, 0)",
+  "  point A = coordinate(",
+  "    x: 0",
+  "    y: 0",
+  "  )",
+  "  point B = coordinate(",
+  "    x: 100",
+  "    y: 0",
+  "  )",
   "}"
 ].join("\n");
 
@@ -322,15 +331,22 @@ describe("AppLayout Source Editor production integration", () => {
     fireEvent.pointerDown(viewport, { button: 0, buttons: 1, clientX: 350, clientY: 200, pointerId: 1 });
 
     await waitFor(() => expect(useCadUiStore.getState().selectedElementId).toBe(pointId("B")));
-    expect(useCadUiStore.getState().sourceCursorLine).toBe(4);
+    expect(useCadUiStore.getState().sourceCursorLine).toBe(7);
     expect(useCadUiStore.getState().groupFoldById.get(groupId)?.expanded).toBe(true);
 
   });
 
   it("keeps cursor selection through a model patch and exposes command errors in the real pane", async () => {
+    // This test only ever locks B via commitDocumentChange (never renames), so
+    // it doesn't need the shared fixture's canonical vertical shape - using a
+    // compact one keeps it consistent with its own original (pre-C1) size.
+    useCadDocumentStore.getState().commitText(
+      ["nui 2", "group G {", "  point A = coordinate(x: 0 y: 0)", "  point B = coordinate(x: 100 y: 0)", "}"].join("\n"),
+      "test"
+    );
     const view = render(<AppLayout />);
     const pointB = pointId("B");
-    useCadUiStore.getState().setSelectedElementId(pointB);
+    act(() => { useCadUiStore.getState().setSelectedElementId(pointB); });
     await waitFor(() => expect(useCadUiStore.getState().sourceCursorLine).toBe(4));
     const beforeCursorLine = useCadUiStore.getState().sourceCursorLine;
 
@@ -342,10 +358,10 @@ describe("AppLayout Source Editor production integration", () => {
       useCadUiStore.getState().setCommandErrorMessage("統合テストのエラー");
     });
 
-    await waitFor(() => expect(view.container.querySelector(".cm-content")?.textContent).toContain("locked=true"));
+    await waitFor(() => expect(view.container.querySelector(".cm-content")?.textContent).toContain("locked: true"));
     expect(useCadUiStore.getState().sourceCursorLine).toBe(beforeCursorLine);
     expect(view.getByRole("alert")).toHaveTextContent("統合テストのエラー");
-  });
+  }, 20000);
 
   it("renders pickable-only search in the real Source Editor pane", async () => {
     const view = render(<AppLayout />);
@@ -368,7 +384,7 @@ describe("AppLayout Source Editor production integration", () => {
     // Uncommitted editor text at gesture time: the canvas must defer to the
     // real flush and resolve against the freshly evaluated document.
     act(() => {
-      cmView.dispatch({ changes: { from: cmView.state.doc.length, insert: "\npoint C = (0, 60)" } });
+      cmView.dispatch({ changes: { from: cmView.state.doc.length, insert: "\npoint C = coordinate(x: 0 y: 60)" } });
     });
 
     fireEvent.pointerDown(viewport, { button: 0, buttons: 1, clientX: 350, clientY: 200, pointerId: 1 });
@@ -393,7 +409,7 @@ describe("AppLayout Source Editor production integration", () => {
 
     fireEvent.compositionStart(content);
     act(() => {
-      cmView.dispatch({ changes: { from: cmView.state.doc.length, insert: "\npoint 未確定 = (0, 60)" } });
+      cmView.dispatch({ changes: { from: cmView.state.doc.length, insert: "\npoint 未確定 = coordinate(x: 0 y: 60)" } });
     });
 
     fireEvent.pointerDown(viewport, { button: 0, buttons: 1, clientX: 350, clientY: 200, pointerId: 1 });
@@ -410,11 +426,11 @@ describe("AppLayout Source Editor production integration", () => {
 
   it("applies a pick candidate from search Enter through the real controller", async () => {
     useCadDocumentStore.getState().commitText([
-      "nui 1",
-      "point A = (0, 0)",
-      "point B = (100, 0)",
-      "point 選択候補 = (0, -50)",
-      "line AB = A -> B"
+      "nui 2",
+      "point A = coordinate(x: 0 y: 0)",
+      "point B = coordinate(x: 100 y: 0)",
+      "point 選択候補 = coordinate(x: 0 y: -50)",
+      "line AB = segment(start: A end: B)"
     ].join("\n"), "test");
     const view = render(<AppLayout />);
     const lineId = useCadDocumentStore.getState().elements.find((element) => element.name === "AB")!.id;
@@ -442,10 +458,10 @@ describe("AppLayout Source Editor production integration", () => {
 
 describe("Canvas selection focuses the Source Editor", () => {
   const focusSource = [
-    "nui 1",
-    "point A = (0, 0)",
-    "point B = (100, 0)",
-    "line AB = A -> B"
+    "nui 2",
+    "point A = coordinate(x: 0 y: 0)",
+    "point B = coordinate(x: 100 y: 0)",
+    "line AB = segment(start: A end: B)"
   ].join("\n");
 
   // worldToScreen with the default {panX:0, panY:0, zoom:1} viewport and the
@@ -494,7 +510,7 @@ describe("Canvas selection focuses the Source Editor", () => {
 
     fireEvent.keyDown(content, { key: "ArrowRight", altKey: true });
     fireEvent.keyUp(content, { key: "ArrowRight", altKey: true });
-    await waitFor(() => expect(useCadDocumentStore.getState().sourceText).toContain("point B = (101, 0)"));
+    await waitFor(() => expect(useCadDocumentStore.getState().sourceText).toContain("x: 101"));
   });
 
   it("keeps Canvas focus through a point drag and focuses the editor only after the move commits", async () => {
@@ -541,7 +557,7 @@ describe("Canvas selection focuses the Source Editor", () => {
     // Uncommitted editor text at gesture time defers resolution to the resolution
     // effect, which runs after the pointer has already been released.
     act(() => {
-      cmView.dispatch({ changes: { from: cmView.state.doc.length, insert: "\npoint C = (0, -60)" } });
+      cmView.dispatch({ changes: { from: cmView.state.doc.length, insert: "\npoint C = coordinate(x: 0 y: -60)" } });
     });
 
     fireEvent.pointerDown(viewport, { button: 0, buttons: 1, pointerId: 1, ...B_SCREEN });

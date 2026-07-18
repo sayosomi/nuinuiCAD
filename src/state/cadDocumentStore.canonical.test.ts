@@ -46,9 +46,9 @@ describe("cadDocumentStore canonical text", () => {
     expect(warningState.doc.document.elements).toHaveLength(1);
 
     const lastGoodDoc = warningState.doc;
-    // dsl2-cutover: v1-literal — 意図的な構文エラー(未閉じ括弧)。fatal挙動の
-    // 検証が目的であり、生成経由化は不可。
-    const fatal = "nui 1\npoint Broken = (";
+    // 意図的な構文エラー(未閉じ呼び出し)。fatal挙動の検証が目的であり、
+    // 生成経由化は不可。
+    const fatal = "nui 2\npoint Broken = coordinate(";
     useCadDocumentStore.getState().commitText(fatal, "test");
     const fatalState = useCadDocumentStore.getState();
     expect(fatalState.sourceText).toBe(fatal);
@@ -60,8 +60,8 @@ describe("cadDocumentStore canonical text", () => {
   it("keeps fatal text, rejects model bridge edits, and recovers with one undo", () => {
     const valid = onePointSource();
     seedText(valid);
-    // dsl2-cutover: v1-literal — 意図的な構文エラー(未閉じ括弧)。
-    const fatalText = "nui 1\npoint A = (";
+    // 意図的な構文エラー(未閉じ呼び出し)。
+    const fatalText = "nui 2\npoint A = coordinate(";
     useCadDocumentStore.getState().commitText(fatalText, "test");
     const fatalState = useCadDocumentStore.getState();
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
@@ -109,23 +109,22 @@ describe("cadDocumentStore canonical text", () => {
     expect(useCadDocumentStore.getState().elements.find((element) => element.name === "B")?.locked).toBe(true);
   });
 
-  // dsl2-cutover: v1-literal
-  // コメント・空行・未解決の color= 参照がモデルブリッジ編集後も保持されるかを
+  // コメント・空行・未解決の color: 参照がモデルブリッジ編集後も保持されるかを
   // 検証する、手書きレイアウトが主題のテスト。
   it("keeps comments and dangling tokens through model bridge edits", () => {
     seedText([
-      "nui 1",
+      "nui 2",
       "",
       "# keep this comment",
-      "point A = (0, 0) color=missing-color",
-      "point B = (10, 0)"
+      "point A = coordinate(x: 0 y: 0 color: missing-color)",
+      "point B = coordinate(x: 10 y: 0)"
     ].join("\n"));
     const nextElements = useCadDocumentStore.getState().elements.map((element) =>
       element.name === "B" ? ({ ...element, locked: true } as CadElement) : element
     );
     useCadDocumentStore.getState().commitDocumentChange({ elements: nextElements });
     expect(useCadDocumentStore.getState().sourceText).toContain("# keep this comment");
-    expect(useCadDocumentStore.getState().sourceText).toContain("color=missing-color");
+    expect(useCadDocumentStore.getState().sourceText).toContain("color: missing-color");
     expect(useCadDocumentStore.getState().elements.find((element) => element.name === "A")?.colorId)
       .toBe("missing-color");
   });

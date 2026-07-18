@@ -5,14 +5,13 @@ const tokenKinds = (line: string) => highlightDslLine(line).map((token) => token
 
 describe("DSL highlighting", () => {
   it("classifies common DSL tokens", () => {
-    const tokens = highlightDslLine("element seam type=offsetLine offset=10 # seam allowance");
+    const tokens = highlightDslLine("line seam = offset(distance: 10) # seam allowance");
 
     expect(tokens).toEqual(
       expect.arrayContaining([
-        { kind: "keyword", text: "element" },
-        { kind: "attributeKey", text: "type" },
-        { kind: "elementType", text: "offsetLine" },
-        { kind: "attributeKey", text: "offset" },
+        { kind: "keyword", text: "line" },
+        { kind: "elementType", text: "offset" },
+        { kind: "attributeKey", text: "distance" },
         { kind: "number", text: "10" },
         { kind: "comment", text: "# seam allowance" }
       ])
@@ -20,7 +19,7 @@ describe("DSL highlighting", () => {
   });
 
   it("classifies strings and references", () => {
-    expect(tokenKinds("text label = \"前中心\" at=A.start size=4")).toEqual(
+    expect(tokenKinds("text Label = label(text: \"前中心\" anchor: A.start size: 4)")).toEqual(
       expect.arrayContaining(["keyword", "string", "attributeKey", "reference", "number"])
     );
   });
@@ -33,12 +32,15 @@ describe("DSL highlighting", () => {
   it("classifies block braces and new document keywords", () => {
     expect(tokenKinds("group G {")).toEqual(["keyword", "plain", "reference", "plain", "operator"]);
     expect(tokenKinds("}")).toEqual(["operator"]);
-    expect(tokenKinds("} else {")).toEqual(["operator", "plain", "keyword", "plain", "operator"]);
-    expect(tokenKinds("if B condition=1 {")).toEqual(
-      expect.arrayContaining(["keyword", "reference", "attributeKey", "number", "operator"])
+    // "else" is a structural token, not a registry statement/construction
+    // keyword, so it falls through to the generic identifier classification
+    // (full highlighting polish for structural tokens is deferred to F2).
+    expect(tokenKinds("} else {")).toEqual(["operator", "plain", "reference", "plain", "operator"]);
+    expect(tokenKinds("if Branch (1) {")).toEqual(
+      expect.arrayContaining(["keyword", "reference", "number", "operator"])
     );
-    expect(tokenKinds("for i start=0 count=3 {")).toEqual(
-      expect.arrayContaining(["keyword", "attributeKey", "attributeKey"])
+    expect(tokenKinds("for Loop (i from: 0 count: 3) {")).toEqual(
+      expect.arrayContaining(["keyword", "reference", "attributeKey", "number", "operator"])
     );
   });
 
@@ -47,11 +49,11 @@ describe("DSL highlighting", () => {
   });
 
   it("classifies nui, color, place, layoutVar, activePrintLayout, default", () => {
-    expect(tokenKinds("nui 1")[0]).toBe("keyword");
-    expect(tokenKinds("color main \"#ff0000\" default")).toEqual(
-      expect.arrayContaining(["keyword", "string", "keyword"])
+    expect(tokenKinds("nui 2")[0]).toBe("keyword");
+    expect(tokenKinds('color pattern-black ("#31322f" name: "基本線" default: true)')).toEqual(
+      expect.arrayContaining(["keyword", "string", "attributeKey"])
     );
-    expect(tokenKinds("place G at=(0,0)")[0]).toBe("keyword");
+    expect(tokenKinds("place G (at: (0, 0))")[0]).toBe("keyword");
     expect(tokenKinds("layoutVar margin = 20")[0]).toBe("keyword");
     expect(tokenKinds("activePrintLayout A4")[0]).toBe("keyword");
   });

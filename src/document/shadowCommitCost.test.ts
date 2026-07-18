@@ -7,9 +7,9 @@ import { assertReconcileSane, assertShadowEquivalent } from "./shadowTextAssert"
 // 1000要素コンパイルが秒単位を大きく超える状態に戻ったら落とす。
 
 const buildExpressionSource = (count: number): string => {
-  const lines = ["nui 1", "point P0 = (0, 0)"];
+  const lines = ["nui 2", "point P0 = coordinate(x: 0 y: 0)"];
   for (let index = 1; index < count; index += 1) {
-    lines.push(`point P${index} = (P${index - 1}.x + 1, P${index - 1}.y + 1)`);
+    lines.push(`point P${index} = coordinate(x: P${index - 1}.x + 1 y: P${index - 1}.y + 1)`);
   }
   return lines.join("\n");
 };

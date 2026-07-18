@@ -1,5 +1,5 @@
 import { dslLineLabeledValueSpans } from "./dslValueSpans";
-import { recordSpans, recordFields, recordRemainder } from "./dslParameterSpans";
+import { recordFields, recordRemainder, recordSpans } from "./dslParameterSpanScanner";
 import { unquoteDslString } from "./dslTokens";
 import { localNumericVariableReferenceOptions, type NumericVariableReferenceOption } from "../geometry/variableReferenceOptions";
 import type { CadElement, ElementId } from "../types/geometry";

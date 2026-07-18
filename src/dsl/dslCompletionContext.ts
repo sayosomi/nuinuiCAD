@@ -8,10 +8,9 @@ import {
 } from "./dslValueSpans";
 import { splitDslComment, splitDslTerms } from "./dslTokens";
 import { dslCompletionMetadataForType, dslStatementElementType, type DslCompletionParameter } from "./dslCompletionMetadata";
-import { coordinateComponent, recordField, recordSpans, recordRemainder } from "./dslParameterSpans";
 import { dslVariableTokenEndingAt } from "./dslVariableToken";
 import { dslElementParameterTokenEndingAt } from "./dslElementParameterToken";
-import { splitDslTopLevelSpans } from "./dslParameterSpanScanner";
+import { coordinateComponent, recordField, recordRemainder, recordSpans, splitDslTopLevelSpans } from "./dslParameterSpanScanner";
 import {
   placeCoordinateAttrKeys,
   placeNumericAttrKeys,

@@ -12,10 +12,10 @@ import type { CadElement, CadElementType } from "../types/geometry";
 import { InspectorPanel } from "./InspectorPanel";
 
 const source = [
-  "nui 1",
-  "point A = (0, 0)",
-  "point B = offset A dx=10 dy=20",
-  "line AB = A -> B"
+  "nui 2",
+  "point A = coordinate(x: 0 y: 0)",
+  "point B = offset(from: A dx: 10 dy: 20)",
+  "line AB = segment(start: A end: B)"
 ].join("\n");
 
 const makeHandle = (): SourceEditorHandle => ({
