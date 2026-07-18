@@ -26,6 +26,11 @@ type Decimal = {
   scale: number;
 };
 
+// BigInt literals are avoided: the darwin build target (safari13) cannot
+// represent the `0n` syntax and its tolerated transform emits a warning.
+const zeroBigInt = BigInt(0);
+const tenBigInt = BigInt(10);
+
 const decimalFromText = (text: string): Decimal | null => {
   const match = text.match(/^([+-]?)(?:(\d+)(?:\.(\d+))?|\.(\d+))(?:e([+-]?\d+))?$/i);
   if (!match) return null;
@@ -49,13 +54,13 @@ const decimalFromStep = (step: number) =>
 
 const scaleDecimal = (decimal: Decimal, scale: number) => {
   if (scale < decimal.scale) return null;
-  return BigInt(decimal.sign) * BigInt(decimal.digits) * (10n ** BigInt(scale - decimal.scale));
+  return BigInt(decimal.sign) * BigInt(decimal.digits) * (tenBigInt ** BigInt(scale - decimal.scale));
 };
 
 const formatDecimal = (value: bigint, scale: number) => {
-  if (value === 0n) return "0";
-  const sign = value < 0n ? "-" : "";
-  let digits = (value < 0n ? -value : value).toString();
+  if (value === zeroBigInt) return "0";
+  const sign = value < zeroBigInt ? "-" : "";
+  let digits = (value < zeroBigInt ? -value : value).toString();
   if (scale > 0) {
     digits = digits.padStart(scale + 1, "0");
     digits = `${digits.slice(0, -scale)}.${digits.slice(-scale)}`.replace(/\.?0+$/, "");
