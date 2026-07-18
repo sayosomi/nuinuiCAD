@@ -28,6 +28,8 @@ describe("stepDslNumericLiteral", () => {
     expect(stepDslNumericLiteral("9", 1, 1)).toBe("10");
     expect(stepDslNumericLiteral("0", 10, -1)).toBe("-10");
     expect(stepDslNumericLiteral("0", 100, 1)).toBe("100");
+    expect(stepDslNumericLiteral("9007199254740993", 1, 1)).toBe("9007199254740994");
+    expect(stepDslNumericLiteral("-9007199254740993", 1, -1)).toBe("-9007199254740994");
   });
 
   it("rejects expressions, units, and exponent syntax", () => {
