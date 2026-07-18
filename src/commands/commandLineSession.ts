@@ -2,7 +2,8 @@ import { makeNumericExpression } from "../geometry/numericExpressions";
 import type { NumericMeasurementKey } from "../geometry/numericExpressionTypes";
 import {
   creationPlacementForEvaluationLimit,
-  type ElementCreationPlacement
+  type ElementCreationPlacement,
+  type ElementCreationTarget
 } from "../model/elementCreationPlacement";
 import { fallbackElementName, makeUniqueElementName } from "../model/elementNames";
 import type { CadElement, ElementId } from "../types/geometry";
@@ -30,6 +31,8 @@ export type CommandLineSession = {
   editingReturnPickState: CommandLineEditingReturnPickState | null;
   /** Semantic target re-resolved for final commit; never commit against this cached index alone. */
   insertionAnchor: CommandLineInsertionAnchor;
+  /** Flat position and parent scope are preserved together for all creation paths. */
+  insertionTarget: ElementCreationTarget;
   /** Stable only while startedAtRevision matches the document; used for session UI and previews. */
   insertionIndex: number;
   startedAtRevision: number;
@@ -41,6 +44,7 @@ export type StartCommandLineSessionOptions = {
   /** Callers creating real sessions must provide this; the derived fallback keeps isolated legacy tests focused. */
   insertionAnchor?: CommandLineInsertionAnchor;
   insertionIndex: number;
+  insertionTarget?: ElementCreationTarget;
   revision: number;
   elements: CadElement[];
   /** Existing creation-placement data when the caller has already resolved it. */
@@ -108,6 +112,10 @@ export const startSession = (
         ? { kind: "afterElement" as const, elementId: options.elements[options.insertionIndex - 1].id }
         : { kind: "documentEnd" as const }
   );
+  const insertionTarget = options.insertionTarget ?? {
+    insertionIndex: options.insertionIndex,
+    ...(options.placement?.parentGroupId ? { parentGroupId: options.placement.parentGroupId } : {})
+  };
   return {
     recipe,
     args: {},
@@ -116,6 +124,7 @@ export const startSession = (
     editingDraft: null,
     editingReturnPickState: null,
     insertionAnchor,
+    insertionTarget,
     insertionIndex: options.insertionIndex,
     startedAtRevision: options.revision,
     nameSuggestion: nameSuggestionFor(recipe, options),

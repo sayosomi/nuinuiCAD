@@ -44,7 +44,8 @@ export type DslDocumentData = {
   activeVisibilityProfileId: string;
   printLayouts: PrintLayout[];
   activePrintLayoutId: string;
-  evaluationLimitIndex: number;
+  /** `undefined` means no @stop marker; a numeric value includes an explicit terminal @stop. */
+  evaluationLimitIndex: number | undefined;
 };
 
 export type SerializeDslDocumentOptions = {
@@ -353,11 +354,12 @@ export const withFallbackParentArgs = (
 export const layoutElementTree = (
   elements: CadElement[],
   refs: DslSerializerRefs,
-  evaluationLimitIndex: number
+  evaluationLimitIndex: number | undefined
 ): ElementTreeRow[] => {
   const lines: ElementTreeRow[] = [];
   const stack: BlockFrame[] = [];
-  const limit = Math.max(0, Math.min(evaluationLimitIndex, elements.length));
+  const hasAtStop = evaluationLimitIndex !== undefined;
+  const limit = Math.max(0, Math.min(evaluationLimitIndex ?? elements.length, elements.length));
   let emitted = 0;
 
   const closeTo = (depth: number) => {
@@ -374,7 +376,7 @@ export const layoutElementTree = (
   };
 
   for (const element of elements) {
-    if (emitted === limit) {
+    if (hasAtStop && emitted === limit) {
       lines.push({
         lines: [`${DSL_INDENT.repeat(stack.length)}@stop`],
         argKeys: [null],
@@ -446,13 +448,21 @@ export const layoutElementTree = (
   }
 
   closeTo(0);
+  if (hasAtStop && emitted === limit) {
+    lines.push({
+      lines: ["@stop"],
+      argKeys: [null],
+      depth: 0,
+      role: "atStop"
+    });
+  }
   return lines;
 };
 
 const serializeElementTree = (
   elements: CadElement[],
   refs: DslSerializerRefs,
-  evaluationLimitIndex: number
+  evaluationLimitIndex: number | undefined
 ): string[] => layoutElementTree(elements, refs, evaluationLimitIndex).flatMap((line) => line.lines);
 
 // ==== ファサード ====
@@ -465,6 +475,22 @@ const serializedFlatStatementLines = (element: CadElement, statement: Serialized
     ? [`${statement.header} {`, "}"]
     : serializedStatementLines(statement, "");
 
+const serializeFlatElementTree = (
+  elements: CadElement[],
+  refs: DslSerializerRefs,
+  evaluationLimitIndex: number | undefined
+) => {
+  const lines: string[] = [];
+  const hasAtStop = evaluationLimitIndex !== undefined;
+  const limit = Math.max(0, Math.min(evaluationLimitIndex ?? elements.length, elements.length));
+  for (const [index, element] of elements.entries()) {
+    if (hasAtStop && index === limit) lines.push("@stop");
+    lines.push(...serializedFlatStatementLines(element, serializeElementStatementBlock(element, refs)));
+  }
+  if (hasAtStop && limit === elements.length) lines.push("@stop");
+  return lines;
+};
+
 export const serializeDocumentToDsl = (
   data: DslDocumentData,
   options: SerializeDslDocumentOptions = {}
@@ -476,7 +502,7 @@ export const serializeDocumentToDsl = (
     serializeVisibilitySettingsLines(data.visibilityRoles, data.visibilityProfiles, data.activeVisibilityProfileId),
     serializePrintLayoutSection(data),
     options.preserveElementOrder
-      ? data.elements.flatMap((element) => serializedFlatStatementLines(element, serializeElementStatementBlock(element, refs)))
+      ? serializeFlatElementTree(data.elements, refs, data.evaluationLimitIndex)
       : serializeElementTree(data.elements, refs, data.evaluationLimitIndex)
   ];
   return sections
@@ -702,7 +728,7 @@ export const compileDslDocument = (
       compiled.activeVisibilityProfileId ?? visibilityProfiles[0]?.id ?? DEFAULT_VISIBILITY_PROFILE_ID,
     printLayouts,
     activePrintLayoutId: compiled.activePrintLayoutId ?? printLayouts[0]?.id ?? "",
-    evaluationLimitIndex: compiled.evaluationLimitIndex ?? compiled.elements.length
+    evaluationLimitIndex: compiled.evaluationLimitIndex
   };
 
   const statementMap = buildStatementMap(

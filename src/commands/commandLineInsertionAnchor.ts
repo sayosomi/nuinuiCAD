@@ -1,4 +1,5 @@
 import { descendantIdsForGroup, isGroupElement } from "../model/groups";
+import type { ElementCreationTarget } from "../model/elementCreationPlacement";
 import type { CadElement, ElementId } from "../types/geometry";
 
 /**
@@ -34,9 +35,14 @@ const lastStructuredElementIndex = (elements: CadElement[], element: CadElement,
 export const resolveCommandLineInsertionAnchor = (
   anchor: CommandLineInsertionAnchor,
   elements: CadElement[]
-): number | null => {
-  if (anchor.kind === "documentEnd") return elements.length;
+): ElementCreationTarget | null => {
+  if (anchor.kind === "documentEnd") return { insertionIndex: elements.length };
   const index = elements.findIndex((element) => element.id === anchor.elementId);
   if (index < 0) return null;
-  return lastStructuredElementIndex(elements, elements[index], index) + 1;
+  const element = elements[index];
+  return {
+    insertionIndex: lastStructuredElementIndex(elements, element, index) + 1,
+    ...(element.parentGroupId ? { parentGroupId: element.parentGroupId } : {}),
+    ...(element.conditionalBranch ? { conditionalBranch: element.conditionalBranch } : {})
+  };
 };

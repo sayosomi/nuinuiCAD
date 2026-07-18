@@ -25,7 +25,7 @@ export const commandLineNumericReferencePickTargetFor = (
   return {
     elementId: COMMAND_LINE_PICK_TARGET_ID,
     parameterKey: step.key,
-    insertionIndex: session.insertionIndex,
+    insertionIndex: session.insertionTarget.insertionIndex,
     mode: "replace" as const,
     property: restoredProperty ?? initialNumericReferencePickProperty(step.stepLevels)
   };
@@ -41,7 +41,7 @@ export const commandLinePickStateForSession = (
     ? {
         elementId: COMMAND_LINE_PICK_TARGET_ID,
         parameterKey: step.key,
-        insertionIndex: session!.insertionIndex
+        insertionIndex: session!.insertionTarget.insertionIndex
       }
     : null;
   const activePickCursor = restoredPickState?.activePickCursor ?? null;

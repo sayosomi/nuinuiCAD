@@ -2,7 +2,7 @@ import { makeNumericExpression } from "../geometry/numericExpressions";
 import { numericExpressionSyntaxIsValid } from "../geometry/numericExpressionParser";
 import {
   applyCreationPlacement,
-  creationPlacementForInsertion
+  creationPlacementForTarget
 } from "../model/elementCreationPlacement";
 import { adjustEvaluationLimitForInsertion } from "../model/evaluationDivider";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
@@ -108,24 +108,24 @@ export const startCommandLineCreationForRecipe = (
   const document = useCadDocumentStore.getState();
   const cursorElementId = context?.currentCursorElementId?.() ?? null;
   const insertionAnchor = insertionAnchorForCommandLineCreation(cursorElementId);
-  const insertionIndex = resolveCommandLineInsertionAnchor(insertionAnchor, document.elements);
-  if (insertionIndex === null) return false;
+  const insertionTarget = resolveCommandLineInsertionAnchor(insertionAnchor, document.elements);
+  if (insertionTarget === null) return false;
 
   // Re-entry ordering is intentional: nothing above mutates UI state, while
   // these three calls remove all pending Canvas/editor handoffs before the
   // store atomically replaces the old command-line and pick state.
   context?.clearPendingCanvasPointerIntent?.();
   context?.clearSourceEditorFocusReservation?.();
-  const placement = creationPlacementForInsertion(
+  const placement = creationPlacementForTarget(
     document.elements,
-    insertionIndex,
-    document.evaluationLimitIndex,
-    useCadUiStore.getState().groupFoldById
+    insertionTarget,
+    document.evaluationLimitIndex
   );
   clearCommandLineGhostPreview();
   useCadUiStore.getState().startCommandLineSession(startSession(recipe, {
     insertionAnchor,
-    insertionIndex,
+    insertionIndex: insertionTarget.insertionIndex,
+    insertionTarget,
     revision: document.sourceRevision,
     elements: document.elements,
     placement
@@ -212,8 +212,7 @@ const confirmEditingDraft = (draftSession: CommandLineSession) => {
     ? commandLineMissingRequiredStepIndexes({
         session: draftSession,
         elements: useCadDocumentStore.getState().elements,
-        evaluationLimitIndex: useCadDocumentStore.getState().evaluationLimitIndex,
-        groupFoldById: useCadUiStore.getState().groupFoldById
+        evaluationLimitIndex: useCadDocumentStore.getState().evaluationLimitIndex
       })
     : [];
   const editingStep = currentStep(draftSession);
@@ -342,19 +341,18 @@ export const confirmCommandLineSession = (context?: CommandContext) => {
   if (!sessionCanConfirm(session)) return false;
 
   const document = useCadDocumentStore.getState();
-  const insertionIndex = resolveCommandLineInsertionAnchor(session.insertionAnchor, document.elements);
-  if (insertionIndex === null) {
+  const insertionTarget = resolveCommandLineInsertionAnchor(session.insertionAnchor, document.elements);
+  if (insertionTarget === null) {
     clearStaleSession();
     return false;
   }
   const promotion = promoteDirectlyReferencedUnnamedElements(session, document.elements);
   // The resolved semantic anchor owns the insertion position; placement only
   // derives the parent and reference context for that exact location.
-  const placement = creationPlacementForInsertion(
+  const placement = creationPlacementForTarget(
     promotion.elements,
-    insertionIndex,
-    document.evaluationLimitIndex,
-    useCadUiStore.getState().groupFoldById
+    insertionTarget,
+    document.evaluationLimitIndex
   );
   const emitted = emitCreationRecipe(session.recipe, session.args, {
     elements: promotion.elements,
@@ -366,14 +364,14 @@ export const confirmCommandLineSession = (context?: CommandContext) => {
   clearCommandLineGhostPreview();
   const result = commitDocumentChangeAndSelect({
     elements: [
-      ...promotion.elements.slice(0, insertionIndex),
+      ...promotion.elements.slice(0, insertionTarget.insertionIndex),
       element,
-      ...promotion.elements.slice(insertionIndex)
+      ...promotion.elements.slice(insertionTarget.insertionIndex)
     ],
     evaluationLimitIndex: adjustEvaluationLimitForInsertion({
       elements: document.elements,
       evaluationLimitIndex: document.evaluationLimitIndex,
-      insertionIndex,
+      insertionIndex: insertionTarget.insertionIndex,
       insertedCount: 1
     })
   }, {

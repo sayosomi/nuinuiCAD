@@ -73,7 +73,7 @@ const parseDocumentObject = (value: unknown): DslDocumentData => {
     evaluationLimitIndex:
       typeof value.evaluationLimitIndex === "number"
         ? value.evaluationLimitIndex
-        : value.elements.length
+        : undefined
   };
 };
 

@@ -26,7 +26,7 @@ import {
   sourceEditorShortcutBindings
 } from "../keyboard/shortcutRegistry";
 import type { KeyChord } from "../keyboard/shortcutTypes";
-import { creationPlacementForInsertion } from "../model/elementCreationPlacement";
+import { creationPlacementForTarget } from "../model/elementCreationPlacement";
 import { getParameterDefinitions } from "../parameters/parameterDefinitions";
 import { parameterPickCommandId } from "../commands/parameterPickCommand";
 import { pickCandidates } from "../model/pickCandidates";
@@ -370,15 +370,31 @@ export class SourceEditorController implements SourceEditorHandle {
   };
 
   jumpToElementEnd = (elementId: ElementId) => {
+    if (this.protocol.composing) return false;
     const range = this.statementRanges.get(elementId);
-    if (!range) return;
-    // Container statement ranges start at the header while their fold ranges
-    // retain the physical closing-brace line. A creation return belongs after
-    // the entire block (including an else branch), not after its header.
-    const closingBraceFrom = range.elseFoldRange?.to ?? range.groupFoldRange?.to;
-    const cursor = closingBraceFrom === undefined
-      ? range.to
-      : this.view.state.doc.lineAt(closingBraceFrom).to;
+    if (!range) return false;
+    const doc = this.view.state.doc;
+    if (
+      !Number.isInteger(range.from) ||
+      !Number.isInteger(range.to) ||
+      range.from < 0 ||
+      range.to < range.from ||
+      range.to > doc.length
+    ) return false;
+    // Statement metadata owns the matching close brace even when the editor's
+    // fold range intentionally omits an inline-header fallback. A creation
+    // return belongs after the whole block, including its else branch.
+    const closingBraceLine = range.statement.closeBraceLine;
+    const mappedClosingBraceFrom = range.elseFoldRange?.to ?? range.groupFoldRange?.to;
+    const canUseClosingBraceLine =
+      closingBraceLine !== undefined &&
+      closingBraceLine >= 1 &&
+      closingBraceLine <= doc.lines &&
+      mappedClosingBraceFrom !== undefined &&
+      mappedClosingBraceFrom >= range.from &&
+      mappedClosingBraceFrom <= doc.length &&
+      doc.line(closingBraceLine).from === mappedClosingBraceFrom;
+    const cursor = canUseClosingBraceLine ? doc.line(closingBraceLine).to : range.to;
     // Publish the external selection first, under the same guard as parameter
     // navigation, so its subscription cannot project this deliberate end
     // cursor back to the statement header.
@@ -396,6 +412,7 @@ export class SourceEditorController implements SourceEditorHandle {
       annotations: [canvasCursorOrigin.of("canvas-cursor"), Transaction.addToHistory.of(false)]
     });
     this.view.focus();
+    return true;
   };
 
   jumpToParameterValue = (elementId: ElementId, parameterKey: string): boolean => {
@@ -650,11 +667,10 @@ export class SourceEditorController implements SourceEditorHandle {
       activeLinePickTarget: ui.activeLinePickTarget,
       commandLineSession: ui.commandLineSession,
       commandLinePickParentGroupId: ui.commandLineSession
-        ? creationPlacementForInsertion(
+        ? creationPlacementForTarget(
             this.store.getState().elements,
-            ui.commandLineSession.insertionIndex,
-            this.store.getState().evaluationLimitIndex,
-            ui.groupFoldById
+            ui.commandLineSession.insertionTarget,
+            this.store.getState().evaluationLimitIndex
           ).parentGroupId
         : undefined
     });

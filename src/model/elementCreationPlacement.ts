@@ -16,6 +16,12 @@ export type ElementCreationPlacement = {
   conditionalBranch?: ConditionalBranch;
 };
 
+/** A semantic insertion target whose parent scope is not inferred from its flat index. */
+export type ElementCreationTarget = Pick<
+  ElementCreationPlacement,
+  "insertionIndex" | "parentGroupId" | "conditionalBranch"
+>;
+
 const lastSubtreeIndex = (
   elements: CadElement[],
   groupId: ElementId,
@@ -88,6 +94,27 @@ export const creationPlacementForInsertion = (
     ),
     ...(parentGroupId ? { parentGroupId } : {}),
     ...(conditionalBranch ? { conditionalBranch } : {})
+  };
+};
+
+/**
+ * Uses an anchor-derived parent scope for creation. This deliberately ignores
+ * fold state: UI folding must never alter the persisted document structure.
+ */
+export const creationPlacementForTarget = (
+  elements: CadElement[],
+  target: ElementCreationTarget,
+  evaluationLimitIndex: number | undefined
+): ElementCreationPlacement => {
+  const insertionIndex = clampEvaluationLimitIndex(elements, target.insertionIndex);
+  return {
+    insertionIndex,
+    referenceElements: evaluatedElements(
+      elements,
+      Math.min(insertionIndex, clampEvaluationLimitIndex(elements, evaluationLimitIndex))
+    ),
+    ...(target.parentGroupId ? { parentGroupId: target.parentGroupId } : {}),
+    ...(target.conditionalBranch ? { conditionalBranch: target.conditionalBranch } : {})
   };
 };
 

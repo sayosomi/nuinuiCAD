@@ -174,7 +174,7 @@ describe("textPatch 要素の挿入", () => {
       const elements = [...document.elements];
       const bIndex = elements.findIndex((element) => element.name === "B");
       elements.splice(bIndex + 1, 0, inserted);
-      return { ...document, elements, evaluationLimitIndex: elements.length };
+      return { ...document, elements, evaluationLimitIndex: undefined };
     });
     expect(old.sourceLines).toHaveLength(16);
     const lines = patched.split("\n");
@@ -191,7 +191,7 @@ describe("textPatch 要素の挿入", () => {
     const { patched } = applyChange(BASE_SOURCE, (document) => ({
       ...document,
       elements: [...document.elements, makeElement("point Z = coordinate(x: 9 y: 9)")],
-      evaluationLimitIndex: document.elements.length + 1
+      evaluationLimitIndex: undefined
     }));
     const lines = patched.split("\n");
     expect(lines.slice(-4)).toEqual(["point Z = coordinate(", "  x: 9", "  y: 9", ")"]);
@@ -208,7 +208,7 @@ describe("textPatch 要素の挿入", () => {
       return {
         ...document,
         elements: [...document.elements, inserted],
-        evaluationLimitIndex: document.elements.length + 1
+        evaluationLimitIndex: undefined
       };
     });
     expect(patched).toContain("} else {");
@@ -224,7 +224,7 @@ describe("textPatch 要素の挿入", () => {
       return {
         ...document,
         elements: [...document.elements, group, child],
-        evaluationLimitIndex: document.elements.length + 2
+        evaluationLimitIndex: undefined
       };
     });
     expect(splices).toHaveLength(1);
@@ -241,7 +241,7 @@ describe("textPatch 要素の挿入", () => {
     const { patched } = applyChange(source, (document) => ({
       ...document,
       elements: [makeElement("point Z = coordinate(x: 9 y: 9)")],
-      evaluationLimitIndex: 1
+      evaluationLimitIndex: undefined
     }));
     expect(patched.split("\n")).toEqual([
       "nui 2",
@@ -261,7 +261,7 @@ describe("textPatch 要素の削除", () => {
     const { splices, patched } = applyChange(BASE_SOURCE, (document) => ({
       ...document,
       elements: document.elements.filter((element) => element.name !== "C"),
-      evaluationLimitIndex: document.evaluationLimitIndex - 1
+      evaluationLimitIndex: document.evaluationLimitIndex
     }));
     expect(splices).toHaveLength(1);
     expect(patched).not.toContain("point C");
@@ -279,7 +279,7 @@ describe("textPatch 要素の削除", () => {
       return {
         ...document,
         elements: document.elements.filter((element) => !removed.has(element.id)),
-        evaluationLimitIndex: document.elements.length - removed.size
+        evaluationLimitIndex: document.evaluationLimitIndex
       };
     });
     expect(patched).not.toContain("group G");
@@ -301,7 +301,7 @@ describe("textPatch 要素の削除", () => {
               ? ({ ...element, parentGroupId: undefined } as CadElement)
               : element
           ),
-        evaluationLimitIndex: document.evaluationLimitIndex - 1
+        evaluationLimitIndex: document.evaluationLimitIndex
       };
     });
     expect(patched).not.toContain("group G");
@@ -326,7 +326,7 @@ describe("textPatch 要素の削除", () => {
     const { patched } = applyChange(source, (document) => ({
       ...document,
       elements: document.elements.filter((element) => element.name !== "E"),
-      evaluationLimitIndex: document.evaluationLimitIndex - 1
+      evaluationLimitIndex: document.evaluationLimitIndex
     }));
     expect(patched).not.toContain("} else {");
     expect(patched).toContain("  point T = coordinate(x: 0 y: 0)");
@@ -369,7 +369,7 @@ describe("textPatch 要素の移動・親変更", () => {
       const group = elementByName(document, "G");
       const inserted = makeElement("point B = coordinate(x: 1 y: 1)", { parentGroupId: group.id });
       // C(トップレベル)の後ろに、Gを親とするBを置く=ブロック表現不能。
-      return { ...document, elements: [...document.elements, inserted], evaluationLimitIndex: document.elements.length + 1 };
+      return { ...document, elements: [...document.elements, inserted], evaluationLimitIndex: undefined };
     });
     expect(patched).toContain("parent: G");
   });
@@ -389,7 +389,7 @@ describe("textPatch 要素の移動・親変更", () => {
           group,
           ...document.elements.map((element) => ({ ...element, parentGroupId: group.id }) as CadElement)
         ],
-        evaluationLimitIndex: document.elements.length + 1
+        evaluationLimitIndex: undefined
       };
     });
     const lines = patched.split("\n");
@@ -451,7 +451,7 @@ describe("textPatch 複数行statement(括弧継続)", () => {
     const { patched } = applyChange(CONTINUATION_SOURCE, (document) => ({
       ...document,
       elements: document.elements.filter((element) => element.name !== "A"),
-      evaluationLimitIndex: document.evaluationLimitIndex - 1
+      evaluationLimitIndex: document.evaluationLimitIndex
     }));
     expect(patched).not.toContain("point A");
     expect(patched).not.toContain("color: main");
@@ -477,7 +477,7 @@ describe("textPatch 複数行statement(括弧継続)", () => {
     const { patched } = applyChange(source, (document) => ({
       ...document,
       elements: [...document.elements, makeElement("point Z = coordinate(x: 9 y: 9)")],
-      evaluationLimitIndex: document.elements.length + 1
+      evaluationLimitIndex: undefined
     }));
     const reparsed = compileDslDocument(patched);
     expect(reparsed.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
@@ -662,11 +662,11 @@ describe("textPatch 非要素セクション", () => {
     expect(stopIndex).toBeLessThan(cIndex);
   });
 
-  it("全評価になったら @stop 行は除去される", () => {
+  it("@stop を明示的に除去したら行も除去される", () => {
     const source = ["nui 2", "point A = coordinate(x: 0 y: 0)", "@stop", "point B = coordinate(x: 1 y: 1)"].join("\n");
     const { patched } = applyChange(source, (document) => ({
       ...document,
-      evaluationLimitIndex: 2
+      evaluationLimitIndex: undefined
     }));
     expect(patched).not.toContain("@stop");
   });

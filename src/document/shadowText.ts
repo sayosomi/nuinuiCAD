@@ -46,7 +46,7 @@ export type ModelSnapshotForShadow = {
   activeVisibilityProfileId: string;
   printLayouts: PrintLayout[];
   activePrintLayoutId: string;
-  evaluationLimitIndex: number;
+  evaluationLimitIndex: number | undefined;
 };
 
 export const snapshotToDslData = (snapshot: ModelSnapshotForShadow): DslDocumentData => ({

@@ -7,7 +7,7 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRe
 import { dispatchCommand } from "../commands/commands";
 import type { CommandContext } from "../commands/commands";
 import type { EvaluationEngineState } from "../geometry/useEvaluationEngine";
-import { creationPlacementForInsertion } from "../model/elementCreationPlacement";
+import { creationPlacementForTarget } from "../model/elementCreationPlacement";
 import { numericReferencePropertiesForGeometry } from "../geometry/numericReferenceProperties";
 import { pickCandidates, pickSourcePrecedesTarget } from "../model/pickCandidates";
 import { pickRefForOption, pickRefKey } from "../model/pickReferences";
@@ -163,17 +163,15 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     return new Set(elements.filter((element) => !documentElementIds.has(element.id)).map((element) => element.id));
   }, [documentElements, elements]);
   const hasCommandLineGhost = Boolean(commandLineSession && previewElementIds.size > 0);
-  const groupFoldById = useCadUiStore((state) => state.groupFoldById);
   const commandLinePlacement = useMemo(
     () => commandLineSession
-      ? creationPlacementForInsertion(
+      ? creationPlacementForTarget(
           documentElements,
-          commandLineSession.insertionIndex,
-          evaluationLimitIndex,
-          groupFoldById
+          commandLineSession.insertionTarget,
+          evaluationLimitIndex
         )
       : null,
-    [commandLineSession, documentElements, evaluationLimitIndex, groupFoldById]
+    [commandLineSession, documentElements, evaluationLimitIndex]
   );
   const commandLinePickParentGroupId = commandLinePlacement?.parentGroupId;
   const sharedPickCandidates = useMemo(() => pickCandidates(documentElements, evaluation, {

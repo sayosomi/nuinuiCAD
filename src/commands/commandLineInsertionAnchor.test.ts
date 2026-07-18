@@ -24,6 +24,38 @@ describe("command-line insertion anchors", () => {
     expect(resolveCommandLineInsertionAnchor(
       insertionAnchorForCommandLineCreation(group.id),
       elements
-    )).toBe(elements.findIndex((element) => element.name === "C"));
+    )).toEqual({
+      insertionIndex: elements.findIndex((element) => element.name === "C")
+    });
+  });
+
+  it("keeps a child anchor in its structural parent without consulting fold state", () => {
+    const compiled = compileDslDocument([
+      "nui 2",
+      "group 外側 {",
+      "  group 内側 {",
+      "    point A = coordinate(x: 0 y: 0)",
+      "  }",
+      "}",
+      "point B = coordinate(x: 1 y: 1)"
+    ].join("\n"));
+    const elements = compiled.document!.elements;
+    const inner = elements.find((element) => element.name === "内側")!;
+    const point = elements.find((element) => element.name === "A")!;
+
+    expect(resolveCommandLineInsertionAnchor(
+      insertionAnchorForCommandLineCreation(point.id),
+      elements
+    )).toEqual({
+      insertionIndex: elements.findIndex((element) => element.name === "内側") + 2,
+      parentGroupId: inner.id
+    });
+    expect(resolveCommandLineInsertionAnchor(
+      insertionAnchorForCommandLineCreation(inner.id),
+      elements
+    )).toEqual({
+      insertionIndex: elements.findIndex((element) => element.name === "B"),
+      parentGroupId: elements.find((element) => element.name === "外側")!.id
+    });
   });
 });

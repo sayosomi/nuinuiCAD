@@ -495,6 +495,125 @@ describe("command-line session commands", () => {
     expect(useCadDocumentStore.getState().evaluationLimitIndex).toBe(2);
   });
 
+  it("keeps one explicit terminal @stop when creation follows its last element", () => {
+    useCadDocumentStore.getState().commitText([
+      "nui 2",
+      "point A = coordinate(x: 0 y: 0)",
+      "@stop"
+    ].join("\n"), "test");
+    const pointA = useCadDocumentStore.getState().elements[0]!;
+
+    expect(startCommandLineCreation("freePoint", { currentCursorElementId: () => pointA.id })).toBe(true);
+    submitCommandLineInput("1");
+    submitCommandLineInput("2");
+    skipCommandLineStep();
+    expect(confirmCommandLineSession()).toBe(true);
+
+    const committed = useCadDocumentStore.getState();
+    expect(committed.evaluationLimitIndex).toBe(committed.elements.length);
+    expect(committed.sourceText.split("\n").filter((line) => line === "@stop")).toHaveLength(1);
+    expect(committed.sourceText.trimEnd().endsWith("@stop")).toBe(true);
+  });
+
+  it("keeps one explicit terminal @stop when creation is anchored at document end", () => {
+    useCadDocumentStore.getState().commitText([
+      "nui 2",
+      "point A = coordinate(x: 0 y: 0)",
+      "@stop"
+    ].join("\n"), "test");
+
+    expect(startCommandLineCreation("freePoint")).toBe(true);
+    submitCommandLineInput("1");
+    submitCommandLineInput("2");
+    skipCommandLineStep();
+    expect(confirmCommandLineSession()).toBe(true);
+
+    const committed = useCadDocumentStore.getState();
+    expect(committed.evaluationLimitIndex).toBe(committed.elements.length);
+    expect(committed.sourceText.split("\n").filter((line) => line === "@stop")).toHaveLength(1);
+  });
+
+  it("does not introduce @stop when the source has no manual evaluation boundary", () => {
+    useCadDocumentStore.getState().commitText([
+      "nui 2",
+      "point A = coordinate(x: 0 y: 0)"
+    ].join("\n"), "test");
+
+    expect(startCommandLineCreation("freePoint")).toBe(true);
+    submitCommandLineInput("1");
+    submitCommandLineInput("2");
+    skipCommandLineStep();
+    expect(confirmCommandLineSession()).toBe(true);
+
+    const committed = useCadDocumentStore.getState();
+    expect(committed.evaluationLimitIndex).toBeUndefined();
+    expect(committed.sourceText).not.toContain("@stop");
+  });
+
+  it("uses the anchor's parent scope for ghost and confirmation regardless of group folding", () => {
+    useCadDocumentStore.getState().commitText([
+      "nui 2",
+      "group G {",
+      "  point A = coordinate(x: 0 y: 0)",
+      "}",
+      "point B = coordinate(x: 1 y: 1)"
+    ].join("\n"), "test");
+    const { elements } = useCadDocumentStore.getState();
+    const group = elements.find((element) => element.name === "G")!;
+    const pointA = elements.find((element) => element.name === "A")!;
+
+    useCadUiStore.getState().setGroupFold(group.id, { expanded: false });
+    expect(startCommandLineCreation("freePoint", { currentCursorElementId: () => pointA.id })).toBe(true);
+    const collapsedSession = useCadUiStore.getState().commandLineSession!;
+    expect(collapsedSession.insertionTarget).toEqual({ insertionIndex: 2, parentGroupId: group.id });
+    submitCommandLineInput("1");
+    submitCommandLineInput("2");
+    skipCommandLineStep();
+    expect(useCadDocumentStore.getState().previewElements?.find(
+      (element) => !["G", "A", "B"].includes(element.name)
+    )?.parentGroupId).toBe(group.id);
+    expect(cancelCommandLineSession()).toBe(true);
+
+    useCadUiStore.getState().setGroupFold(group.id, { expanded: true });
+    expect(startCommandLineCreation("freePoint", { currentCursorElementId: () => pointA.id })).toBe(true);
+    submitCommandLineInput("1");
+    submitCommandLineInput("2");
+    skipCommandLineStep();
+    expect(confirmCommandLineSession()).toBe(true);
+
+    const committed = useCadDocumentStore.getState();
+    const created = committed.elements.find((element) => element.name !== "G" && element.name !== "A" && element.name !== "B")!;
+    expect(created.parentGroupId).toBe(group.id);
+    expect(committed.sourceText).toMatch(/group G \{[\s\S]*point A[\s\S]*point[^\n]* = coordinate[\s\S]*\}\npoint B/);
+  });
+
+  it("places group-header creation outside the complete conditional structure", () => {
+    useCadDocumentStore.getState().commitText([
+      "nui 2",
+      "if 分岐 (1) {",
+      "  point A = coordinate(x: 0 y: 0)",
+      "} else {",
+      "  group 内側 {",
+      "    point B = coordinate(x: 1 y: 1)",
+      "  }",
+      "}",
+      "point C = coordinate(x: 2 y: 2)"
+    ].join("\n"), "test");
+    const group = useCadDocumentStore.getState().elements.find((element) => element.name === "分岐")!;
+
+    expect(startCommandLineCreation("freePoint", { currentCursorElementId: () => group.id })).toBe(true);
+    expect(useCadUiStore.getState().commandLineSession?.insertionTarget).toEqual({ insertionIndex: 4 });
+    submitCommandLineInput("3");
+    submitCommandLineInput("4");
+    skipCommandLineStep();
+    expect(confirmCommandLineSession()).toBe(true);
+
+    const committed = useCadDocumentStore.getState();
+    const created = committed.elements.find((element) => !["分岐", "A", "内側", "B", "C"].includes(element.name))!;
+    expect(created.parentGroupId).toBeUndefined();
+    expect(committed.sourceText).toMatch(/\n}\npoint[^\n]* = coordinate[\s\S]*\npoint C/);
+  });
+
   it("replaces only ephemeral canvas/session state and refuses re-entry during composition", () => {
     const calls: string[] = [];
     expect(startCommandLineCreation("freePoint", {
