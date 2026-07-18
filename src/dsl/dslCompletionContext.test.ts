@@ -26,14 +26,17 @@ describe("dslCompletionContextAt", () => {
       parameter: { definition: { kind: "choice" } }
     });
 
-    // v2's registry-driven validateArgs hard-errors on any trailing token
-    // after a closed call (unlike v1's tolerant `key=value key2=value2`
-    // whitespace list), and `key: value` always consumes the rest of its own
-    // physical line - so there is no longer any parseable statement text in
-    // which a bare/partial trailing attribute NAME (the "attribute"
-    // DslCompletionContext kind) can appear. That kind's cmAutocomplete.ts
-    // wiring (still emitting v1's `key=` insertion text) is dead in v2 and is
-    // left for F2 completion polish rather than redesigned here.
+    // F2's partial-call scanner owns construction and named-argument positions;
+    // valid values continue through the parser-derived branches below.
+  });
+
+  it("preserves short-var value completion after the equals sign", () => {
+    const line = "var Copy = @Wi";
+    expect(dslCompletionContextAt(line, at(line, "@Wi"))).toMatchObject({
+      kind: "parameter",
+      parameter: { definition: { kind: "number" } }
+    });
+    expect(dslCompletionContextAt("var Copy = ", "var Copy = ".length)).toBeNull();
   });
 
   it("narrows line-list completion to the current item for safe re-editing", () => {
