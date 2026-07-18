@@ -1,6 +1,9 @@
-import { EditorState } from "@codemirror/state";
+import { completionStatus, currentCompletions, selectedCompletionIndex, startCompletion } from "@codemirror/autocomplete";
+import { EditorSelection, EditorState } from "@codemirror/state";
+import { EditorView } from "@codemirror/view";
+import { fireEvent } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { createDslCompletionSource } from "./cmAutocomplete";
+import { createDslCompletionSource, dslAutocompleteExtension } from "./cmAutocomplete";
 import { compileDslDocument, type DslDocumentData } from "../dsl/dslDocument";
 import { dslLinesForElements, dslTextForElements } from "../dsl/dslDocumentTestUtils";
 import { createPrintLayoutRangeIndex, createStatementRangeIndex } from "./statementRangeIndex";
@@ -528,5 +531,108 @@ describe("createDslCompletionSource", () => {
       });
       expect(await Promise.resolve(completionSource({ state, pos, explicit: true } as never))).toBeNull();
     });
+  });
+});
+
+describe("dslAutocompleteExtension candidate navigation", () => {
+  const createView = (isComposing: () => boolean) => {
+    const parent = document.createElement("div");
+    document.body.append(parent);
+    const view = new EditorView({
+      state: EditorState.create({
+        doc: "p",
+        extensions: dslAutocompleteExtension({
+          elements: () => [],
+          statementRanges: () => new Map(),
+          printLayouts: () => [],
+          printLayoutRanges: () => new Map(),
+          isComposing,
+          computedVariables: () => undefined,
+          computedGeometry: () => undefined,
+          effectiveEnabledElementIds: () => undefined,
+          evaluationErrors: () => undefined
+        })
+      }),
+      parent
+    });
+    return { parent, view };
+  };
+
+  const openCompletion = async (view: EditorView) => {
+    expect(startCompletion(view)).toBe(true);
+    await new Promise((resolve) => setTimeout(resolve, 180));
+    expect(completionStatus(view.state)).toBe("active");
+    // The completion result can become active late in the initial wait under a
+    // full-suite load. Wait from that observed state as well so CM's own
+    // interactionDelay has definitely elapsed before asserting key handling.
+    await new Promise((resolve) => setTimeout(resolve, 90));
+    expect(selectedCompletionIndex(view.state)).toBe(0);
+  };
+
+  it("uses arrows to move completion and Tab to accept", async () => {
+    const { parent, view } = createView(() => false);
+    await openCompletion(view);
+    expect(currentCompletions(view.state).length).toBeGreaterThan(1);
+
+    expect(fireEvent.keyDown(view.contentDOM, { key: "ArrowDown" })).toBe(false);
+    expect(selectedCompletionIndex(view.state)).toBe(1);
+    expect(fireEvent.keyDown(view.contentDOM, { key: "Tab" })).toBe(false);
+    expect(view.state.doc.toString()).not.toBe("p");
+    view.destroy();
+    parent.remove();
+  });
+
+  it("falls through without an open candidate list and does not consume completion keys during composition", async () => {
+    let composing = false;
+    const { parent, view } = createView(() => composing);
+    expect(fireEvent.keyDown(view.contentDOM, { key: "Tab" })).toBe(true);
+    expect(fireEvent.keyDown(view.contentDOM, { key: " ", code: "Space" })).toBe(true);
+
+    await openCompletion(view);
+    composing = true;
+    for (const event of [
+      { key: "Tab" },
+      { key: " ", code: "Space" },
+      { key: "Enter" }
+    ]) {
+      expect(fireEvent.keyDown(view.contentDOM, event)).toBe(true);
+    }
+    expect(view.state.doc.toString()).toBe("p");
+    expect(selectedCompletionIndex(view.state)).toBe(0);
+    view.destroy();
+    parent.remove();
+  });
+
+  it("leaves Space to numeric expression input even when its completion list is open", async () => {
+    const source = ["nui 2", "var GlobalWidth = 100", "var Copy = @Gl"].join("\n");
+    const { elements, statementRanges, printLayouts, printLayoutRanges } = identities(source);
+    const parent = document.createElement("div");
+    document.body.append(parent);
+    const view = new EditorView({
+      state: EditorState.create({
+        doc: source,
+        selection: EditorSelection.cursor(source.length),
+        extensions: dslAutocompleteExtension({
+          elements: () => elements,
+          statementRanges: () => statementRanges,
+          printLayouts: () => printLayouts,
+          printLayoutRanges: () => printLayoutRanges,
+          isComposing: () => false,
+          computedVariables: () => undefined,
+          computedGeometry: () => undefined,
+          effectiveEnabledElementIds: () => undefined,
+          evaluationErrors: () => undefined
+        })
+      }),
+      parent
+    });
+    await openCompletion(view);
+
+    expect(fireEvent.keyDown(view.contentDOM, { key: " ", code: "Space" })).toBe(true);
+    expect(completionStatus(view.state)).toBeNull();
+    // The command returned false, so CodeMirror/the platform—not completion—
+    // owns inserting the one ordinary whitespace character.
+    view.destroy();
+    parent.remove();
   });
 });

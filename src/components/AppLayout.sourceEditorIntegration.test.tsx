@@ -127,6 +127,59 @@ describe("AppLayout Source Editor production integration", () => {
     expect(document.activeElement?.closest("[inert]")).toBeNull();
   });
 
+  it("lets the real command bar handle line-list reference suggestions while capture still blocks the rest of the app", async () => {
+    useCadDocumentStore.getState().commitText([
+      "nui 2",
+      "point A = coordinate(x: 0 y: 0)",
+      "point B = coordinate(x: 100 y: 0)",
+      "point C = coordinate(x: 0 y: 100)",
+      "line L1 = segment(start: A end: B)",
+      "line L2 = segment(start: A end: C)"
+    ].join("\n"), "test");
+    const line1 = useCadDocumentStore.getState().elements.find((element) => element.name === "L1")!;
+    const view = render(<AppLayout />);
+    const input = () => view.getByPlaceholderText("候補名を入力") as HTMLInputElement;
+    const selectedOption = () => view.getByRole("option", { selected: true });
+
+    act(() => { startCommandLineCreation("offsetLine"); });
+    await waitFor(() => expect(useCadUiStore.getState().activeLinePickTarget?.draftLineIds).toEqual([]));
+    fireEvent.change(input(), { target: { value: "L" } });
+    expect(view.getByRole("listbox", { name: "参照候補" })).toBeInTheDocument();
+    expect(selectedOption()).toHaveTextContent("L1");
+    expect(selectedOption()).toHaveClass("active-suggestion");
+
+    expect(fireEvent.keyDown(input(), { key: "ArrowDown" })).toBe(false);
+    expect(selectedOption()).toHaveTextContent("L2");
+    expect(selectedOption()).toHaveClass("active-suggestion");
+    expect(fireEvent.keyDown(input(), { key: "ArrowUp" })).toBe(false);
+    expect(selectedOption()).toHaveTextContent("L1");
+    expect(fireEvent.keyDown(input(), { key: "Enter" })).toBe(false);
+    expect(useCadUiStore.getState().activeLinePickTarget?.draftLineIds).toEqual([]);
+    expect(input()).toHaveValue("L1");
+    expect(view.queryByRole("listbox", { name: "参照候補" })).toBeNull();
+
+    const sourceRevision = useCadDocumentStore.getState().sourceRevision;
+    expect(fireEvent.keyDown(input(), { key: "F2" })).toBe(true);
+    expect(useCadUiStore.getState().renameElementPromptTargetId).toBeNull();
+    expect(useCadDocumentStore.getState().sourceRevision).toBe(sourceRevision);
+    const rightPanel = view.container.querySelector<HTMLElement>(".right-panel")!;
+    expect(fireEvent.keyDown(rightPanel, { key: "Tab" })).toBe(false);
+
+    expect(fireEvent.keyDown(input(), { key: "Enter" })).toBe(false);
+    expect(useCadUiStore.getState().activeLinePickTarget?.draftLineIds).toEqual([line1.id]);
+    expect(useCadUiStore.getState().commandLineSession?.currentStepIndex).toBe(0);
+    expect(view.getByRole("button", { name: "選択を完了" })).toBeInTheDocument();
+    fireEvent.click(view.getByRole("button", { name: "選択を完了" }));
+    expect(useCadUiStore.getState().commandLineSession?.args.baseLineIds).toEqual([line1.id]);
+
+    act(() => { startCommandLineCreation("offsetLine"); });
+    fireEvent.change(input(), { target: { value: "L1" } });
+    fireEvent.keyDown(input(), { key: "Enter" });
+    fireEvent.keyDown(input(), { key: "Enter" });
+    expect(fireEvent.keyDown(input(), { key: "Enter", metaKey: true })).toBe(false);
+    expect(useCadUiStore.getState().commandLineSession?.args.baseLineIds).toEqual([line1.id]);
+  });
+
   it("restores line-list inert mode and Canvas focus after global Escape cancels a mid-session chip edit", async () => {
     const view = render(<AppLayout />);
     const sourcePane = view.container.querySelector<HTMLElement>(".source-editor-pane-wrapper")!;

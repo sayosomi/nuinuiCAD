@@ -3783,6 +3783,10 @@ textarea {
   background: #d9edf3;
 }
 
+.command-line-suggestions button.active-suggestion {
+  background: #b9e1ec;
+}
+
 .command-line-bar-actions button {
   border-color: #b7d5de;
   background: #e8f5f8;

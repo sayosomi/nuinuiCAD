@@ -79,6 +79,32 @@ export const CommandLineBar = ({ commandContext, evaluation }: CommandLineBarPro
   const [numberSuggestionActiveIndex, setNumberSuggestionActiveIndex] = useState(0);
   const [referenceSuggestionActiveIndex, setReferenceSuggestionActiveIndex] = useState(0);
   const [referenceInputComposing, setReferenceInputComposing] = useState(false);
+  // Tab only reflects a reference candidate into the input. Keep its stable
+  // PickRef until the following Enter can use the normal canvas-pick path;
+  // never try to recover it from the displayed string.
+  const [acceptedReferenceSuggestion, setAcceptedReferenceSuggestion] = useState<{
+    stepIdentity: string;
+    inputValue: string;
+    suggestion: ReferenceSuggestion;
+  } | null>(null);
+  // Space dismisses a numeric completion and falls through to native text
+  // input. Remember that dismissal for this exact value so the popup does not
+  // immediately reopen before the browser's input event arrives.
+  const [dismissedNumberSuggestion, setDismissedNumberSuggestion] = useState<{
+    stepIdentity: string;
+    inputValue: string;
+  } | null>(null);
+  // Numeric variable/parameter candidates use the ordinary numeric submit
+  // route after Tab. Track that one accepted replacement explicitly so Enter
+  // does not rely on native form submission being forwarded by the webview.
+  const [acceptedNumberSuggestion, setAcceptedNumberSuggestion] = useState<{
+    stepIdentity: string;
+    inputValue: string;
+  } | null>(null);
+  const [dismissedReferenceSuggestion, setDismissedReferenceSuggestion] = useState<{
+    stepIdentity: string;
+    inputValue: string;
+  } | null>(null);
   const step = currentStep(session);
   const isEditing = session ? isEditingCommandLineStep(session) : false;
   const stepKey = step && step.kind !== "name" ? step.key : null;
@@ -140,20 +166,38 @@ export const CommandLineBar = ({ commandContext, evaluation }: CommandLineBarPro
   const activeSuggestionOptions = numberSuggestionMatch
     ? visibleNumberVariableSuggestions
     : asNumericVariableReferenceOptions(visibleElementParamSuggestions);
+  const numberSuggestionsOpen = activeSuggestionOptions.length > 0 && !(
+    dismissedNumberSuggestion?.stepIdentity === stepIdentity &&
+    dismissedNumberSuggestion.inputValue === inputValue
+  );
+  const acceptedNumberForCurrentInput =
+    acceptedNumberSuggestion?.stepIdentity === stepIdentity &&
+    acceptedNumberSuggestion.inputValue === inputValue
+      ? acceptedNumberSuggestion
+      : null;
   const selectedNumberSuggestionIndex = activeSuggestionOptions.length === 0
     ? 0
     : Math.min(numberSuggestionActiveIndex, activeSuggestionOptions.length - 1);
-  const applyNumberVariableSuggestion = (option = activeSuggestionOptions[selectedNumberSuggestionIndex]) => {
+  const numberSuggestionReplacement = (option = activeSuggestionOptions[selectedNumberSuggestionIndex]) => {
     if (!activeSuggestionMatch || !option) return;
     const nextValue = replaceNumericVariableSuggestionToken(inputValue, activeSuggestionMatch, option.expression);
+    return {
+      nextValue,
+      nextCursor: activeSuggestionMatch.tokenStart + option.expression.length
+    };
+  };
+  const applyNumberVariableSuggestion = (option = activeSuggestionOptions[selectedNumberSuggestionIndex]) => {
+    const replacement = numberSuggestionReplacement(option);
+    if (!replacement) return;
+    const { nextValue, nextCursor } = replacement;
     setInputValue(nextValue);
     setNumberSuggestionActiveIndex(0);
-    const nextCursor = activeSuggestionMatch.tokenStart + option.expression.length;
     requestAnimationFrame(() => {
       inputRef.current?.focus();
       inputRef.current?.setSelectionRange(nextCursor, nextCursor);
       setNumberSuggestionSelection({ start: nextCursor, end: nextCursor });
     });
+    return nextValue;
   };
   const referencePlacement = useMemo(
     () => session && isCommandLineReferenceStep(step?.kind)
@@ -183,6 +227,18 @@ export const CommandLineBar = ({ commandContext, evaluation }: CommandLineBarPro
   const selectedReferenceSuggestionIndex = visibleSuggestions.length === 0
     ? 0
     : Math.min(referenceSuggestionActiveIndex, visibleSuggestions.length - 1);
+  const acceptedReferenceForCurrentInput =
+    acceptedReferenceSuggestion?.stepIdentity === stepIdentity &&
+    acceptedReferenceSuggestion.inputValue === inputValue
+      ? acceptedReferenceSuggestion
+      : null;
+  const referenceSuggestionsOpen =
+    isCommandLineReferenceStep(step?.kind) &&
+    Boolean(inputValue.trim()) &&
+    visibleSuggestions.length > 0 &&
+    !acceptedReferenceForCurrentInput &&
+    !(dismissedReferenceSuggestion?.stepIdentity === stepIdentity &&
+      dismissedReferenceSuggestion.inputValue === inputValue);
   const completedSteps = useMemo(
     () => session ? completedCommandLineSteps(session, elements) : [],
     [elements, session]
@@ -239,19 +295,27 @@ export const CommandLineBar = ({ commandContext, evaluation }: CommandLineBarPro
         : "値または式を入力";
 
   const applySuggestion = (suggestion: ReferenceSuggestion) => {
-    applyPickReference(suggestion.pickRef, evaluation);
+    if (!applyPickReference(suggestion.pickRef, evaluation)) return false;
     setInputValue("");
     setReferenceSuggestionActiveIndex(0);
+    setAcceptedReferenceSuggestion(null);
+    return true;
+  };
+
+  const clearPendingSuggestionState = () => {
+    setAcceptedReferenceSuggestion(null);
+    setDismissedNumberSuggestion(null);
+    setAcceptedNumberSuggestion(null);
+    setDismissedReferenceSuggestion(null);
   };
 
   const submitReferenceInput = () => {
     if (!step || !isCommandLineReferenceStep(step.kind)) return false;
     const query = inputValue.trim();
     if (query) {
-      const suggestion = visibleSuggestions[selectedReferenceSuggestionIndex];
-      if (!suggestion) return false;
-      applySuggestion(suggestion);
-      return true;
+      return acceptedReferenceForCurrentInput
+        ? applySuggestion(acceptedReferenceForCurrentInput.suggestion)
+        : false;
     }
     if (activePickCursor) {
       applySelectedPickCandidate(evaluation);
@@ -262,12 +326,17 @@ export const CommandLineBar = ({ commandContext, evaluation }: CommandLineBarPro
     if (!selected) return false;
     const suggestion = suggestions.find((item) => item.pickRef.candidateElementId === selected.elementId);
     if (!suggestion) return false;
-    applySuggestion(suggestion);
-    return true;
+    return applySuggestion(suggestion);
   };
   const ownsReferenceKeyboardEvent = (target: EventTarget | null) =>
     target === inputRef.current ||
     (target instanceof Element && target.closest(".command-line-suggestions") !== null);
+  const inputValueWithSpace = () => {
+    const input = inputRef.current;
+    const start = input?.selectionStart ?? inputValue.length;
+    const end = input?.selectionEnd ?? start;
+    return `${inputValue.slice(0, start)} ${inputValue.slice(end)}`;
+  };
 
   return (
     <form
@@ -277,6 +346,7 @@ export const CommandLineBar = ({ commandContext, evaluation }: CommandLineBarPro
         event.preventDefault();
         if (referenceInputComposing || isCommandLineInputComposing()) return;
         if (submitReferenceInput()) return;
+        clearPendingSuggestionState();
         submitCommandLineInput(inputValue, commandContext);
       }}
       onKeyDown={(event) => {
@@ -286,7 +356,7 @@ export const CommandLineBar = ({ commandContext, evaluation }: CommandLineBarPro
           event.nativeEvent.isComposing ||
           isCommandLineInputComposing()
         ) return;
-        if (step?.kind === "number" && activeSuggestionOptions.length > 0) {
+        if (step?.kind === "number" && numberSuggestionsOpen) {
           if (event.key === "ArrowDown") {
             event.preventDefault();
             setNumberSuggestionActiveIndex((index) => (index + 1) % activeSuggestionOptions.length);
@@ -297,11 +367,34 @@ export const CommandLineBar = ({ commandContext, evaluation }: CommandLineBarPro
             setNumberSuggestionActiveIndex((index) => (index - 1 + activeSuggestionOptions.length) % activeSuggestionOptions.length);
             return;
           }
-          if (event.key === "Tab" || event.key === "Enter") {
+          if (event.key === "Tab" && !event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey) {
             event.preventDefault();
-            applyNumberVariableSuggestion();
+            const replacement = applyNumberVariableSuggestion();
+            if (replacement) {
+              setDismissedNumberSuggestion({ stepIdentity, inputValue: replacement });
+              setAcceptedNumberSuggestion({ stepIdentity, inputValue: replacement });
+            }
             return;
           }
+          if (event.code === "Space" && !event.metaKey && !event.ctrlKey && !event.altKey) {
+            setDismissedNumberSuggestion({ stepIdentity, inputValue: inputValueWithSpace() });
+            return;
+          }
+          if (event.key === "Enter") {
+            event.preventDefault();
+            const replacement = applyNumberVariableSuggestion();
+            if (replacement) {
+              setDismissedNumberSuggestion({ stepIdentity, inputValue: replacement });
+              setAcceptedNumberSuggestion({ stepIdentity, inputValue: replacement });
+            }
+            return;
+          }
+        }
+        if (step?.kind === "number" && acceptedNumberForCurrentInput && event.key === "Enter") {
+          event.preventDefault();
+          clearPendingSuggestionState();
+          submitCommandLineInput(inputValue, commandContext);
+          return;
         }
         const ownsReferenceKeyboard = ownsReferenceKeyboardEvent(event.target);
         if (
@@ -311,10 +404,11 @@ export const CommandLineBar = ({ commandContext, evaluation }: CommandLineBarPro
           (event.metaKey || event.ctrlKey)
         ) {
           event.preventDefault();
+          clearPendingSuggestionState();
           finishLinePick();
           return;
         }
-        if (ownsReferenceKeyboard && isCommandLineReferenceStep(step?.kind) && inputValue.trim()) {
+        if (ownsReferenceKeyboard && referenceSuggestionsOpen) {
           if (event.key === "ArrowDown") {
             event.preventDefault();
             if (visibleSuggestions.length > 0) {
@@ -331,12 +425,34 @@ export const CommandLineBar = ({ commandContext, evaluation }: CommandLineBarPro
             }
             return;
           }
-          if (event.key === "Tab" || event.key === "Enter") {
+          if (event.key === "Tab" && !event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey) {
             event.preventDefault();
             const suggestion = visibleSuggestions[selectedReferenceSuggestionIndex];
-            if (suggestion) applySuggestion(suggestion);
+            if (suggestion) {
+              setInputValue(suggestion.canonicalToken);
+              setReferenceSuggestionActiveIndex(0);
+              setAcceptedReferenceSuggestion({ stepIdentity, inputValue: suggestion.canonicalToken, suggestion });
+            }
             return;
           }
+          if (event.code === "Space" && !event.metaKey && !event.ctrlKey && !event.altKey) {
+            setDismissedReferenceSuggestion({ stepIdentity, inputValue: inputValueWithSpace() });
+            return;
+          }
+          if (event.key === "Enter") {
+            event.preventDefault();
+            const suggestion = visibleSuggestions[selectedReferenceSuggestionIndex];
+            if (suggestion) {
+              setInputValue(suggestion.canonicalToken);
+              setReferenceSuggestionActiveIndex(0);
+              setAcceptedReferenceSuggestion({ stepIdentity, inputValue: suggestion.canonicalToken, suggestion });
+            }
+            return;
+          }
+        } else if (ownsReferenceKeyboard && acceptedReferenceForCurrentInput && event.key === "Enter") {
+          event.preventDefault();
+          applySuggestion(acceptedReferenceForCurrentInput.suggestion);
+          return;
         } else if (ownsReferenceKeyboard && (activePickCursor || isCommandLineReferenceStep(step?.kind))) {
           if (event.key === "ArrowDown") {
             event.preventDefault();
@@ -358,14 +474,11 @@ export const CommandLineBar = ({ commandContext, evaluation }: CommandLineBarPro
             selectPickOptionByOffset(-1, evaluation);
             return;
           }
-          if (event.key === "Tab") {
-            event.preventDefault();
-            return;
-          }
         }
         if (event.key !== "Escape") return;
         event.preventDefault();
         event.stopPropagation();
+        clearPendingSuggestionState();
         cancelCommandLineEscape();
       }}
       onCompositionStart={() => {
@@ -411,6 +524,18 @@ export const CommandLineBar = ({ commandContext, evaluation }: CommandLineBarPro
                   aria-describedby="command-line-input-help"
                   onChange={(event) => {
                     const nextValue = event.target.value;
+                    setAcceptedReferenceSuggestion(null);
+                    setAcceptedNumberSuggestion(null);
+                    setDismissedNumberSuggestion((dismissed) =>
+                      dismissed?.stepIdentity === stepIdentity && dismissed.inputValue === nextValue
+                        ? dismissed
+                        : null
+                    );
+                    setDismissedReferenceSuggestion((dismissed) =>
+                      dismissed?.stepIdentity === stepIdentity && dismissed.inputValue === nextValue
+                        ? dismissed
+                        : null
+                    );
                     if (isCommandLineReferenceStep(step.kind)) {
                       if (nextValue.trim()) useCadUiStore.getState().setActivePickCursor(null);
                       setReferenceSuggestionActiveIndex(0);
@@ -423,7 +548,7 @@ export const CommandLineBar = ({ commandContext, evaluation }: CommandLineBarPro
                   onSelect={(event) => setNumberSuggestionSelection({ start: event.currentTarget.selectionStart, end: event.currentTarget.selectionEnd })}
                   onKeyUp={(event) => setNumberSuggestionSelection({ start: event.currentTarget.selectionStart, end: event.currentTarget.selectionEnd })}
                 />
-                {isCommandLineReferenceStep(step.kind) && inputValue.trim() && visibleSuggestions.length > 0 ? (
+                {referenceSuggestionsOpen ? (
                   <ul className="command-line-suggestions" role="listbox" aria-label="参照候補">
                     {visibleSuggestions.map((suggestion, index) => (
                       <li key={suggestion.pickRefKey}>
@@ -431,6 +556,7 @@ export const CommandLineBar = ({ commandContext, evaluation }: CommandLineBarPro
                           type="button"
                           role="option"
                           aria-selected={index === selectedReferenceSuggestionIndex}
+                          className={index === selectedReferenceSuggestionIndex ? "active-suggestion" : undefined}
                           onMouseEnter={() => setReferenceSuggestionActiveIndex(index)}
                           onClick={() => applySuggestion(suggestion)}
                         >
@@ -442,7 +568,7 @@ export const CommandLineBar = ({ commandContext, evaluation }: CommandLineBarPro
                 ) : null}
                 {step.kind === "number" ? (
                   <NumericVariableSuggestPopover
-                    options={activeSuggestionOptions}
+                    options={numberSuggestionsOpen ? activeSuggestionOptions : []}
                     activeIndex={selectedNumberSuggestionIndex}
                     onHover={setNumberSuggestionActiveIndex}
                     onApply={applyNumberVariableSuggestion}
@@ -453,14 +579,17 @@ export const CommandLineBar = ({ commandContext, evaluation }: CommandLineBarPro
                 {step.kind === "number" ? (
                   <button type="button" onClick={() => startCommandLineNumericReferencePick()}>参照値を選択</button>
                 ) : null}
-                {canSkip ? <button type="button" onClick={() => skipCommandLineStep()}>スキップ</button> : null}
+                {step.kind === "lineList" ? (
+                  <button type="button" onClick={() => { clearPendingSuggestionState(); finishLinePick(); }}>選択を完了</button>
+                ) : null}
+                {canSkip ? <button type="button" onClick={() => { clearPendingSuggestionState(); skipCommandLineStep(); }}>スキップ</button> : null}
                 {isEditing ? (
                   <>
                     <button className="command-line-bar-confirm" type="submit">変更を確定（Enter）</button>
-                    <button type="button" onClick={() => cancelCommandLineStepEdit()}>編集をやめる</button>
+                    <button type="button" onClick={() => { clearPendingSuggestionState(); cancelCommandLineStepEdit(); }}>編集をやめる</button>
                   </>
-                ) : session.currentStepIndex > 0 ? <button type="button" onClick={() => retreatCommandLineStep()}>戻る</button> : null}
-                <button type="button" onClick={() => cancelCommandLineSession()}>キャンセル（Esc）</button>
+                ) : session.currentStepIndex > 0 ? <button type="button" onClick={() => { clearPendingSuggestionState(); retreatCommandLineStep(); }}>戻る</button> : null}
+                <button type="button" onClick={() => { clearPendingSuggestionState(); cancelCommandLineSession(); }}>キャンセル（Esc）</button>
               </div>
             </div>
           </>
@@ -469,8 +598,8 @@ export const CommandLineBar = ({ commandContext, evaluation }: CommandLineBarPro
             <p className="command-line-bar-complete">入力完了。Enterで作成します。</p>
             <div className="command-line-bar-actions">
               <button ref={confirmButtonRef} className="command-line-bar-confirm" type="submit">作成（Enter）</button>
-              {session.currentStepIndex > 0 ? <button type="button" onClick={() => retreatCommandLineStep()}>戻る</button> : null}
-              <button type="button" onClick={() => cancelCommandLineSession()}>キャンセル（Esc）</button>
+              {session.currentStepIndex > 0 ? <button type="button" onClick={() => { clearPendingSuggestionState(); retreatCommandLineStep(); }}>戻る</button> : null}
+              <button type="button" onClick={() => { clearPendingSuggestionState(); cancelCommandLineSession(); }}>キャンセル（Esc）</button>
             </div>
           </>
         )}
@@ -488,7 +617,7 @@ export const CommandLineBar = ({ commandContext, evaluation }: CommandLineBarPro
                 }}
                 type="button"
                 aria-label={`${item.label}を編集`}
-                onClick={() => startCommandLineStepEdit(item.stepIndex)}
+                onClick={() => { clearPendingSuggestionState(); startCommandLineStepEdit(item.stepIndex); }}
               >
                 <span>{item.label}</span><span>{item.value}</span>
               </button>

@@ -1,6 +1,15 @@
-import { autocompletion, completionKeymap, type Completion, type CompletionContext, type CompletionSource } from "@codemirror/autocomplete";
-import type { Extension, Text } from "@codemirror/state";
-import { keymap } from "@codemirror/view";
+import {
+  acceptCompletion,
+  autocompletion,
+  closeCompletion,
+  moveCompletionSelection,
+  startCompletion,
+  type Completion,
+  type CompletionContext,
+  type CompletionSource
+} from "@codemirror/autocomplete";
+import { Prec, type Extension, type Text } from "@codemirror/state";
+import { keymap, type Command } from "@codemirror/view";
 import { dslCompletionContextAt, dslIntermediatesAttributeParameterKey, dslVarsAttributeParameterKey } from "../dsl/dslCompletionContext";
 import { dslStatementElementType } from "../dsl/dslCompletionMetadata";
 import { argumentCompletionCandidates, constructionCompletionCandidates } from "../dsl/dslCallCompletionCandidates";
@@ -294,8 +303,42 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
   };
 };
 
+const guardedCompletionCommand = (isComposing: () => boolean, command: Command): Command =>
+  (view) => {
+    if (isComposing() || view.compositionStarted) return false;
+    return command(view);
+  };
+
 /** Context and candidate generation stay CM-free for the Source Editor. */
-export const dslAutocompleteExtension = (options: DslAutocompleteOptions): Extension[] => [
-  autocompletion({ override: [createDslCompletionSource(options)] }),
-  keymap.of(completionKeymap)
-];
+export const dslAutocompleteExtension = (options: DslAutocompleteOptions): Extension[] => {
+  const guarded = (command: Command) => guardedCompletionCommand(options.isComposing, command);
+  const dismissCompletionForSpace = (view: Parameters<Command>[0]) => {
+    if (options.isComposing() || view.compositionStarted) return false;
+    // Deliberately do not consume Space: CodeMirror/the browser owns inserting
+    // the one ordinary whitespace character after the completion is closed.
+    closeCompletion(view);
+    return false;
+  };
+
+  return [
+    // Own the stock completion bindings so composition can always fall through
+    // to CodeMirror/the IME. With an active popup Tab accepts (rather than
+    // cycles) its current candidate; when no popup is open it returns false
+    // and preserves Source Editor value-span/snippet navigation.
+    autocompletion({ override: [createDslCompletionSource(options)], defaultKeymap: false }),
+    Prec.highest(keymap.of([
+      { key: "Ctrl-Space", run: guarded(startCompletion) },
+      { mac: "Alt-`", run: guarded(startCompletion) },
+      { mac: "Alt-i", run: guarded(startCompletion) },
+      { key: "Escape", run: guarded(closeCompletion) },
+      { key: "ArrowDown", run: guarded(moveCompletionSelection(true)) },
+      { key: "ArrowUp", run: guarded(moveCompletionSelection(false)) },
+      { key: "PageDown", run: guarded(moveCompletionSelection(true, "page")) },
+      { key: "PageUp", run: guarded(moveCompletionSelection(false, "page")) },
+      { key: "Enter", run: guarded(acceptCompletion) },
+      { key: "Tab", run: guarded(acceptCompletion) },
+      { key: "Space", run: dismissCompletionForSpace },
+      { key: "Space", shift: dismissCompletionForSpace }
+    ]))
+  ];
+};
