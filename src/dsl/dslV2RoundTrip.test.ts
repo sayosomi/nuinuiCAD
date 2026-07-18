@@ -5,11 +5,11 @@ import { createElementNameContext } from "../model/elementNames";
 import { referenceAnchor } from "../model/pointAnchors";
 import { getParameterDefinitions } from "../parameters/parameterDefinitions";
 import { setParameterValue } from "../parameters/parameterAccess";
-import type { CadElement, PrintLayout, VariableValueMode } from "../types/geometry";
+import type { CadElement, VariableValueMode } from "../types/geometry";
 import { applyArgs, createDefaultIntermediateId, type DslApplyArgsResolvers } from "./dslApplyArgs";
 import { parseDslCallStatement } from "./dslCallParser";
 import { constructionFor } from "./dslConstructions";
-import { normalizeForComparison } from "./dslDocumentTestUtils";
+import { comparableLayouts, normalizeForComparison } from "./dslDocumentTestUtils";
 import { parseLegacyV1Document } from "../document/legacyDsl/parseLegacyV1Document";
 import { createNameIndex } from "./dslReferences";
 import { documentDslRefs } from "./dslSerializer";
@@ -68,17 +68,6 @@ const roundTrip = (element: CadElement, expected: string) => {
   expect(applied.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
   expect(serializeElementStatementLogical(applied.element, documentDslRefs([...refs, applied.element]))).toBe(expected);
   return applied.element;
-};
-
-const comparableLayouts = (layouts: readonly PrintLayout[] | undefined, elements: readonly CadElement[]) => {
-  const index = new Map(elements.map((element, position) => [element.id, position]));
-  return (layouts ?? []).map((layout) => ({
-    name: layout.name, outputKind: layout.outputKind, visibilityProfileId: layout.visibilityProfileId,
-    paperSizeId: layout.paperSizeId, orientation: layout.orientation, columns: layout.columns, rows: layout.rows,
-    overlapMm: layout.overlapMm, scale: layout.scale, svgCanvasWidthMm: layout.svgCanvasWidthMm, svgCanvasHeightMm: layout.svgCanvasHeightMm,
-    numericVariables: (layout.numericVariables ?? []).map((variable) => ({ name: variable.name, value: variable.value })),
-    placements: layout.placements.map((placement) => ({ x: placement.x, y: placement.y, angleDeg: placement.angleDeg, mirrorX: placement.mirrorX, groupId: index.get(placement.groupId) ?? `unknown:${placement.groupId}` })),
-  }));
 };
 
 describe("DSL v2 P7 round-trip and golden fixtures", () => {

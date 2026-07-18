@@ -53,4 +53,19 @@
 ## 次タスクへの引き継ぎ
 
 - F4 へ: ローカル `.nui` の v2 化状況(オーナー確認)をここに記録していく。
-- (完了時に追記)
+
+### 実施内容
+
+- `src/document/legacyV1Import.ts` を追加し、`parseLegacyV1Document`(W5の凍結facade)の
+  document data を `serializeDocumentToDsl` で正準v2テキストへ一回変換する経路を実装した。
+  凍結コピー(`src/document/legacyDsl/`)は変更していない。
+- open境界はlive v2 parserへ渡す前に生テキストの先頭 `nui <major>` を判定し、major 1だけを
+  凍結facadeへ送る。major 0と3以上は従来どおり拒否し、v2・不正なヘッダはlive v2側の既存処理に
+  委ねる。live parser/compilerにv1文法は追加していない。
+- 変換時はv1 diagnosticsのerrorを拒否し、生成したv2テキストもlive compilerで再検証する。どちらかに
+  errorがあれば現在の文書を置き換えず、既存のファイルopenエラーUIへ診断概要を渡す。成功時は同じ
+  `currentFilePath`でdirtyとして開くため、ユーザー保存時にv2として書き戻される。
+- 変換済みであることは新しい専用UI状態を増やさず、既存の「未保存の変更」表示で示す。v1→v2変換では
+  コメントと手書きレイアウトが失われることは既知の仕様のまま。
+- 検証: `npm test`、`npm run build`、`npm run lint`、`npm run desktop:build` はすべて成功。
+  desktop buildのnotarization未設定警告とBigInt target変換警告は既存の許容警告。
