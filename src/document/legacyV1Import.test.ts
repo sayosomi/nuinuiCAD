@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { compileDslDocument, serializeDocumentToDsl } from "../dsl/dslDocument";
-import { normalizeForComparison } from "../dsl/dslDocumentTestUtils";
+import { comparableLayouts, normalizeForComparison } from "../dsl/dslDocumentTestUtils";
 import sampleV1 from "../dsl/__fixtures__/sample.v1.nui?raw";
 import { parseLegacyV1Document } from "./legacyDsl/parseLegacyV1Document";
 import { importLegacyV1Document } from "./legacyV1Import";
@@ -26,6 +26,18 @@ describe("importLegacyV1Document", () => {
       activePrintLayoutId: legacy.activePrintLayoutId,
       evaluationLimitIndex: legacy.evaluationLimitIndex
     });
+    const legacyLayouts = comparableLayouts(legacy.printLayouts, legacy.elements);
+    expect(legacyLayouts).toEqual([expect.objectContaining({
+      numericVariables: [{ name: "margin", value: 15 }],
+      placements: [{
+        x: 0,
+        y: { kind: "expression", expression: "margin" },
+        angleDeg: 0,
+        mirrorX: false,
+        groupId: 1
+      }]
+    })]);
+    expect(comparableLayouts(converted.document!.printLayouts, converted.document!.elements)).toEqual(legacyLayouts);
     expect(serializeDocumentToDsl(converted.document!)).toBe(result.sourceText);
   });
 

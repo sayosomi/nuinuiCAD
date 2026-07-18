@@ -1,7 +1,7 @@
 import { expect } from "vitest";
 import { defaultDocumentPalette } from "../palette/palette";
 import { defaultVisibilityProfile } from "../model/visibilityProfiles";
-import type { CadElement, ElementId, PointAnchor } from "../types/geometry";
+import type { CadElement, ElementId, PointAnchor, PrintLayout } from "../types/geometry";
 import { compileDslToElements } from "./dslCompiler";
 import { DSL_VERSION, layoutElementTree, parseDslDocument, serializeDocumentToDsl, type DslDocumentData } from "./dslDocument";
 import { documentDslRefs } from "./dslSerializer";
@@ -69,6 +69,19 @@ export const normalizeForComparison = (elements: CadElement[]) => {
     }
     return rest;
   });
+};
+
+// PrintLayoutの実行時IDを除いて意味比較する。placeのgroup参照は要素IDではなく
+// 文書内インデックスへ正規化し、layoutVarはnumericVariablesとして比較する。
+export const comparableLayouts = (layouts: readonly PrintLayout[] | undefined, elements: readonly CadElement[]) => {
+  const index = new Map(elements.map((element, position) => [element.id, position]));
+  return (layouts ?? []).map((layout) => ({
+    name: layout.name, outputKind: layout.outputKind, visibilityProfileId: layout.visibilityProfileId,
+    paperSizeId: layout.paperSizeId, orientation: layout.orientation, columns: layout.columns, rows: layout.rows,
+    overlapMm: layout.overlapMm, scale: layout.scale, svgCanvasWidthMm: layout.svgCanvasWidthMm, svgCanvasHeightMm: layout.svgCanvasHeightMm,
+    numericVariables: (layout.numericVariables ?? []).map((variable) => ({ name: variable.name, value: variable.value })),
+    placements: layout.placements.map((placement) => ({ x: placement.x, y: placement.y, angleDeg: placement.angleDeg, mirrorX: placement.mirrorX, groupId: index.get(placement.groupId) ?? `unknown:${placement.groupId}` }))
+  }));
 };
 
 export const expectSemanticallyEqualDocuments = (a: DslDocumentData, b: DslDocumentData) => {
