@@ -4,6 +4,7 @@ import { fireEvent } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
+import { dslTextForElements } from "../dsl/dslDocumentTestUtils";
 import { SourceEditorController } from "./sourceEditorController";
 
 const originalClientWidth = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "clientWidth");
@@ -90,6 +91,28 @@ describe("SourceEditor state rail", () => {
     fireEvent.mouseDown(first);
     fireEvent.pointerDown(document.body);
     expect(rail).toHaveAttribute("hidden");
+    controller.destroy();
+    parent.remove();
+  });
+
+  it("anchors a state rail marker on a vertical statement header, never its argument rows", () => {
+    useCadDocumentStore.getState().commitText(dslTextForElements([
+      { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
+      { id: "b", name: "B", type: "freePoint", visible: true, enabled: true, x: 10, y: 0 }
+    ]), "test");
+    const parent = document.createElement("div");
+    document.body.appendChild(parent);
+    const controller = new SourceEditorController(parent);
+    controller.setEvaluation({
+      evaluation: { computedGeometry: new Map(), computedVariables: new Map(), errors: [], warnings: [] },
+      compiledDocumentRevision: useCadDocumentStore.getState().compiledDocumentRevision,
+      evaluationRequestRevision: 1
+    });
+    const view = EditorView.findFromDOM(parent.querySelector<HTMLElement>(".cm-editor")!)!;
+    const header = view.state.doc.line(view.state.doc.toString().split("\n").findIndex((line) => line.includes("point B =")) + 1);
+    const argument = view.state.doc.line(header.number + 1);
+    expect(parent.querySelector(`[data-source-state-rail-line="${header.from}"]`)).not.toBeNull();
+    expect(parent.querySelector(`[data-source-state-rail-line="${argument.from}"]`)).toBeNull();
     controller.destroy();
     parent.remove();
   });

@@ -1,4 +1,4 @@
-import { constructionCandidatesFor } from "./dslConstructions";
+import { constructionCandidatesFor, type DslConstructionCategory } from "./dslConstructions";
 import { dslStatementKeywords } from "./dslParser";
 import type { DslHighlightLine, DslHighlightToken, DslTokenKind } from "./dslTypes";
 
@@ -9,11 +9,9 @@ const keywords = new Set<string>(Object.values(dslStatementKeywords));
 
 const stopKeyword = "@stop";
 
-// container(group/if/for)は construction: "" なので名前として光らせるものが無い。
-const CONSTRUCTION_CATEGORIES = ["point", "line", "curve", "arc", "text", "image", "var"] as const;
-const constructionNames = new Set(
-  CONSTRUCTION_CATEGORIES.flatMap((category) => constructionCandidatesFor(category).map((spec) => spec.construction))
-);
+const constructionCategories = new Set<DslConstructionCategory>([
+  "point", "line", "curve", "arc", "text", "image", "var"
+]);
 
 const tokenPattern =
   /("[^"]*(?:"|$)|'[^']*(?:'|$)|[A-Za-z_][\w:-]*(?=:\s)|-?\d+(?:\.\d+)?|==|!=|>=|<=|[={}()[\],;*/+-]|@[A-Za-z_][\w:-]*|[A-Za-z_][\w:-]*(?:\.[A-Za-z_][\w:-]*)?)/g;
@@ -33,14 +31,31 @@ const commentIndex = (line: string) => {
 const classify = (text: string): DslTokenKind => {
   if (text.startsWith("\"") || text.startsWith("'")) return "string";
   if (text === stopKeyword) return "keyword";
-  if (/^[A-Za-z_][\w:-]*(?=$)/.test(text) && keywords.has(text)) return "keyword";
-  if (/^[A-Za-z_][\w:-]*(?=$)/.test(text) && constructionNames.has(text)) return "elementType";
   if (/^[A-Za-z_][\w:-]*$/.test(text)) return "reference";
   if (/^[A-Za-z_][\w:-]*\.[A-Za-z_][\w:-]*$/.test(text)) return "reference";
   if (/^@[A-Za-z_][\w:-]*$/.test(text)) return "reference";
   if (/^-?\d+(\.\d+)?$/.test(text)) return "number";
   if (/^[A-Za-z_][\w:-]*$/.test(text)) return "reference";
   return "operator";
+};
+
+const headKeywordSpan = (code: string) => {
+  const match = code.match(/^\s*([A-Za-z_][\w:-]*|@stop)\b/);
+  if (!match || !keywords.has(match[1]) && match[1] !== stopKeyword) return null;
+  const start = (match.index ?? 0) + match[0].indexOf(match[1]);
+  return { start, end: start + match[1].length };
+};
+
+const constructionSpan = (code: string, head: { start: number; end: number } | null) => {
+  if (!head) return null;
+  const category = code.slice(head.start, head.end) as DslConstructionCategory;
+  if (!constructionCategories.has(category)) return null;
+  const match = code.slice(head.end).match(/=\s*([A-Za-z_][\w-]*)/);
+  if (!match) return null;
+  const construction = match[1];
+  if (!constructionCandidatesFor(category).some((spec) => spec.construction === construction)) return null;
+  const start = head.end + (match.index ?? 0) + match[0].lastIndexOf(construction);
+  return { start, end: start + construction.length };
 };
 
 const pushText = (tokens: DslHighlightToken[], kind: DslTokenKind, text: string) => {
@@ -57,6 +72,8 @@ export const highlightDslLine = (line: string): DslHighlightToken[] => {
   const tokens: DslHighlightToken[] = [];
   const index = commentIndex(line);
   const code = index >= 0 ? line.slice(0, index) : line;
+  const head = headKeywordSpan(code);
+  const construction = constructionSpan(code, head);
   let cursor = 0;
 
   for (const match of code.matchAll(tokenPattern)) {
@@ -66,7 +83,13 @@ export const highlightDslLine = (line: string): DslHighlightToken[] => {
     const kind =
       /^[A-Za-z_][\w:-]*$/.test(text) && code[start + text.length] === ":" && code[start + text.length + 1] === " "
         ? "attributeKey"
-        : classify(text);
+        : head && start === head.start && start + text.length === head.end
+          ? "keyword"
+          : construction && start === construction.start && start + text.length === construction.end
+            ? "elementType"
+            : text === "else" && /^\s*}\s*$/.test(code.slice(0, start))
+              ? "keyword"
+              : classify(text);
     pushText(tokens, kind, text);
     cursor = start + text.length;
   }

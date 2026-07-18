@@ -54,6 +54,53 @@ describe("createDslCompletionSource", () => {
     expect(result?.options.map((option) => option.label)).toContain("point");
   });
 
+  it("offers registry construction candidates in an incomplete element header", async () => {
+    const source = "point P = co";
+    const state = EditorState.create({ doc: source });
+    const completionSource = createDslCompletionSource({
+      elements: () => [], statementRanges: () => new Map(), printLayouts: () => [], printLayoutRanges: () => new Map(),
+      isComposing: () => false, computedVariables: () => undefined, computedGeometry: () => undefined,
+      effectiveEnabledElementIds: () => undefined, evaluationErrors: () => undefined
+    });
+    const result = await Promise.resolve(completionSource({ state, pos: source.length, explicit: true } as never));
+    expect(result?.from).toBe(source.indexOf("co"));
+    expect(result?.options).toEqual(expect.arrayContaining([
+      expect.objectContaining({ label: "coordinate", apply: "coordinate", type: "function" })
+    ]));
+  });
+
+  it("projects a vertical call's partial named argument back to its physical row", async () => {
+    const source = ["point P = offset(", "  from: A", "  d", ")"].join("\n");
+    const state = EditorState.create({ doc: source });
+    const completionSource = createDslCompletionSource({
+      elements: () => [], statementRanges: () => new Map(), printLayouts: () => [], printLayoutRanges: () => new Map(),
+      isComposing: () => false, computedVariables: () => undefined, computedGeometry: () => undefined,
+      effectiveEnabledElementIds: () => undefined, evaluationErrors: () => undefined
+    });
+    const pos = source.indexOf("\n  d") + "\n  d".length;
+    const result = await Promise.resolve(completionSource({ state, pos, explicit: true } as never));
+    expect(result?.from).toBe(pos - 1);
+    expect(result?.to).toBe(pos);
+    expect(result?.options.map((option) => option.label)).toEqual(["dx", "dy"]);
+    expect(result?.options.every((option) => typeof option.apply === "string" && option.apply.endsWith(": "))).toBe(true);
+  });
+
+  it("keeps short-variable @value completion after declining ambiguous var construction completion", async () => {
+    const source = ["nui 2", "var GlobalWidth = 100", "var Copy = @Gl"].join("\n");
+    const { elements, statementRanges, printLayouts, printLayoutRanges } = identities(source);
+    const state = EditorState.create({ doc: source });
+    const completionSource = createDslCompletionSource({
+      elements: () => elements, statementRanges: () => statementRanges, printLayouts: () => printLayouts, printLayoutRanges: () => printLayoutRanges,
+      isComposing: () => false, computedVariables: () => undefined, computedGeometry: () => undefined,
+      effectiveEnabledElementIds: () => undefined, evaluationErrors: () => undefined
+    });
+    const pos = source.length;
+    const result = await Promise.resolve(completionSource({ state, pos, explicit: true } as never));
+    expect(result?.options).toEqual(expect.arrayContaining([
+      expect.objectContaining({ label: "@GlobalWidth", apply: "@GlobalWidth" })
+    ]));
+  });
+
   it("passes only the shared ranked top eight to CodeMirror without re-filtering", async () => {
     const pointElements: DslDocumentData["elements"] = Array.from({ length: 10 }, (_, index) => ({
       id: `p${index}`, name: `P${index}`, type: "freePoint", visible: true, enabled: true, x: index, y: 0

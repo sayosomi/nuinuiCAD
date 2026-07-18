@@ -32,10 +32,7 @@ describe("DSL highlighting", () => {
   it("classifies block braces and new document keywords", () => {
     expect(tokenKinds("group G {")).toEqual(["keyword", "plain", "reference", "plain", "operator"]);
     expect(tokenKinds("}")).toEqual(["operator"]);
-    // "else" is a structural token, not a registry statement/construction
-    // keyword, so it falls through to the generic identifier classification
-    // (full highlighting polish for structural tokens is deferred to F2).
-    expect(tokenKinds("} else {")).toEqual(["operator", "plain", "reference", "plain", "operator"]);
+    expect(tokenKinds("} else {")).toEqual(["operator", "plain", "keyword", "plain", "operator"]);
     expect(tokenKinds("if Branch (1) {")).toEqual(
       expect.arrayContaining(["keyword", "reference", "number", "operator"])
     );
@@ -56,5 +53,27 @@ describe("DSL highlighting", () => {
     expect(tokenKinds("place G (at: (0, 0))")[0]).toBe("keyword");
     expect(tokenKinds("layoutVar margin = 20")[0]).toBe("keyword");
     expect(tokenKinds("activePrintLayout A4")[0]).toBe("keyword");
+  });
+
+  it("classifies v2 roles rather than globally coloring construction/category spellings", () => {
+    expect(highlightDslLine("point P = offset(")).toEqual(
+      expect.arrayContaining([
+        { kind: "keyword", text: "point" },
+        { kind: "elementType", text: "offset" }
+      ])
+    );
+    expect(highlightDslLine("  line: seam")).toEqual(
+      expect.arrayContaining([
+        { kind: "attributeKey", text: "line" },
+        { kind: "reference", text: "seam" }
+      ])
+    );
+    expect(highlightDslLine("  vars: [Width: 10; Height: @W]")).toEqual(
+      expect.arrayContaining([
+        { kind: "attributeKey", text: "vars" },
+        { kind: "attributeKey", text: "Width" },
+        { kind: "attributeKey", text: "Height" }
+      ])
+    );
   });
 });

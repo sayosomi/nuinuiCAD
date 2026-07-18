@@ -51,4 +51,16 @@ v2 文法固有の編集体験を仕上げる: construction 名補完・引数�
 ## 次タスクへの引き継ぎ
 
 - F3 へ: docs に載せるべき補完仕様の変更点をここへ列挙する。
-- (完了時に追記)
+
+### 実施内容
+
+- construction 補完は category ごとの registry を正とし、対応する要素種別ラベルを候補の説明に表示するようにした。
+- 引数名補完の候補集合は解析済み category + construction の `DslConstructionSpec.args` に限定した。serializer 導出 metadata は候補ラベルの補助だけに使い、variable の4 construction間で引数を混同しない。
+- `var 名 =` は曖昧な短形式の式入力として construction 補完を出さず、既知constructionの prefix 中だけ候補を出す。短形式の `@変数` 値補完も維持した。
+- 引数候補は `key: ` まで挿入し、既出引数を除外する。`if`/`for`の位置引数中では引数候補を出さず、位置引数後から出す。
+- v2の構文上の位置に基づき、category・construction・`else`・引数キー・recordキーのハイライトを固定した。縦型statementの補完投影、patch highlight、state rail、group foldの回帰テストを追加した。
+
+### F3へ
+
+- Source Editorの補完は keyword → construction → 引数名 (`key: ` 挿入) → 既存の値補完の4階層で動作することを利用ガイドに記載する。
+- construction候補はcategoryで絞られ、引数候補はそのconstructionの引数だけを表示すること、短形式`var 名 = 式`は式として扱うことをDSL編集仕様に記載する。

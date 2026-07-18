@@ -2,7 +2,8 @@ import { autocompletion, completionKeymap, type Completion, type CompletionConte
 import type { Extension, Text } from "@codemirror/state";
 import { keymap } from "@codemirror/view";
 import { dslCompletionContextAt, dslIntermediatesAttributeParameterKey, dslVarsAttributeParameterKey } from "../dsl/dslCompletionContext";
-import { dslCompletionMetadataForType, dslStatementElementType } from "../dsl/dslCompletionMetadata";
+import { dslStatementElementType } from "../dsl/dslCompletionMetadata";
+import { argumentCompletionCandidates, constructionCompletionCandidates } from "../dsl/dslCallCompletionCandidates";
 import { dslReferenceCompletionOptions } from "../dsl/dslCompletionCandidates";
 import { dslVariableCompletionOptions } from "../dsl/dslVariableCompletionCandidates";
 import { dslLocalVariableCompletionOptions } from "../dsl/dslLocalVariableCompletionCandidates";
@@ -142,11 +143,12 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
   let preservesSharedReferenceRanking = false;
   if (completionContext.kind === "keyword") {
     completions = completionContext.options.map((label) => ({ label, type: "keyword" }));
-  } else if (completionContext.kind === "attribute") {
-    completions = dslCompletionMetadataForType(completionContext.elementType).attributes
-      .map((parameter) => parameter.key)
-      .filter((key, index, all) => all.indexOf(key) === index)
-      .map((key) => ({ label: key, apply: `${key}=`, type: "property" }));
+  } else if (completionContext.kind === "construction") {
+    completions = constructionCompletionCandidates(completionContext.category)
+      .map((candidate) => ({ ...candidate, type: "function" }));
+  } else if (completionContext.kind === "argument") {
+    completions = argumentCompletionCandidates(completionContext.spec, completionContext.usedArgumentNames)
+      .map((candidate) => ({ ...candidate, type: "property" }));
   } else if (completionContext.kind === "elementParameter") {
     completions = asElementParameterCompletions(dslElementParameterCompletionOptions({
       source: input.source,

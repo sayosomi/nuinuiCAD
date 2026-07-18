@@ -35,8 +35,8 @@ type ControllerInternals = {
     state: {
       doc: {
         length: number;
-        line: (number: number) => { from: number; to: number; text: string };
-        lineAt: (position: number) => { from: number; to: number; text: string };
+        line: (number: number) => { number: number; from: number; to: number; text: string };
+        lineAt: (position: number) => { number: number; from: number; to: number; text: string };
         toString: () => string;
       };
       selection: { main: { head: number; from: number; to: number; empty: boolean }; ranges: readonly unknown[] };
@@ -716,6 +716,29 @@ describe("SourceEditorController commit and history boundaries", () => {
     internals.handleFoldGutterMouseDown(internals.view.state.doc.line(innerOpenBraceLine).from, new MouseEvent("mousedown"));
     expect(useCadUiStore.getState().groupFoldById.get(inner.id)?.expanded).toBe(false);
     expect(foldedRanges(internals.view.state as never).size).toBeGreaterThan(0);
+    controller.destroy();
+  });
+
+  it("folds every physical row of a vertical child statement", () => {
+    const source = dslTextForElements([
+      { id: "g", name: "G", type: "group", visible: true, enabled: true },
+      { ...freePoint("a", "A", 0, 0), parentGroupId: "g" }
+    ]);
+    useCadDocumentStore.getState().commitText(source, "test");
+    const parent = document.createElement("div");
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+    const group = useCadDocumentStore.getState().elements.find((element) => element.name === "G")!;
+    const lines = internals.view.state.doc.toString().split("\n");
+    const childHeader = internals.view.state.doc.line(lines.findIndex((line) => line.includes("point A =")) + 1);
+    const childClose = internals.view.state.doc.line(childHeader.number + 3);
+
+    useCadUiStore.getState().setGroupFold(group.id, { expanded: false });
+    const ranges: Array<{ from: number; to: number }> = [];
+    foldedRanges(internals.view.state as never).between(0, internals.view.state.doc.length, (from, to) => {
+      ranges.push({ from, to });
+    });
+    expect(ranges.some((range) => range.from <= childHeader.from && range.to >= childClose.to)).toBe(true);
     controller.destroy();
   });
 });

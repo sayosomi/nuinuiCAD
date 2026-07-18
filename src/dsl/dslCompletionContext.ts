@@ -1,4 +1,6 @@
 import { dslStatementKeywordCompletions } from "./dslParser";
+import { dslCallCompletionContextAt } from "./dslCallCompletionContext";
+import type { DslConstructionCategory, DslConstructionSpec } from "./dslConstructions";
 import {
   dslLineElementStatement,
   dslLineLabeledValueSpans,
@@ -20,7 +22,8 @@ import {
 
 export type DslCompletionContext =
   | { kind: "keyword"; from: number; to: number; options: readonly string[] }
-  | { kind: "attribute"; from: number; to: number; elementType: NonNullable<ReturnType<typeof dslStatementElementType>> }
+  | { kind: "construction"; from: number; to: number; category: DslConstructionCategory }
+  | { kind: "argument"; from: number; to: number; spec: DslConstructionSpec; usedArgumentNames: ReadonlySet<string> }
   | { kind: "parameter"; from: number; to: number; parameter: DslCompletionParameter }
   | { kind: "elementParameter"; from: number; to: number; elementToken: string }
   | null;
@@ -53,9 +56,6 @@ export const dslVarsAttributeParameterKey = "vars";
  * dslCompiler.ts's intermediates= evaluation never sees — see
  * dslIntermediatesFieldCompletionContext below). */
 export const dslIntermediatesAttributeParameterKey = "intermediates";
-
-const termAt = (line: string, pos: number) =>
-  splitDslTerms(line).find((term) => pos >= term.start && pos <= term.end) ?? null;
 
 /**
  * A "reference" kind field may also be authored as a coordinate literal `(x, y)`
@@ -250,6 +250,9 @@ export const dslCompletionContextAt = (lineText: string, pos: number): DslComple
   const head = lineHeadContext(code, pos);
   if (head) return head;
 
+  const callContext = dslCallCompletionContextAt(code, pos);
+  if (callContext) return callContext;
+
   const statement = dslLineElementStatement(lineText);
   const elementType = statement ? dslStatementElementType(statement) : null;
   if (!statement || !elementType) return dslPrintLayoutCompletionContextAt(code, pos, lineText);
@@ -262,7 +265,15 @@ export const dslCompletionContextAt = (lineText: string, pos: number): DslComple
     if (span.source === "attr" && span.key === dslIntermediatesAttributeParameterKey) {
       return dslIntermediatesFieldCompletionContext(code, pos, span);
     }
-    const parameters = metadata.parameters.filter((parameter) => parameter.source === span.source && parameter.key === span.key);
+    const parameters = metadata.parameters.filter((parameter) =>
+      parameter.source === span.source && parameter.key === span.key ||
+      // The canonical short variable form has a payload `value` span, while
+      // serializer-derived metadata exposes that editable parameter as an
+      // attribute. Keep this value path available when construction-token
+      // completion intentionally declines an ambiguous `var Name = …` input.
+      statement.kind === "variable" && span.source === "payload" && span.key === "value" &&
+        parameter.source === "attr" && parameter.key === "value"
+    );
     if (parameters.length !== 1) return null;
     const parameter = parameters[0];
     if (parameter.definition.kind === "number") {
@@ -282,11 +293,5 @@ export const dslCompletionContextAt = (lineText: string, pos: number): DslComple
     };
   }
 
-  const term = termAt(code, pos);
-  const lastValueEnd = Math.max(statement.keywordSpan.end, ...dslLineLabeledValueSpans(lineText).map((item) => item.end));
-  if (term && !term.text.includes("=") && term.start >= lastValueEnd) {
-    return { kind: "attribute", from: term.start, to: pos, elementType };
-  }
-  if (!term && pos >= lastValueEnd) return { kind: "attribute", from: pos, to: pos, elementType };
   return null;
 };
