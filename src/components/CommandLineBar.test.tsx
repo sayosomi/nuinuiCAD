@@ -84,7 +84,7 @@ describe("CommandLineBar", () => {
     expect(screen.queryByText("endpoint", { exact: true })).not.toBeInTheDocument();
   });
 
-  it("accepts only the shared pick candidates for typed names, selected empty Enter, and arrow Enter", () => {
+  it("accepts only the shared pick candidates for typed names after Tab, selected empty Enter, and arrow Enter", () => {
     useCadDocumentStore.getState().commitText([
       "nui 2",
       "point A = coordinate(x: 0 y: 0)",
@@ -108,6 +108,7 @@ describe("CommandLineBar", () => {
     fireEvent.change(input, { target: { value: "A" } });
     expect(screen.getByRole("listbox", { name: "参照候補" })).toHaveTextContent("A");
     expect(screen.getByRole("listbox", { name: "参照候補" })).not.toHaveTextContent("point-");
+    fireEvent.keyDown(input, { key: "Tab" });
     fireEvent.keyDown(input, { key: "Enter" });
     expect(useCadUiStore.getState().commandLineSession?.args.endPoint).toEqual({ mode: "reference", pointId: pointA.id });
   });
@@ -383,19 +384,194 @@ describe("CommandLineBar", () => {
     expect(useCadUiStore.getState().activePickCursor).not.toBeNull();
   });
 
-  it("suppresses Tab focus movement and applies the active text completion", () => {
+  it("uses arrows to select a reference, Enter to reflect it, and a second Enter to adopt its stable pick reference", () => {
+    useCadDocumentStore.getState().commitText([
+      "nui 2",
+      "point A = coordinate(x: 0 y: 0)",
+      "point AB = coordinate(x: 10 y: 0)"
+    ].join("\n"), "test");
+    render(<CommandLineBar />);
+    act(() => { startCommandLineCreation("line"); });
+    const input = screen.getByRole<HTMLInputElement>("textbox");
+    fireEvent.change(input, { target: { value: "A" } });
+    const options = screen.getAllByRole("option");
+    expect(options).toHaveLength(2);
+    expect(options[0]).toHaveAttribute("aria-selected", "true");
+    expect(options[0]).toHaveClass("active-suggestion");
+    expect(options[1]).not.toHaveClass("active-suggestion");
+
+    expect(fireEvent.keyDown(input, { key: "ArrowDown" })).toBe(false);
+    expect(options[1]).toHaveAttribute("aria-selected", "true");
+    expect(options[1]).toHaveClass("active-suggestion");
+    expect(options[0]).not.toHaveClass("active-suggestion");
+    expect(fireEvent.keyDown(input, { key: "ArrowDown" })).toBe(false);
+    expect(options[0]).toHaveAttribute("aria-selected", "true");
+    expect(options[0]).toHaveClass("active-suggestion");
+    expect(options[1]).not.toHaveClass("active-suggestion");
+    expect(fireEvent.keyDown(input, { key: "ArrowUp" })).toBe(false);
+    expect(options[1]).toHaveAttribute("aria-selected", "true");
+    expect(options[1]).toHaveClass("active-suggestion");
+    expect(options[0]).not.toHaveClass("active-suggestion");
+    expect(fireEvent.keyDown(input, { key: "Enter" })).toBe(false);
+    expect(useCadUiStore.getState().commandLineSession?.args).not.toHaveProperty("startPoint");
+    expect(input).toHaveValue("AB");
+    expect(screen.queryByRole("listbox", { name: "参照候補" })).toBeNull();
+    expect(fireEvent.keyDown(input, { key: "Enter" })).toBe(false);
+    const pointAB = useCadDocumentStore.getState().elements.find((element) => element.name === "AB")!;
+    expect(useCadUiStore.getState().commandLineSession?.args.startPoint).toEqual({
+      mode: "reference",
+      pointId: pointAB.id
+    });
+    expect(input).toHaveFocus();
+  });
+
+  it("drops a Tab-reflected reference after any edit and lets Space insert exactly one ordinary character", () => {
+    useCadDocumentStore.getState().commitText([
+      "nui 2",
+      "point A = coordinate(x: 0 y: 0)",
+      "point AB = coordinate(x: 10 y: 0)"
+    ].join("\n"), "test");
+    render(<CommandLineBar />);
+    act(() => { startCommandLineCreation("line"); });
+    const input = screen.getByRole<HTMLInputElement>("textbox");
+
+    fireEvent.change(input, { target: { value: "A" } });
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    fireEvent.keyDown(input, { key: "Tab" });
+    expect(input).toHaveValue("AB");
+    fireEvent.change(input, { target: { value: "ABx" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(useCadUiStore.getState().commandLineSession?.args).not.toHaveProperty("startPoint");
+
+    fireEvent.change(input, { target: { value: "A" } });
+    expect(screen.getByRole("listbox", { name: "参照候補" })).toBeInTheDocument();
+    expect(fireEvent.keyDown(input, { key: " ", code: "Space" })).toBe(true);
+    // jsdom does not perform the browser's default text insertion for keydown;
+    // model that one normal input event and assert no duplicate space was made.
+    fireEvent.change(input, { target: { value: "A " } });
+    expect(input).toHaveValue("A ");
+    expect(screen.queryByRole("listbox", { name: "参照候補" })).toBeNull();
+  });
+
+  it("drops a Tab-reflected reference when Escape cancels the session", () => {
     useCadDocumentStore.getState().commitText(["nui 2", "point A = coordinate(x: 0 y: 0)"].join("\n"), "test");
     render(<CommandLineBar />);
     act(() => { startCommandLineCreation("line"); });
     const input = screen.getByRole<HTMLInputElement>("textbox");
     fireEvent.change(input, { target: { value: "A" } });
+    fireEvent.keyDown(input, { key: "Tab" });
+    fireEvent.keyDown(input, { key: "Escape" });
+    expect(useCadUiStore.getState().commandLineSession).toBeNull();
 
-    expect(fireEvent.keyDown(input, { key: "Tab" })).toBe(false);
-    expect(useCadUiStore.getState().commandLineSession?.args.startPoint).toMatchObject({ mode: "reference" });
-    expect(input).toHaveFocus();
+    act(() => { startCommandLineCreation("line"); });
+    const newInput = screen.getByRole<HTMLInputElement>("textbox");
+    fireEvent.change(newInput, { target: { value: "A" } });
+    fireEvent.keyDown(newInput, { key: "Enter" });
+    expect(useCadUiStore.getState().commandLineSession?.args).not.toHaveProperty("startPoint");
   });
 
-  it("keeps reference Tab handling inside the reference input while still blocking empty matches there", () => {
+  it("drops a Tab-reflected reference when retreat returns to its earlier step", () => {
+    useCadDocumentStore.getState().commitText(["nui 2", "point A = coordinate(x: 0 y: 0)"].join("\n"), "test");
+    render(<CommandLineBar />);
+    act(() => { startCommandLineCreation("line"); });
+    const input = screen.getByRole<HTMLInputElement>("textbox");
+    fireEvent.change(input, { target: { value: "A" } });
+    fireEvent.keyDown(input, { key: "Tab" });
+
+    act(() => {
+      const session = useCadUiStore.getState().commandLineSession!;
+      useCadUiStore.setState({
+        commandLineSession: {
+          ...session,
+          currentStepIndex: 1,
+          args: { startPoint: { mode: "reference", pointId: useCadDocumentStore.getState().elements[0].id } }
+        }
+      });
+    });
+    fireEvent.click(screen.getByRole("button", { name: "戻る" }));
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(useCadUiStore.getState().commandLineSession?.args).not.toHaveProperty("startPoint");
+  });
+
+  it("uses arrows to select a numeric candidate, Tab to reflect it, and Enter to submit it", () => {
+    useCadDocumentStore.getState().commitText([
+      "nui 2",
+      "var Width = 10",
+      "var Height = 20"
+    ].join("\n"), "test");
+    render(<CommandLineBar />);
+    act(() => { startCommandLineCreation("variable"); });
+    const input = screen.getByRole<HTMLInputElement>("textbox");
+    fireEvent.change(input, { target: { value: "@" } });
+    input.setSelectionRange(1, 1);
+    fireEvent.select(input);
+    let options = screen.getAllByRole("option");
+    expect(options).toHaveLength(2);
+    expect(options[0]).toHaveAttribute("aria-selected", "true");
+
+    expect(fireEvent.keyDown(input, { key: " ", code: "Space" })).toBe(true);
+    fireEvent.change(input, { target: { value: "@ " } });
+    expect(input).toHaveValue("@ ");
+    expect(screen.queryByRole("listbox", { name: "変数候補" })).toBeNull();
+    fireEvent.change(input, { target: { value: "@" } });
+    input.setSelectionRange(1, 1);
+    fireEvent.select(input);
+    options = screen.getAllByRole("option");
+
+    expect(fireEvent.keyDown(input, { key: "ArrowDown" })).toBe(false);
+    expect(options[1]).toHaveAttribute("aria-selected", "true");
+    expect(fireEvent.keyDown(input, { key: "Tab" })).toBe(false);
+    expect(input).toHaveValue("@Height");
+    expect(screen.queryByRole("listbox", { name: "変数候補" })).toBeNull();
+    expect(fireEvent.keyDown(input, { key: "Enter" })).toBe(false);
+    expect(useCadUiStore.getState().commandLineSession).toMatchObject({
+      currentStepIndex: 1,
+      args: { expression: { kind: "expression", expression: "@Height" } }
+    });
+    expect(useCadUiStore.getState().commandLineSession?.args).not.toHaveProperty("name");
+    expect(screen.queryByRole("listbox", { name: "変数候補" })).toBeNull();
+  });
+
+  it("uses Enter twice to adopt one visible line-list candidate and Mod+Enter to finish the list", () => {
+    useCadDocumentStore.getState().commitText([
+      "nui 2",
+      "point A = coordinate(x: 0 y: 0)",
+      "point B = coordinate(x: 10 y: 0)",
+      "line AB = segment(start: A end: B)"
+    ].join("\n"), "test");
+    const line = useCadDocumentStore.getState().elements.find((element) => element.name === "AB")!;
+    render(<CommandLineBar />);
+    act(() => { startCommandLineCreation("offsetLine"); });
+    const input = screen.getByRole<HTMLInputElement>("textbox");
+    fireEvent.change(input, { target: { value: "AB" } });
+
+    expect(fireEvent.keyDown(input, { key: "Enter" })).toBe(false);
+    expect(useCadUiStore.getState().commandLineSession?.args).not.toHaveProperty("baseLineIds");
+    expect(useCadUiStore.getState().commandLineSession?.currentStepIndex).toBe(0);
+    expect(useCadUiStore.getState().activeLinePickTarget?.draftLineIds).toEqual([]);
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(useCadUiStore.getState().activeLinePickTarget?.draftLineIds).toEqual([line.id]);
+
+    expect(fireEvent.keyDown(input, { key: "Enter", metaKey: true })).toBe(false);
+    expect(useCadUiStore.getState().commandLineSession?.args.baseLineIds).toEqual([line.id]);
+  });
+
+  it("shows the mouse completion action only for a multiple line pick", () => {
+    useCadDocumentStore.getState().commitText([
+      "nui 2",
+      "point A = coordinate(x: 0 y: 0)",
+      "point B = coordinate(x: 10 y: 0)",
+      "line AB = segment(start: A end: B)"
+    ].join("\n"), "test");
+    render(<CommandLineBar />);
+
+    act(() => { startCommandLineCreation("line"); });
+    expect(screen.queryByRole("button", { name: "選択を完了" })).toBeNull();
+    act(() => { startCommandLineCreation("offsetLine"); });
+    expect(screen.getByRole("button", { name: "選択を完了" })).toBeInTheDocument();
+  });
+
+  it("keeps Tab inside an open reference list but otherwise falls through from the input", () => {
     useCadDocumentStore.getState().commitText(["nui 2", "point A = coordinate(x: 0 y: 0)"].join("\n"), "test");
     render(<CommandLineBar />);
     act(() => { startCommandLineCreation("line"); });
@@ -420,7 +596,7 @@ describe("CommandLineBar", () => {
     }
 
     fireEvent.change(input, { target: { value: "存在しない候補" } });
-    expect(fireEvent.keyDown(input, { key: "Tab" })).toBe(false);
+    expect(fireEvent.keyDown(input, { key: "Tab" })).toBe(true);
   });
 
   it("does not treat IME Enter, Tab, arrows, Escape, or Mod+Enter as assistant operations", () => {
@@ -435,6 +611,7 @@ describe("CommandLineBar", () => {
     for (const init of [
       { key: "Enter" },
       { key: "Tab" },
+      { key: " ", code: "Space" },
       { key: "ArrowDown" },
       { key: "ArrowUp" },
       { key: "Escape" },
@@ -446,6 +623,7 @@ describe("CommandLineBar", () => {
     expect(useCadUiStore.getState().activePickCursor).toBeNull();
 
     fireEvent.compositionEnd(input);
+    fireEvent.keyDown(input, { key: "Tab" });
     fireEvent.keyDown(input, { key: "Enter" });
     expect(useCadUiStore.getState().commandLineSession?.args.startPoint).toMatchObject({ mode: "reference" });
   });

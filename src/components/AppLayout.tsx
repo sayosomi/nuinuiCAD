@@ -369,7 +369,7 @@ export const AppLayout = () => {
         if (
           isMultiLinePicking &&
           event.target instanceof HTMLElement &&
-          !event.target.closest(".canvas-workspace, .pick-mode-status")
+          !event.target.closest(".canvas-workspace, .pick-mode-status, .command-line-bar")
         ) {
           event.preventDefault();
           event.stopPropagation();
