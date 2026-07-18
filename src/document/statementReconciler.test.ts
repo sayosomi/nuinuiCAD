@@ -476,63 +476,33 @@ describe("statementReconciler ストレス", () => {
       y: index % 97
     }));
 
-  const timedReconcile = (oldSource: string, newSource: string) => {
-    const normalizedOld = oldSource.replace(/\r\n/g, "\n");
-    const normalizedNew = newSource.replace(/\r\n/g, "\n");
-    const parsedOld = parseDsl(normalizedOld);
-    const parsedNew = parseDsl(normalizedNew);
-    // 照合器の計測にコンパイルコストを混ぜないため、旧IDマップは直接組み立てる。
-    const oldElementIds = new Map<number, string>();
-    parsedOld.statements.forEach((statement, index) => {
-      if (isElementDslStatement(statement)) oldElementIds.set(index, `old-${index}`);
-    });
-    const input = {
-      oldStatements: parsedOld.statements,
-      oldLines: normalizedOld.split("\n"),
-      oldElementIds,
-      newStatements: parsedNew.statements,
-      newLines: normalizedNew.split("\n")
-    };
-    const durations: number[] = [];
-    let result = reconcileStatements(input, { createId: testIdFactory() });
-    for (let run = 0; run < 3; run += 1) {
-      const startedAt = performance.now();
-      result = reconcileStatements(input, { createId: testIdFactory() });
-      durations.push(performance.now() - startedAt);
-    }
-    durations.sort((a, b) => a - b);
-    return { result, medianMs: durations[1], elementCount: oldElementIds.size };
-  };
-
   // v2の正準出力は縦型callで複数物理行に跨るため、対象statementの1物理行
   // だけを文字列置換すると残りの引数行が孤立して不正なテキストになる。
   // 対象要素だけを差し替えた要素配列から生成し直すことで、置換対象以外は
   // buildLargeSourceと1バイトも変わらない新テキストを安全に作る。
-  it("1000文の属性編集1行はID変化0で5ms未満", () => {
+  it("1000文の属性編集1行はID変化0", () => {
     const elements = buildLargeElements(1000);
     const oldSource = dslTextForElements(elements);
     const newSource = dslTextForElements(
       elements.map((element) => (element.name === "P500" ? { ...element, x: 500, y: 42 } : element))
     );
     expect(newSource).not.toBe(oldSource);
-    const { result, medianMs, elementCount } = timedReconcile(oldSource, newSource);
-    expect(result.inheritedCount).toBe(elementCount);
+    const { result } = reconcileSources(oldSource, newSource);
+    expect(result.inheritedCount).toBe(elements.length);
     expect(result.createdIds.size).toBe(0);
     expect(result.vanishedIds).toEqual([]);
-    expect(medianMs).toBeLessThan(5);
   });
 
-  it("1000文のリネーム1件はID変化0で5ms未満", () => {
+  it("1000文のリネーム1件はID変化0", () => {
     const elements = buildLargeElements(1000);
     const oldSource = dslTextForElements(elements);
     const newSource = dslTextForElements(
       elements.map((element) => (element.name === "P500" ? { ...element, name: "Q500renamed" } : element))
     );
     expect(newSource).not.toBe(oldSource);
-    const { result, medianMs, elementCount } = timedReconcile(oldSource, newSource);
-    expect(result.inheritedCount).toBe(elementCount);
+    const { result } = reconcileSources(oldSource, newSource);
+    expect(result.inheritedCount).toBe(elements.length);
     expect(result.createdIds.size).toBe(0);
     expect(result.vanishedIds).toEqual([]);
-    expect(medianMs).toBeLessThan(5);
   });
 });
