@@ -73,6 +73,31 @@ describe("document file lifecycle", () => {
     expect(state.future).toEqual([]);
   });
 
+  it("converts a v1 .nui on open, keeps its path, and marks the result dirty for a v2 save", async () => {
+    const content = "\uFEFFnui 1\n# discarded during conversion\npoint A = (0, 0)";
+    dialogMock.open.mockResolvedValue("/tmp/legacy.nui");
+    tauriCoreMock.invoke.mockResolvedValue(content);
+
+    await openDocument();
+
+    const state = useCadDocumentStore.getState();
+    expect(state.sourceText.startsWith("nui 2\n")).toBe(true);
+    expect(state.sourceText).not.toContain("discarded during conversion");
+    expect(state.elements).toMatchObject([{ name: "A", type: "freePoint", x: 0, y: 0 }]);
+    expect(state.currentFilePath).toBe("/tmp/legacy.nui");
+    expect(state.dirtySinceSave).toBe(true);
+  });
+
+  it("leaves the current document intact when a v1 conversion reports errors", async () => {
+    const before = useCadDocumentStore.getState().sourceText;
+    dialogMock.open.mockResolvedValue("/tmp/broken-v1.nui");
+    tauriCoreMock.invoke.mockResolvedValue("nui 1\npoint Broken = (");
+
+    await expect(openDocument()).rejects.toThrow("nui 1 文書を変換できません");
+
+    expect(useCadDocumentStore.getState().sourceText).toBe(before);
+  });
+
   it("opens fatal text with an empty last-good document instead of leaking the previous document", async () => {
     const content = "nui 2\npoint Broken = coordinate(";
     dialogMock.open.mockResolvedValue("/tmp/broken.nui");
@@ -96,6 +121,16 @@ describe("document file lifecycle", () => {
     tauriCoreMock.invoke.mockResolvedValue("nui 3\npoint A = coordinate(x: 0 y: 0)");
 
     await expect(openDocument()).rejects.toThrow("未対応のDSLバージョンです: 3");
+
+    expect(useCadDocumentStore.getState().sourceText).toBe(before);
+  });
+
+  it("rejects major 0 before replacing the current document", async () => {
+    const before = useCadDocumentStore.getState().sourceText;
+    dialogMock.open.mockResolvedValue("/tmp/zero.nui");
+    tauriCoreMock.invoke.mockResolvedValue("nui 0\npoint A = coordinate(x: 0 y: 0)");
+
+    await expect(openDocument()).rejects.toThrow("未対応のDSLバージョンです: 0");
 
     expect(useCadDocumentStore.getState().sourceText).toBe(before);
   });

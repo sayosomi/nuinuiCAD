@@ -12,11 +12,12 @@ import { sourceEditSession } from "../editor/sourceEditSession";
 import { LEGACY_CAD_DOCUMENT_EXTENSION } from "./documentFormat";
 import { rebaseImageSourcePathsInText } from "./imageFilePaths";
 import { importLegacyCadDocument } from "./legacyImport";
+import { importLegacyV1Document } from "./legacyV1Import";
 import {
   ensureNuiDocumentFileName,
   NUI_DOCUMENT_EXTENSION
 } from "./nuiFormat";
-import { unsupportedNuiMajorVersion } from "./nuiVersion";
+import { isLegacyV1NuiDocument, unsupportedNuiMajorVersion } from "./nuiVersion";
 import { DSL_VERSION } from "../dsl/dslDocument";
 
 type DocumentFileFilter = {
@@ -140,10 +141,12 @@ export const openDocument = async () => {
   if (unsupportedMajor !== null) {
     throw new Error(`未対応のDSLバージョンです: ${unsupportedMajor}(対応: ${DSL_VERSION})`);
   }
+  const imported = isLegacyV1NuiDocument(content) ? importLegacyV1Document(content) : null;
+  if (imported && !imported.ok) throw new Error(imported.message);
   if (!flushSourceEditForFileOperation()) return;
-  useCadDocumentStore.getState().replaceTextDocument(content, {
+  useCadDocumentStore.getState().replaceTextDocument(imported?.sourceText ?? content, {
     currentFilePath: path,
-    dirtySinceSave: false
+    dirtySinceSave: imported !== null
   });
 };
 
