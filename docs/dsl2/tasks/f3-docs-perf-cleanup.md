@@ -48,4 +48,27 @@
 ## 次タスクへの引き継ぎ
 
 - F4 へ: 削除できなかった残骸があれば理由付きで列挙。
-- (完了時に追記)
+
+### 実施内容
+
+- `docs/dsl.md` を `nui 2` 専用の利用ガイドへ更新し、縦型call、container、設定文、
+  common args、安全なrename、v1 open時変換を記載した。F2補完については
+  keyword → construction → 引数名 → 値の4階層、for位置引数の入力中抑制、
+  排他的引数の候補除外を明記した。
+- common args は利用者向けの `locked` / `visible` / `enabled` / `color` / `steps` /
+  `vars` だけを補完する。`id` / `varIds` / `parent` / `branch` は互換・フラット化用に
+  受理を維持するが候補には出さない。
+- 1,000要素・8,001物理行をテスト内で生成し、初期化とfixture生成を計測外にして
+  warm-up後3回中央値を測定した。実測は compile 230.87ms、全serialize 3.28ms、
+  単一要素 `buildTextPatch` 4.73ms。各5秒上限は極端な退行検出専用で、
+  環境非依存の性能保証ではない。
+- v1残骸は文字列検索だけで判断せず、live parserの category/settings dispatch、
+  v2 serializer、text patchの呼び出し経路を確認した。旧構文を受理するparserは
+  `nui 1` open時の `legacyV1Import` からだけ到達し、live v2 parserは旧arrow・
+  `element type=`・`key=value` を診断する。live出力に旧形式の分岐はなかったため、
+  到達可能コードの削除は不要だった。古いv1表記を含むliveコメントは更新した。
+
+### F4へ
+
+- `src/document/legacyDsl/` とv1 importは、既存 `nui 1` を開くための明示的な
+  一回変換経路として残る。live v2 parser/compiler/serializerへv1受理を戻さないこと。

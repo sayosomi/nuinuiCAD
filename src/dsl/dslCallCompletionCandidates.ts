@@ -1,6 +1,11 @@
 import { elementTypeLabels } from "../types/geometry";
 import { dslCompletionMetadataForType } from "./dslCompletionMetadata";
-import { constructionCandidatesFor, type DslConstructionCategory, type DslConstructionSpec } from "./dslConstructions";
+import {
+  commonArgSpecs,
+  constructionCandidatesFor,
+  type DslConstructionCategory,
+  type DslConstructionSpec,
+} from "./dslConstructions";
 
 export type DslCallCompletionCandidate = {
   label: string;
@@ -17,6 +22,23 @@ export const constructionCompletionCandidates = (category: DslConstructionCatego
       detail: elementTypeLabels[spec.elementType]
     }));
 
+const userFacingCommonArgumentNames = new Set([
+  "locked",
+  "visible",
+  "enabled",
+  "color",
+  "steps",
+  "vars",
+]);
+
+const completionArgumentSpecs = (spec: DslConstructionSpec) => {
+  const byName = new Map(spec.args.map((arg) => [arg.arg, arg]));
+  for (const arg of commonArgSpecs) {
+    if (userFacingCommonArgumentNames.has(arg.arg) && !byName.has(arg.arg)) byName.set(arg.arg, arg);
+  }
+  return [...byName.values()];
+};
+
 /**
  * The construction spec is the sole argument-key authority. Completion
  * metadata only enriches those keys with the parameter label that the
@@ -30,8 +52,13 @@ export const argumentCompletionCandidates = (
     dslCompletionMetadataForType(spec.elementType).attributes
       .map((parameter) => [parameter.key, parameter.definition.label])
   );
-  return spec.args
-    .filter((arg) => !arg.positional && !usedArgumentNames.has(arg.arg))
+  const excludedExclusiveArgumentNames = new Set(
+    (spec.exclusiveGroups ?? [])
+      .filter((group) => group.some((arg) => usedArgumentNames.has(arg)))
+      .flat(),
+  );
+  return completionArgumentSpecs(spec)
+    .filter((arg) => !arg.positional && !usedArgumentNames.has(arg.arg) && !excludedExclusiveArgumentNames.has(arg.arg))
     .map((arg) => ({
       label: arg.arg,
       apply: `${arg.arg}: `,

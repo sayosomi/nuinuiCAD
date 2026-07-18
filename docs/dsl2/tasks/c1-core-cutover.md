@@ -98,6 +98,17 @@ live parser を v1 から v2 へ一括切替する。P/W 群がすべて完了�
 
 ## 次タスクへの引き継ぎ
 
-- F1 へ: version エラーになる v1 ファイルの扱いを直ちに実装すること。
-- F2/F3 へ: 切替中に見つけた磨き込み残件をここへ列挙する。
-- (完了時に追記)
+### 実施内容
+
+- live DSLを `nui 2` の縦型call文法へ切り替え、parser/compiler/serializerを
+  P1–P9とW1–W5の実装へ配線した。旧v1のキーワード別分岐、`key=value` 属性、
+  `->` 糖衣、`element type=` escape hatch、バックスラッシュ継続はlive経路から除去した。
+- source map、text patch、parameter span、rename解析を複数物理行statementに対応させ、
+  `DSL_VERSION` を2へ更新した。凍結済み `src/document/legacyDsl/` は変更していない。
+- 検証: `npm run test:parity` は14 tests green。C1受入条件の parity確認を記録する。
+
+### 後続タスクの実績
+
+- F1で、`nui 1` はopen時に一回だけ正準 `nui 2` へ変換して開く経路を追加した。
+- F2で、construction／引数名補完とv2構文ハイライトを仕上げた。
+- F3で、利用ガイド、性能sanity、live経路のv1残骸監査を完了した。

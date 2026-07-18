@@ -37,7 +37,7 @@
 | C1 | [コア切替](tasks/c1-core-cutover.md) | 同時切替 | P3–P9, W1–W5 | 完了 |
 | F1 | [v1 文書の open 時変換](tasks/f1-v1-import.md) | 後続 | C1, W5 | 完了 |
 | F2 | [補完・ハイライト仕上げ](tasks/f2-editor-polish.md) | 後続 | C1 | 完了 |
-| F3 | [docs・性能・残骸削除](tasks/f3-docs-perf-cleanup.md) | 後続 | C1, F1 | 未着手 |
+| F3 | [docs・性能・残骸削除](tasks/f3-docs-perf-cleanup.md) | 後続 | C1, F1 | 完了 |
 | F4 | [legacy 削除(後日)](tasks/f4-legacy-removal.md) | 後続 | F1 + 運用条件 | 未着手 |
 
 状態は「未着手 / 進行中 / 完了 / 保留(理由)」のいずれかで更新する。

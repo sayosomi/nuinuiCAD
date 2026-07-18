@@ -155,7 +155,7 @@ const dslIntermediatesFieldCompletionContext = (code: string, pos: number, span:
  * accepted attribute-key set comes from dslPrintLayoutAttributes.ts — the same
  * constants dslCompiler.ts's buildBlockPrintLayouts compiles against — rather
  * than a separate hand-written table that could drift from the compiler.
- * Attribute-NAME completion (autocompleting `col` -> `columns=`) is out of
+ * Attribute-NAME completion (autocompleting `col` -> `columns: `) is out of
  * scope: it would need dslCompletionMetadataForType's sample-round-trip
  * machinery, which cannot exist for these non-CadElement kinds. Only
  * @variable completion inside already-typed attribute VALUES is added.
