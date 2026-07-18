@@ -79,7 +79,7 @@ describe("DSL v2 call parser", () => {
     expect(messages("point A = coordinate(z: 0)").join("\n")).toContain("引数「z」");
     expect(messages("point A = coordinate(x: 0 x: 1)").join("\n")).toContain("重複");
     expect(messages("line L = segment(start: A)").join("\n")).toContain("必須引数「end」");
-    expect(messages("point A = between(start: A end: B distance: 1 ratio: 0.5)").join("\n")).toContain("同時に指定できません");
+    expect(messages("point A = between(start: A end: B distance: 1 ratio: 0.5)").join("\n")).toBe("引数「distance」と「ratio」は同時に指定できません。");
     expect(messages("point A = coordinate(0)").join("\n")).toContain("位置引数");
     expect(messages("if (condition: 1) {").join("\n")).toContain("位置引数");
     expect(messages("point A = coordinate(x: )").join("\n")).toContain("値がありません");

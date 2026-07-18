@@ -182,7 +182,7 @@ const validateArgs = (
   for (const group of spec.exclusiveGroups ?? []) {
     if (group.every((key) => args.some((arg) => arg.key === key))) {
       const span = args.find((arg) => arg.key === group.at(-1))?.keySpan ?? constructionSpan ?? categorySpan;
-      diagnostic(diagnostics, `引数「${group.join("」と「")}"は同時に指定できません。`, span);
+      diagnostic(diagnostics, `引数「${group.join("」と「")}」は同時に指定できません。`, span);
     }
   }
   return spec;
