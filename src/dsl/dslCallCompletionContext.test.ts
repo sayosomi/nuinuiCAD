@@ -25,7 +25,9 @@ describe("dslCallCompletionContextAt", () => {
     const context = atEnd("var Width = pointDistance(po");
     expect(context).toMatchObject({ kind: "argument", spec: { category: "var", construction: "pointDistance" } });
     if (!context || context.kind !== "argument") throw new Error("argument context expected");
-    expect(argumentCompletionCandidates(context.spec, context.usedArgumentNames).map((candidate) => candidate.label)).toEqual(["point1", "point2"]);
+    expect(argumentCompletionCandidates(context.spec, context.usedArgumentNames).map((candidate) => candidate.label)).toEqual([
+      "point1", "point2", "locked", "visible", "enabled", "color", "steps", "vars"
+    ]);
   });
 
   it("excludes used named arguments and waits for container positional arguments", () => {
@@ -33,15 +35,31 @@ describe("dslCallCompletionContextAt", () => {
     const offsetContext = dslCallCompletionContextAt(offset, offset.indexOf(")"));
     expect(offsetContext).toMatchObject({ kind: "argument" });
     if (!offsetContext || offsetContext.kind !== "argument") throw new Error("argument context expected");
-    expect(argumentCompletionCandidates(offsetContext.spec, offsetContext.usedArgumentNames).map((candidate) => candidate.label)).toEqual(["dy"]);
+    expect(argumentCompletionCandidates(offsetContext.spec, offsetContext.usedArgumentNames).map((candidate) => candidate.label)).toEqual([
+      "dy", "locked", "visible", "enabled", "color", "steps", "vars"
+    ]);
 
     expect(atEnd("if Branch (")).toBeNull();
-    expect(atEnd("for Repeat (i ")).toMatchObject({ kind: "argument", spec: { category: "for" } });
+    expect(atEnd("for Repeat (i ")).toBeNull();
+    expect(atEnd("for Repeat (i fr")).toMatchObject({ kind: "argument", spec: { category: "for" } });
     expect(atEnd("group G (")).toMatchObject({ kind: "argument", spec: { category: "group" } });
   });
 
-  it("keeps completion metadata as labels only, never as an extra argument source", () => {
+  it("uses metadata as labels while adding only user-facing common arguments", () => {
     const spec = constructionFor("var", "pointDistance")!;
-    expect(argumentCompletionCandidates(spec, new Set()).map((candidate) => candidate.apply)).toEqual(["point1: ", "point2: "]);
+    const candidates = argumentCompletionCandidates(spec, new Set());
+    expect(candidates.map((candidate) => candidate.apply)).toEqual([
+      "point1: ", "point2: ", "locked: ", "visible: ", "enabled: ", "color: ", "steps: ", "vars: "
+    ]);
+    expect(candidates.map((candidate) => candidate.label)).not.toEqual(expect.arrayContaining(["id", "varIds", "parent", "branch"]));
+  });
+
+  it("removes the other member of an exclusive argument group", () => {
+    const spec = constructionFor("point", "between")!;
+    const afterDistance = argumentCompletionCandidates(spec, new Set(["start", "end", "distance"]));
+    const afterRatio = argumentCompletionCandidates(spec, new Set(["start", "end", "ratio"]));
+
+    expect(afterDistance.map((candidate) => candidate.label)).not.toContain("ratio");
+    expect(afterRatio.map((candidate) => candidate.label)).not.toContain("distance");
   });
 });

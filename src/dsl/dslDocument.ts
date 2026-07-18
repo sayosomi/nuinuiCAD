@@ -33,9 +33,8 @@ import type { DslDiagnostic, DslEnclosing, DslStatement, ParseDslResult } from "
 import { formatDslReferencePath, formatDslReferenceToken } from "./dslReferenceTokens";
 import { DSL_INDENT, formatDslName, quoteDslString } from "./dslTokens";
 
-// `nui 1` を先頭に持つ、文書全体を無損失に表すDSLテキストへの変換ファサード。
-// 保存形式はまだJSON(Phase 1d以降で `.nui` に切り替え)。ここではテキスト
-// ⇄ 構造化データの往復のみを扱い、ストア・UI・保存形式には触れない。
+// `nui 2` 文書全体のcompile / serializeファサード。`.nui` のsourceTextを唯一の
+// 正として扱い、ここではテキストと構造化データの往復だけを担う。
 
 export type DslDocumentData = {
   elements: CadElement[];

@@ -137,6 +137,11 @@ const argumentContextAt = (
     (!"+-*/=:([,".includes(previousTokenCharacter) && !/\s/.test(previousTokenCharacter));
   if (args.some((arg) => pos >= arg.valueSpan.start && pos <= arg.valueSpan.end) && !isArgumentDraft) return null;
   if (spec.args.some((arg) => arg.positional) && !args.some((arg) => arg.key === null)) return null;
+  // `for (i ` is still the positional-variable entry flow. The argument
+  // scanner cannot split `i fr` until `fr:` is complete, so only surface a
+  // named-key menu once the user starts that next token; an empty separator
+  // must not make the menu race the positional input.
+  if (spec.category === "for" && !args.some((arg) => arg.key !== null) && !prefix) return null;
   return {
     kind: "argument",
     from,

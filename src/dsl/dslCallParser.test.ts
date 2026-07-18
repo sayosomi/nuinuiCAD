@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { categoriesForConstruction, constructionCandidatesFor, constructionFor } from "./dslConstructions";
 import { parseDslCallStatement } from "./dslCallParser";
+import { parseDsl } from "./dslParser";
 
 const parse = (source: string, opensBlock = false) => parseDslCallStatement(source, { opensBlock });
 const messages = (source: string) => parse(source).diagnostics.map((diagnostic) => diagnostic.message);
@@ -84,6 +85,16 @@ describe("DSL v2 call parser", () => {
     expect(messages("point A = coordinate(x: )").join("\n")).toContain("値がありません");
     expect(messages("point A = coordinate(x: 0) extra").join("\n")).toContain("余分なトークン");
     expect(messages("use N = notch(at: A)").join("\n")).toEqual("use は予約済みですが、まだ実装されていません。");
+  });
+
+  it("keeps legacy syntax out of the live v2 parser", () => {
+    const arrow = parseDsl("nui 2\nline AB = A -> B");
+    const genericElement = parseDsl("nui 2\nelement Copy type=copyLine startPoint=A");
+    const equalsArguments = parseDsl("nui 2\npoint A = coordinate(x=0 y=0)");
+
+    expect(arrow.diagnostics.some((diagnostic) => diagnostic.severity === "error")).toBe(true);
+    expect(genericElement.diagnostics.some((diagnostic) => diagnostic.message.includes("未対応のDSLキーワード"))).toBe(true);
+    expect(equalsArguments.diagnostics.some((diagnostic) => diagnostic.message.includes("位置引数"))).toBe(true);
   });
 });
 
