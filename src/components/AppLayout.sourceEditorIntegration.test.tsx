@@ -43,9 +43,22 @@ beforeEach(() => {
   Object.defineProperty(Range.prototype, "getClientRects", { configurable: true, value: () => [] });
   Object.defineProperty(HTMLElement.prototype, "clientWidth", { configurable: true, value: 500 });
   Object.defineProperty(HTMLElement.prototype, "clientHeight", { configurable: true, value: 400 });
-  HTMLElement.prototype.getBoundingClientRect = vi.fn(() => ({
-    x: 0, y: 0, top: 0, left: 0, right: 500, bottom: 400, width: 500, height: 400, toJSON: () => ({})
-  }));
+  // A `.cm-line` reporting the full 400px viewport height (like every other
+  // stubbed element) misleads CodeMirror's own viewport-height estimate into
+  // thinking only ~1 line fits, which can transiently affect how much of a
+  // patched line's content gets measured/rendered. Give lines a small,
+  // realistic height instead so CM's real (unmodified) viewport logic sees
+  // something plausible.
+  const CM_LINE_HEIGHT_PX = 18;
+  HTMLElement.prototype.getBoundingClientRect = vi.fn(function (this: HTMLElement) {
+    if (this.classList.contains("cm-line")) {
+      return {
+        x: 0, y: 0, top: 0, left: 0, right: 500, bottom: CM_LINE_HEIGHT_PX,
+        width: 500, height: CM_LINE_HEIGHT_PX, toJSON: () => ({})
+      };
+    }
+    return { x: 0, y: 0, top: 0, left: 0, right: 500, bottom: 400, width: 500, height: 400, toJSON: () => ({}) };
+  });
   HTMLElement.prototype.setPointerCapture = vi.fn();
   HTMLElement.prototype.releasePointerCapture = vi.fn();
   HTMLElement.prototype.hasPointerCapture = vi.fn(() => true);
@@ -63,6 +76,20 @@ const pointId = (name: string) => {
   const id = useCadDocumentStore.getState().elements.find((element) => element.name === name)?.id;
   if (!id) throw new Error(`Missing point ${name}`);
   return id;
+};
+
+/**
+ * The real CodeMirror document text, not the rendered `.cm-content` DOM's
+ * `textContent`. CM virtualizes/decorates its DOM, so a partially-rendered
+ * viewport (or a transient decoration artifact) can make `textContent` read
+ * as an incomplete or misleading stand-in for "what the document contains" -
+ * `EditorView.state.doc` is the actual source of truth.
+ */
+const editorDocText = (container: HTMLElement): string => {
+  const editorElement = container.querySelector<HTMLElement>(".cm-editor");
+  const cmView = editorElement ? EditorView.findFromDOM(editorElement) : null;
+  if (!cmView) throw new Error("Missing CodeMirror view");
+  return cmView.state.doc.toString();
 };
 
 const midSessionLineListRecipe: CreationRecipe = {
@@ -227,7 +254,7 @@ describe("AppLayout Source Editor production integration", () => {
     await waitFor(() => expect(useCadUiStore.getState().renameElementPromptTargetId).toBeNull());
     await waitFor(() => expect(document.activeElement).toBe(view.container.querySelector(".cm-content")));
     expect(useCadUiStore.getState().selectedElementId).toBe(targetId);
-    expect(view.container.querySelector(".cm-content")?.textContent).toContain("point Renamed");
+    expect(editorDocText(view.container)).toContain("point Renamed");
     expect(useCadDocumentStore.getState().past).toHaveLength(historyBefore + 1);
     act(() => { useCadDocumentStore.getState().undo(); });
     expect(useCadDocumentStore.getState().elements.find((element) => element.id === targetId)?.name).toBe("A");
@@ -358,10 +385,10 @@ describe("AppLayout Source Editor production integration", () => {
       useCadUiStore.getState().setCommandErrorMessage("統合テストのエラー");
     });
 
-    await waitFor(() => expect(view.container.querySelector(".cm-content")?.textContent).toContain("locked: true"));
+    await waitFor(() => expect(editorDocText(view.container)).toContain("locked: true"));
     expect(useCadUiStore.getState().sourceCursorLine).toBe(beforeCursorLine);
     expect(view.getByRole("alert")).toHaveTextContent("統合テストのエラー");
-  }, 20000);
+  });
 
   it("renders pickable-only search in the real Source Editor pane", async () => {
     const view = render(<AppLayout />);

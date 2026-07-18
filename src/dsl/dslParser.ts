@@ -321,7 +321,7 @@ const reportDuplicateNames = (statements: DslStatement[], diagnostics: DslDiagno
     const scope = statement.enclosing
       ? `block:${statement.enclosing.statementIndex}`
       : `parent:${attrValue(statement.attrs, "parent") ?? ""}`;
-    const key = `${scope} ${statement.name}`;
+    const key = `${scope}\0${statement.name}`;
     const id = attrValue(statement.attrs, "id");
     const entry = seen.get(key);
     if (!entry) {

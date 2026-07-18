@@ -324,6 +324,29 @@ describe("DSL parser duplicate names", () => {
     const parsed = parseDsl(["point = coordinate(x: 0 y: 0)", "point = coordinate(x: 1 y: 1)"].join("\n"));
     expect(parsed.diagnostics).toEqual([]);
   });
+
+  // 重複名検出のscope/name結合キーはスペースではなくNUL(\0)で連結する
+  // (W5の凍結パーサ src/document/legacyDsl/dslParser.ts と同型の回帰)。
+  // v1のattrValueは quote 付き属性値を読み取り時に unquote していたため、
+  // 空白入りの parent 名を挟んだ scope/name の組み合わせがスペース連結だと
+  // 偶然一致し、偽の重複診断が出ていた。v2の attrValue は生の(quote 付きなら
+  // quote を残した)テキストをそのまま返すため、この具体的な衝突は
+  // parent: 経由では再現しないが、NUL区切りは非表示制御文字であり DSL の
+  // 有効な字句には現れ得ないため、将来 attrValue の実装が変わっても
+  // 安全であり続ける。ここでは同じ形の入力(空白を含む quote 付きグループ名を
+  // 挟んだ parent 参照)で偽衝突が出ないことを固定する。
+  it("does not report a false collision when a space-containing quoted parent name is combined with a differently-scoped name", () => {
+    const parsed = parseDsl([
+      "group Base {",
+      "}",
+      'group "Base X" {',
+      "}",
+      'point "Y" = coordinate(x: 0 y: 0 parent: "Base X")',
+      'point "X Y" = coordinate(x: 1 y: 1 parent: Base)'
+    ].join("\n"));
+    const duplicateNameDiagnostics = parsed.diagnostics.filter((item) => item.message.includes("同名の要素"));
+    expect(duplicateNameDiagnostics).toEqual([]);
+  });
 });
 
 describe("DSL parser compatibility", () => {
