@@ -17,7 +17,7 @@ import {
   pickedPointAnchorReferencesTarget,
   pickedPointAnchorForTargetForGroup
 } from "../model/forGroupGeneratedReferences";
-import { creationPlacementForEvaluationLimit } from "../model/elementCreationPlacement";
+import { creationPlacementForInsertion } from "../model/elementCreationPlacement";
 import {
   pickCandidates,
   selectedPickOption,
@@ -501,9 +501,10 @@ export const activePickCandidates = (currentEvaluation?: EvaluationResult) => {
   } = ui;
   const { elements, evaluationLimitIndex } = useCadDocumentStore.getState();
   const commandLinePlacement = ui.commandLineSession
-    ? creationPlacementForEvaluationLimit(
+    ? creationPlacementForInsertion(
         elements,
         ui.commandLineSession.insertionIndex,
+        evaluationLimitIndex,
         ui.groupFoldById
       )
     : null;
@@ -705,9 +706,10 @@ export const applyPickedPoint = (context?: Pick<CommandContext, "pickedPointId" 
   if (commandLineStep?.kind === "point" || commandLineStep?.kind === "endpoint") {
     if (cancelStaleCommandLineSession()) return;
     const parentGroupId = commandLineSession
-      ? creationPlacementForEvaluationLimit(
+      ? creationPlacementForInsertion(
           elements,
           commandLineSession.insertionIndex,
+          useCadDocumentStore.getState().evaluationLimitIndex,
           useCadUiStore.getState().groupFoldById
         ).parentGroupId
       : undefined;
@@ -971,9 +973,10 @@ export const applyPickedLine = (context?: Pick<CommandContext, "pickedLineId">) 
   if (commandLineStep?.kind === "line" || commandLineStep?.kind === "lineList") {
     if (cancelStaleCommandLineSession()) return;
     const parentGroupId = commandLineSession
-      ? creationPlacementForEvaluationLimit(
+      ? creationPlacementForInsertion(
           elements,
           commandLineSession.insertionIndex,
+          useCadDocumentStore.getState().evaluationLimitIndex,
           useCadUiStore.getState().groupFoldById
         ).parentGroupId
       : undefined;

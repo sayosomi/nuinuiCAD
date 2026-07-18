@@ -1,7 +1,7 @@
 import { evaluateElements } from "../geometry/evaluate";
 import {
   applyCreationPlacement,
-  creationPlacementForEvaluationLimit
+  creationPlacementForInsertion
 } from "../model/elementCreationPlacement";
 import { adjustEvaluationLimitForInsertion } from "../model/evaluationDivider";
 import type { GroupFoldById } from "../model/groups";
@@ -41,11 +41,13 @@ type CommandLineGhostPreviewInput = {
 const emittedCommandLineGhostCandidate = ({
   session,
   elements,
+  evaluationLimitIndex,
   groupFoldById
 }: CommandLineGhostPreviewInput) => {
-  const placement = creationPlacementForEvaluationLimit(
+  const placement = creationPlacementForInsertion(
     elements,
     session.insertionIndex,
+    evaluationLimitIndex,
     groupFoldById
   );
   return {

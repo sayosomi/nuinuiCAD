@@ -7,7 +7,7 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRe
 import { dispatchCommand } from "../commands/commands";
 import type { CommandContext } from "../commands/commands";
 import type { EvaluationEngineState } from "../geometry/useEvaluationEngine";
-import { creationPlacementForEvaluationLimit } from "../model/elementCreationPlacement";
+import { creationPlacementForInsertion } from "../model/elementCreationPlacement";
 import { numericReferencePropertiesForGeometry } from "../geometry/numericReferenceProperties";
 import { pickCandidates, pickSourcePrecedesTarget } from "../model/pickCandidates";
 import { pickRefForOption, pickRefKey } from "../model/pickReferences";
@@ -143,6 +143,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     useState<LinePickCandidateMenu | null>(null);
   const elements = useCadDocumentStore(effectiveElements);
   const documentElements = useCadDocumentStore((state) => state.elements);
+  const evaluationLimitIndex = useCadDocumentStore((state) => state.evaluationLimitIndex);
   const palette = useCadDocumentStore((state) => state.palette);
   const selectedElementId = useCadUiStore((state) => state.selectedElementId);
   const selectedElementIds = useCadUiStore((state) => state.selectedElementIds);
@@ -165,9 +166,14 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
   const groupFoldById = useCadUiStore((state) => state.groupFoldById);
   const commandLinePlacement = useMemo(
     () => commandLineSession
-      ? creationPlacementForEvaluationLimit(documentElements, commandLineSession.insertionIndex, groupFoldById)
+      ? creationPlacementForInsertion(
+          documentElements,
+          commandLineSession.insertionIndex,
+          evaluationLimitIndex,
+          groupFoldById
+        )
       : null,
-    [commandLineSession, documentElements, groupFoldById]
+    [commandLineSession, documentElements, evaluationLimitIndex, groupFoldById]
   );
   const commandLinePickParentGroupId = commandLinePlacement?.parentGroupId;
   const sharedPickCandidates = useMemo(() => pickCandidates(documentElements, evaluation, {

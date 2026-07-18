@@ -179,9 +179,7 @@ export const AppLayout = () => {
     focusSourceEditor: () => sourceEditorRef.current?.focus(),
     focusElementSearch: () => sourceEditorRef.current?.focusSearch(),
     currentCursorElementId: () => sourceEditorRef.current?.currentCursorElementId?.() ?? null,
-    focusSourceEditorParameter: (elementId: ElementId, parameterKey: string) => {
-      sourceEditorRef.current?.jumpToParameterValue(elementId, parameterKey);
-    },
+    focusSourceEditorAtElementEnd: (elementId: ElementId) => sourceEditorRef.current?.jumpToElementEnd(elementId),
     clearPendingCanvasPointerIntent: () => drawingCanvasRef.current?.clearPendingCanvasPointerIntent(),
     clearSourceEditorFocusReservation: () => drawingCanvasRef.current?.clearEditorFocusReservation(),
     getCanvasViewportRect: () => canvasFocusRef.current?.getBoundingClientRect() ?? null,

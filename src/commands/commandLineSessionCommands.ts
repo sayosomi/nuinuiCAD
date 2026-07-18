@@ -2,8 +2,9 @@ import { makeNumericExpression } from "../geometry/numericExpressions";
 import { numericExpressionSyntaxIsValid } from "../geometry/numericExpressionParser";
 import {
   applyCreationPlacement,
-  creationPlacementForEvaluationLimit
+  creationPlacementForInsertion
 } from "../model/elementCreationPlacement";
+import { adjustEvaluationLimitForInsertion } from "../model/evaluationDivider";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
 import type { CadElementType } from "../types/geometry";
@@ -18,7 +19,6 @@ import {
   currentStep,
   effectiveCommandLineArgs,
   fillCurrentStep,
-  insertionIndexForCommandLineSession,
   isEditingCommandLineStep,
   isMidSessionStepEdit,
   retreatStep,
@@ -28,6 +28,10 @@ import {
   startSession,
   withCommandLineSessionError
 } from "./commandLineSession";
+import {
+  insertionAnchorForCommandLineCreation,
+  resolveCommandLineInsertionAnchor
+} from "./commandLineInsertionAnchor";
 import {
   creationRecipeForType,
   emitCreationRecipe,
@@ -103,34 +107,28 @@ export const startCommandLineCreationForRecipe = (
   }
   const document = useCadDocumentStore.getState();
   const cursorElementId = context?.currentCursorElementId?.() ?? null;
-  const cursorStatementIndex = cursorElementId
-    ? document.elements.findIndex((element) => element.id === cursorElementId)
-    : null;
-  const fallbackPlacement = creationPlacementForEvaluationLimit(
-    document.elements,
-    document.evaluationLimitIndex,
-    useCadUiStore.getState().groupFoldById
-  );
-  const insertionIndex = insertionIndexForCommandLineSession(cursorStatementIndex, fallbackPlacement);
-  if (insertionIndex === null || insertionIndex === undefined) return false;
+  const insertionAnchor = insertionAnchorForCommandLineCreation(cursorElementId);
+  const insertionIndex = resolveCommandLineInsertionAnchor(insertionAnchor, document.elements);
+  if (insertionIndex === null) return false;
 
   // Re-entry ordering is intentional: nothing above mutates UI state, while
   // these three calls remove all pending Canvas/editor handoffs before the
   // store atomically replaces the old command-line and pick state.
   context?.clearPendingCanvasPointerIntent?.();
   context?.clearSourceEditorFocusReservation?.();
-  const placement = creationPlacementForEvaluationLimit(
+  const placement = creationPlacementForInsertion(
     document.elements,
     insertionIndex,
+    document.evaluationLimitIndex,
     useCadUiStore.getState().groupFoldById
   );
   clearCommandLineGhostPreview();
   useCadUiStore.getState().startCommandLineSession(startSession(recipe, {
+    insertionAnchor,
     insertionIndex,
     revision: document.sourceRevision,
     elements: document.elements,
-    placement,
-    sourceEditorCreation: context?.sourceEditorCreation
+    placement
   }));
   syncCommandLinePickTarget();
   useCadUiStore.getState().setCommandErrorMessage(null);
@@ -344,12 +342,18 @@ export const confirmCommandLineSession = (context?: CommandContext) => {
   if (!sessionCanConfirm(session)) return false;
 
   const document = useCadDocumentStore.getState();
+  const insertionIndex = resolveCommandLineInsertionAnchor(session.insertionAnchor, document.elements);
+  if (insertionIndex === null) {
+    clearStaleSession();
+    return false;
+  }
   const promotion = promoteDirectlyReferencedUnnamedElements(session, document.elements);
-  // Keep the start-time index authoritative: this placement call derives only
-  // its parent/reference context and never chooses a new insertion position.
-  const placement = creationPlacementForEvaluationLimit(
+  // The resolved semantic anchor owns the insertion position; placement only
+  // derives the parent and reference context for that exact location.
+  const placement = creationPlacementForInsertion(
     promotion.elements,
-    session.insertionIndex,
+    insertionIndex,
+    document.evaluationLimitIndex,
     useCadUiStore.getState().groupFoldById
   );
   const emitted = emitCreationRecipe(session.recipe, session.args, {
@@ -362,10 +366,16 @@ export const confirmCommandLineSession = (context?: CommandContext) => {
   clearCommandLineGhostPreview();
   const result = commitDocumentChangeAndSelect({
     elements: [
-      ...promotion.elements.slice(0, session.insertionIndex),
+      ...promotion.elements.slice(0, insertionIndex),
       element,
-      ...promotion.elements.slice(session.insertionIndex)
-    ]
+      ...promotion.elements.slice(insertionIndex)
+    ],
+    evaluationLimitIndex: adjustEvaluationLimitForInsertion({
+      elements: document.elements,
+      evaluationLimitIndex: document.evaluationLimitIndex,
+      insertionIndex,
+      insertedCount: 1
+    })
   }, {
     selectedElementId: element.id,
     selectedElementIds: [element.id],
@@ -381,10 +391,9 @@ export const confirmCommandLineSession = (context?: CommandContext) => {
 
   clearCommandLineGhostPreview();
   useCadUiStore.getState().clearPickMode();
-  const firstEditableStep = session.recipe.steps.find((step) => step.kind !== "name");
   const focusSourceEditor = () => {
-    if (session.sourceEditorCreation && firstEditableStep) {
-      context?.focusSourceEditorParameter?.(element.id, firstEditableStep.key);
+    if (context?.focusSourceEditorAtElementEnd) {
+      context.focusSourceEditorAtElementEnd(element.id);
       return;
     }
     context?.focusSourceEditor?.();

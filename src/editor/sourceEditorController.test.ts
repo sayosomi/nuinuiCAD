@@ -31,6 +31,7 @@ const numericValueSource = () => dslTextForElements([
 ]);
 
 type ControllerInternals = {
+  statementRanges: ReadonlyMap<string, { from: number; to: number; groupFoldRange?: { from: number; to: number }; elseFoldRange?: { from: number; to: number } }>;
   view: {
     state: {
       doc: {
@@ -84,6 +85,38 @@ describe("SourceEditorController commit and history boundaries", () => {
     expect(useCadUiStore.getState().selectedElementId).toBe(element.id);
     expect(undoDepth(internals.view.state as never)).toBe(undoBefore);
     expect(useCadDocumentStore.getState().past).toHaveLength(storeHistoryBefore);
+    expect(parent.contains(document.activeElement)).toBe(true);
+    controller.destroy();
+    parent.remove();
+  });
+
+  it("places a creation-return cursor after a group's complete closing structure", () => {
+    useCadDocumentStore.getState().commitText([
+      "nui 2",
+      "if 分岐 (1) {",
+      "  point A = coordinate(x: 0 y: 0)",
+      "} else {",
+      "  point B = coordinate(x: 1 y: 1)",
+      "}",
+      "point C = coordinate(x: 2 y: 2)"
+    ].join("\n"), "test");
+    const parent = document.createElement("div");
+    document.body.append(parent);
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+    const group = useCadDocumentStore.getState().elements.find((element) => element.name === "分岐")!;
+
+    expect(internals.statementRanges.get(group.id)).toMatchObject({
+      groupFoldRange: expect.any(Object),
+      elseFoldRange: expect.any(Object)
+    });
+
+    controller.jumpToElementEnd(group.id);
+
+    const { head } = internals.view.state.selection.main;
+    const source = internals.view.state.doc.toString();
+    expect(source.slice(0, head)).toMatch(/\n}$/);
+    expect(useCadUiStore.getState().selectedElementId).toBe(group.id);
     expect(parent.contains(document.activeElement)).toBe(true);
     controller.destroy();
     parent.remove();
@@ -355,7 +388,7 @@ describe("SourceEditorController commit and history boundaries", () => {
     const controller = new SourceEditorController(parent);
     const internals = controller as unknown as ControllerInternals;
     const baseline = internals.view.state.doc.toString();
-    expect(startCommandLineCreation("freePoint", { sourceEditorCreation: true })).toBe(true);
+    expect(startCommandLineCreation("freePoint")).toBe(true);
     internals.view.dispatch({ changes: { from: internals.view.state.doc.length, insert: "\n# pending" } });
 
     expect(internals.runUndo()).toBe(true);

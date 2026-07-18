@@ -24,7 +24,7 @@ import {
   selectPickCandidateByOffset,
   selectPickOptionByOffset
 } from "../commands/pickCommands";
-import { creationPlacementForEvaluationLimit } from "../model/elementCreationPlacement";
+import { creationPlacementForInsertion } from "../model/elementCreationPlacement";
 import {
   rankedReferenceSuggestions,
   referenceSuggestions,
@@ -63,6 +63,7 @@ export const CommandLineBar = ({ commandContext, evaluation }: CommandLineBarPro
   const session = useCadUiStore((state) => state.commandLineSession);
   const sourceRevision = useCadDocumentStore((state) => state.sourceRevision);
   const elements = useCadDocumentStore((state) => state.elements);
+  const evaluationLimitIndex = useCadDocumentStore((state) => state.evaluationLimitIndex);
   const selectedElementId = useCadUiStore((state) => state.selectedElementId);
   const activePickCursor = useCadUiStore((state) => state.activePickCursor);
   const lineListDraftSignature = useCadUiStore((state) =>
@@ -117,13 +118,13 @@ export const CommandLineBar = ({ commandContext, evaluation }: CommandLineBarPro
   const setInputValue = (value: string) => setInputState({ step: stepIdentity, value });
   const numberVariableOptions = useMemo(() => {
     if (!session || step?.kind !== "number") return [];
-    const placement = creationPlacementForEvaluationLimit(elements, session.insertionIndex, groupFoldById);
+    const placement = creationPlacementForInsertion(elements, session.insertionIndex, evaluationLimitIndex, groupFoldById);
     return numericVariableReferenceOptionsForPosition({
       referenceElements: placement.referenceElements,
       parentGroupId: placement.parentGroupId,
       computedVariables: evaluation?.computedVariables
     });
-  }, [session, step, elements, groupFoldById, evaluation]);
+  }, [session, step, elements, evaluationLimitIndex, groupFoldById, evaluation]);
   const numberSuggestionMatch = step?.kind === "number" && !isCommandLineInputComposing()
     ? numericVariableSuggestionMatch(inputValue, numberSuggestionSelection.start, numberSuggestionSelection.end)
     : null;
@@ -139,7 +140,7 @@ export const CommandLineBar = ({ commandContext, evaluation }: CommandLineBarPro
   // overhead (also avoids depending on a value derived from a conditional
   // expression, which the React Compiler can't safely memoize around).
   const elementParamPlacement = session && step?.kind === "number"
-    ? creationPlacementForEvaluationLimit(elements, session.insertionIndex, groupFoldById)
+    ? creationPlacementForInsertion(elements, session.insertionIndex, evaluationLimitIndex, groupFoldById)
     : null;
   const elementParamOptions = !elementParamPlacement || !elementParamMatch
     ? []
@@ -201,9 +202,9 @@ export const CommandLineBar = ({ commandContext, evaluation }: CommandLineBarPro
   };
   const referencePlacement = useMemo(
     () => session && isCommandLineReferenceStep(step?.kind)
-      ? creationPlacementForEvaluationLimit(elements, session.insertionIndex, groupFoldById)
+      ? creationPlacementForInsertion(elements, session.insertionIndex, evaluationLimitIndex, groupFoldById)
       : null,
-    [elements, groupFoldById, session, step?.kind]
+    [elements, evaluationLimitIndex, groupFoldById, session, step?.kind]
   );
   const candidates = useMemo(
     () => {

@@ -25,9 +25,11 @@ export const createStatementRangeIndex = (doc: Text, statementMap: StatementMap)
     const statementEndLine = statement.endLine <= doc.lines ? doc.line(statement.endLine) : null;
     const closeLine = statement.closeBraceLine && statement.closeBraceLine <= doc.lines ? doc.line(statement.closeBraceLine) : null;
     const openLine = statement.openBraceLine && statement.openBraceLine <= doc.lines ? doc.line(statement.openBraceLine) : null;
-    // Compatibility only for pre-migration inline-brace documents. New syntax
-    // always has openBraceLine and therefore never exposes a header control.
-    const braceLine = openLine ?? (closeLine && statement.range.endLine > statement.endLine ? statementEndLine : null);
+    // A block may open on its header line (the canonical form) or on the
+    // following physical line (legacy compatibility). Its fold range — and a
+    // creation-return cursor — must include the matching closing brace either
+    // way, so the header is the inline-brace fallback.
+    const braceLine = openLine ?? (closeLine ? line : null);
     const elseLine = statement.elseBraceLine && statement.elseBraceLine <= doc.lines ? doc.line(statement.elseBraceLine) : null;
     ranges.set(elementId, {
       elementId,

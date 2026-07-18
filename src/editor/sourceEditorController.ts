@@ -26,7 +26,7 @@ import {
   sourceEditorShortcutBindings
 } from "../keyboard/shortcutRegistry";
 import type { KeyChord } from "../keyboard/shortcutTypes";
-import { creationPlacementForEvaluationLimit } from "../model/elementCreationPlacement";
+import { creationPlacementForInsertion } from "../model/elementCreationPlacement";
 import { getParameterDefinitions } from "../parameters/parameterDefinitions";
 import { parameterPickCommandId } from "../commands/parameterPickCommand";
 import { pickCandidates } from "../model/pickCandidates";
@@ -369,6 +369,35 @@ export class SourceEditorController implements SourceEditorHandle {
     this.uiStore.getState().setSelectedElementId(elementId);
   };
 
+  jumpToElementEnd = (elementId: ElementId) => {
+    const range = this.statementRanges.get(elementId);
+    if (!range) return;
+    // Container statement ranges start at the header while their fold ranges
+    // retain the physical closing-brace line. A creation return belongs after
+    // the entire block (including an else branch), not after its header.
+    const closingBraceFrom = range.elseFoldRange?.to ?? range.groupFoldRange?.to;
+    const cursor = closingBraceFrom === undefined
+      ? range.to
+      : this.view.state.doc.lineAt(closingBraceFrom).to;
+    // Publish the external selection first, under the same guard as parameter
+    // navigation, so its subscription cannot project this deliberate end
+    // cursor back to the statement header.
+    this.deferredExternalCursor = null;
+    this.pendingPrimaryCursorProjection = false;
+    this.publishingCanvasSelection = true;
+    try {
+      this.uiStore.getState().setSelectedElementId(elementId);
+    } finally {
+      this.publishingCanvasSelection = false;
+    }
+    this.view.dispatch({
+      selection: EditorSelection.cursor(cursor),
+      scrollIntoView: true,
+      annotations: [canvasCursorOrigin.of("canvas-cursor"), Transaction.addToHistory.of(false)]
+    });
+    this.view.focus();
+  };
+
   jumpToParameterValue = (elementId: ElementId, parameterKey: string): boolean => {
     if (this.protocol.composing) return false;
     const range = this.statementRanges.get(elementId);
@@ -621,9 +650,10 @@ export class SourceEditorController implements SourceEditorHandle {
       activeLinePickTarget: ui.activeLinePickTarget,
       commandLineSession: ui.commandLineSession,
       commandLinePickParentGroupId: ui.commandLineSession
-        ? creationPlacementForEvaluationLimit(
+        ? creationPlacementForInsertion(
             this.store.getState().elements,
             ui.commandLineSession.insertionIndex,
+            this.store.getState().evaluationLimitIndex,
             ui.groupFoldById
           ).parentGroupId
         : undefined
@@ -877,8 +907,7 @@ export class SourceEditorController implements SourceEditorHandle {
             const ui = this.uiStore.getState();
             if (ui.activePointPickTarget || ui.activeNumericReferencePickTarget || ui.activeLinePickTarget) return false;
             const handled = dispatchCommand(binding.commandId, {
-              currentCursorElementId: this.currentCursorElementId,
-              sourceEditorCreation: true
+              currentCursorElementId: this.currentCursorElementId
             }) !== false;
             return binding.owner === "editorTransaction" ? handled : true;
           }
