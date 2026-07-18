@@ -80,10 +80,10 @@ export type CadDocumentState = {
   /** @deprecated Derived compatibility views. sourceText remains canonical. */
   activePrintLayoutId: string;
   /** @deprecated Derived compatibility views. sourceText remains canonical. */
-  evaluationLimitIndex: number;
+  evaluationLimitIndex: number | undefined;
   previewElements: CadElement[] | null;
   /** Evaluation divider paired with previewElements when a preview changes insertion order. */
-  previewEvaluationLimitIndex: number | null;
+  previewEvaluationLimitIndex: number | undefined | null;
   past: TextSnapshot[];
   future: TextSnapshot[];
   currentFilePath: string | null;
@@ -173,8 +173,12 @@ export const effectiveElements = (
 
 /** Keeps preview-only insertion/removal evaluation semantics out of canonical document state. */
 export const effectiveEvaluationLimitIndex = (
-  state: Pick<CadDocumentState, "evaluationLimitIndex" | "previewEvaluationLimitIndex">
-) => state.previewEvaluationLimitIndex ?? state.evaluationLimitIndex;
+  state: Pick<CadDocumentState, "evaluationLimitIndex" | "previewEvaluationLimitIndex" | "previewElements">
+): number | undefined => state.previewElements === null
+  ? state.evaluationLimitIndex
+  : state.previewEvaluationLimitIndex === null
+    ? state.evaluationLimitIndex
+    : state.previewEvaluationLimitIndex;
 
 const clearedPreviewState = () => ({
   previewElements: null,
@@ -253,7 +257,9 @@ const documentFromChange = (
     activeVisibilityProfileId: change.activeVisibilityProfileId ?? before.activeVisibilityProfileId,
     printLayouts: change.printLayouts ?? before.printLayouts,
     activePrintLayoutId: change.activePrintLayoutId ?? before.activePrintLayoutId,
-    evaluationLimitIndex: change.evaluationLimitIndex ?? before.evaluationLimitIndex
+    evaluationLimitIndex: Object.hasOwn(change, "evaluationLimitIndex")
+      ? change.evaluationLimitIndex
+      : before.evaluationLimitIndex
   };
 };
 
@@ -362,7 +368,7 @@ const initialSnapshot = (): DslDocumentData => ({
   activeVisibilityProfileId: defaultVisibilityProfile().id,
   printLayouts: [DEFAULT_PRINT_LAYOUT],
   activePrintLayoutId: DEFAULT_PRINT_LAYOUT.id,
-  evaluationLimitIndex: sampleElements.length
+  evaluationLimitIndex: undefined
 });
 
 const emptyFileSnapshot = (): DslDocumentData => ({
@@ -373,7 +379,7 @@ const emptyFileSnapshot = (): DslDocumentData => ({
   activeVisibilityProfileId: defaultVisibilityProfile().id,
   printLayouts: [],
   activePrintLayoutId: "",
-  evaluationLimitIndex: 0
+  evaluationLimitIndex: undefined
 });
 
 export const initialCadDocumentState = (): Omit<CadDocumentState, keyof CadDocumentActions> => {
@@ -535,7 +541,9 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
     if (change.elements === undefined) return { status: "noop" };
     set({
       previewElements: change.elements,
-      previewEvaluationLimitIndex: change.evaluationLimitIndex ?? null
+      previewEvaluationLimitIndex: Object.hasOwn(change, "evaluationLimitIndex")
+        ? change.evaluationLimitIndex
+        : null
     });
     return { status: "applied" };
   },

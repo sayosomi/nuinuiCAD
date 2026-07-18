@@ -335,14 +335,18 @@ export const moveElementToInsertionIndex = (
 };
 
 export const setEvaluationLimitIndex = (evaluationLimitIndex: number) => {
-  const { elements } = useCadDocumentStore.getState();
+  const { elements, evaluationLimitIndex: currentIndex } = useCadDocumentStore.getState();
   const nextIndex = clampEvaluationLimitIndex(elements, evaluationLimitIndex);
+  // No marker means full evaluation. Moving an implicit boundary to the end
+  // must not materialize a new manual @stop or an Undo entry.
+  if (currentIndex === undefined && nextIndex === elements.length) return;
+  if (currentIndex === nextIndex) return;
   useCadDocumentStore.getState().commitDocumentChange({ evaluationLimitIndex: nextIndex });
 };
 
 export const moveEvaluationDividerByOffset = (offset: number) => {
-  const { evaluationLimitIndex } = useCadDocumentStore.getState();
-  setEvaluationLimitIndex(evaluationLimitIndex + offset);
+  const { elements, evaluationLimitIndex } = useCadDocumentStore.getState();
+  setEvaluationLimitIndex(clampEvaluationLimitIndex(elements, evaluationLimitIndex) + offset);
 };
 
 export const moveEvaluationDividerToSelectedElement = () => {
@@ -445,7 +449,12 @@ export const addGroup = (context?: CommandContext) => {
       group,
       ...elements.slice(insertionIndex)
     ],
-    evaluationLimitIndex: insertionIndex + 1
+    evaluationLimitIndex: adjustEvaluationLimitForInsertion({
+      elements,
+      evaluationLimitIndex,
+      insertionIndex,
+      insertedCount: 1
+    })
   }, {
     selectedElementId: group.id,
     selectedElementIds: [group.id],

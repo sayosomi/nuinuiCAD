@@ -16,7 +16,7 @@ export const emptyDocument = (): DslDocumentData => ({
   activeVisibilityProfileId: defaultVisibilityProfile().id,
   printLayouts: [],
   activePrintLayoutId: "",
-  evaluationLimitIndex: 0
+  evaluationLimitIndex: undefined
 });
 
 // 意味的等価比較: IDは再割当てされ得るため無視し、参照はすべて「参照先の
@@ -98,7 +98,7 @@ export const expectSemanticallyEqualDocuments = (a: DslDocumentData, b: DslDocum
 // layoutElementTree が処理するため、parentGroupId で紐付いたネスト要素もそのまま渡せる。
 // evaluationLimitIndex省略時は全要素を評価対象とする(@stopなし)。テストが
 // @stopマーカーの位置を検証したい場合のみ明示的に渡す。
-export const dslLinesForElements = (elements: CadElement[], evaluationLimitIndex = elements.length): string[] => {
+export const dslLinesForElements = (elements: CadElement[], evaluationLimitIndex?: number): string[] => {
   const refs = documentDslRefs(elements);
   return layoutElementTree(elements, refs, evaluationLimitIndex).flatMap((row) => row.lines);
 };
@@ -106,7 +106,7 @@ export const dslLinesForElements = (elements: CadElement[], evaluationLimitIndex
 // 要素配列 → `nui 1` ヘッダ付きのDSL本文全体(パレット/可視性設定なし)。
 // テストが「有効などこかの要素を含む文書」だけを必要とし、v1構文自体は
 // 検証対象でない場合の入力生成に使う。
-export const dslTextForElements = (elements: CadElement[], evaluationLimitIndex = elements.length): string =>
+export const dslTextForElements = (elements: CadElement[], evaluationLimitIndex?: number): string =>
   [`nui ${DSL_VERSION}`, ...dslLinesForElements(elements, evaluationLimitIndex)].join("\n");
 
 // 要素配列 → `nui 1` ヘッダ付きのDSL本文全体、id=/parent=/branch=を明示出力する
@@ -138,7 +138,7 @@ export const roundTrip = (source: string) => {
     activeVisibilityProfileId: first.activeVisibilityProfileId ?? defaultVisibilityProfile().id,
     printLayouts: first.printLayouts ?? [],
     activePrintLayoutId: first.activePrintLayoutId ?? first.printLayouts?.[0]?.id ?? "",
-    evaluationLimitIndex: first.evaluationLimitIndex ?? first.elements.length
+    evaluationLimitIndex: first.evaluationLimitIndex
   };
   const text = serializeDocumentToDsl(document);
   const parsed = parseDslDocument(text);

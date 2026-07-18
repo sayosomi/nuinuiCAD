@@ -2,7 +2,8 @@ import { makeNumericExpression } from "../geometry/numericExpressions";
 import type { NumericMeasurementKey } from "../geometry/numericExpressionTypes";
 import {
   creationPlacementForEvaluationLimit,
-  type ElementCreationPlacement
+  type ElementCreationPlacement,
+  type ElementCreationTarget
 } from "../model/elementCreationPlacement";
 import { fallbackElementName, makeUniqueElementName } from "../model/elementNames";
 import type { CadElement, ElementId } from "../types/geometry";
@@ -12,6 +13,7 @@ import type {
   CreationRecipe,
   CreationStep
 } from "./creationRecipes";
+import type { CommandLineInsertionAnchor } from "./commandLineInsertionAnchor";
 
 /**
  * Uncommitted progress through a declarative creation recipe. This state never
@@ -27,21 +29,26 @@ export type CommandLineSession = {
   editingDraft: CommandLineStepValue | null;
   /** Transient current-prompt pick progress to restore after an isolated edit. */
   editingReturnPickState: CommandLineEditingReturnPickState | null;
+  /** Semantic target re-resolved for final commit; never commit against this cached index alone. */
+  insertionAnchor: CommandLineInsertionAnchor;
+  /** Flat position and parent scope are preserved together for all creation paths. */
+  insertionTarget: ElementCreationTarget;
+  /** Stable only while startedAtRevision matches the document; used for session UI and previews. */
   insertionIndex: number;
   startedAtRevision: number;
   nameSuggestion: string;
   error: string | null;
-  /** Keeps the completion handoff local to a creation begun from the DSL editor. */
-  sourceEditorCreation?: boolean;
 };
 
 export type StartCommandLineSessionOptions = {
+  /** Callers creating real sessions must provide this; the derived fallback keeps isolated legacy tests focused. */
+  insertionAnchor?: CommandLineInsertionAnchor;
   insertionIndex: number;
+  insertionTarget?: ElementCreationTarget;
   revision: number;
   elements: CadElement[];
   /** Existing creation-placement data when the caller has already resolved it. */
   placement?: Pick<ElementCreationPlacement, "insertionIndex" | "parentGroupId">;
-  sourceEditorCreation?: boolean;
 };
 
 export type CommandLineStepValue = CreationArgumentValue | string;
@@ -97,19 +104,33 @@ const nameSuggestionFor = (recipe: CreationRecipe, options: StartCommandLineSess
 export const startSession = (
   recipe: CreationRecipe,
   options: StartCommandLineSessionOptions
-): CommandLineSession => ({
-  recipe,
-  args: {},
-  currentStepIndex: 0,
-  editingStepIndex: null,
-  editingDraft: null,
-  editingReturnPickState: null,
-  insertionIndex: options.insertionIndex,
-  startedAtRevision: options.revision,
-  nameSuggestion: nameSuggestionFor(recipe, options),
-  error: null,
-  sourceEditorCreation: options.sourceEditorCreation ?? false
-});
+): CommandLineSession => {
+  const insertionAnchor = options.insertionAnchor ?? (
+    options.insertionIndex >= options.elements.length
+      ? { kind: "documentEnd" as const }
+      : options.insertionIndex > 0
+        ? { kind: "afterElement" as const, elementId: options.elements[options.insertionIndex - 1].id }
+        : { kind: "documentEnd" as const }
+  );
+  const insertionTarget = options.insertionTarget ?? {
+    insertionIndex: options.insertionIndex,
+    ...(options.placement?.parentGroupId ? { parentGroupId: options.placement.parentGroupId } : {})
+  };
+  return {
+    recipe,
+    args: {},
+    currentStepIndex: 0,
+    editingStepIndex: null,
+    editingDraft: null,
+    editingReturnPickState: null,
+    insertionAnchor,
+    insertionTarget,
+    insertionIndex: options.insertionIndex,
+    startedAtRevision: options.revision,
+    nameSuggestion: nameSuggestionFor(recipe, options),
+    error: null
+  };
+};
 
 const stepIndexFor = (session: CommandLineSession) =>
   session.editingStepIndex ?? session.currentStepIndex;
@@ -269,17 +290,3 @@ export const sessionCanConfirm = (session: CommandLineSession) =>
 /** True when a document commit has advanced the existing source revision. */
 export const sessionIsStale = (session: CommandLineSession, currentRevision: number) =>
   session.startedAtRevision !== currentRevision;
-
-/**
- * Chooses an already-resolved cursor statement index when available, otherwise
- * the insertion index from existing creation-placement logic. No editor types
- * or cursor lookup are introduced here.
- */
-export const insertionIndexForCommandLineSession = (
-  cursorStatementIndex: number | null | undefined,
-  fallbackPlacement: Pick<ElementCreationPlacement, "insertionIndex">
-) => (
-  Number.isInteger(cursorStatementIndex) && (cursorStatementIndex ?? -1) >= 0
-    ? cursorStatementIndex
-    : fallbackPlacement.insertionIndex
-);

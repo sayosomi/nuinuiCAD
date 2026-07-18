@@ -17,7 +17,7 @@ export type DslV2RoundTripDocument = {
   activeVisibilityProfileId: string;
   printLayouts: PrintLayout[];
   activePrintLayoutId: string | undefined;
-  evaluationLimitIndex: number;
+  evaluationLimitIndex: number | undefined;
 };
 
 type ElementFrame = { kind: "element"; id: string; conditional: boolean; branch: "then" | "else" };
@@ -56,7 +56,7 @@ export const compileDslV2RoundTripDocument = (source: string): DslV2RoundTripDoc
   const frames: Frame[] = [];
   const printFrames: PrintFrame[] = [];
   let settings = emptyDslV2Settings();
-  let evaluationLimitIndex: number | null = null;
+  let evaluationLimitIndex: number | undefined;
 
   for (const text of logicalLines(source)) {
     if (text === "}") {
@@ -104,5 +104,5 @@ export const compileDslV2RoundTripDocument = (source: string): DslV2RoundTripDoc
   // Document-level default (matches compileDslDocument/parseLegacyV1Document):
   // no explicit `activePrintLayout` statement falls back to the first layout.
   const activePrintLayoutId = settings.activePrintLayoutId ?? settings.printLayouts[0]?.id;
-  return { elements, ...settings, activePrintLayoutId, evaluationLimitIndex: evaluationLimitIndex ?? elements.length };
+  return { elements, ...settings, activePrintLayoutId, evaluationLimitIndex };
 };

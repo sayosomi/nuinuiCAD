@@ -23,7 +23,7 @@ export type ParseLegacyV1DocumentResult = {
   activeVisibilityProfileId: string;
   printLayouts: PrintLayout[];
   activePrintLayoutId: string;
-  evaluationLimitIndex: number;
+  evaluationLimitIndex: number | undefined;
   diagnostics: DslDiagnostic[];
 };
 
@@ -93,7 +93,7 @@ export const parseLegacyV1Document = (source: string): ParseLegacyV1DocumentResu
       compiled.activeVisibilityProfileId ?? visibilityProfiles[0]?.id ?? DEFAULT_VISIBILITY_PROFILE_ID,
     printLayouts,
     activePrintLayoutId: compiled.activePrintLayoutId ?? printLayouts[0]?.id ?? "",
-    evaluationLimitIndex: compiled.evaluationLimitIndex ?? compiled.elements.length,
+    evaluationLimitIndex: compiled.evaluationLimitIndex,
     diagnostics: allDiagnostics
   };
 };

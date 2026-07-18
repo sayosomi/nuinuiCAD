@@ -38,7 +38,7 @@ describe("cadDocumentStore editor mutation boundary", () => {
     });
 
     const result = useCadDocumentStore.getState().commitDocumentChange({
-      evaluationLimitIndex: Math.max(0, before.evaluationLimitIndex - 1)
+      evaluationLimitIndex: Math.max(0, (before.evaluationLimitIndex ?? before.elements.length) - 1)
     });
 
     expect(flush).toHaveBeenCalledWith("model-mutation");

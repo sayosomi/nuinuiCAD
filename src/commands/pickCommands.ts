@@ -17,7 +17,7 @@ import {
   pickedPointAnchorReferencesTarget,
   pickedPointAnchorForTargetForGroup
 } from "../model/forGroupGeneratedReferences";
-import { creationPlacementForEvaluationLimit } from "../model/elementCreationPlacement";
+import { creationPlacementForTarget } from "../model/elementCreationPlacement";
 import {
   pickCandidates,
   selectedPickOption,
@@ -501,10 +501,10 @@ export const activePickCandidates = (currentEvaluation?: EvaluationResult) => {
   } = ui;
   const { elements, evaluationLimitIndex } = useCadDocumentStore.getState();
   const commandLinePlacement = ui.commandLineSession
-    ? creationPlacementForEvaluationLimit(
+    ? creationPlacementForTarget(
         elements,
-        ui.commandLineSession.insertionIndex,
-        ui.groupFoldById
+        ui.commandLineSession.insertionTarget,
+        evaluationLimitIndex
       )
     : null;
   return pickCandidates(elements, currentEvaluation ?? evaluateElements(elements, { evaluationLimitIndex }), {
@@ -705,10 +705,10 @@ export const applyPickedPoint = (context?: Pick<CommandContext, "pickedPointId" 
   if (commandLineStep?.kind === "point" || commandLineStep?.kind === "endpoint") {
     if (cancelStaleCommandLineSession()) return;
     const parentGroupId = commandLineSession
-      ? creationPlacementForEvaluationLimit(
+      ? creationPlacementForTarget(
           elements,
-          commandLineSession.insertionIndex,
-          useCadUiStore.getState().groupFoldById
+          commandLineSession.insertionTarget,
+          useCadDocumentStore.getState().evaluationLimitIndex
         ).parentGroupId
       : undefined;
     const pointPickTargetIds = commandLinePointPickTargetIds({
@@ -971,10 +971,10 @@ export const applyPickedLine = (context?: Pick<CommandContext, "pickedLineId">) 
   if (commandLineStep?.kind === "line" || commandLineStep?.kind === "lineList") {
     if (cancelStaleCommandLineSession()) return;
     const parentGroupId = commandLineSession
-      ? creationPlacementForEvaluationLimit(
+      ? creationPlacementForTarget(
           elements,
-          commandLineSession.insertionIndex,
-          useCadUiStore.getState().groupFoldById
+          commandLineSession.insertionTarget,
+          useCadDocumentStore.getState().evaluationLimitIndex
         ).parentGroupId
       : undefined;
     const normalizationTargetId = commandLinePickNormalizationTargetId(

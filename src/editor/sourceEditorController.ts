@@ -26,7 +26,7 @@ import {
   sourceEditorShortcutBindings
 } from "../keyboard/shortcutRegistry";
 import type { KeyChord } from "../keyboard/shortcutTypes";
-import { creationPlacementForEvaluationLimit } from "../model/elementCreationPlacement";
+import { creationPlacementForTarget } from "../model/elementCreationPlacement";
 import { getParameterDefinitions } from "../parameters/parameterDefinitions";
 import { parameterPickCommandId } from "../commands/parameterPickCommand";
 import { pickCandidates } from "../model/pickCandidates";
@@ -369,6 +369,52 @@ export class SourceEditorController implements SourceEditorHandle {
     this.uiStore.getState().setSelectedElementId(elementId);
   };
 
+  jumpToElementEnd = (elementId: ElementId) => {
+    if (this.protocol.composing) return false;
+    const range = this.statementRanges.get(elementId);
+    if (!range) return false;
+    const doc = this.view.state.doc;
+    if (
+      !Number.isInteger(range.from) ||
+      !Number.isInteger(range.to) ||
+      range.from < 0 ||
+      range.to < range.from ||
+      range.to > doc.length
+    ) return false;
+    // Statement metadata owns the matching close brace even when the editor's
+    // fold range intentionally omits an inline-header fallback. A creation
+    // return belongs after the whole block, including its else branch.
+    const closingBraceLine = range.statement.closeBraceLine;
+    const mappedClosingBraceFrom = range.elseFoldRange?.to ?? range.groupFoldRange?.to;
+    const canUseClosingBraceLine =
+      closingBraceLine !== undefined &&
+      closingBraceLine >= 1 &&
+      closingBraceLine <= doc.lines &&
+      mappedClosingBraceFrom !== undefined &&
+      mappedClosingBraceFrom >= range.from &&
+      mappedClosingBraceFrom <= doc.length &&
+      doc.line(closingBraceLine).from === mappedClosingBraceFrom;
+    const cursor = canUseClosingBraceLine ? doc.line(closingBraceLine).to : range.to;
+    // Publish the external selection first, under the same guard as parameter
+    // navigation, so its subscription cannot project this deliberate end
+    // cursor back to the statement header.
+    this.deferredExternalCursor = null;
+    this.pendingPrimaryCursorProjection = false;
+    this.publishingCanvasSelection = true;
+    try {
+      this.uiStore.getState().setSelectedElementId(elementId);
+    } finally {
+      this.publishingCanvasSelection = false;
+    }
+    this.view.dispatch({
+      selection: EditorSelection.cursor(cursor),
+      scrollIntoView: true,
+      annotations: [canvasCursorOrigin.of("canvas-cursor"), Transaction.addToHistory.of(false)]
+    });
+    this.view.focus();
+    return true;
+  };
+
   jumpToParameterValue = (elementId: ElementId, parameterKey: string): boolean => {
     if (this.protocol.composing) return false;
     const range = this.statementRanges.get(elementId);
@@ -621,10 +667,10 @@ export class SourceEditorController implements SourceEditorHandle {
       activeLinePickTarget: ui.activeLinePickTarget,
       commandLineSession: ui.commandLineSession,
       commandLinePickParentGroupId: ui.commandLineSession
-        ? creationPlacementForEvaluationLimit(
+        ? creationPlacementForTarget(
             this.store.getState().elements,
-            ui.commandLineSession.insertionIndex,
-            ui.groupFoldById
+            ui.commandLineSession.insertionTarget,
+            this.store.getState().evaluationLimitIndex
           ).parentGroupId
         : undefined
     });
@@ -877,8 +923,7 @@ export class SourceEditorController implements SourceEditorHandle {
             const ui = this.uiStore.getState();
             if (ui.activePointPickTarget || ui.activeNumericReferencePickTarget || ui.activeLinePickTarget) return false;
             const handled = dispatchCommand(binding.commandId, {
-              currentCursorElementId: this.currentCursorElementId,
-              sourceEditorCreation: true
+              currentCursorElementId: this.currentCursorElementId
             }) !== false;
             return binding.owner === "editorTransaction" ? handled : true;
           }

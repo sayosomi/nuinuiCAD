@@ -16,6 +16,12 @@ export type ElementCreationPlacement = {
   conditionalBranch?: ConditionalBranch;
 };
 
+/** A semantic insertion target whose parent scope is not inferred from its flat index. */
+export type ElementCreationTarget = Pick<
+  ElementCreationPlacement,
+  "insertionIndex" | "parentGroupId" | "conditionalBranch"
+>;
+
 const lastSubtreeIndex = (
   elements: CadElement[],
   groupId: ElementId,
@@ -52,34 +58,74 @@ const branchForConditionalGroupInsertion = (
   return "then";
 };
 
-export const creationPlacementForEvaluationLimit = (
+/**
+ * Resolves a creation target independently from the evaluator cutoff. The
+ * target determines group membership; references must remain both earlier than
+ * the target and within the manual evaluation boundary.
+ */
+export const creationPlacementForInsertion = (
   elements: CadElement[],
+  insertionIndex: number,
   evaluationLimitIndex: number | undefined,
   groupFoldById?: GroupFoldById
 ): ElementCreationPlacement => {
-  const insertionIndex = clampEvaluationLimitIndex(elements, evaluationLimitIndex);
+  const clampedInsertionIndex = clampEvaluationLimitIndex(elements, insertionIndex);
   const groupStates = groupStateByElementId(elements, groupFoldById);
   const targetGroup = elements
     .map((element, index) => ({ element, index, depth: groupStates.get(element.id)?.depth ?? 0 }))
     .filter(({ element, index }) => (
       isGroupElement(element) &&
       isGroupExpanded(element.id, groupFoldById) &&
-      groupContainsInsertionIndex(elements, element.id, index, insertionIndex)
+      groupContainsInsertionIndex(elements, element.id, index, clampedInsertionIndex)
     ))
     .sort((a, b) => b.depth - a.depth)[0]?.element;
 
   const parentGroupId = targetGroup?.id;
   const conditionalBranch =
     targetGroup && isConditionalGroupElement(targetGroup)
-      ? branchForConditionalGroupInsertion(elements, targetGroup.id, insertionIndex)
+      ? branchForConditionalGroupInsertion(elements, targetGroup.id, clampedInsertionIndex)
       : undefined;
 
   return {
-    insertionIndex,
-    referenceElements: evaluatedElements(elements, insertionIndex),
+    insertionIndex: clampedInsertionIndex,
+    referenceElements: evaluatedElements(
+      elements,
+      Math.min(clampedInsertionIndex, clampEvaluationLimitIndex(elements, evaluationLimitIndex))
+    ),
     ...(parentGroupId ? { parentGroupId } : {}),
     ...(conditionalBranch ? { conditionalBranch } : {})
   };
+};
+
+/**
+ * Uses an anchor-derived parent scope for creation. This deliberately ignores
+ * fold state: UI folding must never alter the persisted document structure.
+ */
+export const creationPlacementForTarget = (
+  elements: CadElement[],
+  target: ElementCreationTarget,
+  evaluationLimitIndex: number | undefined
+): ElementCreationPlacement => {
+  const insertionIndex = clampEvaluationLimitIndex(elements, target.insertionIndex);
+  return {
+    insertionIndex,
+    referenceElements: evaluatedElements(
+      elements,
+      Math.min(insertionIndex, clampEvaluationLimitIndex(elements, evaluationLimitIndex))
+    ),
+    ...(target.parentGroupId ? { parentGroupId: target.parentGroupId } : {}),
+    ...(target.conditionalBranch ? { conditionalBranch: target.conditionalBranch } : {})
+  };
+};
+
+/** Existing divider-based placement for commands whose explicit target is the evaluation boundary. */
+export const creationPlacementForEvaluationLimit = (
+  elements: CadElement[],
+  evaluationLimitIndex: number | undefined,
+  groupFoldById?: GroupFoldById
+) => {
+  const insertionIndex = clampEvaluationLimitIndex(elements, evaluationLimitIndex);
+  return creationPlacementForInsertion(elements, insertionIndex, evaluationLimitIndex, groupFoldById);
 };
 
 export const applyCreationPlacement = <T extends CadElement>(

@@ -13,10 +13,11 @@ export const adjustEvaluationLimitForInsertion = ({
   insertedCount
 }: {
   elements: CadElement[];
-  evaluationLimitIndex: number;
+  evaluationLimitIndex: number | undefined;
   insertionIndex: number;
   insertedCount: number;
 }) => {
+  if (evaluationLimitIndex === undefined) return undefined;
   const limit = clampEvaluationLimitIndex(elements, evaluationLimitIndex);
   const clampedInsertionIndex = Math.min(Math.max(insertionIndex, 0), elements.length);
   return limit + (clampedInsertionIndex <= limit ? insertedCount : 0);
@@ -28,9 +29,10 @@ export const adjustEvaluationLimitForDeletion = ({
   deletedIds
 }: {
   elements: CadElement[];
-  evaluationLimitIndex: number;
+  evaluationLimitIndex: number | undefined;
   deletedIds: Set<ElementId>;
 }) => {
+  if (evaluationLimitIndex === undefined) return undefined;
   const limit = clampEvaluationLimitIndex(elements, evaluationLimitIndex);
   const deletedBeforeLimit = elements
     .slice(0, limit)
@@ -45,10 +47,11 @@ export const adjustEvaluationLimitForMove = ({
   insertionIndex
 }: {
   elements: CadElement[];
-  evaluationLimitIndex: number;
+  evaluationLimitIndex: number | undefined;
   movingIds: ElementId[];
   insertionIndex: number;
 }) => {
+  if (evaluationLimitIndex === undefined) return undefined;
   const limit = clampEvaluationLimitIndex(elements, evaluationLimitIndex);
   const movingIdSet = new Set(movingIds);
   const movingCount = elements.filter((element) => movingIdSet.has(element.id)).length;

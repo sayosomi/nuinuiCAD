@@ -31,10 +31,18 @@ const numericValueSource = () => dslTextForElements([
 ]);
 
 type ControllerInternals = {
+  statementRanges: ReadonlyMap<string, {
+    from: number;
+    to: number;
+    statement: { closeBraceLine?: number };
+    groupFoldRange?: { from: number; to: number };
+    elseFoldRange?: { from: number; to: number };
+  }>;
   view: {
     state: {
       doc: {
         length: number;
+        lines: number;
         line: (number: number) => { number: number; from: number; to: number; text: string };
         lineAt: (position: number) => { number: number; from: number; to: number; text: string };
         toString: () => string;
@@ -89,6 +97,92 @@ describe("SourceEditorController commit and history boundaries", () => {
     parent.remove();
   });
 
+  it("places a creation-return cursor after a group's complete closing structure", () => {
+    useCadDocumentStore.getState().commitText([
+      "nui 2",
+      "if 分岐 (1) {",
+      "  point A = coordinate(x: 0 y: 0)",
+      "} else {",
+      "  point B = coordinate(x: 1 y: 1)",
+      "}",
+      "point C = coordinate(x: 2 y: 2)"
+    ].join("\n"), "test");
+    const parent = document.createElement("div");
+    document.body.append(parent);
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+    const group = useCadDocumentStore.getState().elements.find((element) => element.name === "分岐")!;
+
+    expect(internals.statementRanges.get(group.id)).toMatchObject({
+      groupFoldRange: expect.any(Object),
+      elseFoldRange: expect.any(Object)
+    });
+
+    expect(controller.jumpToElementEnd(group.id)).toBe(true);
+
+    const { head } = internals.view.state.selection.main;
+    const source = internals.view.state.doc.toString();
+    expect(source.slice(0, head)).toMatch(/\n}$/);
+    expect(useCadUiStore.getState().selectedElementId).toBe(group.id);
+    expect(parent.contains(document.activeElement)).toBe(true);
+    controller.destroy();
+    parent.remove();
+  });
+
+  it("uses the mapped statement end when an uncommitted deletion makes closeBraceLine stale", () => {
+    useCadDocumentStore.getState().commitText([
+      "nui 2",
+      "# 上方の未commit行",
+      "group G {",
+      "  point A = coordinate(x: 0 y: 0)",
+      "}",
+      "point B = coordinate(x: 1 y: 1)"
+    ].join("\n"), "test");
+    const parent = document.createElement("div");
+    document.body.append(parent);
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+    const group = useCadDocumentStore.getState().elements.find((element) => element.name === "G")!;
+    const originalRange = internals.statementRanges.get(group.id)!;
+    const removedLine = internals.view.state.doc.line(2);
+
+    internals.view.dispatch({ changes: { from: removedLine.from, to: removedLine.to + 1, insert: "" } });
+
+    const mappedRange = internals.statementRanges.get(group.id)!;
+    expect(originalRange.statement.closeBraceLine).toBeLessThanOrEqual(internals.view.state.doc.lines);
+    let jumped = false;
+    expect(() => { jumped = controller.jumpToElementEnd(group.id); }).not.toThrow();
+    expect(jumped).toBe(true);
+    expect(internals.view.state.selection.main.head).toBe(mappedRange.to);
+    controller.destroy();
+    parent.remove();
+  });
+
+  it("rejects an invalid mapped range without changing selection or focus", () => {
+    useCadDocumentStore.getState().commitText([
+      "nui 2",
+      "group G {",
+      "  point A = coordinate(x: 0 y: 0)",
+      "}"
+    ].join("\n"), "test");
+    const parent = document.createElement("div");
+    document.body.append(parent);
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+    const group = useCadDocumentStore.getState().elements.find((element) => element.name === "G")!;
+    const range = internals.statementRanges.get(group.id)!;
+    const before = internals.view.state.selection.main.head;
+    (internals as unknown as { statementRanges: Map<string, unknown> }).statementRanges = new Map([
+      [group.id, { ...range, from: -1, to: internals.view.state.doc.length + 1 }]
+    ]);
+
+    expect(controller.jumpToElementEnd(group.id)).toBe(false);
+    expect(internals.view.state.selection.main.head).toBe(before);
+    expect(parent.contains(document.activeElement)).toBe(false);
+    controller.destroy();
+    parent.remove();
+  });
+
   it("resolves a dirty intermediate value against its committed statement without selecting another record", () => {
     useCadDocumentStore.getState().commitText(dslTextForElements([
       freePoint("a", "A", 0, 0),
@@ -132,6 +226,34 @@ describe("SourceEditorController commit and history boundaries", () => {
     expect(parent.contains(document.activeElement)).toBe(false);
     fireEvent.compositionEnd(content);
     controller.destroy();
+  });
+
+  it("does not move the creation-return cursor during composition, then moves after compositionend", () => {
+    useCadDocumentStore.getState().commitText([
+      "nui 2",
+      "group G {",
+      "  point A = coordinate(x: 0 y: 0)",
+      "}"
+    ].join("\n"), "test");
+    const parent = document.createElement("div");
+    document.body.append(parent);
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+    const group = useCadDocumentStore.getState().elements.find((element) => element.name === "G")!;
+    const content = parent.querySelector(".cm-content")!;
+    const before = internals.view.state.selection.main.head;
+
+    fireEvent.compositionStart(content);
+    expect(controller.jumpToElementEnd(group.id)).toBe(false);
+    expect(internals.view.state.selection.main.head).toBe(before);
+    expect(parent.contains(document.activeElement)).toBe(false);
+
+    fireEvent.compositionEnd(content);
+    expect(controller.jumpToElementEnd(group.id)).toBe(true);
+    expect(internals.view.state.selection.main.head).toBe(internals.view.state.doc.line(4).to);
+    expect(parent.contains(document.activeElement)).toBe(true);
+    controller.destroy();
+    parent.remove();
   });
 
   it("falls back to the element line for a parameter omitted by DSL defaults", () => {
@@ -355,7 +477,7 @@ describe("SourceEditorController commit and history boundaries", () => {
     const controller = new SourceEditorController(parent);
     const internals = controller as unknown as ControllerInternals;
     const baseline = internals.view.state.doc.toString();
-    expect(startCommandLineCreation("freePoint", { sourceEditorCreation: true })).toBe(true);
+    expect(startCommandLineCreation("freePoint")).toBe(true);
     internals.view.dispatch({ changes: { from: internals.view.state.doc.length, insert: "\n# pending" } });
 
     expect(internals.runUndo()).toBe(true);

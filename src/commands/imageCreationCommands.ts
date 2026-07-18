@@ -9,6 +9,7 @@ import {
 } from "../model/elementCreationPlacement";
 import { createCadElement } from "../model/elementFactory";
 import { makeUniqueElementName } from "../model/elementNames";
+import { adjustEvaluationLimitForInsertion } from "../model/evaluationDivider";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
 import type { CadElement } from "../types/geometry";
@@ -86,7 +87,8 @@ const creationContext = () => {
 const commitCreatedImage = (
   element: CadElement,
   elements: CadElement[],
-  insertionIndex: number
+  insertionIndex: number,
+  evaluationLimitIndex: number | undefined
 ) => {
   const placedElement = applyCreationPlacement(
     element,
@@ -102,7 +104,12 @@ const commitCreatedImage = (
       placedElement,
       ...elements.slice(insertionIndex)
     ],
-    evaluationLimitIndex: insertionIndex + 1
+    evaluationLimitIndex: adjustEvaluationLimitForInsertion({
+      elements,
+      evaluationLimitIndex,
+      insertionIndex,
+      insertedCount: 1
+    })
   }, {
     selectedElementId: placedElement.id,
     selectedElementIds: [placedElement.id],
@@ -127,6 +134,7 @@ export const commitPendingImageImport = ({
   targetPixelsPerMm: number;
 }) => {
   const { elements, insertionIndex, referenceElements } = creationContext();
+  const { evaluationLimitIndex } = useCadDocumentStore.getState();
   const placement = creationPlacementForEvaluationLimit(
     elements,
     insertionIndex,
@@ -153,7 +161,7 @@ export const commitPendingImageImport = ({
     targetPixelsPerMm,
     scale: initialImageScale(sourceDpi, targetPixelsPerMm)
   };
-  commitCreatedImage(imageElement, elements, insertionIndex);
+  commitCreatedImage(imageElement, elements, insertionIndex, evaluationLimitIndex);
 };
 
 const metadataErrorMessage = (error: unknown) =>

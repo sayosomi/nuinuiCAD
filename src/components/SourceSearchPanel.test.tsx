@@ -10,6 +10,7 @@ const makeHandle = (): SourceEditorHandle => ({
   getText: vi.fn(() => ""),
   setEvaluation: vi.fn(),
   jumpToElement: vi.fn(),
+  jumpToElementEnd: vi.fn(),
   jumpToParameterValue: vi.fn(() => false),
   applyPickCandidate: vi.fn(() => true),
   pickCandidateElementIds: vi.fn(() => []),

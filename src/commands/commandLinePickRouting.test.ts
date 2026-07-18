@@ -318,18 +318,22 @@ describe("command-line pick routing", () => {
     expect(useCadUiStore.getState().activePointPickTarget).toEqual({
       elementId: COMMAND_LINE_PICK_TARGET_ID,
       parameterKey: "startPoint",
-      insertionIndex: 2
+      insertionIndex: 3
     });
     expect(activePickCandidates().map((candidate) => candidate.elementId)).toEqual([
       "point-template@loop:0",
-      "point-template@loop:1"
+      "point-template@loop:1",
+      "inside@loop:0",
+      "inside@loop:1"
     ]);
     applyPickedPoint({ pickedPointAnchor: referenceAnchor("point-template@loop:1") });
     expect(useCadUiStore.getState().commandLineSession?.args.startPoint).toEqual(referenceAnchor("point-template"));
     expect(startCommandLineStepEdit(0)).toBe(true);
     expect(activePickCandidates().map((candidate) => candidate.elementId)).toEqual([
       "point-template@loop:0",
-      "point-template@loop:1"
+      "point-template@loop:1",
+      "inside@loop:0",
+      "inside@loop:1"
     ]);
     expect(cancelCommandLineStepEdit()).toBe(true);
     applyPickedPoint({ pickedPointAnchor: { mode: "coordinate", x: 20, y: 0 } });

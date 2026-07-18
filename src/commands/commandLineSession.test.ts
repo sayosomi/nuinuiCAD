@@ -11,7 +11,6 @@ import {
   currentStep,
   effectiveCommandLineArgs,
   fillCurrentStep,
-  insertionIndexForCommandLineSession,
   isEditingCommandLineStep,
   retreatStep,
   sessionCanConfirm,
@@ -208,10 +207,4 @@ describe("commandLineSession", () => {
     expect(session.nameSuggestion).toBe("直線 2");
   });
 
-  it("chooses a resolved cursor statement index and otherwise uses existing placement", () => {
-    const placement = { insertionIndex: 4 };
-    expect(insertionIndexForCommandLineSession(2, placement)).toBe(2);
-    expect(insertionIndexForCommandLineSession(null, placement)).toBe(4);
-    expect(insertionIndexForCommandLineSession(-1, placement)).toBe(4);
-  });
 });

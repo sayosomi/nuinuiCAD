@@ -433,7 +433,17 @@ describe("dslDocument @stop / evaluationLimitIndex", () => {
     const source = ["point A = coordinate(x: 0 y: 0)", "point B = coordinate(x: 1 y: 1)"].join("\n");
     const { text, parsed } = roundTrip(source);
     expect(text).not.toContain("@stop");
+    expect(parsed.evaluationLimitIndex).toBeUndefined();
+  });
+
+  it("round-trips an explicit terminal @stop without conflating it with no marker", () => {
+    const source = ["point A = coordinate(x: 0 y: 0)", "point B = coordinate(x: 1 y: 1)", "@stop"].join("\n");
+    const { document, parsed, text } = roundTrip(source);
+
+    expect(document.evaluationLimitIndex).toBe(2);
     expect(parsed.evaluationLimitIndex).toBe(2);
+    expect(text.split("\n").filter((line) => line === "@stop")).toHaveLength(1);
+    expect(text.trimEnd().endsWith("@stop")).toBe(true);
   });
 
   it("places @stop before the first element when evaluationLimitIndex is 0", () => {

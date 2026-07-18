@@ -42,7 +42,12 @@ export const addForGroup = (context?: CommandContext) => {
       group,
       ...elements.slice(insertionIndex)
     ],
-    evaluationLimitIndex: insertionIndex + 1
+    evaluationLimitIndex: adjustEvaluationLimitForInsertion({
+      elements,
+      evaluationLimitIndex,
+      insertionIndex,
+      insertedCount: 1
+    })
   }, {
     selectedElementId: group.id,
     selectedElementIds: [group.id],

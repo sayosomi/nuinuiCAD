@@ -404,7 +404,7 @@ describe("DrawingCanvas command-line ghost isolation", () => {
           y: 0
         }
       ],
-      evaluationLimitIndex: document.evaluationLimitIndex + 1
+      evaluationLimitIndex: (document.evaluationLimitIndex ?? document.elements.length) + 1
     });
     useCadUiStore.getState().setCommandLineSession(startSession(creationRecipeForType("freePoint")!, {
       insertionIndex: document.elements.length,

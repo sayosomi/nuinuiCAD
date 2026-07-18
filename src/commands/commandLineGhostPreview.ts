@@ -1,13 +1,11 @@
 import { evaluateElements } from "../geometry/evaluate";
 import {
   applyCreationPlacement,
-  creationPlacementForEvaluationLimit
+  creationPlacementForTarget
 } from "../model/elementCreationPlacement";
 import { adjustEvaluationLimitForInsertion } from "../model/evaluationDivider";
-import type { GroupFoldById } from "../model/groups";
 import { findParameterDefinition } from "../parameters/parameterDefinitions";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
-import { useCadUiStore } from "../state/cadUiStore";
 import type { CadElement } from "../types/geometry";
 import { emitCreationRecipe } from "./creationRecipes";
 import { effectiveCommandLineArgs, type CommandLineSession } from "./commandLineSession";
@@ -26,7 +24,7 @@ const isReferenceStep = (kind: CommandLineSession["recipe"]["steps"][number]["ki
  * prompts caused "missing-input", without changing this global classification.
  */
 export type CommandLineGhostPreviewStatus =
-  | { kind: "preview"; elements: CadElement[]; evaluationLimitIndex: number }
+  | { kind: "preview"; elements: CadElement[]; evaluationLimitIndex: number | undefined }
   | { kind: "missing-input" }
   | { kind: "invalid" }
   | { kind: "not-evaluated" };
@@ -34,19 +32,18 @@ export type CommandLineGhostPreviewStatus =
 type CommandLineGhostPreviewInput = {
   session: CommandLineSession;
   elements: CadElement[];
-  evaluationLimitIndex: number;
-  groupFoldById: GroupFoldById;
+  evaluationLimitIndex: number | undefined;
 };
 
 const emittedCommandLineGhostCandidate = ({
   session,
   elements,
-  groupFoldById
+  evaluationLimitIndex
 }: CommandLineGhostPreviewInput) => {
-  const placement = creationPlacementForEvaluationLimit(
+  const placement = creationPlacementForTarget(
     elements,
-    session.insertionIndex,
-    groupFoldById
+    session.insertionTarget,
+    evaluationLimitIndex
   );
   return {
     placement,
@@ -91,28 +88,26 @@ export const commandLineMissingRequiredStepIndexes = (input: CommandLineGhostPre
 export const commandLineGhostPreviewStatus = ({
   session,
   elements,
-  evaluationLimitIndex,
-  groupFoldById
+  evaluationLimitIndex
 }: CommandLineGhostPreviewInput): CommandLineGhostPreviewStatus => {
   const { emitted } = emittedCommandLineGhostCandidate({
     session,
     elements,
-    evaluationLimitIndex,
-    groupFoldById
+    evaluationLimitIndex
   });
   if (missingRequiredStepIndexesFor(session, emitted).length > 0) {
     return { kind: "missing-input" };
   }
 
   const previewElements = [
-    ...elements.slice(0, session.insertionIndex),
+    ...elements.slice(0, session.insertionTarget.insertionIndex),
     emitted,
-    ...elements.slice(session.insertionIndex)
+    ...elements.slice(session.insertionTarget.insertionIndex)
   ];
   const previewEvaluationLimitIndex = adjustEvaluationLimitForInsertion({
     elements,
     evaluationLimitIndex,
-    insertionIndex: session.insertionIndex,
+    insertionIndex: session.insertionTarget.insertionIndex,
     insertedCount: 1
   });
   const evaluation = evaluateElements(previewElements, {
@@ -155,8 +150,7 @@ export const syncCommandLineGhostPreview = (
   const status = commandLineGhostPreviewStatus({
     session,
     elements: document.elements,
-    evaluationLimitIndex: document.evaluationLimitIndex,
-    groupFoldById: useCadUiStore.getState().groupFoldById
+    evaluationLimitIndex: document.evaluationLimitIndex
   });
   if (status.kind !== "preview") {
     document.clearPreviewDocumentChange();

@@ -22,8 +22,7 @@ const previewFor = (
   return commandLineGhostPreview({
     session,
     elements: document.elements,
-    evaluationLimitIndex: document.evaluationLimitIndex,
-    groupFoldById: new Map()
+    evaluationLimitIndex: document.evaluationLimitIndex
   });
 };
 
@@ -49,16 +48,14 @@ describe("command-line ghost preview", () => {
     expect(commandLineGhostPreview({
       session,
       elements: document.elements,
-      evaluationLimitIndex: document.evaluationLimitIndex,
-      groupFoldById: new Map()
+      evaluationLimitIndex: document.evaluationLimitIndex
     })).toBeNull();
 
     session = skipCurrentStep(session);
     expect(commandLineGhostPreview({
       session,
       elements: document.elements,
-      evaluationLimitIndex: document.evaluationLimitIndex,
-      groupFoldById: new Map()
+      evaluationLimitIndex: document.evaluationLimitIndex
     })?.elements.at(-1)).toMatchObject({ type: "lineDivisionPoint", ratio: 1 });
   });
 
@@ -83,16 +80,14 @@ describe("command-line ghost preview", () => {
     expect(commandLineGhostPreview({
       session,
       elements: document.elements,
-      evaluationLimitIndex: document.evaluationLimitIndex,
-      groupFoldById: new Map()
+      evaluationLimitIndex: document.evaluationLimitIndex
     })).toBeNull();
     // Step-edit confirmation depends on this distinction: an out-of-evaluation
     // position is "not-evaluated", never "invalid".
     expect(commandLineGhostPreviewStatus({
       session,
       elements: document.elements,
-      evaluationLimitIndex: document.evaluationLimitIndex,
-      groupFoldById: new Map()
+      evaluationLimitIndex: document.evaluationLimitIndex
     })).toEqual({ kind: "not-evaluated" });
   });
 
@@ -110,8 +105,7 @@ describe("command-line ghost preview", () => {
     expect(commandLineGhostPreviewStatus({
       session,
       elements: document.elements,
-      evaluationLimitIndex: document.evaluationLimitIndex,
-      groupFoldById: new Map()
+      evaluationLimitIndex: document.evaluationLimitIndex
     })).toEqual({ kind: "invalid" });
   });
 });
