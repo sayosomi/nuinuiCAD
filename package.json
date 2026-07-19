@@ -13,6 +13,7 @@
     "desktop:build": "tauri build",
     "lint": "eslint .",
     "test": "vitest run",
+    "test:performance:reconciler": "vitest run src/document/statementReconciler.performance.test.ts --pool=forks --maxWorkers=1 --no-file-parallelism --disableConsoleIntercept",
     "test:parity": "VITE_RUN_RUST_PARITY=1 vitest run test/evaluationParity.test.ts",
     "bench:evaluation": "cargo test --manifest-path src-tauri/Cargo.toml performance_ -- --ignored --nocapture",
     "test:watch": "vitest"
