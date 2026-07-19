@@ -59,6 +59,8 @@ mod tests;
 mod text_evaluator;
 #[cfg(test)]
 mod three_point_arc_line_tests;
+#[cfg(test)]
+mod typed_variables_performance_tests;
 mod types;
 mod variable_evaluator;
 
