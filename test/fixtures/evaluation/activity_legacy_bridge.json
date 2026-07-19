@@ -1,0 +1,12 @@
+{
+  "elements": [
+    { "id": "hidden", "name": "Hidden", "type": "freePoint", "visible": false, "enabled": true, "x": 0, "y": 0 },
+    { "id": "hidden-consumer", "name": "HiddenConsumer", "type": "offsetPoint", "visible": true, "enabled": true, "fromPoint": { "mode": "reference", "pointId": "hidden" }, "dx": 10, "dy": 0 },
+    { "id": "disabled", "name": "Disabled", "type": "freePoint", "visible": false, "enabled": false, "x": 20, "y": 0 },
+    { "id": "disabled-consumer", "name": "DisabledConsumer", "type": "offsetPoint", "visible": true, "enabled": true, "fromPoint": { "mode": "reference", "pointId": "disabled" }, "dx": 10, "dy": 0 },
+    { "id": "group", "name": "DisabledGroup", "type": "group", "visible": false, "enabled": false },
+    { "id": "group-child", "name": "GroupChild", "type": "freePoint", "parentGroupId": "group", "visible": true, "enabled": true, "x": 40, "y": 0 },
+    { "id": "loop", "name": "Loop", "type": "forGroup", "visible": false, "enabled": true, "variableName": "i", "start": 0, "count": 2, "step": 1, "showGenerated": true },
+    { "id": "template", "name": "Repeated", "type": "freePoint", "parentGroupId": "loop", "visible": true, "enabled": true, "x": { "kind": "expression", "expression": "@i" }, "y": 0 }
+  ]
+}

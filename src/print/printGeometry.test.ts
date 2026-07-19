@@ -148,6 +148,25 @@ describe("printGeometry", () => {
     ]);
   });
 
+  it("uses activity predicates when an evaluation payload has no display masks", () => {
+    const hiddenElements = elements.map((element) =>
+      element.id === "printed-line" ? { ...element, visible: false } : element
+    );
+    const evaluation = evaluateElements(hiddenElements);
+    const paths = printablePathsForLayout({
+      elements: hiddenElements,
+      evaluation: {
+        ...evaluation,
+        effectiveVisibleElementIds: undefined,
+        effectiveEnabledElementIds: undefined
+      },
+      layout: layout()
+    });
+
+    expect(evaluation.computedGeometry.has("printed-line")).toBe(true);
+    expect(paths).toEqual([]);
+  });
+
   it("applies linear scale and mirroring around the group print anchor", () => {
     const paths = printablePathsForLayout({
       elements,

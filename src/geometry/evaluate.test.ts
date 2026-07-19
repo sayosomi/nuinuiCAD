@@ -236,6 +236,23 @@ describe("evaluateElements", () => {
     expect(result.errors[0].message).toContain("評価OFF");
   });
 
+  it("keeps hidden dependencies evaluable and excludes disabled dependencies", () => {
+    const result = evaluateElements([
+      { id: "hidden", name: "hidden", type: "freePoint", visible: false, enabled: true, x: 0, y: 0 },
+      { id: "hidden-child", name: "hidden child", type: "offsetPoint", visible: true, enabled: true, fromPoint: { mode: "reference", pointId: "hidden" }, dx: 1, dy: 0 },
+      { id: "disabled", name: "disabled", type: "freePoint", visible: false, enabled: false, x: 10, y: 0 },
+      { id: "disabled-child", name: "disabled child", type: "offsetPoint", visible: true, enabled: true, fromPoint: { mode: "reference", pointId: "disabled" }, dx: 1, dy: 0 }
+    ]);
+
+    expect(result.computedGeometry.has("hidden")).toBe(true);
+    expect(result.computedGeometry.has("hidden-child")).toBe(true);
+    expect(result.effectiveVisibleElementIds?.has("hidden")).toBe(false);
+    expect(result.computedGeometry.has("disabled")).toBe(false);
+    expect(result.computedGeometry.has("disabled-child")).toBe(false);
+    expect(result.effectiveEnabledElementIds?.has("disabled")).toBe(false);
+    expect(result.errors.some((error) => error.elementId === "disabled-child")).toBe(true);
+  });
+
   it("evaluates only the then branch of a conditional group when condition is non-zero", () => {
     const result = evaluateElements([
       {

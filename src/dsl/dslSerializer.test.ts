@@ -233,7 +233,6 @@ describe("serializeElementsToDsl flat output", () => {
       point hidden = coordinate(
         x: 5
         y: 5
-        visible: false
         enabled: false
         color: main
         id: p8

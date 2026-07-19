@@ -1,3 +1,6 @@
+mod activity;
+#[cfg(test)]
+mod activity_tests;
 #[cfg(test)]
 mod bezier_curve_tests;
 mod bezier_evaluator;
@@ -68,6 +71,7 @@ use std::collections::{HashMap, HashSet};
 
 use serde_json::Value;
 
+use activity::effective_activity_by_element_id;
 use bezier_evaluator::evaluate_bezier_curve;
 use corner_radius_evaluator::evaluate_corner_radius_arc_line;
 use edge_extend_evaluator::{evaluate_edge, evaluate_extend_trim};
@@ -207,13 +211,14 @@ fn evaluate_document_input(input: EvaluationInput) -> EvaluationPayload {
     let evaluated_elements = input.elements[..evaluation_limit_index].to_vec();
     let evaluated_ids: HashSet<ElementId> =
         evaluated_elements.iter().filter_map(element_id).collect();
-    let group_states = group_state_by_element_id(&input.elements);
+    let activities = effective_activity_by_element_id(&input.elements);
+    let group_states = group_state_by_element_id(&input.elements, &activities);
     let mut effective_visible_element_ids =
-        effective_element_ids(&input.elements, &group_states, true)
+        effective_element_ids(&input.elements, &activities, true)
             .into_iter()
             .filter(|id| evaluated_ids.contains(id))
             .collect::<Vec<_>>();
-    let base_effective_enabled_ids = effective_element_ids(&input.elements, &group_states, false)
+    let base_effective_enabled_ids = effective_element_ids(&input.elements, &activities, false)
         .into_iter()
         .filter(|id| evaluated_ids.contains(id))
         .collect::<HashSet<_>>();

@@ -101,7 +101,7 @@ describe("DSL v2 compiler argument application", () => {
     ], resolvers);
     expect(between.element).toMatchObject({
       startPoint: referenceAnchor("p1"), endPoint: referenceAnchor("p2"), ratio: 0.25,
-      placementMode: "ratio", locked: true, visible: false, enabled: false, colorId: "red",
+      placementMode: "ratio", locked: true, visible: true, enabled: false, colorId: "red",
     });
 
     const curve = applyArgs(sample("bezierCurve"), constructionFor("curve", "bezier")!, [
