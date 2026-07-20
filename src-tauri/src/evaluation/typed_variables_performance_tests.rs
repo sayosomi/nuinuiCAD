@@ -2,7 +2,10 @@ use std::time::Instant;
 
 use serde_json::{json, Value};
 
-use super::{evaluate_document_input, EvaluationInput, EvaluationPayload};
+use super::{
+    activity::effective_activity_by_element_id, evaluate_document_input, EvaluationInput,
+    EvaluationPayload,
+};
 
 const WARM_UP_RUNS: usize = 5;
 const TRIALS: usize = 21;
@@ -78,6 +81,24 @@ fn for_group_elements(generated_row_count: usize) -> Vec<Value> {
             "y": 0
         }),
     ]
+}
+
+fn activity_chain_elements(count: usize) -> Vec<Value> {
+    (0..count)
+        .map(|index| {
+            let mut element = json!({
+                "id": format!("group-{index}"),
+                "name": format!("group-{index}"),
+                "type": "group",
+                "visible": index % 3 != 1,
+                "enabled": index % 5 != 2,
+            });
+            if index > 0 {
+                element["parentGroupId"] = Value::String(format!("group-{}", index - 1));
+            }
+            element
+        })
+        .collect()
 }
 
 fn timing_stats(samples: &mut [f64]) -> TimingStats {
@@ -225,4 +246,41 @@ fn performance_typed_variable_for_group_baseline() {
             stats: &large_stats,
         },
     );
+}
+
+#[test]
+#[ignore]
+fn performance_element_activity_composition_baseline() {
+    let measure = |elements: Vec<Value>| {
+        for _ in 0..WARM_UP_RUNS {
+            let _ = effective_activity_by_element_id(&elements);
+        }
+        let mut samples = Vec::with_capacity(TRIALS);
+        for _ in 0..TRIALS {
+            let started = Instant::now();
+            let resolved = effective_activity_by_element_id(&elements);
+            samples.push(started.elapsed().as_secs_f64() * 1_000.0);
+            assert_eq!(resolved.len(), elements.len());
+        }
+        timing_stats(&mut samples)
+    };
+    let small = measure(activity_chain_elements(250));
+    let large = measure(activity_chain_elements(1_000));
+    let scaling_ratio = large.median_ms / small.median_ms.max(f64::EPSILON);
+    eprintln!(
+        "[typedVariables baseline] {}",
+        json!({
+            "area": "rustElementActivityComposition",
+            "metric": "wallTimeMs",
+            "warmUpRuns": WARM_UP_RUNS,
+            "trials": TRIALS,
+            "runsPerTrial": 1,
+            "small": { "statementCount": 250, "medianMs": small.median_ms, "p95Ms": small.p95_ms },
+            "large": { "statementCount": 1_000, "medianMs": large.median_ms, "p95Ms": large.p95_ms },
+            "scalingRatio": scaling_ratio,
+        })
+    );
+    assert!(small.median_ms.is_finite() && small.p95_ms.is_finite());
+    assert!(large.median_ms.is_finite() && large.p95_ms.is_finite());
+    assert!(scaling_ratio.is_finite());
 }

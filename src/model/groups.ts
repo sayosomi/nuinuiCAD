@@ -5,6 +5,12 @@ import type {
   ForGroupElement,
   GroupElement
 } from "../types/geometry";
+import {
+  effectiveDrawElementIds,
+  effectiveElementActivity,
+  effectiveElementActivityById,
+  effectiveEvaluationElementIds
+} from "./elementActivity";
 
 export type GroupLikeElement = GroupElement | ConditionalGroupElement | ForGroupElement;
 
@@ -65,6 +71,7 @@ export type ElementGroupState = {
 
 export const groupStateByElementId = (elements: CadElement[], groupFoldById?: GroupFoldById) => {
   const byId = new Map(elements.map((element) => [element.id, element]));
+  const activities = effectiveElementActivityById(elements);
   const cache = new Map<ElementId, ElementGroupState>();
 
   const stateFor = (element: CadElement, visiting = new Set<ElementId>()): ElementGroupState => {
@@ -112,8 +119,10 @@ export const groupStateByElementId = (elements: CadElement[], groupFoldById?: Gr
     const state: ElementGroupState = {
       depth: parentState.depth + 1,
       ancestorGroupIds: [...parentState.ancestorGroupIds, parent.id],
-      hiddenByGroupId: parentState.hiddenByGroupId ?? (!parent.visible ? parent.id : null),
-      disabledByGroupId: parentState.disabledByGroupId ?? (!parent.enabled ? parent.id : null),
+      hiddenByGroupId: parentState.hiddenByGroupId ??
+        (effectiveElementActivity(parent, activities).activity === "hidden" ? parent.id : null),
+      disabledByGroupId: parentState.disabledByGroupId ??
+        (effectiveElementActivity(parent, activities).activity === "disabled" ? parent.id : null),
       isCollapsedByGroup: collapsedByParent
     };
     cache.set(element.id, state);
@@ -170,21 +179,11 @@ export const visibleOutlineElements = (elements: CadElement[], groupFoldById?: G
 };
 
 export const effectiveVisibleElementIds = (elements: CadElement[]) => {
-  const states = groupStateByElementId(elements);
-  return new Set(
-    elements
-      .filter((element) => element.visible && !states.get(element.id)?.hiddenByGroupId)
-      .map((element) => element.id)
-  );
+  return effectiveDrawElementIds(elements);
 };
 
 export const effectiveEnabledElementIds = (elements: CadElement[]) => {
-  const states = groupStateByElementId(elements);
-  return new Set(
-    elements
-      .filter((element) => element.enabled && !states.get(element.id)?.disabledByGroupId)
-      .map((element) => element.id)
-  );
+  return effectiveEvaluationElementIds(elements);
 };
 
 export const nearestPreviousGroup = (

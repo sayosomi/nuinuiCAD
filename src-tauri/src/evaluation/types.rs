@@ -61,7 +61,6 @@ pub struct EvaluationPayload {
 
 #[derive(Clone, Debug, Default)]
 pub(crate) struct GroupState {
-    pub(crate) hidden_by_group_id: Option<ElementId>,
     pub(crate) disabled_by_group_id: Option<ElementId>,
 }
 

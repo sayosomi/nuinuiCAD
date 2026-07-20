@@ -1,6 +1,7 @@
 import { evaluateNumericValue } from "../geometry/numericExpressions";
 import { parseForGroupGeneratedElementId } from "../model/forGroupGeneratedReferences";
 import { descendantIdsForGroup } from "../model/groups";
+import { effectiveDrawElementIds, effectiveEvaluationElementIds } from "../model/elementActivity";
 import { resolveDerivedPoint } from "../model/pointAnchors";
 import {
   effectiveVisibleElementIdsForProfile,
@@ -312,14 +313,14 @@ export const printableItemsForLayout = ({
 }): PrintableItems => {
   const geometries = Array.from(evaluation.computedGeometry.values());
   const resolvedLayout = resolvePrintLayout({ layout, elements, evaluation });
-  const baseVisibleIds = evaluation.effectiveVisibleElementIds ?? new Set(elements.map((element) => element.id));
+  const baseVisibleIds = evaluation.effectiveVisibleElementIds ?? effectiveDrawElementIds(elements);
   const profile = visibilityProfileById(
     visibilityProfiles,
     layout.visibilityProfileId ?? activeVisibilityProfileId
   );
   const profileVisibleIds = effectiveVisibleElementIdsForProfile({ elements, profile });
   const visibleIds = new Set([...baseVisibleIds].filter((id) => profileVisibleIds.has(id)));
-  const enabledIds = evaluation.effectiveEnabledElementIds ?? new Set(elements.map((element) => element.id));
+  const enabledIds = evaluation.effectiveEnabledElementIds ?? effectiveEvaluationElementIds(elements);
   const groupsById = new Map(printableGroups(elements).map((group) => [group.id, group]));
   const items: PrintableItems = { paths: [], texts: [] };
 

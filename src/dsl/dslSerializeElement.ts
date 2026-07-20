@@ -10,6 +10,7 @@ import {
 } from "./dslConstructions";
 import type { DslSerializerRefs } from "./dslSerializer";
 import { formatDslName, quoteDslString } from "./dslTokens";
+import { elementActivityFromLegacyFlags, legacyFlagsForElementActivity } from "../model/elementActivity";
 
 export type SerializedStatement = {
   header: string;
@@ -138,20 +139,22 @@ const constructionArgs = (element: CadElement, spec: DslConstructionSpec, refs: 
 const commonArgs = (
   element: CadElement,
   refs: DslSerializerRefs,
-  constructionArgNames: ReadonlySet<string> = new Set(),
-) =>
-  commonArgSpecs
+  constructionArgNames: ReadonlySet<string> = new Set()
+) => {
+  const legacyActivityFlags = legacyFlagsForElementActivity(elementActivityFromLegacyFlags(element));
+  return commonArgSpecs
     .filter((arg) => {
       if (constructionArgNames.has(arg.arg)) return false;
       if (arg.special) return specialArgText(element, arg, refs) !== null;
       const key = arg.parameterKey ?? arg.arg;
       if (key === "locked") return element.locked === true;
-      if (key === "visible") return element.visible === false;
-      if (key === "enabled") return element.enabled === false;
+      if (key === "visible") return legacyActivityFlags.visible === false;
+      if (key === "enabled") return legacyActivityFlags.enabled === false;
       return key === "colorId" && Boolean(element.colorId);
     })
     .map((arg) => serializeArg(element, arg, refs))
     .filter((arg): arg is { key: string; text: string } => arg !== null);
+};
 
 const positionalText = (element: CadElement, arg: DslArgSpec, refs: DslSerializerRefs) => {
   const key = arg.parameterKey ?? arg.arg;

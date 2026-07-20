@@ -99,14 +99,14 @@ describe("DSL v2 element serializer", () => {
       header: 'point "前 身" = coordinate(',
       args: [
         { key: "x", text: "x: -(bust / 4)" }, { key: "y", text: "y: -2" },
-        { key: "locked", text: "locked: true" }, { key: "visible", text: "visible: false" },
-        { key: "enabled", text: "enabled: false" }, { key: "color", text: "color: pattern-black" },
+        { key: "locked", text: "locked: true" }, { key: "enabled", text: "enabled: false" },
+        { key: "color", text: "color: pattern-black" },
         { key: "steps", text: "steps: [x: 0.1]" }, { key: "vars", text: "vars: [幅: 12]" },
       ],
       close: ")",
     });
     expect(serializeElementStatementLogical(point, refs)).toBe(
-      'point "前 身" = coordinate(x: -(bust / 4) y: -2 locked: true visible: false enabled: false color: pattern-black steps: [x: 0.1] vars: [幅: 12])',
+      'point "前 身" = coordinate(x: -(bust / 4) y: -2 locked: true enabled: false color: pattern-black steps: [x: 0.1] vars: [幅: 12])',
     );
 
     const curve = {
@@ -132,7 +132,7 @@ describe("DSL v2 element serializer", () => {
     const args = serializeElementStatementBlock(division, flatRefs()).args;
     expect(args.map((arg) => arg.key)).toEqual([
       "start", "end", "distance",
-      ...commonArgSpecs.filter((arg) => arg.arg !== "roles").map((arg) => arg.arg),
+      ...commonArgSpecs.filter((arg) => arg.arg !== "roles" && arg.arg !== "visible").map((arg) => arg.arg),
     ]);
     expect(args.map((arg) => arg.text)).toContain("parent: g1");
     expect(args.map((arg) => arg.text)).toContain("branch: else");

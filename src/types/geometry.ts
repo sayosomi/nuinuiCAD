@@ -3,6 +3,7 @@ export type ElementId = string;
 export type CadElementBase = {
   id: ElementId;
   name: string;
+  /** Legacy v2 DSL / IPC activity flags. Runtime policy lives in elementActivity.ts. */
   visible: boolean;
   enabled: boolean;
   locked?: boolean;

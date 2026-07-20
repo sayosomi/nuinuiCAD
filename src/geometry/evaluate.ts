@@ -1,12 +1,15 @@
 import type { CadElement, ComputedGeometry, ComputedVariable, DependencyError, ElementId, EvaluationResult, EvaluationWarning } from "../types/geometry";
 import {
-  effectiveEnabledElementIds,
-  effectiveVisibleElementIds,
-  groupStateByElementId,
   isConditionalGroupElement,
   isForGroupElement,
   isGroupElement
 } from "../model/groups";
+import {
+  activityAllowsEvaluation,
+  activityAllowsDrawing,
+  effectiveElementActivity,
+  effectiveElementActivityById
+} from "../model/elementActivity";
 import { evaluateLocalVariables, numericError } from "./evaluationContext";
 import { evaluateElement } from "./elementEvaluators";
 import { evaluateVariableElement } from "./variableEvaluator";
@@ -36,17 +39,22 @@ export const evaluateElements = (
   const elementsById = new Map(elements.map((element) => [element.id, element]));
   const runtimeElementsById = new Map(elementsById);
   const runtimeElements = [...evaluatedElements];
-  const effectiveVisibleIds = new Set(
-    [...effectiveVisibleElementIds(elements)].filter((id) => evaluatedElementIds.has(id))
-  );
-  const baseEffectiveEnabledIds = new Set(
-    [...effectiveEnabledElementIds(elements)].filter((id) => evaluatedElementIds.has(id))
-  );
-  const groupStates = groupStateByElementId(elements);
+  const activities = effectiveElementActivityById(elements);
+  const effectiveVisibleIds = new Set(elements
+    .filter((element) => evaluatedElementIds.has(element.id) &&
+      activityAllowsDrawing(effectiveElementActivity(element, activities).activity))
+    .map((element) => element.id));
+  const baseEffectiveEnabledIds = new Set(elements
+    .filter((element) => evaluatedElementIds.has(element.id) &&
+      activityAllowsEvaluation(effectiveElementActivity(element, activities).activity))
+    .map((element) => element.id));
   const disabledByGroupId = new Map<ElementId, ElementId>(
     elements.flatMap((element) => {
-      const disabledBy = groupStates.get(element.id)?.disabledByGroupId;
-      return disabledBy ? [[element.id, disabledBy] as const] : [];
+      const disabledBy = effectiveElementActivity(element, activities).disabledByElementId;
+      const disabledByElement = disabledBy ? elementsById.get(disabledBy) : undefined;
+      return disabledBy && disabledByElement && isGroupElement(disabledByElement)
+        ? [[element.id, disabledBy] as const]
+        : [];
     })
   );
   const conditionalGroupStates = new Map<ElementId, "then" | "else" | null>();
