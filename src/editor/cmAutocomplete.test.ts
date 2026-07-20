@@ -211,7 +211,7 @@ describe("createDslCompletionSource", () => {
     const state = EditorState.create({ doc: source });
     const ranges = new Map([...ids].map(([line, elementId]) => [
       elementId,
-      { elementId, from: state.doc.line(line).from, to: state.doc.line(line).to, statement: {} as never }
+      { elementId, from: state.doc.line(line).from, to: state.doc.line(line).to, statement: {} as never, foldTargets: [] }
     ]));
     const pos = source.indexOf("@Wi") + 3;
     const completionSource = createDslCompletionSource({
@@ -239,7 +239,7 @@ describe("createDslCompletionSource", () => {
     const state = EditorState.create({ doc: source });
     const ranges = new Map([...ids].map(([line, elementId]) => [
       elementId,
-      { elementId, from: state.doc.line(line).from, to: state.doc.line(line).to, statement: {} as never }
+      { elementId, from: state.doc.line(line).from, to: state.doc.line(line).to, statement: {} as never, foldTargets: [] }
     ]));
     const pos = source.indexOf("@Wi") + "@Wi".length;
     const completionSource = createDslCompletionSource({
@@ -303,7 +303,7 @@ describe("createDslCompletionSource", () => {
     const mainState = EditorState.create({ doc: source });
     const ranges = new Map([...ids].map(([line, elementId]) => [
       elementId,
-      { elementId, from: mainState.doc.line(line).from, to: mainState.doc.line(line).to, statement: {} as never }
+      { elementId, from: mainState.doc.line(line).from, to: mainState.doc.line(line).to, statement: {} as never, foldTargets: [] }
     ]));
     // The lens mirrors the whole statement's logical (row-joined) projection at
     // its own buffer offset 0 — a different EditorState than the main document,

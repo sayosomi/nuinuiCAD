@@ -434,8 +434,7 @@ export const addGroup = (context?: CommandContext) => {
   const { elements, evaluationLimitIndex } = useCadDocumentStore.getState();
   const placement = creationPlacementForEvaluationLimit(
     elements,
-    evaluationLimitIndex,
-    useCadUiStore.getState().groupFoldById
+    evaluationLimitIndex
   );
   const { insertionIndex } = placement;
   const group = applyCreationPlacement(

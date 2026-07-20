@@ -9,7 +9,7 @@ import { sourceEditSession } from "../editor/sourceEditSession";
 import type { CommandLineSession } from "../commands/commandLineSession";
 import type { ActiveTemplateInsertion } from "../templates/templateInsertionMode";
 import type { CadElement, ElementId, PointAnchor } from "../types/geometry";
-import type { GroupFoldState } from "../model/groups";
+import type { FoldTarget, GroupFoldState } from "../model/groups";
 
 export type MeasurementInsertMode = "distance" | "angle" | "lineDistance";
 export type MeasurementPointSlot = "point1" | "point2";
@@ -269,6 +269,10 @@ export type CadUiState = CadElementSelection & {
   setPrintPreviewWindow: (printPreviewWindow: PrintPreviewWindow) => void;
   updatePrintPreviewWindow: (patch: Partial<PrintPreviewWindow>) => void;
   setReferenceHelperPosition: (referenceHelperPosition: ReferenceHelperPosition) => void;
+  /** Updates one presentation branch without changing document semantics. */
+  setFoldTargetExpanded: (target: FoldTarget, expanded: boolean) => void;
+  /** Batches many targets into a single groupFoldById update (one subscription notification). */
+  setFoldTargetsExpanded: (targets: readonly FoldTarget[], expanded: boolean) => void;
   setGroupFold: (id: ElementId, patch: GroupFoldState) => void;
   toggleGroupExpanded: (id: ElementId) => void;
   toggleElseExpanded: (id: ElementId) => void;
@@ -332,6 +336,8 @@ export const initialCadUiState = (): Omit<
   | "setPrintPreviewWindow"
   | "updatePrintPreviewWindow"
   | "setReferenceHelperPosition"
+  | "setFoldTargetExpanded"
+  | "setFoldTargetsExpanded"
   | "setGroupFold"
   | "toggleGroupExpanded"
   | "toggleElseExpanded"
@@ -573,11 +579,55 @@ export const useCadUiStore = create<CadUiState>((set, get) => ({
         y: Math.round(referenceHelperPosition.y)
       }
     }),
+  setFoldTargetExpanded: (target, expanded) =>
+    set((state) => {
+      const previous = state.groupFoldById.get(target.elementId) ?? {};
+      const patch = target.branch === "statement"
+        ? { statementExpanded: expanded }
+        : target.branch === "primary"
+          ? { expanded }
+          : { elseExpanded: expanded };
+      const next = { ...previous, ...patch };
+      if (
+        previous.expanded === next.expanded &&
+        previous.elseExpanded === next.elseExpanded &&
+        previous.statementExpanded === next.statementExpanded
+      ) return {};
+      const groupFoldById = new Map(state.groupFoldById);
+      groupFoldById.set(target.elementId, next);
+      return { groupFoldById };
+    }),
+  setFoldTargetsExpanded: (targets, expanded) =>
+    set((state) => {
+      const groupFoldById = new Map(state.groupFoldById);
+      let changed = false;
+      for (const target of targets) {
+        const previous = groupFoldById.get(target.elementId) ?? {};
+        const patch = target.branch === "statement"
+          ? { statementExpanded: expanded }
+          : target.branch === "primary"
+            ? { expanded }
+            : { elseExpanded: expanded };
+        const next = { ...previous, ...patch };
+        if (
+          previous.expanded === next.expanded &&
+          previous.elseExpanded === next.elseExpanded &&
+          previous.statementExpanded === next.statementExpanded
+        ) continue;
+        groupFoldById.set(target.elementId, next);
+        changed = true;
+      }
+      return changed ? { groupFoldById } : {};
+    }),
   setGroupFold: (id, patch) =>
     set((state) => {
       const previous = state.groupFoldById.get(id) ?? {};
       const next = { ...previous, ...patch };
-      if (previous.expanded === next.expanded && previous.elseExpanded === next.elseExpanded) return {};
+      if (
+        previous.expanded === next.expanded &&
+        previous.elseExpanded === next.elseExpanded &&
+        previous.statementExpanded === next.statementExpanded
+      ) return {};
       const groupFoldById = new Map(state.groupFoldById);
       groupFoldById.set(id, next);
       return { groupFoldById };

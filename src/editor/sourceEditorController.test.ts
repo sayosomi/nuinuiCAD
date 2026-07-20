@@ -35,8 +35,7 @@ type ControllerInternals = {
     from: number;
     to: number;
     statement: { closeBraceLine?: number };
-    groupFoldRange?: { from: number; to: number };
-    elseFoldRange?: { from: number; to: number };
+    foldTargets: Array<{ branch: "statement" | "primary" | "else"; gutterLineFrom: number; foldFrom: number; foldTo: number }>;
   }>;
   view: {
     state: {
@@ -53,7 +52,8 @@ type ControllerInternals = {
   };
   runUndo: () => boolean;
   runRedo: () => boolean;
-  handleFoldGutterMouseDown: (lineFrom: number, event: MouseEvent) => boolean;
+  changeAllFolds: (expanded: boolean) => boolean;
+  handleFoldGutterClick: (lineFrom: number, event: MouseEvent) => boolean;
   handleValueClick: (event: MouseEvent, view: ControllerInternals["view"]) => boolean;
   navigateValueSpan: (direction: "next" | "previous") => boolean;
 };
@@ -113,10 +113,10 @@ describe("SourceEditorController commit and history boundaries", () => {
     const internals = controller as unknown as ControllerInternals;
     const group = useCadDocumentStore.getState().elements.find((element) => element.name === "分岐")!;
 
-    expect(internals.statementRanges.get(group.id)).toMatchObject({
-      groupFoldRange: expect.any(Object),
-      elseFoldRange: expect.any(Object)
-    });
+    expect(internals.statementRanges.get(group.id)?.foldTargets).toEqual(expect.arrayContaining([
+      expect.objectContaining({ branch: "primary" }),
+      expect.objectContaining({ branch: "else" })
+    ]));
 
     expect(controller.jumpToElementEnd(group.id)).toBe(true);
 
@@ -796,10 +796,25 @@ describe("SourceEditorController commit and history boundaries", () => {
     const openBraceLineAfterDirtyInsert = source.split("\n").findIndex((line) => line.includes("group G")) + 2;
 
     internals.view.dispatch({ changes: { from: 0, insert: "# dirty\n" } });
-    const handled = internals.handleFoldGutterMouseDown(internals.view.state.doc.line(openBraceLineAfterDirtyInsert).from, new MouseEvent("mousedown"));
+    const handled = internals.handleFoldGutterClick(internals.view.state.doc.line(openBraceLineAfterDirtyInsert).from, new MouseEvent("mousedown"));
 
     expect(handled).toBe(true);
     expect(useCadUiStore.getState().groupFoldById.get(group.id)?.expanded).toBe(true);
+    expect(foldedRanges(internals.view.state as never).size).toBe(0);
+    controller.destroy();
+  });
+
+  it("unfolds an invalidated dirty target instead of retaining a stale brace row", () => {
+    const source = ["nui 2", "group G {", "  point A = coordinate(x: 0 y: 0)", "}"].join("\n");
+    useCadDocumentStore.getState().commitText(source, "test");
+    const parent = document.createElement("div");
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+    const openBrace = internals.view.state.doc.toString().indexOf("{");
+
+    expect(foldedRanges(internals.view.state as never).size).toBeGreaterThan(0);
+    internals.view.dispatch({ changes: { from: openBrace, to: openBrace + 1, insert: "[" } });
+
     expect(foldedRanges(internals.view.state as never).size).toBe(0);
     controller.destroy();
   });
@@ -831,13 +846,138 @@ describe("SourceEditorController commit and history boundaries", () => {
     useCadUiStore.getState().setSelectedElementId(elsePoint.id);
 
     expect(useCadUiStore.getState().groupFoldById.get(outer.id)?.expanded).toBe(true);
-    expect(useCadUiStore.getState().groupFoldById.get(branch.id)).toMatchObject({ expanded: true, elseExpanded: true });
+    expect(useCadUiStore.getState().groupFoldById.get(branch.id)).toMatchObject({ elseExpanded: true });
     expect(useCadUiStore.getState().groupFoldById.get(inner.id)?.expanded).toBe(true);
     expect(internals.view.state.selection.main.head).toBe(internals.view.state.doc.line(lineOfElse).from);
 
-    internals.handleFoldGutterMouseDown(internals.view.state.doc.line(innerOpenBraceLine).from, new MouseEvent("mousedown"));
+    internals.handleFoldGutterClick(internals.view.state.doc.line(innerOpenBraceLine).from, new MouseEvent("mousedown"));
     expect(useCadUiStore.getState().groupFoldById.get(inner.id)?.expanded).toBe(false);
     expect(foldedRanges(internals.view.state as never).size).toBeGreaterThan(0);
+    controller.destroy();
+  });
+
+  it("folds and unfolds every currently valid conditional target", () => {
+    const source = [
+      "nui 2",
+      "if Choice (1) {",
+      "  point Then = coordinate(x: 0 y: 0)",
+      "} else {",
+      "  point Else = coordinate(x: 1 y: 1)",
+      "}"
+    ].join("\n");
+    useCadDocumentStore.getState().commitText(source, "test");
+    const parent = document.createElement("div");
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+    const conditional = useCadDocumentStore.getState().elements[0]!;
+
+    expect(internals.changeAllFolds(false)).toBe(true);
+    expect(useCadUiStore.getState().groupFoldById.get(conditional.id)).toMatchObject({
+      expanded: false,
+      elseExpanded: false
+    });
+    expect(foldedRanges(internals.view.state as never).size).toBe(2);
+
+    expect(internals.changeAllFolds(true)).toBe(true);
+    expect(useCadUiStore.getState().groupFoldById.get(conditional.id)).toMatchObject({
+      expanded: true,
+      elseExpanded: true
+    });
+    expect(foldedRanges(internals.view.state as never).size).toBe(0);
+    controller.destroy();
+  });
+
+  it("folds a multiline statement from its opening line while keeping its closing row visible", () => {
+    const source = [
+      "nui 2",
+      "point A = coordinate(x: 0 y: 0)",
+      "point B = offset(",
+      "  from: A",
+      "  dx: 100",
+      "  dy: 0",
+      ")"
+    ].join("\n");
+    useCadDocumentStore.getState().commitText(source, "test");
+    const parent = document.createElement("div");
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+    const pointB = useCadDocumentStore.getState().elements.find((element) => element.name === "B")!;
+    const openingLine = internals.view.state.doc.line(3);
+    const closeLine = internals.view.state.doc.line(7);
+
+    expect(internals.handleFoldGutterClick(openingLine.from, new MouseEvent("mousedown"))).toBe(true);
+    expect(useCadUiStore.getState().groupFoldById.get(pointB.id)?.statementExpanded).toBe(false);
+    const ranges: Array<{ from: number; to: number }> = [];
+    foldedRanges(internals.view.state as never).between(0, internals.view.state.doc.length, (from, to) => {
+      ranges.push({ from, to });
+    });
+    expect(ranges).toEqual([{ from: openingLine.to, to: closeLine.from }]);
+
+    expect(internals.handleFoldGutterClick(openingLine.from, new MouseEvent("mousedown"))).toBe(true);
+    expect(foldedRanges(internals.view.state as never).size).toBe(0);
+    controller.destroy();
+  });
+
+  it("expands only the statement target when jumping to a parameter inside a folded multiline statement", () => {
+    const source = [
+      "nui 2",
+      "point A = coordinate(x: 0 y: 0)",
+      "point B = offset(",
+      "  from: A",
+      "  dx: 100",
+      "  dy: 0",
+      ")",
+      "group G {",
+      "  point C = coordinate(x: 2 y: 2)",
+      "}"
+    ].join("\n");
+    useCadDocumentStore.getState().commitText(source, "test");
+    const parent = document.createElement("div");
+    document.body.append(parent);
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+    const pointB = useCadDocumentStore.getState().elements.find((element) => element.name === "B")!;
+    const group = useCadDocumentStore.getState().elements.find((element) => element.name === "G")!;
+    const openingLine = internals.view.state.doc.line(3);
+    const closeLine = internals.view.state.doc.line(7);
+
+    useCadUiStore.getState().setFoldTargetExpanded({ elementId: pointB.id, branch: "statement" }, false);
+    const foldedBefore: Array<{ from: number; to: number }> = [];
+    foldedRanges(internals.view.state as never).between(0, internals.view.state.doc.length, (from, to) => {
+      foldedBefore.push({ from, to });
+    });
+    expect(foldedBefore).toContainEqual({ from: openingLine.to, to: closeLine.from });
+
+    expect(controller.jumpToParameterValue(pointB.id, "dx")).toBe(true);
+
+    expect(useCadUiStore.getState().groupFoldById.get(pointB.id)?.statementExpanded).toBe(true);
+    expect(useCadUiStore.getState().groupFoldById.get(group.id)).toBeUndefined();
+    const head = internals.view.state.selection.main.head;
+    expect(head).toBeGreaterThan(openingLine.to);
+    expect(head).toBeLessThan(closeLine.from);
+    const ranges: Array<{ from: number; to: number }> = [];
+    foldedRanges(internals.view.state as never).between(0, internals.view.state.doc.length, (from, to) => {
+      ranges.push({ from, to });
+    });
+    expect(ranges).not.toContainEqual({ from: openingLine.to, to: closeLine.from });
+
+    controller.destroy();
+    parent.remove();
+  });
+
+  it("renders a fold gutter marker for an initially expanded multiline statement", () => {
+    const source = [
+      "nui 2",
+      "point A = coordinate(x: 0 y: 0)",
+      "point B = offset(",
+      "  from: A",
+      ")"
+    ].join("\n");
+    useCadDocumentStore.getState().commitText(source, "test");
+    const parent = document.createElement("div");
+    const controller = new SourceEditorController(parent);
+
+    expect(parent.querySelector(".cm-foldGutter")?.textContent).toContain("⌄");
     controller.destroy();
   });
 
@@ -861,6 +1001,209 @@ describe("SourceEditorController commit and history boundaries", () => {
       ranges.push({ from, to });
     });
     expect(ranges.some((range) => range.from <= childHeader.from && range.to >= childClose.to)).toBe(true);
+    controller.destroy();
+  });
+
+  it("consumes gutter clicks on lines without a fold target", () => {
+    const source = ["nui 2", "point A = coordinate(x: 0 y: 0)"].join("\n");
+    useCadDocumentStore.getState().commitText(source, "test");
+    const parent = document.createElement("div");
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+    const foldedBefore = foldedRanges(internals.view.state as never).size;
+    const foldsBefore = useCadUiStore.getState().groupFoldById;
+    const event = new MouseEvent("mousedown", { cancelable: true });
+
+    const handled = internals.handleFoldGutterClick(internals.view.state.doc.line(1).from, event);
+
+    expect(handled).toBe(true);
+    expect(event.defaultPrevented).toBe(true);
+    expect(foldedRanges(internals.view.state as never).size).toBe(foldedBefore);
+    expect(useCadUiStore.getState().groupFoldById).toBe(foldsBefore);
+    controller.destroy();
+  });
+
+  it("applies Fold All and Unfold All as a single store update", () => {
+    const source = [
+      "nui 2",
+      "if Choice (1) {",
+      "  point Then = coordinate(x: 0 y: 0)",
+      "} else {",
+      "  point Else = coordinate(x: 1 y: 1)",
+      "}",
+      "point B = offset(",
+      "  from: Then",
+      "  dx: 100",
+      "  dy: 0",
+      ")"
+    ].join("\n");
+    useCadDocumentStore.getState().commitText(source, "test");
+    const parent = document.createElement("div");
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+    const conditional = useCadDocumentStore.getState().elements.find((element) => element.name === "Choice")!;
+    const pointB = useCadDocumentStore.getState().elements.find((element) => element.name === "B")!;
+    const targetCount = [...internals.statementRanges.values()]
+      .reduce((sum, range) => sum + range.foldTargets.length, 0);
+    expect(targetCount).toBe(3);
+
+    let count = 0;
+    const unsub = useCadUiStore.subscribe(() => { count += 1; });
+
+    expect(internals.changeAllFolds(false)).toBe(true);
+    expect(count).toBe(1);
+    expect(useCadUiStore.getState().groupFoldById.get(conditional.id)).toMatchObject({
+      expanded: false,
+      elseExpanded: false
+    });
+    expect(useCadUiStore.getState().groupFoldById.get(pointB.id)?.statementExpanded).toBe(false);
+    expect(foldedRanges(internals.view.state as never).size).toBe(targetCount);
+
+    count = 0;
+    expect(internals.changeAllFolds(true)).toBe(true);
+    expect(count).toBe(1);
+    expect(foldedRanges(internals.view.state as never).size).toBe(0);
+
+    unsub();
+    controller.destroy();
+  });
+
+  it("unfolds via a placeholder click through the app fold state", () => {
+    const source = ["nui 2", "group G {", "  point A = coordinate(x: 0 y: 0)", "}"].join("\n");
+    useCadDocumentStore.getState().commitText(source, "test");
+    const parent = document.createElement("div");
+    document.body.append(parent);
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+    const group = useCadDocumentStore.getState().elements.find((element) => element.name === "G")!;
+
+    const placeholder = parent.querySelector<HTMLElement>(".cm-foldPlaceholder");
+    expect(placeholder).not.toBeNull();
+    placeholder!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+
+    expect(useCadUiStore.getState().groupFoldById.get(group.id)?.expanded).toBe(true);
+    expect(foldedRanges(internals.view.state as never).size).toBe(0);
+    controller.destroy();
+    parent.remove();
+  });
+
+  it("keeps a child statement fold independent of its parent group fold", () => {
+    const source = [
+      "nui 2",
+      "point A = coordinate(x: 0 y: 0)",
+      "group G {",
+      "  point B = offset(",
+      "    from: A",
+      "    dx: 100",
+      "    dy: 0",
+      "  )",
+      "}"
+    ].join("\n");
+    useCadDocumentStore.getState().commitText(source, "test");
+    const parent = document.createElement("div");
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+    const group = useCadDocumentStore.getState().elements.find((element) => element.name === "G")!;
+    const pointB = useCadDocumentStore.getState().elements.find((element) => element.name === "B")!;
+    const openingLine = internals.view.state.doc.line(4);
+    const closeLine = internals.view.state.doc.line(8);
+    const rangesOf = () => {
+      const ranges: Array<{ from: number; to: number }> = [];
+      foldedRanges(internals.view.state as never).between(0, internals.view.state.doc.length, (from, to) => {
+        ranges.push({ from, to });
+      });
+      return ranges;
+    };
+
+    // The group folds by default; folding the nested statement too must add a
+    // second, independent fold range rather than replacing the parent's.
+    useCadUiStore.getState().setFoldTargetExpanded({ elementId: pointB.id, branch: "statement" }, false);
+    expect(rangesOf()).toContainEqual({ from: openingLine.to, to: closeLine.from });
+    expect(foldedRanges(internals.view.state as never).size).toBe(2);
+
+    // Expanding the parent group must not unfold the still-collapsed child statement.
+    useCadUiStore.getState().setFoldTargetExpanded({ elementId: group.id, branch: "primary" }, true);
+    expect(rangesOf()).toEqual([{ from: openingLine.to, to: closeLine.from }]);
+
+    useCadUiStore.getState().setFoldTargetExpanded({ elementId: pointB.id, branch: "statement" }, true);
+    expect(foldedRanges(internals.view.state as never).size).toBe(0);
+    controller.destroy();
+  });
+
+  it("restores fold state after a dirty anchor edit is undone and recommitted", () => {
+    const source = ["nui 2", "group G {", "  point A = coordinate(x: 0 y: 0)", "}"].join("\n");
+    useCadDocumentStore.getState().commitText(source, "test");
+    const parent = document.createElement("div");
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+    const openBrace = internals.view.state.doc.toString().indexOf("{");
+    const braceLine = internals.view.state.doc.line(2);
+    const closeLine = internals.view.state.doc.line(4);
+
+    expect(foldedRanges(internals.view.state as never).size).toBeGreaterThan(0);
+
+    internals.view.dispatch({ changes: { from: openBrace, to: openBrace + 1, insert: "[" } });
+    expect(foldedRanges(internals.view.state as never).size).toBe(0);
+
+    let undoResult = false;
+    expect(() => { undoResult = internals.runUndo(); }).not.toThrow();
+    expect(undoResult).toBe(true);
+    expect(internals.view.state.doc.toString()).toContain("{");
+
+    // Reverting the buffer restores CM's own text, but the dropped fold target
+    // is only rediscovered once statementRanges rebuilds from a fresh committed
+    // snapshot — an identical-text recommit is a store no-op, so force a real
+    // commit cycle (append then let it settle) to exercise that rebuild.
+    const restoredText = internals.view.state.doc.toString();
+    useCadDocumentStore.getState().commitText(`${restoredText}\n`, "test");
+
+    expect(foldedRanges(internals.view.state as never).size).toBeGreaterThan(0);
+    const ranges: Array<{ from: number; to: number }> = [];
+    foldedRanges(internals.view.state as never).between(0, internals.view.state.doc.length, (from, to) => {
+      ranges.push({ from, to });
+    });
+    expect(ranges).toEqual([{ from: braceLine.to, to: closeLine.from }]);
+    controller.destroy();
+  });
+
+  it("drives fold and unfold-all through the real keymap", () => {
+    const source = [
+      "nui 2",
+      "if Choice (1) {",
+      "  point Then = coordinate(x: 0 y: 0)",
+      "} else {",
+      "  point Else = coordinate(x: 1 y: 1)",
+      "}"
+    ].join("\n");
+    useCadDocumentStore.getState().commitText(source, "test");
+    const parent = document.createElement("div");
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+    const content = parent.querySelector(".cm-content")!;
+    const conditional = useCadDocumentStore.getState().elements.find((element) => element.name === "Choice")!;
+    const ifLine = internals.view.state.doc.line(2);
+
+    internals.view.dispatch({ selection: EditorSelection.cursor(ifLine.from) });
+    // fireEvent.keyDown's plain `key: "["` never resolves to CM's "Ctrl-Shift-["
+    // binding here: CodeMirror's isChar shift-suppression tries the unshifted
+    // "Ctrl-[" combo first (already bound to outdentSelectedElements), which
+    // swallows the event before the shifted lookup ever runs. A real US-layout
+    // Shift+[ keypress reports key "{" with keyCode 219, which CM's w3c-keyname
+    // base table maps back to "[" before adding Shift-, so reproduce that here.
+    content.dispatchEvent(new KeyboardEvent("keydown", {
+      key: "{", ctrlKey: true, shiftKey: true, keyCode: 219, bubbles: true, cancelable: true
+    } as KeyboardEventInit));
+
+    expect(useCadUiStore.getState().groupFoldById.get(conditional.id)?.expanded).toBe(false);
+    expect(foldedRanges(internals.view.state as never).size).toBeGreaterThan(0);
+
+    fireEvent.keyDown(content, { key: "]", ctrlKey: true, altKey: true });
+
+    expect(useCadUiStore.getState().groupFoldById.get(conditional.id)).toMatchObject({
+      expanded: true,
+      elseExpanded: true
+    });
+    expect(foldedRanges(internals.view.state as never).size).toBe(0);
     controller.destroy();
   });
 });

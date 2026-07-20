@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { initialCadUiState, useCadUiStore } from "./cadUiStore";
-import { isElseExpanded, isGroupExpanded } from "../model/groups";
+import { isElseExpanded, isFoldTargetExpanded, isGroupExpanded, isStatementExpanded } from "../model/groups";
 import { initialCadDocumentState, useCadDocumentStore } from "./cadDocumentStore";
 import { startSession } from "../commands/commandLineSession";
 import type { CreationRecipe } from "../commands/creationRecipes";
@@ -31,6 +31,42 @@ describe("cadUiStore group fold state", () => {
     const fold = useCadUiStore.getState().groupFoldById;
     expect(isGroupExpanded("group", fold)).toBe(false);
     expect(isElseExpanded("group", fold)).toBe(false);
+  });
+
+  it("updates statement, primary, and else presentation targets independently", () => {
+    const store = useCadUiStore.getState();
+    const statement = { elementId: "point", branch: "statement" as const };
+    const primary = { elementId: "if", branch: "primary" as const };
+    const elseTarget = { elementId: "if", branch: "else" as const };
+
+    store.setFoldTargetExpanded(statement, false);
+    store.setFoldTargetExpanded(primary, true);
+    store.setFoldTargetExpanded(elseTarget, false);
+
+    const folds = useCadUiStore.getState().groupFoldById;
+    expect(isStatementExpanded("point", folds)).toBe(false);
+    expect(isFoldTargetExpanded(statement, folds)).toBe(false);
+    expect(isFoldTargetExpanded(primary, folds)).toBe(true);
+    expect(isFoldTargetExpanded(elseTarget, folds)).toBe(false);
+  });
+
+  it("batches many fold targets into a single groupFoldById update, and no-ops when nothing changes", () => {
+    const store = useCadUiStore.getState();
+    const targets = [
+      { elementId: "point", branch: "statement" as const },
+      { elementId: "if", branch: "primary" as const },
+      { elementId: "if", branch: "else" as const }
+    ];
+
+    store.setFoldTargetsExpanded(targets, false);
+
+    const folds = useCadUiStore.getState().groupFoldById;
+    expect(isStatementExpanded("point", folds)).toBe(false);
+    expect(isGroupExpanded("if", folds)).toBe(false);
+    expect(isElseExpanded("if", folds)).toBe(false);
+
+    useCadUiStore.getState().setFoldTargetsExpanded(targets, false);
+    expect(useCadUiStore.getState().groupFoldById).toBe(folds);
   });
 
   it("prunes fold state for deleted elements", () => {

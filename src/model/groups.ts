@@ -8,14 +8,41 @@ import type {
 
 export type GroupLikeElement = GroupElement | ConditionalGroupElement | ForGroupElement;
 
-export type GroupFoldState = { expanded?: boolean; elseExpanded?: boolean };
+/**
+ * Presentation-only fold state for an element. The historical name is kept
+ * because group/for callers already depend on it, but ordinary multiline
+ * statements use `statementExpanded` too.
+ */
+export type GroupFoldState = {
+  expanded?: boolean;
+  elseExpanded?: boolean;
+  statementExpanded?: boolean;
+};
 export type GroupFoldById = ReadonlyMap<ElementId, GroupFoldState>;
+
+/**
+ * A fold target is a presentation-only part of an element.
+ * `primary` means a group/for body, or the then body of a conditional group.
+ * `statement` means an ordinary multiline element statement.
+ */
+export type FoldTargetBranch = "statement" | "primary" | "else";
+export type FoldTarget = { elementId: ElementId; branch: FoldTargetBranch };
 
 export const isGroupExpanded = (id: ElementId, groupFoldById?: GroupFoldById) =>
   groupFoldById?.get(id)?.expanded ?? false;
 
 export const isElseExpanded = (id: ElementId, groupFoldById?: GroupFoldById) =>
   groupFoldById?.get(id)?.elseExpanded ?? true;
+
+export const isStatementExpanded = (id: ElementId, groupFoldById?: GroupFoldById) =>
+  groupFoldById?.get(id)?.statementExpanded ?? true;
+
+export const isFoldTargetExpanded = (target: FoldTarget, groupFoldById?: GroupFoldById) =>
+  target.branch === "statement"
+    ? isStatementExpanded(target.elementId, groupFoldById)
+    : target.branch === "primary"
+      ? isGroupExpanded(target.elementId, groupFoldById)
+      : isElseExpanded(target.elementId, groupFoldById);
 
 export const isGroupElement = (element: CadElement): element is GroupLikeElement =>
   element.type === "group" || element.type === "conditionalGroup" || element.type === "forGroup";
@@ -73,12 +100,15 @@ export const groupStateByElementId = (elements: CadElement[], groupFoldById?: Gr
     const parentState = stateFor(parent, visiting);
     visiting.delete(element.id);
 
+    const parentFoldTarget: FoldTarget = {
+      elementId: parent.id,
+      branch: isConditionalGroupElement(parent) && element.conditionalBranch === "else"
+        ? "else"
+        : "primary"
+    };
     const collapsedByParent =
       parentState.isCollapsedByGroup ||
-      !isGroupExpanded(parent.id, groupFoldById) ||
-      (isConditionalGroupElement(parent) &&
-        element.conditionalBranch === "else" &&
-        !isElseExpanded(parent.id, groupFoldById));
+      !isFoldTargetExpanded(parentFoldTarget, groupFoldById);
     const state: ElementGroupState = {
       depth: parentState.depth + 1,
       ancestorGroupIds: [...parentState.ancestorGroupIds, parent.id],

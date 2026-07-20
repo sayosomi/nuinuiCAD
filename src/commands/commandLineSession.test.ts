@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { creationPlacementForEvaluationLimit } from "../model/elementCreationPlacement";
+import { creationPlacementForTarget } from "../model/elementCreationPlacement";
 import { referenceAnchor } from "../model/pointAnchors";
 import { sampleElements } from "../sampleData";
 import type { CadElement } from "../types/geometry";
@@ -194,7 +194,10 @@ describe("commandLineSession", () => {
     };
     const existing = { ...sampleElements[0], id: "inside", name: "直線", parentGroupId: "group" };
     const elements = [group, existing];
-    const placement = creationPlacementForEvaluationLimit(elements, 2, new Map([["group", { expanded: true }]]));
+    const placement = creationPlacementForTarget(elements, {
+      insertionIndex: 2,
+      parentGroupId: group.id
+    }, undefined);
     const session = startSession(recipe, {
       insertionIndex: placement.insertionIndex,
       revision: 0,
