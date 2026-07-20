@@ -27,6 +27,7 @@ import {
 } from "../keyboard/shortcutRegistry";
 import type { KeyChord } from "../keyboard/shortcutTypes";
 import { creationPlacementForTarget } from "../model/elementCreationPlacement";
+import { isConditionalGroupElement, isFoldTargetExpanded, isStatementExpanded } from "../model/groups";
 import { getParameterDefinitions } from "../parameters/parameterDefinitions";
 import { parameterPickCommandId } from "../commands/parameterPickCommand";
 import { pickCandidates } from "../model/pickCandidates";
@@ -102,6 +103,8 @@ const modelPatchOrigin = Annotation.define<"model-patch">();
 const resetOrigin = Annotation.define<"reset">();
 const canvasCursorOrigin = Annotation.define<"canvas-cursor">();
 const foldProjectionOrigin = Annotation.define<"fold-projection">();
+/** External statement snapshots do not alter CM state, so explicitly refresh its gutter markers. */
+const foldGutterRefresh = Annotation.define<"fold-gutter-refresh">();
 const emptyDecorationIndex = (): EvaluationDecorationIndex => ({
   statuses: [],
   statusByLineFrom: new Map(),
@@ -199,14 +202,19 @@ export class SourceEditorController implements SourceEditorHandle {
           }),
           sourceEditorSelectionExtension,
           sourceEditorPatchHighlightExtension,
-          codeFolding(),
+          codeFolding({
+            placeholderDOM: (view) => this.createFoldPlaceholder(view)
+          }),
           foldService.of((state, lineStart) => {
             const target = foldTargetAtLine(this.statementRanges, this.store.getState().elements, lineStart);
             return target ? { from: target.from, to: target.to } : null;
           }),
           foldGutter({
+            foldingChanged: (update) => update.transactions.some(
+              (transaction) => transaction.annotation(foldGutterRefresh)
+            ),
             domEventHandlers: {
-              mousedown: (_view, line, event) => this.handleFoldGutterMouseDown(line.from, event as MouseEvent)
+              click: (_view, line, event) => this.handleFoldGutterClick(line.from, event as MouseEvent)
             }
           }),
           createDiagnosticsExtension({
@@ -385,7 +393,9 @@ export class SourceEditorController implements SourceEditorHandle {
     // fold range intentionally omits an inline-header fallback. A creation
     // return belongs after the whole block, including its else branch.
     const closingBraceLine = range.statement.closeBraceLine;
-    const mappedClosingBraceFrom = range.elseFoldRange?.to ?? range.groupFoldRange?.to;
+    const mappedClosingBraceFrom = range.foldTargets
+      .map((target) => target.foldTo)
+      .sort((left, right) => right - left)[0];
     const canUseClosingBraceLine =
       closingBraceLine !== undefined &&
       closingBraceLine >= 1 &&
@@ -433,6 +443,18 @@ export class SourceEditorController implements SourceEditorHandle {
       this.jumpToElement(elementId);
       this.view.focus();
       return false;
+    }
+    // If the destination sits inside the element's own folded statement range,
+    // expand it first so the synchronous store subscription unfolds the text
+    // before the cursor is dispatched into it, instead of landing on hidden text.
+    const statementTarget = range.foldTargets.find((foldTarget) => foldTarget.branch === "statement");
+    if (
+      statementTarget &&
+      statementTarget.foldFrom < targetRange.value.from &&
+      targetRange.value.from < statementTarget.foldTo &&
+      !isStatementExpanded(elementId, this.uiStore.getState().groupFoldById)
+    ) {
+      this.uiStore.getState().setFoldTargetExpanded({ elementId, branch: "statement" }, true);
     }
     // Store selection subscriptions project Canvas selection to line starts. Publish
     // this external selection under the existing loop guard before selecting the span.
@@ -990,6 +1012,10 @@ export class SourceEditorController implements SourceEditorHandle {
       this.printLayoutRanges = mapPrintLayoutRangeIndex(this.printLayoutRanges, update.changes);
       this.atStopRange = mapAtStopRange(this.atStopRange, update.changes);
       this.staleDiagnosticBaseline = mapPositionedDiagnostics(this.staleDiagnosticBaseline, update.changes);
+      // A dirty edit may have shifted an intact target or invalidated one of
+      // its delimiter anchors. Reconcile CM's replacement set immediately;
+      // range discovery itself still waits for a valid compiled snapshot.
+      this.pendingFoldProjection = true;
       this.requestDecorationRefresh();
     }
     if (update.docChanged && !isExternal && !this.protocol.composing) {
@@ -1020,6 +1046,7 @@ export class SourceEditorController implements SourceEditorHandle {
         }
       }
     }
+    if (update.docChanged) this.applyPendingUiSync();
   }
 
   private runUndo() {
@@ -1219,12 +1246,20 @@ export class SourceEditorController implements SourceEditorHandle {
       this.statementRanges = new Map();
       this.printLayoutRanges = new Map();
       this.atStopRange = null;
+      this.refreshFoldGutter();
       return;
     }
     this.statementRanges = createStatementRangeIndex(this.view.state.doc, state.doc.statementMap);
     this.printLayoutRanges = createPrintLayoutRangeIndex(this.view.state.doc, state.doc.statementMap);
     this.atStopRange = createAtStopRange(this.view.state.doc, state.doc.statementMap);
     this.staleDiagnosticBaseline = toStaleDiagnostics(this.view.state.doc, state.diagnostics);
+    this.refreshFoldGutter();
+  }
+
+  private refreshFoldGutter() {
+    this.view.dispatch({
+      annotations: [foldGutterRefresh.of("fold-gutter-refresh"), Transaction.addToHistory.of(false)]
+    });
   }
 
   private reconcileEvaluationForSource() {
@@ -1366,14 +1401,14 @@ export class SourceEditorController implements SourceEditorHandle {
     while (current?.parentGroupId) {
       const parent = byId.get(current.parentGroupId);
       if (!parent) break;
-      const fold = this.uiStore.getState().groupFoldById.get(parent.id);
-      const needsGroupExpand = !(fold?.expanded ?? false);
-      const needsElseExpand = current.conditionalBranch === "else" && !(fold?.elseExpanded ?? true);
-      if (needsGroupExpand || needsElseExpand) {
-        this.uiStore.getState().setGroupFold(parent.id, {
-          ...(needsGroupExpand ? { expanded: true } : {}),
-          ...(needsElseExpand ? { elseExpanded: true } : {})
-        });
+      const target = {
+        elementId: parent.id,
+        branch: isConditionalGroupElement(parent) && current.conditionalBranch === "else"
+          ? "else" as const
+          : "primary" as const
+      };
+      if (!isFoldTargetExpanded(target, this.uiStore.getState().groupFoldById)) {
+        this.uiStore.getState().setFoldTargetExpanded(target, true);
       }
       current = parent;
     }
@@ -1391,6 +1426,27 @@ export class SourceEditorController implements SourceEditorHandle {
     });
   }
 
+  /** Keeps placeholder clicks on the same UI-state path as gutter and keyboard folds. */
+  private createFoldPlaceholder(view: EditorView) {
+    const placeholder = document.createElement("span");
+    placeholder.textContent = "…";
+    placeholder.setAttribute("aria-label", view.state.phrase("folded code"));
+    placeholder.title = view.state.phrase("unfold");
+    placeholder.className = "cm-foldPlaceholder";
+    placeholder.onclick = (event) => {
+      if (!(event.target instanceof Node)) return;
+      const position = view.posAtDOM(event.target);
+      const target = foldTargets(
+        this.statementRanges,
+        this.store.getState().elements,
+        this.uiStore.getState().groupFoldById
+      ).find((candidate) => candidate.from === position);
+      if (target) this.changeFold(target, "unfold");
+      event.preventDefault();
+    };
+    return placeholder;
+  }
+
   private handleSelectionGutterMouseDown(lineFrom: number, event: MouseEvent) {
     if (!event.metaKey && !event.ctrlKey && !event.shiftKey) return false;
     const elementId = elementIdAtCursor(this.statementRanges, lineFrom);
@@ -1403,11 +1459,14 @@ export class SourceEditorController implements SourceEditorHandle {
     return true;
   }
 
-  private handleFoldGutterMouseDown(lineFrom: number, event: MouseEvent) {
-    const target = foldTargetAtLine(this.statementRanges, this.store.getState().elements, lineFrom);
-    if (!target) return false;
+  /** Always consumes the click: @codemirror/language's built-in foldGutter click
+   * fallback would otherwise mutate CM fold state directly when this returns false,
+   * bypassing the app store entirely. */
+  private handleFoldGutterClick(lineFrom: number, event: MouseEvent) {
     event.preventDefault();
-    return this.changeFold(target, "toggle");
+    const target = foldTargetAtLine(this.statementRanges, this.store.getState().elements, lineFrom);
+    if (target) this.changeFold(target, "toggle");
+    return true;
   }
 
   private changeFoldAtCursor(mode: "fold" | "unfold") {
@@ -1416,23 +1475,18 @@ export class SourceEditorController implements SourceEditorHandle {
     return target ? this.changeFold(target, mode) : false;
   }
 
-  private changeFold(target: { elementId: string; branch: "group" | "else" }, mode: "fold" | "unfold" | "toggle") {
+  private changeFold(target: { elementId: string; branch: "statement" | "primary" | "else" }, mode: "fold" | "unfold" | "toggle") {
     if (this.protocol.composing) return true;
-    const fold = this.uiStore.getState().groupFoldById.get(target.elementId);
-    const currentExpanded = target.branch === "group" ? (fold?.expanded ?? false) : (fold?.elseExpanded ?? true);
+    const currentExpanded = isFoldTargetExpanded(target, this.uiStore.getState().groupFoldById);
     const expanded = mode === "toggle" ? !currentExpanded : mode === "unfold";
-    this.uiStore.getState().setGroupFold(target.elementId, target.branch === "group"
-      ? { expanded }
-      : { elseExpanded: expanded });
+    this.uiStore.getState().setFoldTargetExpanded(target, expanded);
     return true;
   }
 
   private changeAllFolds(expanded: boolean) {
     if (this.protocol.composing) return true;
-    for (const element of this.store.getState().elements) {
-      if (!this.statementRanges.get(element.id)?.groupFoldRange) continue;
-      this.uiStore.getState().setGroupFold(element.id, { expanded, ...(expanded ? { elseExpanded: true } : {}) });
-    }
+    const targets = [...this.statementRanges.values()].flatMap((range) => range.foldTargets);
+    this.uiStore.getState().setFoldTargetsExpanded(targets, expanded);
     return true;
   }
 

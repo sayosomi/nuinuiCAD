@@ -1,0 +1,142 @@
+# 型付き変数計画 Decision Log
+
+Status: 確定 / Open blocking decisionなし
+
+## D01: 新規bindingは明示型
+
+`const`/`let`は`: number|string|boolean|choice(...)`を必須とする。initializer型推論だけの宣言は追加しない。同一bindingの型変更は不可、nested shadowでは別型を許可する。
+
+根拠: property metadataとRust payloadをcompile時に確定でき、暗黙変換を排除できる。
+
+## D02: mutabilityはconst/let、変更はset
+
+`const`は再代入不可、`let`だけが`set`対象。setは文書順で後続だけに効く。失敗versionはpoisonし、後続の正常setで回復する。
+
+ifのactive branch更新は後続へ残り、forGroupはiteration間で持ち越して最終値をloop後へ残す。
+
+## D03: 全brace blockがlexical scope
+
+group、then、else、forGroup bodyは別scope。宣言は宣言行から有効でhoistしない。inner declarationの前はouterが見え、後だけshadowする。
+
+initializerはpre-declaration environmentで解決する。
+
+- outer同名bindingが見える: outerを参照。
+- outerがない: self-initialization diagnostic。
+- 同scope後方に別宣言がある: forward-reference。
+
+## D04: qualified scope pathは初期対象外
+
+`@::name`、`@Group::name`、qualified set、scope path completion/renameは追加しない。`@name`は既に宣言済みの最内側bindingだけを解決する。shadow後にouter同名bindingへ明示accessする機能は後続。
+
+## D05: legacy varとtyped bindingは同じnamespace
+
+同じeffective scopeの同名legacy/typed宣言はduplicate。nested scopeのshadowは許可する。element localとforGroup iteration bindingはdocument bindingより優先する。typed優先の暗黙fallbackは作らない。
+
+rename probeはlegacy/typed captureを拒否し、completionは同じ名前を重複表示しない。
+
+現行legacy scopeの根拠は`src/geometry/variableScope.ts`と`src/dsl/dslVariableCompletionCandidates.ts`。globalは全体、groupは宣言groupとdescendantであり、この意味を互換入力に残す。
+
+## D06: measurementは既存numeric expressionを再利用
+
+新規lexical measurementはtyped number initializerで既存`distance`、`angle`、点線距離関数を使う。legacy pointDistance/pointAngle/pointLineDistance constructionは互換用に残し、自動migrationしない。
+
+根拠: `src/geometry/numericExpressions.ts`とRust numeric evaluatorにpoint/line function評価が既にあり、新しいmeasurement型やconstructionを増やす必要がない。
+
+## D07: choice identity
+
+choice typeはoptionsと順序が完全一致するときだけ同一。順序はcompletionとAlt cycle順でもある。binding代入とequalityは完全一致型を要求する。
+
+property assignmentだけはbinding optionsがproperty choice optionsの部分集合なら許可する。runtime payload optionsが宣言型と一致しない場合はcompile/Rust runtimeの両方で拒否する。
+
+## D08: text templateとescape
+
+初期対応escapeは`\\`、`\"`、`\'`、`\n`、`\r`、`\t`、`\{`、`\}`。物理複数行stringは禁止。未知escapeはnui 3でexact value span diagnostic。
+
+`{@ラベル}`はstring bindingならstring、numberなら既存formatで挿入する。boolean/choiceは暗黙string化しない。string連結と汎用template expressionは後続。
+
+canonical text constructionは`src/dsl/dslConstructions.ts`で確認した`text ... = label(...)`を使う。想像上の`text(...)`へ変えない。
+
+## D09: boolean expression ownership
+
+typed expression subsystemがlexer/parser/AST/typecheck/reference evaluator/Rust evaluatorを所有する。条件group taskは完成済みboolean expressionを接続するだけで、別parserを作らない。
+
+numeric comparison、equality、`!`、`&&`、`||`を初期対応する。string equality可。choice equalityは完全一致choice型だけ。string/choice relational、concat、choice演算は後続。
+
+## D10: property opt-in
+
+初期対象は`text.text`、`offsetLine.side`、通常boolean、`group.printEnabled`、`forGroup.showGenerated`。通常property、print state、control flowを別taskで接続し、activityへ混ぜない。
+
+`visible`/`enabled`、identity、parent、color、sourcePath、placement discriminatorはscalar property binding対象外。`angleLengthLine.direction`は現行modelにないため追加しない。
+
+## D11: activityは3状態
+
+内部型は`visible|hidden|disabled`。
+
+- visible: evaluate + draw
+- hidden: evaluate、drawしない
+- disabled: evaluateもdrawもしない
+
+activity内部model/legacy bridgeはnui 3と独立してproductionへ入れ、v2文書も利用する。v3 `state:` syntaxはversion基盤後の別task。gutter/UIはproduction activity modelだけへ接続する。
+
+`locked`はsource-authoritative editorでは不要。legacy syntaxはwarning付きで受理し、model/command/UI/enforcementから削除する。
+
+## D12: activity DSL canonical
+
+v2はvisibleならflags省略、hiddenは`visible: false`、disabledは`enabled: false`。v3はvisibleなら`state`省略、hidden/disabledは`state: hidden|disabled`。
+
+v3で`state:`とlegacy flagsを混在させたstatementは`element-state-conflict`でfail-closed。open/saveだけでは既存sourceをnormalizeしない。
+
+## D13: activity command
+
+gutter clickはvisible→hidden→disabled→visibleをcycle。context menu/ribbonは3状態を直接指定し、同じcommand domainをdispatchする。既定shortcutなし。旧`A`を削除し、`V`へ自動移行しない。
+
+## D14: DivisionPlacement
+
+DSL syntaxは維持し、内部だけ`{kind:"distance",value}`/`{kind:"ratio",value}`へ移す。
+
+調査根拠:
+
+- `dslCallParser.ts`: both指定をdiagnostic。
+- `dslApplyArgs.ts`: both時はgroup先頭のdistanceを選択。
+- `elementFactory.ts`: neither時はratio 0.5。
+- `dslSerializeElement.ts`: active側だけ出力。
+- legacy v1 compiler: distance優先。
+- TS/Rust evaluatorとdrag: distance以外はratio分岐。
+- duplication/forGroup: structured clone。
+- evaluationEngine: elements JSONをIPCへそのまま渡す。
+
+characterization fixtureを先にmergeし、その後1つのmigration PRで全consumerを切り替える。
+
+## D15: version upgrade
+
+nui 3はlegacy varとlegacy activity flagsを受理する。nui 2でv3専用syntaxはdiagnostic。header-only upgradeは本文をserializeせず1 splice/1 Undo。legacy importerはnui 2を出力し、新規文書だけ最終activation後にnui 3。
+
+## D16: binding coreがconst evaluatorより先
+
+scope index、stable binding ID、shadow/order、legacy collision、undefined/forward/self、initializer graph、SCC、exact spansを先に完成させる。const evaluatorは解決済みIDだけを使う。
+
+set target IDはset解析で解決してよいが、version/old value/control-flow mutationは後続mutation taskが所有する。
+
+## D17: TS/Rust境界
+
+TSがsourceをtyped JSON ASTへcompileし、Rustはname resolutionを行わずpayloadを防御検証して評価する。`evaluate_document(input)`は維持。typed statementsはfake geometry elementにせず、source-order scalar programとして渡す。
+
+## D18: Inspectorを2段階に分割
+
+metadata表示はcompiled declaration完成後に実装できる。runtime表示はproperty、linear set、conditional set、forGroup set完了後にだけ実装し、最終computed value、poison、recoveryを表示する。既存literal parameter操作は維持。
+
+## D19: performance測定
+
+既存`statementReconciler.performance.test.ts`に合わせ、250/1000件、worker CPU time、100 warm-up、21 trials、trial内複数run、median/p95、scaling ratioを使う。
+
+binding analysis、TS reference、Rust production、forGroup mutationを別々に測る。baselineのない絶対閾値は先に決めず、00 taskは記録専用。後続performance taskがbaselineとCI分散を根拠にgateを決める。Rustは既存ignored benchmark方式も使う。
+
+## D20: branch名
+
+子taskにはprefixなしの推奨slugだけを記す。実際のbranch prefixは実装環境とrepository運用に従う。
+
+## Open decisions
+
+なし。
+
+これは推測による打ち切りではない。上記D01〜D20はユーザー指定で確定した事項、または現行sourceから確認できたcompatibility contractである。未指定だったmeasurement syntax、text construction、performance方法、DivisionPlacement挙動は既存実装を再利用・fixture化する方針で解決でき、新しい製品判断を要求しない。初期範囲外のqualified referenceやstring演算は明示的に後続へ分離した。

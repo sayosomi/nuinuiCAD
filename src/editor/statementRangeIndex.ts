@@ -1,6 +1,20 @@
 import { MapMode, Text, type ChangeDesc } from "@codemirror/state";
 import type { StatementInfo, StatementMap } from "../dsl/dslDocument";
+import type { FoldTarget } from "../model/groups";
 import type { ElementId } from "../types/geometry";
+
+type FoldAnchor = { from: number; to: number };
+
+/** A single presentation branch, captured from one synchronized CM snapshot. */
+export type StatementFoldTarget = FoldTarget & {
+  /** Physical row on which CodeMirror renders the gutter marker. */
+  gutterLineFrom: number;
+  /** CM replacement range; deliberately independent from gutterLineFrom. */
+  foldFrom: number;
+  foldTo: number;
+  /** Editing any structural delimiter disables this target until a valid compile refreshes it. */
+  anchors: readonly FoldAnchor[];
+};
 
 export type StatementRange = {
   elementId: ElementId;
@@ -8,10 +22,7 @@ export type StatementRange = {
   from: number;
   to: number;
   /** Fold positions are captured from a synchronized CM document and thereafter mapped, never re-derived from stale lines. */
-  groupFoldRange?: { from: number; to: number };
-  elseFoldRange?: { from: number; to: number };
-  openBraceLineFrom?: number;
-  elseLineFrom?: number;
+  foldTargets: readonly StatementFoldTarget[];
 };
 
 export type StatementRangeIndex = ReadonlyMap<ElementId, StatementRange>;
@@ -25,23 +36,66 @@ export const createStatementRangeIndex = (doc: Text, statementMap: StatementMap)
     const statementEndLine = statement.endLine <= doc.lines ? doc.line(statement.endLine) : null;
     const closeLine = statement.closeBraceLine && statement.closeBraceLine <= doc.lines ? doc.line(statement.closeBraceLine) : null;
     const openLine = statement.openBraceLine && statement.openBraceLine <= doc.lines ? doc.line(statement.openBraceLine) : null;
-    // A block may open on its header line (the canonical form) or on the
-    // following physical line (legacy compatibility). Its fold range — and a
-    // creation-return cursor — must include the matching closing brace either
-    // way, so the header is the inline-brace fallback.
-    const braceLine = openLine ?? (closeLine ? line : null);
+    // A block may open on the final physical header row (the canonical form)
+    // or on a following standalone brace row. Never fall back to the first
+    // header row: multi-line handwritten headers must keep their continuation
+    // rows visible when folded.
+    const braceLine = openLine ?? (closeLine ? statementEndLine : null);
     const elseLine = statement.elseBraceLine && statement.elseBraceLine <= doc.lines ? doc.line(statement.elseBraceLine) : null;
+    const foldTargets: StatementFoldTarget[] = [];
+    // Ordinary multiline statements (for example `point A = offset(`) get
+    // their own presentation target. Keep the opening header and final close
+    // row visible so the folded statement still reads naturally as `… )`.
+    // Block statements use their brace targets below instead, avoiding two
+    // competing gutter controls on a single structural header.
+    if (!closeLine && statement.line < statement.endLine && statementEndLine && line.to < statementEndLine.from) {
+      foldTargets.push({
+        elementId,
+        branch: "statement",
+        gutterLineFrom: line.from,
+        foldFrom: line.to,
+        foldTo: statementEndLine.from,
+        anchors: [
+          { from: line.from, to: line.to },
+          { from: statementEndLine.from, to: statementEndLine.to }
+        ]
+      });
+    }
+    if (braceLine && closeLine && braceLine.number < closeLine.number) {
+      const foldTo = elseLine ? elseLine.from - 1 : closeLine.from;
+      if (foldTo > braceLine.to) {
+        foldTargets.push({
+          elementId,
+          branch: "primary",
+          gutterLineFrom: braceLine.from,
+          foldFrom: braceLine.to,
+          foldTo,
+          anchors: [
+            { from: braceLine.from, to: braceLine.to },
+            { from: (elseLine ?? closeLine).from, to: (elseLine ?? closeLine).to }
+          ]
+        });
+      }
+    }
+    if (elseLine && closeLine && elseLine.number < closeLine.number && closeLine.from > elseLine.to) {
+      foldTargets.push({
+        elementId,
+        branch: "else",
+        gutterLineFrom: elseLine.from,
+        foldFrom: elseLine.to,
+        foldTo: closeLine.from,
+        anchors: [
+          { from: elseLine.from, to: elseLine.to },
+          { from: closeLine.from, to: closeLine.to }
+        ]
+      });
+    }
     ranges.set(elementId, {
       elementId,
       statement,
       from: line.from,
       to: statementEndLine?.to ?? line.to,
-      ...(braceLine && closeLine && braceLine.number < closeLine.number
-        ? { openBraceLineFrom: braceLine.from, groupFoldRange: { from: braceLine.to, to: (elseLine ?? closeLine).from } }
-        : {}),
-      ...(elseLine && closeLine && elseLine.number < closeLine.number
-        ? { elseLineFrom: elseLine.from, elseFoldRange: { from: elseLine.to, to: closeLine.from } }
-        : {})
+      foldTargets
     });
   }
   return ranges;
@@ -65,26 +119,35 @@ export const mapStatementRangeIndex = (
     // stricter identity guard below.
     const to = changes.mapPos(range.to, 1, MapMode.Simple);
     if (from === null || to === null || to < from) continue;
-    const mapFoldRange = (foldRange: { from: number; to: number } | undefined) => {
-      if (!foldRange || changes.touchesRange(foldRange.from, foldRange.to) === "cover") return undefined;
-      const foldFrom = changes.mapPos(foldRange.from, 1, MapMode.TrackAfter);
-      const foldTo = changes.mapPos(foldRange.to, -1, MapMode.TrackBefore);
-      return foldFrom === null || foldTo === null || foldTo <= foldFrom
-        ? undefined
-        : { from: foldFrom, to: foldTo };
-    };
+    const foldTargets = range.foldTargets.flatMap((target): StatementFoldTarget[] => {
+      // Structural delimiter rows are the snapshot's identity anchors. A
+      // changed anchor is intentionally unavailable while the buffer is dirty
+      // rather than being guessed from stale StatementInfo line numbers.
+      if (target.anchors.some((anchor) => changes.touchesRange(anchor.from, anchor.to) !== false)) return [];
+      const foldFrom = changes.mapPos(target.foldFrom, 1, MapMode.TrackAfter);
+      const foldTo = changes.mapPos(target.foldTo, -1, MapMode.TrackBefore);
+      const gutterLineFrom = changes.mapPos(target.gutterLineFrom, 1, MapMode.TrackAfter);
+      const anchors = target.anchors.map((anchor) => ({
+        from: changes.mapPos(anchor.from, 1, MapMode.TrackAfter),
+        to: changes.mapPos(anchor.to, -1, MapMode.TrackBefore)
+      }));
+      if (
+        foldFrom === null || foldTo === null || foldTo <= foldFrom || gutterLineFrom === null ||
+        anchors.some((anchor) => anchor.from === null || anchor.to === null || anchor.to < anchor.from)
+      ) return [];
+      return [{
+        ...target,
+        foldFrom,
+        foldTo,
+        gutterLineFrom,
+        anchors: anchors as FoldAnchor[]
+      }];
+    });
     mapped.set(elementId, {
       ...range,
       from,
       to,
-      groupFoldRange: mapFoldRange(range.groupFoldRange),
-      elseFoldRange: mapFoldRange(range.elseFoldRange),
-      openBraceLineFrom: range.openBraceLineFrom === undefined
-        ? undefined
-        : changes.mapPos(range.openBraceLineFrom, 1, MapMode.TrackAfter) ?? undefined,
-      elseLineFrom: range.elseLineFrom === undefined
-        ? undefined
-        : changes.mapPos(range.elseLineFrom, 1, MapMode.TrackAfter) ?? undefined
+      foldTargets
     });
   }
   return mapped;

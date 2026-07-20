@@ -17,6 +17,105 @@ const compiled = (source: string) => {
 };
 
 describe("statementRangeIndex", () => {
+  it("anchors an inline brace on the final row of a handwritten multiline header", () => {
+    const source = [
+      "nui 2",
+      "group Multi (printEnabled: true",
+      ") {",
+      "  point A = coordinate(x: 0 y: 0)",
+      "}"
+    ].join("\n");
+    const result = compiled(source);
+    const doc = Text.of(source.split("\n"));
+    const group = result.document!.elements[0]!;
+    const target = createStatementRangeIndex(doc, result.statementMap!).get(group.id)!.foldTargets[0]!;
+
+    expect(target).toMatchObject({
+      branch: "primary",
+      gutterLineFrom: doc.line(3).from,
+      foldFrom: doc.line(3).to,
+      foldTo: doc.line(5).from
+    });
+  });
+
+  it("adds a statement target for a handwritten multiline expression and leaves its close row visible", () => {
+    const source = [
+      "nui 2",
+      "point A = coordinate(x: 0 y: 0)",
+      "point B = offset(",
+      "  from: A",
+      "  dx: 100",
+      "  dy: 0",
+      ")"
+    ].join("\n");
+    const result = compiled(source);
+    const doc = Text.of(source.split("\n"));
+    const pointB = result.document!.elements.find((element) => element.name === "B")!;
+    const target = createStatementRangeIndex(doc, result.statementMap!).get(pointB.id)!.foldTargets;
+
+    expect(target).toEqual([expect.objectContaining({
+      branch: "statement",
+      gutterLineFrom: doc.line(3).from,
+      foldFrom: doc.line(3).to,
+      foldTo: doc.line(7).from
+    })]);
+  });
+
+  it("temporarily disables a multiline statement target when its opening row becomes dirty", () => {
+    const source = [
+      "nui 2",
+      "point A = coordinate(x: 0 y: 0)",
+      "point B = offset(",
+      "  from: A",
+      ")"
+    ].join("\n");
+    const result = compiled(source);
+    const doc = Text.of(source.split("\n"));
+    const pointB = result.document!.elements.find((element) => element.name === "B")!;
+    const ranges = createStatementRangeIndex(doc, result.statementMap!);
+    const openParen = doc.line(3).to - 1;
+
+    const mapped = mapStatementRangeIndex(
+      ranges,
+      ChangeSet.of({ from: openParen, to: openParen + 1, insert: "[" }, doc.length)
+    );
+
+    expect(mapped.get(pointB.id)?.foldTargets).toEqual([]);
+  });
+
+  it("temporarily disables only a target whose structural anchor is dirty", () => {
+    const source = ["nui 2", "group G {", "  point A = coordinate(x: 0 y: 0)", "}"].join("\n");
+    const result = compiled(source);
+    const doc = Text.of(source.split("\n"));
+    const group = result.document!.elements[0]!;
+    const ranges = createStatementRangeIndex(doc, result.statementMap!);
+    const openBrace = doc.line(2).to - 1;
+
+    const mapped = mapStatementRangeIndex(
+      ranges,
+      ChangeSet.of({ from: openBrace, to: openBrace + 1, insert: "[" }, doc.length)
+    );
+
+    expect(mapped.get(group.id)?.foldTargets).toEqual([]);
+    expect(mapped.get(group.id)?.from).toBe(ranges.get(group.id)?.from);
+  });
+
+  it("maps an intact target through dirty interior line edits", () => {
+    const source = ["nui 2", "group G {", "  point A = coordinate(x: 0 y: 0)", "}"].join("\n");
+    const result = compiled(source);
+    const doc = Text.of(source.split("\n"));
+    const group = result.document!.elements[0]!;
+    const original = createStatementRangeIndex(doc, result.statementMap!).get(group.id)!.foldTargets[0]!;
+
+    const mapped = mapStatementRangeIndex(
+      createStatementRangeIndex(doc, result.statementMap!),
+      ChangeSet.of({ from: doc.line(3).to, insert: "\n  point B = coordinate(x: 1 y: 1)" }, doc.length)
+    ).get(group.id)!.foldTargets[0]!;
+
+    expect(mapped.gutterLineFrom).toBe(original.gutterLineFrom);
+    expect(mapped.foldTo).toBeGreaterThan(original.foldTo);
+  });
+
   it("maps runtime-ID ranges through dirty edits without consulting stale statement lines", () => {
     const source = "nui 2\npoint A = coordinate(x: 0 y: 0)\npoint = coordinate(x: 1 y: 1)";
     const result = compiled(source);

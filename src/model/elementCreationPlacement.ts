@@ -1,10 +1,6 @@
 import type { CadElement, ConditionalBranch, ElementId } from "../types/geometry";
-import type { GroupFoldById } from "./groups";
 import { clampEvaluationLimitIndex, evaluatedElements } from "./evaluationDivider";
 import {
-  descendantIdsForGroup,
-  groupStateByElementId,
-  isGroupExpanded,
   isConditionalGroupElement,
   isGroupElement
 } from "./groups";
@@ -22,27 +18,42 @@ export type ElementCreationTarget = Pick<
   "insertionIndex" | "parentGroupId" | "conditionalBranch"
 >;
 
-const lastSubtreeIndex = (
-  elements: CadElement[],
-  groupId: ElementId,
-  fallbackIndex: number
-) => {
-  const subtreeIds = new Set([groupId, ...descendantIdsForGroup(elements, groupId)]);
-  const indexes = elements
-    .map((element, index) => (subtreeIds.has(element.id) ? index : -1))
-    .filter((index) => index >= 0);
-  return indexes.at(-1) ?? fallbackIndex;
+const parentPath = (element: CadElement | undefined, byId: Map<ElementId, CadElement>) => {
+  const path: ElementId[] = [];
+  let parentId = element?.parentGroupId;
+  while (parentId) {
+    const parent = byId.get(parentId);
+    if (!parent || !isGroupElement(parent)) break;
+    path.unshift(parent.id);
+    parentId = parent.parentGroupId;
+  }
+  return path;
 };
 
-const groupContainsInsertionIndex = (
-  elements: CadElement[],
-  groupId: ElementId,
-  groupIndex: number,
-  insertionIndex: number
-) => (
-  insertionIndex > groupIndex &&
-  insertionIndex <= lastSubtreeIndex(elements, groupId, groupIndex) + 1
-);
+const sharedPath = (left: readonly ElementId[], right: readonly ElementId[]) => {
+  const result: ElementId[] = [];
+  for (let index = 0; index < Math.min(left.length, right.length); index += 1) {
+    if (left[index] !== right[index]) break;
+    result.push(left[index]);
+  }
+  return result;
+};
+
+/**
+ * Resolves the structural scope at a bare flat index without consulting UI
+ * folding. Anchored creation uses creationPlacementForTarget instead; this
+ * fallback only adopts a scope that exists on both sides of the boundary, or
+ * immediately after a group header before its first child.
+ */
+const parentGroupAtInsertionIndex = (elements: CadElement[], insertionIndex: number) => {
+  if (insertionIndex <= 0 || insertionIndex >= elements.length) return undefined;
+  const byId = new Map(elements.map((element) => [element.id, element]));
+  const previous = elements[insertionIndex - 1];
+  const next = elements[insertionIndex];
+  const nextPath = parentPath(next, byId);
+  if (previous && isGroupElement(previous) && nextPath.at(-1) === previous.id) return previous.id;
+  return sharedPath(parentPath(previous, byId), nextPath).at(-1);
+};
 
 const branchForConditionalGroupInsertion = (
   elements: CadElement[],
@@ -66,21 +77,14 @@ const branchForConditionalGroupInsertion = (
 export const creationPlacementForInsertion = (
   elements: CadElement[],
   insertionIndex: number,
-  evaluationLimitIndex: number | undefined,
-  groupFoldById?: GroupFoldById
+  evaluationLimitIndex: number | undefined
 ): ElementCreationPlacement => {
   const clampedInsertionIndex = clampEvaluationLimitIndex(elements, insertionIndex);
-  const groupStates = groupStateByElementId(elements, groupFoldById);
-  const targetGroup = elements
-    .map((element, index) => ({ element, index, depth: groupStates.get(element.id)?.depth ?? 0 }))
-    .filter(({ element, index }) => (
-      isGroupElement(element) &&
-      isGroupExpanded(element.id, groupFoldById) &&
-      groupContainsInsertionIndex(elements, element.id, index, clampedInsertionIndex)
-    ))
-    .sort((a, b) => b.depth - a.depth)[0]?.element;
+  const parentGroupId = parentGroupAtInsertionIndex(elements, clampedInsertionIndex);
+  const targetGroup = parentGroupId
+    ? elements.find((element) => element.id === parentGroupId && isGroupElement(element))
+    : undefined;
 
-  const parentGroupId = targetGroup?.id;
   const conditionalBranch =
     targetGroup && isConditionalGroupElement(targetGroup)
       ? branchForConditionalGroupInsertion(elements, targetGroup.id, clampedInsertionIndex)
@@ -121,11 +125,10 @@ export const creationPlacementForTarget = (
 /** Existing divider-based placement for commands whose explicit target is the evaluation boundary. */
 export const creationPlacementForEvaluationLimit = (
   elements: CadElement[],
-  evaluationLimitIndex: number | undefined,
-  groupFoldById?: GroupFoldById
+  evaluationLimitIndex: number | undefined
 ) => {
   const insertionIndex = clampEvaluationLimitIndex(elements, evaluationLimitIndex);
-  return creationPlacementForInsertion(elements, insertionIndex, evaluationLimitIndex, groupFoldById);
+  return creationPlacementForInsertion(elements, insertionIndex, evaluationLimitIndex);
 };
 
 export const applyCreationPlacement = <T extends CadElement>(

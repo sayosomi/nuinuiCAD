@@ -1,11 +1,17 @@
 import { foldEffect, foldedRanges, unfoldEffect } from "@codemirror/language";
 import type { EditorState, TransactionSpec } from "@codemirror/state";
 import type { ElementId } from "../types/geometry";
-import { isConditionalGroupElement, isGroupElement, type GroupFoldById } from "../model/groups";
+import { isFoldTargetExpanded, type FoldTargetBranch, type GroupFoldById } from "../model/groups";
 import type { CadElement } from "../types/geometry";
 import type { StatementRangeIndex } from "./statementRangeIndex";
 
-export type FoldTarget = { elementId: ElementId; branch: "group" | "else"; from: number; to: number };
+export type FoldTarget = {
+  elementId: ElementId;
+  branch: FoldTargetBranch;
+  gutterLineFrom: number;
+  from: number;
+  to: number;
+};
 
 const elementById = (elements: readonly CadElement[]) => new Map(elements.map((element) => [element.id, element]));
 
@@ -18,14 +24,17 @@ export const foldTargets = (
   const targets: FoldTarget[] = [];
   for (const [elementId, range] of ranges) {
     const element = byId.get(elementId);
-    if (!element || !isGroupElement(element)) continue;
-    const groupFold = folds.get(elementId);
-    if (groupFold?.expanded ?? false) {
-      if (isConditionalGroupElement(element) && !(groupFold?.elseExpanded ?? true) && range.elseFoldRange) {
-        targets.push({ elementId, branch: "else", ...range.elseFoldRange });
+    if (!element) continue;
+    for (const target of range.foldTargets) {
+      if (!isFoldTargetExpanded(target, folds)) {
+        targets.push({
+          elementId,
+          branch: target.branch,
+          gutterLineFrom: target.gutterLineFrom,
+          from: target.foldFrom,
+          to: target.foldTo
+        });
       }
-    } else if (range.groupFoldRange) {
-      targets.push({ elementId, branch: "group", ...range.groupFoldRange });
     }
   }
   return targets;
@@ -39,14 +48,16 @@ export const foldTargetAtLine = (
   const byId = elementById(elements);
   for (const range of ranges.values()) {
     const element = byId.get(range.elementId);
-    if (!element || !isGroupElement(element)) continue;
-    if (range.openBraceLineFrom === lineFrom && range.groupFoldRange) {
-      return { elementId: element.id, branch: "group", ...range.groupFoldRange };
-    }
-    if (isConditionalGroupElement(element) && range.elseFoldRange) {
-      if (range.elseLineFrom === lineFrom) {
-        return { elementId: element.id, branch: "else", ...range.elseFoldRange };
-      }
+    if (!element) continue;
+    const target = range.foldTargets.find((candidate) => candidate.gutterLineFrom === lineFrom);
+    if (target) {
+      return {
+        elementId: element.id,
+        branch: target.branch,
+        gutterLineFrom: target.gutterLineFrom,
+        from: target.foldFrom,
+        to: target.foldTo
+      };
     }
   }
   return null;

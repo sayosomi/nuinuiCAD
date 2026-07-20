@@ -32,8 +32,7 @@ export const addConditionalGroup = (
   const { elements, evaluationLimitIndex } = useCadDocumentStore.getState();
   const placement = creationPlacementForEvaluationLimit(
     elements,
-    evaluationLimitIndex,
-    useCadUiStore.getState().groupFoldById
+    evaluationLimitIndex
   );
   const { insertionIndex } = placement;
   const group = applyCreationPlacement(createCadElement("conditionalGroup", elements), placement);
