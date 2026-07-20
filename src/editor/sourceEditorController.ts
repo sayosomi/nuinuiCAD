@@ -1320,9 +1320,7 @@ export class SourceEditorController implements SourceEditorHandle {
       ? "toggleElementVisibility"
       : action === "enabled"
         ? "toggleElementEnabled"
-        : action === "locked"
-          ? "toggleElementLocked"
-          : "toggleGroupPrintEnabled";
+        : "toggleGroupPrintEnabled";
     return dispatchCommand(commandId, { elementId }) !== false;
   }
 

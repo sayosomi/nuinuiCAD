@@ -417,9 +417,10 @@ describe("AppLayout Source Editor production integration", () => {
   });
 
   it("keeps cursor selection through a model patch and exposes command errors in the real pane", async () => {
-    // This test only ever locks B via commitDocumentChange (never renames), so
-    // it doesn't need the shared fixture's canonical vertical shape - using a
-    // compact one keeps it consistent with its own original (pre-C1) size.
+    // This test only ever patches B's enabled flag via commitDocumentChange
+    // (never renames), so it doesn't need the shared fixture's canonical
+    // vertical shape - using a compact one keeps it consistent with its own
+    // original (pre-C1) size.
     useCadDocumentStore.getState().commitText(
       ["nui 2", "group G {", "  point A = coordinate(x: 0 y: 0)", "  point B = coordinate(x: 100 y: 0)", "}"].join("\n"),
       "test"
@@ -432,13 +433,13 @@ describe("AppLayout Source Editor production integration", () => {
 
     act(() => {
       const elements = useCadDocumentStore.getState().elements.map((element) =>
-        element.id === pointB ? { ...element, locked: true } : element
+        element.id === pointB ? { ...element, enabled: false } : element
       );
       useCadDocumentStore.getState().commitDocumentChange({ elements });
       useCadUiStore.getState().setCommandErrorMessage("統合テストのエラー");
     });
 
-    await waitFor(() => expect(editorDocText(view.container)).toContain("locked: true"));
+    await waitFor(() => expect(editorDocText(view.container)).toContain("enabled: false"));
     expect(useCadUiStore.getState().sourceCursorLine).toBe(beforeCursorLine);
     expect(view.getByRole("alert")).toHaveTextContent("統合テストのエラー");
   });
@@ -676,11 +677,12 @@ describe("Canvas selection focuses the Source Editor", () => {
     });
 
     // Blur, then mutate B while unfocused so a deferred-cursor snapshot is
-    // captured at the nudged (wrong) position.
+    // captured at the nudged (wrong) position. Uses colorId (not enabled) so
+    // B stays drawn and clickable on the canvas for the re-selection below.
     act(() => content.blur());
     act(() => {
       const elements = useCadDocumentStore.getState().elements.map((element) =>
-        element.id === elementId("B") ? { ...element, locked: true } : element
+        element.id === elementId("B") ? { ...element, colorId: "cut-red" } : element
       );
       useCadDocumentStore.getState().commitDocumentChange({ elements });
     });

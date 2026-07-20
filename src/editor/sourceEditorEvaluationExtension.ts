@@ -8,7 +8,7 @@ import type { AtStopRange } from "./statementRangeIndex";
 
 export { evaluationChanged } from "./sourceEditorEvaluationEffects";
 
-export type EvaluationGutterAction = "visibility" | "enabled" | "locked" | "print" | "stop";
+export type EvaluationGutterAction = "visibility" | "enabled" | "print" | "stop";
 
 export type EvaluationExtensionSource = {
   index: () => EvaluationDecorationIndex;
@@ -45,7 +45,6 @@ const lineClassFor = (status: IndexedLineStatus, isLastGood: boolean) => {
   if (status.disabledByGroup) classes.push("cm-eval-disabled-by-group");
   if (status.conditionInactive) classes.push("cm-eval-condition-inactive");
   if (!status.isEvaluated) classes.push("cm-eval-unevaluated");
-  if (status.locked) classes.push("cm-eval-locked");
   if (status.printEnabled) classes.push("cm-eval-print-enabled");
   if (isLastGood) classes.push("cm-eval-last-good");
   return classes.join(" ");
@@ -86,7 +85,6 @@ export class EvaluationViewPluginValue {
 const stateSummaryLabel = (status: IndexedLineStatus) => [
   status.hiddenSelf ? "非表示" : "表示",
   status.disabledSelf ? "評価しない" : "評価する",
-  status.locked ? "ロック中" : "編集可能",
   status.printEnabled ? "印刷する" : "印刷しない"
 ].join(" / ");
 
@@ -102,7 +100,6 @@ class ElementStateMarker extends GutterMarker {
       "cm-element-state-marker",
       this.status.hiddenSelf ? "is-hidden" : "",
       this.status.disabledSelf ? "is-disabled" : "",
-      this.status.locked ? "is-locked" : "",
       this.status.printEnabled ? "is-print-enabled" : ""
     ].filter(Boolean).join(" ");
     root.title = stateSummaryLabel(this.status);
@@ -124,7 +121,6 @@ type StateRailAction = Exclude<EvaluationGutterAction, "stop">;
 const stateRailActions = (status: IndexedLineStatus): Array<[StateRailAction, string, string]> => [
   ["visibility", status.hiddenSelf ? "表示する" : "非表示にする", "◉"],
   ["enabled", status.disabledSelf ? "評価する" : "評価しない", "▶"],
-  ["locked", status.locked ? "ロック解除" : "ロック", "⌑"],
   ["print", status.printEnabled ? "印刷しない" : "印刷する", "🖶"]
 ];
 

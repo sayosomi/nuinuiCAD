@@ -40,7 +40,7 @@ const buildCommitFixture = (elementCount: number) => {
   const afterDoc: DslDocumentData = {
     ...compiled.document,
     elements: compiled.document.elements.map((element, index) =>
-      index === Math.floor(elementCount / 2) ? ({ ...element, locked: true } as typeof element) : element
+      index === Math.floor(elementCount / 2) ? ({ ...element, enabled: !element.enabled } as typeof element) : element
     )
   };
   return { source, compiled, prev, afterDoc };

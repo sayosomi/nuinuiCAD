@@ -269,9 +269,7 @@ export const applyRandomOp = (document: DslDocumentData, op: RandomOp): AppliedO
         ...document,
         elements: document.elements.map((element) =>
           element.id === target.id
-            ? // locked=false はシリアライズされないため、モデル側も undefined に
-              // 戻して往復の正規形を保つ。
-              ({ ...element, locked: element.locked ? undefined : true } as CadElement)
+            ? ({ ...element, enabled: !element.enabled } as CadElement)
             : element
         )
       },

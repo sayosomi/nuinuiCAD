@@ -111,10 +111,10 @@ describe("resolveDslValueStep", () => {
   });
 
   it("toggles booleans and cycles choices, but leaves other parameter kinds untouched", () => {
-    const booleanSource = "point A = coordinate(x: 0 y: 0 locked: true)";
+    const booleanSource = "point A = coordinate(x: 0 y: 0 enabled: false)";
     const point = compileElement(booleanSource);
-    expect(stepAt(booleanSource, point, "true", 1)).toMatchObject({ parameterKey: "locked", insert: "false" });
-    expect(stepAt(booleanSource, point, "true", -1)).toMatchObject({ parameterKey: "locked", insert: "false" });
+    expect(stepAt(booleanSource, point, "false", 1)).toMatchObject({ parameterKey: "enabled", insert: "true" });
+    expect(stepAt(booleanSource, point, "false", -1)).toMatchObject({ parameterKey: "enabled", insert: "true" });
 
     const choiceSource = "var V = expression(value: 1 scope: global)";
     const variable = compileElement(choiceSource);

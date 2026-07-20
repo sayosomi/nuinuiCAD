@@ -91,6 +91,9 @@ describe("DSL v2 construction registry", () => {
     const commonSample = sampleFor("freePoint");
     for (const definition of commonArgSpecs) {
       if (definition.special) continue;
+      // `locked` is retired: recognized for legacy-compat parsing only, with no
+      // live parameter definition or editable field.
+      if (definition.arg === "locked") continue;
       expect(findParameterDefinition(commonSample, definition.parameterKey ?? definition.arg)).toBeDefined();
     }
   });

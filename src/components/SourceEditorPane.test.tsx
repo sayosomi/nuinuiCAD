@@ -21,12 +21,12 @@ describe("SourceEditorPane", () => {
     const ref = createRef<SourceEditorHandle>();
     const screen = render(<SourceEditorPane ref={ref} />);
     const changed = useCadDocumentStore.getState().elements.map((element) =>
-      element.name === "A" ? ({ ...element, locked: true } as CadElement) : element
+      element.name === "A" ? ({ ...element, enabled: false } as CadElement) : element
     );
     useCadDocumentStore.getState().commitDocumentChange({ elements: changed });
 
     expect(ref.current?.getText()).toBe(
-      "nui 2\npoint A = coordinate(\n  x: 0\n  y: 0\n  locked: true\n)\npoint B = coordinate(x: 1 y: 1)"
+      "nui 2\npoint A = coordinate(\n  x: 0\n  y: 0\n  enabled: false\n)\npoint B = coordinate(x: 1 y: 1)"
     );
     screen.unmount();
   });
@@ -40,7 +40,7 @@ describe("SourceEditorPane", () => {
     fireEvent.compositionStart(content!);
 
     const changed = useCadDocumentStore.getState().elements.map((element) =>
-      element.name === "A" ? ({ ...element, locked: true } as CadElement) : element
+      element.name === "A" ? ({ ...element, enabled: false } as CadElement) : element
     );
     const result = useCadDocumentStore.getState().commitDocumentChange({ elements: changed });
     expect(ref.current?.getText()).toBe("nui 2\npoint A = coordinate(x: 0 y: 0)");

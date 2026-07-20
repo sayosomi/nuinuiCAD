@@ -80,13 +80,13 @@ describe("Evaluation decoration viewport index", () => {
 
   it("keeps own element state separate from ancestor and evaluation state", () => {
     const { doc, ranges, elements } = rangesFor("nui 2\npoint A = coordinate(x: 0 y: 0)");
-    const point = { ...elements[0], visible: false, enabled: false, locked: true };
+    const point = { ...elements[0], visible: false, enabled: false };
     const status = entriesInVisibleRanges(indexFor(ranges, [point], {
       ...baseEvaluation([point]),
       evaluatedElementIds: new Set()
     }).statuses, [{ from: 0, to: doc.length }])[0];
 
-    expect(status).toMatchObject({ hiddenSelf: true, disabledSelf: true, locked: true, isEvaluated: false });
+    expect(status).toMatchObject({ hiddenSelf: true, disabledSelf: true, isEvaluated: false });
   });
 });
 

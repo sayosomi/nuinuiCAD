@@ -6,7 +6,6 @@ export type CadElementBase = {
   /** Legacy v2 DSL / IPC activity flags. Runtime policy lives in elementActivity.ts. */
   visible: boolean;
   enabled: boolean;
-  locked?: boolean;
   colorId?: string;
   parentGroupId?: ElementId;
   conditionalBranch?: ConditionalBranch;

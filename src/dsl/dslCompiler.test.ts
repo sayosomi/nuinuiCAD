@@ -166,12 +166,14 @@ describe("DSL compiler", () => {
     });
   });
 
-  it("round-trips locked common attributes", () => {
+  it("recognizes legacy locked as an ignored, warned attribute that is never regenerated", () => {
     const result = compileDslToElements("point A = coordinate(x: 0 y: 0 locked: true)", { elements: [] });
 
-    expect(result.diagnostics).toEqual([]);
-    expect(result.elements[0]).toMatchObject({ locked: true });
-    expect(serializeElementsToDsl(result.elements)).toContain("locked: true");
+    expect(result.diagnostics.map((item) => item.message)).toContain(
+      "locked は廃止された属性のため無視されます。"
+    );
+    expect(result.elements[0]).not.toHaveProperty("locked");
+    expect(serializeElementsToDsl(result.elements)).not.toContain("locked");
   });
 
   it("creates drafting point constructions from natural DSL syntax", () => {

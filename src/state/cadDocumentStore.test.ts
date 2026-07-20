@@ -58,7 +58,7 @@ describe("cadDocumentStore file state", () => {
     };
     commitDocumentChangeAndSelect({
       elements: before.elements.map((element, index) =>
-        index === 0 ? { ...element, locked: true } : element
+        index === 0 ? { ...element, enabled: false } : element
       )
     }, afterSelection);
 
@@ -83,7 +83,7 @@ describe("cadDocumentStore file state", () => {
     useCadDocumentStore.getState().commitText("nui 1\npoint A = (", "test");
 
     const result = commitDocumentChangeAndSelect(
-      { elements: state.elements.map((element) => ({ ...element, locked: true })) },
+      { elements: state.elements.map((element) => ({ ...element, enabled: false })) },
       {
         selectedElementId: state.elements[0].id,
         selectedElementIds: [state.elements[0].id],
@@ -142,7 +142,7 @@ describe("cadDocumentStore file state", () => {
     const before = useCadDocumentStore.getState();
     const previewElements = before.elements.map((element) =>
       element.id === before.elements[0].id
-        ? ({ ...element, locked: true } as typeof element)
+        ? ({ ...element, enabled: false } as typeof element)
         : element
     );
 

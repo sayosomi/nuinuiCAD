@@ -34,20 +34,17 @@ const commonParameters: ParameterDefinition[] = [
   { key: "colorId", label: "表示色", kind: "color" },
   { key: "visible", label: "表示", kind: "boolean" },
   { key: "enabled", label: "評価", kind: "boolean" },
-  { key: "locked", label: "ロック", kind: "boolean" },
 ];
 
 const nonColorCommonParameters: ParameterDefinition[] = [
   { key: "name", label: "名前", kind: "text" },
   { key: "visible", label: "表示", kind: "boolean" },
   { key: "enabled", label: "評価", kind: "boolean" },
-  { key: "locked", label: "ロック", kind: "boolean" },
 ];
 
 const variableCommonParameters: ParameterDefinition[] = [
   { key: "name", label: "名前", kind: "text" },
   { key: "enabled", label: "評価", kind: "boolean" },
-  { key: "locked", label: "ロック", kind: "boolean" },
 ];
 
 const numericVariableParameters = (

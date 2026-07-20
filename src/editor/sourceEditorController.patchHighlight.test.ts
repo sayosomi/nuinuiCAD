@@ -36,10 +36,10 @@ describe("SourceEditorController patch-change highlight", () => {
 
   const highlight = (internals: ControllerInternals): PatchHighlightPayload => internals.view.state.field(patchHighlightField);
 
-  const lockElement = (name: string) => {
+  const patchElement = (name: string) => {
     const elements = useCadDocumentStore.getState().elements;
     return useCadDocumentStore.getState().commitDocumentChange({
-      elements: elements.map((element) => (element.name === name ? { ...element, locked: true } : element))
+      elements: elements.map((element) => (element.name === name ? { ...element, enabled: false } : element))
     });
   };
 
@@ -49,7 +49,7 @@ describe("SourceEditorController patch-change highlight", () => {
     const internals = controller as unknown as ControllerInternals;
     expect(highlight(internals)).toBeNull();
 
-    expect(lockElement("A")).toEqual({ status: "applied" });
+    expect(patchElement("A")).toEqual({ status: "applied" });
     expect(useCadDocumentStore.getState().sourceUpdate.kind).toBe("model-patch");
 
     // By this point apply() has already run its own follow-up dispatches
@@ -100,7 +100,7 @@ describe("SourceEditorController patch-change highlight", () => {
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
     const internals = controller as unknown as ControllerInternals;
-    lockElement("A");
+    patchElement("A");
     expect(highlight(internals)).not.toBeNull();
 
     // A bare programmatic dispatch (as other suites use to simulate typing
@@ -119,7 +119,7 @@ describe("SourceEditorController patch-change highlight", () => {
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
     const internals = controller as unknown as ControllerInternals;
-    lockElement("A");
+    patchElement("A");
     expect(highlight(internals)).not.toBeNull();
 
     useCadDocumentStore.getState().undo();
@@ -137,11 +137,11 @@ describe("SourceEditorController patch-change highlight", () => {
     const controller = new SourceEditorController(parent);
     const internals = controller as unknown as ControllerInternals;
 
-    lockElement("A");
+    patchElement("A");
     const first = highlight(internals);
     expect(first).not.toBeNull();
 
-    lockElement("B");
+    patchElement("B");
     const second = highlight(internals);
     expect(second).not.toBeNull();
     expect(second).not.toEqual(first);
@@ -157,7 +157,7 @@ describe("SourceEditorController patch-change highlight", () => {
     internals.view.scrollDOM.scrollTop = 42;
     internals.view.scrollDOM.scrollLeft = 36;
 
-    lockElement("B");
+    patchElement("B");
 
     expect(highlight(internals)).not.toBeNull();
     expect(internals.view.state.selection.main.head).toBe(line.from + 3);
@@ -172,7 +172,7 @@ describe("SourceEditorController patch-change highlight", () => {
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
     const internals = controller as unknown as ControllerInternals;
-    lockElement("A");
+    patchElement("A");
     expect(highlight(internals)).not.toBeNull();
 
     vi.advanceTimersByTime(60_000);

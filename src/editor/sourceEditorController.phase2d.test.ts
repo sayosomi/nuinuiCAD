@@ -44,13 +44,13 @@ type ControllerInternals = {
   appliedEvaluation: { evaluation: EvaluationResult; compiledDocumentRevision: number; evaluationRequestRevision: number } | null;
   pendingEvaluations: Map<number, { evaluation: EvaluationResult; evaluationRequestRevision: number }>;
   decorationIndex: {
-    statuses: readonly { elementId: string; locked: boolean }[];
+    statuses: readonly { elementId: string; disabledSelf: boolean }[];
     generatedWidgets: readonly unknown[];
   };
   atStopRange: AtStopRange | null;
   staleDiagnosticBaseline: PositionedDiagnostic[];
   runEscape: () => boolean;
-  handleEvaluationGutterAction: (action: "stop" | "visibility" | "enabled" | "locked" | "print", lineFrom: number) => boolean;
+  handleEvaluationGutterAction: (action: "stop" | "visibility" | "enabled" | "print", lineFrom: number) => boolean;
   runPickApply: () => boolean;
 };
 
@@ -218,7 +218,7 @@ describe("SourceEditorController evaluation revision gating", () => {
     expect(beforeIds).toHaveLength(2);
 
     const updatedElements = before.elements.map((element) =>
-      element.name === "B" ? { ...element, locked: true } : element
+      element.name === "B" ? { ...element, enabled: false } : element
     );
     expect(useCadDocumentStore.getState().commitDocumentChange({ elements: updatedElements }).status).toBe("applied");
 
@@ -227,7 +227,7 @@ describe("SourceEditorController evaluation revision gating", () => {
     // as the stable presentation instead of clearing every element decoration.
     expect(internals.appliedEvaluation?.evaluation).toBe(initialEvaluation);
     expect(internals.decorationIndex.statuses.map((status) => status.elementId)).toEqual(beforeIds);
-    expect(internals.decorationIndex.statuses.find((status) => status.elementId === updatedElements[1].id)?.locked).toBe(true);
+    expect(internals.decorationIndex.statuses.find((status) => status.elementId === updatedElements[1].id)?.disabledSelf).toBe(true);
     expect(parent.querySelectorAll(".cm-eval-line").length).toBeGreaterThan(0);
 
     const current = useCadDocumentStore.getState();
@@ -263,7 +263,7 @@ describe("SourceEditorController evaluation revision gating", () => {
     expect(parent.querySelectorAll(".cm-generated-rows-widget")).toHaveLength(1);
 
     const updatedElements = before.elements.map((element) =>
-      element.id === child.id ? { ...element, locked: true } : element
+      element.id === child.id ? { ...element, enabled: false } : element
     );
     expect(useCadDocumentStore.getState().commitDocumentChange({ elements: updatedElements }).status).toBe("applied");
     expect(internals.decorationIndex.generatedWidgets).toHaveLength(1);
@@ -381,10 +381,8 @@ describe("SourceEditorController @stop mapping", () => {
 
     expect(internals.handleEvaluationGutterAction("visibility", lineFrom)).toBe(true);
     expect(internals.handleEvaluationGutterAction("enabled", lineFrom)).toBe(true);
-    expect(internals.handleEvaluationGutterAction("locked", lineFrom)).toBe(true);
     expect(dispatchCommand).toHaveBeenCalledWith("toggleElementVisibility", { elementId: point.id });
     expect(dispatchCommand).toHaveBeenCalledWith("toggleElementEnabled", { elementId: point.id });
-    expect(dispatchCommand).toHaveBeenCalledWith("toggleElementLocked", { elementId: point.id });
     controller.destroy();
   });
 });

@@ -12,17 +12,17 @@ const twoPointSource = () => dslTextForElements([
   { id: "b", name: "B", type: "freePoint", visible: true, enabled: true, x: 1, y: 1 }
 ]);
 
-const lockedA = dslTextForElements([
-  { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0, locked: true }
+const disabledA = dslTextForElements([
+  { id: "a", name: "A", type: "freePoint", visible: true, enabled: false, x: 0, y: 0 }
 ]);
 // commitDocumentChangeが発行する差し替え行は、その文単独のシリアライズ結果と
 // 一致するはず(要素の並び全体を書き直すわけではないため)。v2正準形の
 // construction callは複数物理行になるため、statement全体(nuiヘッダ以降の
-// 全行)を切り出す。置き換え元(A単独, ロック前)の行数は置き換え先
-// (locked: true が増えた分)より短いため、範囲(endLine)とreplacementLines
+// 全行)を切り出す。置き換え元(A単独, 評価する状態)の行数は置き換え先
+// (enabled: false が増えた分)より短いため、範囲(endLine)とreplacementLines
 // は別々の文書から算出する。
-const lockedALines = lockedA.split("\n").slice(1);
-const unlockedALineCount = twoPointSource().split("\n").findIndex((line) => line.startsWith("point B")) - 1;
+const disabledALines = disabledA.split("\n").slice(1);
+const enabledALineCount = twoPointSource().split("\n").findIndex((line) => line.startsWith("point B")) - 1;
 
 describe("cadDocumentStore source updates", () => {
   beforeEach(() => {
@@ -39,7 +39,7 @@ describe("cadDocumentStore source updates", () => {
 
     useCadDocumentStore.getState().commitText(onePointSource(), "editor");
     const changed = useCadDocumentStore.getState().elements.map((element) =>
-      element.name === "A" ? ({ ...element, locked: true } as CadElement) : element
+      element.name === "A" ? ({ ...element, enabled: false } as CadElement) : element
     );
     useCadDocumentStore.getState().commitDocumentChange({ elements: changed });
     useCadDocumentStore.getState().undo();
@@ -55,13 +55,13 @@ describe("cadDocumentStore source updates", () => {
   it("publishes the actual model bridge LineSplice rather than a full source replacement", () => {
     useCadDocumentStore.getState().commitText(twoPointSource(), "test");
     const changed = useCadDocumentStore.getState().elements.map((element) =>
-      element.name === "A" ? ({ ...element, locked: true } as CadElement) : element
+      element.name === "A" ? ({ ...element, enabled: false } as CadElement) : element
     );
     useCadDocumentStore.getState().commitDocumentChange({ elements: changed });
     const update = useCadDocumentStore.getState().sourceUpdate;
     expect(update.kind).toBe("model-patch");
     if (update.kind !== "model-patch") throw new Error("expected model patch");
-    expect(update.splices).toEqual([{ startLine: 2, endLine: 1 + unlockedALineCount, replacementLines: lockedALines }]);
+    expect(update.splices).toEqual([{ startLine: 2, endLine: 1 + enabledALineCount, replacementLines: disabledALines }]);
   });
 
   it("uses reset metadata for direct text, document replacement, and history restoration", () => {

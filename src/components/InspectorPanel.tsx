@@ -34,7 +34,6 @@ const statusLabels = (status: ElementPresentationStatus) =>
       ? "非表示"
       : null,
     status.conditionInactive ? "条件外" : null,
-    status.locked ? "ロック" : null,
   ].filter((value): value is string => Boolean(value));
 
 const relatedCountBadge = (count: number) => (

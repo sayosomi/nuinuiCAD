@@ -174,11 +174,6 @@ textarea {
   color: #70746b;
 }
 
-.source-editor-pane .cm-eval-locked::before {
-  content: "🔒";
-  margin-right: 4px;
-}
-
 .source-editor-pane .cm-eval-print-enabled::before {
   content: "🖶";
   margin-right: 4px;
@@ -247,7 +242,6 @@ textarea {
 
 .cm-element-state-marker.is-hidden::before { background: #7b8790; }
 .cm-element-state-marker.is-disabled::before { background: #b66e38; }
-.cm-element-state-marker.is-locked::before { background: #7c5a1f; }
 .cm-element-state-marker.is-print-enabled::before { background: #0f766e; }
 
 .cm-element-state-rail {

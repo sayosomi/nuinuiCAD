@@ -1,6 +1,5 @@
 import { selectedIndexes } from "../model/documentSelection";
 import { duplicateElements } from "../model/elementDuplication";
-import { protectedElementIdsForDestructiveChange } from "../model/elementLocks";
 import {
   adjustEvaluationLimitForDeletion,
   adjustEvaluationLimitForInsertion
@@ -40,11 +39,9 @@ import {
   selectParentGroup,
   setEvaluationLimitIndex,
   toggleElementBooleanProperty,
-  toggleElementLocked,
   toggleGroupPrintEnabled,
   toggleSelectedGroupPrintEnabled,
   toggleGroupExpanded,
-  toggleSelectedElementsLocked,
   toggleSelectedElementsBooleanProperty,
   ungroupSelectedGroup
 } from "./selectionCommands";
@@ -364,11 +361,6 @@ export const selectionCommandDefinitions = {
     label: "要素の評価する/しないを切替",
     run: (context) => toggleElementBooleanProperty(context?.elementId, "enabled")
   },
-  toggleElementLocked: {
-    id: "toggleElementLocked",
-    label: "要素のロックを切替",
-    run: (context) => toggleElementLocked(context?.elementId)
-  },
   toggleGroupPrintEnabled: {
     id: "toggleGroupPrintEnabled",
     label: "グループの印刷する/しないを切替",
@@ -393,12 +385,6 @@ export const selectionCommandDefinitions = {
     palette: { order: 41, keywords: ["enabled", "active", "evaluate", "評価", "有効", "無効"] },
     shortcuts: [{ keys: "a" }],
     run: () => toggleSelectedElementsBooleanProperty("enabled")
-  },
-  toggleSelectedElementLocked: {
-    id: "toggleSelectedElementLocked",
-    label: "ロック/解除を切替",
-    palette: { order: 41.5, keywords: ["lock", "unlock", "ロック", "解除", "保護"] },
-    run: () => toggleSelectedElementsLocked()
   },
   duplicateSelectedElement: {
     id: "duplicateSelectedElement",
@@ -439,13 +425,6 @@ export const selectionCommandDefinitions = {
       const selectedIds = new Set(
         getSelectedElementIds().flatMap((id) => subtreeIdsForElement(elements, id))
       );
-      const protectedIds = protectedElementIdsForDestructiveChange(elements, selectedIds);
-      if (protectedIds.size > 0) {
-        useCadUiStore
-          .getState()
-          .setCommandErrorMessage("ロックされた要素が含まれるため、削除できません。");
-        return;
-      }
       const indexes = selectedIndexes(elements, [...selectedIds]);
       if (indexes.length === 0) return;
       const index = indexes[0];

@@ -32,7 +32,6 @@ const verticalPointLines = (index: number) => [
   `point P${index} = coordinate(`,
   `  x: ${index}`,
   `  y: ${index + 1}`,
-  "  locked: false",
   "  visible: true",
   "  enabled: true",
   "  vars: [local: 1]",
@@ -51,14 +50,14 @@ const complete = (source: string) => {
 const changedMiddleElement = (document: DslDocumentData): DslDocumentData => ({
   ...document,
   elements: document.elements.map((element, index) =>
-    index === Math.floor(ELEMENT_COUNT / 2) ? { ...element, locked: true } : element
+    index === Math.floor(ELEMENT_COUNT / 2) ? { ...element, enabled: false } : element
   ),
 });
 
 describe("DSL v2 large-document performance sanity", () => {
   it("measures compile, full serialize, and one-element patch separately", () => {
     const source = fixtureSource();
-    expect(source.split("\n")).toHaveLength(ELEMENT_COUNT * 8 + 1);
+    expect(source.split("\n")).toHaveLength(ELEMENT_COUNT * 7 + 1);
     const compiled = complete(source);
     const afterDocument = changedMiddleElement(compiled.document);
 

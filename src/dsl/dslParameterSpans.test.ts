@@ -58,7 +58,7 @@ const applyFixtureText = (fixture: V2CanonicalElementStatement, text: string) =>
 const specialArgNames = new Set(["steps", "vars", "varIds", "id", "roles", "parent", "branch", "intermediates"]);
 
 /**
- * `locked`/`visible`/`enabled`/`color` are universal `CadElement` fields that P5
+ * `visible`/`enabled`/`color` are universal `CadElement` fields that P5
  * serializes whenever non-default, regardless of whether a given type's
  * `getParameterDefinitions` exposes them as an editable parameterKey (e.g. `edge`
  * omits `colorId`, `variable` omits `visible`, yet both still carry the field and
@@ -67,7 +67,7 @@ const specialArgNames = new Set(["steps", "vars", "varIds", "id", "roles", "pare
  * a gap; the forward per-type check below still fully covers these keys for the
  * types that do expose them.
  */
-const universalArgNames = new Set(["locked", "visible", "enabled", "color"]);
+const universalArgNames = new Set(["visible", "enabled", "color"]);
 
 /**
  * Three parameterKeys are never written to v2 text directly, by construction of
