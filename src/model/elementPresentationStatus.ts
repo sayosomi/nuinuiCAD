@@ -30,8 +30,6 @@ export type ElementPresentationStatus = {
   conditionInactive: boolean;
   isEvaluated: boolean;
   printEnabled: boolean;
-  canToggleVisibility: boolean;
-  canTogglePrint: boolean;
   color: string;
 };
 
@@ -94,8 +92,6 @@ export const createElementPresentationStatusIndex = ({
       conditionInactive: conditionInactive.has(element.id),
       isEvaluated: evaluated.has(element.id) && enabled.has(element.id) && baseVisible.has(element.id),
       printEnabled: element.type === "group" && element.printEnabled === true,
-      canToggleVisibility: element.type !== "variable",
-      canTogglePrint: element.type === "group",
       color: colors.get(element.id) ?? "#31322f"
     };
   });

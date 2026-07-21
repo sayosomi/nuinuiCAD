@@ -50,7 +50,7 @@ type ControllerInternals = {
   atStopRange: AtStopRange | null;
   staleDiagnosticBaseline: PositionedDiagnostic[];
   runEscape: () => boolean;
-  handleEvaluationGutterAction: (action: "stop" | "visibility" | "enabled" | "print", lineFrom: number) => boolean;
+  handleEvaluationGutterAction: (action: "stop" | "activity", lineFrom: number) => boolean;
   runPickApply: () => boolean;
 };
 
@@ -369,7 +369,7 @@ describe("SourceEditorController @stop mapping", () => {
     controller.destroy();
   });
 
-  it("routes state gutter actions through existing element commands", () => {
+  it("routes state gutter actions through the activity cycle command", () => {
     useCadDocumentStore.getState().commitText(dslTextForElements([
       { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 }
     ]), "test");
@@ -379,10 +379,8 @@ describe("SourceEditorController @stop mapping", () => {
     const point = useCadDocumentStore.getState().elements[0];
     const lineFrom = internals.view.state.doc.line(2).from;
 
-    expect(internals.handleEvaluationGutterAction("visibility", lineFrom)).toBe(true);
-    expect(internals.handleEvaluationGutterAction("enabled", lineFrom)).toBe(true);
-    expect(dispatchCommand).toHaveBeenCalledWith("toggleElementVisibility", { elementId: point.id });
-    expect(dispatchCommand).toHaveBeenCalledWith("toggleElementEnabled", { elementId: point.id });
+    expect(internals.handleEvaluationGutterAction("activity", lineFrom)).toBe(true);
+    expect(dispatchCommand).toHaveBeenCalledWith("cycleElementActivity", { elementId: point.id });
     controller.destroy();
   });
 });

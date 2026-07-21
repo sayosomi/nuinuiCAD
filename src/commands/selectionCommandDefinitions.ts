@@ -38,11 +38,12 @@ import {
   selectElementByOffset,
   selectParentGroup,
   setEvaluationLimitIndex,
-  toggleElementBooleanProperty,
+  cycleElementActivity,
+  setElementActivity,
+  setElementsActivity,
   toggleGroupPrintEnabled,
   toggleSelectedGroupPrintEnabled,
   toggleGroupExpanded,
-  toggleSelectedElementsBooleanProperty,
   ungroupSelectedGroup
 } from "./selectionCommands";
 import type { Command, CommandId } from "./commandTypes";
@@ -351,15 +352,18 @@ export const selectionCommandDefinitions = {
       moveBezierHandleByDelta(context);
     }
   },
-  toggleElementVisibility: {
-    id: "toggleElementVisibility",
-    label: "要素の表示/非表示を切替",
-    run: (context) => toggleElementBooleanProperty(context?.elementId, "visible")
+  cycleElementActivity: {
+    id: "cycleElementActivity",
+    label: "要素のactivityを切替",
+    run: (context) => cycleElementActivity(context?.elementId)
   },
-  toggleElementEnabled: {
-    id: "toggleElementEnabled",
-    label: "要素の評価する/しないを切替",
-    run: (context) => toggleElementBooleanProperty(context?.elementId, "enabled")
+  setElementActivity: {
+    id: "setElementActivity",
+    label: "要素のactivityを設定",
+    run: (context) => {
+      if (!context?.activity) return;
+      setElementActivity(context.elementId, context.activity);
+    }
   },
   toggleGroupPrintEnabled: {
     id: "toggleGroupPrintEnabled",
@@ -372,19 +376,23 @@ export const selectionCommandDefinitions = {
     palette: { order: 41.75, keywords: ["print", "印刷", "group", "グループ"] },
     run: () => toggleSelectedGroupPrintEnabled()
   },
-  toggleSelectedElementVisibility: {
-    id: "toggleSelectedElementVisibility",
-    label: "表示/非表示を切替",
-    palette: { order: 40, keywords: ["visibility", "visible", "hide", "show", "表示", "非表示"] },
-    shortcuts: [{ keys: "v" }],
-    run: () => toggleSelectedElementsBooleanProperty("visible")
+  setSelectedElementsVisible: {
+    id: "setSelectedElementsVisible",
+    label: "選択要素を表示にする",
+    palette: { order: 40, keywords: ["visibility", "visible", "show", "表示"] },
+    run: () => setElementsActivity("visible")
   },
-  toggleSelectedElementEnabled: {
-    id: "toggleSelectedElementEnabled",
-    label: "評価する/しないを切替",
-    palette: { order: 41, keywords: ["enabled", "active", "evaluate", "評価", "有効", "無効"] },
-    shortcuts: [{ keys: "a" }],
-    run: () => toggleSelectedElementsBooleanProperty("enabled")
+  setSelectedElementsHidden: {
+    id: "setSelectedElementsHidden",
+    label: "選択要素を非表示にする",
+    palette: { order: 40.5, keywords: ["visibility", "hidden", "hide", "非表示"] },
+    run: () => setElementsActivity("hidden")
+  },
+  setSelectedElementsDisabled: {
+    id: "setSelectedElementsDisabled",
+    label: "選択要素を評価しないにする",
+    palette: { order: 41, keywords: ["enabled", "disabled", "evaluate", "評価", "無効"] },
+    run: () => setElementsActivity("disabled")
   },
   duplicateSelectedElement: {
     id: "duplicateSelectedElement",

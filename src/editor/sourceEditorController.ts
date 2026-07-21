@@ -1316,12 +1316,7 @@ export class SourceEditorController implements SourceEditorHandle {
     }
     const elementId = elementIdAtCursor(this.statementRanges, lineFrom);
     if (!elementId || !this.store.getState().elements.some((element) => element.id === elementId)) return false;
-    const commandId = action === "visibility"
-      ? "toggleElementVisibility"
-      : action === "enabled"
-        ? "toggleElementEnabled"
-        : "toggleGroupPrintEnabled";
-    return dispatchCommand(commandId, { elementId }) !== false;
+    return dispatchCommand("cycleElementActivity", { elementId }) !== false;
   }
 
   private sourceIsApplied() {
