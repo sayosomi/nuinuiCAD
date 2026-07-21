@@ -224,56 +224,30 @@ textarea {
 
 .cm-element-state-marker {
   position: relative;
-  display: block;
+  display: grid;
+  place-items: center;
   width: 18px;
   height: 18px;
   margin-top: 2px;
+  cursor: pointer;
+  color: #8b9086;
+  font-size: 11px;
+  line-height: 1;
 }
 
 .cm-element-state-marker::before {
-  display: block;
-  width: 6px;
-  height: 6px;
-  margin: 6px;
-  border-radius: 999px;
-  background: #8b9086;
-  content: "";
+  content: "\25C9"; /* visible: filled circle (eye) */
 }
 
-.cm-element-state-marker.is-hidden::before { background: #7b8790; }
-.cm-element-state-marker.is-disabled::before { background: #b66e38; }
-.cm-element-state-marker.is-print-enabled::before { background: #0f766e; }
-
-.cm-element-state-rail {
-  position: absolute;
-  z-index: 14;
-  display: flex;
-  overflow: hidden;
-  border: 1px solid #b7c8bf;
-  border-radius: 6px;
-  background: #fffefa;
-  box-shadow: 0 7px 18px rgb(37 52 45 / 18%);
+.cm-element-state-marker.is-hidden::before {
+  content: "\25CB"; /* hidden: hollow circle (eye-off) */
+  color: #7b8790;
 }
 
-.cm-element-state-rail[hidden] { display: none; }
-
-.cm-element-state-rail button {
-  display: grid;
-  width: 28px;
-  height: 28px;
-  place-items: center;
-  border: 0;
-  border-left: 1px solid #e0e4de;
-  border-radius: 0;
-  background: transparent;
-  color: #3f4a43;
-  padding: 0;
-  font-size: 12px;
+.cm-element-state-marker.is-disabled::before {
+  content: "\2298"; /* disabled: circled slash (stop) */
+  color: #b66e38;
 }
-
-.cm-element-state-rail button:first-child { border-left: 0; }
-.cm-element-state-rail button:hover,
-.cm-element-state-rail button:focus-visible { background: #e7f4ef; color: #0f5e53; }
 
 .source-editor-pane .cm-status-gutter-error {
   background: #c2410c;

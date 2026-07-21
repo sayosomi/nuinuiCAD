@@ -33,7 +33,7 @@ describe("dispatchCommand editor flush boundary", () => {
       flush
     });
 
-    dispatchCommand("toggleSelectedElementVisibility");
+    dispatchCommand("setSelectedElementsHidden");
 
     expect(flush).toHaveBeenCalledTimes(1);
     expect(flush).toHaveBeenCalledWith("command");
@@ -51,7 +51,7 @@ describe("dispatchCommand editor flush boundary", () => {
     });
     const before = useCadDocumentStore.getState().sourceText;
 
-    const result = dispatchCommand("toggleSelectedElementVisibility");
+    const result = dispatchCommand("setSelectedElementsHidden");
 
     expect(flush).toHaveBeenCalledWith("command");
     expect(result).toBe(false);

@@ -112,6 +112,10 @@ Phase 5cでは `focusElementList` と `enterElementListMode` を統合し、正�
 | `toggleExpressionInsertTray` |
 | `openExpressionInsertTray` |
 | `closeExpressionInsertTray` |
+| `toggleElementVisibility` |
+| `toggleElementEnabled` |
+| `toggleSelectedElementVisibility` |
+| `toggleSelectedElementEnabled` |
 
 ## 3. ID不変で挙動が変わったもの(移行不要)
 

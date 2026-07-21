@@ -1,5 +1,10 @@
 import { type CommandContext, type CommandId } from "./commands";
 import { isForGroupElement, isGroupElement, isGroupExpanded } from "../model/groups";
+import {
+  elementActivityFromLegacyFlags,
+  elementTypeSupportsHiddenActivity,
+  type ElementActivity
+} from "../model/elementActivity";
 import { elementSupportsDisplayColor } from "../palette/colorApplicability";
 import type { CadElement } from "../types/geometry";
 import type { GroupFoldById } from "../model/groups";
@@ -17,9 +22,20 @@ export type MenuSeparatorItem = {
 
 export type MenuItem = MenuCommandItem | MenuSeparatorItem;
 
-const visibleLabel = (element: CadElement) => (element.visible ? "非表示にする" : "表示する");
+const activityLabels: Record<ElementActivity, string> = {
+  visible: "表示にする",
+  hidden: "非表示にする",
+  disabled: "評価しない"
+};
 
-const enabledLabel = (element: CadElement) => (element.enabled ? "評価しない" : "評価する");
+const offerableActivities = (element: CadElement): ElementActivity[] => {
+  const current = elementActivityFromLegacyFlags(element);
+  return (["visible", "hidden", "disabled"] as const).filter(
+    (activity) =>
+      activity !== current &&
+      (activity !== "hidden" || elementTypeSupportsHiddenActivity(element.type))
+  );
+};
 
 const printLabel = (element: CadElement) =>
   element.type === "group" && element.printEnabled === true ? "印刷しない" : "印刷する";
@@ -44,20 +60,14 @@ export const menuItemsForElement = ({
   const hasColorTarget = selectedElements.some(elementSupportsDisplayColor);
   const items: MenuItem[] = [];
 
-  if (element.type !== "variable") {
+  for (const activity of offerableActivities(element)) {
     items.push({
       kind: "command",
-      commandId: "toggleElementVisibility",
-      label: visibleLabel(element),
-      context: { elementId: element.id }
+      commandId: "setElementActivity",
+      label: activityLabels[activity],
+      context: { elementId: element.id, activity }
     });
   }
-  items.push({
-    kind: "command",
-    commandId: "toggleElementEnabled",
-    label: enabledLabel(element),
-    context: { elementId: element.id }
-  });
   items.push({
     kind: "command",
     commandId: "setEvaluationLimitIndex",

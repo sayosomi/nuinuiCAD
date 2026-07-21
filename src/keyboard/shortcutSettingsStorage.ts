@@ -94,7 +94,11 @@ export const retiredCommandIds = [
   "toggleSelectedElementLocked",
   "toggleExpressionInsertTray",
   "openExpressionInsertTray",
-  "closeExpressionInsertTray"
+  "closeExpressionInsertTray",
+  "toggleElementVisibility",
+  "toggleElementEnabled",
+  "toggleSelectedElementVisibility",
+  "toggleSelectedElementEnabled"
 ] as const;
 
 const retiredCommandIdSet = new Set<string>(retiredCommandIds);

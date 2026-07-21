@@ -36,7 +36,7 @@ describe("SourceEditorContextMenu", () => {
     const toggleVisibility = screen.getByRole("menuitem", { name: "非表示にする" });
     fireEvent.click(toggleVisibility);
 
-    expect(dispatchCommand).toHaveBeenCalledWith("toggleElementVisibility", { elementId });
+    expect(dispatchCommand).toHaveBeenCalledWith("setElementActivity", { elementId, activity: "hidden" });
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 

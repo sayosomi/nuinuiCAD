@@ -1,4 +1,4 @@
-import type { ElementId } from "../types/geometry";
+import type { CadElementType, ElementId } from "../types/geometry";
 
 export type ElementActivity = "visible" | "hidden" | "disabled";
 
@@ -45,8 +45,35 @@ export const activityAllowsEvaluation = (activity: ElementActivity) => activity 
 
 export const activityAllowsDrawing = (activity: ElementActivity) => activity === "visible";
 
-const isActivityContainer = (element: ActivityElement) =>
-  element.type === "group" || element.type === "conditionalGroup" || element.type === "forGroup";
+const isActivityContainer = (elementType: string) =>
+  elementType === "group" || elementType === "conditionalGroup" || elementType === "forGroup";
+
+/**
+ * Types whose evaluator never assigns computedGeometry under their own
+ * element id: edge/extendTrim/move/symmetricMove mutate a referenced line's
+ * geometry in place instead, and variable writes to computedVariables, not
+ * computedGeometry. hidden and visible are indistinguishable for these
+ * types; only disabled changes anything observable.
+ */
+const elementTypesWithoutOwnDrawableGeometry = new Set<CadElementType>([
+  "variable",
+  "edge",
+  "extendTrim",
+  "move",
+  "symmetricMove"
+]);
+
+export const elementTypeSupportsHiddenActivity = (elementType: CadElementType) =>
+  isActivityContainer(elementType) || !elementTypesWithoutOwnDrawableGeometry.has(elementType);
+
+export const nextElementActivity = (
+  current: ElementActivity,
+  elementType: CadElementType
+): ElementActivity => {
+  if (current === "visible") return elementTypeSupportsHiddenActivity(elementType) ? "hidden" : "disabled";
+  if (current === "hidden") return "disabled";
+  return "visible";
+};
 
 /**
  * Resolves element activity once per element. This is intentionally separate
@@ -65,7 +92,7 @@ export const effectiveElementActivityById = <T extends ActivityElement>(
 
     const ownActivity = elementActivityFromLegacyFlags(element);
     const parent = element.parentGroupId ? byId.get(element.parentGroupId) : undefined;
-    const parentActivity = parent && isActivityContainer(parent) && !visiting.has(element.id)
+    const parentActivity = parent && isActivityContainer(parent.type) && !visiting.has(element.id)
       ? (() => {
           visiting.add(element.id);
           const resolved = resolve(parent, visiting);

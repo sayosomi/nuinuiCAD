@@ -4,7 +4,9 @@ import {
   activityAllowsEvaluation,
   effectiveElementActivityById,
   elementActivityFromLegacyFlags,
-  legacyFlagsForElementActivity
+  elementTypeSupportsHiddenActivity,
+  legacyFlagsForElementActivity,
+  nextElementActivity
 } from "./elementActivity";
 
 describe("element activity legacy bridge", () => {
@@ -36,5 +38,34 @@ describe("element activity legacy bridge", () => {
     expect(activities.get("nested")).toMatchObject({ activity: "disabled", disabledByElementId: "nested" });
     expect(activities.get("child")).toMatchObject({ activity: "disabled", disabledByElementId: "nested" });
     expect(activities.get("visible-child")).toMatchObject({ activity: "hidden", hiddenByElementId: "hidden" });
+  });
+
+  it.each([
+    ["group", true],
+    ["conditionalGroup", true],
+    ["forGroup", true],
+    ["freePoint", true],
+    ["line", true],
+    ["image", true],
+    ["text", true],
+    ["variable", false],
+    ["edge", false],
+    ["extendTrim", false],
+    ["move", false],
+    ["symmetricMove", false]
+  ] as const)("elementTypeSupportsHiddenActivity(%s) is %s", (elementType, expected) => {
+    expect(elementTypeSupportsHiddenActivity(elementType)).toBe(expected);
+  });
+
+  it("cycles visible -> hidden -> disabled -> visible for types where hidden is meaningful", () => {
+    expect(nextElementActivity("visible", "freePoint")).toBe("hidden");
+    expect(nextElementActivity("hidden", "freePoint")).toBe("disabled");
+    expect(nextElementActivity("disabled", "freePoint")).toBe("visible");
+  });
+
+  it("skips hidden for types where it is meaningless, and recovers forward from a legacy hidden state", () => {
+    expect(nextElementActivity("visible", "variable")).toBe("disabled");
+    expect(nextElementActivity("disabled", "variable")).toBe("visible");
+    expect(nextElementActivity("hidden", "variable")).toBe("disabled");
   });
 });

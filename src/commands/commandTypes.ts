@@ -1,4 +1,5 @@
 import type { BezierHandleRole } from "../model/elementDragTransforms";
+import type { ElementActivity } from "../model/elementActivity";
 import type { DocumentMutationResult } from "../state/cadDocumentStore";
 import type {
   MeasurementInsertMode,
@@ -79,12 +80,13 @@ export type CommandId =
   | "applyPickedLine"
   | "finishLinePick"
   | "cancelLinePick"
-  | "toggleElementVisibility"
-  | "toggleElementEnabled"
+  | "cycleElementActivity"
+  | "setElementActivity"
+  | "setSelectedElementsVisible"
+  | "setSelectedElementsHidden"
+  | "setSelectedElementsDisabled"
   | "toggleGroupPrintEnabled"
   | "toggleSelectedGroupPrintEnabled"
-  | "toggleSelectedElementVisibility"
-  | "toggleSelectedElementEnabled"
   | "duplicateSelectedElement"
   | "deleteSelectedElement"
   | "addFreePoint"
@@ -210,6 +212,7 @@ export type CommandContext = {
   templateInputId?: string;
   numericValue?: NumericValue;
   colorId?: string;
+  activity?: ElementActivity;
 };
 
 export type Command = {

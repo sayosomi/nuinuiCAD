@@ -8,7 +8,7 @@ import type { AtStopRange } from "./statementRangeIndex";
 
 export { evaluationChanged } from "./sourceEditorEvaluationEffects";
 
-export type EvaluationGutterAction = "visibility" | "enabled" | "print" | "stop";
+export type EvaluationGutterAction = "activity" | "stop";
 
 export type EvaluationExtensionSource = {
   index: () => EvaluationDecorationIndex;
@@ -82,139 +82,32 @@ export class EvaluationViewPluginValue {
   }
 }
 
-const stateSummaryLabel = (status: IndexedLineStatus) => [
-  status.hiddenSelf ? "非表示" : "表示",
-  status.disabledSelf ? "評価しない" : "評価する",
-  status.printEnabled ? "印刷する" : "印刷しない"
-].join(" / ");
+const activityClassFor = (status: IndexedLineStatus) =>
+  status.disabledSelf ? "is-disabled" : status.hiddenSelf ? "is-hidden" : "is-visible";
+
+const activityLabelFor = (status: IndexedLineStatus) =>
+  status.disabledSelf ? "評価しない" : status.hiddenSelf ? "非表示" : "表示";
 
 class ElementStateMarker extends GutterMarker {
   constructor(
     private readonly status: IndexedLineStatus,
-    private readonly lineFrom: number
+    private readonly lineFrom: number,
+    private readonly source: EvaluationExtensionSource
   ) { super(); }
 
   toDOM() {
     const root = document.createElement("span");
-    root.className = [
-      "cm-element-state-marker",
-      this.status.hiddenSelf ? "is-hidden" : "",
-      this.status.disabledSelf ? "is-disabled" : "",
-      this.status.printEnabled ? "is-print-enabled" : ""
-    ].filter(Boolean).join(" ");
-    root.title = stateSummaryLabel(this.status);
-    root.dataset.sourceStateRailLine = String(this.lineFrom);
+    const label = activityLabelFor(this.status);
+    root.className = `cm-element-state-marker ${activityClassFor(this.status)}`;
+    root.title = label;
+    root.setAttribute("aria-label", label);
+    root.dataset.elementActivityLine = String(this.lineFrom);
     root.addEventListener("mousedown", (event) => {
       event.preventDefault();
       event.stopPropagation();
-      root.dispatchEvent(new CustomEvent("source-editor-open-state-rail", {
-        bubbles: true,
-        detail: { lineFrom: this.lineFrom }
-      }));
+      this.source.onGutterAction("activity", this.lineFrom);
     });
     return root;
-  }
-}
-
-type StateRailAction = Exclude<EvaluationGutterAction, "stop">;
-
-const stateRailActions = (status: IndexedLineStatus): Array<[StateRailAction, string, string]> => [
-  ["visibility", status.hiddenSelf ? "表示する" : "非表示にする", "◉"],
-  ["enabled", status.disabledSelf ? "評価する" : "評価しない", "▶"],
-  ["print", status.printEnabled ? "印刷しない" : "印刷する", "🖶"]
-];
-
-class ElementStateRail {
-  private readonly root = document.createElement("div");
-  private openLineFrom: number | null = null;
-
-  constructor(private view: EditorView, private readonly source: EvaluationExtensionSource) {
-    this.root.className = "cm-element-state-rail";
-    this.root.setAttribute("role", "toolbar");
-    this.root.setAttribute("aria-label", "行の状態操作");
-    this.root.hidden = true;
-    this.view.dom.appendChild(this.root);
-    this.view.dom.addEventListener("source-editor-open-state-rail", this.onOpen as EventListener);
-    document.addEventListener("pointerdown", this.onDocumentPointerDown, true);
-    document.addEventListener("keydown", this.onDocumentKeyDown, true);
-  }
-
-  update(update: ViewUpdate) {
-    this.view = update.view;
-    const evaluationChangedInUpdate = update.transactions.some((transaction) =>
-      transaction.effects.some((effect) => effect.is(evaluationChanged))
-    );
-    if (this.openLineFrom !== null && (update.docChanged || update.viewportChanged || update.geometryChanged || evaluationChangedInUpdate)) {
-      this.render();
-    }
-  }
-
-  destroy() {
-    this.view.dom.removeEventListener("source-editor-open-state-rail", this.onOpen as EventListener);
-    document.removeEventListener("pointerdown", this.onDocumentPointerDown, true);
-    document.removeEventListener("keydown", this.onDocumentKeyDown, true);
-    this.root.remove();
-  }
-
-  private readonly onOpen = (event: CustomEvent<{ lineFrom: number }>) => {
-    event.preventDefault();
-    event.stopPropagation();
-    this.openLineFrom = event.detail.lineFrom;
-    this.render();
-  };
-
-  private readonly onDocumentPointerDown = (event: PointerEvent) => {
-    const target = event.target instanceof Node ? event.target : null;
-    if (!target || this.root.contains(target)) return;
-    if (target instanceof Element && target.closest("[data-source-state-rail-line]")) return;
-    this.close();
-  };
-
-  private readonly onDocumentKeyDown = (event: KeyboardEvent) => {
-    if (event.key !== "Escape" || this.openLineFrom === null) return;
-    event.preventDefault();
-    this.close();
-  };
-
-  private close() {
-    this.openLineFrom = null;
-    this.root.hidden = true;
-    this.root.replaceChildren();
-  }
-
-  private render() {
-    if (this.openLineFrom === null) return;
-    const status = this.source.index().statusByLineFrom.get(this.openLineFrom);
-    const anchor = this.view.dom.querySelector<HTMLElement>(`[data-source-state-rail-line="${this.openLineFrom}"]`);
-    if (!status || !anchor) {
-      this.close();
-      return;
-    }
-    const editorRect = this.view.dom.getBoundingClientRect();
-    const anchorRect = anchor.getBoundingClientRect();
-    this.root.style.left = `${Math.max(0, anchorRect.right - editorRect.left + 5)}px`;
-    this.root.style.top = `${Math.max(0, anchorRect.top - editorRect.top - 4)}px`;
-    this.root.replaceChildren();
-    for (const [action, label, icon] of stateRailActions(status)) {
-      if (action === "visibility" && !status.canToggleVisibility) continue;
-      if (action === "print" && !status.canTogglePrint) continue;
-      const button = document.createElement("button");
-      button.type = "button";
-      button.setAttribute("aria-label", label);
-      button.title = label;
-      button.textContent = icon;
-      button.addEventListener("mousedown", (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-      });
-      button.addEventListener("click", (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        this.source.onGutterAction(action, this.openLineFrom!);
-      });
-      this.root.appendChild(button);
-    }
-    this.root.hidden = false;
   }
 }
 
@@ -223,7 +116,7 @@ const elementStateGutter = (source: EvaluationExtensionSource) => gutter({
   lineMarker: (view, line) => {
     const status = source.index().statusByLineFrom.get(line.from);
     if (!status) return null;
-    return new ElementStateMarker(status, line.from);
+    return new ElementStateMarker(status, line.from, source);
   },
   lineMarkerChange: (update) => update.docChanged || update.transactions.some((transaction) =>
     transaction.effects.some((effect) => effect.is(evaluationChanged))
@@ -232,11 +125,6 @@ const elementStateGutter = (source: EvaluationExtensionSource) => gutter({
 
 export const createEvaluationExtension = (source: EvaluationExtensionSource): Extension => {
   const evaluationViewPlugin = ViewPlugin.define<EvaluationViewPluginValue>((view) => new EvaluationViewPluginValue(view, source), { decorations: (value) => value.decorations });
-  const elementStateRail = ViewPlugin.fromClass(
-    class extends ElementStateRail {
-      constructor(view: EditorView) { super(view, source); }
-    }
-  );
   const statusGutter = gutter({
     class: "cm-status-gutter",
     lineMarker: (view, line) => {
@@ -253,7 +141,6 @@ export const createEvaluationExtension = (source: EvaluationExtensionSource): Ex
   return [
     evaluationViewPlugin,
     sourceEditorGeneratedRowsExtension(source),
-    elementStateRail,
     statusGutter,
     elementStateGutter(source)
   ];

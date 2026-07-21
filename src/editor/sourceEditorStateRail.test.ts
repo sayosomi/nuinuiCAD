@@ -11,7 +11,7 @@ const originalClientWidth = Object.getOwnPropertyDescriptor(HTMLElement.prototyp
 const originalClientHeight = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "clientHeight");
 const originalBoundingRect = HTMLElement.prototype.getBoundingClientRect;
 
-describe("SourceEditor state rail", () => {
+describe("SourceEditor element state gutter", () => {
   beforeEach(() => {
     useCadDocumentStore.setState(initialCadDocumentState());
     useCadUiStore.setState(initialCadUiState());
@@ -33,7 +33,7 @@ describe("SourceEditor state rail", () => {
     HTMLElement.prototype.getBoundingClientRect = originalBoundingRect;
   });
 
-  it("opens for the clicked unfocused row and changes that exact row directly", () => {
+  it("cycles the clicked row's element directly on mousedown, without moving the cursor", () => {
     const parent = document.createElement("div");
     document.body.appendChild(parent);
     const controller = new SourceEditorController(parent);
@@ -46,24 +46,19 @@ describe("SourceEditor state rail", () => {
     const firstLine = view.state.doc.line(2);
     const secondLine = view.state.doc.line(3);
     view.dispatch({ selection: EditorSelection.cursor(firstLine.from) });
-    const marker = parent.querySelector<HTMLElement>(`[data-source-state-rail-line="${secondLine.from}"]`)!;
+    const marker = parent.querySelector<HTMLElement>(`[data-element-activity-line="${secondLine.from}"]`)!;
 
     fireEvent.mouseDown(marker);
 
-    const rail = parent.querySelector<HTMLElement>(".cm-element-state-rail")!;
-    expect(rail).not.toHaveAttribute("hidden");
-    expect(view.state.selection.main.head).toBe(firstLine.from);
-    fireEvent.click(rail.querySelector<HTMLButtonElement>("[aria-label='非表示にする']")!);
-
     const elements = useCadDocumentStore.getState().elements;
-    expect(elements.find((element) => element.name === "A")?.visible).toBe(true);
-    expect(elements.find((element) => element.name === "B")?.visible).toBe(false);
+    expect(elements.find((element) => element.name === "A")).toMatchObject({ visible: true, enabled: true });
+    expect(elements.find((element) => element.name === "B")).toMatchObject({ visible: false, enabled: true });
     expect(view.state.selection.main.head).toBe(firstLine.from);
     controller.destroy();
     parent.remove();
   });
 
-  it("moves to another clicked row and closes on Escape or an outside click", () => {
+  it("cycles independently per row through all three states back to the start", () => {
     const parent = document.createElement("div");
     document.body.appendChild(parent);
     const controller = new SourceEditorController(parent);
@@ -73,29 +68,26 @@ describe("SourceEditor state rail", () => {
       evaluationRequestRevision: 1
     });
     const view = EditorView.findFromDOM(parent.querySelector<HTMLElement>(".cm-editor")!)!;
-    const first = parent.querySelector<HTMLElement>(`[data-source-state-rail-line="${view.state.doc.line(2).from}"]`)!;
-    const second = parent.querySelector<HTMLElement>(`[data-source-state-rail-line="${view.state.doc.line(3).from}"]`)!;
-    const rail = parent.querySelector<HTMLElement>(".cm-element-state-rail")!;
+    const secondLineFrom = view.state.doc.line(3).from;
+    const marker = () => parent.querySelector<HTMLElement>(`[data-element-activity-line="${secondLineFrom}"]`)!;
+    const elementB = () => useCadDocumentStore.getState().elements.find((element) => element.name === "B");
 
-    fireEvent.mouseDown(first);
-    expect(rail).not.toHaveAttribute("hidden");
-    fireEvent.mouseDown(second);
-    expect(rail).not.toHaveAttribute("hidden");
-    fireEvent.keyDown(document, { key: "Escape" });
-    expect(rail).toHaveAttribute("hidden");
+    fireEvent.mouseDown(marker());
+    expect(elementB()).toMatchObject({ visible: false, enabled: true });
 
-    fireEvent.mouseDown(first);
-    fireEvent.pointerDown(view.contentDOM);
-    expect(rail).toHaveAttribute("hidden");
+    fireEvent.mouseDown(marker());
+    expect(elementB()).toMatchObject({ visible: true, enabled: false });
 
-    fireEvent.mouseDown(first);
-    fireEvent.pointerDown(document.body);
-    expect(rail).toHaveAttribute("hidden");
+    fireEvent.mouseDown(marker());
+    expect(elementB()).toMatchObject({ visible: true, enabled: true });
+
+    expect(useCadDocumentStore.getState().elements.find((element) => element.name === "A"))
+      .toMatchObject({ visible: true, enabled: true });
     controller.destroy();
     parent.remove();
   });
 
-  it("anchors a state rail marker on a vertical statement header, never its argument rows", () => {
+  it("anchors a state marker on a vertical statement header, never its argument rows", () => {
     useCadDocumentStore.getState().commitText(dslTextForElements([
       { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
       { id: "b", name: "B", type: "freePoint", visible: true, enabled: true, x: 10, y: 0 }
@@ -111,8 +103,8 @@ describe("SourceEditor state rail", () => {
     const view = EditorView.findFromDOM(parent.querySelector<HTMLElement>(".cm-editor")!)!;
     const header = view.state.doc.line(view.state.doc.toString().split("\n").findIndex((line) => line.includes("point B =")) + 1);
     const argument = view.state.doc.line(header.number + 1);
-    expect(parent.querySelector(`[data-source-state-rail-line="${header.from}"]`)).not.toBeNull();
-    expect(parent.querySelector(`[data-source-state-rail-line="${argument.from}"]`)).toBeNull();
+    expect(parent.querySelector(`[data-element-activity-line="${header.from}"]`)).not.toBeNull();
+    expect(parent.querySelector(`[data-element-activity-line="${argument.from}"]`)).toBeNull();
     controller.destroy();
     parent.remove();
   });

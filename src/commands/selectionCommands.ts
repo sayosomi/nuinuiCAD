@@ -4,6 +4,13 @@ import {
 } from "../model/documentSelection";
 import { moveElementsToInsertionIndex as moveDocumentElementsToInsertionIndex } from "../model/documentOrder";
 import {
+  elementActivityFromLegacyFlags,
+  elementTypeSupportsHiddenActivity,
+  legacyFlagsForElementActivity,
+  nextElementActivity,
+  type ElementActivity
+} from "../model/elementActivity";
+import {
   applyCreationPlacement,
   creationPlacementForEvaluationLimit
 } from "../model/elementCreationPlacement";
@@ -31,35 +38,53 @@ import { getSelectedElement, getSelectedElementIds } from "./commandRuntime";
 import { commitDocumentChangeAndSelect } from "./commitDocumentChangeAndSelect";
 import { focusCanvasAfterCreation } from "./postCreationFocus";
 
-export const toggleSelectedElementsBooleanProperty = (property: "visible" | "enabled") => {
-  const { elements } = useCadDocumentStore.getState();
-  const selectedIds = new Set(getSelectedElementIds());
-  if (selectedIds.size === 0) return;
+const applyActivityToTargets = (
+  elements: CadElement[],
+  targetIds: ReadonlySet<ElementId>,
+  activity: ElementActivity
+): CadElement[] | null => {
+  let changed = false;
+  const nextElements = elements.map((element) => {
+    if (!targetIds.has(element.id)) return element;
+    if (activity === "hidden" && !elementTypeSupportsHiddenActivity(element.type)) return element;
+    if (elementActivityFromLegacyFlags(element) === activity) return element;
+    changed = true;
+    return { ...element, ...legacyFlagsForElementActivity(activity) };
+  });
+  return changed ? nextElements : null;
+};
 
+export const cycleElementActivity = (elementId: ElementId | undefined) => {
+  const { elements } = useCadDocumentStore.getState();
+  const target = elements.find((element) => element.id === elementId);
+  if (!target) return;
+
+  const next = nextElementActivity(elementActivityFromLegacyFlags(target), target.type);
   useCadDocumentStore.getState().commitDocumentChange({
     elements: elements.map((element) =>
-      selectedIds.has(element.id) && !(property === "visible" && element.type === "variable")
-        ? { ...element, [property]: !element[property] }
-        : element
+      element.id === elementId ? { ...element, ...legacyFlagsForElementActivity(next) } : element
     )
   });
 };
 
-export const toggleElementBooleanProperty = (
-  elementId: ElementId | undefined,
-  property: "visible" | "enabled"
-) => {
+export const setElementActivity = (elementId: ElementId | undefined, activity: ElementActivity) => {
   if (!elementId) return;
   const { elements } = useCadDocumentStore.getState();
   if (!elements.some((element) => element.id === elementId)) return;
 
-  useCadDocumentStore.getState().commitDocumentChange({
-    elements: elements.map((element) =>
-      element.id === elementId && !(property === "visible" && element.type === "variable")
-        ? { ...element, [property]: !element[property] }
-        : element
-    )
-  });
+  const nextElements = applyActivityToTargets(elements, new Set([elementId]), activity);
+  if (!nextElements) return;
+  useCadDocumentStore.getState().commitDocumentChange({ elements: nextElements });
+};
+
+export const setElementsActivity = (activity: ElementActivity) => {
+  const { elements } = useCadDocumentStore.getState();
+  const selectedIds = new Set(getSelectedElementIds());
+  if (selectedIds.size === 0) return;
+
+  const nextElements = applyActivityToTargets(elements, selectedIds, activity);
+  if (!nextElements) return;
+  useCadDocumentStore.getState().commitDocumentChange({ elements: nextElements });
 };
 
 export const toggleGroupPrintEnabled = (elementId: ElementId | undefined) => {

@@ -154,8 +154,9 @@ export const defaultCommandRibbonSettings = (): CommandRibbonSettings => ({
         defaultButton("moveSelectedElementUp", "arrow-up", "上へ"),
         defaultButton("moveSelectedElementDown", "arrow-down", "下へ"),
         defaultButton("duplicateSelectedElement", "copy", "複製"),
-        defaultButton("toggleSelectedElementVisibility", "eye", "表示切替"),
-        defaultButton("toggleSelectedElementEnabled", "toggle-right", "評価切替"),
+        defaultButton("setSelectedElementsVisible", "eye", "表示にする"),
+        defaultButton("setSelectedElementsHidden", "eye-off", "非表示にする"),
+        defaultButton("setSelectedElementsDisabled", "ban", "評価しない"),
         {
           ...defaultButton("deleteSelectedElement", "trash", "削除"),
           iconColor: "red"
