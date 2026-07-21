@@ -20,7 +20,7 @@ const polarPoint: CadElement = {
 
 const withPolarPoint = () => [...sampleElements, polarPoint];
 
-const divisionPoint = (placementMode: "distance" | "ratio"): CadElement => ({
+const divisionPoint = (kind: "distance" | "ratio"): CadElement => ({
   id: "division-point",
   name: "分点",
   type: "divisionPoint",
@@ -28,9 +28,7 @@ const divisionPoint = (placementMode: "distance" | "ratio"): CadElement => ({
   enabled: true,
   startPoint: { mode: "reference", pointId: "point-a" },
   endPoint: { mode: "reference", pointId: "point-b" },
-  placementMode,
-  distance: 30,
-  ratio: 0.5
+  placement: { kind, value: kind === "distance" ? 30 : 0.5 }
 });
 
 const lineDivisionPoint: CadElement = {
@@ -40,9 +38,7 @@ const lineDivisionPoint: CadElement = {
   visible: true,
   enabled: true,
   endpoint: { lineId: "line-ab", endpointKey: "start" },
-  placementMode: "distance",
-  distance: 10,
-  ratio: 0.5
+  placement: { kind: "distance", value: 10 }
 };
 
 const lineTangentOffsetPoint: CadElement = {
@@ -183,7 +179,7 @@ describe("elementDragTransforms", () => {
 
     expect(point).toMatchObject({ type: "divisionPoint" });
     if (point?.type !== "divisionPoint") throw new Error("Expected a division point");
-    expect(point.distance).toBeCloseTo(40);
+    expect(point.placement.value).toBeCloseTo(40);
   });
 
   it("moves division points by updating ratio in ratio mode", () => {
@@ -196,7 +192,7 @@ describe("elementDragTransforms", () => {
 
     expect(point).toMatchObject({ type: "divisionPoint" });
     if (point?.type !== "divisionPoint") throw new Error("Expected a division point");
-    expect(point.ratio).toBeCloseTo(0.6);
+    expect(point.placement.value).toBeCloseTo(0.6);
   });
 
   // 04: DivisionPlacement characterization。lineDivisionPointにはdivisionPointと違い

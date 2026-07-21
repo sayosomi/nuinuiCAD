@@ -1,6 +1,7 @@
 use serde_json::Value;
 use std::collections::HashMap;
 
+use super::division_placement::{decode_division_placement, DivisionPlacementKind};
 use super::errors::geometry_error;
 use super::math::CIRCLE_EPSILON;
 use super::numeric_expression::evaluate_numeric_or_push;
@@ -193,41 +194,45 @@ pub(crate) fn evaluate_division_point(
     let vector_y = end.y - start.y;
     let length = vector_x.hypot(vector_y);
 
-    let (x, y) = if element.get("placementMode").and_then(Value::as_str) == Some("distance") {
-        let Some(distance) = evaluate_numeric_or_push(
-            element.get("distance").unwrap_or(&Value::Null),
-            state,
-            element,
-            &local_variables.0,
-            &local_variables.1,
-        ) else {
-            return;
-        };
-        if length <= CIRCLE_EPSILON {
-            state.errors.push(geometry_error(
+    let (kind, placement_value) = decode_division_placement(element);
+    let (x, y) = match kind {
+        DivisionPlacementKind::Distance => {
+            let Some(distance) = evaluate_numeric_or_push(
+                placement_value,
+                state,
                 element,
-                format!(
-                    "{} は始点と終点が同じ位置のため、距離方向を決められません。始点と終点を別の位置にしてください。",
-                    element_name(element)
-                ),
-            ));
-            return;
+                &local_variables.0,
+                &local_variables.1,
+            ) else {
+                return;
+            };
+            if length <= CIRCLE_EPSILON {
+                state.errors.push(geometry_error(
+                    element,
+                    format!(
+                        "{} は始点と終点が同じ位置のため、距離方向を決められません。始点と終点を別の位置にしてください。",
+                        element_name(element)
+                    ),
+                ));
+                return;
+            }
+            (
+                start.x + (vector_x / length) * distance,
+                start.y + (vector_y / length) * distance,
+            )
         }
-        (
-            start.x + (vector_x / length) * distance,
-            start.y + (vector_y / length) * distance,
-        )
-    } else {
-        let Some(ratio) = evaluate_numeric_or_push(
-            element.get("ratio").unwrap_or(&Value::Null),
-            state,
-            element,
-            &local_variables.0,
-            &local_variables.1,
-        ) else {
-            return;
-        };
-        (start.x + vector_x * ratio, start.y + vector_y * ratio)
+        DivisionPlacementKind::Ratio => {
+            let Some(ratio) = evaluate_numeric_or_push(
+                placement_value,
+                state,
+                element,
+                &local_variables.0,
+                &local_variables.1,
+            ) else {
+                return;
+            };
+            (start.x + vector_x * ratio, start.y + vector_y * ratio)
+        }
     };
 
     let id = element_id(element).unwrap_or_default();

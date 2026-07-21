@@ -112,9 +112,7 @@
       "visible": true,
       "enabled": true,
       "endpoint": { "lineId": "ab", "endpointKey": "start" },
-      "placementMode": "ratio",
-      "distance": 0,
-      "ratio": 0.5
+      "placement": { "kind": "ratio", "value": 0.5 }
     }
   ]
 }

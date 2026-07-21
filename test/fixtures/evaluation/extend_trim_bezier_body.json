@@ -39,9 +39,7 @@
       "visible": true,
       "enabled": true,
       "endpoint": { "lineId": "curve-cd", "endpointKey": "start" },
-      "placementMode": "ratio",
-      "distance": 0,
-      "ratio": 0.7
+      "placement": { "kind": "ratio", "value": 0.7 }
     },
     {
       "id": "extend",

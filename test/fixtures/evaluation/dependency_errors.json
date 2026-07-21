@@ -35,9 +35,7 @@
       "enabled": true,
       "startPoint": { "mode": "reference", "pointId": "later" },
       "endPoint": { "mode": "reference", "pointId": "same" },
-      "placementMode": "distance",
-      "distance": 10,
-      "ratio": 0
+      "placement": { "kind": "distance", "value": 10 }
     },
     {
       "id": "bad-intersection",

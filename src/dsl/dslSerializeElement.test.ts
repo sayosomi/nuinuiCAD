@@ -68,7 +68,7 @@ describe("DSL v2 element serializer", () => {
             const isActivePlacement =
               (arg.arg !== "distance" && arg.arg !== "ratio") ||
               !(element.type === "divisionPoint" || element.type === "lineDivisionPoint") ||
-              element.placementMode === arg.arg;
+              element.placement.kind === arg.arg;
             return hasIntermediateRecords && isActivePlacement;
           })
           .map((arg) => arg.arg);
@@ -122,7 +122,7 @@ describe("DSL v2 element serializer", () => {
 
   it("uses only the active exclusive placement argument and canonical common-argument order", () => {
     const division = {
-      ...minimal("divisionPoint"), placementMode: "distance" as const, distance: 24,
+      ...minimal("divisionPoint"), placement: { kind: "distance" as const, value: 24 },
       visible: false, enabled: false, colorId: "red",
       numericParameterSteps: { distance: 1 },
       numericVariables: [{ id: "local-1", name: "幅", value: 5 }],
@@ -144,7 +144,7 @@ describe("DSL v2 element serializer", () => {
   // 明示的に固定する。
   it("uses only the active exclusive placement argument for lineDivisionPoint distance mode", () => {
     const onLine = {
-      ...minimal("lineDivisionPoint"), placementMode: "distance" as const, distance: 12, ratio: 0.75,
+      ...minimal("lineDivisionPoint"), placement: { kind: "distance" as const, value: 12 },
     };
     const args = serializeElementStatementBlock(onLine, flatRefs()).args;
     expect(args.map((arg) => arg.key)).toContain("distance");

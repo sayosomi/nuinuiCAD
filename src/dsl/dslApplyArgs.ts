@@ -181,6 +181,15 @@ export const applyArgs = (
         break;
       }
       case "number":
+        // distance/ratio on divisionPoint/lineDivisionPoint are resolved together below
+        // (exclusiveGroups), not written per-arg here, so that "distance wins when both
+        // are given" doesn't depend on which of the two args was scanned last.
+        if (
+          (parameterKey === "distance" || parameterKey === "ratio") &&
+          (next.type === "divisionPoint" || next.type === "lineDivisionPoint")
+        ) {
+          break;
+        }
         next = setParameterValue(next, parameterKey, numeric(value));
         break;
       case "reference":
@@ -284,7 +293,10 @@ export const applyArgs = (
   for (const group of spec.exclusiveGroups ?? []) {
     const selected = group.find((arg) => byName.has(arg));
     if (selected && (next.type === "divisionPoint" || next.type === "lineDivisionPoint")) {
-      next = { ...next, placementMode: selected as "distance" | "ratio" };
+      next = {
+        ...next,
+        placement: { kind: selected as "distance" | "ratio", value: numeric(byName.get(selected)!.value) },
+      };
     }
   }
   return { element: next, diagnostics, metadata };

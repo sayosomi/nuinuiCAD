@@ -267,10 +267,13 @@ describe("duplicateElements", () => {
     ]);
   });
 
-  // 04: DivisionPlacement characterization。elementDuplication.tsは
-  // placementModeに関わらずdistance/ratio両fieldを常に無条件clone(remap)する。
-  // 05のunion移行前に、この「非activeな側の値も失われない」現行挙動を固定する。
-  it("clones both distance and ratio fields verbatim regardless of the active placementMode (divisionPoint)", () => {
+  // 05: DivisionPlacement union. elementDuplication.ts clones the single
+  // `placement.value` unconditionally (no kind-conditional branch needed, since
+  // there is only one value slot now). This replaces the pre-union
+  // characterization that both `distance` and `ratio` sibling fields survived
+  // cloning regardless of which was active -- that dual-value state no longer
+  // exists to preserve.
+  it("clones the divisionPoint placement value verbatim", () => {
     const ids = ["point-a-copy", "point-b-copy", "division-copy"];
     const elements: CadElement[] = [
       { id: "point-a", name: "点A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
@@ -279,7 +282,7 @@ describe("duplicateElements", () => {
         id: "division", name: "分点", type: "divisionPoint", visible: true, enabled: true,
         startPoint: { mode: "reference", pointId: "point-a" },
         endPoint: { mode: "reference", pointId: "point-b" },
-        placementMode: "distance", distance: 7, ratio: 0.9
+        placement: { kind: "distance", value: 7 }
       }
     ];
 
@@ -292,13 +295,11 @@ describe("duplicateElements", () => {
       type: "divisionPoint",
       startPoint: { mode: "reference", pointId: "point-a-copy" },
       endPoint: { mode: "reference", pointId: "point-b-copy" },
-      placementMode: "distance",
-      distance: 7,
-      ratio: 0.9
+      placement: { kind: "distance", value: 7 }
     });
   });
 
-  it("clones both distance and ratio fields verbatim regardless of the active placementMode (lineDivisionPoint)", () => {
+  it("clones the lineDivisionPoint placement value verbatim", () => {
     const ids = ["point-a-copy", "point-b-copy", "line-copy", "division-copy"];
     const elements: CadElement[] = [
       { id: "point-a", name: "点A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
@@ -311,7 +312,7 @@ describe("duplicateElements", () => {
       {
         id: "division", name: "線上分点", type: "lineDivisionPoint", visible: true, enabled: true,
         endpoint: { lineId: "line-ab", endpointKey: "start" },
-        placementMode: "ratio", distance: 40, ratio: 0.2
+        placement: { kind: "ratio", value: 0.2 }
       }
     ];
 
@@ -323,9 +324,7 @@ describe("duplicateElements", () => {
     expect(copied).toMatchObject({
       type: "lineDivisionPoint",
       endpoint: { lineId: "line-copy", endpointKey: "start" },
-      placementMode: "ratio",
-      distance: 40,
-      ratio: 0.2
+      placement: { kind: "ratio", value: 0.2 }
     });
   });
 });

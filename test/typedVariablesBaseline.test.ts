@@ -38,13 +38,11 @@ describe("typed-variable v2 compatibility baseline", () => {
     expect(evaluation.computedGeometry.get(elementId(document.elements, "Scoped"))).toMatchObject({ kind: "point", x: 15, y: 0 });
     expect(document.elements.find((element) => element.name === "ByRatio")).toMatchObject({
       type: "divisionPoint",
-      placementMode: "ratio",
-      ratio: 0.5
+      placement: { kind: "ratio", value: 0.5 }
     });
     expect(document.elements.find((element) => element.name === "ByDistance")).toMatchObject({
       type: "divisionPoint",
-      placementMode: "distance",
-      distance: 5
+      placement: { kind: "distance", value: 5 }
     });
     expect(evaluation.computedGeometry.get(elementId(document.elements, "ByRatio"))).toMatchObject({ kind: "point", x: 5, y: 0 });
     expect(evaluation.computedGeometry.get(elementId(document.elements, "ByDistance"))).toMatchObject({ kind: "point", x: 5, y: 0 });

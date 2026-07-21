@@ -336,6 +336,17 @@ fn parameter_value<'a>(element: &'a Value, key: &str) -> Option<&'a Value> {
     if key == "printAnchor" {
         return element.get("printAnchor");
     }
+    if (key == "distance" || key == "ratio")
+        && matches!(
+            element.get("type").and_then(Value::as_str),
+            Some("divisionPoint" | "lineDivisionPoint")
+        )
+    {
+        let placement = element.get("placement")?;
+        return (placement.get("kind").and_then(Value::as_str) == Some(key))
+            .then(|| placement.get("value"))
+            .flatten();
+    }
     element.get(key)
 }
 

@@ -519,9 +519,7 @@ describe("evaluateElements", () => {
         enabled: true,
         parentGroupId: "loop",
         endpoint: { lineId: "ab", endpointKey: "start" },
-        placementMode: "ratio",
-        distance: 30,
-        ratio: makeNumericExpression("@i / 11")
+        placement: { kind: "ratio", value: makeNumericExpression("@i / 11") }
       },
       {
         id: "offset",
@@ -1212,9 +1210,7 @@ describe("evaluateElements", () => {
         enabled: true,
         startPoint: { mode: "reference", pointId: "a" },
         endPoint: { mode: "reference", pointId: "b" },
-        placementMode: "ratio",
-        distance: 0,
-        ratio: { kind: "expression", expression: "ratio-variable.value" }
+        placement: { kind: "ratio", value: { kind: "expression", expression: "ratio-variable.value" } }
       },
       {
         id: "derived",
@@ -1328,9 +1324,7 @@ describe("evaluateElements", () => {
         enabled: true,
         startPoint: { mode: "reference", pointId: "a" },
         endPoint: { mode: "reference", pointId: "b" },
-        placementMode: "distance",
-        distance: 15,
-        ratio: 0.5
+        placement: { kind: "distance", value: 15 }
       }
     ]);
 
@@ -1354,9 +1348,7 @@ describe("evaluateElements", () => {
         enabled: true,
         startPoint: { mode: "reference", pointId: "a" },
         endPoint: { mode: "reference", pointId: "b" },
-        placementMode: "ratio",
-        distance: 30,
-        ratio: 0.5
+        placement: { kind: "ratio", value: 0.5 }
       }
     ]);
 
@@ -1369,10 +1361,10 @@ describe("evaluateElements", () => {
   });
 
   // 04: DivisionPlacement characterization。pointEvaluators.tsのdivisionPoint分岐は
-  // `placementMode === "distance"`かどうかのif/elseで、else側は常にratioとして扱う
-  // (exhaustiveなswitchではない)。missingや不正な文字列は現行実装ではratio分岐へ
-  // フォールバックする。05のunion移行前に、この非exhaustiveな現行挙動を固定する。
-  it("falls back to the ratio branch when placementMode is missing", () => {
+  // `placement.kind === "distance"`かどうかのif/elseで、else側は常にratioとして扱う
+  // (exhaustiveなswitchではない)。missingや不正なkindは現行実装ではratio分岐へ
+  // フォールバックする。05でunion化した後も、この非exhaustiveな現行挙動を固定する。
+  it("falls back to the ratio branch when placement.kind is missing", () => {
     const result = evaluateElements([
       validElements[0],
       validElements[1],
@@ -1384,8 +1376,7 @@ describe("evaluateElements", () => {
         enabled: true,
         startPoint: { mode: "reference", pointId: "a" },
         endPoint: { mode: "reference", pointId: "b" },
-        distance: 999,
-        ratio: 0.5
+        placement: { value: 0.5 }
       } as unknown as CadElement
     ]);
 
@@ -1393,7 +1384,7 @@ describe("evaluateElements", () => {
     expect(result.computedGeometry.get("division")).toMatchObject({ kind: "point", x: 25, y: 22.5 });
   });
 
-  it("falls back to the ratio branch when placementMode is an unrecognized string", () => {
+  it("falls back to the ratio branch when placement.kind is an unrecognized string", () => {
     const result = evaluateElements([
       validElements[0],
       validElements[1],
@@ -1405,10 +1396,8 @@ describe("evaluateElements", () => {
         enabled: true,
         startPoint: { mode: "reference", pointId: "a" },
         endPoint: { mode: "reference", pointId: "b" },
-        placementMode: "nonsense" as unknown as "distance",
-        distance: 999,
-        ratio: 0.5
-      }
+        placement: { kind: "nonsense", value: 0.5 }
+      } as unknown as CadElement
     ]);
 
     expect(result.errors).toHaveLength(0);
@@ -1426,9 +1415,7 @@ describe("evaluateElements", () => {
         enabled: true,
         startPoint: { mode: "reference", pointId: "a" },
         endPoint: { mode: "reference", pointId: "b" },
-        placementMode: "ratio",
-        distance: 30,
-        ratio: 0.5
+        placement: { kind: "ratio", value: 0.5 }
       },
       validElements[1]
     ]);
@@ -2234,9 +2221,7 @@ describe("evaluateElements", () => {
         visible: true,
         enabled: true,
         endpoint: { lineId: "curve", endpointKey: "start" },
-        placementMode: "distance",
-        distance: 40,
-        ratio: 0.5
+        placement: { kind: "distance", value: 40 }
       },
       {
         id: "extend",
@@ -2295,9 +2280,7 @@ describe("evaluateElements", () => {
         visible: true,
         enabled: true,
         endpoint: { lineId: "curve", endpointKey: "start" },
-        placementMode: "distance",
-        distance: 60,
-        ratio: 0.5
+        placement: { kind: "distance", value: 60 }
       },
       {
         id: "extend",
@@ -2496,9 +2479,7 @@ describe("evaluateElements", () => {
         enabled: true,
         startPoint: { mode: "reference", pointId: "a" },
         endPoint: { mode: "reference", pointId: "a" },
-        placementMode: "distance",
-        distance: 10,
-        ratio: 0.5
+        placement: { kind: "distance", value: 10 }
       }
     ]);
 
@@ -2546,9 +2527,7 @@ describe("evaluateElements", () => {
         visible: true,
         enabled: true,
         endpoint: { lineId: "line", endpointKey: "start" },
-        placementMode: "distance",
-        distance: 25,
-        ratio: 0.5
+        placement: { kind: "distance", value: 25 }
       }
     ]);
 
@@ -2561,8 +2540,8 @@ describe("evaluateElements", () => {
   });
 
   // 04: DivisionPlacement characterization。lineDivisionPointも同じ非exhaustiveな
-  // if/elseで、missingや不正な文字列はratio分岐(length * ratio)へフォールバックする。
-  it("falls back to the ratio branch when placementMode is missing (lineDivisionPoint)", () => {
+  // if/elseで、missingや不正なkindはratio分岐(length * ratio)へフォールバックする。
+  it("falls back to the ratio branch when placement.kind is missing (lineDivisionPoint)", () => {
     const result = evaluateElements([
       { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
       { id: "b", name: "B", type: "freePoint", visible: true, enabled: true, x: 100, y: 0 },
@@ -2582,8 +2561,7 @@ describe("evaluateElements", () => {
         visible: true,
         enabled: true,
         endpoint: { lineId: "line", endpointKey: "start" },
-        distance: 999,
-        ratio: 0.4
+        placement: { value: 0.4 }
       } as unknown as CadElement
     ]);
 
@@ -2591,7 +2569,7 @@ describe("evaluateElements", () => {
     expect(result.computedGeometry.get("division")).toMatchObject({ kind: "point", x: 40, y: 0 });
   });
 
-  it("falls back to the ratio branch when placementMode is an unrecognized string (lineDivisionPoint)", () => {
+  it("falls back to the ratio branch when placement.kind is an unrecognized string (lineDivisionPoint)", () => {
     const result = evaluateElements([
       { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
       { id: "b", name: "B", type: "freePoint", visible: true, enabled: true, x: 100, y: 0 },
@@ -2611,10 +2589,8 @@ describe("evaluateElements", () => {
         visible: true,
         enabled: true,
         endpoint: { lineId: "line", endpointKey: "start" },
-        placementMode: "nonsense" as unknown as "distance",
-        distance: 999,
-        ratio: 0.4
-      }
+        placement: { kind: "nonsense", value: 0.4 }
+      } as unknown as CadElement
     ]);
 
     expect(result.errors).toHaveLength(0);
@@ -2657,9 +2633,7 @@ describe("evaluateElements", () => {
         visible: true,
         enabled: true,
         endpoint: { lineId: "line", endpointKey: "end" },
-        placementMode: "ratio",
-        distance: 25,
-        ratio: 1.2
+        placement: { kind: "ratio", value: 1.2 }
       }
     ]);
 
@@ -2752,9 +2726,7 @@ describe("evaluateElements", () => {
         visible: true,
         enabled: true,
         endpoint: { lineId: "arc", endpointKey: "start" },
-        placementMode: "ratio",
-        distance: 0,
-        ratio: 0.5
+        placement: { kind: "ratio", value: 0.5 }
       },
       {
         id: "curve-division",
@@ -2763,9 +2735,7 @@ describe("evaluateElements", () => {
         visible: true,
         enabled: true,
         endpoint: { lineId: "curve", endpointKey: "start" },
-        placementMode: "ratio",
-        distance: 0,
-        ratio: 0.5
+        placement: { kind: "ratio", value: 0.5 }
       },
       {
         id: "offset-division",
@@ -2774,9 +2744,7 @@ describe("evaluateElements", () => {
         visible: true,
         enabled: true,
         endpoint: { lineId: "offset", endpointKey: "start" },
-        placementMode: "ratio",
-        distance: 0,
-        ratio: 0.5
+        placement: { kind: "ratio", value: 0.5 }
       }
     ]);
 
@@ -2807,9 +2775,7 @@ describe("evaluateElements", () => {
         visible: true,
         enabled: true,
         endpoint: { lineId: "ab", endpointKey: "start" },
-        placementMode: "ratio",
-        distance: 0,
-        ratio: 0.5
+        placement: { kind: "ratio", value: 0.5 }
       },
       ...validElements
     ]);
@@ -4173,9 +4139,7 @@ describe("evaluateElements", () => {
         visible: true,
         enabled: true,
         endpoint: { lineId: "ab", endpointKey: "start" },
-        placementMode: "distance",
-        distance: 0,
-        ratio: 0
+        placement: { kind: "distance", value: 0 }
       },
       {
         id: "length-line",

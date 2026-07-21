@@ -355,9 +355,7 @@ fn split_line_can_feed_downstream_line_helpers() {
                 "visible": true,
                 "enabled": true,
                 "endpoint": { "lineId": "split", "endpointKey": "start" },
-                "placementMode": "ratio",
-                "distance": 0,
-                "ratio": 0.5
+                "placement": { "kind": "ratio", "value": 0.5 }
             })),
             element(json!({
                 "id": "offset",

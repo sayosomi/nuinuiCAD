@@ -222,9 +222,7 @@ fn allows_supported_point_elements_to_reference_three_point_arc() {
             "visible": true,
             "enabled": true,
             "endpoint": { "lineId": "arc", "endpointKey": "start" },
-            "placementMode": "ratio",
-            "distance": 0,
-            "ratio": 0.5
+            "placement": { "kind": "ratio", "value": 0.5 }
         })),
         element(json!({
             "id": "tangent-offset",

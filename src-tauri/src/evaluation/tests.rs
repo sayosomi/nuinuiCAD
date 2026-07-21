@@ -342,9 +342,7 @@ fn evaluates_numeric_reference_paths_for_geometry_parameters_and_variables() {
             "enabled": true,
             "startPoint": { "mode": "reference", "pointId": "a" },
             "endPoint": { "mode": "reference", "pointId": "b" },
-            "placementMode": "ratio",
-            "distance": 0,
-            "ratio": { "kind": "expression", "expression": "ratio-variable.value" }
+            "placement": { "kind": "ratio", "value": { "kind": "expression", "expression": "ratio-variable.value" } }
         })),
         element(json!({
             "id": "derived",
@@ -740,9 +738,7 @@ fn evaluates_division_point_by_distance() {
         "enabled": true,
         "startPoint": { "mode": "reference", "pointId": "a" },
         "endPoint": { "mode": "reference", "pointId": "b" },
-        "placementMode": "distance",
-        "distance": 15,
-        "ratio": 0.5
+        "placement": { "kind": "distance", "value": 15 }
     })));
     let result = evaluate_document_input(EvaluationInput {
         elements,
@@ -771,9 +767,7 @@ fn evaluates_division_point_by_ratio() {
         "enabled": true,
         "startPoint": { "mode": "reference", "pointId": "a" },
         "endPoint": { "mode": "reference", "pointId": "b" },
-        "placementMode": "ratio",
-        "distance": 30,
-        "ratio": 0.5
+        "placement": { "kind": "ratio", "value": 0.5 }
     })));
     let result = evaluate_document_input(EvaluationInput {
         elements,
@@ -807,9 +801,7 @@ fn reports_division_point_dependency_that_appears_too_late() {
                 "enabled": true,
                 "startPoint": { "mode": "reference", "pointId": "a" },
                 "endPoint": { "mode": "reference", "pointId": "b" },
-                "placementMode": "ratio",
-                "distance": 30,
-                "ratio": 0.5
+                "placement": { "kind": "ratio", "value": 0.5 }
             })),
             element(json!({
                 "id": "b",
@@ -857,9 +849,7 @@ fn reports_zero_length_distance_division_point() {
                 "enabled": true,
                 "startPoint": { "mode": "reference", "pointId": "a" },
                 "endPoint": { "mode": "reference", "pointId": "a" },
-                "placementMode": "distance",
-                "distance": 15,
-                "ratio": 0.5
+                "placement": { "kind": "distance", "value": 15 }
             })),
         ],
         evaluation_limit_index: None,
@@ -888,9 +878,7 @@ fn evaluates_division_point_numeric_variables_and_expressions() {
         ],
         "startPoint": { "mode": "reference", "pointId": "a" },
         "endPoint": { "mode": "reference", "pointId": "b" },
-        "placementMode": "ratio",
-        "distance": 30,
-        "ratio": { "kind": "expression", "expression": "@基準 + 0.25" }
+        "placement": { "kind": "ratio", "value": { "kind": "expression", "expression": "@基準 + 0.25" } }
     })));
     let result = evaluate_document_input(EvaluationInput {
         elements,
@@ -913,9 +901,7 @@ fn evaluates_line_division_point_by_distance_from_start() {
         "visible": true,
         "enabled": true,
         "endpoint": { "lineId": "line", "endpointKey": "start" },
-        "placementMode": "distance",
-        "distance": 25,
-        "ratio": 0.5
+        "placement": { "kind": "distance", "value": 25 }
     })));
     let result = evaluate_document_input(EvaluationInput {
         elements,
@@ -938,9 +924,7 @@ fn evaluates_line_division_point_by_ratio_from_end() {
         "visible": true,
         "enabled": true,
         "endpoint": { "lineId": "line", "endpointKey": "end" },
-        "placementMode": "ratio",
-        "distance": 25,
-        "ratio": 1.2
+        "placement": { "kind": "ratio", "value": 1.2 }
     })));
     let result = evaluate_document_input(EvaluationInput {
         elements,
@@ -953,14 +937,12 @@ fn evaluates_line_division_point_by_ratio_from_end() {
     assert_eq!(division["y"], json!(0.0));
 }
 
-// 04: DivisionPlacement characterization. `placementMode` is read as a raw JSON string
-// with `if get("placementMode") == Some("distance") {..} else {/* ratio */}` in both
-// point_evaluators.rs and line_division_point_evaluator.rs -- not an exhaustive match.
-// A missing or unrecognized value silently falls to the ratio branch, matching the
-// TypeScript reference evaluator's identical non-exhaustive if/else. This locks that
-// fallback in before Task 05's tagged-union migration.
+// 04/05: DivisionPlacement characterization. `division_placement::decode_division_placement`
+// is the single place a missing or unrecognized `placement.kind` falls back to the ratio
+// interpretation, matching the TypeScript reference evaluator's identical fallback. This
+// locks that fallback in under the tagged-union shape.
 #[test]
-fn evaluates_division_point_with_missing_placement_mode_as_ratio() {
+fn evaluates_division_point_with_missing_placement_kind_as_ratio() {
     let mut elements = base_points();
     elements.push(element(json!({
         "id": "division",
@@ -970,8 +952,7 @@ fn evaluates_division_point_with_missing_placement_mode_as_ratio() {
         "enabled": true,
         "startPoint": { "mode": "reference", "pointId": "a" },
         "endPoint": { "mode": "reference", "pointId": "b" },
-        "distance": 999,
-        "ratio": 0.5
+        "placement": { "value": 0.5 }
     })));
     let result = evaluate_document_input(EvaluationInput {
         elements,
@@ -985,7 +966,7 @@ fn evaluates_division_point_with_missing_placement_mode_as_ratio() {
 }
 
 #[test]
-fn evaluates_division_point_with_unrecognized_placement_mode_as_ratio() {
+fn evaluates_division_point_with_unrecognized_placement_kind_as_ratio() {
     let mut elements = base_points();
     elements.push(element(json!({
         "id": "division",
@@ -995,9 +976,7 @@ fn evaluates_division_point_with_unrecognized_placement_mode_as_ratio() {
         "enabled": true,
         "startPoint": { "mode": "reference", "pointId": "a" },
         "endPoint": { "mode": "reference", "pointId": "b" },
-        "placementMode": "nonsense",
-        "distance": 999,
-        "ratio": 0.5
+        "placement": { "kind": "nonsense", "value": 0.5 }
     })));
     let result = evaluate_document_input(EvaluationInput {
         elements,
@@ -1011,7 +990,7 @@ fn evaluates_division_point_with_unrecognized_placement_mode_as_ratio() {
 }
 
 #[test]
-fn evaluates_line_division_point_with_missing_placement_mode_as_ratio() {
+fn evaluates_line_division_point_with_missing_placement_kind_as_ratio() {
     let mut elements = base_line_elements();
     elements.push(element(json!({
         "id": "division",
@@ -1020,8 +999,7 @@ fn evaluates_line_division_point_with_missing_placement_mode_as_ratio() {
         "visible": true,
         "enabled": true,
         "endpoint": { "lineId": "line", "endpointKey": "start" },
-        "distance": 999,
-        "ratio": 0.4
+        "placement": { "value": 0.4 }
     })));
     let result = evaluate_document_input(EvaluationInput {
         elements,
@@ -1035,7 +1013,7 @@ fn evaluates_line_division_point_with_missing_placement_mode_as_ratio() {
 }
 
 #[test]
-fn evaluates_line_division_point_with_unrecognized_placement_mode_as_ratio() {
+fn evaluates_line_division_point_with_unrecognized_placement_kind_as_ratio() {
     let mut elements = base_line_elements();
     elements.push(element(json!({
         "id": "division",
@@ -1044,9 +1022,7 @@ fn evaluates_line_division_point_with_unrecognized_placement_mode_as_ratio() {
         "visible": true,
         "enabled": true,
         "endpoint": { "lineId": "line", "endpointKey": "start" },
-        "placementMode": "nonsense",
-        "distance": 999,
-        "ratio": 0.4
+        "placement": { "kind": "nonsense", "value": 0.4 }
     })));
     let result = evaluate_document_input(EvaluationInput {
         elements,
@@ -1090,9 +1066,7 @@ fn evaluates_line_division_point_on_arc_line() {
                 "visible": true,
                 "enabled": true,
                 "endpoint": { "lineId": "arc", "endpointKey": "start" },
-                "placementMode": "ratio",
-                "distance": 0,
-                "ratio": 0.5
+                "placement": { "kind": "ratio", "value": 0.5 }
             })),
         ],
         evaluation_limit_index: None,
@@ -1115,9 +1089,7 @@ fn reports_line_division_point_dependency_that_appears_too_late() {
                 "visible": true,
                 "enabled": true,
                 "endpoint": { "lineId": "line", "endpointKey": "start" },
-                "placementMode": "ratio",
-                "distance": 0,
-                "ratio": 0.5
+                "placement": { "kind": "ratio", "value": 0.5 }
             })),
             element(json!({
                 "id": "line",
@@ -1164,9 +1136,7 @@ fn reports_zero_length_line_division_point() {
                 "visible": true,
                 "enabled": true,
                 "endpoint": { "lineId": "line", "endpointKey": "start" },
-                "placementMode": "distance",
-                "distance": 10,
-                "ratio": 0
+                "placement": { "kind": "distance", "value": 10 }
             })),
         ],
         evaluation_limit_index: None,
@@ -1194,9 +1164,7 @@ fn evaluates_line_division_point_numeric_variables_and_expressions() {
             { "id": "base", "name": "基準", "value": 0.25 }
         ],
         "endpoint": { "lineId": "line", "endpointKey": "start" },
-        "placementMode": "ratio",
-        "distance": 0,
-        "ratio": { "kind": "expression", "expression": "@基準 + 0.25" }
+        "placement": { "kind": "ratio", "value": { "kind": "expression", "expression": "@基準 + 0.25" } }
     })));
     let result = evaluate_document_input(EvaluationInput {
         elements,

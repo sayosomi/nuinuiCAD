@@ -356,9 +356,7 @@ fn offset_line_can_feed_line_point_and_intersection_helpers() {
             "visible": true,
             "enabled": true,
             "endpoint": { "lineId": "offset", "endpointKey": "start" },
-            "placementMode": "ratio",
-            "distance": 0,
-            "ratio": 0.5
+            "placement": { "kind": "ratio", "value": 0.5 }
         })),
         element(json!({
             "id": "cross-line",

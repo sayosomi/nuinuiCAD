@@ -182,9 +182,7 @@ export const createCadElement = (
         numericParameterSteps: { ratio: 0.01 },
         startPoint: referenceAnchor(firstPointId),
         endPoint: referenceAnchor(secondPointId),
-        placementMode: "ratio",
-        distance: 0,
-        ratio: 0.5
+        placement: { kind: "ratio", value: 0.5 }
       };
     }
     case "lineDivisionPoint": {
@@ -202,9 +200,7 @@ export const createCadElement = (
           lineId: lineLikeElements[0]?.id ?? "",
           endpointKey: "start"
         },
-        placementMode: "ratio",
-        distance: 0,
-        ratio: 0.5
+        placement: { kind: "ratio", value: 0.5 }
       };
     }
     case "intersectionPoint": {

@@ -13,47 +13,41 @@
     },
     {
       "id": "division-missing",
-      "name": "分点(placementModeなし)",
+      "name": "分点(placement.kindなし)",
       "type": "divisionPoint",
       "visible": true,
       "enabled": true,
       "startPoint": { "mode": "reference", "pointId": "a" },
       "endPoint": { "mode": "reference", "pointId": "b" },
-      "distance": 999,
-      "ratio": 0.4
+      "placement": { "value": 0.4 }
     },
     {
       "id": "division-garbage",
-      "name": "分点(不正なplacementMode)",
+      "name": "分点(不正なplacement.kind)",
       "type": "divisionPoint",
       "visible": true,
       "enabled": true,
       "startPoint": { "mode": "reference", "pointId": "a" },
       "endPoint": { "mode": "reference", "pointId": "b" },
-      "placementMode": "nonsense",
-      "distance": 999,
-      "ratio": 0.4
+      "placement": { "kind": "nonsense", "value": 0.4 }
     },
     {
       "id": "line-division-missing",
-      "name": "線上分点(placementModeなし)",
+      "name": "線上分点(placement.kindなし)",
       "type": "lineDivisionPoint",
       "visible": true,
       "enabled": true,
       "endpoint": { "lineId": "ab", "endpointKey": "start" },
-      "distance": 999,
-      "ratio": 0.4
+      "placement": { "value": 0.4 }
     },
     {
       "id": "line-division-garbage",
-      "name": "線上分点(不正なplacementMode)",
+      "name": "線上分点(不正なplacement.kind)",
       "type": "lineDivisionPoint",
       "visible": true,
       "enabled": true,
       "endpoint": { "lineId": "ab", "endpointKey": "start" },
-      "placementMode": "nonsense",
-      "distance": 999,
-      "ratio": 0.4
+      "placement": { "kind": "nonsense", "value": 0.4 }
     }
   ]
 }

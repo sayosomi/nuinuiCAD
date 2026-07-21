@@ -86,6 +86,10 @@ describe("DSL v2 compiler argument application", () => {
       expect(applied.diagnostics).toEqual([]);
       expect(applied.element).toMatchObject({ type: spec.elementType, ...spec.preset });
       for (const definition of spec.args.filter((item) => !item.special)) {
+        // The exclusive-group non-selected side (ratio, when distance is the
+        // populated arg) has no value under the DivisionPlacement union -- it's
+        // not a gap, it's the point of the union (see dslApplyArgs.ts::05).
+        if (definition.arg === "ratio" && spec.exclusiveGroups?.some((group) => group.includes("distance"))) continue;
         const parameterKey = definition.parameterKey ?? definition.arg;
         const value = getParameterValue(applied.element, parameterKey);
         expect(value).not.toBeUndefined();
@@ -100,8 +104,8 @@ describe("DSL v2 compiler argument application", () => {
       arg("locked", "true"), arg("visible", "false"), arg("enabled", "false"), arg("color", "red"),
     ], resolvers);
     expect(between.element).toMatchObject({
-      startPoint: referenceAnchor("p1"), endPoint: referenceAnchor("p2"), ratio: 0.25,
-      placementMode: "ratio", visible: true, enabled: false, colorId: "red",
+      startPoint: referenceAnchor("p1"), endPoint: referenceAnchor("p2"),
+      placement: { kind: "ratio", value: 0.25 }, visible: true, enabled: false, colorId: "red",
     });
     expect(between.element).not.toHaveProperty("locked");
     expect(between.diagnostics.map((item) => item.message)).toContain(
@@ -131,14 +135,14 @@ describe("DSL v2 compiler argument application", () => {
       arg("start", "A"), arg("end", "B"), arg("distance", "7"), arg("ratio", "0.9"),
     ], resolvers);
 
-    expect(between.element).toMatchObject({ placementMode: "distance", distance: 7, ratio: 0.9 });
+    expect(between.element).toMatchObject({ placement: { kind: "distance", value: 7 } });
     expect(between.diagnostics).toEqual([]);
 
     const onLine = applyArgs(sample("lineDivisionPoint"), constructionFor("point", "onLine")!, [
       arg("from", "AB.end"), arg("distance", "3"), arg("ratio", "0.4"),
     ], resolvers);
 
-    expect(onLine.element).toMatchObject({ placementMode: "distance", distance: 3, ratio: 0.4 });
+    expect(onLine.element).toMatchObject({ placement: { kind: "distance", value: 3 } });
     expect(onLine.diagnostics).toEqual([]);
   });
 
@@ -161,7 +165,10 @@ describe("DSL v2 compiler argument application", () => {
     const onLine = applyArgs(sample("lineDivisionPoint"), constructionFor("point", "onLine")!, [
       arg("from", "AB.end"), arg("distance", "20"),
     ], resolvers);
-    expect(onLine.element).toMatchObject({ endpoint: { lineId: "l1", endpointKey: "end" }, distance: 20 });
+    expect(onLine.element).toMatchObject({
+      endpoint: { lineId: "l1", endpointKey: "end" },
+      placement: { kind: "distance", value: 20 },
+    });
 
     const offsetLine = applyArgs(sample("offsetLine"), constructionFor("line", "offset")!, [
       arg("sources", "[AB, CD]"), arg("side", "right"), arg("closed", "true"),

@@ -315,9 +315,7 @@ fn allows_supported_point_elements_to_reference_bezier_curve() {
                 "visible": true,
                 "enabled": true,
                 "endpoint": { "lineId": "curve", "endpointKey": "start" },
-                "placementMode": "ratio",
-                "distance": 0,
-                "ratio": 0.5
+                "placement": { "kind": "ratio", "value": 0.5 }
             })),
             element(json!({
                 "id": "tangent-offset",

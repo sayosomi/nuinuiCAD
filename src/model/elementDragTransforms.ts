@@ -203,7 +203,7 @@ const moveDivisionPointByDelta = ({
   const projectedDistance =
     (movedVector.x * baseVector.x + movedVector.y * baseVector.y) / baseLength;
 
-  if (element.placementMode === "distance") {
+  if (element.placement.kind === "distance") {
     return setNumericParameterOrLocalVariable(element, "distance", projectedDistance);
   }
 

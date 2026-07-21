@@ -120,10 +120,22 @@ const parameterAlias = (element: CadElement, key: string) => {
   return key;
 };
 
-const withPlacementMode = (element: CadElement, attrs: DslAttribute[]): CadElement => {
+const withPlacementMode = (
+  element: CadElement,
+  attrs: DslAttribute[],
+  elementsForExpressions: CadElement[],
+  nameContext: ElementNameContext
+): CadElement => {
   if (element.type !== "divisionPoint" && element.type !== "lineDivisionPoint") return element;
-  if (attrs.some((item) => item.key === "distance")) return { ...element, placementMode: "distance" };
-  if (attrs.some((item) => item.key === "ratio")) return { ...element, placementMode: "ratio" };
+  const numeric = (source: string) => normalizeExpression(source, elementsForExpressions, element, nameContext);
+  const distance = attr(attrs, "distance");
+  if (distance !== undefined) {
+    return { ...element, placement: { kind: "distance", value: numeric(distance) } };
+  }
+  const ratio = attr(attrs, "ratio");
+  if (ratio !== undefined) {
+    return { ...element, placement: { kind: "ratio", value: numeric(ratio) } };
+  }
   return element;
 };
 
@@ -326,6 +338,15 @@ const applyCommonAttributes = (
       continue;
     }
     if (definition?.kind === "number") {
+      // distance/ratio on divisionPoint/lineDivisionPoint are resolved together by
+      // withPlacementMode below, not written per-attr here, so that "distance wins
+      // when both are given" doesn't depend on attribute order.
+      if (
+        (parameterKey === "distance" || parameterKey === "ratio") &&
+        (next.type === "divisionPoint" || next.type === "lineDivisionPoint")
+      ) {
+        continue;
+      }
       next = setParameterValue(next, parameterKey, numeric(value));
       continue;
     }
@@ -433,7 +454,9 @@ const applyStatement = (
       nameContext,
       visibilityRoles
     ),
-    statement.attrs
+    statement.attrs,
+    elementsForExpressions,
+    nameContext
   );
 };
 

@@ -275,9 +275,7 @@ fn move_updates_existing_geometry_and_downstream_references() {
                 "visible": true,
                 "enabled": true,
                 "endpoint": { "lineId": "line", "endpointKey": "start" },
-                "placementMode": "ratio",
-                "distance": 0,
-                "ratio": 0.5
+                "placement": { "kind": "ratio", "value": 0.5 }
             })),
         ],
         evaluation_limit_index: None,

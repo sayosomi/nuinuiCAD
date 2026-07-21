@@ -83,7 +83,7 @@ describe("parseLegacyV1Document (DivisionPlacement characterization)", () => {
 
     expect(result.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
     const division = result.elements.find((element) => element.name === "P");
-    expect(division).toMatchObject({ type: "divisionPoint", placementMode: "distance", distance: 5, ratio: 0.9 });
+    expect(division).toMatchObject({ type: "divisionPoint", placement: { kind: "distance", value: 5 } });
   });
 
   it("silently prefers distance over ratio when v1 on supplies both, with no diagnostic", () => {
@@ -98,7 +98,7 @@ describe("parseLegacyV1Document (DivisionPlacement characterization)", () => {
 
     expect(result.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
     const division = result.elements.find((element) => element.name === "Q");
-    expect(division).toMatchObject({ type: "lineDivisionPoint", placementMode: "distance", distance: 5, ratio: 0.9 });
+    expect(division).toMatchObject({ type: "lineDivisionPoint", placement: { kind: "distance", value: 5 } });
   });
 });
 
