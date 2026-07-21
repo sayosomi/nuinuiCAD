@@ -42,7 +42,7 @@ const elementFor = (fixture: V2CanonicalElementStatement, populated: boolean) =>
   if (element.type === "variable" && variableMode) element = { ...element, valueMode: variableMode };
   element = { ...element, name: `${fixture.elementType}-${fixture.elementType === "variable" ? fixture.construction : "default"}-${populated ? "pop" : "min"}` };
   if (!populated) return element;
-  element = { ...element, locked: true, visible: false, enabled: false, colorId: "red", numericParameterSteps: { x: 0.5 }, numericVariables: [{ id: "width", name: "width", value: 8 }] };
+  element = { ...element, visible: false, enabled: false, colorId: "red", numericParameterSteps: { x: 0.5 }, numericVariables: [{ id: "width", name: "width", value: 8 }] };
   for (const definition of getParameterDefinitions(element).filter((item) => item.key !== "placementMode" && !item.key.startsWith("variable:"))) element = setParameterValue(element, definition.key, sampleValue(definition.kind));
   if (element.type === "group") element = { ...element, visibilityRoleIds: ["seam"] };
   if (element.type === "bezierCurve") element = { ...element, intermediatePoints: [{ id: "mid", point: referenceAnchor("C"), handleAngleDeg: 45, incomingHandleLength: 20, outgoingHandleLength: 25 }] };

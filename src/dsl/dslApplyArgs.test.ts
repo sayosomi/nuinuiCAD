@@ -101,8 +101,12 @@ describe("DSL v2 compiler argument application", () => {
     ], resolvers);
     expect(between.element).toMatchObject({
       startPoint: referenceAnchor("p1"), endPoint: referenceAnchor("p2"), ratio: 0.25,
-      placementMode: "ratio", locked: true, visible: true, enabled: false, colorId: "red",
+      placementMode: "ratio", visible: true, enabled: false, colorId: "red",
     });
+    expect(between.element).not.toHaveProperty("locked");
+    expect(between.diagnostics.map((item) => item.message)).toContain(
+      "locked は廃止された属性のため無視されます。"
+    );
 
     const curve = applyArgs(sample("bezierCurve"), constructionFor("curve", "bezier")!, [
       arg("start", "A"), arg("end", "B"), arg("intermediates", "[C: 45: 20: 25: mid-1]"),
@@ -182,10 +186,10 @@ describe("DSL v2 compiler argument application", () => {
     const result = applyArgs(input, constructionFor("point", "coordinate")!, [
       arg("locked", "not-a-boolean"), arg("steps", "[x: 0]"),
     ], resolvers);
-    expect(input.locked).toBeUndefined();
-    expect(result.element.locked).toBe(false);
+    expect(result.element).not.toHaveProperty("locked");
     expect(result.diagnostics.map((item) => item.message)).toEqual([
       "locked は true/false で指定してください。",
+      "locked は廃止された属性のため無視されます。",
       "steps は parameter:positiveNumber の一覧で指定してください。",
     ]);
   });

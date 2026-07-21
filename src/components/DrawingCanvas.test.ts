@@ -1363,7 +1363,7 @@ describe("DrawingCanvas point dragging", () => {
       hasPendingText: () => true,
       isComposing: () => false,
       flush: () => {
-        useCadDocumentStore.getState().commitText("nui 2\npoint A = coordinate(x: 0 y: 0)\npoint B = coordinate(x: 100 y: 0 locked: true)", "editor");
+        useCadDocumentStore.getState().commitText("nui 2\npoint A = coordinate(x: 0 y: 0)\npoint B = coordinate(x: 100 y: 0 color: cut-red)", "editor");
         return "flushed";
       }
     });

@@ -67,7 +67,7 @@ describe("cadDocumentStore canonical text", () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
 
     useCadDocumentStore.getState().commitDocumentChange({
-      elements: fatalState.elements.map((element) => ({ ...element, locked: true }) as CadElement)
+      elements: fatalState.elements.map((element) => ({ ...element, enabled: false }) as CadElement)
     });
 
     expect(useCadDocumentStore.getState().sourceText).toBe(fatalText);
@@ -93,20 +93,20 @@ describe("cadDocumentStore canonical text", () => {
     );
     const renamedId = pointId("Renamed");
     const changed = useCadDocumentStore.getState().elements.map((element) =>
-      element.name === "B" ? ({ ...element, locked: true } as CadElement) : element
+      element.name === "B" ? ({ ...element, enabled: false } as CadElement) : element
     );
     useCadDocumentStore.getState().commitDocumentChange({ elements: changed });
     expect(useCadDocumentStore.getState().past).toHaveLength(2);
 
     useCadDocumentStore.getState().undo();
-    expect(useCadDocumentStore.getState().elements.find((element) => element.name === "B")?.locked).not.toBe(true);
+    expect(useCadDocumentStore.getState().elements.find((element) => element.name === "B")?.enabled).toBe(true);
     expect(pointId("Renamed")).toBe(renamedId);
 
     useCadDocumentStore.getState().undo();
     expect(pointId("A")).toBe(renamedId);
     useCadDocumentStore.getState().redo();
     useCadDocumentStore.getState().redo();
-    expect(useCadDocumentStore.getState().elements.find((element) => element.name === "B")?.locked).toBe(true);
+    expect(useCadDocumentStore.getState().elements.find((element) => element.name === "B")?.enabled).toBe(false);
   });
 
   // コメント・空行・未解決の color: 参照がモデルブリッジ編集後も保持されるかを
@@ -120,7 +120,7 @@ describe("cadDocumentStore canonical text", () => {
       "point B = coordinate(x: 10 y: 0)"
     ].join("\n"));
     const nextElements = useCadDocumentStore.getState().elements.map((element) =>
-      element.name === "B" ? ({ ...element, locked: true } as CadElement) : element
+      element.name === "B" ? ({ ...element, enabled: false } as CadElement) : element
     );
     useCadDocumentStore.getState().commitDocumentChange({ elements: nextElements });
     expect(useCadDocumentStore.getState().sourceText).toContain("# keep this comment");
@@ -164,7 +164,7 @@ describe("cadDocumentStore canonical text", () => {
   it("keeps bridge element object identity and ignores preview/snapshot state", () => {
     seedText(twoPointSource());
     const before = useCadDocumentStore.getState();
-    const changedA = { ...before.elements[0], locked: true } as CadElement;
+    const changedA = { ...before.elements[0], enabled: false } as CadElement;
     const nextElements = [changedA, before.elements[1]];
     useCadDocumentStore.getState().previewDocumentChange({
       elements: before.elements.map((element) => ({ ...element }) as CadElement)

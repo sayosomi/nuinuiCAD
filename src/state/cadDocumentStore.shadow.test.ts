@@ -78,7 +78,7 @@ describe("cadDocumentStore 影テキスト: previewDocumentChange", () => {
     const docBefore = before.doc;
 
     useCadDocumentStore.getState().previewDocumentChange({
-      elements: before.elements.map((element) => ({ ...element, locked: true }) as CadElement)
+      elements: before.elements.map((element) => ({ ...element, enabled: false }) as CadElement)
     });
 
     const after = useCadDocumentStore.getState();
@@ -93,8 +93,8 @@ describe("cadDocumentStore 影テキスト: previewDocumentChange", () => {
 describe("cadDocumentStore 影テキスト: 代表的なコミット経路", () => {
   it("updateElementで影が更新され警告が出ない", () => {
     const id = useCadDocumentStore.getState().elements[0].id;
-    useCadDocumentStore.getState().updateElement(id, { locked: true });
-    expect(useCadDocumentStore.getState().sourceText).toContain("locked: true");
+    useCadDocumentStore.getState().updateElement(id, { enabled: false });
+    expect(useCadDocumentStore.getState().sourceText).toContain("enabled: false");
     expectShadowConsistent();
     expectNoShadowWarnings();
   });
@@ -195,7 +195,7 @@ describe("cadDocumentStore 影テキスト: コメント・空行の保存", () 
     useCadDocumentStore.getState().commitText(withNoise, "test");
 
     const targetId = state.elements.find((element) => element.name === "B")!.id;
-    useCadDocumentStore.getState().updateElement(targetId, { locked: true });
+    useCadDocumentStore.getState().updateElement(targetId, { enabled: false });
 
     const { sourceText } = useCadDocumentStore.getState();
     // 注入した空行・コメント・直後の行が連続したまま(バイト単位で不変)
@@ -210,23 +210,23 @@ describe("cadDocumentStore 影テキスト: コメント・空行の保存", () 
 describe("cadDocumentStore 影テキスト: undo/redo/replaceDocument の全体再生成", () => {
   it("undoは影を巻き戻し先のモデルへ全体再生成する", () => {
     const id = useCadDocumentStore.getState().elements[0].id;
-    useCadDocumentStore.getState().updateElement(id, { locked: true });
-    expect(useCadDocumentStore.getState().sourceText).toContain("locked: true");
+    useCadDocumentStore.getState().updateElement(id, { enabled: false });
+    expect(useCadDocumentStore.getState().sourceText).toContain("enabled: false");
 
     useCadDocumentStore.getState().undo();
 
-    expect(useCadDocumentStore.getState().sourceText).not.toContain("locked: true");
+    expect(useCadDocumentStore.getState().sourceText).not.toContain("enabled: false");
     expectShadowConsistent();
     expectNoShadowWarnings();
   });
 
   it("redoは影をやり直し先のモデルへ全体再生成する", () => {
     const id = useCadDocumentStore.getState().elements[0].id;
-    useCadDocumentStore.getState().updateElement(id, { locked: true });
+    useCadDocumentStore.getState().updateElement(id, { enabled: false });
     useCadDocumentStore.getState().undo();
     useCadDocumentStore.getState().redo();
 
-    expect(useCadDocumentStore.getState().sourceText).toContain("locked: true");
+    expect(useCadDocumentStore.getState().sourceText).toContain("enabled: false");
     expectShadowConsistent();
     expectNoShadowWarnings();
   });
@@ -264,7 +264,7 @@ describe("cadDocumentStore 影テキスト: setStateによる影driftからの�
     useCadDocumentStore.setState({ elements: [...state.elements, inserted] });
 
     const idToLock = state.elements[0].id;
-    expect(() => useCadDocumentStore.getState().updateElement(idToLock, { locked: true })).not.toThrow();
+    expect(() => useCadDocumentStore.getState().updateElement(idToLock, { enabled: false })).not.toThrow();
 
     expectShadowConsistent();
     // prevCompiled.document(ドリフト前の影)を基準に比較するため、

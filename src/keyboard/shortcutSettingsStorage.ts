@@ -90,6 +90,8 @@ export const retiredCommandIds = [
   "setSelectedPointAnchorCoordinateMode",
   "toggleSelectedBooleanParameter",
   "toggleBooleanParameterByDirectKey",
+  "toggleElementLocked",
+  "toggleSelectedElementLocked",
   "toggleExpressionInsertTray",
   "openExpressionInsertTray",
   "closeExpressionInsertTray"

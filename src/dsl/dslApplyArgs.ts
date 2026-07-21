@@ -157,7 +157,7 @@ export const applyArgs = (
       const parsed = booleanValue(value);
       if (parsed === null) diagnostics.push(diagnostic(resolvers.line, `${parameterKey} は true/false で指定してください。`));
       if (parameterKey === "locked") {
-        next = { ...next, locked: parsed ?? false } as CadElement;
+        diagnostics.push(warning(resolvers.line, "locked は廃止された属性のため無視されます。"));
       } else {
         const activity = elementActivityFromLegacyFlags({
           ...next,

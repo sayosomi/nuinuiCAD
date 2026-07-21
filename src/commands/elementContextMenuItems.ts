@@ -21,8 +21,6 @@ const visibleLabel = (element: CadElement) => (element.visible ? "非表示に�
 
 const enabledLabel = (element: CadElement) => (element.enabled ? "評価しない" : "評価する");
 
-const lockedLabel = (element: CadElement) => (element.locked ? "ロック解除" : "ロック");
-
 const printLabel = (element: CadElement) =>
   element.type === "group" && element.printEnabled === true ? "印刷しない" : "印刷する";
 
@@ -58,12 +56,6 @@ export const menuItemsForElement = ({
     kind: "command",
     commandId: "toggleElementEnabled",
     label: enabledLabel(element),
-    context: { elementId: element.id }
-  });
-  items.push({
-    kind: "command",
-    commandId: "toggleElementLocked",
-    label: lockedLabel(element),
     context: { elementId: element.id }
   });
   items.push({

@@ -23,7 +23,6 @@ export const constructionCompletionCandidates = (category: DslConstructionCatego
     }));
 
 const userFacingCommonArgumentNames = new Set([
-  "locked",
   "visible",
   "enabled",
   "color",

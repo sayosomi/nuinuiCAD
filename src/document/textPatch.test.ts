@@ -130,11 +130,11 @@ describe("textPatch 要素の更新", () => {
     const { splices, patched } = applyChange(BASE_SOURCE, (document) => ({
       ...document,
       elements: document.elements.map((element) =>
-        element.name === "B" ? ({ ...element, locked: true } as CadElement) : element
+        element.name === "B" ? ({ ...element, enabled: false } as CadElement) : element
       )
     }));
     expectLinesUntouched(splices, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 15, 16]);
-    expect(patched).toContain("locked: true");
+    expect(patched).toContain("enabled: false");
     expect(patched).toContain("point A = coordinate(x: 0 y: 0)  # Aの注釈");
     expect(patched).toContain("# グループ末尾コメント");
     expect(patched).toContain("# 本体");
@@ -144,24 +144,24 @@ describe("textPatch 要素の更新", () => {
     const { patched } = applyChange(BASE_SOURCE, (document) => ({
       ...document,
       elements: document.elements.map((element) =>
-        element.name === "A" ? ({ ...element, locked: true } as CadElement) : element
+        element.name === "A" ? ({ ...element, enabled: false } as CadElement) : element
       )
     }));
     // 旧statementが単一物理行だった場合、行末コメントはヘッダ行に付く
     // (mergeFromSingleLineOld)。
     expect(patched).toContain("point A = coordinate(  # Aの注釈");
-    expect(patched).toContain("locked: true");
+    expect(patched).toContain("enabled: false");
   });
 
   it("コンテナの属性編集は開き行の末尾 `{` を保つ", () => {
     const { patched } = applyChange(BASE_SOURCE, (document) => ({
       ...document,
       elements: document.elements.map((element) =>
-        element.name === "G" ? ({ ...element, locked: true } as CadElement) : element
+        element.name === "G" ? ({ ...element, enabled: false } as CadElement) : element
       )
     }));
     const groupLine = patched.split("\n").find((line) => line.startsWith("group G"));
-    expect(groupLine).toContain("locked: true");
+    expect(groupLine).toContain("enabled: false");
     expect(groupLine!.endsWith("{")).toBe(true);
   });
 });
@@ -462,7 +462,7 @@ describe("textPatch 複数行statement(括弧継続)", () => {
     const { splices } = applyChange(CONTINUATION_SOURCE, (document) => ({
       ...document,
       elements: document.elements.map((element) =>
-        element.name === "B" ? ({ ...element, locked: true } as CadElement) : element
+        element.name === "B" ? ({ ...element, enabled: false } as CadElement) : element
       )
     }));
     expectLinesUntouched(splices, [2, 3, 4, 5, 6]);
@@ -684,7 +684,7 @@ describe("diffDocuments", () => {
         ...document.elements
           .filter((element) => element.name !== "C")
           .map((element) =>
-            element.name === "B" ? ({ ...element, locked: true } as CadElement) : element
+            element.name === "B" ? ({ ...element, enabled: false } as CadElement) : element
           ),
         inserted
       ],
@@ -752,7 +752,7 @@ describe("elementUpdateSet 高速経路とfull比較の等価性", () => {
     const next: DslDocumentData = {
       ...document,
       elements: document.elements.map((element) =>
-        element.name === "P2" ? ({ ...element, locked: true } as CadElement) : element
+        element.name === "P2" ? ({ ...element, enabled: false } as CadElement) : element
       )
     };
     const updates = expectFastMatchesFull(document, next);
@@ -854,7 +854,7 @@ describe("elementUpdateSet 高速経路とfull比較の等価性", () => {
     const next: DslDocumentData = {
       ...danglingDoc,
       elements: danglingDoc.elements.map((element) =>
-        element.name === "P2" ? ({ ...element, locked: true } as CadElement) : element
+        element.name === "P2" ? ({ ...element, enabled: false } as CadElement) : element
       )
     };
     const updates = expectFastMatchesFull(danglingDoc, next);

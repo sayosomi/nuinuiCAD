@@ -78,7 +78,7 @@ const specialArgText = (element: CadElement, arg: DslArgSpec, refs: DslSerialize
 
 const ordinaryArgText = (element: CadElement, parameterKey: string, refs: DslSerializerRefs): string => {
   const value = getParameterValue(element, parameterKey);
-  if (parameterKey === "locked" || parameterKey === "visible" || parameterKey === "enabled") {
+  if (parameterKey === "visible" || parameterKey === "enabled") {
     return `${value}`;
   }
   if (parameterKey === "colorId") return formatDslName((value as string | undefined) ?? "");
@@ -147,7 +147,9 @@ const commonArgs = (
       if (constructionArgNames.has(arg.arg)) return false;
       if (arg.special) return specialArgText(element, arg, refs) !== null;
       const key = arg.parameterKey ?? arg.arg;
-      if (key === "locked") return element.locked === true;
+      // `locked` is a retired legacy attribute: recognized for parsing so old
+      // documents don't error, but never regenerated in output.
+      if (key === "locked") return false;
       if (key === "visible") return legacyActivityFlags.visible === false;
       if (key === "enabled") return legacyActivityFlags.enabled === false;
       return key === "colorId" && Boolean(element.colorId);

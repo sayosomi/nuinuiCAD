@@ -8,7 +8,7 @@ import { effectiveElements, initialCadDocumentState, useCadDocumentStore } from 
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import { SourceEditorController } from "./sourceEditorController";
 
-const source = "nui 2\npoint A = coordinate(x: 12 y: 0 locked: true)\nvar V = expression(value: 1 scope: global)";
+const source = "nui 2\npoint A = coordinate(x: 12 y: 0 enabled: false)\nvar V = expression(value: 1 scope: global)";
 
 const openEditor = (initialSource = source) => {
   useCadDocumentStore.getState().commitText(initialSource, "test");
@@ -179,9 +179,9 @@ describe("SourceEditor editor-native value step commands", () => {
 
   it("runs boolean and choice changes through the same command path", () => {
     const { controller, parent, view } = openEditor();
-    selectToken(view, "true");
+    selectToken(view, "false");
     pressStep(view, 1);
-    expect(useCadDocumentStore.getState().sourceText).toContain("locked: false");
+    expect(useCadDocumentStore.getState().sourceText).toContain("enabled: true");
 
     selectToken(view, "global");
     pressStep(view, 1);

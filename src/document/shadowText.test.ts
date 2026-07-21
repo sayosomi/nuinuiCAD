@@ -80,13 +80,13 @@ describe("generateShadowFromModel / advanceShadow 基本往復", () => {
     const afterDoc: DslDocumentData = {
       ...before,
       elements: before.elements.map((element) =>
-        element.name === "B" ? ({ ...element, locked: true } as CadElement) : element
+        element.name === "B" ? ({ ...element, enabled: false } as CadElement) : element
       )
     };
     const next = advanceShadow(prev, afterDoc);
     expect(next.compiled.document).not.toBeNull();
     expect(next.compiled.document!.elements.map((e) => e.id)).toEqual(afterDoc.elements.map((e) => e.id));
-    expect(next.text).toContain("locked: true");
+    expect(next.text).toContain("enabled: false");
     expect(next.text).toContain("point A = coordinate(x: 0 y: 0)");
   });
 
@@ -218,13 +218,13 @@ describe("advanceShadow 構造ケース(group入れ子・if/else・for・無名�
     const afterDoc: DslDocumentData = {
       ...before,
       elements: before.elements.map((element) =>
-        element.name === "B" ? ({ ...element, locked: true } as CadElement) : element
+        element.name === "B" ? ({ ...element, enabled: false } as CadElement) : element
       )
     };
     const next = advanceShadow(prev, afterDoc);
     expect(next.compiled.document!.elements.map((e) => e.id)).toEqual(afterDoc.elements.map((e) => e.id));
     expect(next.text).toContain("group G {");
-    expect(next.text).toContain("locked: true");
+    expect(next.text).toContain("enabled: false");
   });
 
   it("if/elseブロックへの挿入は同一IDのまま反映される", () => {
@@ -267,7 +267,7 @@ describe("advanceShadow 構造ケース(group入れ子・if/else・for・無名�
     const afterDoc: DslDocumentData = {
       ...before,
       elements: before.elements.map((element) =>
-        element.name === "P" ? ({ ...element, locked: true } as CadElement) : element
+        element.name === "P" ? ({ ...element, enabled: false } as CadElement) : element
       )
     };
     const next = advanceShadow(prev, afterDoc);

@@ -109,7 +109,7 @@ describe("Phase 2e source editor integration performance", () => {
         const middleElement = elements[Math.floor(elements.length / 2)];
         const patched = elements.map((element) =>
           element.id === middleElement.id
-            ? { ...element, locked: element.locked !== true }
+            ? { ...element, enabled: element.enabled !== true }
             : element
         );
         const result = store.getState().commitDocumentChange({ elements: patched });
@@ -124,7 +124,7 @@ describe("Phase 2e source editor integration performance", () => {
         const middleElement = elements[Math.floor(elements.length / 2)];
         const patched = elements.map((element) =>
           element.id === middleElement.id
-            ? { ...element, locked: element.locked !== true }
+            ? { ...element, enabled: element.enabled !== true }
             : element
         );
         const result = store.getState().commitDocumentChange({ elements: patched });

@@ -107,6 +107,8 @@ Phase 5cでは `focusElementList` と `enterElementListMode` を統合し、正�
 | `setSelectedPointAnchorCoordinateMode` |
 | `toggleSelectedBooleanParameter` |
 | `toggleBooleanParameterByDirectKey` |
+| `toggleElementLocked` |
+| `toggleSelectedElementLocked` |
 | `toggleExpressionInsertTray` |
 | `openExpressionInsertTray` |
 | `closeExpressionInsertTray` |

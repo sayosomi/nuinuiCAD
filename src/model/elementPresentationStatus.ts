@@ -29,7 +29,6 @@ export type ElementPresentationStatus = {
   disabledByGroup: boolean;
   conditionInactive: boolean;
   isEvaluated: boolean;
-  locked: boolean;
   printEnabled: boolean;
   canToggleVisibility: boolean;
   canTogglePrint: boolean;
@@ -94,7 +93,6 @@ export const createElementPresentationStatusIndex = ({
       disabledByGroup: Boolean(groupState?.disabledByGroupId),
       conditionInactive: conditionInactive.has(element.id),
       isEvaluated: evaluated.has(element.id) && enabled.has(element.id) && baseVisible.has(element.id),
-      locked: Boolean(element.locked),
       printEnabled: element.type === "group" && element.printEnabled === true,
       canToggleVisibility: element.type !== "variable",
       canTogglePrint: element.type === "group",
