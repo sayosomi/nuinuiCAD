@@ -64,6 +64,34 @@ export const buildForGroupBaselineSource = (generatedRowCount: number) => {
   };
 };
 
+export type DeclarationFixtureScale = {
+  /** Parsed nui 3 declaration statements. This is the generator's `count` argument. */
+  declarationCount: number;
+};
+
+// Task 10 (typed declaration syntax) baseline: pure v3 parse-cost fixture,
+// no elements/bindings/geometry - unlike buildStandardBaselineSource, which
+// emits v2 var/point pairs for the pre-typed-variables compiler/evaluator.
+export const buildTypedDeclarationBaselineSource = (declarationCount: number) => {
+  if (!Number.isInteger(declarationCount) || declarationCount < 1) {
+    throw new Error("typed declaration baseline requires at least one declaration");
+  }
+
+  const lines = ["nui 3"];
+  for (let index = 0; index < declarationCount; index += 1) {
+    const cycle = index % 4;
+    if (cycle === 0) lines.push(`const N${index}: number = ${index} + 1`);
+    else if (cycle === 1) lines.push(`let S${index}: string = "value ${index}"`);
+    else if (cycle === 2) lines.push(`const B${index}: boolean = true`);
+    else lines.push(`let C${index}: choice(right, left, center) = right`);
+  }
+
+  return {
+    source: lines.join("\n"),
+    scale: { declarationCount } satisfies DeclarationFixtureScale
+  };
+};
+
 export const semanticV2BaselineSource = [
   "nui 2",
   "var Global = 12",

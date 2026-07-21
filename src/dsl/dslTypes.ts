@@ -9,6 +9,7 @@ import type {
 } from "../types/geometry";
 import type { DocumentRange, DslPhysicalSpan, LogicalStatementSourceMap, SourceRevision } from "./logicalStatementSourceMap";
 import type { DslMajorVersion } from "./dslVersion";
+import type { ScalarType } from "../scalars/types";
 
 export type DslDiagnostic = {
   severity: "error" | "warning";
@@ -78,6 +79,16 @@ export type DslStatement =
   | (DslStatementBase & { kind: "activePrintLayout" })
   | (DslStatementBase & { kind: "place"; group: string })
   | (DslStatementBase & { kind: "layoutVar"; expression: string })
+  | (DslStatementBase & {
+      kind: "typedDeclaration";
+      bindingKind: "const" | "let";
+      /** `null` when the type annotation itself failed to parse. */
+      declaredType: ScalarType | null;
+      /** Per-option spans, index-aligned with `declaredType.options` when it is a choice type. */
+      choiceOptionSpans: readonly DslSpan[];
+      /** Raw, unparsed initializer source text - never evaluated or re-quoted (Task 14 owns that). */
+      initializer: string;
+    })
   | (DslStatementBase & { kind: "blockEnd" })
   | (DslStatementBase & { kind: "blockElse" });
 

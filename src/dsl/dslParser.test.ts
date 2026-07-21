@@ -281,6 +281,198 @@ describe("DSL parser new document statements", () => {
   });
 });
 
+describe("DSL typed declarations", () => {
+  it("parses a const number declaration with exact name/type/initializer spans", () => {
+    const source = "const ゆとり: number = 12";
+    const statement = single(source);
+    expect(statement).toMatchObject({
+      kind: "typedDeclaration",
+      bindingKind: "const",
+      name: "ゆとり",
+      declaredType: { kind: "number" },
+      initializer: "12"
+    });
+    if (statement.kind !== "typedDeclaration") return;
+    expect(source.slice(statement.nameSpan!.start, statement.nameSpan!.end)).toBe("ゆとり");
+    expect(source.slice(statement.payloadSpans.type.start, statement.payloadSpans.type.end)).toBe("number");
+    expect(source.slice(statement.payloadSpans.initializer.start, statement.payloadSpans.initializer.end)).toBe("12");
+  });
+
+  it("parses a let string declaration", () => {
+    const statement = single('let ラベル: string = "前身頃"');
+    expect(statement).toMatchObject({
+      kind: "typedDeclaration",
+      bindingKind: "let",
+      name: "ラベル",
+      declaredType: { kind: "string" },
+      initializer: '"前身頃"'
+    });
+  });
+
+  it("parses a boolean declaration", () => {
+    const statement = single("let 表示する: boolean = true");
+    expect(statement).toMatchObject({
+      kind: "typedDeclaration",
+      bindingKind: "let",
+      declaredType: { kind: "boolean" },
+      initializer: "true"
+    });
+  });
+
+  it("parses a choice declaration with ordered options and per-option spans", () => {
+    const source = "const 方向: choice(right, left) = right";
+    const statement = single(source);
+    expect(statement).toMatchObject({
+      kind: "typedDeclaration",
+      declaredType: { kind: "choice", options: ["right", "left"] },
+      initializer: "right"
+    });
+    if (statement.kind !== "typedDeclaration") return;
+    expect(statement.choiceOptionSpans).toHaveLength(2);
+    expect(source.slice(statement.choiceOptionSpans[0].start, statement.choiceOptionSpans[0].end)).toBe("right");
+    expect(source.slice(statement.choiceOptionSpans[1].start, statement.choiceOptionSpans[1].end)).toBe("left");
+  });
+
+  it("keeps a complex numeric expression initializer completely unparsed", () => {
+    const statement = single("const x: number = distance(A, B) + 1");
+    expect(statement).toMatchObject({ kind: "typedDeclaration", initializer: "distance(A, B) + 1" });
+  });
+
+  it("reports a missing type annotation", () => {
+    const result = errors("const x = 5");
+    expect(result).toHaveLength(1);
+    expect(result[0].message).toContain("型注釈");
+  });
+
+  it("reports a missing initializer", () => {
+    const result = errors("const x: number");
+    expect(result.some((item) => item.message.includes("初期化式"))).toBe(true);
+  });
+
+  it("reports an empty initializer after =", () => {
+    const result = errors("const x: number =");
+    expect(result.some((item) => item.message.includes("初期化式"))).toBe(true);
+  });
+
+  it("reports a missing name", () => {
+    const result = errors("const : number = 5");
+    expect(result.some((item) => item.message.includes("名前"))).toBe(true);
+  });
+
+  it("reports an unrecognized type annotation", () => {
+    const result = errors("const x: Vector3 = 5");
+    expect(result).toHaveLength(1);
+    expect(result[0].message).toContain("不明な型注釈");
+    const statement = parseDsl("const x: Vector3 = 5").statements[0];
+    expect(statement).toMatchObject({ kind: "typedDeclaration", declaredType: null });
+  });
+
+  it("rejects an empty choice option list", () => {
+    const result = errors("const c: choice() = a");
+    expect(result.some((item) => item.code === "invalid-choice-type" && item.message.includes("少なくとも1つ"))).toBe(true);
+  });
+
+  it("rejects a duplicate choice option", () => {
+    const result = errors("const c: choice(right, right) = right");
+    expect(result.some((item) => item.code === "invalid-choice-type" && item.message.includes("重複"))).toBe(true);
+  });
+
+  it("rejects true/false as a choice option", () => {
+    const result = errors("const c: choice(true, left) = left");
+    expect(result.some((item) => item.code === "invalid-choice-type" && item.message.includes("true/false"))).toBe(true);
+  });
+
+  it("rejects a quoted string as a choice option", () => {
+    const result = errors('const c: choice("right", left) = left');
+    expect(result.some((item) => item.code === "invalid-choice-type" && item.message.includes("裸の識別子"))).toBe(true);
+  });
+
+  it("rejects a number literal as a choice option", () => {
+    const result = errors("const c: choice(1, left) = left");
+    expect(result.some((item) => item.code === "invalid-choice-type" && item.message.includes("裸の識別子"))).toBe(true);
+  });
+
+  it("rejects an empty option in the middle of a choice list", () => {
+    const result = errors("const c: choice(a,,b) = a");
+    expect(result.some((item) => item.code === "invalid-choice-type" && item.message.includes("空"))).toBe(true);
+  });
+
+  it("rejects an unterminated choice paren", () => {
+    const result = errors("const c: choice(a, b = a");
+    expect(result.length).toBeGreaterThan(0);
+  });
+
+  it("rejects trailing tokens after a closed choice paren", () => {
+    const result = errors("const c: choice(a, b) extra = a");
+    expect(result.some((item) => item.message.includes("余分"))).toBe(true);
+  });
+
+  it("does not enforce name uniqueness (deferred to later binding-resolution tasks)", () => {
+    const parsed = parseDsl(["const x: number = 1", "const x: number = 2"].join("\n"));
+    expect(parsed.diagnostics).toEqual([]);
+  });
+
+  it("does not open a block and produces no CadElement dependency effects", () => {
+    const statement = single("const x: number = 1");
+    expect(statement.opensBlock).toBe(false);
+  });
+
+  it("is legal inside group and if/else blocks and records enclosing scope", () => {
+    const parsed = parseDsl([
+      "group 前身頃 {",
+      "  const 幅: number = 10",
+      "}",
+      "if 分岐 (1) {",
+      "  let x: boolean = true",
+      "} else {",
+      "  let x: boolean = false",
+      "}"
+    ].join("\n"));
+    expect(parsed.diagnostics).toEqual([]);
+    const decls = parsed.statements.filter((item) => item.kind === "typedDeclaration");
+    expect(decls).toHaveLength(3);
+    expect(decls[0].enclosing).toEqual({ statementIndex: 0, branch: "then" });
+    expect(decls[1].enclosing).toMatchObject({ branch: "then" });
+    expect(decls[2].enclosing).toMatchObject({ branch: "else" });
+  });
+
+  it("is rejected inside printLayout blocks, matching place/layoutVar's own restriction", () => {
+    const result = errors(["printLayout 型紙A () {", "  const x: number = 1", "}"].join("\n"));
+    expect(result.some((item) => item.message.includes("place と layoutVar のみ"))).toBe(true);
+  });
+
+  it("parses correctly when sandwiched between multi-line vertical element statements", () => {
+    const parsed = parseDsl([
+      "point A = coordinate(",
+      "  x: 0",
+      "  y: 0",
+      ")",
+      "const ラベル: string = \"A\"",
+      "point B = coordinate(",
+      "  x: 1",
+      "  y: 1",
+      ")"
+    ].join("\n"));
+    expect(parsed.diagnostics).toEqual([]);
+    expect(parsed.statements).toHaveLength(3);
+    expect(parsed.statements[0]).toMatchObject({ kind: "element", line: 1, endLine: 4 });
+    expect(parsed.statements[1]).toMatchObject({ kind: "typedDeclaration", line: 5, endLine: 5 });
+    expect(parsed.statements[2]).toMatchObject({ kind: "element", line: 6, endLine: 9 });
+  });
+
+  it("tolerates a trailing comment on the same line", () => {
+    const statement = single("const x: number = 1 # ゆとり分");
+    expect(statement).toMatchObject({ kind: "typedDeclaration", initializer: "1" });
+  });
+
+  it("still treats a bare `set` line as an unsupported keyword (no set parser exists yet)", () => {
+    const result = errors("set x = 1");
+    expect(result).toHaveLength(1);
+    expect(result[0].message).toContain("未対応のDSLキーワードです: set");
+    expect(parseDsl("set x = 1").statements).toHaveLength(0);
+  });
+});
+
 describe("DSL parser duplicate names", () => {
   it("reports duplicate names in the same scope", () => {
     const result = errors(["point A = coordinate(x: 0 y: 0)", "point A = coordinate(x: 1 y: 1)"].join("\n"));
