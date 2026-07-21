@@ -141,7 +141,9 @@ const commonArgs = (
   refs: DslSerializerRefs,
   constructionArgNames: ReadonlySet<string> = new Set()
 ) => {
-  const legacyActivityFlags = legacyFlagsForElementActivity(elementActivityFromLegacyFlags(element));
+  const isV3 = refs.majorVersion >= 3;
+  const activity = elementActivityFromLegacyFlags(element);
+  const legacyActivityFlags = legacyFlagsForElementActivity(activity);
   return commonArgSpecs
     .filter((arg) => {
       if (constructionArgNames.has(arg.arg)) return false;
@@ -150,11 +152,15 @@ const commonArgs = (
       // `locked` is a retired legacy attribute: recognized for parsing so old
       // documents don't error, but never regenerated in output.
       if (key === "locked") return false;
-      if (key === "visible") return legacyActivityFlags.visible === false;
-      if (key === "enabled") return legacyActivityFlags.enabled === false;
+      // v3 canonical always prefers `state:`; v2 keeps the legacy visible/enabled flags.
+      if (key === "state") return isV3 && activity !== "visible";
+      if (key === "visible") return !isV3 && legacyActivityFlags.visible === false;
+      if (key === "enabled") return !isV3 && legacyActivityFlags.enabled === false;
       return key === "colorId" && Boolean(element.colorId);
     })
-    .map((arg) => serializeArg(element, arg, refs))
+    // `state` has no ParameterDefinition/CadElement field of its own (it's derived from
+    // the legacy flags), so it can't go through the generic ordinaryArgText lookup below.
+    .map((arg) => (arg.arg === "state" ? { key: "state", text: `state: ${activity}` } : serializeArg(element, arg, refs)))
     .filter((arg): arg is { key: string; text: string } => arg !== null);
 };
 

@@ -1,5 +1,6 @@
 import {
   compileDslDocument,
+  NEW_DOCUMENT_DSL_MAJOR_VERSION,
   planPrintLayoutSection,
   type CompiledDslDocument,
   type DslDocumentData
@@ -37,8 +38,12 @@ export const serializerChangedStatementLines = (
   before: CompleteCompiled,
   afterDocument: DslDocumentData
 ): SerializerChangedStatements | null => {
-  const refsBefore = documentDslRefs(before.document.elements);
-  const refsAfter = documentDslRefs(afterDocument.elements);
+  // `document` non-null guarantees `majorVersion` non-null too (compileDslDocument only
+  // returns a document once version validation succeeded); the fallback below is
+  // defensive only, to satisfy the nullable static type.
+  const majorVersion = before.majorVersion ?? NEW_DOCUMENT_DSL_MAJOR_VERSION;
+  const refsBefore = documentDslRefs(before.document.elements, majorVersion);
+  const refsAfter = documentDslRefs(afterDocument.elements, majorVersion);
   const afterElementsById = new Map(afterDocument.elements.map((element) => [element.id, element]));
   const lines = new Set<number>();
   const changedElementIds = new Set<ElementId>();

@@ -85,7 +85,7 @@ describe("createDslCompletionSource", () => {
     expect(result?.from).toBe(pos - 1);
     expect(result?.to).toBe(pos);
     expect(result?.options.map((option) => option.label)).toEqual([
-      "dx", "dy", "visible", "enabled", "color", "steps", "vars"
+      "dx", "dy", "visible", "enabled", "state", "color", "steps", "vars"
     ]);
     expect(result?.options.every((option) => typeof option.apply === "string" && option.apply.endsWith(": "))).toBe(true);
   });

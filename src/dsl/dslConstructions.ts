@@ -61,6 +61,9 @@ export const commonArgSpecs: DslArgSpec[] = [
   arg("locked"),
   arg("visible"),
   arg("enabled"),
+  // v3-only alternative to visible/enabled; see element-state-conflict validation
+  // in dslCallParser.ts and lowering in dslApplyArgs.ts.
+  arg("state"),
   arg("color", "colorId"),
   special("steps", "steps"),
   special("vars", "vars"),

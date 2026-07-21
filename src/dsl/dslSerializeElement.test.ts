@@ -132,7 +132,7 @@ describe("DSL v2 element serializer", () => {
     expect(args.map((arg) => arg.key)).toEqual([
       "start", "end", "distance",
       ...commonArgSpecs
-        .filter((arg) => arg.arg !== "roles" && arg.arg !== "visible" && arg.arg !== "locked")
+        .filter((arg) => arg.arg !== "roles" && arg.arg !== "visible" && arg.arg !== "locked" && arg.arg !== "state")
         .map((arg) => arg.arg),
     ]);
     expect(args.map((arg) => arg.text)).toContain("parent: g1");
@@ -192,5 +192,43 @@ describe("DSL v2 element serializer", () => {
       .toBe("if ifブロック1 (1)");
     expect(serializeElementStatementLogical(loop, documentDslRefs([...referenceElements, loop])))
       .toBe("for forブロック1 (i from: 0 count: 3 step: 1 showGenerated: false)");
+  });
+});
+
+describe("nui 2/3 activity serialization", () => {
+  const argTexts = (element: CadElement, majorVersion: 2 | 3) =>
+    serializeElementStatementBlock(element, flatRefs(majorVersion)).args.map((arg) => arg.text);
+
+  it("v3 omits state for visible and never emits legacy visible/enabled flags", () => {
+    const visible = minimal("freePoint");
+    expect(argTexts(visible, 3).some((text) => text.startsWith("state:"))).toBe(false);
+    expect(argTexts(visible, 3).some((text) => text.startsWith("visible:") || text.startsWith("enabled:"))).toBe(false);
+  });
+
+  it("v3 emits state: hidden / state: disabled and never legacy flags", () => {
+    const hidden = { ...minimal("freePoint"), visible: false, enabled: true };
+    expect(argTexts(hidden, 3)).toContain("state: hidden");
+    expect(argTexts(hidden, 3).some((text) => text.startsWith("visible:") || text.startsWith("enabled:"))).toBe(false);
+
+    const disabled = { ...minimal("freePoint"), visible: true, enabled: false };
+    expect(argTexts(disabled, 3)).toContain("state: disabled");
+    expect(argTexts(disabled, 3).some((text) => text.startsWith("visible:") || text.startsWith("enabled:"))).toBe(false);
+
+    // enabled wins, same truth table as elementActivityFromLegacyFlags.
+    const bothFalse = { ...minimal("freePoint"), visible: false, enabled: false };
+    expect(argTexts(bothFalse, 3)).toContain("state: disabled");
+  });
+
+  it("v2 canonical output is unchanged: never emits state, keeps legacy visible/enabled flags", () => {
+    const hidden = { ...minimal("freePoint"), visible: false, enabled: true };
+    expect(argTexts(hidden, 2)).toContain("visible: false");
+    expect(argTexts(hidden, 2).some((text) => text.startsWith("state:"))).toBe(false);
+
+    const disabled = { ...minimal("freePoint"), visible: true, enabled: false };
+    expect(argTexts(disabled, 2)).toContain("enabled: false");
+    expect(argTexts(disabled, 2).some((text) => text.startsWith("state:"))).toBe(false);
+
+    const visible = minimal("freePoint");
+    expect(argTexts(visible, 2).some((text) => text.startsWith("state:"))).toBe(false);
   });
 });

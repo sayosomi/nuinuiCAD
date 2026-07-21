@@ -94,6 +94,9 @@ describe("DSL v2 construction registry", () => {
       // `locked` is retired: recognized for legacy-compat parsing only, with no
       // live parameter definition or editable field.
       if (definition.arg === "locked") continue;
+      // `state` (v3-only ElementActivity sugar for visible/enabled) is derived, not a
+      // CadElement field, so it deliberately has no ParameterDefinition of its own.
+      if (definition.arg === "state") continue;
       expect(findParameterDefinition(commonSample, definition.parameterKey ?? definition.arg)).toBeDefined();
     }
   });

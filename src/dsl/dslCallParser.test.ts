@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { categoriesForConstruction, constructionCandidatesFor, constructionFor } from "./dslConstructions";
-import { parseDslCallStatement } from "./dslCallParser";
+import { ELEMENT_STATE_CONFLICT_CODE, parseDslCallStatement } from "./dslCallParser";
 import { parseDsl } from "./dslParser";
 
 const parse = (source: string, opensBlock = false) => parseDslCallStatement(source, { opensBlock });
@@ -85,6 +85,26 @@ describe("DSL v2 call parser", () => {
     expect(messages("point A = coordinate(x: )").join("\n")).toContain("値がありません");
     expect(messages("point A = coordinate(x: 0) extra").join("\n")).toContain("余分なトークン");
     expect(messages("use N = notch(at: A)").join("\n")).toEqual("use は予約済みですが、まだ実装されていません。");
+  });
+
+  it("diagnoses state/visible and state/enabled conflicts at the exact legacy-flag key span", () => {
+    const stateVisible = "point A = coordinate(x: 0 y: 0 state: hidden visible: false)";
+    const visibleConflict = parse(stateVisible).diagnostics.find((item) => item.code === ELEMENT_STATE_CONFLICT_CODE);
+    expect(visibleConflict).toMatchObject({
+      message: "引数「state」と「visible」は同時に指定できません。",
+      span: { start: stateVisible.indexOf("visible"), end: stateVisible.indexOf("visible") + "visible".length },
+    });
+
+    const stateEnabled = "point A = coordinate(x: 0 y: 0 state: hidden enabled: false)";
+    const enabledConflict = parse(stateEnabled).diagnostics.find((item) => item.code === ELEMENT_STATE_CONFLICT_CODE);
+    expect(enabledConflict).toMatchObject({
+      message: "引数「state」と「enabled」は同時に指定できません。",
+      span: { start: stateEnabled.indexOf("enabled"), end: stateEnabled.indexOf("enabled") + "enabled".length },
+    });
+
+    // state alone, or visible/enabled alone, never conflicts.
+    expect(messages("point A = coordinate(x: 0 y: 0 state: hidden)")).toEqual([]);
+    expect(messages("point A = coordinate(x: 0 y: 0 visible: false)")).toEqual([]);
   });
 
   it("keeps legacy syntax out of the live v2 parser", () => {

@@ -1,6 +1,10 @@
 import { makeNumericExpression, normalizeNumericExpressionInput } from "../geometry/numericExpressions";
 import { createCadElementId } from "../model/cadIds";
-import { elementActivityFromLegacyFlags, legacyFlagsForElementActivity } from "../model/elementActivity";
+import {
+  elementActivityFromLegacyFlags,
+  legacyFlagsForElementActivity,
+  type ElementActivity
+} from "../model/elementActivity";
 import type { ElementNameContext } from "../model/elementNames";
 import { findParameterDefinition } from "../parameters/parameterDefinitions";
 import { setParameterValue } from "../parameters/parameterAccess";
@@ -15,6 +19,11 @@ import { splitDslList, splitDslRecords, unquoteDslString } from "./dslTokens";
 import type { DslDiagnostic } from "./dslTypes";
 import type { ScannedArg } from "./dslArgScanner";
 import { commonArgSpecs, type DslArgSpec, type DslConstructionSpec } from "./dslConstructions";
+import {
+  NEW_DOCUMENT_DSL_MAJOR_VERSION,
+  requireDslMajorVersionForFeature,
+  type DslMajorVersion
+} from "./dslVersion";
 
 export type DslApplyArgsMetadata = {
   id?: string;
@@ -40,6 +49,9 @@ export type DslApplyArgsResolvers = {
   resolveId?: typeof resolveIdFromDsl;
   resolveAnchor?: typeof resolveAnchorFromDsl;
   resolveEndpoint?: typeof resolveEndpointFromDsl;
+  /** Defaults to `NEW_DOCUMENT_DSL_MAJOR_VERSION` for callers (mostly tests) that don't
+   * exercise version-gated syntax like `state:`. */
+  majorVersion?: DslMajorVersion;
 };
 
 const diagnostic = (line: number, message: string): DslDiagnostic => ({
@@ -62,6 +74,11 @@ const booleanValue = (value: string) =>
     : ["false", "0", "no", "off"].includes(value.toLowerCase())
       ? false
       : null;
+
+const elementActivityLiteral = (value: string): ElementActivity | null => {
+  const token = unquoteDslString(value);
+  return token === "visible" || token === "hidden" || token === "disabled" ? token : null;
+};
 
 const splitRecordFields = (value: string) => {
   const fields: string[] = [];
@@ -147,24 +164,50 @@ export const applyArgs = (
   const id = (source: string) =>
     resolveId(source, resolvers.index, resolvers.line, diagnostics, next);
 
+  // dslCallParser.ts's raw-arg validation already fails closed on `state` written
+  // alongside legacy `visible`/`enabled` (element-state-conflict); mirror that here so
+  // none of the three ever gets lowered onto the element from a conflicting statement.
+  const stateConflict = byName.has("state") && (byName.has("visible") || byName.has("enabled"));
+
   for (const [argName, scanned] of byName) {
     const definition = definitions.get(argName);
     if (!definition || definition.special) continue;
     const parameterKey = definition.parameterKey ?? definition.arg;
     const parameter = findParameterDefinition(next, parameterKey);
     const value = scanned.value;
-    if (parameterKey === "locked" || parameterKey === "visible" || parameterKey === "enabled") {
+    if (parameterKey === "locked") {
       const parsed = booleanValue(value);
       if (parsed === null) diagnostics.push(diagnostic(resolvers.line, `${parameterKey} は true/false で指定してください。`));
-      if (parameterKey === "locked") {
-        diagnostics.push(warning(resolvers.line, "locked は廃止された属性のため無視されます。"));
-      } else {
-        const activity = elementActivityFromLegacyFlags({
-          ...next,
-          [parameterKey]: parsed ?? false
-        });
-        next = { ...next, ...legacyFlagsForElementActivity(activity) } as CadElement;
+      diagnostics.push(warning(resolvers.line, "locked は廃止された属性のため無視されます。"));
+      continue;
+    }
+    if (parameterKey === "visible" || parameterKey === "enabled") {
+      if (stateConflict) continue;
+      const parsed = booleanValue(value);
+      if (parsed === null) diagnostics.push(diagnostic(resolvers.line, `${parameterKey} は true/false で指定してください。`));
+      const activity = elementActivityFromLegacyFlags({
+        ...next,
+        [parameterKey]: parsed ?? false
+      });
+      next = { ...next, ...legacyFlagsForElementActivity(activity) } as CadElement;
+      continue;
+    }
+    if (parameterKey === "state") {
+      if (stateConflict) continue;
+      const majorVersion = resolvers.majorVersion ?? NEW_DOCUMENT_DSL_MAJOR_VERSION;
+      const versionError = requireDslMajorVersionForFeature(majorVersion, 3, resolvers.line, "state: 構文");
+      if (versionError) {
+        diagnostics.push(versionError);
+        continue;
       }
+      const activity = elementActivityLiteral(value);
+      if (activity === null) {
+        // Fail-closed: an invalid literal must not fall back to any activity value —
+        // lowering to the ElementActivity converter only happens for a valid one.
+        diagnostics.push(diagnostic(resolvers.line, "state は visible/hidden/disabled のいずれかで指定してください。"));
+        continue;
+      }
+      next = { ...next, ...legacyFlagsForElementActivity(activity) } as CadElement;
       continue;
     }
     // `color` is a common v2 argument even for legacy element definitions

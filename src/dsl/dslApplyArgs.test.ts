@@ -230,3 +230,62 @@ describe("DSL v2 compiler argument application", () => {
     expect(result).toMatchObject({ element: { x: 10, y: -5 }, diagnostics: [] });
   });
 });
+
+describe("nui 3 state syntax lowering", () => {
+  const resolversV3: DslApplyArgsResolvers = { ...resolvers, majorVersion: 3 };
+
+  it("lowers each of the 3 state literals to the matching legacy flags under nui 3", () => {
+    const visible = applyArgs(sample("freePoint"), constructionFor("point", "coordinate")!, [arg("state", "visible")], resolversV3);
+    expect(visible.diagnostics).toEqual([]);
+    expect(visible.element).toMatchObject({ visible: true, enabled: true });
+
+    const hidden = applyArgs(sample("freePoint"), constructionFor("point", "coordinate")!, [arg("state", "hidden")], resolversV3);
+    expect(hidden.diagnostics).toEqual([]);
+    expect(hidden.element).toMatchObject({ visible: false, enabled: true });
+
+    const disabled = applyArgs(sample("freePoint"), constructionFor("point", "coordinate")!, [arg("state", "disabled")], resolversV3);
+    expect(disabled.diagnostics).toEqual([]);
+    expect(disabled.element).toMatchObject({ visible: true, enabled: false });
+  });
+
+  it("still accepts legacy visible/enabled alone under nui 3 (compatibility input)", () => {
+    const result = applyArgs(sample("freePoint"), constructionFor("point", "coordinate")!, [arg("visible", "false")], resolversV3);
+    expect(result.diagnostics).toEqual([]);
+    expect(result.element).toMatchObject({ visible: false, enabled: true });
+  });
+
+  it("rejects state: under nui 2 with the Task 06 version-gate diagnostic and does not touch activity fields", () => {
+    const input = sample("freePoint");
+    const result = applyArgs(input, constructionFor("point", "coordinate")!, [arg("state", "hidden")], resolvers);
+    expect(result.diagnostics).toEqual([
+      expect.objectContaining({
+        code: "typed-syntax-requires-nui3",
+        message: "state: 構文 は nui 3 以降でのみ使用できます(現在: nui 2)。",
+      }),
+    ]);
+    expect(result.element).toMatchObject({ visible: input.visible, enabled: input.enabled });
+  });
+
+  it("fails closed on an invalid state literal: diagnoses without falling back to any activity value", () => {
+    const input = { ...sample("freePoint"), visible: false, enabled: true };
+    const result = applyArgs(input, constructionFor("point", "coordinate")!, [arg("state", "maybe")], resolversV3);
+    expect(result.diagnostics).toEqual([
+      expect.objectContaining({ message: "state は visible/hidden/disabled のいずれかで指定してください。" }),
+    ]);
+    // Fail-closed: the element's prior activity fields are untouched, not defaulted to visible.
+    expect(result.element).toMatchObject({ visible: false, enabled: true });
+  });
+
+  it("fails closed when state conflicts with visible or enabled: neither is lowered onto the element", () => {
+    const input = { ...sample("freePoint"), visible: false, enabled: true };
+    const result = applyArgs(
+      input,
+      constructionFor("point", "coordinate")!,
+      [arg("state", "disabled"), arg("visible", "true")],
+      resolversV3,
+    );
+    // dslCallParser.ts's raw-arg validation is responsible for the element-state-conflict
+    // diagnostic; applyArgs only needs to mirror its fail-closed behavior here.
+    expect(result.element).toMatchObject({ visible: false, enabled: true });
+  });
+});

@@ -1,11 +1,13 @@
 import {
   layoutElementTree,
+  NEW_DOCUMENT_DSL_MAJOR_VERSION,
   planPrintLayoutSection,
   serializePaletteColorLine,
   serializePaletteLines,
   withFallbackParentArgs,
   type CompiledDslDocument,
   type DslDocumentData,
+  type DslMajorVersion,
   type ElementTreeRow,
   type StatementInfo
 } from "../dsl/dslDocument";
@@ -169,6 +171,7 @@ const namesAndParentsUnchanged = (oldDoc: DslDocumentData, newDoc: DslDocumentDa
 const elementUpdateSet = (
   oldDoc: DslDocumentData,
   newDoc: DslDocumentData,
+  majorVersion: DslMajorVersion = NEW_DOCUMENT_DSL_MAJOR_VERSION,
   precomputedRefsNew?: DslSerializerRefs
 ): Set<ElementId> => {
   const oldById = new Map(oldDoc.elements.map((element) => [element.id, element]));
@@ -185,8 +188,8 @@ const elementUpdateSet = (
     return updates;
   }
 
-  const refsOld = documentDslRefs(oldDoc.elements);
-  const refsNew = precomputedRefsNew ?? documentDslRefs(newDoc.elements);
+  const refsOld = documentDslRefs(oldDoc.elements, majorVersion);
+  const refsNew = precomputedRefsNew ?? documentDslRefs(newDoc.elements, majorVersion);
   for (const element of newDoc.elements) {
     const oldElement = oldById.get(element.id);
     if (!oldElement) continue;
@@ -205,10 +208,11 @@ const elementUpdateSet = (
 // 高速経路と結果が常に一致することの検証にのみ使う。
 export const elementUpdateSetFullComparisonForTesting = (
   oldDoc: DslDocumentData,
-  newDoc: DslDocumentData
+  newDoc: DslDocumentData,
+  majorVersion: DslMajorVersion = NEW_DOCUMENT_DSL_MAJOR_VERSION
 ): Set<ElementId> => {
-  const refsOld = documentDslRefs(oldDoc.elements);
-  const refsNew = documentDslRefs(newDoc.elements);
+  const refsOld = documentDslRefs(oldDoc.elements, majorVersion);
+  const refsNew = documentDslRefs(newDoc.elements, majorVersion);
   const oldById = new Map(oldDoc.elements.map((element) => [element.id, element]));
   const updates = new Set<ElementId>();
   for (const element of newDoc.elements) {
@@ -325,10 +329,13 @@ const patchElements = (input: TextPatchInput, ops: PatchOps) => {
   const { old, newDocument } = input;
   const oldDocument = old.document!;
   const statementMap = old.statementMap!;
-  const refsNew = documentDslRefs(newDocument.elements);
+  // `old.majorVersion` is guaranteed non-null alongside `old.document`/`old.statementMap`
+  // (see CompiledDslDocument.majorVersion); the fallback below is defensive only.
+  const majorVersion = old.majorVersion ?? NEW_DOCUMENT_DSL_MAJOR_VERSION;
+  const refsNew = documentDslRefs(newDocument.elements, majorVersion);
   const layout = layoutElementTree(newDocument.elements, refsNew, newDocument.evaluationLimitIndex);
   const newById = new Map(newDocument.elements.map((element) => [element.id, element]));
-  const updates = elementUpdateSet(oldDocument, newDocument, refsNew);
+  const updates = elementUpdateSet(oldDocument, newDocument, majorVersion, refsNew);
 
   // 文の実際の旧終端行(ヘッダ自身のendLineと、旧文書が次行単独 `{` を
   // 使っていた場合のopenBraceLineの大きい方)。v2正準出力はヘッダ行自身に

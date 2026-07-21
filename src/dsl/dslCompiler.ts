@@ -21,6 +21,7 @@ import { isElementDslStatement, parseDsl } from "./dslParser";
 import { createNameIndex, resolveId, type NameIndex } from "./dslReferences";
 import type { CompileDslContext, CompileDslResult, DslAttribute, DslDiagnostic, DslStatement } from "./dslTypes";
 import { unquoteDslString } from "./dslTokens";
+import type { DslMajorVersion } from "./dslVersion";
 import {
   placeAngleAttrKey,
   placeAtAttrKey,
@@ -110,7 +111,8 @@ const applyStatement = (
   diagnostics: DslDiagnostic[],
   elementsForExpressions: CadElement[],
   nameContext: ElementNameContext,
-  visibilityRoles: VisibilityRole[] = []
+  visibilityRoles: VisibilityRole[] = [],
+  majorVersion?: DslMajorVersion
 ): CadElement => {
   const named = { ...element, name: statement.name };
   if (statement.kind === "variable") {
@@ -130,7 +132,8 @@ const applyStatement = (
     elementsForExpressions,
     nameContext,
     visibilityRoles,
-    createIntermediateId: createDefaultIntermediateId
+    createIntermediateId: createDefaultIntermediateId,
+    majorVersion
   });
   diagnostics.push(...result.diagnostics);
 
@@ -543,7 +546,8 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
         diagnostics,
         elementsForExpressions,
         index.nameContext,
-        visibilitySettings.visibilityRoles
+        visibilitySettings.visibilityRoles,
+        context.majorVersion
       ),
       statement
     );
