@@ -33,6 +33,18 @@ const divisionPoint = (placementMode: "distance" | "ratio"): CadElement => ({
   ratio: 0.5
 });
 
+const lineDivisionPoint: CadElement = {
+  id: "line-division-point",
+  name: "線上分点",
+  type: "lineDivisionPoint",
+  visible: true,
+  enabled: true,
+  endpoint: { lineId: "line-ab", endpointKey: "start" },
+  placementMode: "distance",
+  distance: 10,
+  ratio: 0.5
+};
+
 const lineTangentOffsetPoint: CadElement = {
   id: "line-tangent-offset-point",
   name: "線上オフセット点",
@@ -185,6 +197,21 @@ describe("elementDragTransforms", () => {
     expect(point).toMatchObject({ type: "divisionPoint" });
     if (point?.type !== "divisionPoint") throw new Error("Expected a division point");
     expect(point.ratio).toBeCloseTo(0.6);
+  });
+
+  // 04: DivisionPlacement characterization。lineDivisionPointにはdivisionPointと違い
+  // 専用のdrag handlerが存在しない(elementDragTransforms.tsにcase文自体がない)ため、
+  // movePointElementByDeltaInElementsのfallback分岐(`return element`)を通り、外側の
+  // didMoveも立たないため呼び出し全体がnullを返す。これは他の非対応type(line等)と
+  // 同じ前例パターンであり、現行のno-op挙動として固定する(修正しない)。
+  it("does not move lineDivisionPoint elements (no drag handler exists for this type)", () => {
+    const moved = movePointElementByDeltaInElements(
+      [...sampleElements, lineDivisionPoint],
+      "line-division-point",
+      { dx: 10, dy: 0 }
+    );
+
+    expect(moved).toBeNull();
   });
 
   it("moves line tangent offset points by updating relative angle and distance", () => {

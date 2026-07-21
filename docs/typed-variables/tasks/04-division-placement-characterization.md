@@ -56,6 +56,25 @@ test-only。現行behaviorを変更しない。
 
 05はこのmatrixのobservable resultを変えず内部shapeだけ変更する。
 
+実装時に見つかった、05が把握すべき既存の非対称・層別挙動(修正は行っていない):
+
+- **both指定の「diagnosticかつcompiler distance」は2層に分かれる**。v2フル文書compile
+  (`compileDslDocument`/`compileDslToElements`)はexclusivity診断がsource全体にerror
+  severityで1件でもあれば即座に`document: null`を返し、`applyArgs`(placementMode選択)へ
+  到達しない。「compilerがdistanceを選ぶ」という記述が実際に成立するのは`applyArgs`を
+  孤立呼び出しした場合(`dslApplyArgs.test.ts`)だけで、フル文書compileでは両方指定は
+  文書全体のcompile失敗として現れる(`dslCompiler.test.ts`のDivisionPlacement
+  characterization参照)。
+- **legacy v1はv2と非対称**。v2のexclusivity診断(同時に指定できません、error)に対し、
+  legacy v1 `withPlacementMode`(`dslCompiler.ts`)はdistanceを先にcheckして無条件に選び、
+  診断を一切出さない(`parseLegacyV1Document.test.ts`のDivisionPlacement
+  characterization参照)。
+- **`lineDivisionPoint`にはdrag handlerが存在しない**。`elementDragTransforms.ts`の
+  `movePointElementByDeltaInElements`はこの型をfallback分岐(`return element`)へ通し、
+  `didMove`が立たないため呼び出し全体が`null`を返す(他の非対応type、例えば`line`と
+  同じ前例パターン)。`divisionPoint`のみ能動field更新のdrag support があり、この非対称は
+  現状のまま(`elementDragTransforms.test.ts`参照)。
+
 ## 15. PR境界
 
 fixturesだけ。推奨branch slug: `typed-vars/04-placement-characterization`。

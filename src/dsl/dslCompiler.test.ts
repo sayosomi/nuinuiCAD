@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_PRINT_LAYOUT } from "../print/printLayout";
 import { compileDslToElements } from "./dslCompiler";
+import { compileDslDocument } from "./dslDocument";
 import { serializeElementsToDsl } from "./dslSerializer";
 
 describe("DSL compiler", () => {
@@ -404,6 +405,83 @@ describe("DSL compiler", () => {
     })).toContain("group 前身頃縫い代");
   });
 });
+
+// 04: DivisionPlacement characterization。union移行(Task 05)前に、v2フル文書compileの
+// distance/ratio境界を固定する。compileDslToElementsは`elements`をそのまま返すが、
+// severity:errorが1件でもあれば`elements`は変化せず(次に述べるcompileDslDocument経由で
+// documentがnullになる)、applyArgsへは到達しない。
+describe("DSL compiler: DivisionPlacement characterization", () => {
+  it("compiles distance-only and ratio-only division points normally", () => {
+    const result = compileDslToElements(
+      [
+        "point A = coordinate(x: 0 y: 0)",
+        "point B = coordinate(x: 10 y: 0)",
+        "line AB = segment(start: A end: B)",
+        "point ByDistance = between(start: A end: B distance: 4)",
+        "point ByRatio = between(start: A end: B ratio: 0.25)",
+        "point OnLineByDistance = onLine(from: AB.start distance: 4)",
+        "point OnLineByRatio = onLine(from: AB.start ratio: 0.25)"
+      ].join("\n"),
+      { elements: [] }
+    );
+
+    expect(result.diagnostics).toEqual([]);
+    expect(result.elements[3]).toMatchObject({ type: "divisionPoint", placementMode: "distance", distance: 4 });
+    expect(result.elements[4]).toMatchObject({ type: "divisionPoint", placementMode: "ratio", ratio: 0.25 });
+    expect(result.elements[5]).toMatchObject({ type: "lineDivisionPoint", placementMode: "distance", distance: 4 });
+    expect(result.elements[6]).toMatchObject({ type: "lineDivisionPoint", placementMode: "ratio", ratio: 0.25 });
+  });
+
+  it("fails the whole v2 document compile when both distance and ratio are given (no element is produced)", () => {
+    const source = [
+      "nui 2",
+      "point A = coordinate(x: 0 y: 0)",
+      "point B = coordinate(x: 10 y: 0)",
+      "point Both = between(start: A end: B distance: 4 ratio: 0.25)"
+    ].join("\n");
+
+    const compiled = compileDslDocument(source);
+
+    expect(compiled.document).toBeNull();
+    expect(compiled.diagnostics).toContainEqual(
+      expect.objectContaining({
+        severity: "error",
+        message: "引数「distance」と「ratio」は同時に指定できません。"
+      })
+    );
+
+    const lineSource = [
+      "nui 2",
+      "point A = coordinate(x: 0 y: 0)",
+      "point B = coordinate(x: 10 y: 0)",
+      "line AB = segment(start: A end: B)",
+      "point Both = onLine(from: AB.start distance: 4 ratio: 0.25)"
+    ].join("\n");
+
+    expect(compileDslDocument(lineSource).document).toBeNull();
+  });
+
+  it("falls back to the factory default (ratio 0.5) when neither distance nor ratio is given", () => {
+    const source = [
+      "point A = coordinate(x: 0 y: 0)",
+      "point B = coordinate(x: 10 y: 0)",
+      "line AB = segment(start: A end: B)",
+      "point Neither = between(start: A end: B)",
+      "point OnLineNeither = onLine(from: AB.start)"
+    ].join("\n");
+
+    const result = compileDslToElements(source, { elements: [] });
+
+    expect(result.diagnostics).toEqual([]);
+    expect(result.elements[3]).toMatchObject({
+      type: "divisionPoint", placementMode: "ratio", distance: 0, ratio: 0.5
+    });
+    expect(result.elements[4]).toMatchObject({
+      type: "lineDivisionPoint", placementMode: "ratio", distance: 0, ratio: 0.5
+    });
+  });
+});
+
 describe("DSL compiler blocks", () => {
   it("assigns parentGroupId from group blocks", () => {
     const result = compileDslToElements(
