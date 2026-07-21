@@ -85,6 +85,13 @@ const ROOT_SCOPE_ID: ScopeId = "root";
 
 const isForGroup = (statement: DslStatement) => statement.kind === "element" && statement.type === "forGroup";
 const isConditionalGroup = (statement: DslStatement) => statement.kind === "element" && statement.type === "conditionalGroup";
+// A short `var Name = value` is its own statement kind, while the legacy
+// call-form (`var Name = expression(value: ... scope: group)`) is an element
+// statement. Task 12 must preserve both forms' established visibility rules,
+// so the index records both without reparsing source text.
+const isLegacyVariable = (statement: DslStatement) =>
+  statement.kind === "variable" ||
+  (statement.kind === "element" && statement.type === "variable" && statement.category === "var");
 
 type MutableScope = {
   kind: ScopeKind;
@@ -193,7 +200,7 @@ export const buildLexicalScopeIndex = (
       if (existing) existing.push(declaration);
       else declarationsByScope.set(scopeId, [declaration]);
       allDeclarations.push(declaration);
-    } else if (statement.kind === "variable") {
+    } else if (isLegacyVariable(statement)) {
       const record: LegacyVariableRecord = {
         scopeId,
         statementIndex: index,

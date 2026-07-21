@@ -54,7 +54,71 @@ lookupをprecomputed map/ancestor chainで行い、参照ごとの全document逆
 
 ## 14. 次タスクへの引き継ぎ
 
-13/15/26/29/39がresolution resultを利用する。
+実装済みAPI（いずれもproduction未接続のpure analysis）:
+
+```ts
+// src/scalars/bindingCatalog.ts
+type BindingCatalog;
+type Binding;
+type BindingSeed; // legacy / iteration / elementLocal adapter input
+type BindingId = string;
+const buildBindingCatalog: (input: BuildBindingCatalogInput) => BindingCatalog;
+
+// src/scalars/bindingResolution.ts
+type BindingReferenceSite;
+type BindingResolution =
+  | { kind: "resolved"; binding: Binding }
+  | { kind: "undefined"; name; scopeId; statementIndex }
+  | { kind: "forward"; name; scopeId; statementIndex; bindingIds }
+  | { kind: "self"; name; scopeId; statementIndex; bindingId }
+  | { kind: "duplicate"; name; scopeId; statementIndex; bindingIds };
+const resolveBindingReference: (catalog, name, site) => BindingResolution;
+const visibleBindingsAt: (catalog, site) => readonly Binding[];
+
+// src/dsl/bindingCatalogAdapter.ts
+const buildDslBindingAdapterSeeds: (input) => {
+  legacyBindings: readonly BindingSeed[];
+  iterationBindings: readonly BindingSeed[];
+};
+```
+
+**binding ID規則**: typed declarationとlegacy `var`は、各statement indexに
+callerが注入した実stable statement identityから`binding:<identity>`を作る。
+forGroup iterationは同じfor opener identityから`binding:iteration:<identity>`を
+作る。element localはadapterがowner/localの実stable identityに基づく完成済みIDを
+`BindingSeed.id`として渡す。catalogはstatement index、source内容、name、走査順
+counterからproduction IDを合成しない。typed/legacy/forGroupのidentityが欠ける場合は
+throwする。現在のdocument reconciliationはtyped declaration用identityをまだ供給しない
+ため、このtaskはそのIDを捏造せず、将来のdocument adapterが全binding ownerのmappingを
+渡す契約に留める。
+
+**visibilityとorder**: catalogはeffective-scope/name bucket、scope chain、element
+local owner/name bucketを事前構築する。通常の`@name`はlocal、現在のlexical scope、
+ancestor scopeの順に照会する。ancestorへ進む前に現在effective scopeの同名bucket全体を
+確認し、同scopeのtyped declarationが参照位置より後なら`forward`を返してouterへ
+fallbackしない。typedだけが宣言位置以降のorder ruleを持つ。legacyはadapterが
+`variableIsInScope`互換として渡すscope set、iteration/element localはadapter指定の
+scope/rangeで可視性を決め、全bindingへ一律の「参照より前」制限は掛けない。element
+localはiteration、document bindingより優先する。
+
+**initializer**: `initializerBindingId`を指定したtyped declaration自身のinitializerで
+同名を解決する場合は、現在effective scopeを飛ばしてvisible outerを探す。outerが
+`resolved`ならそれを返し、なければ`self`を返す。通常参照のforward/duplicate規則を
+selfへ置き換えない。
+
+**duplicate**: 同一effective scopeかつ同名のtyped/typed、typed/legacy、legacy/legacyは
+すべて`duplicate`であり、typed優先・legacy文書順fallbackは存在しない。Task 13はこの
+resultとcatalog bucketを使ってdiagnostic/statusを作る。
+
+**legacy adapter**: Task 11の`legacyVariablesByScope`と既parse `DslStatement.attrs`だけを
+使い、sourceを再parse/re-scanしない。short `var`に加えlong-form
+`var ... = expression(... scope: group)`もTask 11 recordとして収集する。globalは全scope、
+groupはnearest lexical groupとその子孫（group外ならCAD parentGroupIdなしのscope群）へ
+変換し、既存`variableIsInScope` fixtureを正とする。
+
+13は`BindingResolution`をinitializer graph/SCC/diagnosticへ、15は`resolved.binding.id`
+をtyped ASTへ、26はtemplate holeへ、29はset target解析へ、39は`visibleBindingsAt`へ
+利用する。いずれも名前、scope、orderを再解釈したり全documentを逆走査しない。
 
 ## 15. PR境界
 
