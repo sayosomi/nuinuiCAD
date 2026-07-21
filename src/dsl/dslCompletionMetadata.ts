@@ -7,6 +7,7 @@ import { documentDslRefs } from "./dslSerializer";
 import { serializeElementStatementLogical } from "./dslSerializeElement";
 import { isElementDslStatement } from "./dslParser";
 import type { DslStatement } from "./dslTypes";
+import { NEW_DOCUMENT_DSL_MAJOR_VERSION } from "./dslVersion";
 
 export type DslCompletionParameter = {
   definition: ParameterDefinition;
@@ -69,7 +70,9 @@ const metadataFor = (element: CadElement): DslCompletionElementMetadata => {
   const samples = [element, ...variants];
   const parameters = new Map<string, DslCompletionParameter>();
   for (const sample of samples) {
-    const line = serializeElementStatementLogical(sample, documentDslRefs([sample]));
+    // v2 is a stable, deterministic form for label derivation; this doesn't reflect
+    // any real document's version.
+    const line = serializeElementStatementLogical(sample, documentDslRefs([sample], NEW_DOCUMENT_DSL_MAJOR_VERSION));
     for (const definition of definitions) {
       const span = resolveParameterValueSpan(line, sample, definition.key, { committedLineText: line });
       if (!span) continue;

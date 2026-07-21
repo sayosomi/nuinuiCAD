@@ -11,6 +11,7 @@ import {
   createLogicalStatementSourceMap,
   physicalSpanForLogicalRange,
   physicalSpanForStatement,
+  type DslPhysicalSpan,
   type LogicalStatement,
   type SourceSnapshot
 } from "./logicalStatementSourceMap";
@@ -95,11 +96,18 @@ export const isElementDslStatement = (statement: DslStatement) =>
 const attrValue = (attrs: DslAttribute[], key: string) =>
   attrs.find((attr) => attr.key === key)?.value;
 
-const diagnostic = (line: number, message: string): DslDiagnostic => ({
+const diagnostic = (
+  line: number,
+  message: string,
+  code?: string,
+  physicalSpan?: DslPhysicalSpan
+): DslDiagnostic => ({
   severity: "error",
   line,
   column: 1,
-  message
+  message,
+  ...(code ? { code } : {}),
+  ...(physicalSpan ? { physicalSpan } : {})
 });
 
 type ParsedLine = { statement?: DslStatement; diagnostics: DslDiagnostic[] };
@@ -211,8 +219,15 @@ const structuralStatement = (logical: LogicalStatement, kind: "blockEnd" | "bloc
   kind
 });
 
-const fromCall = (result: DslCallParseResult, line: number, endLine: number): ParsedLine => {
-  const diagnostics = result.diagnostics.map((item) => diagnostic(line, item.message));
+const fromCall = (
+  result: DslCallParseResult,
+  line: number,
+  endLine: number,
+  project: (span: DslSpan) => DslPhysicalSpan | null
+): ParsedLine => {
+  const diagnostics = result.diagnostics.map((item) =>
+    diagnostic(line, item.message, item.code, project(item.span) ?? undefined)
+  );
   if (!result.statement) return { diagnostics };
   return { statement: callStatementToDslStatement(result.statement, line, endLine), diagnostics };
 };
@@ -233,13 +248,19 @@ const fromSettings = (result: DslSettingsParseResult, line: number, endLine: num
 
 const leadingIdentifier = /^[A-Za-z_][A-Za-z0-9_]*/;
 
-const parseLine = (logicalText: string, line: number, endLine: number, opensOnNextLine: boolean): ParsedLine => {
+const parseLine = (
+  logicalText: string,
+  line: number,
+  endLine: number,
+  opensOnNextLine: boolean,
+  project: (span: DslSpan) => DslPhysicalSpan | null
+): ParsedLine => {
   if (logicalText.startsWith(dslStatementKeywords.atStop)) {
     return fromSettings(parseDslSettingsStatement(logicalText, { opensBlock: opensOnNextLine }), line, endLine);
   }
   const keyword = logicalText.match(leadingIdentifier)?.[0] ?? "";
   if (callCategoryKeywords.has(keyword)) {
-    return fromCall(parseDslCallStatement(logicalText, { opensBlock: opensOnNextLine }), line, endLine);
+    return fromCall(parseDslCallStatement(logicalText, { opensBlock: opensOnNextLine }), line, endLine, project);
   }
   if (settingsKeywords.has(keyword)) {
     return fromSettings(parseDslSettingsStatement(logicalText, { opensBlock: opensOnNextLine }), line, endLine);
@@ -361,6 +382,10 @@ const decorateDiagnostic = (
   item: DslDiagnostic,
   sourceMap: ReturnType<typeof createLogicalStatementSourceMap>
 ): DslDiagnostic => {
+  // An already-set physicalSpan (e.g. an exact arg-token span attached at the
+  // raw-arg validation stage) is more precise than the whole-statement span
+  // this function otherwise falls back to; never overwrite it.
+  if (item.physicalSpan) return { ...item, sourceRevision: sourceMap.sourceRevision };
   const logical = sourceMap.statements.find((statement) => statement.range.startLine === item.line);
   return { ...item, sourceRevision: sourceMap.sourceRevision, ...(logical ? { physicalSpan: physicalSpanForStatement(logical) } : {}) };
 };
@@ -389,7 +414,8 @@ export const parseDslSnapshot = (snapshot: SourceSnapshot): ParseDslResult => {
     // recognized by the P3/P4 parsers themselves from the logical text.
     const next = sourceMap.statements[index + 1];
     const opensOnNextLine = next?.structural === "open";
-    const parsed = parseLine(logical.logicalText, logical.range.startLine, logical.range.endLine, opensOnNextLine);
+    const project = (span: DslSpan) => physicalSpanForLogicalRange(sourceMap, logical, span);
+    const parsed = parseLine(logical.logicalText, logical.range.startLine, logical.range.endLine, opensOnNextLine, project);
     if (parsed.statement) {
       const statement = decorateStatement(parsed.statement, logical, sourceMap);
       if (opensOnNextLine) statement.openBraceLine = next!.range.startLine;

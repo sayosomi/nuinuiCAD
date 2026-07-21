@@ -712,3 +712,44 @@ describe("requireDslMajorVersionForFeature", () => {
     });
   });
 });
+
+describe("nui 2/3 state syntax wiring", () => {
+  it("rejects state: under a nui 2 document with the version-gate diagnostic", () => {
+    const parsed = parseDslDocument("nui 2\npoint A = coordinate(x: 0 y: 0 state: hidden)");
+    expect(parsed.diagnostics).toEqual(
+      expect.arrayContaining([expect.objectContaining({ code: TYPED_SYNTAX_REQUIRES_NUI3_CODE })])
+    );
+    expect(parsed.document).toBeNull();
+  });
+
+  it("accepts state: visible/hidden/disabled under a nui 3 document and lowers to ElementActivity", () => {
+    const parsed = parseDslDocument([
+      "nui 3",
+      "point A = coordinate(x: 0 y: 0 state: hidden)",
+      "point B = coordinate(x: 1 y: 0 state: disabled)",
+      "point C = coordinate(x: 2 y: 0)"
+    ].join("\n"));
+    expect(parsed.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
+    expect(parsed.document!.elements).toMatchObject([
+      { name: "A", visible: false, enabled: true },
+      { name: "B", visible: true, enabled: false },
+      { name: "C", visible: true, enabled: true }
+    ]);
+  });
+
+  it("v3 still accepts legacy visible/enabled flags alone (compatibility input)", () => {
+    const parsed = parseDslDocument("nui 3\npoint A = coordinate(x: 0 y: 0 visible: false)");
+    expect(parsed.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
+    expect(parsed.document!.elements).toMatchObject([{ name: "A", visible: false, enabled: true }]);
+  });
+
+  it("regenerates canonical v3 output as state: while keeping the document major unchanged", () => {
+    const compiled = compileDslDocument("nui 3\npoint A = coordinate(x: 0 y: 0 state: hidden)");
+    expect(compiled.majorVersion).toBe(3);
+    const regenerated = serializeDocumentToDsl(compiled.document!, compiled.majorVersion!);
+    expect(regenerated).toContain("state: hidden");
+    expect(regenerated).not.toContain("visible:");
+    expect(regenerated).not.toContain("enabled:");
+    expect(regenerated.startsWith("nui 3")).toBe(true);
+  });
+});

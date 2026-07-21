@@ -18,6 +18,7 @@ import { formatDslReferencePath, formatDslReferenceToken } from "./dslReferenceT
 import { serializeElementStatementBlock, type SerializedStatement } from "./dslSerializeElement";
 import type { SerializeDslOptions } from "./dslTypes";
 import { DSL_INDENT, formatDslName, quoteDslString } from "./dslTokens";
+import { NEW_DOCUMENT_DSL_MAJOR_VERSION, type DslMajorVersion } from "./dslVersion";
 
 // 要素→DSL文の変換は、参照の書き方(生ID or 解決可能な名前トークン)を
 // DslSerializerRefs として注入する。正準経路(dslDocument.ts の文書グラマーと
@@ -31,6 +32,8 @@ export type DslSerializerRefs = {
   numeric: (value: NumericValue, source: CadElement) => string;
   name: (element: CadElement) => string;
   includeRecordIds: boolean;
+  /** Selects v2 legacy `visible`/`enabled` flags vs. v3 `state:` canonical output. */
+  majorVersion: DslMajorVersion;
 };
 
 const flatAnchor = (value: PointAnchor | null | undefined) => {
@@ -40,20 +43,24 @@ const flatAnchor = (value: PointAnchor | null | undefined) => {
   return `(${numericValueExpression(value.x)}, ${numericValueExpression(value.y)})`;
 };
 
-export const flatRefs = (): DslSerializerRefs => ({
+export const flatRefs = (majorVersion: DslMajorVersion = NEW_DOCUMENT_DSL_MAJOR_VERSION): DslSerializerRefs => ({
   token: (id) => id,
   anchor: (value) => flatAnchor(value),
   endpoint: (value) => `${value.lineId}.${value.endpointKey}`,
   numeric: (value) => numericValueExpression(value),
   name: (element) => formatDslName(element.name || element.id),
-  includeRecordIds: true
+  includeRecordIds: true,
+  majorVersion
 });
 
 // 文書グラマー用: 参照を解決可能な名前トークンで書き、id= / parent= /
 // branch= を出力しない(構造は後続のブロックシリアライザが担う)。
 // 参照先が無名・消滅している場合は生IDトークンのまま出力し、決して例外を
 // 投げない(再パース時に明示的な依存診断になる)。
-export const documentDslRefs = (elements: CadElement[]): DslSerializerRefs => {
+export const documentDslRefs = (
+  elements: CadElement[],
+  majorVersion: DslMajorVersion = NEW_DOCUMENT_DSL_MAJOR_VERSION
+): DslSerializerRefs => {
   const nameContext = createElementNameContext(elements);
   const elementsById = nameContext.elementsById;
   const token = (id: ElementId, source: CadElement) => {
@@ -85,7 +92,8 @@ export const documentDslRefs = (elements: CadElement[]): DslSerializerRefs => {
     // 「文自身の名前」には適用しない — さもないと無名要素が
     // 「IDという名前を持つ要素」として再パースされてしまう。
     name: (element) => (element.name.trim() ? formatDslName(element.name) : ""),
-    includeRecordIds: false
+    includeRecordIds: false,
+    majorVersion
   };
 };
 
@@ -107,7 +115,8 @@ export const serializeElementsToDsl = (
   elements: CadElement[],
   options: SerializeDslOptions = {}
 ) => {
-  const refs = flatRefs();
+  // Test-fixture-only helper predating version-aware output; always v2 flat form.
+  const refs = flatRefs(NEW_DOCUMENT_DSL_MAJOR_VERSION);
   return [
     ...visibilitySettingsDsl(options),
     ...elements.flatMap((element) => serializedStatementLines(serializeElementStatementBlock(element, refs), ""))

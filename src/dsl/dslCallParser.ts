@@ -10,7 +10,10 @@ import { scanCallArgs, type ScannedArg } from "./dslArgScanner";
 import type { DslAttribute, DslSpan } from "./dslTypes";
 import { unquoteDslString } from "./dslTokens";
 
-export type DslCallDiagnostic = { message: string; span: DslSpan };
+export type DslCallDiagnostic = { message: string; span: DslSpan; code?: string };
+
+/** v3-only `state` conflicting with legacy `visible`/`enabled` in the same statement. */
+export const ELEMENT_STATE_CONFLICT_CODE = "element-state-conflict";
 
 export type DslCallStatement = {
   category: string;
@@ -101,8 +104,15 @@ const attrsFromArgs = (args: readonly ScannedArg[]): DslAttribute[] =>
     valueEnd: arg.valueSpan.end,
   }] : []);
 
-const diagnostic = (diagnostics: DslCallDiagnostic[], message: string, span: DslSpan) =>
-  diagnostics.push({ message, span });
+const diagnostic = (diagnostics: DslCallDiagnostic[], message: string, span: DslSpan, code?: string) =>
+  diagnostics.push(code ? { message, span, code } : { message, span });
+
+/** state/visible/enabled live in commonArgSpecs, not any single construction's `args`, so
+ * this conflict can't be expressed via `DslConstructionSpec.exclusiveGroups`. */
+const commonExclusiveGroups: readonly (readonly [string, string])[] = [
+  ["state", "visible"],
+  ["state", "enabled"],
+];
 
 const isCallConstruction = (source: string, start: number) => {
   const match = source.slice(start).match(identifier);
@@ -183,6 +193,17 @@ const validateArgs = (
     if (group.every((key) => args.some((arg) => arg.key === key))) {
       const span = args.find((arg) => arg.key === group.at(-1))?.keySpan ?? constructionSpan ?? categorySpan;
       diagnostic(diagnostics, `引数「${group.join("」と「")}」は同時に指定できません。`, span);
+    }
+  }
+  for (const group of commonExclusiveGroups) {
+    if (group.every((key) => args.some((arg) => arg.key === key))) {
+      const span = args.find((arg) => arg.key === group.at(-1))?.keySpan ?? constructionSpan ?? categorySpan;
+      diagnostic(
+        diagnostics,
+        `引数「${group.join("」と「")}」は同時に指定できません。`,
+        span,
+        ELEMENT_STATE_CONFLICT_CODE,
+      );
     }
   }
   return spec;

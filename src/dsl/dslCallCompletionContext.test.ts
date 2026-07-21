@@ -26,7 +26,7 @@ describe("dslCallCompletionContextAt", () => {
     expect(context).toMatchObject({ kind: "argument", spec: { category: "var", construction: "pointDistance" } });
     if (!context || context.kind !== "argument") throw new Error("argument context expected");
     expect(argumentCompletionCandidates(context.spec, context.usedArgumentNames).map((candidate) => candidate.label)).toEqual([
-      "point1", "point2", "visible", "enabled", "color", "steps", "vars"
+      "point1", "point2", "visible", "enabled", "state", "color", "steps", "vars"
     ]);
   });
 
@@ -36,7 +36,7 @@ describe("dslCallCompletionContextAt", () => {
     expect(offsetContext).toMatchObject({ kind: "argument" });
     if (!offsetContext || offsetContext.kind !== "argument") throw new Error("argument context expected");
     expect(argumentCompletionCandidates(offsetContext.spec, offsetContext.usedArgumentNames).map((candidate) => candidate.label)).toEqual([
-      "dy", "visible", "enabled", "color", "steps", "vars"
+      "dy", "visible", "enabled", "state", "color", "steps", "vars"
     ]);
 
     expect(atEnd("if Branch (")).toBeNull();
@@ -49,7 +49,7 @@ describe("dslCallCompletionContextAt", () => {
     const spec = constructionFor("var", "pointDistance")!;
     const candidates = argumentCompletionCandidates(spec, new Set());
     expect(candidates.map((candidate) => candidate.apply)).toEqual([
-      "point1: ", "point2: ", "visible: ", "enabled: ", "color: ", "steps: ", "vars: "
+      "point1: ", "point2: ", "visible: ", "enabled: ", "state: ", "color: ", "steps: ", "vars: "
     ]);
     expect(candidates.map((candidate) => candidate.label)).not.toEqual(expect.arrayContaining(["id", "varIds", "parent", "branch"]));
   });

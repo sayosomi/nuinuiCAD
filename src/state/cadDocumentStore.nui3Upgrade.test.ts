@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { setElementActivity } from "../commands/selectionCommands";
 import { registerSourceEditSession } from "../editor/sourceEditSession";
 import { initialCadDocumentState, useCadDocumentStore } from "./cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "./cadUiStore";
@@ -111,5 +112,34 @@ describe("cadDocumentStore upgradeDslMajorVersion", () => {
     expect(result).toEqual({ status: "rejected", reason: "composition" });
     expect(useCadDocumentStore.getState().sourceText).toBe(before);
     expect(useCadUiStore.getState().commandErrorMessage).toContain("日本語入力");
+  });
+});
+
+describe("cadDocumentStore v3 state: serialization", () => {
+  beforeEach(() => {
+    useCadDocumentStore.setState(initialCadDocumentState());
+    useCadUiStore.setState(initialCadUiState());
+  });
+
+  it("regenerates the changed statement as state: when an activity command runs on a nui 3 document", () => {
+    useCadDocumentStore.getState().commitText("nui 3\npoint A = coordinate(x: 0 y: 0)", "test");
+    const elementId = useCadDocumentStore.getState().elements[0].id;
+
+    setElementActivity(elementId, "hidden");
+
+    const state = useCadDocumentStore.getState();
+    expect(state.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(state.sourceText).toContain("state: hidden");
+    expect(state.sourceText).not.toContain("visible:");
+    expect(state.sourceText).not.toContain("enabled:");
+  });
+
+  it("leaves a hand-written state: byte-for-byte on open, without normalizing", () => {
+    const source = "nui 3\npoint A = coordinate(x: 0 y: 0 state: hidden)";
+    useCadDocumentStore.getState().commitText(source, "test");
+
+    const state = useCadDocumentStore.getState();
+    expect(state.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(state.sourceText).toBe(source);
   });
 });

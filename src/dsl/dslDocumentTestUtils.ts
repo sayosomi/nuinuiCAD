@@ -112,7 +112,7 @@ export const expectSemanticallyEqualDocuments = (a: DslDocumentData, b: DslDocum
 // evaluationLimitIndex省略時は全要素を評価対象とする(@stopなし)。テストが
 // @stopマーカーの位置を検証したい場合のみ明示的に渡す。
 export const dslLinesForElements = (elements: CadElement[], evaluationLimitIndex?: number): string[] => {
-  const refs = documentDslRefs(elements);
+  const refs = documentDslRefs(elements, TEST_DEFAULT_DSL_MAJOR_VERSION);
   return layoutElementTree(elements, refs, evaluationLimitIndex).flatMap((row) => row.lines);
 };
 
@@ -142,7 +142,11 @@ export const dslFlatTextForElements = (elements: CadElement[]): string =>
   );
 
 export const roundTrip = (source: string) => {
-  const first = compileDslToElements(source, { elements: [], mode: "document" });
+  const first = compileDslToElements(source, {
+    elements: [],
+    mode: "document",
+    majorVersion: TEST_DEFAULT_DSL_MAJOR_VERSION
+  });
   expect(first.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
   const document: DslDocumentData = {
     elements: first.elements,

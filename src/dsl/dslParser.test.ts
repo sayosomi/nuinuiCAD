@@ -390,4 +390,16 @@ describe("DSL parser compatibility", () => {
       expect.arrayContaining(["parent", "branch"])
     );
   });
+
+  it("keeps an exact conflicting-arg span on the state/visible conflict diagnostic, not a whole-statement span", () => {
+    const source = "point A = coordinate(x: 0 y: 0 state: hidden visible: false)";
+    const parsed = parseDsl(source);
+    const conflict = parsed.diagnostics.find((item) => item.code === "element-state-conflict");
+    expect(conflict).toBeDefined();
+    expect(conflict?.physicalSpan?.segments).toHaveLength(1);
+    const [segment] = conflict!.physicalSpan!.segments;
+    expect(source.slice(segment.from, segment.to)).toBe("visible");
+    // Not the whole statement, which starts at offset 0 ("point").
+    expect(segment.from).toBeGreaterThan(0);
+  });
 });
