@@ -102,8 +102,8 @@ describe("cadDocumentStore 影テキスト: ランダム操作プロパティテ
 
         const finalState = useCadDocumentStore.getState();
         expect(finalState.doc.document).not.toBeNull();
-        expect(serializeDocumentToDsl(finalState.doc.document)).toBe(
-          serializeDocumentToDsl(finalState.doc.document)
+        expect(serializeDocumentToDsl(finalState.doc.document, 2)).toBe(
+          serializeDocumentToDsl(finalState.doc.document, 2)
         );
         for (const noiseLine of generated.noiseLines) {
           expect(finalState.sourceText).toContain(noiseLine);

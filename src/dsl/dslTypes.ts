@@ -16,6 +16,8 @@ export type DslDiagnostic = {
   message: string;
   sourceRevision?: SourceRevision;
   physicalSpan?: DslPhysicalSpan;
+  /** Stable machine-readable identifier (e.g. Quick Fix routing). Optional; most diagnostics don't set one yet. */
+  code?: string;
 };
 
 export type DslSpan = {

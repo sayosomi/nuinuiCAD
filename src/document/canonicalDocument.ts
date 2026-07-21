@@ -3,6 +3,7 @@ import {
   serializeDocumentToDsl,
   type CompiledDslDocument,
   type DslDocumentData,
+  type DslMajorVersion,
   type StatementMap
 } from "../dsl/dslDocument";
 import { parseDslSnapshot } from "../dsl/dslParser";
@@ -14,9 +15,11 @@ import { applyLineSplices, buildTextPatch, UnappliedTextPatchError, type LineSpl
 import { reconcileStatements } from "./statementReconciler";
 import { zipAssignedElementIds } from "./shadowText";
 
-export type LastGoodDslDocument = Omit<CompiledDslDocument, "document" | "statementMap"> & {
+export type LastGoodDslDocument = Omit<CompiledDslDocument, "document" | "statementMap" | "majorVersion"> & {
   document: DslDocumentData;
   statementMap: StatementMap;
+  /** Always resolvable once document/statementMap are non-null — see CompiledDslDocument.majorVersion. */
+  majorVersion: DslMajorVersion;
 };
 
 export type CanonicalDocumentValue = {
@@ -189,9 +192,10 @@ export const commitModelBridge = (
 };
 
 export const regenerateCanonicalFromModel = (
-  document: DslDocumentData
+  document: DslDocumentData,
+  majorVersion: DslMajorVersion
 ): CanonicalDocumentValue => {
-  const sourceText = serializeDocumentToDsl(document);
+  const sourceText = serializeDocumentToDsl(document, majorVersion);
   const compiled = compileZippedModelText(sourceText, document);
   if (!compiled.ok) throw new Error(compiled.reason);
   return {

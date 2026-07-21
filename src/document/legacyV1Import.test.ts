@@ -38,7 +38,7 @@ describe("importLegacyV1Document", () => {
       }]
     })]);
     expect(comparableLayouts(converted.document!.printLayouts, converted.document!.elements)).toEqual(legacyLayouts);
-    expect(serializeDocumentToDsl(converted.document!)).toBe(result.sourceText);
+    expect(serializeDocumentToDsl(converted.document!, 2)).toBe(result.sourceText);
   });
 
   it("rejects invalid v1 source instead of returning a partial v2 document", () => {

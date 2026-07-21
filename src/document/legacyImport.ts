@@ -1,4 +1,4 @@
-import { serializeDocumentToDsl, type DslDocumentData } from "../dsl/dslDocument";
+import { LEGACY_IMPORT_DSL_MAJOR_VERSION, serializeDocumentToDsl, type DslDocumentData } from "../dsl/dslDocument";
 import { fallbackElementName, makeUniqueElementName } from "../model/elementNames";
 import type { CadElement } from "../types/geometry";
 import { parseCadDocumentFile } from "./documentFormat";
@@ -50,5 +50,5 @@ export const importLegacyCadDocument = (content: string, legacyPath: string): st
   };
   // 旧JSONは親子グループが文書順に連続しているとは限らない。ブロックへ
   // 再配置すると評価順が変わるため、ID/parent 属性で元の順序をそのまま保つ。
-  return serializeDocumentToDsl(document, { preserveElementOrder: true });
+  return serializeDocumentToDsl(document, LEGACY_IMPORT_DSL_MAJOR_VERSION, { preserveElementOrder: true });
 };

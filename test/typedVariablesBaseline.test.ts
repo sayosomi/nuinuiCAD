@@ -53,7 +53,7 @@ describe("typed-variable v2 compatibility baseline", () => {
     expect(evaluation.effectiveVisibleElementIds.has(hiddenId)).toBe(false);
     expect(evaluation.computedGeometry.get(elementId(document.elements, "HiddenConsumer"))).toMatchObject({ kind: "point", x: 31, y: 0 });
 
-    const serialized = serializeDocumentToDsl(document);
+    const serialized = serializeDocumentToDsl(document, 2);
     expect(serialized).toContain("var GroupValue = expression(");
     const recompiled = compileValidDocument(serialized);
     const reevaluation = evaluateElements(recompiled.elements);

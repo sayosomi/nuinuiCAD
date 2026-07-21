@@ -73,6 +73,24 @@ describe("document file lifecycle", () => {
     expect(state.future).toEqual([]);
   });
 
+  it("opens a nui 3 document with legacy-only syntax verbatim", async () => {
+    const content = "nui 3\nvar Global = 12\npoint A = coordinate(x: 0 y: 0 visible: false)\n";
+    dialogMock.open.mockResolvedValue("/tmp/nui3-legacy.nui");
+    tauriCoreMock.invoke.mockResolvedValue(content);
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+
+    await openDocument();
+
+    const state = useCadDocumentStore.getState();
+    expect(state.sourceText).toBe(content);
+    expect(state.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(state.elements).toMatchObject([
+      { name: "Global", type: "variable" },
+      { name: "A", type: "freePoint", x: 0, y: 0 }
+    ]);
+    expect(state.dirtySinceSave).toBe(false);
+  });
+
   it("converts a v1 .nui on open, keeps its path, and marks the result dirty for a v2 save", async () => {
     const content = "\uFEFFnui 1\n# discarded during conversion\npoint A = (0, 0)";
     dialogMock.open.mockResolvedValue("/tmp/legacy.nui");
@@ -118,9 +136,9 @@ describe("document file lifecycle", () => {
   it("rejects only an unsupported major before replacing the current document", async () => {
     const before = useCadDocumentStore.getState().sourceText;
     dialogMock.open.mockResolvedValue("/tmp/future.nui");
-    tauriCoreMock.invoke.mockResolvedValue("nui 3\npoint A = coordinate(x: 0 y: 0)");
+    tauriCoreMock.invoke.mockResolvedValue("nui 4\npoint A = coordinate(x: 0 y: 0)");
 
-    await expect(openDocument()).rejects.toThrow("未対応のDSLバージョンです: 3");
+    await expect(openDocument()).rejects.toThrow("未対応のDSLバージョンです: 4(対応: 2, 3)");
 
     expect(useCadDocumentStore.getState().sourceText).toBe(before);
   });

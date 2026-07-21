@@ -76,7 +76,7 @@ describe("dangling reference diagnostics and retention", () => {
 
   it("preserves all dangling semantics across compile -> serialize -> recompile", () => {
     const first = compileRecoverable(sourceWithAllDanglingKinds);
-    const serialized = serializeDocumentToDsl(first.document!);
+    const serialized = serializeDocumentToDsl(first.document!, 2);
     const second = compileRecoverable(serialized);
 
     expect(serialized).toContain('"Outer group"::"Missing shape#1".pivot');
@@ -85,7 +85,7 @@ describe("dangling reference diagnostics and retention", () => {
     expect(serialized).toContain('"Missing.Line".end');
     expect(serialized).toContain('baseLines: [MissingLine, "Missing line 2", "Outer group"::"Missing#line"]');
     expect(serialized).not.toContain('"Outer group::Missing');
-    expect(serializeDocumentToDsl(second.document!)).toBe(serialized);
+    expect(serializeDocumentToDsl(second.document!, 2)).toBe(serialized);
     expect(second.document!.activeVisibilityProfileId).toBe("Missing View");
     expect(second.document!.activePrintLayoutId).toBe("Missing Layout");
     expect(second.document!.printLayouts[0].placements[0].groupId).toBe('"Missing Group"');

@@ -261,7 +261,7 @@ describe("renameAnalysis contract", () => {
         ]
       }],
       activePrintLayoutId: "layout"
-    });
+    }, 2);
     const compiled = complete(source);
     const target = compiled.document.elements.find((element) => element.name === "G")!;
     const analysis = analyzeRename({ sourceText: source, compiled, targetElementId: target.id, newName: "H" });

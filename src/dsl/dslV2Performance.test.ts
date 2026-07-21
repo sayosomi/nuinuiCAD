@@ -65,7 +65,7 @@ describe("DSL v2 large-document performance sanity", () => {
       complete(source);
     });
     measureMedian("1000 elements full serializeDocumentToDsl", () => {
-      serializeDocumentToDsl(compiled.document);
+      serializeDocumentToDsl(compiled.document, 2);
     });
     measureMedian("1000 elements one-element buildTextPatch", () => {
       const patch = buildTextPatch({ old: compiled, newDocument: afterDocument });

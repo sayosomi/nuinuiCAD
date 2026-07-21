@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { DslDocumentData } from "../dsl/dslDocument";
+import { NEW_DOCUMENT_DSL_MAJOR_VERSION, type DslDocumentData, type DslMajorVersion } from "../dsl/dslDocument";
 import type { DslDiagnostic } from "../dsl/dslTypes";
 import {
   commitModelBridge,
@@ -8,6 +8,7 @@ import {
   type CanonicalDocumentValue,
   type LastGoodDslDocument
 } from "../document/canonicalDocument";
+import { buildNuiMajorVersionSplice } from "../document/nuiVersion";
 import { assertReconcileSane, assertShadowEquivalent, shadowAssertEnabled } from "../document/shadowTextAssert";
 import { defaultVisibilityProfile, visibilityIdFromName } from "../model/visibilityProfiles";
 import {
@@ -47,7 +48,12 @@ export type DocumentMutationResult =
   | { status: "applied" | "noop" }
   | { status: "rejected"; reason: "pending-text" | "composition" | "invalid-change" };
 
-export type CommitTextOrigin = "editor" | "file" | "test" | "bridge-internal";
+export type CommitTextOrigin = "editor" | "file" | "test" | "bridge-internal" | "command";
+
+export type UpgradeDslMajorVersionResult =
+  | { status: "applied" }
+  | { status: "noop" }
+  | { status: "rejected"; reason: "composition" | "unrecognized-header" };
 
 export type CadDocumentState = {
   /** The only canonical document value. */
@@ -95,6 +101,8 @@ export type CadDocumentState = {
     origin: CommitTextOrigin,
     options?: { cursorLineAtBurstStart: number | null }
   ) => void;
+  /** Header-only splice (single Undo step) that changes the document's major version. */
+  upgradeDslMajorVersion: (target: DslMajorVersion) => UpgradeDslMajorVersionResult;
   /** Ephemeral valid DSL projection used while a source-editor gesture is still uncommitted. */
   setSourceEditorPreviewText: (sourceText: string | null) => void;
   previewDocumentChange: (change: Partial<DslDocumentData>) => DocumentMutationResult;
@@ -276,7 +284,7 @@ const modelCommit = (
   if (!compatibilityViewMatchesDoc(state)) {
     // Legacy tests and transitional facade callers may seed the derived view directly.
     // Rebase that setup into canonical text before creating the real history entry.
-    const regenerated = regenerateCanonicalFromModel(documentOf(state));
+    const regenerated = regenerateCanonicalFromModel(documentOf(state), state.doc.majorVersion);
     current = { ...state, ...canonicalFields(regenerated) };
     rebased = true;
   }
@@ -320,7 +328,7 @@ const modelCommit = (
       console.error(`[canonicalDocument] 行パッチを適用できないため全体再生成します: ${result.reason}`);
     }
     try {
-      value = regenerateCanonicalFromModel(afterDocument);
+      value = regenerateCanonicalFromModel(afterDocument, current.doc.majorVersion);
     } catch (error) {
       console.error(`[canonicalDocument] 全体再生成にも失敗したため変更を破棄します: ${String(error)}`);
       useCadUiStore.getState().clearPickMode();
@@ -333,10 +341,10 @@ const modelCommit = (
   }
 
   if (shadowAssertEnabled) {
-    if (!assertShadowEquivalent(afterDocument, value.doc.document)) {
+    if (!assertShadowEquivalent(afterDocument, value.doc.document, current.doc.majorVersion)) {
       updateKind = "reset";
       try {
-        value = regenerateCanonicalFromModel(afterDocument);
+        value = regenerateCanonicalFromModel(afterDocument, current.doc.majorVersion);
       } catch (error) {
         console.error(`[canonicalDocument] 等価assert後の全体再生成に失敗したため変更を破棄します: ${String(error)}`);
         useCadUiStore.getState().clearPickMode();
@@ -384,7 +392,7 @@ const emptyFileSnapshot = (): DslDocumentData => ({
 
 export const initialCadDocumentState = (): Omit<CadDocumentState, keyof CadDocumentActions> => {
   const snapshot = initialSnapshot();
-  const canonical = regenerateCanonicalFromModel(snapshot);
+  const canonical = regenerateCanonicalFromModel(snapshot, NEW_DOCUMENT_DSL_MAJOR_VERSION);
   return {
     ...canonicalFields(canonical),
     sourceRevision: 0,
@@ -402,6 +410,7 @@ export const initialCadDocumentState = (): Omit<CadDocumentState, keyof CadDocum
 type CadDocumentActions = Pick<
   CadDocumentState,
   | "commitText"
+  | "upgradeDslMajorVersion"
   | "setSourceEditorPreviewText"
   | "previewDocumentChange"
   | "clearPreviewDocumentChange"
@@ -520,6 +529,28 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
       };
     });
     if (selectionElements) useCadUiStore.getState().reconcileSelectionWithElements(selectionElements);
+  },
+  upgradeDslMajorVersion: (target) => {
+    const flushResult = sourceEditSession.flush("command");
+    if (flushResult === "blocked-composition") {
+      useCadUiStore.getState().setCommandErrorMessage(
+        "日本語入力の確定中は文書のバージョンを変更できません。入力を確定してから再操作してください。"
+      );
+      return { status: "rejected", reason: "composition" };
+    }
+    const state = get();
+    const result = buildNuiMajorVersionSplice(state.sourceText, target);
+    if (result.status === "already-target") return { status: "noop" };
+    if (result.status === "unrecognized-header") {
+      useCadUiStore.getState().setCommandErrorMessage(
+        "文書の先頭が `nui <バージョン>` 形式ではないため、バージョンを変更できません。"
+      );
+      return { status: "rejected", reason: "unrecognized-header" };
+    }
+    const { from, to, insert } = result.splice;
+    const nextText = `${state.sourceText.slice(0, from)}${insert}${state.sourceText.slice(to)}`;
+    get().commitText(nextText, "command");
+    return { status: "applied" };
   },
   setSourceEditorPreviewText: (sourceText) => {
     set((state) => {
@@ -746,7 +777,7 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
     let selectionElements: CadElement[] | null = null;
     set((state) => {
       try {
-        const canonical = regenerateCanonicalFromModel(snapshot);
+        const canonical = regenerateCanonicalFromModel(snapshot, NEW_DOCUMENT_DSL_MAJOR_VERSION);
         selectionElements = canonical.doc.document.elements;
         return {
           ...canonicalFields(canonical),
@@ -781,7 +812,7 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
       selectionAnchorElementId: null
     };
     set((state) => {
-      const baseline = regenerateCanonicalFromModel(emptyFileSnapshot());
+      const baseline = regenerateCanonicalFromModel(emptyFileSnapshot(), NEW_DOCUMENT_DSL_MAJOR_VERSION);
       const compiled = compileCanonicalText(baseline, sourceText);
       selectionElements = compiled.doc.document.elements;
       return {
