@@ -203,8 +203,8 @@ describe("DSL compiler", () => {
       "intersectionPoint",
       "lineTangentOffsetPoint"
     ]);
-    expect(result.elements[4]).toMatchObject({ type: "divisionPoint", placementMode: "ratio", ratio: 0.5 });
-    expect(result.elements[5]).toMatchObject({ type: "lineDivisionPoint", placementMode: "distance", distance: 25 });
+    expect(result.elements[4]).toMatchObject({ type: "divisionPoint", placement: { kind: "ratio", value: 0.5 } });
+    expect(result.elements[5]).toMatchObject({ type: "lineDivisionPoint", placement: { kind: "distance", value: 25 } });
     expect(result.elements[6]).toMatchObject({ type: "intersectionPoint", intersectionIndex: 0, useExtensions: true });
     expect(result.elements[7]).toMatchObject({ type: "lineTangentOffsetPoint", tangentAngleDeg: 90, distance: 10 });
   });
@@ -426,10 +426,10 @@ describe("DSL compiler: DivisionPlacement characterization", () => {
     );
 
     expect(result.diagnostics).toEqual([]);
-    expect(result.elements[3]).toMatchObject({ type: "divisionPoint", placementMode: "distance", distance: 4 });
-    expect(result.elements[4]).toMatchObject({ type: "divisionPoint", placementMode: "ratio", ratio: 0.25 });
-    expect(result.elements[5]).toMatchObject({ type: "lineDivisionPoint", placementMode: "distance", distance: 4 });
-    expect(result.elements[6]).toMatchObject({ type: "lineDivisionPoint", placementMode: "ratio", ratio: 0.25 });
+    expect(result.elements[3]).toMatchObject({ type: "divisionPoint", placement: { kind: "distance", value: 4 } });
+    expect(result.elements[4]).toMatchObject({ type: "divisionPoint", placement: { kind: "ratio", value: 0.25 } });
+    expect(result.elements[5]).toMatchObject({ type: "lineDivisionPoint", placement: { kind: "distance", value: 4 } });
+    expect(result.elements[6]).toMatchObject({ type: "lineDivisionPoint", placement: { kind: "ratio", value: 0.25 } });
   });
 
   it("fails the whole v2 document compile when both distance and ratio are given (no element is produced)", () => {
@@ -474,10 +474,10 @@ describe("DSL compiler: DivisionPlacement characterization", () => {
 
     expect(result.diagnostics).toEqual([]);
     expect(result.elements[3]).toMatchObject({
-      type: "divisionPoint", placementMode: "ratio", distance: 0, ratio: 0.5
+      type: "divisionPoint", placement: { kind: "ratio", value: 0.5 }
     });
     expect(result.elements[4]).toMatchObject({
-      type: "lineDivisionPoint", placementMode: "ratio", distance: 0, ratio: 0.5
+      type: "lineDivisionPoint", placement: { kind: "ratio", value: 0.5 }
     });
   });
 });

@@ -56,7 +56,7 @@ describe("command-line ghost preview", () => {
       session,
       elements: document.elements,
       evaluationLimitIndex: document.evaluationLimitIndex
-    })?.elements.at(-1)).toMatchObject({ type: "lineDivisionPoint", ratio: 1 });
+    })?.elements.at(-1)).toMatchObject({ type: "lineDivisionPoint", placement: { kind: "ratio", value: 1 } });
   });
 
   it("permits an omitted reference only when its parameter definition explicitly allows none", () => {

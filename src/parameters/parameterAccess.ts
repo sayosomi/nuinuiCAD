@@ -230,6 +230,13 @@ export const getParameterValue = (element: CadElement, key: string) => {
     );
     return intermediate?.[parsed.field as keyof typeof intermediate];
   }
+  if (
+    (element.type === "divisionPoint" || element.type === "lineDivisionPoint") &&
+    (key === "placementMode" || key === "distance" || key === "ratio")
+  ) {
+    if (key === "placementMode") return element.placement.kind;
+    return element.placement.kind === key ? element.placement.value : undefined;
+  }
   return element[key as keyof CadElement];
 };
 
@@ -272,6 +279,12 @@ export const setParameterValue = (
         point.id === parsed.intermediatePointId ? { ...point, [parsed.field]: value } : point
       )
     };
+  }
+  if (
+    (element.type === "divisionPoint" || element.type === "lineDivisionPoint") &&
+    (key === "distance" || key === "ratio")
+  ) {
+    return { ...element, placement: { kind: key, value: value as NumericValue } };
   }
   if (element.type === "variable" && key === "expression") {
     return { ...element, expression: value as NumericValue, valueMode: "expression" };

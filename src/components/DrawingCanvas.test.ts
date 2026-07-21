@@ -97,7 +97,7 @@ const forGroupPickElements = (): CadElement[] => [
   {
     id: "endpoint-target", name: "Endpoint target", type: "lineDivisionPoint", visible: true, enabled: true,
     parentGroupId: "loop", endpoint: { lineId: "loop-line", endpointKey: "start" },
-    placementMode: "ratio", distance: 0, ratio: 0.5
+    placement: { kind: "ratio", value: 0.5 }
   },
   {
     id: "point-target", name: "Point target", type: "offsetPoint", visible: true, enabled: true,

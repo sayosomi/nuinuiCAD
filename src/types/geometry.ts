@@ -124,15 +124,15 @@ export type PolarOffsetPointElement = CadElementBase & {
   distance: NumericValue;
 };
 
-export type DivisionPointMode = "distance" | "ratio";
+export type DivisionPlacement =
+  | { kind: "distance"; value: NumericValue }
+  | { kind: "ratio"; value: NumericValue };
 
 export type DivisionPointElement = CadElementBase & {
   type: "divisionPoint";
   startPoint: PointAnchor;
   endPoint: PointAnchor;
-  placementMode: DivisionPointMode;
-  distance: NumericValue;
-  ratio: NumericValue;
+  placement: DivisionPlacement;
 };
 
 export type LineEndpointReference = {
@@ -143,9 +143,7 @@ export type LineEndpointReference = {
 export type LineDivisionPointElement = CadElementBase & {
   type: "lineDivisionPoint";
   endpoint: LineEndpointReference;
-  placementMode: DivisionPointMode;
-  distance: NumericValue;
-  ratio: NumericValue;
+  placement: DivisionPlacement;
 };
 
 export type IntersectionPointElement = CadElementBase & {

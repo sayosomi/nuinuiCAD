@@ -110,9 +110,7 @@ describe("parameterAccess", () => {
       enabled: true,
       startPoint: referenceAnchor("point-a"),
       endPoint: referenceAnchor("point-b"),
-      placementMode: "ratio",
-      distance: 30,
-      ratio: 0.5
+      placement: { kind: "ratio", value: 0.5 }
     };
 
     expect(getPointAnchor(point, "startPoint")).toEqual(referenceAnchor("point-a"));
@@ -120,6 +118,33 @@ describe("parameterAccess", () => {
       endPoint: referenceAnchor("point-c")
     });
     expect(supportsNumericVariables(point)).toBe(true);
+  });
+
+  // 05: DivisionPlacement union. getParameterValue never leaks the active value
+  // onto the inactive distance/ratio key -- it returns the same "missing" shape
+  // (undefined) that the generic fallback already returns for any key not present
+  // on an element. An explicit setParameterValue call may switch which kind is
+  // active.
+  it("does not leak the active placement value onto the inactive distance/ratio key", () => {
+    const point: CadElement = {
+      id: "division",
+      name: "分点",
+      type: "divisionPoint",
+      visible: true,
+      enabled: true,
+      startPoint: referenceAnchor("point-a"),
+      endPoint: referenceAnchor("point-b"),
+      placement: { kind: "ratio", value: 0.5 }
+    };
+
+    expect(getParameterValue(point, "placementMode")).toBe("ratio");
+    expect(getParameterValue(point, "ratio")).toBe(0.5);
+    expect(getParameterValue(point, "distance")).toBeUndefined();
+
+    const switched = setParameterValue(point, "distance", 12);
+    expect(switched).toMatchObject({ placement: { kind: "distance", value: 12 } });
+    expect(getParameterValue(switched, "distance")).toBe(12);
+    expect(getParameterValue(switched, "ratio")).toBeUndefined();
   });
 
   it("updates line division point endpoint references", () => {
@@ -130,9 +155,7 @@ describe("parameterAccess", () => {
       visible: true,
       enabled: true,
       endpoint: { lineId: "line-a", endpointKey: "start" },
-      placementMode: "ratio",
-      distance: 30,
-      ratio: 0.5
+      placement: { kind: "ratio", value: 0.5 }
     };
 
     expect(getParameterValue(point, "endpoint")).toEqual({

@@ -83,9 +83,7 @@
       "enabled": true,
       "startPoint": { "mode": "reference", "pointId": "a" },
       "endPoint": { "mode": "reference", "pointId": "b" },
-      "placementMode": "ratio",
-      "distance": 0,
-      "ratio": 0.25
+      "placement": { "kind": "ratio", "value": 0.25 }
     },
     {
       "id": "line-div",
@@ -94,9 +92,7 @@
       "visible": true,
       "enabled": true,
       "endpoint": { "lineId": "ab", "endpointKey": "start" },
-      "placementMode": "distance",
-      "distance": 40,
-      "ratio": 0
+      "placement": { "kind": "distance", "value": 40 }
     },
     {
       "id": "curve",

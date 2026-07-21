@@ -130,7 +130,10 @@ describe("legacy JSON import", () => {
   // 非activeな側のfieldは落ちる。つまり、legacy JSONにstaleな逆側の値が残っていても、
   // import後の.nuiテキストにはactive側の値しか残らない(lossyだが一貫した挙動)。
   it("keeps only the active placementMode field when importing legacy JSON with a stale inactive value", () => {
-    const elements: CadElement[] = [
+    // Deliberately untyped: this mimics a pre-Task-05 on-disk `.nuinui.json` element,
+    // which predates the `placement` union and still has flat placementMode/distance/
+    // ratio sibling fields -- no longer a valid `CadElement` literal.
+    const elements: unknown[] = [
       { id: "point-a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
       { id: "point-b", name: "B", type: "freePoint", visible: true, enabled: true, x: 10, y: 0 },
       {
@@ -160,7 +163,7 @@ describe("legacy JSON import", () => {
     const compiled = compileDslDocument(importedText);
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     const division = compiled.document!.elements.find((element) => element.name === "分点");
-    expect(division).toMatchObject({ type: "divisionPoint", placementMode: "ratio", ratio: 0.3, distance: 0 });
+    expect(division).toMatchObject({ type: "divisionPoint", placement: { kind: "ratio", value: 0.3 } });
   });
 
   it("keeps the first existing duplicate name and renames later siblings without merging their children", () => {

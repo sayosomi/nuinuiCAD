@@ -2,10 +2,9 @@ import { describe, expect, it } from "vitest";
 import type { CadElement, ForGroupElement } from "../types/geometry";
 import { expandForGroupIteration } from "./forGroupExpansion";
 
-// 04: DivisionPlacement characterization。expandForGroupIterationは専用のforGroup clone
+// 04/05: DivisionPlacement characterization。expandForGroupIterationは専用のforGroup clone
 // pathを持たず、structuredClone + remapElementReferencesでtemplate要素全体を複製する。
-// つまりplacementModeに関わらずdistance/ratio両fieldが常に無条件でiterationごとに
-// 複製される。05のunion移行前に、この現行挙動をロックする。
+// つまりplacementの値はiterationごとに無条件で複製される。
 
 const forGroup: ForGroupElement = {
   id: "loop",
@@ -26,7 +25,7 @@ const basePoints: CadElement[] = [
 ];
 
 describe("expandForGroupIteration (DivisionPlacement characterization)", () => {
-  it("clones divisionPoint distance/ratio/placementMode verbatim across iterations", () => {
+  it("clones divisionPoint placement verbatim across iterations", () => {
     const division: CadElement = {
       id: "division",
       name: "分点",
@@ -36,9 +35,7 @@ describe("expandForGroupIteration (DivisionPlacement characterization)", () => {
       parentGroupId: forGroup.id,
       startPoint: { mode: "reference", pointId: "point-a" },
       endPoint: { mode: "reference", pointId: "point-b" },
-      placementMode: "distance",
-      distance: 7,
-      ratio: 0.9
+      placement: { kind: "distance", value: 7 }
     };
     const elements = [...basePoints, forGroup, division];
 
@@ -52,16 +49,14 @@ describe("expandForGroupIteration (DivisionPlacement characterization)", () => {
       const generatedDivision = generatedElements.find((element) => element.type === "divisionPoint");
 
       expect(generatedDivision).toMatchObject({
-        placementMode: "distance",
-        distance: 7,
-        ratio: 0.9,
+        placement: { kind: "distance", value: 7 },
         startPoint: { mode: "reference", pointId: "point-a" },
         endPoint: { mode: "reference", pointId: "point-b" }
       });
     }
   });
 
-  it("clones lineDivisionPoint distance/ratio/placementMode verbatim across iterations", () => {
+  it("clones lineDivisionPoint placement verbatim across iterations", () => {
     const line: CadElement = {
       id: "line-ab",
       name: "線AB",
@@ -79,9 +74,7 @@ describe("expandForGroupIteration (DivisionPlacement characterization)", () => {
       enabled: true,
       parentGroupId: forGroup.id,
       endpoint: { lineId: "line-ab", endpointKey: "start" },
-      placementMode: "ratio",
-      distance: 40,
-      ratio: 0.2
+      placement: { kind: "ratio", value: 0.2 }
     };
     const elements = [...basePoints, line, forGroup, division];
 
@@ -95,9 +88,7 @@ describe("expandForGroupIteration (DivisionPlacement characterization)", () => {
       const generatedDivision = generatedElements.find((element) => element.type === "lineDivisionPoint");
 
       expect(generatedDivision).toMatchObject({
-        placementMode: "ratio",
-        distance: 40,
-        ratio: 0.2,
+        placement: { kind: "ratio", value: 0.2 },
         // line-ab is a document-level sibling, not a forGroup descendant, so it is
         // outside the template idMap and its reference is left unchanged.
         endpoint: { lineId: "line-ab", endpointKey: "start" }

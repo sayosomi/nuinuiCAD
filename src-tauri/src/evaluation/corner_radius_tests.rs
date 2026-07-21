@@ -151,9 +151,7 @@ fn corner_radius_can_feed_downstream_line_elements() {
                 "visible": true,
                 "enabled": true,
                 "endpoint": { "lineId": "corner", "endpointKey": "start" },
-                "placementMode": "ratio",
-                "distance": 0,
-                "ratio": 0.5
+                "placement": { "kind": "ratio", "value": 0.5 }
             })),
         ],
         evaluation_limit_index: None,

@@ -100,9 +100,7 @@ describe("createCadElement", () => {
       numericParameterSteps: { ratio: 0.01 },
       startPoint: { mode: "reference", pointId: "point-a" },
       endPoint: { mode: "reference", pointId: "point-b" },
-      placementMode: "ratio",
-      distance: 0,
-      ratio: 0.5
+      placement: { kind: "ratio", value: 0.5 }
     });
   });
 
@@ -116,10 +114,37 @@ describe("createCadElement", () => {
       numericVariables: [],
       numericParameterSteps: { ratio: 0.01 },
       endpoint: { lineId: "line-ab", endpointKey: "start" },
-      placementMode: "ratio",
-      distance: 0,
-      ratio: 0.5
+      placement: { kind: "ratio", value: 0.5 }
     });
+  });
+
+  // 05: DivisionPlacement union. The desktop IPC payload (evaluationEngine.ts
+  // passes `elements` straight through to Tauri's `invoke`, which JSON-serializes
+  // it) must never carry the legacy flat placementMode/distance/ratio fields, and
+  // the union shape must not be larger on the wire than the shape it replaced --
+  // matching Task 05's own performance condition (payload size must not increase).
+  it("keeps the desktop IPC payload free of legacy fields and no larger than the legacy shape", () => {
+    const division = createCadElement("divisionPoint", sampleElements, { createId: createTestId });
+    const lineDivision = createCadElement("lineDivisionPoint", sampleElements, { createId: createTestId });
+
+    for (const element of [division, lineDivision]) {
+      const parsed = JSON.parse(JSON.stringify(element));
+      expect(parsed).toHaveProperty("placement");
+      expect(parsed).not.toHaveProperty("placementMode");
+      expect(parsed).not.toHaveProperty("distance");
+      expect(parsed).not.toHaveProperty("ratio");
+    }
+
+    const legacyShapeOf = (element: unknown) => {
+      const { placement, ...rest } = element as { placement: { kind: string; value: unknown } };
+      return { ...rest, placementMode: placement.kind, distance: 0, ratio: placement.value };
+    };
+
+    for (const element of [division, lineDivision]) {
+      const newSize = JSON.stringify(element).length;
+      const legacySize = JSON.stringify(legacyShapeOf(element)).length;
+      expect(newSize).toBeLessThanOrEqual(legacySize);
+    }
   });
 
   it("creates intersection points using the first two lines as defaults", () => {

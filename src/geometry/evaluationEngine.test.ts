@@ -149,9 +149,7 @@ const lineDivisionPoint = (lineId: string): CadElement => ({
   visible: true,
   enabled: true,
   endpoint: { lineId, endpointKey: "start" },
-  placementMode: "ratio",
-  distance: 0,
-  ratio: 0.5
+  placement: { kind: "ratio", value: 0.5 }
 });
 
 const lineTangentOffsetPoint = (lineId: string): CadElement => ({

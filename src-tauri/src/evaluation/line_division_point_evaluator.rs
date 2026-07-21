@@ -1,6 +1,7 @@
 use serde_json::Value;
 use std::collections::HashMap;
 
+use super::division_placement::{decode_division_placement, DivisionPlacementKind};
 use super::errors::{dependency_error, geometry_error};
 use super::line_path::{geometry_length, point_at_distance_from_endpoint};
 use super::numeric_expression::evaluate_numeric_or_push;
@@ -33,37 +34,26 @@ pub(crate) fn evaluate_line_division_point(
         return;
     }
 
-    let Some(distance_or_ratio) =
-        (if element.get("placementMode").and_then(Value::as_str) == Some("distance") {
-            evaluate_numeric_or_push(
-                element.get("distance").unwrap_or(&Value::Null),
-                state,
-                element,
-                &local_variables.0,
-                &local_variables.1,
-            )
-        } else {
-            evaluate_numeric_or_push(
-                element.get("ratio").unwrap_or(&Value::Null),
-                state,
-                element,
-                &local_variables.0,
-                &local_variables.1,
-            )
-        })
-    else {
+    let (kind, placement_value) = decode_division_placement(element);
+    let Some(distance_or_ratio) = evaluate_numeric_or_push(
+        placement_value,
+        state,
+        element,
+        &local_variables.0,
+        &local_variables.1,
+    ) else {
         return;
     };
 
-    let path_distance = if element.get("placementMode").and_then(Value::as_str) == Some("distance")
-    {
-        distance_or_ratio
-    } else {
-        let Some(length) = geometry_length(&geometry) else {
-            state.errors.push(dependency_error(state, element, line_id));
-            return;
-        };
-        length * distance_or_ratio
+    let path_distance = match kind {
+        DivisionPlacementKind::Distance => distance_or_ratio,
+        DivisionPlacementKind::Ratio => {
+            let Some(length) = geometry_length(&geometry) else {
+                state.errors.push(dependency_error(state, element, line_id));
+                return;
+            };
+            length * distance_or_ratio
+        }
     };
 
     let Some((x, y)) = point_at_distance_from_endpoint(&geometry, endpoint_key, path_distance)

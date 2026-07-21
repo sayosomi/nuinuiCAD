@@ -1,10 +1,25 @@
-import type { CadElement } from "../types/geometry";
+import type { CadElement, NumericValue } from "../types/geometry";
 import { pointAnchorForElement } from "../model/pointAnchors";
 import { CIRCLE_EPSILON, degreesToRadians } from "./evaluateGeometryPrimitives";
 import { dependencyError, geometryError, getComputedPointOrError, getPointAnchorOrError, numericError } from "./evaluationContext";
 import { pointAtDistanceFromEndpoint, isLineLikeGeometry, tangentAtPointOnLineLikeGeometry } from "./linePaths";
 import { findLineIntersections } from "./lineIntersections";
 import type { ElementEvaluationContext } from "./elementEvaluatorTypes";
+
+/**
+ * The only place a divisionPoint/lineDivisionPoint's placement is read leniently:
+ * a missing or unrecognized `kind` falls back to the ratio interpretation, matching
+ * the Rust reference evaluator's identical fallback (see division_placement.rs).
+ * Every other consumer can assume `element.placement.kind` is already well-formed.
+ */
+const decodeDivisionPlacement = (
+  placement: unknown
+): { kind: "distance" | "ratio"; value: NumericValue | undefined } => {
+  const record = placement as { kind?: unknown; value?: NumericValue } | null | undefined;
+  return record?.kind === "distance"
+    ? { kind: "distance", value: record.value }
+    : { kind: "ratio", value: record?.value };
+};
 
 export const evaluatePointElement = (element: CadElement, context: ElementEvaluationContext) => {
   const {
@@ -134,8 +149,11 @@ export const evaluatePointElement = (element: CadElement, context: ElementEvalua
         };
         const length = Math.hypot(vector.x, vector.y);
 
-        if (element.placementMode === "distance") {
-          const distance = evaluateNumber(element.distance);
+        const placement = decodeDivisionPlacement(element.placement);
+        if (placement.value === undefined) break;
+
+        if (placement.kind === "distance") {
+          const distance = evaluateNumber(placement.value);
           if (distance === undefined) break;
           if (length <= CIRCLE_EPSILON) {
             errors.push(
@@ -156,7 +174,7 @@ export const evaluatePointElement = (element: CadElement, context: ElementEvalua
           break;
         }
 
-        const ratio = evaluateNumber(element.ratio);
+        const ratio = evaluateNumber(placement.value);
         if (ratio === undefined) break;
 
         computedGeometry.set(element.id, {
@@ -175,14 +193,13 @@ export const evaluatePointElement = (element: CadElement, context: ElementEvalua
           break;
         }
 
-        const distanceFromEndpoint =
-          element.placementMode === "distance"
-            ? evaluateNumber(element.distance)
-            : evaluateNumber(element.ratio);
+        const placement = decodeDivisionPlacement(element.placement);
+        if (placement.value === undefined) break;
+        const distanceFromEndpoint = evaluateNumber(placement.value);
         if (distanceFromEndpoint === undefined) break;
 
         const pathDistance =
-          element.placementMode === "distance"
+          placement.kind === "distance"
             ? distanceFromEndpoint
             : geometry.length * distanceFromEndpoint;
         const point = pointAtDistanceFromEndpoint(

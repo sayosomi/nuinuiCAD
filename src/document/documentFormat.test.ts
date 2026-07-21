@@ -76,6 +76,64 @@ describe("documentFormat", () => {
     ).toThrow("ドキュメントのelementsが不正です");
   });
 
+  // 05: DivisionPlacement union. Legacy `.nuinui.json` files predate the `placement`
+  // union and store distance/ratio as flat placementMode/distance/ratio sibling
+  // fields (see elementNormalization.ts::withDivisionPlacement). If the file claims
+  // a mode but is missing that mode's value, that's data loss -- not something to
+  // default away silently.
+  it("throws when a legacy divisionPoint is missing its active distance value", () => {
+    const elements = [
+      { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
+      { id: "b", name: "B", type: "freePoint", visible: true, enabled: true, x: 10, y: 0 },
+      {
+        id: "division",
+        name: "分点",
+        type: "divisionPoint",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "a" },
+        endPoint: { mode: "reference", pointId: "b" },
+        placementMode: "distance",
+        ratio: 0.5
+      }
+    ];
+
+    expect(() =>
+      parseCadDocumentFile(
+        legacyFileContent({ ...snapshot, elements: elements as unknown as CadElement[] })
+      )
+    ).toThrow("分点 の距離の値が見つかりません。");
+  });
+
+  it("throws when a legacy lineDivisionPoint is missing its active ratio value (ratio or unrecognized mode)", () => {
+    const elements = [
+      {
+        id: "line",
+        name: "線",
+        type: "line",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "coordinate", x: 0, y: 0 },
+        endPoint: { mode: "coordinate", x: 10, y: 0 }
+      },
+      {
+        id: "division",
+        name: "線上分点",
+        type: "lineDivisionPoint",
+        visible: true,
+        enabled: true,
+        endpoint: { lineId: "line", endpointKey: "start" },
+        distance: 5
+      }
+    ];
+
+    expect(() =>
+      parseCadDocumentFile(
+        legacyFileContent({ ...snapshot, elements: elements as unknown as CadElement[] })
+      )
+    ).toThrow("線上分点 の割合の値が見つかりません。");
+  });
+
   it("normalizes document file names and extracts basenames", () => {
     expect(ensureNuiDocumentFileName("/tmp/pattern")).toBe("/tmp/pattern.nui");
     expect(ensureNuiDocumentFileName("/tmp/pattern.nui")).toBe("/tmp/pattern.nui");

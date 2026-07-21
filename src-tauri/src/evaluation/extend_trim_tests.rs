@@ -164,9 +164,7 @@ fn extend_trim_shortens_bezier_to_division_point_on_body() {
                 "visible": true,
                 "enabled": true,
                 "endpoint": { "lineId": "curve", "endpointKey": "start" },
-                "placementMode": "distance",
-                "distance": 40,
-                "ratio": 0.5
+                "placement": { "kind": "distance", "value": 40 }
             })),
             element(json!({
                 "id": "extend",
@@ -249,9 +247,7 @@ fn extend_trim_shortens_bezier_start_to_division_point_on_body() {
                 "visible": true,
                 "enabled": true,
                 "endpoint": { "lineId": "curve", "endpointKey": "start" },
-                "placementMode": "distance",
-                "distance": 60,
-                "ratio": 0.5
+                "placement": { "kind": "distance", "value": 60 }
             })),
             element(json!({
                 "id": "extend",
@@ -322,9 +318,7 @@ fn extend_trim_shortens_multi_segment_bezier_and_keeps_untouched_segments() {
                 "visible": true,
                 "enabled": true,
                 "endpoint": { "lineId": "curve", "endpointKey": "start" },
-                "placementMode": "ratio",
-                "distance": 0,
-                "ratio": 0.25
+                "placement": { "kind": "ratio", "value": 0.25 }
             })),
             element(json!({
                 "id": "extend",
@@ -451,9 +445,7 @@ fn extend_trim_shortens_arc_to_division_point_on_circle() {
                 "visible": true,
                 "enabled": true,
                 "endpoint": { "lineId": "arc", "endpointKey": "start" },
-                "placementMode": "distance",
-                "distance": 5,
-                "ratio": 0.5
+                "placement": { "kind": "distance", "value": 5 }
             })),
             element(json!({
                 "id": "extend",
@@ -583,9 +575,7 @@ fn updated_line_can_feed_downstream_rust_elements() {
                 "visible": true,
                 "enabled": true,
                 "endpoint": { "lineId": "line", "endpointKey": "start" },
-                "placementMode": "ratio",
-                "distance": 0,
-                "ratio": 0.5
+                "placement": { "kind": "ratio", "value": 0.5 }
             })),
         ],
         evaluation_limit_index: None,

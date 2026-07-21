@@ -118,7 +118,7 @@ const shouldSerializeConstructionArg = (element: CadElement, arg: DslArgSpec) =>
   if (element.type === "group" && key === "printAnchor") return !defaultGroupAnchor(element.printAnchor);
   if ((element.type === "divisionPoint" || element.type === "lineDivisionPoint") &&
       (arg.arg === "distance" || arg.arg === "ratio")) {
-    return element.placementMode === arg.arg;
+    return element.placement.kind === arg.arg;
   }
   return true;
 };

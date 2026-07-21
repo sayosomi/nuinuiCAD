@@ -143,7 +143,7 @@ export const resolveParameterValueSpan = (
   }
   if (parameterKey === "placementMode") return null;
   if (isExclusivePlacementKey(element, parameterKey)) {
-    if ((element as { placementMode?: string }).placementMode !== parameterKey) return null;
+    if ((element as { placement: { kind: string } }).placement.kind !== parameterKey) return null;
   }
   if (parameterKey.startsWith("variable:")) {
     if (statement.name !== element.name) return null;

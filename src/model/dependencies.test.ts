@@ -168,9 +168,7 @@ describe("dependencies", () => {
       enabled: true,
       startPoint: { mode: "reference", pointId: "a" },
       endPoint: { mode: "reference", pointId: "b" },
-      placementMode: "ratio",
-      distance: { kind: "expression", expression: "bc.length" },
-      ratio: { kind: "expression", expression: "ab.length / 100" }
+      placement: { kind: "ratio", value: { kind: "expression", expression: "ab.length / 100" } }
     };
 
     expect(getDirectParentIds(point)).toEqual(["a", "b", "ab"]);
@@ -184,9 +182,7 @@ describe("dependencies", () => {
       visible: true,
       enabled: true,
       endpoint: { lineId: "ab", endpointKey: "start" },
-      placementMode: "distance",
-      distance: { kind: "expression", expression: "bc.length / 2" },
-      ratio: { kind: "expression", expression: "cd.length / 100" }
+      placement: { kind: "distance", value: { kind: "expression", expression: "bc.length / 2" } }
     };
 
     expect(getDirectParentIds(point)).toEqual(["ab", "bc"]);

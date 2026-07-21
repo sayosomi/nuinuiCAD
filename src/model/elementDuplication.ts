@@ -165,15 +165,13 @@ export const remapElementReferences = (source: CadElement, idMap: Map<ElementId,
         ...element,
         startPoint: remapPointAnchor(element.startPoint, idMap),
         endPoint: remapPointAnchor(element.endPoint, idMap),
-        distance: remapNumericValue(element.distance, idMap),
-        ratio: remapNumericValue(element.ratio, idMap)
+        placement: { ...element.placement, value: remapNumericValue(element.placement.value, idMap) }
       };
     case "lineDivisionPoint":
       return {
         ...element,
         endpoint: remapEndpoint(element.endpoint, idMap),
-        distance: remapNumericValue(element.distance, idMap),
-        ratio: remapNumericValue(element.ratio, idMap)
+        placement: { ...element.placement, value: remapNumericValue(element.placement.value, idMap) }
       };
     case "intersectionPoint":
       return {

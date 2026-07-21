@@ -206,7 +206,7 @@ describe("DSL v2 P9 parameter value span resolution", () => {
       for (const fixture of v2CanonicalElementStatements.filter((item) => item.key === "divisionPoint" || item.key === "lineDivisionPoint")) {
         for (const text of [fixture.populated, fixture.minimal]) {
           const { element } = applyFixtureText(fixture, text);
-          const mode = (element as { placementMode: "distance" | "ratio" }).placementMode;
+          const mode = (element as { placement: { kind: "distance" | "ratio" } }).placement.kind;
           expect(resolveParameterValueSpan(text, element, "placementMode"), fixture.key).toBeNull();
           const inactive = mode === "distance" ? "ratio" : "distance";
           expect(resolveParameterValueSpan(text, element, inactive), `${fixture.key}.${inactive}`).toBeNull();
@@ -221,7 +221,7 @@ describe("DSL v2 P9 parameter value span resolution", () => {
       const spec = constructionFor("point", "between")!;
       const base = createCadElement(spec.elementType, [], { createId: (kind) => `${kind}-id`, referenceElements: refs });
       const applied = applyArgs({ ...base, name: parsed.statement!.name }, spec, parsed.statement!.args, resolvers([]));
-      const element = { ...applied.element, placementMode: "ratio" as const };
+      const element = { ...applied.element, placement: { kind: "ratio" as const, value: 0.7 } };
       expect(resolveParameterValueSpan(text, element, "distance")).toBeNull();
       const ratioSpan = resolveParameterValueSpan(text, element, "ratio");
       expect(ratioSpan).not.toBeNull();

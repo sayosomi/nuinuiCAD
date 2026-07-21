@@ -103,17 +103,13 @@ export const getDirectParentIds = (element: CadElement): ElementId[] => {
           ...numericVariableReferences(element),
           ...pointAnchorParentIds(element.startPoint).map((elementId) => ({ elementId })),
           ...pointAnchorParentIds(element.endPoint).map((elementId) => ({ elementId })),
-          ...(element.placementMode === "distance"
-            ? extractNumericExpressionReferences(element.distance)
-            : extractNumericExpressionReferences(element.ratio))
+          ...extractNumericExpressionReferences(element.placement.value)
         ].map((reference) => reference.elementId);
       case "lineDivisionPoint":
         return [
           ...numericVariableReferences(element),
           { elementId: element.endpoint.lineId },
-          ...(element.placementMode === "distance"
-            ? extractNumericExpressionReferences(element.distance)
-            : extractNumericExpressionReferences(element.ratio))
+          ...extractNumericExpressionReferences(element.placement.value)
         ].map((reference) => reference.elementId);
       case "intersectionPoint":
         return [

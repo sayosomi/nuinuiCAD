@@ -11,6 +11,7 @@ mod corner_radius_path;
 #[cfg(test)]
 mod corner_radius_tests;
 mod corner_radius_trim;
+mod division_placement;
 mod edge_extend_evaluator;
 #[cfg(test)]
 mod edge_extend_test_support;
