@@ -712,3 +712,43 @@ describe("DSL compiler document settings", () => {
     expect(documentResult.elements[1].parentGroupId).toBe(documentResult.elements[0].id);
   });
 });
+
+describe("DSL compiler: typed declaration version gate", () => {
+  it("rejects const/let under nui 2 (default majorVersion) with the Task 06 version-gate diagnostic", () => {
+    const result = compileDslToElements("const x: number = 1", { elements: [] });
+    expect(result.diagnostics).toEqual([
+      expect.objectContaining({
+        code: "typed-syntax-requires-nui3",
+        message: "const 宣言 は nui 3 以降でのみ使用できます(現在: nui 2)。"
+      })
+    ]);
+    expect(result.elements).toHaveLength(0);
+  });
+
+  it("gates const and let independently, one diagnostic per declaration", () => {
+    const result = compileDslToElements(["const x: number = 1", "let y: boolean = true"].join("\n"), { elements: [] });
+    expect(result.diagnostics).toHaveLength(2);
+    expect(result.diagnostics.every((item) => item.code === "typed-syntax-requires-nui3")).toBe(true);
+    expect(result.diagnostics[1].message).toContain("let 宣言");
+  });
+
+  it("accepts const/let under nui 3 with no diagnostics, and does not lift them into elements", () => {
+    const result = compileDslToElements(
+      ["const x: number = 1", "let y: boolean = true", 'const label: string = "front"', "const dir: choice(a, b) = a"].join(
+        "\n"
+      ),
+      { elements: [], majorVersion: 3 }
+    );
+    expect(result.diagnostics).toEqual([]);
+    expect(result.elements).toHaveLength(0);
+  });
+
+  it("does not perturb duplicate-name or element compilation for surrounding elements", () => {
+    const result = compileDslToElements(
+      ["const x: number = 1", "point A = coordinate(x: 0 y: 0)", "const x: number = 2"].join("\n"),
+      { elements: [], majorVersion: 3 }
+    );
+    expect(result.diagnostics).toEqual([]);
+    expect(result.elements).toHaveLength(1);
+  });
+});

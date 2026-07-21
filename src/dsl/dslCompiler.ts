@@ -21,7 +21,7 @@ import { isElementDslStatement, parseDsl } from "./dslParser";
 import { createNameIndex, resolveId, type NameIndex } from "./dslReferences";
 import type { CompileDslContext, CompileDslResult, DslAttribute, DslDiagnostic, DslStatement } from "./dslTypes";
 import { unquoteDslString } from "./dslTokens";
-import type { DslMajorVersion } from "./dslVersion";
+import { NEW_DOCUMENT_DSL_MAJOR_VERSION, requireDslMajorVersionForFeature, type DslMajorVersion } from "./dslVersion";
 import {
   placeAngleAttrKey,
   placeAtAttrKey,
@@ -306,6 +306,17 @@ const applyVisibilitySettings = ({
   };
 };
 
+// const/let は v3 専用構文。文法自体はversion非依存でparseできるため、
+// 07のstate:と同様、majorVersionが判明するcompile段階でgateする。
+const typedDeclarationVersionDiagnostics = (
+  statements: DslStatement[],
+  majorVersion: DslMajorVersion
+): DslDiagnostic[] =>
+  statements
+    .filter((statement): statement is Extract<DslStatement, { kind: "typedDeclaration" }> => statement.kind === "typedDeclaration")
+    .map((statement) => requireDslMajorVersionForFeature(majorVersion, 3, statement.line, `${statement.bindingKind} 宣言`))
+    .filter((item): item is DslDiagnostic => item !== null);
+
 const buildBlockPrintLayouts = ({
   statements,
   layouts,
@@ -446,6 +457,9 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
   }
 
   const diagnostics: DslDiagnostic[] = [...parsed.diagnostics];
+  diagnostics.push(
+    ...typedDeclarationVersionDiagnostics(parsed.statements, context.majorVersion ?? NEW_DOCUMENT_DSL_MAJOR_VERSION)
+  );
   const printLayoutIdsByStatementIndex = new Map<number, string>();
   const visibilitySettings = applyVisibilitySettings({
     statements: parsed.statements,

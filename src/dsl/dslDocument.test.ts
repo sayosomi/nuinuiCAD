@@ -753,3 +753,24 @@ describe("nui 2/3 state syntax wiring", () => {
     expect(regenerated.startsWith("nui 3")).toBe(true);
   });
 });
+
+describe("nui 2/3 typed declaration wiring", () => {
+  it("rejects const/let under a nui 2 document with the version-gate diagnostic", () => {
+    const parsed = parseDslDocument("nui 2\nconst x: number = 1");
+    expect(parsed.diagnostics).toEqual(
+      expect.arrayContaining([expect.objectContaining({ code: TYPED_SYNTAX_REQUIRES_NUI3_CODE })])
+    );
+    expect(parsed.document).toBeNull();
+  });
+
+  it("accepts const/let under a nui 3 document with no diagnostics, staying out of document.elements", () => {
+    const compiled = compileDslDocument(
+      ["nui 3", "const x: number = 1", "let 表示する: boolean = true", "point A = coordinate(x: 0 y: 0)"].join("\n")
+    );
+    expect(compiled.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
+    expect(compiled.majorVersion).toBe(3);
+    expect(compiled.document!.elements).toMatchObject([{ name: "A" }]);
+    const declarations = compiled.statements.filter((item) => item.kind === "typedDeclaration");
+    expect(declarations).toHaveLength(2);
+  });
+});

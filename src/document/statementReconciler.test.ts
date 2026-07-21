@@ -506,3 +506,37 @@ describe("statementReconciler ストレス", () => {
     expect(result.vanishedIds).toEqual([]);
   });
 });
+
+// Task 10: typedDeclaration statements are registered in nonElementKinds
+// (dslParser.ts), so they must never enter isElementDslStatement-gated
+// reconciliation. This is a test-only regression guard - no reconciler
+// production code changes were needed for Task 10.
+describe("statementReconciler と typed declaration", () => {
+  const pointLines = () =>
+    Array.from({ length: 50 }, (_, index) => `point P${index} = coordinate(x: ${index} y: ${index % 7})`);
+  const declarationLines = () => Array.from({ length: 50 }, (_, index) => `const V${index}: number = ${index}`);
+
+  it("declarations never enter element-ID reconciliation, even inserted/removed among many", () => {
+    const oldSource = ["nui 3", ...declarationLines(), ...pointLines()].join("\n");
+    const newSource = ["nui 3", ...declarationLines(), "const extra: number = 999", ...pointLines()].join("\n");
+    const { result } = reconcileSources(oldSource, newSource);
+    expect(result.inheritedCount).toBe(50);
+    expect(result.createdIds.size).toBe(0);
+    expect(result.vanishedIds).toEqual([]);
+  });
+
+  it("a declaration positioned between two elements does not affect either element's identity", () => {
+    const oldSource = ["nui 3", "point A = coordinate(x: 0 y: 0)", "point B = coordinate(x: 1 y: 1)"].join("\n");
+    const newSource = [
+      "nui 3",
+      "point A = coordinate(x: 0 y: 0)",
+      "const between: string = \"x\"",
+      "point B = coordinate(x: 1 y: 1)"
+    ].join("\n");
+    const { old, next, result } = reconcileSources(oldSource, newSource);
+    expect(result.inheritedCount).toBe(2);
+    expect(result.createdIds.size).toBe(0);
+    expect(idByName(next, "A")).toBe(idByName(old, "A"));
+    expect(idByName(next, "B")).toBe(idByName(old, "B"));
+  });
+});
