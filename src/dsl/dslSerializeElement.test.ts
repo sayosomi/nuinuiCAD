@@ -139,6 +139,19 @@ describe("DSL v2 element serializer", () => {
     expect(args.map((arg) => arg.text)).toContain("branch: else");
   });
 
+  // 04: divisionPointのdistance-modeは上のテストで確認済みだが、lineDivisionPointの
+  // distance-modeは既存の登録駆動loop(ratio-mode既定fixture)では未確認だったため
+  // 明示的に固定する。
+  it("uses only the active exclusive placement argument for lineDivisionPoint distance mode", () => {
+    const onLine = {
+      ...minimal("lineDivisionPoint"), placementMode: "distance" as const, distance: 12, ratio: 0.75,
+    };
+    const args = serializeElementStatementBlock(onLine, flatRefs()).args;
+    expect(args.map((arg) => arg.key)).toContain("distance");
+    expect(args.map((arg) => arg.key)).not.toContain("ratio");
+    expect(args.map((arg) => arg.text)).toContain("distance: 12");
+  });
+
   it("keeps all four variable constructions and both expression forms fixed", () => {
     const base = minimal("variable");
     const refs = documentDslRefs([...referenceElements, base]);

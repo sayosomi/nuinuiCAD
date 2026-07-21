@@ -1368,6 +1368,53 @@ describe("evaluateElements", () => {
     });
   });
 
+  // 04: DivisionPlacement characterization。pointEvaluators.tsのdivisionPoint分岐は
+  // `placementMode === "distance"`かどうかのif/elseで、else側は常にratioとして扱う
+  // (exhaustiveなswitchではない)。missingや不正な文字列は現行実装ではratio分岐へ
+  // フォールバックする。05のunion移行前に、この非exhaustiveな現行挙動を固定する。
+  it("falls back to the ratio branch when placementMode is missing", () => {
+    const result = evaluateElements([
+      validElements[0],
+      validElements[1],
+      {
+        id: "division",
+        name: "分点",
+        type: "divisionPoint",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "a" },
+        endPoint: { mode: "reference", pointId: "b" },
+        distance: 999,
+        ratio: 0.5
+      } as unknown as CadElement
+    ]);
+
+    expect(result.errors).toHaveLength(0);
+    expect(result.computedGeometry.get("division")).toMatchObject({ kind: "point", x: 25, y: 22.5 });
+  });
+
+  it("falls back to the ratio branch when placementMode is an unrecognized string", () => {
+    const result = evaluateElements([
+      validElements[0],
+      validElements[1],
+      {
+        id: "division",
+        name: "分点",
+        type: "divisionPoint",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "a" },
+        endPoint: { mode: "reference", pointId: "b" },
+        placementMode: "nonsense" as unknown as "distance",
+        distance: 999,
+        ratio: 0.5
+      }
+    ]);
+
+    expect(result.errors).toHaveLength(0);
+    expect(result.computedGeometry.get("division")).toMatchObject({ kind: "point", x: 25, y: 22.5 });
+  });
+
   it("reports a division point dependency that appears too late", () => {
     const result = evaluateElements([
       validElements[0],
@@ -2511,6 +2558,67 @@ describe("evaluateElements", () => {
       x: 25,
       y: 0
     });
+  });
+
+  // 04: DivisionPlacement characterization。lineDivisionPointも同じ非exhaustiveな
+  // if/elseで、missingや不正な文字列はratio分岐(length * ratio)へフォールバックする。
+  it("falls back to the ratio branch when placementMode is missing (lineDivisionPoint)", () => {
+    const result = evaluateElements([
+      { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
+      { id: "b", name: "B", type: "freePoint", visible: true, enabled: true, x: 100, y: 0 },
+      {
+        id: "line",
+        name: "線",
+        type: "line",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "a" },
+        endPoint: { mode: "reference", pointId: "b" }
+      },
+      {
+        id: "division",
+        name: "線上分点",
+        type: "lineDivisionPoint",
+        visible: true,
+        enabled: true,
+        endpoint: { lineId: "line", endpointKey: "start" },
+        distance: 999,
+        ratio: 0.4
+      } as unknown as CadElement
+    ]);
+
+    expect(result.errors).toHaveLength(0);
+    expect(result.computedGeometry.get("division")).toMatchObject({ kind: "point", x: 40, y: 0 });
+  });
+
+  it("falls back to the ratio branch when placementMode is an unrecognized string (lineDivisionPoint)", () => {
+    const result = evaluateElements([
+      { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
+      { id: "b", name: "B", type: "freePoint", visible: true, enabled: true, x: 100, y: 0 },
+      {
+        id: "line",
+        name: "線",
+        type: "line",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "a" },
+        endPoint: { mode: "reference", pointId: "b" }
+      },
+      {
+        id: "division",
+        name: "線上分点",
+        type: "lineDivisionPoint",
+        visible: true,
+        enabled: true,
+        endpoint: { lineId: "line", endpointKey: "start" },
+        placementMode: "nonsense" as unknown as "distance",
+        distance: 999,
+        ratio: 0.4
+      }
+    ]);
+
+    expect(result.errors).toHaveLength(0);
+    expect(result.computedGeometry.get("division")).toMatchObject({ kind: "point", x: 40, y: 0 });
   });
 
   it("extends line division points past the opposite endpoint along the endpoint tangent", () => {

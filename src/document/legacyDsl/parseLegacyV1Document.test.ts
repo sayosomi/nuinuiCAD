@@ -67,6 +67,41 @@ describe("parseLegacyV1Document (v1糖衣形の代表ケース)", () => {
   });
 });
 
+// 04: DivisionPlacement characterization。v1の`between`/`on`糖衣構文でdistance/ratio両方が
+// 指定された場合、v2パーサー(dslCallParser.ts)のような「同時に指定できません」診断は出ず、
+// withPlacementMode(dslCompiler.ts)がdistanceを先にcheckして無条件に選ぶ。v2との非対称は
+// 現行仕様として固定する(修正しない)。
+describe("parseLegacyV1Document (DivisionPlacement characterization)", () => {
+  it("silently prefers distance over ratio when v1 between supplies both, with no diagnostic", () => {
+    const source = [
+      "nui 1",
+      "point A = (0, 0)",
+      "point B = (10, 0)",
+      "point P = between A B distance=5 ratio=0.9"
+    ].join("\n");
+    const result = parseLegacyV1Document(source);
+
+    expect(result.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
+    const division = result.elements.find((element) => element.name === "P");
+    expect(division).toMatchObject({ type: "divisionPoint", placementMode: "distance", distance: 5, ratio: 0.9 });
+  });
+
+  it("silently prefers distance over ratio when v1 on supplies both, with no diagnostic", () => {
+    const source = [
+      "nui 1",
+      "point A = (0, 0)",
+      "point B = (10, 0)",
+      "line AB = A -> B",
+      "point Q = on AB distance=5 ratio=0.9"
+    ].join("\n");
+    const result = parseLegacyV1Document(source);
+
+    expect(result.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
+    const division = result.elements.find((element) => element.name === "Q");
+    expect(division).toMatchObject({ type: "lineDivisionPoint", placementMode: "distance", distance: 5, ratio: 0.9 });
+  });
+});
+
 describe("parseLegacyV1Document (回帰)", () => {
   it("重複名検出のキーはNUL区切りで、スペース結合すると衝突するscope/nameでも偽の重複診断を出さない", () => {
     // scope="parent:A B" + name="C" と scope="parent:A" + name="B C" は

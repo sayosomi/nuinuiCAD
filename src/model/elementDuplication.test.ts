@@ -266,4 +266,66 @@ describe("duplicateElements", () => {
       "line-copy"
     ]);
   });
+
+  // 04: DivisionPlacement characterization。elementDuplication.tsは
+  // placementModeに関わらずdistance/ratio両fieldを常に無条件clone(remap)する。
+  // 05のunion移行前に、この「非activeな側の値も失われない」現行挙動を固定する。
+  it("clones both distance and ratio fields verbatim regardless of the active placementMode (divisionPoint)", () => {
+    const ids = ["point-a-copy", "point-b-copy", "division-copy"];
+    const elements: CadElement[] = [
+      { id: "point-a", name: "点A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
+      { id: "point-b", name: "点B", type: "freePoint", visible: true, enabled: true, x: 10, y: 0 },
+      {
+        id: "division", name: "分点", type: "divisionPoint", visible: true, enabled: true,
+        startPoint: { mode: "reference", pointId: "point-a" },
+        endPoint: { mode: "reference", pointId: "point-b" },
+        placementMode: "distance", distance: 7, ratio: 0.9
+      }
+    ];
+
+    const change = duplicateElements(elements, ["point-a", "point-b", "division"], {
+      createId: () => ids.shift() ?? "unexpected"
+    });
+    const copied = change?.elements.find((element) => element.id === "division-copy");
+
+    expect(copied).toMatchObject({
+      type: "divisionPoint",
+      startPoint: { mode: "reference", pointId: "point-a-copy" },
+      endPoint: { mode: "reference", pointId: "point-b-copy" },
+      placementMode: "distance",
+      distance: 7,
+      ratio: 0.9
+    });
+  });
+
+  it("clones both distance and ratio fields verbatim regardless of the active placementMode (lineDivisionPoint)", () => {
+    const ids = ["point-a-copy", "point-b-copy", "line-copy", "division-copy"];
+    const elements: CadElement[] = [
+      { id: "point-a", name: "点A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
+      { id: "point-b", name: "点B", type: "freePoint", visible: true, enabled: true, x: 10, y: 0 },
+      {
+        id: "line-ab", name: "線AB", type: "line", visible: true, enabled: true,
+        startPoint: { mode: "reference", pointId: "point-a" },
+        endPoint: { mode: "reference", pointId: "point-b" }
+      },
+      {
+        id: "division", name: "線上分点", type: "lineDivisionPoint", visible: true, enabled: true,
+        endpoint: { lineId: "line-ab", endpointKey: "start" },
+        placementMode: "ratio", distance: 40, ratio: 0.2
+      }
+    ];
+
+    const change = duplicateElements(elements, ["point-a", "point-b", "line-ab", "division"], {
+      createId: () => ids.shift() ?? "unexpected"
+    });
+    const copied = change?.elements.find((element) => element.id === "division-copy");
+
+    expect(copied).toMatchObject({
+      type: "lineDivisionPoint",
+      endpoint: { lineId: "line-copy", endpointKey: "start" },
+      placementMode: "ratio",
+      distance: 40,
+      ratio: 0.2
+    });
+  });
 });

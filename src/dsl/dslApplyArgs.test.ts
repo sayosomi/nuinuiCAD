@@ -121,6 +121,27 @@ describe("DSL v2 compiler argument application", () => {
     expect(group.element).toMatchObject({ visibilityRoleIds: ["seam"] });
   });
 
+  it("characterizes DivisionPlacement: applyArgs resolves both distance/ratio to distance in isolation", () => {
+    // 04: exclusivityの「同時に指定できません」診断はdslCallParser.ts側だけが出す。applyArgs単体は
+    // 診断を出さず、group.find(["distance","ratio"]の並び順)でdistanceを選ぶ。ただしv2の
+    // フル文書compileはこの診断がある時点でapplyArgsへ到達せず即座にdocument:nullとなる
+    // (dslCompiler.test.tsのDivisionPlacement characterizationを参照)。この2つの事実は
+    // 別レイヤーの挙動であり矛盾ではない。
+    const between = applyArgs(sample("divisionPoint"), constructionFor("point", "between")!, [
+      arg("start", "A"), arg("end", "B"), arg("distance", "7"), arg("ratio", "0.9"),
+    ], resolvers);
+
+    expect(between.element).toMatchObject({ placementMode: "distance", distance: 7, ratio: 0.9 });
+    expect(between.diagnostics).toEqual([]);
+
+    const onLine = applyArgs(sample("lineDivisionPoint"), constructionFor("point", "onLine")!, [
+      arg("from", "AB.end"), arg("distance", "3"), arg("ratio", "0.4"),
+    ], resolvers);
+
+    expect(onLine.element).toMatchObject({ placementMode: "distance", distance: 3, ratio: 0.4 });
+    expect(onLine.diagnostics).toEqual([]);
+  });
+
   it("applies the common color argument when a legacy type has no Inspector color definition", () => {
     const edge = sample("edge");
     expect(findParameterDefinition(edge, "colorId")).toBeUndefined();

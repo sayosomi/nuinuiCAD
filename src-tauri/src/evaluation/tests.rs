@@ -953,6 +953,112 @@ fn evaluates_line_division_point_by_ratio_from_end() {
     assert_eq!(division["y"], json!(0.0));
 }
 
+// 04: DivisionPlacement characterization. `placementMode` is read as a raw JSON string
+// with `if get("placementMode") == Some("distance") {..} else {/* ratio */}` in both
+// point_evaluators.rs and line_division_point_evaluator.rs -- not an exhaustive match.
+// A missing or unrecognized value silently falls to the ratio branch, matching the
+// TypeScript reference evaluator's identical non-exhaustive if/else. This locks that
+// fallback in before Task 05's tagged-union migration.
+#[test]
+fn evaluates_division_point_with_missing_placement_mode_as_ratio() {
+    let mut elements = base_points();
+    elements.push(element(json!({
+        "id": "division",
+        "name": "分点",
+        "type": "divisionPoint",
+        "visible": true,
+        "enabled": true,
+        "startPoint": { "mode": "reference", "pointId": "a" },
+        "endPoint": { "mode": "reference", "pointId": "b" },
+        "distance": 999,
+        "ratio": 0.5
+    })));
+    let result = evaluate_document_input(EvaluationInput {
+        elements,
+        evaluation_limit_index: None,
+    });
+
+    let division = point(&result, "division");
+    assert!(result.errors.is_empty());
+    assert_eq!(division["x"], json!(25.0));
+    assert_eq!(division["y"], json!(22.5));
+}
+
+#[test]
+fn evaluates_division_point_with_unrecognized_placement_mode_as_ratio() {
+    let mut elements = base_points();
+    elements.push(element(json!({
+        "id": "division",
+        "name": "分点",
+        "type": "divisionPoint",
+        "visible": true,
+        "enabled": true,
+        "startPoint": { "mode": "reference", "pointId": "a" },
+        "endPoint": { "mode": "reference", "pointId": "b" },
+        "placementMode": "nonsense",
+        "distance": 999,
+        "ratio": 0.5
+    })));
+    let result = evaluate_document_input(EvaluationInput {
+        elements,
+        evaluation_limit_index: None,
+    });
+
+    let division = point(&result, "division");
+    assert!(result.errors.is_empty());
+    assert_eq!(division["x"], json!(25.0));
+    assert_eq!(division["y"], json!(22.5));
+}
+
+#[test]
+fn evaluates_line_division_point_with_missing_placement_mode_as_ratio() {
+    let mut elements = base_line_elements();
+    elements.push(element(json!({
+        "id": "division",
+        "name": "線上分点",
+        "type": "lineDivisionPoint",
+        "visible": true,
+        "enabled": true,
+        "endpoint": { "lineId": "line", "endpointKey": "start" },
+        "distance": 999,
+        "ratio": 0.4
+    })));
+    let result = evaluate_document_input(EvaluationInput {
+        elements,
+        evaluation_limit_index: None,
+    });
+
+    let division = point(&result, "division");
+    assert!(result.errors.is_empty());
+    assert_eq!(division["x"], json!(40.0));
+    assert_eq!(division["y"], json!(0.0));
+}
+
+#[test]
+fn evaluates_line_division_point_with_unrecognized_placement_mode_as_ratio() {
+    let mut elements = base_line_elements();
+    elements.push(element(json!({
+        "id": "division",
+        "name": "線上分点",
+        "type": "lineDivisionPoint",
+        "visible": true,
+        "enabled": true,
+        "endpoint": { "lineId": "line", "endpointKey": "start" },
+        "placementMode": "nonsense",
+        "distance": 999,
+        "ratio": 0.4
+    })));
+    let result = evaluate_document_input(EvaluationInput {
+        elements,
+        evaluation_limit_index: None,
+    });
+
+    let division = point(&result, "division");
+    assert!(result.errors.is_empty());
+    assert_eq!(division["x"], json!(40.0));
+    assert_eq!(division["y"], json!(0.0));
+}
+
 #[test]
 fn evaluates_line_division_point_on_arc_line() {
     let result = evaluate_document_input(EvaluationInput {

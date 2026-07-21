@@ -124,6 +124,45 @@ describe("legacy JSON import", () => {
     });
   });
 
+  // 04: DivisionPlacement characterization。legacyImport.tsのimportedElementsは
+  // placementMode/distance/ratioに一切手を加えない構造そのままのpassthroughだが、
+  // 出力DSLテキストへ書き出す段(serializeDocumentToDsl → dslSerializeElement.ts)で
+  // 非activeな側のfieldは落ちる。つまり、legacy JSONにstaleな逆側の値が残っていても、
+  // import後の.nuiテキストにはactive側の値しか残らない(lossyだが一貫した挙動)。
+  it("keeps only the active placementMode field when importing legacy JSON with a stale inactive value", () => {
+    const elements: CadElement[] = [
+      { id: "point-a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
+      { id: "point-b", name: "B", type: "freePoint", visible: true, enabled: true, x: 10, y: 0 },
+      {
+        id: "division-ratio",
+        name: "分点",
+        type: "divisionPoint",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "point-a" },
+        endPoint: { mode: "reference", pointId: "point-b" },
+        placementMode: "ratio",
+        distance: 999,
+        ratio: 0.3
+      }
+    ];
+    const content = JSON.stringify({
+      app: LEGACY_APP_ID,
+      schemaVersion: LEGACY_SCHEMA_VERSION,
+      document: { elements }
+    });
+    const importedText = importLegacyCadDocument(content, "/legacy/division-placement.nuinui.json");
+
+    expect(importedText).toContain("ratio: 0.3");
+    expect(importedText).not.toContain("distance: 999");
+    expect(importedText).not.toMatch(/\bdistance:/);
+
+    const compiled = compileDslDocument(importedText);
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    const division = compiled.document!.elements.find((element) => element.name === "分点");
+    expect(division).toMatchObject({ type: "divisionPoint", placementMode: "ratio", ratio: 0.3, distance: 0 });
+  });
+
   it("keeps the first existing duplicate name and renames later siblings without merging their children", () => {
     const group = (id: string, name: string, parentGroupId?: string) => ({
       id,
