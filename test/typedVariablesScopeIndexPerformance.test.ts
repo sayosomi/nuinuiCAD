@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { parseDsl } from "../src/dsl/dslParser";
-import { buildStructuralStatementIds } from "../src/dsl/lexicalScopeIndexAdapter";
-import { buildLexicalScopeIndex } from "../src/scalars/lexicalScopeIndex";
+import type { DslStatement } from "../src/dsl/dslTypes";
+import { buildLexicalScopeIndex, type ResolveStatementId } from "../src/scalars/lexicalScopeIndex";
 import { BASELINE_SIZES, buildLexicalScopeBaselineSource } from "./typedVariablesBaselineFixtures";
 import { expectFiniteMeasurement, logBaselineMeasurement, measureWorkerCpuScaling, type FixtureCounts } from "./typedVariablesPerformanceMeasurement";
 
@@ -9,10 +9,20 @@ import { expectFiniteMeasurement, logBaselineMeasurement, measureWorkerCpuScalin
 // (100 warm-up runs, 21 trials per decisions.md D19) to record - not gate on
 // an invented absolute threshold - the 250->1000 scope index build cost.
 //
-// Per the corrected design, this measures ONLY buildLexicalScopeIndex's own
-// construction cost: source parsing and stable-id resolution are done once,
-// outside the measured closures, so parse cost (already covered by Task 10's
-// own performance test) is not conflated with core index-building cost here.
+// This measures ONLY buildLexicalScopeIndex's own construction cost: source
+// parsing and id resolution are done once, outside the measured closures.
+//
+// The production adapter (src/dsl/lexicalScopeIndexAdapter.ts) requires a
+// real reconciled statementIndex -> stable id map, which this fixture has no
+// way to produce (there is no previous document snapshot to reconcile
+// against here). So, like the fixture generator itself, the id resolver
+// below is test-only: it is NOT a stable identity (it is keyed by array
+// index, which shifts under any edit) and exists purely to give
+// buildLexicalScopeIndex something to call at this fixture's scale.
+const unstableIndexKeyedIdsForTesting = (statements: readonly DslStatement[]): ResolveStatementId => {
+  const ids = statements.map((_, index) => `stmt${index}`);
+  return (index) => ids[index];
+};
 
 const [SMALL_SIZE, LARGE_SIZE] = BASELINE_SIZES;
 
@@ -22,7 +32,7 @@ const prepare = (scopeCount: number) => {
   if (parsed.diagnostics.some((diagnostic) => diagnostic.severity === "error")) {
     throw new Error("scope index baseline fixture must parse without diagnostics");
   }
-  return { statements: parsed.statements, resolveStatementId: buildStructuralStatementIds(parsed.statements) };
+  return { statements: parsed.statements, resolveStatementId: unstableIndexKeyedIdsForTesting(parsed.statements) };
 };
 
 const fixtureCounts = (statementCount: number): FixtureCounts => ({

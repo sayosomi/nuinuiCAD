@@ -114,24 +114,42 @@ export const scopeChain: (index: LexicalScopeIndex, scopeId: ScopeId) => readonl
 ```
 
 ```ts
-// src/dsl/lexicalScopeIndexAdapter.ts (the only file that parses source text)
-export const buildStructuralStatementIds: (statements: readonly DslStatement[]) => ResolveStatementId;
-export const buildLexicalScopeIndexFromSource: (source: string) => LexicalScopeIndex;
+// src/dsl/lexicalScopeIndexAdapter.ts
+// Requires the caller's own reconciled statementIndex -> stable id map
+// (e.g. StatementMap.elementIdByStatementIndex / CompileDslResult.elementIdsByStatementIndex,
+// which src/document/statementReconciler.ts already maintains for
+// element-bearing statements such as group/if/forGroup). Throws rather than
+// silently substituting when an entry is missing. There is no "from source
+// text alone" convenience here - see below for why.
+export const buildLexicalScopeIndexFromStatements: (
+  statements: readonly DslStatement[],
+  stableStatementIdByIndex: ReadonlyMap<number, string>
+) => LexicalScopeIndex;
 ```
 
 **scope ID規則**: `root` / `group:<stableId>` / `for:<stableId>` /
 `if:<stableId>:then` / `if:<stableId>:else`. `<stableId>` は常に呼び出し側が
-注入する`resolveStatementId`の戻り値であり、`statementIndex`からも
-geometry `ElementId`/`parentGroupId`からも導出しない。`DslStatement`自体は
-まだstable IDを持たないため、`src/dsl/lexicalScopeIndexAdapter.ts`の
-`buildStructuralStatementIds`が「親の解決済みID + 自身のkind/type/name
-(+ ifの直下ならbranch) + 同名siblingのoccurrence連番」という構造的パスを
-computeし、これを`resolveStatementId`として注入する。この構造パスは
-`statementIndex`/`line`に依存しないため、無関係なstatementが前方へ挿入
-されても既存scopeのIDは継承される(`src/dsl/lexicalScopeIndexAdapter.test.ts`
-の"inherits an existing scope id..."で検証済み)。`statementIndex`/`line`は
-scope/declaration/record上に残るが、あくまでdocument-order metadataであり、
+注入する`resolveStatementId`(またはadapterに渡す`stableStatementIdByIndex`
+map)の値であり、`statementIndex`からも、content hash/kind/type/name/nesting
+から合成した構造キーからも、geometry `ElementId`/`parentGroupId`からも
+**このmodule自身は**導出しない。`DslStatement`自体はまだstable IDを持たない
+ため、Task 11はそれを自分で合成せず、既存のdocument snapshot/statement
+reconciliation層(`src/document/statementReconciler.ts`が
+element-bearingなgroup/if/forGroup statementに対してすでに維持している
+`elementIdByStatementIndex`相当のmapping)を呼び出し側から`stableStatementIdByIndex`
+として受け取ることを必須にする。source文字列だけからこのmappingを得る経路は
+現状存在しない(reconciliationは前回document snapshotとの比較を要するため)
+ので、`buildLexicalScopeIndexFromSource`のような「sourceだけ渡せば動く」
+production convenienceは提供しない。`statementIndex`/`line`は
+scope/declaration/record上にdocument-order metadataとして残るが、
 `ScopeId`文字列そのものには一切現れない。
+
+テスト/fixtureで実際のreconciled mappingを用意できない場合は、
+`unstableIndexKeyedIdsForTesting`のように「安定性を保証しない」ことが
+名前と型(ローカル・非export)で明確なhelperをそのtestファイル内に限定して
+定義する(`src/dsl/lexicalScopeIndexAdapter.test.ts`、
+`test/typedVariablesScopeIndexPerformance.test.ts`を参照)。これは
+production adapterの一部ではない。
 
 **then/elseの実装原則**: parser側の`enclosing`は`then`/`else`を同一frame
 (`{statementIndex, branch}`)として表現するが、本indexは2つのsibling scope
