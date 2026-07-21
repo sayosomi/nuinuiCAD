@@ -92,6 +92,46 @@ export const buildTypedDeclarationBaselineSource = (declarationCount: number) =>
   };
 };
 
+export type ScopeFixtureScale = {
+  /** Top-level scope-opening constructs generated (group / if-else / forGroup, cycled). This is the generator's `scopeCount` argument. */
+  scopeCount: number;
+};
+
+// Task 11 (lexical scope index) baseline: a repeating group/if-else/forGroup
+// cycle at scale, nui 3 only, matching BASELINE_SIZES directly as scopeCount
+// (unlike buildStandardBaselineSource's statementCount, since a single
+// "scope" here spans a variable number of source lines).
+export const buildLexicalScopeBaselineSource = (scopeCount: number) => {
+  if (!Number.isInteger(scopeCount) || scopeCount < 1) {
+    throw new Error("lexical scope baseline requires at least one scope");
+  }
+
+  const lines = ["nui 3"];
+  for (let index = 0; index < scopeCount; index += 1) {
+    const cycle = index % 3;
+    if (cycle === 0) {
+      lines.push(`group G${index} {`);
+      lines.push(`  const V${index}: number = ${index}`);
+      lines.push(`}`);
+    } else if (cycle === 1) {
+      lines.push(`if C${index} (1) {`);
+      lines.push(`  const A${index}: number = ${index}`);
+      lines.push(`} else {`);
+      lines.push(`  const B${index}: number = ${index}`);
+      lines.push(`}`);
+    } else {
+      lines.push(`for F${index} (i from: 0 count: 3 step: 1) {`);
+      lines.push(`  const W${index}: number = ${index}`);
+      lines.push(`}`);
+    }
+  }
+
+  return {
+    source: lines.join("\n"),
+    scale: { scopeCount } satisfies ScopeFixtureScale
+  };
+};
+
 export const semanticV2BaselineSource = [
   "nui 2",
   "var Global = 12",
