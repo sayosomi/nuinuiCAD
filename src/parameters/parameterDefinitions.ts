@@ -1,4 +1,5 @@
 import type { CadElement, PointAnchor } from "../types/geometry";
+import type { PropertyBindingCapability } from "../scalars/scalarAssignability";
 
 export type ParameterValueKind =
   | "text"
@@ -22,6 +23,10 @@ export type ParameterDefinition = {
   emptyInputDefaultValue?: number;
   stepLevels?: readonly number[];
   choiceOptions?: readonly string[];
+  // Declares that a typed scalar binding may be assigned to this parameter
+  // (see docs/typed-variables/tasks/08-scalar-type-contracts.md). Optional
+  // and unused by existing consumers until a later task opts a property in.
+  propertyCapability?: PropertyBindingCapability;
 };
 
 export const defaultNumericParameterStep = 1;
