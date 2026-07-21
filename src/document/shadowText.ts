@@ -2,7 +2,8 @@ import {
   compileDslDocument,
   serializeDocumentToDsl,
   type CompiledDslDocument,
-  type DslDocumentData
+  type DslDocumentData,
+  type DslMajorVersion
 } from "../dsl/dslDocument";
 import { isElementDslStatement, parseDsl } from "../dsl/dslParser";
 import type { DslStatement } from "../dsl/dslTypes";
@@ -131,8 +132,8 @@ const compileWithZippedIds = (text: string, elements: readonly CadElement[]): Sh
 // retaining their source tokens. A failure here therefore indicates an
 // unexpected serializer/parser/compiler invariant break; the safe wrapper is
 // retained as the final defense for that class of failure.
-export const generateShadowFromModel = (afterDoc: DslDocumentData): ShadowState => {
-  const text = serializeDocumentToDsl(afterDoc);
+export const generateShadowFromModel = (afterDoc: DslDocumentData, majorVersion: DslMajorVersion): ShadowState => {
+  const text = serializeDocumentToDsl(afterDoc, majorVersion);
   const result = compileWithZippedIds(text, afterDoc.elements);
   if (!result.ok) {
     throw new Error(`shadowText: 全体再生成に失敗しました: ${result.reason}`);
@@ -147,10 +148,11 @@ const MINIMAL_SHADOW_TEXT = "nui 1";
 // Dangling reference は通常経路で成功するため、このfallback理由にはならない。
 export const safeGenerateShadowFromModel = (
   afterDoc: DslDocumentData,
+  majorVersion: DslMajorVersion,
   onFailure?: (reason: string) => void
 ): ShadowState => {
   try {
-    return generateShadowFromModel(afterDoc);
+    return generateShadowFromModel(afterDoc, majorVersion);
   } catch (error) {
     onFailure?.(error instanceof Error ? error.message : String(error));
     return { text: MINIMAL_SHADOW_TEXT, compiled: compileDslDocument(MINIMAL_SHADOW_TEXT) };
@@ -169,24 +171,25 @@ export type AdvanceShadowOptions = {
 export const advanceShadow = (
   prev: ShadowState,
   afterDoc: DslDocumentData,
+  majorVersion: DslMajorVersion,
   options: AdvanceShadowOptions = {}
 ): ShadowState => {
   try {
     if (!prev.compiled.document || !prev.compiled.statementMap) {
-      return generateShadowFromModel(afterDoc);
+      return generateShadowFromModel(afterDoc, majorVersion);
     }
     const splices = buildTextPatch({ old: prev.compiled, newDocument: afterDoc });
     const patchedText = applyLineSplices(prev.text, splices);
     const result = compileWithZippedIds(patchedText, afterDoc.elements);
     if (!result.ok) {
       options.onSelfHeal?.(result.reason);
-      return generateShadowFromModel(afterDoc);
+      return generateShadowFromModel(afterDoc, majorVersion);
     }
     return { text: patchedText, compiled: result.compiled };
   } catch (error) {
     options.onSelfHeal?.(error instanceof Error ? error.message : String(error));
     try {
-      return generateShadowFromModel(afterDoc);
+      return generateShadowFromModel(afterDoc, majorVersion);
     } catch {
       // 全体再生成自体が失敗する最終防衛線: 直前の影を維持しユーザー操作は止めない。
       return prev;

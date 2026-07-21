@@ -1,4 +1,9 @@
-import { compileDslDocument, serializeDocumentToDsl, type DslDocumentData } from "../dsl/dslDocument";
+import {
+  compileDslDocument,
+  LEGACY_IMPORT_DSL_MAJOR_VERSION,
+  serializeDocumentToDsl,
+  type DslDocumentData
+} from "../dsl/dslDocument";
 import { parseLegacyV1Document } from "./legacyDsl/parseLegacyV1Document";
 
 export type LegacyV1ImportResult =
@@ -40,7 +45,7 @@ export const importLegacyV1Document = (source: string): LegacyV1ImportResult => 
     activePrintLayoutId: legacy.activePrintLayoutId,
     evaluationLimitIndex: legacy.evaluationLimitIndex
   };
-  const sourceText = serializeDocumentToDsl(document);
+  const sourceText = serializeDocumentToDsl(document, LEGACY_IMPORT_DSL_MAJOR_VERSION);
   const compiled = compileDslDocument(sourceText);
   const v2Errors = compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error");
   if (v2Errors.length > 0) {

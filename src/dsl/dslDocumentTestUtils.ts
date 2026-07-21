@@ -3,10 +3,23 @@ import { defaultDocumentPalette } from "../palette/palette";
 import { defaultVisibilityProfile } from "../model/visibilityProfiles";
 import type { CadElement, ElementId, PointAnchor, PrintLayout } from "../types/geometry";
 import { compileDslToElements } from "./dslCompiler";
-import { DSL_VERSION, layoutElementTree, parseDslDocument, serializeDocumentToDsl, type DslDocumentData } from "./dslDocument";
+import {
+  layoutElementTree,
+  parseDslDocument,
+  serializeDocumentToDsl,
+  type DslDocumentData,
+  type DslMajorVersion
+} from "./dslDocument";
 import { documentDslRefs } from "./dslSerializer";
 
 // dslDocument系テストの共有ヘルパ(テスト専用。アプリ本体からはimportしない)。
+
+/**
+ * テスト専用の既定major。本番の NEW_DOCUMENT_DSL_MAJOR_VERSION /
+ * LEGACY_IMPORT_DSL_MAJOR_VERSION とは意図的に別定義とし、どちらかが将来
+ * 変わってもこのファイルのテストが無関係に追従しないようにする。
+ */
+const TEST_DEFAULT_DSL_MAJOR_VERSION: DslMajorVersion = 2;
 
 export const emptyDocument = (): DslDocumentData => ({
   elements: [],
@@ -107,7 +120,7 @@ export const dslLinesForElements = (elements: CadElement[], evaluationLimitIndex
 // テストが「有効などこかの要素を含む文書」だけを必要とし、v1構文自体は
 // 検証対象でない場合の入力生成に使う。
 export const dslTextForElements = (elements: CadElement[], evaluationLimitIndex?: number): string =>
-  [`nui ${DSL_VERSION}`, ...dslLinesForElements(elements, evaluationLimitIndex)].join("\n");
+  [`nui ${TEST_DEFAULT_DSL_MAJOR_VERSION}`, ...dslLinesForElements(elements, evaluationLimitIndex)].join("\n");
 
 // 要素配列 → `nui 1` ヘッダ付きのDSL本文全体、id=/parent=/branch=を明示出力する
 // flat(非ネスト)モード。id保持の往復(reconciler/rename系のテストが対象
@@ -124,6 +137,7 @@ export const dslFlatTextForElements = (elements: CadElement[]): string =>
       visibilityProfiles: [],
       activeVisibilityProfileId: ""
     },
+    TEST_DEFAULT_DSL_MAJOR_VERSION,
     { preserveElementOrder: true }
   );
 
@@ -140,7 +154,7 @@ export const roundTrip = (source: string) => {
     activePrintLayoutId: first.activePrintLayoutId ?? first.printLayouts?.[0]?.id ?? "",
     evaluationLimitIndex: first.evaluationLimitIndex
   };
-  const text = serializeDocumentToDsl(document);
+  const text = serializeDocumentToDsl(document, TEST_DEFAULT_DSL_MAJOR_VERSION);
   const parsed = parseDslDocument(text);
   expect(parsed.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
   return { document, text, parsed: parsed.document! };

@@ -16,6 +16,7 @@ export type CommandId =
   | "newDocument"
   | "openDocument"
   | "importLegacyDocument"
+  | "upgradeDocumentToNui3"
   | "saveDocument"
   | "saveDocumentAs"
   | "exportPrintSvg"

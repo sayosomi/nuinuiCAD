@@ -17,7 +17,7 @@ describe("assertShadowEquivalent", () => {
   it("正準シリアライズが一致すればtrueを返しconsole.errorを呼ばない", () => {
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
     const afterDoc = compileOrThrow(["nui 2", "point A = coordinate(x: 0 y: 0)"].join("\n"));
-    expect(assertShadowEquivalent(afterDoc, afterDoc)).toBe(true);
+    expect(assertShadowEquivalent(afterDoc, afterDoc, 2)).toBe(true);
     expect(spy).not.toHaveBeenCalled();
   });
 
@@ -25,14 +25,14 @@ describe("assertShadowEquivalent", () => {
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
     const afterDoc = compileOrThrow(["nui 2", "point A = coordinate(x: 0 y: 0)"].join("\n"));
     const shadowDoc = compileOrThrow(["nui 2", "point A = coordinate(x: 99 y: 99)"].join("\n"));
-    expect(assertShadowEquivalent(afterDoc, shadowDoc)).toBe(false);
+    expect(assertShadowEquivalent(afterDoc, shadowDoc, 2)).toBe(false);
     expect(spy).toHaveBeenCalledOnce();
   });
 
   it("shadowDocumentがnullならfalseを返しconsole.errorで警告する", () => {
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
     const afterDoc = compileOrThrow(["nui 2", "point A = coordinate(x: 0 y: 0)"].join("\n"));
-    expect(assertShadowEquivalent(afterDoc, null)).toBe(false);
+    expect(assertShadowEquivalent(afterDoc, null, 2)).toBe(false);
     expect(spy).toHaveBeenCalledOnce();
   });
 });
@@ -50,7 +50,7 @@ describe("assertReconcileSane", () => {
         element.name === "B" ? ({ ...element, name: "B2" } as CadElement) : element
       )
     };
-    const nextShadowText = serializeDocumentToDsl(afterDoc);
+    const nextShadowText = serializeDocumentToDsl(afterDoc, 2);
     assertReconcileSane(prevCompiled, nextShadowText, afterDoc);
     expect(spy).not.toHaveBeenCalled();
   });
@@ -61,7 +61,7 @@ describe("assertReconcileSane", () => {
     const prevDoc = prevCompiled.document!;
     const [a, b, c] = prevDoc.elements;
     const afterDoc: DslDocumentData = { ...prevDoc, elements: [a, c, b] };
-    const nextShadowText = serializeDocumentToDsl(afterDoc);
+    const nextShadowText = serializeDocumentToDsl(afterDoc, 2);
     assertReconcileSane(prevCompiled, nextShadowText, afterDoc);
     expect(spy).not.toHaveBeenCalled();
   });
@@ -76,7 +76,7 @@ describe("assertReconcileSane", () => {
       ...prevDoc,
       elements: [a, { ...c }, { ...b, name: "B2" } as CadElement]
     };
-    const nextShadowText = serializeDocumentToDsl(afterDoc);
+    const nextShadowText = serializeDocumentToDsl(afterDoc, 2);
     assertReconcileSane(prevCompiled, nextShadowText, afterDoc);
     expect(spy).not.toHaveBeenCalled();
   });
@@ -90,7 +90,7 @@ describe("assertReconcileSane", () => {
       ...prevDoc,
       elements: [...prevDoc.elements.filter((element) => element.name !== "C"), inserted]
     };
-    const nextShadowText = serializeDocumentToDsl(afterDoc);
+    const nextShadowText = serializeDocumentToDsl(afterDoc, 2);
     assertReconcileSane(prevCompiled, nextShadowText, afterDoc);
     expect(spy).not.toHaveBeenCalled();
   });
@@ -99,13 +99,14 @@ describe("assertReconcileSane", () => {
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
     const brokenCompiled: CompiledDslDocument = {
       document: null,
+      majorVersion: null,
       statements: [],
       statementMap: null,
       sourceLines: [],
       diagnostics: []
     };
     const afterDoc = compileOrThrow(["nui 2", "point A = coordinate(x: 0 y: 0)"].join("\n"));
-    assertReconcileSane(brokenCompiled, serializeDocumentToDsl(afterDoc), afterDoc);
+    assertReconcileSane(brokenCompiled, serializeDocumentToDsl(afterDoc, 2), afterDoc);
     expect(spy).not.toHaveBeenCalled();
   });
 
@@ -127,7 +128,7 @@ describe("assertReconcileSane", () => {
         element.name === "B" ? ({ ...element, name: "B2" } as CadElement) : element
       )
     };
-    const nextShadowText = serializeDocumentToDsl(afterDoc);
+    const nextShadowText = serializeDocumentToDsl(afterDoc, 2);
     assertReconcileSane(corruptedPrev, nextShadowText, afterDoc);
     expect(spy).toHaveBeenCalled();
     const [, detail] = spy.mock.calls[0];

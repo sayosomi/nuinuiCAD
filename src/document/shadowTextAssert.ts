@@ -1,4 +1,9 @@
-import { serializeDocumentToDsl, type CompiledDslDocument, type DslDocumentData } from "../dsl/dslDocument";
+import {
+  serializeDocumentToDsl,
+  type CompiledDslDocument,
+  type DslDocumentData,
+  type DslMajorVersion
+} from "../dsl/dslDocument";
 import { parseDsl } from "../dsl/dslParser";
 import type { CadElement, ElementId } from "../types/geometry";
 import { reconcileStatements } from "./statementReconciler";
@@ -15,13 +20,17 @@ export const shadowAssertEnabled = import.meta.env.DEV;
 
 // 意味的等価 = 正準シリアライズ比較。ID差・字面差・整形差を正規化して吸収する
 // (影は常にzip済みなので、無名要素参照の生IDフォールバックも一致する)。
-export const assertShadowEquivalent = (afterDoc: DslDocumentData, shadowDocument: DslDocumentData | null): boolean => {
+export const assertShadowEquivalent = (
+  afterDoc: DslDocumentData,
+  shadowDocument: DslDocumentData | null,
+  majorVersion: DslMajorVersion
+): boolean => {
   if (!shadowDocument) {
     console.error("[shadowText] 影テキストの再コンパイルに失敗しました(document=null)。全体再生成します。");
     return false;
   }
-  const expected = serializeDocumentToDsl(afterDoc);
-  const actual = serializeDocumentToDsl(shadowDocument);
+  const expected = serializeDocumentToDsl(afterDoc, majorVersion);
+  const actual = serializeDocumentToDsl(shadowDocument, majorVersion);
   if (expected === actual) return true;
 
   const expectedLines = expected.split("\n");

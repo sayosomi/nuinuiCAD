@@ -18,7 +18,7 @@ import {
   NUI_DOCUMENT_EXTENSION
 } from "./nuiFormat";
 import { isLegacyV1NuiDocument, unsupportedNuiMajorVersion } from "./nuiVersion";
-import { DSL_VERSION } from "../dsl/dslDocument";
+import { SUPPORTED_DSL_MAJOR_VERSIONS } from "../dsl/dslDocument";
 
 type DocumentFileFilter = {
   name: string;
@@ -139,7 +139,7 @@ export const openDocument = async () => {
   const content = await invokeReadDocumentFile(path);
   const unsupportedMajor = unsupportedNuiMajorVersion(content);
   if (unsupportedMajor !== null) {
-    throw new Error(`未対応のDSLバージョンです: ${unsupportedMajor}(対応: ${DSL_VERSION})`);
+    throw new Error(`未対応のDSLバージョンです: ${unsupportedMajor}(対応: ${SUPPORTED_DSL_MAJOR_VERSIONS.join(", ")})`);
   }
   const imported = isLegacyV1NuiDocument(content) ? importLegacyV1Document(content) : null;
   if (imported && !imported.ok) throw new Error(imported.message);

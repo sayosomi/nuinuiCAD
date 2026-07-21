@@ -49,11 +49,11 @@ const buildCommitFixture = (elementCount: number) => {
 const measureCommitCost = (elementCount: number, runs: number) => {
   const { prev, afterDoc } = buildCommitFixture(elementCount);
   const prodMedian = measureMedian(`${elementCount}要素 advanceShadow prod相当`, runs, () => {
-    advanceShadow(prev, afterDoc);
+    advanceShadow(prev, afterDoc, 2);
   });
   const devMedian = measureMedian(`${elementCount}要素 advanceShadow dev相当`, runs, () => {
-    const next = advanceShadow(prev, afterDoc);
-    assertShadowEquivalent(afterDoc, next.compiled.document);
+    const next = advanceShadow(prev, afterDoc, 2);
+    assertShadowEquivalent(afterDoc, next.compiled.document, 2);
     assertReconcileSane(prev.compiled, next.text, afterDoc);
   });
   return { prodMedian, devMedian };
@@ -98,7 +98,7 @@ describe("shadowText 大規模文書コミットコスト計測", () => {
     const { compiled } = buildCommitFixture(1000);
     if (!compiled.document) throw new Error("fixture must compile");
     measureMedian("1000要素 serializeDocumentToDsl（式入り）", 3, () => {
-      serializeDocumentToDsl(compiled.document!);
+      serializeDocumentToDsl(compiled.document!, 2);
     });
   }, 20_000);
 });

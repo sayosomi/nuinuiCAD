@@ -111,6 +111,13 @@ export type StatementMap = {
 
 export type CompiledDslDocument = {
   document: DslDocumentData | null;
+  /**
+   * 先頭のversion文だけから決まる。要素文など本文側の他のエラーとは独立。
+   * nullになるのはheader自体が欠落・重複・不正・未対応の場合だけで、本文の
+   * 無関係なエラーでdocumentがnullになっても、正しいheaderがあればここは
+   * 値を保つ。
+   */
+  majorVersion: DslMajorVersion | null;
   statements: DslStatement[];
   /** エラー診断がある場合は null。 */
   statementMap: StatementMap | null;
@@ -127,7 +134,25 @@ export type CompileDslDocumentOptions = {
   sourceRevision?: SourceRevision;
 };
 
-export const DSL_VERSION = 2;
+/** 現在パース・シリアライズ可能な `nui <major>` の集合。 */
+export type DslMajorVersion = 2 | 3;
+
+export const SUPPORTED_DSL_MAJOR_VERSIONS: readonly DslMajorVersion[] = [2, 3];
+
+/**
+ * 新規文書の既定major。typed-variables activation task(52)より前は2のまま
+ * 変えない — このtaskでの変更対象ではない。
+ */
+export const NEW_DOCUMENT_DSL_MAJOR_VERSION: DslMajorVersion = 2;
+
+/**
+ * legacy JSON importer / v1 importerが出力するmajor。新規文書既定とは値が
+ * 同じでも意味は別で、52での既定変更に追従させない。
+ */
+export const LEGACY_IMPORT_DSL_MAJOR_VERSION: DslMajorVersion = 2;
+
+const isSupportedDslMajorVersion = (value: number): value is DslMajorVersion =>
+  (SUPPORTED_DSL_MAJOR_VERSIONS as readonly number[]).includes(value);
 
 const versionDiagnostic = (line: number, message: string): DslDiagnostic => ({
   severity: "error",
@@ -493,11 +518,12 @@ const serializeFlatElementTree = (
 
 export const serializeDocumentToDsl = (
   data: DslDocumentData,
+  majorVersion: DslMajorVersion,
   options: SerializeDslDocumentOptions = {}
 ): string => {
   const refs = options.preserveElementOrder ? flatRefs() : documentDslRefs(data.elements);
   const sections: string[][] = [
-    [`nui ${DSL_VERSION}`, ...(options.headerComment ? [`# ${options.headerComment}`] : [])],
+    [`nui ${majorVersion}`, ...(options.headerComment ? [`# ${options.headerComment}`] : [])],
     serializePaletteLines(data.palette),
     serializeVisibilitySettingsLines(data.visibilityRoles, data.visibilityProfiles, data.activeVisibilityProfileId),
     serializePrintLayoutSection(data),
@@ -514,11 +540,17 @@ export const serializeDocumentToDsl = (
 type VersionValidation = {
   diagnostics: DslDiagnostic[];
   unsupportedMajor: number | null;
+  /**
+   * 先頭のversion文だけで決まる。文書全体のエラー有無とは独立。missing/
+   * duplicate/invalid/unsupported headerのときだけnull。
+   */
+  majorVersion: DslMajorVersion | null;
 };
 
 const validateVersionStatements = (statements: DslStatement[]): VersionValidation => {
   const diagnostics: DslDiagnostic[] = [];
   let unsupportedMajor: number | null = null;
+  let majorVersion: DslMajorVersion | null = null;
   const versionStatements = statements.filter((statement) => statement.kind === "version");
   const firstStatement = statements[0];
 
@@ -530,17 +562,24 @@ const validateVersionStatements = (statements: DslStatement[]): VersionValidatio
     const value = Number(firstStatement.value.trim());
     if (!Number.isInteger(value) || value <= 0) {
       diagnostics.push(versionDiagnostic(firstStatement.line, `不正なDSLバージョンです: ${firstStatement.value}`));
-    } else if (value !== DSL_VERSION) {
+    } else if (!isSupportedDslMajorVersion(value)) {
       unsupportedMajor = value;
       diagnostics.push(
-        versionDiagnostic(firstStatement.line, `未対応のDSLバージョンです: ${value}(対応: ${DSL_VERSION})`)
+        versionDiagnostic(
+          firstStatement.line,
+          `未対応のDSLバージョンです: ${value}(対応: ${SUPPORTED_DSL_MAJOR_VERSIONS.join(", ")})`
+        )
       );
+    } else {
+      majorVersion = value;
     }
   }
   for (const extra of versionStatements.slice(1)) {
     diagnostics.push(versionDiagnostic(extra.line, "`nui` は文書の先頭に1つだけ書けます。"));
   }
-  return { diagnostics, unsupportedMajor };
+  // 重複headerは(先頭が有効でも)どのmajorが正なのか曖昧なため、確定させない。
+  if (versionStatements.length > 1) majorVersion = null;
+  return { diagnostics, unsupportedMajor, majorVersion };
 };
 
 /**
@@ -549,6 +588,25 @@ const validateVersionStatements = (statements: DslStatement[]): VersionValidatio
  */
 export const unsupportedDslMajorVersion = (source: string): number | null =>
   validateVersionStatements(parseDsl(source).statements).unsupportedMajor;
+
+/** 07/10がv3専用構文をv2文書へ書いたときに使う、未接続のfeature-gate診断。 */
+export const TYPED_SYNTAX_REQUIRES_NUI3_CODE = "typed-syntax-requires-nui3";
+
+export const requireDslMajorVersionForFeature = (
+  majorVersion: DslMajorVersion,
+  requiredMajor: DslMajorVersion,
+  line: number,
+  featureLabel: string
+): DslDiagnostic | null => {
+  if (majorVersion >= requiredMajor) return null;
+  return {
+    severity: "error",
+    line,
+    column: 1,
+    code: TYPED_SYNTAX_REQUIRES_NUI3_CODE,
+    message: `${featureLabel} は nui ${requiredMajor} 以降でのみ使用できます(現在: nui ${majorVersion})。`
+  };
+};
 
 const attrValueOf = (statement: DslStatement, key: string) =>
   statement.attrs.find((item) => item.key === key)?.value;
@@ -694,7 +752,7 @@ export const compileDslDocument = (
   const normalized = source.replace(/\r\n/g, "\n");
   const sourceLines = normalized.split("\n");
   const parsed = options.preparsed ?? parseDslSnapshot({ normalizedSource: normalized, sourceRevision: options.sourceRevision ?? 0 });
-  const diagnostics = validateVersionStatements(parsed.statements).diagnostics;
+  const versionValidation = validateVersionStatements(parsed.statements);
 
   const compiled = compileDslToElements(normalized, {
     elements: [],
@@ -702,11 +760,12 @@ export const compileDslDocument = (
     preparsed: parsed,
     assignedElementIds: options.assignedElementIds
   });
-  const allDiagnostics = [...diagnostics, ...compiled.diagnostics];
+  const allDiagnostics = [...versionValidation.diagnostics, ...compiled.diagnostics];
 
   if (allDiagnostics.some((item) => item.severity === "error")) {
     return {
       document: null,
+      majorVersion: versionValidation.majorVersion,
       statements: parsed.statements,
       statementMap: null,
       sourceLines,
@@ -738,7 +797,14 @@ export const compileDslDocument = (
     compiled.printLayoutIdsByStatementIndex
   );
 
-  return { document, statements: parsed.statements, statementMap, sourceLines, diagnostics: allDiagnostics };
+  return {
+    document,
+    majorVersion: versionValidation.majorVersion,
+    statements: parsed.statements,
+    statementMap,
+    sourceLines,
+    diagnostics: allDiagnostics
+  };
 };
 
 export const parseDslDocument = (source: string): ParseDslDocumentResult => {
