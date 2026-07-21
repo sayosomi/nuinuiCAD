@@ -1238,10 +1238,7 @@ export class SourceEditorController implements SourceEditorHandle {
   private refreshStatementRanges() {
     const state = this.store.getState();
     if (state.docText !== state.sourceText) return;
-    if (
-      state.doc.statementMap.sourceRevision !== state.sourceRevision ||
-      this.view.state.doc.toString() !== normalizeSourceTextForEditor(state.sourceText)
-    ) {
+    if (this.view.state.doc.toString() !== normalizeSourceTextForEditor(state.sourceText)) {
       // Never project a stale committed statement/span into another CM state.
       this.statementRanges = new Map();
       this.printLayoutRanges = new Map();

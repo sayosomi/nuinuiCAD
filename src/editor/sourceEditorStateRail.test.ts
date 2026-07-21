@@ -26,6 +26,7 @@ describe("SourceEditor element state gutter", () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.useRealTimers();
     if (originalClientWidth) Object.defineProperty(HTMLElement.prototype, "clientWidth", originalClientWidth);
     else delete (HTMLElement.prototype as { clientWidth?: number }).clientWidth;
     if (originalClientHeight) Object.defineProperty(HTMLElement.prototype, "clientHeight", originalClientHeight);
@@ -105,6 +106,63 @@ describe("SourceEditor element state gutter", () => {
     const argument = view.state.doc.line(header.number + 1);
     expect(parent.querySelector(`[data-element-activity-line="${header.from}"]`)).not.toBeNull();
     expect(parent.querySelector(`[data-element-activity-line="${argument.from}"]`)).toBeNull();
+    controller.destroy();
+    parent.remove();
+  });
+
+  it("recovers gutter markers and Alt value-step on unrelated lines after a fatal-then-valid typed edit", () => {
+    const parent = document.createElement("div");
+    document.body.appendChild(parent);
+    const controller = new SourceEditorController(parent);
+    controller.setEvaluation({
+      evaluation: { computedGeometry: new Map(), computedVariables: new Map(), errors: [], warnings: [] },
+      compiledDocumentRevision: useCadDocumentStore.getState().compiledDocumentRevision,
+      evaluationRequestRevision: 1
+    });
+    const view = EditorView.findFromDOM(parent.querySelector<HTMLElement>(".cm-editor")!)!;
+    const lineOfA = view.state.doc.line(2);
+    const lineOfB = view.state.doc.line(3);
+    const markerFor = (lineFrom: number) => parent.querySelector<HTMLElement>(`[data-element-activity-line="${lineFrom}"]`);
+
+    expect(markerFor(lineOfA.from)).not.toBeNull();
+    expect(markerFor(lineOfB.from)).not.toBeNull();
+
+    vi.useFakeTimers();
+
+    // Repro A (point/coordinate): an unclosed call auto-commits as fatal via
+    // the editor's own commit debounce, then gets completed into a new,
+    // valid statement.
+    view.dispatch({ changes: { from: view.state.doc.length, insert: "\npoint C = coordinate(" } });
+    vi.advanceTimersByTime(300);
+    expect(useCadDocumentStore.getState().docText).not.toBe(useCadDocumentStore.getState().sourceText);
+    view.dispatch({ changes: { from: view.state.doc.length, insert: "x: 5 y: 5)" } });
+    vi.advanceTimersByTime(300);
+    expect(useCadDocumentStore.getState().docText).toBe(useCadDocumentStore.getState().sourceText);
+
+    expect(markerFor(lineOfA.from)).not.toBeNull();
+    expect(markerFor(lineOfB.from)).not.toBeNull();
+
+    // Repro B (var): a second, independent fatal-then-valid edit must not
+    // compound (or merely coincidentally clear) any staleness left by repro A.
+    view.dispatch({ changes: { from: view.state.doc.length, insert: "\nvar test2 = " } });
+    vi.advanceTimersByTime(300);
+    expect(useCadDocumentStore.getState().docText).not.toBe(useCadDocumentStore.getState().sourceText);
+    view.dispatch({ changes: { from: view.state.doc.length, insert: "1" } });
+    vi.advanceTimersByTime(300);
+    expect(useCadDocumentStore.getState().docText).toBe(useCadDocumentStore.getState().sourceText);
+
+    expect(markerFor(lineOfA.from)).not.toBeNull();
+    expect(markerFor(lineOfB.from)).not.toBeNull();
+
+    // Alt+Right must still resolve and step a value span on the untouched line A.
+    const xPos = view.state.doc.toString().indexOf("x: 0") + "x: ".length;
+    view.dispatch({ selection: EditorSelection.cursor(xPos) });
+    const stepRight = { key: "ArrowRight", code: "ArrowRight", altKey: true };
+    fireEvent.keyDown(view.contentDOM, stepRight);
+    fireEvent.keyUp(view.contentDOM, stepRight);
+
+    expect(useCadDocumentStore.getState().sourceText).toContain("x: 1 ");
+
     controller.destroy();
     parent.remove();
   });
