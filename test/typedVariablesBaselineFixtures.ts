@@ -132,6 +132,39 @@ export const buildLexicalScopeBaselineSource = (scopeCount: number) => {
   };
 };
 
+export type BindingAnalysisFixtureScale = {
+  /** Typed declarations generated. This is the generator's `bindingCount` argument. */
+  bindingCount: number;
+  /** `@V(n-1)` references generated (one per binding after the first). */
+  referenceCount: number;
+};
+
+// Task 13 (binding diagnostics / initializer graph) baseline: a linear chain
+// where each const references only the immediately preceding one. Every
+// reference resolves ("resolved" kind, Task 12's own document-order rule
+// guarantees no forward/cycle here), so this isolates analyzeBindings's own
+// O(bindings+references) graph/SCC/issue-classification cost from the
+// cycle/duplicate/forward-suppression correctness already covered by
+// src/scalars/bindingAnalysis.test.ts's small, targeted fixtures.
+export const buildBindingAnalysisChainBaselineSource = (bindingCount: number) => {
+  if (!Number.isInteger(bindingCount) || bindingCount < 1) {
+    throw new Error("binding analysis baseline requires at least one binding");
+  }
+
+  const lines = ["nui 3", "const V0: number = 0"];
+  for (let index = 1; index < bindingCount; index += 1) {
+    lines.push(`const V${index}: number = @V${index - 1} + 1`);
+  }
+
+  return {
+    source: lines.join("\n"),
+    scale: {
+      bindingCount,
+      referenceCount: Math.max(0, bindingCount - 1)
+    } satisfies BindingAnalysisFixtureScale
+  };
+};
+
 export const semanticV2BaselineSource = [
   "nui 2",
   "var Global = 12",
