@@ -64,6 +64,7 @@ fn corner_radius_trims_two_lines_and_creates_arc() {
             corner_with_variables("ab", "bc"),
         ],
         evaluation_limit_index: None,
+        scalar_expression_payload: None,
     });
 
     assert!(result.errors.is_empty(), "{:?}", result.errors);
@@ -94,6 +95,7 @@ fn corner_radius_trims_bezier_and_offset_line_to_polylines() {
             corner("curve", "de", json!(10)),
         ],
         evaluation_limit_index: None,
+        scalar_expression_payload: None,
     });
     assert!(result.errors.is_empty(), "{:?}", result.errors);
     assert_eq!(geometry(&result, "curve")["kind"], json!("offsetLine"));
@@ -121,6 +123,7 @@ fn corner_radius_trims_bezier_and_offset_line_to_polylines() {
             corner("offset", "cd", json!(5)),
         ],
         evaluation_limit_index: None,
+        scalar_expression_payload: None,
     });
     assert!(
         offset_result.errors.is_empty(),
@@ -155,6 +158,7 @@ fn corner_radius_can_feed_downstream_line_elements() {
             })),
         ],
         evaluation_limit_index: None,
+        scalar_expression_payload: None,
     });
 
     assert!(result.errors.is_empty());
@@ -171,6 +175,7 @@ fn corner_radius_reports_geometry_and_dependency_errors() {
             corner("ab", "ab", json!(10)),
         ],
         evaluation_limit_index: None,
+        scalar_expression_payload: None,
     });
     assert!(same_line.errors[0].message.contains("同じ線"));
 
@@ -184,12 +189,14 @@ fn corner_radius_reports_geometry_and_dependency_errors() {
             corner("ab", "bc", json!(0)),
         ],
         evaluation_limit_index: None,
+        scalar_expression_payload: None,
     });
     assert!(radius_error.errors[0].message.contains("半径"));
 
     let missing = evaluate_document_input(EvaluationInput {
         elements: vec![corner("missing", "late", json!(10))],
         evaluation_limit_index: None,
+        scalar_expression_payload: None,
     });
     assert_eq!(missing.errors[0].missing_dependency_id, "missing");
 }

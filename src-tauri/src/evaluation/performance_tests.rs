@@ -33,6 +33,7 @@ fn run_performance_case(name: &str, elements: Vec<Value>) -> EvaluationPayload {
     let result = evaluate_document_input(EvaluationInput {
         elements,
         evaluation_limit_index: None,
+        scalar_expression_payload: None,
     });
     eprintln!(
         "{name}: {} geometry, {} variables, {} errors, {:?}",

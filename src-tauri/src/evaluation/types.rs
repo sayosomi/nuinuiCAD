@@ -9,6 +9,16 @@ pub type ElementId = String;
 pub struct EvaluationInput {
     pub(crate) elements: Vec<Value>,
     pub(crate) evaluation_limit_index: Option<usize>,
+    /// A single typed-scalar-expression payload (Task 17,
+    /// docs/typed-variables/tasks/17-rust-expression-payload-validation.md),
+    /// deliberately scoped narrower than a full multi-statement "compiled
+    /// scalar program" - that's Task 19/21's concern. No caller populates
+    /// this yet; when absent, evaluation is byte-for-byte unchanged from
+    /// before this field existed. When present, `evaluate_document_input`
+    /// only runs it through `scalars::validate_typed_expression_payload` as
+    /// an inert shadow check (see mod.rs) - the result never affects
+    /// `EvaluationPayload`.
+    pub(crate) scalar_expression_payload: Option<Value>,
 }
 
 #[derive(Debug, Serialize)]

@@ -55,6 +55,9 @@ mod offset_types;
 mod performance_tests;
 mod point_anchor;
 mod point_evaluators;
+#[cfg(test)]
+mod scalar_expression_payload_compat_tests;
+mod scalars;
 mod split_line_evaluator;
 #[cfg(test)]
 mod split_line_tests;
@@ -95,6 +98,7 @@ use point_evaluators::{
     evaluate_division_point, evaluate_free_point, evaluate_offset_point,
     evaluate_polar_offset_point,
 };
+use scalars::validate_typed_expression_payload;
 use split_line_evaluator::evaluate_split_line;
 use text_evaluator::evaluate_text;
 use types::{element_id, element_name, element_type, ElementId, EvaluationState};
@@ -205,6 +209,14 @@ fn evaluate_element_by_type(
 }
 
 fn evaluate_document_input(input: EvaluationInput) -> EvaluationPayload {
+    // Task 17 shadow validator: when a typed-expression payload is present,
+    // defensively validate it. The result is intentionally discarded -
+    // Task 21 connects it to real evaluation. No caller populates this
+    // field today, so this branch never runs in current production use.
+    if let Some(payload) = input.scalar_expression_payload.as_ref() {
+        let _ = validate_typed_expression_payload(payload);
+    }
+
     let evaluation_limit_index = input
         .evaluation_limit_index
         .unwrap_or(input.elements.len())

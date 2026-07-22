@@ -171,12 +171,14 @@ fn performance_typed_variable_production_evaluation_baseline() {
         evaluate_document_input(EvaluationInput {
             elements: small_elements.clone(),
             evaluation_limit_index: None,
+            scalar_expression_payload: None,
         })
     });
     let (large_result, large_stats) = measure_wall_time(|| {
         evaluate_document_input(EvaluationInput {
             elements: large_elements.clone(),
             evaluation_limit_index: None,
+            scalar_expression_payload: None,
         })
     });
 
@@ -214,12 +216,14 @@ fn performance_typed_variable_for_group_baseline() {
         evaluate_document_input(EvaluationInput {
             elements: small_elements.clone(),
             evaluation_limit_index: None,
+            scalar_expression_payload: None,
         })
     });
     let (large_result, large_stats) = measure_wall_time(|| {
         evaluate_document_input(EvaluationInput {
             elements: large_elements.clone(),
             evaluation_limit_index: None,
+            scalar_expression_payload: None,
         })
     });
 

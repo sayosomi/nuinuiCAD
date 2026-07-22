@@ -73,6 +73,7 @@ fn evaluates_line_offset() {
     let result = evaluate_document_input(EvaluationInput {
         elements,
         evaluation_limit_index: None,
+        scalar_expression_payload: None,
     });
 
     assert!(result.errors.is_empty());
@@ -98,6 +99,7 @@ fn evaluates_local_expression_offset() {
     let result = evaluate_document_input(EvaluationInput {
         elements,
         evaluation_limit_index: None,
+        scalar_expression_payload: None,
     });
 
     assert!(result.errors.is_empty());
@@ -132,6 +134,7 @@ fn connects_reversed_base_lines() {
     let result = evaluate_document_input(EvaluationInput {
         elements,
         evaluation_limit_index: None,
+        scalar_expression_payload: None,
     });
 
     assert!(result.errors.is_empty());
@@ -175,6 +178,7 @@ fn keeps_first_base_line_direction_stable() {
     let result = evaluate_document_input(EvaluationInput {
         elements,
         evaluation_limit_index: None,
+        scalar_expression_payload: None,
     });
 
     assert!(result.errors.is_empty());
@@ -199,6 +203,7 @@ fn evaluates_arc_offset_and_radius_error() {
     let result = evaluate_document_input(EvaluationInput {
         elements,
         evaluation_limit_index: None,
+        scalar_expression_payload: None,
     });
 
     assert!(result.errors.is_empty());
@@ -223,6 +228,7 @@ fn evaluates_arc_offset_and_radius_error() {
     let failing_result = evaluate_document_input(EvaluationInput {
         elements: failing,
         evaluation_limit_index: None,
+        scalar_expression_payload: None,
     });
     assert!(failing_result.errors[0].message.contains("円弧半径が0以下"));
 }
@@ -250,6 +256,7 @@ fn evaluates_bezier_and_nested_offset() {
     let result = evaluate_document_input(EvaluationInput {
         elements,
         evaluation_limit_index: None,
+        scalar_expression_payload: None,
     });
 
     assert!(result.errors.is_empty());
@@ -283,6 +290,7 @@ fn reports_bezier_trim_warning() {
     let result = evaluate_document_input(EvaluationInput {
         elements,
         evaluation_limit_index: None,
+        scalar_expression_payload: None,
     });
 
     assert!(result.errors.is_empty());
@@ -316,6 +324,7 @@ fn suppresses_bezier_trim_warning_when_requested() {
     let result = evaluate_document_input(EvaluationInput {
         elements,
         evaluation_limit_index: None,
+        scalar_expression_payload: None,
     });
 
     assert!(result.errors.is_empty());
@@ -330,6 +339,7 @@ fn reports_too_late_base_dependency() {
     let result = evaluate_document_input(EvaluationInput {
         elements,
         evaluation_limit_index: None,
+        scalar_expression_payload: None,
     });
 
     assert!(geometry_missing(&result, "offset"));
@@ -382,6 +392,7 @@ fn offset_line_can_feed_line_point_and_intersection_helpers() {
     let result = evaluate_document_input(EvaluationInput {
         elements,
         evaluation_limit_index: None,
+        scalar_expression_payload: None,
     });
 
     assert!(result.errors.is_empty());
