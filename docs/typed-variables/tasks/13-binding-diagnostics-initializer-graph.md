@@ -54,7 +54,107 @@ const evaluatorがname/order/cycleを再判定せずvalid binding listを受け�
 
 ## 14. 次タスクへの引き継ぎ
 
-19がcompiled program、36がdependency graph、41がQuick Fixを使う。
+実装済みAPI（いずれもproduction未接続のpure analysis）:
+
+```ts
+// src/scalars/bindingAnalysis.ts
+type InitializerReference = {
+  fromBindingId: BindingId;
+  occurrenceIndex: number; // caller契約: 同一fromBindingId内で0始まり・連続・一意
+  name: string;
+  span: DslSpan | null;
+  resolution: BindingResolution; // Task 12の結果そのもの、再判定しない
+};
+type AnalyzeBindingsInput = { catalog: BindingCatalog; initializerReferences: readonly InitializerReference[] };
+type InitializerGraphEdge = { toBindingId: BindingId; reference: InitializerReference };
+type InitializerGraph = { nodeIds: readonly BindingId[]; edgesByFromBindingId: ReadonlyMap<BindingId, readonly InitializerGraphEdge[]> };
+type StronglyConnectedComponent = { bindingIds: readonly BindingId[]; isCycle: boolean };
+type BindingIssueCode =
+  | "duplicate-binding" | "binding-cycle" | "self-initialization"
+  | "undefined-binding" | "forward-binding-reference";
+const ISSUE_PRIORITY: readonly BindingIssueCode[]; // duplicate > cycle > self > undefined > forward
+type BindingIssueOrigin = { kind: "declaration" } | { kind: "reference"; reference: InitializerReference };
+type BindingIssue = { code; bindingId; span; relatedBindingIds; origin };
+type BindingStatus = { kind: "valid" } | { kind: "invalid"; reason: BindingIssueCode };
+type BindingAnalysisEntry = { bindingId: BindingId; status: BindingStatus };
+type BindingAnalysis = { catalog; graph; components; entries; entriesById; issues };
+const buildInitializerGraph: (catalog, references) => InitializerGraph;
+const findStronglyConnectedComponents: (graph) => readonly StronglyConnectedComponent[];
+const analyzeBindings: (input: AnalyzeBindingsInput) => BindingAnalysis;
+
+// src/scalars/bindingDiagnostics.ts
+type BindingDiagnosticMessage = { code; bindingId; span; message: string; relatedBindingNames: readonly string[] };
+const formatBindingIssue: (analysis: BindingAnalysis, issue: BindingIssue) => BindingDiagnosticMessage;
+const buildBindingDiagnosticMessages: (analysis: BindingAnalysis) => readonly BindingDiagnosticMessage[];
+```
+
+**入力契約**: `InitializerReference`はcaller（将来はTask 14以降のexpression parser接続層）が
+`@name`出現ごとに、既にTask 12の`resolveBindingReference`を呼んだ結果をそのまま渡す構造体
+である。Task 13はname/scope/order/resolutionを一切再判定しない。`fromBindingId`は必ず
+catalog上`kind==="typed"`のbindingを指す。`occurrenceIndex`は同一`fromBindingId`内で
+0始まり・連続・一意でなければならず、違反（重複または欠番）は`analyzeBindings`と
+`buildInitializerGraph`の両方がthrowする（`bindingCatalog.ts`が重複IDでthrowするのと同じ
+fail-fastスタイル）。`span`は診断表示専用で、順序決定には一切使わない。
+
+**エッジ生成規則**: `resolution.kind==="resolved"`（target=`binding.id`、1本）と
+`"forward"`（target=各`bindingIds`、複数本になり得るのは同名重複宣言時のみ。Task 12が
+`bindingsByEffectiveScopeAndName`構築時に確定した順のまま使う）だけがエッジを作る。
+`"self"`, `"undefined"`, `"duplicate"`はエッジを作らない。
+
+**issue生成規則**:
+- `duplicate-binding`（declaration起源）は`bindingsByEffectiveScopeAndName`のbucket
+  （長さ>1）から発行し、bucketメンバー自身に1件ずつ付く。`relatedBindingIds`はbucket全体
+  （自分を含む）を指す共有配列で、bindingごとのコピーは作らない。
+- 参照resolutionの`"duplicate"`からは、参照元binding（`fromBindingId`）へ
+  `duplicate-binding`（`origin.kind==="reference"`）を1件発行する。同じcodeを2つの起源
+  （`origin`フィールドで区別）で使うのは、plan.mdが定義する最小限のstable diagnostic
+  code集合から逸脱しないため。
+- `binding-cycle`はSCC（サイズ>1、またはサイズ1で自己ループedge保有）のメンバー全員へ
+  binding単位で1件ずつ発行し、`relatedBindingIds`はcomponent全体（自分を含む）の共有配列。
+  あるbindingの特定のforward参照について、その候補binding idの少なくとも1つが参照元
+  binding自身と同じcycle componentに属する場合、その参照の`forward-binding-reference`は
+  抑制される（cycle issueに包含されるため）。SCC外のforward chainはこの条件に該当しない
+  ため誤って抑制されない。
+- `self-initialization`/`undefined-binding`/`forward-binding-reference`/reference起源
+  `duplicate-binding`は参照出現ごとに独立して発行する（同一bindingに複数出現があれば
+  複数issue）。declaration起源`duplicate-binding`/`binding-cycle`はbinding単位の性質で
+  あり、同じ原因で複数issueを量産しない。
+
+**優先順位**（`entries[].status.reason`決定にのみ使用、`issues`自体は全件保持）:
+`duplicate-binding > binding-cycle > self-initialization > undefined-binding >
+forward-binding-reference`（`ISSUE_PRIORITY`）。
+
+**決定的順序**: 比較ソート（`Array.prototype.sort`等）は本モジュール内で一切使用しない。
+全順序キーは`(bindingRank, codeRank, originRank, occurrenceIndex)`の4値。`bindingRank`は
+`catalog.bindings`配列の位置そのもの（Task 12が`statementIndex`昇順・kind順
+typed<legacy<iteration<elementLocalで確定済み、Task 13は再ソートしない）。edge/
+component/issueはすべて「`catalog.bindings`を1パス走査しながら固定長バケットへO(1)で
+配置する」方式で構築し、Map/Setの挿入順は「事前に確定した順序をそのまま反映しただけ」で
+ある（偶然の走査順には依存しない）。`initializerReferences`という配列自体の並び順を
+シャッフルしても出力は完全に同一になる。
+
+**計算量**: 通常入力でO(bindings+references)。比較ソートを使わず、bucketごとの
+`relatedBindingIds`共有配列を1回だけ計算するため、単一の巨大bucket/componentがあっても
+O(bindings)に収まる。既知の限界: forwardの複数ターゲット（同名重複宣言が密集する場合）は
+edge数自体を増やし得るが、これは重複宣言側で別途`duplicate-binding`によりinvalid化される
+output size起因のコストであり、アルゴリズムの欠陥ではない。
+
+**self-loopに関する防御的正しさ**: 現行の`resolveBindingReference`は直接自己名参照を必ず
+`self` kindで返しエッジを作らないため、実運用上`self-initialization`と1ノードSCCの
+`binding-cycle`は排他的である。ただし`findStronglyConnectedComponents`自体は汎用
+アルゴリズムとして実装し、「resolvedエッジが自分自身を指す1ノードSCC」を正しくcycle
+判定できることをTask 12を経由しない合成入力で直接テストしている（Tarjanの典型的な
+落とし穴への回帰防止）。SCCは反復Tarjan（明示スタック、再帰なし）で計算する。
+
+**互換性・接続状態**: legacy numeric evaluationおよび既存DSL diagnostics pipelineは
+未変更。`analyzeBindings`/`buildBindingDiagnosticMessages`はどこからも呼ばれない
+pure subsystemのままで、`DslDiagnostic`への変換は本タスクでは行わない
+（フィールド名`span`/`message`/`code`は揃えてあるため、将来の変換は機械的に書ける）。
+
+19は`entries`のvalid/invalid statusをname/order/cycle再判定なしにcompiled programへ使う。
+36は`InitializerGraph`/`StronglyConnectedComponent`をdependency graph表示に使う。
+41は`BindingIssue`のcode/span/relatedBindingIdsをQuick Fix候補選定に使う。いずれも
+resolution・graph・spanを再計算・再走査しない。
 
 ## 15. PR境界
 
