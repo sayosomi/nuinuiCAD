@@ -1,0 +1,444 @@
+import { describe, expect, it } from "vitest";
+import { buildDslBindingAdapterSeeds } from "../dsl/bindingCatalogAdapter";
+import { compileDslToElements } from "../dsl/dslCompiler";
+import { parseDsl } from "../dsl/dslParser";
+import type { DslStatement } from "../dsl/dslTypes";
+import { buildBindingCatalog, type Binding, type BindingCatalog } from "./bindingCatalog";
+import { resolveBindingReferenceForTests, type BindingResolution } from "./bindingResolution";
+import { parseScalarExpression } from "./expressionParser";
+import type { ScalarExpressionAst } from "./expressionAst";
+import { typecheckScalarExpression } from "./expressionTypecheck";
+import { buildLexicalScopeIndex } from "./lexicalScopeIndex";
+import type { ScalarExpressionTypecheckResult } from "./typedExpressionAst";
+import type { ScalarType } from "./types";
+
+// --- shared fixtures -------------------------------------------------------
+
+const fullSpan = (source: string) => ({ start: 0, end: source.length });
+
+const astFor = (expr: string): ScalarExpressionAst => {
+  const result = parseScalarExpression(expr, fullSpan(expr));
+  if (!result.ast) throw new Error(`expected a successful parse of ${JSON.stringify(expr)}, got ${JSON.stringify(result)}`);
+  return result.ast;
+};
+
+const check = (
+  expr: string,
+  expectedType: ScalarType | null = null,
+  references: readonly BindingResolution[] = []
+): ScalarExpressionTypecheckResult => typecheckScalarExpression(astFor(expr), { expectedType, references });
+
+/** Real DSL -> scope index -> binding catalog pipeline, mirroring the
+ * `catalogFor` helper already used by bindingResolution.test.ts /
+ * bindingAnalysis.test.ts, so this module's tests exercise genuine
+ * `BindingResolution` values rather than reinventing binding semantics. */
+const catalogFor = (source: string): BindingCatalog => {
+  const parsed = parseDsl(source);
+  expect(parsed.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
+  const statements: readonly DslStatement[] = parsed.statements;
+  const stableIds = new Map(statements.map((_, index) => [index, `stable-${index}`]));
+  const scopeIndex = buildLexicalScopeIndex(statements, (index) => stableIds.get(index)!);
+  const compiled = compileDslToElements(source, { elements: [], mode: "document", majorVersion: 3 });
+  const reconciledContainers = { elements: compiled.elements, elementIdByStatementIndex: compiled.elementIdsByStatementIndex ?? new Map() };
+  const adapter = buildDslBindingAdapterSeeds({ statements, scopeIndex, stableStatementIdByIndex: stableIds, reconciledContainers });
+  return buildBindingCatalog({
+    scopeIndex,
+    stableStatementIdByIndex: stableIds,
+    legacyBindings: adapter.legacyBindings,
+    iterationBindings: adapter.iterationBindings,
+    containerIndex: adapter.containerIndex
+  });
+};
+
+const resolutionAt = (catalog: BindingCatalog, name: string, statementIndex: number, fromBindingId?: string): BindingResolution =>
+  resolveBindingReferenceForTests(catalog, name, { scopeId: "root", statementIndex }, fromBindingId);
+
+const choiceType = (options: readonly string[]): ScalarType => ({ kind: "choice", options });
+
+/** Contract from typedExpressionAst.ts: one-way, not "iff". */
+const assertInvariant = (result: ScalarExpressionTypecheckResult) => {
+  if (result.type !== null) expect(result.diagnostics).toEqual([]);
+  if (result.diagnostics.length > 0) expect(result.type).toBeNull();
+};
+
+// --- operator cross product -------------------------------------------------
+
+describe("typecheckScalarExpression / arithmetic operators (+ - * /)", () => {
+  it.each(["+", "-", "*", "/"])("accepts number %s number and yields number", (op) => {
+    const result = check(`1 ${op} 2`);
+    expect(result.type).toEqual({ kind: "number" });
+    expect(result.diagnostics).toEqual([]);
+    assertInvariant(result);
+  });
+
+  it.each(["+", "-", "*", "/"])("rejects string %s string, flagging both operands independently", (op) => {
+    const expr = `"a" ${op} "b"`;
+    const result = check(expr);
+    expect(result.type).toBeNull();
+    expect(result.diagnostics).toHaveLength(2);
+    expect(result.diagnostics.every((d) => d.code === "scalar-type-mismatch")).toBe(true);
+    expect(result.diagnostics[0]).toMatchObject({ span: { start: expr.indexOf('"a"'), end: expr.indexOf('"a"') + 3 } });
+    expect(result.diagnostics[1]).toMatchObject({ span: { start: expr.indexOf('"b"'), end: expr.indexOf('"b"') + 3 } });
+    assertInvariant(result);
+  });
+
+  it.each(["+", "-", "*", "/"])("flags only the bad operand when the other is valid", (op) => {
+    const expr = `1 ${op} "a"`;
+    const result = check(expr);
+    expect(result.diagnostics).toHaveLength(1);
+    expect(result.diagnostics[0]).toMatchObject({
+      code: "scalar-type-mismatch",
+      expectedType: { kind: "number" },
+      actualType: { kind: "string" },
+      span: { start: expr.indexOf('"a"'), end: expr.indexOf('"a"') + 3 }
+    });
+    assertInvariant(result);
+  });
+});
+
+describe("typecheckScalarExpression / numeric comparison (< <= > >=)", () => {
+  it.each(["<", "<=", ">", ">="])("accepts number %s number and yields boolean", (op) => {
+    const result = check(`1 ${op} 2`);
+    expect(result.type).toEqual({ kind: "boolean" });
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it.each(["<", "<=", ">", ">="])("flags only the non-number side for %s", (op) => {
+    const expr = `1 ${op} "a"`;
+    const result = check(expr);
+    expect(result.type).toBeNull();
+    expect(result.diagnostics).toHaveLength(1);
+    expect(result.diagnostics[0].actualType).toEqual({ kind: "string" });
+  });
+});
+
+describe("typecheckScalarExpression / logical operators (&& ||)", () => {
+  it.each(["&&", "||"])("accepts boolean %s boolean and yields boolean", (op) => {
+    const result = check(`true ${op} false`);
+    expect(result.type).toEqual({ kind: "boolean" });
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it.each(["&&", "||"])("flags only the non-boolean left operand for %s, no evaluation/short-circuit performed", (op) => {
+    const result = check(`1 ${op} true`);
+    expect(result.type).toBeNull();
+    expect(result.diagnostics).toHaveLength(1);
+    expect(result.diagnostics[0]).toMatchObject({ expectedType: { kind: "boolean" }, actualType: { kind: "number" } });
+  });
+});
+
+describe("typecheckScalarExpression / unary operators", () => {
+  it("accepts ! on boolean and yields boolean", () => {
+    const result = check("!true");
+    expect(result.type).toEqual({ kind: "boolean" });
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it("rejects ! on a non-boolean operand", () => {
+    const result = check("!1");
+    expect(result.type).toBeNull();
+    expect(result.diagnostics).toEqual([expect.objectContaining({ code: "scalar-type-mismatch", expectedType: { kind: "boolean" } })]);
+  });
+
+  it.each(["-", "+"])("accepts unary %s on number and yields number", (op) => {
+    const result = check(`${op}1`);
+    expect(result.type).toEqual({ kind: "number" });
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it.each(["-", "+"])("rejects unary %s on a non-number operand", (op) => {
+    const result = check(`${op}true`);
+    expect(result.type).toBeNull();
+    expect(result.diagnostics).toEqual([expect.objectContaining({ code: "scalar-type-mismatch", expectedType: { kind: "number" } })]);
+  });
+
+  it("flags the exact nested operand span through unary + group + arithmetic wrapping", () => {
+    const expr = '!(1 + "a")';
+    const result = check(expr);
+    // Cascade suppression: only the inner arithmetic's own mismatch is
+    // reported; the group and the outer `!` both propagate `null` silently.
+    expect(result.diagnostics).toHaveLength(1);
+    const start = expr.indexOf('"a"');
+    expect(result.diagnostics[0]).toMatchObject({ code: "scalar-type-mismatch", span: { start, end: start + 3 } });
+    expect(result.type).toBeNull();
+  });
+});
+
+// --- equality: kind pairing and choice identity/order (D07) ----------------
+
+describe("typecheckScalarExpression / equality operand-kind pairing", () => {
+  it.each([
+    ["number", "1", "2"],
+    ["string", '"a"', '"a"'],
+    ["boolean", "true", "false"]
+  ])("accepts %s == %s and != as boolean", (_label, left, right) => {
+    expect(check(`${left} == ${right}`).type).toEqual({ kind: "boolean" });
+    expect(check(`${left} != ${right}`).type).toEqual({ kind: "boolean" });
+  });
+
+  it("rejects a cross-kind equality, flagging the whole node span", () => {
+    const expr = '1 == "a"';
+    const result = check(expr);
+    expect(result.type).toBeNull();
+    expect(result.diagnostics).toEqual([
+      expect.objectContaining({
+        code: "scalar-type-mismatch",
+        span: fullSpan(expr),
+        expectedType: { kind: "number" },
+        actualType: { kind: "string" }
+      })
+    ]);
+  });
+
+  it("accepts choice == choice with identical options and order", () => {
+    const catalog = catalogFor(["const a: choice(right, left) = right", "const b: choice(right, left) = left", "const use: boolean = true"].join("\n"));
+    const references = [resolutionAt(catalog, "a", 2), resolutionAt(catalog, "b", 2)];
+    const result = check("@a == @b", null, references);
+    expect(result.type).toEqual({ kind: "boolean" });
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it("rejects choice == choice with the same members but different order (D07)", () => {
+    const catalog = catalogFor(["const a: choice(right, left) = right", "const b: choice(left, right) = left", "const use: boolean = true"].join("\n"));
+    const references = [resolutionAt(catalog, "a", 2), resolutionAt(catalog, "b", 2)];
+    const expr = "@a == @b";
+    const result = check(expr, null, references);
+    expect(result.type).toBeNull();
+    expect(result.diagnostics).toEqual([expect.objectContaining({ code: "scalar-type-mismatch", span: fullSpan(expr) })]);
+  });
+
+  it("rejects choice == choice with a different option set", () => {
+    const catalog = catalogFor([
+      "const a: choice(right, left) = right",
+      "const b: choice(right, left, center) = left",
+      "const use: boolean = true"
+    ].join("\n"));
+    const references = [resolutionAt(catalog, "a", 2), resolutionAt(catalog, "b", 2)];
+    const result = check("@a == @b", null, references);
+    expect(result.type).toBeNull();
+    expect(result.diagnostics).toEqual([expect.objectContaining({ code: "scalar-type-mismatch" })]);
+  });
+});
+
+// --- bare choice literal resolution -----------------------------------------
+
+describe("typecheckScalarExpression / bare choice literal resolution", () => {
+  it("resolves a bare choice literal against the top-level expected choice type (plan.md example)", () => {
+    const result = check("right", choiceType(["right", "left"]));
+    expect(result.type).toEqual(choiceType(["right", "left"]));
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it("flags a bare choice literal that is not a member of the expected type", () => {
+    const result = check("up", choiceType(["right", "left"]));
+    expect(result.type).toBeNull();
+    expect(result.diagnostics).toEqual([expect.objectContaining({ code: "invalid-choice-literal", expectedType: choiceType(["right", "left"]) })]);
+  });
+
+  it("flags a bare choice literal with no expected-type context reaching it at all", () => {
+    const result = check("right", null);
+    expect(result.type).toBeNull();
+    expect(result.diagnostics).toEqual([expect.objectContaining({ code: "invalid-choice-literal" })]);
+    expect(result.diagnostics[0].expectedType).toBeUndefined();
+  });
+
+  it("threads the expected type through nested groups", () => {
+    const result = check("((right))", choiceType(["right", "left"]));
+    expect(result.type).toEqual(choiceType(["right", "left"]));
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it("never propagates an expected choice type into an arithmetic/logical/unary operand position", () => {
+    // `right` here has no reachable expected type (unary `!`'s operand call
+    // always passes null downward), so it fails on its own terms - not
+    // because of a spurious "expected boolean" complaint from `!`.
+    const result = check("!(right)", choiceType(["right", "left"]));
+    expect(result.diagnostics).toHaveLength(1);
+    expect(result.diagnostics[0].code).toBe("invalid-choice-literal");
+  });
+
+  it("hints a bare literal on the right from a resolved choice-typed reference on the left", () => {
+    const catalog = catalogFor(["const d: choice(right, left) = right", "const use: boolean = true"].join("\n"));
+    const dResolution = resolutionAt(catalog, "d", 1);
+    expect(dResolution.kind).toBe("resolved");
+    const result = check("@d == left", null, [dResolution]);
+    expect(result.type).toEqual({ kind: "boolean" });
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it("hints a bare literal on the left from a resolved choice-typed reference on the right", () => {
+    const catalog = catalogFor(["const d: choice(right, left) = right", "const use: boolean = true"].join("\n"));
+    const dResolution = resolutionAt(catalog, "d", 1);
+    const result = check("left == @d", null, [dResolution]);
+    expect(result.type).toEqual({ kind: "boolean" });
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it("flags both sides when both are bare choice literals with nothing to hint each other", () => {
+    const result = check("right == left", null);
+    expect(result.type).toBeNull();
+    expect(result.diagnostics.filter((d) => d.code === "invalid-choice-literal")).toHaveLength(2);
+    expect(result.diagnostics.some((d) => d.code === "scalar-type-mismatch")).toBe(false);
+  });
+});
+
+// --- declaration expected type ----------------------------------------------
+
+describe("typecheckScalarExpression / declaration expected type", () => {
+  it("reports a mismatch once at the whole expression span, preserving the literal's own honest type", () => {
+    const expr = "5";
+    const result = check(expr, { kind: "string" });
+    expect(result.typed).toMatchObject({ kind: "numberLiteral", type: { kind: "number" } });
+    expect(result.type).toBeNull();
+    expect(result.diagnostics).toEqual([
+      expect.objectContaining({
+        code: "scalar-type-mismatch",
+        span: fullSpan(expr),
+        expectedType: { kind: "string" },
+        actualType: { kind: "number" }
+      })
+    ]);
+  });
+
+  it("never reports a top-level mismatch when there is no expected type", () => {
+    expect(check("5", null).diagnostics).toEqual([]);
+  });
+});
+
+// --- reference binding ID attachment ----------------------------------------
+
+describe("typecheckScalarExpression / reference binding ID attachment", () => {
+  it("attaches a typed binding's declared type and stable ID", () => {
+    const catalog = catalogFor(["const width: number = 12", "const use: number = @width"].join("\n"));
+    const resolution = resolutionAt(catalog, "width", 1);
+    expect(resolution.kind).toBe("resolved");
+    const result = check("@width", { kind: "number" }, [resolution]);
+    expect(result.type).toEqual({ kind: "number" });
+    expect(result.typed).toMatchObject({ kind: "reference", bindingId: "binding:stable-0", type: { kind: "number" } });
+  });
+
+  it("infers an implicit number type for a resolved legacy binding (null declaredType)", () => {
+    const catalog = catalogFor(["var legacy = 1", "const use: number = @legacy"].join("\n"));
+    const resolution = resolutionAt(catalog, "legacy", 1);
+    expect(resolution.kind).toBe("resolved");
+    if (resolution.kind === "resolved") expect(resolution.binding.kind).toBe("legacy");
+    const result = check("@legacy", { kind: "number" }, [resolution]);
+    expect(result.type).toEqual({ kind: "number" });
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it("resolves interleaved references across a tree in correct left-to-right order", () => {
+    const catalog = catalogFor(["var a = 1", "var b = 2", "var c = 3", "const use: number = @a"].join("\n"));
+    const [aRes, bRes, cRes] = [resolutionAt(catalog, "a", 3), resolutionAt(catalog, "b", 3), resolutionAt(catalog, "c", 3)];
+    const result = check("@a + @b * @c", { kind: "number" }, [aRes, bRes, cRes]);
+    expect(result.type).toEqual({ kind: "number" });
+    expect(result.diagnostics).toEqual([]);
+    if (result.typed.kind !== "binary" || result.typed.right.kind !== "binary") throw new Error("expected + over (b * c)");
+    expect(result.typed.left).toMatchObject({ name: "a", bindingId: "binding:stable-0" });
+    expect(result.typed.right.left).toMatchObject({ name: "b", bindingId: "binding:stable-1" });
+    expect(result.typed.right.right).toMatchObject({ name: "c", bindingId: "binding:stable-2" });
+  });
+});
+
+// --- poisoned/invalid reference propagation ---------------------------------
+
+describe("typecheckScalarExpression / poisoned or unresolved references", () => {
+  it("propagates an undefined reference as invalid without a new diagnostic, and cascades silently", () => {
+    const catalog = catalogFor("const a: number = 1");
+    const resolution = resolutionAt(catalog, "missing", 0);
+    expect(resolution.kind).toBe("undefined");
+    const result = check("@missing + 1", null, [resolution]);
+    expect(result.diagnostics).toEqual([]);
+    expect(result.type).toBeNull();
+    if (result.typed.kind !== "binary") throw new Error("expected binary");
+    expect(result.typed.left).toMatchObject({ kind: "reference", bindingId: null, type: null });
+  });
+
+  it("propagates a forward reference as invalid without a new diagnostic", () => {
+    const catalog = catalogFor(["const a: number = @b", "const b: number = 1"].join("\n"));
+    const resolution = resolutionAt(catalog, "b", 0);
+    expect(resolution.kind).toBe("forward");
+    const result = check("@missing + 1", null, [resolution]);
+    expect(result.diagnostics).toEqual([]);
+    expect(result.type).toBeNull();
+  });
+
+  it("propagates a self-initialization reference as invalid without a new diagnostic", () => {
+    const catalog = catalogFor("const x: number = @x");
+    const resolution = resolutionAt(catalog, "x", 0, "binding:stable-0");
+    expect(resolution.kind).toBe("self");
+    const result = check("@missing + 1", null, [resolution]);
+    expect(result.diagnostics).toEqual([]);
+    expect(result.type).toBeNull();
+  });
+
+  it("propagates a duplicate reference as invalid without a new diagnostic", () => {
+    const catalog = catalogFor(["const x: number = 1", "let x: number = 2", "const use: number = @x"].join("\n"));
+    const resolution = resolutionAt(catalog, "x", 2);
+    expect(resolution.kind).toBe("duplicate");
+    const result = check("@missing + 1", null, [resolution]);
+    expect(result.diagnostics).toEqual([]);
+    expect(result.type).toBeNull();
+  });
+
+  it("propagates a resolved typed binding with a null declaredType (malformed annotation) as invalid, without a new diagnostic", () => {
+    const binding: Binding = {
+      id: "binding:malformed",
+      kind: "typed",
+      name: "bad",
+      nameSpan: null,
+      statementIndex: 0,
+      effectiveScopeId: "root",
+      visibility: { kind: "typed", scopeId: "root" },
+      mutability: "const",
+      declaredType: null,
+      rank: 0
+    };
+    const resolution: BindingResolution = { kind: "resolved", binding };
+    const result = check("@bad", null, [resolution]);
+    expect(result.diagnostics).toEqual([]);
+    expect(result.type).toBeNull();
+    expect(result.typed).toMatchObject({ kind: "reference", bindingId: "binding:malformed", type: null });
+  });
+
+  it("cascades nested poisoning through group/arithmetic/equality without diagnostic pileup", () => {
+    const catalog = catalogFor("const a: number = 1");
+    const resolution = resolutionAt(catalog, "missing", 0);
+    const result = check("(@missing + 1) == 2", null, [resolution]);
+    expect(result.diagnostics).toEqual([]);
+    expect(result.type).toBeNull();
+  });
+});
+
+// --- reference cursor contract ----------------------------------------------
+
+describe("typecheckScalarExpression / reference cursor contract", () => {
+  it("throws when fewer BindingResolutions are supplied than reference nodes", () => {
+    expect(() => typecheckScalarExpression(astFor("@a + @b"), { expectedType: null, references: [] })).toThrow(/expressionTypecheck/);
+  });
+
+  it("throws when more BindingResolutions are supplied than reference nodes", () => {
+    const resolution: BindingResolution = { kind: "undefined", name: "a", scopeId: "root", statementIndex: 0 };
+    expect(() => typecheckScalarExpression(astFor("@a"), { expectedType: null, references: [resolution, resolution] })).toThrow(/expressionTypecheck/);
+  });
+});
+
+// --- invariant --------------------------------------------------------------
+
+describe("typecheckScalarExpression / type-vs-diagnostics invariant", () => {
+  it("type !== null implies zero diagnostics", () => {
+    assertInvariant(check("1 + 2"));
+  });
+
+  it("diagnostics.length > 0 implies type === null", () => {
+    assertInvariant(check('1 + "a"'));
+  });
+
+  it("allows type === null with zero diagnostics for silent binding-invalidity propagation", () => {
+    const catalog = catalogFor("const a: number = 1");
+    const resolution = resolutionAt(catalog, "missing", 0);
+    const result = check("@missing", null, [resolution]);
+    expect(result.type).toBeNull();
+    expect(result.diagnostics).toEqual([]);
+  });
+});
