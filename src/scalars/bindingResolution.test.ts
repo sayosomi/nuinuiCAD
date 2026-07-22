@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildDslBindingAdapterSeeds } from "../dsl/bindingCatalogAdapter";
+import { compileDslToElements } from "../dsl/dslCompiler";
 import { parseDsl } from "../dsl/dslParser";
 import type { DslStatement } from "../dsl/dslTypes";
 import { variableIsInScope } from "../geometry/variableScope";
@@ -26,17 +27,22 @@ const catalogFor = (source: string, elementLocalBindings: readonly BindingSeed[]
   // identities; the catalog never creates these from statement positions.
   const stableIds = new Map(statements.map((_, index) => [index, `stable-${index}`]));
   const scopeIndex = buildLexicalScopeIndex(statements, (index) => stableIds.get(index)!);
-  const adapter = buildDslBindingAdapterSeeds({ statements, scopeIndex, stableStatementIdByIndex: stableIds });
+  const compiled = compileDslToElements(source, { elements: [], mode: "document", majorVersion: 3 });
+  expect(compiled.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
+  const reconciledContainers = { elements: compiled.elements, elementIdByStatementIndex: compiled.elementIdsByStatementIndex ?? new Map() };
+  const adapter = buildDslBindingAdapterSeeds({ statements, scopeIndex, stableStatementIdByIndex: stableIds, reconciledContainers });
   return {
     catalog: buildBindingCatalog({
       scopeIndex,
       stableStatementIdByIndex: stableIds,
       legacyBindings: adapter.legacyBindings,
       iterationBindings: adapter.iterationBindings,
-      elementLocalBindings
+      elementLocalBindings,
+      containerIndex: adapter.containerIndex
     }),
     statements,
-    scopeIndex
+    scopeIndex,
+    elements: compiled.elements
   };
 };
 
@@ -118,7 +124,7 @@ describe("binding name resolution", () => {
 
   it.each([
     ["typed/typed", ["const x: number = 1", "let x: number = 2", "const use: number = @x"].join("\n")],
-    ["typed/legacy", ["const x: number = 1", "var x = 2"].join("\n")],
+    ["typed/legacy", ["const x: number = 1", "var x = 2", "const use: number = @x"].join("\n")],
     ["legacy/legacy", [
       "var x = expression(value: 1 id: legacy-x-1)",
       "var x = expression(value: 2 id: legacy-x-2)", "const use: number = @x"
@@ -130,17 +136,119 @@ describe("binding name resolution", () => {
     if (result.kind === "duplicate") expect(result.bindingIds).toHaveLength(2);
   });
 
-  it("keeps legacy visibility separate from typed declaration order", () => {
+  it("does not expose a legacy binding before its declaration statement", () => {
     const { catalog } = catalogFor(["const before: number = 0", "var legacy = 1"].join("\n"));
     expect(resolveBindingReferenceForTests(catalog, "legacy", { scopeId: "root", statementIndex: 0 }))
-      .toMatchObject({ kind: "resolved", binding: { kind: "legacy", id: "binding:stable-1" } });
+      .toMatchObject({ kind: "undefined" });
+  });
+
+  it("activates global and outside-groups legacy lanes only after their root declaration", () => {
+    const { catalog } = catalogFor([
+      "const beforeGlobal: number = @GlobalLater",
+      "var GlobalLater = expression(value: 1 scope: global)",
+      "const afterGlobal: number = @GlobalLater",
+      "const beforeOutside: number = @OutsideLater",
+      "var OutsideLater = expression(value: 2 scope: group)",
+      "const afterOutside: number = @OutsideLater"
+    ].join("\n"));
+    expect(resolveBindingReferenceForTests(catalog, "GlobalLater", { scopeId: "root", statementIndex: 0 })).toMatchObject({ kind: "undefined" });
+    expect(resolveBindingReferenceForTests(catalog, "GlobalLater", { scopeId: "root", statementIndex: 2 })).toMatchObject({ kind: "resolved", binding: { id: "binding:stable-1" } });
+    expect(resolveBindingReferenceForTests(catalog, "OutsideLater", { scopeId: "root", statementIndex: 3 })).toMatchObject({ kind: "undefined" });
+    expect(resolveBindingReferenceForTests(catalog, "OutsideLater", { scopeId: "root", statementIndex: 5 })).toMatchObject({ kind: "resolved", binding: { id: "binding:stable-4" } });
+  });
+
+  it("activates a group-scoped legacy lane inside an already-entered group", () => {
+    const { catalog } = catalogFor([
+      "group G (id: g) {",
+      "  const before: number = @GroupLater",
+      "  var GroupLater = expression(value: 1 scope: group)",
+      "  const after: number = @GroupLater",
+      "}"
+    ].join("\n"));
+    const scopeId = "group:stable-0";
+    expect(resolveBindingReferenceForTests(catalog, "GroupLater", { scopeId, statementIndex: 1 })).toMatchObject({ kind: "undefined" });
+    expect(resolveBindingReferenceForTests(catalog, "GroupLater", { scopeId, statementIndex: 3 })).toMatchObject({ kind: "resolved", binding: { id: "binding:stable-2" } });
+    expect(visibleBindingsAt(catalog, { scopeId, statementIndex: 1 }).some((binding) => binding.name === "GroupLater")).toBe(false);
+    expect(visibleBindingsAt(catalog, { scopeId, statementIndex: 3 }).find((binding) => binding.name === "GroupLater")?.id).toBe("binding:stable-2");
+  });
+
+  it("persists a conditional container lane from then into the later else branch", () => {
+    const { catalog } = catalogFor([
+      "if Branch (1 id: conditional) {",
+      "  const before: number = @Shared",
+      "  var Shared = expression(value: 1 scope: group)",
+      "  const afterThen: number = @Shared",
+      "} else {",
+      "  const afterElse: number = @Shared",
+      "}",
+      "const outside: number = @Shared"
+    ].join("\n"));
+    expect(resolveBindingReferenceForTests(catalog, "Shared", { scopeId: "if:stable-0:then", statementIndex: 1 })).toMatchObject({ kind: "undefined" });
+    expect(resolveBindingReferenceForTests(catalog, "Shared", { scopeId: "if:stable-0:then", statementIndex: 3 })).toMatchObject({ kind: "resolved", binding: { id: "binding:stable-2" } });
+    expect(resolveBindingReferenceForTests(catalog, "Shared", { scopeId: "if:stable-0:else", statementIndex: 5 })).toMatchObject({ kind: "resolved", binding: { id: "binding:stable-2" } });
+    expect(resolveBindingReferenceForTests(catalog, "Shared", { scopeId: "root", statementIndex: 7 })).toMatchObject({ kind: "undefined" });
+  });
+
+  it("keeps for-body group scope inside its reconciled forGroup container", () => {
+    const { catalog } = catalogFor([
+      "for Loop (i from: 0 count: 2 id: loop) {",
+      "  const before: number = @LoopLocal",
+      "  var LoopLocal = expression(value: 1 scope: group)",
+      "  const after: number = @LoopLocal",
+      "}",
+      "const outside: number = @LoopLocal"
+    ].join("\n"));
+    const scopeId = "for:stable-0";
+    expect(resolveBindingReferenceForTests(catalog, "LoopLocal", { scopeId, statementIndex: 1 })).toMatchObject({ kind: "undefined" });
+    expect(resolveBindingReferenceForTests(catalog, "LoopLocal", { scopeId, statementIndex: 3 })).toMatchObject({ kind: "resolved", binding: { id: "binding:stable-2" } });
+    expect(resolveBindingReferenceForTests(catalog, "LoopLocal", { scopeId: "root", statementIndex: 5 })).toMatchObject({ kind: "undefined" });
+  });
+
+  it("uses an explicit reconciled parent as the group-scoped legacy owner", () => {
+    const { catalog } = catalogFor([
+      "var ParentLocal = expression(value: 1 scope: group parent: target)",
+      "const outside: number = @ParentLocal",
+      "group Target (id: target) {",
+      "  const inside: number = @ParentLocal",
+      "}"
+    ].join("\n"));
+    expect(resolveBindingReferenceForTests(catalog, "ParentLocal", { scopeId: "root", statementIndex: 1 })).toMatchObject({ kind: "undefined" });
+    expect(resolveBindingReferenceForTests(catalog, "ParentLocal", { scopeId: "group:stable-2", statementIndex: 3 })).toMatchObject({ kind: "resolved", binding: { id: "binding:stable-0" } });
+  });
+
+  it("does not use a later legacy declaration as forward or to suppress self and outer fallback", () => {
+    const self = catalogFor(["const x: number = @x", "var x = 1"].join("\n"));
+    expect(resolveInitializerReferences(self.catalog, [{
+      fromBindingId: "binding:stable-0",
+      occurrenceIndex: 0,
+      name: "x",
+      site: { scopeId: "root", statementIndex: 0 }
+    }])[0].resolution).toMatchObject({ kind: "self", bindingId: "binding:stable-0" });
+
+    const undefinedLater = catalogFor(["const use: number = @later", "var later = 1"].join("\n"));
+    expect(resolveInitializerReferences(undefinedLater.catalog, [{
+      fromBindingId: "binding:stable-0",
+      occurrenceIndex: 0,
+      name: "later",
+      site: { scopeId: "root", statementIndex: 0 }
+    }])[0].resolution).toMatchObject({ kind: "undefined" });
+
+    const outer = catalogFor([
+      "const x: number = 1",
+      "group G {",
+      "  const x: number = @x",
+      "  var x = expression(value: 2 scope: group)",
+      "}"
+    ].join("\n"));
+    expect(resolveBindingReferenceForTests(outer.catalog, "x", { scopeId: "group:stable-1", statementIndex: 2 }, "binding:stable-2"))
+      .toMatchObject({ kind: "resolved", binding: { id: "binding:stable-0" } });
   });
 
   it("matches legacy group visibility for descendants but not sibling groups", () => {
     const { catalog } = catalogFor([
-      "group Outer {",
+      "group Outer (id: outer) {",
       "  var scoped = expression(value: 1 scope: group)",
-      "  group Inner {",
+      "  group Inner (id: inner) {",
       "    const inside: number = 0",
       "  }",
       "}",
@@ -177,9 +285,9 @@ describe("binding name resolution", () => {
   it("keeps outside-groups bindings out of group and nested-group lookup lanes", () => {
     const { catalog } = catalogFor([
       "var x = expression(value: 1 scope: group)",
-      "group Outer {",
+      "group Outer (id: outer) {",
       "  const inOuter: number = @x",
-      "  group Inner {",
+      "  group Inner (id: inner) {",
       "    const inInner: number = @x",
       "  }",
       "}",
@@ -194,13 +302,13 @@ describe("binding name resolution", () => {
     const { catalog } = catalogFor([
       "var Outside = expression(value: 1 id: outside scope: group)",
       "var Global = expression(value: 1 id: global scope: global)",
-      "group Outer {",
+      "group Outer (id: outer) {",
       "  var Scoped = expression(value: 1 id: scoped scope: group)",
-      "  group Inner {",
+      "  group Inner (id: inner) {",
       "    const nested: number = @Global",
       "  }",
       "}",
-      "group Sibling {",
+      "group Sibling (id: sibling) {",
       "  const sibling: number = @Global",
       "}"
     ].join("\n"));
@@ -217,12 +325,51 @@ describe("binding name resolution", () => {
     expect(visibility("Outside", "root", 1)).toBe(legacyVisible("group", undefined, undefined));
     expect(visibility("Outside", "group:stable-2", 3)).toBe(legacyVisible("group", undefined, "outer"));
     expect(visibility("Outside", "group:stable-4", 5)).toBe(legacyVisible("group", undefined, "inner"));
-    expect(visibility("Global", "root", 1)).toBe(legacyVisible("global", undefined, undefined));
+    expect(visibility("Global", "root", 2)).toBe(legacyVisible("global", undefined, undefined));
     expect(visibility("Global", "group:stable-2", 3)).toBe(legacyVisible("global", undefined, "outer"));
     expect(visibility("Global", "group:stable-4", 5)).toBe(legacyVisible("global", undefined, "inner"));
-    expect(visibility("Scoped", "group:stable-2", 3)).toBe(legacyVisible("group", "outer", "outer"));
+    expect(visibility("Scoped", "group:stable-2", 4)).toBe(legacyVisible("group", "outer", "outer"));
     expect(visibility("Scoped", "group:stable-4", 5)).toBe(legacyVisible("group", "outer", "inner"));
     expect(visibility("Scoped", "group:stable-8", 9)).toBe(legacyVisible("group", "outer", "sibling"));
+  });
+
+  it("matches variableIsInScope for conditional, forGroup, and explicit-parent containers", () => {
+    const prepared = catalogFor([
+      "if Branch (1 id: conditional) {",
+      "  var ConditionalLocal = expression(value: 1 scope: group)",
+      "  const thenUse: number = @ConditionalLocal",
+      "} else {",
+      "  const elseUse: number = @ConditionalLocal",
+      "}",
+      "const conditionalOutside: number = @ConditionalLocal",
+      "for Loop (i from: 0 count: 2 id: loop) {",
+      "  var LoopLocal = expression(value: 1 scope: group)",
+      "  const loopUse: number = @LoopLocal",
+      "}",
+      "const loopOutside: number = @LoopLocal",
+      "var ParentLocal = expression(value: 1 scope: group parent: target)",
+      "const parentOutside: number = @ParentLocal",
+      "group Target (id: target) {",
+      "  const parentInside: number = @ParentLocal",
+      "}"
+    ].join("\n"));
+    const elementsById = new Map(prepared.elements.map((element) => [element.id, element]));
+    const variableByName = new Map(prepared.elements
+      .filter((element): element is VariableElement => element.type === "variable")
+      .map((variable) => [variable.name, variable]));
+    const parity = (name: string, scopeId: string, statementIndex: number, consumerParentGroupId: string | undefined) => {
+      const variable = variableByName.get(name)!;
+      const resolverVisible = resolveBindingReferenceForTests(prepared.catalog, name, { scopeId, statementIndex }).kind === "resolved";
+      const legacyVisible = variableIsInScope({ variable, consumer: { parentGroupId: consumerParentGroupId }, elementsById });
+      expect(resolverVisible).toBe(legacyVisible);
+    };
+    parity("ConditionalLocal", "if:stable-0:then", 2, "conditional");
+    parity("ConditionalLocal", "if:stable-0:else", 4, "conditional");
+    parity("ConditionalLocal", "root", 6, undefined);
+    parity("LoopLocal", "for:stable-7", 9, "loop");
+    parity("LoopLocal", "root", 11, undefined);
+    parity("ParentLocal", "root", 13, undefined);
+    parity("ParentLocal", "group:stable-14", 15, "target");
   });
 
   it("merges same-namespace lanes in catalog order and stops before shadowed outer lanes", () => {
@@ -279,7 +426,7 @@ describe("binding name resolution", () => {
       statementIndex: 0,
       sourceOrder,
       effectiveScopeId: iterationScopeId,
-      visibility: { kind: "subtree", rootScopeId: iterationScopeId }
+      visibility: { kind: "iteration", rootScopeId: iterationScopeId }
     }));
     const catalog = buildBindingCatalog({ scopeIndex, stableStatementIdByIndex: stableIds, iterationBindings: iterations });
     expect(resolveBindingReferenceForTests(catalog, "i", { scopeId: iterationScopeId, statementIndex: 1 }))
@@ -313,6 +460,23 @@ describe("binding name resolution", () => {
     expect(trace.registeredBindingCount).toBe(catalog.bindings.length);
     expect(trace.requestCount).toBe(requests.length);
     expect(trace.emittedCandidateCount).toBe(0);
+  });
+
+  it("does not inspect inactive future legacy candidates per reference", () => {
+    const source = [
+      "const use: number = @later",
+      ...Array.from({ length: 100 }, (_, index) => `var later = expression(value: ${index} id: later-${index} scope: global)`)
+    ].join("\n");
+    const { catalog } = catalogFor(source);
+    const { references, trace } = resolveInitializerReferencesWithTraceForTests(catalog, [{
+      fromBindingId: "binding:stable-0",
+      occurrenceIndex: 0,
+      name: "later",
+      site: { scopeId: "root", statementIndex: 0 }
+    }]);
+    expect(references[0].resolution).toMatchObject({ kind: "undefined" });
+    expect(trace.candidateVisitsByVisibilityKind.get("global") ?? 0).toBe(0);
+    expect(trace.candidateInspectionCount).toBe(0);
   });
 
   it("gives adapter-scoped element locals precedence over iteration and document bindings", () => {

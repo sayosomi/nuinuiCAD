@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildDslBindingAdapterSeeds } from "../dsl/bindingCatalogAdapter";
+import { compileDslToElements } from "../dsl/dslCompiler";
 import { parseDsl } from "../dsl/dslParser";
 import type { DslStatement } from "../dsl/dslTypes";
 import { analyzeBindings, type InitializerReference } from "./bindingAnalysis";
@@ -18,12 +19,15 @@ const catalogFor = (source: string) => {
   const statements = parsedStatements(source);
   const stableIds = new Map(statements.map((_, index) => [index, `stable-${index}`]));
   const scopeIndex = buildLexicalScopeIndex(statements, (index) => stableIds.get(index)!);
-  const adapter = buildDslBindingAdapterSeeds({ statements, scopeIndex, stableStatementIdByIndex: stableIds });
+  const compiled = compileDslToElements(source, { elements: [], mode: "document", majorVersion: 3 });
+  const reconciledContainers = { elements: compiled.elements, elementIdByStatementIndex: compiled.elementIdsByStatementIndex ?? new Map() };
+  const adapter = buildDslBindingAdapterSeeds({ statements, scopeIndex, stableStatementIdByIndex: stableIds, reconciledContainers });
   return buildBindingCatalog({
     scopeIndex,
     stableStatementIdByIndex: stableIds,
     legacyBindings: adapter.legacyBindings,
-    iterationBindings: adapter.iterationBindings
+    iterationBindings: adapter.iterationBindings,
+    containerIndex: adapter.containerIndex
   });
 };
 

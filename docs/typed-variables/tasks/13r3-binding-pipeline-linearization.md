@@ -39,6 +39,10 @@ or binding/reference × scope traversal is permitted.
   filters an owner/name bucket per reference or allocates by the maximum order.
 - Bulk visibility traverses a site once and collects all names inner-to-outer;
   it never invokes a full sweep once per name.
+- Task 13R-7 activates registered legacy bindings after their declaration
+  statement. Frames reference one mutable lane per global/outside/container
+  owner; bindings are not copied into active frames or expanded across scopes.
+  Reconciled container identity selects group-subtree lanes in O(1).
 
 ## Tests and measurement
 

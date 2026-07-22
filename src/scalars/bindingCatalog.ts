@@ -3,6 +3,7 @@
 // from the parsed statement stream.
 import type { DslSpan } from "../dsl/dslTypes";
 import type { LexicalScopeIndex, ScopeId } from "./lexicalScopeIndex";
+import type { LegacyContainerIndex } from "./legacyContainerIndex";
 import type { ScalarType } from "./types";
 import { buildElementLocalRangeIndex, type ElementLocalRangeIndex } from "./elementLocalRangeIndex";
 
@@ -12,7 +13,8 @@ export type BindingMutability = "const" | "let" | "readonly";
 export type BindingVisibility =
   | { kind: "typed"; scopeId: ScopeId }
   | { kind: "global" }
-  | { kind: "subtree"; rootScopeId: ScopeId }
+  | { kind: "groupSubtree"; ownerContainerId: string }
+  | { kind: "iteration"; rootScopeId: ScopeId }
   | { kind: "outsideGroups" }
   | { kind: "elementLocal"; ownerId: string; startOrder: number; endOrder: number };
 
@@ -50,6 +52,7 @@ export type BuildBindingCatalogInput = {
   legacyBindings?: readonly BindingSeed[];
   iterationBindings?: readonly BindingSeed[];
   elementLocalBindings?: readonly BindingSeed[];
+  containerIndex?: LegacyContainerIndex;
 };
 
 export type BindingCatalog = {
@@ -67,16 +70,27 @@ export type BindingCatalog = {
   bindingsByEffectiveScopeAndName: ReadonlyMap<ScopeId, ReadonlyMap<string, readonly Binding[]>>;
   elementLocalBindingsByOwnerAndName: ReadonlyMap<string, ReadonlyMap<string, readonly Binding[]>>;
   elementLocalRangeIndex: ElementLocalRangeIndex;
+  containerIndex: LegacyContainerIndex;
   declarationDuplicateBuckets: readonly (readonly Binding[])[];
 };
 
 export type BindingLookupNamespaces = {
-  /** Visible at the root lexical level of every scope tree, once per name. */
+  /** Registered legacy lanes. Runtime visibility begins only on activation. */
   globalByName: ReadonlyMap<string, readonly Binding[]>;
   /** Selected only for sites outside every CAD group. */
   outsideGroupsByName: ReadonlyMap<string, readonly Binding[]>;
-  /** Group-subtree and iteration bindings, registered when their root scope opens. */
-  scopedStaticByScopeAndName: ReadonlyMap<ScopeId, ReadonlyMap<string, readonly Binding[]>>;
+  groupByOwnerAndName: ReadonlyMap<string, ReadonlyMap<string, readonly Binding[]>>;
+  /** Iteration slots are structural and become visible when their scope opens. */
+  iterationByScopeAndName: ReadonlyMap<ScopeId, ReadonlyMap<string, readonly Binding[]>>;
+  legacyByStatementIndex: ReadonlyMap<number, readonly Binding[]>;
+};
+
+const emptyContainerIndex: LegacyContainerIndex = {
+  ownerContainerIdByStatementIndex: new Map(),
+  containerIdByScopeId: new Map(),
+  containerKindById: new Map(),
+  parentContainerIdById: new Map(),
+  effectiveScopeIdByContainerId: new Map()
 };
 
 const typedBindingId = (stableStatementId: string): BindingId => `binding:${stableStatementId}`;
@@ -89,7 +103,8 @@ export const buildBindingCatalog = ({
   stableStatementIdByIndex,
   legacyBindings = [],
   iterationBindings = [],
-  elementLocalBindings = []
+  elementLocalBindings = [],
+  containerIndex = emptyContainerIndex
 }: BuildBindingCatalogInput): BindingCatalog => {
   const statementCount = scopeIndex.statementRankByIndex.size;
   const lanes: (Map<number, Ordered[]> | undefined)[][] = Array.from({ length: statementCount }, () => []);
@@ -137,7 +152,9 @@ export const buildBindingCatalog = ({
   const localBuckets = new Map<string, Map<string, Binding[]>>();
   const globalByName = new Map<string, Binding[]>();
   const outsideGroupsByName = new Map<string, Binding[]>();
-  const scopedStaticByScopeAndName = new Map<ScopeId, Map<string, Binding[]>>();
+  const groupByOwnerAndName = new Map<string, Map<string, Binding[]>>();
+  const iterationByScopeAndName = new Map<ScopeId, Map<string, Binding[]>>();
+  const legacyByStatementIndex = new Map<number, Binding[]>();
   const addLookupBinding = <K>(index: Map<K, Map<string, Binding[]>>, key: K, binding: Binding) => {
     const names = index.get(key) ?? new Map<string, Binding[]>();
     const bucket = names.get(binding.name) ?? [];
@@ -164,8 +181,15 @@ export const buildBindingCatalog = ({
         const outsideBucket = outsideGroupsByName.get(binding.name) ?? [];
         outsideBucket.push(binding);
         outsideGroupsByName.set(binding.name, outsideBucket);
-      } else if (binding.visibility.kind === "subtree") {
-        addLookupBinding(scopedStaticByScopeAndName, binding.visibility.rootScopeId, binding);
+      } else if (binding.visibility.kind === "groupSubtree") {
+        addLookupBinding(groupByOwnerAndName, binding.visibility.ownerContainerId, binding);
+      } else if (binding.visibility.kind === "iteration") {
+        addLookupBinding(iterationByScopeAndName, binding.visibility.rootScopeId, binding);
+      }
+      if (binding.kind === "legacy") {
+        const statementBindings = legacyByStatementIndex.get(binding.statementIndex) ?? [];
+        statementBindings.push(binding);
+        legacyByStatementIndex.set(binding.statementIndex, statementBindings);
       }
     }
   }
@@ -182,7 +206,9 @@ export const buildBindingCatalog = ({
   const lookupNamespaces: BindingLookupNamespaces = {
     globalByName,
     outsideGroupsByName,
-    scopedStaticByScopeAndName: freezeBuckets(scopedStaticByScopeAndName)
+    groupByOwnerAndName: freezeBuckets(groupByOwnerAndName),
+    iterationByScopeAndName: freezeBuckets(iterationByScopeAndName),
+    legacyByStatementIndex
   };
   // Discover duplicate buckets in catalog rank order, not Map insertion order.
   for (const binding of bindings) {
@@ -191,5 +217,5 @@ export const buildBindingCatalog = ({
       : bindingsByEffectiveScopeAndName.get(binding.effectiveScopeId)?.get(binding.name);
     if (bucket && bucket.length > 1 && !duplicateSeen.has(bucket)) { duplicateSeen.add(bucket); declarationDuplicateBuckets.push(bucket); }
   }
-  return { scopeIndex, bindings, bindingsById, lookupNamespaces, bindingsByEffectiveScopeAndName, elementLocalBindingsByOwnerAndName, elementLocalRangeIndex, declarationDuplicateBuckets };
+  return { scopeIndex, bindings, bindingsById, lookupNamespaces, bindingsByEffectiveScopeAndName, elementLocalBindingsByOwnerAndName, elementLocalRangeIndex, containerIndex, declarationDuplicateBuckets };
 };

@@ -1,6 +1,6 @@
 # 型付き変数・レキシカルスコープ実行計画
 
-このdirectoryは[plan.md](plan.md)の仕様を、1 Sonnet session / 1 branch / 1 PRで実行できる単位へ分割した実装計画である。最終分割は53 task。数合わせではなく、parser、analysis、TS reference、Rust parity、production connection、UI、release gateを独立完了できる境界から決めた。
+このdirectoryは[plan.md](plan.md)の仕様を、1 Sonnet session / 1 branch / 1 PRで実行できる単位へ分割した実装計画である。最終分割は54 task。数合わせではなく、parser、analysis、TS reference、Rust parity、production connection、UI、release gateを独立完了できる境界から決めた。
 
 ## 実行ルール
 
@@ -35,6 +35,7 @@
 | 13R-4 | [batch resolver owner contract / forward order](tasks/13r4-batch-resolver-contract.md) | binding analysis | 13R-3 | analysis only | `typed-vars/13r4-resolver-contract` | 完了 |
 | 13R-5 | [legacy visibility lookup linearization](tasks/13r5-legacy-visibility-linearization.md) | performance | 13R-4 | analysis only | `typed-vars/13r5-legacy-visibility` | 完了 |
 | 13R-6 | [binding lookup closure](tasks/13r6-binding-lookup-closure.md) | binding analysis/performance | 13R-5 | analysis only | `typed-vars/13r6-binding-lookup-closure` | 完了 |
+| 13R-7 | [legacy declaration order / CAD container parity](tasks/13r7-legacy-container-parity.md) | binding analysis/performance | 13R-6 | analysis only | `typed-vars/13r7-legacy-container` | 完了 |
 | 14 | [TS expression parser](tasks/14-ts-expression-parser.md) | typed expression | 09,10 | unconnected AST | `typed-vars/14-ts-expression-parser` | 未着手 |
 | 15 | [TS expression typechecker](tasks/15-ts-expression-typechecker.md) | typed expression | 12,14 | unconnected typecheck | `typed-vars/15-ts-expression-typecheck` | 未着手 |
 | 16 | [TS expression reference evaluator](tasks/16-ts-expression-reference-evaluator.md) | typed expression | 15 | reference only | `typed-vars/16-ts-expression-eval` | 未着手 |

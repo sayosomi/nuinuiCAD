@@ -59,3 +59,13 @@ Focused tests lock exact-scope forward classification, catalog-order forward
 edges, local range output sensitivity, bulk one-traversal behavior, legacy and
 typed shadow/duplicate parity, local precedence, cycle suppression, invalid
 dependency propagation, eligibility, and stable/canonical IDs and order.
+
+## 13R-7 handoff
+
+The shared source sweep now activates legacy bindings after their declaration
+statement. Forward lookup remains typed-only. `visibleBindingsAt` shares the
+same activation events and mutable global/outside/container owner lanes, so it
+does not expose future legacy declarations or perform name-by-name sweeps.
+Container ownership comes from reconciled compiler output; conditional branches
+share one owner lane, for bodies use the forGroup owner, and explicit `parent:`
+uses the reconciled parent hierarchy.
