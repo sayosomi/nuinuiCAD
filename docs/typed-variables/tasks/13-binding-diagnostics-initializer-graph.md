@@ -185,6 +185,10 @@ resolution・graph・spanを再計算・再走査しない。
 
 ## 15. PR境界
 
+13R-3 handoff: analysis receives canonical batch-resolution output. Catalog
+rank is the deterministic order source; no analysis consumer re-sorts or
+re-resolves references.
+
 binding diagnostics/graphだけ。推奨branch slug: `typed-vars/13-binding-diagnostics`。
 
 共通仕様は[plan.md](../plan.md)、判断根拠は[decisions.md](../decisions.md)を正とする。

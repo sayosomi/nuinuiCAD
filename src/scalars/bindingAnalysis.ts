@@ -309,6 +309,18 @@ export const analyzeBindings = (input: AnalyzeBindingsInput): BindingAnalysis =>
   for (const component of components) {
     for (const bindingId of component.bindingIds) componentByBindingId.set(bindingId, component);
   }
+  // Cache the first in-component edge while visiting every edge once. This
+  // avoids an edge-array search for every member of a large cycle.
+  const cycleSpanByBindingId = new Map<BindingId, DslSpan | null>();
+  for (const fromBindingId of graph.nodeIds) {
+    const component = componentByBindingId.get(fromBindingId);
+    if (!component?.isCycle) continue;
+    for (const edge of graph.edgesByFromBindingId.get(fromBindingId) ?? []) {
+      if (componentByBindingId.get(edge.toBindingId) === component && !cycleSpanByBindingId.has(fromBindingId)) {
+        cycleSpanByBindingId.set(fromBindingId, edge.reference.span);
+      }
+    }
+  }
 
   const bucketsByBindingId = new Map<BindingId, MutableIssueBuckets>();
   const bucketFor = (bindingId: BindingId): MutableIssueBuckets => {
@@ -394,10 +406,7 @@ export const analyzeBindings = (input: AnalyzeBindingsInput): BindingAnalysis =>
     if (!component.isCycle) continue;
     for (const bindingId of component.bindingIds) {
       const binding = catalog.bindingsById.get(bindingId);
-      const fallbackSpan =
-        graph.edgesByFromBindingId
-          .get(bindingId)
-          ?.find((edge) => componentByBindingId.get(edge.toBindingId) === component)?.reference.span ?? null;
+      const fallbackSpan = cycleSpanByBindingId.get(bindingId) ?? null;
       bucketFor(bindingId).cycle = {
         code: "binding-cycle",
         bindingId,

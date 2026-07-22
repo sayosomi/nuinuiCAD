@@ -148,18 +148,21 @@ describe("analyzeBindings", () => {
       name: "local",
       nameSpan: null,
       statementIndex: 1,
+      sourceOrder: 0,
       effectiveScopeId: "for:stable-1",
       visibility: { kind: "elementLocal", ownerId: "point-1", startOrder: 0, endOrder: 2 }
     };
-    const sameOwnerSecond: BindingSeed = { ...sameOwnerFirst, id: "binding:local:point-1:local-2" };
+    const sameOwnerSecond: BindingSeed = { ...sameOwnerFirst, id: "binding:local:point-1:local-2", sourceOrder: 1 };
     const otherOwner: BindingSeed = {
       ...sameOwnerFirst,
       id: "binding:local:point-2:local-1",
+      sourceOrder: 2,
       visibility: { kind: "elementLocal", ownerId: "point-2", startOrder: 0, endOrder: 2 }
     };
     const documentCollision: BindingSeed = {
       ...sameOwnerFirst,
       id: "binding:local:point-3:document",
+      sourceOrder: 3,
       name: "document",
       effectiveScopeId: "root",
       visibility: { kind: "elementLocal", ownerId: "point-3", startOrder: 0, endOrder: 2 }
@@ -167,6 +170,7 @@ describe("analyzeBindings", () => {
     const iterationCollision: BindingSeed = {
       ...sameOwnerFirst,
       id: "binding:local:point-4:i",
+      sourceOrder: 4,
       name: "i",
       visibility: { kind: "elementLocal", ownerId: "point-4", startOrder: 0, endOrder: 2 }
     };

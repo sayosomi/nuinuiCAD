@@ -70,6 +70,20 @@ export type LexicalScopeIndex = {
   allDeclarations: readonly ScopeDeclaration[];
   legacyVariablesByScope: ReadonlyMap<ScopeId, readonly LegacyVariableRecord[]>;
   forGroupIterationSlots: ReadonlyMap<ScopeId, ForGroupIterationSlot>;
+  /** Dense indexes: never allocate from a raw statement index. */
+  statementRankByIndex: ReadonlyMap<number, number>;
+  scopeMetadataById: ReadonlyMap<ScopeId, ScopeMetadata>;
+};
+
+export type ScopeMetadata = {
+  parentId: ScopeId | null;
+  rank: number;
+  depth: number;
+  /** Nearest enclosing CAD group scope, or null outside every group. */
+  effectiveGroupScopeId: ScopeId | null;
+  /** Half-open DFS interval; ancestor checks are O(1). */
+  treeEnter: number;
+  treeExit: number;
 };
 
 /**
@@ -254,6 +268,29 @@ export const buildLexicalScopeIndex = (
   const scopeOfStatementMap = new Map<number, ScopeId>();
   statements.forEach((_, index) => scopeOfStatementMap.set(index, scopeOfStatement(index)));
 
+  const statementRankByIndex = new Map<number, number>();
+  statements.forEach((_, index) => statementRankByIndex.set(index, statementRankByIndex.size));
+  const scopeMetadataById = new Map<ScopeId, ScopeMetadata>();
+  let treeCursor = 0;
+  const visitScope = (scopeId: ScopeId, depth: number, effectiveGroupScopeId: ScopeId | null) => {
+    const scope = finalizedScopes.get(scopeId)!;
+    const groupScopeId = scope.kind === "group" ? scopeId : effectiveGroupScopeId;
+    const treeEnter = treeCursor++;
+    // Reserve the record before recursing so every scope-id lookup is direct.
+    scopeMetadataById.set(scopeId, {
+      parentId: scope.parentId,
+      rank: scopeMetadataById.size,
+      depth,
+      effectiveGroupScopeId: groupScopeId,
+      treeEnter,
+      treeExit: -1
+    });
+    for (const childId of scope.childIds) visitScope(childId, depth + 1, groupScopeId);
+    const metadata = scopeMetadataById.get(scopeId)!;
+    scopeMetadataById.set(scopeId, { ...metadata, treeExit: treeCursor });
+  };
+  visitScope(ROOT_SCOPE_ID, 0, null);
+
   return {
     rootScopeId: ROOT_SCOPE_ID,
     scopes: finalizedScopes,
@@ -261,7 +298,9 @@ export const buildLexicalScopeIndex = (
     declarationsByScope,
     allDeclarations,
     legacyVariablesByScope,
-    forGroupIterationSlots
+    forGroupIterationSlots,
+    statementRankByIndex,
+    scopeMetadataById
   };
 };
 
