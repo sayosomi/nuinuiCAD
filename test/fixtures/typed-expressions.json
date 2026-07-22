@@ -1,0 +1,179 @@
+{
+  "version": 1,
+  "_notes": [
+    "Shared TS/Rust parity vectors for the typed scalar expression evaluator (Task 16 TS, Task 18 Rust).",
+    "Each vector's `ast` is an already-typed TypedScalarExpression tree with source spans omitted (the evaluator never reads them); a test-only loader fills dummy {start:0,end:0} spans on decode.",
+    "`bindings` maps bindingId -> a JSON-encoded ScalarEvaluation, used to build a mock environment.lookupBinding.",
+    "`tripwireBindingIds` names bindingIds that must never be looked up in this vector (short-circuit proof); a conforming implementation must not call lookupBinding for them.",
+    "Convention: when a node's static `type` is null, the runtime ScalarEvaluation.type placeholder is always {kind:\"number\"} (mirrors expressionTypecheck.ts's existing unknown-type default) - Rust must match this exact placeholder for vector parity to hold.",
+    "Convention: for binary operators other than && and ||, both operands are evaluated unconditionally; if both error, the LEFT operand's error wins."
+  ],
+  "vectors": [
+    {
+      "name": "basic-arithmetic-nested-group",
+      "description": "(2 + 3) * 4 == 20",
+      "ast": {
+        "kind": "binary", "operator": "*", "type": { "kind": "number" },
+        "left": {
+          "kind": "group", "type": { "kind": "number" },
+          "expression": {
+            "kind": "binary", "operator": "+", "type": { "kind": "number" },
+            "left": { "kind": "numberLiteral", "value": 2, "type": { "kind": "number" } },
+            "right": { "kind": "numberLiteral", "value": 3, "type": { "kind": "number" } }
+          }
+        },
+        "right": { "kind": "numberLiteral", "value": 4, "type": { "kind": "number" } }
+      },
+      "bindings": {},
+      "expected": { "status": "ok", "type": { "kind": "number" }, "value": { "kind": "number", "value": 20 } }
+    },
+    {
+      "name": "short-circuit-and-false-skips-right",
+      "description": "false && @tripwire - right must never be evaluated",
+      "ast": {
+        "kind": "binary", "operator": "&&", "type": { "kind": "boolean" },
+        "left": { "kind": "booleanLiteral", "value": false, "type": { "kind": "boolean" } },
+        "right": { "kind": "reference", "name": "tripwire", "bindingId": "binding:tripwire", "type": { "kind": "boolean" } }
+      },
+      "bindings": {},
+      "tripwireBindingIds": ["binding:tripwire"],
+      "expected": { "status": "ok", "type": { "kind": "boolean" }, "value": { "kind": "boolean", "value": false } }
+    },
+    {
+      "name": "short-circuit-or-true-skips-right",
+      "description": "true || @tripwire - right must never be evaluated",
+      "ast": {
+        "kind": "binary", "operator": "||", "type": { "kind": "boolean" },
+        "left": { "kind": "booleanLiteral", "value": true, "type": { "kind": "boolean" } },
+        "right": { "kind": "reference", "name": "tripwire", "bindingId": "binding:tripwire", "type": { "kind": "boolean" } }
+      },
+      "bindings": {},
+      "tripwireBindingIds": ["binding:tripwire"],
+      "expected": { "status": "ok", "type": { "kind": "boolean" }, "value": { "kind": "boolean", "value": true } }
+    },
+    {
+      "name": "short-circuit-and-left-error-skips-right",
+      "description": "(@poisoned && @tripwire) - a left error must skip right entirely, not just a determining boolean value",
+      "ast": {
+        "kind": "binary", "operator": "&&", "type": { "kind": "boolean" },
+        "left": { "kind": "reference", "name": "poisoned", "bindingId": "binding:poisoned", "type": { "kind": "boolean" } },
+        "right": { "kind": "reference", "name": "tripwire", "bindingId": "binding:tripwire", "type": { "kind": "boolean" } }
+      },
+      "bindings": {
+        "binding:poisoned": { "status": "error", "type": { "kind": "boolean" }, "issueCode": "poisoned-binding" }
+      },
+      "tripwireBindingIds": ["binding:tripwire"],
+      "expected": { "status": "error", "type": { "kind": "boolean" }, "issueCode": "poisoned-binding" }
+    },
+    {
+      "name": "short-circuit-or-left-error-skips-right",
+      "description": "(@poisoned || @tripwire) - same as above for ||",
+      "ast": {
+        "kind": "binary", "operator": "||", "type": { "kind": "boolean" },
+        "left": { "kind": "reference", "name": "poisoned", "bindingId": "binding:poisoned", "type": { "kind": "boolean" } },
+        "right": { "kind": "reference", "name": "tripwire", "bindingId": "binding:tripwire", "type": { "kind": "boolean" } }
+      },
+      "bindings": {
+        "binding:poisoned": { "status": "error", "type": { "kind": "boolean" }, "issueCode": "poisoned-binding" }
+      },
+      "tripwireBindingIds": ["binding:tripwire"],
+      "expected": { "status": "error", "type": { "kind": "boolean" }, "issueCode": "poisoned-binding" }
+    },
+    {
+      "name": "string-equality-match",
+      "description": "\"前身頃\" == @label where @label resolves to \"前身頃\"",
+      "ast": {
+        "kind": "binary", "operator": "==", "type": { "kind": "boolean" },
+        "left": { "kind": "stringLiteral", "value": "前身頃", "type": { "kind": "string" } },
+        "right": { "kind": "reference", "name": "label", "bindingId": "binding:label", "type": { "kind": "string" } }
+      },
+      "bindings": {
+        "binding:label": { "status": "ok", "type": { "kind": "string" }, "value": { "kind": "string", "value": "前身頃" } }
+      },
+      "expected": { "status": "ok", "type": { "kind": "boolean" }, "value": { "kind": "boolean", "value": true } }
+    },
+    {
+      "name": "choice-equality-matched-options",
+      "description": "@dirA == @dirB, identical value and identical declared/runtime option set+order",
+      "ast": {
+        "kind": "binary", "operator": "==", "type": { "kind": "boolean" },
+        "left": { "kind": "reference", "name": "dirA", "bindingId": "binding:dirA", "type": { "kind": "choice", "options": ["right", "left"] } },
+        "right": { "kind": "reference", "name": "dirB", "bindingId": "binding:dirB", "type": { "kind": "choice", "options": ["right", "left"] } }
+      },
+      "bindings": {
+        "binding:dirA": { "status": "ok", "type": { "kind": "choice", "options": ["right", "left"] }, "value": { "kind": "choice", "value": "right", "options": ["right", "left"] } },
+        "binding:dirB": { "status": "ok", "type": { "kind": "choice", "options": ["right", "left"] }, "value": { "kind": "choice", "value": "right", "options": ["right", "left"] } }
+      },
+      "expected": { "status": "ok", "type": { "kind": "boolean" }, "value": { "kind": "boolean", "value": true } }
+    },
+    {
+      "name": "choice-equality-mismatched-literal-option-order-is-false",
+      "description": "two choiceLiteral operands, same value 'right' but declared option ORDER differs between them (D07 identity, not just value) - must not be true. Uses bare literals (no reference/environment involved) because a mismatch reaching equality through a reference is already caught earlier, at the reference's own validation, as evaluation-runtime-value-type-mismatch - see reference-runtime-value-type-mismatch below.",
+      "ast": {
+        "kind": "binary", "operator": "==", "type": { "kind": "boolean" },
+        "left": { "kind": "choiceLiteral", "value": "right", "type": { "kind": "choice", "options": ["right", "left"] } },
+        "right": { "kind": "choiceLiteral", "value": "right", "type": { "kind": "choice", "options": ["left", "right"] } }
+      },
+      "bindings": {},
+      "expected": { "status": "ok", "type": { "kind": "boolean" }, "value": { "kind": "boolean", "value": false } }
+    },
+    {
+      "name": "reference-null-binding-id-fails-closed",
+      "description": "an unresolved reference (bindingId/type both null) never attempts a lookup",
+      "ast": { "kind": "reference", "name": "undefinedName", "bindingId": null, "type": null },
+      "bindings": {},
+      "expected": { "status": "error", "type": { "kind": "number" }, "issueCode": "evaluation-static-type-null" }
+    },
+    {
+      "name": "divide-by-zero",
+      "description": "10 / 0",
+      "ast": {
+        "kind": "binary", "operator": "/", "type": { "kind": "number" },
+        "left": { "kind": "numberLiteral", "value": 10, "type": { "kind": "number" } },
+        "right": { "kind": "numberLiteral", "value": 0, "type": { "kind": "number" } }
+      },
+      "bindings": {},
+      "expected": { "status": "error", "type": { "kind": "number" }, "issueCode": "evaluation-divide-by-zero" }
+    },
+    {
+      "name": "type-null-node-fails-closed-without-inspecting-children",
+      "description": "a unary node whose static type is null (mismatched operand) must not attempt to read its child's value at all",
+      "ast": {
+        "kind": "unary", "operator": "-", "type": null,
+        "operand": { "kind": "booleanLiteral", "value": true, "type": { "kind": "boolean" } }
+      },
+      "bindings": {},
+      "expected": { "status": "error", "type": { "kind": "number" }, "issueCode": "evaluation-static-type-null" }
+    },
+    {
+      "name": "reference-runtime-value-type-mismatch",
+      "description": "environment claims an ok string value for a number-typed reference - must fail closed at the reference itself",
+      "ast": { "kind": "reference", "name": "mismatched", "bindingId": "binding:mismatched", "type": { "kind": "number" } },
+      "bindings": {
+        "binding:mismatched": { "status": "ok", "type": { "kind": "string" }, "value": { "kind": "string", "value": "not a number" } }
+      },
+      "expected": { "status": "error", "type": { "kind": "number" }, "issueCode": "evaluation-runtime-value-type-mismatch", "bindingId": "binding:mismatched" }
+    },
+    {
+      "name": "top-level-bare-reference-is-validated",
+      "description": "a bare top-level reference with no operator consumer must still be checked against its static type",
+      "ast": { "kind": "reference", "name": "mismatched", "bindingId": "binding:mismatched", "type": { "kind": "boolean" } },
+      "bindings": {
+        "binding:mismatched": { "status": "ok", "type": { "kind": "number" }, "value": { "kind": "number", "value": 1 } }
+      },
+      "expected": { "status": "error", "type": { "kind": "boolean" }, "issueCode": "evaluation-runtime-value-type-mismatch", "bindingId": "binding:mismatched" }
+    },
+    {
+      "name": "group-wrapped-reference-is-validated",
+      "description": "the same mismatch, but wrapped in a no-op group - group pass-through must not skip the reference's own validation",
+      "ast": {
+        "kind": "group", "type": { "kind": "boolean" },
+        "expression": { "kind": "reference", "name": "mismatched", "bindingId": "binding:mismatched", "type": { "kind": "boolean" } }
+      },
+      "bindings": {
+        "binding:mismatched": { "status": "ok", "type": { "kind": "number" }, "value": { "kind": "number", "value": 1 } }
+      },
+      "expected": { "status": "error", "type": { "kind": "boolean" }, "issueCode": "evaluation-runtime-value-type-mismatch", "bindingId": "binding:mismatched" }
+    }
+  ]
+}
