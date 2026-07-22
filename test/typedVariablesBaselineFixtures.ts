@@ -165,6 +165,87 @@ export const buildBindingAnalysisChainBaselineSource = (bindingCount: number) =>
   };
 };
 
+export type MixedBindingAnalysisFixtureScale = {
+  bindingCount: number;
+  referenceCount: number;
+  duplicateReferenceCount: number;
+};
+
+/**
+ * Task 13R-5's production-path fixture. The requested size is a binding
+ * budget, not a raw statement count: each unit mixes compact legacy
+ * visibility forms, nested lexical scopes, an iteration slot, and typed
+ * initializer references. A sparse subset deliberately emits duplicate
+ * candidates so E is measured without making the ordinary case duplicate
+ * dominated.
+ */
+export const buildMixedBindingAnalysisBaselineSource = (bindingBudget: number) => {
+  if (!Number.isInteger(bindingBudget) || bindingBudget < 10) {
+    throw new Error("mixed binding analysis baseline requires a binding budget of at least ten");
+  }
+  const unitCount = Math.floor(bindingBudget / 10);
+  const lines = ["nui 3"];
+  const references: { ownerName: string; name: string }[] = [];
+  let duplicateReferenceCount = 0;
+
+  for (let index = 0; index < unitCount; index += 1) {
+    const outside = `Outside${index}`;
+    const global = `Global${index}`;
+    const scoped = `Scoped${index}`;
+    const iteration = `i${index}`;
+    const rootUse = `RootUse${index}`;
+    const groupUse = `GroupUse${index}`;
+    const groupOutsideUse = `GroupOutsideUse${index}`;
+    const nestedUse = `NestedUse${index}`;
+    const siblingUse = `SiblingUse${index}`;
+    const iterationUse = `IterationUse${index}`;
+
+    lines.push(`var ${outside} = expression(value: ${index} id: outside-${index} scope: group)`);
+    lines.push(`var ${global} = expression(value: ${index} id: global-${index} scope: global)`);
+    lines.push(`const ${rootUse}: number = @${outside}`);
+    references.push({ ownerName: rootUse, name: outside });
+    lines.push(`group Outer${index} {`);
+    lines.push(`  var ${scoped} = expression(value: ${index} id: scoped-${index} scope: group)`);
+    lines.push(`  const ${groupUse}: number = @${global}`);
+    references.push({ ownerName: groupUse, name: global });
+    lines.push(`  const ${groupOutsideUse}: number = @${outside}`);
+    references.push({ ownerName: groupOutsideUse, name: outside });
+    lines.push(`  group Nested${index} {`);
+    lines.push(`    const ${nestedUse}: number = @${scoped}`);
+    references.push({ ownerName: nestedUse, name: scoped });
+    lines.push("  }");
+    lines.push(`  group Sibling${index} {`);
+    lines.push(`    const ${siblingUse}: number = @${scoped}`);
+    references.push({ ownerName: siblingUse, name: scoped });
+    lines.push("  }");
+    lines.push(`  for Loop${index} (${iteration} from: 0 count: 2 step: 1) {`);
+    lines.push(`    const ${iterationUse}: number = @${iteration}`);
+    references.push({ ownerName: iterationUse, name: iteration });
+    lines.push("  }");
+    lines.push("}");
+
+    if (index % 25 === 0) {
+      const duplicate = `Duplicate${index}`;
+      const duplicateUse = `DuplicateUse${index}`;
+      lines.push(`var ${duplicate} = expression(value: ${index} id: duplicate-global-${index} scope: global)`);
+      lines.push(`var ${duplicate} = expression(value: ${index} id: duplicate-outside-${index} scope: group)`);
+      lines.push(`const ${duplicateUse}: number = @${duplicate}`);
+      references.push({ ownerName: duplicateUse, name: duplicate });
+      duplicateReferenceCount += 1;
+    }
+  }
+
+  return {
+    source: lines.join("\n"),
+    references,
+    scale: {
+      bindingCount: unitCount * 10 + duplicateReferenceCount * 3,
+      referenceCount: references.length,
+      duplicateReferenceCount
+    } satisfies MixedBindingAnalysisFixtureScale
+  };
+};
+
 export const semanticV2BaselineSource = [
   "nui 2",
   "var Global = 12",

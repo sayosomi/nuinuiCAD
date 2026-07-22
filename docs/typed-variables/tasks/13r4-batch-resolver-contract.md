@@ -71,3 +71,10 @@ graph/cycle/issue/program eligibility意味論も変更しない(新規回帰tes
   固定する。
 - `resolveBindingReferenceForTests`が`*.test.ts`以外のどの`src/`fileからも
   参照されないことをgrep相当のtestで固定する。
+
+## 13R-5 handoff
+
+`resolveInitializerReferences`のpublic surface、owner validation、canonical request
+order、forward candidate catalog-rank orderはそのまま維持する。13R-5のlookup lane
+linearizationは同一batch sweep内の候補登録だけを変更し、test-only traceはproduction
+APIではない。
