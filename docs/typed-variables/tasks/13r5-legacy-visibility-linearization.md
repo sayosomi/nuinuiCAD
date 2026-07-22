@@ -54,3 +54,11 @@ candidate visitを記録し、group requestが`outsideGroups` candidateを0件�
 parser、evaluator、property、set、rename、DSL diagnostics pipeline、stable scope/binding
 ID、Task 13R-2 direct status/eligibility意味論、Task 13R-4 owner validationとforward
 candidate orderは変更しない。
+
+## 13R-6 handoff
+
+Legacy global/outside/subtree lanes remain structurally disjoint. The shared
+bulk collector visits only the selected lanes at each lexical level, records
+candidate inspection at the actual lane read, and stops before shadowed outer
+buckets. `visibleBindingsAt` performs one site traversal regardless of name
+count.

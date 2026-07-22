@@ -78,3 +78,7 @@ graph/cycle/issue/program eligibility意味論も変更しない(新規回帰tes
 order、forward candidate catalog-rank orderはそのまま維持する。13R-5のlookup lane
 linearizationは同一batch sweep内の候補登録だけを変更し、test-only traceはproduction
 APIではない。
+
+13R-6はこのsurfaceを維持したまま、reverse lookupをownerのexact scopeへ限定する。
+`visibleBindingsAt`は単発queryを内部反復せず1回のbulk site traversalを行い、single-name
+oracleとobserver付きAPIは引き続きtest-onlyである。

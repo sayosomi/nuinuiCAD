@@ -6,7 +6,13 @@ import { variableIsInScope } from "../geometry/variableScope";
 import type { CadElement, VariableElement } from "../types/geometry";
 import { buildBindingCatalog, type BindingSeed } from "./bindingCatalog";
 import { buildLexicalScopeIndex } from "./lexicalScopeIndex";
-import { resolveBindingReferenceForTests, resolveInitializerReferences, resolveInitializerReferencesWithTraceForTests, visibleBindingsAt } from "./bindingResolution";
+import {
+  resolveBindingReferenceForTests,
+  resolveInitializerReferences,
+  resolveInitializerReferencesWithTraceForTests,
+  visibleBindingsAt,
+  visibleBindingsAtWithTraceForTests
+} from "./bindingResolution";
 
 const parsedStatements = (source: string): readonly DslStatement[] => {
   const parsed = parseDsl(source);
@@ -412,6 +418,134 @@ describe("binding name resolution", () => {
     })).toMatchObject({ kind: "resolved", binding: { id: pointTwo.id } });
   });
 
+  it("joins non-overlapping element-local ranges without inspecting invisible locals per request", () => {
+    const count = 64;
+    const source = Array.from({ length: count }, (_, index) => `const Use${index}: number = @x`).join("\n");
+    const locals: BindingSeed[] = Array.from({ length: count }, (_, index) => ({
+      id: `binding:local:owner:x:${index}`,
+      kind: "elementLocal",
+      name: "x",
+      nameSpan: null,
+      statementIndex: 0,
+      sourceOrder: index,
+      effectiveScopeId: "root",
+      visibility: { kind: "elementLocal", ownerId: "owner", startOrder: index, endOrder: index }
+    }));
+    const { catalog } = catalogFor(source, locals);
+    const requests = catalog.bindings
+      .filter((binding) => binding.kind === "typed")
+      .map((binding, order) => ({
+        fromBindingId: binding.id,
+        occurrenceIndex: 0,
+        name: "x",
+        site: { scopeId: "root", statementIndex: binding.statementIndex, elementLocal: { ownerId: "owner", order } }
+      }));
+
+    const { references, trace } = resolveInitializerReferencesWithTraceForTests(catalog, requests);
+    expect(references.map((reference) =>
+      reference.resolution.kind === "resolved" ? reference.resolution.binding.id : reference.resolution.kind
+    )).toEqual(locals.map((local) => local.id));
+    expect(trace.candidateInspectionCount).toBe(count);
+    expect(trace.candidateVisitsByVisibilityKind.get("elementLocal")).toBe(count);
+    expect(trace.emittedCandidateCount).toBe(count);
+  });
+
+  it("fails fast on element-local range and site orders outside the safe-integer contract", () => {
+    const invalidLocal: BindingSeed = {
+      id: "binding:local:owner:x",
+      kind: "elementLocal",
+      name: "x",
+      nameSpan: null,
+      statementIndex: 0,
+      sourceOrder: 0,
+      effectiveScopeId: "root",
+      visibility: { kind: "elementLocal", ownerId: "owner", startOrder: 0.5, endOrder: 1 }
+    };
+    expect(() => catalogFor("const use: number = @x", [invalidLocal])).toThrow(/non-negative safe integer/);
+
+    const validLocal = {
+      ...invalidLocal,
+      visibility: { kind: "elementLocal" as const, ownerId: "owner", startOrder: 0, endOrder: 1 }
+    };
+    const { catalog } = catalogFor("const use: number = @x", [validLocal]);
+    expect(() => resolveInitializerReferences(catalog, [{
+      fromBindingId: "binding:stable-0",
+      occurrenceIndex: 0,
+      name: "x",
+      site: { scopeId: "root", statementIndex: 0, elementLocal: { ownerId: "owner", order: Number.MAX_SAFE_INTEGER + 1 } }
+    }])).toThrow(/non-negative safe integer/);
+  });
+
+  it("returns bulk visibility in catalog order with the same shadow, duplicate, and local precedence as resolution", () => {
+    const locals: BindingSeed[] = [
+      {
+        id: "binding:local:owner:global",
+        kind: "elementLocal",
+        name: "global",
+        nameSpan: null,
+        statementIndex: 0,
+        sourceOrder: 0,
+        effectiveScopeId: "root",
+        visibility: { kind: "elementLocal", ownerId: "owner", startOrder: 0, endOrder: 2 }
+      },
+      {
+        id: "binding:local:other:global",
+        kind: "elementLocal",
+        name: "global",
+        nameSpan: null,
+        statementIndex: 0,
+        sourceOrder: 1,
+        effectiveScopeId: "root",
+        visibility: { kind: "elementLocal", ownerId: "other", startOrder: 0, endOrder: 2 }
+      }
+    ];
+    const { catalog } = catalogFor([
+      "const root: number = 1",
+      "var global = expression(value: 2 scope: global)",
+      "var outside = expression(value: 3 scope: group)",
+      "var duplicate = expression(value: 4 id: duplicate-1 scope: global)",
+      "var duplicate = expression(value: 5 id: duplicate-2 scope: global)",
+      "group Outer {",
+      "  var scoped = expression(value: 6 scope: group)",
+      "  const root: number = 7",
+      "  group Inner {",
+      "    const use: number = @root",
+      "  }",
+      "}"
+    ].join("\n"), locals);
+    const use = catalog.bindings.find((binding) => binding.name === "use")!;
+    const site = {
+      scopeId: "group:stable-8",
+      statementIndex: use.statementIndex,
+      elementLocal: { ownerId: "owner", order: 1 }
+    };
+    const expectedIds = new Set<string>();
+    const checkedNames = new Set<string>();
+    for (const binding of catalog.bindings) {
+      if (checkedNames.has(binding.name)) continue;
+      checkedNames.add(binding.name);
+      const resolution = resolveBindingReferenceForTests(catalog, binding.name, site);
+      if (resolution.kind === "resolved") expectedIds.add(resolution.binding.id);
+    }
+    const expected = catalog.bindings.filter((binding) => expectedIds.has(binding.id));
+    const actual = visibleBindingsAt(catalog, site);
+
+    expect(actual).toEqual(expected);
+    expect(actual.find((binding) => binding.name === "global")?.id).toBe("binding:local:owner:global");
+    expect(actual.some((binding) => binding.name === "outside")).toBe(false);
+    expect(actual.some((binding) => binding.name === "duplicate")).toBe(false);
+    expect(actual.find((binding) => binding.name === "root")?.id).toBe("binding:stable-7");
+  });
+
+  it.each([250, 1_000])("traverses a bulk visibility site once for %i names", (count) => {
+    const { catalog } = catalogFor(Array.from({ length: count }, (_, index) => `const V${index}: number = ${index}`).join("\n"));
+    const { bindings, trace } = visibleBindingsAtWithTraceForTests(catalog, { scopeId: "root", statementIndex: count - 1 });
+    expect(bindings).toHaveLength(count - 1);
+    expect(trace.siteTraversalCount).toBe(1);
+    expect(trace.requestCount).toBe(1);
+    expect(trace.candidateInspectionCount).toBe(count - 1);
+  });
+
   it("keeps a typed binding id when the caller preserves its injected stable identity across insertion", () => {
     const before = parsedStatements("const retained: number = 1");
     const after = parsedStatements(["const padding: number = 0", "const retained: number = 1"].join("\n"));
@@ -480,6 +614,33 @@ describe("resolveInitializerReferences owner contract (batch API called directly
       { fromBindingId: "binding:stable-0", occurrenceIndex: 0, name: "b", site: { scopeId: "root", statementIndex: 0 } }
     ]);
     expect(resolved.resolution).toMatchObject({ kind: "forward", bindingIds: ["binding:stable-1", "binding:stable-2"] });
+  });
+
+  it("does not treat a later declaration in an ancestor scope as a forward candidate", () => {
+    const { catalog } = catalogFor([
+      "group G {",
+      "  const use: number = @x",
+      "}",
+      "const x: number = 1"
+    ].join("\n"));
+    const [resolved] = resolveInitializerReferences(catalog, [
+      { fromBindingId: "binding:stable-1", occurrenceIndex: 0, name: "x", site: { scopeId: "group:stable-0", statementIndex: 1 } }
+    ]);
+    expect(resolved.resolution).toEqual({ kind: "undefined", name: "x", scopeId: "group:stable-0", statementIndex: 1 });
+  });
+
+  it("still returns later declarations from the exact same nested scope as forward candidates", () => {
+    const { catalog } = catalogFor([
+      "group G {",
+      "  const use: number = @x",
+      "  const x: number = 1",
+      "  const x: number = 2",
+      "}"
+    ].join("\n"));
+    const [resolved] = resolveInitializerReferences(catalog, [
+      { fromBindingId: "binding:stable-1", occurrenceIndex: 0, name: "x", site: { scopeId: "group:stable-0", statementIndex: 1 } }
+    ]);
+    expect(resolved.resolution).toMatchObject({ kind: "forward", bindingIds: ["binding:stable-2", "binding:stable-3"] });
   });
 
   it("keeps forward candidate order identical when the request batch is shuffled", () => {

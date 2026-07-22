@@ -4,6 +4,7 @@
 import type { DslSpan } from "../dsl/dslTypes";
 import type { LexicalScopeIndex, ScopeId } from "./lexicalScopeIndex";
 import type { ScalarType } from "./types";
+import { buildElementLocalRangeIndex, type ElementLocalRangeIndex } from "./elementLocalRangeIndex";
 
 export type BindingId = string;
 export type BindingKind = "typed" | "legacy" | "iteration" | "elementLocal";
@@ -65,6 +66,7 @@ export type BindingCatalog = {
   lookupNamespaces: BindingLookupNamespaces;
   bindingsByEffectiveScopeAndName: ReadonlyMap<ScopeId, ReadonlyMap<string, readonly Binding[]>>;
   elementLocalBindingsByOwnerAndName: ReadonlyMap<string, ReadonlyMap<string, readonly Binding[]>>;
+  elementLocalRangeIndex: ElementLocalRangeIndex;
   declarationDuplicateBuckets: readonly (readonly Binding[])[];
 };
 
@@ -176,6 +178,7 @@ export const buildBindingCatalog = ({
   };
   const bindingsByEffectiveScopeAndName = freezeBuckets(documentBuckets);
   const elementLocalBindingsByOwnerAndName = freezeBuckets(localBuckets);
+  const elementLocalRangeIndex = buildElementLocalRangeIndex(elementLocalBindingsByOwnerAndName);
   const lookupNamespaces: BindingLookupNamespaces = {
     globalByName,
     outsideGroupsByName,
@@ -188,5 +191,5 @@ export const buildBindingCatalog = ({
       : bindingsByEffectiveScopeAndName.get(binding.effectiveScopeId)?.get(binding.name);
     if (bucket && bucket.length > 1 && !duplicateSeen.has(bucket)) { duplicateSeen.add(bucket); declarationDuplicateBuckets.push(bucket); }
   }
-  return { scopeIndex, bindings, bindingsById, lookupNamespaces, bindingsByEffectiveScopeAndName, elementLocalBindingsByOwnerAndName, declarationDuplicateBuckets };
+  return { scopeIndex, bindings, bindingsById, lookupNamespaces, bindingsByEffectiveScopeAndName, elementLocalBindingsByOwnerAndName, elementLocalRangeIndex, declarationDuplicateBuckets };
 };

@@ -97,7 +97,8 @@ chain、element local owner/name bucketを事前構築する。通常の`@name`�
 lexical scope、ancestor scopeの順に照会する。同scopeのfuture typed declarationは最も
 内側の候補として保持するが、ancestor探索を止めない。ancestorにvisible bindingがあれば
 それを返し、どこにもvisible bindingがない場合だけ保持したfuture候補を`forward`として
-返す。typedだけが宣言位置以降のorder ruleを持つ。legacyはadapterが
+返す。future候補は参照ownerと正確に同じlexical scopeだけから取得し、後続ancestorや
+sibling宣言を含めない。typedだけが宣言位置以降のorder ruleを持つ。legacyはadapterが
 `variableIsInScope`互換として渡すscope set、iteration/element localはadapter指定の
 scope/rangeで可視性を決め、全bindingへ一律の「参照より前」制限は掛けない。可視element
 localはiteration、document bindingより優先し、同一ownerの可視localが複数なら全候補を
@@ -115,6 +116,11 @@ typed/legacy/iterationが`duplicate`であり、typed優先・legacy文書順fal
 element local namespaceでは同一ownerかつ同名だけが`duplicate`であり、ownerの異なるlocalや
 local対document/iterationの同名はduplicateではない。Task 13はcatalogが公開する
 `declarationDuplicateBuckets`を使ってdiagnostic/statusを作る。
+
+**element local order**: `startOrder`/`endOrder`/site `order`は非負safe integerで、違反は
+fail-fastする。owner/nameごとのstart/end radix indexとbatch range joinを使い、不可視localを
+referenceごとにfilterしない。可視候補はcatalog rank順で、rangeが重なる候補は全件duplicate
+として返す。
 
 **legacy adapter**: Task 11の`legacyVariablesByScope`と既parse `DslStatement.attrs`だけを
 使い、sourceを再parse/re-scanしない。short `var`に加えlong-form
@@ -142,6 +148,10 @@ initializer resolverであり、self判定は`fromBindingId`だけから導出�
 production exportから削除された。単発lookupは`visibleBindingsAt`専用の非公開
 内部query、またはtest専用export `resolveBindingReferenceForTests`のいずれかに
 分離されている。
+
+13R-6 handoff: `visibleBindingsAt`は名前ごとの単発resolver反復ではなく、1回のsite traversalで
+全nameを収集するbulk queryである。local、最内lexical level、ancestorの順にshadowを確定し、
+duplicate nameは外側へfallbackせず結果から除外する。最終結果はcatalog rank順。
 
 name resolutionだけ。推奨branch slug: `typed-vars/12-binding-resolution`。
 

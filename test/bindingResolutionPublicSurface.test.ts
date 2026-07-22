@@ -18,7 +18,11 @@ import { describe, expect, it } from "vitest";
 
 const SRC_ROOT = path.resolve(process.cwd(), "src");
 const DEFINITION_FILE = path.join(SRC_ROOT, "scalars", "bindingResolution.ts");
-const TEST_ONLY_SYMBOLS = ["resolveBindingReferenceForTests", "resolveInitializerReferencesWithTraceForTests"];
+const TEST_ONLY_SYMBOLS = [
+  "resolveBindingReferenceForTests",
+  "resolveInitializerReferencesWithTraceForTests",
+  "visibleBindingsAtWithTraceForTests"
+];
 
 const collectSourceFiles = (dir: string, out: string[] = []): string[] => {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -38,5 +42,11 @@ describe("bindingResolution public surface", () => {
       .map((file) => path.relative(SRC_ROOT, file));
 
     expect(offenders).toEqual([]);
+  });
+
+  it("keeps the production bulk query independent from the single-name test oracle", () => {
+    const source = fs.readFileSync(DEFINITION_FILE, "utf8");
+    const bulkImplementation = source.slice(source.indexOf("const visibleBindingsAtInternal"));
+    expect(bulkImplementation).not.toContain("resolveAtSite(");
   });
 });

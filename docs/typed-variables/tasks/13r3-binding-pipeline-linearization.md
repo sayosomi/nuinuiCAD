@@ -34,6 +34,11 @@ or binding/reference × scope traversal is permitted.
   same-name initializer is `self`, never `forward`.
 - Map/Set insertion order only reflects prior canonical source order. Forward
   candidate/edge work is output-sensitive in `E`.
+- Element-local owner/name ranges use fixed-pass radix endpoint indexes and an
+  offline batch range join. Orders are non-negative safe integers; no lookup
+  filters an owner/name bucket per reference or allocates by the maximum order.
+- Bulk visibility traverses a site once and collects all names inner-to-outer;
+  it never invokes a full sweep once per name.
 
 ## Tests and measurement
 
