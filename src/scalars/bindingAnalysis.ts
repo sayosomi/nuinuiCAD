@@ -15,6 +15,7 @@
 import type { DslSpan } from "../dsl/dslTypes";
 import type { BindingCatalog, BindingId } from "./bindingCatalog";
 import type { BindingResolution } from "./bindingResolution";
+import { buildBindingProgramEligibility } from "./bindingProgramEligibility";
 
 export type InitializerReference = {
   /** The typed binding whose initializer text contains this `@name` occurrence. */
@@ -97,9 +98,28 @@ export type BindingIssue = {
 
 export type BindingStatus =
   | { kind: "valid" }
+  /** `reason` is the primary direct issue by ISSUE_PRIORITY, not the only issue. */
   | { kind: "invalid"; reason: BindingIssueCode };
 
-export type BindingAnalysisEntry = { bindingId: BindingId; status: BindingStatus };
+export type BindingProgramEligibility =
+  | { kind: "eligible" }
+  | { kind: "ineligible"; reason: "direct-invalid" }
+  | { kind: "ineligible"; reason: "invalid-dependency"; invalidDependencyBindingIds: readonly BindingId[] };
+
+export type BindingAnalysisEntry = {
+  bindingId: BindingId;
+  /** Source diagnostics only; dependency propagation never changes this status. */
+  status: BindingStatus;
+  programEligibility: BindingProgramEligibility;
+};
+
+export type CompiledProgramBindingSelection = {
+  /** Catalog order, containing only bindings safe for compiled-program lowering. */
+  bindingIds: readonly BindingId[];
+  entries: readonly BindingAnalysisEntry[];
+  /** Original outgoing edges for every eligible source; no edge is filtered out. */
+  graph: InitializerGraph;
+};
 
 export type BindingAnalysis = {
   catalog: BindingCatalog;
@@ -109,9 +129,13 @@ export type BindingAnalysis = {
   /** catalog.bindings order. */
   entries: readonly BindingAnalysisEntry[];
   entriesById: ReadonlyMap<BindingId, BindingAnalysisEntry>;
+  /** Precomputed Task 19 input; use selectCompiledProgramBindings instead of re-analysis. */
+  compiledProgram: CompiledProgramBindingSelection;
   /** Ordered by (bindingRank, codeRank, originRank, occurrenceIndex); see module comment. */
   issues: readonly BindingIssue[];
 };
+
+export const selectCompiledProgramBindings = (analysis: BindingAnalysis): CompiledProgramBindingSelection => analysis.compiledProgram;
 
 /**
  * Groups references by `fromBindingId`, placing each directly at its
@@ -387,8 +411,7 @@ export const analyzeBindings = (input: AnalyzeBindingsInput): BindingAnalysis =>
   // Assemble in catalog.bindings order; within a binding, concatenate the
   // five code buckets in ISSUE_PRIORITY order (fixed-order concatenation,
   // never a comparison sort).
-  const entries: BindingAnalysisEntry[] = [];
-  const entriesById = new Map<BindingId, BindingAnalysisEntry>();
+  const directEntries: { bindingId: BindingId; status: BindingStatus }[] = [];
   const issues: BindingIssue[] = [];
   for (const binding of catalog.bindings) {
     const bucket = bucketsByBindingId.get(binding.id);
@@ -402,12 +425,12 @@ export const analyzeBindings = (input: AnalyzeBindingsInput): BindingAnalysis =>
       bindingIssues.push(...bucket.forward);
     }
     issues.push(...bindingIssues);
-    const entry: BindingAnalysisEntry = bindingIssues[0]
+    const entry: { bindingId: BindingId; status: BindingStatus } = bindingIssues[0]
       ? { bindingId: binding.id, status: { kind: "invalid", reason: bindingIssues[0].code } }
       : { bindingId: binding.id, status: { kind: "valid" } };
-    entries.push(entry);
-    entriesById.set(binding.id, entry);
+    directEntries.push(entry);
   }
 
-  return { catalog, graph, components, entries, entriesById, issues };
+  const { entries, entriesById, compiledProgram } = buildBindingProgramEligibility(graph, directEntries);
+  return { catalog, graph, components, entries, entriesById, compiledProgram, issues };
 };
