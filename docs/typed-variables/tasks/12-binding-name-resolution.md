@@ -72,7 +72,7 @@ type BindingResolution =
   | { kind: "forward"; name; scopeId; statementIndex; bindingIds }
   | { kind: "self"; name; scopeId; statementIndex; bindingId }
   | { kind: "duplicate"; name; scopeId; statementIndex; bindingIds };
-const resolveBindingReference: (catalog, name, site) => BindingResolution;
+const resolveInitializerReferences: (catalog, requests) => readonly ResolvedInitializerReference[];
 const visibleBindingsAt: (catalog, site) => readonly Binding[];
 
 // src/dsl/bindingCatalogAdapter.ts
@@ -103,10 +103,12 @@ scope/rangeで可視性を決め、全bindingへ一律の「参照より前」�
 localはiteration、document bindingより優先し、同一ownerの可視localが複数なら全候補を
 持つ`duplicate`を返してdocument/iterationへfallbackしない。
 
-**initializer**: `initializerBindingId`を指定したtyped declaration自身のinitializerで
-同名を解決する場合は、現在effective scopeを飛ばしてvisible outerを探す。outerが
-`resolved`ならそれを返し、なければ`self`を返す。通常参照のforward/duplicate規則を
-selfへ置き換えない。
+**initializer**: `InitializerResolutionRequest.fromBindingId`(必須、`kind==="typed"`
+binding限定)が指すtyped declaration自身のinitializerで同名を解決する場合は、現在
+effective scopeを飛ばしてvisible outerを探す。outerが`resolved`ならそれを返し、
+なければ`self`を返す。通常参照のforward/duplicate規則をselfへ置き換えない。self判定は
+`fromBindingId`だけを唯一のsource of truthとする（site側に同じ情報を重複して持たせない。
+Task 13R-4参照）。
 
 **duplicate**: document/iteration namespaceでは同一effective scopeかつ同名の
 typed/legacy/iterationが`duplicate`であり、typed優先・legacy文書順fallbackは存在しない。
@@ -129,6 +131,14 @@ groupはnearest lexical groupとその子孫（group外ならCAD parentGroupId�
 13R-3 handoff: initializer callers use `resolveInitializerReferences`, which
 normalizes shuffled requests by binding rank and occurrence index. Legacy
 visibility is compact (`global`/`subtree`/`outsideGroups`), not `scopeSet`.
+
+13R-4 handoff: `resolveInitializerReferences`は唯一のproduction-facing
+initializer resolverであり、self判定は`fromBindingId`だけから導出する
+（`BindingReferenceSite`に`initializerBindingId`のような重複fieldは持たない）。
+このtaskが元々引き継いだ`resolveBindingReference(catalog, name, site)`は
+production exportから削除された。単発lookupは`visibleBindingsAt`専用の非公開
+内部query、またはtest専用export `resolveBindingReferenceForTests`のいずれかに
+分離されている。
 
 name resolutionだけ。推奨branch slug: `typed-vars/12-binding-resolution`。
 

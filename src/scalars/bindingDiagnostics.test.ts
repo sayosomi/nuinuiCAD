@@ -6,7 +6,7 @@ import { analyzeBindings, type InitializerReference } from "./bindingAnalysis";
 import { buildBindingCatalog } from "./bindingCatalog";
 import { buildBindingDiagnosticMessages, formatBindingIssue } from "./bindingDiagnostics";
 import { buildLexicalScopeIndex } from "./lexicalScopeIndex";
-import { resolveBindingReference } from "./bindingResolution";
+import { resolveBindingReferenceForTests } from "./bindingResolution";
 
 const parsedStatements = (source: string): readonly DslStatement[] => {
   const parsed = parseDsl(source);
@@ -46,7 +46,7 @@ describe("bindingDiagnostics", () => {
       "const x: number = 2",
       "const d: number = @x"
     ].join("\n"));
-    const resolution = resolveBindingReference(catalog, "x", { scopeId: "root", statementIndex: 2 });
+    const resolution = resolveBindingReferenceForTests(catalog, "x", { scopeId: "root", statementIndex: 2 });
     const reference: InitializerReference = { fromBindingId: bindingId(2), occurrenceIndex: 0, name: "x", span: null, resolution };
     const analysis = analyzeBindings({ catalog, initializerReferences: [reference] });
     const issue = analysis.issues.find((item) => item.bindingId === bindingId(2))!;
@@ -57,8 +57,8 @@ describe("bindingDiagnostics", () => {
 
   it("formats binding-cycle with all cycle member names in bindingRank order", () => {
     const catalog = catalogFor(["const a: number = @b", "const b: number = @a"].join("\n"));
-    const aToB = resolveBindingReference(catalog, "b", { scopeId: "root", statementIndex: 0 });
-    const bToA = resolveBindingReference(catalog, "a", { scopeId: "root", statementIndex: 1 });
+    const aToB = resolveBindingReferenceForTests(catalog, "b", { scopeId: "root", statementIndex: 0 });
+    const bToA = resolveBindingReferenceForTests(catalog, "a", { scopeId: "root", statementIndex: 1 });
     const references: InitializerReference[] = [
       { fromBindingId: bindingId(0), occurrenceIndex: 0, name: "b", span: null, resolution: aToB },
       { fromBindingId: bindingId(1), occurrenceIndex: 0, name: "a", span: null, resolution: bToA }
@@ -75,11 +75,7 @@ describe("bindingDiagnostics", () => {
 
   it("formats self-initialization", () => {
     const catalog = catalogFor("const x: number = @x");
-    const resolution = resolveBindingReference(catalog, "x", {
-      scopeId: "root",
-      statementIndex: 0,
-      initializerBindingId: bindingId(0)
-    });
+    const resolution = resolveBindingReferenceForTests(catalog, "x", { scopeId: "root", statementIndex: 0 }, bindingId(0));
     const reference: InitializerReference = { fromBindingId: bindingId(0), occurrenceIndex: 0, name: "x", span: null, resolution };
     const analysis = analyzeBindings({ catalog, initializerReferences: [reference] });
     const formatted = formatBindingIssue(analysis, analysis.issues[0]);
@@ -89,7 +85,7 @@ describe("bindingDiagnostics", () => {
 
   it("formats undefined-binding using the referenced name", () => {
     const catalog = catalogFor("const a: number = @nope");
-    const resolution = resolveBindingReference(catalog, "nope", { scopeId: "root", statementIndex: 0 });
+    const resolution = resolveBindingReferenceForTests(catalog, "nope", { scopeId: "root", statementIndex: 0 });
     const reference: InitializerReference = { fromBindingId: bindingId(0), occurrenceIndex: 0, name: "nope", span: null, resolution };
     const analysis = analyzeBindings({ catalog, initializerReferences: [reference] });
     const formatted = formatBindingIssue(analysis, analysis.issues[0]);
@@ -99,7 +95,7 @@ describe("bindingDiagnostics", () => {
 
   it("formats forward-binding-reference using the referenced name", () => {
     const catalog = catalogFor(["const a: number = @b", "const b: number = 0"].join("\n"));
-    const resolution = resolveBindingReference(catalog, "b", { scopeId: "root", statementIndex: 0 });
+    const resolution = resolveBindingReferenceForTests(catalog, "b", { scopeId: "root", statementIndex: 0 });
     const reference: InitializerReference = { fromBindingId: bindingId(0), occurrenceIndex: 0, name: "b", span: null, resolution };
     const analysis = analyzeBindings({ catalog, initializerReferences: [reference] });
     const formatted = formatBindingIssue(analysis, analysis.issues[0]);
@@ -113,7 +109,7 @@ describe("bindingDiagnostics", () => {
       "const x: number = 2",
       "const a: number = @nope"
     ].join("\n"));
-    const resolution = resolveBindingReference(catalog, "nope", { scopeId: "root", statementIndex: 2 });
+    const resolution = resolveBindingReferenceForTests(catalog, "nope", { scopeId: "root", statementIndex: 2 });
     const reference: InitializerReference = { fromBindingId: bindingId(2), occurrenceIndex: 0, name: "nope", span: null, resolution };
     const analysis = analyzeBindings({ catalog, initializerReferences: [reference] });
 

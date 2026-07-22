@@ -5,7 +5,7 @@ import type { DslStatement } from "../dsl/dslTypes";
 import { analyzeBindings, buildInitializerGraph, type InitializerReference } from "./bindingAnalysis";
 import { buildBindingCatalog, type BindingSeed } from "./bindingCatalog";
 import { buildLexicalScopeIndex } from "./lexicalScopeIndex";
-import { resolveBindingReference } from "./bindingResolution";
+import { resolveBindingReferenceForTests } from "./bindingResolution";
 
 const parsedStatements = (source: string): readonly DslStatement[] => {
   const parsed = parseDsl(source);
@@ -32,11 +32,7 @@ const bindingId = (statementIndex: number) => `binding:stable-${statementIndex}`
 describe("analyzeBindings", () => {
   it("reports self-initialization for a direct self reference with no visible outer, and creates no edge", () => {
     const catalog = catalogFor("const x: number = @x");
-    const resolution = resolveBindingReference(catalog, "x", {
-      scopeId: "root",
-      statementIndex: 0,
-      initializerBindingId: bindingId(0)
-    });
+    const resolution = resolveBindingReferenceForTests(catalog, "x", { scopeId: "root", statementIndex: 0 }, bindingId(0));
     const reference: InitializerReference = { fromBindingId: bindingId(0), occurrenceIndex: 0, name: "x", span: null, resolution };
 
     const analysis = analyzeBindings({ catalog, initializerReferences: [reference] });
@@ -54,8 +50,8 @@ describe("analyzeBindings", () => {
 
   it("classifies a 2-node forward/resolved cycle as binding-cycle and suppresses the forward issue", () => {
     const catalog = catalogFor(["const a: number = @b", "const b: number = @a"].join("\n"));
-    const aToB = resolveBindingReference(catalog, "b", { scopeId: "root", statementIndex: 0 });
-    const bToA = resolveBindingReference(catalog, "a", { scopeId: "root", statementIndex: 1 });
+    const aToB = resolveBindingReferenceForTests(catalog, "b", { scopeId: "root", statementIndex: 0 });
+    const bToA = resolveBindingReferenceForTests(catalog, "a", { scopeId: "root", statementIndex: 1 });
     expect(aToB.kind).toBe("forward");
     expect(bToA.kind).toBe("resolved");
 
@@ -76,9 +72,9 @@ describe("analyzeBindings", () => {
 
   it("classifies a 3-node forward/forward/resolved cycle and suppresses every internal forward issue", () => {
     const catalog = catalogFor(["const a: number = @b", "const b: number = @c", "const c: number = @a"].join("\n"));
-    const aToB = resolveBindingReference(catalog, "b", { scopeId: "root", statementIndex: 0 });
-    const bToC = resolveBindingReference(catalog, "c", { scopeId: "root", statementIndex: 1 });
-    const cToA = resolveBindingReference(catalog, "a", { scopeId: "root", statementIndex: 2 });
+    const aToB = resolveBindingReferenceForTests(catalog, "b", { scopeId: "root", statementIndex: 0 });
+    const bToC = resolveBindingReferenceForTests(catalog, "c", { scopeId: "root", statementIndex: 1 });
+    const cToA = resolveBindingReferenceForTests(catalog, "a", { scopeId: "root", statementIndex: 2 });
     expect(aToB.kind).toBe("forward");
     expect(bToC.kind).toBe("forward");
     expect(cToA.kind).toBe("resolved");
@@ -98,8 +94,8 @@ describe("analyzeBindings", () => {
 
   it("keeps a non-cycle forward chain classified as forward-binding-reference, not binding-cycle", () => {
     const catalog = catalogFor(["const a: number = @b", "const b: number = @c", "const c: number = 0"].join("\n"));
-    const aToB = resolveBindingReference(catalog, "b", { scopeId: "root", statementIndex: 0 });
-    const bToC = resolveBindingReference(catalog, "c", { scopeId: "root", statementIndex: 1 });
+    const aToB = resolveBindingReferenceForTests(catalog, "b", { scopeId: "root", statementIndex: 0 });
+    const bToC = resolveBindingReferenceForTests(catalog, "c", { scopeId: "root", statementIndex: 1 });
     expect(aToB.kind).toBe("forward");
     expect(bToC.kind).toBe("forward");
 
@@ -118,7 +114,7 @@ describe("analyzeBindings", () => {
 
   it("reports undefined-binding for a reference with no matching declaration and creates no edge", () => {
     const catalog = catalogFor("const a: number = @nope");
-    const resolution = resolveBindingReference(catalog, "nope", { scopeId: "root", statementIndex: 0 });
+    const resolution = resolveBindingReferenceForTests(catalog, "nope", { scopeId: "root", statementIndex: 0 });
     expect(resolution.kind).toBe("undefined");
     const reference: InitializerReference = { fromBindingId: bindingId(0), occurrenceIndex: 0, name: "nope", span: null, resolution };
 
@@ -199,7 +195,7 @@ describe("analyzeBindings", () => {
       "const x: number = 3",
       "const d: number = @x"
     ].join("\n"));
-    const resolution = resolveBindingReference(catalog, "x", { scopeId: "root", statementIndex: 3 });
+    const resolution = resolveBindingReferenceForTests(catalog, "x", { scopeId: "root", statementIndex: 3 });
     expect(resolution.kind).toBe("duplicate");
     const reference: InitializerReference = { fromBindingId: bindingId(3), occurrenceIndex: 0, name: "x", span: null, resolution };
 
@@ -214,11 +210,7 @@ describe("analyzeBindings", () => {
 
   it("does not classify an inner initializer resolving to a visible outer binding as a cycle", () => {
     const catalog = catalogFor(["const x: number = 1", "group G {", "  const x: number = @x", "}"].join("\n"));
-    const resolution = resolveBindingReference(catalog, "x", {
-      scopeId: "group:stable-1",
-      statementIndex: 2,
-      initializerBindingId: bindingId(2)
-    });
+    const resolution = resolveBindingReferenceForTests(catalog, "x", { scopeId: "group:stable-1", statementIndex: 2 }, bindingId(2));
     expect(resolution.kind).toBe("resolved");
     const reference: InitializerReference = { fromBindingId: bindingId(2), occurrenceIndex: 0, name: "x", span: null, resolution };
 
@@ -231,7 +223,7 @@ describe("analyzeBindings", () => {
 
   it("picks the highest-priority reason when a binding has both a duplicate declaration and a forward reference", () => {
     const catalog = catalogFor(["const a: number = @b", "const a: number = 1", "const b: number = 2"].join("\n"));
-    const aToB = resolveBindingReference(catalog, "b", { scopeId: "root", statementIndex: 0 });
+    const aToB = resolveBindingReferenceForTests(catalog, "b", { scopeId: "root", statementIndex: 0 });
     expect(aToB.kind).toBe("forward");
     const reference: InitializerReference = { fromBindingId: bindingId(0), occurrenceIndex: 0, name: "b", span: null, resolution: aToB };
 
@@ -245,9 +237,9 @@ describe("analyzeBindings", () => {
   it("classifies a synthetic resolved self-edge as a 1-node cycle, distinct from self-initialization", () => {
     const catalog = catalogFor("const x: number = 1");
     const selfBinding = catalog.bindingsById.get(bindingId(0))!;
-    // This resolution could never come from resolveBindingReference itself
-    // (direct self-name references always resolve to "self" or an outer
-    // binding - see bindingResolution.ts's resolveInitializerSelf). It is
+    // This resolution could never come from resolveInitializerReferences
+    // itself (direct self-name references always resolve to "self" or an
+    // outer binding - see bindingResolution.ts's runSweep). It is
     // constructed directly here to defend the general SCC algorithm against
     // the classic "singleton SCC without a self-loop is not a cycle" pitfall.
     const resolution = { kind: "resolved" as const, binding: selfBinding };
@@ -269,10 +261,10 @@ describe("analyzeBindings", () => {
       "const d: number = @e",
       "const e: number = 0"
     ].join("\n"));
-    const aToB = resolveBindingReference(catalog, "b", { scopeId: "root", statementIndex: 0 });
-    const bToA = resolveBindingReference(catalog, "a", { scopeId: "root", statementIndex: 1 });
-    const cToMissing = resolveBindingReference(catalog, "missing", { scopeId: "root", statementIndex: 2 });
-    const dToE = resolveBindingReference(catalog, "e", { scopeId: "root", statementIndex: 3 });
+    const aToB = resolveBindingReferenceForTests(catalog, "b", { scopeId: "root", statementIndex: 0 });
+    const bToA = resolveBindingReferenceForTests(catalog, "a", { scopeId: "root", statementIndex: 1 });
+    const cToMissing = resolveBindingReferenceForTests(catalog, "missing", { scopeId: "root", statementIndex: 2 });
+    const dToE = resolveBindingReferenceForTests(catalog, "e", { scopeId: "root", statementIndex: 3 });
 
     const references: InitializerReference[] = [
       { fromBindingId: bindingId(0), occurrenceIndex: 0, name: "b", span: null, resolution: aToB },
@@ -307,7 +299,7 @@ describe("analyzeBindings", () => {
 
   it("throws on a duplicate occurrenceIndex within the same binding", () => {
     const catalog = catalogFor("const a: number = @b + @c");
-    const resolution = resolveBindingReference(catalog, "b", { scopeId: "root", statementIndex: 0 });
+    const resolution = resolveBindingReferenceForTests(catalog, "b", { scopeId: "root", statementIndex: 0 });
     const references: InitializerReference[] = [
       { fromBindingId: bindingId(0), occurrenceIndex: 0, name: "b", span: null, resolution },
       { fromBindingId: bindingId(0), occurrenceIndex: 0, name: "c", span: null, resolution }
@@ -318,11 +310,22 @@ describe("analyzeBindings", () => {
 
   it("throws on a non-contiguous occurrenceIndex within the same binding", () => {
     const catalog = catalogFor("const a: number = @b + @c");
-    const resolution = resolveBindingReference(catalog, "b", { scopeId: "root", statementIndex: 0 });
+    const resolution = resolveBindingReferenceForTests(catalog, "b", { scopeId: "root", statementIndex: 0 });
     const references: InitializerReference[] = [
       { fromBindingId: bindingId(0), occurrenceIndex: 0, name: "b", span: null, resolution },
       { fromBindingId: bindingId(0), occurrenceIndex: 2, name: "c", span: null, resolution }
     ];
     expect(() => analyzeBindings({ catalog, initializerReferences: references })).toThrow(/occurrenceIndex/);
+  });
+
+  it("keeps a forward reference's multiple graph edges in catalog rank order", () => {
+    const catalog = catalogFor(["const a: number = @b", "const b: number = 1", "const b: number = 2"].join("\n"));
+    const resolution = resolveBindingReferenceForTests(catalog, "b", { scopeId: "root", statementIndex: 0 });
+    expect(resolution).toMatchObject({ kind: "forward", bindingIds: [bindingId(1), bindingId(2)] });
+    const reference: InitializerReference = { fromBindingId: bindingId(0), occurrenceIndex: 0, name: "b", span: null, resolution };
+
+    const graph = buildInitializerGraph(catalog, [reference]);
+
+    expect(graph.edgesByFromBindingId.get(bindingId(0))?.map((edge) => edge.toBindingId)).toEqual([bindingId(1), bindingId(2)]);
   });
 });
