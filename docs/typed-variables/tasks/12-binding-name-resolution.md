@@ -153,6 +153,12 @@ production exportから削除された。単発lookupは`visibleBindingsAt`専�
 全nameを収集するbulk queryである。local、最内lexical level、ancestorの順にshadowを確定し、
 duplicate nameは外側へfallbackせず結果から除外する。最終結果はcatalog rank順。
 
+13R-7 handoff: legacy bindingもtyped declarationと同様に宣言statementのreference解決後に
+activateする。ただし後続legacyはforward candidateではなく、forwardは引き続き同一lexical
+scopeの後続typed declarationだけである。`scope: group`はreconciled CAD elementの
+`parentGroupId`をownerのsource of truthとし、plain group、conditionalGroupの両branch、
+forGroup body、明示`parent:`を`variableIsInScope`と同じcontainer hierarchyで扱う。
+
 name resolutionだけ。推奨branch slug: `typed-vars/12-binding-resolution`。
 
 共通仕様は[plan.md](../plan.md)、判断根拠は[decisions.md](../decisions.md)を正とする。

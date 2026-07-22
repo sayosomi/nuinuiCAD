@@ -1,6 +1,16 @@
 import type { Binding, BindingCatalog, BindingId } from "./bindingCatalog";
 import { resolveElementLocalRangeQueries, type ElementLocalRangeQuery } from "./elementLocalRangeIndex";
 import type { ScopeId } from "./lexicalScopeIndex";
+import {
+  activateFrameNames,
+  activateLegacyBinding,
+  addTypedBinding,
+  addTypedBindingToFrame,
+  createMutableLegacyLanes,
+  transitionScopeFrames,
+  type MutableLegacyLanes,
+  type ScopeFrame
+} from "./bindingResolutionSweepState";
 
 export type BindingReferenceSite = { scopeId: ScopeId; statementIndex: number; elementLocal?: { ownerId: string; order: number } };
 export type BindingResolution =
@@ -18,15 +28,6 @@ export type InitializerResolutionRequest = {
 };
 export type ResolvedInitializerReference = InitializerResolutionRequest & { resolution: BindingResolution };
 
-type ScopeFrame = {
-  scopeId: ScopeId;
-  /** Static group-subtree / iteration lane for this exact scope. */
-  staticNames: ReadonlyMap<string, readonly Binding[]>;
-  /** Typed declarations activated in source order while sweeping. */
-  typedNames: Map<string, Binding[]>;
-  /** Names currently represented by this frame in activeByName. */
-  activeNames: Set<string>;
-};
 /**
  * `owner` is the single source of truth for initializer self-detection: the
  * binding whose initializer this reference belongs to. It is always a real
@@ -56,12 +57,6 @@ type LookupObserver = {
 };
 
 const keyFor = (bindingId: BindingId, occurrenceIndex: number) => `${bindingId}\u0000${occurrenceIndex}`;
-const isAncestor = (catalog: BindingCatalog, ancestorId: ScopeId, descendantId: ScopeId) => {
-  const ancestor = catalog.scopeIndex.scopeMetadataById.get(ancestorId);
-  const descendant = catalog.scopeIndex.scopeMetadataById.get(descendantId);
-  return !!ancestor && !!descendant && ancestor.treeEnter <= descendant.treeEnter && descendant.treeEnter < ancestor.treeExit;
-};
-
 const createLookupObserver = (): LookupObserver => ({
   registeredBindingCount: 0,
   requestCount: 0,
@@ -129,56 +124,6 @@ const canonicalize = (catalog: BindingCatalog, requests: readonly InitializerRes
   return canonical;
 };
 
-const transition = (
-  catalog: BindingCatalog, frames: ScopeFrame[], activeByName: Map<string, ScopeFrame[]>, targetScopeId: ScopeId,
-  onEnter: (frame: ScopeFrame) => void
-) => {
-  while (frames.length && !isAncestor(catalog, frames[frames.length - 1].scopeId, targetScopeId)) {
-    const frame = frames.pop()!;
-    for (const name of frame.activeNames) activeByName.get(name)?.pop();
-  }
-  const entering: ScopeId[] = [];
-  let current: ScopeId | null = targetScopeId;
-  while (current && (!frames.length || current !== frames[frames.length - 1].scopeId)) {
-    entering.push(current); current = catalog.scopeIndex.scopeMetadataById.get(current)?.parentId ?? null;
-  }
-  for (let index = entering.length - 1; index >= 0; index -= 1) {
-    const scopeId = entering[index];
-    const frame: ScopeFrame = {
-      scopeId,
-      staticNames: catalog.lookupNamespaces.scopedStaticByScopeAndName.get(scopeId) ?? new Map(),
-      typedNames: new Map(),
-      activeNames: new Set()
-    };
-    frames.push(frame); onEnter(frame);
-  }
-};
-
-const activateName = (frame: ScopeFrame, name: string, activeByName: Map<string, ScopeFrame[]>) => {
-  if (frame.activeNames.has(name)) return;
-  frame.activeNames.add(name);
-  const stack = activeByName.get(name) ?? [];
-  stack.push(frame); activeByName.set(name, stack);
-};
-
-const addTypedBindingToFrame = (frame: ScopeFrame, binding: Binding) => {
-  const bucket = frame.typedNames.get(binding.name) ?? [];
-  bucket.push(binding);
-  frame.typedNames.set(binding.name, bucket);
-};
-
-const addTypedBinding = (frame: ScopeFrame, binding: Binding, activeByName: Map<string, ScopeFrame[]>) => {
-  addTypedBindingToFrame(frame, binding);
-  activateName(frame, binding.name, activeByName);
-};
-
-const activateStaticNames = (catalog: BindingCatalog, frame: ScopeFrame, activeByName: Map<string, ScopeFrame[]>, includeLegacyRootLanes: boolean) => {
-  for (const name of frame.staticNames.keys()) activateName(frame, name, activeByName);
-  if (!includeLegacyRootLanes || frame.scopeId !== catalog.scopeIndex.rootScopeId) return;
-  for (const name of catalog.lookupNamespaces.globalByName.keys()) activateName(frame, name, activeByName);
-  for (const name of catalog.lookupNamespaces.outsideGroupsByName.keys()) activateName(frame, name, activeByName);
-};
-
 const mergeCatalogOrderedLanes = (
   lanes: readonly (readonly Binding[] | undefined)[],
   observer?: LookupObserver
@@ -215,20 +160,35 @@ const mergeCatalogOrderedLanes = (
   return merged;
 };
 
-const candidateLanesForFrame = (catalog: BindingCatalog, frame: ScopeFrame, name: string, site: BindingReferenceSite) => {
-  const lanes: (readonly Binding[] | undefined)[] = [frame.staticNames.get(name), frame.typedNames.get(name)];
-  if (frame.scopeId !== catalog.scopeIndex.rootScopeId) return lanes;
-  lanes.push(catalog.lookupNamespaces.globalByName.get(name));
-  if (catalog.scopeIndex.scopeMetadataById.get(site.scopeId)?.effectiveGroupScopeId === null) {
-    lanes.push(catalog.lookupNamespaces.outsideGroupsByName.get(name));
+const siteIsOutsideGroups = (catalog: BindingCatalog, site: BindingReferenceSite) => {
+  if (catalog.containerIndex.ownerContainerIdByStatementIndex.has(site.statementIndex)) {
+    return catalog.containerIndex.ownerContainerIdByStatementIndex.get(site.statementIndex) === null;
   }
-  return lanes;
+  return catalog.scopeIndex.scopeMetadataById.get(site.scopeId)?.effectiveGroupScopeId === null;
+};
+
+const candidateLaneGroupsForFrame = (
+  catalog: BindingCatalog,
+  frame: ScopeFrame,
+  name: string,
+  site: BindingReferenceSite,
+  legacyLanes: MutableLegacyLanes
+): readonly (readonly (readonly Binding[] | undefined)[])[] => {
+  const lexical: (readonly Binding[] | undefined)[] = [frame.iterationNames.get(name), frame.typedNames.get(name)];
+  if (frame.scopeId === catalog.scopeIndex.rootScopeId) {
+    lexical.push(legacyLanes.globalNames.get(name));
+    if (siteIsOutsideGroups(catalog, site)) lexical.push(legacyLanes.outsideGroupsNames.get(name));
+    return [lexical];
+  }
+  const legacy = frame.legacyNames?.get(name);
+  return frame.mergeLegacyWithLexical ? [[...lexical, legacy]] : [lexical, [legacy]];
 };
 
 const resolutionFor = (
   catalog: BindingCatalog,
   request: SweepRequest,
   activeByName: Map<string, ScopeFrame[]>,
+  legacyLanes: MutableLegacyLanes,
   localCandidatesByRequestKey: ReadonlyMap<string, readonly Binding[]>,
   observer?: LookupObserver
 ): BindingResolution | null => {
@@ -247,11 +207,13 @@ const resolutionFor = (
   const stack = activeByName.get(name) ?? [];
   for (let index = stack.length - 1; index >= 0; index -= 1) {
     const frame = stack[index];
-    const candidates = mergeCatalogOrderedLanes(candidateLanesForFrame(catalog, frame, name, site), observer);
-    if (!candidates.length) continue;
-    recordEmittedCandidates(observer, candidates);
-    if (candidates.length > 1) return { kind: "duplicate", name, scopeId: site.scopeId, statementIndex: site.statementIndex, bindingIds: candidates.map((binding) => binding.id) };
-    return { kind: "resolved", binding: candidates[0] };
+    for (const lanes of candidateLaneGroupsForFrame(catalog, frame, name, site, legacyLanes)) {
+      const candidates = mergeCatalogOrderedLanes(lanes, observer);
+      if (!candidates.length) continue;
+      recordEmittedCandidates(observer, candidates);
+      if (candidates.length > 1) return { kind: "duplicate", name, scopeId: site.scopeId, statementIndex: site.statementIndex, bindingIds: candidates.map((binding) => binding.id) };
+      return { kind: "resolved", binding: candidates[0] };
+    }
   }
   return null;
 };
@@ -291,24 +253,28 @@ const runSweep = (catalog: BindingCatalog, requests: readonly SweepRequest[], ob
   const direct = new Map<string, BindingResolution>();
   const frames: ScopeFrame[] = [];
   const active = new Map<string, ScopeFrame[]>();
+  const legacyLanes = createMutableLegacyLanes();
   for (let statementIndex = 0; statementIndex < statementCount; statementIndex += 1) {
     const scopeId = catalog.scopeIndex.scopeOfStatement.get(statementIndex) ?? catalog.scopeIndex.rootScopeId;
-    transition(catalog, frames, active, scopeId, (frame) => activateStaticNames(catalog, frame, active, true));
+    transitionScopeFrames(catalog, frames, active, scopeId, legacyLanes, (frame) => activateFrameNames(catalog, frame, active, legacyLanes));
     for (const request of byStatement.get(statementIndex) ?? []) {
-      const resolved = resolutionFor(catalog, request, active, localCandidatesByRequestKey, observer);
+      const resolved = resolutionFor(catalog, request, active, legacyLanes, localCandidatesByRequestKey, observer);
       const directResolution: BindingResolution = resolved ?? (request.owner && request.owner.name === request.name
         ? { kind: "self", name: request.name, scopeId: request.site.scopeId, statementIndex: request.site.statementIndex, bindingId: request.owner.id }
         : { kind: "undefined", name: request.name, scopeId: request.site.scopeId, statementIndex: request.site.statementIndex });
       direct.set(request.key, directResolution);
     }
     for (const binding of typedByStatement.get(statementIndex) ?? []) addTypedBinding(frames[frames.length - 1], binding, active);
+    for (const binding of catalog.lookupNamespaces.legacyByStatementIndex.get(statementIndex) ?? []) {
+      activateLegacyBinding(binding, legacyLanes, active);
+    }
   }
   const future = new Map<string, readonly Binding[]>();
   const reverseFrames: ScopeFrame[] = [];
   const reverseActive = new Map<string, ScopeFrame[]>();
   for (let statementIndex = statementCount - 1; statementIndex >= 0; statementIndex -= 1) {
     const scopeId = catalog.scopeIndex.scopeOfStatement.get(statementIndex) ?? catalog.scopeIndex.rootScopeId;
-    transition(catalog, reverseFrames, reverseActive, scopeId, () => {});
+    transitionScopeFrames(catalog, reverseFrames, reverseActive, scopeId, null, () => {});
     for (const request of byStatement.get(statementIndex) ?? []) {
       if (direct.get(request.key)?.kind !== "undefined") continue;
       const frame = reverseFrames[reverseFrames.length - 1];
@@ -425,11 +391,15 @@ const visibleBindingsAtInternal = (
 
   const frames: ScopeFrame[] = [];
   const activeByName = new Map<string, ScopeFrame[]>();
+  const legacyLanes = createMutableLegacyLanes();
   for (let statementIndex = 0; statementIndex <= scheduledStatementIndex; statementIndex += 1) {
     const scopeId = catalog.scopeIndex.scopeOfStatement.get(statementIndex) ?? catalog.scopeIndex.rootScopeId;
-    transition(catalog, frames, activeByName, scopeId, (frame) => activateStaticNames(catalog, frame, activeByName, true));
+    transitionScopeFrames(catalog, frames, activeByName, scopeId, legacyLanes, (frame) => activateFrameNames(catalog, frame, activeByName, legacyLanes));
     if (statementIndex === scheduledStatementIndex) break;
     for (const binding of typedByStatement.get(statementIndex) ?? []) addTypedBinding(frames[frames.length - 1], binding, activeByName);
+    for (const binding of catalog.lookupNamespaces.legacyByStatementIndex.get(statementIndex) ?? []) {
+      activateLegacyBinding(binding, legacyLanes, activeByName);
+    }
   }
 
   const shadowedNames = new Set<string>();
@@ -468,22 +438,26 @@ const visibleBindingsAtInternal = (
   for (let frameIndex = frames.length - 1; frameIndex >= 0; frameIndex -= 1) {
     const frame = frames[frameIndex];
     const namesAtLevel = new Set<string>();
-    for (const name of frame.staticNames.keys()) namesAtLevel.add(name);
+    for (const name of frame.iterationNames.keys()) namesAtLevel.add(name);
     for (const name of frame.typedNames.keys()) namesAtLevel.add(name);
+    for (const name of frame.legacyNames?.keys() ?? []) namesAtLevel.add(name);
     if (frame.scopeId === catalog.scopeIndex.rootScopeId) {
-      for (const name of catalog.lookupNamespaces.globalByName.keys()) namesAtLevel.add(name);
-      if (catalog.scopeIndex.scopeMetadataById.get(site.scopeId)?.effectiveGroupScopeId === null) {
-        for (const name of catalog.lookupNamespaces.outsideGroupsByName.keys()) namesAtLevel.add(name);
+      for (const name of legacyLanes.globalNames.keys()) namesAtLevel.add(name);
+      if (siteIsOutsideGroups(catalog, site)) {
+        for (const name of legacyLanes.outsideGroupsNames.keys()) namesAtLevel.add(name);
       }
     }
     for (const name of namesAtLevel) {
       if (shadowedNames.has(name)) continue;
-      const candidates = mergeCatalogOrderedLanes(candidateLanesForFrame(catalog, frame, name, site), observer);
-      if (candidates.length === 0) continue;
-      shadowedNames.add(name);
-      if (candidates.length === 1) {
-        selectedBindingIds.add(candidates[0].id);
-        recordEmittedCandidates(observer, candidates);
+      for (const lanes of candidateLaneGroupsForFrame(catalog, frame, name, site, legacyLanes)) {
+        const candidates = mergeCatalogOrderedLanes(lanes, observer);
+        if (candidates.length === 0) continue;
+        shadowedNames.add(name);
+        if (candidates.length === 1) {
+          selectedBindingIds.add(candidates[0].id);
+          recordEmittedCandidates(observer, candidates);
+        }
+        break;
       }
     }
   }

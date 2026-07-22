@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildDslBindingAdapterSeeds } from "../src/dsl/bindingCatalogAdapter";
+import { compileDslToElements } from "../src/dsl/dslCompiler";
 import { parseDsl } from "../src/dsl/dslParser";
 import { analyzeBindings, type InitializerReference } from "../src/scalars/bindingAnalysis";
 import { buildBindingCatalog } from "../src/scalars/bindingCatalog";
@@ -25,13 +26,15 @@ const prepare = (bindingBudget: number) => {
   }
   const statements = parsed.statements;
   const stableIds = new Map(statements.map((_, index) => [index, `stmt${index}`]));
-  return { statements, stableIds, scale, references, statementCount: statements.length };
+  return { source, statements, stableIds, scale, references, statementCount: statements.length };
 };
 
 const runPipeline = (prepared: ReturnType<typeof prepare>) => {
   const scopeIndex = buildLexicalScopeIndex(prepared.statements, (index) => prepared.stableIds.get(index)!);
-  const adapter = buildDslBindingAdapterSeeds({ statements: prepared.statements, scopeIndex, stableStatementIdByIndex: prepared.stableIds });
-  const catalog = buildBindingCatalog({ scopeIndex, stableStatementIdByIndex: prepared.stableIds, legacyBindings: adapter.legacyBindings, iterationBindings: adapter.iterationBindings });
+  const compiled = compileDslToElements(prepared.source, { elements: [], mode: "document", majorVersion: 3 });
+  const reconciledContainers = { elements: compiled.elements, elementIdByStatementIndex: compiled.elementIdsByStatementIndex ?? new Map() };
+  const adapter = buildDslBindingAdapterSeeds({ statements: prepared.statements, scopeIndex, stableStatementIdByIndex: prepared.stableIds, reconciledContainers });
+  const catalog = buildBindingCatalog({ scopeIndex, stableStatementIdByIndex: prepared.stableIds, legacyBindings: adapter.legacyBindings, iterationBindings: adapter.iterationBindings, containerIndex: adapter.containerIndex });
   const typedBindingsByName = new Map(catalog.bindings.filter((binding) => binding.kind === "typed").map((binding) => [binding.name, binding]));
   const requests = prepared.references.map(({ ownerName, name }) => {
     const owner = typedBindingsByName.get(ownerName);

@@ -62,3 +62,11 @@ bulk collector visits only the selected lanes at each lexical level, records
 candidate inspection at the actual lane read, and stops before shadowed outer
 buckets. `visibleBindingsAt` performs one site traversal regardless of name
 count.
+
+## 13R-7 correction
+
+Legacy lanes are catalog-registered but source-order activated only after the
+declaration statement. Group-subtree ownership is keyed by reconciled CAD
+container ID rather than lexical scope shape. Mutable owner lanes persist
+across frame exit, allowing conditional then-to-else and later explicit-parent
+entry without binding copies or per-reference visibility filtering.
