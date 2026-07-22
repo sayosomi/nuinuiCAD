@@ -20,8 +20,10 @@ or binding/reference × scope traversal is permitted.
   group, and DFS ancestor interval by scope ID in O(1). Raw sparse statement
   indexes are Map keys; dense storage is bounded by statement count.
 - Legacy visibility is `global`, `subtree`, or `outsideGroups`, never an
-  expanded scope-id array. Its result remains parity-compatible with
-  `variableIsInScope`.
+  expanded scope-id array. Task 13R-5 registers them in global,
+  root/outside-only, and scope-entry lanes respectively, so a group lookup
+  cannot filter a root outside-groups bucket. Its result remains
+  parity-compatible with `variableIsInScope`.
 - `resolveInitializerReferences` canonicalizes arbitrary request arrival order
   by binding rank and contiguous `occurrenceIndex`; unknown binding IDs,
   duplicates, and gaps fail fast. It returns canonical order without caller

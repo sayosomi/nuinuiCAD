@@ -18,7 +18,7 @@ import { describe, expect, it } from "vitest";
 
 const SRC_ROOT = path.resolve(process.cwd(), "src");
 const DEFINITION_FILE = path.join(SRC_ROOT, "scalars", "bindingResolution.ts");
-const FORBIDDEN_SYMBOL = "resolveBindingReferenceForTests";
+const TEST_ONLY_SYMBOLS = ["resolveBindingReferenceForTests", "resolveInitializerReferencesWithTraceForTests"];
 
 const collectSourceFiles = (dir: string, out: string[] = []): string[] => {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -30,11 +30,11 @@ const collectSourceFiles = (dir: string, out: string[] = []): string[] => {
 };
 
 describe("bindingResolution public surface", () => {
-  it("never references the test-only single-site resolver from non-test source", () => {
+  it("never references test-only resolver helpers from non-test source", () => {
     const offenders = collectSourceFiles(SRC_ROOT)
       .filter((file) => file !== DEFINITION_FILE)
       .filter((file) => !file.endsWith(".test.ts") && !file.endsWith(".test.tsx"))
-      .filter((file) => fs.readFileSync(file, "utf8").includes(FORBIDDEN_SYMBOL))
+      .filter((file) => TEST_ONLY_SYMBOLS.some((symbol) => fs.readFileSync(file, "utf8").includes(symbol)))
       .map((file) => path.relative(SRC_ROOT, file));
 
     expect(offenders).toEqual([]);

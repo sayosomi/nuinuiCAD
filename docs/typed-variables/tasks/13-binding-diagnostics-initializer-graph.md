@@ -189,7 +189,8 @@ resolution・graph・spanを再計算・再走査しない。
 rank is the deterministic order source; no analysis consumer re-sorts or
 re-resolves references.
 
-13R-4 handoff: a same-name multi-candidate `forward` resolution's `bindingIds`
+13R-5 handoff: lookup candidate generation remains output-sensitive: a
+same-name multi-candidate `forward` resolution's `bindingIds`
 is now guaranteed catalog rank order at the source
 (`resolveInitializerReferences`), so `buildInitializerGraph`'s forward edges
 (which copy `bindingIds` verbatim) are catalog-rank order too, with no change

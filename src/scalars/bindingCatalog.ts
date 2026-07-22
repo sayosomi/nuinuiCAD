@@ -55,9 +55,26 @@ export type BindingCatalog = {
   scopeIndex: LexicalScopeIndex;
   bindings: readonly Binding[];
   bindingsById: ReadonlyMap<BindingId, Binding>;
+  /**
+   * Lookup-only visibility lanes. These are intentionally separate from the
+   * effective-scope buckets below: the latter remain the source of truth for
+   * document/iteration duplicate diagnostics, while these lanes ensure a
+   * lookup never receives bindings that are structurally invisible at its
+   * lexical level.
+   */
+  lookupNamespaces: BindingLookupNamespaces;
   bindingsByEffectiveScopeAndName: ReadonlyMap<ScopeId, ReadonlyMap<string, readonly Binding[]>>;
   elementLocalBindingsByOwnerAndName: ReadonlyMap<string, ReadonlyMap<string, readonly Binding[]>>;
   declarationDuplicateBuckets: readonly (readonly Binding[])[];
+};
+
+export type BindingLookupNamespaces = {
+  /** Visible at the root lexical level of every scope tree, once per name. */
+  globalByName: ReadonlyMap<string, readonly Binding[]>;
+  /** Selected only for sites outside every CAD group. */
+  outsideGroupsByName: ReadonlyMap<string, readonly Binding[]>;
+  /** Group-subtree and iteration bindings, registered when their root scope opens. */
+  scopedStaticByScopeAndName: ReadonlyMap<ScopeId, ReadonlyMap<string, readonly Binding[]>>;
 };
 
 const typedBindingId = (stableStatementId: string): BindingId => `binding:${stableStatementId}`;
@@ -116,6 +133,16 @@ export const buildBindingCatalog = ({
   const bindingsById = new Map<BindingId, Binding>();
   const documentBuckets = new Map<ScopeId, Map<string, Binding[]>>();
   const localBuckets = new Map<string, Map<string, Binding[]>>();
+  const globalByName = new Map<string, Binding[]>();
+  const outsideGroupsByName = new Map<string, Binding[]>();
+  const scopedStaticByScopeAndName = new Map<ScopeId, Map<string, Binding[]>>();
+  const addLookupBinding = <K>(index: Map<K, Map<string, Binding[]>>, key: K, binding: Binding) => {
+    const names = index.get(key) ?? new Map<string, Binding[]>();
+    const bucket = names.get(binding.name) ?? [];
+    bucket.push(binding);
+    names.set(binding.name, bucket);
+    index.set(key, names);
+  };
   for (const binding of bindings) {
     if (bindingsById.has(binding.id)) throw new Error(`bindingCatalog: duplicate binding id ${binding.id}`);
     bindingsById.set(binding.id, binding);
@@ -127,6 +154,17 @@ export const buildBindingCatalog = ({
       const names = documentBuckets.get(binding.effectiveScopeId) ?? new Map<string, Binding[]>();
       const bucket = names.get(binding.name) ?? [];
       bucket.push(binding); names.set(binding.name, bucket); documentBuckets.set(binding.effectiveScopeId, names);
+      if (binding.visibility.kind === "global") {
+        const globalBucket = globalByName.get(binding.name) ?? [];
+        globalBucket.push(binding);
+        globalByName.set(binding.name, globalBucket);
+      } else if (binding.visibility.kind === "outsideGroups") {
+        const outsideBucket = outsideGroupsByName.get(binding.name) ?? [];
+        outsideBucket.push(binding);
+        outsideGroupsByName.set(binding.name, outsideBucket);
+      } else if (binding.visibility.kind === "subtree") {
+        addLookupBinding(scopedStaticByScopeAndName, binding.visibility.rootScopeId, binding);
+      }
     }
   }
   const declarationDuplicateBuckets: (readonly Binding[])[] = [];
@@ -138,6 +176,11 @@ export const buildBindingCatalog = ({
   };
   const bindingsByEffectiveScopeAndName = freezeBuckets(documentBuckets);
   const elementLocalBindingsByOwnerAndName = freezeBuckets(localBuckets);
+  const lookupNamespaces: BindingLookupNamespaces = {
+    globalByName,
+    outsideGroupsByName,
+    scopedStaticByScopeAndName: freezeBuckets(scopedStaticByScopeAndName)
+  };
   // Discover duplicate buckets in catalog rank order, not Map insertion order.
   for (const binding of bindings) {
     const bucket = binding.visibility.kind === "elementLocal"
@@ -145,5 +188,5 @@ export const buildBindingCatalog = ({
       : bindingsByEffectiveScopeAndName.get(binding.effectiveScopeId)?.get(binding.name);
     if (bucket && bucket.length > 1 && !duplicateSeen.has(bucket)) { duplicateSeen.add(bucket); declarationDuplicateBuckets.push(bucket); }
   }
-  return { scopeIndex, bindings, bindingsById, bindingsByEffectiveScopeAndName, elementLocalBindingsByOwnerAndName, declarationDuplicateBuckets };
+  return { scopeIndex, bindings, bindingsById, lookupNamespaces, bindingsByEffectiveScopeAndName, elementLocalBindingsByOwnerAndName, declarationDuplicateBuckets };
 };

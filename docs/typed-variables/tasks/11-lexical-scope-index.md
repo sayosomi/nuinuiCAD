@@ -198,9 +198,11 @@ bindingであり、12のname resolutionでは`declarationsByScope`とは別枠�
 
 ## 15. PR境界
 
-13R-3 handoff: consumers use `scopeMetadataById` and dense
-`statementRankByIndex` for O(1) parent/effective-group/ancestor metadata;
-they must not materialize `scopeChain` arrays for each binding or reference.
+13R-5 handoff: consumers use `scopeMetadataById` and dense
+`statementRankByIndex` for O(1) parent/effective-group/ancestor metadata.
+Legacy visibility lookup selects its compact global/root-outside/scoped lanes
+from this metadata; it must not materialize `scopeChain` arrays, expand a
+binding over scopes, or scan an outside-groups bucket from a group site.
 
 scope indexingだけ。推奨branch slug: `typed-vars/11-scope-index`。
 

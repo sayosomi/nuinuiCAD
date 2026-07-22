@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 import { buildDslBindingAdapterSeeds } from "../dsl/bindingCatalogAdapter";
 import { parseDsl } from "../dsl/dslParser";
 import type { DslStatement } from "../dsl/dslTypes";
+import { variableIsInScope } from "../geometry/variableScope";
+import type { CadElement, VariableElement } from "../types/geometry";
 import { buildBindingCatalog, type BindingSeed } from "./bindingCatalog";
 import { buildLexicalScopeIndex } from "./lexicalScopeIndex";
-import { resolveBindingReferenceForTests, resolveInitializerReferences, visibleBindingsAt } from "./bindingResolution";
+import { resolveBindingReferenceForTests, resolveInitializerReferences, resolveInitializerReferencesWithTraceForTests, visibleBindingsAt } from "./bindingResolution";
 
 const parsedStatements = (source: string): readonly DslStatement[] => {
   const parsed = parseDsl(source);
@@ -144,6 +146,167 @@ describe("binding name resolution", () => {
       .toMatchObject({ kind: "resolved", binding: { kind: "legacy" } });
     expect(resolveBindingReferenceForTests(catalog, "scoped", { scopeId: "group:stable-6", statementIndex: 7 }))
       .toMatchObject({ kind: "undefined" });
+  });
+
+  it("returns every same-name global lane candidate as a duplicate", () => {
+    const { catalog } = catalogFor([
+      "var x = expression(value: 1 id: global-x-1 scope: global)",
+      "var x = expression(value: 2 id: global-x-2 scope: global)",
+      "const use: number = @x"
+    ].join("\n"));
+    expect(resolveBindingReferenceForTests(catalog, "x", { scopeId: "root", statementIndex: 2 }))
+      .toMatchObject({ kind: "duplicate", bindingIds: ["binding:stable-0", "binding:stable-1"] });
+  });
+
+  it("returns every same-name outside-groups lane candidate at a root site", () => {
+    const { catalog } = catalogFor([
+      "var x = expression(value: 1 id: outside-x-1 scope: group)",
+      "var x = expression(value: 2 id: outside-x-2 scope: group)",
+      "const use: number = @x"
+    ].join("\n"));
+    expect(resolveBindingReferenceForTests(catalog, "x", { scopeId: "root", statementIndex: 2 }))
+      .toMatchObject({ kind: "duplicate", bindingIds: ["binding:stable-0", "binding:stable-1"] });
+  });
+
+  it("keeps outside-groups bindings out of group and nested-group lookup lanes", () => {
+    const { catalog } = catalogFor([
+      "var x = expression(value: 1 scope: group)",
+      "group Outer {",
+      "  const inOuter: number = @x",
+      "  group Inner {",
+      "    const inInner: number = @x",
+      "  }",
+      "}",
+      "const atRoot: number = @x"
+    ].join("\n"));
+    expect(resolveBindingReferenceForTests(catalog, "x", { scopeId: "group:stable-1", statementIndex: 2 })).toMatchObject({ kind: "undefined" });
+    expect(resolveBindingReferenceForTests(catalog, "x", { scopeId: "group:stable-3", statementIndex: 4 })).toMatchObject({ kind: "undefined" });
+    expect(resolveBindingReferenceForTests(catalog, "x", { scopeId: "root", statementIndex: 7 })).toMatchObject({ kind: "resolved", binding: { id: "binding:stable-0" } });
+  });
+
+  it("matches compact legacy lanes to variableIsInScope across root, group, nested, and sibling sites", () => {
+    const { catalog } = catalogFor([
+      "var Outside = expression(value: 1 id: outside scope: group)",
+      "var Global = expression(value: 1 id: global scope: global)",
+      "group Outer {",
+      "  var Scoped = expression(value: 1 id: scoped scope: group)",
+      "  group Inner {",
+      "    const nested: number = @Global",
+      "  }",
+      "}",
+      "group Sibling {",
+      "  const sibling: number = @Global",
+      "}"
+    ].join("\n"));
+    const elementsById = new Map<string, CadElement>([
+      ["outer", { id: "outer", name: "outer", type: "group", visible: true, enabled: true } as CadElement],
+      ["inner", { id: "inner", name: "inner", type: "group", visible: true, enabled: true, parentGroupId: "outer" } as CadElement],
+      ["sibling", { id: "sibling", name: "sibling", type: "group", visible: true, enabled: true } as CadElement]
+    ]);
+    const visibility = (name: string, scopeId: string, statementIndex: number) =>
+      resolveBindingReferenceForTests(catalog, name, { scopeId, statementIndex }).kind === "resolved";
+    const legacyVisible = (scope: VariableElement["scope"], parentGroupId: string | undefined, consumerParentGroupId: string | undefined) =>
+      variableIsInScope({ variable: { scope, parentGroupId }, consumer: { parentGroupId: consumerParentGroupId }, elementsById });
+
+    expect(visibility("Outside", "root", 1)).toBe(legacyVisible("group", undefined, undefined));
+    expect(visibility("Outside", "group:stable-2", 3)).toBe(legacyVisible("group", undefined, "outer"));
+    expect(visibility("Outside", "group:stable-4", 5)).toBe(legacyVisible("group", undefined, "inner"));
+    expect(visibility("Global", "root", 1)).toBe(legacyVisible("global", undefined, undefined));
+    expect(visibility("Global", "group:stable-2", 3)).toBe(legacyVisible("global", undefined, "outer"));
+    expect(visibility("Global", "group:stable-4", 5)).toBe(legacyVisible("global", undefined, "inner"));
+    expect(visibility("Scoped", "group:stable-2", 3)).toBe(legacyVisible("group", "outer", "outer"));
+    expect(visibility("Scoped", "group:stable-4", 5)).toBe(legacyVisible("group", "outer", "inner"));
+    expect(visibility("Scoped", "group:stable-8", 9)).toBe(legacyVisible("group", "outer", "sibling"));
+  });
+
+  it("merges same-namespace lanes in catalog order and stops before shadowed outer lanes", () => {
+    const merged = catalogFor([
+      "const x: number = 0",
+      "var x = expression(value: 1 id: merged-x-1 scope: global)",
+      "var x = expression(value: 2 id: merged-x-2 scope: global)",
+      "const use: number = @x"
+    ].join("\n"));
+    expect(resolveBindingReferenceForTests(merged.catalog, "x", { scopeId: "root", statementIndex: 3 }))
+      .toMatchObject({ kind: "duplicate", bindingIds: ["binding:stable-0", "binding:stable-1", "binding:stable-2"] });
+
+    const outerCount = 40;
+    const source = [
+      ...Array.from({ length: outerCount }, (_, index) => `var x = expression(value: ${index} id: outer-x-${index} scope: global)`),
+      "group Inner {",
+      "  const x: number = 1",
+      "  const use: number = @x",
+      "}"
+    ].join("\n");
+    const { catalog, scopeIndex } = catalogFor(source);
+    const owner = catalog.bindings.find((binding) => binding.kind === "typed" && binding.name === "use")!;
+    const result = resolveInitializerReferencesWithTraceForTests(catalog, [{
+      fromBindingId: owner.id,
+      occurrenceIndex: 0,
+      name: "x",
+      site: { scopeId: scopeIndex.scopeOfStatement.get(owner.statementIndex)!, statementIndex: owner.statementIndex }
+    }]);
+    expect(result.references[0].resolution).toMatchObject({ kind: "resolved", binding: { id: `binding:stable-${outerCount + 1}` } });
+    expect(result.trace.candidateVisitsByVisibilityKind.get("global") ?? 0).toBe(0);
+    expect(result.trace.emittedCandidateCount).toBe(1);
+  });
+
+  it("returns same-lane group-subtree and iteration candidates as duplicates", () => {
+    const group = catalogFor([
+      "group Outer {",
+      "  var x = expression(value: 1 id: group-x-1 scope: group)",
+      "  var x = expression(value: 2 id: group-x-2 scope: group)",
+      "  const use: number = @x",
+      "}"
+    ].join("\n"));
+    expect(resolveBindingReferenceForTests(group.catalog, "x", { scopeId: "group:stable-0", statementIndex: 3 }))
+      .toMatchObject({ kind: "duplicate", bindingIds: ["binding:stable-1", "binding:stable-2"] });
+
+    const statements = parsedStatements(["group Outer {", "  const use: number = @i", "}"].join("\n"));
+    const stableIds = new Map(statements.map((_, index) => [index, `stable-${index}`]));
+    const scopeIndex = buildLexicalScopeIndex(statements, (index) => stableIds.get(index)!);
+    const iterationScopeId = "group:stable-0";
+    const iterations: BindingSeed[] = [0, 1].map((sourceOrder) => ({
+      id: `binding:iteration:synthetic-${sourceOrder}`,
+      kind: "iteration",
+      name: "i",
+      nameSpan: null,
+      statementIndex: 0,
+      sourceOrder,
+      effectiveScopeId: iterationScopeId,
+      visibility: { kind: "subtree", rootScopeId: iterationScopeId }
+    }));
+    const catalog = buildBindingCatalog({ scopeIndex, stableStatementIdByIndex: stableIds, iterationBindings: iterations });
+    expect(resolveBindingReferenceForTests(catalog, "i", { scopeId: iterationScopeId, statementIndex: 1 }))
+      .toMatchObject({ kind: "duplicate", bindingIds: iterations.map((binding) => binding.id) });
+  });
+
+  it("never visits root outside-groups candidates from group requests", () => {
+    const bindingCount = 40;
+    const referencesPerGroup = 6;
+    const groupCount = 3;
+    const source = [
+      ...Array.from({ length: bindingCount }, (_, index) => `var outside = expression(value: ${index} id: outside-${index} scope: group)`),
+      ...Array.from({ length: groupCount }, (_, groupIndex) => [
+        `group G${groupIndex} {`,
+        ...Array.from({ length: referencesPerGroup }, (_, referenceIndex) => `  const Use${groupIndex}_${referenceIndex}: number = @outside`),
+        "}"
+      ].join("\n"))
+    ].join("\n");
+    const { catalog, scopeIndex } = catalogFor(source);
+    const requests = catalog.bindings
+      .filter((binding) => binding.kind === "typed" && binding.name.startsWith("Use"))
+      .map((binding) => ({
+        fromBindingId: binding.id,
+        occurrenceIndex: 0,
+        name: "outside",
+        site: { scopeId: scopeIndex.scopeOfStatement.get(binding.statementIndex)!, statementIndex: binding.statementIndex }
+      }));
+    const { references, trace } = resolveInitializerReferencesWithTraceForTests(catalog, requests);
+    expect(references.every((reference) => reference.resolution.kind === "undefined")).toBe(true);
+    expect(trace.candidateVisitsByVisibilityKind.get("outsideGroups") ?? 0).toBe(0);
+    expect(trace.registeredBindingCount).toBe(catalog.bindings.length);
+    expect(trace.requestCount).toBe(requests.length);
+    expect(trace.emittedCandidateCount).toBe(0);
   });
 
   it("gives adapter-scoped element locals precedence over iteration and document bindings", () => {

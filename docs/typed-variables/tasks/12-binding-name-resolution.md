@@ -128,9 +128,12 @@ groupはnearest lexical groupとその子孫（group外ならCAD parentGroupId�
 
 ## 15. PR境界
 
-13R-3 handoff: initializer callers use `resolveInitializerReferences`, which
+13R-5 handoff: initializer callers use `resolveInitializerReferences`, which
 normalizes shuffled requests by binding rank and occurrence index. Legacy
-visibility is compact (`global`/`subtree`/`outsideGroups`), not `scopeSet`.
+visibility remains compact (`global`/`subtree`/`outsideGroups`), but catalog
+lookup lanes are structurally disjoint: global is shared once, subtree enters
+only its root scope, and root/outside-groups is never a group lookup candidate.
+Same-level lane buckets merge in catalog rank order without comparison sorting.
 
 13R-4 handoff: `resolveInitializerReferences`は唯一のproduction-facing
 initializer resolverであり、self判定は`fromBindingId`だけから導出する
