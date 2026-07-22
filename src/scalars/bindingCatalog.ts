@@ -53,10 +53,16 @@ export type BindingCatalog = {
   scopeIndex: LexicalScopeIndex;
   bindings: readonly Binding[];
   bindingsById: ReadonlyMap<BindingId, Binding>;
-  /** Same-effective-scope name buckets, statement order ascending. */
+  /** Document / iteration namespace buckets, statement order ascending. */
   bindingsByEffectiveScopeAndName: ReadonlyMap<ScopeId, ReadonlyMap<string, readonly Binding[]>>;
-  /** Adapter-owned element-local buckets, never searched through all bindings. */
+  /** Adapter-owned element-local namespace buckets, keyed by owner then name. */
   elementLocalBindingsByOwnerAndName: ReadonlyMap<string, ReadonlyMap<string, readonly Binding[]>>;
+  /**
+   * Precomputed declaration duplicate buckets. Document/iteration buckets are
+   * keyed by effective scope and name; element locals are keyed by owner and
+   * name. Consumers must not re-derive these namespace rules.
+   */
+  declarationDuplicateBuckets: readonly (readonly Binding[])[];
   /** Memoized nearest-to-root chain for every lexical scope. */
   scopeChains: ReadonlyMap<ScopeId, readonly ScopeId[]>;
 };
@@ -102,32 +108,46 @@ export const buildBindingCatalog = ({
   for (const binding of bindings) {
     if (bindingsById.has(binding.id)) throw new Error(`bindingCatalog: duplicate binding id ${binding.id}`);
     bindingsById.set(binding.id, binding);
-    const names = mutableBuckets.get(binding.effectiveScopeId) ?? new Map<string, Binding[]>();
-    const bucket = names.get(binding.name) ?? [];
-    bucket.push(binding);
-    names.set(binding.name, bucket);
-    mutableBuckets.set(binding.effectiveScopeId, names);
     if (binding.visibility.kind === "elementLocal") {
       const localNames = mutableLocalBuckets.get(binding.visibility.ownerId) ?? new Map<string, Binding[]>();
       const localBucket = localNames.get(binding.name) ?? [];
       localBucket.push(binding);
       localNames.set(binding.name, localBucket);
       mutableLocalBuckets.set(binding.visibility.ownerId, localNames);
+    } else {
+      const names = mutableBuckets.get(binding.effectiveScopeId) ?? new Map<string, Binding[]>();
+      const bucket = names.get(binding.name) ?? [];
+      bucket.push(binding);
+      names.set(binding.name, bucket);
+      mutableBuckets.set(binding.effectiveScopeId, names);
     }
   }
 
   const bindingsByEffectiveScopeAndName = new Map<ScopeId, ReadonlyMap<string, readonly Binding[]>>();
+  const declarationDuplicateBuckets: (readonly Binding[])[] = [];
   for (const [scopeId, names] of mutableBuckets) {
+    const orderedNames = new Map<string, readonly Binding[]>();
+    for (const [name, bucket] of names) {
+      const orderedBucket = ordered(bucket);
+      orderedNames.set(name, orderedBucket);
+      if (orderedBucket.length > 1) declarationDuplicateBuckets.push(orderedBucket);
+    }
     bindingsByEffectiveScopeAndName.set(
       scopeId,
-      new Map([...names].map(([name, bucket]) => [name, ordered(bucket)]))
+      orderedNames
     );
   }
   const elementLocalBindingsByOwnerAndName = new Map<string, ReadonlyMap<string, readonly Binding[]>>();
   for (const [ownerId, names] of mutableLocalBuckets) {
+    const orderedNames = new Map<string, readonly Binding[]>();
+    for (const [name, bucket] of names) {
+      const orderedBucket = ordered(bucket);
+      orderedNames.set(name, orderedBucket);
+      if (orderedBucket.length > 1) declarationDuplicateBuckets.push(orderedBucket);
+    }
     elementLocalBindingsByOwnerAndName.set(
       ownerId,
-      new Map([...names].map(([name, bindings]) => [name, ordered(bindings)]))
+      orderedNames
     );
   }
 
@@ -139,6 +159,7 @@ export const buildBindingCatalog = ({
     bindingsById,
     bindingsByEffectiveScopeAndName,
     elementLocalBindingsByOwnerAndName,
+    declarationDuplicateBuckets,
     scopeChains
   };
 };

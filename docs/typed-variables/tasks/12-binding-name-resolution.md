@@ -92,23 +92,27 @@ throwする。現在のdocument reconciliationはtyped declaration用identityを
 ため、このtaskはそのIDを捏造せず、将来のdocument adapterが全binding ownerのmappingを
 渡す契約に留める。
 
-**visibilityとorder**: catalogはeffective-scope/name bucket、scope chain、element
-local owner/name bucketを事前構築する。通常の`@name`はlocal、現在のlexical scope、
-ancestor scopeの順に照会する。ancestorへ進む前に現在effective scopeの同名bucket全体を
-確認し、同scopeのtyped declarationが参照位置より後なら`forward`を返してouterへ
-fallbackしない。typedだけが宣言位置以降のorder ruleを持つ。legacyはadapterが
+**visibilityとorder**: catalogはdocument/iteration用effective-scope/name bucket、scope
+chain、element local owner/name bucketを事前構築する。通常の`@name`はlocal、現在の
+lexical scope、ancestor scopeの順に照会する。同scopeのfuture typed declarationは最も
+内側の候補として保持するが、ancestor探索を止めない。ancestorにvisible bindingがあれば
+それを返し、どこにもvisible bindingがない場合だけ保持したfuture候補を`forward`として
+返す。typedだけが宣言位置以降のorder ruleを持つ。legacyはadapterが
 `variableIsInScope`互換として渡すscope set、iteration/element localはadapter指定の
-scope/rangeで可視性を決め、全bindingへ一律の「参照より前」制限は掛けない。element
-localはiteration、document bindingより優先する。
+scope/rangeで可視性を決め、全bindingへ一律の「参照より前」制限は掛けない。可視element
+localはiteration、document bindingより優先し、同一ownerの可視localが複数なら全候補を
+持つ`duplicate`を返してdocument/iterationへfallbackしない。
 
 **initializer**: `initializerBindingId`を指定したtyped declaration自身のinitializerで
 同名を解決する場合は、現在effective scopeを飛ばしてvisible outerを探す。outerが
 `resolved`ならそれを返し、なければ`self`を返す。通常参照のforward/duplicate規則を
 selfへ置き換えない。
 
-**duplicate**: 同一effective scopeかつ同名のtyped/typed、typed/legacy、legacy/legacyは
-すべて`duplicate`であり、typed優先・legacy文書順fallbackは存在しない。Task 13はこの
-resultとcatalog bucketを使ってdiagnostic/statusを作る。
+**duplicate**: document/iteration namespaceでは同一effective scopeかつ同名の
+typed/legacy/iterationが`duplicate`であり、typed優先・legacy文書順fallbackは存在しない。
+element local namespaceでは同一ownerかつ同名だけが`duplicate`であり、ownerの異なるlocalや
+local対document/iterationの同名はduplicateではない。Task 13はcatalogが公開する
+`declarationDuplicateBuckets`を使ってdiagnostic/statusを作る。
 
 **legacy adapter**: Task 11の`legacyVariablesByScope`と既parse `DslStatement.attrs`だけを
 使い、sourceを再parse/re-scanしない。short `var`に加えlong-form

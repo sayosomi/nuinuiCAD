@@ -3,7 +3,7 @@ import { buildDslBindingAdapterSeeds } from "../dsl/bindingCatalogAdapter";
 import { parseDsl } from "../dsl/dslParser";
 import type { DslStatement } from "../dsl/dslTypes";
 import { analyzeBindings, buildInitializerGraph, type InitializerReference } from "./bindingAnalysis";
-import { buildBindingCatalog } from "./bindingCatalog";
+import { buildBindingCatalog, type BindingSeed } from "./bindingCatalog";
 import { buildLexicalScopeIndex } from "./lexicalScopeIndex";
 import { resolveBindingReference } from "./bindingResolution";
 
@@ -13,7 +13,7 @@ const parsedStatements = (source: string): readonly DslStatement[] => {
   return parsed.statements;
 };
 
-const catalogFor = (source: string) => {
+const catalogFor = (source: string, elementLocalBindings: readonly BindingSeed[] = []) => {
   const statements = parsedStatements(source);
   const stableIds = new Map(statements.map((_, index) => [index, `stable-${index}`]));
   const scopeIndex = buildLexicalScopeIndex(statements, (index) => stableIds.get(index)!);
@@ -22,7 +22,8 @@ const catalogFor = (source: string) => {
     scopeIndex,
     stableStatementIdByIndex: stableIds,
     legacyBindings: adapter.legacyBindings,
-    iterationBindings: adapter.iterationBindings
+    iterationBindings: adapter.iterationBindings,
+    elementLocalBindings
   });
 };
 
@@ -137,6 +138,53 @@ describe("analyzeBindings", () => {
     expect(duplicateIssues[0].relatedBindingIds).toBe(duplicateIssues[1].relatedBindingIds);
     expect(duplicateIssues[1].relatedBindingIds).toBe(duplicateIssues[2].relatedBindingIds);
     for (const issue of duplicateIssues) expect(issue.origin).toEqual({ kind: "declaration" });
+  });
+
+  it("emits declaration duplicate issues only for catalog namespace buckets", () => {
+    const sameOwnerFirst: BindingSeed = {
+      id: "binding:local:point-1:local-1",
+      kind: "elementLocal",
+      name: "local",
+      nameSpan: null,
+      statementIndex: 1,
+      effectiveScopeId: "for:stable-1",
+      visibility: { kind: "elementLocal", ownerId: "point-1", startOrder: 0, endOrder: 2 }
+    };
+    const sameOwnerSecond: BindingSeed = { ...sameOwnerFirst, id: "binding:local:point-1:local-2" };
+    const otherOwner: BindingSeed = {
+      ...sameOwnerFirst,
+      id: "binding:local:point-2:local-1",
+      visibility: { kind: "elementLocal", ownerId: "point-2", startOrder: 0, endOrder: 2 }
+    };
+    const documentCollision: BindingSeed = {
+      ...sameOwnerFirst,
+      id: "binding:local:point-3:document",
+      name: "document",
+      effectiveScopeId: "root",
+      visibility: { kind: "elementLocal", ownerId: "point-3", startOrder: 0, endOrder: 2 }
+    };
+    const iterationCollision: BindingSeed = {
+      ...sameOwnerFirst,
+      id: "binding:local:point-4:i",
+      name: "i",
+      visibility: { kind: "elementLocal", ownerId: "point-4", startOrder: 0, endOrder: 2 }
+    };
+    const catalog = catalogFor([
+      "const document: number = 0",
+      "for Loop (i from: 0 count: 2) {",
+      "  const body: number = 0",
+      "}"
+    ].join("\n"), [sameOwnerFirst, sameOwnerSecond, otherOwner, documentCollision, iterationCollision]);
+
+    const analysis = analyzeBindings({ catalog, initializerReferences: [] });
+    const duplicateIssues = analysis.issues.filter((issue) => issue.code === "duplicate-binding");
+
+    expect(duplicateIssues).toHaveLength(2);
+    expect(duplicateIssues.map((issue) => issue.bindingId)).toEqual([sameOwnerFirst.id, sameOwnerSecond.id]);
+    expect(duplicateIssues[0].relatedBindingIds).toEqual([sameOwnerFirst.id, sameOwnerSecond.id]);
+    expect(duplicateIssues[0].relatedBindingIds).toBe(duplicateIssues[1].relatedBindingIds);
+    expect(catalog.declarationDuplicateBuckets.map((bucket) => bucket.map((binding) => binding.id)))
+      .toEqual([[sameOwnerFirst.id, sameOwnerSecond.id]]);
   });
 
   it("reports a reference-origin duplicate-binding issue for a binding that references an ambiguous name, without duplicating the declaration-origin issues", () => {
