@@ -135,8 +135,18 @@ binding analysis、TS reference、Rust production、forGroup mutationを別々�
 
 子taskにはprefixなしの推奨slugだけを記す。実際のbranch prefixは実装環境とrepository運用に従う。
 
+## D21: legacy `var`互換のblocking範囲
+
+legacy `var`互換は、既存文書をtyped `const`/`let`へ移行するためのbest-effort支援と位置づける。
+
+- legacy-onlyの意味差や軽微なvisibility差で、手動でtyped declarationへ書き換え可能なものは、後続typed-variableタスクを止めるblockingとしない。
+- blockingとするのは、データ消失、クラッシュ、ファイルを開けない、または手動移行が不可能な問題だけ。
+- この方針はlegacy `var`互換処理をどのtaskのparser/compilerへ追加するかとは無関係であり、特定taskへ互換処理を追加する理由にはならない(Task 14のTS expression parserはこの方針を理由に一切のlegacy `var`処理を持たない)。
+
+根拠: D05/D06/D15が個別に確認したlegacy `var`互換の各契約(namespace共有、measurement再利用、version upgrade時の受理)を横断する、blocking判定そのものの基準をユーザーが明示指定した。
+
 ## Open decisions
 
 なし。
 
-これは推測による打ち切りではない。上記D01〜D20はユーザー指定で確定した事項、または現行sourceから確認できたcompatibility contractである。未指定だったmeasurement syntax、text construction、performance方法、DivisionPlacement挙動は既存実装を再利用・fixture化する方針で解決でき、新しい製品判断を要求しない。初期範囲外のqualified referenceやstring演算は明示的に後続へ分離した。
+これは推測による打ち切りではない。上記D01〜D21はユーザー指定で確定した事項、または現行sourceから確認できたcompatibility contractである。未指定だったmeasurement syntax、text construction、performance方法、DivisionPlacement挙動は既存実装を再利用・fixture化する方針で解決でき、新しい製品判断を要求しない。初期範囲外のqualified referenceやstring演算は明示的に後続へ分離した。
