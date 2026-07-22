@@ -246,6 +246,32 @@ export const buildMixedBindingAnalysisBaselineSource = (bindingBudget: number) =
   };
 };
 
+export type ScalarExpressionFixtureScale = {
+  /** Binary `+` operators chained in the flat expression. This is the generator's `operatorCount` argument. */
+  operatorCount: number;
+};
+
+// Task 14 (TS expression parser) baseline: a flat `1 + 1 + 1 + ...` chain,
+// all at the same (additive) precedence tier - this isolates parseTier's
+// same-tier while-loop chaining cost (expected O(operatorCount)) from
+// unrelated precedence-ladder or depth-guard costs, which are already
+// covered by src/scalars/expressionParser.test.ts's targeted correctness
+// fixtures. Unlike the DSL-source builders above, this feeds
+// parseScalarExpression directly - there is no compiler/statement layer
+// between the fixture and the function under measurement.
+export const buildScalarExpressionBaselineSource = (operatorCount: number) => {
+  if (!Number.isInteger(operatorCount) || operatorCount < 1) {
+    throw new Error("scalar expression baseline requires at least one operator");
+  }
+
+  const source = Array.from({ length: operatorCount + 1 }, () => "1").join(" + ");
+
+  return {
+    source,
+    scale: { operatorCount } satisfies ScalarExpressionFixtureScale
+  };
+};
+
 export const semanticV2BaselineSource = [
   "nui 2",
   "var Global = 12",
