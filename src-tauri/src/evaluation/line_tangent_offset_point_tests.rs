@@ -63,6 +63,7 @@ fn evaluates_line_tangent_offset_point_on_line() {
     let result = evaluate_document_input(EvaluationInput {
         elements,
         evaluation_limit_index: None,
+        scalar_expression_payload: None,
     });
 
     let offset = point(&result, "offset");
@@ -115,6 +116,7 @@ fn evaluates_line_tangent_offset_point_on_diagonal_line_using_y_up_angles() {
             })),
         ],
         evaluation_limit_index: None,
+        scalar_expression_payload: None,
     });
 
     let offset = point(&result, "offset");
@@ -160,6 +162,7 @@ fn evaluates_line_tangent_offset_point_on_arc_line() {
             })),
         ],
         evaluation_limit_index: None,
+        scalar_expression_payload: None,
     });
 
     // The tangent at the arc start (angle 0°) is the analytic tangent (0, 1),
@@ -237,6 +240,7 @@ fn evaluates_line_tangent_offset_point_on_bezier_intermediate_point_tangent() {
             })),
         ],
         evaluation_limit_index: None,
+        scalar_expression_payload: None,
     });
 
     let offset = point(&result, "offset");
@@ -271,6 +275,7 @@ fn reports_line_tangent_offset_point_base_line_dependency_that_appears_too_late(
             })),
         ],
         evaluation_limit_index: None,
+        scalar_expression_payload: None,
     });
 
     assert!(result
@@ -302,6 +307,7 @@ fn reports_line_tangent_offset_point_base_point_dependency() {
     let result = evaluate_document_input(EvaluationInput {
         elements,
         evaluation_limit_index: None,
+        scalar_expression_payload: None,
     });
 
     assert_eq!(result.errors[0].element_id, "offset");
@@ -334,6 +340,7 @@ fn reports_line_tangent_offset_point_when_base_point_is_not_on_line() {
     let result = evaluate_document_input(EvaluationInput {
         elements,
         evaluation_limit_index: None,
+        scalar_expression_payload: None,
     });
 
     assert!(result
@@ -368,6 +375,7 @@ fn evaluates_line_tangent_offset_point_numeric_variables_and_expressions() {
     let result = evaluate_document_input(EvaluationInput {
         elements,
         evaluation_limit_index: None,
+        scalar_expression_payload: None,
     });
 
     let offset = point(&result, "offset");

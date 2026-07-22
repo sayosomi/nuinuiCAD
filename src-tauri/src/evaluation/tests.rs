@@ -138,6 +138,7 @@ fn evaluates_points_lines_variables_and_arcs() {
             })),
         ],
         evaluation_limit_index: None,
+        scalar_expression_payload: None,
     });
 
     assert!(result.errors.is_empty());
@@ -184,6 +185,7 @@ fn evaluates_variable_element_local_numeric_variables() {
             })),
         ],
         evaluation_limit_index: None,
+        scalar_expression_payload: None,
     });
 
     assert!(result.errors.is_empty());
@@ -222,6 +224,7 @@ fn evaluates_text_with_anchor_and_numeric_references() {
     let result = evaluate_document_input(EvaluationInput {
         elements,
         evaluation_limit_index: None,
+        scalar_expression_payload: None,
     });
 
     assert!(result.errors.is_empty());
@@ -247,6 +250,7 @@ fn evaluates_anchorless_text_as_comment_geometry() {
             "fontSize": 3
         }))],
         evaluation_limit_index: None,
+        scalar_expression_payload: None,
     });
 
     assert!(result.errors.is_empty());
@@ -282,6 +286,7 @@ fn evaluates_arc_line_with_full_360_degree_sweep() {
             })),
         ],
         evaluation_limit_index: None,
+        scalar_expression_payload: None,
     });
 
     let arc = point(&result, "arc");
@@ -308,6 +313,7 @@ fn evaluates_sqrt_and_pi_numeric_expressions() {
             "y": { "kind": "expression", "expression": "sqrt(pi * 4)" }
         }))],
         evaluation_limit_index: None,
+        scalar_expression_payload: None,
     });
 
     assert!(result.errors.is_empty());
@@ -364,6 +370,7 @@ fn evaluates_numeric_reference_paths_for_geometry_parameters_and_variables() {
     let result = evaluate_document_input(EvaluationInput {
         elements,
         evaluation_limit_index: None,
+        scalar_expression_payload: None,
     });
 
     assert!(result.errors.is_empty());
@@ -385,6 +392,7 @@ fn reports_negative_sqrt_numeric_expressions() {
             "y": 0
         }))],
         evaluation_limit_index: None,
+        scalar_expression_payload: None,
     });
 
     assert!(result.computed_geometry.is_empty());
@@ -416,6 +424,7 @@ fn reports_too_late_dependency() {
             })),
         ],
         evaluation_limit_index: Some(1),
+        scalar_expression_payload: None,
     });
 
     assert_eq!(result.computed_geometry.len(), 0);
@@ -451,6 +460,7 @@ fn applies_group_visibility_and_enabled_masks() {
             })),
         ],
         evaluation_limit_index: None,
+        scalar_expression_payload: None,
     });
 
     assert!(result.computed_geometry.is_empty());
@@ -500,6 +510,7 @@ fn evaluates_only_active_conditional_branch() {
             })),
         ],
         evaluation_limit_index: None,
+        scalar_expression_payload: None,
     });
 
     assert!(result.errors.is_empty());
@@ -573,6 +584,7 @@ fn evaluates_conditional_group_comparison_expression() {
     let result = evaluate_document_input(EvaluationInput {
         elements,
         evaluation_limit_index: None,
+        scalar_expression_payload: None,
     });
 
     assert!(result.errors.is_empty());
@@ -628,6 +640,7 @@ fn evaluates_false_conditional_group_comparison_expression() {
     let result = evaluate_document_input(EvaluationInput {
         elements,
         evaluation_limit_index: None,
+        scalar_expression_payload: None,
     });
 
     assert!(result.errors.is_empty());
@@ -672,6 +685,7 @@ fn does_not_treat_single_equals_as_equality_in_conditional_expression() {
     let result = evaluate_document_input(EvaluationInput {
         elements,
         evaluation_limit_index: None,
+        scalar_expression_payload: None,
     });
 
     assert_eq!(result.errors[0].element_id, "if");
@@ -718,6 +732,7 @@ fn reports_references_to_inactive_conditional_branch() {
             })),
         ],
         evaluation_limit_index: None,
+        scalar_expression_payload: None,
     });
 
     assert!(result.computed_geometry.is_empty());
@@ -743,6 +758,7 @@ fn evaluates_division_point_by_distance() {
     let result = evaluate_document_input(EvaluationInput {
         elements,
         evaluation_limit_index: None,
+        scalar_expression_payload: None,
     });
 
     let division = point(&result, "division");
@@ -772,6 +788,7 @@ fn evaluates_division_point_by_ratio() {
     let result = evaluate_document_input(EvaluationInput {
         elements,
         evaluation_limit_index: None,
+        scalar_expression_payload: None,
     });
 
     let division = point(&result, "division");
@@ -814,6 +831,7 @@ fn reports_division_point_dependency_that_appears_too_late() {
             })),
         ],
         evaluation_limit_index: None,
+        scalar_expression_payload: None,
     });
 
     assert!(result
@@ -853,6 +871,7 @@ fn reports_zero_length_distance_division_point() {
             })),
         ],
         evaluation_limit_index: None,
+        scalar_expression_payload: None,
     });
 
     assert!(result
@@ -883,6 +902,7 @@ fn evaluates_division_point_numeric_variables_and_expressions() {
     let result = evaluate_document_input(EvaluationInput {
         elements,
         evaluation_limit_index: None,
+        scalar_expression_payload: None,
     });
 
     let division = point(&result, "division");
@@ -906,6 +926,7 @@ fn evaluates_line_division_point_by_distance_from_start() {
     let result = evaluate_document_input(EvaluationInput {
         elements,
         evaluation_limit_index: None,
+        scalar_expression_payload: None,
     });
 
     let division = point(&result, "division");
@@ -929,6 +950,7 @@ fn evaluates_line_division_point_by_ratio_from_end() {
     let result = evaluate_document_input(EvaluationInput {
         elements,
         evaluation_limit_index: None,
+        scalar_expression_payload: None,
     });
 
     let division = point(&result, "division");
@@ -957,6 +979,7 @@ fn evaluates_division_point_with_missing_placement_kind_as_ratio() {
     let result = evaluate_document_input(EvaluationInput {
         elements,
         evaluation_limit_index: None,
+        scalar_expression_payload: None,
     });
 
     let division = point(&result, "division");
@@ -981,6 +1004,7 @@ fn evaluates_division_point_with_unrecognized_placement_kind_as_ratio() {
     let result = evaluate_document_input(EvaluationInput {
         elements,
         evaluation_limit_index: None,
+        scalar_expression_payload: None,
     });
 
     let division = point(&result, "division");
@@ -1004,6 +1028,7 @@ fn evaluates_line_division_point_with_missing_placement_kind_as_ratio() {
     let result = evaluate_document_input(EvaluationInput {
         elements,
         evaluation_limit_index: None,
+        scalar_expression_payload: None,
     });
 
     let division = point(&result, "division");
@@ -1027,6 +1052,7 @@ fn evaluates_line_division_point_with_unrecognized_placement_kind_as_ratio() {
     let result = evaluate_document_input(EvaluationInput {
         elements,
         evaluation_limit_index: None,
+        scalar_expression_payload: None,
     });
 
     let division = point(&result, "division");
@@ -1070,6 +1096,7 @@ fn evaluates_line_division_point_on_arc_line() {
             })),
         ],
         evaluation_limit_index: None,
+        scalar_expression_payload: None,
     });
 
     let division = point(&result, "division");
@@ -1102,6 +1129,7 @@ fn reports_line_division_point_dependency_that_appears_too_late() {
             })),
         ],
         evaluation_limit_index: None,
+        scalar_expression_payload: None,
     });
 
     assert!(result
@@ -1140,6 +1168,7 @@ fn reports_zero_length_line_division_point() {
             })),
         ],
         evaluation_limit_index: None,
+        scalar_expression_payload: None,
     });
 
     assert!(result
@@ -1169,6 +1198,7 @@ fn evaluates_line_division_point_numeric_variables_and_expressions() {
     let result = evaluate_document_input(EvaluationInput {
         elements,
         evaluation_limit_index: None,
+        scalar_expression_payload: None,
     });
 
     let division = point(&result, "division");

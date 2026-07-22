@@ -24,6 +24,7 @@ fn edge_extends_and_trims_two_line_endpoints() {
             })),
         ],
         evaluation_limit_index: None,
+        scalar_expression_payload: None,
     });
 
     assert!(result.errors.is_empty());
@@ -59,6 +60,7 @@ fn edge_trims_a_bezier_and_a_line() {
             })),
         ],
         evaluation_limit_index: None,
+        scalar_expression_payload: None,
     });
 
     assert!(result.errors.is_empty());
@@ -112,6 +114,7 @@ fn edge_trims_two_bezier_curves() {
             })),
         ],
         evaluation_limit_index: None,
+        scalar_expression_payload: None,
     });
 
     assert!(result.errors.is_empty());
@@ -161,6 +164,7 @@ fn edge_extends_a_bezier_along_its_handle_angle() {
             })),
         ],
         evaluation_limit_index: None,
+        scalar_expression_payload: None,
     });
 
     assert!(result.errors.is_empty());
@@ -194,6 +198,7 @@ fn edge_reports_geometry_errors() {
             })),
         ],
         evaluation_limit_index: None,
+        scalar_expression_payload: None,
     });
     assert!(same_line.errors[0].message.contains("同じ線"));
 
@@ -217,6 +222,7 @@ fn edge_reports_geometry_errors() {
             })),
         ],
         evaluation_limit_index: None,
+        scalar_expression_payload: None,
     });
     assert!(parallel.errors[0].message.contains("交点"));
 
@@ -240,6 +246,7 @@ fn edge_reports_geometry_errors() {
             })),
         ],
         evaluation_limit_index: None,
+        scalar_expression_payload: None,
     });
     assert!(invalid_index.errors[0].message.contains("0以上の整数"));
 }
