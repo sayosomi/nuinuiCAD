@@ -196,6 +196,11 @@ is now guaranteed catalog rank order at the source
 (which copy `bindingIds` verbatim) are catalog-rank order too, with no change
 needed here.
 
+13R-6 handoff: forward candidates are limited to later typed declarations in
+the initializer owner's exact lexical scope. Later ancestor declarations now
+remain `undefined`, so this module receives neither a false forward issue nor a
+false graph edge for them. Analysis still copies resolution without rechecking.
+
 binding diagnostics/graphだけ。推奨branch slug: `typed-vars/13-binding-diagnostics`。
 
 共通仕様は[plan.md](../plan.md)、判断根拠は[decisions.md](../decisions.md)を正とする。
