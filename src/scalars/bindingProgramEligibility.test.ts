@@ -10,7 +10,7 @@ import {
 } from "./bindingAnalysis";
 import { buildBindingCatalog } from "./bindingCatalog";
 import { buildLexicalScopeIndex } from "./lexicalScopeIndex";
-import { resolveBindingReference } from "./bindingResolution";
+import { resolveBindingReferenceForTests } from "./bindingResolution";
 
 const parsedStatements = (source: string): readonly DslStatement[] => {
   const parsed = parseDsl(source);
@@ -33,22 +33,20 @@ const catalogFor = (source: string) => {
 
 const bindingId = (statementIndex: number) => `binding:stable-${statementIndex}`;
 
+// Every reference here genuinely belongs to `fromStatementIndex`'s own
+// initializer, so the owner is always passed - self only actually fires
+// when the referenced name matches that binding's own name.
 const referenceFor = (
   catalog: ReturnType<typeof catalogFor>,
   fromStatementIndex: number,
   occurrenceIndex: number,
-  name: string,
-  isSelfReference = false
+  name: string
 ): InitializerReference => ({
   fromBindingId: bindingId(fromStatementIndex),
   occurrenceIndex,
   name,
   span: null,
-  resolution: resolveBindingReference(catalog, name, {
-    scopeId: "root",
-    statementIndex: fromStatementIndex,
-    ...(isSelfReference ? { initializerBindingId: bindingId(fromStatementIndex) } : {})
-  })
+  resolution: resolveBindingReferenceForTests(catalog, name, { scopeId: "root", statementIndex: fromStatementIndex }, bindingId(fromStatementIndex))
 });
 
 const programEligibilityById = (analysis: BindingAnalysis) =>
@@ -144,7 +142,7 @@ describe("binding compiled-program eligibility", () => {
     {
       label: "self",
       source: ["const bad: number = @bad", "const dependent: number = @bad"].join("\n"),
-      references: (catalog: ReturnType<typeof catalogFor>) => [referenceFor(catalog, 0, 0, "bad", true), referenceFor(catalog, 1, 0, "bad")]
+      references: (catalog: ReturnType<typeof catalogFor>) => [referenceFor(catalog, 0, 0, "bad"), referenceFor(catalog, 1, 0, "bad")]
     },
     {
       label: "undefined",
