@@ -1,0 +1,228 @@
+//! Rust counterpart to TypeScript's pure reference evaluator (Task 16,
+//! `src/scalars/expressionEvaluator.ts`). Consumes only Task 17's validated
+//! `TypedScalarExpression` enum and a caller-injected
+//! [`ScalarEvaluationEnvironment`] - it never touches `serde_json::Value`,
+//! never parses, tokenizes, resolves names, or typechecks. References
+//! resolve solely by the stable `bindingId` already attached to each
+//! reference node; scope, shadowing, declaration order, and binding
+//! eligibility are Tasks 11-13's finished, closed surface and are never
+//! reinterpreted here. Document declaration order, `set` versions, control
+//! flow, property wiring, and production wiring are all out of scope - see
+//! docs/typed-variables/tasks/18-rust-expression-evaluator-parity.md.
+//!
+//! **Traversal is iterative, not recursive**, for the same reason
+//! `expression_payload.rs`'s decoder is: Task 14's parser places no depth
+//! limit on a flat `binary` chain (same-precedence-tier operators, including
+//! `&&`/`||`, parse via a loop into a left-nested tree; only unary/group
+//! nesting is depth-capped at 128), so a chain within Task 17's
+//! `MAX_TYPED_EXPRESSION_NODE_COUNT` (20,000) node budget is a legitimate
+//! payload a naive recursive `fn eval(node) { ... eval(node.left) ... }`
+//! would stack-overflow on. Unlike decoding - a uniform post-order walk that
+//! always visits every child - evaluation must short-circuit `&&`/`||` based
+//! on a *runtime* value only known after the left operand is evaluated, so
+//! the explicit work stack below has a continuation variant
+//! (`ContinueLogical`) that decode's `WorkItem` doesn't need.
+//!
+//! Per-operator combination logic (once child values are already resolved)
+//! lives in `expression_evaluator_ops.rs`, mirroring how
+//! `expression_shape_payload.rs` is split out of `expression_payload.rs` on
+//! the decode side.
+
+use super::expression_evaluator_ops::{
+    continue_logical, evaluate_reference, finish_eager_binary, finish_logical_right, finish_unary,
+    static_type_null_error,
+};
+use super::types::{
+    ScalarBinaryOperator, ScalarEvaluation, ScalarType, ScalarUnaryOperator, ScalarValue,
+    TypedScalarExpression,
+};
+
+/// Resolves a runtime value for an already-resolved binding ID. Mirrors TS's
+/// `ScalarEvaluationEnvironment.lookupBinding` - called at most once per
+/// reference node actually reached during evaluation, never for a
+/// `bindingId` inside a short-circuited `&&`/`||` branch. No numeric-geometry
+/// hook exists here: the typed-expression grammar has no call-node syntax to
+/// reach geometry functions (mirrors TS's own documented, unreachable
+/// `numericGeometryLookup` seam - see `numeric_function_adapter.rs` for the
+/// separate, unconnected bridge this task adds instead), so adding an inert
+/// method here would be speculative surface with no product need yet.
+pub(crate) trait ScalarEvaluationEnvironment {
+    fn lookup_binding(&self, binding_id: &str) -> ScalarEvaluation;
+}
+
+/// One entry in the explicit work stack. `Eval` still needs evaluating;
+/// `Finish*`/`ContinueLogical` mean the node's own fields have already been
+/// captured and it's ready to combine already-resolved child result(s) that
+/// are sitting on top of `output`. `pub(super)` (visible throughout
+/// `scalars/`) because `expression_evaluator_ops.rs`'s `continue_logical`
+/// needs to push further work items (`FinishLogicalRight`/`Eval(right)`)
+/// once it decides the short-circuit doesn't apply.
+pub(super) enum EvalWork<'a> {
+    Eval(&'a TypedScalarExpression),
+    FinishUnary {
+        operator: ScalarUnaryOperator,
+        r#type: ScalarType,
+    },
+    /// Left has not been evaluated yet when this is pushed; it is evaluated
+    /// first (pushed after this marker, so it pops first), and *this* item
+    /// is what decides - once popped, with the left result on `output` -
+    /// whether `right` needs evaluating at all. This is the actual
+    /// short-circuit gate: `Eval(right)` is only ever pushed from inside the
+    /// handler for this variant, never unconditionally up front.
+    ContinueLogical {
+        operator: ScalarBinaryOperator,
+        r#type: ScalarType,
+        right: &'a TypedScalarExpression,
+    },
+    FinishLogicalRight {
+        r#type: ScalarType,
+    },
+    FinishEagerBinary {
+        operator: ScalarBinaryOperator,
+        r#type: ScalarType,
+    },
+}
+
+/// Entry point: evaluates a validated `TypedScalarExpression` against
+/// `environment`, matching Task 16's TS reference evaluator's result and
+/// binding-lookup behavior exactly. No recursive call into this function (or
+/// any dispatcher) anywhere - the only "recursion" is pushing more work
+/// items onto a heap `Vec`, so arbitrarily deep flat binary chains (up to
+/// Task 17's own node-count budget) evaluate at O(1) native stack depth.
+pub(crate) fn evaluate_typed_expression(
+    node: &TypedScalarExpression,
+    environment: &impl ScalarEvaluationEnvironment,
+) -> ScalarEvaluation {
+    let mut work: Vec<EvalWork> = vec![EvalWork::Eval(node)];
+    let mut output: Vec<ScalarEvaluation> = Vec::new();
+
+    while let Some(item) = work.pop() {
+        match item {
+            EvalWork::Eval(node) => eval_node(node, environment, &mut work, &mut output),
+            EvalWork::FinishUnary { operator, r#type } => {
+                finish_unary(operator, r#type, &mut output)
+            }
+            EvalWork::ContinueLogical {
+                operator,
+                r#type,
+                right,
+            } => continue_logical(operator, r#type, right, &mut work, &mut output),
+            EvalWork::FinishLogicalRight { r#type } => finish_logical_right(r#type, &mut output),
+            EvalWork::FinishEagerBinary { operator, r#type } => {
+                finish_eager_binary(operator, r#type, &mut output)
+            }
+        }
+    }
+
+    output
+        .pop()
+        .expect("root result must be present when the work stack empties")
+}
+
+/// Processes one `Eval` work item: literals/`reference` push a fully-resolved
+/// result straight onto `output`; `unary`/`binary`/`group` either fail closed
+/// immediately on a `null` static type (their child/children are never
+/// touched - no `lookup_binding` call is reachable through a type-null node)
+/// or push follow-up work. `group` is the one case with **no** `Finish`
+/// marker at all: TS's `case "group"` is pure delegation
+/// (`return evaluateTypedExpression(node.expression, environment)`, no
+/// `propagateError` re-stamp), so whatever the inner `Eval` eventually
+/// leaves on `output` - ok or error, in whatever `type` it already carries -
+/// *is* the group's result, unmodified.
+fn eval_node<'a>(
+    node: &'a TypedScalarExpression,
+    environment: &impl ScalarEvaluationEnvironment,
+    work: &mut Vec<EvalWork<'a>>,
+    output: &mut Vec<ScalarEvaluation>,
+) {
+    match node {
+        TypedScalarExpression::NumberLiteral { value, r#type, .. } => {
+            output.push(ScalarEvaluation::Ok {
+                r#type: r#type.clone(),
+                value: ScalarValue::Number(*value),
+            });
+        }
+        TypedScalarExpression::StringLiteral { value, r#type, .. } => {
+            output.push(ScalarEvaluation::Ok {
+                r#type: r#type.clone(),
+                value: ScalarValue::String(value.clone()),
+            });
+        }
+        TypedScalarExpression::BooleanLiteral { value, r#type, .. } => {
+            output.push(ScalarEvaluation::Ok {
+                r#type: r#type.clone(),
+                value: ScalarValue::Boolean(*value),
+            });
+        }
+        TypedScalarExpression::ChoiceLiteral { value, r#type, .. } => match r#type {
+            None => output.push(static_type_null_error(None)),
+            Some(ScalarType::Choice { options }) => output.push(ScalarEvaluation::Ok {
+                r#type: ScalarType::Choice {
+                    options: options.clone(),
+                },
+                value: ScalarValue::Choice {
+                    value: value.clone(),
+                    options: options.clone(),
+                },
+            }),
+            // Task 17 already guarantees a choiceLiteral's non-null `type`
+            // is a `Choice` variant (LiteralTypeMismatch is rejected at
+            // decode time) - this arm exists only so the match is
+            // exhaustive, not as a reachable runtime path.
+            Some(_) => output.push(static_type_null_error(None)),
+        },
+        TypedScalarExpression::Reference {
+            binding_id, r#type, ..
+        } => {
+            output.push(evaluate_reference(r#type, binding_id, environment));
+        }
+        TypedScalarExpression::Unary {
+            operator,
+            operand,
+            r#type,
+            ..
+        } => match r#type {
+            None => output.push(static_type_null_error(None)),
+            Some(concrete_type) => {
+                work.push(EvalWork::FinishUnary {
+                    operator: *operator,
+                    r#type: concrete_type.clone(),
+                });
+                work.push(EvalWork::Eval(operand));
+            }
+        },
+        TypedScalarExpression::Group {
+            expression, r#type, ..
+        } => match r#type {
+            None => output.push(static_type_null_error(None)),
+            Some(_) => work.push(EvalWork::Eval(expression)),
+        },
+        TypedScalarExpression::Binary {
+            operator,
+            left,
+            right,
+            r#type,
+            ..
+        } => match r#type {
+            None => output.push(static_type_null_error(None)),
+            Some(concrete_type) => match operator {
+                ScalarBinaryOperator::Or | ScalarBinaryOperator::And => {
+                    work.push(EvalWork::ContinueLogical {
+                        operator: *operator,
+                        r#type: concrete_type.clone(),
+                        right,
+                    });
+                    work.push(EvalWork::Eval(left));
+                }
+                _ => {
+                    work.push(EvalWork::FinishEagerBinary {
+                        operator: *operator,
+                        r#type: concrete_type.clone(),
+                    });
+                    work.push(EvalWork::Eval(right));
+                    work.push(EvalWork::Eval(left));
+                }
+            },
+        },
+    }
+}

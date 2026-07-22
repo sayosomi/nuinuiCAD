@@ -1,0 +1,294 @@
+//! Per-operator combination logic for `expression_evaluator.rs`'s iterative
+//! work stack: reference trust-boundary evaluation, and the `Finish*`/
+//! `ContinueLogical` handlers that combine already-resolved child result(s)
+//! popped off `output`. None of these functions recurse into
+//! `evaluate_typed_expression` or push an `Eval` for anything they don't
+//! already hold a direct child reference to - the traversal itself lives
+//! entirely in `expression_evaluator.rs`.
+//!
+//! Mirrors `src/scalars/expressionEvaluator.ts` field-for-field, including
+//! its exact `evaluation-*` issue-code vocabulary.
+
+use super::expression_evaluator::{EvalWork, ScalarEvaluationEnvironment};
+use super::scalar_payload::scalar_value_matches_type;
+use super::types::{
+    BindingId, ScalarBinaryOperator, ScalarEvaluation, ScalarType, ScalarUnaryOperator,
+    ScalarValue, TypedScalarExpression,
+};
+
+/// Documented placeholder used only when a node's static `type` is `None`.
+/// `ScalarEvaluation`'s `type` field is non-nullable, so an honest "no
+/// static type" cannot be represented in-band; mirrors
+/// `expressionEvaluator.ts`'s `STATIC_TYPE_NULL_PLACEHOLDER` (itself mirrors
+/// `expressionTypecheck.ts`'s existing "unknown -> number" default).
+/// Consumers must key off `issue_code == "evaluation-static-type-null"`,
+/// never off `.r#type`, to detect this case.
+fn static_type_null_placeholder() -> ScalarType {
+    ScalarType::Number
+}
+
+/// Mirrors TS's `staticTypeNullError(bindingId?)`: `binding_id` is passed
+/// through verbatim (not always omitted) - a `reference` node whose
+/// `bindingId` is set but whose `type` is `None` (a resolved binding with a
+/// malformed declared type) still reports that `bindingId` in the error,
+/// per `expressionEvaluator.ts:51-54`'s `node.bindingId ?? undefined`. Every
+/// other node kind that can fail this way (`unary`/`binary`/`group`/
+/// `choiceLiteral`) has no `bindingId` field at all, so callers there always
+/// pass `None`.
+pub(crate) fn static_type_null_error(binding_id: Option<BindingId>) -> ScalarEvaluation {
+    ScalarEvaluation::Error {
+        r#type: static_type_null_placeholder(),
+        issue_code: "evaluation-static-type-null".to_owned(),
+        binding_id,
+    }
+}
+
+/// Re-stamps an already-produced error to `r#type`, keeping `issue_code`/
+/// `binding_id` verbatim. Only valid to call when `source` is
+/// `ScalarEvaluation::Error` - mirrors TS's `propagateError`, which is typed
+/// to only accept the error variant.
+fn propagate_error(r#type: ScalarType, source: ScalarEvaluation) -> ScalarEvaluation {
+    match source {
+        ScalarEvaluation::Error {
+            issue_code,
+            binding_id,
+            ..
+        } => ScalarEvaluation::Error {
+            r#type,
+            issue_code,
+            binding_id,
+        },
+        ScalarEvaluation::Ok { .. } => {
+            unreachable!("propagate_error must only be called with an error result")
+        }
+    }
+}
+
+/// By the time a value reaches here it has already passed either the
+/// reference trust-boundary check (`evaluate_reference`) or is a literal/
+/// computed value that is self-consistent with its own static type by
+/// construction (guaranteed by Task 15's typecheck, mirrored by Task 17's
+/// payload validation). A mismatch here would be an invariant violation in
+/// this module, not an expected runtime failure - mirrors
+/// `expressionEvaluator.ts`'s own documented rationale for its analogous
+/// `numberValueOf`/`booleanValueOf` helpers.
+fn number_value_of(value: &ScalarValue) -> f64 {
+    match value {
+        ScalarValue::Number(number) => *number,
+        other => panic!("expression_evaluator_ops: expected a number value, got {other:?}"),
+    }
+}
+
+fn boolean_value_of(value: &ScalarValue) -> bool {
+    match value {
+        ScalarValue::Boolean(boolean) => *boolean,
+        other => panic!("expression_evaluator_ops: expected a boolean value, got {other:?}"),
+    }
+}
+
+/// The one real trust boundary in this module: a reference's value crosses
+/// from the caller-supplied environment. Validated unconditionally here -
+/// not deferred to whichever parent happens to consume it - so a bare
+/// top-level reference, a reference under a no-op `group`, an operand of
+/// unary/binary, and an equality operand are all covered by the same check.
+/// Mirrors `expressionEvaluator.ts`'s `evaluateReference` exactly, including
+/// forwarding the environment's own error **unmodified** (not re-stamped to
+/// this reference's declared type) - only the mismatch case below
+/// constructs a new error.
+pub(crate) fn evaluate_reference(
+    node_type: &Option<ScalarType>,
+    binding_id: &Option<BindingId>,
+    environment: &impl ScalarEvaluationEnvironment,
+) -> ScalarEvaluation {
+    let (Some(declared_type), Some(id)) = (node_type, binding_id) else {
+        return static_type_null_error(binding_id.clone());
+    };
+
+    let result = environment.lookup_binding(id);
+    match &result {
+        ScalarEvaluation::Error { .. } => result,
+        ScalarEvaluation::Ok {
+            r#type: runtime_type,
+            value,
+        } => {
+            if declared_type != runtime_type || !scalar_value_matches_type(runtime_type, value) {
+                return ScalarEvaluation::Error {
+                    r#type: declared_type.clone(),
+                    issue_code: "evaluation-runtime-value-type-mismatch".to_owned(),
+                    binding_id: Some(id.clone()),
+                };
+            }
+            result
+        }
+    }
+}
+
+/// Combines a unary operand's already-resolved result (top of `output`) with
+/// the unary node's own `operator`/`r#type`. `!` negates a boolean; `-`/`+`
+/// act on a number (`+` is identity, matching TS).
+pub(crate) fn finish_unary(
+    operator: ScalarUnaryOperator,
+    r#type: ScalarType,
+    output: &mut Vec<ScalarEvaluation>,
+) {
+    let operand = output
+        .pop()
+        .expect("unary operand must already be resolved (post-order evaluation invariant)");
+    let ScalarEvaluation::Ok { value, .. } = &operand else {
+        output.push(propagate_error(r#type, operand));
+        return;
+    };
+
+    let result = match operator {
+        ScalarUnaryOperator::Not => ScalarValue::Boolean(!boolean_value_of(value)),
+        ScalarUnaryOperator::Negate => ScalarValue::Number(-number_value_of(value)),
+        ScalarUnaryOperator::Plus => ScalarValue::Number(number_value_of(value)),
+    };
+    output.push(ScalarEvaluation::Ok {
+        r#type,
+        value: result,
+    });
+}
+
+/// `&&`/`||`: the only short-circuiting operators. Pops the already-resolved
+/// left result; on error, propagates immediately (the actual short-circuit
+/// gate - `right` is never pushed in that case). Otherwise checks whether
+/// left's boolean value already determines the result (`&&` + `false`,
+/// `||` + `true`) and, if not, defers to `FinishLogicalRight` after pushing
+/// `right` for evaluation.
+pub(crate) fn continue_logical<'a>(
+    operator: ScalarBinaryOperator,
+    r#type: ScalarType,
+    right: &'a TypedScalarExpression,
+    work: &mut Vec<EvalWork<'a>>,
+    output: &mut Vec<ScalarEvaluation>,
+) {
+    let left = output
+        .pop()
+        .expect("logical left must already be resolved (post-order evaluation invariant)");
+    let ScalarEvaluation::Ok { value, .. } = &left else {
+        output.push(propagate_error(r#type, left));
+        return;
+    };
+    let left_value = boolean_value_of(value);
+    let short_circuits = match operator {
+        ScalarBinaryOperator::And => !left_value,
+        ScalarBinaryOperator::Or => left_value,
+        _ => unreachable!("continue_logical is only ever pushed for And/Or"),
+    };
+    if short_circuits {
+        output.push(ScalarEvaluation::Ok {
+            r#type,
+            value: ScalarValue::Boolean(left_value),
+        });
+        return;
+    }
+
+    work.push(EvalWork::FinishLogicalRight { r#type });
+    work.push(EvalWork::Eval(right));
+}
+
+/// Pops the already-resolved right operand of a non-short-circuited `&&`/
+/// `||`; on error, propagates; else the result is simply the right operand's
+/// own boolean value (matches TS returning `booleanValueOf(right.value)`
+/// directly, not re-combining with left).
+pub(crate) fn finish_logical_right(r#type: ScalarType, output: &mut Vec<ScalarEvaluation>) {
+    let right = output
+        .pop()
+        .expect("logical right must already be resolved (post-order evaluation invariant)");
+    let ScalarEvaluation::Ok { value, .. } = &right else {
+        output.push(propagate_error(r#type, right));
+        return;
+    };
+    output.push(ScalarEvaluation::Ok {
+        r#type,
+        value: ScalarValue::Boolean(boolean_value_of(value)),
+    });
+}
+
+/// Combines the two already-resolved, unconditionally-evaluated operands of
+/// every non-short-circuiting binary operator (`==`/`!=` and the 8
+/// arithmetic/comparison operators). Pops `right` then `left` (`right` was
+/// pushed to `output` second); if `left` errored, that error wins even if
+/// `right` also errored - matches the fixture's own documented convention
+/// ("for binary operators other than && and ||... if both error, the LEFT
+/// operand's error wins").
+pub(crate) fn finish_eager_binary(
+    operator: ScalarBinaryOperator,
+    r#type: ScalarType,
+    output: &mut Vec<ScalarEvaluation>,
+) {
+    let right = output
+        .pop()
+        .expect("binary right must already be resolved (post-order evaluation invariant)");
+    let left = output
+        .pop()
+        .expect("binary left must already be resolved (post-order evaluation invariant)");
+
+    let (left_value, right_value) = match (&left, &right) {
+        (ScalarEvaluation::Error { .. }, _) => {
+            output.push(propagate_error(r#type, left));
+            return;
+        }
+        (_, ScalarEvaluation::Error { .. }) => {
+            output.push(propagate_error(r#type, right));
+            return;
+        }
+        (ScalarEvaluation::Ok { value: left, .. }, ScalarEvaluation::Ok { value: right, .. }) => {
+            (left, right)
+        }
+    };
+
+    if matches!(
+        operator,
+        ScalarBinaryOperator::Eq | ScalarBinaryOperator::NotEq
+    ) {
+        // Choice-identity-aware equality for free: `ScalarValue`'s derived
+        // `PartialEq` compares a `Choice` variant's `value` *and* `options`
+        // (in order, by length+element), which is exactly D07's choice-
+        // identity rule - the same comparison TS's hand-written
+        // `scalarValuesEqual` performs. No second implementation needed.
+        let equal = left_value == right_value;
+        let result = if matches!(operator, ScalarBinaryOperator::Eq) {
+            equal
+        } else {
+            !equal
+        };
+        output.push(ScalarEvaluation::Ok {
+            r#type,
+            value: ScalarValue::Boolean(result),
+        });
+        return;
+    }
+
+    let left_number = number_value_of(left_value);
+    let right_number = number_value_of(right_value);
+    let value = match operator {
+        ScalarBinaryOperator::Add => ScalarValue::Number(left_number + right_number),
+        ScalarBinaryOperator::Sub => ScalarValue::Number(left_number - right_number),
+        ScalarBinaryOperator::Mul => ScalarValue::Number(left_number * right_number),
+        ScalarBinaryOperator::Div => {
+            let quotient = left_number / right_number;
+            if right_number == 0.0 || !quotient.is_finite() {
+                output.push(ScalarEvaluation::Error {
+                    r#type,
+                    issue_code: "evaluation-divide-by-zero".to_owned(),
+                    binding_id: None,
+                });
+                return;
+            }
+            ScalarValue::Number(quotient)
+        }
+        ScalarBinaryOperator::Lt => ScalarValue::Boolean(left_number < right_number),
+        ScalarBinaryOperator::LtEq => ScalarValue::Boolean(left_number <= right_number),
+        ScalarBinaryOperator::Gt => ScalarValue::Boolean(left_number > right_number),
+        ScalarBinaryOperator::GtEq => ScalarValue::Boolean(left_number >= right_number),
+        ScalarBinaryOperator::Eq | ScalarBinaryOperator::NotEq => {
+            unreachable!("handled above")
+        }
+        ScalarBinaryOperator::Or | ScalarBinaryOperator::And => {
+            unreachable!("Or/And never reach finish_eager_binary")
+        }
+    };
+    output.push(ScalarEvaluation::Ok { r#type, value });
+}
