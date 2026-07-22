@@ -126,6 +126,10 @@ groupはnearest lexical groupとその子孫（group外ならCAD parentGroupId�
 
 ## 15. PR境界
 
+13R-3 handoff: initializer callers use `resolveInitializerReferences`, which
+normalizes shuffled requests by binding rank and occurrence index. Legacy
+visibility is compact (`global`/`subtree`/`outsideGroups`), not `scopeSet`.
+
 name resolutionだけ。推奨branch slug: `typed-vars/12-binding-resolution`。
 
 共通仕様は[plan.md](../plan.md)、判断根拠は[decisions.md](../decisions.md)を正とする。

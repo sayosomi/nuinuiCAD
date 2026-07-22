@@ -4,7 +4,7 @@ import { parseDsl } from "../dsl/dslParser";
 import type { DslStatement } from "../dsl/dslTypes";
 import { buildBindingCatalog, type BindingSeed } from "./bindingCatalog";
 import { buildLexicalScopeIndex } from "./lexicalScopeIndex";
-import { resolveBindingReference, visibleBindingsAt } from "./bindingResolution";
+import { resolveBindingReference, resolveInitializerReferences, visibleBindingsAt } from "./bindingResolution";
 
 const parsedStatements = (source: string): readonly DslStatement[] => {
   const parsed = parseDsl(source);
@@ -33,6 +33,22 @@ const catalogFor = (source: string, elementLocalBindings: readonly BindingSeed[]
 };
 
 describe("binding name resolution", () => {
+  it("normalizes shuffled initializer requests by binding rank and keeps earlier same-scope candidates in self initialization", () => {
+    const { catalog } = catalogFor([
+      "const x: number = 1",
+      "const x: number = @x",
+      "const later: number = @missing"
+    ].join("\n"));
+    const requests = [
+      { fromBindingId: "binding:stable-2", occurrenceIndex: 0, name: "missing", site: { scopeId: "root", statementIndex: 2, initializerBindingId: "binding:stable-2" } },
+      { fromBindingId: "binding:stable-1", occurrenceIndex: 0, name: "x", site: { scopeId: "root", statementIndex: 1, initializerBindingId: "binding:stable-1" } }
+    ];
+    const resolved = resolveInitializerReferences(catalog, requests);
+    expect(resolved.map((item) => item.fromBindingId)).toEqual(["binding:stable-1", "binding:stable-2"]);
+    expect(resolved[0].resolution).toMatchObject({ kind: "resolved", binding: { id: "binding:stable-0" } });
+    expect(() => resolveInitializerReferences(catalog, [{ ...requests[0], fromBindingId: "binding:missing" }])).toThrow(/unknown typed binding/);
+    expect(() => resolveInitializerReferences(catalog, [{ ...requests[0], occurrenceIndex: 1 }])).toThrow(/sparse occurrenceIndex/);
+  });
   it("resolves before an inner declaration to the visible outer binding", () => {
     const { catalog, scopeIndex } = catalogFor([
       "const x: number = 1",
@@ -98,15 +114,15 @@ describe("binding name resolution", () => {
   });
 
   it.each([
-    ["typed/typed", ["const x: number = 1", "let x: number = 2"].join("\n")],
+    ["typed/typed", ["const x: number = 1", "let x: number = 2", "const use: number = @x"].join("\n")],
     ["typed/legacy", ["const x: number = 1", "var x = 2"].join("\n")],
     ["legacy/legacy", [
       "var x = expression(value: 1 id: legacy-x-1)",
-      "var x = expression(value: 2 id: legacy-x-2)"
+      "var x = expression(value: 2 id: legacy-x-2)", "const use: number = @x"
     ].join("\n")]
   ])("returns duplicate for same-effective-scope %s collisions", (_label, source) => {
     const { catalog } = catalogFor(source);
-    const result = resolveBindingReference(catalog, "x", { scopeId: "root", statementIndex: 10 });
+    const result = resolveBindingReference(catalog, "x", { scopeId: "root", statementIndex: 2 });
     expect(result.kind).toBe("duplicate");
     if (result.kind === "duplicate") expect(result.bindingIds).toHaveLength(2);
   });
@@ -142,6 +158,7 @@ describe("binding name resolution", () => {
       name: "i",
       nameSpan: null,
       statementIndex: 1,
+      sourceOrder: 0,
       effectiveScopeId: "for:stable-1",
       visibility: { kind: "elementLocal", ownerId: "point-1", startOrder: 0, endOrder: 2 }
     };
@@ -171,6 +188,7 @@ describe("binding name resolution", () => {
         name: "i",
         nameSpan: null,
         statementIndex: 1,
+        sourceOrder: 0,
         effectiveScopeId: "for:stable-1",
         visibility: { kind: "elementLocal", ownerId: "point-1", startOrder: 0, endOrder: 2 }
       },
@@ -180,6 +198,7 @@ describe("binding name resolution", () => {
         name: "i",
         nameSpan: null,
         statementIndex: 1,
+        sourceOrder: 1,
         effectiveScopeId: "for:stable-1",
         visibility: { kind: "elementLocal", ownerId: "point-1", startOrder: 0, endOrder: 2 }
       }
@@ -211,12 +230,14 @@ describe("binding name resolution", () => {
       name: "i",
       nameSpan: null,
       statementIndex: 0,
+      sourceOrder: 0,
       effectiveScopeId: "root",
       visibility: { kind: "elementLocal", ownerId: "point-1", startOrder: 0, endOrder: 2 }
     };
     const pointTwo: BindingSeed = {
       ...pointOne,
       id: "binding:local:point-2:i",
+      sourceOrder: 1,
       visibility: { kind: "elementLocal", ownerId: "point-2", startOrder: 0, endOrder: 2 }
     };
     const { catalog } = catalogFor("const document: number = 0", [pointOne, pointTwo]);

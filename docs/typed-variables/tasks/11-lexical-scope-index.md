@@ -198,6 +198,10 @@ bindingであり、12のname resolutionでは`declarationsByScope`とは別枠�
 
 ## 15. PR境界
 
+13R-3 handoff: consumers use `scopeMetadataById` and dense
+`statementRankByIndex` for O(1) parent/effective-group/ancestor metadata;
+they must not materialize `scopeChain` arrays for each binding or reference.
+
 scope indexingだけ。推奨branch slug: `typed-vars/11-scope-index`。
 
 共通仕様は[plan.md](../plan.md)、判断根拠は[decisions.md](../decisions.md)を正とする。
