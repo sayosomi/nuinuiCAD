@@ -75,12 +75,19 @@ type BindingIssueCode =
 const ISSUE_PRIORITY: readonly BindingIssueCode[]; // duplicate > cycle > self > undefined > forward
 type BindingIssueOrigin = { kind: "declaration" } | { kind: "reference"; reference: InitializerReference };
 type BindingIssue = { code; bindingId; span; relatedBindingIds; origin };
+// `reason` is the primary direct issue by ISSUE_PRIORITY, not the only issue.
 type BindingStatus = { kind: "valid" } | { kind: "invalid"; reason: BindingIssueCode };
-type BindingAnalysisEntry = { bindingId: BindingId; status: BindingStatus };
-type BindingAnalysis = { catalog; graph; components; entries; entriesById; issues };
+type BindingProgramEligibility =
+  | { kind: "eligible" }
+  | { kind: "ineligible"; reason: "direct-invalid" }
+  | { kind: "ineligible"; reason: "invalid-dependency"; invalidDependencyBindingIds: readonly BindingId[] };
+type BindingAnalysisEntry = { bindingId: BindingId; status: BindingStatus; programEligibility: BindingProgramEligibility };
+type CompiledProgramBindingSelection = { bindingIds; entries; graph: InitializerGraph };
+type BindingAnalysis = { catalog; graph; components; entries; entriesById; compiledProgram; issues };
 const buildInitializerGraph: (catalog, references) => InitializerGraph;
 const findStronglyConnectedComponents: (graph) => readonly StronglyConnectedComponent[];
 const analyzeBindings: (input: AnalyzeBindingsInput) => BindingAnalysis;
+const selectCompiledProgramBindings: (analysis: BindingAnalysis) => CompiledProgramBindingSelection;
 
 // src/scalars/bindingDiagnostics.ts
 type BindingDiagnosticMessage = { code; bindingId; span; message: string; relatedBindingNames: readonly string[] };
@@ -153,7 +160,25 @@ output size起因のコストであり、アルゴリズムの欠陥ではない
 pure subsystemのままで、`DslDiagnostic`への変換は本タスクでは行わない
 （フィールド名`span`/`message`/`code`は揃えてあるため、将来の変換は機械的に書ける）。
 
-19は`entries`のvalid/invalid statusをname/order/cycle再判定なしにcompiled programへ使う。
+**direct diagnostic と compiled-program eligibility**: `status`はsourceに直接付くissue
+だけを表す。`status.reason`は`ISSUE_PRIORITY`によるprimary direct reasonであり、bindingが
+持つ唯一のissueを意味しない。依存先がdirect-invalidまたはdependency由来で利用不可になっても、
+依存元へ新しい`BindingIssue`を発行せず、`programEligibility`だけを
+`invalid-dependency`にする。duplicate/cycle/self/undefined/forwardのいずれかのdirect issueを
+持つbindingは伝播の起点であり、cycle memberは全員direct-invalidである。graphの既存方向
+（依存元→依存先）を維持したままreverse adjacencyを一度構築し、閉包をO(bindings+edges)で
+依存元へ伝播する。
+
+`invalid-dependency.invalidDependencyBindingIds`は閉包確定後にgraphを再走査して求める、
+そのbindingの直接outgoing targetのうち利用不可なIDすべてである。reverse traversalの発見元、
+最初の原因、transitive root causeは記録しない。ID順は既存canonical edge順で、同じtargetを
+複数回参照しても最初のedgeに対応する1 IDだけを保持する。
+
+19は`selectCompiledProgramBindings(analysis)`を使い、name/order/cycle/eligibilityを再解析せず
+compiled programへloweringする。selectionはeligible bindingだけをcatalog順で返すが、その
+initializer graphではeligible sourceの元のoutgoing edgeを一切除去しない。selection構築時に
+各targetもeligibleであることを検証し、違反はfail-fastする。この不変条件により、selection
+graphに利用不可targetを指すedgeは残らない。
 36は`InitializerGraph`/`StronglyConnectedComponent`をdependency graph表示に使う。
 41は`BindingIssue`のcode/span/relatedBindingIdsをQuick Fix候補選定に使う。いずれも
 resolution・graph・spanを再計算・再走査しない。

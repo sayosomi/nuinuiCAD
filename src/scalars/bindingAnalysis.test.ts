@@ -47,7 +47,8 @@ describe("analyzeBindings", () => {
     ]);
     expect(analysis.entriesById.get(bindingId(0))).toEqual({
       bindingId: bindingId(0),
-      status: { kind: "invalid", reason: "self-initialization" }
+      status: { kind: "invalid", reason: "self-initialization" },
+      programEligibility: { kind: "ineligible", reason: "direct-invalid" }
     });
   });
 
