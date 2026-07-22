@@ -90,7 +90,10 @@ pub(crate) fn decode_scalar_type(json: &Value) -> Result<ScalarType, ScalarPaylo
     }
 }
 
-fn scalar_value_matches_type(scalar_type: &ScalarType, value: &ScalarValue) -> bool {
+/// Also reused by `expression_evaluator_ops.rs`'s reference trust-boundary
+/// check (Task 18) - one implementation of "does this runtime value actually
+/// match its declared type", not two.
+pub(crate) fn scalar_value_matches_type(scalar_type: &ScalarType, value: &ScalarValue) -> bool {
     match (scalar_type, value) {
         (ScalarType::Number, ScalarValue::Number(_)) => true,
         (ScalarType::String, ScalarValue::String(_)) => true,

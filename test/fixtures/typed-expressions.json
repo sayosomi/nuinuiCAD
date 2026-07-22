@@ -6,7 +6,8 @@
     "`bindings` maps bindingId -> a JSON-encoded ScalarEvaluation, used to build a mock environment.lookupBinding.",
     "`tripwireBindingIds` names bindingIds that must never be looked up in this vector (short-circuit proof); a conforming implementation must not call lookupBinding for them.",
     "Convention: when a node's static `type` is null, the runtime ScalarEvaluation.type placeholder is always {kind:\"number\"} (mirrors expressionTypecheck.ts's existing unknown-type default) - Rust must match this exact placeholder for vector parity to hold.",
-    "Convention: for binary operators other than && and ||, both operands are evaluated unconditionally; if both error, the LEFT operand's error wins."
+    "Convention: for binary operators other than && and ||, both operands are evaluated unconditionally; if both error, the LEFT operand's error wins.",
+    "eager-arithmetic-both-error-left-wins (added for Task 18, the Rust evaluator) exercises the left-error-wins convention above for the first time - no prior vector covered it, only the short-circuit && / || vectors exercised a single-sided error."
   ],
   "vectors": [
     {
@@ -174,6 +175,20 @@
         "binding:mismatched": { "status": "ok", "type": { "kind": "number" }, "value": { "kind": "number", "value": 1 } }
       },
       "expected": { "status": "error", "type": { "kind": "boolean" }, "issueCode": "evaluation-runtime-value-type-mismatch", "bindingId": "binding:mismatched" }
+    },
+    {
+      "name": "eager-arithmetic-both-error-left-wins",
+      "description": "leftError + rightError - both operands' bindings error; the LEFT operand's error must win (fixed contract per this fixture's own _notes, previously untested)",
+      "ast": {
+        "kind": "binary", "operator": "+", "type": { "kind": "number" },
+        "left": { "kind": "reference", "name": "leftError", "bindingId": "binding:leftError", "type": { "kind": "number" } },
+        "right": { "kind": "reference", "name": "rightError", "bindingId": "binding:rightError", "type": { "kind": "number" } }
+      },
+      "bindings": {
+        "binding:leftError": { "status": "error", "type": { "kind": "number" }, "issueCode": "poisoned-binding-left" },
+        "binding:rightError": { "status": "error", "type": { "kind": "number" }, "issueCode": "poisoned-binding-right" }
+      },
+      "expected": { "status": "error", "type": { "kind": "number" }, "issueCode": "poisoned-binding-left" }
     }
   ]
 }
