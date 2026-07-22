@@ -33,7 +33,7 @@ const catalogFor = (source: string, elementLocalBindings: readonly BindingSeed[]
 };
 
 describe("binding name resolution", () => {
-  it("returns forward from the current effective scope instead of falling back to an outer binding", () => {
+  it("resolves before an inner declaration to the visible outer binding", () => {
     const { catalog, scopeIndex } = catalogFor([
       "const x: number = 1",
       "group G {",
@@ -42,8 +42,30 @@ describe("binding name resolution", () => {
       "}"
     ].join("\n"));
     const result = resolveBindingReference(catalog, "x", { scopeId: "group:stable-1", statementIndex: 2 });
-    expect(result).toMatchObject({ kind: "forward", bindingIds: ["binding:stable-3"] });
+    expect(result).toMatchObject({ kind: "resolved", binding: { id: "binding:stable-0" } });
     expect(scopeIndex.scopes.has("group:stable-1")).toBe(true);
+  });
+
+  it("shadows the outer binding after the inner declaration, and returns forward only when no outer exists", () => {
+    const withOuter = catalogFor([
+      "const x: number = 1",
+      "group G {",
+      "  const before: number = 0",
+      "  const x: number = 2",
+      "  const after: number = @x",
+      "}"
+    ].join("\n"));
+    expect(resolveBindingReference(withOuter.catalog, "x", { scopeId: "group:stable-1", statementIndex: 4 }))
+      .toMatchObject({ kind: "resolved", binding: { id: "binding:stable-3" } });
+
+    const withoutOuter = catalogFor([
+      "group G {",
+      "  const before: number = 0",
+      "  const x: number = 2",
+      "}"
+    ].join("\n"));
+    expect(resolveBindingReference(withoutOuter.catalog, "x", { scopeId: "group:stable-0", statementIndex: 1 }))
+      .toMatchObject({ kind: "forward", bindingIds: ["binding:stable-2"] });
   });
 
   it("resolves an inner initializer to its visible outer binding, otherwise to self", () => {
@@ -139,6 +161,76 @@ describe("binding name resolution", () => {
       .find((binding) => binding.name === "i")?.id).toBe(local.id);
     expect(resolveBindingReference(catalog, "i", { scopeId: "for:stable-1", statementIndex: 2 }))
       .toMatchObject({ kind: "resolved", binding: { id: "binding:iteration:stable-1" } });
+  });
+
+  it("returns an element-local duplicate without falling back to document or iteration bindings", () => {
+    const locals: BindingSeed[] = [
+      {
+        id: "binding:local:point-1:i-1",
+        kind: "elementLocal",
+        name: "i",
+        nameSpan: null,
+        statementIndex: 1,
+        effectiveScopeId: "for:stable-1",
+        visibility: { kind: "elementLocal", ownerId: "point-1", startOrder: 0, endOrder: 2 }
+      },
+      {
+        id: "binding:local:point-1:i-2",
+        kind: "elementLocal",
+        name: "i",
+        nameSpan: null,
+        statementIndex: 1,
+        effectiveScopeId: "for:stable-1",
+        visibility: { kind: "elementLocal", ownerId: "point-1", startOrder: 0, endOrder: 2 }
+      }
+    ];
+    const { catalog } = catalogFor([
+      "const i: number = 99",
+      "for Loop (i from: 0 count: 2) {",
+      "  const body: number = 0",
+      "}"
+    ].join("\n"), locals);
+
+    expect(resolveBindingReference(catalog, "i", {
+      scopeId: "for:stable-1",
+      statementIndex: 2,
+      elementLocal: { ownerId: "point-1", order: 1 }
+    })).toEqual({
+      kind: "duplicate",
+      name: "i",
+      scopeId: "for:stable-1",
+      statementIndex: 2,
+      bindingIds: locals.map((local) => local.id)
+    });
+  });
+
+  it("uses only the site owner's element-local candidates", () => {
+    const pointOne: BindingSeed = {
+      id: "binding:local:point-1:i",
+      kind: "elementLocal",
+      name: "i",
+      nameSpan: null,
+      statementIndex: 0,
+      effectiveScopeId: "root",
+      visibility: { kind: "elementLocal", ownerId: "point-1", startOrder: 0, endOrder: 2 }
+    };
+    const pointTwo: BindingSeed = {
+      ...pointOne,
+      id: "binding:local:point-2:i",
+      visibility: { kind: "elementLocal", ownerId: "point-2", startOrder: 0, endOrder: 2 }
+    };
+    const { catalog } = catalogFor("const document: number = 0", [pointOne, pointTwo]);
+
+    expect(resolveBindingReference(catalog, "i", {
+      scopeId: "root",
+      statementIndex: 1,
+      elementLocal: { ownerId: "point-1", order: 1 }
+    })).toMatchObject({ kind: "resolved", binding: { id: pointOne.id } });
+    expect(resolveBindingReference(catalog, "i", {
+      scopeId: "root",
+      statementIndex: 1,
+      elementLocal: { ownerId: "point-2", order: 1 }
+    })).toMatchObject({ kind: "resolved", binding: { id: pointTwo.id } });
   });
 
   it("keeps a typed binding id when the caller preserves its injected stable identity across insertion", () => {

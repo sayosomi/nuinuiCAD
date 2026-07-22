@@ -102,9 +102,11 @@ fail-fastスタイル）。`span`は診断表示専用で、順序決定には�
 `"self"`, `"undefined"`, `"duplicate"`はエッジを作らない。
 
 **issue生成規則**:
-- `duplicate-binding`（declaration起源）は`bindingsByEffectiveScopeAndName`のbucket
-  （長さ>1）から発行し、bucketメンバー自身に1件ずつ付く。`relatedBindingIds`はbucket全体
-  （自分を含む）を指す共有配列で、bindingごとのコピーは作らない。
+- `duplicate-binding`（declaration起源）はcatalogの`declarationDuplicateBuckets`から発行し、
+  bucketメンバー自身に1件ずつ付く。このAPIはdocument/iterationを同一effective scope/name、
+  element localを同一owner/nameで既に分離しているため、Task 13はnamespace規則を再判定
+  しない。`relatedBindingIds`はbucket全体（自分を含む）を指す共有配列で、bindingごとの
+  コピーは作らない。
 - 参照resolutionの`"duplicate"`からは、参照元binding（`fromBindingId`）へ
   `duplicate-binding`（`origin.kind==="reference"`）を1件発行する。同じcodeを2つの起源
   （`origin`フィールドで区別）で使うのは、plan.mdが定義する最小限のstable diagnostic

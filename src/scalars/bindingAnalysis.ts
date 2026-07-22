@@ -296,21 +296,18 @@ export const analyzeBindings = (input: AnalyzeBindingsInput): BindingAnalysis =>
     return bucket;
   };
 
-  // Declaration-origin duplicate-binding: one bucket scan, one issue per
-  // member, all sharing the same relatedBindingIds array (computed once per
-  // bucket, never per binding - keeps this O(bindings) not O(bindings^2)).
-  for (const namesByScope of catalog.bindingsByEffectiveScopeAndName.values()) {
-    for (const bucketBindings of namesByScope.values()) {
-      if (bucketBindings.length <= 1) continue;
-      const relatedIds = bucketBindings.map((item) => item.id);
-      for (const binding of bucketBindings) {
-        bucketFor(binding.id).duplicateDeclaration = {
-          code: "duplicate-binding",
-          bindingId: binding.id,
-          span: binding.nameSpan,
-          relatedBindingIds: relatedIds,
-          origin: { kind: "declaration" }
-        };
+  // Declaration-origin duplicate-binding: consume catalog's precomputed
+  // namespace-correct buckets rather than re-deriving duplicate rules here.
+  // Each issue shares the bucket's one related-id array, preserving O(bindings).
+  for (const bucketBindings of catalog.declarationDuplicateBuckets) {
+    const relatedIds = bucketBindings.map((item) => item.id);
+    for (const binding of bucketBindings) {
+      bucketFor(binding.id).duplicateDeclaration = {
+        code: "duplicate-binding",
+        bindingId: binding.id,
+        span: binding.nameSpan,
+        relatedBindingIds: relatedIds,
+        origin: { kind: "declaration" }
       }
     }
   }

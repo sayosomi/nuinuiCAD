@@ -31,32 +31,37 @@ const visibleAt = (catalog: BindingCatalog, binding: Binding, site: BindingRefer
     local.order <= binding.visibility.endOrder;
 };
 
-type BucketResult = BindingResolution | null;
+type BucketLookup = { visible: BindingResolution | null; forward: BindingResolution | null };
 
-const resolveBucket = (catalog: BindingCatalog, scopeId: ScopeId, name: string, site: BindingReferenceSite): BucketResult => {
-  const all = bucket(catalog, scopeId, name).filter((binding) => visibleAt(catalog, binding, site));
-  if (all.length > 1) {
-    return { kind: "duplicate", name, scopeId: site.scopeId, statementIndex: site.statementIndex, bindingIds: all.map((item) => item.id) };
+const lookupScopeBucket = (catalog: BindingCatalog, scopeId: ScopeId, name: string, site: BindingReferenceSite): BucketLookup => {
+  const bindings = bucket(catalog, scopeId, name);
+  const visible = bindings.filter((binding) =>
+    visibleAt(catalog, binding, site) && (binding.kind !== "typed" || binding.statementIndex < site.statementIndex)
+  );
+  if (visible.length > 1) {
+    return {
+      visible: { kind: "duplicate", name, scopeId: site.scopeId, statementIndex: site.statementIndex, bindingIds: visible.map((item) => item.id) },
+      forward: null
+    };
   }
-  const only = all[0];
+  const only = visible[0];
   if (only) {
-    if (only.kind !== "typed" || only.statementIndex < site.statementIndex) return { kind: "resolved", binding: only };
-    return { kind: "forward", name, scopeId: site.scopeId, statementIndex: site.statementIndex, bindingIds: [only.id] };
+    return { visible: { kind: "resolved", binding: only }, forward: null };
   }
-  // A typed declaration in this effective scope blocks fallback to an outer
-  // scope even when it is not visible yet. Legacy/iteration/local visibility
-  // is adapter-owned and deliberately has no universal declaration-order rule.
-  const futureTyped = bucket(catalog, scopeId, name)
+  const futureTyped = bindings
     .filter((binding) => binding.kind === "typed" && binding.statementIndex >= site.statementIndex);
-  return futureTyped.length === 0
-    ? null
-    : { kind: "forward", name, scopeId: site.scopeId, statementIndex: site.statementIndex, bindingIds: futureTyped.map((item) => item.id) };
+  return {
+    visible: null,
+    forward: futureTyped.length === 0
+      ? null
+      : { kind: "forward", name, scopeId: site.scopeId, statementIndex: site.statementIndex, bindingIds: futureTyped.map((item) => item.id) }
+  };
 };
 
 const resolveInitializerSelf = (catalog: BindingCatalog, name: string, site: BindingReferenceSite, self: Binding): BindingResolution => {
   const chain = catalog.scopeChains.get(site.scopeId) ?? [];
   for (const scopeId of chain.filter((scopeId) => scopeId !== self.effectiveScopeId)) {
-    const outer = resolveBucket(catalog, scopeId, name, site);
+    const outer = lookupScopeBucket(catalog, scopeId, name, site).visible;
     if (outer?.kind === "resolved") return outer;
   }
   return { kind: "self", name, scopeId: site.scopeId, statementIndex: site.statementIndex, bindingId: self.id };
@@ -70,7 +75,9 @@ export const resolveBindingReference = (
   const self = site.initializerBindingId ? catalog.bindingsById.get(site.initializerBindingId) : undefined;
   if (self?.kind === "typed" && self.name === name) return resolveInitializerSelf(catalog, name, site, self);
 
-  // Element-local bindings are explicitly adapter-scoped and always win.
+  // Element-local bindings are explicitly adapter-scoped and always win. A
+  // same-owner duplicate remains ambiguous; it never falls back to document
+  // or iteration bindings.
   if (site.elementLocal) {
     const localBucket = (catalog.elementLocalBindingsByOwnerAndName.get(site.elementLocal.ownerId)?.get(name) ?? [])
       .filter((binding) => visibleAt(catalog, binding, site));
@@ -80,11 +87,13 @@ export const resolveBindingReference = (
     if (localBucket[0]) return { kind: "resolved", binding: localBucket[0] };
   }
 
+  let deferredForward: BindingResolution | null = null;
   for (const scopeId of catalog.scopeChains.get(site.scopeId) ?? []) {
-    const result = resolveBucket(catalog, scopeId, name, site);
-    if (result) return result;
+    const lookup = lookupScopeBucket(catalog, scopeId, name, site);
+    if (lookup.visible) return lookup.visible;
+    if (!deferredForward && lookup.forward) deferredForward = lookup.forward;
   }
-  return { kind: "undefined", name, scopeId: site.scopeId, statementIndex: site.statementIndex };
+  return deferredForward ?? { kind: "undefined", name, scopeId: site.scopeId, statementIndex: site.statementIndex };
 };
 
 export const visibleBindingsAt = (catalog: BindingCatalog, site: BindingReferenceSite): readonly Binding[] => {
