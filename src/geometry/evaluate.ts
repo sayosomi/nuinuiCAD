@@ -18,24 +18,46 @@ import {
   forGroupTemplateDescendantIds
 } from "./forGroupExpansion";
 import type { ScalarProgram } from "../scalars/scalarProgram";
-import { evaluateDocumentScalarProgram } from "./scalarProgramEvaluation";
+import { createDocumentScalarBindingResolver } from "./scalarProgramEvaluation";
+import {
+  groupPropertyBindingRuntimeEntriesByElement,
+  materializePropertyBoundElement,
+  type PropertyBindingRuntimeEntry
+} from "./propertyBindingRuntime";
 
 export type EvaluateElementsOptions = {
   evaluationLimitIndex?: number;
   /**
    * Task 19's compiled declaration program. Task 20 evaluates it (via
-   * evaluateDocumentScalarProgram) on this TS reference path only -
+   * createDocumentScalarBindingResolver) on this TS reference path only -
    * evaluateElementsWithRust calls the Rust `evaluate_document` command
    * directly and never runs this function, so Rust has no equivalent output
    * until Task 21 gives it one.
    */
   scalarProgram?: ScalarProgram;
+  /**
+   * Task 23's elementId-keyed standard property bindings (already re-keyed
+   * from CompiledDslDocument.propertyBindings by
+   * propertyBindingRuntime.ts's buildPropertyBindingRuntimeEntries - never
+   * built here). Requires `scalarProgram` to also be present; see the throw
+   * below for why that combination is a caller-contract violation rather
+   * than a silent no-op.
+   */
+  propertyBindingEntries?: readonly PropertyBindingRuntimeEntry[];
 };
 
 export const evaluateElements = (
   elements: CadElement[],
   options: EvaluateElementsOptions = {}
 ): EvaluationResult => {
+  if (options.propertyBindingEntries?.length && !options.scalarProgram) {
+    throw new Error(
+      "evaluateElements: propertyBindingEntries was given without a scalarProgram - " +
+        "a caller must always derive both from the same compiled document (see " +
+        "propertyBindingRuntime.ts's buildPropertyBindingRuntimeEntries), never one without the other"
+    );
+  }
+
   const evaluationLimitIndex = Math.min(
     Math.max(options.evaluationLimitIndex ?? elements.length, 0),
     elements.length
@@ -72,6 +94,16 @@ export const evaluateElements = (
   const effectiveEnabledIds = new Set<ElementId>();
   const templateDescendantIds = forGroupTemplateDescendantIds(elements);
   const forGroupGeneratedRows: EvaluationResult["forGroupGeneratedRows"] = [];
+
+  // Built whenever a scalarProgram is present, independent of whether any
+  // property bindings exist - computedScalarBindings is Task 21's own
+  // contract and must not depend on Task 23's property wiring.
+  const scalarBindingResolver = options.scalarProgram
+    ? createDocumentScalarBindingResolver(options.scalarProgram, computedVariables)
+    : undefined;
+  const propertyBindingEntriesByElementId = options.propertyBindingEntries
+    ? groupPropertyBindingRuntimeEntriesByElement(options.propertyBindingEntries)
+    : undefined;
 
   const pushGeneratedVisibilityState = (generatedElement: CadElement, templateElement: CadElement) => {
     if (effectiveVisibleIds.has(templateElement.id)) {
@@ -258,7 +290,28 @@ export const evaluateElements = (
       return;
     }
 
-    evaluateElement(element, {
+    // Bound properties live on the template statement/element, not on a
+    // forGroup-generated clone's own synthetic id - look up by the template
+    // id (sourceElement) when this is a generated instance, so every
+    // iteration sees the same resolved value uniformly (boolean/choice
+    // bindings never vary per iteration; that is loop-mutation territory,
+    // out of scope here).
+    const propertyBindingEntriesForElement = propertyBindingEntriesByElementId?.get((sourceElement ?? element).id);
+    let elementToEvaluate: CadElement = element;
+    if (propertyBindingEntriesForElement?.length) {
+      const materialized = materializePropertyBoundElement(
+        element,
+        propertyBindingEntriesForElement,
+        scalarBindingResolver!.resolveBinding
+      );
+      if (!materialized.ok) {
+        errors.push(materialized.error);
+        return;
+      }
+      elementToEvaluate = materialized.element;
+    }
+
+    evaluateElement(elementToEvaluate, {
       computedGeometry,
       elementsById: runtimeElementsById,
       errors,
@@ -275,9 +328,7 @@ export const evaluateElements = (
     evaluateRuntimeElement(element);
   }
 
-  const computedScalarBindings = options.scalarProgram
-    ? evaluateDocumentScalarProgram(options.scalarProgram, elements, computedVariables).resultsByBindingId
-    : undefined;
+  const computedScalarBindings = scalarBindingResolver?.finalize().resultsByBindingId;
 
   return {
     computedGeometry,

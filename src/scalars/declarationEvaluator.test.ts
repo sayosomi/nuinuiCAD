@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { evaluateScalarProgram, type ResolveExternalScalarBinding } from "./declarationEvaluator";
+import { createLazyScalarProgramEvaluator, evaluateScalarProgram, type ResolveExternalScalarBinding } from "./declarationEvaluator";
 import type { ScalarProgram, ScalarProgramStatement } from "./scalarProgram";
 import type { TypedScalarExpression } from "./typedExpressionAst";
 import type { ScalarEvaluation, ScalarType } from "./types";
@@ -181,5 +181,61 @@ describe("evaluateScalarProgram", () => {
     );
 
     expect([...result.resultsByBindingId.keys()]).toEqual(["binding:a", "binding:b"]);
+  });
+
+  it("resolves bindings out of array order on demand and still caches each at most once", () => {
+    let externalLookups = 0;
+    const evaluator = createLazyScalarProgramEvaluator(
+      program([
+        declare("binding:a", 0, "const", { kind: "number" }, numberLiteral(10)),
+        declare("binding:b", 1, "const", { kind: "number" }, reference("a", "binding:a", { kind: "number" })),
+        declare("binding:c", 2, "const", { kind: "number" }, reference("b", "binding:b", { kind: "number" }))
+      ]),
+      () => {
+        externalLookups += 1;
+        throw new Error("no external binding expected");
+      }
+    );
+
+    // Ask for "c" first - it recurses through "b" into "a" on demand.
+    expect(evaluator.resolve("binding:c")).toEqual({ status: "ok", type: { kind: "number" }, value: { kind: "number", value: 10 } });
+    // Re-asking for "a"/"b" must hit the cache, not re-evaluate.
+    expect(evaluator.resolve("binding:a")).toEqual({ status: "ok", type: { kind: "number" }, value: { kind: "number", value: 10 } });
+    expect(evaluator.resolve("binding:b")).toEqual({ status: "ok", type: { kind: "number" }, value: { kind: "number", value: 10 } });
+    expect(externalLookups).toBe(0);
+  });
+
+  it("evaluateScalarProgram's output order matches program.statements order even when a binding is resolved out of order first", () => {
+    const evaluator = createLazyScalarProgramEvaluator(
+      program([
+        declare("binding:a", 0, "const", { kind: "number" }, numberLiteral(1)),
+        declare("binding:b", 1, "const", { kind: "number" }, numberLiteral(2)),
+        declare("binding:c", 2, "const", { kind: "number" }, numberLiteral(3))
+      ]),
+      failingResolver
+    );
+    // Force "c" to be cached before evaluateScalarProgram ever walks the array.
+    evaluator.resolve("binding:c");
+
+    const result = evaluateScalarProgram(
+      program([
+        declare("binding:a", 0, "const", { kind: "number" }, numberLiteral(1)),
+        declare("binding:b", 1, "const", { kind: "number" }, numberLiteral(2)),
+        declare("binding:c", 2, "const", { kind: "number" }, numberLiteral(3))
+      ]),
+      failingResolver
+    );
+    expect([...result.resultsByBindingId.keys()]).toEqual(["binding:a", "binding:b", "binding:c"]);
+  });
+
+  it("throws instead of infinite-recursing on a cyclic reference (defense-in-depth against a synthetic, non-compiler-produced program)", () => {
+    const evaluator = createLazyScalarProgramEvaluator(
+      program([
+        declare("binding:a", 0, "const", { kind: "number" }, reference("b", "binding:b", { kind: "number" })),
+        declare("binding:b", 1, "const", { kind: "number" }, reference("a", "binding:a", { kind: "number" }))
+      ]),
+      failingResolver
+    );
+    expect(() => evaluator.resolve("binding:a")).toThrow(/cyclic reference/);
   });
 });

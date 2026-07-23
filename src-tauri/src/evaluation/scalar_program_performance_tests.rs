@@ -30,6 +30,7 @@ fn scalar_program(binding_count: usize) -> Value {
 
 fn evaluate(program: Value) -> EvaluationPayload {
     evaluate_document_input(EvaluationInput {
+        property_bindings: None,
         elements: vec![],
         evaluation_limit_index: None,
         scalar_expression_payload: None,

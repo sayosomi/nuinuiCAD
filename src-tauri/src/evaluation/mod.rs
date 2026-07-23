@@ -55,6 +55,9 @@ mod offset_types;
 mod performance_tests;
 mod point_anchor;
 mod point_evaluators;
+mod property_binding_runtime;
+#[cfg(test)]
+mod property_binding_runtime_tests;
 #[cfg(test)]
 mod scalar_expression_payload_compat_tests;
 #[cfg(test)]
@@ -102,8 +105,10 @@ use point_evaluators::{
     evaluate_division_point, evaluate_free_point, evaluate_offset_point,
     evaluate_polar_offset_point,
 };
+use property_binding_runtime::apply_property_bindings;
 use scalars::{
-    evaluate_scalar_program, validate_scalar_program_payload, validate_typed_expression_payload,
+    validate_property_bindings_payload, validate_scalar_program_payload,
+    validate_typed_expression_payload, ScalarBindingResolver, ValidatedPropertyBinding,
     ValidatedScalarProgram,
 };
 use split_line_evaluator::evaluate_split_line;
@@ -111,6 +116,42 @@ use text_evaluator::evaluate_text;
 use types::{element_id, element_name, element_type, ElementId, EvaluationState};
 pub use types::{EvaluationCommandError, EvaluationInput, EvaluationPayload};
 use variable_evaluator::evaluate_variable_element;
+
+/// Decodes+validates `input.property_bindings` against the already-decoded
+/// `scalar_program`'s own statement binding ids and `input.elements`' actual
+/// types. Validation order matters: `scalar_program` must be decoded first,
+/// since an absent/empty `valid_binding_ids` set (no scalar program at all)
+/// is exactly what makes every property-binding entry fail closed here,
+/// rather than silently falling back to literal values (see
+/// `property_binding_payload.rs`'s own doc comment).
+fn decode_property_bindings(
+    input: &EvaluationInput,
+    scalar_program: Option<&ValidatedScalarProgram>,
+) -> Result<Option<Vec<ValidatedPropertyBinding>>, EvaluationCommandError> {
+    let Some(payload) = input.property_bindings.as_ref() else {
+        return Ok(None);
+    };
+    let element_type_by_id: HashMap<&str, &str> = input
+        .elements
+        .iter()
+        .filter_map(|element| Some((element.get("id")?.as_str()?, element.get("type")?.as_str()?)))
+        .collect();
+    let valid_binding_ids: HashSet<&str> = scalar_program
+        .map(|program| {
+            program
+                .statements
+                .iter()
+                .map(|statement| statement.binding_id.as_str())
+                .collect()
+        })
+        .unwrap_or_default();
+    validate_property_bindings_payload(payload, &element_type_by_id, &valid_binding_ids)
+        .map(Some)
+        .map_err(|error| EvaluationCommandError {
+            code: error.code.as_str().to_owned(),
+            message: error.message,
+        })
+}
 
 #[tauri::command]
 pub fn evaluate_document(
@@ -128,9 +169,11 @@ pub fn evaluate_document(
             code: error.code.as_str().to_owned(),
             message: error.message,
         })?;
+    let property_bindings = decode_property_bindings(&input, scalar_program.as_ref())?;
     Ok(evaluate_document_input_with_scalar_program(
         input,
         scalar_program,
+        property_bindings,
     ))
 }
 
@@ -247,12 +290,15 @@ fn evaluate_document_input(input: EvaluationInput) -> EvaluationPayload {
         .map(validate_scalar_program_payload)
         .transpose()
         .expect("evaluation test input scalar_program must be valid");
-    evaluate_document_input_with_scalar_program(input, scalar_program)
+    let property_bindings = decode_property_bindings(&input, scalar_program.as_ref())
+        .expect("evaluation test input property_bindings must be valid");
+    evaluate_document_input_with_scalar_program(input, scalar_program, property_bindings)
 }
 
 fn evaluate_document_input_with_scalar_program(
     input: EvaluationInput,
     scalar_program: Option<ValidatedScalarProgram>,
+    property_bindings: Option<Vec<ValidatedPropertyBinding>>,
 ) -> EvaluationPayload {
     let evaluation_limit_index = input
         .evaluation_limit_index
@@ -295,6 +341,22 @@ fn evaluate_document_input_with_scalar_program(
     let template_descendant_ids = for_group_template_descendant_ids(&state.elements);
     let original_elements = state.elements.clone();
     let mut for_group_generated_rows = Vec::new();
+
+    // Built whenever a scalar_program is present, independent of whether
+    // any property bindings exist - computed_scalar_bindings is Task 21's
+    // own contract and must not depend on Task 23's property wiring. One
+    // resolver instance is reused for both materialization below and the
+    // final computed_scalar_bindings output, so no binding is ever
+    // evaluated more than once.
+    let scalar_binding_resolver = scalar_program.as_ref().map(ScalarBindingResolver::new);
+    let entries_by_element_id: HashMap<ElementId, Vec<ValidatedPropertyBinding>> =
+        property_bindings
+            .into_iter()
+            .flatten()
+            .fold(HashMap::new(), |mut map, entry| {
+                map.entry(entry.element_id.clone()).or_default().push(entry);
+                map
+            });
 
     for index in 0..evaluation_limit_index {
         let element = state.elements[index].clone();
@@ -408,30 +470,75 @@ fn evaluate_document_input_with_scalar_program(
                     else {
                         continue;
                     };
-                    evaluate_element_by_type(
-                        generated_id,
-                        generated_element,
-                        generated_local_variables,
-                        &mut conditional_group_states,
-                        &mut state,
-                    );
+                    // Bound properties live on the template statement/element,
+                    // not on a forGroup-generated clone's own synthetic id -
+                    // look up by template_id, so every iteration sees the
+                    // same resolved value uniformly (boolean/choice bindings
+                    // never vary per iteration; that is loop-mutation
+                    // territory, out of scope here).
+                    match entries_by_element_id.get(&template_id) {
+                        Some(entries) if !entries.is_empty() => {
+                            let resolver = scalar_binding_resolver.as_ref().expect(
+                                "scalar_binding_resolver must exist when property bindings exist",
+                            );
+                            match apply_property_bindings(
+                                &generated_element,
+                                Some(entries),
+                                resolver,
+                                &state,
+                            ) {
+                                Ok(materialized_element) => evaluate_element_by_type(
+                                    generated_id,
+                                    materialized_element,
+                                    generated_local_variables,
+                                    &mut conditional_group_states,
+                                    &mut state,
+                                ),
+                                Err(error) => state.errors.push(error),
+                            }
+                        }
+                        _ => evaluate_element_by_type(
+                            generated_id,
+                            generated_element,
+                            generated_local_variables,
+                            &mut conditional_group_states,
+                            &mut state,
+                        ),
+                    }
                 }
             }
             continue;
         }
 
-        evaluate_element_by_type(
-            id,
-            element,
-            local_variables,
-            &mut conditional_group_states,
-            &mut state,
-        );
+        match entries_by_element_id.get(&id) {
+            Some(entries) if !entries.is_empty() => {
+                let resolver = scalar_binding_resolver
+                    .as_ref()
+                    .expect("scalar_binding_resolver must exist when property bindings exist");
+                match apply_property_bindings(&element, Some(entries), resolver, &state) {
+                    Ok(materialized_element) => evaluate_element_by_type(
+                        id,
+                        materialized_element,
+                        local_variables,
+                        &mut conditional_group_states,
+                        &mut state,
+                    ),
+                    Err(error) => state.errors.push(error),
+                }
+            }
+            _ => evaluate_element_by_type(
+                id,
+                element,
+                local_variables,
+                &mut conditional_group_states,
+                &mut state,
+            ),
+        }
     }
 
-    let computed_scalar_bindings = scalar_program
+    let computed_scalar_bindings = scalar_binding_resolver
         .as_ref()
-        .map(|program| evaluate_scalar_program(program, &state));
+        .map(|resolver| resolver.finalize(&state));
 
     EvaluationPayload {
         computed_geometry: state

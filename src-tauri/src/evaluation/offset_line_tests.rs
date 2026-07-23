@@ -71,6 +71,7 @@ fn evaluates_line_offset() {
     let mut elements = base_line_elements();
     elements.push(offset_line("offset", vec!["line"], json!(10)));
     let result = evaluate_document_input(EvaluationInput {
+        property_bindings: None,
         elements,
         evaluation_limit_index: None,
         scalar_expression_payload: None,
@@ -98,6 +99,7 @@ fn evaluates_local_expression_offset() {
     offset["numericVariables"] = json!([{ "id": "ease", "name": "ゆとり", "value": 4 }]);
     elements.push(offset);
     let result = evaluate_document_input(EvaluationInput {
+        property_bindings: None,
         elements,
         evaluation_limit_index: None,
         scalar_expression_payload: None,
@@ -134,6 +136,7 @@ fn connects_reversed_base_lines() {
         offset_line("offset", vec!["ab", "cb"], json!(10)),
     ];
     let result = evaluate_document_input(EvaluationInput {
+        property_bindings: None,
         elements,
         evaluation_limit_index: None,
         scalar_expression_payload: None,
@@ -179,6 +182,7 @@ fn keeps_first_base_line_direction_stable() {
         offset_line("offset", vec!["ab", "ac"], json!(10)),
     ];
     let result = evaluate_document_input(EvaluationInput {
+        property_bindings: None,
         elements,
         evaluation_limit_index: None,
         scalar_expression_payload: None,
@@ -205,6 +209,7 @@ fn evaluates_arc_offset_and_radius_error() {
         offset_line("offset", vec!["arc"], json!(5)),
     ];
     let result = evaluate_document_input(EvaluationInput {
+        property_bindings: None,
         elements,
         evaluation_limit_index: None,
         scalar_expression_payload: None,
@@ -231,6 +236,7 @@ fn evaluates_arc_offset_and_radius_error() {
     failing_offset["side"] = json!("right");
     failing.push(failing_offset);
     let failing_result = evaluate_document_input(EvaluationInput {
+        property_bindings: None,
         elements: failing,
         evaluation_limit_index: None,
         scalar_expression_payload: None,
@@ -260,6 +266,7 @@ fn evaluates_bezier_and_nested_offset() {
         offset_line("offset-2", vec!["offset-1"], json!(10)),
     ];
     let result = evaluate_document_input(EvaluationInput {
+        property_bindings: None,
         elements,
         evaluation_limit_index: None,
         scalar_expression_payload: None,
@@ -295,6 +302,7 @@ fn reports_bezier_trim_warning() {
         offset_line("offset", vec!["curve"], json!(35)),
     ];
     let result = evaluate_document_input(EvaluationInput {
+        property_bindings: None,
         elements,
         evaluation_limit_index: None,
         scalar_expression_payload: None,
@@ -330,6 +338,7 @@ fn suppresses_bezier_trim_warning_when_requested() {
         },
     ];
     let result = evaluate_document_input(EvaluationInput {
+        property_bindings: None,
         elements,
         evaluation_limit_index: None,
         scalar_expression_payload: None,
@@ -346,6 +355,7 @@ fn reports_too_late_base_dependency() {
     let mut elements = vec![offset_line("offset", vec!["line"], json!(10))];
     elements.extend(base_line_elements());
     let result = evaluate_document_input(EvaluationInput {
+        property_bindings: None,
         elements,
         evaluation_limit_index: None,
         scalar_expression_payload: None,
@@ -400,6 +410,7 @@ fn offset_line_can_feed_line_point_and_intersection_helpers() {
         })),
     ]);
     let result = evaluate_document_input(EvaluationInput {
+        property_bindings: None,
         elements,
         evaluation_limit_index: None,
         scalar_expression_payload: None,

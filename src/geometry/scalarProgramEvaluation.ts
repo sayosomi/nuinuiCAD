@@ -5,21 +5,45 @@
 // measurements (pointDistance/pointAngle/etc.) the legacy evaluator already
 // computed, reused rather than reimplemented (D06).
 //
-// This module owns no evaluation logic of its own beyond that one lookup:
-// it maps a legacy `var` element's already-computed value into a
-// ScalarEvaluation and hands it to the pure evaluateScalarProgram
+// Task 23 changed the legacy-var lookup from a one-time snapshot (built after
+// the whole document had already been evaluated) to a *live* read of the same
+// mutable `computedVariables` map the per-element evaluation loop is still
+// filling in as it walks the document. This is what lets a caller ask for a
+// binding's value *during* that loop (e.g. to materialize a bound element
+// property) rather than only after it finishes: since every legacy `var` a
+// typed initializer may reference is guaranteed (by Task 12/13's forward-
+// reference rejection) to sit earlier in the document than the reference
+// itself, `computedVariables` already holds that var's value by the time
+// anything asks for it mid-loop, exactly as it always would have by the time
+// the loop finished. `computedVariables` only ever contains entries for
+// `variable`-type elements (the only writer is `evaluateVariableElement`), so
+// a direct `.get(elementId)` lookup is safe without first re-checking the
+// element's own type.
+//
+// This module owns no evaluation logic of its own beyond that one lookup: it
+// maps a legacy `var` element's already-computed value into a
+// ScalarEvaluation and hands it to Task 20's lazy evaluator
 // (declarationEvaluator.ts). forGroup iteration / elementLocal bindings are
 // not resolvable here (loop mutation is out of scope - Tasks 33-35), so a
-// reference to one simply poisons gracefully via the same "unavailable"
-// path as a disabled legacy var, never a crash.
+// reference to one simply poisons gracefully via the same "unavailable" path
+// as a disabled legacy var, never a crash.
 
-import type { CadElement, ComputedVariable, ElementId } from "../types/geometry";
-import { bindingIdForStableStatementId, type BindingId } from "../scalars/bindingCatalog";
-import { evaluateScalarProgram, type ScalarProgramEvaluation } from "../scalars/declarationEvaluator";
+import type { ComputedVariable, ElementId } from "../types/geometry";
+import type { BindingId } from "../scalars/bindingCatalog";
+import {
+  createLazyScalarProgramEvaluator,
+  finalizeScalarProgramEvaluation,
+  type ScalarProgramEvaluation
+} from "../scalars/declarationEvaluator";
 import { adaptNumericResult } from "../scalars/numericFunctionAdapter";
 import type { ScalarProgram } from "../scalars/scalarProgram";
 import type { ScalarEvaluation } from "../scalars/types";
-import { isVariableElement } from "./variableScope";
+
+// Mirrors bindingIdForStableStatementId's own format (`binding:${id}`, see
+// bindingCatalog.ts) - duplicated as a literal the same way Rust's
+// `bindings.rs` already duplicates it, rather than parsing the id back out
+// through the formatter.
+const LEGACY_BINDING_PREFIX = "binding:";
 
 const externalBindingUnavailable = (bindingId: BindingId): ScalarEvaluation => ({
   status: "error",
@@ -29,28 +53,48 @@ const externalBindingUnavailable = (bindingId: BindingId): ScalarEvaluation => (
 });
 
 /**
+ * A scalar-program binding resolver bound to one document's live
+ * `computedVariables` map. `resolveBinding` may be called at any point while
+ * the caller's own element-evaluation loop is still running (e.g. from
+ * property materialization); `finalize` produces the same
+ * `computedScalarBindings` shape/order Task 21 already contracts, reusing
+ * whatever `resolveBinding` already resolved rather than re-evaluating it.
+ */
+export type ScalarBindingResolver = {
+  resolveBinding: (bindingId: BindingId) => ScalarEvaluation;
+  finalize: () => ScalarProgramEvaluation;
+};
+
+/**
+ * Builds a resolver for `program` against a document's `computedVariables`
+ * map. `computedVariables` is read live (by reference) on every call, not
+ * snapshotted up front - see module comment.
+ */
+export const createDocumentScalarBindingResolver = (
+  program: ScalarProgram,
+  computedVariables: ReadonlyMap<ElementId, ComputedVariable>
+): ScalarBindingResolver => {
+  const resolveExternalBinding = (bindingId: BindingId): ScalarEvaluation => {
+    if (!bindingId.startsWith(LEGACY_BINDING_PREFIX)) return externalBindingUnavailable(bindingId);
+    const computed = computedVariables.get(bindingId.slice(LEGACY_BINDING_PREFIX.length));
+    return computed ? adaptNumericResult({ value: computed.value }, bindingId) : externalBindingUnavailable(bindingId);
+  };
+
+  const evaluator = createLazyScalarProgramEvaluator(program, resolveExternalBinding);
+
+  return {
+    resolveBinding: evaluator.resolve,
+    finalize: () => finalizeScalarProgramEvaluation(program, evaluator)
+  };
+};
+
+/**
  * Evaluates `program`'s declarations against a document already evaluated by
- * `evaluateElements` (or an equivalent legacy-numeric pass): `elements` and
- * `computedVariables` supply the runtime value for any legacy `var`
- * reference. A legacy var missing from `computedVariables` (its element was
- * `disabled`, or evaluation failed/was skipped) resolves to a poisoned
- * binding rather than throwing - a `hidden` (but enabled) legacy var is
- * present in `computedVariables` normally and resolves fine.
+ * `evaluateElements` (or an equivalent legacy-numeric pass) - a convenience
+ * wrapper for callers that only need the whole-document result with no
+ * mid-run property lookups of their own.
  */
 export const evaluateDocumentScalarProgram = (
   program: ScalarProgram,
-  elements: readonly CadElement[],
   computedVariables: ReadonlyMap<ElementId, ComputedVariable>
-): ScalarProgramEvaluation => {
-  const legacyValueByBindingId = new Map<BindingId, ComputedVariable>();
-  for (const element of elements) {
-    if (!isVariableElement(element)) continue;
-    const computed = computedVariables.get(element.id);
-    if (computed) legacyValueByBindingId.set(bindingIdForStableStatementId(element.id), computed);
-  }
-
-  return evaluateScalarProgram(program, (bindingId) => {
-    const computed = legacyValueByBindingId.get(bindingId);
-    return computed ? adaptNumericResult({ value: computed.value }, bindingId) : externalBindingUnavailable(bindingId);
-  });
-};
+): ScalarProgramEvaluation => createDocumentScalarBindingResolver(program, computedVariables).finalize();

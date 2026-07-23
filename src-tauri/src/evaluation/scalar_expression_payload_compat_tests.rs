@@ -23,6 +23,7 @@ fn baseline_elements() -> Vec<Value> {
 
 fn evaluate_with(payload: Option<Value>) -> Value {
     let result = evaluate_document(EvaluationInput {
+        property_bindings: None,
         elements: baseline_elements(),
         evaluation_limit_index: None,
         scalar_expression_payload: payload,
@@ -34,6 +35,7 @@ fn evaluate_with(payload: Option<Value>) -> Value {
 
 fn evaluate_with_program(program: Option<Value>) -> Result<Value, EvaluationCommandError> {
     let result = evaluate_document(EvaluationInput {
+        property_bindings: None,
         elements: baseline_elements(),
         evaluation_limit_index: None,
         scalar_expression_payload: None,

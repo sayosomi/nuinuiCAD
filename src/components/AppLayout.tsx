@@ -3,6 +3,7 @@ import type { CSSProperties } from "react";
 import { dispatchCommand } from "../commands/commands";
 import { loadCommandRibbonSettings } from "../commandRibbons/commandRibbonSettings";
 import { registerUnsavedChangesGuard } from "../document/unsavedChangesGuard";
+import { buildPropertyBindingRuntimeEntries } from "../geometry/propertyBindingRuntime";
 import { useEvaluationEngine } from "../geometry/useEvaluationEngine";
 import { loadShortcutSettings } from "../keyboard/shortcutSettingsStorage";
 import {
@@ -104,6 +105,15 @@ export const AppLayout = () => {
   const elements = useCadDocumentStore(effectiveElements);
   const evaluationLimitIndex = useCadDocumentStore(effectiveEvaluationLimitIndex);
   const compiledDocumentRevision = useCadDocumentStore((state) => state.compiledDocumentRevision);
+  // Task 23: scalarProgram/propertyBindings are read from the last-good
+  // compiled document (state.doc), not from `elements` above - `elements` is
+  // `effectiveElements` (previewElements may substitute it during an
+  // in-progress command preview), while property bindings are keyed against
+  // the canonical compiled document's own element ids/statement indices.
+  const scalarProgram = useCadDocumentStore((state) => state.doc.scalarProgram);
+  const propertyBindings = useCadDocumentStore((state) => state.doc.propertyBindings);
+  const canonicalElements = useCadDocumentStore((state) => state.doc.document.elements);
+  const elementIdByStatementIndex = useCadDocumentStore((state) => state.doc.statementMap.elementIdByStatementIndex);
   const shortcutSettings = useCadUiStore((state) => state.shortcutSettings);
   const showPrintLayout = useCadUiStore((state) => state.showPrintLayout);
   const showPrintPreviewWindow = useCadUiStore((state) => state.showPrintPreviewWindow);
@@ -145,7 +155,21 @@ export const AppLayout = () => {
     increaseWidth: increaseLeftPanelWidth,
     resetWidth: resetLeftPanelWidth
   } = useLeftPanelResize({ onWidthCommitted: saveLeftPanelWidth });
-  const evaluationOptions = useMemo(() => ({ evaluationLimitIndex }), [evaluationLimitIndex]);
+  const propertyBindingEntries = useMemo(
+    () =>
+      scalarProgram && propertyBindings
+        ? buildPropertyBindingRuntimeEntries({ propertyBindings, elementIdByStatementIndex }, canonicalElements)
+        : undefined,
+    [scalarProgram, propertyBindings, elementIdByStatementIndex, canonicalElements]
+  );
+  const evaluationOptions = useMemo(
+    () => ({
+      evaluationLimitIndex,
+      ...(scalarProgram ? { scalarProgram } : {}),
+      ...(propertyBindingEntries?.length ? { propertyBindingEntries } : {})
+    }),
+    [evaluationLimitIndex, scalarProgram, propertyBindingEntries]
+  );
   const evaluationState = useEvaluationEngine(elements, evaluationOptions, compiledDocumentRevision);
   const { evaluation, evaluationRevision, evaluationRequestRevision } = evaluationState;
   const commandLineStep = currentStep(commandLineSession);

@@ -3,7 +3,7 @@
 // binding-to-binding assignment never allows a subset relationship or any
 // implicit conversion (D01).
 
-import { isChoiceScalarType, scalarTypesEqual, type ChoiceScalarType, type ScalarType } from "./types";
+import { isChoiceScalarType, scalarTypesEqual, type ChoiceScalarType, type ScalarType, type ScalarValue } from "./types";
 
 /**
  * Normal scalar assignability: bindings, set targets, and choice equality
@@ -47,6 +47,33 @@ export const isAssignableToPropertyCapability = (
   if (isChoiceScalarType(bindingType) && isChoiceScalarType(propertyType)) {
     const propertyOptionSet = new Set(propertyType.options);
     return bindingType.options.every((option) => propertyOptionSet.has(option));
+  }
+  return true;
+};
+
+/**
+ * Task 23: whether a *runtime* ScalarValue (the already-resolved value of a
+ * bound property's binding) is actually usable for that property, checked
+ * again at evaluation time rather than trusted from the compile-time
+ * `isAssignableToPropertyCapability` check above. This is deliberately not
+ * `scalarValueMatchesType` (types.ts) - that function requires the value's
+ * own option list to be structurally identical to the type being checked
+ * against, which would incorrectly reject the legitimate case D07 exists
+ * for: a binding declared with a narrower choice type than the property it
+ * is assigned to (e.g. a `choice(right)` binding assigned to
+ * `offsetLine.side: choice(right, left)`). Here we only need to know whether
+ * the concrete runtime literal is a member of the *property's* own option
+ * set, regardless of what option list the binding's own declared type
+ * carries.
+ */
+export const scalarValueSatisfiesPropertyCapability = (
+  value: ScalarValue,
+  capability: PropertyBindingCapability
+): boolean => {
+  const propertyType = capability.propertyType;
+  if (value.kind !== propertyType.kind) return false;
+  if (isChoiceScalarType(propertyType) && value.kind === "choice") {
+    return propertyType.options.includes(value.value);
   }
   return true;
 };

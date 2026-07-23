@@ -9,11 +9,13 @@ import {
   evaluationResultToPayload,
   type EvaluationPayload
 } from "./evaluationPayload";
+import type { PropertyBindingRuntimeEntry } from "./propertyBindingRuntime";
 
 type EvaluateDocumentInput = {
   elements: CadElement[];
   evaluationLimitIndex?: number;
   scalarProgram?: ScalarProgram;
+  propertyBindings?: readonly PropertyBindingRuntimeEntry[];
 };
 
 export type EvaluationEngineMode = "reference" | "parity" | "shadow" | "rust";
@@ -310,7 +312,8 @@ export const evaluateElementsWithRust = async (
     input: {
       elements,
       evaluationLimitIndex: options.evaluationLimitIndex,
-      ...(options.scalarProgram ? { scalarProgram: options.scalarProgram } : {})
+      ...(options.scalarProgram ? { scalarProgram: options.scalarProgram } : {}),
+      ...(options.propertyBindingEntries?.length ? { propertyBindings: options.propertyBindingEntries } : {})
     } satisfies EvaluateDocumentInput
   });
   return evaluationPayloadToResult(payload);

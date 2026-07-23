@@ -86,9 +86,14 @@ export const useEvaluationEngine = (
 ): EvaluationEngineState => {
   const evaluationLimitIndex = options.evaluationLimitIndex;
   const scalarProgram = options.scalarProgram;
+  const propertyBindingEntries = options.propertyBindingEntries;
   const evaluationOptions = useMemo(
-    () => ({ evaluationLimitIndex, ...(scalarProgram ? { scalarProgram } : {}) }),
-    [evaluationLimitIndex, scalarProgram]
+    () => ({
+      evaluationLimitIndex,
+      ...(scalarProgram ? { scalarProgram } : {}),
+      ...(propertyBindingEntries?.length ? { propertyBindingEntries } : {})
+    }),
+    [evaluationLimitIndex, scalarProgram, propertyBindingEntries]
   );
   const engineMode = getEvaluationEngineMode();
   const tauriRuntime = isTauriRuntime();
@@ -96,8 +101,8 @@ export const useEvaluationEngine = (
   const parityMode = isParityEvaluationEngineMode(engineMode);
   const deferScalarReferenceEvaluation = parityMode && scalarProgram !== undefined && tauriRuntime && rustEligible;
   const requestKey = useMemo(
-    () => JSON.stringify({ elements, evaluationLimitIndex, scalarProgram }),
-    [elements, evaluationLimitIndex, scalarProgram]
+    () => JSON.stringify({ elements, evaluationLimitIndex, scalarProgram, propertyBindingEntries }),
+    [elements, evaluationLimitIndex, scalarProgram, propertyBindingEntries]
   );
   const evaluationRequestRevision = useMemo(
     () => requestRevisionFor(`${evaluationRevision}:${requestKey}`),
