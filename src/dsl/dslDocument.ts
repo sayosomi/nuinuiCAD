@@ -20,6 +20,7 @@ import type {
 import { compileDslToElements } from "./dslCompiler";
 import { lowerScalarProgram } from "../scalars/scalarProgram";
 import { analyzeTypedDeclarations } from "../scalars/typedDeclarationAnalysis";
+import { compilePropertyBindings, type ScalarValueSource } from "../scalars/propertyBindingCompiler";
 import { formatNumericValueForDsl } from "./dslExpressionFormat";
 import { parseDsl, parseDslSnapshot } from "./dslParser";
 import type { SourceRevision } from "./logicalStatementSourceMap";
@@ -148,6 +149,8 @@ export type CompiledDslDocument = {
   scalarProgram?: ScalarProgram;
   bindingAnalysis?: BindingAnalysis;
   scalarProgramPositionMap?: ScalarProgramPositionMap;
+  /** Task 22 compiled property binding sources, keyed by propertyBindingOccurrenceKey. */
+  propertyBindings?: ReadonlyMap<string, ScalarValueSource>;
 };
 
 export type CompileDslDocumentOptions = {
@@ -804,6 +807,31 @@ export const compileDslDocument = (
   const scalarAnalysis = scalarAnalysisCompilation.analysis;
   const scalarProgram = scalarAnalysis ? lowerScalarProgram(scalarAnalysis) : undefined;
 
+  // Task 22: property binding compile/typecheck. Only meaningful once typed
+  // declarations exist to reference (nui 3 + at least one binding) - a
+  // document with none can never contain a valid `@name` property source.
+  const propertyBindingCompilation = scalarAnalysis
+    ? compilePropertyBindings({
+        statements: parsed.statements,
+        elementIdByStatementIndex: compiled.elementIdsByStatementIndex ?? new Map(),
+        elements: compiled.elements,
+        bindingAnalysis: scalarAnalysis.bindingAnalysis
+      })
+    : undefined;
+  const finalDiagnostics = propertyBindingCompilation
+    ? [...allDiagnostics, ...propertyBindingCompilation.diagnostics]
+    : allDiagnostics;
+  if (finalDiagnostics.some((item) => item.severity === "error")) {
+    return {
+      document: null,
+      majorVersion: versionValidation.majorVersion,
+      statements: parsed.statements,
+      statementMap: null,
+      sourceLines,
+      diagnostics: finalDiagnostics
+    };
+  }
+
   const visibilityProfiles = compiled.visibilityProfiles?.length
     ? compiled.visibilityProfiles
     : [defaultVisibilityProfile()];
@@ -835,10 +863,11 @@ export const compileDslDocument = (
     statements: parsed.statements,
     statementMap,
     sourceLines,
-    diagnostics: allDiagnostics,
+    diagnostics: finalDiagnostics,
     ...(scalarProgram ? { scalarProgram } : {}),
     ...(scalarAnalysis ? { bindingAnalysis: scalarAnalysis.bindingAnalysis } : {}),
-    ...(scalarAnalysis ? { scalarProgramPositionMap: scalarAnalysis.positionMap } : {})
+    ...(scalarAnalysis ? { scalarProgramPositionMap: scalarAnalysis.positionMap } : {}),
+    ...(propertyBindingCompilation ? { propertyBindings: propertyBindingCompilation.sourcesByOccurrenceKey } : {})
   };
 };
 

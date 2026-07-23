@@ -219,7 +219,15 @@ export const applyArgs = (
     switch (parameter.kind) {
       case "boolean": {
         const parsed = booleanValue(value);
-        if (parsed === null) diagnostics.push(diagnostic(resolvers.line, `${parameterKey} は true/false で指定してください。`));
+        // A `@name` value is a Task 22 property binding attempt, not a
+        // malformed literal - src/scalars/propertyBindingCompiler.ts owns
+        // its diagnostics (not-supported/unresolved/invalid/type-mismatch);
+        // this stays silent here so a valid binding doesn't also get a
+        // spurious "must be true/false" error. Any other unparseable value
+        // still gets this diagnostic exactly as before.
+        if (parsed === null && !value.startsWith("@")) {
+          diagnostics.push(diagnostic(resolvers.line, `${parameterKey} は true/false で指定してください。`));
+        }
         next = setParameterValue(next, parameterKey, parsed ?? false);
         break;
       }

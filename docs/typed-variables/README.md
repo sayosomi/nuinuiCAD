@@ -44,7 +44,7 @@
 | 19 | [compiled scalar program](tasks/19-compiled-scalar-program.md) | compiler/IPC | 13,15 | feature-gated IR | `typed-vars/19-scalar-program` | 完了 |
 | 20 | [TS const evaluation](tasks/20-ts-const-evaluation.md) | reference evaluation | 16,19 | gated reference path | `typed-vars/20-ts-const-eval` | 完了 |
 | 21 | [Rust const evaluation parity](tasks/21-rust-const-evaluation-parity.md) | production evaluation | 18,19,20 | gated Rust/shadow path | `typed-vars/21-rust-const-eval` | 完了 |
-| 22 | [property reference typecheck](tasks/22-property-reference-typecheck.md) | compiler/parameters | 13,15,19 | analysis only | `typed-vars/22-property-typecheck` | 未着手 |
+| 22 | [property reference typecheck](tasks/22-property-reference-typecheck.md) | compiler/parameters | 13,15,19 | analysis only | `typed-vars/22-property-typecheck` | 完了 |
 | 23 | [standard property runtime](tasks/23-standard-property-runtime.md) | TS/Rust evaluation | 21,22 | gated runtime | `typed-vars/23-property-runtime` | 未着手 |
 | 24 | [printEnabled runtime](tasks/24-print-enabled-runtime.md) | print state | 21,22 | gated print runtime | `typed-vars/24-print-enabled` | 未着手 |
 | 25 | [boolean control-flow runtime](tasks/25-boolean-control-flow-runtime.md) | control flow | 18,21,22 | gated control runtime | `typed-vars/25-boolean-control-flow` | 未着手 |
@@ -232,6 +232,7 @@ Task 20/21のconst runtime pathはTask 31/32へ、Task 46のnui 3 persistence pa
 
 - Task 19完了後: 22(property typecheck)、26(template analysis)、42(Inspector metadata)は20と並行/独立に着手可能。
 - Task 20完了後: 21(Rust const evaluation parity)に着手可能。
+- Task 21・22完了後: 23(standard property runtime)、24(printEnabled runtime)、25(boolean control-flow runtime)に着手可能。
 - Task 21後: property runtime、template runtime、set/mutation系を依存範囲内で並行。
 - Task 30後: mutation pathとTask 46のnui 3 persistenceを並行。
 - Task 35後: dependency/rename、completion/editor、runtime Inspectorを依存範囲内で並行。
@@ -250,7 +251,17 @@ Task 20/21のconst runtime pathはTask 31/32へ、Task 46のnui 3 persistence pa
 
 ## 次に実行可能なtask
 
-直近は22、26、42。Task 21でRust-first `evaluate_document(input)` がTask 19の解決済み`scalar_program`を評価し、`computedScalarBindings`をTS payloadへ返す。22の完了後に23〜25、26/27完了後に28、29〜31完了後に32がこのbinding environmentを再利用し、source再parse・名前再解決・legacy fallbackを追加しない。
+直近は23、24、25(いずれも21・22完了済み)、26、42。Task 21でRust-first `evaluate_document(input)` がTask 19の解決済み`scalar_program`を評価し、`computedScalarBindings`をTS payloadへ返す。22の完了後に23〜25、26/27完了後に28、29〜31完了後に32がこのbinding environmentを再利用し、source再parse・名前再解決・legacy fallbackを追加しない。
+
+### Task 22完了時点の引き継ぎ(23〜26向け)
+
+`src/dsl/dslDocument.ts`の`compileDslDocument`は、typed宣言が1件以上ある`nui 3`文書で`scalarAnalysis`が得られた場合、`src/scalars/propertyBindingCompiler.ts`の`compilePropertyBindings`を呼び、結果を`CompiledDslDocument.propertyBindings?: ReadonlyMap<string, ScalarValueSource>`へ格納する(`scalarProgram`/`bindingAnalysis`と同じ並び)。診断は`compiled.diagnostics`へ通常のcompile diagnosticsとして統合済みで、エラーがあれば他のcompile errorと同じく`document: null`(last-good-document維持)になる。
+
+- key形式は`propertyBindingOccurrenceKey(statementIndex, parameterKey)`(`src/scalars/propertyBindingCompiler.ts`からexport)。`parameterKey`はDSL引数名ではなくparameterDefinitionsの`key`(例: `intersectionPoint`の`extensions:`引数は`useExtensions`というkeyになる)。
+- `ScalarValueSource`は現状`{kind:"literal"}`(未使用)と`{kind:"binding"; bindingId; type; span; nameSpan; name}`のみ。mapにkeyが存在しない場合はliteral(既存element fieldをそのまま使う)。
+- 23(標準property)・24(printEnabled)・25(showGenerated)は、このmapを`bindingId`でTask 21の`computedScalarBindings`と突き合わせてruntime値を得ればよく、sourceの再parse・binding名の再解決は不要。
+- 26(text template)は`text.text`が単独`@binding`のケースをこのmapから得られるが、`{...}`interpolation hole自体はTask 22の対象外であり、26が新たに解析する。
+- `src/dsl/dslApplyArgs.ts`のboolean引数は`@`始まりの値に対して「true/false で指定してください」診断を出さないよう変更済み(Task 22でのbinding診断と重複させないため)。choice/text引数はもともと未検証だったため変更なし。
 
 ## Blocking decisions
 
