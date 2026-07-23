@@ -1,4 +1,5 @@
 import { evaluateNumericValue } from "../geometry/numericExpressions";
+import { isGroupPrintEnabled, type GroupPrintEnabledLookup } from "../geometry/groupPrintEnabledRuntime";
 import { parseForGroupGeneratedElementId } from "../model/forGroupGeneratedReferences";
 import { descendantIdsForGroup } from "../model/groups";
 import { effectiveDrawElementIds, effectiveEvaluationElementIds } from "../model/elementActivity";
@@ -72,9 +73,14 @@ export type PrintableGroup = Extract<CadElement, { type: "group" }> & {
   printEnabled: true;
 };
 
-export const printableGroups = (elements: CadElement[]): PrintableGroup[] =>
+export const printableGroups = (
+  elements: CadElement[],
+  printEnabledLookup?: GroupPrintEnabledLookup,
+  computedScalarBindings?: EvaluationResult["computedScalarBindings"]
+): PrintableGroup[] =>
   elements.filter(
-    (element): element is PrintableGroup => element.type === "group" && element.printEnabled === true
+    (element): element is PrintableGroup =>
+      element.type === "group" && isGroupPrintEnabled(element, printEnabledLookup, computedScalarBindings)
   );
 
 const geometryTemplateId = (elementId: ElementId) =>
@@ -303,13 +309,15 @@ export const printableItemsForLayout = ({
   evaluation,
   layout,
   visibilityProfiles = [],
-  activeVisibilityProfileId
+  activeVisibilityProfileId,
+  groupPrintEnabledLookup
 }: {
   elements: CadElement[];
   evaluation: EvaluationResult;
   layout: PrintLayout;
   visibilityProfiles?: VisibilityProfile[];
   activeVisibilityProfileId?: string | null;
+  groupPrintEnabledLookup?: GroupPrintEnabledLookup;
 }): PrintableItems => {
   const geometries = Array.from(evaluation.computedGeometry.values());
   const resolvedLayout = resolvePrintLayout({ layout, elements, evaluation });
@@ -321,7 +329,9 @@ export const printableItemsForLayout = ({
   const profileVisibleIds = effectiveVisibleElementIdsForProfile({ elements, profile });
   const visibleIds = new Set([...baseVisibleIds].filter((id) => profileVisibleIds.has(id)));
   const enabledIds = evaluation.effectiveEnabledElementIds ?? effectiveEvaluationElementIds(elements);
-  const groupsById = new Map(printableGroups(elements).map((group) => [group.id, group]));
+  const groupsById = new Map(
+    printableGroups(elements, groupPrintEnabledLookup, evaluation.computedScalarBindings).map((group) => [group.id, group])
+  );
   const items: PrintableItems = { paths: [], texts: [] };
 
   for (const placement of resolvedLayout.placements) {
@@ -365,19 +375,22 @@ export const printablePathsForLayout = ({
   evaluation,
   layout,
   visibilityProfiles,
-  activeVisibilityProfileId
+  activeVisibilityProfileId,
+  groupPrintEnabledLookup
 }: {
   elements: CadElement[];
   evaluation: EvaluationResult;
   layout: PrintLayout;
   visibilityProfiles?: VisibilityProfile[];
   activeVisibilityProfileId?: string | null;
+  groupPrintEnabledLookup?: GroupPrintEnabledLookup;
 }) => printableItemsForLayout({
   elements,
   evaluation,
   layout,
   visibilityProfiles,
-  activeVisibilityProfileId
+  activeVisibilityProfileId,
+  groupPrintEnabledLookup
 }).paths;
 
 export const defaultPlacementForGroup = (

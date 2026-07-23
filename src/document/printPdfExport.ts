@@ -70,7 +70,11 @@ export const exportPrintPdf = async (evaluation: EvaluationResult | undefined) =
     evaluation,
     layout,
     visibilityProfiles: state.visibilityProfiles,
-    activeVisibilityProfileId: state.activeVisibilityProfileId
+    activeVisibilityProfileId: state.activeVisibilityProfileId,
+    groupPrintEnabledLookup: {
+      propertyBindings: state.doc.propertyBindings,
+      byElementId: state.doc.statementMap.byElementId
+    }
   });
   const input: ExportPrintPdfInput = {
     path: ensurePdfFileName(path),

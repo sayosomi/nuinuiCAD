@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { PointerEvent, RefObject } from "react";
 import { Minus, X, ZoomIn } from "lucide-react";
 import { printableItemsForLayout } from "../print/printGeometry";
+import type { GroupPrintEnabledLookup } from "../geometry/groupPrintEnabledRuntime";
 import { orientedPaperSize, printCanvasSizeMm, resolvePrintLayout } from "../print/printLayout";
 import {
   loadLayoutSettings,
@@ -26,13 +27,15 @@ const printLayoutCanvasForLayout = ({
   elements,
   evaluation,
   visibilityProfiles,
-  activeVisibilityProfileId
+  activeVisibilityProfileId,
+  groupPrintEnabledLookup
 }: {
   layout: PrintLayout;
   elements: ReturnType<typeof useCadDocumentStore.getState>["elements"];
   evaluation: EvaluationResult;
   visibilityProfiles: ReturnType<typeof useCadDocumentStore.getState>["visibilityProfiles"];
   activeVisibilityProfileId: string;
+  groupPrintEnabledLookup: GroupPrintEnabledLookup;
 }) => {
   const resolvedLayout = resolvePrintLayout({ layout, elements, evaluation });
   const isSvgLayout = resolvedLayout.outputKind === "svg";
@@ -52,7 +55,8 @@ const printLayoutCanvasForLayout = ({
       evaluation,
       layout,
       visibilityProfiles,
-      activeVisibilityProfileId
+      activeVisibilityProfileId,
+      groupPrintEnabledLookup
     })
   };
 };
@@ -128,6 +132,12 @@ export const PrintLayoutPreviewWindow = ({
   const activePrintLayoutId = useCadDocumentStore((state) => state.activePrintLayoutId);
   const visibilityProfiles = useCadDocumentStore((state) => state.visibilityProfiles);
   const activeVisibilityProfileId = useCadDocumentStore((state) => state.activeVisibilityProfileId);
+  const groupPrintEnabledPropertyBindings = useCadDocumentStore((state) => state.doc.propertyBindings);
+  const groupPrintEnabledByElementId = useCadDocumentStore((state) => state.doc.statementMap.byElementId);
+  const groupPrintEnabledLookup: GroupPrintEnabledLookup = useMemo(
+    () => ({ propertyBindings: groupPrintEnabledPropertyBindings, byElementId: groupPrintEnabledByElementId }),
+    [groupPrintEnabledPropertyBindings, groupPrintEnabledByElementId]
+  );
   const printPreviewWindow = useCadUiStore((state) => state.printPreviewWindow);
   const updatePrintPreviewWindow = useCadUiStore((state) => state.updatePrintPreviewWindow);
   const setShowPrintPreviewWindow = useCadUiStore((state) => state.setShowPrintPreviewWindow);
@@ -146,10 +156,11 @@ export const PrintLayoutPreviewWindow = ({
             elements,
             evaluation,
             visibilityProfiles,
-            activeVisibilityProfileId
+            activeVisibilityProfileId,
+            groupPrintEnabledLookup
           })
         : null,
-    [activeVisibilityProfileId, elements, evaluation, selectedLayout, visibilityProfiles]
+    [activeVisibilityProfileId, elements, evaluation, selectedLayout, visibilityProfiles, groupPrintEnabledLookup]
   );
   const pageStepX = model ? Math.max(model.paper.widthMm - model.resolvedLayout.overlapMm, 1) : 1;
   const pageStepY = model ? Math.max(model.paper.heightMm - model.resolvedLayout.overlapMm, 1) : 1;

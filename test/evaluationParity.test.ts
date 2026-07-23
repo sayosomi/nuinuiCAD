@@ -106,6 +106,35 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     expect(normalizeNumbers(evaluateWithRust(fixture))).toEqual(normalizeNumbers(tsPayload));
   }, 30000);
 
+  it("group.printEnabled bound to a boolean binding has matching computedScalarBindings across TS/Rust (Task 24)", () => {
+    const baseline = regenerateCanonicalFromModel(emptyDocument(), 3);
+    const compiled = compileCanonicalText(baseline, [
+      "nui 3",
+      "let 印刷: boolean = true",
+      "group G (printEnabled: @印刷) {",
+      "  point A = coordinate(x: 0 y: 0)",
+      "}"
+    ].join("\n"));
+
+    expect(compiled.status).not.toBe("fatal");
+    const fixture: EvaluationFixture = {
+      elements: compiled.doc.document.elements,
+      scalarProgram: compiled.doc.scalarProgram
+    };
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, {
+      scalarProgram: fixture.scalarProgram
+    });
+    const rustPayload = evaluateWithRust(fixture);
+
+    expect(normalizeNumbers(rustPayload)).toEqual(normalizeNumbers(tsPayload));
+    const tsResult = evaluationPayloadToResult(tsPayload);
+    const rustResult = evaluationPayloadToResult(rustPayload);
+    const bindings = Array.from(tsResult.computedScalarBindings ?? []);
+    expect(bindings).toHaveLength(1);
+    expect(bindings[0][1]).toEqual({ status: "ok", type: { kind: "boolean" }, value: { kind: "boolean", value: true } });
+    expect(rustResult.computedScalarBindings).toEqual(tsResult.computedScalarBindings);
+  }, 30000);
+
   it("valid nui 3 overflow source returns matching typed poison through IPC", () => {
     const baseline = regenerateCanonicalFromModel(emptyDocument(), 3);
     const maximumFiniteLiteral = `1${"0".repeat(308)}`;
