@@ -13,6 +13,13 @@ import {
   type DslDocumentData
 } from "./dslDocument";
 import {
+  PROPERTY_BINDING_INVALID_CODE,
+  PROPERTY_BINDING_NOT_SUPPORTED_CODE,
+  PROPERTY_BINDING_TYPE_MISMATCH_CODE,
+  PROPERTY_BINDING_UNRESOLVED_CODE,
+  propertyBindingOccurrenceKey
+} from "../scalars/propertyBindingCompiler";
+import {
   emptyDocument,
   expectSemanticallyEqualDocuments,
   roundTrip
@@ -780,5 +787,73 @@ describe("nui 2/3 typed declaration wiring", () => {
     expect(compiled.document!.elements).toMatchObject([{ name: "A" }]);
     const declarations = compiled.statements.filter((item) => item.kind === "typedDeclaration");
     expect(declarations).toHaveLength(2);
+  });
+});
+
+describe("Task 22 property binding wiring", () => {
+  it("stores a resolved binding source on compiled.propertyBindings, alongside a clean diagnostics list", () => {
+    const compiled = compileDslDocument(
+      ["nui 3", "let 印刷: boolean = true", "group G (printEnabled: @印刷) {", "}"].join("\n"),
+      { assignedStatementIds: new Map([[1, "test:printEnabled"]]) }
+    );
+    expect(compiled.diagnostics).toEqual([]);
+    expect(compiled.document).not.toBeNull();
+    const entry = compiled.propertyBindings?.get(propertyBindingOccurrenceKey(2, "printEnabled"));
+    expect(entry).toMatchObject({ kind: "binding", type: { kind: "boolean" }, name: "印刷" });
+  });
+
+  it("keeps the last-good document (null) and surfaces property-binding-not-supported for a non-opted property", () => {
+    const compiled = compileDslDocument(
+      [
+        "nui 3",
+        'const パス: string = "x.png"',
+        'image IMG = image(source: @パス origin: (0, 0) naturalWidthPx: 1 naturalHeightPx: 1 sourceDpi: 300 targetPixelsPerMm: 11.811023622047244 scale: 1 angleDeg: 0 mirrorX: false)'
+      ].join("\n"),
+      { assignedStatementIds: new Map([[1, "test:path"]]) }
+    );
+    expect(compiled.document).toBeNull();
+    expect(compiled.diagnostics).toEqual(
+      expect.arrayContaining([expect.objectContaining({ severity: "error", code: PROPERTY_BINDING_NOT_SUPPORTED_CODE })])
+    );
+  });
+
+  it("keeps the last-good document (null) and surfaces property-binding-unresolved for an undefined name", () => {
+    const compiled = compileDslDocument(
+      ["nui 3", "let 印刷: boolean = true", "group G (printEnabled: @Missing) {", "}"].join("\n"),
+      { assignedStatementIds: new Map([[1, "test:printEnabled"]]) }
+    );
+    expect(compiled.document).toBeNull();
+    expect(compiled.diagnostics).toEqual(
+      expect.arrayContaining([expect.objectContaining({ severity: "error", code: PROPERTY_BINDING_UNRESOLVED_CODE })])
+    );
+  });
+
+  it("keeps the last-good document (null) and surfaces property-binding-invalid for malformed @ syntax", () => {
+    const compiled = compileDslDocument(
+      ["nui 3", "let 印刷: boolean = true", "group G (printEnabled: @印刷 + 1) {", "}"].join("\n"),
+      { assignedStatementIds: new Map([[1, "test:printEnabled"]]) }
+    );
+    expect(compiled.document).toBeNull();
+    expect(compiled.diagnostics).toEqual(
+      expect.arrayContaining([expect.objectContaining({ severity: "error", code: PROPERTY_BINDING_INVALID_CODE })])
+    );
+  });
+
+  it("keeps the last-good document (null) and surfaces property-binding-type-mismatch for a wrongly-typed binding", () => {
+    const compiled = compileDslDocument(
+      ["nui 3", "const n: number = 1", "group G (printEnabled: @n) {", "}"].join("\n"),
+      { assignedStatementIds: new Map([[1, "test:n"]]) }
+    );
+    expect(compiled.document).toBeNull();
+    expect(compiled.diagnostics).toEqual(
+      expect.arrayContaining([expect.objectContaining({ severity: "error", code: PROPERTY_BINDING_TYPE_MISMATCH_CODE })])
+    );
+  });
+
+  it("leaves propertyBindings undefined for a document with no typed declarations at all", () => {
+    const compiled = compileDslDocument(["nui 3", "group G (printEnabled: false) {", "}"].join("\n"));
+    expect(compiled.diagnostics).toEqual([]);
+    expect(compiled.document).not.toBeNull();
+    expect(compiled.propertyBindings).toBeUndefined();
   });
 });

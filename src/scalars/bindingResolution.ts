@@ -335,8 +335,27 @@ export const resolveInitializerReferencesWithTraceForTests = (
   };
 };
 
+export type SiteReferenceRequest = { key: string; name: string; site: BindingReferenceSite };
+
+/**
+ * Batch resolver for non-initializer, single-name reference sites (e.g. a
+ * Task 22 property value that is exactly one `@name`). Every request has no
+ * "owner" binding (unlike `resolveInitializerReferences`), so `self`
+ * resolution never occurs; otherwise this shares the exact same forward+
+ * reverse `runSweep` pass `resolveInitializerReferences` uses, so
+ * declaration-line-onward visibility, shadowing, and forward-reference
+ * detection all match `@name` resolution everywhere else in the language.
+ * One shared sweep over the whole batch of requests, not one
+ * `visibleBindingsAt` call per request - see `runSweep`'s own O(n) batching.
+ */
+export const resolveReferencesAtSites = (
+  catalog: BindingCatalog,
+  requests: readonly SiteReferenceRequest[]
+): ReadonlyMap<string, BindingResolution> =>
+  runSweep(catalog, requests.map((request) => ({ name: request.name, site: request.site, key: request.key, owner: null })));
+
 /** Internal, non-exported single-name oracle for focused tests only. The
- * production bulk query below never calls this compatibility path. */
+ * production bulk queries below never call this compatibility path. */
 const resolveAtSite = (catalog: BindingCatalog, name: string, site: BindingReferenceSite): BindingResolution => {
   const statementCount = catalog.scopeIndex.statementRankByIndex.size;
   const scheduledSite = site.statementIndex >= 0 && site.statementIndex < statementCount ? site : { ...site, statementIndex: Math.max(0, statementCount - 1) };
@@ -348,10 +367,11 @@ const resolveAtSite = (catalog: BindingCatalog, name: string, site: BindingRefer
 
 /**
  * Test-only. Production code must use `resolveInitializerReferences`
- * (initializer-owner-bound) or `visibleBindingsAt` (bulk visibility);
- * neither exposes exact `duplicate`/`forward`/`undefined` resolution detail
- * for a single arbitrary name/site pair, which is what most focused tests
- * need to assert. `fromBindingId`, when given, is validated exactly like
+ * (initializer-owner-bound), `visibleBindingsAt` (bulk visibility), or
+ * `resolveReferencesAtSites` (batch, owner-less, non-initializer sites);
+ * none of the three exposes exact `duplicate`/`forward`/`undefined`
+ * resolution detail for a single arbitrary name/site pair, which is what
+ * most focused tests need to assert. `fromBindingId`, when given, is validated exactly like
  * the batch API (fail-fast on an unknown/non-typed/statement-mismatched
  * owner) and only then can the result be `self`; omitted, the lookup can
  * never produce `self`. This export is locked out of non-test source by

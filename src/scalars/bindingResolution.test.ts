@@ -11,6 +11,7 @@ import {
   resolveBindingReferenceForTests,
   resolveInitializerReferences,
   resolveInitializerReferencesWithTraceForTests,
+  resolveReferencesAtSites,
   visibleBindingsAt,
   visibleBindingsAtWithTraceForTests
 } from "./bindingResolution";
@@ -820,5 +821,39 @@ describe("resolveInitializerReferences owner contract (batch API called directly
     const shuffled = resolveInitializerReferences(catalog, [requestC, requestA]);
     expect(inOrder.map((item) => item.resolution)).toEqual(shuffled.map((item) => item.resolution));
     expect(inOrder[0].resolution).toMatchObject({ kind: "forward", bindingIds: ["binding:stable-2", "binding:stable-3"] });
+  });
+});
+
+describe("resolveReferencesAtSites (owner-less batch, non-initializer sites)", () => {
+  it("resolves a batch of same-scope requests in one sweep, never producing a self resolution", () => {
+    const { catalog } = catalogFor([
+      "const width: number = 12",
+      "point A = coordinate(x: 0 y: 0)"
+    ].join("\n"));
+    const resolutions = resolveReferencesAtSites(catalog, [
+      { key: "occ-1", name: "width", site: { scopeId: "root", statementIndex: 1 } },
+      { key: "occ-2", name: "missing", site: { scopeId: "root", statementIndex: 1 } }
+    ]);
+    expect(resolutions.get("occ-1")).toMatchObject({ kind: "resolved", binding: { id: "binding:stable-0" } });
+    expect(resolutions.get("occ-2")).toEqual({ kind: "undefined", name: "missing", scopeId: "root", statementIndex: 1 });
+  });
+
+  it("treats a reference to its own declaration's own name as undefined, not self (no owner supplied)", () => {
+    const { catalog } = catalogFor(["const x: number = 1"].join("\n"));
+    const resolutions = resolveReferencesAtSites(catalog, [
+      { key: "occ", name: "x", site: { scopeId: "root", statementIndex: 0 } }
+    ]);
+    expect(resolutions.get("occ")).toEqual({ kind: "undefined", name: "x", scopeId: "root", statementIndex: 0 });
+  });
+
+  it("detects a forward-declared same-scope name exactly like resolveInitializerReferences does", () => {
+    const { catalog } = catalogFor([
+      "point A = coordinate(x: 0 y: 0)",
+      "const later: number = 1"
+    ].join("\n"));
+    const resolutions = resolveReferencesAtSites(catalog, [
+      { key: "occ", name: "later", site: { scopeId: "root", statementIndex: 0 } }
+    ]);
+    expect(resolutions.get("occ")).toMatchObject({ kind: "forward", bindingIds: ["binding:stable-1"] });
   });
 });

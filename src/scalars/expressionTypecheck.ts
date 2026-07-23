@@ -37,7 +37,10 @@ interface TraversalState {
   readonly diagnostics: ScalarExpressionTypecheckDiagnostic[];
 }
 
-const describeScalarType = (type: ScalarType): string =>
+/** Exported for reuse by other diagnostic-message producers (e.g. Task 22's
+ * property binding compiler) that need the same type description text -
+ * kept as one implementation rather than a duplicated formatter. */
+export const describeScalarType = (type: ScalarType): string =>
   type.kind === "choice" ? `choice(${type.options.join(", ")})` : type.kind;
 
 const addDiagnostic = (state: TraversalState, diagnostic: ScalarExpressionTypecheckDiagnostic): void => {
