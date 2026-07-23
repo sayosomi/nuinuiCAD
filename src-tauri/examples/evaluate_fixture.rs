@@ -15,7 +15,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         None => io::read_to_string(io::stdin())?,
     };
     let input = serde_json::from_str::<EvaluationInput>(&input_json)?;
-    let payload = evaluate_document(input);
+    let payload = evaluate_document(input)?;
     println!("{}", serde_json::to_string(&payload)?);
     Ok(())
 }

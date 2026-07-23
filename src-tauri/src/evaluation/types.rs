@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
+use std::fmt;
 
 pub type ElementId = String;
 
@@ -19,9 +20,25 @@ pub struct EvaluationInput {
     /// an inert shadow check (see mod.rs) - the result never affects
     /// `EvaluationPayload`.
     pub(crate) scalar_expression_payload: Option<Value>,
-    /// Task 19's declaration-only IR. Validation is inert until Task 21.
+    /// Task 19's validated declaration-only IR. Task 21 evaluates this after
+    /// the production geometry pass, preserving the existing geometry result.
     pub(crate) scalar_program: Option<Value>,
 }
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EvaluationCommandError {
+    pub(crate) code: String,
+    pub(crate) message: String,
+}
+
+impl fmt::Display for EvaluationCommandError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(formatter, "{}: {}", self.code, self.message)
+    }
+}
+
+impl std::error::Error for EvaluationCommandError {}
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -69,6 +86,8 @@ pub struct EvaluationPayload {
     pub(crate) condition_inactive_element_ids: Vec<ElementId>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub(crate) for_group_generated_rows: Vec<ForGroupGeneratedRow>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) computed_scalar_bindings: Option<Vec<Value>>,
 }
 
 #[derive(Clone, Debug, Default)]

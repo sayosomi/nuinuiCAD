@@ -576,7 +576,7 @@ describe("evaluationResultsMatch", () => {
     ).toBe(false);
   });
 
-  it("ignores computedScalarBindings differences (TS-only until Task 21)", () => {
+  it("compares computedScalarBindings now that Rust returns them", () => {
     const base = {
       computedGeometry: new Map(),
       computedVariables: new Map(),
@@ -588,13 +588,13 @@ describe("evaluationResultsMatch", () => {
       effectiveEnabledElementIds: new Set<string>()
     };
 
-    expect(
-      evaluationResultsMatch(base, {
-        ...base,
-        computedScalarBindings: new Map([
-          ["binding:a", { status: "ok" as const, type: { kind: "number" as const }, value: { kind: "number" as const, value: 1 } }]
-        ])
-      })
-    ).toBe(true);
+    const withBinding = {
+      ...base,
+      computedScalarBindings: new Map([
+        ["binding:a", { status: "ok" as const, type: { kind: "number" as const }, value: { kind: "number" as const, value: 1 } }]
+      ])
+    };
+    expect(evaluationResultsMatch(base, withBinding)).toBe(false);
+    expect(evaluationResultsMatch(withBinding, withBinding)).toBe(true);
   });
 });

@@ -24,7 +24,7 @@ export type EvaluationPayload = {
   effectiveEnabledElementIds: ElementId[];
   conditionInactiveElementIds?: ElementId[];
   forGroupGeneratedRows?: ForGroupGeneratedRow[];
-  /** Task 20: TS-reference-only until Task 21 gives Rust a matching field - see EvaluationResult.computedScalarBindings. */
+  /** Task 21: Rust and TypeScript share this JSON-friendly binding output. */
   computedScalarBindings?: ScalarBindingEvaluationPayload[];
 };
 

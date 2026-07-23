@@ -127,16 +127,24 @@ describe("useEvaluationEngine", () => {
     await waitFor(() => expect(invokeMock).toHaveBeenCalledWith("evaluate_document", expect.any(Object)));
   });
 
-  it("forwards an optional scalar program as JSON while reference evaluation remains unchanged", async () => {
+  it("round-trips optional scalar bindings through the desktop command", async () => {
     setTauriRuntime();
     vi.stubEnv("VITE_EVALUATION_ENGINE", "rust");
-    invokeMock.mockResolvedValue(evaluateElementsReferencePayload(elements));
+    invokeMock.mockResolvedValue(evaluateElementsReferencePayload(elements, { scalarProgram }));
 
-    renderHook(() => useEvaluationEngine(elements, { evaluationLimitIndex: elements.length, scalarProgram }));
+    const { result } = renderHook(() =>
+      useEvaluationEngine(elements, { evaluationLimitIndex: elements.length, scalarProgram })
+    );
 
     await waitFor(() => expect(invokeMock).toHaveBeenCalledWith("evaluate_document", {
       input: expect.objectContaining({ elements, scalarProgram })
     }));
+    await waitFor(() => expect(result.current.status).toBe("ready"));
+    expect(result.current.evaluation.computedScalarBindings?.get("binding:stable")).toEqual({
+      status: "ok",
+      type: { kind: "number" },
+      value: { kind: "number", value: 1 }
+    });
   });
 
   it("does not invoke Rust for unsupported Tauri documents", () => {
