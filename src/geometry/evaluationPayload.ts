@@ -63,6 +63,8 @@ export type EvaluationPayload = {
   effectiveEnabledElementIds: ElementId[];
   conditionInactiveElementIds?: ElementId[];
   forGroupGeneratedRows?: ForGroupGeneratedRow[];
+  /** Task 25: `forGroup` ids whose generated-result presentation is enabled. */
+  forGroupEffectiveShowGeneratedIds?: ElementId[];
   /** Task 21: Rust and TypeScript share this JSON-friendly binding output. */
   computedScalarBindings?: ScalarBindingEvaluationPayload[];
 };
@@ -80,6 +82,7 @@ export const evaluationResultToPayload = (result: EvaluationResult): EvaluationP
   forGroupGeneratedRows: result.forGroupGeneratedRows?.length
     ? result.forGroupGeneratedRows
     : undefined,
+  forGroupEffectiveShowGeneratedIds: Array.from(result.forGroupEffectiveShowGeneratedIds ?? []),
   computedScalarBindings: result.computedScalarBindings
     ? Array.from(result.computedScalarBindings, ([bindingId, evaluation]) => ({ bindingId, evaluation }))
     : undefined
@@ -96,6 +99,7 @@ export const evaluationPayloadToResult = (payload: EvaluationPayload): Evaluatio
   effectiveEnabledElementIds: new Set(payload.effectiveEnabledElementIds),
   conditionInactiveElementIds: new Set(payload.conditionInactiveElementIds ?? []),
   forGroupGeneratedRows: payload.forGroupGeneratedRows ?? [],
+  forGroupEffectiveShowGeneratedIds: new Set(payload.forGroupEffectiveShowGeneratedIds ?? []),
   ...(payload.computedScalarBindings !== undefined
     ? {
         computedScalarBindings: parseComputedScalarBindings(payload.computedScalarBindings)

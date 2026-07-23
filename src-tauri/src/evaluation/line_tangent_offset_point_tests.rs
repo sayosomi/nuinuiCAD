@@ -62,6 +62,8 @@ fn evaluates_line_tangent_offset_point_on_line() {
     })));
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements,
         evaluation_limit_index: None,
         scalar_expression_payload: None,
@@ -78,6 +80,8 @@ fn evaluates_line_tangent_offset_point_on_line() {
 fn evaluates_line_tangent_offset_point_on_diagonal_line_using_y_up_angles() {
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements: vec![
             element(json!({
                 "id": "a",
@@ -133,6 +137,8 @@ fn evaluates_line_tangent_offset_point_on_diagonal_line_using_y_up_angles() {
 fn evaluates_line_tangent_offset_point_on_arc_line() {
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements: vec![
             element(json!({
                 "id": "center",
@@ -184,6 +190,8 @@ fn evaluates_line_tangent_offset_point_on_arc_line() {
 fn evaluates_line_tangent_offset_point_on_bezier_intermediate_point_tangent() {
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements: vec![
             element(json!({
                 "id": "start",
@@ -261,6 +269,8 @@ fn evaluates_line_tangent_offset_point_on_bezier_intermediate_point_tangent() {
 fn reports_line_tangent_offset_point_base_line_dependency_that_appears_too_late() {
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements: vec![
             element(json!({
                 "id": "offset",
@@ -316,6 +326,8 @@ fn reports_line_tangent_offset_point_base_point_dependency() {
     })));
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements,
         evaluation_limit_index: None,
         scalar_expression_payload: None,
@@ -351,6 +363,8 @@ fn reports_line_tangent_offset_point_when_base_point_is_not_on_line() {
     })));
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements,
         evaluation_limit_index: None,
         scalar_expression_payload: None,
@@ -388,6 +402,8 @@ fn evaluates_line_tangent_offset_point_numeric_variables_and_expressions() {
     })));
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements,
         evaluation_limit_index: None,
         scalar_expression_payload: None,

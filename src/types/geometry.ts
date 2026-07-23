@@ -559,6 +559,15 @@ export type EvaluationResult = {
   conditionInactiveElementIds?: Set<ElementId>;
   forGroupGeneratedRows?: ForGroupGeneratedRow[];
   /**
+   * Task 25: `forGroup` element ids whose generated-result presentation is
+   * currently enabled (the literal `showGenerated` value, or the resolved
+   * typed boolean binding when bound). Never affects iteration count/rows -
+   * `forGroupGeneratedRows` above is always fully populated regardless of
+   * membership here. Consulted only by presentation surfaces such as the
+   * Source Editor's generated-rows widget.
+   */
+  forGroupEffectiveShowGeneratedIds?: Set<ElementId>;
+  /**
    * Task 20: version-0 TS reference evaluation of the compiled scalar
    * program's const/let declarations, keyed by BindingId - a separate map
    * from `computedVariables` (legacy numeric variables), never merged with

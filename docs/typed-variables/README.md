@@ -47,7 +47,7 @@
 | 22 | [property reference typecheck](tasks/22-property-reference-typecheck.md) | compiler/parameters | 13,15,19 | analysis only | `typed-vars/22-property-typecheck` | 完了 |
 | 23 | [standard property runtime](tasks/23-standard-property-runtime.md) | TS/Rust evaluation | 21,22 | gated runtime | `typed-vars/23-property-runtime` | 完了 |
 | 24 | [printEnabled runtime](tasks/24-print-enabled-runtime.md) | print state | 21,22 | gated print runtime | `typed-vars/24-print-enabled` | 完了 |
-| 25 | [boolean control-flow runtime](tasks/25-boolean-control-flow-runtime.md) | control flow | 18,21,22 | gated control runtime | `typed-vars/25-boolean-control-flow` | 未着手 |
+| 25 | [boolean control-flow runtime](tasks/25-boolean-control-flow-runtime.md) | control flow | 18,21,22 | gated control runtime | `typed-vars/25-boolean-control-flow` | 完了 |
 | 26 | [text template analysis](tasks/26-text-template-analysis.md) | template/parser | 09,12,15 | analysis only | `typed-vars/26-template-analysis` | 未着手 |
 | 27 | [text template TS evaluation](tasks/27-text-template-ts-evaluation.md) | reference evaluation | 16,20,26 | gated reference path | `typed-vars/27-template-ts` | 未着手 |
 | 28 | [text template Rust parity](tasks/28-text-template-rust-parity.md) | production evaluation | 18,21,27 | gated Rust path | `typed-vars/28-template-rust` | 未着手 |
@@ -251,7 +251,7 @@ Task 20/21のconst runtime pathはTask 31/32へ、Task 46のnui 3 persistence pa
 
 ## 次に実行可能なtask
 
-直近は25(21・22完了済み)、26、42。23・24は完了済み。Task 21でRust-first `evaluate_document(input)` がTask 19の解決済み`scalar_program`を評価し、`computedScalarBindings`をTS payloadへ返す。22の完了後に23〜25、26/27完了後に28、29〜31完了後に32がこのbinding environmentを再利用し、source再parse・名前再解決・legacy fallbackを追加しない。
+直近は26、29、42。23・24・25は完了済み。Task 21でRust-first `evaluate_document(input)` がTask 19の解決済み`scalar_program`を評価し、`computedScalarBindings`をTS payloadへ返す。22の完了後に23〜25、26/27完了後に28、29〜31完了後に32がこのbinding environmentを再利用し、source再parse・名前再解決・legacy fallbackを追加しない。
 
 ### Task 22完了時点の引き継ぎ(23〜26向け)
 
@@ -285,6 +285,16 @@ Task 24は`group.printEnabled`を、Task 23の`STANDARD_PROPERTY_TARGETS`/`build
 - `src/model/elementPresentationStatus.ts`の`printEnabled`フィールド(source editor gutter class `cm-eval-print-enabled`)はliteralのみのまま未着手。Task 24の引き継ぎどおりTask 45(Inspector runtime values)の対象。
 - `toggleGroupPrintEnabled`/`toggleSelectedGroupPrintEnabled`(`src/commands/selectionCommands.ts`)は無変更 — bound printEnabledをliteralで上書きしてしまう。ただし他6つのopt-inプロパティにも同種のwrite-guardは存在せず、これはTask24固有の新規gapではない。
 - 25(forGroup.showGenerated)はcontrol-flowそのもの(iteration実行有無)を左右するため、printEnabledと同じ「print-onlyの外付けlookup」パターンは使えない可能性が高い — showGeneratedは通常evaluationの内側(AppLayout→useEvaluationEngine→evaluate.ts/mod.rs)に接続する必要があるかどうか、25着手時に個別に見極めること。
+
+### Task 25完了時点の引き継ぎ(26/29/33向け)
+
+`conditionalGroup.condition`と`forGroup.showGenerated`にtyped booleanを接続した。2つは互いに全く異なる形で既存機構へ接続している — 後続taskがproperty/condition接続を追加する際は、対象が「単独`@name` binding」か「任意の式」かをまず見極めること。
+
+- **showGenerated**は単独`@name` binding — Task22の`compilePropertyBindings`が既にコンパイル済みで、Task25はconstructionを一切増やしていない。`src/geometry/controlBooleanRuntime.ts`の`buildControlBooleanRuntimeEntries`(Task23の`buildPropertyBindingRuntimeEntries`と同型・独立allowlist)が`doc.propertyBindings`を再利用するだけ。Rustは`control_boolean_payload.rs`(`property_binding_payload.rs`と同型、1エントリのcanonical allowlist)。
+- **condition**は`if (...)`全体が任意のtyped boolean式であり、単独`@name`ではない — Task22の`propertyBindingCompiler.ts`(`SCALAR_ELIGIBLE_PARAMETER_KINDS`が`number`を除外)では表現できないため、新規`src/scalars/conditionalGroupConditionCompiler.ts`を追加した。ここが唯一の新しい判定ロジック:legacy numeric grammar(`numericExpressionParser.ts`)は比較・`&&`/`||`も既に扱えるため、"parseできるか"では分類できない。実装した分類規則は`docs/typed-variables/README.md`の姉妹文書ではなくplan本体になく、`conditionalGroupConditionCompiler.ts`冒頭コメントとPR本体に明記: (1) `booleanLiteral`/`stringLiteral`/unary`!`がtree中に1つでもあれば無条件でtyped候補、(2) それ以外は式中の全`@name`参照が`declaredType===null`(legacy var)ならlegacy-eligible(0参照も含む)、(3) それ以外はtyped候補とし、typed候補内の各参照を個別診断(未解決/legacy参照混在/無効宣言)してからTask15の`typecheckScalarExpression(expectedType:boolean)`を呼ぶ。コンパイル結果は`doc.propertyBindings`とは別の`CompiledDslDocument.conditionalGroupConditions: ReadonlyMap<occurrenceKey, TypedScalarExpression>`(値がbindingIdでなく式ASTそのもの)。Rustは`condition_expression_payload.rs`(Task17の`validate_typed_expression_payload`を再利用し、要素typeが`conditionalGroup`であること・root型がbooleanであることを自前検証)。
+- 両者ともruntime解決は`src/geometry/controlBooleanRuntime.ts`の`resolveConditionalGroupBranch`/`resolveForGroupEffectiveShowGenerated`(Rust: `control_boolean_runtime.rs`)——Task21の`ScalarBindingResolver`をそのまま渡すだけで新しいresolverは作らない。`evaluate.ts`/`mod.rs`とも、bound判定は「template/sourceElement側のid」で行う(forGroup生成clone対応、Task23の`template_id`規約と同一)。
+- **forGroup展開のparentGroupId remapバグを本task中に発見・修正した**(Task25固有ではなく既存の汎用バグ): `src/geometry/forGroupExpansion.ts`の`expandForGroupIteration`は、生成clone の`parentGroupId`を`idMap`経由で remapしていなかった(`remapElementReferences`は型別のreference field しか触らず、`parentGroupId`はcaller側で無変換のまま代入されていた)。forGroup本体直下の子要素は元々OKだったが、forGroup template内に`conditionalGroup`(や`group`)がネストしその子がさらにいる場合、孫要素の`parentGroupId`が「そのiterationでcloneされた親」ではなく「共有の元id」を指したままになり、`inactiveConditionalGroupId`の親探索が壊れていた。Rust `for_group.rs`は`remap_json_ids`がJSON全体を汎用的に文字列置換するため元々この問題がなく、修正はTS側のみ。今後forGroup+ネストcontainerを扱うtaskはこの修正を前提にしてよい(`src/geometry/forGroupExpansion.test.ts`と新規`controlBooleanRuntimeIntegration.test.ts`のforGroup-templateケースで担保)。
+- 26(text template)がbinding以外の式を扱う場合、上記のcondition側パターン(専用compiler + 別mapを`CompiledDslDocument`へ追加)を参考にできる。29(set構文)も同様に、単独binding/式全体のどちらを対象にするか最初に見極めること。
 
 ## Blocking decisions
 

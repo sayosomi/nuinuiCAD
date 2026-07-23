@@ -4,6 +4,10 @@ import { dispatchCommand } from "../commands/commands";
 import { loadCommandRibbonSettings } from "../commandRibbons/commandRibbonSettings";
 import { registerUnsavedChangesGuard } from "../document/unsavedChangesGuard";
 import { buildPropertyBindingRuntimeEntries } from "../geometry/propertyBindingRuntime";
+import {
+  buildConditionalGroupConditionsByElementId,
+  buildControlBooleanRuntimeEntries
+} from "../geometry/controlBooleanRuntime";
 import { useEvaluationEngine } from "../geometry/useEvaluationEngine";
 import { loadShortcutSettings } from "../keyboard/shortcutSettingsStorage";
 import {
@@ -112,6 +116,7 @@ export const AppLayout = () => {
   // the canonical compiled document's own element ids/statement indices.
   const scalarProgram = useCadDocumentStore((state) => state.doc.scalarProgram);
   const propertyBindings = useCadDocumentStore((state) => state.doc.propertyBindings);
+  const conditionalGroupConditions = useCadDocumentStore((state) => state.doc.conditionalGroupConditions);
   const canonicalElements = useCadDocumentStore((state) => state.doc.document.elements);
   const elementIdByStatementIndex = useCadDocumentStore((state) => state.doc.statementMap.elementIdByStatementIndex);
   const shortcutSettings = useCadUiStore((state) => state.shortcutSettings);
@@ -162,13 +167,29 @@ export const AppLayout = () => {
         : undefined,
     [scalarProgram, propertyBindings, elementIdByStatementIndex, canonicalElements]
   );
+  const controlBooleanEntries = useMemo(
+    () =>
+      scalarProgram && propertyBindings
+        ? buildControlBooleanRuntimeEntries({ propertyBindings, elementIdByStatementIndex }, canonicalElements)
+        : undefined,
+    [scalarProgram, propertyBindings, elementIdByStatementIndex, canonicalElements]
+  );
+  const conditionalGroupConditionsByElementId = useMemo(
+    () =>
+      scalarProgram && conditionalGroupConditions
+        ? buildConditionalGroupConditionsByElementId(conditionalGroupConditions, elementIdByStatementIndex)
+        : undefined,
+    [scalarProgram, conditionalGroupConditions, elementIdByStatementIndex]
+  );
   const evaluationOptions = useMemo(
     () => ({
       evaluationLimitIndex,
       ...(scalarProgram ? { scalarProgram } : {}),
-      ...(propertyBindingEntries?.length ? { propertyBindingEntries } : {})
+      ...(propertyBindingEntries?.length ? { propertyBindingEntries } : {}),
+      ...(controlBooleanEntries?.length ? { controlBooleanEntries } : {}),
+      ...(conditionalGroupConditionsByElementId?.size ? { conditionalGroupConditionsByElementId } : {})
     }),
-    [evaluationLimitIndex, scalarProgram, propertyBindingEntries]
+    [evaluationLimitIndex, scalarProgram, propertyBindingEntries, controlBooleanEntries, conditionalGroupConditionsByElementId]
   );
   const evaluationState = useEvaluationEngine(elements, evaluationOptions, compiledDocumentRevision);
   const { evaluation, evaluationRevision, evaluationRequestRevision } = evaluationState;

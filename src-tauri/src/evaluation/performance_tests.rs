@@ -32,6 +32,8 @@ fn run_performance_case(name: &str, elements: Vec<Value>) -> EvaluationPayload {
     let started = Instant::now();
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements,
         evaluation_limit_index: None,
         scalar_expression_payload: None,

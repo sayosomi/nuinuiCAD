@@ -72,6 +72,8 @@ fn evaluates_line_offset() {
     elements.push(offset_line("offset", vec!["line"], json!(10)));
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements,
         evaluation_limit_index: None,
         scalar_expression_payload: None,
@@ -100,6 +102,8 @@ fn evaluates_local_expression_offset() {
     elements.push(offset);
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements,
         evaluation_limit_index: None,
         scalar_expression_payload: None,
@@ -137,6 +141,8 @@ fn connects_reversed_base_lines() {
     ];
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements,
         evaluation_limit_index: None,
         scalar_expression_payload: None,
@@ -183,6 +189,8 @@ fn keeps_first_base_line_direction_stable() {
     ];
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements,
         evaluation_limit_index: None,
         scalar_expression_payload: None,
@@ -210,6 +218,8 @@ fn evaluates_arc_offset_and_radius_error() {
     ];
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements,
         evaluation_limit_index: None,
         scalar_expression_payload: None,
@@ -237,6 +247,8 @@ fn evaluates_arc_offset_and_radius_error() {
     failing.push(failing_offset);
     let failing_result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements: failing,
         evaluation_limit_index: None,
         scalar_expression_payload: None,
@@ -267,6 +279,8 @@ fn evaluates_bezier_and_nested_offset() {
     ];
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements,
         evaluation_limit_index: None,
         scalar_expression_payload: None,
@@ -303,6 +317,8 @@ fn reports_bezier_trim_warning() {
     ];
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements,
         evaluation_limit_index: None,
         scalar_expression_payload: None,
@@ -339,6 +355,8 @@ fn suppresses_bezier_trim_warning_when_requested() {
     ];
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements,
         evaluation_limit_index: None,
         scalar_expression_payload: None,
@@ -356,6 +374,8 @@ fn reports_too_late_base_dependency() {
     elements.extend(base_line_elements());
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements,
         evaluation_limit_index: None,
         scalar_expression_payload: None,
@@ -411,6 +431,8 @@ fn offset_line_can_feed_line_point_and_intersection_helpers() {
     ]);
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements,
         evaluation_limit_index: None,
         scalar_expression_payload: None,

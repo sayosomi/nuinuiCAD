@@ -170,6 +170,8 @@ fn performance_typed_variable_production_evaluation_baseline() {
     let (small_result, small_stats) = measure_wall_time(|| {
         evaluate_document_input(EvaluationInput {
             property_bindings: None,
+            control_boolean_bindings: None,
+            condition_expressions: None,
             elements: small_elements.clone(),
             evaluation_limit_index: None,
             scalar_expression_payload: None,
@@ -179,6 +181,8 @@ fn performance_typed_variable_production_evaluation_baseline() {
     let (large_result, large_stats) = measure_wall_time(|| {
         evaluate_document_input(EvaluationInput {
             property_bindings: None,
+            control_boolean_bindings: None,
+            condition_expressions: None,
             elements: large_elements.clone(),
             evaluation_limit_index: None,
             scalar_expression_payload: None,
@@ -219,6 +223,8 @@ fn performance_typed_variable_for_group_baseline() {
     let (small_result, small_stats) = measure_wall_time(|| {
         evaluate_document_input(EvaluationInput {
             property_bindings: None,
+            control_boolean_bindings: None,
+            condition_expressions: None,
             elements: small_elements.clone(),
             evaluation_limit_index: None,
             scalar_expression_payload: None,
@@ -228,6 +234,8 @@ fn performance_typed_variable_for_group_baseline() {
     let (large_result, large_stats) = measure_wall_time(|| {
         evaluate_document_input(EvaluationInput {
             property_bindings: None,
+            control_boolean_bindings: None,
+            condition_expressions: None,
             elements: large_elements.clone(),
             evaluation_limit_index: None,
             scalar_expression_payload: None,

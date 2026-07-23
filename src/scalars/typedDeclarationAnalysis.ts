@@ -27,7 +27,12 @@ export type TypedDeclarationAnalysisCompilation = {
 
 type ParsedInitializer = { ast: ScalarExpressionAst; references: ReturnType<typeof collectReferences> };
 
-const collectReferences = (ast: ScalarExpressionAst): readonly { name: string; span: { start: number; end: number } }[] => {
+/** Pure AST walker with no declaration-specific logic - reused as-is by
+ * Task 25's conditionalGroupConditionCompiler.ts for the same purpose
+ * (collecting every `@name` reference in a parsed scalar expression, in
+ * source order), so there is exactly one reference-collecting traversal in
+ * the scalar subsystem. */
+export const collectReferences = (ast: ScalarExpressionAst): readonly { name: string; span: { start: number; end: number } }[] => {
   const references: { name: string; span: { start: number; end: number } }[] = [];
   const visit = (node: ScalarExpressionAst): void => {
     switch (node.kind) {

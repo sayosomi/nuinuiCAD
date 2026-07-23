@@ -6,6 +6,8 @@ use serde_json::json;
 fn edge_extends_and_trims_two_line_endpoints() {
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements: vec![
             free_point("a", "A", 0.0, 0.0),
             free_point("b", "B", 100.0, 0.0),
@@ -44,6 +46,8 @@ fn edge_extends_and_trims_two_line_endpoints() {
 fn edge_trims_a_bezier_and_a_line() {
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements: vec![
             free_point("start", "始点", 0.0, 0.0),
             free_point("end", "終点", 100.0, 0.0),
@@ -87,6 +91,8 @@ fn edge_trims_a_bezier_and_a_line() {
 fn edge_trims_two_bezier_curves() {
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements: vec![
             free_point("start", "始点", 0.0, 0.0),
             free_point("end", "終点", 100.0, 0.0),
@@ -139,6 +145,8 @@ fn edge_trims_two_bezier_curves() {
 fn edge_extends_a_bezier_along_its_handle_angle() {
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements: vec![
             free_point("start", "始点", 0.0, 0.0),
             free_point("end", "終点", 50.0, 0.0),
@@ -191,6 +199,8 @@ fn edge_extends_a_bezier_along_its_handle_angle() {
 fn edge_reports_geometry_errors() {
     let same_line = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements: vec![
             free_point("a", "A", 0.0, 0.0),
             free_point("b", "B", 100.0, 0.0),
@@ -214,6 +224,8 @@ fn edge_reports_geometry_errors() {
 
     let parallel = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements: vec![
             free_point("a", "A", 0.0, 0.0),
             free_point("b", "B", 100.0, 0.0),
@@ -240,6 +252,8 @@ fn edge_reports_geometry_errors() {
 
     let invalid_index = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements: vec![
             free_point("a", "A", 0.0, 0.0),
             free_point("b", "B", 100.0, 0.0),

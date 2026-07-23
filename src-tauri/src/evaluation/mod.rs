@@ -6,6 +6,9 @@ mod bezier_curve_tests;
 mod bezier_evaluator;
 mod bezier_math;
 mod bezier_path;
+mod control_boolean_runtime;
+#[cfg(test)]
+mod control_boolean_runtime_tests;
 mod corner_radius_evaluator;
 mod corner_radius_path;
 #[cfg(test)]
@@ -84,6 +87,9 @@ use serde_json::Value;
 
 use activity::effective_activity_by_element_id;
 use bezier_evaluator::evaluate_bezier_curve;
+use control_boolean_runtime::{
+    resolve_conditional_group_branch, resolve_for_group_effective_show_generated,
+};
 use corner_radius_evaluator::evaluate_corner_radius_arc_line;
 use edge_extend_evaluator::{evaluate_edge, evaluate_extend_trim};
 use for_group::{expand_for_group_iteration, for_group_template_descendant_ids};
@@ -107,9 +113,10 @@ use point_evaluators::{
 };
 use property_binding_runtime::apply_property_bindings;
 use scalars::{
+    validate_condition_expressions_payload, validate_control_boolean_bindings_payload,
     validate_property_bindings_payload, validate_scalar_program_payload,
-    validate_typed_expression_payload, ScalarBindingResolver, ValidatedPropertyBinding,
-    ValidatedScalarProgram,
+    validate_typed_expression_payload, ScalarBindingResolver, TypedScalarExpression,
+    ValidatedConditionExpression, ValidatedPropertyBinding, ValidatedScalarProgram,
 };
 use split_line_evaluator::evaluate_split_line;
 use text_evaluator::evaluate_text;
@@ -153,6 +160,64 @@ fn decode_property_bindings(
         })
 }
 
+/// Same validation order/fail-closed contract as `decode_property_bindings`,
+/// for Task 25's `forGroup.showGenerated` bindings.
+fn decode_control_boolean_bindings(
+    input: &EvaluationInput,
+    scalar_program: Option<&ValidatedScalarProgram>,
+) -> Result<Option<Vec<ValidatedPropertyBinding>>, EvaluationCommandError> {
+    let Some(payload) = input.control_boolean_bindings.as_ref() else {
+        return Ok(None);
+    };
+    let element_type_by_id: HashMap<&str, &str> = input
+        .elements
+        .iter()
+        .filter_map(|element| Some((element.get("id")?.as_str()?, element.get("type")?.as_str()?)))
+        .collect();
+    let valid_binding_ids: HashSet<&str> = scalar_program
+        .map(|program| {
+            program
+                .statements
+                .iter()
+                .map(|statement| statement.binding_id.as_str())
+                .collect()
+        })
+        .unwrap_or_default();
+    validate_control_boolean_bindings_payload(payload, &element_type_by_id, &valid_binding_ids)
+        .map(Some)
+        .map_err(|error| EvaluationCommandError {
+            code: error.code.as_str().to_owned(),
+            message: error.message,
+        })
+}
+
+/// Decodes+validates `input.condition_expressions` against `input.elements`'
+/// actual types (each entry's owner must be a `conditionalGroup`). Unlike
+/// the two binding decoders above, this has no `scalar_program`-derived
+/// `valid_binding_ids` gate: a condition expression's references are
+/// resolved through the same `ScalarBindingResolver` as everything else,
+/// but the expression itself is a self-contained AST already validated
+/// structurally by `validate_typed_expression_payload` - no separate
+/// bindingId allowlist to check it against here.
+fn decode_condition_expressions(
+    input: &EvaluationInput,
+) -> Result<Option<Vec<ValidatedConditionExpression>>, EvaluationCommandError> {
+    let Some(payload) = input.condition_expressions.as_ref() else {
+        return Ok(None);
+    };
+    let element_type_by_id: HashMap<&str, &str> = input
+        .elements
+        .iter()
+        .filter_map(|element| Some((element.get("id")?.as_str()?, element.get("type")?.as_str()?)))
+        .collect();
+    validate_condition_expressions_payload(payload, &element_type_by_id)
+        .map(Some)
+        .map_err(|error| EvaluationCommandError {
+            code: error.code.as_str().to_owned(),
+            message: error.message,
+        })
+}
+
 #[tauri::command]
 pub fn evaluate_document(
     input: EvaluationInput,
@@ -170,10 +235,15 @@ pub fn evaluate_document(
             message: error.message,
         })?;
     let property_bindings = decode_property_bindings(&input, scalar_program.as_ref())?;
+    let control_boolean_bindings =
+        decode_control_boolean_bindings(&input, scalar_program.as_ref())?;
+    let condition_expressions = decode_condition_expressions(&input)?;
     Ok(evaluate_document_input_with_scalar_program(
         input,
         scalar_program,
         property_bindings,
+        control_boolean_bindings,
+        condition_expressions,
     ))
 }
 
@@ -216,24 +286,51 @@ fn inactive_conditional_group_id(
     None
 }
 
+/// Bundles Task 25's typed-condition lookup inputs into one argument so
+/// `evaluate_element_by_type` doesn't grow an unbounded parameter list -
+/// `lookup_id` is the caller's own id for a top-level `conditionalGroup`, or
+/// its template id for a generated clone (mirroring the property-binding
+/// `template_id` lookup two scopes up), so a `conditionalGroup` written
+/// inside a `forGroup` template resolves the same active branch on every
+/// iteration.
+struct ConditionalGroupContext<'a> {
+    lookup_id: &'a ElementId,
+    by_element_id: &'a HashMap<ElementId, TypedScalarExpression>,
+    scalar_binding_resolver: Option<&'a ScalarBindingResolver<'a>>,
+}
+
 fn evaluate_element_by_type(
     id: ElementId,
     element: Value,
     local_variables: (HashMap<String, f64>, HashMap<String, String>),
     conditional_group_states: &mut HashMap<ElementId, Option<&'static str>>,
+    condition_context: ConditionalGroupContext,
     state: &mut EvaluationState,
 ) {
     match element_type(&element) {
         Some("conditionalGroup") => {
-            let condition = element.get("condition").unwrap_or(&Value::Null).clone();
-            let active_branch = evaluate_numeric_or_push(
-                &condition,
-                state,
-                &element,
-                &local_variables.0,
-                &local_variables.1,
-            )
-            .map(|value| if value == 0.0 { "else" } else { "then" });
+            let active_branch = match condition_context
+                .by_element_id
+                .get(condition_context.lookup_id)
+            {
+                Some(expression) => {
+                    let resolver = condition_context.scalar_binding_resolver.expect(
+                        "scalar_binding_resolver must exist when condition_expressions exist",
+                    );
+                    resolve_conditional_group_branch(expression, resolver, state)
+                }
+                None => {
+                    let condition = element.get("condition").unwrap_or(&Value::Null).clone();
+                    evaluate_numeric_or_push(
+                        &condition,
+                        state,
+                        &element,
+                        &local_variables.0,
+                        &local_variables.1,
+                    )
+                    .map(|value| if value == 0.0 { "else" } else { "then" })
+                }
+            };
             conditional_group_states.insert(id, active_branch);
         }
         Some("group" | "forGroup") => {}
@@ -292,13 +389,25 @@ fn evaluate_document_input(input: EvaluationInput) -> EvaluationPayload {
         .expect("evaluation test input scalar_program must be valid");
     let property_bindings = decode_property_bindings(&input, scalar_program.as_ref())
         .expect("evaluation test input property_bindings must be valid");
-    evaluate_document_input_with_scalar_program(input, scalar_program, property_bindings)
+    let control_boolean_bindings = decode_control_boolean_bindings(&input, scalar_program.as_ref())
+        .expect("evaluation test input control_boolean_bindings must be valid");
+    let condition_expressions = decode_condition_expressions(&input)
+        .expect("evaluation test input condition_expressions must be valid");
+    evaluate_document_input_with_scalar_program(
+        input,
+        scalar_program,
+        property_bindings,
+        control_boolean_bindings,
+        condition_expressions,
+    )
 }
 
 fn evaluate_document_input_with_scalar_program(
     input: EvaluationInput,
     scalar_program: Option<ValidatedScalarProgram>,
     property_bindings: Option<Vec<ValidatedPropertyBinding>>,
+    control_boolean_bindings: Option<Vec<ValidatedPropertyBinding>>,
+    condition_expressions: Option<Vec<ValidatedConditionExpression>>,
 ) -> EvaluationPayload {
     let evaluation_limit_index = input
         .evaluation_limit_index
@@ -341,6 +450,7 @@ fn evaluate_document_input_with_scalar_program(
     let template_descendant_ids = for_group_template_descendant_ids(&state.elements);
     let original_elements = state.elements.clone();
     let mut for_group_generated_rows = Vec::new();
+    let mut for_group_effective_show_generated_ids = Vec::<ElementId>::new();
 
     // Built whenever a scalar_program is present, independent of whether
     // any property bindings exist - computed_scalar_bindings is Task 21's
@@ -357,6 +467,17 @@ fn evaluate_document_input_with_scalar_program(
                 map.entry(entry.element_id.clone()).or_default().push(entry);
                 map
             });
+    let show_generated_by_element_id: HashMap<ElementId, ValidatedPropertyBinding> =
+        control_boolean_bindings
+            .into_iter()
+            .flatten()
+            .map(|entry| (entry.element_id.clone(), entry))
+            .collect();
+    let condition_by_element_id: HashMap<ElementId, TypedScalarExpression> = condition_expressions
+        .into_iter()
+        .flatten()
+        .map(|entry| (entry.element_id, entry.expression))
+        .collect();
 
     for index in 0..evaluation_limit_index {
         let element = state.elements[index].clone();
@@ -427,6 +548,32 @@ fn evaluate_document_input_with_scalar_program(
                 });
                 continue;
             }
+
+            // Evaluated once per forGroup entry, alongside start/count/step -
+            // never re-evaluated per iteration. Presentation-only: never
+            // gates or alters the iteration loop below.
+            let literal_show_generated = element
+                .get("showGenerated")
+                .and_then(Value::as_bool)
+                .unwrap_or(false);
+            let effective_show_generated = match show_generated_by_element_id.get(&id) {
+                Some(entry) => {
+                    let resolver = scalar_binding_resolver.as_ref().expect(
+                        "scalar_binding_resolver must exist when control_boolean_bindings exist",
+                    );
+                    resolve_for_group_effective_show_generated(
+                        Some(entry),
+                        literal_show_generated,
+                        resolver,
+                        &state,
+                    )
+                }
+                None => literal_show_generated,
+            };
+            if effective_show_generated {
+                for_group_effective_show_generated_ids.push(id.clone());
+            }
+
             for iteration_index in 0..(count as usize) {
                 let variable_value = start + iteration_index as f64 * step;
                 let (generated, rows) = expand_for_group_iteration(
@@ -492,6 +639,11 @@ fn evaluate_document_input_with_scalar_program(
                                     materialized_element,
                                     generated_local_variables,
                                     &mut conditional_group_states,
+                                    ConditionalGroupContext {
+                                        lookup_id: &template_id,
+                                        by_element_id: &condition_by_element_id,
+                                        scalar_binding_resolver: scalar_binding_resolver.as_ref(),
+                                    },
                                     &mut state,
                                 ),
                                 Err(error) => state.errors.push(error),
@@ -502,6 +654,11 @@ fn evaluate_document_input_with_scalar_program(
                             generated_element,
                             generated_local_variables,
                             &mut conditional_group_states,
+                            ConditionalGroupContext {
+                                lookup_id: &template_id,
+                                by_element_id: &condition_by_element_id,
+                                scalar_binding_resolver: scalar_binding_resolver.as_ref(),
+                            },
                             &mut state,
                         ),
                     }
@@ -517,20 +674,30 @@ fn evaluate_document_input_with_scalar_program(
                     .expect("scalar_binding_resolver must exist when property bindings exist");
                 match apply_property_bindings(&element, Some(entries), resolver, &state) {
                     Ok(materialized_element) => evaluate_element_by_type(
-                        id,
+                        id.clone(),
                         materialized_element,
                         local_variables,
                         &mut conditional_group_states,
+                        ConditionalGroupContext {
+                            lookup_id: &id,
+                            by_element_id: &condition_by_element_id,
+                            scalar_binding_resolver: scalar_binding_resolver.as_ref(),
+                        },
                         &mut state,
                     ),
                     Err(error) => state.errors.push(error),
                 }
             }
             _ => evaluate_element_by_type(
-                id,
+                id.clone(),
                 element,
                 local_variables,
                 &mut conditional_group_states,
+                ConditionalGroupContext {
+                    lookup_id: &id,
+                    by_element_id: &condition_by_element_id,
+                    scalar_binding_resolver: scalar_binding_resolver.as_ref(),
+                },
                 &mut state,
             ),
         }
@@ -569,6 +736,7 @@ fn evaluate_document_input_with_scalar_program(
             .filter(|id| condition_inactive_ids.contains(id))
             .collect(),
         for_group_generated_rows,
+        for_group_effective_show_generated_ids,
         computed_scalar_bindings,
     }
 }
