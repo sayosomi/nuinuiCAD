@@ -335,18 +335,8 @@ const normalizeEvaluationPayloadForComparison = (value: unknown): unknown => {
   return value;
 };
 
-/**
- * `computedScalarBindings` is TS-reference-only until Task 21 gives Rust a
- * matching output field (see EvaluationResult.computedScalarBindings) - kept
- * out of the shadow/parity diff so every typed-declaration document doesn't
- * spuriously "disagree" with Rust in the meantime.
- */
-const payloadForComparison = (result: EvaluationResult) => {
-  const payload = evaluationResultToPayload(result);
-  const { computedScalarBindings, ...comparablePayload } = payload;
-  void computedScalarBindings;
-  return JSON.stringify(normalizeEvaluationPayloadForComparison(comparablePayload));
-};
+const payloadForComparison = (result: EvaluationResult) =>
+  JSON.stringify(normalizeEvaluationPayloadForComparison(evaluationResultToPayload(result)));
 
 export const evaluationResultsMatch = (
   left: EvaluationResult,

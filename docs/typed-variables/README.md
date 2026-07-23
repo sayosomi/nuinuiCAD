@@ -43,7 +43,7 @@
 | 18 | [Rust expression evaluator parity](tasks/18-rust-expression-evaluator-parity.md) | Rust typed expression | 16,17 | shadow parity | `typed-vars/18-rust-expression-eval` | 完了 |
 | 19 | [compiled scalar program](tasks/19-compiled-scalar-program.md) | compiler/IPC | 13,15 | feature-gated IR | `typed-vars/19-scalar-program` | 完了 |
 | 20 | [TS const evaluation](tasks/20-ts-const-evaluation.md) | reference evaluation | 16,19 | gated reference path | `typed-vars/20-ts-const-eval` | 完了 |
-| 21 | [Rust const evaluation parity](tasks/21-rust-const-evaluation-parity.md) | production evaluation | 18,19,20 | gated Rust/shadow path | `typed-vars/21-rust-const-eval` | 未着手 |
+| 21 | [Rust const evaluation parity](tasks/21-rust-const-evaluation-parity.md) | production evaluation | 18,19,20 | gated Rust/shadow path | `typed-vars/21-rust-const-eval` | 完了 |
 | 22 | [property reference typecheck](tasks/22-property-reference-typecheck.md) | compiler/parameters | 13,15,19 | analysis only | `typed-vars/22-property-typecheck` | 未着手 |
 | 23 | [standard property runtime](tasks/23-standard-property-runtime.md) | TS/Rust evaluation | 21,22 | gated runtime | `typed-vars/23-property-runtime` | 未着手 |
 | 24 | [printEnabled runtime](tasks/24-print-enabled-runtime.md) | print state | 21,22 | gated print runtime | `typed-vars/24-print-enabled` | 未着手 |
@@ -248,9 +248,9 @@ Task 20/21のconst runtime pathはTask 31/32へ、Task 46のnui 3 persistence pa
 
 52でpre-nui 3 parser/importer/serializer/adapter/fallback/bridge/fixtureを削除し、残存legacy分岐がないことを確認してからtyped declaration feature gateを外し、新規document defaultを`nui 3`へ変更する。途中Taskのgated implementationへproduction UIを直接つながない。
 
-## 最初に実行可能なtask
+## 次に実行可能なtask
 
-21。Task 20がTS reference evaluation(`evaluateDocumentScalarProgram`/`evaluate.ts`のTS-reference-only`computedScalarBindings`)を完了したため、Rust側でTask 19の`scalar_program`をname resolution済みpayloadとして評価しparityを取る。22、26、42はTask 19完了時点から並行着手可能で、20完了後も引き続き対象。
+直近は22、26、42。Task 21でRust-first `evaluate_document(input)` がTask 19の解決済み`scalar_program`を評価し、`computedScalarBindings`をTS payloadへ返す。22の完了後に23〜25、26/27完了後に28、29〜31完了後に32がこのbinding environmentを再利用し、source再parse・名前再解決・legacy fallbackを追加しない。
 
 ## Blocking decisions
 

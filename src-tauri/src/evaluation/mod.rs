@@ -57,6 +57,10 @@ mod point_anchor;
 mod point_evaluators;
 #[cfg(test)]
 mod scalar_expression_payload_compat_tests;
+#[cfg(test)]
+mod scalar_program_integration_tests;
+#[cfg(test)]
+mod scalar_program_performance_tests;
 mod scalars;
 mod split_line_evaluator;
 #[cfg(test)]
@@ -98,16 +102,36 @@ use point_evaluators::{
     evaluate_division_point, evaluate_free_point, evaluate_offset_point,
     evaluate_polar_offset_point,
 };
-use scalars::{validate_scalar_program_payload, validate_typed_expression_payload};
+use scalars::{
+    evaluate_scalar_program, validate_scalar_program_payload, validate_typed_expression_payload,
+    ValidatedScalarProgram,
+};
 use split_line_evaluator::evaluate_split_line;
 use text_evaluator::evaluate_text;
 use types::{element_id, element_name, element_type, ElementId, EvaluationState};
-pub use types::{EvaluationInput, EvaluationPayload};
+pub use types::{EvaluationCommandError, EvaluationInput, EvaluationPayload};
 use variable_evaluator::evaluate_variable_element;
 
 #[tauri::command]
-pub fn evaluate_document(input: EvaluationInput) -> EvaluationPayload {
-    evaluate_document_input(input)
+pub fn evaluate_document(
+    input: EvaluationInput,
+) -> Result<EvaluationPayload, EvaluationCommandError> {
+    if let Some(payload) = input.scalar_expression_payload.as_ref() {
+        let _ = validate_typed_expression_payload(payload);
+    }
+    let scalar_program = input
+        .scalar_program
+        .as_ref()
+        .map(validate_scalar_program_payload)
+        .transpose()
+        .map_err(|error| EvaluationCommandError {
+            code: error.code.as_str().to_owned(),
+            message: error.message,
+        })?;
+    Ok(evaluate_document_input_with_scalar_program(
+        input,
+        scalar_program,
+    ))
 }
 
 fn inactive_conditional_group_id(
@@ -208,6 +232,7 @@ fn evaluate_element_by_type(
     }
 }
 
+#[cfg(test)]
 fn evaluate_document_input(input: EvaluationInput) -> EvaluationPayload {
     // Task 17 shadow validator: when a typed-expression payload is present,
     // defensively validate it. The result is intentionally discarded -
@@ -216,10 +241,19 @@ fn evaluate_document_input(input: EvaluationInput) -> EvaluationPayload {
     if let Some(payload) = input.scalar_expression_payload.as_ref() {
         let _ = validate_typed_expression_payload(payload);
     }
-    if let Some(program) = input.scalar_program.as_ref() {
-        let _ = validate_scalar_program_payload(program);
-    }
+    let scalar_program = input
+        .scalar_program
+        .as_ref()
+        .map(validate_scalar_program_payload)
+        .transpose()
+        .expect("evaluation test input scalar_program must be valid");
+    evaluate_document_input_with_scalar_program(input, scalar_program)
+}
 
+fn evaluate_document_input_with_scalar_program(
+    input: EvaluationInput,
+    scalar_program: Option<ValidatedScalarProgram>,
+) -> EvaluationPayload {
     let evaluation_limit_index = input
         .evaluation_limit_index
         .unwrap_or(input.elements.len())
@@ -395,6 +429,10 @@ fn evaluate_document_input(input: EvaluationInput) -> EvaluationPayload {
         );
     }
 
+    let computed_scalar_bindings = scalar_program
+        .as_ref()
+        .map(|program| evaluate_scalar_program(program, &state));
+
     EvaluationPayload {
         computed_geometry: state
             .computed_geometry_order
@@ -424,5 +462,6 @@ fn evaluate_document_input(input: EvaluationInput) -> EvaluationPayload {
             .filter(|id| condition_inactive_ids.contains(id))
             .collect(),
         for_group_generated_rows,
+        computed_scalar_bindings,
     }
 }

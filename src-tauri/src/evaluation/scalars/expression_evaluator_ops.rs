@@ -72,17 +72,40 @@ fn propagate_error(r#type: ScalarType, source: ScalarEvaluation) -> ScalarEvalua
 /// this module, not an expected runtime failure - mirrors
 /// `expressionEvaluator.ts`'s own documented rationale for its analogous
 /// `numberValueOf`/`booleanValueOf` helpers.
-fn number_value_of(value: &ScalarValue) -> f64 {
+fn number_value_of(value: &ScalarValue) -> Option<f64> {
     match value {
-        ScalarValue::Number(number) => *number,
-        other => panic!("expression_evaluator_ops: expected a number value, got {other:?}"),
+        ScalarValue::Number(number) => Some(*number),
+        _ => None,
     }
 }
 
-fn boolean_value_of(value: &ScalarValue) -> bool {
+fn boolean_value_of(value: &ScalarValue) -> Option<bool> {
     match value {
-        ScalarValue::Boolean(boolean) => *boolean,
-        other => panic!("expression_evaluator_ops: expected a boolean value, got {other:?}"),
+        ScalarValue::Boolean(boolean) => Some(*boolean),
+        _ => None,
+    }
+}
+
+fn runtime_value_type_mismatch(r#type: ScalarType) -> ScalarEvaluation {
+    ScalarEvaluation::Error {
+        r#type,
+        issue_code: "evaluation-runtime-value-type-mismatch".to_owned(),
+        binding_id: None,
+    }
+}
+
+fn finite_number_result(r#type: ScalarType, value: f64) -> ScalarEvaluation {
+    if value.is_finite() {
+        ScalarEvaluation::Ok {
+            r#type,
+            value: ScalarValue::Number(value),
+        }
+    } else {
+        ScalarEvaluation::Error {
+            r#type,
+            issue_code: "evaluation-non-finite-result".to_owned(),
+            binding_id: None,
+        }
     }
 }
 
@@ -140,13 +163,17 @@ pub(crate) fn finish_unary(
     };
 
     let result = match operator {
-        ScalarUnaryOperator::Not => ScalarValue::Boolean(!boolean_value_of(value)),
-        ScalarUnaryOperator::Negate => ScalarValue::Number(-number_value_of(value)),
-        ScalarUnaryOperator::Plus => ScalarValue::Number(number_value_of(value)),
+        ScalarUnaryOperator::Not => {
+            boolean_value_of(value).map(|value| ScalarValue::Boolean(!value))
+        }
+        ScalarUnaryOperator::Negate => {
+            number_value_of(value).map(|value| ScalarValue::Number(-value))
+        }
+        ScalarUnaryOperator::Plus => number_value_of(value).map(ScalarValue::Number),
     };
-    output.push(ScalarEvaluation::Ok {
-        r#type,
-        value: result,
+    output.push(match result {
+        Some(value) => ScalarEvaluation::Ok { r#type, value },
+        None => runtime_value_type_mismatch(r#type),
     });
 }
 
@@ -170,7 +197,10 @@ pub(crate) fn continue_logical<'a>(
         output.push(propagate_error(r#type, left));
         return;
     };
-    let left_value = boolean_value_of(value);
+    let Some(left_value) = boolean_value_of(value) else {
+        output.push(runtime_value_type_mismatch(r#type));
+        return;
+    };
     let short_circuits = match operator {
         ScalarBinaryOperator::And => !left_value,
         ScalarBinaryOperator::Or => left_value,
@@ -200,9 +230,12 @@ pub(crate) fn finish_logical_right(r#type: ScalarType, output: &mut Vec<ScalarEv
         output.push(propagate_error(r#type, right));
         return;
     };
-    output.push(ScalarEvaluation::Ok {
-        r#type,
-        value: ScalarValue::Boolean(boolean_value_of(value)),
+    output.push(match boolean_value_of(value) {
+        Some(value) => ScalarEvaluation::Ok {
+            r#type,
+            value: ScalarValue::Boolean(value),
+        },
+        None => runtime_value_type_mismatch(r#type),
     });
 }
 
@@ -261,28 +294,44 @@ pub(crate) fn finish_eager_binary(
         return;
     }
 
-    let left_number = number_value_of(left_value);
-    let right_number = number_value_of(right_value);
-    let value = match operator {
-        ScalarBinaryOperator::Add => ScalarValue::Number(left_number + right_number),
-        ScalarBinaryOperator::Sub => ScalarValue::Number(left_number - right_number),
-        ScalarBinaryOperator::Mul => ScalarValue::Number(left_number * right_number),
+    let (Some(left_number), Some(right_number)) =
+        (number_value_of(left_value), number_value_of(right_value))
+    else {
+        output.push(runtime_value_type_mismatch(r#type));
+        return;
+    };
+    let result = match operator {
+        ScalarBinaryOperator::Add => finite_number_result(r#type, left_number + right_number),
+        ScalarBinaryOperator::Sub => finite_number_result(r#type, left_number - right_number),
+        ScalarBinaryOperator::Mul => finite_number_result(r#type, left_number * right_number),
         ScalarBinaryOperator::Div => {
             let quotient = left_number / right_number;
-            if right_number == 0.0 || !quotient.is_finite() {
-                output.push(ScalarEvaluation::Error {
+            if right_number == 0.0 {
+                ScalarEvaluation::Error {
                     r#type,
                     issue_code: "evaluation-divide-by-zero".to_owned(),
                     binding_id: None,
-                });
-                return;
+                }
+            } else {
+                finite_number_result(r#type, quotient)
             }
-            ScalarValue::Number(quotient)
         }
-        ScalarBinaryOperator::Lt => ScalarValue::Boolean(left_number < right_number),
-        ScalarBinaryOperator::LtEq => ScalarValue::Boolean(left_number <= right_number),
-        ScalarBinaryOperator::Gt => ScalarValue::Boolean(left_number > right_number),
-        ScalarBinaryOperator::GtEq => ScalarValue::Boolean(left_number >= right_number),
+        ScalarBinaryOperator::Lt => ScalarEvaluation::Ok {
+            r#type,
+            value: ScalarValue::Boolean(left_number < right_number),
+        },
+        ScalarBinaryOperator::LtEq => ScalarEvaluation::Ok {
+            r#type,
+            value: ScalarValue::Boolean(left_number <= right_number),
+        },
+        ScalarBinaryOperator::Gt => ScalarEvaluation::Ok {
+            r#type,
+            value: ScalarValue::Boolean(left_number > right_number),
+        },
+        ScalarBinaryOperator::GtEq => ScalarEvaluation::Ok {
+            r#type,
+            value: ScalarValue::Boolean(left_number >= right_number),
+        },
         ScalarBinaryOperator::Eq | ScalarBinaryOperator::NotEq => {
             unreachable!("handled above")
         }
@@ -290,5 +339,5 @@ pub(crate) fn finish_eager_binary(
             unreachable!("Or/And never reach finish_eager_binary")
         }
     };
-    output.push(ScalarEvaluation::Ok { r#type, value });
+    output.push(result);
 }

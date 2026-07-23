@@ -12,6 +12,7 @@ import {
   isParityEvaluationEngineMode,
   isTauriRuntime
 } from "./evaluationEngine";
+import { ScalarOutputDecodeError } from "./evaluationPayload";
 
 export type EvaluationSource = "reference" | "rust" | "fallback";
 export type EvaluationStatus = "idle" | "evaluating" | "ready" | "failed";
@@ -54,11 +55,16 @@ type AsyncEvaluationState = {
   source: Exclude<EvaluationSource, "reference">;
   status: Extract<EvaluationStatus, "ready" | "failed">;
   error: unknown | null;
+  /** Created only after Rust has validated a scalar program in shadow/parity mode. */
+  shadowReferenceEvaluation?: EvaluationResult;
 };
 
 let nextEvaluationRequestRevision = 1;
 const evaluationRequestRevisionByKey = new Map<string, number>();
 const MAX_REQUEST_IDENTITIES = 256;
+
+const mustFailClosedAfterRustError = (scalarProgram: EvaluateElementsOptions["scalarProgram"], error: unknown): boolean =>
+  scalarProgram !== undefined || error instanceof ScalarOutputDecodeError;
 
 const requestRevisionFor = (key: string) => {
   const existing = evaluationRequestRevisionByKey.get(key);
@@ -88,6 +94,7 @@ export const useEvaluationEngine = (
   const tauriRuntime = isTauriRuntime();
   const rustEligible = canUseRustEvaluationForElements(elements, evaluationOptions);
   const parityMode = isParityEvaluationEngineMode(engineMode);
+  const deferScalarReferenceEvaluation = parityMode && scalarProgram !== undefined && tauriRuntime && rustEligible;
   const requestKey = useMemo(
     () => JSON.stringify({ elements, evaluationLimitIndex, scalarProgram }),
     [elements, evaluationLimitIndex, scalarProgram]
@@ -96,16 +103,14 @@ export const useEvaluationEngine = (
     () => requestRevisionFor(`${evaluationRevision}:${requestKey}`),
     [evaluationRevision, requestKey]
   );
-  const needsReferenceEvaluation = !tauriRuntime || engineMode !== "rust" || !rustEligible;
+  const needsReferenceEvaluation =
+    (!tauriRuntime || engineMode !== "rust" || !rustEligible) && !deferScalarReferenceEvaluation;
   const referenceEvaluation = useMemo(
     () => (needsReferenceEvaluation ? evaluateElementsReference(elements, evaluationOptions) : null),
     [elements, evaluationOptions, needsReferenceEvaluation]
   );
   const [asyncEvaluation, setAsyncEvaluation] = useState<AsyncEvaluationState | null>(null);
-  const emptyEvaluation = useMemo(
-    () => emptyEvaluationResult(elements, evaluationOptions),
-    [elements, evaluationOptions]
-  );
+  const emptyEvaluation = useMemo(() => emptyEvaluationResult(elements, evaluationOptions), [elements, evaluationOptions]);
 
   useEffect(() => {
     if (!tauriRuntime || engineMode === "reference" || !rustEligible) {
@@ -116,6 +121,10 @@ export const useEvaluationEngine = (
     evaluateElementsWithRust(elements, evaluationOptions)
       .then((nextEvaluation) => {
         if (cancelled) return;
+        const shadowReferenceEvaluation = deferScalarReferenceEvaluation
+          ? evaluateElementsReference(elements, evaluationOptions)
+          : undefined;
+        const comparisonReferenceEvaluation = shadowReferenceEvaluation ?? referenceEvaluation;
         setAsyncEvaluation({
           requestKey,
           evaluationRevision,
@@ -123,21 +132,35 @@ export const useEvaluationEngine = (
           evaluation: nextEvaluation,
           source: "rust",
           status: "ready",
-          error: null
+          error: null,
+          shadowReferenceEvaluation
         });
         if (
           parityMode &&
-          referenceEvaluation &&
-          !evaluationResultsMatch(referenceEvaluation, nextEvaluation)
+          comparisonReferenceEvaluation &&
+          !evaluationResultsMatch(comparisonReferenceEvaluation, nextEvaluation)
         ) {
           console.warn("Rust evaluation differs from the TypeScript reference evaluation.", {
-            referenceEvaluation,
+            referenceEvaluation: comparisonReferenceEvaluation,
             rustEvaluation: nextEvaluation
           });
         }
       })
       .catch((error: unknown) => {
         if (!cancelled) {
+          if (mustFailClosedAfterRustError(scalarProgram, error)) {
+            console.error("Rust scalar evaluation failed; preserving the command failure.", error);
+            setAsyncEvaluation({
+              requestKey,
+              evaluationRevision,
+              evaluationRequestRevision,
+              evaluation: emptyEvaluation,
+              source: "rust",
+              status: "failed",
+              error
+            });
+            return;
+          }
           console.error("Rust evaluation failed; using the TypeScript reference evaluation.", error);
           setAsyncEvaluation(
             engineMode === "rust"
@@ -168,14 +191,17 @@ export const useEvaluationEngine = (
     };
   }, [
     elements,
+    emptyEvaluation,
     engineMode,
     evaluationOptions,
     evaluationRevision,
     evaluationRequestRevision,
     parityMode,
+    deferScalarReferenceEvaluation,
     referenceEvaluation,
     requestKey,
     rustEligible,
+    scalarProgram,
     tauriRuntime
   ]);
 
@@ -195,6 +221,45 @@ export const useEvaluationEngine = (
 
   if (parityMode) {
     const isCurrentAsyncEvaluation = asyncEvaluation?.requestKey === requestKey;
+    if (deferScalarReferenceEvaluation) {
+      if (isCurrentAsyncEvaluation && asyncEvaluation.status === "failed") {
+        return {
+          evaluation: emptyEvaluation,
+          evaluationRevision: asyncEvaluation.evaluationRevision,
+          evaluationRequestRevision: asyncEvaluation.evaluationRequestRevision,
+          mode: engineMode,
+          source: "rust",
+          status: "failed",
+          rustEligible,
+          isStale: false,
+          error: asyncEvaluation.error
+        };
+      }
+      if (isCurrentAsyncEvaluation && asyncEvaluation.shadowReferenceEvaluation) {
+        return {
+          evaluation: asyncEvaluation.shadowReferenceEvaluation,
+          evaluationRevision: asyncEvaluation.evaluationRevision,
+          evaluationRequestRevision: asyncEvaluation.evaluationRequestRevision,
+          mode: engineMode,
+          source: "reference",
+          status: "ready",
+          rustEligible,
+          isStale: false,
+          error: null
+        };
+      }
+      return {
+        evaluation: emptyEvaluation,
+        evaluationRevision,
+        evaluationRequestRevision,
+        mode: engineMode,
+        source: "rust",
+        status: "evaluating",
+        rustEligible,
+        isStale: false,
+        error: null
+      };
+    }
     return {
       evaluation: referenceEvaluation ?? emptyEvaluation,
       evaluationRevision,

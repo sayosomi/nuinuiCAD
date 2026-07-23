@@ -1,6 +1,6 @@
-//! Inert Task 19 scalar-program envelope validation. It validates the JSON
-//! boundary and delegates every initializer AST to Task 17's validator; it
-//! does not evaluate declarations or resolve names.
+//! Task 19 scalar-program boundary decoding. The compiler has already
+//! resolved names; this module only turns its JSON IR into validated Rust
+//! values for Task 21's document-context evaluator.
 
 use std::collections::HashSet;
 
@@ -10,6 +10,23 @@ use super::expression_payload::validate_typed_expression_payload;
 use super::issue::{ScalarPayloadIssue, ScalarPayloadIssueCode as Code};
 use super::json_helpers::{as_object, issue, reject_unexpected_fields, require_field};
 use super::scalar_payload::decode_scalar_type;
+use super::types::{BindingId, ScalarType, TypedScalarExpression};
+
+#[derive(Debug)]
+pub(crate) struct ValidatedScalarProgram {
+    pub(crate) statements: Vec<ValidatedScalarProgramStatement>,
+    pub(crate) evaluation_limit_source_order: Option<usize>,
+}
+
+#[derive(Debug)]
+pub(crate) struct ValidatedScalarProgramStatement {
+    pub(crate) binding_id: BindingId,
+    pub(crate) source_order: usize,
+    pub(crate) declared_type: ScalarType,
+    /// An initializer error becomes a typed poison only after the statement's
+    /// identity, declared type, and source position have been decoded.
+    pub(crate) initializer: Result<TypedScalarExpression, String>,
+}
 
 fn non_empty_string<'a>(json: &'a Value, context: &str) -> Result<&'a str, ScalarPayloadIssue> {
     json.as_str()
@@ -22,7 +39,9 @@ fn non_empty_string<'a>(json: &'a Value, context: &str) -> Result<&'a str, Scala
         })
 }
 
-fn validate_declaration(json: &Value) -> Result<(), ScalarPayloadIssue> {
+fn decode_declaration(
+    json: &Value,
+) -> Result<(ScalarType, Result<TypedScalarExpression, String>), ScalarPayloadIssue> {
     let object = as_object(json, "scalar program declaration")?;
     reject_unexpected_fields(
         object,
@@ -41,23 +60,24 @@ fn validate_declaration(json: &Value) -> Result<(), ScalarPayloadIssue> {
             ))
         }
     }
-    let _declared_type = decode_scalar_type(require_field(
+    let declared_type = decode_scalar_type(require_field(
         object,
         "declaredType",
         "scalar program declaration",
     )?)?;
-    let _initializer = validate_typed_expression_payload(require_field(
+    let initializer = validate_typed_expression_payload(require_field(
         object,
         "initializer",
         "scalar program declaration",
-    )?)?;
-    Ok(())
+    )?)
+    .map_err(|error| error.code.as_str().to_owned());
+    Ok((declared_type, initializer))
 }
 
-fn validate_statement(
+fn decode_statement(
     json: &Value,
     binding_ids: &mut HashSet<String>,
-) -> Result<(), ScalarPayloadIssue> {
+) -> Result<ValidatedScalarProgramStatement, ScalarPayloadIssue> {
     let object = as_object(json, "scalar program statement")?;
     reject_unexpected_fields(
         object,
@@ -88,22 +108,30 @@ fn validate_statement(
         require_field(object, "scopeId", "scalar program statement")?,
         "scalar program statement scopeId",
     )?;
-    require_field(object, "sourceOrder", "scalar program statement")?
+    let source_order = require_field(object, "sourceOrder", "scalar program statement")?
         .as_u64()
         .ok_or_else(|| {
             issue(
                 Code::InvalidFieldType,
                 "scalar program sourceOrder must be a non-negative integer",
             )
-        })?;
-    validate_declaration(require_field(
+        })? as usize;
+    let (declared_type, initializer) = decode_declaration(require_field(
         object,
         "declaration",
         "scalar program statement",
-    )?)
+    )?)?;
+    Ok(ValidatedScalarProgramStatement {
+        binding_id: binding_id.to_owned(),
+        source_order,
+        declared_type,
+        initializer,
+    })
 }
 
-pub(crate) fn validate_scalar_program_payload(json: &Value) -> Result<(), ScalarPayloadIssue> {
+pub(crate) fn validate_scalar_program_payload(
+    json: &Value,
+) -> Result<ValidatedScalarProgram, ScalarPayloadIssue> {
     let object = as_object(json, "scalar program")?;
     reject_unexpected_fields(
         object,
@@ -119,16 +147,21 @@ pub(crate) fn validate_scalar_program_payload(json: &Value) -> Result<(), Scalar
             )
         })?;
     let mut binding_ids = HashSet::new();
+    let mut decoded = Vec::with_capacity(statements.len());
     for statement in statements {
-        validate_statement(statement, &mut binding_ids)?;
+        decoded.push(decode_statement(statement, &mut binding_ids)?);
     }
-    if let Some(limit) = object.get("evaluationLimitSourceOrder") {
-        limit.as_u64().ok_or_else(|| {
+    let evaluation_limit_source_order = match object.get("evaluationLimitSourceOrder") {
+        Some(limit) => Some(limit.as_u64().ok_or_else(|| {
             issue(
                 Code::InvalidFieldType,
                 "scalar program evaluationLimitSourceOrder must be a non-negative integer",
             )
-        })?;
-    }
-    Ok(())
+        })? as usize),
+        None => None,
+    };
+    Ok(ValidatedScalarProgram {
+        statements: decoded,
+        evaluation_limit_source_order,
+    })
 }

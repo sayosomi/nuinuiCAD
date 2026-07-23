@@ -4,6 +4,7 @@ import { emptyDocument } from "../dsl/dslDocumentTestUtils";
 import { sampleElements } from "../sampleData";
 import { evaluateElements } from "./evaluate";
 import {
+  ScalarOutputDecodeError,
   evaluationPayloadToResult,
   evaluationResultToPayload
 } from "./evaluationPayload";
@@ -52,5 +53,31 @@ describe("evaluation payload conversion", () => {
     expect(payload.computedScalarBindings).toHaveLength(2);
     const roundTrip = evaluationPayloadToResult(payload);
     expect(roundTrip.computedScalarBindings).toEqual(evaluation.computedScalarBindings);
+  });
+
+  it("fails closed on malformed or duplicate computedScalarBindings output", () => {
+    const baseline = evaluationResultToPayload(evaluateElements(sampleElements, { evaluationLimitIndex: 3 }));
+    const validEvaluation = {
+      status: "ok",
+      type: { kind: "number" },
+      value: { kind: "number", value: 1 }
+    };
+    const malformedOutputs: unknown[] = [
+      { bindingId: "binding:a", evaluation: validEvaluation },
+      [{ bindingId: "", evaluation: validEvaluation }],
+      [{ bindingId: "binding:a" }],
+      [{ bindingId: "binding:a", evaluation: { status: "ok", type: { kind: "number" }, value: null } }],
+      [
+        { bindingId: "binding:a", evaluation: validEvaluation },
+        { bindingId: "binding:a", evaluation: validEvaluation }
+      ]
+    ];
+
+    for (const computedScalarBindings of malformedOutputs) {
+      expect(() => evaluationPayloadToResult({
+        ...baseline,
+        computedScalarBindings
+      } as unknown as typeof baseline)).toThrow(ScalarOutputDecodeError);
+    }
   });
 });
