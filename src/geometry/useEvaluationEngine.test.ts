@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { invoke } from "@tauri-apps/api/core";
 import type { CadElement } from "../types/geometry";
 import type { ScalarProgram } from "../scalars/scalarProgram";
+import * as evaluationEngine from "./evaluationEngine";
 import { evaluateElementsReferencePayload } from "./evaluationEngine";
 import { useEvaluationEngine } from "./useEvaluationEngine";
 
@@ -276,6 +277,79 @@ describe("useEvaluationEngine", () => {
     expect(result.current.evaluation.computedGeometry.size).toBe(0);
     expect(result.current.error).toBeInstanceOf(Error);
   });
+
+  it.each(["parity", "shadow"] as const)(
+    "keeps malformed scalar input fail-closed in %s mode before TS reference evaluation",
+    async (mode) => {
+      setTauriRuntime();
+      vi.stubEnv("VITE_EVALUATION_ENGINE", mode);
+      const malformedScalarProgram = { statements: "not-an-array" } as unknown as ScalarProgram;
+      const error = { code: "scalar-payload-invalid-field-type", message: "scalar program statements must be an array" };
+      const referenceSpy = vi.spyOn(evaluationEngine, "evaluateElementsReference");
+      vi.spyOn(console, "error").mockImplementation(() => undefined);
+      invokeMock.mockRejectedValue(error);
+
+      const { result } = renderHook(() =>
+        useEvaluationEngine(elements, { evaluationLimitIndex: elements.length, scalarProgram: malformedScalarProgram })
+      );
+
+      await waitFor(() => expect(result.current.status).toBe("failed"));
+      expect(referenceSpy).not.toHaveBeenCalled();
+      expect(result.current.source).toBe("rust");
+      expect(result.current.evaluation.computedGeometry.size).toBe(0);
+      expect(result.current.error).toBe(error);
+    }
+  );
+
+  it.each(["parity", "shadow"] as const)(
+    "keeps malformed scalar output fail-closed in %s mode",
+    async (mode) => {
+      setTauriRuntime();
+      vi.stubEnv("VITE_EVALUATION_ENGINE", mode);
+      const malformedOutput = {
+        ...evaluateElementsReferencePayload(elements, { scalarProgram }),
+        computedScalarBindings: { bindingId: "binding:stable" }
+      };
+      const referenceSpy = vi.spyOn(evaluationEngine, "evaluateElementsReference");
+      vi.spyOn(console, "error").mockImplementation(() => undefined);
+      invokeMock.mockResolvedValue(malformedOutput);
+
+      const { result } = renderHook(() =>
+        useEvaluationEngine(elements, { evaluationLimitIndex: elements.length, scalarProgram })
+      );
+
+      await waitFor(() => expect(result.current.status).toBe("failed"));
+      expect(referenceSpy).not.toHaveBeenCalled();
+      expect(result.current.source).toBe("rust");
+      expect(result.current.evaluation.computedGeometry.size).toBe(0);
+      expect(result.current.error).toBeInstanceOf(Error);
+    }
+  );
+
+  it.each(["parity", "shadow"] as const)(
+    "runs TS reference evaluation after successful Rust scalar validation in %s mode",
+    async (mode) => {
+      setTauriRuntime();
+      vi.stubEnv("VITE_EVALUATION_ENGINE", mode);
+      let resolveRustPayload: ((value: unknown) => void) | undefined;
+      invokeMock.mockImplementation(() => new Promise((resolve) => { resolveRustPayload = resolve; }));
+      const rustPayload = evaluateElementsReferencePayload(elements, { scalarProgram });
+      const referenceSpy = vi.spyOn(evaluationEngine, "evaluateElementsReference");
+
+      const { result } = renderHook(() =>
+        useEvaluationEngine(elements, { evaluationLimitIndex: elements.length, scalarProgram })
+      );
+
+      await waitFor(() => expect(invokeMock).toHaveBeenCalled());
+      expect(referenceSpy).not.toHaveBeenCalled();
+      resolveRustPayload?.(rustPayload);
+
+      await waitFor(() => expect(result.current.status).toBe("ready"));
+      expect(referenceSpy).toHaveBeenCalledTimes(1);
+      expect(result.current.source).toBe("reference");
+      expect(result.current.evaluation.computedGeometry.size).toBe(3);
+    }
+  );
 
   it("returns the TypeScript reference result in shadow mode and warns on Rust differences", async () => {
     setTauriRuntime();
