@@ -77,7 +77,11 @@ export const expandForGroupIteration = ({
       ...cloned,
       id: generatedId,
       name: `[${forGroupIterationLabel(iterationVariable.name, variableValue)}] ${templateElement.name}`,
-      parentGroupId: cloned.parentGroupId
+      // A template descendant's parent may itself be another template
+      // descendant (e.g. a conditionalGroup nested inside the forGroup
+      // body) - remap through idMap so the clone's parentGroupId points at
+      // its own iteration's cloned parent, not the shared original.
+      parentGroupId: cloned.parentGroupId ? (idMap.get(cloned.parentGroupId) ?? cloned.parentGroupId) : cloned.parentGroupId
     } as CadElement;
     const remapped = remapElementReferences(renamed, idMap);
     return {

@@ -21,6 +21,8 @@ import { compileDslToElements } from "./dslCompiler";
 import { lowerScalarProgram } from "../scalars/scalarProgram";
 import { analyzeTypedDeclarations } from "../scalars/typedDeclarationAnalysis";
 import { compilePropertyBindings, type ScalarValueSource } from "../scalars/propertyBindingCompiler";
+import { compileConditionalGroupConditions } from "../scalars/conditionalGroupConditionCompiler";
+import type { TypedScalarExpression } from "../scalars/typedExpressionAst";
 import { formatNumericValueForDsl } from "./dslExpressionFormat";
 import { parseDsl, parseDslSnapshot } from "./dslParser";
 import type { SourceRevision } from "./logicalStatementSourceMap";
@@ -151,6 +153,15 @@ export type CompiledDslDocument = {
   scalarProgramPositionMap?: ScalarProgramPositionMap;
   /** Task 22 compiled property binding sources, keyed by propertyBindingOccurrenceKey. */
   propertyBindings?: ReadonlyMap<string, ScalarValueSource>;
+  /**
+   * Task 25 compiled typed boolean conditions for `conditionalGroup.condition`,
+   * keyed by propertyBindingOccurrenceKey(statementIndex, "condition"). A
+   * separate map from `propertyBindings` because the value here is a full
+   * `TypedScalarExpression` AST, not a single-binding `ScalarValueSource` -
+   * `condition` accepts an arbitrary boolean expression, not just a bare
+   * `@name` reference.
+   */
+  conditionalGroupConditions?: ReadonlyMap<string, TypedScalarExpression>;
 };
 
 export type CompileDslDocumentOptions = {
@@ -818,9 +829,22 @@ export const compileDslDocument = (
         bindingAnalysis: scalarAnalysis.bindingAnalysis
       })
     : undefined;
-  const finalDiagnostics = propertyBindingCompilation
-    ? [...allDiagnostics, ...propertyBindingCompilation.diagnostics]
-    : allDiagnostics;
+  // Task 25: conditionalGroup.condition typed-boolean compile/typecheck.
+  // Same scalarAnalysis-present gate as property bindings above - reuses the
+  // same bindingAnalysis, never re-resolves names or re-derives Task 13's
+  // diagnostics itself.
+  const conditionalGroupConditionCompilation = scalarAnalysis
+    ? compileConditionalGroupConditions({
+        statements: parsed.statements,
+        elementIdByStatementIndex: compiled.elementIdsByStatementIndex ?? new Map(),
+        elements: compiled.elements,
+        bindingAnalysis: scalarAnalysis.bindingAnalysis
+      })
+    : undefined;
+  const finalDiagnostics = [
+    ...(propertyBindingCompilation ? [...allDiagnostics, ...propertyBindingCompilation.diagnostics] : allDiagnostics),
+    ...(conditionalGroupConditionCompilation ? conditionalGroupConditionCompilation.diagnostics : [])
+  ];
   if (finalDiagnostics.some((item) => item.severity === "error")) {
     return {
       document: null,
@@ -867,7 +891,10 @@ export const compileDslDocument = (
     ...(scalarProgram ? { scalarProgram } : {}),
     ...(scalarAnalysis ? { bindingAnalysis: scalarAnalysis.bindingAnalysis } : {}),
     ...(scalarAnalysis ? { scalarProgramPositionMap: scalarAnalysis.positionMap } : {}),
-    ...(propertyBindingCompilation ? { propertyBindings: propertyBindingCompilation.sourcesByOccurrenceKey } : {})
+    ...(propertyBindingCompilation ? { propertyBindings: propertyBindingCompilation.sourcesByOccurrenceKey } : {}),
+    ...(conditionalGroupConditionCompilation
+      ? { conditionalGroupConditions: conditionalGroupConditionCompilation.sourcesByOccurrenceKey }
+      : {})
   };
 };
 

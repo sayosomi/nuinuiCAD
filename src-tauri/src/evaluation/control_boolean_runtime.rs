@@ -1,0 +1,75 @@
+//! Task 25: connects validated typed-boolean control sources
+//! (`conditionalGroup.condition`, `forGroup.showGenerated`) to the
+//! document's existing `ScalarBindingResolver` at evaluation time. Mirrors
+//! `src/geometry/controlBooleanRuntime.ts` - see that file's module comment
+//! for the full design rationale. Never evaluates a scalar program itself,
+//! never re-parses/re-resolves a name; only calls the caller-supplied
+//! resolver, at most once per condition/showGenerated per group entry.
+
+use super::scalars::{
+    evaluate_typed_expression, ScalarBindingResolver, ScalarEvaluation,
+    ScalarEvaluationEnvironment, ScalarType, TypedScalarExpression, ValidatedPropertyBinding,
+};
+use super::types::EvaluationState;
+
+/// Adapts `(resolver, state)` to the pure expression evaluator's
+/// environment trait - `resolver.resolve` already does its own memoized
+/// cycle-guarded lookup, so this is a zero-cost forwarding shim, never a
+/// second resolver.
+struct ResolverEnvironment<'a> {
+    resolver: &'a ScalarBindingResolver<'a>,
+    state: &'a EvaluationState,
+}
+
+impl<'a> ScalarEvaluationEnvironment for ResolverEnvironment<'a> {
+    fn lookup_binding(&self, binding_id: &str) -> ScalarEvaluation {
+        self.resolver.resolve(binding_id, self.state)
+    }
+}
+
+/// A `conditionalGroup`'s active branch from its typed boolean condition:
+/// evaluated exactly once via the caller's existing binding resolver. Any
+/// result other than a clean `Ok` boolean becomes `None` (poisoned - both
+/// branches inactive), identical to today's legacy poison semantics so the
+/// caller's `activeBranch != branch` comparison keeps working unmodified.
+pub(crate) fn resolve_conditional_group_branch(
+    expression: &TypedScalarExpression,
+    resolver: &ScalarBindingResolver,
+    state: &EvaluationState,
+) -> Option<&'static str> {
+    let environment = ResolverEnvironment { resolver, state };
+    match evaluate_typed_expression(expression, &environment) {
+        ScalarEvaluation::Ok {
+            r#type: ScalarType::Boolean,
+            value,
+        } => match value {
+            super::scalars::ScalarValue::Boolean(true) => Some("then"),
+            super::scalars::ScalarValue::Boolean(false) => Some("else"),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+/// `showGenerated`'s effective value: the literal, unchanged, when unbound
+/// (today's evaluation-inert behavior, exact parity); the resolved binding
+/// value when bound, failing closed to `false` on anything other than a
+/// clean `Ok` boolean `true` (poison, wrong runtime type, or an evaluation
+/// error). Never affects iteration count/rows - presentation-only.
+pub(crate) fn resolve_for_group_effective_show_generated(
+    entry: Option<&ValidatedPropertyBinding>,
+    literal_show_generated: bool,
+    resolver: &ScalarBindingResolver,
+    state: &EvaluationState,
+) -> bool {
+    let Some(entry) = entry else {
+        return literal_show_generated;
+    };
+    matches!(
+        resolver.resolve(&entry.binding_id, state),
+        ScalarEvaluation::Ok {
+            r#type: ScalarType::Boolean,
+            value: super::scalars::ScalarValue::Boolean(true),
+        }
+    )
+}

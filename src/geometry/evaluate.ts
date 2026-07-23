@@ -24,6 +24,11 @@ import {
   materializePropertyBoundElement,
   type PropertyBindingRuntimeEntry
 } from "./propertyBindingRuntime";
+import {
+  resolveConditionalGroupBranch,
+  resolveForGroupEffectiveShowGenerated
+} from "./controlBooleanRuntime";
+import type { TypedScalarExpression } from "../scalars/typedExpressionAst";
 
 export type EvaluateElementsOptions = {
   evaluationLimitIndex?: number;
@@ -44,6 +49,20 @@ export type EvaluateElementsOptions = {
    * than a silent no-op.
    */
   propertyBindingEntries?: readonly PropertyBindingRuntimeEntry[];
+  /**
+   * Task 25's elementId-keyed typed boolean conditions for `conditionalGroup`
+   * (already re-keyed from CompiledDslDocument.conditionalGroupConditions by
+   * controlBooleanRuntime.ts's buildConditionalGroupConditionsByElementId -
+   * never built here). An element with no entry here always uses the legacy
+   * `NumericValue` condition path unchanged.
+   */
+  conditionalGroupConditionsByElementId?: ReadonlyMap<ElementId, TypedScalarExpression>;
+  /**
+   * Task 25's elementId-keyed `forGroup.showGenerated` bindings (already
+   * re-keyed by controlBooleanRuntime.ts's buildControlBooleanRuntimeEntries).
+   * Never affects iteration count/rows - presentation-only.
+   */
+  controlBooleanEntries?: readonly PropertyBindingRuntimeEntry[];
 };
 
 export const evaluateElements = (
@@ -55,6 +74,13 @@ export const evaluateElements = (
       "evaluateElements: propertyBindingEntries was given without a scalarProgram - " +
         "a caller must always derive both from the same compiled document (see " +
         "propertyBindingRuntime.ts's buildPropertyBindingRuntimeEntries), never one without the other"
+    );
+  }
+  if ((options.controlBooleanEntries?.length || options.conditionalGroupConditionsByElementId?.size) && !options.scalarProgram) {
+    throw new Error(
+      "evaluateElements: controlBooleanEntries/conditionalGroupConditionsByElementId was given without a " +
+        "scalarProgram - a caller must always derive these from the same compiled document (see " +
+        "controlBooleanRuntime.ts), never one without the other"
     );
   }
 
@@ -92,6 +118,7 @@ export const evaluateElements = (
   const conditionalGroupStates = new Map<ElementId, "then" | "else" | null>();
   const conditionInactiveElementIds = new Set<ElementId>();
   const effectiveEnabledIds = new Set<ElementId>();
+  const forGroupEffectiveShowGeneratedIds = new Set<ElementId>();
   const templateDescendantIds = forGroupTemplateDescendantIds(elements);
   const forGroupGeneratedRows: EvaluationResult["forGroupGeneratedRows"] = [];
 
@@ -104,6 +131,10 @@ export const evaluateElements = (
   const propertyBindingEntriesByElementId = options.propertyBindingEntries
     ? groupPropertyBindingRuntimeEntriesByElement(options.propertyBindingEntries)
     : undefined;
+  const controlBooleanEntriesByElementId = options.controlBooleanEntries
+    ? groupPropertyBindingRuntimeEntriesByElement(options.controlBooleanEntries)
+    : undefined;
+  const conditionalGroupConditionsByElementId = options.conditionalGroupConditionsByElementId;
 
   const pushGeneratedVisibilityState = (generatedElement: CadElement, templateElement: CadElement) => {
     if (effectiveVisibleIds.has(templateElement.id)) {
@@ -188,22 +219,30 @@ export const evaluateElements = (
     if (!localVariables) return;
 
     if (isConditionalGroupElement(element)) {
-      const conditionValue = numericError(
-        element,
-        element.condition,
-        computedGeometry,
-        runtimeElementsById,
-        errors,
-        localVariables.localVariableValues,
-        localVariables.localVariableNames,
-        disabledByGroupId,
-        computedVariables,
-        runtimeElements
-      );
-      conditionalGroupStates.set(
-        element.id,
-        conditionValue === undefined ? null : conditionValue === 0 ? "else" : "then"
-      );
+      // Bound typed conditions live on the template statement/element, not
+      // on a forGroup-generated clone's own synthetic id - look up by the
+      // template id (sourceElement) exactly like bound properties below, so
+      // a conditionalGroup written inside a forGroup template resolves the
+      // same active branch on every generated iteration.
+      const typedCondition = conditionalGroupConditionsByElementId?.get((sourceElement ?? element).id);
+      const activeBranch = typedCondition
+        ? resolveConditionalGroupBranch(typedCondition, scalarBindingResolver!.resolveBinding)
+        : (() => {
+            const conditionValue = numericError(
+              element,
+              element.condition,
+              computedGeometry,
+              runtimeElementsById,
+              errors,
+              localVariables.localVariableValues,
+              localVariables.localVariableNames,
+              disabledByGroupId,
+              computedVariables,
+              runtimeElements
+            );
+            return conditionValue === undefined ? null : conditionValue === 0 ? "else" : "then";
+          })();
+      conditionalGroupStates.set(element.id, activeBranch);
       return;
     }
 
@@ -248,6 +287,15 @@ export const evaluateElements = (
         runtimeElements
       );
       if (start === undefined || count === undefined || step === undefined) return;
+
+      // Evaluated once per forGroup entry, alongside start/count/step -
+      // never re-evaluated per iteration. Presentation-only: never gates or
+      // alters the iteration loop below.
+      const showGeneratedEntry = controlBooleanEntriesByElementId?.get(element.id)?.[0];
+      const effectiveShowGenerated = showGeneratedEntry
+        ? resolveForGroupEffectiveShowGenerated(showGeneratedEntry, element.showGenerated, scalarBindingResolver!.resolveBinding)
+        : element.showGenerated;
+      if (effectiveShowGenerated) forGroupEffectiveShowGeneratedIds.add(element.id);
 
       for (let iterationIndex = 0; iterationIndex < count; iterationIndex += 1) {
         const variableValue = start + iterationIndex * step;
@@ -341,6 +389,7 @@ export const evaluateElements = (
     effectiveEnabledElementIds: effectiveEnabledIds,
     conditionInactiveElementIds,
     forGroupGeneratedRows,
+    forGroupEffectiveShowGeneratedIds,
     ...(computedScalarBindings ? { computedScalarBindings } : {})
   };
 };

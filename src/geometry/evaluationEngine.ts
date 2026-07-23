@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { CadElement, EvaluationResult, PointAnchor } from "../types/geometry";
+import type { CadElement, ElementId, EvaluationResult, PointAnchor } from "../types/geometry";
 import type { ScalarProgram } from "../scalars/scalarProgram";
+import type { TypedScalarExpression } from "../scalars/typedExpressionAst";
 import { anchorReferenceElementId, pointAnchorForElement } from "../model/pointAnchors";
 import { getDirectParentIds } from "../model/dependencies";
 import { evaluateElements, type EvaluateElementsOptions } from "./evaluate";
@@ -11,11 +12,15 @@ import {
 } from "./evaluationPayload";
 import type { PropertyBindingRuntimeEntry } from "./propertyBindingRuntime";
 
+type ConditionExpressionInput = { elementId: ElementId; expression: TypedScalarExpression };
+
 type EvaluateDocumentInput = {
   elements: CadElement[];
   evaluationLimitIndex?: number;
   scalarProgram?: ScalarProgram;
   propertyBindings?: readonly PropertyBindingRuntimeEntry[];
+  controlBooleanBindings?: readonly PropertyBindingRuntimeEntry[];
+  conditionExpressions?: readonly ConditionExpressionInput[];
 };
 
 export type EvaluationEngineMode = "reference" | "parity" | "shadow" | "rust";
@@ -313,7 +318,16 @@ export const evaluateElementsWithRust = async (
       elements,
       evaluationLimitIndex: options.evaluationLimitIndex,
       ...(options.scalarProgram ? { scalarProgram: options.scalarProgram } : {}),
-      ...(options.propertyBindingEntries?.length ? { propertyBindings: options.propertyBindingEntries } : {})
+      ...(options.propertyBindingEntries?.length ? { propertyBindings: options.propertyBindingEntries } : {}),
+      ...(options.controlBooleanEntries?.length ? { controlBooleanBindings: options.controlBooleanEntries } : {}),
+      ...(options.conditionalGroupConditionsByElementId?.size
+        ? {
+            conditionExpressions: Array.from(
+              options.conditionalGroupConditionsByElementId,
+              ([elementId, expression]) => ({ elementId, expression })
+            )
+          }
+        : {})
     } satisfies EvaluateDocumentInput
   });
   return evaluationPayloadToResult(payload);

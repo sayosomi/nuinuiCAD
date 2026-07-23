@@ -47,6 +47,8 @@ fn simple_bezier() -> Value {
 fn evaluates_single_segment_bezier_curve() {
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements: vec![
             free_point("a", "点A", 10.0, 20.0),
             free_point("b", "点B", 40.0, 25.0),
@@ -72,6 +74,8 @@ fn evaluates_single_segment_bezier_curve() {
 fn evaluates_multi_segment_bezier_curve() {
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements: vec![
             free_point("a", "点A", 10.0, 20.0),
             free_point("b", "点B", 40.0, 25.0),
@@ -114,6 +118,8 @@ fn evaluates_multi_segment_bezier_curve() {
 fn evaluates_bezier_curve_from_coordinate_anchors() {
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements: vec![element(json!({
             "id": "curve",
             "name": "直接曲線",
@@ -153,6 +159,8 @@ fn evaluates_bezier_curve_from_coordinate_anchors() {
 fn reports_bezier_curve_dependency_that_appears_too_late() {
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements: vec![
             free_point("a", "点A", 10.0, 20.0),
             simple_bezier(),
@@ -175,6 +183,8 @@ fn reports_bezier_curve_dependency_that_appears_too_late() {
 fn evaluates_bezier_curve_numeric_variables_and_expressions() {
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements: vec![
             free_point("a", "点A", 0.0, 0.0),
             free_point("b", "点B", 100.0, 0.0),
@@ -214,6 +224,8 @@ fn evaluates_bezier_curve_numeric_variables_and_expressions() {
 fn evaluates_bezier_curve_numeric_variable_ids_with_hyphens() {
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements: vec![
             free_point("freePoint-mr0czcze-2", "点1", 0.0, 0.0),
             free_point("offsetPoint-mr0czf1a-3", "点2", 0.0, -100.0),
@@ -274,6 +286,8 @@ fn evaluates_bezier_curve_numeric_variable_ids_with_hyphens() {
 fn resolves_bezier_derived_points() {
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements: vec![
             free_point("a", "点A", 10.0, 20.0),
             free_point("b", "点B", 40.0, 25.0),
@@ -326,6 +340,8 @@ fn resolves_bezier_derived_points() {
 fn allows_supported_point_elements_to_reference_bezier_curve() {
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements: vec![
             free_point("a", "点A", 0.0, 0.0),
             free_point("b", "点B", 100.0, 0.0),

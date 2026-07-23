@@ -19,6 +19,8 @@ fn input(
         scalar_expression_payload: None,
         scalar_program,
         property_bindings,
+        control_boolean_bindings: None,
+        condition_expressions: None,
     }
 }
 

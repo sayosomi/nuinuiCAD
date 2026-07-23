@@ -73,6 +73,8 @@ fn base_line_elements() -> Vec<Value> {
 fn evaluates_points_lines_variables_and_arcs() {
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements: vec![
             element(json!({
                 "id": "ease",
@@ -158,6 +160,8 @@ fn evaluates_points_lines_variables_and_arcs() {
 fn evaluates_variable_element_local_numeric_variables() {
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements: vec![
             element(json!({
                 "id": "size",
@@ -227,6 +231,8 @@ fn evaluates_text_with_anchor_and_numeric_references() {
 
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements,
         evaluation_limit_index: None,
         scalar_expression_payload: None,
@@ -246,6 +252,8 @@ fn evaluates_text_with_anchor_and_numeric_references() {
 fn evaluates_anchorless_text_as_comment_geometry() {
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements: vec![element(json!({
             "id": "text",
             "name": "コメント",
@@ -272,6 +280,8 @@ fn evaluates_anchorless_text_as_comment_geometry() {
 fn evaluates_arc_line_with_full_360_degree_sweep() {
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements: vec![
             element(json!({
                 "id": "a",
@@ -314,6 +324,8 @@ fn evaluates_arc_line_with_full_360_degree_sweep() {
 fn evaluates_sqrt_and_pi_numeric_expressions() {
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements: vec![element(json!({
             "id": "a",
             "name": "点A",
@@ -381,6 +393,8 @@ fn evaluates_numeric_reference_paths_for_geometry_parameters_and_variables() {
     ]);
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements,
         evaluation_limit_index: None,
         scalar_expression_payload: None,
@@ -397,6 +411,8 @@ fn evaluates_numeric_reference_paths_for_geometry_parameters_and_variables() {
 fn reports_negative_sqrt_numeric_expressions() {
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements: vec![element(json!({
             "id": "a",
             "name": "点A",
@@ -420,6 +436,8 @@ fn reports_negative_sqrt_numeric_expressions() {
 fn reports_too_late_dependency() {
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements: vec![
             element(json!({
                 "id": "line",
@@ -458,6 +476,8 @@ fn reports_too_late_dependency() {
 fn applies_group_visibility_and_enabled_masks() {
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements: vec![
             element(json!({
                 "id": "group",
@@ -496,6 +516,8 @@ fn applies_group_visibility_and_enabled_masks() {
 fn evaluates_only_active_conditional_branch() {
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements: vec![
             element(json!({
                 "id": "if",
@@ -605,6 +627,8 @@ fn evaluates_conditional_group_comparison_expression() {
 
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements,
         evaluation_limit_index: None,
         scalar_expression_payload: None,
@@ -663,6 +687,8 @@ fn evaluates_false_conditional_group_comparison_expression() {
 
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements,
         evaluation_limit_index: None,
         scalar_expression_payload: None,
@@ -710,6 +736,8 @@ fn does_not_treat_single_equals_as_equality_in_conditional_expression() {
 
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements,
         evaluation_limit_index: None,
         scalar_expression_payload: None,
@@ -728,6 +756,8 @@ fn does_not_treat_single_equals_as_equality_in_conditional_expression() {
 fn reports_references_to_inactive_conditional_branch() {
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements: vec![
             element(json!({
                 "id": "if",
@@ -772,6 +802,54 @@ fn reports_references_to_inactive_conditional_branch() {
     assert!(result.errors[0].message.contains("評価OFF"));
 }
 
+// Task 25: TS/Rust parity closure for a gap noted before this task landed -
+// mirrors src/geometry/evaluate.test.ts's "marks a conditional group invalid
+// when its condition cannot be evaluated" (a legacy numeric condition, not a
+// typed one - the legacy adapter's poison behavior itself is untouched by
+// Task 25, this only adds the missing Rust-side coverage for it).
+#[test]
+fn marks_a_conditional_group_invalid_when_its_legacy_condition_cannot_be_evaluated() {
+    let result = evaluate_document_input(EvaluationInput {
+        property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
+        elements: vec![
+            element(json!({
+                "id": "if",
+                "name": "寸法分岐",
+                "type": "conditionalGroup",
+                "visible": true,
+                "enabled": true,
+                "condition": { "kind": "expression", "expression": "missing.length" },
+                "expanded": true,
+                "elseExpanded": true
+            })),
+            element(json!({
+                "id": "then-point",
+                "name": "then点",
+                "type": "freePoint",
+                "parentGroupId": "if",
+                "conditionalBranch": "then",
+                "visible": true,
+                "enabled": true,
+                "x": 0,
+                "y": 0
+            })),
+        ],
+        evaluation_limit_index: None,
+        scalar_expression_payload: None,
+        scalar_program: None,
+    });
+
+    assert!(result
+        .computed_geometry
+        .iter()
+        .all(|geometry| geometry["elementId"] != json!("then-point")));
+    assert_eq!(result.errors[0].element_id, "if");
+    assert_eq!(result.errors[0].missing_dependency_id, "missing");
+    assert_eq!(result.condition_inactive_element_ids, vec!["then-point"]);
+}
+
 #[test]
 fn evaluates_division_point_by_distance() {
     let mut elements = base_points();
@@ -787,6 +865,8 @@ fn evaluates_division_point_by_distance() {
     })));
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements,
         evaluation_limit_index: None,
         scalar_expression_payload: None,
@@ -819,6 +899,8 @@ fn evaluates_division_point_by_ratio() {
     })));
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements,
         evaluation_limit_index: None,
         scalar_expression_payload: None,
@@ -835,6 +917,8 @@ fn evaluates_division_point_by_ratio() {
 fn reports_division_point_dependency_that_appears_too_late() {
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements: vec![
             element(json!({
                 "id": "a",
@@ -886,6 +970,8 @@ fn reports_division_point_dependency_that_appears_too_late() {
 fn reports_zero_length_distance_division_point() {
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements: vec![
             element(json!({
                 "id": "a",
@@ -939,6 +1025,8 @@ fn evaluates_division_point_numeric_variables_and_expressions() {
     })));
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements,
         evaluation_limit_index: None,
         scalar_expression_payload: None,
@@ -965,6 +1053,8 @@ fn evaluates_line_division_point_by_distance_from_start() {
     })));
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements,
         evaluation_limit_index: None,
         scalar_expression_payload: None,
@@ -991,6 +1081,8 @@ fn evaluates_line_division_point_by_ratio_from_end() {
     })));
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements,
         evaluation_limit_index: None,
         scalar_expression_payload: None,
@@ -1022,6 +1114,8 @@ fn evaluates_division_point_with_missing_placement_kind_as_ratio() {
     })));
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements,
         evaluation_limit_index: None,
         scalar_expression_payload: None,
@@ -1049,6 +1143,8 @@ fn evaluates_division_point_with_unrecognized_placement_kind_as_ratio() {
     })));
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements,
         evaluation_limit_index: None,
         scalar_expression_payload: None,
@@ -1075,6 +1171,8 @@ fn evaluates_line_division_point_with_missing_placement_kind_as_ratio() {
     })));
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements,
         evaluation_limit_index: None,
         scalar_expression_payload: None,
@@ -1101,6 +1199,8 @@ fn evaluates_line_division_point_with_unrecognized_placement_kind_as_ratio() {
     })));
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements,
         evaluation_limit_index: None,
         scalar_expression_payload: None,
@@ -1117,6 +1217,8 @@ fn evaluates_line_division_point_with_unrecognized_placement_kind_as_ratio() {
 fn evaluates_line_division_point_on_arc_line() {
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements: vec![
             element(json!({
                 "id": "center",
@@ -1163,6 +1265,8 @@ fn evaluates_line_division_point_on_arc_line() {
 fn reports_line_division_point_dependency_that_appears_too_late() {
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements: vec![
             element(json!({
                 "id": "division",
@@ -1204,6 +1308,8 @@ fn reports_line_division_point_dependency_that_appears_too_late() {
 fn reports_zero_length_line_division_point() {
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements: vec![
             element(json!({
                 "id": "line",
@@ -1255,6 +1361,8 @@ fn evaluates_line_division_point_numeric_variables_and_expressions() {
     })));
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements,
         evaluation_limit_index: None,
         scalar_expression_payload: None,

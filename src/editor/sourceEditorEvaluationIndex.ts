@@ -119,7 +119,12 @@ export const createEvaluationDecorationIndex = ({
   const rowsByOwner = groupedRows(evaluation.forGroupGeneratedRows);
   const generatedWidgets: IndexedGeneratedWidget[] = [];
   for (const element of elements) {
-    if (!isForGroupElement(element) || !element.showGenerated || !isGroupExpanded(element.id, groupFoldById)) continue;
+    if (!isForGroupElement(element)) continue;
+    // Task 25: the literal `showGenerated` field when unbound/no evaluation
+    // has populated this set yet (falls back to today's behavior exactly);
+    // the resolved typed boolean binding's effective value when bound.
+    const effectiveShowGenerated = evaluation.forGroupEffectiveShowGeneratedIds?.has(element.id) ?? element.showGenerated;
+    if (!effectiveShowGenerated || !isGroupExpanded(element.id, groupFoldById)) continue;
     const rows = rowsByOwner.get(element.id);
     const anchor = ranges.get(lastVisibleDescendant.get(element.id) ?? element.id);
     if (rows?.length && anchor) generatedWidgets.push({ forGroupId: element.id, afterPos: anchor.to, rows });

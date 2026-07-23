@@ -10,6 +10,8 @@
 // expression evaluator. The narrow `allow(dead_code)` annotations remain
 // for helpers exercised directly by compatibility tests.
 mod bindings;
+mod condition_expression_payload;
+mod control_boolean_payload;
 #[allow(dead_code)]
 mod expression_evaluator;
 #[allow(dead_code)]
@@ -28,6 +30,10 @@ mod types;
 #[cfg(test)]
 mod bindings_tests;
 #[cfg(test)]
+mod condition_expression_payload_tests;
+#[cfg(test)]
+mod control_boolean_payload_tests;
+#[cfg(test)]
 mod expression_evaluator_tests;
 #[cfg(test)]
 mod expression_payload_tests;
@@ -41,6 +47,10 @@ mod property_binding_payload_tests;
 mod scalar_payload_tests;
 
 pub(crate) use bindings::ScalarBindingResolver;
+pub(crate) use condition_expression_payload::{
+    validate_condition_expressions_payload, ValidatedConditionExpression,
+};
+pub(crate) use control_boolean_payload::validate_control_boolean_bindings_payload;
 #[allow(unused_imports)]
 pub(crate) use expression_evaluator::{evaluate_typed_expression, ScalarEvaluationEnvironment};
 pub(crate) use expression_payload::validate_typed_expression_payload;
@@ -50,4 +60,4 @@ pub(crate) use program_payload::{validate_scalar_program_payload, ValidatedScala
 pub(crate) use property_binding_payload::{
     validate_property_bindings_payload, ValidatedPropertyBinding,
 };
-pub(crate) use types::{ScalarEvaluation, ScalarType, ScalarValue};
+pub(crate) use types::{ScalarEvaluation, ScalarType, ScalarValue, TypedScalarExpression};

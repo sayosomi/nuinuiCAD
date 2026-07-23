@@ -87,13 +87,17 @@ export const useEvaluationEngine = (
   const evaluationLimitIndex = options.evaluationLimitIndex;
   const scalarProgram = options.scalarProgram;
   const propertyBindingEntries = options.propertyBindingEntries;
+  const controlBooleanEntries = options.controlBooleanEntries;
+  const conditionalGroupConditionsByElementId = options.conditionalGroupConditionsByElementId;
   const evaluationOptions = useMemo(
     () => ({
       evaluationLimitIndex,
       ...(scalarProgram ? { scalarProgram } : {}),
-      ...(propertyBindingEntries?.length ? { propertyBindingEntries } : {})
+      ...(propertyBindingEntries?.length ? { propertyBindingEntries } : {}),
+      ...(controlBooleanEntries?.length ? { controlBooleanEntries } : {}),
+      ...(conditionalGroupConditionsByElementId?.size ? { conditionalGroupConditionsByElementId } : {})
     }),
-    [evaluationLimitIndex, scalarProgram, propertyBindingEntries]
+    [evaluationLimitIndex, scalarProgram, propertyBindingEntries, controlBooleanEntries, conditionalGroupConditionsByElementId]
   );
   const engineMode = getEvaluationEngineMode();
   const tauriRuntime = isTauriRuntime();
@@ -101,8 +105,17 @@ export const useEvaluationEngine = (
   const parityMode = isParityEvaluationEngineMode(engineMode);
   const deferScalarReferenceEvaluation = parityMode && scalarProgram !== undefined && tauriRuntime && rustEligible;
   const requestKey = useMemo(
-    () => JSON.stringify({ elements, evaluationLimitIndex, scalarProgram, propertyBindingEntries }),
-    [elements, evaluationLimitIndex, scalarProgram, propertyBindingEntries]
+    () => JSON.stringify({
+      elements,
+      evaluationLimitIndex,
+      scalarProgram,
+      propertyBindingEntries,
+      controlBooleanEntries,
+      conditionalGroupConditionsByElementId: conditionalGroupConditionsByElementId
+        ? Array.from(conditionalGroupConditionsByElementId)
+        : undefined
+    }),
+    [elements, evaluationLimitIndex, scalarProgram, propertyBindingEntries, controlBooleanEntries, conditionalGroupConditionsByElementId]
   );
   const evaluationRequestRevision = useMemo(
     () => requestRevisionFor(`${evaluationRevision}:${requestKey}`),

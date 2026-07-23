@@ -31,6 +31,15 @@ pub struct EvaluationInput {
     /// binding ids against, rather than silently falling back to literal
     /// values.
     pub(crate) property_bindings: Option<Value>,
+    /// Task 25's elementId-keyed `forGroup.showGenerated` bindings. Same
+    /// fail-closed-without-a-scalar-program contract as `property_bindings`.
+    pub(crate) control_boolean_bindings: Option<Value>,
+    /// Task 25's `conditionalGroup.condition` typed boolean expressions, one
+    /// entry per bound `conditionalGroup` (`{elementId, expression}`). A
+    /// distinct shape from `control_boolean_bindings`/`property_bindings`
+    /// (a full AST, not a bindingId) since `condition` accepts an arbitrary
+    /// boolean expression, not just a bare `@name` reference.
+    pub(crate) condition_expressions: Option<Value>,
 }
 
 #[derive(Debug, Serialize)]
@@ -94,6 +103,10 @@ pub struct EvaluationPayload {
     pub(crate) condition_inactive_element_ids: Vec<ElementId>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub(crate) for_group_generated_rows: Vec<ForGroupGeneratedRow>,
+    /// Task 25: `forGroup` ids whose generated-result presentation is
+    /// enabled. Never affects iteration count/rows - `for_group_generated_rows`
+    /// above is always fully populated regardless of membership here.
+    pub(crate) for_group_effective_show_generated_ids: Vec<ElementId>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) computed_scalar_bindings: Option<Vec<Value>>,
 }

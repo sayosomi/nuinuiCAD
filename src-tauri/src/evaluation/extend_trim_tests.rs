@@ -6,6 +6,8 @@ use serde_json::json;
 fn extend_trim_extends_line_and_supports_coordinate_target() {
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements: vec![
             free_point("a", "A", 0.0, 0.0),
             free_point("b", "B", 100.0, 0.0),
@@ -38,6 +40,8 @@ fn extend_trim_extends_line_and_supports_coordinate_target() {
 fn extend_trim_reports_line_target_error_and_dependency_error() {
     let target_error = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements: vec![
             free_point("a", "A", 0.0, 0.0),
             free_point("b", "B", 100.0, 0.0),
@@ -63,6 +67,8 @@ fn extend_trim_reports_line_target_error_and_dependency_error() {
 
     let dependency_error = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements: vec![element(json!({
             "id": "extend",
             "name": "延長短縮",
@@ -83,6 +89,8 @@ fn extend_trim_reports_line_target_error_and_dependency_error() {
 fn extend_trim_moves_arc_endpoint() {
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements: vec![
             free_point("center", "中心", 0.0, 0.0),
             free_point("target", "目標", -10.0, 0.0),
@@ -123,6 +131,8 @@ fn extend_trim_moves_arc_endpoint() {
 fn extend_trim_moves_bezier_endpoint_on_tangent() {
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements: vec![
             free_point("start", "始点", 0.0, 0.0),
             free_point("end", "終点", 100.0, 0.0),
@@ -169,6 +179,8 @@ fn extend_trim_moves_bezier_endpoint_on_tangent() {
 fn extend_trim_shortens_bezier_to_division_point_on_body() {
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements: vec![
             free_point("start", "始点", 0.0, 0.0),
             free_point("end", "終点", 100.0, 0.0),
@@ -218,6 +230,8 @@ fn extend_trim_shortens_bezier_to_division_point_on_body() {
     // must land on the same point as sampling the original curve at half the split's t.
     let original = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements: vec![
             free_point("start", "始点", 0.0, 0.0),
             free_point("end", "終点", 100.0, 0.0),
@@ -258,6 +272,8 @@ fn extend_trim_shortens_bezier_to_division_point_on_body() {
 fn extend_trim_shortens_bezier_start_to_division_point_on_body() {
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements: vec![
             free_point("start", "始点", 0.0, 0.0),
             free_point("end", "終点", 100.0, 0.0),
@@ -310,6 +326,8 @@ fn extend_trim_shortens_bezier_start_to_division_point_on_body() {
 fn extend_trim_shortens_multi_segment_bezier_and_keeps_untouched_segments() {
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements: vec![
             free_point("a", "点A", 0.0, 0.0),
             free_point("b", "点B", 50.0, 30.0),
@@ -381,6 +399,8 @@ fn extend_trim_bezier_to_opposite_anchor_reports_zero_length_error() {
     // misleading "not on the endpoint-angle line" error.
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements: vec![
             free_point("start", "始点", 0.0, 0.0),
             free_point("end", "終点", 100.0, 0.0),
@@ -408,6 +428,8 @@ fn extend_trim_bezier_to_opposite_anchor_reports_zero_length_error() {
 fn extend_trim_shortens_bezier_to_intersection_point_on_body() {
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements: vec![
             free_point("start", "始点", 0.0, 0.0),
             free_point("end", "終点", 100.0, 0.0),
@@ -459,6 +481,8 @@ fn extend_trim_shortens_bezier_to_intersection_point_on_body() {
 fn extend_trim_shortens_arc_to_division_point_on_circle() {
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements: vec![
             free_point("center", "中心", 0.0, 0.0),
             element(json!({
@@ -512,6 +536,8 @@ fn extend_trim_shortens_arc_to_division_point_on_circle() {
 fn extend_trim_moves_open_offset_line_and_rejects_closed_offset_line() {
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements: vec![
             free_point("a", "A", 0.0, 0.0),
             free_point("b", "B", 100.0, 0.0),
@@ -560,6 +586,8 @@ fn extend_trim_moves_open_offset_line_and_rejects_closed_offset_line() {
 
     let closed = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements: vec![
             free_point("a", "A", 0.0, 0.0),
             free_point("b", "B", 100.0, 0.0),
@@ -597,6 +625,8 @@ fn extend_trim_moves_open_offset_line_and_rejects_closed_offset_line() {
 fn updated_line_can_feed_downstream_rust_elements() {
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements: vec![
             free_point("a", "A", 0.0, 0.0),
             free_point("b", "B", 100.0, 0.0),
@@ -681,6 +711,8 @@ fn extend_trim_shortens_offset_bezier_and_keeps_untouched_segments_analytic() {
     let elements = offset_bezier_elements();
     let baseline = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements: elements.clone(),
         evaluation_limit_index: None,
         scalar_expression_payload: None,
@@ -709,6 +741,8 @@ fn extend_trim_shortens_offset_bezier_and_keeps_untouched_segments_analytic() {
     })));
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements: extended_elements,
         evaluation_limit_index: None,
         scalar_expression_payload: None,
@@ -740,6 +774,8 @@ fn extend_trim_extends_offset_bezier_endpoint_by_appending_line_segment() {
     let elements = offset_bezier_elements();
     let probe = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements: elements.clone(),
         evaluation_limit_index: None,
         scalar_expression_payload: None,
@@ -767,6 +803,8 @@ fn extend_trim_extends_offset_bezier_endpoint_by_appending_line_segment() {
     })));
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
         elements: extended_elements,
         evaluation_limit_index: None,
         scalar_expression_payload: None,
