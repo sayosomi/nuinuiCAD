@@ -3,9 +3,10 @@ import {
   isAssignableToPropertyCapability,
   isChoiceOptionMember,
   isScalarTypeAssignable,
+  scalarValueSatisfiesPropertyCapability,
   type PropertyBindingCapability
 } from "./scalarAssignability";
-import type { ChoiceScalarType, ScalarType } from "./types";
+import type { ChoiceScalarType, ScalarType, ScalarValue } from "./types";
 
 describe("isScalarTypeAssignable", () => {
   it("allows only exact-match assignment between bindings, with no widening", () => {
@@ -66,5 +67,33 @@ describe("isAssignableToPropertyCapability", () => {
       propertyType: { kind: "choice", options: ["right", "left"] }
     };
     expect(isAssignableToPropertyCapability({ kind: "string" }, sideCapability)).toBe(false);
+  });
+});
+
+describe("scalarValueSatisfiesPropertyCapability", () => {
+  it("requires exact kind match for non-choice properties", () => {
+    const booleanCapability: PropertyBindingCapability = { propertyType: { kind: "boolean" } };
+    expect(scalarValueSatisfiesPropertyCapability({ kind: "boolean", value: true }, booleanCapability)).toBe(true);
+    expect(scalarValueSatisfiesPropertyCapability({ kind: "number", value: 1 }, booleanCapability)).toBe(false);
+  });
+
+  it("accepts a runtime choice value from a binding whose declared type is a narrower subset than the property", () => {
+    const sideCapability: PropertyBindingCapability = {
+      propertyType: { kind: "choice", options: ["right", "left"] }
+    };
+    // The binding's own declared type only ever has "right" as an option -
+    // scalarValueMatchesType would reject this (option lists differ), but
+    // this function only checks the runtime literal against the property's
+    // own accepted options (D07's subset-assignment rule).
+    const narrowBindingValue: ScalarValue = { kind: "choice", value: "right", options: ["right"] };
+    expect(scalarValueSatisfiesPropertyCapability(narrowBindingValue, sideCapability)).toBe(true);
+  });
+
+  it("rejects a choice value not in the property's own option set", () => {
+    const sideCapability: PropertyBindingCapability = {
+      propertyType: { kind: "choice", options: ["right", "left"] }
+    };
+    const outOfRangeValue: ScalarValue = { kind: "choice", value: "center", options: ["right", "left", "center"] };
+    expect(scalarValueSatisfiesPropertyCapability(outOfRangeValue, sideCapability)).toBe(false);
   });
 });

@@ -5,6 +5,7 @@ use serde_json::json;
 #[test]
 fn edge_extends_and_trims_two_line_endpoints() {
     let result = evaluate_document_input(EvaluationInput {
+        property_bindings: None,
         elements: vec![
             free_point("a", "A", 0.0, 0.0),
             free_point("b", "B", 100.0, 0.0),
@@ -42,6 +43,7 @@ fn edge_extends_and_trims_two_line_endpoints() {
 #[test]
 fn edge_trims_a_bezier_and_a_line() {
     let result = evaluate_document_input(EvaluationInput {
+        property_bindings: None,
         elements: vec![
             free_point("start", "始点", 0.0, 0.0),
             free_point("end", "終点", 100.0, 0.0),
@@ -84,6 +86,7 @@ fn edge_trims_a_bezier_and_a_line() {
 #[test]
 fn edge_trims_two_bezier_curves() {
     let result = evaluate_document_input(EvaluationInput {
+        property_bindings: None,
         elements: vec![
             free_point("start", "始点", 0.0, 0.0),
             free_point("end", "終点", 100.0, 0.0),
@@ -135,6 +138,7 @@ fn edge_trims_two_bezier_curves() {
 #[test]
 fn edge_extends_a_bezier_along_its_handle_angle() {
     let result = evaluate_document_input(EvaluationInput {
+        property_bindings: None,
         elements: vec![
             free_point("start", "始点", 0.0, 0.0),
             free_point("end", "終点", 50.0, 0.0),
@@ -186,6 +190,7 @@ fn edge_extends_a_bezier_along_its_handle_angle() {
 #[test]
 fn edge_reports_geometry_errors() {
     let same_line = evaluate_document_input(EvaluationInput {
+        property_bindings: None,
         elements: vec![
             free_point("a", "A", 0.0, 0.0),
             free_point("b", "B", 100.0, 0.0),
@@ -208,6 +213,7 @@ fn edge_reports_geometry_errors() {
     assert!(same_line.errors[0].message.contains("同じ線"));
 
     let parallel = evaluate_document_input(EvaluationInput {
+        property_bindings: None,
         elements: vec![
             free_point("a", "A", 0.0, 0.0),
             free_point("b", "B", 100.0, 0.0),
@@ -233,6 +239,7 @@ fn edge_reports_geometry_errors() {
     assert!(parallel.errors[0].message.contains("交点"));
 
     let invalid_index = evaluate_document_input(EvaluationInput {
+        property_bindings: None,
         elements: vec![
             free_point("a", "A", 0.0, 0.0),
             free_point("b", "B", 100.0, 0.0),

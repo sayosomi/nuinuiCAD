@@ -45,7 +45,7 @@
 | 20 | [TS const evaluation](tasks/20-ts-const-evaluation.md) | reference evaluation | 16,19 | gated reference path | `typed-vars/20-ts-const-eval` | 完了 |
 | 21 | [Rust const evaluation parity](tasks/21-rust-const-evaluation-parity.md) | production evaluation | 18,19,20 | gated Rust/shadow path | `typed-vars/21-rust-const-eval` | 完了 |
 | 22 | [property reference typecheck](tasks/22-property-reference-typecheck.md) | compiler/parameters | 13,15,19 | analysis only | `typed-vars/22-property-typecheck` | 完了 |
-| 23 | [standard property runtime](tasks/23-standard-property-runtime.md) | TS/Rust evaluation | 21,22 | gated runtime | `typed-vars/23-property-runtime` | 未着手 |
+| 23 | [standard property runtime](tasks/23-standard-property-runtime.md) | TS/Rust evaluation | 21,22 | gated runtime | `typed-vars/23-property-runtime` | 完了 |
 | 24 | [printEnabled runtime](tasks/24-print-enabled-runtime.md) | print state | 21,22 | gated print runtime | `typed-vars/24-print-enabled` | 未着手 |
 | 25 | [boolean control-flow runtime](tasks/25-boolean-control-flow-runtime.md) | control flow | 18,21,22 | gated control runtime | `typed-vars/25-boolean-control-flow` | 未着手 |
 | 26 | [text template analysis](tasks/26-text-template-analysis.md) | template/parser | 09,12,15 | analysis only | `typed-vars/26-template-analysis` | 未着手 |
@@ -251,7 +251,7 @@ Task 20/21のconst runtime pathはTask 31/32へ、Task 46のnui 3 persistence pa
 
 ## 次に実行可能なtask
 
-直近は23、24、25(いずれも21・22完了済み)、26、42。Task 21でRust-first `evaluate_document(input)` がTask 19の解決済み`scalar_program`を評価し、`computedScalarBindings`をTS payloadへ返す。22の完了後に23〜25、26/27完了後に28、29〜31完了後に32がこのbinding environmentを再利用し、source再parse・名前再解決・legacy fallbackを追加しない。
+直近は24、25(いずれも21・22完了済み)、26、42。23は完了済み。Task 21でRust-first `evaluate_document(input)` がTask 19の解決済み`scalar_program`を評価し、`computedScalarBindings`をTS payloadへ返す。22の完了後に23〜25、26/27完了後に28、29〜31完了後に32がこのbinding environmentを再利用し、source再parse・名前再解決・legacy fallbackを追加しない。
 
 ### Task 22完了時点の引き継ぎ(23〜26向け)
 
@@ -262,6 +262,17 @@ Task 20/21のconst runtime pathはTask 31/32へ、Task 46のnui 3 persistence pa
 - 23(標準property)・24(printEnabled)・25(showGenerated)は、このmapを`bindingId`でTask 21の`computedScalarBindings`と突き合わせてruntime値を得ればよく、sourceの再parse・binding名の再解決は不要。
 - 26(text template)は`text.text`が単独`@binding`のケースをこのmapから得られるが、`{...}`interpolation hole自体はTask 22の対象外であり、26が新たに解析する。
 - `src/dsl/dslApplyArgs.ts`のboolean引数は`@`始まりの値に対して「true/false で指定してください」診断を出さないよう変更済み(Task 22でのbinding診断と重複させないため)。choice/text引数はもともと未検証だったため変更なし。
+
+### Task 23完了時点の引き継ぎ(24〜25向け)
+
+Task 23で`computedScalarBindings`の生成方式を、文書全体の評価ループが終わった後に一括評価する方式から、**on-demand・memoized resolver**方式へ変更した(TS: `src/scalars/declarationEvaluator.ts`の`createLazyScalarProgramEvaluator`/`finalizeScalarProgramEvaluation`、`src/geometry/scalarProgramEvaluation.ts`の`createDocumentScalarBindingResolver`。Rust: `src-tauri/src/evaluation/scalars/bindings.rs`の`ScalarBindingResolver`)。
+
+- `resolve(bindingId)`はbindingの初期化子を初回参照時にだけ評価し、結果をmemoizeする。legacy var参照は`computedVariables`/`state.computed_variables`を**都度live読み**する(事前snapshot方式ではない)。これにより、評価ループの途中(要素のproperty materialize時)でも安全にbinding値を取得でき、`computedScalarBindings`の最終出力はscalar_programが存在する限り常に生成される(propertyBindingの有無に依存しない)。
+- 循環参照はTask 13のcompile時diagnosticで既に排除されているが、defense-in-depthとして`in_progress`ガードを両言語に追加した(TS: 例外throw、Rust: `evaluation-binding-cycle-guard`という`ScalarEvaluation::Error`を返す)。
+- `finalize()`/`finalizeScalarProgramEvaluation`は`program.statements`を順に走査してresolverから値を引くため、内部でどんな順序でbindingが解決されても出力mapの順序は不変。
+- 24(printEnabled)・25(showGenerated)はこの同じresolver機構(`ScalarBindingResolver`/`createDocumentScalarBindingResolver`)を再利用してよい。それぞれの対象property専用のmaterialize adapter(`src/geometry/propertyBindingRuntime.ts`のような)を新設し、23の`STANDARD_PROPERTY_TARGETS`allowlistへ自分たちのpropertyを追加しないこと(scope越境になる)。
+- property runtimeの生産経路は`src/components/AppLayout.tsx`(store `doc.scalarProgram`/`doc.propertyBindings`/`doc.statementMap`/`doc.document.elements`から`buildPropertyBindingRuntimeEntries`で構築)→`src/geometry/useEvaluationEngine.ts`(`propertyBindingEntries`をTS reference/Rust IPC両方へ転送)→`src/geometry/evaluate.ts`/Rust `mod.rs`が実際にmaterializeする、という一直線。24/25もこの同じ経路(AppLayout→useEvaluationEngine→evaluate.ts/mod.rs)に新しいentry種別を足す形で接続できる。
+- Rust側のIPC payload形状(`EvaluationInput.property_bindings: Option<Value>`)と、7つの標準propertyペア+正準ScalarTypeを独自に検証する`property_binding_payload.rs`の設計は、24/25が新しいproperty pairを追加する際のテンプレートになる(Rustは常にTS payloadを無条件に信用せず、対象pairと期待型を自前で検証する)。
 
 ## Blocking decisions
 

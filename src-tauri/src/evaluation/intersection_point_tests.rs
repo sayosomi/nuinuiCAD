@@ -55,6 +55,7 @@ fn intersection(line1_id: &str, line2_id: &str, index: Value, use_extensions: bo
 #[test]
 fn evaluates_intersection_point_between_line_segments() {
     let result = evaluate_document_input(EvaluationInput {
+        property_bindings: None,
         elements: vec![
             free_point("a", "A", 0.0, 0.0),
             free_point("b", "B", 100.0, 100.0),
@@ -86,6 +87,7 @@ fn uses_line_endpoint_tangent_extensions_when_requested() {
         line_element("cd", "CD", "c", "d"),
     ];
     let without_extension = evaluate_document_input(EvaluationInput {
+        property_bindings: None,
         elements: [
             base.clone(),
             vec![intersection("ab", "cd", json!(0), false)],
@@ -96,6 +98,7 @@ fn uses_line_endpoint_tangent_extensions_when_requested() {
         scalar_program: None,
     });
     let with_extension = evaluate_document_input(EvaluationInput {
+        property_bindings: None,
         elements: [base, vec![intersection("ab", "cd", json!(0), true)]].concat(),
         evaluation_limit_index: None,
         scalar_expression_payload: None,
@@ -118,6 +121,7 @@ fn uses_line_endpoint_tangent_extensions_when_requested() {
 #[test]
 fn evaluates_intersection_point_between_arc_and_line() {
     let result = evaluate_document_input(EvaluationInput {
+        property_bindings: None,
         elements: vec![
             free_point("center", "中心", 0.0, 0.0),
             free_point("p1", "P1", -20.0, 7.0),
@@ -152,6 +156,7 @@ fn evaluates_intersection_point_between_arc_and_line() {
 #[test]
 fn selects_intersection_point_by_index() {
     let result = evaluate_document_input(EvaluationInput {
+        property_bindings: None,
         elements: vec![
             free_point("center", "中心", 0.0, 0.0),
             free_point("p1", "P1", -20.0, 7.0),
@@ -186,6 +191,7 @@ fn selects_intersection_point_by_index() {
 #[test]
 fn reports_intersection_point_dependency_that_appears_too_late() {
     let result = evaluate_document_input(EvaluationInput {
+        property_bindings: None,
         elements: vec![
             intersection("ab", "missing", json!(0), false),
             free_point("a", "A", 0.0, 0.0),
@@ -217,6 +223,7 @@ fn reports_intersection_point_geometry_errors() {
     ];
 
     let same_line = evaluate_document_input(EvaluationInput {
+        property_bindings: None,
         elements: [
             base.clone(),
             vec![intersection("ab", "ab", json!(0), false)],
@@ -227,6 +234,7 @@ fn reports_intersection_point_geometry_errors() {
         scalar_program: None,
     });
     let invalid_index = evaluate_document_input(EvaluationInput {
+        property_bindings: None,
         elements: [
             base.clone(),
             vec![intersection("ab", "cd", json!(0.5), false)],
@@ -237,6 +245,7 @@ fn reports_intersection_point_geometry_errors() {
         scalar_program: None,
     });
     let out_of_range = evaluate_document_input(EvaluationInput {
+        property_bindings: None,
         elements: [base, vec![intersection("ab", "cd", json!(1), false)]].concat(),
         evaluation_limit_index: None,
         scalar_expression_payload: None,
@@ -251,6 +260,7 @@ fn reports_intersection_point_geometry_errors() {
 #[test]
 fn reports_no_intersection_and_overlapping_lines() {
     let no_intersection = evaluate_document_input(EvaluationInput {
+        property_bindings: None,
         elements: vec![
             free_point("a", "A", 0.0, 0.0),
             free_point("b", "B", 10.0, 0.0),
@@ -265,6 +275,7 @@ fn reports_no_intersection_and_overlapping_lines() {
         scalar_program: None,
     });
     let overlap = evaluate_document_input(EvaluationInput {
+        property_bindings: None,
         elements: vec![
             free_point("a", "A", 0.0, 0.0),
             free_point("b", "B", 10.0, 0.0),
@@ -288,6 +299,7 @@ fn reports_no_intersection_and_overlapping_lines() {
 #[test]
 fn evaluates_intersection_index_numeric_variables_and_expressions() {
     let result = evaluate_document_input(EvaluationInput {
+        property_bindings: None,
         elements: vec![
             free_point("a", "A", 0.0, 0.0),
             free_point("b", "B", 100.0, 100.0),

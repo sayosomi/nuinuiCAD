@@ -49,6 +49,7 @@ fn base_three_point_arc() -> Vec<Value> {
 #[test]
 fn evaluates_three_point_arc_line() {
     let result = evaluate_document_input(EvaluationInput {
+        property_bindings: None,
         elements: base_three_point_arc(),
         evaluation_limit_index: None,
         scalar_expression_payload: None,
@@ -77,6 +78,7 @@ fn evaluates_three_point_arc_line() {
 #[test]
 fn evaluates_three_point_arc_wrap_and_measurement_reference() {
     let result = evaluate_document_input(EvaluationInput {
+        property_bindings: None,
         elements: vec![
             free_point("p1", "点1", 20.0, 0.0),
             free_point("p2", "点2", 0.0, -20.0),
@@ -120,6 +122,7 @@ fn evaluates_three_point_arc_wrap_and_measurement_reference() {
 #[test]
 fn reports_three_point_arc_dependency_that_appears_too_late() {
     let result = evaluate_document_input(EvaluationInput {
+        property_bindings: None,
         elements: vec![
             free_point("p1", "点1", 10.0, 0.0),
             element(json!({
@@ -152,6 +155,7 @@ fn reports_three_point_arc_dependency_that_appears_too_late() {
 #[test]
 fn reports_three_point_arc_geometry_error_for_collinear_points() {
     let result = evaluate_document_input(EvaluationInput {
+        property_bindings: None,
         elements: vec![
             free_point("p1", "点1", 0.0, 0.0),
             free_point("p2", "点2", 10.0, 10.0),
@@ -188,6 +192,7 @@ fn reports_three_point_arc_geometry_error_for_collinear_points() {
 #[test]
 fn evaluates_three_point_arc_numeric_variables_and_expressions() {
     let result = evaluate_document_input(EvaluationInput {
+        property_bindings: None,
         elements: vec![
             free_point("p1", "点1", 10.0, 0.0),
             free_point("p2", "点2", 0.0, -10.0),
@@ -285,6 +290,7 @@ fn allows_supported_point_elements_to_reference_three_point_arc() {
         })),
     ]);
     let result = evaluate_document_input(EvaluationInput {
+        property_bindings: None,
         elements,
         evaluation_limit_index: None,
         scalar_expression_payload: None,

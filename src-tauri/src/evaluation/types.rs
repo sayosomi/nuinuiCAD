@@ -23,6 +23,14 @@ pub struct EvaluationInput {
     /// Task 19's validated declaration-only IR. Task 21 evaluates this after
     /// the production geometry pass, preserving the existing geometry result.
     pub(crate) scalar_program: Option<Value>,
+    /// Task 23's elementId-keyed standard property bindings (re-keyed from
+    /// `CompiledDslDocument.propertyBindings` by TS's
+    /// `propertyBindingRuntime.ts`). Requires `scalar_program` to also be
+    /// present - see `property_binding_payload.rs`'s validation, which
+    /// rejects every entry when there is no scalar program to resolve
+    /// binding ids against, rather than silently falling back to literal
+    /// values.
+    pub(crate) property_bindings: Option<Value>,
 }
 
 #[derive(Debug, Serialize)]
