@@ -18,7 +18,7 @@ plain Quick Fix descriptor/splice、diagnostic code→actions、editor adapter�
 
 ## 5. 対象
 
-upgrade nui2→3、missing explicit type skeleton、invalid choice member候補、state conflict片側削除、const target案内。
+移行期間限定のheader-only nui2→3 upgrade、missing explicit type skeleton、invalid choice member候補、state conflict片側削除、const target案内。
 
 ## 6. 対象外
 
@@ -26,7 +26,7 @@ upgrade nui2→3、missing explicit type skeleton、invalid choice member候補�
 
 ## 7. 固定仕様
 
-header upgradeは06 spliceだけ。body rewriteなし。choice候補はmetadata順。意味が一意でないfixは提示しない。
+header upgradeは06 spliceだけでbody rewriteしない一時的な手動migration支援とし、Task 52でpre-nui 3 diagnostic/actionとともに削除する。choice候補はmetadata順。意味が一意でないfixは提示しない。
 
 ## 8. 実装方針
 
@@ -42,7 +42,7 @@ diagnostic quick fix module、editor diagnostics adapter、source edit tests。
 
 ## 11. 互換性条件
 
-existing diagnostics/actions維持。save時auto-fixなし。
+nui 3 diagnostics/actionsを維持し、save時auto-fixを行わない。legacy Quick Fixの網羅や自動migrationは要求しない。
 
 ## 12. performance条件
 

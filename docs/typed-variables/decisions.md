@@ -145,8 +145,29 @@ legacy `var`互換は、既存文書をtyped `const`/`let`へ移行するため�
 
 根拠: D05/D06/D15が個別に確認したlegacy `var`互換の各契約(namespace共有、measurement再利用、version upgrade時の受理)を横断する、blocking判定そのものの基準をユーザーが明示指定した。
 
+## D22: nui 3単一保存形式・手動migration・legacy全削除
+
+最終製品が受理・保存するdocument formatは`nui 3`だけとする。現存するpre-nui 3 parser、serializer、importer、adapter、fallback、bridge、fixture、conditional branchは、少数の既存文書を手動で更新するまでの一時的な開発用bridgeであり、最終製品契約ではない。
+
+- 自動migration tool、wizard、transparent upgrade、恒久fallbackは作らない。
+- typed-variables機能とnui 3 production経路を完成させた後、既存ユーザー文書をすべてinventory化し、復元可能な原本を確保して手動でnui 3へ更新する。
+- 更新済み文書はnui 3専用経路でopen、compile、Rust-first evaluate、save、reopenできることを個別に確認する。
+- 手動migration完了後、nui 2以前のparser分岐、legacy `var`/activity flags、v1/v2 importer・serializer、version別round-trip、compatibility adapter、migration fallback、legacy visibility/scope bridge、旧compiled/IPC shape、旧fixture/golden/parity test、旧形式だけのfeature flagを削除する。
+- 旧形式の完全round-trip、意味・visibility parity、compiled/IPC shape、legacy-only performanceはrelease条件にしない。旧形式は修正箇所を特定できる位置diagnosticを出してfail-closedでよい。
+- 旧形式でblockingなのは、crashまたはsource確認不能、source破壊・消失、位置情報不足で修正箇所を特定不能、保存前sourceへ戻れず手動修正が実質不可能、の4種類だけとする。
+- nui 3のデータ消失、誤評価、scope/type/runtime parity違反は従来どおりblockingとする。
+
+このDecisionは次の過去Decisionを部分的にsupersedeする。履歴を隠さないため過去本文は削除しない。
+
+- D05: legacy `var`とtyped bindingのnamespace共有・collision維持は移行期間だけ。最終nui 3 namespaceにはlegacy bindingを残さない。
+- D06: legacy measurement constructionを互換用に残す部分。typed number measurementの現行仕様は維持する。
+- D11: activity内部3状態は維持するが、legacy bridgeをv2文書へ恒久提供する部分は廃止する。
+- D12: v2 serializerとlegacy activity flags受理・混在診断は移行期間だけ。最終serializer/inputはnui 3 `state:`だけとする。
+- D15: nui 3でlegacy `var`/flagsを恒久受理すること、legacy importerがnui 2を出力し続けること、v2を保存対象として維持することを廃止する。
+- D21: best-effort互換のblocking範囲を上記4条件へ置き換え、手動migration後の全削除を追加する。
+
 ## Open decisions
 
 なし。
 
-これは推測による打ち切りではない。上記D01〜D21はユーザー指定で確定した事項、または現行sourceから確認できたcompatibility contractである。未指定だったmeasurement syntax、text construction、performance方法、DivisionPlacement挙動は既存実装を再利用・fixture化する方針で解決でき、新しい製品判断を要求しない。初期範囲外のqualified referenceやstring演算は明示的に後続へ分離した。
+これは推測による打ち切りではない。上記D01〜D22はユーザー指定で確定した事項、または現行sourceから確認できたcontractである。D22がsupersedeしたlegacy contract以外のmeasurement syntax、text construction、performance方法、DivisionPlacement挙動は維持し、初期範囲外のqualified referenceやstring演算は明示的に後続へ分離した。

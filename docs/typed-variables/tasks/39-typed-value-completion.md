@@ -38,11 +38,11 @@ completion context/candidate modules、CodeMirror adapter/tests。
 
 ## 10. 追加・更新するテスト
 
-全type/context、legacy/typed collision、shadow、forward/invalid exclusion、choice subset/order、dirty live buffer。
+全type/context、typed shadow、forward/invalid exclusion、choice subset/order、dirty live buffer。legacy/typed collision matrixは追加しない。
 
 ## 11. 互換性条件
 
-existing numeric/geometry completionを維持。qualified候補を出さない。
+nui 3 numeric/geometry completionを維持し、qualified候補を出さない。legacy-only候補差は非blocking。
 
 ## 12. performance条件
 

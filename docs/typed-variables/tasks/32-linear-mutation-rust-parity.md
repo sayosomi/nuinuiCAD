@@ -42,7 +42,7 @@ Rust mutation module/state/payload、TS adapter/eligibility、shared parity fixt
 
 ## 11. 互換性条件
 
-setなしoutput不変。legacy evaluator path不変。
+setなしnui 3 outputは21と同じ。legacy evaluator pathの維持は非blockingで、互換adapter/fixtureを追加しない。
 
 ## 12. performance条件
 

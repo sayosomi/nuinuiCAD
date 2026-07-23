@@ -38,11 +38,11 @@ TS template evaluator、text element evaluator adapter、focused reference tests
 
 ## 10. 追加・更新するテスト
 
-`前身頃を2枚カット`、numeric existing golden、escaped braces、新line escape、poison、multi-hole order。
+`前身頃を2枚カット`、nui 3 numeric interpolation、escaped braces、新line escape、poison、multi-hole order。
 
 ## 11. 互換性条件
 
-v2 numeric template outputを変えない。
+nui 3 numeric template formatをplan記載どおり維持する。v2 output parityは要求しない。
 
 ## 12. performance条件
 

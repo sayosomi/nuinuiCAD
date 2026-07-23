@@ -1,6 +1,6 @@
 # 型付き変数・レキシカルスコープ・要素activity 実装計画
 
-Status: 設計確定 / 実装未着手
+Status: 設計確定 / Task 00〜19完了、Task 20以降未着手
 
 ## 目的
 
@@ -8,11 +8,23 @@ nuinuiCADの数値専用document variableを、`number`、`string`、`boolean`�
 
 同じ計画で、現在の`visible`/`enabled`/`locked`を`visible`/`hidden`/`disabled`のactivityへ整理し、`DivisionPlacement`のstring discriminatorをtagged unionへ直す。ただし各変更は独立PRとし、型付き変数のactivationへ不要な結合を作らない。
 
+## nui 3完成の定義
+
+nui 3はtyped-variable機能を有効化しただけでは完成としない。次を順に完了する。
+
+1. 本計画のnui 3機能、serializer、production open/compile/evaluate/save経路を完成させる。
+2. 現存するユーザー文書をすべてinventory化し、原本へ戻せる状態を確保する。
+3. 各文書を手動でnui 3 sourceへ更新する。自動migration toolやwizardは作らない。
+4. 更新済み文書をnui 3経路でopen、compile、Rust-first evaluate、save、reopenし、期待結果を確認する。
+5. pre-nui 3専用parser、serializer、importer、adapter、fallback、bridge、fixture、conditional branchをすべて削除する。
+6. legacy-only code/testが残っていないことを確認し、nui 3だけになった時点を完成とする。
+
 ## 不変条件
 
 - 永続データの正は`.nui` source text。whole-file reserializationを編集経路へ追加しない。
-- 既存`nui 2`文書を開く、保存するだけでは本文を変更しない。
-- 既存numeric `var`の構文、評価、global/group scope、保存結果を壊さない。
+- 最終製品が受理・保存するformatは`nui 3`だけ。pre-nui 3互換は手動migrationまでの一時bridgeであり、恒久契約にしない。
+- legacy-onlyの意味差、visibility差、保存shape差、性能差、手動修正の必要性を後続Taskのblocking条件にしない。
+- 移行期間はsourceを確認でき、位置diagnosticから修正箇所を特定でき、保存前sourceへ戻せることを優先する。
 - production Tauri評価はRust-first。TSはreference evaluatorとparity oracle。
 - `evaluate_document(input)`のcommand名を維持し、IPCはJSON配列とplain objectだけにする。
 - 文書順評価を維持し、後方参照や壊れた依存を自動reorderで隠さない。
@@ -32,22 +44,22 @@ nuinuiCADの数値専用document variableを、`number`、`string`、`boolean`�
 9. Source Editor value span、`Alt+←/→`、pickerはnumeric/legacy parameterを前提にする。
 10. text evaluatorは`{...}`をnumeric expressionとしてだけ評価する。
 
-## DSL version境界
+## DSL version境界とlegacy lifecycle
 
-### nui 2
+### Task 47の手動migration完了まで
 
-- 現行syntaxだけをcanonical出力する。
-- legacy `var`と`visible`/`enabled`/`locked`を現在どおりparseする。
-- v3専用の`const`、`let`、`set`、型注釈、`state:`にはversion diagnosticを出す。
-- open/saveだけでは`nui 3`へ上げない。
+- Task 19までに存在するnui 2以前のparser、importer、serializer、legacy binding/activity bridgeは、既存文書のsource確認と手動修正のためだけに一時維持できる。
+- 旧文書の評価、open/save round-trip、意味・visibility parity、compiled/IPC shape、legacy-only performanceを保証しない。
+- 旧文書は位置情報付きdiagnosticでfail-closedでよい。crash/source確認不能、source破壊・消失、位置情報不足、保存前sourceへ復元不能だけをblockingとする。
+- header-only upgradeや既存diagnosticは手動migration支援として利用できるが、互換機能を拡張したり自動本文rewriteを追加したりしない。
 
-### nui 3
+### nui 3最終仕様
 
 - typed declaration、`set`、`state:`を受理する。
-- legacy `var`とlegacy activity flagsも互換入力として受理する。
-- `state:`と`visible`/`enabled`を同じstatementに書いた場合は`element-state-conflict`。
-- header upgradeは先頭の`nui 2`だけをstatement spliceで`nui 3`へ変更し、本文をbyte-for-byte維持して1 Undoにする。
-- 新規文書の既定を`nui 3`へ変えるのは最終activation taskだけ。
+- legacy `var`、legacy activity flags、nui 2以前のsyntaxやimport formatは受理しない。
+- serializer、round-trip、production document pathはnui 3単一実装とする。
+- 新規文書の既定をnui 3へ変更し、typed feature gateを外すのは、既存文書の手動migration後にlegacy codeを削除するTask 52だけ。
+- pre-nui 3入力はbodyをlegacy parseせずunsupportedとして拒否してよい。
 
 ## 型モデル
 
@@ -86,12 +98,12 @@ set 表示する = false
 
 - typed declarationは明示型必須。initializerからの宣言型推論はしない。
 - 同じbindingの型変更は禁止。nested scopeのshadowでは別型を許可する。
-- 同一effective scopeの同名legacy var/typed bindingはduplicate diagnostic。
+- Task 19までの同名legacy var/typed binding duplicate diagnosticは手動migrationまでの一時bridgeとし、nui 3最終仕様にはlegacy bindingを含めない。
 - `const`は`set`不可。`let`だけがtargetになれる。
 - `set`の効果はその行より後だけ。initializerをversion 0、各`set`を後続versionとして扱う。
 - 評価失敗versionはbindingをpoisonする。後続の正常な`set`で回復する。
 - typed numberは既存numeric expressionを使える。新しいmeasurementは`distance(A, B)`、`angle(A, B)`、既存点線距離関数をtyped number initializerで使う。
-- 既存pointDistance/pointAngle/pointLineDistance `var`はlegacy compatibilityとして残し、自動変換しない。
+- legacy pointDistance/pointAngle/pointLineDistance `var`は手動migrationまで既存bridgeに残ってもよいが、互換拡張や自動変換は行わずTask 52で削除する。
 
 ## string literalとtext template
 
@@ -141,8 +153,8 @@ stringは`==`/`!=`だけ。choice equalityは完全一致choice型だけ。strin
 - loop内typed declarationもiterationごとに再生成し、loop外へ漏れない。
 - element local、forGroup iteration、document bindingの優先順を維持する。layoutVarはprint専用numeric namespace。
 - nested `set`はvisibleな外側`let`を更新できる。
-- legacy varとtyped bindingは同じdocument reference namespace。同じeffective scopeで同名ならduplicate、nested shadowは許可。
-- rename probeはlegacy/typed間のcaptureも拒否し、completionで同名を重複表示しない。
+- Task 19までに実装されたlegacy/typed namespace共有は手動migrationまでの一時bridgeであり、後続rename/completion Taskの恒久完了条件にしない。
+- 最終nui 3のdocument reference namespaceにはlegacy bindingを残さない。
 
 今回、`@::name`、`@Group::name`、qualified set target、scope path completion/renameは追加しない。shadow後に外側同名bindingを明示参照する機能は後続。
 
@@ -152,7 +164,7 @@ stringは`==`/`!=`だけ。choice equalityは完全一致choice型だけ。strin
 - inactive branchは実行しないが静的型検査する。
 - forGroupはiteration間でouter `let`の値を持ち越し、最終値をloop後へ残す。
 - loop local declarationはiteration終了時に破棄する。
-- iteration binding、element local、layoutVar、legacy measurement varは`set`不可。
+- iteration binding、element local、layoutVarは`set`不可。移行中のlegacy measurement varもset targetへ昇格させない。
 - forGroup mutationは既存generated ID、generated row、evaluation limit、enabled maskの意味を変えない。
 
 ## property対応
@@ -182,11 +194,9 @@ type ElementActivity = "visible" | "hidden" | "disabled";
 - disabled: evaluateもdrawもしない。
 - parent disabledが最優先。parent hiddenは評価を止めず、描画だけを隠す。
 - Canvasとprintはeffective draw stateを使い、dependencyはeffective evaluation stateを使う。
-- v2 serializerはvisibleならflag省略、hiddenなら`visible: false`、disabledなら`enabled: false`。
 - nui 3 serializerはvisibleなら`state`省略、hidden/disabledなら`state: hidden|disabled`。
-- legacy `visible:false enabled:false`はdisabled。
-- activity内部モデルとlegacy bridgeはnui 3より先にproduction化し、v2もそのmodelで動かす。
-- `locked`は削除する。legacy inputはwarning、sourceは明示編集まで保持、再生成時には出力しない。
+- activity内部3状態はnui 3仕様として維持する。
+- v2 flag mapping、legacy activity input、`locked` warningとsource保持は手動migrationまでの既存bridgeに限定し、Task 52でparser/serializer/testごと削除する。
 
 activity command/UIは1つのcommand domainを正とする。gutter clickはvisible→hidden→disabled→visibleをcycleし、context menu/ribbonは3状態を直接指定する。既定shortcutは置かず、旧`A`を削除して`V`へ移行しない。
 
@@ -200,7 +210,7 @@ type DivisionPlacement =
   | { kind: "ratio"; value: NumericValue };
 ```
 
-現状はboth指定をparserが診断しcompilerはdistanceを選ぶ。neitherはfactoryのratio 0.5。legacy v1もdistance優先。serializerはactive側だけ、dragはactive側だけ更新、duplicate/forGroup cloneは全field copy、IPCはJSONをそのまま渡し、Rustは`distance`以外をratio扱いする。characterization fixtureでこれを固定してから、compiler/factory/serializer/evaluator/drag/import/clone/IPCを1回のunion migrationで切り替える。
+現状はboth指定をparserが診断しcompilerはdistanceを選ぶ。neitherはfactoryのratio 0.5。serializerはactive側だけ、dragはactive側だけ更新、duplicate/forGroup cloneは全field copy、IPCはJSONをそのまま渡し、Rustは`distance`以外をratio扱いする。Task 04〜05で実施済みのlegacy v1 characterizationは移行時の履歴であり、v1 importer/fixtureはTask 52の削除対象とする。
 
 ## binding resolutionと評価データ
 
@@ -214,7 +224,7 @@ type ScalarProgramStatement =
 
 geometry elementsは従来の`elements`配列に残す。typed declarationとsetをfake geometry elementにはしない。evaluation inputへJSON-friendlyなscalar programを追加し、statement ID/source span indexはTS側analysisに保持する。
 
-binding解析はconst評価より先に完成させる。scope index、stable ID、shadow/order、legacy collision、undefined/forward/self、initializer graph、SCC cycle、exact spansをbinding coreが担当する。const evaluatorは解決済み結果だけを使う。
+binding解析はconst評価より先に完成済み。scope index、stable ID、shadow/order、undefined/forward/self、initializer graph、SCC cycle、exact spansをbinding coreが担当する。Task 19までのlegacy collision supportは移行bridgeであり、const evaluatorは解決済みnui 3結果だけを恒久契約として使う。
 
 ## TS/Rust責務
 
@@ -249,20 +259,20 @@ TS adapterはRust issue IDをsource spanへ再結合する。Rustでsource文字
 - `scalar-type-mismatch`、`property-type-mismatch`
 - `invalid-runtime-binding-payload`、`poisoned-binding`
 - `unterminated-interpolation`、`interpolation-type-mismatch`
-- `element-state-conflict`、`legacy-locked-ignored`
+- `element-state-conflict`、`legacy-locked-ignored`(いずれも手動migrationまでの一時diagnostic)
 
 diagnosticは対象tokenのexact span、expected/actual type、binding名とID、property名、依存先を可能な限り持つ。invalid bindingは通常value completionから除外するが、invalid `let`は回復用set target候補には残す。
 
-## serializerとround-trip
+## serializer、round-trip、manual migration
 
-- serializer APIはmajor versionを必須入力にし、v2/v3を暗黙推測しない。
+- 最終serializer APIはnui 3単一実装とし、v2/v3を恒久的に並立させない。
 - typed declarationは明示型とmutabilityを必ず出力する。
 - stringはdouble quoteと定義済みescapeへcanonicalizeする。
 - setは`set <name> = <expression>`へcanonicalizeする。
 - source open/saveはnormalizeしない。command/Canvas/Source Editor操作で対象statementを再生成したときだけcanonical化する。
-- header upgradeは本文serializerを呼ばない。
-- legacy JSON importerとv1 importerは互換上`nui 2`を出力し続ける。
-- 新規文書だけ最終activation後に`nui 3`。
+- Task 46でnui 3 sourceのparse→compile→serialize→compile semantic round-tripとstatement patchを完成させる。
+- Task 47で現存ユーザー文書をinventory化し、復元可能な原本を確保して手動更新し、nui 3経路でopen/compile/evaluate/save/reopenする。
+- Task 52でv1/v2 importer、旧serializer、version別round-trip、compatibility fixtureを削除してから、新規文書defaultをnui 3へ切り替える。
 
 ## UI
 
@@ -301,7 +311,7 @@ baseline taskは同構造の250/1000要素fixtureを作る。既存`statementRec
 
 - TSは`src/scalars/`へtypes、literal scanner、AST、scope index、resolution、typecheck、program、templateを分離する。
 - Rustは`src-tauri/src/evaluation/scalars/`へtypes、payload validation、expression、bindings、mutation、templateを分離する。
-- `geometry.ts`、`dslCompiler.ts`、`numericExpressions.ts`、Rust `numeric_expression.rs`、`sourceEditorController.ts`、`parameterDefinitions.ts`はadapter/既存互換変更に限定する。
+- `geometry.ts`、`dslCompiler.ts`、`numericExpressions.ts`、Rust `numeric_expression.rs`、`sourceEditorController.ts`、`parameterDefinitions.ts`へlegacy-only adapterやfallbackを追加しない。既存bridgeはTask 52で削除する。
 - 新規sourceは原則300行未満。400行超はPR説明に理由、600行超の既存fileへ新責務を足さない。
 
 ## 今回含めない機能

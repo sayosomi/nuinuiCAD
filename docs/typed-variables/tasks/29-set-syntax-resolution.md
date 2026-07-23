@@ -38,11 +38,11 @@ targetは通常bare nameだけ。visibleな最内側let。constはconst-assignme
 
 ## 10. 追加・更新するテスト
 
-valid全型、shadow target、const/undefined/legacy/local、RHS mismatch、comments/spans、v2 version error、round-trip。
+valid全型、shadow target、const/undefined/local/iteration、RHS mismatch、comments/spans、nui 3 round-trip。移行中のlegacy target拒否はrepresentative caseだけ確認する。
 
 ## 11. 互換性条件
 
-legacy `set`相当syntaxはない。v2では明確なversion diagnostic。
+`set`はnui 3専用。移行中のpre-nui 3 sourceには位置付きversion diagnosticを出してよいが、旧format round-tripやparser拡張は行わずTask 52でversion bridgeを削除する。
 
 ## 12. performance条件
 

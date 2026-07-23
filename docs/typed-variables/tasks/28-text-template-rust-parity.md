@@ -42,7 +42,7 @@ Rust template module/text evaluator、TS IPC conversion/eligibility、shared par
 
 ## 11. 互換性条件
 
-v2 numeric text fixture parity維持。scalarProgramなしはexisting behavior。
+nui 3 numeric/string templateのTS/Rust parityを維持する。v2 fixtureやscalar program未使用時の旧output shapeは完了条件にしない。
 
 ## 12. performance条件
 

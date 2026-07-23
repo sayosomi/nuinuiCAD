@@ -14,7 +14,7 @@ source order、scope、dependency graphを使ってtyped declaration initializer
 
 ## 4. 前提API・型
 
-`evaluateScalarDeclarations(program, geometryContext)`、binding environment、computed/poison results。
+Task 19の`CompiledDslDocument.scalarProgram` / `ScalarProgram`、`evaluateTypedExpression(ast, environment)`、binding environment、computed/poison results。
 
 ## 5. 対象
 
@@ -42,7 +42,7 @@ initializer failureはtyped poison。forward/self/cycleは13 issueを使い再�
 
 ## 11. 互換性条件
 
-legacy computedVariables mapは維持し、typed resultを別mapに追加する。
+typed resultはbinding ID keyの別mapにする。移行中のlegacy `computedVariables` mapや旧output shapeとの完全一致は非blockingであり、そのためのadapter/fixtureを追加しない。既存bridgeはTask 52で削除する。
 
 ## 12. performance条件
 

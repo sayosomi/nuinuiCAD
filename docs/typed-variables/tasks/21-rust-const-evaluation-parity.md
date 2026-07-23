@@ -14,7 +14,7 @@ scalar declaration programをRust production engineのgated pathで評価し、2
 
 ## 4. 前提API・型
 
-Rust binding environment/computed scalar payload、TS payload conversion、eligibility/parity support。
+Task 19の`EvaluationInput.scalar_program` / validated Rust program payload、Rust binding environment/computed scalar payload、TS payload conversion、eligibility/parity support。
 
 ## 5. 対象
 
@@ -42,7 +42,7 @@ Rust evaluation input/state/payload/scalars bindings、TS payload adapters/eligi
 
 ## 11. 互換性条件
 
-scalarProgramなしはexisting outputと同じ。legacy computedVariables untouched。
+scalar programが空のnui 3 documentは既存nui 3 geometry semanticsを変えない。optional payload未使用時の旧consumer shapeやlegacy `computedVariables` parityは非blockingであり、互換分岐を追加しない。
 
 ## 12. performance条件
 

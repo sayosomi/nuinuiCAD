@@ -6,7 +6,7 @@
 
 ## 2. 目的
 
-00 protocolでbinding analysis、TS reference、Rust production、forGroup mutationを独立測定し、再現可能なregression gateを置く。
+00 protocolでnui 3 binding analysis、TS reference、Rust production、forGroup mutationを独立測定し、再現可能なregression gateを置く。
 
 ## 3. 依存タスク
 
@@ -22,7 +22,7 @@ shared performance fixture generator/statistics/report helper、documented bench
 
 ## 6. 対象外
 
-behavior optimization以外の機能追加、UI manual latency。
+behavior optimization以外の機能追加、UI manual latency、legacy-only parser/evaluator/bridge性能。
 
 ## 7. 固定仕様
 
@@ -42,7 +42,7 @@ fixture correctness、stats helper、each measurement finite、scaling/guard ass
 
 ## 11. 互換性条件
 
-existing performance scripts/gatesを削除しない。
+nui 3で引き続き使うperformance scripts/gatesを維持する。legacy-only性能低下は非blockingで、新しいcompatibility benchmarkを追加しない。
 
 ## 12. performance条件
 
@@ -54,7 +54,7 @@ existing performance scripts/gatesを削除しない。
 
 ## 14. 次タスクへの引き継ぎ
 
-51で実機体感、52で全gate greenを確認する。
+51で実機体感を確認し、47の手動migration後に52で全nui 3 gateを再確認する。
 
 ## 15. PR境界
 

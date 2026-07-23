@@ -38,11 +38,11 @@ focused fixture filesをfeature組合せmatrixへ集約し、巨大1fixtureだ�
 
 ## 10. 追加・更新するテスト
 
-happy/error/mixed legacy/typed、nested control、all property types、text escape、poison recovery、activity/print。
+happy/error typed documents、nested control、all property types、text escape、poison recovery、nui 3 activity/print。
 
 ## 11. 互換性条件
 
-existing parity fixtures/result normalization維持。
+nui 3 parity fixtures/result normalizationを維持する。legacy-only fixtureや旧shape normalizationは追加しない。
 
 ## 12. performance条件
 
@@ -50,11 +50,11 @@ parity command時間は記録するがbehavior evaluator benchmarkと混ぜな�
 
 ## 13. 完了条件
 
-`npm run test:parity`でtyped matrix差分ゼロ、unsupported fallback漏れなし。
+`npm run test:parity`でnui 3 typed matrix差分ゼロ。legacy fallbackやpre-nui 3 payload parityはrelease gateにしない。
 
 ## 14. 次タスクへの引き継ぎ
 
-50 performance、51 manual、52 activationの必須gate。
+50 performance、51 manual nui 3 E2E、47 manual migration、52 activationの必須gate。
 
 ## 15. PR境界
 

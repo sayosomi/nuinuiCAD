@@ -10,7 +10,7 @@ parser/analysis/runtimeから返る全typed issueを一貫したcode/span/messag
 
 ## 3. 依存タスク
 
-23, 24, 25, 28, 32, 35, 36, 38, 41, 44, 45, 47
+23, 24, 25, 28, 32, 35, 36, 38, 41, 44, 45, 46
 
 ## 4. 前提API・型
 
@@ -18,7 +18,7 @@ stable typed diagnostic schema、Rust issue→TS span remap、editor/Inspector n
 
 ## 5. 対象
 
-plan記載全code、multiple errors、fail-closed element/property、Quick Fix link、gutter/Inspector marker。
+plan記載のnui 3 code、multiple errors、fail-closed element/property、Quick Fix link、gutter/Inspector marker。手動migrationまで残るpre-nui 3 diagnosticは、sourceを確認でき修正箇所を特定できるrepresentative caseだけ確認する。
 
 ## 6. 対象外
 
@@ -42,7 +42,7 @@ diagnostic types/adapters/editor extension/Inspector presentation、integration 
 
 ## 11. 互換性条件
 
-existing dependency diagnostics message/IDsを不要に変えない。
+nui 3 dependency diagnostics message/IDsを不要に変えない。legacy-only semantic/visibility parityや過剰なmalformed matrixは要求しない。
 
 ## 12. performance条件
 

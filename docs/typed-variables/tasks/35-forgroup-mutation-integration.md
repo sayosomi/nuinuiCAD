@@ -42,7 +42,7 @@ TS/Rust forGroup evaluator/integration、payload/parity/performance fixtures。
 
 ## 11. 互換性条件
 
-setなしforGroup output byte/semantic parity維持。
+setなしnui 3 forGroupのgenerated ID、row、order、mask semanticsを維持する。旧compiled shapeのbyte parityは要求しない。
 
 ## 12. performance条件
 

@@ -51,7 +51,7 @@ When updating behavior, prefer these source files over duplicating details here:
 * Tauri desktop shell and commands: `src-tauri/`
 * Dependency and document ordering logic: `src/model/`
 * DSL parsing, compilation, serialization, and completion: `src/dsl/`
-* Canonical document persistence, legacy import, and text patches: `src/document/`
+* Canonical document persistence and text patches: `src/document/`
 * CodeMirror adapter and source-edit session boundary: `src/editor/`
 * Commands and command palette data: `src/commands/`
 * Keyboard shortcut mapping: `src/keyboard/shortcuts.ts`
@@ -174,13 +174,35 @@ compatibility with earlier local drafts. Breaking saved-format changes are
 acceptable unless the user explicitly asks for a migration path or compatibility
 layer.
 
+The final supported saved-document format is `nui 3` only. Parsers,
+serializers, importers, adapters, fallbacks, bridges, fixtures, and conditional
+branches that exist only for `nui 2` or earlier are temporary migration aids,
+not product contracts. Do not proactively extend legacy compatibility, re-audit
+old formats outside the assigned task, add compatibility fixtures or automatic
+migration, or preserve an old shape "just in case." Prefer precise diagnostics
+and a manually repairable source file. After the existing documents have been
+manually updated and verified through the `nui 3` path, remove all legacy-only
+code and tests.
+
+For pre-`nui 3` documents, do not stop unrelated work for evaluation failure,
+round-trip differences, semantic or visibility differences, compiled/IPC shape
+changes, legacy-only performance regressions, missing automatic migration, or
+the need for manual source edits. A legacy-only problem is blocking only when
+the application crashes or cannot expose the source, source is destroyed or
+lost, diagnostics lack enough position information to locate the repair, or
+the pre-save source cannot be restored so manual repair is impractical. Data
+loss, wrong evaluation, and scope/type/runtime parity failures in the current
+`nui 3` specification remain blocking.
+
 The persisted document is one `.nui` DSL text file. `sourceText` is the
-canonical, durable state; `.nuinui.json` is accepted only by the explicit
-legacy importer and is never a save target. Keep document edits on the
-central `sourceEditSession`/`commitText` boundary. Canvas and command changes
-must use statement-level text splices through the document bridge: do not add
-whole-file reserialization as a mutation path because comments, blank lines,
-and user layout must remain intact.
+canonical, durable state. During the temporary `nui 3` migration period,
+existing `.nuinui.json` and pre-`nui 3` import paths may remain only long enough
+to inspect and manually repair the small set of existing documents; they are
+never save targets and must be deleted before `nui 3` is considered complete.
+Keep document edits on the central `sourceEditSession`/`commitText` boundary.
+Canvas and command changes must use statement-level text splices through the
+document bridge: do not add whole-file reserialization as a mutation path
+because comments, blank lines, and user layout must remain intact.
 
 Keep CodeMirror types and direct CodeMirror APIs inside `src/editor/` and
 `SourceEditorPane.tsx`. Other components communicate through source-editor

@@ -6,7 +6,7 @@
 
 ## 2. 目的
 
-各ownerが作ったserializerをversion-aware document persistenceとstatement patchへ統合する。
+各ownerが作ったserializerをnui 3単一のdocument persistenceとstatement patchへ統合する。
 
 ## 3. 依存タスク
 
@@ -14,19 +14,19 @@
 
 ## 4. 前提API・型
 
-version-required document/statement serializer facade、typed statement patch mapping、v3 golden matrix。
+nui 3 document/statement serializer facade、typed statement patch mapping、nui 3 golden matrix。
 
 ## 5. 対象
 
-const/let/set/state/property refs/template escapes、comments/blank lines/layout preservation、v2/v3 round-trip。
+const/let/set/state/property refs/template escapes、comments/blank lines/layout preservation、nui 3 semantic round-trip、production open/save/reopen。
 
 ## 6. 対象外
 
-parser再実装、header upgrade本文rewrite、import policy、feature activation。
+parser再実装、pre-nui 3 header/body rewrite、legacy import policy、feature activation。
 
 ## 7. 固定仕様
 
-open/saveだけではnormalizeしない。再生成statementだけcanonical。header spliceは06 API。v2 serializerはv3 syntaxを出さない。
+open/saveだけではnormalizeしない。再生成statementだけcanonical。serializer facadeはnui 3だけを出力し、v2 serializerとの恒久並立を作らない。
 
 ## 8. 実装方針
 
@@ -38,11 +38,11 @@ dslDocument serializer facade、statement serializer registry、textPatch/reconc
 
 ## 10. 追加・更新するテスト
 
-full matrix populated/minimal、comments/vertical label、escaped strings/braces、one-statement patch、Undo、v2 byte preservation。
+nui 3 full matrix populated/minimal、comments/vertical label、escaped strings/braces、one-statement patch、Undo、save/reopen semantic equality。
 
 ## 11. 互換性条件
 
-legacy numeric var/element serializer golden不変。whole-file mutation path追加禁止。
+whole-file mutation path追加禁止。v2 byte preservation、legacy numeric var serializer golden、old importer outputは完了条件にしない。
 
 ## 12. performance条件
 
@@ -54,7 +54,7 @@ v3 sourceがparse→compile→serialize→compileでsemantic一致し、局所pa
 
 ## 14. 次タスクへの引き継ぎ
 
-47 import boundary、48 E2E、52 activationへ引き継ぐ。
+48 diagnostics E2E、51 manual nui 3 E2E、47 manual migrationへ引き継ぐ。
 
 ## 15. PR境界
 

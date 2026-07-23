@@ -42,7 +42,7 @@ linear chains、multiple bindings、shadowed let、invalid set exclusion、stabl
 
 ## 11. 互換性条件
 
-legacy variablesはversion graphへ入れない。
+pre-nui 3 variablesをversion graphへ昇格させるbridgeは作らない。最終graphはnui 3 typed bindingだけを扱い、既存legacy binding pathはTask 52で削除する。
 
 ## 12. performance条件
 
