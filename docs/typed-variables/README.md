@@ -1,6 +1,6 @@
 # 型付き変数・レキシカルスコープ実行計画
 
-このdirectoryは[plan.md](plan.md)の仕様を、1 Sonnet session / 1 branch / 1 PRで実行できる単位へ分割した実装計画である。最終分割は54 task。数合わせではなく、parser、analysis、TS reference、Rust parity、production connection、UI、release gateを独立完了できる境界から決めた。
+このdirectoryは[plan.md](plan.md)の仕様を、1 session / 1 branch / 1 PRで実行できる単位へ分割した実装計画である。Task 00〜52とTask 13後の補正Taskから成り、parser、analysis、TS reference、Rust parity、production connection、UI、manual migration、legacy removalを独立完了できる境界から決めた。
 
 ## 実行ルール
 
@@ -37,11 +37,11 @@
 | 13R-6 | [binding lookup closure](tasks/13r6-binding-lookup-closure.md) | binding analysis/performance | 13R-5 | analysis only | `typed-vars/13r6-binding-lookup-closure` | 完了 |
 | 13R-7 | [legacy declaration order / CAD container parity](tasks/13r7-legacy-container-parity.md) | binding analysis/performance | 13R-6 | analysis only | `typed-vars/13r7-legacy-container` | 完了 |
 | 14 | [TS expression parser](tasks/14-ts-expression-parser.md) | typed expression | 09,10 | unconnected AST | `typed-vars/14-ts-expression-parser` | 完了 |
-| 15 | [TS expression typechecker](tasks/15-ts-expression-typechecker.md) | typed expression | 12,14 | unconnected typecheck | `typed-vars/15-ts-expression-typecheck` | 未着手 |
-| 16 | [TS expression reference evaluator](tasks/16-ts-expression-reference-evaluator.md) | typed expression | 15 | reference only | `typed-vars/16-ts-expression-eval` | 未着手 |
-| 17 | [Rust expression payload validation](tasks/17-rust-expression-payload-validation.md) | Rust typed expression | 14,15 | shadow validator | `typed-vars/17-rust-expression-payload` | 未着手 |
-| 18 | [Rust expression evaluator parity](tasks/18-rust-expression-evaluator-parity.md) | Rust typed expression | 16,17 | shadow parity | `typed-vars/18-rust-expression-eval` | 未着手 |
-| 19 | [compiled scalar program](tasks/19-compiled-scalar-program.md) | compiler/IPC | 13,15 | feature-gated IR | `typed-vars/19-scalar-program` | 未着手 |
+| 15 | [TS expression typechecker](tasks/15-ts-expression-typechecker.md) | typed expression | 12,14 | unconnected typecheck | `typed-vars/15-ts-expression-typecheck` | 完了 |
+| 16 | [TS expression reference evaluator](tasks/16-ts-expression-reference-evaluator.md) | typed expression | 15 | reference only | `typed-vars/16-ts-expression-eval` | 完了 |
+| 17 | [Rust expression payload validation](tasks/17-rust-expression-payload-validation.md) | Rust typed expression | 14,15 | shadow validator | `typed-vars/17-rust-expression-payload` | 完了 |
+| 18 | [Rust expression evaluator parity](tasks/18-rust-expression-evaluator-parity.md) | Rust typed expression | 16,17 | shadow parity | `typed-vars/18-rust-expression-eval` | 完了 |
+| 19 | [compiled scalar program](tasks/19-compiled-scalar-program.md) | compiler/IPC | 13,15 | feature-gated IR | `typed-vars/19-scalar-program` | 完了 |
 | 20 | [TS const evaluation](tasks/20-ts-const-evaluation.md) | reference evaluation | 16,19 | gated reference path | `typed-vars/20-ts-const-eval` | 未着手 |
 | 21 | [Rust const evaluation parity](tasks/21-rust-const-evaluation-parity.md) | production evaluation | 18,19,20 | gated Rust/shadow path | `typed-vars/21-rust-const-eval` | 未着手 |
 | 22 | [property reference typecheck](tasks/22-property-reference-typecheck.md) | compiler/parameters | 13,15,19 | analysis only | `typed-vars/22-property-typecheck` | 未着手 |
@@ -68,13 +68,13 @@
 | 43 | [Source Editor span/navigation](tasks/43-source-editor-span-navigation.md) | editor | 10,22,26,29 | gated editor API | `typed-vars/43-source-spans` | 未着手 |
 | 44 | [Source value operations/picker boundaries](tasks/44-source-value-operations.md) | editor interaction | 39,40,43 | gated editor UI | `typed-vars/44-source-value-ops` | 未着手 |
 | 45 | [Inspector runtime values](tasks/45-inspector-runtime-values.md) | Inspector | 23,24,25,28,35,42 | gated final-value UI | `typed-vars/45-inspector-runtime` | 未着手 |
-| 46 | [v3 serializer/round-trip/patching](tasks/46-v3-serializer-roundtrip-patching.md) | persistence | 07,10,22,26,29,30 | gated persistence | `typed-vars/46-v3-roundtrip` | 未着手 |
-| 47 | [import/export compatibility](tasks/47-import-export-compatibility.md) | document boundary | 46 | production compatibility | `typed-vars/47-import-compat` | 未着手 |
-| 48 | [integrated diagnostics E2E](tasks/48-integrated-diagnostics-e2e.md) | diagnostics hardening | 23,24,25,28,32,35,36,38,41,44,45,47 | gated release check | `typed-vars/48-diagnostics-e2e` | 未着手 |
+| 46 | [nui 3 serializer/round-trip/patching](tasks/46-v3-serializer-roundtrip-patching.md) | persistence | 07,10,22,26,29,30 | gated nui 3 persistence | `typed-vars/46-v3-roundtrip` | 未着手 |
+| 47 | [existing document manual nui 3 migration](tasks/47-manual-nui3-migration.md) | migration operations | 51 | verified migrated documents | `typed-vars/47-manual-nui3-migration` | 未着手 |
+| 48 | [integrated diagnostics E2E](tasks/48-integrated-diagnostics-e2e.md) | diagnostics hardening | 23,24,25,28,32,35,36,38,41,44,45,46 | gated release check | `typed-vars/48-diagnostics-e2e` | 未着手 |
 | 49 | [full TS/Rust parity matrix](tasks/49-full-parity-matrix.md) | parity hardening | 21,23,24,25,28,32,35,48 | release gate | `typed-vars/49-parity-matrix` | 未着手 |
 | 50 | [performance regression gates](tasks/50-performance-regression-gates.md) | performance | 00,13,18,21,35,36,39,49 | release gate | `typed-vars/50-performance` | 未着手 |
-| 51 | [manual E2E/docs](tasks/51-manual-e2e-docs.md) | manual validation/docs | 03,05,07,41,44,45,47,48,49,50 | release checklist | `typed-vars/51-manual-e2e` | 未着手 |
-| 52 | [nui 3 typed-variable activation](tasks/52-nui3-typed-variable-activation.md) | activation | 01,02,03,05,07,23,24,25,28,35,38,41,44,45,47,48,49,50,51 | production activation | `typed-vars/52-activation` | 未着手 |
+| 51 | [manual nui 3 E2E/docs](tasks/51-manual-e2e-docs.md) | manual validation/docs | 03,05,07,41,44,45,46,48,49,50 | migration-ready checklist | `typed-vars/51-manual-e2e` | 未着手 |
+| 52 | [legacy removal / nui 3-only activation](tasks/52-nui3-typed-variable-activation.md) | removal/activation | 47 | nui 3-only production | `typed-vars/52-nui3-only-activation` | 未着手 |
 
 ## 依存グラフ
 
@@ -91,6 +91,10 @@ graph TD
   T00 --> T08["08 scalar contracts"] --> T09["09 literal scanner"] --> T10["10 declaration syntax"]
   T06 --> T10
   T10 --> T11["11 scope index"] --> T12["12 name resolution"] --> T13["13 binding diagnostics"]
+  T13 --> T13R1["13R-1 namespace correction"] --> T13R2["13R-2 invalid dependency"]
+  T13R2 --> T13R3["13R-3 pipeline linearization"] --> T13R4["13R-4 resolver contract"]
+  T13R4 --> T13R5["13R-5 legacy visibility"] --> T13R6["13R-6 lookup closure"]
+  T13R6 --> T13R7["13R-7 container parity"]
   T09 --> T14["14 TS expr parser"]
   T10 --> T14
   T12 --> T15["15 TS typecheck"]
@@ -176,7 +180,7 @@ graph TD
   T22 --> T46
   T26 --> T46
   T29 --> T46
-  T30 --> T46 --> T47["47 import compatibility"]
+  T30 --> T46
   T23 --> T48["48 diagnostics E2E"]
   T24 --> T48
   T25 --> T48
@@ -188,7 +192,7 @@ graph TD
   T41 --> T48
   T44 --> T48
   T45 --> T48
-  T47 --> T48 --> T49["49 parity matrix"]
+  T46 --> T48 --> T49["49 parity matrix"]
   T21 --> T49
   T23 --> T49
   T24 --> T49
@@ -210,64 +214,46 @@ graph TD
   T41 --> T51
   T44 --> T51
   T45 --> T51
-  T47 --> T51
+  T46 --> T51
   T48 --> T51
   T49 --> T51
-  T50 --> T51 --> T52["52 activation"]
-  T01 --> T52
-  T02 --> T52
-  T03 --> T52
-  T05 --> T52
-  T07 --> T52
-  T23 --> T52
-  T24 --> T52
-  T25 --> T52
-  T28 --> T52
-  T35 --> T52
-  T38 --> T52
-  T41 --> T52
-  T44 --> T52
-  T45 --> T52
-  T47 --> T52
-  T48 --> T52
-  T49 --> T52
-  T50 --> T52
+  T50 --> T51 --> T47["47 manual migration"] --> T52["52 legacy removal / activation"]
 ```
 
 ## Critical path
 
-`00 → 08 → 09 → 10 → 11 → 12 → 13 → 14 → 15 → 16 → 17/18 → 19 → 20 → 21 → 29 → 30 → 31 → 32 → 33 → 34 → 35 → 45/48 → 49 → 50 → 51 → 52`
+完了済みのTask 00〜19に続く残りのcritical pathは次のとおり。
 
-14〜18のexpression pathと11〜13のbinding pathは15で合流する。23〜28のproperty/template path、36〜44のdependency/editor pathもactivation前に合流する。
+`29 → 30 → 31 → 32 → 33 → 34 → 35 → 45 → 48 → 49 → 50 → 51 → 47 → 52`
+
+Task 20/21のconst runtime pathはTask 31/32へ、Task 46のnui 3 persistence pathはTask 30後に並行してTask 48へ合流する。23〜28のproperty/template pathと36〜44のdependency/editor pathもTask 48/51までに合流する。
 
 ## 並行可能な作業
 
-- 00後: 01(activity)、02(locked)、04(placement)、06(version)、08(scalar contracts)。
-- 10後: 11(scope)と14(expression parser)。
-- 21後: 22/property系、26/template系、29/set系、42/Inspector metadata。
-- 35後: dependency/rename、completion/editor、runtime Inspector、persistenceを依存範囲内で並行。
-- 48後: parity matrix。50のperformance gateと51のmanual checklistは必要成果が揃い次第準備可能だが、52は全gate待ち。
+- Task 19完了後: 20(const evaluation)、22(property typecheck)、26(template analysis)、42(Inspector metadata)。
+- Task 21後: property runtime、template runtime、set/mutation系を依存範囲内で並行。
+- Task 30後: mutation pathとTask 46のnui 3 persistenceを並行。
+- Task 35後: dependency/rename、completion/editor、runtime Inspectorを依存範囲内で並行。
+- Task 48後: parity、performance、manual E2Eを順に完了し、Task 47の手動migration後だけTask 52へ進む。
 
 ## Activation条件
 
-52は次がすべてmainへmerge済みでなければ開始不可。
+52はTask 47が完了し、次の順序がすべて満たされるまで開始不可。
 
-- activity: 01-03、07
-- placement: 04-05
-- typed evaluation: 08-35
-- dependency/editor/UI: 36-45
-- persistence/compatibility: 46-47
-- hardening: 48-51
+1. activity、placement、typed evaluation、dependency/editor/UIのTask 01〜45が完了。
+2. Task 46でnui 3 serializer・round-trip・production persistence経路が完成。
+3. Task 48〜51でnui 3 diagnostics、TS/Rust parity、performance、manual E2Eが完了。
+4. Task 47で現存ユーザー文書のinventory、手動nui 3更新、open/compile/evaluate/save/reopen確認が完了。
 
-52で初めてtyped declaration feature gateを外し、新規document defaultを`nui 3`へ変更する。途中taskのgated implementationへproduction UIを直接つながない。
+52でpre-nui 3 parser/importer/serializer/adapter/fallback/bridge/fixtureを削除し、残存legacy分岐がないことを確認してからtyped declaration feature gateを外し、新規document defaultを`nui 3`へ変更する。途中Taskのgated implementationへproduction UIを直接つながない。
 
 ## 最初に実行可能なtask
 
-00。既存numeric var、legacy scope、numeric text interpolation、v2 round-trip、activity/placement挙動をfixture化し、250/1000規模の計測protocolと記録フォーマットをmainへ置く。研究メモだけでは完了しない。
+20。Task 19の`CompiledDslDocument.scalarProgram`とRust program payloadを再parseせず利用してTS const/let initializer評価を接続する。22、26、42も依存条件を満たしているため並行着手可能。
 
 ## Blocking decisions
 
-なし。[decisions.md](decisions.md)に調査根拠を記録済み。将来範囲のqualified referenceやstring演算はblockingではなく明示的な対象外。legacy `var`互換の扱いは[D21](decisions.md#d21-legacy-var互換のblocking範囲)を参照: 手動で書き換え可能なlegacy-onlyの意味差や軽微なvisibility差はblockingとせず、データ消失・クラッシュ・ファイルを開けない・手動移行不能な問題だけをblockingとする。
+なし。[decisions.md](decisions.md)に調査根拠を記録済み。将来範囲のqualified referenceやstring演算はblockingではなく明示的な対象外。legacy互換の最終方針は[D22](decisions.md#d22-nui-3単一保存形式手動migrationlegacy全削除)を正とし、旧形式ではcrash/source確認不能、source破壊・消失、位置情報不足、保存前sourceへ復元不能だけをblockingとする。
 
 ## 旧31-task案からの再編
 
@@ -282,4 +268,4 @@ graph TD
 - value completion、set recovery completion、Quick Fixを分離。
 - Inspectorをmetadataとfinal runtime valueへ分離し、runtime側をforGroup mutation後へ移動。
 - Source span/navigationとvalue operationsを分離。
-- final hardeningをdiagnostics、parity、performance、manual E2E、activationへ分離。
+- final hardeningをdiagnostics、parity、performance、manual E2E、実文書migration、legacy removal/activationへ分離。

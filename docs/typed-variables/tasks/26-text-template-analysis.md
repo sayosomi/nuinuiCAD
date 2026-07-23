@@ -42,7 +42,7 @@ scannerはunescape前raw sourceを読む。`\{`/`\}`はliteral。boolean/choice 
 
 ## 11. 互換性条件
 
-v2 existing numeric interpolation resultをgoldenで維持。legacy bare text without hole unchanged。
+nui 3でも採用するnumeric interpolationとholeなしtextのsemanticsを維持する。v2 round-trip/goldenやlegacy-only malformed matrixは追加しない。
 
 ## 12. performance条件
 

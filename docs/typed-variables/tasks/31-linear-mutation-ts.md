@@ -42,7 +42,7 @@ line before/after、chained sets、cross-binding refs、all types、choice type�
 
 ## 11. 互換性条件
 
-setのないtyped documentは20 resultと同じ。legacy unaffected。
+setのないnui 3 typed documentは20 resultと同じ。legacy pathとのshape/semantic parityは要求しない。
 
 ## 12. performance条件
 

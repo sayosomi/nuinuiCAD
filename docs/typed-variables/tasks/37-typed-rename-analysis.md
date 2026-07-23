@@ -18,7 +18,7 @@ typed rename probe、capture/collision/reference-resolution verdict、affected s
 
 ## 5. 対象
 
-declaration、initializer、set target/RHS、property、template、legacy/typed collision、shadow before/after。
+typed declaration、initializer、set target/RHS、property、template、typed shadow before/after。
 
 ## 6. 対象外
 
@@ -26,7 +26,7 @@ source patch/command/UI、qualified rename。
 
 ## 7. 固定仕様
 
-same-scope duplicate、legacy/typed capture、outer/inner resolution changeを拒否。直接source editはpropagateしない。
+same-scope duplicate、typed outer/inner capture・resolution changeを拒否。直接source editはpropagateしない。移行中のlegacy collision supportは拡張せずTask 52で削除する。
 
 ## 8. 実装方針
 
@@ -38,7 +38,7 @@ document rename analysis/new scalar rename module、property-based/focused tests
 
 ## 10. 追加・更新するテスト
 
-safe rename、same scope collision、shadow capture、legacy collision、set/template/property refs、Japanese names、dense graph。
+safe rename、same scope collision、typed shadow capture、set/template/property refs、Japanese names、dense graph。legacy collision matrixは追加しない。
 
 ## 11. 互換性条件
 

@@ -42,7 +42,7 @@ true/false/ref、hidden+print combinations、disabled、poison、profiles/layout
 
 ## 11. 互換性条件
 
-literal printEnabled behavior不変。legacy JSON/DSL literal round-trip維持。
+nui 3 literal `printEnabled` behaviorを維持する。legacy JSON/DSL round-tripは対象外で、互換fixtureやadapterを追加しない。
 
 ## 12. performance条件
 

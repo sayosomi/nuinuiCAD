@@ -18,7 +18,7 @@ typed dependency edge kinds、binding/statement/element endpoints、direct/recur
 
 ## 5. 対象
 
-declaration refs、version refs、property consumer、text template、legacy/typed edges、missing/invalid/late/disabled reasons。
+typed declaration refs、version refs、property consumer、text template、missing/invalid/late/disabled reasons。
 
 ## 6. 対象外
 
@@ -38,11 +38,11 @@ model dependencies/new scalar dependency module、presentation/Inspector queries
 
 ## 10. 追加・更新するテスト
 
-各edge kind、recursive count、cycles、missing/late/poison、legacy/typed mixed、1000 dense refs。
+各typed edge kind、recursive count、cycles、missing/late/poison、1000 dense refs。legacy/typed mixed matrixは追加しない。
 
 ## 11. 互換性条件
 
-existing geometry dependency output/orderを維持。
+nui 3 geometry dependency output/orderを維持する。legacy-only edge差は非blocking。
 
 ## 12. performance条件
 

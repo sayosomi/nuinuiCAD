@@ -1,8 +1,8 @@
-# 51: Manual Tauri E2E / user documentation
+# 51: Manual nui 3 Tauri E2E / user documentation
 
 ## 1. タイトル
 
-51: Manual Tauri E2E / user documentation
+51: Manual nui 3 Tauri E2E / user documentation
 
 ## 2. 目的
 
@@ -10,7 +10,7 @@ feature gate付き完成実装をTauriで手動検証し、DSL/user workflow文�
 
 ## 3. 依存タスク
 
-03, 05, 07, 41, 44, 45, 47, 48, 49, 50
+03, 05, 07, 41, 44, 45, 46, 48, 49, 50
 
 ## 4. 前提API・型
 
@@ -18,7 +18,7 @@ feature gate付き完成実装をTauriで手動検証し、DSL/user workflow文�
 
 ## 5. 対象
 
-declaration、scope/shadow、completion、template、set/branch/loop、Inspector、Alt step、rename、activity UI、save/reopen/import/print。
+declaration、scope/shadow、completion、template、set/branch/loop、Inspector、Alt step、rename、activity UI、nui 3 save/reopen/print。
 
 ## 6. 対象外
 
@@ -38,11 +38,11 @@ Tauri dev Rust/parity modesでchecklistを実行し、発見bugはowner task相�
 
 ## 10. 追加・更新するテスト
 
-automated全gate再実行、manual keyboard/mouse/print/import matrix結果を記録。
+automated全gate再実行、manual keyboard/mouse/print/nui 3 save-reopen matrix結果を記録。
 
 ## 11. 互換性条件
 
-v2 workflowとlegacy var exampleをcompat sectionに残す。
+nui 3 workflowだけをuser documentationに残す。v2 workflow、legacy var example、旧import手順は恒久docsへ追加しない。
 
 ## 12. performance条件
 
@@ -50,11 +50,11 @@ v2 workflowとlegacy var exampleをcompat sectionに残す。
 
 ## 13. 完了条件
 
-manual項目全pass、user docsが実syntaxと一致、activation blockerなし。
+manual項目全pass、user docsが実syntaxと一致し、Task 47で現存文書の手動migrationを開始できる。
 
 ## 14. 次タスクへの引き継ぎ
 
-52はこのchecklist結果と全自動gateだけを確認してdefaultを切り替える。
+47はこのchecklist済みnui 3経路で現存文書を手動migrationする。
 
 ## 15. PR境界
 

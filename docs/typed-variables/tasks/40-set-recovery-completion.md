@@ -18,7 +18,7 @@ set target completion context、recoverable let candidate metadata、RHS expecte
 
 ## 5. 対象
 
-visible let target、const/legacy exclusion、invalid let inclusion、RHS literals/refs/choice、same-name dedupe。
+visible typed let target、const/local/iteration exclusion、invalid let inclusion、RHS literals/refs/choice、same-name dedupe。
 
 ## 6. 対象外
 
@@ -42,7 +42,7 @@ valid/invalid let、const、shadow、branch/loop scope、choice order、dirty so
 
 ## 11. 互換性条件
 
-existing completion contextsを奪わない。
+nui 3 completion contextsを奪わない。pre-nui 3 variableをset targetへ昇格させるcompatibility候補は追加しない。
 
 ## 12. performance条件
 

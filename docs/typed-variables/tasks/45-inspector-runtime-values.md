@@ -42,7 +42,7 @@ no set、linear、branch、loop final、poison、recovery、string/choice format
 
 ## 11. 互換性条件
 
-legacy variable/element Inspectorを維持。missing runtimeは明示unknown/errorで偽値を出さない。
+nui 3 element/typed binding Inspectorを維持する。missing runtimeは明示unknown/errorで偽値を出さない。legacy variable Inspectorの維持は完了条件にしない。
 
 ## 12. performance条件
 
