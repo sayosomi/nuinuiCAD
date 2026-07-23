@@ -68,7 +68,11 @@ export const exportPrintSvg = async (evaluation: EvaluationResult | undefined) =
     evaluation,
     layout,
     visibilityProfiles: state.visibilityProfiles,
-    activeVisibilityProfileId: state.activeVisibilityProfileId
+    activeVisibilityProfileId: state.activeVisibilityProfileId,
+    groupPrintEnabledLookup: {
+      propertyBindings: state.doc.propertyBindings,
+      byElementId: state.doc.statementMap.byElementId
+    }
   });
   const input: ExportPrintSvgInput = {
     path: ensureSvgFileName(path),

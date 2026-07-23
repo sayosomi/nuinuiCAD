@@ -27,6 +27,7 @@ import {
   filteredElementParameterSuggestions
 } from "./elementParameterSuggestion";
 import { elementParameterReferenceOptionsForPosition } from "../geometry/elementParameterReferenceOptions";
+import { isGroupPrintEnabled, type GroupPrintEnabledLookup } from "../geometry/groupPrintEnabledRuntime";
 import { defaultPlacementForGroup, printableGroups, printableItemsForLayout } from "../print/printGeometry";
 import {
   DEFAULT_PRINT_LAYOUT,
@@ -415,6 +416,12 @@ export const PrintLayoutCanvas = ({ evaluation, canvasFocusRef }: PrintLayoutCan
   const visibilityProfiles = useCadDocumentStore((state) => state.visibilityProfiles);
   const activeVisibilityProfileId = useCadDocumentStore((state) => state.activeVisibilityProfileId);
   const updatePrintLayout = useCadDocumentStore((state) => state.updatePrintLayout);
+  const groupPrintEnabledPropertyBindings = useCadDocumentStore((state) => state.doc.propertyBindings);
+  const groupPrintEnabledByElementId = useCadDocumentStore((state) => state.doc.statementMap.byElementId);
+  const groupPrintEnabledLookup: GroupPrintEnabledLookup = useMemo(
+    () => ({ propertyBindings: groupPrintEnabledPropertyBindings, byElementId: groupPrintEnabledByElementId }),
+    [groupPrintEnabledPropertyBindings, groupPrintEnabledByElementId]
+  );
   const selectedPrintPlacementId = useCadUiStore((state) => state.selectedPrintPlacementId);
   const setSelectedPrintPlacementId = useCadUiStore((state) => state.setSelectedPrintPlacementId);
   const printCanvasViewport = useCadUiStore((state) => state.printCanvasViewport);
@@ -438,9 +445,10 @@ export const PrintLayoutCanvas = ({ evaluation, canvasFocusRef }: PrintLayoutCan
       evaluation,
       layout,
       visibilityProfiles,
-      activeVisibilityProfileId
+      activeVisibilityProfileId,
+      groupPrintEnabledLookup
     }),
-    [activeVisibilityProfileId, elements, evaluation, layout, visibilityProfiles]
+    [activeVisibilityProfileId, elements, evaluation, layout, visibilityProfiles, groupPrintEnabledLookup]
   );
   const groupNames = useMemo(
     () => new Map(elements.filter((element) => element.type === "group").map((element) => [element.id, element.name])),
@@ -726,6 +734,12 @@ export const PrintLayoutPanel = ({ evaluation }: { evaluation: EvaluationResult 
   const deletePrintLayout = useCadDocumentStore((state) => state.deletePrintLayout);
   const selectedPrintPlacementId = useCadUiStore((state) => state.selectedPrintPlacementId);
   const setSelectedPrintPlacementId = useCadUiStore((state) => state.setSelectedPrintPlacementId);
+  const groupPrintEnabledPropertyBindings = useCadDocumentStore((state) => state.doc.propertyBindings);
+  const groupPrintEnabledByElementId = useCadDocumentStore((state) => state.doc.statementMap.byElementId);
+  const groupPrintEnabledLookup: GroupPrintEnabledLookup = useMemo(
+    () => ({ propertyBindings: groupPrintEnabledPropertyBindings, byElementId: groupPrintEnabledByElementId }),
+    [groupPrintEnabledPropertyBindings, groupPrintEnabledByElementId]
+  );
   const [groupQuery, setGroupQuery] = useState("");
   const [collapsedSections, setCollapsedSections] = useState<Set<PrintPanelSectionId>>(
     DEFAULT_COLLAPSED_PRINT_PANEL_SECTIONS
@@ -741,7 +755,7 @@ export const PrintLayoutPanel = ({ evaluation }: { evaluation: EvaluationResult 
     ? { widthMm: resolvedLayout.svgCanvasWidthMm, heightMm: resolvedLayout.svgCanvasHeightMm }
     : printCanvasSizeMm(resolvedLayout);
   const printVariables = layout.numericVariables ?? [];
-  const groups = printableGroups(elements);
+  const groups = printableGroups(elements, groupPrintEnabledLookup, evaluation.computedScalarBindings);
   const allGroups = elements.filter(
     (element): element is Extract<CadElement, { type: "group" }> => element.type === "group"
   );
@@ -1145,7 +1159,9 @@ export const PrintLayoutPanel = ({ evaluation }: { evaluation: EvaluationResult 
           <div className="print-placement-list">
             {layout.placements.map((placement, index) => {
               const placementGroup = allGroupsById.get(placement.groupId);
-              const isPrintDisabled = !placementGroup || placementGroup.printEnabled !== true;
+              const isPrintDisabled =
+                !placementGroup ||
+                !isGroupPrintEnabled(placementGroup, groupPrintEnabledLookup, evaluation.computedScalarBindings);
               return (
                 <div
                   role="button"
@@ -1221,7 +1237,10 @@ export const PrintLayoutPanel = ({ evaluation }: { evaluation: EvaluationResult 
               >
                 {selectedPlacementGroupOptions.map((group) => (
                   <option key={group.id} value={group.id}>
-                    {group.name}{group.printEnabled === true ? "" : "（印刷OFF）"}
+                    {group.name}
+                    {isGroupPrintEnabled(group, groupPrintEnabledLookup, evaluation.computedScalarBindings)
+                      ? ""
+                      : "（印刷OFF）"}
                   </option>
                 ))}
               </select>

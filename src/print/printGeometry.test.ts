@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { compileCanonicalText, regenerateCanonicalFromModel, type LastGoodDslDocument } from "../document/canonicalDocument";
+import { emptyDocument } from "../dsl/dslDocumentTestUtils";
 import { evaluateElements } from "../geometry/evaluate";
+import { resolveGroupPrintEnabledBindingId, type GroupPrintEnabledLookup } from "../geometry/groupPrintEnabledRuntime";
 import type { CadElement, PrintLayout } from "../types/geometry";
 import { printableGroups, printableItemsForLayout, printablePathsForLayout } from "./printGeometry";
 
@@ -298,5 +301,155 @@ describe("printGeometry", () => {
       layout: layout({ visibilityProfileId: "print" }),
       visibilityProfiles
     }).map((path) => path.elementId)).toEqual(["printed-line", "allowance-line"]);
+  });
+});
+
+// Task 24: group.printEnabled resolved through a real DSL-compiled scalar
+// binding, exercised end-to-end (compile -> evaluate -> print traversal),
+// not just the isGroupPrintEnabled unit (see groupPrintEnabledRuntime.test.ts).
+describe("printGeometry: group.printEnabled binding", () => {
+  const compileCanonical = (statements: string[]): LastGoodDslDocument => {
+    const baseline = regenerateCanonicalFromModel(emptyDocument(), 3);
+    const result = compileCanonicalText(baseline, ["nui 3", ...statements].join("\n"));
+    expect(result.status).not.toBe("fatal");
+    return result.doc;
+  };
+
+  const lookupFor = (doc: LastGoodDslDocument): GroupPrintEnabledLookup => ({
+    propertyBindings: doc.propertyBindings,
+    byElementId: doc.statementMap.byElementId
+  });
+
+  const groupNamed = (doc: LastGoodDslDocument, name: string) => {
+    const group = doc.document.elements.find(
+      (element): element is Extract<CadElement, { type: "group" }> =>
+        element.type === "group" && element.name === name
+    );
+    if (!group) throw new Error(`group "${name}" not found`);
+    return group;
+  };
+
+  const boundGroupSource = (groupArgs: string) => [
+    "let 印刷: boolean = true",
+    `group G (${groupArgs}) {`,
+    "  point A = coordinate(x: 0 y: 0)",
+    "  point B = coordinate(x: 10 y: 0)",
+    "  line AB = segment(start: A end: B)",
+    "}"
+  ];
+
+  const layoutFor = (groupId: string): PrintLayout => ({
+    id: "print-layout-1",
+    name: "",
+    outputKind: "pdf",
+    paperSizeId: "a4",
+    orientation: "portrait",
+    columns: 1,
+    rows: 1,
+    overlapMm: 10,
+    scale: 1,
+    svgCanvasWidthMm: 210,
+    svgCanvasHeightMm: 297,
+    placements: [{ id: "placement-1", groupId, x: 0, y: 0, angleDeg: 0, mirrorX: false }]
+  });
+
+  it("includes the group's geometry when the bound printEnabled evaluates true", () => {
+    const doc = compileCanonical(boundGroupSource("printEnabled: @印刷"));
+    const group = groupNamed(doc, "G");
+    const evaluation = evaluateElements(doc.document.elements, { scalarProgram: doc.scalarProgram });
+
+    expect(printableGroups(doc.document.elements, lookupFor(doc), evaluation.computedScalarBindings).map((item) => item.id)).toEqual([group.id]);
+    const paths = printablePathsForLayout({
+      elements: doc.document.elements,
+      evaluation,
+      layout: layoutFor(group.id),
+      groupPrintEnabledLookup: lookupFor(doc)
+    });
+    expect(paths).toHaveLength(1);
+  });
+
+  it("excludes the group's geometry when the bound printEnabled evaluates false", () => {
+    const doc = compileCanonical([
+      "let 印刷: boolean = false",
+      "group G (printEnabled: @印刷) {",
+      "  point A = coordinate(x: 0 y: 0)",
+      "  point B = coordinate(x: 10 y: 0)",
+      "  line AB = segment(start: A end: B)",
+      "}"
+    ]);
+    const group = groupNamed(doc, "G");
+    const evaluation = evaluateElements(doc.document.elements, { scalarProgram: doc.scalarProgram });
+
+    expect(printableGroups(doc.document.elements, lookupFor(doc), evaluation.computedScalarBindings)).toEqual([]);
+    const paths = printablePathsForLayout({
+      elements: doc.document.elements,
+      evaluation,
+      layout: layoutFor(group.id),
+      groupPrintEnabledLookup: lookupFor(doc)
+    });
+    expect(paths).toEqual([]);
+  });
+
+  it("excludes the group without crashing or affecting normal evaluation when the bound printEnabled is poisoned", () => {
+    const doc = compileCanonical([
+      "point Z1 = coordinate(x: 0 y: 0)",
+      "point Z2 = coordinate(x: 3 y: 4)",
+      "var d = pointDistance(point1: Z1 point2: Z2 state: disabled)",
+      "const dist: number = @d",
+      "const 印刷: boolean = @dist > 0",
+      "group G (printEnabled: @印刷) {",
+      "  point A = coordinate(x: 0 y: 0)",
+      "  point B = coordinate(x: 10 y: 0)",
+      "  line AB = segment(start: A end: B)",
+      "}"
+    ]);
+    const group = groupNamed(doc, "G");
+    const evaluation = evaluateElements(doc.document.elements, { scalarProgram: doc.scalarProgram });
+    const printedBindingId = resolveGroupPrintEnabledBindingId(group.id, lookupFor(doc));
+
+    expect(printedBindingId).toBeDefined();
+    expect(evaluation.computedScalarBindings?.get(printedBindingId!)).toMatchObject({ status: "error" });
+    expect(printableGroups(doc.document.elements, lookupFor(doc), evaluation.computedScalarBindings)).toEqual([]);
+    const paths = printablePathsForLayout({
+      elements: doc.document.elements,
+      evaluation,
+      layout: layoutFor(group.id),
+      groupPrintEnabledLookup: lookupFor(doc)
+    });
+    expect(paths).toEqual([]);
+    // The poison is intrinsic to the `印刷` binding's own evaluation, not
+    // something print resolution introduces - normal evaluation errors are
+    // unaffected by whether/how a group's printEnabled resolves.
+    expect(evaluation.errors).toEqual([]);
+  });
+
+  it("keeps printEnabled independent of a hidden group's activity - hidden descendants stay excluded from print regardless", () => {
+    const doc = compileCanonical(boundGroupSource("state: hidden printEnabled: @印刷"));
+    const group = groupNamed(doc, "G");
+    const evaluation = evaluateElements(doc.document.elements, { scalarProgram: doc.scalarProgram });
+
+    expect(printableGroups(doc.document.elements, lookupFor(doc), evaluation.computedScalarBindings).map((item) => item.id)).toEqual([group.id]);
+    const paths = printablePathsForLayout({
+      elements: doc.document.elements,
+      evaluation,
+      layout: layoutFor(group.id),
+      groupPrintEnabledLookup: lookupFor(doc)
+    });
+    expect(paths).toEqual([]);
+  });
+
+  it("keeps printEnabled independent of a disabled group's activity - disabled descendants never evaluate, so print stays empty", () => {
+    const doc = compileCanonical(boundGroupSource("state: disabled printEnabled: @印刷"));
+    const group = groupNamed(doc, "G");
+    const evaluation = evaluateElements(doc.document.elements, { scalarProgram: doc.scalarProgram });
+
+    expect(printableGroups(doc.document.elements, lookupFor(doc), evaluation.computedScalarBindings).map((item) => item.id)).toEqual([group.id]);
+    const paths = printablePathsForLayout({
+      elements: doc.document.elements,
+      evaluation,
+      layout: layoutFor(group.id),
+      groupPrintEnabledLookup: lookupFor(doc)
+    });
+    expect(paths).toEqual([]);
   });
 });

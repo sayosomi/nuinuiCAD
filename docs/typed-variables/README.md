@@ -46,7 +46,7 @@
 | 21 | [Rust const evaluation parity](tasks/21-rust-const-evaluation-parity.md) | production evaluation | 18,19,20 | gated Rust/shadow path | `typed-vars/21-rust-const-eval` | 完了 |
 | 22 | [property reference typecheck](tasks/22-property-reference-typecheck.md) | compiler/parameters | 13,15,19 | analysis only | `typed-vars/22-property-typecheck` | 完了 |
 | 23 | [standard property runtime](tasks/23-standard-property-runtime.md) | TS/Rust evaluation | 21,22 | gated runtime | `typed-vars/23-property-runtime` | 完了 |
-| 24 | [printEnabled runtime](tasks/24-print-enabled-runtime.md) | print state | 21,22 | gated print runtime | `typed-vars/24-print-enabled` | 未着手 |
+| 24 | [printEnabled runtime](tasks/24-print-enabled-runtime.md) | print state | 21,22 | gated print runtime | `typed-vars/24-print-enabled` | 完了 |
 | 25 | [boolean control-flow runtime](tasks/25-boolean-control-flow-runtime.md) | control flow | 18,21,22 | gated control runtime | `typed-vars/25-boolean-control-flow` | 未着手 |
 | 26 | [text template analysis](tasks/26-text-template-analysis.md) | template/parser | 09,12,15 | analysis only | `typed-vars/26-template-analysis` | 未着手 |
 | 27 | [text template TS evaluation](tasks/27-text-template-ts-evaluation.md) | reference evaluation | 16,20,26 | gated reference path | `typed-vars/27-template-ts` | 未着手 |
@@ -251,7 +251,7 @@ Task 20/21のconst runtime pathはTask 31/32へ、Task 46のnui 3 persistence pa
 
 ## 次に実行可能なtask
 
-直近は24、25(いずれも21・22完了済み)、26、42。23は完了済み。Task 21でRust-first `evaluate_document(input)` がTask 19の解決済み`scalar_program`を評価し、`computedScalarBindings`をTS payloadへ返す。22の完了後に23〜25、26/27完了後に28、29〜31完了後に32がこのbinding environmentを再利用し、source再parse・名前再解決・legacy fallbackを追加しない。
+直近は25(21・22完了済み)、26、42。23・24は完了済み。Task 21でRust-first `evaluate_document(input)` がTask 19の解決済み`scalar_program`を評価し、`computedScalarBindings`をTS payloadへ返す。22の完了後に23〜25、26/27完了後に28、29〜31完了後に32がこのbinding environmentを再利用し、source再parse・名前再解決・legacy fallbackを追加しない。
 
 ### Task 22完了時点の引き継ぎ(23〜26向け)
 
@@ -273,6 +273,18 @@ Task 23で`computedScalarBindings`の生成方式を、文書全体の評価ル�
 - 24(printEnabled)・25(showGenerated)はこの同じresolver機構(`ScalarBindingResolver`/`createDocumentScalarBindingResolver`)を再利用してよい。それぞれの対象property専用のmaterialize adapter(`src/geometry/propertyBindingRuntime.ts`のような)を新設し、23の`STANDARD_PROPERTY_TARGETS`allowlistへ自分たちのpropertyを追加しないこと(scope越境になる)。
 - property runtimeの生産経路は`src/components/AppLayout.tsx`(store `doc.scalarProgram`/`doc.propertyBindings`/`doc.statementMap`/`doc.document.elements`から`buildPropertyBindingRuntimeEntries`で構築)→`src/geometry/useEvaluationEngine.ts`(`propertyBindingEntries`をTS reference/Rust IPC両方へ転送)→`src/geometry/evaluate.ts`/Rust `mod.rs`が実際にmaterializeする、という一直線。24/25もこの同じ経路(AppLayout→useEvaluationEngine→evaluate.ts/mod.rs)に新しいentry種別を足す形で接続できる。
 - Rust側のIPC payload形状(`EvaluationInput.property_bindings: Option<Value>`)と、7つの標準propertyペア+正準ScalarTypeを独自に検証する`property_binding_payload.rs`の設計は、24/25が新しいproperty pairを追加する際のテンプレートになる(Rustは常にTS payloadを無条件に信用せず、対象pairと期待型を自前で検証する)。
+
+### Task 24完了時点の引き継ぎ(25/45向け)
+
+Task 24は`group.printEnabled`を、Task 23の`STANDARD_PROPERTY_TARGETS`/`buildPropertyBindingRuntimeEntries`/`materializePropertyBoundElement`(=element clone→`evaluateElement`)経路には接続しなかった。理由: groupは`evaluate.ts`/Rust `evaluate_element_by_type`のどちらでも通常evaluationの対象外(groupを評価してdrawする概念がなく、materializeしても捨てられるだけ)であり、print traversal(`src/print/printGeometry.ts`)自体がTS-onlyでRust側に対応moduleがない。そのためAppLayout→useEvaluationEngine→evaluate.ts/mod.rsの一直線には乗らない。
+
+- 新設した`src/geometry/groupPrintEnabledRuntime.ts`は、Task22で既に生成済みの`doc.propertyBindings`(occurrenceKey付きmap)と`doc.statementMap.byElementId`(elementId→StatementInfo)の**2つの既存lookupをそのまま連結するだけ**で、group.id→bindingIdをO(1)解決する(`resolveGroupPrintEnabledBindingId`)。新しいdocument-wide mapは一切生成しない — `GroupPrintEnabledLookup`はこの2つの既存参照を束ねただけの薄いエイリアス。
+- `isGroupPrintEnabled(group, lookup, computedScalarBindings)`は、bindingが無ければ既存のliteral `printEnabled === true`判定にfall backし、boundならTask21が既に生成している`evaluation.computedScalarBindings`(TS/Rust両方で同一shape、`finalize()`で毎回全binding分生成済み)を1回引くだけ。poison/error/型不一致はすべて`false`(print除外)にfail closeする — `errors`/`warnings`へは一切書き込まない(Canvas/通常evaluationに影響しないという固定仕様どおり)。
+- 接続点は`src/print/printGeometry.ts`の`printableGroups`/`printableItemsForLayout`/`printablePathsForLayout`(いずれも`groupPrintEnabledLookup`という追加optional引数)と、呼び出し側4箇所(`printSvgExport.ts`、`printPdfExport.ts`、`PrintLayoutView.tsx`の`PrintLayoutCanvas`/`PrintLayoutPanel`、`PrintLayoutPreviewWindow.tsx`)。いずれも既にstoreへ直接アクセスしているため、`state.doc.propertyBindings`/`state.doc.statementMap.byElementId`をそのまま渡すだけで、新しいscan/mapを各call siteで組み立てることはない。
+- Rust側は無変更。`computed_scalar_bindings`はscalar_programが存在すれば常に生成される(property binding entriesの有無と無関係)ため、printEnabled解決に必要なRust側の値は既にTask21の時点で揃っている。`property_binding_payload.rs`の`canonical_expected_type`allowlistへ`("group","printEnabled")`を追加する誘い(同ファイルのコメント)には従っていない — これはTask23の標準property経路専用のallowlistであり、printEnabledをそこに混ぜるとgroupが通常evaluationのmaterialize対象になってしまう。
+- `src/model/elementPresentationStatus.ts`の`printEnabled`フィールド(source editor gutter class `cm-eval-print-enabled`)はliteralのみのまま未着手。Task 24の引き継ぎどおりTask 45(Inspector runtime values)の対象。
+- `toggleGroupPrintEnabled`/`toggleSelectedGroupPrintEnabled`(`src/commands/selectionCommands.ts`)は無変更 — bound printEnabledをliteralで上書きしてしまう。ただし他6つのopt-inプロパティにも同種のwrite-guardは存在せず、これはTask24固有の新規gapではない。
+- 25(forGroup.showGenerated)はcontrol-flowそのもの(iteration実行有無)を左右するため、printEnabledと同じ「print-onlyの外付けlookup」パターンは使えない可能性が高い — showGeneratedは通常evaluationの内側(AppLayout→useEvaluationEngine→evaluate.ts/mod.rs)に接続する必要があるかどうか、25着手時に個別に見極めること。
 
 ## Blocking decisions
 
