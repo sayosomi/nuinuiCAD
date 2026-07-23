@@ -42,7 +42,7 @@
 | 17 | [Rust expression payload validation](tasks/17-rust-expression-payload-validation.md) | Rust typed expression | 14,15 | shadow validator | `typed-vars/17-rust-expression-payload` | 完了 |
 | 18 | [Rust expression evaluator parity](tasks/18-rust-expression-evaluator-parity.md) | Rust typed expression | 16,17 | shadow parity | `typed-vars/18-rust-expression-eval` | 完了 |
 | 19 | [compiled scalar program](tasks/19-compiled-scalar-program.md) | compiler/IPC | 13,15 | feature-gated IR | `typed-vars/19-scalar-program` | 完了 |
-| 20 | [TS const evaluation](tasks/20-ts-const-evaluation.md) | reference evaluation | 16,19 | gated reference path | `typed-vars/20-ts-const-eval` | 未着手 |
+| 20 | [TS const evaluation](tasks/20-ts-const-evaluation.md) | reference evaluation | 16,19 | gated reference path | `typed-vars/20-ts-const-eval` | 完了 |
 | 21 | [Rust const evaluation parity](tasks/21-rust-const-evaluation-parity.md) | production evaluation | 18,19,20 | gated Rust/shadow path | `typed-vars/21-rust-const-eval` | 未着手 |
 | 22 | [property reference typecheck](tasks/22-property-reference-typecheck.md) | compiler/parameters | 13,15,19 | analysis only | `typed-vars/22-property-typecheck` | 未着手 |
 | 23 | [standard property runtime](tasks/23-standard-property-runtime.md) | TS/Rust evaluation | 21,22 | gated runtime | `typed-vars/23-property-runtime` | 未着手 |
@@ -230,7 +230,8 @@ Task 20/21のconst runtime pathはTask 31/32へ、Task 46のnui 3 persistence pa
 
 ## 並行可能な作業
 
-- Task 19完了後: 20(const evaluation)、22(property typecheck)、26(template analysis)、42(Inspector metadata)。
+- Task 19完了後: 22(property typecheck)、26(template analysis)、42(Inspector metadata)は20と並行/独立に着手可能。
+- Task 20完了後: 21(Rust const evaluation parity)に着手可能。
 - Task 21後: property runtime、template runtime、set/mutation系を依存範囲内で並行。
 - Task 30後: mutation pathとTask 46のnui 3 persistenceを並行。
 - Task 35後: dependency/rename、completion/editor、runtime Inspectorを依存範囲内で並行。
@@ -249,7 +250,7 @@ Task 20/21のconst runtime pathはTask 31/32へ、Task 46のnui 3 persistence pa
 
 ## 最初に実行可能なtask
 
-20。Task 19の`CompiledDslDocument.scalarProgram`とRust program payloadを再parseせず利用してTS const/let initializer評価を接続する。22、26、42も依存条件を満たしているため並行着手可能。
+21。Task 20がTS reference evaluation(`evaluateDocumentScalarProgram`/`evaluate.ts`のTS-reference-only`computedScalarBindings`)を完了したため、Rust側でTask 19の`scalar_program`をname resolution済みpayloadとして評価しparityを取る。22、26、42はTask 19完了時点から並行着手可能で、20完了後も引き続き対象。
 
 ## Blocking decisions
 

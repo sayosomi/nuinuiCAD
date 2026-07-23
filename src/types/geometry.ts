@@ -1,3 +1,6 @@
+import type { BindingId } from "../scalars/bindingCatalog";
+import type { ScalarEvaluation } from "../scalars/types";
+
 export type ElementId = string;
 
 export type CadElementBase = {
@@ -555,6 +558,17 @@ export type EvaluationResult = {
   effectiveEnabledElementIds?: Set<ElementId>;
   conditionInactiveElementIds?: Set<ElementId>;
   forGroupGeneratedRows?: ForGroupGeneratedRow[];
+  /**
+   * Task 20: version-0 TS reference evaluation of the compiled scalar
+   * program's const/let declarations, keyed by BindingId - a separate map
+   * from `computedVariables` (legacy numeric variables), never merged with
+   * it. Present only when the source document had a non-empty
+   * `EvaluateElementsOptions.scalarProgram` and only on the TS reference
+   * evaluation path (`evaluateElementsWithRust` does not run
+   * `evaluateElements`'s loop at all, so Rust output has no equivalent field
+   * until Task 21).
+   */
+  computedScalarBindings?: ReadonlyMap<BindingId, ScalarEvaluation>;
 };
 
 export const elementTypeLabels: Record<CadElementType, string> = {

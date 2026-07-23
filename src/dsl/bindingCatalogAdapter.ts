@@ -1,6 +1,6 @@
 // DSL adapter: compact visibility descriptors only. It never expands a
 // binding into every visible scope.
-import type { BindingSeed } from "../scalars/bindingCatalog";
+import { bindingIdForStableStatementId, type BindingSeed } from "../scalars/bindingCatalog";
 import {
   buildLegacyContainerIndex,
   type LegacyContainerIndex,
@@ -10,7 +10,6 @@ import type { LexicalScopeIndex, ScopeId } from "../scalars/lexicalScopeIndex";
 import type { DslStatement } from "./dslTypes";
 
 const attrValue = (statement: DslStatement, key: string) => statement.attrs.find((attr) => attr.key === key)?.value;
-const stableBindingId = (stableStatementId: string) => `binding:${stableStatementId}`;
 
 const groupVisibility = (index: LexicalScopeIndex, containers: LegacyContainerIndex, statementIndex: number) => {
   const ownerContainerId = containers.ownerContainerIdByStatementIndex.get(statementIndex) ?? null;
@@ -57,7 +56,7 @@ export const buildDslBindingAdapterSeeds = ({
       const translated = group
         ? groupVisibility(scopeIndex, containerIndex, statementIndex)
         : { effectiveScopeId: scopeIndex.rootScopeId, visibility: { kind: "global" as const } };
-      legacyBindings.push({ id: stableBindingId(stableStatementId), kind: "legacy", name: legacy.name, nameSpan: legacy.nameSpan, statementIndex, sourceOrder: 0, effectiveScopeId: translated.effectiveScopeId, visibility: translated.visibility });
+      legacyBindings.push({ id: bindingIdForStableStatementId(stableStatementId), kind: "legacy", name: legacy.name, nameSpan: legacy.nameSpan, statementIndex, sourceOrder: 0, effectiveScopeId: translated.effectiveScopeId, visibility: translated.visibility });
     }
     const slot = slotByStatementIndex.get(statementIndex);
     if (slot && slot.name.trim()) {
