@@ -7,6 +7,11 @@ import type {
   EvaluationWarning,
   ForGroupGeneratedRow
 } from "../types/geometry";
+import type { BindingId } from "../scalars/bindingCatalog";
+import { parseScalarEvaluationJson } from "../scalars/scalarJson";
+import type { ScalarEvaluation } from "../scalars/types";
+
+export type ScalarBindingEvaluationPayload = { bindingId: BindingId; evaluation: ScalarEvaluation };
 
 export type EvaluationPayload = {
   computedGeometry: ComputedGeometry[];
@@ -19,6 +24,8 @@ export type EvaluationPayload = {
   effectiveEnabledElementIds: ElementId[];
   conditionInactiveElementIds?: ElementId[];
   forGroupGeneratedRows?: ForGroupGeneratedRow[];
+  /** Task 20: TS-reference-only until Task 21 gives Rust a matching field - see EvaluationResult.computedScalarBindings. */
+  computedScalarBindings?: ScalarBindingEvaluationPayload[];
 };
 
 export const evaluationResultToPayload = (result: EvaluationResult): EvaluationPayload => ({
@@ -33,6 +40,9 @@ export const evaluationResultToPayload = (result: EvaluationResult): EvaluationP
   conditionInactiveElementIds: Array.from(result.conditionInactiveElementIds ?? []),
   forGroupGeneratedRows: result.forGroupGeneratedRows?.length
     ? result.forGroupGeneratedRows
+    : undefined,
+  computedScalarBindings: result.computedScalarBindings
+    ? Array.from(result.computedScalarBindings, ([bindingId, evaluation]) => ({ bindingId, evaluation }))
     : undefined
 });
 
@@ -46,5 +56,12 @@ export const evaluationPayloadToResult = (payload: EvaluationPayload): Evaluatio
   effectiveVisibleElementIds: new Set(payload.effectiveVisibleElementIds),
   effectiveEnabledElementIds: new Set(payload.effectiveEnabledElementIds),
   conditionInactiveElementIds: new Set(payload.conditionInactiveElementIds ?? []),
-  forGroupGeneratedRows: payload.forGroupGeneratedRows ?? []
+  forGroupGeneratedRows: payload.forGroupGeneratedRows ?? [],
+  ...(payload.computedScalarBindings
+    ? {
+        computedScalarBindings: new Map(
+          payload.computedScalarBindings.map(({ bindingId, evaluation }) => [bindingId, parseScalarEvaluationJson(evaluation)])
+        )
+      }
+    : {})
 });

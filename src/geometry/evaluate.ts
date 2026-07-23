@@ -18,10 +18,17 @@ import {
   forGroupTemplateDescendantIds
 } from "./forGroupExpansion";
 import type { ScalarProgram } from "../scalars/scalarProgram";
+import { evaluateDocumentScalarProgram } from "./scalarProgramEvaluation";
 
 export type EvaluateElementsOptions = {
   evaluationLimitIndex?: number;
-  /** Inert Task 19 payload; reference evaluation intentionally ignores it. */
+  /**
+   * Task 19's compiled declaration program. Task 20 evaluates it (via
+   * evaluateDocumentScalarProgram) on this TS reference path only -
+   * evaluateElementsWithRust calls the Rust `evaluate_document` command
+   * directly and never runs this function, so Rust has no equivalent output
+   * until Task 21 gives it one.
+   */
   scalarProgram?: ScalarProgram;
 };
 
@@ -268,6 +275,10 @@ export const evaluateElements = (
     evaluateRuntimeElement(element);
   }
 
+  const computedScalarBindings = options.scalarProgram
+    ? evaluateDocumentScalarProgram(options.scalarProgram, elements, computedVariables).resultsByBindingId
+    : undefined;
+
   return {
     computedGeometry,
     computedVariables,
@@ -278,6 +289,7 @@ export const evaluateElements = (
     effectiveVisibleElementIds: effectiveVisibleIds,
     effectiveEnabledElementIds: effectiveEnabledIds,
     conditionInactiveElementIds,
-    forGroupGeneratedRows
+    forGroupGeneratedRows,
+    ...(computedScalarBindings ? { computedScalarBindings } : {})
   };
 };

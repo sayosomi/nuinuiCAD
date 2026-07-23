@@ -93,7 +93,18 @@ const emptyContainerIndex: LegacyContainerIndex = {
   effectiveScopeIdByContainerId: new Map()
 };
 
-const typedBindingId = (stableStatementId: string): BindingId => `binding:${stableStatementId}`;
+/**
+ * Shared binding-id convention for every stable-statement-identity-backed
+ * binding, not just typed declarations: `bindingCatalogAdapter.ts` builds a
+ * legacy `var` binding's id from this exact same template, using the
+ * compiled CadElement id as its stableStatementId (dslDocument.ts seeds
+ * `stableStatementIdByIndex` with the element id for every element-producing
+ * statement). Exported so evaluation-side code (Task 20's
+ * src/geometry/scalarProgramEvaluation.ts) can map a runtime CadElement id to
+ * its legacy binding id without re-deriving this format.
+ */
+export const bindingIdForStableStatementId = (stableStatementId: string): BindingId => `binding:${stableStatementId}`;
+const typedBindingId = bindingIdForStableStatementId;
 const kindLane: Record<BindingKind, number> = { typed: 0, legacy: 1, iteration: 2, elementLocal: 3 };
 
 type Ordered = Omit<Binding, "rank"> & { sourceOrder: number };

@@ -575,4 +575,26 @@ describe("evaluationResultsMatch", () => {
       })
     ).toBe(false);
   });
+
+  it("ignores computedScalarBindings differences (TS-only until Task 21)", () => {
+    const base = {
+      computedGeometry: new Map(),
+      computedVariables: new Map(),
+      errors: [],
+      warnings: [],
+      evaluatedElementIds: new Set<string>(),
+      evaluationLimitIndex: 0,
+      effectiveVisibleElementIds: new Set<string>(),
+      effectiveEnabledElementIds: new Set<string>()
+    };
+
+    expect(
+      evaluationResultsMatch(base, {
+        ...base,
+        computedScalarBindings: new Map([
+          ["binding:a", { status: "ok" as const, type: { kind: "number" as const }, value: { kind: "number" as const, value: 1 } }]
+        ])
+      })
+    ).toBe(true);
+  });
 });
