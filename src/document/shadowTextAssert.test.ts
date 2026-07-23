@@ -119,7 +119,8 @@ describe("assertReconcileSane", () => {
       ...prevCompiled,
       statementMap: {
         ...prevCompiled.statementMap!,
-        elementIdByStatementIndex: new Map()
+        elementIdByStatementIndex: new Map(),
+        statementIdByStatementIndex: new Map()
       }
     };
     const afterDoc: DslDocumentData = {

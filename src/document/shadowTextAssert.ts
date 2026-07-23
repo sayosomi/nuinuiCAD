@@ -142,6 +142,7 @@ export const assertReconcileSane = (
     oldStatements: prevCompiled.statements,
     oldLines: prevCompiled.sourceLines,
     oldElementIds: prevCompiled.statementMap.elementIdByStatementIndex,
+    oldStatementIds: prevCompiled.statementMap.statementIdByStatementIndex,
     newStatements: parsedNew.statements,
     newLines: normalized.split("\n")
   });

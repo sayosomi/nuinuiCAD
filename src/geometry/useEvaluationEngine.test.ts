@@ -2,6 +2,7 @@ import { renderHook, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { invoke } from "@tauri-apps/api/core";
 import type { CadElement } from "../types/geometry";
+import type { ScalarProgram } from "../scalars/scalarProgram";
 import { evaluateElementsReferencePayload } from "./evaluationEngine";
 import { useEvaluationEngine } from "./useEvaluationEngine";
 
@@ -40,6 +41,19 @@ const line: CadElement = {
 };
 
 const elements = [pointA, pointB, line];
+const scalarProgram: ScalarProgram = {
+  statements: [{
+    kind: "declare",
+    bindingId: "binding:stable",
+    scopeId: "root",
+    sourceOrder: 0,
+    declaration: {
+      bindingKind: "const",
+      declaredType: { kind: "number" },
+      initializer: { kind: "numberLiteral", span: { start: 0, end: 1 }, value: 1, type: { kind: "number" } }
+    }
+  }]
+};
 
 const unsupportedElement = {
   id: "unsupported",
@@ -111,6 +125,18 @@ describe("useEvaluationEngine", () => {
     expect(result.current.source).toBe("rust");
     expect(result.current.status).toBe("evaluating");
     await waitFor(() => expect(invokeMock).toHaveBeenCalledWith("evaluate_document", expect.any(Object)));
+  });
+
+  it("forwards an optional scalar program as JSON while reference evaluation remains unchanged", async () => {
+    setTauriRuntime();
+    vi.stubEnv("VITE_EVALUATION_ENGINE", "rust");
+    invokeMock.mockResolvedValue(evaluateElementsReferencePayload(elements));
+
+    renderHook(() => useEvaluationEngine(elements, { evaluationLimitIndex: elements.length, scalarProgram }));
+
+    await waitFor(() => expect(invokeMock).toHaveBeenCalledWith("evaluate_document", {
+      input: expect.objectContaining({ elements, scalarProgram })
+    }));
   });
 
   it("does not invoke Rust for unsupported Tauri documents", () => {

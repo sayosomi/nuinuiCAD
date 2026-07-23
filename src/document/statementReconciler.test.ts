@@ -15,7 +15,27 @@ const reconcileSources = (
   oldSource: string,
   newSource: string
 ): { old: CompiledDslDocument; next: CompiledDslDocument; result: ReconcileResult } => {
-  const old = compileDslDocument(oldSource);
+  const parsedOld = parseDsl(oldSource);
+  const hasTypedDeclarations = parsedOld.statements.some((statement) => statement.kind === "typedDeclaration");
+  let initialIdentity = 0;
+  const initial = hasTypedDeclarations
+    ? reconcileStatements({
+      oldStatements: [],
+      oldLines: [],
+      oldElementIds: new Map(),
+      oldStatementIds: new Map(),
+      newStatements: parsedOld.statements,
+      newLines: oldSource.split("\n")
+    }, {
+      createId: (type) => `initial-${type}-${++initialIdentity}`,
+      createStatementId: () => `initial-statement-${++initialIdentity}`
+    })
+    : null;
+  const old = compileDslDocument(oldSource, initial ? {
+    assignedElementIds: initial.assignedIds,
+    assignedStatementIds: initial.assignedIds,
+    preparsed: parsedOld
+  } : undefined);
   expect(old.statementMap, "old document must compile").not.toBeNull();
   const normalized = newSource.replace(/\r\n/g, "\n");
   const parsedNew = parseDsl(normalized);
@@ -24,12 +44,16 @@ const reconcileSources = (
       oldStatements: old.statements,
       oldLines: old.sourceLines,
       oldElementIds: old.statementMap!.elementIdByStatementIndex,
+      oldStatementIds: old.statementMap!.statementIdByStatementIndex,
       newStatements: parsedNew.statements,
       newLines: normalized.split("\n")
     },
     { createId: testIdFactory() }
   );
-  const next = compileDslDocument(normalized, { assignedElementIds: result.assignedIds });
+  const next = compileDslDocument(normalized, {
+    assignedElementIds: result.assignedIds,
+    assignedStatementIds: result.assignedIds
+  });
   expect(next.statementMap, "reconciled document must compile").not.toBeNull();
   return { old, next, result };
 };
@@ -507,21 +531,17 @@ describe("statementReconciler ストレス", () => {
   });
 });
 
-// Task 10: typedDeclaration statements are registered in nonElementKinds
-// (dslParser.ts), so they must never enter isElementDslStatement-gated
-// reconciliation. This is a test-only regression guard - no reconciler
-// production code changes were needed for Task 10.
 describe("statementReconciler と typed declaration", () => {
   const pointLines = () =>
     Array.from({ length: 50 }, (_, index) => `point P${index} = coordinate(x: ${index} y: ${index % 7})`);
   const declarationLines = () => Array.from({ length: 50 }, (_, index) => `const V${index}: number = ${index}`);
 
-  it("declarations never enter element-ID reconciliation, even inserted/removed among many", () => {
+  it("declarations inherit opaque identities without entering elements", () => {
     const oldSource = ["nui 3", ...declarationLines(), ...pointLines()].join("\n");
     const newSource = ["nui 3", ...declarationLines(), "const extra: number = 999", ...pointLines()].join("\n");
     const { result } = reconcileSources(oldSource, newSource);
-    expect(result.inheritedCount).toBe(50);
-    expect(result.createdIds.size).toBe(0);
+    expect(result.inheritedCount).toBe(100);
+    expect(result.createdIds.size).toBe(1);
     expect(result.vanishedIds).toEqual([]);
   });
 
@@ -535,7 +555,7 @@ describe("statementReconciler と typed declaration", () => {
     ].join("\n");
     const { old, next, result } = reconcileSources(oldSource, newSource);
     expect(result.inheritedCount).toBe(2);
-    expect(result.createdIds.size).toBe(0);
+    expect(result.createdIds.size).toBe(1);
     expect(idByName(next, "A")).toBe(idByName(old, "A"));
     expect(idByName(next, "B")).toBe(idByName(old, "B"));
   });

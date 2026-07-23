@@ -18,9 +18,13 @@ import type {
   VisibilityRole
 } from "../types/geometry";
 import { compileDslToElements } from "./dslCompiler";
+import { lowerScalarProgram } from "../scalars/scalarProgram";
+import { analyzeTypedDeclarations } from "../scalars/typedDeclarationAnalysis";
 import { formatNumericValueForDsl } from "./dslExpressionFormat";
 import { parseDsl, parseDslSnapshot } from "./dslParser";
 import type { SourceRevision } from "./logicalStatementSourceMap";
+import type { BindingAnalysis } from "../scalars/bindingAnalysis";
+import type { ScalarProgram, ScalarProgramPositionMap } from "../scalars/scalarProgram";
 import {
   documentDslRefs,
   flatRefs,
@@ -109,6 +113,8 @@ export type StatementMap = {
   statements: StatementInfo[];
   byElementId: Map<ElementId, StatementInfo>;
   elementIdByStatementIndex: Map<number, ElementId>;
+  /** Reconciler-owned identities, present only when typed declarations need them. */
+  statementIdByStatementIndex?: Map<number, string>;
   /**
    * 非要素文のキー: `color:<id>` / `role:<id>` / `view:<id>` / `printLayout:<id>` /
    * `version` / `atStop` / `activeView` / `activePrintLayout`。
@@ -139,11 +145,16 @@ export type CompiledDslDocument = {
   /** 改行正規化済みソースの行配列。 */
   sourceLines: string[];
   diagnostics: DslDiagnostic[];
+  scalarProgram?: ScalarProgram;
+  bindingAnalysis?: BindingAnalysis;
+  scalarProgramPositionMap?: ScalarProgramPositionMap;
 };
 
 export type CompileDslDocumentOptions = {
   /** 文index(全文配列基準)→ 継承させる実行時要素ID(statementReconciler の出力)。 */
   assignedElementIds?: ReadonlyMap<number, ElementId>;
+  /** Superset of assignedElementIds; typed declarations require this opaque identity. */
+  assignedStatementIds?: ReadonlyMap<number, string>;
   /** 同じsourceを事前parseした結果。指定時はdocument compile内の再parseを省く。 */
   preparsed?: ParseDslResult;
   sourceRevision?: SourceRevision;
@@ -591,7 +602,8 @@ const buildStatementMap = (
   statements: DslStatement[],
   lastLine: number,
   elementIdByStatementIndex: Map<number, ElementId>,
-  printLayoutIdsByStatementIndex: Map<number, string> | undefined
+  printLayoutIdsByStatementIndex: Map<number, string> | undefined,
+  assignedStatementIds?: ReadonlyMap<number, string>
 ): StatementMap => {
   const infos: StatementInfo[] = [];
   const stack: StatementInfo[] = [];
@@ -694,6 +706,14 @@ const buildStatementMap = (
     const info = infos[statementIndex];
     if (info) byElementId.set(elementId, info);
   }
+  const statementIdByStatementIndex = assignedStatementIds
+    ? new Map<number, string>(assignedStatementIds)
+    : undefined;
+  if (statementIdByStatementIndex) {
+    for (const [statementIndex, elementId] of elementIdByStatementIndex) {
+      statementIdByStatementIndex.set(statementIndex, elementId);
+    }
+  }
 
   const sectionEnds: StatementMap["sectionEnds"] = {};
   for (const info of infos) {
@@ -714,6 +734,7 @@ const buildStatementMap = (
     statements: infos,
     byElementId,
     elementIdByStatementIndex,
+    ...(statementIdByStatementIndex ? { statementIdByStatementIndex } : {}),
     byKey,
     sectionEnds
   };
@@ -734,11 +755,42 @@ export const compileDslDocument = (
     elements: [],
     mode: "document",
     preparsed: parsed,
-    assignedElementIds: options.assignedElementIds,
+    assignedElementIds: options.assignedStatementIds ?? options.assignedElementIds,
     majorVersion: versionValidation.majorVersion ?? NEW_DOCUMENT_DSL_MAJOR_VERSION
   });
-  const allDiagnostics = [...versionValidation.diagnostics, ...compiled.diagnostics];
+  const hasTypedDeclarations = parsed.statements.some((statement) => statement.kind === "typedDeclaration");
+  const stableStatementIdByIndex = hasTypedDeclarations
+    ? new Map<number, string>(options.assignedStatementIds ?? options.assignedElementIds ?? [])
+    : undefined;
+  if (stableStatementIdByIndex) {
+    for (const [statementIndex, elementId] of compiled.elementIdsByStatementIndex ?? []) {
+      stableStatementIdByIndex.set(statementIndex, elementId);
+    }
+  }
+  const baseDiagnostics = [...versionValidation.diagnostics, ...compiled.diagnostics];
 
+  if (baseDiagnostics.some((item) => item.severity === "error")) {
+    return {
+      document: null,
+      majorVersion: versionValidation.majorVersion,
+      statements: parsed.statements,
+      statementMap: null,
+      sourceLines,
+      diagnostics: baseDiagnostics
+    };
+  }
+
+  const scalarAnalysisCompilation = versionValidation.majorVersion === 3 && stableStatementIdByIndex
+    ? analyzeTypedDeclarations({
+        statements: parsed.statements,
+        stableStatementIdByIndex,
+        reconciledContainers: {
+          elementIdByStatementIndex: compiled.elementIdsByStatementIndex ?? new Map(),
+          elements: compiled.elements
+        }
+      })
+    : { diagnostics: [] };
+  const allDiagnostics = [...baseDiagnostics, ...scalarAnalysisCompilation.diagnostics];
   if (allDiagnostics.some((item) => item.severity === "error")) {
     return {
       document: null,
@@ -749,6 +801,8 @@ export const compileDslDocument = (
       diagnostics: allDiagnostics
     };
   }
+  const scalarAnalysis = scalarAnalysisCompilation.analysis;
+  const scalarProgram = scalarAnalysis ? lowerScalarProgram(scalarAnalysis) : undefined;
 
   const visibilityProfiles = compiled.visibilityProfiles?.length
     ? compiled.visibilityProfiles
@@ -771,7 +825,8 @@ export const compileDslDocument = (
     parsed.statements,
     sourceLines.length,
     compiled.elementIdsByStatementIndex ?? new Map(),
-    compiled.printLayoutIdsByStatementIndex
+    compiled.printLayoutIdsByStatementIndex,
+    stableStatementIdByIndex
   );
 
   return {
@@ -780,7 +835,10 @@ export const compileDslDocument = (
     statements: parsed.statements,
     statementMap,
     sourceLines,
-    diagnostics: allDiagnostics
+    diagnostics: allDiagnostics,
+    ...(scalarProgram ? { scalarProgram } : {}),
+    ...(scalarAnalysis ? { bindingAnalysis: scalarAnalysis.bindingAnalysis } : {}),
+    ...(scalarAnalysis ? { scalarProgramPositionMap: scalarAnalysis.positionMap } : {})
   };
 };
 

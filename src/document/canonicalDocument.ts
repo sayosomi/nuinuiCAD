@@ -74,6 +74,7 @@ export const compileCanonicalText = (
     oldStatements: current.doc.statements,
     oldLines: current.doc.sourceLines,
     oldElementIds: current.doc.statementMap.elementIdByStatementIndex,
+    oldStatementIds: current.doc.statementMap.statementIdByStatementIndex,
     newStatements: parsed.statements,
     newLines: compileLines(sourceText)
   }, {
@@ -81,6 +82,7 @@ export const compileCanonicalText = (
   });
   const compiled = compileDslDocument(sourceText, {
     assignedElementIds: reconciled.assignedIds,
+    assignedStatementIds: reconciled.assignedIds,
     preparsed: parsed,
     sourceRevision: revision
   });
@@ -109,7 +111,8 @@ export const compileCanonicalText = (
 const compileZippedModelText = (
   text: string,
   afterDocument: DslDocumentData,
-  sourceRevision = 0
+  sourceRevision = 0,
+  previous?: LastGoodDslDocument
 ): { ok: true; doc: LastGoodDslDocument } | { ok: false; reason: string } => {
   const sourceText = normalizedText(text);
   const parsed = parseDslSnapshot({ normalizedSource: sourceText.replace(/\r\n/g, "\n"), sourceRevision });
@@ -120,8 +123,22 @@ const compileZippedModelText = (
   if (!assignedElementIds) {
     return { ok: false, reason: "モデル差分テキストと要素列の位置対応が崩れました。" };
   }
+  // Geometry IDs come from the model bridge; typed declaration identities
+  // remain reconciler-owned and are never synthesized from the source text.
+  const assignedStatementIds = previous
+    ? reconcileStatements({
+        oldStatements: previous.statements,
+        oldLines: previous.sourceLines,
+        oldElementIds: previous.statementMap.elementIdByStatementIndex,
+        oldStatementIds: previous.statementMap.statementIdByStatementIndex,
+        newStatements: parsed.statements,
+        newLines: compileLines(sourceText)
+      }).assignedIds
+    : new Map<number, ElementId>();
+  for (const [statementIndex, elementId] of assignedElementIds) assignedStatementIds.set(statementIndex, elementId);
   const compiled = compileDslDocument(sourceText, {
     assignedElementIds,
+    assignedStatementIds,
     preparsed: parsed,
     sourceRevision
   });
@@ -176,7 +193,7 @@ export const commitModelBridge = (
   }
   if (patchedText === current.sourceText) return { status: "noop" };
 
-  const compiled = compileZippedModelText(patchedText, afterDocument, current.doc.statementMap.sourceRevision + 1);
+  const compiled = compileZippedModelText(patchedText, afterDocument, current.doc.statementMap.sourceRevision + 1, current.doc);
   if (!compiled.ok) return { status: "failed", reason: compiled.reason };
 
   return {

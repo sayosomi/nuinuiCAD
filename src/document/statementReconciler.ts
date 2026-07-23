@@ -3,6 +3,7 @@ import { isElementDslStatement } from "../dsl/dslParser";
 import type { DslStatement } from "../dsl/dslTypes";
 import { createCadElementId } from "../model/cadIds";
 import type { CadElementType, ElementId } from "../types/geometry";
+import { createStatementIdentity, type StatementIdentity } from "./statementIdentity";
 
 // statementReconciler — 再パースされたDSL文書の各文へ、直前のコンパイル結果から
 // 実行時要素IDを最大限継承させる純粋照合器(docs/overhaul/plan.md / Phase 1a)。
@@ -21,9 +22,8 @@ import type { CadElementType, ElementId } from "../types/geometry";
 //  6. 残りの追加は新規ID、削除は消滅。リネーム+移動の同時実行と型変更は
 //     対応不能で新規ID(許容制約)。
 //
-// 対象は要素IDのみ。placement / layoutVar / printLayout のIDは位置決定論的
-// (同一テキスト→同一ID)で、相互参照はすべて名前orIDトークンで解決されるため
-// 照合しない(ずれて困るのは一時的なUI選択のみ、という設計判断)。
+// 対象は要素文とtyped declaration。後者はCadElementにはしないが、binding IDの
+// ownerになるため、同じ照合規則でopaque statement identityを継承する。
 
 export type ReconcileInput = {
   oldStatements: readonly DslStatement[];
@@ -31,6 +31,8 @@ export type ReconcileInput = {
   oldLines: readonly string[];
   /** 旧文index(全文配列基準)→ 実行時要素ID。statementMap.elementIdByStatementIndex。 */
   oldElementIds: ReadonlyMap<number, ElementId>;
+  /** 旧文index→ reconcilerが所有するidentity。typed declarationを含む。 */
+  oldStatementIds?: ReadonlyMap<number, StatementIdentity>;
   newStatements: readonly DslStatement[];
   newLines: readonly string[];
 };
@@ -40,17 +42,19 @@ export type ReconcileStage = 1 | 2 | 3 | 4 | 5 | 6;
 export type ReconcileOptions = {
   /** 段階6の新規ID生成器。省略時は createCadElementId。テストでは決定論的生成器を注入する。 */
   createId?: (type: CadElementType) => ElementId;
+  /** typed declaration用のopaque identity生成器。 */
+  createStatementId?: (kind: "typedDeclaration") => StatementIdentity;
 };
 
 export type ReconcileResult = {
   /** 新文index(全文配列基準)→ ID。compileDslDocument の assignedElementIds へそのまま渡せる。 */
-  assignedIds: Map<number, ElementId>;
+  assignedIds: Map<number, StatementIdentity>;
   /** 段階1〜5で旧IDを継承した文の数。 */
   inheritedCount: number;
   /** 段階6で新規生成されたID(assignedIds の部分集合)。 */
-  createdIds: Map<number, ElementId>;
+  createdIds: Map<number, StatementIdentity>;
   /** どの新文にも継承されなかった旧ID(旧文書順)。 */
-  vanishedIds: ElementId[];
+  vanishedIds: StatementIdentity[];
   stageByNewStatementIndex: Map<number, ReconcileStage>;
 };
 
@@ -148,25 +152,31 @@ export const reconcileStatements = (
   input: ReconcileInput,
   options: ReconcileOptions = {}
 ): ReconcileResult => {
-  const { oldStatements, oldLines, oldElementIds, newStatements, newLines } = input;
+  const { oldStatements, oldLines, oldElementIds, oldStatementIds = oldElementIds, newStatements, newLines } = input;
   const createId = options.createId ?? createCadElementId;
+  const createStatementId = options.createStatementId ?? createStatementIdentity;
 
   const oldTexts = statementText(oldStatements, oldLines);
   const newTexts = statementText(newStatements, newLines);
   const { pairs, hunks } = diffTexts(oldTexts, newTexts);
 
-  const assignedIds = new Map<number, ElementId>();
+  const assignedIds = new Map<number, StatementIdentity>();
   const stageByNewStatementIndex = new Map<number, ReconcileStage>();
-  const createdIds = new Map<number, ElementId>();
+  const createdIds = new Map<number, StatementIdentity>();
 
-  // 残余(未対応の要素文index)。旧側はIDを持つ文のみが継承元になれる。
+  const isIdentityStatement = (statement: DslStatement) =>
+    isElementDslStatement(statement) || statement.kind === "typedDeclaration";
+  const identityKindOf = (statement: DslStatement) =>
+    statement.kind === "typedDeclaration" ? "typedDeclaration" : statementTypeOf(statement);
+
+  // 残余(未対応のidentity-bearing文index)。
   const oldResidue = new Set<number>();
   oldStatements.forEach((statement, index) => {
-    if (isElementDslStatement(statement) && oldElementIds.has(index)) oldResidue.add(index);
+    if (isIdentityStatement(statement) && oldStatementIds.has(index)) oldResidue.add(index);
   });
   const newResidue = new Set<number>();
   newStatements.forEach((statement, index) => {
-    if (isElementDslStatement(statement)) newResidue.add(index);
+    if (isIdentityStatement(statement)) newResidue.add(index);
   });
 
   // ブロック対応: 旧開き文index → マッチ済みフラグ / 新開き文index → 旧開き文index。
@@ -174,7 +184,7 @@ export const reconcileStatements = (
   const oldBlockByNewBlock = new Map<number, number>();
 
   const match = (oldIndex: number, newIndex: number, stage: ReconcileStage) => {
-    const id = oldElementIds.get(oldIndex);
+    const id = oldStatementIds.get(oldIndex);
     if (id === undefined) return;
     assignedIds.set(newIndex, id);
     stageByNewStatementIndex.set(newIndex, stage);
@@ -195,7 +205,7 @@ export const reconcileStatements = (
       matchedOldBlocks.add(oldIndex);
       oldBlockByNewBlock.set(newIndex, oldIndex);
     }
-    if (!isElementDslStatement(newStatement)) continue;
+    if (!isIdentityStatement(newStatement)) continue;
     if (!oldResidue.has(oldIndex) || !newResidue.has(newIndex)) continue;
     match(oldIndex, newIndex, 1);
   }
@@ -238,14 +248,14 @@ export const reconcileStatements = (
       for (const index of residueList(oldResidue)) {
         const statement = oldStatements[index];
         if (!statement.name) continue;
-        const key = `${scopeKey("old", index)}|${statementTypeOf(statement)}|${statement.name}`;
+        const key = `${scopeKey("old", index)}|${identityKindOf(statement)}|${statement.name}`;
         oldByKey.set(key, [...(oldByKey.get(key) ?? []), index]);
       }
       const newByKey = new Map<string, number[]>();
       for (const index of residueList(newResidue)) {
         const statement = newStatements[index];
         if (!statement.name) continue;
-        const key = `${scopeKey("new", index)}|${statementTypeOf(statement)}|${statement.name}`;
+        const key = `${scopeKey("new", index)}|${identityKindOf(statement)}|${statement.name}`;
         newByKey.set(key, [...(newByKey.get(key) ?? []), index]);
       }
       for (const [key, newIndexes] of newByKey) {
@@ -271,13 +281,13 @@ export const reconcileStatements = (
         const oldGroups = new Map<string, number[]>();
         for (const index of residueList(oldResidue)) {
           if (index < hunk.oldStart || index >= hunk.oldEnd) continue;
-          const key = `${statementTypeOf(oldStatements[index])}|${scopeKey("old", index)}`;
+          const key = `${identityKindOf(oldStatements[index])}|${scopeKey("old", index)}`;
           oldGroups.set(key, [...(oldGroups.get(key) ?? []), index]);
         }
         const newGroups = new Map<string, number[]>();
         for (const index of residueList(newResidue)) {
           if (index < hunk.newStart || index >= hunk.newEnd) continue;
-          const key = `${statementTypeOf(newStatements[index])}|${scopeKey("new", index)}`;
+          const key = `${identityKindOf(newStatements[index])}|${scopeKey("new", index)}`;
           newGroups.set(key, [...(newGroups.get(key) ?? []), index]);
         }
         for (const [key, newIndexes] of newGroups) {
@@ -302,14 +312,14 @@ export const reconcileStatements = (
       for (const index of residueList(oldResidue)) {
         const statement = oldStatements[index];
         if (statement.name) continue;
-        const key = `${scopeKey("old", index)}|${statementTypeOf(statement)}`;
+        const key = `${scopeKey("old", index)}|${identityKindOf(statement)}`;
         oldGroups.set(key, [...(oldGroups.get(key) ?? []), index]);
       }
       const newGroups = new Map<string, number[]>();
       for (const index of residueList(newResidue)) {
         const statement = newStatements[index];
         if (statement.name) continue;
-        const key = `${scopeKey("new", index)}|${statementTypeOf(statement)}`;
+        const key = `${scopeKey("new", index)}|${identityKindOf(statement)}`;
         newGroups.set(key, [...(newGroups.get(key) ?? []), index]);
       }
       for (const [key, newIndexes] of newGroups) {
@@ -330,13 +340,13 @@ export const reconcileStatements = (
     const oldByKey = new Map<string, number[]>();
     for (const index of residueList(oldResidue)) {
       const statement = oldStatements[index];
-      const key = `${statement.name}|${statementTypeOf(statement)}`;
+      const key = `${statement.name}|${identityKindOf(statement)}`;
       oldByKey.set(key, [...(oldByKey.get(key) ?? []), index]);
     }
     const newByKey = new Map<string, number[]>();
     for (const index of residueList(newResidue)) {
       const statement = newStatements[index];
-      const key = `${statement.name}|${statementTypeOf(statement)}`;
+      const key = `${statement.name}|${identityKindOf(statement)}`;
       newByKey.set(key, [...(newByKey.get(key) ?? []), index]);
     }
     for (const [key, newIndexes] of newByKey) {
@@ -350,14 +360,17 @@ export const reconcileStatements = (
 
   // ==== 段階6: 新規ID / 消滅 ====
   for (const index of residueList(newResidue)) {
-    const id = createId(statementTypeOf(newStatements[index]));
+    const statement = newStatements[index];
+    const id = statement.kind === "typedDeclaration"
+      ? createStatementId("typedDeclaration")
+      : createId(statementTypeOf(statement));
     assignedIds.set(index, id);
     createdIds.set(index, id);
     stageByNewStatementIndex.set(index, 6);
   }
   const vanishedIds = residueList(oldResidue)
-    .map((index) => oldElementIds.get(index))
-    .filter((id): id is ElementId => id !== undefined);
+    .map((index) => oldStatementIds.get(index))
+    .filter((id): id is StatementIdentity => id !== undefined);
 
   return { assignedIds, inheritedCount, createdIds, vanishedIds, stageByNewStatementIndex };
 };

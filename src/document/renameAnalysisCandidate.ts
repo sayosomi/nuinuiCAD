@@ -118,9 +118,10 @@ export const recompileRenameCandidate = (
   let reconciled;
   try {
     reconciled = reconcileStatements({
-      oldStatements: before.statements,
-      oldLines: before.sourceLines,
-      oldElementIds: before.statementMap.elementIdByStatementIndex,
+    oldStatements: before.statements,
+    oldLines: before.sourceLines,
+    oldElementIds: before.statementMap.elementIdByStatementIndex,
+    oldStatementIds: before.statementMap.statementIdByStatementIndex,
       newStatements: parsed.statements,
       newLines: patchedText.replace(/\r\n/g, "\n").split("\n")
     }, {
@@ -131,7 +132,11 @@ export const recompileRenameCandidate = (
   } catch (error) {
     return { error: error instanceof Error ? error.message : String(error) };
   }
-  const compiled = compileDslDocument(patchedText, { preparsed: parsed, assignedElementIds: reconciled.assignedIds });
+  const compiled = compileDslDocument(patchedText, {
+    preparsed: parsed,
+    assignedElementIds: reconciled.assignedIds,
+    assignedStatementIds: reconciled.assignedIds
+  });
   if (!completeCompiled(compiled)) return { error: "rename候補テキストの再コンパイルに失敗しました。" };
   const idsMatch =
     compiled.document.elements.length === afterDocument.elements.length &&

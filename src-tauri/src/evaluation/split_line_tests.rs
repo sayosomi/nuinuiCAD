@@ -75,6 +75,7 @@ fn splits_line_and_updates_base_geometry() {
         ],
         evaluation_limit_index: None,
         scalar_expression_payload: None,
+        scalar_program: None,
     });
 
     assert!(result.errors.is_empty());
@@ -100,6 +101,7 @@ fn rejects_split_point_outside_or_at_endpoint() {
         ],
         evaluation_limit_index: None,
         scalar_expression_payload: None,
+        scalar_program: None,
     });
     assert!(outside
         .computed_geometry
@@ -116,6 +118,7 @@ fn rejects_split_point_outside_or_at_endpoint() {
         ],
         evaluation_limit_index: None,
         scalar_expression_payload: None,
+        scalar_program: None,
     });
     assert!(endpoint
         .computed_geometry
@@ -150,6 +153,7 @@ fn splits_arc_line() {
         ],
         evaluation_limit_index: None,
         scalar_expression_payload: None,
+        scalar_program: None,
     });
 
     assert!(result.errors.is_empty());
@@ -187,6 +191,7 @@ fn splits_bezier_curve() {
         ],
         evaluation_limit_index: None,
         scalar_expression_payload: None,
+        scalar_program: None,
     });
 
     assert!(result.errors.is_empty());
@@ -254,6 +259,7 @@ fn splits_bezier_curve_at_intersection_with_angle_line() {
         ],
         evaluation_limit_index: None,
         scalar_expression_payload: None,
+        scalar_program: None,
     });
 
     assert!(result.errors.is_empty(), "{:?}", result.errors);
@@ -311,6 +317,7 @@ fn splits_offset_line() {
         ],
         evaluation_limit_index: None,
         scalar_expression_payload: None,
+        scalar_program: None,
     });
 
     assert!(result.errors.is_empty());
@@ -330,6 +337,7 @@ fn reports_base_and_split_point_dependencies() {
         elements: vec![split_line("split", "line", "p")],
         evaluation_limit_index: None,
         scalar_expression_payload: None,
+        scalar_program: None,
     });
     assert_eq!(base_missing.errors[0].element_id, "split");
     assert_eq!(base_missing.errors[0].missing_dependency_id, "line");
@@ -343,6 +351,7 @@ fn reports_base_and_split_point_dependencies() {
         ],
         evaluation_limit_index: None,
         scalar_expression_payload: None,
+        scalar_program: None,
     });
     assert_eq!(point_missing.errors[0].element_id, "split");
     assert_eq!(point_missing.errors[0].missing_dependency_id, "p");
@@ -380,6 +389,7 @@ fn split_line_can_feed_downstream_line_helpers() {
         ],
         evaluation_limit_index: None,
         scalar_expression_payload: None,
+        scalar_program: None,
     });
 
     assert!(result.errors.is_empty());

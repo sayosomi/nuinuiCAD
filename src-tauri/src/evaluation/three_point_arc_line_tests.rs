@@ -52,6 +52,7 @@ fn evaluates_three_point_arc_line() {
         elements: base_three_point_arc(),
         evaluation_limit_index: None,
         scalar_expression_payload: None,
+        scalar_program: None,
     });
 
     let arc = geometry(&result, "arc");
@@ -105,6 +106,7 @@ fn evaluates_three_point_arc_wrap_and_measurement_reference() {
         ],
         evaluation_limit_index: None,
         scalar_expression_payload: None,
+        scalar_program: None,
     });
 
     let arc = geometry(&result, "arc");
@@ -136,6 +138,7 @@ fn reports_three_point_arc_dependency_that_appears_too_late() {
         ],
         evaluation_limit_index: None,
         scalar_expression_payload: None,
+        scalar_program: None,
     });
 
     assert_eq!(result.errors[0].element_id, "arc");
@@ -168,6 +171,7 @@ fn reports_three_point_arc_geometry_error_for_collinear_points() {
         ],
         evaluation_limit_index: None,
         scalar_expression_payload: None,
+        scalar_program: None,
     });
 
     assert!(result
@@ -207,6 +211,7 @@ fn evaluates_three_point_arc_numeric_variables_and_expressions() {
         ],
         evaluation_limit_index: None,
         scalar_expression_payload: None,
+        scalar_program: None,
     });
 
     let arc = geometry(&result, "arc");
@@ -283,6 +288,7 @@ fn allows_supported_point_elements_to_reference_three_point_arc() {
         elements,
         evaluation_limit_index: None,
         scalar_expression_payload: None,
+        scalar_program: None,
     });
 
     assert!(result.errors.is_empty());

@@ -25,6 +25,7 @@ mod expression_shape_payload;
 mod issue;
 mod json_helpers;
 mod numeric_function_adapter;
+mod program_payload;
 mod scalar_payload;
 mod types;
 
@@ -34,6 +35,8 @@ mod expression_evaluator_tests;
 mod expression_payload_tests;
 #[cfg(test)]
 mod numeric_function_adapter_tests;
+#[cfg(test)]
+mod program_payload_tests;
 #[cfg(test)]
 mod scalar_payload_tests;
 
@@ -47,3 +50,4 @@ pub(crate) use expression_evaluator::{evaluate_typed_expression, ScalarEvaluatio
 pub(crate) use expression_payload::validate_typed_expression_payload;
 #[allow(unused_imports)]
 pub(crate) use numeric_function_adapter::adapt_numeric_result;
+pub(crate) use program_payload::validate_scalar_program_payload;

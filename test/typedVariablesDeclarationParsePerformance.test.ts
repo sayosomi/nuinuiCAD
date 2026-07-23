@@ -11,8 +11,16 @@ import { expectFiniteMeasurement, logBaselineMeasurement, measureWorkerCpuScalin
 
 const [SMALL_SIZE, LARGE_SIZE] = BASELINE_SIZES;
 
-const compileDeclarations = (source: string) => {
-  const compiled = compileDslDocument(source);
+const declarationStatementIds = (declarationCount: number) =>
+  new Map(
+    Array.from({ length: declarationCount }, (_, index) => [index + 1, `benchmark:typed:${index}`])
+  );
+
+const compileDeclarations = (source: string, declarationCount: number) => {
+  // 本番ではreconcilerから供給されるidentityを、ベンチ用fixtureでは明示する。
+  const compiled = compileDslDocument(source, {
+    assignedStatementIds: declarationStatementIds(declarationCount)
+  });
   if (compiled.diagnostics.some((diagnostic) => diagnostic.severity === "error")) {
     throw new Error("declaration baseline fixture must compile without diagnostics");
   }
@@ -35,14 +43,14 @@ describe("typed declaration parse performance baseline", () => {
     const measurement = measureWorkerCpuScaling({
       small: {
         run: () => {
-          const compiled = compileDeclarations(small.source);
+          const compiled = compileDeclarations(small.source, small.scale.declarationCount);
           return compiled.statements.filter((statement) => statement.kind === "typedDeclaration").length;
         },
         counts
       },
       large: {
         run: () => {
-          const compiled = compileDeclarations(large.source);
+          const compiled = compileDeclarations(large.source, large.scale.declarationCount);
           return compiled.statements.filter((statement) => statement.kind === "typedDeclaration").length;
         },
         counts

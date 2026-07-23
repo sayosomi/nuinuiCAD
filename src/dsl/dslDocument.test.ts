@@ -764,8 +764,16 @@ describe("nui 2/3 typed declaration wiring", () => {
   });
 
   it("accepts const/let under a nui 3 document with no diagnostics, staying out of document.elements", () => {
+    // 型付き宣言のidentityはstatement reconcilerが供給する。直接compilerを
+    // 呼ぶこの単体テストでも、その契約を明示して渡す。
     const compiled = compileDslDocument(
-      ["nui 3", "const x: number = 1", "let 表示する: boolean = true", "point A = coordinate(x: 0 y: 0)"].join("\n")
+      ["nui 3", "const x: number = 1", "let 表示する: boolean = true", "point A = coordinate(x: 0 y: 0)"].join("\n"),
+      {
+        assignedStatementIds: new Map([
+          [1, "test:typed:x"],
+          [2, "test:typed:visible"]
+        ])
+      }
     );
     expect(compiled.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
     expect(compiled.majorVersion).toBe(3);
