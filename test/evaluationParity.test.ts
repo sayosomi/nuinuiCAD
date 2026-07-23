@@ -7,7 +7,7 @@ import type { CadElement } from "../src/types/geometry";
 import { compileCanonicalText, regenerateCanonicalFromModel } from "../src/document/canonicalDocument";
 import { emptyDocument } from "../src/dsl/dslDocumentTestUtils";
 import { evaluateElementsReferencePayload } from "../src/geometry/evaluationEngine";
-import type { EvaluationPayload } from "../src/geometry/evaluationPayload";
+import { evaluationPayloadToResult, type EvaluationPayload } from "../src/geometry/evaluationPayload";
 import type { ScalarProgram } from "../src/scalars/scalarProgram";
 
 type EvaluationFixture = {
@@ -104,5 +104,36 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     });
 
     expect(normalizeNumbers(evaluateWithRust(fixture))).toEqual(normalizeNumbers(tsPayload));
+  }, 30000);
+
+  it("valid nui 3 overflow source returns matching typed poison through IPC", () => {
+    const baseline = regenerateCanonicalFromModel(emptyDocument(), 3);
+    const maximumFiniteLiteral = `1${"0".repeat(308)}`;
+    const compiled = compileCanonicalText(baseline, [
+      "nui 3",
+      `const maximum: number = ${maximumFiniteLiteral}`,
+      "const overflow: number = @maximum + @maximum"
+    ].join("\n"));
+
+    expect(compiled.status).not.toBe("fatal");
+    const fixture: EvaluationFixture = {
+      elements: compiled.doc.document.elements,
+      scalarProgram: compiled.doc.scalarProgram
+    };
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, {
+      scalarProgram: fixture.scalarProgram
+    });
+    const rustPayload = evaluateWithRust(fixture);
+    const rustResult = evaluationPayloadToResult(rustPayload);
+
+    expect(normalizeNumbers(rustPayload)).toEqual(normalizeNumbers(tsPayload));
+    const bindings = Array.from(rustResult.computedScalarBindings ?? []);
+    expect(bindings).toHaveLength(2);
+    expect(bindings[0][1]).toMatchObject({ status: "ok", type: { kind: "number" } });
+    expect(bindings[1][1]).toEqual({
+      status: "error",
+      type: { kind: "number" },
+      issueCode: "evaluation-non-finite-result"
+    });
   }, 30000);
 });

@@ -53,6 +53,14 @@ const staticTypeNullError = (bindingId?: BindingId): ScalarEvaluation =>
     ? { status: "error", type: STATIC_TYPE_NULL_PLACEHOLDER, issueCode: "evaluation-static-type-null", bindingId }
     : { status: "error", type: STATIC_TYPE_NULL_PLACEHOLDER, issueCode: "evaluation-static-type-null" };
 
+/** Numeric literals and external values are finite at their boundaries, but
+ * arithmetic on otherwise-valid finite operands can overflow. Keep that
+ * result out of both the scalar contract and JSON IPC. */
+const finiteNumberResult = (type: ScalarType, value: number): ScalarEvaluation =>
+  Number.isFinite(value)
+    ? { status: "ok", type, value: { kind: "number", value } }
+    : { status: "error", type, issueCode: "evaluation-non-finite-result" };
+
 /** Re-stamps an already-produced error to `type`, keeping issueCode/bindingId verbatim. */
 const propagateError = (type: ScalarType, source: Extract<ScalarEvaluation, { status: "error" }>): ScalarEvaluation =>
   source.bindingId !== undefined
@@ -181,17 +189,17 @@ const evaluateArithmeticOrComparisonOperator = (
 
   switch (operator) {
     case "+":
-      return { status: "ok", type, value: { kind: "number", value: leftNumber + rightNumber } };
+      return finiteNumberResult(type, leftNumber + rightNumber);
     case "-":
-      return { status: "ok", type, value: { kind: "number", value: leftNumber - rightNumber } };
+      return finiteNumberResult(type, leftNumber - rightNumber);
     case "*":
-      return { status: "ok", type, value: { kind: "number", value: leftNumber * rightNumber } };
+      return finiteNumberResult(type, leftNumber * rightNumber);
     case "/": {
       const quotient = leftNumber / rightNumber;
-      if (rightNumber === 0 || !Number.isFinite(quotient)) {
+      if (rightNumber === 0) {
         return { status: "error", type, issueCode: "evaluation-divide-by-zero" };
       }
-      return { status: "ok", type, value: { kind: "number", value: quotient } };
+      return finiteNumberResult(type, quotient);
     }
     case "<":
       return { status: "ok", type, value: { kind: "boolean", value: leftNumber < rightNumber } };

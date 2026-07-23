@@ -234,6 +234,49 @@ describe("useEvaluationEngine", () => {
     expect(result.current.evaluation.computedGeometry.size).toBe(3);
   });
 
+  it("fails closed instead of adopting a fallback after scalar program validation fails", async () => {
+    setTauriRuntime();
+    vi.stubEnv("VITE_EVALUATION_ENGINE", "rust");
+    const malformedScalarProgram = { statements: "not-an-array" } as unknown as ScalarProgram;
+    const error = { code: "scalar-payload-invalid-field-type", message: "scalar program statements must be an array" };
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    invokeMock.mockRejectedValue(error);
+
+    const { result } = renderHook(() =>
+      useEvaluationEngine(elements, { evaluationLimitIndex: elements.length, scalarProgram: malformedScalarProgram })
+    );
+
+    await waitFor(() => expect(result.current.status).toBe("failed"));
+    expect(result.current.source).toBe("rust");
+    expect(result.current.error).toBe(error);
+    expect(result.current.evaluation.computedGeometry.size).toBe(0);
+  });
+
+  it.each([
+    ["malformed scalar output", { bindingId: "binding:stable", evaluation: { status: "ok", type: { kind: "number" }, value: { kind: "number", value: 1 } } }],
+    ["duplicate scalar output bindings", [
+      { bindingId: "binding:stable", evaluation: { status: "ok", type: { kind: "number" }, value: { kind: "number", value: 1 } } },
+      { bindingId: "binding:stable", evaluation: { status: "ok", type: { kind: "number" }, value: { kind: "number", value: 2 } } }
+    ]]
+  ])("fails closed instead of adopting a fallback after %s", async (_name, computedScalarBindings) => {
+    setTauriRuntime();
+    vi.stubEnv("VITE_EVALUATION_ENGINE", "rust");
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    invokeMock.mockResolvedValue({
+      ...evaluateElementsReferencePayload(elements, { scalarProgram }),
+      computedScalarBindings
+    });
+
+    const { result } = renderHook(() =>
+      useEvaluationEngine(elements, { evaluationLimitIndex: elements.length, scalarProgram })
+    );
+
+    await waitFor(() => expect(result.current.status).toBe("failed"));
+    expect(result.current.source).toBe("rust");
+    expect(result.current.evaluation.computedGeometry.size).toBe(0);
+    expect(result.current.error).toBeInstanceOf(Error);
+  });
+
   it("returns the TypeScript reference result in shadow mode and warns on Rust differences", async () => {
     setTauriRuntime();
     vi.stubEnv("VITE_EVALUATION_ENGINE", "shadow");

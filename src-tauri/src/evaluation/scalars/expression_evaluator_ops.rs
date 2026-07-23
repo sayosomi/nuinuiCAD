@@ -94,6 +94,21 @@ fn runtime_value_type_mismatch(r#type: ScalarType) -> ScalarEvaluation {
     }
 }
 
+fn finite_number_result(r#type: ScalarType, value: f64) -> ScalarEvaluation {
+    if value.is_finite() {
+        ScalarEvaluation::Ok {
+            r#type,
+            value: ScalarValue::Number(value),
+        }
+    } else {
+        ScalarEvaluation::Error {
+            r#type,
+            issue_code: "evaluation-non-finite-result".to_owned(),
+            binding_id: None,
+        }
+    }
+}
+
 /// The one real trust boundary in this module: a reference's value crosses
 /// from the caller-supplied environment. Validated unconditionally here -
 /// not deferred to whichever parent happens to consume it - so a bare
@@ -285,26 +300,38 @@ pub(crate) fn finish_eager_binary(
         output.push(runtime_value_type_mismatch(r#type));
         return;
     };
-    let value = match operator {
-        ScalarBinaryOperator::Add => ScalarValue::Number(left_number + right_number),
-        ScalarBinaryOperator::Sub => ScalarValue::Number(left_number - right_number),
-        ScalarBinaryOperator::Mul => ScalarValue::Number(left_number * right_number),
+    let result = match operator {
+        ScalarBinaryOperator::Add => finite_number_result(r#type, left_number + right_number),
+        ScalarBinaryOperator::Sub => finite_number_result(r#type, left_number - right_number),
+        ScalarBinaryOperator::Mul => finite_number_result(r#type, left_number * right_number),
         ScalarBinaryOperator::Div => {
             let quotient = left_number / right_number;
-            if right_number == 0.0 || !quotient.is_finite() {
-                output.push(ScalarEvaluation::Error {
+            if right_number == 0.0 {
+                ScalarEvaluation::Error {
                     r#type,
                     issue_code: "evaluation-divide-by-zero".to_owned(),
                     binding_id: None,
-                });
-                return;
+                }
+            } else {
+                finite_number_result(r#type, quotient)
             }
-            ScalarValue::Number(quotient)
         }
-        ScalarBinaryOperator::Lt => ScalarValue::Boolean(left_number < right_number),
-        ScalarBinaryOperator::LtEq => ScalarValue::Boolean(left_number <= right_number),
-        ScalarBinaryOperator::Gt => ScalarValue::Boolean(left_number > right_number),
-        ScalarBinaryOperator::GtEq => ScalarValue::Boolean(left_number >= right_number),
+        ScalarBinaryOperator::Lt => ScalarEvaluation::Ok {
+            r#type,
+            value: ScalarValue::Boolean(left_number < right_number),
+        },
+        ScalarBinaryOperator::LtEq => ScalarEvaluation::Ok {
+            r#type,
+            value: ScalarValue::Boolean(left_number <= right_number),
+        },
+        ScalarBinaryOperator::Gt => ScalarEvaluation::Ok {
+            r#type,
+            value: ScalarValue::Boolean(left_number > right_number),
+        },
+        ScalarBinaryOperator::GtEq => ScalarEvaluation::Ok {
+            r#type,
+            value: ScalarValue::Boolean(left_number >= right_number),
+        },
         ScalarBinaryOperator::Eq | ScalarBinaryOperator::NotEq => {
             unreachable!("handled above")
         }
@@ -312,5 +339,5 @@ pub(crate) fn finish_eager_binary(
             unreachable!("Or/And never reach finish_eager_binary")
         }
     };
-    output.push(ScalarEvaluation::Ok { r#type, value });
+    output.push(result);
 }

@@ -12,6 +12,7 @@ import {
   isParityEvaluationEngineMode,
   isTauriRuntime
 } from "./evaluationEngine";
+import { ScalarOutputDecodeError } from "./evaluationPayload";
 
 export type EvaluationSource = "reference" | "rust" | "fallback";
 export type EvaluationStatus = "idle" | "evaluating" | "ready" | "failed";
@@ -59,6 +60,9 @@ type AsyncEvaluationState = {
 let nextEvaluationRequestRevision = 1;
 const evaluationRequestRevisionByKey = new Map<string, number>();
 const MAX_REQUEST_IDENTITIES = 256;
+
+const mustFailClosedAfterRustError = (scalarProgram: EvaluateElementsOptions["scalarProgram"], error: unknown): boolean =>
+  scalarProgram !== undefined || error instanceof ScalarOutputDecodeError;
 
 const requestRevisionFor = (key: string) => {
   const existing = evaluationRequestRevisionByKey.get(key);
@@ -138,6 +142,19 @@ export const useEvaluationEngine = (
       })
       .catch((error: unknown) => {
         if (!cancelled) {
+          if (mustFailClosedAfterRustError(scalarProgram, error)) {
+            console.error("Rust scalar evaluation failed; preserving the command failure.", error);
+            setAsyncEvaluation({
+              requestKey,
+              evaluationRevision,
+              evaluationRequestRevision,
+              evaluation: emptyEvaluation,
+              source: "rust",
+              status: "failed",
+              error
+            });
+            return;
+          }
           console.error("Rust evaluation failed; using the TypeScript reference evaluation.", error);
           setAsyncEvaluation(
             engineMode === "rust"
@@ -168,6 +185,7 @@ export const useEvaluationEngine = (
     };
   }, [
     elements,
+    emptyEvaluation,
     engineMode,
     evaluationOptions,
     evaluationRevision,

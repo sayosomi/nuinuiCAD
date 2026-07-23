@@ -189,6 +189,50 @@
         "binding:rightError": { "status": "error", "type": { "kind": "number" }, "issueCode": "poisoned-binding-right" }
       },
       "expected": { "status": "error", "type": { "kind": "number" }, "issueCode": "poisoned-binding-left" }
+    },
+    {
+      "name": "addition-overflow-is-a-typed-poison",
+      "description": "finite operands whose sum is +Infinity must not cross the scalar or JSON boundary as an ok value",
+      "ast": {
+        "kind": "binary", "operator": "+", "type": { "kind": "number" },
+        "left": { "kind": "numberLiteral", "value": 1e308, "type": { "kind": "number" } },
+        "right": { "kind": "numberLiteral", "value": 1e308, "type": { "kind": "number" } }
+      },
+      "bindings": {},
+      "expected": { "status": "error", "type": { "kind": "number" }, "issueCode": "evaluation-non-finite-result" }
+    },
+    {
+      "name": "subtraction-overflow-is-a-typed-poison",
+      "description": "finite operands whose difference is -Infinity must not cross the scalar or JSON boundary as an ok value",
+      "ast": {
+        "kind": "binary", "operator": "-", "type": { "kind": "number" },
+        "left": { "kind": "unary", "operator": "-", "type": { "kind": "number" }, "operand": { "kind": "numberLiteral", "value": 1e308, "type": { "kind": "number" } } },
+        "right": { "kind": "numberLiteral", "value": 1e308, "type": { "kind": "number" } }
+      },
+      "bindings": {},
+      "expected": { "status": "error", "type": { "kind": "number" }, "issueCode": "evaluation-non-finite-result" }
+    },
+    {
+      "name": "multiplication-overflow-is-a-typed-poison",
+      "description": "finite operands whose product is +Infinity must not cross the scalar or JSON boundary as an ok value",
+      "ast": {
+        "kind": "binary", "operator": "*", "type": { "kind": "number" },
+        "left": { "kind": "numberLiteral", "value": 1e308, "type": { "kind": "number" } },
+        "right": { "kind": "numberLiteral", "value": 2, "type": { "kind": "number" } }
+      },
+      "bindings": {},
+      "expected": { "status": "error", "type": { "kind": "number" }, "issueCode": "evaluation-non-finite-result" }
+    },
+    {
+      "name": "division-overflow-is-a-typed-poison-not-divide-by-zero",
+      "description": "non-zero finite division whose quotient is +Infinity uses the shared non-finite-result poison; zero remains evaluation-divide-by-zero",
+      "ast": {
+        "kind": "binary", "operator": "/", "type": { "kind": "number" },
+        "left": { "kind": "numberLiteral", "value": 1e308, "type": { "kind": "number" } },
+        "right": { "kind": "numberLiteral", "value": 0.5, "type": { "kind": "number" } }
+      },
+      "bindings": {},
+      "expected": { "status": "error", "type": { "kind": "number" }, "issueCode": "evaluation-non-finite-result" }
     }
   ]
 }
