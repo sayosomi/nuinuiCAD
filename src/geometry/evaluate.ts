@@ -17,9 +17,12 @@ import {
   expandForGroupIteration,
   forGroupTemplateDescendantIds
 } from "./forGroupExpansion";
+import type { ScalarProgram } from "../scalars/scalarProgram";
 
 export type EvaluateElementsOptions = {
   evaluationLimitIndex?: number;
+  /** Inert Task 19 payload; reference evaluation intentionally ignores it. */
+  scalarProgram?: ScalarProgram;
 };
 
 export const evaluateElements = (

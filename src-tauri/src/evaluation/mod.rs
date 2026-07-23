@@ -98,7 +98,7 @@ use point_evaluators::{
     evaluate_division_point, evaluate_free_point, evaluate_offset_point,
     evaluate_polar_offset_point,
 };
-use scalars::validate_typed_expression_payload;
+use scalars::{validate_scalar_program_payload, validate_typed_expression_payload};
 use split_line_evaluator::evaluate_split_line;
 use text_evaluator::evaluate_text;
 use types::{element_id, element_name, element_type, ElementId, EvaluationState};
@@ -215,6 +215,9 @@ fn evaluate_document_input(input: EvaluationInput) -> EvaluationPayload {
     // field today, so this branch never runs in current production use.
     if let Some(payload) = input.scalar_expression_payload.as_ref() {
         let _ = validate_typed_expression_payload(payload);
+    }
+    if let Some(program) = input.scalar_program.as_ref() {
+        let _ = validate_scalar_program_payload(program);
     }
 
     let evaluation_limit_index = input

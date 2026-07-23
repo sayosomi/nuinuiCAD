@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { CadElement, EvaluationResult, PointAnchor } from "../types/geometry";
+import type { ScalarProgram } from "../scalars/scalarProgram";
 import { anchorReferenceElementId, pointAnchorForElement } from "../model/pointAnchors";
 import { getDirectParentIds } from "../model/dependencies";
 import { evaluateElements, type EvaluateElementsOptions } from "./evaluate";
@@ -12,6 +13,7 @@ import {
 type EvaluateDocumentInput = {
   elements: CadElement[];
   evaluationLimitIndex?: number;
+  scalarProgram?: ScalarProgram;
 };
 
 export type EvaluationEngineMode = "reference" | "parity" | "shadow" | "rust";
@@ -307,7 +309,8 @@ export const evaluateElementsWithRust = async (
   const payload = await invoke<EvaluationPayload>("evaluate_document", {
     input: {
       elements,
-      evaluationLimitIndex: options.evaluationLimitIndex
+      evaluationLimitIndex: options.evaluationLimitIndex,
+      ...(options.scalarProgram ? { scalarProgram: options.scalarProgram } : {})
     } satisfies EvaluateDocumentInput
   });
   return evaluationPayloadToResult(payload);

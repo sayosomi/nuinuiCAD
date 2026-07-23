@@ -79,17 +79,18 @@ export const useEvaluationEngine = (
   evaluationRevision = 0
 ): EvaluationEngineState => {
   const evaluationLimitIndex = options.evaluationLimitIndex;
+  const scalarProgram = options.scalarProgram;
   const evaluationOptions = useMemo(
-    () => ({ evaluationLimitIndex }),
-    [evaluationLimitIndex]
+    () => ({ evaluationLimitIndex, ...(scalarProgram ? { scalarProgram } : {}) }),
+    [evaluationLimitIndex, scalarProgram]
   );
   const engineMode = getEvaluationEngineMode();
   const tauriRuntime = isTauriRuntime();
   const rustEligible = canUseRustEvaluationForElements(elements, evaluationOptions);
   const parityMode = isParityEvaluationEngineMode(engineMode);
   const requestKey = useMemo(
-    () => JSON.stringify({ elements, evaluationLimitIndex }),
-    [elements, evaluationLimitIndex]
+    () => JSON.stringify({ elements, evaluationLimitIndex, scalarProgram }),
+    [elements, evaluationLimitIndex, scalarProgram]
   );
   const evaluationRequestRevision = useMemo(
     () => requestRevisionFor(`${evaluationRevision}:${requestKey}`),

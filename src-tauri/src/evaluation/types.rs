@@ -19,6 +19,8 @@ pub struct EvaluationInput {
     /// an inert shadow check (see mod.rs) - the result never affects
     /// `EvaluationPayload`.
     pub(crate) scalar_expression_payload: Option<Value>,
+    /// Task 19's declaration-only IR. Validation is inert until Task 21.
+    pub(crate) scalar_program: Option<Value>,
 }
 
 #[derive(Debug, Serialize)]

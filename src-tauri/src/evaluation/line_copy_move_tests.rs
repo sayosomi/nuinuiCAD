@@ -87,6 +87,7 @@ fn copy_line_transforms_line_arc_bezier_and_offset_line() {
         ],
         evaluation_limit_index: None,
         scalar_expression_payload: None,
+        scalar_program: None,
     });
 
     assert!(result.errors.is_empty());
@@ -133,6 +134,7 @@ fn copy_line_mirror_reverses_arc_sweep_and_supports_numeric_expression() {
         ],
         evaluation_limit_index: None,
         scalar_expression_payload: None,
+        scalar_program: None,
     });
 
     assert!(result.errors.is_empty());
@@ -166,6 +168,7 @@ fn copy_line_and_move_scale_around_end_point() {
         ],
         evaluation_limit_index: None,
         scalar_expression_payload: None,
+        scalar_program: None,
     });
 
     assert!(copy_result.errors.is_empty());
@@ -197,6 +200,7 @@ fn copy_line_and_move_scale_around_end_point() {
         ],
         evaluation_limit_index: None,
         scalar_expression_payload: None,
+        scalar_program: None,
     });
 
     assert!(move_result.errors.is_empty());
@@ -240,6 +244,7 @@ fn symmetric_copy_line_reflects_base_lines() {
         ],
         evaluation_limit_index: None,
         scalar_expression_payload: None,
+        scalar_program: None,
     });
 
     assert!(result.errors.is_empty());
@@ -285,6 +290,7 @@ fn move_updates_existing_geometry_and_downstream_references() {
         ],
         evaluation_limit_index: None,
         scalar_expression_payload: None,
+        scalar_program: None,
     });
 
     assert!(result.errors.is_empty());
@@ -317,6 +323,7 @@ fn symmetric_move_reports_axis_and_dependency_errors() {
         ],
         evaluation_limit_index: None,
         scalar_expression_payload: None,
+        scalar_program: None,
     });
     assert!(axis_error.errors[0].message.contains("同じ点"));
 
@@ -340,6 +347,7 @@ fn symmetric_move_reports_axis_and_dependency_errors() {
         ],
         evaluation_limit_index: None,
         scalar_expression_payload: None,
+        scalar_program: None,
     });
     assert_eq!(dependency_error.errors[0].missing_dependency_id, "late");
 }
