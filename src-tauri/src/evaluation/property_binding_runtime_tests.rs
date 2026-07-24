@@ -18,6 +18,7 @@ fn input(
         evaluation_limit_index: None,
         scalar_expression_payload: None,
         scalar_program,
+        binding_versions: None,
         property_bindings,
         control_boolean_bindings: None,
         condition_expressions: None,

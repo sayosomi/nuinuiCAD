@@ -38,6 +38,10 @@ const EXTERNAL_BINDING_UNAVAILABLE: &str = "evaluation-external-binding-unavaila
 const RUNTIME_VALUE_TYPE_MISMATCH: &str = "evaluation-runtime-value-type-mismatch";
 const BINDING_CYCLE_GUARD: &str = "evaluation-binding-cycle-guard";
 
+pub(crate) trait ScalarDocumentBindingResolver {
+    fn resolve_binding(&self, binding_id: &str, state: &EvaluationState) -> ScalarEvaluation;
+}
+
 fn unavailable_binding(binding_id: &str) -> ScalarEvaluation {
     ScalarEvaluation::Error {
         r#type: ScalarType::Number,
@@ -46,7 +50,10 @@ fn unavailable_binding(binding_id: &str) -> ScalarEvaluation {
     }
 }
 
-fn resolve_external_binding(binding_id: &str, state: &EvaluationState) -> ScalarEvaluation {
+pub(crate) fn resolve_external_binding(
+    binding_id: &str,
+    state: &EvaluationState,
+) -> ScalarEvaluation {
     let Some(element_id) = binding_id.strip_prefix(LEGACY_BINDING_PREFIX) else {
         return unavailable_binding(binding_id);
     };
@@ -64,7 +71,7 @@ fn resolve_external_binding(binding_id: &str, state: &EvaluationState) -> Scalar
     }
 }
 
-fn result_for_declared_type(
+pub(crate) fn result_for_declared_type(
     result: ScalarEvaluation,
     declared_type: &ScalarType,
     binding_id: &str,
@@ -188,6 +195,12 @@ impl<'a> ScalarBindingResolver<'a> {
             }));
         }
         output
+    }
+}
+
+impl ScalarDocumentBindingResolver for ScalarBindingResolver<'_> {
+    fn resolve_binding(&self, binding_id: &str, state: &EvaluationState) -> ScalarEvaluation {
+        self.resolve(binding_id, state)
     }
 }
 

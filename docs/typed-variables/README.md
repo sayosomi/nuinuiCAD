@@ -340,6 +340,15 @@ Task 26の`TextTemplateAst`をTS reference評価へ接続し、AppLayoutの生�
 - `readBindingVersionAtPosition(graph, bindingId, beforeStatement(sourceOrder) | afterStatement(sourceOrder))`が公開queryである。set RHSは`beforeStatement(set.sourceOrder)`、set完了後は`afterStatement(set.sourceOrder)`を使う。lookupはbinding別のsource-order indexを二分探索し、chainを走査しない。
 - 各versionの`control`はopaque scope IDをparseせず、`LexicalScopeIndex`から正規化したowner chainを保持する。31/34はbranch merge/loop carryを実装するまでこのmetadataを読むだけとし、再探索やplaceholder ownerを作らない。
 
+### Task 32完了時点の引き継ぎ(33/34/35/45/48/49向け)
+
+linear `set` を含む nui 3 文書は、TS が `BindingVersionGraph` から組み立てる `bindingVersions` payload を通じて Rust-first evaluation へ接続済みである。Rust は source を再parseせず、名前解決・stable ID生成・version再構築もしない。
+
+- payload は version/statement/binding/target/predecessor ID、source order、typed AST、type、initial poison state、control metadata、element source position、`@stop` cutoff を含む。unknown/duplicate ID、不整合 predecessor/target/type/choice/source order、非linear control owner は command boundary で fail-closed になる。linear でない mutation graph は Rust eligibility を得ず TS reference に残る。
+- Rust mutation resolver は source order を一度だけ進み、binding current slot を in-place 更新する。set RHS は更新前 slot と live legacy geometry result を読み、poison version は current slot へ書き込まれ、後続setで回復できる。document終端では同じcursorをfinalizeするため、最終element後またはelementなしのlinear setも cutoff 前なら final result/history に反映される。
+- `computedScalarBindings` は declaration source order、`computedScalarBindingVersions` は実行済みversion source order を返す。cutoff以上のversionはfinalizeでも評価・history出力されない。setなし文書はTask 21の`scalarProgram` resolver/output pathを維持する。
+- Task 33以降は conditional ownerをlinearへ落とさず、branch merge/loop carry専用のpayload/evaluatorを追加すること。Task 45はこのhistoryとfinal binding mapをread-only runtime表示に利用できる。
+
 ## Blocking decisions
 
 なし。[decisions.md](decisions.md)に調査根拠を記録済み。将来範囲のqualified referenceやstring演算はblockingではなく明示的な対象外。legacy互換の最終方針は[D22](decisions.md#d22-nui-3単一保存形式手動migrationlegacy全削除)を正とし、旧形式ではcrash/source確認不能、source破壊・消失、位置情報不足、保存前sourceへ復元不能だけをblockingとする。

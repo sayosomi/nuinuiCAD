@@ -37,6 +37,7 @@ fn evaluate(program: Value) -> EvaluationPayload {
         evaluation_limit_index: None,
         scalar_expression_payload: None,
         scalar_program: Some(program),
+        binding_versions: None,
     })
 }
 

@@ -11,7 +11,8 @@ import {
   type EvaluationPayload
 } from "./evaluationPayload";
 import type { PropertyBindingRuntimeEntry } from "./propertyBindingRuntime";
-import { hasLinearSetVersions } from "../scalars/linearMutationEvaluator";
+import { hasSetVersions, isRustLinearMutationEligible } from "../scalars/linearMutationEvaluator";
+import { buildRustBindingMutationPayload, type RustBindingMutationPayload } from "./bindingVersionPayload";
 import { textTemplateHasTypedHole } from "./textTemplateRuntime";
 
 type ConditionExpressionInput = { elementId: ElementId; expression: TypedScalarExpression };
@@ -20,6 +21,7 @@ type EvaluateDocumentInput = {
   elements: CadElement[];
   evaluationLimitIndex?: number;
   scalarProgram?: ScalarProgram;
+  bindingVersions?: RustBindingMutationPayload;
   propertyBindings?: readonly PropertyBindingRuntimeEntry[];
   controlBooleanBindings?: readonly PropertyBindingRuntimeEntry[];
   conditionExpressions?: readonly ConditionExpressionInput[];
@@ -292,9 +294,8 @@ export const canUseRustEvaluationForElements = (
   elements: CadElement[],
   options: EvaluateElementsOptions = {}
 ) => {
-  // Task 31 history and incremental source-order slots are TS-only until
-  // Task 32 defines the Rust mutation payload and parity contract.
-  if (options.bindingVersions && hasLinearSetVersions(options.bindingVersions)) return false;
+  if (options.bindingVersions && hasSetVersions(options.bindingVersions) &&
+    !isRustLinearMutationEligible(options.bindingVersions)) return false;
   const evaluationLimitIndex = Math.min(
     Math.max(options.evaluationLimitIndex ?? elements.length, 0),
     elements.length
@@ -348,11 +349,14 @@ export const evaluateElementsWithRust = async (
   elements: CadElement[],
   options: EvaluateElementsOptions = {}
 ): Promise<EvaluationResult> => {
+  const mutationPayload = options.bindingVersions && isRustLinearMutationEligible(options.bindingVersions)
+    ? buildRustBindingMutationPayload(options.bindingVersions, elements, options.statementInfoByElementId)
+    : undefined;
   const payload = await invoke<EvaluationPayload>("evaluate_document", {
     input: {
       elements,
       evaluationLimitIndex: options.evaluationLimitIndex,
-      ...(options.scalarProgram ? { scalarProgram: options.scalarProgram } : {}),
+      ...(mutationPayload ? { bindingVersions: mutationPayload } : options.scalarProgram ? { scalarProgram: options.scalarProgram } : {}),
       ...(options.propertyBindingEntries?.length ? { propertyBindings: options.propertyBindingEntries } : {}),
       ...(options.controlBooleanEntries?.length ? { controlBooleanBindings: options.controlBooleanEntries } : {}),
       ...(options.conditionalGroupConditionsByElementId?.size

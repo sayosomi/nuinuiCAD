@@ -21,6 +21,8 @@ mod expression_payload;
 mod expression_shape_payload;
 mod issue;
 mod json_helpers;
+mod mutation;
+mod mutation_payload;
 mod numeric_function_adapter;
 mod program_payload;
 mod property_binding_payload;
@@ -46,7 +48,7 @@ mod property_binding_payload_tests;
 #[cfg(test)]
 mod scalar_payload_tests;
 
-pub(crate) use bindings::ScalarBindingResolver;
+pub(crate) use bindings::{ScalarBindingResolver, ScalarDocumentBindingResolver};
 pub(crate) use condition_expression_payload::{
     validate_condition_expressions_payload, ValidatedConditionExpression,
 };
@@ -54,6 +56,8 @@ pub(crate) use control_boolean_payload::validate_control_boolean_bindings_payloa
 #[allow(unused_imports)]
 pub(crate) use expression_evaluator::{evaluate_typed_expression, ScalarEvaluationEnvironment};
 pub(crate) use expression_payload::validate_typed_expression_payload;
+pub(crate) use mutation::ScalarMutationResolver;
+pub(crate) use mutation_payload::{validate_binding_versions_payload, ValidatedBindingVersions};
 #[allow(unused_imports)]
 pub(crate) use numeric_function_adapter::adapt_numeric_result;
 pub(crate) use program_payload::{validate_scalar_program_payload, ValidatedScalarProgram};

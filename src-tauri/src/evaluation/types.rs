@@ -23,6 +23,11 @@ pub struct EvaluationInput {
     /// Task 19's validated declaration-only IR. Task 21 evaluates this after
     /// the production geometry pass, preserving the existing geometry result.
     pub(crate) scalar_program: Option<Value>,
+    /// Task 32's fully compiled binding-version IR for a document containing
+    /// linear `set` statements. This is deliberately separate from
+    /// `scalar_program`: Rust receives stable IDs, resolved references and
+    /// source positions, never source text or names to resolve.
+    pub(crate) binding_versions: Option<Value>,
     /// Task 23's elementId-keyed standard property bindings (re-keyed from
     /// `CompiledDslDocument.propertyBindings` by TS's
     /// `propertyBindingRuntime.ts`). Requires `scalar_program` to also be
@@ -109,6 +114,10 @@ pub struct EvaluationPayload {
     pub(crate) for_group_effective_show_generated_ids: Vec<ElementId>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) computed_scalar_bindings: Option<Vec<Value>>,
+    /// Task 32's source-ordered runtime history for every executed/poisoned
+    /// binding version. Absent on Task 21's declaration-only path.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) computed_scalar_binding_versions: Option<Vec<Value>>,
 }
 
 #[derive(Clone, Debug, Default)]

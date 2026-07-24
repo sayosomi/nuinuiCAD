@@ -176,6 +176,7 @@ fn performance_typed_variable_production_evaluation_baseline() {
             evaluation_limit_index: None,
             scalar_expression_payload: None,
             scalar_program: None,
+            binding_versions: None,
         })
     });
     let (large_result, large_stats) = measure_wall_time(|| {
@@ -187,6 +188,7 @@ fn performance_typed_variable_production_evaluation_baseline() {
             evaluation_limit_index: None,
             scalar_expression_payload: None,
             scalar_program: None,
+            binding_versions: None,
         })
     });
 
@@ -229,6 +231,7 @@ fn performance_typed_variable_for_group_baseline() {
             evaluation_limit_index: None,
             scalar_expression_payload: None,
             scalar_program: None,
+            binding_versions: None,
         })
     });
     let (large_result, large_stats) = measure_wall_time(|| {
@@ -240,6 +243,7 @@ fn performance_typed_variable_for_group_baseline() {
             evaluation_limit_index: None,
             scalar_expression_payload: None,
             scalar_program: None,
+            binding_versions: None,
         })
     });
 

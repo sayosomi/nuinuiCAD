@@ -30,6 +30,7 @@ fn evaluate_with(payload: Option<Value>) -> Value {
         evaluation_limit_index: None,
         scalar_expression_payload: payload,
         scalar_program: None,
+        binding_versions: None,
     })
     .expect("scalar expression payload is inert");
     serde_json::to_value(&result).expect("EvaluationPayload must serialize")
@@ -44,6 +45,7 @@ fn evaluate_with_program(program: Option<Value>) -> Result<Value, EvaluationComm
         evaluation_limit_index: None,
         scalar_expression_payload: None,
         scalar_program: program,
+        binding_versions: None,
     })?;
     Ok(serde_json::to_value(&result).expect("EvaluationPayload must serialize"))
 }

@@ -7,6 +7,7 @@ fn input(elements: Vec<Value>, scalar_program: Option<Value>) -> EvaluationInput
         evaluation_limit_index: None,
         scalar_expression_payload: None,
         scalar_program,
+        binding_versions: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
