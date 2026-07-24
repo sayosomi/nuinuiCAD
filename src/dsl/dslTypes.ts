@@ -89,6 +89,14 @@ export type DslStatement =
       /** Raw, unparsed initializer source text - never evaluated or re-quoted (Task 14 owns that). */
       initializer: string;
     })
+  | (DslStatementBase & {
+      kind: "set";
+      /** Raw, unparsed RHS source text - never evaluated or re-quoted here
+       * (Task 14/15 own that), mirroring typedDeclaration.initializer. Target
+       * name/span reuse the base `name`/`nameSpan` fields, same convention
+       * typedDeclaration uses for its own declared name. */
+      expression: string;
+    })
   | (DslStatementBase & { kind: "blockEnd" })
   | (DslStatementBase & { kind: "blockElse" });
 

@@ -22,6 +22,7 @@ import { lowerScalarProgram } from "../scalars/scalarProgram";
 import { analyzeTypedDeclarations } from "../scalars/typedDeclarationAnalysis";
 import { compilePropertyBindings, type ScalarValueSource } from "../scalars/propertyBindingCompiler";
 import { compileConditionalGroupConditions } from "../scalars/conditionalGroupConditionCompiler";
+import { compileSetStatements, type SetStatementAnalysis } from "../scalars/setStatementCompiler";
 import { compileTextTemplates, type TextTemplateAst } from "../scalars/textTemplate";
 import type { TypedScalarExpression } from "../scalars/typedExpressionAst";
 import { formatNumericValueForDsl } from "./dslExpressionFormat";
@@ -171,6 +172,17 @@ export type CompiledDslDocument = {
    * conditionalGroupConditions above, this does not gate on `scalarAnalysis`.
    */
   textTemplates?: ReadonlyMap<string, TextTemplateAst>;
+  /**
+   * Task 29 compiled `set name = expression` target/RHS resolution, keyed by
+   * plain statementIndex rather than propertyBindingOccurrenceKey - a `set`
+   * statement has exactly one target, unlike the multi-attribute occurrence
+   * maps above, so the string occurrence-key format doesn't apply. Like
+   * textTemplates, this does not gate on `scalarAnalysis` (a `set` with no
+   * catalog to resolve against must still be diagnosed, not silently
+   * dropped) - see compileSetStatements's own handling of an undefined
+   * bindingAnalysis.
+   */
+  setStatements?: ReadonlyMap<number, SetStatementAnalysis>;
 };
 
 export type CompileDslDocumentOptions = {
@@ -782,7 +794,13 @@ export const compileDslDocument = (
     majorVersion: versionValidation.majorVersion ?? NEW_DOCUMENT_DSL_MAJOR_VERSION
   });
   const hasTypedDeclarations = parsed.statements.some((statement) => statement.kind === "typedDeclaration");
-  const stableStatementIdByIndex = hasTypedDeclarations
+  // set statements need the same reconciler-issued identity map as typed
+  // declarations (Task 29) - the gate must include them too, otherwise a
+  // document with `set` but no local const/let would build the map from a
+  // fallback empty source instead of the caller's real reconciliation
+  // output.
+  const hasSetStatements = parsed.statements.some((statement) => statement.kind === "set");
+  const stableStatementIdByIndex = (hasTypedDeclarations || hasSetStatements)
     ? new Map<number, string>(options.assignedStatementIds ?? options.assignedElementIds ?? [])
     : undefined;
   if (stableStatementIdByIndex) {
@@ -864,10 +882,27 @@ export const compileDslDocument = (
         bindingAnalysis: scalarAnalysis?.bindingAnalysis
       })
     : undefined;
+  // Task 29: `set name = expression` target resolution/RHS typecheck. Gated
+  // on `stableStatementIdByIndex` being truthy (narrowed inline below, so no
+  // `!`/`?? new Map()` is ever needed) and on `hasSetStatements`, NOT on
+  // `scalarAnalysis` truthy - like textTemplates above, a `set` with no
+  // catalog to resolve against must still be diagnosed
+  // (invalid-set-target), not silently dropped. compileSetStatements itself
+  // handles `bindingAnalysis === undefined`; the identity map it receives
+  // here is always the caller's real reconciler output because the gate
+  // above already widened to include `set` statements.
+  const setStatementCompilation = stableStatementIdByIndex && versionValidation.majorVersion === 3 && hasSetStatements
+    ? compileSetStatements({
+        statements: parsed.statements,
+        stableStatementIdByIndex,
+        bindingAnalysis: scalarAnalysis?.bindingAnalysis
+      })
+    : undefined;
   const finalDiagnostics = [
     ...(propertyBindingCompilation ? [...allDiagnostics, ...propertyBindingCompilation.diagnostics] : allDiagnostics),
     ...(conditionalGroupConditionCompilation ? conditionalGroupConditionCompilation.diagnostics : []),
-    ...(textTemplateCompilation ? textTemplateCompilation.diagnostics : [])
+    ...(textTemplateCompilation ? textTemplateCompilation.diagnostics : []),
+    ...(setStatementCompilation ? setStatementCompilation.diagnostics : [])
   ];
   if (finalDiagnostics.some((item) => item.severity === "error")) {
     return {
@@ -919,7 +954,8 @@ export const compileDslDocument = (
     ...(conditionalGroupConditionCompilation
       ? { conditionalGroupConditions: conditionalGroupConditionCompilation.sourcesByOccurrenceKey }
       : {}),
-    ...(textTemplateCompilation ? { textTemplates: textTemplateCompilation.templatesByOccurrenceKey } : {})
+    ...(textTemplateCompilation ? { textTemplates: textTemplateCompilation.templatesByOccurrenceKey } : {}),
+    ...(setStatementCompilation ? { setStatements: setStatementCompilation.setsByStatementIndex } : {})
   };
 };
 

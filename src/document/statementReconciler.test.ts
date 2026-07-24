@@ -16,7 +16,9 @@ const reconcileSources = (
   newSource: string
 ): { old: CompiledDslDocument; next: CompiledDslDocument; result: ReconcileResult } => {
   const parsedOld = parseDsl(oldSource);
-  const hasTypedDeclarations = parsedOld.statements.some((statement) => statement.kind === "typedDeclaration");
+  const hasTypedDeclarations = parsedOld.statements.some(
+    (statement) => statement.kind === "typedDeclaration" || statement.kind === "set"
+  );
   let initialIdentity = 0;
   const initial = hasTypedDeclarations
     ? reconcileStatements({
@@ -558,5 +560,63 @@ describe("statementReconciler と typed declaration", () => {
     expect(result.createdIds.size).toBe(1);
     expect(idByName(next, "A")).toBe(idByName(old, "A"));
     expect(idByName(next, "B")).toBe(idByName(old, "B"));
+  });
+});
+
+describe("statementReconciler と set statement", () => {
+  it("a set statement inherits an opaque identity across an unrelated edit", () => {
+    const oldSource = ["nui 3", "let x: number = 1", "set x = 2", "point A = coordinate(x: 0 y: 0)"].join("\n");
+    const newSource = ["nui 3", "let x: number = 1", "set x = 2", "point A = coordinate(x: 0 y: 1)"].join("\n");
+    const { old, next, result } = reconcileSources(oldSource, newSource);
+    const oldSetIndex = old.statements.findIndex((statement) => statement.kind === "set");
+    const newSetIndex = next.statements.findIndex((statement) => statement.kind === "set");
+    expect(oldSetIndex).toBeGreaterThanOrEqual(0);
+    expect(newSetIndex).toBeGreaterThanOrEqual(0);
+    expect(old.statementMap!.statementIdByStatementIndex!.get(oldSetIndex)).toBe(
+      next.statementMap!.statementIdByStatementIndex!.get(newSetIndex)
+    );
+    expect(result.vanishedIds).toEqual([]);
+  });
+
+  it("a newly-added set statement gets its own fresh identity, not a fabricated one", () => {
+    const oldSource = ["nui 3", "let x: number = 1"].join("\n");
+    const newSource = ["nui 3", "let x: number = 1", "set x = 2"].join("\n");
+    const { next, result } = reconcileSources(oldSource, newSource);
+    const newSetIndex = next.statements.findIndex((statement) => statement.kind === "set");
+    expect(result.createdIds.has(newSetIndex)).toBe(true);
+    expect(next.statementMap!.statementIdByStatementIndex!.get(newSetIndex)).toBeDefined();
+  });
+
+  it("a set statement positioned between two elements does not affect either element's identity", () => {
+    const oldSource = ["nui 3", "let x: number = 1", "point A = coordinate(x: 0 y: 0)", "point B = coordinate(x: 1 y: 1)"].join(
+      "\n"
+    );
+    const newSource = [
+      "nui 3",
+      "let x: number = 1",
+      "point A = coordinate(x: 0 y: 0)",
+      "set x = 2",
+      "point B = coordinate(x: 1 y: 1)"
+    ].join("\n");
+    const { old, next, result } = reconcileSources(oldSource, newSource);
+    expect(result.createdIds.size).toBe(1);
+    expect(idByName(next, "A")).toBe(idByName(old, "A"));
+    expect(idByName(next, "B")).toBe(idByName(old, "B"));
+  });
+
+  it("changing a `set n` line into a `let n` declaration of the same name never inherits the set's identity", () => {
+    // identityKindOf must distinguish "set" from "typedDeclaration" so a
+    // rename-detection pass can never confuse the two kinds sharing a name.
+    const oldSource = ["nui 3", "let n: number = 1", "set n = 2"].join("\n");
+    const newSource = ["nui 3", "let n: number = 1", "let n: number = 3"].join("\n");
+    const { old, next, result } = reconcileSources(oldSource, newSource);
+    const oldSetIndex = old.statements.findIndex((statement) => statement.kind === "set");
+    const vanishedSetId = old.statementMap!.statementIdByStatementIndex!.get(oldSetIndex);
+    const newDeclarationIndex = next.statements.findIndex(
+      (statement, index) => statement.kind === "typedDeclaration" && index !== 1
+    );
+    expect(vanishedSetId).toBeDefined();
+    expect(result.vanishedIds).toContain(vanishedSetId);
+    expect(next.statementMap!.statementIdByStatementIndex!.get(newDeclarationIndex)).not.toBe(vanishedSetId);
   });
 });

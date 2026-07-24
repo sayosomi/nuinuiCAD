@@ -21,6 +21,11 @@ import {
 } from "../scalars/propertyBindingCompiler";
 import { TEXT_TEMPLATE_HOLE_TYPE_MISMATCH_CODE } from "../scalars/textTemplate";
 import {
+  CONST_ASSIGNMENT_CODE,
+  INVALID_SET_TARGET_CODE,
+  MISSING_SET_STATEMENT_IDENTITY_CODE
+} from "../scalars/setStatementCompiler";
+import {
   emptyDocument,
   expectSemanticallyEqualDocuments,
   roundTrip
@@ -913,5 +918,77 @@ describe("Task 26 text template wiring", () => {
     expect(compiled.diagnostics).toEqual([]);
     expect(compiled.document).not.toBeNull();
     expect(compiled.textTemplates).toBeUndefined();
+  });
+});
+
+describe("Task 29 set statement wiring", () => {
+  it("stores a resolved target/typed RHS on compiled.setStatements, alongside a clean diagnostics list", () => {
+    const compiled = compileDslDocument(
+      ["nui 3", "let x: number = 1", "set x = 2"].join("\n"),
+      { assignedStatementIds: new Map([[1, "test:x"], [2, "test:set-x"]]) }
+    );
+    expect(compiled.diagnostics).toEqual([]);
+    expect(compiled.document).not.toBeNull();
+    const entry = compiled.setStatements?.get(2);
+    expect(entry).toMatchObject({ targetName: "x", statementId: "test:set-x", sourceOrder: 2 });
+  });
+
+  it("keeps the last-good document (null) and surfaces const-assignment for a const target", () => {
+    const compiled = compileDslDocument(
+      ["nui 3", "const x: number = 1", "set x = 2"].join("\n"),
+      { assignedStatementIds: new Map([[1, "test:x"], [2, "test:set-x"]]) }
+    );
+    expect(compiled.document).toBeNull();
+    expect(compiled.diagnostics).toEqual(
+      expect.arrayContaining([expect.objectContaining({ severity: "error", code: CONST_ASSIGNMENT_CODE })])
+    );
+  });
+
+  it("keeps the last-good document (null) and surfaces invalid-set-target for an undefined name", () => {
+    const compiled = compileDslDocument(
+      ["nui 3", "let unrelated: number = 1", "set missing = 2"].join("\n"),
+      { assignedStatementIds: new Map([[1, "test:unrelated"], [2, "test:set-missing"]]) }
+    );
+    expect(compiled.document).toBeNull();
+    expect(compiled.diagnostics).toEqual(
+      expect.arrayContaining([expect.objectContaining({ severity: "error", code: INVALID_SET_TARGET_CODE })])
+    );
+  });
+
+  it("keeps the last-good document (null) and surfaces invalid-set-target for a set with no typed declarations at all", () => {
+    const compiled = compileDslDocument(
+      ["nui 3", "set missing = 2"].join("\n"),
+      { assignedStatementIds: new Map([[1, "test:set-missing"]]) }
+    );
+    expect(compiled.document).toBeNull();
+    expect(compiled.diagnostics).toEqual(
+      expect.arrayContaining([expect.objectContaining({ severity: "error", code: INVALID_SET_TARGET_CODE })])
+    );
+  });
+
+  it("fails closed with missing-stable-statement-identity when no reconciled identity is supplied for a set statement", () => {
+    const compiled = compileDslDocument(["nui 3", "let x: number = 1", "set x = 2"].join("\n"));
+    expect(compiled.document).toBeNull();
+    expect(compiled.diagnostics).toEqual(
+      expect.arrayContaining([expect.objectContaining({ severity: "error", code: MISSING_SET_STATEMENT_IDENTITY_CODE })])
+    );
+  });
+
+  it("leaves setStatements undefined for a document with no set statements at all", () => {
+    const compiled = compileDslDocument(
+      ["nui 3", "let x: number = 1"].join("\n"),
+      { assignedStatementIds: new Map([[1, "test:x"]]) }
+    );
+    expect(compiled.diagnostics).toEqual([]);
+    expect(compiled.document).not.toBeNull();
+    expect(compiled.setStatements).toBeUndefined();
+  });
+
+  it("rejects set under a nui 2 document with the version-gate diagnostic", () => {
+    const compiled = compileDslDocument(["nui 2", "let x: number = 1", "set x = 2"].join("\n"));
+    expect(compiled.document).toBeNull();
+    expect(compiled.diagnostics).toEqual(
+      expect.arrayContaining([expect.objectContaining({ code: TYPED_SYNTAX_REQUIRES_NUI3_CODE })])
+    );
   });
 });

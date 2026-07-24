@@ -22,6 +22,7 @@ import {
   type DslDeclarationParseResult,
   type DslTypedDeclarationStatement
 } from "./dslDeclarationParser";
+import { parseDslSetStatement, type DslSetParseResult, type DslSetStatement } from "./dslSetParser";
 
 /**
  * Statement-leading spellings accepted by this parser. Keeping these constants
@@ -44,6 +45,7 @@ export const dslStatementKeywords = {
   conditional: "if",
   constDeclaration: "const",
   letDeclaration: "let",
+  setStatement: "set",
   point: "point",
   line: "line",
   curve: "curve",
@@ -86,6 +88,11 @@ const settingsKeywords = new Set<string>([
 // disjoint from the call-category and settings keyword sets above.
 const declarationKeywords = new Set<string>([dslStatementKeywords.constDeclaration, dslStatementKeywords.letDeclaration]);
 
+// set routes to its own focused parser (P7, dslSetParser), independent of
+// declarationKeywords - Task 29 must not mix a set branch into
+// dslDeclarationParser.ts.
+const setKeywords = new Set<string>([dslStatementKeywords.setStatement]);
+
 const nonElementKinds = new Set<DslStatement["kind"]>([
   "role",
   "view",
@@ -98,6 +105,7 @@ const nonElementKinds = new Set<DslStatement["kind"]>([
   "place",
   "layoutVar",
   "typedDeclaration",
+  "set",
   "blockEnd",
   "blockElse"
 ]);
@@ -228,6 +236,16 @@ const declarationStatementToDslStatement = (
   initializer: decl.initializer
 });
 
+const setStatementToDslStatement = (
+  set: DslSetStatement,
+  line: number,
+  endLine: number
+): DslStatement => ({
+  ...baseFrom(set, line, endLine),
+  kind: "set",
+  expression: set.expression
+});
+
 const structuralStatement = (logical: LogicalStatement, kind: "blockEnd" | "blockElse"): DslStatement => ({
   line: logical.range.startLine,
   endLine: logical.range.endLine,
@@ -284,6 +302,19 @@ const fromDeclaration = (
   return { statement: declarationStatementToDslStatement(result.statement, line, endLine), diagnostics };
 };
 
+const fromSet = (
+  result: DslSetParseResult,
+  line: number,
+  endLine: number,
+  project: (span: DslSpan) => DslPhysicalSpan | null
+): ParsedLine => {
+  const diagnostics = result.diagnostics.map((item) =>
+    diagnostic(line, item.message, item.code, project(item.span) ?? undefined)
+  );
+  if (!result.statement) return { diagnostics };
+  return { statement: setStatementToDslStatement(result.statement, line, endLine), diagnostics };
+};
+
 const leadingIdentifier = /^[A-Za-z_][A-Za-z0-9_]*/;
 
 const parseLine = (
@@ -305,6 +336,9 @@ const parseLine = (
   }
   if (declarationKeywords.has(keyword)) {
     return fromDeclaration(parseDslTypedDeclarationStatement(logicalText), line, endLine, project);
+  }
+  if (setKeywords.has(keyword)) {
+    return fromSet(parseDslSetStatement(logicalText), line, endLine, project);
   }
   return {
     diagnostics: [diagnostic(line, keyword ? `未対応のDSLキーワードです: ${keyword}` : "文はキーワードから始めてください。")]

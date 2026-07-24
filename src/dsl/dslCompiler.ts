@@ -317,6 +317,16 @@ const typedDeclarationVersionDiagnostics = (
     .map((statement) => requireDslMajorVersionForFeature(majorVersion, 3, statement.line, `${statement.bindingKind} 宣言`))
     .filter((item): item is DslDiagnostic => item !== null);
 
+// set も v3 専用構文。const/let と同じ理由・同じ仕組みでgateする(Task 29)。
+const setStatementVersionDiagnostics = (
+  statements: DslStatement[],
+  majorVersion: DslMajorVersion
+): DslDiagnostic[] =>
+  statements
+    .filter((statement): statement is Extract<DslStatement, { kind: "set" }> => statement.kind === "set")
+    .map((statement) => requireDslMajorVersionForFeature(majorVersion, 3, statement.line, "set 文"))
+    .filter((item): item is DslDiagnostic => item !== null);
+
 const buildBlockPrintLayouts = ({
   statements,
   layouts,
@@ -458,7 +468,8 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
 
   const diagnostics: DslDiagnostic[] = [...parsed.diagnostics];
   diagnostics.push(
-    ...typedDeclarationVersionDiagnostics(parsed.statements, context.majorVersion ?? NEW_DOCUMENT_DSL_MAJOR_VERSION)
+    ...typedDeclarationVersionDiagnostics(parsed.statements, context.majorVersion ?? NEW_DOCUMENT_DSL_MAJOR_VERSION),
+    ...setStatementVersionDiagnostics(parsed.statements, context.majorVersion ?? NEW_DOCUMENT_DSL_MAJOR_VERSION)
   );
   const printLayoutIdsByStatementIndex = new Map<number, string>();
   const visibilitySettings = applyVisibilitySettings({
