@@ -752,3 +752,28 @@ describe("DSL compiler: typed declaration version gate", () => {
     expect(result.elements).toHaveLength(1);
   });
 });
+
+describe("DSL compiler: set statement version gate", () => {
+  it("rejects set under nui 2 (default majorVersion) with the Task 06 version-gate diagnostic", () => {
+    const result = compileDslToElements("set x = 1", { elements: [] });
+    expect(result.diagnostics).toEqual([
+      expect.objectContaining({
+        code: "typed-syntax-requires-nui3",
+        message: "set 文 は nui 3 以降でのみ使用できます(現在: nui 2)。"
+      })
+    ]);
+    expect(result.elements).toHaveLength(0);
+  });
+
+  it("gates every set statement independently, one diagnostic per statement", () => {
+    const result = compileDslToElements(["set x = 1", "set y = 2"].join("\n"), { elements: [] });
+    expect(result.diagnostics).toHaveLength(2);
+    expect(result.diagnostics.every((item) => item.code === "typed-syntax-requires-nui3")).toBe(true);
+  });
+
+  it("accepts set under nui 3 with no diagnostics, and does not lift it into elements", () => {
+    const result = compileDslToElements(["set x = 1", "set y = 2"].join("\n"), { elements: [], majorVersion: 3 });
+    expect(result.diagnostics).toEqual([]);
+    expect(result.elements).toHaveLength(0);
+  });
+});

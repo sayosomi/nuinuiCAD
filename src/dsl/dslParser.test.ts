@@ -465,11 +465,60 @@ describe("DSL typed declarations", () => {
     expect(statement).toMatchObject({ kind: "typedDeclaration", initializer: "1" });
   });
 
-  it("still treats a bare `set` line as an unsupported keyword (no set parser exists yet)", () => {
-    const result = errors("set x = 1");
-    expect(result).toHaveLength(1);
-    expect(result[0].message).toContain("未対応のDSLキーワードです: set");
-    expect(parseDsl("set x = 1").statements).toHaveLength(0);
+});
+
+describe("DSL set statements", () => {
+  it("parses a set statement with exact target/expression spans", () => {
+    const source = "set x = 1";
+    const statement = single(source);
+    expect(statement).toMatchObject({ kind: "set", name: "x", expression: "1" });
+    if (statement.kind !== "set") return;
+    expect(source.slice(statement.nameSpan!.start, statement.nameSpan!.end)).toBe("x");
+    expect(source.slice(statement.payloadSpans.expression.start, statement.payloadSpans.expression.end)).toBe("1");
+  });
+
+  it("does not open a block and is excluded from element/duplicate-name processing", () => {
+    const statement = single("set x = 1");
+    expect(statement.opensBlock).toBe(false);
+  });
+
+  it("is legal inside group and if/else blocks and records enclosing scope", () => {
+    const parsed = parseDsl([
+      "group 前身頃 {",
+      "  set 幅 = 10",
+      "}",
+      "if 分岐 (1) {",
+      "  set x = true",
+      "} else {",
+      "  set x = false",
+      "}"
+    ].join("\n"));
+    expect(parsed.diagnostics).toEqual([]);
+    const sets = parsed.statements.filter((item) => item.kind === "set");
+    expect(sets).toHaveLength(3);
+    expect(sets[0].enclosing).toEqual({ statementIndex: 0, branch: "then" });
+    expect(sets[1].enclosing).toMatchObject({ branch: "then" });
+    expect(sets[2].enclosing).toMatchObject({ branch: "else" });
+  });
+
+  it("is rejected inside printLayout blocks, matching place/layoutVar's own restriction", () => {
+    const result = errors(["printLayout 型紙A () {", "  set x = 1", "}"].join("\n"));
+    expect(result.some((item) => item.message.includes("place と layoutVar のみ"))).toBe(true);
+  });
+
+  it("reports a missing target name", () => {
+    const result = errors("set = 1");
+    expect(result.some((item) => item.message.includes("変数名"))).toBe(true);
+  });
+
+  it("reports a missing assignment", () => {
+    const result = errors("set x");
+    expect(result.some((item) => item.message.includes("代入式"))).toBe(true);
+  });
+
+  it("tolerates a trailing comment on the same line", () => {
+    const statement = single("set x = 1 # 上書き");
+    expect(statement).toMatchObject({ kind: "set", expression: "1" });
   });
 });
 
