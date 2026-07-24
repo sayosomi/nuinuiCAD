@@ -11,6 +11,7 @@ import {
   type EvaluationPayload
 } from "./evaluationPayload";
 import type { PropertyBindingRuntimeEntry } from "./propertyBindingRuntime";
+import { textTemplateHasTypedHole } from "./textTemplateRuntime";
 
 type ConditionExpressionInput = { elementId: ElementId; expression: TypedScalarExpression };
 
@@ -262,6 +263,30 @@ const canUseRustEvaluationForElement = (
   return true;
 };
 
+/**
+ * Task 27: `text` isn't in `rustSupportedElementTypes` above, so today every
+ * text element already forces `rustEligible` to false for its whole
+ * document - this check is deliberately explicit and redundant with that,
+ * not a workaround for a gap in it. It exists so this task's correctness
+ * doesn't silently depend on `text` staying entirely unsupported in Rust:
+ * if a future change adds baseline (legacy-only) Rust text support before
+ * Task 28 lands typed template/bare-binding support, a document using a
+ * typed hole or the bare `@binding` text.text property must still be
+ * pinned to the TS reference path. Task 28 should remove or relax this once
+ * Rust understands these forms - do not delete it as "dead code" before
+ * then.
+ */
+const hasUnsupportedTypedTextContent = (
+  element: CadElement,
+  textTemplateEntriesByElementId: EvaluateElementsOptions["textTemplateEntriesByElementId"],
+  textPropertyBoundElementIds: ReadonlySet<ElementId> | undefined
+): boolean => {
+  if (element.type !== "text") return false;
+  const template = textTemplateEntriesByElementId?.get(element.id);
+  if (template && textTemplateHasTypedHole(template)) return true;
+  return textPropertyBoundElementIds?.has(element.id) ?? false;
+};
+
 export const canUseRustEvaluationForElements = (
   elements: CadElement[],
   options: EvaluateElementsOptions = {}
@@ -271,9 +296,15 @@ export const canUseRustEvaluationForElements = (
     elements.length
   );
   const elementsById = new Map(elements.map((element) => [element.id, element]));
+  const textPropertyBoundElementIds = options.textPropertyBindingEntries?.length
+    ? new Set(options.textPropertyBindingEntries.map((entry) => entry.elementId))
+    : undefined;
   return elements
     .slice(0, evaluationLimitIndex)
-    .every((element) => canUseRustEvaluationForElement(element, elementsById));
+    .every((element) =>
+      canUseRustEvaluationForElement(element, elementsById) &&
+      !hasUnsupportedTypedTextContent(element, options.textTemplateEntriesByElementId, textPropertyBoundElementIds)
+    );
 };
 
 export const isTauriRuntime = () =>

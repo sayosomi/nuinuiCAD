@@ -2,6 +2,7 @@ import type { CadElement, ComputedText } from "../types/geometry";
 import { getPointAnchorOrError, numericError } from "./evaluationContext";
 import type { ElementEvaluationContext } from "./elementEvaluatorTypes";
 import { resolveTextReferences } from "./numericExpressions";
+import { evaluateElementTextTemplate } from "./textTemplateRuntime";
 
 export const evaluateTextElement = (
   element: CadElement,
@@ -23,16 +24,35 @@ export const evaluateTextElement = (
   );
   if (fontSize === undefined) return true;
 
-  const text = resolveTextReferences({
-    text: element.text,
-    computedGeometry: context.computedGeometry,
-    elementsById: context.elementsById,
-    localVariables: context.localVariables.localVariableValues,
-    localVariableNames: context.localVariables.localVariableNames,
-    computedVariables: context.computedVariables,
-    currentElement: element,
-    elements: context.elements
-  });
+  // A compiled TextTemplateAst, when present, is always used in place of the
+  // legacy regex path - never a fallback to resolveTextReferences on
+  // element.text, since a typed string literal's escape processing already
+  // unescaped `\{`/`\}` before storage (see ElementEvaluationContext's
+  // textTemplate doc comment).
+  const text = context.textTemplate
+    ? evaluateElementTextTemplate(
+        context.textTemplate,
+        {
+          computedGeometry: context.computedGeometry,
+          elementsById: context.elementsById,
+          localVariables: context.localVariables.localVariableValues,
+          localVariableNames: context.localVariables.localVariableNames,
+          computedVariables: context.computedVariables,
+          currentElement: element,
+          elements: context.elements
+        },
+        context.resolveScalarBinding!
+      )
+    : resolveTextReferences({
+        text: element.text,
+        computedGeometry: context.computedGeometry,
+        elementsById: context.elementsById,
+        localVariables: context.localVariables.localVariableValues,
+        localVariableNames: context.localVariables.localVariableNames,
+        computedVariables: context.computedVariables,
+        currentElement: element,
+        elements: context.elements
+      });
   if (text.error) {
     const disabledGroupId = context.disabledByGroupId?.get(text.error.dependencyId);
     const disabledGroupName = disabledGroupId

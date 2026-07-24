@@ -742,7 +742,10 @@ type ResolveTextReferencesArgs = {
   elements?: CadElement[];
 };
 
-const textNumber = (value: number) =>
+/** Exported for Task 27's textTemplateRuntime.ts, which reuses this exact
+ * formatting for typed number holes and re-injects it for legacy holes -
+ * keep both paths on one formatting rule. */
+export const textNumber = (value: number) =>
   Number.isInteger(value) ? `${value}` : value.toFixed(3).replace(/\.?0+$/, "");
 
 export const resolveTextReferences = ({
