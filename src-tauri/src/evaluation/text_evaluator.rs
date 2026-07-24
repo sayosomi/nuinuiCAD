@@ -3,9 +3,24 @@ use std::collections::HashMap;
 
 use super::numeric_expression::evaluate_numeric_or_push;
 use super::point_anchor::point_anchor_or_error;
-use super::types::{element_id, element_name, insert_geometry, EvaluationState};
+use super::scalars::{ScalarBindingResolver, ValidatedTextTemplate};
+use super::text_template_runtime::resolve_text_template;
+use super::types::{element_id, element_name, insert_geometry, ElementId, EvaluationState};
 
-fn text_number(value: f64) -> String {
+/// Bundles Task 28's compiled-text-template lookup inputs, mirroring
+/// `ConditionalGroupContext` in `mod.rs`: `lookup_id` is the caller's own id
+/// for a top-level `text` element, or its `forGroup` *template* id for a
+/// generated clone, so a `text` element written inside a `forGroup`
+/// template resolves against the same compiled template on every
+/// iteration - the same convention Task 23/25 already established for
+/// property/condition bindings.
+pub(crate) struct TextTemplateContext<'a> {
+    pub(crate) lookup_id: &'a ElementId,
+    pub(crate) by_element_id: &'a HashMap<ElementId, ValidatedTextTemplate>,
+    pub(crate) scalar_binding_resolver: Option<&'a ScalarBindingResolver<'a>>,
+}
+
+pub(crate) fn text_number(value: f64) -> String {
     if (value - value.round()).abs() < 0.000_000_001 {
         format!("{value:.0}")
     } else {
@@ -65,7 +80,11 @@ fn local_variable_id_for_display_name(display_name: &str, element: &Value) -> Op
         .map(str::to_owned)
 }
 
-fn normalize_text_expression(expression: &str, element: &Value, state: &EvaluationState) -> String {
+pub(crate) fn normalize_text_expression(
+    expression: &str,
+    element: &Value,
+    state: &EvaluationState,
+) -> String {
     let chars = expression.chars().collect::<Vec<_>>();
     let mut index = 0;
     let mut output = String::new();
@@ -172,6 +191,7 @@ fn resolve_text(
 pub(crate) fn evaluate_text(
     element: &Value,
     local_variables: &(HashMap<String, f64>, HashMap<String, String>),
+    template_context: TextTemplateContext,
     state: &mut EvaluationState,
 ) {
     let Some(font_size) = evaluate_numeric_or_push(
@@ -183,15 +203,31 @@ pub(crate) fn evaluate_text(
     ) else {
         return;
     };
-    let Some(text) = resolve_text(
-        element
-            .get("text")
-            .and_then(Value::as_str)
-            .unwrap_or_default(),
-        element,
-        local_variables,
-        state,
-    ) else {
+    // A compiled template exists only for a nui 3 `label(text:...)`
+    // occurrence (Task 26/27); when absent (v2 documents, or no such
+    // occurrence at all), `resolve_text` below runs completely unchanged -
+    // never re-scanned, never re-resolved by this template path.
+    let Some(text) = (match template_context
+        .by_element_id
+        .get(template_context.lookup_id)
+    {
+        Some(template) => resolve_text_template(
+            template,
+            element,
+            local_variables,
+            template_context.scalar_binding_resolver,
+            state,
+        ),
+        None => resolve_text(
+            element
+                .get("text")
+                .and_then(Value::as_str)
+                .unwrap_or_default(),
+            element,
+            local_variables,
+            state,
+        ),
+    }) else {
         return;
     };
     let anchor = match element.get("anchor") {

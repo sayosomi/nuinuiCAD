@@ -45,6 +45,8 @@ fn copy_line_transforms_line_arc_bezier_and_offset_line() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements: vec![
             free_point("origin", "原点", 0.0, 0.0),
             free_point("move", "移動先", 20.0, 10.0),
@@ -109,6 +111,8 @@ fn copy_line_mirror_reverses_arc_sweep_and_supports_numeric_expression() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements: vec![
             free_point("origin", "原点", 0.0, 0.0),
             free_point("move", "移動先", 0.0, 0.0),
@@ -155,6 +159,8 @@ fn copy_line_and_move_scale_around_end_point() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements: vec![
             free_point("origin", "原点", 0.0, 0.0),
             free_point("target", "移動先", 10.0, 10.0),
@@ -190,6 +196,8 @@ fn copy_line_and_move_scale_around_end_point() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements: vec![
             free_point("origin", "原点", 0.0, 0.0),
             free_point("target", "移動先", 10.0, 10.0),
@@ -239,6 +247,8 @@ fn symmetric_copy_line_reflects_base_lines() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements: vec![
             free_point("axis1", "軸1", 0.0, 0.0),
             free_point("axis2", "軸2", 100.0, 0.0),
@@ -278,6 +288,8 @@ fn move_updates_existing_geometry_and_downstream_references() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements: vec![
             free_point("from", "From", 0.0, 0.0),
             free_point("to", "To", 20.0, 0.0),
@@ -326,6 +338,8 @@ fn symmetric_move_reports_axis_and_dependency_errors() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements: vec![
             free_point("axis", "軸", 0.0, 0.0),
             free_point("a", "A", 0.0, 10.0),
@@ -352,6 +366,8 @@ fn symmetric_move_reports_axis_and_dependency_errors() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements: vec![
             free_point("axis1", "軸1", 0.0, 0.0),
             free_point("axis2", "軸2", 100.0, 0.0),

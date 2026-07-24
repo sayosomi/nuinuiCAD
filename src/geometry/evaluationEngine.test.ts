@@ -451,6 +451,60 @@ describe("canUseRustEvaluationForElements", () => {
       ])
     ).toBe(false);
   });
+
+  describe("text elements (Task 28)", () => {
+    const textElement: CadElement = {
+      id: "text-1",
+      name: "text",
+      type: "text",
+      visible: true,
+      enabled: true,
+      text: "placeholder",
+      anchor: null,
+      fontSize: 3
+    };
+
+    const literalOnlyTemplate = {
+      span: { start: 0, end: 0 },
+      quote: '"' as const,
+      raw: "",
+      segments: [
+        { kind: "literal" as const, span: { start: 0, end: 0 }, cookedRange: { start: 0, end: 0 }, cooked: "hi" }
+      ],
+      dependencies: []
+    };
+
+    it("keeps a text element with no compiled template/bound property (e.g. a v2 document) on the TypeScript path", () => {
+      expect(canUseRustEvaluationForElements([textElement])).toBe(false);
+    });
+
+    it("allows a text element with a compiled text template - literal/legacy-only included - to use Rust evaluation", () => {
+      expect(
+        canUseRustEvaluationForElements([textElement], {
+          textTemplateEntriesByElementId: new Map([["text-1", literalOnlyTemplate]])
+        })
+      ).toBe(true);
+    });
+
+    it("allows a text element with a bound bare @binding text.text property to use Rust evaluation", () => {
+      expect(
+        canUseRustEvaluationForElements([textElement], {
+          textPropertyBindingEntries: [
+            { elementId: "text-1", parameterKey: "text", bindingId: "binding:x", expectedType: { kind: "string" } }
+          ]
+        })
+      ).toBe(true);
+    });
+
+    it("keeps a text element with an unsupported anchor reference on the TypeScript path even with a compiled template", () => {
+      expect(
+        canUseRustEvaluationForElements(
+          [unsupportedElement, { ...textElement, anchor: { mode: "reference", pointId: "unsupported" } }],
+          { textTemplateEntriesByElementId: new Map([["text-1", literalOnlyTemplate]]) }
+        )
+      ).toBe(false);
+    });
+  });
 });
 
 describe("resolveEvaluationEngineMode", () => {

@@ -1,0 +1,366 @@
+//! End-to-end coverage for Task 28, through the full `evaluate_document_input`
+//! pipeline (hand-built JSON fixtures, mirroring
+//! `control_boolean_runtime_tests.rs`'s style): compiled text templates
+//! (`text_templates`) and the bare `@binding` `text.text` case
+//! (`text_property_bindings`). Focused unit coverage for the payload
+//! decoders themselves lives in `scalars/text_template_payload_tests.rs`
+//! and `scalars/text_property_binding_payload_tests.rs`; the pure segment
+//! walker's own coverage lives in `scalars/text_tests.rs`.
+
+use super::*;
+use serde_json::{json, Value};
+
+fn input(
+    elements: Vec<Value>,
+    scalar_program: Option<Value>,
+    text_templates: Option<Value>,
+    text_property_bindings: Option<Value>,
+) -> EvaluationInput {
+    EvaluationInput {
+        elements,
+        evaluation_limit_index: None,
+        scalar_expression_payload: None,
+        scalar_program,
+        property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
+        text_templates,
+        text_property_bindings,
+    }
+}
+
+fn text_element(id: &str) -> Value {
+    json!({
+        "id": id, "name": id, "type": "text", "visible": true, "enabled": true,
+        "text": "placeholder - replaced by a compiled template or bound property",
+        "anchor": Value::Null, "fontSize": 3
+    })
+}
+
+fn literal_segment(cooked: &str) -> Value {
+    json!({"kind": "literal", "cooked": cooked})
+}
+
+fn legacy_hole_segment(raw: &str) -> Value {
+    json!({"kind": "hole", "holeKind": "legacy", "raw": raw})
+}
+
+fn string_hole_segment(expression: Value) -> Value {
+    json!({"kind": "hole", "holeKind": "string", "expression": expression})
+}
+
+fn number_hole_segment(expression: Value) -> Value {
+    json!({"kind": "hole", "holeKind": "number", "expression": expression})
+}
+
+fn string_literal_expr(value: &str) -> Value {
+    json!({"kind": "stringLiteral", "span": {"start": 0, "end": 1}, "value": value, "type": {"kind": "string"}})
+}
+
+fn number_literal_expr(value: f64) -> Value {
+    json!({"kind": "numberLiteral", "span": {"start": 0, "end": 1}, "value": value, "type": {"kind": "number"}})
+}
+
+fn string_reference_expr(binding_id: &str) -> Value {
+    json!({"kind": "reference", "span": {"start": 0, "end": 1}, "nameSpan": {"start": 0, "end": 1}, "name": binding_id, "bindingId": binding_id, "type": {"kind": "string"}})
+}
+
+fn number_reference_expr(binding_id: &str) -> Value {
+    json!({"kind": "reference", "span": {"start": 0, "end": 1}, "nameSpan": {"start": 0, "end": 1}, "name": binding_id, "bindingId": binding_id, "type": {"kind": "number"}})
+}
+
+fn string_statement(binding_id: &str, initializer: Value) -> Value {
+    json!({
+        "kind": "declare",
+        "bindingId": binding_id,
+        "scopeId": "root",
+        "sourceOrder": 0,
+        "declaration": {"bindingKind": "const", "declaredType": {"kind": "string"}, "initializer": initializer}
+    })
+}
+
+fn number_statement(binding_id: &str, initializer: Value) -> Value {
+    json!({
+        "kind": "declare",
+        "bindingId": binding_id,
+        "scopeId": "root",
+        "sourceOrder": 0,
+        "declaration": {"bindingKind": "const", "declaredType": {"kind": "number"}, "initializer": initializer}
+    })
+}
+
+fn program(statements: Vec<Value>) -> Value {
+    json!({ "statements": statements })
+}
+
+fn text_template_entry(element_id: &str, segments: Vec<Value>) -> Value {
+    json!({"elementId": element_id, "segments": segments})
+}
+
+fn text_property_binding_entry(element_id: &str, binding_id: &str) -> Value {
+    json!({
+        "elementId": element_id, "parameterKey": "text", "bindingId": binding_id,
+        "expectedType": {"kind": "string"}
+    })
+}
+
+fn text_value(result: &EvaluationPayload, element_id: &str) -> String {
+    result
+        .computed_geometry
+        .iter()
+        .find(|geometry| geometry["elementId"] == json!(element_id))
+        .and_then(|geometry| geometry["text"].as_str())
+        .unwrap_or_else(|| panic!("no computed text geometry for \"{element_id}\""))
+        .to_owned()
+}
+
+#[test]
+fn assembles_a_literal_only_template_with_no_scalar_program() {
+    let result = evaluate_document_input(input(
+        vec![text_element("t")],
+        None,
+        Some(json!([text_template_entry(
+            "t",
+            vec![literal_segment("前身頃を2枚カット")]
+        )])),
+        None,
+    ));
+    assert!(result.errors.is_empty());
+    assert_eq!(text_value(&result, "t"), "前身頃を2枚カット");
+}
+
+#[test]
+fn assembles_a_legacy_hole_only_template_with_no_scalar_program() {
+    let result = evaluate_document_input(input(
+        vec![text_element("t")],
+        None,
+        Some(json!([text_template_entry(
+            "t",
+            vec![literal_segment("計算: "), legacy_hole_segment("2 + 3")]
+        )])),
+        None,
+    ));
+    assert!(result.errors.is_empty());
+    assert_eq!(text_value(&result, "t"), "計算: 5");
+}
+
+#[test]
+fn substitutes_a_typed_string_hole() {
+    let result = evaluate_document_input(input(
+        vec![text_element("t")],
+        Some(program(vec![string_statement(
+            "binding:label",
+            string_literal_expr("前身頃"),
+        )])),
+        Some(json!([text_template_entry(
+            "t",
+            vec![
+                string_hole_segment(string_reference_expr("binding:label")),
+                literal_segment("を2枚カット")
+            ]
+        )])),
+        None,
+    ));
+    assert!(result.errors.is_empty());
+    assert_eq!(text_value(&result, "t"), "前身頃を2枚カット");
+}
+
+#[test]
+fn substitutes_a_typed_number_hole_and_formats_it() {
+    let result = evaluate_document_input(input(
+        vec![text_element("t")],
+        Some(program(vec![number_statement(
+            "binding:count",
+            number_literal_expr(12.0),
+        )])),
+        Some(json!([text_template_entry(
+            "t",
+            vec![number_hole_segment(number_reference_expr("binding:count"))]
+        )])),
+        None,
+    ));
+    assert!(result.errors.is_empty());
+    assert_eq!(text_value(&result, "t"), "12");
+}
+
+#[test]
+fn interleaves_legacy_and_typed_holes() {
+    let result = evaluate_document_input(input(
+        vec![text_element("t")],
+        Some(program(vec![string_statement(
+            "binding:label",
+            string_literal_expr("前身頃"),
+        )])),
+        Some(json!([text_template_entry(
+            "t",
+            vec![
+                string_hole_segment(string_reference_expr("binding:label")),
+                literal_segment(" 計算:"),
+                legacy_hole_segment("2 + 3")
+            ]
+        )])),
+        None,
+    ));
+    assert!(result.errors.is_empty());
+    assert_eq!(text_value(&result, "t"), "前身頃 計算:5");
+}
+
+/// A legacy hole referencing a nonexistent element - `evaluate_numeric_or_push`
+/// (the existing, unchanged legacy pipeline) already pushes the correct
+/// `DependencyError` and returns `None`; the new template walker must not
+/// push a second, duplicate one for the same failing hole.
+#[test]
+fn a_legacy_hole_failure_produces_exactly_one_error_no_duplicate() {
+    let result = evaluate_document_input(input(
+        vec![text_element("t")],
+        None,
+        Some(json!([text_template_entry(
+            "t",
+            vec![legacy_hole_segment("存在しない.length")]
+        )])),
+        None,
+    ));
+    assert_eq!(result.errors.len(), 1);
+    assert!(result
+        .computed_geometry
+        .iter()
+        .all(|geometry| geometry["elementId"] != json!("t")));
+}
+
+/// A typed hole referencing a binding whose *own* initializer fails
+/// (poisoned), not a hole referencing a nonexistent binding id directly -
+/// distinct from the "dangling binding" scenario below.
+#[test]
+fn a_typed_hole_referencing_a_poisoned_binding_fails_closed_self_referentially() {
+    let result = evaluate_document_input(input(
+        vec![text_element("t")],
+        Some(program(vec![string_statement(
+            "binding:poisoned",
+            string_reference_expr("binding:does-not-exist-anywhere"),
+        )])),
+        Some(json!([text_template_entry(
+            "t",
+            vec![string_hole_segment(string_reference_expr(
+                "binding:poisoned"
+            ))]
+        )])),
+        None,
+    ));
+    assert_eq!(result.errors.len(), 1);
+    let error = &result.errors[0];
+    assert_eq!(error.element_id, "t");
+    assert_eq!(error.missing_dependency_id, "t");
+    assert_eq!(error.missing_dependency_name.as_deref(), Some("t"));
+    assert!(error.message.contains("評価に失敗"));
+    assert!(result
+        .computed_geometry
+        .iter()
+        .all(|geometry| geometry["elementId"] != json!("t")));
+}
+
+/// A typed hole whose reference `bindingId` does not correspond to any
+/// statement in `scalar_program` at all - resolved through the same
+/// `evaluation-external-binding-unavailable` path any other binding
+/// consumer already uses (`bindings.rs`'s `resolve_external_binding`), not
+/// a new decode-time check.
+#[test]
+fn a_typed_hole_referencing_a_completely_dangling_binding_fails_closed_self_referentially() {
+    let result = evaluate_document_input(input(
+        vec![text_element("t")],
+        Some(program(vec![])),
+        Some(json!([text_template_entry(
+            "t",
+            vec![string_hole_segment(string_reference_expr(
+                "binding:does-not-exist-anywhere"
+            ))]
+        )])),
+        None,
+    ));
+    assert_eq!(result.errors.len(), 1);
+    let error = &result.errors[0];
+    assert_eq!(error.element_id, "t");
+    assert_eq!(error.missing_dependency_id, "t");
+    assert!(result
+        .computed_geometry
+        .iter()
+        .all(|geometry| geometry["elementId"] != json!("t")));
+}
+
+#[test]
+fn materializes_a_bare_text_property_binding_with_no_compiled_template() {
+    let result = evaluate_document_input(input(
+        vec![text_element("t")],
+        Some(program(vec![string_statement(
+            "binding:label",
+            string_literal_expr("前身頃"),
+        )])),
+        None,
+        Some(json!([text_property_binding_entry("t", "binding:label")])),
+    ));
+    assert!(result.errors.is_empty());
+    assert_eq!(text_value(&result, "t"), "前身頃");
+}
+
+/// No `text_templates`/`text_property_bindings` entry at all for this
+/// element - the existing, completely unmodified legacy `resolve_text` path
+/// runs, exactly matching a v2 document (which never has either field
+/// populated for any element).
+#[test]
+fn a_text_element_with_no_compiled_entry_uses_the_unmodified_legacy_path() {
+    let mut element = text_element("t");
+    element["text"] = json!("直接の文字列 {2 + 3}");
+    let result = evaluate_document_input(input(vec![element], None, None, None));
+    assert!(result.errors.is_empty());
+    assert_eq!(text_value(&result, "t"), "直接の文字列 5");
+}
+
+fn for_group_el(id: &str, count: f64) -> Value {
+    json!({
+        "id": id, "name": id, "type": "forGroup", "visible": true, "enabled": true,
+        "variableName": "i", "start": 0, "count": count, "step": 1, "showGenerated": false
+    })
+}
+
+/// A `text` element templated inside a `forGroup`, with a typed hole that
+/// fails - resolved/erroring by the *template* id's compiled entry on every
+/// generated iteration (the `TextTemplateContext.lookup_id` convention,
+/// mirroring `ConditionalGroupContext`/property-binding `template_id`
+/// lookup), with each generated clone's own error self-referential to that
+/// clone (matching Task 27's `context.currentElement.id` convention - the
+/// *clone* being evaluated, not the template).
+#[test]
+fn a_for_group_generated_text_elements_typed_hole_failure_is_self_referential_per_clone() {
+    let mut templated_text = text_element("label");
+    templated_text["parentGroupId"] = json!("loop");
+
+    let result = evaluate_document_input(input(
+        vec![for_group_el("loop", 2.0), templated_text],
+        Some(program(vec![])),
+        Some(json!([text_template_entry(
+            "label",
+            vec![string_hole_segment(string_reference_expr(
+                "binding:does-not-exist-anywhere"
+            ))]
+        )])),
+        None,
+    ));
+
+    let generated_rows: Vec<_> = result
+        .for_group_generated_rows
+        .iter()
+        .filter(|row| row.template_element_id == "label")
+        .collect();
+    assert_eq!(generated_rows.len(), 2);
+    assert_eq!(result.errors.len(), 2);
+    for row in &generated_rows {
+        assert!(result
+            .errors
+            .iter()
+            .any(|error| error.element_id == row.generated_element_id
+                && error.missing_dependency_id == row.generated_element_id));
+        assert!(result
+            .computed_geometry
+            .iter()
+            .all(|geometry| geometry["elementId"] != json!(row.generated_element_id)));
+    }
+}

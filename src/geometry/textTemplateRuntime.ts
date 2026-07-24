@@ -26,6 +26,7 @@ import { propertyBindingOccurrenceKey, type ScalarValueSource } from "../scalars
 import type { TextTemplateAst } from "../scalars/textTemplate";
 import { evaluateTextTemplate, type EvaluateLegacyHole } from "../scalars/textTemplateEvaluator";
 import type { ScalarEvaluation } from "../scalars/types";
+import type { TypedScalarExpression } from "../scalars/typedExpressionAst";
 import { findParameterDefinition } from "../parameters/parameterDefinitions";
 import type { NumericExpressionError } from "./numericExpressionTypes";
 import { evaluateNumericValue, normalizeNumericExpressionInput, textNumber } from "./numericExpressions";
@@ -55,13 +56,28 @@ export const buildTextTemplateEntriesByElementId = (
   return byElementId;
 };
 
-/** True when at least one hole in the template is typed (string/number),
- * i.e. requires a scalar binding resolver and has no Rust evaluator yet
- * (Task 28). Legacy-only templates (or literal-only templates) don't. Used
- * by evaluationEngine.ts's Rust-eligibility gate as well as by this module's
- * own callers. */
-export const textTemplateHasTypedHole = (ast: TextTemplateAst): boolean =>
-  ast.segments.some((segment) => segment.kind === "hole" && segment.holeKind !== "legacy");
+/** Task 28's reduced, evaluation-only projection of one template segment for
+ * the Rust IPC boundary - only what `scalars::text_template_payload.rs`
+ * actually decodes (`cooked` for a literal; `raw` for a legacy hole;
+ * `expression` for a typed hole), never `span`/`contentSpan`/
+ * `cookedInsertOffset`/`cookedRange` (TS editor/dependency-graph concerns
+ * Rust evaluation never reads). */
+export type RustTextTemplateSegment =
+  | { kind: "literal"; cooked: string }
+  | { kind: "hole"; holeKind: "legacy"; raw: string }
+  | { kind: "hole"; holeKind: "string" | "number"; expression: TypedScalarExpression };
+
+/** Projects one compiled `TextTemplateAst` down to the wire shape Rust's
+ * `text_template_payload.rs` validates - called once per Rust-bound
+ * evaluation request, mirroring the `conditionExpressions` array-projection
+ * idiom `evaluationEngine.ts`'s `evaluateElementsWithRust` already uses for
+ * `conditionalGroupConditionsByElementId`. */
+export const toRustTextTemplateSegments = (ast: TextTemplateAst): RustTextTemplateSegment[] =>
+  ast.segments.map((segment): RustTextTemplateSegment => {
+    if (segment.kind === "literal") return { kind: "literal", cooked: segment.cooked };
+    if (segment.holeKind === "legacy") return { kind: "hole", holeKind: "legacy", raw: segment.raw };
+    return { kind: "hole", holeKind: segment.holeKind, expression: segment.expression };
+  });
 
 /** This task's own runtime scope boundary for the bare `@name` `text.text`
  * case - mirrors propertyBindingRuntime.ts's STANDARD_PROPERTY_TARGETS and

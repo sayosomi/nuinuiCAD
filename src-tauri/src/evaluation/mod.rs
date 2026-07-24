@@ -74,6 +74,9 @@ mod split_line_tests;
 #[cfg(test)]
 mod tests;
 mod text_evaluator;
+mod text_template_runtime;
+#[cfg(test)]
+mod text_template_runtime_tests;
 #[cfg(test)]
 mod three_point_arc_line_tests;
 #[cfg(test)]
@@ -115,11 +118,13 @@ use property_binding_runtime::apply_property_bindings;
 use scalars::{
     validate_condition_expressions_payload, validate_control_boolean_bindings_payload,
     validate_property_bindings_payload, validate_scalar_program_payload,
+    validate_text_property_bindings_payload, validate_text_templates_payload,
     validate_typed_expression_payload, ScalarBindingResolver, TypedScalarExpression,
     ValidatedConditionExpression, ValidatedPropertyBinding, ValidatedScalarProgram,
+    ValidatedTextTemplate,
 };
 use split_line_evaluator::evaluate_split_line;
-use text_evaluator::evaluate_text;
+use text_evaluator::{evaluate_text, TextTemplateContext};
 use types::{element_id, element_name, element_type, ElementId, EvaluationState};
 pub use types::{EvaluationCommandError, EvaluationInput, EvaluationPayload};
 use variable_evaluator::evaluate_variable_element;
@@ -218,6 +223,67 @@ fn decode_condition_expressions(
         })
 }
 
+/// Decodes+validates `input.text_templates`. Unlike the binding decoders
+/// above, this has no `scalar_program`-derived `valid_binding_ids` allowlist
+/// (a typed hole's reference is a full expression tree, not a single
+/// bindingId - dangling references inside it are a runtime
+/// `ScalarBindingResolver` concern, exactly like `condition_expressions`,
+/// never re-checked at decode time). It does still independently enforce
+/// the one scalar_program-related invariant this field owns: a typed
+/// (`string`/`number`) hole cannot exist anywhere in the payload unless
+/// `scalar_program` is also present - see
+/// `scalars::text_template_payload`'s own doc comment.
+fn decode_text_templates(
+    input: &EvaluationInput,
+    scalar_program: Option<&ValidatedScalarProgram>,
+) -> Result<Option<Vec<ValidatedTextTemplate>>, EvaluationCommandError> {
+    let Some(payload) = input.text_templates.as_ref() else {
+        return Ok(None);
+    };
+    let element_type_by_id: HashMap<&str, &str> = input
+        .elements
+        .iter()
+        .filter_map(|element| Some((element.get("id")?.as_str()?, element.get("type")?.as_str()?)))
+        .collect();
+    validate_text_templates_payload(payload, &element_type_by_id, scalar_program.is_some())
+        .map(Some)
+        .map_err(|error| EvaluationCommandError {
+            code: error.code.as_str().to_owned(),
+            message: error.message,
+        })
+}
+
+/// Same validation order/fail-closed contract as `decode_property_bindings`,
+/// for Task 28's bare `@binding` `text.text` bindings.
+fn decode_text_property_bindings(
+    input: &EvaluationInput,
+    scalar_program: Option<&ValidatedScalarProgram>,
+) -> Result<Option<Vec<ValidatedPropertyBinding>>, EvaluationCommandError> {
+    let Some(payload) = input.text_property_bindings.as_ref() else {
+        return Ok(None);
+    };
+    let element_type_by_id: HashMap<&str, &str> = input
+        .elements
+        .iter()
+        .filter_map(|element| Some((element.get("id")?.as_str()?, element.get("type")?.as_str()?)))
+        .collect();
+    let valid_binding_ids: HashSet<&str> = scalar_program
+        .map(|program| {
+            program
+                .statements
+                .iter()
+                .map(|statement| statement.binding_id.as_str())
+                .collect()
+        })
+        .unwrap_or_default();
+    validate_text_property_bindings_payload(payload, &element_type_by_id, &valid_binding_ids)
+        .map(Some)
+        .map_err(|error| EvaluationCommandError {
+            code: error.code.as_str().to_owned(),
+            message: error.message,
+        })
+}
+
 #[tauri::command]
 pub fn evaluate_document(
     input: EvaluationInput,
@@ -238,12 +304,16 @@ pub fn evaluate_document(
     let control_boolean_bindings =
         decode_control_boolean_bindings(&input, scalar_program.as_ref())?;
     let condition_expressions = decode_condition_expressions(&input)?;
+    let text_templates = decode_text_templates(&input, scalar_program.as_ref())?;
+    let text_property_bindings = decode_text_property_bindings(&input, scalar_program.as_ref())?;
     Ok(evaluate_document_input_with_scalar_program(
         input,
         scalar_program,
         property_bindings,
         control_boolean_bindings,
         condition_expressions,
+        text_templates,
+        text_property_bindings,
     ))
 }
 
@@ -305,6 +375,7 @@ fn evaluate_element_by_type(
     local_variables: (HashMap<String, f64>, HashMap<String, String>),
     conditional_group_states: &mut HashMap<ElementId, Option<&'static str>>,
     condition_context: ConditionalGroupContext,
+    text_context: TextTemplateContext,
     state: &mut EvaluationState,
 ) {
     match element_type(&element) {
@@ -367,7 +438,7 @@ fn evaluate_element_by_type(
         Some("move") => evaluate_move(&element, &local_variables, state),
         Some("symmetricMove") => evaluate_symmetric_move(&element, &local_variables, state),
         Some("image") => evaluate_image(&element, &local_variables, state),
-        Some("text") => evaluate_text(&element, &local_variables, state),
+        Some("text") => evaluate_text(&element, &local_variables, text_context, state),
         _ => {}
     }
 }
@@ -393,12 +464,18 @@ fn evaluate_document_input(input: EvaluationInput) -> EvaluationPayload {
         .expect("evaluation test input control_boolean_bindings must be valid");
     let condition_expressions = decode_condition_expressions(&input)
         .expect("evaluation test input condition_expressions must be valid");
+    let text_templates = decode_text_templates(&input, scalar_program.as_ref())
+        .expect("evaluation test input text_templates must be valid");
+    let text_property_bindings = decode_text_property_bindings(&input, scalar_program.as_ref())
+        .expect("evaluation test input text_property_bindings must be valid");
     evaluate_document_input_with_scalar_program(
         input,
         scalar_program,
         property_bindings,
         control_boolean_bindings,
         condition_expressions,
+        text_templates,
+        text_property_bindings,
     )
 }
 
@@ -408,6 +485,8 @@ fn evaluate_document_input_with_scalar_program(
     property_bindings: Option<Vec<ValidatedPropertyBinding>>,
     control_boolean_bindings: Option<Vec<ValidatedPropertyBinding>>,
     condition_expressions: Option<Vec<ValidatedConditionExpression>>,
+    text_templates: Option<Vec<ValidatedTextTemplate>>,
+    text_property_bindings: Option<Vec<ValidatedPropertyBinding>>,
 ) -> EvaluationPayload {
     let evaluation_limit_index = input
         .evaluation_limit_index
@@ -459,10 +538,17 @@ fn evaluate_document_input_with_scalar_program(
     // final computed_scalar_bindings output, so no binding is ever
     // evaluated more than once.
     let scalar_binding_resolver = scalar_program.as_ref().map(ScalarBindingResolver::new);
+    // Task 28's bare `text.text` bindings are chained into the same
+    // standard-property materialization map/pipeline (`apply_property_bindings`)
+    // as Task 23's - the (element type, parameter key) allowlist that
+    // validated each entry already lives in a separate module
+    // (`text_property_binding_payload.rs`), so merging here is purely a
+    // materialization-mechanics reuse, not a scope-boundary change.
     let entries_by_element_id: HashMap<ElementId, Vec<ValidatedPropertyBinding>> =
         property_bindings
             .into_iter()
             .flatten()
+            .chain(text_property_bindings.into_iter().flatten())
             .fold(HashMap::new(), |mut map, entry| {
                 map.entry(entry.element_id.clone()).or_default().push(entry);
                 map
@@ -477,6 +563,11 @@ fn evaluate_document_input_with_scalar_program(
         .into_iter()
         .flatten()
         .map(|entry| (entry.element_id, entry.expression))
+        .collect();
+    let text_templates_by_element_id: HashMap<ElementId, ValidatedTextTemplate> = text_templates
+        .into_iter()
+        .flatten()
+        .map(|template| (template.element_id.clone(), template))
         .collect();
 
     for index in 0..evaluation_limit_index {
@@ -644,6 +735,11 @@ fn evaluate_document_input_with_scalar_program(
                                         by_element_id: &condition_by_element_id,
                                         scalar_binding_resolver: scalar_binding_resolver.as_ref(),
                                     },
+                                    TextTemplateContext {
+                                        lookup_id: &template_id,
+                                        by_element_id: &text_templates_by_element_id,
+                                        scalar_binding_resolver: scalar_binding_resolver.as_ref(),
+                                    },
                                     &mut state,
                                 ),
                                 Err(error) => state.errors.push(error),
@@ -657,6 +753,11 @@ fn evaluate_document_input_with_scalar_program(
                             ConditionalGroupContext {
                                 lookup_id: &template_id,
                                 by_element_id: &condition_by_element_id,
+                                scalar_binding_resolver: scalar_binding_resolver.as_ref(),
+                            },
+                            TextTemplateContext {
+                                lookup_id: &template_id,
+                                by_element_id: &text_templates_by_element_id,
                                 scalar_binding_resolver: scalar_binding_resolver.as_ref(),
                             },
                             &mut state,
@@ -683,6 +784,11 @@ fn evaluate_document_input_with_scalar_program(
                             by_element_id: &condition_by_element_id,
                             scalar_binding_resolver: scalar_binding_resolver.as_ref(),
                         },
+                        TextTemplateContext {
+                            lookup_id: &id,
+                            by_element_id: &text_templates_by_element_id,
+                            scalar_binding_resolver: scalar_binding_resolver.as_ref(),
+                        },
                         &mut state,
                     ),
                     Err(error) => state.errors.push(error),
@@ -696,6 +802,11 @@ fn evaluate_document_input_with_scalar_program(
                 ConditionalGroupContext {
                     lookup_id: &id,
                     by_element_id: &condition_by_element_id,
+                    scalar_binding_resolver: scalar_binding_resolver.as_ref(),
+                },
+                TextTemplateContext {
+                    lookup_id: &id,
+                    by_element_id: &text_templates_by_element_id,
                     scalar_binding_resolver: scalar_binding_resolver.as_ref(),
                 },
                 &mut state,

@@ -1,10 +1,13 @@
-// End-to-end coverage for Task 27: compileDslDocument -> the same entry
+// End-to-end coverage for Task 27/28: compileDslDocument -> the same entry
 // builders AppLayout.tsx uses -> the same evaluateElements/
 // canUseRustEvaluationForElements functions useEvaluationEngine.ts calls for
 // production evaluation routing. Proves escaped braces, typed string holes,
 // and the bare `@binding` text.text property all evaluate via the AST path
-// once wired the way the live document wires them, and that such documents
-// are kept off the (not-yet-typed-template-aware) Rust path.
+// once wired the way the live document wires them. Task 27 originally kept
+// such documents off the Rust path (no Rust text evaluator existed yet);
+// Task 28 gives Rust a real evaluator for the same compiled data, so these
+// documents are now Rust-eligible - a v2 document (never compiling
+// textTemplates at all) is the one case that stays off Rust.
 import { describe, expect, it } from "vitest";
 import { compileDslDocument } from "../dsl/dslDocument";
 import { canUseRustEvaluationForElements } from "./evaluationEngine";
@@ -114,26 +117,35 @@ describe("Task 27 production routing: compileDslDocument -> evaluateElements/can
     expect(result.computedGeometry.get(textElementId!)).toMatchObject({ kind: "text", text: "前身頃" });
   });
 
-  it("keeps a document with a typed text hole off the Rust path", () => {
+  it("Task 28: a document with a typed text hole is now Rust-eligible", () => {
     const { elements, options } = evaluateSource(
       ["nui 3", 'const ラベル: string = "前身頃"', 'text T = label(text: "{@ラベル}を2枚カット" anchor: none size: 3)'].join("\n"),
       new Map([[1, "test:label"]])
     );
-    expect(canUseRustEvaluationForElements(elements, options)).toBe(false);
+    expect(canUseRustEvaluationForElements(elements, options)).toBe(true);
   });
 
-  it("keeps a document with a bare @binding text.text property off the Rust path", () => {
+  it("Task 28: a document with a bare @binding text.text property is now Rust-eligible", () => {
     const { elements, options } = evaluateSource(
       ["nui 3", 'const ラベル: string = "前身頃"', "text T = label(text: @ラベル anchor: none size: 3)"].join("\n"),
       new Map([[1, "test:label"]])
     );
-    expect(canUseRustEvaluationForElements(elements, options)).toBe(false);
+    expect(canUseRustEvaluationForElements(elements, options)).toBe(true);
   });
 
-  it("a v2 document (no textTemplates compiled at all) keeps the legacy evaluation behavior unchanged", () => {
-    const { result, options, textElementId } = evaluateSource(["nui 2", 'text T = label(text: "plain text" anchor: none size: 3)'].join("\n"));
+  it("Task 28: a nui 3 document with only a literal/legacy-hole text template is Rust-eligible with no scalarProgram", () => {
+    const { elements, options } = evaluateSource(
+      ["nui 3", 'text T = label(text: "plain text, no holes" anchor: none size: 3)'].join("\n")
+    );
+    expect(options.scalarProgram).toBeUndefined();
+    expect(canUseRustEvaluationForElements(elements, options)).toBe(true);
+  });
+
+  it("a v2 document (no textTemplates compiled at all) keeps the legacy evaluation behavior unchanged and stays off the Rust path", () => {
+    const { result, options, elements, textElementId } = evaluateSource(["nui 2", 'text T = label(text: "plain text" anchor: none size: 3)'].join("\n"));
     expect(options.textTemplateEntriesByElementId).toBeUndefined();
     expect(result.errors).toHaveLength(0);
     expect(result.computedGeometry.get(textElementId!)).toMatchObject({ kind: "text", text: "plain text" });
+    expect(canUseRustEvaluationForElements(elements, options)).toBe(false);
   });
 });

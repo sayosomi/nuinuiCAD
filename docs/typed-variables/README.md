@@ -50,7 +50,7 @@
 | 25 | [boolean control-flow runtime](tasks/25-boolean-control-flow-runtime.md) | control flow | 18,21,22 | gated control runtime | `typed-vars/25-boolean-control-flow` | 完了 |
 | 26 | [text template analysis](tasks/26-text-template-analysis.md) | template/parser | 09,12,15 | analysis only | `typed-vars/26-template-analysis` | 完了 |
 | 27 | [text template TS evaluation](tasks/27-text-template-ts-evaluation.md) | reference evaluation | 16,20,26 | connected to live document (TS-reference only; Rust gated off) | `typed-vars/27-template-ts` | 完了 |
-| 28 | [text template Rust parity](tasks/28-text-template-rust-parity.md) | production evaluation | 18,21,27 | gated Rust path | `typed-vars/28-template-rust` | 未着手 |
+| 28 | [text template Rust parity](tasks/28-text-template-rust-parity.md) | production evaluation | 18,21,27 | gated Rust path | `typed-vars/28-template-rust` | 完了 |
 | 29 | [set syntax/resolution](tasks/29-set-syntax-resolution.md) | DSL/binding analysis | 10,12,15,19 | gated analysis | `typed-vars/29-set-syntax` | 未着手 |
 | 30 | [binding version IR](tasks/30-binding-version-ir.md) | mutation core | 29 | gated IR | `typed-vars/30-binding-versions` | 未着手 |
 | 31 | [linear mutation TS](tasks/31-linear-mutation-ts.md) | reference mutation | 16,20,30 | gated reference path | `typed-vars/31-linear-mutation-ts` | 未着手 |
@@ -251,7 +251,7 @@ Task 20/21のconst runtime pathはTask 31/32へ、Task 46のnui 3 persistence pa
 
 ## 次に実行可能なtask
 
-直近は28、29、42。23・24・25・26・27は完了済み。Task 21でRust-first `evaluate_document(input)` がTask 19の解決済み`scalar_program`を評価し、`computedScalarBindings`をTS payloadへ返す。22の完了後に23〜25、26/27完了後に28、29〜31完了後に32がこのbinding environmentを再利用し、source再parse・名前再解決・legacy fallbackを追加しない。
+直近は29、42。23・24・25・26・27・28は完了済み。Task 21でRust-first `evaluate_document(input)` がTask 19の解決済み`scalar_program`を評価し、`computedScalarBindings`をTS payloadへ返す。22の完了後に23〜25、26/27完了後に28、29〜31完了後に32がこのbinding environmentを再利用し、source再parse・名前再解決・legacy fallbackを追加しない。
 
 ### Task 22完了時点の引き継ぎ(23〜26向け)
 
@@ -320,6 +320,19 @@ Task 26の`TextTemplateAst`をTS reference評価へ接続し、AppLayoutの生�
 - **production wiring**: `AppLayout.tsx`は`state.doc.textTemplates`を他の`doc.*`フィールドと同じ場所で読み、`textTemplateEntriesByElementId`/`textPropertyBindingEntries`を他3つのentry builderと並ぶ`useMemo`で構築して`evaluationOptions`へ足す(文書更新時にだけ再構築、render/evaluationごとの再scanなし)。`useEvaluationEngine.ts`はこの2フィールドを内部の`evaluationOptions`memoと`requestKey`(Mapは`Array.from`)の両方へ通す。**Rust IPC(`evaluateElementsWithRust`の`invoke`payload、`EvaluateDocumentInput`型)へは一切追加していない** — Rustはこの2フィールドの存在を知らないまま。
 - **Rust-eligibility gate**: `text`は元々`rustSupportedElementTypes`に含まれておらず、text要素を含む文書は既に常に`rustEligible=false`だった。それでも`evaluationEngine.ts`に`hasUnsupportedTypedTextContent`という明示的なチェックを追加した(`textTemplateHasTypedHole`+`textPropertyBindingEntries`の`elementId`集合を見る) — 将来`text`へbaseline(legacy-onlyの)Rust対応が28より先に入っても、typed hole/裸bindingを持つ文書だけは引き続きTS referenceへ固定されるようにするための、意図的な冗長ガード。`canUseRustEvaluationForElements`の`.every()`が偽になれば`useEvaluationEngine.ts`はどのmodeでも(`reference`/`parity`/`shadow`/`rust`)Rustを一切呼ばず`referenceEvaluation`だけを使うため、parity/shadow modeで未対応Rust結果を採用してしまう経路も存在しない。
 - Task 28は: Rust側に`text_templates`/`text_property_bindings`相当のpayload validationと評価器を実装し、`EvaluateDocumentInput`/`evaluateElementsWithRust`へ実際にフィールドを追加し、`hasUnsupportedTypedTextContent`を対応済みの形へ緩和または削除し、`AppLayout.tsx`のscalarProgram/propertyBindings同様の「Rust側が追いついたら本当のparity対象に含める」を行う。TS reference側の型・関数はすべて再利用でき、Rust側の実装だけが新規責務になる。
+
+### Task 28完了時点の引き継ぎ(45/48向け)
+
+Rustにcompiled `TextTemplateAst`の評価器を実装し、`text`要素をnui 3の実データがある場合だけRust-eligibleにした。`AppLayout.tsx`は無変更(Task 27がすでにevaluationOptions経路まで配線済みだったため)。
+
+- **Rust新規module**: `src-tauri/src/evaluation/scalars/text_template_payload.rs`(`text_templates` decode/validate、fail-closedチェックリストはarray/entry形状・elementId存在・owner型が`text`・重複elementId拒否・segment/holeKind形状・root type一致・typed hole存在時のscalar_program必須)、`scalars/text_property_binding_payload.rs`(`text_property_bindings`、`control_boolean_payload.rs`と同型の1-entry allowlist `("text","text")=>String`)、`scalars/text.rs`(pure segment walker、`ScalarEvaluationEnvironment`+新規`LegacyHoleEvaluator`traitを組み合わせた`&mut C`一本で受ける設計 — 環境が`&EvaluationState`を保持する`environment`引数と、`&mut EvaluationState`を要するlegacy hole用の別closureを同時に持つとborrow checkerが衝突するため、1つの型に両traitを実装させ呼び出し側でreborrowを都度行う)、`text_template_runtime.rs`(top-level、`TextTemplateRuntimeContext`が実際の`ScalarBindingResolver`/`EvaluationState`/legacy pipelineへ橋渡し)。
+- **`text_evaluator.rs`**: `evaluate_text`が`TextTemplateContext`(`ConditionalGroupContext`と同型、forGroup生成clone用に`lookup_id`をtemplate idで渡す)を受け取り、compiled templateが存在すれば新経路、なければ既存`resolve_text`(v2/no-template、完全無変更)を使う。
+- **`mod.rs`**: `EvaluationInput`に`text_templates`/`text_property_bindings`を追加、`decode_text_templates`/`decode_text_property_bindings`ヘルパーを`decode_control_boolean_bindings`と同型で実装。`text_property_bindings`は`entries_by_element_id`のfoldへ`.chain(...)`で連結するだけ(新しい適用経路を作らない)。
+- **error parity(このtaskで実際に発見・修正した2件のRust側バグ)**: (1) legacy holeの失敗メッセージがRust既存の`errors.rs::numeric_error`(「の数値式を評価できません」)をそのまま使っていたため、TSの`textEvaluator.ts`(「のテキストを評価できません」)と文言が食い違っていた — `text_template_runtime.rs`に`push_legacy_hole_error`を新設し、`evaluate_numeric_or_push`ではなく非pushingな`numeric_value`を呼んで自前でtext専用wrapping+1回だけpushするよう修正(v2専用の既存`resolve_text`自体は無変更のまま)。(2) typed holeの失敗メッセージにTSと同じ`${element.name} のテキストを評価できません。`prefixが欠けていた — `resolve_text_template`側で追加。どちらも`test/evaluationParity.test.ts`の新規parityテストが`errors`配列の内容を`toEqual`で厳密比較して初めて検出した(`computedGeometry`だけを見る比較では発見できなかった)。
+- **TS側gate**: `text`を`rustSupportedElementTypes`へ追加した上で、`canUseRustEvaluationForElement`に`text`専用の積極的要件チェック(`textElementHasRequiredCompiledData`: `textTemplateEntriesByElementId`または`textPropertyBindingEntries`に該当elementIdのentryが実在するときだけeligible)を追加し、Task 27の`hasUnsupportedTypedTextContent`(消極的allowlist)を完全に削除した。v2文書はcompileTextTemplatesがversion-gateされているため両entryとも決して生成されず、自動的にRust対象外になる — 別途「v2かどうか」を判定するコードは存在しない。`pointAnchorsForElement`に`text`caseを追加(anchor参照の対応point型チェック)。合わせて`textTemplateHasTypedHole`(旧gateだけが使っていたユーティリティ)を`textTemplateRuntime.ts`とそのtestから削除した。
+- **IPC投影**: `textTemplateRuntime.ts`に`toRustTextTemplateSegments`(`TextTemplateAst`→Rustが要求する縮小形状 `{kind:"literal",cooked}|{kind:"hole",holeKind:"legacy",raw}|{kind:"hole",holeKind:"string"|"number",expression}`への投影、span/cookedRange/dependenciesなどRustが読まないfieldは送らない)を追加。`evaluateElementsWithRust`はこれを使って`textTemplates`/`textPropertyBindings`を実際にinvoke payloadへ追加した。
+- **fixture方針**: Task 23/24/25と同じく`test/fixtures/evaluation/*.json`(静的JSON)は拡張せず、`test/evaluationParity.test.ts`へ`compileCanonicalText`ベースの`it(...)`を追加する方式を踏襲した。新規`textTemplateFixture`ヘルパーは`buildTextTemplateEntriesByElementId`/`buildTextPropertyBindingRuntimeEntries`でTS側entryを組み立て、`toRustTextTemplateSegments`で同じentryからRust向けpayloadを導出する(2つの独立したfixtureを手で書いて食い違わせるリスクを避けるため)。
+- 45(Inspector runtime values)・48(integrated diagnostics E2E)は、この`text_templates`/`text_property_bindings`経路と`computed_geometry`の`{"kind":"text","text":...}`出力をそのまま利用できる — `EvaluationPayload`のschema変更は行っていない。
 
 ## Blocking decisions
 

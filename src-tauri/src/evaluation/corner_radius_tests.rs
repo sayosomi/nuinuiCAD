@@ -58,6 +58,8 @@ fn corner_radius_trims_two_lines_and_creates_arc() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements: vec![
             free_point("a", "A", 0.0, 0.0),
             free_point("b", "B", 100.0, 0.0),
@@ -92,6 +94,8 @@ fn corner_radius_trims_bezier_and_offset_line_to_polylines() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements: vec![
             free_point("a", "A", 0.0, 0.0),
             free_point("b", "B", 100.0, 0.0),
@@ -113,6 +117,8 @@ fn corner_radius_trims_bezier_and_offset_line_to_polylines() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements: vec![
             free_point("a", "A", 0.0, 0.0),
             free_point("b", "B", 100.0, 0.0),
@@ -155,6 +161,8 @@ fn corner_radius_can_feed_downstream_line_elements() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements: vec![
             free_point("a", "A", 0.0, 0.0),
             free_point("b", "B", 100.0, 0.0),
@@ -187,6 +195,8 @@ fn corner_radius_reports_geometry_and_dependency_errors() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements: vec![
             free_point("a", "A", 0.0, 0.0),
             free_point("b", "B", 100.0, 0.0),
@@ -203,6 +213,8 @@ fn corner_radius_reports_geometry_and_dependency_errors() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements: vec![
             free_point("a", "A", 0.0, 0.0),
             free_point("b", "B", 100.0, 0.0),
@@ -221,6 +233,8 @@ fn corner_radius_reports_geometry_and_dependency_errors() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements: vec![corner("missing", "late", json!(10))],
         evaluation_limit_index: None,
         scalar_expression_payload: None,

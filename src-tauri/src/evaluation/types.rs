@@ -40,6 +40,23 @@ pub struct EvaluationInput {
     /// (a full AST, not a bindingId) since `condition` accepts an arbitrary
     /// boolean expression, not just a bare `@name` reference.
     pub(crate) condition_expressions: Option<Value>,
+    /// Task 28's compiled `text` template segments, one entry per `text`
+    /// element with a quoted `label(text: "...{...}...")` value
+    /// (`{elementId, segments}`), present for every nui 3 such occurrence
+    /// regardless of whether it has any typed hole - a legacy-hole/literal-
+    /// only template is valid with no `scalar_program`; a typed hole is not
+    /// (see `scalars::text_template_payload`'s decode). Absent entirely for
+    /// v2 documents (TS never compiles this field there) or when no such
+    /// occurrence exists, in which case `text_evaluator.rs`'s legacy
+    /// `resolve_text` path runs completely unchanged.
+    pub(crate) text_templates: Option<Value>,
+    /// Task 28's elementId-keyed bare `@binding` `text.text` bindings - the
+    /// same wire shape as `property_bindings`/`control_boolean_bindings`,
+    /// kept in its own field/allowlist rather than merged into either
+    /// (mirrors TS's `textTemplateRuntime.ts`'s separate
+    /// `TEXT_PROPERTY_TARGETS`). Same fail-closed-without-a-scalar_program
+    /// contract as those two fields.
+    pub(crate) text_property_bindings: Option<Value>,
 }
 
 #[derive(Debug, Serialize)]

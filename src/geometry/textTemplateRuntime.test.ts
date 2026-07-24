@@ -8,8 +8,7 @@ import { evaluateElements } from "./evaluate";
 import {
   buildTextPropertyBindingRuntimeEntries,
   buildTextTemplateEntriesByElementId,
-  evaluateElementTextTemplate,
-  textTemplateHasTypedHole
+  evaluateElementTextTemplate
 } from "./textTemplateRuntime";
 
 const span = (start: number, end: number) => ({ start, end });
@@ -72,20 +71,6 @@ describe("buildTextTemplateEntriesByElementId", () => {
       elementIdByStatementIndex: new Map()
     });
     expect(result.size).toBe(0);
-  });
-});
-
-describe("textTemplateHasTypedHole", () => {
-  it("is false for a literal-only template", () => {
-    expect(textTemplateHasTypedHole(templateOf([literalSegment("hi")]))).toBe(false);
-  });
-
-  it("is false for an all-legacy-hole template", () => {
-    expect(textTemplateHasTypedHole(templateOf([legacyHoleSegment("AB.length")]))).toBe(false);
-  });
-
-  it("is true when at least one hole is typed", () => {
-    expect(textTemplateHasTypedHole(templateOf([legacyHoleSegment("AB.length"), stringHoleSegment("binding:x")]))).toBe(true);
   });
 });
 

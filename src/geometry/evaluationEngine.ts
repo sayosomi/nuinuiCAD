@@ -11,9 +11,11 @@ import {
   type EvaluationPayload
 } from "./evaluationPayload";
 import type { PropertyBindingRuntimeEntry } from "./propertyBindingRuntime";
-import { textTemplateHasTypedHole } from "./textTemplateRuntime";
+import { toRustTextTemplateSegments, type RustTextTemplateSegment } from "./textTemplateRuntime";
 
 type ConditionExpressionInput = { elementId: ElementId; expression: TypedScalarExpression };
+
+type TextTemplateInput = { elementId: ElementId; segments: readonly RustTextTemplateSegment[] };
 
 type EvaluateDocumentInput = {
   elements: CadElement[];
@@ -22,6 +24,8 @@ type EvaluateDocumentInput = {
   propertyBindings?: readonly PropertyBindingRuntimeEntry[];
   controlBooleanBindings?: readonly PropertyBindingRuntimeEntry[];
   conditionExpressions?: readonly ConditionExpressionInput[];
+  textTemplates?: readonly TextTemplateInput[];
+  textPropertyBindings?: readonly PropertyBindingRuntimeEntry[];
 };
 
 export type EvaluationEngineMode = "reference" | "parity" | "shadow" | "rust";
@@ -85,7 +89,8 @@ const rustSupportedElementTypes = new Set<CadElement["type"]>([
   "symmetricCopyLine",
   "move",
   "symmetricMove",
-  "image"
+  "image",
+  "text"
 ]);
 
 const rustSupportedLineReferenceTypes = new Set<CadElement["type"]>([
@@ -190,16 +195,49 @@ const pointAnchorsForElement = (element: CadElement): PointAnchor[] => {
       return [element.axisPoint1, element.axisPoint2];
     case "image":
       return [element.originPoint];
+    case "text":
+      return element.anchor ? [element.anchor] : [];
     default:
       return [];
   }
 };
 
+/** Whether a `text` element's currently-compiled document actually produced
+ * the data Rust needs for it: either a compiled `TextTemplateAst` (Task 26 -
+ * present for every nui 3 `label(text:...)` occurrence, literal-only or
+ * legacy-hole-only included, regardless of whether any typed declaration
+ * exists) or a bare `@binding` `text.text` property entry (Task 22/27). A v2
+ * document never produces either (compilation is version-gated), so a v2
+ * `text` element is never eligible - no separate "is this v2" check needed.
+ * This is a positive requirement (must have compiled data), not the
+ * `hasUnsupportedTypedTextContent` negative blocklist Task 27 used as a
+ * placeholder - Task 28 replaces it, now that Rust actually understands
+ * both compiled templates and the bare binding case. */
+const textElementHasRequiredCompiledData = (
+  element: CadElement,
+  textTemplateEntriesByElementId: EvaluateElementsOptions["textTemplateEntriesByElementId"],
+  textPropertyBoundElementIds: ReadonlySet<ElementId> | undefined
+): boolean =>
+  (textTemplateEntriesByElementId?.has(element.id) ?? false) ||
+  (textPropertyBoundElementIds?.has(element.id) ?? false);
+
 const canUseRustEvaluationForElement = (
   element: CadElement,
-  elementsById: Map<string, CadElement>
+  elementsById: Map<string, CadElement>,
+  options: EvaluateElementsOptions,
+  textPropertyBoundElementIds: ReadonlySet<ElementId> | undefined
 ) => {
   if (!rustSupportedElementTypes.has(element.type)) return false;
+  if (
+    element.type === "text" &&
+    !textElementHasRequiredCompiledData(
+      element,
+      options.textTemplateEntriesByElementId,
+      textPropertyBoundElementIds
+    )
+  ) {
+    return false;
+  }
   if (
     pointAnchorsForElement(element).some(
       (anchor) => !referencesRustSupportedPointAnchor(anchor, elementsById)
@@ -263,30 +301,6 @@ const canUseRustEvaluationForElement = (
   return true;
 };
 
-/**
- * Task 27: `text` isn't in `rustSupportedElementTypes` above, so today every
- * text element already forces `rustEligible` to false for its whole
- * document - this check is deliberately explicit and redundant with that,
- * not a workaround for a gap in it. It exists so this task's correctness
- * doesn't silently depend on `text` staying entirely unsupported in Rust:
- * if a future change adds baseline (legacy-only) Rust text support before
- * Task 28 lands typed template/bare-binding support, a document using a
- * typed hole or the bare `@binding` text.text property must still be
- * pinned to the TS reference path. Task 28 should remove or relax this once
- * Rust understands these forms - do not delete it as "dead code" before
- * then.
- */
-const hasUnsupportedTypedTextContent = (
-  element: CadElement,
-  textTemplateEntriesByElementId: EvaluateElementsOptions["textTemplateEntriesByElementId"],
-  textPropertyBoundElementIds: ReadonlySet<ElementId> | undefined
-): boolean => {
-  if (element.type !== "text") return false;
-  const template = textTemplateEntriesByElementId?.get(element.id);
-  if (template && textTemplateHasTypedHole(template)) return true;
-  return textPropertyBoundElementIds?.has(element.id) ?? false;
-};
-
 export const canUseRustEvaluationForElements = (
   elements: CadElement[],
   options: EvaluateElementsOptions = {}
@@ -302,8 +316,7 @@ export const canUseRustEvaluationForElements = (
   return elements
     .slice(0, evaluationLimitIndex)
     .every((element) =>
-      canUseRustEvaluationForElement(element, elementsById) &&
-      !hasUnsupportedTypedTextContent(element, options.textTemplateEntriesByElementId, textPropertyBoundElementIds)
+      canUseRustEvaluationForElement(element, elementsById, options, textPropertyBoundElementIds)
     );
 };
 
@@ -358,6 +371,17 @@ export const evaluateElementsWithRust = async (
               ([elementId, expression]) => ({ elementId, expression })
             )
           }
+        : {}),
+      ...(options.textTemplateEntriesByElementId?.size
+        ? {
+            textTemplates: Array.from(
+              options.textTemplateEntriesByElementId,
+              ([elementId, ast]) => ({ elementId, segments: toRustTextTemplateSegments(ast) })
+            )
+          }
+        : {}),
+      ...(options.textPropertyBindingEntries?.length
+        ? { textPropertyBindings: options.textPropertyBindingEntries }
         : {})
     } satisfies EvaluateDocumentInput
   });

@@ -30,6 +30,7 @@ pub(crate) enum ScalarPayloadIssueCode {
     InvalidEvaluationStatus,
     InvalidEvaluationValue,
     InvalidIssueCode,
+    TypedHoleRequiresScalarProgram,
 }
 
 impl ScalarPayloadIssueCode {
@@ -53,6 +54,9 @@ impl ScalarPayloadIssueCode {
             Self::InvalidEvaluationStatus => "scalar-payload-invalid-evaluation-status",
             Self::InvalidEvaluationValue => "scalar-payload-invalid-evaluation-value",
             Self::InvalidIssueCode => "scalar-payload-invalid-issue-code",
+            Self::TypedHoleRequiresScalarProgram => {
+                "scalar-payload-typed-hole-requires-scalar-program"
+            }
         }
     }
 }

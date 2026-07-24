@@ -25,6 +25,9 @@ mod numeric_function_adapter;
 mod program_payload;
 mod property_binding_payload;
 mod scalar_payload;
+mod text;
+mod text_property_binding_payload;
+mod text_template_payload;
 mod types;
 
 #[cfg(test)]
@@ -45,6 +48,12 @@ mod program_payload_tests;
 mod property_binding_payload_tests;
 #[cfg(test)]
 mod scalar_payload_tests;
+#[cfg(test)]
+mod text_property_binding_payload_tests;
+#[cfg(test)]
+mod text_template_payload_tests;
+#[cfg(test)]
+mod text_tests;
 
 pub(crate) use bindings::ScalarBindingResolver;
 pub(crate) use condition_expression_payload::{
@@ -60,4 +69,9 @@ pub(crate) use program_payload::{validate_scalar_program_payload, ValidatedScala
 pub(crate) use property_binding_payload::{
     validate_property_bindings_payload, ValidatedPropertyBinding,
 };
+pub(crate) use text::{
+    evaluate_text_template_segments, LegacyHoleEvaluator, TextTemplateHoleOrigin,
+};
+pub(crate) use text_property_binding_payload::validate_text_property_bindings_payload;
+pub(crate) use text_template_payload::{validate_text_templates_payload, ValidatedTextTemplate};
 pub(crate) use types::{ScalarEvaluation, ScalarType, ScalarValue, TypedScalarExpression};

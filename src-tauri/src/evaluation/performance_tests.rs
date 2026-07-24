@@ -34,6 +34,8 @@ fn run_performance_case(name: &str, elements: Vec<Value>) -> EvaluationPayload {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements,
         evaluation_limit_index: None,
         scalar_expression_payload: None,
