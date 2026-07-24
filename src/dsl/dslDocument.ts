@@ -22,6 +22,7 @@ import { lowerScalarProgram } from "../scalars/scalarProgram";
 import { analyzeTypedDeclarations } from "../scalars/typedDeclarationAnalysis";
 import { compilePropertyBindings, type ScalarValueSource } from "../scalars/propertyBindingCompiler";
 import { compileConditionalGroupConditions } from "../scalars/conditionalGroupConditionCompiler";
+import { compileTextTemplates, type TextTemplateAst } from "../scalars/textTemplate";
 import type { TypedScalarExpression } from "../scalars/typedExpressionAst";
 import { formatNumericValueForDsl } from "./dslExpressionFormat";
 import { parseDsl, parseDslSnapshot } from "./dslParser";
@@ -162,6 +163,14 @@ export type CompiledDslDocument = {
    * `@name` reference.
    */
   conditionalGroupConditions?: ReadonlyMap<string, TypedScalarExpression>;
+  /**
+   * Task 26 compiled `label(text: ...)` templates, keyed by
+   * propertyBindingOccurrenceKey(statementIndex, "text"). Present for every
+   * nui 3 document with a canonical text occurrence, independent of whether
+   * the document has any typed declaration at all - unlike propertyBindings/
+   * conditionalGroupConditions above, this does not gate on `scalarAnalysis`.
+   */
+  textTemplates?: ReadonlyMap<string, TextTemplateAst>;
 };
 
 export type CompileDslDocumentOptions = {
@@ -841,9 +850,24 @@ export const compileDslDocument = (
         bindingAnalysis: scalarAnalysis.bindingAnalysis
       })
     : undefined;
+  // Task 26: text template brace/escape/hole analysis for every canonical
+  // `label(text: ...)` occurrence. Unlike the two compilers above, this does
+  // NOT gate on `scalarAnalysis` - a nui 3 document with zero typed
+  // declarations still needs its text templates scanned for escape/brace
+  // structure (only reference resolution itself needs a binding catalog,
+  // and gracefully has none here).
+  const textTemplateCompilation = versionValidation.majorVersion === 3
+    ? compileTextTemplates({
+        statements: parsed.statements,
+        elementIdByStatementIndex: compiled.elementIdsByStatementIndex ?? new Map(),
+        elements: compiled.elements,
+        bindingAnalysis: scalarAnalysis?.bindingAnalysis
+      })
+    : undefined;
   const finalDiagnostics = [
     ...(propertyBindingCompilation ? [...allDiagnostics, ...propertyBindingCompilation.diagnostics] : allDiagnostics),
-    ...(conditionalGroupConditionCompilation ? conditionalGroupConditionCompilation.diagnostics : [])
+    ...(conditionalGroupConditionCompilation ? conditionalGroupConditionCompilation.diagnostics : []),
+    ...(textTemplateCompilation ? textTemplateCompilation.diagnostics : [])
   ];
   if (finalDiagnostics.some((item) => item.severity === "error")) {
     return {
@@ -894,7 +918,8 @@ export const compileDslDocument = (
     ...(propertyBindingCompilation ? { propertyBindings: propertyBindingCompilation.sourcesByOccurrenceKey } : {}),
     ...(conditionalGroupConditionCompilation
       ? { conditionalGroupConditions: conditionalGroupConditionCompilation.sourcesByOccurrenceKey }
-      : {})
+      : {}),
+    ...(textTemplateCompilation ? { textTemplates: textTemplateCompilation.templatesByOccurrenceKey } : {})
   };
 };
 

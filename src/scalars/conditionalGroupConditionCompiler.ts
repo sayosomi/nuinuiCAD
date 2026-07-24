@@ -27,12 +27,16 @@
 import type { CadElement, ElementId } from "../types/geometry";
 import type { DslDiagnostic, DslSpan, DslStatement } from "../dsl/dslTypes";
 import type { BindingAnalysis } from "./bindingAnalysis";
-import { resolveReferencesAtSites, type BindingResolution, type SiteReferenceRequest } from "./bindingResolution";
-import type { ScalarExpressionAst } from "./expressionAst";
+import { resolveReferencesAtSites, type SiteReferenceRequest } from "./bindingResolution";
 import { parseScalarExpression } from "./expressionParser";
 import { typecheckScalarExpression } from "./expressionTypecheck";
 import { propertyBindingOccurrenceKey } from "./propertyBindingCompiler";
-import { collectReferences } from "./typedDeclarationAnalysis";
+import {
+  collectReferences,
+  containsLegacyIncompatibleSyntax,
+  isDefiniteLegacyReference,
+  unresolvedReferenceMessage
+} from "./typedDeclarationAnalysis";
 import type { TypedScalarExpression } from "./typedExpressionAst";
 
 export const CONDITIONAL_GROUP_CONDITION_UNRESOLVED_CODE = "conditional-group-condition-unresolved";
@@ -60,36 +64,6 @@ const diagnosticAt = (statement: DslStatement, span: DslSpan, code: string, mess
   message,
   physicalSpan: statement.physicalSpan
 });
-
-/** Any occurrence of these forms anywhere in the tree (through `group`
- * wrapping) is syntax the legacy numeric grammar cannot represent at all, so
- * this text could never have been a working legacy condition regardless of
- * what its references resolve to. */
-const containsLegacyIncompatibleSyntax = (ast: ScalarExpressionAst): boolean => {
-  switch (ast.kind) {
-    case "booleanLiteral":
-    case "stringLiteral":
-    case "unresolvedChoiceLiteral":
-      return true;
-    case "unary":
-      return ast.operator === "!" || containsLegacyIncompatibleSyntax(ast.operand);
-    case "binary":
-      return containsLegacyIncompatibleSyntax(ast.left) || containsLegacyIncompatibleSyntax(ast.right);
-    case "group":
-      return containsLegacyIncompatibleSyntax(ast.expression);
-    default:
-      return false;
-  }
-};
-
-const isDefiniteLegacyReference = (resolution: BindingResolution | undefined): boolean =>
-  resolution?.kind === "resolved" && resolution.binding.declaredType === null;
-
-const unresolvedMessage = (name: string, resolution: BindingResolution | undefined): string => {
-  if (resolution?.kind === "forward") return `"${name}" はこの位置より後で宣言されているため、まだ参照できません。`;
-  if (resolution?.kind === "duplicate") return `"${name}" は複数の宣言と一致するため一意に解決できません。`;
-  return `未定義の変数 "${name}" を参照しています。`;
-};
 
 export const compileConditionalGroupConditions = ({
   statements,
@@ -141,7 +115,7 @@ export const compileConditionalGroupConditions = ({
       if (!resolution || resolution.kind !== "resolved") {
         diagnostics.push(diagnosticAt(
           statement, reference.span, CONDITIONAL_GROUP_CONDITION_UNRESOLVED_CODE,
-          unresolvedMessage(reference.name, resolution)
+          unresolvedReferenceMessage(reference.name, resolution)
         ));
         hasReferenceDiagnostic = true;
         return;

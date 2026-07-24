@@ -88,7 +88,13 @@ export type ScalarLiteralScanResult = ScalarLiteralToken | ScalarLiteralScanErro
 // never lost - later template analysis (Task 26) distinguishes an escaped
 // brace from a real hole delimiter via this token's `escapes` list, not by
 // inspecting `cooked` alone.
-const STRING_ESCAPES: Record<string, string> = {
+//
+// Exported so Task 26's combined string+template scan
+// (src/scalars/textTemplate.ts) can reuse this exact table in its own single
+// forward pass over the raw text: value, instead of calling scanStringLiteral
+// and then re-scanning the same characters a second time to find hole
+// braces - see that module for the extended scan loop built on this table.
+export const STRING_ESCAPES: Record<string, string> = {
   "\\": "\\",
   "\"": "\"",
   "'": "'",

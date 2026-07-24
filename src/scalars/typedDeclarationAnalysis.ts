@@ -6,7 +6,7 @@ import type { DslDiagnostic, DslStatement } from "../dsl/dslTypes";
 import { isElementDslStatement } from "../dsl/dslParser";
 import { analyzeBindings, type BindingAnalysis, type InitializerReference } from "./bindingAnalysis";
 import { buildBindingCatalog, type BindingId } from "./bindingCatalog";
-import { resolveInitializerReferences, type InitializerResolutionRequest } from "./bindingResolution";
+import { resolveInitializerReferences, type BindingResolution, type InitializerResolutionRequest } from "./bindingResolution";
 import type { ScalarExpressionAst } from "./expressionAst";
 import { parseScalarExpression } from "./expressionParser";
 import { typecheckScalarExpression } from "./expressionTypecheck";
@@ -55,6 +55,48 @@ export const collectReferences = (ast: ScalarExpressionAst): readonly { name: st
   };
   visit(ast);
   return references;
+};
+
+/**
+ * Any occurrence of these forms anywhere in an AST - through `group`
+ * wrapping - is syntax the legacy numeric expression grammar
+ * (src/geometry/numericExpressionParser.ts) cannot represent at all,
+ * regardless of what any `@name` reference inside it resolves to. Shared by
+ * Task 25's conditionalGroupConditionCompiler.ts and Task 26's
+ * textTemplate.ts, which both need to decide whether a piece of syntax could
+ * ever have been a working legacy expression before falling back to it.
+ */
+export const containsLegacyIncompatibleSyntax = (ast: ScalarExpressionAst): boolean => {
+  switch (ast.kind) {
+    case "booleanLiteral":
+    case "stringLiteral":
+    case "unresolvedChoiceLiteral":
+      return true;
+    case "unary":
+      return ast.operator === "!" || containsLegacyIncompatibleSyntax(ast.operand);
+    case "binary":
+      return containsLegacyIncompatibleSyntax(ast.left) || containsLegacyIncompatibleSyntax(ast.right);
+    case "group":
+      return containsLegacyIncompatibleSyntax(ast.expression);
+    default:
+      return false;
+  }
+};
+
+/** A resolution is a "definite" legacy reference only when it actually
+ * resolved to a binding whose declaredType is null (the legacy-var shape) -
+ * anything else (unresolved, or a typed binding) is not legacy-eligible. */
+export const isDefiniteLegacyReference = (resolution: BindingResolution | undefined): boolean =>
+  resolution?.kind === "resolved" && resolution.binding.declaredType === null;
+
+/** Shared "why this reference isn't usable" message for a non-resolved
+ * BindingResolution - same wording Task 25's conditionalGroupConditionCompiler.ts
+ * and Task 26's textTemplate.ts both surface for an unresolved/forward/duplicate
+ * reference inside typed-only syntax. */
+export const unresolvedReferenceMessage = (name: string, resolution: BindingResolution | undefined): string => {
+  if (resolution?.kind === "forward") return `"${name}" はこの位置より後で宣言されているため、まだ参照できません。`;
+  if (resolution?.kind === "duplicate") return `"${name}" は複数の宣言と一致するため一意に解決できません。`;
+  return `未定義の変数 "${name}" を参照しています。`;
 };
 
 const compileDiagnostic = (statement: DslStatement, span: { start: number; end: number }, code: string, message: string): DslDiagnostic => ({
