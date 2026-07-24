@@ -119,6 +119,7 @@ export const AppLayout = () => {
   // in-progress command preview), while property bindings are keyed against
   // the canonical compiled document's own element ids/statement indices.
   const scalarProgram = useCadDocumentStore((state) => state.doc.scalarProgram);
+  const bindingVersions = useCadDocumentStore((state) => state.doc.bindingVersions);
   const propertyBindings = useCadDocumentStore((state) => state.doc.propertyBindings);
   const conditionalGroupConditions = useCadDocumentStore((state) => state.doc.conditionalGroupConditions);
   // Task 27: textTemplates is read the same way as the other compiled-
@@ -131,6 +132,7 @@ export const AppLayout = () => {
   const textTemplates = useCadDocumentStore((state) => state.doc.textTemplates);
   const canonicalElements = useCadDocumentStore((state) => state.doc.document.elements);
   const elementIdByStatementIndex = useCadDocumentStore((state) => state.doc.statementMap.elementIdByStatementIndex);
+  const statementInfoByElementId = useCadDocumentStore((state) => state.doc.statementMap.byElementId);
   const shortcutSettings = useCadUiStore((state) => state.shortcutSettings);
   const showPrintLayout = useCadUiStore((state) => state.showPrintLayout);
   const showPrintPreviewWindow = useCadUiStore((state) => state.showPrintPreviewWindow);
@@ -215,6 +217,7 @@ export const AppLayout = () => {
     () => ({
       evaluationLimitIndex,
       ...(scalarProgram ? { scalarProgram } : {}),
+      ...(bindingVersions ? { bindingVersions, statementInfoByElementId } : {}),
       ...(propertyBindingEntries?.length ? { propertyBindingEntries } : {}),
       ...(controlBooleanEntries?.length ? { controlBooleanEntries } : {}),
       ...(conditionalGroupConditionsByElementId?.size ? { conditionalGroupConditionsByElementId } : {}),
@@ -224,6 +227,8 @@ export const AppLayout = () => {
     [
       evaluationLimitIndex,
       scalarProgram,
+      bindingVersions,
+      statementInfoByElementId,
       propertyBindingEntries,
       controlBooleanEntries,
       conditionalGroupConditionsByElementId,

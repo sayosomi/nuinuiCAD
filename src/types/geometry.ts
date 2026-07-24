@@ -1,4 +1,6 @@
 import type { BindingId } from "../scalars/bindingCatalog";
+import type { BindingVersionId } from "../scalars/bindingVersions";
+import type { BindingVersionRuntimeHistory } from "../scalars/linearMutationEvaluator";
 import type { ScalarEvaluation } from "../scalars/types";
 
 export type ElementId = string;
@@ -578,6 +580,8 @@ export type EvaluationResult = {
    * until Task 21).
    */
   computedScalarBindings?: ReadonlyMap<BindingId, ScalarEvaluation>;
+  /** Task 31: TS-only per-version history, present only for linear-set documents. */
+  computedScalarBindingVersions?: ReadonlyMap<BindingVersionId, BindingVersionRuntimeHistory>;
 };
 
 export const elementTypeLabels: Record<CadElementType, string> = {

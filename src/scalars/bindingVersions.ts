@@ -69,6 +69,8 @@ export type BindingVersionGraph = {
   versionsById: ReadonlyMap<BindingVersionId, BindingVersion>;
   versionIdsByBindingId: ReadonlyMap<BindingId, readonly BindingVersionId[]>;
   timelinesByBindingId: ReadonlyMap<BindingId, BindingVersionTimeline>;
+  /** Statement-stream cutoff inherited from the compiled scalar program. */
+  evaluationLimitSourceOrder?: number;
 };
 
 export type BindingVersionBuildInput = {
@@ -285,5 +287,13 @@ export const buildBindingVersionGraph = ({
   for (const [bindingId, sourceOrders] of timelineSourceOrdersByBindingId) {
     timelinesByBindingId.set(bindingId, { sourceOrders, versionIds: versionIdsByBindingId.get(bindingId)! });
   }
-  return { versions, versionsById, versionIdsByBindingId, timelinesByBindingId };
+  return {
+    versions,
+    versionsById,
+    versionIdsByBindingId,
+    timelinesByBindingId,
+    ...(scalarProgram.evaluationLimitSourceOrder === undefined
+      ? {}
+      : { evaluationLimitSourceOrder: scalarProgram.evaluationLimitSourceOrder })
+  };
 };
