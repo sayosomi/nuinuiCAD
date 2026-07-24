@@ -48,6 +48,8 @@ export type SetStatementAnalysis = {
   statementId: string;
   /** statementIndex - matches ScalarProgramStatement's sourceOrder convention. */
   sourceOrder: number;
+  /** Opaque lexical scope identity captured during Task 29 resolution. */
+  scopeId: string;
   targetBindingId: BindingId;
   targetName: string;
   targetSpan: DslSpan;
@@ -314,6 +316,8 @@ export const compileSetStatements = ({
     setsByStatementIndex.set(candidate.statementIndex, {
       statementId,
       sourceOrder: candidate.statementIndex,
+      scopeId: bindingAnalysis.catalog.scopeIndex.scopeOfStatement.get(candidate.statementIndex)
+        ?? bindingAnalysis.catalog.scopeIndex.rootScopeId,
       targetBindingId: binding.id,
       targetName: candidate.statement.name,
       targetSpan: candidate.targetSpan,

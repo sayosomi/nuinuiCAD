@@ -23,6 +23,11 @@ import { analyzeTypedDeclarations } from "../scalars/typedDeclarationAnalysis";
 import { compilePropertyBindings, type ScalarValueSource } from "../scalars/propertyBindingCompiler";
 import { compileConditionalGroupConditions } from "../scalars/conditionalGroupConditionCompiler";
 import { compileSetStatements, type SetStatementAnalysis } from "../scalars/setStatementCompiler";
+import {
+  buildBindingControlMetadata,
+  buildBindingVersionGraph,
+  type BindingVersionGraph
+} from "../scalars/bindingVersions";
 import { compileTextTemplates, type TextTemplateAst } from "../scalars/textTemplate";
 import type { TypedScalarExpression } from "../scalars/typedExpressionAst";
 import { formatNumericValueForDsl } from "./dslExpressionFormat";
@@ -183,6 +188,8 @@ export type CompiledDslDocument = {
    * bindingAnalysis.
    */
   setStatements?: ReadonlyMap<number, SetStatementAnalysis>;
+  /** Task 30 evaluation-neutral declaration/set version graph. */
+  bindingVersions?: BindingVersionGraph;
 };
 
 export type CompileDslDocumentOptions = {
@@ -832,16 +839,6 @@ export const compileDslDocument = (
       })
     : { diagnostics: [] };
   const allDiagnostics = [...baseDiagnostics, ...scalarAnalysisCompilation.diagnostics];
-  if (allDiagnostics.some((item) => item.severity === "error")) {
-    return {
-      document: null,
-      majorVersion: versionValidation.majorVersion,
-      statements: parsed.statements,
-      statementMap: null,
-      sourceLines,
-      diagnostics: allDiagnostics
-    };
-  }
   const scalarAnalysis = scalarAnalysisCompilation.analysis;
   const scalarProgram = scalarAnalysis ? lowerScalarProgram(scalarAnalysis) : undefined;
 
@@ -898,6 +895,21 @@ export const compileDslDocument = (
         bindingAnalysis: scalarAnalysis?.bindingAnalysis
       })
     : undefined;
+  // Task 30 only consumes products of the compiler/analysis passes above.
+  // It intentionally remains available for a recoverable invalid let: the
+  // compiled document is still erroneous, but Task 31 needs the poisoned
+  // version 0 and its validated recovery set chain without reparsing source.
+  const bindingVersions = scalarAnalysis && stableStatementIdByIndex
+    ? buildBindingVersionGraph({
+        scalarProgram: scalarProgram!,
+        bindingAnalysis: scalarAnalysis.bindingAnalysis,
+        setStatements: setStatementCompilation?.setsByStatementIndex,
+        controlByScopeId: buildBindingControlMetadata(
+          scalarAnalysis.bindingAnalysis.catalog.scopeIndex,
+          stableStatementIdByIndex
+        )
+      })
+    : undefined;
   const finalDiagnostics = [
     ...(propertyBindingCompilation ? [...allDiagnostics, ...propertyBindingCompilation.diagnostics] : allDiagnostics),
     ...(conditionalGroupConditionCompilation ? conditionalGroupConditionCompilation.diagnostics : []),
@@ -911,7 +923,12 @@ export const compileDslDocument = (
       statements: parsed.statements,
       statementMap: null,
       sourceLines,
-      diagnostics: finalDiagnostics
+      diagnostics: finalDiagnostics,
+      ...(scalarProgram ? { scalarProgram } : {}),
+      ...(scalarAnalysis ? { bindingAnalysis: scalarAnalysis.bindingAnalysis } : {}),
+      ...(scalarAnalysis ? { scalarProgramPositionMap: scalarAnalysis.positionMap } : {}),
+      ...(setStatementCompilation ? { setStatements: setStatementCompilation.setsByStatementIndex } : {}),
+      ...(bindingVersions ? { bindingVersions } : {})
     };
   }
 
@@ -955,7 +972,8 @@ export const compileDslDocument = (
       ? { conditionalGroupConditions: conditionalGroupConditionCompilation.sourcesByOccurrenceKey }
       : {}),
     ...(textTemplateCompilation ? { textTemplates: textTemplateCompilation.templatesByOccurrenceKey } : {}),
-    ...(setStatementCompilation ? { setStatements: setStatementCompilation.setsByStatementIndex } : {})
+    ...(setStatementCompilation ? { setStatements: setStatementCompilation.setsByStatementIndex } : {}),
+    ...(bindingVersions ? { bindingVersions } : {})
   };
 };
 

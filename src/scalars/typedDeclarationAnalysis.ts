@@ -221,9 +221,8 @@ export const analyzeTypedDeclarations = ({
       compileDiagnostic(statement, diagnostic.span, diagnostic.code, diagnostic.message)
     ));
   }
-  if (diagnostics.length > 0) return { diagnostics };
   return {
     analysis: { bindingAnalysis, typedInitializerByBindingId, positionMap: positionMapFor(statements) },
-    diagnostics: []
+    diagnostics
   };
 };
