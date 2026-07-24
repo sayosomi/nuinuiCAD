@@ -42,6 +42,8 @@ mod line_tangent_offset_point_evaluator;
 #[cfg(test)]
 mod line_tangent_offset_point_tests;
 mod line_transform;
+#[cfg(test)]
+mod linear_mutation_integration_tests;
 mod local_variables;
 mod math;
 mod numeric_expression;
@@ -113,10 +115,12 @@ use point_evaluators::{
 };
 use property_binding_runtime::apply_property_bindings;
 use scalars::{
-    validate_condition_expressions_payload, validate_control_boolean_bindings_payload,
-    validate_property_bindings_payload, validate_scalar_program_payload,
-    validate_typed_expression_payload, ScalarBindingResolver, TypedScalarExpression,
-    ValidatedConditionExpression, ValidatedPropertyBinding, ValidatedScalarProgram,
+    validate_binding_versions_payload, validate_condition_expressions_payload,
+    validate_control_boolean_bindings_payload, validate_property_bindings_payload,
+    validate_scalar_program_payload, validate_typed_expression_payload, ScalarBindingResolver,
+    ScalarDocumentBindingResolver, ScalarMutationResolver, TypedScalarExpression,
+    ValidatedBindingVersions, ValidatedConditionExpression, ValidatedPropertyBinding,
+    ValidatedScalarProgram,
 };
 use split_line_evaluator::evaluate_split_line;
 use text_evaluator::evaluate_text;
@@ -134,6 +138,7 @@ use variable_evaluator::evaluate_variable_element;
 fn decode_property_bindings(
     input: &EvaluationInput,
     scalar_program: Option<&ValidatedScalarProgram>,
+    binding_versions: Option<&ValidatedBindingVersions>,
 ) -> Result<Option<Vec<ValidatedPropertyBinding>>, EvaluationCommandError> {
     let Some(payload) = input.property_bindings.as_ref() else {
         return Ok(None);
@@ -151,7 +156,11 @@ fn decode_property_bindings(
                 .map(|statement| statement.binding_id.as_str())
                 .collect()
         })
-        .unwrap_or_default();
+        .unwrap_or_else(|| {
+            binding_versions
+                .map(|versions| versions.binding_ids.iter().map(String::as_str).collect())
+                .unwrap_or_default()
+        });
     validate_property_bindings_payload(payload, &element_type_by_id, &valid_binding_ids)
         .map(Some)
         .map_err(|error| EvaluationCommandError {
@@ -165,6 +174,7 @@ fn decode_property_bindings(
 fn decode_control_boolean_bindings(
     input: &EvaluationInput,
     scalar_program: Option<&ValidatedScalarProgram>,
+    binding_versions: Option<&ValidatedBindingVersions>,
 ) -> Result<Option<Vec<ValidatedPropertyBinding>>, EvaluationCommandError> {
     let Some(payload) = input.control_boolean_bindings.as_ref() else {
         return Ok(None);
@@ -182,7 +192,11 @@ fn decode_control_boolean_bindings(
                 .map(|statement| statement.binding_id.as_str())
                 .collect()
         })
-        .unwrap_or_default();
+        .unwrap_or_else(|| {
+            binding_versions
+                .map(|versions| versions.binding_ids.iter().map(String::as_str).collect())
+                .unwrap_or_default()
+        });
     validate_control_boolean_bindings_payload(payload, &element_type_by_id, &valid_binding_ids)
         .map(Some)
         .map_err(|error| EvaluationCommandError {
@@ -234,13 +248,33 @@ pub fn evaluate_document(
             code: error.code.as_str().to_owned(),
             message: error.message,
         })?;
-    let property_bindings = decode_property_bindings(&input, scalar_program.as_ref())?;
-    let control_boolean_bindings =
-        decode_control_boolean_bindings(&input, scalar_program.as_ref())?;
+    let binding_versions = input
+        .binding_versions
+        .as_ref()
+        .map(|payload| validate_binding_versions_payload(payload, &input.elements))
+        .transpose()
+        .map_err(|error| EvaluationCommandError {
+            code: error.code.as_str().to_owned(),
+            message: error.message,
+        })?;
+    if scalar_program.is_some() && binding_versions.is_some() {
+        return Err(EvaluationCommandError {
+            code: "scalar-payload-invalid-field-type".to_owned(),
+            message: "scalarProgram and bindingVersions are mutually exclusive".to_owned(),
+        });
+    }
+    let property_bindings =
+        decode_property_bindings(&input, scalar_program.as_ref(), binding_versions.as_ref())?;
+    let control_boolean_bindings = decode_control_boolean_bindings(
+        &input,
+        scalar_program.as_ref(),
+        binding_versions.as_ref(),
+    )?;
     let condition_expressions = decode_condition_expressions(&input)?;
     Ok(evaluate_document_input_with_scalar_program(
         input,
         scalar_program,
+        binding_versions,
         property_bindings,
         control_boolean_bindings,
         condition_expressions,
@@ -296,7 +330,7 @@ fn inactive_conditional_group_id(
 struct ConditionalGroupContext<'a> {
     lookup_id: &'a ElementId,
     by_element_id: &'a HashMap<ElementId, TypedScalarExpression>,
-    scalar_binding_resolver: Option<&'a ScalarBindingResolver<'a>>,
+    scalar_binding_resolver: Option<&'a dyn ScalarDocumentBindingResolver>,
 }
 
 fn evaluate_element_by_type(
@@ -387,15 +421,24 @@ fn evaluate_document_input(input: EvaluationInput) -> EvaluationPayload {
         .map(validate_scalar_program_payload)
         .transpose()
         .expect("evaluation test input scalar_program must be valid");
-    let property_bindings = decode_property_bindings(&input, scalar_program.as_ref())
-        .expect("evaluation test input property_bindings must be valid");
-    let control_boolean_bindings = decode_control_boolean_bindings(&input, scalar_program.as_ref())
-        .expect("evaluation test input control_boolean_bindings must be valid");
+    let binding_versions = input
+        .binding_versions
+        .as_ref()
+        .map(|payload| validate_binding_versions_payload(payload, &input.elements))
+        .transpose()
+        .expect("evaluation test input binding_versions must be valid");
+    let property_bindings =
+        decode_property_bindings(&input, scalar_program.as_ref(), binding_versions.as_ref())
+            .expect("evaluation test input property_bindings must be valid");
+    let control_boolean_bindings =
+        decode_control_boolean_bindings(&input, scalar_program.as_ref(), binding_versions.as_ref())
+            .expect("evaluation test input control_boolean_bindings must be valid");
     let condition_expressions = decode_condition_expressions(&input)
         .expect("evaluation test input condition_expressions must be valid");
     evaluate_document_input_with_scalar_program(
         input,
         scalar_program,
+        binding_versions,
         property_bindings,
         control_boolean_bindings,
         condition_expressions,
@@ -405,6 +448,7 @@ fn evaluate_document_input(input: EvaluationInput) -> EvaluationPayload {
 fn evaluate_document_input_with_scalar_program(
     input: EvaluationInput,
     scalar_program: Option<ValidatedScalarProgram>,
+    binding_versions: Option<ValidatedBindingVersions>,
     property_bindings: Option<Vec<ValidatedPropertyBinding>>,
     control_boolean_bindings: Option<Vec<ValidatedPropertyBinding>>,
     condition_expressions: Option<Vec<ValidatedConditionExpression>>,
@@ -459,6 +503,7 @@ fn evaluate_document_input_with_scalar_program(
     // final computed_scalar_bindings output, so no binding is ever
     // evaluated more than once.
     let scalar_binding_resolver = scalar_program.as_ref().map(ScalarBindingResolver::new);
+    let mut scalar_mutation_resolver = binding_versions.as_ref().map(ScalarMutationResolver::new);
     let entries_by_element_id: HashMap<ElementId, Vec<ValidatedPropertyBinding>> =
         property_bindings
             .into_iter()
@@ -485,6 +530,21 @@ fn evaluate_document_input_with_scalar_program(
             Some(id) => id,
             None => continue,
         };
+        if let Some(resolver) = scalar_mutation_resolver.as_mut() {
+            let source_order = resolver
+                .source_order_for_element(&id)
+                .expect("validated mutation payload must contain every element source order");
+            resolver.advance_before(source_order, &state);
+        }
+        let active_scalar_binding_resolver: Option<&dyn ScalarDocumentBindingResolver> =
+            scalar_mutation_resolver
+                .as_ref()
+                .map(|resolver| resolver as &dyn ScalarDocumentBindingResolver)
+                .or_else(|| {
+                    scalar_binding_resolver
+                        .as_ref()
+                        .map(|resolver| resolver as &dyn ScalarDocumentBindingResolver)
+                });
         if template_descendant_ids.contains(&id) {
             continue;
         }
@@ -558,7 +618,7 @@ fn evaluate_document_input_with_scalar_program(
                 .unwrap_or(false);
             let effective_show_generated = match show_generated_by_element_id.get(&id) {
                 Some(entry) => {
-                    let resolver = scalar_binding_resolver.as_ref().expect(
+                    let resolver = active_scalar_binding_resolver.expect(
                         "scalar_binding_resolver must exist when control_boolean_bindings exist",
                     );
                     resolve_for_group_effective_show_generated(
@@ -625,7 +685,7 @@ fn evaluate_document_input_with_scalar_program(
                     // territory, out of scope here).
                     match entries_by_element_id.get(&template_id) {
                         Some(entries) if !entries.is_empty() => {
-                            let resolver = scalar_binding_resolver.as_ref().expect(
+                            let resolver = active_scalar_binding_resolver.expect(
                                 "scalar_binding_resolver must exist when property bindings exist",
                             );
                             match apply_property_bindings(
@@ -642,7 +702,7 @@ fn evaluate_document_input_with_scalar_program(
                                     ConditionalGroupContext {
                                         lookup_id: &template_id,
                                         by_element_id: &condition_by_element_id,
-                                        scalar_binding_resolver: scalar_binding_resolver.as_ref(),
+                                        scalar_binding_resolver: active_scalar_binding_resolver,
                                     },
                                     &mut state,
                                 ),
@@ -657,7 +717,7 @@ fn evaluate_document_input_with_scalar_program(
                             ConditionalGroupContext {
                                 lookup_id: &template_id,
                                 by_element_id: &condition_by_element_id,
-                                scalar_binding_resolver: scalar_binding_resolver.as_ref(),
+                                scalar_binding_resolver: active_scalar_binding_resolver,
                             },
                             &mut state,
                         ),
@@ -669,8 +729,7 @@ fn evaluate_document_input_with_scalar_program(
 
         match entries_by_element_id.get(&id) {
             Some(entries) if !entries.is_empty() => {
-                let resolver = scalar_binding_resolver
-                    .as_ref()
+                let resolver = active_scalar_binding_resolver
                     .expect("scalar_binding_resolver must exist when property bindings exist");
                 match apply_property_bindings(&element, Some(entries), resolver, &state) {
                     Ok(materialized_element) => evaluate_element_by_type(
@@ -681,7 +740,7 @@ fn evaluate_document_input_with_scalar_program(
                         ConditionalGroupContext {
                             lookup_id: &id,
                             by_element_id: &condition_by_element_id,
-                            scalar_binding_resolver: scalar_binding_resolver.as_ref(),
+                            scalar_binding_resolver: active_scalar_binding_resolver,
                         },
                         &mut state,
                     ),
@@ -696,16 +755,25 @@ fn evaluate_document_input_with_scalar_program(
                 ConditionalGroupContext {
                     lookup_id: &id,
                     by_element_id: &condition_by_element_id,
-                    scalar_binding_resolver: scalar_binding_resolver.as_ref(),
+                    scalar_binding_resolver: active_scalar_binding_resolver,
                 },
                 &mut state,
             ),
         }
     }
 
-    let computed_scalar_bindings = scalar_binding_resolver
-        .as_ref()
-        .map(|resolver| resolver.finalize(&state));
+    let (computed_scalar_bindings, computed_scalar_binding_versions) =
+        if let Some(resolver) = scalar_mutation_resolver.as_mut() {
+            resolver.finalize(&state);
+            (Some(resolver.computed_bindings()), Some(resolver.history()))
+        } else {
+            (
+                scalar_binding_resolver
+                    .as_ref()
+                    .map(|resolver| resolver.finalize(&state)),
+                None,
+            )
+        };
 
     EvaluationPayload {
         computed_geometry: state
@@ -738,5 +806,6 @@ fn evaluate_document_input_with_scalar_program(
         for_group_generated_rows,
         for_group_effective_show_generated_ids,
         computed_scalar_bindings,
+        computed_scalar_binding_versions,
     }
 }

@@ -25,6 +25,7 @@ fn extend_trim_extends_line_and_supports_coordinate_target() {
         evaluation_limit_index: None,
         scalar_expression_payload: None,
         scalar_program: None,
+        binding_versions: None,
     });
 
     assert!(result.errors.is_empty());
@@ -60,6 +61,7 @@ fn extend_trim_reports_line_target_error_and_dependency_error() {
         evaluation_limit_index: None,
         scalar_expression_payload: None,
         scalar_program: None,
+        binding_versions: None,
     });
     assert!(target_error.errors[0]
         .message
@@ -81,6 +83,7 @@ fn extend_trim_reports_line_target_error_and_dependency_error() {
         evaluation_limit_index: None,
         scalar_expression_payload: None,
         scalar_program: None,
+        binding_versions: None,
     });
     assert_eq!(dependency_error.errors[0].missing_dependency_id, "target");
 }
@@ -118,6 +121,7 @@ fn extend_trim_moves_arc_endpoint() {
         evaluation_limit_index: None,
         scalar_expression_payload: None,
         scalar_program: None,
+        binding_versions: None,
     });
 
     assert!(result.errors.is_empty());
@@ -164,6 +168,7 @@ fn extend_trim_moves_bezier_endpoint_on_tangent() {
         evaluation_limit_index: None,
         scalar_expression_payload: None,
         scalar_program: None,
+        binding_versions: None,
     });
 
     assert!(result.errors.is_empty());
@@ -207,6 +212,7 @@ fn extend_trim_shortens_bezier_to_division_point_on_body() {
         evaluation_limit_index: None,
         scalar_expression_payload: None,
         scalar_program: None,
+        binding_versions: None,
     });
 
     assert!(result.errors.is_empty());
@@ -240,6 +246,7 @@ fn extend_trim_shortens_bezier_to_division_point_on_body() {
         evaluation_limit_index: None,
         scalar_expression_payload: None,
         scalar_program: None,
+        binding_versions: None,
     });
     let original_curve = geometry(&original, "curve");
     let original_segment = &original_curve["segments"].as_array().unwrap()[0];
@@ -300,6 +307,7 @@ fn extend_trim_shortens_bezier_start_to_division_point_on_body() {
         evaluation_limit_index: None,
         scalar_expression_payload: None,
         scalar_program: None,
+        binding_versions: None,
     });
 
     assert!(result.errors.is_empty());
@@ -376,6 +384,7 @@ fn extend_trim_shortens_multi_segment_bezier_and_keeps_untouched_segments() {
         evaluation_limit_index: None,
         scalar_expression_payload: None,
         scalar_program: None,
+        binding_versions: None,
     });
 
     assert!(result.errors.is_empty());
@@ -418,6 +427,7 @@ fn extend_trim_bezier_to_opposite_anchor_reports_zero_length_error() {
         evaluation_limit_index: None,
         scalar_expression_payload: None,
         scalar_program: None,
+        binding_versions: None,
     });
 
     assert!(!result.errors.is_empty());
@@ -461,6 +471,7 @@ fn extend_trim_shortens_bezier_to_intersection_point_on_body() {
         evaluation_limit_index: None,
         scalar_expression_payload: None,
         scalar_program: None,
+        binding_versions: None,
     });
 
     assert!(result.errors.is_empty());
@@ -518,6 +529,7 @@ fn extend_trim_shortens_arc_to_division_point_on_circle() {
         evaluation_limit_index: None,
         scalar_expression_payload: None,
         scalar_program: None,
+        binding_versions: None,
     });
 
     assert!(result.errors.is_empty());
@@ -567,6 +579,7 @@ fn extend_trim_moves_open_offset_line_and_rejects_closed_offset_line() {
         evaluation_limit_index: None,
         scalar_expression_payload: None,
         scalar_program: None,
+        binding_versions: None,
     });
 
     assert!(result.errors.is_empty());
@@ -617,6 +630,7 @@ fn extend_trim_moves_open_offset_line_and_rejects_closed_offset_line() {
         evaluation_limit_index: None,
         scalar_expression_payload: None,
         scalar_program: None,
+        binding_versions: None,
     });
     assert!(closed.errors[0].message.contains("閉じた線"));
 }
@@ -654,6 +668,7 @@ fn updated_line_can_feed_downstream_rust_elements() {
         evaluation_limit_index: None,
         scalar_expression_payload: None,
         scalar_program: None,
+        binding_versions: None,
     });
 
     assert!(result.errors.is_empty());
@@ -717,6 +732,7 @@ fn extend_trim_shortens_offset_bezier_and_keeps_untouched_segments_analytic() {
         evaluation_limit_index: None,
         scalar_expression_payload: None,
         scalar_program: None,
+        binding_versions: None,
     });
     let original_offset = geometry(&baseline, "offset");
     let original_segments = original_offset["segments"].as_array().unwrap().clone();
@@ -747,6 +763,7 @@ fn extend_trim_shortens_offset_bezier_and_keeps_untouched_segments_analytic() {
         evaluation_limit_index: None,
         scalar_expression_payload: None,
         scalar_program: None,
+        binding_versions: None,
     });
 
     assert!(result.errors.is_empty());
@@ -780,6 +797,7 @@ fn extend_trim_extends_offset_bezier_endpoint_by_appending_line_segment() {
         evaluation_limit_index: None,
         scalar_expression_payload: None,
         scalar_program: None,
+        binding_versions: None,
     });
     let probe_offset = geometry(&probe, "offset");
     let original_segments = probe_offset["segments"].as_array().unwrap().clone();
@@ -809,6 +827,7 @@ fn extend_trim_extends_offset_bezier_endpoint_by_appending_line_segment() {
         evaluation_limit_index: None,
         scalar_expression_payload: None,
         scalar_program: None,
+        binding_versions: None,
     });
 
     assert!(result.errors.is_empty());

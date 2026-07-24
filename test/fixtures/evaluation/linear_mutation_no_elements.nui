@@ -1,0 +1,3 @@
+nui 3
+let value: number = 1
+set value = 4

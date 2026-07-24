@@ -20,6 +20,7 @@ fn input(
         evaluation_limit_index: None,
         scalar_expression_payload: None,
         scalar_program,
+        binding_versions: None,
         property_bindings: None,
         control_boolean_bindings,
         condition_expressions,

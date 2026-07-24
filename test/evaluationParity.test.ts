@@ -8,12 +8,18 @@ import { compileCanonicalText, regenerateCanonicalFromModel } from "../src/docum
 import { emptyDocument } from "../src/dsl/dslDocumentTestUtils";
 import { evaluateElementsReferencePayload } from "../src/geometry/evaluationEngine";
 import { evaluationPayloadToResult, type EvaluationPayload } from "../src/geometry/evaluationPayload";
+import { buildRustBindingMutationPayload } from "../src/geometry/bindingVersionPayload";
+import type { EvaluateElementsOptions } from "../src/geometry/evaluate";
+import type { BindingVersionGraph } from "../src/scalars/bindingVersions";
+import { isRustLinearMutationEligible } from "../src/scalars/linearMutationEvaluator";
 import type { ScalarProgram } from "../src/scalars/scalarProgram";
 
 type EvaluationFixture = {
   elements: CadElement[];
   evaluationLimitIndex?: number;
   scalarProgram?: ScalarProgram;
+  bindingVersions?: BindingVersionGraph;
+  statementInfoByElementId?: ReadonlyMap<string, { statementIndex: number }>;
 };
 
 const currentDir = dirname(fileURLToPath(import.meta.url));
@@ -24,14 +30,37 @@ const runRustParity = import.meta.env.VITE_RUN_RUST_PARITY === "1";
 
 const fixtureNames: string[] = runRustParity
   ? readdirSync(fixtureDir)
-      .filter((name: string) => name.endsWith(".json"))
+      .filter((name: string) => name.endsWith(".json") || name.endsWith(".nui"))
       .sort()
   : [];
 
-const readFixture = (name: string): EvaluationFixture =>
-  JSON.parse(readFileSync(join(fixtureDir, name), "utf8")) as EvaluationFixture;
+const readFixture = (name: string): EvaluationFixture => {
+  const source = readFileSync(join(fixtureDir, name), "utf8");
+  if (name.endsWith(".json")) return JSON.parse(source) as EvaluationFixture;
+  const compiled = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 3), source);
+  if (compiled.status === "fatal") throw new Error(`${name} failed to compile`);
+  return {
+    elements: compiled.doc.document.elements,
+    evaluationLimitIndex: compiled.doc.document.evaluationLimitIndex,
+    scalarProgram: compiled.doc.scalarProgram,
+    bindingVersions: compiled.doc.bindingVersions,
+    statementInfoByElementId: compiled.doc.statementMap.byElementId
+  };
+};
+
+const optionsFor = (fixture: EvaluationFixture): EvaluateElementsOptions => ({
+  evaluationLimitIndex: fixture.evaluationLimitIndex,
+  ...(fixture.scalarProgram ? { scalarProgram: fixture.scalarProgram } : {}),
+  ...(fixture.bindingVersions ? {
+    bindingVersions: fixture.bindingVersions,
+    statementInfoByElementId: fixture.statementInfoByElementId
+  } : {})
+});
 
 const evaluateWithRust = (input: EvaluationFixture): EvaluationPayload => {
+  const mutationPayload = input.bindingVersions && isRustLinearMutationEligible(input.bindingVersions)
+    ? buildRustBindingMutationPayload(input.bindingVersions, input.elements, input.statementInfoByElementId)
+    : undefined;
   const output = execFileSync(
     "cargo",
     [
@@ -42,7 +71,14 @@ const evaluateWithRust = (input: EvaluationFixture): EvaluationPayload => {
       "--example",
       "evaluate_fixture"
     ],
-    { encoding: "utf8", input: JSON.stringify(input) }
+    {
+      encoding: "utf8",
+      input: JSON.stringify({
+        elements: input.elements,
+        evaluationLimitIndex: input.evaluationLimitIndex,
+        ...(mutationPayload ? { bindingVersions: mutationPayload } : input.scalarProgram ? { scalarProgram: input.scalarProgram } : {})
+      })
+    }
   );
   return JSON.parse(output) as EvaluationPayload;
 };
@@ -70,10 +106,7 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     "%s matches the TypeScript reference payload",
     (name: string) => {
       const fixture = readFixture(name);
-      const tsPayload = evaluateElementsReferencePayload(fixture.elements, {
-        evaluationLimitIndex: fixture.evaluationLimitIndex,
-        scalarProgram: fixture.scalarProgram
-      });
+      const tsPayload = evaluateElementsReferencePayload(fixture.elements, optionsFor(fixture));
       const rustPayload = evaluateWithRust(fixture);
 
       expect(normalizeNumbers(rustPayload)).toEqual(normalizeNumbers(tsPayload));

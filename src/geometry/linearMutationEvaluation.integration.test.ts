@@ -40,6 +40,25 @@ const elementId = (compiled: LastGoodDslDocument, name: string): string => {
 };
 
 describe("Task 31 linear mutation production wiring", () => {
+  it("enables Rust only for a wholly linear set graph", () => {
+    const linear = compileCanonical([
+      "nui 3",
+      "let value: number = 1",
+      "point Marker = coordinate(x: 0 y: 0)",
+      "set value = 2"
+    ].join("\n"));
+    const controlled = compileCanonical([
+      "nui 3",
+      "let value: number = 1",
+      "if C (true) {",
+      "  set value = 2",
+      "}"
+    ].join("\n"));
+
+    expect(canUseRustEvaluationForElements(linear.document.elements, optionsFor(linear))).toBe(true);
+    expect(canUseRustEvaluationForElements(controlled.document.elements, optionsFor(controlled))).toBe(false);
+  });
+
   it("advances binding slots with source order: A sees old value, B sees set value, and set reads the live legacy measurement", () => {
     const compiled = compileCanonical([
       "nui 3",
@@ -63,6 +82,8 @@ describe("Task 31 linear mutation production wiring", () => {
     expect(result.computedScalarBindingVersions?.get(set.id)).toMatchObject({
       status: "executed", statementId: set.id, bindingId: declaration.bindingId, evaluation: { value: { value: 6 } }
     });
+    // text remains outside Rust support until Task 28, independently of the
+    // now-supported linear binding-version payload.
     expect(canUseRustEvaluationForElements(compiled.document.elements, options)).toBe(false);
   });
 
@@ -101,6 +122,25 @@ describe("Task 31 linear mutation production wiring", () => {
     expect(result.computedScalarBindings?.get(declaration.bindingId)).toMatchObject({ value: { value: 2 } });
     expect(result.computedScalarBindingVersions?.get(set.id)).toMatchObject({ status: "executed" });
     expect(result.computedScalarBindings?.has(later.bindingId)).toBe(false);
+  });
+
+  it("finalizes the same one-way stream after the last element and preserves declaration map order", () => {
+    const compiled = compileCanonical([
+      "nui 3",
+      "let x: number = 1",
+      "let y: number = 2",
+      "point Marker = coordinate(x: 0 y: 0)",
+      "set x = @y",
+      "set y = @x"
+    ].join("\n"));
+    const result = evaluateElements(compiled.document.elements, optionsFor(compiled));
+    expect(Array.from(result.computedScalarBindings?.keys() ?? [])).toEqual(
+      compiled.bindingVersions!.versions.filter((version) => version.kind === "declare").map((version) => version.bindingId)
+    );
+    expect(Array.from(result.computedScalarBindingVersions?.keys() ?? [])).toEqual(
+      compiled.bindingVersions!.versions.map((version) => version.id)
+    );
+    expect(result.computedScalarBindings?.get(compiled.bindingVersions!.versions[0].bindingId)).toMatchObject({ value: { value: 2 } });
   });
 
   it("resolves typed conditional controls from the current slot at each group statement", () => {

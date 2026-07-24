@@ -70,6 +70,7 @@ fn evaluates_intersection_point_between_line_segments() {
         evaluation_limit_index: None,
         scalar_expression_payload: None,
         scalar_program: None,
+        binding_versions: None,
     });
 
     let intersection = point(&result, "intersection");
@@ -100,6 +101,7 @@ fn uses_line_endpoint_tangent_extensions_when_requested() {
         evaluation_limit_index: None,
         scalar_expression_payload: None,
         scalar_program: None,
+        binding_versions: None,
     });
     let with_extension = evaluate_document_input(EvaluationInput {
         property_bindings: None,
@@ -109,6 +111,7 @@ fn uses_line_endpoint_tangent_extensions_when_requested() {
         evaluation_limit_index: None,
         scalar_expression_payload: None,
         scalar_program: None,
+        binding_versions: None,
     });
 
     assert!(without_extension
@@ -151,6 +154,7 @@ fn evaluates_intersection_point_between_arc_and_line() {
         evaluation_limit_index: None,
         scalar_expression_payload: None,
         scalar_program: None,
+        binding_versions: None,
     });
 
     let intersection = point(&result, "intersection");
@@ -188,6 +192,7 @@ fn selects_intersection_point_by_index() {
         evaluation_limit_index: None,
         scalar_expression_payload: None,
         scalar_program: None,
+        binding_versions: None,
     });
 
     let intersection = point(&result, "intersection");
@@ -213,6 +218,7 @@ fn reports_intersection_point_dependency_that_appears_too_late() {
         evaluation_limit_index: None,
         scalar_expression_payload: None,
         scalar_program: None,
+        binding_versions: None,
     });
 
     assert_eq!(result.errors[0].element_id, "intersection");
@@ -246,6 +252,7 @@ fn reports_intersection_point_geometry_errors() {
         evaluation_limit_index: None,
         scalar_expression_payload: None,
         scalar_program: None,
+        binding_versions: None,
     });
     let invalid_index = evaluate_document_input(EvaluationInput {
         property_bindings: None,
@@ -259,6 +266,7 @@ fn reports_intersection_point_geometry_errors() {
         evaluation_limit_index: None,
         scalar_expression_payload: None,
         scalar_program: None,
+        binding_versions: None,
     });
     let out_of_range = evaluate_document_input(EvaluationInput {
         property_bindings: None,
@@ -268,6 +276,7 @@ fn reports_intersection_point_geometry_errors() {
         evaluation_limit_index: None,
         scalar_expression_payload: None,
         scalar_program: None,
+        binding_versions: None,
     });
 
     assert!(same_line.errors[0].message.contains("同じ線"));
@@ -293,6 +302,7 @@ fn reports_no_intersection_and_overlapping_lines() {
         evaluation_limit_index: None,
         scalar_expression_payload: None,
         scalar_program: None,
+        binding_versions: None,
     });
     let overlap = evaluate_document_input(EvaluationInput {
         property_bindings: None,
@@ -310,6 +320,7 @@ fn reports_no_intersection_and_overlapping_lines() {
         evaluation_limit_index: None,
         scalar_expression_payload: None,
         scalar_program: None,
+        binding_versions: None,
     });
 
     assert!(no_intersection.errors[0]
@@ -349,6 +360,7 @@ fn evaluates_intersection_index_numeric_variables_and_expressions() {
         evaluation_limit_index: None,
         scalar_expression_payload: None,
         scalar_program: None,
+        binding_versions: None,
     });
 
     let intersection = point(&result, "intersection");

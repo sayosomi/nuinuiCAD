@@ -57,6 +57,20 @@ export const hasLinearSetVersions = (graph: BindingVersionGraph): boolean =>
   graph.versions.some((version) => version.kind === "set" && version.control.kind === "linear");
 
 /**
+ * Rust Task 32 may run only a wholly linear mutation graph. A version owned
+ * by a conditional branch or forGroup must remain on the TS reference path
+ * until those control semantics have their own Rust implementation.
+ */
+export const hasSetVersions = (graph: BindingVersionGraph): boolean =>
+  graph.versions.some((version) => version.kind === "set");
+
+export const hasOnlyLinearBindingVersions = (graph: BindingVersionGraph): boolean =>
+  graph.versions.every((version) => version.control.kind === "linear");
+
+export const isRustLinearMutationEligible = (graph: BindingVersionGraph): boolean =>
+  hasSetVersions(graph) && hasOnlyLinearBindingVersions(graph);
+
+/**
  * Advances a single set of current binding slots monotonically. Every version
  * is touched at most once; slots are updated in place rather than cloning an
  * environment for each set.

@@ -15,7 +15,8 @@ use serde_json::Value;
 
 use super::errors::geometry_error;
 use super::scalars::{
-    ScalarBindingResolver, ScalarEvaluation, ScalarType, ScalarValue, ValidatedPropertyBinding,
+    ScalarDocumentBindingResolver, ScalarEvaluation, ScalarType, ScalarValue,
+    ValidatedPropertyBinding,
 };
 use super::types::{element_name, DependencyError, EvaluationState};
 
@@ -67,7 +68,7 @@ fn property_binding_failure_message(element: &Value, parameter_key: &str) -> Str
 pub(crate) fn apply_property_bindings(
     element: &Value,
     entries: Option<&Vec<ValidatedPropertyBinding>>,
-    resolver: &ScalarBindingResolver,
+    resolver: &dyn ScalarDocumentBindingResolver,
     state: &EvaluationState,
 ) -> Result<Value, DependencyError> {
     let Some(entries) = entries else {
@@ -83,7 +84,7 @@ pub(crate) fn apply_property_bindings(
     };
 
     for entry in entries {
-        let evaluation = resolver.resolve(&entry.binding_id, state);
+        let evaluation = resolver.resolve_binding(&entry.binding_id, state);
         match evaluation {
             ScalarEvaluation::Ok { value, .. }
                 if scalar_value_satisfies_expected_type(&value, &entry.expected_type) =>

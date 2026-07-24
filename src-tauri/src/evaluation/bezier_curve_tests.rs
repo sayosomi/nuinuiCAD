@@ -57,6 +57,7 @@ fn evaluates_single_segment_bezier_curve() {
         evaluation_limit_index: None,
         scalar_expression_payload: None,
         scalar_program: None,
+        binding_versions: None,
     });
 
     let curve = geometry(&result, "curve");
@@ -106,6 +107,7 @@ fn evaluates_multi_segment_bezier_curve() {
         evaluation_limit_index: None,
         scalar_expression_payload: None,
         scalar_program: None,
+        binding_versions: None,
     });
 
     let curve = geometry(&result, "curve");
@@ -145,6 +147,7 @@ fn evaluates_bezier_curve_from_coordinate_anchors() {
         evaluation_limit_index: None,
         scalar_expression_payload: None,
         scalar_program: None,
+        binding_versions: None,
     });
 
     let curve = geometry(&result, "curve");
@@ -169,6 +172,7 @@ fn reports_bezier_curve_dependency_that_appears_too_late() {
         evaluation_limit_index: None,
         scalar_expression_payload: None,
         scalar_program: None,
+        binding_versions: None,
     });
 
     assert_eq!(result.errors[0].element_id, "curve");
@@ -210,6 +214,7 @@ fn evaluates_bezier_curve_numeric_variables_and_expressions() {
         evaluation_limit_index: None,
         scalar_expression_payload: None,
         scalar_program: None,
+        binding_versions: None,
     });
 
     let curve = geometry(&result, "curve");
@@ -271,6 +276,7 @@ fn evaluates_bezier_curve_numeric_variable_ids_with_hyphens() {
         evaluation_limit_index: None,
         scalar_expression_payload: None,
         scalar_program: None,
+        binding_versions: None,
     });
 
     let curve = geometry(&result, "bezierCurve-mr0d07nx-4");
@@ -328,6 +334,7 @@ fn resolves_bezier_derived_points() {
         evaluation_limit_index: None,
         scalar_expression_payload: None,
         scalar_program: None,
+        binding_versions: None,
     });
 
     let point = geometry(&result, "from-mid");
@@ -408,6 +415,7 @@ fn allows_supported_point_elements_to_reference_bezier_curve() {
         evaluation_limit_index: None,
         scalar_expression_payload: None,
         scalar_program: None,
+        binding_versions: None,
     });
 
     assert!(result.errors.is_empty());

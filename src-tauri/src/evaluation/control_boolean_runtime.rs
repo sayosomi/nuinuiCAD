@@ -7,7 +7,7 @@
 //! resolver, at most once per condition/showGenerated per group entry.
 
 use super::scalars::{
-    evaluate_typed_expression, ScalarBindingResolver, ScalarEvaluation,
+    evaluate_typed_expression, ScalarDocumentBindingResolver, ScalarEvaluation,
     ScalarEvaluationEnvironment, ScalarType, TypedScalarExpression, ValidatedPropertyBinding,
 };
 use super::types::EvaluationState;
@@ -17,13 +17,13 @@ use super::types::EvaluationState;
 /// cycle-guarded lookup, so this is a zero-cost forwarding shim, never a
 /// second resolver.
 struct ResolverEnvironment<'a> {
-    resolver: &'a ScalarBindingResolver<'a>,
+    resolver: &'a dyn ScalarDocumentBindingResolver,
     state: &'a EvaluationState,
 }
 
 impl<'a> ScalarEvaluationEnvironment for ResolverEnvironment<'a> {
     fn lookup_binding(&self, binding_id: &str) -> ScalarEvaluation {
-        self.resolver.resolve(binding_id, self.state)
+        self.resolver.resolve_binding(binding_id, self.state)
     }
 }
 
@@ -34,7 +34,7 @@ impl<'a> ScalarEvaluationEnvironment for ResolverEnvironment<'a> {
 /// caller's `activeBranch != branch` comparison keeps working unmodified.
 pub(crate) fn resolve_conditional_group_branch(
     expression: &TypedScalarExpression,
-    resolver: &ScalarBindingResolver,
+    resolver: &dyn ScalarDocumentBindingResolver,
     state: &EvaluationState,
 ) -> Option<&'static str> {
     let environment = ResolverEnvironment { resolver, state };
@@ -59,14 +59,14 @@ pub(crate) fn resolve_conditional_group_branch(
 pub(crate) fn resolve_for_group_effective_show_generated(
     entry: Option<&ValidatedPropertyBinding>,
     literal_show_generated: bool,
-    resolver: &ScalarBindingResolver,
+    resolver: &dyn ScalarDocumentBindingResolver,
     state: &EvaluationState,
 ) -> bool {
     let Some(entry) = entry else {
         return literal_show_generated;
     };
     matches!(
-        resolver.resolve(&entry.binding_id, state),
+        resolver.resolve_binding(&entry.binding_id, state),
         ScalarEvaluation::Ok {
             r#type: ScalarType::Boolean,
             value: super::scalars::ScalarValue::Boolean(true),
