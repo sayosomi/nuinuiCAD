@@ -89,15 +89,27 @@ export const useEvaluationEngine = (
   const propertyBindingEntries = options.propertyBindingEntries;
   const controlBooleanEntries = options.controlBooleanEntries;
   const conditionalGroupConditionsByElementId = options.conditionalGroupConditionsByElementId;
+  const textTemplateEntriesByElementId = options.textTemplateEntriesByElementId;
+  const textPropertyBindingEntries = options.textPropertyBindingEntries;
   const evaluationOptions = useMemo(
     () => ({
       evaluationLimitIndex,
       ...(scalarProgram ? { scalarProgram } : {}),
       ...(propertyBindingEntries?.length ? { propertyBindingEntries } : {}),
       ...(controlBooleanEntries?.length ? { controlBooleanEntries } : {}),
-      ...(conditionalGroupConditionsByElementId?.size ? { conditionalGroupConditionsByElementId } : {})
+      ...(conditionalGroupConditionsByElementId?.size ? { conditionalGroupConditionsByElementId } : {}),
+      ...(textTemplateEntriesByElementId?.size ? { textTemplateEntriesByElementId } : {}),
+      ...(textPropertyBindingEntries?.length ? { textPropertyBindingEntries } : {})
     }),
-    [evaluationLimitIndex, scalarProgram, propertyBindingEntries, controlBooleanEntries, conditionalGroupConditionsByElementId]
+    [
+      evaluationLimitIndex,
+      scalarProgram,
+      propertyBindingEntries,
+      controlBooleanEntries,
+      conditionalGroupConditionsByElementId,
+      textTemplateEntriesByElementId,
+      textPropertyBindingEntries
+    ]
   );
   const engineMode = getEvaluationEngineMode();
   const tauriRuntime = isTauriRuntime();
@@ -113,9 +125,22 @@ export const useEvaluationEngine = (
       controlBooleanEntries,
       conditionalGroupConditionsByElementId: conditionalGroupConditionsByElementId
         ? Array.from(conditionalGroupConditionsByElementId)
-        : undefined
+        : undefined,
+      textTemplateEntriesByElementId: textTemplateEntriesByElementId
+        ? Array.from(textTemplateEntriesByElementId)
+        : undefined,
+      textPropertyBindingEntries
     }),
-    [elements, evaluationLimitIndex, scalarProgram, propertyBindingEntries, controlBooleanEntries, conditionalGroupConditionsByElementId]
+    [
+      elements,
+      evaluationLimitIndex,
+      scalarProgram,
+      propertyBindingEntries,
+      controlBooleanEntries,
+      conditionalGroupConditionsByElementId,
+      textTemplateEntriesByElementId,
+      textPropertyBindingEntries
+    ]
   );
   const evaluationRequestRevision = useMemo(
     () => requestRevisionFor(`${evaluationRevision}:${requestKey}`),

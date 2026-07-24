@@ -29,6 +29,8 @@ import {
   resolveForGroupEffectiveShowGenerated
 } from "./controlBooleanRuntime";
 import type { TypedScalarExpression } from "../scalars/typedExpressionAst";
+import type { TextTemplateAst } from "../scalars/textTemplate";
+import type { BindingId } from "../scalars/bindingCatalog";
 
 export type EvaluateElementsOptions = {
   evaluationLimitIndex?: number;
@@ -63,6 +65,23 @@ export type EvaluateElementsOptions = {
    * Never affects iteration count/rows - presentation-only.
    */
   controlBooleanEntries?: readonly PropertyBindingRuntimeEntry[];
+  /**
+   * Task 27's elementId-keyed compiled TextTemplateAst (already re-keyed by
+   * textTemplateRuntime.ts's buildTextTemplateEntriesByElementId - never
+   * built here). Unlike every entry above, this does NOT require
+   * `scalarProgram`: Task 26's compileTextTemplates runs for every nui 3
+   * document regardless of typed declarations, so an all-legacy-hole
+   * template can be present with no scalarProgram at all.
+   */
+  textTemplateEntriesByElementId?: ReadonlyMap<ElementId, TextTemplateAst>;
+  /**
+   * Task 27's elementId-keyed bare `@binding` `text.text` property source
+   * (already re-keyed by textTemplateRuntime.ts's
+   * buildTextPropertyBindingRuntimeEntries). Requires `scalarProgram`, like
+   * propertyBindingEntries/controlBooleanEntries above - a bound reference
+   * always implies a typed declaration exists.
+   */
+  textPropertyBindingEntries?: readonly PropertyBindingRuntimeEntry[];
 };
 
 export const evaluateElements = (
@@ -83,6 +102,17 @@ export const evaluateElements = (
         "controlBooleanRuntime.ts), never one without the other"
     );
   }
+  if (options.textPropertyBindingEntries?.length && !options.scalarProgram) {
+    throw new Error(
+      "evaluateElements: textPropertyBindingEntries was given without a scalarProgram - " +
+        "a caller must always derive both from the same compiled document (see " +
+        "textTemplateRuntime.ts's buildTextPropertyBindingRuntimeEntries), never one without the other"
+    );
+  }
+  // textTemplateEntriesByElementId deliberately has no such guard: Task 26's
+  // compileTextTemplates runs for every nui 3 document regardless of typed
+  // declarations, so it can be non-empty with an all-legacy-hole template
+  // and no scalarProgram at all - see EvaluateElementsOptions's doc comment.
 
   const evaluationLimitIndex = Math.min(
     Math.max(options.evaluationLimitIndex ?? elements.length, 0),
@@ -135,6 +165,25 @@ export const evaluateElements = (
     ? groupPropertyBindingRuntimeEntriesByElement(options.controlBooleanEntries)
     : undefined;
   const conditionalGroupConditionsByElementId = options.conditionalGroupConditionsByElementId;
+  const textPropertyBindingEntriesByElementId = options.textPropertyBindingEntries
+    ? groupPropertyBindingRuntimeEntriesByElement(options.textPropertyBindingEntries)
+    : undefined;
+  const textTemplateEntriesByElementId = options.textTemplateEntriesByElementId;
+  /**
+   * A typed text hole can only exist when a typed declaration exists, which
+   * implies `scalarProgram` exists (see EvaluateElementsOptions's doc
+   * comment on textTemplateEntriesByElementId) - so this is only ever
+   * called when scalarBindingResolver is defined. Throws instead of
+   * silently mis-evaluating if that invariant is ever violated.
+   */
+  const resolveScalarBindingForText = scalarBindingResolver
+    ? scalarBindingResolver.resolveBinding
+    : (bindingId: BindingId) => {
+        throw new Error(
+          `evaluateElements: a typed text template hole referenced binding "${bindingId}" but no scalarProgram ` +
+            "was provided - a typed hole implies a typed declaration, which implies a scalarProgram"
+        );
+      };
 
   const pushGeneratedVisibilityState = (generatedElement: CadElement, templateElement: CadElement) => {
     if (effectiveVisibleIds.has(templateElement.id)) {
@@ -359,6 +408,30 @@ export const evaluateElements = (
       elementToEvaluate = materialized.element;
     }
 
+    // Task 27: the bare `@binding` `text.text` property case - its own
+    // allowlist (textTemplateRuntime.ts's TEXT_PROPERTY_TARGETS), materialized
+    // the same way as standard properties above, chained onto whatever
+    // materialization already happened.
+    const textPropertyBindingEntriesForElement = textPropertyBindingEntriesByElementId?.get((sourceElement ?? element).id);
+    if (textPropertyBindingEntriesForElement?.length) {
+      const materialized = materializePropertyBoundElement(
+        elementToEvaluate,
+        textPropertyBindingEntriesForElement,
+        scalarBindingResolver!.resolveBinding
+      );
+      if (!materialized.ok) {
+        errors.push(materialized.error);
+        return;
+      }
+      elementToEvaluate = materialized.element;
+    }
+
+    // Task 27: a compiled TextTemplateAst for a quoted text value
+    // (`"...{...}..."`) - looked up by the template id, same as bound
+    // properties above, so every forGroup iteration resolves the same
+    // template.
+    const textTemplateForElement = textTemplateEntriesByElementId?.get((sourceElement ?? element).id);
+
     evaluateElement(elementToEvaluate, {
       computedGeometry,
       elementsById: runtimeElementsById,
@@ -367,7 +440,10 @@ export const evaluateElements = (
       disabledByGroupId,
       localVariables,
       computedVariables,
-      elements: runtimeElements
+      elements: runtimeElements,
+      ...(textTemplateForElement
+        ? { textTemplate: textTemplateForElement, resolveScalarBinding: resolveScalarBindingForText }
+        : {})
     });
   };
 

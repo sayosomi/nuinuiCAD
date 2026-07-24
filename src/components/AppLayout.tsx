@@ -8,6 +8,10 @@ import {
   buildConditionalGroupConditionsByElementId,
   buildControlBooleanRuntimeEntries
 } from "../geometry/controlBooleanRuntime";
+import {
+  buildTextPropertyBindingRuntimeEntries,
+  buildTextTemplateEntriesByElementId
+} from "../geometry/textTemplateRuntime";
 import { useEvaluationEngine } from "../geometry/useEvaluationEngine";
 import { loadShortcutSettings } from "../keyboard/shortcutSettingsStorage";
 import {
@@ -117,6 +121,14 @@ export const AppLayout = () => {
   const scalarProgram = useCadDocumentStore((state) => state.doc.scalarProgram);
   const propertyBindings = useCadDocumentStore((state) => state.doc.propertyBindings);
   const conditionalGroupConditions = useCadDocumentStore((state) => state.doc.conditionalGroupConditions);
+  // Task 27: textTemplates is read the same way as the other compiled-
+  // document fields above (last-good doc.textTemplates, keyed against the
+  // canonical elementIdByStatementIndex below) - unlike scalarProgram/
+  // propertyBindings, it's populated for every nui 3 document regardless of
+  // typed declarations (Task 26's compileTextTemplates runs unconditionally
+  // once majorVersion === 3), so its own entry builder below isn't gated on
+  // `scalarProgram` the way propertyBindingEntries/controlBooleanEntries are.
+  const textTemplates = useCadDocumentStore((state) => state.doc.textTemplates);
   const canonicalElements = useCadDocumentStore((state) => state.doc.document.elements);
   const elementIdByStatementIndex = useCadDocumentStore((state) => state.doc.statementMap.elementIdByStatementIndex);
   const shortcutSettings = useCadUiStore((state) => state.shortcutSettings);
@@ -181,15 +193,43 @@ export const AppLayout = () => {
         : undefined,
     [scalarProgram, conditionalGroupConditions, elementIdByStatementIndex]
   );
+  // Task 27: built once per compiled document (only re-runs when
+  // doc.textTemplates/elementIdByStatementIndex change), never per render or
+  // per evaluation - mirrors the three memos above. No scalarProgram gate
+  // here (see the read above); the bare `@binding` text.text entries below
+  // do keep the same scalarProgram+propertyBindings gate as
+  // propertyBindingEntries/controlBooleanEntries, since a bound reference
+  // always implies a typed declaration exists.
+  const textTemplateEntriesByElementId = useMemo(
+    () => (textTemplates ? buildTextTemplateEntriesByElementId({ textTemplates, elementIdByStatementIndex }) : undefined),
+    [textTemplates, elementIdByStatementIndex]
+  );
+  const textPropertyBindingEntries = useMemo(
+    () =>
+      scalarProgram && propertyBindings
+        ? buildTextPropertyBindingRuntimeEntries({ propertyBindings, elementIdByStatementIndex }, canonicalElements)
+        : undefined,
+    [scalarProgram, propertyBindings, elementIdByStatementIndex, canonicalElements]
+  );
   const evaluationOptions = useMemo(
     () => ({
       evaluationLimitIndex,
       ...(scalarProgram ? { scalarProgram } : {}),
       ...(propertyBindingEntries?.length ? { propertyBindingEntries } : {}),
       ...(controlBooleanEntries?.length ? { controlBooleanEntries } : {}),
-      ...(conditionalGroupConditionsByElementId?.size ? { conditionalGroupConditionsByElementId } : {})
+      ...(conditionalGroupConditionsByElementId?.size ? { conditionalGroupConditionsByElementId } : {}),
+      ...(textTemplateEntriesByElementId?.size ? { textTemplateEntriesByElementId } : {}),
+      ...(textPropertyBindingEntries?.length ? { textPropertyBindingEntries } : {})
     }),
-    [evaluationLimitIndex, scalarProgram, propertyBindingEntries, controlBooleanEntries, conditionalGroupConditionsByElementId]
+    [
+      evaluationLimitIndex,
+      scalarProgram,
+      propertyBindingEntries,
+      controlBooleanEntries,
+      conditionalGroupConditionsByElementId,
+      textTemplateEntriesByElementId,
+      textPropertyBindingEntries
+    ]
   );
   const evaluationState = useEvaluationEngine(elements, evaluationOptions, compiledDocumentRevision);
   const { evaluation, evaluationRevision, evaluationRequestRevision } = evaluationState;
