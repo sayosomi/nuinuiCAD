@@ -19,6 +19,7 @@ import {
   PROPERTY_BINDING_UNRESOLVED_CODE,
   propertyBindingOccurrenceKey
 } from "../scalars/propertyBindingCompiler";
+import { TEXT_TEMPLATE_HOLE_TYPE_MISMATCH_CODE } from "../scalars/textTemplate";
 import {
   emptyDocument,
   expectSemanticallyEqualDocuments,
@@ -855,5 +856,62 @@ describe("Task 22 property binding wiring", () => {
     expect(compiled.diagnostics).toEqual([]);
     expect(compiled.document).not.toBeNull();
     expect(compiled.propertyBindings).toBeUndefined();
+  });
+});
+
+describe("Task 26 text template wiring", () => {
+  it("stores a compiled template on compiled.textTemplates for a typed string hole", () => {
+    const compiled = compileDslDocument(
+      ["nui 3", 'const ラベル: string = "前身頃"', 'text T = label(text: "{@ラベル}を2枚カット" anchor: none size: 3)'].join("\n"),
+      { assignedStatementIds: new Map([[1, "test:label"]]) }
+    );
+    expect(compiled.diagnostics).toEqual([]);
+    expect(compiled.document).not.toBeNull();
+    const template = compiled.textTemplates?.get(propertyBindingOccurrenceKey(2, "text"));
+    expect(template).toBeDefined();
+    expect(template?.segments.some((segment) => segment.kind === "hole" && segment.holeKind === "string")).toBe(true);
+  });
+
+  it("still compiles textTemplates for a document with no typed declaration at all, unlike propertyBindings/bindingAnalysis", () => {
+    const compiled = compileDslDocument(
+      ["nui 3", 'text T = label(text: "cost \\{5\\} yen" anchor: none size: 3)'].join("\n")
+    );
+    expect(compiled.diagnostics).toEqual([]);
+    expect(compiled.document).not.toBeNull();
+    expect(compiled.bindingAnalysis).toBeUndefined();
+    expect(compiled.propertyBindings).toBeUndefined();
+    const template = compiled.textTemplates?.get(propertyBindingOccurrenceKey(1, "text"));
+    expect(template).toBeDefined();
+    expect(template?.segments).toEqual([
+      expect.objectContaining({ kind: "literal", cooked: "cost {5} yen" })
+    ]);
+  });
+
+  it("keeps the last-good document (null) and surfaces interpolation-type-mismatch for a boolean hole", () => {
+    const compiled = compileDslDocument(
+      ["nui 3", "let 表示する: boolean = true", 'text T = label(text: "flag {@表示する}" anchor: none size: 3)'].join("\n"),
+      { assignedStatementIds: new Map([[1, "test:flag"]]) }
+    );
+    expect(compiled.document).toBeNull();
+    expect(compiled.diagnostics).toEqual(
+      expect.arrayContaining([expect.objectContaining({ severity: "error", code: TEXT_TEMPLATE_HOLE_TYPE_MISMATCH_CODE })])
+    );
+  });
+
+  it("keeps the last-good document (null) and surfaces unterminated-interpolation for an unclosed hole", () => {
+    const compiled = compileDslDocument(
+      ["nui 3", 'text T = label(text: "prefix {oops" anchor: none size: 3)'].join("\n")
+    );
+    expect(compiled.document).toBeNull();
+    expect(compiled.diagnostics).toEqual(
+      expect.arrayContaining([expect.objectContaining({ severity: "error", code: "unterminated-interpolation" })])
+    );
+  });
+
+  it("leaves textTemplates undefined for a nui 2 document", () => {
+    const compiled = compileDslDocument(["nui 2", 'text T = label(text: "plain" anchor: none size: 3)'].join("\n"));
+    expect(compiled.diagnostics).toEqual([]);
+    expect(compiled.document).not.toBeNull();
+    expect(compiled.textTemplates).toBeUndefined();
   });
 });

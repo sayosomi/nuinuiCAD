@@ -48,7 +48,7 @@
 | 23 | [standard property runtime](tasks/23-standard-property-runtime.md) | TS/Rust evaluation | 21,22 | gated runtime | `typed-vars/23-property-runtime` | 完了 |
 | 24 | [printEnabled runtime](tasks/24-print-enabled-runtime.md) | print state | 21,22 | gated print runtime | `typed-vars/24-print-enabled` | 完了 |
 | 25 | [boolean control-flow runtime](tasks/25-boolean-control-flow-runtime.md) | control flow | 18,21,22 | gated control runtime | `typed-vars/25-boolean-control-flow` | 完了 |
-| 26 | [text template analysis](tasks/26-text-template-analysis.md) | template/parser | 09,12,15 | analysis only | `typed-vars/26-template-analysis` | 未着手 |
+| 26 | [text template analysis](tasks/26-text-template-analysis.md) | template/parser | 09,12,15 | analysis only | `typed-vars/26-template-analysis` | 完了 |
 | 27 | [text template TS evaluation](tasks/27-text-template-ts-evaluation.md) | reference evaluation | 16,20,26 | gated reference path | `typed-vars/27-template-ts` | 未着手 |
 | 28 | [text template Rust parity](tasks/28-text-template-rust-parity.md) | production evaluation | 18,21,27 | gated Rust path | `typed-vars/28-template-rust` | 未着手 |
 | 29 | [set syntax/resolution](tasks/29-set-syntax-resolution.md) | DSL/binding analysis | 10,12,15,19 | gated analysis | `typed-vars/29-set-syntax` | 未着手 |
@@ -251,7 +251,7 @@ Task 20/21のconst runtime pathはTask 31/32へ、Task 46のnui 3 persistence pa
 
 ## 次に実行可能なtask
 
-直近は26、29、42。23・24・25は完了済み。Task 21でRust-first `evaluate_document(input)` がTask 19の解決済み`scalar_program`を評価し、`computedScalarBindings`をTS payloadへ返す。22の完了後に23〜25、26/27完了後に28、29〜31完了後に32がこのbinding environmentを再利用し、source再parse・名前再解決・legacy fallbackを追加しない。
+直近は27、29、42。23・24・25・26は完了済み。Task 21でRust-first `evaluate_document(input)` がTask 19の解決済み`scalar_program`を評価し、`computedScalarBindings`をTS payloadへ返す。22の完了後に23〜25、26/27完了後に28、29〜31完了後に32がこのbinding environmentを再利用し、source再parse・名前再解決・legacy fallbackを追加しない。
 
 ### Task 22完了時点の引き継ぎ(23〜26向け)
 
@@ -295,6 +295,18 @@ Task 24は`group.printEnabled`を、Task 23の`STANDARD_PROPERTY_TARGETS`/`build
 - 両者ともruntime解決は`src/geometry/controlBooleanRuntime.ts`の`resolveConditionalGroupBranch`/`resolveForGroupEffectiveShowGenerated`(Rust: `control_boolean_runtime.rs`)——Task21の`ScalarBindingResolver`をそのまま渡すだけで新しいresolverは作らない。`evaluate.ts`/`mod.rs`とも、bound判定は「template/sourceElement側のid」で行う(forGroup生成clone対応、Task23の`template_id`規約と同一)。
 - **forGroup展開のparentGroupId remapバグを本task中に発見・修正した**(Task25固有ではなく既存の汎用バグ): `src/geometry/forGroupExpansion.ts`の`expandForGroupIteration`は、生成clone の`parentGroupId`を`idMap`経由で remapしていなかった(`remapElementReferences`は型別のreference field しか触らず、`parentGroupId`はcaller側で無変換のまま代入されていた)。forGroup本体直下の子要素は元々OKだったが、forGroup template内に`conditionalGroup`(や`group`)がネストしその子がさらにいる場合、孫要素の`parentGroupId`が「そのiterationでcloneされた親」ではなく「共有の元id」を指したままになり、`inactiveConditionalGroupId`の親探索が壊れていた。Rust `for_group.rs`は`remap_json_ids`がJSON全体を汎用的に文字列置換するため元々この問題がなく、修正はTS側のみ。今後forGroup+ネストcontainerを扱うtaskはこの修正を前提にしてよい(`src/geometry/forGroupExpansion.test.ts`と新規`controlBooleanRuntimeIntegration.test.ts`のforGroup-templateケースで担保)。
 - 26(text template)がbinding以外の式を扱う場合、上記のcondition側パターン(専用compiler + 別mapを`CompiledDslDocument`へ追加)を参考にできる。29(set構文)も同様に、単独binding/式全体のどちらを対象にするか最初に見極めること。
+
+### Task 26完了時点の引き継ぎ(27/28/36/39/43向け)
+
+`label(text: "...")`のraw quoted値をescape/hole delimiter両方について**1回のforward scanだけ**で解析する。二重scanを避けるため、`src/scalars/literalScanner.ts`の`STRING_ESCAPES`テーブルをexportし、Task09の`scanStringLiteral`とは別に`src/scalars/textTemplateScan.ts`の`scanTextTemplateLiteral`が同じテーブルを使って独自のフラットな1ループで文字列escapeとhole brace(`{`/`}`)を同時に確定する(`scanScalarLiteral`を呼んでから`raw`をもう一度歩く、という二段構えにはしていない)。escape検出は常にbrace検出より先に評価されるため、`\{`/`\}`はどの位置でも(hole content内でも)literal escapeとして扱われ、hole delimiterと衝突しない。
+
+- **raw/cooked位置対応**: `TextTemplateAst`の各`literal`segmentは`span`(raw)に加え`cookedRange`(そのtemplate全体の「cooked座標系」でのoffset範囲)と`cooked`を持つ。各`hole`segmentは静的長を持たない(値は評価時にしか決まらない)ため、代わりに`cookedInsertOffset`(そのcooked座標系での挿入位置、単一点)を持つ。cooked座標系はholeを幅0として数えるという明確な取り決めで、27/43はraw/cooked間の対応を再scanなしで得られる。
+- **hole分類**は25の`conditionalGroupConditionCompiler.ts`と全く同じ判定パターンを、conditionではなくhole単位で適用する(共通部分`containsLegacyIncompatibleSyntax`/`isDefiniteLegacyReference`/`unresolvedReferenceMessage`は`typedDeclarationAnalysis.ts`へ`collectReferences`と並べて共通化し、25側もそちらを参照するよう更新した): `parseScalarExpression`が失敗する構文(`.property`、関数呼び出し、bare identifierなど)は無条件でlegacy hole(raw文字列のまま、診断なし)。parseできても、typed-onlyな構文(string/boolean literal、unary `!`)を含まずかつ全参照が`declaredType===null`のlegacy varならlegacy hole。それ以外はtyped candidateとして参照ごとに未解決/legacy参照混在/無効宣言を診断してから`typecheckScalarExpression(expectedType:null)`で型推論し、`string`→`TextTemplateStringHoleSegment`、`number`→`TextTemplateNumberHoleSegment`、`boolean`/`choice`(またはnull)→`interpolation-type-mismatch`。
+- **典型的なnumeric interpolation済みhole**(`{line.length}`、`{2+3}`、`{@legacyVar}`)は診断なしでlegacy holeへ分類され続ける — Task27/28が今のregex based`resolveTextReferences`/`extractTextReferences`を差し替えるまで、既存文書のtext evaluation semanticsは一切変わらない。
+- **`bindingAnalysis`は必須ではない**: `compileTextTemplates`は`versionValidation.majorVersion === 3`だけをgateにする(`scalarAnalysis`の有無では止めない)。typed宣言が1つもない文書でも`label(text:...)`は毎回brace/escape/legacy分類までscanされる — `bindingAnalysis`が渡らない場合、reference-bearingなplain holeは(そのdocumentにtyped bindingが存在し得ないため)無条件でlegacy扱いにfall backし、typed-onlyな構文(`{true}`など)だけがtypecheckされ、その中の参照は解決不能として`text-template-hole-unresolved`でfail closeする。この契約は`src/scalars/textTemplate.test.ts`の"characterization: analyzeTypedDeclarations produces no analysis for a nui 3 doc with zero typed declarations"と`src/dsl/dslDocument.test.ts`の"still compiles textTemplates for a document with no typed declaration at all, unlike propertyBindings/bindingAnalysis"で実測確認済み(推測でgateしていない)。
+- **依存情報**: 各typed holeが実際に解決した参照は、hole segment自身の`expression: TypedScalarExpression`(bindingId/型/spanを木構造のまま保持)に加えて、`TextTemplateAst.dependencies: readonly TextTemplateDependency[]`という**平坦化済み配列**(`{holeSpan, bindingId, name, span}`)としても出力する。Task13の`InitializerReference`と同じ発想で、Task36はこの配列を読むだけでdependency edgeを作れ、AST再走査もbinding再解決も不要。legacy holeは寄与しない(そのruntime依存は既存の`extractTextReferences`が別途担当)。
+- 接続点は`CompiledDslDocument.textTemplates?: ReadonlyMap<string, TextTemplateAst>`(`src/dsl/dslDocument.ts`)、keyは22と同じ`propertyBindingOccurrenceKey(statementIndex, "text")`。canonical判定は`statement.kind==="element" && statement.type==="text"`(`label`だけが`CadElementType "text"`を生成する)。`attr.value.startsWith("@")`(bare `@binding`)は22の`propertyBindings`領域として26ではスキップする。
+- Rust/評価には一切触れていない(対象外)。既存の`resolveTextReferences`/`extractTextReferences`/`evaluateTextElement`/`src/model/dependencies.ts`のtext caseは無変更。27がTS evaluationで`TextTemplateAst`を実際に文字列へ組み立てる際にこのcooked座標系・legacy hole・dependency配列を使う。
 
 ## Blocking decisions
 
