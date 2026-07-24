@@ -11,6 +11,7 @@ import {
   type EvaluationPayload
 } from "./evaluationPayload";
 import type { PropertyBindingRuntimeEntry } from "./propertyBindingRuntime";
+import { hasLinearSetVersions } from "../scalars/linearMutationEvaluator";
 import { textTemplateHasTypedHole } from "./textTemplateRuntime";
 
 type ConditionExpressionInput = { elementId: ElementId; expression: TypedScalarExpression };
@@ -291,6 +292,9 @@ export const canUseRustEvaluationForElements = (
   elements: CadElement[],
   options: EvaluateElementsOptions = {}
 ) => {
+  // Task 31 history and incremental source-order slots are TS-only until
+  // Task 32 defines the Rust mutation payload and parity contract.
+  if (options.bindingVersions && hasLinearSetVersions(options.bindingVersions)) return false;
   const evaluationLimitIndex = Math.min(
     Math.max(options.evaluationLimitIndex ?? elements.length, 0),
     elements.length

@@ -281,7 +281,17 @@ export const compileSetStatements = ({
         return;
       }
       const referencedEntry = bindingAnalysis.entriesById.get(resolution.binding.id);
-      if (resolution.binding.declaredType === null || referencedEntry?.status.kind === "invalid") {
+      // Legacy measurement vars are the migration bridge's typed-number
+      // external bindings. Their catalog shape deliberately has no declared
+      // type or typed-program eligibility entry, but Task 15's typechecker
+      // already treats them as number and Task 31 reads their live runtime
+      // value. Do not reject that resolved reference as an invalid typed
+      // declaration.
+      const isLegacyNumericBinding = resolution.binding.kind === "legacy";
+      if (
+        (!isLegacyNumericBinding && resolution.binding.declaredType === null) ||
+        (!isLegacyNumericBinding && referencedEntry?.status.kind === "invalid")
+      ) {
         diagnostics.push(diagnosticAt(
           candidate.statement,
           reference.span,

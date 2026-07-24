@@ -18,7 +18,12 @@ import {
   forGroupTemplateDescendantIds
 } from "./forGroupExpansion";
 import type { ScalarProgram } from "../scalars/scalarProgram";
-import { createDocumentScalarBindingResolver } from "./scalarProgramEvaluation";
+import type { BindingVersionGraph } from "../scalars/bindingVersions";
+import { hasLinearSetVersions } from "../scalars/linearMutationEvaluator";
+import {
+  createDocumentLinearScalarBindingResolver,
+  createDocumentScalarBindingResolver
+} from "./scalarProgramEvaluation";
 import {
   groupPropertyBindingRuntimeEntriesByElement,
   materializePropertyBoundElement,
@@ -42,6 +47,10 @@ export type EvaluateElementsOptions = {
    * until Task 21 gives it one.
    */
   scalarProgram?: ScalarProgram;
+  /** Task 30 graph; Task 31 consumes it only when it contains a linear set. */
+  bindingVersions?: BindingVersionGraph;
+  /** Existing compiled element ID -> source statement mapping; never inferred from element order. */
+  statementInfoByElementId?: ReadonlyMap<ElementId, { statementIndex: number }>;
   /**
    * Task 23's elementId-keyed standard property bindings (already re-keyed
    * from CompiledDslDocument.propertyBindings by
@@ -155,9 +164,17 @@ export const evaluateElements = (
   // Built whenever a scalarProgram is present, independent of whether any
   // property bindings exist - computedScalarBindings is Task 21's own
   // contract and must not depend on Task 23's property wiring.
-  const scalarBindingResolver = options.scalarProgram
+  const linearMutationEnabled = options.bindingVersions !== undefined && hasLinearSetVersions(options.bindingVersions);
+  if (linearMutationEnabled && !options.statementInfoByElementId) {
+    throw new Error("evaluateElements: linear binding mutation requires the compiled statementInfoByElementId mapping");
+  }
+  const linearMutationResolver = linearMutationEnabled
+    ? createDocumentLinearScalarBindingResolver(options.bindingVersions!, computedVariables)
+    : undefined;
+  const declarationResolver = !linearMutationResolver && options.scalarProgram
     ? createDocumentScalarBindingResolver(options.scalarProgram, computedVariables)
     : undefined;
+  const scalarBindingResolver = linearMutationResolver ?? declarationResolver;
   const propertyBindingEntriesByElementId = options.propertyBindingEntries
     ? groupPropertyBindingRuntimeEntriesByElement(options.propertyBindingEntries)
     : undefined;
@@ -184,6 +201,18 @@ export const evaluateElements = (
             "was provided - a typed hole implies a typed declaration, which implies a scalarProgram"
         );
       };
+
+  const advanceLinearBindingsBefore = (element: CadElement, sourceElement?: CadElement) => {
+    if (!linearMutationEnabled) return;
+    const statement = options.statementInfoByElementId!.get((sourceElement ?? element).id);
+    if (!statement) {
+      throw new Error(
+        `evaluateElements: no compiled statement mapping for linear binding lookup on ${(sourceElement ?? element).id}`
+      );
+    }
+    // `beforeStatement` deliberately excludes a set on this same source line.
+    linearMutationResolver!.advanceTo({ kind: "beforeStatement", sourceOrder: statement.statementIndex });
+  };
 
   const pushGeneratedVisibilityState = (generatedElement: CadElement, templateElement: CadElement) => {
     if (effectiveVisibleIds.has(templateElement.id)) {
@@ -242,6 +271,7 @@ export const evaluateElements = (
   };
 
   const evaluateRuntimeElement = (element: CadElement, sourceElement?: CadElement) => {
+    advanceLinearBindingsBefore(element, sourceElement);
     const inactiveGroupId = inactiveConditionalGroupId(element);
     if (inactiveGroupId) {
       conditionInactiveElementIds.add(element.id);
@@ -452,7 +482,13 @@ export const evaluateElements = (
     evaluateRuntimeElement(element);
   }
 
-  const computedScalarBindings = scalarBindingResolver?.finalize().resultsByBindingId;
+  const linearFinal = linearMutationResolver
+    ? linearMutationResolver.finalize({
+        kind: "beforeStatement",
+        sourceOrder: options.bindingVersions!.evaluationLimitSourceOrder ?? Number.POSITIVE_INFINITY
+      })
+    : undefined;
+  const computedScalarBindings = linearFinal?.resultsByBindingId ?? declarationResolver?.finalize().resultsByBindingId;
 
   return {
     computedGeometry,
@@ -466,6 +502,7 @@ export const evaluateElements = (
     conditionInactiveElementIds,
     forGroupGeneratedRows,
     forGroupEffectiveShowGeneratedIds,
-    ...(computedScalarBindings ? { computedScalarBindings } : {})
+    ...(computedScalarBindings ? { computedScalarBindings } : {}),
+    ...(linearFinal ? { computedScalarBindingVersions: linearFinal.historyByVersionId } : {})
   };
 };

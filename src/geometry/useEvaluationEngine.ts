@@ -86,6 +86,8 @@ export const useEvaluationEngine = (
 ): EvaluationEngineState => {
   const evaluationLimitIndex = options.evaluationLimitIndex;
   const scalarProgram = options.scalarProgram;
+  const bindingVersions = options.bindingVersions;
+  const statementInfoByElementId = options.statementInfoByElementId;
   const propertyBindingEntries = options.propertyBindingEntries;
   const controlBooleanEntries = options.controlBooleanEntries;
   const conditionalGroupConditionsByElementId = options.conditionalGroupConditionsByElementId;
@@ -95,6 +97,7 @@ export const useEvaluationEngine = (
     () => ({
       evaluationLimitIndex,
       ...(scalarProgram ? { scalarProgram } : {}),
+      ...(bindingVersions ? { bindingVersions, statementInfoByElementId } : {}),
       ...(propertyBindingEntries?.length ? { propertyBindingEntries } : {}),
       ...(controlBooleanEntries?.length ? { controlBooleanEntries } : {}),
       ...(conditionalGroupConditionsByElementId?.size ? { conditionalGroupConditionsByElementId } : {}),
@@ -104,6 +107,8 @@ export const useEvaluationEngine = (
     [
       evaluationLimitIndex,
       scalarProgram,
+      bindingVersions,
+      statementInfoByElementId,
       propertyBindingEntries,
       controlBooleanEntries,
       conditionalGroupConditionsByElementId,
@@ -121,6 +126,7 @@ export const useEvaluationEngine = (
       elements,
       evaluationLimitIndex,
       scalarProgram,
+      bindingVersions,
       propertyBindingEntries,
       controlBooleanEntries,
       conditionalGroupConditionsByElementId: conditionalGroupConditionsByElementId
@@ -135,6 +141,7 @@ export const useEvaluationEngine = (
       elements,
       evaluationLimitIndex,
       scalarProgram,
+      bindingVersions,
       propertyBindingEntries,
       controlBooleanEntries,
       conditionalGroupConditionsByElementId,

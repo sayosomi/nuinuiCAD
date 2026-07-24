@@ -30,11 +30,16 @@
 
 import type { ComputedVariable, ElementId } from "../types/geometry";
 import type { BindingId } from "../scalars/bindingCatalog";
+import type { BindingReadPosition, BindingVersionGraph } from "../scalars/bindingVersions";
 import {
   createLazyScalarProgramEvaluator,
   finalizeScalarProgramEvaluation,
   type ScalarProgramEvaluation
 } from "../scalars/declarationEvaluator";
+import {
+  createIncrementalLinearMutationEvaluator,
+  type LinearMutationEvaluation
+} from "../scalars/linearMutationEvaluator";
 import { adaptNumericResult } from "../scalars/numericFunctionAdapter";
 import type { ScalarProgram } from "../scalars/scalarProgram";
 import type { ScalarEvaluation } from "../scalars/types";
@@ -65,6 +70,12 @@ export type ScalarBindingResolver = {
   finalize: () => ScalarProgramEvaluation;
 };
 
+export type LinearScalarBindingResolver = {
+  advanceTo: (position: BindingReadPosition) => void;
+  resolveBinding: (bindingId: BindingId) => ScalarEvaluation;
+  finalize: (position: BindingReadPosition) => LinearMutationEvaluation;
+};
+
 /**
  * Builds a resolver for `program` against a document's `computedVariables`
  * map. `computedVariables` is read live (by reference) on every call, not
@@ -85,6 +96,24 @@ export const createDocumentScalarBindingResolver = (
   return {
     resolveBinding: evaluator.resolve,
     finalize: () => finalizeScalarProgramEvaluation(program, evaluator)
+  };
+};
+
+/** Task 31's live document adapter for a Task 30 graph with linear sets. */
+export const createDocumentLinearScalarBindingResolver = (
+  graph: BindingVersionGraph,
+  computedVariables: ReadonlyMap<ElementId, ComputedVariable>
+): LinearScalarBindingResolver => {
+  const resolveExternalBinding = (bindingId: BindingId): ScalarEvaluation => {
+    if (!bindingId.startsWith(LEGACY_BINDING_PREFIX)) return externalBindingUnavailable(bindingId);
+    const computed = computedVariables.get(bindingId.slice(LEGACY_BINDING_PREFIX.length));
+    return computed ? adaptNumericResult({ value: computed.value }, bindingId) : externalBindingUnavailable(bindingId);
+  };
+  const evaluator = createIncrementalLinearMutationEvaluator(graph, resolveExternalBinding);
+  return {
+    advanceTo: evaluator.advanceTo,
+    resolveBinding: evaluator.resolveCurrent,
+    finalize: evaluator.finalize
   };
 };
 

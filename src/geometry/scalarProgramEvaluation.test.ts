@@ -43,6 +43,25 @@ describe("evaluateElements / scalarProgram wiring (Task 20)", () => {
     expect(result.computedScalarBindings).toBeUndefined();
   });
 
+  it("keeps Task 20's lazy result shape and insertion order when the compiled graph has no set", () => {
+    const compiled = compileCanonical([
+      "nui 3",
+      "const first: number = 1",
+      "const second: number = @first + 1",
+      "point A = coordinate(x: 0 y: 0)"
+    ].join("\n"));
+    const result = evaluateElements(compiled.document!.elements, {
+      scalarProgram: compiled.scalarProgram,
+      bindingVersions: compiled.bindingVersions,
+      statementInfoByElementId: compiled.statementMap!.byElementId
+    });
+
+    expect(result.computedScalarBindingVersions).toBeUndefined();
+    expect([...result.computedScalarBindings!.keys()]).toEqual(
+      compiled.scalarProgram!.statements.map((statement) => statement.bindingId)
+    );
+  });
+
   it("resolves a legacy var geometry measurement matching the legacy numeric evaluator", () => {
     const compiled = compileCanonical([
       "nui 3",
