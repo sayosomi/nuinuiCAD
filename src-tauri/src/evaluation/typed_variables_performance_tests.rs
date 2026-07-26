@@ -83,6 +83,54 @@ fn for_group_elements(generated_row_count: usize) -> Vec<Value> {
     ]
 }
 
+fn number_expression(value: f64) -> Value {
+    json!({"kind":"numberLiteral","span":{"start":0,"end":1},"value":value,"type":{"kind":"number"}})
+}
+
+fn binding_reference(binding_id: &str) -> Value {
+    json!({"kind":"reference","span":{"start":0,"end":1},"nameSpan":{"start":0,"end":1},"name":binding_id,"bindingId":binding_id,"type":{"kind":"number"}})
+}
+
+fn add(left: Value, right: Value) -> Value {
+    json!({"kind":"binary","span":{"start":0,"end":1},"operator":"+","left":left,"right":right,"type":{"kind":"number"}})
+}
+
+fn for_group_mutation_binding_versions() -> Value {
+    json!({
+        "versions":[
+            {
+                "versionId":"decl:sum", "statementId":"decl:sum", "kind":"declare",
+                "bindingId":"binding:sum", "bindingKind":"let", "declaredType":{"kind":"number"},
+                "sourceOrder":0, "scopeId":"root", "control":{"scopeId":"root","ownerChain":[],"kind":"linear"},
+                "initialState":{"kind":"uncomputed"}, "initializer":number_expression(0.0)
+            },
+            {
+                "versionId":"set:sum", "statementId":"set:sum", "kind":"set",
+                "bindingId":"binding:sum", "targetBindingId":"binding:sum", "bindingKind":"let",
+                "declaredType":{"kind":"number"}, "sourceOrder":2, "scopeId":"for:loop-statement",
+                "control":{
+                    "scopeId":"for:loop-statement",
+                    "ownerChain":[{
+                        "kind":"forGroup", "ownerStatementId":"loop-statement", "scopeId":"for:loop-statement",
+                        "exitSourceOrder":4
+                    }],
+                    "kind":"forGroup"
+                },
+                "predecessorId":"decl:sum", "initialState":{"kind":"uncomputed"},
+                "expression":add(binding_reference("binding:sum"), number_expression(1.0))
+            }
+        ],
+        "elementSourceOrders":[
+            {"elementId":"loop","sourceOrder":1},
+            {"elementId":"template","sourceOrder":3}
+        ],
+        "forGroupOwners":[{
+            "ownerStatementId":"loop-statement", "elementId":"loop", "scopeId":"for:loop-statement",
+            "exitSourceOrder":4, "iterationBindingId":"binding:iteration:loop-statement"
+        }]
+    })
+}
+
 fn activity_chain_elements(count: usize) -> Vec<Value> {
     (0..count)
         .map(|index| {
@@ -231,7 +279,7 @@ fn performance_typed_variable_for_group_baseline() {
             evaluation_limit_index: None,
             scalar_expression_payload: None,
             scalar_program: None,
-            binding_versions: None,
+            binding_versions: Some(for_group_mutation_binding_versions()),
         })
     });
     let (large_result, large_stats) = measure_wall_time(|| {
@@ -243,7 +291,7 @@ fn performance_typed_variable_for_group_baseline() {
             evaluation_limit_index: None,
             scalar_expression_payload: None,
             scalar_program: None,
-            binding_versions: None,
+            binding_versions: Some(for_group_mutation_binding_versions()),
         })
     });
 
@@ -253,18 +301,26 @@ fn performance_typed_variable_for_group_baseline() {
     assert_eq!(large_result.computed_geometry.len(), 1_000);
     assert_eq!(small_result.for_group_generated_rows.len(), 250);
     assert_eq!(large_result.for_group_generated_rows.len(), 1_000);
+    assert_eq!(
+        small_result.computed_scalar_bindings.as_ref().unwrap()[0]["evaluation"]["value"]["value"],
+        250.0
+    );
+    assert_eq!(
+        large_result.computed_scalar_bindings.as_ref().unwrap()[0]["evaluation"]["value"]["value"],
+        1_000.0
+    );
     log_measurement(
         "rustForGroupMutation",
         FixtureMeasurement {
             statement_count: 3,
-            binding_count: 0,
+            binding_count: 1,
             geometry_statement_count: 1,
             result: &small_result,
             stats: &small_stats,
         },
         FixtureMeasurement {
             statement_count: 3,
-            binding_count: 0,
+            binding_count: 1,
             geometry_statement_count: 1,
             result: &large_result,
             stats: &large_stats,

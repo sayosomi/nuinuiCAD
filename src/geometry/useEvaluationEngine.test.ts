@@ -5,6 +5,8 @@ import type { CadElement } from "../types/geometry";
 import type { ScalarProgram } from "../scalars/scalarProgram";
 import { compileCanonicalText, regenerateCanonicalFromModel } from "../document/canonicalDocument";
 import { emptyDocument } from "../dsl/dslDocumentTestUtils";
+import { buildConditionalGroupConditionsByElementId } from "./controlBooleanRuntime";
+import { buildConditionalMutationOwners, conditionalOwnerIdByElementId } from "../scalars/conditionalMutationControl";
 import { buildForGroupMutationOwners, forGroupMutationOwnerByElementId } from "../scalars/forGroupMutationControl";
 import * as evaluationEngine from "./evaluationEngine";
 import { evaluateElementsReferencePayload } from "./evaluationEngine";
@@ -172,6 +174,68 @@ describe("useEvaluationEngine", () => {
     const bindingId = bindingVersions.versions[0].bindingId;
     expect(result.current.evaluation.computedScalarBindings?.get(bindingId)).toMatchObject({
       value: { value: 2 }
+    });
+  });
+
+  it("adopts Rust for canonical nested conditional and forGroup mutation", async () => {
+    setTauriRuntime();
+    vi.stubEnv("VITE_EVALUATION_ENGINE", "rust");
+    const compiled = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 3), [
+      "nui 3",
+      "let total: number = 0",
+      "for Outer (i from: 0 count: 2 step: 1) {",
+      "  if Branch (@i == 0) {",
+      "    let scratch: number = @i + 1",
+      "    set total = @total + @scratch",
+      "  } else {",
+      "    set total = @total + 10",
+      "  }",
+      "  for Inner (j from: 0 count: 2 step: 1) {",
+      "    set total = @total + 1",
+      "    point P = coordinate(x: 0 y: 0)",
+      "  }",
+      "}"
+    ].join("\n"));
+    expect(compiled.status).not.toBe("fatal");
+    const bindingVersions = compiled.doc.bindingVersions!;
+    const options = {
+      bindingVersions,
+      statementInfoByElementId: compiled.doc.statementMap.byElementId,
+      statementIdByStatementIndex: compiled.doc.statementMap.statementIdByStatementIndex,
+      conditionalOwnerStatementIdByElementId: conditionalOwnerIdByElementId(buildConditionalMutationOwners(
+        bindingVersions,
+        compiled.doc.document.elements,
+        compiled.doc.statementMap.byElementId,
+        compiled.doc.statementMap.statementIdByStatementIndex
+      )),
+      forGroupMutationOwnerByElementId: forGroupMutationOwnerByElementId(buildForGroupMutationOwners(
+        bindingVersions,
+        compiled.doc.document.elements,
+        compiled.doc.statementMap.byElementId,
+        compiled.doc.statementMap.statementIdByStatementIndex
+      )),
+      conditionalGroupConditionsByElementId: buildConditionalGroupConditionsByElementId(
+        compiled.doc.conditionalGroupConditions ?? new Map(),
+        compiled.doc.statementMap.elementIdByStatementIndex
+      )
+    };
+    invokeMock.mockResolvedValue(evaluateElementsReferencePayload(compiled.doc.document.elements, options));
+
+    const { result } = renderHook(() => useEvaluationEngine(compiled.doc.document.elements, options));
+
+    await waitFor(() => expect(result.current.status).toBe("ready"));
+    expect(result.current.source).toBe("rust");
+    expect(result.current.rustEligible).toBe(true);
+    expect(invokeMock).toHaveBeenCalledWith("evaluate_document", {
+      input: expect.objectContaining({
+        bindingVersions: expect.objectContaining({
+          conditionalOwners: expect.any(Array),
+          forGroupOwners: expect.any(Array)
+        })
+      })
+    });
+    expect(result.current.evaluation.computedScalarBindings?.get(bindingVersions.versions[0].bindingId)).toMatchObject({
+      value: { value: 15 }
     });
   });
 

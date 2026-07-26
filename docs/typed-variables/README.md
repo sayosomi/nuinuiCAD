@@ -366,6 +366,25 @@ conditional mutation は Task 25 の runtime condition result と Task 30 の ow
 - callback は nested conditional では Task 33 と同じ active-branch-only rule を適用し、nested forGroup は同じ environment の `run` を再入する。inactive branch は callback/slot write/poison を起こさない。core 自身は geometry や condition expression を評価しない。
 - shared fixture `test/fixtures/scalars/for_group_mutation_core.json` を TS/Rust の pure tests が読む。Task 35 はこの contract を維持したまま、generated IDs/rows/masks、enabled/inactive loop、showGenerated、evaluation limit を既存 forGroup runtime 側で統合する。
 
+### Task 35完了時点の引き継ぎ(45/48/49/50向け)
+
+canonicalなforGroup owner graphは、nested conditional、nested forGroup、両者を混在させたowner chainを含んでもRust production schedulerで実行する。Rust eligibilityから除外するのは、compiled element-owner joinの欠落・重複・不整合、またはpayload validationで検出されるmalformed metadataだけである。setなしforGroupとforGroupを持たないmutationの既存eligibilityは変更しない。
+
+- schedulerはiteration-local conditional result stackを持つ。各iterationでbranch結果をresetし、nested runnerは独自のstack entryをpush/popするため、前iterationやouter loopのbranchが漏れない。outer slotはshared environmentでcarryし、loop/branch localはframe leaveで退役する。
+- nested generated forGroupは、generated instance IDとoriginal template IDを分けて展開する。outer schedulerはinner openerだけを担当し、inner descendantsはinner schedulerだけが評価する。inner `Stopped` はTask 34 coreからouter callbackまで伝播し、remaining inner/outer iterationを止める。
+- production integrationはnormal Rust pathでnested conditional + nested forGroupのRust結果採用を確認し、Rust command testはinner exitでのstop伝播を確認する。`for_group_nested_mutation.nui` はこのcanonical graphのTS/Rust shadow parity fixtureである。
+
+#### Task 35 forGroup mutation 測定記録（2026-07-27）
+
+| runtime | 250 rows median / p95 | 1000 rows median / p95 | 250→1000 | Task 34 coreとの差（median / p95） |
+| --- | --- | --- | --- | --- |
+| TS core | 0.0258 / 0.1416 ms | 0.1026 / 0.2686 ms | 3.98x | baseline |
+| TS production scheduler | 1.3734 / 2.4058 ms | 14.8206 / 15.3438 ms | 10.79x | +1.3476 / +2.2642 ms (250), +14.7180 / +15.0752 ms (1000) |
+| Rust core | 0.272959 / 0.274917 ms | 1.085958 / 1.133625 ms | 3.98x | baseline |
+| Rust production scheduler | 16.016750 / 16.181875 ms | 122.401375 / 122.850500 ms | 7.64x | +15.743791 / +15.906958 ms (250), +121.315417 / +121.716875 ms (1000) |
+
+TSはVitest fork single worker・file parallelなし、20 warm-up、21 trials、trialあたり5 runsのworker CPU時間で測定した。Rustは`cargo test ... --ignored --nocapture --test-threads=1`、debug test profile、5 warm-up、21 trials、trialあたり1 evaluationのwall timeで測定した。いずれも1 binding、1 generated point template、in-place `set total`を含む250/1000 generated rowsであり、Task 34 coreとの差は同一測定条件のscalar-only core baselineとの差分である。Task 50がこのbaselineとCI分散を使って回帰gateを決める。
+
 ## Blocking decisions
 
 なし。[decisions.md](decisions.md)に調査根拠を記録済み。将来範囲のqualified referenceやstring演算はblockingではなく明示的な対象外。legacy互換の最終方針は[D22](decisions.md#d22-nui-3単一保存形式手動migrationlegacy全削除)を正とし、旧形式ではcrash/source確認不能、source破壊・消失、位置情報不足、保存前sourceへ復元不能だけをblockingとする。

@@ -28,6 +28,7 @@ pub(crate) struct ScalarMutationResolver<'a> {
     next_version_index: usize,
     history: Vec<Value>,
     conditional_results: HashMap<String, Option<String>>,
+    loop_conditional_results: Vec<HashMap<String, Option<String>>>,
     frames: Vec<ScopeFrame>,
 }
 
@@ -39,6 +40,7 @@ impl<'a> ScalarMutationResolver<'a> {
             next_version_index: 0,
             history: Vec::new(),
             conditional_results: HashMap::new(),
+            loop_conditional_results: Vec::new(),
             frames: Vec::new(),
         }
     }
@@ -79,10 +81,14 @@ impl<'a> ScalarMutationResolver<'a> {
         else {
             return;
         };
+        let result = branch.map(str::to_owned);
+        if let Some(results) = self.loop_conditional_results.last_mut() {
+            results.insert(owner_id, result);
+            return;
+        }
         if self.conditional_results.contains_key(&owner_id) {
             return;
         }
-        let result = branch.map(str::to_owned);
         self.conditional_results
             .insert(owner_id.clone(), result.clone());
         let Some(branch) = result else {
@@ -169,8 +175,7 @@ impl<'a> ScalarMutationResolver<'a> {
         chain.iter().all(|owner| {
             owner.get("kind").and_then(Value::as_str) == Some("conditionalBranch")
                 && self
-                    .conditional_results
-                    .get(
+                    .conditional_result(
                         owner
                             .get("ownerStatementId")
                             .and_then(Value::as_str)
@@ -180,6 +185,24 @@ impl<'a> ScalarMutationResolver<'a> {
                         result.as_deref() == owner.get("branch").and_then(Value::as_str)
                     })
         })
+    }
+    pub(super) fn push_loop_conditional_results(&mut self) {
+        self.loop_conditional_results.push(HashMap::new());
+    }
+    pub(super) fn reset_loop_conditional_results(&mut self) {
+        if let Some(results) = self.loop_conditional_results.last_mut() {
+            results.clear();
+        }
+    }
+    pub(super) fn pop_loop_conditional_results(&mut self) {
+        self.loop_conditional_results.pop();
+    }
+    pub(super) fn conditional_result(&self, owner_id: &str) -> Option<&Option<String>> {
+        self.loop_conditional_results
+            .iter()
+            .rev()
+            .find_map(|results| results.get(owner_id))
+            .or_else(|| self.conditional_results.get(owner_id))
     }
     fn execute(&mut self, version: &ValidatedBindingVersion, state: &EvaluationState) {
         if !self.control_active(version) {

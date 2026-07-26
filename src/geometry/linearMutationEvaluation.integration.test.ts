@@ -11,7 +11,7 @@ import { buildTextTemplateEntriesByElementId } from "./textTemplateRuntime";
 const compileCanonical = (source: string): LastGoodDslDocument => {
   const baseline = regenerateCanonicalFromModel(emptyDocument(), 3);
   const result = compileCanonicalText(baseline, source);
-  expect(result.status).not.toBe("fatal");
+  if (result.status === "fatal") throw new Error(JSON.stringify(result.diagnostics));
   return result.doc;
 };
 
@@ -113,11 +113,39 @@ describe("Task 31 linear mutation production wiring", () => {
     expect(canUseRustEvaluationForElements(loop.document.elements, loopOptions)).toBe(true);
     expect(canUseRustEvaluationForElements(
       loopWithNestedControl.document.elements, optionsFor(loopWithNestedControl)
-    )).toBe(false);
+    )).toBe(true);
     expect(canUseRustEvaluationForElements(loop.document.elements, {
       ...loopOptions,
       forGroupMutationOwnerByElementId: undefined
     })).toBe(false);
+  });
+
+  it("keeps nested conditional results iteration-local while nested loops carry outer slots", () => {
+    const compiled = compileCanonical([
+      "nui 3",
+      "let total: number = 0",
+      "for Outer (i from: 0 count: 2 step: 1) {",
+      "  if Branch (@i == 0) {",
+      "    let scratch: number = @i + 1",
+      "    set total = @total + @scratch",
+      "  } else {",
+      "    set total = @total + 10",
+      "  }",
+      "  for Inner (j from: 0 count: 2 step: 1) {",
+      "    set total = @total + 1",
+      "    point P = coordinate(x: 0 y: 0)",
+      "  }",
+      "}"
+    ].join("\n"));
+    const options = optionsFor(compiled);
+    const result = evaluateElements(compiled.document.elements, options);
+    const total = compiled.bindingVersions!.versions[0].bindingId;
+
+    expect(canUseRustEvaluationForElements(compiled.document.elements, options)).toBe(true);
+    expect(result.errors).toEqual([]);
+    expect(result.computedScalarBindings?.get(total)).toMatchObject({ value: { value: 15 } });
+    // The loop/conditional-local declaration has retired and is not a final binding.
+    expect(result.computedScalarBindings?.size).toBe(1);
   });
 
   it("advances binding slots with source order: A sees old value, B sees set value, and set reads the live legacy measurement", () => {

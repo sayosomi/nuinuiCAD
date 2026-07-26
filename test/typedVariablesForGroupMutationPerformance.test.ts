@@ -16,13 +16,13 @@ const run = (iterationCount: number) => {
 };
 
 describe("forGroup mutation performance baseline", () => {
-  it("records 100/1000 iteration in-place loop measurements", () => {
+  it("records 250/1000 iteration in-place loop measurements", () => {
     const measurement = measureWorkerCpuScaling({
-      small: { run: () => run(100), counts: () => counts(100) },
+      small: { run: () => run(250), counts: () => counts(250) },
       large: { run: () => run(1000), counts: () => counts(1000) },
       warmUpRuns: 20, trials: 21, runsPerTrial: 5
     });
-    expect(run(100)).toBe(4950);
+    expect(run(250)).toBe(31125);
     expect(run(1000)).toBe(499500);
     expectFiniteMeasurement(measurement);
     logBaselineMeasurement("forGroupMutationCore", measurement);

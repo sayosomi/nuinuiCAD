@@ -148,6 +148,28 @@ fn rejects_iteration_binding_assignment_and_retires_failed_frame() {
     assert_eq!(environment.read("binding:local"), None);
 }
 
+#[test]
+fn stopped_callback_retires_its_frame_and_stops_remaining_iterations() {
+    let mut environment =
+        ForGroupMutationEnvironment::new(HashMap::from([("sum".to_owned(), 0.0)]));
+    let plan = ForGroupMutationPlan {
+        loop_scope_id: "scope:loop".to_owned(),
+        iteration_binding_id: "binding:iteration:i".to_owned(),
+        iteration_values: vec![1.0, 2.0],
+        generated_statements: vec!["body"],
+    };
+    let outcome = environment
+        .run(&plan, |environment, context| {
+            environment.declare_local("binding:local", context.iteration_value)?;
+            environment.set("sum", context.iteration_value)?;
+            Ok(ForGroupMutationRunOutcome::Stopped)
+        })
+        .unwrap();
+    assert_eq!(outcome, ForGroupMutationRunOutcome::Stopped);
+    assert_eq!(environment.final_slots().get("sum"), Some(&1.0));
+    assert_eq!(environment.read("binding:local"), None);
+}
+
 #[derive(Clone, Debug, PartialEq)]
 enum Poisonable {
     Value(f64),
@@ -226,11 +248,11 @@ fn timing_stats(iteration_count: usize) -> (f64, f64) {
 #[test]
 #[ignore]
 fn performance_for_group_mutation_core_baseline() {
-    let (small_median, small_p95) = timing_stats(100);
+    let (small_median, small_p95) = timing_stats(250);
     let (large_median, large_p95) = timing_stats(1_000);
     assert!(small_median.is_finite() && small_p95.is_finite());
     assert!(large_median.is_finite() && large_p95.is_finite());
     eprintln!(
-        "[typedVariables baseline] {{\"area\":\"forGroupMutationCore\",\"metric\":\"wallTimeMs\",\"warmUpRuns\":5,\"trials\":21,\"small\":{{\"iterationCount\":100,\"medianMs\":{small_median},\"p95Ms\":{small_p95}}},\"large\":{{\"iterationCount\":1000,\"medianMs\":{large_median},\"p95Ms\":{large_p95}}}}}"
+        "[typedVariables baseline] {{\"area\":\"forGroupMutationCore\",\"metric\":\"wallTimeMs\",\"warmUpRuns\":5,\"trials\":21,\"small\":{{\"iterationCount\":250,\"medianMs\":{small_median},\"p95Ms\":{small_p95}}},\"large\":{{\"iterationCount\":1000,\"medianMs\":{large_median},\"p95Ms\":{large_p95}}}}}"
     );
 }

@@ -86,14 +86,9 @@ export const hasSetVersions = (graph: BindingVersionGraph): boolean => graph.ver
  * Rust. This helper deliberately says nothing about that payload join.
  */
 export const isRustLinearMutationEligible = (graph: BindingVersionGraph): boolean => hasSetVersions(graph) &&
-  graph.versions.every((version) => {
-    const forGroupOwners = version.control.ownerChain.filter((owner) => owner.kind === "forGroup");
-    // The Task 35 Rust scheduler has parity only for a single loop owner.
-    // A conditional or a nested loop in that chain must stay on the TS
-    // reference path until its iteration-local control results are bridged.
-    if (forGroupOwners.length > 0) return forGroupOwners.length === 1 && version.control.ownerChain.length === 1;
-    return version.control.ownerChain.every((owner) => owner.kind === "conditionalBranch");
-  });
+  graph.versions.every((version) => version.control.ownerChain.every((owner) =>
+    owner.kind === "conditionalBranch" || owner.kind === "forGroup"
+  ));
 
 type ScopeFrame = { scopeId: string; exitSourceOrder: number; localBindingIds: Set<BindingId> };
 

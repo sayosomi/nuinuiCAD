@@ -167,7 +167,9 @@ impl<T: Clone> ForGroupMutationEnvironment<T> {
             })();
             // Match Task 33's frame retirement even on callback failure.
             self.frames.pop();
-            outcome?;
+            if outcome? == ForGroupMutationRunOutcome::Stopped {
+                return Ok(ForGroupMutationRunOutcome::Stopped);
+            }
         }
         Ok(ForGroupMutationRunOutcome::Completed)
     }

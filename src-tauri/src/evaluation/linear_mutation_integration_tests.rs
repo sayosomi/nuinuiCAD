@@ -289,3 +289,87 @@ fn production_command_runs_for_group_mutation_and_carries_the_final_slot() {
     );
     assert_eq!(result.for_group_generated_rows.len(), 2);
 }
+
+#[test]
+fn nested_inner_stop_stops_remaining_inner_and_outer_iterations() {
+    let mut outer_set = set("set:outer", "binding:sum", "decl:sum", 2, number(1.0));
+    outer_set["control"] = json!({
+        "scopeId":"for:outer-statement",
+        "ownerChain":[{
+            "kind":"forGroup", "ownerStatementId":"outer-statement", "scopeId":"for:outer-statement",
+            "exitSourceOrder":7
+        }],
+        "kind":"forGroup"
+    });
+    outer_set["scopeId"] = json!("for:outer-statement");
+    let mut inner_set = set("set:inner", "binding:sum", "set:outer", 4, number(11.0));
+    inner_set["control"] = json!({
+        "scopeId":"for:inner-statement",
+        "ownerChain":[
+            {
+                "kind":"forGroup", "ownerStatementId":"outer-statement", "scopeId":"for:outer-statement",
+                "exitSourceOrder":7
+            },
+            {
+                "kind":"forGroup", "ownerStatementId":"inner-statement", "scopeId":"for:inner-statement",
+                "exitSourceOrder":6
+            }
+        ],
+        "kind":"forGroup"
+    });
+    inner_set["scopeId"] = json!("for:inner-statement");
+    let mut inner = for_group("inner");
+    inner["parentGroupId"] = json!("outer");
+    let mut point = point("point");
+    point["parentGroupId"] = json!("inner");
+    let result = evaluate_document(EvaluationInput {
+        elements: vec![for_group("outer"), inner, point],
+        evaluation_limit_index: None,
+        scalar_expression_payload: None,
+        scalar_program: None,
+        binding_versions: Some(json!({
+            "versions":[
+                declaration("decl:sum", "binding:sum", 0, number(0.0)),
+                outer_set,
+                inner_set
+            ],
+            "elementSourceOrders":[
+                {"elementId":"outer","sourceOrder":1},
+                {"elementId":"inner","sourceOrder":3},
+                {"elementId":"point","sourceOrder":5}
+            ],
+            "forGroupOwners":[
+                {
+                    "ownerStatementId":"outer-statement", "elementId":"outer",
+                    "scopeId":"for:outer-statement", "exitSourceOrder":7,
+                    "iterationBindingId":"binding:iteration:outer-statement"
+                },
+                {
+                    "ownerStatementId":"inner-statement", "elementId":"inner",
+                    "scopeId":"for:inner-statement", "exitSourceOrder":6,
+                    "iterationBindingId":"binding:iteration:inner-statement"
+                }
+            ],
+            "evaluationLimitSourceOrder":6
+        })),
+        property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
+    })
+    .unwrap();
+
+    assert_eq!(
+        result.computed_scalar_bindings.unwrap()[0]["evaluation"]["value"]["value"],
+        11.0
+    );
+    assert_eq!(result.for_group_generated_rows.len(), 1);
+    assert_eq!(
+        result
+            .computed_scalar_binding_versions
+            .unwrap()
+            .iter()
+            .map(|entry| entry["versionId"].as_str().unwrap())
+            .collect::<Vec<_>>(),
+        vec!["decl:sum", "set:outer", "set:inner"]
+    );
+}

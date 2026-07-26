@@ -60,7 +60,9 @@ pub(crate) use control_boolean_payload::validate_control_boolean_bindings_payloa
 #[allow(unused_imports)]
 pub(crate) use expression_evaluator::{evaluate_typed_expression, ScalarEvaluationEnvironment};
 pub(crate) use expression_payload::validate_typed_expression_payload;
-pub(crate) use for_group_mutation_core::ForGroupMutationRunOutcome;
+pub(crate) use for_group_mutation_core::{
+    ForGroupMutationEnvironment, ForGroupMutationError, ForGroupMutationRunOutcome,
+};
 pub(crate) use mutation::{ForGroupMutationStatement, ScalarMutationResolver};
 pub(crate) use mutation_payload::{validate_binding_versions_payload, ValidatedBindingVersions};
 #[allow(unused_imports)]

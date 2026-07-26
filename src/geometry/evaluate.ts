@@ -15,6 +15,7 @@ import { evaluateElement } from "./elementEvaluators";
 import { evaluateVariableElement } from "./variableEvaluator";
 import {
   expandForGroupIteration,
+  forGroupMutationTemplateElements,
   forGroupTemplateDescendantIds
 } from "./forGroupExpansion";
 import type { ScalarProgram } from "../scalars/scalarProgram";
@@ -38,7 +39,6 @@ import type { TextTemplateAst } from "../scalars/textTemplate";
 import type { BindingId } from "../scalars/bindingCatalog";
 import type { ForGroupMutationOwner } from "../scalars/forGroupMutationControl";
 import type { ForGroupMutationStatement } from "../scalars/linearMutationEvaluator";
-import { forGroupTemplateElements } from "./forGroupExpansion";
 
 export type EvaluateElementsOptions = {
   evaluationLimitIndex?: number;
@@ -391,7 +391,7 @@ export const evaluateElements = (
         if (!options.statementInfoByElementId) {
           throw new Error("evaluateElements: forGroup mutation requires compiled generated statement mapping");
         }
-        const templates = forGroupTemplateElements(elements, (sourceElement ?? element).id);
+        const templates = forGroupMutationTemplateElements(elements, (sourceElement ?? element).id);
         const statements: ForGroupMutationStatement[] = templates.map((templateElement) => {
           const statement = options.statementInfoByElementId!.get(templateElement.id);
           if (!statement) throw new Error(`evaluateElements: no compiled statement mapping for forGroup template ${templateElement.id}`);
@@ -419,6 +419,7 @@ export const evaluateElements = (
             const expanded = expandForGroupIteration({
               elements,
               forGroup: element,
+              templateForGroupId: sourceElement?.id,
               iterationIndex: context.iterationIndex,
               variableValue: context.iterationValue
             });
@@ -450,6 +451,7 @@ export const evaluateElements = (
         const { generatedElements, rows } = expandForGroupIteration({
           elements,
           forGroup: element,
+          templateForGroupId: sourceElement?.id,
           iterationIndex,
           variableValue
         });

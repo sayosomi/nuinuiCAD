@@ -54,6 +54,42 @@ pub(crate) fn for_group_template_descendant_ids(elements: &[Value]) -> HashSet<E
     ids
 }
 
+/// Source-order template statements owned by a single mutation scheduler.
+/// Descendants of a nested forGroup belong to that nested invocation instead.
+pub(crate) fn for_group_mutation_template_ids(
+    elements: &[Value],
+    for_group_id: &str,
+) -> Vec<ElementId> {
+    descendant_ids_for_group(elements, for_group_id)
+        .into_iter()
+        .filter(|template_id| {
+            let mut parent_id = elements
+                .iter()
+                .find(|element| element_id(element).as_deref() == Some(template_id.as_str()))
+                .and_then(|element| element.get("parentGroupId"))
+                .and_then(Value::as_str);
+            while let Some(id) = parent_id {
+                if id == for_group_id {
+                    return true;
+                }
+                if elements
+                    .iter()
+                    .find(|element| element_id(element).as_deref() == Some(id))
+                    .is_some_and(|element| element_type(element) == Some("forGroup"))
+                {
+                    return false;
+                }
+                parent_id = elements
+                    .iter()
+                    .find(|element| element_id(element).as_deref() == Some(id))
+                    .and_then(|element| element.get("parentGroupId"))
+                    .and_then(Value::as_str);
+            }
+            true
+        })
+        .collect()
+}
+
 fn remap_json_ids(value: &mut Value, id_map: &HashMap<ElementId, ElementId>) {
     match value {
         Value::String(text) => {
@@ -92,7 +128,28 @@ pub(crate) fn expand_for_group_iteration(
     iteration_index: usize,
     variable_value: f64,
 ) -> (Vec<(Value, ElementId)>, Vec<ForGroupGeneratedRow>) {
+    expand_for_group_iteration_from_template(
+        elements,
+        for_group,
+        element_id(for_group).as_deref(),
+        iteration_index,
+        variable_value,
+    )
+}
+
+/// `for_group` may be a generated nested instance, while its body still comes
+/// from the original template statement identified by `template_for_group_id`.
+pub(crate) fn expand_for_group_iteration_from_template(
+    elements: &[Value],
+    for_group: &Value,
+    template_for_group_id: Option<&str>,
+    iteration_index: usize,
+    variable_value: f64,
+) -> (Vec<(Value, ElementId)>, Vec<ForGroupGeneratedRow>) {
     let Some(for_group_id) = element_id(for_group) else {
+        return (Vec::new(), Vec::new());
+    };
+    let Some(template_for_group_id) = template_for_group_id else {
         return (Vec::new(), Vec::new());
     };
     let variable_name = for_group
@@ -101,7 +158,7 @@ pub(crate) fn expand_for_group_iteration(
         .filter(|value| !value.trim().is_empty())
         .unwrap_or("i")
         .to_owned();
-    let template_ids = descendant_ids_for_group(elements, &for_group_id);
+    let template_ids = descendant_ids_for_group(elements, template_for_group_id);
     let template_elements = elements
         .iter()
         .filter(|element| element_id(element).is_some_and(|id| template_ids.contains(&id)))

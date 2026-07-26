@@ -2,6 +2,7 @@
 //! Task 34's frame-owning forGroup core. Geometry remains in `evaluation`;
 //! this module owns only statement-boundary scalar execution.
 
+use super::super::bindings::ScalarDocumentBindingResolver;
 use super::*;
 use crate::evaluation::scalars::for_group_mutation_core::{
     ForGroupIterationContext, ForGroupMutationEnvironment, ForGroupMutationError,
@@ -28,6 +29,15 @@ impl ForGroupMutationStatement {
 }
 
 impl ScalarMutationResolver<'_> {
+    pub(crate) fn for_group_binding_resolver<'resolver, 'environment>(
+        &'resolver self,
+        environment: &'environment ForGroupMutationEnvironment<ScalarEvaluation>,
+    ) -> ForGroupMutationBindingResolver<'resolver, 'resolver, 'environment> {
+        ForGroupMutationBindingResolver {
+            resolver: self,
+            environment,
+        }
+    }
     pub(crate) fn has_for_group_owner(&self, element_id: &str) -> bool {
         self.program
             .for_group_owners_by_element_id
@@ -94,13 +104,15 @@ impl ScalarMutationResolver<'_> {
             iteration_values,
             generated_statements: statements,
         };
-        environment.run(&plan, |environment, context| {
+        self.push_loop_conditional_results();
+        let outcome = environment.run(&plan, |environment, context| {
             if !self.is_before_cutoff(context.statement.source_order()) {
                 return Ok(ForGroupMutationRunOutcome::Stopped);
             }
             if active_iteration != Some(context.iteration_index) {
                 active_iteration = Some(context.iteration_index);
                 version_index = 0;
+                self.reset_loop_conditional_results();
             }
             while version_index < loop_versions.len()
                 && self.program.versions[loop_versions[version_index]].source_order
@@ -116,7 +128,9 @@ impl ScalarMutationResolver<'_> {
                 self.execute_for_group_version(version_index_in_program, environment, state)?;
             }
             execute_statement(self, environment, context, state)
-        })
+        });
+        self.pop_loop_conditional_results();
+        outcome
     }
 
     fn loop_versions_for(&self, owner_statement_id: &str) -> Vec<usize> {
@@ -207,8 +221,7 @@ impl ScalarMutationResolver<'_> {
             .all(|owner| match owner.get("kind").and_then(Value::as_str) {
                 Some("forGroup") => true,
                 Some("conditionalBranch") => self
-                    .conditional_results
-                    .get(
+                    .conditional_result(
                         owner
                             .get("ownerStatementId")
                             .and_then(Value::as_str)
@@ -238,6 +251,24 @@ impl ScalarMutationResolver<'_> {
             &version.declared_type,
             &version.binding_id,
         )
+    }
+}
+
+pub(crate) struct ForGroupMutationBindingResolver<'resolver, 'program, 'environment> {
+    resolver: &'resolver ScalarMutationResolver<'program>,
+    environment: &'environment ForGroupMutationEnvironment<ScalarEvaluation>,
+}
+
+impl ScalarDocumentBindingResolver for ForGroupMutationBindingResolver<'_, '_, '_> {
+    fn resolve_binding(&self, binding_id: &str, state: &EvaluationState) -> ScalarEvaluation {
+        match self.environment.read(binding_id) {
+            Some(LoopRead::Iteration(value)) => ScalarEvaluation::Ok {
+                r#type: ScalarType::Number,
+                value: super::super::types::ScalarValue::Number(value),
+            },
+            Some(LoopRead::Slot(value)) => value,
+            None => self.resolver.resolve(binding_id, state),
+        }
     }
 }
 
