@@ -34,6 +34,7 @@ pub(crate) struct ValidatedBindingVersion {
     pub(crate) binding_id: BindingId,
     pub(crate) declared_type: ScalarType,
     pub(crate) source_order: usize,
+    pub(crate) control: Value,
     pub(crate) initial_state: InitialState,
     pub(crate) kind: ValidatedBindingVersionKind,
 }
@@ -45,6 +46,7 @@ pub(crate) struct ValidatedBindingVersions {
     pub(crate) declared_types: HashMap<BindingId, ScalarType>,
     pub(crate) element_source_orders: HashMap<String, usize>,
     pub(crate) evaluation_limit_source_order: Option<usize>,
+    pub(crate) conditional_owners_by_element_id: HashMap<String, String>,
 }
 
 fn string<'a>(json: &'a Value, context: &str) -> Result<&'a str, ScalarPayloadIssue> {
@@ -84,7 +86,7 @@ fn validate_control(json: &Value, scope_id: &str) -> Result<(), ScalarPayloadIss
     let object = as_object(json, "binding version control")?;
     reject_unexpected_fields(
         object,
-        &["scopeId", "ownerChain", "kind"],
+        &["scopeId", "scopeExitSourceOrder", "ownerChain", "kind"],
         "binding version control",
     )?;
     if string(
@@ -96,6 +98,9 @@ fn validate_control(json: &Value, scope_id: &str) -> Result<(), ScalarPayloadIss
             Code::InvalidControlOwner,
             "binding version control scopeId must match version scopeId",
         ));
+    }
+    if let Some(exit) = object.get("scopeExitSourceOrder") {
+        integer(exit, "binding version control scopeExitSourceOrder")?;
     }
     let owner_chain = require_field(object, "ownerChain", "binding version control")?
         .as_array()
@@ -115,12 +120,22 @@ fn validate_control(json: &Value, scope_id: &str) -> Result<(), ScalarPayloadIss
             "conditionalBranch" => {
                 reject_unexpected_fields(
                     owner,
-                    &["kind", "ownerStatementId", "branch", "scopeId"],
+                    &[
+                        "kind",
+                        "ownerStatementId",
+                        "branch",
+                        "scopeId",
+                        "exitSourceOrder",
+                    ],
                     "conditional control owner",
                 )?;
                 string(
                     require_field(owner, "ownerStatementId", "conditional control owner")?,
                     "conditional control ownerStatementId",
+                )?;
+                integer(
+                    require_field(owner, "exitSourceOrder", "conditional control owner")?,
+                    "conditional control exitSourceOrder",
                 )?;
                 match string(
                     require_field(owner, "branch", "conditional control owner")?,
@@ -142,12 +157,16 @@ fn validate_control(json: &Value, scope_id: &str) -> Result<(), ScalarPayloadIss
             "forGroup" => {
                 reject_unexpected_fields(
                     owner,
-                    &["kind", "ownerStatementId", "scopeId"],
+                    &["kind", "ownerStatementId", "scopeId", "exitSourceOrder"],
                     "forGroup control owner",
                 )?;
                 string(
                     require_field(owner, "ownerStatementId", "forGroup control owner")?,
                     "forGroup control ownerStatementId",
+                )?;
+                integer(
+                    require_field(owner, "exitSourceOrder", "forGroup control owner")?,
+                    "forGroup control exitSourceOrder",
                 )?;
                 string(
                     require_field(owner, "scopeId", "forGroup control owner")?,
@@ -178,10 +197,10 @@ fn validate_control(json: &Value, scope_id: &str) -> Result<(), ScalarPayloadIss
             "binding version control kind disagrees with ownerChain",
         ));
     }
-    if kind != "linear" {
+    if kind == "forGroup" {
         return Err(issue(
             Code::InvalidControlOwner,
-            "non-linear binding version execution is not supported",
+            "forGroup binding version execution is not supported",
         ));
     }
     Ok(())
@@ -236,6 +255,7 @@ fn decode_version(
             "declaredType",
             "sourceOrder",
             "scopeId",
+            "scopeExitSourceOrder",
             "control",
             "predecessorId",
             "initialState",
@@ -251,6 +271,7 @@ fn decode_version(
             "declaredType",
             "sourceOrder",
             "scopeId",
+            "scopeExitSourceOrder",
             "control",
             "predecessorId",
             "initialState",
@@ -282,10 +303,11 @@ fn decode_version(
         require_field(object, "scopeId", "binding version")?,
         "binding version scopeId",
     )?;
-    validate_control(
-        require_field(object, "control", "binding version")?,
-        scope_id,
-    )?;
+    let control = require_field(object, "control", "binding version")?;
+    validate_control(control, scope_id)?;
+    if let Some(exit) = object.get("scopeExitSourceOrder") {
+        integer(exit, "binding version scopeExitSourceOrder")?;
+    }
     let source_order = integer(
         require_field(object, "sourceOrder", "binding version")?,
         "binding version sourceOrder",
@@ -367,6 +389,7 @@ fn decode_version(
             binding_id,
             declared_type,
             source_order,
+            control: control.clone(),
             initial_state,
             kind,
         },
@@ -406,6 +429,7 @@ pub(crate) fn validate_binding_versions_payload(
         &[
             "versions",
             "elementSourceOrders",
+            "conditionalOwners",
             "evaluationLimitSourceOrder",
         ],
         "binding versions payload",
@@ -544,6 +568,72 @@ pub(crate) fn validate_binding_versions_payload(
         }
         prior_source_order = Some(order);
     }
+    let empty_conditional_owners = Value::Array(Vec::new());
+    let conditional_owners_json = object
+        .get("conditionalOwners")
+        .unwrap_or(&empty_conditional_owners)
+        .as_array()
+        .ok_or_else(|| {
+            issue(
+                Code::InvalidControlOwner,
+                "conditionalOwners must be an array",
+            )
+        })?;
+    let conditional_elements = elements
+        .iter()
+        .filter(|element| element.get("type").and_then(Value::as_str) == Some("conditionalGroup"))
+        .filter_map(|element| element.get("id").and_then(Value::as_str))
+        .collect::<HashSet<_>>();
+    let mut conditional_owners_by_element_id = HashMap::new();
+    let mut conditional_owner_ids = HashSet::new();
+    for owner in conditional_owners_json {
+        let owner = as_object(owner, "conditional mutation owner")?;
+        reject_unexpected_fields(
+            owner,
+            &["ownerStatementId", "elementId"],
+            "conditional mutation owner",
+        )?;
+        let owner_id = string(
+            require_field(owner, "ownerStatementId", "conditional mutation owner")?,
+            "conditional mutation ownerStatementId",
+        )?
+        .to_owned();
+        let element_id = string(
+            require_field(owner, "elementId", "conditional mutation owner")?,
+            "conditional mutation owner elementId",
+        )?
+        .to_owned();
+        if !conditional_elements.contains(element_id.as_str())
+            || !conditional_owner_ids.insert(owner_id.clone())
+            || conditional_owners_by_element_id
+                .insert(element_id, owner_id)
+                .is_some()
+        {
+            return Err(issue(
+                Code::InvalidControlOwner,
+                "conditionalOwners contains an unknown or duplicate owner",
+            ));
+        }
+    }
+    for version in &versions {
+        let Some(chain) = version.control.get("ownerChain").and_then(Value::as_array) else {
+            continue;
+        };
+        for owner in chain {
+            if owner.get("kind").and_then(Value::as_str) == Some("conditionalBranch") {
+                let id = owner
+                    .get("ownerStatementId")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default();
+                if !conditional_owner_ids.contains(id) {
+                    return Err(issue(
+                        Code::InvalidControlOwner,
+                        "conditional owner chain has no matching conditionalOwners entry",
+                    ));
+                }
+            }
+        }
+    }
     let evaluation_limit_source_order = object
         .get("evaluationLimitSourceOrder")
         .map(|value| integer(value, "evaluationLimitSourceOrder"))
@@ -554,5 +644,6 @@ pub(crate) fn validate_binding_versions_payload(
         declared_types,
         element_source_orders,
         evaluation_limit_source_order,
+        conditional_owners_by_element_id,
     })
 }

@@ -4,6 +4,7 @@ import { emptyDocument } from "../dsl/dslDocumentTestUtils";
 import { canUseRustEvaluationForElements } from "./evaluationEngine";
 import { evaluateElements, type EvaluateElementsOptions } from "./evaluate";
 import { buildConditionalGroupConditionsByElementId } from "./controlBooleanRuntime";
+import { buildConditionalMutationOwners, conditionalOwnerIdByElementId } from "../scalars/conditionalMutationControl";
 import { buildTextTemplateEntriesByElementId } from "./textTemplateRuntime";
 
 const compileCanonical = (source: string): LastGoodDslDocument => {
@@ -25,6 +26,13 @@ const optionsFor = (compiled: LastGoodDslDocument): EvaluateElementsOptions => {
     scalarProgram: compiled.scalarProgram,
     bindingVersions: compiled.bindingVersions,
     statementInfoByElementId: compiled.statementMap.byElementId,
+    statementIdByStatementIndex: compiled.statementMap.statementIdByStatementIndex,
+    conditionalOwnerStatementIdByElementId: compiled.bindingVersions
+      ? conditionalOwnerIdByElementId(buildConditionalMutationOwners(
+          compiled.bindingVersions, compiled.document.elements, compiled.statementMap.byElementId,
+          compiled.statementMap.statementIdByStatementIndex
+        ))
+      : undefined,
     conditionalGroupConditionsByElementId: buildConditionalGroupConditionsByElementId(
       compiled.conditionalGroupConditions ?? new Map(),
       compiled.statementMap.elementIdByStatementIndex
@@ -56,7 +64,7 @@ describe("Task 31 linear mutation production wiring", () => {
     ].join("\n"));
 
     expect(canUseRustEvaluationForElements(linear.document.elements, optionsFor(linear))).toBe(true);
-    expect(canUseRustEvaluationForElements(controlled.document.elements, optionsFor(controlled))).toBe(false);
+    expect(canUseRustEvaluationForElements(controlled.document.elements, optionsFor(controlled))).toBe(true);
   });
 
   it("advances binding slots with source order: A sees old value, B sees set value, and set reads the live legacy measurement", () => {
@@ -165,5 +173,31 @@ describe("Task 31 linear mutation production wiring", () => {
     expect(result.computedGeometry.has(elementId(compiled, "ThenBefore"))).toBe(false);
     expect(result.computedGeometry.has(elementId(compiled, "ThenAfter"))).toBe(true);
     expect(result.computedGeometry.has(elementId(compiled, "ElseAfter"))).toBe(false);
+  });
+
+  it("uses the just-advanced slot and live legacy measurement once at the conditional opener", () => {
+    const compiled = compileCanonical([
+      "nui 3",
+      "point P = coordinate(x: 0 y: 0)",
+      "point Q = coordinate(x: 3 y: 4)",
+      "var d = pointDistance(point1: P point2: Q state: hidden)",
+      "let flag: boolean = false",
+      "let result: number = 0",
+      "set flag = @d == 5",
+      "if C (@flag) {",
+      "  set result = @d + 2",
+      "} else {",
+      "  set result = 99",
+      "}"
+    ].join("\n"));
+    const result = evaluateElements(compiled.document.elements, optionsFor(compiled));
+    const resultBinding = compiled.bindingVersions!.versions.find((version) =>
+      version.kind === "declare" && version.bindingId !== compiled.bindingVersions!.versions[0].bindingId
+    )!;
+
+    expect(result.errors).toEqual([]);
+    expect(result.computedScalarBindings?.get(resultBinding.bindingId)).toMatchObject({ value: { value: 7 } });
+    const inactive = compiled.bindingVersions!.versions.find((version) => version.kind === "set" && version.expression.kind === "numberLiteral" && version.expression.value === 99)!;
+    expect(result.computedScalarBindingVersions?.get(inactive.id)).toMatchObject({ status: "inactive-control" });
   });
 });

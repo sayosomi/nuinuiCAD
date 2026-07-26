@@ -5,6 +5,10 @@ import { loadCommandRibbonSettings } from "../commandRibbons/commandRibbonSettin
 import { registerUnsavedChangesGuard } from "../document/unsavedChangesGuard";
 import { buildPropertyBindingRuntimeEntries } from "../geometry/propertyBindingRuntime";
 import {
+  buildConditionalMutationOwners,
+  conditionalOwnerIdByElementId
+} from "../scalars/conditionalMutationControl";
+import {
   buildConditionalGroupConditionsByElementId,
   buildControlBooleanRuntimeEntries
 } from "../geometry/controlBooleanRuntime";
@@ -133,6 +137,7 @@ export const AppLayout = () => {
   const canonicalElements = useCadDocumentStore((state) => state.doc.document.elements);
   const elementIdByStatementIndex = useCadDocumentStore((state) => state.doc.statementMap.elementIdByStatementIndex);
   const statementInfoByElementId = useCadDocumentStore((state) => state.doc.statementMap.byElementId);
+  const statementIdByStatementIndex = useCadDocumentStore((state) => state.doc.statementMap.statementIdByStatementIndex);
   const shortcutSettings = useCadUiStore((state) => state.shortcutSettings);
   const showPrintLayout = useCadUiStore((state) => state.showPrintLayout);
   const showPrintPreviewWindow = useCadUiStore((state) => state.showPrintPreviewWindow);
@@ -213,11 +218,19 @@ export const AppLayout = () => {
         : undefined,
     [scalarProgram, propertyBindings, elementIdByStatementIndex, canonicalElements]
   );
+  const conditionalOwnerStatementIdByElementId = useMemo(
+    () => bindingVersions
+      ? conditionalOwnerIdByElementId(buildConditionalMutationOwners(
+          bindingVersions, canonicalElements, statementInfoByElementId, statementIdByStatementIndex
+        ))
+      : undefined,
+    [bindingVersions, canonicalElements, statementInfoByElementId, statementIdByStatementIndex]
+  );
   const evaluationOptions = useMemo(
     () => ({
       evaluationLimitIndex,
       ...(scalarProgram ? { scalarProgram } : {}),
-      ...(bindingVersions ? { bindingVersions, statementInfoByElementId } : {}),
+      ...(bindingVersions ? { bindingVersions, statementInfoByElementId, statementIdByStatementIndex, conditionalOwnerStatementIdByElementId } : {}),
       ...(propertyBindingEntries?.length ? { propertyBindingEntries } : {}),
       ...(controlBooleanEntries?.length ? { controlBooleanEntries } : {}),
       ...(conditionalGroupConditionsByElementId?.size ? { conditionalGroupConditionsByElementId } : {}),
@@ -229,6 +242,8 @@ export const AppLayout = () => {
       scalarProgram,
       bindingVersions,
       statementInfoByElementId,
+      statementIdByStatementIndex,
+      conditionalOwnerStatementIdByElementId,
       propertyBindingEntries,
       controlBooleanEntries,
       conditionalGroupConditionsByElementId,

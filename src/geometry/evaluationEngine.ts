@@ -296,6 +296,8 @@ export const canUseRustEvaluationForElements = (
 ) => {
   if (options.bindingVersions && hasSetVersions(options.bindingVersions) &&
     !isRustLinearMutationEligible(options.bindingVersions)) return false;
+  if (options.bindingVersions?.versions.some((version) => version.control.ownerChain.some((owner) => owner.kind === "conditionalBranch")) &&
+    (!options.statementIdByStatementIndex || !options.conditionalOwnerStatementIdByElementId)) return false;
   const evaluationLimitIndex = Math.min(
     Math.max(options.evaluationLimitIndex ?? elements.length, 0),
     elements.length
@@ -350,7 +352,9 @@ export const evaluateElementsWithRust = async (
   options: EvaluateElementsOptions = {}
 ): Promise<EvaluationResult> => {
   const mutationPayload = options.bindingVersions && isRustLinearMutationEligible(options.bindingVersions)
-    ? buildRustBindingMutationPayload(options.bindingVersions, elements, options.statementInfoByElementId)
+    ? buildRustBindingMutationPayload(
+        options.bindingVersions, elements, options.statementInfoByElementId, options.statementIdByStatementIndex
+      )
     : undefined;
   const payload = await invoke<EvaluationPayload>("evaluate_document", {
     input: {

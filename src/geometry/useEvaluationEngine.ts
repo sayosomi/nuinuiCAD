@@ -88,6 +88,8 @@ export const useEvaluationEngine = (
   const scalarProgram = options.scalarProgram;
   const bindingVersions = options.bindingVersions;
   const statementInfoByElementId = options.statementInfoByElementId;
+  const statementIdByStatementIndex = options.statementIdByStatementIndex;
+  const conditionalOwnerStatementIdByElementId = options.conditionalOwnerStatementIdByElementId;
   const propertyBindingEntries = options.propertyBindingEntries;
   const controlBooleanEntries = options.controlBooleanEntries;
   const conditionalGroupConditionsByElementId = options.conditionalGroupConditionsByElementId;
@@ -97,7 +99,9 @@ export const useEvaluationEngine = (
     () => ({
       evaluationLimitIndex,
       ...(scalarProgram ? { scalarProgram } : {}),
-      ...(bindingVersions ? { bindingVersions, statementInfoByElementId } : {}),
+      ...(bindingVersions ? {
+        bindingVersions, statementInfoByElementId, statementIdByStatementIndex, conditionalOwnerStatementIdByElementId
+      } : {}),
       ...(propertyBindingEntries?.length ? { propertyBindingEntries } : {}),
       ...(controlBooleanEntries?.length ? { controlBooleanEntries } : {}),
       ...(conditionalGroupConditionsByElementId?.size ? { conditionalGroupConditionsByElementId } : {}),
@@ -109,6 +113,8 @@ export const useEvaluationEngine = (
       scalarProgram,
       bindingVersions,
       statementInfoByElementId,
+      statementIdByStatementIndex,
+      conditionalOwnerStatementIdByElementId,
       propertyBindingEntries,
       controlBooleanEntries,
       conditionalGroupConditionsByElementId,
@@ -127,6 +133,9 @@ export const useEvaluationEngine = (
       evaluationLimitIndex,
       scalarProgram,
       bindingVersions,
+      statementIdByStatementIndex: statementIdByStatementIndex ? Array.from(statementIdByStatementIndex) : undefined,
+      conditionalOwnerStatementIdByElementId: conditionalOwnerStatementIdByElementId
+        ? Array.from(conditionalOwnerStatementIdByElementId) : undefined,
       propertyBindingEntries,
       controlBooleanEntries,
       conditionalGroupConditionsByElementId: conditionalGroupConditionsByElementId
@@ -142,6 +151,8 @@ export const useEvaluationEngine = (
       evaluationLimitIndex,
       scalarProgram,
       bindingVersions,
+      statementIdByStatementIndex,
+      conditionalOwnerStatementIdByElementId,
       propertyBindingEntries,
       controlBooleanEntries,
       conditionalGroupConditionsByElementId,

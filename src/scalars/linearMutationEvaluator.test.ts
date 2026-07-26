@@ -72,7 +72,7 @@ describe("incremental linear mutation evaluator", () => {
     ]));
   });
 
-  it("records control-owner versions as skipped without writing a current slot", () => {
+  it("records an unselected conditional branch as inactive without writing a current slot", () => {
     const graph = compile([
       "nui 3",
       "if C (true) {",
@@ -84,9 +84,32 @@ describe("incremental linear mutation evaluator", () => {
     const evaluator = createIncrementalLinearMutationEvaluator(graph, external);
     const final = evaluator.finalize(afterStatement(99));
 
-    expect(final.historyByVersionId.get(declaration.id)).toMatchObject({ status: "skipped-control" });
-    expect(final.historyByVersionId.get(set.id)).toMatchObject({ status: "skipped-control" });
+    expect(final.historyByVersionId.get(declaration.id)).toMatchObject({ status: "inactive-control" });
+    expect(final.historyByVersionId.get(set.id)).toMatchObject({ status: "inactive-control" });
     expect(final.resultsByBindingId.has(declaration.bindingId)).toBe(false);
     expect(evaluator.resolveCurrent(declaration.bindingId)).toMatchObject({ issueCode: "evaluation-binding-version-unavailable" });
+  });
+
+  it("carries an active outer set but retires branch-local slots after the explicit scope exit", () => {
+    const graph = compile([
+      "nui 3",
+      "let value: number = 1",
+      "if C (true) {",
+      "  set value = 2",
+      "  let value: number = 10",
+      "  set value = 11",
+      "}"
+    ].join("\n"));
+    const outer = graph.versions[0];
+    const local = graph.versions.find((version) => version.kind === "declare" && version.bindingId !== outer.bindingId)!;
+    const owner = local.control.ownerChain.at(-1)!;
+    const evaluator = createIncrementalLinearMutationEvaluator(graph, external);
+
+    evaluator.registerConditionalResult(owner.ownerStatementId, "then");
+    const final = evaluator.finalize(afterStatement(99));
+
+    expect(final.resultsByBindingId.get(outer.bindingId)).toMatchObject({ value: { value: 2 } });
+    expect(final.resultsByBindingId.has(local.bindingId)).toBe(false);
+    expect(evaluator.resolveCurrent(local.bindingId)).toMatchObject({ issueCode: "evaluation-binding-version-unavailable" });
   });
 });

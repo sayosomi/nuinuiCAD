@@ -9,6 +9,9 @@ import { emptyDocument } from "../src/dsl/dslDocumentTestUtils";
 import { evaluateElementsReferencePayload } from "../src/geometry/evaluationEngine";
 import { evaluationPayloadToResult, type EvaluationPayload } from "../src/geometry/evaluationPayload";
 import { buildRustBindingMutationPayload } from "../src/geometry/bindingVersionPayload";
+import { buildConditionalGroupConditionsByElementId } from "../src/geometry/controlBooleanRuntime";
+import { buildConditionalMutationOwners, conditionalOwnerIdByElementId } from "../src/scalars/conditionalMutationControl";
+import type { TypedScalarExpression } from "../src/scalars/typedExpressionAst";
 import type { EvaluateElementsOptions } from "../src/geometry/evaluate";
 import type { BindingVersionGraph } from "../src/scalars/bindingVersions";
 import { isRustLinearMutationEligible } from "../src/scalars/linearMutationEvaluator";
@@ -20,6 +23,8 @@ type EvaluationFixture = {
   scalarProgram?: ScalarProgram;
   bindingVersions?: BindingVersionGraph;
   statementInfoByElementId?: ReadonlyMap<string, { statementIndex: number }>;
+  statementIdByStatementIndex?: ReadonlyMap<number, string>;
+  conditionalGroupConditions?: ReadonlyMap<string, TypedScalarExpression>;
 };
 
 const currentDir = dirname(fileURLToPath(import.meta.url));
@@ -44,7 +49,9 @@ const readFixture = (name: string): EvaluationFixture => {
     evaluationLimitIndex: compiled.doc.document.evaluationLimitIndex,
     scalarProgram: compiled.doc.scalarProgram,
     bindingVersions: compiled.doc.bindingVersions,
-    statementInfoByElementId: compiled.doc.statementMap.byElementId
+    statementInfoByElementId: compiled.doc.statementMap.byElementId,
+    statementIdByStatementIndex: compiled.doc.statementMap.statementIdByStatementIndex,
+    conditionalGroupConditions: compiled.doc.conditionalGroupConditions
   };
 };
 
@@ -53,13 +60,25 @@ const optionsFor = (fixture: EvaluationFixture): EvaluateElementsOptions => ({
   ...(fixture.scalarProgram ? { scalarProgram: fixture.scalarProgram } : {}),
   ...(fixture.bindingVersions ? {
     bindingVersions: fixture.bindingVersions,
-    statementInfoByElementId: fixture.statementInfoByElementId
-  } : {})
+    statementInfoByElementId: fixture.statementInfoByElementId,
+    statementIdByStatementIndex: fixture.statementIdByStatementIndex,
+    conditionalOwnerStatementIdByElementId: conditionalOwnerIdByElementId(buildConditionalMutationOwners(
+      fixture.bindingVersions, fixture.elements, fixture.statementInfoByElementId, fixture.statementIdByStatementIndex
+    ))
+  } : {}),
+  ...(fixture.conditionalGroupConditions && fixture.statementInfoByElementId
+    ? { conditionalGroupConditionsByElementId: buildConditionalGroupConditionsByElementId(
+        fixture.conditionalGroupConditions,
+        new Map(Array.from(fixture.statementInfoByElementId, ([elementId, info]) => [info.statementIndex, elementId]))
+      ) }
+    : {})
 });
 
 const evaluateWithRust = (input: EvaluationFixture): EvaluationPayload => {
   const mutationPayload = input.bindingVersions && isRustLinearMutationEligible(input.bindingVersions)
-    ? buildRustBindingMutationPayload(input.bindingVersions, input.elements, input.statementInfoByElementId)
+    ? buildRustBindingMutationPayload(
+        input.bindingVersions, input.elements, input.statementInfoByElementId, input.statementIdByStatementIndex
+      )
     : undefined;
   const output = execFileSync(
     "cargo",
@@ -76,7 +95,13 @@ const evaluateWithRust = (input: EvaluationFixture): EvaluationPayload => {
       input: JSON.stringify({
         elements: input.elements,
         evaluationLimitIndex: input.evaluationLimitIndex,
-        ...(mutationPayload ? { bindingVersions: mutationPayload } : input.scalarProgram ? { scalarProgram: input.scalarProgram } : {})
+        ...(mutationPayload ? { bindingVersions: mutationPayload } : input.scalarProgram ? { scalarProgram: input.scalarProgram } : {}),
+        ...(input.conditionalGroupConditions && input.statementInfoByElementId ? {
+          conditionExpressions: Array.from(buildConditionalGroupConditionsByElementId(
+            input.conditionalGroupConditions,
+            new Map(Array.from(input.statementInfoByElementId, ([elementId, info]) => [info.statementIndex, elementId]))
+          ), ([elementId, expression]) => ({ elementId, expression }))
+        } : {})
       })
     }
   );
