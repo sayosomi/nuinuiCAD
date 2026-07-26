@@ -106,9 +106,6 @@ impl ScalarMutationResolver<'_> {
         };
         self.push_loop_conditional_results();
         let outcome = environment.run(&plan, |environment, context| {
-            if !self.is_before_cutoff(context.statement.source_order()) {
-                return Ok(ForGroupMutationRunOutcome::Stopped);
-            }
             if active_iteration != Some(context.iteration_index) {
                 active_iteration = Some(context.iteration_index);
                 version_index = 0;
@@ -120,12 +117,14 @@ impl ScalarMutationResolver<'_> {
             {
                 let version_index_in_program = loop_versions[version_index];
                 version_index += 1;
-                if !self
+                if self
                     .is_before_cutoff(self.program.versions[version_index_in_program].source_order)
                 {
-                    return Ok(ForGroupMutationRunOutcome::Stopped);
+                    self.execute_for_group_version(version_index_in_program, environment, state)?;
                 }
-                self.execute_for_group_version(version_index_in_program, environment, state)?;
+            }
+            if !self.is_before_cutoff(context.statement.source_order()) {
+                return Ok(ForGroupMutationRunOutcome::Stopped);
             }
             execute_statement(self, environment, context, state)
         });

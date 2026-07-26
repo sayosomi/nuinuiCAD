@@ -168,23 +168,28 @@ impl<'a> ScalarMutationResolver<'a> {
             self.frames.remove(index);
         }
     }
-    pub(super) fn control_active(&self, version: &ValidatedBindingVersion) -> bool {
+    fn inactive_control_status(&self, version: &ValidatedBindingVersion) -> Option<&'static str> {
         let Some(chain) = version.control.get("ownerChain").and_then(Value::as_array) else {
-            return false;
+            return Some("inactive-control");
         };
-        chain.iter().all(|owner| {
-            owner.get("kind").and_then(Value::as_str) == Some("conditionalBranch")
-                && self
-                    .conditional_result(
-                        owner
-                            .get("ownerStatementId")
-                            .and_then(Value::as_str)
-                            .unwrap_or_default(),
-                    )
-                    .is_some_and(|result| {
-                        result.as_deref() == owner.get("branch").and_then(Value::as_str)
-                    })
-        })
+        for owner in chain {
+            match owner.get("kind").and_then(Value::as_str) {
+                Some("forGroup") => return Some("skipped-control"),
+                Some("conditionalBranch")
+                    if self
+                        .conditional_result(
+                            owner
+                                .get("ownerStatementId")
+                                .and_then(Value::as_str)
+                                .unwrap_or_default(),
+                        )
+                        .is_some_and(|result| {
+                            result.as_deref() == owner.get("branch").and_then(Value::as_str)
+                        }) => {}
+                _ => return Some("inactive-control"),
+            }
+        }
+        None
     }
     pub(super) fn push_loop_conditional_results(&mut self) {
         self.loop_conditional_results.push(HashMap::new());
@@ -205,8 +210,8 @@ impl<'a> ScalarMutationResolver<'a> {
             .or_else(|| self.conditional_results.get(owner_id))
     }
     fn execute(&mut self, version: &ValidatedBindingVersion, state: &EvaluationState) {
-        if !self.control_active(version) {
-            self.history.push(json!({"versionId": version.version_id, "statementId": version.statement_id, "bindingId": version.binding_id, "status": "inactive-control"}));
+        if let Some(status) = self.inactive_control_status(version) {
+            self.history.push(json!({"versionId": version.version_id, "statementId": version.statement_id, "bindingId": version.binding_id, "status": status}));
             return;
         }
         let evaluation = match (&version.initial_state, &version.kind) {

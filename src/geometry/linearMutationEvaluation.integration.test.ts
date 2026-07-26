@@ -55,6 +55,56 @@ const elementId = (compiled: LastGoodDslDocument, name: string): string => {
 };
 
 describe("Task 31 linear mutation production wiring", () => {
+  it("keeps versions before an in-loop @stop and excludes later loop work", () => {
+    const compiled = compileCanonical([
+      "nui 3",
+      "let total: number = 0",
+      "for Loop (i from: 0 count: 3 step: 1) {",
+      "  set total = @total + 1",
+      "  @stop",
+      "  point P = coordinate(x: @total y: 0)",
+      "}"
+    ].join("\n"));
+    const result = evaluateElements(compiled.document.elements, optionsFor(compiled));
+    const [declaration, set] = compiled.bindingVersions!.versions;
+
+    expect(result.computedScalarBindings?.get(declaration.bindingId)).toMatchObject({ value: { value: 1 } });
+    expect(result.computedScalarBindingVersions?.get(set.id)).toMatchObject({ status: "executed" });
+    expect(result.computedGeometry.has(elementId(compiled, "P"))).toBe(false);
+  });
+
+  it("keeps a one-iteration loop version scheduler-owned", () => {
+    const compiled = compileCanonical([
+      "nui 3",
+      "let total: number = 0",
+      "for Loop (i from: 0 count: 1 step: 1) {",
+      "  set total = @total + 1",
+      "  point P = coordinate(x: @total y: 0)",
+      "}"
+    ].join("\n"));
+    const result = evaluateElements(compiled.document.elements, optionsFor(compiled));
+    const [declaration, set] = compiled.bindingVersions!.versions;
+
+    expect(result.computedScalarBindings?.get(declaration.bindingId)).toMatchObject({ value: { value: 1 } });
+    expect(result.computedScalarBindingVersions?.get(set.id)).toMatchObject({ status: "executed" });
+  });
+
+  it("records a disabled loop version as skipped-control", () => {
+    const compiled = compileCanonical([
+      "nui 3",
+      "let total: number = 0",
+      "for Loop (i from: 0 count: 2 step: 1 state: disabled) {",
+      "  set total = @total + 1",
+      "  point P = coordinate(x: @total y: 0)",
+      "}"
+    ].join("\n"));
+    const result = evaluateElements(compiled.document.elements, optionsFor(compiled));
+    const [declaration, set] = compiled.bindingVersions!.versions;
+
+    expect(result.computedScalarBindings?.get(declaration.bindingId)).toMatchObject({ value: { value: 0 } });
+    expect(result.computedScalarBindingVersions?.get(set.id)).toMatchObject({ status: "skipped-control" });
+  });
+
   it("drives loop versions at generated-element boundaries without retroactive property reads", () => {
     const compiled = compileCanonical([
       "nui 3",

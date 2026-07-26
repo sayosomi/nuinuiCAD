@@ -1,0 +1,6 @@
+nui 3
+let total: number = 0
+for Loop (i from: 0 count: 2 step: 1 state: disabled) {
+  set total = @total + 1
+  point P = coordinate(x: @total y: 0)
+}

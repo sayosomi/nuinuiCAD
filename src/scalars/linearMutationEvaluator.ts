@@ -275,10 +275,24 @@ export const createIncrementalLinearMutationEvaluator = (
     const iterationConditionalResults = new Map<string, "then" | "else" | null>();
     const runVersionsBefore = (sourceOrder: number, frame: ForGroupMutationFrame<ScalarEvaluation>) => {
       while (versionIndex < loopVersions.length && loopVersions[versionIndex].sourceOrder < sourceOrder) {
-        executeLoopVersion(loopVersions[versionIndex], frame);
+        const version = loopVersions[versionIndex];
         versionIndex += 1;
+        if (graph.evaluationLimitSourceOrder === undefined || version.sourceOrder < graph.evaluationLimitSourceOrder) {
+          executeLoopVersion(version, frame);
+        }
       }
     };
+    // The regular cursor must never traverse this static body range. This is
+    // deliberately index-only: execution and history stay owned by the loop
+    // scheduler (or remain absent when the scheduler does not run).
+    if (!outerEnvironment) {
+      const exit = plan.statements.find((statement) => statement.kind === "exit")?.sourceOrder;
+      if (exit !== undefined) {
+        while (nextVersionIndex < graph.versions.length && graph.versions[nextVersionIndex].sourceOrder < exit) {
+          nextVersionIndex += 1;
+        }
+      }
+    }
     activeLoopEnvironment = environment;
     activeLoopDepth += 1;
     loopConditionalResults.push(iterationConditionalResults);
@@ -301,17 +315,6 @@ export const createIncrementalLinearMutationEvaluator = (
       });
       if (!outerEnvironment) {
         for (const [bindingId, value] of environment.finalSlots()) currentByBindingId.set(bindingId, value);
-      }
-      // The ordinary cursor must never replay loop-body versions after their
-      // per-iteration scheduler has run. Nested runs share the outer source
-      // range, so only the outermost run consumes the static body once.
-      if (activeLoopDepth === 1) {
-        const exit = plan.statements.find((statement) => statement.kind === "exit")?.sourceOrder;
-        if (exit !== undefined) {
-          while (nextVersionIndex < graph.versions.length && graph.versions[nextVersionIndex].sourceOrder < exit) {
-            nextVersionIndex += 1;
-          }
-        }
       }
       return outcome;
     } finally {

@@ -676,6 +676,10 @@ fn evaluate_document_input_with_scalar_program(
                 let exit_source_order = resolver
                     .for_group_exit_source_order(&id)
                     .expect("validated forGroup owner must have an exit source order");
+                // Skip the loop's static range before running generated
+                // statements. This advances only the ordinary cursor; all
+                // evaluation and history remain scheduler-owned.
+                resolver.consume_for_group_source_range(exit_source_order);
                 let mut environment = resolver.begin_for_group_environment();
                 let mut runtime = ForGroupMutationRuntime::new(
                     &original_elements,
@@ -704,7 +708,6 @@ fn evaluate_document_input_with_scalar_program(
                     )
                     .expect("validated forGroup scheduler must not mutate an iteration binding");
                 resolver.commit_for_group_environment(&environment);
-                resolver.consume_for_group_source_range(exit_source_order);
                 if outcome == ForGroupMutationRunOutcome::Stopped {
                     break 'elements;
                 }
