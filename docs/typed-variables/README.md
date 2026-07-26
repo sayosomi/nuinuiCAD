@@ -50,7 +50,7 @@
 | 25 | [boolean control-flow runtime](tasks/25-boolean-control-flow-runtime.md) | control flow | 18,21,22 | gated control runtime | `typed-vars/25-boolean-control-flow` | 完了 |
 | 26 | [text template analysis](tasks/26-text-template-analysis.md) | template/parser | 09,12,15 | analysis only | `typed-vars/26-template-analysis` | 完了 |
 | 27 | [text template TS evaluation](tasks/27-text-template-ts-evaluation.md) | reference evaluation | 16,20,26 | connected to live document (TS-reference only; Rust gated off) | `typed-vars/27-template-ts` | 完了 |
-| 28 | [text template Rust parity](tasks/28-text-template-rust-parity.md) | production evaluation | 18,21,27 | gated Rust path | `typed-vars/28-template-rust` | 未着手 |
+| 28 | [text template Rust parity](tasks/28-text-template-rust-parity.md) | production evaluation | 18,21,27 | gated Rust path | `typed-vars/28-template-rust` | 完了 |
 | 29 | [set syntax/resolution](tasks/29-set-syntax-resolution.md) | DSL/binding analysis | 10,12,15,19 | gated analysis | `typed-vars/29-set-syntax` | 完了 |
 | 30 | [binding version IR](tasks/30-binding-version-ir.md) | mutation core | 29 | gated IR | `typed-vars/30-binding-versions` | 完了 |
 | 31 | [linear mutation TS](tasks/31-linear-mutation-ts.md) | reference mutation | 16,20,30 | TS reference path; linear set documents remain Rust-gated until 32 | `typed-vars/31-linear-mutation-ts` | 完了 |
@@ -251,7 +251,7 @@ Task 20/21のconst runtime pathはTask 31/32へ、Task 46のnui 3 persistence pa
 
 ## 次に実行可能なtask
 
-直近は28、42、30(29完了により着手可能)。23・24・25・26・27・29は完了済み。Task 21でRust-first `evaluate_document(input)` がTask 19の解決済み`scalar_program`を評価し、`computedScalarBindings`をTS payloadへ返す。22の完了後に23〜25、26/27完了後に28、29〜31完了後に32がこのbinding environmentを再利用し、source再parse・名前再解決・legacy fallbackを追加しない。
+直近は42。23〜35は完了済み。Task 21/32以降のRust-first `evaluate_document(input)` は、解決済み`scalar_program`または`bindingVersions`を評価し、`computedScalarBindings`をTS payloadへ返す。text templateも同じ解決済みASTを渡し、Rustでsource再parse・名前再解決・legacy fallbackを追加しない。
 
 ### Task 22完了時点の引き継ぎ(23〜26向け)
 
@@ -319,7 +319,15 @@ Task 26の`TextTemplateAst`をTS reference評価へ接続し、AppLayoutの生�
 - **`evaluate.ts`**に`textTemplateEntriesByElementId`(scalarProgram不要)と`textPropertyBindingEntries`(`propertyBindingEntries`/`controlBooleanEntries`と同じ「scalarProgramなしなら投げる」guard付き)を追加。フェイルラウドな`resolveScalarBindingForText`フォールバック(scalarProgramが無いのにtyped holeに遭遇したら例外)は、"typed holeが存在するならtyped宣言がありscalarProgramもある"という不変条件が破られた場合のためのdefensive throw。
 - **production wiring**: `AppLayout.tsx`は`state.doc.textTemplates`を他の`doc.*`フィールドと同じ場所で読み、`textTemplateEntriesByElementId`/`textPropertyBindingEntries`を他3つのentry builderと並ぶ`useMemo`で構築して`evaluationOptions`へ足す(文書更新時にだけ再構築、render/evaluationごとの再scanなし)。`useEvaluationEngine.ts`はこの2フィールドを内部の`evaluationOptions`memoと`requestKey`(Mapは`Array.from`)の両方へ通す。**Rust IPC(`evaluateElementsWithRust`の`invoke`payload、`EvaluateDocumentInput`型)へは一切追加していない** — Rustはこの2フィールドの存在を知らないまま。
 - **Rust-eligibility gate**: `text`は元々`rustSupportedElementTypes`に含まれておらず、text要素を含む文書は既に常に`rustEligible=false`だった。それでも`evaluationEngine.ts`に`hasUnsupportedTypedTextContent`という明示的なチェックを追加した(`textTemplateHasTypedHole`+`textPropertyBindingEntries`の`elementId`集合を見る) — 将来`text`へbaseline(legacy-onlyの)Rust対応が28より先に入っても、typed hole/裸bindingを持つ文書だけは引き続きTS referenceへ固定されるようにするための、意図的な冗長ガード。`canUseRustEvaluationForElements`の`.every()`が偽になれば`useEvaluationEngine.ts`はどのmodeでも(`reference`/`parity`/`shadow`/`rust`)Rustを一切呼ばず`referenceEvaluation`だけを使うため、parity/shadow modeで未対応Rust結果を採用してしまう経路も存在しない。
-- Task 28は: Rust側に`text_templates`/`text_property_bindings`相当のpayload validationと評価器を実装し、`EvaluateDocumentInput`/`evaluateElementsWithRust`へ実際にフィールドを追加し、`hasUnsupportedTypedTextContent`を対応済みの形へ緩和または削除し、`AppLayout.tsx`のscalarProgram/propertyBindings同様の「Rust側が追いついたら本当のparity対象に含める」を行う。TS reference側の型・関数はすべて再利用でき、Rust側の実装だけが新規責務になる。
+
+### Task 28完了時点の引き継ぎ(45/48/49向け)
+
+RustはTS compile済み`TextTemplateAst`だけを評価する。`textTemplates`はliteral/legacy hole/typed ASTの縮小payload、`textPropertyBindings`は`text.text`専用allowlistであり、どちらもsource scan・parse・名前解決を行わない。
+
+- payload validationはtemplate owner/type、重複ID、segment shape、typed hole root typeをfail-closedで検証する。typed holeは`scalarProgram`または`bindingVersions`がある場合だけ受理し、bare `text.text` bindingはstring型かつ既知binding IDだけを受理する。
+- Rust evaluatorは`ScalarDocumentBindingResolver`を通すため、declaration-only・set mutation・conditional mutation・forGroup iteration-local bindingのいずれでも現行slotを読む。forGroup generated/nested textはtemplate element IDでcompiled templateを検索する。
+- `text`はnui 3のcompiled templateまたはbare binding entryを持つ場合だけRust eligible。v2 textにはentryが生成されないため、従来のTS経路を維持する。
+- `textPropertyBindings`はvalidation後に既存property materializationへ合流し、別のlegacy adapterやfallbackは設けない。Task 45/48/49はtext geometry/errorとbinding historyをこの経路のまま検証できる。
 
 ### Task 29完了時点の引き継ぎ(30/40/43向け)
 

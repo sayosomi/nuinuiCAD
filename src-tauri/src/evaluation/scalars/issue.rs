@@ -35,6 +35,7 @@ pub(crate) enum ScalarPayloadIssueCode {
     InvalidSourceOrder,
     InvalidControlOwner,
     InvalidElementSourceOrder,
+    TypedHoleRequiresScalarRuntime,
 }
 
 impl ScalarPayloadIssueCode {
@@ -65,6 +66,9 @@ impl ScalarPayloadIssueCode {
             Self::InvalidSourceOrder => "scalar-payload-invalid-source-order",
             Self::InvalidControlOwner => "scalar-payload-invalid-control-owner",
             Self::InvalidElementSourceOrder => "scalar-payload-invalid-element-source-order",
+            Self::TypedHoleRequiresScalarRuntime => {
+                "scalar-payload-typed-hole-requires-scalar-runtime"
+            }
         }
     }
 }

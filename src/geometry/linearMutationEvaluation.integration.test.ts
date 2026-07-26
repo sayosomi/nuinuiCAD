@@ -221,9 +221,7 @@ describe("Task 31 linear mutation production wiring", () => {
     expect(result.computedScalarBindingVersions?.get(set.id)).toMatchObject({
       status: "executed", statementId: set.id, bindingId: declaration.bindingId, evaluation: { value: { value: 6 } }
     });
-    // text remains outside Rust support until Task 28, independently of the
-    // now-supported linear binding-version payload.
-    expect(canUseRustEvaluationForElements(compiled.document.elements, options)).toBe(false);
+    expect(canUseRustEvaluationForElements(compiled.document.elements, options)).toBe(true);
   });
 
   it("does not execute a set at or after @stop, including during finalization", () => {

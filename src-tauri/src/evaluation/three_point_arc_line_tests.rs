@@ -52,6 +52,8 @@ fn evaluates_three_point_arc_line() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements: base_three_point_arc(),
         evaluation_limit_index: None,
         scalar_expression_payload: None,
@@ -84,6 +86,8 @@ fn evaluates_three_point_arc_wrap_and_measurement_reference() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements: vec![
             free_point("p1", "点1", 20.0, 0.0),
             free_point("p2", "点2", 0.0, -20.0),
@@ -131,6 +135,8 @@ fn reports_three_point_arc_dependency_that_appears_too_late() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements: vec![
             free_point("p1", "点1", 10.0, 0.0),
             element(json!({
@@ -167,6 +173,8 @@ fn reports_three_point_arc_geometry_error_for_collinear_points() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements: vec![
             free_point("p1", "点1", 0.0, 0.0),
             free_point("p2", "点2", 10.0, 10.0),
@@ -207,6 +215,8 @@ fn evaluates_three_point_arc_numeric_variables_and_expressions() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements: vec![
             free_point("p1", "点1", 10.0, 0.0),
             free_point("p2", "点2", 0.0, -10.0),
@@ -308,6 +318,8 @@ fn allows_supported_point_elements_to_reference_three_point_arc() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements,
         evaluation_limit_index: None,
         scalar_expression_payload: None,

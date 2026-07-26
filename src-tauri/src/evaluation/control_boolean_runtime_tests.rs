@@ -24,6 +24,8 @@ fn input(
         property_bindings: None,
         control_boolean_bindings,
         condition_expressions,
+        text_templates: None,
+        text_property_bindings: None,
     }
 }
 

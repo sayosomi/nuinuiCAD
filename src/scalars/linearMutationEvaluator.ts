@@ -129,7 +129,6 @@ export const createIncrementalLinearMutationEvaluator = (
   ).map((version) => version.bindingId);
   let nextVersionIndex = 0;
   let activeLoopEnvironment: ReturnType<typeof createForGroupMutationEnvironment<ScalarEvaluation>> | undefined;
-  let activeLoopDepth = 0;
 
   const conditionalResultFor = (ownerStatementId: string) => {
     for (let index = loopConditionalResults.length - 1; index >= 0; index -= 1) {
@@ -294,7 +293,6 @@ export const createIncrementalLinearMutationEvaluator = (
       }
     }
     activeLoopEnvironment = environment;
-    activeLoopDepth += 1;
     loopConditionalResults.push(iterationConditionalResults);
     try {
       const outcome = environment.run({
@@ -319,7 +317,6 @@ export const createIncrementalLinearMutationEvaluator = (
       return outcome;
     } finally {
       loopConditionalResults.pop();
-      activeLoopDepth -= 1;
       activeLoopEnvironment = outerEnvironment;
     }
   };
