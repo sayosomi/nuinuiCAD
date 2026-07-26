@@ -69,6 +69,8 @@ fn splits_line_and_updates_base_geometry() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements: vec![
             free_point("a", "A", 0.0, 0.0),
             free_point("b", "B", 100.0, 0.0),
@@ -99,6 +101,8 @@ fn rejects_split_point_outside_or_at_endpoint() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements: vec![
             free_point("a", "A", 0.0, 0.0),
             free_point("b", "B", 100.0, 0.0),
@@ -121,6 +125,8 @@ fn rejects_split_point_outside_or_at_endpoint() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements: vec![
             free_point("a", "A", 0.0, 0.0),
             free_point("b", "B", 100.0, 0.0),
@@ -145,6 +151,8 @@ fn splits_arc_line() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements: vec![
             free_point("center", "中心", 0.0, 0.0),
             element(json!({
@@ -188,6 +196,8 @@ fn splits_bezier_curve() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements: vec![
             free_point("start", "始点", 0.0, 0.0),
             free_point("end", "終点", 100.0, 0.0),
@@ -239,6 +249,8 @@ fn splits_bezier_curve_at_intersection_with_angle_line() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements: vec![
             free_point("b", "点B", 28.931366411079747, -77.9400300699557),
             free_point("c", "点C", 176.6944080265404, -62.993702802121724),
@@ -324,6 +336,8 @@ fn splits_offset_line() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements: vec![
             free_point("a", "A", 0.0, 0.0),
             free_point("b", "B", 100.0, 0.0),
@@ -365,6 +379,8 @@ fn reports_base_and_split_point_dependencies() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements: vec![split_line("split", "line", "p")],
         evaluation_limit_index: None,
         scalar_expression_payload: None,
@@ -378,6 +394,8 @@ fn reports_base_and_split_point_dependencies() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements: vec![
             free_point("a", "A", 0.0, 0.0),
             free_point("b", "B", 100.0, 0.0),
@@ -399,6 +417,8 @@ fn split_line_can_feed_downstream_line_helpers() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements: vec![
             free_point("a", "A", 0.0, 0.0),
             free_point("b", "B", 100.0, 0.0),

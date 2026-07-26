@@ -64,6 +64,8 @@ fn evaluates_line_tangent_offset_point_on_line() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements,
         evaluation_limit_index: None,
         scalar_expression_payload: None,
@@ -83,6 +85,8 @@ fn evaluates_line_tangent_offset_point_on_diagonal_line_using_y_up_angles() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements: vec![
             element(json!({
                 "id": "a",
@@ -141,6 +145,8 @@ fn evaluates_line_tangent_offset_point_on_arc_line() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements: vec![
             element(json!({
                 "id": "center",
@@ -195,6 +201,8 @@ fn evaluates_line_tangent_offset_point_on_bezier_intermediate_point_tangent() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements: vec![
             element(json!({
                 "id": "start",
@@ -275,6 +283,8 @@ fn reports_line_tangent_offset_point_base_line_dependency_that_appears_too_late(
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements: vec![
             element(json!({
                 "id": "offset",
@@ -333,6 +343,8 @@ fn reports_line_tangent_offset_point_base_point_dependency() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements,
         evaluation_limit_index: None,
         scalar_expression_payload: None,
@@ -371,6 +383,8 @@ fn reports_line_tangent_offset_point_when_base_point_is_not_on_line() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements,
         evaluation_limit_index: None,
         scalar_expression_payload: None,
@@ -411,6 +425,8 @@ fn evaluates_line_tangent_offset_point_numeric_variables_and_expressions() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements,
         evaluation_limit_index: None,
         scalar_expression_payload: None,

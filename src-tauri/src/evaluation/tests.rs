@@ -75,6 +75,8 @@ fn evaluates_points_lines_variables_and_arcs() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements: vec![
             element(json!({
                 "id": "ease",
@@ -163,6 +165,8 @@ fn evaluates_variable_element_local_numeric_variables() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements: vec![
             element(json!({
                 "id": "size",
@@ -235,6 +239,8 @@ fn evaluates_text_with_anchor_and_numeric_references() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements,
         evaluation_limit_index: None,
         scalar_expression_payload: None,
@@ -257,6 +263,8 @@ fn evaluates_anchorless_text_as_comment_geometry() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements: vec![element(json!({
             "id": "text",
             "name": "コメント",
@@ -286,6 +294,8 @@ fn evaluates_arc_line_with_full_360_degree_sweep() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements: vec![
             element(json!({
                 "id": "a",
@@ -331,6 +341,8 @@ fn evaluates_sqrt_and_pi_numeric_expressions() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements: vec![element(json!({
             "id": "a",
             "name": "点A",
@@ -401,6 +413,8 @@ fn evaluates_numeric_reference_paths_for_geometry_parameters_and_variables() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements,
         evaluation_limit_index: None,
         scalar_expression_payload: None,
@@ -420,6 +434,8 @@ fn reports_negative_sqrt_numeric_expressions() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements: vec![element(json!({
             "id": "a",
             "name": "点A",
@@ -446,6 +462,8 @@ fn reports_too_late_dependency() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements: vec![
             element(json!({
                 "id": "line",
@@ -487,6 +505,8 @@ fn applies_group_visibility_and_enabled_masks() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements: vec![
             element(json!({
                 "id": "group",
@@ -528,6 +548,8 @@ fn evaluates_only_active_conditional_branch() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements: vec![
             element(json!({
                 "id": "if",
@@ -640,6 +662,8 @@ fn evaluates_conditional_group_comparison_expression() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements,
         evaluation_limit_index: None,
         scalar_expression_payload: None,
@@ -701,6 +725,8 @@ fn evaluates_false_conditional_group_comparison_expression() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements,
         evaluation_limit_index: None,
         scalar_expression_payload: None,
@@ -751,6 +777,8 @@ fn does_not_treat_single_equals_as_equality_in_conditional_expression() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements,
         evaluation_limit_index: None,
         scalar_expression_payload: None,
@@ -772,6 +800,8 @@ fn reports_references_to_inactive_conditional_branch() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements: vec![
             element(json!({
                 "id": "if",
@@ -828,6 +858,8 @@ fn marks_a_conditional_group_invalid_when_its_legacy_condition_cannot_be_evaluat
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements: vec![
             element(json!({
                 "id": "if",
@@ -883,6 +915,8 @@ fn evaluates_division_point_by_distance() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements,
         evaluation_limit_index: None,
         scalar_expression_payload: None,
@@ -918,6 +952,8 @@ fn evaluates_division_point_by_ratio() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements,
         evaluation_limit_index: None,
         scalar_expression_payload: None,
@@ -937,6 +973,8 @@ fn reports_division_point_dependency_that_appears_too_late() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements: vec![
             element(json!({
                 "id": "a",
@@ -991,6 +1029,8 @@ fn reports_zero_length_distance_division_point() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements: vec![
             element(json!({
                 "id": "a",
@@ -1047,6 +1087,8 @@ fn evaluates_division_point_numeric_variables_and_expressions() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements,
         evaluation_limit_index: None,
         scalar_expression_payload: None,
@@ -1076,6 +1118,8 @@ fn evaluates_line_division_point_by_distance_from_start() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements,
         evaluation_limit_index: None,
         scalar_expression_payload: None,
@@ -1105,6 +1149,8 @@ fn evaluates_line_division_point_by_ratio_from_end() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements,
         evaluation_limit_index: None,
         scalar_expression_payload: None,
@@ -1139,6 +1185,8 @@ fn evaluates_division_point_with_missing_placement_kind_as_ratio() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements,
         evaluation_limit_index: None,
         scalar_expression_payload: None,
@@ -1169,6 +1217,8 @@ fn evaluates_division_point_with_unrecognized_placement_kind_as_ratio() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements,
         evaluation_limit_index: None,
         scalar_expression_payload: None,
@@ -1198,6 +1248,8 @@ fn evaluates_line_division_point_with_missing_placement_kind_as_ratio() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements,
         evaluation_limit_index: None,
         scalar_expression_payload: None,
@@ -1227,6 +1279,8 @@ fn evaluates_line_division_point_with_unrecognized_placement_kind_as_ratio() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements,
         evaluation_limit_index: None,
         scalar_expression_payload: None,
@@ -1246,6 +1300,8 @@ fn evaluates_line_division_point_on_arc_line() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements: vec![
             element(json!({
                 "id": "center",
@@ -1295,6 +1351,8 @@ fn reports_line_division_point_dependency_that_appears_too_late() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements: vec![
             element(json!({
                 "id": "division",
@@ -1339,6 +1397,8 @@ fn reports_zero_length_line_division_point() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements: vec![
             element(json!({
                 "id": "line",
@@ -1393,6 +1453,8 @@ fn evaluates_line_division_point_numeric_variables_and_expressions() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements,
         evaluation_limit_index: None,
         scalar_expression_payload: None,

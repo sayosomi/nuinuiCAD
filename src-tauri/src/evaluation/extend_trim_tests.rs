@@ -8,6 +8,8 @@ fn extend_trim_extends_line_and_supports_coordinate_target() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements: vec![
             free_point("a", "A", 0.0, 0.0),
             free_point("b", "B", 100.0, 0.0),
@@ -43,6 +45,8 @@ fn extend_trim_reports_line_target_error_and_dependency_error() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements: vec![
             free_point("a", "A", 0.0, 0.0),
             free_point("b", "B", 100.0, 0.0),
@@ -71,6 +75,8 @@ fn extend_trim_reports_line_target_error_and_dependency_error() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements: vec![element(json!({
             "id": "extend",
             "name": "延長短縮",
@@ -94,6 +100,8 @@ fn extend_trim_moves_arc_endpoint() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements: vec![
             free_point("center", "中心", 0.0, 0.0),
             free_point("target", "目標", -10.0, 0.0),
@@ -137,6 +145,8 @@ fn extend_trim_moves_bezier_endpoint_on_tangent() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements: vec![
             free_point("start", "始点", 0.0, 0.0),
             free_point("end", "終点", 100.0, 0.0),
@@ -186,6 +196,8 @@ fn extend_trim_shortens_bezier_to_division_point_on_body() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements: vec![
             free_point("start", "始点", 0.0, 0.0),
             free_point("end", "終点", 100.0, 0.0),
@@ -238,6 +250,8 @@ fn extend_trim_shortens_bezier_to_division_point_on_body() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements: vec![
             free_point("start", "始点", 0.0, 0.0),
             free_point("end", "終点", 100.0, 0.0),
@@ -281,6 +295,8 @@ fn extend_trim_shortens_bezier_start_to_division_point_on_body() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements: vec![
             free_point("start", "始点", 0.0, 0.0),
             free_point("end", "終点", 100.0, 0.0),
@@ -336,6 +352,8 @@ fn extend_trim_shortens_multi_segment_bezier_and_keeps_untouched_segments() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements: vec![
             free_point("a", "点A", 0.0, 0.0),
             free_point("b", "点B", 50.0, 30.0),
@@ -410,6 +428,8 @@ fn extend_trim_bezier_to_opposite_anchor_reports_zero_length_error() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements: vec![
             free_point("start", "始点", 0.0, 0.0),
             free_point("end", "終点", 100.0, 0.0),
@@ -440,6 +460,8 @@ fn extend_trim_shortens_bezier_to_intersection_point_on_body() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements: vec![
             free_point("start", "始点", 0.0, 0.0),
             free_point("end", "終点", 100.0, 0.0),
@@ -494,6 +516,8 @@ fn extend_trim_shortens_arc_to_division_point_on_circle() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements: vec![
             free_point("center", "中心", 0.0, 0.0),
             element(json!({
@@ -550,6 +574,8 @@ fn extend_trim_moves_open_offset_line_and_rejects_closed_offset_line() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements: vec![
             free_point("a", "A", 0.0, 0.0),
             free_point("b", "B", 100.0, 0.0),
@@ -601,6 +627,8 @@ fn extend_trim_moves_open_offset_line_and_rejects_closed_offset_line() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements: vec![
             free_point("a", "A", 0.0, 0.0),
             free_point("b", "B", 100.0, 0.0),
@@ -641,6 +669,8 @@ fn updated_line_can_feed_downstream_rust_elements() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements: vec![
             free_point("a", "A", 0.0, 0.0),
             free_point("b", "B", 100.0, 0.0),
@@ -728,6 +758,8 @@ fn extend_trim_shortens_offset_bezier_and_keeps_untouched_segments_analytic() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements: elements.clone(),
         evaluation_limit_index: None,
         scalar_expression_payload: None,
@@ -759,6 +791,8 @@ fn extend_trim_shortens_offset_bezier_and_keeps_untouched_segments_analytic() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements: extended_elements,
         evaluation_limit_index: None,
         scalar_expression_payload: None,
@@ -793,6 +827,8 @@ fn extend_trim_extends_offset_bezier_endpoint_by_appending_line_segment() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements: elements.clone(),
         evaluation_limit_index: None,
         scalar_expression_payload: None,
@@ -823,6 +859,8 @@ fn extend_trim_extends_offset_bezier_endpoint_by_appending_line_segment() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements: extended_elements,
         evaluation_limit_index: None,
         scalar_expression_payload: None,
