@@ -1,5 +1,6 @@
 //! Task 32/33 in-place mutation cursor. Conditional selection is registered
 //! by Task 25's Rust runtime; this module never parses or evaluates a branch.
+mod for_group_scheduler;
 use super::bindings::ScalarDocumentBindingResolver;
 use super::bindings::{resolve_external_binding, result_for_declared_type, scalar_evaluation_json};
 use super::expression_evaluator::{evaluate_typed_expression, ScalarEvaluationEnvironment};
@@ -10,6 +11,8 @@ use super::types::{BindingId, ScalarEvaluation, ScalarType};
 use crate::evaluation::types::EvaluationState;
 use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet};
+
+pub(crate) use for_group_scheduler::ForGroupMutationStatement;
 
 const VERSION_UNAVAILABLE: &str = "evaluation-binding-version-unavailable";
 
@@ -25,6 +28,7 @@ pub(crate) struct ScalarMutationResolver<'a> {
     next_version_index: usize,
     history: Vec<Value>,
     conditional_results: HashMap<String, Option<String>>,
+    loop_conditional_results: Vec<HashMap<String, Option<String>>>,
     frames: Vec<ScopeFrame>,
 }
 
@@ -36,6 +40,7 @@ impl<'a> ScalarMutationResolver<'a> {
             next_version_index: 0,
             history: Vec::new(),
             conditional_results: HashMap::new(),
+            loop_conditional_results: Vec::new(),
             frames: Vec::new(),
         }
     }
@@ -76,10 +81,14 @@ impl<'a> ScalarMutationResolver<'a> {
         else {
             return;
         };
+        let result = branch.map(str::to_owned);
+        if let Some(results) = self.loop_conditional_results.last_mut() {
+            results.insert(owner_id, result);
+            return;
+        }
         if self.conditional_results.contains_key(&owner_id) {
             return;
         }
-        let result = branch.map(str::to_owned);
         self.conditional_results
             .insert(owner_id.clone(), result.clone());
         let Some(branch) = result else {
@@ -129,7 +138,20 @@ impl<'a> ScalarMutationResolver<'a> {
     pub(crate) fn history(&self) -> Vec<Value> {
         self.history.clone()
     }
-    fn is_before_cutoff(&self, source_order: usize) -> bool {
+    pub(super) fn record_history(&mut self, entry: Value) {
+        let Some(version_id) = entry.get("versionId").and_then(Value::as_str) else {
+            self.history.push(entry);
+            return;
+        };
+        if let Some(index) = self.history.iter().position(|current| {
+            current.get("versionId").and_then(Value::as_str) == Some(version_id)
+        }) {
+            self.history[index] = entry;
+        } else {
+            self.history.push(entry);
+        }
+    }
+    pub(super) fn is_before_cutoff(&self, source_order: usize) -> bool {
         !self
             .program
             .evaluation_limit_source_order
@@ -146,28 +168,50 @@ impl<'a> ScalarMutationResolver<'a> {
             self.frames.remove(index);
         }
     }
-    fn control_active(&self, version: &ValidatedBindingVersion) -> bool {
+    fn inactive_control_status(&self, version: &ValidatedBindingVersion) -> Option<&'static str> {
         let Some(chain) = version.control.get("ownerChain").and_then(Value::as_array) else {
-            return false;
+            return Some("inactive-control");
         };
-        chain.iter().all(|owner| {
-            owner.get("kind").and_then(Value::as_str) == Some("conditionalBranch")
-                && self
-                    .conditional_results
-                    .get(
-                        owner
-                            .get("ownerStatementId")
-                            .and_then(Value::as_str)
-                            .unwrap_or_default(),
-                    )
-                    .is_some_and(|result| {
-                        result.as_deref() == owner.get("branch").and_then(Value::as_str)
-                    })
-        })
+        for owner in chain {
+            match owner.get("kind").and_then(Value::as_str) {
+                Some("forGroup") => return Some("skipped-control"),
+                Some("conditionalBranch")
+                    if self
+                        .conditional_result(
+                            owner
+                                .get("ownerStatementId")
+                                .and_then(Value::as_str)
+                                .unwrap_or_default(),
+                        )
+                        .is_some_and(|result| {
+                            result.as_deref() == owner.get("branch").and_then(Value::as_str)
+                        }) => {}
+                _ => return Some("inactive-control"),
+            }
+        }
+        None
+    }
+    pub(super) fn push_loop_conditional_results(&mut self) {
+        self.loop_conditional_results.push(HashMap::new());
+    }
+    pub(super) fn reset_loop_conditional_results(&mut self) {
+        if let Some(results) = self.loop_conditional_results.last_mut() {
+            results.clear();
+        }
+    }
+    pub(super) fn pop_loop_conditional_results(&mut self) {
+        self.loop_conditional_results.pop();
+    }
+    pub(super) fn conditional_result(&self, owner_id: &str) -> Option<&Option<String>> {
+        self.loop_conditional_results
+            .iter()
+            .rev()
+            .find_map(|results| results.get(owner_id))
+            .or_else(|| self.conditional_results.get(owner_id))
     }
     fn execute(&mut self, version: &ValidatedBindingVersion, state: &EvaluationState) {
-        if !self.control_active(version) {
-            self.history.push(json!({"versionId": version.version_id, "statementId": version.statement_id, "bindingId": version.binding_id, "status": "inactive-control"}));
+        if let Some(status) = self.inactive_control_status(version) {
+            self.history.push(json!({"versionId": version.version_id, "statementId": version.statement_id, "bindingId": version.binding_id, "status": status}));
             return;
         }
         let evaluation = match (&version.initial_state, &version.kind) {
@@ -218,7 +262,7 @@ impl<'a> ScalarMutationResolver<'a> {
         }
         self.history.push(json!({"versionId": version.version_id, "statementId": version.statement_id, "bindingId": version.binding_id, "status": if matches!(evaluation, ScalarEvaluation::Error { .. }) { "poisoned" } else { "executed" }, "evaluation": scalar_evaluation_json(&evaluation)}));
     }
-    fn evaluate(
+    pub(super) fn evaluate(
         &self,
         expression: &super::types::TypedScalarExpression,
         version: &ValidatedBindingVersion,
@@ -234,7 +278,7 @@ impl<'a> ScalarMutationResolver<'a> {
             &version.binding_id,
         )
     }
-    fn lookup_current(&self, binding_id: &str) -> ScalarEvaluation {
+    pub(super) fn lookup_current(&self, binding_id: &str) -> ScalarEvaluation {
         self.current
             .get(binding_id)
             .cloned()

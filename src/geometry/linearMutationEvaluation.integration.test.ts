@@ -5,12 +5,13 @@ import { canUseRustEvaluationForElements } from "./evaluationEngine";
 import { evaluateElements, type EvaluateElementsOptions } from "./evaluate";
 import { buildConditionalGroupConditionsByElementId } from "./controlBooleanRuntime";
 import { buildConditionalMutationOwners, conditionalOwnerIdByElementId } from "../scalars/conditionalMutationControl";
+import { buildForGroupMutationOwners, forGroupMutationOwnerByElementId } from "../scalars/forGroupMutationControl";
 import { buildTextTemplateEntriesByElementId } from "./textTemplateRuntime";
 
 const compileCanonical = (source: string): LastGoodDslDocument => {
   const baseline = regenerateCanonicalFromModel(emptyDocument(), 3);
   const result = compileCanonicalText(baseline, source);
-  expect(result.status).not.toBe("fatal");
+  if (result.status === "fatal") throw new Error(JSON.stringify(result.diagnostics));
   return result.doc;
 };
 
@@ -31,6 +32,12 @@ const optionsFor = (compiled: LastGoodDslDocument): EvaluateElementsOptions => {
       ? conditionalOwnerIdByElementId(buildConditionalMutationOwners(
           compiled.bindingVersions, compiled.document.elements, compiled.statementMap.byElementId,
           compiled.statementMap.statementIdByStatementIndex
+      ))
+      : undefined,
+    forGroupMutationOwnerByElementId: compiled.bindingVersions
+      ? forGroupMutationOwnerByElementId(buildForGroupMutationOwners(
+          compiled.bindingVersions, compiled.document.elements, compiled.statementMap.byElementId,
+          compiled.statementMap.statementIdByStatementIndex
         ))
       : undefined,
     conditionalGroupConditionsByElementId: buildConditionalGroupConditionsByElementId(
@@ -48,7 +55,76 @@ const elementId = (compiled: LastGoodDslDocument, name: string): string => {
 };
 
 describe("Task 31 linear mutation production wiring", () => {
-  it("enables Rust only for a wholly linear set graph", () => {
+  it("keeps versions before an in-loop @stop and excludes later loop work", () => {
+    const compiled = compileCanonical([
+      "nui 3",
+      "let total: number = 0",
+      "for Loop (i from: 0 count: 3 step: 1) {",
+      "  set total = @total + 1",
+      "  @stop",
+      "  point P = coordinate(x: @total y: 0)",
+      "}"
+    ].join("\n"));
+    const result = evaluateElements(compiled.document.elements, optionsFor(compiled));
+    const [declaration, set] = compiled.bindingVersions!.versions;
+
+    expect(result.computedScalarBindings?.get(declaration.bindingId)).toMatchObject({ value: { value: 1 } });
+    expect(result.computedScalarBindingVersions?.get(set.id)).toMatchObject({ status: "executed" });
+    expect(result.computedGeometry.has(elementId(compiled, "P"))).toBe(false);
+  });
+
+  it("keeps a one-iteration loop version scheduler-owned", () => {
+    const compiled = compileCanonical([
+      "nui 3",
+      "let total: number = 0",
+      "for Loop (i from: 0 count: 1 step: 1) {",
+      "  set total = @total + 1",
+      "  point P = coordinate(x: @total y: 0)",
+      "}"
+    ].join("\n"));
+    const result = evaluateElements(compiled.document.elements, optionsFor(compiled));
+    const [declaration, set] = compiled.bindingVersions!.versions;
+
+    expect(result.computedScalarBindings?.get(declaration.bindingId)).toMatchObject({ value: { value: 1 } });
+    expect(result.computedScalarBindingVersions?.get(set.id)).toMatchObject({ status: "executed" });
+  });
+
+  it("records a disabled loop version as skipped-control", () => {
+    const compiled = compileCanonical([
+      "nui 3",
+      "let total: number = 0",
+      "for Loop (i from: 0 count: 2 step: 1 state: disabled) {",
+      "  set total = @total + 1",
+      "  point P = coordinate(x: @total y: 0)",
+      "}"
+    ].join("\n"));
+    const result = evaluateElements(compiled.document.elements, optionsFor(compiled));
+    const [declaration, set] = compiled.bindingVersions!.versions;
+
+    expect(result.computedScalarBindings?.get(declaration.bindingId)).toMatchObject({ value: { value: 0 } });
+    expect(result.computedScalarBindingVersions?.get(set.id)).toMatchObject({ status: "skipped-control" });
+  });
+
+  it("drives loop versions at generated-element boundaries without retroactive property reads", () => {
+    const compiled = compileCanonical([
+      "nui 3",
+      "let value: number = 0",
+      "for Loop (i from: 0 count: 3 step: 1) {",
+      "  set value = @value + 1",
+      "  point P = coordinate(x: 0 y: 0)",
+      "  set value = @value + 10",
+      "}",
+      "point After = coordinate(x: 0 y: 0)"
+    ].join("\n"));
+    const result = evaluateElements(compiled.document.elements, optionsFor(compiled));
+    const value = compiled.bindingVersions!.versions[0].bindingId;
+    const points = [...result.computedGeometry.values()].filter((geometry) => geometry.kind === "point");
+
+    expect(points).toHaveLength(4);
+    expect(points[0]).toMatchObject({ x: 0 });
+    expect(result.computedScalarBindings?.get(value)).toMatchObject({ value: { value: 33 } });
+  });
+  it("enables Rust for canonical controlled and forGroup mutation graphs only", () => {
     const linear = compileCanonical([
       "nui 3",
       "let value: number = 1",
@@ -62,9 +138,64 @@ describe("Task 31 linear mutation production wiring", () => {
       "  set value = 2",
       "}"
     ].join("\n"));
+    const loop = compileCanonical([
+      "nui 3",
+      "let value: number = 0",
+      "for Loop (i from: 0 count: 2 step: 1) {",
+      "  set value = @value + 1",
+      "  point P = coordinate(x: 0 y: 0)",
+      "}"
+    ].join("\n"));
+    const loopWithNestedControl = compileCanonical([
+      "nui 3",
+      "let value: number = 0",
+      "for Loop (i from: 0 count: 2 step: 1) {",
+      "  if C (true) {",
+      "    set value = @value + 1",
+      "  }",
+      "  point P = coordinate(x: 0 y: 0)",
+      "}"
+    ].join("\n"));
+    const loopOptions = optionsFor(loop);
 
     expect(canUseRustEvaluationForElements(linear.document.elements, optionsFor(linear))).toBe(true);
     expect(canUseRustEvaluationForElements(controlled.document.elements, optionsFor(controlled))).toBe(true);
+    expect(canUseRustEvaluationForElements(loop.document.elements, loopOptions)).toBe(true);
+    expect(canUseRustEvaluationForElements(
+      loopWithNestedControl.document.elements, optionsFor(loopWithNestedControl)
+    )).toBe(true);
+    expect(canUseRustEvaluationForElements(loop.document.elements, {
+      ...loopOptions,
+      forGroupMutationOwnerByElementId: undefined
+    })).toBe(false);
+  });
+
+  it("keeps nested conditional results iteration-local while nested loops carry outer slots", () => {
+    const compiled = compileCanonical([
+      "nui 3",
+      "let total: number = 0",
+      "for Outer (i from: 0 count: 2 step: 1) {",
+      "  if Branch (@i == 0) {",
+      "    let scratch: number = @i + 1",
+      "    set total = @total + @scratch",
+      "  } else {",
+      "    set total = @total + 10",
+      "  }",
+      "  for Inner (j from: 0 count: 2 step: 1) {",
+      "    set total = @total + 1",
+      "    point P = coordinate(x: 0 y: 0)",
+      "  }",
+      "}"
+    ].join("\n"));
+    const options = optionsFor(compiled);
+    const result = evaluateElements(compiled.document.elements, options);
+    const total = compiled.bindingVersions!.versions[0].bindingId;
+
+    expect(canUseRustEvaluationForElements(compiled.document.elements, options)).toBe(true);
+    expect(result.errors).toEqual([]);
+    expect(result.computedScalarBindings?.get(total)).toMatchObject({ value: { value: 15 } });
+    // The loop/conditional-local declaration has retired and is not a final binding.
+    expect(result.computedScalarBindings?.size).toBe(1);
   });
 
   it("advances binding slots with source order: A sees old value, B sees set value, and set reads the live legacy measurement", () => {

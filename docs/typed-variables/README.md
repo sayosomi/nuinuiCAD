@@ -57,7 +57,7 @@
 | 32 | [linear mutation Rust parity](tasks/32-linear-mutation-rust-parity.md) | production mutation | 18,21,30,31 | gated Rust path | `typed-vars/32-linear-mutation-rust` | 完了 |
 | 33 | [conditional mutation](tasks/33-conditional-mutation.md) | control mutation | 25,32 | gated TS/Rust path | `typed-vars/33-conditional-mutation` | 完了 |
 | 34 | [forGroup mutation core](tasks/34-forgroup-mutation-core.md) | loop mutation | 30,32,33 | unconnected algorithm | `typed-vars/34-forgroup-mutation-core` | 完了 |
-| 35 | [forGroup mutation integration](tasks/35-forgroup-mutation-integration.md) | loop production | 34 | gated TS/Rust path | `typed-vars/35-forgroup-mutation` | 未着手 |
+| 35 | [forGroup mutation integration](tasks/35-forgroup-mutation-integration.md) | loop production | 34 | gated TS/Rust path | `typed-vars/35-forgroup-mutation` | 完了 |
 | 36 | [typed dependency graph](tasks/36-typed-dependency-graph.md) | dependency model | 13,22,26,29,30 | gated analysis | `typed-vars/36-dependency-graph` | 未着手 |
 | 37 | [typed rename analysis](tasks/37-typed-rename-analysis.md) | rename safety | 36 | gated analysis | `typed-vars/37-rename-analysis` | 未着手 |
 | 38 | [typed rename command](tasks/38-typed-rename-command.md) | command/text splice | 37 | gated command | `typed-vars/38-rename-command` | 未着手 |
@@ -365,6 +365,25 @@ conditional mutation は Task 25 の runtime condition result と Task 30 の ow
 - runner は iteration ごとに fresh frame を enter/leave する。frame は read-only number の iteration binding、同 iteration の local declarations、outer slot を lookup し、local は leave 時（callback error 時を含む）に退役する。outer `let` への set は shared slot map を in-place 更新するため、次 iteration と loop 後へ carry する。iteration binding set は明示拒否する。
 - callback は nested conditional では Task 33 と同じ active-branch-only rule を適用し、nested forGroup は同じ environment の `run` を再入する。inactive branch は callback/slot write/poison を起こさない。core 自身は geometry や condition expression を評価しない。
 - shared fixture `test/fixtures/scalars/for_group_mutation_core.json` を TS/Rust の pure tests が読む。Task 35 はこの contract を維持したまま、generated IDs/rows/masks、enabled/inactive loop、showGenerated、evaluation limit を既存 forGroup runtime 側で統合する。
+
+### Task 35完了時点の引き継ぎ(45/48/49/50向け)
+
+canonicalなforGroup owner graphは、nested conditional、nested forGroup、両者を混在させたowner chainを含んでもRust production schedulerで実行する。Rust eligibilityから除外するのは、compiled element-owner joinの欠落・重複・不整合、またはpayload validationで検出されるmalformed metadataだけである。setなしforGroupとforGroupを持たないmutationの既存eligibilityは変更しない。
+
+- schedulerはiteration-local conditional result stackを持つ。各iterationでbranch結果をresetし、nested runnerは独自のstack entryをpush/popするため、前iterationやouter loopのbranchが漏れない。outer slotはshared environmentでcarryし、loop/branch localはframe leaveで退役する。
+- nested generated forGroupは、generated instance IDとoriginal template IDを分けて展開する。outer schedulerはinner openerだけを担当し、inner descendantsはinner schedulerだけが評価する。inner `Stopped` はTask 34 coreからouter callbackまで伝播し、remaining inner/outer iterationを止める。
+- production integrationはnormal Rust pathでnested conditional + nested forGroupのRust結果採用を確認し、Rust command testはinner exitでのstop伝播を確認する。`for_group_nested_mutation.nui` はこのcanonical graphのTS/Rust shadow parity fixtureである。
+
+#### Task 35 forGroup mutation 測定記録（2026-07-27）
+
+| runtime | 250 rows median / p95 | 1000 rows median / p95 | 250→1000 | Task 34 coreとの差（median / p95） |
+| --- | --- | --- | --- | --- |
+| TS core | 0.0258 / 0.1416 ms | 0.1026 / 0.2686 ms | 3.98x | baseline |
+| TS production scheduler | 1.3734 / 2.4058 ms | 14.8206 / 15.3438 ms | 10.79x | +1.3476 / +2.2642 ms (250), +14.7180 / +15.0752 ms (1000) |
+| Rust core | 0.272959 / 0.274917 ms | 1.085958 / 1.133625 ms | 3.98x | baseline |
+| Rust production scheduler | 16.016750 / 16.181875 ms | 122.401375 / 122.850500 ms | 7.64x | +15.743791 / +15.906958 ms (250), +121.315417 / +121.716875 ms (1000) |
+
+TSはVitest fork single worker・file parallelなし、20 warm-up、21 trials、trialあたり5 runsのworker CPU時間で測定した。Rustは`cargo test ... --ignored --nocapture --test-threads=1`、debug test profile、5 warm-up、21 trials、trialあたり1 evaluationのwall timeで測定した。いずれも1 binding、1 generated point template、in-place `set total`を含む250/1000 generated rowsであり、Task 34 coreとの差は同一測定条件のscalar-only core baselineとの差分である。Task 50がこのbaselineとCI分散を使って回帰gateを決める。
 
 ## Blocking decisions
 

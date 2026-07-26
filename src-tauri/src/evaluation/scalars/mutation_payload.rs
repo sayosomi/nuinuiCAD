@@ -47,6 +47,15 @@ pub(crate) struct ValidatedBindingVersions {
     pub(crate) element_source_orders: HashMap<String, usize>,
     pub(crate) evaluation_limit_source_order: Option<usize>,
     pub(crate) conditional_owners_by_element_id: HashMap<String, String>,
+    pub(crate) for_group_owners_by_element_id: HashMap<String, ValidatedForGroupOwner>,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct ValidatedForGroupOwner {
+    pub(crate) owner_statement_id: String,
+    pub(crate) scope_id: String,
+    pub(crate) exit_source_order: usize,
+    pub(crate) iteration_binding_id: String,
 }
 
 fn string<'a>(json: &'a Value, context: &str) -> Result<&'a str, ScalarPayloadIssue> {
@@ -195,12 +204,6 @@ fn validate_control(json: &Value, scope_id: &str) -> Result<(), ScalarPayloadIss
         return Err(issue(
             Code::InvalidControlOwner,
             "binding version control kind disagrees with ownerChain",
-        ));
-    }
-    if kind == "forGroup" {
-        return Err(issue(
-            Code::InvalidControlOwner,
-            "forGroup binding version execution is not supported",
         ));
     }
     Ok(())
@@ -430,6 +433,7 @@ pub(crate) fn validate_binding_versions_payload(
             "versions",
             "elementSourceOrders",
             "conditionalOwners",
+            "forGroupOwners",
             "evaluationLimitSourceOrder",
         ],
         "binding versions payload",
@@ -481,6 +485,20 @@ pub(crate) fn validate_binding_versions_payload(
         versions.push(version);
     }
     let binding_ids = declared_types.keys().cloned().collect::<HashSet<_>>();
+    // Iteration bindings are issued by the compiler catalog, not by a typed
+    // declaration version. Their exact owner/canonical form is validated with
+    // `forGroupOwners` below; accepting only listed ids here keeps reference
+    // validation fail-closed without forcing a second source parse.
+    let listed_iteration_binding_ids = object
+        .get("forGroupOwners")
+        .and_then(Value::as_array)
+        .map(|owners| {
+            owners
+                .iter()
+                .filter_map(|owner| owner.get("iterationBindingId").and_then(Value::as_str))
+                .collect::<HashSet<_>>()
+        })
+        .unwrap_or_default();
     let legacy_variable_ids = elements
         .iter()
         .filter(|element| element.get("type").and_then(Value::as_str) == Some("variable"))
@@ -496,6 +514,9 @@ pub(crate) fn validate_binding_versions_payload(
             collect_references(expression, &mut references);
             for reference in references {
                 if binding_ids.contains(reference) {
+                    continue;
+                }
+                if listed_iteration_binding_ids.contains(reference) {
                     continue;
                 }
                 if reference
@@ -638,6 +659,121 @@ pub(crate) fn validate_binding_versions_payload(
         .get("evaluationLimitSourceOrder")
         .map(|value| integer(value, "evaluationLimitSourceOrder"))
         .transpose()?;
+    let for_group_json = object
+        .get("forGroupOwners")
+        .unwrap_or(&empty_conditional_owners)
+        .as_array()
+        .ok_or_else(|| issue(Code::InvalidControlOwner, "forGroupOwners must be an array"))?;
+    let for_group_elements = elements
+        .iter()
+        .filter(|element| element.get("type").and_then(Value::as_str) == Some("forGroup"))
+        .filter_map(|element| element.get("id").and_then(Value::as_str))
+        .collect::<HashSet<_>>();
+    let mut for_group_owners_by_element_id = HashMap::new();
+    let mut for_group_owner_ids = HashSet::new();
+    for owner in for_group_json {
+        let owner = as_object(owner, "forGroup mutation owner")?;
+        reject_unexpected_fields(
+            owner,
+            &[
+                "ownerStatementId",
+                "elementId",
+                "scopeId",
+                "exitSourceOrder",
+                "iterationBindingId",
+            ],
+            "forGroup mutation owner",
+        )?;
+        let owner_statement_id = string(
+            require_field(owner, "ownerStatementId", "forGroup mutation owner")?,
+            "forGroup ownerStatementId",
+        )?
+        .to_owned();
+        let element_id = string(
+            require_field(owner, "elementId", "forGroup mutation owner")?,
+            "forGroup elementId",
+        )?
+        .to_owned();
+        let scope_id = string(
+            require_field(owner, "scopeId", "forGroup mutation owner")?,
+            "forGroup scopeId",
+        )?
+        .to_owned();
+        let iteration_binding_id = string(
+            require_field(owner, "iterationBindingId", "forGroup mutation owner")?,
+            "forGroup iterationBindingId",
+        )?
+        .to_owned();
+        let exit_source_order = integer(
+            require_field(owner, "exitSourceOrder", "forGroup mutation owner")?,
+            "forGroup exitSourceOrder",
+        )?;
+        if iteration_binding_id != format!("binding:iteration:{owner_statement_id}") {
+            return Err(issue(
+                Code::InvalidControlOwner,
+                "forGroup owner iterationBindingId is not canonical",
+            ));
+        }
+        if !for_group_elements.contains(element_id.as_str())
+            || !for_group_owner_ids.insert(owner_statement_id.clone())
+            || for_group_owners_by_element_id
+                .insert(
+                    element_id,
+                    ValidatedForGroupOwner {
+                        owner_statement_id,
+                        scope_id,
+                        exit_source_order,
+                        iteration_binding_id,
+                    },
+                )
+                .is_some()
+        {
+            return Err(issue(
+                Code::InvalidControlOwner,
+                "forGroupOwners contains an unknown or duplicate owner",
+            ));
+        }
+    }
+    let mut referenced_for_group_owner_ids = HashSet::new();
+    for version in &versions {
+        let Some(chain) = version.control.get("ownerChain").and_then(Value::as_array) else {
+            continue;
+        };
+        for owner in chain {
+            if owner.get("kind").and_then(Value::as_str) != Some("forGroup") {
+                continue;
+            }
+            let owner_statement_id = owner
+                .get("ownerStatementId")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            let Some(payload_owner) = for_group_owners_by_element_id
+                .values()
+                .find(|candidate| candidate.owner_statement_id == owner_statement_id)
+            else {
+                return Err(issue(
+                    Code::InvalidControlOwner,
+                    "forGroup owner chain has no matching forGroupOwners entry",
+                ));
+            };
+            if owner.get("scopeId").and_then(Value::as_str) != Some(payload_owner.scope_id.as_str())
+                || owner.get("exitSourceOrder").and_then(Value::as_u64)
+                    != Some(payload_owner.exit_source_order as u64)
+            {
+                return Err(issue(
+                    Code::InvalidControlOwner,
+                    "forGroup owner metadata disagrees with ownerChain",
+                ));
+            }
+            referenced_for_group_owner_ids.insert(owner_statement_id.to_owned());
+        }
+    }
+    if referenced_for_group_owner_ids.len() != for_group_owner_ids.len() {
+        return Err(issue(
+            Code::InvalidControlOwner,
+            "forGroupOwners contains an unused owner",
+        ));
+    }
     Ok(ValidatedBindingVersions {
         versions,
         binding_ids,
@@ -645,5 +781,6 @@ pub(crate) fn validate_binding_versions_payload(
         element_source_orders,
         evaluation_limit_source_order,
         conditional_owners_by_element_id,
+        for_group_owners_by_element_id,
     })
 }

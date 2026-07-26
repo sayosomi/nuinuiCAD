@@ -25,6 +25,7 @@ mod errors;
 #[cfg(test)]
 mod extend_trim_tests;
 mod for_group;
+mod for_group_mutation_runtime;
 mod groups;
 mod image_evaluator;
 mod intersection_point_evaluator;
@@ -95,6 +96,7 @@ use control_boolean_runtime::{
 use corner_radius_evaluator::evaluate_corner_radius_arc_line;
 use edge_extend_evaluator::{evaluate_edge, evaluate_extend_trim};
 use for_group::{expand_for_group_iteration, for_group_template_descendant_ids};
+use for_group_mutation_runtime::ForGroupMutationRuntime;
 use groups::{effective_element_ids, group_state_by_element_id};
 use image_evaluator::evaluate_image;
 use intersection_point_evaluator::evaluate_intersection_point;
@@ -117,10 +119,10 @@ use property_binding_runtime::apply_property_bindings;
 use scalars::{
     validate_binding_versions_payload, validate_condition_expressions_payload,
     validate_control_boolean_bindings_payload, validate_property_bindings_payload,
-    validate_scalar_program_payload, validate_typed_expression_payload, ScalarBindingResolver,
-    ScalarDocumentBindingResolver, ScalarMutationResolver, TypedScalarExpression,
-    ValidatedBindingVersions, ValidatedConditionExpression, ValidatedPropertyBinding,
-    ValidatedScalarProgram,
+    validate_scalar_program_payload, validate_typed_expression_payload, ForGroupMutationRunOutcome,
+    ForGroupMutationStatement, ScalarBindingResolver, ScalarDocumentBindingResolver,
+    ScalarMutationResolver, TypedScalarExpression, ValidatedBindingVersions,
+    ValidatedConditionExpression, ValidatedPropertyBinding, ValidatedScalarProgram,
 };
 use split_line_evaluator::evaluate_split_line;
 use text_evaluator::evaluate_text;
@@ -491,6 +493,7 @@ fn evaluate_document_input_with_scalar_program(
     let mut conditional_group_states = HashMap::<ElementId, Option<&'static str>>::new();
     let mut condition_inactive_ids = HashSet::<ElementId>::new();
     let mut effective_enabled_ids = HashSet::<ElementId>::new();
+    let mut effective_enabled_order = Vec::<ElementId>::new();
     let template_descendant_ids = for_group_template_descendant_ids(&state.elements);
     let original_elements = state.elements.clone();
     let mut for_group_generated_rows = Vec::new();
@@ -524,7 +527,7 @@ fn evaluate_document_input_with_scalar_program(
         .map(|entry| (entry.element_id, entry.expression))
         .collect();
 
-    for index in 0..evaluation_limit_index {
+    'elements: for index in 0..evaluation_limit_index {
         let element = state.elements[index].clone();
         let id = match element_id(&element) {
             Some(id) => id,
@@ -562,7 +565,9 @@ fn evaluate_document_input_with_scalar_program(
         if !base_effective_enabled_ids.contains(&id) {
             continue;
         }
-        effective_enabled_ids.insert(id.clone());
+        if effective_enabled_ids.insert(id.clone()) {
+            effective_enabled_order.push(id.clone());
+        }
 
         let Some(local_variables) = evaluate_local_variables(index, &mut state) else {
             continue;
@@ -661,6 +666,54 @@ fn evaluate_document_input_with_scalar_program(
                 for_group_effective_show_generated_ids.push(id.clone());
             }
 
+            if scalar_mutation_resolver
+                .as_ref()
+                .is_some_and(|resolver| resolver.has_for_group_owner(&id))
+            {
+                let resolver = scalar_mutation_resolver
+                    .as_mut()
+                    .expect("forGroup owner requires a mutation resolver");
+                let exit_source_order = resolver
+                    .for_group_exit_source_order(&id)
+                    .expect("validated forGroup owner must have an exit source order");
+                // Skip the loop's static range before running generated
+                // statements. This advances only the ordinary cursor; all
+                // evaluation and history remain scheduler-owned.
+                resolver.consume_for_group_source_range(exit_source_order);
+                let mut environment = resolver.begin_for_group_environment();
+                let mut runtime = ForGroupMutationRuntime::new(
+                    &original_elements,
+                    &base_effective_enabled_ids,
+                    &entries_by_element_id,
+                    &show_generated_by_element_id,
+                    &condition_by_element_id,
+                    &mut effective_visible_element_ids,
+                    &mut effective_enabled_ids,
+                    &mut effective_enabled_order,
+                    &mut conditional_group_states,
+                    &mut condition_inactive_ids,
+                    &mut for_group_generated_rows,
+                    &mut for_group_effective_show_generated_ids,
+                );
+                let outcome = runtime
+                    .run(
+                        resolver,
+                        &mut environment,
+                        &element,
+                        &element,
+                        start,
+                        count as usize,
+                        step,
+                        &mut state,
+                    )
+                    .expect("validated forGroup scheduler must not mutate an iteration binding");
+                resolver.commit_for_group_environment(&environment);
+                if outcome == ForGroupMutationRunOutcome::Stopped {
+                    break 'elements;
+                }
+                continue;
+            }
+
             for iteration_index in 0..(count as usize) {
                 let variable_value = start + iteration_index as f64 * step;
                 let (generated, rows) = expand_for_group_iteration(
@@ -697,7 +750,9 @@ fn evaluate_document_input_with_scalar_program(
                     if !base_effective_enabled_ids.contains(&template_id) {
                         continue;
                     }
-                    effective_enabled_ids.insert(generated_id.clone());
+                    if effective_enabled_ids.insert(generated_id.clone()) {
+                        effective_enabled_order.push(generated_id.clone());
+                    }
                     let generated_index = state.elements_by_id[&generated_id];
                     let Some(generated_local_variables) =
                         evaluate_local_variables(generated_index, &mut state)
@@ -818,12 +873,7 @@ fn evaluate_document_input_with_scalar_program(
         evaluated_element_ids: evaluated_elements.iter().filter_map(element_id).collect(),
         evaluation_limit_index,
         effective_visible_element_ids: effective_visible_element_ids.into_iter().collect(),
-        effective_enabled_element_ids: state
-            .elements
-            .iter()
-            .filter_map(element_id)
-            .filter(|id| effective_enabled_ids.contains(id))
-            .collect(),
+        effective_enabled_element_ids: effective_enabled_order,
         condition_inactive_element_ids: state
             .elements
             .iter()

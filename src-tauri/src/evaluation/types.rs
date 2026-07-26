@@ -81,7 +81,7 @@ pub struct EvaluationWarning {
     pub(crate) message: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct ForGroupGeneratedRow {
     pub(crate) for_group_id: ElementId,

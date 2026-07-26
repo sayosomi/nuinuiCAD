@@ -12,6 +12,7 @@ import {
 } from "./evaluationPayload";
 import type { PropertyBindingRuntimeEntry } from "./propertyBindingRuntime";
 import { hasSetVersions, isRustLinearMutationEligible } from "../scalars/linearMutationEvaluator";
+import { hasCanonicalForGroupMutationOwners } from "../scalars/forGroupMutationControl";
 import { buildRustBindingMutationPayload, type RustBindingMutationPayload } from "./bindingVersionPayload";
 import { textTemplateHasTypedHole } from "./textTemplateRuntime";
 
@@ -298,6 +299,14 @@ export const canUseRustEvaluationForElements = (
     !isRustLinearMutationEligible(options.bindingVersions)) return false;
   if (options.bindingVersions?.versions.some((version) => version.control.ownerChain.some((owner) => owner.kind === "conditionalBranch")) &&
     (!options.statementIdByStatementIndex || !options.conditionalOwnerStatementIdByElementId)) return false;
+  if (options.bindingVersions?.versions.some((version) => version.control.ownerChain.some((owner) => owner.kind === "forGroup")) &&
+    !hasCanonicalForGroupMutationOwners(
+      options.bindingVersions,
+      elements,
+      options.statementInfoByElementId,
+      options.statementIdByStatementIndex,
+      options.forGroupMutationOwnerByElementId
+    )) return false;
   const evaluationLimitIndex = Math.min(
     Math.max(options.evaluationLimitIndex ?? elements.length, 0),
     elements.length
@@ -351,7 +360,8 @@ export const evaluateElementsWithRust = async (
   elements: CadElement[],
   options: EvaluateElementsOptions = {}
 ): Promise<EvaluationResult> => {
-  const mutationPayload = options.bindingVersions && isRustLinearMutationEligible(options.bindingVersions)
+  const rustEligible = canUseRustEvaluationForElements(elements, options);
+  const mutationPayload = rustEligible && options.bindingVersions && isRustLinearMutationEligible(options.bindingVersions)
     ? buildRustBindingMutationPayload(
         options.bindingVersions, elements, options.statementInfoByElementId, options.statementIdByStatementIndex
       )

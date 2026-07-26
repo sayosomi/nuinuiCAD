@@ -36,6 +36,12 @@ pub(crate) enum ForGroupMutationError {
     DuplicateLocalBinding(String),
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ForGroupMutationRunOutcome {
+    Completed,
+    Stopped,
+}
+
 #[derive(Debug)]
 struct ActiveFrame<T> {
     loop_scope_id: String,
@@ -117,12 +123,12 @@ impl<T: Clone> ForGroupMutationEnvironment<T> {
         &mut self,
         plan: &ForGroupMutationPlan<Statement>,
         mut execute_statement: F,
-    ) -> Result<(), ForGroupMutationError>
+    ) -> Result<ForGroupMutationRunOutcome, ForGroupMutationError>
     where
         F: FnMut(
             &mut Self,
             ForGroupIterationContext<'_, Statement>,
-        ) -> Result<(), ForGroupMutationError>,
+        ) -> Result<ForGroupMutationRunOutcome, ForGroupMutationError>,
     {
         for (iteration_index, iteration_value) in plan.iteration_values.iter().copied().enumerate()
         {
@@ -143,7 +149,7 @@ impl<T: Clone> ForGroupMutationEnvironment<T> {
                     let iteration_binding_id = frame.iteration_binding_id.clone();
                     let iteration_index = frame.iteration_index;
                     let iteration_value = frame.iteration_value;
-                    execute_statement(
+                    let outcome = execute_statement(
                         self,
                         ForGroupIterationContext {
                             loop_scope_id: &loop_scope_id,
@@ -153,13 +159,18 @@ impl<T: Clone> ForGroupMutationEnvironment<T> {
                             statement,
                         },
                     )?;
+                    if outcome == ForGroupMutationRunOutcome::Stopped {
+                        return Ok(ForGroupMutationRunOutcome::Stopped);
+                    }
                 }
-                Ok(())
+                Ok(ForGroupMutationRunOutcome::Completed)
             })();
             // Match Task 33's frame retirement even on callback failure.
             self.frames.pop();
-            outcome?;
+            if outcome? == ForGroupMutationRunOutcome::Stopped {
+                return Ok(ForGroupMutationRunOutcome::Stopped);
+            }
         }
-        Ok(())
+        Ok(ForGroupMutationRunOutcome::Completed)
     }
 }
