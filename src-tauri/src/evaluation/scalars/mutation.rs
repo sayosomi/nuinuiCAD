@@ -1,5 +1,6 @@
 //! Task 32/33 in-place mutation cursor. Conditional selection is registered
 //! by Task 25's Rust runtime; this module never parses or evaluates a branch.
+mod for_group_scheduler;
 use super::bindings::ScalarDocumentBindingResolver;
 use super::bindings::{resolve_external_binding, result_for_declared_type, scalar_evaluation_json};
 use super::expression_evaluator::{evaluate_typed_expression, ScalarEvaluationEnvironment};
@@ -10,6 +11,8 @@ use super::types::{BindingId, ScalarEvaluation, ScalarType};
 use crate::evaluation::types::EvaluationState;
 use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet};
+
+pub(crate) use for_group_scheduler::ForGroupMutationStatement;
 
 const VERSION_UNAVAILABLE: &str = "evaluation-binding-version-unavailable";
 
@@ -129,7 +132,20 @@ impl<'a> ScalarMutationResolver<'a> {
     pub(crate) fn history(&self) -> Vec<Value> {
         self.history.clone()
     }
-    fn is_before_cutoff(&self, source_order: usize) -> bool {
+    pub(super) fn record_history(&mut self, entry: Value) {
+        let Some(version_id) = entry.get("versionId").and_then(Value::as_str) else {
+            self.history.push(entry);
+            return;
+        };
+        if let Some(index) = self.history.iter().position(|current| {
+            current.get("versionId").and_then(Value::as_str) == Some(version_id)
+        }) {
+            self.history[index] = entry;
+        } else {
+            self.history.push(entry);
+        }
+    }
+    pub(super) fn is_before_cutoff(&self, source_order: usize) -> bool {
         !self
             .program
             .evaluation_limit_source_order
@@ -146,7 +162,7 @@ impl<'a> ScalarMutationResolver<'a> {
             self.frames.remove(index);
         }
     }
-    fn control_active(&self, version: &ValidatedBindingVersion) -> bool {
+    pub(super) fn control_active(&self, version: &ValidatedBindingVersion) -> bool {
         let Some(chain) = version.control.get("ownerChain").and_then(Value::as_array) else {
             return false;
         };
@@ -218,7 +234,7 @@ impl<'a> ScalarMutationResolver<'a> {
         }
         self.history.push(json!({"versionId": version.version_id, "statementId": version.statement_id, "bindingId": version.binding_id, "status": if matches!(evaluation, ScalarEvaluation::Error { .. }) { "poisoned" } else { "executed" }, "evaluation": scalar_evaluation_json(&evaluation)}));
     }
-    fn evaluate(
+    pub(super) fn evaluate(
         &self,
         expression: &super::types::TypedScalarExpression,
         version: &ValidatedBindingVersion,
@@ -234,7 +250,7 @@ impl<'a> ScalarMutationResolver<'a> {
             &version.binding_id,
         )
     }
-    fn lookup_current(&self, binding_id: &str) -> ScalarEvaluation {
+    pub(super) fn lookup_current(&self, binding_id: &str) -> ScalarEvaluation {
         self.current
             .get(binding_id)
             .cloned()

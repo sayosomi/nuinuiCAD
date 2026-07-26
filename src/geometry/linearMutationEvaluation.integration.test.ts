@@ -5,6 +5,7 @@ import { canUseRustEvaluationForElements } from "./evaluationEngine";
 import { evaluateElements, type EvaluateElementsOptions } from "./evaluate";
 import { buildConditionalGroupConditionsByElementId } from "./controlBooleanRuntime";
 import { buildConditionalMutationOwners, conditionalOwnerIdByElementId } from "../scalars/conditionalMutationControl";
+import { buildForGroupMutationOwners, forGroupMutationOwnerByElementId } from "../scalars/forGroupMutationControl";
 import { buildTextTemplateEntriesByElementId } from "./textTemplateRuntime";
 
 const compileCanonical = (source: string): LastGoodDslDocument => {
@@ -31,6 +32,12 @@ const optionsFor = (compiled: LastGoodDslDocument): EvaluateElementsOptions => {
       ? conditionalOwnerIdByElementId(buildConditionalMutationOwners(
           compiled.bindingVersions, compiled.document.elements, compiled.statementMap.byElementId,
           compiled.statementMap.statementIdByStatementIndex
+      ))
+      : undefined,
+    forGroupMutationOwnerByElementId: compiled.bindingVersions
+      ? forGroupMutationOwnerByElementId(buildForGroupMutationOwners(
+          compiled.bindingVersions, compiled.document.elements, compiled.statementMap.byElementId,
+          compiled.statementMap.statementIdByStatementIndex
         ))
       : undefined,
     conditionalGroupConditionsByElementId: buildConditionalGroupConditionsByElementId(
@@ -48,7 +55,26 @@ const elementId = (compiled: LastGoodDslDocument, name: string): string => {
 };
 
 describe("Task 31 linear mutation production wiring", () => {
-  it("enables Rust only for a wholly linear set graph", () => {
+  it("drives loop versions at generated-element boundaries without retroactive property reads", () => {
+    const compiled = compileCanonical([
+      "nui 3",
+      "let value: number = 0",
+      "for Loop (i from: 0 count: 3 step: 1) {",
+      "  set value = @value + 1",
+      "  point P = coordinate(x: 0 y: 0)",
+      "  set value = @value + 10",
+      "}",
+      "point After = coordinate(x: 0 y: 0)"
+    ].join("\n"));
+    const result = evaluateElements(compiled.document.elements, optionsFor(compiled));
+    const value = compiled.bindingVersions!.versions[0].bindingId;
+    const points = [...result.computedGeometry.values()].filter((geometry) => geometry.kind === "point");
+
+    expect(points).toHaveLength(4);
+    expect(points[0]).toMatchObject({ x: 0 });
+    expect(result.computedScalarBindings?.get(value)).toMatchObject({ value: { value: 33 } });
+  });
+  it("enables Rust for canonical controlled and forGroup mutation graphs only", () => {
     const linear = compileCanonical([
       "nui 3",
       "let value: number = 1",
@@ -62,9 +88,36 @@ describe("Task 31 linear mutation production wiring", () => {
       "  set value = 2",
       "}"
     ].join("\n"));
+    const loop = compileCanonical([
+      "nui 3",
+      "let value: number = 0",
+      "for Loop (i from: 0 count: 2 step: 1) {",
+      "  set value = @value + 1",
+      "  point P = coordinate(x: 0 y: 0)",
+      "}"
+    ].join("\n"));
+    const loopWithNestedControl = compileCanonical([
+      "nui 3",
+      "let value: number = 0",
+      "for Loop (i from: 0 count: 2 step: 1) {",
+      "  if C (true) {",
+      "    set value = @value + 1",
+      "  }",
+      "  point P = coordinate(x: 0 y: 0)",
+      "}"
+    ].join("\n"));
+    const loopOptions = optionsFor(loop);
 
     expect(canUseRustEvaluationForElements(linear.document.elements, optionsFor(linear))).toBe(true);
     expect(canUseRustEvaluationForElements(controlled.document.elements, optionsFor(controlled))).toBe(true);
+    expect(canUseRustEvaluationForElements(loop.document.elements, loopOptions)).toBe(true);
+    expect(canUseRustEvaluationForElements(
+      loopWithNestedControl.document.elements, optionsFor(loopWithNestedControl)
+    )).toBe(false);
+    expect(canUseRustEvaluationForElements(loop.document.elements, {
+      ...loopOptions,
+      forGroupMutationOwnerByElementId: undefined
+    })).toBe(false);
   });
 
   it("advances binding slots with source order: A sees old value, B sees set value, and set reads the live legacy measurement", () => {

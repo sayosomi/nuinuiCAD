@@ -61,6 +61,20 @@ fn point(id: &str) -> Value {
     json!({"id":id,"name":id,"type":"freePoint","visible":true,"enabled":true,"x":0,"y":0})
 }
 
+fn for_group(id: &str) -> Value {
+    json!({
+        "id": id, "name": id, "type": "forGroup", "visible": true, "enabled": true,
+        "variableName": "i", "start": 1, "count": 2, "step": 1, "showGenerated": false
+    })
+}
+
+fn binary_add(left: Value, right: Value) -> Value {
+    json!({
+        "kind":"binary", "span":{"start":0,"end":1}, "operator":"+", "left":left,
+        "right":right, "type":{"kind":"number"}
+    })
+}
+
 #[test]
 fn production_command_finalizes_a_set_after_the_last_element() {
     let result = evaluate_document(input(
@@ -206,4 +220,72 @@ fn mutation_payload_rejects_inconsistent_ids_types_choices_and_control_owners() 
     });
     let error = evaluate_document(input(vec![], vec![choice], None)).unwrap_err();
     assert_eq!(error.code, "scalar-payload-invalid-choice-member");
+}
+
+#[test]
+fn production_command_runs_for_group_mutation_and_carries_the_final_slot() {
+    let loop_id = "loop";
+    let template_id = "template";
+    let mut loop_set = set(
+        "set:sum",
+        "binding:sum",
+        "decl:sum",
+        2,
+        binary_add(
+            reference("binding:sum"),
+            reference("binding:iteration:loop-statement"),
+        ),
+    );
+    loop_set["control"] = json!({
+        "scopeId":"for:loop-statement",
+        "ownerChain":[{
+            "kind":"forGroup", "ownerStatementId":"loop-statement", "scopeId":"for:loop-statement",
+            "exitSourceOrder":4
+        }],
+        "kind":"forGroup"
+    });
+    loop_set["scopeId"] = json!("for:loop-statement");
+    let mut binding_versions = json!({
+        "versions":[
+            declaration("decl:sum", "binding:sum", 0, number(0.0)),
+            loop_set
+        ],
+        "elementSourceOrders":[
+            {"elementId":loop_id,"sourceOrder":1},
+            {"elementId":template_id,"sourceOrder":3}
+        ],
+        "forGroupOwners":[{
+            "ownerStatementId":"loop-statement", "elementId":loop_id,
+            "scopeId":"for:loop-statement", "exitSourceOrder":4,
+            "iterationBindingId":"binding:iteration:loop-statement"
+        }]
+    });
+    let template = json!({
+        "id":template_id,"name":template_id,"type":"freePoint","visible":true,"enabled":true,
+        "parentGroupId":loop_id,"x":0,"y":0
+    });
+    let result = evaluate_document(EvaluationInput {
+        elements: vec![for_group(loop_id), template],
+        evaluation_limit_index: None,
+        scalar_expression_payload: None,
+        scalar_program: None,
+        binding_versions: Some(binding_versions.take()),
+        property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
+    })
+    .unwrap();
+    assert_eq!(
+        result.computed_scalar_bindings.unwrap()[0]["evaluation"]["value"]["value"],
+        3.0
+    );
+    let history = result.computed_scalar_binding_versions.unwrap();
+    assert_eq!(
+        history
+            .iter()
+            .filter(|entry| entry["versionId"] == "set:sum")
+            .count(),
+        1
+    );
+    assert_eq!(result.for_group_generated_rows.len(), 2);
 }

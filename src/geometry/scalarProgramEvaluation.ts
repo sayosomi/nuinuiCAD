@@ -38,8 +38,12 @@ import {
 } from "../scalars/declarationEvaluator";
 import {
   createIncrementalLinearMutationEvaluator,
+  type ForGroupMutationExecutionContext,
+  type ForGroupMutationExecutionPlan,
+  type ForGroupMutationStatement,
   type LinearMutationEvaluation
 } from "../scalars/linearMutationEvaluator";
+import type { ForGroupMutationRunOutcome } from "../scalars/forGroupMutationCore";
 import { adaptNumericResult } from "../scalars/numericFunctionAdapter";
 import type { ScalarProgram } from "../scalars/scalarProgram";
 import type { ScalarEvaluation } from "../scalars/types";
@@ -75,6 +79,10 @@ export type LinearScalarBindingResolver = {
   registerConditionalResult: (ownerStatementId: string, branch: "then" | "else" | null) => void;
   resolveBinding: (bindingId: BindingId) => ScalarEvaluation;
   finalize: (position: BindingReadPosition) => LinearMutationEvaluation;
+  runForGroup: (
+    plan: ForGroupMutationExecutionPlan,
+    executeStatement: (statement: ForGroupMutationStatement, context: ForGroupMutationExecutionContext) => ForGroupMutationRunOutcome
+  ) => ForGroupMutationRunOutcome;
 };
 
 /**
@@ -115,7 +123,8 @@ export const createDocumentLinearScalarBindingResolver = (
     advanceTo: evaluator.advanceTo,
     registerConditionalResult: evaluator.registerConditionalResult,
     resolveBinding: evaluator.resolveCurrent,
-    finalize: evaluator.finalize
+    finalize: evaluator.finalize,
+    runForGroup: evaluator.runForGroup
   };
 };
 

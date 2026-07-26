@@ -11,6 +11,7 @@ import { evaluationPayloadToResult, type EvaluationPayload } from "../src/geomet
 import { buildRustBindingMutationPayload } from "../src/geometry/bindingVersionPayload";
 import { buildConditionalGroupConditionsByElementId } from "../src/geometry/controlBooleanRuntime";
 import { buildConditionalMutationOwners, conditionalOwnerIdByElementId } from "../src/scalars/conditionalMutationControl";
+import { buildForGroupMutationOwners, forGroupMutationOwnerByElementId } from "../src/scalars/forGroupMutationControl";
 import type { TypedScalarExpression } from "../src/scalars/typedExpressionAst";
 import type { EvaluateElementsOptions } from "../src/geometry/evaluate";
 import type { BindingVersionGraph } from "../src/scalars/bindingVersions";
@@ -63,6 +64,9 @@ const optionsFor = (fixture: EvaluationFixture): EvaluateElementsOptions => ({
     statementInfoByElementId: fixture.statementInfoByElementId,
     statementIdByStatementIndex: fixture.statementIdByStatementIndex,
     conditionalOwnerStatementIdByElementId: conditionalOwnerIdByElementId(buildConditionalMutationOwners(
+      fixture.bindingVersions, fixture.elements, fixture.statementInfoByElementId, fixture.statementIdByStatementIndex
+    )),
+    forGroupMutationOwnerByElementId: forGroupMutationOwnerByElementId(buildForGroupMutationOwners(
       fixture.bindingVersions, fixture.elements, fixture.statementInfoByElementId, fixture.statementIdByStatementIndex
     ))
   } : {}),

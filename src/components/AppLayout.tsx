@@ -9,6 +9,10 @@ import {
   conditionalOwnerIdByElementId
 } from "../scalars/conditionalMutationControl";
 import {
+  buildForGroupMutationOwners,
+  forGroupMutationOwnerByElementId
+} from "../scalars/forGroupMutationControl";
+import {
   buildConditionalGroupConditionsByElementId,
   buildControlBooleanRuntimeEntries
 } from "../geometry/controlBooleanRuntime";
@@ -226,11 +230,22 @@ export const AppLayout = () => {
       : undefined,
     [bindingVersions, canonicalElements, statementInfoByElementId, statementIdByStatementIndex]
   );
+  const forGroupMutationOwnersByElementId = useMemo(
+    () => bindingVersions
+      ? forGroupMutationOwnerByElementId(buildForGroupMutationOwners(
+          bindingVersions, canonicalElements, statementInfoByElementId, statementIdByStatementIndex
+        ))
+      : undefined,
+    [bindingVersions, canonicalElements, statementInfoByElementId, statementIdByStatementIndex]
+  );
   const evaluationOptions = useMemo(
     () => ({
       evaluationLimitIndex,
       ...(scalarProgram ? { scalarProgram } : {}),
-      ...(bindingVersions ? { bindingVersions, statementInfoByElementId, statementIdByStatementIndex, conditionalOwnerStatementIdByElementId } : {}),
+      ...(bindingVersions ? {
+        bindingVersions, statementInfoByElementId, statementIdByStatementIndex,
+        conditionalOwnerStatementIdByElementId, forGroupMutationOwnerByElementId: forGroupMutationOwnersByElementId
+      } : {}),
       ...(propertyBindingEntries?.length ? { propertyBindingEntries } : {}),
       ...(controlBooleanEntries?.length ? { controlBooleanEntries } : {}),
       ...(conditionalGroupConditionsByElementId?.size ? { conditionalGroupConditionsByElementId } : {}),
@@ -244,6 +259,7 @@ export const AppLayout = () => {
       statementInfoByElementId,
       statementIdByStatementIndex,
       conditionalOwnerStatementIdByElementId,
+      forGroupMutationOwnersByElementId,
       propertyBindingEntries,
       controlBooleanEntries,
       conditionalGroupConditionsByElementId,

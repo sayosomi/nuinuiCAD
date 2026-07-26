@@ -1,4 +1,4 @@
-import type { CadElement, ComputedGeometry, ComputedVariable, DependencyError, ElementId, EvaluationResult, EvaluationWarning } from "../types/geometry";
+import type { CadElement, ComputedGeometry, ComputedVariable, DependencyError, ElementId, EvaluationResult, EvaluationWarning, ForGroupGeneratedRow } from "../types/geometry";
 import {
   isConditionalGroupElement,
   isForGroupElement,
@@ -36,6 +36,9 @@ import {
 import type { TypedScalarExpression } from "../scalars/typedExpressionAst";
 import type { TextTemplateAst } from "../scalars/textTemplate";
 import type { BindingId } from "../scalars/bindingCatalog";
+import type { ForGroupMutationOwner } from "../scalars/forGroupMutationControl";
+import type { ForGroupMutationStatement } from "../scalars/linearMutationEvaluator";
+import { forGroupTemplateElements } from "./forGroupExpansion";
 
 export type EvaluateElementsOptions = {
   evaluationLimitIndex?: number;
@@ -54,6 +57,8 @@ export type EvaluateElementsOptions = {
   statementIdByStatementIndex?: ReadonlyMap<number, string>;
   /** Task 33's completed static join from conditional element id to owner statement id. */
   conditionalOwnerStatementIdByElementId?: ReadonlyMap<ElementId, string>;
+  /** Task 35's compiled stable join; never inferred from element array order. */
+  forGroupMutationOwnerByElementId?: ReadonlyMap<ElementId, ForGroupMutationOwner>;
   /**
    * Task 23's elementId-keyed standard property bindings (already re-keyed
    * from CompiledDslDocument.propertyBindings by
@@ -380,6 +385,65 @@ export const evaluateElements = (
         ? resolveForGroupEffectiveShowGenerated(showGeneratedEntry, element.showGenerated, scalarBindingResolver!.resolveBinding)
         : element.showGenerated;
       if (effectiveShowGenerated) forGroupEffectiveShowGeneratedIds.add(element.id);
+
+      const mutationOwner = options.forGroupMutationOwnerByElementId?.get((sourceElement ?? element).id);
+      if (linearMutationResolver && mutationOwner) {
+        if (!options.statementInfoByElementId) {
+          throw new Error("evaluateElements: forGroup mutation requires compiled generated statement mapping");
+        }
+        const templates = forGroupTemplateElements(elements, (sourceElement ?? element).id);
+        const statements: ForGroupMutationStatement[] = templates.map((templateElement) => {
+          const statement = options.statementInfoByElementId!.get(templateElement.id);
+          if (!statement) throw new Error(`evaluateElements: no compiled statement mapping for forGroup template ${templateElement.id}`);
+          return { kind: "element" as const, sourceOrder: statement.statementIndex, templateElementId: templateElement.id };
+        });
+        statements.push({ kind: "exit", sourceOrder: mutationOwner.exitSourceOrder });
+        let expandedIteration = -1;
+        let generatedByTemplateId = new Map<ElementId, CadElement>();
+        let rowByTemplateId = new Map<ElementId, ForGroupGeneratedRow>();
+        const outcome = linearMutationResolver.runForGroup({
+          ownerStatementId: mutationOwner.ownerStatementId,
+          loopScopeId: mutationOwner.scopeId,
+          // This is the compiler's established iteration binding identity.
+          iterationBindingId: `binding:iteration:${mutationOwner.ownerStatementId}`,
+          iterationValues: Array.from({ length: count }, (_, iterationIndex) => start + iterationIndex * step),
+          statements
+        }, (statement, context) => {
+          if (options.bindingVersions!.evaluationLimitSourceOrder !== undefined &&
+            statement.sourceOrder >= options.bindingVersions!.evaluationLimitSourceOrder) return "stopped";
+          if (statement.kind === "exit") return "completed";
+          if (expandedIteration !== context.iterationIndex) {
+            expandedIteration = context.iterationIndex;
+            generatedByTemplateId = new Map();
+            rowByTemplateId = new Map();
+            const expanded = expandForGroupIteration({
+              elements,
+              forGroup: element,
+              iterationIndex: context.iterationIndex,
+              variableValue: context.iterationValue
+            });
+            for (const generatedElement of expanded.generatedElements) {
+              const templateElement = templates.find((candidate) =>
+                generatedElement.id === `${candidate.id}@${element.id}:${context.iterationIndex}`
+              );
+              if (templateElement) generatedByTemplateId.set(templateElement.id, generatedElement);
+            }
+            for (const row of expanded.rows) rowByTemplateId.set(row.templateElementId, row);
+          }
+          const generatedElement = generatedByTemplateId.get(statement.templateElementId!);
+          const templateElement = elementsById.get(statement.templateElementId!);
+          if (!generatedElement || !templateElement) return "completed";
+          const row = rowByTemplateId.get(templateElement.id);
+          if (row) forGroupGeneratedRows.push(row);
+          runtimeElements.push(generatedElement);
+          runtimeElementsById.set(generatedElement.id, generatedElement);
+          pushGeneratedVisibilityState(generatedElement, templateElement);
+          evaluateRuntimeElement(generatedElement, templateElement);
+          return "completed";
+        });
+        if (outcome === "stopped") return;
+        return;
+      }
 
       for (let iterationIndex = 0; iterationIndex < count; iterationIndex += 1) {
         const variableValue = start + iterationIndex * step;

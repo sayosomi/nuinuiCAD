@@ -90,6 +90,7 @@ export const useEvaluationEngine = (
   const statementInfoByElementId = options.statementInfoByElementId;
   const statementIdByStatementIndex = options.statementIdByStatementIndex;
   const conditionalOwnerStatementIdByElementId = options.conditionalOwnerStatementIdByElementId;
+  const forGroupMutationOwnerByElementId = options.forGroupMutationOwnerByElementId;
   const propertyBindingEntries = options.propertyBindingEntries;
   const controlBooleanEntries = options.controlBooleanEntries;
   const conditionalGroupConditionsByElementId = options.conditionalGroupConditionsByElementId;
@@ -100,7 +101,8 @@ export const useEvaluationEngine = (
       evaluationLimitIndex,
       ...(scalarProgram ? { scalarProgram } : {}),
       ...(bindingVersions ? {
-        bindingVersions, statementInfoByElementId, statementIdByStatementIndex, conditionalOwnerStatementIdByElementId
+        bindingVersions, statementInfoByElementId, statementIdByStatementIndex,
+        conditionalOwnerStatementIdByElementId, forGroupMutationOwnerByElementId
       } : {}),
       ...(propertyBindingEntries?.length ? { propertyBindingEntries } : {}),
       ...(controlBooleanEntries?.length ? { controlBooleanEntries } : {}),
@@ -115,6 +117,7 @@ export const useEvaluationEngine = (
       statementInfoByElementId,
       statementIdByStatementIndex,
       conditionalOwnerStatementIdByElementId,
+      forGroupMutationOwnerByElementId,
       propertyBindingEntries,
       controlBooleanEntries,
       conditionalGroupConditionsByElementId,
@@ -136,6 +139,8 @@ export const useEvaluationEngine = (
       statementIdByStatementIndex: statementIdByStatementIndex ? Array.from(statementIdByStatementIndex) : undefined,
       conditionalOwnerStatementIdByElementId: conditionalOwnerStatementIdByElementId
         ? Array.from(conditionalOwnerStatementIdByElementId) : undefined,
+      forGroupMutationOwnerByElementId: forGroupMutationOwnerByElementId
+        ? Array.from(forGroupMutationOwnerByElementId) : undefined,
       propertyBindingEntries,
       controlBooleanEntries,
       conditionalGroupConditionsByElementId: conditionalGroupConditionsByElementId
@@ -153,6 +158,7 @@ export const useEvaluationEngine = (
       bindingVersions,
       statementIdByStatementIndex,
       conditionalOwnerStatementIdByElementId,
+      forGroupMutationOwnerByElementId,
       propertyBindingEntries,
       controlBooleanEntries,
       conditionalGroupConditionsByElementId,

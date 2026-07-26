@@ -5,7 +5,7 @@ use serde_json::Value;
 
 use super::for_group_mutation_core::{
     ForGroupIterationContext, ForGroupMutationEnvironment, ForGroupMutationError,
-    ForGroupMutationPlan, LoopRead,
+    ForGroupMutationPlan, ForGroupMutationRunOutcome, LoopRead,
 };
 
 fn fixture_cases() -> Vec<Value> {
@@ -62,7 +62,7 @@ fn matches_shared_for_group_mutation_fixture() {
                         number(environment.read("sum")) + context.iteration_value,
                     )?,
                 }
-                Ok(())
+                Ok(ForGroupMutationRunOutcome::Completed)
             })
             .unwrap_or_else(|error| panic!("{name}: {error:?}"));
         let expected = case["expected"]
@@ -94,7 +94,7 @@ fn carries_outer_slots_and_retires_nested_locals() {
                         number(environment.read("sum")) + context.iteration_value,
                     )?;
                 }
-                return Ok(());
+                return Ok(ForGroupMutationRunOutcome::Completed);
             }
             let inner = ForGroupMutationPlan {
                 loop_scope_id: "scope:inner".to_owned(),
@@ -102,13 +102,16 @@ fn carries_outer_slots_and_retires_nested_locals() {
                 iteration_values: vec![10.0],
                 generated_statements: vec!["body"],
             };
-            environment.run(&inner, |environment, inner_context| {
-                environment.declare_local("binding:local", inner_context.iteration_value)?;
-                environment.set(
-                    "sum",
-                    number(environment.read("sum")) + number(environment.read("binding:local")),
-                )
-            })
+            environment
+                .run(&inner, |environment, inner_context| {
+                    environment.declare_local("binding:local", inner_context.iteration_value)?;
+                    environment.set(
+                        "sum",
+                        number(environment.read("sum")) + number(environment.read("binding:local")),
+                    )?;
+                    Ok(ForGroupMutationRunOutcome::Completed)
+                })
+                .map(|_| ForGroupMutationRunOutcome::Completed)
         })
         .unwrap();
     assert_eq!(
@@ -131,7 +134,9 @@ fn rejects_iteration_binding_assignment_and_retires_failed_frame() {
         &plan,
         |environment, _: ForGroupIterationContext<'_, &str>| {
             environment.declare_local("binding:local", 1.0)?;
-            environment.set("binding:iteration:i", 1.0)
+            environment
+                .set("binding:iteration:i", 1.0)
+                .map(|_| ForGroupMutationRunOutcome::Completed)
         },
     );
     assert_eq!(
@@ -163,8 +168,12 @@ fn a_later_body_statement_recovers_a_poisoned_outer_slot() {
     };
     environment
         .run(&plan, |environment, context| match *context.statement {
-            "poison" => environment.set("sum", Poisonable::Poisoned),
-            "recover" => environment.set("sum", Poisonable::Value(context.iteration_value)),
+            "poison" => environment
+                .set("sum", Poisonable::Poisoned)
+                .map(|_| ForGroupMutationRunOutcome::Completed),
+            "recover" => environment
+                .set("sum", Poisonable::Value(context.iteration_value))
+                .map(|_| ForGroupMutationRunOutcome::Completed),
             _ => unreachable!(),
         })
         .unwrap();
@@ -188,7 +197,8 @@ fn run_sum(iteration_count: usize) -> f64 {
             environment.set(
                 "sum",
                 number(environment.read("sum")) + context.iteration_value,
-            )
+            )?;
+            Ok(ForGroupMutationRunOutcome::Completed)
         })
         .unwrap();
     number(environment.read("sum"))

@@ -32,8 +32,11 @@ export type ForGroupMutationFrame<T> = {
 export type ForGroupMutationEnvironment<T> = {
   run: <Statement>(
     plan: ForGroupMutationPlan<Statement>,
-    executeStatement: (frame: ForGroupMutationFrame<T>, context: ForGroupIterationContext<Statement>) => void
-  ) => void;
+    executeStatement: (
+      frame: ForGroupMutationFrame<T>,
+      context: ForGroupIterationContext<Statement>
+    ) => ForGroupMutationRunOutcome | void
+  ) => ForGroupMutationRunOutcome;
   read: (bindingId: string) => T | number | undefined;
   finalSlots: () => ReadonlyMap<string, T>;
 };
@@ -47,6 +50,13 @@ type ActiveFrame<T> = {
 };
 
 export class ForGroupMutationError extends Error {}
+
+/**
+ * Existing forGroup expansion supplies this at a generated-statement boundary
+ * when its compiled evaluation limit has been reached. The core propagates it
+ * through all remaining statements, iterations, and nested runs.
+ */
+export type ForGroupMutationRunOutcome = "completed" | "stopped";
 
 /**
  * Creates one mutable outer environment. Every iteration gets a fresh local
@@ -117,13 +127,14 @@ export const createForGroupMutationEnvironment = <T>(initialSlots: LoopMutationS
             declareLocal,
             set
           };
-          executeStatement(frame, {
+          const outcome = executeStatement(frame, {
             loopScopeId: active.loopScopeId,
             iterationBindingId: active.iterationBindingId,
             iterationIndex: active.iterationIndex,
             iterationValue: active.iterationValue,
             statement
           });
+          if (outcome === "stopped") return "stopped";
         }
       } finally {
         // Exactly Task 33's frame-lifetime rule: locals disappear at the
@@ -131,6 +142,7 @@ export const createForGroupMutationEnvironment = <T>(initialSlots: LoopMutationS
         frames.pop();
       }
     }
+    return "completed";
   };
 
   return { run, read, finalSlots: () => new Map(outerSlots) };

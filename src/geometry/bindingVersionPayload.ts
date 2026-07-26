@@ -4,6 +4,7 @@
 import type { CadElement, ElementId } from "../types/geometry";
 import type { BindingVersion, BindingVersionGraph } from "../scalars/bindingVersions";
 import { buildConditionalMutationOwners } from "../scalars/conditionalMutationControl";
+import { buildForGroupMutationOwners } from "../scalars/forGroupMutationControl";
 
 export type BindingMutationElementSourceOrder = {
   elementId: ElementId;
@@ -14,6 +15,10 @@ export type RustBindingMutationPayload = {
   versions: readonly Record<string, unknown>[];
   elementSourceOrders: readonly BindingMutationElementSourceOrder[];
   conditionalOwners: readonly { ownerStatementId: string; elementId: ElementId }[];
+  forGroupOwners: readonly {
+    ownerStatementId: string; elementId: ElementId; scopeId: string;
+    exitSourceOrder: number; iterationBindingId: string;
+  }[];
   evaluationLimitSourceOrder?: number;
 };
 
@@ -62,6 +67,15 @@ export const buildRustBindingMutationPayload = (
     conditionalOwners: buildConditionalMutationOwners(
       graph, elements, statementInfoByElementId, statementIdByStatementIndex
     ),
+    forGroupOwners: buildForGroupMutationOwners(
+      graph, elements, statementInfoByElementId, statementIdByStatementIndex
+    ).map((owner) => ({
+      ownerStatementId: owner.ownerStatementId,
+      elementId: owner.elementId,
+      scopeId: owner.scopeId,
+      exitSourceOrder: owner.exitSourceOrder,
+      iterationBindingId: `binding:iteration:${owner.ownerStatementId}`
+    })),
     elementSourceOrders,
     ...(graph.evaluationLimitSourceOrder === undefined
       ? {}

@@ -10,6 +10,11 @@ import type {
   BindingVersionId
 } from "./bindingVersions";
 import { evaluateTypedExpression } from "./expressionEvaluator";
+import {
+  createForGroupMutationEnvironment,
+  type ForGroupMutationFrame,
+  type ForGroupMutationRunOutcome
+} from "./forGroupMutationCore";
 import type { ScalarEvaluation } from "./types";
 
 export type BindingVersionRuntimeHistory = {
@@ -31,9 +36,31 @@ export type IncrementalLinearMutationEvaluator = {
   registerConditionalResult: (ownerStatementId: string, branch: "then" | "else" | null) => void;
   resolveCurrent: (bindingId: BindingId) => ScalarEvaluation;
   finalize: (position: BindingReadPosition) => LinearMutationEvaluation;
+  runForGroup: (
+    plan: ForGroupMutationExecutionPlan,
+    executeStatement: (statement: ForGroupMutationStatement, context: ForGroupMutationExecutionContext) => ForGroupMutationRunOutcome
+  ) => ForGroupMutationRunOutcome;
 };
 
 export type ResolveExternalScalarBinding = (bindingId: BindingId) => ScalarEvaluation;
+
+/** Statements are supplied from the compiler's existing element map only. */
+export type ForGroupMutationStatement = {
+  sourceOrder: number;
+  kind: "element" | "exit";
+  templateElementId?: string;
+};
+export type ForGroupMutationExecutionPlan = {
+  ownerStatementId: string;
+  loopScopeId: string;
+  iterationBindingId: BindingId;
+  iterationValues: readonly number[];
+  statements: readonly ForGroupMutationStatement[];
+};
+export type ForGroupMutationExecutionContext = {
+  iterationIndex: number;
+  iterationValue: number;
+};
 
 const unavailable = (bindingId: BindingId): ScalarEvaluation => ({
   status: "error", type: { kind: "number" }, issueCode: "evaluation-binding-version-unavailable", bindingId
@@ -53,12 +80,20 @@ export const hasLinearSetVersions = (graph: BindingVersionGraph): boolean =>
 
 export const hasSetVersions = (graph: BindingVersionGraph): boolean => graph.versions.some((version) => version.kind === "set");
 
-const hasForGroupOwner = (graph: BindingVersionGraph): boolean => graph.versions.some((version) =>
-  version.control.ownerChain.some((owner) => owner.kind === "forGroup")
-);
-
-/** Task 33 permits canonical conditional owners; forGroup stays Task 34-only. */
-export const isRustLinearMutationEligible = (graph: BindingVersionGraph): boolean => hasSetVersions(graph) && !hasForGroupOwner(graph);
+/**
+ * Task 35 supports forGroup owners, but the caller must separately prove its
+ * compiled element-owner metadata is canonical before it sends the graph to
+ * Rust. This helper deliberately says nothing about that payload join.
+ */
+export const isRustLinearMutationEligible = (graph: BindingVersionGraph): boolean => hasSetVersions(graph) &&
+  graph.versions.every((version) => {
+    const forGroupOwners = version.control.ownerChain.filter((owner) => owner.kind === "forGroup");
+    // The Task 35 Rust scheduler has parity only for a single loop owner.
+    // A conditional or a nested loop in that chain must stay on the TS
+    // reference path until its iteration-local control results are bridged.
+    if (forGroupOwners.length > 0) return forGroupOwners.length === 1 && version.control.ownerChain.length === 1;
+    return version.control.ownerChain.every((owner) => owner.kind === "conditionalBranch");
+  });
 
 type ScopeFrame = { scopeId: string; exitSourceOrder: number; localBindingIds: Set<BindingId> };
 
@@ -85,6 +120,10 @@ export const createIncrementalLinearMutationEvaluator = (
   const currentByBindingId = new Map<BindingId, ScalarEvaluation>();
   const historyByVersionId = new Map<BindingVersionId, BindingVersionRuntimeHistory>();
   const conditionalResultByOwnerId = new Map<string, "then" | "else" | null>();
+  // A conditional inside a forGroup is evaluated once per iteration. Keeping
+  // those results in a stack prevents an outer iteration from leaking its
+  // branch decision into the next iteration or a sibling nested loop.
+  const loopConditionalResults: Map<string, "then" | "else" | null>[] = [];
   const frames: ScopeFrame[] = [];
   const ownersById = conditionalOwners(graph);
   const finalBindingIds = new Set(graph.versions.filter((version) =>
@@ -94,8 +133,23 @@ export const createIncrementalLinearMutationEvaluator = (
     version.kind === "declare" && finalBindingIds.has(version.bindingId)
   ).map((version) => version.bindingId);
   let nextVersionIndex = 0;
+  let activeLoopEnvironment: ReturnType<typeof createForGroupMutationEnvironment<ScalarEvaluation>> | undefined;
+  let activeLoopDepth = 0;
+
+  const conditionalResultFor = (ownerStatementId: string) => {
+    for (let index = loopConditionalResults.length - 1; index >= 0; index -= 1) {
+      const result = loopConditionalResults[index].get(ownerStatementId);
+      if (result !== undefined) return result;
+    }
+    return conditionalResultByOwnerId.get(ownerStatementId);
+  };
 
   const resolveCurrent = (bindingId: BindingId): ScalarEvaluation => {
+    const loopValue = activeLoopEnvironment?.read(bindingId);
+    if (typeof loopValue === "number") {
+      return { status: "ok", type: { kind: "number" }, value: { kind: "number", value: loopValue } };
+    }
+    if (loopValue) return loopValue;
     const current = currentByBindingId.get(bindingId);
     return current ?? (graph.versionIdsByBindingId.has(bindingId) ? unavailable(bindingId) : resolveExternalBinding(bindingId));
   };
@@ -109,10 +163,13 @@ export const createIncrementalLinearMutationEvaluator = (
     }
   };
 
-  const activeControl = (version: BindingVersion): "active" | "inactive" | "unsupported" => {
+  const activeControl = (version: BindingVersion, insideLoop = false): "active" | "inactive" | "unsupported" => {
     for (const owner of version.control.ownerChain) {
-      if (owner.kind === "forGroup") return "unsupported";
-      const result = conditionalResultByOwnerId.get(owner.ownerStatementId);
+      if (owner.kind === "forGroup") {
+        if (!insideLoop) return "unsupported";
+        continue;
+      }
+      const result = conditionalResultFor(owner.ownerStatementId);
       if (result !== owner.branch) return "inactive";
     }
     return "active";
@@ -146,6 +203,33 @@ export const createIncrementalLinearMutationEvaluator = (
     });
   };
 
+  const loopVersionsFor = (ownerStatementId: string): readonly BindingVersion[] => graph.versions.filter((version) => {
+    const owners = version.control.ownerChain;
+    const index = owners.findIndex((owner) => owner.kind === "forGroup" && owner.ownerStatementId === ownerStatementId);
+    return index >= 0 && !owners.slice(index + 1).some((owner) => owner.kind === "forGroup");
+  });
+
+  const executeLoopVersion = (version: BindingVersion, frame: ForGroupMutationFrame<ScalarEvaluation>) => {
+    const control = activeControl(version, true);
+    if (control !== "active") {
+      historyByVersionId.set(version.id, {
+        versionId: version.id, statementId: statementIdFor(version), bindingId: version.bindingId,
+        status: control === "inactive" ? "inactive-control" : "skipped-control"
+      });
+      return;
+    }
+    const evaluation = version.initialState.kind === "poisoned" || (version.kind === "declare" && !version.initializer)
+      ? poisoned(version)
+      : evaluateTypedExpression(version.kind === "declare" ? version.initializer! : version.expression, { lookupBinding: resolveCurrent });
+    const isLoopLocal = version.kind === "declare" && version.control.ownerChain.length > 0;
+    if (isLoopLocal) frame.declareLocal(version.bindingId, evaluation);
+    else frame.set(version.bindingId, evaluation);
+    historyByVersionId.set(version.id, {
+      versionId: version.id, statementId: statementIdFor(version), bindingId: version.bindingId,
+      status: evaluation.status === "error" ? "poisoned" : "executed", evaluation
+    });
+  };
+
   const advanceTo = (position: BindingReadPosition): void => {
     while (nextVersionIndex < graph.versions.length) {
       const version = graph.versions[nextVersionIndex];
@@ -158,6 +242,14 @@ export const createIncrementalLinearMutationEvaluator = (
   };
 
   const registerConditionalResult = (ownerStatementId: string, branch: "then" | "else" | null): void => {
+    const loopResults = loopConditionalResults.at(-1);
+    if (loopResults) {
+      if (loopResults.has(ownerStatementId)) {
+        throw new Error(`conditional mutation owner ${ownerStatementId} was evaluated twice in one forGroup iteration`);
+      }
+      loopResults.set(ownerStatementId, branch);
+      return;
+    }
     if (conditionalResultByOwnerId.has(ownerStatementId)) throw new Error(`conditional mutation owner ${ownerStatementId} was evaluated twice`);
     const owners = ownersById.get(ownerStatementId);
     if (!owners) throw new Error(`conditional mutation received an unknown owner ${ownerStatementId}`);
@@ -179,5 +271,60 @@ export const createIncrementalLinearMutationEvaluator = (
     };
   };
 
-  return { advanceTo, registerConditionalResult, resolveCurrent, finalize };
+  const runForGroup: IncrementalLinearMutationEvaluator["runForGroup"] = (plan, executeStatement) => {
+    const loopVersions = loopVersionsFor(plan.ownerStatementId);
+    const outerEnvironment = activeLoopEnvironment;
+    const environment = outerEnvironment ?? createForGroupMutationEnvironment(currentByBindingId);
+    let versionIndex = 0;
+    let activeIterationIndex = -1;
+    const iterationConditionalResults = new Map<string, "then" | "else" | null>();
+    const runVersionsBefore = (sourceOrder: number, frame: ForGroupMutationFrame<ScalarEvaluation>) => {
+      while (versionIndex < loopVersions.length && loopVersions[versionIndex].sourceOrder < sourceOrder) {
+        executeLoopVersion(loopVersions[versionIndex], frame);
+        versionIndex += 1;
+      }
+    };
+    activeLoopEnvironment = environment;
+    activeLoopDepth += 1;
+    loopConditionalResults.push(iterationConditionalResults);
+    try {
+      const outcome = environment.run({
+        loopScopeId: plan.loopScopeId,
+        iterationBindingId: plan.iterationBindingId,
+        iterationValues: plan.iterationValues,
+        generatedStatements: plan.statements
+      }, (frame, context) => {
+        // Each iteration replays only its own source-ordered loop body. No
+        // generated payload carries an environment; the core frame is shared.
+        if (activeIterationIndex !== context.iterationIndex) {
+          activeIterationIndex = context.iterationIndex;
+          versionIndex = 0;
+          iterationConditionalResults.clear();
+        }
+        runVersionsBefore(context.statement.sourceOrder, frame);
+        return executeStatement(context.statement, context);
+      });
+      if (!outerEnvironment) {
+        for (const [bindingId, value] of environment.finalSlots()) currentByBindingId.set(bindingId, value);
+      }
+      // The ordinary cursor must never replay loop-body versions after their
+      // per-iteration scheduler has run. Nested runs share the outer source
+      // range, so only the outermost run consumes the static body once.
+      if (activeLoopDepth === 1) {
+        const exit = plan.statements.find((statement) => statement.kind === "exit")?.sourceOrder;
+        if (exit !== undefined) {
+          while (nextVersionIndex < graph.versions.length && graph.versions[nextVersionIndex].sourceOrder < exit) {
+            nextVersionIndex += 1;
+          }
+        }
+      }
+      return outcome;
+    } finally {
+      loopConditionalResults.pop();
+      activeLoopDepth -= 1;
+      activeLoopEnvironment = outerEnvironment;
+    }
+  };
+
+  return { advanceTo, registerConditionalResult, resolveCurrent, finalize, runForGroup };
 };
