@@ -56,7 +56,7 @@
 | 31 | [linear mutation TS](tasks/31-linear-mutation-ts.md) | reference mutation | 16,20,30 | TS reference path; linear set documents remain Rust-gated until 32 | `typed-vars/31-linear-mutation-ts` | 完了 |
 | 32 | [linear mutation Rust parity](tasks/32-linear-mutation-rust-parity.md) | production mutation | 18,21,30,31 | gated Rust path | `typed-vars/32-linear-mutation-rust` | 完了 |
 | 33 | [conditional mutation](tasks/33-conditional-mutation.md) | control mutation | 25,32 | gated TS/Rust path | `typed-vars/33-conditional-mutation` | 完了 |
-| 34 | [forGroup mutation core](tasks/34-forgroup-mutation-core.md) | loop mutation | 30,32,33 | unconnected algorithm | `typed-vars/34-forgroup-mutation-core` | 未着手 |
+| 34 | [forGroup mutation core](tasks/34-forgroup-mutation-core.md) | loop mutation | 30,32,33 | unconnected algorithm | `typed-vars/34-forgroup-mutation-core` | 完了 |
 | 35 | [forGroup mutation integration](tasks/35-forgroup-mutation-integration.md) | loop production | 34 | gated TS/Rust path | `typed-vars/35-forgroup-mutation` | 未着手 |
 | 36 | [typed dependency graph](tasks/36-typed-dependency-graph.md) | dependency model | 13,22,26,29,30 | gated analysis | `typed-vars/36-dependency-graph` | 未着手 |
 | 37 | [typed rename analysis](tasks/37-typed-rename-analysis.md) | rename safety | 36 | gated analysis | `typed-vars/37-rename-analysis` | 未着手 |
@@ -356,6 +356,15 @@ conditional mutation は Task 25 の runtime condition result と Task 30 の ow
 - active owner chain の version だけが slot を更新する。inactive branch は `inactive-control` history を残すだけで、poison、runtime error、slot 更新を発生させない。condition error/poison/非boolean は Task 25 と同じ `null` で両 branch を inactive にする。
 - conditional branch-local declaration は active branch frame に所属し、Task 30 の明示的 scope exit metadata で退役する。退役後は current lookup/final map に現れない。outer binding ID を target にした active set は frame に所属せず、branch 後にも carry する。
 - Rust payload は stable conditional owner ID、対応 conditional element ID、branch/scope/parent owner chain metadata だけを渡す。source text、binding 名、TS の branch result は渡さない。unknown owner、owner-chain 不整合、branch metadata 不整合は Rust command boundary で fail-closed。forGroup owner を含む mutation は引き続き Rust eligibility を得ない。
+
+### Task 34完了時点の引き継ぎ(35/45/48/49向け)
+
+`src/scalars/forGroupMutationCore.ts` と Rust `scalars/for_group_mutation_core.rs` は production 未接続の scalar-only loop runner である。既存の forGroup expansion、generated ID/row、evaluation mask、IPC payload、Rust eligibility、`evaluate_document` はこの task では無変更である。
+
+- caller は Task 29/30 が既に発行した opaque な binding/version/statement identity と generated statement mapping を `ForGroupMutationPlan` と body callback に渡す。core は ID/version ID を新規生成・再解決しない。Task 35 は template expansion が確定した generated statement を callback へ順に渡すだけでよい。
+- runner は iteration ごとに fresh frame を enter/leave する。frame は read-only number の iteration binding、同 iteration の local declarations、outer slot を lookup し、local は leave 時（callback error 時を含む）に退役する。outer `let` への set は shared slot map を in-place 更新するため、次 iteration と loop 後へ carry する。iteration binding set は明示拒否する。
+- callback は nested conditional では Task 33 と同じ active-branch-only rule を適用し、nested forGroup は同じ environment の `run` を再入する。inactive branch は callback/slot write/poison を起こさない。core 自身は geometry や condition expression を評価しない。
+- shared fixture `test/fixtures/scalars/for_group_mutation_core.json` を TS/Rust の pure tests が読む。Task 35 はこの contract を維持したまま、generated IDs/rows/masks、enabled/inactive loop、showGenerated、evaluation limit を既存 forGroup runtime 側で統合する。
 
 ## Blocking decisions
 

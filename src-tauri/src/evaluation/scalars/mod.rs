@@ -19,6 +19,8 @@ mod expression_evaluator_ops;
 mod expression_leaf_payload;
 mod expression_payload;
 mod expression_shape_payload;
+#[allow(dead_code)]
+mod for_group_mutation_core;
 mod issue;
 mod json_helpers;
 mod mutation;
@@ -39,6 +41,8 @@ mod control_boolean_payload_tests;
 mod expression_evaluator_tests;
 #[cfg(test)]
 mod expression_payload_tests;
+#[cfg(test)]
+mod for_group_mutation_core_tests;
 #[cfg(test)]
 mod numeric_function_adapter_tests;
 #[cfg(test)]
