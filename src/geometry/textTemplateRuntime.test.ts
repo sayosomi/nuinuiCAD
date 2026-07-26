@@ -9,7 +9,7 @@ import {
   buildTextPropertyBindingRuntimeEntries,
   buildTextTemplateEntriesByElementId,
   evaluateElementTextTemplate,
-  textTemplateHasTypedHole
+  toRustTextTemplateSegments
 } from "./textTemplateRuntime";
 
 const span = (start: number, end: number) => ({ start, end });
@@ -75,17 +75,17 @@ describe("buildTextTemplateEntriesByElementId", () => {
   });
 });
 
-describe("textTemplateHasTypedHole", () => {
-  it("is false for a literal-only template", () => {
-    expect(textTemplateHasTypedHole(templateOf([literalSegment("hi")]))).toBe(false);
-  });
-
-  it("is false for an all-legacy-hole template", () => {
-    expect(textTemplateHasTypedHole(templateOf([legacyHoleSegment("AB.length")]))).toBe(false);
-  });
-
-  it("is true when at least one hole is typed", () => {
-    expect(textTemplateHasTypedHole(templateOf([legacyHoleSegment("AB.length"), stringHoleSegment("binding:x")]))).toBe(true);
+describe("toRustTextTemplateSegments", () => {
+  it("projects only compiled evaluation data", () => {
+    expect(toRustTextTemplateSegments(templateOf([
+      literalSegment("hi"),
+      legacyHoleSegment("AB.length"),
+      stringHoleSegment("binding:x")
+    ]))).toEqual([
+      { kind: "literal", cooked: "hi" },
+      { kind: "hole", holeKind: "legacy", raw: "AB.length" },
+      expect.objectContaining({ kind: "hole", holeKind: "string" })
+    ]);
   });
 });
 

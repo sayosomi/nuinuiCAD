@@ -77,6 +77,9 @@ mod split_line_tests;
 #[cfg(test)]
 mod tests;
 mod text_evaluator;
+mod text_template_runtime;
+#[cfg(test)]
+mod text_template_runtime_tests;
 #[cfg(test)]
 mod three_point_arc_line_tests;
 #[cfg(test)]
@@ -119,13 +122,15 @@ use property_binding_runtime::apply_property_bindings;
 use scalars::{
     validate_binding_versions_payload, validate_condition_expressions_payload,
     validate_control_boolean_bindings_payload, validate_property_bindings_payload,
-    validate_scalar_program_payload, validate_typed_expression_payload, ForGroupMutationRunOutcome,
+    validate_scalar_program_payload, validate_text_property_bindings_payload,
+    validate_text_templates_payload, validate_typed_expression_payload, ForGroupMutationRunOutcome,
     ForGroupMutationStatement, ScalarBindingResolver, ScalarDocumentBindingResolver,
     ScalarMutationResolver, TypedScalarExpression, ValidatedBindingVersions,
     ValidatedConditionExpression, ValidatedPropertyBinding, ValidatedScalarProgram,
+    ValidatedTextTemplate,
 };
 use split_line_evaluator::evaluate_split_line;
-use text_evaluator::evaluate_text;
+use text_evaluator::{evaluate_text, TextTemplateContext};
 use types::{element_id, element_name, element_type, ElementId, EvaluationState};
 pub use types::{EvaluationCommandError, EvaluationInput, EvaluationPayload};
 use variable_evaluator::evaluate_variable_element;
@@ -234,6 +239,70 @@ fn decode_condition_expressions(
         })
 }
 
+fn decoded_binding_ids<'a>(
+    scalar_program: Option<&'a ValidatedScalarProgram>,
+    binding_versions: Option<&'a ValidatedBindingVersions>,
+) -> HashSet<&'a str> {
+    scalar_program
+        .map(|program| {
+            program
+                .statements
+                .iter()
+                .map(|statement| statement.binding_id.as_str())
+                .collect()
+        })
+        .unwrap_or_else(|| {
+            binding_versions
+                .map(|versions| versions.binding_ids.iter().map(String::as_str).collect())
+                .unwrap_or_default()
+        })
+}
+
+fn text_element_types(input: &EvaluationInput) -> HashMap<&str, &str> {
+    input
+        .elements
+        .iter()
+        .filter_map(|element| Some((element.get("id")?.as_str()?, element.get("type")?.as_str()?)))
+        .collect()
+}
+
+fn decode_text_templates(
+    input: &EvaluationInput,
+    scalar_program: Option<&ValidatedScalarProgram>,
+    binding_versions: Option<&ValidatedBindingVersions>,
+) -> Result<Option<Vec<ValidatedTextTemplate>>, EvaluationCommandError> {
+    let Some(payload) = input.text_templates.as_ref() else {
+        return Ok(None);
+    };
+    validate_text_templates_payload(
+        payload,
+        &text_element_types(input),
+        scalar_program.is_some() || binding_versions.is_some(),
+    )
+    .map(Some)
+    .map_err(|error| EvaluationCommandError {
+        code: error.code.as_str().to_owned(),
+        message: error.message,
+    })
+}
+
+fn decode_text_property_bindings(
+    input: &EvaluationInput,
+    scalar_program: Option<&ValidatedScalarProgram>,
+    binding_versions: Option<&ValidatedBindingVersions>,
+) -> Result<Option<Vec<ValidatedPropertyBinding>>, EvaluationCommandError> {
+    let Some(payload) = input.text_property_bindings.as_ref() else {
+        return Ok(None);
+    };
+    let valid_binding_ids = decoded_binding_ids(scalar_program, binding_versions);
+    validate_text_property_bindings_payload(payload, &text_element_types(input), &valid_binding_ids)
+        .map(Some)
+        .map_err(|error| EvaluationCommandError {
+            code: error.code.as_str().to_owned(),
+            message: error.message,
+        })
+}
+
 #[tauri::command]
 pub fn evaluate_document(
     input: EvaluationInput,
@@ -273,14 +342,32 @@ pub fn evaluate_document(
         binding_versions.as_ref(),
     )?;
     let condition_expressions = decode_condition_expressions(&input)?;
+    let text_templates =
+        decode_text_templates(&input, scalar_program.as_ref(), binding_versions.as_ref())?;
+    let text_property_bindings =
+        decode_text_property_bindings(&input, scalar_program.as_ref(), binding_versions.as_ref())?;
     Ok(evaluate_document_input_with_scalar_program(
         input,
-        scalar_program,
-        binding_versions,
-        property_bindings,
-        control_boolean_bindings,
-        condition_expressions,
+        DecodedScalarPayloads {
+            scalar_program,
+            binding_versions,
+            property_bindings,
+            control_boolean_bindings,
+            condition_expressions,
+            text_templates,
+            text_property_bindings,
+        },
     ))
+}
+
+struct DecodedScalarPayloads {
+    scalar_program: Option<ValidatedScalarProgram>,
+    binding_versions: Option<ValidatedBindingVersions>,
+    property_bindings: Option<Vec<ValidatedPropertyBinding>>,
+    control_boolean_bindings: Option<Vec<ValidatedPropertyBinding>>,
+    condition_expressions: Option<Vec<ValidatedConditionExpression>>,
+    text_templates: Option<Vec<ValidatedTextTemplate>>,
+    text_property_bindings: Option<Vec<ValidatedPropertyBinding>>,
 }
 
 fn inactive_conditional_group_id(
@@ -341,6 +428,7 @@ fn evaluate_element_by_type(
     local_variables: (HashMap<String, f64>, HashMap<String, String>),
     conditional_group_states: &mut HashMap<ElementId, Option<&'static str>>,
     condition_context: ConditionalGroupContext,
+    text_context: TextTemplateContext,
     state: &mut EvaluationState,
 ) {
     match element_type(&element) {
@@ -403,7 +491,7 @@ fn evaluate_element_by_type(
         Some("move") => evaluate_move(&element, &local_variables, state),
         Some("symmetricMove") => evaluate_symmetric_move(&element, &local_variables, state),
         Some("image") => evaluate_image(&element, &local_variables, state),
-        Some("text") => evaluate_text(&element, &local_variables, state),
+        Some("text") => evaluate_text(&element, &local_variables, text_context, state),
         _ => {}
     }
 }
@@ -437,24 +525,39 @@ fn evaluate_document_input(input: EvaluationInput) -> EvaluationPayload {
             .expect("evaluation test input control_boolean_bindings must be valid");
     let condition_expressions = decode_condition_expressions(&input)
         .expect("evaluation test input condition_expressions must be valid");
+    let text_templates =
+        decode_text_templates(&input, scalar_program.as_ref(), binding_versions.as_ref())
+            .expect("evaluation test input text_templates must be valid");
+    let text_property_bindings =
+        decode_text_property_bindings(&input, scalar_program.as_ref(), binding_versions.as_ref())
+            .expect("evaluation test input text_property_bindings must be valid");
     evaluate_document_input_with_scalar_program(
         input,
-        scalar_program,
-        binding_versions,
-        property_bindings,
-        control_boolean_bindings,
-        condition_expressions,
+        DecodedScalarPayloads {
+            scalar_program,
+            binding_versions,
+            property_bindings,
+            control_boolean_bindings,
+            condition_expressions,
+            text_templates,
+            text_property_bindings,
+        },
     )
 }
 
 fn evaluate_document_input_with_scalar_program(
     input: EvaluationInput,
-    scalar_program: Option<ValidatedScalarProgram>,
-    binding_versions: Option<ValidatedBindingVersions>,
-    property_bindings: Option<Vec<ValidatedPropertyBinding>>,
-    control_boolean_bindings: Option<Vec<ValidatedPropertyBinding>>,
-    condition_expressions: Option<Vec<ValidatedConditionExpression>>,
+    decoded: DecodedScalarPayloads,
 ) -> EvaluationPayload {
+    let DecodedScalarPayloads {
+        scalar_program,
+        binding_versions,
+        property_bindings,
+        control_boolean_bindings,
+        condition_expressions,
+        text_templates,
+        text_property_bindings,
+    } = decoded;
     let evaluation_limit_index = input
         .evaluation_limit_index
         .unwrap_or(input.elements.len())
@@ -511,6 +614,7 @@ fn evaluate_document_input_with_scalar_program(
         property_bindings
             .into_iter()
             .flatten()
+            .chain(text_property_bindings.into_iter().flatten())
             .fold(HashMap::new(), |mut map, entry| {
                 map.entry(entry.element_id.clone()).or_default().push(entry);
                 map
@@ -525,6 +629,11 @@ fn evaluate_document_input_with_scalar_program(
         .into_iter()
         .flatten()
         .map(|entry| (entry.element_id, entry.expression))
+        .collect();
+    let text_templates_by_element_id: HashMap<ElementId, ValidatedTextTemplate> = text_templates
+        .into_iter()
+        .flatten()
+        .map(|template| (template.element_id.clone(), template))
         .collect();
 
     'elements: for index in 0..evaluation_limit_index {
@@ -687,6 +796,7 @@ fn evaluate_document_input_with_scalar_program(
                     &entries_by_element_id,
                     &show_generated_by_element_id,
                     &condition_by_element_id,
+                    &text_templates_by_element_id,
                     &mut effective_visible_element_ids,
                     &mut effective_enabled_ids,
                     &mut effective_enabled_order,
@@ -786,6 +896,11 @@ fn evaluate_document_input_with_scalar_program(
                                         by_element_id: &condition_by_element_id,
                                         scalar_binding_resolver: active_scalar_binding_resolver,
                                     },
+                                    TextTemplateContext {
+                                        lookup_id: &template_id,
+                                        by_element_id: &text_templates_by_element_id,
+                                        scalar_binding_resolver: active_scalar_binding_resolver,
+                                    },
                                     &mut state,
                                 ),
                                 Err(error) => state.errors.push(error),
@@ -799,6 +914,11 @@ fn evaluate_document_input_with_scalar_program(
                             ConditionalGroupContext {
                                 lookup_id: &template_id,
                                 by_element_id: &condition_by_element_id,
+                                scalar_binding_resolver: active_scalar_binding_resolver,
+                            },
+                            TextTemplateContext {
+                                lookup_id: &template_id,
+                                by_element_id: &text_templates_by_element_id,
                                 scalar_binding_resolver: active_scalar_binding_resolver,
                             },
                             &mut state,
@@ -824,6 +944,11 @@ fn evaluate_document_input_with_scalar_program(
                             by_element_id: &condition_by_element_id,
                             scalar_binding_resolver: active_scalar_binding_resolver,
                         },
+                        TextTemplateContext {
+                            lookup_id: &id,
+                            by_element_id: &text_templates_by_element_id,
+                            scalar_binding_resolver: active_scalar_binding_resolver,
+                        },
                         &mut state,
                     ),
                     Err(error) => state.errors.push(error),
@@ -837,6 +962,11 @@ fn evaluate_document_input_with_scalar_program(
                 ConditionalGroupContext {
                     lookup_id: &id,
                     by_element_id: &condition_by_element_id,
+                    scalar_binding_resolver: active_scalar_binding_resolver,
+                },
+                TextTemplateContext {
+                    lookup_id: &id,
+                    by_element_id: &text_templates_by_element_id,
                     scalar_binding_resolver: active_scalar_binding_resolver,
                 },
                 &mut state,

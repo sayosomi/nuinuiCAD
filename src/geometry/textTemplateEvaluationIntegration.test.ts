@@ -114,26 +114,33 @@ describe("Task 27 production routing: compileDslDocument -> evaluateElements/can
     expect(result.computedGeometry.get(textElementId!)).toMatchObject({ kind: "text", text: "前身頃" });
   });
 
-  it("keeps a document with a typed text hole off the Rust path", () => {
+  it("makes a nui 3 document with a typed text hole Rust-eligible", () => {
     const { elements, options } = evaluateSource(
       ["nui 3", 'const ラベル: string = "前身頃"', 'text T = label(text: "{@ラベル}を2枚カット" anchor: none size: 3)'].join("\n"),
       new Map([[1, "test:label"]])
     );
-    expect(canUseRustEvaluationForElements(elements, options)).toBe(false);
+    expect(canUseRustEvaluationForElements(elements, options)).toBe(true);
   });
 
-  it("keeps a document with a bare @binding text.text property off the Rust path", () => {
+  it("makes a nui 3 document with a bare @binding text.text property Rust-eligible", () => {
     const { elements, options } = evaluateSource(
       ["nui 3", 'const ラベル: string = "前身頃"', "text T = label(text: @ラベル anchor: none size: 3)"].join("\n"),
       new Map([[1, "test:label"]])
     );
-    expect(canUseRustEvaluationForElements(elements, options)).toBe(false);
+    expect(canUseRustEvaluationForElements(elements, options)).toBe(true);
   });
 
-  it("a v2 document (no textTemplates compiled at all) keeps the legacy evaluation behavior unchanged", () => {
-    const { result, options, textElementId } = evaluateSource(["nui 2", 'text T = label(text: "plain text" anchor: none size: 3)'].join("\n"));
+  it("makes literal-only nui 3 text Rust-eligible without a scalar program", () => {
+    const { elements, options } = evaluateSource(["nui 3", 'text T = label(text: "plain text" anchor: none size: 3)'].join("\n"));
+    expect(options.scalarProgram).toBeUndefined();
+    expect(canUseRustEvaluationForElements(elements, options)).toBe(true);
+  });
+
+  it("keeps v2 text on the existing TypeScript path", () => {
+    const { result, options, elements, textElementId } = evaluateSource(["nui 2", 'text T = label(text: "plain text" anchor: none size: 3)'].join("\n"));
     expect(options.textTemplateEntriesByElementId).toBeUndefined();
     expect(result.errors).toHaveLength(0);
     expect(result.computedGeometry.get(textElementId!)).toMatchObject({ kind: "text", text: "plain text" });
+    expect(canUseRustEvaluationForElements(elements, options)).toBe(false);
   });
 });

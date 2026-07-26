@@ -8,6 +8,8 @@ fn edge_extends_and_trims_two_line_endpoints() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements: vec![
             free_point("a", "A", 0.0, 0.0),
             free_point("b", "B", 100.0, 0.0),
@@ -49,6 +51,8 @@ fn edge_trims_a_bezier_and_a_line() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements: vec![
             free_point("start", "始点", 0.0, 0.0),
             free_point("end", "終点", 100.0, 0.0),
@@ -95,6 +99,8 @@ fn edge_trims_two_bezier_curves() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements: vec![
             free_point("start", "始点", 0.0, 0.0),
             free_point("end", "終点", 100.0, 0.0),
@@ -150,6 +156,8 @@ fn edge_extends_a_bezier_along_its_handle_angle() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements: vec![
             free_point("start", "始点", 0.0, 0.0),
             free_point("end", "終点", 50.0, 0.0),
@@ -205,6 +213,8 @@ fn edge_reports_geometry_errors() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements: vec![
             free_point("a", "A", 0.0, 0.0),
             free_point("b", "B", 100.0, 0.0),
@@ -231,6 +241,8 @@ fn edge_reports_geometry_errors() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements: vec![
             free_point("a", "A", 0.0, 0.0),
             free_point("b", "B", 100.0, 0.0),
@@ -260,6 +272,8 @@ fn edge_reports_geometry_errors() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
         elements: vec![
             free_point("a", "A", 0.0, 0.0),
             free_point("b", "B", 100.0, 0.0),

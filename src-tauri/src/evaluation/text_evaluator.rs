@@ -3,9 +3,11 @@ use std::collections::HashMap;
 
 use super::numeric_expression::evaluate_numeric_or_push;
 use super::point_anchor::point_anchor_or_error;
-use super::types::{element_id, element_name, insert_geometry, EvaluationState};
+use super::scalars::{ScalarDocumentBindingResolver, ValidatedTextTemplate};
+use super::text_template_runtime::resolve_text_template;
+use super::types::{element_id, element_name, insert_geometry, ElementId, EvaluationState};
 
-fn text_number(value: f64) -> String {
+pub(crate) fn text_number(value: f64) -> String {
     if (value - value.round()).abs() < 0.000_000_001 {
         format!("{value:.0}")
     } else {
@@ -65,7 +67,11 @@ fn local_variable_id_for_display_name(display_name: &str, element: &Value) -> Op
         .map(str::to_owned)
 }
 
-fn normalize_text_expression(expression: &str, element: &Value, state: &EvaluationState) -> String {
+pub(crate) fn normalize_text_expression(
+    expression: &str,
+    element: &Value,
+    state: &EvaluationState,
+) -> String {
     let chars = expression.chars().collect::<Vec<_>>();
     let mut index = 0;
     let mut output = String::new();
@@ -169,9 +175,16 @@ fn resolve_text(
     Some(output)
 }
 
+pub(crate) struct TextTemplateContext<'a> {
+    pub(crate) lookup_id: &'a ElementId,
+    pub(crate) by_element_id: &'a HashMap<ElementId, ValidatedTextTemplate>,
+    pub(crate) scalar_binding_resolver: Option<&'a dyn ScalarDocumentBindingResolver>,
+}
+
 pub(crate) fn evaluate_text(
     element: &Value,
     local_variables: &(HashMap<String, f64>, HashMap<String, String>),
+    template_context: TextTemplateContext,
     state: &mut EvaluationState,
 ) {
     let Some(font_size) = evaluate_numeric_or_push(
@@ -183,15 +196,27 @@ pub(crate) fn evaluate_text(
     ) else {
         return;
     };
-    let Some(text) = resolve_text(
-        element
-            .get("text")
-            .and_then(Value::as_str)
-            .unwrap_or_default(),
-        element,
-        local_variables,
-        state,
-    ) else {
+    let Some(text) = (match template_context
+        .by_element_id
+        .get(template_context.lookup_id)
+    {
+        Some(template) => resolve_text_template(
+            template,
+            element,
+            local_variables,
+            template_context.scalar_binding_resolver,
+            state,
+        ),
+        None => resolve_text(
+            element
+                .get("text")
+                .and_then(Value::as_str)
+                .unwrap_or_default(),
+            element,
+            local_variables,
+            state,
+        ),
+    }) else {
         return;
     };
     let anchor = match element.get("anchor") {

@@ -54,6 +54,8 @@ fn input(elements: Vec<Value>, versions: Vec<Value>, cutoff: Option<usize>) -> E
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
     }
 }
 
@@ -273,6 +275,8 @@ fn production_command_runs_for_group_mutation_and_carries_the_final_slot() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
     })
     .unwrap();
     assert_eq!(
@@ -355,6 +359,8 @@ fn nested_inner_stop_stops_remaining_inner_and_outer_iterations() {
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
     })
     .unwrap();
 

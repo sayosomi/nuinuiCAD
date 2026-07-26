@@ -45,6 +45,15 @@ pub struct EvaluationInput {
     /// (a full AST, not a bindingId) since `condition` accepts an arbitrary
     /// boolean expression, not just a bare `@name` reference.
     pub(crate) condition_expressions: Option<Value>,
+    /// Compiled Task 26/27 text-template segments. This carries no source
+    /// text or names for Rust to parse: typed holes already contain resolved
+    /// expression ASTs, while legacy holes retain their existing numeric
+    /// runtime path.
+    pub(crate) text_templates: Option<Value>,
+    /// Validated bare `@binding` sources for `text.text`. Kept separate from
+    /// standard property bindings so its one-target allowlist remains owned
+    /// by the text runtime boundary.
+    pub(crate) text_property_bindings: Option<Value>,
 }
 
 #[derive(Debug, Serialize)]
