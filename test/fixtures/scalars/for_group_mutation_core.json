@@ -1,0 +1,7 @@
+[
+  {"name":"zero_iterations","iterations":[],"initial":{"sum":0},"expected":{"sum":0}},
+  {"name":"one_iteration","iterations":[2],"initial":{"sum":0},"expected":{"sum":2}},
+  {"name":"sum_carry","iterations":[1,2,3,4],"initial":{"sum":0},"expected":{"sum":10}},
+  {"name":"local_reset","iterations":[1,2,3],"initial":{"sum":0},"expected":{"sum":1}},
+  {"name":"poison_recovery","iterations":[1,2,3],"initial":{"sum":0},"expected":{"sum":3}}
+]
