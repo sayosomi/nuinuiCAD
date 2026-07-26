@@ -29,6 +29,7 @@ import {
   type BindingVersionGraph
 } from "../scalars/bindingVersions";
 import { compileTextTemplates, type TextTemplateAst } from "../scalars/textTemplate";
+import { buildTypedDependencyGraph, type TypedDependencyGraph } from "../scalars/typedDependencyGraph";
 import type { TypedScalarExpression } from "../scalars/typedExpressionAst";
 import { formatNumericValueForDsl } from "./dslExpressionFormat";
 import { parseDsl, parseDslSnapshot } from "./dslParser";
@@ -190,6 +191,8 @@ export type CompiledDslDocument = {
   setStatements?: ReadonlyMap<number, SetStatementAnalysis>;
   /** Task 30 evaluation-neutral declaration/set version graph. */
   bindingVersions?: BindingVersionGraph;
+  /** Task 36 static dependency graph for this exact compile attempt. */
+  typedDependencyGraph?: TypedDependencyGraph;
 };
 
 export type CompileDslDocumentOptions = {
@@ -910,6 +913,17 @@ export const compileDslDocument = (
         )
       })
     : undefined;
+  // This is intentionally built before the final diagnostic gate. It is a
+  // current-source analysis record, not part of the last-good geometry model.
+  const typedDependencyGraph = buildTypedDependencyGraph({
+    elements: compiled.elements,
+    elementIdByStatementIndex: compiled.elementIdsByStatementIndex ?? new Map(),
+    bindingAnalysis: scalarAnalysis?.bindingAnalysis,
+    bindingVersions,
+    propertyBindings: propertyBindingCompilation?.sourcesByOccurrenceKey,
+    textTemplates: textTemplateCompilation?.templatesByOccurrenceKey,
+    setStatements: setStatementCompilation?.setsByStatementIndex
+  });
   const finalDiagnostics = [
     ...(propertyBindingCompilation ? [...allDiagnostics, ...propertyBindingCompilation.diagnostics] : allDiagnostics),
     ...(conditionalGroupConditionCompilation ? conditionalGroupConditionCompilation.diagnostics : []),
@@ -928,7 +942,8 @@ export const compileDslDocument = (
       ...(scalarAnalysis ? { bindingAnalysis: scalarAnalysis.bindingAnalysis } : {}),
       ...(scalarAnalysis ? { scalarProgramPositionMap: scalarAnalysis.positionMap } : {}),
       ...(setStatementCompilation ? { setStatements: setStatementCompilation.setsByStatementIndex } : {}),
-      ...(bindingVersions ? { bindingVersions } : {})
+      ...(bindingVersions ? { bindingVersions } : {}),
+      ...(typedDependencyGraph ? { typedDependencyGraph } : {})
     };
   }
 
@@ -973,7 +988,8 @@ export const compileDslDocument = (
       : {}),
     ...(textTemplateCompilation ? { textTemplates: textTemplateCompilation.templatesByOccurrenceKey } : {}),
     ...(setStatementCompilation ? { setStatements: setStatementCompilation.setsByStatementIndex } : {}),
-    ...(bindingVersions ? { bindingVersions } : {})
+    ...(bindingVersions ? { bindingVersions } : {}),
+    ...(typedDependencyGraph ? { typedDependencyGraph } : {})
   };
 };
 

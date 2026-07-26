@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { NEW_DOCUMENT_DSL_MAJOR_VERSION, type DslDocumentData, type DslMajorVersion } from "../dsl/dslDocument";
 import type { DslDiagnostic } from "../dsl/dslTypes";
+import type { TypedDependencyGraph } from "../scalars/typedDependencyGraph";
 import {
   commitModelBridge,
   compileCanonicalText,
@@ -71,6 +72,8 @@ export type CadDocumentState = {
   compiledDocumentRevision: number;
   /** Diagnostics for sourceText, including fatal diagnostics while doc remains last-good. */
   diagnostics: DslDiagnostic[];
+  /** Static dependency graph for the current sourceText, including fatal compile attempts. */
+  typedDependencyGraph?: TypedDependencyGraph;
   /** @deprecated Derived compatibility views. sourceText remains canonical. */
   elements: CadElement[];
   /** @deprecated Derived compatibility views. sourceText remains canonical. */
@@ -215,6 +218,7 @@ const canonicalFields = (value: CanonicalDocumentValue) => {
     doc: value.doc,
     docText: value.docText,
     diagnostics: value.diagnostics,
+    typedDependencyGraph: value.typedDependencyGraph,
     elements: document.elements,
     palette: document.palette,
     visibilityRoles: document.visibilityRoles,

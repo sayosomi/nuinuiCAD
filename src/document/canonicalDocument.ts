@@ -11,6 +11,7 @@ import type { DslDiagnostic } from "../dsl/dslTypes";
 import type { SourceSnapshot } from "../dsl/logicalStatementSourceMap";
 import { createCadElementId } from "../model/cadIds";
 import type { ElementId } from "../types/geometry";
+import type { TypedDependencyGraph } from "../scalars/typedDependencyGraph";
 import { applyLineSplices, buildTextPatch, UnappliedTextPatchError, type LineSplice } from "./textPatch";
 import { reconcileStatements } from "./statementReconciler";
 import { zipAssignedElementIds } from "./shadowText";
@@ -27,6 +28,8 @@ export type CanonicalDocumentValue = {
   doc: LastGoodDslDocument;
   docText: string;
   diagnostics: DslDiagnostic[];
+  /** Current-source analysis; it must not fall back with last-good geometry. */
+  typedDependencyGraph?: TypedDependencyGraph;
 };
 
 export type TextCompileResult = CanonicalDocumentValue & {
@@ -93,6 +96,7 @@ export const compileCanonicalText = (
       doc: current.doc,
       docText: current.docText,
       diagnostics: compiled.diagnostics,
+      typedDependencyGraph: compiled.typedDependencyGraph,
       status: "fatal"
     };
   }
@@ -102,6 +106,7 @@ export const compileCanonicalText = (
     doc: compiled,
     docText: sourceText,
     diagnostics: compiled.diagnostics,
+    typedDependencyGraph: compiled.typedDependencyGraph,
     status: compiled.diagnostics.some((item) => item.severity === "warning")
       ? "warning"
       : "valid"
@@ -202,7 +207,8 @@ export const commitModelBridge = (
       sourceText: patchedText,
       doc: compiled.doc,
       docText: patchedText,
-      diagnostics: compiled.doc.diagnostics
+      diagnostics: compiled.doc.diagnostics,
+      typedDependencyGraph: compiled.doc.typedDependencyGraph
     },
     splices
   };
@@ -219,6 +225,7 @@ export const regenerateCanonicalFromModel = (
     sourceText,
     doc: compiled.doc,
     docText: sourceText,
-    diagnostics: compiled.doc.diagnostics
+    diagnostics: compiled.doc.diagnostics,
+    typedDependencyGraph: compiled.doc.typedDependencyGraph
   };
 };
