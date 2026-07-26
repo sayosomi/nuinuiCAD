@@ -3,6 +3,7 @@
 // resolves names, or synthesizes any identity.
 import type { CadElement, ElementId } from "../types/geometry";
 import type { BindingVersion, BindingVersionGraph } from "../scalars/bindingVersions";
+import { buildConditionalMutationOwners } from "../scalars/conditionalMutationControl";
 
 export type BindingMutationElementSourceOrder = {
   elementId: ElementId;
@@ -12,6 +13,7 @@ export type BindingMutationElementSourceOrder = {
 export type RustBindingMutationPayload = {
   versions: readonly Record<string, unknown>[];
   elementSourceOrders: readonly BindingMutationElementSourceOrder[];
+  conditionalOwners: readonly { ownerStatementId: string; elementId: ElementId }[];
   evaluationLimitSourceOrder?: number;
 };
 
@@ -27,6 +29,7 @@ const versionPayload = (version: BindingVersion): Record<string, unknown> => ({
   declaredType: version.declaredType,
   sourceOrder: version.sourceOrder,
   scopeId: version.scopeId,
+  scopeExitSourceOrder: version.scopeExitSourceOrder,
   control: version.control,
   ...(version.predecessorId === undefined ? {} : { predecessorId: version.predecessorId }),
   initialState: version.initialState,
@@ -41,7 +44,8 @@ const versionPayload = (version: BindingVersion): Record<string, unknown> => ({
 export const buildRustBindingMutationPayload = (
   graph: BindingVersionGraph,
   elements: readonly CadElement[],
-  statementInfoByElementId: ReadonlyMap<ElementId, StatementInfo> | undefined
+  statementInfoByElementId: ReadonlyMap<ElementId, StatementInfo> | undefined,
+  statementIdByStatementIndex: ReadonlyMap<number, string> | undefined
 ): RustBindingMutationPayload => {
   if (!statementInfoByElementId) {
     throw new Error("buildRustBindingMutationPayload: missing compiled element statement positions");
@@ -55,6 +59,9 @@ export const buildRustBindingMutationPayload = (
   });
   return {
     versions: graph.versions.map(versionPayload),
+    conditionalOwners: buildConditionalMutationOwners(
+      graph, elements, statementInfoByElementId, statementIdByStatementIndex
+    ),
     elementSourceOrders,
     ...(graph.evaluationLimitSourceOrder === undefined
       ? {}

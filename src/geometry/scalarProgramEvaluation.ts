@@ -72,6 +72,7 @@ export type ScalarBindingResolver = {
 
 export type LinearScalarBindingResolver = {
   advanceTo: (position: BindingReadPosition) => void;
+  registerConditionalResult: (ownerStatementId: string, branch: "then" | "else" | null) => void;
   resolveBinding: (bindingId: BindingId) => ScalarEvaluation;
   finalize: (position: BindingReadPosition) => LinearMutationEvaluation;
 };
@@ -112,6 +113,7 @@ export const createDocumentLinearScalarBindingResolver = (
   const evaluator = createIncrementalLinearMutationEvaluator(graph, resolveExternalBinding);
   return {
     advanceTo: evaluator.advanceTo,
+    registerConditionalResult: evaluator.registerConditionalResult,
     resolveBinding: evaluator.resolveCurrent,
     finalize: evaluator.finalize
   };

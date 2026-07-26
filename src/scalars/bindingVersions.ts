@@ -11,11 +11,20 @@ import type { TypedScalarExpression } from "./typedExpressionAst";
 export type BindingVersionId = string;
 
 export type BindingControlOwner =
-  | { kind: "conditionalBranch"; ownerStatementId: string; branch: "then" | "else"; scopeId: ScopeId }
-  | { kind: "forGroup"; ownerStatementId: string; scopeId: ScopeId };
+  | {
+      kind: "conditionalBranch";
+      ownerStatementId: string;
+      branch: "then" | "else";
+      scopeId: ScopeId;
+      /** Explicit lexical close from Task 30's scope metadata, never inferred at runtime. */
+      exitSourceOrder: number;
+    }
+  | { kind: "forGroup"; ownerStatementId: string; scopeId: ScopeId; exitSourceOrder: number };
 
 export type BindingControlMetadata = {
   scopeId: ScopeId;
+  /** Explicit lexical close for this version's own declaration/set scope. */
+  scopeExitSourceOrder: number;
   /** Outer-to-inner executable control owners; groups deliberately add none. */
   ownerChain: readonly BindingControlOwner[];
   /** The innermost owner, or linear execution when the chain is empty. */
@@ -32,6 +41,7 @@ type BindingVersionBase = {
   declaredType: ScalarType;
   sourceOrder: number;
   scopeId: ScopeId;
+  scopeExitSourceOrder: number;
   control: BindingControlMetadata;
   predecessorId?: BindingVersionId;
   initialState: BindingVersionState;
@@ -140,12 +150,19 @@ export const buildBindingControlMetadata = (
         throw new Error(`bindingVersions: control scope ${scopeId} has no stable owner statement identity`);
       }
       ownerChain.push(scope.kind === "forGroup"
-        ? { kind: "forGroup", ownerStatementId, scopeId }
-        : { kind: "conditionalBranch", ownerStatementId, branch: scope.kind, scopeId });
+        ? { kind: "forGroup", ownerStatementId, scopeId, exitSourceOrder: scope.exitStatementIndex }
+        : {
+            kind: "conditionalBranch",
+            ownerStatementId,
+            branch: scope.kind,
+            scopeId,
+            exitSourceOrder: scope.exitStatementIndex
+          });
     }
     const owner = ownerChain[ownerChain.length - 1];
     controls.set(scopeId, {
       scopeId,
+      scopeExitSourceOrder: scope.exitStatementIndex,
       ownerChain,
       kind: owner?.kind ?? "linear"
     });
@@ -217,6 +234,7 @@ export const buildBindingVersionGraph = ({
       declaredType: binding.declaredType,
       sourceOrder: binding.statementIndex,
       scopeId: binding.effectiveScopeId,
+      scopeExitSourceOrder: controlFor(controlByScopeId, binding.effectiveScopeId).scopeExitSourceOrder,
       control: controlFor(controlByScopeId, binding.effectiveScopeId),
       initialState: seed.initialState,
       ...(seed.initializer ? { initializer: seed.initializer } : {})
@@ -270,6 +288,7 @@ export const buildBindingVersionGraph = ({
       declaredType: target.declaredType,
       sourceOrder: set.sourceOrder,
       scopeId: set.scopeId,
+      scopeExitSourceOrder: controlFor(controlByScopeId, set.scopeId).scopeExitSourceOrder,
       control: controlFor(controlByScopeId, set.scopeId),
       expression: set.expression,
       setStatementId: set.statementId,

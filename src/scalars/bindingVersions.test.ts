@@ -108,7 +108,7 @@ describe("binding version graph", () => {
     const x = graph.versions.find((version) => version.id === "decl-x")!;
     const y = graph.versions.find((version) => version.id === "decl-y")!;
     const z = graph.versions.find((version) => version.id === "decl-z")!;
-    expect(x.control).toEqual({
+    expect(x.control).toMatchObject({
       scopeId: x.scopeId,
       kind: "forGroup",
       ownerChain: [
@@ -120,7 +120,7 @@ describe("binding version graph", () => {
       kind: "conditionalBranch",
       ownerChain: [{ kind: "conditionalBranch", ownerStatementId: "if-choice", branch: "else" }]
     });
-    expect(z.control).toEqual({ scopeId: z.scopeId, kind: "linear", ownerChain: [] });
+    expect(z.control).toMatchObject({ scopeId: z.scopeId, kind: "linear", ownerChain: [] });
   });
 
   it("retains control owner identities after an unrelated edit when reconciler identities are reused", () => {

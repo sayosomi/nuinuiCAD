@@ -19,7 +19,7 @@ import {
 } from "./forGroupExpansion";
 import type { ScalarProgram } from "../scalars/scalarProgram";
 import type { BindingVersionGraph } from "../scalars/bindingVersions";
-import { hasLinearSetVersions } from "../scalars/linearMutationEvaluator";
+import { hasSetVersions } from "../scalars/linearMutationEvaluator";
 import {
   createDocumentLinearScalarBindingResolver,
   createDocumentScalarBindingResolver
@@ -51,6 +51,9 @@ export type EvaluateElementsOptions = {
   bindingVersions?: BindingVersionGraph;
   /** Existing compiled element ID -> source statement mapping; never inferred from element order. */
   statementInfoByElementId?: ReadonlyMap<ElementId, { statementIndex: number }>;
+  statementIdByStatementIndex?: ReadonlyMap<number, string>;
+  /** Task 33's completed static join from conditional element id to owner statement id. */
+  conditionalOwnerStatementIdByElementId?: ReadonlyMap<ElementId, string>;
   /**
    * Task 23's elementId-keyed standard property bindings (already re-keyed
    * from CompiledDslDocument.propertyBindings by
@@ -164,9 +167,9 @@ export const evaluateElements = (
   // Built whenever a scalarProgram is present, independent of whether any
   // property bindings exist - computedScalarBindings is Task 21's own
   // contract and must not depend on Task 23's property wiring.
-  const linearMutationEnabled = options.bindingVersions !== undefined && hasLinearSetVersions(options.bindingVersions);
+  const linearMutationEnabled = options.bindingVersions !== undefined && hasSetVersions(options.bindingVersions);
   if (linearMutationEnabled && !options.statementInfoByElementId) {
-    throw new Error("evaluateElements: linear binding mutation requires the compiled statementInfoByElementId mapping");
+    throw new Error("evaluateElements: binding mutation requires the compiled statementInfoByElementId mapping");
   }
   const linearMutationResolver = linearMutationEnabled
     ? createDocumentLinearScalarBindingResolver(options.bindingVersions!, computedVariables)
@@ -322,6 +325,8 @@ export const evaluateElements = (
             return conditionValue === undefined ? null : conditionValue === 0 ? "else" : "then";
           })();
       conditionalGroupStates.set(element.id, activeBranch);
+      const ownerStatementId = options.conditionalOwnerStatementIdByElementId?.get((sourceElement ?? element).id);
+      if (ownerStatementId) linearMutationResolver!.registerConditionalResult(ownerStatementId, activeBranch);
       return;
     }
 

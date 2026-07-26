@@ -568,6 +568,33 @@ fn evaluate_document_input_with_scalar_program(
             continue;
         };
 
+        // Task 33 records Task 25's single Rust-side decision immediately
+        // after evaluating this opener. The mutation cursor never receives a
+        // TS selection and never re-evaluates the condition itself.
+        if element_type(&element) == Some("conditionalGroup") {
+            let active_branch = match condition_by_element_id.get(&id) {
+                Some(expression) => {
+                    let resolver = active_scalar_binding_resolver.expect(
+                        "scalar_binding_resolver must exist when condition_expressions exist",
+                    );
+                    resolve_conditional_group_branch(expression, resolver, &state)
+                }
+                None => evaluate_numeric_or_push(
+                    element.get("condition").unwrap_or(&Value::Null),
+                    &mut state,
+                    &element,
+                    &local_variables.0,
+                    &local_variables.1,
+                )
+                .map(|value| if value == 0.0 { "else" } else { "then" }),
+            };
+            conditional_group_states.insert(id.clone(), active_branch);
+            if let Some(resolver) = scalar_mutation_resolver.as_mut() {
+                resolver.register_conditional_result(&id, active_branch);
+            }
+            continue;
+        }
+
         if element_type(&element) == Some("forGroup") {
             let start = evaluate_numeric_or_push(
                 element.get("start").unwrap_or(&Value::Null),

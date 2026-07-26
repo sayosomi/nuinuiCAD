@@ -62,11 +62,11 @@ const parseComputedScalarBindingVersions = (value: unknown): Map<BindingVersionI
     if (!isPlainObject(entry) || typeof entry.versionId !== "string" || !entry.versionId ||
       typeof entry.statementId !== "string" || !entry.statementId ||
       typeof entry.bindingId !== "string" || !entry.bindingId ||
-      (entry.status !== "executed" && entry.status !== "poisoned" && entry.status !== "skipped-control")) {
+      (entry.status !== "executed" && entry.status !== "poisoned" && entry.status !== "skipped-control" && entry.status !== "inactive-control")) {
       return failScalarOutput(`computedScalarBindingVersions entry at index ${index} is malformed`);
     }
     if (history.has(entry.versionId)) return failScalarOutput(`computedScalarBindingVersions duplicates versionId ${entry.versionId}`);
-    if (entry.status === "skipped-control") {
+    if (entry.status === "skipped-control" || entry.status === "inactive-control") {
       if (Object.keys(entry).length !== 4) return failScalarOutput(`skipped history entry at index ${index} has unexpected fields`);
       history.set(entry.versionId, entry as BindingVersionRuntimeHistory);
       continue;

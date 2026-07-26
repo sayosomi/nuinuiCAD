@@ -54,8 +54,8 @@
 | 29 | [set syntax/resolution](tasks/29-set-syntax-resolution.md) | DSL/binding analysis | 10,12,15,19 | gated analysis | `typed-vars/29-set-syntax` | 完了 |
 | 30 | [binding version IR](tasks/30-binding-version-ir.md) | mutation core | 29 | gated IR | `typed-vars/30-binding-versions` | 完了 |
 | 31 | [linear mutation TS](tasks/31-linear-mutation-ts.md) | reference mutation | 16,20,30 | TS reference path; linear set documents remain Rust-gated until 32 | `typed-vars/31-linear-mutation-ts` | 完了 |
-| 32 | [linear mutation Rust parity](tasks/32-linear-mutation-rust-parity.md) | production mutation | 18,21,30,31 | gated Rust path | `typed-vars/32-linear-mutation-rust` | 未着手 |
-| 33 | [conditional mutation](tasks/33-conditional-mutation.md) | control mutation | 25,32 | gated TS/Rust path | `typed-vars/33-conditional-mutation` | 未着手 |
+| 32 | [linear mutation Rust parity](tasks/32-linear-mutation-rust-parity.md) | production mutation | 18,21,30,31 | gated Rust path | `typed-vars/32-linear-mutation-rust` | 完了 |
+| 33 | [conditional mutation](tasks/33-conditional-mutation.md) | control mutation | 25,32 | gated TS/Rust path | `typed-vars/33-conditional-mutation` | 完了 |
 | 34 | [forGroup mutation core](tasks/34-forgroup-mutation-core.md) | loop mutation | 30,32,33 | unconnected algorithm | `typed-vars/34-forgroup-mutation-core` | 未着手 |
 | 35 | [forGroup mutation integration](tasks/35-forgroup-mutation-integration.md) | loop production | 34 | gated TS/Rust path | `typed-vars/35-forgroup-mutation` | 未着手 |
 | 36 | [typed dependency graph](tasks/36-typed-dependency-graph.md) | dependency model | 13,22,26,29,30 | gated analysis | `typed-vars/36-dependency-graph` | 未着手 |
@@ -348,6 +348,14 @@ linear `set` を含む nui 3 文書は、TS が `BindingVersionGraph` から組�
 - Rust mutation resolver は source order を一度だけ進み、binding current slot を in-place 更新する。set RHS は更新前 slot と live legacy geometry result を読み、poison version は current slot へ書き込まれ、後続setで回復できる。document終端では同じcursorをfinalizeするため、最終element後またはelementなしのlinear setも cutoff 前なら final result/history に反映される。
 - `computedScalarBindings` は declaration source order、`computedScalarBindingVersions` は実行済みversion source order を返す。cutoff以上のversionはfinalizeでも評価・history出力されない。setなし文書はTask 21の`scalarProgram` resolver/output pathを維持する。
 - Task 33以降は conditional ownerをlinearへ落とさず、branch merge/loop carry専用のpayload/evaluatorを追加すること。Task 45はこのhistoryとfinal binding mapをread-only runtime表示に利用できる。
+
+### Task 33完了時点の引き継ぎ(34/35/45/48/49向け)
+
+conditional mutation は Task 25 の runtime condition result と Task 30 の owner chain だけで実行する。TS/Rust は同じ compiled control/version payload を受け取るが、branch selection は共有しない。各 runtime は conditional opener の `beforeStatement` まで cursor を進め、その current slot と live legacy result で Task 25 condition を一度だけ評価して、stable owner statement ID に `then` / `else` / `null` を登録する。
+
+- active owner chain の version だけが slot を更新する。inactive branch は `inactive-control` history を残すだけで、poison、runtime error、slot 更新を発生させない。condition error/poison/非boolean は Task 25 と同じ `null` で両 branch を inactive にする。
+- conditional branch-local declaration は active branch frame に所属し、Task 30 の明示的 scope exit metadata で退役する。退役後は current lookup/final map に現れない。outer binding ID を target にした active set は frame に所属せず、branch 後にも carry する。
+- Rust payload は stable conditional owner ID、対応 conditional element ID、branch/scope/parent owner chain metadata だけを渡す。source text、binding 名、TS の branch result は渡さない。unknown owner、owner-chain 不整合、branch metadata 不整合は Rust command boundary で fail-closed。forGroup owner を含む mutation は引き続き Rust eligibility を得ない。
 
 ## Blocking decisions
 
