@@ -77,7 +77,8 @@ const staticDisabledBindingIds = (analysis: BindingAnalysis, elements: readonly 
   return disabled;
 };
 
-const referencesIn = (expression: TypedScalarExpression): readonly Extract<TypedScalarExpression, { kind: "reference" }>[] => {
+/** Shared with Task 37's rename occurrence gathering (src/scalars/typedRenameOccurrences.ts) - the sole reference-node walker for a typed AST, never forked. */
+export const referencesIn = (expression: TypedScalarExpression): readonly Extract<TypedScalarExpression, { kind: "reference" }>[] => {
   const result: Extract<TypedScalarExpression, { kind: "reference" }>[] = [];
   const visit = (node: TypedScalarExpression): void => {
     if (node.kind === "reference") result.push(node);

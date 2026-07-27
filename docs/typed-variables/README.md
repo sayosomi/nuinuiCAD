@@ -22,6 +22,17 @@
 
 250→1000 median scaling: 7.061x。queryはこのcompile済みgraphのadjacencyを読むだけで、測定対象・実装ともquery時のsource再parse、name再resolve、graph再構築を行わない。
 
+## Task 37 performance record
+
+測定日: 2026-07-28。`src/scalars/typedRenameAnalysis.performance.test.ts`をfork 1 workerで実行し、`nui 3`の密なtyped fan-out参照(1つのtyped bindingを250/1000件の`let`初期化子が直接参照する)を対象に、compile+`analyzeTypedBindingRenameInDocument`のCPU時間を計測した。各サイズ100 warm-up後、21 trialを1 rename解析ずつ測定した。
+
+| bindings / referencing occurrences | median | p95 |
+| --- | ---: | ---: |
+| 250 / 250 | 4.141 ms | 6.301 ms |
+| 1000 / 1000 | 27.559 ms | 31.790 ms |
+
+250→1000 median scaling: 6.655x。virtual renameは`BindingCatalog.bindings`のshallow copy(対象bindingの`name`のみ置換)であり、`LexicalScopeIndex`の再構築、`compileDslDocument`/`parseDsl`の再実行、source再parseは行わない。before/after双方の解決は`resolveInitializerReferences`/`resolveReferencesAtSites`を文書全体で1回ずつ(occurrence種別ごとにbatch)呼ぶのみで、occurrenceごとの個別呼び出しは行わない。
+
 ## タスク一覧
 
 | # | task | domain | depends | connection at completion | branch slug | status |
@@ -69,8 +80,8 @@
 | 33 | [conditional mutation](tasks/33-conditional-mutation.md) | control mutation | 25,32 | gated TS/Rust path | `typed-vars/33-conditional-mutation` | 完了 |
 | 34 | [forGroup mutation core](tasks/34-forgroup-mutation-core.md) | loop mutation | 30,32,33 | unconnected algorithm | `typed-vars/34-forgroup-mutation-core` | 完了 |
 | 35 | [forGroup mutation integration](tasks/35-forgroup-mutation-integration.md) | loop production | 34 | gated TS/Rust path | `typed-vars/35-forgroup-mutation` | 完了 |
-| 36 | [typed dependency graph](tasks/36-typed-dependency-graph.md) | dependency model | 13,22,26,29,30 | gated analysis | `typed-vars/36-dependency-graph` | 未着手 |
-| 37 | [typed rename analysis](tasks/37-typed-rename-analysis.md) | rename safety | 36 | gated analysis | `typed-vars/37-rename-analysis` | 未着手 |
+| 36 | [typed dependency graph](tasks/36-typed-dependency-graph.md) | dependency model | 13,22,26,29,30 | gated analysis | `typed-vars/36-dependency-graph` | 完了 |
+| 37 | [typed rename analysis](tasks/37-typed-rename-analysis.md) | rename safety | 36 | gated analysis | `typed-vars/37-rename-analysis` | 完了 |
 | 38 | [typed rename command](tasks/38-typed-rename-command.md) | command/text splice | 37 | gated command | `typed-vars/38-rename-command` | 未着手 |
 | 39 | [typed value completion](tasks/39-typed-value-completion.md) | editor completion | 12,15,22,26 | gated editor | `typed-vars/39-value-completion` | 未着手 |
 | 40 | [set/recovery completion](tasks/40-set-recovery-completion.md) | editor completion | 29,30,39 | gated editor | `typed-vars/40-set-completion` | 未着手 |
