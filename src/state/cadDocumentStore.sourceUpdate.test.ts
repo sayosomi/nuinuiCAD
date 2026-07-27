@@ -71,6 +71,44 @@ describe("cadDocumentStore source updates", () => {
     expect(useCadDocumentStore.getState().sourceUpdate.kind).toBe("reset");
   });
 
+  it("commitLineSplices tags model-patch (not reset) with the given splices, in one Undo step", () => {
+    const source = ["nui 3", "const base: number = 1", "let derived: number = @base"].join("\n");
+    useCadDocumentStore.getState().commitText(source, "test");
+    const pastLength = useCadDocumentStore.getState().past.length;
+
+    const result = useCadDocumentStore.getState().commitLineSplices([
+      { startLine: 2, endLine: 2, replacementLines: ["const renamed: number = 1"] },
+      { startLine: 3, endLine: 3, replacementLines: ["let derived: number = @renamed"] }
+    ]);
+
+    expect(result).toEqual({ status: "applied" });
+    expect(useCadDocumentStore.getState().sourceText).toBe(
+      ["nui 3", "const renamed: number = 1", "let derived: number = @renamed"].join("\n")
+    );
+    const update = useCadDocumentStore.getState().sourceUpdate;
+    expect(update.kind).toBe("model-patch");
+    if (update.kind !== "model-patch") throw new Error("expected model patch");
+    expect(update.splices).toEqual([
+      { startLine: 2, endLine: 2, replacementLines: ["const renamed: number = 1"] },
+      { startLine: 3, endLine: 3, replacementLines: ["let derived: number = @renamed"] }
+    ]);
+    expect(useCadDocumentStore.getState().past.length).toBe(pastLength + 1);
+  });
+
+  it("commitLineSplices is a noop when the given splices produce identical text", () => {
+    const source = ["nui 3", "const base: number = 1"].join("\n");
+    useCadDocumentStore.getState().commitText(source, "test");
+    const before = useCadDocumentStore.getState();
+
+    const result = useCadDocumentStore.getState().commitLineSplices([
+      { startLine: 2, endLine: 2, replacementLines: ["const base: number = 1"] }
+    ]);
+
+    expect(result).toEqual({ status: "noop" });
+    expect(useCadDocumentStore.getState().past).toBe(before.past);
+    expect(useCadDocumentStore.getState().sourceRevision).toBe(before.sourceRevision);
+  });
+
   it("keeps compiledDocumentRevision independent from sourceRevision while fatal text retains last-good doc", () => {
     const valid1 = onePointSource();
     useCadDocumentStore.getState().commitText(valid1, "editor");

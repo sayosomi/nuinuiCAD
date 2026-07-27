@@ -3,6 +3,7 @@ import { NEW_DOCUMENT_DSL_MAJOR_VERSION, type DslDocumentData, type DslMajorVers
 import type { DslDiagnostic } from "../dsl/dslTypes";
 import type { TypedDependencyGraph } from "../scalars/typedDependencyGraph";
 import {
+  commitLineSplicePatch,
   commitModelBridge,
   compileCanonicalText,
   regenerateCanonicalFromModel,
@@ -111,6 +112,11 @@ export type CadDocumentState = {
   previewDocumentChange: (change: Partial<DslDocumentData>) => DocumentMutationResult;
   clearPreviewDocumentChange: () => void;
   commitDocumentChange: (change: Partial<DslDocumentData>) => DocumentMutationResult;
+  /** Commits precomputed line splices directly (no element-model diff), tagged
+   * "model-patch" so the Source Editor maps existing selection through the
+   * change instead of resetting to a line-only cursor restore. Used by
+   * non-element text mutations such as the typed binding rename command. */
+  commitLineSplices: (splices: readonly LineSplice[]) => DocumentMutationResult;
   setElements: (elements: CadElement[]) => void;
   updateElement: (id: ElementId, patch: Partial<CadElement>) => void;
   setPrintLayout: (printLayout: PrintLayout) => void;
@@ -419,6 +425,7 @@ type CadDocumentActions = Pick<
   | "previewDocumentChange"
   | "clearPreviewDocumentChange"
   | "commitDocumentChange"
+  | "commitLineSplices"
   | "setElements"
   | "updateElement"
   | "setPrintLayout"
@@ -594,6 +601,38 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
       const outcome = modelCommit(state, change);
       result = outcome.result;
       return outcome.state;
+    });
+    return result;
+  },
+  commitLineSplices: (splices) => {
+    const guarded = guardDocumentMutation();
+    if (guarded) {
+      set(clearedPreviewState());
+      return guarded;
+    }
+    let result: DocumentMutationResult = { status: "noop" };
+    set((state) => {
+      const previousSelection = useCadUiStore.getState();
+      const outcome = commitLineSplicePatch(state, splices);
+      if (outcome.status === "noop") {
+        result = { status: "noop" };
+        return { ...canonicalFields(state), ...clearedPreviewState() };
+      }
+      if (outcome.status === "failed") {
+        console.error(`[canonicalDocument] ${outcome.reason}`);
+        useCadUiStore.getState().setCommandErrorMessage("現在のDSLテキストにはこの操作を適用できません。");
+        result = { status: "rejected", reason: "invalid-change" };
+        return clearedPreviewState();
+      }
+      result = { status: "applied" };
+      return {
+        ...canonicalFields(outcome.value),
+        ...clearedPreviewState(),
+        past: appendPast(state.past, textSnapshot(state, previousSelection)),
+        future: [],
+        dirtySinceSave: dirtyForText(state, outcome.value.sourceText),
+        ...canonicalRevisionFields(state, outcome.value, "model-patch", outcome.splices)
+      };
     });
     return result;
   },

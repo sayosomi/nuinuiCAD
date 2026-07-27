@@ -33,6 +33,7 @@ describe("typed binding rename safety analysis", () => {
     expect(analysis.occurrences[0].kind).toBe("initializer");
     expect(analysis.occurrences[0].oldName).toBe("base");
     expect(analysis.occurrences[0].newName).toBe("renamed");
+    expect(analysis.occurrences[0].statementIndex).toBe(2);
     const { span } = analysis.occurrences[0];
     expect(source.split("\n")[2].slice(span.start, span.end)).toBe("base");
   });
@@ -47,6 +48,7 @@ describe("typed binding rename safety analysis", () => {
     expect(analysis.occurrences).toHaveLength(1);
     expect(analysis.occurrences[0].kind).toBe("set-target");
     expect(analysis.occurrences[0].oldName).toBe("counter");
+    expect(analysis.occurrences[0].statementIndex).toBe(3);
   });
 
   it("allows a safe rename of a set RHS reference", () => {
@@ -59,6 +61,7 @@ describe("typed binding rename safety analysis", () => {
     expect(analysis.occurrences).toHaveLength(1);
     expect(analysis.occurrences[0].kind).toBe("set-rhs");
     expect(analysis.occurrences[0].oldName).toBe("other");
+    expect(analysis.occurrences[0].statementIndex).toBe(3);
   });
 
   it("allows a safe rename of a property binding reference", () => {
@@ -69,6 +72,7 @@ describe("typed binding rename safety analysis", () => {
     expect(analysis.occurrences).toHaveLength(1);
     expect(analysis.occurrences[0].kind).toBe("property-binding");
     expect(analysis.occurrences[0].oldName).toBe("flag");
+    expect(analysis.occurrences[0].statementIndex).toBe(2);
   });
 
   it("allows a safe rename of a typed text template hole reference, with a span that excludes the leading @", () => {
@@ -80,6 +84,7 @@ describe("typed binding rename safety analysis", () => {
     expect(analysis.occurrences).toHaveLength(1);
     expect(analysis.occurrences[0].kind).toBe("template-hole");
     expect(analysis.occurrences[0].oldName).toBe("amount");
+    expect(analysis.occurrences[0].statementIndex).toBe(2);
     const templateLine = source.split("\n")[2];
     const { span } = analysis.occurrences[0];
     expect(templateLine.slice(span.start, span.end)).toBe("amount");
