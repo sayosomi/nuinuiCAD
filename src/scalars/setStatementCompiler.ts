@@ -23,7 +23,7 @@
 
 import type { DslDiagnostic, DslSpan, DslStatement } from "../dsl/dslTypes";
 import type { BindingAnalysis } from "./bindingAnalysis";
-import type { BindingId } from "./bindingCatalog";
+import type { Binding, BindingId } from "./bindingCatalog";
 import { resolveReferencesAtSites, type BindingResolution, type SiteReferenceRequest } from "./bindingResolution";
 import type { ScalarExpressionAst } from "./expressionAst";
 import { parseScalarExpression } from "./expressionParser";
@@ -80,6 +80,29 @@ export type CompileSetStatementsInput = {
 export type SetStatementCompilation = {
   setsByStatementIndex: ReadonlyMap<number, SetStatementAnalysis>;
   diagnostics: readonly DslDiagnostic[];
+};
+
+export type SetTargetClassification =
+  | { kind: "valid"; binding: Binding }
+  | { kind: "invalid"; reason: "unresolved" | "const-assignment" | "not-let" | "declared-type-unknown" };
+
+/**
+ * The single target-validity chain for a `set` statement's name resolution:
+ * must resolve, must be a `let` (never `const`, and never legacy/iteration/
+ * elementLocal, all of which carry mutability "readonly"), and must have a
+ * known declared type. Shared with Task 37's rename safety analysis
+ * (src/scalars/typedRenameAnalysis.ts), which classifies the same target
+ * name's resolution before and after a candidate rename - this must stay the
+ * single source of truth for "is this a safe set target" so the two never
+ * drift apart.
+ */
+export const classifySetTargetResolution = (resolution: BindingResolution | undefined): SetTargetClassification => {
+  if (!resolution || resolution.kind !== "resolved") return { kind: "invalid", reason: "unresolved" };
+  const binding = resolution.binding;
+  if (binding.mutability === "const") return { kind: "invalid", reason: "const-assignment" };
+  if (binding.mutability !== "let") return { kind: "invalid", reason: "not-let" };
+  if (binding.declaredType === null) return { kind: "invalid", reason: "declared-type-unknown" };
+  return { kind: "valid", binding };
 };
 
 const diagnosticAt = (statement: DslStatement, span: DslSpan, code: string, message: string): DslDiagnostic => ({
@@ -215,56 +238,26 @@ export const compileSetStatements = ({
 
   for (const candidate of candidates) {
     const targetResolution = resolutions.get(candidate.targetKey);
-    if (!targetResolution || targetResolution.kind !== "resolved") {
-      diagnostics.push(diagnosticAt(
-        candidate.statement,
-        candidate.targetSpan,
-        INVALID_SET_TARGET_CODE,
-        unresolvedReferenceMessage(candidate.statement.name, targetResolution)
-      ));
-      continue;
-    }
-
-    const binding = targetResolution.binding;
-    if (binding.mutability === "const") {
-      diagnostics.push(diagnosticAt(
-        candidate.statement,
-        candidate.targetSpan,
-        CONST_ASSIGNMENT_CODE,
-        `"${candidate.statement.name}" は const のため再代入できません。`
-      ));
-      continue;
-    }
-    if (binding.mutability !== "let") {
-      diagnostics.push(diagnosticAt(
-        candidate.statement,
-        candidate.targetSpan,
-        INVALID_SET_TARGET_CODE,
-        `"${candidate.statement.name}" はlet宣言ではないため set の対象にできません。`
-      ));
-      continue;
-    }
-    if (binding.declaredType === null) {
-      // The declared type itself is unresolved/malformed - there is no safe
-      // expectedType to typecheck the RHS against, so this is fail-closed
-      // regardless of the binding's BindingAnalysis status. In today's
-      // pipeline this branch is defensive (a malformed type annotation
-      // already fails the document before bindingAnalysis exists at all),
-      // but Binding.declaredType is typed as ScalarType | null
-      // unconditionally - this code must not assume non-null.
-      diagnostics.push(diagnosticAt(
-        candidate.statement,
-        candidate.targetSpan,
-        INVALID_SET_TARGET_CODE,
-        `"${candidate.statement.name}" の宣言型が確定していないため、set の対象にできません。`
-      ));
-      continue;
-    }
-
-    // An invalid-status `let` (poisoned by its own initializer or a failed
+    // Shared with Task 37's rename safety analysis - the single target-
+    // validity chain (resolved, let, not const, known declared type). An
+    // invalid-status `let` (poisoned by its own initializer or a failed
     // dependency) is still accepted here - its declared type is known, so
     // this is the deliberate recovery path plan.md describes. No status
     // check against bindingAnalysis.entriesById gates this branch.
+    const classification = classifySetTargetResolution(targetResolution);
+    if (classification.kind === "invalid") {
+      const code = classification.reason === "const-assignment" ? CONST_ASSIGNMENT_CODE : INVALID_SET_TARGET_CODE;
+      const message = classification.reason === "unresolved"
+        ? unresolvedReferenceMessage(candidate.statement.name, targetResolution)
+        : classification.reason === "const-assignment"
+        ? `"${candidate.statement.name}" は const のため再代入できません。`
+        : classification.reason === "not-let"
+        ? `"${candidate.statement.name}" はlet宣言ではないため set の対象にできません。`
+        : `"${candidate.statement.name}" の宣言型が確定していないため、set の対象にできません。`;
+      diagnostics.push(diagnosticAt(candidate.statement, candidate.targetSpan, code, message));
+      continue;
+    }
+    const binding = classification.binding;
 
     let hasReferenceDiagnostic = false;
     const referenceResolutions: BindingResolution[] = [];
