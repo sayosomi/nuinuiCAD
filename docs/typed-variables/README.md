@@ -11,6 +11,17 @@
 - 状態は`未着手 / 進行中 / 完了 / 保留(理由)`。
 - 共通gateは`npm test`、`npm run build`、`npm run lint`。Rust/評価taskは文書指定の追加gateも実行する。
 
+## Task 36 performance record
+
+測定日: 2026-07-27。`src/scalars/typedDependencyGraph.performance.test.ts`をfork 1 workerで実行し、`nui 3`の直列typed initializer 250/1000件（各参照は直前bindingへ接続）を対象に、compile時のgraph構築を含むCPU時間を計測した。各サイズ100 warm-up後、21 trialを1 compileずつ測定した。
+
+| bindings / edges | median | p95 |
+| --- | ---: | ---: |
+| 250 / 249 | 3.093 ms | 3.576 ms |
+| 1000 / 999 | 21.842 ms | 22.071 ms |
+
+250→1000 median scaling: 7.061x。queryはこのcompile済みgraphのadjacencyを読むだけで、測定対象・実装ともquery時のsource再parse、name再resolve、graph再構築を行わない。
+
 ## タスク一覧
 
 | # | task | domain | depends | connection at completion | branch slug | status |

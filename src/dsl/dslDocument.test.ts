@@ -992,3 +992,44 @@ describe("Task 29 set statement wiring", () => {
     );
   });
 });
+
+describe("Task 36 typed dependency graph wiring", () => {
+  it("keeps static missing and late initializer navigation on a fatal compile", () => {
+    const compiled = compileDslDocument(
+      ["nui 3", "const missing: number = @unknown", "const late: number = @later", "const later: number = 1", "group G (printEnabled: @unknown) {", "}"].join("\n"),
+      { assignedStatementIds: new Map([[1, "test:missing"], [2, "test:late"], [3, "test:later"]]) }
+    );
+
+    expect(compiled.document).toBeNull();
+    expect(compiled.typedDependencyGraph?.edges).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: "initializer", reason: "missing", span: expect.any(Object) }),
+      expect.objectContaining({ kind: "initializer", reason: "late", span: expect.any(Object) })
+    ]));
+  });
+
+  it("connects a set RHS to the version current before its statement", () => {
+    const compiled = compileDslDocument(
+      ["nui 3", "let x: number = 1", "let y: number = 2", "set x = @y", "set y = 3"].join("\n"),
+      { assignedStatementIds: new Map([[1, "test:x"], [2, "test:y"], [3, "test:set-x"], [4, "test:set-y"]]) }
+    );
+    const edge = compiled.typedDependencyGraph?.edges.find((candidate) => candidate.kind === "set-rhs");
+
+    expect(edge).toMatchObject({
+      from: { kind: "version", id: "test:set-x" },
+      to: { kind: "version", id: "test:y" }
+    });
+  });
+
+  it("deduplicates repeated initializer targets while retaining an invalid target reason", () => {
+    const compiled = compileDslDocument(
+      ["nui 3", "const bad: number = @missing", "const use: number = @bad + @bad"].join("\n"),
+      { assignedStatementIds: new Map([[1, "test:bad"], [2, "test:use"]]) }
+    );
+    const edges = compiled.typedDependencyGraph?.edges.filter((edge) =>
+      edge.kind === "initializer" && edge.from.kind === "binding" && edge.from.id === "binding:test:use"
+    );
+
+    expect(edges).toHaveLength(1);
+    expect(edges?.[0]).toMatchObject({ to: { id: "binding:test:bad" }, reason: "invalid" });
+  });
+});
