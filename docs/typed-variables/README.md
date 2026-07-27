@@ -82,7 +82,7 @@
 | 35 | [forGroup mutation integration](tasks/35-forgroup-mutation-integration.md) | loop production | 34 | gated TS/Rust path | `typed-vars/35-forgroup-mutation` | 完了 |
 | 36 | [typed dependency graph](tasks/36-typed-dependency-graph.md) | dependency model | 13,22,26,29,30 | gated analysis | `typed-vars/36-dependency-graph` | 完了 |
 | 37 | [typed rename analysis](tasks/37-typed-rename-analysis.md) | rename safety | 36 | gated analysis | `typed-vars/37-rename-analysis` | 完了 |
-| 38 | [typed rename command](tasks/38-typed-rename-command.md) | command/text splice | 37 | gated command | `typed-vars/38-rename-command` | 未着手 |
+| 38 | [typed rename command](tasks/38-typed-rename-command.md) | command/text splice | 37 | gated command | `typed-vars/38-rename-command` | 完了 |
 | 39 | [typed value completion](tasks/39-typed-value-completion.md) | editor completion | 12,15,22,26 | gated editor | `typed-vars/39-value-completion` | 未着手 |
 | 40 | [set/recovery completion](tasks/40-set-recovery-completion.md) | editor completion | 29,30,39 | gated editor | `typed-vars/40-set-completion` | 未着手 |
 | 41 | [typed variable Quick Fixes](tasks/41-typed-variable-quick-fixes.md) | diagnostics/editor | 07,13,22,29,40 | gated editor | `typed-vars/41-quick-fixes` | 未着手 |
@@ -414,6 +414,16 @@ canonicalなforGroup owner graphは、nested conditional、nested forGroup、両
 | Rust production scheduler | 16.016750 / 16.181875 ms | 122.401375 / 122.850500 ms | 7.64x | +15.743791 / +15.906958 ms (250), +121.315417 / +121.716875 ms (1000) |
 
 TSはVitest fork single worker・file parallelなし、20 warm-up、21 trials、trialあたり5 runsのworker CPU時間で測定した。Rustは`cargo test ... --ignored --nocapture --test-threads=1`、debug test profile、5 warm-up、21 trials、trialあたり1 evaluationのwall timeで測定した。いずれも1 binding、1 generated point template、in-place `set total`を含む250/1000 generated rowsであり、Task 34 coreとの差は同一測定条件のscalar-only core baselineとの差分である。Task 50がこのbaselineとCI分散を使って回帰gateを決める。
+
+### Task 38完了時点の引き継ぎ(41/43/44/48向け)
+
+`renameTypedBindingWithPropagation(bindingId, newName)`(`src/commands/renameTypedBindingWithPropagation.ts`)は、37の"ok" verdictとexact spansだけからatomicにsource patchを行うcommandである。既存element rename command(`renameElementWithPropagation.ts`)とflush/analyze/atomic-reject/1 Undoの境界は完全に共通だが、typed bindingはCadElementではないため、element-model-diff経路(`commitDocumentChange`/`buildTextPatch`)は使わない。
+
+- **37の公開型を1 field拡張した**: `TypedRenameSpan`に`statementIndex: number`を追加した(`occurrence.site.statementIndex`をそのまま転記するだけで、新しい解析・再解決は一切行っていない)。37の"ok" verdict単独ではspanをどの`compiled.statements[i]`にも逆引きできない欠落があり(statement-local logical offsetが複数statement間で衝突しうるため)、37自身の完了条件("38がverdictとexact spansだけでatomic patch可能")を文字通り満たすために必要な最小限の追加。
+- **spliceは`LineSplice`(1-based, whole-line replace)であり、生のchar-offset splicingではない**: 新設`src/document/typedRenameSplice.ts`の`buildTypedRenameSplices(sourceText, compiled, entries)`が、37のstatement-local spanを`parseDslSnapshot`(1回だけ)+`physicalSpanForLogicalRange`(`src/dsl/logicalStatementSourceMap.ts`、「the only bridge from parser logical offsets to editor physical offsets」)で物理offsetへ投影し、同一物理行上の複数occurrenceを1つの`LineSplice`へ統合する。適用前に全entryについて`sourceText.slice(from,to) === oldName`を検証し、重複・overlap・非連続projection・行またぎのどれか1件でもあればbatch全体をatomicに`{ok:false}`で拒否する(部分適用なし)。
+- **`commitText`ではなく新設`commitLineSplices`store actionを使う**: `commitText`が発行する`sourceUpdate.kind`は`"reset"`(`upgradeDslMajorVersion`と同じ)であり、Source Editor側は行番号だけでcursorを復元し列位置とtext長差分のoffset補正を失う。既存`commitDocumentChange`/`commitModelBridge`が使う`"model-patch"`タグ(CM6 changesetによる`selectionAfterModelPatch`の正確なselection mapping)を再利用するため、`src/document/canonicalDocument.ts`に`commitLineSplicePatch(current, splices)`(element diffなしで`applyLineSplices`+既存`compileCanonicalText`を呼ぶだけ)を追加し、`cadDocumentStore.ts`にそれを`"model-patch"`としてbookkeepingする薄いaction `commitLineSplices`を追加した。既存`sourceEditorController.ts`の`apply-model-patch`経路は無変更のまま再利用している(`src/editor/sourceEditorController.typedRename.test.ts`でCM選択のoffset補正・reject時無変更・undo/redo復元を実測確認済み)。
+- **F2・shortcut・UIは意図的に未接続**: 37の"declaration/reference/set/template/property patches、selection/focus restoration、Undo"という対象どおり、command層のみを実装した。palette登録・shortcut・dialogは後続task(43 Source Editor span/navigation、44 value operations等、UIに触れるtask)の対象。既存element rename(F2、`editorTransaction` owner)は無変更。
+- 41(Quick Fixes)・43/44(editor span/value ops)・48(diagnostics E2E)は、このcommandをcallする側(UI/quick-fix実装)を追加する形で接続できる。commandのcollision/captureの日本語errorメッセージ(`same-scope-collision`は衝突先binding名のみ、`capture`はoccurrence名のみ — 37の型に行番号が含まれないため、element rename版のような「N行目」表記は持たない)は、後続UIで表示する際そのまま再利用してよい。
 
 ## Blocking decisions
 

@@ -214,6 +214,53 @@ export const commitModelBridge = (
   };
 };
 
+export type LineSplicePatchResult =
+  | { status: "committed"; value: CanonicalDocumentValue; splices: LineSplice[] }
+  | { status: "noop" }
+  | { status: "failed"; reason: string };
+
+/**
+ * Commits precomputed `LineSplice`s directly (no element-model diff step) -
+ * for callers, like the typed binding rename command, that already know
+ * exactly what changed and only need it applied and recompiled. Reuses
+ * `applyLineSplices` and `compileCanonicalText` verbatim; does not
+ * reimplement either. Unlike `commitModelBridge`, there is no `afterDocument`
+ * to zip element IDs against, so recompilation goes through the same
+ * statement-reconciling `compileCanonicalText` path plain text edits use -
+ * this is what preserves the renamed declaration's stable binding identity.
+ */
+export const commitLineSplicePatch = (
+  current: CanonicalDocumentValue,
+  splices: readonly LineSplice[]
+): LineSplicePatchResult => {
+  if (current.docText !== current.sourceText) {
+    return { status: "failed", reason: "fatalな編集中テキストがあるため適用できません。" };
+  }
+  let patchedText: string;
+  try {
+    patchedText = applyLineSplices(current.sourceText, splices);
+  } catch (error) {
+    return { status: "failed", reason: error instanceof Error ? error.message : String(error) };
+  }
+  if (patchedText === current.sourceText) return { status: "noop" };
+
+  const compiled = compileCanonicalText(current, patchedText);
+  if (compiled.status === "fatal") {
+    return { status: "failed", reason: "パッチ後のテキストをコンパイルできませんでした。" };
+  }
+  return {
+    status: "committed",
+    value: {
+      sourceText: compiled.sourceText,
+      doc: compiled.doc,
+      docText: compiled.docText,
+      diagnostics: compiled.diagnostics,
+      typedDependencyGraph: compiled.typedDependencyGraph
+    },
+    splices: [...splices]
+  };
+};
+
 export const regenerateCanonicalFromModel = (
   document: DslDocumentData,
   majorVersion: DslMajorVersion

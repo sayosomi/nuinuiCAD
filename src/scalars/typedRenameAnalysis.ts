@@ -55,6 +55,10 @@ export type TypedRenameAnalysisInput = {
 
 export type TypedRenameSpan = {
   kind: TypedRenameOccurrenceKind;
+  /** Index into the compiled document's `statements` array - required by
+   * Task 38 to project this logical-text-local span into a physical
+   * document position; not itself a re-resolution of anything. */
+  statementIndex: number;
   span: DslSpan;
   oldName: string;
   newName: string;
@@ -278,7 +282,13 @@ export const analyzeTypedBindingRename = (input: TypedRenameAnalysisInput): Type
   const occurrences: TypedRenameSpan[] = [];
   for (const occurrence of [...initializerOccurrences, ...siteOccurrences]) {
     if (!affectedKeys.has(occurrence.key)) continue;
-    occurrences.push({ kind: occurrence.kind, span: occurrence.span, oldName: occurrence.currentName, newName });
+    occurrences.push({
+      kind: occurrence.kind,
+      statementIndex: occurrence.site.statementIndex,
+      span: occurrence.span,
+      oldName: occurrence.currentName,
+      newName
+    });
   }
 
   return { verdict: "ok", targetBindingId: target.id, newName, declarationSpan: target.nameSpan, occurrences };
