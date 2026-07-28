@@ -63,7 +63,7 @@ const declaredOrImplicitType = (binding: Binding): ScalarType | null =>
 // ScalarLiteralScanError type and never reaches a "literal" token at all
 // (tokenizeScalarExpression returns early on error instead) - so this switch
 // is already exhaustive with no `default`/unreachable branch needed.
-const literalTokenScalarType = (literal: ScalarExpressionToken & { kind: "literal" }): ScalarType => {
+export const literalTokenScalarType = (literal: ScalarExpressionToken & { kind: "literal" }): ScalarType => {
   switch (literal.literal.kind) {
     case "number":
       return { kind: "number" };

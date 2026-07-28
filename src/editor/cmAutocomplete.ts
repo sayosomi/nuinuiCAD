@@ -31,8 +31,8 @@ import {
 import { localNumericVariableReferenceOptions, type NumericVariableReferenceOption } from "../geometry/variableReferenceOptions";
 import type { ElementParameterReferenceOption } from "../geometry/elementParameterReferenceOptions";
 import type { CadElement, ComputedGeometry, ComputedVariable, DependencyError, ElementId, EvaluationResult, PrintLayout } from "../types/geometry";
-import type { PrintLayoutRangeIndex, StatementRangeIndex, TypedDeclarationRangeIndex } from "./statementRangeIndex";
-import { typedDeclarationBindingIdAtCursor } from "./statementRangeIndex";
+import type { PrintLayoutRangeIndex, ScopeBodyRangeIndex, StatementRangeIndex, TypedDeclarationRangeIndex } from "./statementRangeIndex";
+import { deepestContainingScopeId, typedDeclarationBindingIdAtCursor } from "./statementRangeIndex";
 import type { BindingAnalysis } from "../scalars/bindingAnalysis";
 import type { StatementInfo } from "../dsl/dslDocument";
 import { isAssignableToPropertyCapability } from "../scalars/scalarAssignability";
@@ -43,6 +43,7 @@ import {
   typedBindingReferenceCandidates,
   type ScalarCompletionCandidate
 } from "../scalars/typedValueCandidates";
+import { setRhsScalarCandidates, setTargetCandidates, type SetCompletionSiteDeps, type SetTargetCandidate } from "../scalars/setCompletionCandidates";
 
 export type DslAutocompleteDocumentInput = {
   source: string;
@@ -77,6 +78,12 @@ type DslAutocompleteOptions = {
   /** Live-line -> stable typed-declaration BindingId bridge (Task 39), kept
    * in sync with CM edits by the caller the same way statementRanges is. */
   typedDeclarationRanges: () => TypedDeclarationRangeIndex;
+  /** Tier B site resolution for `set` target/RHS completion (Task 40): live
+   * body-range tracking per lexical scope, purely structural and
+   * independent of any specific `set` statement's own compiled identity -
+   * see statementRangeIndex.ts's own doc comment for why this (not
+   * BindingVersionGraph) is the source of truth here. */
+  scopeBodyRanges: () => ScopeBodyRangeIndex;
   /** `doc.statementMap.byElementId`, used only to map an element at the
    * cursor to the compiled catalog's own statementIndex for a property
    * scalar value / template hole's BindingReferenceSite (Task 39) - never
@@ -183,6 +190,12 @@ const asScalarCompletions = (candidates: readonly ScalarCompletionCandidate[]): 
     return { label: candidate.label, type: "enum" };
   });
 
+/** Task 40: maps `SetTargetCandidate` to CM's `Completion` shape. Unlike
+ * asScalarCompletions's reference branch, a `set` target is a bare
+ * identifier - `apply` is the plain name, never `@`-prefixed. */
+const asSetTargetCompletions = (candidates: readonly SetTargetCandidate[]): Completion[] =>
+  candidates.map((candidate) => ({ label: candidate.name, apply: candidate.name, type: "variable" }));
+
 /** Resolves the BindingReferenceSite for the CadElement at the cursor's own
  * line (property scalar value / template hole contexts): looks the live
  * element up in the compiled document's own `statementMap.byElementId` to
@@ -202,6 +215,25 @@ const elementBindingSite = (
   const scopeId = bindingAnalysis.catalog.scopeIndex.scopeOfStatement.get(statementIndex) ?? bindingAnalysis.catalog.scopeIndex.rootScopeId;
   return { scopeId, statementIndex };
 };
+
+/** Task 40: builds the position-based site setTargetCandidates/
+ * setRhsScalarCandidates need, purely from the last successfully compiled
+ * BindingCatalog's own scope index (via ScopeBodyRangeIndex) plus each
+ * candidate binding's own live position (via TypedDeclarationRangeIndex) -
+ * never BindingVersionGraph, and never gated on this specific `set`
+ * statement's own compiled identity, so it resolves the same way for an
+ * already-compiled `set` and a brand-new, never-yet-compiled one. */
+const setCompletionSiteDeps = (
+  options: DslAutocompleteOptions,
+  bindingAnalysis: BindingAnalysis,
+  cursorPosition: number
+): SetCompletionSiteDeps => ({
+  catalog: bindingAnalysis.catalog,
+  entriesById: bindingAnalysis.entriesById,
+  containingScopeId: deepestContainingScopeId(options.scopeBodyRanges(), cursorPosition, bindingAnalysis.catalog.scopeIndex.rootScopeId),
+  livePositionOf: (bindingId) => options.typedDeclarationRanges().get(bindingId)?.from,
+  cursorPosition
+});
 
 export const createDslCompletionSource = (options: DslAutocompleteOptions): CompletionSource => (context) => {
   if (options.isComposing() || context.view?.compositionStarted) return null;
@@ -280,6 +312,18 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
         site,
         includeOperators: true
       }))
+      : [];
+  } else if (completionContext.kind === "setTarget") {
+    const bindingAnalysis = options.bindingAnalysis();
+    completions = bindingAnalysis
+      ? asSetTargetCompletions(setTargetCandidates(setCompletionSiteDeps(options, bindingAnalysis, context.pos)))
+      : [];
+  } else if (completionContext.kind === "setRhs") {
+    const bindingAnalysis = options.bindingAnalysis();
+    const deps = bindingAnalysis ? setCompletionSiteDeps(options, bindingAnalysis, context.pos) : null;
+    const target = deps ? setTargetCandidates(deps).find((candidate) => candidate.name === completionContext.targetName) : undefined;
+    completions = deps && target
+      ? asScalarCompletions(setRhsScalarCandidates(input.lineText, completionContext.expressionSpan, input.localPos, target.type, deps))
       : [];
   } else if (completionContext.parameter.definition.kind === "choice") {
     completions = (completionContext.parameter.definition.choiceOptions ?? []).map((label) => ({ label, type: "enum" }));

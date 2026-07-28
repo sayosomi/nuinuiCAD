@@ -5,10 +5,13 @@ import { compileDslDocument } from "../dsl/dslDocument";
 import { bindingIdForStableStatementId } from "../scalars/bindingCatalog";
 import {
   createPrintLayoutRangeIndex,
+  createScopeBodyRangeIndex,
   createStatementRangeIndex,
   createTypedDeclarationRangeIndex,
+  deepestContainingScopeId,
   elementIdAtCursor,
   mapPrintLayoutRangeIndex,
+  mapScopeBodyRangeIndex,
   mapStatementRangeIndex,
   mapTypedDeclarationRangeIndex,
   typedDeclarationBindingIdAtCursor
@@ -278,5 +281,105 @@ describe("typedDeclarationRangeIndex", () => {
     const result = compiled(noTypedSource);
     const doc = Text.of(noTypedSource.split("\n"));
     expect(createTypedDeclarationRangeIndex(doc, result.statementMap!).size).toBe(0);
+  });
+});
+
+describe("scopeBodyRangeIndex (Task 40)", () => {
+  const nestedSource = [
+    "nui 3",
+    "let outer: number = 1",
+    "if C (true) {",
+    "  for Loop (i from: 0 count: 2) {",
+    "  }",
+    "  let insideThen: number = 2",
+    "}"
+  ].join("\n");
+
+  const scopeIdOf = (result: ReturnType<typeof compiledWithStableIds>, kind: "then" | "else" | "forGroup") => {
+    const scope = [...result.bindingAnalysis!.catalog.scopeIndex.scopes.values()].find((candidate) => candidate.kind === kind);
+    if (!scope) throw new Error(`no ${kind} scope in fixture`);
+    return scope.id;
+  };
+
+  it("resolves the deepest containing scope, and falls back to root outside every tracked body", () => {
+    const result = compiledWithStableIds(nestedSource);
+    const doc = Text.of(nestedSource.split("\n"));
+    const scopeIndex = result.bindingAnalysis!.catalog.scopeIndex;
+    const index = createScopeBodyRangeIndex(doc, result.statementMap!, scopeIndex);
+
+    const forGroupOpenLine = doc.line(4); // "  for Loop (i from: 0 count: 2) {"
+    const insideForGroup = deepestContainingScopeId(index, forGroupOpenLine.to, scopeIndex.rootScopeId);
+    expect(insideForGroup).toBe(scopeIdOf(result, "forGroup"));
+
+    const insideThenLine = doc.line(6); // "  let insideThen: number = 2"
+    const insideThenOnly = deepestContainingScopeId(index, insideThenLine.from, scopeIndex.rootScopeId);
+    expect(insideThenOnly).toBe(scopeIdOf(result, "then"));
+
+    expect(deepestContainingScopeId(index, 0, scopeIndex.rootScopeId)).toBe(scopeIndex.rootScopeId);
+  });
+
+  it("keeps a sibling else branch's body separate from its then branch", () => {
+    const source = [
+      "nui 3",
+      "if C (true) {",
+      "  let onlyThen: number = 1",
+      "} else {",
+      "  let onlyElse: number = 2",
+      "}"
+    ].join("\n");
+    const result = compiledWithStableIds(source);
+    const doc = Text.of(source.split("\n"));
+    const scopeIndex = result.bindingAnalysis!.catalog.scopeIndex;
+    const index = createScopeBodyRangeIndex(doc, result.statementMap!, scopeIndex);
+
+    const inElse = deepestContainingScopeId(index, doc.line(5).from, scopeIndex.rootScopeId);
+    expect(inElse).toBe(scopeIdOf(result, "else"));
+    expect(inElse).not.toBe(scopeIdOf(result, "then"));
+  });
+
+  it("keeps a scope body alive through an edit typed inside it - a brand-new line resolves to the same scope", () => {
+    const result = compiledWithStableIds(nestedSource);
+    const doc = Text.of(nestedSource.split("\n"));
+    const scopeIndex = result.bindingAnalysis!.catalog.scopeIndex;
+    const original = createScopeBodyRangeIndex(doc, result.statementMap!, scopeIndex);
+    const thenScopeId = scopeIdOf(result, "then");
+    const thenRange = original.find((range) => range.scopeId === thenScopeId)!;
+
+    // Simulates a brand-new, never-compiled `set` line typed inside the
+    // then-branch body, well before any compile debounce fires.
+    const insertPos = doc.line(6).from; // right before "  let insideThen..."
+    const insertText = "  set outer = 2\n";
+    const changes = ChangeSet.of({ from: insertPos, insert: insertText }, doc.length);
+    const mapped = mapScopeBodyRangeIndex(original, changes);
+
+    const mappedThenRange = mapped.find((range) => range.scopeId === thenScopeId)!;
+    expect(mappedThenRange).toBeDefined();
+    expect(mappedThenRange.to - mappedThenRange.from).toBe(thenRange.to - thenRange.from + insertText.length);
+
+    // The cursor sitting right after the newly-typed line still resolves to
+    // the same then-scope, with no recompile involved.
+    const cursorAfterNewLine = insertPos + insertText.length;
+    expect(deepestContainingScopeId(mapped, cursorAfterNewLine, scopeIndex.rootScopeId)).toBe(thenScopeId);
+  });
+
+  it("drops a scope body entry whose entire tracked range is replaced", () => {
+    const result = compiledWithStableIds(nestedSource);
+    const doc = Text.of(nestedSource.split("\n"));
+    const scopeIndex = result.bindingAnalysis!.catalog.scopeIndex;
+    const original = createScopeBodyRangeIndex(doc, result.statementMap!, scopeIndex);
+    const forGroupScopeId = scopeIdOf(result, "forGroup");
+    const forGroupRange = original.find((range) => range.scopeId === forGroupScopeId)!;
+    const changes = ChangeSet.of({ from: forGroupRange.from, to: forGroupRange.to, insert: "" }, doc.length);
+
+    const mapped = mapScopeBodyRangeIndex(original, changes);
+    expect(mapped.some((range) => range.scopeId === forGroupScopeId)).toBe(false);
+  });
+
+  it("returns an empty index for a document with no nested scopes", () => {
+    const source = ["nui 3", "let a: number = 1"].join("\n");
+    const result = compiledWithStableIds(source);
+    const doc = Text.of(source.split("\n"));
+    const index = createScopeBodyRangeIndex(doc, result.statementMap!, result.bindingAnalysis!.catalog.scopeIndex);
+    expect(index).toEqual([]);
   });
 });
