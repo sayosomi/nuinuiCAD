@@ -115,7 +115,9 @@ const NUMBER_PATTERN = /^\d+(?:\.\d+)?|^\.\d+/;
 // class (isBareDslIdentifierChar in src/dsl/dslTokens.ts): this excludes
 // `@` and DSL structural punctuation so it can never collide with the
 // `@name` reference sigil, which Task 14's expression tokenizer owns.
-const IDENTIFIER_PATTERN = /^[\p{L}_][\p{L}\p{N}_]*/u;
+// Exported for Task 41's Quick Fix module, which scans a choice literal
+// token's exact end offset (given a known start) without re-typechecking.
+export const IDENTIFIER_PATTERN = /^[\p{L}_][\p{L}\p{N}_]*/u;
 
 const isQuoteChar = (char: string): char is '"' | "'" => char === "\"" || char === "'";
 

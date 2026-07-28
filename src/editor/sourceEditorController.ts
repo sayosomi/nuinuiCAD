@@ -233,7 +233,8 @@ export class SourceEditorController implements SourceEditorHandle {
             isComposing: () => this.protocol.composing,
             hasPendingText: () => this.hasPendingText(),
             committedDiagnostics: () => this.store.getState().diagnostics,
-            staleBaseline: () => this.staleDiagnosticBaseline
+            staleBaseline: () => this.staleDiagnosticBaseline,
+            upgradeDslMajorVersion: (target) => this.store.getState().upgradeDslMajorVersion(target)
           }),
           createEvaluationExtension({
             index: () => this.decorationIndex,

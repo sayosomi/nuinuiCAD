@@ -16,6 +16,9 @@ import { unquoteDslString } from "./dslTokens";
 
 export type DslDeclarationDiagnostic = { message: string; span: DslSpan; code?: string };
 
+/** No `:` type annotation at all (as opposed to a colon with empty type text) - Task 41's Quick Fix routes on this. */
+export const MISSING_DECLARED_TYPE_CODE = "missing-declared-type";
+
 export type DslTypedDeclarationStatement = {
   kind: "typedDeclaration";
   bindingKind: "const" | "let";
@@ -252,7 +255,7 @@ export const parseDslTypedDeclarationStatement = (logicalText: string): DslDecla
   if (!name.nameSpan) diagnostics.push({ message: `${keyword} には名前が必要です。`, span: keywordSpan });
 
   if (colon < 0) {
-    diagnostics.push({ message: `${keyword} には型注釈(: 型)が必要です。`, span: keywordSpan });
+    diagnostics.push({ message: `${keyword} には型注釈(: 型)が必要です。`, span: keywordSpan, code: MISSING_DECLARED_TYPE_CODE });
   }
   const typeSpan: DslSpan =
     colon >= 0 ? trimSpan(logicalText, colon + 1, equals >= 0 ? equals : rest.end) : { start: rest.end, end: rest.end };
