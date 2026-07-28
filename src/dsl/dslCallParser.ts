@@ -108,8 +108,10 @@ const diagnostic = (diagnostics: DslCallDiagnostic[], message: string, span: Dsl
   diagnostics.push(code ? { message, span, code } : { message, span });
 
 /** state/visible/enabled live in commonArgSpecs, not any single construction's `args`, so
- * this conflict can't be expressed via `DslConstructionSpec.exclusiveGroups`. */
-const commonExclusiveGroups: readonly (readonly [string, string])[] = [
+ * this conflict can't be expressed via `DslConstructionSpec.exclusiveGroups`. Exported so
+ * Task 41's Quick Fix module can re-derive which side of a conflict is the legacy one
+ * (always the second/last entry of a group) without duplicating this table. */
+export const commonExclusiveGroups: readonly (readonly [string, string])[] = [
   ["state", "visible"],
   ["state", "enabled"],
 ];

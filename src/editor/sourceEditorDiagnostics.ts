@@ -31,7 +31,11 @@ export const diagnosticColumnSpan = (lineText: string, column: number): { from: 
   return { from: targetOffset, to: lineText.length };
 };
 
-const positionedFromDiagnostic = (
+/** Exported so callers that need per-diagnostic alignment (e.g. Task 41's
+ * Quick Fix action zipping) can position one diagnostic at a time instead of
+ * only through the batch `toBufferDiagnostics`/`toStaleDiagnostics` helpers,
+ * which drop unpositionable entries and lose index alignment with their input. */
+export const positionedFromDiagnostic = (
   doc: Text,
   diagnostic: DslDiagnostic,
   origin: DiagnosticOrigin
