@@ -1,9 +1,14 @@
 import { MapMode, Text, type ChangeDesc } from "@codemirror/state";
 import type { StatementInfo, StatementMap } from "../dsl/dslDocument";
+import { argNameForParameter } from "../dsl/dslConstructions";
+import type { DslPhysicalSegment } from "../dsl/logicalStatementSourceMap";
+import type { DslStatement } from "../dsl/dslTypes";
 import type { FoldTarget } from "../model/groups";
 import type { ElementId } from "../types/geometry";
 import { bindingIdForStableStatementId, type BindingId } from "../scalars/bindingCatalog";
 import type { LexicalScopeIndex, ScopeId } from "../scalars/lexicalScopeIndex";
+import type { ScalarValueSource } from "../scalars/propertyBindingCompiler";
+import type { TextTemplateAst } from "../scalars/textTemplate";
 
 type FoldAnchor = { from: number; to: number };
 
@@ -297,6 +302,394 @@ export const mapTypedDeclarationRangeIndex = (ranges: TypedDeclarationRangeIndex
 export const typedDeclarationBindingIdAtCursor = (ranges: TypedDeclarationRangeIndex, head: number): BindingId | null => {
   for (const [bindingId, range] of ranges) {
     if (head >= range.from && head <= range.to) return bindingId;
+  }
+  return null;
+};
+
+/** A physical span is only usable for direct CM selection when it is a single
+ * contiguous segment (mirrors dslStatementProjection.ts's singlePhysicalSegment
+ * contract). Discontiguous/absent spans are dropped, never guessed at. */
+const onlyPhysicalSegment = (span: { segments: readonly DslPhysicalSegment[] } | null | undefined): DslPhysicalSegment | null =>
+  span && span.segments.length === 1 ? span.segments[0] : null;
+
+/** Shared by every Task 43 semantic-span index below: the owning statement's
+ * whole line range, computed the same way createTypedDeclarationRangeIndex
+ * does. Kept alongside each entry (not looked up from a sibling index at map
+ * time) so each map* function stays a pure function of its own prior value. */
+type OwningStatementRange = { from: number; to: number };
+
+const owningStatementRange = (doc: Text, info: StatementInfo): OwningStatementRange | null => {
+  if (info.line < 1 || info.line > doc.lines) return null;
+  const line = doc.line(info.line);
+  const endLine = info.endLine >= info.line && info.endLine <= doc.lines ? doc.line(info.endLine) : line;
+  return { from: line.from, to: endLine.to };
+};
+
+/**
+ * Task 43's fail-closed contract for a semantic span (a typed declaration
+ * field, a set target/expression, a property binding value, a template
+ * hole): unlike the coarser whole-statement indices above (which only drop
+ * on a full `"cover"` replace, so cursor-in-statement detection survives
+ * ordinary typing), a semantic span is only a trustworthy jump/select target
+ * while *nothing* in its owning statement has been edited - not just while
+ * the span itself survives untouched. A `mapPos`-shifted span describing
+ * dirty, half-edited text would silently select or jump to the wrong thing,
+ * so any touch anywhere in the statement (not only one that fully replaces
+ * it) drops every semantic span the statement owns until the next
+ * successful compile rebuilds them. An edit strictly before/after the whole
+ * statement is the only case that may just shift position via `mapPos`.
+ */
+const mapOwningStatementRange = (range: OwningStatementRange, changes: ChangeDesc): OwningStatementRange | null => {
+  if (changes.touchesRange(range.from, range.to) !== false) return null;
+  const from = changes.mapPos(range.from, 1, MapMode.TrackAfter);
+  const to = changes.mapPos(range.to, 1, MapMode.Simple);
+  return from === null || to === null || to < from ? null : { from, to };
+};
+
+/** Safe to call only once mapOwningStatementRange has proven the owning
+ * statement itself was untouched - every segment here is a strict subset of
+ * that statement, so this is a pure position shift, never a fail-closed drop. */
+const mapSegmentWithinUntouchedStatement = (segment: DslPhysicalSegment, changes: ChangeDesc): DslPhysicalSegment | null => {
+  const from = changes.mapPos(segment.from, 1, MapMode.TrackAfter);
+  const to = changes.mapPos(segment.to, -1, MapMode.TrackBefore);
+  return from === null || to === null || to < from ? null : { from, to };
+};
+
+export type TypedDeclarationFieldSpans = {
+  statementRange: OwningStatementRange;
+  name: DslPhysicalSegment | null;
+  type: DslPhysicalSegment | null;
+  initializer: DslPhysicalSegment | null;
+};
+export type TypedDeclarationFieldRangeIndex = ReadonlyMap<BindingId, TypedDeclarationFieldSpans>;
+
+/**
+ * Task 43: sub-statement spans for a `const`/`let` declaration's own name,
+ * type annotation, and initializer, keyed the same way as
+ * createTypedDeclarationRangeIndex. Reads only `namePhysicalSpan`/
+ * `payloadPhysicalSpans.type`/`.initializer`, already computed once by the
+ * parser in the same pass that produced `statements` - no re-parse, no new
+ * projection call.
+ */
+export const createTypedDeclarationFieldRangeIndex = (
+  doc: Text,
+  statementMap: StatementMap,
+  statements: readonly DslStatement[]
+): TypedDeclarationFieldRangeIndex => {
+  const fields = new Map<BindingId, TypedDeclarationFieldSpans>();
+  const statementIdByStatementIndex = statementMap.statementIdByStatementIndex;
+  if (!statementIdByStatementIndex) return fields;
+  for (const info of statementMap.statements) {
+    if (info.kind !== "typedDeclaration") continue;
+    const stableStatementId = statementIdByStatementIndex.get(info.statementIndex);
+    if (stableStatementId === undefined) continue;
+    const statement = statements[info.statementIndex];
+    if (!statement || statement.kind !== "typedDeclaration") continue;
+    const statementRange = owningStatementRange(doc, info);
+    if (!statementRange) continue;
+    const bindingId = bindingIdForStableStatementId(stableStatementId);
+    fields.set(bindingId, {
+      statementRange,
+      name: onlyPhysicalSegment(statement.namePhysicalSpan),
+      type: onlyPhysicalSegment(statement.payloadPhysicalSpans?.type),
+      initializer: onlyPhysicalSegment(statement.payloadPhysicalSpans?.initializer)
+    });
+  }
+  return fields;
+};
+
+/** See mapOwningStatementRange: any edit inside the declaration statement
+ * (not only one that fully replaces a specific field) drops all of its
+ * fields until the next successful compile. */
+export const mapTypedDeclarationFieldRangeIndex = (
+  fields: TypedDeclarationFieldRangeIndex,
+  changes: ChangeDesc
+): TypedDeclarationFieldRangeIndex => {
+  const mapped = new Map<BindingId, TypedDeclarationFieldSpans>();
+  for (const [bindingId, spans] of fields) {
+    const statementRange = mapOwningStatementRange(spans.statementRange, changes);
+    if (!statementRange) continue;
+    const mapSegment = (segment: DslPhysicalSegment | null) => segment && mapSegmentWithinUntouchedStatement(segment, changes);
+    mapped.set(bindingId, {
+      statementRange,
+      name: mapSegment(spans.name),
+      type: mapSegment(spans.type),
+      initializer: mapSegment(spans.initializer)
+    });
+  }
+  return mapped;
+};
+
+export type SetStatementRange = { statementId: string; from: number; to: number };
+export type SetStatementRangeIndex = ReadonlyMap<string, SetStatementRange>;
+
+/**
+ * Mirrors createTypedDeclarationRangeIndex for `set` statements: a live-line
+ * -> stable statement identity index used for cursor-in-a-set-line detection
+ * (Task 43 Tab/value navigation). Unlike typed declarations, the key is the
+ * raw reconciler-issued statementId itself - `set` has no BindingId of its
+ * own (it targets an existing binding, it does not declare one).
+ */
+export const createSetStatementRangeIndex = (doc: Text, statementMap: StatementMap): SetStatementRangeIndex => {
+  const ranges = new Map<string, SetStatementRange>();
+  const statementIdByStatementIndex = statementMap.statementIdByStatementIndex;
+  if (!statementIdByStatementIndex) return ranges;
+  for (const info of statementMap.statements) {
+    if (info.kind !== "set") continue;
+    const statementId = statementIdByStatementIndex.get(info.statementIndex);
+    if (statementId === undefined) continue;
+    if (info.line < 1 || info.line > doc.lines) continue;
+    const line = doc.line(info.line);
+    const endLine = info.endLine >= info.line && info.endLine <= doc.lines ? doc.line(info.endLine) : line;
+    ranges.set(statementId, { statementId, from: line.from, to: endLine.to });
+  }
+  return ranges;
+};
+
+/** Mirrors mapTypedDeclarationRangeIndex. */
+export const mapSetStatementRangeIndex = (ranges: SetStatementRangeIndex, changes: ChangeDesc): SetStatementRangeIndex => {
+  const mapped = new Map<string, SetStatementRange>();
+  for (const [statementId, range] of ranges) {
+    if (changes.touchesRange(range.from, range.to) === "cover") continue;
+    const from = changes.mapPos(range.from, 1, MapMode.TrackAfter);
+    const to = changes.mapPos(range.to, 1, MapMode.Simple);
+    if (from === null || to === null || to < from) continue;
+    mapped.set(statementId, { statementId, from, to });
+  }
+  return mapped;
+};
+
+/** Mirrors elementIdAtCursor for the set statement range index. */
+export const setStatementIdAtCursor = (ranges: SetStatementRangeIndex, head: number): string | null => {
+  for (const [statementId, range] of ranges) {
+    if (head >= range.from && head <= range.to) return statementId;
+  }
+  return null;
+};
+
+export type SetStatementFieldSpans = {
+  statementRange: OwningStatementRange;
+  target: DslPhysicalSegment | null;
+  expression: DslPhysicalSegment | null;
+};
+export type SetStatementFieldRangeIndex = ReadonlyMap<string, SetStatementFieldSpans>;
+
+/**
+ * Task 43 sibling to createTypedDeclarationFieldRangeIndex: a `set`
+ * statement's own target (`nameSpan`/`namePhysicalSpan`, reused verbatim by
+ * SetStatementAnalysis.targetSpan) and RHS expression
+ * (`payloadPhysicalSpans.expression`, reused verbatim by
+ * SetStatementAnalysis.expressionSpan). Built from the raw parsed statement
+ * alone - works even when bindingAnalysis/setStatements resolution failed,
+ * exactly like legacy element value spans stay Tab/click-reachable
+ * regardless of dependency validity.
+ */
+export const createSetStatementFieldRangeIndex = (
+  doc: Text,
+  statementMap: StatementMap,
+  statements: readonly DslStatement[]
+): SetStatementFieldRangeIndex => {
+  const fields = new Map<string, SetStatementFieldSpans>();
+  const statementIdByStatementIndex = statementMap.statementIdByStatementIndex;
+  if (!statementIdByStatementIndex) return fields;
+  for (const info of statementMap.statements) {
+    if (info.kind !== "set") continue;
+    const statementId = statementIdByStatementIndex.get(info.statementIndex);
+    if (statementId === undefined) continue;
+    const statement = statements[info.statementIndex];
+    if (!statement || statement.kind !== "set") continue;
+    const statementRange = owningStatementRange(doc, info);
+    if (!statementRange) continue;
+    fields.set(statementId, {
+      statementRange,
+      target: onlyPhysicalSegment(statement.namePhysicalSpan),
+      expression: onlyPhysicalSegment(statement.payloadPhysicalSpans?.expression)
+    });
+  }
+  return fields;
+};
+
+/** See mapOwningStatementRange: any edit inside the set statement (not only
+ * one that fully replaces the target or expression) drops both fields until
+ * the next successful compile. */
+export const mapSetStatementFieldRangeIndex = (
+  fields: SetStatementFieldRangeIndex,
+  changes: ChangeDesc
+): SetStatementFieldRangeIndex => {
+  const mapped = new Map<string, SetStatementFieldSpans>();
+  for (const [statementId, spans] of fields) {
+    const statementRange = mapOwningStatementRange(spans.statementRange, changes);
+    if (!statementRange) continue;
+    const mapSegment = (segment: DslPhysicalSegment | null) => segment && mapSegmentWithinUntouchedStatement(segment, changes);
+    mapped.set(statementId, { statementRange, target: mapSegment(spans.target), expression: mapSegment(spans.expression) });
+  }
+  return mapped;
+};
+
+/** `propertyBindingOccurrenceKey`'s own format (`${statementIndex}:${parameterKey}`); parsed
+ * back here rather than re-exported, since only this index needs the statementIndex half. */
+const statementIndexFromOccurrenceKey = (occurrenceKey: string): number | null => {
+  const separator = occurrenceKey.indexOf(":");
+  if (separator < 0) return null;
+  const statementIndex = Number(occurrenceKey.slice(0, separator));
+  return Number.isInteger(statementIndex) ? statementIndex : null;
+};
+
+export type TemplateHoleRange = {
+  occurrenceKey: string;
+  holeIndex: number;
+  /** The whole hole including its delimiting `{`/`}`. */
+  outer: DslPhysicalSegment;
+  /** The brace-interior binding/expression content alone, excluding `{`/`}`. */
+  inner: DslPhysicalSegment;
+};
+export type TemplateHoleOccurrence = { statementRange: OwningStatementRange; holes: readonly TemplateHoleRange[] };
+export type TemplateHoleRangeIndex = ReadonlyMap<string, TemplateHoleOccurrence>;
+
+/**
+ * Task 43: per-occurrence hole spans for `label(text: "...")` templates
+ * (Task 26), in source order. Each hole keeps its Task-26-defined `outer`
+ * (`hole.span`, brace-inclusive) and `inner` (`hole.contentSpan`,
+ * brace-interior) logical spans as two independently held physical spans -
+ * never inferred from one another or from unescaped/cooked offsets - so a
+ * later caller (44/45) can explicitly choose which one it needs. Each
+ * physical position is derived by pure arithmetic against the owning
+ * attribute's own already-projected `physicalSpan` (a single-segment offset
+ * shift, since every TextTemplateAst span/contentSpan shares the same
+ * statement-logical coordinate system as `attr.valueStart` - see
+ * propertyBindingCompiler.ts's identical convention) - no new
+ * logical-to-physical projection call, no re-parse. An attribute value
+ * split across a continuation line (more than one physical segment) is
+ * skipped entirely, matching this file's other fail-closed span handling.
+ */
+export const createTemplateHoleRangeIndex = (
+  doc: Text,
+  statementMap: StatementMap,
+  statements: readonly DslStatement[],
+  textTemplates: ReadonlyMap<string, TextTemplateAst> | undefined
+): TemplateHoleRangeIndex => {
+  const ranges = new Map<string, TemplateHoleOccurrence>();
+  if (!textTemplates) return ranges;
+  for (const [occurrenceKey, ast] of textTemplates) {
+    const statementIndex = statementIndexFromOccurrenceKey(occurrenceKey);
+    if (statementIndex === null) continue;
+    const info = statementMap.statements[statementIndex];
+    const statement = statements[statementIndex];
+    if (!info || !statement || statement.kind !== "element" || !statement.type) continue;
+    const argName = argNameForParameter(statement.type, "text");
+    const attr = argName ? statement.attrs.find((candidate) => candidate.key === argName) : undefined;
+    const segment = attr ? onlyPhysicalSegment(attr.physicalSpan) : null;
+    if (!attr || !segment) continue;
+    const statementRange = owningStatementRange(doc, info);
+    if (!statementRange) continue;
+    const project = (span: { start: number; end: number }): DslPhysicalSegment => ({
+      from: segment.from + (span.start - attr.valueStart),
+      to: segment.from + (span.end - attr.valueStart)
+    });
+    const holes: TemplateHoleRange[] = [];
+    let holeIndex = 0;
+    for (const templateSegment of ast.segments) {
+      if (templateSegment.kind !== "hole") continue;
+      const outer = project(templateSegment.span);
+      const inner = project(templateSegment.contentSpan);
+      if (outer.to >= outer.from && inner.to >= inner.from) holes.push({ occurrenceKey, holeIndex, outer, inner });
+      holeIndex += 1;
+    }
+    if (holes.length > 0) ranges.set(occurrenceKey, { statementRange, holes });
+  }
+  return ranges;
+};
+
+/** See mapOwningStatementRange: any edit inside the occurrence's owning
+ * statement (not only one that fully replaces a specific hole) drops every
+ * hole of that occurrence until the next successful compile. */
+export const mapTemplateHoleRangeIndex = (ranges: TemplateHoleRangeIndex, changes: ChangeDesc): TemplateHoleRangeIndex => {
+  const mapped = new Map<string, TemplateHoleOccurrence>();
+  for (const [occurrenceKey, occurrence] of ranges) {
+    const statementRange = mapOwningStatementRange(occurrence.statementRange, changes);
+    if (!statementRange) continue;
+    const holes = occurrence.holes.flatMap((hole): TemplateHoleRange[] => {
+      const outer = mapSegmentWithinUntouchedStatement(hole.outer, changes);
+      const inner = mapSegmentWithinUntouchedStatement(hole.inner, changes);
+      return outer && inner ? [{ ...hole, outer, inner }] : [];
+    });
+    if (holes.length > 0) mapped.set(occurrenceKey, { statementRange, holes });
+  }
+  return mapped;
+};
+
+/** The tracked hole whose `outer` (brace-inclusive) span contains `pos`, for
+ * click precision inside a text template attribute value. Half-open,
+ * mirroring findDslValueSpanAt. Returns the whole hole record - callers
+ * choose `.outer` or `.inner` explicitly; this index never picks for them. */
+export const templateHoleAtPosition = (ranges: TemplateHoleRangeIndex, occurrenceKey: string, pos: number): TemplateHoleRange | null =>
+  (ranges.get(occurrenceKey)?.holes ?? []).find((hole) => pos >= hole.outer.from && pos < hole.outer.to) ?? null;
+
+export type PropertyBindingRange = { occurrenceKey: string; statementRange: OwningStatementRange; span: DslPhysicalSegment };
+export type PropertyBindingRangeIndex = ReadonlyMap<string, PropertyBindingRange>;
+
+/**
+ * Task 43: a plain compile-time offset index over Task 22's property binding
+ * spans (`ScalarValueSource.span`, the whole `@name` token on a text/choice/
+ * boolean element attribute), keyed by the same occurrence key
+ * `propertyBindingCompiler.ts` itself uses. Exists so click/jump can resolve
+ * a bound property's value span from this index alone - never by re-parsing
+ * through `dslDocumentValueSpansAt`/`statementProjectionAt`/
+ * `parseDslSnapshot`, which the legacy element-attribute click/Tab path
+ * still uses for its own, unrelated purpose (literal values) and is left
+ * untouched. `span` reuses the owning attribute's own already-projected
+ * `attr.physicalSpan` directly (found by exact logical-offset match against
+ * `ScalarValueSource.span`, since Task 22 defines that span as exactly
+ * `{attr.valueStart, attr.valueEnd}`) - no new projection, no re-parse.
+ */
+export const createPropertyBindingRangeIndex = (
+  doc: Text,
+  statementMap: StatementMap,
+  statements: readonly DslStatement[],
+  propertyBindings: ReadonlyMap<string, ScalarValueSource> | undefined
+): PropertyBindingRangeIndex => {
+  const ranges = new Map<string, PropertyBindingRange>();
+  if (!propertyBindings) return ranges;
+  for (const [occurrenceKey, source] of propertyBindings) {
+    if (source.kind !== "binding") continue;
+    const statementIndex = statementIndexFromOccurrenceKey(occurrenceKey);
+    if (statementIndex === null) continue;
+    const info = statementMap.statements[statementIndex];
+    const statement = statements[statementIndex];
+    if (!info || !statement) continue;
+    const attr = statement.attrs.find(
+      (candidate) => candidate.valueStart === source.span.start && candidate.valueEnd === source.span.end
+    );
+    const span = attr ? onlyPhysicalSegment(attr.physicalSpan) : null;
+    if (!span) continue;
+    const statementRange = owningStatementRange(doc, info);
+    if (!statementRange) continue;
+    ranges.set(occurrenceKey, { occurrenceKey, statementRange, span });
+  }
+  return ranges;
+};
+
+/** See mapOwningStatementRange: any edit inside the owning statement (not
+ * only one that fully replaces the bound value itself) drops the entry
+ * until the next successful compile. */
+export const mapPropertyBindingRangeIndex = (ranges: PropertyBindingRangeIndex, changes: ChangeDesc): PropertyBindingRangeIndex => {
+  const mapped = new Map<string, PropertyBindingRange>();
+  for (const [occurrenceKey, range] of ranges) {
+    const statementRange = mapOwningStatementRange(range.statementRange, changes);
+    if (!statementRange) continue;
+    const span = mapSegmentWithinUntouchedStatement(range.span, changes);
+    if (!span) continue;
+    mapped.set(occurrenceKey, { occurrenceKey, statementRange, span });
+  }
+  return mapped;
+};
+
+/** The tracked property binding span containing `pos`, if any - the sole
+ * lookup typed-property click/jump uses (see handleValueClick), so it never
+ * needs to fall through to the legacy re-parsing span discovery. */
+export const propertyBindingSpanAt = (index: PropertyBindingRangeIndex, pos: number): DslPhysicalSegment | null => {
+  for (const range of index.values()) {
+    if (pos >= range.span.from && pos < range.span.to) return range.span;
   }
   return null;
 };

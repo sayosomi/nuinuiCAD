@@ -25,6 +25,7 @@ const makeHandle = (): SourceEditorHandle => ({
   jumpToElement: vi.fn(),
   jumpToElementEnd: vi.fn(),
   jumpToBindingDeclaration: vi.fn(() => true),
+  jumpToBindingDeclarationPart: vi.fn(() => true),
   jumpToParameterValue: vi.fn(() => true),
   applyPickCandidate: vi.fn(() => true),
   pickCandidateElementIds: vi.fn(() => []),
@@ -235,6 +236,46 @@ describe("InspectorPanel typed declaration metadata", () => {
     fireEvent.click(screen.getByText("shown").closest(".inspector-row")!);
 
     expect(handle.jumpToBindingDeclaration).toHaveBeenCalledWith(bindingId);
+  });
+
+  it("jumps to just the type/initializer sub-span (Task 43) when those rows are clicked, not the whole declaration", () => {
+    const { handle, bindingId } = renderInspectorForBinding(
+      ["nui 3", "let shown: boolean = true"].join("\n"),
+      "shown",
+    );
+
+    fireEvent.click(screen.getByText("型").closest(".inspector-row")!);
+    expect(handle.jumpToBindingDeclarationPart).toHaveBeenCalledWith(bindingId, "type");
+
+    fireEvent.click(screen.getByText("初期化式").closest(".inspector-row")!);
+    expect(handle.jumpToBindingDeclarationPart).toHaveBeenCalledWith(bindingId, "initializer");
+
+    expect(handle.jumpToBindingDeclaration).not.toHaveBeenCalled();
+  });
+
+  it("falls back to the whole-statement jump when the type/initializer sub-span does not resolve", () => {
+    const { handle, bindingId } = renderInspectorForBinding(
+      ["nui 3", "let shown: boolean = true"].join("\n"),
+      "shown",
+    );
+    vi.mocked(handle.jumpToBindingDeclarationPart).mockReturnValue(false);
+
+    fireEvent.click(screen.getByText("初期化式").closest(".inspector-row")!);
+
+    expect(handle.jumpToBindingDeclarationPart).toHaveBeenCalledWith(bindingId, "initializer");
+    expect(handle.jumpToBindingDeclaration).toHaveBeenCalledWith(bindingId);
+  });
+
+  it("does not attach a click handler to the non-span kind/ID rows", () => {
+    const { handle } = renderInspectorForBinding(
+      ["nui 3", "let shown: boolean = true"].join("\n"),
+      "shown",
+    );
+
+    fireEvent.click(screen.getByText("種別").closest(".inspector-row")!);
+
+    expect(handle.jumpToBindingDeclaration).not.toHaveBeenCalled();
+    expect(handle.jumpToBindingDeclarationPart).not.toHaveBeenCalled();
   });
 
   it("shows an invalid marker and diagnostic message for an invalid declaration", () => {
