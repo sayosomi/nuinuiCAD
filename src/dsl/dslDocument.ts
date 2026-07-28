@@ -126,6 +126,8 @@ export type StatementMap = {
   elementIdByStatementIndex: Map<number, ElementId>;
   /** Reconciler-owned identities, present only when typed declarations need them. */
   statementIdByStatementIndex?: Map<number, string>;
+  /** Reverse lookup for a current reconciler-owned statement identity. */
+  statementIndexByStatementId?: Map<string, number>;
   /**
    * 非要素文のキー: `color:<id>` / `role:<id>` / `view:<id>` / `printLayout:<id>` /
    * `version` / `atStop` / `activeView` / `activePrintLayout`。
@@ -759,6 +761,22 @@ const buildStatementMap = (
       statementIdByStatementIndex.set(statementIndex, elementId);
     }
   }
+  const statementIndexByStatementId = statementIdByStatementIndex
+    ? (() => {
+        const indexes = new Map<string, number>();
+        const duplicates = new Set<string>();
+        for (const [statementIndex, statementId] of statementIdByStatementIndex) {
+          if (duplicates.has(statementId)) continue;
+          if (indexes.has(statementId)) {
+            indexes.delete(statementId);
+            duplicates.add(statementId);
+            continue;
+          }
+          indexes.set(statementId, statementIndex);
+        }
+        return indexes;
+      })()
+    : undefined;
 
   const sectionEnds: StatementMap["sectionEnds"] = {};
   for (const info of infos) {
@@ -780,6 +798,7 @@ const buildStatementMap = (
     byElementId,
     elementIdByStatementIndex,
     ...(statementIdByStatementIndex ? { statementIdByStatementIndex } : {}),
+    ...(statementIndexByStatementId ? { statementIndexByStatementId } : {}),
     byKey,
     sectionEnds
   };

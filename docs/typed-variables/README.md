@@ -101,7 +101,7 @@
 | 43 | [Source Editor span/navigation](tasks/43-source-editor-span-navigation.md) | editor | 10,22,26,29 | gated editor API | `typed-vars/43-source-spans` | 完了 |
 | 44 | [Source value operations/picker boundaries](tasks/44-source-value-operations.md) | editor interaction | 39,40,43 | gated editor UI | `typed-vars/44-source-value-ops` | 完了 |
 | 45 | [Inspector runtime values](tasks/45-inspector-runtime-values.md) | Inspector | 23,24,25,28,35,42 | gated final-value UI | `typed-vars/45-inspector-runtime` | 完了 |
-| 46 | [nui 3 serializer/round-trip/patching](tasks/46-v3-serializer-roundtrip-patching.md) | persistence | 07,10,22,26,29,30 | gated nui 3 persistence | `typed-vars/46-v3-roundtrip` | 未着手 |
+| 46 | [nui 3 serializer/round-trip/patching](tasks/46-v3-serializer-roundtrip-patching.md) | persistence | 07,10,22,26,29,30 | gated nui 3 persistence | `typed-vars/46-v3-roundtrip` | 完了 |
 | 47 | [existing document manual nui 3 migration](tasks/47-manual-nui3-migration.md) | migration operations | 51 | verified migrated documents | `typed-vars/47-manual-nui3-migration` | 未着手 |
 | 48 | [integrated diagnostics E2E](tasks/48-integrated-diagnostics-e2e.md) | diagnostics hardening | 23,24,25,28,32,35,36,38,41,44,45,46 | gated release check | `typed-vars/48-diagnostics-e2e` | 未着手 |
 | 49 | [full TS/Rust parity matrix](tasks/49-full-parity-matrix.md) | parity hardening | 21,23,24,25,28,32,35,48 | release gate | `typed-vars/49-parity-matrix` | 未着手 |
@@ -501,6 +501,16 @@ Inspectorに、選択中のtyped bindingのfinal runtime値・poison/recovery・
 - **`group.printEnabled`のgutter freshness gate(Task24の引き継ぎ通りTask45が対応)**: `src/model/elementPresentationStatus.ts`の`printEnabled`フィールド(`cm-eval-print-enabled` gutter class)を、既存`isGroupPrintEnabled`/`GroupPrintEnabledLookup`(Task24が印刷export用に作った関数、再利用のみ)経由の解決へ変更した。`createElementPresentationStatusIndex`に新しいoptional `groupPrintEnabledLookup`引数を追加し、呼び出し側(`InspectorPanel.tsx`、`sourceEditorController.ts`の`refreshDecorationIndex`)は上記freshness predicateがtrueの場合だけlookupを渡す。falseの場合は引数を渡さない(`undefined`)ことで、既存の「lookup無し→literal fallback」契約がそのままfail-closedとして働く — 新しい「unknown」表示を発明していない。
 - **`typedBindingRuntimeInspectorPresentation`のtype/status/formatは既存literal Inspectorのformatterを再利用**: 数値は`textNumber`(text templateの数値hole formatと同一)、boolean/stringは`displayInspectorValue`(既存`inspectorPresentation.ts`)。TS/Rustどちらが評価したかで表示経路が分岐することはない(`evaluation.computedScalarBindings`は既にengine非依存の1つのmap)。
 - 48(diagnostics E2E)・51(manual E2E)はこのsectionの完了を前提にしてよい。「実行時値」sectionのCSSクラスは既存`dependency-group`/`dependency-list`/`inspector-row`を再利用しており新規スタイルはない。
+
+### Task 46完了時点の引き継ぎ(48/51/47向け)
+
+`src/dsl/dslNui3Serializer.ts` は nui 3 の current canonical source だけを受理する statement serializer facade である。Task 07 の既存 element serializer、Task 10 の `serializeTypedDeclaration`、Task 29 の `serializeSetStatement` を registry として束ねるだけで、expression formatter、ID/runtime value からの source 逆変換、save/open serializer は追加していない。
+
+- **freshness と patch**: `buildNui3StatementPatch(current, statementId)` は `docText === sourceText`、nui 3、current `StatementMap` の整合を確認してから、`statementIndexByStatementId` の O(1) lookup を使う。`StatementInfo.line..endLine` の物理 statement 全範囲を1つの `LineSplice` として返し、ID・range・version・freshness のいずれかが欠ければ no-op である。nested statement は `StatementInfo.indentDepth` と Task 07 の `DSL_INDENT` / `serializedStatementLines` をそのまま使い、element の header・属性・close、container header/brace、typed declaration/set に同じ基底 depth を付ける。実際の mutation は既存 `commitLineSplices` / `commitLineSplicePatch` のみなので、Source Editor の `model-patch` selection mapping と document Undo/Redo は従来どおり1経路である。
+- **source-owned values**: property binding、conditional expression、text template を持つ element は Task 46 では serializer 不可として fail-closed にする。typed declaration/set は既存 owner serializer が parsed statement の raw initializer/RHS をそのまま再利用する。これにより template escape、binding reference、comments・blank lines・vertical layout を runtime/解析結果から復元しない。
+- **file lifecycle**: `documentFile.ts` は unchanged。open/save は `sourceText` を verbatim で read/write し、facade は呼ばない。typed nui 3 の open → save → reopen test は scalar program/set metadata の再構築と source byte preservation を確認する。
+- **performance record (2026-07-28)**: `src/dsl/dslNui3Serializer.performance.test.ts` を fork 1 worker で実行し、1,000 mixed statements、30 warm-up、11 trials、trial あたり5 run の worker CPU time を測定した。full serialize は median **40.016 ms** / p95 **45.567 ms**、one-statement patch は median **0.107 ms** / p95 **0.121 ms**。Task 50 が CI 分散を踏まえた閾値を決めるまで、この記録は baseline のみで gate ではない。
+- 48 は integrated diagnostics の対象に facade の no-op/fail-closed ケースを含め、51/47 は実文書の manual open/save/reopen 確認で既存 file lifecycle を使う。formatter や legacy fallback の必要性が判明した場合は、この facade を拡張せず owner API の不足として別 task で判断する。
 
 ## Blocking decisions
 

@@ -91,6 +91,37 @@ describe("document file lifecycle", () => {
     expect(state.dirtySinceSave).toBe(false);
   });
 
+  it("opens, saves, and reopens typed nui 3 source without invoking a serializer", async () => {
+    const content = [
+      "nui 3",
+      "# preserve layout and escapes",
+      "const   note : string = 'front \\{'",
+      "let enabled: boolean = true",
+      "set enabled = false",
+      'text label = label(text: "{@note}: \\{")'
+    ].join("\n");
+    dialogMock.open.mockResolvedValue("/tmp/typed.nui");
+    tauriCoreMock.invoke.mockResolvedValue(content);
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+
+    await openDocument();
+    const opened = useCadDocumentStore.getState();
+    expect(opened.sourceText).toBe(content);
+    expect(opened.doc.scalarProgram?.statements).toHaveLength(2);
+    expect(opened.doc.setStatements).toHaveLength(1);
+
+    tauriCoreMock.invoke.mockResolvedValue(undefined);
+    await saveDocument();
+    expect(tauriCoreMock.invoke).toHaveBeenLastCalledWith("write_document_file", { path: "/tmp/typed.nui", content });
+
+    tauriCoreMock.invoke.mockResolvedValue(content);
+    await openDocument();
+    const reopened = useCadDocumentStore.getState();
+    expect(reopened.sourceText).toBe(content);
+    expect(reopened.doc.scalarProgram?.statements).toHaveLength(2);
+    expect(reopened.doc.setStatements).toHaveLength(1);
+  });
+
   it("converts a v1 .nui on open, keeps its path, and marks the result dirty for a v2 save", async () => {
     const content = "\uFEFFnui 1\n# discarded during conversion\npoint A = (0, 0)";
     dialogMock.open.mockResolvedValue("/tmp/legacy.nui");
