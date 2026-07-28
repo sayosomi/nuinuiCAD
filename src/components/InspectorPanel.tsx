@@ -9,6 +9,8 @@ import {
   createElementPresentationStatusIndex,
   type ElementPresentationStatus,
 } from "../model/elementPresentationStatus";
+import { isRuntimeBindingDisplayFresh } from "../model/runtimeBindingFreshness";
+import type { GroupPrintEnabledLookup } from "../geometry/groupPrintEnabledRuntime";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
 import { findParameterDefinition } from "../parameters/parameterDefinitions";
@@ -26,6 +28,10 @@ import {
 } from "./inspectorPresentation";
 import { parameterPickCommandId } from "../commands/parameterPickCommand";
 import { typedDeclarationInspectorPresentation } from "./typedDeclarationInspectorPresentation";
+import {
+  typedBindingRuntimeInspectorPresentation,
+  type TypedBindingRuntimeConsumerRow,
+} from "./typedBindingRuntimeInspectorPresentation";
 
 const statusLabels = (status: ElementPresentationStatus) =>
   [
@@ -80,6 +86,7 @@ export const InspectorPanel = ({
   const docText = useCadDocumentStore((state) => state.docText);
   const sourceText = useCadDocumentStore((state) => state.sourceText);
   const isLastGood = docText !== sourceText;
+  const isRuntimeFresh = isRuntimeBindingDisplayFresh({ isSourceDirty: isLastGood, isEvaluationStale });
 
   const dependencyIndex = useMemo(
     () => createDependencyIndex(elements),
@@ -90,6 +97,13 @@ export const InspectorPanel = ({
       element ? getDependencySummary(element, elements, dependencyIndex) : null,
     [dependencyIndex, element, elements],
   );
+  const groupPrintEnabledLookup: GroupPrintEnabledLookup | undefined = useMemo(
+    () =>
+      isRuntimeFresh
+        ? { propertyBindings: doc.propertyBindings, byElementId: doc.statementMap.byElementId }
+        : undefined,
+    [isRuntimeFresh, doc.propertyBindings, doc.statementMap],
+  );
   const presentationStatusIndex = useMemo(
     () =>
       createElementPresentationStatusIndex({
@@ -99,8 +113,9 @@ export const InspectorPanel = ({
         palette,
         visibilityProfiles: profiles,
         activeVisibilityProfileId: activeProfileId,
+        groupPrintEnabledLookup,
       }),
-    [activeProfileId, elements, evaluation, groupFoldById, palette, profiles],
+    [activeProfileId, elements, evaluation, groupFoldById, palette, profiles, groupPrintEnabledLookup],
   );
   const status = element
     ? (presentationStatusIndex.get(element.id) ?? null)
@@ -129,6 +144,37 @@ export const InspectorPanel = ({
         : null,
     [doc.bindingAnalysis, doc.statements, selectedBindingId],
   );
+  const typedBindingRuntimePresentation = useMemo(
+    () =>
+      selectedBindingId && doc.bindingAnalysis
+        ? typedBindingRuntimeInspectorPresentation(
+            doc.bindingAnalysis,
+            doc.bindingVersions,
+            evaluation,
+            {
+              propertyBindings: doc.propertyBindings,
+              conditionalGroupConditions: doc.conditionalGroupConditions,
+              textTemplates: doc.textTemplates,
+              statementMap: doc.statementMap,
+              elements,
+            },
+            selectedBindingId,
+            isRuntimeFresh,
+          )
+        : null,
+    [
+      doc.bindingAnalysis,
+      doc.bindingVersions,
+      doc.propertyBindings,
+      doc.conditionalGroupConditions,
+      doc.textTemplates,
+      doc.statementMap,
+      elements,
+      evaluation,
+      selectedBindingId,
+      isRuntimeFresh,
+    ],
+  );
   const parseIssues = useMemo(() => {
     if (!element || isLastGood) return [];
     const line = doc.statementMap.byElementId.get(element.id)?.line;
@@ -146,6 +192,23 @@ export const InspectorPanel = ({
     sourceEditorRef.current?.jumpToBindingDeclarationPart(bindingId, part)
       ? true
       : jumpToTypedDeclaration(bindingId);
+  const jumpToRuntimeValue = (bindingId: BindingId): boolean =>
+    sourceEditorRef.current?.jumpToBindingDeclarationPart(bindingId, "initializer")
+      ? true
+      : jumpToTypedDeclaration(bindingId);
+  const jumpToConsumerRow = (row: TypedBindingRuntimeConsumerRow): boolean => {
+    // Selection may flush dirty source text - mirrors jumpToDependency.
+    if (dispatchCommand("selectElement", { elementId: row.elementId }) === false) return false;
+    if (!useCadDocumentStore.getState().elements.some((candidate) => candidate.id === row.elementId)) return false;
+    if (row.jump.kind === "property") {
+      return sourceEditorRef.current?.jumpToPropertyBindingValue(row.jump.occurrenceKey) ?? false;
+    }
+    if (row.jump.kind === "templateHole") {
+      return sourceEditorRef.current?.jumpToTemplateHole(row.jump.occurrenceKey, row.jump.holeIndex) ?? false;
+    }
+    sourceEditorRef.current?.jumpToElement(row.elementId);
+    return true;
+  };
   const jumpToParameter = (row: InspectorParameterRow) => {
     if (!element) return false;
     return (
@@ -321,6 +384,58 @@ export const InspectorPanel = ({
                 <p className="inspector-diagnostic error">
                   {typedDeclarationPresentation.invalidMessage}
                 </p>
+              ) : null}
+            </div>
+          ) : null}
+          {typedBindingRuntimePresentation ? (
+            <div className="dependency-group">
+              <h3 className="shortcut-group-title">実行時値</h3>
+              <div className="dependency-list">
+                {typedBindingRuntimePresentation.rows.map((row) =>
+                  row.key === "value" ? (
+                    <div
+                      key={row.key}
+                      className="inspector-row"
+                      onClick={() => jumpToRuntimeValue(typedBindingRuntimePresentation.bindingId)}
+                    >
+                      <span className="inspector-row-main">
+                        <span>{row.label}</span>
+                        <small>{row.value}</small>
+                      </span>
+                    </div>
+                  ) : (
+                    <div key={row.key} className="inspector-row">
+                      <span className="inspector-row-main">
+                        <span>{row.label}</span>
+                        <small>{row.value}</small>
+                      </span>
+                    </div>
+                  )
+                )}
+              </div>
+              {typedBindingRuntimePresentation.invalidMessage ? (
+                <p className="inspector-diagnostic error">
+                  {typedBindingRuntimePresentation.invalidMessage}
+                </p>
+              ) : null}
+              {typedBindingRuntimePresentation.consumerRows.length > 0 ? (
+                <>
+                  <h3 className="shortcut-group-title">参照元</h3>
+                  <div className="dependency-list">
+                    {typedBindingRuntimePresentation.consumerRows.map((row) => (
+                      <div
+                        key={row.key}
+                        className="inspector-row"
+                        onClick={() => jumpToConsumerRow(row)}
+                      >
+                        <span className="inspector-row-main">
+                          <span>{row.label}</span>
+                          <small>{row.detail}</small>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </>
               ) : null}
             </div>
           ) : null}

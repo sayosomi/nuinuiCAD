@@ -51,6 +51,20 @@ export const PROPERTY_BINDING_TYPE_MISMATCH_CODE = "property-binding-type-mismat
 export const propertyBindingOccurrenceKey = (statementIndex: number, parameterKey: string): string =>
   `${statementIndex}:${parameterKey}`;
 
+/** Inverse of propertyBindingOccurrenceKey - split on the first `:` only, since
+ * every registered parameterKey (parameterDefinitions.ts's propertyBindingCapabilities)
+ * is a plain identifier with no `:` of its own. Task 45 uses this to resolve a
+ * `doc.propertyBindings`/`conditionalGroupConditions`/`textTemplates` entry that
+ * matches a selected binding back to its owning statement/parameter without a
+ * second document scan or re-parse. */
+export const parsePropertyBindingOccurrenceKey = (occurrenceKey: string): { statementIndex: number; parameterKey: string } | null => {
+  const separator = occurrenceKey.indexOf(":");
+  if (separator < 0) return null;
+  const statementIndex = Number(occurrenceKey.slice(0, separator));
+  if (!Number.isInteger(statementIndex)) return null;
+  return { statementIndex, parameterKey: occurrenceKey.slice(separator + 1) };
+};
+
 export type CompilePropertyBindingsInput = {
   statements: readonly DslStatement[];
   elementIdByStatementIndex: ReadonlyMap<number, ElementId>;

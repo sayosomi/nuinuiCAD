@@ -8,6 +8,7 @@ import { EditorSelection } from "@codemirror/state";
 import { fireEvent } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { BindingId } from "../scalars/bindingCatalog";
+import { propertyBindingOccurrenceKey } from "../scalars/propertyBindingCompiler";
 import * as dslValueSpansModule from "../dsl/dslValueSpans";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
@@ -41,6 +42,12 @@ const typedBindingId = (name: string): BindingId =>
   useCadDocumentStore
     .getState()
     .doc.bindingAnalysis!.catalog.bindings.find((binding) => binding.kind === "typed" && binding.name === name)!.id;
+
+const statementIndexOfElement = (name: string): number => {
+  const doc = useCadDocumentStore.getState().doc;
+  const element = doc.document.elements.find((candidate) => candidate.name === name)!;
+  return doc.statementMap.byElementId.get(element.id)!.statementIndex;
+};
 
 const setUp = () => {
   useCadDocumentStore.setState(initialCadDocumentState());
@@ -411,6 +418,119 @@ describe("SourceEditorController Task 43: dirty-source fail-closed semantics for
     // The live re-parse still finds the whole (unmoved) string correctly - not a
     // guessed, wrong, or otherwise stale position.
     expect(selectedText(internals)).toBe('"prefix {@label} suffix"');
+    controller.destroy();
+  });
+});
+
+describe("SourceEditorController Task 45: jumpToPropertyBindingValue", () => {
+  beforeEach(setUp);
+  afterEach(() => vi.restoreAllMocks());
+
+  const source = ["nui 3", "let flag: boolean = true", "group G (printEnabled: @flag) {", "}"].join("\n");
+
+  it("selects the exact `@name` value span for the occurrence's own key", () => {
+    useCadDocumentStore.getState().commitText(source, "test");
+    const parent = document.createElement("div");
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+    const occurrenceKey = propertyBindingOccurrenceKey(statementIndexOfElement("G"), "printEnabled");
+
+    expect(controller.jumpToPropertyBindingValue(occurrenceKey)).toBe(true);
+
+    expect(selectedText(internals)).toBe("@flag");
+    controller.destroy();
+  });
+
+  it("no-ops (does not move the cursor) for an occurrence key that does not resolve", () => {
+    useCadDocumentStore.getState().commitText(source, "test");
+    const parent = document.createElement("div");
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+    const before = internals.view.state.selection.main.head;
+
+    expect(controller.jumpToPropertyBindingValue("999:printEnabled")).toBe(false);
+
+    expect(internals.view.state.selection.main.head).toBe(before);
+    controller.destroy();
+  });
+
+  it("no-ops once an edit anywhere in the owning statement drops the entry - never a wrong position", () => {
+    useCadDocumentStore.getState().commitText(source, "test");
+    const parent = document.createElement("div");
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+    const occurrenceKey = propertyBindingOccurrenceKey(statementIndexOfElement("G"), "printEnabled");
+    const before = internals.view.state.selection.main.head;
+    const nameEnd = internals.view.state.doc.toString().indexOf("group G") + "group G".length;
+    internals.view.dispatch({ changes: { from: nameEnd, insert: "X" } });
+
+    expect(controller.jumpToPropertyBindingValue(occurrenceKey)).toBe(false);
+
+    expect(internals.view.state.selection.main.head).toBe(before);
+    controller.destroy();
+  });
+
+  it("does not jump while composing", () => {
+    useCadDocumentStore.getState().commitText(source, "test");
+    const parent = document.createElement("div");
+    const controller = new SourceEditorController(parent);
+    const content = parent.querySelector(".cm-content")!;
+    const occurrenceKey = propertyBindingOccurrenceKey(statementIndexOfElement("G"), "printEnabled");
+    fireEvent.compositionStart(content);
+
+    expect(controller.jumpToPropertyBindingValue(occurrenceKey)).toBe(false);
+
+    fireEvent.compositionEnd(content);
+    controller.destroy();
+  });
+});
+
+describe("SourceEditorController Task 45: jumpToTemplateHole", () => {
+  beforeEach(setUp);
+  afterEach(() => vi.restoreAllMocks());
+
+  const source = ["nui 3", 'const label: string = "A"', 'text T = label(text: "prefix {@label} suffix" anchor: none size: 3)'].join("\n");
+
+  it("selects exactly the hole's inner (brace-interior) span for the given holeIndex", () => {
+    useCadDocumentStore.getState().commitText(source, "test");
+    const parent = document.createElement("div");
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+    const occurrenceKey = propertyBindingOccurrenceKey(statementIndexOfElement("T"), "text");
+
+    expect(controller.jumpToTemplateHole(occurrenceKey, 0)).toBe(true);
+
+    expect(selectedText(internals)).toBe("@label");
+    controller.destroy();
+  });
+
+  it("no-ops for a holeIndex that does not exist on this occurrence", () => {
+    useCadDocumentStore.getState().commitText(source, "test");
+    const parent = document.createElement("div");
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+    const occurrenceKey = propertyBindingOccurrenceKey(statementIndexOfElement("T"), "text");
+    const before = internals.view.state.selection.main.head;
+
+    expect(controller.jumpToTemplateHole(occurrenceKey, 5)).toBe(false);
+
+    expect(internals.view.state.selection.main.head).toBe(before);
+    controller.destroy();
+  });
+
+  it("no-ops once an edit anywhere in the owning statement drops the entry", () => {
+    useCadDocumentStore.getState().commitText(source, "test");
+    const parent = document.createElement("div");
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+    const occurrenceKey = propertyBindingOccurrenceKey(statementIndexOfElement("T"), "text");
+    const before = internals.view.state.selection.main.head;
+    const nameEnd = internals.view.state.doc.toString().indexOf("text T") + "text T".length;
+    internals.view.dispatch({ changes: { from: nameEnd, insert: "X" } });
+
+    expect(controller.jumpToTemplateHole(occurrenceKey, 0)).toBe(false);
+
+    expect(internals.view.state.selection.main.head).toBe(before);
     controller.destroy();
   });
 });
