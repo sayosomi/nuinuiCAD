@@ -86,7 +86,7 @@ export const stepDslNumericLiteral = (
   return Number.isFinite(Number(next)) ? next : null;
 };
 
-const choiceAfterStep = (
+export const choiceAfterStep = (
   value: string,
   options: readonly string[],
   direction: DslValueStepDirection

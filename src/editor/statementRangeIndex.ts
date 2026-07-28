@@ -469,6 +469,12 @@ export const setStatementIdAtCursor = (ranges: SetStatementRangeIndex, head: num
 
 export type SetStatementFieldSpans = {
   statementRange: OwningStatementRange;
+  /** Bridges to CompiledDslDocument.setStatements (keyed by statementIndex, not
+   * statementId - see SetStatementAnalysis) so a caller holding this record can
+   * look up the statement's resolved target binding without a reverse map or a
+   * re-parse. Stable for the statement's lifetime; carried through unchanged by
+   * mapSetStatementFieldRangeIndex. */
+  statementIndex: number;
   target: DslPhysicalSegment | null;
   expression: DslPhysicalSegment | null;
 };
@@ -502,6 +508,7 @@ export const createSetStatementFieldRangeIndex = (
     if (!statementRange) continue;
     fields.set(statementId, {
       statementRange,
+      statementIndex: info.statementIndex,
       target: onlyPhysicalSegment(statement.namePhysicalSpan),
       expression: onlyPhysicalSegment(statement.payloadPhysicalSpans?.expression)
     });
@@ -521,7 +528,12 @@ export const mapSetStatementFieldRangeIndex = (
     const statementRange = mapOwningStatementRange(spans.statementRange, changes);
     if (!statementRange) continue;
     const mapSegment = (segment: DslPhysicalSegment | null) => segment && mapSegmentWithinUntouchedStatement(segment, changes);
-    mapped.set(statementId, { statementRange, target: mapSegment(spans.target), expression: mapSegment(spans.expression) });
+    mapped.set(statementId, {
+      statementRange,
+      statementIndex: spans.statementIndex,
+      target: mapSegment(spans.target),
+      expression: mapSegment(spans.expression)
+    });
   }
   return mapped;
 };

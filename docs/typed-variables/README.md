@@ -99,7 +99,7 @@
 | 41 | [typed variable Quick Fixes](tasks/41-typed-variable-quick-fixes.md) | diagnostics/editor | 07,13,22,29,40 | gated editor | `typed-vars/41-quick-fixes` | 完了 |
 | 42 | [Inspector declaration metadata](tasks/42-inspector-declaration-metadata.md) | Inspector | 19 | gated UI metadata | `typed-vars/42-inspector-metadata` | 完了 |
 | 43 | [Source Editor span/navigation](tasks/43-source-editor-span-navigation.md) | editor | 10,22,26,29 | gated editor API | `typed-vars/43-source-spans` | 完了 |
-| 44 | [Source value operations/picker boundaries](tasks/44-source-value-operations.md) | editor interaction | 39,40,43 | gated editor UI | `typed-vars/44-source-value-ops` | 未着手 |
+| 44 | [Source value operations/picker boundaries](tasks/44-source-value-operations.md) | editor interaction | 39,40,43 | gated editor UI | `typed-vars/44-source-value-ops` | 完了 |
 | 45 | [Inspector runtime values](tasks/45-inspector-runtime-values.md) | Inspector | 23,24,25,28,35,42 | gated final-value UI | `typed-vars/45-inspector-runtime` | 未着手 |
 | 46 | [nui 3 serializer/round-trip/patching](tasks/46-v3-serializer-roundtrip-patching.md) | persistence | 07,10,22,26,29,30 | gated nui 3 persistence | `typed-vars/46-v3-roundtrip` | 未着手 |
 | 47 | [existing document manual nui 3 migration](tasks/47-manual-nui3-migration.md) | migration operations | 51 | verified migrated documents | `typed-vars/47-manual-nui3-migration` | 未着手 |
@@ -284,7 +284,7 @@ Task 20/21のconst runtime pathはTask 31/32へ、Task 46のnui 3 persistence pa
 
 ## 次に実行可能なtask
 
-40・41・42・43は完了済み。46(07,10,22,26,29,30もすべて完了済み)は依存関係上独立に着手可能。44は43完了により着手可能、45は42完了後(23,24,25,28,35ともすべて完了済み)に着手可能。Task 21/32以降のRust-first `evaluate_document(input)` は、解決済み`scalar_program`または`bindingVersions`を評価し、`computedScalarBindings`をTS payloadへ返す。text templateも同じ解決済みASTを渡し、Rustでsource再parse・名前再解決・legacy fallbackを追加しない。
+40・41・42・43・44は完了済み。46(07,10,22,26,29,30もすべて完了済み)は依存関係上独立に着手可能。45は42完了後(23,24,25,28,35ともすべて完了済み)に着手可能。48は44完了によりこの依存が揃ったが、45・46・他の依存taskの完了も必要。Task 21/32以降のRust-first `evaluate_document(input)` は、解決済み`scalar_program`または`bindingVersions`を評価し、`computedScalarBindings`をTS payloadへ返す。text templateも同じ解決済みASTを渡し、Rustでsource再parse・名前再解決・legacy fallbackを追加しない。
 
 ### Task 22完了時点の引き継ぎ(23〜26向け)
 
@@ -475,6 +475,18 @@ declaration/set/property binding/text templateのexact source spanをSource Edit
 - **Inspector連携**: `SourceEditorHandle.jumpToBindingDeclarationPart(bindingId, "type"|"initializer"): boolean`を新設(既存`jumpToBindingDeclaration`は文全体ジャンプのまま無変更)。`InspectorPanel.tsx`の「型」「初期化式」行だけがこれを呼ぶ(`typedDeclarationInspectorPresentation.ts`の`row.key`で判別、presentation自体は無変更)。フィールドspanが解決しない場合は`jumpToBindingDeclaration`(文頭ジャンプ)へfall backする。「種別」「ID」行は従来通りクリック不可のまま。
 - **意図的にTabへ入れなかった対象**: text templateのholeはclick専用(将来44/45向け)のままとし、Tab循環には加えていない — 「既存numeric/reference value spanとTab orderを維持」という互換性条件を、要素文自身の話でない新規判断を持ち込まずに満たすため。
 - 38(rename)は本taskの成果を消費しない(37のstatement-local spanを直接使う既存経路のまま)。44(value operations)は`typedFieldSpansAtCursor`/`propertyBindingSpanAt`と同じ考え方の「選択中の型付きspanを取得する」経路をAlt+←/→の対象判定に再利用でき、hole `outer`/`inner`の使い分けもそのまま踏襲できる。45(Inspector runtime jump)は`jumpToBindingDeclarationPart`をfinal value行のジャンプ先としてそのまま使ってよい。
+
+### Task 44完了時点の引き継ぎ(45/48/51向け)
+
+typed `const`/`let`宣言のinitializerと`set`文のRHSにあるboolean/choice literalへAlt+←/→を接続した。既存numeric Alt stepと全く同じ`editorTransaction`コマンド・キーマップ・long-press gesture・Undo groupingを再利用し、新しいtransaction/undo経路は一切追加していない。
+
+- **拡張点は`stepSourceValue`(既存numeric stepメソッド)の`!range || !element`ガード1箇所だけ**: typedDeclaration/set文は`nonElementKinds`のため常にこの条件を満たす。ここから新設`stepTypedSourceValue`へ分岐する。既存の「CM transactionを組み立ててdispatchし、held-key中はpreview、keyupでflush」という末尾ロジック(旧`stepSourceValue`の末尾)は`commitStepChange`という共有privateメソッドへ抽出し、legacy element分岐とtyped分岐の両方から呼ぶ — 新しいsteppable種別を将来追加する際も、この共有commit経路を呼ぶだけでよい。
+- **新設pure関数`resolveTypedValueStep`**(`src/dsl/dslTypedValueStep.ts`)は`resolveDslValueStep`(既存numeric/boolean/choiceの末尾、`dslValueStep.ts`)のboolean/choice分岐を`ParameterDefinition`から`ScalarType`へ一般化しただけで、wrap算出は`choiceAfterStep`(新たにexport)をそのまま再利用する。number/string/nullは常に`null`(no-op) — typed numberのAlt step自体は本task対象外のまま(既存動作を壊さないことだけが要件)。
+- **`SetStatementFieldSpans`に`statementIndex: number`を追加した**(`src/editor/statementRangeIndex.ts`): 既存`SetStatementRangeIndex`/`Field`は`statementId`(reconciler ID)だけを持ち、`CompiledDslDocument.setStatements`は`statementIndex`でkeyされるため、この1 fieldがない限り「カーソル位置の`set`文 → その`targetBindingId`」への橋渡しができなかった。`create`/`map`ループが既に持っている`info.statementIndex`をそのまま追加しただけで、新しいmapや逆引きテーブルは作っていない。
+- **`set`のtarget解決専用のfreshness gate(このtaskで最も重要な正しさの契約)**: `doc.bindingAnalysis`/`doc.setStatements`は直近の成功compileの結果であり、Task 43のspan indexとは異なり「文自体が編集されていないか」だけでは鮮度を保証できない — `set`文自身のRHS spanは無傷でも、その**前**の無関係な編集(同名binding挿入、target宣言のrename/削除)がまだrecompileされていなければ、`targetBindingId`/`declaredType`は古い解決のままになる。これを防ぐため、`private typedSemanticMetadataFresh`という1 booleanをcontrollerへ追加した: `handleViewUpdate`の`docChanged`分岐の先頭で無条件に`false`(全doc変更で即座に無効化)、`refreshStatementRanges`の2つの早期return分岐(fatal diagnostics/live buffer相違)でも`false`、成功分岐の末尾でだけ`true`(次のcompile成功時だけ再構築)。`stepTypedSourceValue`はこのflagを読むだけで、typed declaration分岐・set分岐の両方をカバーする(宣言自身の`declaredType`は自己完結だが、単一の分かりやすい不変条件にするため同じgateをかけている)。この判定はO(1)のbool読み取りだけで、document全体の再parse・再stringify・再resolutionは一切行わない — Task43の`mapOwningStatementRange`(spanの位置的生存)とは独立した、別の軸の鮮度チェックであることに注意。
+- **Canvas picker境界は無変更**: `parameterPickCommandId`は元々boolean/choice/text/colorに`null`を返し、`startPickFromSelection`/`InspectorPanel.tsx`は`getParameterDefinitions(element)`(=`CadElement`必須)経由でしか到達しないため、typed宣言/set文(要素を持たない)は最初から到達不能だった。新しいコードは一切追加していない — regression testで境界を固定しただけ。
+- **property literal boolean/choice(`offsetLine.side`等のopt-inプロパティ)は無変更のまま既存legacy経路(`resolveDslValueStep`/`findParameterDefinition`)で動く**: これは通常の`CadElement`属性であり、typed binding判定を経由しない。`@name`で束縛されたproperty値(`side: @方向`)は、sliceした値が`"@方向"`のような文字列になり`"true"`/`"false"`/`choiceOptions`のいずれとも一致しないため、既存コードのまま構造的にno-opになる — これもregression testで固定しただけで新規ロジックはない。
+- 45(Inspector runtime values)・48(diagnostics E2E)・51(manual E2E)はこのtaskの完了をそのまま前提にしてよい。45が将来「runtime final valueをAlt+←/→できるようにする」場合も、`commitStepChange`をそのまま呼べる同じ形の分岐を追加すればよく、gesture/undo再実装は不要。
 
 ## Blocking decisions
 
