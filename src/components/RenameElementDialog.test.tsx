@@ -1,9 +1,45 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import type { ComponentProps } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { dispatchCommand } from "../commands/commands";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import { RenameElementDialog } from "./RenameElementDialog";
+
+// RenameElementDialogContent defers its initial name-field focus to a real
+// requestAnimationFrame. trackAnimationFrames wraps the real rAF - it never
+// runs a callback early or synchronously - so it can count every frame that
+// gets scheduled and flush() only resolves once all of them have actually
+// fired, inside act().
+const trackAnimationFrames = () => {
+  let pendingFrames = 0;
+  const nativeRequestAnimationFrame = window.requestAnimationFrame.bind(window);
+  const spy = vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+    pendingFrames += 1;
+    return nativeRequestAnimationFrame((time) => {
+      pendingFrames -= 1;
+      callback(time);
+    });
+  });
+  const flush = async () => {
+    await act(async () => {
+      while (pendingFrames > 0) {
+        await new Promise<void>((resolve) => nativeRequestAnimationFrame(() => resolve()));
+      }
+    });
+  };
+  return { flush, restore: () => spy.mockRestore() };
+};
+
+const renderDialog = async (onConfirmed: ComponentProps<typeof RenameElementDialog>["onConfirmed"]) => {
+  const frames = trackAnimationFrames();
+  render(<RenameElementDialog onConfirmed={onConfirmed} />);
+  try {
+    await frames.flush();
+  } finally {
+    frames.restore();
+  }
+};
 
 const seed = () => {
   // Written in v2's canonical vertical-call shape: renameElementWithPropagation's
@@ -45,7 +81,7 @@ describe("RenameElementDialog", () => {
     const { targetId } = seed();
     useCadUiStore.getState().setRenameElementPromptTargetId(targetId);
     const onConfirmed = vi.fn();
-    render(<RenameElementDialog onConfirmed={onConfirmed} />);
+    await renderDialog(onConfirmed);
     const input = screen.getByRole("textbox", { name: "名前" }) as HTMLInputElement;
 
     await waitFor(() => expect(document.activeElement).toBe(input));
@@ -66,11 +102,28 @@ describe("RenameElementDialog", () => {
     expect(useCadDocumentStore.getState().elements.find((element) => element.id === targetId)?.name).toBe("A");
   });
 
-  it("does not confirm Enter or close Esc while an IME composition is active", () => {
+  it("does not focus the name field until the deferred frame actually runs", async () => {
     const { targetId } = seed();
     useCadUiStore.getState().setRenameElementPromptTargetId(targetId);
     const onConfirmed = vi.fn();
-    render(<RenameElementDialog onConfirmed={onConfirmed} />);
+    const frames = trackAnimationFrames();
+    try {
+      render(<RenameElementDialog onConfirmed={onConfirmed} />);
+      const input = screen.getByRole("textbox", { name: "名前" });
+      expect(input).not.toHaveFocus();
+
+      await frames.flush();
+      expect(input).toHaveFocus();
+    } finally {
+      frames.restore();
+    }
+  });
+
+  it("does not confirm Enter or close Esc while an IME composition is active", async () => {
+    const { targetId } = seed();
+    useCadUiStore.getState().setRenameElementPromptTargetId(targetId);
+    const onConfirmed = vi.fn();
+    await renderDialog(onConfirmed);
     const input = screen.getByRole("textbox", { name: "名前" });
 
     fireEvent.compositionStart(input);
@@ -84,15 +137,15 @@ describe("RenameElementDialog", () => {
     expect(useCadUiStore.getState().renameElementPromptTargetId).toBeNull();
   });
 
-  it("cancels when the selected ID changes, independent of input focus", () => {
+  it("cancels when the selected ID changes, independent of input focus", async () => {
     const { targetId, otherId } = seed();
     useCadUiStore.getState().setRenameElementPromptTargetId(targetId);
     const onConfirmed = vi.fn();
-    render(<RenameElementDialog onConfirmed={onConfirmed} />);
+    await renderDialog(onConfirmed);
     const form = screen.getByRole("textbox", { name: "名前" }).closest("form")!;
 
     // Focus has no bearing on staleness; only the selected element ID does.
-    useCadUiStore.getState().setSelectedElementIds([otherId]);
+    act(() => { useCadUiStore.getState().setSelectedElementIds([otherId]); });
     fireEvent.submit(form);
     expect(useCadUiStore.getState().renameElementPromptTargetId).toBeNull();
     expect(useCadUiStore.getState().commandErrorMessage).toContain("変更または削除");
@@ -100,13 +153,15 @@ describe("RenameElementDialog", () => {
 
   });
 
-  it("cancels when the snapshotted target disappears", () => {
+  it("cancels when the snapshotted target disappears", async () => {
     const { targetId } = seed();
     useCadUiStore.getState().setRenameElementPromptTargetId(targetId);
     const onConfirmed = vi.fn();
-    render(<RenameElementDialog onConfirmed={onConfirmed} />);
-    useCadDocumentStore.setState({
-      elements: useCadDocumentStore.getState().elements.filter((element) => element.id !== targetId)
+    await renderDialog(onConfirmed);
+    act(() => {
+      useCadDocumentStore.setState({
+        elements: useCadDocumentStore.getState().elements.filter((element) => element.id !== targetId)
+      });
     });
 
     fireEvent.submit(screen.getByRole("textbox", { name: "名前" }).closest("form")!);
@@ -119,7 +174,7 @@ describe("RenameElementDialog", () => {
     const { targetId } = seed();
     useCadUiStore.getState().setRenameElementPromptTargetId(targetId);
     const onConfirmed = vi.fn();
-    render(<RenameElementDialog onConfirmed={onConfirmed} />);
+    await renderDialog(onConfirmed);
     fireEvent.submit(screen.getByRole("textbox", { name: "名前" }).closest("form")!);
 
     await waitFor(() => expect(onConfirmed).toHaveBeenCalledWith(targetId));

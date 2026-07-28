@@ -101,9 +101,19 @@ const midSessionLineListRecipe: CreationRecipe = {
   ]
 };
 
+// AppLayout mounts three settings-loader effects (layout/shortcut/command-ribbon)
+// that resolve via a microtask even in the non-Tauri localStorage path. Flushing
+// them here, once, keeps every render call site free of the resulting
+// "not wrapped in act" warning instead of relying on each test's own timing.
+const renderAppLayout = async () => {
+  const view = render(<AppLayout />);
+  await act(async () => {});
+  return view;
+};
+
 describe("AppLayout Source Editor production integration", () => {
   it("derives line-list inert regions from the virtual target without disabling the command bar", async () => {
-    const view = render(<AppLayout />);
+    const view = await renderAppLayout();
     const sourcePane = view.container.querySelector<HTMLElement>(".source-editor-pane-wrapper")!;
     const rightPanel = view.container.querySelector<HTMLElement>(".right-panel")!;
     const resizeHandle = view.container.querySelector<HTMLElement>(".left-panel-resize-handle")!;
@@ -137,7 +147,7 @@ describe("AppLayout Source Editor production integration", () => {
       "line L2 = segment(start: A end: C)"
     ].join("\n"), "test");
     const line1 = useCadDocumentStore.getState().elements.find((element) => element.name === "L1")!;
-    const view = render(<AppLayout />);
+    const view = await renderAppLayout();
     const input = () => view.getByPlaceholderText("候補名を入力") as HTMLInputElement;
     const selectedOption = () => view.getByRole("option", { selected: true });
 
@@ -181,7 +191,7 @@ describe("AppLayout Source Editor production integration", () => {
   });
 
   it("restores line-list inert mode and Canvas focus after global Escape cancels a mid-session chip edit", async () => {
-    const view = render(<AppLayout />);
+    const view = await renderAppLayout();
     const sourcePane = view.container.querySelector<HTMLElement>(".source-editor-pane-wrapper")!;
     const canvas = view.container.querySelector<HTMLDivElement>(".canvas-viewport")!;
 
@@ -202,16 +212,21 @@ describe("AppLayout Source Editor production integration", () => {
   });
 
   it("replaces a line-list pick session through a modified normal creation shortcut without accepting plain typing", async () => {
-    useCadUiStore.setState({
-      shortcutSettings: {
-        version: 1,
-        overrides: [{
-          bindingId: "normal.addLine",
-          chords: [{ key: "l", mod: true, alt: false, shift: false }]
-        }]
-      }
+    const view = await renderAppLayout();
+    // Set after mount: AppLayout's shortcut-settings loader effect resolves once
+    // on mount and would otherwise clobber this override with the (empty)
+    // localStorage default.
+    act(() => {
+      useCadUiStore.setState({
+        shortcutSettings: {
+          version: 1,
+          overrides: [{
+            bindingId: "normal.addLine",
+            chords: [{ key: "l", mod: true, alt: false, shift: false }]
+          }]
+        }
+      });
     });
-    const view = render(<AppLayout />);
     act(() => { startCommandLineCreation("offsetLine"); });
     const input = view.getByPlaceholderText("候補名を入力") as HTMLInputElement;
     const sourcePane = view.container.querySelector<HTMLElement>(".source-editor-pane-wrapper")!;
@@ -230,16 +245,21 @@ describe("AppLayout Source Editor production integration", () => {
   });
 
   it("leaves a modified creation shortcut to the Command Palette input even while a session exists", async () => {
-    useCadUiStore.setState({
-      shortcutSettings: {
-        version: 1,
-        overrides: [{
-          bindingId: "normal.addLine",
-          chords: [{ key: "c", mod: true, alt: false, shift: false }]
-        }]
-      }
+    const view = await renderAppLayout();
+    // Set after mount: AppLayout's shortcut-settings loader effect resolves once
+    // on mount and would otherwise clobber this override with the (empty)
+    // localStorage default.
+    act(() => {
+      useCadUiStore.setState({
+        shortcutSettings: {
+          version: 1,
+          overrides: [{
+            bindingId: "normal.addLine",
+            chords: [{ key: "c", mod: true, alt: false, shift: false }]
+          }]
+        }
+      });
     });
-    const view = render(<AppLayout />);
     act(() => { startCommandLineCreation("variable"); });
     act(() => { useCadUiStore.getState().setShowCommandPalette(true); });
     const input = view.getByRole("textbox", { name: "コマンドを検索" });
@@ -251,18 +271,23 @@ describe("AppLayout Source Editor production integration", () => {
     expect(useCadUiStore.getState().showCommandPalette).toBe(true);
   });
 
-  it("leaves a modified creation shortcut to the Command Palette input when no session exists", () => {
-    useCadUiStore.setState({
-      shortcutSettings: {
-        version: 1,
-        overrides: [{
-          bindingId: "normal.addLine",
-          chords: [{ key: "c", mod: true, alt: false, shift: false }]
-        }]
-      },
-      showCommandPalette: true
+  it("leaves a modified creation shortcut to the Command Palette input when no session exists", async () => {
+    const view = await renderAppLayout();
+    // Set after mount: AppLayout's shortcut-settings loader effect resolves once
+    // on mount and would otherwise clobber this override with the (empty)
+    // localStorage default.
+    act(() => {
+      useCadUiStore.setState({
+        shortcutSettings: {
+          version: 1,
+          overrides: [{
+            bindingId: "normal.addLine",
+            chords: [{ key: "c", mod: true, alt: false, shift: false }]
+          }]
+        },
+        showCommandPalette: true
+      });
     });
-    const view = render(<AppLayout />);
     const input = view.getByRole("textbox", { name: "コマンドを検索" });
 
     const event = fireEvent.keyDown(input, { key: "c", metaKey: true });
@@ -272,7 +297,7 @@ describe("AppLayout Source Editor production integration", () => {
   });
 
   it("confirms from the real bar and returns focus to the existing Source Editor selection path", async () => {
-    const view = render(<AppLayout />);
+    const view = await renderAppLayout();
     act(() => { startCommandLineCreation("variable"); });
     const input = view.getByRole("textbox", { name: "式" }) as HTMLInputElement;
     const form = input.closest("form")!;
@@ -288,7 +313,7 @@ describe("AppLayout Source Editor production integration", () => {
   });
 
   it("renames through F2, suppresses the shortcut in the prompt input, and returns to the target line", async () => {
-    const view = render(<AppLayout />);
+    const view = await renderAppLayout();
     const targetId = pointId("A");
     act(() => { useCadUiStore.getState().setSelectedElementIds([targetId]); });
     const historyBefore = useCadDocumentStore.getState().past.length;
@@ -313,8 +338,8 @@ describe("AppLayout Source Editor production integration", () => {
     expect(useCadDocumentStore.getState().elements.find((element) => element.id === targetId)?.name).toBe("A");
   });
 
-  it("blocks bar IME Enter/Escape and global single-key dispatch, then resumes after compositionend", () => {
-    const view = render(<AppLayout />);
+  it("blocks bar IME Enter/Escape and global single-key dispatch, then resumes after compositionend", async () => {
+    const view = await renderAppLayout();
     act(() => { startCommandLineCreation("variable"); });
     const input = view.getByRole("textbox", { name: "式" }) as HTMLInputElement;
     const form = input.closest("form")!;
@@ -339,7 +364,7 @@ describe("AppLayout Source Editor production integration", () => {
   });
 
   it("uses global Escape to cancel only a mid-session edit, but cancels completed and normal sessions", async () => {
-    const view = render(<AppLayout />);
+    const view = await renderAppLayout();
     act(() => { startCommandLineCreation("freePoint"); });
     const input = view.getByRole("textbox", { name: "x" }) as HTMLInputElement;
     fireEvent.change(input, { target: { value: "3" } });
@@ -368,7 +393,7 @@ describe("AppLayout Source Editor production integration", () => {
   });
 
   it("delegates Escape from the real bar input to the bar exactly once", async () => {
-    const view = render(<AppLayout />);
+    const view = await renderAppLayout();
     act(() => { startCommandLineCreation("freePoint"); });
     const xInput = view.getByRole("textbox", { name: "x" }) as HTMLInputElement;
     fireEvent.change(xInput, { target: { value: "3" } });
@@ -403,7 +428,7 @@ describe("AppLayout Source Editor production integration", () => {
   });
 
   it("uses the real Canvas and controller for Canvas⇄cursor sync and folded descendants", async () => {
-    const view = render(<AppLayout />);
+    const view = await renderAppLayout();
     const viewport = view.container.querySelector<HTMLDivElement>(".canvas-viewport")!;
     const groupId = useCadDocumentStore.getState().elements.find((element) => element.name === "G")!.id;
     act(() => useCadUiStore.getState().setGroupFold(groupId, { expanded: false }));
@@ -425,7 +450,7 @@ describe("AppLayout Source Editor production integration", () => {
       ["nui 2", "group G {", "  point A = coordinate(x: 0 y: 0)", "  point B = coordinate(x: 100 y: 0)", "}"].join("\n"),
       "test"
     );
-    const view = render(<AppLayout />);
+    const view = await renderAppLayout();
     const pointB = pointId("B");
     act(() => { useCadUiStore.getState().setSelectedElementId(pointB); });
     await waitFor(() => expect(useCadUiStore.getState().sourceCursorLine).toBe(4));
@@ -445,9 +470,11 @@ describe("AppLayout Source Editor production integration", () => {
   });
 
   it("renders pickable-only search in the real Source Editor pane", async () => {
-    const view = render(<AppLayout />);
+    const view = await renderAppLayout();
     const pointB = pointId("B");
-    useCadUiStore.getState().setActivePointPickTarget({ elementId: pointB, parameterKey: "fromPoint" as never });
+    act(() => {
+      useCadUiStore.getState().setActivePointPickTarget({ elementId: pointB, parameterKey: "fromPoint" as never });
+    });
     const viewport = view.container.querySelector<HTMLDivElement>(".canvas-viewport")!;
     viewport.focus();
     fireEvent.keyDown(window, { key: "f", metaKey: true });
@@ -458,7 +485,7 @@ describe("AppLayout Source Editor production integration", () => {
   });
 
   it("applies a dirty drag through the real editor flush and the fresh evaluation", async () => {
-    const view = render(<AppLayout />);
+    const view = await renderAppLayout();
     const viewport = view.container.querySelector<HTMLDivElement>(".canvas-viewport")!;
     const cmView = EditorView.findFromDOM(view.container.querySelector<HTMLElement>(".cm-editor")!)!;
 
@@ -483,7 +510,7 @@ describe("AppLayout Source Editor production integration", () => {
   });
 
   it("rejects canvas gestures during IME composition and recovers after compositionend", async () => {
-    const view = render(<AppLayout />);
+    const view = await renderAppLayout();
     const viewport = view.container.querySelector<HTMLDivElement>(".canvas-viewport")!;
     const content = view.container.querySelector<HTMLElement>(".cm-content")!;
     const cmView = EditorView.findFromDOM(view.container.querySelector<HTMLElement>(".cm-editor")!)!;
@@ -513,7 +540,7 @@ describe("AppLayout Source Editor production integration", () => {
       "point 選択候補 = coordinate(x: 0 y: -50)",
       "line AB = segment(start: A end: B)"
     ].join("\n"), "test");
-    const view = render(<AppLayout />);
+    const view = await renderAppLayout();
     const lineId = useCadDocumentStore.getState().elements.find((element) => element.name === "AB")!.id;
     const pickCandidate = pointId("選択候補");
     act(() => {
@@ -553,9 +580,9 @@ describe("Canvas selection focuses the Source Editor", () => {
   const AB_MIDPOINT_SCREEN = { clientX: 300, clientY: 200 };
   const BLANK_SCREEN = { clientX: 100, clientY: 350 };
 
-  const setUp = () => {
+  const setUp = async () => {
     useCadDocumentStore.getState().commitText(focusSource, "test");
-    const view = render(<AppLayout />);
+    const view = await renderAppLayout();
     const viewport = view.container.querySelector<HTMLDivElement>(".canvas-viewport")!;
     const content = view.container.querySelector<HTMLElement>(".cm-content")!;
     const cmView = EditorView.findFromDOM(view.container.querySelector<HTMLElement>(".cm-editor")!)!;
@@ -565,7 +592,7 @@ describe("Canvas selection focuses the Source Editor", () => {
   };
 
   it("keeps Canvas focus while a simple click settles, then focuses the editor on pointerup", async () => {
-    const { viewport, content } = setUp();
+    const { viewport, content } = await setUp();
 
     fireEvent.pointerDown(viewport, { button: 0, buttons: 1, pointerId: 1, ...AB_MIDPOINT_SCREEN });
     expect(document.activeElement).not.toBe(content);
@@ -576,7 +603,7 @@ describe("Canvas selection focuses the Source Editor", () => {
   });
 
   it("supports Canvas selection -> editor focus -> Tab/Shift-Tab -> Alt+Arrow editing", async () => {
-    const { viewport, content, cmView } = setUp();
+    const { viewport, content, cmView } = await setUp();
 
     fireEvent.pointerDown(viewport, { button: 0, buttons: 1, pointerId: 1, ...B_SCREEN });
     fireEvent.pointerUp(viewport, { buttons: 0, pointerId: 1, ...B_SCREEN });
@@ -595,7 +622,7 @@ describe("Canvas selection focuses the Source Editor", () => {
   });
 
   it("keeps Canvas focus through a point drag and focuses the editor only after the move commits", async () => {
-    const { viewport, content, elementId } = setUp();
+    const { viewport, content, elementId } = await setUp();
 
     fireEvent.pointerDown(viewport, { button: 0, buttons: 1, pointerId: 1, ...B_SCREEN });
     expect(useCadUiStore.getState().selectedElementId).toBe(elementId("B"));
@@ -612,8 +639,8 @@ describe("Canvas selection focuses the Source Editor", () => {
     // limited to assert an exact offset here, so this only checks the focus handoff.
   });
 
-  it("does not move focus for a blank click", () => {
-    const { viewport, content } = setUp();
+  it("does not move focus for a blank click", async () => {
+    const { viewport, content } = await setUp();
     const previouslySelected = useCadUiStore.getState().selectedElementId;
 
     fireEvent.pointerDown(viewport, { button: 0, buttons: 1, pointerId: 1, ...BLANK_SCREEN });
@@ -623,8 +650,8 @@ describe("Canvas selection focuses the Source Editor", () => {
     expect(document.activeElement).not.toBe(content);
   });
 
-  it("discards the focus reservation on pointer cancel instead of moving focus", () => {
-    const { viewport, content } = setUp();
+  it("discards the focus reservation on pointer cancel instead of moving focus", async () => {
+    const { viewport, content } = await setUp();
 
     fireEvent.pointerDown(viewport, { button: 0, buttons: 1, pointerId: 1, ...B_SCREEN });
     fireEvent.pointerCancel(viewport, { pointerId: 1, ...B_SCREEN });
@@ -633,7 +660,7 @@ describe("Canvas selection focuses the Source Editor", () => {
   });
 
   it("focuses the editor once a click resolves after evaluation catches up", async () => {
-    const { viewport, content, cmView, elementId } = setUp();
+    const { viewport, content, cmView, elementId } = await setUp();
 
     // Uncommitted editor text at gesture time defers resolution to the resolution
     // effect, which runs after the pointer has already been released.
@@ -649,7 +676,7 @@ describe("Canvas selection focuses the Source Editor", () => {
   });
 
   it("moves focus back to the editor when re-clicking the already-selected element", async () => {
-    const { viewport, content } = setUp();
+    const { viewport, content } = await setUp();
 
     fireEvent.pointerDown(viewport, { button: 0, buttons: 1, pointerId: 1, ...AB_MIDPOINT_SCREEN });
     fireEvent.pointerUp(viewport, { buttons: 0, pointerId: 1, ...AB_MIDPOINT_SCREEN });
@@ -664,7 +691,7 @@ describe("Canvas selection focuses the Source Editor", () => {
   });
 
   it("does not restore a stale deferred cursor snapshot once Canvas re-selects the same element", async () => {
-    const { viewport, content, cmView, elementId } = setUp();
+    const { viewport, content, cmView, elementId } = await setUp();
 
     // Select B, then nudge the CM cursor a couple columns into B's own line
     // without changing the primary selection (still within B's statement range).

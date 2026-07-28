@@ -1016,7 +1016,7 @@ describe("DrawingCanvas point dragging", () => {
       type: "offsetLine",
       baseLineIds: []
     });
-    dispatchCommand("finishLinePick");
+    act(() => { dispatchCommand("finishLinePick"); });
     expect(useCadStore.getState().elements.at(-1)).toMatchObject({
       type: "offsetLine",
       baseLineIds: ["line-ab"]
@@ -1079,7 +1079,7 @@ describe("DrawingCanvas point dragging", () => {
       type: "offsetLine",
       baseLineIds: []
     });
-    dispatchCommand("finishLinePick");
+    act(() => { dispatchCommand("finishLinePick"); });
     expect(useCadStore.getState().elements.at(-1)).toMatchObject({
       type: "offsetLine",
       baseLineIds: ["line-ab-copy"]
@@ -1118,7 +1118,7 @@ describe("DrawingCanvas point dragging", () => {
       clientY: 250,
       pointerId: 1
     });
-    dispatchCommand("cancelLinePick");
+    act(() => { dispatchCommand("cancelLinePick"); });
 
     expect(useCadStore.getState().activeLinePickTarget).toBeNull();
     expect(useCadStore.getState().elements.at(-1)).toMatchObject({ baseLineIds: [] });
@@ -1133,7 +1133,7 @@ describe("DrawingCanvas point dragging", () => {
       }
     });
 
-    dispatchCommand("finishLinePick");
+    act(() => { dispatchCommand("finishLinePick"); });
 
     expect(useCadStore.getState().activeLinePickTarget).toEqual({
       elementId: "line-ab",
@@ -1562,7 +1562,7 @@ describe("DrawingCanvas pending pointer intents", () => {
   it("keeps drag previews out of the drag base and commits one undoable selection-preserving change", async () => {
     const { viewport, deliverEvaluationState } = renderPendingCanvas({ initialText: twoPointText });
     const bId = idByName("B");
-    useCadDocumentStore.setState({ past: [], future: [] });
+    act(() => { useCadDocumentStore.setState({ past: [], future: [] }); });
 
     fireEvent.pointerDown(viewport, { button: 0, buttons: 1, clientX: 350, clientY: 200, pointerId: 1 });
     fireEvent.pointerMove(viewport, { buttons: 1, clientX: 380, clientY: 210, pointerId: 1 });
@@ -1574,10 +1574,10 @@ describe("DrawingCanvas pending pointer intents", () => {
     expect(useCadDocumentStore.getState().past).toHaveLength(1);
     expect(useCadUiStore.getState().selectedElementId).toBe(bId);
 
-    useCadDocumentStore.getState().undo();
+    act(() => { useCadDocumentStore.getState().undo(); });
     expect(pointByName("B")).toMatchObject({ x: 100, y: 0 });
     expect(useCadUiStore.getState().selectedElementId).toBe(bId);
-    useCadDocumentStore.getState().redo();
+    act(() => { useCadDocumentStore.getState().redo(); });
     expect(pointByName("B")).toMatchObject({ x: 150, y: 10 });
     expect(useCadUiStore.getState().selectedElementId).toBe(bId);
   });
