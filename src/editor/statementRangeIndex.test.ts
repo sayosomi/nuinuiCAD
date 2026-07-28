@@ -1,16 +1,35 @@
 import { ChangeSet, Text } from "@codemirror/state";
 import { describe, expect, it } from "vitest";
+import { parseDsl } from "../dsl/dslParser";
 import { compileDslDocument } from "../dsl/dslDocument";
+import { bindingIdForStableStatementId } from "../scalars/bindingCatalog";
 import {
   createPrintLayoutRangeIndex,
   createStatementRangeIndex,
+  createTypedDeclarationRangeIndex,
   elementIdAtCursor,
   mapPrintLayoutRangeIndex,
-  mapStatementRangeIndex
+  mapStatementRangeIndex,
+  mapTypedDeclarationRangeIndex,
+  typedDeclarationBindingIdAtCursor
 } from "./statementRangeIndex";
 
 const compiled = (source: string) => {
   const result = compileDslDocument(source);
+  expect(result.document).not.toBeNull();
+  expect(result.statementMap).not.toBeNull();
+  return result;
+};
+
+/** Typed declarations need reconciler-issued statement identity to appear in
+ * `statementMap.statementIdByStatementIndex` at all (see dslDocument.ts's own
+ * `stableStatementIdByIndex` gate) - assigns a fresh stable id per statement
+ * index, mirroring the fixture convention used across the scalars test suite
+ * (e.g. propertyBindingCompiler.test.ts's `compileFor`). */
+const compiledWithStableIds = (source: string) => {
+  const statements = parseDsl(source).statements;
+  const assignedStatementIds = new Map(statements.map((_, index) => [index, `stable-${index}`]));
+  const result = compileDslDocument(source, { assignedStatementIds });
   expect(result.document).not.toBeNull();
   expect(result.statementMap).not.toBeNull();
   return result;
@@ -196,5 +215,68 @@ describe("printLayoutRangeIndex", () => {
     const changes = ChangeSet.of({ from: range.from, to: Math.min(doc.length, range.to + 1), insert: "" }, doc.length);
 
     expect(mapPrintLayoutRangeIndex(original, changes).has(printLayoutId)).toBe(false);
+  });
+});
+
+describe("typedDeclarationRangeIndex", () => {
+  const source = ["nui 3", "const flag: boolean = true"].join("\n");
+
+  it("builds one entry keyed by the binding's stable BindingId, spanning the whole declaration line", () => {
+    const result = compiledWithStableIds(source);
+    const doc = Text.of(source.split("\n"));
+    const index = createTypedDeclarationRangeIndex(doc, result.statementMap!);
+
+    expect(index.size).toBe(1);
+    const bindingId = bindingIdForStableStatementId("stable-1");
+    const range = index.get(bindingId)!;
+    expect(range).toBeDefined();
+    expect(doc.sliceString(range.from, range.to)).toBe("const flag: boolean = true");
+    expect(typedDeclarationBindingIdAtCursor(index, range.from + 5)).toBe(bindingId);
+  });
+
+  it("keeps the range alive through an edit inside the initializer (dirty-buffer completion keeps working before the next compile)", () => {
+    const result = compiledWithStableIds(source);
+    const doc = Text.of(source.split("\n"));
+    const original = createTypedDeclarationRangeIndex(doc, result.statementMap!);
+    const bindingId = bindingIdForStableStatementId("stable-1");
+    const range = original.get(bindingId)!;
+    // Simulates typing more characters into the initializer, well before any compile debounce fires.
+    const editPos = doc.sliceString(range.from, range.to).indexOf("true");
+    const changes = ChangeSet.of({ from: range.from + editPos + 4, insert: " && false" }, doc.length);
+
+    const mapped = mapTypedDeclarationRangeIndex(original, changes);
+    expect(mapped.has(bindingId)).toBe(true);
+    expect(mapped.get(bindingId)!.to).toBeGreaterThan(range.to);
+  });
+
+  it("tracks an insertion above the declaration, shifting the line but preserving binding identity", () => {
+    const result = compiledWithStableIds(source);
+    const doc = Text.of(source.split("\n"));
+    const original = createTypedDeclarationRangeIndex(doc, result.statementMap!);
+    const bindingId = bindingIdForStableStatementId("stable-1");
+    const changes = ChangeSet.of({ from: 0, insert: "# dirty\n" }, doc.length);
+    const mapped = mapTypedDeclarationRangeIndex(original, changes);
+
+    const range = mapped.get(bindingId)!;
+    expect(range).toBeDefined();
+    expect(range.from).toBeGreaterThan(original.get(bindingId)!.from);
+  });
+
+  it("drops an entry whose declaration line is fully replaced", () => {
+    const result = compiledWithStableIds(source);
+    const doc = Text.of(source.split("\n"));
+    const original = createTypedDeclarationRangeIndex(doc, result.statementMap!);
+    const bindingId = bindingIdForStableStatementId("stable-1");
+    const range = original.get(bindingId)!;
+    const changes = ChangeSet.of({ from: range.from, to: Math.min(doc.length, range.to + 1), insert: "" }, doc.length);
+
+    expect(mapTypedDeclarationRangeIndex(original, changes).has(bindingId)).toBe(false);
+  });
+
+  it("returns an empty index when no statement identity was assigned (no typed declarations)", () => {
+    const noTypedSource = ["nui 2", "point A = coordinate(x: 0, y: 0)"].join("\n");
+    const result = compiled(noTypedSource);
+    const doc = Text.of(noTypedSource.split("\n"));
+    expect(createTypedDeclarationRangeIndex(doc, result.statementMap!).size).toBe(0);
   });
 });

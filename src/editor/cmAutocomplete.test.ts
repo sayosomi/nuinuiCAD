@@ -1,12 +1,18 @@
 import { completionStatus, currentCompletions, selectedCompletionIndex, startCompletion } from "@codemirror/autocomplete";
-import { EditorSelection, EditorState } from "@codemirror/state";
+import { ChangeSet, EditorSelection, EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { fireEvent } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { createDslCompletionSource, dslAutocompleteExtension } from "./cmAutocomplete";
 import { compileDslDocument, type DslDocumentData } from "../dsl/dslDocument";
 import { dslLinesForElements, dslTextForElements } from "../dsl/dslDocumentTestUtils";
-import { createPrintLayoutRangeIndex, createStatementRangeIndex } from "./statementRangeIndex";
+import { parseDsl } from "../dsl/dslParser";
+import {
+  createPrintLayoutRangeIndex,
+  createStatementRangeIndex,
+  createTypedDeclarationRangeIndex,
+  mapTypedDeclarationRangeIndex
+} from "./statementRangeIndex";
 
 const identities = (source: string) => {
   const compiled = compileDslDocument(source);
@@ -34,7 +40,10 @@ describe("createDslCompletionSource", () => {
       computedVariables: () => undefined,
       computedGeometry: () => undefined,
       effectiveEnabledElementIds: () => undefined,
-      evaluationErrors: () => undefined
+      evaluationErrors: () => undefined,
+      bindingAnalysis: () => undefined,
+      typedDeclarationRanges: () => new Map(),
+      statementInfoByElementId: () => undefined,
     });
     expect(source({ state, pos: 3, explicit: true } as never)).toBeNull();
   });
@@ -50,7 +59,10 @@ describe("createDslCompletionSource", () => {
       computedVariables: () => undefined,
       computedGeometry: () => undefined,
       effectiveEnabledElementIds: () => undefined,
-      evaluationErrors: () => undefined
+      evaluationErrors: () => undefined,
+      bindingAnalysis: () => undefined,
+      typedDeclarationRanges: () => new Map(),
+      statementInfoByElementId: () => undefined,
     });
     const result = await Promise.resolve(source({ state, pos: 3, explicit: true } as never));
     expect(result).not.toBeNull();
@@ -63,7 +75,10 @@ describe("createDslCompletionSource", () => {
     const completionSource = createDslCompletionSource({
       elements: () => [], statementRanges: () => new Map(), printLayouts: () => [], printLayoutRanges: () => new Map(),
       isComposing: () => false, computedVariables: () => undefined, computedGeometry: () => undefined,
-      effectiveEnabledElementIds: () => undefined, evaluationErrors: () => undefined
+      effectiveEnabledElementIds: () => undefined, evaluationErrors: () => undefined,
+      bindingAnalysis: () => undefined,
+      typedDeclarationRanges: () => new Map(),
+      statementInfoByElementId: () => undefined,
     });
     const result = await Promise.resolve(completionSource({ state, pos: source.length, explicit: true } as never));
     expect(result?.from).toBe(source.indexOf("co"));
@@ -78,7 +93,10 @@ describe("createDslCompletionSource", () => {
     const completionSource = createDslCompletionSource({
       elements: () => [], statementRanges: () => new Map(), printLayouts: () => [], printLayoutRanges: () => new Map(),
       isComposing: () => false, computedVariables: () => undefined, computedGeometry: () => undefined,
-      effectiveEnabledElementIds: () => undefined, evaluationErrors: () => undefined
+      effectiveEnabledElementIds: () => undefined, evaluationErrors: () => undefined,
+      bindingAnalysis: () => undefined,
+      typedDeclarationRanges: () => new Map(),
+      statementInfoByElementId: () => undefined,
     });
     const pos = source.indexOf("\n  d") + "\n  d".length;
     const result = await Promise.resolve(completionSource({ state, pos, explicit: true } as never));
@@ -97,7 +115,10 @@ describe("createDslCompletionSource", () => {
     const completionSource = createDslCompletionSource({
       elements: () => elements, statementRanges: () => statementRanges, printLayouts: () => printLayouts, printLayoutRanges: () => printLayoutRanges,
       isComposing: () => false, computedVariables: () => undefined, computedGeometry: () => undefined,
-      effectiveEnabledElementIds: () => undefined, evaluationErrors: () => undefined
+      effectiveEnabledElementIds: () => undefined, evaluationErrors: () => undefined,
+      bindingAnalysis: () => undefined,
+      typedDeclarationRanges: () => new Map(),
+      statementInfoByElementId: () => undefined,
     });
     const pos = source.length;
     const result = await Promise.resolve(completionSource({ state, pos, explicit: true } as never));
@@ -128,7 +149,10 @@ describe("createDslCompletionSource", () => {
       computedVariables: () => undefined,
       computedGeometry: () => undefined,
       effectiveEnabledElementIds: () => undefined,
-      evaluationErrors: () => undefined
+      evaluationErrors: () => undefined,
+      bindingAnalysis: () => undefined,
+      typedDeclarationRanges: () => new Map(),
+      statementInfoByElementId: () => undefined,
     });
 
     const result = await Promise.resolve(completionSource({ state, pos, explicit: true } as never));
@@ -160,7 +184,10 @@ describe("createDslCompletionSource", () => {
       computedVariables: () => undefined,
       computedGeometry: () => undefined,
       effectiveEnabledElementIds: () => undefined,
-      evaluationErrors: () => undefined
+      evaluationErrors: () => undefined,
+      bindingAnalysis: () => undefined,
+      typedDeclarationRanges: () => new Map(),
+      statementInfoByElementId: () => undefined,
     });
 
     const result = await Promise.resolve(completionSource({ state, pos, explicit: true } as never));
@@ -191,7 +218,10 @@ describe("createDslCompletionSource", () => {
       computedVariables: () => undefined,
       computedGeometry: () => undefined,
       effectiveEnabledElementIds: () => undefined,
-      evaluationErrors: () => undefined
+      evaluationErrors: () => undefined,
+      bindingAnalysis: () => undefined,
+      typedDeclarationRanges: () => new Map(),
+      statementInfoByElementId: () => undefined,
     });
 
     const result = await Promise.resolve(completionSource({ state, pos, explicit: true } as never));
@@ -223,7 +253,10 @@ describe("createDslCompletionSource", () => {
       computedVariables: () => undefined,
       computedGeometry: () => undefined,
       effectiveEnabledElementIds: () => undefined,
-      evaluationErrors: () => undefined
+      evaluationErrors: () => undefined,
+      bindingAnalysis: () => undefined,
+      typedDeclarationRanges: () => new Map(),
+      statementInfoByElementId: () => undefined,
     });
     const result = await Promise.resolve(completionSource({ state, pos, explicit: true } as never));
     expect(result).not.toBeNull();
@@ -251,7 +284,10 @@ describe("createDslCompletionSource", () => {
       computedVariables: () => undefined,
       computedGeometry: () => undefined,
       effectiveEnabledElementIds: () => undefined,
-      evaluationErrors: () => undefined
+      evaluationErrors: () => undefined,
+      bindingAnalysis: () => undefined,
+      typedDeclarationRanges: () => new Map(),
+      statementInfoByElementId: () => undefined,
     });
     const result = await Promise.resolve(completionSource({ state, pos, explicit: true } as never));
     expect(result).not.toBeNull();
@@ -282,7 +318,10 @@ describe("createDslCompletionSource", () => {
       computedVariables: () => undefined,
       computedGeometry: () => undefined,
       effectiveEnabledElementIds: () => undefined,
-      evaluationErrors: () => undefined
+      evaluationErrors: () => undefined,
+      bindingAnalysis: () => undefined,
+      typedDeclarationRanges: () => new Map(),
+      statementInfoByElementId: () => undefined,
     });
     const result = await Promise.resolve(completionSource({ state, pos, explicit: true } as never));
     expect(result).not.toBeNull();
@@ -324,6 +363,9 @@ describe("createDslCompletionSource", () => {
       computedGeometry: () => undefined,
       effectiveEnabledElementIds: () => undefined,
       evaluationErrors: () => undefined,
+      bindingAnalysis: () => undefined,
+      typedDeclarationRanges: () => new Map(),
+      statementInfoByElementId: () => undefined,
       documentInput: () => ({
         source,
         cursorLineNumber: 3,
@@ -366,7 +408,10 @@ describe("createDslCompletionSource", () => {
       computedVariables: () => undefined,
       computedGeometry: () => undefined,
       effectiveEnabledElementIds: () => undefined,
-      evaluationErrors: () => undefined
+      evaluationErrors: () => undefined,
+      bindingAnalysis: () => undefined,
+      typedDeclarationRanges: () => new Map(),
+      statementInfoByElementId: () => undefined,
     });
     const result = await Promise.resolve(completionSource({ state, pos, explicit: true } as never));
     expect(result).not.toBeNull();
@@ -410,7 +455,10 @@ describe("createDslCompletionSource", () => {
       computedVariables: () => undefined,
       computedGeometry: () => undefined,
       effectiveEnabledElementIds: () => undefined,
-      evaluationErrors: () => undefined
+      evaluationErrors: () => undefined,
+      bindingAnalysis: () => undefined,
+      typedDeclarationRanges: () => new Map(),
+      statementInfoByElementId: () => undefined,
     });
     const result = await Promise.resolve(completionSource({ state, pos, explicit: true } as never));
     expect(result).not.toBeNull();
@@ -456,7 +504,10 @@ describe("createDslCompletionSource", () => {
         computedVariables: () => undefined,
         computedGeometry: () => computedGeometry,
         effectiveEnabledElementIds: () => new Set([abId]),
-        evaluationErrors: () => []
+        evaluationErrors: () => [],
+        bindingAnalysis: () => undefined,
+        typedDeclarationRanges: () => new Map(),
+        statementInfoByElementId: () => undefined,
       });
       return { completionSource, state, pos, source };
     };
@@ -500,7 +551,10 @@ describe("createDslCompletionSource", () => {
         computedVariables: () => undefined,
         computedGeometry: () => computedGeometry,
         effectiveEnabledElementIds: () => new Set([abId]),
-        evaluationErrors: () => []
+        evaluationErrors: () => [],
+        bindingAnalysis: () => undefined,
+        typedDeclarationRanges: () => new Map(),
+        statementInfoByElementId: () => undefined,
       });
       const result = await Promise.resolve(completionSource({ state, pos, explicit: true } as never));
       expect(result).not.toBeNull();
@@ -527,9 +581,287 @@ describe("createDslCompletionSource", () => {
         computedVariables: () => undefined,
         computedGeometry: () => new Map(),
         effectiveEnabledElementIds: () => new Set([abId]),
-        evaluationErrors: () => []
+        evaluationErrors: () => [],
+        bindingAnalysis: () => undefined,
+        typedDeclarationRanges: () => new Map(),
+        statementInfoByElementId: () => undefined,
       });
       expect(await Promise.resolve(completionSource({ state, pos, explicit: true } as never))).toBeNull();
+    });
+  });
+});
+
+describe("typed value completion (Task 39)", () => {
+  /** Typed declarations/set statements need reconciler-issued statement
+   * identity to appear in bindingAnalysis at all - assigns a fresh stable id
+   * per statement index, mirroring the fixture convention used across the
+   * scalars test suite (e.g. propertyBindingCompiler.test.ts's `compileFor`). */
+  const compiledTyped = (source: string) => {
+    const statements = parseDsl(source).statements;
+    const assignedStatementIds = new Map(statements.map((_, index) => [index, `stable-${index}`]));
+    const compiled = compileDslDocument(source, { assignedStatementIds });
+    expect(compiled.document).not.toBeNull();
+    expect(compiled.statementMap).not.toBeNull();
+    expect(compiled.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
+    return compiled;
+  };
+
+  const baseOptions = () => ({
+    elements: () => [] as never[],
+    statementRanges: () => new Map(),
+    printLayouts: () => [] as never[],
+    printLayoutRanges: () => new Map(),
+    isComposing: () => false,
+    computedVariables: () => undefined,
+    computedGeometry: () => undefined,
+    effectiveEnabledElementIds: () => undefined,
+    evaluationErrors: () => undefined
+  });
+
+  describe("typed declaration initializer", () => {
+    it("offers boolean literal and unary ! candidates at a clean operand start", async () => {
+      // Committed/compiled from a complete, valid initializer; the actual
+      // completion query happens against a separate dirty state with nothing
+      // yet typed after "=" (an empty initializer would itself be a parse
+      // error, so it can never be what compiledTyped compiles).
+      const committedSource = ["nui 3", "const flag: boolean = true"].join("\n");
+      const compiled = compiledTyped(committedSource);
+      const committedDoc = EditorState.create({ doc: committedSource }).doc;
+      const committedRanges = createTypedDeclarationRangeIndex(committedDoc, compiled.statementMap!);
+      const dirtySource = committedSource.replace(" true", " ");
+      const changes = ChangeSet.of({ from: committedSource.indexOf(" true"), to: committedSource.indexOf(" true") + " true".length, insert: " " }, committedSource.length);
+      const dirtyRanges = mapTypedDeclarationRangeIndex(committedRanges, changes);
+      const state = EditorState.create({ doc: dirtySource });
+      const completionSource = createDslCompletionSource({
+        ...baseOptions(),
+        bindingAnalysis: () => compiled.bindingAnalysis,
+        typedDeclarationRanges: () => dirtyRanges,
+        statementInfoByElementId: () => compiled.statementMap!.byElementId
+      });
+      const pos = dirtySource.length;
+      const result = await Promise.resolve(completionSource({ state, pos, explicit: true } as never));
+      expect(result).not.toBeNull();
+      const labels = result!.options.map((option) => option.label);
+      expect(labels).toEqual(expect.arrayContaining(["true", "false"]));
+      expect(result!.options.every((option) => option.type === "enum" || option.type === "keyword")).toBe(true);
+    });
+
+    it("offers @name reference candidates filtered to the declared type", async () => {
+      // Committed/compiled from a fully-resolved reference ("@f" alone would
+      // be an unresolved-reference compile error); the in-progress "@f"
+      // partial only exists in a separate dirty live state.
+      const committedSource = ["nui 3", "const flagA: boolean = true", "const numA: number = 1", "const target: boolean = @flagA"].join("\n");
+      const compiled = compiledTyped(committedSource);
+      const committedDoc = EditorState.create({ doc: committedSource }).doc;
+      const committedRanges = createTypedDeclarationRangeIndex(committedDoc, compiled.statementMap!);
+      const dirtySource = committedSource.replace("@flagA", "@f");
+      const changes = ChangeSet.of({ from: committedSource.indexOf("@flagA") + 2, to: committedSource.length, insert: "" }, committedSource.length);
+      const dirtyRanges = mapTypedDeclarationRangeIndex(committedRanges, changes);
+      const state = EditorState.create({ doc: dirtySource });
+      const completionSource = createDslCompletionSource({
+        ...baseOptions(),
+        bindingAnalysis: () => compiled.bindingAnalysis,
+        typedDeclarationRanges: () => dirtyRanges,
+        statementInfoByElementId: () => compiled.statementMap!.byElementId
+      });
+      const pos = dirtySource.length;
+      const result = await Promise.resolve(completionSource({ state, pos, explicit: true } as never));
+      expect(result).not.toBeNull();
+      const options = result!.options;
+      expect(options.some((option) => option.label === "flagA" && option.apply === "@flagA")).toBe(true);
+      expect(options.some((option) => option.label === "numA")).toBe(false);
+      expect(options.every((option) => option.type === "variable")).toBe(true);
+    });
+
+    it("offers boolean operators right after a completed reference operand", async () => {
+      const source = ["nui 3", "const flagA: boolean = true", "const target: boolean = @flagA "].join("\n");
+      const compiled = compiledTyped(source);
+      const doc = EditorState.create({ doc: source }).doc;
+      const typedDeclarationRanges = createTypedDeclarationRangeIndex(doc, compiled.statementMap!);
+      const state = EditorState.create({ doc: source });
+      const completionSource = createDslCompletionSource({
+        ...baseOptions(),
+        bindingAnalysis: () => compiled.bindingAnalysis,
+        typedDeclarationRanges: () => typedDeclarationRanges,
+        statementInfoByElementId: () => compiled.statementMap!.byElementId
+      });
+      const pos = source.length;
+      const result = await Promise.resolve(completionSource({ state, pos, explicit: true } as never));
+      expect(result).not.toBeNull();
+      expect(result!.options.map((option) => option.label)).toEqual(["&&", "||", "==", "!="]);
+      expect(result!.options.every((option) => option.type === "keyword")).toBe(true);
+    });
+
+    it("keeps completing through a dirty edit made after the last compile, before any recompile settles", async () => {
+      // Committed/compiled state: a valid document.
+      const committedSource = ["nui 3", "const flagA: boolean = true", "const target: boolean = true"].join("\n");
+      const compiled = compiledTyped(committedSource);
+      const committedDoc = EditorState.create({ doc: committedSource }).doc;
+      const committedRanges = createTypedDeclarationRangeIndex(committedDoc, compiled.statementMap!);
+
+      // Dirty live buffer: several more characters typed into target's
+      // initializer since that last compile - no recompile has run yet.
+      const insertion = " && @fla";
+      const changes = ChangeSet.of({ from: committedSource.length, insert: insertion }, committedSource.length);
+      const dirtySource = committedSource + insertion;
+      const dirtyRanges = mapTypedDeclarationRangeIndex(committedRanges, changes);
+      const state = EditorState.create({ doc: dirtySource });
+
+      const completionSource = createDslCompletionSource({
+        ...baseOptions(),
+        bindingAnalysis: () => compiled.bindingAnalysis,
+        typedDeclarationRanges: () => dirtyRanges,
+        statementInfoByElementId: () => compiled.statementMap!.byElementId
+      });
+      const pos = dirtySource.length;
+      const result = await Promise.resolve(completionSource({ state, pos, explicit: true } as never));
+      expect(result).not.toBeNull();
+      expect(result!.options.some((option) => option.label === "flagA")).toBe(true);
+    });
+
+    it("fails closed (no candidates) once the live statement is no longer a typed declaration", async () => {
+      const committedSource = ["nui 3", "const target: boolean = true"].join("\n");
+      const compiled = compiledTyped(committedSource);
+      const committedDoc = EditorState.create({ doc: committedSource }).doc;
+      const committedRanges = createTypedDeclarationRangeIndex(committedDoc, compiled.statementMap!);
+      // The declaration keyword itself is edited away (no longer "const"),
+      // so a fresh reparse of the live line no longer sees a typed
+      // declaration at all - a structural edit fail-closed guard, not a
+      // range-index invalidation.
+      const dirtySource = ["nui 3", "notconst target: boolean = true"].join("\n");
+      const state = EditorState.create({ doc: dirtySource });
+      const completionSource = createDslCompletionSource({
+        ...baseOptions(),
+        bindingAnalysis: () => compiled.bindingAnalysis,
+        typedDeclarationRanges: () => committedRanges,
+        statementInfoByElementId: () => compiled.statementMap!.byElementId
+      });
+      const pos = dirtySource.length;
+      const result = await Promise.resolve(completionSource({ state, pos, explicit: true } as never));
+      expect(result?.options ?? []).toEqual([]);
+    });
+
+    it("fails closed when the tracked bindingId no longer resolves in the (stale) precomputed catalog", async () => {
+      const source = ["nui 3", "const target: boolean = true"].join("\n");
+      const compiled = compiledTyped(source);
+      const doc = EditorState.create({ doc: source }).doc;
+      const staleRanges = createTypedDeclarationRangeIndex(doc, compiled.statementMap!);
+      const state = EditorState.create({ doc: source });
+      const completionSource = createDslCompletionSource({
+        ...baseOptions(),
+        // A stale catalog from an entirely different (unrelated) document -
+        // the tracked bindingId (derived from *this* document's own
+        // statement-index-based stable id) can never resolve in it. The
+        // unrelated declaration is deliberately placed at a different
+        // statement index (via the leading extra statement) so its own
+        // stable id never coincidentally collides with "target"'s.
+        bindingAnalysis: () => compiledTyped(["nui 3", "point A = coordinate(x: 0 y: 0)", "const other: number = 1"].join("\n")).bindingAnalysis,
+        typedDeclarationRanges: () => staleRanges,
+        statementInfoByElementId: () => compiled.statementMap!.byElementId
+      });
+      const pos = source.length;
+      const result = await Promise.resolve(completionSource({ state, pos, explicit: true } as never));
+      expect(result?.options ?? []).toEqual([]);
+    });
+  });
+
+  describe("property scalar value", () => {
+    it("offers @name reference candidates for an opt-in text property", async () => {
+      // Committed/compiled from a fully-resolved reference (an unresolved
+      // "@gr" would itself be a compile error); the in-progress "@gr" only
+      // exists in a separate dirty live state.
+      const committedSource = ["nui 3", "const greeting: string = \"hi\"", "text T = label(text: @greeting anchor: none size: 3)"].join("\n");
+      const compiled = compiledTyped(committedSource);
+      const dirtySource = committedSource.replace("@greeting", "@gr");
+      const state = EditorState.create({ doc: dirtySource });
+      const statementRanges = createStatementRangeIndex(state.doc, compiled.statementMap!);
+      const completionSource = createDslCompletionSource({
+        ...baseOptions(),
+        elements: () => compiled.document!.elements,
+        statementRanges: () => statementRanges,
+        bindingAnalysis: () => compiled.bindingAnalysis,
+        typedDeclarationRanges: () => new Map(),
+        statementInfoByElementId: () => compiled.statementMap!.byElementId
+      });
+      const pos = dirtySource.indexOf("@gr") + "@gr".length;
+      const result = await Promise.resolve(completionSource({ state, pos, explicit: true } as never));
+      expect(result).not.toBeNull();
+      const options = result!.options;
+      expect(options.some((option) => option.label === "greeting" && option.apply === "@greeting")).toBe(true);
+      expect(options.every((option) => option.type === "variable")).toBe(true);
+    });
+
+    it("offers true/false literal candidates for an opt-in boolean property with no @ prefix", async () => {
+      // Committed/compiled from a complete, valid document; a bare "t" typed
+      // toward "true" only exists in a separate dirty live state (an empty
+      // required boolean value has no locatable value span at all, let alone
+      // being a compile error, so this exercises the realistic in-progress
+      // shape instead).
+      const committedSource = ["nui 3", "group G (printEnabled: true) {", "}"].join("\n");
+      const compiled = compiledTyped(committedSource);
+      const dirtySource = committedSource.replace("printEnabled: true", "printEnabled: t");
+      const state = EditorState.create({ doc: dirtySource });
+      const statementRanges = createStatementRangeIndex(state.doc, compiled.statementMap!);
+      const completionSource = createDslCompletionSource({
+        ...baseOptions(),
+        elements: () => compiled.document!.elements,
+        statementRanges: () => statementRanges,
+        bindingAnalysis: () => compiled.bindingAnalysis,
+        typedDeclarationRanges: () => new Map(),
+        statementInfoByElementId: () => compiled.statementMap!.byElementId
+      });
+      const pos = dirtySource.indexOf("printEnabled: t") + "printEnabled: t".length;
+      const result = await Promise.resolve(completionSource({ state, pos, explicit: true } as never));
+      expect(result).not.toBeNull();
+      expect(result!.options.map((option) => option.label)).toEqual(expect.arrayContaining(["true", "false"]));
+      expect(result!.options.every((option) => option.type === "enum")).toBe(true);
+    });
+  });
+
+  describe("template hole", () => {
+    it("offers string/number @name candidates inside an in-progress hole, excludes boolean/choice", async () => {
+      // The compiled/committed document must be a *complete, valid* nui 3
+      // document - so the in-progress hole only ever exists in a separate,
+      // dirty live EditorState, never in the text `compiledTyped` itself
+      // compiles. The dirty string's outer quotes stay properly closed
+      // (`"{@"`, cursor placed right after "@", before the closing quote) so
+      // the surrounding statement/attribute parse stays intact - Task 26's
+      // scanTextTemplateLiteral is what actually detects the hole as open,
+      // by being bounded at the cursor rather than at the real closing quote
+      // (see dslTemplateHoleCompletionContext.ts) - a genuinely unterminated
+      // string would instead break the whole statement's parse, which is not
+      // what this test is exercising.
+      const committedSource = [
+        "nui 3",
+        "const greeting: string = \"hi\"",
+        "const count: number = 1",
+        "const flag: boolean = true",
+        'text T = label(text: "placeholder" anchor: none size: 3)'
+      ].join("\n");
+      const compiled = compiledTyped(committedSource);
+      const dirtySource = committedSource.replace('"placeholder"', '"{@"');
+      const state = EditorState.create({ doc: dirtySource });
+      // statementMap's line *numbers* are content-length-independent, so
+      // projecting them through the dirty doc directly (rather than the
+      // committed one) mirrors what statementRanges' own incremental
+      // ChangeDesc mapping achieves in the real controller for this single,
+      // same-line edit.
+      const statementRanges = createStatementRangeIndex(state.doc, compiled.statementMap!);
+      const completionSource = createDslCompletionSource({
+        ...baseOptions(),
+        elements: () => compiled.document!.elements,
+        statementRanges: () => statementRanges,
+        bindingAnalysis: () => compiled.bindingAnalysis,
+        typedDeclarationRanges: () => new Map(),
+        statementInfoByElementId: () => compiled.statementMap!.byElementId
+      });
+      const pos = dirtySource.indexOf("{@") + "{@".length;
+      const result = await Promise.resolve(completionSource({ state, pos, explicit: true } as never));
+      expect(result).not.toBeNull();
+      const labels = result!.options.map((option) => option.label);
+      expect(labels).toContain("greeting");
+      expect(labels).toContain("count");
+      expect(labels).not.toContain("flag");
     });
   });
 });
@@ -550,7 +882,10 @@ describe("dslAutocompleteExtension candidate navigation", () => {
           computedVariables: () => undefined,
           computedGeometry: () => undefined,
           effectiveEnabledElementIds: () => undefined,
-          evaluationErrors: () => undefined
+          evaluationErrors: () => undefined,
+          bindingAnalysis: () => undefined,
+          typedDeclarationRanges: () => new Map(),
+          statementInfoByElementId: () => undefined,
         })
       }),
       parent
@@ -621,7 +956,10 @@ describe("dslAutocompleteExtension candidate navigation", () => {
           computedVariables: () => undefined,
           computedGeometry: () => undefined,
           effectiveEnabledElementIds: () => undefined,
-          evaluationErrors: () => undefined
+          evaluationErrors: () => undefined,
+          bindingAnalysis: () => undefined,
+          typedDeclarationRanges: () => new Map(),
+          statementInfoByElementId: () => undefined,
         })
       }),
       parent

@@ -31,7 +31,18 @@ import {
 import { localNumericVariableReferenceOptions, type NumericVariableReferenceOption } from "../geometry/variableReferenceOptions";
 import type { ElementParameterReferenceOption } from "../geometry/elementParameterReferenceOptions";
 import type { CadElement, ComputedGeometry, ComputedVariable, DependencyError, ElementId, EvaluationResult, PrintLayout } from "../types/geometry";
-import type { PrintLayoutRangeIndex, StatementRangeIndex } from "./statementRangeIndex";
+import type { PrintLayoutRangeIndex, StatementRangeIndex, TypedDeclarationRangeIndex } from "./statementRangeIndex";
+import { typedDeclarationBindingIdAtCursor } from "./statementRangeIndex";
+import type { BindingAnalysis } from "../scalars/bindingAnalysis";
+import type { StatementInfo } from "../dsl/dslDocument";
+import { isAssignableToPropertyCapability } from "../scalars/scalarAssignability";
+import {
+  scalarExpressionCandidates,
+  scalarLiteralCandidates,
+  templateHoleScalarCandidates,
+  typedBindingReferenceCandidates,
+  type ScalarCompletionCandidate
+} from "../scalars/typedValueCandidates";
 
 export type DslAutocompleteDocumentInput = {
   source: string;
@@ -58,6 +69,19 @@ type DslAutocompleteOptions = {
   forGroupGeneratedRows?: () => EvaluationResult["forGroupGeneratedRows"] | undefined;
   effectiveEnabledElementIds: () => Set<ElementId> | undefined;
   evaluationErrors: () => DependencyError[] | undefined;
+  /** Tier B for typed value completion (Task 39): the last successfully
+   * compiled document's precomputed BindingCatalog/BindingAnalysis, read
+   * as-is on every keystroke (never rebuilt here) - undefined for a document
+   * with no typed declarations or set statements. */
+  bindingAnalysis: () => BindingAnalysis | undefined;
+  /** Live-line -> stable typed-declaration BindingId bridge (Task 39), kept
+   * in sync with CM edits by the caller the same way statementRanges is. */
+  typedDeclarationRanges: () => TypedDeclarationRangeIndex;
+  /** `doc.statementMap.byElementId`, used only to map an element at the
+   * cursor to the compiled catalog's own statementIndex for a property
+   * scalar value / template hole's BindingReferenceSite (Task 39) - never
+   * for any other purpose already covered by statementRanges/computedGeometry. */
+  statementInfoByElementId: () => ReadonlyMap<ElementId, StatementInfo> | undefined;
   /** Defaults to deriving everything from the CompletionContext's own editor state. */
   documentInput?: (context: CompletionContext) => DslAutocompleteDocumentInput | null;
 };
@@ -139,6 +163,46 @@ const asVariableCompletions = (options: readonly NumericVariableReferenceOption[
 const asElementParameterCompletions = (options: readonly ElementParameterReferenceOption[]): Completion[] =>
   options.map((option) => ({ label: option.label, apply: option.path, detail: option.detail, type: "variable" }));
 
+/** Task 39: maps the pure `ScalarCompletionCandidate` union to CM's
+ * `Completion` shape - the one place that translates candidate `kind` into a
+ * CM `type`/`apply` convention. A reference candidate's `apply` always
+ * re-adds the "@" sigil: the completion span never includes it when nothing
+ * has been typed yet (a clean operand-start), and does include it as part of
+ * the replaced text when a partial "@name" is already in progress - "@" +
+ * name is the correct insertion text either way. */
+const asScalarCompletions = (candidates: readonly ScalarCompletionCandidate[]): Completion[] =>
+  candidates.map((candidate) => {
+    if (candidate.kind === "reference") {
+      return {
+        label: candidate.name,
+        apply: `@${candidate.name}`,
+        type: "variable"
+      };
+    }
+    if (candidate.kind === "operator") return { label: candidate.label, type: "keyword" };
+    return { label: candidate.label, type: "enum" };
+  });
+
+/** Resolves the BindingReferenceSite for the CadElement at the cursor's own
+ * line (property scalar value / template hole contexts): looks the live
+ * element up in the compiled document's own `statementMap.byElementId` to
+ * get its catalog-space statementIndex, then reads that statement's scope
+ * from the same precomputed `BindingCatalog` - mirrors
+ * propertyBindingCompiler.ts's own site construction exactly, so `@name`
+ * visibility here matches what Task 22 itself already resolves for this
+ * exact property. Returns `null` whenever the live element/statement can't
+ * be cross-referenced into the (possibly stale) compiled catalog. */
+const elementBindingSite = (
+  elementId: ElementId | undefined,
+  statementInfoByElementId: ReadonlyMap<ElementId, StatementInfo> | undefined,
+  bindingAnalysis: BindingAnalysis
+) => {
+  const statementIndex = elementId ? statementInfoByElementId?.get(elementId)?.statementIndex : undefined;
+  if (statementIndex === undefined) return null;
+  const scopeId = bindingAnalysis.catalog.scopeIndex.scopeOfStatement.get(statementIndex) ?? bindingAnalysis.catalog.scopeIndex.rootScopeId;
+  return { scopeId, statementIndex };
+};
+
 export const createDslCompletionSource = (options: DslAutocompleteOptions): CompletionSource => (context) => {
   if (options.isComposing() || context.view?.compositionStarted) return null;
   const { input, projection } = options.documentInput
@@ -170,6 +234,53 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
       effectiveEnabledElementIds: options.effectiveEnabledElementIds(),
       errors: options.evaluationErrors() ?? []
     }));
+  } else if (completionContext.kind === "typedInitializer") {
+    // Tier B: the precomputed catalog is only trusted when the live
+    // declaration range still maps to a real binding in it (fail-closed
+    // otherwise - see statementRangeIndex.ts's TypedDeclarationRangeIndex
+    // doc comment). Tier A already guaranteed the live statement is still a
+    // typedDeclaration (dslCompletionContextAt re-parses it fresh every call).
+    const bindingAnalysis = options.bindingAnalysis();
+    const bindingId = bindingAnalysis ? typedDeclarationBindingIdAtCursor(options.typedDeclarationRanges(), context.pos) : null;
+    const binding = bindingAnalysis && bindingId ? bindingAnalysis.catalog.bindingsById.get(bindingId) : undefined;
+    completions = bindingAnalysis && binding
+      ? asScalarCompletions(scalarExpressionCandidates(completionContext.positionContext, {
+        catalog: bindingAnalysis.catalog,
+        entriesById: bindingAnalysis.entriesById,
+        site: { scopeId: binding.effectiveScopeId, statementIndex: binding.statementIndex },
+        includeOperators: true
+      }))
+      : [];
+  } else if (completionContext.kind === "propertyScalarValue") {
+    const bindingAnalysis = options.bindingAnalysis();
+    const elementId = statementElementIdsByLiveLine(input.doc, options.statementRanges()).get(input.cursorLineNumber);
+    const site = bindingAnalysis ? elementBindingSite(elementId, options.statementInfoByElementId(), bindingAnalysis) : null;
+    const propertyContext = completionContext.propertyContext;
+    if (propertyContext.kind === "booleanLiteral") {
+      completions = scalarLiteralCandidates({ kind: "boolean" }).map((candidate) => ({ label: candidate.label, type: "enum" }));
+    } else if (bindingAnalysis && site) {
+      const capability = propertyContext.capability;
+      completions = asScalarCompletions(typedBindingReferenceCandidates({
+        catalog: bindingAnalysis.catalog,
+        entriesById: bindingAnalysis.entriesById,
+        site,
+        accepts: (type) => type !== null && isAssignableToPropertyCapability(type, capability)
+      }).map((candidate): ScalarCompletionCandidate => ({ kind: "reference", name: candidate.name, bindingId: candidate.bindingId })));
+    } else {
+      completions = [];
+    }
+  } else if (completionContext.kind === "templateHole") {
+    const bindingAnalysis = options.bindingAnalysis();
+    const elementId = statementElementIdsByLiveLine(input.doc, options.statementRanges()).get(input.cursorLineNumber);
+    const site = bindingAnalysis ? elementBindingSite(elementId, options.statementInfoByElementId(), bindingAnalysis) : null;
+    completions = bindingAnalysis && site
+      ? asScalarCompletions(templateHoleScalarCandidates(input.lineText, completionContext.contentSpan, input.localPos, {
+        catalog: bindingAnalysis.catalog,
+        entriesById: bindingAnalysis.entriesById,
+        site,
+        includeOperators: true
+      }))
+      : [];
   } else if (completionContext.parameter.definition.kind === "choice") {
     completions = (completionContext.parameter.definition.choiceOptions ?? []).map((label) => ({ label, type: "enum" }));
   } else if (completionContext.parameter.key === dslVarsAttributeParameterKey) {

@@ -19,6 +19,12 @@ import {
   printLayoutCoordinateAttrKeys,
   printLayoutNumericAttrKeys
 } from "./dslPrintLayoutAttributes";
+import { typedDeclarationInitializerCompletionContext } from "./dslTypedDeclarationCompletionContext";
+import { propertyScalarValueCompletionContext, type PropertyScalarValueCompletionContext } from "./dslPropertyScalarCompletionContext";
+import { templateHoleContentSpanAt } from "./dslTemplateHoleCompletionContext";
+import { scalarExpressionCompletionContextAt, type ScalarExpressionCompletionContext } from "../scalars/scalarExpressionPositionClassifier";
+import type { DslSpan } from "./dslTypes";
+import type { ScalarType } from "../scalars/types";
 
 export type DslCompletionContext =
   | { kind: "keyword"; from: number; to: number; options: readonly string[] }
@@ -26,6 +32,9 @@ export type DslCompletionContext =
   | { kind: "argument"; from: number; to: number; spec: DslConstructionSpec; usedArgumentNames: ReadonlySet<string> }
   | { kind: "parameter"; from: number; to: number; parameter: DslCompletionParameter }
   | { kind: "elementParameter"; from: number; to: number; elementToken: string }
+  | { kind: "typedInitializer"; from: number; to: number; declaredType: ScalarType; positionContext: ScalarExpressionCompletionContext }
+  | { kind: "propertyScalarValue"; from: number; to: number; propertyContext: PropertyScalarValueCompletionContext }
+  | { kind: "templateHole"; from: number; to: number; contentSpan: DslSpan }
   | null;
 
 /**
@@ -209,6 +218,42 @@ const dslPrintLayoutCompletionContextAt = (code: string, pos: number, lineText: 
   return null;
 };
 
+/**
+ * Task 39: the only entry point for text/choice/boolean-kind labeled value
+ * spans that carry an opt-in `ParameterDefinition.propertyCapability` (the
+ * exact same metadata Task 22's compilePropertyBindings reads - no
+ * hardcoded property list here either). Tries the property-scalar shape
+ * first (a whole-value `@name` reference, or a bare boolean literal on an
+ * opted-in boolean field) since that is the only shape every one of the
+ * three kinds can carry; only a "text"-kind value that isn't a `@name`
+ * reference can additionally be a quoted string with template holes.
+ * Returns `null` for every other case (a non-opted-in property, or a choice
+ * literal being typed - the existing enum-literal branch in cmAutocomplete.ts
+ * still owns that, unchanged).
+ */
+const scalarPropertyOrHoleCompletionContext = (
+  code: string,
+  pos: number,
+  span: DslLabeledValueSpan,
+  parameter: DslCompletionParameter
+): DslCompletionContext => {
+  const { definition } = parameter;
+  if (definition.kind !== "text" && definition.kind !== "choice" && definition.kind !== "boolean") return null;
+
+  const propertyContext = propertyScalarValueCompletionContext(code, span, pos, definition);
+  if (propertyContext) return { kind: "propertyScalarValue", from: propertyContext.from, to: propertyContext.to, propertyContext };
+
+  if (definition.kind !== "text") return null;
+  const contentSpan = templateHoleContentSpanAt(code, span, pos);
+  if (!contentSpan) return null;
+  // rootType is irrelevant here - `from`/`to` never depend on it (only
+  // `expectedType` does); the real string/number candidate generation runs
+  // downstream (typedValueCandidates.ts's templateHoleScalarCandidates),
+  // which tries both root types itself.
+  const positionSpan = scalarExpressionCompletionContextAt(code, pos, contentSpan, null);
+  return positionSpan ? { kind: "templateHole", from: positionSpan.from, to: positionSpan.to, contentSpan } : null;
+};
+
 const lineHeadContext = (code: string, pos: number): DslCompletionContext | null => {
   const terms = splitDslTerms(code);
   if (terms.length === 0) return { kind: "keyword", from: pos, to: pos, options: dslStatementKeywordCompletions };
@@ -253,6 +298,17 @@ export const dslCompletionContextAt = (lineText: string, pos: number): DslComple
   const callContext = dslCallCompletionContextAt(code, pos);
   if (callContext) return callContext;
 
+  const typedDeclarationContext = typedDeclarationInitializerCompletionContext(code, pos);
+  if (typedDeclarationContext) {
+    return {
+      kind: "typedInitializer",
+      from: typedDeclarationContext.positionContext.from,
+      to: typedDeclarationContext.positionContext.to,
+      declaredType: typedDeclarationContext.declaredType,
+      positionContext: typedDeclarationContext.positionContext
+    };
+  }
+
   const statement = dslLineElementStatement(lineText);
   const elementType = statement ? dslStatementElementType(statement) : null;
   if (!statement || !elementType) return dslPrintLayoutCompletionContextAt(code, pos, lineText);
@@ -286,6 +342,8 @@ export const dslCompletionContextAt = (lineText: string, pos: number): DslComple
       const coordinateContext = dslCoordinateLiteralCompletionContext(code, pos, span, parameter);
       return coordinateContext !== undefined ? coordinateContext : { kind: "parameter", from: span.start, to: pos, parameter };
     }
+    const scalarContext = scalarPropertyOrHoleCompletionContext(code, pos, span, parameter);
+    if (scalarContext) return scalarContext;
     return {
       kind: "parameter",
       ...referenceCompletionSpan(code, pos, span, parameter.definition.kind),

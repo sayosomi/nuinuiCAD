@@ -61,12 +61,15 @@ import {
   createAtStopRange,
   createPrintLayoutRangeIndex,
   createStatementRangeIndex,
+  createTypedDeclarationRangeIndex,
   mapAtStopRange,
   mapPrintLayoutRangeIndex,
   mapStatementRangeIndex,
+  mapTypedDeclarationRangeIndex,
   type AtStopRange,
   type PrintLayoutRangeIndex,
-  type StatementRangeIndex
+  type StatementRangeIndex,
+  type TypedDeclarationRangeIndex
 } from "./statementRangeIndex";
 import { foldProjectionTransaction, foldTargetAtLine, foldTargets } from "./sourceEditorFolding";
 import { secondarySelectionEffect, sourceEditorSelectionExtension } from "./sourceEditorSelection";
@@ -141,6 +144,7 @@ export class SourceEditorController implements SourceEditorHandle {
   private burstStartCursorLine: number | null = null;
   private statementRanges: StatementRangeIndex = new Map();
   private printLayoutRanges: PrintLayoutRangeIndex = new Map();
+  private typedDeclarationRanges: TypedDeclarationRangeIndex = new Map();
   private atStopRange: AtStopRange | null = null;
   private staleDiagnosticBaseline: PositionedDiagnostic[] = [];
   /** At most two newest compiled-document revisions are retained; older results can never become current. */
@@ -198,7 +202,10 @@ export class SourceEditorController implements SourceEditorHandle {
             computedGeometry: () => this.appliedEvaluation?.evaluation.computedGeometry,
             forGroupGeneratedRows: () => this.appliedEvaluation?.evaluation.forGroupGeneratedRows,
             effectiveEnabledElementIds: () => this.appliedEvaluation?.evaluation.effectiveEnabledElementIds,
-            evaluationErrors: () => this.appliedEvaluation?.evaluation.errors
+            evaluationErrors: () => this.appliedEvaluation?.evaluation.errors,
+            bindingAnalysis: () => this.store.getState().doc.bindingAnalysis,
+            typedDeclarationRanges: () => this.typedDeclarationRanges,
+            statementInfoByElementId: () => this.store.getState().doc.statementMap.byElementId
           }),
           sourceEditorSelectionExtension,
           sourceEditorPatchHighlightExtension,
@@ -1010,6 +1017,7 @@ export class SourceEditorController implements SourceEditorHandle {
     if (update.docChanged) {
       this.statementRanges = mapStatementRangeIndex(this.statementRanges, update.changes);
       this.printLayoutRanges = mapPrintLayoutRangeIndex(this.printLayoutRanges, update.changes);
+      this.typedDeclarationRanges = mapTypedDeclarationRangeIndex(this.typedDeclarationRanges, update.changes);
       this.atStopRange = mapAtStopRange(this.atStopRange, update.changes);
       this.staleDiagnosticBaseline = mapPositionedDiagnostics(this.staleDiagnosticBaseline, update.changes);
       // A dirty edit may have shifted an intact target or invalidated one of
@@ -1242,12 +1250,14 @@ export class SourceEditorController implements SourceEditorHandle {
       // Never project a stale committed statement/span into another CM state.
       this.statementRanges = new Map();
       this.printLayoutRanges = new Map();
+      this.typedDeclarationRanges = new Map();
       this.atStopRange = null;
       this.refreshFoldGutter();
       return;
     }
     this.statementRanges = createStatementRangeIndex(this.view.state.doc, state.doc.statementMap);
     this.printLayoutRanges = createPrintLayoutRangeIndex(this.view.state.doc, state.doc.statementMap);
+    this.typedDeclarationRanges = createTypedDeclarationRangeIndex(this.view.state.doc, state.doc.statementMap);
     this.atStopRange = createAtStopRange(this.view.state.doc, state.doc.statementMap);
     this.staleDiagnosticBaseline = toStaleDiagnostics(this.view.state.doc, state.diagnostics);
     this.refreshFoldGutter();
