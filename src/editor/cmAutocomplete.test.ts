@@ -9,9 +9,13 @@ import { dslLinesForElements, dslTextForElements } from "../dsl/dslDocumentTestU
 import { parseDsl } from "../dsl/dslParser";
 import {
   createPrintLayoutRangeIndex,
+  createScopeBodyRangeIndex,
   createStatementRangeIndex,
   createTypedDeclarationRangeIndex,
-  mapTypedDeclarationRangeIndex
+  mapScopeBodyRangeIndex,
+  mapTypedDeclarationRangeIndex,
+  type ScopeBodyRangeIndex,
+  type TypedDeclarationRangeIndex
 } from "./statementRangeIndex";
 
 const identities = (source: string) => {
@@ -43,6 +47,7 @@ describe("createDslCompletionSource", () => {
       evaluationErrors: () => undefined,
       bindingAnalysis: () => undefined,
       typedDeclarationRanges: () => new Map(),
+      scopeBodyRanges: () => [],
       statementInfoByElementId: () => undefined,
     });
     expect(source({ state, pos: 3, explicit: true } as never)).toBeNull();
@@ -62,6 +67,7 @@ describe("createDslCompletionSource", () => {
       evaluationErrors: () => undefined,
       bindingAnalysis: () => undefined,
       typedDeclarationRanges: () => new Map(),
+      scopeBodyRanges: () => [],
       statementInfoByElementId: () => undefined,
     });
     const result = await Promise.resolve(source({ state, pos: 3, explicit: true } as never));
@@ -78,6 +84,7 @@ describe("createDslCompletionSource", () => {
       effectiveEnabledElementIds: () => undefined, evaluationErrors: () => undefined,
       bindingAnalysis: () => undefined,
       typedDeclarationRanges: () => new Map(),
+      scopeBodyRanges: () => [],
       statementInfoByElementId: () => undefined,
     });
     const result = await Promise.resolve(completionSource({ state, pos: source.length, explicit: true } as never));
@@ -96,6 +103,7 @@ describe("createDslCompletionSource", () => {
       effectiveEnabledElementIds: () => undefined, evaluationErrors: () => undefined,
       bindingAnalysis: () => undefined,
       typedDeclarationRanges: () => new Map(),
+      scopeBodyRanges: () => [],
       statementInfoByElementId: () => undefined,
     });
     const pos = source.indexOf("\n  d") + "\n  d".length;
@@ -118,6 +126,7 @@ describe("createDslCompletionSource", () => {
       effectiveEnabledElementIds: () => undefined, evaluationErrors: () => undefined,
       bindingAnalysis: () => undefined,
       typedDeclarationRanges: () => new Map(),
+      scopeBodyRanges: () => [],
       statementInfoByElementId: () => undefined,
     });
     const pos = source.length;
@@ -152,6 +161,7 @@ describe("createDslCompletionSource", () => {
       evaluationErrors: () => undefined,
       bindingAnalysis: () => undefined,
       typedDeclarationRanges: () => new Map(),
+      scopeBodyRanges: () => [],
       statementInfoByElementId: () => undefined,
     });
 
@@ -187,6 +197,7 @@ describe("createDslCompletionSource", () => {
       evaluationErrors: () => undefined,
       bindingAnalysis: () => undefined,
       typedDeclarationRanges: () => new Map(),
+      scopeBodyRanges: () => [],
       statementInfoByElementId: () => undefined,
     });
 
@@ -221,6 +232,7 @@ describe("createDslCompletionSource", () => {
       evaluationErrors: () => undefined,
       bindingAnalysis: () => undefined,
       typedDeclarationRanges: () => new Map(),
+      scopeBodyRanges: () => [],
       statementInfoByElementId: () => undefined,
     });
 
@@ -256,6 +268,7 @@ describe("createDslCompletionSource", () => {
       evaluationErrors: () => undefined,
       bindingAnalysis: () => undefined,
       typedDeclarationRanges: () => new Map(),
+      scopeBodyRanges: () => [],
       statementInfoByElementId: () => undefined,
     });
     const result = await Promise.resolve(completionSource({ state, pos, explicit: true } as never));
@@ -287,6 +300,7 @@ describe("createDslCompletionSource", () => {
       evaluationErrors: () => undefined,
       bindingAnalysis: () => undefined,
       typedDeclarationRanges: () => new Map(),
+      scopeBodyRanges: () => [],
       statementInfoByElementId: () => undefined,
     });
     const result = await Promise.resolve(completionSource({ state, pos, explicit: true } as never));
@@ -321,6 +335,7 @@ describe("createDslCompletionSource", () => {
       evaluationErrors: () => undefined,
       bindingAnalysis: () => undefined,
       typedDeclarationRanges: () => new Map(),
+      scopeBodyRanges: () => [],
       statementInfoByElementId: () => undefined,
     });
     const result = await Promise.resolve(completionSource({ state, pos, explicit: true } as never));
@@ -365,6 +380,7 @@ describe("createDslCompletionSource", () => {
       evaluationErrors: () => undefined,
       bindingAnalysis: () => undefined,
       typedDeclarationRanges: () => new Map(),
+      scopeBodyRanges: () => [],
       statementInfoByElementId: () => undefined,
       documentInput: () => ({
         source,
@@ -411,6 +427,7 @@ describe("createDslCompletionSource", () => {
       evaluationErrors: () => undefined,
       bindingAnalysis: () => undefined,
       typedDeclarationRanges: () => new Map(),
+      scopeBodyRanges: () => [],
       statementInfoByElementId: () => undefined,
     });
     const result = await Promise.resolve(completionSource({ state, pos, explicit: true } as never));
@@ -458,6 +475,7 @@ describe("createDslCompletionSource", () => {
       evaluationErrors: () => undefined,
       bindingAnalysis: () => undefined,
       typedDeclarationRanges: () => new Map(),
+      scopeBodyRanges: () => [],
       statementInfoByElementId: () => undefined,
     });
     const result = await Promise.resolve(completionSource({ state, pos, explicit: true } as never));
@@ -507,6 +525,7 @@ describe("createDslCompletionSource", () => {
         evaluationErrors: () => [],
         bindingAnalysis: () => undefined,
         typedDeclarationRanges: () => new Map(),
+        scopeBodyRanges: () => [],
         statementInfoByElementId: () => undefined,
       });
       return { completionSource, state, pos, source };
@@ -554,6 +573,7 @@ describe("createDslCompletionSource", () => {
         evaluationErrors: () => [],
         bindingAnalysis: () => undefined,
         typedDeclarationRanges: () => new Map(),
+        scopeBodyRanges: () => [],
         statementInfoByElementId: () => undefined,
       });
       const result = await Promise.resolve(completionSource({ state, pos, explicit: true } as never));
@@ -584,6 +604,7 @@ describe("createDslCompletionSource", () => {
         evaluationErrors: () => [],
         bindingAnalysis: () => undefined,
         typedDeclarationRanges: () => new Map(),
+        scopeBodyRanges: () => [],
         statementInfoByElementId: () => undefined,
       });
       expect(await Promise.resolve(completionSource({ state, pos, explicit: true } as never))).toBeNull();
@@ -636,6 +657,7 @@ describe("typed value completion (Task 39)", () => {
         ...baseOptions(),
         bindingAnalysis: () => compiled.bindingAnalysis,
         typedDeclarationRanges: () => dirtyRanges,
+        scopeBodyRanges: () => [],
         statementInfoByElementId: () => compiled.statementMap!.byElementId
       });
       const pos = dirtySource.length;
@@ -662,6 +684,7 @@ describe("typed value completion (Task 39)", () => {
         ...baseOptions(),
         bindingAnalysis: () => compiled.bindingAnalysis,
         typedDeclarationRanges: () => dirtyRanges,
+        scopeBodyRanges: () => [],
         statementInfoByElementId: () => compiled.statementMap!.byElementId
       });
       const pos = dirtySource.length;
@@ -683,6 +706,7 @@ describe("typed value completion (Task 39)", () => {
         ...baseOptions(),
         bindingAnalysis: () => compiled.bindingAnalysis,
         typedDeclarationRanges: () => typedDeclarationRanges,
+        scopeBodyRanges: () => [],
         statementInfoByElementId: () => compiled.statementMap!.byElementId
       });
       const pos = source.length;
@@ -711,6 +735,7 @@ describe("typed value completion (Task 39)", () => {
         ...baseOptions(),
         bindingAnalysis: () => compiled.bindingAnalysis,
         typedDeclarationRanges: () => dirtyRanges,
+        scopeBodyRanges: () => [],
         statementInfoByElementId: () => compiled.statementMap!.byElementId
       });
       const pos = dirtySource.length;
@@ -734,6 +759,7 @@ describe("typed value completion (Task 39)", () => {
         ...baseOptions(),
         bindingAnalysis: () => compiled.bindingAnalysis,
         typedDeclarationRanges: () => committedRanges,
+        scopeBodyRanges: () => [],
         statementInfoByElementId: () => compiled.statementMap!.byElementId
       });
       const pos = dirtySource.length;
@@ -757,6 +783,7 @@ describe("typed value completion (Task 39)", () => {
         // stable id never coincidentally collides with "target"'s.
         bindingAnalysis: () => compiledTyped(["nui 3", "point A = coordinate(x: 0 y: 0)", "const other: number = 1"].join("\n")).bindingAnalysis,
         typedDeclarationRanges: () => staleRanges,
+        scopeBodyRanges: () => [],
         statementInfoByElementId: () => compiled.statementMap!.byElementId
       });
       const pos = source.length;
@@ -781,6 +808,7 @@ describe("typed value completion (Task 39)", () => {
         statementRanges: () => statementRanges,
         bindingAnalysis: () => compiled.bindingAnalysis,
         typedDeclarationRanges: () => new Map(),
+        scopeBodyRanges: () => [],
         statementInfoByElementId: () => compiled.statementMap!.byElementId
       });
       const pos = dirtySource.indexOf("@gr") + "@gr".length;
@@ -808,6 +836,7 @@ describe("typed value completion (Task 39)", () => {
         statementRanges: () => statementRanges,
         bindingAnalysis: () => compiled.bindingAnalysis,
         typedDeclarationRanges: () => new Map(),
+        scopeBodyRanges: () => [],
         statementInfoByElementId: () => compiled.statementMap!.byElementId
       });
       const pos = dirtySource.indexOf("printEnabled: t") + "printEnabled: t".length;
@@ -853,6 +882,7 @@ describe("typed value completion (Task 39)", () => {
         statementRanges: () => statementRanges,
         bindingAnalysis: () => compiled.bindingAnalysis,
         typedDeclarationRanges: () => new Map(),
+        scopeBodyRanges: () => [],
         statementInfoByElementId: () => compiled.statementMap!.byElementId
       });
       const pos = dirtySource.indexOf("{@") + "{@".length;
@@ -885,6 +915,7 @@ describe("dslAutocompleteExtension candidate navigation", () => {
           evaluationErrors: () => undefined,
           bindingAnalysis: () => undefined,
           typedDeclarationRanges: () => new Map(),
+          scopeBodyRanges: () => [],
           statementInfoByElementId: () => undefined,
         })
       }),
@@ -959,6 +990,7 @@ describe("dslAutocompleteExtension candidate navigation", () => {
           evaluationErrors: () => undefined,
           bindingAnalysis: () => undefined,
           typedDeclarationRanges: () => new Map(),
+          scopeBodyRanges: () => [],
           statementInfoByElementId: () => undefined,
         })
       }),
@@ -972,5 +1004,212 @@ describe("dslAutocompleteExtension candidate navigation", () => {
     // owns inserting the one ordinary whitespace character.
     view.destroy();
     parent.remove();
+  });
+});
+
+describe("set target/rhs completion (Task 40)", () => {
+  const compiledTyped = (source: string) => {
+    const statements = parseDsl(source).statements;
+    const assignedStatementIds = new Map(statements.map((_, index) => [index, `stable-${index}`]));
+    const compiled = compileDslDocument(source, { assignedStatementIds });
+    expect(compiled.document).not.toBeNull();
+    expect(compiled.statementMap).not.toBeNull();
+    expect(compiled.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
+    return compiled;
+  };
+
+  const baseOptions = () => ({
+    elements: () => [] as never[],
+    statementRanges: () => new Map(),
+    printLayouts: () => [] as never[],
+    printLayoutRanges: () => new Map(),
+    isComposing: () => false,
+    computedVariables: () => undefined,
+    computedGeometry: () => undefined,
+    effectiveEnabledElementIds: () => undefined,
+    evaluationErrors: () => undefined,
+    statementInfoByElementId: () => undefined
+  });
+
+  type Compiled = ReturnType<typeof compiledTyped>;
+  type Ranges = { typedDeclarationRanges: TypedDeclarationRangeIndex; scopeBodyRanges: ScopeBodyRangeIndex };
+
+  /** Builds the committed Tier B ranges directly from a compiled document's own text. */
+  const rangesFor = (compiled: Compiled, docText: string): Ranges => {
+    const doc = EditorState.create({ doc: docText }).doc;
+    return {
+      typedDeclarationRanges: createTypedDeclarationRangeIndex(doc, compiled.statementMap!),
+      scopeBodyRanges: compiled.bindingAnalysis
+        ? createScopeBodyRangeIndex(doc, compiled.statementMap!, compiled.bindingAnalysis.catalog.scopeIndex)
+        : []
+    };
+  };
+
+  /** Maps committed ranges through a single ChangeSet describing a dirty,
+   * uncommitted live buffer - bindingAnalysis/scopeIndex themselves stay
+   * frozen at the last successful compile the same way typedDeclarationRanges
+   * already does for Task 39, so a brand-new statement inserted by the
+   * change never needs its own compiled identity for site resolution. */
+  const dirtyRanges = (committed: Ranges, changes: ReturnType<typeof ChangeSet.of>): Ranges => ({
+    typedDeclarationRanges: mapTypedDeclarationRangeIndex(committed.typedDeclarationRanges, changes),
+    scopeBodyRanges: mapScopeBodyRangeIndex(committed.scopeBodyRanges, changes)
+  });
+
+  const completionSourceFor = (compiled: Compiled, ranges: Ranges) =>
+    createDslCompletionSource({
+      ...baseOptions(),
+      bindingAnalysis: () => compiled.bindingAnalysis,
+      typedDeclarationRanges: () => ranges.typedDeclarationRanges,
+      scopeBodyRanges: () => ranges.scopeBodyRanges
+    });
+
+  describe("target completion", () => {
+    it("offers every visible let, excluding const/legacy, for a brand-new uncommitted \"set \" line in a clean document", async () => {
+      const committedSource = ["nui 3", "let a: number = 1", "const c: number = 2", "var legacy = 3"].join("\n");
+      const compiled = compiledTyped(committedSource);
+      const committed = rangesFor(compiled, committedSource);
+      const insertion = "\nset ";
+      const dirtySource = committedSource + insertion;
+      const changes = ChangeSet.of({ from: committedSource.length, insert: insertion }, committedSource.length);
+      const ranges = dirtyRanges(committed, changes);
+      const state = EditorState.create({ doc: dirtySource });
+      const pos = dirtySource.length;
+      const result = await Promise.resolve(completionSourceFor(compiled, ranges)({ state, pos, explicit: true } as never));
+      expect(result).not.toBeNull();
+      const labels = result!.options.map((option) => option.label);
+      expect(labels).toContain("a");
+      expect(labels).not.toContain("c");
+      expect(labels).not.toContain("legacy");
+      // A set target is a bare identifier, never "@"-prefixed.
+      expect(result!.options.every((option) => option.apply === option.label)).toBe(true);
+    });
+
+    it("keeps target candidates available even while the currently-typed target name is itself unresolved", async () => {
+      const committedSource = ["nui 3", "let a: number = 1"].join("\n");
+      const compiled = compiledTyped(committedSource);
+      const committed = rangesFor(compiled, committedSource);
+      const insertion = "\nset bogus = 1 +";
+      const dirtySource = committedSource + insertion;
+      const changes = ChangeSet.of({ from: committedSource.length, insert: insertion }, committedSource.length);
+      const ranges = dirtyRanges(committed, changes);
+      const state = EditorState.create({ doc: dirtySource });
+      // Cursor inside the (unresolved) target name "bogus".
+      const pos = dirtySource.indexOf("bogus") + 3;
+      const result = await Promise.resolve(completionSourceFor(compiled, ranges)({ state, pos, explicit: true } as never));
+      expect(result).not.toBeNull();
+      expect(result!.options.map((option) => option.label)).toContain("a");
+    });
+
+    it("resolves scope-appropriate candidates for a brand-new set typed inside a nested forGroup, excluding a let declared afterward", async () => {
+      const committedSource = [
+        "nui 3",
+        "let outer: number = 1",
+        "if C (true) {",
+        "  for Loop (i from: 0 count: 2) {",
+        "  }",
+        "}",
+        "let after: number = 2"
+      ].join("\n");
+      const compiled = compiledTyped(committedSource);
+      const committed = rangesFor(compiled, committedSource);
+      const doc = EditorState.create({ doc: committedSource }).doc;
+      const insertPos = doc.line(5).from; // right before the forGroup's own closing "  }"
+      // No leading indentation: dslSetParser.ts's own leading keyword match
+      // (mirroring dslDeclarationParser.ts's own convention) requires "set"
+      // at the statement text's own position 0, independent of column -
+      // same as every other completion-context fixture in this file.
+      const insertedLine = "set ";
+      const insertion = `${insertedLine}\n`;
+      const dirtySource = committedSource.slice(0, insertPos) + insertion + committedSource.slice(insertPos);
+      const changes = ChangeSet.of({ from: insertPos, insert: insertion }, committedSource.length);
+      const ranges = dirtyRanges(committed, changes);
+      const state = EditorState.create({ doc: dirtySource });
+      const pos = insertPos + insertedLine.length;
+      const result = await Promise.resolve(completionSourceFor(compiled, ranges)({ state, pos, explicit: true } as never));
+      expect(result).not.toBeNull();
+      const labels = result!.options.map((option) => option.label);
+      expect(labels).toContain("outer");
+      expect(labels).not.toContain("after");
+    });
+  });
+
+  describe("RHS completion", () => {
+    it("switches from target to RHS candidates within the same uncommitted burst once \"set name = \" is typed", async () => {
+      const committedSource = ["nui 3", "let flag: boolean = true"].join("\n");
+      const compiled = compiledTyped(committedSource);
+      const committed = rangesFor(compiled, committedSource);
+      const insertion = "\nset flag = ";
+      const dirtySource = committedSource + insertion;
+      const changes = ChangeSet.of({ from: committedSource.length, insert: insertion }, committedSource.length);
+      const ranges = dirtyRanges(committed, changes);
+      const state = EditorState.create({ doc: dirtySource });
+      const pos = dirtySource.length;
+      const result = await Promise.resolve(completionSourceFor(compiled, ranges)({ state, pos, explicit: true } as never));
+      expect(result).not.toBeNull();
+      expect(result!.options.map((option) => option.label)).toEqual(expect.arrayContaining(["true", "false"]));
+    });
+
+    it("keeps RHS candidates available for a valid target even while its own RHS is currently incomplete", async () => {
+      const committedSource = ["nui 3", "let a: number = 1", "let target: number = 2"].join("\n");
+      const compiled = compiledTyped(committedSource);
+      const committed = rangesFor(compiled, committedSource);
+      const insertion = "\nset target = 1 +";
+      const dirtySource = committedSource + insertion;
+      const changes = ChangeSet.of({ from: committedSource.length, insert: insertion }, committedSource.length);
+      const ranges = dirtyRanges(committed, changes);
+      const state = EditorState.create({ doc: dirtySource });
+      const pos = dirtySource.length;
+      const result = await Promise.resolve(completionSourceFor(compiled, ranges)({ state, pos, explicit: true } as never));
+      expect(result).not.toBeNull();
+      const options = result!.options;
+      expect(options.some((option) => option.label === "a" && option.apply === "@a")).toBe(true);
+    });
+
+    it("filters reference candidates to the target's own declared type", async () => {
+      const committedSource = ["nui 3", "let flagA: boolean = true", "let numA: number = 1", "let target: boolean = false"].join("\n");
+      const compiled = compiledTyped(committedSource);
+      const committed = rangesFor(compiled, committedSource);
+      const insertion = "\nset target = @f";
+      const dirtySource = committedSource + insertion;
+      const changes = ChangeSet.of({ from: committedSource.length, insert: insertion }, committedSource.length);
+      const ranges = dirtyRanges(committed, changes);
+      const state = EditorState.create({ doc: dirtySource });
+      const pos = dirtySource.length;
+      const result = await Promise.resolve(completionSourceFor(compiled, ranges)({ state, pos, explicit: true } as never));
+      expect(result).not.toBeNull();
+      const options = result!.options;
+      expect(options.some((option) => option.label === "flagA")).toBe(true);
+      expect(options.some((option) => option.label === "numA")).toBe(false);
+    });
+  });
+
+  describe("fail-closed behavior", () => {
+    it("returns no candidates when there is no BindingAnalysis to resolve against", async () => {
+      const source = "set foo = 1";
+      const state = EditorState.create({ doc: source });
+      const completionSource = createDslCompletionSource({
+        ...baseOptions(),
+        bindingAnalysis: () => undefined,
+        typedDeclarationRanges: () => new Map(),
+        scopeBodyRanges: () => []
+      });
+      const pos = source.indexOf("foo") + 2;
+      const result = await Promise.resolve(completionSource({ state, pos, explicit: true } as never));
+      expect(result?.options ?? []).toEqual([]);
+    });
+
+    it("returns no RHS candidates when the currently-typed target name does not resolve to any visible let", async () => {
+      const committedSource = ["nui 3", "let a: number = 1"].join("\n");
+      const compiled = compiledTyped(committedSource);
+      const committed = rangesFor(compiled, committedSource);
+      const insertion = "\nset bogus = ";
+      const dirtySource = committedSource + insertion;
+      const changes = ChangeSet.of({ from: committedSource.length, insert: insertion }, committedSource.length);
+      const ranges = dirtyRanges(committed, changes);
+      const state = EditorState.create({ doc: dirtySource });
+      const pos = dirtySource.length;
+      const result = await Promise.resolve(completionSourceFor(compiled, ranges)({ state, pos, explicit: true } as never));
+      expect(result?.options ?? []).toEqual([]);
+    });
   });
 });

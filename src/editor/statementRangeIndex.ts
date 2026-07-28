@@ -3,6 +3,7 @@ import type { StatementInfo, StatementMap } from "../dsl/dslDocument";
 import type { FoldTarget } from "../model/groups";
 import type { ElementId } from "../types/geometry";
 import { bindingIdForStableStatementId, type BindingId } from "../scalars/bindingCatalog";
+import type { LexicalScopeIndex, ScopeId } from "../scalars/lexicalScopeIndex";
 
 type FoldAnchor = { from: number; to: number };
 
@@ -298,4 +299,93 @@ export const typedDeclarationBindingIdAtCursor = (ranges: TypedDeclarationRangeI
     if (head >= range.from && head <= range.to) return bindingId;
   }
   return null;
+};
+
+export type ScopeBodyRange = { scopeId: ScopeId; from: number; to: number; depth: number };
+export type ScopeBodyRangeIndex = readonly ScopeBodyRange[];
+
+/**
+ * Task 40: live body-range tracking for every non-root lexical scope
+ * (`group`/`then`/`else`/`forGroup`), purely structural - independent of
+ * which (if any) `set` statement lives inside a scope's body. Set target/RHS
+ * completion (src/scalars/setCompletionCandidates.ts) uses this to resolve
+ * "which scope contains the live cursor" the same way for a brand-new,
+ * never-yet-compiled `set` line as for an already-compiled one - unlike
+ * TypedDeclarationRangeIndex above, entries here are keyed by structural
+ * position, never by a specific statement's own stable identity, so a scope
+ * whose body has not yet had any successful `set`/declaration compile inside
+ * it is still resolvable as long as the scope itself (its opening/closing
+ * braces) survived the last successful compile.
+ */
+export const createScopeBodyRangeIndex = (
+  doc: Text,
+  statementMap: StatementMap,
+  scopeIndex: LexicalScopeIndex
+): ScopeBodyRangeIndex => {
+  const ranges: ScopeBodyRange[] = [];
+  for (const [scopeId, scope] of scopeIndex.scopes) {
+    if (scopeId === scopeIndex.rootScopeId || scope.openingStatementIndex === null) continue;
+    const openingInfo = statementMap.statements[scope.openingStatementIndex];
+    if (!openingInfo) continue;
+    // Mirrors createStatementRangeIndex's own "brace line, or the header's
+    // own last line when unopened on its own row" fallback.
+    const braceLine = openingInfo.openBraceLine ?? openingInfo.endLine;
+    if (braceLine < 1 || braceLine > doc.lines) continue;
+    const bodyFrom = doc.line(braceLine).to;
+    let bodyTo: number;
+    if (scope.exitStatementIndex < statementMap.statements.length) {
+      const closingInfo = statementMap.statements[scope.exitStatementIndex];
+      if (!closingInfo || closingInfo.line < 1 || closingInfo.line > doc.lines) continue;
+      bodyTo = doc.line(closingInfo.line).from;
+    } else {
+      // Unclosed (or root, already skipped above): the body extends to the
+      // end of the document, exactly like lexicalScopeIndex.ts's own
+      // `exitStatementIndex = statements.length` sentinel.
+      bodyTo = doc.length;
+    }
+    if (bodyTo < bodyFrom) continue;
+    const depth = scopeIndex.scopeMetadataById.get(scopeId)?.depth ?? 0;
+    ranges.push({ scopeId, from: bodyFrom, to: bodyTo, depth });
+  }
+  return ranges;
+};
+
+/**
+ * Mirrors mapTypedDeclarationRangeIndex: an edit anywhere inside a tracked
+ * scope body (including every keystroke typed into a brand-new `set` line
+ * inside it) maps through and keeps the entry alive; only a change fully
+ * replacing the body end-to-end drops it. A change to the scope's own
+ * opening/closing brace *line* outside the tracked `[from, to)` interior is
+ * not specially detected here - like every other Tier B range index in this
+ * file, that staleness is accepted until the next successful compile
+ * refreshes the index (see dslSetCompletionContext.ts's own Tier A reparse,
+ * which independently guards the `set` statement's own shape on every
+ * keystroke).
+ */
+export const mapScopeBodyRangeIndex = (ranges: ScopeBodyRangeIndex, changes: ChangeDesc): ScopeBodyRangeIndex => {
+  const mapped: ScopeBodyRange[] = [];
+  for (const range of ranges) {
+    if (changes.touchesRange(range.from, range.to) === "cover") continue;
+    const from = changes.mapPos(range.from, 1, MapMode.TrackAfter);
+    const to = changes.mapPos(range.to, -1, MapMode.TrackBefore);
+    if (from === null || to === null || to < from) continue;
+    mapped.push({ ...range, from, to });
+  }
+  return mapped;
+};
+
+/**
+ * Deepest (most nested) scope whose live body contains `pos`, defaulting to
+ * `rootScopeId` when none matches. Since a nested scope's live body range is
+ * always a subset of its ancestor's (brace nesting), the greatest `depth`
+ * among containing ranges is always the innermost one - no tie-breaking
+ * beyond that is possible.
+ */
+export const deepestContainingScopeId = (index: ScopeBodyRangeIndex, pos: number, rootScopeId: ScopeId): ScopeId => {
+  let best: ScopeBodyRange | null = null;
+  for (const range of index) {
+    if (pos < range.from || pos > range.to) continue;
+    if (!best || range.depth > best.depth) best = range;
+  }
+  return best?.scopeId ?? rootScopeId;
 };

@@ -60,14 +60,17 @@ import {
   elementIdAtCursor,
   createAtStopRange,
   createPrintLayoutRangeIndex,
+  createScopeBodyRangeIndex,
   createStatementRangeIndex,
   createTypedDeclarationRangeIndex,
   mapAtStopRange,
   mapPrintLayoutRangeIndex,
+  mapScopeBodyRangeIndex,
   mapStatementRangeIndex,
   mapTypedDeclarationRangeIndex,
   type AtStopRange,
   type PrintLayoutRangeIndex,
+  type ScopeBodyRangeIndex,
   type StatementRangeIndex,
   type TypedDeclarationRangeIndex
 } from "./statementRangeIndex";
@@ -145,6 +148,7 @@ export class SourceEditorController implements SourceEditorHandle {
   private statementRanges: StatementRangeIndex = new Map();
   private printLayoutRanges: PrintLayoutRangeIndex = new Map();
   private typedDeclarationRanges: TypedDeclarationRangeIndex = new Map();
+  private scopeBodyRanges: ScopeBodyRangeIndex = [];
   private atStopRange: AtStopRange | null = null;
   private staleDiagnosticBaseline: PositionedDiagnostic[] = [];
   /** At most two newest compiled-document revisions are retained; older results can never become current. */
@@ -205,6 +209,7 @@ export class SourceEditorController implements SourceEditorHandle {
             evaluationErrors: () => this.appliedEvaluation?.evaluation.errors,
             bindingAnalysis: () => this.store.getState().doc.bindingAnalysis,
             typedDeclarationRanges: () => this.typedDeclarationRanges,
+            scopeBodyRanges: () => this.scopeBodyRanges,
             statementInfoByElementId: () => this.store.getState().doc.statementMap.byElementId
           }),
           sourceEditorSelectionExtension,
@@ -1018,6 +1023,7 @@ export class SourceEditorController implements SourceEditorHandle {
       this.statementRanges = mapStatementRangeIndex(this.statementRanges, update.changes);
       this.printLayoutRanges = mapPrintLayoutRangeIndex(this.printLayoutRanges, update.changes);
       this.typedDeclarationRanges = mapTypedDeclarationRangeIndex(this.typedDeclarationRanges, update.changes);
+      this.scopeBodyRanges = mapScopeBodyRangeIndex(this.scopeBodyRanges, update.changes);
       this.atStopRange = mapAtStopRange(this.atStopRange, update.changes);
       this.staleDiagnosticBaseline = mapPositionedDiagnostics(this.staleDiagnosticBaseline, update.changes);
       // A dirty edit may have shifted an intact target or invalidated one of
@@ -1251,6 +1257,7 @@ export class SourceEditorController implements SourceEditorHandle {
       this.statementRanges = new Map();
       this.printLayoutRanges = new Map();
       this.typedDeclarationRanges = new Map();
+      this.scopeBodyRanges = [];
       this.atStopRange = null;
       this.refreshFoldGutter();
       return;
@@ -1258,6 +1265,9 @@ export class SourceEditorController implements SourceEditorHandle {
     this.statementRanges = createStatementRangeIndex(this.view.state.doc, state.doc.statementMap);
     this.printLayoutRanges = createPrintLayoutRangeIndex(this.view.state.doc, state.doc.statementMap);
     this.typedDeclarationRanges = createTypedDeclarationRangeIndex(this.view.state.doc, state.doc.statementMap);
+    this.scopeBodyRanges = state.doc.bindingAnalysis
+      ? createScopeBodyRangeIndex(this.view.state.doc, state.doc.statementMap, state.doc.bindingAnalysis.catalog.scopeIndex)
+      : [];
     this.atStopRange = createAtStopRange(this.view.state.doc, state.doc.statementMap);
     this.staleDiagnosticBaseline = toStaleDiagnostics(this.view.state.doc, state.diagnostics);
     this.refreshFoldGutter();

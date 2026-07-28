@@ -22,6 +22,7 @@ import {
 import { typedDeclarationInitializerCompletionContext } from "./dslTypedDeclarationCompletionContext";
 import { propertyScalarValueCompletionContext, type PropertyScalarValueCompletionContext } from "./dslPropertyScalarCompletionContext";
 import { templateHoleContentSpanAt } from "./dslTemplateHoleCompletionContext";
+import { setCompletionContextAt } from "./dslSetCompletionContext";
 import { scalarExpressionCompletionContextAt, type ScalarExpressionCompletionContext } from "../scalars/scalarExpressionPositionClassifier";
 import type { DslSpan } from "./dslTypes";
 import type { ScalarType } from "../scalars/types";
@@ -35,6 +36,8 @@ export type DslCompletionContext =
   | { kind: "typedInitializer"; from: number; to: number; declaredType: ScalarType; positionContext: ScalarExpressionCompletionContext }
   | { kind: "propertyScalarValue"; from: number; to: number; propertyContext: PropertyScalarValueCompletionContext }
   | { kind: "templateHole"; from: number; to: number; contentSpan: DslSpan }
+  | { kind: "setTarget"; from: number; to: number }
+  | { kind: "setRhs"; from: number; to: number; expressionSpan: DslSpan; targetName: string }
   | null;
 
 /**
@@ -307,6 +310,13 @@ export const dslCompletionContextAt = (lineText: string, pos: number): DslComple
       declaredType: typedDeclarationContext.declaredType,
       positionContext: typedDeclarationContext.positionContext
     };
+  }
+
+  const setContext = setCompletionContextAt(code, pos);
+  if (setContext) {
+    return setContext.kind === "target"
+      ? { kind: "setTarget", from: setContext.from, to: setContext.to }
+      : { kind: "setRhs", from: setContext.from, to: setContext.to, expressionSpan: setContext.expressionSpan, targetName: setContext.targetName };
   }
 
   const statement = dslLineElementStatement(lineText);
