@@ -15,17 +15,35 @@ import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocume
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import { CommandLineBar } from "./CommandLineBar";
 
-// CommandLineBar defers post-commit/post-edit focus restoration to
-// requestAnimationFrame in a few places. jsdom's rAF polyfill is backed by a
-// real macrotask timer, so running the callback synchronously here (instead
-// of awaiting the real frame) keeps every render call site free of the
-// resulting "not wrapped in act" warning without depending on cross-test
-// timing.
-const renderBar = (props?: ComponentProps<typeof CommandLineBar>) => {
-  vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
-    callback(0);
-    return 0;
+// CommandLineBar defers post-edit focus restoration to a real
+// requestAnimationFrame in a few places. trackAnimationFrames wraps the
+// real rAF - it never runs a callback early or synchronously - so it can
+// count every frame that gets scheduled and flush() only resolves once all
+// of them have actually fired, inside act(). Tests that depend on a
+// post-edit focus restore already await it via waitFor, whose act-wrapping
+// spans the whole real-time wait, so plain render() is enough here; only
+// the dedicated timing test below needs trackAnimationFrames directly.
+const trackAnimationFrames = () => {
+  let pendingFrames = 0;
+  const nativeRequestAnimationFrame = window.requestAnimationFrame.bind(window);
+  const spy = vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+    pendingFrames += 1;
+    return nativeRequestAnimationFrame((time) => {
+      pendingFrames -= 1;
+      callback(time);
+    });
   });
+  const flush = async () => {
+    await act(async () => {
+      while (pendingFrames > 0) {
+        await new Promise<void>((resolve) => nativeRequestAnimationFrame(() => resolve()));
+      }
+    });
+  };
+  return { flush, restore: () => spy.mockRestore() };
+};
+
+const renderBar = (props?: ComponentProps<typeof CommandLineBar>) => {
   return render(<CommandLineBar {...props} />);
 };
 
@@ -195,7 +213,7 @@ describe("CommandLineBar", () => {
     });
   });
 
-  it("confirms from the real completed-bar Enter path and hands focus back through its command context", () => {
+  it("confirms from the real completed-bar Enter path and hands focus back through its command context", async () => {
     const focusSourceEditorAtElementEnd = vi.fn();
     renderBar({ commandContext: { focusSourceEditorAtElementEnd } });
     act(() => { startCommandLineCreation("variable"); });
@@ -211,7 +229,10 @@ describe("CommandLineBar", () => {
     fireEvent.submit(form);
 
     expect(useCadUiStore.getState().commandLineSession).toBeNull();
-    expect(focusSourceEditorAtElementEnd).toHaveBeenCalledOnce();
+    // confirmCommandLineSession schedules the focus handoff via a real
+    // requestAnimationFrame (see commandLineSessionCommands.ts), so it lands
+    // after this synchronous submit.
+    await waitFor(() => expect(focusSourceEditorAtElementEnd).toHaveBeenCalledOnce());
   });
 
   it("edits a completed row in place, hides normal back, and restores row focus after commit or cancel", async () => {
@@ -242,6 +263,32 @@ describe("CommandLineBar", () => {
     fireEvent.submit(form);
     await waitFor(() => expect(expressionRow).toHaveFocus());
     expect(useCadUiStore.getState().commandLineSession?.args.expression).toBe(24);
+  });
+
+  it("does not restore row focus after an abandoned edit until the deferred frame actually runs", async () => {
+    const frames = trackAnimationFrames();
+    try {
+      render(<CommandLineBar />);
+      act(() => { startCommandLineCreation("variable"); });
+      const input = screen.getByRole<HTMLInputElement>("textbox");
+      const form = input.closest("form")!;
+      fireEvent.change(input, { target: { value: "12" } });
+      fireEvent.submit(form);
+      fireEvent.change(input, { target: { value: "変数 A" } });
+      fireEvent.submit(form);
+
+      const expressionRow = screen.getByRole("button", { name: "式を編集" });
+      fireEvent.click(expressionRow);
+      await frames.flush();
+
+      fireEvent.click(screen.getByRole("button", { name: "編集をやめる" }));
+      expect(expressionRow).not.toHaveFocus();
+
+      await frames.flush();
+      expect(expressionRow).toHaveFocus();
+    } finally {
+      frames.restore();
+    }
   });
 
   it("edits completed chips during an unfinished session, keeps a chip switch isolated, and returns focus to the prompt", async () => {

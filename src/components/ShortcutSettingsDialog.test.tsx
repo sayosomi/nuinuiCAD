@@ -25,21 +25,40 @@ const resetStore = () => {
   });
 };
 
-// ShortcutSettingsDialog defers its initial search-field focus to
+// ShortcutSettingsDialog defers its initial search-field focus to a real
 // requestAnimationFrame (which itself schedules a second, nested frame via
-// selectTextInputValue). jsdom's rAF polyfill is backed by a real macrotask
-// timer, so awaiting it introduces real-wall-clock scheduling: across many
-// quick mount/unmount cycles in one test file, pending frames from one
-// test's dialog can end up firing during a later test's window instead of
-// its own, causing the state update to land outside any act() there. Run
-// the callback synchronously instead, so both frames settle within the
-// initial render's own act() and no cross-test timing race is possible.
-const renderDialog = async () => {
-  vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
-    callback(0);
-    return 0;
+// selectTextInputValue). trackAnimationFrames wraps the real rAF - it never
+// runs a callback early or synchronously - so it can count every frame that
+// gets scheduled, including ones registered from inside another frame's own
+// callback, and flush() only resolves once all of them have actually fired.
+const trackAnimationFrames = () => {
+  let pendingFrames = 0;
+  const nativeRequestAnimationFrame = window.requestAnimationFrame.bind(window);
+  const spy = vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+    pendingFrames += 1;
+    return nativeRequestAnimationFrame((time) => {
+      pendingFrames -= 1;
+      callback(time);
+    });
   });
+  const flush = async () => {
+    await act(async () => {
+      while (pendingFrames > 0) {
+        await new Promise<void>((resolve) => nativeRequestAnimationFrame(() => resolve()));
+      }
+    });
+  };
+  return { flush, restore: () => spy.mockRestore() };
+};
+
+const renderDialog = async () => {
+  const frames = trackAnimationFrames();
   render(<ShortcutSettingsDialog />);
+  try {
+    await frames.flush();
+  } finally {
+    frames.restore();
+  }
 };
 
 const rowForCommand = (label: string) => {
@@ -61,6 +80,20 @@ describe("ShortcutSettingsDialog", () => {
     await waitFor(() =>
       expect(screen.getByLabelText("ショートカット設定を検索")).toHaveFocus()
     );
+  });
+
+  it("does not focus the search field until the deferred frame actually runs", async () => {
+    const frames = trackAnimationFrames();
+    try {
+      render(<ShortcutSettingsDialog />);
+      const input = screen.getByLabelText("ショートカット設定を検索");
+      expect(input).not.toHaveFocus();
+
+      await frames.flush();
+      expect(input).toHaveFocus();
+    } finally {
+      frames.restore();
+    }
   });
 
   it("filters commands by recorded shortcut key", async () => {
