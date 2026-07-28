@@ -1,12 +1,14 @@
-// Task 43: click/Tab/Inspector-jump navigation over typed declaration/set fields and
-// text template holes, built on the compile-time span indices in statementRangeIndex.ts.
-// Mirrors the fixture/harness conventions of sourceEditorController.test.ts's own
-// "value-span click selection" / "Tab/Shift-Tab value-span navigation" describes and
+// Task 43: click/Tab/Inspector-jump navigation over typed declaration/set fields,
+// property bindings, and text template holes, built on the compile-time span indices in
+// statementRangeIndex.ts. Mirrors the fixture/harness conventions of
+// sourceEditorController.test.ts's own "value-span click selection" /
+// "Tab/Shift-Tab value-span navigation" describes and
 // sourceEditorController.bindingSelection.test.ts's jumpToBindingDeclaration tests.
 import { EditorSelection } from "@codemirror/state";
 import { fireEvent } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { BindingId } from "../scalars/bindingCatalog";
+import * as dslValueSpansModule from "../dsl/dslValueSpans";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import { SourceEditorController } from "./sourceEditorController";
@@ -253,6 +255,162 @@ describe("SourceEditorController Task 43: text template hole click precision", (
 
     expect(clickAt(internals, text.indexOf("@label") + 1)).toBe(true);
     expect(selectedText(internals)).toBe("@label");
+    controller.destroy();
+  });
+});
+
+describe("SourceEditorController Task 43: typed property click/jump is reparse-free", () => {
+  beforeEach(setUp);
+  afterEach(() => vi.restoreAllMocks());
+
+  const source = ["nui 3", "let flag: boolean = true", "group G (printEnabled: @flag) {", "}"].join("\n");
+
+  it("resolves a bound property click via the PropertyBindingRangeIndex alone, never calling the legacy re-parsing span lookup", () => {
+    useCadDocumentStore.getState().commitText(source, "test");
+    const parent = document.createElement("div");
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+    const text = internals.view.state.doc.toString();
+    const spy = vi.spyOn(dslValueSpansModule, "dslDocumentValueSpansAt");
+
+    expect(clickAt(internals, text.indexOf("@flag") + 1)).toBe(true);
+
+    expect(selectedText(internals)).toBe("@flag");
+    expect(spy).not.toHaveBeenCalled();
+    controller.destroy();
+  });
+
+  it("a click on the statement's own name (not a property binding) still resolves through the legacy path, untouched", () => {
+    useCadDocumentStore.getState().commitText(source, "test");
+    const parent = document.createElement("div");
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+    const text = internals.view.state.doc.toString();
+    const namePos = text.indexOf("group G") + "group ".length;
+    const spy = vi.spyOn(dslValueSpansModule, "dslDocumentValueSpansAt");
+
+    // Same non-value-position outcome the existing legacy test suite already
+    // documents for an element's own name - unaffected by the property short-circuit.
+    expect(clickAt(internals, namePos)).toBe(false);
+
+    expect(spy).toHaveBeenCalled();
+    controller.destroy();
+  });
+
+  it("falls through (still correctly) to the live legacy path once an edit anywhere in the owning statement drops the property index entry - never a stale/wrong span", () => {
+    useCadDocumentStore.getState().commitText(source, "test");
+    const parent = document.createElement("div");
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+    const initialText = internals.view.state.doc.toString();
+    // Edits the group's own name, not the bound value - the whole statement (and so
+    // every property binding span it owns) is dropped from the compile-time index,
+    // per Task 43's fail-closed contract, well before the next compile.
+    const nameEnd = initialText.indexOf("group G") + "group G".length;
+    internals.view.dispatch({ changes: { from: nameEnd, insert: "X" } });
+    const text = internals.view.state.doc.toString();
+    expect(text).toContain("group GX");
+    const spy = vi.spyOn(dslValueSpansModule, "dslDocumentValueSpansAt");
+
+    expect(clickAt(internals, text.indexOf("@flag") + 1)).toBe(true);
+
+    // Correct (live-reparsed), not stale - the token itself never moved.
+    expect(selectedText(internals)).toBe("@flag");
+    expect(spy).toHaveBeenCalled();
+    controller.destroy();
+  });
+
+  it("a partial edit inside the bound value itself also drops the index entry, so the click resolves through the live legacy path", () => {
+    useCadDocumentStore.getState().commitText(source, "test");
+    const parent = document.createElement("div");
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+    const initialText = internals.view.state.doc.toString();
+    const flagEnd = initialText.indexOf("@flag") + "@flag".length;
+    internals.view.dispatch({ changes: { from: flagEnd, insert: "x" } });
+    const text = internals.view.state.doc.toString();
+    expect(text).toContain("@flagx");
+    const spy = vi.spyOn(dslValueSpansModule, "dslDocumentValueSpansAt");
+
+    expect(clickAt(internals, text.indexOf("@flagx") + 1)).toBe(true);
+
+    expect(selectedText(internals)).toBe("@flagx");
+    expect(spy).toHaveBeenCalled();
+    controller.destroy();
+  });
+});
+
+describe("SourceEditorController Task 43: dirty-source fail-closed semantics for field/hole entries", () => {
+  beforeEach(setUp);
+  afterEach(() => vi.restoreAllMocks());
+
+  it("Tab no-ops (never selects a stale field) once any edit lands inside a typed declaration statement, even before the next compile", () => {
+    const source = ["nui 3", "const flag: boolean = true"].join("\n");
+    useCadDocumentStore.getState().commitText(source, "test");
+    const parent = document.createElement("div");
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+    // Edits the keyword itself - not any one field's own span - proving the whole
+    // statement's fields drop together, not just the field nearest the edit.
+    internals.view.dispatch({ changes: { from: internals.view.state.doc.line(2).from, insert: "#" } });
+    const text = internals.view.state.doc.toString();
+    internals.view.dispatch({ selection: EditorSelection.cursor(text.indexOf("flag")) });
+
+    expect(internals.navigateValueSpan("next")).toBe(false);
+    expect(internals.view.state.selection.main.empty).toBe(true);
+    controller.destroy();
+  });
+
+  it("Tab no-ops once any edit lands inside a set statement, even before the next compile", () => {
+    const source = ["nui 3", "let total: number = 0", "set total = @total + 1"].join("\n");
+    useCadDocumentStore.getState().commitText(source, "test");
+    const parent = document.createElement("div");
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+    const text = internals.view.state.doc.toString();
+    const setLineStart = text.lastIndexOf("set total");
+    internals.view.dispatch({ changes: { from: setLineStart, insert: "#" } });
+    const dirtyText = internals.view.state.doc.toString();
+    internals.view.dispatch({ selection: EditorSelection.cursor(dirtyText.lastIndexOf("total")) });
+
+    expect(internals.navigateValueSpan("next")).toBe(false);
+    controller.destroy();
+  });
+
+  it("clicking on a template hole's opening brace selects the inner content, not the outer brace-inclusive span or the whole string", () => {
+    const source = ["nui 3", 'const label: string = "A"', 'text T = label(text: "{@label}" anchor: none size: 3)'].join("\n");
+    useCadDocumentStore.getState().commitText(source, "test");
+    const parent = document.createElement("div");
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+    const text = internals.view.state.doc.toString();
+    const openBrace = text.indexOf("{@label}");
+
+    expect(clickAt(internals, openBrace)).toBe(true);
+
+    expect(selectedText(internals)).toBe("@label");
+    controller.destroy();
+  });
+
+  it("falls back to the whole (freshly re-parsed) string, not a stale hole position, once an edit elsewhere in the statement drops the hole index", () => {
+    const source = ["nui 3", 'const label: string = "A"', 'text T = label(text: "prefix {@label} suffix" anchor: none size: 3)'].join("\n");
+    useCadDocumentStore.getState().commitText(source, "test");
+    const parent = document.createElement("div");
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+    const initialText = internals.view.state.doc.toString();
+    // Edits the element's own name, well outside the hole itself but still inside
+    // the owning `text T = label(...)` statement.
+    const nameEnd = initialText.indexOf("text T") + "text T".length;
+    internals.view.dispatch({ changes: { from: nameEnd, insert: "X" } });
+    const text = internals.view.state.doc.toString();
+    expect(text).toContain("text TX");
+
+    expect(clickAt(internals, text.indexOf("@label") + 1)).toBe(true);
+
+    // The live re-parse still finds the whole (unmoved) string correctly - not a
+    // guessed, wrong, or otherwise stale position.
+    expect(selectedText(internals)).toBe('"prefix {@label} suffix"');
     controller.destroy();
   });
 });

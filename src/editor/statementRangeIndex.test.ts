@@ -5,6 +5,7 @@ import { compileDslDocument } from "../dsl/dslDocument";
 import { bindingIdForStableStatementId } from "../scalars/bindingCatalog";
 import {
   createPrintLayoutRangeIndex,
+  createPropertyBindingRangeIndex,
   createScopeBodyRangeIndex,
   createSetStatementFieldRangeIndex,
   createSetStatementRangeIndex,
@@ -15,6 +16,7 @@ import {
   deepestContainingScopeId,
   elementIdAtCursor,
   mapPrintLayoutRangeIndex,
+  mapPropertyBindingRangeIndex,
   mapScopeBodyRangeIndex,
   mapSetStatementFieldRangeIndex,
   mapSetStatementRangeIndex,
@@ -22,6 +24,7 @@ import {
   mapTemplateHoleRangeIndex,
   mapTypedDeclarationFieldRangeIndex,
   mapTypedDeclarationRangeIndex,
+  propertyBindingSpanAt,
   setStatementIdAtCursor,
   templateHoleAtPosition,
   typedDeclarationBindingIdAtCursor
@@ -400,7 +403,7 @@ describe("typedDeclarationFieldRangeIndex (Task 43)", () => {
   it("splits a declaration into name/type/initializer sub-spans, each reading the right slice", () => {
     const result = compiledWithStableIds(source);
     const doc = Text.of(source.split("\n"));
-    const fields = createTypedDeclarationFieldRangeIndex(result.statementMap!, result.statements);
+    const fields = createTypedDeclarationFieldRangeIndex(doc, result.statementMap!, result.statements);
     const bindingId = bindingIdForStableStatementId("stable-1");
     const spans = fields.get(bindingId)!;
 
@@ -426,30 +429,46 @@ describe("typedDeclarationFieldRangeIndex (Task 43)", () => {
     expect(result.statementMap).toBeNull();
   });
 
-  it("keeps sub-spans alive through an edit inside the initializer, and drops them once the whole line is replaced", () => {
+  it("drops the whole entry once any edit touches the declaration statement - even a partial edit inside the initializer, not only a full replace", () => {
     const result = compiledWithStableIds(source);
     const doc = Text.of(source.split("\n"));
-    const original = createTypedDeclarationFieldRangeIndex(result.statementMap!, result.statements);
+    const original = createTypedDeclarationFieldRangeIndex(doc, result.statementMap!, result.statements);
     const bindingId = bindingIdForStableStatementId("stable-1");
     const initializer = original.get(bindingId)!.initializer!;
 
+    // A partial edit strictly inside the initializer is still an edit inside the
+    // owning statement: the previously-known initializer text is now dirty/different,
+    // so jumping/selecting it would no longer match what was actually compiled.
     const interiorEdit = ChangeSet.of({ from: initializer.to, insert: " && false" }, doc.length);
-    const mappedInterior = mapTypedDeclarationFieldRangeIndex(original, interiorEdit);
-    expect(mappedInterior.get(bindingId)!.initializer).toEqual(initializer);
-    expect(mappedInterior.get(bindingId)!.name).toEqual(original.get(bindingId)!.name);
+    expect(mapTypedDeclarationFieldRangeIndex(original, interiorEdit).get(bindingId)).toBeUndefined();
 
     const wholeLineReplace = ChangeSet.of({ from: 0, to: doc.length, insert: "nui 3\nconst other: number = 1" }, doc.length);
-    const mappedReplace = mapTypedDeclarationFieldRangeIndex(original, wholeLineReplace);
-    expect(mappedReplace.get(bindingId)!.initializer).toBeNull();
-    expect(mappedReplace.get(bindingId)!.name).toBeNull();
-    expect(mappedReplace.get(bindingId)!.type).toBeNull();
+    expect(mapTypedDeclarationFieldRangeIndex(original, wholeLineReplace).get(bindingId)).toBeUndefined();
+  });
+
+  it("keeps every field span alive, correctly shifted, through an edit strictly before the owning statement", () => {
+    const result = compiledWithStableIds(source);
+    const doc = Text.of(source.split("\n"));
+    const original = createTypedDeclarationFieldRangeIndex(doc, result.statementMap!, result.statements);
+    const bindingId = bindingIdForStableStatementId("stable-1");
+    const before = original.get(bindingId)!;
+
+    const insertAbove = ChangeSet.of({ from: 0, insert: "# a dirty comment line\n" }, doc.length);
+    const mapped = mapTypedDeclarationFieldRangeIndex(original, insertAbove);
+    const shift = "# a dirty comment line\n".length;
+
+    const after = mapped.get(bindingId)!;
+    expect(after).toBeDefined();
+    expect(after.name).toEqual({ from: before.name!.from + shift, to: before.name!.to + shift });
+    expect(after.type).toEqual({ from: before.type!.from + shift, to: before.type!.to + shift });
+    expect(after.initializer).toEqual({ from: before.initializer!.from + shift, to: before.initializer!.to + shift });
   });
 
   it("leaves the initializer span null (fail-closed) when it spans a continuation line, while name/type stay resolvable", () => {
     const multilineSource = ["nui 3", "let total: number = (", "  1 + 2", ")"].join("\n");
     const result = compiledWithStableIds(multilineSource);
     const doc = Text.of(multilineSource.split("\n"));
-    const fields = createTypedDeclarationFieldRangeIndex(result.statementMap!, result.statements);
+    const fields = createTypedDeclarationFieldRangeIndex(doc, result.statementMap!, result.statements);
     const bindingId = bindingIdForStableStatementId("stable-1");
     const spans = fields.get(bindingId)!;
 
@@ -463,7 +482,8 @@ describe("typedDeclarationFieldRangeIndex (Task 43)", () => {
   it("returns no fields for a document with no typed declarations", () => {
     const noTypedSource = ["nui 2", "point A = coordinate(x: 0, y: 0)"].join("\n");
     const result = compiled(noTypedSource);
-    expect(createTypedDeclarationFieldRangeIndex(result.statementMap!, result.statements).size).toBe(0);
+    const doc = Text.of(noTypedSource.split("\n"));
+    expect(createTypedDeclarationFieldRangeIndex(doc, result.statementMap!, result.statements).size).toBe(0);
   });
 });
 
@@ -485,7 +505,7 @@ describe("setStatementRangeIndex / setStatementFieldRangeIndex (Task 43)", () =>
   it("splits a set statement into target and expression sub-spans", () => {
     const result = compiledWithStableIds(source);
     const doc = Text.of(source.split("\n"));
-    const fields = createSetStatementFieldRangeIndex(result.statementMap!, result.statements);
+    const fields = createSetStatementFieldRangeIndex(doc, result.statementMap!, result.statements);
     const spans = fields.get("stable-2")!;
 
     expect(spans.target).toBeTruthy();
@@ -495,28 +515,57 @@ describe("setStatementRangeIndex / setStatementFieldRangeIndex (Task 43)", () =>
   });
 
   it("resolves target/expression from the raw parsed statement alone, independent of setStatements/bindingAnalysis", () => {
-    // createSetStatementFieldRangeIndex takes only (statementMap, statements) - no
+    // createSetStatementFieldRangeIndex takes only (doc, statementMap, statements) - no
     // bindingAnalysis or setStatements parameter exists to pass, so a successfully
     // compiled set (whose target does resolve, the only shape that reaches a non-null
     // statementMap at all - an unresolved target is a document-level error like any
     // other) already proves the field spans never depend on resolution succeeding.
     const result = compiledWithStableIds(source);
-    const fields = createSetStatementFieldRangeIndex(result.statementMap!, result.statements);
+    const doc = Text.of(source.split("\n"));
+    const fields = createSetStatementFieldRangeIndex(doc, result.statementMap!, result.statements);
     expect(fields.get("stable-2")).toBeDefined();
   });
 
-  it("drops the whole-line range and sub-spans once the set line is fully replaced", () => {
+  it("drops the whole-line range and both sub-spans once the set line is fully replaced", () => {
     const result = compiledWithStableIds(source);
     const doc = Text.of(source.split("\n"));
     const rangeIndex = createSetStatementRangeIndex(doc, result.statementMap!);
-    const fieldIndex = createSetStatementFieldRangeIndex(result.statementMap!, result.statements);
+    const fieldIndex = createSetStatementFieldRangeIndex(doc, result.statementMap!, result.statements);
     const range = rangeIndex.get("stable-2")!;
     const changes = ChangeSet.of({ from: range.from, to: range.to, insert: "" }, doc.length);
 
     expect(mapSetStatementRangeIndex(rangeIndex, changes).has("stable-2")).toBe(false);
-    const mappedFields = mapSetStatementFieldRangeIndex(fieldIndex, changes);
-    expect(mappedFields.get("stable-2")!.target).toBeNull();
-    expect(mappedFields.get("stable-2")!.expression).toBeNull();
+    expect(mapSetStatementFieldRangeIndex(fieldIndex, changes).get("stable-2")).toBeUndefined();
+  });
+
+  it("drops both sub-spans on a partial edit inside just the expression, even though the coarse whole-line range index survives it", () => {
+    const result = compiledWithStableIds(source);
+    const doc = Text.of(source.split("\n"));
+    const rangeIndex = createSetStatementRangeIndex(doc, result.statementMap!);
+    const fieldIndex = createSetStatementFieldRangeIndex(doc, result.statementMap!, result.statements);
+    const expression = fieldIndex.get("stable-2")!.expression!;
+    const interiorEdit = ChangeSet.of({ from: expression.to, insert: " + 1" }, doc.length);
+
+    // The coarse cursor-detection index (used only to find *which* statement the
+    // cursor is in) tolerates the interior edit, same as typedDeclarationRanges.
+    expect(mapSetStatementRangeIndex(rangeIndex, interiorEdit).has("stable-2")).toBe(true);
+    // The strict semantic field index does not - it is a jump/select target, not a
+    // cursor-containment check, so any edit inside the statement invalidates it.
+    expect(mapSetStatementFieldRangeIndex(fieldIndex, interiorEdit).get("stable-2")).toBeUndefined();
+  });
+
+  it("keeps both sub-spans alive, correctly shifted, through an edit strictly before the owning statement", () => {
+    const result = compiledWithStableIds(source);
+    const doc = Text.of(source.split("\n"));
+    const original = createSetStatementFieldRangeIndex(doc, result.statementMap!, result.statements);
+    const before = original.get("stable-2")!;
+    const insertAbove = ChangeSet.of({ from: 0, insert: "# dirty\n" }, doc.length);
+    const shift = "# dirty\n".length;
+
+    const after = mapSetStatementFieldRangeIndex(original, insertAbove).get("stable-2")!;
+    expect(after).toBeDefined();
+    expect(after.target).toEqual({ from: before.target!.from + shift, to: before.target!.to + shift });
+    expect(after.expression).toEqual({ from: before.expression!.from + shift, to: before.expression!.to + shift });
   });
 
   it("returns empty indices for a document with no set statements", () => {
@@ -524,7 +573,7 @@ describe("setStatementRangeIndex / setStatementFieldRangeIndex (Task 43)", () =>
     const result = compiledWithStableIds(noSetSource);
     const doc = Text.of(noSetSource.split("\n"));
     expect(createSetStatementRangeIndex(doc, result.statementMap!).size).toBe(0);
-    expect(createSetStatementFieldRangeIndex(result.statementMap!, result.statements).size).toBe(0);
+    expect(createSetStatementFieldRangeIndex(doc, result.statementMap!, result.statements).size).toBe(0);
   });
 });
 
@@ -535,21 +584,35 @@ describe("templateHoleRangeIndex (Task 43)", () => {
     'text T = label(text: "{@ラベル}を2枚カット" anchor: none size: 3)'
   ].join("\n");
 
-  it("resolves one hole's content span, selecting the reference text excluding braces", () => {
+  it("resolves one hole's outer (brace-inclusive) and inner (content-only) spans independently", () => {
     const result = compiledWithStableIds(source);
     const doc = Text.of(source.split("\n"));
     expect(result.textTemplates).toBeDefined();
     const occurrenceKey = [...result.textTemplates!.keys()][0]!;
-    const index = createTemplateHoleRangeIndex(result.statementMap!, result.statements, result.textTemplates);
-    const holes = index.get(occurrenceKey)!;
+    const index = createTemplateHoleRangeIndex(doc, result.statementMap!, result.statements, result.textTemplates);
+    const holes = index.get(occurrenceKey)!.holes;
 
     expect(holes).toHaveLength(1);
-    expect(doc.sliceString(holes[0].from, holes[0].to)).toBe("@ラベル");
-    expect(templateHoleAtPosition(index, occurrenceKey, holes[0].from + 1)).toEqual(holes[0]);
-    expect(templateHoleAtPosition(index, occurrenceKey, holes[0].to + 1)).toBeNull();
+    expect(doc.sliceString(holes[0].outer.from, holes[0].outer.to)).toBe("{@ラベル}");
+    expect(doc.sliceString(holes[0].inner.from, holes[0].inner.to)).toBe("@ラベル");
   });
 
-  it("orders multiple holes in source order with independent content spans", () => {
+  it("templateHoleAtPosition matches against the outer (brace-inclusive) span and returns the whole hole record", () => {
+    const result = compiledWithStableIds(source);
+    const doc = Text.of(source.split("\n"));
+    const occurrenceKey = [...result.textTemplates!.keys()][0]!;
+    const index = createTemplateHoleRangeIndex(doc, result.statementMap!, result.statements, result.textTemplates);
+    const hole = index.get(occurrenceKey)!.holes[0]!;
+
+    // A position on the opening brace itself is inside `outer` but outside `inner`.
+    expect(templateHoleAtPosition(index, occurrenceKey, hole.outer.from)).toEqual(hole);
+    expect(templateHoleAtPosition(index, occurrenceKey, hole.inner.from + 1)).toEqual(hole);
+    expect(templateHoleAtPosition(index, occurrenceKey, hole.outer.to)).toBeNull();
+    expect(doc.sliceString(hole.outer.from, hole.outer.to).startsWith("{")).toBe(true);
+    expect(doc.sliceString(hole.outer.from, hole.outer.to).endsWith("}")).toBe(true);
+  });
+
+  it("orders multiple holes in source order with independent outer/inner spans", () => {
     const multiHoleSource = [
       "nui 3",
       'const first: string = "A"',
@@ -559,47 +622,132 @@ describe("templateHoleRangeIndex (Task 43)", () => {
     const result = compiledWithStableIds(multiHoleSource);
     const doc = Text.of(multiHoleSource.split("\n"));
     const occurrenceKey = [...result.textTemplates!.keys()][0]!;
-    const index = createTemplateHoleRangeIndex(result.statementMap!, result.statements, result.textTemplates);
-    const holes = index.get(occurrenceKey)!;
+    const index = createTemplateHoleRangeIndex(doc, result.statementMap!, result.statements, result.textTemplates);
+    const holes = index.get(occurrenceKey)!.holes;
 
     expect(holes.map((hole) => hole.holeIndex)).toEqual([0, 1]);
-    expect(doc.sliceString(holes[0].from, holes[0].to)).toBe("@first");
-    expect(doc.sliceString(holes[1].from, holes[1].to)).toBe("@second");
-    expect(holes[1].from).toBeGreaterThan(holes[0].to);
+    expect(doc.sliceString(holes[0].inner.from, holes[0].inner.to)).toBe("@first");
+    expect(doc.sliceString(holes[1].inner.from, holes[1].inner.to)).toBe("@second");
+    expect(holes[1].outer.from).toBeGreaterThan(holes[0].outer.to);
   });
 
-  it("keeps a hole span alive through an edit elsewhere on the line, and drops it once the hole itself is replaced", () => {
+  it("drops every hole of the occurrence once any edit touches the owning statement - even a partial edit inside one hole", () => {
     const result = compiledWithStableIds(source);
     const doc = Text.of(source.split("\n"));
     const occurrenceKey = [...result.textTemplates!.keys()][0]!;
-    const original = createTemplateHoleRangeIndex(result.statementMap!, result.statements, result.textTemplates);
-    const hole = original.get(occurrenceKey)![0]!;
+    const original = createTemplateHoleRangeIndex(doc, result.statementMap!, result.statements, result.textTemplates);
+    const hole = original.get(occurrenceKey)!.holes[0]!;
 
-    const editAfterHole = ChangeSet.of({ from: doc.length, insert: "\n# trailing" }, doc.length);
-    const mappedAfterEdit = mapTemplateHoleRangeIndex(original, editAfterHole);
-    expect(mappedAfterEdit.get(occurrenceKey)![0]).toEqual(hole);
+    const interiorEdit = ChangeSet.of({ from: hole.inner.from + 1, insert: "x" }, doc.length);
+    expect(mapTemplateHoleRangeIndex(original, interiorEdit).has(occurrenceKey)).toBe(false);
 
-    const replaceHole = ChangeSet.of({ from: hole.from, to: hole.to, insert: "@other" }, doc.length);
-    const mappedAfterReplace = mapTemplateHoleRangeIndex(original, replaceHole);
-    expect(mappedAfterReplace.has(occurrenceKey)).toBe(false);
+    const replaceHole = ChangeSet.of({ from: hole.outer.from, to: hole.outer.to, insert: "@other" }, doc.length);
+    expect(mapTemplateHoleRangeIndex(original, replaceHole).has(occurrenceKey)).toBe(false);
+  });
+
+  it("keeps every hole alive, correctly shifted, through an edit strictly before the owning statement", () => {
+    const result = compiledWithStableIds(source);
+    const doc = Text.of(source.split("\n"));
+    const occurrenceKey = [...result.textTemplates!.keys()][0]!;
+    const original = createTemplateHoleRangeIndex(doc, result.statementMap!, result.statements, result.textTemplates);
+    const before = original.get(occurrenceKey)!.holes[0]!;
+
+    const insertAbove = ChangeSet.of({ from: 0, insert: "# dirty\n" }, doc.length);
+    const shift = "# dirty\n".length;
+    const after = mapTemplateHoleRangeIndex(original, insertAbove).get(occurrenceKey)!.holes[0]!;
+
+    expect(after.outer).toEqual({ from: before.outer.from + shift, to: before.outer.to + shift });
+    expect(after.inner).toEqual({ from: before.inner.from + shift, to: before.inner.to + shift });
   });
 
   it("returns an empty index for a document with no text templates", () => {
     const noTemplateSource = ["nui 3", "let a: number = 1"].join("\n");
     const result = compiledWithStableIds(noTemplateSource);
-    const index = createTemplateHoleRangeIndex(result.statementMap!, result.statements, result.textTemplates);
+    const doc = Text.of(noTemplateSource.split("\n"));
+    const index = createTemplateHoleRangeIndex(doc, result.statementMap!, result.statements, result.textTemplates);
     expect(index.size).toBe(0);
   });
 
-  it("returns an empty index for a legacy hole with no typed references, since it still carries a real content span", () => {
+  it("returns an empty index for a legacy hole with no typed references, since it still carries real outer/inner spans", () => {
     const legacySource = ["nui 3", 'text T = label(text: "sum {2+3}" anchor: none size: 3)'].join("\n");
     const result = compiledWithStableIds(legacySource);
     const doc = Text.of(legacySource.split("\n"));
     const occurrenceKey = [...result.textTemplates!.keys()][0]!;
-    const index = createTemplateHoleRangeIndex(result.statementMap!, result.statements, result.textTemplates);
-    const holes = index.get(occurrenceKey)!;
+    const index = createTemplateHoleRangeIndex(doc, result.statementMap!, result.statements, result.textTemplates);
+    const holes = index.get(occurrenceKey)!.holes;
 
     expect(holes).toHaveLength(1);
-    expect(doc.sliceString(holes[0].from, holes[0].to)).toBe("2+3");
+    expect(doc.sliceString(holes[0].inner.from, holes[0].inner.to)).toBe("2+3");
+    expect(doc.sliceString(holes[0].outer.from, holes[0].outer.to)).toBe("{2+3}");
+  });
+});
+
+describe("propertyBindingRangeIndex (Task 43)", () => {
+  const source = [
+    "nui 3",
+    "let flag: boolean = true",
+    "group G (printEnabled: @flag) {",
+    "}"
+  ].join("\n");
+
+  it("resolves the exact @name token span for a bound property, keyed by the same occurrence key as Task 22's propertyBindings", () => {
+    const result = compiledWithStableIds(source);
+    const doc = Text.of(source.split("\n"));
+    expect(result.propertyBindings?.size).toBe(1);
+    const occurrenceKey = [...result.propertyBindings!.keys()][0]!;
+    const index = createPropertyBindingRangeIndex(doc, result.statementMap!, result.statements, result.propertyBindings);
+    const range = index.get(occurrenceKey)!;
+
+    expect(range).toBeDefined();
+    expect(doc.sliceString(range.span.from, range.span.to)).toBe("@flag");
+  });
+
+  it("propertyBindingSpanAt resolves the span at a live cursor position without needing the occurrence key", () => {
+    const result = compiledWithStableIds(source);
+    const doc = Text.of(source.split("\n"));
+    const index = createPropertyBindingRangeIndex(doc, result.statementMap!, result.statements, result.propertyBindings);
+    const range = [...index.values()][0]!;
+
+    expect(propertyBindingSpanAt(index, range.span.from + 1)).toEqual(range.span);
+    expect(propertyBindingSpanAt(index, range.span.to + 1)).toBeNull();
+  });
+
+  it("drops the entry once any edit touches the owning statement - even a partial edit inside the bound value", () => {
+    const result = compiledWithStableIds(source);
+    const doc = Text.of(source.split("\n"));
+    const occurrenceKey = [...result.propertyBindings!.keys()][0]!;
+    const original = createPropertyBindingRangeIndex(doc, result.statementMap!, result.statements, result.propertyBindings);
+    const range = original.get(occurrenceKey)!;
+
+    const interiorEdit = ChangeSet.of({ from: range.span.from + 1, insert: "x" }, doc.length);
+    expect(mapPropertyBindingRangeIndex(original, interiorEdit).has(occurrenceKey)).toBe(false);
+  });
+
+  it("keeps the entry alive, correctly shifted, through an edit strictly before the owning statement", () => {
+    const result = compiledWithStableIds(source);
+    const doc = Text.of(source.split("\n"));
+    const occurrenceKey = [...result.propertyBindings!.keys()][0]!;
+    const original = createPropertyBindingRangeIndex(doc, result.statementMap!, result.statements, result.propertyBindings);
+    const before = original.get(occurrenceKey)!;
+    const insertAbove = ChangeSet.of({ from: 0, insert: "# dirty\n" }, doc.length);
+    const shift = "# dirty\n".length;
+
+    const after = mapPropertyBindingRangeIndex(original, insertAbove).get(occurrenceKey)!;
+    expect(after.span).toEqual({ from: before.span.from + shift, to: before.span.to + shift });
+  });
+
+  it("only indexes bound (kind: \"binding\") occurrences, skipping literal property values", () => {
+    const literalOnlySource = ["nui 3", "group G (printEnabled: true) {", "}"].join("\n");
+    const result = compiledWithStableIds(literalOnlySource);
+    const doc = Text.of(literalOnlySource.split("\n"));
+    const index = createPropertyBindingRangeIndex(doc, result.statementMap!, result.statements, result.propertyBindings);
+    expect(index.size).toBe(0);
+  });
+
+  it("returns an empty index when the document has no propertyBindings map at all", () => {
+    const noTypedSource = ["nui 2", "point A = coordinate(x: 0, y: 0)"].join("\n");
+    const result = compiled(noTypedSource);
+    const doc = Text.of(noTypedSource.split("\n"));
+    expect(createPropertyBindingRangeIndex(doc, result.statementMap!, result.statements, result.propertyBindings).size).toBe(0);
   });
 });

@@ -61,6 +61,7 @@ import {
   elementIdAtCursor,
   createAtStopRange,
   createPrintLayoutRangeIndex,
+  createPropertyBindingRangeIndex,
   createScopeBodyRangeIndex,
   createSetStatementFieldRangeIndex,
   createSetStatementRangeIndex,
@@ -70,6 +71,7 @@ import {
   createTypedDeclarationRangeIndex,
   mapAtStopRange,
   mapPrintLayoutRangeIndex,
+  mapPropertyBindingRangeIndex,
   mapScopeBodyRangeIndex,
   mapSetStatementFieldRangeIndex,
   mapSetStatementRangeIndex,
@@ -77,11 +79,13 @@ import {
   mapTemplateHoleRangeIndex,
   mapTypedDeclarationFieldRangeIndex,
   mapTypedDeclarationRangeIndex,
+  propertyBindingSpanAt,
   setStatementIdAtCursor,
   templateHoleAtPosition,
   typedDeclarationBindingIdAtCursor,
   type AtStopRange,
   type PrintLayoutRangeIndex,
+  type PropertyBindingRangeIndex,
   type ScopeBodyRangeIndex,
   type SetStatementFieldRangeIndex,
   type SetStatementRangeIndex,
@@ -169,6 +173,7 @@ export class SourceEditorController implements SourceEditorHandle {
   private setStatementRanges: SetStatementRangeIndex = new Map();
   private setStatementFieldRanges: SetStatementFieldRangeIndex = new Map();
   private templateHoleRanges: TemplateHoleRangeIndex = new Map();
+  private propertyBindingRanges: PropertyBindingRangeIndex = new Map();
   private scopeBodyRanges: ScopeBodyRangeIndex = [];
   private atStopRange: AtStopRange | null = null;
   private staleDiagnosticBaseline: PositionedDiagnostic[] = [];
@@ -874,7 +879,9 @@ export class SourceEditorController implements SourceEditorHandle {
   /**
    * Task 43: narrows a text-template attribute's whole-value legacy span to the
    * specific hole `pos` falls inside, when one is tracked (most-specific-wins, mirroring
-   * resolveParameterTargetAt's existing convention). Falls back to the legacy span
+   * resolveParameterTargetAt's existing convention). Explicitly selects the hole's
+   * `inner` (brace-interior) span, not `outer` - the click target is the bound
+   * name/expression itself, not its delimiting braces. Falls back to the legacy span
    * itself - never guessed, never re-parsed - when no compiled hole index is available
    * (no template at this occurrence, or dirty-dropped).
    */
@@ -883,7 +890,7 @@ export class SourceEditorController implements SourceEditorHandle {
     const statementIndex = elementId ? this.statementRanges.get(elementId)?.statement.statementIndex : undefined;
     if (statementIndex === undefined) return legacySpan;
     const hole = templateHoleAtPosition(this.templateHoleRanges, propertyBindingOccurrenceKey(statementIndex, "text"), pos);
-    return hole ?? legacySpan;
+    return hole ? hole.inner : legacySpan;
   }
 
   /**
@@ -891,10 +898,17 @@ export class SourceEditorController implements SourceEditorHandle {
    * Runs on `mouseup` so CodeMirror's own pointer handling (drag-select, Mod-click
    * multi-selection) has already resolved `view.state.selection`; this only acts when
    * that outcome is a single collapsed cursor with no modifier keys held, otherwise it
-   * defers entirely. Re-derives legacy spans from the live buffer's line text on every
-   * call (via dslLineValueSpans), so it is correct while dirty or while the document is
-   * fatal without needing any statement-range mapping of its own; a click inside a typed
-   * declaration/set statement or a text-template hole instead resolves through the
+   * defers entirely.
+   *
+   * A click on a typed property binding (Task 22's `@name` value) resolves solely
+   * through the compile-time `propertyBindingRanges` index and returns before ever
+   * calling `dslDocumentValueSpansAt` - that legacy path re-parses the clicked line on
+   * every call (via `statementProjectionAt`/`parseDslSnapshot`), which Task 43's
+   * plain-offset-index contract forbids for typed navigation. Every other click (an
+   * ordinary literal value, a typed declaration/set field, a text-template hole) is
+   * unchanged: legacy re-derives spans from the live buffer's line text on every call,
+   * so it stays correct while dirty or while the document is fatal, and a click inside a
+   * typed declaration/set statement or a text-template hole resolves through the other
    * compile-time typed span indices (Task 43), which stay accurate under dirty edits via
    * CM's own change mapping rather than a re-parse.
    */
@@ -905,6 +919,14 @@ export class SourceEditorController implements SourceEditorHandle {
     const selection = view.state.selection;
     if (selection.ranges.length !== 1 || !selection.main.empty) return false;
     const pos = selection.main.head;
+    const propertySpan = propertyBindingSpanAt(this.propertyBindingRanges, pos);
+    if (propertySpan) {
+      view.dispatch({
+        selection: EditorSelection.single(propertySpan.from, propertySpan.to),
+        annotations: Transaction.addToHistory.of(false)
+      });
+      return true;
+    }
     const result = dslDocumentValueSpansAt(
       { normalizedSource: view.state.doc.toString(), sourceRevision: this.store.getState().sourceRevision },
       pos
@@ -1132,6 +1154,7 @@ export class SourceEditorController implements SourceEditorHandle {
       this.setStatementRanges = mapSetStatementRangeIndex(this.setStatementRanges, update.changes);
       this.setStatementFieldRanges = mapSetStatementFieldRangeIndex(this.setStatementFieldRanges, update.changes);
       this.templateHoleRanges = mapTemplateHoleRangeIndex(this.templateHoleRanges, update.changes);
+      this.propertyBindingRanges = mapPropertyBindingRangeIndex(this.propertyBindingRanges, update.changes);
       this.scopeBodyRanges = mapScopeBodyRangeIndex(this.scopeBodyRanges, update.changes);
       this.atStopRange = mapAtStopRange(this.atStopRange, update.changes);
       this.staleDiagnosticBaseline = mapPositionedDiagnostics(this.staleDiagnosticBaseline, update.changes);
@@ -1380,6 +1403,7 @@ export class SourceEditorController implements SourceEditorHandle {
       this.setStatementRanges = new Map();
       this.setStatementFieldRanges = new Map();
       this.templateHoleRanges = new Map();
+      this.propertyBindingRanges = new Map();
       this.scopeBodyRanges = [];
       this.atStopRange = null;
       this.refreshFoldGutter();
@@ -1388,10 +1412,11 @@ export class SourceEditorController implements SourceEditorHandle {
     this.statementRanges = createStatementRangeIndex(this.view.state.doc, state.doc.statementMap);
     this.printLayoutRanges = createPrintLayoutRangeIndex(this.view.state.doc, state.doc.statementMap);
     this.typedDeclarationRanges = createTypedDeclarationRangeIndex(this.view.state.doc, state.doc.statementMap);
-    this.typedDeclarationFieldRanges = createTypedDeclarationFieldRangeIndex(state.doc.statementMap, state.doc.statements);
+    this.typedDeclarationFieldRanges = createTypedDeclarationFieldRangeIndex(this.view.state.doc, state.doc.statementMap, state.doc.statements);
     this.setStatementRanges = createSetStatementRangeIndex(this.view.state.doc, state.doc.statementMap);
-    this.setStatementFieldRanges = createSetStatementFieldRangeIndex(state.doc.statementMap, state.doc.statements);
-    this.templateHoleRanges = createTemplateHoleRangeIndex(state.doc.statementMap, state.doc.statements, state.doc.textTemplates);
+    this.setStatementFieldRanges = createSetStatementFieldRangeIndex(this.view.state.doc, state.doc.statementMap, state.doc.statements);
+    this.templateHoleRanges = createTemplateHoleRangeIndex(this.view.state.doc, state.doc.statementMap, state.doc.statements, state.doc.textTemplates);
+    this.propertyBindingRanges = createPropertyBindingRangeIndex(this.view.state.doc, state.doc.statementMap, state.doc.statements, state.doc.propertyBindings);
     this.scopeBodyRanges = state.doc.bindingAnalysis
       ? createScopeBodyRangeIndex(this.view.state.doc, state.doc.statementMap, state.doc.bindingAnalysis.catalog.scopeIndex)
       : [];
