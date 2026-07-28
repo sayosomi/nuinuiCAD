@@ -1,9 +1,23 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import type { ComponentProps } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { dispatchCommand } from "../commands/commands";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import { RenameElementDialog } from "./RenameElementDialog";
+
+// RenameElementDialogContent defers its initial name-field focus to
+// requestAnimationFrame. jsdom's rAF polyfill is backed by a real macrotask
+// timer, so running the callback synchronously here (instead of awaiting the
+// real frame) keeps every render call site free of the resulting
+// "not wrapped in act" warning without depending on cross-test timing.
+const renderDialog = (onConfirmed: ComponentProps<typeof RenameElementDialog>["onConfirmed"]) => {
+  vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+    callback(0);
+    return 0;
+  });
+  render(<RenameElementDialog onConfirmed={onConfirmed} />);
+};
 
 const seed = () => {
   // Written in v2's canonical vertical-call shape: renameElementWithPropagation's
@@ -45,7 +59,7 @@ describe("RenameElementDialog", () => {
     const { targetId } = seed();
     useCadUiStore.getState().setRenameElementPromptTargetId(targetId);
     const onConfirmed = vi.fn();
-    render(<RenameElementDialog onConfirmed={onConfirmed} />);
+    renderDialog(onConfirmed);
     const input = screen.getByRole("textbox", { name: "名前" }) as HTMLInputElement;
 
     await waitFor(() => expect(document.activeElement).toBe(input));
@@ -70,7 +84,7 @@ describe("RenameElementDialog", () => {
     const { targetId } = seed();
     useCadUiStore.getState().setRenameElementPromptTargetId(targetId);
     const onConfirmed = vi.fn();
-    render(<RenameElementDialog onConfirmed={onConfirmed} />);
+    renderDialog(onConfirmed);
     const input = screen.getByRole("textbox", { name: "名前" });
 
     fireEvent.compositionStart(input);
@@ -88,11 +102,11 @@ describe("RenameElementDialog", () => {
     const { targetId, otherId } = seed();
     useCadUiStore.getState().setRenameElementPromptTargetId(targetId);
     const onConfirmed = vi.fn();
-    render(<RenameElementDialog onConfirmed={onConfirmed} />);
+    renderDialog(onConfirmed);
     const form = screen.getByRole("textbox", { name: "名前" }).closest("form")!;
 
     // Focus has no bearing on staleness; only the selected element ID does.
-    useCadUiStore.getState().setSelectedElementIds([otherId]);
+    act(() => { useCadUiStore.getState().setSelectedElementIds([otherId]); });
     fireEvent.submit(form);
     expect(useCadUiStore.getState().renameElementPromptTargetId).toBeNull();
     expect(useCadUiStore.getState().commandErrorMessage).toContain("変更または削除");
@@ -104,9 +118,11 @@ describe("RenameElementDialog", () => {
     const { targetId } = seed();
     useCadUiStore.getState().setRenameElementPromptTargetId(targetId);
     const onConfirmed = vi.fn();
-    render(<RenameElementDialog onConfirmed={onConfirmed} />);
-    useCadDocumentStore.setState({
-      elements: useCadDocumentStore.getState().elements.filter((element) => element.id !== targetId)
+    renderDialog(onConfirmed);
+    act(() => {
+      useCadDocumentStore.setState({
+        elements: useCadDocumentStore.getState().elements.filter((element) => element.id !== targetId)
+      });
     });
 
     fireEvent.submit(screen.getByRole("textbox", { name: "名前" }).closest("form")!);
@@ -119,7 +135,7 @@ describe("RenameElementDialog", () => {
     const { targetId } = seed();
     useCadUiStore.getState().setRenameElementPromptTargetId(targetId);
     const onConfirmed = vi.fn();
-    render(<RenameElementDialog onConfirmed={onConfirmed} />);
+    renderDialog(onConfirmed);
     fireEvent.submit(screen.getByRole("textbox", { name: "名前" }).closest("form")!);
 
     await waitFor(() => expect(onConfirmed).toHaveBeenCalledWith(targetId));

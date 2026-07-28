@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 import { evaluateElements } from "../geometry/evaluate";
 import { activePrintLayout, DEFAULT_PRINT_LAYOUT } from "../print/printLayout";
@@ -39,8 +39,13 @@ const elements: CadElement[] = [
   group("hidden-print", "印刷しない", false)
 ];
 
-const renderPanel = () => {
+// PrintLayoutPanel mounts a loadLayoutSettings() effect that resolves via a
+// microtask even in the non-Tauri localStorage path. Flushing it here, once,
+// keeps every render call site free of the resulting "not wrapped in act"
+// warning instead of relying on each test's own timing.
+const renderPanel = async () => {
   render(<PrintLayoutPanel evaluation={evaluateElements(elements)} />);
+  await act(async () => {});
 };
 const activeLayout = () => {
   const state = useCadDocumentStore.getState();
@@ -69,8 +74,8 @@ describe("PrintLayoutPanel", () => {
     });
   });
 
-  it("filters printable groups by name", () => {
-    renderPanel();
+  it("filters printable groups by name", async () => {
+    await renderPanel();
 
     fireEvent.change(screen.getByLabelText("印刷グループを検索"), {
       target: { value: "袖" }
@@ -81,8 +86,8 @@ describe("PrintLayoutPanel", () => {
     expect(screen.queryByRole("button", { name: /印刷しない/ })).not.toBeInTheDocument();
   });
 
-  it("adds a placement and selects it for detail editing", () => {
-    renderPanel();
+  it("adds a placement and selects it for detail editing", async () => {
+    await renderPanel();
 
     fireEvent.click(screen.getByRole("button", { name: /前身頃/ }));
 
@@ -94,7 +99,7 @@ describe("PrintLayoutPanel", () => {
     expect(within(detail!).getAllByText("前身頃").length).toBeGreaterThan(0);
   });
 
-  it("switches detail editing when a placement row is selected", () => {
+  it("switches detail editing when a placement row is selected", async () => {
     useCadDocumentStore.setState({
       printLayouts: [{
         ...DEFAULT_PRINT_LAYOUT,
@@ -105,7 +110,7 @@ describe("PrintLayoutPanel", () => {
       }],
       activePrintLayoutId: DEFAULT_PRINT_LAYOUT.id
     });
-    renderPanel();
+    await renderPanel();
 
     const placementSection = screen.getByRole("heading", { name: "配置" }).closest("section");
     expect(placementSection).not.toBeNull();
@@ -123,7 +128,7 @@ describe("PrintLayoutPanel", () => {
     expect(within(detail!).getByDisplayValue("15")).toBeInTheDocument();
   });
 
-  it("duplicates placements without changing their numeric values", () => {
+  it("duplicates placements without changing their numeric values", async () => {
     useCadDocumentStore.setState({
       printLayouts: [{
         ...DEFAULT_PRINT_LAYOUT,
@@ -133,7 +138,7 @@ describe("PrintLayoutPanel", () => {
       }],
       activePrintLayoutId: DEFAULT_PRINT_LAYOUT.id
     });
-    renderPanel();
+    await renderPanel();
 
     const placementSection = screen.getByRole("heading", { name: "配置" }).closest("section");
     expect(placementSection).not.toBeNull();
@@ -146,7 +151,7 @@ describe("PrintLayoutPanel", () => {
     expect(useCadUiStore.getState().selectedPrintPlacementId).toBe("placement-2");
   });
 
-  it("keeps disabled print group placements visible without offering them as add candidates", () => {
+  it("keeps disabled print group placements visible without offering them as add candidates", async () => {
     useCadDocumentStore.setState({
       printLayouts: [{
         ...DEFAULT_PRINT_LAYOUT,
@@ -156,7 +161,7 @@ describe("PrintLayoutPanel", () => {
       }],
       activePrintLayoutId: DEFAULT_PRINT_LAYOUT.id
     });
-    renderPanel();
+    await renderPanel();
 
     const groupSection = screen.getByRole("heading", { name: "印刷グループ" }).closest("section");
     const placementSection = screen.getByRole("heading", { name: "配置" }).closest("section");
@@ -167,19 +172,19 @@ describe("PrintLayoutPanel", () => {
     expect(within(placementSection!).getByText("印刷OFF")).toBeInTheDocument();
   });
 
-  it("points the empty print group list to the left outline toggles", () => {
+  it("points the empty print group list to the left outline toggles", async () => {
     useCadDocumentStore.setState({
       elements: elements.map((element) =>
         element.type === "group" ? { ...element, printEnabled: false } : element
       )
     });
-    renderPanel();
+    await renderPanel();
 
     expect(screen.getByText("左のアウトラインで印刷するグループをONにしてください。")).toBeInTheDocument();
   });
 
-  it("increments number inputs with middle-button horizontal drag", () => {
-    renderPanel();
+  it("increments number inputs with middle-button horizontal drag", async () => {
+    await renderPanel();
     const scaleInput = screen.getByLabelText("拡大率");
 
     fireEvent.pointerDown(scaleInput, { button: 1, pointerId: 1, clientX: 0 });
@@ -189,8 +194,8 @@ describe("PrintLayoutPanel", () => {
     expect(activeLayout().scale).toBe(1.2);
   });
 
-  it("stores print number inputs as expressions using global variables", () => {
-    renderPanel();
+  it("stores print number inputs as expressions using global variables", async () => {
+    await renderPanel();
     const scaleInput = screen.getByLabelText("拡大率");
 
     fireEvent.change(scaleInput, { target: { value: "@倍率" } });
@@ -209,7 +214,7 @@ describe("PrintLayoutPanel", () => {
         numericVariables: [{ id: "print-variable-1", name: "倍率", value: 2 }]
       }]
     });
-    renderPanel();
+    await renderPanel();
     const scaleInput = screen.getByLabelText("拡大率");
 
     fireEvent.change(scaleInput, {
@@ -229,8 +234,8 @@ describe("PrintLayoutPanel", () => {
     });
   });
 
-  it("shows only PDF-specific settings for PDF layouts", () => {
-    renderPanel();
+  it("shows only PDF-specific settings for PDF layouts", async () => {
+    await renderPanel();
 
     expect(screen.getByLabelText("出力形式")).toHaveValue("pdf");
     expect(screen.getByLabelText("用紙")).toBeInTheDocument();
@@ -243,8 +248,8 @@ describe("PrintLayoutPanel", () => {
     expect(screen.queryByRole("button", { name: "SVG" })).not.toBeInTheDocument();
   });
 
-  it("collapses output settings while keeping the summary visible", () => {
-    renderPanel();
+  it("collapses output settings while keeping the summary visible", async () => {
+    await renderPanel();
 
     fireEvent.click(screen.getByRole("button", { name: /出力設定/ }));
 
@@ -253,11 +258,11 @@ describe("PrintLayoutPanel", () => {
     expect(screen.queryByLabelText("出力形式")).not.toBeInTheDocument();
   });
 
-  it("edits the SVG canvas size for the active print layout", () => {
+  it("edits the SVG canvas size for the active print layout", async () => {
     useCadDocumentStore.setState({
       printLayouts: [{ ...DEFAULT_PRINT_LAYOUT, outputKind: "svg" }]
     });
-    renderPanel();
+    await renderPanel();
 
     fireEvent.change(screen.getByLabelText("SVG幅 mm"), {
       target: { value: "500" }
@@ -272,8 +277,8 @@ describe("PrintLayoutPanel", () => {
     });
   });
 
-  it("switches visible settings when the output format changes", () => {
-    renderPanel();
+  it("switches visible settings when the output format changes", async () => {
+    await renderPanel();
 
     fireEvent.change(screen.getByLabelText("出力形式"), {
       target: { value: "svg" }
@@ -290,8 +295,8 @@ describe("PrintLayoutPanel", () => {
     expect(screen.queryByRole("button", { name: "PDF" })).not.toBeInTheDocument();
   });
 
-  it("adds print-local variables and prefers them in print number expressions", () => {
-    renderPanel();
+  it("adds print-local variables and prefers them in print number expressions", async () => {
+    await renderPanel();
     const variableSection = screen.getByRole("heading", { name: "印刷変数" }).closest("section");
     expect(variableSection).not.toBeNull();
 
@@ -321,14 +326,14 @@ describe("PrintLayoutPanel", () => {
     expect(scaleInput).toHaveValue("@倍率");
   });
 
-  it("deletes print-local variables from the print layout", () => {
+  it("deletes print-local variables from the print layout", async () => {
     useCadDocumentStore.setState({
       printLayouts: [{
         ...DEFAULT_PRINT_LAYOUT,
         numericVariables: [{ id: "print-variable-1", name: "倍率", value: 2 }]
       }]
     });
-    renderPanel();
+    await renderPanel();
     const variableSection = screen.getByRole("heading", { name: "印刷変数" }).closest("section");
     expect(variableSection).not.toBeNull();
 
@@ -339,14 +344,14 @@ describe("PrintLayoutPanel", () => {
     expect(within(variableSection!).getByText("印刷変数はありません。")).toBeInTheDocument();
   });
 
-  it("keeps print number inputs blank while editing and restores scale to one on Enter", () => {
+  it("keeps print number inputs blank while editing and restores scale to one on Enter", async () => {
     useCadDocumentStore.setState({
       printLayouts: [{
         ...DEFAULT_PRINT_LAYOUT,
         scale: 2
       }]
     });
-    renderPanel();
+    await renderPanel();
     const scaleInput = screen.getByLabelText("拡大率");
 
     fireEvent.change(scaleInput, { target: { value: "" } });
@@ -400,7 +405,7 @@ describe("PrintLayoutPanel element-parameter completion", () => {
     }
   ];
 
-  const renderWithLine = () => {
+  const renderWithLine = async () => {
     useCadDocumentStore.setState({
       elements: lineElements,
       palette: defaultDocumentPalette(),
@@ -419,14 +424,15 @@ describe("PrintLayoutPanel element-parameter completion", () => {
       selectionAnchorElementId: lineElements[0].id
     });
     render(<PrintLayoutPanel evaluation={evaluateElements(lineElements)} />);
+    await act(async () => {});
   };
 
   beforeEach(() => {
     window.localStorage.clear();
   });
 
-  it("shows 直線AB's referenceable parameters after ElementName. and narrows them by prefix", () => {
-    renderWithLine();
+  it("shows 直線AB's referenceable parameters after ElementName. and narrows them by prefix", async () => {
+    await renderWithLine();
     const scaleInput = screen.getByLabelText("拡大率");
 
     fireEvent.change(scaleInput, { target: { value: "直線AB.", selectionStart: 6, selectionEnd: 6 } });
@@ -441,7 +447,7 @@ describe("PrintLayoutPanel element-parameter completion", () => {
   });
 
   it("replaces only the member token on selection, leaving ElementName. untouched", async () => {
-    renderWithLine();
+    await renderWithLine();
     const scaleInput = screen.getByLabelText("拡大率");
 
     fireEvent.change(scaleInput, { target: { value: "直線AB.le", selectionStart: 9, selectionEnd: 9 } });
@@ -450,8 +456,8 @@ describe("PrintLayoutPanel element-parameter completion", () => {
     await waitFor(() => expect(scaleInput).toHaveValue("直線AB.length"));
   });
 
-  it("does not open element-parameter candidates during IME composition (regression for the pre-existing gap)", () => {
-    renderWithLine();
+  it("does not open element-parameter candidates during IME composition (regression for the pre-existing gap)", async () => {
+    await renderWithLine();
     const scaleInput = screen.getByLabelText("拡大率");
 
     fireEvent.compositionStart(scaleInput);
@@ -463,8 +469,8 @@ describe("PrintLayoutPanel element-parameter completion", () => {
     expect(screen.getByRole("listbox", { name: "変数候補" })).toHaveTextContent("length");
   });
 
-  it("coexists with @variable candidates in the same input without interference", () => {
-    renderWithLine();
+  it("coexists with @variable candidates in the same input without interference", async () => {
+    await renderWithLine();
     const scaleInput = screen.getByLabelText("拡大率");
 
     fireEvent.change(scaleInput, { target: { value: "@", selectionStart: 1, selectionEnd: 1 } });

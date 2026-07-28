@@ -3,7 +3,7 @@ import { fireEvent, render, screen as globalScreen } from "@testing-library/reac
 import { beforeEach, describe, expect, it } from "vitest";
 import { defaultCommandRibbonSettings } from "../commandRibbons/commandRibbonSettings";
 import type { SourceEditorHandle } from "../editor/sourceEditorTypes";
-import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
+import { initialCadDocumentState, useCadDocumentStore, type DocumentMutationResult } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import type { CadElement } from "../types/geometry";
 import { PaletteSettingsDialog } from "./PalettePanel";
@@ -23,7 +23,9 @@ describe("SourceEditorPane", () => {
     const changed = useCadDocumentStore.getState().elements.map((element) =>
       element.name === "A" ? ({ ...element, enabled: false } as CadElement) : element
     );
-    useCadDocumentStore.getState().commitDocumentChange({ elements: changed });
+    act(() => {
+      useCadDocumentStore.getState().commitDocumentChange({ elements: changed });
+    });
 
     expect(ref.current?.getText()).toBe(
       "nui 2\npoint A = coordinate(\n  x: 0\n  y: 0\n  enabled: false\n)\npoint B = coordinate(x: 1 y: 1)"
@@ -42,7 +44,10 @@ describe("SourceEditorPane", () => {
     const changed = useCadDocumentStore.getState().elements.map((element) =>
       element.name === "A" ? ({ ...element, enabled: false } as CadElement) : element
     );
-    const result = useCadDocumentStore.getState().commitDocumentChange({ elements: changed });
+    let result: DocumentMutationResult | undefined;
+    act(() => {
+      result = useCadDocumentStore.getState().commitDocumentChange({ elements: changed });
+    });
     expect(ref.current?.getText()).toBe("nui 2\npoint A = coordinate(x: 0 y: 0)");
     expect(result).toEqual({ status: "rejected", reason: "composition" });
     expect(useCadDocumentStore.getState().previewElements).toBeNull();

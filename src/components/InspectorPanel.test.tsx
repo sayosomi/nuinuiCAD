@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { createRef } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SourceEditorHandle } from "../editor/sourceEditorTypes";
@@ -157,10 +157,12 @@ describe("InspectorPanel mouse-only actions", () => {
       });
       expect(handle.jumpToParameterValue).not.toHaveBeenCalled();
 
-      useCadUiStore.setState({
-        activePointPickTarget: null,
-        activeLinePickTarget: null,
-        activeNumericReferencePickTarget: null,
+      act(() => {
+        useCadUiStore.setState({
+          activePointPickTarget: null,
+          activeLinePickTarget: null,
+          activeNumericReferencePickTarget: null,
+        });
       });
       unmount();
     }

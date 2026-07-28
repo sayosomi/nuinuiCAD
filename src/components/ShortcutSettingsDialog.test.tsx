@@ -1,5 +1,5 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { defaultDocumentPalette } from "../palette/palette";
 import { DEFAULT_CANVAS_VIEWPORT, DEFAULT_PRINT_PREVIEW_WINDOW, useCadStore } from "../state/useCadStore";
 import { ShortcutSettingsDialog } from "./ShortcutSettingsDialog";
@@ -25,6 +25,23 @@ const resetStore = () => {
   });
 };
 
+// ShortcutSettingsDialog defers its initial search-field focus to
+// requestAnimationFrame (which itself schedules a second, nested frame via
+// selectTextInputValue). jsdom's rAF polyfill is backed by a real macrotask
+// timer, so awaiting it introduces real-wall-clock scheduling: across many
+// quick mount/unmount cycles in one test file, pending frames from one
+// test's dialog can end up firing during a later test's window instead of
+// its own, causing the state update to land outside any act() there. Run
+// the callback synchronously instead, so both frames settle within the
+// initial render's own act() and no cross-test timing race is possible.
+const renderDialog = async () => {
+  vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+    callback(0);
+    return 0;
+  });
+  render(<ShortcutSettingsDialog />);
+};
+
 const rowForCommand = (label: string) => {
   const labelElement = screen.getByText(label);
   const row = labelElement.closest(".shortcut-settings-row");
@@ -39,15 +56,15 @@ beforeEach(() => {
 
 describe("ShortcutSettingsDialog", () => {
   it("focuses the command search field when opened", async () => {
-    render(<ShortcutSettingsDialog />);
+    await renderDialog();
 
     await waitFor(() =>
       expect(screen.getByLabelText("ショートカット設定を検索")).toHaveFocus()
     );
   });
 
-  it("filters commands by recorded shortcut key", () => {
-    render(<ShortcutSettingsDialog />);
+  it("filters commands by recorded shortcut key", async () => {
+    await renderDialog();
 
     fireEvent.click(screen.getByRole("button", { name: "キーで検索" }));
     fireEvent.keyDown(window, { key: "s", metaKey: true });
@@ -57,12 +74,19 @@ describe("ShortcutSettingsDialog", () => {
     expect(screen.getByLabelText("検索中のショートカットキー")).toHaveTextContent("Mod+s");
   });
 
-  it("filters commands by shortcuts added in the current draft", () => {
-    render(<ShortcutSettingsDialog />);
+  it("filters commands by shortcuts added in the current draft", async () => {
+    await renderDialog();
 
     const pointRow = rowForCommand("free point を追加");
     fireEvent.click(within(pointRow).getByText("キー追加"));
     fireEvent.keyDown(window, { key: "p" });
+    // persistSettings kicks off a multi-step (catch/then/then/catch/finally)
+    // save promise chain here. A macrotask tick guarantees every microtask
+    // in that chain has drained before we continue, so it can't settle
+    // later, outside any act(), during a subsequent test.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
 
     fireEvent.click(screen.getByRole("button", { name: "キーで検索" }));
     fireEvent.keyDown(window, { key: "p" });
@@ -71,8 +95,8 @@ describe("ShortcutSettingsDialog", () => {
     expect(screen.queryByText("line を追加")).not.toBeInTheDocument();
   });
 
-  it("cancels shortcut key search recording with Escape", () => {
-    render(<ShortcutSettingsDialog />);
+  it("cancels shortcut key search recording with Escape", async () => {
+    await renderDialog();
 
     fireEvent.click(screen.getByRole("button", { name: "キーで検索" }));
     fireEvent.keyDown(window, { key: "Escape" });
@@ -82,8 +106,8 @@ describe("ShortcutSettingsDialog", () => {
     expect(screen.getByText("free point を追加")).toBeInTheDocument();
   });
 
-  it("combines command text and shortcut key filters", () => {
-    render(<ShortcutSettingsDialog />);
+  it("combines command text and shortcut key filters", async () => {
+    await renderDialog();
 
     fireEvent.change(screen.getByLabelText("ショートカット設定を検索"), {
       target: { value: "名前" }
@@ -96,7 +120,7 @@ describe("ShortcutSettingsDialog", () => {
   });
 
   it("records and auto-saves a shortcut for a command without a default", async () => {
-    render(<ShortcutSettingsDialog />);
+    await renderDialog();
 
     const row = rowForCommand("free point を追加");
     fireEvent.click(within(row).getByText("キー追加"));
@@ -116,7 +140,7 @@ describe("ShortcutSettingsDialog", () => {
   });
 
   it("keeps auto-saved shortcuts after closing and reopening the dialog", async () => {
-    render(<ShortcutSettingsDialog />);
+    await renderDialog();
 
     const row = rowForCommand("グループを追加");
     fireEvent.click(within(row).getByText("キー追加"));
@@ -132,7 +156,7 @@ describe("ShortcutSettingsDialog", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: "閉じる" }));
-    useCadStore.setState({ showShortcutSettings: true });
+    act(() => { useCadStore.setState({ showShortcutSettings: true }); });
 
     await waitFor(() =>
       expect(within(rowForCommand("グループを追加")).getByText("Mod+Alt+g")).toBeInTheDocument()
@@ -140,7 +164,7 @@ describe("ShortcutSettingsDialog", () => {
   });
 
   it("does not auto-save conflicting shortcuts", async () => {
-    render(<ShortcutSettingsDialog />);
+    await renderDialog();
 
     const pointRow = rowForCommand("free point を追加");
     fireEvent.click(within(pointRow).getByText("キー追加"));
