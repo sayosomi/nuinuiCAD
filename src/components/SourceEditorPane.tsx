@@ -72,6 +72,7 @@ export const SourceEditorPane = forwardRef<SourceEditorHandle, SourceEditorPaneP
     jumpToElement: (elementId) => controllerRef.current?.jumpToElement(elementId),
     jumpToElementEnd: (elementId) => controllerRef.current?.jumpToElementEnd(elementId) ?? false,
     jumpToParameterValue: (elementId, parameterKey) => controllerRef.current?.jumpToParameterValue(elementId, parameterKey) ?? false,
+    jumpToBindingDeclaration: (bindingId) => controllerRef.current?.jumpToBindingDeclaration(bindingId) ?? false,
     applyPickCandidate: (elementId) => controllerRef.current?.applyPickCandidate(elementId) ?? false,
     pickCandidateElementIds: () => controllerRef.current?.pickCandidateElementIds() ?? [],
     openTextSearch: () => controllerRef.current?.openTextSearch(),

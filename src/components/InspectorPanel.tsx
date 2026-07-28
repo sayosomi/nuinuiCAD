@@ -12,6 +12,7 @@ import {
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
 import { findParameterDefinition } from "../parameters/parameterDefinitions";
+import type { BindingId } from "../scalars/bindingCatalog";
 import type { SourceEditorHandle } from "../editor/sourceEditorTypes";
 import type { CadElement, EvaluationResult } from "../types/geometry";
 import { elementTypeLabels } from "../types/geometry";
@@ -24,6 +25,7 @@ import {
   type InspectorUnresolvedDependencyRow,
 } from "./inspectorPresentation";
 import { parameterPickCommandId } from "../commands/parameterPickCommand";
+import { typedDeclarationInspectorPresentation } from "./typedDeclarationInspectorPresentation";
 
 const statusLabels = (status: ElementPresentationStatus) =>
   [
@@ -118,6 +120,15 @@ export const InspectorPanel = ({
         : null,
     [dependencySummary, element, evaluation],
   );
+  const selectionSubject = useCadUiStore((state) => state.selectionSubject);
+  const selectedBindingId = selectionSubject.kind === "binding" ? selectionSubject.bindingId : null;
+  const typedDeclarationPresentation = useMemo(
+    () =>
+      selectedBindingId && doc.bindingAnalysis
+        ? typedDeclarationInspectorPresentation(doc.bindingAnalysis, doc.statements, selectedBindingId)
+        : null,
+    [doc.bindingAnalysis, doc.statements, selectedBindingId],
+  );
   const parseIssues = useMemo(() => {
     if (!element || isLastGood) return [];
     const line = doc.statementMap.byElementId.get(element.id)?.line;
@@ -129,6 +140,8 @@ export const InspectorPanel = ({
         evaluation.computedVariables.get(element.id),
       )
     : [];
+  const jumpToTypedDeclaration = (bindingId: BindingId): boolean =>
+    sourceEditorRef.current?.jumpToBindingDeclaration(bindingId) ?? false;
   const jumpToParameter = (row: InspectorParameterRow) => {
     if (!element) return false;
     return (
@@ -227,6 +240,10 @@ export const InspectorPanel = ({
             <p className="section-subtitle">
               {element.name} ・ {elementTypeLabels[element.type]}
             </p>
+          ) : typedDeclarationPresentation ? (
+            <p className="section-subtitle">
+              {typedDeclarationPresentation.name} ・ {typedDeclarationPresentation.mutabilityLabel}
+            </p>
           ) : null}
         </div>
         <div className="section-header-actions">
@@ -247,10 +264,46 @@ export const InspectorPanel = ({
       </div>
       {!isInspectorExpanded ? (
         <p className="empty-state">折り畳み中です。</p>
-      ) : !element ? (
+      ) : !element && !typedDeclarationPresentation ? (
         <p className="empty-state">要素を選択してください。</p>
       ) : (
         <div className="inspector-content">
+          {typedDeclarationPresentation ? (
+            <div className="dependency-group">
+              <h3 className="shortcut-group-title">宣言</h3>
+              {typedDeclarationPresentation.invalidMessage ? (
+                <div className="inspector-status-badges">
+                  <span className="inspector-status invalid">無効</span>
+                </div>
+              ) : null}
+              <div className="dependency-list">
+                <div
+                  className="inspector-row"
+                  onClick={() => jumpToTypedDeclaration(typedDeclarationPresentation.bindingId)}
+                >
+                  <span className="inspector-row-main">
+                    <span>{typedDeclarationPresentation.name}</span>
+                    <small>{typedDeclarationPresentation.mutabilityLabel}</small>
+                  </span>
+                </div>
+                {typedDeclarationPresentation.rows.map((row) => (
+                  <div key={row.key} className="inspector-row">
+                    <span className="inspector-row-main">
+                      <span>{row.label}</span>
+                      <small>{row.value}</small>
+                    </span>
+                  </div>
+                ))}
+              </div>
+              {typedDeclarationPresentation.invalidMessage ? (
+                <p className="inspector-diagnostic error">
+                  {typedDeclarationPresentation.invalidMessage}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+          {element ? (
+          <>
           {status ? (
             <div className="inspector-status-badges">
               {statusLabels(status).map((label) => (
@@ -361,6 +414,8 @@ export const InspectorPanel = ({
               ))}
             </div>
           </div>
+          </>
+          ) : null}
         </div>
       )}
     </section>
