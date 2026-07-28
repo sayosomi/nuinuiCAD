@@ -106,7 +106,9 @@ import { resolveParameterValueSpan } from "../dsl/dslParameterSpans";
 import { propertyBindingOccurrenceKey } from "../scalars/propertyBindingCompiler";
 import { logicalOffsetForPhysicalPosition, logicalTextForProjection, physicalSpanForStatementRange, singlePhysicalSegment, statementProjectionAt } from "../dsl/dslStatementProjection";
 import { resolveDslValueStep, type DslValueStepDirection } from "../dsl/dslValueStep";
+import { resolveTypedValueStep } from "../dsl/dslTypedValueStep";
 import { splitDslComment, splitDslTerms } from "../dsl/dslTokens";
+import type { ScalarType } from "../scalars/types";
 import {
   sameValueStepGesture,
   valueStepDirectionForCommand,
@@ -176,6 +178,19 @@ export class SourceEditorController implements SourceEditorHandle {
   private propertyBindingRanges: PropertyBindingRangeIndex = new Map();
   private scopeBodyRanges: ScopeBodyRangeIndex = [];
   private atStopRange: AtStopRange | null = null;
+  /**
+   * True only while `doc.bindingAnalysis`/`doc.setStatements` are proven to
+   * describe the exact live CM buffer (i.e. a compile just landed and
+   * refreshStatementRanges rebuilt from it with no intervening edit). Any
+   * doc-changing transaction immediately clears it; only refreshStatementRanges's
+   * success branch sets it back. This is deliberately coarser than the
+   * per-statement span dirty-tracking above (mapOwningStatementRange) - a `set`
+   * statement's own span can remain untouched and still position-valid while an
+   * earlier, unrelated edit changes what its target *should* resolve to, and
+   * that staleness can only be detected at the whole-document compile level, not
+   * per statement. Typed value stepping must hold both: a live, position-valid
+   * span AND this flag, before trusting doc.bindingAnalysis/doc.setStatements. */
+  private typedSemanticMetadataFresh = false;
   private staleDiagnosticBaseline: PositionedDiagnostic[] = [];
   /** At most two newest compiled-document revisions are retained; older results can never become current. */
   private pendingEvaluations = new Map<number, { evaluation: EvaluationResult; evaluationRequestRevision: number }>();
@@ -564,7 +579,7 @@ export class SourceEditorController implements SourceEditorHandle {
     const element = elementId
       ? this.store.getState().elements.find((candidate) => candidate.id === elementId)
       : undefined;
-    if (!range || !element) return false;
+    if (!range || !element) return this.stepTypedSourceValue(direction, main);
     const line = this.view.state.doc.lineAt(main.from);
     // Gate on whether the *statement* is a single physical line, not whether the
     // (usually collapsed) selection happens to sit within one line — a collapsed
@@ -609,8 +624,27 @@ export class SourceEditorController implements SourceEditorHandle {
       return false;
     }
     if (!replaceRange || !selectionRange) return false;
+    return this.commitStepChange(replaceRange, selectionRange, change.insert, direction);
+  }
+
+  /**
+   * Dispatches one value-step edit and decides preview-vs-commit, shared by
+   * every value-step source (legacy element attribute, typed declaration
+   * initializer, `set` RHS). This is the sole owner of the editorTransaction
+   * commit/undo behavior for Alt+←/→: keyboard-repeat gesture coalescing
+   * (`pendingKeyboardValueStep`/`activeValueStepGesture`) and the
+   * one-commitText-per-burst Undo grouping apply identically regardless of
+   * which caller resolved the edit, so a new steppable kind never needs its
+   * own transaction/undo path - only its own edit-resolution branch above.
+   */
+  private commitStepChange(
+    replaceRange: { from: number; to: number },
+    selectionRange: { from: number; to: number },
+    insert: string,
+    direction: DslValueStepDirection
+  ): boolean {
     this.view.dispatch({
-      changes: { from: replaceRange.from, to: replaceRange.to, insert: change.insert },
+      changes: { from: replaceRange.from, to: replaceRange.to, insert },
       selection: EditorSelection.single(selectionRange.from, selectionRange.to),
       annotations: Transaction.userEvent.of("input.stepValue")
     });
@@ -624,6 +658,70 @@ export class SourceEditorController implements SourceEditorHandle {
       return true;
     }
     return this.flush("command") !== "blocked-composition";
+  }
+
+  /**
+   * Typed-span counterpart to the legacy branch above, tried only when the
+   * cursor is not inside a CadElement statement (typedDeclaration/set
+   * statements never have an elementId - see dslParser.ts's nonElementKinds).
+   * Requires doc.bindingAnalysis/doc.setStatements to be proven current for
+   * the exact live buffer (typedSemanticMetadataFresh) before reading either
+   * one - a `set` statement's own RHS span can remain untouched and
+   * position-valid while an earlier, unrelated edit (not yet recompiled)
+   * changes what its target should resolve to, and that staleness cannot be
+   * detected from the span alone. No source re-parse or re-resolution here:
+   * every lookup is an existing O(1) map already rebuilt on compile.
+   */
+  private stepTypedSourceValue(direction: DslValueStepDirection, main: { from: number; to: number }): boolean {
+    if (!this.typedSemanticMetadataFresh) return false;
+    const doc = this.store.getState().doc;
+    const selection = { start: main.from, end: main.to };
+
+    const bindingId = typedDeclarationBindingIdAtCursor(this.typedDeclarationRanges, main.from);
+    if (bindingId) {
+      const span = this.typedDeclarationFieldRanges.get(bindingId)?.initializer;
+      if (span && main.from >= span.from && main.from <= span.to) {
+        const declaredType = doc.bindingAnalysis?.catalog.bindingsById.get(bindingId)?.declaredType ?? null;
+        return this.stepTypedSpan(span, declaredType, selection, direction);
+      }
+      return false;
+    }
+
+    const statementId = setStatementIdAtCursor(this.setStatementRanges, main.from);
+    if (statementId) {
+      const fields = this.setStatementFieldRanges.get(statementId);
+      const span = fields?.expression;
+      if (fields && span && main.from >= span.from && main.from <= span.to) {
+        const targetBindingId = doc.setStatements?.get(fields.statementIndex)?.targetBindingId;
+        const declaredType = targetBindingId
+          ? doc.bindingAnalysis?.catalog.bindingsById.get(targetBindingId)?.declaredType ?? null
+          : null;
+        return this.stepTypedSpan(span, declaredType, selection, direction);
+      }
+    }
+    return false;
+  }
+
+  /** Resolves and commits one typed boolean/choice literal step for a span already
+   * proven position-valid and semantically fresh by the caller. */
+  private stepTypedSpan(
+    span: { from: number; to: number },
+    declaredType: ScalarType | null,
+    selection: { start: number; end: number },
+    direction: DslValueStepDirection
+  ): boolean {
+    const value = this.view.state.doc.sliceString(span.from, span.to);
+    const change = resolveTypedValueStep(value, declaredType, span, selection, direction);
+    if (!change) {
+      if (this.activeValueStepGesture) this.flush("command");
+      return false;
+    }
+    return this.commitStepChange(
+      { from: change.from, to: change.to },
+      { from: change.selection.start, to: change.selection.end },
+      change.insert,
+      direction
+    );
   }
 
   /**
@@ -1147,6 +1245,10 @@ export class SourceEditorController implements SourceEditorHandle {
       transaction.annotation(modelPatchOrigin) || transaction.annotation(resetOrigin)
     );
     if (update.docChanged) {
+      // Any doc change anywhere invalidates typed set/declaration semantic
+      // metadata currency immediately; only a fresh compile (refreshStatementRanges)
+      // proves doc.bindingAnalysis/doc.setStatements describe this exact buffer again.
+      this.typedSemanticMetadataFresh = false;
       this.statementRanges = mapStatementRangeIndex(this.statementRanges, update.changes);
       this.printLayoutRanges = mapPrintLayoutRangeIndex(this.printLayoutRanges, update.changes);
       this.typedDeclarationRanges = mapTypedDeclarationRangeIndex(this.typedDeclarationRanges, update.changes);
@@ -1393,7 +1495,12 @@ export class SourceEditorController implements SourceEditorHandle {
 
   private refreshStatementRanges() {
     const state = this.store.getState();
-    if (state.docText !== state.sourceText) return;
+    if (state.docText !== state.sourceText) {
+      // sourceText currently has fatal diagnostics; doc is last-good from before
+      // it, so its bindingAnalysis/setStatements no longer describe sourceText.
+      this.typedSemanticMetadataFresh = false;
+      return;
+    }
     if (this.view.state.doc.toString() !== normalizeSourceTextForEditor(state.sourceText)) {
       // Never project a stale committed statement/span into another CM state.
       this.statementRanges = new Map();
@@ -1406,6 +1513,7 @@ export class SourceEditorController implements SourceEditorHandle {
       this.propertyBindingRanges = new Map();
       this.scopeBodyRanges = [];
       this.atStopRange = null;
+      this.typedSemanticMetadataFresh = false;
       this.refreshFoldGutter();
       return;
     }
@@ -1422,6 +1530,9 @@ export class SourceEditorController implements SourceEditorHandle {
       : [];
     this.atStopRange = createAtStopRange(this.view.state.doc, state.doc.statementMap);
     this.staleDiagnosticBaseline = toStaleDiagnostics(this.view.state.doc, state.diagnostics);
+    // doc.bindingAnalysis/doc.setStatements were just rebuilt from exactly this
+    // live buffer's text - proven current until the next doc-changing transaction.
+    this.typedSemanticMetadataFresh = true;
     this.refreshFoldGutter();
   }
 

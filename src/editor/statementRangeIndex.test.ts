@@ -514,6 +514,17 @@ describe("setStatementRangeIndex / setStatementFieldRangeIndex (Task 43)", () =>
     expect(doc.sliceString(spans.expression!.from, spans.expression!.to)).toBe("@total + 1");
   });
 
+  it("carries the statement's own statementIndex, bridging to CompiledDslDocument.setStatements (Task 44)", () => {
+    const result = compiledWithStableIds(source);
+    const doc = Text.of(source.split("\n"));
+    const fields = createSetStatementFieldRangeIndex(doc, result.statementMap!, result.statements);
+    const spans = fields.get("stable-2")!;
+    const expectedStatementIndex = result.statements.findIndex((statement) => statement.kind === "set");
+
+    expect(expectedStatementIndex).toBeGreaterThanOrEqual(0);
+    expect(spans.statementIndex).toBe(expectedStatementIndex);
+  });
+
   it("resolves target/expression from the raw parsed statement alone, independent of setStatements/bindingAnalysis", () => {
     // createSetStatementFieldRangeIndex takes only (doc, statementMap, statements) - no
     // bindingAnalysis or setStatements parameter exists to pass, so a successfully
@@ -566,6 +577,8 @@ describe("setStatementRangeIndex / setStatementFieldRangeIndex (Task 43)", () =>
     expect(after).toBeDefined();
     expect(after.target).toEqual({ from: before.target!.from + shift, to: before.target!.to + shift });
     expect(after.expression).toEqual({ from: before.expression!.from + shift, to: before.expression!.to + shift });
+    // statementIndex never shifts under edits - only physical offsets do.
+    expect(after.statementIndex).toBe(before.statementIndex);
   });
 
   it("returns empty indices for a document with no set statements", () => {
