@@ -10,6 +10,7 @@ import type { CommandLineSession } from "../commands/commandLineSession";
 import type { ActiveTemplateInsertion } from "../templates/templateInsertionMode";
 import type { CadElement, ElementId, PointAnchor } from "../types/geometry";
 import type { FoldTarget, GroupFoldState } from "../model/groups";
+import type { BindingId } from "../scalars/bindingCatalog";
 
 export type MeasurementInsertMode = "distance" | "angle" | "lineDistance";
 export type MeasurementPointSlot = "point1" | "point2";
@@ -136,6 +137,18 @@ export type CadElementSelection = {
   selectionAnchorElementId: ElementId | null;
 };
 
+/**
+ * Single source of truth for which kind of thing is currently selected.
+ * Element selection (selectedElementId/selectedElementIds/selectionAnchorElementId)
+ * and typed binding selection are mutually exclusive: every setter that
+ * changes one side clears the other's fields in the same `set()`, so no
+ * consumer (Canvas, Inspector, command layer) can observe both as active at
+ * once. See setSelectedBindingId / setSelectedElementId et al. below.
+ */
+export type CadSelectionSubject =
+  | { kind: "elements" }
+  | { kind: "binding"; bindingId: BindingId };
+
 const normalizedSelection = (
   elements: CadElement[],
   selection: CadElementSelection
@@ -162,6 +175,8 @@ const normalizedSelection = (
 };
 
 export type CadUiState = CadElementSelection & {
+  /** Which kind of thing selectedElementId/selectedBindingId-style state currently refers to. */
+  selectionSubject: CadSelectionSubject;
   /** Primary DSL editor cursor; intentionally independent from Canvas selection. */
   sourceCursorLine: number | null;
   groupFoldById: ReadonlyMap<ElementId, GroupFoldState>;
@@ -280,6 +295,8 @@ export type CadUiState = CadElementSelection & {
   setSelectedElementId: (id: ElementId | null) => void;
   setSelectedElementIds: (ids: ElementId[], primaryId?: ElementId | null) => void;
   setSelectedElementRange: (anchorId: ElementId, targetId: ElementId) => void;
+  /** Selects a typed const/let binding as the current subject, clearing any active element selection. */
+  setSelectedBindingId: (bindingId: BindingId) => void;
   setSourceCursorLine: (sourceCursorLine: number | null) => void;
   applySelection: (elements: CadElement[], selection: CadElementSelection) => void;
   reconcileSelectionWithElements: (elements: CadElement[]) => void;
@@ -345,6 +362,7 @@ export const initialCadUiState = (): Omit<
   | "setSelectedElementId"
   | "setSelectedElementIds"
   | "setSelectedElementRange"
+  | "setSelectedBindingId"
   | "setSourceCursorLine"
   | "applySelection"
   | "reconcileSelectionWithElements"
@@ -352,6 +370,7 @@ export const initialCadUiState = (): Omit<
   selectedElementId: sampleElements[0]?.id ?? null,
   selectedElementIds: sampleElements[0] ? [sampleElements[0].id] : [],
   selectionAnchorElementId: sampleElements[0]?.id ?? null,
+  selectionSubject: { kind: "elements" },
   sourceCursorLine: null,
   groupFoldById: new Map(),
   isInspectorExpanded: true,
@@ -653,24 +672,40 @@ export const useCadUiStore = create<CadUiState>((set, get) => ({
       );
       return groupFoldById.size === state.groupFoldById.size ? {} : { groupFoldById };
     }),
-  applySelection: (elements, selection) => set(() => normalizedSelection(elements, selection)),
+  applySelection: (elements, selection) =>
+    set(() => ({ ...normalizedSelection(elements, selection), selectionSubject: { kind: "elements" } })),
   reconcileSelectionWithElements: (elements) =>
-    set((state) => normalizedSelection(elements, {
-      selectedElementId: state.selectedElementId,
-      selectedElementIds: state.selectedElementIds,
-      selectionAnchorElementId: state.selectionAnchorElementId
-    })),
+    set((state) =>
+      // A typed binding is the active subject: element selection was deliberately
+      // cleared (setSelectedBindingId) and must stay cleared. normalizedSelection's
+      // own "default to elements[0]" fallback would otherwise silently repopulate
+      // selectedElementId on the very next document recompile (every keystroke),
+      // undoing that clear.
+      state.selectionSubject.kind === "binding"
+        ? {}
+        : normalizedSelection(elements, {
+            selectedElementId: state.selectedElementId,
+            selectedElementIds: state.selectedElementIds,
+            selectionAnchorElementId: state.selectionAnchorElementId
+          })
+    ),
   setSelectedElementId: (selectedElementId) =>
-    set(() => normalizedSelection(currentDocumentElements(), {
-      selectedElementId,
-      selectedElementIds: selectedElementId ? [selectedElementId] : [],
-      selectionAnchorElementId: selectedElementId
+    set(() => ({
+      ...normalizedSelection(currentDocumentElements(), {
+        selectedElementId,
+        selectedElementIds: selectedElementId ? [selectedElementId] : [],
+        selectionAnchorElementId: selectedElementId
+      }),
+      selectionSubject: { kind: "elements" }
     })),
   setSelectedElementIds: (selectedElementIds, primaryId) =>
-    set(() => normalizedSelection(currentDocumentElements(), {
-      selectedElementId: primaryId ?? selectedElementIds[0] ?? null,
-      selectedElementIds,
-      selectionAnchorElementId: primaryId ?? selectedElementIds[0] ?? null
+    set(() => ({
+      ...normalizedSelection(currentDocumentElements(), {
+        selectedElementId: primaryId ?? selectedElementIds[0] ?? null,
+        selectedElementIds,
+        selectionAnchorElementId: primaryId ?? selectedElementIds[0] ?? null
+      }),
+      selectionSubject: { kind: "elements" }
     })),
   setSelectedElementRange: (anchorId, targetId) =>
     set(() => {
@@ -680,11 +715,21 @@ export const useCadUiStore = create<CadUiState>((set, get) => ({
       if (anchorIndex < 0 || targetIndex < 0) return {};
       const start = Math.min(anchorIndex, targetIndex);
       const end = Math.max(anchorIndex, targetIndex);
-      return normalizedSelection(elements, {
-        selectedElementId: targetId,
-        selectedElementIds: elements.slice(start, end + 1).map((element) => element.id),
-        selectionAnchorElementId: anchorId
-      });
+      return {
+        ...normalizedSelection(elements, {
+          selectedElementId: targetId,
+          selectedElementIds: elements.slice(start, end + 1).map((element) => element.id),
+          selectionAnchorElementId: anchorId
+        }),
+        selectionSubject: { kind: "elements" }
+      };
+    }),
+  setSelectedBindingId: (bindingId) =>
+    set({
+      selectionSubject: { kind: "binding", bindingId },
+      selectedElementId: null,
+      selectedElementIds: [],
+      selectionAnchorElementId: null
     }),
   setSourceCursorLine: (sourceCursorLine) => {
     if (sourceEditSession.isComposing()) return;

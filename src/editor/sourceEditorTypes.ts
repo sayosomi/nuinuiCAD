@@ -1,4 +1,5 @@
 import type { LineSplice } from "../document/textPatch";
+import type { BindingId } from "../scalars/bindingCatalog";
 import type { ElementId, EvaluationResult } from "../types/geometry";
 
 /** Evaluation identity is deliberately separate from the source notification revision.
@@ -48,6 +49,10 @@ export type SourceEditorHandle = {
   jumpToElementEnd: (elementId: ElementId) => boolean;
   /** Selects a parameter's current DSL value and focuses the editor. Returns false on fallback. */
   jumpToParameterValue: (elementId: ElementId, parameterKey: string) => boolean;
+  /** Moves the primary cursor to a typed binding's declaration statement and selects it as
+   * the current subject (clearing any active element selection). False during IME
+   * composition or if the binding's declaration no longer resolves. */
+  jumpToBindingDeclaration: (bindingId: BindingId) => boolean;
   /** Re-resolves a search result after any required flush before applying it as a pick. */
   applyPickCandidate: (elementId: ElementId) => boolean;
   pickCandidateElementIds: () => readonly ElementId[];

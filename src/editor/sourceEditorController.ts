@@ -31,6 +31,7 @@ import { isConditionalGroupElement, isFoldTargetExpanded, isStatementExpanded } 
 import { getParameterDefinitions } from "../parameters/parameterDefinitions";
 import { parameterPickCommandId } from "../commands/parameterPickCommand";
 import { pickCandidates } from "../model/pickCandidates";
+import type { BindingId } from "../scalars/bindingCatalog";
 import type { ElementId, EvaluationResult } from "../types/geometry";
 import { useCadDocumentStore, type CadDocumentState } from "../state/cadDocumentStore";
 import { useCadUiStore, type CadUiState } from "../state/cadUiStore";
@@ -68,6 +69,7 @@ import {
   mapScopeBodyRangeIndex,
   mapStatementRangeIndex,
   mapTypedDeclarationRangeIndex,
+  typedDeclarationBindingIdAtCursor,
   type AtStopRange,
   type PrintLayoutRangeIndex,
   type ScopeBodyRangeIndex,
@@ -388,6 +390,20 @@ export class SourceEditorController implements SourceEditorHandle {
       annotations: [canvasCursorOrigin.of("canvas-cursor"), Transaction.addToHistory.of(false)]
     });
     this.uiStore.getState().setSelectedElementId(elementId);
+  };
+
+  jumpToBindingDeclaration = (bindingId: BindingId): boolean => {
+    if (this.protocol.composing) return false;
+    const range = this.typedDeclarationRanges.get(bindingId);
+    if (!range) return false;
+    this.view.dispatch({
+      selection: EditorSelection.cursor(range.from),
+      scrollIntoView: true,
+      annotations: [canvasCursorOrigin.of("canvas-cursor"), Transaction.addToHistory.of(false)]
+    });
+    this.uiStore.getState().setSelectedBindingId(bindingId);
+    this.view.focus();
+    return true;
   };
 
   jumpToElementEnd = (elementId: ElementId) => {
@@ -1050,13 +1066,23 @@ export class SourceEditorController implements SourceEditorHandle {
       this.publishCursorLine();
       const cursorWasProjected = update.transactions.some((transaction) => transaction.annotation(canvasCursorOrigin));
       if (!isExternal && !cursorWasProjected && this.view.state.selection.ranges.length === 1) {
-        const elementId = elementIdAtCursor(this.statementRanges, this.view.state.selection.main.head);
+        const head = this.view.state.selection.main.head;
+        const elementId = elementIdAtCursor(this.statementRanges, head);
         if (elementId && this.uiStore.getState().selectedElementId !== elementId) {
           this.publishingCanvasSelection = true;
           try {
             this.uiStore.getState().setSelectedElementId(elementId);
           } finally {
             this.publishingCanvasSelection = false;
+          }
+        }
+        // A cursor position can never be inside both an element statement and a
+        // typed declaration statement, so this never races with the branch above.
+        const bindingId = typedDeclarationBindingIdAtCursor(this.typedDeclarationRanges, head);
+        if (bindingId) {
+          const subject = this.uiStore.getState().selectionSubject;
+          if (subject.kind !== "binding" || subject.bindingId !== bindingId) {
+            this.uiStore.getState().setSelectedBindingId(bindingId);
           }
         }
       }

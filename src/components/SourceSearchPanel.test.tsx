@@ -11,6 +11,7 @@ const makeHandle = (): SourceEditorHandle => ({
   setEvaluation: vi.fn(),
   jumpToElement: vi.fn(),
   jumpToElementEnd: vi.fn(),
+  jumpToBindingDeclaration: vi.fn(() => true),
   jumpToParameterValue: vi.fn(() => false),
   applyPickCandidate: vi.fn(() => true),
   pickCandidateElementIds: vi.fn(() => []),

@@ -206,3 +206,85 @@ describe("cadUiStore group fold state", () => {
     expect(useCadUiStore.getState().activePickCursor).toBeNull();
   });
 });
+
+describe("cadUiStore element/binding selection mutual exclusion", () => {
+  beforeEach(() => {
+    useCadUiStore.setState(initialCadUiState());
+    useCadDocumentStore.setState(initialCadDocumentState());
+  });
+
+  it("clears the element selection when a typed binding is selected", () => {
+    const element = useCadDocumentStore.getState().elements[0];
+    useCadUiStore.getState().setSelectedElementId(element.id);
+    expect(useCadUiStore.getState().selectionSubject).toEqual({ kind: "elements" });
+
+    useCadUiStore.getState().setSelectedBindingId("binding:x");
+
+    expect(useCadUiStore.getState().selectionSubject).toEqual({ kind: "binding", bindingId: "binding:x" });
+    expect(useCadUiStore.getState().selectedElementId).toBeNull();
+    expect(useCadUiStore.getState().selectedElementIds).toEqual([]);
+    expect(useCadUiStore.getState().selectionAnchorElementId).toBeNull();
+  });
+
+  it("clears the binding selection when an element is selected via setSelectedElementId", () => {
+    useCadUiStore.getState().setSelectedBindingId("binding:x");
+    const element = useCadDocumentStore.getState().elements[0];
+
+    useCadUiStore.getState().setSelectedElementId(element.id);
+
+    expect(useCadUiStore.getState().selectionSubject).toEqual({ kind: "elements" });
+    expect(useCadUiStore.getState().selectedElementId).toBe(element.id);
+  });
+
+  it("clears the binding selection when elements are selected via setSelectedElementIds", () => {
+    useCadUiStore.getState().setSelectedBindingId("binding:x");
+    const elements = useCadDocumentStore.getState().elements;
+
+    useCadUiStore.getState().setSelectedElementIds([elements[0].id, elements[1].id]);
+
+    expect(useCadUiStore.getState().selectionSubject).toEqual({ kind: "elements" });
+  });
+
+  it("clears the binding selection when a range is selected via setSelectedElementRange", () => {
+    useCadUiStore.getState().setSelectedBindingId("binding:x");
+    const elements = useCadDocumentStore.getState().elements;
+
+    useCadUiStore.getState().setSelectedElementRange(elements[0].id, elements[1].id);
+
+    expect(useCadUiStore.getState().selectionSubject).toEqual({ kind: "elements" });
+  });
+
+  it("clears the binding selection via applySelection", () => {
+    useCadUiStore.getState().setSelectedBindingId("binding:x");
+    const elements = useCadDocumentStore.getState().elements;
+
+    useCadUiStore.getState().applySelection(elements, {
+      selectedElementId: elements[0].id,
+      selectedElementIds: [elements[0].id],
+      selectionAnchorElementId: elements[0].id
+    });
+
+    expect(useCadUiStore.getState().selectionSubject).toEqual({ kind: "elements" });
+  });
+
+  it("does not let reconcileSelectionWithElements repopulate a default element while a binding is selected", () => {
+    useCadUiStore.getState().setSelectedBindingId("binding:x");
+    const elements = useCadDocumentStore.getState().elements;
+
+    useCadUiStore.getState().reconcileSelectionWithElements(elements);
+
+    expect(useCadUiStore.getState().selectionSubject).toEqual({ kind: "binding", bindingId: "binding:x" });
+    expect(useCadUiStore.getState().selectedElementId).toBeNull();
+    expect(useCadUiStore.getState().selectedElementIds).toEqual([]);
+  });
+
+  it("keeps reconcileSelectionWithElements' existing default-selection behavior while in elements mode", () => {
+    useCadUiStore.setState({ selectedElementId: null, selectedElementIds: [], selectionAnchorElementId: null });
+    const elements = useCadDocumentStore.getState().elements;
+
+    useCadUiStore.getState().reconcileSelectionWithElements(elements);
+
+    expect(useCadUiStore.getState().selectionSubject).toEqual({ kind: "elements" });
+    expect(useCadUiStore.getState().selectedElementId).toBe(elements[0]?.id ?? null);
+  });
+});

@@ -24,6 +24,7 @@ const makeHandle = (): SourceEditorHandle => ({
   setEvaluation: vi.fn(),
   jumpToElement: vi.fn(),
   jumpToElementEnd: vi.fn(),
+  jumpToBindingDeclaration: vi.fn(() => true),
   jumpToParameterValue: vi.fn(() => true),
   applyPickCandidate: vi.fn(() => true),
   pickCandidateElementIds: vi.fn(() => []),
@@ -181,5 +182,100 @@ describe("InspectorPanel mouse-only actions", () => {
     } finally {
       unregister();
     }
+  });
+});
+
+describe("InspectorPanel typed declaration metadata", () => {
+  beforeEach(() => {
+    useCadDocumentStore.setState(initialCadDocumentState());
+    useCadUiStore.setState(initialCadUiState());
+  });
+
+  const renderInspectorForBinding = (source: string, bindingName: string) => {
+    useCadDocumentStore.getState().commitText(source, "test");
+    const bindingId = useCadDocumentStore
+      .getState()
+      .doc.bindingAnalysis!.catalog.bindings.find(
+        (binding) => binding.kind === "typed" && binding.name === bindingName,
+      )!.id;
+    useCadUiStore.getState().setSelectedBindingId(bindingId);
+    const handle = makeHandle();
+    const sourceEditorRef = createRef<SourceEditorHandle>();
+    sourceEditorRef.current = handle;
+    const elements = useCadDocumentStore.getState().elements;
+    const view = render(
+      <InspectorPanel
+        element={null}
+        elements={elements}
+        evaluation={evaluateElements(elements)}
+        sourceEditorRef={sourceEditorRef}
+      />,
+    );
+    return { bindingId, handle, unmount: view.unmount };
+  };
+
+  it("shows kind/type/initializer/ID rows for a selected typed const, and clears any element selection", () => {
+    renderInspectorForBinding(["nui 3", "const width: number = 12"].join("\n"), "width");
+
+    expect(screen.getByText("width")).toBeInTheDocument();
+    expect(within(screen.getByText("種別").closest(".inspector-row")!).getByText("const")).toBeInTheDocument();
+    expect(within(screen.getByText("型").closest(".inspector-row")!).getByText("number")).toBeInTheDocument();
+    expect(within(screen.getByText("初期化式").closest(".inspector-row")!).getByText("12")).toBeInTheDocument();
+    expect(screen.queryByText("要素を選択してください。")).not.toBeInTheDocument();
+    expect(screen.queryByText("無効")).not.toBeInTheDocument();
+    expect(useCadUiStore.getState().selectedElementId).toBeNull();
+  });
+
+  it("jumps to the declaration when the declaration row is clicked", () => {
+    const { handle, bindingId } = renderInspectorForBinding(
+      ["nui 3", "let shown: boolean = true"].join("\n"),
+      "shown",
+    );
+
+    fireEvent.click(screen.getByText("shown").closest(".inspector-row")!);
+
+    expect(handle.jumpToBindingDeclaration).toHaveBeenCalledWith(bindingId);
+  });
+
+  it("shows an invalid marker and diagnostic message for an invalid declaration", () => {
+    renderInspectorForBinding(
+      ["nui 3", "const broken: number = @missing", "const valid: number = 3"].join("\n"),
+      "broken",
+    );
+
+    expect(screen.getByText("無効")).toBeInTheDocument();
+    expect(screen.getByText(/未定義の変数/)).toBeInTheDocument();
+  });
+
+  it("keeps a recoverable invalid let's metadata visible without an invalid marker being required", () => {
+    renderInspectorForBinding(["nui 3", "let base: number = 1", "let derived: number = @base"].join("\n"), "derived");
+
+    expect(screen.getByText("derived")).toBeInTheDocument();
+    expect(screen.queryByText("無効")).not.toBeInTheDocument();
+  });
+
+  it("shows the empty state when neither an element nor a binding is selected", () => {
+    useCadDocumentStore.getState().commitText(["nui 3", "const width: number = 12"].join("\n"), "test");
+    const handle = makeHandle();
+    const sourceEditorRef = createRef<SourceEditorHandle>();
+    sourceEditorRef.current = handle;
+    const elements = useCadDocumentStore.getState().elements;
+    render(
+      <InspectorPanel
+        element={null}
+        elements={elements}
+        evaluation={evaluateElements(elements)}
+        sourceEditorRef={sourceEditorRef}
+      />,
+    );
+
+    expect(screen.getByText("要素を選択してください。")).toBeInTheDocument();
+  });
+
+  it("does not render a typed declaration section while an ordinary element is selected", () => {
+    useCadDocumentStore.getState().commitText(source, "test");
+    renderInspector("B");
+
+    expect(screen.queryByText("宣言")).not.toBeInTheDocument();
   });
 });

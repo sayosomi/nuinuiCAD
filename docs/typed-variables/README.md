@@ -95,9 +95,9 @@
 | 37 | [typed rename analysis](tasks/37-typed-rename-analysis.md) | rename safety | 36 | gated analysis | `typed-vars/37-rename-analysis` | 完了 |
 | 38 | [typed rename command](tasks/38-typed-rename-command.md) | command/text splice | 37 | gated command | `typed-vars/38-rename-command` | 完了 |
 | 39 | [typed value completion](tasks/39-typed-value-completion.md) | editor completion | 12,15,22,26 | gated editor | `typed-vars/39-value-completion` | 完了 |
-| 40 | [set/recovery completion](tasks/40-set-recovery-completion.md) | editor completion | 29,30,39 | gated editor | `typed-vars/40-set-completion` | 未着手 |
-| 41 | [typed variable Quick Fixes](tasks/41-typed-variable-quick-fixes.md) | diagnostics/editor | 07,13,22,29,40 | gated editor | `typed-vars/41-quick-fixes` | 未着手 |
-| 42 | [Inspector declaration metadata](tasks/42-inspector-declaration-metadata.md) | Inspector | 19 | gated UI metadata | `typed-vars/42-inspector-metadata` | 未着手 |
+| 40 | [set/recovery completion](tasks/40-set-recovery-completion.md) | editor completion | 29,30,39 | gated editor | `typed-vars/40-set-completion` | 完了 |
+| 41 | [typed variable Quick Fixes](tasks/41-typed-variable-quick-fixes.md) | diagnostics/editor | 07,13,22,29,40 | gated editor | `typed-vars/41-quick-fixes` | 完了 |
+| 42 | [Inspector declaration metadata](tasks/42-inspector-declaration-metadata.md) | Inspector | 19 | gated UI metadata | `typed-vars/42-inspector-metadata` | 完了 |
 | 43 | [Source Editor span/navigation](tasks/43-source-editor-span-navigation.md) | editor | 10,22,26,29 | gated editor API | `typed-vars/43-source-spans` | 未着手 |
 | 44 | [Source value operations/picker boundaries](tasks/44-source-value-operations.md) | editor interaction | 39,40,43 | gated editor UI | `typed-vars/44-source-value-ops` | 未着手 |
 | 45 | [Inspector runtime values](tasks/45-inspector-runtime-values.md) | Inspector | 23,24,25,28,35,42 | gated final-value UI | `typed-vars/45-inspector-runtime` | 未着手 |
@@ -284,7 +284,7 @@ Task 20/21のconst runtime pathはTask 31/32へ、Task 46のnui 3 persistence pa
 
 ## 次に実行可能なtask
 
-直近は42。23〜35は完了済み。Task 21/32以降のRust-first `evaluate_document(input)` は、解決済み`scalar_program`または`bindingVersions`を評価し、`computedScalarBindings`をTS payloadへ返す。text templateも同じ解決済みASTを渡し、Rustでsource再parse・名前再解決・legacy fallbackを追加しない。
+40・41・42は完了済み(タスク表のstatusが未更新だった分を本PRで修正)。直近は43(10,22,26,29はすべて完了済み)と46(07,10,22,26,29,30もすべて完了済み)で、依存関係上どちらも独立に着手可能。44は43完了後、45は42完了後(23,24,25,28,35ともすべて完了済み)に着手可能。Task 21/32以降のRust-first `evaluate_document(input)` は、解決済み`scalar_program`または`bindingVersions`を評価し、`computedScalarBindings`をTS payloadへ返す。text templateも同じ解決済みASTを渡し、Rustでsource再parse・名前再解決・legacy fallbackを追加しない。
 
 ### Task 22完了時点の引き継ぎ(23〜26向け)
 
@@ -449,6 +449,17 @@ typed declaration initializer / opt-in scalar property値 / template holeの3箇
 - **template holeは型を推測しない**: hole content spanに対し`{kind:"string"}`と`{kind:"number"}`の両方で`scalarExpressionCompletionContextAt`/`scalarExpressionCandidates`を呼び、結果を(bindingId/labelで)重複排除して合算する(`templateHoleScalarCandidates`)。boolean/choice bindingは両呼び出しのどちらでも`accepts`に一致せず自然に除外される。
 - **対象外のまま**: `set`文RHS補完・invalid let recovery補完(40)、qualified reference、Quick Fix。`scalarExpressionCandidates`の`includeOperators: false`はproperty scalar valueには到達しない設計(呼ばれるのはtyped initializer/template holeだけ)だが、40のset RHS補完が同じ`scalarExpressionCandidates`/`scalarExpressionCompletionContextAt`をそのまま再利用できるよう、両方とも`BindingReferenceSite`だけを受け取る形で汎用に保ってある。
 - 40(set/recovery completion)は`scalarExpressionCompletionContextAt`/`scalarExpressionCandidates`をset文RHSにもそのまま再利用でき、invalid let recovery候補だけが対象外(`typedBindingReferenceCandidates`のinvalid除外を緩める新しい`accepts`変種が必要)。41(Quick Fixes)は`propertyScalarValueCompletionContext`のcapability情報をQuick Fix提案の型ヒントに再利用できる。44(value operations)はhole/property完了のfrom/to境界をそのままvalue-span操作の参照点にできる。50(performance)は本PRの`typedValueCandidates.performance.test.ts`baselineを使ってgateを決められる。
+
+### Task 42完了時点の引き継ぎ(45向け)
+
+Inspectorに、選択中のtyped `const`/`let` 宣言だけを対象にした読み取り専用metadata section(「宣言」)を追加した。runtime/final valueは範囲外(D18どおり45の担当)。
+
+- **presentation builder**: `src/components/typedDeclarationInspectorPresentation.ts`の`typedDeclarationInspectorPresentation(bindingAnalysis, statements, bindingId)`が唯一の入口。`BindingAnalysis`/`DslStatement[]`の生objectはReactへ渡さず、`TypedDeclarationInspectorPresentation`(`bindingId`/`name`/`mutabilityLabel`/`rows`(kind・type・initializer・ID)/`invalidMessage`)という小さな行集合だけを返す。型は`describeScalarType`(Task15)、invalid診断は`formatBindingIssue`(Task13)をそのまま再利用しており、独自メッセージを作っていない。bindingが解決しない・typedでない・`typedDeclaration`文でない場合は`null`を返し、呼び出し側はこれを「未選択」と同じに扱う。
+- **selectionはmutually exclusiveなdiscriminated union**: `src/state/cadUiStore.ts`に`CadSelectionSubject`(`{kind:"elements"}` | `{kind:"binding", bindingId}`)と`selectionSubject`フィールドを追加した。element選択(`setSelectedElementId`/`setSelectedElementIds`/`setSelectedElementRange`/`applySelection`)は必ず`selectionSubject`を`{kind:"elements"}`へ戻し、新設`setSelectedBindingId`は`selectionSubject`を`{kind:"binding", bindingId}`にすると同時に`selectedElementId`/`selectedElementIds`/`selectionAnchorElementId`を`null`/`[]`/`null`へ明示的にクリアする(Canvas/コマンド層など28箇所ある既存`selectedElementId`読者すべてが正しく「未選択」を見る)。`reconcileSelectionWithElements`(毎コンパイルで発火)は`selectionSubject.kind==="binding"`の間はno-opにした — 元の「`elements[0]`へfallback」処理をそのまま呼ぶと、次のキー入力のたびに要素選択が復活してbinding選択のクリアを覆してしまうため。既存`CadElementSelection`(`selectedElementId`/`selectedElementIds`/`selectionAnchorElementId`)自体はflattenしていない(28ファイルが直接読んでおり、複数選択の既存契約を壊さないため)。
+- **selectionはsource statement identityで決まる**: 新しい選択UIは追加していない。Task39/40がcompletion用に作った`TypedDeclarationRangeIndex`/`typedDeclarationBindingIdAtCursor`(`src/editor/statementRangeIndex.ts`)を`sourceEditorController.ts`のカーソル同期ブロックで再利用し、カーソルがtyped宣言文の範囲に入ると`setSelectedBindingId`を呼ぶ(既存のelement側auto-select `elementIdAtCursor`と対称、かつ排他)。名前ではなく`bindingIdForStableStatementId`由来の安定ID同士の比較だけで動く。
+- **source jump command hook**: `SourceEditorHandle.jumpToBindingDeclaration(bindingId): boolean`(必須メンバー、`jumpToParameterValue`と同格)。`SourceEditorController`実装は`this.typedDeclarationRanges.get(bindingId)`をそのまま使い、`jumpToElement`と同じcursor-move + `setSelectedBindingId`パターン。文単位のジャンプのみで、initializer内の細かいspan navigationは対象外(43/44の担当、43は42に依存しないためこのままで良い)。
+- **既存literal Inspectorは無変更**: `InspectorPanel.tsx`の要素専用JSXは`{element ? (<>...</>) : null}`で包んだだけで内部は1行も変えていない(既存テストは無修正のまま全通過)。空表示条件は`!element && !typedDeclarationPresentation`。
+- 45は`typedDeclarationInspectorPresentation`の戻り値へfinal computed value/poison/recovery行を追加する形で拡張できる。`selectionSubject`/`jumpToBindingDeclaration`はそのまま使ってよい。
 
 ## Blocking decisions
 
