@@ -98,7 +98,7 @@
 | 40 | [set/recovery completion](tasks/40-set-recovery-completion.md) | editor completion | 29,30,39 | gated editor | `typed-vars/40-set-completion` | 完了 |
 | 41 | [typed variable Quick Fixes](tasks/41-typed-variable-quick-fixes.md) | diagnostics/editor | 07,13,22,29,40 | gated editor | `typed-vars/41-quick-fixes` | 完了 |
 | 42 | [Inspector declaration metadata](tasks/42-inspector-declaration-metadata.md) | Inspector | 19 | gated UI metadata | `typed-vars/42-inspector-metadata` | 完了 |
-| 43 | [Source Editor span/navigation](tasks/43-source-editor-span-navigation.md) | editor | 10,22,26,29 | gated editor API | `typed-vars/43-source-spans` | 未着手 |
+| 43 | [Source Editor span/navigation](tasks/43-source-editor-span-navigation.md) | editor | 10,22,26,29 | gated editor API | `typed-vars/43-source-spans` | 完了 |
 | 44 | [Source value operations/picker boundaries](tasks/44-source-value-operations.md) | editor interaction | 39,40,43 | gated editor UI | `typed-vars/44-source-value-ops` | 未着手 |
 | 45 | [Inspector runtime values](tasks/45-inspector-runtime-values.md) | Inspector | 23,24,25,28,35,42 | gated final-value UI | `typed-vars/45-inspector-runtime` | 未着手 |
 | 46 | [nui 3 serializer/round-trip/patching](tasks/46-v3-serializer-roundtrip-patching.md) | persistence | 07,10,22,26,29,30 | gated nui 3 persistence | `typed-vars/46-v3-roundtrip` | 未着手 |
@@ -284,7 +284,7 @@ Task 20/21のconst runtime pathはTask 31/32へ、Task 46のnui 3 persistence pa
 
 ## 次に実行可能なtask
 
-40・41・42は完了済み(タスク表のstatusが未更新だった分を本PRで修正)。直近は43(10,22,26,29はすべて完了済み)と46(07,10,22,26,29,30もすべて完了済み)で、依存関係上どちらも独立に着手可能。44は43完了後、45は42完了後(23,24,25,28,35ともすべて完了済み)に着手可能。Task 21/32以降のRust-first `evaluate_document(input)` は、解決済み`scalar_program`または`bindingVersions`を評価し、`computedScalarBindings`をTS payloadへ返す。text templateも同じ解決済みASTを渡し、Rustでsource再parse・名前再解決・legacy fallbackを追加しない。
+40・41・42・43は完了済み。46(07,10,22,26,29,30もすべて完了済み)は依存関係上独立に着手可能。44は43完了により着手可能、45は42完了後(23,24,25,28,35ともすべて完了済み)に着手可能。Task 21/32以降のRust-first `evaluate_document(input)` は、解決済み`scalar_program`または`bindingVersions`を評価し、`computedScalarBindings`をTS payloadへ返す。text templateも同じ解決済みASTを渡し、Rustでsource再parse・名前再解決・legacy fallbackを追加しない。
 
 ### Task 22完了時点の引き継ぎ(23〜26向け)
 
@@ -460,6 +460,19 @@ Inspectorに、選択中のtyped `const`/`let` 宣言だけを対象にした読
 - **source jump command hook**: `SourceEditorHandle.jumpToBindingDeclaration(bindingId): boolean`(必須メンバー、`jumpToParameterValue`と同格)。`SourceEditorController`実装は`this.typedDeclarationRanges.get(bindingId)`をそのまま使い、`jumpToElement`と同じcursor-move + `setSelectedBindingId`パターン。文単位のジャンプのみで、initializer内の細かいspan navigationは対象外(43/44の担当、43は42に依存しないためこのままで良い)。
 - **既存literal Inspectorは無変更**: `InspectorPanel.tsx`の要素専用JSXは`{element ? (<>...</>) : null}`で包んだだけで内部は1行も変えていない(既存テストは無修正のまま全通過)。空表示条件は`!element && !typedDeclarationPresentation`。
 - 45は`typedDeclarationInspectorPresentation`の戻り値へfinal computed value/poison/recovery行を追加する形で拡張できる。`selectionSubject`/`jumpToBindingDeclaration`はそのまま使ってよい。
+
+### Task 43完了時点の引き継ぎ(38/44/45向け)
+
+declaration/set/text templateのexact source spanをSource Editorのclick/Tab/Inspector-jumpへ接続した。新規の名前解決・型検査・source再parseは一切行わず、Task 10/22/26/29がすでに計算済みのlogical spanをcompile直後に1回だけ物理座標へ投影し、以後はCM自身の`ChangeDesc.mapPos`で追従するだけ。
+
+- **重複APIを作らなかった箇所**: property binding(`@name`のbare参照)は通常element statementのattr(`dslArgScanner.ts`は`@`始まりを特別扱いしない)なので、Task 22着手前から`dslLineValueSpans.ts`のclick/Tab機構がそのままカバーしていた(`ScalarValueSource.span`は既存`attr.valueStart`/`valueEnd`と同一spanを指すだけ)。ここに新しいrange indexは追加していない。
+- **物理span再投影ゼロ**: `DslStatement`はparse時点で`namePhysicalSpan`/`payloadPhysicalSpans`/`attr.physicalSpan`をすでに持つ(`dslParser.ts`の`decorateStatement`、Task10以前から存在)。typedDeclarationの`payloadPhysicalSpans.type`/`.initializer`、setの`namePhysicalSpan`(target)/`payloadPhysicalSpans.expression`(`SetStatementAnalysis.targetSpan`/`expressionSpan`はこの同じspanを指す)はこれをそのまま`{from,to}`へ変換するだけ。text templateのhole span/contentSpanだけは`attr.physicalSpan`からの単純な差分算術(`segment.from + (subSpan.start - attr.valueStart)`)で導出しており、`physicalSpanForLogicalRange`やフルdocument再parseは一度も呼んでいない。
+- **新設range index**(`src/editor/statementRangeIndex.ts`、既存`TypedDeclarationRangeIndex`/`ScopeBodyRangeIndex`と同じ`create*`/`map*`の2関数ペア構成): `TypedDeclarationFieldRangeIndex`(`BindingId → {name,type,initializer}`)、`SetStatementRangeIndex`+`SetStatementFieldRangeIndex`(`statementId → {target,expression}`、`set`文には既存の文全体range indexが無かったため新設)、`TemplateHoleRangeIndex`(`occurrenceKey → hole[]`、source順)。いずれも`create*`はcompile成功直後の1回だけ、`map*`だけが以後のCM transactionごとに呼ばれる(`touchesRange==="cover"`で即drop、複数segment/該当spanなしは最初から`null`でfail-closed)。`SourceEditorController`への配線は既存`typedDeclarationRanges`/`scopeBodyRanges`と全く同じ2箇所(compile成功handler、transaction handler)。
+- **Tab/Shift-Tab**(`navigateValueSpan`): 既存`dslDocumentValueSpansAt`(要素文のattr/payload spanをlive再parseする既存経路、`nonElementKinds`が`typedDeclaration`/`set`を除外するため元々`[]`しか返さなかった)が空を返した場合だけ、`typedFieldSpansAtCursor`(新設private method)へfall backする。要素文自身のTab順序・件数は完全に無変更。
+- **click**(`handleValueClick`): 既存legacy spanが見つかった場合、そのstatementのtext template hole indexを引いて、クリック位置がhole内ならholeのcontentSpan(brace除く)を優先する(`resolveParameterTargetAt`と同じ「最も具体的なものが勝つ」規約)。legacy spanが見つからない場合(typedDeclaration/set行)は`typedFieldSpansAtCursor`にfall backする。
+- **Inspector連携**: `SourceEditorHandle.jumpToBindingDeclarationPart(bindingId, "type"|"initializer"): boolean`を新設(既存`jumpToBindingDeclaration`は文全体ジャンプのまま無変更)。`InspectorPanel.tsx`の「型」「初期化式」行だけがこれを呼ぶ(`typedDeclarationInspectorPresentation.ts`の`row.key`で判別、presentation自体は無変更)。フィールドspanが解決しない場合は`jumpToBindingDeclaration`(文頭ジャンプ)へfall backする。「種別」「ID」行は従来通りクリック不可のまま。
+- **意図的にTabへ入れなかった対象**: text templateのholeはclick専用(将来44/45向け)のままとし、Tab循環には加えていない — 「既存numeric/reference value spanとTab orderを維持」という互換性条件を、要素文自身の話でない新規判断を持ち込まずに満たすため。
+- 38(rename)は本taskの成果を消費しない(37のstatement-local spanを直接使う既存経路のまま)。44(value operations)は`typedFieldSpansAtCursor`と同じ考え方の「選択中の型付きspanを取得する」経路をAlt+←/→の対象判定に再利用できる。45(Inspector runtime jump)は`jumpToBindingDeclarationPart`をfinal value行のジャンプ先としてそのまま使ってよい。
 
 ## Blocking decisions
 

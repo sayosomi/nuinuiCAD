@@ -142,6 +142,10 @@ export const InspectorPanel = ({
     : [];
   const jumpToTypedDeclaration = (bindingId: BindingId): boolean =>
     sourceEditorRef.current?.jumpToBindingDeclaration(bindingId) ?? false;
+  const jumpToTypedDeclarationPart = (bindingId: BindingId, part: "type" | "initializer"): boolean =>
+    sourceEditorRef.current?.jumpToBindingDeclarationPart(bindingId, part)
+      ? true
+      : jumpToTypedDeclaration(bindingId);
   const jumpToParameter = (row: InspectorParameterRow) => {
     if (!element) return false;
     return (
@@ -286,14 +290,32 @@ export const InspectorPanel = ({
                     <small>{typedDeclarationPresentation.mutabilityLabel}</small>
                   </span>
                 </div>
-                {typedDeclarationPresentation.rows.map((row) => (
-                  <div key={row.key} className="inspector-row">
-                    <span className="inspector-row-main">
-                      <span>{row.label}</span>
-                      <small>{row.value}</small>
-                    </span>
-                  </div>
-                ))}
+                {typedDeclarationPresentation.rows.map((row) =>
+                  row.key === "type" || row.key === "initializer" ? (
+                    <div
+                      key={row.key}
+                      className="inspector-row"
+                      onClick={() =>
+                        jumpToTypedDeclarationPart(
+                          typedDeclarationPresentation.bindingId,
+                          row.key === "type" ? "type" : "initializer",
+                        )
+                      }
+                    >
+                      <span className="inspector-row-main">
+                        <span>{row.label}</span>
+                        <small>{row.value}</small>
+                      </span>
+                    </div>
+                  ) : (
+                    <div key={row.key} className="inspector-row">
+                      <span className="inspector-row-main">
+                        <span>{row.label}</span>
+                        <small>{row.value}</small>
+                      </span>
+                    </div>
+                  )
+                )}
               </div>
               {typedDeclarationPresentation.invalidMessage ? (
                 <p className="inspector-diagnostic error">

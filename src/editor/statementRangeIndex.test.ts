@@ -6,14 +6,24 @@ import { bindingIdForStableStatementId } from "../scalars/bindingCatalog";
 import {
   createPrintLayoutRangeIndex,
   createScopeBodyRangeIndex,
+  createSetStatementFieldRangeIndex,
+  createSetStatementRangeIndex,
   createStatementRangeIndex,
+  createTemplateHoleRangeIndex,
+  createTypedDeclarationFieldRangeIndex,
   createTypedDeclarationRangeIndex,
   deepestContainingScopeId,
   elementIdAtCursor,
   mapPrintLayoutRangeIndex,
   mapScopeBodyRangeIndex,
+  mapSetStatementFieldRangeIndex,
+  mapSetStatementRangeIndex,
   mapStatementRangeIndex,
+  mapTemplateHoleRangeIndex,
+  mapTypedDeclarationFieldRangeIndex,
   mapTypedDeclarationRangeIndex,
+  setStatementIdAtCursor,
+  templateHoleAtPosition,
   typedDeclarationBindingIdAtCursor
 } from "./statementRangeIndex";
 
@@ -381,5 +391,215 @@ describe("scopeBodyRangeIndex (Task 40)", () => {
     const doc = Text.of(source.split("\n"));
     const index = createScopeBodyRangeIndex(doc, result.statementMap!, result.bindingAnalysis!.catalog.scopeIndex);
     expect(index).toEqual([]);
+  });
+});
+
+describe("typedDeclarationFieldRangeIndex (Task 43)", () => {
+  const source = ["nui 3", "const flag: boolean = true"].join("\n");
+
+  it("splits a declaration into name/type/initializer sub-spans, each reading the right slice", () => {
+    const result = compiledWithStableIds(source);
+    const doc = Text.of(source.split("\n"));
+    const fields = createTypedDeclarationFieldRangeIndex(result.statementMap!, result.statements);
+    const bindingId = bindingIdForStableStatementId("stable-1");
+    const spans = fields.get(bindingId)!;
+
+    expect(spans.name).toBeTruthy();
+    expect(doc.sliceString(spans.name!.from, spans.name!.to)).toBe("flag");
+    expect(spans.type).toBeTruthy();
+    expect(doc.sliceString(spans.type!.from, spans.type!.to)).toBe("boolean");
+    expect(spans.initializer).toBeTruthy();
+    expect(doc.sliceString(spans.initializer!.from, spans.initializer!.to)).toBe("true");
+  });
+
+  it("a missing type annotation is a document-level error, so statementMap (and the field index built from it) is never reached", () => {
+    // dslDeclarationParser.ts flags a missing `: type` as a hard diagnostic, which
+    // nulls out CompiledDslDocument.statementMap entirely (dslDocument.ts's own
+    // error gate) - the same way an unresolved `set` target does. There is no
+    // reachable case where a `typedDeclaration` statement inside a successfully
+    // compiled document has a null type span; only the multi-segment (continuation
+    // line) fail-closed path below actually exercises `type`/`initializer` being null.
+    const brokenSource = ["nui 3", "let broken = 1"].join("\n");
+    const parsed = parseDsl(brokenSource);
+    const assignedStatementIds = new Map(parsed.statements.map((_, index) => [index, `stable-${index}`]));
+    const result = compileDslDocument(brokenSource, { assignedStatementIds });
+    expect(result.statementMap).toBeNull();
+  });
+
+  it("keeps sub-spans alive through an edit inside the initializer, and drops them once the whole line is replaced", () => {
+    const result = compiledWithStableIds(source);
+    const doc = Text.of(source.split("\n"));
+    const original = createTypedDeclarationFieldRangeIndex(result.statementMap!, result.statements);
+    const bindingId = bindingIdForStableStatementId("stable-1");
+    const initializer = original.get(bindingId)!.initializer!;
+
+    const interiorEdit = ChangeSet.of({ from: initializer.to, insert: " && false" }, doc.length);
+    const mappedInterior = mapTypedDeclarationFieldRangeIndex(original, interiorEdit);
+    expect(mappedInterior.get(bindingId)!.initializer).toEqual(initializer);
+    expect(mappedInterior.get(bindingId)!.name).toEqual(original.get(bindingId)!.name);
+
+    const wholeLineReplace = ChangeSet.of({ from: 0, to: doc.length, insert: "nui 3\nconst other: number = 1" }, doc.length);
+    const mappedReplace = mapTypedDeclarationFieldRangeIndex(original, wholeLineReplace);
+    expect(mappedReplace.get(bindingId)!.initializer).toBeNull();
+    expect(mappedReplace.get(bindingId)!.name).toBeNull();
+    expect(mappedReplace.get(bindingId)!.type).toBeNull();
+  });
+
+  it("leaves the initializer span null (fail-closed) when it spans a continuation line, while name/type stay resolvable", () => {
+    const multilineSource = ["nui 3", "let total: number = (", "  1 + 2", ")"].join("\n");
+    const result = compiledWithStableIds(multilineSource);
+    const doc = Text.of(multilineSource.split("\n"));
+    const fields = createTypedDeclarationFieldRangeIndex(result.statementMap!, result.statements);
+    const bindingId = bindingIdForStableStatementId("stable-1");
+    const spans = fields.get(bindingId)!;
+
+    expect(spans.initializer).toBeNull();
+    expect(spans.name).toBeTruthy();
+    expect(doc.sliceString(spans.name!.from, spans.name!.to)).toBe("total");
+    expect(spans.type).toBeTruthy();
+    expect(doc.sliceString(spans.type!.from, spans.type!.to)).toBe("number");
+  });
+
+  it("returns no fields for a document with no typed declarations", () => {
+    const noTypedSource = ["nui 2", "point A = coordinate(x: 0, y: 0)"].join("\n");
+    const result = compiled(noTypedSource);
+    expect(createTypedDeclarationFieldRangeIndex(result.statementMap!, result.statements).size).toBe(0);
+  });
+});
+
+describe("setStatementRangeIndex / setStatementFieldRangeIndex (Task 43)", () => {
+  const source = ["nui 3", "let total: number = 0", "set total = @total + 1"].join("\n");
+
+  it("resolves a set statement's whole-line range and cursor lookup", () => {
+    const result = compiledWithStableIds(source);
+    const doc = Text.of(source.split("\n"));
+    const index = createSetStatementRangeIndex(doc, result.statementMap!);
+    const statementId = "stable-2";
+    const range = index.get(statementId)!;
+
+    expect(range).toBeDefined();
+    expect(doc.sliceString(range.from, range.to)).toBe("set total = @total + 1");
+    expect(setStatementIdAtCursor(index, range.from + 4)).toBe(statementId);
+  });
+
+  it("splits a set statement into target and expression sub-spans", () => {
+    const result = compiledWithStableIds(source);
+    const doc = Text.of(source.split("\n"));
+    const fields = createSetStatementFieldRangeIndex(result.statementMap!, result.statements);
+    const spans = fields.get("stable-2")!;
+
+    expect(spans.target).toBeTruthy();
+    expect(doc.sliceString(spans.target!.from, spans.target!.to)).toBe("total");
+    expect(spans.expression).toBeTruthy();
+    expect(doc.sliceString(spans.expression!.from, spans.expression!.to)).toBe("@total + 1");
+  });
+
+  it("resolves target/expression from the raw parsed statement alone, independent of setStatements/bindingAnalysis", () => {
+    // createSetStatementFieldRangeIndex takes only (statementMap, statements) - no
+    // bindingAnalysis or setStatements parameter exists to pass, so a successfully
+    // compiled set (whose target does resolve, the only shape that reaches a non-null
+    // statementMap at all - an unresolved target is a document-level error like any
+    // other) already proves the field spans never depend on resolution succeeding.
+    const result = compiledWithStableIds(source);
+    const fields = createSetStatementFieldRangeIndex(result.statementMap!, result.statements);
+    expect(fields.get("stable-2")).toBeDefined();
+  });
+
+  it("drops the whole-line range and sub-spans once the set line is fully replaced", () => {
+    const result = compiledWithStableIds(source);
+    const doc = Text.of(source.split("\n"));
+    const rangeIndex = createSetStatementRangeIndex(doc, result.statementMap!);
+    const fieldIndex = createSetStatementFieldRangeIndex(result.statementMap!, result.statements);
+    const range = rangeIndex.get("stable-2")!;
+    const changes = ChangeSet.of({ from: range.from, to: range.to, insert: "" }, doc.length);
+
+    expect(mapSetStatementRangeIndex(rangeIndex, changes).has("stable-2")).toBe(false);
+    const mappedFields = mapSetStatementFieldRangeIndex(fieldIndex, changes);
+    expect(mappedFields.get("stable-2")!.target).toBeNull();
+    expect(mappedFields.get("stable-2")!.expression).toBeNull();
+  });
+
+  it("returns empty indices for a document with no set statements", () => {
+    const noSetSource = ["nui 3", "let a: number = 1"].join("\n");
+    const result = compiledWithStableIds(noSetSource);
+    const doc = Text.of(noSetSource.split("\n"));
+    expect(createSetStatementRangeIndex(doc, result.statementMap!).size).toBe(0);
+    expect(createSetStatementFieldRangeIndex(result.statementMap!, result.statements).size).toBe(0);
+  });
+});
+
+describe("templateHoleRangeIndex (Task 43)", () => {
+  const source = [
+    "nui 3",
+    'const ラベル: string = "前身頃"',
+    'text T = label(text: "{@ラベル}を2枚カット" anchor: none size: 3)'
+  ].join("\n");
+
+  it("resolves one hole's content span, selecting the reference text excluding braces", () => {
+    const result = compiledWithStableIds(source);
+    const doc = Text.of(source.split("\n"));
+    expect(result.textTemplates).toBeDefined();
+    const occurrenceKey = [...result.textTemplates!.keys()][0]!;
+    const index = createTemplateHoleRangeIndex(result.statementMap!, result.statements, result.textTemplates);
+    const holes = index.get(occurrenceKey)!;
+
+    expect(holes).toHaveLength(1);
+    expect(doc.sliceString(holes[0].from, holes[0].to)).toBe("@ラベル");
+    expect(templateHoleAtPosition(index, occurrenceKey, holes[0].from + 1)).toEqual(holes[0]);
+    expect(templateHoleAtPosition(index, occurrenceKey, holes[0].to + 1)).toBeNull();
+  });
+
+  it("orders multiple holes in source order with independent content spans", () => {
+    const multiHoleSource = [
+      "nui 3",
+      'const first: string = "A"',
+      'const second: string = "B"',
+      'text T = label(text: "{@first}-{@second}" anchor: none size: 3)'
+    ].join("\n");
+    const result = compiledWithStableIds(multiHoleSource);
+    const doc = Text.of(multiHoleSource.split("\n"));
+    const occurrenceKey = [...result.textTemplates!.keys()][0]!;
+    const index = createTemplateHoleRangeIndex(result.statementMap!, result.statements, result.textTemplates);
+    const holes = index.get(occurrenceKey)!;
+
+    expect(holes.map((hole) => hole.holeIndex)).toEqual([0, 1]);
+    expect(doc.sliceString(holes[0].from, holes[0].to)).toBe("@first");
+    expect(doc.sliceString(holes[1].from, holes[1].to)).toBe("@second");
+    expect(holes[1].from).toBeGreaterThan(holes[0].to);
+  });
+
+  it("keeps a hole span alive through an edit elsewhere on the line, and drops it once the hole itself is replaced", () => {
+    const result = compiledWithStableIds(source);
+    const doc = Text.of(source.split("\n"));
+    const occurrenceKey = [...result.textTemplates!.keys()][0]!;
+    const original = createTemplateHoleRangeIndex(result.statementMap!, result.statements, result.textTemplates);
+    const hole = original.get(occurrenceKey)![0]!;
+
+    const editAfterHole = ChangeSet.of({ from: doc.length, insert: "\n# trailing" }, doc.length);
+    const mappedAfterEdit = mapTemplateHoleRangeIndex(original, editAfterHole);
+    expect(mappedAfterEdit.get(occurrenceKey)![0]).toEqual(hole);
+
+    const replaceHole = ChangeSet.of({ from: hole.from, to: hole.to, insert: "@other" }, doc.length);
+    const mappedAfterReplace = mapTemplateHoleRangeIndex(original, replaceHole);
+    expect(mappedAfterReplace.has(occurrenceKey)).toBe(false);
+  });
+
+  it("returns an empty index for a document with no text templates", () => {
+    const noTemplateSource = ["nui 3", "let a: number = 1"].join("\n");
+    const result = compiledWithStableIds(noTemplateSource);
+    const index = createTemplateHoleRangeIndex(result.statementMap!, result.statements, result.textTemplates);
+    expect(index.size).toBe(0);
+  });
+
+  it("returns an empty index for a legacy hole with no typed references, since it still carries a real content span", () => {
+    const legacySource = ["nui 3", 'text T = label(text: "sum {2+3}" anchor: none size: 3)'].join("\n");
+    const result = compiledWithStableIds(legacySource);
+    const doc = Text.of(legacySource.split("\n"));
+    const occurrenceKey = [...result.textTemplates!.keys()][0]!;
+    const index = createTemplateHoleRangeIndex(result.statementMap!, result.statements, result.textTemplates);
+    const holes = index.get(occurrenceKey)!;
+
+    expect(holes).toHaveLength(1);
+    expect(doc.sliceString(holes[0].from, holes[0].to)).toBe("2+3");
   });
 });

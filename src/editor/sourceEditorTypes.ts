@@ -53,6 +53,10 @@ export type SourceEditorHandle = {
    * the current subject (clearing any active element selection). False during IME
    * composition or if the binding's declaration no longer resolves. */
   jumpToBindingDeclaration: (bindingId: BindingId) => boolean;
+  /** Selects a typed binding declaration's type annotation or initializer sub-span
+   * (Task 43) and focuses the editor. False if the binding, or that specific field's
+   * span, does not currently resolve - callers may fall back to jumpToBindingDeclaration. */
+  jumpToBindingDeclarationPart: (bindingId: BindingId, part: "type" | "initializer") => boolean;
   /** Re-resolves a search result after any required flush before applying it as a pick. */
   applyPickCandidate: (elementId: ElementId) => boolean;
   pickCandidateElementIds: () => readonly ElementId[];
