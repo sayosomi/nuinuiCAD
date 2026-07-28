@@ -57,6 +57,16 @@ export type SourceEditorHandle = {
    * (Task 43) and focuses the editor. False if the binding, or that specific field's
    * span, does not currently resolve - callers may fall back to jumpToBindingDeclaration. */
   jumpToBindingDeclarationPart: (bindingId: BindingId, part: "type" | "initializer") => boolean;
+  /** Selects a resolved property/control-flow binding's own `@name` value span
+   * (Task 45 Inspector consumer rows). `occurrenceKey` is Task 22's
+   * `propertyBindingOccurrenceKey(statementIndex, parameterKey)`. False, without
+   * moving anything, if that occurrence's span does not currently resolve. */
+  jumpToPropertyBindingValue: (occurrenceKey: string) => boolean;
+  /** Selects one text-template hole's brace-interior span (Task 45 Inspector
+   * consumer rows). `holeIndex` is the hole's position among the compiled
+   * TextTemplateAst's hole segments, in source order. False, without moving
+   * anything, if that occurrence/hole does not currently resolve. */
+  jumpToTemplateHole: (occurrenceKey: string, holeIndex: number) => boolean;
   /** Re-resolves a search result after any required flush before applying it as a pick. */
   applyPickCandidate: (elementId: ElementId) => boolean;
   pickCandidateElementIds: () => readonly ElementId[];

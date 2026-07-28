@@ -3,10 +3,13 @@ import { createRef } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SourceEditorHandle } from "../editor/sourceEditorTypes";
 import { registerSourceEditSession } from "../editor/sourceEditSession";
-import { evaluateElements } from "../geometry/evaluate";
+import { buildConditionalGroupConditionsByElementId } from "../geometry/controlBooleanRuntime";
+import { evaluateElements, type EvaluateElementsOptions } from "../geometry/evaluate";
+import { buildConditionalMutationOwners, conditionalOwnerIdByElementId } from "../scalars/conditionalMutationControl";
+import { buildForGroupMutationOwners, forGroupMutationOwnerByElementId } from "../scalars/forGroupMutationControl";
 import { createCadElement } from "../model/elementFactory";
 import { sampleElements } from "../sampleData";
-import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
+import { initialCadDocumentState, useCadDocumentStore, type CadDocumentState } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import type { CadElement, CadElementType } from "../types/geometry";
 import { InspectorPanel } from "./InspectorPanel";
@@ -26,6 +29,8 @@ const makeHandle = (): SourceEditorHandle => ({
   jumpToElementEnd: vi.fn(),
   jumpToBindingDeclaration: vi.fn(() => true),
   jumpToBindingDeclarationPart: vi.fn(() => true),
+  jumpToPropertyBindingValue: vi.fn(() => true),
+  jumpToTemplateHole: vi.fn(() => true),
   jumpToParameterValue: vi.fn(() => true),
   applyPickCandidate: vi.fn(() => true),
   pickCandidateElementIds: vi.fn(() => []),
@@ -318,5 +323,108 @@ describe("InspectorPanel typed declaration metadata", () => {
     renderInspector("B");
 
     expect(screen.queryByText("宣言")).not.toBeInTheDocument();
+  });
+});
+
+describe("InspectorPanel runtime values (Task 45)", () => {
+  beforeEach(() => {
+    useCadDocumentStore.setState(initialCadDocumentState());
+    useCadUiStore.setState(initialCadUiState());
+  });
+
+  const evaluateOptionsFor = (state: CadDocumentState): EvaluateElementsOptions => ({
+    evaluationLimitIndex: state.doc.document.evaluationLimitIndex,
+    scalarProgram: state.doc.scalarProgram,
+    bindingVersions: state.doc.bindingVersions,
+    statementInfoByElementId: state.doc.statementMap.byElementId,
+    statementIdByStatementIndex: state.doc.statementMap.statementIdByStatementIndex,
+    conditionalOwnerStatementIdByElementId: state.doc.bindingVersions
+      ? conditionalOwnerIdByElementId(buildConditionalMutationOwners(
+          state.doc.bindingVersions, state.doc.document.elements, state.doc.statementMap.byElementId,
+          state.doc.statementMap.statementIdByStatementIndex
+        ))
+      : undefined,
+    forGroupMutationOwnerByElementId: state.doc.bindingVersions
+      ? forGroupMutationOwnerByElementId(buildForGroupMutationOwners(
+          state.doc.bindingVersions, state.doc.document.elements, state.doc.statementMap.byElementId,
+          state.doc.statementMap.statementIdByStatementIndex
+        ))
+      : undefined,
+    conditionalGroupConditionsByElementId: buildConditionalGroupConditionsByElementId(
+      state.doc.conditionalGroupConditions ?? new Map(),
+      state.doc.statementMap.elementIdByStatementIndex
+    )
+  });
+
+  const renderInspectorForRuntimeBinding = (
+    source: string,
+    bindingName: string,
+    props: { isEvaluationStale?: boolean } = {}
+  ) => {
+    useCadDocumentStore.getState().commitText(source, "test");
+    const state = useCadDocumentStore.getState();
+    const bindingId = state.doc.bindingAnalysis!.catalog.bindings.find(
+      (binding) => binding.kind === "typed" && binding.name === bindingName
+    )!.id;
+    useCadUiStore.getState().setSelectedBindingId(bindingId);
+    const handle = makeHandle();
+    const sourceEditorRef = createRef<SourceEditorHandle>();
+    sourceEditorRef.current = handle;
+    const evaluation = evaluateElements(state.elements, evaluateOptionsFor(state));
+    const view = render(
+      <InspectorPanel
+        element={null}
+        elements={state.elements}
+        evaluation={evaluation}
+        isEvaluationStale={props.isEvaluationStale ?? false}
+        sourceEditorRef={sourceEditorRef}
+      />
+    );
+    return { bindingId, handle, unmount: view.unmount };
+  };
+
+  it("shows the final value and jumps to the initializer when the value row is clicked", () => {
+    const { handle, bindingId } = renderInspectorForRuntimeBinding(
+      ["nui 3", "let total: number = 1", "set total = 5"].join("\n"),
+      "total"
+    );
+
+    expect(within(screen.getByText("最終値").closest(".inspector-row")!).getByText("5")).toBeInTheDocument();
+    expect(screen.getByText("set履歴")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("最終値").closest(".inspector-row")!);
+    expect(handle.jumpToBindingDeclarationPart).toHaveBeenCalledWith(bindingId, "initializer");
+  });
+
+  it("shows poisoned status and a diagnostic message when the final value is a runtime error", () => {
+    renderInspectorForRuntimeBinding(["nui 3", "const bad: number = 1 / 0"].join("\n"), "bad");
+
+    expect(within(screen.getByText("最終値").closest(".inspector-row")!).getByText("無効(poisoned)")).toBeInTheDocument();
+    expect(screen.getByText("実行時値").closest(".dependency-group")!.querySelector(".inspector-diagnostic.error")).not.toBeNull();
+  });
+
+  it("shows unknown instead of the last value when the evaluation is stale, and hides consumer rows", () => {
+    renderInspectorForRuntimeBinding(
+      ["nui 3", "let 印刷: boolean = true", "group G (printEnabled: @印刷) {", "}"].join("\n"),
+      "印刷",
+      { isEvaluationStale: true }
+    );
+
+    expect(within(screen.getByText("最終値").closest(".inspector-row")!).getByText("不明(評価待ち)")).toBeInTheDocument();
+    expect(screen.queryByText("参照元")).not.toBeInTheDocument();
+  });
+
+  it("lists a consumer row and jumps to its exact property value span when clicked", () => {
+    const { handle } = renderInspectorForRuntimeBinding(
+      ["nui 3", "let 印刷: boolean = true", "group G (printEnabled: @印刷) {", "}"].join("\n"),
+      "印刷"
+    );
+
+    expect(screen.getByText("参照元")).toBeInTheDocument();
+    const row = screen.getByText("G").closest(".inspector-row")!;
+    fireEvent.click(row);
+
+    expect(useCadUiStore.getState().selectedElementId).not.toBeNull();
+    expect(handle.jumpToPropertyBindingValue).toHaveBeenCalled();
   });
 });

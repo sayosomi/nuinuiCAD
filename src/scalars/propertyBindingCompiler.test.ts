@@ -5,6 +5,7 @@ import type { CadElement, ElementId } from "../types/geometry";
 import type { BindingAnalysis } from "./bindingAnalysis";
 import {
   compilePropertyBindings,
+  parsePropertyBindingOccurrenceKey,
   propertyBindingOccurrenceKey,
   PROPERTY_BINDING_INVALID_CODE,
   PROPERTY_BINDING_NOT_SUPPORTED_CODE,
@@ -316,5 +317,20 @@ describe("compilePropertyBindings: literal properties are unaffected", () => {
     expect(sourcesByOccurrenceKey.size).toBe(1);
     expect(sourcesByOccurrenceKey.has(propertyBindingOccurrenceKey(4, "side"))).toBe(false);
     expect(compiled.elements.find((element) => element.type === "offsetLine")).toMatchObject({ side: "right", closed: false });
+  });
+});
+
+describe("parsePropertyBindingOccurrenceKey: inverse of propertyBindingOccurrenceKey", () => {
+  it("round-trips statementIndex and parameterKey for every registered opt-in property", () => {
+    expect(parsePropertyBindingOccurrenceKey(propertyBindingOccurrenceKey(4, "side"))).toEqual({ statementIndex: 4, parameterKey: "side" });
+    expect(parsePropertyBindingOccurrenceKey(propertyBindingOccurrenceKey(0, "text"))).toEqual({ statementIndex: 0, parameterKey: "text" });
+  });
+
+  it("returns null for a key with no separator", () => {
+    expect(parsePropertyBindingOccurrenceKey("not-a-key")).toBeNull();
+  });
+
+  it("returns null when the statementIndex half is not an integer", () => {
+    expect(parsePropertyBindingOccurrenceKey("abc:side")).toBeNull();
   });
 });

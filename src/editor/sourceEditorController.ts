@@ -31,6 +31,7 @@ import { isConditionalGroupElement, isFoldTargetExpanded, isStatementExpanded } 
 import { getParameterDefinitions } from "../parameters/parameterDefinitions";
 import { parameterPickCommandId } from "../commands/parameterPickCommand";
 import { pickCandidates } from "../model/pickCandidates";
+import { isRuntimeBindingDisplayFresh } from "../model/runtimeBindingFreshness";
 import type { BindingId } from "../scalars/bindingCatalog";
 import type { ElementId, EvaluationResult } from "../types/geometry";
 import { useCadDocumentStore, type CadDocumentState } from "../state/cadDocumentStore";
@@ -464,6 +465,52 @@ export class SourceEditorController implements SourceEditorHandle {
       annotations: [canvasCursorOrigin.of("canvas-cursor"), Transaction.addToHistory.of(false)]
     });
     this.uiStore.getState().setSelectedBindingId(bindingId);
+    this.view.focus();
+    return true;
+  };
+
+  /**
+   * Task 45: selects a resolved property/control-flow `@name` binding's own
+   * value span via Task 43's plain PropertyBindingRangeIndex (`occurrenceKey`
+   * is Task 22's `propertyBindingOccurrenceKey(statementIndex, parameterKey)`).
+   * Never re-parses the line and never guesses a position - returns false
+   * without moving anything when the occurrence's span isn't currently
+   * trackable (dirty-dropped, or the occurrence no longer compiles), so a
+   * caller never lands on a stale/wrong location. Does not touch selection;
+   * callers own selecting the consuming element first (mirroring
+   * jumpToParameterValue).
+   */
+  jumpToPropertyBindingValue = (occurrenceKey: string): boolean => {
+    if (this.protocol.composing) return false;
+    const range = this.propertyBindingRanges.get(occurrenceKey);
+    if (!range) return false;
+    this.view.dispatch({
+      selection: EditorSelection.single(range.span.from, range.span.to),
+      scrollIntoView: true,
+      annotations: [canvasCursorOrigin.of("canvas-cursor"), Transaction.addToHistory.of(false)]
+    });
+    this.view.focus();
+    return true;
+  };
+
+  /**
+   * Task 45: selects one text-template hole's brace-interior (`inner`) span
+   * via Task 43's plain TemplateHoleRangeIndex. `holeIndex` is the hole's
+   * position among Task 26's TextTemplateAst hole segments (all hole kinds
+   * counted, in source order) - callers resolve it once against the compiled
+   * TextTemplateAst's `dependencies`/`segments`, never here. Returns false
+   * without moving anything if the occurrence/hole isn't currently
+   * trackable.
+   */
+  jumpToTemplateHole = (occurrenceKey: string, holeIndex: number): boolean => {
+    if (this.protocol.composing) return false;
+    const hole = this.templateHoleRanges.get(occurrenceKey)?.holes[holeIndex];
+    if (!hole) return false;
+    this.view.dispatch({
+      selection: EditorSelection.single(hole.inner.from, hole.inner.to),
+      scrollIntoView: true,
+      annotations: [canvasCursorOrigin.of("canvas-cursor"), Transaction.addToHistory.of(false)]
+    });
     this.view.focus();
     return true;
   };
@@ -1562,6 +1609,19 @@ export class SourceEditorController implements SourceEditorHandle {
     return Boolean(this.appliedEvaluation && state.docText !== state.sourceText && this.appliedEvaluation.compiledDocumentRevision === state.compiledDocumentRevision);
   }
 
+  /** Task 45: the same isSourceDirty/isEvaluationStale pair InspectorPanel.tsx
+   * derives from its own React state, recomputed here from this controller's
+   * own docText/sourceText/compiledDocumentRevision/appliedEvaluation
+   * bookkeeping, then reduced through the one shared predicate
+   * (runtimeBindingFreshness.ts) rather than a second inline rule. */
+  private isRuntimeBindingDisplayFreshForGutter() {
+    const state = this.store.getState();
+    return isRuntimeBindingDisplayFresh({
+      isSourceDirty: state.docText !== state.sourceText,
+      isEvaluationStale: !this.appliedEvaluation || this.appliedEvaluation.compiledDocumentRevision !== state.compiledDocumentRevision
+    });
+  }
+
   private refreshDecorationIndex() {
     const state = this.store.getState();
     this.decorationIndex = createEvaluationDecorationIndex({
@@ -1572,7 +1632,10 @@ export class SourceEditorController implements SourceEditorHandle {
       palette: state.palette,
       visibilityProfiles: state.visibilityProfiles,
       activeVisibilityProfileId: state.activeVisibilityProfileId,
-      pickCandidates: this.currentPickCandidates()
+      pickCandidates: this.currentPickCandidates(),
+      groupPrintEnabledLookup: this.isRuntimeBindingDisplayFreshForGutter()
+        ? { propertyBindings: state.doc.propertyBindings, byElementId: state.doc.statementMap.byElementId }
+        : undefined
     });
     if (!this.destroyed && !this.protocol.composing) this.view.dispatch({ effects: evaluationChanged.of(null) });
     else this.pendingDecorationRefresh = true;

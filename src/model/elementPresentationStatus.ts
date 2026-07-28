@@ -9,6 +9,7 @@ import {
   visibilityProfileById
 } from "./visibilityProfiles";
 import { resolvedElementColorMap } from "../palette/elementColors";
+import { isGroupPrintEnabled, type GroupPrintEnabledLookup } from "../geometry/groupPrintEnabledRuntime";
 import type {
   CadElement,
   DocumentPalette,
@@ -60,7 +61,8 @@ export const createElementPresentationStatusIndex = ({
   groupFoldById,
   palette,
   visibilityProfiles,
-  activeVisibilityProfileId
+  activeVisibilityProfileId,
+  groupPrintEnabledLookup
 }: {
   elements: readonly CadElement[];
   evaluation: EvaluationResult;
@@ -68,6 +70,15 @@ export const createElementPresentationStatusIndex = ({
   palette: DocumentPalette;
   visibilityProfiles: readonly VisibilityProfile[];
   activeVisibilityProfileId: string;
+  /**
+   * Task 45: resolves `group.printEnabled` through the same runtime binding
+   * Task 24 already built for print export, instead of the literal field
+   * alone. Omit (or pass undefined) whenever the caller cannot currently
+   * prove the compiled document/evaluation pairing is fresh for the live
+   * source (see runtimeBindingFreshness.ts) - omitting falls back to the
+   * literal-only behavior byte-for-byte, so no caller regresses by omission.
+   */
+  groupPrintEnabledLookup?: GroupPrintEnabledLookup;
 }) => {
   const groupStates = groupStateByElementId([...elements], groupFoldById);
   const profile = visibilityProfileById([...visibilityProfiles], activeVisibilityProfileId);
@@ -91,7 +102,9 @@ export const createElementPresentationStatusIndex = ({
       disabledByGroup: Boolean(groupState?.disabledByGroupId),
       conditionInactive: conditionInactive.has(element.id),
       isEvaluated: evaluated.has(element.id) && enabled.has(element.id) && baseVisible.has(element.id),
-      printEnabled: element.type === "group" && element.printEnabled === true,
+      printEnabled:
+        element.type === "group" &&
+        isGroupPrintEnabled(element, groupPrintEnabledLookup, evaluation.computedScalarBindings),
       color: colors.get(element.id) ?? "#31322f"
     };
   });
