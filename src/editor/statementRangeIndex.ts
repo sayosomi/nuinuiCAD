@@ -2,6 +2,7 @@ import { MapMode, Text, type ChangeDesc } from "@codemirror/state";
 import type { StatementInfo, StatementMap } from "../dsl/dslDocument";
 import type { FoldTarget } from "../model/groups";
 import type { ElementId } from "../types/geometry";
+import { bindingIdForStableStatementId, type BindingId } from "../scalars/bindingCatalog";
 
 type FoldAnchor = { from: number; to: number };
 
@@ -235,4 +236,66 @@ export const mapAtStopRange = (range: AtStopRange | null, changes: ChangeDesc): 
   const from = changes.mapPos(range.from, 1, MapMode.TrackAfter);
   const to = changes.mapPos(range.to, -1, MapMode.TrackBefore);
   return from === null || to === null || to < from ? null : { from, to };
+};
+
+export type TypedDeclarationRange = { bindingId: BindingId; from: number; to: number };
+export type TypedDeclarationRangeIndex = ReadonlyMap<BindingId, TypedDeclarationRange>;
+
+/**
+ * Mirrors createPrintLayoutRangeIndex for `const`/`let` typed declaration
+ * statements (Task 39): a live-line -> stable binding identity index used only
+ * for typed value completion's cursor -> BindingCatalog bridge, never for
+ * fold/gutter presentation. Keyed by the same `binding:<stableStatementId>`
+ * BindingId bindingCatalog.ts itself derives (`bindingIdForStableStatementId`),
+ * so a caller can look the range's own bindingId straight up in
+ * `BindingAnalysis.catalog.bindingsById` with no re-derivation. Absent
+ * `statementIdByStatementIndex` (no typed declarations in this document, or a
+ * failed compile) yields an empty index, same as printLayout's own map when
+ * unavailable.
+ */
+export const createTypedDeclarationRangeIndex = (doc: Text, statementMap: StatementMap): TypedDeclarationRangeIndex => {
+  const ranges = new Map<BindingId, TypedDeclarationRange>();
+  const statementIdByStatementIndex = statementMap.statementIdByStatementIndex;
+  if (!statementIdByStatementIndex) return ranges;
+  for (const info of statementMap.statements) {
+    if (info.kind !== "typedDeclaration") continue;
+    const stableStatementId = statementIdByStatementIndex.get(info.statementIndex);
+    if (stableStatementId === undefined) continue;
+    if (info.line < 1 || info.line > doc.lines) continue;
+    const line = doc.line(info.line);
+    const endLine = info.endLine >= info.line && info.endLine <= doc.lines ? doc.line(info.endLine) : line;
+    const bindingId = bindingIdForStableStatementId(stableStatementId);
+    ranges.set(bindingId, { bindingId, from: line.from, to: endLine.to });
+  }
+  return ranges;
+};
+
+/**
+ * Mirrors mapPrintLayoutRangeIndex: keeps last-known-good typed declaration
+ * ranges aligned with an uncommitted or fatal CM buffer via CM's own
+ * ChangeDesc position mapping. Only a change fully replacing the tracked
+ * range end-to-end (`touchesRange(...) === "cover"`) drops it - an ordinary
+ * edit anywhere inside the statement (including every keystroke typed into
+ * its own initializer, well before the next compile debounce fires) maps
+ * through and keeps the range alive, so typed value completion keeps
+ * resolving the same binding across a dirty, uncommitted burst of edits.
+ */
+export const mapTypedDeclarationRangeIndex = (ranges: TypedDeclarationRangeIndex, changes: ChangeDesc): TypedDeclarationRangeIndex => {
+  const mapped = new Map<BindingId, TypedDeclarationRange>();
+  for (const [bindingId, range] of ranges) {
+    if (changes.touchesRange(range.from, range.to) === "cover") continue;
+    const from = changes.mapPos(range.from, 1, MapMode.TrackAfter);
+    const to = changes.mapPos(range.to, 1, MapMode.Simple);
+    if (from === null || to === null || to < from) continue;
+    mapped.set(bindingId, { bindingId, from, to });
+  }
+  return mapped;
+};
+
+/** Mirrors elementIdAtCursor for the typed declaration range index. */
+export const typedDeclarationBindingIdAtCursor = (ranges: TypedDeclarationRangeIndex, head: number): BindingId | null => {
+  for (const [bindingId, range] of ranges) {
+    if (head >= range.from && head <= range.to) return bindingId;
+  }
+  return null;
 };

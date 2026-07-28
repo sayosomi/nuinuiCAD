@@ -52,9 +52,14 @@ describe("dslCompletionContextAt", () => {
 
   it("keeps group-opening attributes eligible through the shared synthetic-close reparse", () => {
     const line = "group Draft (printEnabled: true) {";
+    // `printEnabled` is one of Task 39's opt-in scalar boolean properties, so
+    // this now resolves to "propertyScalarValue" (offering true/false literal
+    // completion) rather than the inert generic "parameter" shape - the
+    // synthetic-close reparse eligibility this test guards is still exercised
+    // by getting any non-null, correctly-kinded completion context at all.
     expect(dslCompletionContextAt(line, line.indexOf("true") + 2)).toMatchObject({
-      kind: "parameter",
-      parameter: { definition: { kind: "boolean" } }
+      kind: "propertyScalarValue",
+      propertyContext: { kind: "booleanLiteral" }
     });
   });
 

@@ -33,6 +33,17 @@
 
 250→1000 median scaling: 6.655x。virtual renameは`BindingCatalog.bindings`のshallow copy(対象bindingの`name`のみ置換)であり、`LexicalScopeIndex`の再構築、`compileDslDocument`/`parseDsl`の再実行、source再parseは行わない。before/after双方の解決は`resolveInitializerReferences`/`resolveReferencesAtSites`を文書全体で1回ずつ(occurrence種別ごとにbatch)呼ぶのみで、occurrenceごとの個別呼び出しは行わない。
 
+## Task 39 performance record
+
+測定日: 2026-07-28。`src/scalars/typedValueCandidates.performance.test.ts`をfork 1 workerで実行し、`nui 3`の直列typed number宣言250/1000件+cursor位置の1件(合計251/1001 binding)を対象に、**precomputed `BindingCatalog`/`BindingAnalysis`を1回だけ構築した後**の`typedBindingReferenceCandidates`(`visibleBindingsAt`+invalid除外+型フィルタ)のCPU時間だけを計測した(compileDslDocumentは各サイズにつき1回だけ、測定ループの外で実行)。各サイズ100 warm-up後、21 trial、trialあたり20 runの平均を1サンプルとして計測した。
+
+| bindings (250/1000 + cursor) | median | p95 |
+| --- | ---: | ---: |
+| 251 | 0.109 ms | 0.192 ms |
+| 1001 | 0.488 ms | 0.493 ms |
+
+250→1000 median scaling: 4.484x。measured関数はcatalogの再構築・source再parse・compileを一切行わず、`visibleBindingsAt`の1回のsite走査結果に対する型フィルタ処理だけを計測する。この記録は絶対gateではなくbaselineとして残し、Task 50がCI分散とあわせてgate値を決める。
+
 ## タスク一覧
 
 | # | task | domain | depends | connection at completion | branch slug | status |
@@ -83,7 +94,7 @@
 | 36 | [typed dependency graph](tasks/36-typed-dependency-graph.md) | dependency model | 13,22,26,29,30 | gated analysis | `typed-vars/36-dependency-graph` | 完了 |
 | 37 | [typed rename analysis](tasks/37-typed-rename-analysis.md) | rename safety | 36 | gated analysis | `typed-vars/37-rename-analysis` | 完了 |
 | 38 | [typed rename command](tasks/38-typed-rename-command.md) | command/text splice | 37 | gated command | `typed-vars/38-rename-command` | 完了 |
-| 39 | [typed value completion](tasks/39-typed-value-completion.md) | editor completion | 12,15,22,26 | gated editor | `typed-vars/39-value-completion` | 未着手 |
+| 39 | [typed value completion](tasks/39-typed-value-completion.md) | editor completion | 12,15,22,26 | gated editor | `typed-vars/39-value-completion` | 完了 |
 | 40 | [set/recovery completion](tasks/40-set-recovery-completion.md) | editor completion | 29,30,39 | gated editor | `typed-vars/40-set-completion` | 未着手 |
 | 41 | [typed variable Quick Fixes](tasks/41-typed-variable-quick-fixes.md) | diagnostics/editor | 07,13,22,29,40 | gated editor | `typed-vars/41-quick-fixes` | 未着手 |
 | 42 | [Inspector declaration metadata](tasks/42-inspector-declaration-metadata.md) | Inspector | 19 | gated UI metadata | `typed-vars/42-inspector-metadata` | 未着手 |
@@ -424,6 +435,20 @@ TSはVitest fork single worker・file parallelなし、20 warm-up、21 trials、
 - **`commitText`ではなく新設`commitLineSplices`store actionを使う**: `commitText`が発行する`sourceUpdate.kind`は`"reset"`(`upgradeDslMajorVersion`と同じ)であり、Source Editor側は行番号だけでcursorを復元し列位置とtext長差分のoffset補正を失う。既存`commitDocumentChange`/`commitModelBridge`が使う`"model-patch"`タグ(CM6 changesetによる`selectionAfterModelPatch`の正確なselection mapping)を再利用するため、`src/document/canonicalDocument.ts`に`commitLineSplicePatch(current, splices)`(element diffなしで`applyLineSplices`+既存`compileCanonicalText`を呼ぶだけ)を追加し、`cadDocumentStore.ts`にそれを`"model-patch"`としてbookkeepingする薄いaction `commitLineSplices`を追加した。既存`sourceEditorController.ts`の`apply-model-patch`経路は無変更のまま再利用している(`src/editor/sourceEditorController.typedRename.test.ts`でCM選択のoffset補正・reject時無変更・undo/redo復元を実測確認済み)。
 - **F2・shortcut・UIは意図的に未接続**: 37の"declaration/reference/set/template/property patches、selection/focus restoration、Undo"という対象どおり、command層のみを実装した。palette登録・shortcut・dialogは後続task(43 Source Editor span/navigation、44 value operations等、UIに触れるtask)の対象。既存element rename(F2、`editorTransaction` owner)は無変更。
 - 41(Quick Fixes)・43/44(editor span/value ops)・48(diagnostics E2E)は、このcommandをcallする側(UI/quick-fix実装)を追加する形で接続できる。commandのcollision/captureの日本語errorメッセージ(`same-scope-collision`は衝突先binding名のみ、`capture`はoccurrence名のみ — 37の型に行番号が含まれないため、element rename版のような「N行目」表記は持たない)は、後続UIで表示する際そのまま再利用してよい。
+
+### Task 39完了時点の引き継ぎ(40/41/44/50向け)
+
+typed declaration initializer / opt-in scalar property値 / template holeの3箇所に、既存のprecomputed `BindingCatalog`/`BindingAnalysis`を読むだけの値補完を接続した。新規productionコードは`bindingId`解決以外の名前解決・型検査・source再parseを一切行わない。
+
+- **catalog-freeな位置解析と、catalogを要する候補生成を明確に分離した**: `src/scalars/scalarExpressionPositionClassifier.ts`(`classifyScalarExpressionPosition`/`expectedOperandType`/`scalarOperandWordEndingAt`/`scalarExpressionCompletionContextAt`)はtoken種別と演算子記号だけから位置・期待型を決め、`@name`参照やliteralの実際の型解決には一切触れない。`src/scalars/typedValueCandidates.ts`(catalogを持つ側)が`resolvePrecedingOperandType`/`typedBindingReferenceCandidates`/`scalarExpressionCandidates`/`templateHoleScalarCandidates`で型解決と候補組み立てを行う。この境界により、`src/dsl/dslTypedDeclarationCompletionContext.ts`と`src/dsl/dslTemplateHoleCompletionContext.ts`(hole検出のみ、`scanTextTemplateLiteral`をカーソル位置で打ち切って呼ぶだけ)は完全にcatalog非依存のpure関数のままである。
+- **property scalar値だけexpression機構を共有しない**: `src/dsl/dslPropertyScalarCompletionContext.ts`はTask22の`compilePropertyBindings`が単独`@name`かliteralしか受理しないのと同じ制約に合わせ、`scalarExpressionCompletionContextAt`系を一切呼ばない独立した小関数。対象propertyは`ParameterDefinition.propertyCapability`の有無だけで判定し(固定リストなし)、`conditionalGroup.condition`はこのメタデータを持たないため自動的に対象外。
+- **typed declaration initializerの`@name`可視性は新しいフィルタを足していない**: `visibleBindingsAt(catalog, {scopeId: binding.effectiveScopeId, statementIndex: binding.statementIndex})`は、自身の宣言statementIndexに到達した時点で`addTypedBinding`を呼ぶ前にloopを止めるという既存実装のおかげで、自己参照・forward・shadowされたbindingを新規コードなしに正しく除外する(`typedValueCandidates.test.ts`の"pre-declaration visibility"で実測確認済み)。invalid除外は`BindingAnalysis.entriesById`の1箇所だけ。
+- **dirty buffer追随の鍵は新設`TypedDeclarationRangeIndex`**(`src/editor/statementRangeIndex.ts`の`createTypedDeclarationRangeIndex`/`mapTypedDeclarationRangeIndex`/`typedDeclarationBindingIdAtCursor`、`printLayoutRangeIndex`と同型): 対象範囲全体を置き換える編集だけが無効化し(`touchesRange(...) === "cover"`)、initializer内で文字を追加/編集するだけの通常入力は`mapPos`で追従し続ける。そのうえで候補生成時に2つのfail-closedガードを毎回かける — (1)ライブ行を`parseDslTypedDeclarationStatement`で毎回フレッシュに再parseし`kind!=="typedDeclaration"`なら諦める、(2)range由来の`bindingId`が現行`bindingAnalysis.catalog.bindingsById`に存在しなければ候補を出さない。literal/operator候補が使う`declaredType`はこのライブ再parse結果由来であり、stale binding由来ではない(型注釈編集中も常に最新の型で候補を出す)。
+- **`@name`の`apply`テキストは常に`"@" + name`**(`src/editor/cmAutocomplete.ts`の`asScalarCompletions`): クリーンなoperand開始位置(何も入力されていない)でも、`@partial`入力中でも、from/toが指す範囲を`@name`で置換すれば正しい — 2つの場合分けを候補生成側に持ち込んでいない。
+- **property scalar value / template holeのsite解決**は`elementBindingSite`(`cmAutocomplete.ts`)が`doc.statementMap.byElementId`(新設option `statementInfoByElementId`)からcatalog空間のstatementIndexを引き、`propertyBindingCompiler.ts`自身と全く同じ`scopeOfStatement`ルックアップでscopeIdを得る — Task22が解決する可視性と完全に一致する。
+- **template holeは型を推測しない**: hole content spanに対し`{kind:"string"}`と`{kind:"number"}`の両方で`scalarExpressionCompletionContextAt`/`scalarExpressionCandidates`を呼び、結果を(bindingId/labelで)重複排除して合算する(`templateHoleScalarCandidates`)。boolean/choice bindingは両呼び出しのどちらでも`accepts`に一致せず自然に除外される。
+- **対象外のまま**: `set`文RHS補完・invalid let recovery補完(40)、qualified reference、Quick Fix。`scalarExpressionCandidates`の`includeOperators: false`はproperty scalar valueには到達しない設計(呼ばれるのはtyped initializer/template holeだけ)だが、40のset RHS補完が同じ`scalarExpressionCandidates`/`scalarExpressionCompletionContextAt`をそのまま再利用できるよう、両方とも`BindingReferenceSite`だけを受け取る形で汎用に保ってある。
+- 40(set/recovery completion)は`scalarExpressionCompletionContextAt`/`scalarExpressionCandidates`をset文RHSにもそのまま再利用でき、invalid let recovery候補だけが対象外(`typedBindingReferenceCandidates`のinvalid除外を緩める新しい`accepts`変種が必要)。41(Quick Fixes)は`propertyScalarValueCompletionContext`のcapability情報をQuick Fix提案の型ヒントに再利用できる。44(value operations)はhole/property完了のfrom/to境界をそのままvalue-span操作の参照点にできる。50(performance)は本PRの`typedValueCandidates.performance.test.ts`baselineを使ってgateを決められる。
 
 ## Blocking decisions
 
