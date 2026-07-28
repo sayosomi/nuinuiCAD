@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 import { applyLineSplices } from "../document/textPatch";
 import { compileCanonicalText, regenerateCanonicalFromModel } from "../document/canonicalDocument";
 import { emptyDocument } from "./dslDocumentTestUtils";
+import { documentDslRefs, serializedStatementLines } from "./dslSerializer";
+import { serializeElementStatementBlock } from "./dslSerializeElement";
+import { DSL_INDENT } from "./dslTokens";
 import {
   buildNui3StatementPatch,
   serializeNui3Document,
@@ -15,7 +18,7 @@ const currentFor = (sourceText: string) => {
   return current;
 };
 
-const statementIdFor = (current: ReturnType<typeof currentFor>, kind: "typedDeclaration" | "set" | "element") => {
+const statementIdFor = (current: ReturnType<typeof currentFor>, kind: string) => {
   const info = current.doc.statementMap.statements.find((candidate) => candidate.kind === kind);
   if (!info) throw new Error(`missing ${kind}`);
   const id = current.doc.statementMap.statementIdByStatementIndex?.get(info.statementIndex);
@@ -88,6 +91,99 @@ describe("nui 3 serializer facade", () => {
       "",
       "# after target",
       "const flag: boolean = true"
+    ].join("\n"));
+  });
+
+  it("keeps a nested element at its parser-owned block depth and matches the Task 07 output", () => {
+    const source = [
+      "nui 3",
+      "group Outer {",
+      "  # unchanged before target",
+      "  point A = coordinate(",
+      "    x: 0",
+      "    y: 0",
+      "    state: hidden",
+      "  )",
+      "",
+      "  # unchanged after target",
+      "}",
+      "let scope: number = 0"
+    ].join("\n");
+    const current = currentFor(source);
+    const info = current.doc.statementMap.statements.find((candidate) => candidate.kind === "element");
+    const element = current.doc.document.elements.find((candidate) => candidate.name === "A");
+    if (!info || !element) throw new Error("missing nested point");
+
+    const patch = buildNui3StatementPatch(current, statementIdFor(current, "element"));
+
+    expect(patch.status).toBe("ready");
+    if (patch.status !== "ready") return;
+    const expected = serializedStatementLines(
+      serializeElementStatementBlock(element, documentDslRefs(current.doc.document.elements, 3)),
+      DSL_INDENT.repeat(info.indentDepth)
+    );
+    expect(patch.splices[0]).toMatchObject({ startLine: 4, endLine: 8, replacementLines: expected });
+    expect(applyLineSplices(current.sourceText, patch.splices)).toBe([
+      "nui 3",
+      "group Outer {",
+      "  # unchanged before target",
+      ...expected,
+      "",
+      "  # unchanged after target",
+      "}",
+      "let scope: number = 0"
+    ].join("\n"));
+  });
+
+  it("keeps nested typed declarations and set statements at their statement depth", () => {
+    const source = [
+      "nui 3",
+      "group Outer {",
+      "  let   flag : boolean = true",
+      "  set   flag = false",
+      "}"
+    ].join("\n");
+    const current = currentFor(source);
+
+    const declarationPatch = buildNui3StatementPatch(current, statementIdFor(current, "typedDeclaration"));
+    const setPatch = buildNui3StatementPatch(current, statementIdFor(current, "set"));
+
+    expect(declarationPatch).toMatchObject({
+      status: "ready",
+      splices: [{ startLine: 3, endLine: 3, replacementLines: ["  let flag: boolean = true"] }]
+    });
+    expect(setPatch).toMatchObject({
+      status: "ready",
+      splices: [{ startLine: 4, endLine: 4, replacementLines: ["  set flag = false"] }]
+    });
+  });
+
+  it("serializes nested containers and their descendants with every parser-owned depth", () => {
+    const source = [
+      "nui 3",
+      "group Outer {",
+      "  group Inner {",
+      "    point A = coordinate(x: 0 y: 0 state: hidden)",
+      "  }",
+      "}"
+    ].join("\n");
+    const current = currentFor(source);
+
+    const result = serializeNui3Document(current);
+
+    expect(result.status).toBe("serialized");
+    if (result.status !== "serialized") return;
+    expect(result.sourceText).toBe([
+      "nui 3",
+      "group Outer {",
+      "  group Inner {",
+      "    point A = coordinate(",
+      "      x: 0",
+      "      y: 0",
+      "      state: hidden",
+      "    )",
+      "  }",
+      "}"
     ].join("\n"));
   });
 

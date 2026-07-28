@@ -3,7 +3,7 @@ import { documentDslRefs, serializedStatementLines } from "./dslSerializer";
 import { serializeTypedDeclaration } from "./dslDeclarationSerializer";
 import { serializeElementStatementBlock } from "./dslSerializeElement";
 import { serializeSetStatement } from "./dslSetSerializer";
-import { splitDslComment } from "./dslTokens";
+import { DSL_INDENT, splitDslComment } from "./dslTokens";
 import type { CompiledDslDocument, StatementInfo } from "./dslDocument";
 import type { DslStatement } from "./dslTypes";
 
@@ -68,7 +68,8 @@ const hasSourceOwnedScalarValue = (compiled: CompiledDslDocument, statementIndex
 const serializeElementStatement = (
   compiled: CompiledDslDocument,
   statementIndex: number,
-  statement: Extract<DslStatement, { kind: "element" | "group" }>
+  statement: Extract<DslStatement, { kind: "element" | "group" }>,
+  indent: string
 ): Nui3StatementSerialization => {
   if (!compiled.document || !compiled.statementMap) return { status: "unavailable", reason: "last-good-document" };
   if (hasSourceOwnedScalarValue(compiled, statementIndex)) {
@@ -81,9 +82,9 @@ const serializeElementStatement = (
   const serialized = serializeElementStatementBlock(element, documentDslRefs(compiled.document.elements, 3));
   if (!serialized.close) {
     if (!statement.opensBlock || serialized.args.length > 0) return { status: "unavailable", reason: "unsupported-container" };
-    return { status: "serialized", replacementLines: [`${serialized.header} {`] };
+    return { status: "serialized", replacementLines: [`${indent}${serialized.header} {`] };
   }
-  return { status: "serialized", replacementLines: serializedStatementLines(serialized, "") };
+  return { status: "serialized", replacementLines: serializedStatementLines(serialized, indent) };
 };
 
 export const serializeNui3Statement = (
@@ -95,15 +96,18 @@ export const serializeNui3Statement = (
   }
   const located = statementInfoAt(compiled, statementIndex);
   if (!located) return { status: "unavailable", reason: "statement-range-mismatch" };
+  // Reuse Task 07's physical-line indentation convention.  This prefix is
+  // derived from the parser-owned statement depth, never from surrounding rows.
+  const indent = DSL_INDENT.repeat(located.info.indentDepth);
 
   switch (located.statement.kind) {
     case "typedDeclaration":
-      return { status: "serialized", replacementLines: [serializeTypedDeclaration(located.statement)] };
+      return { status: "serialized", replacementLines: [`${indent}${serializeTypedDeclaration(located.statement)}`] };
     case "set":
-      return { status: "serialized", replacementLines: [serializeSetStatement(located.statement)] };
+      return { status: "serialized", replacementLines: [`${indent}${serializeSetStatement(located.statement)}`] };
     case "element":
     case "group":
-      return serializeElementStatement(compiled, statementIndex, located.statement);
+      return serializeElementStatement(compiled, statementIndex, located.statement, indent);
     default:
       return { status: "unavailable", reason: "statement-kind-not-registered" };
   }

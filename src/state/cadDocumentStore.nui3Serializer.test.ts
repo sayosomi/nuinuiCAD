@@ -29,4 +29,42 @@ describe("nui 3 serializer patches through the canonical store boundary", () => 
     useCadDocumentStore.getState().redo();
     expect(useCadDocumentStore.getState().sourceText).toBe(["nui 3", "const flag: boolean = true", "# unchanged"].join("\n"));
   });
+
+  it("preserves nested declaration indentation, comments, and blank lines through Undo/Redo", () => {
+    const source = [
+      "nui 3",
+      "group Outer {",
+      "  # stays before",
+      "  const   flag : boolean = true",
+      "",
+      "  # stays after",
+      "}"
+    ].join("\n");
+    useCadDocumentStore.getState().commitText(source, "test");
+    const before = useCadDocumentStore.getState();
+    const statement = before.doc.statementMap.statements.find((info) => info.kind === "typedDeclaration");
+    if (!statement) throw new Error("missing nested declaration");
+    const statementId = before.doc.statementMap.statementIdByStatementIndex?.get(statement.statementIndex);
+    if (!statementId) throw new Error("missing nested declaration identity");
+
+    const patch = buildNui3StatementPatch(before, statementId);
+    expect(patch.status).toBe("ready");
+    if (patch.status !== "ready") return;
+    expect(useCadDocumentStore.getState().commitLineSplices(patch.splices)).toEqual({ status: "applied" });
+    const expected = [
+      "nui 3",
+      "group Outer {",
+      "  # stays before",
+      "  const flag: boolean = true",
+      "",
+      "  # stays after",
+      "}"
+    ].join("\n");
+    expect(useCadDocumentStore.getState().sourceText).toBe(expected);
+
+    useCadDocumentStore.getState().undo();
+    expect(useCadDocumentStore.getState().sourceText).toBe(source);
+    useCadDocumentStore.getState().redo();
+    expect(useCadDocumentStore.getState().sourceText).toBe(expected);
+  });
 });
