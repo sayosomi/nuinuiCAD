@@ -23,6 +23,30 @@ type SourceEditorPaneProps = {
   inert?: boolean;
 };
 
+const sameRuntimeDiagnostics = (left: readonly DslDiagnostic[], right: readonly DslDiagnostic[]) =>
+  left.length === right.length && left.every((diagnostic, index) => {
+    const other = right[index];
+    if (!other) return false;
+    if (
+      diagnostic.severity !== other.severity ||
+      diagnostic.line !== other.line ||
+      diagnostic.column !== other.column ||
+      diagnostic.message !== other.message ||
+      diagnostic.code !== other.code ||
+      diagnostic.origin !== other.origin ||
+      diagnostic.bindingId !== other.bindingId ||
+      diagnostic.elementId !== other.elementId ||
+      diagnostic.propertyKey !== other.propertyKey
+    ) return false;
+    const leftSegments = diagnostic.physicalSpan?.segments ?? [];
+    const rightSegments = other.physicalSpan?.segments ?? [];
+    return diagnostic.physicalSpan?.sourceRevision === other.physicalSpan?.sourceRevision &&
+      leftSegments.length === rightSegments.length &&
+      leftSegments.every((segment, segmentIndex) =>
+        segment.from === rightSegments[segmentIndex]?.from && segment.to === rightSegments[segmentIndex]?.to
+      );
+  });
+
 /**
  * The permanent left pane: the DSL source editor that replaced the legacy
  * element-list LeftPanel in Phase 2e.
@@ -52,6 +76,10 @@ export const SourceEditorPane = forwardRef<SourceEditorHandle, SourceEditorPaneP
   const commandErrorMessage = useCadUiStore((state) => state.commandErrorMessage);
   const dockRef = useRef<HTMLDivElement | null>(null);
   const fallbackCanvasFocusRef = useRef<HTMLDivElement | null>(null);
+  const refreshRuntimeDiagnostics = () => {
+    const next = controllerRef.current?.runtimeDiagnostics() ?? [];
+    setRuntimeDiagnostics((previous) => sameRuntimeDiagnostics(previous, next) ? previous : next);
+  };
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -70,13 +98,13 @@ export const SourceEditorPane = forwardRef<SourceEditorHandle, SourceEditorPaneP
         // can complete with no new keystroke, so runtimeDiagnostics must be
         // re-derived here too, not only from the docText/sourceText effect
         // below.
-        setRuntimeDiagnostics(controllerRef.current?.runtimeDiagnostics() ?? []);
+        refreshRuntimeDiagnostics();
       },
       // Task 48 correction: fires synchronously on every CM doc change,
       // before the commit debounce - the docText/sourceText effect below
       // alone would leave a stale runtime marker visible for the whole
       // debounce window on the very keystroke that should hide it.
-      onEditorBufferChanged: () => setRuntimeDiagnostics(controllerRef.current?.runtimeDiagnostics() ?? [])
+      onEditorBufferChanged: refreshRuntimeDiagnostics
     });
     controllerRef.current = controller;
     return () => {
@@ -87,7 +115,7 @@ export const SourceEditorPane = forwardRef<SourceEditorHandle, SourceEditorPaneP
   }, []);
 
   useEffect(() => {
-    setRuntimeDiagnostics(controllerRef.current?.runtimeDiagnostics() ?? []);
+    refreshRuntimeDiagnostics();
   }, [docText, sourceText]);
 
   // Task 48: Problems-popover navigation - one explicit, non-cascading

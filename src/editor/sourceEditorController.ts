@@ -99,7 +99,7 @@ import {
 import { foldProjectionTransaction, foldTargetAtLine, foldTargets } from "./sourceEditorFolding";
 import { secondarySelectionEffect, sourceEditorSelectionExtension } from "./sourceEditorSelection";
 import { patchHighlightPayloadForChanges, setPatchHighlight, sourceEditorPatchHighlightExtension } from "./sourceEditorPatchHighlight";
-import { createDiagnosticsExtension, currentDiagnosticsWithActions, type DiagnosticsExtensionSource } from "./sourceEditorDiagnosticsExtension";
+import { createDiagnosticsExtension, diagnosticsForCurrentView, type DiagnosticsExtensionSource } from "./sourceEditorDiagnosticsExtension";
 import { mapPositionedDiagnostics, toStaleDiagnostics, type PositionedDiagnostic } from "./sourceEditorDiagnostics";
 import { createEvaluationExtension, evaluationChanged, type EvaluationGutterAction } from "./sourceEditorEvaluationExtension";
 import { createEvaluationDecorationIndex, type EvaluationDecorationIndex } from "./sourceEditorEvaluationIndex";
@@ -922,24 +922,12 @@ export class SourceEditorController implements SourceEditorHandle {
     this.pendingEvaluations.delete(state.compiledDocumentRevision);
     this.options.onEvaluationPresentationChange?.({ isLastGood: this.isShowingLastGoodEvaluation() });
     this.refreshDecorationIndex();
-    // Task 48 correction: CodeMirror's linter only re-invokes its diagnostics
-    // source on a document change or its own debounce timer - never merely
-    // because appliedEvaluation changed. A fresh runtime error (or a
-    // recovery) arriving with no new keystroke would otherwise sit
-    // uncomputed until the user's next edit.
-    //
-    // forceLinting is NOT sufficient here: CodeMirror's lint ViewPlugin only
-    // honors force() while its own internal `set` flag is true, and that
-    // flag is cleared the moment a lint pass actually runs and is only ever
-    // re-armed by a genuine document change (see @codemirror/lint's
-    // lintPlugin.update/force). Two evaluation updates in a row with no
-    // intervening keystroke - e.g. an error immediately followed by its own
-    // recovery - would make the *second* forceLinting call a silent no-op,
-    // leaving a stale marker on screen. Dispatching setDiagnostics directly
-    // with freshly recomputed diagnostics (the same currentDiagnosticsWithActions
-    // the linter itself calls) sidesteps that internal gate entirely and
-    // updates every time, unconditionally.
-    this.view.dispatch(setDiagnostics(this.view.state, currentDiagnosticsWithActions(this.view, this.diagnosticsExtensionSource())));
+    // Evaluation changes don't re-arm CodeMirror's linter. Refresh the actual
+    // diagnostic state every time, including recovery/re-error sequences.
+    // refreshDiagnosticsNow selects the dirty-buffer layer when needed, so an
+    // evaluation arriving during an edit cannot project committed diagnostics
+    // onto shifted text.
+    this.refreshDiagnosticsNow();
   }
 
   private currentPickCandidates() {
@@ -1357,6 +1345,10 @@ export class SourceEditorController implements SourceEditorHandle {
       // range discovery itself still waits for a valid compiled snapshot.
       this.pendingFoldProjection = true;
       this.requestDecorationRefresh();
+      // Do not leave an old runtime marker mapped through the text change for
+      // the linter delay. This applies the same dirty-buffer layer the linter
+      // will later compute, synchronously after the stale baseline was mapped.
+      this.refreshDiagnosticsNow();
     }
     if (update.docChanged && !isExternal && !this.protocol.composing) {
       const wasPendingBeforeThisUpdate = !update.startState.doc.eq(this.committedDoc);
@@ -1667,6 +1659,15 @@ export class SourceEditorController implements SourceEditorHandle {
       staleBaseline: () => this.staleDiagnosticBaseline,
       upgradeDslMajorVersion: (target) => this.store.getState().upgradeDslMajorVersion(target)
     };
+  }
+
+  /** Imperative counterpart to the linter source. Unlike forceLinting this
+   * always replaces CodeMirror's diagnostic state, including two evaluation
+   * updates in the same document revision. Never runs during composition,
+   * where the lint extension intentionally preserves its last result. */
+  private refreshDiagnosticsNow() {
+    if (this.destroyed || this.protocol.composing) return;
+    this.view.dispatch(setDiagnostics(this.view.state, diagnosticsForCurrentView(this.view, this.diagnosticsExtensionSource())));
   }
 
   /** Task 45/48: the same isSourceDirty/isEvaluationStale pair

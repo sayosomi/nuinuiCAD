@@ -91,12 +91,17 @@ describe("SourceEditorController Task 48 correction: runtimeDiagnostics() live-b
     const bindingId = typedBindingId("x");
     publishError(controller, bindingId, "poisoned-binding");
     expect(controller.runtimeDiagnostics()).toHaveLength(1);
+    expect(diagnosticCount(internals.view.state)).toBe(1);
 
     // A single uncommitted keystroke - the store's docText/sourceText have
     // not been touched at all yet.
     internals.view.dispatch({ changes: { from: internals.view.state.doc.length, insert: "0" } });
 
     expect(controller.runtimeDiagnostics()).toEqual([]);
+    // This is the real CodeMirror diagnostic state backing the gutter, not
+    // only the controller getter. It must clear synchronously instead of
+    // waiting for the linter's delayed pass or a source commit.
+    expect(diagnosticCount(internals.view.state)).toBe(0);
     controller.destroy();
   });
 
@@ -193,6 +198,48 @@ describe("SourceEditorController Task 48 correction: forceLinting on evaluation 
       forEachDiagnostic(internals.view.state, (diagnostic) => { message = diagnostic.message; });
       expect(message).toBe("0での除算が発生しました。");
     });
+    controller.destroy();
+  });
+
+  it("keeps compile-time BindingIssue diagnostics while directly replacing runtime diagnostics", () => {
+    const bindingIssueSource = ["nui 3", "const missing: number = @notFound", "const y: number = 1"].join("\n");
+    useCadDocumentStore.getState().commitText(bindingIssueSource, "test");
+    const parent = document.createElement("div");
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+    const bindingId = typedBindingId("y");
+
+    publishError(controller, bindingId, "poisoned-binding");
+    expect(diagnosticCount(internals.view.state)).toBe(2);
+
+    publishOk(controller, bindingId);
+    // The runtime marker is gone, while the non-gating BindingIssue remains.
+    expect(diagnosticCount(internals.view.state)).toBe(1);
+    let message = "";
+    forEachDiagnostic(internals.view.state, (diagnostic) => { message = diagnostic.message; });
+    expect(message).toContain("未定義の変数");
+    controller.destroy();
+  });
+
+  it("uses the dirty-buffer layer when an evaluation arrives during an edit, never restoring a shifted BindingIssue marker", () => {
+    const bindingIssueSource = ["nui 3", "const missing: number = @notFound", "const y: number = 1"].join("\n");
+    useCadDocumentStore.getState().commitText(bindingIssueSource, "test");
+    const parent = document.createElement("div");
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+    const bindingId = typedBindingId("y");
+
+    publishError(controller, bindingId, "poisoned-binding");
+    expect(diagnosticCount(internals.view.state)).toBe(2);
+
+    // A leading blank line preserves valid syntax while shifting every
+    // committed physical span. The direct evaluation refresh must use the
+    // dirty parser/remapped layer rather than project the old @notFound span.
+    internals.view.dispatch({ changes: { from: 0, insert: "\n" } });
+    expect(diagnosticCount(internals.view.state)).toBe(0);
+
+    publishError(controller, bindingId, "evaluation-divide-by-zero");
+    expect(diagnosticCount(internals.view.state)).toBe(0);
     controller.destroy();
   });
 });

@@ -95,6 +95,27 @@ export const currentDiagnosticsWithActions = (
 };
 
 /**
+ * Produces exactly the layer appropriate for the live CM buffer. Kept next to
+ * the linter's own branch so an imperative refresh (evaluation arrival, or a
+ * just-edited buffer that must clear a runtime marker without waiting for the
+ * lint delay) cannot accidentally apply the clean, committed-source layer to
+ * dirty text.
+ */
+export const diagnosticsForCurrentView = (
+  view: EditorView,
+  source: Pick<DiagnosticsExtensionSource, "committedDiagnostics" | "runtimeDiagnostics" | "isComposing" | "hasPendingText" | "staleBaseline" | "upgradeDslMajorVersion">
+): Diagnostic[] => {
+  if (!source.hasPendingText()) return currentDiagnosticsWithActions(view, source);
+  const parsed = parseDsl(view.state.doc.toString());
+  const current = toBufferDiagnostics(view.state.doc, parsed.diagnostics);
+  const stale = source.staleBaseline();
+  const runtimeCurrent = source.runtimeDiagnostics()
+    .map((diagnostic) => positionedFromDiagnostic(view.state.doc, diagnostic, "current"))
+    .filter((positioned): positioned is PositionedDiagnostic => positioned !== null);
+  return toCmDiagnostics(mergeDiagnosticLayers([...current, ...runtimeCurrent], stale));
+};
+
+/**
  * Builds the diagnostics linter extension. During IME composition the source
  * function returns the previously computed result unchanged rather than
  * re-parsing a mid-composition buffer.
@@ -103,17 +124,7 @@ export const createDiagnosticsExtension = (source: DiagnosticsExtensionSource): 
   let lastResult: Diagnostic[] = [];
   return linter((view) => {
     if (source.isComposing()) return lastResult;
-    if (!source.hasPendingText()) {
-      lastResult = currentDiagnosticsWithActions(view, source);
-      return lastResult;
-    }
-    const parsed = parseDsl(view.state.doc.toString());
-    const current = toBufferDiagnostics(view.state.doc, parsed.diagnostics);
-    const stale = source.staleBaseline();
-    const runtimeCurrent = source.runtimeDiagnostics()
-      .map((diagnostic) => positionedFromDiagnostic(view.state.doc, diagnostic, "current"))
-      .filter((positioned): positioned is PositionedDiagnostic => positioned !== null);
-    lastResult = toCmDiagnostics(mergeDiagnosticLayers([...current, ...runtimeCurrent], stale));
+    lastResult = diagnosticsForCurrentView(view, source);
     return lastResult;
   }, { delay: LINT_DELAY_MS });
 };
