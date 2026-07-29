@@ -61,6 +61,21 @@ based)・`renameTypedBindingWithPropagation`自体の伝播・poison/collision�
 シナリオ10は下記のとおり通常の期待結果へ更新した(既知failとしての記載は
 撤回)。
 
+## Problems と評価状態マーカー
+
+Problems を開く正式な入口は、**Source Editor ヘッダーのファイル名表示の右**に
+ある警告三角ボタンである。compile diagnostics、binding issues、scalar runtime
+diagnostics があるときは三角の横に件数が表示され、クリックすると Problems
+一覧が開く。`✓` は「Problems 対象の診断が0件」の表示であり、disabled 状態や
+Inspector の折りたたみ操作ではない。この状態では開く行がないため、クリック
+しても一覧は表示されない。
+
+Source Editor 左端の小さい赤・黄・灰色の丸は、各要素の**評価状態**を示す
+status gutter であり、Problems を開く操作ではない。赤・黄の丸はクリックしても
+診断を開かない。隣の灰色の activity marker は要素の表示/評価状態を切り替える
+既存操作であり、診断 UI とは別機能である。一般ジオメトリの評価エラー本文は、
+該当要素を選択した Inspector の issue 表示で確認する。
+
 ## シナリオ 1: typed declaration(4型)
 
 **fixture**: `nui3-declarations-templates.nui`
@@ -72,6 +87,9 @@ based)・`renameTypedBindingWithPropagation`自体の伝播・poison/collision�
    `const side: choice(right, left)` の4行をそれぞれ選択し、Inspectorの
    宣言メタデータ(kind/type/生の初期化式/binding ID)を確認する。
 3. Canvas上のtext要素 `Label` と `Bare` の描画内容を確認する。
+4. `point B` と `line AB` をそれぞれ選択し、Inspector の issue 表示で評価
+   エラー本文を確認する。Source Editor ヘッダーの Problems ボタンが `✓` の
+   ままであることも確認する。
 
 **期待結果**
 
@@ -87,8 +105,9 @@ based)・`renameTypedBindingWithPropagation`自体の伝播・poison/collision�
   numberを座標などの一般numeric属性へ直接使う経路は今回のopt-inプロパティ
   表に含まれておらず(`text.text`/`offsetLine.side`等の指定propertyのみ)、
   意図的に未対応。エラーメッセージと発生行を確認し、「bugではなく既知の
-  未対応経路」であることを確認する(気づいた点欄に記録するのは構わないが、
-  fail扱いにはしない)。
+  未対応経路」であることを確認する。これらは一般ジオメトリ評価エラーなので
+  Problems には集約されず、`✓` は正常である(気づいた点欄に記録するのは
+  構わないが、fail扱いにはしない)。
 
 ## シナリオ 2: レキシカルスコープ / shadow(正常系)
 
@@ -121,7 +140,8 @@ based)・`renameTypedBindingWithPropagation`自体の伝播・poison/collision�
 
 1. fixtureを開く(中身: `const selfRef: number = @selfRef` /
    `const usesLater: number = @later` / `const later: number = 5`)。
-2. Problems/診断パネルを開く。
+2. Source Editor ヘッダー右端の警告三角＋`2`の Problems ボタンをクリックして
+   一覧を開く。
 3. 1件目の診断をクリックし、Source Editorのcursor/選択がジャンプする位置
    を確認する。2件目も同様に確認する。
 
@@ -225,8 +245,9 @@ based)・`renameTypedBindingWithPropagation`自体の伝播・poison/collision�
 1. fixtureを開く。`set value = 1 / 0` の後 `set value = 4` で回復する
    流れと、`set mirror = @value` が poison中の値を捕まえる流れを確認する。
 2. `text Recovered`/`text Poisoned`/`text AfterStop` の描画を確認する。
-3. Problems/診断パネルで `Poisoned` に対するエラーをクリックし、
-   Source Editorの該当箇所へジャンプすることを確認する。
+3. Source Editor ヘッダー右端の警告三角＋件数の Problems ボタンをクリックし、
+   `Poisoned` に対する runtime エラーをクリックして、Source Editorの該当箇所
+   へジャンプすることを確認する。
 4. Inspectorで `value` と `mirror` のbindingをそれぞれ選択し、
    runtimeセクションのstatus(ok/poisoned)を確認する。
 

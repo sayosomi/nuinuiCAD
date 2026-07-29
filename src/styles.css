@@ -210,7 +210,9 @@ textarea {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  margin: 6px 2px;
+  /* The adjacent activity marker is 18px high with a 2px top offset. Keep
+     this 6px status dot's center on the same source-line center. */
+  margin: 8px 2px 4px;
 }
 
 .source-editor-pane .cm-element-state-gutter {
