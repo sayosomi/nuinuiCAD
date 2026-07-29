@@ -35,21 +35,31 @@ Task 47(既存文書の手動migration)着手前の最終手動確認ゲート�
 5. 特記のない限り、各fixtureは新規文書を作り、Source Editorへ内容を貼り付
    けて保存する(またはFile > Openで直接開く)ところから始める。
 
-## 既知の欠落(事前調査で判明・シナリオ10で扱う)
+## F2 typed rename配線(チェックリスト作成後に追加実装)
 
-シナリオ10(rename)の準備中、静的調査で次を確認した:
-`src/commands/renameTypedBindingWithPropagation.ts` の
-`renameTypedBindingWithPropagation(bindingId, newName)` はTask 38で実装・
-ユニットテスト済みだが、**production UIのどこからも呼び出されていない**
-(コマンドレジストリ、F2ショートカット、パレット、Quick Fixのいずれにも
-未接続 — grep で自身のテストファイル以外からの参照が0件)。既存の F2 は
-`renameSelectedElement`(CAD要素専用、`selectedRenameTargetId`はCAD要素の
-みを見る)にしか束縛されていない。**そのため、シナリオ10は現状ほぼ確実に
-「F2を押しても何も起きない」という結果になる見込みである。** これは
-チェックリスト作成中の事前調査で判明した既知の状態であり、シナリオ10の
-実施でこれを確認した上で、fail行として記録し、後段の focused fix
-(F2/コマンド経路をtyped bindingへ接続する)に進めてよいかをユーザーに
-確認する。
+チェックリスト作成中の事前調査で、`renameTypedBindingWithPropagation`
+(Task 38)がproduction UIのどこからも呼ばれていない(F2はCAD要素専用)こと
+が判明した。ユーザー指示によりmanual pass開始前に配線を追加した:
+
+* `src/editor/typedRenameTargetAtCursor.ts`(新規、pure関数): cursor位置から
+  typed binding(declaration/reference/set target/set RHS参照/property
+  binding参照/template hole参照)を解決する。
+* `SourceEditorController.currentCursorTypedRenameTargetBindingId()`(新規):
+  上記resolverを`typedSemanticMetadataFresh`ゲート付きで呼ぶ。
+* `openRenameSelectedElementPrompt`(`selectionCommandDefinitions.ts`):
+  F2実行時にcursor位置のtyped bindingを優先し、無ければ既存のCAD要素rename
+  (selection起点)へfallbackする。
+* `RenameTypedBindingDialog.tsx`(新規、`RenameElementDialog.tsx`と同型):
+  新しい名前の入力prompt。既存dialogは変更していない。
+
+回帰testは `src/editor/typedRenameTargetAtCursor.test.ts`(pure resolver、
+9件)と `src/editor/sourceEditorController.typedRename.test.ts`(controller/
+F2 dispatch、既存4件+新規8件)に追加した。既存のCAD要素rename(F2・選択
+based)・`renameTypedBindingWithPropagation`自体の伝播・poison/collision等の
+挙動は変更していない。
+
+シナリオ10は下記のとおり通常の期待結果へ更新した(既知failとしての記載は
+撤回)。
 
 ## シナリオ 1: typed declaration(4型)
 
@@ -279,29 +289,36 @@ Task 47(既存文書の手動migration)着手前の最終手動確認ゲート�
 * choice: 宣言/property metadata順でwrap。
 * string全体・binding参照全体: no-op(誤ってstepしない)。
 
-## シナリオ 10: rename(既知の欠落を確認)
+## シナリオ 10: rename
 
 **fixture**: `nui3-rename-target.nui`
 
 **手順**
 
-1. fixtureを開く。`let 表示ラベル: string = "初期値"` の宣言名、
-   `text Display` の `{@表示ラベル}` occurrence、`set 表示ラベル = "更新後"`
-   のtarget、のいずれかにcursorを置く。
-2. `F2` を押す。
-3. 何も起きない場合、コマンドパレット(`Cmd+K`)で "rename"/"リネーム" を
-   検索し、typed binding向けのrenameコマンドが存在するか確認する。
+1. fixtureを開く。`let 表示ラベル: string = "初期値"` の**宣言名**の上に
+   cursorを置き、`F2` を押す。ダイアログで新しい名前(例: `表示テキスト`)
+   を入力してEnterで確定する。
+2. Undo(`Cmd+Z`)で元に戻す。今度は `text Display` の
+   `{@表示ラベル}` occurrence(**参照位置**)にcursorを置き、`F2` を押して
+   同じ新名を入力・確定する。
+3. Undo(`Cmd+Z`)で元に戻す。今度は `set 表示ラベル = "更新後"` の
+   **target名**(`表示ラベル`の部分)にcursorを置き、`F2` を押して同じ
+   新名を入力・確定する。
+4. 3の結果を保持したまま、CAD要素(`point`/`line`等)を1件Canvasで選択し、
+   `F2` を押す(typed binding位置にcursorが無い状態でのCAD要素renameが
+   従来どおり動くことの確認)。
 
-**期待結果(このシナリオは事前調査により、現状failが濃厚)**
+**期待結果**
 
-* 上記「既知の欠落」セクションのとおり、`renameTypedBindingWithPropagation`
-  は現状どのUI導線からも呼ばれていないため、F2を押しても
-  (CAD要素が同時に選択されていない限り)何も起きない可能性が高い。
-* 実際にF2を押した結果と、コマンドパレット検索の結果をそのまま記録表に
-  記入すること。「事前調査で分かっていたから」とpass/failを推測で埋めない
-  — 実際に試した結果を記録する。
-* もし何らかの経路で実際にrenameが成功する場合は、宣言・template hole・
-  `set` targetの3箇所すべてが1回のUndoで書き換わることを確認する。
+* 手順1〜3のいずれの位置からF2を押しても、同じ結果になる: 宣言
+  (`let 表示ラベル` → `let 表示テキスト`)、template hole
+  (`{@表示ラベル}` → `{@表示テキスト}`)、`set` target
+  (`set 表示ラベル =` → `set 表示テキスト =`)の**3箇所すべて**が1回の
+  Undoで書き換わる。
+* ダイアログのタイトルは「変数の名前を変更」で、要素renameダイアログ
+  (「選択要素の名前を変更」)とは見た目上区別できる。
+* 手順4: CAD要素のF2 renameは従来どおり(要素rename dialogが開く)動作し、
+  typed rename dialogは開かない。
 
 ## シナリオ 11: activity UI(`state:`, gutter/context menu/ribbon)
 
@@ -408,7 +425,7 @@ Task 47(既存文書の手動migration)着手前の最終手動確認ゲート�
 | 7 | runtime diagnostics + source navigation | 未実施 | 未実施 | |
 | 8 | Inspector(宣言+runtime+既存literal regression) | 未実施 | 未実施 | |
 | 9 | Alt step | 未実施 | 未実施 | |
-| 10 | rename(既知の欠落を確認) | 未実施 | 未実施 | |
+| 10 | rename | 未実施 | 未実施 | |
 | 11 | activity UI | 未実施 | 未実施 | |
 | 12 | nui 3 save→close→reopen | 未実施 | 未実施 | |
 | 13 | print/print preview | 未実施 | 未実施 | |

@@ -119,6 +119,7 @@ import {
   valueStepGestureForKeyboardEvent,
   type SourceEditorValueStepGesture
 } from "./sourceEditorValueStepGesture";
+import { typedRenameTargetBindingIdAtCursor } from "./typedRenameTargetAtCursor";
 
 type SourceStore = {
   getState: () => CadDocumentState;
@@ -389,6 +390,34 @@ export class SourceEditorController implements SourceEditorHandle {
 
   currentCursorElementId = () =>
     elementIdAtCursor(this.statementRanges, this.view.state.selection.main.head);
+
+  /** Typed-span counterpart to currentCursorElementId, gated by the same
+   * typedSemanticMetadataFresh contract as stepTypedSourceValue: the tracked
+   * physical spans and doc.scalarProgram/setStatements/propertyBindings/
+   * textTemplates must describe the exact live buffer, not just survive an
+   * unrelated edit via mapPos. */
+  currentCursorTypedRenameTargetBindingId = (): BindingId | null => {
+    if (!this.typedSemanticMetadataFresh) return null;
+    const doc = this.store.getState().doc;
+    return typedRenameTargetBindingIdAtCursor(
+      {
+        typedDeclarationRanges: this.typedDeclarationRanges,
+        typedDeclarationFieldRanges: this.typedDeclarationFieldRanges,
+        setStatementRanges: this.setStatementRanges,
+        setStatementFieldRanges: this.setStatementFieldRanges,
+        propertyBindingRanges: this.propertyBindingRanges,
+        templateHoleRanges: this.templateHoleRanges,
+        doc: {
+          statements: doc.statements,
+          scalarProgram: doc.scalarProgram,
+          setStatements: doc.setStatements,
+          propertyBindings: doc.propertyBindings,
+          textTemplates: doc.textTemplates
+        }
+      },
+      this.view.state.selection.main.head
+    );
+  };
 
   getText = () => serializeEditorText(this.view.state.doc.toString(), this.format);
 
@@ -1259,7 +1288,8 @@ export class SourceEditorController implements SourceEditorHandle {
             const ui = this.uiStore.getState();
             if (ui.activePointPickTarget || ui.activeNumericReferencePickTarget || ui.activeLinePickTarget) return false;
             const handled = dispatchCommand(binding.commandId, {
-              currentCursorElementId: this.currentCursorElementId
+              currentCursorElementId: this.currentCursorElementId,
+              currentCursorTypedRenameTargetBindingId: this.currentCursorTypedRenameTargetBindingId
             }) !== false;
             return binding.owner === "editorTransaction" ? handled : true;
           }

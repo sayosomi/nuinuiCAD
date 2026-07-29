@@ -46,7 +46,7 @@ import {
   toggleGroupExpanded,
   ungroupSelectedGroup
 } from "./selectionCommands";
-import type { Command, CommandId } from "./commandTypes";
+import type { Command, CommandContext, CommandId } from "./commandTypes";
 
 const hasSelection = () => getSelectedElementIds().length > 0;
 
@@ -59,7 +59,7 @@ const selectedRenameTargetId = () => {
     : null;
 };
 
-const openRenameSelectedElementPrompt = () => {
+const openRenameElementPrompt = () => {
   const targetId = selectedRenameTargetId();
   if (!targetId) {
     useCadUiStore.getState().setCommandErrorMessage(
@@ -75,6 +75,29 @@ const openRenameSelectedElementPrompt = () => {
     showCommandPalette: false
   });
   return true;
+};
+
+/**
+ * F2 dispatch entry point. A typed binding under the Source Editor cursor
+ * (declaration/reference/set target/template hole - see
+ * typedRenameTargetAtCursor.ts) takes priority over CAD element selection,
+ * since the cursor is the more specific signal of what the user is renaming;
+ * a typed target only ever comes from `context.currentCursorTypedRenameTargetBindingId`,
+ * which is null whenever the cursor is not on a typed construct at all, so
+ * ordinary CAD element rename (via Canvas selection or a Source Editor
+ * cursor parked on an element statement) is completely unaffected.
+ */
+const openRenameSelectedElementPrompt = (context?: CommandContext) => {
+  const typedBindingId = context?.currentCursorTypedRenameTargetBindingId?.();
+  if (typedBindingId) {
+    useCadUiStore.setState({
+      renameTypedBindingPromptTargetId: typedBindingId,
+      commandErrorMessage: null,
+      showCommandPalette: false
+    });
+    return true;
+  }
+  return openRenameElementPrompt();
 };
 
 const selectedConditionalGroupHasElseBranch = () => {
@@ -210,7 +233,7 @@ export const selectionCommandDefinitions = {
     },
     shortcuts: [{ keys: "F2" }],
     flushPolicy: "editor-owned",
-    run: () => openRenameSelectedElementPrompt()
+    run: (context) => openRenameSelectedElementPrompt(context)
   },
   moveEvaluationDividerUp: {
     id: "moveEvaluationDividerUp",

@@ -6,6 +6,7 @@ import type {
   MeasurementPointSlot
 } from "../state/cadUiStore";
 import type { NumericMeasurementKey } from "../geometry/numericExpressionTypes";
+import type { BindingId } from "../scalars/bindingCatalog";
 import type { GroupTemplate } from "../templates/groupTemplate";
 import type { CadElement, ElementId, EvaluationResult, PointAnchor } from "../types/geometry";
 import type { NumericValue } from "../types/geometry";
@@ -170,6 +171,10 @@ export type CommandContext = {
   focusElementSearch?: () => void;
   /** Current element statement under the Source Editor cursor, without exposing CodeMirror state. */
   currentCursorElementId?: () => ElementId | null;
+  /** Typed binding (declaration/reference/set target/template hole) under the
+   * Source Editor cursor, if any - see typedRenameTargetAtCursor.ts. Null
+   * whenever the cursor is not on a typed construct at all. */
+  currentCursorTypedRenameTargetBindingId?: () => BindingId | null;
   /** Focuses the Source Editor at the end of a newly generated element statement. */
   focusSourceEditorAtElementEnd?: (elementId: ElementId) => void;
   /** Canvas-only ephemeral state cleared before a creation-session replacement. */

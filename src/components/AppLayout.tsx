@@ -54,6 +54,7 @@ import { cancelCommandLineEscape } from "../commands/commandLineSessionCommands"
 import { currentStep } from "../commands/commandLineSession";
 import { creationRecipeForLegacyCommand, legacyCreationCommandIds } from "../commands/legacyCreationRecipes";
 import { COMMAND_LINE_PICK_TARGET_ID } from "../commands/commandLinePickRouting";
+import type { BindingId } from "../scalars/bindingCatalog";
 import type { ElementId } from "../types/geometry";
 
 const commandLineCreationCommandIds = new Set(legacyCreationCommandIds);
@@ -102,6 +103,9 @@ const SelectionColorPickerDialog = lazy(() =>
 );
 const RenameElementDialog = lazy(() =>
   import("./RenameElementDialog").then((module) => ({ default: module.RenameElementDialog }))
+);
+const RenameTypedBindingDialog = lazy(() =>
+  import("./RenameTypedBindingDialog").then((module) => ({ default: module.RenameTypedBindingDialog }))
 );
 const TemplateInsertionPanel = lazy(() =>
   import("./TemplateInsertionPanel").then((module) => ({
@@ -154,6 +158,7 @@ export const AppLayout = () => {
   const showCommandRibbonSettings = useCadUiStore((state) => state.showCommandRibbonSettings);
   const showSelectionColorPicker = useCadUiStore((state) => state.showSelectionColorPicker);
   const renameElementPromptTargetId = useCadUiStore((state) => state.renameElementPromptTargetId);
+  const renameTypedBindingPromptTargetId = useCadUiStore((state) => state.renameTypedBindingPromptTargetId);
   const pendingImageImport = useCadUiStore((state) => state.pendingImageImport);
   const imageImportError = useCadUiStore((state) => state.imageImportError);
   const setPrintPreviewWindow = useCadUiStore((state) => state.setPrintPreviewWindow);
@@ -300,6 +305,7 @@ export const AppLayout = () => {
     focusSourceEditor: () => sourceEditorRef.current?.focus(),
     focusElementSearch: () => sourceEditorRef.current?.focusSearch(),
     currentCursorElementId: () => sourceEditorRef.current?.currentCursorElementId?.() ?? null,
+    currentCursorTypedRenameTargetBindingId: () => sourceEditorRef.current?.currentCursorTypedRenameTargetBindingId?.() ?? null,
     focusSourceEditorAtElementEnd: (elementId: ElementId) => sourceEditorRef.current?.jumpToElementEnd(elementId),
     clearPendingCanvasPointerIntent: () => drawingCanvasRef.current?.clearPendingCanvasPointerIntent(),
     clearSourceEditorFocusReservation: () => drawingCanvasRef.current?.clearEditorFocusReservation(),
@@ -308,6 +314,10 @@ export const AppLayout = () => {
   }), [evaluation]);
   const handleRenameElementConfirmed = useCallback((elementId: ElementId) => {
     sourceEditorRef.current?.jumpToElement(elementId);
+    commandContext.focusSourceEditor?.();
+  }, [commandContext]);
+  const handleRenameTypedBindingConfirmed = useCallback((bindingId: BindingId) => {
+    sourceEditorRef.current?.jumpToBindingDeclaration(bindingId);
     commandContext.focusSourceEditor?.();
   }, [commandContext]);
 
@@ -407,6 +417,7 @@ export const AppLayout = () => {
       if (useCadUiStore.getState().showCommandRibbonSettings) return;
       if (useCadUiStore.getState().showSelectionColorPicker) return;
       if (useCadUiStore.getState().renameElementPromptTargetId) return;
+      if (useCadUiStore.getState().renameTypedBindingPromptTargetId) return;
       if (useCadUiStore.getState().pendingImageImport || useCadUiStore.getState().imageImportError) return;
       const commandLineSession = useCadUiStore.getState().commandLineSession;
       const keyboardOptions = {
@@ -597,6 +608,11 @@ export const AppLayout = () => {
       {renameElementPromptTargetId ? (
         <Suspense fallback={null}>
           <RenameElementDialog onConfirmed={handleRenameElementConfirmed} />
+        </Suspense>
+      ) : null}
+      {renameTypedBindingPromptTargetId ? (
+        <Suspense fallback={null}>
+          <RenameTypedBindingDialog onConfirmed={handleRenameTypedBindingConfirmed} />
         </Suspense>
       ) : null}
       {pendingImageImport || imageImportError ? (

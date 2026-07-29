@@ -203,6 +203,7 @@ export type CadUiState = CadElementSelection & {
   showCommandRibbonSettings: boolean;
   showSelectionColorPicker: boolean;
   renameElementPromptTargetId: ElementId | null;
+  renameTypedBindingPromptTargetId: BindingId | null;
   showPrintLayout: boolean;
   showPrintPreviewWindow: boolean;
   commandErrorMessage: string | null;
@@ -254,6 +255,7 @@ export type CadUiState = CadElementSelection & {
   setShowCommandRibbonSettings: (showCommandRibbonSettings: boolean) => void;
   setShowSelectionColorPicker: (showSelectionColorPicker: boolean) => void;
   setRenameElementPromptTargetId: (renameElementPromptTargetId: ElementId | null) => void;
+  setRenameTypedBindingPromptTargetId: (renameTypedBindingPromptTargetId: BindingId | null) => void;
   setShowPrintLayout: (showPrintLayout: boolean) => void;
   setShowPrintPreviewWindow: (showPrintPreviewWindow: boolean) => void;
   setCommandErrorMessage: (commandErrorMessage: string | null) => void;
@@ -329,6 +331,7 @@ export const initialCadUiState = (): Omit<
   | "setShowCommandRibbonSettings"
   | "setShowSelectionColorPicker"
   | "setRenameElementPromptTargetId"
+  | "setRenameTypedBindingPromptTargetId"
   | "setShowPrintLayout"
   | "setShowPrintPreviewWindow"
   | "setCommandErrorMessage"
@@ -396,6 +399,7 @@ export const initialCadUiState = (): Omit<
   showCommandRibbonSettings: false,
   showSelectionColorPicker: false,
   renameElementPromptTargetId: null,
+  renameTypedBindingPromptTargetId: null,
   showPrintLayout: false,
   showPrintPreviewWindow: false,
   commandErrorMessage: null,
@@ -525,6 +529,7 @@ export const useCadUiStore = create<CadUiState>((set, get) => ({
     set({ showCommandRibbonSettings }),
   setShowSelectionColorPicker: (showSelectionColorPicker) => set({ showSelectionColorPicker }),
   setRenameElementPromptTargetId: (renameElementPromptTargetId) => set({ renameElementPromptTargetId }),
+  setRenameTypedBindingPromptTargetId: (renameTypedBindingPromptTargetId) => set({ renameTypedBindingPromptTargetId }),
   setShowPrintLayout: (showPrintLayout) => set({ showPrintLayout }),
   setShowPrintPreviewWindow: (showPrintPreviewWindow) => set({ showPrintPreviewWindow }),
   setCommandErrorMessage: (commandErrorMessage) => set({ commandErrorMessage }),
