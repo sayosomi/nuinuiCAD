@@ -31,6 +31,7 @@ export const analyzeTypedBindingRenameInDocument = ({
     scalarProgram: compiled.scalarProgram,
     setStatements: compiled.setStatements,
     propertyBindings: compiled.propertyBindings,
-    textTemplates: compiled.textTemplates
+    textTemplates: compiled.textTemplates,
+    numericBindings: compiled.numericBindings
   });
 };

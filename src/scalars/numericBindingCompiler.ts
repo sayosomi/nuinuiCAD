@@ -13,6 +13,7 @@ import { tokenize } from "../geometry/numericExpressionParser";
 import type { BindingAnalysis } from "./bindingAnalysis";
 import type { BindingId } from "./bindingCatalog";
 import { resolveReferencesAtSites, type SiteReferenceRequest } from "./bindingResolution";
+import type { BindingReferenceSite } from "./bindingResolution";
 import { propertyBindingOccurrenceKey } from "./propertyBindingCompiler";
 import { unresolvedReferenceMessage } from "./typedDeclarationAnalysis";
 
@@ -24,6 +25,7 @@ export type CompiledNumericBindingReference = {
   /** Offsets in the normalized NumericValue.expression, never source text. */
   expressionStart: number;
   expressionEnd: number;
+  site: BindingReferenceSite;
 };
 
 export type CompiledNumericBinding = {
@@ -175,7 +177,8 @@ export const compileNumericBindings = ({
         rejected = true;
         break;
       }
-      references.push({ bindingId, name: reference.name, span: reference.span, nameSpan: reference.nameSpan, expressionStart: token.start, expressionEnd: token.end });
+      references.push({ bindingId, name: reference.name, span: reference.span, nameSpan: reference.nameSpan, expressionStart: token.start, expressionEnd: token.end,
+        site: { scopeId: bindingAnalysis.catalog.scopeIndex.scopeOfStatement.get(candidate.statementIndex) ?? bindingAnalysis.catalog.scopeIndex.rootScopeId, statementIndex: candidate.statementIndex, elementLocal: { ownerId: byId.get(elementIdByStatementIndex.get(candidate.statementIndex) ?? "")!.id, order: Number.MAX_SAFE_INTEGER } } });
     }
     if (!rejected && references.length) sourcesByOccurrenceKey.set(candidate.key, { parameterKey: candidate.parameterKey, expression: candidate.expression, references });
   }

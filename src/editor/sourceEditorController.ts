@@ -407,12 +407,14 @@ export class SourceEditorController implements SourceEditorHandle {
         setStatementFieldRanges: this.setStatementFieldRanges,
         propertyBindingRanges: this.propertyBindingRanges,
         templateHoleRanges: this.templateHoleRanges,
+        statementRanges: this.statementRanges,
         doc: {
           statements: doc.statements,
           scalarProgram: doc.scalarProgram,
           setStatements: doc.setStatements,
           propertyBindings: doc.propertyBindings,
-          textTemplates: doc.textTemplates
+          textTemplates: doc.textTemplates,
+          numericBindings: doc.numericBindings
         }
       },
       this.view.state.selection.main.head

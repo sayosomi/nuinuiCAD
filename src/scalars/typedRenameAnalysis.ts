@@ -34,6 +34,7 @@ import type { ScalarValueSource } from "./propertyBindingCompiler";
 import type { ScalarProgram } from "./scalarProgram";
 import { classifySetTargetResolution, type SetStatementAnalysis, type SetTargetClassification } from "./setStatementCompiler";
 import type { TextTemplateAst } from "./textTemplate";
+import type { CompiledNumericBinding } from "./numericBindingCompiler";
 import {
   collectInitializerOccurrences,
   collectSiteBatchOccurrences,
@@ -51,6 +52,7 @@ export type TypedRenameAnalysisInput = {
   setStatements?: ReadonlyMap<number, SetStatementAnalysis>;
   propertyBindings?: ReadonlyMap<string, ScalarValueSource>;
   textTemplates?: ReadonlyMap<string, TextTemplateAst>;
+  numericBindings?: ReadonlyMap<string, CompiledNumericBinding>;
 };
 
 export type TypedRenameSpan = {
@@ -210,6 +212,7 @@ export const analyzeTypedBindingRename = (input: TypedRenameAnalysisInput): Type
     setStatements: input.setStatements,
     propertyBindings: input.propertyBindings,
     textTemplates: input.textTemplates
+    , numericBindings: input.numericBindings
   });
   const setTargetOccurrences = siteOccurrences.filter((occurrence) => occurrence.kind === "set-target");
   const otherSiteOccurrences = siteOccurrences.filter((occurrence) => occurrence.kind !== "set-target");
