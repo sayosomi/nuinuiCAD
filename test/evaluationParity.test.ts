@@ -45,4 +45,16 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     );
     expect(printGroupIdsFor(fixture, rustPayload)).toEqual(printGroupIdsFor(fixture, tsPayload));
   }, 30000);
+
+  it("evaluates Label and Bare through the Rust-first declarations/templates fixture", () => {
+    const fixture = readParityFixture(repoRoot, "nui3-declarations-templates.nui");
+    const result = evaluationPayloadToResult(evaluateWithRustFixture(repoRoot, fixture));
+    const label = fixture.elements.find((element) => element.type === "text" && element.name === "Label")!;
+    const bare = fixture.elements.find((element) => element.type === "text" && element.name === "Bare")!;
+
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+    expect(result.errors.filter((error) => error.elementId === label.id || error.elementId === bare.id)).toEqual([]);
+    expect(result.computedGeometry.get(label.id)).toMatchObject({ kind: "text", text: "{draft} 前身頃 12.346\n" });
+    expect(result.computedGeometry.get(bare.id)).toMatchObject({ kind: "text", text: "前身頃" });
+  }, 30000);
 });

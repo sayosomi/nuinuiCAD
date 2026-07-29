@@ -1,5 +1,6 @@
 import { Transaction, type EditorState } from "@codemirror/state";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { dispatchCommand } from "../commands/commands";
 import { renameTypedBindingWithPropagation } from "../commands/renameTypedBindingWithPropagation";
 import type { BindingId } from "../scalars/bindingCatalog";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
@@ -119,5 +120,164 @@ describe("SourceEditorController typed binding rename - selection/cursor preserv
     expect(internals.view.state.doc.lineAt(internals.view.state.selection.main.head).number).toBe(anchorLineAfterRename);
 
     controller.destroy();
+  });
+});
+
+describe("SourceEditorController.currentCursorTypedRenameTargetBindingId / F2 dispatch", () => {
+  beforeEach(() => {
+    useCadDocumentStore.setState(initialCadDocumentState());
+    useCadUiStore.setState(initialCadUiState());
+    Object.defineProperty(Range.prototype, "getClientRects", { configurable: true, value: () => [] });
+  });
+
+  it("resolves a cursor on a typed declaration's own name to its own binding", () => {
+    useCadDocumentStore.getState().commitText(source, "test");
+    const parent = document.createElement("div");
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+
+    const offset = source.indexOf("let base") + "let ".length;
+    internals.view.dispatch({ selection: { anchor: offset }, annotations: Transaction.addToHistory.of(false) });
+
+    expect(controller.currentCursorTypedRenameTargetBindingId()).toBe(typedBindingId("base"));
+
+    controller.destroy();
+  });
+
+  it("resolves a cursor on a reference to the referenced binding, not the declaring one", () => {
+    useCadDocumentStore.getState().commitText(source, "test");
+    const parent = document.createElement("div");
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+
+    const offset = source.indexOf("@base") + 1;
+    internals.view.dispatch({ selection: { anchor: offset }, annotations: Transaction.addToHistory.of(false) });
+
+    expect(controller.currentCursorTypedRenameTargetBindingId()).toBe(typedBindingId("base"));
+
+    controller.destroy();
+  });
+
+  it("returns null while an uncommitted edit makes the compiled typed metadata stale, even at an otherwise-matching position", () => {
+    useCadDocumentStore.getState().commitText(source, "test");
+    const parent = document.createElement("div");
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+
+    const offset = source.indexOf("let base") + "let ".length;
+    internals.view.dispatch({
+      changes: { from: 0, to: 0, insert: "# " },
+      annotations: Transaction.addToHistory.of(false)
+    });
+    internals.view.dispatch({ selection: { anchor: offset + 2 }, annotations: Transaction.addToHistory.of(false) });
+
+    expect(controller.currentCursorTypedRenameTargetBindingId()).toBeNull();
+
+    controller.destroy();
+  });
+
+  it("F2 dispatch opens the typed rename prompt (not the CAD element prompt) when the cursor is on a typed binding", () => {
+    useCadDocumentStore.getState().commitText(source, "test");
+    const parent = document.createElement("div");
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+
+    const offset = source.indexOf("let base") + "let ".length;
+    internals.view.dispatch({ selection: { anchor: offset }, annotations: Transaction.addToHistory.of(false) });
+
+    const handled = dispatchCommand("renameSelectedElement", {
+      currentCursorElementId: controller.currentCursorElementId,
+      currentCursorTypedRenameTargetBindingId: controller.currentCursorTypedRenameTargetBindingId
+    });
+
+    expect(handled).toBe(true);
+    expect(useCadUiStore.getState().renameTypedBindingPromptTargetId).toBe(typedBindingId("base"));
+    expect(useCadUiStore.getState().renameElementPromptTargetId).toBeNull();
+
+    controller.destroy();
+  });
+
+  it("F2 dispatch falls back to the existing CAD element prompt when the cursor is not on any typed construct", () => {
+    useCadDocumentStore.getState().commitText(
+      [source, "point A = coordinate(x: 0 y: 0)"].join("\n"),
+      "test"
+    );
+    const parent = document.createElement("div");
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+    const elementId = useCadDocumentStore.getState().elements[0]!.id;
+    useCadUiStore.getState().setSelectedElementId(elementId);
+
+    const offset = internals.view.state.doc.toString().indexOf("point A") + "point ".length;
+    internals.view.dispatch({ selection: { anchor: offset }, annotations: Transaction.addToHistory.of(false) });
+
+    const handled = dispatchCommand("renameSelectedElement", {
+      currentCursorElementId: controller.currentCursorElementId,
+      currentCursorTypedRenameTargetBindingId: controller.currentCursorTypedRenameTargetBindingId
+    });
+
+    expect(handled).toBe(true);
+    expect(useCadUiStore.getState().renameElementPromptTargetId).toBe(elementId);
+    expect(useCadUiStore.getState().renameTypedBindingPromptTargetId).toBeNull();
+
+    controller.destroy();
+  });
+
+  it("F2 dispatch with no typed context at all (e.g. a Canvas-focused F2) leaves CAD element rename completely unaffected", () => {
+    useCadDocumentStore.getState().commitText("nui 3\npoint A = coordinate(x: 0 y: 0)", "test");
+    const elementId = useCadDocumentStore.getState().elements[0]!.id;
+    useCadUiStore.getState().setSelectedElementId(elementId);
+
+    const handled = dispatchCommand("renameSelectedElement");
+
+    expect(handled).toBe(true);
+    expect(useCadUiStore.getState().renameElementPromptTargetId).toBe(elementId);
+    expect(useCadUiStore.getState().renameTypedBindingPromptTargetId).toBeNull();
+  });
+
+  it("a single F2-resolved rename from the declaration propagates to an initializer reference, a set target, a set-RHS reference, and a template-hole reference together", () => {
+    const combined = [
+      "nui 3",
+      "let base: number = 1",
+      "let derived: number = @base",
+      "set base = @base + 1",
+      'text Label = label(text: "{@base}" anchor: none size: 3)'
+    ].join("\n");
+    useCadDocumentStore.getState().commitText(combined, "test");
+    const parent = document.createElement("div");
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+
+    const offset = combined.indexOf("let base") + "let ".length;
+    internals.view.dispatch({ selection: { anchor: offset }, annotations: Transaction.addToHistory.of(false) });
+    const bindingId = controller.currentCursorTypedRenameTargetBindingId();
+    expect(bindingId).toBe(typedBindingId("base"));
+
+    expect(renameTypedBindingWithPropagation(bindingId!, "renamedBase")).toBe(true);
+
+    const after = useCadDocumentStore.getState().sourceText;
+    expect(after).toContain("let renamedBase: number = 1");
+    expect(after).toContain("let derived: number = @renamedBase");
+    expect(after).toContain("set renamedBase = @renamedBase + 1");
+    expect(after).toContain('text Label = label(text: "{@renamedBase}"');
+    expect(after).not.toContain("@base");
+
+    controller.destroy();
+  });
+
+  it("neither prompt opens, and no source changes, when nothing is selected and the cursor is not on a typed construct", () => {
+    useCadDocumentStore.getState().commitText("nui 3\npoint A = coordinate(x: 0 y: 0)", "test");
+    useCadUiStore.getState().reconcileSelectionWithElements([]);
+    const beforeSourceText = useCadDocumentStore.getState().sourceText;
+
+    const handled = dispatchCommand("renameSelectedElement", {
+      currentCursorElementId: () => null,
+      currentCursorTypedRenameTargetBindingId: () => null
+    });
+
+    expect(handled).toBe(false);
+    expect(useCadUiStore.getState().renameElementPromptTargetId).toBeNull();
+    expect(useCadUiStore.getState().renameTypedBindingPromptTargetId).toBeNull();
+    expect(useCadDocumentStore.getState().sourceText).toBe(beforeSourceText);
   });
 });

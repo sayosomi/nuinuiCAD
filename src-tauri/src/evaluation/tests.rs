@@ -1,3 +1,4 @@
+use super::types::DependencyError;
 use super::*;
 use serde_json::json;
 use serde_json::Value;
@@ -497,6 +498,207 @@ fn reports_too_late_dependency() {
         result.errors[0].missing_dependency_name.as_deref(),
         Some("点A")
     );
+}
+
+fn broken_parent() -> Value {
+    element(json!({
+        "id": "broken-parent",
+        "name": "壊れた親点",
+        "type": "offsetPoint",
+        "visible": true,
+        "enabled": true,
+        "fromPointId": "ghost",
+        "dx": 10,
+        "dy": 0
+    }))
+}
+
+fn dependent_line() -> Value {
+    element(json!({
+        "id": "dependent-line",
+        "name": "依存線",
+        "type": "line",
+        "visible": true,
+        "enabled": true,
+        "startPoint": { "mode": "reference", "pointId": "broken-parent" },
+        "endPoint": { "mode": "coordinate", "x": 10, "y": 10 }
+    }))
+}
+
+fn error_for<'a>(result: &'a EvaluationPayload, element_id: &str) -> &'a DependencyError {
+    result
+        .errors
+        .iter()
+        .find(|error| error.element_id == element_id)
+        .expect("expected error for element")
+}
+
+#[test]
+fn keeps_missing_parent_message_when_referenced_id_does_not_exist() {
+    let result = evaluate_document_input(EvaluationInput {
+        property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
+        elements: vec![element(json!({
+            "id": "line",
+            "name": "参照線",
+            "type": "line",
+            "visible": true,
+            "enabled": true,
+            "startPoint": { "mode": "reference", "pointId": "ghost" },
+            "endPoint": { "mode": "coordinate", "x": 10, "y": 10 }
+        }))],
+        evaluation_limit_index: None,
+        scalar_expression_payload: None,
+        scalar_program: None,
+        binding_versions: None,
+    });
+
+    let error = error_for(&result, "line");
+    assert_eq!(error.missing_dependency_id, "ghost");
+    assert!(error
+        .message
+        .contains("はこの要素より後にあるか、存在しません"));
+}
+
+#[test]
+fn keeps_forward_reference_message_when_parent_appears_after_dependent() {
+    let result = evaluate_document_input(EvaluationInput {
+        property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
+        elements: vec![dependent_line(), broken_parent()],
+        evaluation_limit_index: None,
+        scalar_expression_payload: None,
+        scalar_program: None,
+        binding_versions: None,
+    });
+
+    let error = error_for(&result, "dependent-line");
+    assert_eq!(error.missing_dependency_id, "broken-parent");
+    assert!(error
+        .message
+        .contains("はこの要素より後にあるか、存在しません"));
+}
+
+#[test]
+fn reports_evaluation_failed_message_when_parent_exists_earlier_but_failed() {
+    let result = evaluate_document_input(EvaluationInput {
+        property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
+        elements: vec![broken_parent(), dependent_line()],
+        evaluation_limit_index: None,
+        scalar_expression_payload: None,
+        scalar_program: None,
+        binding_versions: None,
+    });
+
+    assert!(result
+        .computed_geometry
+        .iter()
+        .all(|geometry| geometry["elementId"] != json!("broken-parent")));
+
+    let parent_error = error_for(&result, "broken-parent");
+    assert_eq!(parent_error.missing_dependency_id, "ghost");
+
+    let dependent_error = error_for(&result, "dependent-line");
+    assert_eq!(dependent_error.missing_dependency_id, "broken-parent");
+    assert!(dependent_error
+        .message
+        .contains("壊れた親点 の評価に失敗しているため評価できません"));
+    assert!(!dependent_error
+        .message
+        .contains("はこの要素より後にあるか、存在しません"));
+}
+
+#[test]
+fn reports_no_issue_for_a_valid_parent() {
+    let mut valid_parent = broken_parent();
+    valid_parent["fromPointId"] = json!("a");
+    let result = evaluate_document_input(EvaluationInput {
+        property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
+        elements: vec![
+            element(json!({
+                "id": "a",
+                "name": "点A",
+                "type": "freePoint",
+                "visible": true,
+                "enabled": true,
+                "x": 10,
+                "y": 20
+            })),
+            valid_parent,
+            dependent_line(),
+        ],
+        evaluation_limit_index: None,
+        scalar_expression_payload: None,
+        scalar_program: None,
+        binding_versions: None,
+    });
+
+    assert!(result.errors.is_empty());
+    assert!(result
+        .computed_geometry
+        .iter()
+        .any(|geometry| geometry["elementId"] == json!("dependent-line")));
+}
+
+#[test]
+fn targets_only_the_failed_parent_when_one_of_several_parents_is_broken() {
+    let result = evaluate_document_input(EvaluationInput {
+        property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
+        elements: vec![
+            element(json!({
+                "id": "valid-parent",
+                "name": "正常な親点",
+                "type": "freePoint",
+                "visible": true,
+                "enabled": true,
+                "x": 0,
+                "y": 0
+            })),
+            broken_parent(),
+            element(json!({
+                "id": "two-parent-line",
+                "name": "二親線",
+                "type": "line",
+                "visible": true,
+                "enabled": true,
+                "startPoint": { "mode": "reference", "pointId": "valid-parent" },
+                "endPoint": { "mode": "reference", "pointId": "broken-parent" }
+            })),
+        ],
+        evaluation_limit_index: None,
+        scalar_expression_payload: None,
+        scalar_program: None,
+        binding_versions: None,
+    });
+
+    let dependent_errors: Vec<_> = result
+        .errors
+        .iter()
+        .filter(|error| error.element_id == "two-parent-line")
+        .collect();
+    assert_eq!(dependent_errors.len(), 1);
+    assert_eq!(dependent_errors[0].missing_dependency_id, "broken-parent");
+    assert!(dependent_errors[0]
+        .message
+        .contains("評価に失敗しているため評価できません"));
 }
 
 #[test]

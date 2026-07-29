@@ -110,6 +110,37 @@ describe("SourceEditor element state gutter", () => {
     parent.remove();
   });
 
+  it("uses line treatment for evaluation errors and warnings, while leaving @stop as a source-line boundary", () => {
+    useCadDocumentStore.getState().commitText(dslTextForElements([
+      { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
+      { id: "b", name: "B", type: "freePoint", visible: true, enabled: true, x: 10, y: 0 }
+    ], 1), "test");
+    const parent = document.createElement("div");
+    document.body.appendChild(parent);
+    const controller = new SourceEditorController(parent);
+    const elements = useCadDocumentStore.getState().elements;
+    const pointA = elements.find((element) => element.name === "A")!;
+    const pointB = elements.find((element) => element.name === "B")!;
+
+    controller.setEvaluation({
+      evaluation: {
+        computedGeometry: new Map(),
+        computedVariables: new Map(),
+        errors: [{ elementId: pointA.id, elementName: pointA.name, missingDependencyId: pointA.id, message: "error" }],
+        warnings: [{ elementId: pointB.id, elementName: pointB.name, message: "warning" }]
+      },
+      compiledDocumentRevision: useCadDocumentStore.getState().compiledDocumentRevision,
+      evaluationRequestRevision: 1
+    });
+
+    expect(parent.querySelector(".cm-eval-error")).not.toBeNull();
+    expect(parent.querySelector(".cm-eval-warning")).not.toBeNull();
+    expect(parent.querySelector(".cm-status-gutter")).toBeNull();
+    expect(parent.querySelector(".cm-at-stop-line")).not.toBeNull();
+    controller.destroy();
+    parent.remove();
+  });
+
   it("recovers gutter markers and Alt value-step on unrelated lines after a fatal-then-valid typed edit", () => {
     const parent = document.createElement("div");
     document.body.appendChild(parent);

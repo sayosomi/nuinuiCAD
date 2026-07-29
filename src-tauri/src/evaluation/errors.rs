@@ -21,24 +21,31 @@ pub(crate) fn dependency_error(
         .as_deref()
         .and_then(|id| find_element_name(state, id));
     let element_name = element_name(element);
+    let dependency_evaluation_failed = disabled_group_name.is_none()
+        && state.elements_by_id.contains_key(missing_dependency_id)
+        && state
+            .errors
+            .iter()
+            .any(|error| error.element_id == missing_dependency_id);
 
     DependencyError {
         element_id: element_id(element).unwrap_or_default(),
         element_name: element_name.clone(),
         missing_dependency_id: missing_dependency_id.to_owned(),
         missing_dependency_name,
-        message: disabled_group_name.map_or_else(
-            || {
-                format!(
-                    "{element_name} は {dependency_label} を参照していますが、{dependency_label} はこの要素より後にあるか、存在しません。{dependency_label} を {element_name} より前に移動してください。"
-                )
-            },
-            |group_name| {
-                format!(
-                    "{element_name} は {dependency_label} を参照していますが、{dependency_label} はグループ {group_name} により評価OFFです。{group_name} を評価ONにするか、参照先を変更してください。"
-                )
-            },
-        ),
+        message: if let Some(group_name) = disabled_group_name {
+            format!(
+                "{element_name} は {dependency_label} を参照していますが、{dependency_label} はグループ {group_name} により評価OFFです。{group_name} を評価ONにするか、参照先を変更してください。"
+            )
+        } else if dependency_evaluation_failed {
+            format!(
+                "{element_name} は {dependency_label} を参照していますが、{dependency_label} の評価に失敗しているため評価できません。先に {dependency_label} のエラーを解消してください。"
+            )
+        } else {
+            format!(
+                "{element_name} は {dependency_label} を参照していますが、{dependency_label} はこの要素より後にあるか、存在しません。{dependency_label} を {element_name} より前に移動してください。"
+            )
+        },
     }
 }
 

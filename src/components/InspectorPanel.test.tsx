@@ -7,6 +7,7 @@ import { buildConditionalGroupConditionsByElementId } from "../geometry/controlB
 import { evaluateElements, type EvaluateElementsOptions } from "../geometry/evaluate";
 import { buildConditionalMutationOwners, conditionalOwnerIdByElementId } from "../scalars/conditionalMutationControl";
 import { buildForGroupMutationOwners, forGroupMutationOwnerByElementId } from "../scalars/forGroupMutationControl";
+import { buildTextTemplateEntriesByElementId } from "../geometry/textTemplateRuntime";
 import { createCadElement } from "../model/elementFactory";
 import { sampleElements } from "../sampleData";
 import { initialCadDocumentState, useCadDocumentStore, type CadDocumentState } from "../state/cadDocumentStore";
@@ -90,6 +91,108 @@ describe("InspectorPanel mouse-only actions", () => {
     fireEvent.click(screen.getByText("A").closest(".inspector-row")!);
     expect(useCadUiStore.getState().selectedElementId).toBe(pointA.id);
     expect(handle.jumpToElement).toHaveBeenCalledWith(pointA.id);
+  });
+
+  it("does not show escaped braces or typed template holes as unresolved geometry parents", () => {
+    useCadDocumentStore.getState().commitText([
+      "nui 3",
+      "const length: number = 12.3456",
+      'const label: string = "前身頃"',
+      'text Label = label(text: "\\{draft\\} {@label} {@length}" anchor: none size: 3)'
+    ].join("\n"), "test");
+    const elements = useCadDocumentStore.getState().elements;
+    const label = elements.find((element) => element.name === "Label")!;
+    const { unmount } = renderInspectorElement(label, elements);
+
+    const parentGroup = screen.getByText("親要素").closest(".dependency-group");
+    if (!(parentGroup instanceof HTMLElement)) throw new Error("Missing parent group");
+    expect(within(parentGroup).getByText("親要素はありません。")).toBeInTheDocument();
+    expect(within(parentGroup).queryByText(/未解決: (draft|label|length)/)).not.toBeInTheDocument();
+    unmount();
+  });
+
+  it("shows a text template's raw source escapes instead of a re-serialized value", () => {
+    useCadDocumentStore.getState().commitText([
+      "nui 3",
+      'const label: string = "前身頃"',
+      'text Label = label(text: "\\{draft\\} {@label}\\n" anchor: none size: 3)'
+    ].join("\n"), "test");
+    const elements = useCadDocumentStore.getState().elements;
+    const label = elements.find((element) => element.name === "Label")!;
+    const { unmount } = renderInspectorElement(label, elements);
+
+    const textRow = screen.getByText("テキスト").closest(".inspector-row");
+    if (!(textRow instanceof HTMLElement)) throw new Error("Missing text row");
+    expect(within(textRow).getByText("\\{draft\\} {@label}\\n")).toBeInTheDocument();
+    expect(within(textRow).queryByText("\\\\{draft\\\\}")).not.toBeInTheDocument();
+    unmount();
+  });
+
+  it("shows template source and its fresh runtime result without altering escapes or newlines", () => {
+    useCadDocumentStore.getState().commitText([
+      "nui 3",
+      "const length: number = 12.3456",
+      'const label: string = "前身頃"',
+      "point A = coordinate(x: 0 y: 0)",
+      'text Label = label(text: "\\{draft\\} {@label} {@length}\\n" anchor: A size: 3)',
+    ].join("\n"), "test");
+    const state = useCadDocumentStore.getState();
+    const textTemplates = buildTextTemplateEntriesByElementId({
+      textTemplates: state.doc.textTemplates!,
+      elementIdByStatementIndex: state.doc.statementMap.elementIdByStatementIndex,
+    });
+    const evaluation = evaluateElements(state.elements, {
+      scalarProgram: state.doc.scalarProgram,
+      textTemplateEntriesByElementId: textTemplates,
+    });
+    const label = state.elements.find((element) => element.name === "Label")!;
+    const { unmount } = renderInspectorElement(label, state.elements);
+    unmount();
+    const sourceEditorRef = createRef<SourceEditorHandle>();
+    sourceEditorRef.current = makeHandle();
+    const view = render(
+      <InspectorPanel element={label} elements={state.elements} evaluation={evaluation} sourceEditorRef={sourceEditorRef} />,
+    );
+
+    const sourceRow = screen.getByText("テキスト（ソース）").closest(".inspector-row");
+    const resultRow = screen.getByText("評価結果").closest(".inspector-row");
+    const parameterList = sourceRow?.closest(".dependency-list");
+    if (!(sourceRow instanceof HTMLElement) || !(resultRow instanceof HTMLElement) || !(parameterList instanceof HTMLElement)) {
+      throw new Error("Missing text Inspector rows");
+    }
+
+    expect(sourceRow.parentElement?.parentElement).toBe(parameterList);
+    expect(resultRow.parentElement?.parentElement).toBe(parameterList);
+    expect(screen.getByText("\\{draft\\} {@label} {@length}\\n")).toBeInTheDocument();
+    expect(resultRow.textContent).toBe("評価結果{draft} 前身頃 12.346\n");
+    view.unmount();
+  });
+
+  it("keeps matching literal text as one row and hides stale runtime text", () => {
+    useCadDocumentStore.getState().commitText([
+      "nui 3",
+      "point A = coordinate(x: 0 y: 0)",
+      'text Bare = label(text: "前身頃" anchor: A size: 3)',
+    ].join("\n"), "test");
+    const state = useCadDocumentStore.getState();
+    const evaluation = evaluateElements(state.elements);
+    const bare = state.elements.find((element) => element.name === "Bare")!;
+    const sourceEditorRef = createRef<SourceEditorHandle>();
+    sourceEditorRef.current = makeHandle();
+    const view = render(
+      <InspectorPanel element={bare} elements={state.elements} evaluation={evaluation} sourceEditorRef={sourceEditorRef} />,
+    );
+
+    expect(screen.getByText("テキスト")).toBeInTheDocument();
+    expect(screen.queryByText("テキスト（ソース）")).not.toBeInTheDocument();
+    expect(screen.queryByText("評価結果")).not.toBeInTheDocument();
+    view.unmount();
+
+    render(
+      <InspectorPanel element={bare} elements={state.elements} evaluation={evaluation} isEvaluationStale sourceEditorRef={sourceEditorRef} />,
+    );
+    expect(screen.getByText("テキスト")).toBeInTheDocument();
+    expect(screen.queryByText("評価結果")).not.toBeInTheDocument();
   });
 
   it("starts Canvas pick only from the row button and keeps the panel non-navigable", () => {

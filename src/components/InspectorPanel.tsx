@@ -15,6 +15,7 @@ import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
 import { findParameterDefinition } from "../parameters/parameterDefinitions";
 import type { BindingId } from "../scalars/bindingCatalog";
+import { buildTextTemplateEntriesByElementId } from "../geometry/textTemplateRuntime";
 import type { SourceEditorHandle } from "../editor/sourceEditorTypes";
 import type { CadElement, EvaluationResult } from "../types/geometry";
 import { elementTypeLabels } from "../types/geometry";
@@ -28,6 +29,7 @@ import {
 } from "./inspectorPresentation";
 import { parameterPickCommandId } from "../commands/parameterPickCommand";
 import { typedDeclarationInspectorPresentation } from "./typedDeclarationInspectorPresentation";
+import { textInspectorPresentation } from "./textInspectorSource";
 import {
   typedBindingRuntimeInspectorPresentation,
   type TypedBindingRuntimeConsumerRow,
@@ -87,10 +89,30 @@ export const InspectorPanel = ({
   const sourceText = useCadDocumentStore((state) => state.sourceText);
   const isLastGood = docText !== sourceText;
   const isRuntimeFresh = isRuntimeBindingDisplayFresh({ isSourceDirty: isLastGood, isEvaluationStale });
-
+  const textTemplatesByElementId = useMemo(
+    () => doc.textTemplates
+      ? buildTextTemplateEntriesByElementId({
+          textTemplates: doc.textTemplates,
+          elementIdByStatementIndex: doc.statementMap.elementIdByStatementIndex,
+        })
+      : undefined,
+    [doc.statementMap.elementIdByStatementIndex, doc.textTemplates],
+  );
+  const textPresentation = useMemo(
+    () => element?.type === "text"
+      ? textInspectorPresentation({
+          element,
+          textTemplates: doc.textTemplates,
+          statementMap: doc.statementMap,
+          evaluation,
+          isRuntimeFresh,
+        })
+      : null,
+    [doc.statementMap, doc.textTemplates, element, evaluation, isRuntimeFresh],
+  );
   const dependencyIndex = useMemo(
-    () => createDependencyIndex(elements),
-    [elements],
+    () => createDependencyIndex(elements, { textTemplatesByElementId }),
+    [elements, textTemplatesByElementId],
   );
   const dependencySummary = useMemo(
     () =>
@@ -121,9 +143,18 @@ export const InspectorPanel = ({
     ? (presentationStatusIndex.get(element.id) ?? null)
     : null;
   const parameterRows = useMemo(
-    () => (element ? parameterInspectorRows(element) : []),
-    [element],
+    () => {
+      if (!element) return [];
+      return parameterInspectorRows(element).map((row) =>
+        row.parameterKey === "text" && textPresentation !== null
+          ? { ...row, value: textPresentation.source }
+          : row,
+      );
+    },
+    [element, textPresentation],
   );
+  const evaluatedText = textPresentation?.evaluatedText ?? null;
+  const textHasDifferentRuntimeResult = evaluatedText !== null && evaluatedText !== textPresentation?.source;
   const dependencyPresentation = useMemo(
     () =>
       element && dependencySummary
@@ -507,17 +538,17 @@ export const InspectorPanel = ({
           <div className="dependency-group">
             <h3 className="shortcut-group-title">パラメーター</h3>
             <div className="dependency-list">
-              {parameterRows.map((row) => (
-                <div
-                  key={row.key}
-                  className="inspector-row inspector-parameter-row"
-                  onClick={() => jumpToParameter(row)}
-                >
-                  <span className="inspector-row-main">
-                    <span>{row.label}</span>
-                    <small>{row.value}</small>
-                  </span>
-                  {(() => {
+              {parameterRows.flatMap((row) => [
+                <div key={row.key}>
+                  <div
+                    className="inspector-row inspector-parameter-row"
+                    onClick={() => jumpToParameter(row)}
+                  >
+                    <span className="inspector-row-main">
+                      <span>{row.parameterKey === "text" && textHasDifferentRuntimeResult ? "テキスト（ソース）" : row.label}</span>
+                      <small>{row.value}</small>
+                    </span>
+                    {(() => {
                     const definition = findParameterDefinition(
                       element,
                       row.parameterKey,
@@ -546,9 +577,20 @@ export const InspectorPanel = ({
                         {isPicking ? "選択中" : "選択"}
                       </button>
                     ) : null;
-                  })()}
-                </div>
-              ))}
+                    })()}
+                  </div>
+                </div>,
+                ...(row.parameterKey === "text" && textHasDifferentRuntimeResult ? [
+                  <div key={`${row.key}:evaluated-text`}>
+                    <div className="inspector-row">
+                      <span className="inspector-row-main">
+                        <span>評価結果</span>
+                        <small>{evaluatedText}</small>
+                      </span>
+                    </div>
+                  </div>
+                ] : [])
+              ])}
             </div>
           </div>
           </>

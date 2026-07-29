@@ -40,6 +40,10 @@ export type SourceEditorHandle = {
   focus: () => void;
   /** Element statement under the primary cursor, resolved through the current range index. */
   currentCursorElementId?: () => ElementId | null;
+  /** Typed binding (declaration/reference/set target/template hole) under the
+   * primary cursor, if any - see typedRenameTargetAtCursor.ts. Null whenever
+   * the cursor is not on a typed construct at all. */
+  currentCursorTypedRenameTargetBindingId?: () => BindingId | null;
   /** Current editor text serialized with its uniform source line ending, when one exists. */
   getText: () => string;
   /** Publishes a result together with the compiled-document revision captured when its

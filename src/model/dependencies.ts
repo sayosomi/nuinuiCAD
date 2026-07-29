@@ -3,6 +3,7 @@ import {
   extractNumericExpressionReferences,
   extractTextReferences
 } from "../geometry/numericExpressions";
+import type { TextTemplateAst } from "../scalars/textTemplate";
 import { anchorReferenceElementId, pointAnchorForElement } from "./pointAnchors";
 
 export type DependencyReference = {
@@ -31,6 +32,16 @@ export type DependencyIndex = {
   descendantIdsForElement: (elementId: ElementId) => Set<ElementId>;
 };
 
+/**
+ * Compiled nui 3 text templates retain the distinction between literal,
+ * typed, and legacy holes that the cooked `TextElement.text` value loses.
+ * Callers with a compiled document should provide this map so only legacy
+ * holes participate in geometry dependency collection.
+ */
+export type DependencyCollectionOptions = {
+  textTemplatesByElementId?: ReadonlyMap<ElementId, TextTemplateAst>;
+};
+
 const numericVariableReferences = (element: CadElement) =>
   (element.numericVariables ?? []).flatMap((variable) =>
     extractNumericExpressionReferences(variable.value)
@@ -44,7 +55,23 @@ const pointAnchorParentIds = (anchor: PointAnchor) =>
       ].map((reference) => reference.elementId)
     : [anchorReferenceElementId(anchor)].filter((id): id is ElementId => Boolean(id));
 
-export const getDirectParentIds = (element: CadElement): ElementId[] => {
+const textGeometryParentReferences = (
+  element: Extract<CadElement, { type: "text" }>,
+  textTemplatesByElementId: DependencyCollectionOptions["textTemplatesByElementId"]
+) => {
+  const template = textTemplatesByElementId?.get(element.id);
+  if (!template) return extractTextReferences(element.text);
+  return template.segments.flatMap((segment) =>
+    segment.kind === "hole" && segment.holeKind === "legacy"
+      ? extractNumericExpressionReferences({ kind: "expression", expression: segment.raw })
+      : []
+  );
+};
+
+export const getDirectParentIds = (
+  element: CadElement,
+  { textTemplatesByElementId }: DependencyCollectionOptions = {}
+): ElementId[] => {
   const numericExpressionParentIds = () => {
     switch (element.type) {
       case "group":
@@ -233,7 +260,7 @@ export const getDirectParentIds = (element: CadElement): ElementId[] => {
       case "text":
         return [
           ...numericVariableReferences(element),
-          ...extractTextReferences(element.text),
+          ...textGeometryParentReferences(element, textTemplatesByElementId),
           ...(element.anchor ? pointAnchorParentIds(element.anchor).map((elementId) => ({ elementId })) : []),
           ...extractNumericExpressionReferences(element.fontSize)
         ].map((reference) => reference.elementId);
@@ -283,10 +310,13 @@ export const getDirectParentIds = (element: CadElement): ElementId[] => {
   }
 };
 
-export const createDependencyIndex = (elements: CadElement[]): DependencyIndex => {
+export const createDependencyIndex = (
+  elements: CadElement[],
+  options: DependencyCollectionOptions = {}
+): DependencyIndex => {
   const elementsById = new Map(elements.map((element) => [element.id, element]));
   const parentIdsByElementId = new Map(
-    elements.map((element) => [element.id, getDirectParentIds(element)])
+    elements.map((element) => [element.id, getDirectParentIds(element, options)])
   );
   const childIdSetsByElementId = new Map<ElementId, Set<ElementId>>();
 

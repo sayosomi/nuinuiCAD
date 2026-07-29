@@ -201,18 +201,6 @@ textarea {
   border-top: 1px dashed #8b9086;
 }
 
-.source-editor-pane .cm-status-gutter {
-  width: 10px;
-}
-
-.source-editor-pane .cm-status-gutter-marker {
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  margin: 6px 2px;
-}
-
 .source-editor-pane .cm-element-state-gutter {
   width: 20px;
   overflow: visible;
@@ -247,18 +235,6 @@ textarea {
 .cm-element-state-marker.is-disabled::before {
   content: "\2298"; /* disabled: circled slash (stop) */
   color: #b66e38;
-}
-
-.source-editor-pane .cm-status-gutter-error {
-  background: #c2410c;
-}
-
-.source-editor-pane .cm-status-gutter-warning {
-  background: #c58b1b;
-}
-
-.source-editor-pane .cm-status-gutter-stop {
-  background: #8b9086;
 }
 
 .source-editor-pane .cm-diagnostic-current {
@@ -4010,10 +3986,13 @@ textarea {
 
 .drawing-overlay text {
   fill: #53564f;
-  font-size: 12px;
   paint-order: stroke;
   stroke: #fbfbfa;
   stroke-width: 3px;
+}
+
+.drawing-overlay .overlay-element-name {
+  font-size: 12px;
 }
 
 .drawing-overlay .overlay-selected-line {

@@ -254,7 +254,9 @@ const canUseRustEvaluationForElement = (
     return false;
   }
   if (
-    getDirectParentIds(element).some((parentId) => {
+    getDirectParentIds(element, {
+      textTemplatesByElementId: options.textTemplateEntriesByElementId
+    }).some((parentId) => {
       const parent = elementsById.get(parentId);
       return parent ? !rustSupportedElementTypes.has(parent.type) : false;
     })
