@@ -1,7 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { CadElement, ElementId, EvaluationResult, PointAnchor } from "../types/geometry";
-import type { ScalarProgram } from "../scalars/scalarProgram";
-import type { TypedScalarExpression } from "../scalars/typedExpressionAst";
 import { anchorReferenceElementId, pointAnchorForElement } from "../model/pointAnchors";
 import { getDirectParentIds } from "../model/dependencies";
 import { evaluateElements, type EvaluateElementsOptions } from "./evaluate";
@@ -10,26 +8,10 @@ import {
   evaluationResultToPayload,
   type EvaluationPayload
 } from "./evaluationPayload";
-import type { PropertyBindingRuntimeEntry } from "./propertyBindingRuntime";
 import { hasSetVersions, isRustLinearMutationEligible } from "../scalars/linearMutationEvaluator";
 import { hasCanonicalForGroupMutationOwners } from "../scalars/forGroupMutationControl";
-import { buildRustBindingMutationPayload, type RustBindingMutationPayload } from "./bindingVersionPayload";
-import { toRustTextTemplateSegments, type RustTextTemplateSegment } from "./textTemplateRuntime";
-
-type ConditionExpressionInput = { elementId: ElementId; expression: TypedScalarExpression };
-type TextTemplateInput = { elementId: ElementId; segments: readonly RustTextTemplateSegment[] };
-
-type EvaluateDocumentInput = {
-  elements: CadElement[];
-  evaluationLimitIndex?: number;
-  scalarProgram?: ScalarProgram;
-  bindingVersions?: RustBindingMutationPayload;
-  propertyBindings?: readonly PropertyBindingRuntimeEntry[];
-  controlBooleanBindings?: readonly PropertyBindingRuntimeEntry[];
-  conditionExpressions?: readonly ConditionExpressionInput[];
-  textTemplates?: readonly TextTemplateInput[];
-  textPropertyBindings?: readonly PropertyBindingRuntimeEntry[];
-};
+import { referencesIn } from "../scalars/typedDependencyGraph";
+import { buildRustEvaluationInput } from "./rustEvaluationInput";
 
 export type EvaluationEngineMode = "reference" | "parity" | "shadow" | "rust";
 
@@ -213,6 +195,45 @@ const textElementHasRequiredCompiledData = (
   (textTemplateEntriesByElementId?.has(element.id) ?? false) ||
   (textPropertyBoundElementIds?.has(element.id) ?? false);
 
+/**
+ * Rust eligibility must include compiled payload references, not merely the
+ * element types that happen to own them. Rust validates these at its command
+ * boundary; this earlier check prevents a production route from claiming
+ * eligibility for a document whose compiled joins cannot be resolved.
+ */
+const hasRustSupportedCompiledReferences = (
+  elementsById: ReadonlyMap<ElementId, CadElement>,
+  options: EvaluateElementsOptions
+): boolean => {
+  const usesMutationPayload = options.bindingVersions && isRustLinearMutationEligible(options.bindingVersions);
+  // Eligibility must never decode or reject a malformed scalar payload. The
+  // Rust command owns validation and its typed-input failure must stay on the
+  // existing fail-closed path rather than becoming a TypeScript exception.
+  const scalarStatements = options.scalarProgram?.statements;
+  const availableBindingIds = new Set(
+    usesMutationPayload
+      ? options.bindingVersions!.versionIdsByBindingId.keys()
+      : Array.isArray(scalarStatements) ? scalarStatements.map((statement) => statement.bindingId) : []
+  );
+  const hasBinding = (bindingId: string) => bindingId.startsWith("legacy:") || availableBindingIds.has(bindingId);
+  const propertyEntries = [
+    ...(options.propertyBindingEntries ?? []),
+    ...(options.controlBooleanEntries ?? []),
+    ...(options.textPropertyBindingEntries ?? [])
+  ];
+  if (propertyEntries.some((entry) => !elementsById.has(entry.elementId) || !hasBinding(entry.bindingId))) return false;
+  if (options.textPropertyBindingEntries?.some((entry) => elementsById.get(entry.elementId)?.type !== "text")) return false;
+  if (options.conditionalGroupConditionsByElementId && Array.from(options.conditionalGroupConditionsByElementId).some(
+    ([elementId, expression]) => elementsById.get(elementId)?.type !== "conditionalGroup" ||
+      referencesIn(expression).some((reference) => reference.bindingId === null || !hasBinding(reference.bindingId))
+  )) return false;
+  if (options.textTemplateEntriesByElementId && Array.from(options.textTemplateEntriesByElementId).some(
+    ([elementId, template]) => elementsById.get(elementId)?.type !== "text" ||
+      template.dependencies.some((dependency) => !hasBinding(dependency.bindingId))
+  )) return false;
+  return true;
+};
+
 const canUseRustEvaluationForElement = (
   element: CadElement,
   elementsById: Map<string, CadElement>,
@@ -309,6 +330,7 @@ export const canUseRustEvaluationForElements = (
     elements.length
   );
   const elementsById = new Map(elements.map((element) => [element.id, element]));
+  if (!hasRustSupportedCompiledReferences(elementsById, options)) return false;
   const textPropertyBoundElementIds = options.textPropertyBindingEntries?.length
     ? new Set(options.textPropertyBindingEntries.map((entry) => entry.elementId))
     : undefined;
@@ -357,38 +379,9 @@ export const evaluateElementsWithRust = async (
   options: EvaluateElementsOptions = {}
 ): Promise<EvaluationResult> => {
   const rustEligible = canUseRustEvaluationForElements(elements, options);
-  const mutationPayload = rustEligible && options.bindingVersions && isRustLinearMutationEligible(options.bindingVersions)
-    ? buildRustBindingMutationPayload(
-        options.bindingVersions, elements, options.statementInfoByElementId, options.statementIdByStatementIndex
-      )
-    : undefined;
+  const input = buildRustEvaluationInput(elements, options, { includeBindingVersions: rustEligible });
   const payload = await invoke<EvaluationPayload>("evaluate_document", {
-    input: {
-      elements,
-      evaluationLimitIndex: options.evaluationLimitIndex,
-      ...(mutationPayload ? { bindingVersions: mutationPayload } : options.scalarProgram ? { scalarProgram: options.scalarProgram } : {}),
-      ...(options.propertyBindingEntries?.length ? { propertyBindings: options.propertyBindingEntries } : {}),
-      ...(options.controlBooleanEntries?.length ? { controlBooleanBindings: options.controlBooleanEntries } : {}),
-      ...(options.conditionalGroupConditionsByElementId?.size
-        ? {
-            conditionExpressions: Array.from(
-              options.conditionalGroupConditionsByElementId,
-              ([elementId, expression]) => ({ elementId, expression })
-            )
-          }
-        : {}),
-      ...(options.textTemplateEntriesByElementId?.size
-        ? {
-            textTemplates: Array.from(
-              options.textTemplateEntriesByElementId,
-              ([elementId, ast]) => ({ elementId, segments: toRustTextTemplateSegments(ast) })
-            )
-          }
-        : {}),
-      ...(options.textPropertyBindingEntries?.length
-        ? { textPropertyBindings: options.textPropertyBindingEntries }
-        : {})
-    } satisfies EvaluateDocumentInput
+    input
   });
   return evaluationPayloadToResult(payload);
 };
