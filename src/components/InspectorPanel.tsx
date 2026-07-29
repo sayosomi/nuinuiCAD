@@ -22,6 +22,7 @@ import { elementTypeLabels } from "../types/geometry";
 import { geometryInfoRows } from "./geometryDisplay";
 import {
   dependencyInspectorPresentation,
+  evaluatedInspectorParameterValue,
   parameterInspectorRows,
   type InspectorDependencyRow,
   type InspectorParameterRow,
@@ -149,13 +150,17 @@ export const InspectorPanel = ({
   const parameterRows = useMemo(
     () => {
       if (!element) return [];
-      return parameterInspectorRows(element, elementNameById).map((row) =>
-        row.parameterKey === "text" && textPresentation !== null
-          ? { ...row, value: textPresentation.source }
-          : row,
-      );
+      return parameterInspectorRows(element, elementNameById).map((row) => ({
+        ...row,
+        ...(row.parameterKey === "text" && textPresentation !== null
+          ? { value: textPresentation.source }
+          : {}),
+        ...(isRuntimeFresh
+          ? { evaluatedValue: evaluatedInspectorParameterValue(element, row.parameterKey, evaluation) }
+          : {}),
+      }));
     },
-    [element, elementNameById, textPresentation],
+    [element, elementNameById, evaluation, isRuntimeFresh, textPresentation],
   );
   const evaluatedText = textPresentation?.evaluatedText ?? null;
   const textHasDifferentRuntimeResult = evaluatedText !== null && evaluatedText !== textPresentation?.source;
@@ -584,7 +589,16 @@ export const InspectorPanel = ({
                     })()}
                   </div>
                 </div>,
-                ...(row.parameterKey === "text" && textHasDifferentRuntimeResult ? [
+                ...(row.evaluatedValue !== null && row.evaluatedValue !== undefined ? [
+                  <div key={`${row.key}:evaluated-value`}>
+                    <div className="inspector-row">
+                      <span className="inspector-row-main">
+                        <span>評価結果</span>
+                        <small>{row.evaluatedValue}</small>
+                      </span>
+                    </div>
+                  </div>,
+                ] : row.parameterKey === "text" && textHasDifferentRuntimeResult ? [
                   <div key={`${row.key}:evaluated-text`}>
                     <div className="inspector-row">
                       <span className="inspector-row-main">

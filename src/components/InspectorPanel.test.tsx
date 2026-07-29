@@ -8,6 +8,7 @@ import { evaluateElements, type EvaluateElementsOptions } from "../geometry/eval
 import { buildConditionalMutationOwners, conditionalOwnerIdByElementId } from "../scalars/conditionalMutationControl";
 import { buildForGroupMutationOwners, forGroupMutationOwnerByElementId } from "../scalars/forGroupMutationControl";
 import { buildTextTemplateEntriesByElementId } from "../geometry/textTemplateRuntime";
+import { buildNumericBindingRuntimeEntries } from "../geometry/numericBindingRuntime";
 import { createCadElement } from "../model/elementFactory";
 import { sampleElements } from "../sampleData";
 import { initialCadDocumentState, useCadDocumentStore, type CadDocumentState } from "../state/cadDocumentStore";
@@ -42,7 +43,11 @@ const makeHandle = (): SourceEditorHandle => ({
   focusSearch: vi.fn()
 });
 
-const renderInspectorElement = (element: CadElement, elements: CadElement[]) => {
+const renderInspectorElement = (
+  element: CadElement,
+  elements: CadElement[],
+  evaluation = evaluateElements(elements),
+) => {
   const handle = makeHandle();
   const sourceEditorRef = createRef<SourceEditorHandle>();
   sourceEditorRef.current = handle;
@@ -50,7 +55,7 @@ const renderInspectorElement = (element: CadElement, elements: CadElement[]) => 
     <InspectorPanel
       element={element}
       elements={elements}
-      evaluation={evaluateElements(elements)}
+      evaluation={evaluation}
       sourceEditorRef={sourceEditorRef}
     />
   );
@@ -101,6 +106,39 @@ describe("InspectorPanel mouse-only actions", () => {
     expect(within(endRow).getByText("B")).toBeInTheDocument();
     expect(startRow).not.toHaveTextContent(pointA.id);
     expect(endRow).not.toHaveTextContent(pointB.id);
+  });
+
+  it("shows element names rather than internal IDs inside numeric expressions", () => {
+    useCadDocumentStore.getState().commitText([
+      "nui 3",
+      "const length: number = 12.3456",
+      "point A = coordinate(x: 0 y: 0)",
+      "point B = coordinate(x: @length y: 0)",
+      "line AB = segment(start: A end: B)",
+      "point C = coordinate(x: @length + AB.length y: 0)",
+    ].join("\n"), "test");
+    const state = useCadDocumentStore.getState();
+    const elements = state.elements;
+    const evaluation = evaluateElements(elements, {
+      scalarProgram: state.doc.scalarProgram,
+      bindingVersions: state.doc.bindingVersions,
+      statementInfoByElementId: state.doc.statementMap.byElementId,
+      statementIdByStatementIndex: state.doc.statementMap.statementIdByStatementIndex,
+      numericBindingEntries: buildNumericBindingRuntimeEntries({
+        numericBindings: state.doc.numericBindings ?? new Map(),
+        elementIdByStatementIndex: state.doc.statementMap.elementIdByStatementIndex,
+      }, elements),
+    });
+    const pointC = elements.find((candidate) => candidate.name === "C")!;
+    const { unmount } = renderInspectorElement(pointC, elements, evaluation);
+    const line = elements.find((candidate) => candidate.name === "AB")!;
+    const xRow = screen.getByText("x").closest(".inspector-row")!;
+    if (!(xRow instanceof HTMLElement)) throw new Error("Missing x parameter row");
+
+    expect(within(xRow).getByText("@length + AB.length")).toBeInTheDocument();
+    expect(xRow).not.toHaveTextContent(line.id);
+    expect(screen.getByText("評価結果").closest(".inspector-row")).toHaveTextContent("24.6912");
+    unmount();
   });
 
   it("resolves line, line-endpoint, and line-list references through one Inspector name lookup", () => {

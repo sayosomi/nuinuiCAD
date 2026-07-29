@@ -1,8 +1,22 @@
-import { numericValueExpression } from "../geometry/numericExpressions";
+import {
+  isNumericExpression,
+  numericValueExpression,
+} from "../geometry/numericExpressions";
+import { computedNumericReferenceValue } from "../geometry/numericReferencePaths";
 import type { DependencySummary } from "../model/dependencies";
-import { getParameterValue } from "../parameters/parameterAccess";
+import {
+  getParameterValue,
+  parseAnchorCoordinateParameterKey,
+} from "../parameters/parameterAccess";
 import { getParameterDefinitions, type ParameterDefinition } from "../parameters/parameterDefinitions";
-import type { CadElement, ElementId, EvaluationResult, LineEndpointReference, PointAnchor } from "../types/geometry";
+import type {
+  CadElement,
+  ElementId,
+  EvaluationResult,
+  LineEndpointReference,
+  NumericValue,
+  PointAnchor,
+} from "../types/geometry";
 import { elementTypeLabels } from "../types/geometry";
 
 export type InspectorIssue = { severity: "error" | "warning"; message: string };
@@ -12,6 +26,7 @@ export type InspectorParameterRow = {
   parameterKey: string;
   label: string;
   value: string;
+  evaluatedValue?: string | null;
 };
 
 export type InspectorDependencyRow = {
@@ -51,6 +66,20 @@ const unresolvedReferenceLabel = "未解決";
 const resolvedElementName = (elementId: ElementId, elementNameById: ReadonlyMap<ElementId, string>) =>
   elementNameById.get(elementId) ?? unresolvedReferenceLabel;
 
+const displayInspectorNumericValue = (
+  value: NumericValue,
+  elementNameById: ReadonlyMap<ElementId, string>,
+) =>
+  numericValueExpression(value).replace(
+    /([^\s()+*/<>!=&|]+)\.([^\s()+*/<>!=&|]+)\b/g,
+    (match, elementId: ElementId, property: string) => {
+      if (Number.isFinite(Number(match))) return match;
+      return elementNameById.has(elementId)
+        ? `${resolvedElementName(elementId, elementNameById)}.${property}`
+        : `${unresolvedReferenceLabel}.${property}`;
+    },
+  );
+
 const displayDerivedAnchor = (
   anchor: Extract<PointAnchor, { mode: "derived" }>,
   elementNameById: ReadonlyMap<ElementId, string>,
@@ -68,11 +97,16 @@ const displayReferenceInspectorValue = (
   definition: ParameterDefinition,
   elementNameById: ReadonlyMap<ElementId, string>,
 ) => {
+  if (typeof value === "number" || (typeof value === "object" && value !== null && "kind" in value)) {
+    return displayInspectorNumericValue(value as NumericValue, elementNameById);
+  }
   switch (definition.kind) {
     case "reference": {
       if (!value || typeof value !== "object" || !("mode" in value)) return displayInspectorValue(value);
       const anchor = value as PointAnchor;
-      if (anchor.mode === "coordinate") return displayInspectorValue(anchor);
+      if (anchor.mode === "coordinate") {
+        return `(${displayInspectorNumericValue(anchor.x, elementNameById)}, ${displayInspectorNumericValue(anchor.y, elementNameById)})`;
+      }
       if (anchor.mode === "reference") return resolvedElementName(anchor.pointId, elementNameById);
       return displayDerivedAnchor(anchor, elementNameById);
     }
@@ -120,6 +154,26 @@ export const parameterInspectorRows = (
       elementNameById,
     )
   }));
+
+const geometryPathForParameter = (parameterKey: string) => {
+  const coordinate = parseAnchorCoordinateParameterKey(parameterKey);
+  if (!coordinate) return parameterKey;
+  return `${coordinate.anchorKey === "anchor" ? "anchorPoint" : coordinate.anchorKey}.${coordinate.axis}`;
+};
+
+export const evaluatedInspectorParameterValue = (
+  element: CadElement,
+  parameterKey: string,
+  evaluation: EvaluationResult,
+) => {
+  const value = getParameterValue(element, parameterKey);
+  if (!isNumericExpression(value as NumericValue)) return null;
+  const evaluated = computedNumericReferenceValue(
+    evaluation.computedGeometry.get(element.id),
+    geometryPathForParameter(parameterKey),
+  );
+  return evaluated === undefined ? null : `${evaluated}`;
+};
 
 const issuesForParent = (element: CadElement, parentId: ElementId, evaluation: EvaluationResult): InspectorIssue[] =>
   evaluation.errors
