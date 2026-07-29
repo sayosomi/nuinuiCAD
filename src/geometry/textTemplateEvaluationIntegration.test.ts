@@ -146,11 +146,17 @@ describe("Task 27 production routing: compileDslDocument -> evaluateElements/can
     const templateEdges = compiled.typedDependencyGraph?.edges.filter((edge) =>
       edge.kind === "template-hole" && edge.from.kind === "element" && edge.from.id === label.id
     ) ?? [];
+    const templateBindingNames = templateEdges.map((edge) => {
+      if (edge.to.kind !== "binding") {
+        throw new Error(`Expected template dependency to target a binding, received ${edge.to.kind}.`);
+      }
+      return edge.to.name;
+    });
 
     expect(result.errors.filter((error) => error.elementId === label.id || error.elementId === bare.id)).toEqual([]);
     expect(result.computedGeometry.get(label.id)).toMatchObject({ kind: "text", text: "{draft} 前身頃 12.346\n" });
     expect(result.computedGeometry.get(bare.id)).toMatchObject({ kind: "text", text: "前身頃" });
-    expect(templateEdges.map((edge) => edge.to.name).sort()).toEqual(["label", "length"]);
+    expect(templateBindingNames.sort()).toEqual(["label", "length"]);
     expect(canUseRustEvaluationForElements(elements, options)).toBe(true);
   });
 
