@@ -5,6 +5,7 @@
 import type { CadElement, ElementId, NumericValue } from "../types/geometry";
 import type { DslDiagnostic, DslSpan, DslStatement } from "../dsl/dslTypes";
 import { exactPhysicalSpan, type DiagnosticSpanContext } from "../dsl/dslDiagnosticSpan";
+import type { DslPhysicalSpan } from "../dsl/logicalStatementSourceMap";
 import { resolveParameterValueSpan } from "../dsl/dslParameterSpans";
 import { getParameterDefinitions } from "../parameters/parameterDefinitions";
 import { getParameterValue } from "../parameters/parameterAccess";
@@ -22,6 +23,8 @@ export type CompiledNumericBindingReference = {
   name: string;
   span: DslSpan;
   nameSpan: DslSpan;
+  /** Exact parser-projected bare-name source span; absent means fail closed for rename/cursor. */
+  physicalNameSpan: DslPhysicalSpan | null;
   /** Offsets in the normalized NumericValue.expression, never source text. */
   expressionStart: number;
   expressionEnd: number;
@@ -177,7 +180,8 @@ export const compileNumericBindings = ({
         rejected = true;
         break;
       }
-      references.push({ bindingId, name: reference.name, span: reference.span, nameSpan: reference.nameSpan, expressionStart: token.start, expressionEnd: token.end,
+      references.push({ bindingId, name: reference.name, span: reference.span, nameSpan: reference.nameSpan,
+        physicalNameSpan: exactPhysicalSpan(spans, candidate.statement, reference.nameSpan), expressionStart: token.start, expressionEnd: token.end,
         site: { scopeId: bindingAnalysis.catalog.scopeIndex.scopeOfStatement.get(candidate.statementIndex) ?? bindingAnalysis.catalog.scopeIndex.rootScopeId, statementIndex: candidate.statementIndex, elementLocal: { ownerId: byId.get(elementIdByStatementIndex.get(candidate.statementIndex) ?? "")!.id, order: Number.MAX_SAFE_INTEGER } } });
     }
     if (!rejected && references.length) sourcesByOccurrenceKey.set(candidate.key, { parameterKey: candidate.parameterKey, expression: candidate.expression, references });

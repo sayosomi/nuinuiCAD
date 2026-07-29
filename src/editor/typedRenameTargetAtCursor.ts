@@ -28,7 +28,6 @@ import {
   type TypedDeclarationFieldRangeIndex,
   type TypedDeclarationRangeIndex
 } from "./statementRangeIndex";
-import type { StatementRangeIndex } from "./statementRangeIndex";
 
 export type TypedRenameCursorDocument = {
   statements: readonly DslStatement[];
@@ -46,7 +45,6 @@ export type TypedRenameCursorContext = {
   setStatementFieldRanges: SetStatementFieldRangeIndex;
   propertyBindingRanges: PropertyBindingRangeIndex;
   templateHoleRanges: TemplateHoleRangeIndex;
-  statementRanges?: StatementRangeIndex;
   doc: TypedRenameCursorDocument;
 };
 
@@ -93,14 +91,12 @@ const propertyBindingTargetAtCursor = (context: TypedRenameCursorContext, cursor
 };
 
 const numericBindingTargetAtCursor = (context: TypedRenameCursorContext, cursor: number): BindingId | null => {
-  if (!context.statementRanges) return null;
   for (const [key, numeric] of context.doc.numericBindings ?? []) {
-    const statementIndex = Number(key.slice(0, key.indexOf(":")));
-    const range = Array.from(context.statementRanges.values()).find((candidate) => candidate.statement.statementIndex === statementIndex);
-    if (!range) continue;
+    void key;
     for (const reference of numeric.references) {
-      const from = range.from + reference.nameSpan.start;
-      const to = range.from + reference.nameSpan.end;
+      const segment = reference.physicalNameSpan?.segments.length === 1 ? reference.physicalNameSpan.segments[0] : null;
+      if (!segment) continue;
+      const { from, to } = segment;
       if (cursor >= from && cursor < to) return reference.bindingId;
     }
   }

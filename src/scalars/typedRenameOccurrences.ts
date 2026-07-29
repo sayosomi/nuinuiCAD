@@ -22,6 +22,7 @@ import type { ScalarProgram } from "./scalarProgram";
 import type { SetStatementAnalysis } from "./setStatementCompiler";
 import type { TextTemplateAst } from "./textTemplate";
 import type { CompiledNumericBinding } from "./numericBindingCompiler";
+import type { DslPhysicalSpan } from "../dsl/logicalStatementSourceMap";
 import { referencesIn } from "./typedDependencyGraph";
 
 export type TypedRenameOccurrenceKind =
@@ -40,6 +41,7 @@ export type TypedRenameOccurrence = {
   /** Exact patchable span - bare name only, never including a leading `@`. */
   readonly span: DslSpan;
   readonly currentName: string;
+  readonly physicalSpan?: DslPhysicalSpan;
   /** Only present for "initializer" occurrences - required by resolveInitializerReferences's owner-aware self-detection. */
   readonly initializerOwner?: { readonly fromBindingId: BindingId; readonly occurrenceIndex: number };
 };
@@ -152,7 +154,8 @@ export const collectSiteBatchOccurrences = (
   for (const [occurrenceKey, numeric] of input.numericBindings ?? []) {
     numeric.references.forEach((reference, index) => occurrences.push({
       kind: "numeric-expression", key: `numeric-expression:${occurrenceKey}:${index}`,
-      site: reference.site, span: reference.nameSpan, currentName: reference.name
+      site: reference.site, span: reference.nameSpan, currentName: reference.name,
+      ...(reference.physicalNameSpan?.segments.length === 1 ? { physicalSpan: reference.physicalNameSpan } : {})
     }));
   }
 

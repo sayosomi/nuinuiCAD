@@ -12,6 +12,7 @@ import type { CompiledDslDocument } from "../dsl/dslDocument";
 import { parseDslSnapshot } from "../dsl/dslParser";
 import type { DslSpan } from "../dsl/dslTypes";
 import { physicalSpanForLogicalRange } from "../dsl/logicalStatementSourceMap";
+import type { DslPhysicalSpan } from "../dsl/logicalStatementSourceMap";
 import type { LineSplice } from "./textPatch";
 
 export type TypedRenameSpliceEntry = {
@@ -19,6 +20,7 @@ export type TypedRenameSpliceEntry = {
   readonly span: DslSpan;
   readonly oldName: string;
   readonly newName: string;
+  readonly physicalSpan?: DslPhysicalSpan;
 };
 
 export type TypedRenameSpliceResult =
@@ -72,7 +74,7 @@ export const buildTypedRenameSplices = (
         candidate.range.from === statement.documentRange.from && candidate.range.to === statement.documentRange.to
     );
     if (!logical) return { ok: false, reason: `no logical statement projection for statementIndex ${entry.statementIndex}` };
-    const physical = physicalSpanForLogicalRange(sourceMap, logical, entry.span);
+    const physical = entry.physicalSpan ?? physicalSpanForLogicalRange(sourceMap, logical, entry.span);
     if (!physical || physical.segments.length !== 1) {
       return { ok: false, reason: `non-contiguous physical projection for "${entry.oldName}"` };
     }

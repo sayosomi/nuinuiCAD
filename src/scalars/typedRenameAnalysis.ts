@@ -21,6 +21,7 @@
 // mirroring src/document/renameAnalysis.ts's `validateRenameReferenceStability`
 // ("every before/after reference slot; rename targets receive no exception").
 import type { DslSpan, DslStatement } from "../dsl/dslTypes";
+import type { DslPhysicalSpan } from "../dsl/logicalStatementSourceMap";
 import { isBareDslIdentifierChar } from "../dsl/dslTokens";
 import type { Binding, BindingCatalog, BindingId, BindingKind } from "./bindingCatalog";
 import {
@@ -48,6 +49,7 @@ export type TypedRenameAnalysisInput = {
   statements: readonly DslStatement[];
   targetBindingId: BindingId;
   newName: string;
+  physicalSpan?: DslPhysicalSpan;
   scalarProgram?: ScalarProgram;
   setStatements?: ReadonlyMap<number, SetStatementAnalysis>;
   propertyBindings?: ReadonlyMap<string, ScalarValueSource>;
@@ -290,7 +292,8 @@ export const analyzeTypedBindingRename = (input: TypedRenameAnalysisInput): Type
       statementIndex: occurrence.site.statementIndex,
       span: occurrence.span,
       oldName: occurrence.currentName,
-      newName
+      newName,
+      ...(occurrence.physicalSpan ? { physicalSpan: occurrence.physicalSpan } : {})
     });
   }
 
