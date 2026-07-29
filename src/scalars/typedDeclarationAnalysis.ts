@@ -230,6 +230,15 @@ export const analyzeTypedDeclarations = ({
     }));
   }
   const resolved = resolveInitializerReferences(catalog, requests);
+  // Typechecking consumes resolutions in each binding's occurrence order.
+  // Keep that ordering while indexing the one shared resolved stream once,
+  // instead of re-scanning every resolution for every typed binding.
+  const resolvedByBindingId = new Map<BindingId, BindingResolution[]>();
+  for (const reference of resolved) {
+    const bucket = resolvedByBindingId.get(reference.fromBindingId);
+    if (bucket) bucket.push(reference.resolution);
+    else resolvedByBindingId.set(reference.fromBindingId, [reference.resolution]);
+  }
   const initializerReferences: InitializerReference[] = resolved.map((reference) => ({
     fromBindingId: reference.fromBindingId,
     occurrenceIndex: reference.occurrenceIndex,
@@ -246,7 +255,7 @@ export const analyzeTypedDeclarations = ({
     if (!parsed) throw new Error(`typedDeclarationAnalysis: no parsed initializer for ${binding.id}`);
     const checked = typecheckScalarExpression(parsed.ast, {
       expectedType: binding.declaredType,
-      references: resolved.filter((reference) => reference.fromBindingId === binding.id).map((reference) => reference.resolution)
+      references: resolvedByBindingId.get(binding.id) ?? []
     });
     typedInitializerByBindingId.set(binding.id, checked.typed);
     const statement = statements[binding.statementIndex] as Extract<DslStatement, { kind: "typedDeclaration" }>;

@@ -17,6 +17,7 @@ export type TypedDeclarationAnalysisFixture = {
   elementIdByStatementIndex: ReadonlyMap<number, ElementId>;
   elements: readonly CadElement[];
   bindingAnalysis: TypedDeclarationAnalysis["bindingAnalysis"];
+  analysis: TypedDeclarationAnalysis;
   /** Task 48: the real span index for `source` (from the same parse the
    * fixture's own statements came from), reused by every sibling compiler
    * test that needs to call its own compiler function against this fixture's
@@ -46,6 +47,7 @@ export const typedDeclarationAnalysisFor = (source: string): TypedDeclarationAna
     elementIdByStatementIndex,
     elements: compiled.elements,
     bindingAnalysis: scalarAnalysisCompilation.analysis!.bindingAnalysis,
+    analysis: scalarAnalysisCompilation.analysis!,
     spans
   };
 };

@@ -102,6 +102,11 @@ export const logBaselineMeasurement = (
   measurement: ScalingMeasurement
 ) => console.log(`[typedVariables baseline] ${JSON.stringify({ area, metric: "workerCpuMs", ...measurement })}`);
 
+export const logPerformanceGateMeasurement = (
+  area: string,
+  measurement: ScalingMeasurement
+) => console.log(`[typedVariables performance:${area}] ${JSON.stringify({ metric: "workerCpuMs", ...measurement })}`);
+
 export const expectFiniteMeasurement = (measurement: ScalingMeasurement) => {
   for (const value of [
     measurement.small.medianMs,
@@ -111,5 +116,15 @@ export const expectFiniteMeasurement = (measurement: ScalingMeasurement) => {
     measurement.scalingRatio
   ]) {
     if (!Number.isFinite(value)) throw new Error("performance measurement must be finite");
+  }
+};
+
+export const expectPerformanceRegressionGate = (measurement: ScalingMeasurement) => {
+  expectFiniteMeasurement(measurement);
+  if (measurement.large.medianMs >= 5_000 || measurement.large.p95Ms >= 5_000) {
+    throw new Error("1000-case worker CPU measurement must remain below 5000ms");
+  }
+  if (measurement.scalingRatio >= 8) {
+    throw new Error("250-to-1000 median scaling must remain below 8x");
   }
 };

@@ -165,6 +165,31 @@ export const buildBindingAnalysisChainBaselineSource = (bindingCount: number) =>
   };
 };
 
+/**
+ * Task 50's blocking binding-analysis fixture. Unlike the Task 13R-5 mixed
+ * legacy fixture below, this is pure nui 3: only typed `const`/`let`
+ * declarations and their immediately preceding typed references appear.
+ */
+export const buildPureNui3BindingAnalysisBaselineSource = (bindingCount: number) => {
+  if (!Number.isInteger(bindingCount) || bindingCount < 1) {
+    throw new Error("pure nui 3 binding analysis baseline requires at least one binding");
+  }
+
+  const lines = ["nui 3", "const V0: number = 0"];
+  for (let index = 1; index < bindingCount; index += 1) {
+    const declarationKind = index % 2 === 0 ? "const" : "let";
+    lines.push(`${declarationKind} V${index}: number = @V${index - 1} + 1`);
+  }
+
+  return {
+    source: lines.join("\n"),
+    scale: {
+      bindingCount,
+      referenceCount: Math.max(0, bindingCount - 1)
+    } satisfies BindingAnalysisFixtureScale
+  };
+};
+
 export type MixedBindingAnalysisFixtureScale = {
   bindingCount: number;
   referenceCount: number;

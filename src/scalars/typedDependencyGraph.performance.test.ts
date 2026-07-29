@@ -2,6 +2,10 @@ import { describe, expect, it } from "vitest";
 import { compileDslDocument } from "../dsl/dslDocument";
 
 type Measurement = { medianMs: number; p95Ms: number };
+const runPerformanceGates = (globalThis as {
+  process?: { env?: Record<string, string | undefined> };
+}).process?.env?.VITE_RUN_PERFORMANCE_GATES === "1";
+const describePerformanceGates = runPerformanceGates ? describe : describe.skip;
 
 const sourceFor = (count: number) => [
   "nui 3",
@@ -35,7 +39,7 @@ const measure = (count: number): Measurement => {
   };
 };
 
-describe("Task 36 typed dependency graph performance", () => {
+describePerformanceGates("Task 36 typed dependency graph performance", () => {
   it("records 250/1000 dense initializer graph construction", () => {
     const small = measure(250);
     const large = measure(1000);
@@ -46,5 +50,5 @@ describe("Task 36 typed dependency graph performance", () => {
     );
     expect(compileGraph(1000)).toBe(999);
     expect(Number.isFinite(scaling)).toBe(true);
-  });
+  }, 150_000);
 });

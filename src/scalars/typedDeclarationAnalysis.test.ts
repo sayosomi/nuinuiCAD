@@ -1,0 +1,110 @@
+import { describe, expect, it } from "vitest";
+import { bindingIssuesToDiagnostics } from "./bindingIssueDiagnostics";
+import { lowerScalarProgram } from "./scalarProgram";
+import { typedDeclarationAnalysisFor } from "./testSupport/typedDeclarationAnalysisFixture";
+import type { TypedScalarExpression } from "./typedExpressionAst";
+
+const bindingIdForName = (fixture: ReturnType<typeof typedDeclarationAnalysisFor>, name: string): string => {
+  const binding = fixture.bindingAnalysis.catalog.bindings.find((candidate) => candidate.name === name);
+  if (!binding) throw new Error(`Missing binding ${name}`);
+  return binding.id;
+};
+
+const referencesInOccurrenceOrder = (expression: TypedScalarExpression): readonly TypedScalarExpression[] => {
+  switch (expression.kind) {
+    case "reference":
+      return [expression];
+    case "unary":
+      return referencesInOccurrenceOrder(expression.operand);
+    case "binary":
+      return [...referencesInOccurrenceOrder(expression.left), ...referencesInOccurrenceOrder(expression.right)];
+    case "group":
+      return referencesInOccurrenceOrder(expression.expression);
+    default:
+      return [];
+  }
+};
+
+describe("analyzeTypedDeclarations resolution buckets", () => {
+  it("keeps multiple occurrences for one binding in source occurrence order", () => {
+    const fixture = typedDeclarationAnalysisFor([
+      "nui 3",
+      "const first: number = 1",
+      "const second: number = 2",
+      "let total: number = @second + @first + @second"
+    ].join("\n"));
+    const totalId = bindingIdForName(fixture, "total");
+    const typed = fixture.analysis.typedInitializerByBindingId.get(totalId)!;
+
+    expect(referencesInOccurrenceOrder(typed).map((reference) => {
+      if (reference.kind !== "reference") throw new Error("Expected a reference");
+      return reference.bindingId;
+    })).toEqual([
+      bindingIdForName(fixture, "second"),
+      bindingIdForName(fixture, "first"),
+      bindingIdForName(fixture, "second")
+    ]);
+  });
+
+  it("keeps interleaved references isolated by their originating binding", () => {
+    const fixture = typedDeclarationAnalysisFor([
+      "nui 3",
+      "const first: number = 1",
+      "const second: number = 2",
+      "let left: number = @first + @second",
+      "let right: number = @second + @first"
+    ].join("\n"));
+    const referencesFor = (name: string) => referencesInOccurrenceOrder(
+      fixture.analysis.typedInitializerByBindingId.get(bindingIdForName(fixture, name))!
+    ).map((reference) => {
+      if (reference.kind !== "reference") throw new Error("Expected a reference");
+      return reference.bindingId;
+    });
+
+    expect(referencesFor("left")).toEqual([bindingIdForName(fixture, "first"), bindingIdForName(fixture, "second")]);
+    expect(referencesFor("right")).toEqual([bindingIdForName(fixture, "second"), bindingIdForName(fixture, "first")]);
+  });
+
+  it("preserves invalid reference diagnostics, binding IDs, exact spans, and order", () => {
+    const source = [
+      "nui 3",
+      "const invalid: number = @later + @missing",
+      "const later: number = 1"
+    ].join("\n");
+    const fixture = typedDeclarationAnalysisFor(source);
+    const invalidId = bindingIdForName(fixture, "invalid");
+    const diagnostics = bindingIssuesToDiagnostics(fixture.bindingAnalysis, fixture.statements, fixture.spans);
+    const typed = fixture.analysis.typedInitializerByBindingId.get(invalidId)!;
+
+    expect(referencesInOccurrenceOrder(typed).map((reference) => {
+      if (reference.kind !== "reference") throw new Error("Expected a reference");
+      return reference.bindingId;
+    })).toEqual([null, null]);
+    expect(diagnostics.map((diagnostic) => ({ code: diagnostic.code, bindingId: diagnostic.bindingId }))).toEqual([
+      { code: "undefined-binding", bindingId: invalidId },
+      { code: "forward-binding-reference", bindingId: invalidId }
+    ]);
+    expect(diagnostics.map((diagnostic) => {
+      const [segment] = diagnostic.physicalSpan!.segments;
+      return source.slice(segment.from, segment.to);
+    })).toEqual(["@missing", "@later"]);
+  });
+
+  it("retains reference-free declarations in the compiled scalar program", () => {
+    const fixture = typedDeclarationAnalysisFor([
+      "nui 3",
+      "const value: number = 42",
+      "let copy: number = @value"
+    ].join("\n"));
+    const program = lowerScalarProgram(fixture.analysis);
+
+    expect(program.statements.map((statement) => ({
+      bindingId: statement.bindingId,
+      bindingKind: statement.declaration.bindingKind,
+      initializerKind: statement.declaration.initializer.kind
+    }))).toEqual([
+      { bindingId: bindingIdForName(fixture, "value"), bindingKind: "const", initializerKind: "numberLiteral" },
+      { bindingId: bindingIdForName(fixture, "copy"), bindingKind: "let", initializerKind: "reference" }
+    ]);
+  });
+});

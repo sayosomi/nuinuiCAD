@@ -10,13 +10,18 @@ import { BASELINE_SIZES, buildMixedBindingAnalysisBaselineSource } from "./typed
 import { expectFiniteMeasurement, logBaselineMeasurement, measureWorkerCpuScaling, type FixtureCounts } from "./typedVariablesPerformanceMeasurement";
 
 // Task 13R-5 performance sanity: reuses Task 00's worker-CPU scaling helper
-// (100 warm-up runs, 21 trials per decisions.md D19) to record - not gate on
-// an invented absolute threshold - the 250->1000 analyzeBindings cost.
+// (100 warm-up runs, 21 trials per decisions.md D19) to record the
+// legacy/mixed pipeline only. It must never become a Task 50 blocking gate:
+// its fixture deliberately includes legacy var visibility and the adapter.
 //
 // This is the production-equivalent binding pipeline: scope preparation,
 // adapter, catalog, canonical batch resolution, analysis, and eligibility are
-// all inside the measured closure. It deliberately has no absolute time gate.
+// all inside the measured closure.
 const [SMALL_SIZE, LARGE_SIZE] = BASELINE_SIZES;
+const runLegacyPerformanceMeasurement = (globalThis as {
+  process?: { env?: Record<string, string | undefined> };
+}).process?.env?.VITE_RUN_LEGACY_PERFORMANCE === "1";
+const describeLegacyPerformanceMeasurement = runLegacyPerformanceMeasurement ? describe : describe.skip;
 
 const prepare = (bindingBudget: number) => {
   const { source, scale, references } = buildMixedBindingAnalysisBaselineSource(bindingBudget);
@@ -64,7 +69,7 @@ const fixtureCounts = (statementCount: number, bindingCount: number): FixtureCou
   generatedRowCount: 0
 });
 
-describe("binding analysis performance baseline", () => {
+describeLegacyPerformanceMeasurement("legacy/mixed binding analysis performance baseline", () => {
   it("records the mixed full binding pipeline worker CPU measurements for 250/1000 bindings", () => {
     const small = prepare(SMALL_SIZE);
     const large = prepare(LARGE_SIZE);
@@ -88,6 +93,6 @@ describe("binding analysis performance baseline", () => {
     expect(runPipeline(small).referenceCount).toBe(small.scale.referenceCount);
     expect(runPipeline(large).duplicateReferenceCount).toBe(large.scale.duplicateReferenceCount);
     expectFiniteMeasurement(measurement);
-    logBaselineMeasurement("bindingPipeline", measurement);
+    logBaselineMeasurement("legacyMixedBindingAnalysis", measurement);
   }, 150_000);
 });

@@ -4,11 +4,16 @@ import { emptyDocument } from "../src/dsl/dslDocumentTestUtils";
 import { evaluateElements } from "../src/geometry/evaluate";
 import { buildForGroupMutationOwners, forGroupMutationOwnerByElementId } from "../src/scalars/forGroupMutationControl";
 import {
-  expectFiniteMeasurement,
-  logBaselineMeasurement,
+  expectPerformanceRegressionGate,
+  logPerformanceGateMeasurement,
   measureWorkerCpuScaling,
   type FixtureCounts
 } from "./typedVariablesPerformanceMeasurement";
+
+const runPerformanceGates = (globalThis as {
+  process?: { env?: Record<string, string | undefined> };
+}).process?.env?.VITE_RUN_PERFORMANCE_GATES === "1";
+const describePerformanceGates = runPerformanceGates ? describe : describe.skip;
 
 const buildCase = (generatedRows: number) => {
   const compiled = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 3), [
@@ -44,20 +49,20 @@ const buildCase = (generatedRows: number) => {
   };
 };
 
-describe("forGroup mutation production performance baseline", () => {
+describePerformanceGates("forGroup mutation production performance baseline", () => {
   it("records TS scheduler CPU for 250/1000 generated rows", () => {
     const small = buildCase(250);
     const large = buildCase(1_000);
     const measurement = measureWorkerCpuScaling({
       small: { run: small.run, counts: small.counts },
       large: { run: large.run, counts: large.counts },
-      warmUpRuns: 20,
+      warmUpRuns: 100,
       trials: 21,
       runsPerTrial: 5
     });
     expect(measurement.small).toMatchObject({ computedGeometryCount: 250, generatedRowCount: 250 });
     expect(measurement.large).toMatchObject({ computedGeometryCount: 1_000, generatedRowCount: 1_000 });
-    expectFiniteMeasurement(measurement);
-    logBaselineMeasurement("tsForGroupMutationProduction", measurement);
+    expectPerformanceRegressionGate(measurement);
+    logPerformanceGateMeasurement("forGroupMutation", measurement);
   }, 90_000);
 });

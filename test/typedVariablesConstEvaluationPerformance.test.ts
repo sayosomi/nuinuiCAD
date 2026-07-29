@@ -2,19 +2,25 @@ import { describe, expect, it } from "vitest";
 import { compileDslDocument } from "../src/dsl/dslDocument";
 import { evaluateScalarProgram, type ResolveExternalScalarBinding } from "../src/scalars/declarationEvaluator";
 import { BASELINE_SIZES, buildBindingAnalysisChainBaselineSource } from "./typedVariablesBaselineFixtures";
-import { expectFiniteMeasurement, logBaselineMeasurement, measureWorkerCpuScaling, type FixtureCounts } from "./typedVariablesPerformanceMeasurement";
+import {
+  expectPerformanceRegressionGate,
+  logPerformanceGateMeasurement,
+  measureWorkerCpuScaling,
+  type FixtureCounts
+} from "./typedVariablesPerformanceMeasurement";
 
 // Task 20 performance sanity (docs/typed-variables/tasks/20-ts-const-evaluation.md
 // section 12: "program+ASTに線形。250/1000 reference測定を記録する"). Reuses
 // Task 00's worker-CPU scaling helper (100 warm-up runs, 21 trials per
-// decisions.md D19) purely to *record* the cost - never as a wall-clock
-// pass/fail gate. Absolute thresholds and scaling-ratio gates are Task 50's
-// job; this test only fixes correctness (the chained value is right at both
-// scales) and linear structure (every binding in the chain produced a
-// result - no truncation), reusing the same chained-reference fixture
-// already used for Task 13R's binding-analysis performance baseline.
+// decisions.md D19) under Task 50's worker-CPU regression gate. The test
+// also fixes correctness (the chained value is right at both scales) and
+// linear structure (every binding in the chain produced a result).
 
 const [SMALL_SIZE, LARGE_SIZE] = BASELINE_SIZES;
+const runPerformanceGates = (globalThis as {
+  process?: { env?: Record<string, string | undefined> };
+}).process?.env?.VITE_RUN_PERFORMANCE_GATES === "1";
+const describePerformanceGates = runPerformanceGates ? describe : describe.skip;
 
 const declarationStatementIds = (bindingCount: number) =>
   new Map(
@@ -45,7 +51,7 @@ const counts = (bindingCount: number): FixtureCounts => ({
   generatedRowCount: 0
 });
 
-describe("typed declaration const evaluation performance baseline", () => {
+describePerformanceGates("typed declaration const evaluation performance baseline", () => {
   it("records evaluateScalarProgram worker CPU measurements for a 250/1000-binding reference chain", () => {
     const smallProgram = compileChainProgram(SMALL_SIZE);
     const largeProgram = compileChainProgram(LARGE_SIZE);
@@ -59,7 +65,7 @@ describe("typed declaration const evaluation performance baseline", () => {
         run: () => evaluateScalarProgram(largeProgram, neverResolveExternal),
         counts: () => counts(LARGE_SIZE)
       },
-      warmUpRuns: 20,
+      warmUpRuns: 100,
       trials: 21,
       runsPerTrial: 5
     });
@@ -86,7 +92,7 @@ describe("typed declaration const evaluation performance baseline", () => {
 
     expect(measurement.small).toMatchObject({ bindingCount: SMALL_SIZE });
     expect(measurement.large).toMatchObject({ bindingCount: LARGE_SIZE });
-    expectFiniteMeasurement(measurement);
-    logBaselineMeasurement("declarationEvaluatorChain", measurement);
+    expectPerformanceRegressionGate(measurement);
+    logPerformanceGateMeasurement("tsReferenceEvaluation", measurement);
   }, 90_000);
 });
