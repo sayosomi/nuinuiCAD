@@ -7,6 +7,8 @@ import {
   getDirectChildren,
   getDirectParentIds
 } from "./dependencies";
+import { compileDslDocument } from "../dsl/dslDocument";
+import { buildTextTemplateEntriesByElementId } from "../geometry/textTemplateRuntime";
 
 const elements: CadElement[] = [
   {
@@ -63,6 +65,38 @@ describe("dependencies", () => {
     expect(getDirectParentIds(elements[0])).toEqual([]);
     expect(getDirectParentIds(elements[1])).toEqual(["a"]);
     expect(getDirectParentIds(elements[3])).toEqual(["a", "b"]);
+  });
+
+  it("uses compiled templates to exclude literals and typed holes from text geometry parents", () => {
+    const compiled = compileDslDocument([
+      "nui 3",
+      "const length: number = 12.3456",
+      'const label: string = "前身頃"',
+      "point A = coordinate(x: 0 y: 0)",
+      "point B = coordinate(x: @length y: 0)",
+      "line AB = segment(start: A end: B id: AB)",
+      'text Label = label(text: "\\{draft\\} {@label} {@length}" anchor: none size: 3)',
+      'text Geometry = label(text: "length={AB.length}" anchor: none size: 3)'
+    ].join("\n"), {
+      assignedStatementIds: new Map([
+        [1, "test:length"],
+        [2, "test:label"]
+      ])
+    });
+    expect(compiled.diagnostics).toEqual([]);
+    const compiledElements = compiled.document!.elements;
+    const templates = buildTextTemplateEntriesByElementId({
+      textTemplates: compiled.textTemplates!,
+      elementIdByStatementIndex: compiled.statementMap!.elementIdByStatementIndex
+    });
+    const label = compiledElements.find((element) => element.name === "Label")!;
+    const geometry = compiledElements.find((element) => element.name === "Geometry")!;
+    const line = compiledElements.find((element) => element.name === "AB")!;
+
+    expect(getDirectParentIds(label, { textTemplatesByElementId: templates })).toEqual([]);
+    expect(createDependencyIndex(compiledElements, { textTemplatesByElementId: templates })
+      .parentIdsByElementId.get(label.id)).toEqual([]);
+    expect(getDirectParentIds(geometry, { textTemplatesByElementId: templates })).toEqual([line.id]);
   });
 
   it("returns Bezier curve point references as direct parent ids", () => {

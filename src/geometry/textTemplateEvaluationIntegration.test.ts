@@ -9,6 +9,7 @@ import { describe, expect, it } from "vitest";
 import { compileDslDocument } from "../dsl/dslDocument";
 import { canUseRustEvaluationForElements } from "./evaluationEngine";
 import { evaluateElements, type EvaluateElementsOptions } from "./evaluate";
+import { buildPropertyBindingRuntimeEntries } from "./propertyBindingRuntime";
 import { buildTextPropertyBindingRuntimeEntries, buildTextTemplateEntriesByElementId } from "./textTemplateRuntime";
 
 /** Mirrors AppLayout.tsx's evaluationOptions memo exactly - the same entry
@@ -19,6 +20,13 @@ const productionEvaluationOptions = (compiled: ReturnType<typeof compileDslDocum
   const textTemplateEntriesByElementId = compiled.textTemplates
     ? buildTextTemplateEntriesByElementId({ textTemplates: compiled.textTemplates, elementIdByStatementIndex })
     : undefined;
+  const propertyBindingEntries =
+    compiled.scalarProgram && compiled.propertyBindings
+      ? buildPropertyBindingRuntimeEntries(
+          { propertyBindings: compiled.propertyBindings, elementIdByStatementIndex },
+          compiled.document?.elements ?? []
+        )
+      : undefined;
   const textPropertyBindingEntries =
     compiled.scalarProgram && compiled.propertyBindings
       ? buildTextPropertyBindingRuntimeEntries(
@@ -28,6 +36,7 @@ const productionEvaluationOptions = (compiled: ReturnType<typeof compileDslDocum
       : undefined;
   return {
     ...(compiled.scalarProgram ? { scalarProgram: compiled.scalarProgram } : {}),
+    ...(propertyBindingEntries?.length ? { propertyBindingEntries } : {}),
     ...(textTemplateEntriesByElementId?.size ? { textTemplateEntriesByElementId } : {}),
     ...(textPropertyBindingEntries?.length ? { textPropertyBindingEntries } : {})
   };
@@ -112,6 +121,37 @@ describe("Task 27 production routing: compileDslDocument -> evaluateElements/can
     );
     expect(result.errors).toHaveLength(0);
     expect(result.computedGeometry.get(textElementId!)).toMatchObject({ kind: "text", text: "前身頃" });
+  });
+
+  it("evaluates the declarations/templates fixture while retaining typed template dependencies", () => {
+    const { compiled, elements, options, result } = evaluateSource([
+      "nui 3",
+      "const length: number = 12.3456",
+      'const label: string = "前身頃"',
+      "const printed: boolean = true",
+      "const side: choice(right, left) = left",
+      "point A = coordinate(x: 0 y: 0)",
+      "point B = coordinate(x: @length y: 0)",
+      "line AB = segment(start: A end: B)",
+      'text Label = label(text: "\\{draft\\} {@label} {@length}\\n" anchor: none size: 3)',
+      "text Bare = label(text: @label anchor: none size: 3)"
+    ].join("\n"), new Map([
+      [1, "fixture:length"],
+      [2, "fixture:label"],
+      [3, "fixture:printed"],
+      [4, "fixture:side"]
+    ]));
+    const label = elements.find((element) => element.type === "text" && element.name === "Label")!;
+    const bare = elements.find((element) => element.type === "text" && element.name === "Bare")!;
+    const templateEdges = compiled.typedDependencyGraph?.edges.filter((edge) =>
+      edge.kind === "template-hole" && edge.from.kind === "element" && edge.from.id === label.id
+    ) ?? [];
+
+    expect(result.errors.filter((error) => error.elementId === label.id || error.elementId === bare.id)).toEqual([]);
+    expect(result.computedGeometry.get(label.id)).toMatchObject({ kind: "text", text: "{draft} 前身頃 12.346\n" });
+    expect(result.computedGeometry.get(bare.id)).toMatchObject({ kind: "text", text: "前身頃" });
+    expect(templateEdges.map((edge) => edge.to.name).sort()).toEqual(["label", "length"]);
+    expect(canUseRustEvaluationForElements(elements, options)).toBe(true);
   });
 
   it("makes a nui 3 document with a typed text hole Rust-eligible", () => {

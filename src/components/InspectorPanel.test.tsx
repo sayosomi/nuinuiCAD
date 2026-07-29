@@ -92,6 +92,23 @@ describe("InspectorPanel mouse-only actions", () => {
     expect(handle.jumpToElement).toHaveBeenCalledWith(pointA.id);
   });
 
+  it("does not show escaped braces or typed template holes as unresolved geometry parents", () => {
+    useCadDocumentStore.getState().commitText([
+      "nui 3",
+      "const length: number = 12.3456",
+      'const label: string = "前身頃"',
+      'text Label = label(text: "\\{draft\\} {@label} {@length}" anchor: none size: 3)'
+    ].join("\n"), "test");
+    const elements = useCadDocumentStore.getState().elements;
+    const label = elements.find((element) => element.name === "Label")!;
+    const { unmount } = renderInspectorElement(label, elements);
+
+    const parentGroup = screen.getByText("親要素").closest(".dependency-group")!;
+    expect(within(parentGroup).getByText("親要素はありません。")).toBeInTheDocument();
+    expect(within(parentGroup).queryByText(/未解決: (draft|label|length)/)).not.toBeInTheDocument();
+    unmount();
+  });
+
   it("starts Canvas pick only from the row button and keeps the panel non-navigable", () => {
     const { element, handle } = renderInspector("B");
     expect(screen.queryByRole("listbox")).not.toBeInTheDocument();

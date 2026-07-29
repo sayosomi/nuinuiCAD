@@ -15,6 +15,7 @@ import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
 import { findParameterDefinition } from "../parameters/parameterDefinitions";
 import type { BindingId } from "../scalars/bindingCatalog";
+import { buildTextTemplateEntriesByElementId } from "../geometry/textTemplateRuntime";
 import type { SourceEditorHandle } from "../editor/sourceEditorTypes";
 import type { CadElement, EvaluationResult } from "../types/geometry";
 import { elementTypeLabels } from "../types/geometry";
@@ -87,10 +88,19 @@ export const InspectorPanel = ({
   const sourceText = useCadDocumentStore((state) => state.sourceText);
   const isLastGood = docText !== sourceText;
   const isRuntimeFresh = isRuntimeBindingDisplayFresh({ isSourceDirty: isLastGood, isEvaluationStale });
+  const textTemplatesByElementId = useMemo(
+    () => doc.textTemplates
+      ? buildTextTemplateEntriesByElementId({
+          textTemplates: doc.textTemplates,
+          elementIdByStatementIndex: doc.statementMap.elementIdByStatementIndex,
+        })
+      : undefined,
+    [doc.statementMap.elementIdByStatementIndex, doc.textTemplates],
+  );
 
   const dependencyIndex = useMemo(
-    () => createDependencyIndex(elements),
-    [elements],
+    () => createDependencyIndex(elements, { textTemplatesByElementId }),
+    [elements, textTemplatesByElementId],
   );
   const dependencySummary = useMemo(
     () =>
