@@ -110,7 +110,7 @@ describe("SourceEditor element state gutter", () => {
     parent.remove();
   });
 
-  it("uses line treatment for evaluation errors and warnings, while preserving the @stop control marker", () => {
+  it("uses line treatment for evaluation errors and warnings, while leaving @stop as a source-line boundary", () => {
     useCadDocumentStore.getState().commitText(dslTextForElements([
       { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
       { id: "b", name: "B", type: "freePoint", visible: true, enabled: true, x: 10, y: 0 }
@@ -135,9 +135,8 @@ describe("SourceEditor element state gutter", () => {
 
     expect(parent.querySelector(".cm-eval-error")).not.toBeNull();
     expect(parent.querySelector(".cm-eval-warning")).not.toBeNull();
-    expect(parent.querySelector(".cm-status-gutter-error")).toBeNull();
-    expect(parent.querySelector(".cm-status-gutter-warning")).toBeNull();
-    expect(parent.querySelector(".cm-status-gutter-stop")).not.toBeNull();
+    expect(parent.querySelector(".cm-status-gutter")).toBeNull();
+    expect(parent.querySelector(".cm-at-stop-line")).not.toBeNull();
     controller.destroy();
     parent.remove();
   });

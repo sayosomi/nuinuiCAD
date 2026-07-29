@@ -8,29 +8,13 @@ import type { AtStopRange } from "./statementRangeIndex";
 
 export { evaluationChanged } from "./sourceEditorEvaluationEffects";
 
-export type EvaluationGutterAction = "activity" | "stop";
-
 export type EvaluationExtensionSource = {
   index: () => EvaluationDecorationIndex;
   atStopRange: () => AtStopRange | null;
   pickCursorElementId: () => ElementId | null;
   isLastGood: () => boolean;
-  onGutterAction: (action: EvaluationGutterAction, lineFrom: number) => boolean;
+  onGutterAction: (lineFrom: number) => boolean;
 };
-
-class StatusGutterMarker extends GutterMarker {
-  constructor(private readonly className: string, private readonly label: string) { super(); }
-  toDOM() {
-    const element = document.createElement("span");
-    element.className = this.className;
-    element.setAttribute("aria-label", this.label);
-    element.title = this.label;
-    return element;
-  }
-}
-
-const marker = (className: string, label: string) => new StatusGutterMarker(className, label);
-const stopMarker = marker("cm-status-gutter-marker cm-status-gutter-stop", "評価区切り");
 
 const lineClassFor = (status: IndexedLineStatus, isLastGood: boolean) => {
   const classes = ["cm-eval-line"];
@@ -103,7 +87,7 @@ class ElementStateMarker extends GutterMarker {
     root.addEventListener("mousedown", (event) => {
       event.preventDefault();
       event.stopPropagation();
-      this.source.onGutterAction("activity", this.lineFrom);
+      this.source.onGutterAction(this.lineFrom);
     });
     return root;
   }
@@ -123,20 +107,9 @@ const elementStateGutter = (source: EvaluationExtensionSource) => gutter({
 
 export const createEvaluationExtension = (source: EvaluationExtensionSource): Extension => {
   const evaluationViewPlugin = ViewPlugin.define<EvaluationViewPluginValue>((view) => new EvaluationViewPluginValue(view, source), { decorations: (value) => value.decorations });
-  const statusGutter = gutter({
-    class: "cm-status-gutter",
-    lineMarker: (_view, line) => {
-      const atStop = source.atStopRange();
-      if (atStop?.from === line.from) return stopMarker;
-      return null;
-    },
-    domEventHandlers: { mousedown: (_view, line, event) => source.onGutterAction("stop", line.from) && (event.preventDefault(), true) },
-    initialSpacer: () => stopMarker
-  });
   return [
     evaluationViewPlugin,
     sourceEditorGeneratedRowsExtension(source),
-    statusGutter,
     elementStateGutter(source)
   ];
 };

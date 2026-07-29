@@ -50,7 +50,7 @@ type ControllerInternals = {
   atStopRange: AtStopRange | null;
   staleDiagnosticBaseline: PositionedDiagnostic[];
   runEscape: () => boolean;
-  handleEvaluationGutterAction: (action: "stop" | "activity", lineFrom: number) => boolean;
+  handleElementStateGutterAction: (lineFrom: number) => boolean;
   runPickApply: () => boolean;
 };
 
@@ -355,20 +355,6 @@ describe("SourceEditorController @stop mapping", () => {
     controller.destroy();
   });
 
-  it("uses only the mapped @stop position to dispatch its current evaluation limit", () => {
-    useCadDocumentStore.getState().commitText(stoppedSource([
-      { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
-      { id: "b", name: "B", type: "freePoint", visible: true, enabled: true, x: 1, y: 1 }
-    ]), "test");
-    const parent = document.createElement("div");
-    const controller = new SourceEditorController(parent);
-    const internals = controller as unknown as ControllerInternals;
-
-    expect(internals.handleEvaluationGutterAction("stop", internals.atStopRange!.from)).toBe(true);
-    expect(dispatchCommand).toHaveBeenCalledWith("setEvaluationLimitIndex", { evaluationLimitIndex: 1 });
-    controller.destroy();
-  });
-
   it("routes state gutter actions through the activity cycle command", () => {
     useCadDocumentStore.getState().commitText(dslTextForElements([
       { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 }
@@ -379,7 +365,7 @@ describe("SourceEditorController @stop mapping", () => {
     const point = useCadDocumentStore.getState().elements[0];
     const lineFrom = internals.view.state.doc.line(2).from;
 
-    expect(internals.handleEvaluationGutterAction("activity", lineFrom)).toBe(true);
+    expect(internals.handleElementStateGutterAction(lineFrom)).toBe(true);
     expect(dispatchCommand).toHaveBeenCalledWith("cycleElementActivity", { elementId: point.id });
     controller.destroy();
   });

@@ -201,18 +201,6 @@ textarea {
   border-top: 1px dashed #8b9086;
 }
 
-.source-editor-pane .cm-status-gutter {
-  width: 10px;
-}
-
-.source-editor-pane .cm-status-gutter-marker {
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  margin: 6px 2px;
-}
-
 .source-editor-pane .cm-element-state-gutter {
   width: 20px;
   overflow: visible;
@@ -247,10 +235,6 @@ textarea {
 .cm-element-state-marker.is-disabled::before {
   content: "\2298"; /* disabled: circled slash (stop) */
   color: #b66e38;
-}
-
-.source-editor-pane .cm-status-gutter-stop {
-  background: #8b9086;
 }
 
 .source-editor-pane .cm-diagnostic-current {

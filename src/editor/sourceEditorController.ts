@@ -101,7 +101,7 @@ import { secondarySelectionEffect, sourceEditorSelectionExtension } from "./sour
 import { patchHighlightPayloadForChanges, setPatchHighlight, sourceEditorPatchHighlightExtension } from "./sourceEditorPatchHighlight";
 import { createDiagnosticsExtension, diagnosticsForCurrentView, type DiagnosticsExtensionSource } from "./sourceEditorDiagnosticsExtension";
 import { mapPositionedDiagnostics, toStaleDiagnostics, type PositionedDiagnostic } from "./sourceEditorDiagnostics";
-import { createEvaluationExtension, evaluationChanged, type EvaluationGutterAction } from "./sourceEditorEvaluationExtension";
+import { createEvaluationExtension, evaluationChanged } from "./sourceEditorEvaluationExtension";
 import { createEvaluationDecorationIndex, type EvaluationDecorationIndex } from "./sourceEditorEvaluationIndex";
 import { dslDocumentValueSpansAt, type DslValueSpanDirection } from "../dsl/dslValueSpans";
 import type { DslPhysicalSpan } from "../dsl/logicalStatementSourceMap";
@@ -280,7 +280,7 @@ export class SourceEditorController implements SourceEditorHandle {
             atStopRange: () => this.atStopRange,
             pickCursorElementId: () => this.uiStore.getState().activePickCursor?.elementId ?? null,
             isLastGood: () => this.isShowingLastGoodEvaluation(),
-            onGutterAction: (action, lineFrom) => this.handleEvaluationGutterAction(action, lineFrom)
+            onGutterAction: (lineFrom) => this.handleElementStateGutterAction(lineFrom)
           }),
           search(),
           this.historyCompartment.of(history()),
@@ -1775,14 +1775,8 @@ export class SourceEditorController implements SourceEditorHandle {
     this.refreshDecorationIndex();
   }
 
-  private handleEvaluationGutterAction(action: EvaluationGutterAction, lineFrom: number) {
+  private handleElementStateGutterAction(lineFrom: number) {
     if (this.protocol.composing || this.flush("command") === "blocked-composition") return false;
-    if (action === "stop") {
-      if (!this.atStopRange || this.atStopRange.from !== lineFrom) return false;
-      const preceding = [...this.statementRanges.values()].filter((range) => range.to < lineFrom).at(-1);
-      const index = preceding ? this.store.getState().elements.findIndex((element) => element.id === preceding.elementId) + 1 : 0;
-      return dispatchCommand("setEvaluationLimitIndex", { evaluationLimitIndex: index }) !== false;
-    }
     const elementId = elementIdAtCursor(this.statementRanges, lineFrom);
     if (!elementId || !this.store.getState().elements.some((element) => element.id === elementId)) return false;
     return dispatchCommand("cycleElementActivity", { elementId }) !== false;
