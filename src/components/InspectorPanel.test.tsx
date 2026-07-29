@@ -85,10 +85,71 @@ describe("InspectorPanel mouse-only actions", () => {
     expect(handle.jumpToParameterValue).toHaveBeenCalledWith(element.id, "dx");
   });
 
+  it("shows referenced element names rather than internal IDs in parameter rows", () => {
+    const { elements } = renderInspector("AB");
+    const pointA = elements.find((candidate) => candidate.name === "A")!;
+    const pointB = elements.find((candidate) => candidate.name === "B")!;
+    const parameterGroup = screen.getByText("パラメーター").closest(".dependency-group")!;
+    if (!(parameterGroup instanceof HTMLElement)) throw new Error("Missing parameter group");
+    const startRow = within(parameterGroup).getByText("始点").closest(".inspector-row")!;
+    const endRow = within(parameterGroup).getByText("終点").closest(".inspector-row")!;
+    if (!(startRow instanceof HTMLElement) || !(endRow instanceof HTMLElement)) {
+      throw new Error("Missing point reference row");
+    }
+
+    expect(within(startRow).getByText("A")).toBeInTheDocument();
+    expect(within(endRow).getByText("B")).toBeInTheDocument();
+    expect(startRow).not.toHaveTextContent(pointA.id);
+    expect(endRow).not.toHaveTextContent(pointB.id);
+  });
+
+  it("resolves line, line-endpoint, and line-list references through one Inspector name lookup", () => {
+    const intersection = createCadElement("intersectionPoint", sampleElements, {
+      createId: () => "intersection-internal-id",
+    });
+    const division = createCadElement("lineDivisionPoint", sampleElements, {
+      createId: () => "division-internal-id",
+    });
+    const offset = createCadElement("offsetLine", sampleElements, {
+      createId: () => "offset-internal-id",
+    });
+
+    let view = renderInspectorElement(intersection, [...sampleElements, intersection]);
+    expect(within(screen.getByText("線1").closest(".inspector-row")!).getByText("直線AB")).toBeInTheDocument();
+    expect(within(screen.getByText("線2").closest(".inspector-row")!).getByText("直線BC")).toBeInTheDocument();
+    view.unmount();
+
+    view = renderInspectorElement(division, [...sampleElements, division]);
+    expect(within(screen.getByText("端点").closest(".inspector-row")!).getByText("直線AB.start")).toBeInTheDocument();
+    view.unmount();
+
+    view = renderInspectorElement(offset, [...sampleElements, offset]);
+    expect(within(screen.getByText("基準線").closest(".inspector-row")!).getByText("直線AB")).toBeInTheDocument();
+    view.unmount();
+  });
+
+  it("shows unresolved references without exposing their internal IDs", () => {
+    const line = {
+      ...sampleElements.find((candidate) => candidate.type === "line")!,
+      id: "line-with-missing-reference",
+      name: "未解決の線",
+      startPoint: { mode: "reference" as const, pointId: "missing-point-internal-id" },
+    };
+    const { unmount } = renderInspectorElement(line, [...sampleElements, line]);
+    const startRow = screen.getByText("始点").closest(".inspector-row")!;
+    if (!(startRow instanceof HTMLElement)) throw new Error("Missing start-point row");
+
+    expect(within(startRow).getByText("未解決")).toBeInTheDocument();
+    expect(startRow).not.toHaveTextContent("missing-point-internal-id");
+    unmount();
+  });
+
   it("selects and jumps to a clicked dependency row", () => {
     const { elements, handle } = renderInspector("AB");
     const pointA = elements.find((element) => element.name === "A")!;
-    fireEvent.click(screen.getByText("A").closest(".inspector-row")!);
+    const parentGroup = screen.getByText("親要素").closest(".dependency-group")!;
+    if (!(parentGroup instanceof HTMLElement)) throw new Error("Missing parent group");
+    fireEvent.click(within(parentGroup).getByText("A").closest(".inspector-row")!);
     expect(useCadUiStore.getState().selectedElementId).toBe(pointA.id);
     expect(handle.jumpToElement).toHaveBeenCalledWith(pointA.id);
   });

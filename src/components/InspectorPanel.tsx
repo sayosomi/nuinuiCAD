@@ -114,6 +114,10 @@ export const InspectorPanel = ({
     () => createDependencyIndex(elements, { textTemplatesByElementId }),
     [elements, textTemplatesByElementId],
   );
+  const elementNameById = useMemo(
+    () => new Map(elements.map((candidate) => [candidate.id, candidate.name])),
+    [elements],
+  );
   const dependencySummary = useMemo(
     () =>
       element ? getDependencySummary(element, elements, dependencyIndex) : null,
@@ -145,13 +149,13 @@ export const InspectorPanel = ({
   const parameterRows = useMemo(
     () => {
       if (!element) return [];
-      return parameterInspectorRows(element).map((row) =>
+      return parameterInspectorRows(element, elementNameById).map((row) =>
         row.parameterKey === "text" && textPresentation !== null
           ? { ...row, value: textPresentation.source }
           : row,
       );
     },
-    [element, textPresentation],
+    [element, elementNameById, textPresentation],
   );
   const evaluatedText = textPresentation?.evaluatedText ?? null;
   const textHasDifferentRuntimeResult = evaluatedText !== null && evaluatedText !== textPresentation?.source;
