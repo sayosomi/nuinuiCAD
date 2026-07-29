@@ -14,6 +14,7 @@ export type EvaluateDocumentInput = {
   elements: CadElement[];
   evaluationLimitIndex?: number;
   scalarProgram?: EvaluateElementsOptions["scalarProgram"];
+  scalarExpressionPayload?: { numericBindings: readonly NumericBindingRuntimeEntry[] };
   bindingVersions?: RustBindingMutationPayload;
   propertyBindings?: readonly PropertyBindingRuntimeEntry[];
   numericBindings?: readonly NumericBindingRuntimeEntry[];
@@ -41,7 +42,7 @@ export const buildRustEvaluationInput = (
       ? { bindingVersions: mutationPayload }
       : options.scalarProgram ? { scalarProgram: options.scalarProgram } : {}),
     ...(options.propertyBindingEntries?.length ? { propertyBindings: options.propertyBindingEntries } : {}),
-    ...(options.numericBindingEntries?.length ? { numericBindings: options.numericBindingEntries } : {}),
+    ...(options.numericBindingEntries?.length ? { scalarExpressionPayload: { numericBindings: options.numericBindingEntries } } : {}),
     ...(options.controlBooleanEntries?.length ? { controlBooleanBindings: options.controlBooleanEntries } : {}),
     ...(options.conditionalGroupConditionsByElementId?.size
       ? { conditionExpressions: Array.from(options.conditionalGroupConditionsByElementId, ([elementId, expression]) => ({ elementId, expression })) }

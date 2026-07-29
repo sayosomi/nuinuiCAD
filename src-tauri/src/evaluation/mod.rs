@@ -47,6 +47,7 @@ mod line_transform;
 mod linear_mutation_integration_tests;
 mod local_variables;
 mod math;
+mod numeric_binding_runtime;
 mod numeric_expression;
 mod offset_bezier;
 mod offset_joins;
@@ -116,6 +117,9 @@ use line_evaluators::{
 };
 use line_tangent_offset_point_evaluator::evaluate_line_tangent_offset_point;
 use local_variables::evaluate_local_variables;
+use numeric_binding_runtime::{
+    apply_numeric_bindings, validate_numeric_bindings_payload, ValidatedNumericBinding,
+};
 use numeric_expression::evaluate_numeric_or_push;
 use offset_line_evaluator::evaluate_offset_line;
 use point_evaluators::{
@@ -177,6 +181,44 @@ fn decode_property_bindings(
         .map_err(|error| EvaluationCommandError {
             code: error.code.as_str().to_owned(),
             message: error.message,
+        })
+}
+
+fn decode_numeric_bindings(
+    input: &EvaluationInput,
+    scalar_program: Option<&ValidatedScalarProgram>,
+    binding_versions: Option<&ValidatedBindingVersions>,
+) -> Result<Option<Vec<ValidatedNumericBinding>>, EvaluationCommandError> {
+    let Some(payload) = input
+        .scalar_expression_payload
+        .as_ref()
+        .and_then(|value| value.get("numericBindings"))
+    else {
+        return Ok(None);
+    };
+    let elements_by_id: HashMap<&str, &Value> = input
+        .elements
+        .iter()
+        .filter_map(|element| Some((element.get("id")?.as_str()?, element)))
+        .collect();
+    let valid_binding_ids: HashSet<&str> = scalar_program
+        .map(|program| {
+            program
+                .statements
+                .iter()
+                .map(|statement| statement.binding_id.as_str())
+                .collect()
+        })
+        .unwrap_or_else(|| {
+            binding_versions
+                .map(|versions| versions.binding_ids.iter().map(String::as_str).collect())
+                .unwrap_or_default()
+        });
+    validate_numeric_bindings_payload(payload, &elements_by_id, &valid_binding_ids)
+        .map(Some)
+        .map_err(|message| EvaluationCommandError {
+            code: "numeric-binding-payload-invalid".to_owned(),
+            message,
         })
 }
 
@@ -340,6 +382,8 @@ pub fn evaluate_document(
     }
     let property_bindings =
         decode_property_bindings(&input, scalar_program.as_ref(), binding_versions.as_ref())?;
+    let numeric_bindings =
+        decode_numeric_bindings(&input, scalar_program.as_ref(), binding_versions.as_ref())?;
     let control_boolean_bindings = decode_control_boolean_bindings(
         &input,
         scalar_program.as_ref(),
@@ -356,6 +400,7 @@ pub fn evaluate_document(
             scalar_program,
             binding_versions,
             property_bindings,
+            numeric_bindings,
             control_boolean_bindings,
             condition_expressions,
             text_templates,
@@ -368,6 +413,7 @@ struct DecodedScalarPayloads {
     scalar_program: Option<ValidatedScalarProgram>,
     binding_versions: Option<ValidatedBindingVersions>,
     property_bindings: Option<Vec<ValidatedPropertyBinding>>,
+    numeric_bindings: Option<Vec<ValidatedNumericBinding>>,
     control_boolean_bindings: Option<Vec<ValidatedPropertyBinding>>,
     condition_expressions: Option<Vec<ValidatedConditionExpression>>,
     text_templates: Option<Vec<ValidatedTextTemplate>>,
@@ -524,6 +570,9 @@ fn evaluate_document_input(input: EvaluationInput) -> EvaluationPayload {
     let property_bindings =
         decode_property_bindings(&input, scalar_program.as_ref(), binding_versions.as_ref())
             .expect("evaluation test input property_bindings must be valid");
+    let numeric_bindings =
+        decode_numeric_bindings(&input, scalar_program.as_ref(), binding_versions.as_ref())
+            .expect("evaluation test input numeric_bindings must be valid");
     let control_boolean_bindings =
         decode_control_boolean_bindings(&input, scalar_program.as_ref(), binding_versions.as_ref())
             .expect("evaluation test input control_boolean_bindings must be valid");
@@ -541,6 +590,7 @@ fn evaluate_document_input(input: EvaluationInput) -> EvaluationPayload {
             scalar_program,
             binding_versions,
             property_bindings,
+            numeric_bindings,
             control_boolean_bindings,
             condition_expressions,
             text_templates,
@@ -557,6 +607,7 @@ fn evaluate_document_input_with_scalar_program(
         scalar_program,
         binding_versions,
         property_bindings,
+        numeric_bindings,
         control_boolean_bindings,
         condition_expressions,
         text_templates,
@@ -623,6 +674,14 @@ fn evaluate_document_input_with_scalar_program(
                 map.entry(entry.element_id.clone()).or_default().push(entry);
                 map
             });
+    let numeric_entries_by_element_id: HashMap<ElementId, Vec<ValidatedNumericBinding>> =
+        numeric_bindings
+            .into_iter()
+            .flatten()
+            .fold(HashMap::new(), |mut map, entry| {
+                map.entry(entry.element_id.clone()).or_default().push(entry);
+                map
+            });
     let show_generated_by_element_id: HashMap<ElementId, ValidatedPropertyBinding> =
         control_boolean_bindings
             .into_iter()
@@ -641,7 +700,7 @@ fn evaluate_document_input_with_scalar_program(
         .collect();
 
     'elements: for index in 0..evaluation_limit_index {
-        let element = state.elements[index].clone();
+        let mut element = state.elements[index].clone();
         let id = match element_id(&element) {
             Some(id) => id,
             None => continue,
@@ -680,6 +739,21 @@ fn evaluate_document_input_with_scalar_program(
         }
         if effective_enabled_ids.insert(id.clone()) {
             effective_enabled_order.push(id.clone());
+        }
+
+        if let Some(entries) = numeric_entries_by_element_id.get(&id) {
+            let resolver = active_scalar_binding_resolver
+                .expect("scalar_binding_resolver must exist when numeric bindings exist");
+            match apply_numeric_bindings(&element, Some(entries), resolver, &state) {
+                Ok(materialized) => {
+                    element = materialized;
+                    state.elements[index] = element.clone();
+                }
+                Err(error) => {
+                    state.errors.push(error);
+                    continue;
+                }
+            }
         }
 
         let Some(local_variables) = evaluate_local_variables(index, &mut state) else {
@@ -798,6 +872,7 @@ fn evaluate_document_input_with_scalar_program(
                     &original_elements,
                     &base_effective_enabled_ids,
                     &entries_by_element_id,
+                    &numeric_entries_by_element_id,
                     &show_generated_by_element_id,
                     &condition_by_element_id,
                     &text_templates_by_element_id,
@@ -837,7 +912,7 @@ fn evaluate_document_input_with_scalar_program(
                     variable_value,
                 );
                 for_group_generated_rows.extend(rows);
-                for (generated_element, template_id) in generated {
+                for (mut generated_element, template_id) in generated {
                     let Some(generated_id) = element_id(&generated_element) else {
                         continue;
                     };
@@ -867,7 +942,25 @@ fn evaluate_document_input_with_scalar_program(
                     if effective_enabled_ids.insert(generated_id.clone()) {
                         effective_enabled_order.push(generated_id.clone());
                     }
+                    if let Some(entries) = numeric_entries_by_element_id.get(&template_id) {
+                        let resolver = active_scalar_binding_resolver.expect(
+                            "scalar_binding_resolver must exist when numeric bindings exist",
+                        );
+                        match apply_numeric_bindings(
+                            &generated_element,
+                            Some(entries),
+                            resolver,
+                            &state,
+                        ) {
+                            Ok(materialized) => generated_element = materialized,
+                            Err(error) => {
+                                state.errors.push(error);
+                                continue;
+                            }
+                        }
+                    }
                     let generated_index = state.elements_by_id[&generated_id];
+                    state.elements[generated_index] = generated_element.clone();
                     let Some(generated_local_variables) =
                         evaluate_local_variables(generated_index, &mut state)
                     else {
