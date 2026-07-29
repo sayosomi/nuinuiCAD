@@ -7,9 +7,21 @@ import type {
   VisibilityProfile,
   VisibilityRole
 } from "../types/geometry";
-import type { DocumentRange, DslPhysicalSpan, LogicalStatementSourceMap, SourceRevision } from "./logicalStatementSourceMap";
+import type { DocumentRange, DslPhysicalSpan, LogicalStatement, LogicalStatementSourceMap, SourceRevision } from "./logicalStatementSourceMap";
 import type { DslMajorVersion } from "./dslVersion";
 import type { ScalarType } from "../scalars/types";
+import type { BindingId } from "../scalars/bindingCatalog";
+
+/** Where a diagnostic's own consumer/declaration span lives, shared verbatim
+ * by the Source Editor gutter, the Problems popover, and Inspector jump
+ * calls so navigation identity never diverges between surfaces. Deliberately
+ * plain data - no CodeMirror type may appear here (see AGENTS.md's
+ * src/editor/ boundary). */
+export type DslDiagnosticNavigationTarget =
+  | { kind: "property"; occurrenceKey: string }
+  | { kind: "templateHole"; occurrenceKey: string; holeIndex: number }
+  | { kind: "binding"; bindingId: BindingId }
+  | { kind: "element"; elementId: ElementId };
 
 export type DslDiagnostic = {
   severity: "error" | "warning";
@@ -20,6 +32,24 @@ export type DslDiagnostic = {
   physicalSpan?: DslPhysicalSpan;
   /** Stable machine-readable identifier (e.g. Quick Fix routing). Optional; most diagnostics don't set one yet. */
   code?: string;
+  /** Task 15's declared/typechecked type context for a scalar-type-mismatch-style diagnostic. */
+  expectedType?: ScalarType;
+  actualType?: ScalarType;
+  bindingId?: BindingId;
+  elementId?: ElementId;
+  propertyKey?: string;
+  /** "runtime" for a diagnostic derived from a TS/Rust ScalarEvaluation error; absent (compile-time) otherwise. */
+  origin?: "runtime";
+  /**
+   * When true, this diagnostic's positioning is exact-or-nothing: `physicalSpan`
+   * is set only when the logical->physical projection actually succeeded, and
+   * callers (gutter linter, Quick Fix, Problems navigation) must never fall
+   * back to a coarser line/column or whole-statement position for it. Legacy
+   * diagnostics that never set this flag keep their existing line/column
+   * fallback behavior unchanged.
+   */
+  exactSpanOnly?: true;
+  navigationTarget?: DslDiagnosticNavigationTarget;
 };
 
 export type DslSpan = {
@@ -105,6 +135,11 @@ export type ParseDslResult = {
   diagnostics: DslDiagnostic[];
   sourceRevision: SourceRevision;
   sourceMap: LogicalStatementSourceMap;
+  /** statement.documentRange.from -> the LogicalStatement it was decorated
+   * from. Built once per parse (see dslParser.ts's parseDslSnapshot); the
+   * only lookup any later exact-span diagnostic projection needs, so no
+   * caller ever re-scans sourceMap.statements per issue. */
+  logicalStatementByRangeFrom: ReadonlyMap<number, LogicalStatement>;
 };
 
 export type CompileDslContext = {

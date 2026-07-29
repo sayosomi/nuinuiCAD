@@ -26,6 +26,7 @@
 
 import type { CadElement, ElementId } from "../types/geometry";
 import type { DslDiagnostic, DslSpan, DslStatement } from "../dsl/dslTypes";
+import { exactPhysicalSpan, type DiagnosticSpanContext } from "../dsl/dslDiagnosticSpan";
 import type { BindingAnalysis } from "./bindingAnalysis";
 import { resolveReferencesAtSites, type SiteReferenceRequest } from "./bindingResolution";
 import { parseScalarExpression } from "./expressionParser";
@@ -49,6 +50,7 @@ export type CompileConditionalGroupConditionsInput = {
   elementIdByStatementIndex: ReadonlyMap<number, ElementId>;
   elements: readonly CadElement[];
   bindingAnalysis: BindingAnalysis;
+  spans: DiagnosticSpanContext;
 };
 
 export type ConditionalGroupConditionCompilation = {
@@ -56,20 +58,30 @@ export type ConditionalGroupConditionCompilation = {
   diagnostics: readonly DslDiagnostic[];
 };
 
-const diagnosticAt = (statement: DslStatement, span: DslSpan, code: string, message: string): DslDiagnostic => ({
-  severity: "error",
-  line: statement.line,
-  column: span.start + 1,
-  code,
-  message,
-  physicalSpan: statement.physicalSpan
-});
+/** Exact-span-or-nothing (Task 48) - see typedDeclarationAnalysis.ts's
+ * compileDiagnostic. No navigationTarget: a conditionalGroup.condition
+ * occurrence that failed to resolve has no separate resolved-index entry to
+ * jump to (Task 45's own consumer rows already fall back to a whole-element
+ * jump for this same reason - "no Task 43 span index of its own"). */
+const diagnosticAt = (spans: DiagnosticSpanContext, statement: DslStatement, span: DslSpan, code: string, message: string): DslDiagnostic => {
+  const physicalSpan = exactPhysicalSpan(spans, statement, span);
+  return {
+    severity: "error",
+    line: statement.line,
+    column: span.start + 1,
+    code,
+    message,
+    exactSpanOnly: true,
+    ...(physicalSpan ? { physicalSpan } : {})
+  };
+};
 
 export const compileConditionalGroupConditions = ({
   statements,
   elementIdByStatementIndex,
   elements,
-  bindingAnalysis
+  bindingAnalysis,
+  spans
 }: CompileConditionalGroupConditionsInput): ConditionalGroupConditionCompilation => {
   const elementsById = new Map(elements.map((element) => [element.id, element]));
   const diagnostics: DslDiagnostic[] = [];
@@ -114,7 +126,7 @@ export const compileConditionalGroupConditions = ({
       const resolution = resolutionAt(index);
       if (!resolution || resolution.kind !== "resolved") {
         diagnostics.push(diagnosticAt(
-          statement, reference.span, CONDITIONAL_GROUP_CONDITION_UNRESOLVED_CODE,
+          spans, statement, reference.span, CONDITIONAL_GROUP_CONDITION_UNRESOLVED_CODE,
           unresolvedReferenceMessage(reference.name, resolution)
         ));
         hasReferenceDiagnostic = true;
@@ -124,14 +136,14 @@ export const compileConditionalGroupConditions = ({
         const message = resolution.binding.kind === "legacy"
           ? `"${reference.name}" はlegacy変数であり、型付き条件式の中では使用できません。`
           : `"${reference.name}" は無効な宣言のため参照できません。`;
-        diagnostics.push(diagnosticAt(statement, reference.span, CONDITIONAL_GROUP_CONDITION_LEGACY_REFERENCE_CODE, message));
+        diagnostics.push(diagnosticAt(spans, statement, reference.span, CONDITIONAL_GROUP_CONDITION_LEGACY_REFERENCE_CODE, message));
         hasReferenceDiagnostic = true;
         return;
       }
       const entry = bindingAnalysis.entriesById.get(resolution.binding.id);
       if (entry?.status.kind === "invalid") {
         diagnostics.push(diagnosticAt(
-          statement, reference.span, CONDITIONAL_GROUP_CONDITION_INVALID_CODE,
+          spans, statement, reference.span, CONDITIONAL_GROUP_CONDITION_INVALID_CODE,
           `"${reference.name}" は無効な宣言のため参照できません。`
         ));
         hasReferenceDiagnostic = true;
@@ -145,7 +157,7 @@ export const compileConditionalGroupConditions = ({
     });
     if (checked.diagnostics.length > 0) {
       diagnostics.push(...checked.diagnostics.map((diagnostic) =>
-        diagnosticAt(statement, diagnostic.span, CONDITIONAL_GROUP_CONDITION_TYPE_MISMATCH_CODE, diagnostic.message)
+        diagnosticAt(spans, statement, diagnostic.span, CONDITIONAL_GROUP_CONDITION_TYPE_MISMATCH_CODE, diagnostic.message)
       ));
       return;
     }
@@ -154,7 +166,7 @@ export const compileConditionalGroupConditions = ({
       // declaredType) was already diagnosed above, so this should be
       // unreachable - kept fail-closed rather than assumed impossible.
       diagnostics.push(diagnosticAt(
-        statement, span, CONDITIONAL_GROUP_CONDITION_TYPE_MISMATCH_CODE,
+        spans, statement, span, CONDITIONAL_GROUP_CONDITION_TYPE_MISMATCH_CODE,
         "条件式はboolean型である必要があります。"
       ));
       return;

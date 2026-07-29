@@ -3,6 +3,7 @@ import type { RefObject } from "react";
 import { Layers3, Palette } from "lucide-react";
 import { SourceEditorController } from "../editor/sourceEditorController";
 import type { SourceEditorHandle, SourceEvaluationPublication } from "../editor/sourceEditorTypes";
+import type { DslDiagnostic, DslDiagnosticNavigationTarget } from "../dsl/dslTypes";
 import type { CommandContext } from "../commands/commands";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
@@ -37,8 +38,17 @@ export const SourceEditorPane = forwardRef<SourceEditorHandle, SourceEditorPaneP
   isSearchOpenRef.current = isSearchOpen;
   const [contextMenuState, setContextMenuState] = useState<SourceEditorContextMenuState | null>(null);
   const [isLastGoodEvaluation, setIsLastGoodEvaluation] = useState(false);
+  const [runtimeDiagnostics, setRuntimeDiagnostics] = useState<readonly DslDiagnostic[]>([]);
   const currentFilePath = useCadDocumentStore((state) => state.currentFilePath);
   const dirtySinceSave = useCadDocumentStore((state) => state.dirtySinceSave);
+  // Task 48: docText/sourceText are the same reactive dirty signal Inspector
+  // already subscribes to (InspectorPanel.tsx) - re-deriving runtimeDiagnostics
+  // whenever either changes is what makes a single-character edit clear a
+  // runtime marker on its very next render, without waiting for a new
+  // evaluation. onEvaluationPresentationChange below covers the other
+  // trigger: an async evaluation result arriving with no new keystroke.
+  const docText = useCadDocumentStore((state) => state.docText);
+  const sourceText = useCadDocumentStore((state) => state.sourceText);
   const commandErrorMessage = useCadUiStore((state) => state.commandErrorMessage);
   const dockRef = useRef<HTMLDivElement | null>(null);
   const fallbackCanvasFocusRef = useRef<HTMLDivElement | null>(null);
@@ -54,7 +64,14 @@ export const SourceEditorPane = forwardRef<SourceEditorHandle, SourceEditorPaneP
       onRequestContextMenu: (elementId: ElementId, x: number, y: number) => setContextMenuState({ elementId, x, y }),
       isSourceSearchOpen: () => isSearchOpenRef.current,
       closeSourceSearch: () => setIsSearchOpen(false),
-      onEvaluationPresentationChange: ({ isLastGood }) => setIsLastGoodEvaluation(isLastGood)
+      onEvaluationPresentationChange: ({ isLastGood }) => {
+        setIsLastGoodEvaluation(isLastGood);
+        // Task 48: the async-evaluation-arrived trigger - a fresh evaluation
+        // can complete with no new keystroke, so runtimeDiagnostics must be
+        // re-derived here too, not only from the docText/sourceText effect
+        // below.
+        setRuntimeDiagnostics(controllerRef.current?.runtimeDiagnostics() ?? []);
+      }
     });
     controllerRef.current = controller;
     return () => {
@@ -63,6 +80,34 @@ export const SourceEditorPane = forwardRef<SourceEditorHandle, SourceEditorPaneP
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    setRuntimeDiagnostics(controllerRef.current?.runtimeDiagnostics() ?? []);
+  }, [docText, sourceText]);
+
+  // Task 48: Problems-popover navigation - one explicit, non-cascading
+  // switch per DslDiagnosticNavigationTarget kind. Each branch calls exactly
+  // the one SourceEditorHandle method that owns that kind's exact-span-or-
+  // no-op contract; there is no generic fallback between kinds (e.g. a
+  // property target never falls back to a declaration jump).
+  const navigateToDiagnostic = (target: DslDiagnosticNavigationTarget) => {
+    const controller = controllerRef.current;
+    if (!controller) return;
+    switch (target.kind) {
+      case "binding":
+        controller.jumpToBindingDeclaration(target.bindingId);
+        return;
+      case "property":
+        controller.jumpToPropertyBindingValue(target.occurrenceKey);
+        return;
+      case "templateHole":
+        controller.jumpToTemplateHole(target.occurrenceKey, target.holeIndex);
+        return;
+      case "element":
+        controller.jumpToElement(target.elementId);
+        return;
+    }
+  };
 
   useImperativeHandle(ref, () => ({
     focus: () => controllerRef.current?.focus(),
@@ -80,6 +125,7 @@ export const SourceEditorPane = forwardRef<SourceEditorHandle, SourceEditorPaneP
     pickCandidateElementIds: () => controllerRef.current?.pickCandidateElementIds() ?? [],
     openTextSearch: () => controllerRef.current?.openTextSearch(),
     closeTextSearch: () => controllerRef.current?.closeTextSearch(),
+    runtimeDiagnostics: () => controllerRef.current?.runtimeDiagnostics() ?? [],
     focusSearch: () => {
       setIsSearchOpen(true);
       controllerRef.current?.focusSearch();
@@ -108,7 +154,7 @@ export const SourceEditorPane = forwardRef<SourceEditorHandle, SourceEditorPaneP
           {dirtySinceSave ? <span className="document-dirty">未保存の変更</span> : null}
           {isLastGoodEvaluation ? <span className="document-stale-evaluation">評価: last-good</span> : null}
         </p>
-        <DocumentDiagnostics />
+        <DocumentDiagnostics runtimeDiagnostics={runtimeDiagnostics} onNavigate={navigateToDiagnostic} />
         {commandErrorMessage ? <p className="command-error-message" role="alert">{commandErrorMessage}</p> : null}
       </header>
       <SourceSearchPanel

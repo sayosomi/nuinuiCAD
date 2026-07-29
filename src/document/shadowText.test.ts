@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { compileDslDocument, type DslDocumentData } from "../dsl/dslDocument";
+import { parseDslSnapshot } from "../dsl/dslParser";
 import { expectSemanticallyEqualDocuments } from "../dsl/dslDocumentTestUtils";
 import type { CadElement } from "../types/geometry";
 import {
@@ -91,6 +92,7 @@ describe("generateShadowFromModel / advanceShadow 基本往復", () => {
   });
 
   it("旧影が壊れている(document=null)場合は全体再生成する", () => {
+    const garbageParsed = parseDslSnapshot({ normalizedSource: "garbage", sourceRevision: 0 });
     const prev: ShadowState = {
       text: "garbage",
       compiled: {
@@ -99,7 +101,8 @@ describe("generateShadowFromModel / advanceShadow 基本往復", () => {
         statements: [],
         statementMap: null,
         sourceLines: ["garbage"],
-        diagnostics: [{ severity: "error", line: 1, column: 1, message: "test" }]
+        diagnostics: [{ severity: "error", line: 1, column: 1, message: "test" }],
+        spans: { sourceMap: garbageParsed.sourceMap, logicalStatementByRangeFrom: garbageParsed.logicalStatementByRangeFrom }
       }
     };
     const afterDoc = compileOrThrow(["nui 2", "point A = coordinate(x: 0 y: 0)"].join("\n"));

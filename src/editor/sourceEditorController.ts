@@ -32,6 +32,7 @@ import { getParameterDefinitions } from "../parameters/parameterDefinitions";
 import { parameterPickCommandId } from "../commands/parameterPickCommand";
 import { pickCandidates } from "../model/pickCandidates";
 import { isRuntimeBindingDisplayFresh } from "../model/runtimeBindingFreshness";
+import { runtimeScalarDiagnostics } from "../scalars/runtimeScalarDiagnostics";
 import type { BindingId } from "../scalars/bindingCatalog";
 import type { ElementId, EvaluationResult } from "../types/geometry";
 import { useCadDocumentStore, type CadDocumentState } from "../state/cadDocumentStore";
@@ -274,7 +275,8 @@ export class SourceEditorController implements SourceEditorHandle {
           createDiagnosticsExtension({
             isComposing: () => this.protocol.composing,
             hasPendingText: () => this.hasPendingText(),
-            committedDiagnostics: () => this.store.getState().diagnostics,
+            committedDiagnostics: () => [...this.store.getState().diagnostics, ...this.store.getState().bindingIssueDiagnostics],
+            runtimeDiagnostics: () => this.runtimeDiagnostics(),
             staleBaseline: () => this.staleDiagnosticBaseline,
             upgradeDslMajorVersion: (target) => this.store.getState().upgradeDslMajorVersion(target)
           }),
@@ -1612,13 +1614,41 @@ export class SourceEditorController implements SourceEditorHandle {
   /** Task 45: the same isSourceDirty/isEvaluationStale pair InspectorPanel.tsx
    * derives from its own React state, recomputed here from this controller's
    * own docText/sourceText/compiledDocumentRevision/appliedEvaluation
-   * bookkeeping, then reduced through the one shared predicate
-   * (runtimeBindingFreshness.ts) rather than a second inline rule. */
-  private isRuntimeBindingDisplayFreshForGutter() {
+   * bookkeeping. Read live on every call (never cached) - see
+   * isRuntimeBindingDisplayFreshForGutter/runtimeDiagnostics, the two callers
+   * that both reduce this same input through runtimeBindingFreshness.ts's one
+   * shared predicate rather than a second inline rule. */
+  private currentRuntimeFreshnessInput() {
     const state = this.store.getState();
-    return isRuntimeBindingDisplayFresh({
+    return {
       isSourceDirty: state.docText !== state.sourceText,
       isEvaluationStale: !this.appliedEvaluation || this.appliedEvaluation.compiledDocumentRevision !== state.compiledDocumentRevision
+    };
+  }
+
+  private isRuntimeBindingDisplayFreshForGutter() {
+    return isRuntimeBindingDisplayFresh(this.currentRuntimeFreshnessInput());
+  }
+
+  /** Task 48: fresh TS/Rust ScalarEvaluation runtime errors adapted to
+   * DslDiagnostic, for the gutter linter and the Problems popover. Computed
+   * fresh on every call - never cached/pushed - so a dirty keystroke or a
+   * stale evaluation makes this empty on the very next read, without waiting
+   * for the next evaluation round-trip. Never re-parses: reuses this exact
+   * compiled document's own Task 48 span context (state.doc.spans) and Task
+   * 22's precomputed occurrenceKeysByBindingId, both already O(1)/O(bindings). */
+  public runtimeDiagnostics() {
+    const state = this.store.getState();
+    if (!state.doc.bindingAnalysis) return [];
+    return runtimeScalarDiagnostics({
+      computedScalarBindings: this.appliedEvaluation?.evaluation.computedScalarBindings,
+      bindingAnalysis: state.doc.bindingAnalysis,
+      statements: state.doc.statements,
+      spans: state.doc.spans,
+      elementIdByStatementIndex: state.doc.statementMap.elementIdByStatementIndex,
+      propertySourcesByOccurrenceKey: state.doc.propertyBindings ?? new Map(),
+      occurrenceKeysByBindingId: state.doc.occurrenceKeysByBindingId ?? new Map(),
+      freshness: this.currentRuntimeFreshnessInput()
     });
   }
 

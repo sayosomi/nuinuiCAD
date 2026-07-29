@@ -20,6 +20,11 @@ export type DiagnosticsExtensionSource = {
   isComposing: () => boolean;
   hasPendingText: () => boolean;
   committedDiagnostics: () => readonly DslDiagnostic[];
+  /** Task 48: fresh TS/Rust runtime issues, live-computed on every call - see
+   * SourceEditorController.runtimeDiagnostics(). Self-gates to empty while
+   * source is dirty/evaluation is stale, so it is safe to merge into both the
+   * clean and dirty-buffer branches below without a second dirty check here. */
+  runtimeDiagnostics: () => readonly DslDiagnostic[];
   /** Last-committed diagnostics, already remapped through every dirty-buffer change so far. */
   staleBaseline: () => readonly PositionedDiagnostic[];
   upgradeDslMajorVersion: (target: DslMajorVersion) => UpgradeDslMajorVersionResult;
@@ -59,7 +64,7 @@ const toCmDiagnostics = (positioned: readonly PositionedDiagnostic[]): Diagnosti
  */
 export const currentDiagnosticsWithActions = (
   view: EditorView,
-  source: Pick<DiagnosticsExtensionSource, "committedDiagnostics" | "isComposing" | "hasPendingText" | "upgradeDslMajorVersion">
+  source: Pick<DiagnosticsExtensionSource, "committedDiagnostics" | "runtimeDiagnostics" | "isComposing" | "hasPendingText" | "upgradeDslMajorVersion">
 ): Diagnostic[] => {
   const diagnostics = source.committedDiagnostics();
   const parsed = parseDsl(view.state.doc.toString());
@@ -77,6 +82,15 @@ export const currentDiagnosticsWithActions = (
     const actions = descriptors.length > 0 ? buildTypedVariableLintActions(actionDeps, descriptors) : undefined;
     results.push(toCmDiagnostic(positioned, actions));
   });
+  // Task 48: runtime diagnostics never offer a Quick Fix (there is no source
+  // edit that fixes a runtime value) and are positioned straight from their
+  // own already-exact physicalSpan - exactSpanOnly diagnostics without one
+  // are dropped by positionedFromDiagnostic's caller contract here, never
+  // shown at a coarser/wrong position.
+  for (const diagnostic of source.runtimeDiagnostics()) {
+    const positioned = positionedFromDiagnostic(view.state.doc, diagnostic, "current");
+    if (positioned) results.push(toCmDiagnostic(positioned));
+  }
   return results;
 };
 
@@ -96,7 +110,10 @@ export const createDiagnosticsExtension = (source: DiagnosticsExtensionSource): 
     const parsed = parseDsl(view.state.doc.toString());
     const current = toBufferDiagnostics(view.state.doc, parsed.diagnostics);
     const stale = source.staleBaseline();
-    lastResult = toCmDiagnostics(mergeDiagnosticLayers(current, stale));
+    const runtimeCurrent = source.runtimeDiagnostics()
+      .map((diagnostic) => positionedFromDiagnostic(view.state.doc, diagnostic, "current"))
+      .filter((positioned): positioned is PositionedDiagnostic => positioned !== null);
+    lastResult = toCmDiagnostics(mergeDiagnosticLayers([...current, ...runtimeCurrent], stale));
     return lastResult;
   }, { delay: LINT_DELAY_MS });
 };

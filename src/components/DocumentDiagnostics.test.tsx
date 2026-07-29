@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { DslDiagnostic } from "../dsl/dslTypes";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { DocumentDiagnostics } from "./DocumentDiagnostics";
 
@@ -26,5 +27,53 @@ describe("DocumentDiagnostics", () => {
 
     fireEvent.keyDown(window, { key: "Escape" });
     expect(screen.queryByRole("region", { name: "文書診断" })).not.toBeInTheDocument();
+  });
+
+  it("merges compile, BindingIssue, and runtime diagnostics in that fixed order", () => {
+    useCadDocumentStore.setState({
+      diagnostics: [{ severity: "error", line: 1, column: 1, message: "compile" }],
+      bindingIssueDiagnostics: [{ severity: "error", line: 2, column: 1, message: "binding-issue", code: "duplicate-binding" }]
+    });
+    const runtimeDiagnostics: DslDiagnostic[] = [
+      { severity: "error", line: 3, column: 1, message: "runtime", code: "poisoned-binding", origin: "runtime" }
+    ];
+    render(<DocumentDiagnostics runtimeDiagnostics={runtimeDiagnostics} />);
+    fireEvent.click(screen.getByRole("button", { name: "文書診断: エラー 3 件、警告 0 件" }));
+    const region = screen.getByRole("region", { name: "文書診断" });
+    const rowTexts = Array.from(region.children).map((child) => child.textContent);
+    expect(rowTexts).toEqual(["1:1 compile", "2:1 binding-issue", "3:1 runtime"]);
+  });
+
+  it("navigates via onNavigate only for a diagnostic with a resolved navigationTarget", () => {
+    const onNavigate = vi.fn();
+    useCadDocumentStore.setState({
+      bindingIssueDiagnostics: [
+        {
+          severity: "error",
+          line: 5,
+          column: 1,
+          message: "重複しています",
+          code: "duplicate-binding",
+          bindingId: "binding:x",
+          navigationTarget: { kind: "binding", bindingId: "binding:x" }
+        }
+      ]
+    });
+    render(<DocumentDiagnostics onNavigate={onNavigate} />);
+    fireEvent.click(screen.getByRole("button", { name: /文書診断/ }));
+    const row = screen.getByRole("button", { name: "5:1 重複しています" });
+    fireEvent.click(row);
+    expect(onNavigate).toHaveBeenCalledWith({ kind: "binding", bindingId: "binding:x" });
+  });
+
+  it("renders a diagnostic without a navigationTarget as plain text, not a clickable row, even when onNavigate is supplied", () => {
+    const onNavigate = vi.fn();
+    useCadDocumentStore.setState({
+      diagnostics: [{ severity: "error", line: 6, column: 1, message: "位置なし" }]
+    });
+    render(<DocumentDiagnostics onNavigate={onNavigate} />);
+    fireEvent.click(screen.getByRole("button", { name: /文書診断/ }));
+    expect(screen.queryByRole("button", { name: "6:1 位置なし" })).not.toBeInTheDocument();
+    expect(screen.getByText("6:1 位置なし").tagName).toBe("P");
   });
 });

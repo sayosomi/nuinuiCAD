@@ -27,6 +27,7 @@ const baseSource = (compiled: ReturnType<typeof compile>, overrides: Partial<Dia
   isComposing: () => false,
   hasPendingText: () => false,
   committedDiagnostics: () => compiled.diagnostics,
+  runtimeDiagnostics: () => [],
   staleBaseline: () => [],
   upgradeDslMajorVersion: vi.fn(() => ({ status: "applied" }) as const),
   ...overrides
@@ -69,5 +70,45 @@ describe("currentDiagnosticsWithActions", () => {
     const diagnostics = currentDiagnosticsWithActions(view, baseSource(compiled));
     expect(diagnostics.length).toBeGreaterThan(0);
     expect(diagnostics.every((d) => !d.actions || d.actions.length === 0)).toBe(true);
+  });
+
+  it("Task 48: merges a fresh runtime diagnostic in, positioned exactly, with no Quick Fix action", () => {
+    const source = ["nui 3", "const x: number = 1"].join("\n");
+    const compiled = compile(source);
+    const view = makeView(source);
+    const xOffset = source.indexOf("x:");
+    const runtime = [{
+      severity: "error" as const,
+      line: 2,
+      column: 7,
+      message: "評価に失敗し無効化されています。",
+      code: "poisoned-binding",
+      origin: "runtime" as const,
+      exactSpanOnly: true as const,
+      physicalSpan: { segments: [{ from: xOffset, to: xOffset + 1 }], sourceRevision: 0 }
+    }];
+    const diagnostics = currentDiagnosticsWithActions(view, baseSource(compiled, { runtimeDiagnostics: () => runtime }));
+    const runtimeResult = diagnostics.find((d) => d.message === "評価に失敗し無効化されています。");
+    expect(runtimeResult).toBeDefined();
+    expect(runtimeResult!.from).toBe(xOffset);
+    expect(runtimeResult!.to).toBe(xOffset + 1);
+    expect(runtimeResult!.actions ?? []).toHaveLength(0);
+  });
+
+  it("Task 48: drops (never mispositions) an exactSpanOnly diagnostic whose exact span never resolved", () => {
+    const source = ["nui 3", "const x: number = 1"].join("\n");
+    const compiled = compile(source);
+    const view = makeView(source);
+    const unresolved = [{
+      severity: "error" as const,
+      line: 2,
+      column: 1,
+      message: "位置解決に失敗しました。",
+      code: "duplicate-binding",
+      exactSpanOnly: true as const
+      // No physicalSpan - simulates a failed logical->physical projection.
+    }];
+    const diagnostics = currentDiagnosticsWithActions(view, baseSource(compiled, { committedDiagnostics: () => unresolved }));
+    expect(diagnostics.some((d) => d.message === "位置解決に失敗しました。")).toBe(false);
   });
 });

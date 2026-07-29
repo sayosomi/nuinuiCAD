@@ -28,6 +28,11 @@ export type CanonicalDocumentValue = {
   doc: LastGoodDslDocument;
   docText: string;
   diagnostics: DslDiagnostic[];
+  /** Task 48: BindingAnalysis.issues adapted to DslDiagnostic - see
+   * CompiledDslDocument.bindingIssueDiagnostics for why this stays out of
+   * `diagnostics` itself (non-gating). Always sourced from the same compile
+   * attempt as `diagnostics` at every construction site in this file. */
+  bindingIssueDiagnostics: readonly DslDiagnostic[];
   /** Current-source analysis; it must not fall back with last-good geometry. */
   typedDependencyGraph?: TypedDependencyGraph;
 };
@@ -96,6 +101,7 @@ export const compileCanonicalText = (
       doc: current.doc,
       docText: current.docText,
       diagnostics: compiled.diagnostics,
+      bindingIssueDiagnostics: compiled.bindingIssueDiagnostics ?? [],
       typedDependencyGraph: compiled.typedDependencyGraph,
       status: "fatal"
     };
@@ -106,6 +112,7 @@ export const compileCanonicalText = (
     doc: compiled,
     docText: sourceText,
     diagnostics: compiled.diagnostics,
+    bindingIssueDiagnostics: compiled.bindingIssueDiagnostics ?? [],
     typedDependencyGraph: compiled.typedDependencyGraph,
     status: compiled.diagnostics.some((item) => item.severity === "warning")
       ? "warning"
@@ -208,6 +215,7 @@ export const commitModelBridge = (
       doc: compiled.doc,
       docText: patchedText,
       diagnostics: compiled.doc.diagnostics,
+      bindingIssueDiagnostics: compiled.doc.bindingIssueDiagnostics ?? [],
       typedDependencyGraph: compiled.doc.typedDependencyGraph
     },
     splices
@@ -255,6 +263,7 @@ export const commitLineSplicePatch = (
       doc: compiled.doc,
       docText: compiled.docText,
       diagnostics: compiled.diagnostics,
+      bindingIssueDiagnostics: compiled.bindingIssueDiagnostics,
       typedDependencyGraph: compiled.typedDependencyGraph
     },
     splices: [...splices]
@@ -273,6 +282,7 @@ export const regenerateCanonicalFromModel = (
     doc: compiled.doc,
     docText: sourceText,
     diagnostics: compiled.doc.diagnostics,
+    bindingIssueDiagnostics: compiled.doc.bindingIssueDiagnostics ?? [],
     typedDependencyGraph: compiled.doc.typedDependencyGraph
   };
 };

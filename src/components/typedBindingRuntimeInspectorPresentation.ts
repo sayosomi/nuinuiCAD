@@ -22,6 +22,7 @@ import type { BindingAnalysis } from "../scalars/bindingAnalysis";
 import type { BindingId } from "../scalars/bindingCatalog";
 import type { BindingVersionGraph } from "../scalars/bindingVersions";
 import { parsePropertyBindingOccurrenceKey } from "../scalars/propertyBindingCompiler";
+import { runtimeIssueMessage } from "../scalars/runtimeIssueMessages";
 import type { TextTemplateAst, TextTemplateDependency } from "../scalars/textTemplate";
 import { referencesIn } from "../scalars/typedDependencyGraph";
 import type { ScalarValue } from "../scalars/types";
@@ -80,22 +81,8 @@ export type TypedBindingRuntimeConsumerSources = {
   elements: readonly CadElement[];
 };
 
-/** Every runtime issueCode a ScalarEvaluation error can carry, both engines
- * (src/scalars/*.ts, src-tauri/src/evaluation/scalars/*.rs) - kept in sync by
- * hand since Rust never sends a code TS doesn't also define. Unknown codes
- * still get a message (fail-closed, never blank) rather than being dropped. */
-const RUNTIME_ISSUE_MESSAGES: Readonly<Record<string, string>> = {
-  "poisoned-binding": "評価に失敗し無効化されています。",
-  "evaluation-external-binding-unavailable": "参照先の変数が見つかりません。",
-  "evaluation-runtime-value-type-mismatch": "値の型が宣言と一致しません。",
-  "evaluation-binding-cycle-guard": "循環参照が検出されました。",
-  "evaluation-binding-version-unavailable": "この時点のsetがまだ評価されていません。",
-  "evaluation-divide-by-zero": "0での除算が発生しました。",
-  "evaluation-non-finite-result": "計算結果が数値として不正です。",
-  "evaluation-static-type-null": "型を確定できませんでした。",
-  "evaluation-numeric-adapter-failure": "数値の評価に失敗しました。"
-};
-const runtimeIssueMessage = (issueCode: string): string => RUNTIME_ISSUE_MESSAGES[issueCode] ?? "実行時エラーが発生しました。";
+// Task 48: moved to scalars/runtimeIssueMessages.ts so the gutter/Problems
+// runtime diagnostic converter shares this exact table - never a second copy.
 
 /** number uses the same formatting rule text templates already use for
  * numeric holes (textNumber) so the Inspector never invents a second number

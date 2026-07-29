@@ -1,5 +1,6 @@
 import type { LineSplice } from "../document/textPatch";
 import type { BindingId } from "../scalars/bindingCatalog";
+import type { DslDiagnostic } from "../dsl/dslTypes";
 import type { ElementId, EvaluationResult } from "../types/geometry";
 
 /** Evaluation identity is deliberately separate from the source notification revision.
@@ -73,6 +74,12 @@ export type SourceEditorHandle = {
   /** Opens/closes CodeMirror's own text-search panel without leaking CM types to callers. */
   openTextSearch: () => void;
   closeTextSearch: () => void;
+  /** Task 48: fresh TS/Rust runtime diagnostics (poison/evaluation errors),
+   * live-computed on every call - never a snapshot. Callers that render this
+   * outside the editor (the Problems popover) must re-invoke it on every
+   * render they want to stay current for, not cache the result. Plain
+   * DslDiagnostic data only; no CodeMirror type crosses this boundary. */
+  runtimeDiagnostics: () => readonly DslDiagnostic[];
   /** Focuses the DOM editor (used after an external panel finishes opening). */
   focusSearch: () => void;
 };

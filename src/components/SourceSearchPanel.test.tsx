@@ -20,6 +20,7 @@ const makeHandle = (): SourceEditorHandle => ({
   pickCandidateElementIds: vi.fn(() => []),
   openTextSearch: vi.fn(),
   closeTextSearch: vi.fn(),
+  runtimeDiagnostics: vi.fn(() => []),
   focusSearch: vi.fn()
 });
 

@@ -47,6 +47,19 @@ export const positionedFromDiagnostic = (
       return { severity: diagnostic.severity, message: diagnostic.message, from: segment.from, to: Math.max(segment.from, segment.to), origin };
     }
   }
+  // Task 48: exactSpanOnly diagnostics (BindingIssue/runtime/the five
+  // exact-span compilers) never fall back to the line/column heuristic below
+  // - that heuristic can land on the wrong token or the wrong statement
+  // entirely once a diagnostic is about one sub-span inside a larger
+  // statement. A multi-segment exact span (a vertical/continuation
+  // statement) still positions at its first real segment, a genuine part of
+  // the exact span, rather than nothing; only a fully unresolved span (no
+  // physicalSpan at all) yields no marker.
+  if (diagnostic.exactSpanOnly) {
+    const segment = physical?.segments[0];
+    if (!segment || segment.from < 0 || segment.to < segment.from || segment.to > doc.length) return null;
+    return { severity: diagnostic.severity, message: diagnostic.message, from: segment.from, to: Math.max(segment.from, segment.to), origin };
+  }
   if (diagnostic.line < 1 || diagnostic.line > doc.lines) return null;
   const line = doc.line(diagnostic.line);
   const span = diagnosticColumnSpan(line.text, diagnostic.column);

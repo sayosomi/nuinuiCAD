@@ -8,6 +8,7 @@
 import { expect } from "vitest";
 import { compileDslToElements } from "../../dsl/dslCompiler";
 import { parseDsl } from "../../dsl/dslParser";
+import type { DiagnosticSpanContext } from "../../dsl/dslDiagnosticSpan";
 import type { CadElement, ElementId } from "../../types/geometry";
 import { analyzeTypedDeclarations, type TypedDeclarationAnalysis } from "../typedDeclarationAnalysis";
 
@@ -16,12 +17,18 @@ export type TypedDeclarationAnalysisFixture = {
   elementIdByStatementIndex: ReadonlyMap<number, ElementId>;
   elements: readonly CadElement[];
   bindingAnalysis: TypedDeclarationAnalysis["bindingAnalysis"];
+  /** Task 48: the real span index for `source` (from the same parse the
+   * fixture's own statements came from), reused by every sibling compiler
+   * test that needs to call its own compiler function against this fixture's
+   * output - never a fake/stub context. */
+  spans: DiagnosticSpanContext;
 };
 
 export const typedDeclarationAnalysisFor = (source: string): TypedDeclarationAnalysisFixture => {
   const parsed = parseDsl(source);
   expect(parsed.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
   const statements = parsed.statements;
+  const spans: DiagnosticSpanContext = { sourceMap: parsed.sourceMap, logicalStatementByRangeFrom: parsed.logicalStatementByRangeFrom };
   const compiled = compileDslToElements(source, { elements: [], mode: "document", majorVersion: 3 });
   expect(compiled.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
   const elementIdByStatementIndex = compiled.elementIdsByStatementIndex ?? new Map();
@@ -30,13 +37,15 @@ export const typedDeclarationAnalysisFor = (source: string): TypedDeclarationAna
   const scalarAnalysisCompilation = analyzeTypedDeclarations({
     statements,
     stableStatementIdByIndex,
-    reconciledContainers: { elementIdByStatementIndex, elements: compiled.elements }
+    reconciledContainers: { elementIdByStatementIndex, elements: compiled.elements },
+    spans
   });
   expect(scalarAnalysisCompilation.diagnostics).toEqual([]);
   return {
     statements,
     elementIdByStatementIndex,
     elements: compiled.elements,
-    bindingAnalysis: scalarAnalysisCompilation.analysis!.bindingAnalysis
+    bindingAnalysis: scalarAnalysisCompilation.analysis!.bindingAnalysis,
+    spans
   };
 };

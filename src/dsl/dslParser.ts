@@ -469,11 +469,18 @@ export const parseDslSnapshot = (snapshot: SourceSnapshot): ParseDslResult => {
   const statements: DslStatement[] = [];
   const diagnostics: DslDiagnostic[] = [];
   const sourceMap = createLogicalStatementSourceMap(snapshot);
+  // Built once per parse, from the same loop that already visits every
+  // LogicalStatement - never re-scanned per diagnostic. This is the only
+  // lookup a later exact-span diagnostic projection needs: statement's own
+  // documentRange.from -> the LogicalStatement physicalSpanForLogicalRange
+  // requires, with no `sourceMap.statements.find(...)` per issue.
+  const logicalStatementByRangeFrom = new Map<number, LogicalStatement>();
   for (const line of sourceMap.invalidContinuationLines) {
     diagnostics.push(diagnostic(line, "呼び出しの「(」が閉じられていません。空行やブロック区切りより前に「)」で閉じてください。"));
   }
   for (let index = 0; index < sourceMap.statements.length; index += 1) {
     const logical = sourceMap.statements[index];
+    logicalStatementByRangeFrom.set(logical.range.from, logical);
     if (logical.structural === "open") continue;
     if (logical.structural === "close") {
       statements.push(decorateStatement(structuralStatement(logical, "blockEnd"), logical, sourceMap));
@@ -503,7 +510,13 @@ export const parseDslSnapshot = (snapshot: SourceSnapshot): ParseDslResult => {
   for (const extra of statements.filter((statement) => statement.kind === "atStop").slice(1)) {
     diagnostics.push(diagnostic(extra.line, "@stop は文書に1つだけ書けます。"));
   }
-  return { statements, diagnostics: diagnostics.map((item) => decorateDiagnostic(item, sourceMap)), sourceRevision: snapshot.sourceRevision, sourceMap };
+  return {
+    statements,
+    diagnostics: diagnostics.map((item) => decorateDiagnostic(item, sourceMap)),
+    sourceRevision: snapshot.sourceRevision,
+    sourceMap,
+    logicalStatementByRangeFrom
+  };
 };
 
 /** Compatibility/test wrapper. Product callers must provide their source snapshot. */

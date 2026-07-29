@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { compileDslDocument, serializeDocumentToDsl, type CompiledDslDocument, type DslDocumentData } from "../dsl/dslDocument";
+import { parseDslSnapshot } from "../dsl/dslParser";
 import type { CadElement } from "../types/geometry";
 import { assertReconcileSane, assertShadowEquivalent } from "./shadowTextAssert";
 
@@ -97,13 +98,15 @@ describe("assertReconcileSane", () => {
 
   it("prevCompiled.documentがnullなら比較対象がないので何もしない", () => {
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const emptyParsed = parseDslSnapshot({ normalizedSource: "", sourceRevision: 0 });
     const brokenCompiled: CompiledDslDocument = {
       document: null,
       majorVersion: null,
       statements: [],
       statementMap: null,
       sourceLines: [],
-      diagnostics: []
+      diagnostics: [],
+      spans: { sourceMap: emptyParsed.sourceMap, logicalStatementByRangeFrom: emptyParsed.logicalStatementByRangeFrom }
     };
     const afterDoc = compileOrThrow(["nui 2", "point A = coordinate(x: 0 y: 0)"].join("\n"));
     assertReconcileSane(brokenCompiled, serializeDocumentToDsl(afterDoc, 2), afterDoc);
