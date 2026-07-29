@@ -58,12 +58,16 @@ mod offset_projection;
 mod offset_source_segments;
 mod offset_types;
 #[cfg(test)]
+mod performance_test_support;
+#[cfg(test)]
 mod performance_tests;
 mod point_anchor;
 mod point_evaluators;
 mod property_binding_runtime;
 #[cfg(test)]
 mod property_binding_runtime_tests;
+#[cfg(test)]
+mod pure_nui3_typed_production_performance_tests;
 #[cfg(test)]
 mod scalar_expression_payload_compat_tests;
 #[cfg(test)]

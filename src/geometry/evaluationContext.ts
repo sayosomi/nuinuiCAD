@@ -199,14 +199,20 @@ export const evaluateLocalVariables = (
   elementsById: Map<ElementId, CadElement>,
   errors: DependencyError[],
   computedVariables?: Map<ElementId, ComputedVariable>,
-  elements?: CadElement[]
+  elements?: CadElement[],
+  hasLegacyVariableElements = true
 ): LocalVariableEvaluation | null => {
   const localVariableValues = new Map<string, number>();
   const localVariableNames = new Map(
     (element.numericVariables ?? []).map((variable) => [variable.id, variable.name])
   );
 
-  if (computedVariables && elements) {
+  // `evaluateElements` determines this once from the source document. A
+  // forGroup appends runtime elements as it expands, so repeating this search
+  // here would make a pure nui 3 loop pay a growing legacy-variable scan for
+  // every generated element. Keep the legacy path byte-for-byte equivalent
+  // when a document does contain a `variable` element.
+  if (hasLegacyVariableElements && computedVariables && elements) {
     const elementIndex = elements.findIndex((item) => item.id === element.id);
     for (let index = elementIndex - 1; index >= 0; index -= 1) {
       const candidate = elements[index];

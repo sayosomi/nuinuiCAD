@@ -142,6 +142,11 @@ export const evaluateElements = (
   const errors: DependencyError[] = [];
   const warnings: EvaluationWarning[] = [];
   const elementsById = new Map(elements.map((element) => [element.id, element]));
+  // Legacy `var` lookup is the only reason evaluateLocalVariables needs to
+  // locate a runtime element and scan all preceding runtime elements. This is
+  // deliberately based on the source document once, rather than on the
+  // growing forGroup runtime array for every generated element.
+  const hasLegacyVariableElements = elements.some((element) => element.type === "variable");
   const runtimeElementsById = new Map(elementsById);
   const runtimeElements = [...evaluatedElements];
   const activities = effectiveElementActivityById(elements);
@@ -301,7 +306,8 @@ export const evaluateElements = (
       runtimeElementsById,
       errors,
       computedVariables,
-      runtimeElements
+      runtimeElements,
+      hasLegacyVariableElements
     );
     if (!localVariables) return;
 

@@ -3,25 +3,13 @@ use std::time::Instant;
 use serde_json::{json, Value};
 
 use super::{
-    activity::effective_activity_by_element_id, evaluate_document_input, EvaluationInput,
-    EvaluationPayload,
+    activity::effective_activity_by_element_id,
+    evaluate_document_input,
+    performance_test_support::{
+        log_measurement, measure_wall_time, timing_stats, FixtureMeasurement, TRIALS, WARM_UP_RUNS,
+    },
+    EvaluationInput,
 };
-
-const WARM_UP_RUNS: usize = 5;
-const TRIALS: usize = 21;
-
-struct TimingStats {
-    median_ms: f64,
-    p95_ms: f64,
-}
-
-struct FixtureMeasurement<'a> {
-    statement_count: usize,
-    binding_count: usize,
-    geometry_statement_count: usize,
-    result: &'a EvaluationPayload,
-    stats: &'a TimingStats,
-}
 
 fn standard_elements(statement_count: usize) -> Vec<Value> {
     assert!(statement_count >= 2 && statement_count.is_multiple_of(2));
@@ -147,67 +135,6 @@ fn activity_chain_elements(count: usize) -> Vec<Value> {
             element
         })
         .collect()
-}
-
-fn timing_stats(samples: &mut [f64]) -> TimingStats {
-    samples.sort_by(f64::total_cmp);
-    TimingStats {
-        median_ms: samples[samples.len() / 2],
-        p95_ms: samples[(samples.len() * 95).div_ceil(100).saturating_sub(1)],
-    }
-}
-
-fn measure_wall_time(
-    mut run: impl FnMut() -> EvaluationPayload,
-) -> (EvaluationPayload, TimingStats) {
-    let correctness = run();
-    for _ in 0..WARM_UP_RUNS {
-        let _ = run();
-    }
-
-    let mut samples = Vec::with_capacity(TRIALS);
-    for _ in 0..TRIALS {
-        let started = Instant::now();
-        let _ = run();
-        samples.push(started.elapsed().as_secs_f64() * 1_000.0);
-    }
-    (correctness, timing_stats(&mut samples))
-}
-
-fn log_measurement(area: &str, small: FixtureMeasurement<'_>, large: FixtureMeasurement<'_>) {
-    let scaling_ratio = large.stats.median_ms / small.stats.median_ms.max(f64::EPSILON);
-    eprintln!(
-        "[typedVariables baseline] {}",
-        json!({
-            "area": area,
-            "metric": "wallTimeMs",
-            "warmUpRuns": WARM_UP_RUNS,
-            "trials": TRIALS,
-            "runsPerTrial": 1,
-            "small": {
-                "statementCount": small.statement_count,
-                "bindingCount": small.binding_count,
-                "geometryStatementCount": small.geometry_statement_count,
-                "computedGeometryCount": small.result.computed_geometry.len(),
-                "generatedRowCount": small.result.for_group_generated_rows.len(),
-                "medianMs": small.stats.median_ms,
-                "p95Ms": small.stats.p95_ms,
-            },
-            "large": {
-                "statementCount": large.statement_count,
-                "bindingCount": large.binding_count,
-                "geometryStatementCount": large.geometry_statement_count,
-                "computedGeometryCount": large.result.computed_geometry.len(),
-                "generatedRowCount": large.result.for_group_generated_rows.len(),
-                "medianMs": large.stats.median_ms,
-                "p95Ms": large.stats.p95_ms,
-            },
-            "scalingRatio": scaling_ratio,
-        })
-    );
-    assert!(small.stats.median_ms.is_finite() && small.stats.p95_ms.is_finite());
-    assert!(large.stats.median_ms.is_finite() && large.stats.p95_ms.is_finite());
-    assert!(scaling_ratio.is_finite());
 }
 
 #[test]

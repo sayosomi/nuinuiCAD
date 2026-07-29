@@ -3,6 +3,10 @@ import { compileDslDocument } from "../dsl/dslDocument";
 import { analyzeTypedBindingRenameInDocument } from "../document/typedRenameAnalysis";
 
 type Measurement = { medianMs: number; p95Ms: number };
+const runPerformanceGates = (globalThis as {
+  process?: { env?: Record<string, string | undefined> };
+}).process?.env?.VITE_RUN_PERFORMANCE_GATES === "1";
+const describePerformanceGates = runPerformanceGates ? describe : describe.skip;
 
 // Dense fan-out, matching the property test's shape: `count` distinct `let`
 // declarations each directly referencing one shared binding - the shape most
@@ -45,7 +49,7 @@ const measure = (count: number): Measurement => {
   };
 };
 
-describe("Task 37 typed rename analysis performance", () => {
+describePerformanceGates("Task 37 typed rename analysis performance", () => {
   it("records 250/1000 dense fan-out rename analysis cost", () => {
     const small = measure(250);
     const large = measure(1000);
@@ -56,5 +60,5 @@ describe("Task 37 typed rename analysis performance", () => {
     );
     expect(analyzeRenameOnce(1000)).toBe(1000);
     expect(Number.isFinite(scaling)).toBe(true);
-  });
+  }, 150_000);
 });

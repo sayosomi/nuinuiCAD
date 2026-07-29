@@ -105,7 +105,7 @@
 | 47 | [existing document manual nui 3 migration](tasks/47-manual-nui3-migration.md) | migration operations | 51 | verified migrated documents | `typed-vars/47-manual-nui3-migration` | 未着手 |
 | 48 | [integrated diagnostics E2E](tasks/48-integrated-diagnostics-e2e.md) | diagnostics hardening | 23,24,25,28,32,35,36,38,41,44,45,46 | gated release check | `typed-vars/48-diagnostics-e2e` | 完了 |
 | 49 | [full TS/Rust parity matrix](tasks/49-full-parity-matrix.md) | parity hardening | 21,23,24,25,28,32,35,48 | release gate | `typed-vars/49-parity-matrix` | 完了 |
-| 50 | [performance regression gates](tasks/50-performance-regression-gates.md) | performance | 00,13,18,21,35,36,39,49 | release gate | `typed-vars/50-performance` | 未着手 |
+| 50 | [performance regression gates](tasks/50-performance-regression-gates.md) | performance | 00,13,18,21,35,36,39,49 | release gate | `typed-vars/50-performance` | 完了 |
 | 51 | [manual nui 3 E2E/docs](tasks/51-manual-e2e-docs.md) | manual validation/docs | 03,05,07,41,44,45,46,48,49,50 | migration-ready checklist | `typed-vars/51-manual-e2e` | 未着手 |
 | 52 | [legacy removal / nui 3-only activation](tasks/52-nui3-typed-variable-activation.md) | removal/activation | 47 | nui 3-only production | `typed-vars/52-nui3-only-activation` | 未着手 |
 
@@ -515,6 +515,79 @@ Inspectorに、選択中のtyped bindingのfinal runtime値・poison/recovery・
 - **file lifecycle**: `documentFile.ts` は unchanged。open/save は `sourceText` を verbatim で read/write し、facade は呼ばない。typed nui 3 の open → save → reopen test は scalar program/set metadata の再構築と source byte preservation を確認する。
 - **performance record (2026-07-28)**: `src/dsl/dslNui3Serializer.performance.test.ts` を fork 1 worker で実行し、1,000 mixed statements、30 warm-up、11 trials、trial あたり5 run の worker CPU time を測定した。full serialize は median **40.016 ms** / p95 **45.567 ms**、one-statement patch は median **0.107 ms** / p95 **0.121 ms**。Task 50 が CI 分散を踏まえた閾値を決めるまで、この記録は baseline のみで gate ではない。
 - 48 は integrated diagnostics の対象に facade の no-op/fail-closed ケースを含め、51/47 は実文書の manual open/save/reopen 確認で既存 file lifecycle を使う。formatter や legacy fallback の必要性が判明した場合は、この facade を拡張せず owner API の不足として別 task で判断する。
+
+## Task 50 performance regression gates
+
+Task 50 uses 250/1000 same-shape cases, 100 warm-up runs, and 21 trials. The pure binding-analysis gate retains 20 runs per worker-CPU trial; the TS-reference and forGroup gates retain their existing five-run trials. Each CI command fixes Vitest to one fork worker with file parallelism disabled. A gated JS measurement must be finite, keep both the 1000-case median and p95 below 5000 ms, and keep the 250→1000 median scaling below 8x. Rust remains an ignored, record-only wall-time benchmark.
+
+| Area | Command | Log prefix | Gate |
+| --- | --- | --- | --- |
+| Pure nui 3 binding analysis | `npm run test:performance:binding-analysis` | `[typedVariables performance:pureNui3BindingAnalysis]` | worker CPU gate |
+| Legacy/mixed binding analysis | `npm run test:performance:legacy-binding-analysis` | `[typedVariables baseline]` | record-only |
+| Binding-analysis stage profile | `npm run test:profile:binding-analysis` | `[Task50 binding-analysis profile]` | diagnosis only |
+| TS reference evaluation | `npm run test:performance:ts-reference` | `[typedVariables performance:tsReferenceEvaluation]` | worker CPU gate |
+| forGroup mutation | `npm run test:performance:for-group-mutation` | `[typedVariables performance:forGroupMutation]` | worker CPU gate |
+| Pure nui 3 Rust production evaluation | `npm run bench:performance:rust-production` | `[typedVariables baseline]` | ignored / record-only; scalar program and binding versions are separate cases |
+| Legacy Rust production evaluation | `npm run bench:performance:rust-production-legacy` | `[typedVariables baseline]` | ignored / record-only legacy fixture |
+
+The binding-analysis performance files run only from their explicit single-worker commands, not ordinary `npm test`; `typedDependencyGraph.performance` and `typedRenameAnalysis.performance` also retain their explicit 150-second test timeouts. This prevents the known default-5-second full-suite flakiness under parallel worker contention without weakening samples, thresholds, or warm-up.
+
+The former mixed production-equivalent fixture is `nui 3` syntactically, but deliberately includes legacy `var`, global/group visibility, iteration slots, and the legacy binding adapter. Its latest record-only run measured 13.310 / 13.756 ms at 250 and 161.189 / 161.752 ms at 1000 (12.110x); it is not a Task 50 blocking measurement.
+
+The pure nui 3 fixture contains only alternating typed `const`/`let` number declarations with an immediately preceding typed reference; it invokes no geometry/runtime evaluation. The stage profile isolated the superlinear work to type checking, not scope preparation, compiler, adapter, catalog, resolver, or graph analysis. The cause was one `resolved.filter(...)` scan for every typed binding. `analyzeTypedDeclarations` now builds ordered `fromBindingId` buckets in one pass over the resolver output and supplies each typecheck with its matching bucket. It neither sorts nor deduplicates, and does not re-resolve references.
+
+| Stage median (ms) | 250 | 1000 |
+| --- | ---: | ---: |
+| compiler | 0.084 | 0.273 |
+| scope | 0.092 | 0.218 |
+| adapter | 0.042 | 0.085 |
+| catalog | 0.157 | 0.497 |
+| resolver | 0.391 | 1.345 |
+| analysis | 0.497 | 1.671 |
+| typecheck | 0.088 | 0.323 |
+
+For 16 profile runs, bucket construction inspects 3,984 resolved references at 250 and 15,984 at 1000 (one pass per profile run), replacing the former 996,000 / 15,984,000 filter inspections. Focused coverage preserves multiple-occurrence ordering, interleaved source bindings, unresolved/forward diagnostic code/binding ID/exact span/order, and reference-free compiled declarations.
+
+### Task 50 pure nui 3 binding-analysis measurement (2026-07-29)
+
+After the ordered-resolution bucket repair, `npm run test:performance:binding-analysis` was run five times. All results are worker CPU milliseconds and use one fork worker with file parallelism disabled.
+
+| Run | 250 median / p95 | 1000 median / p95 | scaling |
+| ---: | ---: | ---: | ---: |
+| 1 | 1.920 / 2.188 | 8.362 / 9.289 | 4.355x |
+| 2 | 1.954 / 2.224 | 8.415 / 9.381 | 4.306x |
+| 3 | 1.972 / 2.158 | 8.453 / 9.331 | 4.288x |
+| 4 | 1.956 / 2.183 | 8.415 / 9.314 | 4.303x |
+| 5 | 1.922 / 2.111 | 8.406 / 9.302 | 4.374x |
+| median of five runs | 1.954 / 2.183 | 8.415 / 9.314 | 4.306x |
+
+Every result is finite, the 1000-case median/p95 remains below 5000 ms, and the five-run median scaling is below the fixed 8x gate. The legacy/mixed fixture remains record-only and is not promoted into this gate.
+
+### Task 50 pure nui 3 Rust production measurement (2026-07-29)
+
+`npm run bench:performance:rust-production` executes two ignored, record-only `evaluate_document` cases with the existing Rust protocol (5 warm-ups, 21 wall-time trials, one run per trial, and `--test-threads=1`). The cases never send both payload fields: the scalar-program case sends only `scalar_program`; the linear mutation case sends only `binding_versions` and contains one terminal `set` for the final typed `let`. Both use a no-legacy-`var` typed number chain with 250/1000 bindings, log median/p95/scaling independently, and separately require finite values plus a 1000-case median/p95 below 5000 ms. Scaling remains record-only; no Rust `<8x` CI gate is introduced.
+
+| Payload case | 250 median / p95 | 1000 median / p95 | scaling |
+| --- | ---: | ---: | ---: |
+| `scalar_program` only | 7.078 / 7.175 ms | 28.751 / 29.221 ms | 4.062x |
+| `binding_versions` only | 11.795 / 11.869 ms | 47.351 / 48.010 ms | 4.014x |
+
+The declaration-only scalar-program payload contains 250/1000 statements. The binding-versions payload has the same 250/1000 declarations plus its required terminal mutation (251/1001 version statements); values are not combined or averaged between the cases.
+
+### Task 50 forGroup production measurement (2026-07-29)
+
+After the no-legacy-`var` runtime fast path, the pure nui 3 production forGroup fixture was measured five times with `npm run test:performance:for-group-mutation`. All results are worker CPU milliseconds.
+
+| Run | 250 median / p95 | 1000 median / p95 | scaling |
+| ---: | ---: | ---: | ---: |
+| 1 | 0.845 / 2.638 | 4.458 / 5.108 | 5.278x |
+| 2 | 0.866 / 2.610 | 4.731 / 5.344 | 5.466x |
+| 3 | 0.840 / 2.401 | 4.683 / 5.176 | 5.573x |
+| 4 | 0.833 / 2.486 | 4.690 / 5.052 | 5.627x |
+| 5 | 0.848 / 2.453 | 4.702 / 5.077 | 5.548x |
+| median of five runs | 0.845 / 2.486 | 4.690 / 5.108 | 5.548x |
+
+The five-run median scaling is below the 8x gate. The old variable-element Rust production benchmark is now explicitly legacy-only and runs through `npm run bench:performance:rust-production-legacy`; it remains ignored and record-only, and does not loosen the JS CI gate.
 
 ## Blocking decisions
 
