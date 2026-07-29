@@ -11,6 +11,7 @@ import type { ScalarEvaluation } from "../scalars/types";
 import { getParameterValue, setParameterValue } from "../parameters/parameterAccess";
 import { isNumericExpression } from "./numericExpressions";
 import { geometryError } from "./evaluationContext";
+import { numericLiteralForExpression } from "../scalars/numericLiteral";
 
 export type NumericBindingRuntimeEntry = {
   elementId: ElementId;
@@ -82,13 +83,6 @@ const numericBindingFailure = (element: CadElement, parameterKey: string) =>
 const mappingFailure = (element: CadElement, parameterKey: string) =>
   geometryError(element, `"${element.name}" の "${parameterKey}" の数値式を正準の型付き参照へ対応付けられません。`);
 
-const literalForExpression = (value: number) => {
-  // `String` is deliberately a literal conversion, not a source formatter;
-  // the numeric parser owns the subsequent expression semantics.
-  const literal = String(value);
-  return Object.is(value, -0) ? "-0" : literal;
-};
-
 export const materializeNumericBindingElement = (
   element: CadElement,
   entries: readonly NumericBindingRuntimeEntry[] | undefined,
@@ -110,7 +104,9 @@ export const materializeNumericBindingElement = (
       if (expression.slice(reference.expressionStart, reference.expressionEnd) !== `@${reference.name}`) {
         return { ok: false, error: mappingFailure(materialized, entry.parameterKey) };
       }
-      expression = `${expression.slice(0, reference.expressionStart)}${literalForExpression(evaluation.value.value)}${expression.slice(reference.expressionEnd)}`;
+      const literal = numericLiteralForExpression(evaluation.value.value);
+      if (literal === null) return { ok: false, error: numericBindingFailure(materialized, entry.parameterKey) };
+      expression = `${expression.slice(0, reference.expressionStart)}${literal}${expression.slice(reference.expressionEnd)}`;
     }
     materialized = setParameterValue(materialized, entry.parameterKey, { kind: "expression", expression });
   }

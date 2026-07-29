@@ -271,6 +271,46 @@ fn runtime_error(element: &Value, parameter_key: &str, mapping: bool) -> Depende
     )
 }
 
+fn numeric_literal_for_expression(value: f64) -> Option<String> {
+    if !value.is_finite() {
+        return None;
+    }
+    if value == 0.0 && value.is_sign_negative() {
+        return Some("-0".to_owned());
+    }
+    let source = value.to_string();
+    let Some(exponent_at) = source.find(['e', 'E']) else {
+        return Some(source);
+    };
+    let (mantissa, exponent) = source.split_at(exponent_at);
+    let exponent = exponent[1..].parse::<isize>().ok()?;
+    let (sign, mantissa) = mantissa
+        .strip_prefix('-')
+        .map_or(("", mantissa), |rest| ("-", rest));
+    let (whole, fraction) = mantissa.split_once('.').unwrap_or((mantissa, ""));
+    let digits = format!("{whole}{fraction}");
+    let decimal = whole.len() as isize + exponent;
+    if decimal <= 0 {
+        return Some(format!(
+            "{sign}0.{}{}",
+            "0".repeat((-decimal) as usize),
+            digits
+        ));
+    }
+    if decimal as usize >= digits.len() {
+        return Some(format!(
+            "{sign}{digits}{}",
+            "0".repeat(decimal as usize - digits.len())
+        ));
+    }
+    let decimal = decimal as usize;
+    Some(format!(
+        "{sign}{}.{}",
+        &digits[..decimal],
+        &digits[decimal..]
+    ))
+}
+
 pub(crate) fn apply_numeric_bindings(
     element: &Value,
     entries: Option<&Vec<ValidatedNumericBinding>>,
@@ -310,7 +350,10 @@ pub(crate) fn apply_numeric_bindings(
             if expression.get(start..end) != Some(&format!("@{}", reference.name)) {
                 return Err(runtime_error(&materialized, &entry.parameter_key, true));
             }
-            expression.replace_range(start..end, &value.to_string());
+            let Some(literal) = numeric_literal_for_expression(value) else {
+                return Err(runtime_error(&materialized, &entry.parameter_key, false));
+            };
+            expression.replace_range(start..end, &literal);
         }
         let Some(target) = numeric_expression_mut(&mut materialized, &entry.parameter_key) else {
             return Err(runtime_error(&materialized, &entry.parameter_key, true));
@@ -321,4 +364,30 @@ pub(crate) fn apply_numeric_bindings(
         ]));
     }
     Ok(materialized)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::numeric_literal_for_expression;
+
+    #[test]
+    fn expands_finite_exponents_without_losing_the_ieee_value() {
+        for value in [
+            0.0,
+            -0.0,
+            f64::from_bits(1),
+            f64::MAX,
+            1e-7,
+            -1e-7,
+            1e20,
+            -42.0,
+            12.3456,
+        ] {
+            let literal = numeric_literal_for_expression(value).expect("finite");
+            assert!(!literal.contains(['e', 'E']));
+            assert_eq!(literal.parse::<f64>().unwrap().to_bits(), value.to_bits());
+        }
+        assert_eq!(numeric_literal_for_expression(-0.0).as_deref(), Some("-0"));
+        assert_eq!(numeric_literal_for_expression(f64::NAN), None);
+    }
 }
