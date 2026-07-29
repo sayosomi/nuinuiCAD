@@ -104,7 +104,7 @@
 | 46 | [nui 3 serializer/round-trip/patching](tasks/46-v3-serializer-roundtrip-patching.md) | persistence | 07,10,22,26,29,30 | gated nui 3 persistence | `typed-vars/46-v3-roundtrip` | 完了 |
 | 47 | [existing document manual nui 3 migration](tasks/47-manual-nui3-migration.md) | migration operations | 51 | verified migrated documents | `typed-vars/47-manual-nui3-migration` | 未着手 |
 | 48 | [integrated diagnostics E2E](tasks/48-integrated-diagnostics-e2e.md) | diagnostics hardening | 23,24,25,28,32,35,36,38,41,44,45,46 | gated release check | `typed-vars/48-diagnostics-e2e` | 完了 |
-| 49 | [full TS/Rust parity matrix](tasks/49-full-parity-matrix.md) | parity hardening | 21,23,24,25,28,32,35,48 | release gate | `typed-vars/49-parity-matrix` | 未着手 |
+| 49 | [full TS/Rust parity matrix](tasks/49-full-parity-matrix.md) | parity hardening | 21,23,24,25,28,32,35,48 | release gate | `typed-vars/49-parity-matrix` | 完了 |
 | 50 | [performance regression gates](tasks/50-performance-regression-gates.md) | performance | 00,13,18,21,35,36,39,49 | release gate | `typed-vars/50-performance` | 未着手 |
 | 51 | [manual nui 3 E2E/docs](tasks/51-manual-e2e-docs.md) | manual validation/docs | 03,05,07,41,44,45,46,48,49,50 | migration-ready checklist | `typed-vars/51-manual-e2e` | 未着手 |
 | 52 | [legacy removal / nui 3-only activation](tasks/52-nui3-typed-variable-activation.md) | removal/activation | 47 | nui 3-only production | `typed-vars/52-nui3-only-activation` | 未着手 |
@@ -270,6 +270,10 @@ Task 20/21のconst runtime pathはTask 31/32へ、Task 46のnui 3 persistence pa
 - Task 30後: mutation pathとTask 46のnui 3 persistenceを並行。
 - Task 35後: dependency/rename、completion/editor、runtime Inspectorを依存範囲内で並行。
 - Task 48後: parity、performance、manual E2Eを順に完了し、Task 47の手動migration後だけTask 52へ進む。
+
+## Task 49 parity release gate
+
+`npm run test:parity` は既存の直接JSON parity fixtureを従来どおり実行する。そのうえで`nui3-*.nui` source matrixは、compilerからproductionと共通のRust IPC payload builderを通し、payload全体、runtime diagnostic（code/ID/exact span）、activity/control mask、print group projectionをTS referenceとRustで比較する。各matrix fixtureはRust eligibilityも必須とする。Task 50/51/52はこの単一commandをrelease gateとして使う。
 
 ## Activation条件
 

@@ -451,6 +451,19 @@ describe("canUseRustEvaluationForElements", () => {
       ])
     ).toBe(false);
   });
+
+  it("keeps a supported element on the TypeScript path when its compiled property binding is unavailable", () => {
+    expect(
+      canUseRustEvaluationForElements([pointA], {
+        propertyBindingEntries: [{
+          elementId: pointA.id,
+          parameterKey: "mirrorX",
+          bindingId: "binding:missing",
+          expectedType: { kind: "boolean" }
+        }]
+      })
+    ).toBe(false);
+  });
 });
 
 describe("resolveEvaluationEngineMode", () => {
