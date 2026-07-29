@@ -92,6 +92,7 @@ export const useEvaluationEngine = (
   const conditionalOwnerStatementIdByElementId = options.conditionalOwnerStatementIdByElementId;
   const forGroupMutationOwnerByElementId = options.forGroupMutationOwnerByElementId;
   const propertyBindingEntries = options.propertyBindingEntries;
+  const numericBindingEntries = options.numericBindingEntries;
   const controlBooleanEntries = options.controlBooleanEntries;
   const conditionalGroupConditionsByElementId = options.conditionalGroupConditionsByElementId;
   const textTemplateEntriesByElementId = options.textTemplateEntriesByElementId;
@@ -105,6 +106,7 @@ export const useEvaluationEngine = (
         conditionalOwnerStatementIdByElementId, forGroupMutationOwnerByElementId
       } : {}),
       ...(propertyBindingEntries?.length ? { propertyBindingEntries } : {}),
+      ...(numericBindingEntries?.length ? { numericBindingEntries } : {}),
       ...(controlBooleanEntries?.length ? { controlBooleanEntries } : {}),
       ...(conditionalGroupConditionsByElementId?.size ? { conditionalGroupConditionsByElementId } : {}),
       ...(textTemplateEntriesByElementId?.size ? { textTemplateEntriesByElementId } : {}),
@@ -119,6 +121,7 @@ export const useEvaluationEngine = (
       conditionalOwnerStatementIdByElementId,
       forGroupMutationOwnerByElementId,
       propertyBindingEntries,
+      numericBindingEntries,
       controlBooleanEntries,
       conditionalGroupConditionsByElementId,
       textTemplateEntriesByElementId,
@@ -142,6 +145,7 @@ export const useEvaluationEngine = (
       forGroupMutationOwnerByElementId: forGroupMutationOwnerByElementId
         ? Array.from(forGroupMutationOwnerByElementId) : undefined,
       propertyBindingEntries,
+      numericBindingEntries,
       controlBooleanEntries,
       conditionalGroupConditionsByElementId: conditionalGroupConditionsByElementId
         ? Array.from(conditionalGroupConditionsByElementId)
@@ -160,6 +164,7 @@ export const useEvaluationEngine = (
       conditionalOwnerStatementIdByElementId,
       forGroupMutationOwnerByElementId,
       propertyBindingEntries,
+      numericBindingEntries,
       controlBooleanEntries,
       conditionalGroupConditionsByElementId,
       textTemplateEntriesByElementId,

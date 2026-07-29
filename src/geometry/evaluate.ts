@@ -31,6 +31,11 @@ import {
   type PropertyBindingRuntimeEntry
 } from "./propertyBindingRuntime";
 import {
+  groupNumericBindingRuntimeEntriesByElement,
+  materializeNumericBindingElement,
+  type NumericBindingRuntimeEntry
+} from "./numericBindingRuntime";
+import {
   resolveConditionalGroupBranch,
   resolveForGroupEffectiveShowGenerated
 } from "./controlBooleanRuntime";
@@ -68,6 +73,8 @@ export type EvaluateElementsOptions = {
    * than a silent no-op.
    */
   propertyBindingEntries?: readonly PropertyBindingRuntimeEntry[];
+  /** General numeric parameter occurrences compiled to BindingId slots. */
+  numericBindingEntries?: readonly NumericBindingRuntimeEntry[];
   /**
    * Task 25's elementId-keyed typed boolean conditions for `conditionalGroup`
    * (already re-keyed from CompiledDslDocument.conditionalGroupConditions by
@@ -111,6 +118,9 @@ export const evaluateElements = (
         "a caller must always derive both from the same compiled document (see " +
         "propertyBindingRuntime.ts's buildPropertyBindingRuntimeEntries), never one without the other"
     );
+  }
+  if (options.numericBindingEntries?.length && !options.scalarProgram) {
+    throw new Error("evaluateElements: numericBindingEntries was given without a scalarProgram");
   }
   if ((options.controlBooleanEntries?.length || options.conditionalGroupConditionsByElementId?.size) && !options.scalarProgram) {
     throw new Error(
@@ -190,6 +200,9 @@ export const evaluateElements = (
   const scalarBindingResolver = linearMutationResolver ?? declarationResolver;
   const propertyBindingEntriesByElementId = options.propertyBindingEntries
     ? groupPropertyBindingRuntimeEntriesByElement(options.propertyBindingEntries)
+    : undefined;
+  const numericBindingEntriesByElementId = options.numericBindingEntries
+    ? groupNumericBindingRuntimeEntriesByElement(options.numericBindingEntries)
     : undefined;
   const controlBooleanEntriesByElementId = options.controlBooleanEntries
     ? groupPropertyBindingRuntimeEntriesByElement(options.controlBooleanEntries)
@@ -299,6 +312,20 @@ export const evaluateElements = (
       return;
     }
     effectiveEnabledIds.add(element.id);
+
+    const numericEntriesForElement = numericBindingEntriesByElementId?.get((sourceElement ?? element).id);
+    if (numericEntriesForElement?.length) {
+      const materialized = materializeNumericBindingElement(
+        element,
+        numericEntriesForElement,
+        scalarBindingResolver!.resolveBinding
+      );
+      if (!materialized.ok) {
+        errors.push(materialized.error);
+        return;
+      }
+      element = materialized.element;
+    }
 
     const localVariables = evaluateLocalVariables(
       element,

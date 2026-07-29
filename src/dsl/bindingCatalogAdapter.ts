@@ -30,6 +30,11 @@ export type BuildDslBindingAdapterInput = {
 export type DslBindingAdapterResult = {
   legacyBindings: readonly BindingSeed[];
   iterationBindings: readonly BindingSeed[];
+  /** Element-local numeric variables deliberately occupy their own lookup
+   * lane.  They are never scalar-program values, but registering them here
+   * lets every compiled consumer preserve the established local-first
+   * numeric-expression priority without a runtime typed-name fallback. */
+  elementLocalBindings: readonly BindingSeed[];
   containerIndex: LegacyContainerIndex;
 };
 
@@ -46,6 +51,8 @@ export const buildDslBindingAdapterSeeds = ({
   for (const slot of scopeIndex.forGroupIterationSlots.values()) slotByStatementIndex.set(slot.statementIndex, slot);
   const legacyBindings: BindingSeed[] = [];
   const iterationBindings: BindingSeed[] = [];
+  const elementLocalBindings: BindingSeed[] = [];
+  const elementsById = new Map(reconciledContainers.elements.map((element) => [element.id, element]));
   // Source-order scan makes the adapter deterministic without sorting maps.
   for (let statementIndex = 0; statementIndex < statements.length; statementIndex += 1) {
     const legacy = recordByStatementIndex.get(statementIndex);
@@ -64,6 +71,29 @@ export const buildDslBindingAdapterSeeds = ({
       if (stableStatementId === undefined) throw new Error(`bindingCatalogAdapter: no stable statement id supplied for forGroup at index ${statementIndex}`);
       iterationBindings.push({ id: `binding:iteration:${stableStatementId}`, kind: "iteration", name: slot.name, nameSpan: slot.nameSpan, statementIndex, sourceOrder: 0, effectiveScopeId: slot.scopeId, visibility: { kind: "iteration", rootScopeId: slot.scopeId } });
     }
+    const elementId = reconciledContainers.elementIdByStatementIndex.get(statementIndex);
+    const element = elementId ? elementsById.get(elementId) : undefined;
+    const scopeId = scopeIndex.scopeOfStatement.get(statementIndex) ?? scopeIndex.rootScopeId;
+    for (const [sourceOrder, variable] of (element?.numericVariables ?? []).entries()) {
+      elementLocalBindings.push({
+        id: `binding:element-local:${element!.id}:${variable.id}`,
+        kind: "elementLocal",
+        name: variable.name,
+        nameSpan: null,
+        statementIndex,
+        sourceOrder,
+        effectiveScopeId: scopeId,
+        visibility: {
+          kind: "elementLocal",
+          ownerId: element!.id,
+          // Geometry properties are evaluated after this element's local
+          // variables have been computed, so all locals are visible there.
+          startOrder: 0,
+          endOrder: Number.MAX_SAFE_INTEGER
+        },
+        declaredType: { kind: "number" }
+      });
+    }
   }
-  return { legacyBindings, iterationBindings, containerIndex };
+  return { legacyBindings, iterationBindings, elementLocalBindings, containerIndex };
 };

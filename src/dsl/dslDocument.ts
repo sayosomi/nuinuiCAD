@@ -23,6 +23,7 @@ import { analyzeTypedDeclarations } from "../scalars/typedDeclarationAnalysis";
 import { bindingIssuesToDiagnostics } from "../scalars/bindingIssueDiagnostics";
 import type { DiagnosticSpanContext } from "./dslDiagnosticSpan";
 import { compilePropertyBindings, type ScalarValueSource } from "../scalars/propertyBindingCompiler";
+import { compileNumericBindings, type CompiledNumericBinding } from "../scalars/numericBindingCompiler";
 import { compileConditionalGroupConditions } from "../scalars/conditionalGroupConditionCompiler";
 import { compileSetStatements, type SetStatementAnalysis } from "../scalars/setStatementCompiler";
 import {
@@ -175,6 +176,8 @@ export type CompiledDslDocument = {
   /** Task 48: Task 22's property binding sources grouped by bindingId - see
    * propertyBindingCompiler.ts's own field doc. */
   occurrenceKeysByBindingId?: ReadonlyMap<BindingId, readonly string[]>;
+  /** Compiled typed occurrences within every canonical number parameter. */
+  numericBindings?: ReadonlyMap<string, CompiledNumericBinding>;
   /**
    * Task 25 compiled typed boolean conditions for `conditionalGroup.condition`,
    * keyed by propertyBindingOccurrenceKey(statementIndex, "condition"). A
@@ -917,6 +920,15 @@ export const compileDslDocument = (
         spans
       })
     : undefined;
+  const numericBindingCompilation = scalarAnalysis
+    ? compileNumericBindings({
+        statements: parsed.statements,
+        elementIdByStatementIndex: compiled.elementIdsByStatementIndex ?? new Map(),
+        elements: compiled.elements,
+        bindingAnalysis: scalarAnalysis.bindingAnalysis,
+        spans
+      })
+    : undefined;
   // Task 25: conditionalGroup.condition typed-boolean compile/typecheck.
   // Same scalarAnalysis-present gate as property bindings above - reuses the
   // same bindingAnalysis, never re-resolves names or re-derives Task 13's
@@ -985,11 +997,13 @@ export const compileDslDocument = (
     bindingAnalysis: scalarAnalysis?.bindingAnalysis,
     bindingVersions,
     propertyBindings: propertyBindingCompilation?.sourcesByOccurrenceKey,
+    numericBindings: numericBindingCompilation?.sourcesByOccurrenceKey,
     textTemplates: textTemplateCompilation?.templatesByOccurrenceKey,
     setStatements: setStatementCompilation?.setsByStatementIndex
   });
   const finalDiagnostics = [
     ...(propertyBindingCompilation ? [...allDiagnostics, ...propertyBindingCompilation.diagnostics] : allDiagnostics),
+    ...(numericBindingCompilation ? numericBindingCompilation.diagnostics : []),
     ...(conditionalGroupConditionCompilation ? conditionalGroupConditionCompilation.diagnostics : []),
     ...(textTemplateCompilation ? textTemplateCompilation.diagnostics : []),
     ...(setStatementCompilation ? setStatementCompilation.diagnostics : [])
@@ -1006,6 +1020,7 @@ export const compileDslDocument = (
       ...(scalarProgram ? { scalarProgram } : {}),
       ...(scalarAnalysis ? { bindingAnalysis: scalarAnalysis.bindingAnalysis } : {}),
       ...(scalarAnalysis ? { scalarProgramPositionMap: scalarAnalysis.positionMap } : {}),
+      ...(numericBindingCompilation ? { numericBindings: numericBindingCompilation.sourcesByOccurrenceKey } : {}),
       ...(setStatementCompilation ? { setStatements: setStatementCompilation.setsByStatementIndex } : {}),
       ...(bindingVersions ? { bindingVersions } : {}),
       ...(typedDependencyGraph ? { typedDependencyGraph } : {}),
@@ -1055,6 +1070,7 @@ export const compileDslDocument = (
           occurrenceKeysByBindingId: propertyBindingCompilation.occurrenceKeysByBindingId
         }
       : {}),
+    ...(numericBindingCompilation ? { numericBindings: numericBindingCompilation.sourcesByOccurrenceKey } : {}),
     ...(conditionalGroupConditionCompilation
       ? { conditionalGroupConditions: conditionalGroupConditionCompilation.sourcesByOccurrenceKey }
       : {}),

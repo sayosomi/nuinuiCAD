@@ -202,6 +202,7 @@ export const analyzeTypedDeclarations = ({
     stableStatementIdByIndex,
     legacyBindings: adapter.legacyBindings,
     iterationBindings: adapter.iterationBindings,
+    elementLocalBindings: adapter.elementLocalBindings,
     containerIndex: adapter.containerIndex
   });
   const parsedByBindingId = new Map<BindingId, ParsedInitializer>();
