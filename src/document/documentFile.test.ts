@@ -122,6 +122,30 @@ describe("document file lifecycle", () => {
     expect(reopened.doc.setStatements).toHaveLength(1);
   });
 
+  it("preserves escaped literal braces through open, save, and reopen", async () => {
+    const content = [
+      "nui 3",
+      'text Label = label(text: "\\{draft\\}" anchor: none size: 3)'
+    ].join("\n");
+    dialogMock.open.mockResolvedValue("/tmp/escaped-template.nui");
+    tauriCoreMock.invoke.mockResolvedValue(content);
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+
+    await openDocument();
+    expect(useCadDocumentStore.getState().sourceText).toBe(content);
+
+    tauriCoreMock.invoke.mockResolvedValue(undefined);
+    await saveDocument();
+    expect(tauriCoreMock.invoke).toHaveBeenLastCalledWith("write_document_file", {
+      path: "/tmp/escaped-template.nui",
+      content,
+    });
+
+    tauriCoreMock.invoke.mockResolvedValue(content);
+    await openDocument();
+    expect(useCadDocumentStore.getState().sourceText).toBe(content);
+  });
+
   it("converts a v1 .nui on open, keeps its path, and marks the result dirty for a v2 save", async () => {
     const content = "\uFEFFnui 1\n# discarded during conversion\npoint A = (0, 0)";
     dialogMock.open.mockResolvedValue("/tmp/legacy.nui");
