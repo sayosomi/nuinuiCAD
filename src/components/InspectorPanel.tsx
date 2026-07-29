@@ -538,7 +538,7 @@ export const InspectorPanel = ({
           <div className="dependency-group">
             <h3 className="shortcut-group-title">パラメーター</h3>
             <div className="dependency-list">
-              {parameterRows.map((row) => (
+              {parameterRows.flatMap((row) => [
                 <div key={row.key}>
                   <div
                     className="inspector-row inspector-parameter-row"
@@ -579,16 +579,18 @@ export const InspectorPanel = ({
                     ) : null;
                     })()}
                   </div>
-                  {row.parameterKey === "text" && textHasDifferentRuntimeResult ? (
+                </div>,
+                ...(row.parameterKey === "text" && textHasDifferentRuntimeResult ? [
+                  <div key={`${row.key}:evaluated-text`}>
                     <div className="inspector-row">
                       <span className="inspector-row-main">
                         <span>評価結果</span>
                         <small>{evaluatedText}</small>
                       </span>
                     </div>
-                  ) : null}
-                </div>
-              ))}
+                  </div>
+                ] : [])
+              ])}
             </div>
           </div>
           </>

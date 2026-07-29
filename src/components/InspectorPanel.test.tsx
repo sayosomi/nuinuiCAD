@@ -154,10 +154,17 @@ describe("InspectorPanel mouse-only actions", () => {
       <InspectorPanel element={label} elements={state.elements} evaluation={evaluation} sourceEditorRef={sourceEditorRef} />,
     );
 
-    expect(screen.getByText("テキスト（ソース）")).toBeInTheDocument();
-    expect(screen.getByText("評価結果")).toBeInTheDocument();
+    const sourceRow = screen.getByText("テキスト（ソース）").closest(".inspector-row");
+    const resultRow = screen.getByText("評価結果").closest(".inspector-row");
+    const parameterList = sourceRow?.closest(".dependency-list");
+    if (!(sourceRow instanceof HTMLElement) || !(resultRow instanceof HTMLElement) || !(parameterList instanceof HTMLElement)) {
+      throw new Error("Missing text Inspector rows");
+    }
+
+    expect(sourceRow.parentElement?.parentElement).toBe(parameterList);
+    expect(resultRow.parentElement?.parentElement).toBe(parameterList);
     expect(screen.getByText("\\{draft\\} {@label} {@length}\\n")).toBeInTheDocument();
-    expect(screen.getByText("評価結果").closest(".inspector-row")?.textContent).toBe("評価結果{draft} 前身頃 12.346\n");
+    expect(resultRow.textContent).toBe("評価結果{draft} 前身頃 12.346\n");
     view.unmount();
   });
 
