@@ -53,6 +53,10 @@ import {
   completedCommandLineSteps
 } from "./commandLineProgress";
 import { commandLineStepHelp, isCommandLineReferenceStep } from "./commandLineBarHelpers";
+import {
+  commandLineDuplicateNameMessage,
+  validateCommandLineElementName
+} from "../commands/commandLineNameValidation";
 
 type CommandLineBarProps = {
   commandContext?: CommandContext;
@@ -115,6 +119,14 @@ export const CommandLineBar = ({ commandContext, evaluation }: CommandLineBarPro
     ? inputState.value
     : session ? commandLineEditingInputValue(session, step) : "";
   const setInputValue = (value: string) => setInputState({ step: stepIdentity, value });
+  const duplicateNameMessage = useMemo(() => {
+    if (!session || step?.kind !== "name") return null;
+    return commandLineDuplicateNameMessage(validateCommandLineElementName({
+      name: inputValue || session.nameSuggestion,
+      elements,
+      parentGroupId: session.insertionTarget.parentGroupId
+    }));
+  }, [elements, inputValue, session, step?.kind]);
   const numberVariableOptions = useMemo(() => {
     if (!session || step?.kind !== "number") return [];
     const placement = creationPlacementForTarget(elements, session.insertionTarget, evaluationLimitIndex);
@@ -521,7 +533,8 @@ export const CommandLineBar = ({ commandContext, evaluation }: CommandLineBarPro
                   value={inputValue}
                   placeholder={placeholder}
                   aria-label={stepLabel}
-                  aria-describedby="command-line-input-help"
+                  aria-describedby={duplicateNameMessage ? "command-line-input-help command-line-name-error" : "command-line-input-help"}
+                  aria-invalid={duplicateNameMessage ? true : undefined}
                   onChange={(event) => {
                     const nextValue = event.target.value;
                     setAcceptedReferenceSuggestion(null);
@@ -548,6 +561,7 @@ export const CommandLineBar = ({ commandContext, evaluation }: CommandLineBarPro
                   onSelect={(event) => setNumberSuggestionSelection({ start: event.currentTarget.selectionStart, end: event.currentTarget.selectionEnd })}
                   onKeyUp={(event) => setNumberSuggestionSelection({ start: event.currentTarget.selectionStart, end: event.currentTarget.selectionEnd })}
                 />
+                {duplicateNameMessage ? <span id="command-line-name-error" className="command-line-bar-error" role="alert">{duplicateNameMessage}</span> : null}
                 {referenceSuggestionsOpen ? (
                   <ul className="command-line-suggestions" role="listbox" aria-label="参照候補">
                     {visibleSuggestions.map((suggestion, index) => (

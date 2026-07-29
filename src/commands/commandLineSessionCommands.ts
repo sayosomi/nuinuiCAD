@@ -48,6 +48,12 @@ import {
   syncCommandLineGhostPreview
 } from "./commandLineGhostPreview";
 import { promoteDirectlyReferencedUnnamedElements } from "./commandLineUnnamedPromotion";
+import { commitCommandLineSourceInsertion } from "./commandLineSourceCommit";
+import { sourceInsertionForCommandLineCreation } from "./commandLineSourceInsertion";
+import {
+  commandLineDuplicateNameMessage,
+  validateCommandLineElementName
+} from "./commandLineNameValidation";
 import type { CommandContext } from "./commandTypes";
 
 const compositionError = "日本語入力の確定中はコマンドを実行できません。入力を確定してから再操作してください。";
@@ -107,8 +113,16 @@ export const startCommandLineCreationForRecipe = (
   }
   const document = useCadDocumentStore.getState();
   const cursorElementId = context?.currentCursorElementId?.() ?? null;
-  const insertionAnchor = insertionAnchorForCommandLineCreation(cursorElementId);
-  const insertionTarget = resolveCommandLineInsertionAnchor(insertionAnchor, document.elements);
+  const sourceCursor = context?.currentSourceCursor?.() ?? null;
+  const sourceInsertion = sourceCursor?.sourceRevision === document.sourceRevision && document.doc.statementMap
+    ? sourceInsertionForCommandLineCreation({
+        cursor: sourceCursor,
+        elements: document.elements,
+        statementMap: document.doc.statementMap
+      })
+    : null;
+  const insertionAnchor = insertionAnchorForCommandLineCreation(sourceCursor?.elementId ?? cursorElementId);
+  const insertionTarget = sourceInsertion?.insertionTarget ?? resolveCommandLineInsertionAnchor(insertionAnchor, document.elements);
   if (insertionTarget === null) return false;
 
   // Re-entry ordering is intentional: nothing above mutates UI state, while
@@ -126,6 +140,7 @@ export const startCommandLineCreationForRecipe = (
     insertionAnchor,
     insertionIndex: insertionTarget.insertionIndex,
     insertionTarget,
+    sourceInsertionLine: sourceInsertion?.sourceInsertionLine ?? null,
     revision: document.sourceRevision,
     elements: document.elements,
     placement
@@ -248,6 +263,19 @@ const confirmEditingDraft = (draftSession: CommandLineSession) => {
 export const fillCommandLineCurrentStep = (value: Parameters<typeof fillCurrentStep>[1]) => {
   const session = useCadUiStore.getState().commandLineSession;
   if (!session || cancelStaleCommandLineSession()) return false;
+  const step = currentStep(session);
+  if (step?.kind === "name") {
+    const validation = validateCommandLineElementName({
+      name: value as string,
+      elements: useCadDocumentStore.getState().elements,
+      parentGroupId: session.insertionTarget.parentGroupId
+    });
+    const message = commandLineDuplicateNameMessage(validation);
+    if (message) {
+      setSessionAndSyncPickTarget(withCommandLineSessionError(session, message));
+      return false;
+    }
+  }
   const next = fillCurrentStep(session, value);
   if (next === session) return false;
   return isEditingCommandLineStep(session)
@@ -341,12 +369,16 @@ export const confirmCommandLineSession = (context?: CommandContext) => {
   if (!sessionCanConfirm(session)) return false;
 
   const document = useCadDocumentStore.getState();
-  const insertionTarget = resolveCommandLineInsertionAnchor(session.insertionAnchor, document.elements);
+  const insertionTarget = session.sourceInsertionLine === null
+    ? resolveCommandLineInsertionAnchor(session.insertionAnchor, document.elements)
+    : session.insertionTarget;
   if (insertionTarget === null) {
     clearStaleSession();
     return false;
   }
-  const promotion = promoteDirectlyReferencedUnnamedElements(session, document.elements);
+  const promotion = session.sourceInsertionLine === null
+    ? promoteDirectlyReferencedUnnamedElements(session, document.elements)
+    : { elements: document.elements, promotedElementIds: [] };
   // The resolved semantic anchor owns the insertion position; placement only
   // derives the parent and reference context for that exact location.
   const placement = creationPlacementForTarget(
@@ -359,10 +391,28 @@ export const confirmCommandLineSession = (context?: CommandContext) => {
     referenceElements: placement.referenceElements
   });
   const element = applyCreationPlacement(emitted, placement);
+  const nameValidation = validateCommandLineElementName({
+    name: element.name,
+    elements: promotion.elements,
+    parentGroupId: placement.parentGroupId
+  });
+  const duplicateNameMessage = commandLineDuplicateNameMessage(nameValidation);
+  if (duplicateNameMessage) {
+    setSessionAndSyncPickTarget(withCommandLineSessionError(session, duplicateNameMessage));
+    return false;
+  }
   // The final materialization owns the canonical document; clear the ephemeral
   // candidate first so a rejected bridge call cannot leave a stale ghost.
   clearCommandLineGhostPreview();
-  const result = commitDocumentChangeAndSelect({
+  const sourceCommit = session.sourceInsertionLine === null
+    ? null
+    : commitCommandLineSourceInsertion({
+        element,
+        elements: promotion.elements,
+        insertionIndex: insertionTarget.insertionIndex,
+        sourceInsertionLine: session.sourceInsertionLine
+      });
+  const result = sourceCommit?.result ?? commitDocumentChangeAndSelect({
     elements: [
       ...promotion.elements.slice(0, insertionTarget.insertionIndex),
       element,
@@ -387,11 +437,20 @@ export const confirmCommandLineSession = (context?: CommandContext) => {
     return false;
   }
 
+  const selectedElementId = sourceCommit?.elementId ?? element.id;
+  if (sourceCommit?.elementId) {
+    useCadUiStore.getState().applySelection(useCadDocumentStore.getState().elements, {
+      selectedElementId,
+      selectedElementIds: [selectedElementId],
+      selectionAnchorElementId: selectedElementId
+    });
+  }
+
   clearCommandLineGhostPreview();
   useCadUiStore.getState().clearPickMode();
   const focusSourceEditor = () => {
     if (context?.focusSourceEditorAtElementEnd) {
-      context.focusSourceEditorAtElementEnd(element.id);
+      context.focusSourceEditorAtElementEnd(selectedElementId);
       return;
     }
     context?.focusSourceEditor?.();
