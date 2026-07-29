@@ -205,14 +205,21 @@ textarea {
   width: 10px;
 }
 
+.source-editor-pane .cm-status-gutter .cm-gutterElement {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* The activity marker center is 11px into the 21px source line:
+     2px top offset + half of its 18px box. */
+  padding-top: 1px;
+}
+
 .source-editor-pane .cm-status-gutter-marker {
-  display: inline-block;
+  display: block;
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  /* The adjacent activity marker is 18px high with a 2px top offset. Keep
-     this 6px status dot's center on the same source-line center. */
-  margin: 8px 2px 4px;
+  margin: 0;
 }
 
 .source-editor-pane .cm-element-state-gutter {
@@ -230,7 +237,9 @@ textarea {
   place-items: center;
   width: 18px;
   height: 18px;
-  margin-top: 2px;
+  /* Align the optical center of the activity glyph with the adjacent
+     status-gutter dot. */
+  margin-top: 1px;
   cursor: pointer;
   color: #8b9086;
   font-size: 11px;
