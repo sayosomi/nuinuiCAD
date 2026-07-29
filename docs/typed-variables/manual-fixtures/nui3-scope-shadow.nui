@@ -1,0 +1,9 @@
+nui 3
+const outer: number = 10
+group Scope {
+  const usesOuterBeforeShadow: number = @outer
+  const outer: number = 20
+  const usesInnerAfterShadow: number = @outer
+  text Inside = label(text: "before={@usesOuterBeforeShadow} after={@usesInnerAfterShadow}" anchor: none size: 3)
+}
+text Outside = label(text: "outer={@outer}" anchor: none size: 3)

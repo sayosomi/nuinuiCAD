@@ -1,0 +1,4 @@
+nui 3
+let 表示ラベル: string = "初期値"
+text Display = label(text: "{@表示ラベル}" anchor: none size: 3)
+set 表示ラベル = "更新後"
