@@ -7,12 +7,13 @@ import type { BindingAnalysis, BindingIssue } from "./bindingAnalysis";
 import type { BindingId } from "./bindingCatalog";
 import { beforeStatement, readBindingVersionAtPosition, type BindingVersionGraph } from "./bindingVersions";
 import type { ScalarValueSource } from "./propertyBindingCompiler";
+import type { CompiledNumericBinding } from "./numericBindingCompiler";
 import type { SetStatementAnalysis } from "./setStatementCompiler";
 import type { TextTemplateAst } from "./textTemplate";
 import type { TypedScalarExpression } from "./typedExpressionAst";
 
 export type TypedDependencyReason = "missing" | "invalid" | "late" | "disabled";
-export type TypedDependencyKind = "initializer" | "set-rhs" | "property-binding" | "template-hole";
+export type TypedDependencyKind = "initializer" | "set-rhs" | "property-binding" | "numeric-expression" | "template-hole";
 
 export type TypedDependencyEndpoint =
   | { kind: "binding"; id: BindingId; name: string; statementIndex: number; span: DslSpan | null }
@@ -40,6 +41,7 @@ export type TypedDependencyGraphInput = {
   bindingAnalysis?: BindingAnalysis;
   bindingVersions?: BindingVersionGraph;
   propertyBindings?: ReadonlyMap<string, ScalarValueSource>;
+  numericBindings?: ReadonlyMap<string, CompiledNumericBinding>;
   textTemplates?: ReadonlyMap<string, TextTemplateAst>;
   setStatements?: ReadonlyMap<number, SetStatementAnalysis>;
 };
@@ -97,6 +99,7 @@ export const buildTypedDependencyGraph = ({
   bindingAnalysis,
   bindingVersions,
   propertyBindings,
+  numericBindings,
   textTemplates,
   setStatements
 }: TypedDependencyGraphInput): TypedDependencyGraph | undefined => {
@@ -146,6 +149,20 @@ export const buildTypedDependencyGraph = ({
       span: source.span,
       reason: reasonFor(source.bindingId)
     });
+  }
+  for (const [key, source] of numericBindings ?? []) {
+    const statementIndex = Number(key.slice(0, key.indexOf(":")));
+    const elementId = elementIdByStatementIndex.get(statementIndex);
+    if (!elementId) continue;
+    for (const reference of source.references) {
+      add({
+        kind: "numeric-expression",
+        from: elementEndpoint(elementsById, elementId, statementIndex),
+        to: bindingEndpoint(bindingAnalysis, reference.bindingId),
+        span: reference.span,
+        reason: reasonFor(reference.bindingId)
+      });
+    }
   }
   for (const [key, template] of textTemplates ?? []) {
     const statementIndex = Number(key.slice(0, key.indexOf(":")));

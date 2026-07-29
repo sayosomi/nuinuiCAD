@@ -103,6 +103,7 @@ set 表示する = false
 - `set`の効果はその行より後だけ。initializerをversion 0、各`set`を後続versionとして扱う。
 - 評価失敗versionはbindingをpoisonする。後続の正常な`set`で回復する。
 - typed numberは既存numeric expressionを使える。新しいmeasurementは`distance(A, B)`、`angle(A, B)`、既存点線距離関数をtyped number initializerで使う。
+- `nui 3` の全number属性でも、解決済みtyped `@name` occurrenceはcompile時のBindingId slotとして評価する。runtimeは名前を再解決せず、legacy variable／element local／forGroup iterationだけが既存numeric name lookupに残る。`set`のcurrent version、poison、後続recoveryは属性のsource orderで反映する。
 - legacy pointDistance/pointAngle/pointLineDistance `var`は手動migrationまで既存bridgeに残ってもよいが、互換拡張や自動変換は行わずTask 52で削除する。
 
 ## string literalとtext template

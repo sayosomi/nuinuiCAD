@@ -4,6 +4,7 @@ import { dispatchCommand } from "../commands/commands";
 import { loadCommandRibbonSettings } from "../commandRibbons/commandRibbonSettings";
 import { registerUnsavedChangesGuard } from "../document/unsavedChangesGuard";
 import { buildPropertyBindingRuntimeEntries } from "../geometry/propertyBindingRuntime";
+import { buildNumericBindingRuntimeEntries } from "../geometry/numericBindingRuntime";
 import {
   buildConditionalMutationOwners,
   conditionalOwnerIdByElementId
@@ -133,6 +134,7 @@ export const AppLayout = () => {
   const scalarProgram = useCadDocumentStore((state) => state.doc.scalarProgram);
   const bindingVersions = useCadDocumentStore((state) => state.doc.bindingVersions);
   const propertyBindings = useCadDocumentStore((state) => state.doc.propertyBindings);
+  const numericBindings = useCadDocumentStore((state) => state.doc.numericBindings);
   const conditionalGroupConditions = useCadDocumentStore((state) => state.doc.conditionalGroupConditions);
   // Task 27: textTemplates is read the same way as the other compiled-
   // document fields above (last-good doc.textTemplates, keyed against the
@@ -202,6 +204,13 @@ export const AppLayout = () => {
         : undefined,
     [scalarProgram, propertyBindings, elementIdByStatementIndex, canonicalElements]
   );
+  const numericBindingEntries = useMemo(
+    () =>
+      scalarProgram && numericBindings
+        ? buildNumericBindingRuntimeEntries({ numericBindings, elementIdByStatementIndex }, canonicalElements)
+        : undefined,
+    [scalarProgram, numericBindings, elementIdByStatementIndex, canonicalElements]
+  );
   const conditionalGroupConditionsByElementId = useMemo(
     () =>
       scalarProgram && conditionalGroupConditions
@@ -252,6 +261,7 @@ export const AppLayout = () => {
         conditionalOwnerStatementIdByElementId, forGroupMutationOwnerByElementId: forGroupMutationOwnersByElementId
       } : {}),
       ...(propertyBindingEntries?.length ? { propertyBindingEntries } : {}),
+      ...(numericBindingEntries?.length ? { numericBindingEntries } : {}),
       ...(controlBooleanEntries?.length ? { controlBooleanEntries } : {}),
       ...(conditionalGroupConditionsByElementId?.size ? { conditionalGroupConditionsByElementId } : {}),
       ...(textTemplateEntriesByElementId?.size ? { textTemplateEntriesByElementId } : {}),
@@ -266,6 +276,7 @@ export const AppLayout = () => {
       conditionalOwnerStatementIdByElementId,
       forGroupMutationOwnersByElementId,
       propertyBindingEntries,
+      numericBindingEntries,
       controlBooleanEntries,
       conditionalGroupConditionsByElementId,
       textTemplateEntriesByElementId,

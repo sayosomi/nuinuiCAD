@@ -21,6 +21,7 @@
 // mirroring src/document/renameAnalysis.ts's `validateRenameReferenceStability`
 // ("every before/after reference slot; rename targets receive no exception").
 import type { DslSpan, DslStatement } from "../dsl/dslTypes";
+import type { DslPhysicalSpan } from "../dsl/logicalStatementSourceMap";
 import { isBareDslIdentifierChar } from "../dsl/dslTokens";
 import type { Binding, BindingCatalog, BindingId, BindingKind } from "./bindingCatalog";
 import {
@@ -34,6 +35,7 @@ import type { ScalarValueSource } from "./propertyBindingCompiler";
 import type { ScalarProgram } from "./scalarProgram";
 import { classifySetTargetResolution, type SetStatementAnalysis, type SetTargetClassification } from "./setStatementCompiler";
 import type { TextTemplateAst } from "./textTemplate";
+import type { CompiledNumericBinding } from "./numericBindingCompiler";
 import {
   collectInitializerOccurrences,
   collectSiteBatchOccurrences,
@@ -47,10 +49,12 @@ export type TypedRenameAnalysisInput = {
   statements: readonly DslStatement[];
   targetBindingId: BindingId;
   newName: string;
+  physicalSpan?: DslPhysicalSpan;
   scalarProgram?: ScalarProgram;
   setStatements?: ReadonlyMap<number, SetStatementAnalysis>;
   propertyBindings?: ReadonlyMap<string, ScalarValueSource>;
   textTemplates?: ReadonlyMap<string, TextTemplateAst>;
+  numericBindings?: ReadonlyMap<string, CompiledNumericBinding>;
 };
 
 export type TypedRenameSpan = {
@@ -210,6 +214,7 @@ export const analyzeTypedBindingRename = (input: TypedRenameAnalysisInput): Type
     setStatements: input.setStatements,
     propertyBindings: input.propertyBindings,
     textTemplates: input.textTemplates
+    , numericBindings: input.numericBindings
   });
   const setTargetOccurrences = siteOccurrences.filter((occurrence) => occurrence.kind === "set-target");
   const otherSiteOccurrences = siteOccurrences.filter((occurrence) => occurrence.kind !== "set-target");
@@ -287,7 +292,8 @@ export const analyzeTypedBindingRename = (input: TypedRenameAnalysisInput): Type
       statementIndex: occurrence.site.statementIndex,
       span: occurrence.span,
       oldName: occurrence.currentName,
-      newName
+      newName,
+      ...(occurrence.physicalSpan ? { physicalSpan: occurrence.physicalSpan } : {})
     });
   }
 

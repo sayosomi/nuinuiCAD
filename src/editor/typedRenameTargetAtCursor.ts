@@ -13,6 +13,7 @@ import type { ScalarValueSource } from "../scalars/propertyBindingCompiler";
 import type { ScalarProgram } from "../scalars/scalarProgram";
 import type { SetStatementAnalysis } from "../scalars/setStatementCompiler";
 import type { TextTemplateAst } from "../scalars/textTemplate";
+import type { CompiledNumericBinding } from "../scalars/numericBindingCompiler";
 import { referencesIn } from "../scalars/typedDependencyGraph";
 import type { TypedScalarExpression } from "../scalars/typedExpressionAst";
 import type { DslSpan, DslStatement } from "../dsl/dslTypes";
@@ -34,6 +35,7 @@ export type TypedRenameCursorDocument = {
   setStatements?: ReadonlyMap<number, SetStatementAnalysis>;
   propertyBindings?: ReadonlyMap<string, ScalarValueSource>;
   textTemplates?: ReadonlyMap<string, TextTemplateAst>;
+  numericBindings?: ReadonlyMap<string, CompiledNumericBinding>;
 };
 
 export type TypedRenameCursorContext = {
@@ -84,6 +86,19 @@ const propertyBindingTargetAtCursor = (context: TypedRenameCursorContext, cursor
     if (cursor < range.span.from || cursor >= range.span.to) continue;
     const source = context.doc.propertyBindings?.get(range.occurrenceKey);
     if (source?.kind === "binding") return source.bindingId;
+  }
+  return null;
+};
+
+const numericBindingTargetAtCursor = (context: TypedRenameCursorContext, cursor: number): BindingId | null => {
+  for (const [key, numeric] of context.doc.numericBindings ?? []) {
+    void key;
+    for (const reference of numeric.references) {
+      const segment = reference.physicalNameSpan?.segments.length === 1 ? reference.physicalNameSpan.segments[0] : null;
+      if (!segment) continue;
+      const { from, to } = segment;
+      if (cursor >= from && cursor < to) return reference.bindingId;
+    }
   }
   return null;
 };
@@ -146,6 +161,7 @@ const typedDeclarationTargetAtCursor = (context: TypedRenameCursorContext, curso
  */
 export const typedRenameTargetBindingIdAtCursor = (context: TypedRenameCursorContext, cursor: number): BindingId | null =>
   templateHoleTargetAtCursor(context, cursor) ??
+  numericBindingTargetAtCursor(context, cursor) ??
   propertyBindingTargetAtCursor(context, cursor) ??
   setStatementTargetAtCursor(context, cursor) ??
   typedDeclarationTargetAtCursor(context, cursor);

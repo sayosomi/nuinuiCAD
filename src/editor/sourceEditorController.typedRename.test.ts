@@ -265,6 +265,36 @@ describe("SourceEditorController.currentCursorTypedRenameTargetBindingId / F2 di
     controller.destroy();
   });
 
+  it("propagates a declaration rename into a compiled numeric expression", () => {
+    const source = ["nui 3", "const length: number = 12", "point B = coordinate(x: @length + 5 y: 0)"].join("\n");
+    useCadDocumentStore.getState().commitText(source, "test");
+    const parent = document.createElement("div");
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+    const offset = source.indexOf("const length") + "const ".length;
+    internals.view.dispatch({ selection: { anchor: offset }, annotations: Transaction.addToHistory.of(false) });
+    const bindingId = controller.currentCursorTypedRenameTargetBindingId();
+    expect(renameTypedBindingWithPropagation(bindingId!, "width")).toBe(true);
+    expect(useCadDocumentStore.getState().sourceText).toContain("coordinate(x: @width + 5 y: 0)");
+    controller.destroy();
+  });
+
+  it("routes and propagates rename through a multiline numeric attribute using its exact physical span", () => {
+    const source = ["nui 3", "const length: number = 12", "", "point P = coordinate(", "  x: @length", "  y: 0", ")"].join("\n");
+    useCadDocumentStore.getState().commitText(source, "test");
+    const parent = document.createElement("div");
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+    const name = source.indexOf("@length") + 1;
+    for (const cursor of [name, name + 3, name + 5]) {
+      internals.view.dispatch({ selection: { anchor: cursor }, annotations: Transaction.addToHistory.of(false) });
+      expect(controller.currentCursorTypedRenameTargetBindingId()).not.toBeNull();
+    }
+    expect(renameTypedBindingWithPropagation(controller.currentCursorTypedRenameTargetBindingId()!, "width")).toBe(true);
+    expect(useCadDocumentStore.getState().sourceText).toContain("x: @width");
+    controller.destroy();
+  });
+
   it("neither prompt opens, and no source changes, when nothing is selected and the cursor is not on a typed construct", () => {
     useCadDocumentStore.getState().commitText("nui 3\npoint A = coordinate(x: 0 y: 0)", "test");
     useCadUiStore.getState().reconcileSelectionWithElements([]);

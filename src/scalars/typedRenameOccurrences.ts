@@ -21,6 +21,8 @@ import type { ScalarValueSource } from "./propertyBindingCompiler";
 import type { ScalarProgram } from "./scalarProgram";
 import type { SetStatementAnalysis } from "./setStatementCompiler";
 import type { TextTemplateAst } from "./textTemplate";
+import type { CompiledNumericBinding } from "./numericBindingCompiler";
+import type { DslPhysicalSpan } from "../dsl/logicalStatementSourceMap";
 import { referencesIn } from "./typedDependencyGraph";
 
 export type TypedRenameOccurrenceKind =
@@ -28,6 +30,7 @@ export type TypedRenameOccurrenceKind =
   | "set-rhs"
   | "set-target"
   | "property-binding"
+  | "numeric-expression"
   | "template-hole";
 
 export type TypedRenameOccurrence = {
@@ -38,6 +41,7 @@ export type TypedRenameOccurrence = {
   /** Exact patchable span - bare name only, never including a leading `@`. */
   readonly span: DslSpan;
   readonly currentName: string;
+  readonly physicalSpan?: DslPhysicalSpan;
   /** Only present for "initializer" occurrences - required by resolveInitializerReferences's owner-aware self-detection. */
   readonly initializerOwner?: { readonly fromBindingId: BindingId; readonly occurrenceIndex: number };
 };
@@ -73,6 +77,7 @@ export type SiteBatchOccurrenceInput = {
   readonly setStatements?: ReadonlyMap<number, SetStatementAnalysis>;
   readonly propertyBindings?: ReadonlyMap<string, ScalarValueSource>;
   readonly textTemplates?: ReadonlyMap<string, TextTemplateAst>;
+  readonly numericBindings?: ReadonlyMap<string, CompiledNumericBinding>;
 };
 
 const scopeIdForStatement = (scopeIndex: LexicalScopeIndex, statementIndex: number) =>
@@ -145,6 +150,13 @@ export const collectSiteBatchOccurrences = (
         currentName: dependency.name
       });
     });
+  }
+  for (const [occurrenceKey, numeric] of input.numericBindings ?? []) {
+    numeric.references.forEach((reference, index) => occurrences.push({
+      kind: "numeric-expression", key: `numeric-expression:${occurrenceKey}:${index}`,
+      site: reference.site, span: reference.nameSpan, currentName: reference.name,
+      ...(reference.physicalNameSpan?.segments.length === 1 ? { physicalSpan: reference.physicalNameSpan } : {})
+    }));
   }
 
   return occurrences;

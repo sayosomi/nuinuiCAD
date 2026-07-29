@@ -13,6 +13,7 @@ pub(super) struct ForGroupMutationRuntime<'a> {
     original_elements: &'a [Value],
     base_effective_enabled_ids: &'a HashSet<ElementId>,
     entries_by_element_id: &'a HashMap<ElementId, Vec<ValidatedPropertyBinding>>,
+    numeric_entries_by_element_id: &'a HashMap<ElementId, Vec<ValidatedNumericBinding>>,
     show_generated_by_element_id: &'a HashMap<ElementId, ValidatedPropertyBinding>,
     condition_by_element_id: &'a HashMap<ElementId, TypedScalarExpression>,
     text_templates_by_element_id: &'a HashMap<ElementId, ValidatedTextTemplate>,
@@ -31,6 +32,7 @@ impl<'a> ForGroupMutationRuntime<'a> {
         original_elements: &'a [Value],
         base_effective_enabled_ids: &'a HashSet<ElementId>,
         entries_by_element_id: &'a HashMap<ElementId, Vec<ValidatedPropertyBinding>>,
+        numeric_entries_by_element_id: &'a HashMap<ElementId, Vec<ValidatedNumericBinding>>,
         show_generated_by_element_id: &'a HashMap<ElementId, ValidatedPropertyBinding>,
         condition_by_element_id: &'a HashMap<ElementId, TypedScalarExpression>,
         text_templates_by_element_id: &'a HashMap<ElementId, ValidatedTextTemplate>,
@@ -46,6 +48,7 @@ impl<'a> ForGroupMutationRuntime<'a> {
             original_elements,
             base_effective_enabled_ids,
             entries_by_element_id,
+            numeric_entries_by_element_id,
             show_generated_by_element_id,
             condition_by_element_id,
             text_templates_by_element_id,
@@ -142,7 +145,7 @@ impl<'a> ForGroupMutationRuntime<'a> {
         rows: &[types::ForGroupGeneratedRow],
         state: &mut EvaluationState,
     ) -> Result<ForGroupMutationRunOutcome, ForGroupMutationError> {
-        let Some((generated_element, template_id)) = generated
+        let Some((mut generated_element, template_id)) = generated
             .iter()
             .find(|(_, candidate)| candidate == template_element_id)
             .cloned()
@@ -184,7 +187,23 @@ impl<'a> ForGroupMutationRuntime<'a> {
         if self.effective_enabled_ids.insert(generated_id.clone()) {
             self.effective_enabled_order.push(generated_id.clone());
         }
+        let loop_binding_resolver = resolver.for_group_binding_resolver(environment);
+        if let Some(entries) = self.numeric_entries_by_element_id.get(&template_id) {
+            match apply_numeric_bindings(
+                &generated_element,
+                Some(entries),
+                &loop_binding_resolver,
+                state,
+            ) {
+                Ok(materialized) => generated_element = materialized,
+                Err(error) => {
+                    state.errors.push(error);
+                    return Ok(ForGroupMutationRunOutcome::Completed);
+                }
+            }
+        }
         let generated_index = state.elements_by_id[&generated_id];
+        state.elements[generated_index] = generated_element.clone();
         let Some(local_variables) = evaluate_local_variables(generated_index, state) else {
             return Ok(ForGroupMutationRunOutcome::Completed);
         };
@@ -219,7 +238,6 @@ impl<'a> ForGroupMutationRuntime<'a> {
             );
         }
 
-        let loop_binding_resolver = resolver.for_group_binding_resolver(environment);
         match self.entries_by_element_id.get(&template_id) {
             Some(entries) if !entries.is_empty() => match apply_property_bindings(
                 &generated_element,

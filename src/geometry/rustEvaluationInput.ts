@@ -4,6 +4,7 @@ import type { TypedScalarExpression } from "../scalars/typedExpressionAst";
 import { buildRustBindingMutationPayload, type RustBindingMutationPayload } from "./bindingVersionPayload";
 import type { EvaluateElementsOptions } from "./evaluate";
 import type { PropertyBindingRuntimeEntry } from "./propertyBindingRuntime";
+import type { NumericBindingRuntimeEntry } from "./numericBindingRuntime";
 import { toRustTextTemplateSegments, type RustTextTemplateSegment } from "./textTemplateRuntime";
 
 type ConditionExpressionInput = { elementId: ElementId; expression: TypedScalarExpression };
@@ -13,8 +14,10 @@ export type EvaluateDocumentInput = {
   elements: CadElement[];
   evaluationLimitIndex?: number;
   scalarProgram?: EvaluateElementsOptions["scalarProgram"];
+  scalarExpressionPayload?: { numericBindings: readonly NumericBindingRuntimeEntry[] };
   bindingVersions?: RustBindingMutationPayload;
   propertyBindings?: readonly PropertyBindingRuntimeEntry[];
+  numericBindings?: readonly NumericBindingRuntimeEntry[];
   controlBooleanBindings?: readonly PropertyBindingRuntimeEntry[];
   conditionExpressions?: readonly ConditionExpressionInput[];
   textTemplates?: readonly TextTemplateInput[];
@@ -39,6 +42,7 @@ export const buildRustEvaluationInput = (
       ? { bindingVersions: mutationPayload }
       : options.scalarProgram ? { scalarProgram: options.scalarProgram } : {}),
     ...(options.propertyBindingEntries?.length ? { propertyBindings: options.propertyBindingEntries } : {}),
+    ...(options.numericBindingEntries?.length ? { scalarExpressionPayload: { numericBindings: options.numericBindingEntries } } : {}),
     ...(options.controlBooleanEntries?.length ? { controlBooleanBindings: options.controlBooleanEntries } : {}),
     ...(options.conditionalGroupConditionsByElementId?.size
       ? { conditionExpressions: Array.from(options.conditionalGroupConditionsByElementId, ([elementId, expression]) => ({ elementId, expression })) }

@@ -222,6 +222,9 @@ const hasRustSupportedCompiledReferences = (
     ...(options.textPropertyBindingEntries ?? [])
   ];
   if (propertyEntries.some((entry) => !elementsById.has(entry.elementId) || !hasBinding(entry.bindingId))) return false;
+  if (options.numericBindingEntries?.some((entry) =>
+    !elementsById.has(entry.elementId) || entry.references.some((reference) => !hasBinding(reference.bindingId))
+  )) return false;
   if (options.textPropertyBindingEntries?.some((entry) => elementsById.get(entry.elementId)?.type !== "text")) return false;
   if (options.conditionalGroupConditionsByElementId && Array.from(options.conditionalGroupConditionsByElementId).some(
     ([elementId, expression]) => elementsById.get(elementId)?.type !== "conditionalGroup" ||
