@@ -8,6 +8,7 @@ import { evaluateElements, type EvaluateElementsOptions } from "../geometry/eval
 import { buildConditionalMutationOwners, conditionalOwnerIdByElementId } from "../scalars/conditionalMutationControl";
 import { buildForGroupMutationOwners, forGroupMutationOwnerByElementId } from "../scalars/forGroupMutationControl";
 import { buildTextTemplateEntriesByElementId } from "../geometry/textTemplateRuntime";
+import { buildNumericBindingRuntimeEntries } from "../geometry/numericBindingRuntime";
 import { createCadElement } from "../model/elementFactory";
 import { sampleElements } from "../sampleData";
 import { initialCadDocumentState, useCadDocumentStore, type CadDocumentState } from "../state/cadDocumentStore";
@@ -42,7 +43,11 @@ const makeHandle = (): SourceEditorHandle => ({
   focusSearch: vi.fn()
 });
 
-const renderInspectorElement = (element: CadElement, elements: CadElement[]) => {
+const renderInspectorElement = (
+  element: CadElement,
+  elements: CadElement[],
+  evaluation = evaluateElements(elements),
+) => {
   const handle = makeHandle();
   const sourceEditorRef = createRef<SourceEditorHandle>();
   sourceEditorRef.current = handle;
@@ -50,7 +55,7 @@ const renderInspectorElement = (element: CadElement, elements: CadElement[]) => 
     <InspectorPanel
       element={element}
       elements={elements}
-      evaluation={evaluateElements(elements)}
+      evaluation={evaluation}
       sourceEditorRef={sourceEditorRef}
     />
   );
@@ -85,10 +90,104 @@ describe("InspectorPanel mouse-only actions", () => {
     expect(handle.jumpToParameterValue).toHaveBeenCalledWith(element.id, "dx");
   });
 
+  it("shows referenced element names rather than internal IDs in parameter rows", () => {
+    const { elements } = renderInspector("AB");
+    const pointA = elements.find((candidate) => candidate.name === "A")!;
+    const pointB = elements.find((candidate) => candidate.name === "B")!;
+    const parameterGroup = screen.getByText("パラメーター").closest(".dependency-group")!;
+    if (!(parameterGroup instanceof HTMLElement)) throw new Error("Missing parameter group");
+    const startRow = within(parameterGroup).getByText("始点").closest(".inspector-row")!;
+    const endRow = within(parameterGroup).getByText("終点").closest(".inspector-row")!;
+    if (!(startRow instanceof HTMLElement) || !(endRow instanceof HTMLElement)) {
+      throw new Error("Missing point reference row");
+    }
+
+    expect(within(startRow).getByText("A")).toBeInTheDocument();
+    expect(within(endRow).getByText("B")).toBeInTheDocument();
+    expect(startRow).not.toHaveTextContent(pointA.id);
+    expect(endRow).not.toHaveTextContent(pointB.id);
+  });
+
+  it("shows element names rather than internal IDs inside numeric expressions", () => {
+    useCadDocumentStore.getState().commitText([
+      "nui 3",
+      "const length: number = 12.3456",
+      "point A = coordinate(x: 0 y: 0)",
+      "point B = coordinate(x: @length y: 0)",
+      "line AB = segment(start: A end: B)",
+      "point C = coordinate(x: @length + AB.length y: 0)",
+    ].join("\n"), "test");
+    const state = useCadDocumentStore.getState();
+    const elements = state.elements;
+    const evaluation = evaluateElements(elements, {
+      scalarProgram: state.doc.scalarProgram,
+      bindingVersions: state.doc.bindingVersions,
+      statementInfoByElementId: state.doc.statementMap.byElementId,
+      statementIdByStatementIndex: state.doc.statementMap.statementIdByStatementIndex,
+      numericBindingEntries: buildNumericBindingRuntimeEntries({
+        numericBindings: state.doc.numericBindings ?? new Map(),
+        elementIdByStatementIndex: state.doc.statementMap.elementIdByStatementIndex,
+      }, elements),
+    });
+    const pointC = elements.find((candidate) => candidate.name === "C")!;
+    const { unmount } = renderInspectorElement(pointC, elements, evaluation);
+    const line = elements.find((candidate) => candidate.name === "AB")!;
+    const xRow = screen.getByText("x").closest(".inspector-row")!;
+    if (!(xRow instanceof HTMLElement)) throw new Error("Missing x parameter row");
+
+    expect(within(xRow).getByText("@length + AB.length")).toBeInTheDocument();
+    expect(xRow).not.toHaveTextContent(line.id);
+    expect(screen.getByText("評価結果").closest(".inspector-row")).toHaveTextContent("24.6912");
+    unmount();
+  });
+
+  it("resolves line, line-endpoint, and line-list references through one Inspector name lookup", () => {
+    const intersection = createCadElement("intersectionPoint", sampleElements, {
+      createId: () => "intersection-internal-id",
+    });
+    const division = createCadElement("lineDivisionPoint", sampleElements, {
+      createId: () => "division-internal-id",
+    });
+    const offset = createCadElement("offsetLine", sampleElements, {
+      createId: () => "offset-internal-id",
+    });
+
+    let view = renderInspectorElement(intersection, [...sampleElements, intersection]);
+    expect(within(screen.getByText("線1").closest(".inspector-row")!).getByText("直線AB")).toBeInTheDocument();
+    expect(within(screen.getByText("線2").closest(".inspector-row")!).getByText("直線BC")).toBeInTheDocument();
+    view.unmount();
+
+    view = renderInspectorElement(division, [...sampleElements, division]);
+    expect(within(screen.getByText("端点").closest(".inspector-row")!).getByText("直線AB.start")).toBeInTheDocument();
+    view.unmount();
+
+    view = renderInspectorElement(offset, [...sampleElements, offset]);
+    expect(within(screen.getByText("基準線").closest(".inspector-row")!).getByText("直線AB")).toBeInTheDocument();
+    view.unmount();
+  });
+
+  it("shows unresolved references without exposing their internal IDs", () => {
+    const line = {
+      ...sampleElements.find((candidate) => candidate.type === "line")!,
+      id: "line-with-missing-reference",
+      name: "未解決の線",
+      startPoint: { mode: "reference" as const, pointId: "missing-point-internal-id" },
+    };
+    const { unmount } = renderInspectorElement(line, [...sampleElements, line]);
+    const startRow = screen.getByText("始点").closest(".inspector-row")!;
+    if (!(startRow instanceof HTMLElement)) throw new Error("Missing start-point row");
+
+    expect(within(startRow).getByText("未解決")).toBeInTheDocument();
+    expect(startRow).not.toHaveTextContent("missing-point-internal-id");
+    unmount();
+  });
+
   it("selects and jumps to a clicked dependency row", () => {
     const { elements, handle } = renderInspector("AB");
     const pointA = elements.find((element) => element.name === "A")!;
-    fireEvent.click(screen.getByText("A").closest(".inspector-row")!);
+    const parentGroup = screen.getByText("親要素").closest(".dependency-group")!;
+    if (!(parentGroup instanceof HTMLElement)) throw new Error("Missing parent group");
+    fireEvent.click(within(parentGroup).getByText("A").closest(".inspector-row")!);
     expect(useCadUiStore.getState().selectedElementId).toBe(pointA.id);
     expect(handle.jumpToElement).toHaveBeenCalledWith(pointA.id);
   });
