@@ -18,7 +18,7 @@ import {
   type KeyBinding,
   type ViewUpdate
 } from "@codemirror/view";
-import { forceLinting } from "@codemirror/lint";
+import { forceLinting, setDiagnostics } from "@codemirror/lint";
 import { dispatchCommand } from "../commands/commands";
 import {
   bindingMatchesEvent,
@@ -99,11 +99,12 @@ import {
 import { foldProjectionTransaction, foldTargetAtLine, foldTargets } from "./sourceEditorFolding";
 import { secondarySelectionEffect, sourceEditorSelectionExtension } from "./sourceEditorSelection";
 import { patchHighlightPayloadForChanges, setPatchHighlight, sourceEditorPatchHighlightExtension } from "./sourceEditorPatchHighlight";
-import { createDiagnosticsExtension } from "./sourceEditorDiagnosticsExtension";
+import { createDiagnosticsExtension, currentDiagnosticsWithActions, type DiagnosticsExtensionSource } from "./sourceEditorDiagnosticsExtension";
 import { mapPositionedDiagnostics, toStaleDiagnostics, type PositionedDiagnostic } from "./sourceEditorDiagnostics";
 import { createEvaluationExtension, evaluationChanged, type EvaluationGutterAction } from "./sourceEditorEvaluationExtension";
 import { createEvaluationDecorationIndex, type EvaluationDecorationIndex } from "./sourceEditorEvaluationIndex";
 import { dslDocumentValueSpansAt, type DslValueSpanDirection } from "../dsl/dslValueSpans";
+import type { DslPhysicalSpan } from "../dsl/logicalStatementSourceMap";
 import { resolveParameterValueSpan } from "../dsl/dslParameterSpans";
 import { propertyBindingOccurrenceKey } from "../scalars/propertyBindingCompiler";
 import { logicalOffsetForPhysicalPosition, logicalTextForProjection, physicalSpanForStatementRange, singlePhysicalSegment, statementProjectionAt } from "../dsl/dslStatementProjection";
@@ -272,14 +273,7 @@ export class SourceEditorController implements SourceEditorHandle {
               click: (_view, line, event) => this.handleFoldGutterClick(line.from, event as MouseEvent)
             }
           }),
-          createDiagnosticsExtension({
-            isComposing: () => this.protocol.composing,
-            hasPendingText: () => this.hasPendingText(),
-            committedDiagnostics: () => [...this.store.getState().diagnostics, ...this.store.getState().bindingIssueDiagnostics],
-            runtimeDiagnostics: () => this.runtimeDiagnostics(),
-            staleBaseline: () => this.staleDiagnosticBaseline,
-            upgradeDslMajorVersion: (target) => this.store.getState().upgradeDslMajorVersion(target)
-          }),
+          createDiagnosticsExtension(this.diagnosticsExtensionSource()),
           createEvaluationExtension({
             index: () => this.decorationIndex,
             atStopRange: () => this.atStopRange,
@@ -488,6 +482,34 @@ export class SourceEditorController implements SourceEditorHandle {
     if (!range) return false;
     this.view.dispatch({
       selection: EditorSelection.single(range.span.from, range.span.to),
+      scrollIntoView: true,
+      annotations: [canvasCursorOrigin.of("canvas-cursor"), Transaction.addToHistory.of(false)]
+    });
+    this.view.focus();
+    return true;
+  };
+
+  /**
+   * Task 48 correction: selects a diagnostic's own already-resolved,
+   * revision-stamped physicalSpan directly - for a reference occurrence
+   * (undefined-binding/forward-binding-reference/self-initialization/a
+   * reference-origin duplicate-binding) there is no dedicated Task 43 index
+   * keyed by anything narrower than a whole binding's declaration, so this
+   * is the only exact target. Re-validates at click time rather than
+   * trusting the span was computed a moment ago: false (no-op, no movement)
+   * on IME composition, a dirty/uncommitted buffer, a source revision that
+   * has since moved on, or an out-of-bounds/empty segment. Never falls back
+   * to any other position (e.g. the owning binding's declaration).
+   */
+  selectSourceSpan = (span: DslPhysicalSpan): boolean => {
+    if (this.protocol.composing) return false;
+    if (this.hasPendingText()) return false;
+    const state = this.store.getState();
+    if (span.sourceRevision !== state.doc.statementMap.sourceRevision) return false;
+    const segment = span.segments[0];
+    if (!segment || segment.from < 0 || segment.to < segment.from || segment.to > this.view.state.doc.length) return false;
+    this.view.dispatch({
+      selection: EditorSelection.single(segment.from, segment.to),
       scrollIntoView: true,
       annotations: [canvasCursorOrigin.of("canvas-cursor"), Transaction.addToHistory.of(false)]
     });
@@ -900,6 +922,24 @@ export class SourceEditorController implements SourceEditorHandle {
     this.pendingEvaluations.delete(state.compiledDocumentRevision);
     this.options.onEvaluationPresentationChange?.({ isLastGood: this.isShowingLastGoodEvaluation() });
     this.refreshDecorationIndex();
+    // Task 48 correction: CodeMirror's linter only re-invokes its diagnostics
+    // source on a document change or its own debounce timer - never merely
+    // because appliedEvaluation changed. A fresh runtime error (or a
+    // recovery) arriving with no new keystroke would otherwise sit
+    // uncomputed until the user's next edit.
+    //
+    // forceLinting is NOT sufficient here: CodeMirror's lint ViewPlugin only
+    // honors force() while its own internal `set` flag is true, and that
+    // flag is cleared the moment a lint pass actually runs and is only ever
+    // re-armed by a genuine document change (see @codemirror/lint's
+    // lintPlugin.update/force). Two evaluation updates in a row with no
+    // intervening keystroke - e.g. an error immediately followed by its own
+    // recovery - would make the *second* forceLinting call a silent no-op,
+    // leaving a stale marker on screen. Dispatching setDiagnostics directly
+    // with freshly recomputed diagnostics (the same currentDiagnosticsWithActions
+    // the linter itself calls) sidesteps that internal gate entirely and
+    // updates every time, unconditionally.
+    this.view.dispatch(setDiagnostics(this.view.state, currentDiagnosticsWithActions(this.view, this.diagnosticsExtensionSource())));
   }
 
   private currentPickCandidates() {
@@ -1294,6 +1334,9 @@ export class SourceEditorController implements SourceEditorHandle {
       transaction.annotation(modelPatchOrigin) || transaction.annotation(resetOrigin)
     );
     if (update.docChanged) {
+      // Task 48 correction: notify before any commit debounce, so a runtime
+      // diagnostic marker becomes dirty/hidden on this exact keystroke.
+      this.options.onEditorBufferChanged?.();
       // Any doc change anywhere invalidates typed set/declaration semantic
       // metadata currency immediately; only a fresh compile (refreshStatementRanges)
       // proves doc.bindingAnalysis/doc.setStatements describe this exact buffer again.
@@ -1611,17 +1654,39 @@ export class SourceEditorController implements SourceEditorHandle {
     return Boolean(this.appliedEvaluation && state.docText !== state.sourceText && this.appliedEvaluation.compiledDocumentRevision === state.compiledDocumentRevision);
   }
 
-  /** Task 45: the same isSourceDirty/isEvaluationStale pair InspectorPanel.tsx
-   * derives from its own React state, recomputed here from this controller's
-   * own docText/sourceText/compiledDocumentRevision/appliedEvaluation
-   * bookkeeping. Read live on every call (never cached) - see
+  /** Extracted so tryApplyPendingEvaluation can recompute the exact same
+   * diagnostics the CM linter itself would produce (see the comment there
+   * for why forceLinting alone is not reliable for a second push within the
+   * same document revision). */
+  private diagnosticsExtensionSource(): DiagnosticsExtensionSource {
+    return {
+      isComposing: () => this.protocol.composing,
+      hasPendingText: () => this.hasPendingText(),
+      committedDiagnostics: () => [...this.store.getState().diagnostics, ...this.store.getState().bindingIssueDiagnostics],
+      runtimeDiagnostics: () => this.runtimeDiagnostics(),
+      staleBaseline: () => this.staleDiagnosticBaseline,
+      upgradeDslMajorVersion: (target) => this.store.getState().upgradeDslMajorVersion(target)
+    };
+  }
+
+  /** Task 45/48: the same isSourceDirty/isEvaluationStale pair
+   * InspectorPanel.tsx derives from its own React state (docText !==
+   * sourceText - the canonical store-level signal, the only one Inspector
+   * can see), recomputed here from this controller's own
+   * docText/sourceText/compiledDocumentRevision/appliedEvaluation
+   * bookkeeping, OR'd with hasPendingText() - the live, uncommitted
+   * CodeMirror buffer state Inspector has no access to at all. A single
+   * keystroke makes hasPendingText() true immediately, before the ~50ms
+   * debounce that would otherwise update docText/sourceText, so this must be
+   * included for isSourceDirty to be correct on the very next read, not just
+   * after the next commit. Read live on every call (never cached) - see
    * isRuntimeBindingDisplayFreshForGutter/runtimeDiagnostics, the two callers
    * that both reduce this same input through runtimeBindingFreshness.ts's one
    * shared predicate rather than a second inline rule. */
   private currentRuntimeFreshnessInput() {
     const state = this.store.getState();
     return {
-      isSourceDirty: state.docText !== state.sourceText,
+      isSourceDirty: state.docText !== state.sourceText || this.hasPendingText(),
       isEvaluationStale: !this.appliedEvaluation || this.appliedEvaluation.compiledDocumentRevision !== state.compiledDocumentRevision
     };
   }

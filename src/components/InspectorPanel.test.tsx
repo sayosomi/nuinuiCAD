@@ -31,6 +31,7 @@ const makeHandle = (): SourceEditorHandle => ({
   jumpToBindingDeclarationPart: vi.fn(() => true),
   jumpToPropertyBindingValue: vi.fn(() => true),
   jumpToTemplateHole: vi.fn(() => true),
+  selectSourceSpan: vi.fn(() => true),
   jumpToParameterValue: vi.fn(() => true),
   applyPickCandidate: vi.fn(() => true),
   pickCandidateElementIds: vi.fn(() => []),

@@ -1,6 +1,7 @@
 import type { LineSplice } from "../document/textPatch";
 import type { BindingId } from "../scalars/bindingCatalog";
 import type { DslDiagnostic } from "../dsl/dslTypes";
+import type { DslPhysicalSpan } from "../dsl/logicalStatementSourceMap";
 import type { ElementId, EvaluationResult } from "../types/geometry";
 
 /** Evaluation identity is deliberately separate from the source notification revision.
@@ -68,6 +69,14 @@ export type SourceEditorHandle = {
    * TextTemplateAst's hole segments, in source order. False, without moving
    * anything, if that occurrence/hole does not currently resolve. */
   jumpToTemplateHole: (occurrenceKey: string, holeIndex: number) => boolean;
+  /** Task 48 correction: selects a diagnostic's own already-resolved
+   * physicalSpan directly (a reference occurrence with no dedicated ID-based
+   * index - undefined-binding/forward-binding-reference/self-initialization/
+   * a reference-origin duplicate-binding). Re-validates the source revision
+   * and bounds at call time; false, without moving anything, on IME
+   * composition, a dirty/uncommitted buffer, a moved-on revision, or an
+   * out-of-bounds span - never falls back to any other position. */
+  selectSourceSpan: (span: DslPhysicalSpan) => boolean;
   /** Re-resolves a search result after any required flush before applying it as a pick. */
   applyPickCandidate: (elementId: ElementId) => boolean;
   pickCandidateElementIds: () => readonly ElementId[];
@@ -95,4 +104,11 @@ export type SourceEditorControllerOptions = {
   isSourceSearchOpen?: () => boolean;
   closeSourceSearch?: () => void;
   onEvaluationPresentationChange?: (state: { isLastGood: boolean }) => void;
+  /** Task 48 correction: fired synchronously from every CM doc change
+   * (before any commit debounce), so a React surface outside the editor
+   * (the Problems popover) can re-derive runtimeDiagnostics() immediately -
+   * store fields like docText/sourceText only update once the debounced
+   * commit completes, which is too late for "clears on the very next
+   * keystroke, not the next commit". */
+  onEditorBufferChanged?: () => void;
 };

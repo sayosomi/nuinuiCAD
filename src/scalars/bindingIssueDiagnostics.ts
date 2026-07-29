@@ -28,6 +28,23 @@ export const bindingIssuesToDiagnostics = (
     const binding = bindingAnalysis.catalog.bindingsById.get(issue.bindingId);
     const statement = binding ? statements[binding.statementIndex] : undefined;
     const physicalSpan = statement && issue.span ? exactPhysicalSpan(spans, statement, issue.span) : null;
+    // Task 48 correction: `issue.span` is only ever the exact same object
+    // reference as `binding.nameSpan` for issues that genuinely mark the
+    // binding's own declaration (duplicate-binding declaration-origin,
+    // binding-cycle when a nameSpan was available) - see bindingAnalysis.ts's
+    // `span: binding.nameSpan` / `span: binding?.nameSpan ?? fallbackSpan`
+    // assignments. Every other issue's span is a reference occurrence
+    // (self-initialization/undefined-binding/forward-binding-reference/
+    // duplicate-binding reference-origin, and binding-cycle's own
+    // edge-reference fallback) - jumping to the binding's declaration there
+    // would land somewhere the marker itself does not point at, so those get
+    // the diagnostic's own resolved span instead, never a declaration fallback.
+    const pointsAtOwnDeclaration = issue.span !== null && binding?.nameSpan === issue.span;
+    const navigationTarget = pointsAtOwnDeclaration
+      ? ({ kind: "binding" as const, bindingId: issue.bindingId })
+      : physicalSpan
+        ? ({ kind: "sourceSpan" as const, physicalSpan })
+        : undefined;
     return {
       severity: "error",
       line: statement?.line ?? 1,
@@ -37,6 +54,6 @@ export const bindingIssuesToDiagnostics = (
       exactSpanOnly: true,
       ...(physicalSpan ? { physicalSpan } : {}),
       bindingId: issue.bindingId,
-      navigationTarget: { kind: "binding" as const, bindingId: issue.bindingId }
+      ...(navigationTarget ? { navigationTarget } : {})
     };
   });

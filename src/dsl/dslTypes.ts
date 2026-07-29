@@ -21,7 +21,16 @@ export type DslDiagnosticNavigationTarget =
   | { kind: "property"; occurrenceKey: string }
   | { kind: "templateHole"; occurrenceKey: string; holeIndex: number }
   | { kind: "binding"; bindingId: BindingId }
-  | { kind: "element"; elementId: ElementId };
+  | { kind: "element"; elementId: ElementId }
+  /** Task 48 correction: for a diagnostic whose own exact span is a
+   * reference occurrence (e.g. undefined-binding/forward-binding-reference/
+   * self-initialization's `@name` token), not any binding's own declaration
+   * - there is no dedicated ID-based index for an arbitrary reference inside
+   * an initializer, so this carries the diagnostic's own already-resolved,
+   * revision-stamped physicalSpan directly. Selecting it re-validates the
+   * revision/bounds at click time (SourceEditorHandle.selectSourceSpan) and
+   * no-ops rather than falling back to any other position. */
+  | { kind: "sourceSpan"; physicalSpan: DslPhysicalSpan };
 
 export type DslDiagnostic = {
   severity: "error" | "warning";

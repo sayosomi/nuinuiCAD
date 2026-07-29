@@ -71,7 +71,12 @@ export const SourceEditorPane = forwardRef<SourceEditorHandle, SourceEditorPaneP
         // re-derived here too, not only from the docText/sourceText effect
         // below.
         setRuntimeDiagnostics(controllerRef.current?.runtimeDiagnostics() ?? []);
-      }
+      },
+      // Task 48 correction: fires synchronously on every CM doc change,
+      // before the commit debounce - the docText/sourceText effect below
+      // alone would leave a stale runtime marker visible for the whole
+      // debounce window on the very keystroke that should hide it.
+      onEditorBufferChanged: () => setRuntimeDiagnostics(controllerRef.current?.runtimeDiagnostics() ?? [])
     });
     controllerRef.current = controller;
     return () => {
@@ -106,6 +111,9 @@ export const SourceEditorPane = forwardRef<SourceEditorHandle, SourceEditorPaneP
       case "element":
         controller.jumpToElement(target.elementId);
         return;
+      case "sourceSpan":
+        controller.selectSourceSpan(target.physicalSpan);
+        return;
     }
   };
 
@@ -121,6 +129,7 @@ export const SourceEditorPane = forwardRef<SourceEditorHandle, SourceEditorPaneP
     jumpToBindingDeclarationPart: (bindingId, part) => controllerRef.current?.jumpToBindingDeclarationPart(bindingId, part) ?? false,
     jumpToPropertyBindingValue: (occurrenceKey) => controllerRef.current?.jumpToPropertyBindingValue(occurrenceKey) ?? false,
     jumpToTemplateHole: (occurrenceKey, holeIndex) => controllerRef.current?.jumpToTemplateHole(occurrenceKey, holeIndex) ?? false,
+    selectSourceSpan: (span) => controllerRef.current?.selectSourceSpan(span) ?? false,
     applyPickCandidate: (elementId) => controllerRef.current?.applyPickCandidate(elementId) ?? false,
     pickCandidateElementIds: () => controllerRef.current?.pickCandidateElementIds() ?? [],
     openTextSearch: () => controllerRef.current?.openTextSearch(),
