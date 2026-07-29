@@ -3986,10 +3986,13 @@ textarea {
 
 .drawing-overlay text {
   fill: #53564f;
-  font-size: 12px;
   paint-order: stroke;
   stroke: #fbfbfa;
   stroke-width: 3px;
+}
+
+.drawing-overlay .overlay-element-name {
+  font-size: 12px;
 }
 
 .drawing-overlay .overlay-selected-line {

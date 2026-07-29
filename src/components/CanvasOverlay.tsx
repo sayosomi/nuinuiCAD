@@ -195,7 +195,7 @@ export const CanvasOverlay = ({
           y={screen.y}
           className={isSelected ? "overlay-selected-text" : "overlay-text"}
           fill={fill}
-          fontSize={fontSizePx}
+          style={{ fontSize: fontSizePx }}
           dominantBaseline="text-before-edge"
         >
           {lines.map((line, index) => (
@@ -235,7 +235,7 @@ export const CanvasOverlay = ({
             </>
           ) : null}
           {showCanvasElementNames ? (
-            <text x={screen.x + 8} y={screen.y - 8}>
+            <text className="overlay-element-name" x={screen.x + 8} y={screen.y - 8}>
               {point.name}
             </text>
           ) : null}
