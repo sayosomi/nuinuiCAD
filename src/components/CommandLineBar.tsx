@@ -127,6 +127,13 @@ export const CommandLineBar = ({ commandContext, evaluation }: CommandLineBarPro
       parentGroupId: session.insertionTarget.parentGroupId
     }));
   }, [elements, inputValue, session, step?.kind]);
+  // A failed Enter records the same name conflict on the session so non-UI
+  // callers cannot bypass validation. The inline name feedback already owns
+  // that error while this prompt is open; rendering it again below the form
+  // would show the identical message twice.
+  const sessionError = session?.error && session.error !== duplicateNameMessage
+    ? session.error
+    : null;
   const numberVariableOptions = useMemo(() => {
     if (!session || step?.kind !== "number") return [];
     const placement = creationPlacementForTarget(elements, session.insertionTarget, evaluationLimitIndex);
@@ -618,7 +625,7 @@ export const CommandLineBar = ({ commandContext, evaluation }: CommandLineBarPro
           </>
         )}
       </div>
-      {session.error ? <p className="command-line-bar-error" role="alert">{session.error}</p> : null}
+      {sessionError ? <p className="command-line-bar-error" role="alert">{sessionError}</p> : null}
       <details className="command-line-bar-progress" open={completedSteps.length > 0}>
         <summary>完了済み {completedSteps.length}項目</summary>
         <ul aria-label="完了済みの入力">

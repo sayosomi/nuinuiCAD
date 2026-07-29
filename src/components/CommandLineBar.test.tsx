@@ -109,6 +109,26 @@ describe("CommandLineBar", () => {
     expect(input).toHaveAttribute("aria-invalid", "true");
   });
 
+  it("shows a rejected duplicate name only once", () => {
+    useCadDocumentStore.getState().commitText([
+      "nui 2",
+      "point A = coordinate(x: 0 y: 0)"
+    ].join("\n"), "test");
+    renderBar();
+    act(() => { startCommandLineCreation("freePoint"); });
+    const input = screen.getByRole<HTMLInputElement>("textbox");
+    const form = input.closest("form")!;
+
+    fireEvent.change(input, { target: { value: "1" } });
+    fireEvent.submit(form);
+    fireEvent.change(input, { target: { value: "2" } });
+    fireEvent.submit(form);
+    fireEvent.change(input, { target: { value: "A" } });
+    fireEvent.submit(form);
+
+    expect(screen.getAllByText("このスコープには「A」という名前の要素が既にあります。別の名前を入力してください。")).toHaveLength(1);
+  });
+
   it("separates the active step from recipe-ordered completed progress", () => {
     useCadDocumentStore.getState().commitText([
       "nui 2",
