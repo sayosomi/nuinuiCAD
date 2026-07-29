@@ -21,7 +21,8 @@
 
 import type { BindingAnalysis } from "./bindingAnalysis";
 import type { Binding, BindingCatalog, BindingId } from "./bindingCatalog";
-import { scopeChain, type ScopeId } from "./lexicalScopeIndex";
+import type { ScopeId } from "./lexicalScopeIndex";
+import { visibleTypedBindingsAtLivePosition } from "./liveTypedBindingVisibility";
 import { isScalarTypeAssignable } from "./scalarAssignability";
 import { scalarExpressionCompletionContextAt } from "./scalarExpressionPositionClassifier";
 import type { ScalarExpressionToken } from "./expressionTokenizer";
@@ -54,11 +55,9 @@ export type SetCompletionSiteDeps = {
   cursorPosition: number;
 };
 
-type ScopedLiveBinding = { binding: Binding; distance: number; position: number };
-
 /**
  * Every typed binding visible at `cursorPosition`: in `containingScopeId` or
- * an ancestor scope, with a live position strictly before the cursor.
+ * an ancestor scope, with a live position at or before the cursor.
  * Same-name shadowing prefers the innermost scope in the chain, then (same
  * scope) the nearest-preceding live position. A binding declared *after* the
  * cursor (even in the same scope) is excluded by the position check alone -
@@ -76,20 +75,12 @@ const setVisibleTypedBindings = (
   deps: SetCompletionSiteDeps,
   accepts: (binding: Binding) => boolean
 ): readonly Binding[] => {
-  const chain = scopeChain(deps.catalog.scopeIndex, deps.containingScopeId);
-  const distanceByScope = new Map(chain.map((scopeId, index) => [scopeId, index]));
-  const bestByName = new Map<string, ScopedLiveBinding>();
-  for (const binding of deps.catalog.bindings) {
-    if (binding.kind !== "typed" || !accepts(binding)) continue;
-    const distance = distanceByScope.get(binding.effectiveScopeId);
-    if (distance === undefined) continue;
-    const position = deps.livePositionOf(binding.id);
-    if (position === undefined || position > deps.cursorPosition) continue;
-    const existing = bestByName.get(binding.name);
-    if (existing && (existing.distance < distance || (existing.distance === distance && existing.position >= position))) continue;
-    bestByName.set(binding.name, { binding, distance, position });
-  }
-  return [...bestByName.values()].map((entry) => entry.binding);
+  return visibleTypedBindingsAtLivePosition({
+    catalog: deps.catalog,
+    containingScopeId: deps.containingScopeId,
+    cursorOffset: deps.cursorPosition,
+    offsetForBinding: deps.livePositionOf
+  }, accepts);
 };
 
 /**

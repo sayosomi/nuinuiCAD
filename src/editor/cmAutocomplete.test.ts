@@ -1,5 +1,5 @@
 import { completionStatus, currentCompletions, selectedCompletionIndex, startCompletion } from "@codemirror/autocomplete";
-import { ChangeSet, EditorSelection, EditorState } from "@codemirror/state";
+import { ChangeSet, EditorSelection, EditorState, Transaction } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { fireEvent } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
@@ -639,6 +639,41 @@ describe("typed value completion (Task 39)", () => {
     evaluationErrors: () => undefined
   });
 
+  const insertThroughContentDom = (
+    view: EditorView,
+    data: string,
+    inputType: "insertText" | "insertCompositionText" = "insertText",
+    isComposing = false
+  ) => {
+    const line = view.contentDOM.querySelector(".cm-line:last-child")!;
+    const textNode = line.firstChild!;
+    const selection = document.getSelection()!;
+    const range = document.createRange();
+    range.setStart(textNode, textNode.textContent!.length);
+    range.collapse(true);
+    selection.removeAllRanges();
+    selection.addRange(range);
+    view.contentDOM.focus();
+    fireEvent(view.contentDOM, new InputEvent("beforeinput", {
+      bubbles: true,
+      cancelable: true,
+      data,
+      inputType,
+      isComposing
+    }));
+    textNode.textContent += data;
+    range.setStart(textNode, textNode.textContent!.length);
+    range.collapse(true);
+    selection.removeAllRanges();
+    selection.addRange(range);
+    fireEvent(view.contentDOM, new InputEvent("input", {
+      bubbles: true,
+      data,
+      inputType,
+      isComposing
+    }));
+  };
+
   describe("typed declaration initializer", () => {
     it("offers boolean literal and unary ! candidates at a clean operand start", async () => {
       // Committed/compiled from a complete, valid initializer; the actual
@@ -666,6 +701,7 @@ describe("typed value completion (Task 39)", () => {
       const labels = result!.options.map((option) => option.label);
       expect(labels).toEqual(expect.arrayContaining(["true", "false"]));
       expect(result!.options.every((option) => option.type === "enum" || option.type === "keyword")).toBe(true);
+      expect(await Promise.resolve(completionSource({ state, pos, explicit: false } as never))).toBeNull();
     });
 
     it("offers @name reference candidates filtered to the declared type", async () => {
@@ -694,6 +730,284 @@ describe("typed value completion (Task 39)", () => {
       expect(options.some((option) => option.label === "flagA" && option.apply === "@flagA")).toBe(true);
       expect(options.some((option) => option.label === "numA")).toBe(false);
       expect(options.every((option) => option.type === "variable")).toBe(true);
+    });
+
+    it("automatically opens completion after a Shift+2 DOM input inserts @ in a brand-new number declaration", async () => {
+      const committedSource = [
+        "nui 3",
+        "const length: number = 12.3456",
+        "const label: string = \"front\"",
+        "const printed: boolean = true",
+        "const side: choice(right, left) = left"
+      ].join("\n");
+      const compiled = compiledTyped(committedSource);
+      const committedDoc = EditorState.create({ doc: committedSource }).doc;
+      const committedRanges = createTypedDeclarationRangeIndex(committedDoc, compiled.statementMap!);
+      const insertion = "\nconst x: number =";
+      const dirtySource = committedSource + insertion;
+      const ranges = mapTypedDeclarationRangeIndex(
+        committedRanges,
+        ChangeSet.of({ from: committedSource.length, insert: insertion }, committedSource.length)
+      );
+      const parent = document.createElement("div");
+      document.body.append(parent);
+      Object.defineProperty(Range.prototype, "getClientRects", { configurable: true, value: () => [] });
+      let activeTransitions = 0;
+      let acceptedTextInputTransactions = 0;
+      const view = new EditorView({
+        state: EditorState.create({
+          doc: dirtySource,
+          selection: EditorSelection.cursor(dirtySource.length),
+          extensions: [
+            dslAutocompleteExtension({
+              ...baseOptions(),
+              bindingAnalysis: () => compiled.bindingAnalysis,
+              typedDeclarationRanges: () => ranges,
+              scopeBodyRanges: () => [],
+              statementInfoByElementId: () => compiled.statementMap!.byElementId
+            }),
+            EditorView.updateListener.of((update) => {
+              if (completionStatus(update.startState) !== "active" && completionStatus(update.state) === "active") {
+                activeTransitions += 1;
+              }
+              for (const transaction of update.transactions) {
+                if (transaction.isUserEvent("input.type") && transaction.docChanged) acceptedTextInputTransactions += 1;
+              }
+            })
+          ]
+        }),
+        parent
+      });
+
+      expect(completionStatus(view.state)).toBeNull();
+      expect(view.state.doc.toString()).toBe(dirtySource);
+      insertThroughContentDom(view, " ");
+      await expect.poll(() => view.state.doc.toString().endsWith("= "), { timeout: 1000, interval: 20 }).toBe(true);
+      await expect.poll(() => completionStatus(view.state), { timeout: 1000, interval: 20 }).toBeNull();
+      expect(parent.querySelector(".cm-tooltip-autocomplete")).toBeNull();
+      fireEvent.keyDown(view.contentDOM, { key: "@", code: "Digit2", shiftKey: true });
+      insertThroughContentDom(view, "@");
+      await expect.poll(() => view.state.doc.toString().endsWith("@"), { timeout: 1000, interval: 20 }).toBe(true);
+      expect(acceptedTextInputTransactions).toBe(2);
+      await expect.poll(() => completionStatus(view.state), { timeout: 1000, interval: 20 }).toBe("active");
+
+      const labels = currentCompletions(view.state).map((option) => option.label);
+      expect(labels).toContain("length");
+      expect(labels).not.toContain("label");
+      expect(labels).not.toContain("printed");
+      expect(labels).not.toContain("side");
+      expect(labels.filter((label) => label === "length")).toHaveLength(1);
+      expect(parent.querySelector(".cm-tooltip-autocomplete")).not.toBeNull();
+      expect(activeTransitions).toBe(1);
+      insertThroughContentDom(view, "l");
+      await expect.poll(() => view.state.doc.toString().endsWith("@l"), { timeout: 1000, interval: 20 }).toBe(true);
+      expect(parent.querySelector(".cm-tooltip-autocomplete")).not.toBeNull();
+      await expect.poll(() => completionStatus(view.state), { timeout: 1000, interval: 20 }).toBe("active");
+      expect(currentCompletions(view.state).map((option) => option.label)).toEqual(["length"]);
+      expect(parent.querySelectorAll(".cm-tooltip-autocomplete")).toHaveLength(1);
+      insertThroughContentDom(view, "e");
+      await expect.poll(() => view.state.doc.toString().endsWith("@le"), { timeout: 1000, interval: 20 }).toBe(true);
+      await expect.poll(() => completionStatus(view.state), { timeout: 1000, interval: 20 }).toBe("active");
+      expect(currentCompletions(view.state).map((option) => option.label)).toEqual(["length"]);
+      expect(parent.querySelectorAll(".cm-tooltip-autocomplete")).toHaveLength(1);
+      view.destroy();
+      parent.remove();
+    });
+
+    it("waits for a composed @ to finalize, then performs one non-explicit retry", async () => {
+      const committedSource = [
+        "nui 3",
+        "const length: number = 12.3456",
+        "const label: string = \"front\"",
+        "const printed: boolean = true",
+        "const side: choice(right, left) = left"
+      ].join("\n");
+      const compiled = compiledTyped(committedSource);
+      const committedDoc = EditorState.create({ doc: committedSource }).doc;
+      const insertion = "\nconst x: number =";
+      const dirtySource = committedSource + insertion;
+      const ranges = mapTypedDeclarationRangeIndex(
+        createTypedDeclarationRangeIndex(committedDoc, compiled.statementMap!),
+        ChangeSet.of({ from: committedSource.length, insert: insertion }, committedSource.length)
+      );
+      const parent = document.createElement("div");
+      document.body.append(parent);
+      Object.defineProperty(Range.prototype, "getClientRects", { configurable: true, value: () => [] });
+      let activeTransitions = 0;
+      let automaticRetryTransactions = 0;
+      const view = new EditorView({
+        state: EditorState.create({
+          doc: dirtySource,
+          selection: EditorSelection.cursor(dirtySource.length),
+          extensions: [
+            dslAutocompleteExtension({
+              ...baseOptions(),
+              bindingAnalysis: () => compiled.bindingAnalysis,
+              typedDeclarationRanges: () => ranges,
+              scopeBodyRanges: () => [],
+              statementInfoByElementId: () => compiled.statementMap!.byElementId
+            }),
+            EditorView.updateListener.of((update) => {
+              if (completionStatus(update.startState) !== "active" && completionStatus(update.state) === "active") {
+                activeTransitions += 1;
+              }
+              for (const transaction of update.transactions) {
+                if (transaction.annotation(Transaction.userEvent) === "input.type" && !transaction.docChanged) {
+                  automaticRetryTransactions += 1;
+                }
+              }
+            })
+          ]
+        }),
+        parent
+      });
+      insertThroughContentDom(view, " ");
+      await expect.poll(() => view.state.doc.toString().endsWith("= "), { timeout: 1000, interval: 20 }).toBe(true);
+      await expect.poll(() => completionStatus(view.state), { timeout: 1000, interval: 20 }).toBeNull();
+      expect(parent.querySelector(".cm-tooltip-autocomplete")).toBeNull();
+
+      fireEvent.keyDown(view.contentDOM, { key: "@", code: "Digit2", shiftKey: true, isComposing: true });
+      fireEvent.compositionStart(view.contentDOM);
+      insertThroughContentDom(view, "@", "insertCompositionText", true);
+      await expect.poll(() => view.state.doc.toString().endsWith("@"), { timeout: 1000, interval: 20 }).toBe(true);
+      await new Promise((resolve) => setTimeout(resolve, 150));
+      expect(completionStatus(view.state)).toBeNull();
+      expect(parent.querySelector(".cm-tooltip-autocomplete")).toBeNull();
+
+      fireEvent.compositionEnd(view.contentDOM, { data: "@" });
+      await expect.poll(() => completionStatus(view.state), { timeout: 1000, interval: 20 }).toBe("active");
+      expect(currentCompletions(view.state).map((option) => option.label)).toEqual(["length"]);
+      expect(parent.querySelectorAll(".cm-tooltip-autocomplete")).toHaveLength(1);
+      expect(activeTransitions).toBe(1);
+      expect(automaticRetryTransactions).toBe(1);
+      insertThroughContentDom(view, "l");
+      await expect.poll(() => view.state.doc.toString().endsWith("@l"), { timeout: 1000, interval: 20 }).toBe(true);
+      expect(parent.querySelector(".cm-tooltip-autocomplete")).not.toBeNull();
+      await expect.poll(() => completionStatus(view.state), { timeout: 1000, interval: 20 }).toBe("active");
+      expect(currentCompletions(view.state).map((option) => option.label)).toEqual(["length"]);
+      expect(parent.querySelectorAll(".cm-tooltip-autocomplete")).toHaveLength(1);
+      insertThroughContentDom(view, "e");
+      await expect.poll(() => view.state.doc.toString().endsWith("@le"), { timeout: 1000, interval: 20 }).toBe(true);
+      await expect.poll(() => completionStatus(view.state), { timeout: 1000, interval: 20 }).toBe("active");
+      expect(currentCompletions(view.state).map((option) => option.label)).toEqual(["length"]);
+      expect(parent.querySelectorAll(".cm-tooltip-autocomplete")).toHaveLength(1);
+      view.destroy();
+      parent.remove();
+    });
+
+    it("does not retry a finalized composition when stale metadata has no typed binding candidates", async () => {
+      const committedSource = ["nui 3", "const length: number = 12.3456"].join("\n");
+      const compiled = compiledTyped(committedSource);
+      const committedDoc = EditorState.create({ doc: committedSource }).doc;
+      const insertion = "\nconst x: number = ";
+      const dirtySource = committedSource + insertion;
+      const ranges = mapTypedDeclarationRangeIndex(
+        createTypedDeclarationRangeIndex(committedDoc, compiled.statementMap!),
+        ChangeSet.of({ from: committedSource.length, insert: insertion }, committedSource.length)
+      );
+      const parent = document.createElement("div");
+      document.body.append(parent);
+      Object.defineProperty(Range.prototype, "getClientRects", { configurable: true, value: () => [] });
+      let automaticRetryTransactions = 0;
+      const view = new EditorView({
+        state: EditorState.create({
+          doc: dirtySource,
+          selection: EditorSelection.cursor(dirtySource.length),
+          extensions: [
+            dslAutocompleteExtension({
+              ...baseOptions(),
+              // The range is live, but the catalog cannot resolve its binding
+              // id. This is the fail-closed stale-metadata shape.
+              bindingAnalysis: () => compiledTyped([
+                "nui 3",
+                "point A = coordinate(x: 0 y: 0)",
+                "const unrelated: number = 1"
+              ].join("\n")).bindingAnalysis,
+              typedDeclarationRanges: () => ranges,
+              scopeBodyRanges: () => [],
+              statementInfoByElementId: () => undefined
+            }),
+            EditorView.updateListener.of((update) => {
+              for (const transaction of update.transactions) {
+                if (transaction.annotation(Transaction.userEvent) === "input.type" && !transaction.docChanged) {
+                  automaticRetryTransactions += 1;
+                }
+              }
+            })
+          ]
+        }),
+        parent
+      });
+      const line = view.contentDOM.querySelector(".cm-line:last-child")!;
+      const textNode = line.firstChild!;
+      const selection = document.getSelection()!;
+      const range = document.createRange();
+      range.setStart(textNode, textNode.textContent!.length);
+      range.collapse(true);
+      selection.removeAllRanges();
+      selection.addRange(range);
+      view.contentDOM.focus();
+
+      fireEvent.compositionStart(view.contentDOM);
+      fireEvent(view.contentDOM, new InputEvent("beforeinput", {
+        bubbles: true,
+        cancelable: true,
+        data: "@",
+        inputType: "insertCompositionText",
+        isComposing: true
+      }));
+      textNode.textContent += "@";
+      range.setStart(textNode, textNode.textContent!.length);
+      range.collapse(true);
+      selection.removeAllRanges();
+      selection.addRange(range);
+      fireEvent(view.contentDOM, new InputEvent("input", {
+        bubbles: true,
+        data: "@",
+        inputType: "insertCompositionText",
+        isComposing: true
+      }));
+      await expect.poll(() => view.state.doc.toString().endsWith("@"), { timeout: 1000, interval: 20 }).toBe(true);
+      fireEvent.compositionEnd(view.contentDOM, { data: "@" });
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      expect(completionStatus(view.state)).toBeNull();
+      expect(parent.querySelector(".cm-tooltip-autocomplete")).toBeNull();
+      expect(automaticRetryTransactions).toBe(0);
+      view.destroy();
+      parent.remove();
+    });
+
+    it("deduplicates a shadowed name for a new declaration using mapped live offsets", async () => {
+      const committedSource = [
+        "nui 3",
+        "const length: number = 1",
+        "if Scope (true) {",
+        "const length: number = 2",
+        "}"
+      ].join("\n");
+      const compiled = compiledTyped(committedSource);
+      const committedDoc = EditorState.create({ doc: committedSource }).doc;
+      const insertionPos = committedDoc.line(5).from;
+      const insertion = "const x: number = @\n";
+      const dirtySource = committedSource.slice(0, insertionPos) + insertion + committedSource.slice(insertionPos);
+      const changes = ChangeSet.of({ from: insertionPos, insert: insertion }, committedSource.length);
+      const ranges = mapTypedDeclarationRangeIndex(createTypedDeclarationRangeIndex(committedDoc, compiled.statementMap!), changes);
+      const scopeBodyRanges = mapScopeBodyRangeIndex(
+        createScopeBodyRangeIndex(committedDoc, compiled.statementMap!, compiled.bindingAnalysis!.catalog.scopeIndex),
+        changes
+      );
+      const state = EditorState.create({ doc: dirtySource });
+      const completionSource = createDslCompletionSource({
+        ...baseOptions(),
+        bindingAnalysis: () => compiled.bindingAnalysis,
+        typedDeclarationRanges: () => ranges,
+        scopeBodyRanges: () => scopeBodyRanges,
+        statementInfoByElementId: () => compiled.statementMap!.byElementId
+      });
+      const pos = insertionPos + "const x: number = @".length;
+      const result = await Promise.resolve(completionSource({ state, pos, explicit: true } as never));
+      expect(result?.options.map((option) => option.label).filter((label) => label === "length")).toHaveLength(1);
     });
 
     it("offers boolean operators right after a completed reference operand", async () => {
@@ -788,6 +1102,28 @@ describe("typed value completion (Task 39)", () => {
       });
       const pos = source.length;
       const result = await Promise.resolve(completionSource({ state, pos, explicit: true } as never));
+      expect(result?.options ?? []).toEqual([]);
+    });
+
+    it("fails closed for a brand-new declaration when no mapped live binding matches stale metadata", async () => {
+      const committedSource = ["nui 3", "const length: number = 1"].join("\n");
+      const compiled = compiledTyped(committedSource);
+      const committedDoc = EditorState.create({ doc: committedSource }).doc;
+      const insertion = "\nconst x: number = @";
+      const dirtySource = committedSource + insertion;
+      const ranges = mapTypedDeclarationRangeIndex(
+        createTypedDeclarationRangeIndex(committedDoc, compiled.statementMap!),
+        ChangeSet.of({ from: committedSource.length, insert: insertion }, committedSource.length)
+      );
+      const state = EditorState.create({ doc: dirtySource });
+      const completionSource = createDslCompletionSource({
+        ...baseOptions(),
+        bindingAnalysis: () => compiledTyped(["nui 3", "const unrelated: number = 1"].join("\n")).bindingAnalysis,
+        typedDeclarationRanges: () => ranges,
+        scopeBodyRanges: () => [],
+        statementInfoByElementId: () => undefined
+      });
+      const result = await Promise.resolve(completionSource({ state, pos: dirtySource.length, explicit: true } as never));
       expect(result?.options ?? []).toEqual([]);
     });
   });
@@ -892,6 +1228,40 @@ describe("typed value completion (Task 39)", () => {
       expect(labels).toContain("greeting");
       expect(labels).toContain("count");
       expect(labels).not.toContain("flag");
+    });
+
+    it("offers typed candidates in a template hole on a brand-new element", async () => {
+      const committedSource = [
+        "nui 3",
+        "const greeting: string = \"hi\"",
+        "const count: number = 1",
+        "const flag: boolean = true",
+        "const side: choice(right, left) = left"
+      ].join("\n");
+      const compiled = compiledTyped(committedSource);
+      const committedDoc = EditorState.create({ doc: committedSource }).doc;
+      const insertion = '\ntext T = label(text: "{@" anchor: none size: 3)';
+      const dirtySource = committedSource + insertion;
+      const ranges = mapTypedDeclarationRangeIndex(
+        createTypedDeclarationRangeIndex(committedDoc, compiled.statementMap!),
+        ChangeSet.of({ from: committedSource.length, insert: insertion }, committedSource.length)
+      );
+      const state = EditorState.create({ doc: dirtySource });
+      const completionSource = createDslCompletionSource({
+        ...baseOptions(),
+        elements: () => compiled.document!.elements,
+        statementRanges: () => createStatementRangeIndex(state.doc, compiled.statementMap!),
+        bindingAnalysis: () => compiled.bindingAnalysis,
+        typedDeclarationRanges: () => ranges,
+        scopeBodyRanges: () => [],
+        statementInfoByElementId: () => compiled.statementMap!.byElementId
+      });
+      const pos = dirtySource.indexOf("{@") + 2;
+      const result = await Promise.resolve(completionSource({ state, pos, explicit: true } as never));
+      const labels = result?.options.map((option) => option.label) ?? [];
+      expect(labels).toEqual(expect.arrayContaining(["greeting", "count"]));
+      expect(labels).not.toContain("flag");
+      expect(labels).not.toContain("side");
     });
   });
 });

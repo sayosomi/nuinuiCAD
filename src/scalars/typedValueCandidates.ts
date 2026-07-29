@@ -83,7 +83,12 @@ export type ResolvePrecedingOperandTypeInput = {
   precedingToken: ScalarExpressionToken | null;
   catalog: BindingCatalog;
   entriesById: BindingAnalysis["entriesById"];
-  site: BindingReferenceSite;
+  /** Omit only when the caller supplies liveVisibleBindings. */
+  site?: BindingReferenceSite;
+  /** A caller-provided, already fail-closed visible set for an uncompiled
+   * source statement. This stays plain domain data; editor range mapping
+   * belongs outside this module. */
+  liveVisibleBindings?: readonly Binding[];
   /**
    * Approximation used only when `precedingToken.kind === "rightParen"`:
    * inner parenthesized sub-expressions are never recursively type-inferred
@@ -101,7 +106,7 @@ export const resolvePrecedingOperandType = (input: ResolvePrecedingOperandTypeIn
   if (!precedingToken) return null;
   if (precedingToken.kind === "literal") return literalTokenScalarType(precedingToken);
   if (precedingToken.kind === "reference") {
-    const visible = visibleBindingsAt(input.catalog, input.site);
+    const visible = input.liveVisibleBindings ?? (input.site ? visibleBindingsAt(input.catalog, input.site) : []);
     const binding = visible.find((candidate) => candidate.name === precedingToken.name);
     if (!binding || input.entriesById.get(binding.id)?.status.kind === "invalid") return null;
     return declaredOrImplicitType(binding);
@@ -113,7 +118,10 @@ export const resolvePrecedingOperandType = (input: ResolvePrecedingOperandTypeIn
 export type TypedBindingReferenceCandidatesInput = {
   catalog: BindingCatalog;
   entriesById: BindingAnalysis["entriesById"];
-  site: BindingReferenceSite;
+  /** Required for compiled-statement visibility. Omit only with the mapped,
+   * plain-data liveVisibleBindings supplied by Source Editor completion. */
+  site?: BindingReferenceSite;
+  liveVisibleBindings?: readonly Binding[];
   /** Caller decides exact-match vs. property-capability subset assignability. */
   accepts: (type: ScalarType | null) => boolean;
 };
@@ -128,7 +136,8 @@ export type TypedBindingReferenceCandidatesInput = {
  */
 export const typedBindingReferenceCandidates = (input: TypedBindingReferenceCandidatesInput): readonly ScalarBindingCandidate[] => {
   const candidates: ScalarBindingCandidate[] = [];
-  for (const binding of visibleBindingsAt(input.catalog, input.site)) {
+  const visible = input.liveVisibleBindings ?? (input.site ? visibleBindingsAt(input.catalog, input.site) : []);
+  for (const binding of visible) {
     if (input.entriesById.get(binding.id)?.status.kind === "invalid") continue;
     const type = declaredOrImplicitType(binding);
     if (!input.accepts(type)) continue;
@@ -145,7 +154,8 @@ export type ScalarCompletionCandidate =
 export type ScalarExpressionCandidatesDeps = {
   catalog: BindingCatalog;
   entriesById: BindingAnalysis["entriesById"];
-  site: BindingReferenceSite;
+  site?: BindingReferenceSite;
+  liveVisibleBindings?: readonly Binding[];
   /**
    * `false` for a context that never allows expression operators (property
    * scalar values are never routed through this function at all - see
@@ -176,6 +186,7 @@ export const scalarExpressionCandidates = (
       catalog: deps.catalog,
       entriesById: deps.entriesById,
       site: deps.site,
+      liveVisibleBindings: deps.liveVisibleBindings,
       rootType: context.rootType
     });
     return scalarOperatorCandidates(operandType).map((candidate): ScalarCompletionCandidate => ({ kind: "operator", label: candidate.label }));
@@ -187,7 +198,13 @@ export const scalarExpressionCandidates = (
 
   if (!context.literalOnly) {
     const accepts = (type: ScalarType | null): boolean => type !== null && isScalarTypeAssignable(type, expectedType);
-    for (const reference of typedBindingReferenceCandidates({ catalog: deps.catalog, entriesById: deps.entriesById, site: deps.site, accepts })) {
+    for (const reference of typedBindingReferenceCandidates({
+      catalog: deps.catalog,
+      entriesById: deps.entriesById,
+      site: deps.site,
+      liveVisibleBindings: deps.liveVisibleBindings,
+      accepts
+    })) {
       candidates.push({ kind: "reference", name: reference.name, bindingId: reference.bindingId });
     }
   }
