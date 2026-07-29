@@ -30,8 +30,6 @@ class StatusGutterMarker extends GutterMarker {
 }
 
 const marker = (className: string, label: string) => new StatusGutterMarker(className, label);
-const errorMarker = marker("cm-status-gutter-marker cm-status-gutter-error", "評価エラー");
-const warningMarker = marker("cm-status-gutter-marker cm-status-gutter-warning", "評価警告");
 const stopMarker = marker("cm-status-gutter-marker cm-status-gutter-stop", "評価区切り");
 
 const lineClassFor = (status: IndexedLineStatus, isLastGood: boolean) => {
@@ -127,16 +125,13 @@ export const createEvaluationExtension = (source: EvaluationExtensionSource): Ex
   const evaluationViewPlugin = ViewPlugin.define<EvaluationViewPluginValue>((view) => new EvaluationViewPluginValue(view, source), { decorations: (value) => value.decorations });
   const statusGutter = gutter({
     class: "cm-status-gutter",
-    lineMarker: (view, line) => {
+    lineMarker: (_view, line) => {
       const atStop = source.atStopRange();
       if (atStop?.from === line.from) return stopMarker;
-      const status = source.index().statusByLineFrom.get(line.from);
-      if (status?.hasError) return errorMarker;
-      if (status?.hasWarning) return warningMarker;
       return null;
     },
     domEventHandlers: { mousedown: (_view, line, event) => source.onGutterAction("stop", line.from) && (event.preventDefault(), true) },
-    initialSpacer: () => errorMarker
+    initialSpacer: () => stopMarker
   });
   return [
     evaluationViewPlugin,

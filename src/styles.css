@@ -205,21 +205,12 @@ textarea {
   width: 10px;
 }
 
-.source-editor-pane .cm-status-gutter .cm-gutterElement {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  /* The activity marker center is 11px into the 21px source line:
-     2px top offset + half of its 18px box. */
-  padding-top: 1px;
-}
-
 .source-editor-pane .cm-status-gutter-marker {
-  display: block;
+  display: inline-block;
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  margin: 0;
+  margin: 6px 2px;
 }
 
 .source-editor-pane .cm-element-state-gutter {
@@ -237,9 +228,7 @@ textarea {
   place-items: center;
   width: 18px;
   height: 18px;
-  /* Align the optical center of the activity glyph with the adjacent
-     status-gutter dot. */
-  margin-top: 1px;
+  margin-top: 2px;
   cursor: pointer;
   color: #8b9086;
   font-size: 11px;
@@ -258,14 +247,6 @@ textarea {
 .cm-element-state-marker.is-disabled::before {
   content: "\2298"; /* disabled: circled slash (stop) */
   color: #b66e38;
-}
-
-.source-editor-pane .cm-status-gutter-error {
-  background: #c2410c;
-}
-
-.source-editor-pane .cm-status-gutter-warning {
-  background: #c58b1b;
 }
 
 .source-editor-pane .cm-status-gutter-stop {
