@@ -1,9 +1,27 @@
 import { AlertTriangle } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import type { DslDiagnostic, DslDiagnosticNavigationTarget } from "../dsl/dslTypes";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 
-export const DocumentDiagnostics = () => {
-  const diagnostics = useCadDocumentStore((state) => state.diagnostics);
+export type DocumentDiagnosticsProps = {
+  /** Task 48: fresh TS/Rust runtime diagnostics, supplied by the caller (see
+   * SourceEditorPane.tsx) - never read from the store directly, since these
+   * are derived live from the Source Editor controller, not persisted state. */
+  runtimeDiagnostics?: readonly DslDiagnostic[];
+  /** Called for a diagnostic whose own navigationTarget resolved at build
+   * time. Absent entirely (default no-op) renders every row as plain text. */
+  onNavigate?: (target: DslDiagnosticNavigationTarget) => void;
+};
+
+export const DocumentDiagnostics = ({ runtimeDiagnostics = [], onNavigate }: DocumentDiagnosticsProps) => {
+  const compileDiagnostics = useCadDocumentStore((state) => state.diagnostics);
+  const bindingIssueDiagnostics = useCadDocumentStore((state) => state.bindingIssueDiagnostics);
+  // Task 48: one fixed, stable order for display - compile-time diagnostics
+  // (already in compileDslDocument's own deterministic order), then
+  // BindingIssue-derived diagnostics (bindingAnalysis.issues' own
+  // deterministic order), then fresh runtime diagnostics last. Never
+  // re-sorted here.
+  const diagnostics = [...compileDiagnostics, ...bindingIssueDiagnostics, ...runtimeDiagnostics];
   const [isOpen, setIsOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const errors = diagnostics.filter((diagnostic) => diagnostic.severity === "error").length;
@@ -40,11 +58,27 @@ export const DocumentDiagnostics = () => {
       </button>
       {isOpen && diagnostics.length > 0 ? (
         <div className="document-diagnostics-popover" id="document-diagnostics-popover" role="region" aria-label="文書診断">
-          {diagnostics.map((diagnostic, index) => (
-            <p key={`${diagnostic.line}-${diagnostic.column}-${index}`} className={diagnostic.severity}>
-              {diagnostic.line}:{diagnostic.column} {diagnostic.message}
-            </p>
-          ))}
+          {diagnostics.map((diagnostic, index) => {
+            const target = diagnostic.navigationTarget;
+            const text = `${diagnostic.line}:${diagnostic.column} ${diagnostic.message}`;
+            if (!target || !onNavigate) {
+              return (
+                <p key={`${diagnostic.line}-${diagnostic.column}-${index}`} className={diagnostic.severity}>
+                  {text}
+                </p>
+              );
+            }
+            return (
+              <button
+                key={`${diagnostic.line}-${diagnostic.column}-${index}`}
+                type="button"
+                className={`document-diagnostics-row ${diagnostic.severity}`}
+                onClick={() => onNavigate(target)}
+              >
+                {text}
+              </button>
+            );
+          })}
         </div>
       ) : null}
     </div>

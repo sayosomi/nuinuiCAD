@@ -16,6 +16,7 @@
 
 import type { CadElement, ElementId } from "../types/geometry";
 import type { DslDiagnostic, DslSpan, DslStatement } from "../dsl/dslTypes";
+import { exactPhysicalSpan, type DiagnosticSpanContext } from "../dsl/dslDiagnosticSpan";
 import type { BindingAnalysis } from "./bindingAnalysis";
 import type { BindingId } from "./bindingCatalog";
 import { resolveReferencesAtSites, type BindingResolution, type SiteReferenceRequest } from "./bindingResolution";
@@ -242,6 +243,7 @@ export type CompileTextTemplatesInput = {
   elementIdByStatementIndex: ReadonlyMap<number, ElementId>;
   elements: readonly CadElement[];
   bindingAnalysis: BindingAnalysis | undefined;
+  spans: DiagnosticSpanContext;
 };
 
 export type TextTemplateCompilation = {
@@ -249,14 +251,22 @@ export type TextTemplateCompilation = {
   diagnostics: readonly DslDiagnostic[];
 };
 
-const diagnosticAt = (statement: DslStatement, span: DslSpan, code: string, message: string): DslDiagnostic => ({
-  severity: "error",
-  line: statement.line,
-  column: span.start + 1,
-  code,
-  message,
-  physicalSpan: statement.physicalSpan
-});
+/** Exact-span-or-nothing (Task 48) - see typedDeclarationAnalysis.ts's
+ * compileDiagnostic. No navigationTarget: a failed hole occurrence never
+ * reaches templatesByOccurrenceKey, so there is no resolved index entry to
+ * jump to for it. */
+const diagnosticAt = (spans: DiagnosticSpanContext, statement: DslStatement, span: DslSpan, code: string, message: string): DslDiagnostic => {
+  const physicalSpan = exactPhysicalSpan(spans, statement, span);
+  return {
+    severity: "error",
+    line: statement.line,
+    column: span.start + 1,
+    code,
+    message,
+    exactSpanOnly: true,
+    ...(physicalSpan ? { physicalSpan } : {})
+  };
+};
 
 /**
  * Scans every canonical `label(text: "...")` occurrence in the document -
@@ -271,7 +281,8 @@ export const compileTextTemplates = ({
   statements,
   elementIdByStatementIndex,
   elements,
-  bindingAnalysis
+  bindingAnalysis,
+  spans
 }: CompileTextTemplatesInput): TextTemplateCompilation => {
   const elementsById = new Map(elements.map((element) => [element.id, element]));
   const diagnostics: DslDiagnostic[] = [];
@@ -293,7 +304,7 @@ export const compileTextTemplates = ({
 
     const { template, diagnostics: occurrenceDiagnostics } = analyzeTextTemplate(paddedSource, span, bindingAnalysis, scopeId, statementIndex);
     if (occurrenceDiagnostics.length > 0) {
-      diagnostics.push(...occurrenceDiagnostics.map((diagnostic) => diagnosticAt(statement, diagnostic.span, diagnostic.code, diagnostic.message)));
+      diagnostics.push(...occurrenceDiagnostics.map((diagnostic) => diagnosticAt(spans, statement, diagnostic.span, diagnostic.code, diagnostic.message)));
       return;
     }
     if (template) templatesByOccurrenceKey.set(propertyBindingOccurrenceKey(statementIndex, "text"), template);

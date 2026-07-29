@@ -15,6 +15,7 @@ const canonicalFrom = (source: string): CanonicalDocumentValue => {
     doc: compiled as LastGoodDslDocument,
     docText: source,
     diagnostics: compiled.diagnostics,
+    bindingIssueDiagnostics: compiled.bindingIssueDiagnostics ?? [],
     typedDependencyGraph: compiled.typedDependencyGraph
   };
 };

@@ -73,6 +73,13 @@ export type CadDocumentState = {
   compiledDocumentRevision: number;
   /** Diagnostics for sourceText, including fatal diagnostics while doc remains last-good. */
   diagnostics: DslDiagnostic[];
+  /** Task 48: BindingAnalysis.issues adapted to DslDiagnostic, for sourceText,
+   * same current/fatal-inclusive lifecycle as `diagnostics` above. Kept
+   * separate from `diagnostics` deliberately - see
+   * CompiledDslDocument.bindingIssueDiagnostics for why it must never gate
+   * compilation. Display surfaces (gutter, Problems popover) concatenate
+   * both arrays themselves. */
+  bindingIssueDiagnostics: readonly DslDiagnostic[];
   /** Static dependency graph for the current sourceText, including fatal compile attempts. */
   typedDependencyGraph?: TypedDependencyGraph;
   /** @deprecated Derived compatibility views. sourceText remains canonical. */
@@ -224,6 +231,7 @@ const canonicalFields = (value: CanonicalDocumentValue) => {
     doc: value.doc,
     docText: value.docText,
     diagnostics: value.diagnostics,
+    bindingIssueDiagnostics: value.bindingIssueDiagnostics,
     typedDependencyGraph: value.typedDependencyGraph,
     elements: document.elements,
     palette: document.palette,

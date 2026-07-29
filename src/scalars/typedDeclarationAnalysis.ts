@@ -2,7 +2,8 @@
 // lowering consumes this result directly and never repeats this work.
 import { buildDslBindingAdapterSeeds } from "../dsl/bindingCatalogAdapter";
 import { buildLexicalScopeIndexFromStatements } from "../dsl/lexicalScopeIndexAdapter";
-import type { DslDiagnostic, DslStatement } from "../dsl/dslTypes";
+import { exactPhysicalSpan, type DiagnosticSpanContext } from "../dsl/dslDiagnosticSpan";
+import type { DslDiagnostic, DslSpan, DslStatement } from "../dsl/dslTypes";
 import { isElementDslStatement } from "../dsl/dslParser";
 import { analyzeBindings, type BindingAnalysis, type InitializerReference } from "./bindingAnalysis";
 import { buildBindingCatalog, type BindingId } from "./bindingCatalog";
@@ -12,7 +13,10 @@ import { parseScalarExpression } from "./expressionParser";
 import { typecheckScalarExpression } from "./expressionTypecheck";
 import type { ReconciledCadContainerInput } from "./legacyContainerIndex";
 import type { ScalarProgramPositionMap } from "./scalarProgram";
+import type { ScalarType } from "./types";
 import type { TypedScalarExpression } from "./typedExpressionAst";
+
+export type { DiagnosticSpanContext };
 
 export type TypedDeclarationAnalysis = {
   bindingAnalysis: BindingAnalysis;
@@ -99,21 +103,48 @@ export const unresolvedReferenceMessage = (name: string, resolution: BindingReso
   return `未定義の変数 "${name}" を参照しています。`;
 };
 
-const compileDiagnostic = (statement: DslStatement, span: { start: number; end: number }, code: string, message: string): DslDiagnostic => ({
-  severity: "error",
-  line: statement.line,
-  column: span.start + 1,
-  code,
-  message,
-  physicalSpan: statement.physicalSpan
-});
+/** Exact-span-or-nothing (Task 48): physicalSpan is set only when the
+ * logical->physical projection actually succeeds; a lookup/revision failure
+ * never falls back to the whole statement's span - it leaves physicalSpan
+ * unset and relies on exactSpanOnly to keep the gutter/Quick Fix/navigation
+ * from inventing a wrong position. `bindingId` doubles as the navigation
+ * target since every diagnostic here is about one binding's own declaration. */
+const compileDiagnostic = (
+  spans: DiagnosticSpanContext,
+  statement: DslStatement,
+  span: DslSpan,
+  code: string,
+  message: string,
+  extra?: { expectedType?: ScalarType; actualType?: ScalarType; bindingId?: BindingId }
+): DslDiagnostic => {
+  const physicalSpan = exactPhysicalSpan(spans, statement, span);
+  return {
+    severity: "error",
+    line: statement.line,
+    column: span.start + 1,
+    code,
+    message,
+    exactSpanOnly: true,
+    ...(physicalSpan ? { physicalSpan } : {}),
+    ...(extra?.expectedType ? { expectedType: extra.expectedType } : {}),
+    ...(extra?.actualType ? { actualType: extra.actualType } : {}),
+    ...(extra?.bindingId ? { bindingId: extra.bindingId, navigationTarget: { kind: "binding" as const, bindingId: extra.bindingId } } : {})
+  };
+};
 
-const parseInitializer = (statement: Extract<DslStatement, { kind: "typedDeclaration" }>):
+const parseInitializer = (
+  spans: DiagnosticSpanContext,
+  statement: Extract<DslStatement, { kind: "typedDeclaration" }>,
+  bindingId: BindingId
+):
   | { ok: true; value: ParsedInitializer }
   | { ok: false; diagnostics: readonly DslDiagnostic[] } => {
   const span = statement.payloadSpans.initializer;
   if (!span) {
-    return { ok: false, diagnostics: [compileDiagnostic(statement, statement.keywordSpan, "scalar-program-missing-initializer", "初期化式の範囲を取得できません。")] };
+    return {
+      ok: false,
+      diagnostics: [compileDiagnostic(spans, statement, statement.keywordSpan, "scalar-program-missing-initializer", "初期化式の範囲を取得できません。", { bindingId })]
+    };
   }
   // Positional padding keeps Task 14's existing statement-relative spans;
   // this parses only the initializer, never the document again.
@@ -122,7 +153,7 @@ const parseInitializer = (statement: Extract<DslStatement, { kind: "typedDeclara
     return {
       ok: false,
       diagnostics: parsed.diagnostics.map((diagnostic) =>
-        compileDiagnostic(statement, diagnostic.span, diagnostic.code, diagnostic.message)
+        compileDiagnostic(spans, statement, diagnostic.span, diagnostic.code, diagnostic.message, { bindingId })
       )
     };
   }
@@ -144,11 +175,13 @@ const positionMapFor = (statements: readonly DslStatement[]): ScalarProgramPosit
 export const analyzeTypedDeclarations = ({
   statements,
   stableStatementIdByIndex,
-  reconciledContainers
+  reconciledContainers,
+  spans
 }: {
   statements: readonly DslStatement[];
   stableStatementIdByIndex: ReadonlyMap<number, string>;
   reconciledContainers: ReconciledCadContainerInput;
+  spans: DiagnosticSpanContext;
 }): TypedDeclarationAnalysisCompilation => {
   const typedStatements = statements
     .map((statement, statementIndex) => ({ statement, statementIndex }))
@@ -158,7 +191,7 @@ export const analyzeTypedDeclarations = ({
   const missingIdentity = typedStatements.flatMap(({ statement, statementIndex }) =>
     stableStatementIdByIndex.has(statementIndex)
       ? []
-      : [compileDiagnostic(statement, statement.nameSpan ?? statement.keywordSpan, "missing-stable-statement-identity", "型付き宣言のstable statement identityを取得できません。")]
+      : [compileDiagnostic(spans, statement, statement.nameSpan ?? statement.keywordSpan, "missing-stable-statement-identity", "型付き宣言のstable statement identityを取得できません。")]
   );
   if (missingIdentity.length > 0) return { diagnostics: missingIdentity };
 
@@ -177,7 +210,7 @@ export const analyzeTypedDeclarations = ({
     if (binding.kind !== "typed") continue;
     const statement = statements[binding.statementIndex];
     if (!statement || statement.kind !== "typedDeclaration") throw new Error(`typedDeclarationAnalysis: typed binding ${binding.id} has no declaration statement`);
-    const parsed = parseInitializer(statement);
+    const parsed = parseInitializer(spans, statement, binding.id);
     if (!parsed.ok) diagnostics.push(...parsed.diagnostics);
     else parsedByBindingId.set(binding.id, parsed.value);
   }
@@ -218,7 +251,11 @@ export const analyzeTypedDeclarations = ({
     typedInitializerByBindingId.set(binding.id, checked.typed);
     const statement = statements[binding.statementIndex] as Extract<DslStatement, { kind: "typedDeclaration" }>;
     diagnostics.push(...checked.diagnostics.map((diagnostic) =>
-      compileDiagnostic(statement, diagnostic.span, diagnostic.code, diagnostic.message)
+      compileDiagnostic(spans, statement, diagnostic.span, diagnostic.code, diagnostic.message, {
+        expectedType: diagnostic.expectedType,
+        actualType: diagnostic.actualType,
+        bindingId: binding.id
+      })
     ));
   }
   return {

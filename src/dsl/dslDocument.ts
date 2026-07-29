@@ -20,6 +20,8 @@ import type {
 import { compileDslToElements } from "./dslCompiler";
 import { lowerScalarProgram } from "../scalars/scalarProgram";
 import { analyzeTypedDeclarations } from "../scalars/typedDeclarationAnalysis";
+import { bindingIssuesToDiagnostics } from "../scalars/bindingIssueDiagnostics";
+import type { DiagnosticSpanContext } from "./dslDiagnosticSpan";
 import { compilePropertyBindings, type ScalarValueSource } from "../scalars/propertyBindingCompiler";
 import { compileConditionalGroupConditions } from "../scalars/conditionalGroupConditionCompiler";
 import { compileSetStatements, type SetStatementAnalysis } from "../scalars/setStatementCompiler";
@@ -35,6 +37,7 @@ import { formatNumericValueForDsl } from "./dslExpressionFormat";
 import { parseDsl, parseDslSnapshot } from "./dslParser";
 import type { SourceRevision } from "./logicalStatementSourceMap";
 import type { BindingAnalysis } from "../scalars/bindingAnalysis";
+import type { BindingId } from "../scalars/bindingCatalog";
 import type { ScalarProgram, ScalarProgramPositionMap } from "../scalars/scalarProgram";
 import {
   documentDslRefs,
@@ -158,11 +161,20 @@ export type CompiledDslDocument = {
   /** 改行正規化済みソースの行配列。 */
   sourceLines: string[];
   diagnostics: DslDiagnostic[];
+  /** Task 48: this exact compile's span-projection context, so a later
+   * diagnostic producer working from this compiled document (e.g.
+   * runtimeScalarDiagnostics.ts, once an evaluation result arrives) can
+   * project an exact physicalSpan without re-parsing. Always present -
+   * depends only on the initial parse, not on how far compilation got. */
+  spans: DiagnosticSpanContext;
   scalarProgram?: ScalarProgram;
   bindingAnalysis?: BindingAnalysis;
   scalarProgramPositionMap?: ScalarProgramPositionMap;
   /** Task 22 compiled property binding sources, keyed by propertyBindingOccurrenceKey. */
   propertyBindings?: ReadonlyMap<string, ScalarValueSource>;
+  /** Task 48: Task 22's property binding sources grouped by bindingId - see
+   * propertyBindingCompiler.ts's own field doc. */
+  occurrenceKeysByBindingId?: ReadonlyMap<BindingId, readonly string[]>;
   /**
    * Task 25 compiled typed boolean conditions for `conditionalGroup.condition`,
    * keyed by propertyBindingOccurrenceKey(statementIndex, "condition"). A
@@ -195,6 +207,20 @@ export type CompiledDslDocument = {
   bindingVersions?: BindingVersionGraph;
   /** Task 36 static dependency graph for this exact compile attempt. */
   typedDependencyGraph?: TypedDependencyGraph;
+  /**
+   * Task 48: `bindingAnalysis.issues` (duplicate-binding/binding-cycle/
+   * self-initialization/undefined-binding/forward-binding-reference) adapted
+   * to `DslDiagnostic` for the gutter/Problems popover. Deliberately kept
+   * OUT of `diagnostics`/the pass-fail gate below: today, a document whose
+   * only problem is a BindingIssue still compiles successfully (the
+   * offending binding is excluded from the scalar program via the existing
+   * program-eligibility mechanism; every other element/binding evaluates
+   * normally) - appending these into the gating `diagnostics` array would
+   * turn that per-binding degradation into a whole-document compile failure,
+   * a real behavior change this task must not make. Display-only surfaces
+   * merge this array with `diagnostics` themselves.
+   */
+  bindingIssueDiagnostics?: readonly DslDiagnostic[];
 };
 
 export type CompileDslDocumentOptions = {
@@ -839,6 +865,14 @@ export const compileDslDocument = (
   }
   const baseDiagnostics = [...versionValidation.diagnostics, ...compiled.diagnostics];
 
+  // Task 48: the one parse-time span index every typed-variable diagnostic
+  // producer - including ones that run later, against this exact compiled
+  // document, from outside compileDslDocument itself (runtimeScalarDiagnostics.ts) -
+  // projects an exact physicalSpan through. Built once here, never re-parsed,
+  // never re-scanned per diagnostic; always available, even on the earliest
+  // error return below, since it depends only on `parsed`.
+  const spans: DiagnosticSpanContext = { sourceMap: parsed.sourceMap, logicalStatementByRangeFrom: parsed.logicalStatementByRangeFrom };
+
   if (baseDiagnostics.some((item) => item.severity === "error")) {
     return {
       document: null,
@@ -846,7 +880,8 @@ export const compileDslDocument = (
       statements: parsed.statements,
       statementMap: null,
       sourceLines,
-      diagnostics: baseDiagnostics
+      diagnostics: baseDiagnostics,
+      spans
     };
   }
 
@@ -857,12 +892,18 @@ export const compileDslDocument = (
         reconciledContainers: {
           elementIdByStatementIndex: compiled.elementIdsByStatementIndex ?? new Map(),
           elements: compiled.elements
-        }
+        },
+        spans
       })
     : { diagnostics: [] };
   const allDiagnostics = [...baseDiagnostics, ...scalarAnalysisCompilation.diagnostics];
   const scalarAnalysis = scalarAnalysisCompilation.analysis;
   const scalarProgram = scalarAnalysis ? lowerScalarProgram(scalarAnalysis) : undefined;
+  // Task 48: see CompiledDslDocument.bindingIssueDiagnostics for why this is
+  // never concatenated into allDiagnostics/finalDiagnostics below.
+  const bindingIssueDiagnostics = scalarAnalysis
+    ? bindingIssuesToDiagnostics(scalarAnalysis.bindingAnalysis, parsed.statements, spans)
+    : [];
 
   // Task 22: property binding compile/typecheck. Only meaningful once typed
   // declarations exist to reference (nui 3 + at least one binding) - a
@@ -872,7 +913,8 @@ export const compileDslDocument = (
         statements: parsed.statements,
         elementIdByStatementIndex: compiled.elementIdsByStatementIndex ?? new Map(),
         elements: compiled.elements,
-        bindingAnalysis: scalarAnalysis.bindingAnalysis
+        bindingAnalysis: scalarAnalysis.bindingAnalysis,
+        spans
       })
     : undefined;
   // Task 25: conditionalGroup.condition typed-boolean compile/typecheck.
@@ -884,7 +926,8 @@ export const compileDslDocument = (
         statements: parsed.statements,
         elementIdByStatementIndex: compiled.elementIdsByStatementIndex ?? new Map(),
         elements: compiled.elements,
-        bindingAnalysis: scalarAnalysis.bindingAnalysis
+        bindingAnalysis: scalarAnalysis.bindingAnalysis,
+        spans
       })
     : undefined;
   // Task 26: text template brace/escape/hole analysis for every canonical
@@ -898,7 +941,8 @@ export const compileDslDocument = (
         statements: parsed.statements,
         elementIdByStatementIndex: compiled.elementIdsByStatementIndex ?? new Map(),
         elements: compiled.elements,
-        bindingAnalysis: scalarAnalysis?.bindingAnalysis
+        bindingAnalysis: scalarAnalysis?.bindingAnalysis,
+        spans
       })
     : undefined;
   // Task 29: `set name = expression` target resolution/RHS typecheck. Gated
@@ -914,7 +958,8 @@ export const compileDslDocument = (
     ? compileSetStatements({
         statements: parsed.statements,
         stableStatementIdByIndex,
-        bindingAnalysis: scalarAnalysis?.bindingAnalysis
+        bindingAnalysis: scalarAnalysis?.bindingAnalysis,
+        spans
       })
     : undefined;
   // Task 30 only consumes products of the compiler/analysis passes above.
@@ -957,12 +1002,14 @@ export const compileDslDocument = (
       statementMap: null,
       sourceLines,
       diagnostics: finalDiagnostics,
+      spans,
       ...(scalarProgram ? { scalarProgram } : {}),
       ...(scalarAnalysis ? { bindingAnalysis: scalarAnalysis.bindingAnalysis } : {}),
       ...(scalarAnalysis ? { scalarProgramPositionMap: scalarAnalysis.positionMap } : {}),
       ...(setStatementCompilation ? { setStatements: setStatementCompilation.setsByStatementIndex } : {}),
       ...(bindingVersions ? { bindingVersions } : {}),
-      ...(typedDependencyGraph ? { typedDependencyGraph } : {})
+      ...(typedDependencyGraph ? { typedDependencyGraph } : {}),
+      ...(bindingIssueDiagnostics.length > 0 ? { bindingIssueDiagnostics } : {})
     };
   }
 
@@ -998,17 +1045,24 @@ export const compileDslDocument = (
     statementMap,
     sourceLines,
     diagnostics: finalDiagnostics,
+    spans,
     ...(scalarProgram ? { scalarProgram } : {}),
     ...(scalarAnalysis ? { bindingAnalysis: scalarAnalysis.bindingAnalysis } : {}),
     ...(scalarAnalysis ? { scalarProgramPositionMap: scalarAnalysis.positionMap } : {}),
-    ...(propertyBindingCompilation ? { propertyBindings: propertyBindingCompilation.sourcesByOccurrenceKey } : {}),
+    ...(propertyBindingCompilation
+      ? {
+          propertyBindings: propertyBindingCompilation.sourcesByOccurrenceKey,
+          occurrenceKeysByBindingId: propertyBindingCompilation.occurrenceKeysByBindingId
+        }
+      : {}),
     ...(conditionalGroupConditionCompilation
       ? { conditionalGroupConditions: conditionalGroupConditionCompilation.sourcesByOccurrenceKey }
       : {}),
     ...(textTemplateCompilation ? { textTemplates: textTemplateCompilation.templatesByOccurrenceKey } : {}),
     ...(setStatementCompilation ? { setStatements: setStatementCompilation.setsByStatementIndex } : {}),
     ...(bindingVersions ? { bindingVersions } : {}),
-    ...(typedDependencyGraph ? { typedDependencyGraph } : {})
+    ...(typedDependencyGraph ? { typedDependencyGraph } : {}),
+    ...(bindingIssueDiagnostics.length > 0 ? { bindingIssueDiagnostics } : {})
   };
 };
 

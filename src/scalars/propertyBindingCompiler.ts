@@ -12,6 +12,7 @@
 import type { CadElement, ElementId } from "../types/geometry";
 import type { DslDiagnostic, DslSpan, DslStatement } from "../dsl/dslTypes";
 import { commonArgSpecs, constructionForElementType } from "../dsl/dslConstructions";
+import { exactPhysicalSpan, type DiagnosticSpanContext } from "../dsl/dslDiagnosticSpan";
 import { findParameterDefinition, type ParameterValueKind } from "../parameters/parameterDefinitions";
 import type { BindingAnalysis } from "./bindingAnalysis";
 import type { BindingId } from "./bindingCatalog";
@@ -70,10 +71,17 @@ export type CompilePropertyBindingsInput = {
   elementIdByStatementIndex: ReadonlyMap<number, ElementId>;
   elements: readonly CadElement[];
   bindingAnalysis: BindingAnalysis;
+  spans: DiagnosticSpanContext;
 };
 
 export type PropertyBindingCompilation = {
   sourcesByOccurrenceKey: ReadonlyMap<string, ScalarValueSource>;
+  /** Task 48: every occurrenceKey whose resolved source is `{kind:"binding"}`,
+   * grouped by bindingId in the same single pass that builds
+   * sourcesByOccurrenceKey - so a runtime-diagnostic consumer lookup for one
+   * binding is an O(1) map get, never a scan over every property binding in
+   * the document. */
+  occurrenceKeysByBindingId: ReadonlyMap<BindingId, readonly string[]>;
   diagnostics: readonly DslDiagnostic[];
 };
 
@@ -89,14 +97,24 @@ type Candidate = {
   capability: PropertyBindingCapability;
 };
 
-const diagnosticAt = (statement: DslStatement, span: DslSpan, code: string, message: string): DslDiagnostic => ({
-  severity: "error",
-  line: statement.line,
-  column: span.start + 1,
-  code,
-  message,
-  physicalSpan: statement.physicalSpan
-});
+/** Exact-span-or-nothing (Task 48): see typedDeclarationAnalysis.ts's
+ * compileDiagnostic for the shared rationale. This module's own diagnostic
+ * codes (property-binding-*) are about an occurrence that itself failed to
+ * resolve, so - unlike a BindingIssue or runtime diagnostic - there is no
+ * separately-resolved index entry to navigate to; these carry an exact span
+ * for the gutter but no navigationTarget. */
+const diagnosticAt = (spans: DiagnosticSpanContext, statement: DslStatement, span: DslSpan, code: string, message: string): DslDiagnostic => {
+  const physicalSpan = exactPhysicalSpan(spans, statement, span);
+  return {
+    severity: "error",
+    line: statement.line,
+    column: span.start + 1,
+    code,
+    message,
+    exactSpanOnly: true,
+    ...(physicalSpan ? { physicalSpan } : {})
+  };
+};
 
 /**
  * A DSL arg name (e.g. `extensions`) is not always the parameter key
@@ -122,7 +140,8 @@ export const compilePropertyBindings = ({
   statements,
   elementIdByStatementIndex,
   elements,
-  bindingAnalysis
+  bindingAnalysis,
+  spans
 }: CompilePropertyBindingsInput): PropertyBindingCompilation => {
   const elementsById = new Map(elements.map((element) => [element.id, element]));
   const diagnostics: DslDiagnostic[] = [];
@@ -155,6 +174,7 @@ export const compilePropertyBindings = ({
       if (!definition.propertyCapability) {
         if (referenceNode) {
           diagnostics.push(diagnosticAt(
+            spans,
             statement,
             referenceNode.span,
             PROPERTY_BINDING_NOT_SUPPORTED_CODE,
@@ -168,6 +188,7 @@ export const compilePropertyBindings = ({
 
       if (!referenceNode) {
         diagnostics.push(diagnosticAt(
+          spans,
           statement,
           span,
           PROPERTY_BINDING_INVALID_CODE,
@@ -201,6 +222,7 @@ export const compilePropertyBindings = ({
     const resolution = resolutions.get(candidate.key);
     if (!resolution || resolution.kind !== "resolved") {
       diagnostics.push(diagnosticAt(
+        spans,
         candidate.statement,
         candidate.referenceSpan,
         PROPERTY_BINDING_UNRESOLVED_CODE,
@@ -213,6 +235,7 @@ export const compilePropertyBindings = ({
     const entry = bindingAnalysis.entriesById.get(binding.id);
     if (binding.declaredType === null || entry?.status.kind === "invalid") {
       diagnostics.push(diagnosticAt(
+        spans,
         candidate.statement,
         candidate.referenceSpan,
         PROPERTY_BINDING_INVALID_CODE,
@@ -223,6 +246,7 @@ export const compilePropertyBindings = ({
 
     if (!isAssignableToPropertyCapability(binding.declaredType, candidate.capability)) {
       diagnostics.push(diagnosticAt(
+        spans,
         candidate.statement,
         candidate.referenceSpan,
         PROPERTY_BINDING_TYPE_MISMATCH_CODE,
@@ -241,5 +265,16 @@ export const compilePropertyBindings = ({
     });
   }
 
-  return { sourcesByOccurrenceKey, diagnostics };
+  // Task 48: grouped in the same pass that builds sourcesByOccurrenceKey, in
+  // source order (statements.forEach/candidates order is already statement
+  // order) - never a second scan or a comparison sort.
+  const occurrenceKeysByBindingId = new Map<BindingId, string[]>();
+  for (const [occurrenceKey, source] of sourcesByOccurrenceKey) {
+    if (source.kind !== "binding") continue;
+    const existing = occurrenceKeysByBindingId.get(source.bindingId);
+    if (existing) existing.push(occurrenceKey);
+    else occurrenceKeysByBindingId.set(source.bindingId, [occurrenceKey]);
+  }
+
+  return { sourcesByOccurrenceKey, occurrenceKeysByBindingId, diagnostics };
 };

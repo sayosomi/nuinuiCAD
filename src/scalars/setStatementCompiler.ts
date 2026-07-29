@@ -22,6 +22,7 @@
 // regardless of its BindingAnalysis status.
 
 import type { DslDiagnostic, DslSpan, DslStatement } from "../dsl/dslTypes";
+import { exactPhysicalSpan, type DiagnosticSpanContext } from "../dsl/dslDiagnosticSpan";
 import type { BindingAnalysis } from "./bindingAnalysis";
 import type { Binding, BindingId } from "./bindingCatalog";
 import { resolveReferencesAtSites, type BindingResolution, type SiteReferenceRequest } from "./bindingResolution";
@@ -75,6 +76,7 @@ export type CompileSetStatementsInput = {
    * in the document to resolve against).
    */
   bindingAnalysis: BindingAnalysis | undefined;
+  spans: DiagnosticSpanContext;
 };
 
 export type SetStatementCompilation = {
@@ -105,14 +107,25 @@ export const classifySetTargetResolution = (resolution: BindingResolution | unde
   return { kind: "valid", binding };
 };
 
-const diagnosticAt = (statement: DslStatement, span: DslSpan, code: string, message: string): DslDiagnostic => ({
-  severity: "error",
-  line: statement.line,
-  column: span.start + 1,
-  code,
-  message,
-  physicalSpan: statement.physicalSpan
-});
+/** Exact-span-or-nothing (Task 48) - see typedDeclarationAnalysis.ts's
+ * compileDiagnostic. No navigationTarget: there is no dedicated `set`
+ * statement jump method on SourceEditorHandle today (SetStatementRangeIndex/
+ * SetStatementFieldRangeIndex exist only for Task 44's in-place value
+ * stepping, never exposed for external navigation) - inventing one is out of
+ * this task's scope, so these diagnostics stay text-only in the Problems
+ * popover until a future task adds that API. */
+const diagnosticAt = (spans: DiagnosticSpanContext, statement: DslStatement, span: DslSpan, code: string, message: string): DslDiagnostic => {
+  const physicalSpan = exactPhysicalSpan(spans, statement, span);
+  return {
+    severity: "error",
+    line: statement.line,
+    column: span.start + 1,
+    code,
+    message,
+    exactSpanOnly: true,
+    ...(physicalSpan ? { physicalSpan } : {})
+  };
+};
 
 type SetCandidate = {
   statement: Extract<DslStatement, { kind: "set" }>;
@@ -128,7 +141,8 @@ type SetCandidate = {
 export const compileSetStatements = ({
   statements,
   stableStatementIdByIndex,
-  bindingAnalysis
+  bindingAnalysis,
+  spans
 }: CompileSetStatementsInput): SetStatementCompilation => {
   const setEntries = statements
     .map((statement, statementIndex) => ({ statement, statementIndex }))
@@ -144,6 +158,7 @@ export const compileSetStatements = ({
     stableStatementIdByIndex.has(statementIndex)
       ? []
       : [diagnosticAt(
+          spans,
           statement,
           statement.nameSpan ?? statement.keywordSpan,
           MISSING_SET_STATEMENT_IDENTITY_CODE,
@@ -173,7 +188,7 @@ export const compileSetStatements = ({
     const parsed = parseScalarExpression(" ".repeat(expressionSpan.start) + statement.expression, expressionSpan);
     if (!parsed.ast) {
       diagnostics.push(...parsed.diagnostics.map((diagnostic) =>
-        diagnosticAt(statement, diagnostic.span, diagnostic.code, diagnostic.message)
+        diagnosticAt(spans, statement, diagnostic.span, diagnostic.code, diagnostic.message)
       ));
       continue;
     }
@@ -184,6 +199,7 @@ export const compileSetStatements = ({
       // reference resolution/typecheck entirely (there is nothing to
       // resolve against).
       diagnostics.push(diagnosticAt(
+        spans,
         statement,
         targetSpan,
         INVALID_SET_TARGET_CODE,
@@ -254,7 +270,7 @@ export const compileSetStatements = ({
         : classification.reason === "not-let"
         ? `"${candidate.statement.name}" はlet宣言ではないため set の対象にできません。`
         : `"${candidate.statement.name}" の宣言型が確定していないため、set の対象にできません。`;
-      diagnostics.push(diagnosticAt(candidate.statement, candidate.targetSpan, code, message));
+      diagnostics.push(diagnosticAt(spans, candidate.statement, candidate.targetSpan, code, message));
       continue;
     }
     const binding = classification.binding;
@@ -265,6 +281,7 @@ export const compileSetStatements = ({
       const resolution = resolutions.get(candidate.referenceKeys[index]);
       if (!resolution || resolution.kind !== "resolved") {
         diagnostics.push(diagnosticAt(
+          spans,
           candidate.statement,
           reference.span,
           SET_RHS_UNRESOLVED_CODE,
@@ -286,6 +303,7 @@ export const compileSetStatements = ({
         (!isLegacyNumericBinding && referencedEntry?.status.kind === "invalid")
       ) {
         diagnostics.push(diagnosticAt(
+          spans,
           candidate.statement,
           reference.span,
           SET_RHS_INVALID_REFERENCE_CODE,
@@ -304,7 +322,7 @@ export const compileSetStatements = ({
     });
     if (checked.diagnostics.length > 0) {
       diagnostics.push(...checked.diagnostics.map((diagnostic) =>
-        diagnosticAt(candidate.statement, diagnostic.span, diagnostic.code, diagnostic.message)
+        diagnosticAt(spans, candidate.statement, diagnostic.span, diagnostic.code, diagnostic.message)
       ));
       continue;
     }
