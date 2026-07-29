@@ -86,8 +86,14 @@ Source Editor 左端の灰色 activity marker は要素の表示/評価状態を
 2. `const length: number`、`const label: string`、`const printed: boolean`、
    `const side: choice(right, left)` の4行をそれぞれ選択し、Inspectorの
    宣言メタデータ(kind/type/生の初期化式/binding ID)を確認する。
-3. Canvas上のtext要素 `Label` と `Bare` の描画内容を確認する。
-4. `point B` と `line AB` をそれぞれ選択し、Inspector の issue 表示で評価
+3. Canvas上のtext要素 `Label` と `Bare` の描画内容を確認し、`Label` の `size`
+   を変更すると文字サイズだけが変わり、Canvas zoomでは両方が表示倍率として
+   同じ比率で変わることを確認する。
+4. `Label` と `Bare` を選択し、source templateと評価済み文字列が異なるため
+   「テキスト（ソース）」と「評価結果」が別行で表示されることを確認する。
+5. `\{draft\}` をSource Editorで確認し、保存して再度開いてもbackslash数が
+   増えないことを確認する。
+6. `point B` と `line AB` をそれぞれ選択し、Inspector の issue 表示で評価
    エラー本文を確認する。Source Editor ヘッダーの Problems ボタンが `✓` の
    ままであることも確認する。
 
@@ -97,6 +103,10 @@ Source Editor 左端の灰色 activity marker は要素の表示/評価状態を
   描画される(実測値。`\{`/`\}` はliteral braceとして表示され、
   `{@label}`/`{@length}` は展開され、numberは既存の最大3桁formatで
   `12.346` になる)。
+* `Label` のInspectorは「テキスト（ソース）」に
+  `\{draft\} {@label} {@length}\n`、 「評価結果」に実改行を含む
+  runtime出力を表示する。`Bare` もsource `@label` とruntime出力が異なるため
+  同じ2行を表示する。保存・再オープンしてもsourceのbackslash数は不変である。
 * Inspectorの宣言セクションは4行それぞれの型・宣言(`const`)・生の初期化式
   を読み取り専用で表示する。
 * 文書には **2件の依存エラー** が出る(これはbugではなく仕様どおり):

@@ -45,6 +45,14 @@ describe("textInspectorSource", () => {
       element, textTemplates: compiled.textTemplates, statementMap: compiled.statementMap,
       evaluation, isRuntimeFresh: false,
     }).evaluatedText).toBeNull();
+    expect(textInspectorPresentation({
+      element, textTemplates: compiled.textTemplates, statementMap: compiled.statementMap,
+      evaluation: { ...evaluation, computedGeometry: new Map(), errors: [{
+        elementId: element.id, elementName: element.name, missingDependencyId: element.id,
+        message: "テキストを評価できません。",
+      }] },
+      isRuntimeFresh: true,
+    }).evaluatedText).toBeNull();
   });
 
   it("does not create a duplicate result for an exactly matching literal", () => {

@@ -199,7 +199,7 @@ export const useCanvasOverlayData = ({
         .map((text) => ({
           text,
           screen: worldToScreen(text.anchor!, viewportSize, canvasViewport),
-          fontSizePx: Math.max(text.fontSize * canvasViewport.zoom, 1)
+          fontSizePx: text.fontSize * canvasViewport.zoom
         })),
     [canvasViewport, texts, viewportSize, visibleElementIds]
   );

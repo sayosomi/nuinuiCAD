@@ -110,7 +110,6 @@ export const InspectorPanel = ({
       : null,
     [doc.statementMap, doc.textTemplates, element, evaluation, isRuntimeFresh],
   );
-
   const dependencyIndex = useMemo(
     () => createDependencyIndex(elements, { textTemplatesByElementId }),
     [elements, textTemplatesByElementId],
@@ -155,8 +154,7 @@ export const InspectorPanel = ({
     [element, textPresentation],
   );
   const evaluatedText = textPresentation?.evaluatedText ?? null;
-  const textHasDifferentRuntimeResult =
-    evaluatedText !== null && evaluatedText !== textPresentation?.source;
+  const textHasDifferentRuntimeResult = evaluatedText !== null && evaluatedText !== textPresentation?.source;
   const dependencyPresentation = useMemo(
     () =>
       element && dependencySummary
