@@ -19,7 +19,8 @@
     "test:profile:binding-analysis": "VITE_RUN_BINDING_PROFILE=1 vitest run test/typedVariablesPureNui3BindingAnalysisProfile.test.ts --pool=forks --maxWorkers=1 --no-file-parallelism --disableConsoleIntercept",
     "test:performance:ts-reference": "VITE_RUN_PERFORMANCE_GATES=1 vitest run test/typedVariablesConstEvaluationPerformance.test.ts --pool=forks --maxWorkers=1 --no-file-parallelism --disableConsoleIntercept",
     "test:performance:for-group-mutation": "VITE_RUN_PERFORMANCE_GATES=1 vitest run test/typedVariablesForGroupMutationProductionPerformance.test.ts --pool=forks --maxWorkers=1 --no-file-parallelism --disableConsoleIntercept",
-    "bench:performance:rust-production": "cargo test --manifest-path src-tauri/Cargo.toml performance_typed_variable_production_evaluation_baseline -- --ignored --nocapture --test-threads=1",
+    "bench:performance:rust-production": "cargo test --manifest-path src-tauri/Cargo.toml performance_pure_nui3_typed_production_ -- --ignored --nocapture --test-threads=1",
+    "bench:performance:rust-production-legacy": "cargo test --manifest-path src-tauri/Cargo.toml performance_typed_variable_production_evaluation_baseline -- --ignored --nocapture --test-threads=1",
     "test:parity": "VITE_RUN_RUST_PARITY=1 vitest run test/evaluationParity.test.ts",
     "bench:evaluation": "cargo test --manifest-path src-tauri/Cargo.toml performance_ -- --ignored --nocapture --test-threads=1",
     "test:watch": "vitest"
