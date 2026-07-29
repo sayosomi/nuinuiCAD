@@ -31,12 +31,17 @@ export const dependencyError = (
   element: CadElement,
   missingDependencyId: ElementId,
   elementsById: Map<ElementId, CadElement>,
-  disabledByGroupId: Map<ElementId, ElementId> = new Map()
+  disabledByGroupId: Map<ElementId, ElementId> = new Map(),
+  priorErrors: DependencyError[] = []
 ): DependencyError => {
   const missingDependencyName = findElementName(elementsById, missingDependencyId);
   const dependencyLabel = missingDependencyName ?? missingDependencyId;
   const disabledGroupId = disabledByGroupId.get(missingDependencyId);
   const disabledGroupName = disabledGroupId ? findElementName(elementsById, disabledGroupId) : null;
+  const dependencyEvaluationFailed =
+    !disabledGroupName &&
+    elementsById.has(missingDependencyId) &&
+    priorErrors.some((error) => error.elementId === missingDependencyId);
 
   return {
     elementId: element.id,
@@ -45,7 +50,9 @@ export const dependencyError = (
     missingDependencyName,
     message: disabledGroupName
       ? `${element.name} は ${dependencyLabel} を参照していますが、${dependencyLabel} はグループ ${disabledGroupName} により評価OFFです。${disabledGroupName} を評価ONにするか、参照先を変更してください。`
-      : `${element.name} は ${dependencyLabel} を参照していますが、${dependencyLabel} はこの要素より後にあるか、存在しません。${dependencyLabel} を ${element.name} より前に移動してください。`
+      : dependencyEvaluationFailed
+        ? `${element.name} は ${dependencyLabel} を参照していますが、${dependencyLabel} の評価に失敗しているため評価できません。先に ${dependencyLabel} のエラーを解消してください。`
+        : `${element.name} は ${dependencyLabel} を参照していますが、${dependencyLabel} はこの要素より後にあるか、存在しません。${dependencyLabel} を ${element.name} より前に移動してください。`
   };
 };
 
@@ -73,7 +80,7 @@ export const getComputedPointOrError = (
 ) => {
   const point = computedGeometry.get(pointId);
   if (!isPoint(point)) {
-    errors.push(dependencyError(element, pointId, elementsById, disabledByGroupId));
+    errors.push(dependencyError(element, pointId, elementsById, disabledByGroupId, errors));
     return undefined;
   }
 
@@ -148,7 +155,7 @@ export const getPointAnchorOrError = (
     const source = computedGeometry.get(anchor.elementId);
     const point = resolveDerivedPoint(source, anchor.pointKey, elementsById);
     if (!point) {
-      errors.push(dependencyError(element, anchor.elementId, elementsById, disabledByGroupId));
+      errors.push(dependencyError(element, anchor.elementId, elementsById, disabledByGroupId, errors));
       return undefined;
     }
     return {

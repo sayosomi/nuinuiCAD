@@ -47,6 +47,25 @@
       "line2Id": "missing-line-2",
       "intersectionIndex": -1,
       "useExtensions": false
+    },
+    {
+      "id": "broken-parent",
+      "name": "壊れた親点",
+      "type": "offsetPoint",
+      "visible": true,
+      "enabled": true,
+      "fromPointId": "ghost",
+      "dx": 10,
+      "dy": 0
+    },
+    {
+      "id": "dependent-on-broken-parent",
+      "name": "壊れた親依存線",
+      "type": "line",
+      "visible": true,
+      "enabled": true,
+      "startPoint": { "mode": "reference", "pointId": "broken-parent" },
+      "endPoint": { "mode": "coordinate", "x": 10, "y": 10 }
     }
   ]
 }

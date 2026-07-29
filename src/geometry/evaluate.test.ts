@@ -188,6 +188,93 @@ describe("evaluateElements", () => {
     });
   });
 
+  describe("dependency error message for a broken parent", () => {
+    const brokenParent: CadElement = {
+      id: "broken-parent",
+      name: "壊れた親点",
+      type: "offsetPoint",
+      visible: true,
+      enabled: true,
+      fromPointId: "ghost",
+      dx: 10,
+      dy: 0
+    };
+    const dependentLine: CadElement = {
+      id: "dependent-line",
+      name: "依存線",
+      type: "line",
+      visible: true,
+      enabled: true,
+      startPoint: { mode: "reference", pointId: "broken-parent" },
+      endPoint: { mode: "coordinate", x: 10, y: 10 }
+    };
+
+    it("keeps the missing-parent message when the referenced id does not exist", () => {
+      const result = evaluateElements([
+        {
+          id: "line",
+          name: "参照線",
+          type: "line",
+          visible: true,
+          enabled: true,
+          startPoint: { mode: "reference", pointId: "ghost" },
+          endPoint: { mode: "coordinate", x: 10, y: 10 }
+        }
+      ]);
+
+      expect(result.errors[0]).toMatchObject({ elementId: "line", missingDependencyId: "ghost" });
+      expect(result.errors[0].message).toContain("はこの要素より後にあるか、存在しません");
+    });
+
+    it("keeps the forward-reference message when the parent appears after the dependent element", () => {
+      const result = evaluateElements([dependentLine, brokenParent]);
+
+      const dependentError = result.errors.find((error) => error.elementId === "dependent-line");
+      expect(dependentError).toMatchObject({ missingDependencyId: "broken-parent" });
+      expect(dependentError?.message).toContain("はこの要素より後にあるか、存在しません");
+    });
+
+    it("reports an evaluation-failed message when the parent exists earlier but failed to evaluate", () => {
+      const result = evaluateElements([brokenParent, dependentLine]);
+
+      expect(result.computedGeometry.has("broken-parent")).toBe(false);
+      const parentError = result.errors.find((error) => error.elementId === "broken-parent");
+      expect(parentError).toMatchObject({ missingDependencyId: "ghost" });
+
+      const dependentError = result.errors.find((error) => error.elementId === "dependent-line");
+      expect(dependentError).toMatchObject({ missingDependencyId: "broken-parent" });
+      expect(dependentError?.message).toContain("壊れた親点 の評価に失敗しているため評価できません");
+      expect(dependentError?.message).not.toContain("はこの要素より後にあるか、存在しません");
+    });
+
+    it("reports no issue for a valid parent", () => {
+      const validParent: CadElement = { ...brokenParent, fromPointId: "a" };
+      const result = evaluateElements([validElements[0], validParent, dependentLine]);
+
+      expect(result.errors).toHaveLength(0);
+      expect(result.computedGeometry.has("dependent-line")).toBe(true);
+    });
+
+    it("targets only the failed parent when one of several parents is broken", () => {
+      const validParent: CadElement = { id: "valid-parent", name: "正常な親点", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 };
+      const twoParentLine: CadElement = {
+        id: "two-parent-line",
+        name: "二親線",
+        type: "line",
+        visible: true,
+        enabled: true,
+        startPoint: { mode: "reference", pointId: "valid-parent" },
+        endPoint: { mode: "reference", pointId: "broken-parent" }
+      };
+      const result = evaluateElements([validParent, brokenParent, twoParentLine]);
+
+      const dependentErrors = result.errors.filter((error) => error.elementId === "two-parent-line");
+      expect(dependentErrors).toHaveLength(1);
+      expect(dependentErrors[0]).toMatchObject({ missingDependencyId: "broken-parent" });
+      expect(dependentErrors[0].message).toContain("評価に失敗しているため評価できません");
+    });
+  });
+
   it("keeps child visibility settings while applying parent visibility as a drawing mask", () => {
     const result = evaluateElements([
       {
