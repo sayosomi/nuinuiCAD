@@ -53,6 +53,10 @@ import {
   completedCommandLineSteps
 } from "./commandLineProgress";
 import { commandLineStepHelp, isCommandLineReferenceStep } from "./commandLineBarHelpers";
+import {
+  commandLineDuplicateNameMessage,
+  validateCommandLineElementName
+} from "../commands/commandLineNameValidation";
 
 type CommandLineBarProps = {
   commandContext?: CommandContext;
@@ -115,6 +119,21 @@ export const CommandLineBar = ({ commandContext, evaluation }: CommandLineBarPro
     ? inputState.value
     : session ? commandLineEditingInputValue(session, step) : "";
   const setInputValue = (value: string) => setInputState({ step: stepIdentity, value });
+  const duplicateNameMessage = useMemo(() => {
+    if (!session || step?.kind !== "name") return null;
+    return commandLineDuplicateNameMessage(validateCommandLineElementName({
+      name: inputValue || session.nameSuggestion,
+      elements,
+      parentGroupId: session.insertionTarget.parentGroupId
+    }));
+  }, [elements, inputValue, session, step?.kind]);
+  // A failed Enter records the same name conflict on the session so non-UI
+  // callers cannot bypass validation. The inline name feedback already owns
+  // that error while this prompt is open; rendering it again below the form
+  // would show the identical message twice.
+  const sessionError = session?.error && session.error !== duplicateNameMessage
+    ? session.error
+    : null;
   const numberVariableOptions = useMemo(() => {
     if (!session || step?.kind !== "number") return [];
     const placement = creationPlacementForTarget(elements, session.insertionTarget, evaluationLimitIndex);
@@ -521,7 +540,8 @@ export const CommandLineBar = ({ commandContext, evaluation }: CommandLineBarPro
                   value={inputValue}
                   placeholder={placeholder}
                   aria-label={stepLabel}
-                  aria-describedby="command-line-input-help"
+                  aria-describedby={duplicateNameMessage ? "command-line-input-help command-line-name-error" : "command-line-input-help"}
+                  aria-invalid={duplicateNameMessage ? true : undefined}
                   onChange={(event) => {
                     const nextValue = event.target.value;
                     setAcceptedReferenceSuggestion(null);
@@ -548,6 +568,7 @@ export const CommandLineBar = ({ commandContext, evaluation }: CommandLineBarPro
                   onSelect={(event) => setNumberSuggestionSelection({ start: event.currentTarget.selectionStart, end: event.currentTarget.selectionEnd })}
                   onKeyUp={(event) => setNumberSuggestionSelection({ start: event.currentTarget.selectionStart, end: event.currentTarget.selectionEnd })}
                 />
+                {duplicateNameMessage ? <span id="command-line-name-error" className="command-line-bar-error" role="alert">{duplicateNameMessage}</span> : null}
                 {referenceSuggestionsOpen ? (
                   <ul className="command-line-suggestions" role="listbox" aria-label="参照候補">
                     {visibleSuggestions.map((suggestion, index) => (
@@ -604,7 +625,7 @@ export const CommandLineBar = ({ commandContext, evaluation }: CommandLineBarPro
           </>
         )}
       </div>
-      {session.error ? <p className="command-line-bar-error" role="alert">{session.error}</p> : null}
+      {sessionError ? <p className="command-line-bar-error" role="alert">{sessionError}</p> : null}
       <details className="command-line-bar-progress" open={completedSteps.length > 0}>
         <summary>完了済み {completedSteps.length}項目</summary>
         <ul aria-label="完了済みの入力">

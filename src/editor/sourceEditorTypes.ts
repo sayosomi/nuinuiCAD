@@ -3,6 +3,7 @@ import type { BindingId } from "../scalars/bindingCatalog";
 import type { DslDiagnostic } from "../dsl/dslTypes";
 import type { DslPhysicalSpan } from "../dsl/logicalStatementSourceMap";
 import type { ElementId, EvaluationResult } from "../types/geometry";
+import type { CommandLineSourceCursor } from "../commands/commandLineSourceInsertion";
 
 /** Evaluation identity is deliberately separate from the source notification revision.
  * `compiledDocumentRevision` identifies the last-good document that was evaluated. */
@@ -40,6 +41,8 @@ export type SourceEditorHandle = {
   focus: () => void;
   /** Element statement under the primary cursor, resolved through the current range index. */
   currentCursorElementId?: () => ElementId | null;
+  /** Plain physical cursor data for source-preserving creation insertion. */
+  currentSourceCursor?: () => CommandLineSourceCursor | null;
   /** Typed binding (declaration/reference/set target/template hole) under the
    * primary cursor, if any - see typedRenameTargetAtCursor.ts. Null whenever
    * the cursor is not on a typed construct at all. */

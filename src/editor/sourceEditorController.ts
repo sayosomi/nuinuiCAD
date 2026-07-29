@@ -391,6 +391,16 @@ export class SourceEditorController implements SourceEditorHandle {
   currentCursorElementId = () =>
     elementIdAtCursor(this.statementRanges, this.view.state.selection.main.head);
 
+  currentSourceCursor = () => {
+    const head = this.view.state.selection.main.head;
+    return {
+      sourceRevision: this.store.getState().sourceRevision,
+      line: this.view.state.doc.lineAt(head).number,
+      lineCount: this.view.state.doc.lines,
+      elementId: elementIdAtCursor(this.statementRanges, head)
+    };
+  };
+
   /** Typed-span counterpart to currentCursorElementId, gated by the same
    * typedSemanticMetadataFresh contract as stepTypedSourceValue: the tracked
    * physical spans and doc.scalarProgram/setStatements/propertyBindings/
@@ -1290,6 +1300,7 @@ export class SourceEditorController implements SourceEditorHandle {
             if (ui.activePointPickTarget || ui.activeNumericReferencePickTarget || ui.activeLinePickTarget) return false;
             const handled = dispatchCommand(binding.commandId, {
               currentCursorElementId: this.currentCursorElementId,
+              currentSourceCursor: this.currentSourceCursor,
               currentCursorTypedRenameTargetBindingId: this.currentCursorTypedRenameTargetBindingId
             }) !== false;
             return binding.owner === "editorTransaction" ? handled : true;

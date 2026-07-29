@@ -33,6 +33,8 @@ export type CommandLineSession = {
   insertionAnchor: CommandLineInsertionAnchor;
   /** Flat position and parent scope are preserved together for all creation paths. */
   insertionTarget: ElementCreationTarget;
+  /** Physical source line to preserve when the session started in Source Editor. */
+  sourceInsertionLine: number | null;
   /** Stable only while startedAtRevision matches the document; used for session UI and previews. */
   insertionIndex: number;
   startedAtRevision: number;
@@ -45,6 +47,7 @@ export type StartCommandLineSessionOptions = {
   insertionAnchor?: CommandLineInsertionAnchor;
   insertionIndex: number;
   insertionTarget?: ElementCreationTarget;
+  sourceInsertionLine?: number | null;
   revision: number;
   elements: CadElement[];
   /** Existing creation-placement data when the caller has already resolved it. */
@@ -125,6 +128,7 @@ export const startSession = (
     editingReturnPickState: null,
     insertionAnchor,
     insertionTarget,
+    sourceInsertionLine: options.sourceInsertionLine ?? null,
     insertionIndex: options.insertionIndex,
     startedAtRevision: options.revision,
     nameSuggestion: nameSuggestionFor(recipe, options),

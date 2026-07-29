@@ -89,6 +89,25 @@ describe("command-line session commands", () => {
     expect(focusSourceEditorAtElementEnd).toHaveBeenCalledWith(element.id);
   });
 
+  it("rejects a duplicate name before attempting document materialization", () => {
+    useCadDocumentStore.getState().commitText([
+      "nui 2",
+      "point A = coordinate(x: 0 y: 0)"
+    ].join("\n"), "test");
+    const sourceBefore = useCadDocumentStore.getState().sourceText;
+
+    expect(startCommandLineCreation("freePoint")).toBe(true);
+    submitCommandLineInput("1");
+    submitCommandLineInput("2");
+    expect(submitCommandLineInput("A")).toBe(false);
+
+    expect(useCadUiStore.getState().commandLineSession).toMatchObject({
+      currentStepIndex: 2,
+      error: expect.stringContaining("既にあります")
+    });
+    expect(useCadDocumentStore.getState().sourceText).toBe(sourceBefore);
+  });
+
   it("removes every temporary creation command after cutover", () => {
     for (const commandId of Object.keys(legacyCreationCommandRecipeMap)) {
       const temporaryId = `commandLine${commandId[0].toUpperCase()}${commandId.slice(1)}`;
@@ -428,6 +447,74 @@ describe("command-line session commands", () => {
       insertionIndex: 2,
       insertionAnchor: { kind: "afterElement", elementId: pointB.id }
     });
+  });
+
+  it("splices a Source Editor comment-line cursor at that physical line", () => {
+    useCadDocumentStore.getState().commitText([
+      "nui 2",
+      "point A = coordinate(x: 0 y: 0)",
+      "# insert here",
+      "point B = coordinate(x: 10 y: 0)"
+    ].join("\n"), "test");
+    const revision = useCadDocumentStore.getState().sourceRevision;
+
+    expect(startCommandLineCreation("freePoint", {
+      currentSourceCursor: () => ({ sourceRevision: revision, line: 3, lineCount: 4, elementId: null })
+    })).toBe(true);
+    submitCommandLineInput("1");
+    submitCommandLineInput("2");
+    expect(skipCommandLineStep()).toBe(true);
+    expect(confirmCommandLineSession()).toBe(true);
+
+    const document = useCadDocumentStore.getState();
+    expect(document.elements.map((element) => element.name)).toEqual(["A", "", "B"]);
+    expect(document.sourceText.indexOf("x: 1")).toBeLessThan(document.sourceText.indexOf("# insert here"));
+    expect(useCadUiStore.getState().selectedElementId).toBe(document.elements[1]!.id);
+  });
+
+  it("keeps Source Editor element cursors after that statement instead of appending", () => {
+    useCadDocumentStore.getState().commitText([
+      "nui 2",
+      "point A = coordinate(x: 0 y: 0)",
+      "point B = coordinate(x: 10 y: 0)"
+    ].join("\n"), "test");
+    const documentBefore = useCadDocumentStore.getState();
+    const pointA = documentBefore.elements.find((element) => element.name === "A")!;
+
+    expect(startCommandLineCreation("freePoint", {
+      currentSourceCursor: () => ({ sourceRevision: documentBefore.sourceRevision, line: 2, lineCount: 3, elementId: pointA.id })
+    })).toBe(true);
+    submitCommandLineInput("1");
+    submitCommandLineInput("2");
+    expect(skipCommandLineStep()).toBe(true);
+    expect(confirmCommandLineSession()).toBe(true);
+
+    expect(useCadDocumentStore.getState().elements.map((element) => element.name)).toEqual(["A", "", "B"]);
+  });
+
+  it("preserves a comment-line cursor inside a group", () => {
+    useCadDocumentStore.getState().commitText([
+      "nui 2",
+      "group G {",
+      "  point A = coordinate(x: 0 y: 0)",
+      "  # insert here",
+      "}",
+      "point B = coordinate(x: 10 y: 0)"
+    ].join("\n"), "test");
+    const revision = useCadDocumentStore.getState().sourceRevision;
+
+    expect(startCommandLineCreation("freePoint", {
+      currentSourceCursor: () => ({ sourceRevision: revision, line: 4, lineCount: 6, elementId: null })
+    })).toBe(true);
+    submitCommandLineInput("1");
+    submitCommandLineInput("2");
+    expect(skipCommandLineStep()).toBe(true);
+    expect(confirmCommandLineSession()).toBe(true);
+
+    const document = useCadDocumentStore.getState();
+    expect(document.elements.map((element) => element.name)).toEqual(["G", "A", "", "B"]);
+    expect(document.elements[2]?.parentGroupId).toBe(document.elements[0]?.id);
+    expect(document.sourceText.indexOf("x: 1")).toBeLessThan(document.sourceText.indexOf("# insert here"));
   });
 
   it("cancels immediately when an external revision makes the session stale", () => {
