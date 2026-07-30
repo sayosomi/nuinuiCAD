@@ -55,7 +55,7 @@ export type DslAutocompleteDocumentInput = {
   doc: Text;
 };
 
-type DslAutocompleteOptions = {
+export type DslAutocompleteOptions = {
   elements: () => readonly CadElement[];
   statementRanges: () => StatementRangeIndex;
   printLayouts: () => readonly PrintLayout[];
@@ -91,6 +91,17 @@ type DslAutocompleteOptions = {
    * scalar value / template hole's BindingReferenceSite (Task 39) - never
    * for any other purpose already covered by statementRanges/computedGeometry. */
   statementInfoByElementId: () => ReadonlyMap<ElementId, StatementInfo> | undefined;
+  /** Whether the evaluation backing computedGeometry/effectiveEnabledElementIds/
+   * evaluationErrors above is current for the live document right now (the
+   * caller's own evaluationStateIsCurrentFor check - see
+   * elementParameterCandidateState in elementParameterReferenceOptions.ts).
+   * Rust evaluation is asynchronous, so those fields can be stale (or from a
+   * still-in-flight request) even when they otherwise look populated;
+   * `elementParameter` completion must report no candidates - never a
+   * synchronous re-evaluation - while this is false. Defaults to true so
+   * existing callers/tests that don't model evaluation freshness keep their
+   * prior behavior. */
+  evaluationIsCurrent?: () => boolean;
   /** Defaults to deriving everything from the CompletionContext's own editor state. */
   documentInput?: (context: CompletionContext) => DslAutocompleteDocumentInput | null;
 };
@@ -371,6 +382,36 @@ const isTypedReferenceRetryContext = (options: DslAutocompleteOptions, view: Par
   ).length > 0;
 };
 
+/**
+ * Whether the cursor is currently at an `ElementName.` position whose
+ * candidates (computed from the *current* evaluation the caller already
+ * confirmed is fresh) are non-empty. Used only by cmEvaluationFreshnessRetry
+ * right after evaluation transitions from not-current to current, to decide
+ * whether re-querying completion would actually surface something - never
+ * called while evaluation is still not current (that decision belongs to
+ * the caller, exactly like isTypedReferenceRetryContext above never
+ * re-derives IME composition state itself).
+ */
+export const isElementParameterRetryContext = (options: DslAutocompleteOptions, view: Parameters<Command>[0]) => {
+  const context = new CompletionContext(view.state, view.state.selection.main.head, false, view);
+  const { input } = completionDocumentInput(options, context);
+  if (!input) return false;
+  const completionContext = dslCompletionContextAt(input.lineText, input.localPos);
+  if (!completionContext || completionContext.kind !== "elementParameter") return false;
+  if (!completionContext.elementToken.trim()) return false;
+  return dslElementParameterCompletionOptions({
+    source: input.source,
+    cursorLine: input.cursorLineNumber,
+    statementElementIds: statementElementIdsByLiveLine(input.doc, options.statementRanges()),
+    elements: options.elements(),
+    elementToken: completionContext.elementToken,
+    computedGeometry: options.computedGeometry() ?? new Map(),
+    computedVariables: options.computedVariables(),
+    effectiveEnabledElementIds: options.effectiveEnabledElementIds(),
+    errors: options.evaluationErrors() ?? []
+  }).length > 0;
+};
+
 export const createDslCompletionSource = (options: DslAutocompleteOptions): CompletionSource => (context) => {
   if (options.isComposing() || context.view?.compositionStarted) return null;
   const { input, projection } = completionDocumentInput(options, context);
@@ -395,17 +436,26 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
     completions = argumentCompletionCandidates(completionContext.spec, completionContext.usedArgumentNames)
       .map((candidate) => ({ ...candidate, type: "property" }));
   } else if (completionContext.kind === "elementParameter") {
-    completions = asElementParameterCompletions(dslElementParameterCompletionOptions({
-      source: input.source,
-      cursorLine: input.cursorLineNumber,
-      statementElementIds: statementElementIdsByLiveLine(input.doc, options.statementRanges()),
-      elements: options.elements(),
-      elementToken: completionContext.elementToken,
-      computedGeometry: options.computedGeometry() ?? new Map(),
-      computedVariables: options.computedVariables(),
-      effectiveEnabledElementIds: options.effectiveEnabledElementIds(),
-      errors: options.evaluationErrors() ?? []
-    }));
+    // Rust evaluation is asynchronous (useEvaluationEngine.ts): while it
+    // hasn't caught up with the live document, computedGeometry/
+    // effectiveEnabledElementIds can be stale or still in flight. Report no
+    // candidates rather than guessing from stale data or re-evaluating
+    // synchronously here - see elementParameterCandidateState. The
+    // cmEvaluationFreshnessRetry extension re-queries once evaluation
+    // becomes current, without requiring another keystroke.
+    completions = (options.evaluationIsCurrent?.() ?? true)
+      ? asElementParameterCompletions(dslElementParameterCompletionOptions({
+        source: input.source,
+        cursorLine: input.cursorLineNumber,
+        statementElementIds: statementElementIdsByLiveLine(input.doc, options.statementRanges()),
+        elements: options.elements(),
+        elementToken: completionContext.elementToken,
+        computedGeometry: options.computedGeometry() ?? new Map(),
+        computedVariables: options.computedVariables(),
+        effectiveEnabledElementIds: options.effectiveEnabledElementIds(),
+        errors: options.evaluationErrors() ?? []
+      }))
+      : [];
   } else if (completionContext.kind === "typedInitializer") {
     disablesCompletionFiltering = referenceToken?.startsWith("@") ?? false;
     completions = filteredTypedReferenceCompletions(

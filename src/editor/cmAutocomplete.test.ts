@@ -609,6 +609,89 @@ describe("createDslCompletionSource", () => {
       });
       expect(await Promise.resolve(completionSource({ state, pos, explicit: true } as never))).toBeNull();
     });
+
+    it("shows a real, visible completion tooltip from natural (non-explicit) typing through a live EditorView, and keeps narrowing it", async () => {
+      // Regression coverage for a real Tauri report: typing `.` after an
+      // element name must surface ElementName.property candidates through
+      // the actual dslAutocompleteExtension/EditorView wiring - not just
+      // through a direct createDslCompletionSource({ explicit: true }) call,
+      // which every other test in this describe block uses and which can't
+      // tell an implicit-typing gate bug apart from a working completion
+      // source (see the `64f473c` `@`-marker gate that only ever applies to
+      // typedInitializer/propertyScalarValue/templateHole contexts, never to
+      // this elementParameter one - characterized here by actually typing).
+      const source = buildSource("");
+      const { elements, statementRanges, printLayouts, printLayoutRanges } = identities(source);
+      const pos = source.indexOf("直線AB.") + "直線AB.".length;
+      const parent = document.createElement("div");
+      document.body.append(parent);
+      const abId = elements.find((element) => element.type === "line")!.id;
+      const computedGeometry = new Map([[abId, {
+        kind: "line" as const,
+        elementId: abId,
+        name: "直線AB",
+        startPointId: null,
+        endPointId: null,
+        start: { kind: "point" as const, elementId: "a", name: "a", x: 0, y: 0 },
+        end: { kind: "point" as const, elementId: "b", name: "b", x: 10, y: 0 },
+        length: 10,
+        startAngleDeg: 0,
+        endAngleDeg: 0,
+        startTangentAngleDeg: 0,
+        endTangentAngleDeg: 0
+      }]]);
+      const view = new EditorView({
+        state: EditorState.create({
+          doc: source,
+          selection: EditorSelection.cursor(pos),
+          extensions: [
+            dslAutocompleteExtension({
+              elements: () => elements,
+              statementRanges: () => statementRanges,
+              printLayouts: () => printLayouts,
+              printLayoutRanges: () => printLayoutRanges,
+              isComposing: () => false,
+              computedVariables: () => undefined,
+              computedGeometry: () => computedGeometry,
+              effectiveEnabledElementIds: () => new Set([abId]),
+              evaluationErrors: () => [],
+              bindingAnalysis: () => undefined,
+              typedDeclarationRanges: () => new Map(),
+              scopeBodyRanges: () => [],
+              statementInfoByElementId: () => undefined
+            })
+          ]
+        }),
+        parent
+      });
+
+      expect(completionStatus(view.state)).toBeNull();
+      // A real typed keystroke: a docChanged transaction tagged exactly the
+      // way CodeMirror's own DOM input handling tags it, at the live cursor
+      // position - not an explicit startCompletion() call.
+      view.dispatch({
+        changes: { from: pos, insert: "l" },
+        selection: { anchor: pos + 1 },
+        annotations: Transaction.userEvent.of("input.type")
+      });
+      await expect.poll(() => view.state.doc.toString().slice(pos, pos + 1), { timeout: 1000, interval: 20 }).toBe("l");
+      await expect.poll(() => completionStatus(view.state), { timeout: 1000, interval: 20 }).toBe("active");
+      expect(currentCompletions(view.state).map((option) => option.label)).toContain("length");
+      expect(parent.querySelector(".cm-tooltip-autocomplete")).not.toBeNull();
+
+      view.dispatch({
+        changes: { from: pos + 1, insert: "e" },
+        selection: { anchor: pos + 2 },
+        annotations: Transaction.userEvent.of("input.type")
+      });
+      await expect.poll(() => view.state.doc.toString().slice(pos, pos + 2), { timeout: 1000, interval: 20 }).toBe("le");
+      await expect.poll(() => completionStatus(view.state), { timeout: 1000, interval: 20 }).toBe("active");
+      expect(currentCompletions(view.state).map((option) => option.label)).toContain("length");
+      expect(parent.querySelector(".cm-tooltip-autocomplete")).not.toBeNull();
+
+      view.destroy();
+      parent.remove();
+    });
   });
 });
 

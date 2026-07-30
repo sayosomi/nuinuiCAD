@@ -31,7 +31,7 @@ import {
   type ReferenceSuggestion
 } from "../model/referenceSuggestions";
 import { numericVariableReferenceOptionsForPosition } from "../geometry/variableReferenceOptions";
-import { elementParameterReferenceOptionsForPosition } from "../geometry/elementParameterReferenceOptions";
+import { elementParameterCandidateState } from "../geometry/elementParameterReferenceOptions";
 import { commandLineTypedBindingSuggestions } from "../commands/commandLineTypedBindingSuggestions";
 import {
   filteredNumericVariableSuggestions,
@@ -62,9 +62,17 @@ import {
 type CommandLineBarProps = {
   commandContext?: CommandContext;
   evaluation?: EvaluationResult;
+  /** Caller's own evaluationStateIsCurrentFor result - never re-derived
+   * here. Rust evaluation is asynchronous, so `evaluation` can already be
+   * stale (or still "evaluating") relative to the live document; element-
+   * property candidates must report pending, not a confirmed empty/candidate
+   * result, while this is false. Defaults to `true` so existing callers/tests
+   * that don't model evaluation freshness keep their prior behavior; the
+   * production AppLayout caller always supplies it explicitly. */
+  evaluationIsCurrent?: boolean;
 };
 
-export const CommandLineBar = ({ commandContext, evaluation }: CommandLineBarProps) => {
+export const CommandLineBar = ({ commandContext, evaluation, evaluationIsCurrent = true }: CommandLineBarProps) => {
   const session = useCadUiStore((state) => state.commandLineSession);
   const sourceRevision = useCadDocumentStore((state) => state.sourceRevision);
   const sourceText = useCadDocumentStore((state) => state.sourceText);
@@ -175,9 +183,16 @@ export const CommandLineBar = ({ commandContext, evaluation }: CommandLineBarPro
   const elementParamPlacement = session && step?.kind === "number"
     ? creationPlacementForTarget(elements, session.insertionTarget, evaluationLimitIndex)
     : null;
-  const elementParamOptions = !elementParamPlacement || !elementParamMatch
-    ? []
-    : elementParameterReferenceOptionsForPosition({
+  // Rust evaluation is asynchronous (useEvaluationEngine.ts): while
+  // evaluationIsCurrent is false, `evaluation` can be stale or still in
+  // flight, so element-property candidates report pending (never a
+  // synchronous re-evaluation, and never a confirmed empty/candidate result)
+  // - see elementParameterCandidateState. A normal re-render once the caller
+  // starts passing evaluationIsCurrent={true} recomputes this from the same
+  // (now current) props/input value, without requiring another keystroke.
+  const elementParamCandidateState = !elementParamPlacement || !elementParamMatch
+    ? null
+    : elementParameterCandidateState({
         referenceElements: elementParamPlacement.referenceElements,
         elementToken: elementParamMatch.elementToken,
         currentElement: { parentGroupId: elementParamPlacement.parentGroupId },
@@ -187,7 +202,10 @@ export const CommandLineBar = ({ commandContext, evaluation }: CommandLineBarPro
           effectiveEnabledElementIds: evaluation?.effectiveEnabledElementIds,
           errors: evaluation?.errors ?? []
         }
-      });
+      }, evaluationIsCurrent);
+  const elementParamOptions = elementParamCandidateState?.status === "ready"
+    ? elementParamCandidateState.options
+    : [];
   const visibleElementParamSuggestions = elementParamMatch
     ? filteredElementParameterSuggestions(elementParamOptions, elementParamMatch.query)
     : [];

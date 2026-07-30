@@ -110,3 +110,46 @@ export const elementParameterReferenceOptionsForPosition = ({
     elementId: resolution.element.id
   }));
 };
+
+/**
+ * Element-property completion's candidate result, made explicit so a caller
+ * can never conflate "evaluation hasn't confirmed this position's eligibility
+ * yet" with "confirmed: no candidates". Tauri's Rust-first evaluation
+ * (useEvaluationEngine.ts) is asynchronous, so a freshly compiled element
+ * (e.g. a `line` just finished on an earlier statement) can be present in
+ * `referenceElements` (the compiled/parsed document already has it - see
+ * compileCanonicalText.ts's last-good fallback) well before Rust's next
+ * evaluation round-trip resolves and folds it into `evaluation`. The `@`
+ * typed-binding completion path has no equivalent gap (it only depends on
+ * the synchronous compile-time `bindingAnalysis`, never on evaluation).
+ *
+ * There is deliberately no synchronous TS-reference-evaluation fallback here:
+ * `evaluation` must always be the same Rust result (or reference-engine
+ * result, in non-Tauri/parity modes) the rest of the app renders from - a
+ * completion-only shadow evaluation, computed without the document's actual
+ * scalarProgram/bindingVersions/property-binding/conditional-group/forGroup
+ * runtime options, could silently disagree with Rust for typed conditional
+ * groups, property/numeric bindings, or forGroup-generated elements, and can
+ * only ever be triggered by a keystroke, not any other rate limit like real
+ * canvas rendering already has. The caller is responsible for evaluating
+ * currency (evaluationStateIsCurrentFor) and reporting "pending" instead of
+ * calling this at all until it is current.
+ */
+export type ElementParameterCandidateState =
+  | { status: "pending" }
+  | { status: "ready"; options: ElementParameterReferenceOption[] };
+
+/**
+ * elementParameterReferenceOptionsForPosition, gated by whether `evaluation`
+ * is actually current for the live document. Callers determine currency via
+ * the shared evaluationStateIsCurrentFor (useEvaluationEngine.ts) against
+ * their own up-to-date compiledDocumentRevision - this function never infers
+ * it from the shape of `evaluation` itself.
+ */
+export const elementParameterCandidateState = (
+  position: ElementParameterReferencePosition,
+  evaluationIsCurrent: boolean
+): ElementParameterCandidateState =>
+  evaluationIsCurrent
+    ? { status: "ready", options: elementParameterReferenceOptionsForPosition(position) }
+    : { status: "pending" };

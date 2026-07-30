@@ -18,6 +18,7 @@ import {
   type KeyBinding,
   type ViewUpdate
 } from "@codemirror/view";
+import { completionStatus } from "@codemirror/autocomplete";
 import { forceLinting, setDiagnostics } from "@codemirror/lint";
 import { dispatchCommand } from "../commands/commands";
 import {
@@ -38,7 +39,7 @@ import type { ElementId, EvaluationResult } from "../types/geometry";
 import { useCadDocumentStore, type CadDocumentState } from "../state/cadDocumentStore";
 import { useCadUiStore, type CadUiState } from "../state/cadUiStore";
 import { dslCmLanguageExtension } from "./cmLanguage";
-import { dslAutocompleteExtension } from "./cmAutocomplete";
+import { dslAutocompleteExtension, isElementParameterRetryContext, type DslAutocompleteOptions } from "./cmAutocomplete";
 import {
   captureSourceEditorViewport,
   cursorAtSnapshotLocation,
@@ -197,8 +198,36 @@ export class SourceEditorController implements SourceEditorHandle {
   private typedSemanticMetadataFresh = false;
   private staleDiagnosticBaseline: PositionedDiagnostic[] = [];
   /** At most two newest compiled-document revisions are retained; older results can never become current. */
-  private pendingEvaluations = new Map<number, { evaluation: EvaluationResult; evaluationRequestRevision: number }>();
-  private appliedEvaluation: { evaluation: EvaluationResult; compiledDocumentRevision: number; evaluationRequestRevision: number } | null = null;
+  private pendingEvaluations = new Map<number, { evaluation: EvaluationResult; evaluationRequestRevision: number; evaluationIsCurrent: boolean }>();
+  private appliedEvaluation: {
+    evaluation: EvaluationResult;
+    compiledDocumentRevision: number;
+    evaluationRequestRevision: number;
+    /** The publisher's own evaluationStateIsCurrentFor result, carried
+     * through unchanged - never re-derived here (see setEvaluation). Element-
+     * property completion's evaluationIsCurrent getter reads this directly. */
+    evaluationIsCurrent: boolean;
+  } | null = null;
+  /** Bridges the autocompleteOptions() object used both to construct the
+   * CodeMirror extension and to probe retry eligibility from
+   * tryApplyPendingEvaluation, without importing any CodeMirror type here. */
+  private autocompleteOptions = (): DslAutocompleteOptions => ({
+    elements: () => this.store.getState().elements,
+    statementRanges: () => this.statementRanges,
+    printLayouts: () => this.store.getState().printLayouts,
+    printLayoutRanges: () => this.printLayoutRanges,
+    isComposing: () => this.protocol.composing,
+    computedVariables: () => this.appliedEvaluation?.evaluation.computedVariables,
+    computedGeometry: () => this.appliedEvaluation?.evaluation.computedGeometry,
+    forGroupGeneratedRows: () => this.appliedEvaluation?.evaluation.forGroupGeneratedRows,
+    effectiveEnabledElementIds: () => this.appliedEvaluation?.evaluation.effectiveEnabledElementIds,
+    evaluationErrors: () => this.appliedEvaluation?.evaluation.errors,
+    evaluationIsCurrent: () => this.appliedEvaluation?.evaluationIsCurrent ?? false,
+    bindingAnalysis: () => this.store.getState().doc.bindingAnalysis,
+    typedDeclarationRanges: () => this.typedDeclarationRanges,
+    scopeBodyRanges: () => this.scopeBodyRanges,
+    statementInfoByElementId: () => this.store.getState().doc.statementMap.byElementId
+  });
   private decorationIndex: EvaluationDecorationIndex = emptyDecorationIndex();
   private pendingDecorationRefresh = false;
   private pendingSelectionSync = false;
@@ -241,22 +270,7 @@ export class SourceEditorController implements SourceEditorHandle {
           highlightActiveLine(),
           highlightActiveLineGutter(),
           dslCmLanguageExtension,
-          dslAutocompleteExtension({
-            elements: () => this.store.getState().elements,
-            statementRanges: () => this.statementRanges,
-            printLayouts: () => this.store.getState().printLayouts,
-            printLayoutRanges: () => this.printLayoutRanges,
-            isComposing: () => this.protocol.composing,
-            computedVariables: () => this.appliedEvaluation?.evaluation.computedVariables,
-            computedGeometry: () => this.appliedEvaluation?.evaluation.computedGeometry,
-            forGroupGeneratedRows: () => this.appliedEvaluation?.evaluation.forGroupGeneratedRows,
-            effectiveEnabledElementIds: () => this.appliedEvaluation?.evaluation.effectiveEnabledElementIds,
-            evaluationErrors: () => this.appliedEvaluation?.evaluation.errors,
-            bindingAnalysis: () => this.store.getState().doc.bindingAnalysis,
-            typedDeclarationRanges: () => this.typedDeclarationRanges,
-            scopeBodyRanges: () => this.scopeBodyRanges,
-            statementInfoByElementId: () => this.store.getState().doc.statementMap.byElementId
-          }),
+          dslAutocompleteExtension(this.autocompleteOptions()),
           sourceEditorSelectionExtension,
           sourceEditorPatchHighlightExtension,
           codeFolding({
@@ -449,7 +463,8 @@ export class SourceEditorController implements SourceEditorHandle {
     if (pending && pending.evaluationRequestRevision >= publication.evaluationRequestRevision) return;
     this.pendingEvaluations.set(publication.compiledDocumentRevision, {
       evaluation: publication.evaluation,
-      evaluationRequestRevision: publication.evaluationRequestRevision
+      evaluationRequestRevision: publication.evaluationRequestRevision,
+      evaluationIsCurrent: publication.evaluationIsCurrent ?? true
     });
     for (const revision of [...this.pendingEvaluations.keys()].sort((left, right) => left - right)) {
       if (revision < current || this.pendingEvaluations.size > 2) this.pendingEvaluations.delete(revision);
@@ -954,10 +969,12 @@ export class SourceEditorController implements SourceEditorHandle {
     if (!this.sourceIsApplied()) return;
     if (this.appliedEvaluation?.compiledDocumentRevision === state.compiledDocumentRevision &&
       this.appliedEvaluation.evaluationRequestRevision >= pending.evaluationRequestRevision) return;
+    const wasCurrent = this.appliedEvaluation?.evaluationIsCurrent ?? false;
     this.appliedEvaluation = {
       evaluation: pending.evaluation,
       compiledDocumentRevision: state.compiledDocumentRevision,
-      evaluationRequestRevision: pending.evaluationRequestRevision
+      evaluationRequestRevision: pending.evaluationRequestRevision,
+      evaluationIsCurrent: pending.evaluationIsCurrent
     };
     this.pendingEvaluations.delete(state.compiledDocumentRevision);
     this.options.onEvaluationPresentationChange?.({ isLastGood: this.isShowingLastGoodEvaluation() });
@@ -968,6 +985,26 @@ export class SourceEditorController implements SourceEditorHandle {
     // evaluation arriving during an edit cannot project committed diagnostics
     // onto shifted text.
     this.refreshDiagnosticsNow();
+    this.retryElementParameterCompletionIfNewlyCurrent(wasCurrent, pending.evaluationIsCurrent);
+  }
+
+  /**
+   * Element-property completion reports no candidates while evaluation is
+   * not current (see cmAutocomplete.ts's elementParameter branch), so a
+   * popup withheld purely for that reason never reopens on its own once
+   * evaluation catches up - the user would have to retype. This fires
+   * exactly once per pending -> current transition, and only when nothing
+   * else is already showing (never interrupts an open, unrelated popup) and
+   * the cursor is still at an elementParameter position whose candidates
+   * (computed from the now-current evaluation) are non-empty - otherwise
+   * there is nothing worth reopening, and this must not loop or duplicate.
+   */
+  private retryElementParameterCompletionIfNewlyCurrent(wasCurrent: boolean, isCurrent: boolean) {
+    if (wasCurrent || !isCurrent) return;
+    if (this.protocol.composing || this.view.compositionStarted) return;
+    if (completionStatus(this.view.state) !== null) return;
+    if (!isElementParameterRetryContext(this.autocompleteOptions(), this.view)) return;
+    this.view.dispatch({ annotations: Transaction.userEvent.of("input.type") });
   }
 
   private currentPickCandidates() {

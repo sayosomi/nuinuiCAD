@@ -21,7 +21,7 @@ import {
   buildTextPropertyBindingRuntimeEntries,
   buildTextTemplateEntriesByElementId
 } from "../geometry/textTemplateRuntime";
-import { useEvaluationEngine } from "../geometry/useEvaluationEngine";
+import { evaluationStateIsCurrentFor, useEvaluationEngine } from "../geometry/useEvaluationEngine";
 import { loadShortcutSettings } from "../keyboard/shortcutSettingsStorage";
 import {
   isSourceEditorDslKeyboardTarget,
@@ -285,6 +285,12 @@ export const AppLayout = () => {
   );
   const evaluationState = useEvaluationEngine(elements, evaluationOptions, compiledDocumentRevision);
   const { evaluation, evaluationRevision, evaluationRequestRevision } = evaluationState;
+  // Element-property completion (CommandLineBar, Source Editor) must never
+  // treat a not-yet-current evaluation as a confirmed empty/candidate
+  // result - Rust evaluation is asynchronous and can lag a freshly compiled
+  // element by a render or two (see elementParameterCandidateState). Reuse
+  // the engine's own currency check rather than re-deriving it ad hoc.
+  const evaluationIsCurrent = evaluationStateIsCurrentFor(evaluationState, compiledDocumentRevision);
   const commandLineStep = currentStep(commandLineSession);
   const isMultiLinePicking = Boolean(activeLinePickTarget && (
     (activeLinePickTarget.elementId === COMMAND_LINE_PICK_TARGET_ID &&
@@ -308,9 +314,10 @@ export const AppLayout = () => {
     sourceEditorRef.current?.setEvaluation({
       evaluation,
       compiledDocumentRevision: evaluationRevision,
-      evaluationRequestRevision
+      evaluationRequestRevision,
+      evaluationIsCurrent
     });
-  }, [evaluation, evaluationRevision, evaluationRequestRevision]);
+  }, [evaluation, evaluationRevision, evaluationRequestRevision, evaluationIsCurrent]);
   const commandContext = useMemo(() => ({
     focusCanvas: () => canvasFocusRef.current?.focus(),
     focusSourceEditor: () => sourceEditorRef.current?.focus(),
@@ -571,7 +578,7 @@ export const AppLayout = () => {
               commandContext={commandContext}
               leftPanelDockRef={commandRibbonDockRef}
             />
-            <CommandLineBar commandContext={commandContext} evaluation={evaluation} />
+            <CommandLineBar commandContext={commandContext} evaluation={evaluation} evaluationIsCurrent={evaluationIsCurrent} />
             {showPrintPreviewWindow ? (
               <Suspense fallback={null}>
                 <PrintLayoutPreviewWindow
