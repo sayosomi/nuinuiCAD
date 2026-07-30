@@ -20,7 +20,7 @@ export const numericVariableSuggestionMatch = (
 export const filteredNumericVariableSuggestions = (
   options: NumericVariableReferenceOption[],
   query: string,
-  limit = 8
+  limit: number | null = 8
 ) => {
   const normalizedQuery = query.trim().toLocaleLowerCase();
   const filtered =
@@ -31,7 +31,7 @@ export const filteredNumericVariableSuggestions = (
             .toLocaleLowerCase()
             .includes(normalizedQuery)
         );
-  return filtered.slice(0, limit);
+  return limit === null ? filtered : filtered.slice(0, limit);
 };
 
 export const replaceNumericVariableSuggestionToken = (

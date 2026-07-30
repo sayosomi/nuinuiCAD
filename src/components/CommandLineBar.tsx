@@ -32,6 +32,7 @@ import {
 } from "../model/referenceSuggestions";
 import { numericVariableReferenceOptionsForPosition } from "../geometry/variableReferenceOptions";
 import { elementParameterReferenceOptionsForPosition } from "../geometry/elementParameterReferenceOptions";
+import { commandLineTypedBindingSuggestions } from "../commands/commandLineTypedBindingSuggestions";
 import {
   filteredNumericVariableSuggestions,
   numericVariableSuggestionMatch,
@@ -66,6 +67,9 @@ type CommandLineBarProps = {
 export const CommandLineBar = ({ commandContext, evaluation }: CommandLineBarProps) => {
   const session = useCadUiStore((state) => state.commandLineSession);
   const sourceRevision = useCadDocumentStore((state) => state.sourceRevision);
+  const sourceText = useCadDocumentStore((state) => state.sourceText);
+  const docText = useCadDocumentStore((state) => state.docText);
+  const doc = useCadDocumentStore((state) => state.doc);
   const elements = useCadDocumentStore((state) => state.elements);
   const evaluationLimitIndex = useCadDocumentStore((state) => state.evaluationLimitIndex);
   const selectedElementId = useCadUiStore((state) => state.selectedElementId);
@@ -137,17 +141,28 @@ export const CommandLineBar = ({ commandContext, evaluation }: CommandLineBarPro
   const numberVariableOptions = useMemo(() => {
     if (!session || step?.kind !== "number") return [];
     const placement = creationPlacementForTarget(elements, session.insertionTarget, evaluationLimitIndex);
-    return numericVariableReferenceOptionsForPosition({
+    const legacyOptions = numericVariableReferenceOptionsForPosition({
       referenceElements: placement.referenceElements,
       parentGroupId: placement.parentGroupId,
       computedVariables: evaluation?.computedVariables
     });
-  }, [session, step, elements, evaluationLimitIndex, evaluation]);
+    const typedOptions = commandLineTypedBindingSuggestions({
+      session,
+      sourceText,
+      docText,
+      statementMap: doc.statementMap,
+      bindingAnalysis: doc.bindingAnalysis,
+      elements
+    });
+    const byExpression = new Map(legacyOptions.map((option) => [option.expression, option]));
+    for (const option of typedOptions) byExpression.set(option.expression, option);
+    return [...byExpression.values()];
+  }, [session, step, elements, evaluationLimitIndex, evaluation, sourceText, docText, doc]);
   const numberSuggestionMatch = step?.kind === "number" && !isCommandLineInputComposing()
     ? numericVariableSuggestionMatch(inputValue, numberSuggestionSelection.start, numberSuggestionSelection.end)
     : null;
   const visibleNumberVariableSuggestions = numberSuggestionMatch
-    ? filteredNumericVariableSuggestions(numberVariableOptions, numberSuggestionMatch.query)
+    ? filteredNumericVariableSuggestions(numberVariableOptions, numberSuggestionMatch.query, null)
     : [];
   const elementParamMatch = step?.kind === "number" && !isCommandLineInputComposing() && !numberSuggestionMatch
     ? elementParameterSuggestionMatch(inputValue, numberSuggestionSelection.start, numberSuggestionSelection.end)
@@ -593,6 +608,7 @@ export const CommandLineBar = ({ commandContext, evaluation }: CommandLineBarPro
                     activeIndex={selectedNumberSuggestionIndex}
                     onHover={setNumberSuggestionActiveIndex}
                     onApply={applyNumberVariableSuggestion}
+                    anchorRef={inputRef}
                   />
                 ) : null}
               </div>
