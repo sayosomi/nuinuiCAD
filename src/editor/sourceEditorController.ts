@@ -452,19 +452,52 @@ export class SourceEditorController implements SourceEditorHandle {
    */
   hasPendingText = () => !this.view.state.doc.eq(this.committedDoc);
 
+  /**
+   * Whether `candidate` should replace `applied` (or a queued pending entry
+   * of the same shape) for a single compiledDocumentRevision. A strictly
+   * higher evaluationRequestRevision always supersedes - the existing,
+   * preserved semantics for a genuinely newer (or out-of-order/stale)
+   * response. At the *same* revision+request, only a pending -> current
+   * upgrade counts as new information: parity mode's
+   * deferScalarReferenceEvaluation path (useEvaluationEngine.ts) republishes
+   * the "evaluating" placeholder and the later resolved shadow-reference
+   * result under the identical (compiledDocumentRevision,
+   * evaluationRequestRevision) pair - unlike Rust-first mode's
+   * stale-asyncEvaluation republication, which carries an older revision
+   * that the earlier `compiledDocumentRevision < current` check already
+   * rejects, so it never collides this way. Any other same-revision+request
+   * publication (current -> pending, or current -> current) is a true
+   * duplicate and must not re-apply - this is what keeps
+   * retryElementParameterCompletionIfNewlyCurrent from ever looping.
+   */
+  private supersedesApplied(
+    candidate: { evaluationRequestRevision: number; evaluationIsCurrent: boolean },
+    applied: { evaluationRequestRevision: number; evaluationIsCurrent: boolean } | undefined
+  ): boolean {
+    if (!applied) return true;
+    if (candidate.evaluationRequestRevision !== applied.evaluationRequestRevision) {
+      return candidate.evaluationRequestRevision > applied.evaluationRequestRevision;
+    }
+    return candidate.evaluationIsCurrent && !applied.evaluationIsCurrent;
+  }
+
   /** Results are keyed by the compiled document revision captured at request start.
    * Keep at most the two newest future revisions; lower revisions are permanently stale. */
   setEvaluation = (publication: SourceEvaluationPublication) => {
     const current = this.store.getState().compiledDocumentRevision;
     if (publication.compiledDocumentRevision < current) return;
-    if (this.appliedEvaluation?.compiledDocumentRevision === publication.compiledDocumentRevision &&
-      this.appliedEvaluation.evaluationRequestRevision >= publication.evaluationRequestRevision) return;
-    const pending = this.pendingEvaluations.get(publication.compiledDocumentRevision);
-    if (pending && pending.evaluationRequestRevision >= publication.evaluationRequestRevision) return;
-    this.pendingEvaluations.set(publication.compiledDocumentRevision, {
-      evaluation: publication.evaluation,
+    const candidate = {
       evaluationRequestRevision: publication.evaluationRequestRevision,
       evaluationIsCurrent: publication.evaluationIsCurrent ?? true
+    };
+    if (this.appliedEvaluation?.compiledDocumentRevision === publication.compiledDocumentRevision &&
+      !this.supersedesApplied(candidate, this.appliedEvaluation)) return;
+    const pending = this.pendingEvaluations.get(publication.compiledDocumentRevision);
+    if (pending && !this.supersedesApplied(candidate, pending)) return;
+    this.pendingEvaluations.set(publication.compiledDocumentRevision, {
+      evaluation: publication.evaluation,
+      evaluationRequestRevision: candidate.evaluationRequestRevision,
+      evaluationIsCurrent: candidate.evaluationIsCurrent
     });
     for (const revision of [...this.pendingEvaluations.keys()].sort((left, right) => left - right)) {
       if (revision < current || this.pendingEvaluations.size > 2) this.pendingEvaluations.delete(revision);
@@ -968,7 +1001,7 @@ export class SourceEditorController implements SourceEditorHandle {
     if (!pending) return;
     if (!this.sourceIsApplied()) return;
     if (this.appliedEvaluation?.compiledDocumentRevision === state.compiledDocumentRevision &&
-      this.appliedEvaluation.evaluationRequestRevision >= pending.evaluationRequestRevision) return;
+      !this.supersedesApplied(pending, this.appliedEvaluation)) return;
     const wasCurrent = this.appliedEvaluation?.evaluationIsCurrent ?? false;
     this.appliedEvaluation = {
       evaluation: pending.evaluation,

@@ -175,6 +175,179 @@ describe("SourceEditorController element-property completion freshness", () => {
     parent.remove();
   });
 
+  describe("parity mode's identical-revision publication pattern (deferScalarReferenceEvaluation)", () => {
+    // Regression coverage for a real parity-mode (npm run desktop:dev:parity)
+    // report: unlike Rust-first mode - where the "not yet resolved"
+    // publication republishes the *previous*, already-applied (and now
+    // stale/rejected) compiledDocumentRevision - parity mode's
+    // deferScalarReferenceEvaluation path (useEvaluationEngine.ts) publishes
+    // both the "evaluating" placeholder and the later resolved
+    // shadow-reference result under the *identical*
+    // (compiledDocumentRevision, evaluationRequestRevision) pair for one
+    // edit. The de-dup guard's old `>=` comparison treated the second
+    // (resolved) publication as a stale duplicate of the first (pending)
+    // one and silently dropped it, leaving evaluationIsCurrent stuck at
+    // false forever for that revision - these tests publish that exact
+    // same-identity sequence directly, which the tests above (each publish
+    // using a fresh, strictly increasing evaluationRequestRevision) never
+    // exercised.
+    const publishAt = (
+      controller: SourceEditorController,
+      evaluation: unknown,
+      compiledDocumentRevision: number,
+      evaluationRequestRevision: number,
+      evaluationIsCurrent: boolean
+    ) => controller.setEvaluation({
+      evaluation: evaluation as never,
+      compiledDocumentRevision,
+      evaluationRequestRevision,
+      evaluationIsCurrent
+    });
+
+    it("pending(false) -> current(true) at the identical revision+request applies once and retries once", async () => {
+      const source = buildSource();
+      useCadDocumentStore.getState().commitText(source, "test");
+      const documentState = useCadDocumentStore.getState();
+      const abId = documentState.elements.find((element) => element.type === "line")!.id;
+      const pos = source.indexOf("直線AB.") + "直線AB.".length;
+
+      const parent = document.createElement("div");
+      document.body.append(parent);
+      const controller = new SourceEditorController(parent);
+      const internals = controller as unknown as ControllerInternals;
+      internals.view.dispatch({ selection: { anchor: pos } });
+      internals.view.dispatch({
+        changes: { from: pos, insert: "l" },
+        selection: { anchor: pos + 1 },
+        annotations: Transaction.userEvent.of("input.type")
+      });
+      await expect.poll(() => completionStatus(internals.view.state as never), POLL).toBeNull();
+
+      const R = nextEvaluationRequestRevision++;
+      const revision = documentState.compiledDocumentRevision;
+      const isRetryDispatch = (spec: unknown) =>
+        typeof spec === "object" && spec !== null && "annotations" in spec &&
+        (spec as { annotations: { value?: unknown } }).annotations?.value === "input.type";
+      const dispatchSpy = vi.spyOn(internals.view, "dispatch");
+
+      // Publication 1: "evaluating" placeholder, same revision+request the
+      // eventual resolved result will also carry.
+      publishAt(controller, { computedGeometry: new Map(), computedVariables: new Map(), errors: [], warnings: [], effectiveEnabledElementIds: new Set() }, revision, R, false);
+      expect(completionStatus(internals.view.state as never)).toBeNull();
+      expect(dispatchSpy.mock.calls.filter((call) => isRetryDispatch(call[0]))).toHaveLength(0);
+
+      // Publication 2: resolved shadow-reference result, identical
+      // (revision, R) - must still supersede publication 1 because it
+      // upgrades pending -> current.
+      publishAt(controller, {
+        computedGeometry: new Map([[abId, lineGeometryFixture(abId)]]),
+        computedVariables: new Map(),
+        errors: [],
+        warnings: [],
+        effectiveEnabledElementIds: new Set([abId])
+      }, revision, R, true);
+
+      await expect.poll(() => completionStatus(internals.view.state as never), POLL).toBe("active");
+      const labels = currentCompletions(internals.view.state as never).map((option: { label: string }) => option.label);
+      expect(labels).toContain("length");
+      expect(dispatchSpy.mock.calls.filter((call) => isRetryDispatch(call[0]))).toHaveLength(1);
+
+      controller.destroy();
+      parent.remove();
+    });
+
+    it("current(true) -> pending(false) at the identical revision+request is ignored (never regresses)", async () => {
+      const source = buildSource();
+      useCadDocumentStore.getState().commitText(source, "test");
+      const documentState = useCadDocumentStore.getState();
+      const abId = documentState.elements.find((element) => element.type === "line")!.id;
+      const pos = source.indexOf("直線AB.") + "直線AB.".length;
+
+      const parent = document.createElement("div");
+      document.body.append(parent);
+      const controller = new SourceEditorController(parent);
+      const internals = controller as unknown as ControllerInternals;
+      internals.view.dispatch({ selection: { anchor: pos } });
+      internals.view.dispatch({
+        changes: { from: pos, insert: "l" },
+        selection: { anchor: pos + 1 },
+        annotations: Transaction.userEvent.of("input.type")
+      });
+
+      const R = nextEvaluationRequestRevision++;
+      const revision = documentState.compiledDocumentRevision;
+      const currentEvaluation = {
+        computedGeometry: new Map([[abId, lineGeometryFixture(abId)]]),
+        computedVariables: new Map(),
+        errors: [],
+        warnings: [],
+        effectiveEnabledElementIds: new Set([abId])
+      };
+      publishAt(controller, currentEvaluation, revision, R, true);
+      await expect.poll(() => completionStatus(internals.view.state as never), POLL).toBe("active");
+
+      // A same-identity publication claiming to go backward to pending must
+      // not regress the already-applied current state.
+      publishAt(controller, { computedGeometry: new Map(), computedVariables: new Map(), errors: [], warnings: [], effectiveEnabledElementIds: new Set() }, revision, R, false);
+      expect(completionStatus(internals.view.state as never)).toBe("active");
+      const labels = currentCompletions(internals.view.state as never).map((option: { label: string }) => option.label);
+      expect(labels).toContain("length");
+
+      controller.destroy();
+      parent.remove();
+    });
+
+    it("current(true) -> current(true) at the identical revision+request is ignored (no duplicate dispatch)", async () => {
+      const source = buildSource();
+      useCadDocumentStore.getState().commitText(source, "test");
+      const documentState = useCadDocumentStore.getState();
+      const abId = documentState.elements.find((element) => element.type === "line")!.id;
+      const pos = source.indexOf("直線AB.") + "直線AB.".length;
+
+      const parent = document.createElement("div");
+      document.body.append(parent);
+      const controller = new SourceEditorController(parent);
+      const internals = controller as unknown as ControllerInternals;
+      internals.view.dispatch({ selection: { anchor: pos } });
+      internals.view.dispatch({
+        changes: { from: pos, insert: "l" },
+        selection: { anchor: pos + 1 },
+        annotations: Transaction.userEvent.of("input.type")
+      });
+      // Let CodeMirror's own query from typing "l" fully settle to null
+      // first (evaluation isn't current yet), so the transition below is
+      // unambiguously attributable to the retry mechanism and not a race
+      // with CM's own still-in-flight query independently resolving once
+      // evaluation happens to already be current by the time it runs.
+      await expect.poll(() => completionStatus(internals.view.state as never), POLL).toBeNull();
+
+      const R = nextEvaluationRequestRevision++;
+      const revision = documentState.compiledDocumentRevision;
+      const currentEvaluation = {
+        computedGeometry: new Map([[abId, lineGeometryFixture(abId)]]),
+        computedVariables: new Map(),
+        errors: [],
+        warnings: [],
+        effectiveEnabledElementIds: new Set([abId])
+      };
+      const isRetryDispatch = (spec: unknown) =>
+        typeof spec === "object" && spec !== null && "annotations" in spec &&
+        (spec as { annotations: { value?: unknown } }).annotations?.value === "input.type";
+      const dispatchSpy = vi.spyOn(internals.view, "dispatch");
+
+      publishAt(controller, currentEvaluation, revision, R, true);
+      await expect.poll(() => completionStatus(internals.view.state as never), POLL).toBe("active");
+      expect(dispatchSpy.mock.calls.filter((call) => isRetryDispatch(call[0]))).toHaveLength(1);
+
+      // Identical (revision, R, true) publication again - must not re-fire.
+      publishAt(controller, currentEvaluation, revision, R, true);
+      expect(dispatchSpy.mock.calls.filter((call) => isRetryDispatch(call[0]))).toHaveLength(1);
+
+      controller.destroy();
+      parent.remove();
+    });
+  });
+
   it("@ typed-binding completion keeps working while element-property completion is pending", async () => {
     const source = [
       "nui 3",
