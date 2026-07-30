@@ -112,7 +112,8 @@ export type ScalarExpressionIssueCode =
   | "chained-comparison-not-supported"
   | "unterminated-string"
   | "physical-newline-in-string"
-  | "invalid-string-escape";
+  | "invalid-string-escape"
+  | "geometry-property-in-typed-expression";
 
 export interface ScalarExpressionDiagnostic {
   readonly message: string;

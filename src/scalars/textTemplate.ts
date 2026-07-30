@@ -33,6 +33,7 @@ import {
 import type { TypedScalarExpression } from "./typedExpressionAst";
 import type { ScalarSpan } from "./literalScanner";
 import { scanTextTemplateLiteral, type TextTemplateRawHoleSegment, type TextTemplateRawLiteralSegment } from "./textTemplateScan";
+import { barePropertyReferenceIssues } from "../dsl/expressionReferenceToken";
 
 export type TextTemplateLiteralSegment = TextTemplateRawLiteralSegment;
 
@@ -156,6 +157,17 @@ export const analyzeTextTemplate = (
     raw: source.slice(hole.raw.contentSpan.start, hole.raw.contentSpan.end)
   });
 
+  // Task 51: a legacy hole's raw content is evaluated by the pre-migration
+  // numeric grammar, so it is exactly where the nui 3 sigil requirement for
+  // element-property references applies. Checked once here (not by a
+  // separate document-wide pass) since this is the only place the hole's
+  // exact raw content span is already isolated.
+  const legacyHoleBareReferenceDiagnostics = (hole: ParsedHole): OccurrenceDiagnostic[] =>
+    barePropertyReferenceIssues(
+      source.slice(hole.raw.contentSpan.start, hole.raw.contentSpan.end),
+      hole.raw.contentSpan.start
+    ).map((issue) => ({ span: { start: issue.start, end: issue.end }, code: issue.code, message: issue.message }));
+
   for (const segment of scanned.segments) {
     if (segment.kind === "literal") {
       segments.push(segment);
@@ -166,6 +178,11 @@ export const analyzeTextTemplate = (
 
     if (!hole.ast) {
       // Not valid typed-scalar-expression syntax at all - legacy path, untouched.
+      const bareDiagnostics = legacyHoleBareReferenceDiagnostics(hole);
+      if (bareDiagnostics.length > 0) {
+        diagnostics.push(...bareDiagnostics);
+        continue;
+      }
       segments.push(legacyHoleSegment(hole));
       continue;
     }
@@ -176,6 +193,11 @@ export const analyzeTextTemplate = (
       !canResolve || hole.references.every((_, referenceIndex) => isDefiniteLegacyReference(resolutionAt(holeIndex, referenceIndex)))
     );
     if (legacyEligible) {
+      const bareDiagnostics = legacyHoleBareReferenceDiagnostics(hole);
+      if (bareDiagnostics.length > 0) {
+        diagnostics.push(...bareDiagnostics);
+        continue;
+      }
       segments.push(legacyHoleSegment(hole));
       continue;
     }

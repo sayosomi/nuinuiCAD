@@ -4,6 +4,7 @@ import {
   extractTextReferences
 } from "../geometry/numericExpressions";
 import type { TextTemplateAst } from "../scalars/textTemplate";
+import { stripElementPropertySigils } from "../dsl/expressionReferenceToken";
 import { anchorReferenceElementId, pointAnchorForElement } from "./pointAnchors";
 
 export type DependencyReference = {
@@ -63,7 +64,14 @@ const textGeometryParentReferences = (
   if (!template) return extractTextReferences(element.text);
   return template.segments.flatMap((segment) =>
     segment.kind === "hole" && segment.holeKind === "legacy"
-      ? extractNumericExpressionReferences({ kind: "expression", expression: segment.raw })
+      // Task 51: `segment.raw` is unnormalized *name*-form source text (no
+      // element-name context is available here to run the full
+      // normalizeNumericExpressionInput lowering), so a nui 3
+      // `@Element.property` occurrence must have its sigil stripped before
+      // this ID-oriented tokenizer sees it - otherwise it mis-tokenizes as a
+      // local-variable reference followed by a garbage bare `.property`
+      // token (see numericExpressionParser.ts's own `@`/`.` token order).
+      ? extractNumericExpressionReferences({ kind: "expression", expression: stripElementPropertySigils(segment.raw) })
       : []
   );
 };

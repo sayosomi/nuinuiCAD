@@ -35,6 +35,7 @@ import { compileTextTemplates, type TextTemplateAst } from "../scalars/textTempl
 import { buildTypedDependencyGraph, type TypedDependencyGraph } from "../scalars/typedDependencyGraph";
 import type { TypedScalarExpression } from "../scalars/typedExpressionAst";
 import { formatNumericValueForDsl } from "./dslExpressionFormat";
+import { compilePropertyReferenceSyntax } from "./dslPropertyReferenceSyntax";
 import { parseDsl, parseDslSnapshot } from "./dslParser";
 import type { SourceRevision } from "./logicalStatementSourceMap";
 import type { BindingAnalysis } from "../scalars/bindingAnalysis";
@@ -281,14 +282,15 @@ const printLayoutBlockLines = (
   displayName: string,
   elements: CadElement[],
   nameContext: ElementNameContext,
-  visibilityProfiles: VisibilityProfile[]
+  visibilityProfiles: VisibilityProfile[],
+  majorVersion: DslMajorVersion
 ): string[] => {
   const profileName = layout.visibilityProfileId
     ? visibilityProfiles.find((profile) => profile.id === layout.visibilityProfileId)?.name ??
       layout.visibilityProfileId
     : undefined;
   const numeric = (value: Parameters<typeof formatNumericValueForDsl>[0], localVars: NumericVariable[] = []) =>
-    formatNumericValueForDsl(value, elements, localVars, undefined, nameContext);
+    formatNumericValueForDsl(value, elements, localVars, undefined, nameContext, majorVersion);
   const layoutNumeric = (value: Parameters<typeof formatNumericValueForDsl>[0]) =>
     numeric(value, layout.numericVariables ?? []);
 
@@ -337,7 +339,10 @@ export type PrintLayoutSectionPlan = {
 
 // printLayoutセクションの構造化プラン。全体シリアライズ(serializeDocumentToDsl)と
 // 行パッチ(src/document/textPatch.ts)が同一の名前昇格ロジックを共有する。
-export const planPrintLayoutSection = (data: DslDocumentData): PrintLayoutSectionPlan => {
+export const planPrintLayoutSection = (
+  data: DslDocumentData,
+  majorVersion: DslMajorVersion = NEW_DOCUMENT_DSL_MAJOR_VERSION
+): PrintLayoutSectionPlan => {
   const { printLayouts, activePrintLayoutId, elements, visibilityProfiles } = data;
   if (printLayouts.length === 0) {
     return {
@@ -364,7 +369,7 @@ export const planPrintLayoutSection = (data: DslDocumentData): PrintLayoutSectio
     const displayName = activeLayout && layout.id === activeLayout.id && promotedName ? promotedName : layout.name;
     return {
       layoutId: layout.id,
-      lines: printLayoutBlockLines(layout, displayName, elements, nameContext, visibilityProfiles)
+      lines: printLayoutBlockLines(layout, displayName, elements, nameContext, visibilityProfiles, majorVersion)
     };
   });
   const activePrintLayoutLine = activeLayout
@@ -377,8 +382,8 @@ export const planPrintLayoutSection = (data: DslDocumentData): PrintLayoutSectio
   return { blocks, activePrintLayoutLine };
 };
 
-const serializePrintLayoutSection = (data: DslDocumentData): string[] => {
-  const plan = planPrintLayoutSection(data);
+const serializePrintLayoutSection = (data: DslDocumentData, majorVersion: DslMajorVersion): string[] => {
+  const plan = planPrintLayoutSection(data, majorVersion);
   return [
     ...plan.blocks.flatMap((block) => block.lines),
     ...(plan.activePrintLayoutLine ? [plan.activePrintLayoutLine] : [])
@@ -608,7 +613,7 @@ export const serializeDocumentToDsl = (
     [`nui ${majorVersion}`, ...(options.headerComment ? [`# ${options.headerComment}`] : [])],
     serializePaletteLines(data.palette),
     serializeVisibilitySettingsLines(data.visibilityRoles, data.visibilityProfiles, data.activeVisibilityProfileId),
-    serializePrintLayoutSection(data),
+    serializePrintLayoutSection(data, majorVersion),
     options.preserveElementOrder
       ? serializeFlatElementTree(data.elements, refs, data.evaluationLimitIndex)
       : serializeElementTree(data.elements, refs, data.evaluationLimitIndex)
@@ -957,6 +962,19 @@ export const compileDslDocument = (
         spans
       })
     : undefined;
+  // Task 51: nui 3 requires element-property references to carry the `@`
+  // sigil. Gated only on majorVersion === 3, like textTemplateCompilation
+  // above and for the same reason - a nui 3 document with zero const/let/set
+  // statements never runs scalarAnalysis but must still reject the
+  // pre-migration bare `Element.property` spelling.
+  const propertyReferenceSyntaxCompilation = versionValidation.majorVersion === 3
+    ? compilePropertyReferenceSyntax({
+        statements: parsed.statements,
+        elementIdByStatementIndex: compiled.elementIdsByStatementIndex ?? new Map(),
+        elements: compiled.elements,
+        spans
+      })
+    : undefined;
   // Task 29: `set name = expression` target resolution/RHS typecheck. Gated
   // on `stableStatementIdByIndex` being truthy (narrowed inline below, so no
   // `!`/`?? new Map()` is ever needed) and on `hasSetStatements`, NOT on
@@ -1006,6 +1024,7 @@ export const compileDslDocument = (
     ...(numericBindingCompilation ? numericBindingCompilation.diagnostics : []),
     ...(conditionalGroupConditionCompilation ? conditionalGroupConditionCompilation.diagnostics : []),
     ...(textTemplateCompilation ? textTemplateCompilation.diagnostics : []),
+    ...(propertyReferenceSyntaxCompilation ? propertyReferenceSyntaxCompilation.diagnostics : []),
     ...(setStatementCompilation ? setStatementCompilation.diagnostics : [])
   ];
   if (finalDiagnostics.some((item) => item.severity === "error")) {

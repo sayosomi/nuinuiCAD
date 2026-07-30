@@ -57,6 +57,16 @@ const ONE_CHAR_OPERATORS = new Set(["+", "-", "*", "/", "<", ">", "!"]);
 // so the two never need to share a definition.
 const REFERENCE_NAME_PATTERN = /^[\p{L}_][\p{L}\p{N}_]*/u;
 
+// Task 51: `@Name.property` (an element-property reference) is legal in the
+// legacy numeric-expression grammar but never in a typed scalar expression -
+// this evaluator is deliberately geometry-free in both engines (see
+// expressionEvaluator.ts and Rust scalars/expression_evaluator.rs). Matches
+// the same property-path run the legacy tokenizer accepts
+// (numericExpressionParser.ts's referenceMatch second group), so the
+// diagnostic span covers the whole `@Name.a.b` occurrence a user would need
+// to move to a numeric (legacy) expression instead.
+const PROPERTY_PATH_PATTERN = /^[^\s()+*/<>!=&|]*/;
+
 const isWhitespace = (char: string) => char === " " || char === "\t" || char === "\n" || char === "\r";
 
 const remapLiteralIssueCode = (issueCode: string): ScalarExpressionIssueCode =>
@@ -117,6 +127,18 @@ export const tokenizeScalarExpression = (source: string, span: ScalarSpan): Scal
         };
       }
       const nameSpan: ScalarSpan = { start: nameStart, end: nameStart + match[0].length };
+      if (source[nameSpan.end] === ".") {
+        const propertyMatch = PROPERTY_PATH_PATTERN.exec(source.slice(nameSpan.end + 1, end));
+        const propertyPath = propertyMatch?.[0] ?? "";
+        return {
+          tokens,
+          error: {
+            code: "geometry-property-in-typed-expression",
+            span: { start: index, end: nameSpan.end + 1 + propertyPath.length },
+            message: `幾何プロパティ参照「@${match[0]}.${propertyPath}」は numeric(legacy)式でのみ使用できます。型付きのconst/let初期化子やset式の中では使用できません。`
+          }
+        };
+      }
       tokens.push({ kind: "reference", name: match[0], nameSpan, span: { start: index, end: nameSpan.end } });
       index = nameSpan.end;
       continue;

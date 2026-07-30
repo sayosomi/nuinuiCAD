@@ -229,7 +229,20 @@ describe("compileTextTemplates: legacy holes stay untouched", () => {
     expect(template.dependencies).toEqual([]);
   });
 
-  it("legacy element-property syntax the typed grammar can't parse at all falls through untouched", () => {
+  it("legacy element-property syntax the typed grammar can't parse at all falls through untouched (nui 3 sigil form, Task 51)", () => {
+    const compiled = compileTemplatesFor([
+      "const _unused: number = 0",
+      "point A = coordinate(x: 0 y: 0)",
+      "point B = coordinate(x: 10 y: 0)",
+      "line AB = segment(start: A end: B)",
+      'text T = label(text: "length {@AB.length}" anchor: none size: 3)'
+    ].join("\n"));
+    expect(compiled.diagnostics).toEqual([]);
+    const template = compiled.templatesByOccurrenceKey.get(propertyBindingOccurrenceKey(4, "text"))!;
+    expect(holeAt(template, 0)).toMatchObject({ holeKind: "legacy", raw: "@AB.length" });
+  });
+
+  it("flags a bare (non-sigil) element-property reference inside a legacy hole (Task 51)", () => {
     const compiled = compileTemplatesFor([
       "const _unused: number = 0",
       "point A = coordinate(x: 0 y: 0)",
@@ -237,9 +250,9 @@ describe("compileTextTemplates: legacy holes stay untouched", () => {
       "line AB = segment(start: A end: B)",
       'text T = label(text: "length {AB.length}" anchor: none size: 3)'
     ].join("\n"));
-    expect(compiled.diagnostics).toEqual([]);
-    const template = compiled.templatesByOccurrenceKey.get(propertyBindingOccurrenceKey(4, "text"))!;
-    expect(holeAt(template, 0)).toMatchObject({ holeKind: "legacy", raw: "AB.length" });
+    expect(compiled.diagnostics).toHaveLength(1);
+    expect(compiled.diagnostics[0].code).toBe("property-reference-requires-sigil");
+    expect(compiled.diagnostics[0].message).toContain("@AB.length");
   });
 
   it("plain numeric expression hole with no references is legacy-eligible", () => {
@@ -258,7 +271,7 @@ describe("compileTextTemplates: runs without any typed declaration in the docume
     "point A = coordinate(x: 0 y: 0)",
     "point B = coordinate(x: 10 y: 0)",
     "line AB = segment(start: A end: B)",
-    'text T = label(text: "length \\{AB.length\\} = {AB.length}" anchor: none size: 3)'
+    'text T = label(text: "length \\{AB.length\\} = {@AB.length}" anchor: none size: 3)'
   ].join("\n");
 
   it("characterization: analyzeTypedDeclarations produces no analysis for a nui 3 doc with zero typed declarations", () => {
@@ -292,7 +305,7 @@ describe("compileTextTemplates: runs without any typed declaration in the docume
     const template = result.templatesByOccurrenceKey.get(propertyBindingOccurrenceKey(3, "text"))!;
     expect(template).toBeDefined();
     expect(template.segments[0]).toMatchObject({ kind: "literal", cooked: "length {AB.length} = " });
-    expect(holeAt(template, 0)).toMatchObject({ holeKind: "legacy", raw: "AB.length" });
+    expect(holeAt(template, 0)).toMatchObject({ holeKind: "legacy", raw: "@AB.length" });
     expect(template.dependencies).toEqual([]);
   });
 

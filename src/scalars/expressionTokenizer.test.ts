@@ -86,6 +86,30 @@ describe("tokenizeScalarExpression / @name references", () => {
     expect(result.tokens).toEqual([]);
     expect(result.error).toMatchObject({ code: "unexpected-token", span: { start: 0, end: 1 } });
   });
+
+  it("rejects @Name.property with a dedicated phase diagnostic, not a generic lexer error (Task 51)", () => {
+    const source = "@AB.length";
+    const result = tokenizeScalarExpression(source, fullSpan(source));
+    expect(result.tokens).toEqual([]);
+    expect(result.error).toMatchObject({
+      code: "geometry-property-in-typed-expression",
+      span: { start: 0, end: source.length }
+    });
+    expect(result.error?.message).toContain("@AB.length");
+  });
+
+  it("covers a multi-segment property path in the diagnostic span", () => {
+    const source = "@AB.startPoint.x";
+    const result = tokenizeScalarExpression(source, fullSpan(source));
+    expect(result.error).toMatchObject({ code: "geometry-property-in-typed-expression", span: { start: 0, end: source.length } });
+  });
+
+  it("still reports a dedicated diagnostic mid-expression", () => {
+    const source = "1 + @AB.length";
+    const result = tokenizeScalarExpression(source, fullSpan(source));
+    expect(result.tokens).toHaveLength(2); // "1" literal and "+" operator, accumulated before the error
+    expect(result.error).toMatchObject({ code: "geometry-property-in-typed-expression", span: { start: 4, end: source.length } });
+  });
 });
 
 describe("tokenizeScalarExpression / literal delegation", () => {

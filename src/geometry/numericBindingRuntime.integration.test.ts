@@ -49,14 +49,14 @@ describe("general numeric typed binding runtime", () => {
     expect((result.computedGeometry.get(point(compiled, "After").id) as { x: number }).x).toBe(9);
   });
 
-  it("keeps legacy measurement tokens in the existing numeric evaluator", () => {
+  it("keeps legacy measurement tokens in the existing numeric evaluator (nui 3 sigil form, Task 51)", () => {
     const compiled = compile([
       "nui 3",
       "const offset: number = 2",
       "point A = coordinate(x: 0 y: 0)",
       "point B = coordinate(x: 3 y: 4)",
       "line AB = segment(start: A end: B)",
-      "point C = coordinate(x: @offset + AB.length y: 0)"
+      "point C = coordinate(x: @offset + @AB.length y: 0)"
     ].join("\n"));
     const result = evaluateElements(compiled.document.elements, optionsFor(compiled));
     expect(result.errors).toEqual([]);

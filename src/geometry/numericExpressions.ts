@@ -141,8 +141,10 @@ export const formatNumericExpressionForDisplay = (
   value: NumericValue,
   elements: CadElement[],
   localVariables: NumericVariable[] = [],
-  currentElement?: CadElement
+  currentElement?: CadElement,
+  majorVersion: 2 | 3 = 3
 ) => {
+  const propertyReferenceSigil = majorVersion >= 3 ? "@" : "";
   if (!isNumericExpression(value)) return Number.isInteger(value) ? `${value}` : value.toFixed(2).replace(/\.?0+$/, "");
   const elementsById = new Map(elements.map((element) => [element.id, element]));
   const elementNameCounts = new Map<string, number>();
@@ -188,11 +190,11 @@ export const formatNumericExpressionForDisplay = (
       }
     )
     .replace(
-      /([^\s()+*/<>!=&|]+)\.([^\s()+*/<>!=&|]+)\b/g,
+      /([^\s()+*/<>!=&|,@.]+)\.([^\s()+*/<>!=&|,@]+)/g,
       (match, elementId: ElementId, property: string) => {
-      const element = elementsById.get(elementId);
-      const label = propertyLabels[property as NumericMeasurementKey] ?? property;
-      return element ? `${displayName(element)}.${label}` : match;
+        const element = elementsById.get(elementId);
+        const label = propertyLabels[property as NumericMeasurementKey] ?? property;
+        return element ? `${propertyReferenceSigil}${displayName(element)}.${label}` : match;
       }
     );
 };
@@ -215,8 +217,8 @@ const cachedRegExp = (pattern: string, flags = "g"): RegExp => {
   return regex;
 };
 
-const quotedNamePattern = (name: string, suffix = "(?=$|[\\s()+*/<>=!&|,-])") =>
-  cachedRegExp(`(["'])${escapeRegExp(name)}\\1${suffix}`);
+const quotedNamePattern = (name: string, suffix = "(?=$|[\\s()+*/<>=!&|,-])", prefix = "") =>
+  cachedRegExp(`${prefix}(["'])${escapeRegExp(name)}\\1${suffix}`);
 
 const MEASURABLE_ELEMENT_TYPES = new Set<CadElement["type"]>([
   "line",
@@ -333,6 +335,60 @@ export const normalizeNumericExpressionInput = (
     );
   }
 
+  // nui 3 sigil form: `@ElementName.property` lowers to the exact same
+  // sigil-free IR as bare `ElementName.property` (element property references
+  // never carry `@` internally - see D1 in the Task 51 migration plan).
+  // Skipped entirely for the current element's own name: that spelling is
+  // reserved for `@Self.localVarName` (the qualified-variable loop above). If
+  // it wasn't consumed there (no matching local variable, or an ambiguous
+  // local variable count), the occurrence is left untouched exactly as
+  // before this migration - the "does not normalize ambiguous local variable
+  // display names" contract is unchanged.
+  for (const { token, element } of measurableElementTokens) {
+    if (currentElement && token === currentElement.name) continue;
+    if (!expression.includes(`@${token}.`)) continue;
+    for (const [property, label] of Object.entries(propertyLabels)) {
+      if (!expression.includes(label)) continue;
+      if (
+        (element.type === "line" ||
+          element.type === "angleLengthLine" ||
+          element.type === "arcLine" ||
+          element.type === "threePointArcLine" ||
+          element.type === "cornerRadiusArcLine") &&
+        property !== "length" &&
+        property !== "startAngleDeg" &&
+        property !== "endAngleDeg" &&
+        property !== "startTangentAngleDeg" &&
+        property !== "endTangentAngleDeg"
+      ) {
+        continue;
+      }
+      if (
+        (element.type === "offsetLine" ||
+          element.type === "copyLine" ||
+          element.type === "symmetricCopyLine") &&
+        property !== "length" &&
+        property !== "startTangentAngleDeg" &&
+        property !== "endTangentAngleDeg"
+      ) continue;
+      expression = expression.replace(
+        cachedRegExp(`@${escapeRegExp(token)}\\.${escapeRegExp(label)}(?=$|[\\s()+*/<>=!&|-])`),
+        `${element.id}.${property}`
+      );
+      expression = expression.replace(
+        quotedNamePattern(token, `\\.${escapeRegExp(label)}(?=$|[\\s()+*/<>=!&|-])`, "@"),
+        `${element.id}.${property}`
+      );
+    }
+  }
+
+  for (const { token, element } of nameTokens) {
+    if (currentElement && token === currentElement.name) continue;
+    if (!expression.includes(`@${token}.`)) continue;
+    expression = expression.replace(cachedRegExp(`@${escapeRegExp(token)}\\.`), `${element.id}.`);
+    expression = expression.replace(quotedNamePattern(token, "\\.", "@"), `${element.id}.`);
+  }
+
   for (const { token, element } of measurableElementTokens) {
     if (!expression.includes(token)) continue;
     for (const [property, label] of Object.entries(propertyLabels)) {
@@ -359,9 +415,16 @@ export const normalizeNumericExpressionInput = (
         property !== "startTangentAngleDeg" &&
         property !== "endTangentAngleDeg"
       ) continue;
+      // Fixes a pre-migration asymmetry (Task 51 investigation "C1"): unlike
+      // every other bare-form replace in this function, this Japanese-label
+      // match had no `(^|[^@])` guard, so it used to consume a bare
+      // "token.label" substring even when immediately preceded by `@`,
+      // leaving a dangling `@` in front of the rewritten id. The sigil loop
+      // above now owns that case explicitly; this guard keeps the two loops
+      // from ever double-processing the same occurrence.
       expression = expression.replace(
-        cachedRegExp(`${escapeRegExp(token)}\\.${escapeRegExp(label)}(?=$|[\\s()+*/<>=!&|-])`),
-        `${element.id}.${property}`
+        cachedRegExp(`(^|[^@])${escapeRegExp(token)}\\.${escapeRegExp(label)}(?=$|[\\s()+*/<>=!&|-])`),
+        `$1${element.id}.${property}`
       );
       expression = expression.replace(
         quotedNamePattern(token, `\\.${escapeRegExp(label)}(?=$|[\\s()+*/<>=!&|-])`),
