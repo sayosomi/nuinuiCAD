@@ -15,7 +15,7 @@ import {
   type LogicalStatement,
   type SourceSnapshot
 } from "./logicalStatementSourceMap";
-import { parseDslCallStatement, type DslCallParseResult, type DslCallStatement } from "./dslCallParser";
+import { parseDslCallStatement, UNCLOSED_CALL_CODE, type DslCallParseResult, type DslCallStatement } from "./dslCallParser";
 import { parseDslSettingsStatement, type DslSettingsParseResult, type DslSettingsStatement } from "./dslSettingsParser";
 import {
   parseDslTypedDeclarationStatement,
@@ -476,7 +476,15 @@ export const parseDslSnapshot = (snapshot: SourceSnapshot): ParseDslResult => {
   // requires, with no `sourceMap.statements.find(...)` per issue.
   const logicalStatementByRangeFrom = new Map<number, LogicalStatement>();
   for (const line of sourceMap.invalidContinuationLines) {
-    diagnostics.push(diagnostic(line, "呼び出しの「(」が閉じられていません。空行やブロック区切りより前に「)」で閉じてください。"));
+    // Same UNCLOSED_CALL_CODE as dslCallParser.ts's own "closing `)` not
+    // found" diagnostic - this is the multi-line-join layer's version of the
+    // identical condition (a call's depth never returns to 0 before EOF, a
+    // blank line, or a structural line ends the continuation search). A
+    // single-line probe parse (dslLineElementStatement) reaches this branch
+    // whenever the probed text's own call is unclosed at end-of-text, which
+    // is exactly the mid-edit shape its carve-out already tolerates for this
+    // code; full-document severity is unaffected either way.
+    diagnostics.push(diagnostic(line, "呼び出しの「(」が閉じられていません。空行やブロック区切りより前に「)」で閉じてください。", UNCLOSED_CALL_CODE));
   }
   for (let index = 0; index < sourceMap.statements.length; index += 1) {
     const logical = sourceMap.statements[index];

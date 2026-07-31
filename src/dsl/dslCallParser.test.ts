@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { categoriesForConstruction, constructionCandidatesFor, constructionFor } from "./dslConstructions";
-import { ELEMENT_STATE_CONFLICT_CODE, parseDslCallStatement } from "./dslCallParser";
+import { ELEMENT_STATE_CONFLICT_CODE, UNCLOSED_CALL_CODE, parseDslCallStatement } from "./dslCallParser";
 import { parseDsl } from "./dslParser";
 
 const parse = (source: string, opensBlock = false) => parseDslCallStatement(source, { opensBlock });
@@ -85,6 +85,23 @@ describe("DSL v2 call parser", () => {
     expect(messages("point A = coordinate(x: )").join("\n")).toContain("値がありません");
     expect(messages("point A = coordinate(x: 0) extra").join("\n")).toContain("余分なトークン");
     expect(messages("use N = notch(at: A)").join("\n")).toEqual("use は予約済みですが、まだ実装されていません。");
+  });
+
+  it("returns a degraded statement (not null) with an UNCLOSED_CALL_CODE diagnostic when a call's `(` never closes", () => {
+    // Mid-edit shape: an unterminated string swallows the rest of the line,
+    // so `matchingClose` can never find `)`. Unlike a genuinely unparseable
+    // line, the already-typed `text:` argument's span must still be
+    // resolvable - dslLineElementStatement (dslValueSpans.ts) depends on this
+    // degraded statement surviving so template-hole completion can work.
+    const result = parse('text T = label(text: "{@');
+    expect(result.statement).not.toBeNull();
+    expect(result.statement).toMatchObject({ category: "text", construction: "label" });
+    const textArg = result.statement!.args.find((arg) => arg.key === "text");
+    expect(textArg?.valueSpan).toEqual({ start: 21, end: 24 });
+    expect(textArg?.value).toBe('"{@');
+    expect(result.diagnostics).toContainEqual(
+      expect.objectContaining({ code: UNCLOSED_CALL_CODE, message: "呼び出しの「(」が閉じられていません。" })
+    );
   });
 
   it("diagnoses state/visible and state/enabled conflicts at the exact legacy-flag key span", () => {

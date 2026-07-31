@@ -108,8 +108,21 @@ describe("dslLineValueSpans", () => {
   it("returns no spans for a line whose parse produced an error diagnostic", () => {
     // "point" with an unsupported form: no construction identifier followed by "(".
     expect(dslLineValueSpans("point A = notAValidForm")).toEqual([]);
-    // an unclosed call is rejected outright (no statement at all).
-    expect(dslLineValueSpans("point A = coordinate(x: 0 y: 10")).toEqual([]);
+  });
+
+  it("still surfaces already-typed argument spans for a mid-edit unclosed call (UNCLOSED_CALL_CODE carve-out)", () => {
+    // Task 51 fix: an unclosed call (e.g. a string/template hole not yet
+    // closed while typing) used to be rejected outright, with no statement
+    // and no spans at all, which meant completion could never resolve the
+    // argument being edited. This is still a hard compile error for a real
+    // document (see dslCompiler.test.ts's "unterminated call statement
+    // safety" suite, and dslValueSpans.test.ts's own "yields a statement AND
+    // an error diagnostic" case above for the general rule) - only this
+    // single-line probe tolerates it, the same way it already tolerates
+    // MISSING_ATTRIBUTE_VALUE_CODE.
+    const source = "point A = coordinate(x: 0 y: 10";
+    const spans = dslLineValueSpans(source);
+    expect(spans.map((span) => textOf(source, span))).toEqual(["0", "10"]);
   });
 
   it("returns no spans for a line that yields a statement AND an error diagnostic", () => {

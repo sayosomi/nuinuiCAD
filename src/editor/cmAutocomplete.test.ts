@@ -1707,6 +1707,93 @@ describe("typed value completion (Task 39)", () => {
       expect(labels).not.toContain("flag");
       expect(labels).not.toContain("side");
     });
+
+    it("Task 51 manual-E2E rerun: natural '{' then '@' through a live EditorView with no closing quote/paren still opens the popup with only string/number candidates", async () => {
+      // Regression for the actual Tauri repro (51-manual-e2e-checklist.md
+      // Scenario 4 step 4): every other template-hole test above keeps the
+      // *outer string quote* closed (`"{@"`) so only the hole itself is
+      // in-progress. Here neither the string nor the call `(...)` is ever
+      // closed - exactly what natural typing at the end of the buffer looks
+      // like before dslCallParser.ts's UNCLOSED_CALL_CODE fix,
+      // parseDslCallStatement discarded the whole statement
+      // (`statement: null`) once its closing `)` search failed, so
+      // dslCompletionContextAt never reached the templateHole branch at all
+      // and no popup opened - through the real dslAutocompleteExtension/
+      // EditorView wiring, not a direct completionSource call.
+      const committedSource = [
+        "nui 3",
+        "const label: string = \"hi\"",
+        "const length: number = 1",
+        "const printed: boolean = true",
+        "const side: choice(right, left) = left"
+      ].join("\n");
+      const compiled = compiledTyped(committedSource);
+      const committedDoc = EditorState.create({ doc: committedSource }).doc;
+      const insertion = '\ntext T = label(text: "';
+      const dirtySource = committedSource + insertion;
+      const ranges = mapTypedDeclarationRangeIndex(
+        createTypedDeclarationRangeIndex(committedDoc, compiled.statementMap!),
+        ChangeSet.of({ from: committedSource.length, insert: insertion }, committedSource.length)
+      );
+      const parent = document.createElement("div");
+      document.body.append(parent);
+      const view = new EditorView({
+        state: EditorState.create({
+          doc: dirtySource,
+          selection: EditorSelection.cursor(dirtySource.length),
+          extensions: [
+            dslAutocompleteExtension({
+              ...baseOptions(),
+              elements: () => compiled.document!.elements,
+              statementRanges: () => createStatementRangeIndex(EditorState.create({ doc: dirtySource }).doc, compiled.statementMap!),
+              bindingAnalysis: () => compiled.bindingAnalysis,
+              typedDeclarationRanges: () => ranges,
+              scopeBodyRanges: () => [],
+              statementInfoByElementId: () => compiled.statementMap!.byElementId
+            })
+          ]
+        }),
+        parent
+      });
+
+      expect(completionStatus(view.state)).toBeNull();
+
+      // Two real typed keystrokes, "{" then "@" - never a closing quote or
+      // paren, matching the exact end-of-buffer natural-input repro.
+      const openBrace = dirtySource.length;
+      view.dispatch({
+        changes: { from: openBrace, insert: "{" },
+        selection: { anchor: openBrace + 1 },
+        annotations: Transaction.userEvent.of("input.type")
+      });
+      view.dispatch({
+        changes: { from: openBrace + 1, insert: "@" },
+        selection: { anchor: openBrace + 2 },
+        annotations: Transaction.userEvent.of("input.type")
+      });
+
+      await expect.poll(() => view.state.doc.toString().slice(openBrace, openBrace + 2), { timeout: 1000, interval: 20 }).toBe("{@");
+      await expect.poll(() => completionStatus(view.state), { timeout: 1000, interval: 20 }).toBe("active");
+      expect(parent.querySelector(".cm-tooltip-autocomplete")).not.toBeNull();
+      const labels = currentCompletions(view.state).map((option) => option.label);
+      expect(labels).toContain("label");
+      expect(labels).toContain("length");
+      expect(labels).not.toContain("printed");
+      expect(labels).not.toContain("side");
+
+      startCompletion(view);
+      await expect.poll(() => completionStatus(view.state), { timeout: 1000, interval: 20 }).toBe("active");
+      const option = currentCompletions(view.state).find((candidate) => candidate.label === "length")!;
+      // apply ("@length") already carries the "@" the user typed, replacing
+      // the whole "@" token rather than being appended after it.
+      view.dispatch({
+        changes: { from: openBrace + 1, to: openBrace + 2, insert: typeof option.apply === "string" ? option.apply : "@length" }
+      });
+      expect(view.state.doc.toString().slice(openBrace, openBrace + "{@length".length)).toBe("{@length");
+
+      view.destroy();
+      parent.remove();
+    });
   });
 });
 
