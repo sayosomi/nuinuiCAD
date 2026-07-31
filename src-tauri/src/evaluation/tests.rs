@@ -259,6 +259,157 @@ fn evaluates_text_with_anchor_and_numeric_references() {
 }
 
 #[test]
+fn evaluates_text_with_the_nui_3_sigil_form_of_a_property_reference() {
+    let mut elements = base_line_elements();
+    elements.push(element(json!({
+        "id": "text",
+        "name": "注記",
+        "type": "text",
+        "visible": true,
+        "enabled": true,
+        "text": "長さ {@直線AB.length}",
+        "anchor": { "mode": "reference", "pointId": "a" },
+        "fontSize": 4
+    })));
+
+    let result = evaluate_document_input(EvaluationInput {
+        property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
+        elements,
+        evaluation_limit_index: None,
+        scalar_expression_payload: None,
+        scalar_program: None,
+        binding_versions: None,
+    });
+
+    assert!(result.errors.is_empty());
+    let text = point(&result, "text");
+    assert_eq!(text["text"], json!("長さ 100"));
+}
+
+#[test]
+fn evaluates_text_with_a_multi_segment_sigil_property_path() {
+    let mut elements = base_line_elements();
+    elements.push(element(json!({
+        "id": "text",
+        "name": "注記",
+        "type": "text",
+        "visible": true,
+        "enabled": true,
+        "text": "x={@直線AB.startPoint.x}",
+        "anchor": { "mode": "reference", "pointId": "a" },
+        "fontSize": 4
+    })));
+
+    let result = evaluate_document_input(EvaluationInput {
+        property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
+        elements,
+        evaluation_limit_index: None,
+        scalar_expression_payload: None,
+        scalar_program: None,
+        binding_versions: None,
+    });
+
+    assert!(result.errors.is_empty());
+    let text = point(&result, "text");
+    assert_eq!(text["text"], json!("x=0"));
+}
+
+#[test]
+fn prefers_the_current_elements_own_unique_local_variable_over_a_sigil_property_reference() {
+    let mut elements = base_line_elements();
+    elements.push(element(json!({
+        "id": "sleeve",
+        "name": "袖",
+        "type": "freePoint",
+        "visible": true,
+        "enabled": true,
+        "numericVariables": [{ "id": "local-width", "name": "寸法", "value": 30 }],
+        "x": 0,
+        "y": 0
+    })));
+    elements.push(element(json!({
+        "id": "text",
+        "name": "袖",
+        "type": "text",
+        "visible": true,
+        "enabled": true,
+        "numericVariables": [{ "id": "local-width", "name": "寸法", "value": 30 }],
+        "text": "寸法={@袖.寸法}",
+        "anchor": { "mode": "reference", "pointId": "a" },
+        "fontSize": 4
+    })));
+
+    let result = evaluate_document_input(EvaluationInput {
+        property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
+        elements,
+        evaluation_limit_index: None,
+        scalar_expression_payload: None,
+        scalar_program: None,
+        binding_versions: None,
+    });
+
+    assert!(result.errors.is_empty());
+    let text = point(&result, "text");
+    // "袖" here names the *text* element itself (Rule R(1): the element's own
+    // unique local variable), not the unrelated freePoint also named "袖" -
+    // must not be misread as a property reference to that other element.
+    assert_eq!(text["text"], json!("寸法=30"));
+}
+
+#[test]
+fn falls_through_to_the_property_arm_when_the_local_variable_name_is_ambiguous() {
+    let mut elements = base_line_elements();
+    elements.push(element(json!({
+        "id": "text",
+        "name": "直線AB",
+        "type": "text",
+        "visible": true,
+        "enabled": true,
+        "numericVariables": [
+            { "id": "local-1", "name": "length", "value": 1 },
+            { "id": "local-2", "name": "length", "value": 2 }
+        ],
+        "text": "length={@直線AB.length}",
+        "anchor": { "mode": "reference", "pointId": "a" },
+        "fontSize": 4
+    })));
+
+    let result = evaluate_document_input(EvaluationInput {
+        property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
+        elements,
+        evaluation_limit_index: None,
+        scalar_expression_payload: None,
+        scalar_program: None,
+        binding_versions: None,
+    });
+
+    assert!(result.errors.is_empty());
+    let text = point(&result, "text");
+    // Two local variables share the name "length" on the text element
+    // itself (also named "直線AB", colliding with the line's own name) - the
+    // ambiguous local-variable match must not be taken, so this resolves as
+    // an element-property reference to the *line* (length 100), not either
+    // local variable (1 or 2).
+    assert_eq!(text["text"], json!("length=100"));
+}
+
+#[test]
 fn evaluates_anchorless_text_as_comment_geometry() {
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,

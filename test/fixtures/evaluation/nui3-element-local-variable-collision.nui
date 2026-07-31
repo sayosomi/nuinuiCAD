@@ -1,0 +1,5 @@
+nui 3
+point 袖 = coordinate(x: 0 y: 0 vars: [基準: 15; 二倍: @袖.基準 * 2])
+point Other = coordinate(x: @袖.x y: @袖.y)
+line 袖線 = segment(start: 袖 end: Other)
+point Measured = coordinate(x: @袖線.length y: 0)

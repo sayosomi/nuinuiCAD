@@ -143,9 +143,21 @@ fn tokenize(expression: &str) -> Result<Vec<Token>, String> {
         }
 
         if ch == '@' {
+            // Task 51: stops at `.` exactly like the TS tokenizer's own
+            // localVariable pattern (numericExpressionParser.ts) - under the
+            // IR design an `@token` in this normalized, sigil-resolved
+            // expression string is never legitimately followed by a dot (an
+            // `@Element.property` occurrence has its sigil stripped before
+            // reaching either engine). Without this, `@id.length` would
+            // silently tokenize as `LocalVariable("id.length")` here while
+            // TS stops at the dot, diverging on any malformed input that
+            // reaches this far.
             let start = index + 1;
             index = start;
-            while index < chars.len() && !is_expression_delimiter(chars[index]) {
+            while index < chars.len()
+                && !is_expression_delimiter(chars[index])
+                && chars[index] != '.'
+            {
                 index += 1;
             }
             tokens.push(Token::LocalVariable(chars[start..index].iter().collect()));
