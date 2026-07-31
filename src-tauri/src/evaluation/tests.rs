@@ -1820,3 +1820,90 @@ fn evaluates_line_division_point_numeric_variables_and_expressions() {
     assert_eq!(division["x"], json!(50.0));
     assert_eq!(division["y"], json!(0.0));
 }
+
+#[test]
+fn self_referencing_element_property_with_no_local_variable_fails_with_the_forward_reference_message(
+) {
+    // Review fix for Rule R: normalizeNumericExpressionInput no longer
+    // leaves a self-qualified `@A.length` untouched when no local variable
+    // named "length" exists on A - it falls through and resolves to the
+    // sigil-free self-referencing element-property IR `a.length`, mirroring
+    // exactly what this Rust evaluator receives from a real nui 3 compile.
+    // Since A's own geometry cannot exist yet while A is being evaluated,
+    // this must fail with the same forward-reference message any other
+    // too-early dependency gets - never a distinct self-reference message.
+    let result = evaluate_document_input(EvaluationInput {
+        property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
+        elements: vec![element(json!({
+            "id": "a",
+            "name": "A",
+            "type": "freePoint",
+            "visible": true,
+            "enabled": true,
+            "x": 0,
+            "y": { "kind": "expression", "expression": "a.length" }
+        }))],
+        evaluation_limit_index: None,
+        scalar_expression_payload: None,
+        scalar_program: None,
+        binding_versions: None,
+    });
+
+    assert!(result
+        .computed_geometry
+        .iter()
+        .all(|geometry| geometry["elementId"] != json!("a")));
+    assert_eq!(result.errors[0].element_id, "a");
+    assert_eq!(result.errors[0].missing_dependency_id, "a");
+    assert_eq!(
+        result.errors[0].message,
+        "A の数値式を評価できません。A はこの要素より後にあるか、存在しません。"
+    );
+}
+
+#[test]
+fn self_referencing_element_property_with_an_ambiguous_local_variable_fails_the_same_way() {
+    // Same review fix, ambiguous-count arm: two local variables named "w"
+    // means Rule R(1) cannot pick one, so `@A.w` still falls through to the
+    // sigil-free self-referencing property IR `a.w` rather than being left
+    // unconverted - identical failure mode to the no-local-variable case.
+    let result = evaluate_document_input(EvaluationInput {
+        property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
+        elements: vec![element(json!({
+            "id": "a",
+            "name": "A",
+            "type": "freePoint",
+            "visible": true,
+            "enabled": true,
+            "numericVariables": [
+                { "id": "local-1", "name": "w", "value": 1 },
+                { "id": "local-2", "name": "w", "value": 2 }
+            ],
+            "x": 0,
+            "y": { "kind": "expression", "expression": "a.w" }
+        }))],
+        evaluation_limit_index: None,
+        scalar_expression_payload: None,
+        scalar_program: None,
+        binding_versions: None,
+    });
+
+    assert!(result
+        .computed_geometry
+        .iter()
+        .all(|geometry| geometry["elementId"] != json!("a")));
+    assert_eq!(result.errors[0].element_id, "a");
+    assert_eq!(result.errors[0].missing_dependency_id, "a");
+    assert_eq!(
+        result.errors[0].message,
+        "A の数値式を評価できません。A はこの要素より後にあるか、存在しません。"
+    );
+}

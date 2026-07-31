@@ -311,7 +311,7 @@ describe("normalizeNumericExpressionInput", () => {
     expect(normalizeNumericExpressionInput("@AB.startPoint.x", elements)).toBe("line-ab.startPoint.x");
   });
 
-  it("does not normalize @Self.property when Self has no matching local variable (leaves it for dangling-reference diagnostics)", () => {
+  it("falls through to the element-property arm for @Self.property when Self has no matching local variable (Rule R review fix)", () => {
     const point: CadElement = {
       id: "point-a",
       name: "袖",
@@ -322,7 +322,12 @@ describe("normalizeNumericExpressionInput", () => {
       y: 0
     };
 
-    expect(normalizeNumericExpressionInput("@袖.length", [point], [], point)).toBe("@袖.length");
+    // No local variable named "length" exists on 袖 at all (count 0), so
+    // Rule R's local-variable arm never applies; the sigil is dropped and X
+    // resolves as an ordinary (self-referencing) element-property IR rather
+    // than being left as an unconverted `@袖.length`. Evaluation, not
+    // normalize, is what later rejects the self-reference.
+    expect(normalizeNumericExpressionInput("@袖.length", [point], [], point)).toBe("point-a.length");
   });
 
   it("resolves an element-property reference even when a same-named binding exists elsewhere", () => {
@@ -355,7 +360,7 @@ describe("normalizeNumericExpressionInput", () => {
     expect(normalizeNumericExpressionInput("@CD.length", elements)).toBe("line-cd.length");
   });
 
-  it("does not normalize ambiguous local variable display names", () => {
+  it("falls through to the element-property arm for an ambiguous (duplicate-named) local variable (Rule R review fix)", () => {
     const point: CadElement = {
       id: "point-a",
       name: "袖",
@@ -370,6 +375,10 @@ describe("normalizeNumericExpressionInput", () => {
       y: 0
     };
 
+    // Two local variables share the name "寸法", so Rule R's "exactly one"
+    // condition fails and the qualified-variable loop skips it; the sigil
+    // loop below must still fall through and resolve 袖 as an element-
+    // property reference rather than leaving `@袖.寸法` unconverted.
     expect(
       normalizeNumericExpressionInput(
         "@袖.寸法",
@@ -377,7 +386,65 @@ describe("normalizeNumericExpressionInput", () => {
         point.numericVariables ?? [],
         point
       )
-    ).toBe("@袖.寸法");
+    ).toBe("point-a.寸法");
+  });
+
+  it("Rule R matrix: self-name + exactly one matching local variable still resolves to the binding (unchanged by the review fix)", () => {
+    const point: CadElement = {
+      id: "point-a",
+      name: "袖",
+      type: "freePoint",
+      visible: true,
+      enabled: true,
+      numericVariables: [{ id: "local-width", name: "寸法", value: 30 }],
+      x: 0,
+      y: 0
+    };
+
+    expect(
+      normalizeNumericExpressionInput("@袖.寸法", [point], point.numericVariables ?? [], point)
+    ).toBe("@local-width");
+  });
+
+  it("falls through to the element-property arm for a self-referencing Japanese property label on a measurable element type", () => {
+    const curve: CadElement = {
+      id: "curve-ac",
+      name: "曲線AC",
+      type: "bezierCurve",
+      visible: true,
+      enabled: true,
+      startPoint: { mode: "reference", pointId: "a" },
+      startHandleAngleDeg: 0,
+      startHandleLength: 20,
+      intermediatePoints: [],
+      endPoint: { mode: "reference", pointId: "c" },
+      endHandleAngleDeg: 0,
+      endHandleLength: 20
+    };
+
+    // 曲線AC has no local variable at all, so Rule R's local-variable arm
+    // never applies; the measurable-element (Japanese-label) sigil loop -
+    // not just the generic nameTokens loop exercised by the freePoint cases
+    // above - must also fall through for a self-reference.
+    expect(
+      normalizeNumericExpressionInput("@曲線AC.長さ", [curve], [], curve)
+    ).toBe("curve-ac.length");
+  });
+
+  it("falls through to the element-property arm for a self-referencing multi-segment property path", () => {
+    const line: CadElement = {
+      id: "line-ab",
+      name: "AB",
+      type: "line",
+      visible: true,
+      enabled: true,
+      startPoint: { mode: "reference", pointId: "point-a" },
+      endPoint: { mode: "reference", pointId: "point-b" }
+    };
+
+    expect(
+      normalizeNumericExpressionInput("@AB.startPoint.x", [line], [], line)
+    ).toBe("line-ab.startPoint.x");
   });
 
   it("normalizes element names inside numeric measurement functions", () => {

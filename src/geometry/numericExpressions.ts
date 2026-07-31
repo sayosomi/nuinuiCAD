@@ -338,14 +338,17 @@ export const normalizeNumericExpressionInput = (
   // nui 3 sigil form: `@ElementName.property` lowers to the exact same
   // sigil-free IR as bare `ElementName.property` (element property references
   // never carry `@` internally - see D1 in the Task 51 migration plan).
-  // Skipped entirely for the current element's own name: that spelling is
-  // reserved for `@Self.localVarName` (the qualified-variable loop above). If
-  // it wasn't consumed there (no matching local variable, or an ambiguous
-  // local variable count), the occurrence is left untouched exactly as
-  // before this migration - the "does not normalize ambiguous local variable
-  // display names" contract is unchanged.
+  // Rule R's self-name spelling (`@Self.localVarName`) is only ever consumed
+  // by the qualified-variable loop above, which requires an exact, unique
+  // local-variable name match. If it wasn't consumed there - no matching
+  // local variable, or an ambiguous count - this loop still falls through
+  // and resolves the self-name as an ordinary element-property reference
+  // (matching Rust text_evaluator.rs's own fall-through contract): it is
+  // never left as an unconverted `@Self.property` occurrence. The resulting
+  // self-referencing property IR fails at evaluation with the same
+  // dependency/forward-reference error any other too-early reference gets -
+  // no separate self-reference diagnostic exists or is needed.
   for (const { token, element } of measurableElementTokens) {
-    if (currentElement && token === currentElement.name) continue;
     if (!expression.includes(`@${token}.`)) continue;
     for (const [property, label] of Object.entries(propertyLabels)) {
       if (!expression.includes(label)) continue;
@@ -383,7 +386,6 @@ export const normalizeNumericExpressionInput = (
   }
 
   for (const { token, element } of nameTokens) {
-    if (currentElement && token === currentElement.name) continue;
     if (!expression.includes(`@${token}.`)) continue;
     expression = expression.replace(cachedRegExp(`@${escapeRegExp(token)}\\.`), `${element.id}.`);
     expression = expression.replace(quotedNamePattern(token, "\\.", "@"), `${element.id}.`);
