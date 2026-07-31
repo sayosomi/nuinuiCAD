@@ -263,6 +263,54 @@ describe("dslCompletionContextAt", () => {
         elementToken: "直線AB"
       });
     });
+
+    describe("nui 3 sigil form @Element.property (Task 51)", () => {
+      it("narrows @直線AB. to elementParameter with elementToken excluding the sigil (fixes the pre-migration @AB. leak)", () => {
+        const line = "point P = offset(from: A dx: @直線AB.st)";
+        const context = dslCompletionContextAt(line, at(line, "@直線AB.st"));
+        expect(context).toMatchObject({
+          kind: "elementParameter",
+          from: line.indexOf(".st") + 1,
+          to: at(line, "@直線AB.st"),
+          elementToken: "直線AB",
+          sigil: true
+        });
+      });
+
+      it("narrows an empty query right after the dot", () => {
+        const line = "point P = offset(from: A dx: @直線AB.)";
+        const context = dslCompletionContextAt(line, at(line, "@直線AB."));
+        expect(context).toMatchObject({ kind: "elementParameter", elementToken: "直線AB", sigil: true });
+      });
+
+      it("still narrows the bare (pre-migration) form with sigil: false", () => {
+        const line = "point P = offset(from: A dx: 直線AB.st)";
+        const context = dslCompletionContextAt(line, at(line, "直線AB.st"));
+        expect(context).toMatchObject({ kind: "elementParameter", elementToken: "直線AB", sigil: false });
+      });
+
+      it("offers the sigil form's elementParameter narrowing inside vars=[...] too", () => {
+        const line = "point P = coordinate(x: 0 y: 0 vars: [Width: @直線AB.length])";
+        const context = dslCompletionContextAt(line, at(line, "@直線AB.length"));
+        expect(context).toMatchObject({ kind: "elementParameter", elementToken: "直線AB", sigil: true });
+      });
+
+      it("suppresses the bare form's elementParameter narrowing when majorVersion is 3 (checklist item 7)", () => {
+        const line = "point P = offset(from: A dx: 直線AB.st)";
+        expect(dslCompletionContextAt(line, at(line, "直線AB.st"), 3)).toBeNull();
+      });
+
+      it("keeps offering the bare form when majorVersion is omitted or 2", () => {
+        const line = "point P = offset(from: A dx: 直線AB.st)";
+        expect(dslCompletionContextAt(line, at(line, "直線AB.st"))).toMatchObject({ kind: "elementParameter", elementToken: "直線AB", sigil: false });
+        expect(dslCompletionContextAt(line, at(line, "直線AB.st"), 2)).toMatchObject({ kind: "elementParameter", elementToken: "直線AB", sigil: false });
+      });
+
+      it("still offers the sigil form's elementParameter narrowing when majorVersion is 3", () => {
+        const line = "point P = offset(from: A dx: @直線AB.st)";
+        expect(dslCompletionContextAt(line, at(line, "@直線AB.st"), 3)).toMatchObject({ kind: "elementParameter", elementToken: "直線AB", sigil: true });
+      });
+    });
   });
 
   describe("intermediates=[...] field-position discrimination", () => {

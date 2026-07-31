@@ -166,6 +166,18 @@ legacy `var`互換は、既存文書をtyped `const`/`let`へ移行するため�
 - D15: nui 3でlegacy `var`/flagsを恒久受理すること、legacy importerがnui 2を出力し続けること、v2を保存対象として維持することを廃止する。
 - D21: best-effort互換のblocking範囲を上記4条件へ置き換え、手動migration後の全削除を追加する。
 
+## D23: 要素プロパティ参照を`@Element.property`へ統一(Task 51)
+
+nui 3の要素プロパティ参照(numeric式内の測定値アクセス)を、旧来の裸表記`Element.property`から`@Element.property`へ移行する。`@name`(typed binding / legacy variable)と`@Element.property`(要素プロパティ)は`.`の有無だけで区別する一つの参照表記とし、binding名と要素名が同じでも`.`の有無だけで解決する。
+
+- 内部IR(`NumericValue.expression`のID形式文字列)は`@`を持たないsigil-free設計のまま変更しない。`@`はsurface構文専用のsigilであり、legacy numeric tokenizer(TS/Rust両方)・fixture・frozen v1 importerは無変更で済む。dialectを意識するのはnormalize-in(両綴りを受理)・v3専用の裸表記診断・format-out(v3のみ`@`を出力)の3箇所だけ。
+- 規則R: `@X.Y`は、Xが現在の要素自身の名前かつYという名前の要素local変数がちょうど1個存在するときだけ、その変数(`@Self.localVar`、既存挙動)として解決する。それ以外は要素プロパティ参照としてXを解決し、sigilを落としてbare形式と同じIRへ下げる。Xが自要素名でYが0個/複数個ヒットする(曖昧)場合は、書き換えず既存のdangling-reference診断に委ねる(新たな自己参照診断は追加しない)。
+- 裸表記`Element.property`はnui 3では診断エラー(`property-reference-requires-sigil`)。numeric属性・`var`・`vars=`/`intermediates=`・printLayout数値属性・legacy conditionalGroup condition・legacy text templateホールのすべてで検出し、`document: null`を返す(黙って評価しない)。nui 2・frozen v1 importerは対象外で無変更。
+- typed`const`/`let`初期化式・`set`右辺(typed scalar grammar)の中で`@Element.property`を書くと、専用の`geometry-property-in-typed-expression`診断になる(汎用字句エラーではない)。typed scalar evaluatorは両エンジンとも意図的にgeometry非依存であり、この逆方向の接続は本Decisionのscope外(D2)。一方legacy text templateホールとconditionalGroup legacy conditionは元々legacy経路なので、そこでの`@Element.property`は正式に動作する。
+- Source EditorとCommandLineBarは同じ共有token classifier(`src/dsl/expressionReferenceToken.ts`)を使う。`@name`→typed binding候補、`@Element.`→要素プロパティ候補、これらは1つのtoken形状の2つの枝であり、別々のgrammarではない。
+
+根拠: ユーザーがTask 51で明示指定した構文契約。従来「`@` typed-binding補完」と「bare `AB.` element-property補完」が独立した(実際には`.`を含まないという誤った前提の)grammarとして実装され、修正のたびに互いを壊していた問題を、共有classifierと統一sigilで解消する。
+
 ## Open decisions
 
 なし。

@@ -45,6 +45,17 @@ describe("DSL highlighting", () => {
     expect(tokenKinds("@stop")).toEqual(["keyword"]);
   });
 
+  it("classifies the nui 3 sigil form @Element.property as one reference token (Task 51)", () => {
+    expect(highlightDslLine("point P = coordinate(x: @AB.length y: 0)")).toEqual(
+      expect.arrayContaining([{ kind: "reference", text: "@AB.length" }])
+    );
+    // A plain @name binding still highlights as its own reference token,
+    // unaffected by the new dotted alternative.
+    expect(highlightDslLine("point P = coordinate(x: @length y: 0)")).toEqual(
+      expect.arrayContaining([{ kind: "reference", text: "@length" }])
+    );
+  });
+
   it("classifies nui, color, place, layoutVar, activePrintLayout, default", () => {
     expect(tokenKinds("nui 2")[0]).toBe("keyword");
     expect(tokenKinds('color pattern-black ("#31322f" name: "基本線" default: true)')).toEqual(

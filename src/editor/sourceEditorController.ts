@@ -226,7 +226,8 @@ export class SourceEditorController implements SourceEditorHandle {
     bindingAnalysis: () => this.store.getState().doc.bindingAnalysis,
     typedDeclarationRanges: () => this.typedDeclarationRanges,
     scopeBodyRanges: () => this.scopeBodyRanges,
-    statementInfoByElementId: () => this.store.getState().doc.statementMap.byElementId
+    statementInfoByElementId: () => this.store.getState().doc.statementMap.byElementId,
+    majorVersion: () => this.store.getState().doc.majorVersion ?? undefined
   });
   private decorationIndex: EvaluationDecorationIndex = emptyDecorationIndex();
   private pendingDecorationRefresh = false;

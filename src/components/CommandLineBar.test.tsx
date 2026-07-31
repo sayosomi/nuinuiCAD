@@ -1307,6 +1307,59 @@ describe("CommandLineBar", () => {
     expect(screen.queryByRole("listbox", { name: "変数候補" })).toBeNull();
   });
 
+  it("Task 51: Enter does not advance the step while element-property candidates are pending (evaluation not current)", async () => {
+    useCadDocumentStore.getState().commitText(
+      ["nui 2", "point A = coordinate(x: 0 y: 0)", "point B = coordinate(x: 10 y: 0)", "line 直線AB = segment(start: A end: B)"].join("\n"),
+      "test"
+    );
+    renderBar({
+      evaluation: {
+        computedVariables: new Map(),
+        errors: [],
+        warnings: [],
+        computedGeometry: new Map(),
+        effectiveEnabledElementIds: new Set()
+      } as never,
+      evaluationIsCurrent: false
+    });
+    act(() => { startCommandLineCreation("variable"); });
+    const input = screen.getByRole<HTMLInputElement>("textbox");
+    fireEvent.change(input, { target: { value: "直線AB." } });
+    input.setSelectionRange(6, 6);
+    fireEvent.select(input);
+    expect(screen.queryByRole("listbox", { name: "変数候補" })).toBeNull();
+
+    fireEvent.submit(input.closest("form")!);
+    expect(useCadUiStore.getState().commandLineSession?.currentStepIndex).toBe(0);
+    expect(input).toHaveValue("直線AB.");
+  });
+
+  it("Task 51: Enter does not advance the step for an unresolvable element token", () => {
+    useCadDocumentStore.getState().commitText(
+      ["nui 2", "point A = coordinate(x: 0 y: 0)"].join("\n"),
+      "test"
+    );
+    renderBar({
+      evaluation: {
+        computedVariables: new Map(),
+        errors: [],
+        warnings: [],
+        computedGeometry: new Map(),
+        effectiveEnabledElementIds: new Set()
+      } as never
+    });
+    act(() => { startCommandLineCreation("variable"); });
+    const input = screen.getByRole<HTMLInputElement>("textbox");
+    fireEvent.change(input, { target: { value: "存在しない要素.length" } });
+    input.setSelectionRange("存在しない要素.length".length, "存在しない要素.length".length);
+    fireEvent.select(input);
+    expect(screen.queryByRole("listbox", { name: "変数候補" })).toBeNull();
+
+    fireEvent.submit(input.closest("form")!);
+    expect(useCadUiStore.getState().commandLineSession?.currentStepIndex).toBe(0);
+    expect(input).toHaveValue("存在しない要素.length");
+  });
+
   it("completes both @typed-binding and ElementName.property references in a free point x field, in the same session", () => {
     useCadDocumentStore.getState().commitText([
       "nui 3",

@@ -227,6 +227,18 @@ export const CommandLineBar = ({ commandContext, evaluation, evaluationIsCurrent
     acceptedNumberSuggestion.inputValue === inputValue
       ? acceptedNumberSuggestion
       : null;
+  // Task 51: closes a step-advance hazard. When the classifier matched an
+  // in-progress `Element.` (or `@Element.`) token but the popover isn't
+  // open - either evaluation hasn't caught up yet (pending) or the element
+  // token simply doesn't resolve to anything - Enter must not fall through
+  // to submitCommandLineInput with that broken, unresolved expression still
+  // in the field. Never applies to the typed-binding (`numberSuggestionMatch`)
+  // arm: those candidates are always synchronously resolved, so there is no
+  // pending state to guard against there. Excludes acceptedNumberForCurrentInput:
+  // once a suggestion has already been accepted for this exact input value,
+  // the popover is deliberately dismissed (not blocked) so the established
+  // "second Enter confirms" flow below still submits.
+  const numberSuggestionBlocking = step?.kind === "number" && !!elementParamMatch && !numberSuggestionsOpen && !acceptedNumberForCurrentInput;
   const selectedNumberSuggestionIndex = activeSuggestionOptions.length === 0
     ? 0
     : Math.min(numberSuggestionActiveIndex, activeSuggestionOptions.length - 1);
@@ -397,6 +409,7 @@ export const CommandLineBar = ({ commandContext, evaluation, evaluationIsCurrent
       onSubmit={(event) => {
         event.preventDefault();
         if (referenceInputComposing || isCommandLineInputComposing()) return;
+        if (numberSuggestionBlocking) return;
         if (submitReferenceInput()) return;
         clearPendingSuggestionState();
         submitCommandLineInput(inputValue, commandContext);

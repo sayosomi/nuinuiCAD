@@ -692,6 +692,191 @@ describe("createDslCompletionSource", () => {
       view.destroy();
       parent.remove();
     });
+
+    it("Task 51 checklist: @ offers the typed binding, @Element. offers the property, both narrow and apply correctly in one live session", async () => {
+      // The exact acceptance scenario from the Task 51 migration: a plain
+      // numeric attribute must offer BOTH a typed const/let binding (@length)
+      // and an element-property reference (@AB.length) - through the real
+      // dslAutocompleteExtension wiring, in one EditorView session, with the
+      // same name ("length") shared by the binding and the property so a
+      // regression that conflates the two would be caught here.
+      const source = [
+        "nui 3",
+        "const length: number = 12.3456",
+        "point A = coordinate(x: 0 y: 0)",
+        "point B = coordinate(x: 10 y: 0)",
+        "line AB = segment(start: A end: B)",
+        "point C = coordinate(x: 0 y: 0)"
+      ].join("\n");
+      const compiled = compileDslDocument(source, { assignedStatementIds: new Map([[1, "test:length"]]) });
+      expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+      expect(compiled.document).not.toBeNull();
+      const doc = EditorState.create({ doc: source }).doc;
+      const elements = compiled.document!.elements;
+      const statementRanges = createStatementRangeIndex(doc, compiled.statementMap!);
+      const abId = elements.find((element) => element.type === "line")!.id;
+      const computedGeometry = new Map([[abId, {
+        kind: "line" as const,
+        elementId: abId,
+        name: "AB",
+        startPointId: null,
+        endPointId: null,
+        start: { kind: "point" as const, elementId: "a", name: "A", x: 0, y: 0 },
+        end: { kind: "point" as const, elementId: "b", name: "B", x: 10, y: 0 },
+        length: 10,
+        startAngleDeg: 0,
+        endAngleDeg: 0,
+        startTangentAngleDeg: 0,
+        endTangentAngleDeg: 0
+      }]]);
+      const parent = document.createElement("div");
+      document.body.append(parent);
+
+      const view = new EditorView({
+        state: EditorState.create({
+          doc: source,
+          extensions: [
+            dslAutocompleteExtension({
+              elements: () => elements,
+              statementRanges: () => statementRanges,
+              printLayouts: () => [],
+              printLayoutRanges: () => new Map(),
+              isComposing: () => false,
+              computedVariables: () => undefined,
+              computedGeometry: () => computedGeometry,
+              effectiveEnabledElementIds: () => new Set([abId]),
+              evaluationErrors: () => [],
+              bindingAnalysis: () => compiled.bindingAnalysis,
+              typedDeclarationRanges: () => createTypedDeclarationRangeIndex(doc, compiled.statementMap!),
+              scopeBodyRanges: () => createScopeBodyRangeIndex(doc, compiled.statementMap!, compiled.bindingAnalysis!.catalog.scopeIndex),
+              statementInfoByElementId: () => compiled.statementMap!.byElementId,
+              majorVersion: () => 3
+            })
+          ]
+        }),
+        parent
+      });
+
+      // Step 1-3: "@" on point C's x: field offers the typed binding
+      // "length", "@l" narrows to it, applying inserts "@length".
+      const xInsertPos = source.indexOf("point C") + "point C = coordinate(x: ".length;
+      view.dispatch({
+        changes: { from: xInsertPos, insert: "@" },
+        selection: { anchor: xInsertPos + 1 },
+        annotations: Transaction.userEvent.of("input.type")
+      });
+      await expect.poll(() => completionStatus(view.state), { timeout: 1000, interval: 20 }).toBe("active");
+      expect(currentCompletions(view.state).map((option) => option.label)).toContain("@length");
+
+      view.dispatch({
+        changes: { from: xInsertPos + 1, insert: "l" },
+        selection: { anchor: xInsertPos + 2 },
+        annotations: Transaction.userEvent.of("input.type")
+      });
+      await expect.poll(() => completionStatus(view.state), { timeout: 1000, interval: 20 }).toBe("active");
+      const narrowedBindingLabels = currentCompletions(view.state).map((option) => option.label);
+      expect(narrowedBindingLabels).toContain("@length");
+      expect(narrowedBindingLabels.every((label) => label.toLowerCase().includes("l"))).toBe(true);
+
+      startCompletion(view);
+      await expect.poll(() => completionStatus(view.state), { timeout: 1000, interval: 20 }).toBe("active");
+      const bindingOption = currentCompletions(view.state).find((option) => option.label === "@length")!;
+      view.dispatch({
+        changes: { from: xInsertPos, to: xInsertPos + 2, insert: typeof bindingOption.apply === "string" ? bindingOption.apply : "@length" }
+      });
+      expect(view.state.doc.toString().slice(xInsertPos, xInsertPos + "@length".length)).toBe("@length");
+
+      // Step 4-6: "@AB." on point C's y: field offers the element property
+      // "length", "@AB.l" narrows to it, applying inserts "@AB.length".
+      const yInsertPos = view.state.doc.toString().indexOf("y: ", xInsertPos) + "y: ".length;
+      view.dispatch({
+        changes: { from: yInsertPos, insert: "@AB." },
+        selection: { anchor: yInsertPos + 4 },
+        annotations: Transaction.userEvent.of("input.type")
+      });
+      await expect.poll(() => completionStatus(view.state), { timeout: 1000, interval: 20 }).toBe("active");
+      expect(currentCompletions(view.state).map((option) => option.label)).toContain("length");
+
+      view.dispatch({
+        changes: { from: yInsertPos + 4, insert: "l" },
+        selection: { anchor: yInsertPos + 5 },
+        annotations: Transaction.userEvent.of("input.type")
+      });
+      await expect.poll(() => completionStatus(view.state), { timeout: 1000, interval: 20 }).toBe("active");
+      expect(currentCompletions(view.state).map((option) => option.label)).toContain("length");
+
+      startCompletion(view);
+      await expect.poll(() => completionStatus(view.state), { timeout: 1000, interval: 20 }).toBe("active");
+      const propertyOption = currentCompletions(view.state).find((option) => option.label === "length")!;
+      view.dispatch({
+        changes: { from: yInsertPos + 4, to: yInsertPos + 5, insert: typeof propertyOption.apply === "string" ? propertyOption.apply : "length" }
+      });
+      expect(view.state.doc.toString().slice(yInsertPos, yInsertPos + "@AB.length".length)).toBe("@AB.length");
+
+      view.destroy();
+      parent.remove();
+    });
+
+    it("Task 51 checklist item 7: bare Element. offers no candidates in a nui 3 document", async () => {
+      const source = [
+        "nui 3",
+        "point A = coordinate(x: 0 y: 0)",
+        "point B = coordinate(x: 10 y: 0)",
+        "line AB = segment(start: A end: B)",
+        "point C = coordinate(x: 0 y: 0)"
+      ].join("\n");
+      const compiled = compileDslDocument(source);
+      expect(compiled.document).not.toBeNull();
+      const doc = EditorState.create({ doc: source }).doc;
+      const elements = compiled.document!.elements;
+      const statementRanges = createStatementRangeIndex(doc, compiled.statementMap!);
+      const abId = elements.find((element) => element.type === "line")!.id;
+      const parent = document.createElement("div");
+      document.body.append(parent);
+      const xInsertPos = source.indexOf("point C") + "point C = coordinate(x: ".length;
+      const view = new EditorView({
+        state: EditorState.create({
+          doc: source,
+          extensions: [
+            dslAutocompleteExtension({
+              elements: () => elements,
+              statementRanges: () => statementRanges,
+              printLayouts: () => [],
+              printLayoutRanges: () => new Map(),
+              isComposing: () => false,
+              computedVariables: () => undefined,
+              computedGeometry: () => new Map(),
+              effectiveEnabledElementIds: () => new Set([abId]),
+              evaluationErrors: () => [],
+              bindingAnalysis: () => undefined,
+              typedDeclarationRanges: () => new Map(),
+              scopeBodyRanges: () => [],
+              statementInfoByElementId: () => compiled.statementMap!.byElementId,
+              majorVersion: () => 3
+            })
+          ]
+        }),
+        parent
+      });
+
+      for (const char of "AB.") {
+        const pos = view.state.selection.main.head === 0 ? xInsertPos : view.state.selection.main.head;
+        view.dispatch({
+          changes: { from: pos, insert: char },
+          selection: { anchor: pos + 1 },
+          annotations: Transaction.userEvent.of("input.type")
+        });
+      }
+      // Confirm the completion pipeline settles to no result - unlike the
+      // majorVersion-omitted/2 case, which opens (see the elementParameter
+      // describe block above). completionStatus briefly reports "pending"
+      // while the async completion source resolves, so poll rather than
+      // sampling once.
+      await expect.poll(() => completionStatus(view.state), { timeout: 1000, interval: 20 }).toBeNull();
+
+      view.destroy();
+      parent.remove();
+    });
   });
 });
 

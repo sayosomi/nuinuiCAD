@@ -13,8 +13,14 @@ const constructionCategories = new Set<DslConstructionCategory>([
   "point", "line", "curve", "arc", "text", "image", "var"
 ]);
 
+// Task 51: `@name` and the pre-migration bare `Element.property` collapse
+// into one `@?name(.property)?` shape here (matching
+// expressionReferenceToken.ts's disambiguation-by-dot), so `@AB.length` now
+// highlights as a single reference token instead of an unmatched `@AB`
+// followed by a separate `.length` (this file's ASCII-only identifier
+// limitation is unchanged either way - not fixed, not worsened).
 const tokenPattern =
-  /("[^"]*(?:"|$)|'[^']*(?:'|$)|[A-Za-z_][\w:-]*(?=:\s)|-?\d+(?:\.\d+)?|==|!=|>=|<=|[={}()[\],;*/+-]|@[A-Za-z_][\w:-]*|[A-Za-z_][\w:-]*(?:\.[A-Za-z_][\w:-]*)?)/g;
+  /("[^"]*(?:"|$)|'[^']*(?:'|$)|[A-Za-z_][\w:-]*(?=:\s)|-?\d+(?:\.\d+)?|==|!=|>=|<=|[={}()[\],;*/+-]|@?[A-Za-z_][\w:-]*(?:\.[A-Za-z_][\w:-]*)?)/g;
 
 const commentIndex = (line: string) => {
   let quote: string | null = null;
@@ -34,6 +40,7 @@ const classify = (text: string): DslTokenKind => {
   if (/^[A-Za-z_][\w:-]*$/.test(text)) return "reference";
   if (/^[A-Za-z_][\w:-]*\.[A-Za-z_][\w:-]*$/.test(text)) return "reference";
   if (/^@[A-Za-z_][\w:-]*$/.test(text)) return "reference";
+  if (/^@[A-Za-z_][\w:-]*\.[A-Za-z_][\w:-]*$/.test(text)) return "reference";
   if (/^-?\d+(\.\d+)?$/.test(text)) return "number";
   if (/^[A-Za-z_][\w:-]*$/.test(text)) return "reference";
   return "operator";

@@ -104,6 +104,13 @@ export type DslAutocompleteOptions = {
   evaluationIsCurrent?: () => boolean;
   /** Defaults to deriving everything from the CompletionContext's own editor state. */
   documentInput?: (context: CompletionContext) => DslAutocompleteDocumentInput | null;
+  /** Task 51: the live document's own `nui <major>` version. Omitted (or 2),
+   * a bare `Element.property` numeric-attribute reference keeps narrowing to
+   * `elementParameter` exactly as before this migration; an explicit `3`
+   * suppresses it, since that spelling is a compile error in nui 3
+   * (dslPropertyReferenceSyntax.ts) and offering it as a completion target
+   * would guide the user toward text that fails on commit. */
+  majorVersion?: () => 2 | 3;
 };
 
 /** A logical-projection pairing kept alongside the document input so the
@@ -334,6 +341,42 @@ const typedReferenceCompletions = (
     : [];
 };
 
+/**
+ * Task 51: typed `const`/`let` number-kind bindings, offered as `@name`
+ * candidates alongside the legacy top-level/local `@variable` candidates in
+ * a plain numeric attribute (`x:`, `length:`, `dx:`, ...) - the same
+ * position `numericBindingCompiler.ts` already resolves a compiled
+ * `@typedBindingName` occurrence against at evaluation time, but which had
+ * no completion source of its own before this. Reuses the exact site/
+ * live-visibility resolution `typedReferenceCompletions` above already
+ * established for propertyScalarValue/templateHole, so scope visibility
+ * agrees with those contexts and with the compiler.
+ *
+ * Unlike asScalarCompletions's own bare-name label (paired with
+ * `disablesCompletionFiltering`/`filter: false` at every other typed-
+ * reference call site), the label here is `@`-prefixed to match
+ * asVariableCompletions's legacy candidates exactly - the two lists are
+ * merged into one array in the "number"-kind branch below and must share
+ * one label convention so CM's own `validFor`-based filtering (not
+ * `filter: false`) narrows both consistently as the query lengthens.
+ */
+const typedNumberBindingCompletions = (
+  options: DslAutocompleteOptions,
+  input: DslAutocompleteDocumentInput,
+  context: CompletionContext
+): Completion[] => {
+  const bindingAnalysis = options.bindingAnalysis();
+  if (!bindingAnalysis) return [];
+  const elementId = statementElementIdsByLiveLine(input.doc, options.statementRanges()).get(input.cursorLineNumber);
+  const site = elementBindingSite(elementId, options.statementInfoByElementId(), bindingAnalysis);
+  return typedBindingReferenceCandidates({
+    catalog: bindingAnalysis.catalog,
+    entriesById: bindingAnalysis.entriesById,
+    ...(site ? { site } : { liveVisibleBindings: liveTypedBindingsAtCompletionCursor(options, bindingAnalysis, context.pos) }),
+    accepts: (type) => type?.kind === "number"
+  }).map((candidate): Completion => ({ label: `@${candidate.name}`, apply: `@${candidate.name}`, type: "variable" }));
+};
+
 /** CodeMirror's stock filtering compares the raw `@name` token to labels
  * such as `name`, so it removes every option at the bare `@` trigger. Keep
  * filtering off for that token, but retain a narrow, case-insensitive prefix
@@ -360,6 +403,30 @@ const typedReferenceToken = (input: DslAutocompleteDocumentInput, completionCont
     ? input.lineText.slice(completionContext.from, completionContext.to)
     : null;
 
+/**
+ * Task 51: the `@`-marker implicit-trigger token for *any* reference-shaped
+ * completion context, including a *sigilled* `elementParameter` - which
+ * typedReferenceToken above cannot cover, since its span excludes the
+ * `Element.` prefix (and any leading `@`) by design (asElementParameterCompletions
+ * only ever applies the member token). Reads `tokenStart` (the whole token's
+ * start, sigil included) instead, so a v3 `@AB.` implicitly triggers exactly
+ * like `@name` already does, closing the pre-Task-51 asymmetry where typing
+ * `@` silently opened typed-binding completion but typing `@` before an
+ * element name never did.
+ *
+ * A *bare* (non-sigilled) elementParameter match returns null here on
+ * purpose: that spelling has no `@` to wait for, so its historical
+ * behavior - implicitly triggering as soon as the dot is typed, gated only
+ * by evaluation freshness below, never by this marker check - is preserved
+ * unchanged for v2 documents (and any not-yet-migrated v3 source).
+ */
+const referenceMarkerToken = (input: DslAutocompleteDocumentInput, completionContext: DslCompletionContext): string | null => {
+  if (completionContext?.kind === "elementParameter") {
+    return completionContext.sigil ? input.lineText.slice(completionContext.tokenStart, completionContext.to) : null;
+  }
+  return typedReferenceToken(input, completionContext);
+};
+
 const completionDocumentInput = (options: DslAutocompleteOptions, context: CompletionContext) => options.documentInput
   ? { input: options.documentInput(context), projection: null }
   : defaultDocumentInput(context);
@@ -368,7 +435,7 @@ const isTypedReferenceRetryContext = (options: DslAutocompleteOptions, view: Par
   const context = new CompletionContext(view.state, view.state.selection.main.head, false, view);
   const { input } = completionDocumentInput(options, context);
   if (!input) return false;
-  const completionContext = dslCompletionContextAt(input.lineText, input.localPos);
+  const completionContext = dslCompletionContextAt(input.lineText, input.localPos, options.majorVersion?.());
   if (!completionContext || (
     completionContext.kind !== "typedInitializer" &&
     completionContext.kind !== "propertyScalarValue" &&
@@ -396,7 +463,7 @@ export const isElementParameterRetryContext = (options: DslAutocompleteOptions, 
   const context = new CompletionContext(view.state, view.state.selection.main.head, false, view);
   const { input } = completionDocumentInput(options, context);
   if (!input) return false;
-  const completionContext = dslCompletionContextAt(input.lineText, input.localPos);
+  const completionContext = dslCompletionContextAt(input.lineText, input.localPos, options.majorVersion?.());
   if (!completionContext || completionContext.kind !== "elementParameter") return false;
   if (!completionContext.elementToken.trim()) return false;
   return dslElementParameterCompletionOptions({
@@ -416,12 +483,14 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
   if (options.isComposing() || context.view?.compositionStarted) return null;
   const { input, projection } = completionDocumentInput(options, context);
   if (!input) return null;
-  const completionContext = dslCompletionContextAt(input.lineText, input.localPos);
+  const completionContext = dslCompletionContextAt(input.lineText, input.localPos, options.majorVersion?.());
   if (!completionContext) return null;
-  const referenceToken = typedReferenceToken(input, completionContext);
-  // Ordinary typing at an empty typed expression must stay quiet. Explicit
+  const referenceToken = referenceMarkerToken(input, completionContext);
+  // Ordinary typing at an empty typed expression (or, since Task 51, an
+  // empty numeric-attribute reference token) must stay quiet. Explicit
   // completion still exposes literal/operator candidates there, while the
-  // reference marker is the sole implicit trigger for typed binding options.
+  // reference marker is the sole implicit trigger for both typed binding and
+  // element-property options - uniformly now, since both share one sigil.
   if (!context.explicit && referenceToken !== null && !referenceToken.startsWith("@")) return null;
 
   let completions: Completion[];
@@ -552,7 +621,10 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
       elements,
       computedVariables: options.computedVariables()
     });
-    completions = asVariableCompletions([...localOptions, ...topLevelOptions]);
+    completions = [
+      ...typedNumberBindingCompletions(options, input, context),
+      ...asVariableCompletions([...localOptions, ...topLevelOptions])
+    ];
   } else {
     const query = input.lineText.slice(completionContext.from, input.localPos);
     if (!query.trim()) return null;
