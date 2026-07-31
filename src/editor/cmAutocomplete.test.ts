@@ -880,6 +880,182 @@ describe("createDslCompletionSource", () => {
   });
 });
 
+describe("choice value completion at a zero-length value (Task 51 manual E2E rerun)", () => {
+  it("offers only the choice's own candidates, in declared order, right after a real delete lands the cursor mid-gap, and narrows/applies correctly", async () => {
+    // Real repro: an `offset` line's `side: right` value is selected and
+    // deleted (not typed character-by-character down to empty), which is
+    // exactly the shape that exposed the bug - the resulting whitespace gap
+    // between "side:" and "closed:" is wider than one separating space, and
+    // a real EditorView delete transaction leaves the cursor right where the
+    // deleted text used to start: inside that gap, not at its far edge
+    // (where dslArgScanner's trimSpan collapses the empty valueSpan to).
+    const source = [
+      "nui 3",
+      "point A = coordinate(x: 0 y: 0)",
+      "point B = coordinate(x: 10 y: 0)",
+      "line AB = segment(start: A end: B)",
+      "line Off = offset(sources: [AB] distance: 3 side: right closed: false)"
+    ].join("\n");
+    const { elements, statementRanges, printLayouts, printLayoutRanges } = identities(source);
+    const abId = elements.find((element) => element.type === "line" && element.name === "AB")!.id;
+    const parent = document.createElement("div");
+    document.body.append(parent);
+
+    const view = new EditorView({
+      state: EditorState.create({
+        doc: source,
+        extensions: [
+          dslAutocompleteExtension({
+            elements: () => elements,
+            statementRanges: () => statementRanges,
+            printLayouts: () => printLayouts,
+            printLayoutRanges: () => printLayoutRanges,
+            isComposing: () => false,
+            computedVariables: () => undefined,
+            computedGeometry: () => new Map(),
+            effectiveEnabledElementIds: () => new Set([abId]),
+            evaluationErrors: () => [],
+            bindingAnalysis: () => undefined,
+            typedDeclarationRanges: () => new Map(),
+            scopeBodyRanges: () => [],
+            statementInfoByElementId: () => undefined
+          })
+        ]
+      }),
+      parent
+    });
+
+    const rightStart = source.indexOf("right");
+    const rightEnd = rightStart + "right".length;
+    view.dispatch({
+      changes: { from: rightStart, to: rightEnd },
+      selection: { anchor: rightStart },
+      annotations: Transaction.userEvent.of("delete.selection")
+    });
+    // The delete transaction itself lands the cursor exactly where "right"
+    // used to start - inside the two-space gap left behind, one character
+    // past the gap's own start (right after the colon). This is the cursor
+    // position the real regression depends on.
+    expect(view.state.doc.toString().slice(rightStart - 6, rightStart + 8)).toBe("side:  closed:");
+    expect(view.state.selection.main.head).toBe(rightStart);
+
+    startCompletion(view);
+    await expect.poll(() => completionStatus(view.state), { timeout: 1000, interval: 20 }).toBe("active");
+    const emptyLabels = currentCompletions(view.state).map((option) => option.label);
+    expect(emptyLabels).toEqual(["right", "left"]);
+    for (const generic of ["color", "enable", "state", "steps", "vars", "visible"]) {
+      expect(emptyLabels).not.toContain(generic);
+    }
+
+    // Typing "r" narrows to "right" only.
+    view.dispatch({
+      changes: { from: rightStart, insert: "r" },
+      selection: { anchor: rightStart + 1 },
+      annotations: Transaction.userEvent.of("input.type")
+    });
+    await expect.poll(() => completionStatus(view.state), { timeout: 1000, interval: 20 }).toBe("active");
+    expect(currentCompletions(view.state).map((option) => option.label)).toEqual(["right"]);
+
+    // Clear back to empty, then typing "l" narrows to "left" only.
+    view.dispatch({
+      changes: { from: rightStart, to: rightStart + 1 },
+      selection: { anchor: rightStart },
+      annotations: Transaction.userEvent.of("delete.selection")
+    });
+    startCompletion(view);
+    await expect.poll(() => completionStatus(view.state), { timeout: 1000, interval: 20 }).toBe("active");
+    view.dispatch({
+      changes: { from: rightStart, insert: "l" },
+      selection: { anchor: rightStart + 1 },
+      annotations: Transaction.userEvent.of("input.type")
+    });
+    await expect.poll(() => completionStatus(view.state), { timeout: 1000, interval: 20 }).toBe("active");
+    expect(currentCompletions(view.state).map((option) => option.label)).toEqual(["left"]);
+
+    const leftOption = currentCompletions(view.state).find((option) => option.label === "left")!;
+    view.dispatch({
+      changes: { from: rightStart, to: rightStart + 1, insert: typeof leftOption.apply === "string" ? leftOption.apply : "left" }
+    });
+    const applied = view.state.doc.toString();
+    expect(applied).toBe(
+      "nui 3\n" +
+      "point A = coordinate(x: 0 y: 0)\n" +
+      "point B = coordinate(x: 10 y: 0)\n" +
+      "line AB = segment(start: A end: B)\n" +
+      "line Off = offset(sources: [AB] distance: 3 side: left closed: false)"
+    );
+    expect(parseDsl(applied).diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+
+    view.destroy();
+    parent.remove();
+  });
+
+  it("does not regress @length / @AB.length numeric-attribute completion (kept alongside the choice fix as a boundary check)", async () => {
+    const source = [
+      "nui 3",
+      "point A = coordinate(x: 0 y: 0)",
+      "point B = coordinate(x: 10 y: 0)",
+      "line AB = segment(start: A end: B)",
+      "point C = coordinate(x: 0 y: 0)"
+    ].join("\n");
+    const { elements, statementRanges, printLayouts, printLayoutRanges } = identities(source);
+    const abId = elements.find((element) => element.type === "line" && element.name === "AB")!.id;
+    const computedGeometry = new Map([[abId, {
+      kind: "line" as const,
+      elementId: abId,
+      name: "AB",
+      startPointId: null,
+      endPointId: null,
+      start: { kind: "point" as const, elementId: "a", name: "A", x: 0, y: 0 },
+      end: { kind: "point" as const, elementId: "b", name: "B", x: 10, y: 0 },
+      length: 10,
+      startAngleDeg: 0,
+      endAngleDeg: 0,
+      startTangentAngleDeg: 0,
+      endTangentAngleDeg: 0
+    }]]);
+    const parent = document.createElement("div");
+    document.body.append(parent);
+    const xInsertPos = source.indexOf("point C") + "point C = coordinate(x: ".length;
+
+    const view = new EditorView({
+      state: EditorState.create({
+        doc: source,
+        selection: EditorSelection.cursor(xInsertPos),
+        extensions: [
+          dslAutocompleteExtension({
+            elements: () => elements,
+            statementRanges: () => statementRanges,
+            printLayouts: () => printLayouts,
+            printLayoutRanges: () => printLayoutRanges,
+            isComposing: () => false,
+            computedVariables: () => undefined,
+            computedGeometry: () => computedGeometry,
+            effectiveEnabledElementIds: () => new Set([abId]),
+            evaluationErrors: () => [],
+            bindingAnalysis: () => undefined,
+            typedDeclarationRanges: () => new Map(),
+            scopeBodyRanges: () => [],
+            statementInfoByElementId: () => undefined
+          })
+        ]
+      }),
+      parent
+    });
+
+    view.dispatch({
+      changes: { from: xInsertPos, insert: "@AB." },
+      selection: { anchor: xInsertPos + 4 },
+      annotations: Transaction.userEvent.of("input.type")
+    });
+    await expect.poll(() => completionStatus(view.state), { timeout: 1000, interval: 20 }).toBe("active");
+    expect(currentCompletions(view.state).map((option) => option.label)).toContain("length");
+
+    view.destroy();
+    parent.remove();
+  });
+});
+
 describe("typed value completion (Task 39)", () => {
   /** Typed declarations/set statements need reconciler-issued statement
    * identity to appear in bindingAnalysis at all - assigns a fresh stable id

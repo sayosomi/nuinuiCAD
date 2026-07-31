@@ -102,6 +102,7 @@ const attrsFromArgs = (args: readonly ScannedArg[]): DslAttribute[] =>
     keyStart: arg.keySpan.start,
     valueStart: arg.valueSpan.start,
     valueEnd: arg.valueSpan.end,
+    ...(arg.rawValueSpan ? { rawValueSpan: arg.rawValueSpan } : {}),
   }] : []);
 
 const diagnostic = (diagnostics: DslCallDiagnostic[], message: string, span: DslSpan, code?: string) =>

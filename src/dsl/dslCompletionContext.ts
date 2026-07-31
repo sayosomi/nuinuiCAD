@@ -270,6 +270,10 @@ const referenceCompletionSpan = (
   span: DslLabeledValueSpan,
   kind: DslCompletionParameter["definition"]["kind"]
 ) => {
+  // An empty value has no already-typed prefix to replace - `span.start` is
+  // only the trimmed (possibly collapsed-past-`pos`) span's edge here, not a
+  // real prefix boundary. Insert at the cursor instead.
+  if (span.start === span.end) return { from: pos, to: pos };
   if (kind !== "lineReferenceList" || code[span.start] !== "[" || code[span.end - 1] !== "]") {
     return { from: span.start, to: pos };
   }
@@ -325,7 +329,14 @@ export const dslCompletionContextAt = (lineText: string, pos: number, majorVersi
   const elementType = statement ? dslStatementElementType(statement) : null;
   if (!statement || !elementType) return dslPrintLayoutCompletionContextAt(code, pos, lineText, majorVersion);
   const metadata = dslCompletionMetadataForType(elementType);
-  const span = dslLineLabeledValueSpans(lineText).find((item) => pos >= item.start && pos <= item.end);
+  // Same rawValueSpan fallback as dslCallCompletionContextAt's own
+  // containment check (dslCallCompletionContext.ts): an empty value's
+  // trimmed span can collapse past `pos`, so a zero-length span is matched
+  // via its untrimmed raw gap instead.
+  const span = dslLineLabeledValueSpans(lineText).find((item) => {
+    const bounds = item.start === item.end && item.rawValueSpan ? item.rawValueSpan : item;
+    return pos >= bounds.start && pos <= bounds.end;
+  });
   if (span) {
     if (span.source === "attr" && span.key === dslVarsAttributeParameterKey) {
       return dslVarsFieldCompletionContext(code, pos, span, majorVersion);
@@ -349,7 +360,10 @@ export const dslCompletionContextAt = (lineText: string, pos: number, majorVersi
     }
     if (parameter.definition.kind === "reference") {
       const coordinateContext = dslCoordinateLiteralCompletionContext(code, pos, span, parameter, majorVersion);
-      return coordinateContext !== undefined ? coordinateContext : { kind: "parameter", from: span.start, to: pos, parameter };
+      if (coordinateContext !== undefined) return coordinateContext;
+      // See referenceCompletionSpan's matching comment: an empty value has
+      // no typed prefix at `span.start` to replace.
+      return { kind: "parameter", from: span.start === span.end ? pos : span.start, to: pos, parameter };
     }
     const scalarContext = scalarPropertyOrHoleCompletionContext(code, pos, span, parameter);
     if (scalarContext) return scalarContext;

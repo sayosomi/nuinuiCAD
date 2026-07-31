@@ -124,6 +124,28 @@ describe("dslLineValueSpans", () => {
     expect(dslLineValueSpans(source)).toEqual([]);
   });
 
+  it("still returns other attributes' spans when the only error is a missing-value diagnostic", () => {
+    // Contrast with "returns no spans for a line whose parse produced an
+    // error diagnostic" above: a genuinely empty (mid-edit) attribute value
+    // is structurally sound, unlike those genuine syntax errors, so it must
+    // not blank out the whole line's spans - otherwise completion could
+    // never resolve the very attribute being edited (Task 51 manual E2E
+    // rerun regression).
+    const source = "line Off = offset(sources: [AB] distance: 3 side:  closed: false)";
+    const { diagnostics } = parseDsl(source);
+    expect(diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toHaveLength(1);
+    expect(diagnostics[0].message).toContain("値がありません");
+
+    const labeled = dslLineLabeledValueSpans(source);
+    expect(labeled.map((span) => span.key)).toEqual(
+      expect.arrayContaining(["sources", "distance", "side", "closed"])
+    );
+    const sideSpan = labeled.find((span) => span.key === "side");
+    expect(sideSpan?.start).toBe(sideSpan?.end);
+    expect(sideSpan?.rawValueSpan).toBeDefined();
+    expect(textOf(source, sideSpan!.rawValueSpan!)).toBe("  ");
+  });
+
   it("does not select comment text following a value", () => {
     const source = "point A = coordinate(x: 0 y: 10) # trailing comment";
     const spans = dslLineValueSpans(source);

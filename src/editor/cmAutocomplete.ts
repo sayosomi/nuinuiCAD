@@ -553,7 +553,16 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
       ? asScalarCompletions(setRhsScalarCandidates(input.lineText, completionContext.expressionSpan, input.localPos, target.type, deps))
       : [];
   } else if (completionContext.parameter.definition.kind === "choice") {
-    completions = (completionContext.parameter.definition.choiceOptions ?? []).map((label) => ({ label, type: "enum" }));
+    // `sortText` only breaks ties among equally-scored matches (CodeMirror's
+    // default compareCompletions falls back to alphabetical-by-label
+    // otherwise, e.g. "left" before "right"), so declared order wins
+    // whenever nothing has been typed yet without disturbing real
+    // fuzzy-match ranking once the user starts narrowing.
+    completions = (completionContext.parameter.definition.choiceOptions ?? []).map((label, index) => ({
+      label,
+      type: "enum",
+      sortText: String(index).padStart(4, "0")
+    }));
   } else if (completionContext.parameter.key === dslVarsAttributeParameterKey) {
     const statementElementIds = statementElementIdsByLiveLine(input.doc, options.statementRanges());
     completions = asVariableCompletions(dslLocalVariableCompletionOptions({

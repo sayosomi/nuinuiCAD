@@ -60,15 +60,47 @@ describe("scanCallArgs", () => {
     const result = scan(source);
 
     expect(result.args.map((arg) => [arg.key, arg.value])).toEqual([["x", ""], ["y", "2"], ["z", "3"]]);
+    // The single mandatory separator space is x's whole raw gap here, so
+    // rawValueSpan and the trimmed (collapsed) valueSpan coincide.
+    expect(result.args[0]).toEqual({
+      key: "x",
+      keySpan: spanOf(source, "x"),
+      value: "",
+      valueSpan: { start: source.indexOf("y:"), end: source.indexOf("y:") },
+      rawValueSpan: { start: source.indexOf("y:") - 1, end: source.indexOf("y:") },
+    });
     expect(result.errors).toEqual([
       {
         message: "引数「x」の値がありません。",
         span: { start: source.indexOf("y:"), end: source.indexOf("y:") },
+        code: "missing-attribute-value",
       },
       {
         message: "引数「z」の「:」の後には空白が必要です。",
         span: { start: source.indexOf("z:") + 1, end: source.indexOf("z:") + 2 },
       },
     ]);
+  });
+
+  it("keeps the full untrimmed gap as rawValueSpan when an empty value has more than one separating space", () => {
+    // Mirrors deleting a value that had its own leading+trailing space
+    // (e.g. "side: @side closed:" -> "side:  closed:"): two whitespace
+    // characters remain between the colon and the next key.
+    const source = "call(x:  y: 2)";
+    const result = scan(source);
+    const rawStart = source.indexOf(":", source.indexOf("x")) + 1;
+    const rawEnd = source.indexOf("y:");
+
+    expect(rawEnd - rawStart).toBe(2);
+    expect(result.args[0]).toEqual({
+      key: "x",
+      keySpan: spanOf(source, "x"),
+      value: "",
+      // trimSpan still collapses the trimmed span to the gap's far edge...
+      valueSpan: { start: rawEnd, end: rawEnd },
+      // ...but rawValueSpan preserves the whole untrimmed gap, including the
+      // position right after the colon where a deleted value's cursor sits.
+      rawValueSpan: { start: rawStart, end: rawEnd },
+    });
   });
 });
