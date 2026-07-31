@@ -1,6 +1,7 @@
 import { completionStatus } from "@codemirror/autocomplete";
-import { Transaction, type Extension } from "@codemirror/state";
+import type { Extension } from "@codemirror/state";
 import { EditorView, ViewPlugin } from "@codemirror/view";
+import { dispatchCompletionRetryTransaction } from "./cmCompletionRetryTransaction";
 
 type CompositionCompletionRetryOptions = {
   isComposing: () => boolean;
@@ -30,7 +31,7 @@ export const cmCompositionCompletionRetry = (options: CompositionCompletionRetry
       if (!this.changed || options.isComposing() || this.view.compositionStarted) return;
       this.changed = false;
       if (completionStatus(this.view.state) !== null || !options.isRetryContext(this.view)) return;
-      this.view.dispatch({ annotations: Transaction.userEvent.of("input.type") });
+      dispatchCompletionRetryTransaction(this.view);
     };
   }, {
     eventHandlers: {

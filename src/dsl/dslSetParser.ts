@@ -33,6 +33,7 @@ export type DslSetParseResult = {
 };
 
 const leadingIdentifier = /^[A-Za-z_][A-Za-z0-9_]*/;
+const leadingWhitespace = /^\s*/;
 const whitespace = /\s/;
 
 const trimSpan = (source: string, start: number, end: number): DslSpan => {
@@ -77,11 +78,21 @@ const parseName = (source: string, span: DslSpan): { name: string; nameSpan: Dsl
 
 export const parseDslSetStatement = (logicalText: string): DslSetParseResult => {
   const diagnostics: DslSetParseDiagnostic[] = [];
-  const keyword = leadingIdentifier.exec(logicalText)?.[0];
+  // Tolerates leading indentation: the completion pipeline's own
+  // defaultDocumentInput (src/editor/cmAutocomplete.ts) falls back to the
+  // raw physical line - indentation and all - whenever a cursor sitting in
+  // a statement's trimmed-away trailing whitespace (e.g. right after "set "
+  // with nothing typed yet) can't be projected back through
+  // logicalStatementSourceMap.ts's own logical text. The main document
+  // compiler (dslParser.ts's parseLine) already strips leading indentation
+  // itself before calling this parser, so this only ever adds tolerance -
+  // it never changes what a normal compile sees.
+  const keywordStart = leadingWhitespace.exec(logicalText)![0].length;
+  const keyword = leadingIdentifier.exec(logicalText.slice(keywordStart))?.[0];
   if (keyword !== "set") return { statement: null, diagnostics };
 
-  const keywordSpan: DslSpan = { start: 0, end: keyword.length };
-  const rest = trimSpan(logicalText, keyword.length, logicalText.length);
+  const keywordSpan: DslSpan = { start: keywordStart, end: keywordStart + keyword.length };
+  const rest = trimSpan(logicalText, keywordSpan.end, logicalText.length);
 
   const equals = topLevelEquals(logicalText, rest.start, rest.end);
 

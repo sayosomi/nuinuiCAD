@@ -9,7 +9,7 @@ import {
   type CompletionSource
 } from "@codemirror/autocomplete";
 import { Prec, type Extension, type Text } from "@codemirror/state";
-import { keymap, type Command } from "@codemirror/view";
+import { keymap, type Command, type EditorView } from "@codemirror/view";
 import { dslCompletionContextAt, dslIntermediatesAttributeParameterKey, dslVarsAttributeParameterKey, type DslCompletionContext } from "../dsl/dslCompletionContext";
 import { dslStatementElementType } from "../dsl/dslCompletionMetadata";
 import { argumentCompletionCandidates, constructionCompletionCandidates } from "../dsl/dslCallCompletionCandidates";
@@ -46,6 +46,7 @@ import {
 import { setRhsScalarCandidates, setTargetCandidates, type SetCompletionSiteDeps, type SetTargetCandidate } from "../scalars/setCompletionCandidates";
 import { visibleTypedBindingsAtLivePosition } from "../scalars/liveTypedBindingVisibility";
 import { cmCompositionCompletionRetry } from "./cmCompositionCompletionRetry";
+import { cmDeleteCompletionRetry } from "./cmDeleteCompletionRetry";
 
 export type DslAutocompleteDocumentInput = {
   source: string;
@@ -479,6 +480,30 @@ export const isElementParameterRetryContext = (options: DslAutocompleteOptions, 
   }).length > 0;
 };
 
+/**
+ * Task 51 rerun: whether the production completion source itself would
+ * offer at least one candidate, non-explicitly, at `pos` right now. Used by
+ * cmDeleteCompletionRetry.ts to decide whether a delete-shaped transaction
+ * that left completion inactive is worth re-querying for - deliberately
+ * context-kind-agnostic (setTarget, choice, typed binding, element
+ * property, template hole all resolve through this exact same
+ * createDslCompletionSource call), unlike isTypedReferenceRetryContext/
+ * isElementParameterRetryContext above, which each narrow to one specific
+ * kind for their own, more targeted retry mechanisms. The completion source
+ * itself never actually returns a Promise (no async work happens inside
+ * it), so this stays a thin async wrapper only to keep the call uniform for
+ * its one caller.
+ */
+export const hasImplicitCompletionCandidatesAt = async (
+  options: DslAutocompleteOptions,
+  view: EditorView,
+  pos: number
+): Promise<boolean> => {
+  const context = new CompletionContext(view.state, pos, false, view);
+  const result = await createDslCompletionSource(options)(context);
+  return result !== null && result.options.length > 0;
+};
+
 export const createDslCompletionSource = (options: DslAutocompleteOptions): CompletionSource => (context) => {
   if (options.isComposing() || context.view?.compositionStarted) return null;
   const { input, projection } = completionDocumentInput(options, context);
@@ -723,6 +748,10 @@ export const dslAutocompleteExtension = (options: DslAutocompleteOptions): Exten
     cmCompositionCompletionRetry({
       isComposing: options.isComposing,
       isRetryContext: (view) => isTypedReferenceRetryContext(options, view)
+    }),
+    cmDeleteCompletionRetry({
+      isComposing: options.isComposing,
+      hasImplicitCandidatesAt: (view, pos) => hasImplicitCompletionCandidatesAt(options, view, pos)
     }),
     Prec.highest(keymap.of([
       { key: "Ctrl-Space", run: guarded(startCompletion) },

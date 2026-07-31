@@ -2114,3 +2114,259 @@ describe("set target/rhs completion (Task 40)", () => {
     });
   });
 });
+
+describe("set target completion via natural typing (Task 51 manual E2E rerun)", () => {
+  it("opens from a real Space keystroke that first closes the keyword popup via the Space keymap, then re-triggers from the actual space insertion", async () => {
+    // Regression coverage for a real manual E2E report: typing "set " (0
+    // characters typed after the space) inside a nested if/else scope never
+    // opened the target-name popup. Every existing "set target/rhs
+    // completion (Task 40)" test above calls createDslCompletionSource
+    // directly with explicit: true, which can't distinguish an
+    // implicit-typing gate bug from a working completion source (same class
+    // of gap as the `64f473c` elementParameter regression documented above
+    // at "shows a real, visible completion tooltip..."). Space adds one more
+    // wrinkle beyond that precedent: it is the one character here
+    // intercepted by dslAutocompleteExtension's own Prec.highest "Space"
+    // keymap (dismissCompletionForSpace) before any character is inserted,
+    // so a test that skips straight to dispatching the post-insertion
+    // transaction would never actually exercise that keymap path. This test
+    // drives the real two-step sequence instead: a genuine DOM keydown for
+    // Space (running the actual keymap command, which closes the open
+    // keyword popup and returns false), then the separate input.type
+    // transaction that stands in for the browser's own character insertion.
+    const committedSource = [
+      "nui 3",
+      "let flag: boolean = true",
+      "let total: number = 0",
+      "let show: boolean = false",
+      "const limit: number = 10",
+      "if Branch (@flag) {",
+      "} else {",
+      "",
+      "}"
+    ].join("\n");
+    const statements = parseDsl(committedSource).statements;
+    const assignedStatementIds = new Map(statements.map((_, index) => [index, `stable-${index}`]));
+    const compiled = compileDslDocument(committedSource, { assignedStatementIds });
+    expect(compiled.document).not.toBeNull();
+    expect(compiled.statementMap).not.toBeNull();
+    expect(compiled.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
+
+    const committedDoc = EditorState.create({ doc: committedSource }).doc;
+    let liveTypedDeclarationRanges = createTypedDeclarationRangeIndex(committedDoc, compiled.statementMap!);
+    let liveScopeBodyRanges = compiled.bindingAnalysis
+      ? createScopeBodyRangeIndex(committedDoc, compiled.statementMap!, compiled.bindingAnalysis.catalog.scopeIndex)
+      : [];
+
+    const insertPos = committedDoc.line(8).from; // the blank line inside the else block
+    const parent = document.createElement("div");
+    document.body.append(parent);
+    const view = new EditorView({
+      state: EditorState.create({
+        doc: committedSource,
+        selection: EditorSelection.cursor(insertPos),
+        extensions: [
+          dslAutocompleteExtension({
+            elements: () => [],
+            statementRanges: () => new Map(),
+            printLayouts: () => [],
+            printLayoutRanges: () => new Map(),
+            isComposing: () => false,
+            computedVariables: () => undefined,
+            computedGeometry: () => undefined,
+            effectiveEnabledElementIds: () => undefined,
+            evaluationErrors: () => undefined,
+            bindingAnalysis: () => compiled.bindingAnalysis,
+            typedDeclarationRanges: () => liveTypedDeclarationRanges,
+            scopeBodyRanges: () => liveScopeBodyRanges,
+            statementInfoByElementId: () => undefined
+          }),
+          // Mirrors sourceEditorController.ts's own handleViewUpdate: every
+          // doc-changing transaction incrementally maps the live Tier B
+          // indices forward, never rebuilding them from a fresh compile.
+          EditorView.updateListener.of((update) => {
+            if (!update.docChanged) return;
+            liveTypedDeclarationRanges = mapTypedDeclarationRangeIndex(liveTypedDeclarationRanges, update.changes);
+            liveScopeBodyRanges = mapScopeBodyRangeIndex(liveScopeBodyRanges, update.changes);
+          })
+        ]
+      }),
+      parent
+    });
+
+    // Natural typing: "set" first - no custom keymap intercepts ordinary
+    // letters, so a direct input.type dispatch is faithful here (matching
+    // the existing elementParameter regression test's own convention).
+    view.dispatch({
+      changes: { from: insertPos, insert: "set" },
+      selection: { anchor: insertPos + 3 },
+      annotations: Transaction.userEvent.of("input.type")
+    });
+    await expect.poll(() => completionStatus(view.state), { timeout: 1000, interval: 20 }).toBe("active");
+    expect(currentCompletions(view.state).map((option) => option.label)).toContain("set");
+
+    // The real Space keystroke: a genuine DOM KeyboardEvent, so
+    // dslAutocompleteExtension's own Prec.highest "Space" keymap command
+    // (dismissCompletionForSpace) actually runs and closes the keyword
+    // popup - not a hand-built transaction that bypasses the keymap layer.
+    const notPrevented = fireEvent.keyDown(view.contentDOM, { key: " ", code: "Space" });
+    expect(notPrevented).toBe(true); // the command returned false: it never consumes Space itself.
+    await expect.poll(() => completionStatus(view.state), { timeout: 1000, interval: 20 }).toBeNull();
+
+    // The keymap command deliberately left Space unconsumed so "CodeMirror/
+    // the browser" can insert it - jsdom has no native contentEditable
+    // insertion pipeline to fall through to here, so the actual space
+    // character is dispatched next as its own separate input.type
+    // transaction, exactly mirroring what CodeMirror's real DOM
+    // input-observer would produce once a real browser inserts it.
+    view.dispatch({
+      changes: { from: insertPos + 3, insert: " " },
+      selection: { anchor: insertPos + 4 },
+      annotations: Transaction.userEvent.of("input.type")
+    });
+
+    // No further input: the setTarget popup must reopen on its own.
+    await expect.poll(() => completionStatus(view.state), { timeout: 1000, interval: 20 }).toBe("active");
+    expect(parent.querySelectorAll(".cm-tooltip-autocomplete").length).toBe(1);
+    const labels = currentCompletions(view.state).map((option) => option.label);
+    expect(labels).toEqual(expect.arrayContaining(["flag", "total", "show"]));
+    expect(labels).not.toContain("limit");
+    expect(currentCompletions(view.state).every((option) => option.apply === option.label)).toBe(true);
+
+    // Narrows correctly as more of the target name is typed.
+    const afterSpacePos = insertPos + 4;
+    view.dispatch({
+      changes: { from: afterSpacePos, insert: "t" },
+      selection: { anchor: afterSpacePos + 1 },
+      annotations: Transaction.userEvent.of("input.type")
+    });
+    await expect.poll(
+      () => (completionStatus(view.state) === "active" ? currentCompletions(view.state).map((option) => option.label).join(",") : null),
+      { timeout: 1000, interval: 20 }
+    ).toBe("total");
+
+    view.destroy();
+    parent.remove();
+  });
+});
+
+describe("set target completion after a real delete transaction (Task 51 manual E2E rerun)", () => {
+  // The actual manual repro was never character-by-character typing into a
+  // blank line: an existing "set total = 99" line was duplicated, then the
+  // duplicate's "total = 99" was selected and deleted, landing the cursor at
+  // "set |" via a delete transaction - never an input.type one. CodeMirror's
+  // own autocomplete update-type classification (getUpdateType,
+  // node_modules/@codemirror/autocomplete/dist/index.js) only ever sets its
+  // Activate bit for an "input.type"-tagged transaction (or, when a result is
+  // already open, narrows/survives a "delete.backward" one) - a plain delete
+  // landing on a previously-inactive completion state never schedules a new
+  // query on its own. This file already encodes that exact limitation for a
+  // different context: the "choice value completion at a zero-length value"
+  // test above deletes "right" down to empty and then has to call
+  // startCompletion(view) explicitly - CM does not reopen it by itself.
+  const buildDeleteRepro = () => {
+    const committedSource = [
+      "nui 3",
+      "let flag: boolean = true",
+      "let total: number = 0",
+      "let show: boolean = false",
+      "const limit: number = 10",
+      "if Branch (@flag) {",
+      "} else {",
+      "  set total = 99",
+      "  set total = 99",
+      "}"
+    ].join("\n");
+    const statements = parseDsl(committedSource).statements;
+    const assignedStatementIds = new Map(statements.map((_, index) => [index, `stable-${index}`]));
+    const compiled = compileDslDocument(committedSource, { assignedStatementIds });
+    expect(compiled.document).not.toBeNull();
+    expect(compiled.statementMap).not.toBeNull();
+    expect(compiled.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
+
+    const committedDoc = EditorState.create({ doc: committedSource }).doc;
+    let liveTypedDeclarationRanges = createTypedDeclarationRangeIndex(committedDoc, compiled.statementMap!);
+    let liveScopeBodyRanges = compiled.bindingAnalysis
+      ? createScopeBodyRangeIndex(committedDoc, compiled.statementMap!, compiled.bindingAnalysis.catalog.scopeIndex)
+      : [];
+
+    const parent = document.createElement("div");
+    document.body.append(parent);
+    const view = new EditorView({
+      state: EditorState.create({
+        doc: committedSource,
+        extensions: [
+          dslAutocompleteExtension({
+            elements: () => [],
+            statementRanges: () => new Map(),
+            printLayouts: () => [],
+            printLayoutRanges: () => new Map(),
+            isComposing: () => false,
+            computedVariables: () => undefined,
+            computedGeometry: () => undefined,
+            effectiveEnabledElementIds: () => undefined,
+            evaluationErrors: () => undefined,
+            bindingAnalysis: () => compiled.bindingAnalysis,
+            typedDeclarationRanges: () => liveTypedDeclarationRanges,
+            scopeBodyRanges: () => liveScopeBodyRanges,
+            statementInfoByElementId: () => undefined
+          }),
+          EditorView.updateListener.of((update) => {
+            if (!update.docChanged) return;
+            liveTypedDeclarationRanges = mapTypedDeclarationRangeIndex(liveTypedDeclarationRanges, update.changes);
+            liveScopeBodyRanges = mapScopeBodyRangeIndex(liveScopeBodyRanges, update.changes);
+          })
+        ]
+      }),
+      parent
+    });
+
+    // The second "set total = 99" is the stand-in for the duplicated line;
+    // deleting its own "total = 99" leaves "  set " with the cursor right
+    // after the trailing space, matching the real repro's "set |" state.
+    const secondSetLine = committedSource.lastIndexOf("set total = 99");
+    const deleteFrom = secondSetLine + "set ".length;
+    const deleteTo = secondSetLine + "set total = 99".length;
+    view.dispatch({
+      changes: { from: deleteFrom, to: deleteTo },
+      selection: { anchor: deleteFrom },
+      annotations: Transaction.userEvent.of("delete.selection")
+    });
+    expect(view.state.doc.toString().slice(secondSetLine, secondSetLine + 4)).toBe("set ");
+    expect(view.state.selection.main.head).toBe(deleteFrom);
+
+    return { view, parent };
+  };
+
+  it("opens automatically after the delete, with no further input and no explicit invocation", async () => {
+    const { view, parent } = buildDeleteRepro();
+
+    // No startCompletion(view) call here on purpose: the real repro never
+    // pressed Ctrl-Space, and the popup must appear on its own.
+    await expect.poll(() => completionStatus(view.state), { timeout: 500, interval: 20 }).toBe("active");
+    const labels = currentCompletions(view.state).map((option) => option.label);
+    expect(labels).toEqual(expect.arrayContaining(["flag", "total", "show"]));
+    expect(labels).not.toContain("limit");
+
+    view.destroy();
+    parent.remove();
+  });
+
+  it("sanity check: explicit startCompletion still resolves the correct candidates right after the same delete", async () => {
+    // Isolates which layer is actually broken: if this passes while the test
+    // above fails, the candidate/context computation is fine and only the
+    // automatic (non-explicit) trigger needs a fix - mirrors how the
+    // existing zero-length choice-value delete test above already relies on
+    // an explicit startCompletion(view) call after its own delete.
+    const { view, parent } = buildDeleteRepro();
+
+    startCompletion(view);
+    await expect.poll(() => completionStatus(view.state), { timeout: 500, interval: 20 }).toBe("active");
+    const labels = currentCompletions(view.state).map((option) => option.label);
+    expect(labels).toEqual(expect.arrayContaining(["flag", "total", "show"]));
+    expect(labels).not.toContain("limit");
+
+    view.destroy();
+    parent.remove();
+  });
+});
