@@ -114,6 +114,27 @@ describe("SourceEditor typed value step (Task 44)", () => {
     parent.remove();
   });
 
+  it("consumes every held numeric initializer step while preserving fixed decimal places", () => {
+    const source = ["nui 3", "const length: number = 12.3400"].join("\n");
+    const { controller, parent, view } = openEditor(source);
+
+    selectToken(view, "12.3400");
+    expect(fireEvent.keyDown(view.contentDOM, stepEvent(1))).toBe(false);
+    expect(selectedText(view)).toBe("13.3400");
+    const step = vi.spyOn(controller as unknown as ControllerInternals, "stepSourceValue");
+    expect(fireEvent.keyDown(view.contentDOM, stepEvent(1, true))).toBe(false);
+    expect(step).toHaveLastReturnedWith(true);
+    expect(selectedText(view)).toBe("14.3400");
+    expect(fireEvent.keyDown(view.contentDOM, stepEvent(1, true))).toBe(false);
+    expect(step).toHaveLastReturnedWith(true);
+    expect(selectedText(view)).toBe("15.3400");
+
+    fireEvent.keyUp(view.contentDOM, stepEvent(1));
+    expect(useCadDocumentStore.getState().sourceText).toContain("length: number = 15.3400");
+    controller.destroy();
+    parent.remove();
+  });
+
   it("steps a `set` statement's boolean/choice RHS via the target binding's resolved declared type", () => {
     const booleanSource = ["nui 3", "let flag: boolean = true", "set flag = true"].join("\n");
     const { controller: booleanController, parent: booleanParent, view: booleanView } = openEditor(booleanSource);

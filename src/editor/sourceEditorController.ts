@@ -241,6 +241,14 @@ export class SourceEditorController implements SourceEditorHandle {
   private activeValueStepGesture: SourceEditorValueStepGesture | null = null;
   /** Set by the DOM observer, then consumed by the registry keymap's command dispatch. */
   private pendingKeyboardValueStep: SourceEditorValueStepGesture | null = null;
+  /** A controller-authored typed initializer edit may repeat before a new compile rebuilds semantic spans. */
+  private repeatingTypedInitializerStep: {
+    bindingId: BindingId;
+    span: { from: number; to: number };
+    declaredType: ScalarType | null;
+    options: TypedValueStepOptions;
+  } | null = null;
+  private applyingTypedInitializerStep = false;
   private destroyed = false;
   private view: EditorView;
 
@@ -833,6 +841,19 @@ export class SourceEditorController implements SourceEditorHandle {
    * every lookup is an existing O(1) map already rebuilt on compile.
    */
   private stepTypedSourceValue(direction: DslValueStepDirection, main: { from: number; to: number }): boolean {
+    const repeating = this.repeatingTypedInitializerStep;
+    if (repeating && this.activeValueStepGesture) {
+      if (main.from >= repeating.span.from && main.to <= repeating.span.to) {
+        return this.stepTypedDeclarationInitializer(
+          repeating.bindingId,
+          repeating.span,
+          repeating.declaredType,
+          { start: main.from, end: main.to },
+          direction,
+          repeating.options
+        );
+      }
+    }
     if (!this.typedSemanticMetadataFresh) return false;
     const doc = this.store.getState().doc;
     const selection = { start: main.from, end: main.to };
@@ -842,7 +863,7 @@ export class SourceEditorController implements SourceEditorHandle {
       const span = this.typedDeclarationFieldRanges.get(bindingId)?.initializer;
       if (span && main.from >= span.from && main.from <= span.to) {
         const declaredType = doc.bindingAnalysis?.catalog.bindingsById.get(bindingId)?.declaredType ?? null;
-        return this.stepTypedSpan(span, declaredType, selection, direction, { numericStep: defaultNumericParameterStep });
+        return this.stepTypedDeclarationInitializer(bindingId, span, declaredType, selection, direction, { numericStep: defaultNumericParameterStep });
       }
       return false;
     }
@@ -860,6 +881,33 @@ export class SourceEditorController implements SourceEditorHandle {
       }
     }
     return false;
+  }
+
+  /** Preserves only a controller-authored declaration initializer target across held-key repeats. */
+  private stepTypedDeclarationInitializer(
+    bindingId: BindingId,
+    span: { from: number; to: number },
+    declaredType: ScalarType | null,
+    selection: { start: number; end: number },
+    direction: DslValueStepDirection,
+    options: TypedValueStepOptions
+  ): boolean {
+    const lengthBefore = this.view.state.doc.length;
+    this.applyingTypedInitializerStep = true;
+    try {
+      const handled = this.stepTypedSpan(span, declaredType, selection, direction, options);
+      if (handled && this.activeValueStepGesture) {
+        this.repeatingTypedInitializerStep = {
+          bindingId,
+          span: { from: span.from, to: span.to + this.view.state.doc.length - lengthBefore },
+          declaredType,
+          options
+        };
+      }
+      return handled;
+    } finally {
+      this.applyingTypedInitializerStep = false;
+    }
   }
 
   /** Resolves and commits one typed literal step for a span already
@@ -1310,6 +1358,7 @@ export class SourceEditorController implements SourceEditorHandle {
     if (this.destroyed) return "clean";
     this.activeValueStepGesture = null;
     this.pendingKeyboardValueStep = null;
+    this.repeatingTypedInitializerStep = null;
     if (!this.hasPendingText()) {
       this.store.getState().setSourceEditorPreviewText(null);
       return "clean";
@@ -1443,6 +1492,7 @@ export class SourceEditorController implements SourceEditorHandle {
       // metadata currency immediately; only a fresh compile (refreshStatementRanges)
       // proves doc.bindingAnalysis/doc.setStatements describe this exact buffer again.
       this.typedSemanticMetadataFresh = false;
+      if (!this.applyingTypedInitializerStep) this.repeatingTypedInitializerStep = null;
       this.statementRanges = mapStatementRangeIndex(this.statementRanges, update.changes);
       this.printLayoutRanges = mapPrintLayoutRangeIndex(this.printLayoutRanges, update.changes);
       this.typedDeclarationRanges = mapTypedDeclarationRangeIndex(this.typedDeclarationRanges, update.changes);
