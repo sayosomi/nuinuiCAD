@@ -3,7 +3,10 @@ import { compileCanonicalText, regenerateCanonicalFromModel, type LastGoodDslDoc
 import { emptyDocument } from "../dsl/dslDocumentTestUtils";
 import { canUseRustEvaluationForElements } from "./evaluationEngine";
 import { evaluateElements, type EvaluateElementsOptions } from "./evaluate";
-import { buildConditionalGroupConditionsByElementId } from "./controlBooleanRuntime";
+import {
+  buildConditionalGroupConditionsByElementId,
+  buildControlBooleanRuntimeEntries
+} from "./controlBooleanRuntime";
 import { buildConditionalMutationOwners, conditionalOwnerIdByElementId } from "../scalars/conditionalMutationControl";
 import { buildForGroupMutationOwners, forGroupMutationOwnerByElementId } from "../scalars/forGroupMutationControl";
 import { buildTextTemplateEntriesByElementId } from "./textTemplateRuntime";
@@ -44,6 +47,13 @@ const optionsFor = (compiled: LastGoodDslDocument): EvaluateElementsOptions => {
       compiled.conditionalGroupConditions ?? new Map(),
       compiled.statementMap.elementIdByStatementIndex
     ),
+    controlBooleanEntries: buildControlBooleanRuntimeEntries(
+      {
+        propertyBindings: compiled.propertyBindings ?? new Map(),
+        elementIdByStatementIndex: compiled.statementMap.elementIdByStatementIndex
+      },
+      compiled.document.elements
+    ),
     ...(textTemplateEntriesByElementId?.size ? { textTemplateEntriesByElementId } : {})
   };
 };
@@ -55,6 +65,48 @@ const elementId = (compiled: LastGoodDslDocument, name: string): string => {
 };
 
 describe("Task 31 linear mutation production wiring", () => {
+  it("keeps hidden generated metadata and mutation carry while removing generated clones from the draw mask", () => {
+    const compiled = compileCanonical([
+      "nui 3",
+      "let flag: boolean = true",
+      "let total: number = 0",
+      "let show: boolean = false",
+      "if Branch (@flag) {",
+      "  set total = @total + 3",
+      "} else {",
+      "  set total = 99",
+      "}",
+      "point A = coordinate(x: 0 y: 0)",
+      "point B = coordinate(x: 10 y: 0)",
+      "line AB = segment(start: A end: B)",
+      "for Loop (i from: 0 count: 2 step: 1 showGenerated: @show) {",
+      "  set total = @total + 1",
+      "  line Copy = copy(startPoint: A endPoint: B scale: 1 angleDeg: 90 mirrorX: false baseLines: [AB])",
+      "}",
+      'text Final = label(text: "{@total}" anchor: none size: 3)'
+    ].join("\n"));
+    const result = evaluateElements(compiled.document.elements, optionsFor(compiled));
+    const loopId = elementId(compiled, "Loop");
+    const copyId = elementId(compiled, "Copy");
+    const finalId = elementId(compiled, "Final");
+    const rows = (result.forGroupGeneratedRows ?? []).filter((row) => row.templateElementId === copyId);
+
+    expect(result.errors).toEqual([]);
+    expect([...result.computedScalarBindings!.values()].some((evaluation) =>
+      evaluation.status === "ok" &&
+      evaluation.value.kind === "number" &&
+      evaluation.value.value === 5
+    )).toBe(true);
+    expect(result.computedGeometry.get(finalId)).toMatchObject({ kind: "text", text: "5" });
+    expect(rows).toHaveLength(2);
+    expect(result.forGroupEffectiveShowGeneratedIds?.has(loopId)).toBe(false);
+    for (const row of rows) {
+      expect(result.computedGeometry.has(row.generatedElementId)).toBe(true);
+      expect(result.effectiveEnabledElementIds?.has(row.generatedElementId)).toBe(true);
+      expect(result.effectiveVisibleElementIds?.has(row.generatedElementId)).toBe(false);
+    }
+  });
+
   it("keeps versions before an in-loop @stop and excludes later loop work", () => {
     const compiled = compileCanonical([
       "nui 3",

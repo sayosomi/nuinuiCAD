@@ -72,6 +72,7 @@ impl<'a> ForGroupMutationRuntime<'a> {
         start: f64,
         count: usize,
         step: f64,
+        show_generated: bool,
         state: &mut EvaluationState,
     ) -> Result<ForGroupMutationRunOutcome, ForGroupMutationError> {
         let template_for_group_id = element_id(template_for_group)
@@ -96,6 +97,8 @@ impl<'a> ForGroupMutationRuntime<'a> {
         let mut expanded_iteration = None;
         let mut generated = Vec::new();
         let mut rows = Vec::new();
+        let instance_is_visible = element_id(instance_for_group)
+            .is_some_and(|id| self.effective_visible_element_ids.contains(&id));
         resolver.run_for_group(
             &template_for_group_id,
             environment,
@@ -130,12 +133,15 @@ impl<'a> ForGroupMutationRuntime<'a> {
                     template_element_id,
                     &generated,
                     &rows,
+                    show_generated,
+                    instance_is_visible,
                     state,
                 )
             },
         )
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn run_generated_statement(
         &mut self,
         resolver: &mut ScalarMutationResolver<'_>,
@@ -143,6 +149,8 @@ impl<'a> ForGroupMutationRuntime<'a> {
         template_element_id: &str,
         generated: &[(Value, ElementId)],
         rows: &[types::ForGroupGeneratedRow],
+        show_generated: bool,
+        instance_is_visible: bool,
         state: &mut EvaluationState,
     ) -> Result<ForGroupMutationRunOutcome, ForGroupMutationError> {
         let Some((mut generated_element, template_id)) = generated
@@ -162,7 +170,10 @@ impl<'a> ForGroupMutationRuntime<'a> {
         let Some(generated_id) = element_id(&generated_element) else {
             return Ok(ForGroupMutationRunOutcome::Completed);
         };
-        if self.effective_visible_element_ids.contains(&template_id) {
+        if show_generated
+            && instance_is_visible
+            && self.effective_visible_element_ids.contains(&template_id)
+        {
             self.effective_visible_element_ids
                 .push(generated_id.clone());
         }
@@ -219,7 +230,7 @@ impl<'a> ForGroupMutationRuntime<'a> {
             else {
                 return Ok(ForGroupMutationRunOutcome::Completed);
             };
-            self.record_effective_show_generated(
+            let nested_show_generated = self.record_effective_show_generated(
                 &generated_element,
                 &template_id,
                 resolver,
@@ -234,6 +245,7 @@ impl<'a> ForGroupMutationRuntime<'a> {
                 start,
                 count,
                 step,
+                nested_show_generated,
                 state,
             );
         }
@@ -363,7 +375,7 @@ impl<'a> ForGroupMutationRuntime<'a> {
         resolver: &ScalarMutationResolver<'_>,
         environment: &ForGroupMutationEnvironment<scalars::ScalarEvaluation>,
         state: &EvaluationState,
-    ) {
+    ) -> bool {
         let literal = instance_for_group
             .get("showGenerated")
             .and_then(Value::as_bool)
@@ -386,5 +398,6 @@ impl<'a> ForGroupMutationRuntime<'a> {
                 self.for_group_effective_show_generated_ids.push(id);
             }
         }
+        effective
     }
 }

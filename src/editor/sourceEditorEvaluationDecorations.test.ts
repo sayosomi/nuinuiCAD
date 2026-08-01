@@ -131,6 +131,34 @@ describe("for-group generated widget index", () => {
     expect(specs[0].afterPos).toBe(ranges.get(child.id)!.to);
     expect(specs[0].rows).toEqual(generatedRows);
   });
+
+  it("keeps generated row metadata internal when showGenerated resolves to false", () => {
+    const { doc, ranges, elements } = rangesFor(forGroupSource);
+    const forGroup = elements.find((element) => element.type === "forGroup")!;
+    const child = elements.find((element) => element.parentGroupId === forGroup.id)!;
+    const evaluation: EvaluationResult = {
+      ...baseEvaluation(elements),
+      forGroupGeneratedRows: [{
+        forGroupId: forGroup.id,
+        templateElementId: child.id,
+        generatedElementId: "gen-hidden",
+        iterationIndex: 0,
+        variableName: "i",
+        variableValue: 0,
+        elementName: "P (i=0)",
+        elementType: "freePoint"
+      }],
+      forGroupEffectiveShowGeneratedIds: new Set()
+    };
+
+    const specs = entriesInVisibleRanges(
+      indexFor(ranges, elements, evaluation, new Map([[forGroup.id, { expanded: true }]])).generatedWidgets
+        .map((spec) => ({ ...spec, from: spec.afterPos, to: spec.afterPos })),
+      [{ from: 0, to: doc.length }]
+    );
+
+    expect(specs).toEqual([]);
+  });
 });
 
 describe("pick candidate index", () => {

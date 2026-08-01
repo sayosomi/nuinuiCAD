@@ -292,6 +292,14 @@ fn production_command_runs_for_group_mutation_and_carries_the_final_slot() {
         1
     );
     assert_eq!(result.for_group_generated_rows.len(), 2);
+    assert!(result
+        .computed_geometry
+        .iter()
+        .any(|geometry| geometry["elementId"] == "template@loop:0"));
+    assert!(!result
+        .effective_visible_element_ids
+        .iter()
+        .any(|id| id == "template@loop:0"));
 }
 
 #[test]

@@ -204,8 +204,16 @@ describe("Task 25 forGroup.showGenerated, end-to-end through the real compiler",
     ].join("\n"));
     const result = evaluateElements(compiled.document.elements, optionsFor(compiled));
     expect(result.errors).toEqual([]);
-    expect(result.forGroupGeneratedRows).toHaveLength(3);
-    expect(result.forGroupEffectiveShowGeneratedIds?.has(idByName(compiled, "繰返し"))).toBe(false);
+    const loopId = idByName(compiled, "繰返し");
+    const copyId = idByName(compiled, "C");
+    const rows = result.forGroupGeneratedRows ?? [];
+    expect(rows).toHaveLength(3);
+    expect(result.forGroupEffectiveShowGeneratedIds?.has(loopId)).toBe(false);
+    for (const row of rows) {
+      expect(result.computedGeometry.has(row.generatedElementId)).toBe(true);
+      expect(result.effectiveVisibleElementIds?.has(row.generatedElementId)).toBe(false);
+      expect(row.templateElementId).toBe(copyId);
+    }
   });
 
   it("showGenerated: true (bound) is reflected in forGroupEffectiveShowGeneratedIds without affecting rows", () => {
@@ -223,6 +231,32 @@ describe("Task 25 forGroup.showGenerated, end-to-end through the real compiler",
     expect(result.errors).toEqual([]);
     expect(result.forGroupGeneratedRows).toHaveLength(3);
     expect(result.forGroupEffectiveShowGeneratedIds?.has(idByName(compiled, "繰返し"))).toBe(true);
+  });
+
+  it("an outer hidden loop removes every nested generated descendant from the draw mask", () => {
+    const compiled = compileCanonical([
+      "nui 3",
+      "let outerShown: boolean = false",
+      "let innerShown: boolean = true",
+      "for Outer (i from: 0 count: 2 step: 1 showGenerated: @outerShown) {",
+      "  for Inner (j from: 0 count: 2 step: 1 showGenerated: @innerShown) {",
+      "    point P = coordinate(x: 10 y: 20)",
+      "  }",
+      "}"
+    ].join("\n"));
+    const result = evaluateElements(compiled.document.elements, optionsFor(compiled));
+    const outerId = idByName(compiled, "Outer");
+    const pointId = idByName(compiled, "P");
+    const pointRows = (result.forGroupGeneratedRows ?? []).filter((row) => row.templateElementId === pointId);
+
+    expect(result.errors).toEqual([]);
+    expect(pointRows.length).toBeGreaterThan(0);
+    expect(result.forGroupEffectiveShowGeneratedIds?.has(outerId)).toBe(false);
+    for (const row of pointRows) {
+      expect(result.computedGeometry.has(row.generatedElementId)).toBe(true);
+      expect(result.effectiveEnabledElementIds?.has(row.generatedElementId)).toBe(true);
+      expect(result.effectiveVisibleElementIds?.has(row.generatedElementId)).toBe(false);
+    }
   });
 
   it("a poisoned showGenerated binding fails closed to hidden without affecting iteration/rows", () => {

@@ -94,6 +94,43 @@ describe("useCanvasOverlayData", () => {
     expect(result.current.overlayPointPickCandidates).toEqual([]);
   });
 
+  it("keeps showGenerated=false loop geometry out of Canvas and pick overlays while retaining evaluation metadata", () => {
+    const elements: CadElement[] = [
+      {
+        id: "loop", name: "Loop", type: "forGroup", visible: true, enabled: true,
+        variableName: "i", start: 0, count: 2, step: 1, showGenerated: false
+      },
+      {
+        id: "generated-point", name: "Generated point", type: "freePoint", visible: true, enabled: true,
+        parentGroupId: "loop", x: 10, y: 0
+      }
+    ];
+    const evaluation = evaluateElements(elements);
+    const generatedId = "generated-point@loop:0";
+    const { result } = renderHook(() => useCanvasOverlayData({
+      evaluation,
+      elements,
+      selectedElementId: null,
+      pointPickCandidates: [{
+        elementId: generatedId,
+        options: [{
+          kind: "point",
+          label: "Generated point",
+          anchor: { mode: "reference", pointId: generatedId }
+        }]
+      }],
+      viewportSize: { width: 500, height: 400 },
+      canvasViewport: DEFAULT_CANVAS_VIEWPORT,
+      documentPath: null
+    }));
+
+    expect(evaluation.computedGeometry.has(generatedId)).toBe(true);
+    expect(evaluation.forGroupGeneratedRows).toHaveLength(2);
+    expect(evaluation.effectiveVisibleElementIds?.has(generatedId)).toBe(false);
+    expect(result.current.overlayPoints.some(({ point }) => point.elementId === generatedId)).toBe(false);
+    expect(result.current.overlayPointPickCandidates).toEqual([]);
+  });
+
   it("uses evaluated document text size and Canvas zoom without a minimum-size fallback", () => {
     const elements: CadElement[] = [
       { id: "anchor", name: "Anchor", type: "freePoint", visible: true, enabled: true, x: 10, y: 20 },
