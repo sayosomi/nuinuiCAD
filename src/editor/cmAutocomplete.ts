@@ -482,9 +482,9 @@ export const dslAutocompleteExtension = (options: DslAutocompleteOptions): Exten
     // and preserves Source Editor value-span/snippet navigation.
     autocompletion({ override: [createDslCompletionSource(options)], defaultKeymap: false }),
     Prec.highest(keymap.of([
-      { key: "Ctrl-Space", run: guarded(startCompletion) },
-      { mac: "Alt-`", run: guarded(startCompletion) },
-      { mac: "Alt-i", run: guarded(startCompletion) },
+      // Avoid Ctrl-Space (input-source switching) and Option character keys:
+      // both are unreliable on macOS Japanese keyboard layouts.
+      { key: "Mod-Shift-Space", run: guarded(startCompletion) },
       { key: "Escape", run: guarded(closeCompletion) },
       { key: "ArrowDown", run: guarded(moveCompletionSelection(true)) },
       { key: "ArrowUp", run: guarded(moveCompletionSelection(false)) },
