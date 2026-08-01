@@ -114,6 +114,55 @@ describe("SourceEditor typed value step (Task 44)", () => {
     parent.remove();
   });
 
+  it("uses declaration step and bounds, including recovery from an out-of-range initializer", () => {
+    const source = [
+      "nui 3",
+      "let capped: number(step: 5, min: 0, max: 200) = 250",
+      "let floored: number(step: 5, min: 0, max: 200) = -20"
+    ].join("\n");
+    const { controller, parent, view } = openEditor(source);
+
+    selectToken(view, "250");
+    pressStep(view, 1);
+    expect(useCadDocumentStore.getState().sourceText).toContain("max: 200) = 250");
+    pressStep(view, -1);
+    expect(useCadDocumentStore.getState().sourceText).toContain("max: 200) = 200");
+    pressStep(view, 1);
+    expect(useCadDocumentStore.getState().sourceText).toContain("max: 200) = 200");
+
+    view.dispatch({ selection: EditorSelection.cursor(view.state.doc.toString().indexOf("-20") + 1) });
+    pressStep(view, -1);
+    expect(useCadDocumentStore.getState().sourceText.split("\n").at(-1)).toBe(
+      "let floored: number(step: 5, min: 0, max: 200) = -20"
+    );
+    pressStep(view, 1);
+    expect(useCadDocumentStore.getState().sourceText.split("\n").at(-1)).toBe(
+      "let floored: number(step: 5, min: 0, max: 200) = 0"
+    );
+    pressStep(view, -1);
+    expect(useCadDocumentStore.getState().sourceText.split("\n").at(-1)).toBe(
+      "let floored: number(step: 5, min: 0, max: 200) = 0"
+    );
+    controller.destroy();
+    parent.remove();
+  });
+
+  it("keeps a held out-of-range recovery and subsequent valid step as one Undo step", () => {
+    const source = ["nui 3", "let capped: number(step: 5, max: 200) = 250"].join("\n");
+    const { controller, parent, view } = openEditor(source);
+    selectToken(view, "250");
+    const pastBefore = useCadDocumentStore.getState().past.length;
+
+    fireEvent.keyDown(view.contentDOM, stepEvent(-1));
+    fireEvent.keyDown(view.contentDOM, stepEvent(-1, true));
+    fireEvent.keyUp(view.contentDOM, stepEvent(-1));
+
+    expect(useCadDocumentStore.getState().sourceText).toContain("max: 200) = 195");
+    expect(useCadDocumentStore.getState().past).toHaveLength(pastBefore + 1);
+    controller.destroy();
+    parent.remove();
+  });
+
   it("consumes every held numeric initializer step while preserving fixed decimal places", () => {
     const source = ["nui 3", "const length: number = 12.3400"].join("\n");
     const { controller, parent, view } = openEditor(source);
