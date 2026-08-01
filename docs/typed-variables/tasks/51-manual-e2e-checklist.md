@@ -181,7 +181,7 @@ Source Editor 左端の灰色 activity marker は要素の表示/評価状態を
 
 1. `nui3-declarations-templates.nui` の末尾に新しい行を追加し、
    `const x: number = @` まで入力してカーソルを止める
-   (自動候補が出ない場合は `Ctrl-Space` / macOSでは `Alt-` ` か `Alt-i`)。
+   (自動候補が出ない場合は `⌘⇧Space`)。
 2. 候補一覧に `length`(最内側で有効なbinding)が1件だけ出て、
    同名重複が無いことを確認する。
 3. `nui3-standard-properties.nui` を開き、`offset(... side: ` の直後に
@@ -430,7 +430,7 @@ Source Editor 左端の灰色 activity marker は要素の表示/評価状態を
 1. fixtureを開く。
 2. 端から端まで素早くpanする。
 3. `const offsetY`/`let counter` の行付近で入力・補完を試す
-   (`Ctrl-Space` / `Alt-` `/`Alt-i`)。
+   (`⌘⇧Space`)。
 4. 文書中の任意の点(例: `P500`)をInspectorで選択する。
 5. Task 50が記録した既存のbinding analysis/TS reference/forGroup
    performanceのbaseline(`docs/typed-variables/README.md` のTask 36/37/39
